@@ -24,17 +24,17 @@ import { SKILLS_TOUR_ANCHORS } from "./skills-tour";
 /* ── Skills 页面主编排组件 ────────────────────── */
 
 interface SkillsDirectoryProps {
-  on_replay_tour?: () => void;
+  onReplayTour?: () => void;
 }
 
-export function SkillsDirectory({ on_replay_tour: onReplayTour }: SkillsDirectoryProps) {
+export function SkillsDirectory({ onReplayTour: onReplayTour }: SkillsDirectoryProps) {
   const { t } = useI18n();
   const ctrl = useSkillMarketplace();
   const navigate = useNavigate();
   const { skill_name: skillName } = useParams<{ skill_name?: string }>();
   const openSkillPage = useCallback(
     (name: string) => {
-      navigate(AppRouteBuilders.skill_detail(name));
+      navigate(AppRouteBuilders.skillDetail(name));
     },
     [navigate],
   );
@@ -42,25 +42,25 @@ export function SkillsDirectory({ on_replay_tour: onReplayTour }: SkillsDirector
     navigate(AppRouteBuilders.skills());
   }, [navigate]);
   const handleSkillDeleted = useCallback(async () => {
-    await ctrl.refresh_marketplace();
+    await ctrl.refreshMarketplace();
     navigate(AppRouteBuilders.skills());
   }, [ctrl, navigate]);
 
   const feedbackItems: FeedbackBannerItem[] = [];
-  if (ctrl.status_message) {
+  if (ctrl.statusMessage) {
     feedbackItems.push({
       key: "status",
-      message: ctrl.status_message,
-      on_dismiss: () => ctrl.set_status_message(null),
+      message: ctrl.statusMessage,
+      onDismiss: () => ctrl.setStatusMessage(null),
       title: "操作完成",
       tone: "success",
     });
   }
-  if (ctrl.error_message) {
+  if (ctrl.errorMessage) {
     feedbackItems.push({
       key: "error",
-      message: ctrl.error_message,
-      on_dismiss: () => ctrl.set_error_message(null),
+      message: ctrl.errorMessage,
+      onDismiss: () => ctrl.setErrorMessage(null),
       title: "操作失败",
       tone: "error",
     });
@@ -75,28 +75,28 @@ export function SkillsDirectory({ on_replay_tour: onReplayTour }: SkillsDirector
         className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0];
-          if (file) void ctrl.handle_local_import(file);
+          if (file) void ctrl.handleLocalImport(file);
           e.currentTarget.value = "";
         }}
-        ref={ctrl.file_input_ref}
+        ref={ctrl.fileInputRef}
         type="file"
       />
 
       <WorkspaceSurfaceScaffold
-        body_scrollable
+        bodyScrollable
         header={(
           <div data-tour-anchor={SKILLS_TOUR_ANCHORS.header}>
-            <SkillsHeader ctrl={ctrl} on_replay_tour={onReplayTour} />
+            <SkillsHeader ctrl={ctrl} onReplayTour={onReplayTour} />
           </div>
         )}
-        stable_gutter
+        stableGutter
       >
         {skillName ? (
           <SkillDetailView
-            skill_name={skillName}
-            on_back={backToSkills}
-            on_deleted={handleSkillDeleted}
-            on_refreshed={ctrl.refresh_marketplace}
+            skillName={skillName}
+            onBack={backToSkills}
+            onDeleted={handleSkillDeleted}
+            onRefreshed={ctrl.refreshMarketplace}
           />
         ) : (
           <div className={WORKSPACE_DETAIL_PAGE_CLASS_NAME}>
@@ -114,9 +114,9 @@ export function SkillsDirectory({ on_replay_tour: onReplayTour }: SkillsDirector
             </div>
 
             <div data-tour-anchor={SKILLS_TOUR_ANCHORS.catalog}>
-              {ctrl.discovery_mode === "external" && <SkillsExternalResults ctrl={ctrl} />}
-              {ctrl.discovery_mode === "catalog" && (
-                <SkillsCatalogGrid ctrl={ctrl} on_open_skill={openSkillPage} />
+              {ctrl.discoveryMode === "external" && <SkillsExternalResults ctrl={ctrl} />}
+              {ctrl.discoveryMode === "catalog" && (
+                <SkillsCatalogGrid ctrl={ctrl} onOpenSkill={openSkillPage} />
               )}
             </div>
           </div>
@@ -128,29 +128,29 @@ export function SkillsDirectory({ on_replay_tour: onReplayTour }: SkillsDirector
       <SkillImportDialog ctrl={ctrl} />
 
       <ExternalSkillPreviewDialog
-        already_imported={
-          !!ctrl.preview_external_item &&
-          !!ctrl.imported_external_sources
-            .get(ctrl.preview_external_item.skill_slug)
-            ?.has(ctrl.preview_external_item.package_spec)
+        alreadyImported={
+          !!ctrl.previewExternalItem &&
+          !!ctrl.importedExternalSources
+            .get(ctrl.previewExternalItem.skill_slug)
+            ?.has(ctrl.previewExternalItem.package_spec)
         }
-        name_conflict={
-          !!ctrl.preview_external_item &&
-          !!ctrl.imported_external_sources.get(ctrl.preview_external_item.skill_slug) &&
-          !ctrl.imported_external_sources
-            .get(ctrl.preview_external_item.skill_slug)
-            ?.has(ctrl.preview_external_item.package_spec)
+        nameConflict={
+          !!ctrl.previewExternalItem &&
+          !!ctrl.importedExternalSources.get(ctrl.previewExternalItem.skill_slug) &&
+          !ctrl.importedExternalSources
+            .get(ctrl.previewExternalItem.skill_slug)
+            ?.has(ctrl.previewExternalItem.package_spec)
         }
         busy={
-          !!ctrl.preview_external_item &&
-          ctrl.busy_external_key === `${ctrl.preview_external_item.source_key || ctrl.preview_external_item.package_spec}@@${ctrl.preview_external_item.skill_slug}`
+          !!ctrl.previewExternalItem &&
+          ctrl.busyExternalKey === `${ctrl.previewExternalItem.source_key || ctrl.previewExternalItem.package_spec}@@${ctrl.previewExternalItem.skill_slug}`
         }
-        is_open={!!ctrl.preview_external_item}
-        item={ctrl.preview_external_item}
-        preview_loading={ctrl.external_preview_loading}
-        on_close={() => ctrl.set_preview_external_item(null)}
-        on_import_only={() => {
-          if (ctrl.preview_external_item) void ctrl.handle_import_external(ctrl.preview_external_item);
+        isOpen={!!ctrl.previewExternalItem}
+        item={ctrl.previewExternalItem}
+        previewLoading={ctrl.externalPreviewLoading}
+        onClose={() => ctrl.setPreviewExternalItem(null)}
+        onImportOnly={() => {
+          if (ctrl.previewExternalItem) void ctrl.handleImportExternal(ctrl.previewExternalItem);
         }}
       />
 

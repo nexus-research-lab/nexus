@@ -4,9 +4,9 @@
  * 对齐 capability/scheduled/tasks 的结构化自动化任务接口。
  */
 
-import { get_agent_api_base_url } from "@/config/options";
-import { request_api } from "@/lib/api/http";
-import { to_timestamp_or_null } from "@/lib/api/timestamp-utils";
+import { getAgentApiBaseUrl } from "@/config/options";
+import { requestApi } from "@/lib/api/http";
+import { toTimestampOrNull } from "@/lib/api/timestamp-utils";
 import type {
   ApiScheduledTask,
   ApiScheduledTaskDailyReport,
@@ -29,15 +29,15 @@ import type {
   UpdateScheduledTaskStatusParams,
 } from "@/types/capability/scheduled-task";
 
-const AGENT_API_BASE_URL = get_agent_api_base_url();
+const AGENT_API_BASE_URL = getAgentApiBaseUrl();
 const SCHEDULED_TASKS_API_BASE_URL = `${AGENT_API_BASE_URL}/capability/scheduled/tasks`;
 
 function transformTask(apiTask: ApiScheduledTask): ScheduledTaskItem {
   return {
     ...apiTask,
-    next_run_at: to_timestamp_or_null(apiTask.next_run_at),
-    running_started_at: to_timestamp_or_null(apiTask.running_started_at),
-    last_run_at: to_timestamp_or_null(apiTask.last_run_at),
+    next_run_at: toTimestampOrNull(apiTask.next_run_at),
+    running_started_at: toTimestampOrNull(apiTask.running_started_at),
+    last_run_at: toTimestampOrNull(apiTask.last_run_at),
     failure_streak: apiTask.failure_streak ?? 0,
   };
 }
@@ -45,19 +45,19 @@ function transformTask(apiTask: ApiScheduledTask): ScheduledTaskItem {
 function transformRun(apiRun: ApiScheduledTaskRun): ScheduledTaskRunItem {
   return {
     ...apiRun,
-    scheduled_for: to_timestamp_or_null(apiRun.scheduled_for),
-    started_at: to_timestamp_or_null(apiRun.started_at),
-    finished_at: to_timestamp_or_null(apiRun.finished_at),
-    delivered_at: to_timestamp_or_null(apiRun.delivered_at),
-    delivery_next_attempt_at: to_timestamp_or_null(apiRun.delivery_next_attempt_at),
-    delivery_dead_letter_at: to_timestamp_or_null(apiRun.delivery_dead_letter_at),
+    scheduled_for: toTimestampOrNull(apiRun.scheduled_for),
+    started_at: toTimestampOrNull(apiRun.started_at),
+    finished_at: toTimestampOrNull(apiRun.finished_at),
+    delivered_at: toTimestampOrNull(apiRun.delivered_at),
+    delivery_next_attempt_at: toTimestampOrNull(apiRun.delivery_next_attempt_at),
+    delivery_dead_letter_at: toTimestampOrNull(apiRun.delivery_dead_letter_at),
   };
 }
 
 function transformEvent(apiEvent: ApiScheduledTaskEvent): ScheduledTaskEventItem {
   return {
     ...apiEvent,
-    created_at: to_timestamp_or_null(apiEvent.created_at),
+    created_at: toTimestampOrNull(apiEvent.created_at),
   };
 }
 
@@ -75,8 +75,8 @@ function transformDailyReportTask(
 ): ScheduledTaskDailyReportTask {
   return {
     ...apiTask,
-    next_run_at: to_timestamp_or_null(apiTask.next_run_at),
-    last_run_at: to_timestamp_or_null(apiTask.last_run_at),
+    next_run_at: toTimestampOrNull(apiTask.next_run_at),
+    last_run_at: toTimestampOrNull(apiTask.last_run_at),
     failure_streak: apiTask.failure_streak ?? 0,
     runs: apiTask.runs.map(transformRun),
   };
@@ -87,8 +87,8 @@ function transformDailyReport(
 ): ScheduledTaskDailyReport {
   return {
     ...apiReport,
-    start_at: to_timestamp_or_null(apiReport.start_at),
-    end_at: to_timestamp_or_null(apiReport.end_at),
+    start_at: toTimestampOrNull(apiReport.start_at),
+    end_at: toTimestampOrNull(apiReport.end_at),
     tasks: apiReport.tasks.map(transformDailyReportTask),
   };
 }
@@ -98,7 +98,7 @@ function transformRunNowResult(
 ): ScheduledTaskRunNowResponse {
   return {
     ...apiResult,
-    scheduled_for: to_timestamp_or_null(apiResult.scheduled_for),
+    scheduled_for: toTimestampOrNull(apiResult.scheduled_for),
   };
 }
 
@@ -120,10 +120,10 @@ function numberQueryValue(value: number | undefined): string | undefined {
   return String(Math.floor(value));
 }
 
-export async function list_scheduled_tasks_api(
+export async function listScheduledTasksApi(
   params?: ListScheduledTasksParams,
 ): Promise<ScheduledTaskItem[]> {
-  const result = await request_api<ApiScheduledTask[]>(
+  const result = await requestApi<ApiScheduledTask[]>(
     `${SCHEDULED_TASKS_API_BASE_URL}${buildQuery({
       agent_id: params?.agent_id,
     })}`,
@@ -135,10 +135,10 @@ export async function list_scheduled_tasks_api(
   return result.map(transformTask);
 }
 
-export async function create_scheduled_task_api(
+export async function createScheduledTaskApi(
   params: CreateScheduledTaskParams,
 ): Promise<ScheduledTaskItem> {
-  const result = await request_api<ApiScheduledTask>(
+  const result = await requestApi<ApiScheduledTask>(
     SCHEDULED_TASKS_API_BASE_URL,
     {
       method: "POST",
@@ -149,11 +149,11 @@ export async function create_scheduled_task_api(
   return transformTask(result);
 }
 
-export async function update_scheduled_task_api(
+export async function updateScheduledTaskApi(
   jobId: string,
   params: UpdateScheduledTaskParams,
 ): Promise<ScheduledTaskItem> {
-  const result = await request_api<ApiScheduledTask>(
+  const result = await requestApi<ApiScheduledTask>(
     `${SCHEDULED_TASKS_API_BASE_URL}/${encodeURIComponent(jobId)}`,
     {
       method: "PATCH",
@@ -164,10 +164,10 @@ export async function update_scheduled_task_api(
   return transformTask(result);
 }
 
-export async function delete_scheduled_task_api(
+export async function deleteScheduledTaskApi(
   jobId: string,
 ): Promise<DeleteScheduledTaskResponse> {
-  return request_api<DeleteScheduledTaskResponse>(
+  return requestApi<DeleteScheduledTaskResponse>(
     `${SCHEDULED_TASKS_API_BASE_URL}/${encodeURIComponent(jobId)}`,
     {
       method: "DELETE",
@@ -175,10 +175,10 @@ export async function delete_scheduled_task_api(
   );
 }
 
-export async function run_scheduled_task_api(
+export async function runScheduledTaskApi(
   jobId: string,
 ): Promise<ScheduledTaskRunNowResponse> {
-  const result = await request_api<ApiScheduledTaskExecutionResult>(
+  const result = await requestApi<ApiScheduledTaskExecutionResult>(
     `${SCHEDULED_TASKS_API_BASE_URL}/${encodeURIComponent(jobId)}/run`,
     {
       method: "POST",
@@ -188,11 +188,11 @@ export async function run_scheduled_task_api(
   return transformRunNowResult(result);
 }
 
-export async function recover_scheduled_task_run_api(
+export async function recoverScheduledTaskRunApi(
   jobId: string,
   params: RecoverScheduledTaskRunParams = {},
 ): Promise<ScheduledTaskItem> {
-  const result = await request_api<ApiScheduledTask>(
+  const result = await requestApi<ApiScheduledTask>(
     `${SCHEDULED_TASKS_API_BASE_URL}/${encodeURIComponent(jobId)}/recover`,
     {
       method: "POST",
@@ -203,11 +203,11 @@ export async function recover_scheduled_task_run_api(
   return transformTask(result);
 }
 
-export async function update_scheduled_task_status_api(
+export async function updateScheduledTaskStatusApi(
   jobId: string,
   params: UpdateScheduledTaskStatusParams,
 ): Promise<ScheduledTaskItem> {
-  const result = await request_api<ApiScheduledTask>(
+  const result = await requestApi<ApiScheduledTask>(
     `${SCHEDULED_TASKS_API_BASE_URL}/${encodeURIComponent(jobId)}/status`,
     {
       method: "PATCH",
@@ -218,10 +218,10 @@ export async function update_scheduled_task_status_api(
   return transformTask(result);
 }
 
-export async function list_scheduled_task_runs_api(
+export async function listScheduledTaskRunsApi(
   jobId: string,
 ): Promise<ScheduledTaskRunItem[]> {
-  const result = await request_api<ApiScheduledTaskRun[]>(
+  const result = await requestApi<ApiScheduledTaskRun[]>(
     `${SCHEDULED_TASKS_API_BASE_URL}/${encodeURIComponent(jobId)}/runs`,
     {
       method: "GET",
@@ -231,11 +231,11 @@ export async function list_scheduled_task_runs_api(
   return result.map(transformRun);
 }
 
-export async function retry_scheduled_task_run_delivery_api(
+export async function retryScheduledTaskRunDeliveryApi(
   jobId: string,
   runId: string,
 ): Promise<ScheduledTaskRunItem> {
-  const result = await request_api<ApiScheduledTaskRun>(
+  const result = await requestApi<ApiScheduledTaskRun>(
     `${SCHEDULED_TASKS_API_BASE_URL}/${encodeURIComponent(jobId)}/runs/${encodeURIComponent(runId)}/delivery/retry`,
     {
       method: "POST",

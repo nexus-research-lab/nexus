@@ -47,7 +47,7 @@ const BADGE_TONE_CLASS_MAP: Record<UiBadgeTone, string> = {
     "border-[color:color-mix(in_srgb,var(--success)_18%,transparent)] bg-[color:color-mix(in_srgb,var(--success)_6%,transparent)] text-[color:color-mix(in_srgb,var(--success)_86%,var(--foreground)_14%)]",
 };
 
-export function get_ui_badge_class_name(
+export function getUiBadgeClassName(
   options: UiBadgeStyleOptions = {},
   className?: string,
 ): string {

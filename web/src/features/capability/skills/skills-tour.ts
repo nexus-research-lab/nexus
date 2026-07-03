@@ -15,7 +15,7 @@ export const SKILLS_TOUR_ANCHORS = {
   update_library: "skills-update-library",
 } as const;
 
-export function build_skills_tour(
+export function buildSkillsTour(
   t: I18nContextValue["t"],
 ): OnboardingTourDefinition {
   return {

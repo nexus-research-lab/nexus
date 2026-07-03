@@ -5,7 +5,7 @@ import { Eye, FileText, FileWarning, LoaderCircle } from "lucide-react";
 import type { Options as DocxPreviewOptions } from "docx-preview";
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
-import { get_workspace_file_preview_url } from "@/lib/api/agent-manage-api";
+import { getWorkspaceFilePreviewUrl } from "@/lib/api/agent-manage-api";
 import { cn } from "@/lib/utils";
 import { ConversationResizeHandle } from "./conversation-resize-handle";
 import {
@@ -22,12 +22,12 @@ type DocumentPreviewStatus =
   | { state: "error"; message: string };
 
 interface DocumentFilePreviewProps {
-  agent_id: string;
+  agentId: string;
   embedded?: boolean;
-  file_name: string;
-  is_preview_focused?: boolean;
-  on_resize_start: () => void;
-  on_toggle_preview_focus?: () => void;
+  fileName: string;
+  isPreviewFocused?: boolean;
+  onResizeStart: () => void;
+  onTogglePreviewFocus?: () => void;
   path: string;
 }
 
@@ -53,12 +53,12 @@ const DOCX_RENDER_OPTIONS: Partial<DocxPreviewOptions> = {
 };
 
 export function DocumentFilePreview({
-  agent_id: agentId,
+  agentId: agentId,
   embedded,
-  file_name: fileName,
-  is_preview_focused: isPreviewFocused,
-  on_resize_start: onResizeStart,
-  on_toggle_preview_focus: onTogglePreviewFocus,
+  fileName: fileName,
+  isPreviewFocused: isPreviewFocused,
+  onResizeStart: onResizeStart,
+  onTogglePreviewFocus: onTogglePreviewFocus,
   path,
 }: DocumentFilePreviewProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -111,7 +111,7 @@ export function DocumentFilePreview({
       }
 
       try {
-        const previewUrl = get_workspace_file_preview_url(agentId, path);
+        const previewUrl = getWorkspaceFilePreviewUrl(agentId, path);
         const response = await fetch(previewUrl, {
           credentials: "include",
           signal: abortController.signal,
@@ -217,19 +217,19 @@ export function DocumentFilePreview({
     <>
       {!embedded ? (
         <ConversationResizeHandle
-          aria_label="调整编辑器宽度"
-          class_name="flex"
-          on_mouse_down={onResizeStart}
+          ariaLabel="调整编辑器宽度"
+          className="flex"
+          onMouseDown={onResizeStart}
         />
       ) : null}
 
       <WorkspaceFilePreviewHeader
         actions={(
           <>
-            <WorkspaceFileDownloadButton agent_id={agentId} file_name={fileName} path={path} />
+            <WorkspaceFileDownloadButton agentId={agentId} fileName={fileName} path={path} />
             <WorkspaceFilePreviewFocusButton
-              is_preview_focused={isPreviewFocused}
-              on_toggle_preview_focus={onTogglePreviewFocus}
+              isPreviewFocused={isPreviewFocused}
+              onTogglePreviewFocus={onTogglePreviewFocus}
             />
           </>
         )}

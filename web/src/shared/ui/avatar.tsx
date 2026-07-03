@@ -4,9 +4,9 @@ import { type HTMLAttributes } from "react";
 import { Hash } from "lucide-react";
 
 import {
-  get_icon_avatar_src,
-  get_initials,
-  get_room_avatar_icon_id,
+  getIconAvatarSrc,
+  getInitials,
+  getRoomAvatarIconId,
 } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
@@ -22,9 +22,9 @@ interface UiAvatarMember {
 
 interface UiAgentAvatarProps extends HTMLAttributes<HTMLSpanElement> {
   avatar?: string | null;
-  class_name?: string;
-  image_class_name?: string;
-  is_working?: boolean;
+  className?: string;
+  imageClassName?: string;
+  isWorking?: boolean;
   name: string;
   shape?: UiAvatarShape;
   size?: UiAvatarSize;
@@ -32,10 +32,10 @@ interface UiAgentAvatarProps extends HTMLAttributes<HTMLSpanElement> {
 
 interface UiRoomAvatarProps extends HTMLAttributes<HTMLSpanElement> {
   avatar?: string | null;
-  class_name?: string;
-  max_members?: number;
+  className?: string;
+  maxMembers?: number;
   members: UiAvatarMember[];
-  room_id?: string | null;
+  roomId?: string | null;
   size?: UiRoomAvatarSize;
   title: string;
 }
@@ -72,16 +72,15 @@ function roomAvatarGridSize(memberCount: number): 1 | 2 | 3 {
 
 export function UiAgentAvatar({
   avatar,
-  class_name: legacyClassName,
   className,
-  image_class_name: imageClassName,
-  is_working: isWorking = false,
+  imageClassName: imageClassName,
+  isWorking: isWorking = false,
   name,
   shape = "round",
   size = "md",
   ...props
 }: UiAgentAvatarProps) {
-  const avatarSrc = get_icon_avatar_src(avatar);
+  const avatarSrc = getIconAvatarSrc(avatar);
   const roundedClassName = shape === "round" ? "rounded-full" : "rounded-[10px]";
 
   return (
@@ -92,7 +91,6 @@ export function UiAgentAvatar({
         roundedClassName,
         isWorking && "after:pointer-events-none after:absolute after:inset-[-3px] after:rounded-full after:border after:border-[color:color-mix(in_srgb,var(--primary)_48%,transparent)] after:shadow-[0_0_0_3px_color-mix(in_srgb,var(--primary)_8%,transparent)]",
         className,
-        legacyClassName,
       )}
       {...props}
     >
@@ -103,7 +101,7 @@ export function UiAgentAvatar({
           src={avatarSrc}
         />
       ) : (
-        get_initials(name, "AG", size === "xs" || size === "sm" ? 1 : 2)
+        getInitials(name, "AG", size === "xs" || size === "sm" ? 1 : 2)
       )}
     </span>
   );
@@ -112,11 +110,10 @@ export function UiAgentAvatar({
 /** 中文注释：Room 头像最多取 9 个成员做九宫格，避免业务侧各自实现不同的拼图规则。 */
 export function UiRoomAvatar({
   avatar,
-  class_name: legacyClassName,
   className,
-  max_members: maxMembers = 9,
+  maxMembers: maxMembers = 9,
   members,
-  room_id: roomId,
+  roomId: roomId,
   size = "md",
   title,
   ...props
@@ -125,8 +122,8 @@ export function UiRoomAvatar({
   const gridSize = roomAvatarGridSize(visibleMembers.length);
 
   if (visibleMembers.length === 0) {
-    const roomAvatarId = get_room_avatar_icon_id(roomId ?? title, title, avatar);
-    const roomAvatarSrc = get_icon_avatar_src(roomAvatarId, "room");
+    const roomAvatarId = getRoomAvatarIconId(roomId ?? title, title, avatar);
+    const roomAvatarSrc = getIconAvatarSrc(roomAvatarId, "room");
 
     return (
       <span
@@ -134,7 +131,6 @@ export function UiRoomAvatar({
           "flex shrink-0 items-center justify-center overflow-hidden border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-(--icon-muted) shadow-(--surface-avatar-shadow)",
           ROOM_AVATAR_SIZE_CLASS_MAP[size],
           className,
-          legacyClassName,
         )}
         {...props}
       >
@@ -155,7 +151,6 @@ export function UiRoomAvatar({
         ROOM_AVATAR_GRID_CLASS_MAP[gridSize],
         visibleMembers.length === 2 && "grid-rows-1",
         className,
-        legacyClassName,
       )}
       {...props}
     >
@@ -163,8 +158,8 @@ export function UiRoomAvatar({
         <span className="min-h-0 min-w-0 overflow-hidden rounded-[5px]" key={member.id}>
           <UiAgentAvatar
             avatar={member.avatar}
-            class_name="h-full w-full rounded-[5px] border-0 shadow-none"
-            image_class_name="rounded-[5px]"
+            className="h-full w-full rounded-[5px] border-0 shadow-none"
+            imageClassName="rounded-[5px]"
             name={member.name}
             shape="rounded"
             size="md"

@@ -1,5 +1,5 @@
-import { upload_workspace_file_api } from "@/lib/api/agent-manage-api";
-import { upload_room_conversation_attachment_api } from "@/lib/api/room-api";
+import { uploadWorkspaceFileApi } from "@/lib/api/agent-manage-api";
+import { uploadRoomConversationAttachmentApi } from "@/lib/api/room-api";
 import type { MessageAttachment } from "@/types/conversation/message";
 
 export type ComposerAttachmentKind = "text" | "image" | "file";
@@ -211,7 +211,7 @@ function isSupportedWorkFileAttachment(file: File): boolean {
   return SUPPORTED_WORK_FILE_MIME_TYPES.has(file.type);
 }
 
-export function get_composer_attachment_kind(file: File): ComposerAttachmentKind | null {
+export function getComposerAttachmentKind(file: File): ComposerAttachmentKind | null {
   if (isSupportedImageAttachment(file)) {
     return "image";
   }
@@ -224,8 +224,8 @@ export function get_composer_attachment_kind(file: File): ComposerAttachmentKind
   return null;
 }
 
-export function get_attachment_rejection_reason(file: File): string | null {
-  if (!get_composer_attachment_kind(file)) {
+export function getAttachmentRejectionReason(file: File): string | null {
+  if (!getComposerAttachmentKind(file)) {
     return `暂不支持该附件格式：${file.name}`;
   }
 
@@ -256,7 +256,7 @@ function buildUploadFile(file: File): File {
   });
 }
 
-export async function prepare_workspace_attachments(
+export async function prepareWorkspaceAttachments(
   agentId: string,
   files: File[],
 ): Promise<PreparedComposerAttachment[]> {
@@ -264,18 +264,18 @@ export async function prepare_workspace_attachments(
   const batchId = new Date().toISOString().replace(/[:.]/g, "-");
 
   for (const [index, file] of files.entries()) {
-    const rejectionReason = get_attachment_rejection_reason(file);
+    const rejectionReason = getAttachmentRejectionReason(file);
     if (rejectionReason) {
       throw new Error(rejectionReason);
     }
 
-    const kind = get_composer_attachment_kind(file);
+    const kind = getComposerAttachmentKind(file);
     if (!kind) {
       throw new Error(`暂不支持该附件格式：${file.name}`);
     }
 
     const uploadFile = buildUploadFile(file);
-    const uploadedFile = await upload_workspace_file_api(
+    const uploadedFile = await uploadWorkspaceFileApi(
       agentId,
       uploadFile,
       buildAttachmentDirectory(batchId, index),
@@ -284,7 +284,7 @@ export async function prepare_workspace_attachments(
       file_name: file.name || uploadedFile.name,
       workspace_path: uploadedFile.path,
       workspace_agent_id: agentId,
-      scope: "agent_workspace",
+      scope: "agentWorkspace",
       kind,
       mime_type: file.type || null,
       size: uploadedFile.size,
@@ -296,7 +296,7 @@ export async function prepare_workspace_attachments(
   return nextAttachments;
 }
 
-export async function prepare_room_conversation_attachments(
+export async function prepareRoomConversationAttachments(
   roomId: string,
   conversationId: string,
   files: File[],
@@ -305,18 +305,18 @@ export async function prepare_room_conversation_attachments(
   const batchId = new Date().toISOString().replace(/[:.]/g, "-");
 
   for (const [index, file] of files.entries()) {
-    const rejectionReason = get_attachment_rejection_reason(file);
+    const rejectionReason = getAttachmentRejectionReason(file);
     if (rejectionReason) {
       throw new Error(rejectionReason);
     }
 
-    const kind = get_composer_attachment_kind(file);
+    const kind = getComposerAttachmentKind(file);
     if (!kind) {
       throw new Error(`暂不支持该附件格式：${file.name}`);
     }
 
     const uploadFile = buildUploadFile(file);
-    const uploadedFile = await upload_room_conversation_attachment_api(
+    const uploadedFile = await uploadRoomConversationAttachmentApi(
       roomId,
       conversationId,
       uploadFile,
@@ -327,7 +327,7 @@ export async function prepare_room_conversation_attachments(
       workspace_path: uploadedFile.path,
       room_id: roomId,
       conversation_id: conversationId,
-      scope: "room_conversation",
+      scope: "roomConversation",
       kind,
       mime_type: file.type || null,
       size: uploadedFile.size,

@@ -152,11 +152,11 @@ function useHtmlPreviewDocument(content: string, isStreaming: boolean) {
 
 export function HtmlFilePreview({
   content,
-  is_streaming: isStreaming = false,
+  isStreaming: isStreaming = false,
   title,
 }: {
   content: string;
-  is_streaming?: boolean;
+  isStreaming?: boolean;
   title: string;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);

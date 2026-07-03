@@ -29,8 +29,8 @@ export function CodeBlockContent({ language, value }: CodeBlockContentProps) {
   return (
     <CodeShell
       language={language}
-      class_name="group"
-      right_slot={(
+      className="group"
+      rightSlot={(
         <button
           className={cn(
             "inline-flex h-3 w-3 items-center justify-center rounded-[6px] border border-transparent transition-colors duration-(--motion-duration-fast)",
@@ -50,7 +50,7 @@ export function CodeBlockContent({ language, value }: CodeBlockContentProps) {
           )}
         </button>
       )}
-      content_class_name="relative min-w-0 overflow-x-auto overflow-y-hidden"
+      contentClassName="relative min-w-0 overflow-x-auto overflow-y-hidden"
     >
       <div className="relative min-w-0">
         <SyntaxHighlighter

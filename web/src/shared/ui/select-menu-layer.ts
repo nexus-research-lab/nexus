@@ -16,10 +16,10 @@ import type {
 
 interface SelectMenuLayerOptions {
   disabled: boolean;
-  estimate_position: (button: HTMLButtonElement) => UiSelectMenuPosition;
+  estimatePosition: (button: HTMLButtonElement) => UiSelectMenuPosition;
 }
 
-export function useSelectMenuLayer({ disabled, estimate_position: estimatePosition }: SelectMenuLayerOptions) {
+export function useSelectMenuLayer({ disabled, estimatePosition }: SelectMenuLayerOptions) {
   const [isOpen, setIsOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState<UiSelectMenuPosition | null>(null);
   const menuId = useId();
@@ -74,7 +74,7 @@ export function useSelectMenuLayer({ disabled, estimate_position: estimatePositi
   const menuStyle: CSSProperties = {
     bottom: menuPosition?.bottom,
     left: menuPosition?.left,
-    maxHeight: menuPosition?.max_height,
+    maxHeight: menuPosition?.maxHeight,
     top: menuPosition?.top,
     visibility: menuPosition ? "visible" : "hidden",
     width: menuPosition?.width,
@@ -84,15 +84,15 @@ export function useSelectMenuLayer({ disabled, estimate_position: estimatePositi
     : rootRef.current?.closest("[data-modal-root='true']") ?? document.body;
 
   return {
-    button_ref: buttonRef,
-    is_open: isOpen,
-    menu_id: menuId,
-    menu_position: menuPosition,
-    menu_ref: menuRef,
-    menu_style: menuStyle,
-    portal_container: portalContainer,
-    root_ref: rootRef,
-    set_is_open: setIsOpen,
-    update_menu_position: updateMenuPosition,
+    buttonRef,
+    isOpen,
+    menuId,
+    menuPosition,
+    menuRef,
+    menuStyle,
+    portalContainer,
+    rootRef,
+    setIsOpen,
+    updateMenuPosition,
   };
 }

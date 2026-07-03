@@ -12,12 +12,12 @@ import {
   CapabilityPageLayout,
   CapabilitySectionHeader,
 } from "@/features/capability/shared/capability-page-layout";
-import { list_loops_api } from "@/lib/api/loop-api";
+import { listLoopsApi } from "@/lib/api/loop-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiIconButton } from "@/shared/ui/button";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 import type { LoopCatalogItem } from "@/types/capability/loop";
-import { write_text_to_clipboard } from "@/hooks/ui/clipboard";
+import { writeTextToClipboard } from "@/hooks/ui/clipboard";
 
 import { LoopDetailView } from "./loop-detail-view";
 
@@ -53,7 +53,7 @@ export function LoopsDirectory() {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    list_loops_api(locale)
+    listLoopsApi(locale)
       .then((items) => {
         if (!cancelled) {
           setLoops(items);
@@ -91,7 +91,7 @@ export function LoopsDirectory() {
   }, [category, loops, query]);
 
   const copyPrompt = async (loop: LoopCatalogItem) => {
-    await write_text_to_clipboard(loop.kickoff_prompt);
+    await writeTextToClipboard(loop.kickoff_prompt);
     setCopiedSlug(loop.slug);
     window.setTimeout(() => setCopiedSlug((current) => current === loop.slug ? null : current), 1800);
   };
@@ -100,26 +100,26 @@ export function LoopsDirectory() {
     return (
       <LoopDetailView
         slug={slug}
-        on_back={() => navigate(AppRouteBuilders.loops())}
+        onBack={() => navigate(AppRouteBuilders.loops())}
       />
     );
   }
 
   return (
-    <WorkspaceSurfaceScaffold body_scrollable stable_gutter>
+    <WorkspaceSurfaceScaffold bodyScrollable stableGutter>
       <CapabilityPageLayout
         description={t("capability.loops_intro_description")}
         title={t("capability.loops_intro_title")}
       >
         <CapabilityFilterBar>
           <CapabilityFilterSearchInput
-            on_change={setQuery}
+            onChange={setQuery}
             placeholder={t("capability.loops_search_placeholder")}
             value={query}
           />
           <CapabilityFilterSelect
-            aria_label={t("capability.loops_filter_aria")}
-            on_change={setCategory}
+            ariaLabel={t("capability.loops_filter_aria")}
+            onChange={setCategory}
             options={categoryOptions}
             value={category}
           />
@@ -142,11 +142,11 @@ export function LoopsDirectory() {
               <div
                 className="cursor-pointer rounded-[8px] border border-(--divider-subtle-color) bg-(--surface-raised-background) p-4 transition-colors hover:bg-(--surface-interactive-hover-background)"
                 key={loop.slug}
-                onClick={() => navigate(AppRouteBuilders.loop_detail(loop.slug))}
+                onClick={() => navigate(AppRouteBuilders.loopDetail(loop.slug))}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" || event.key === " ") {
                     event.preventDefault();
-                    navigate(AppRouteBuilders.loop_detail(loop.slug));
+                    navigate(AppRouteBuilders.loopDetail(loop.slug));
                   }
                 }}
                 role="button"
@@ -169,7 +169,7 @@ export function LoopsDirectory() {
                   </div>
                   <UiIconButton
                     aria-label={t("capability.loops_copy_prompt")}
-                    class_name="shrink-0"
+                    className="shrink-0"
                     onClick={(event) => {
                       event.stopPropagation();
                       void copyPrompt(loop);

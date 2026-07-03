@@ -12,15 +12,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown } from "lucide-react";
 
-import { get_icon_avatar_src, get_initials } from "@/lib/utils";
+import { getIconAvatarSrc, getInitials } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { Agent } from "@/types/agent/agent";
 
 interface RoomAgentSwitcherProps {
   members: Agent[];
-  selected_id: string;
-  on_select: (id: string) => void;
-  class_name?: string;
+  selectedId: string;
+  onSelect: (id: string) => void;
+  className?: string;
 }
 
 /**
@@ -30,9 +30,9 @@ interface RoomAgentSwitcherProps {
  */
 export function RoomAgentSwitcher({
   members,
-  selected_id: selectedId,
-  on_select: onSelect,
-  class_name: className,
+  selectedId: selectedId,
+  onSelect: onSelect,
+  className: className,
 }: RoomAgentSwitcherProps) {
   const [isOpen, setIsOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -62,7 +62,7 @@ export function RoomAgentSwitcher({
     return null;
   }
 
-  const selectedAvatarSrc = get_icon_avatar_src(selectedMember.avatar);
+  const selectedAvatarSrc = getIconAvatarSrc(selectedMember.avatar);
 
   return (
     <div ref={rootRef} className={cn("relative", className)}>
@@ -84,7 +84,7 @@ export function RoomAgentSwitcher({
             />
           ) : (
             <span className="text-[8px] font-bold text-(--text-strong)">
-              {get_initials(selectedMember.name)}
+              {getInitials(selectedMember.name)}
             </span>
           )}
         </span>
@@ -104,7 +104,7 @@ export function RoomAgentSwitcher({
           <div className="p-1.5">
             {members.map((member) => {
               const isActive = member.agent_id === selectedId;
-              const avatarSrc = get_icon_avatar_src(member.avatar);
+              const avatarSrc = getIconAvatarSrc(member.avatar);
 
               return (
                 <button
@@ -131,7 +131,7 @@ export function RoomAgentSwitcher({
                       />
                     ) : (
                       <span className="text-[8px] font-bold text-(--text-strong)">
-                        {get_initials(member.name)}
+                        {getInitials(member.name)}
                       </span>
                     )}
                   </span>

@@ -4,13 +4,13 @@ import { useEffect, useId, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
-import { supports_true_liquid_glass } from "./liquid-glass-engine";
+import { supportsTrueLiquidGlass } from "./liquid-glass-engine";
 
 interface GlassSwitchProps {
   checked: boolean;
   disabled?: boolean;
-  on_change: (checked: boolean) => void;
-  class_name?: string;
+  onChange: (checked: boolean) => void;
+  className?: string;
   size?: "xs" | "sm" | "md";
 }
 
@@ -43,8 +43,8 @@ const TARGET_TRACK_HEIGHT_BY_SIZE = {
 export function GlassSwitch({
   checked,
   disabled = false,
-  on_change: onChange,
-  class_name: className,
+  onChange: onChange,
+  className: className,
   size = "md",
 }: GlassSwitchProps) {
   const rawFilterId = useId();
@@ -65,7 +65,7 @@ export function GlassSwitch({
   const thumbTravelX = SOURCE_THUMB_TRAVEL_X * scaleRatio;
 
   useEffect(() => {
-    setCanUseTrueGlass(supports_true_liquid_glass());
+    setCanUseTrueGlass(supportsTrueLiquidGlass());
   }, []);
 
   /**

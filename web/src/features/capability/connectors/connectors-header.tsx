@@ -14,7 +14,7 @@ export function ConnectorsHeader({ ctrl }: ConnectorsHeaderProps) {
 
   return (
     <WorkspaceSurfaceHeader
-      badge={t("capability.connected_badge", { count: ctrl.connected_count })}
+      badge={t("capability.connected_badge", { count: ctrl.connectedCount })}
       density="compact"
       leading={<Link2 className="h-4 w-4" />}
       subtitle={t("capability.connectors_subtitle")}

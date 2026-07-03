@@ -38,7 +38,7 @@ const SEARCH_SHELL_SIZE_CLASS_MAP: Record<UiFormControlSize, string> = {
   lg: "h-11 rounded-[14px] px-4 text-[15px]",
 };
 
-export function get_ui_form_control_class_name(
+export function getUiFormControlClassName(
   options: UiFormControlStyleOptions = {},
   className?: string,
 ): string {
@@ -56,7 +56,7 @@ export function get_ui_form_control_class_name(
   );
 }
 
-export function get_ui_search_input_shell_class_name(
+export function getUiSearchInputShellClassName(
   options: Pick<UiFormControlStyleOptions, "size" | "variant"> = {},
   className?: string,
 ): string {

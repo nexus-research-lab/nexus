@@ -18,8 +18,8 @@ import { useLocation, useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { CreateRoomDialog } from "@/features/conversation/room/members/create-room-dialog";
-import { create_room, delete_room } from "@/lib/api/room-api";
-import { resolve_direct_room_navigation_target } from "@/lib/conversation/direct-room-navigation";
+import { createRoom, deleteRoom } from "@/lib/api/room-api";
+import { resolveDirectRoomNavigationTarget } from "@/lib/conversation/direct-room-navigation";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
 import { SidebarEmptyGuide } from "@/shared/ui/sidebar/sidebar-empty-guide";
@@ -27,16 +27,16 @@ import { SIDEBAR_TOUR_ANCHORS } from "@/shared/ui/sidebar/sidebar-navigation-tou
 import { useAgentStore } from "@/store/agent";
 import { useSidebarStore } from "@/store/sidebar";
 import {
-  build_chat_notification_target_key,
-  get_active_chat_target_from_path,
+  buildChatNotificationTargetKey,
+  getActiveChatTargetFromPath,
 } from "./chat-notification-target";
 import {
-  build_conversation_items,
-  build_sidebar_item_notification_key,
-  get_sidebar_item_unread_state,
-  is_active_sidebar_chat_item,
-  is_main_agent_dm_room,
-  normalize_query,
+  buildConversationItems,
+  buildSidebarItemNotificationKey,
+  getSidebarItemUnreadState,
+  isActiveSidebarChatItem,
+  isMainAgentDmRoom,
+  normalizeQuery,
   type SidebarConversationItem,
 } from "./home-sidebar-conversation-model";
 import { useSidebarDirectory } from "./home-sidebar-directory";
@@ -50,7 +50,7 @@ import {
 interface DeleteTarget {
   id: string;
   name: string;
-  room_type: "room" | "dm";
+  roomType: "room" | "dm";
 }
 
 export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
@@ -70,7 +70,7 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
   );
   const setNexusRoomId = useSidebarStore((s) => s.set_nexus_room_id);
   const agentRuntimeStatuses = useAgentStore((s) => s.agent_runtime_statuses);
-  const { agents, conversations, is_loading: isLoading, refresh_directory: refreshDirectory, rooms } = useSidebarDirectory();
+  const { agents, conversations, isLoading, refreshDirectory, rooms } = useSidebarDirectory();
   const [query, setQuery] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const [isCreateRoomOpen, setIsCreateRoomOpen] = useState(false);
@@ -79,11 +79,11 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
   const hasAgents = agents.length > 0;
 
   const nexusDmRoom = useMemo(
-    () => rooms.find((room) => is_main_agent_dm_room(room)) ?? null,
+    () => rooms.find((room) => isMainAgentDmRoom(room)) ?? null,
     [rooms],
   );
   const activeChatTarget = useMemo(
-    () => get_active_chat_target_from_path(location.pathname),
+    () => getActiveChatTargetFromPath(location.pathname),
     [location.pathname],
   );
 
@@ -92,26 +92,26 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
   }, [nexusDmRoom, setNexusRoomId]);
 
   const rawItems = useMemo(
-    () => build_conversation_items({
+    () => buildConversationItems({
       agents,
-      agent_runtime_statuses: agentRuntimeStatuses,
+      agentRuntimeStatuses,
       conversations,
-      format_running_tasks_summary: (count) => t("sidebar.running_tasks_summary", { count }),
+      formatRunningTasksSummary: (count) => t("sidebar.running_tasks_summary", { count }),
       rooms,
-      untitled_room_label: untitledRoomLabel,
+      untitledRoomLabel,
     }).map((item) => {
-      const notificationKey = build_sidebar_item_notification_key(item);
-      const unreadState = get_sidebar_item_unread_state({
-        chat_unread_counts: chatUnreadCounts,
-        chat_unread_targets: chatUnreadTargets,
-        chat_unread_timestamps: chatUnreadTimestamps,
-        notification_key: notificationKey,
-        room_id: item.room_id,
-        session_key: item.session_key,
+      const notificationKey = buildSidebarItemNotificationKey(item);
+      const unreadState = getSidebarItemUnreadState({
+        chatUnreadCounts,
+        chatUnreadTargets,
+        chatUnreadTimestamps,
+        notificationKey,
+        roomId: item.roomId,
+        sessionKey: item.sessionKey,
       });
       return {
         ...item,
-        notification_key: notificationKey,
+        notificationKey,
         ...unreadState,
       };
     }),
@@ -129,16 +129,16 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
   );
   const items = useMemo(
     () => rawItems.map((item) => {
-      const visibleUnreadState = is_active_sidebar_chat_item(item, activeChatTarget)
+      const visibleUnreadState = isActiveSidebarChatItem(item, activeChatTarget)
         ? {
-          unread_conversation_id: null,
-          unread_count: 0,
-          unread_target_key: null,
+          unreadConversationId: null,
+          unreadCount: 0,
+          unreadTargetKey: null,
         }
         : {
-          unread_conversation_id: item.unread_conversation_id ?? null,
-          unread_count: item.unread_count ?? 0,
-          unread_target_key: item.unread_target_key ?? null,
+          unreadConversationId: item.unreadConversationId ?? null,
+          unreadCount: item.unreadCount ?? 0,
+          unreadTargetKey: item.unreadTargetKey ?? null,
         };
       return {
         ...item,
@@ -149,7 +149,7 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
   );
 
   const filteredItems = useMemo(() => {
-    const normalizedQuery = normalize_query(query);
+    const normalizedQuery = normalizeQuery(query);
     if (!normalizedQuery) {
       return items;
     }
@@ -160,18 +160,18 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
   }, [items, query]);
 
   const navigateToRoom = useCallback(async (item: SidebarConversationItem) => {
-    const routeRoomId = item.route_room_id ?? item.room_id;
+    const routeRoomId = item.routeRoomId ?? item.roomId;
     if (!routeRoomId) {
       return;
     }
-    const targetConversationId = item.unread_conversation_id || item.conversation_id;
-    if (item.room_id) {
-      clearChatNotificationsForRoom(item.room_id);
+    const targetConversationId = item.unreadConversationId || item.conversationId;
+    if (item.roomId) {
+      clearChatNotificationsForRoom(item.roomId);
     }
-    clearChatNotificationsForTarget(item.unread_target_key || item.notification_key);
+    clearChatNotificationsForTarget(item.unreadTargetKey || item.notificationKey);
     setActiveItem(item.id);
     if (targetConversationId) {
-      navigate(AppRouteBuilders.room_conversation(routeRoomId, targetConversationId));
+      navigate(AppRouteBuilders.roomConversation(routeRoomId, targetConversationId));
       return;
     }
     navigate(AppRouteBuilders.room(routeRoomId));
@@ -197,7 +197,7 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
   ) => {
     setIsCreatingRoom(true);
     try {
-      const context = await create_room({
+      const context = await createRoom({
         agent_ids: agentIds,
         name,
         avatar,
@@ -216,7 +216,7 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
 
   const handleDeleteRoom = useCallback(async (target: DeleteTarget) => {
     const deletedRoomId = target.id;
-    await delete_room(deletedRoomId);
+    await deleteRoom(deletedRoomId);
     if (activeItemId === deletedRoomId) {
       setActiveItem(null);
     }
@@ -259,7 +259,7 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
             <Plus className="h-4 w-4" />
           </button>
         )}
-        on_change={setQuery}
+        onChange={setQuery}
         placeholder={t("sidebar.search_conversations")}
         value={query}
       />
@@ -271,25 +271,25 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
           {filteredItems.length > 0 ? (
             filteredItems.map((item) => (
               <ConversationRow
-                is_active={activeItemId === item.id || (item.room_id ? activeItemId === item.room_id : false)}
+                isActive={activeItemId === item.id || (item.roomId ? activeItemId === item.roomId : false)}
                 item={item}
                 key={item.id}
-                on_click={() => {
+                onClick={() => {
                   void navigateToRoom(item);
                 }}
-                on_delete={item.can_delete && item.room_id ? () => setDeleteTarget({
-                  id: item.room_id ?? item.id,
+                onDelete={item.canDelete && item.roomId ? () => setDeleteTarget({
+                  id: item.roomId ?? item.id,
                   name: item.title,
-                  room_type: item.kind,
+                  roomType: item.kind,
                 }) : undefined}
               />
             ))
           ) : (
             <SidebarEmptyGuide
-              action_label={emptyAction}
+              actionLabel={emptyAction}
               description={emptyDescription}
               icon={MessageSquarePlus}
-              on_action={handleEmptyAction}
+              onAction={handleEmptyAction}
               title={query ? t("sidebar.no_matching_conversations") : t("home.rooms_empty_title")}
             />
           )}
@@ -297,11 +297,11 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
       )}
 
       <ConfirmDialog
-        confirm_text={t("common.delete")}
-        is_open={deleteTarget !== null}
+        confirmText={t("common.delete")}
+        isOpen={deleteTarget !== null}
         message={t("home.delete_message", { name: deleteTarget?.name ?? "" })}
-        on_cancel={() => setDeleteTarget(null)}
-        on_confirm={handleConfirmDeleteRoom}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={handleConfirmDeleteRoom}
         title={t("home.delete_confirm")}
         variant="danger"
       />
@@ -312,10 +312,10 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
           name: agent.name,
           avatar: agent.avatar,
         }))}
-        is_creating={isCreatingRoom}
-        is_open={isCreateRoomOpen}
-        on_cancel={() => setIsCreateRoomOpen(false)}
-        on_confirm={(ids, name, avatar, skillNames, hostAgentId, hostAutoReplyEnabled, privateMessagesEnabled) =>
+        isCreating={isCreatingRoom}
+        isOpen={isCreateRoomOpen}
+        onCancel={() => setIsCreateRoomOpen(false)}
+        onConfirm={(ids, name, avatar, skillNames, hostAgentId, hostAutoReplyEnabled, privateMessagesEnabled) =>
           void handleConfirmCreateRoom(ids, name, avatar, skillNames, hostAgentId, hostAutoReplyEnabled, privateMessagesEnabled)}
       />
     </div>
@@ -331,14 +331,14 @@ export const ContactsSidebarPanelContent = memo(function ContactsSidebarPanelCon
     (s) => s.clear_chat_notifications_for_target,
   );
   const agentRuntimeStatuses = useAgentStore((s) => s.agent_runtime_statuses);
-  const { agents, is_loading: isLoading } = useSidebarDirectory();
+  const { agents, isLoading } = useSidebarDirectory();
   const [query, setQuery] = useState("");
   const activeAgentId = location.pathname === AppRouteBuilders.contacts()
     ? new URLSearchParams(location.search).get("agent")
     : null;
 
   const filteredAgents = useMemo(() => {
-    const normalizedQuery = normalize_query(query);
+    const normalizedQuery = normalizeQuery(query);
     if (!normalizedQuery) {
       return agents;
     }
@@ -354,12 +354,12 @@ export const ContactsSidebarPanelContent = memo(function ContactsSidebarPanelCon
 
   const navigateToAgentDetail = useCallback((agentId: string) => {
     setActiveItem(agentId);
-    navigate(AppRouteBuilders.contact_agent(agentId));
+    navigate(AppRouteBuilders.contactAgent(agentId));
   }, [navigate, setActiveItem]);
 
   const navigateToAgentDm = useCallback(async (agentId: string) => {
-    const target = await resolve_direct_room_navigation_target(agentId);
-    clearChatNotificationsForTarget(build_chat_notification_target_key({
+    const target = await resolveDirectRoomNavigationTarget(agentId);
+    clearChatNotificationsForTarget(buildChatNotificationTargetKey({
       conversation_id: target.context.conversation.id,
       room_id: target.context.room.id,
     }));
@@ -380,7 +380,7 @@ export const ContactsSidebarPanelContent = memo(function ContactsSidebarPanelCon
             <UserPlus className="h-4 w-4" />
           </button>
         )}
-        on_change={setQuery}
+        onChange={setQuery}
         placeholder={t("sidebar.search_contacts")}
         value={query}
       />
@@ -395,21 +395,21 @@ export const ContactsSidebarPanelContent = memo(function ContactsSidebarPanelCon
               return (
                 <ContactRow
                   agent={agent}
-                  is_active={activeAgentId === agent.id}
-                  is_working={runningTaskCount > 0}
+                  isActive={activeAgentId === agent.id}
+                  isWorking={runningTaskCount > 0}
                   key={agent.id}
-                  on_chat={() => void navigateToAgentDm(agent.id)}
-                  on_open_directory={() => navigateToAgentDetail(agent.id)}
-                  running_task_count={runningTaskCount}
+                  onChat={() => void navigateToAgentDm(agent.id)}
+                  onOpenDirectory={() => navigateToAgentDetail(agent.id)}
+                  runningTaskCount={runningTaskCount}
                 />
               );
             })
           ) : (
             <SidebarEmptyGuide
-              action_label={t("sidebar.manage_contacts")}
+              actionLabel={t("sidebar.manage_contacts")}
               description={t("sidebar.contacts_empty_description")}
               icon={Users2}
-              on_action={navigateToContacts}
+              onAction={navigateToContacts}
               title={query ? t("sidebar.no_matching_contacts") : t("sidebar.no_contacts")}
             />
           )}

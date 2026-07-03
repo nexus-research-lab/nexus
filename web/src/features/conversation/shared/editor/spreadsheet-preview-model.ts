@@ -151,7 +151,7 @@ export interface SpreadsheetPreviewWorkbookData {
   sheets: SpreadsheetPreviewSheetData[];
 }
 
-export function workbook_to_spreadsheet_preview_data(workbook: Workbook): SpreadsheetPreviewWorkbookData {
+export function workbookToSpreadsheetPreviewData(workbook: Workbook): SpreadsheetPreviewWorkbookData {
   return {
     sheets: workbook.worksheets
       .filter((worksheet) => worksheet.state !== "hidden" && worksheet.state !== "veryHidden")

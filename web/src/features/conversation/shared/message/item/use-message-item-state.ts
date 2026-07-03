@@ -15,7 +15,7 @@ import { useAssistantContentMerge } from "@/hooks/conversation/use-assistant-con
 import { useScrollAnchoredState } from "@/hooks/conversation/use-scroll-anchored-state";
 import { useCopyToClipboard } from "@/hooks/ui/use-copy-to-clipboard";
 import {
-  get_system_message_display_meta,
+  getSystemMessageDisplayMeta,
   type AssistantMessage,
   type SystemEventContent,
   type SystemMessage,
@@ -26,18 +26,18 @@ import type {
   MessageItemState,
 } from "./message-item-types";
 import {
-  build_process_summary,
-  resolve_live_activity_state,
+  buildProcessSummary,
+  resolveLiveActivityState,
 } from "./message-item-activity";
 import {
-  build_visible_assistant_turns,
-  build_visible_ordered_assistant_entries,
+  buildVisibleAssistantTurns,
+  buildVisibleOrderedAssistantEntries,
 } from "./message-item-ordering";
-import { resolve_message_item_permissions } from "./message-item-permissions";
-import { build_message_stats } from "./message-item-stats";
-import { resolve_message_item_final_projection } from "./message-item-final-projection";
+import { resolveMessageItemPermissions } from "./message-item-permissions";
+import { buildMessageStats } from "./message-item-stats";
+import { resolveMessageItemFinalProjection } from "./message-item-final-projection";
 import {
-  has_timed_out_ask_user_question,
+  hasTimedOutAskUserQuestion,
   type AssistantTurnEntry,
   type ContentProjection,
   type OrderedAssistantEntry,
@@ -45,37 +45,37 @@ import {
 import { useMessageItemStreamingLayout } from "./message-item-streaming-layout";
 
 export function useMessageItemState({
-  is_last_round: isLastRound,
-  is_loading: isLoading,
-  runtime_phase: runtimePhase,
+  isLastRound: isLastRound,
+  isLoading: isLoading,
+  runtimePhase: runtimePhase,
   messages,
-  pending_permissions: pendingPermissions = [],
-  hidden_tool_names: hiddenToolNames = ["TodoWrite"],
-  on_stop_message: onStopMessage,
-  round_id: roundId,
-  default_process_expanded: defaultProcessExpanded = false,
-  assistant_content_mode: assistantContentMode = "dm_archived",
+  pendingPermissions: pendingPermissions = [],
+  hiddenToolNames: hiddenToolNames = ["TodoWrite"],
+  onStopMessage: onStopMessage,
+  roundId: roundId,
+  defaultProcessExpanded: defaultProcessExpanded = false,
+  assistantContentMode: assistantContentMode = "dm_archived",
 }: MessageItemProps): MessageItemState {
   const { copied: copiedUser, copy: copyUser } = useCopyToClipboard();
   const { copied: copiedAssistant, copy: copyAssistant } = useCopyToClipboard();
   const {
-    is_open: isProcessExpanded,
+    isOpen: isProcessExpanded,
     toggle: toggleProcessExpanded,
-    set_open: setIsProcessExpanded,
-    anchor_ref: processAnchorRef,
+    setOpen: setIsProcessExpanded,
+    anchorRef: processAnchorRef,
   } = useScrollAnchoredState(defaultProcessExpanded);
 
   const {
-    user_message: userMessage,
-    assistant_messages: assistantMessages,
-    result_summary: resultSummary,
-    merged_content: mergedContent,
-    merged_content_source_message_ids: mergedContentSourceMessageIds,
-    streaming_block_indexes: streamingBlockIndexes,
+    userMessage: userMessage,
+    assistantMessages: assistantMessages,
+    resultSummary: resultSummary,
+    mergedContent: mergedContent,
+    mergedContentSourceMessageIds: mergedContentSourceMessageIds,
+    streamingBlockIndexes: streamingBlockIndexes,
   } = useAssistantContentMerge({
     messages,
-    is_last_round: isLastRound,
-    is_loading: isLoading,
+    isLastRound,
+    isLoading,
   });
 
   const systemMessages = useMemo(() => {
@@ -93,7 +93,7 @@ export function useMessageItemState({
   const systemEventBlocks = useMemo<SystemEventContent[]>(
     () =>
       systemMessages.map((message) => {
-        const displayMeta = get_system_message_display_meta(message);
+        const displayMeta = getSystemMessageDisplayMeta(message);
         return {
           type: "system_event",
           content: message.content,
@@ -132,7 +132,7 @@ export function useMessageItemState({
   }, [firstAssistant]);
 
   const stats = useMemo(
-    () => build_message_stats(resultSummary),
+    () => buildMessageStats(resultSummary),
     [resultSummary],
   );
 
@@ -150,10 +150,10 @@ export function useMessageItemState({
   }, [userMessage]);
 
   const {
-    matched_pending_permissions_by_tool_use_id: matchedPendingPermissionsByToolUseId,
-    unmatched_pending_permissions: unmatchedPendingPermissions,
+    matchedPendingPermissionsByToolUseId,
+    unmatchedPendingPermissions,
   } = useMemo(
-    () => resolve_message_item_permissions(messages, pendingPermissions),
+    () => resolveMessageItemPermissions(messages, pendingPermissions),
     [messages, pendingPermissions],
   );
 
@@ -170,14 +170,14 @@ export function useMessageItemState({
   const visibleOrderedAssistantEntries = useMemo<
     OrderedAssistantEntry[]
   >(
-    () => build_visible_ordered_assistant_entries({
-      hidden_tool_names: hiddenToolNames,
-      hidden_tool_use_ids: hiddenToolUseIds,
-      is_loading: isLoading,
-      merged_content: mergedContent,
-      merged_content_source_message_ids: mergedContentSourceMessageIds,
-      source_message_order_by_id: sourceMessageOrderById,
-      system_event_blocks: systemEventBlocks,
+    () => buildVisibleOrderedAssistantEntries({
+      hiddenToolNames,
+      hiddenToolUseIds,
+      isLoading,
+      mergedContent,
+      mergedContentSourceMessageIds,
+      sourceMessageOrderById,
+      systemEventBlocks,
     }),
     [
       hiddenToolNames,
@@ -198,7 +198,7 @@ export function useMessageItemState({
     const nextIndexes = new Set<number>();
 
     visibleOrderedAssistantEntries.forEach((entry, visibleIndex) => {
-      if (streamingBlockIndexes.has(entry.merged_index)) {
+      if (streamingBlockIndexes.has(entry.mergedIndex)) {
         nextIndexes.add(visibleIndex);
       }
     });
@@ -207,10 +207,10 @@ export function useMessageItemState({
   }, [streamingBlockIndexes, visibleOrderedAssistantEntries]);
 
   const visibleAssistantTurns = useMemo<AssistantTurnEntry[]>(
-    () => build_visible_assistant_turns({
-      assistant_messages: assistantMessages,
-      streaming_block_indexes: streamingBlockIndexes,
-      visible_ordered_assistant_entries: visibleOrderedAssistantEntries,
+    () => buildVisibleAssistantTurns({
+      assistantMessages,
+      streamingBlockIndexes,
+      visibleOrderedAssistantEntries,
     }),
     [
       assistantMessages,
@@ -222,28 +222,28 @@ export function useMessageItemState({
   const orderedProjection = useMemo<ContentProjection>(
     () => ({
       content: visibleOrderedAssistantContent,
-      streaming_indexes: orderedAssistantStreamingIndexes,
+      streamingIndexes: orderedAssistantStreamingIndexes,
     }),
     [orderedAssistantStreamingIndexes, visibleOrderedAssistantContent],
   );
 
   const {
-    direct_ordered_projection: directOrderedProjection,
-    process_projection: processProjection,
-    final_assistant_content: finalAssistantContent,
-    final_assistant_streaming_indexes: finalAssistantStreamingIndexes,
-    final_assistant_text: finalAssistantText,
+    directOrderedProjection,
+    processProjection,
+    finalAssistantContent,
+    finalAssistantStreamingIndexes,
+    finalAssistantText,
   } = useMemo(
     () =>
-      resolve_message_item_final_projection({
-        assistant_content_mode: assistantContentMode,
-        assistant_messages: assistantMessages,
-        ordered_projection: orderedProjection,
-        result_summary: resultSummary,
-        round_id: roundId,
-        streaming_block_indexes: streamingBlockIndexes,
-        visible_assistant_turns: visibleAssistantTurns,
-        visible_ordered_assistant_entries: visibleOrderedAssistantEntries,
+      resolveMessageItemFinalProjection({
+        assistantContentMode,
+        assistantMessages,
+        orderedProjection,
+        resultSummary,
+        roundId,
+        streamingBlockIndexes,
+        visibleAssistantTurns,
+        visibleOrderedAssistantEntries,
       }),
     [
       assistantContentMode,
@@ -266,27 +266,27 @@ export function useMessageItemState({
     assistantContentMode === "dm_archived" && hasVisibleProcess;
 
   const hasTimedOutQuestionInProcess = useMemo(
-    () => has_timed_out_ask_user_question(processProjection.content),
+    () => hasTimedOutAskUserQuestion(processProjection.content),
     [processProjection.content],
   );
 
   const processSummary = useMemo(
-    () => build_process_summary({
-      pending_permission_count: pendingPermissions.length,
-      process_content: processProjection.content,
+    () => buildProcessSummary({
+      pendingPermissionCount: pendingPermissions.length,
+      processContent: processProjection.content,
     }),
     [pendingPermissions.length, processProjection.content],
   );
 
   const liveActivityState = useMemo(
-    () => resolve_live_activity_state({
-      is_last_round: isLastRound,
-      is_loading: isLoading,
-      merged_content: mergedContent,
-      pending_permissions: pendingPermissions,
-      runtime_phase: runtimePhase,
-      stream_status: streamStatus,
-      streaming_block_indexes: streamingBlockIndexes,
+    () => resolveLiveActivityState({
+      isLastRound,
+      isLoading,
+      mergedContent,
+      pendingPermissions,
+      runtimePhase,
+      streamStatus,
+      streamingBlockIndexes,
     }),
     [
       isLastRound,
@@ -409,52 +409,52 @@ export function useMessageItemState({
     onStopMessage(firstAssistant.message_id);
   }, [firstAssistant, onStopMessage]);
 
-  const { content_area_ref: contentAreaRef, content_area_style: contentAreaStyle } =
+  const { contentAreaRef, contentAreaStyle } =
     useMessageItemStreamingLayout({
-      assistant_content_mode: assistantContentMode,
-      direct_content: directOrderedProjection.content,
-      final_assistant_text: finalAssistantText,
-      show_cursor: showCursor,
+      assistantContentMode,
+      directContent: directOrderedProjection.content,
+      finalAssistantText,
+      showCursor,
     });
 
   return {
-    copied_user: copiedUser,
-    copied_assistant: copiedAssistant,
-    user_message: userMessage,
-    user_content: userContent,
-    user_attachments: userAttachments,
-    assistant_agent_id: assistantAgentId,
+    copiedUser,
+    copiedAssistant,
+    userMessage,
+    userContent,
+    userAttachments,
+    assistantAgentId,
     model,
     timestamp,
-    stream_status: streamStatus,
+    streamStatus,
     stats,
-    matched_pending_permissions_by_tool_use_id: matchedPendingPermissionsByToolUseId,
-    unmatched_pending_permissions: unmatchedPendingPermissions,
-    direct_ordered_projection: directOrderedProjection,
-    process_projection: processProjection,
-    final_assistant_content: finalAssistantContent,
-    final_assistant_streaming_indexes: finalAssistantStreamingIndexes,
-    final_assistant_text: finalAssistantText,
-    should_render_direct_assistant_content: shouldRenderDirectAssistantContent,
-    should_render_process_callchain: shouldRenderProcessCallchain,
-    should_render_assistant_text: shouldRenderAssistantText,
-    should_render_standalone_activity_status: shouldRenderStandaloneActivityStatus,
-    should_show_assistant_footer: shouldShowAssistantFooter,
-    show_cursor: showCursor,
-    final_assistant_is_streaming: finalAssistantIsStreaming,
-    should_hide_assistant_content: shouldHideAssistantContent,
-    process_summary: processSummary,
-    live_activity_state: liveActivityState,
-    is_process_expanded: isProcessExpanded,
-    toggle_process_expanded: toggleProcessExpanded,
-    process_anchor_ref: processAnchorRef,
-    can_copy_assistant: canCopyAssistant,
-    can_stop_message: canStopMessage,
-    handle_copy_user: handleCopyUser,
-    handle_copy_assistant: handleCopyAssistant,
-    handle_stop_message: handleStopMessage,
-    content_area_ref: contentAreaRef,
-    content_area_style: contentAreaStyle,
-    merged_content_length: mergedContent.length,
+    matchedPendingPermissionsByToolUseId,
+    unmatchedPendingPermissions,
+    directOrderedProjection,
+    processProjection,
+    finalAssistantContent,
+    finalAssistantStreamingIndexes,
+    finalAssistantText,
+    shouldRenderDirectAssistantContent,
+    shouldRenderProcessCallchain,
+    shouldRenderAssistantText,
+    shouldRenderStandaloneActivityStatus,
+    shouldShowAssistantFooter,
+    showCursor,
+    finalAssistantIsStreaming,
+    shouldHideAssistantContent,
+    processSummary,
+    liveActivityState,
+    isProcessExpanded,
+    toggleProcessExpanded,
+    processAnchorRef,
+    canCopyAssistant,
+    canStopMessage,
+    handleCopyUser,
+    handleCopyAssistant,
+    handleStopMessage,
+    contentAreaRef,
+    contentAreaStyle,
+    mergedContentLength: mergedContent.length,
   };
 }

@@ -25,7 +25,7 @@ function isConnectorOAuthEvent(value: unknown): value is ConnectorOAuthEvent {
   );
 }
 
-export function publish_connector_oauth_event(
+export function publishConnectorOauthEvent(
   type: ConnectorOAuthEventType,
   message: string,
 ): void {
@@ -46,7 +46,7 @@ export function publish_connector_oauth_event(
   }
 }
 
-export function subscribe_connector_oauth_event(
+export function subscribeConnectorOauthEvent(
   handler: (event: ConnectorOAuthEvent) => void,
 ): () => void {
   const handleEvent = (event: ConnectorOAuthEvent) => {

@@ -28,34 +28,34 @@ import type {
 } from "@/types/agent/agent";
 
 export interface AgentOptionsProps {
-  agent_id?: string;
+  agentId?: string;
   mode: "create" | "edit";
-  is_open: boolean;
-  on_close: () => void;
-  on_delete?: (agentId: string) => void;
-  on_save: (title: string, options: AgentConfigOptions, identity: AgentIdentityDraft) => void | Promise<void>;
-  on_validate_name?: (name: string) => Promise<AgentNameValidationResult>;
-  initial_title?: string;
-  initial_options?: Partial<AgentConfigOptions>;
-  initial_avatar?: string;
-  initial_description?: string;
-  initial_vibe_tags?: string[];
+  isOpen: boolean;
+  onClose: () => void;
+  onDelete?: (agentId: string) => void;
+  onSave: (title: string, options: AgentConfigOptions, identity: AgentIdentityDraft) => void | Promise<void>;
+  onValidateName?: (name: string) => Promise<AgentNameValidationResult>;
+  initialTitle?: string;
+  initialOptions?: Partial<AgentConfigOptions>;
+  initialAvatar?: string;
+  initialDescription?: string;
+  initialVibeTags?: string[];
 }
 
 /** 中文注释：共享层只保留对话框骨架，真实编辑器和业务状态迁回 feature。 */
 export function AgentOptions({
-  agent_id: agentId,
+  agentId: agentId,
   mode,
-  is_open: isOpen,
-  on_close: onClose,
-  on_delete: onDelete,
-  on_save: onSave,
-  on_validate_name: onValidateName,
-  initial_title: initialTitle = "",
-  initial_options: initialOptions = {},
-  initial_avatar: initialAvatar = "",
-  initial_description: initialDescription = "",
-  initial_vibe_tags: initialVibeTags = [],
+  isOpen: isOpen,
+  onClose: onClose,
+  onDelete: onDelete,
+  onSave: onSave,
+  onValidateName: onValidateName,
+  initialTitle: initialTitle = "",
+  initialOptions: initialOptions = {},
+  initialAvatar: initialAvatar = "",
+  initialDescription: initialDescription = "",
+  initialVibeTags: initialVibeTags = [],
 }: AgentOptionsProps) {
   const { t } = useI18n();
 
@@ -118,20 +118,20 @@ export function AgentOptions({
         </div>
 
         <AgentOptionsEditor
-          agent_id={agentId}
+          agentId={agentId}
           mode={mode}
-          is_active={isOpen}
-          on_cancel={onClose}
-          on_delete={onDelete}
-          on_save={onSave}
-          on_validate_name={onValidateName}
-          initial_title={initialTitle}
-          initial_options={initialOptions}
-          initial_avatar={initialAvatar}
-          initial_description={initialDescription}
-          initial_vibe_tags={initialVibeTags}
-          close_after_save
-          show_cancel_button
+          isActive={isOpen}
+          onCancel={onClose}
+          onDelete={onDelete}
+          onSave={onSave}
+          onValidateName={onValidateName}
+          initialTitle={initialTitle}
+          initialOptions={initialOptions}
+          initialAvatar={initialAvatar}
+          initialDescription={initialDescription}
+          initialVibeTags={initialVibeTags}
+          closeAfterSave
+          showCancelButton
         />
       </div>
     </div>,

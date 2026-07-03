@@ -24,7 +24,7 @@ import {
 import {
   COMPOSER_ACTION_BUTTON_CLASS_NAME,
   COMPOSER_PRIMARY_ACTION_BUTTON_CLASS_NAME,
-  get_composer_shell_class_name,
+  getComposerShellClassName,
 } from "@/features/conversation/shared/composer-styles";
 import { ConversationResizeHandle } from "@/features/conversation/shared/editor/conversation-resize-handle";
 import { MessageItem } from "@/features/conversation/shared/message";
@@ -45,10 +45,10 @@ import { WorkspaceSurfaceView } from "@/shared/ui/workspace/surface/workspace-su
 import type { RoomSurfaceTabKey } from "@/types/conversation/room-surface";
 
 import {
-  demo_conversations,
-  demo_rounds,
-  demo_todos,
-  demo_workspace_entries,
+  demoConversations,
+  demoRounds,
+  demoTodos,
+  demoWorkspaceEntries,
 } from "./landing-demo-data";
 
 type LandingSidebarTab = "chat" | "contacts" | "capabilities";
@@ -63,7 +63,7 @@ function LandingWorkbenchSidebar() {
       description: "Landing review",
       time: "10:03",
       active: true,
-      leading: <UiAgentAvatar avatar="/icon/agent/8.png" is_working name="Amy" />,
+      leading: <UiAgentAvatar avatar="/icon/agent/8.png" isWorking name="Amy" />,
       status: <UiBadge size="xs" tone="primary">Working</UiBadge>,
     },
     {
@@ -79,7 +79,7 @@ function LandingWorkbenchSidebar() {
             { id: "nexus", name: "Nexus", avatar: "/logo.webp" },
             { id: "lee", name: "Lee", avatar: "/icon/agent/17.png" },
           ]}
-          room_id="design-room"
+          roomId="design-room"
           title="Design Room"
         />
       ),
@@ -91,7 +91,7 @@ function LandingWorkbenchSidebar() {
       description: "Typecheck, lint",
       time: "5/12",
       active: false,
-      leading: <UiRoomAvatar members={[]} room_id="runtime" title="Runtime QA" />,
+      leading: <UiRoomAvatar members={[]} roomId="runtime" title="Runtime QA" />,
       status: <UiCounterBadge count={2} />,
     },
   ], []);
@@ -135,9 +135,9 @@ function LandingWorkbenchSidebar() {
 
       <div className="landing-real-sidebar-search">
         <UiSearchInput
-          class_name="flex-1"
-          input_class_name="text-[13px]"
-          on_change={setQuery}
+          className="flex-1"
+          inputClassName="text-[13px]"
+          onChange={setQuery}
           placeholder="搜索聊天"
           value={query}
         />
@@ -154,7 +154,7 @@ function LandingWorkbenchSidebar() {
             key={item.id}
             leading={item.leading}
             meta={<span className="text-[11px] tabular-nums text-(--text-soft)">{item.time}</span>}
-            subtitle_trailing={item.status}
+            subtitleTrailing={item.status}
             title={item.title}
           />
         ))}
@@ -187,23 +187,23 @@ function LandingWorkbenchChat() {
   return (
     <section className="landing-real-chat">
       <div className="landing-real-feed nexus-chat-feed soft-scrollbar">
-        {demo_rounds.map((round, index) => (
+        {demoRounds.map((round, index) => (
           <MessageItem
-            assistant_content_mode="dm_archived"
-            current_agent_avatar="/icon/agent/8.png"
-            current_agent_name="Amy"
-            current_user_avatar="/icon/agent/17.png"
-            is_last_round={index === demo_rounds.length - 1}
+            assistantContentMode="dm_archived"
+            currentAgentAvatar="/icon/agent/8.png"
+            currentAgentName="Amy"
+            currentUserAvatar="/icon/agent/17.png"
+            isLastRound={index === demoRounds.length - 1}
             key={round.round_id}
             messages={round.messages}
-            round_id={round.round_id}
-            workspace_agent_id="agent-amy"
+            roundId={round.round_id}
+            workspaceAgentId="agent-amy"
           />
         ))}
       </div>
 
       <div className="landing-real-composer">
-        <div className={cn(get_composer_shell_class_name(false), "landing-real-composer-shell")}>
+        <div className={cn(getComposerShellClassName(false), "landing-real-composer-shell")}>
           <button className={COMPOSER_ACTION_BUTTON_CLASS_NAME} type="button">
             <Paperclip className="h-4 w-4" />
           </button>
@@ -225,28 +225,28 @@ function LandingWorkbenchMain() {
   return (
     <section className="landing-real-main">
       <WorkspaceSurfaceScaffold
-        body_class_name="relative"
+        bodyClassName="relative"
         header={(
           <WorkspaceSurfaceHeader
-            active_tab={activeTab}
+            activeTab={activeTab}
             badge="DM"
             density="compact"
-            leading={<UiAgentAvatar avatar="/icon/agent/8.png" class_name="h-full w-full border-0 shadow-none" name="Amy" size="sm" />}
-            on_change_tab={setActiveTab}
+            leading={<UiAgentAvatar avatar="/icon/agent/8.png" className="h-full w-full border-0 shadow-none" name="Amy" size="sm" />}
+            onChangeTab={setActiveTab}
             tabs={[
               { key: "history", label: "历史", icon: History },
               { key: "workspace", label: "工作区", icon: FolderTree },
               { key: "about", label: "关于", icon: Info },
             ]}
-            tabs_leading={(
+            tabsLeading={(
               <WorkspaceConversationTabs
-                conversation_id="conv-landing"
-                conversations={demo_conversations}
-                on_create_conversation={async () => "conv-new"}
-                on_select_conversation={() => undefined}
+                conversationId="conv-landing"
+                conversations={demoConversations}
+                onCreateConversation={async () => "conv-new"}
+                onSelectConversation={() => undefined}
               />
             )}
-            tabs_trailing={<WorkspaceTaskStrip todos={demo_todos} />}
+            tabsTrailing={<WorkspaceTaskStrip todos={demoTodos} />}
             title="Amy"
             trailing={(
               <WorkspaceSurfaceToolbarAction>
@@ -261,8 +261,8 @@ function LandingWorkbenchMain() {
           <LandingWorkbenchChat />
           <section className="landing-real-aux-panel">
             <ConversationResizeHandle
-              aria_label="调整右侧面板宽度"
-              on_mouse_down={() => undefined}
+              ariaLabel="调整右侧面板宽度"
+              onMouseDown={() => undefined}
             />
             <LandingWorkbenchFiles />
           </section>
@@ -287,12 +287,12 @@ function LandingWorkbenchFiles() {
             关闭
           </WorkspaceSurfaceToolbarAction>
         )}
-        body_class_name="px-3 py-2 sm:px-3 xl:px-4"
-        body_scrollable={false}
-        content_class_name="landing-real-workspace-content"
+        bodyClassName="px-3 py-2 sm:px-3 xl:px-4"
+        bodyScrollable={false}
+        contentClassName="landing-real-workspace-content"
         eyebrow="Workspace"
-        max_width_class_name="max-w-none"
-        show_eyebrow={false}
+        maxWidthClassName="max-w-none"
+        showEyebrow={false}
         title="Workspace"
       >
         <div className="landing-real-workspace-split">
@@ -346,14 +346,14 @@ function LandingWorkbenchFiles() {
 
             <div className="landing-real-file-tree soft-scrollbar">
               <WorkspaceFileTree
-                active_path="web/src/pages/landing/landing-page.tsx"
-                entries={demo_workspace_entries}
-                focused_directory_path="web/src/pages/landing"
-                on_click_directory={noopFile}
-                on_click_file={noopFile}
-                on_context_menu={noopMenu}
-                on_delete_entry={noopFile}
-                on_rename_entry={noopFile}
+                activePath="web/src/pages/landing/landing-page.tsx"
+                entries={demoWorkspaceEntries}
+                focusedDirectoryPath="web/src/pages/landing"
+                onClickDirectory={noopFile}
+                onClickFile={noopFile}
+                onContextMenu={noopMenu}
+                onDeleteEntry={noopFile}
+                onRenameEntry={noopFile}
               />
             </div>
           </div>

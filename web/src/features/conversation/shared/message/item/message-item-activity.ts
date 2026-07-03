@@ -3,23 +3,23 @@ import type { ContentBlock } from "@/types/conversation/message";
 import type { PendingPermission } from "@/types/conversation/permission";
 
 import {
-  get_input_summary,
-  get_tool_title,
+  getInputSummary,
+  getToolTitle,
 } from "../blocks/tool-block-model";
 import type { MessageActivityState } from "../ui/message-primitives";
 import {
-  find_latest_streaming_block,
-  map_runtime_phase_to_activity_state,
+  findLatestStreamingBlock,
+  mapRuntimePhaseToActivityState,
 } from "./message-item-support";
 
 const PROCESS_SUMMARY_DETAIL_LIMIT = 72;
 
-export function build_process_summary({
-  pending_permission_count: pendingPermissionCount,
-  process_content: processContent,
+export function buildProcessSummary({
+  pendingPermissionCount,
+  processContent,
 }: {
-  pending_permission_count: number;
-  process_content: ContentBlock[];
+  pendingPermissionCount: number;
+  processContent: ContentBlock[];
 }): string {
   let toolCount = 0;
   let thinkingCount = 0;
@@ -79,9 +79,9 @@ function latestProcessDetail(processContent: ContentBlock[]): string | null {
       );
     }
     if (block.type === "tool_use") {
-      const detail = get_input_summary(block.input);
+      const detail = getInputSummary(block.input);
       return compactProcessDetail(
-        detail ? `${get_tool_title(block.name)}：${detail}` : get_tool_title(block.name),
+        detail ? `${getToolTitle(block.name)}：${detail}` : getToolTitle(block.name),
       );
     }
     if (block.type === "system_event") {
@@ -105,22 +105,22 @@ function compactProcessDetail(value: string): string | null {
   return `${text.slice(0, PROCESS_SUMMARY_DETAIL_LIMIT - 1)}…`;
 }
 
-export function resolve_live_activity_state({
-  is_last_round: isLastRound,
-  is_loading: isLoading,
-  merged_content: mergedContent,
-  pending_permissions: pendingPermissions,
-  runtime_phase: runtimePhase,
-  stream_status: streamStatus,
-  streaming_block_indexes: streamingBlockIndexes,
+export function resolveLiveActivityState({
+  isLastRound,
+  isLoading,
+  mergedContent,
+  pendingPermissions,
+  runtimePhase,
+  streamStatus,
+  streamingBlockIndexes,
 }: {
-  is_last_round?: boolean;
-  is_loading?: boolean;
-  merged_content: ContentBlock[];
-  pending_permissions: PendingPermission[];
-  runtime_phase?: AgentConversationRuntimePhase | null;
-  stream_status?: string | null;
-  streaming_block_indexes: ReadonlySet<number>;
+  isLastRound?: boolean;
+  isLoading?: boolean;
+  mergedContent: ContentBlock[];
+  pendingPermissions: PendingPermission[];
+  runtimePhase?: AgentConversationRuntimePhase | null;
+  streamStatus?: string | null;
+  streamingBlockIndexes: ReadonlySet<number>;
 }): MessageActivityState | null {
   if (!isLastRound || !isLoading) {
     return null;
@@ -137,12 +137,12 @@ export function resolve_live_activity_state({
   }
 
   const runtimeActivityState =
-    map_runtime_phase_to_activity_state(runtimePhase);
+    mapRuntimePhaseToActivityState(runtimePhase);
   if (runtimeActivityState === "sending") {
     return "sending";
   }
 
-  const latestStreamingBlock = find_latest_streaming_block(
+  const latestStreamingBlock = findLatestStreamingBlock(
     mergedContent,
     streamingBlockIndexes,
   );

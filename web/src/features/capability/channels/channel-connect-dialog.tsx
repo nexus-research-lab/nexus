@@ -14,13 +14,13 @@ import {
   ChannelConfigView,
   ChannelCredentialField,
   ChannelLoginView,
-  delete_channel_account_api,
-  delete_channel_config_api,
-  get_channel_login_api,
-  list_channels_api,
-  start_channel_login_api,
-  submit_channel_login_verify_code_api,
-  upsert_channel_config_api,
+  deleteChannelAccountApi,
+  deleteChannelConfigApi,
+  getChannelLoginApi,
+  listChannelsApi,
+  startChannelLoginApi,
+  submitChannelLoginVerifyCodeApi,
+  upsertChannelConfigApi,
 } from "@/lib/api/channel-api";
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { UiButton } from "@/shared/ui/button";
@@ -37,14 +37,14 @@ import { UiField, UiInput } from "@/shared/ui/form-control";
 import { UiSelectMenu } from "@/shared/ui/select-menu";
 import { UiStateBlock } from "@/shared/ui/state-block";
 import type { Agent } from "@/types/agent/agent";
-import { notify_capability_summary_mutated } from "../capability-summary-events";
+import { notifyCapabilitySummaryMutated } from "../capability-summary-events";
 import { ChannelAccountsPanel } from "./channel-accounts-panel";
 import { ChannelGuide } from "./channel-guide";
 import { ChannelLoginPanel } from "./channel-login-panel";
 import {
-  is_channel_login_running,
-  is_channel_planned,
-  is_personal_weixin_channel,
+  isChannelLoginRunning,
+  isChannelPlanned,
+  isPersonalWeixinChannel,
 } from "./channel-model";
 import { ChannelIcon } from "./channel-ui-model";
 
@@ -55,10 +55,10 @@ type PendingChannelDelete =
 interface ChannelConnectDialogProps {
   item: ChannelConfigView;
   agents: Agent[];
-  on_close: () => void;
-  on_deleted: (item: ChannelConfigView) => Promise<void> | void;
-  on_saved: (item: ChannelConfigView, announce?: boolean) => void;
-  on_error: (message: string) => void;
+  onClose: () => void;
+  onDeleted: (item: ChannelConfigView) => Promise<void> | void;
+  onSaved: (item: ChannelConfigView, announce?: boolean) => void;
+  onError: (message: string) => void;
 }
 
 function buildDiscordOauthUrl(config: Record<string, string>) {
@@ -80,7 +80,7 @@ function channelFieldInputName(channelType: ChannelConfigView["channel_type"], i
   return `nexus-im-channel-${channelType}-field-${index}`;
 }
 
-export function ChannelConnectDialog({ item, agents, on_close: onClose, on_deleted: onDeleted, on_saved: onSaved, on_error: onError }: ChannelConnectDialogProps) {
+export function ChannelConnectDialog({ item, agents, onClose: onClose, onDeleted: onDeleted, onSaved: onSaved, onError: onError }: ChannelConnectDialogProps) {
   const initialAgentId = item.agent_id || agents[0]?.agent_id || "";
   const itemResetKey = [
     item.channel_type,
@@ -98,10 +98,10 @@ export function ChannelConnectDialog({ item, agents, on_close: onClose, on_delet
   const [pendingDelete, setPendingDelete] = useResettableState<PendingChannelDelete | null>(null, itemResetKey);
   const [loginLoading, setLoginLoading] = useResettableState(false, itemResetKey);
   const [loginView, setLoginView] = useResettableState<ChannelLoginView | null>(null, itemResetKey);
-  const isPlanned = is_channel_planned(currentItem);
+  const isPlanned = isChannelPlanned(currentItem);
   const discordOauthUrl = currentItem.channel_type === "discord" ? buildDiscordOauthUrl(config) : "";
-  const supportsPersonalWeixinLogin = is_personal_weixin_channel(currentItem.channel_type);
-  const loginRunning = is_channel_login_running(loginView);
+  const supportsPersonalWeixinLogin = isPersonalWeixinChannel(currentItem.channel_type);
+  const loginRunning = isChannelLoginRunning(loginView);
   const loginId = loginView?.login_id || "";
   const loginStatus = loginView?.status || "";
 
@@ -117,7 +117,7 @@ export function ChannelConnectDialog({ item, agents, on_close: onClose, on_delet
     if (!supportsPersonalWeixinLogin || !loginId) return;
     setLoginLoading(true);
     try {
-      const nextLogin = await submit_channel_login_verify_code_api(currentItem.channel_type, loginId, value);
+      const nextLogin = await submitChannelLoginVerifyCodeApi(currentItem.channel_type, loginId, value);
       setLoginView(nextLogin);
     } catch (error) {
       onError(error instanceof Error ? error.message : "验证码提交失败");
@@ -127,7 +127,7 @@ export function ChannelConnectDialog({ item, agents, on_close: onClose, on_delet
   }, [currentItem.channel_type, loginId, onError, supportsPersonalWeixinLogin]);
 
   const refreshCurrentChannel = useCallback(async () => {
-    const items = await list_channels_api();
+    const items = await listChannelsApi();
     const updated = items.find((value) => value.channel_type === currentItem.channel_type);
     if (!updated) return;
     setCurrentItem(updated);
@@ -140,7 +140,7 @@ export function ChannelConnectDialog({ item, agents, on_close: onClose, on_delet
     }
     const timer = window.setInterval(async () => {
       try {
-        const nextLogin = await get_channel_login_api(currentItem.channel_type, loginId);
+        const nextLogin = await getChannelLoginApi(currentItem.channel_type, loginId);
         setLoginView(nextLogin);
         if (nextLogin.status === "succeeded") {
           void refreshCurrentChannel();
@@ -158,17 +158,17 @@ export function ChannelConnectDialog({ item, agents, on_close: onClose, on_delet
     if (isPlanned) return;
     setSaving(true);
     try {
-      const saved = await upsert_channel_config_api(currentItem.channel_type, {
+      const saved = await upsertChannelConfigApi(currentItem.channel_type, {
         agent_id: agentId,
         config,
         credentials,
       });
       setCurrentItem(saved);
-      const shouldStartLogin = is_personal_weixin_channel(saved.channel_type);
+      const shouldStartLogin = isPersonalWeixinChannel(saved.channel_type);
       onSaved(saved, !shouldStartLogin);
       if (closeOnSuccess && shouldStartLogin) {
         setLoginLoading(true);
-        const nextLogin = await start_channel_login_api(saved.channel_type);
+        const nextLogin = await startChannelLoginApi(saved.channel_type);
         setLoginView(nextLogin);
         return;
       }
@@ -190,8 +190,8 @@ export function ChannelConnectDialog({ item, agents, on_close: onClose, on_delet
     if (!currentItem.configured || isPlanned || deleting) return;
     setDeleting(true);
     try {
-      await delete_channel_config_api(currentItem.channel_type);
-      notify_capability_summary_mutated({ source: "channels", action: "delete", channel_type: currentItem.channel_type });
+      await deleteChannelConfigApi(currentItem.channel_type);
+      notifyCapabilitySummaryMutated({ source: "channels", action: "delete", channel_type: currentItem.channel_type });
       await onDeleted(currentItem);
       setDeleting(false);
       onClose();
@@ -210,9 +210,9 @@ export function ChannelConnectDialog({ item, agents, on_close: onClose, on_delet
     if (!account.account_id || deletingAccountId) return;
     setDeletingAccountId(account.account_id);
     try {
-      const updated = await delete_channel_account_api(currentItem.channel_type, account.account_id);
+      const updated = await deleteChannelAccountApi(currentItem.channel_type, account.account_id);
       setCurrentItem(updated);
-      notify_capability_summary_mutated({ source: "channels", action: "delete_account", channel_type: currentItem.channel_type });
+      notifyCapabilitySummaryMutated({ source: "channels", action: "delete_account", channel_type: currentItem.channel_type });
       onSaved(updated, false);
     } catch (error) {
       onError(error instanceof Error ? error.message : "删除账号失败");
@@ -240,22 +240,22 @@ export function ChannelConnectDialog({ item, agents, on_close: onClose, on_delet
   return (
     <>
       <UiDialogPortal>
-        <UiDialogBackdrop class_name="z-[9999]" labelled_by="channel-connect-dialog-title" on_close={onClose}>
+        <UiDialogBackdrop className="z-[9999]" labelledBy="channel-connect-dialog-title" onClose={onClose}>
           <UiDialogFormShell
             autoComplete="off"
-            class_name="max-h-[86vh]"
+            className="max-h-[86vh]"
             onSubmit={handleSubmit}
             size="lg"
           >
             <UiDialogHeader
               icon={<ChannelIcon type={currentItem.channel_type} size="dialog" />}
-              icon_class_name="h-[52px] w-[52px] overflow-visible border-0 bg-transparent p-0 shadow-none"
-              on_close={onClose}
+              iconClassName="h-[52px] w-[52px] overflow-visible border-0 bg-transparent p-0 shadow-none"
+              onClose={onClose}
               title={`连接 ${currentItem.title}`}
-              title_id="channel-connect-dialog-title"
+              titleId="channel-connect-dialog-title"
             />
 
-            <UiDialogBody class_name="space-y-5" scrollable>
+            <UiDialogBody className="space-y-5" scrollable>
               {isPlanned ? (
                 <UiStateBlock
                   description="频道接入将在后续版本补充，当前版本暂不支持配置机器人或配对。"
@@ -276,23 +276,23 @@ export function ChannelConnectDialog({ item, agents, on_close: onClose, on_delet
                   {supportsPersonalWeixinLogin ? (
                     <ChannelLoginPanel
                       loading={loginLoading || saving}
-                      login_view={loginView}
-                      on_submit_verify_code={submitVerifyCode}
+                      loginView={loginView}
+                      onSubmitVerifyCode={submitVerifyCode}
                     />
                   ) : null}
 
                   {supportsPersonalWeixinLogin ? (
                     <ChannelAccountsPanel
                       accounts={currentItem.accounts || []}
-                      deleting_account_id={deletingAccountId}
-                      on_delete={requestDeleteAccount}
+                      deletingAccountId={deletingAccountId}
+                      onDelete={requestDeleteAccount}
                     />
                   ) : null}
 
                   <UiField label={<>处理智能体 <span className="text-(--destructive)">*</span></>}>
                     <UiSelectMenu
-                      aria_label="选择频道处理智能体"
-                      on_change={setAgentId}
+                      ariaLabel="选择频道处理智能体"
+                      onChange={setAgentId}
                       options={agents.map((agent) => ({
                         value: agent.agent_id,
                         label: agent.name,
@@ -334,7 +334,7 @@ export function ChannelConnectDialog({ item, agents, on_close: onClose, on_delet
                   {currentItem.channel_type === "discord" ? (
                     <UiField label="授权机器人到服务器">
                       <UiButton
-                        class_name="w-full"
+                        className="w-full"
                         disabled={!discordOauthUrl}
                         onClick={() => discordOauthUrl && window.open(discordOauthUrl, "_blank", "noopener,noreferrer")}
                         size="lg"
@@ -356,7 +356,7 @@ export function ChannelConnectDialog({ item, agents, on_close: onClose, on_delet
                 <div className="min-h-10">
                   {currentItem.configured && !isPlanned ? (
                     <UiButton
-                      class_name="min-w-[118px]"
+                      className="min-w-[118px]"
                       disabled={saving || deleting || loginLoading}
                       onClick={requestDeleteChannel}
                       size="lg"
@@ -370,7 +370,7 @@ export function ChannelConnectDialog({ item, agents, on_close: onClose, on_delet
                 </div>
                 <div className="flex justify-end gap-3">
                   <UiButton
-                    class_name="min-w-[104px]"
+                    className="min-w-[104px]"
                     disabled={deleting}
                     onClick={onClose}
                     size="lg"
@@ -379,7 +379,7 @@ export function ChannelConnectDialog({ item, agents, on_close: onClose, on_delet
                     取消
                   </UiButton>
                   <UiButton
-                    class_name="min-w-[124px]"
+                    className="min-w-[124px]"
                     disabled={saving || deleting || loginLoading || loginRunning || !agentId || isPlanned}
                     size="lg"
                     tone="primary"
@@ -406,15 +406,15 @@ export function ChannelConnectDialog({ item, agents, on_close: onClose, on_delet
         </UiDialogBackdrop>
       </UiDialogPortal>
       <ConfirmDialog
-        confirm_text={pendingDelete?.kind === "channel" ? "断开频道" : "删除账号"}
-        is_open={pendingDelete !== null}
+        confirmText={pendingDelete?.kind === "channel" ? "断开频道" : "删除账号"}
+        isOpen={pendingDelete !== null}
         message={pendingDelete?.kind === "channel"
           ? `确认断开 ${currentItem.title} 吗？这会停止该频道的机器人连接，但不会删除已有配对。`
           : pendingDelete
             ? `确认删除微信账号 ${pendingDelete.account.user_id || pendingDelete.account.account_id} 吗？已有配对不会删除，但该账号会停止接收和回投消息。`
             : ""}
-        on_cancel={() => setPendingDelete(null)}
-        on_confirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={confirmDelete}
         title={pendingDelete?.kind === "channel" ? "断开频道" : "删除微信账号"}
         variant="danger"
       />

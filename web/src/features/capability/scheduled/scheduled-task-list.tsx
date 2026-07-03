@@ -12,18 +12,18 @@ import {
   WorkspaceCatalogTextAction,
 } from "@/shared/ui/workspace/catalog/workspace-catalog-card";
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task";
-import { format_scheduled_datetime } from "./scheduled-formatters";
+import { formatScheduledDatetime } from "./scheduled-formatters";
 import {
-  get_behavior_summary,
-  get_context_summary,
-  get_delivery_summary,
-  get_primary_status,
-  get_run_status_label,
-  get_schedule_summary,
-  get_session_summary,
-  get_source_kind_label,
-  get_toggle_action,
-  sort_tasks,
+  getBehaviorSummary,
+  getContextSummary,
+  getDeliverySummary,
+  getPrimaryStatus,
+  getRunStatusLabel,
+  getScheduleSummary,
+  getSessionSummary,
+  getSourceKindLabel,
+  getToggleAction,
+  sortTasks,
 } from "./scheduled-task-list-model";
 
 function ScheduledTaskLoadingRows() {
@@ -32,11 +32,11 @@ function ScheduledTaskLoadingRows() {
       {Array.from({ length: 3 }, (_, index) => (
         <div className="py-4 first:pt-0" key={index}>
           <div className="flex items-start gap-3">
-            <UiSkeleton class_name="mt-1 h-9 w-9 rounded-[12px]" />
+            <UiSkeleton className="mt-1 h-9 w-9 rounded-[12px]" />
             <div className="min-w-0 flex-1 space-y-2">
-              <UiSkeleton class_name="h-4 w-40" />
-              <UiSkeleton class_name="h-3 w-full max-w-[520px]" />
-              <UiSkeleton class_name="h-3 w-3/5" />
+              <UiSkeleton className="h-4 w-40" />
+              <UiSkeleton className="h-3 w-full max-w-[520px]" />
+              <UiSkeleton className="h-3 w-3/5" />
             </div>
           </div>
         </div>
@@ -47,36 +47,36 @@ function ScheduledTaskLoadingRows() {
 
 interface ScheduledTaskListProps {
   items: ScheduledTaskItem[];
-  is_loading: boolean;
-  error_message: string | null;
-  run_pending_job_id?: string | null;
-  toggle_pending_job_id?: string | null;
-  delete_pending_job_id?: string | null;
-  on_create: () => void;
-  on_refresh?: () => void | Promise<void>;
-  on_run_now?: (task: ScheduledTaskItem) => void | Promise<void>;
-  on_toggle_enabled?: (task: ScheduledTaskItem) => void | Promise<void>;
-  on_delete?: (task: ScheduledTaskItem) => void | Promise<void>;
-  on_edit?: (task: ScheduledTaskItem) => void;
-  on_open_history?: (task: ScheduledTaskItem) => void;
+  isLoading: boolean;
+  errorMessage: string | null;
+  runPendingJobId?: string | null;
+  togglePendingJobId?: string | null;
+  deletePendingJobId?: string | null;
+  onCreate: () => void;
+  onRefresh?: () => void | Promise<void>;
+  onRunNow?: (task: ScheduledTaskItem) => void | Promise<void>;
+  onToggleEnabled?: (task: ScheduledTaskItem) => void | Promise<void>;
+  onDelete?: (task: ScheduledTaskItem) => void | Promise<void>;
+  onEdit?: (task: ScheduledTaskItem) => void;
+  onOpenHistory?: (task: ScheduledTaskItem) => void;
 }
 
 export function ScheduledTaskList({
   items,
-  is_loading: isLoading,
-  error_message: errorMessage,
-  run_pending_job_id: runPendingJobId = null,
-  toggle_pending_job_id: togglePendingJobId = null,
-  delete_pending_job_id: deletePendingJobId = null,
-  on_create: onCreate,
-  on_refresh: onRefresh,
-  on_run_now: onRunNow,
-  on_toggle_enabled: onToggleEnabled,
-  on_delete: onDelete,
-  on_edit: onEdit,
-  on_open_history: onOpenHistory,
+  isLoading: isLoading,
+  errorMessage: errorMessage,
+  runPendingJobId: runPendingJobId = null,
+  togglePendingJobId: togglePendingJobId = null,
+  deletePendingJobId: deletePendingJobId = null,
+  onCreate: onCreate,
+  onRefresh: onRefresh,
+  onRunNow: onRunNow,
+  onToggleEnabled: onToggleEnabled,
+  onDelete: onDelete,
+  onEdit: onEdit,
+  onOpenHistory: onOpenHistory,
 }: ScheduledTaskListProps) {
-  const sortedItems = sort_tasks(items);
+  const sortedItems = sortTasks(items);
 
   return (
     <section className="min-h-[320px]">
@@ -124,8 +124,8 @@ export function ScheduledTaskList({
         ) : (
           <div className="divide-y divide-(--divider-subtle-color)">
             {sortedItems.map((task) => {
-              const status = get_primary_status(task);
-              const toggleAction = get_toggle_action(task);
+              const status = getPrimaryStatus(task);
+              const toggleAction = getToggleAction(task);
               const runPending = runPendingJobId === task.job_id;
               const togglePending = togglePendingJobId === task.job_id;
               const deletePending = deletePendingJobId === task.job_id;
@@ -149,23 +149,23 @@ export function ScheduledTaskList({
                         ) : null}
                       </div>
                       <UiMetaGrid>
-                        <UiMetaItem label="归属对象" value={get_context_summary(task)} />
-                        <UiMetaItem label="执行会话" value={get_session_summary(task)} />
-                        <UiMetaItem label="结果回传" value={get_delivery_summary(task.delivery, task.source)} />
-                        <UiMetaItem label="调度规则" value={get_schedule_summary(task.schedule)} />
+                        <UiMetaItem label="归属对象" value={getContextSummary(task)} />
+                        <UiMetaItem label="执行会话" value={getSessionSummary(task)} />
+                        <UiMetaItem label="结果回传" value={getDeliverySummary(task.delivery, task.source)} />
+                        <UiMetaItem label="调度规则" value={getScheduleSummary(task.schedule)} />
                       </UiMetaGrid>
                       <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs text-(--text-default)">
-                        <span>下次运行 {format_scheduled_datetime(task.next_run_at, { empty_label: "未安排" })}</span>
+                        <span>下次运行 {formatScheduledDatetime(task.next_run_at, { emptyLabel: "未安排" })}</span>
                         {task.running_started_at ? (
-                          <span>本次开始 {format_scheduled_datetime(task.running_started_at, { include_seconds: true })}</span>
+                          <span>本次开始 {formatScheduledDatetime(task.running_started_at, { includeSeconds: true })}</span>
                         ) : null}
-                        <span>最近执行 {format_scheduled_datetime(task.last_run_at, { empty_label: "未安排" })}</span>
-                        <span>最近状态 {get_run_status_label(task.last_run_status)}</span>
+                        <span>最近执行 {formatScheduledDatetime(task.last_run_at, { emptyLabel: "未安排" })}</span>
+                        <span>最近状态 {getRunStatusLabel(task.last_run_status)}</span>
                         <span>Agent {task.agent_id}</span>
-                        <span>来源 {get_source_kind_label(task.source)}</span>
+                        <span>来源 {getSourceKindLabel(task.source)}</span>
                       </div>
                       <p className="mt-3 text-sm leading-6 text-(--text-default)">
-                        {get_behavior_summary(task)}
+                        {getBehaviorSummary(task)}
                       </p>
                       {task.last_error ? (
                         <p className="mt-2 break-words rounded-[8px] border border-[color:color-mix(in_srgb,var(--destructive)_18%,transparent)] px-3 py-2 text-xs leading-5 text-(--destructive)">
@@ -177,7 +177,7 @@ export function ScheduledTaskList({
                     <div className="flex shrink-0 flex-wrap items-center gap-3 lg:justify-end">
                       <div className="flex items-center justify-end gap-2">
                         <UiButton
-                          class_name="min-w-[92px]"
+                          className="min-w-[92px]"
                           disabled={togglePending}
                           onClick={() => void onToggleEnabled?.(task)}
                           title={task.enabled ? "暂停后不会再按计划自动触发" : "恢复后会重新参与调度"}

@@ -8,10 +8,10 @@ import { ChangeEvent, MouseEvent, RefObject, useCallback, useEffect, useMemo, us
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import {
-  create_workspace_entry_api,
-  delete_workspace_entry_api,
-  rename_workspace_entry_api,
-  upload_workspace_file_api,
+  createWorkspaceEntryApi,
+  deleteWorkspaceEntryApi,
+  renameWorkspaceEntryApi,
+  uploadWorkspaceFileApi,
 } from "@/lib/api/agent-manage-api";
 import { useWorkspaceFilesStore } from "@/store/workspace-files";
 import type { WorkspaceFileEntry } from "@/types/agent/agent";
@@ -22,17 +22,17 @@ export interface WorkspaceContextMenuState {
 }
 
 export type WorkspacePromptState =
-  | { mode: "create-file"; default_value: string; parent_path: string | null }
-  | { mode: "create-directory"; default_value: string; parent_path: string | null }
-  | { mode: "rename"; entry: WorkspaceFileEntry; default_value: string }
+  | { mode: "create-file"; defaultValue: string; parentPath: string | null }
+  | { mode: "create-directory"; defaultValue: string; parentPath: string | null }
+  | { mode: "rename"; entry: WorkspaceFileEntry; defaultValue: string }
   | null;
 
 interface UseRoomWorkspaceControllerOptions {
-  active_workspace_path: string | null;
-  agent_id: string;
-  is_dm: boolean;
-  on_open_workspace_file: (path: string | null) => void;
-  file_input_ref: RefObject<HTMLInputElement | null>;
+  activeWorkspacePath: string | null;
+  agentId: string;
+  isDm: boolean;
+  onOpenWorkspaceFile: (path: string | null) => void;
+  fileInputRef: RefObject<HTMLInputElement | null>;
 }
 
 function getParentDirectoryPath(path: string): string | null {
@@ -94,11 +94,11 @@ function resolveWorkspaceMenuPosition(
 
 export function useRoomWorkspaceController(
   {
-    active_workspace_path: activeWorkspacePath,
-    agent_id: agentId,
-    is_dm: isDm,
-    on_open_workspace_file: onOpenWorkspaceFile,
-  file_input_ref: fileInputRef,
+    activeWorkspacePath,
+    agentId,
+    isDm,
+    onOpenWorkspaceFile,
+    fileInputRef,
 }: UseRoomWorkspaceControllerOptions) {
   const [selectedAgentId, setSelectedAgentId] = useResettableState(agentId, agentId);
   const [isUploading, setIsUploading] = useState(false);
@@ -185,7 +185,7 @@ export function useRoomWorkspaceController(
     try {
       for (const file of Array.from(selectedFiles)) {
         const targetDirectory = uploadTargetDirectory ? `${uploadTargetDirectory}/` : undefined;
-        await upload_workspace_file_api(viewAgentId, file, targetDirectory);
+        await uploadWorkspaceFileApi(viewAgentId, file, targetDirectory);
       }
       await refreshFiles(viewAgentId);
     } catch (error) {
@@ -202,8 +202,8 @@ export function useRoomWorkspaceController(
   const openCreatePrompt = useCallback((entryType: "file" | "directory", parentPath?: string | null) => {
     setPromptState(
       entryType === "file"
-        ? {mode: "create-file", default_value: "untitled.txt", parent_path: parentPath ?? focusedDirectoryPath}
-        : {mode: "create-directory", default_value: "new-folder", parent_path: parentPath ?? focusedDirectoryPath},
+        ? {mode: "create-file", defaultValue: "untitled.txt", parentPath: parentPath ?? focusedDirectoryPath}
+        : {mode: "create-directory", defaultValue: "new-folder", parentPath: parentPath ?? focusedDirectoryPath},
     );
   }, [focusedDirectoryPath]);
 
@@ -211,7 +211,7 @@ export function useRoomWorkspaceController(
     setPromptState({
       mode: "rename",
       entry,
-      default_value: entry.name,
+      defaultValue: entry.name,
     });
   }, []);
 
@@ -229,7 +229,7 @@ export function useRoomWorkspaceController(
           return;
         }
 
-        const renamedEntry = await rename_workspace_entry_api(
+        const renamedEntry = await renameWorkspaceEntryApi(
           viewAgentId,
           promptState.entry.path,
           joinWorkspacePath(getParentDirectoryPath(promptState.entry.path), normalizedName),
@@ -250,9 +250,9 @@ export function useRoomWorkspaceController(
           );
         }
       } else {
-        const createdEntry = await create_workspace_entry_api(
+        const createdEntry = await createWorkspaceEntryApi(
           viewAgentId,
-          joinWorkspacePath(promptState.parent_path, normalizedName),
+          joinWorkspacePath(promptState.parentPath, normalizedName),
           promptState.mode === "create-file" ? "file" : "directory",
         );
         await refreshFiles(viewAgentId);
@@ -277,7 +277,7 @@ export function useRoomWorkspaceController(
 
     setErrorMessage(null);
     try {
-      await delete_workspace_entry_api(viewAgentId, deleteTarget.path);
+      await deleteWorkspaceEntryApi(viewAgentId, deleteTarget.path);
       await refreshFiles(viewAgentId);
       if (isWorkspacePathAffected(activeWorkspacePath, deleteTarget.path)) {
         onOpenWorkspaceFile(null);
@@ -311,31 +311,31 @@ export function useRoomWorkspaceController(
   }, []);
 
   return {
-    view_agent_id: viewAgentId,
+    viewAgentId,
     files,
-    selected_agent_id: selectedAgentId,
-    set_selected_agent_id: setSelectedAgentId,
-    is_uploading: isUploading,
-    is_loading_files: isLoadingFiles,
-    error_message: errorMessage,
-    clear_error_message: () => setErrorMessage(null),
-    context_menu: contextMenu,
-    prompt_state: promptState,
-    delete_target: deleteTarget,
-    focused_directory_path: focusedDirectoryPath,
-    current_directory_label: focusedDirectoryPath ?? "/",
-    handle_click_file: handleClickFile,
-    handle_click_directory: handleClickDirectory,
-    handle_upload_click: handleUploadClick,
-    handle_file_select: handleFileSelect,
-    open_create_prompt: openCreatePrompt,
-    open_rename_prompt: openRenamePrompt,
-    handle_prompt_confirm: handlePromptConfirm,
-    handle_confirm_delete: handleConfirmDelete,
-    handle_context_menu: handleContextMenu,
-    handle_root_context_menu: handleRootContextMenu,
-    close_context_menu: closeContextMenu,
-    set_delete_target: setDeleteTarget,
-    set_prompt_state: setPromptState,
+    selectedAgentId,
+    setSelectedAgentId,
+    isUploading,
+    isLoadingFiles,
+    errorMessage,
+    clearErrorMessage: () => setErrorMessage(null),
+    contextMenu,
+    promptState,
+    deleteTarget,
+    focusedDirectoryPath,
+    currentDirectoryLabel: focusedDirectoryPath ?? "/",
+    handleClickFile,
+    handleClickDirectory,
+    handleUploadClick,
+    handleFileSelect,
+    openCreatePrompt,
+    openRenamePrompt,
+    handlePromptConfirm,
+    handleConfirmDelete,
+    handleContextMenu,
+    handleRootContextMenu,
+    closeContextMenu,
+    setDeleteTarget,
+    setPromptState,
   };
 }

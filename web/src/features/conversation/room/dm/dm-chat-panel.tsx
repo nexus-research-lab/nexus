@@ -8,7 +8,7 @@ import { useExtractTodos } from "@/hooks/conversation/use-extract-todos";
 import { useFollowScroll } from "@/hooks/conversation/use-follow-scroll";
 import { useSessionLoader } from "@/hooks/conversation/use-session-loader";
 import { useDefaultChatDeliveryPolicy } from "@/hooks/settings/use-default-chat-delivery-policy";
-import { create_goal_api } from "@/lib/api/goal-api";
+import { createGoalApi } from "@/lib/api/goal-api";
 import { useAuth } from "@/shared/auth/auth-context";
 import {
   AgentConversationIdentity,
@@ -18,16 +18,16 @@ import { TodoItem } from "@/types/conversation/todo";
 
 import { ComposerPanel } from "@/features/conversation/shared/composer-panel";
 import {
-  prepare_workspace_attachments,
+  prepareWorkspaceAttachments,
 } from "@/features/conversation/shared/composer-attachments";
 import { ConversationErrorBubble } from "@/features/conversation/shared/conversation-error-bubble";
-import { is_provider_error } from "@/features/conversation/shared/conversation-error-utils";
+import { isProviderError } from "@/features/conversation/shared/conversation-error-utils";
 import { ConversationFeed } from "@/features/conversation/shared/conversation-feed";
-import { goal_continuation_hold_for_permission } from "@/features/conversation/shared/goal-continuation-hold";
+import { goalContinuationHoldForPermission } from "@/features/conversation/shared/goal-continuation-hold";
 import { GoalPanel } from "@/features/conversation/shared/goal-panel";
 import { ProviderUnavailableBanner } from "@/features/conversation/shared/provider-unavailable-banner";
 import { ScrollToLatestButton } from "@/features/conversation/shared/scroll-to-latest-button";
-import { build_timeline_round_ids } from "@/features/conversation/shared/timeline-rounds";
+import { buildTimelineRoundIds } from "@/features/conversation/shared/timeline-rounds";
 import { useConversationComposerHandlers } from "@/features/conversation/shared/use-conversation-composer-handlers";
 import { useConversationHistoryLoader } from "@/features/conversation/shared/use-conversation-history-loader";
 import {
@@ -35,43 +35,43 @@ import {
   type ConversationSnapshotBuildInput,
 } from "@/features/conversation/shared/use-conversation-snapshot-reporter";
 import {
-  group_messages_by_round,
+  groupMessagesByRound,
 } from "@/features/conversation/shared/utils";
 import { CONVERSATION_TOUR_ANCHORS } from "../room-tour";
 
 export interface DmChatPanelProps {
-  current_agent_name?: string | null;
-  current_agent_avatar?: string | null;
-  current_agent_permission_mode?: string | null;
-  session_identity: AgentConversationIdentity | null;
+  currentAgentName?: string | null;
+  currentAgentAvatar?: string | null;
+  currentAgentPermissionMode?: string | null;
+  sessionIdentity: AgentConversationIdentity | null;
   layout?: "desktop" | "mobile";
-  initial_draft?: string | null;
-  on_initial_draft_consumed?: () => void;
-  on_open_agent_contact?: (agentId: string) => void;
-  on_open_workspace_file?: (path: string) => void;
-  on_todos_change?: (todos: TodoItem[]) => void;
-  on_loading_change?: (isLoading: boolean) => void;
-  on_conversation_snapshot_change?: (snapshot: SessionSnapshotPayload) => void;
-  on_room_event?: (
+  initialDraft?: string | null;
+  onInitialDraftConsumed?: () => void;
+  onOpenAgentContact?: (agentId: string) => void;
+  onOpenWorkspaceFile?: (path: string) => void;
+  onTodosChange?: (todos: TodoItem[]) => void;
+  onLoadingChange?: (isLoading: boolean) => void;
+  onConversationSnapshotChange?: (snapshot: SessionSnapshotPayload) => void;
+  onRoomEvent?: (
     eventType: string,
     data: import("@/types/agent/agent-conversation").RoomEventPayload,
   ) => void;
 }
 
 export function DmChatPanel({
-  current_agent_name: currentAgentName,
-  current_agent_avatar: currentAgentAvatar,
-  current_agent_permission_mode: currentAgentPermissionMode,
-  session_identity: sessionIdentity,
+  currentAgentName: currentAgentName,
+  currentAgentAvatar: currentAgentAvatar,
+  currentAgentPermissionMode: currentAgentPermissionMode,
+  sessionIdentity: sessionIdentity,
   layout = "desktop",
-  initial_draft: initialDraft = null,
-  on_initial_draft_consumed: onInitialDraftConsumed,
-  on_open_agent_contact: onOpenAgentContact,
-  on_open_workspace_file: onOpenWorkspaceFile,
-  on_todos_change: onTodosChange,
-  on_loading_change: onLoadingChange,
-  on_conversation_snapshot_change: onConversationSnapshotChange,
-  on_room_event: onRoomEvent,
+  initialDraft: initialDraft = null,
+  onInitialDraftConsumed: onInitialDraftConsumed,
+  onOpenAgentContact: onOpenAgentContact,
+  onOpenWorkspaceFile: onOpenWorkspaceFile,
+  onTodosChange: onTodosChange,
+  onLoadingChange: onLoadingChange,
+  onConversationSnapshotChange: onConversationSnapshotChange,
+  onRoomEvent: onRoomEvent,
 }: DmChatPanelProps) {
   const isMobileLayout = layout === "mobile";
   const sessionKey = sessionIdentity?.session_key ?? null;
@@ -84,7 +84,7 @@ export function DmChatPanel({
   }, []);
   const goalContinuationHold = useMemo(
     () =>
-      goal_continuation_hold_for_permission(
+      goalContinuationHoldForPermission(
         currentAgentName,
         currentAgentPermissionMode,
       ),
@@ -133,47 +133,47 @@ export function DmChatPanel({
   });
 
   const todos = useExtractTodos(messages, sessionKey);
-  const { has_available_provider: hasAvailableProvider, is_ready: providerReady } = useProviderAvailability();
+  const { hasAvailableProvider, isReady: providerReady } = useProviderAvailability();
   const showProviderWarning = providerReady && !hasAvailableProvider;
-  const systemError = error && !is_provider_error(error) ? error : null;
+  const systemError = error && !isProviderError(error) ? error : null;
   const {
-    scroll_ref: scrollRef,
-    feed_ref: feedRef,
-    bottom_anchor_ref: bottomAnchorRef,
-    show_scroll_to_bottom: showScrollToBottom,
-    scroll_to_bottom: scrollToBottom,
-    prepare_history_prepend_restore: prepareHistoryPrependRestore,
-    cancel_history_prepend_restore: cancelHistoryPrependRestore,
-    on_scroll: onScroll,
-    on_wheel: onWheel,
-    on_touch_start: onTouchStart,
-    on_touch_move: onTouchMove,
-    on_touch_end: onTouchEnd,
+    scrollRef: scrollRef,
+    feedRef: feedRef,
+    bottomAnchorRef: bottomAnchorRef,
+    showScrollToBottom: showScrollToBottom,
+    scrollToBottom: scrollToBottom,
+    prepareHistoryPrependRestore: prepareHistoryPrependRestore,
+    cancelHistoryPrependRestore: cancelHistoryPrependRestore,
+    onScroll: onScroll,
+    onWheel: onWheel,
+    onTouchStart: onTouchStart,
+    onTouchMove: onTouchMove,
+    onTouchEnd: onTouchEnd,
   } = useFollowScroll({
-    message_count: messages.length,
-    auxiliary_block_count: pendingPermissions.length,
-    auxiliary_block_key: systemError,
-    is_loading: isLoading,
-    session_key: sessionKey,
-    history_prepend_token: historyPrependToken,
+    messageCount: messages.length,
+    auxiliaryBlockCount: pendingPermissions.length,
+    auxiliaryBlockKey: systemError,
+    isLoading,
+    sessionKey,
+    historyPrependToken,
   });
   const prepareDmAttachments = useCallback(async (files: File[]) => {
     const targetAgentId = sessionIdentity?.agent_id;
     if (!targetAgentId) {
       throw new Error("当前会话尚未准备好，暂时无法附加文件。");
     }
-    return prepare_workspace_attachments(targetAgentId, files);
+    return prepareWorkspaceAttachments(targetAgentId, files);
   }, [sessionIdentity?.agent_id]);
-  const { handle_prepare_attachments: handlePrepareAttachments, handle_send_message: handleSendMessage } =
+  const { handlePrepareAttachments, handleSendMessage } =
     useConversationComposerHandlers({
-      initial_draft: initialDraft,
-      initial_draft_log_label: "DM",
-      is_loading: isLoading,
-      on_initial_draft_consumed: onInitialDraftConsumed,
-      prepare_attachments: prepareDmAttachments,
-      scroll_to_bottom: scrollToBottom,
-      send_message: sendMessage,
-      session_key: sessionKey,
+      initialDraft,
+      initialDraftLogLabel: "DM",
+      isLoading,
+      onInitialDraftConsumed,
+      prepareAttachments: prepareDmAttachments,
+      scrollToBottom,
+      sendMessage,
+      sessionKey,
     });
 
   const buildDmSnapshot = useCallback(
@@ -221,24 +221,24 @@ export function DmChatPanel({
   });
 
   const messageGroups = useMemo(
-    () => group_messages_by_round(messages),
+    () => groupMessagesByRound(messages),
     [messages],
   );
   const roundIds = useMemo(
-    () => build_timeline_round_ids(messageGroups, liveRoundIds),
+    () => buildTimelineRoundIds(messageGroups, liveRoundIds),
     [liveRoundIds, messageGroups],
   );
 
-  const { handle_scroll: handleScroll } = useConversationHistoryLoader({
-    scroll_ref: scrollRef,
-    message_count: messages.length,
-    has_more_history: hasMoreHistory,
-    is_history_loading: isHistoryLoading,
-    is_loading: isLoading,
-    load_older_messages: loadOlderMessages,
-    prepare_history_prepend_restore: prepareHistoryPrependRestore,
-    cancel_history_prepend_restore: cancelHistoryPrependRestore,
-    on_scroll: onScroll,
+  const { handleScroll } = useConversationHistoryLoader({
+    scrollRef,
+    messageCount: messages.length,
+    hasMoreHistory,
+    isHistoryLoading,
+    isLoading,
+    loadOlderMessages,
+    prepareHistoryPrependRestore,
+    cancelHistoryPrependRestore,
+    onScroll,
   });
 
   const handleStop = () => stopGeneration();
@@ -247,7 +247,7 @@ export function DmChatPanel({
     if (!sessionKey) {
       throw new Error("当前会话尚未准备好，暂时无法启动 Goal。");
     }
-    await create_goal_api({
+    await createGoalApi({
       session_key: sessionKey,
       objective,
       token_budget: null,
@@ -279,23 +279,23 @@ export function DmChatPanel({
           </div>
         ) : null}
         <ConversationFeed
-          bottom_anchor_ref={bottomAnchorRef}
-          feed_ref={feedRef}
-          scroll_ref={scrollRef}
-          current_agent_name={currentAgentName ?? null}
-          current_agent_avatar={currentAgentAvatar ?? null}
-          workspace_agent_id={sessionIdentity?.agent_id ?? null}
-          current_user_avatar={currentUserAvatar}
-          is_last_round_pending_permissions={pendingPermissions}
-          is_loading={isLoading}
-          runtime_phase={runtimePhase}
-          live_round_ids={liveRoundIds}
-          is_mobile_layout={isMobileLayout}
-          message_groups={messageGroups}
-          on_open_agent_contact={onOpenAgentContact}
-          on_open_workspace_file={onOpenWorkspaceFile}
-          on_permission_response={sendPermissionResponse}
-          round_ids={roundIds}
+          bottomAnchorRef={bottomAnchorRef}
+          feedRef={feedRef}
+          scrollRef={scrollRef}
+          currentAgentName={currentAgentName ?? null}
+          currentAgentAvatar={currentAgentAvatar ?? null}
+          workspaceAgentId={sessionIdentity?.agent_id ?? null}
+          currentUserAvatar={currentUserAvatar}
+          isLastRoundPendingPermissions={pendingPermissions}
+          isLoading={isLoading}
+          runtimePhase={runtimePhase}
+          liveRoundIds={liveRoundIds}
+          isMobileLayout={isMobileLayout}
+          messageGroups={messageGroups}
+          onOpenAgentContact={onOpenAgentContact}
+          onOpenWorkspaceFile={onOpenWorkspaceFile}
+          onPermissionResponse={sendPermissionResponse}
+          roundIds={roundIds}
         />
         {systemError ? (
           <div className={isMobileLayout ? "mt-4" : "mx-auto mt-2 w-full max-w-[980px]"}>
@@ -309,9 +309,9 @@ export function DmChatPanel({
 
       {showScrollToBottom ? (
         <ScrollToLatestButton
-          is_loading={isLoading}
-          is_mobile_layout={isMobileLayout}
-          on_click={() => scrollToBottom("smooth")}
+          isLoading={isLoading}
+          isMobileLayout={isMobileLayout}
+          onClick={() => scrollToBottom("smooth")}
         />
       ) : null}
 
@@ -320,32 +320,32 @@ export function DmChatPanel({
       ) : null}
 
       <GoalPanel
-        activity_key={`${messages.length}:${isLoading ? "loading" : "idle"}:${goalRefreshSeq}`}
+        activityKey={`${messages.length}:${isLoading ? "loading" : "idle"}:${goalRefreshSeq}`}
         compact={isMobileLayout}
-        continuation_hold={goalContinuationHold}
+        continuationHold={goalContinuationHold}
         disabled={!canControlSession}
-        is_generating={isLoading}
-        session_key={sessionKey}
-        scope_label="会话 Goal"
+        isGenerating={isLoading}
+        sessionKey={sessionKey}
+        scopeLabel="会话 Goal"
       />
 
       <ComposerPanel
-        allow_send_while_loading
+        allowSendWhileLoading
         compact={isMobileLayout}
-        default_delivery_policy={defaultDeliveryPolicy}
-        input_queue_items={inputQueueItems}
-        is_loading={isLoading}
-        goal_scope_label="会话 Goal"
-        runtime_phase={runtimePhase}
-        on_delete_queued_message={deleteInputQueueMessage}
-        on_enqueue_message={enqueueInputQueueMessage}
-        on_create_goal={sessionKey && canControlSession ? handleCreateGoal : undefined}
-        on_guide_queued_message={guideInputQueueMessage}
-        on_prepare_attachments={handlePrepareAttachments}
-        on_reorder_queue_messages={reorderInputQueueMessages}
-        on_send_message={handleSendMessage}
-        on_stop={handleStop}
-        tour_anchor={CONVERSATION_TOUR_ANCHORS.composer}
+        defaultDeliveryPolicy={defaultDeliveryPolicy}
+        inputQueueItems={inputQueueItems}
+        isLoading={isLoading}
+        goalScopeLabel="会话 Goal"
+        runtimePhase={runtimePhase}
+        onDeleteQueuedMessage={deleteInputQueueMessage}
+        onEnqueueMessage={enqueueInputQueueMessage}
+        onCreateGoal={sessionKey && canControlSession ? handleCreateGoal : undefined}
+        onGuideQueuedMessage={guideInputQueueMessage}
+        onPrepareAttachments={handlePrepareAttachments}
+        onReorderQueueMessages={reorderInputQueueMessages}
+        onSendMessage={handleSendMessage}
+        onStop={handleStop}
+        tourAnchor={CONVERSATION_TOUR_ANCHORS.composer}
       />
     </div>
   );

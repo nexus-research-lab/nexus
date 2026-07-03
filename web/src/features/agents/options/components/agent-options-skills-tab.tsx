@@ -3,7 +3,7 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { Loader2, Lock, RefreshCw } from "lucide-react";
 
-import { get_agent_skills_api, install_skill_api, uninstall_skill_api } from "@/lib/api/skill-api";
+import { getAgentSkillsApi, installSkillApi, uninstallSkillApi } from "@/lib/api/skill-api";
 import { UiBadge } from "@/shared/ui/badge";
 import { UiButton, UiIconButton } from "@/shared/ui/button";
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
@@ -13,13 +13,13 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import type { AgentSkillEntry } from "@/types/capability/skill";
 
 interface AgentOptionsSkillsTabProps {
-  agent_id?: string;
-  is_visible: boolean;
+  agentId?: string;
+  isVisible: boolean;
 }
 
 export function AgentOptionsSkillsTab({
-  agent_id: agentId,
-  is_visible: isVisible,
+  agentId: agentId,
+  isVisible: isVisible,
 }: AgentOptionsSkillsTabProps) {
   const { t } = useI18n();
   const [skills, setSkills] = useState<AgentSkillEntry[]>([]);
@@ -42,7 +42,7 @@ export function AgentOptionsSkillsTab({
         setLoading(true);
       }
       setErrorMessage(null);
-      const data = await get_agent_skills_api(agentId);
+      const data = await getAgentSkillsApi(agentId);
       setSkills(data);
     } catch (error) {
       setErrorMessage(
@@ -97,9 +97,9 @@ export function AgentOptionsSkillsTab({
         setToggling(skill.name);
         setErrorMessage(null);
         if (skill.installed) {
-          await uninstall_skill_api(agentId, skill.name);
+          await uninstallSkillApi(agentId, skill.name);
         } else {
-          await install_skill_api(agentId, skill.name);
+          await installSkillApi(agentId, skill.name);
         }
         await loadSkills();
       } catch (error) {
@@ -181,17 +181,17 @@ export function AgentOptionsSkillsTab({
               {skill.title || skill.name}
             </span>
             {isSystemManaged ? (
-              <UiBadge class_name="shrink-0" icon={<Lock className="h-3 w-3" />} size="xs" tone="success">
+              <UiBadge className="shrink-0" icon={<Lock className="h-3 w-3" />} size="xs" tone="success">
                 {t("agent_options.skills.system_builtin")}
               </UiBadge>
             ) : null}
             {isWorkspaceLocal ? (
-              <UiBadge class_name="shrink-0" size="xs" tone="warning">
+              <UiBadge className="shrink-0" size="xs" tone="warning">
                 {t("agent_options.skills.agent_workspace_only")}
               </UiBadge>
             ) : null}
             {skill.scope === "main" ? (
-              <UiBadge class_name="shrink-0" size="xs" tone="info">
+              <UiBadge className="shrink-0" size="xs" tone="info">
                 {t("agent_options.skills.main_only")}
               </UiBadge>
             ) : null}
@@ -204,12 +204,12 @@ export function AgentOptionsSkillsTab({
         </div>
 
         {skill.locked ? (
-          <UiBadge class_name="mt-auto mb-auto shrink-0" size="xs" tone="success">
+          <UiBadge className="mt-auto mb-auto shrink-0" size="xs" tone="success">
             {t("agent_options.skills.enabled")}
           </UiBadge>
         ) : (
           <UiButton
-            class_name="mt-auto mb-auto shrink-0"
+            className="mt-auto mb-auto shrink-0"
             disabled={!!toggling}
             onClick={() => handleSkillAction(skill)}
             size="sm"
@@ -252,7 +252,7 @@ export function AgentOptionsSkillsTab({
 
       {loading ? (
         <UiStateBlock
-          class_name="py-10"
+          className="py-10"
           icon={<Loader2 className="h-4 w-4 animate-spin" />}
           size="sm"
           variant="inset"
@@ -297,8 +297,8 @@ export function AgentOptionsSkillsTab({
             </div>
 
             <UiSearchInput
-              control_size="md"
-              on_change={setSearchQuery}
+              controlSize="md"
+              onChange={setSearchQuery}
               placeholder={t("agent_options.skills.search_placeholder")}
               value={searchQuery}
               variant="dialog"
@@ -334,13 +334,13 @@ export function AgentOptionsSkillsTab({
       ) : null}
 
       <ConfirmDialog
-        confirm_text={t("agent_options.skills.remove_confirm_action")}
-        is_open={!!pendingRemoveSkill}
+        confirmText={t("agent_options.skills.remove_confirm_action")}
+        isOpen={!!pendingRemoveSkill}
         message={t("agent_options.skills.remove_confirm_message", {
           name: pendingRemoveSkill?.title || pendingRemoveSkill?.name || "",
         })}
-        on_cancel={() => setPendingRemoveSkill(null)}
-        on_confirm={handleConfirmRemove}
+        onCancel={() => setPendingRemoveSkill(null)}
+        onConfirm={handleConfirmRemove}
         title={t("agent_options.skills.remove_confirm_title")}
         variant="danger"
       />

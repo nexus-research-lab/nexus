@@ -7,11 +7,11 @@ import { CSSProperties } from "react";
 
 interface LottiePlayerProps {
   src: string;
-  class_name?: string;
-  inline_style?: CSSProperties;
+  className?: string;
+  inlineStyle?: CSSProperties;
 }
 
-export function LottiePlayer({ src, class_name: className, inline_style: inlineStyle }: LottiePlayerProps) {
+export function LottiePlayer({ src, className: className, inlineStyle: inlineStyle }: LottiePlayerProps) {
   const [dotLottieInstance, setDotLottieInstance] = useState<DotLottie | null>(null);
 
   useEffect(() => {

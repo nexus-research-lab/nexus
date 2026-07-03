@@ -11,48 +11,48 @@ import {
 import { PendingPermission, PermissionDecisionPayload } from "@/types/conversation/permission";
 import {
   AgentRoundStatus,
-  extract_agent_preview_text,
+  extractAgentPreviewText,
 } from "@/features/conversation/shared/utils";
 import { MarkdownRendererContent } from "@/features/conversation/shared/message/markdown/markdown-renderer-content";
 import { MessageAvatar } from "@/features/conversation/shared/message/ui/message-primitives";
 
 interface GroupAgentStatusCardProps {
-  agent_id: string;
-  agent_name: string;
-  agent_avatar?: string | null;
+  agentId: string;
+  agentName: string;
+  agentAvatar?: string | null;
   messages: AssistantMessage[];
-  result_summary?: ResultSummary;
-  pending_slot?: RoomPendingAgentSlotState;
+  resultSummary?: ResultSummary;
+  pendingSlot?: RoomPendingAgentSlotState;
   status: AgentRoundStatus;
-  pending_permissions?: PendingPermission[];
-  is_thread_active: boolean;
-  on_click_thread: () => void;
-  on_permission_response?: (payload: PermissionDecisionPayload) => boolean;
-  can_respond_to_permissions?: boolean;
-  permission_read_only_reason?: string;
-  on_open_agent_contact?: (agentId: string) => void;
-  on_stop_message?: () => void;
+  pendingPermissions?: PendingPermission[];
+  isThreadActive: boolean;
+  onClickThread: () => void;
+  onPermissionResponse?: (payload: PermissionDecisionPayload) => boolean;
+  canRespondToPermissions?: boolean;
+  permissionReadOnlyReason?: string;
+  onOpenAgentContact?: (agentId: string) => void;
+  onStopMessage?: () => void;
 }
 
 /** 紧凑型 Agent 状态卡片 — 每个 Agent 在 Round 中的摘要 */
 function GroupAgentStatusCardInner({
-  agent_id: agentId,
-  agent_name: agentName,
-  agent_avatar: agentAvatar,
+  agentId: agentId,
+  agentName: agentName,
+  agentAvatar: agentAvatar,
   messages,
-  result_summary: resultSummary,
-  pending_slot: pendingSlot,
+  resultSummary: resultSummary,
+  pendingSlot: pendingSlot,
   status,
-  pending_permissions: pendingPermissions = [],
-  is_thread_active: isThreadActive,
-  on_click_thread: onClickThread,
-  on_permission_response: onPermissionResponse,
-  can_respond_to_permissions: canRespondToPermissions = true,
-  permission_read_only_reason: permissionReadOnlyReason,
-  on_open_agent_contact: onOpenAgentContact,
-  on_stop_message: onStopMessage,
+  pendingPermissions: pendingPermissions = [],
+  isThreadActive: isThreadActive,
+  onClickThread: onClickThread,
+  onPermissionResponse: onPermissionResponse,
+  canRespondToPermissions: canRespondToPermissions = true,
+  permissionReadOnlyReason: permissionReadOnlyReason,
+  onOpenAgentContact: onOpenAgentContact,
+  onStopMessage: onStopMessage,
 }: GroupAgentStatusCardProps) {
-  const preview = useMemo(() => extract_agent_preview_text(messages), [messages]);
+  const preview = useMemo(() => extractAgentPreviewText(messages), [messages]);
   const primaryPendingPermission = pendingPermissions[0];
   const isQuestionPending = Boolean(
     primaryPendingPermission
@@ -155,10 +155,10 @@ function GroupAgentStatusCardInner({
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onClickThread(); }}
     >
       <MessageAvatar
-        aria_label={`打开 ${agentName} 的联络`}
-        avatar_url={agentAvatar}
-        class_name="shrink-0"
-        on_click={onOpenAgentContact ? handleOpenAgentContact : undefined}
+        ariaLabel={`打开 ${agentName} 的联络`}
+        avatarUrl={agentAvatar}
+        className="shrink-0"
+        onClick={onOpenAgentContact ? handleOpenAgentContact : undefined}
         size="full"
         title={`打开 ${agentName} 的联络`}
       >
@@ -239,8 +239,8 @@ function GroupAgentStatusCardInner({
             <MarkdownRendererContent
               content={preview}
               variant="summary"
-              class_name="line-clamp-1 text-(--text-strong)"
-              workspace_agent_id={agentId}
+              className="line-clamp-1 text-(--text-strong)"
+              workspaceAgentId={agentId}
             />
           ) : (
             <p

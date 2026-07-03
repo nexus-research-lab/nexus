@@ -20,18 +20,18 @@ export const SIDEBAR_CAPABILITY_ITEM_IDS = {
   skills: "capability:skills",
   loops: "capability:loops",
   connectors: "capability:connectors",
-  scheduled_tasks: "capability:scheduled-tasks",
+  scheduledTasks: "capability:scheduled-tasks",
   channels: "capability:channels",
   pairings: "capability:pairings",
   memory: "capability:memory",
 } as const;
 
 /** 根据当前路由派生侧栏高亮条目，保证整套导航只走一个状态源。 */
-export function derive_sidebar_item_id_from_path(pathname: string): string | null {
+export function deriveSidebarItemIdFromPath(pathname: string): string | null {
   if (pathname.startsWith("/capability/skills")) return SIDEBAR_CAPABILITY_ITEM_IDS.skills;
   if (pathname.startsWith("/capability/loops")) return SIDEBAR_CAPABILITY_ITEM_IDS.loops;
   if (pathname.startsWith("/capability/connectors")) return SIDEBAR_CAPABILITY_ITEM_IDS.connectors;
-  if (pathname.startsWith("/capability/scheduled-tasks")) return SIDEBAR_CAPABILITY_ITEM_IDS.scheduled_tasks;
+  if (pathname.startsWith("/capability/scheduled-tasks")) return SIDEBAR_CAPABILITY_ITEM_IDS.scheduledTasks;
   if (pathname.startsWith("/capability/channels")) return SIDEBAR_CAPABILITY_ITEM_IDS.channels;
   if (pathname.startsWith("/capability/pairings")) return SIDEBAR_CAPABILITY_ITEM_IDS.pairings;
   if (pathname.startsWith("/memory")) return SIDEBAR_CAPABILITY_ITEM_IDS.memory;
@@ -59,7 +59,7 @@ export interface ChatNotificationTargetState {
 interface SidebarState {
   /** 宽面板中当前高亮的条目 ID（Room/DM/Agent/Skill） */
   active_panel_item_id: string | null;
-  /** 主智能体 DM 的真实 room_id，用于 header 入口和真实 room 路由共用同一激活语义。 */
+  /** 主智能体 DM 的真实 roomId，用于 header 入口和真实 room 路由共用同一激活语义。 */
   nexus_room_id: string | null;
   /** 宽面板宽度（px），支持拖拽调整 */
   wide_panel_width: number;

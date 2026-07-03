@@ -5,8 +5,8 @@ import {
   RoomPendingAgentSlotState,
 } from "@/types";
 import {
-  collect_unresolved_tool_use_candidates,
-  match_pending_permissions_to_tool_uses,
+  collectUnresolvedToolUseCandidates,
+  matchPendingPermissionsToToolUses,
   PendingPermission,
 } from "@/types/conversation/permission";
 import { AgentConversationRuntimeSnapshot } from "./agent-conversation-runtime-machine";
@@ -40,7 +40,7 @@ function getVolatileConversationStorage(): Storage | null {
   }
 }
 
-export function read_volatile_conversation_snapshot(
+export function readVolatileConversationSnapshot(
   sessionKey: string,
 ): VolatileConversationSnapshot | null {
   const storage = getVolatileConversationStorage();
@@ -78,7 +78,7 @@ export function read_volatile_conversation_snapshot(
   }
 }
 
-export function write_volatile_conversation_snapshot(
+export function writeVolatileConversationSnapshot(
   sessionKey: string,
   snapshot: VolatileConversationSnapshot,
 ): void {
@@ -110,7 +110,7 @@ export function write_volatile_conversation_snapshot(
   }
 }
 
-export function remove_volatile_conversation_snapshot(
+export function removeVolatileConversationSnapshot(
   sessionKey: string,
 ): void {
   const storage = getVolatileConversationStorage();
@@ -125,7 +125,7 @@ export function remove_volatile_conversation_snapshot(
   }
 }
 
-export function merge_pending_agent_slots(
+export function mergePendingAgentSlots(
   restoredSlots: RoomPendingAgentSlotState[],
   currentSlots: RoomPendingAgentSlotState[],
 ): RoomPendingAgentSlotState[] {
@@ -143,16 +143,16 @@ export function merge_pending_agent_slots(
   return Array.from(mergedSlots.values());
 }
 
-export function is_ephemeral_message(message: Message): boolean {
+export function isEphemeralMessage(message: Message): boolean {
   return message.delivery_mode === "ephemeral";
 }
 
-export function build_volatile_conversation_snapshot(
+export function buildVolatileConversationSnapshot(
   messages: Message[],
   runtimeSnapshot: AgentConversationRuntimeSnapshot,
   pendingAgentSlots: RoomPendingAgentSlotState[],
 ): VolatileConversationSnapshot | null {
-  const activeRoundIds = new Set<string>(runtimeSnapshot.live_round_ids);
+  const activeRoundIds = new Set<string>(runtimeSnapshot.liveRoundIds);
 
   for (const slot of pendingAgentSlots) {
     if (!isTerminalSlotStatus(slot.status)) {
@@ -165,7 +165,7 @@ export function build_volatile_conversation_snapshot(
   }
 
   const volatileMessages = messages.filter((message) => {
-    if (is_ephemeral_message(message)) {
+    if (isEphemeralMessage(message)) {
       return false;
     }
     if (activeRoundIds.has(message.round_id)) {
@@ -192,7 +192,7 @@ export function build_volatile_conversation_snapshot(
   };
 }
 
-export function filter_pending_slots_from_snapshot(
+export function filterPendingSlotsFromSnapshot(
   currentSlots: RoomPendingAgentSlotState[],
   messages: Message[],
   isRoundTerminal: (roundId: string) => boolean,
@@ -214,7 +214,7 @@ export function filter_pending_slots_from_snapshot(
   );
 }
 
-export function filter_pending_permissions_from_snapshot(
+export function filterPendingPermissionsFromSnapshot(
   currentPermissions: PendingPermission[],
   messages: Message[],
   isRoundTerminal: (roundId: string) => boolean,
@@ -224,8 +224,8 @@ export function filter_pending_permissions_from_snapshot(
   }
   const loadedAssistantMessageIds = new Set<string>();
   const unresolvedToolUseCandidates =
-    collect_unresolved_tool_use_candidates(messages);
-  const permissionMatchResult = match_pending_permissions_to_tool_uses(
+    collectUnresolvedToolUseCandidates(messages);
+  const permissionMatchResult = matchPendingPermissionsToToolUses(
     currentPermissions,
     unresolvedToolUseCandidates,
   );
@@ -252,7 +252,7 @@ export function filter_pending_permissions_from_snapshot(
     }
 
     if (!permission.message_id) {
-      // 缺少 message_id 的旧权限事件无法做唯一绑定，
+      // 缺少 messageId 的旧权限事件无法做唯一绑定，
       // 快照阶段只能保留，等待明确的 result / reload 收口。
       return true;
     }
@@ -279,7 +279,7 @@ function isPendingPermissionExpired(
   return expiresAtMs != null && expiresAtMs <= nowMs;
 }
 
-export function prune_expired_pending_permissions(
+export function pruneExpiredPendingPermissions(
   currentPermissions: PendingPermission[],
   nowMs: number = Date.now(),
 ): PendingPermission[] {
@@ -295,7 +295,7 @@ export function prune_expired_pending_permissions(
     : nextPermissions;
 }
 
-export function get_next_pending_permission_timeout_ms(
+export function getNextPendingPermissionTimeoutMs(
   currentPermissions: PendingPermission[],
   nowMs: number = Date.now(),
 ): number | null {

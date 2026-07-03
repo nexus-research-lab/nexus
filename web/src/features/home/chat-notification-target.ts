@@ -16,7 +16,7 @@ export interface ChatNotificationTargetMatcher {
   room_id?: string | null;
 }
 
-export function build_chat_notification_target_key({
+export function buildChatNotificationTargetKey({
   conversation_id: conversationId,
   room_id: roomId,
   session_key: sessionKey,
@@ -48,7 +48,7 @@ function decodeRouteSegment(value: string | undefined): string {
   }
 }
 
-export function get_active_chat_target_from_path(
+export function getActiveChatTargetFromPath(
   pathname: string,
 ): ActiveChatNotificationTarget | null {
   const parts = pathname.split("/").filter(Boolean);
@@ -59,7 +59,7 @@ export function get_active_chat_target_from_path(
   const roomId = decodeRouteSegment(parts[1]);
   if (parts[2] === "sessions") {
     const sessionKey = decodeRouteSegment(parts[3]);
-    const key = build_chat_notification_target_key({ session_key: sessionKey });
+    const key = buildChatNotificationTargetKey({ session_key: sessionKey });
     return key
       ? {
           key,
@@ -72,7 +72,7 @@ export function get_active_chat_target_from_path(
   const conversationId = parts[2] === "conversations"
     ? decodeRouteSegment(parts[3])
     : "";
-  const key = build_chat_notification_target_key({ conversation_id: conversationId, room_id: roomId });
+  const key = buildChatNotificationTargetKey({ conversation_id: conversationId, room_id: roomId });
   return key
     ? {
         conversation_id: conversationId,
@@ -82,7 +82,7 @@ export function get_active_chat_target_from_path(
     : null;
 }
 
-export function is_chat_notification_target_active(
+export function isChatNotificationTargetActive(
   activeTarget: ActiveChatNotificationTarget | null,
   target: ChatNotificationTargetMatcher,
 ): boolean {

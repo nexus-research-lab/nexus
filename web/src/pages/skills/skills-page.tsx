@@ -1,19 +1,19 @@
 import { useMemo } from "react";
 
 import { SkillsDirectory } from "@/features/capability/skills/skills-directory";
-import { build_skills_tour } from "@/features/capability/skills/skills-tour";
+import { buildSkillsTour } from "@/features/capability/skills/skills-tour";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { usePageOnboardingTour } from "@/shared/ui/onboarding/use-page-onboarding-tour";
 
 /** Skills 页面 — 列表目录 + 路由详情页 */
 export function SkillsPage() {
   const { t } = useI18n();
-  const skillsTour = useMemo(() => build_skills_tour(t), [t]);
+  const skillsTour = useMemo(() => buildSkillsTour(t), [t]);
 
-  const { start_current_tour: startCurrentTour } = usePageOnboardingTour({
+  const { startCurrentTour: startCurrentTour } = usePageOnboardingTour({
     tour: skillsTour,
-    auto_start_delay_ms: 260,
+    autoStartDelayMs: 260,
   });
 
-  return <SkillsDirectory on_replay_tour={startCurrentTour} />;
+  return <SkillsDirectory onReplayTour={startCurrentTour} />;
 }

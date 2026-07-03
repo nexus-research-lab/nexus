@@ -13,18 +13,18 @@ import {
 } from "lucide-react";
 
 import {
-  cleanup_memory_api,
-  delete_memory_item_api,
-  get_memory_stats_api,
-  list_memory_items_api,
-  search_memory_items_api,
+  cleanupMemoryApi,
+  deleteMemoryItemApi,
+  getMemoryStatsApi,
+  listMemoryItemsApi,
+  searchMemoryItemsApi,
 } from "@/lib/api/memory-api";
 import { cn } from "@/lib/utils";
 import {
-  format_memory_score,
-  format_memory_time,
-  memory_layer_key,
-  memory_scope_label,
+  formatMemoryScore,
+  formatMemoryTime,
+  memoryLayerKey,
+  memoryScopeLabel,
   type MemoryLayerFilter,
 } from "@/features/memory/memory-utils";
 import {
@@ -77,7 +77,7 @@ export function ContactsAgentMemoryTab({ agent }: ContactsAgentMemoryTabProps) {
       if (statusFilter && item.status !== statusFilter) {
         return false;
       }
-      return layerFilter === "all" || memory_layer_key(item.scope) === layerFilter;
+      return layerFilter === "all" || memoryLayerKey(item.scope) === layerFilter;
     });
   }, [items, layerFilter, statusFilter]);
 
@@ -92,12 +92,12 @@ export function ContactsAgentMemoryTab({ agent }: ContactsAgentMemoryTabProps) {
     try {
       const [nextItems, nextStats] = await Promise.all([
         query.trim()
-          ? search_memory_items_api(agent.agent_id, query.trim(), 80)
-          : list_memory_items_api(agent.agent_id, {
+          ? searchMemoryItemsApi(agent.agent_id, query.trim(), 80)
+          : listMemoryItemsApi(agent.agent_id, {
               limit: 120,
               status: statusFilter,
             }),
-        get_memory_stats_api(agent.agent_id),
+        getMemoryStatsApi(agent.agent_id),
       ]);
       setItems(nextItems);
       setStats(nextStats);
@@ -129,7 +129,7 @@ export function ContactsAgentMemoryTab({ agent }: ContactsAgentMemoryTabProps) {
       setDeletingItemId(item.entry_id);
       setError(null);
       try {
-        await delete_memory_item_api(agent.agent_id, item.entry_id);
+        await deleteMemoryItemApi(agent.agent_id, item.entry_id);
         setItems((current) => current.filter((candidate) => candidate.entry_id !== item.entry_id));
         setSelectedItemId("");
         await loadMemory();
@@ -149,7 +149,7 @@ export function ContactsAgentMemoryTab({ agent }: ContactsAgentMemoryTabProps) {
     setCleaning(true);
     setError(null);
     try {
-      await cleanup_memory_api(agent.agent_id);
+      await cleanupMemoryApi(agent.agent_id);
       await loadMemory();
     } catch (cleanupError) {
       setError(cleanupError instanceof Error ? cleanupError.message : "清理记忆失败");
@@ -225,22 +225,22 @@ export function ContactsAgentMemoryTab({ agent }: ContactsAgentMemoryTabProps) {
 
           <div className="flex flex-col gap-2 border-b border-(--divider-subtle-color) p-3">
             <UiSearchInput
-              control_size="sm"
-              on_change={setQuery}
+              controlSize="sm"
+              onChange={setQuery}
               placeholder="搜索记忆"
               value={query}
             />
             <div className="grid grid-cols-2 gap-2">
               <UiSelectMenu
-                aria_label="筛选记忆状态"
-                on_change={setStatusFilter}
+                ariaLabel="筛选记忆状态"
+                onChange={setStatusFilter}
                 options={STATUS_OPTIONS}
                 size="sm"
                 value={statusFilter}
               />
               <UiSelectMenu
-                aria_label="筛选记忆层级"
-                on_change={(value) => setLayerFilter(value as MemoryLayerFilter)}
+                ariaLabel="筛选记忆层级"
+                onChange={(value) => setLayerFilter(value as MemoryLayerFilter)}
                 options={LAYER_OPTIONS}
                 size="sm"
                 value={layerFilter}
@@ -250,17 +250,17 @@ export function ContactsAgentMemoryTab({ agent }: ContactsAgentMemoryTabProps) {
 
           <MemoryItemList
             error={error}
-            is_loading={loading}
+            isLoading={loading}
             items={visibleItems}
-            on_select={setSelectedItemId}
-            selected_item_id={selectedItem?.entry_id ?? ""}
+            onSelect={setSelectedItemId}
+            selectedItemId={selectedItem?.entry_id ?? ""}
           />
         </section>
 
         <MemoryItemInspector
-          is_deleting={selectedItem ? deletingItemId === selectedItem.entry_id : false}
+          isDeleting={selectedItem ? deletingItemId === selectedItem.entry_id : false}
           item={selectedItem}
-          on_delete={handleDelete}
+          onDelete={handleDelete}
         />
       </div>
     </div>
@@ -269,16 +269,16 @@ export function ContactsAgentMemoryTab({ agent }: ContactsAgentMemoryTabProps) {
 
 function MemoryItemList({
   error,
-  is_loading: isLoading,
+  isLoading: isLoading,
   items,
-  on_select: onSelect,
-  selected_item_id: selectedItemId,
+  onSelect: onSelect,
+  selectedItemId: selectedItemId,
 }: {
   error: string | null;
-  is_loading: boolean;
+  isLoading: boolean;
   items: MemoryItem[];
-  on_select: (entryId: string) => void;
-  selected_item_id: string;
+  onSelect: (entryId: string) => void;
+  selectedItemId: string;
 }) {
   if (isLoading && items.length === 0) {
     return (
@@ -320,9 +320,9 @@ function MemoryItemList({
         return (
           <UiListRow
             active={active}
-            class_name="min-h-[112px] rounded-none border-b border-(--divider-subtle-color) px-3.5 py-3"
+            className="min-h-[112px] rounded-none border-b border-(--divider-subtle-color) px-3.5 py-3"
             key={item.entry_id}
-            on_click={() => onSelect(item.entry_id)}
+            onClick={() => onSelect(item.entry_id)}
           >
             <div className="flex min-w-0 items-center gap-2">
               <span className="min-w-0 flex-1 truncate text-[13px] font-semibold leading-5 text-(--text-strong)">
@@ -331,11 +331,11 @@ function MemoryItemList({
               <MemoryStatusBadge status={item.status} />
             </div>
             <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1.5">
-              <MemoryMetaChip>{memory_scope_label(item.scope)}</MemoryMetaChip>
+              <MemoryMetaChip>{memoryScopeLabel(item.scope)}</MemoryMetaChip>
               {item.kind ? <MemoryMetaChip>{item.kind}</MemoryMetaChip> : null}
-              {item.score !== undefined ? <MemoryMetaChip>{format_memory_score(item.score)}</MemoryMetaChip> : null}
+              {item.score !== undefined ? <MemoryMetaChip>{formatMemoryScore(item.score)}</MemoryMetaChip> : null}
               <MemoryMetaChip>access {item.access_count}</MemoryMetaChip>
-              {item.created_at ? <MemoryMetaChip>{format_memory_time(item.created_at)}</MemoryMetaChip> : null}
+              {item.created_at ? <MemoryMetaChip>{formatMemoryTime(item.created_at)}</MemoryMetaChip> : null}
             </div>
             <p className="mt-2 line-clamp-2 whitespace-pre-wrap text-xs leading-5 text-(--text-default)">
               {item.content}
@@ -348,13 +348,13 @@ function MemoryItemList({
 }
 
 function MemoryItemInspector({
-  is_deleting: isDeleting,
+  isDeleting: isDeleting,
   item,
-  on_delete: onDelete,
+  onDelete: onDelete,
 }: {
-  is_deleting: boolean;
+  isDeleting: boolean;
   item: MemoryItem | null;
-  on_delete: (item: MemoryItem) => void;
+  onDelete: (item: MemoryItem) => void;
 }) {
   if (!item) {
     return (
@@ -413,7 +413,7 @@ function MemoryItemInspector({
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <MemoryMetaChip>
             <Database className="h-3 w-3" />
-            {memory_scope_label(item.scope)}
+            {memoryScopeLabel(item.scope)}
           </MemoryMetaChip>
           {item.kind ? <MemoryMetaChip>{item.kind}</MemoryMetaChip> : null}
           {item.category ? <MemoryMetaChip>{item.category}</MemoryMetaChip> : null}
@@ -421,11 +421,11 @@ function MemoryItemInspector({
           {item.created_at ? (
             <MemoryMetaChip>
               <Clock3 className="h-3 w-3" />
-              {format_memory_time(item.created_at)}
+              {formatMemoryTime(item.created_at)}
             </MemoryMetaChip>
           ) : null}
           <MemoryMetaChip>access {item.access_count}</MemoryMetaChip>
-          {item.score !== undefined ? <MemoryMetaChip>{format_memory_score(item.score)}</MemoryMetaChip> : null}
+          {item.score !== undefined ? <MemoryMetaChip>{formatMemoryScore(item.score)}</MemoryMetaChip> : null}
         </div>
 
         <dl className="mt-4 grid gap-1.5 border-t border-(--divider-subtle-color) pt-3 text-[11px] leading-5">

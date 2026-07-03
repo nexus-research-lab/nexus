@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
-import { list_provider_options_api } from "@/lib/api/provider-config-api";
+import { listProviderOptionsApi } from "@/lib/api/provider-config-api";
 import type {
   AgentNameValidationResult,
   AgentOptions as AgentConfigOptions,
@@ -11,16 +11,16 @@ import type {
 import type { ProviderOption } from "@/types/capability/provider";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import {
-  get_default_agent_runtime_kind,
-  set_default_agent_model,
-  set_default_agent_provider,
+  getDefaultAgentRuntimeKind,
+  setDefaultAgentModel,
+  setDefaultAgentProvider,
 } from "@/config/options";
 import type { TabKey } from "@/features/agents/options/components/agent-options-nav";
 import {
   DEFAULT_AGENT_OPTION_MODEL,
   DEFAULT_AGENT_PERMISSION_MODE,
   DEFAULT_AGENT_OPTION_PROVIDER,
-  normalize_agent_option_provider,
+  normalizeAgentOptionProvider,
 } from "@/features/agents/options/agent-options-constants";
 import type {
   AgentDialogInitialOptions,
@@ -29,26 +29,26 @@ import type {
 } from "@/features/agents/options/agent-options-editor-model";
 
 export function useAgentOptionsEditorController({
-  agent_id: agentId,
+  agentId: agentId,
   mode,
-  is_active: isActive,
-  on_delete: onDelete,
-  on_save: onSave,
-  on_validate_name: onValidateName,
-  initial_title: initialTitle = "",
-  initial_options: initialOptions = {},
-  initial_avatar: initialAvatar = "",
-  initial_description: initialDescription = "",
-  initial_vibe_tags: initialVibeTags = [],
-  on_cancel: onCancel,
-  close_after_save: closeAfterSave = false,
-  show_cancel_button: showCancelButton = true,
-  show_delete_button: showDeleteButton = true,
+  isActive: isActive,
+  onDelete: onDelete,
+  onSave: onSave,
+  onValidateName: onValidateName,
+  initialTitle: initialTitle = "",
+  initialOptions: initialOptions = {},
+  initialAvatar: initialAvatar = "",
+  initialDescription: initialDescription = "",
+  initialVibeTags: initialVibeTags = [],
+  onCancel: onCancel,
+  closeAfterSave: closeAfterSave = false,
+  showCancelButton: showCancelButton = true,
+  showDeleteButton: showDeleteButton = true,
   variant = "dialog",
-  content_max_width_class_name: contentMaxWidthClassName = "max-w-[920px]",
-  active_tab: controlledActiveTab,
-  on_tab_change: onTabChange,
-  hide_inline_nav: hideInlineNav = false,
+  contentMaxWidthClassName: contentMaxWidthClassName = "max-w-[920px]",
+  activeTab: controlledActiveTab,
+  onTabChange: onTabChange,
+  hideInlineNav: hideInlineNav = false,
 }: AgentOptionsEditorProps) {
   const { t } = useI18n();
   const sourceOptions = initialOptions as AgentDialogInitialOptions;
@@ -59,7 +59,7 @@ export function useAgentOptionsEditorController({
   const initialVibeTagsSignature = initialVibeTags.join("\x1f");
   const sourceModel = sourceOptions.model?.trim() || DEFAULT_AGENT_OPTION_MODEL;
   const initialProvider = sourceModel
-    ? normalize_agent_option_provider(sourceOptions.provider) || DEFAULT_AGENT_OPTION_PROVIDER
+    ? normalizeAgentOptionProvider(sourceOptions.provider) || DEFAULT_AGENT_OPTION_PROVIDER
     : DEFAULT_AGENT_OPTION_PROVIDER;
   const initialPermissionMode = sourceOptions.permission_mode || DEFAULT_AGENT_PERMISSION_MODE;
   const initialAllowedTools = sourceOptions.allowed_tools || [];
@@ -134,15 +134,15 @@ export function useAgentOptionsEditorController({
     const loadProviderOptions = async () => {
       try {
         setProviderOptionsLoading(true);
-        const payload = await list_provider_options_api(get_default_agent_runtime_kind());
+        const payload = await listProviderOptionsApi(getDefaultAgentRuntimeKind());
         if (cancelled) {
           return;
         }
         setProviderOptions(payload.items);
-        setDefaultProvider(normalize_agent_option_provider(payload.default_provider));
+        setDefaultProvider(normalizeAgentOptionProvider(payload.default_provider));
         setDefaultModel(payload.default_model?.trim() || "");
-        set_default_agent_provider(payload.default_provider);
-        set_default_agent_model(payload.default_model);
+        setDefaultAgentProvider(payload.default_provider);
+        setDefaultAgentModel(payload.default_model);
         setProviderOptionsError(null);
       } catch (error) {
         if (!cancelled) {
@@ -344,72 +344,72 @@ export function useAgentOptionsEditorController({
   };
 
   return {
-    active_tab: activeTab,
-    set_active_tab: setActiveTab,
-    advanced_props: {
-      permission_mode: permissionMode,
-      on_permission_mode_change: (value: string) => {
+    activeTab,
+    setActiveTab,
+    advancedProps: {
+      permissionMode,
+      onPermissionModeChange: (value: string) => {
         clearSaveFeedback();
         setPermissionMode(value);
       },
-      allowed_tools: allowedTools,
-      on_toggle_tool: toggleTool,
+      allowedTools,
+      onToggleTool: toggleTool,
     },
-    can_delete: canDelete,
-    can_save: canSave,
-    cancel_label: t("common.cancel"),
-    content_max_width_class_name: contentMaxWidthClassName,
-    delete_agent_label: t("agent_options.delete_agent"),
-    handle_delete: handleDelete,
-    handle_save: handleSave,
-    hide_inline_nav: hideInlineNav,
-    identity_props: {
+    canDelete,
+    canSave,
+    cancelLabel: t("common.cancel"),
+    contentMaxWidthClassName,
+    deleteAgentLabel: t("agent_options.delete_agent"),
+    handleDelete,
+    handleSave,
+    hideInlineNav,
+    identityProps: {
       avatar,
-      on_avatar_change: (value: string) => {
+      onAvatarChange: (value: string) => {
         clearSaveFeedback();
         setAvatar(value);
       },
       title,
-      on_title_change: (value: string) => {
+      onTitleChange: (value: string) => {
         clearSaveFeedback();
         setTitle(value);
       },
       description,
-      on_description_change: (value: string) => {
+      onDescriptionChange: (value: string) => {
         clearSaveFeedback();
         setDescription(value);
       },
-      vibe_tags: vibeTags,
-      on_vibe_tags_change: (value: string[]) => {
+      vibeTags,
+      onVibeTagsChange: (value: string[]) => {
         clearSaveFeedback();
         setVibeTags(value);
       },
       provider,
       model,
-      default_provider: defaultProvider,
-      default_model: defaultModel,
-      provider_options: providerOptions,
-      provider_options_error: providerOptionsError,
-      provider_options_loading: providerOptionsLoading,
-      on_provider_change: (value: AgentProvider) => {
+      defaultProvider,
+      defaultModel,
+      providerOptions,
+      providerOptionsError,
+      providerOptionsLoading,
+      onProviderChange: (value: AgentProvider) => {
         clearSaveFeedback();
         setProvider(value);
       },
-      on_model_change: (value: string) => {
+      onModelChange: (value: string) => {
         clearSaveFeedback();
         setModel(value);
       },
-      name_validation: nameValidation,
-      is_validating_name: isValidatingName,
+      nameValidation,
+      isValidatingName,
       variant,
     },
-    is_active: isActive,
+    isActive,
     mode,
-    on_cancel: onCancel,
-    save_button_label: saveButtonLabel,
-    save_feedback: saveFeedback,
-    show_cancel_button: showCancelButton,
-    skills_agent_id: mode === "edit" ? agentId : undefined,
+    onCancel,
+    saveButtonLabel,
+    saveFeedback,
+    showCancelButton,
+    skillsAgentId: mode === "edit" ? agentId : undefined,
     variant,
   };
 }

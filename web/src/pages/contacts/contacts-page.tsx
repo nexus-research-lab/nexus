@@ -4,8 +4,8 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { ContactsAgentDetail } from "@/features/contacts/contacts-agent-detail";
 import { ContactsDirectory } from "@/features/contacts/contacts-directory";
-import { validate_agent_name_api } from "@/lib/api/agent-manage-api";
-import { create_room, ensure_direct_room } from "@/lib/api/room-api";
+import { validateAgentNameApi } from "@/lib/api/agent-manage-api";
+import { createRoom, ensureDirectRoom } from "@/lib/api/room-api";
 import { AgentOptions } from "@/shared/ui/dialog/agent-options";
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
 import { WorkspaceLoadingState } from "@/shared/ui/workspace/frame/workspace-loading-state";
@@ -15,8 +15,8 @@ import {
   AgentIdentityDraft,
   AgentOptions as AgentConfigOptions,
 } from "@/types/agent/agent";
-import { get_initial_agent_options, is_main_agent } from "@/config/options";
-import { build_agent_options_save_payload } from "@/features/agents/options/agent-options-constants";
+import { getInitialAgentOptions, isMainAgent } from "@/config/options";
+import { buildAgentOptionsSavePayload } from "@/features/agents/options/agent-options-constants";
 
 export function ContactsPage() {
   const navigate = useNavigate();
@@ -39,7 +39,7 @@ export function ContactsPage() {
     name: string;
   } | null>(null);
   const regularAgents = useMemo(
-    () => agents.filter((agent) => !is_main_agent(agent.agent_id)),
+    () => agents.filter((agent) => !isMainAgent(agent.agent_id)),
     [agents],
   );
   const selectedAgentId = searchParams.get("agent");
@@ -63,7 +63,7 @@ export function ContactsPage() {
   );
   const dialogInitialOptions = useMemo(() => {
     if (dialogMode !== "edit" || !editingAgent) {
-      return get_initial_agent_options();
+      return getInitialAgentOptions();
     }
 
     return {
@@ -82,9 +82,9 @@ export function ContactsPage() {
   // 💬 Chat → ensureDirectRoom 发起 DM
   const handleOpenDirectRoom = useCallback(
     (agentId: string) => {
-      void ensure_direct_room(agentId).then((context) => {
+      void ensureDirectRoom(agentId).then((context) => {
         navigate(
-          AppRouteBuilders.room_conversation(
+          AppRouteBuilders.roomConversation(
             context.room.id,
             context.conversation.id,
           ),
@@ -97,9 +97,9 @@ export function ContactsPage() {
   // 👥 Create Team → 用该 Agent 创建单人成员 Room
   const handleCreateTeam = useCallback(
     (agentId: string) => {
-      void create_room({ agent_ids: [agentId] }).then((context) => {
+      void createRoom({ agent_ids: [agentId] }).then((context) => {
         navigate(
-          AppRouteBuilders.room_conversation(
+          AppRouteBuilders.roomConversation(
             context.room.id,
             context.conversation.id,
           ),
@@ -127,7 +127,7 @@ export function ContactsPage() {
     async (name: string) => {
       const excludeAgentId =
         dialogMode === "edit" ? (editingAgentId ?? undefined) : undefined;
-      return validate_agent_name_api(name, excludeAgentId);
+      return validateAgentNameApi(name, excludeAgentId);
     },
     [dialogMode, editingAgentId],
   );
@@ -138,7 +138,7 @@ export function ContactsPage() {
       options: AgentConfigOptions,
       identity: AgentIdentityDraft,
     ) => {
-      const nextOptions = build_agent_options_save_payload(options);
+      const nextOptions = buildAgentOptionsSavePayload(options);
 
       if (dialogMode === "create") {
         await createAgent({
@@ -173,7 +173,7 @@ export function ContactsPage() {
     ) => {
       await updateAgent(agentId, {
         name: title,
-        options: build_agent_options_save_payload(options),
+        options: buildAgentOptionsSavePayload(options),
         avatar: identity.avatar,
         description: identity.description,
         vibe_tags: identity.vibe_tags,
@@ -184,7 +184,7 @@ export function ContactsPage() {
 
   const handleValidateAgentDetailName = useCallback(
     async (name: string, agentId?: string) => {
-      return validate_agent_name_api(name, agentId);
+      return validateAgentNameApi(name, agentId);
     },
     [],
   );
@@ -205,7 +205,7 @@ export function ContactsPage() {
   const handleRequestDeleteAgent = useCallback(
     (agentId: string) => {
       const targetAgent = agents.find((agent) => agent.agent_id === agentId);
-      if (!targetAgent || is_main_agent(targetAgent.agent_id)) {
+      if (!targetAgent || isMainAgent(targetAgent.agent_id)) {
         return;
       }
       setIsDialogOpen(false);
@@ -233,7 +233,7 @@ export function ContactsPage() {
   // 加载中 — 内联 loading，外层布局由路由层提供
   if (loading && !regularAgents.length) {
     return (
-      <WorkspacePageFrame content_padding_class_name="p-0">
+      <WorkspacePageFrame contentPaddingClassName="p-0">
         <WorkspaceLoadingState label="加载成员..." />
       </WorkspacePageFrame>
     );
@@ -241,49 +241,49 @@ export function ContactsPage() {
 
   return (
     <>
-      <WorkspacePageFrame content_padding_class_name="p-0">
+      <WorkspacePageFrame contentPaddingClassName="p-0">
         {selectedAgent ? (
           <ContactsAgentDetail
             agent={selectedAgent}
-            on_back={() => navigate(AppRouteBuilders.contacts())}
-            on_create_team={handleCreateTeam}
-            on_delete_agent={handleRequestDeleteAgent}
-            on_open_direct_room={handleOpenDirectRoom}
-            on_save_agent_options={handleSaveAgentOptions}
-            on_validate_agent_name={handleValidateAgentDetailName}
+            onBack={() => navigate(AppRouteBuilders.contacts())}
+            onCreateTeam={handleCreateTeam}
+            onDeleteAgent={handleRequestDeleteAgent}
+            onOpenDirectRoom={handleOpenDirectRoom}
+            onSaveAgentOptions={handleSaveAgentOptions}
+            onValidateAgentName={handleValidateAgentDetailName}
           />
         ) : (
           <ContactsDirectory
             agents={regularAgents}
-            on_create_agent={handleOpenCreateAgent}
-            on_create_team={handleCreateTeam}
-            on_edit_agent={handleOpenEditAgent}
-            on_open_direct_room={handleOpenDirectRoom}
+            onCreateAgent={handleOpenCreateAgent}
+            onCreateTeam={handleCreateTeam}
+            onEditAgent={handleOpenEditAgent}
+            onOpenDirectRoom={handleOpenDirectRoom}
           />
         )}
       </WorkspacePageFrame>
 
       <AgentOptions
-        agent_id={editingAgentId ?? undefined}
-        initial_options={dialogInitialOptions}
-        initial_avatar={editingAgent?.avatar ?? ""}
-        initial_description={editingAgent?.description ?? ""}
-        initial_title={dialogInitialTitle}
-        initial_vibe_tags={editingAgent?.vibe_tags ?? []}
-        is_open={isDialogOpen}
+        agentId={editingAgentId ?? undefined}
+        initialOptions={dialogInitialOptions}
+        initialAvatar={editingAgent?.avatar ?? ""}
+        initialDescription={editingAgent?.description ?? ""}
+        initialTitle={dialogInitialTitle}
+        initialVibeTags={editingAgent?.vibe_tags ?? []}
+        isOpen={isDialogOpen}
         mode={dialogMode}
-        on_close={() => setIsDialogOpen(false)}
-        on_delete={handleRequestDeleteAgent}
-        on_save={handleSaveAgent}
-        on_validate_name={handleValidateAgentName}
+        onClose={() => setIsDialogOpen(false)}
+        onDelete={handleRequestDeleteAgent}
+        onSave={handleSaveAgent}
+        onValidateName={handleValidateAgentName}
       />
 
       <ConfirmDialog
-        confirm_text="删除成员"
-        is_open={Boolean(pendingDeleteAgent)}
+        confirmText="删除成员"
+        isOpen={Boolean(pendingDeleteAgent)}
         message={`删除「${pendingDeleteAgent?.name ?? "该 Agent"}」后，该成员将不再出现在 Contacts 中。已有历史协作不会自动删除。`}
-        on_cancel={() => setPendingDeleteAgent(null)}
-        on_confirm={() => {
+        onCancel={() => setPendingDeleteAgent(null)}
+        onConfirm={() => {
           void handleConfirmDeleteAgent();
         }}
         title="删除成员"

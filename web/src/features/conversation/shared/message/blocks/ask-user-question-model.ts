@@ -8,15 +8,15 @@ export type QuestionSelectionState = {
   custom_answers: Map<number, string>;
 };
 
-export function normalize_question(question: UserQuestion): UserQuestion {
+export function normalizeQuestion(question: UserQuestion): UserQuestion {
   return {
     ...question,
-    // 兼容 SDK 直接透传的 camelCase 字段，组件内部统一使用 snake_case。
+    // 兼容 SDK 直接透传的 camelCase 字段，组件内部统一使用 snakeCase。
     multi_select: question.multi_select ?? question.multiSelect ?? false,
   };
 }
 
-export function create_empty_question_selection_state(
+export function createEmptyQuestionSelectionState(
   questions: UserQuestion[],
 ): QuestionSelectionState {
   const selections = new Map<number, Set<string>>();
@@ -42,11 +42,11 @@ function extractAnswerPairsFromToolResultContent(
   return pairs;
 }
 
-export function build_submitted_selection_state(
+export function buildSubmittedSelectionState(
   questions: UserQuestion[],
   toolResult?: ToolResultContent,
 ): QuestionSelectionState {
-  const emptyState = create_empty_question_selection_state(questions);
+  const emptyState = createEmptyQuestionSelectionState(questions);
   if (!toolResult || toolResult.is_error || typeof toolResult.content !== "string") {
     return emptyState;
   }
@@ -62,7 +62,7 @@ export function build_submitted_selection_state(
       return;
     }
 
-    const normalizedQuestion = normalize_question(question);
+    const normalizedQuestion = normalizeQuestion(question);
     const optionLabels = new Set(normalizedQuestion.options.map((option) => option.label));
 
     if (normalizedQuestion.multi_select) {
@@ -90,7 +90,7 @@ export function build_submitted_selection_state(
   return emptyState;
 }
 
-export function has_selection_state_content(state: QuestionSelectionState): boolean {
+export function hasSelectionStateContent(state: QuestionSelectionState): boolean {
   return Array.from(state.selections.values()).some((values) => values.size > 0)
     || Array.from(state.custom_answers.values()).some((value) => value.trim().length > 0);
 }

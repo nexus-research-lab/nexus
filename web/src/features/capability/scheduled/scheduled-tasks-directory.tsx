@@ -5,10 +5,10 @@ import { CalendarClock, Plus, RefreshCw } from "lucide-react";
 
 import { useAutomationController } from "@/hooks/capability/use-automation-controller";
 import {
-  delete_scheduled_task_api,
-  recover_scheduled_task_run_api,
-  retry_scheduled_task_run_delivery_api,
-  run_scheduled_task_api,
+  deleteScheduledTaskApi,
+  recoverScheduledTaskRunApi,
+  retryScheduledTaskRunDeliveryApi,
+  runScheduledTaskApi,
 } from "@/lib/api/scheduled-task-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import {
@@ -23,7 +23,7 @@ import {
 } from "@/features/capability/shared/capability-page-layout";
 
 import { FeedbackBannerStack } from "@/shared/ui/feedback/feedback-banner-stack";
-import { notify_scheduled_tasks_mutated } from "../scheduled-task-events";
+import { notifyScheduledTasksMutated } from "../scheduled-task-events";
 import { ScheduledTaskDialog } from "./dialog/scheduled-task-dialog";
 import { ScheduledTaskList } from "./scheduled-task-list";
 import { ScheduledTaskRunHistoryDialog } from "./scheduled-task-run-history-dialog";
@@ -67,11 +67,11 @@ async function refreshTasksBestEffort(
   setFeedback: (feedback: FeedbackState) => void,
 ) {
   try {
-    await automation.refresh_tasks();
-    notify_scheduled_tasks_mutated(agentId);
+    await automation.refreshTasks();
+    notifyScheduledTasksMutated(agentId);
     setFeedback({ tone: "success", ...successFeedback });
   } catch (error) {
-    notify_scheduled_tasks_mutated(agentId);
+    notifyScheduledTasksMutated(agentId);
     setFeedback({
       tone: "warning",
       title: successFeedback.title,
@@ -89,25 +89,25 @@ export function ScheduledTasksDirectory() {
   const [runPendingJobId, setRunPendingJobId] = useState<string | null>(null);
   const [togglePendingJobId, setTogglePendingJobId] = useState<string | null>(null);
   const [deletePendingJobId, setDeletePendingJobId] = useState<string | null>(null);
-  const automation = useAutomationController({ include_all_tasks: true });
-  const refreshTasks = automation.refresh_tasks;
-  const refreshAll = automation.refresh_all;
-  const runningCount = automation.scheduled_tasks.filter((task) => task.running).length;
-  const enabledCount = automation.scheduled_tasks.filter((task) => task.enabled).length;
-  const pausedCount = automation.scheduled_tasks.length - enabledCount;
+  const automation = useAutomationController({ includeAllTasks: true });
+  const refreshTasks = automation.refreshTasks;
+  const refreshAll = automation.refreshAll;
+  const runningCount = automation.scheduledTasks.filter((task) => task.running).length;
+  const enabledCount = automation.scheduledTasks.filter((task) => task.enabled).length;
+  const pausedCount = automation.scheduledTasks.length - enabledCount;
   const feedbackItems = feedback
     ? [
         {
           key: "feedback",
           message: feedback.message,
-          on_dismiss: () => setFeedback(null),
+          onDismiss: () => setFeedback(null),
           title: feedback.title,
           tone: feedback.tone,
         },
       ]
     : [];
 
-  useScheduledTaskRealtimeRefresh({ enabled_count: enabledCount, refresh_tasks: refreshTasks, running_count: runningCount });
+  useScheduledTaskRealtimeRefresh({ enabledCount: enabledCount, refreshTasks: refreshTasks, runningCount: runningCount });
 
   const handleCreateSuccess = async (task: ScheduledTaskItem) => {
     await refreshTasksBestEffort(
@@ -150,10 +150,10 @@ export function ScheduledTasksDirectory() {
   const handleRunNow = async (task: ScheduledTaskItem) => {
     setRunPendingJobId(task.job_id);
     try {
-      const result = await run_scheduled_task_api(task.job_id);
+      const result = await runScheduledTaskApi(task.job_id);
       await refreshTasksBestEffort(
         automation,
-        automation.agent_id,
+        automation.agentId,
         {
           title: "任务已触发",
           message: result.status === "queued_to_main_session"
@@ -177,7 +177,7 @@ export function ScheduledTasksDirectory() {
   const handleToggleEnabled = async (task: ScheduledTaskItem) => {
     setTogglePendingJobId(task.job_id);
     try {
-      const updatedTask = await automation.toggle_task(task);
+      const updatedTask = await automation.toggleTask(task);
       setHistoryTask((currentTask) => {
         if (!currentTask || currentTask.job_id !== updatedTask.job_id) {
           return currentTask;
@@ -209,11 +209,11 @@ export function ScheduledTasksDirectory() {
 
   const handleRecoverTaskRun = async (task: ScheduledTaskItem, run: ScheduledTaskRunItem) => {
     try {
-      const updatedTask = await recover_scheduled_task_run_api(task.job_id, { run_id: run.run_id });
+      const updatedTask = await recoverScheduledTaskRunApi(task.job_id, { run_id: run.run_id });
       setHistoryTask((current) => current?.job_id === updatedTask.job_id ? updatedTask : current);
       await refreshTasksBestEffort(
         automation,
-        automation.agent_id,
+        automation.agentId,
         {
           title: "运行占用已释放",
           message: `${task.name} 的当前 run 已标记为 cancelled`,
@@ -233,10 +233,10 @@ export function ScheduledTasksDirectory() {
 
   const handleRetryDelivery = async (task: ScheduledTaskItem, run: ScheduledTaskRunItem) => {
     try {
-      const updatedRun = await retry_scheduled_task_run_delivery_api(task.job_id, run.run_id);
+      const updatedRun = await retryScheduledTaskRunDeliveryApi(task.job_id, run.run_id);
       await refreshTasksBestEffort(
         automation,
-        automation.agent_id,
+        automation.agentId,
         {
           title: updatedRun.delivery_status === "succeeded" ? "投递已恢复" : "投递已重试",
           message: updatedRun.delivery_status === "succeeded"
@@ -262,10 +262,10 @@ export function ScheduledTasksDirectory() {
     }
     setDeletePendingJobId(task.job_id);
     try {
-      await delete_scheduled_task_api(task.job_id);
+      await deleteScheduledTaskApi(task.job_id);
       await refreshTasksBestEffort(
         automation,
-        automation.agent_id,
+        automation.agentId,
         {
           title: "任务已删除",
           message: `${task.name} 已从自动化任务列表移除`,
@@ -287,10 +287,10 @@ export function ScheduledTasksDirectory() {
   return (
     <>
       <WorkspaceSurfaceScaffold
-        body_scrollable
+        bodyScrollable
         header={(
           <WorkspaceSurfaceHeader
-            badge={t("capability.scheduled_badge", { count: automation.scheduled_tasks.length })}
+            badge={t("capability.scheduled_badge", { count: automation.scheduledTasks.length })}
             density="compact"
             leading={<CalendarClock className="h-4 w-4" />}
             subtitle={t("capability.scheduled_subtitle")}
@@ -309,7 +309,7 @@ export function ScheduledTasksDirectory() {
             )}
           />
         )}
-        stable_gutter
+        stableGutter
       >
         <CapabilityPageLayout
           description={t("capability.scheduled_intro_description")}
@@ -335,40 +335,40 @@ export function ScheduledTasksDirectory() {
           </section>
 
           <ScheduledTaskList
-            error_message={automation.tasks_error}
-            is_loading={automation.tasks_loading}
-            items={automation.scheduled_tasks}
-            on_create={() => setIsDialogOpen(true)}
-            on_open_history={setHistoryTask}
-            on_refresh={() => void refreshTasks().catch((err: unknown) => console.debug("[scheduled-tasks] Manual refresh failed:", err))}
-            on_run_now={(task) => void handleRunNow(task)}
-            on_toggle_enabled={(task) => void handleToggleEnabled(task)}
-            on_delete={(task) => void handleDelete(task)}
-            on_edit={setEditingTask}
-            delete_pending_job_id={deletePendingJobId}
-            run_pending_job_id={runPendingJobId}
-            toggle_pending_job_id={togglePendingJobId}
+            errorMessage={automation.tasksError}
+            isLoading={automation.tasksLoading}
+            items={automation.scheduledTasks}
+            onCreate={() => setIsDialogOpen(true)}
+            onOpenHistory={setHistoryTask}
+            onRefresh={() => void refreshTasks().catch((err: unknown) => console.debug("[scheduled-tasks] Manual refresh failed:", err))}
+            onRunNow={(task) => void handleRunNow(task)}
+            onToggleEnabled={(task) => void handleToggleEnabled(task)}
+            onDelete={(task) => void handleDelete(task)}
+            onEdit={setEditingTask}
+            deletePendingJobId={deletePendingJobId}
+            runPendingJobId={runPendingJobId}
+            togglePendingJobId={togglePendingJobId}
           />
         </CapabilityPageLayout>
       </WorkspaceSurfaceScaffold>
 
       <ScheduledTaskDialog
-        agent_id={automation.agent_id}
-        initial_task={editingTask}
-        is_open={isDialogOpen || editingTask !== null}
-        on_close={() => {
+        agentId={automation.agentId}
+        initialTask={editingTask}
+        isOpen={isDialogOpen || editingTask !== null}
+        onClose={() => {
           setIsDialogOpen(false);
           setEditingTask(null);
         }}
-        on_created={(task) => void handleCreateSuccess(task)}
-        on_saved={(task) => void handleSaveSuccess(task)}
+        onCreated={(task) => void handleCreateSuccess(task)}
+        onSaved={(task) => void handleSaveSuccess(task)}
       />
       <ScheduledTaskRunHistoryDialog
-        is_open={historyTask !== null}
-        on_close={() => setHistoryTask(null)}
-        on_recover_task_run={(task, run) => handleRecoverTaskRun(task, run)}
-        on_retry_delivery={(task, run) => handleRetryDelivery(task, run)}
-        on_retry_task={(task) => handleRunNow(task)}
+        isOpen={historyTask !== null}
+        onClose={() => setHistoryTask(null)}
+        onRecoverTaskRun={(task, run) => handleRecoverTaskRun(task, run)}
+        onRetryDelivery={(task, run) => handleRetryDelivery(task, run)}
+        onRetryTask={(task) => handleRunNow(task)}
         task={historyTask}
       />
 

@@ -9,7 +9,7 @@
 
 import { create } from 'zustand';
 
-import { get_workspace_files_api } from '@/lib/api/agent-manage-api';
+import { getWorkspaceFilesApi } from '@/lib/api/agent-manage-api';
 import { WorkspaceFileEntry } from '@/types/agent/agent';
 
 interface WorkspaceFilesStoreState {
@@ -40,7 +40,7 @@ export const useWorkspaceFilesStore = create<WorkspaceFilesStoreState>()((set) =
   },
 
   refresh_files: async (agentId) => {
-    const files = await get_workspace_files_api(agentId);
+    const files = await getWorkspaceFilesApi(agentId);
     set((state) => ({
       files_by_agent: {
         ...state.files_by_agent,

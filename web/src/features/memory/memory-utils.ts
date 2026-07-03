@@ -2,7 +2,7 @@ import type { UiBadgeTone } from "@/shared/ui/badge-styles";
 
 export type MemoryLayerFilter = "all" | "agent" | "dm_session" | "room";
 
-export function memory_layer_key(scope?: string): MemoryLayerFilter {
+export function memoryLayerKey(scope?: string): MemoryLayerFilter {
   if (!scope) {
     return "agent";
   }
@@ -16,7 +16,7 @@ export function memory_layer_key(scope?: string): MemoryLayerFilter {
 }
 
 function memoryLayerLabel(scope?: string): string {
-  const key = memory_layer_key(scope);
+  const key = memoryLayerKey(scope);
   switch (key) {
   case "dm_session":
     return "DM";
@@ -27,7 +27,7 @@ function memoryLayerLabel(scope?: string): string {
   }
 }
 
-export function memory_scope_label(scope?: string): string {
+export function memoryScopeLabel(scope?: string): string {
   if (!scope) {
     return "Agent";
   }
@@ -37,11 +37,11 @@ export function memory_scope_label(scope?: string): string {
   return memoryLayerLabel(scope);
 }
 
-export function format_memory_score(score: number): string {
+export function formatMemoryScore(score: number): string {
   return `score ${score.toFixed(2)}`;
 }
 
-export function format_memory_time(value?: string): string {
+export function formatMemoryTime(value?: string): string {
   if (!value) {
     return "";
   }
@@ -57,7 +57,7 @@ export function format_memory_time(value?: string): string {
   }).format(date);
 }
 
-export function memory_status_tone(status: string): UiBadgeTone {
+export function memoryStatusTone(status: string): UiBadgeTone {
   switch (status) {
   case "promoted":
   case "active":

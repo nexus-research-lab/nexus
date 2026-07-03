@@ -5,9 +5,9 @@ import { AlertTriangle } from "lucide-react";
 
 import {
   DIALOG_HEADER_ICON_CLASS_NAME,
-  get_dialog_action_class_name,
-  get_dialog_note_class_name,
-  get_dialog_note_style,
+  getDialogActionClassName,
+  getDialogNoteClassName,
+  getDialogNoteStyle,
 } from "@/shared/ui/dialog/dialog-styles";
 import {
   UiDialogBackdrop,
@@ -20,36 +20,36 @@ import {
 } from "@/shared/ui/dialog/dialog";
 
 interface ConfirmDialogProps {
-  is_open: boolean;
+  isOpen: boolean;
   title: string;
   message: string;
-  confirm_text?: string;
-  cancel_text?: string;
-  on_confirm: () => void;
-  on_cancel: () => void;
+  confirmText?: string;
+  cancelText?: string;
+  onConfirm: () => void;
+  onCancel: () => void;
   variant?: "danger" | "default";
 }
 
 interface PromptDialogProps {
-  is_open: boolean;
+  isOpen: boolean;
   title: string;
   message?: string;
   placeholder?: string;
-  default_value?: string;
+  defaultValue?: string;
   multiline?: boolean;
   rows?: number;
-  on_confirm: (value: string) => void;
-  on_cancel: () => void;
+  onConfirm: (value: string) => void;
+  onCancel: () => void;
 }
 
 export function ConfirmDialog({
-  is_open: isOpen,
+  isOpen: isOpen,
   title,
   message,
-  confirm_text: confirmText = "确认",
-  cancel_text: cancelText = "取消",
-  on_confirm: onConfirm,
-  on_cancel: onCancel,
+  confirmText: confirmText = "确认",
+  cancelText: cancelText = "取消",
+  onConfirm: onConfirm,
+  onCancel: onCancel,
   variant = "default",
 }: ConfirmDialogProps) {
   const confirmButtonRef = useRef<HTMLButtonElement>(null);
@@ -61,14 +61,14 @@ export function ConfirmDialog({
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
-        class_name="z-[9999]"
-        described_by="confirm-dialog-message"
-        initial_focus_ref={confirmButtonRef}
-        labelled_by="confirm-dialog-title"
-        on_close={onCancel}
+        className="z-[9999]"
+        describedBy="confirm-dialog-message"
+        initialFocusRef={confirmButtonRef}
+        labelledBy="confirm-dialog-title"
+        onClose={onCancel}
       >
         <UiDialogShell size="sm">
-          <UiDialogHeader class_name="items-center">
+          <UiDialogHeader className="items-center">
             <div className="flex min-w-0 flex-1 items-center gap-3">
               <div
                 className={DIALOG_HEADER_ICON_CLASS_NAME}
@@ -98,16 +98,16 @@ export function ConfirmDialog({
                 </p>
               </div>
             </div>
-            <UiDialogCloseButton on_close={onCancel} />
+            <UiDialogCloseButton onClose={onCancel} />
           </UiDialogHeader>
 
           <UiDialogBody>
             <div
-              className={get_dialog_note_class_name(
+              className={getDialogNoteClassName(
                 isDanger ? "danger" : "default",
               )}
               id="confirm-dialog-message"
-              style={get_dialog_note_style(isDanger ? "danger" : "default")}
+              style={getDialogNoteStyle(isDanger ? "danger" : "default")}
             >
               {message}
             </div>
@@ -115,14 +115,14 @@ export function ConfirmDialog({
 
           <UiDialogFooter>
             <button
-              className={get_dialog_action_class_name("default")}
+              className={getDialogActionClassName("default")}
               onClick={onCancel}
               type="button"
             >
               {cancelText}
             </button>
             <button
-              className={get_dialog_action_class_name(
+              className={getDialogActionClassName(
                 isDanger ? "danger" : "primary",
                 "min-w-[110px]",
               )}
@@ -140,15 +140,15 @@ export function ConfirmDialog({
 }
 
 export function PromptDialog({
-  is_open: isOpen,
+  isOpen: isOpen,
   title,
   message,
   placeholder = "",
-  default_value: defaultValue = "",
+  defaultValue: defaultValue = "",
   multiline = false,
   rows = 8,
-  on_confirm: onConfirm,
-  on_cancel: onCancel,
+  onConfirm: onConfirm,
+  onCancel: onCancel,
 }: PromptDialogProps) {
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
   const [value, setValue] = useState(defaultValue);
@@ -200,10 +200,10 @@ export function PromptDialog({
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
-        class_name="z-[9999]"
-        initial_focus_ref={initialFocusRef}
-        labelled_by="prompt-dialog-title"
-        on_close={cancel}
+        className="z-[9999]"
+        initialFocusRef={initialFocusRef}
+        labelledBy="prompt-dialog-title"
+        onClose={cancel}
       >
         <UiDialogShell size="sm">
           <UiDialogHeader>
@@ -212,7 +212,7 @@ export function PromptDialog({
                 {title}
               </h3>
             </div>
-            <UiDialogCloseButton on_close={cancel} />
+            <UiDialogCloseButton onClose={cancel} />
           </UiDialogHeader>
 
           <UiDialogBody>
@@ -254,14 +254,14 @@ export function PromptDialog({
 
           <UiDialogFooter>
             <button
-              className={get_dialog_action_class_name("default")}
+              className={getDialogActionClassName("default")}
               onClick={cancel}
               type="button"
             >
               取消
             </button>
             <button
-              className={get_dialog_action_class_name("primary")}
+              className={getDialogActionClassName("primary")}
               onClick={() => onConfirm(value)}
               type="button"
             >

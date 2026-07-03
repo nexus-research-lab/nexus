@@ -3,7 +3,7 @@ import { useEffect, useRef, type CSSProperties, type RefObject } from "react";
 
 import type { ContentBlock } from "@/types/conversation/message";
 
-import { extract_text_from_content_blocks } from "./message-item-support";
+import { extractTextFromContentBlocks } from "./message-item-support";
 
 const STREAMING_MIN_HEIGHT = 60;
 const STREAMING_LAYOUT_DELAY_MS = 150;
@@ -12,26 +12,26 @@ const STREAMING_PROSE_FONT =
 const STREAMING_LINE_HEIGHT = 28;
 
 type MessageItemStreamingLayoutOptions = {
-  assistant_content_mode:
+  assistantContentMode:
     | "dm_live"
     | "dm_archived"
     | "room_thread"
     | "room_result";
-  direct_content: ContentBlock[];
-  final_assistant_text: string;
-  show_cursor: boolean;
+  directContent: ContentBlock[];
+  finalAssistantText: string;
+  showCursor: boolean;
 };
 
 type MessageItemStreamingLayout = {
-  content_area_ref: RefObject<HTMLDivElement | null>;
-  content_area_style: CSSProperties | undefined;
+  contentAreaRef: RefObject<HTMLDivElement | null>;
+  contentAreaStyle: CSSProperties | undefined;
 };
 
 export function useMessageItemStreamingLayout({
-  assistant_content_mode: assistantContentMode,
-  direct_content: directContent,
-  final_assistant_text: finalAssistantText,
-  show_cursor: showCursor,
+  assistantContentMode,
+  directContent,
+  finalAssistantText,
+  showCursor,
 }: MessageItemStreamingLayoutOptions): MessageItemStreamingLayout {
   const contentAreaRef = useRef<HTMLDivElement>(null);
   const streamingMinHeight = useRef(STREAMING_MIN_HEIGHT);
@@ -43,7 +43,7 @@ export function useMessageItemStreamingLayout({
     const layoutText =
       assistantContentMode === "dm_live" ||
       assistantContentMode === "room_thread"
-        ? extract_text_from_content_blocks(directContent)
+        ? extractTextFromContentBlocks(directContent)
         : finalAssistantText;
 
     if (!showCursor || !layoutText) {
@@ -96,8 +96,8 @@ export function useMessageItemStreamingLayout({
   }, [showCursor]);
 
   return {
-    content_area_ref: contentAreaRef,
-    content_area_style: showCursor
+    contentAreaRef,
+    contentAreaStyle: showCursor
       ? { minHeight: streamingMinHeight.current }
       : undefined,
   };

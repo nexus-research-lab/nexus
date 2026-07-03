@@ -27,38 +27,38 @@ import { CreateRoomDialog } from "@/features/conversation/room/members/create-ro
 import { CONVERSATION_TOUR_ANCHORS } from "../../room-tour";
 
 interface GroupConversationHeaderProps {
-  conversation_id: string | null;
-  room_id: string | null;
-  current_room_title: string | null;
-  room_skill_names: string[];
-  room_avatar?: string | null;
-  room_host_agent_id?: string | null;
-  room_host_auto_reply_enabled: boolean;
-  room_private_messages_enabled: boolean;
+  conversationId: string | null;
+  roomId: string | null;
+  currentRoomTitle: string | null;
+  roomSkillNames: string[];
+  roomAvatar?: string | null;
+  roomHostAgentId?: string | null;
+  roomHostAutoReplyEnabled: boolean;
+  roomPrivateMessagesEnabled: boolean;
   conversations: RoomConversationView[];
-  room_members: Agent[];
-  available_room_agents: Agent[];
+  roomMembers: Agent[];
+  availableRoomAgents: Agent[];
   todos: TodoItem[];
-  active_tab: RoomSurfaceTabKey;
-  on_replay_tour?: () => void;
-  on_change_tab: (tab: RoomSurfaceTabKey) => void;
-  on_select_conversation: (conversationId: string) => void;
-  on_close_conversation: (conversationId: string) => Promise<void>;
-  on_create_conversation?: (title?: string) => Promise<string | null>;
-  on_add_room_member: (agentId: string) => Promise<void>;
-  on_remove_room_member: (agentId: string) => Promise<void>;
-  on_open_member_manager: () => Promise<void>;
-  on_update_room: (roomId: string, params: UpdateRoomParams) => Promise<void>;
+  activeTab: RoomSurfaceTabKey;
+  onReplayTour?: () => void;
+  onChangeTab: (tab: RoomSurfaceTabKey) => void;
+  onSelectConversation: (conversationId: string) => void;
+  onCloseConversation: (conversationId: string) => Promise<void>;
+  onCreateConversation?: (title?: string) => Promise<string | null>;
+  onAddRoomMember: (agentId: string) => Promise<void>;
+  onRemoveRoomMember: (agentId: string) => Promise<void>;
+  onOpenMemberManager: () => Promise<void>;
+  onUpdateRoom: (roomId: string, params: UpdateRoomParams) => Promise<void>;
 }
 
 function MemberAvatarStack({
-  room_members: roomMembers,
-  on_click: onClick,
-  tour_anchor: tourAnchor,
+  roomMembers: roomMembers,
+  onClick: onClick,
+  tourAnchor: tourAnchor,
 }: {
-  room_members: Agent[];
-  on_click: () => void;
-  tour_anchor?: string;
+  roomMembers: Agent[];
+  onClick: () => void;
+  tourAnchor?: string;
 }) {
   const { t } = useI18n();
   const visibleMembers = roomMembers.slice(0, 4);
@@ -75,7 +75,7 @@ function MemberAvatarStack({
         {visibleMembers.map((member) => (
           <UiAgentAvatar
             avatar={member.avatar}
-            class_name="ring-1 ring-(--background)"
+            className="ring-1 ring-(--background)"
             key={member.agent_id}
             name={member.name}
             size="xs"
@@ -94,28 +94,28 @@ function MemberAvatarStack({
 }
 
 const GroupConversationHeaderView = memo(({
-  conversation_id: conversationId,
-  room_id: roomId,
-  current_room_title: currentRoomTitle,
-  room_skill_names: roomSkillNames,
-  room_avatar: roomAvatar,
-  room_host_agent_id: roomHostAgentId,
-  room_host_auto_reply_enabled: roomHostAutoReplyEnabled,
-  room_private_messages_enabled: roomPrivateMessagesEnabled,
+  conversationId: conversationId,
+  roomId: roomId,
+  currentRoomTitle: currentRoomTitle,
+  roomSkillNames: roomSkillNames,
+  roomAvatar: roomAvatar,
+  roomHostAgentId: roomHostAgentId,
+  roomHostAutoReplyEnabled: roomHostAutoReplyEnabled,
+  roomPrivateMessagesEnabled: roomPrivateMessagesEnabled,
   conversations,
-  room_members: roomMembers,
-  available_room_agents: availableRoomAgents,
+  roomMembers: roomMembers,
+  availableRoomAgents: availableRoomAgents,
   todos,
-  active_tab: activeTab,
-  on_replay_tour: onReplayTour,
-  on_change_tab: onChangeTab,
-  on_select_conversation: onSelectConversation,
-  on_close_conversation: onCloseConversation,
-  on_create_conversation: onCreateConversation,
-  on_add_room_member: onAddRoomMember,
-  on_remove_room_member: onRemoveRoomMember,
-  on_open_member_manager: onOpenMemberManager,
-  on_update_room: onUpdateRoom,
+  activeTab: activeTab,
+  onReplayTour: onReplayTour,
+  onChangeTab: onChangeTab,
+  onSelectConversation: onSelectConversation,
+  onCloseConversation: onCloseConversation,
+  onCreateConversation: onCreateConversation,
+  onAddRoomMember: onAddRoomMember,
+  onRemoveRoomMember: onRemoveRoomMember,
+  onOpenMemberManager: onOpenMemberManager,
+  onUpdateRoom: onUpdateRoom,
 }: GroupConversationHeaderProps) => {
   const { t } = useI18n();
   const [isMemberListOpen, setIsMemberListOpen] = useState(false);
@@ -147,11 +147,11 @@ const GroupConversationHeaderView = memo(({
   const conversationTabs = (
     <WorkspaceConversationTabs
       conversations={conversations}
-      conversation_id={conversationId}
-      on_close_conversation={onCloseConversation}
-      on_create_conversation={onCreateConversation}
-      on_select_conversation={onSelectConversation}
-      tour_anchor={CONVERSATION_TOUR_ANCHORS.session_switcher}
+      conversationId={conversationId}
+      onCloseConversation={onCloseConversation}
+      onCreateConversation={onCreateConversation}
+      onSelectConversation={onSelectConversation}
+      tourAnchor={CONVERSATION_TOUR_ANCHORS.session_switcher}
     />
   );
 
@@ -159,11 +159,11 @@ const GroupConversationHeaderView = memo(({
     <div className="flex items-center gap-2">
       <div className="hidden lg:flex">
         <MemberAvatarStack
-          on_click={() => {
+          onClick={() => {
             void handleOpenMemberList();
           }}
-          room_members={roomMembers}
-          tour_anchor={CONVERSATION_TOUR_ANCHORS.member_manage}
+          roomMembers={roomMembers}
+          tourAnchor={CONVERSATION_TOUR_ANCHORS.member_manage}
         />
       </div>
       {onReplayTour ? (
@@ -178,46 +178,46 @@ const GroupConversationHeaderView = memo(({
   return (
     <>
       <WorkspaceSurfaceHeader
-        active_tab={activeTab}
+        activeTab={activeTab}
         density="compact"
         leading={(
           <UiRoomAvatar
             avatar={roomAvatar}
-            class_name="h-full w-full rounded-full border-0 shadow-none"
-            max_members={4}
+            className="h-full w-full rounded-full border-0 shadow-none"
+            maxMembers={4}
             members={roomMembers.map((member) => ({
               avatar: member.avatar,
               id: member.agent_id,
               name: member.name,
             }))}
-            room_id={roomId}
+            roomId={roomId}
             title={headerTitle}
           />
         )}
-        on_change_tab={onChangeTab}
+        onChangeTab={onChangeTab}
         tabs={roomTabs}
-        tabs_leading={conversationTabs}
-        tabs_trailing={<WorkspaceTaskStrip todos={todos} />}
+        tabsLeading={conversationTabs}
+        tabsTrailing={<WorkspaceTaskStrip todos={todos} />}
         title={headerTitle}
         trailing={trailing}
       />
 
       <CreateRoomDialog
         agents={allRoomAgents}
-        confirm_label={t("common.save")}
-        dialog_subtitle={t("room.manage_dialog_subtitle")}
-        dialog_title={t("room.manage_dialog_title")}
-        initial_avatar={roomAvatar ?? ""}
-        initial_host_agent_id={roomHostAgentId ?? null}
-        initial_host_auto_reply_enabled={roomHostAutoReplyEnabled}
-        initial_private_messages_enabled={roomPrivateMessagesEnabled}
-        initial_name={headerTitle}
-        initial_selected_agent_ids={memberAgentIds}
-        initial_room_skill_names={roomSkillNames}
-        is_open={isMemberListOpen}
+        confirmLabel={t("common.save")}
+        dialogSubtitle={t("room.manage_dialog_subtitle")}
+        dialogTitle={t("room.manage_dialog_title")}
+        initialAvatar={roomAvatar ?? ""}
+        initialHostAgentId={roomHostAgentId ?? null}
+        initialHostAutoReplyEnabled={roomHostAutoReplyEnabled}
+        initialPrivateMessagesEnabled={roomPrivateMessagesEnabled}
+        initialName={headerTitle}
+        initialSelectedAgentIds={memberAgentIds}
+        initialRoomSkillNames={roomSkillNames}
+        isOpen={isMemberListOpen}
         mode="manage"
-        on_cancel={() => setIsMemberListOpen(false)}
-        on_confirm={async (nextAgentIds, name, avatar, skillNames, hostAgentId, hostAutoReplyEnabled, privateMessagesEnabled) => {
+        onCancel={() => setIsMemberListOpen(false)}
+        onConfirm={async (nextAgentIds, name, avatar, skillNames, hostAgentId, hostAutoReplyEnabled, privateMessagesEnabled) => {
           if (!roomId) {
             return;
           }

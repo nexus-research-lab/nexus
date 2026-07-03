@@ -14,18 +14,18 @@ interface SidebarEmptyGuideProps {
   icon: LucideIcon;
   title: string;
   description: string;
-  action_label?: string;
-  on_action?: () => void;
-  class_name?: string;
+  actionLabel?: string;
+  onAction?: () => void;
+  className?: string;
 }
 
 export function SidebarEmptyGuide({
   icon: Icon,
   title,
   description,
-  action_label: actionLabel,
-  on_action: onAction,
-  class_name: className,
+  actionLabel: actionLabel,
+  onAction: onAction,
+  className: className,
 }: SidebarEmptyGuideProps) {
   return (
     <div

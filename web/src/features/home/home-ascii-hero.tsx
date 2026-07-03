@@ -11,7 +11,7 @@
 
 import { useEffect, useRef } from "react";
 
-import { get_desktop_runtime_config } from "@/config/desktop-runtime";
+import { getDesktopRuntimeConfig } from "@/config/desktop-runtime";
 import { usePrefersReducedMotion } from "@/hooks/ui/use-prefers-reduced-motion";
 import { useTheme } from "@/shared/theme/theme-context";
 
@@ -49,8 +49,8 @@ function shouldReduceHomeHeroMotion(prefersReducedMotion: boolean) {
     return false;
   }
 
-  const runtimeConfig = get_desktop_runtime_config();
-  return runtimeConfig?.app_mode !== "desktop" || runtimeConfig.platform !== "windows";
+  const runtimeConfig = getDesktopRuntimeConfig();
+  return runtimeConfig?.appMode !== "desktop" || runtimeConfig.platform !== "windows";
 }
 
 export function HomeAsciiHero() {

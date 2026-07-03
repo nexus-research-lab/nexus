@@ -11,7 +11,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Check, Crown, Hash, Plus, Search } from "lucide-react";
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
-import { get_available_skills_api } from "@/lib/api/skill-api";
+import { getAvailableSkillsApi } from "@/lib/api/skill-api";
 import { cn } from "@/lib/utils";
 import { ROOM_ICON_ID_END, ROOM_ICON_ID_START } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -26,7 +26,7 @@ import {
 import {
   DIALOG_HEADER_ICON_CLASS_NAME,
   DIALOG_HEADER_LEADING_CLASS_NAME,
-  get_dialog_action_class_name,
+  getDialogActionClassName,
 } from "@/shared/ui/dialog/dialog-styles";
 import { IconPicker } from "@/shared/ui/icon-picker/icon-picker";
 import { UiMultiSelectMenu, UiSelectMenu } from "@/shared/ui/select-menu";
@@ -43,21 +43,21 @@ interface RoomMemberAgentOption {
 
 interface CreateRoomDialogProps {
   agents: RoomMemberAgentOption[];
-  is_open: boolean;
-  is_creating?: boolean;
+  isOpen: boolean;
+  isCreating?: boolean;
   mode?: "create" | "manage";
-  dialog_title?: string;
-  dialog_subtitle?: string;
-  confirm_label?: string;
-  initial_name?: string;
-  initial_avatar?: string;
-  initial_selected_agent_ids?: string[];
-  initial_room_skill_names?: string[];
-  initial_host_agent_id?: string | null;
-  initial_host_auto_reply_enabled?: boolean;
-  initial_private_messages_enabled?: boolean;
-  on_cancel: () => void;
-  on_confirm: (
+  dialogTitle?: string;
+  dialogSubtitle?: string;
+  confirmLabel?: string;
+  initialName?: string;
+  initialAvatar?: string;
+  initialSelectedAgentIds?: string[];
+  initialRoomSkillNames?: string[];
+  initialHostAgentId?: string | null;
+  initialHostAutoReplyEnabled?: boolean;
+  initialPrivateMessagesEnabled?: boolean;
+  onCancel: () => void;
+  onConfirm: (
     agentIds: string[],
     name: string,
     avatar?: string,
@@ -79,21 +79,21 @@ const EMPTY_STRING_LIST: string[] = [];
 const STRING_LIST_SIGNATURE_SEPARATOR = "\x1f";
 export function CreateRoomDialog({
   agents,
-  is_open: isOpen,
-  is_creating: isCreating = false,
+  isOpen: isOpen,
+  isCreating: isCreating = false,
   mode = "create",
-  dialog_title: dialogTitle,
-  dialog_subtitle: dialogSubtitle,
-  confirm_label: confirmLabel,
-  initial_name: initialName = "",
-  initial_avatar: initialAvatar = "",
-  initial_selected_agent_ids: initialSelectedAgentIds,
-  initial_room_skill_names: initialRoomSkillNames,
-  initial_host_agent_id: initialHostAgentId = null,
-  initial_host_auto_reply_enabled: initialHostAutoReplyEnabled = false,
-  initial_private_messages_enabled: initialPrivateMessagesEnabled = false,
-  on_cancel: onCancel,
-  on_confirm: onConfirm,
+  dialogTitle: dialogTitle,
+  dialogSubtitle: dialogSubtitle,
+  confirmLabel: confirmLabel,
+  initialName: initialName = "",
+  initialAvatar: initialAvatar = "",
+  initialSelectedAgentIds: initialSelectedAgentIds,
+  initialRoomSkillNames: initialRoomSkillNames,
+  initialHostAgentId: initialHostAgentId = null,
+  initialHostAutoReplyEnabled: initialHostAutoReplyEnabled = false,
+  initialPrivateMessagesEnabled: initialPrivateMessagesEnabled = false,
+  onCancel: onCancel,
+  onConfirm: onConfirm,
 }: CreateRoomDialogProps) {
   const { t } = useI18n();
   const [roomSkillsState, setRoomSkillsState] = useResettableState<RoomSkillsState>(
@@ -168,7 +168,7 @@ export function CreateRoomDialog({
       return;
     }
     let isCancelled = false;
-    get_available_skills_api({scope: "room"})
+    getAvailableSkillsApi({scope: "room"})
       .then((items) => {
         if (!isCancelled) {
           setRoomSkillsState({ error: null, items, loading: false });
@@ -273,12 +273,12 @@ export function CreateRoomDialog({
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
-        class_name="z-[9998]"
-        labelled_by="create-room-dialog-title"
-        on_close={onCancel}
+        className="z-[9998]"
+        labelledBy="create-room-dialog-title"
+        onClose={onCancel}
       >
         <UiDialogShell
-          class_name="max-h-[min(80vh,720px)] pointer-events-auto"
+          className="max-h-[min(80vh,720px)] pointer-events-auto"
           size="lg"
         >
           <UiDialogHeader>
@@ -298,7 +298,7 @@ export function CreateRoomDialog({
                 </p>
               </div>
             </div>
-            <UiDialogCloseButton on_close={onCancel} />
+            <UiDialogCloseButton onClose={onCancel} />
           </UiDialogHeader>
 
           {/* 内容区：成员管理 + 底部 Room Skill 标签行 */}
@@ -313,9 +313,9 @@ export function CreateRoomDialog({
                   <div className="flex items-center gap-3">
                     <UiRoomAvatar
                       avatar={selectedAvatar}
-                      class_name="h-11 w-11 rounded-[14px]"
+                      className="h-11 w-11 rounded-[14px]"
                       members={[]}
-                      room_id={roomName}
+                      roomId={roomName}
                       title={roomName || resolvedDialogTitle}
                     />
                     <input
@@ -336,15 +336,15 @@ export function CreateRoomDialog({
                     />
                   </div>
                   <IconPicker
-                    class_name="mt-3"
+                    className="mt-3"
                     disabled={isCreating}
-                    icon_family="room"
+                    iconFamily="room"
                     layout="row"
-                    icon_size="sm"
-                    max_icons={ROOM_ICON_ID_END - ROOM_ICON_ID_START + 1}
-                    on_select={setSelectedAvatar}
-                    show_clear={false}
-                    start_icon_id={ROOM_ICON_ID_START}
+                    iconSize="sm"
+                    maxIcons={ROOM_ICON_ID_END - ROOM_ICON_ID_START + 1}
+                    onSelect={setSelectedAvatar}
+                    showClear={false}
+                    startIconId={ROOM_ICON_ID_START}
                     value={selectedAvatar}
                   />
                 </div>
@@ -356,10 +356,10 @@ export function CreateRoomDialog({
                       <span>群主</span>
                     </div>
                     <UiSelectMenu
-                      aria_label="选择 Room 群主"
-                      class_name="min-w-0 flex-1"
+                      ariaLabel="选择 Room 群主"
+                      className="min-w-0 flex-1"
                       disabled={selectedAgents.length === 0 || isCreating}
-                      on_change={handleChangeHostAgent}
+                      onChange={handleChangeHostAgent}
                       options={[
                         { value: "", label: "未设置" },
                         ...selectedAgents.map((agent) => ({
@@ -479,19 +479,19 @@ export function CreateRoomDialog({
                 {t("room.skills_label")}
               </p>
               <UiMultiSelectMenu
-                aria_label={t("room.skills_label")}
+                ariaLabel={t("room.skills_label")}
                 disabled={isCreating}
-                empty_text={t("room.skills_empty")}
-                error_text={roomSkillError}
-                is_loading={isLoadingRoomSkills}
-                loading_text={t("room.skills_loading")}
-                on_change={setSelectedRoomSkillNames}
-                on_query_change={setRoomSkillQuery}
+                emptyText={t("room.skills_empty")}
+                errorText={roomSkillError}
+                isLoading={isLoadingRoomSkills}
+                loadingText={t("room.skills_loading")}
+                onChange={setSelectedRoomSkillNames}
+                onQueryChange={setRoomSkillQuery}
                 options={roomSkillOptions}
                 placement="top"
                 placeholder={t("room.skills_none")}
                 query={roomSkillQuery}
-                search_placeholder={t("agent_options.skills.search_placeholder")}
+                searchPlaceholder={t("agent_options.skills.search_placeholder")}
                 surface="dialog"
                 value={selectedRoomSkillNames}
               />
@@ -502,14 +502,14 @@ export function CreateRoomDialog({
           <div className="dialog-footer justify-end gap-3">
             {/* 操作按钮 */}
             <button
-              className={get_dialog_action_class_name("default")}
+              className={getDialogActionClassName("default")}
               onClick={onCancel}
               type="button"
             >
               {t("common.cancel")}
             </button>
             <button
-              className={get_dialog_action_class_name(canCreate ? "primary" : "default")}
+              className={getDialogActionClassName(canCreate ? "primary" : "default")}
               disabled={!canCreate}
               onClick={handleCreate}
               type="button"

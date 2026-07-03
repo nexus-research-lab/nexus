@@ -6,44 +6,44 @@ import { UserRound } from "lucide-react";
 import type { Agent } from "@/types/agent/agent";
 import type { Goal } from "@/types/conversation/goal";
 import {
-  goal_continuation_hold_for_room_target,
+  goalContinuationHoldForRoomTarget,
   ROOM_GOAL_SCOPE_LABEL,
 } from "@/features/conversation/shared/goal-continuation-hold";
 import { GoalPanel } from "@/features/conversation/shared/goal-panel";
 import {
-  resolve_default_room_goal_lead,
-  resolve_room_goal_lead_agent_id,
+  resolveDefaultRoomGoalLead,
+  resolveRoomGoalLeadAgentId,
 } from "./room-goal-model";
 
 interface RoomGoalPanelProps {
-  activity_key: string | number | null;
-  can_control_session: boolean;
-  is_loading: boolean;
-  is_mobile_layout: boolean;
-  room_host_agent_id?: string | null;
-  room_host_auto_reply_enabled: boolean;
-  room_members: Agent[];
-  session_key: string | null;
+  activityKey: string | number | null;
+  canControlSession: boolean;
+  isLoading: boolean;
+  isMobileLayout: boolean;
+  roomHostAgentId?: string | null;
+  roomHostAutoReplyEnabled: boolean;
+  roomMembers: Agent[];
+  sessionKey: string | null;
 }
 
 export function RoomGoalPanel({
-  activity_key: activityKey,
-  can_control_session: canControlSession,
-  is_loading: isLoading,
-  is_mobile_layout: isMobileLayout,
-  room_host_agent_id: roomHostAgentId,
-  room_host_auto_reply_enabled: roomHostAutoReplyEnabled,
-  room_members: roomMembers,
-  session_key: sessionKey,
+  activityKey: activityKey,
+  canControlSession: canControlSession,
+  isLoading: isLoading,
+  isMobileLayout: isMobileLayout,
+  roomHostAgentId: roomHostAgentId,
+  roomHostAutoReplyEnabled: roomHostAutoReplyEnabled,
+  roomMembers: roomMembers,
+  sessionKey: sessionKey,
 }: RoomGoalPanelProps) {
   const [currentGoal, setCurrentGoal] = useState<Goal | null>(null);
   const defaultLeadAgentId = useMemo(
-    () => resolve_default_room_goal_lead(roomMembers, roomHostAgentId),
+    () => resolveDefaultRoomGoalLead(roomMembers, roomHostAgentId),
     [roomHostAgentId, roomMembers],
   );
   const effectiveLeadAgentId = useMemo(
     () =>
-      resolve_room_goal_lead_agent_id(
+      resolveRoomGoalLeadAgentId(
         currentGoal,
         roomMembers,
         defaultLeadAgentId,
@@ -58,7 +58,7 @@ export function RoomGoalPanel({
   );
   const continuationHold = useMemo(
     () =>
-      goal_continuation_hold_for_room_target(
+      goalContinuationHoldForRoomTarget(
         roomMembers,
         effectiveLeadAgentId,
         roomHostAutoReplyEnabled,
@@ -80,15 +80,15 @@ export function RoomGoalPanel({
 
   return (
     <GoalPanel
-      activity_key={activityKey}
+      activityKey={activityKey}
       compact={isMobileLayout}
-      continuation_hold={continuationHold}
+      continuationHold={continuationHold}
       disabled={!canControlSession}
-      is_generating={isLoading}
-      session_key={sessionKey}
-      scope_label={ROOM_GOAL_SCOPE_LABEL}
-      status_extra={statusExtra}
-      on_goal_change={handleGoalChange}
+      isGenerating={isLoading}
+      sessionKey={sessionKey}
+      scopeLabel={ROOM_GOAL_SCOPE_LABEL}
+      statusExtra={statusExtra}
+      onGoalChange={handleGoalChange}
     />
   );
 }

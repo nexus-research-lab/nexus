@@ -115,11 +115,11 @@ function getStickerTopClearance(sticker: TourStickerAsset): number {
 function TourStepIllustration({
   src,
   title,
-  is_center_step: isCenterStep,
+  isCenterStep: isCenterStep,
 }: {
   src: string;
   title: string;
-  is_center_step: boolean;
+  isCenterStep: boolean;
 }) {
   return (
     <div className="mb-3 rounded-[12px] border border-(--divider-subtle-color) bg-transparent p-2.5">
@@ -225,16 +225,16 @@ function getPopoverPosition(
 
 export function OnboardingTourOverlay({
   tour,
-  step_index: stepIndex,
-  on_close: onClose,
-  on_next: onNext,
-  on_previous: onPrevious,
+  stepIndex: stepIndex,
+  onClose: onClose,
+  onNext: onNext,
+  onPrevious: onPrevious,
 }: {
   tour: OnboardingTourDefinition;
-  step_index: number;
-  on_close: (options?: { completed?: boolean }) => void;
-  on_next: () => void;
-  on_previous: () => void;
+  stepIndex: number;
+  onClose: (options?: { completed?: boolean }) => void;
+  onNext: () => void;
+  onPrevious: () => void;
 }) {
   const { t } = useI18n();
   const step = tour.steps[stepIndex];
@@ -382,7 +382,7 @@ export function OnboardingTourOverlay({
           >
             {step.image ? (
               <TourStepIllustration
-                is_center_step={placement === "center"}
+                isCenterStep={placement === "center"}
                 src={step.image}
                 title={step.title}
               />

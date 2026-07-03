@@ -20,7 +20,7 @@ export function WorkspaceStatusBadge({
   return (
     <UiBadge
       icon={icon}
-      show_dot={!icon}
+      showDot={!icon}
       size={size === "compact" ? "xs" : "sm"}
       tone={tone}
     >

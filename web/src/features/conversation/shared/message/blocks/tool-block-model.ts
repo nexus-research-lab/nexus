@@ -61,26 +61,26 @@ export const TOOL_LABEL_STYLES: Record<string, string> = {
   waiting: "text-(--warning)",
 };
 
-export function get_tool_title(toolName: string): string {
+export function getToolTitle(toolName: string): string {
   return TOOL_TITLE_MAP[toolName] ?? toolName;
 }
 
-export function format_permission_value(value: unknown): string {
+export function formatPermissionValue(value: unknown): string {
   if (value == null || value === "") return "空";
   if (typeof value === "string") return value;
   if (typeof value === "number" || typeof value === "boolean") return String(value);
   if (Array.isArray(value)) {
-    return value.map((item) => format_permission_value(item)).join("、");
+    return value.map((item) => formatPermissionValue(item)).join("、");
   }
   if (typeof value === "object") {
     return Object.entries(value as Record<string, unknown>)
-      .map(([key, nestedValue]) => `${FIELD_LABEL_MAP[key] || key}：${format_permission_value(nestedValue)}`)
+      .map(([key, nestedValue]) => `${FIELD_LABEL_MAP[key] || key}：${formatPermissionValue(nestedValue)}`)
       .join("；");
   }
   return String(value);
 }
 
-export function get_readable_suggestions(suggestions: PermissionUpdate[] = []) {
+export function getReadableSuggestions(suggestions: PermissionUpdate[] = []) {
   const destinationMap: Record<string, string> = {
     session: "仅本会话",
     projectSettings: "项目设置",
@@ -110,7 +110,7 @@ export function get_readable_suggestions(suggestions: PermissionUpdate[] = []) {
   });
 }
 
-export function get_input_summary(input: any): string | null {
+export function getInputSummary(input: any): string | null {
   if (!input) return null;
   if (input.file_path) return input.file_path;
   if (input.path) return input.path;
@@ -124,7 +124,7 @@ export function get_input_summary(input: any): string | null {
   return null;
 }
 
-export function get_primary_input_detail(input: any): { key: string; value: string } | null {
+export function getPrimaryInputDetail(input: any): { key: string; value: string } | null {
   if (!input) return null;
   for (const key of PRIMARY_INPUT_KEYS) {
     const value = input[key];
@@ -135,14 +135,14 @@ export function get_primary_input_detail(input: any): { key: string; value: stri
   return null;
 }
 
-export function get_result_summary(content: any): string {
+export function getResultSummary(content: any): string {
   if (typeof content === "string") {
     return content.slice(0, 80) + (content.length > 80 ? "..." : "");
   }
   return "JSON 数据";
 }
 
-export function is_image_content(value: unknown): value is ImageContent {
+export function isImageContent(value: unknown): value is ImageContent {
   return Boolean(
     value &&
     typeof value === "object" &&

@@ -28,15 +28,15 @@ interface WorkspaceSurfaceHeaderProps<TTabKey extends string> {
   badge?: string;
   density?: "default" | "compact";
   leading?: ReactNode;
-  title_trailing?: ReactNode;
+  titleTrailing?: ReactNode;
   subtitle?: ReactNode;
   trailing?: ReactNode;
   tabs?: WorkspaceSurfaceHeaderTab<TTabKey>[];
-  tabs_nav_anchor?: string;
-  tabs_leading?: ReactNode;
-  tabs_trailing?: ReactNode;
-  active_tab?: TTabKey;
-  on_change_tab?: (tab: TTabKey) => void;
+  tabsNavAnchor?: string;
+  tabsLeading?: ReactNode;
+  tabsTrailing?: ReactNode;
+  activeTab?: TTabKey;
+  onChangeTab?: (tab: TTabKey) => void;
 }
 
 interface WorkspaceSurfaceToolbarActionProps {
@@ -44,8 +44,8 @@ interface WorkspaceSurfaceToolbarActionProps {
   onClick?: () => void;
   disabled?: boolean;
   tone?: "default" | "primary";
-  aria_label?: string;
-  class_name?: string;
+  ariaLabel?: string;
+  className?: string;
   title?: string;
 }
 
@@ -53,27 +53,27 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
   title,
   density = "default",
   leading,
-  title_trailing: titleTrailing,
+  titleTrailing: titleTrailing,
   subtitle,
   trailing,
   tabs = [],
-  tabs_nav_anchor: tabsNavAnchor,
-  tabs_leading: tabsLeading,
-  tabs_trailing: tabsTrailing,
-  active_tab: activeTab,
-  on_change_tab: onChangeTab,
+  tabsNavAnchor: tabsNavAnchor,
+  tabsLeading: tabsLeading,
+  tabsTrailing: tabsTrailing,
+  activeTab: activeTab,
+  onChangeTab: onChangeTab,
 }: WorkspaceSurfaceHeaderProps<TTabKey>) {
   const hasSecondaryRow = density === "compact" || tabs.length > 0 || Boolean(tabsLeading) || Boolean(tabsTrailing);
   const compactSubtitle = density === "compact" ? subtitle : null;
   const primarySubtitle = density === "compact" ? null : subtitle;
   const renderTabsNav = (className: string, ariaLabel: string) => (
     <UiUnderlineTabs
-      active_value={activeTab}
-      aria_label={ariaLabel}
-      class_name={className}
+      activeValue={activeTab}
+      ariaLabel={ariaLabel}
+      className={className}
       density={density === "compact" ? "compact" : "default"}
-      nav_anchor={tabsNavAnchor}
-      on_change={onChangeTab}
+      navAnchor={tabsNavAnchor}
+      onChange={onChangeTab}
       options={tabs.map((tab) => ({
         anchor: tab.anchor,
         icon: tab.icon,
@@ -183,8 +183,8 @@ export function WorkspaceSurfaceToolbarAction({
   onClick,
   disabled = false,
   tone = "default",
-  aria_label: ariaLabel,
-  class_name: className,
+  ariaLabel: ariaLabel,
+  className: className,
   title,
 }: WorkspaceSurfaceToolbarActionProps) {
   return (

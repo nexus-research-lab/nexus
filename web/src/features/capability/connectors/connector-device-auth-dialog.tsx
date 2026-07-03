@@ -3,9 +3,9 @@
 import { Check, Copy, ExternalLink, Github, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { write_text_to_clipboard } from "@/hooks/ui/clipboard";
+import { writeTextToClipboard } from "@/hooks/ui/clipboard";
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
-import { poll_connector_device_auth_api } from "@/lib/api/connector-api";
+import { pollConnectorDeviceAuthApi } from "@/lib/api/connector-api";
 import {
   UiDialogBackdrop,
   UiDialogBody,
@@ -20,17 +20,17 @@ import type { ConnectorDeviceAuthStart } from "@/types/capability/connector";
 
 interface ConnectorDeviceAuthDialogProps {
   session: ConnectorDeviceAuthStart | null;
-  on_close: () => void;
-  on_connected: (connectorId: string) => Promise<void>;
-  on_error: (message: string) => void;
+  onClose: () => void;
+  onConnected: (connectorId: string) => Promise<void>;
+  onError: (message: string) => void;
 }
 
 /** 桌面 GitHub Device Flow 授权弹窗。 */
 export function ConnectorDeviceAuthDialog({
   session,
-  on_close: onClose,
-  on_connected: onConnected,
-  on_error: onError,
+  onClose: onClose,
+  onConnected: onConnected,
+  onError: onError,
 }: ConnectorDeviceAuthDialogProps) {
   const [copied, setCopied] = useState(false);
   const [pollingMessage, setPollingMessage] = useResettableState(
@@ -69,7 +69,7 @@ export function ConnectorDeviceAuthDialog({
 
     const poll = async () => {
       try {
-        const result = await poll_connector_device_auth_api(session.connector_id, session.device_code);
+        const result = await pollConnectorDeviceAuthApi(session.connector_id, session.device_code);
         if (cancelled) {
           return;
         }
@@ -112,7 +112,7 @@ export function ConnectorDeviceAuthDialog({
     if (!session) {
       return;
     }
-    if (await write_text_to_clipboard(session.user_code)) {
+    if (await writeTextToClipboard(session.user_code)) {
       setCopied(true);
       setTimeout(() => setCopied(false), 1400);
       return;
@@ -127,16 +127,16 @@ export function ConnectorDeviceAuthDialog({
   const authUrl = session.verification_uri_complete || session.verification_uri;
   return (
     <UiDialogPortal>
-      <UiDialogBackdrop class_name="z-[9999]" on_close={onClose}>
+      <UiDialogBackdrop className="z-[9999]" onClose={onClose}>
         <UiDialogShell size="sm">
           <UiDialogHeader
             icon={<Github className="h-5 w-5" />}
-            on_close={onClose}
+            onClose={onClose}
             subtitle="在 GitHub 输入授权码完成连接。"
             title="连接 GitHub"
           />
 
-          <UiDialogBody class_name="space-y-4">
+          <UiDialogBody className="space-y-4">
             <UiPanel padding="sm" variant="inset">
               <div className="flex items-center gap-2 text-[13px] font-medium text-(--text-default)">
                 <Loader2 className="h-4 w-4 animate-spin" />

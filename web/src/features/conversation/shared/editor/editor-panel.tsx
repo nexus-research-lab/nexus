@@ -10,8 +10,8 @@ import {
 } from "lucide-react";
 
 import {
-  get_workspace_file_content_api,
-  update_workspace_file_content_api,
+  getWorkspaceFileContentApi,
+  updateWorkspaceFileContentApi,
 } from "@/lib/api/agent-manage-api";
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { cn } from "@/lib/utils";
@@ -38,9 +38,9 @@ import {
   WorkspaceFileToolbarButton,
 } from "./workspace-file-preview-chrome";
 import {
-  get_workspace_file_preview_kind,
-  is_workspace_text_preview_kind,
-  workspace_file_kind_label,
+  getWorkspaceFilePreviewKind,
+  isWorkspaceTextPreviewKind,
+  workspaceFileKindLabel,
   type WorkspaceFilePreviewKind,
 } from "./workspace-file-preview-kind";
 
@@ -57,29 +57,29 @@ const PresentationFilePreview = lazy(() => import("./presentation-file-preview")
 })));
 
 interface EditorPanelProps {
-  agent_id: string;
+  agentId: string;
   path: string | null;
-  is_open: boolean;
-  width_percent: number;
+  isOpen: boolean;
+  widthPercent: number;
   embedded?: boolean;
-  class_name?: string;
-  is_preview_focused?: boolean;
-  on_resize_start: () => void;
-  on_toggle_preview_focus?: () => void;
+  className?: string;
+  isPreviewFocused?: boolean;
+  onResizeStart: () => void;
+  onTogglePreviewFocus?: () => void;
 }
 
 function TextFilePreview({
   content,
-  file_name: fileName,
-  file_type: fileType,
-  is_loading: isLoading,
-  is_streaming: isStreaming = false,
+  fileName: fileName,
+  fileType: fileType,
+  isLoading: isLoading,
+  isStreaming: isStreaming = false,
 }: {
   content: string;
-  file_name: string;
-  file_type: WorkspaceFilePreviewKind;
-  is_loading: boolean;
-  is_streaming?: boolean;
+  fileName: string;
+  fileType: WorkspaceFilePreviewKind;
+  isLoading: boolean;
+  isStreaming?: boolean;
 }) {
   if (isLoading) {
     return <div className="font-mono text-sm leading-6 text-(--text-muted)">加载中...</div>;
@@ -88,9 +88,9 @@ function TextFilePreview({
   if (fileType === "markdown") {
     return (
       <MarkdownRendererContent
-        class_name="min-h-full"
+        className="min-h-full"
         content={content}
-        mermaid_show_header={false}
+        mermaidShowHeader={false}
       />
     );
   }
@@ -99,15 +99,15 @@ function TextFilePreview({
     return (
       <LazyMermaidView
         chart={content}
-        class_name="min-h-full"
-        constrain_height={false}
-        show_header={false}
+        className="min-h-full"
+        constrainHeight={false}
+        showHeader={false}
       />
     );
   }
 
   if (fileType === "html") {
-    return <HtmlFilePreview content={content} is_streaming={isStreaming} title={fileName} />;
+    return <HtmlFilePreview content={content} isStreaming={isStreaming} title={fileName} />;
   }
 
   return (
@@ -118,15 +118,15 @@ function TextFilePreview({
 }
 
 export function EditorPanel({
-  agent_id: agentId,
+  agentId: agentId,
   path,
-  is_open: isOpen,
-  width_percent: widthPercent,
+  isOpen: isOpen,
+  widthPercent: widthPercent,
   embedded = false,
-  class_name: className,
-  is_preview_focused: isPreviewFocused = false,
-  on_resize_start: onResizeStart,
-  on_toggle_preview_focus: onTogglePreviewFocus,
+  className: className,
+  isPreviewFocused: isPreviewFocused = false,
+  onResizeStart: onResizeStart,
+  onTogglePreviewFocus: onTogglePreviewFocus,
 }: EditorPanelProps) {
   const [draftContent, setDraftContent] = useState("");
   const [savedContent, setSavedContent] = useState("");
@@ -139,13 +139,13 @@ export function EditorPanel({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileStates = useWorkspaceLiveStore((state) => state.file_states);
 
-  const fileType = path ? get_workspace_file_preview_kind(path) : "unknown";
+  const fileType = path ? getWorkspaceFilePreviewKind(path) : "unknown";
   const isPdf = fileType === "pdf";
   const isImage = fileType === "image";
   const isSpreadsheet = fileType === "spreadsheet";
   const isDocument = fileType === "document";
   const isPresentation = fileType === "presentation";
-  const isText = is_workspace_text_preview_kind(fileType);
+  const isText = isWorkspaceTextPreviewKind(fileType);
   const isBinary = !isText && !isPdf && !isImage && !isSpreadsheet && !isDocument && !isPresentation && fileType !== "unknown";
   const fileName = path ? path.split("/").at(-1) || "" : "";
 
@@ -177,7 +177,7 @@ export function EditorPanel({
     setIsLoading(true);
     setError(null);
     try {
-      const response = await get_workspace_file_content_api(agentId, path);
+      const response = await getWorkspaceFileContentApi(agentId, path);
       if (loadContentRef.current) return;
       setDraftContent(response.content);
       setSavedContent(response.content);
@@ -246,7 +246,7 @@ export function EditorPanel({
     setIsSaving(true);
     setError(null);
     try {
-      const response = await update_workspace_file_content_api(agentId, path, draftContent);
+      const response = await updateWorkspaceFileContentApi(agentId, path, draftContent);
       setDraftContent(response.content);
       setSavedContent(response.content);
     } catch (saveError) {
@@ -289,45 +289,45 @@ export function EditorPanel({
         <>
           {isPdf ? (
             <PdfPreview
-              agent_id={agentId}
+              agentId={agentId}
               path={path}
-              file_name={fileName}
-              is_preview_focused={isPreviewFocused}
-              on_toggle_preview_focus={onTogglePreviewFocus}
-              on_resize_start={onResizeStart}
+              fileName={fileName}
+              isPreviewFocused={isPreviewFocused}
+              onTogglePreviewFocus={onTogglePreviewFocus}
+              onResizeStart={onResizeStart}
               embedded={embedded}
             />
           ) : isImage ? (
             <ImagePreview
-              agent_id={agentId}
+              agentId={agentId}
               path={path}
-              file_name={fileName}
-              is_preview_focused={isPreviewFocused}
-              on_toggle_preview_focus={onTogglePreviewFocus}
-              on_resize_start={onResizeStart}
+              fileName={fileName}
+              isPreviewFocused={isPreviewFocused}
+              onTogglePreviewFocus={onTogglePreviewFocus}
+              onResizeStart={onResizeStart}
               embedded={embedded}
             />
           ) : isSpreadsheet ? (
             <Suspense
               fallback={(
                 <SpreadsheetPreviewFallback
-                  agent_id={agentId}
+                  agentId={agentId}
                   path={path}
-                  file_name={fileName}
-                  is_preview_focused={isPreviewFocused}
-                  on_toggle_preview_focus={onTogglePreviewFocus}
-                  on_resize_start={onResizeStart}
+                  fileName={fileName}
+                  isPreviewFocused={isPreviewFocused}
+                  onTogglePreviewFocus={onTogglePreviewFocus}
+                  onResizeStart={onResizeStart}
                   embedded={embedded}
                 />
               )}
             >
               <SpreadsheetFilePreview
-                agent_id={agentId}
+                agentId={agentId}
                 path={path}
-                file_name={fileName}
-                is_preview_focused={isPreviewFocused}
-                on_toggle_preview_focus={onTogglePreviewFocus}
-                on_resize_start={onResizeStart}
+                fileName={fileName}
+                isPreviewFocused={isPreviewFocused}
+                onTogglePreviewFocus={onTogglePreviewFocus}
+                onResizeStart={onResizeStart}
                 embedded={embedded}
               />
             </Suspense>
@@ -335,23 +335,23 @@ export function EditorPanel({
             <Suspense
               fallback={(
                 <DocumentPreviewFallback
-                  agent_id={agentId}
+                  agentId={agentId}
                   path={path}
-                  file_name={fileName}
-                  is_preview_focused={isPreviewFocused}
-                  on_toggle_preview_focus={onTogglePreviewFocus}
-                  on_resize_start={onResizeStart}
+                  fileName={fileName}
+                  isPreviewFocused={isPreviewFocused}
+                  onTogglePreviewFocus={onTogglePreviewFocus}
+                  onResizeStart={onResizeStart}
                   embedded={embedded}
                 />
               )}
             >
               <DocumentFilePreview
-                agent_id={agentId}
+                agentId={agentId}
                 path={path}
-                file_name={fileName}
-                is_preview_focused={isPreviewFocused}
-                on_toggle_preview_focus={onTogglePreviewFocus}
-                on_resize_start={onResizeStart}
+                fileName={fileName}
+                isPreviewFocused={isPreviewFocused}
+                onTogglePreviewFocus={onTogglePreviewFocus}
+                onResizeStart={onResizeStart}
                 embedded={embedded}
               />
             </Suspense>
@@ -359,33 +359,33 @@ export function EditorPanel({
             <Suspense
               fallback={(
                 <PresentationPreviewFallback
-                  agent_id={agentId}
+                  agentId={agentId}
                   path={path}
-                  file_name={fileName}
-                  is_preview_focused={isPreviewFocused}
-                  on_toggle_preview_focus={onTogglePreviewFocus}
-                  on_resize_start={onResizeStart}
+                  fileName={fileName}
+                  isPreviewFocused={isPreviewFocused}
+                  onTogglePreviewFocus={onTogglePreviewFocus}
+                  onResizeStart={onResizeStart}
                   embedded={embedded}
                 />
               )}
             >
               <PresentationFilePreview
-                agent_id={agentId}
+                agentId={agentId}
                 path={path}
-                file_name={fileName}
-                is_preview_focused={isPreviewFocused}
-                on_toggle_preview_focus={onTogglePreviewFocus}
-                on_resize_start={onResizeStart}
+                fileName={fileName}
+                isPreviewFocused={isPreviewFocused}
+                onTogglePreviewFocus={onTogglePreviewFocus}
+                onResizeStart={onResizeStart}
                 embedded={embedded}
               />
             </Suspense>
           ) : isBinary ? (
             <BinaryFilePlaceholder
-              agent_id={agentId}
+              agentId={agentId}
               path={path}
-              file_name={fileName}
-              is_preview_focused={isPreviewFocused}
-              on_toggle_preview_focus={onTogglePreviewFocus}
+              fileName={fileName}
+              isPreviewFocused={isPreviewFocused}
+              onTogglePreviewFocus={onTogglePreviewFocus}
               embedded={embedded}
             />
           ) : (
@@ -393,22 +393,22 @@ export function EditorPanel({
             <>
               {!embedded ? (
                 <ConversationResizeHandle
-                  aria_label="调整编辑器宽度"
-                  class_name="flex"
-                  on_mouse_down={onResizeStart}
+                  ariaLabel="调整编辑器宽度"
+                  className="flex"
+                  onMouseDown={onResizeStart}
                 />
               ) : null}
 
               <WorkspaceFilePreviewHeader
                 actions={(
                   <>
-                    <WorkspaceFileDownloadButton agent_id={agentId} file_name={fileName} path={path} />
+                    <WorkspaceFileDownloadButton agentId={agentId} fileName={fileName} path={path} />
                     <WorkspaceFilePreviewFocusButton
-                      is_preview_focused={isPreviewFocused}
-                      on_toggle_preview_focus={onTogglePreviewFocus}
+                      isPreviewFocused={isPreviewFocused}
+                      onTogglePreviewFocus={onTogglePreviewFocus}
                     />
                     <WorkspaceFileToolbarButton
-                      on_click={() => {
+                      onClick={() => {
                         if (isEditing) {
                           setIsEditing(false);
                           return;
@@ -422,7 +422,7 @@ export function EditorPanel({
                     </WorkspaceFileToolbarButton>
                     <WorkspaceFileToolbarButton
                       disabled={!isDirty || isSaving || isExternalWriting}
-                      on_click={() => void handleSave()}
+                      onClick={() => void handleSave()}
                       title={isSaving ? "保存中" : "保存"}
                     >
                       <Save className="h-4 w-4" />
@@ -435,7 +435,7 @@ export function EditorPanel({
                   <>
                     <span className="flex items-center gap-1">
                       <FileText className="h-3 w-3" />
-                      {workspace_file_kind_label(fileType)}
+                      {workspaceFileKindLabel(fileType)}
                     </span>
                     {liveState && liveState.source !== "api" ? (
                       isExternalWriting ? (
@@ -474,24 +474,24 @@ export function EditorPanel({
                 {isExternalWriting && fileType !== "html" ? (
                   <TypewriterFileView
                     content={draftContent}
-                    container_width={editorWidth > 0 ? editorWidth - 40 : undefined}
-                    class_name="h-full"
+                    containerWidth={editorWidth > 0 ? editorWidth - 40 : undefined}
+                    className="h-full"
                   />
                 ) : !isEditing && fileType === "html" ? (
                   <TextFilePreview
                     content={draftContent}
-                    file_name={fileName}
-                    file_type={fileType}
-                    is_loading={isLoading}
-                    is_streaming={isExternalWriting}
+                    fileName={fileName}
+                    fileType={fileType}
+                    isLoading={isLoading}
+                    isStreaming={isExternalWriting}
                   />
                 ) : !isEditing ? (
                   <div className="soft-scrollbar h-full overflow-auto">
                     <TextFilePreview
                       content={draftContent}
-                      file_name={fileName}
-                      file_type={fileType}
-                      is_loading={isLoading}
+                      fileName={fileName}
+                      fileType={fileType}
+                      isLoading={isLoading}
                     />
                   </div>
                 ) : (

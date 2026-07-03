@@ -3,8 +3,8 @@
 import { ReactNode, useId } from "react";
 
 import {
-  create_closed_spline_path,
-  create_inner_points,
+  createClosedSplinePath,
+  createInnerPoints,
   DEFAULT_OUTER_POINTS,
   OUTER_VIEWBOX_HEIGHT,
   OUTER_VIEWBOX_WIDTH,
@@ -13,18 +13,18 @@ import { cn } from "@/lib/utils";
 
 interface HeroBlobShellProps {
   children: ReactNode;
-  class_name?: string;
+  className?: string;
 }
 
-const OUTER_PATH = create_closed_spline_path(DEFAULT_OUTER_POINTS);
-const OUTER_INNER_PATH_1 = create_closed_spline_path(
-  create_inner_points(DEFAULT_OUTER_POINTS, 0.985, 0.982),
+const OUTER_PATH = createClosedSplinePath(DEFAULT_OUTER_POINTS);
+const OUTER_INNER_PATH_1 = createClosedSplinePath(
+  createInnerPoints(DEFAULT_OUTER_POINTS, 0.985, 0.982),
 );
-const OUTER_INNER_PATH_2 = create_closed_spline_path(
-  create_inner_points(DEFAULT_OUTER_POINTS, 0.992, 0.99),
+const OUTER_INNER_PATH_2 = createClosedSplinePath(
+  createInnerPoints(DEFAULT_OUTER_POINTS, 0.992, 0.99),
 );
 
-export function HeroBlobShell({ children, class_name: className }: HeroBlobShellProps) {
+export function HeroBlobShell({ children, className: className }: HeroBlobShellProps) {
   const gradientId = useId();
   const outerEdgeGlowGradientId = useId();
   const outerEdgeGlowId = useId();

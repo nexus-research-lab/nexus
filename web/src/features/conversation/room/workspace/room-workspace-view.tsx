@@ -8,7 +8,7 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import { WorkspaceSurfaceView } from "@/shared/ui/workspace/surface/workspace-surface-view";
 import { Agent } from "@/types/agent/agent";
-import { download_workspace_file_api } from "@/lib/api/agent-manage-api";
+import { downloadWorkspaceFileApi } from "@/lib/api/agent-manage-api";
 import { cn } from "@/lib/utils";
 import { ConfirmDialog, PromptDialog } from "@/shared/ui/dialog/confirm-dialog";
 import { EditorPanel } from "@/features/conversation/shared/editor/editor-panel";
@@ -20,13 +20,13 @@ import { WorkspaceFileTree } from "./workspace-file-tree";
 import { useMediaQuery } from "@/hooks/ui/use-media-query";
 
 interface RoomWorkspaceViewProps {
-  active_workspace_path: string | null;
-  agent_id: string;
-  header_action?: ReactNode;
-  is_dm: boolean;
-  is_editor_open: boolean;
-  room_members: Agent[];
-  on_open_workspace_file: (path: string | null) => void;
+  activeWorkspacePath: string | null;
+  agentId: string;
+  headerAction?: ReactNode;
+  isDm: boolean;
+  isEditorOpen: boolean;
+  roomMembers: Agent[];
+  onOpenWorkspaceFile: (path: string | null) => void;
 }
 
 const WORKSPACE_FILE_LIST_DEFAULT_WIDTH = 280;
@@ -40,13 +40,13 @@ const COMPACT_WORKSPACE_FILE_LIST_MAX_WIDTH = 280;
 
 export function RoomWorkspaceView(
   {
-    active_workspace_path: activeWorkspacePath,
-    agent_id: agentId,
-    header_action: headerAction,
-    is_dm: isDm,
-    is_editor_open: isEditorOpen,
-    room_members: roomMembers,
-    on_open_workspace_file: onOpenWorkspaceFile,
+    activeWorkspacePath: activeWorkspacePath,
+    agentId: agentId,
+    headerAction: headerAction,
+    isDm: isDm,
+    isEditorOpen: isEditorOpen,
+    roomMembers: roomMembers,
+    onOpenWorkspaceFile: onOpenWorkspaceFile,
   }: RoomWorkspaceViewProps) {
   const {t} = useI18n();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -65,45 +65,45 @@ export function RoomWorkspaceView(
     ? COMPACT_WORKSPACE_FILE_LIST_MAX_WIDTH
     : WORKSPACE_FILE_LIST_MAX_WIDTH;
   const {
-    view_agent_id: viewAgentId,
+    viewAgentId,
     files,
-    selected_agent_id: selectedAgentId,
-    set_selected_agent_id: setSelectedAgentId,
-    is_uploading: isUploading,
-    is_loading_files: isLoadingFiles,
-    error_message: errorMessage,
-    clear_error_message: clearErrorMessage,
-    context_menu: contextMenu,
-    prompt_state: promptState,
-    delete_target: deleteTarget,
-    focused_directory_path: focusedDirectoryPath,
-    current_directory_label: currentDirectoryLabel,
-    handle_click_file: handleClickFile,
-    handle_click_directory: handleClickDirectory,
-    handle_upload_click: handleUploadClick,
-    handle_file_select: handleFileSelect,
-    open_create_prompt: openCreatePrompt,
-    open_rename_prompt: openRenamePrompt,
-    handle_prompt_confirm: handlePromptConfirm,
-    handle_confirm_delete: handleConfirmDelete,
-    handle_context_menu: handleContextMenu,
-    handle_root_context_menu: handleRootContextMenu,
-    close_context_menu: closeContextMenu,
-    set_delete_target: setDeleteTarget,
-    set_prompt_state: setPromptState,
+    selectedAgentId,
+    setSelectedAgentId,
+    isUploading,
+    isLoadingFiles,
+    errorMessage,
+    clearErrorMessage,
+    contextMenu,
+    promptState,
+    deleteTarget,
+    focusedDirectoryPath,
+    currentDirectoryLabel,
+    handleClickFile,
+    handleClickDirectory,
+    handleUploadClick,
+    handleFileSelect,
+    openCreatePrompt,
+    openRenamePrompt,
+    handlePromptConfirm,
+    handleConfirmDelete,
+    handleContextMenu,
+    handleRootContextMenu,
+    closeContextMenu,
+    setDeleteTarget,
+    setPromptState,
   } = useRoomWorkspaceController({
-    active_workspace_path: activeWorkspacePath,
-    agent_id: agentId,
-    is_dm: isDm,
-    on_open_workspace_file: onOpenWorkspaceFile,
-    file_input_ref: fileInputRef,
+    activeWorkspacePath,
+    agentId,
+    isDm,
+    onOpenWorkspaceFile,
+    fileInputRef,
   });
 
   const titleTrailing = !isDm && roomMembers.length > 1 ? (
     <RoomAgentSwitcher
       members={roomMembers}
-      selected_id={selectedAgentId}
-      on_select={setSelectedAgentId}
+      selectedId={selectedAgentId}
+      onSelect={setSelectedAgentId}
     />
   ) : null;
 
@@ -111,7 +111,7 @@ export function RoomWorkspaceView(
     if (!contextMenu.entry || contextMenu.entry.is_dir) {
       return;
     }
-    void download_workspace_file_api(
+    void downloadWorkspaceFileApi(
       viewAgentId,
       contextMenu.entry.path,
       contextMenu.entry.name,
@@ -179,14 +179,14 @@ export function RoomWorkspaceView(
 
       <WorkspaceSurfaceView
         action={headerAction}
-        body_class_name="px-2 pt-1 pb-0 sm:px-2 xl:px-4"
-        body_scrollable={false}
-        content_class_name="flex h-full min-h-0 min-w-0 gap-4"
+        bodyClassName="px-2 pt-1 pb-0 sm:px-2 xl:px-4"
+        bodyScrollable={false}
+        contentClassName="flex h-full min-h-0 min-w-0 gap-4"
         eyebrow={t("room.workspace")}
-        max_width_class_name="max-w-none"
-        show_eyebrow={false}
+        maxWidthClassName="max-w-none"
+        showEyebrow={false}
         title={t("room.workspace_title")}
-        title_trailing={titleTrailing}
+        titleTrailing={titleTrailing}
       >
         <div
           ref={workspacePanelRef}
@@ -194,16 +194,16 @@ export function RoomWorkspaceView(
         >
           <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
             <EditorPanel
-              agent_id={viewAgentId}
-              class_name="h-full w-full"
+              agentId={viewAgentId}
+              className="h-full w-full"
               embedded
-              is_open={isEditorOpen}
-              is_preview_focused={isPreviewFocused}
-              on_resize_start={() => {
+              isOpen={isEditorOpen}
+              isPreviewFocused={isPreviewFocused}
+              onResizeStart={() => {
               }}
-              on_toggle_preview_focus={activeWorkspacePath ? handleTogglePreviewFocus : undefined}
+              onTogglePreviewFocus={activeWorkspacePath ? handleTogglePreviewFocus : undefined}
               path={activeWorkspacePath}
-              width_percent={100}
+              widthPercent={100}
             />
           </div>
 
@@ -213,8 +213,8 @@ export function RoomWorkspaceView(
               style={{width: `${fileListWidth}px`}}
             >
               <ConversationResizeHandle
-                aria_label="调整文件列表宽度"
-                on_mouse_down={() => setIsResizingFileList(true)}
+                ariaLabel="调整文件列表宽度"
+                onMouseDown={() => setIsResizingFileList(true)}
               />
 
               <div
@@ -233,8 +233,8 @@ export function RoomWorkspaceView(
                   <WorkspaceSurfaceToolbarAction onClick={() => handleUploadClick()}
                                                  disabled={isUploading}
                                                  tone="primary"
-                                                 aria_label={t(isUploading ? "room.workspace_uploading" : "room.workspace_action_upload")}
-                                                 class_name="max-xl:h-7 max-xl:w-7 max-xl:justify-center max-xl:gap-0"
+                                                 ariaLabel={t(isUploading ? "room.workspace_uploading" : "room.workspace_action_upload")}
+                                                 className="max-xl:h-7 max-xl:w-7 max-xl:justify-center max-xl:gap-0"
                                                  title={t(isUploading ? "room.workspace_uploading" : "room.workspace_action_upload")}>
                     {isUploading ? (
                       <LoaderCircle className="h-3 w-3 animate-spin"/>
@@ -249,8 +249,8 @@ export function RoomWorkspaceView(
 
                 <div className="shrink-0">
                   <WorkspaceSurfaceToolbarAction onClick={() => openCreatePrompt("directory")}
-                                                 aria_label={t("room.workspace_action_new_folder")}
-                                                 class_name="max-xl:h-7 max-xl:w-7 max-xl:justify-center max-xl:gap-0"
+                                                 ariaLabel={t("room.workspace_action_new_folder")}
+                                                 className="max-xl:h-7 max-xl:w-7 max-xl:justify-center max-xl:gap-0"
                                                  title={t("room.workspace_action_new_folder")}>
                     <FolderPlus className="h-3 w-3"/>
                     <span className="max-xl:hidden">{t("room.workspace_action_new_folder")}</span>
@@ -259,8 +259,8 @@ export function RoomWorkspaceView(
 
                 <div className="shrink-0">
                   <WorkspaceSurfaceToolbarAction onClick={() => openCreatePrompt("file")}
-                                                 aria_label={t("room.workspace_action_new_file")}
-                                                 class_name="max-xl:h-7 max-xl:w-7 max-xl:justify-center max-xl:gap-0"
+                                                 ariaLabel={t("room.workspace_action_new_file")}
+                                                 className="max-xl:h-7 max-xl:w-7 max-xl:justify-center max-xl:gap-0"
                                                  title={t("room.workspace_action_new_file")}>
                     <FilePlus className="h-3 w-3"/>
                     <span className="max-xl:hidden">{t("room.workspace_action_new_file")}</span>
@@ -287,13 +287,13 @@ export function RoomWorkspaceView(
                   <div className="soft-scrollbar h-full overflow-auto py-1">
                     <WorkspaceFileTree
                       entries={files}
-                      active_path={activeWorkspacePath}
-                      focused_directory_path={focusedDirectoryPath}
-                      on_click_file={handleClickFile}
-                      on_click_directory={handleClickDirectory}
-                      on_rename_entry={openRenamePrompt}
-                      on_delete_entry={setDeleteTarget}
-                      on_context_menu={handleContextMenu}
+                      activePath={activeWorkspacePath}
+                      focusedDirectoryPath={focusedDirectoryPath}
+                      onClickFile={handleClickFile}
+                      onClickDirectory={handleClickDirectory}
+                      onRenameEntry={openRenamePrompt}
+                      onDeleteEntry={setDeleteTarget}
+                      onContextMenu={handleContextMenu}
                     />
                   </div>
                 ) : isLoadingFiles ? (
@@ -325,22 +325,22 @@ export function RoomWorkspaceView(
       <WorkspaceContextMenu
         position={contextMenu.position}
         entry={contextMenu.entry}
-        can_create_children={contextMenu.entry === null || contextMenu.entry.is_dir}
-        on_upload={() => handleUploadClick(contextMenu.entry?.is_dir ? contextMenu.entry.path : null)}
-        on_create_file={() => openCreatePrompt("file", contextMenu.entry?.is_dir ? contextMenu.entry.path : null)}
-        on_create_folder={() => openCreatePrompt("directory", contextMenu.entry?.is_dir ? contextMenu.entry.path : null)}
-        on_download={handleExternalContextEntry}
-        on_rename={() => {
+        canCreateChildren={contextMenu.entry === null || contextMenu.entry.is_dir}
+        onUpload={() => handleUploadClick(contextMenu.entry?.is_dir ? contextMenu.entry.path : null)}
+        onCreateFile={() => openCreatePrompt("file", contextMenu.entry?.is_dir ? contextMenu.entry.path : null)}
+        onCreateFolder={() => openCreatePrompt("directory", contextMenu.entry?.is_dir ? contextMenu.entry.path : null)}
+        onDownload={handleExternalContextEntry}
+        onRename={() => {
           if (contextMenu.entry) openRenamePrompt(contextMenu.entry);
         }}
-        on_delete={() => {
+        onDelete={() => {
           if (contextMenu.entry) setDeleteTarget(contextMenu.entry);
         }}
-        on_close={closeContextMenu}
+        onClose={closeContextMenu}
       />
 
       <PromptDialog
-        is_open={promptState !== null}
+        isOpen={promptState !== null}
         title={
           promptState?.mode === "create-file"
             ? t("room.workspace_create_file_title")
@@ -355,19 +355,19 @@ export function RoomWorkspaceView(
               ? t("room.workspace_create_folder_placeholder")
               : t("room.workspace_rename_placeholder")
         }
-        default_value={promptState?.default_value ?? ""}
-        on_confirm={handlePromptConfirm}
-        on_cancel={() => setPromptState(null)}
+        defaultValue={promptState?.defaultValue ?? ""}
+        onConfirm={handlePromptConfirm}
+        onCancel={() => setPromptState(null)}
       />
 
       <ConfirmDialog
-        is_open={deleteTarget !== null}
+        isOpen={deleteTarget !== null}
         title={t("room.workspace_delete_title")}
         message={t("room.workspace_delete_message", {name: deleteTarget?.name ?? ""})}
-        confirm_text={t("common.delete")}
-        cancel_text={t("common.cancel")}
-        on_confirm={handleConfirmDelete}
-        on_cancel={() => setDeleteTarget(null)}
+        confirmText={t("common.delete")}
+        cancelText={t("common.cancel")}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteTarget(null)}
         variant="danger"
       />
     </>

@@ -9,7 +9,7 @@
 
 "use client";
 
-import { build_room_shared_session_key } from "@/lib/conversation/session-key";
+import { buildRoomSharedSessionKey } from "@/lib/conversation/session-key";
 import type { RoomContextAggregate, RoomSessionSelection } from "@/types/conversation/room";
 
 import { type Weekday, WEEKDAY_OPTIONS } from "../pickers/picker-types";
@@ -124,7 +124,7 @@ export function isoToZonedLocalInput(value: string, timezone: string): string | 
   return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}:${parts.second}`;
 }
 
-export function build_daily_cron_expression(timeValue: string, weekdays: Weekday[]): string | null {
+export function buildDailyCronExpression(timeValue: string, weekdays: Weekday[]): string | null {
   const normalized = timeValue.trim();
   const match = normalized.match(/^(\d{2}):(\d{2})$/);
   if (!match) {
@@ -143,14 +143,14 @@ export function build_daily_cron_expression(timeValue: string, weekdays: Weekday
   }
   const weekdayExpression = WEEKDAY_OPTIONS
     .filter((option) => weekdays.includes(option.key))
-    .map((option) => String(option.cron_value))
+    .map((option) => String(option.cronValue))
     .join(",");
   return `${minute} ${hour} * * ${weekdayExpression}`;
 }
 
-export function parse_daily_cron_expression(
+export function parseDailyCronExpression(
   cronExpression: string,
-): { daily_time: string; selected_weekdays: Weekday[] } | null {
+): { dailyTime: string; selectedWeekdays: Weekday[] } | null {
   const parts = cronExpression.trim().split(/\s+/);
   if (parts.length !== 5) {
     return null;
@@ -167,7 +167,7 @@ export function parse_daily_cron_expression(
     return null;
   }
 
-  const cronValueToWeekday = new Map(WEEKDAY_OPTIONS.map((option) => [String(option.cron_value), option.key]));
+  const cronValueToWeekday = new Map(WEEKDAY_OPTIONS.map((option) => [String(option.cronValue), option.key]));
   const selectedWeekdays = dayOfWeek === "*"
     ? WEEKDAY_OPTIONS.map((option) => option.key)
     : dayOfWeek
@@ -180,12 +180,12 @@ export function parse_daily_cron_expression(
   }
 
   return {
-    daily_time: `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`,
-    selected_weekdays: selectedWeekdays,
+    dailyTime: `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`,
+    selectedWeekdays: selectedWeekdays,
   };
 }
 
-export function to_interval_seconds(value: string, unit: EveryUnit): number | null {
+export function toIntervalSeconds(value: string, unit: EveryUnit): number | null {
   const normalizedValue = value.trim();
   if (!/^\d+$/.test(normalizedValue)) {
     return null;
@@ -203,11 +203,11 @@ export function to_interval_seconds(value: string, unit: EveryUnit): number | nu
   return numericValue;
 }
 
-export function format_session_label(title: string, agentName: string): string {
+export function formatSessionLabel(title: string, agentName: string): string {
   return `${title} · ${agentName}`;
 }
 
-export function build_room_session_selections(
+export function buildRoomSessionSelections(
   contexts: RoomContextAggregate[],
   agentNameById: Map<string, string>,
 ): RoomSessionSelection[] {
@@ -219,9 +219,9 @@ export function build_room_session_selections(
       const label = roomType === "group"
         ? `${roomTitle} · ${agentName}`
         : `${agentName} · ${roomTitle}`;
-      const sharedSessionKey = build_room_shared_session_key(context.conversation.id);
+      const sharedSessionKey = buildRoomSharedSessionKey(context.conversation.id);
       return {
-        value: build_room_executor_selection_key(sharedSessionKey, session.agent_id),
+        value: buildRoomExecutorSelectionKey(sharedSessionKey, session.agent_id),
         session_key: sharedSessionKey,
         agent_id: session.agent_id,
         room_id: context.room.id,
@@ -235,6 +235,6 @@ export function build_room_session_selections(
   });
 }
 
-export function build_room_executor_selection_key(sharedSessionKey: string, agentId: string): string {
+export function buildRoomExecutorSelectionKey(sharedSessionKey: string, agentId: string): string {
   return `${sharedSessionKey.trim()}::executor:${agentId.trim()}`;
 }

@@ -28,21 +28,21 @@ export interface UiActionMenuItem {
 type UiActionMenuPlacement = "auto" | "bottom" | "top";
 
 interface UiActionMenuProps {
-  anchor_ref: RefObject<HTMLElement | null>;
-  aria_label: string;
-  class_name?: string;
-  is_open: boolean;
+  anchorRef: RefObject<HTMLElement | null>;
+  ariaLabel: string;
+  className?: string;
+  isOpen: boolean;
   items: UiActionMenuItem[];
-  min_width?: number;
+  minWidth?: number;
   placement?: UiActionMenuPlacement;
-  on_close: () => void;
-  on_select: (value: string) => void;
+  onClose: () => void;
+  onSelect: (value: string) => void;
 }
 
 interface UiActionMenuPosition {
   bottom?: number;
   left: number;
-  max_height: number;
+  maxHeight: number;
   placement: "bottom" | "top";
   top?: number;
   width: number;
@@ -55,13 +55,13 @@ const ACTION_MENU_ITEM_HEIGHT = 44;
 
 function resolveActionMenuPosition({
   anchor,
-  item_count: itemCount,
-  min_width: minWidth,
+  itemCount,
+  minWidth,
   placement,
 }: {
   anchor: HTMLElement;
-  item_count: number;
-  min_width: number;
+  itemCount: number;
+  minWidth: number;
   placement: UiActionMenuPlacement;
 }): UiActionMenuPosition {
   const rect = anchor.getBoundingClientRect();
@@ -93,7 +93,7 @@ function resolveActionMenuPosition({
 
   return {
     left,
-    max_height: maxHeight,
+    maxHeight,
     placement: shouldPlaceTop ? "top" : "bottom",
     width,
     ...(shouldPlaceTop
@@ -138,15 +138,15 @@ function getItemLabelClassName(tone: UiActionMenuItem["tone"], active?: boolean)
 }
 
 export function UiActionMenu({
-  anchor_ref: anchorRef,
-  aria_label: ariaLabel,
-  class_name: className,
-  is_open: isOpen,
+  anchorRef: anchorRef,
+  ariaLabel: ariaLabel,
+  className: className,
+  isOpen: isOpen,
   items,
-  min_width: minWidth = 220,
+  minWidth: minWidth = 220,
   placement = "auto",
-  on_close: onClose,
-  on_select: onSelect,
+  onClose: onClose,
+  onSelect: onSelect,
 }: UiActionMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [menuPosition, setMenuPosition] = useState<UiActionMenuPosition | null>(null);
@@ -158,8 +158,8 @@ export function UiActionMenu({
     }
     setMenuPosition(resolveActionMenuPosition({
       anchor,
-      item_count: items.length,
-      min_width: minWidth,
+      itemCount: items.length,
+      minWidth,
       placement,
     }));
   }, [anchorRef, items.length, minWidth, placement]);
@@ -208,7 +208,7 @@ export function UiActionMenu({
   const menuStyle: CSSProperties = {
     bottom: menuPosition?.bottom,
     left: menuPosition?.left,
-    maxHeight: menuPosition?.max_height,
+    maxHeight: menuPosition?.maxHeight,
     top: menuPosition?.top,
     visibility: menuPosition ? "visible" : "hidden",
     width: menuPosition?.width,

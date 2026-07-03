@@ -8,13 +8,13 @@ interface UiListRowProps extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {
   actions?: ReactNode;
   active?: boolean;
   children?: ReactNode;
-  class_name?: string;
+  className?: string;
   description?: ReactNode;
   leading?: ReactNode;
   meta?: ReactNode;
-  on_click?: () => void;
+  onClick?: () => void;
   right?: ReactNode;
-  subtitle_trailing?: ReactNode;
+  subtitleTrailing?: ReactNode;
   title?: ReactNode;
 }
 
@@ -22,14 +22,13 @@ export function UiListRow({
   actions,
   active = false,
   children,
-  class_name: legacyClassName,
   className,
   description,
   leading,
   meta,
-  on_click: onClick,
+  onClick: onClick,
   right,
-  subtitle_trailing: subtitleTrailing,
+  subtitleTrailing: subtitleTrailing,
   title,
   ...props
 }: UiListRowProps) {
@@ -42,7 +41,6 @@ export function UiListRow({
           ? "bg-[color:color-mix(in_srgb,var(--primary)_10%,var(--surface-elevated-background))] text-(--text-strong) shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--primary)_12%,transparent)]"
           : "text-(--text-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
         className,
-        legacyClassName,
       )}
       {...props}
       onClick={onClick}

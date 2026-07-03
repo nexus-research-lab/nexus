@@ -17,9 +17,9 @@ let bodyOverflowBeforeLock = "";
 
 interface DialogModalBehaviorOptions<T extends HTMLElement> {
   enabled?: boolean;
-  initial_focus_ref?: RefObject<HTMLElement | null>;
-  on_close?: () => void;
-  root_ref: RefObject<T | null>;
+  initialFocusRef?: RefObject<HTMLElement | null>;
+  onClose?: () => void;
+  rootRef: RefObject<T | null>;
 }
 
 function lockBodyScroll() {
@@ -88,9 +88,9 @@ function removeDialogToken(token: symbol) {
 /** 中文注释：集中提供接近 Radix Dialog 的键盘与焦点行为，业务弹窗只关心内容。 */
 export function useDialogModalBehavior<T extends HTMLElement>({
   enabled = true,
-  initial_focus_ref: initialFocusRef,
-  on_close: onClose,
-  root_ref: rootRef,
+  initialFocusRef,
+  onClose,
+  rootRef,
 }: DialogModalBehaviorOptions<T>) {
   const onCloseRef = useRef(onClose);
 

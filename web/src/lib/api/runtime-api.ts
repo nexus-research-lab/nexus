@@ -1,11 +1,11 @@
-import { get_agent_api_base_url } from "@/config/options";
-import { request_api } from "@/lib/api/http";
+import { getAgentApiBaseUrl } from "@/config/options";
+import { requestApi } from "@/lib/api/http";
 import type { NXSRuntimeStatus } from "@/types/settings/preferences";
 
-const NXS_RUNTIME_API_BASE_URL = `${get_agent_api_base_url()}/settings/runtime/nxs`;
+const NXS_RUNTIME_API_BASE_URL = `${getAgentApiBaseUrl()}/settings/runtime/nxs`;
 
-export async function get_nxs_runtime_status_api(): Promise<NXSRuntimeStatus> {
-  return request_api<NXSRuntimeStatus>(`${NXS_RUNTIME_API_BASE_URL}/status`, {
+export async function getNxsRuntimeStatusApi(): Promise<NXSRuntimeStatus> {
+  return requestApi<NXSRuntimeStatus>(`${NXS_RUNTIME_API_BASE_URL}/status`, {
     method: "GET",
     timeout_ms: 8_000,
   });

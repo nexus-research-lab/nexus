@@ -12,8 +12,8 @@
 import { ReactNode, useEffect, useState } from "react";
 
 import {
-  apply_theme,
-  detect_initial_theme,
+  applyTheme,
+  detectInitialTheme,
   THEME_CONTEXT,
   Theme,
   ThemeContextValue,
@@ -22,16 +22,16 @@ import {
 import { ThemeOverlay } from "./theme-overlay";
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setTheme] = useState<Theme>(detect_initial_theme);
+  const [theme, setTheme] = useState<Theme>(detectInitialTheme);
 
   useEffect(() => {
-    apply_theme(theme);
+    applyTheme(theme);
     window.localStorage.setItem(THEME_STORAGE_KEY, theme);
   }, [theme]);
 
   const value: ThemeContextValue = {
     theme,
-    set_theme: setTheme,
+    setTheme,
   };
 
   return (

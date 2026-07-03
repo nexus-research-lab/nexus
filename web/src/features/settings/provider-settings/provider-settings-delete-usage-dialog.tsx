@@ -13,23 +13,23 @@ import {
 import type { ProviderConfigRecord } from "@/types/capability/provider";
 
 import {
-  get_provider_title,
-  get_usage_agent_title,
+  getProviderTitle,
+  getUsageAgentTitle,
 } from "./provider-settings-model";
 
 interface ProviderDeleteUsageDialogProps {
-  delete_target_record: ProviderConfigRecord | null;
-  is_open: boolean;
-  on_cancel: () => void;
-  on_force_delete: () => void;
+  deleteTargetRecord: ProviderConfigRecord | null;
+  isOpen: boolean;
+  onCancel: () => void;
+  onForceDelete: () => void;
   submitting: boolean;
 }
 
 export function ProviderDeleteUsageDialog({
-  delete_target_record: deleteTargetRecord,
-  is_open: isOpen,
-  on_cancel: onCancel,
-  on_force_delete: onForceDelete,
+  deleteTargetRecord: deleteTargetRecord,
+  isOpen: isOpen,
+  onCancel: onCancel,
+  onForceDelete: onForceDelete,
   submitting,
 }: ProviderDeleteUsageDialogProps) {
   const { t } = useI18n();
@@ -43,19 +43,19 @@ export function ProviderDeleteUsageDialog({
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
-        class_name="z-[9999]"
-        labelled_by="provider-delete-blocked-title"
-        on_close={onCancel}
+        className="z-[9999]"
+        labelledBy="provider-delete-blocked-title"
+        onClose={onCancel}
       >
         <UiDialogShell size="sm">
           <UiDialogHeader
             icon={<Trash2 className="h-4.5 w-4.5" />}
-            on_close={onCancel}
-            subtitle={t("settings.providers.delete_usage_subtitle", { name: get_provider_title(deleteTargetRecord) })}
+            onClose={onCancel}
+            subtitle={t("settings.providers.delete_usage_subtitle", { name: getProviderTitle(deleteTargetRecord) })}
             title={t("settings.providers.delete_usage_title")}
-            title_id="provider-delete-blocked-title"
+            titleId="provider-delete-blocked-title"
           />
-          <UiDialogBody class_name="space-y-3">
+          <UiDialogBody className="space-y-3">
             <div className="rounded-[12px] border border-(--divider-subtle-color) bg-(--surface-muted-background) px-3 py-2 text-[12px] leading-5 text-(--text-muted)">
               {t("settings.providers.force_delete_description")}
             </div>
@@ -67,12 +67,12 @@ export function ProviderDeleteUsageDialog({
                     key={agent.agent_id}
                   >
                     <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] border border-(--divider-subtle-color) bg-(--background) text-[11px] font-semibold text-(--text-muted)">
-                      {(get_usage_agent_title(agent).slice(0, 2) || "AG").toUpperCase()}
+                      {(getUsageAgentTitle(agent).slice(0, 2) || "AG").toUpperCase()}
                     </span>
                     <div className="min-w-0 flex-1">
                       <div className="flex min-w-0 items-center gap-2">
                         <span className="truncate text-[13px] font-semibold text-(--text-strong)">
-                          {get_usage_agent_title(agent)}
+                          {getUsageAgentTitle(agent)}
                         </span>
                         {agent.is_main ? (
                           <span className="rounded-full bg-(--surface-muted-background) px-1.5 py-0.5 text-[10px] font-semibold text-(--text-muted)">

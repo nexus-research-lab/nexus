@@ -13,29 +13,29 @@ import { Message } from "@/types/conversation/message";
 import { PendingPermission, PermissionDecisionPayload } from "@/types/conversation/permission";
 
 interface ThreadTarget {
-  round_id: string;
-  agent_id: string;
+  roundId: string;
+  agentId: string;
 }
 
 /** Thread 面板展示数据，由消费侧从 room-thread-live store 派生（见 use-room-thread-panel-data）。 */
 export interface ThreadPanelData {
   messages: Message[];
-  agent_name: string | null;
-  agent_avatar: string | null;
-  user_avatar?: string | null;
-  is_loading: boolean;
-  pending_permissions: PendingPermission[];
-  on_permission_response?: (payload: PermissionDecisionPayload) => boolean;
-  can_respond_to_permissions?: boolean;
-  permission_read_only_reason?: string;
-  on_stop_message?: (msgId: string) => void;
-  on_open_workspace_file?: (path: string) => void;
+  agentName: string | null;
+  agentAvatar: string | null;
+  userAvatar?: string | null;
+  isLoading: boolean;
+  pendingPermissions: PendingPermission[];
+  onPermissionResponse?: (payload: PermissionDecisionPayload) => boolean;
+  canRespondToPermissions?: boolean;
+  permissionReadOnlyReason?: string;
+  onStopMessage?: (msgId: string) => void;
+  onOpenWorkspaceFile?: (path: string) => void;
 }
 
 interface ThreadControlState {
-  active_thread: ThreadTarget | null;
-  open_thread: (roundId: string, agentId: string) => void;
-  close_thread: () => void;
+  activeThread: ThreadTarget | null;
+  openThread: (roundId: string, agentId: string) => void;
+  closeThread: () => void;
 }
 
 export const ThreadControlContext = createContext<ThreadControlState | null>(null);

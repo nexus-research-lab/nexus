@@ -9,17 +9,17 @@ export const GOAL_STATUS_LABEL: Record<GoalStatus, string> = {
   usage_limited: "续跑受限",
 };
 
-export function goal_usage_total(goal: Goal | null): number {
+export function goalUsageTotal(goal: Goal | null): number {
   return goal?.usage?.total_tokens ?? 0;
 }
 
-export function goal_budget_percent(goal: Goal | null): number | null {
+export function goalBudgetPercent(goal: Goal | null): number | null {
   const budget = goal?.token_budget ?? null;
   if (!budget || budget <= 0) return null;
-  return Math.min(100, Math.round((goal_usage_total(goal) / budget) * 100));
+  return Math.min(100, Math.round((goalUsageTotal(goal) / budget) * 100));
 }
 
-export function goal_status_tone(status: GoalStatus): {
+export function goalStatusTone(status: GoalStatus): {
   badge: string;
   icon: string;
   meter: string;

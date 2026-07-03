@@ -14,19 +14,19 @@ import {
 } from "@/types/system/websocket";
 
 export interface UseWebSocketOptions extends WebSocketConfig {
-  on_message?: (message: any) => void;
-  on_error?: (error: Event) => void;
-  on_state_change?: (state: WebSocketState) => void;
-  auto_connect?: boolean;
+  onMessage?: (message: any) => void;
+  onError?: (error: Event) => void;
+  onStateChange?: (state: WebSocketState) => void;
+  autoConnect?: boolean;
 }
 
 interface SharedWebSocketSubscriber {
   id: number;
-  on_message?: (message: any) => void;
-  on_error?: (error: Event) => void;
-  on_state_change?: (state: WebSocketState) => void;
-  set_error: (error: Event | null) => void;
-  set_state: (state: WebSocketState) => void;
+  onMessage?: (message: any) => void;
+  onError?: (error: Event) => void;
+  onStateChange?: (state: WebSocketState) => void;
+  setError: (error: Event | null) => void;
+  setState: (state: WebSocketState) => void;
 }
 
 class SharedWebSocketChannel {
@@ -37,29 +37,29 @@ class SharedWebSocketChannel {
 
   constructor(config: WebSocketConfig) {
     this.client = new WebSocketClient(config, {
-      on_message: (message) => {
+      onMessage: (message) => {
         for (const subscriber of this.subscribers.values()) {
-          subscriber.on_message?.(message);
+          subscriber.onMessage?.(message);
         }
       },
-      on_error: (error) => {
-        this.error = error;
+      onError: (error) => {
+          this.error = error;
         for (const subscriber of this.subscribers.values()) {
-          subscriber.set_error(error);
-          subscriber.on_error?.(error);
+          subscriber.setError(error);
+          subscriber.onError?.(error);
         }
       },
-      on_state_change: (state) => {
+      onStateChange: (state) => {
         this.state = state;
         if (state === "connected") {
           this.error = null;
         }
         for (const subscriber of this.subscribers.values()) {
-          subscriber.set_state(state);
+          subscriber.setState(state);
           if (state === "connected") {
-            subscriber.set_error(null);
+            subscriber.setError(null);
           }
-          subscriber.on_state_change?.(state);
+          subscriber.onStateChange?.(state);
         }
       },
     });
@@ -67,15 +67,15 @@ class SharedWebSocketChannel {
 
   public subscribe(subscriber: SharedWebSocketSubscriber): void {
     this.subscribers.set(subscriber.id, subscriber);
-    subscriber.set_state(this.state);
-    subscriber.set_error(this.error);
+    subscriber.setState(this.state);
+    subscriber.setError(this.error);
   }
 
   public unsubscribe(subscriberId: number): void {
     this.subscribers.delete(subscriberId);
   }
 
-  public has_subscribers(): boolean {
+  public hasSubscribers(): boolean {
     return this.subscribers.size > 0;
   }
 
@@ -95,7 +95,7 @@ class SharedWebSocketChannel {
     return this.client.send(data);
   }
 
-  public get_snapshot(): { error: Event | null; state: WebSocketState } {
+  public getSnapshot(): { error: Event | null; state: WebSocketState } {
     return {
       state: this.state,
       error: this.error,
@@ -115,11 +115,11 @@ function buildSharedChannelConfig(
     url: options.url,
     protocols: options.protocols ?? [],
     reconnect: options.reconnect ?? true,
-    max_reconnect_attempts: options.max_reconnect_attempts ?? 5,
-    reconnect_delay: options.reconnect_delay ?? 1000,
-    max_reconnect_delay: options.max_reconnect_delay ?? 30000,
-    heartbeat_interval: options.heartbeat_interval ?? 30000,
-    heartbeat_timeout: options.heartbeat_timeout ?? 10000,
+    maxReconnectAttempts: options.maxReconnectAttempts ?? 5,
+    reconnectDelay: options.reconnectDelay ?? 1000,
+    maxReconnectDelay: options.maxReconnectDelay ?? 30000,
+    heartbeatInterval: options.heartbeatInterval ?? 30000,
+    heartbeatTimeout: options.heartbeatTimeout ?? 10000,
   };
 }
 
@@ -150,21 +150,21 @@ export function useWebSocket(options: UseWebSocketOptions) {
   const channelKey = buildSharedChannelKey(options);
   const [state, setState] = useState<WebSocketState>(
     () =>
-      sharedChannels.get(channelKey)?.get_snapshot().state ?? "disconnected",
+      sharedChannels.get(channelKey)?.getSnapshot().state ?? "disconnected",
   );
   const [error, setError] = useState<Event | null>(
-    () => sharedChannels.get(channelKey)?.get_snapshot().error ?? null,
+    () => sharedChannels.get(channelKey)?.getSnapshot().error ?? null,
   );
   const channelRef = useRef<SharedWebSocketChannel | null>(null);
-  const onMessageRef = useRef(options.on_message);
-  const onErrorRef = useRef(options.on_error);
-  const onStateChangeRef = useRef(options.on_state_change);
+  const onMessageRef = useRef(options.onMessage);
+  const onErrorRef = useRef(options.onError);
+  const onStateChangeRef = useRef(options.onStateChange);
 
   useEffect(() => {
-    onMessageRef.current = options.on_message;
-    onErrorRef.current = options.on_error;
-    onStateChangeRef.current = options.on_state_change;
-  }, [options.on_error, options.on_message, options.on_state_change]);
+    onMessageRef.current = options.onMessage;
+    onErrorRef.current = options.onError;
+    onStateChangeRef.current = options.onStateChange;
+  }, [options.onError, options.onMessage, options.onStateChange]);
 
   // 使用useCallback稳定化回调函数
   const onMessageCallback = useCallback((msg: any) => {
@@ -192,24 +192,24 @@ export function useWebSocket(options: UseWebSocketOptions) {
     channelRef.current = channel;
     channel.subscribe({
       id: subscriberId,
-      on_message: onMessageCallback,
-      on_error: onErrorCallback,
-      on_state_change: onStateChangeCallback,
-      set_error: setError,
-      set_state: setState,
+      onMessage: onMessageCallback,
+      onError: onErrorCallback,
+      onStateChange: onStateChangeCallback,
+      setError: setError,
+      setState: setState,
     });
 
     // 已登录应用内的多个页面共享同一条 WebSocket。
     // 这里仅在首次订阅时建立连接，后续页面切换复用现有客户端。
-    if (options.auto_connect !== false) {
+    if (options.autoConnect !== false) {
       channel.connect();
     }
 
     return () => {
       channel.unsubscribe(subscriberId);
-      if (!channel.has_subscribers()) {
+      if (!channel.hasSubscribers()) {
         const nextTimer = window.setTimeout(() => {
-          if (channel.has_subscribers()) {
+          if (channel.hasSubscribers()) {
             return;
           }
           console.debug("[useWebSocket] Cleaning up shared WebSocket client");
@@ -234,7 +234,7 @@ export function useWebSocket(options: UseWebSocketOptions) {
     }
 
     const reconnectWhenRecoverable = () => {
-      const snapshot = channelRef.current?.get_snapshot();
+      const snapshot = channelRef.current?.getSnapshot();
       if (!snapshot) {
         return;
       }

@@ -16,13 +16,13 @@ import { UiInput } from "@/shared/ui/form-control";
 import { UiPanel } from "@/shared/ui/panel";
 import type { ConnectorDetail } from "@/types/capability/connector";
 
-import { get_direct_credential_label } from "./connector-auth";
+import { getDirectCredentialLabel } from "./connector-auth";
 
 interface ConnectorCredentialDialogProps {
   detail: ConnectorDetail | null;
   busy: boolean;
-  on_close: () => void;
-  on_save: (connectorId: string, credential: string) => void;
+  onClose: () => void;
+  onSave: (connectorId: string, credential: string) => void;
 }
 
 type CredentialCopy = {
@@ -58,7 +58,7 @@ const CONNECTOR_CREDENTIAL_COPY: Record<string, Partial<CredentialCopy>> = {
 };
 
 function getCredentialCopy(detail: ConnectorDetail): CredentialCopy {
-  const label = get_direct_credential_label(detail.auth_type);
+  const label = getDirectCredentialLabel(detail.auth_type);
   return {
     description: `填写此连接器的 ${label} 后保存，Agent 运行时会按需挂载对应 MCP Server。`,
     label,
@@ -72,8 +72,8 @@ function getCredentialCopy(detail: ConnectorDetail): CredentialCopy {
 export function ConnectorCredentialDialog({
   detail,
   busy,
-  on_close: onClose,
-  on_save: onSave,
+  onClose: onClose,
+  onSave: onSave,
 }: ConnectorCredentialDialogProps) {
   const [credential, setCredential] = useResettableState("", detail?.connector_id ?? null);
 
@@ -92,24 +92,24 @@ export function ConnectorCredentialDialog({
   const canSave = credential.trim() !== "";
 
   return (
-    <UiDialogBackdrop on_close={onClose}>
-      <UiDialogFormShell class_name="max-h-[84vh]" onSubmit={handleSubmit} size="sm">
+    <UiDialogBackdrop onClose={onClose}>
+      <UiDialogFormShell className="max-h-[84vh]" onSubmit={handleSubmit} size="sm">
         <UiDialogHeader
           icon={<KeyRound className="h-4 w-4" />}
-          icon_class_name="h-9 w-9 rounded-[14px]"
-          on_close={onClose}
+          iconClassName="h-9 w-9 rounded-[14px]"
+          onClose={onClose}
           subtitle={detail.title}
           title={copy.title}
         />
 
-        <UiDialogBody class_name="space-y-3" scrollable>
-          <UiPanel class_name="text-[12px] leading-relaxed" padding="sm" variant="inset">
+        <UiDialogBody className="space-y-3" scrollable>
+          <UiPanel className="text-[12px] leading-relaxed" padding="sm" variant="inset">
             {copy.description}
           </UiPanel>
 
           {detail.docs_url ? (
             <UiLinkButton
-              class_name="w-fit"
+              className="w-fit"
               href={detail.docs_url}
               rel="noopener noreferrer"
               size="sm"
@@ -127,7 +127,7 @@ export function ConnectorCredentialDialog({
               autoCapitalize="off"
               autoComplete="off"
               autoCorrect="off"
-              control_size="sm"
+              controlSize="sm"
               data-form-type="other"
               data-lpignore="true"
               name={`${detail.connector_id}-credential`}

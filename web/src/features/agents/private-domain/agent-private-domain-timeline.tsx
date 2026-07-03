@@ -6,13 +6,13 @@ import {
 
 import { PrivateParticipantAvatar } from "@/features/agents/private-domain/agent-private-domain-avatar";
 import {
-  event_route_label,
-  private_thread_title,
+  eventRouteLabel,
+  privateThreadTitle,
 } from "@/features/agents/private-domain/agent-private-domain-model";
 import { MarkdownRendererContent } from "@/features/conversation/shared/message/markdown/markdown-renderer-content";
 import {
   cn,
-  format_relative_time,
+  formatRelativeTime,
 } from "@/lib/utils";
 import {
   AgentPrivateEvent,
@@ -20,20 +20,20 @@ import {
 } from "@/types/agent/private-domain";
 
 export function PrivateEventTimeline({
-  agent_id: agentId,
-  class_name: className,
+  agentId: agentId,
+  className: className,
   compact = false,
   error,
   events,
-  is_loading: isLoading,
+  isLoading: isLoading,
   thread,
 }: {
-  agent_id: string;
-  class_name?: string;
+  agentId: string;
+  className?: string;
   compact?: boolean;
   error: string | null;
   events: AgentPrivateEvent[];
-  is_loading: boolean;
+  isLoading: boolean;
   thread: AgentPrivateThread | null;
 }) {
   return (
@@ -49,7 +49,7 @@ export function PrivateEventTimeline({
       <div className={cn("flex items-center justify-between gap-3 border-b border-(--divider-subtle-color)", compact ? "h-10 px-3" : "h-11 px-4")}>
         <div className="min-w-0">
           <p className={cn("truncate font-bold text-(--text-strong)", compact ? "text-[12.5px]" : "text-[13px]")}>
-            {thread ? private_thread_title(thread, agentId) : "联络消息"}
+            {thread ? privateThreadTitle(thread, agentId) : "联络消息"}
           </p>
           {thread ? (
             <p className={cn("mt-0.5 truncate font-semibold text-(--text-soft)", compact ? "text-[10px]" : "text-[10.5px]")}>
@@ -81,7 +81,7 @@ export function PrivateEventTimeline({
         <div className="space-y-3">
           {events.map((event) => (
             <PrivateEventBubble
-              agent_id={agentId}
+              agentId={agentId}
               compact={compact}
               event={event}
               key={event.message_id}
@@ -94,11 +94,11 @@ export function PrivateEventTimeline({
 }
 
 function PrivateEventBubble({
-  agent_id: agentId,
+  agentId: agentId,
   compact = false,
   event,
 }: {
-  agent_id: string;
+  agentId: string;
   compact?: boolean;
   event: AgentPrivateEvent;
 }) {
@@ -129,20 +129,20 @@ function PrivateEventBubble({
             私信
           </span>
           <span className="ml-auto shrink-0 text-[10.5px] font-semibold text-(--text-soft)">
-            {format_relative_time(event.timestamp)}
+            {formatRelativeTime(event.timestamp)}
           </span>
         </div>
         <MarkdownRendererContent
-          class_name={cn(
+          className={cn(
             "text-(--text-default) [&_[data-markdown-anchor]]:my-1 [&_[data-markdown-anchor]]:leading-5 [&_blockquote]:my-2 [&_ol]:mb-2 [&_ol]:space-y-1 [&_ul]:mb-2 [&_ul]:space-y-1",
             compact ? "mt-1.5 text-[12.5px] leading-5" : "mt-2 text-[13px] leading-5",
           )}
           content={event.content || "（无正文）"}
-          mermaid_show_header={false}
-          workspace_agent_id={event.source_agent_id}
+          mermaidShowHeader={false}
+          workspaceAgentId={event.source_agent_id}
         />
         <p className={cn("truncate font-semibold text-(--text-soft)", compact ? "mt-1.5 text-[10px]" : "mt-2 text-[10.5px]")}>
-          {event_route_label(event, agentId)}
+          {eventRouteLabel(event, agentId)}
         </p>
       </div>
     </div>

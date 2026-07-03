@@ -30,8 +30,8 @@ import { Agent } from "@/types/agent/agent";
 import {
   COMPOSER_DANGER_ACTION_BUTTON_CLASS_NAME,
   COMPOSER_PRIMARY_ACTION_BUTTON_CLASS_NAME,
-  get_composer_shell_class_name,
-  get_composer_shell_style,
+  getComposerShellClassName,
+  getComposerShellStyle,
 } from "./composer-styles";
 import {
   COMPOSER_ATTACHMENT_ACCEPT,
@@ -50,40 +50,40 @@ import type { LoopCatalogItem } from "@/types/capability/loop";
 
 interface ComposerPanelProps {
   compact: boolean;
-  is_loading?: boolean;
-  runtime_phase?: AgentConversationRuntimePhase | null;
-  on_send_message: (
+  isLoading?: boolean;
+  runtimePhase?: AgentConversationRuntimePhase | null;
+  onSendMessage: (
     content: string,
     deliveryPolicy: AgentConversationDeliveryPolicy,
     attachments?: PreparedComposerAttachment[],
   ) => void | Promise<void>;
-  input_queue_items?: InputQueueItem[];
-  on_enqueue_message?: (
+  inputQueueItems?: InputQueueItem[];
+  onEnqueueMessage?: (
     content: string,
     deliveryPolicy: AgentConversationDeliveryPolicy,
     attachments?: PreparedComposerAttachment[],
   ) => void | Promise<void>;
-  on_delete_queued_message?: (itemId: string) => void | Promise<void>;
-  on_guide_queued_message?: (itemId: string) => void | Promise<void>;
-  on_reorder_queue_messages?: (orderedIds: string[]) => void | Promise<void>;
-  on_stop?: () => void;
-  default_delivery_policy?: AgentConversationDefaultDeliveryPolicy;
-  initial_draft?: string | null;
+  onDeleteQueuedMessage?: (itemId: string) => void | Promise<void>;
+  onGuideQueuedMessage?: (itemId: string) => void | Promise<void>;
+  onReorderQueueMessages?: (orderedIds: string[]) => void | Promise<void>;
+  onStop?: () => void;
+  defaultDeliveryPolicy?: AgentConversationDefaultDeliveryPolicy;
+  initialDraft?: string | null;
   disabled?: boolean;
-  allow_send_while_loading?: boolean;
-  queue_when_session_busy?: boolean;
+  allowSendWhileLoading?: boolean;
+  queueWhenSessionBusy?: boolean;
   placeholder?: string;
-  max_length?: number;
-  room_members?: Agent[];
-  mention_unavailable_agent_ids?: string[];
-  on_prepare_attachments?: (files: File[]) => Promise<PreparedComposerAttachment[]>;
-  on_create_goal?: (objective: string) => Promise<void>;
-  enable_loops?: boolean;
-  on_create_loop_goal?: (loop: LoopCatalogItem) => Promise<void>;
-  goal_create_disabled_reason?: string | null;
-  goal_mode_extra?: ReactNode;
-  goal_scope_label?: string;
-  tour_anchor?: string;
+  maxLength?: number;
+  roomMembers?: Agent[];
+  mentionUnavailableAgentIds?: string[];
+  onPrepareAttachments?: (files: File[]) => Promise<PreparedComposerAttachment[]>;
+  onCreateGoal?: (objective: string) => Promise<void>;
+  enableLoops?: boolean;
+  onCreateLoopGoal?: (loop: LoopCatalogItem) => Promise<void>;
+  goalCreateDisabledReason?: string | null;
+  goalModeExtra?: ReactNode;
+  goalScopeLabel?: string;
+  tourAnchor?: string;
 }
 
 type ComposerNativeKeyboardEvent = globalThis.KeyboardEvent & {
@@ -114,32 +114,32 @@ function isCaretOnLastLine(target: HTMLTextAreaElement) {
 
 const ComposerPanelView = memo(({
   compact,
-  is_loading: isLoading = false,
-  runtime_phase: runtimePhase = null,
-  on_send_message: onSendMessage,
-  input_queue_items: inputQueueItems = [],
-  on_enqueue_message: onEnqueueMessage,
-  on_delete_queued_message: onDeleteQueuedMessage,
-  on_guide_queued_message: onGuideQueuedMessage,
-  on_reorder_queue_messages: onReorderQueueMessages,
-  on_stop: onStop,
-  default_delivery_policy: defaultDeliveryPolicy = "queue",
-  initial_draft: initialDraft = null,
+  isLoading: isLoading = false,
+  runtimePhase: runtimePhase = null,
+  onSendMessage: onSendMessage,
+  inputQueueItems: inputQueueItems = [],
+  onEnqueueMessage: onEnqueueMessage,
+  onDeleteQueuedMessage: onDeleteQueuedMessage,
+  onGuideQueuedMessage: onGuideQueuedMessage,
+  onReorderQueueMessages: onReorderQueueMessages,
+  onStop: onStop,
+  defaultDeliveryPolicy: defaultDeliveryPolicy = "queue",
+  initialDraft: initialDraft = null,
   disabled = false,
-  allow_send_while_loading: allowSendWhileLoading = false,
-  queue_when_session_busy: queueWhenSessionBusy = true,
+  allowSendWhileLoading: allowSendWhileLoading = false,
+  queueWhenSessionBusy: queueWhenSessionBusy = true,
   placeholder,
-  max_length: maxLength = 10000,
-  room_members: roomMembers = [],
-  mention_unavailable_agent_ids: mentionUnavailableAgentIds = [],
-  on_prepare_attachments: onPrepareAttachments,
-  on_create_goal: onCreateGoal,
-  enable_loops: enableLoops = false,
-  on_create_loop_goal: onCreateLoopGoal,
-  goal_create_disabled_reason: goalCreateDisabledReason = null,
-  goal_mode_extra: goalModeExtra = null,
-  goal_scope_label: goalScopeLabel = "会话 Goal",
-  tour_anchor: tourAnchor,
+  maxLength: maxLength = 10000,
+  roomMembers: roomMembers = [],
+  mentionUnavailableAgentIds: mentionUnavailableAgentIds = [],
+  onPrepareAttachments: onPrepareAttachments,
+  onCreateGoal: onCreateGoal,
+  enableLoops: enableLoops = false,
+  onCreateLoopGoal: onCreateLoopGoal,
+  goalCreateDisabledReason: goalCreateDisabledReason = null,
+  goalModeExtra: goalModeExtra = null,
+  goalScopeLabel: goalScopeLabel = "会话 Goal",
+  tourAnchor: tourAnchor,
 }: ComposerPanelProps) => {
   const { t } = useI18n();
   const [inputMode, setInputMode] = useState<ComposerInputMode>("message");
@@ -156,19 +156,19 @@ const ComposerPanelView = memo(({
   const [isGoalCreating, setIsGoalCreating] = useState(false);
   const [goalError, setGoalError] = useState<string | null>(null);
   const {
-    attachment_error: attachmentError,
+    attachmentError,
     attachments,
-    clear_attachment_error: clearAttachmentError,
-    clear_attachments: clearAttachments,
-    handle_file_select: handleFileSelect,
-    handle_paste: handlePaste,
-    is_preparing_attachments: isPreparingAttachments,
-    prepare_attachments: prepareAttachments,
-    remove_attachment: removeAttachment,
+    clearAttachmentError,
+    clearAttachments,
+    handleFileSelect,
+    handlePaste,
+    isPreparingAttachments,
+    prepareAttachments,
+    removeAttachment,
   } = useComposerAttachments({
-    is_goal_mode: isGoalMode,
-    on_goal_attachment_rejected: setGoalError,
-    on_prepare_attachments: onPrepareAttachments,
+    isGoalMode,
+    onGoalAttachmentRejected: setGoalError,
+    onPrepareAttachments,
   });
 
   const isComposingRef = useRef(false);
@@ -178,19 +178,19 @@ const ComposerPanelView = memo(({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const actionButtonRef = useRef<HTMLButtonElement>(null);
   const {
-    close_mention: closeMention,
-    mention_active: mentionActive,
-    mention_filter: mentionFilter,
-    mention_target_items: mentionTargetItems,
-    select_mention_item: selectMentionItem,
-    update_mention_for_input: updateMentionForInput,
+    closeMention,
+    mentionActive,
+    mentionFilter,
+    mentionTargetItems,
+    selectMentionItem,
+    updateMentionForInput,
   } = useComposerMention({
     input,
-    is_goal_mode: isGoalMode,
-    mention_unavailable_agent_ids: mentionUnavailableAgentIds,
-    room_members: roomMembers,
-    set_input: setInput,
-    textarea_ref: textareaRef,
+    isGoalMode,
+    mentionUnavailableAgentIds,
+    roomMembers,
+    setInput,
+    textareaRef,
   });
   const isDispatching = isLoading && runtimePhase === "sending";
   const isInputLocked = disabled || (!allowSendWhileLoading && isLoading);
@@ -201,7 +201,7 @@ const ComposerPanelView = memo(({
   const goalCreateBlockedReason =
     goalCreateDisabledReason?.trim() || null;
 
-  useTextareaHeight(textareaRef, input, { min_height: 24, max_height: 200, line_height: 24, padding_y: 0 });
+  useTextareaHeight(textareaRef, input, { minHeight: 24, maxHeight: 200, lineHeight: 24, paddingY: 0 });
 
   const handleInputChange = useCallback((value: string) => {
     setInput(value);
@@ -543,36 +543,36 @@ const ComposerPanelView = memo(({
       />
       {canUseLoop ? (
         <LoopPickerDialog
-          is_open={isLoopPickerOpen}
-          on_close={() => setIsLoopPickerOpen(false)}
-          on_select={handleLoopSelect}
+          isOpen={isLoopPickerOpen}
+          onClose={() => setIsLoopPickerOpen(false)}
+          onSelect={handleLoopSelect}
         />
       ) : null}
 
-      <div className={get_composer_shell_class_name(isInputLocked)} style={get_composer_shell_style(compact)}>
+      <div className={getComposerShellClassName(isInputLocked)} style={getComposerShellStyle(compact)}>
         <ComposerPendingQueue
           compact={compact}
           disabled={disabled}
-          input_queue_items={inputQueueItems}
-          on_delete_queued_message={onDeleteQueuedMessage}
-          on_guide_queued_message={onGuideQueuedMessage}
-          on_reorder_queue_messages={onReorderQueueMessages}
+          inputQueueItems={inputQueueItems}
+          onDeleteQueuedMessage={onDeleteQueuedMessage}
+          onGuideQueuedMessage={onGuideQueuedMessage}
+          onReorderQueueMessages={onReorderQueueMessages}
         />
 
         <ComposerAttachmentList
           attachments={attachments}
-          on_remove={removeAttachment}
-          remove_label={t("composer.remove_attachment")}
+          onRemove={removeAttachment}
+          removeLabel={t("composer.remove_attachment")}
         />
 
         <div className={cn("flex items-end gap-2", composerInputRowPaddingClass)}>
           {mentionActive && mentionTargetItems.length > 0 ? (
             <MentionTargetPopover
-              anchor_rect={textareaRef.current?.getBoundingClientRect() ?? null}
+              anchorRect={textareaRef.current?.getBoundingClientRect() ?? null}
               filter={mentionFilter}
               items={mentionTargetItems}
-              on_close={closeMention}
-              on_select={selectMentionItem}
+              onClose={closeMention}
+              onSelect={selectMentionItem}
               placement="above"
             />
           ) : null}
@@ -658,31 +658,31 @@ const ComposerPanelView = memo(({
         </div>
 
         <ComposerFooter
-          action_button_ref={actionButtonRef}
-          active_error={activeError}
-          can_create_goal={canCreateGoal}
-          can_use_loop={canUseLoop}
-          can_stop_generation={canStopGeneration}
-          char_count={charCount}
-          goal_mode_extra={goalModeExtra}
-          goal_scope_label={goalScopeLabel}
-          history_index={historyIndex}
-          input_history_length={inputHistory.length}
-          is_action_menu_open={isActionMenuOpen}
-          is_dispatching={isDispatching}
-          is_goal_creating={isGoalCreating}
-          is_goal_mode={isGoalMode}
-          is_input_locked={isInputLocked}
-          is_near_limit={isNearLimit}
-          is_over_limit={isOverLimit}
-          is_preparing_attachments={isPreparingAttachments}
-          max_length={maxLength}
-          on_action_menu_close={() => setIsActionMenuOpen(false)}
-          on_action_menu_toggle={() => setIsActionMenuOpen((current) => !current)}
-          on_attachment_select={openAttachmentPicker}
-          on_cancel_goal={cancelGoalInput}
-          on_goal_toggle={toggleGoalInput}
-          on_loop_select={openLoopPicker}
+          actionButtonRef={actionButtonRef}
+          activeError={activeError}
+          canCreateGoal={canCreateGoal}
+          canUseLoop={canUseLoop}
+          canStopGeneration={canStopGeneration}
+          charCount={charCount}
+          goalModeExtra={goalModeExtra}
+          goalScopeLabel={goalScopeLabel}
+          historyIndex={historyIndex}
+          inputHistoryLength={inputHistory.length}
+          isActionMenuOpen={isActionMenuOpen}
+          isDispatching={isDispatching}
+          isGoalCreating={isGoalCreating}
+          isGoalMode={isGoalMode}
+          isInputLocked={isInputLocked}
+          isNearLimit={isNearLimit}
+          isOverLimit={isOverLimit}
+          isPreparingAttachments={isPreparingAttachments}
+          maxLength={maxLength}
+          onActionMenuClose={() => setIsActionMenuOpen(false)}
+          onActionMenuToggle={() => setIsActionMenuOpen((current) => !current)}
+          onAttachmentSelect={openAttachmentPicker}
+          onCancelGoal={cancelGoalInput}
+          onGoalToggle={toggleGoalInput}
+          onLoopSelect={openLoopPicker}
         />
       </div>
     </section>

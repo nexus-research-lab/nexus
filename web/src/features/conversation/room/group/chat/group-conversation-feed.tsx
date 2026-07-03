@@ -3,49 +3,49 @@ import type { RefObject } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
 import { MessageItem } from "@/features/conversation/shared/message";
-import { has_room_agent_round_entries } from "@/features/conversation/shared/utils";
+import { hasRoomAgentRoundEntries } from "@/features/conversation/shared/utils";
 import { AgentConversationRuntimePhase } from "@/types/agent/agent-conversation";
 import { Message, RoomPendingAgentSlotState } from "@/types/conversation/message";
 import { PendingPermission, PermissionDecisionPayload } from "@/types/conversation/permission";
-import { estimate_round_heights } from "@/hooks/conversation/use-message-height";
+import { estimateRoundHeights } from "@/hooks/conversation/use-message-height";
 import { GroupRoundCardGroup } from "../thread/group-round-card-group";
 
 interface GroupConversationFeedProps {
-  bottom_anchor_ref: React.RefObject<HTMLDivElement | null>;
-  feed_ref?: RefObject<HTMLDivElement | null>;
+  bottomAnchorRef: React.RefObject<HTMLDivElement | null>;
+  feedRef?: RefObject<HTMLDivElement | null>;
   /** The scrollable container — needed by the virtualizer */
-  scroll_ref?: RefObject<HTMLDivElement | null>;
+  scrollRef?: RefObject<HTMLDivElement | null>;
   compact?: boolean;
-  current_agent_name: string | null;
-  current_agent_avatar?: string | null;
-  current_user_avatar?: string | null;
-  /** Room 模式下的 agent_id → name 映射（用于多 Agent 显示） */
-  agent_name_map?: Record<string, string>;
-  /** Room 模式下的 agent_id → avatar 映射（用于多 Agent 显示） */
-  agent_avatar_map?: Record<string, string | null>;
-  is_last_round_pending_permissions: PendingPermission[];
-  is_loading: boolean;
-  runtime_phase?: AgentConversationRuntimePhase | null;
-  live_round_ids: string[];
-  is_mobile_layout: boolean;
-  message_groups: Map<string, Message[]>;
-  pending_permission_groups: Map<string, PendingPermission[]>;
-  pending_slot_groups: Map<string, RoomPendingAgentSlotState[]>;
-  on_open_agent_contact?: (agentId: string) => void;
-  on_open_workspace_file?: (path: string) => void;
-  on_permission_response: (payload: PermissionDecisionPayload) => boolean;
-  can_respond_to_permissions?: boolean;
-  permission_read_only_reason?: string;
+  currentAgentName: string | null;
+  currentAgentAvatar?: string | null;
+  currentUserAvatar?: string | null;
+  /** Room 模式下的 agentId → name 映射（用于多 Agent 显示） */
+  agentNameMap?: Record<string, string>;
+  /** Room 模式下的 agentId → avatar 映射（用于多 Agent 显示） */
+  agentAvatarMap?: Record<string, string | null>;
+  isLastRoundPendingPermissions: PendingPermission[];
+  isLoading: boolean;
+  runtimePhase?: AgentConversationRuntimePhase | null;
+  liveRoundIds: string[];
+  isMobileLayout: boolean;
+  messageGroups: Map<string, Message[]>;
+  pendingPermissionGroups: Map<string, PendingPermission[]>;
+  pendingSlotGroups: Map<string, RoomPendingAgentSlotState[]>;
+  onOpenAgentContact?: (agentId: string) => void;
+  onOpenWorkspaceFile?: (path: string) => void;
+  onPermissionResponse: (payload: PermissionDecisionPayload) => boolean;
+  canRespondToPermissions?: boolean;
+  permissionReadOnlyReason?: string;
   /** Room 并发模式：停止单条消息生成 */
-  on_stop_message?: (msgId: string) => void;
-  round_ids: string[];
+  onStopMessage?: (msgId: string) => void;
+  roundIds: string[];
 }
 
 // Minimum rounds before we enable virtualization — below this threshold the
 // overhead is not worth it and scroll behaviour is simpler without it.
 const VIRTUAL_THRESHOLD = 20;
 
-/** Room 模式下从 round 的 assistant 消息中提取 agent_id，查找对应名字 */
+/** Room 模式下从 round 的 assistant 消息中提取 agentId，查找对应名字 */
 function resolveRoundAgentName(
   messages: Message[],
   agentNameMap?: Record<string, string>,
@@ -60,7 +60,7 @@ function resolveRoundAgentName(
   return undefined;
 }
 
-/** Room 模式下从 round 的 assistant 消息中提取 agent_id，查找对应头像 */
+/** Room 模式下从 round 的 assistant 消息中提取 agentId，查找对应头像 */
 function resolveRoundAgentAvatar(
   messages: Message[],
   agentAvatarMap?: Record<string, string | null>,
@@ -85,58 +85,58 @@ function resolveRoundAgentId(messages: Message[]): string | null {
 }
 
 export const GroupConversationFeed = memo(function GroupConversationFeed({
-  bottom_anchor_ref: bottomAnchorRef,
-  feed_ref: feedRef,
-  scroll_ref: scrollRef,
+  bottomAnchorRef: bottomAnchorRef,
+  feedRef: feedRef,
+  scrollRef: scrollRef,
   compact = false,
-  current_agent_name: currentAgentName,
-  current_agent_avatar: currentAgentAvatar,
-  current_user_avatar: currentUserAvatar,
-  agent_name_map: agentNameMap,
-  agent_avatar_map: agentAvatarMap,
-  is_last_round_pending_permissions: isLastRoundPendingPermissions,
-  runtime_phase: runtimePhase,
-  live_round_ids: liveRoundIds,
-  is_mobile_layout: isMobileLayout,
-  message_groups: messageGroups,
-  pending_permission_groups: pendingPermissionGroups,
-  pending_slot_groups: pendingSlotGroups,
-  on_open_agent_contact: onOpenAgentContact,
-  on_open_workspace_file: onOpenWorkspaceFile,
-  on_permission_response: onPermissionResponse,
-  can_respond_to_permissions: canRespondToPermissions = true,
-  permission_read_only_reason: permissionReadOnlyReason,
-  on_stop_message: onStopMessage,
-  round_ids: roundIds,
+  currentAgentName: currentAgentName,
+  currentAgentAvatar: currentAgentAvatar,
+  currentUserAvatar: currentUserAvatar,
+  agentNameMap: agentNameMap,
+  agentAvatarMap: agentAvatarMap,
+  isLastRoundPendingPermissions: isLastRoundPendingPermissions,
+  runtimePhase: runtimePhase,
+  liveRoundIds: liveRoundIds,
+  isMobileLayout: isMobileLayout,
+  messageGroups: messageGroups,
+  pendingPermissionGroups: pendingPermissionGroups,
+  pendingSlotGroups: pendingSlotGroups,
+  onOpenAgentContact: onOpenAgentContact,
+  onOpenWorkspaceFile: onOpenWorkspaceFile,
+  onPermissionResponse: onPermissionResponse,
+  canRespondToPermissions: canRespondToPermissions = true,
+  permissionReadOnlyReason: permissionReadOnlyReason,
+  onStopMessage: onStopMessage,
+  roundIds: roundIds,
 }: GroupConversationFeedProps) {
   const useVirtual = roundIds.length >= VIRTUAL_THRESHOLD;
 
   if (useVirtual && scrollRef) {
     return (
       <VirtualFeed
-        bottom_anchor_ref={bottomAnchorRef}
-        feed_ref={feedRef}
-        scroll_ref={scrollRef}
+        bottomAnchorRef={bottomAnchorRef}
+        feedRef={feedRef}
+        scrollRef={scrollRef}
         compact={compact}
-        current_agent_name={currentAgentName}
-        current_agent_avatar={currentAgentAvatar}
-        current_user_avatar={currentUserAvatar}
-        agent_name_map={agentNameMap}
-        agent_avatar_map={agentAvatarMap}
-        is_last_round_pending_permissions={isLastRoundPendingPermissions}
-        runtime_phase={runtimePhase}
-        live_round_ids={liveRoundIds}
-        is_mobile_layout={isMobileLayout}
-        message_groups={messageGroups}
-        pending_permission_groups={pendingPermissionGroups}
-        pending_slot_groups={pendingSlotGroups}
-        on_open_agent_contact={onOpenAgentContact}
-        on_open_workspace_file={onOpenWorkspaceFile}
-        on_permission_response={onPermissionResponse}
-        can_respond_to_permissions={canRespondToPermissions}
-        permission_read_only_reason={permissionReadOnlyReason}
-        on_stop_message={onStopMessage}
-        round_ids={roundIds}
+        currentAgentName={currentAgentName}
+        currentAgentAvatar={currentAgentAvatar}
+        currentUserAvatar={currentUserAvatar}
+        agentNameMap={agentNameMap}
+        agentAvatarMap={agentAvatarMap}
+        isLastRoundPendingPermissions={isLastRoundPendingPermissions}
+        runtimePhase={runtimePhase}
+        liveRoundIds={liveRoundIds}
+        isMobileLayout={isMobileLayout}
+        messageGroups={messageGroups}
+        pendingPermissionGroups={pendingPermissionGroups}
+        pendingSlotGroups={pendingSlotGroups}
+        onOpenAgentContact={onOpenAgentContact}
+        onOpenWorkspaceFile={onOpenWorkspaceFile}
+        onPermissionResponse={onPermissionResponse}
+        canRespondToPermissions={canRespondToPermissions}
+        permissionReadOnlyReason={permissionReadOnlyReason}
+        onStopMessage={onStopMessage}
+        roundIds={roundIds}
       />
     );
   }
@@ -152,28 +152,28 @@ export const GroupConversationFeed = memo(function GroupConversationFeed({
         const roundPendingSlots = pendingSlotGroups.get(roundId) || [];
         const isLastRound = idx === roundIds.length - 1;
         const isLastRoundLive = isLastRound && liveRoundIds.includes(roundId);
-        const hasRoomEntries = has_room_agent_round_entries(roundMessages, roundPendingSlots);
+        const hasRoomEntries = hasRoomAgentRoundEntries(roundMessages, roundPendingSlots);
 
         // Group Room 中一旦出现 Agent 回复，就统一走 GroupRoundCardGroup。
         if (hasRoomEntries) {
           return (
             <GroupRoundCardGroup
               key={roundId}
-              round_id={roundId}
+              roundId={roundId}
               messages={roundMessages}
-              pending_permissions={roundPendingPermissions}
-              pending_slots={roundPendingSlots}
-              agent_name_map={agentNameMap}
-              agent_avatar_map={agentAvatarMap}
-              current_user_avatar={currentUserAvatar}
-              is_last_round={isLastRound}
-              is_loading={isLastRoundLive}
-              on_permission_response={onPermissionResponse}
-              can_respond_to_permissions={canRespondToPermissions}
-              permission_read_only_reason={permissionReadOnlyReason}
-              on_open_agent_contact={onOpenAgentContact}
-              on_stop_message={onStopMessage}
-              on_open_workspace_file={onOpenWorkspaceFile}
+              pendingPermissions={roundPendingPermissions}
+              pendingSlots={roundPendingSlots}
+              agentNameMap={agentNameMap}
+              agentAvatarMap={agentAvatarMap}
+              currentUserAvatar={currentUserAvatar}
+              isLastRound={isLastRound}
+              isLoading={isLastRoundLive}
+              onPermissionResponse={onPermissionResponse}
+              canRespondToPermissions={canRespondToPermissions}
+              permissionReadOnlyReason={permissionReadOnlyReason}
+              onOpenAgentContact={onOpenAgentContact}
+              onStopMessage={onStopMessage}
+              onOpenWorkspaceFile={onOpenWorkspaceFile}
             />
           );
         }
@@ -186,22 +186,22 @@ export const GroupConversationFeed = memo(function GroupConversationFeed({
           <MessageItem
             key={roundId}
             compact={compact}
-            current_agent_name={roundAgentName}
-            current_agent_avatar={roundAgentAvatar}
-            workspace_agent_id={roundWorkspaceAgentId}
-            current_user_avatar={currentUserAvatar}
-            round_id={roundId}
+            currentAgentName={roundAgentName}
+            currentAgentAvatar={roundAgentAvatar}
+            workspaceAgentId={roundWorkspaceAgentId}
+            currentUserAvatar={currentUserAvatar}
+            roundId={roundId}
             messages={roundMessages}
-            is_last_round={isLastRound}
-            is_loading={isLastRoundLive}
-            runtime_phase={isLastRoundLive ? runtimePhase : null}
-            pending_permissions={isLastRoundLive ? isLastRoundPendingPermissions : []}
-            on_permission_response={onPermissionResponse}
-            can_respond_to_permissions={canRespondToPermissions}
-            permission_read_only_reason={permissionReadOnlyReason}
-            on_open_agent_contact={onOpenAgentContact}
-            on_open_workspace_file={onOpenWorkspaceFile}
-            on_stop_message={onStopMessage}
+            isLastRound={isLastRound}
+            isLoading={isLastRoundLive}
+            runtimePhase={isLastRoundLive ? runtimePhase : null}
+            pendingPermissions={isLastRoundLive ? isLastRoundPendingPermissions : []}
+            onPermissionResponse={onPermissionResponse}
+            canRespondToPermissions={canRespondToPermissions}
+            permissionReadOnlyReason={permissionReadOnlyReason}
+            onOpenAgentContact={onOpenAgentContact}
+            onOpenWorkspaceFile={onOpenWorkspaceFile}
+            onStopMessage={onStopMessage}
           />
         );
       })}
@@ -213,30 +213,30 @@ export const GroupConversationFeed = memo(function GroupConversationFeed({
 // ─── VirtualFeed ──────────────────────────────────────────────────────────────
 
 function VirtualFeed({
-  bottom_anchor_ref: bottomAnchorRef,
-  feed_ref: feedRef,
-  scroll_ref: scrollRef,
+  bottomAnchorRef: bottomAnchorRef,
+  feedRef: feedRef,
+  scrollRef: scrollRef,
   compact,
-  current_agent_name: currentAgentName,
-  current_agent_avatar: currentAgentAvatar,
-  current_user_avatar: currentUserAvatar,
-  agent_name_map: agentNameMap,
-  agent_avatar_map: agentAvatarMap,
-  is_last_round_pending_permissions: isLastRoundPendingPermissions,
-  runtime_phase: runtimePhase,
-  live_round_ids: liveRoundIds,
-  is_mobile_layout: isMobileLayout,
-  message_groups: messageGroups,
-  pending_permission_groups: pendingPermissionGroups,
-  pending_slot_groups: pendingSlotGroups,
-  on_open_agent_contact: onOpenAgentContact,
-  on_open_workspace_file: onOpenWorkspaceFile,
-  on_permission_response: onPermissionResponse,
-  can_respond_to_permissions: canRespondToPermissions = true,
-  permission_read_only_reason: permissionReadOnlyReason,
-  on_stop_message: onStopMessage,
-  round_ids: roundIds,
-}: Omit<GroupConversationFeedProps, "is_loading" | "scroll_ref"> & { scroll_ref: RefObject<HTMLDivElement | null> }) {
+  currentAgentName: currentAgentName,
+  currentAgentAvatar: currentAgentAvatar,
+  currentUserAvatar: currentUserAvatar,
+  agentNameMap: agentNameMap,
+  agentAvatarMap: agentAvatarMap,
+  isLastRoundPendingPermissions: isLastRoundPendingPermissions,
+  runtimePhase: runtimePhase,
+  liveRoundIds: liveRoundIds,
+  isMobileLayout: isMobileLayout,
+  messageGroups: messageGroups,
+  pendingPermissionGroups: pendingPermissionGroups,
+  pendingSlotGroups: pendingSlotGroups,
+  onOpenAgentContact: onOpenAgentContact,
+  onOpenWorkspaceFile: onOpenWorkspaceFile,
+  onPermissionResponse: onPermissionResponse,
+  canRespondToPermissions: canRespondToPermissions = true,
+  permissionReadOnlyReason: permissionReadOnlyReason,
+  onStopMessage: onStopMessage,
+  roundIds: roundIds,
+}: Omit<GroupConversationFeedProps, "isLoading" | "scrollRef"> & { scrollRef: RefObject<HTMLDivElement | null> }) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Measure scroll container width for pretext height estimation
@@ -254,7 +254,7 @@ function VirtualFeed({
 
   // Pretext-based height estimates (recomputed when round count changes)
   const heightMap = useMemo(
-    () => estimate_round_heights(roundIds, messageGroups, containerWidthRef.current),
+    () => estimateRoundHeights(roundIds, messageGroups, containerWidthRef.current),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [roundIds.length, messageGroups],
   );
@@ -274,7 +274,7 @@ function VirtualFeed({
   return (
     <div
       ref={(el) => {
-        // Merge feed_ref with container_ref
+        // Merge feedRef with containerRef
         containerRef.current = el;
         if (feedRef) (feedRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
       }}
@@ -297,7 +297,7 @@ function VirtualFeed({
           const roundPendingSlots = pendingSlotGroups.get(roundId) || [];
           const isLastRound = virtualItem.index === roundIds.length - 1;
           const isLastRoundLive = isLastRound && liveRoundIds.includes(roundId);
-          const hasRoomEntries = has_room_agent_round_entries(roundMessages, roundPendingSlots);
+          const hasRoomEntries = hasRoomAgentRoundEntries(roundMessages, roundPendingSlots);
 
           return (
             <div
@@ -307,41 +307,41 @@ function VirtualFeed({
             >
               {hasRoomEntries ? (
                 <GroupRoundCardGroup
-                  round_id={roundId}
+                  roundId={roundId}
                   messages={roundMessages}
-                  pending_permissions={roundPendingPermissions}
-                  pending_slots={roundPendingSlots}
-                  agent_name_map={agentNameMap}
-                  agent_avatar_map={agentAvatarMap}
-                  current_user_avatar={currentUserAvatar}
-                  is_last_round={isLastRound}
-                  is_loading={isLastRoundLive}
-                  on_permission_response={onPermissionResponse}
-                  can_respond_to_permissions={canRespondToPermissions}
-                  permission_read_only_reason={permissionReadOnlyReason}
-                  on_open_agent_contact={onOpenAgentContact}
-                  on_stop_message={onStopMessage}
-                  on_open_workspace_file={onOpenWorkspaceFile}
+                  pendingPermissions={roundPendingPermissions}
+                  pendingSlots={roundPendingSlots}
+                  agentNameMap={agentNameMap}
+                  agentAvatarMap={agentAvatarMap}
+                  currentUserAvatar={currentUserAvatar}
+                  isLastRound={isLastRound}
+                  isLoading={isLastRoundLive}
+                  onPermissionResponse={onPermissionResponse}
+                  canRespondToPermissions={canRespondToPermissions}
+                  permissionReadOnlyReason={permissionReadOnlyReason}
+                  onOpenAgentContact={onOpenAgentContact}
+                  onStopMessage={onStopMessage}
+                  onOpenWorkspaceFile={onOpenWorkspaceFile}
                 />
               ) : (
                 <MessageItem
                   compact={compact}
-                  current_agent_name={resolveRoundAgentName(roundMessages, agentNameMap) ?? currentAgentName}
-                  current_agent_avatar={resolveRoundAgentAvatar(roundMessages, agentAvatarMap) ?? currentAgentAvatar}
-                  workspace_agent_id={resolveRoundAgentId(roundMessages)}
-                  current_user_avatar={currentUserAvatar}
-                  round_id={roundId}
+                  currentAgentName={resolveRoundAgentName(roundMessages, agentNameMap) ?? currentAgentName}
+                  currentAgentAvatar={resolveRoundAgentAvatar(roundMessages, agentAvatarMap) ?? currentAgentAvatar}
+                  workspaceAgentId={resolveRoundAgentId(roundMessages)}
+                  currentUserAvatar={currentUserAvatar}
+                  roundId={roundId}
                   messages={roundMessages}
-                  is_last_round={isLastRound}
-                  is_loading={isLastRoundLive}
-                  runtime_phase={isLastRoundLive ? runtimePhase : null}
-                  pending_permissions={isLastRoundLive ? isLastRoundPendingPermissions : []}
-                  on_permission_response={onPermissionResponse}
-                  can_respond_to_permissions={canRespondToPermissions}
-                  permission_read_only_reason={permissionReadOnlyReason}
-                  on_open_agent_contact={onOpenAgentContact}
-                  on_open_workspace_file={onOpenWorkspaceFile}
-                  on_stop_message={onStopMessage}
+                  isLastRound={isLastRound}
+                  isLoading={isLastRoundLive}
+                  runtimePhase={isLastRoundLive ? runtimePhase : null}
+                  pendingPermissions={isLastRoundLive ? isLastRoundPendingPermissions : []}
+                  onPermissionResponse={onPermissionResponse}
+                  canRespondToPermissions={canRespondToPermissions}
+                  permissionReadOnlyReason={permissionReadOnlyReason}
+                  onOpenAgentContact={onOpenAgentContact}
+                  onOpenWorkspaceFile={onOpenWorkspaceFile}
+                  onStopMessage={onStopMessage}
                 />
               )}
             </div>

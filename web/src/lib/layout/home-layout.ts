@@ -14,7 +14,7 @@ export const HOME_EDITOR_DEFAULT_WIDTH_PERCENT = 56;
 const HOME_EDITOR_MIN_WIDTH_PERCENT = 30;
 const HOME_EDITOR_MAX_WIDTH_PERCENT = 56;
 
-export function clamp_home_editor_width_percent(widthPercent: number): number {
+export function clampHomeEditorWidthPercent(widthPercent: number): number {
   return Math.min(
     Math.max(widthPercent, HOME_EDITOR_MIN_WIDTH_PERCENT),
     HOME_EDITOR_MAX_WIDTH_PERCENT,

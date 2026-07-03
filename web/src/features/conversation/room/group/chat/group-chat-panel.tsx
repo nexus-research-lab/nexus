@@ -9,8 +9,8 @@ import { useExtractTodos } from "@/hooks/conversation/use-extract-todos";
 import { useFollowScroll } from "@/hooks/conversation/use-follow-scroll";
 import { useSessionLoader } from "@/hooks/conversation/use-session-loader";
 import { useDefaultChatDeliveryPolicy } from "@/hooks/settings/use-default-chat-delivery-policy";
-import { create_goal_api } from "@/lib/api/goal-api";
-import { build_room_shared_session_key } from "@/lib/conversation/session-key";
+import { createGoalApi } from "@/lib/api/goal-api";
+import { buildRoomSharedSessionKey } from "@/lib/conversation/session-key";
 import { useAuth } from "@/shared/auth/auth-context";
 import { AgentConversationIdentity } from "@/types/agent/agent-conversation";
 import { RoomConversationSnapshotPayload } from "@/types/conversation/conversation";
@@ -20,12 +20,12 @@ import type { LoopCatalogItem } from "@/types/capability/loop";
 
 import { ScrollToLatestButton } from "@/features/conversation/shared/scroll-to-latest-button";
 import { ComposerPanel } from "@/features/conversation/shared/composer-panel";
-import { prepare_room_conversation_attachments } from "@/features/conversation/shared/composer-attachments";
+import { prepareRoomConversationAttachments } from "@/features/conversation/shared/composer-attachments";
 import { ConversationErrorBubble } from "@/features/conversation/shared/conversation-error-bubble";
-import { is_provider_error } from "@/features/conversation/shared/conversation-error-utils";
+import { isProviderError } from "@/features/conversation/shared/conversation-error-utils";
 import { ProviderUnavailableBanner } from "@/features/conversation/shared/provider-unavailable-banner";
 import { ROOM_GOAL_SCOPE_LABEL } from "@/features/conversation/shared/goal-continuation-hold";
-import { build_timeline_round_ids } from "@/features/conversation/shared/timeline-rounds";
+import { buildTimelineRoundIds } from "@/features/conversation/shared/timeline-rounds";
 import { useConversationComposerHandlers } from "@/features/conversation/shared/use-conversation-composer-handlers";
 import { useConversationHistoryLoader } from "@/features/conversation/shared/use-conversation-history-loader";
 import {
@@ -33,44 +33,44 @@ import {
   type ConversationSnapshotBuildInput,
 } from "@/features/conversation/shared/use-conversation-snapshot-reporter";
 import {
-  group_room_pending_permissions_by_round,
-  group_room_pending_slots_by_round,
-  group_room_messages_by_round,
+  groupRoomPendingPermissionsByRound,
+  groupRoomPendingSlotsByRound,
+  groupRoomMessagesByRound,
 } from "@/features/conversation/shared/utils";
 import { GroupConversationFeed } from "./group-conversation-feed";
 import { useRoomThreadSource } from "./use-room-thread-panel-data";
 import { GroupConversationEmptyState } from "./group-conversation-empty-state";
 import { RoomGoalPanel } from "./room-goal-panel";
 import {
-  build_room_goal_metadata,
-  build_room_loop_goal_metadata,
-  build_room_loop_goal_objective,
-  resolve_default_room_goal_lead,
+  buildRoomGoalMetadata,
+  buildRoomLoopGoalMetadata,
+  buildRoomLoopGoalObjective,
+  resolveDefaultRoomGoalLead,
 } from "./room-goal-model";
 import { CONVERSATION_TOUR_ANCHORS } from "../../room-tour";
 
 export interface GroupChatPanelProps {
-  agent_id: string | null;
-  current_agent_name?: string | null;
-  current_agent_avatar?: string | null;
-  /** Room conversation id — used to derive the shared session_key */
-  conversation_id: string | null;
-  room_id?: string | null;
-  room_members: Agent[];
-  room_host_agent_id?: string | null;
-  room_host_auto_reply_enabled?: boolean;
+  agentId: string | null;
+  currentAgentName?: string | null;
+  currentAgentAvatar?: string | null;
+  /** Room conversation id — used to derive the shared sessionKey */
+  conversationId: string | null;
+  roomId?: string | null;
+  roomMembers: Agent[];
+  roomHostAgentId?: string | null;
+  roomHostAutoReplyEnabled?: boolean;
   layout?: "desktop" | "mobile";
-  initial_draft?: string | null;
-  on_initial_draft_consumed?: () => void;
-  on_open_agent_contact?: (agentId: string) => void;
-  on_open_workspace_file?: (path: string) => void;
-  on_todos_change?: (todos: TodoItem[]) => void;
-  on_loading_change?: (isLoading: boolean) => void;
-  on_conversation_snapshot_change?: (
+  initialDraft?: string | null;
+  onInitialDraftConsumed?: () => void;
+  onOpenAgentContact?: (agentId: string) => void;
+  onOpenWorkspaceFile?: (path: string) => void;
+  onTodosChange?: (todos: TodoItem[]) => void;
+  onLoadingChange?: (isLoading: boolean) => void;
+  onConversationSnapshotChange?: (
     snapshot: RoomConversationSnapshotPayload,
   ) => void;
-  on_create_conversation?: (title?: string) => void | Promise<string | null>;
-  on_room_event?: (
+  onCreateConversation?: (title?: string) => void | Promise<string | null>;
+  onRoomEvent?: (
     eventType: string,
     data: import("@/types/agent/agent-conversation").RoomEventPayload,
   ) => void;
@@ -81,31 +81,31 @@ export interface GroupChatPanelProps {
  * Provider 由 RoomSurfaceLayout / RoomMobileSurface 提供。
  */
 export function GroupChatPanel({
-  agent_id: agentId,
-  current_agent_name: currentAgentName,
-  current_agent_avatar: currentAgentAvatar,
-  conversation_id: conversationId,
-  room_id: roomId = null,
-  room_members: roomMembers,
-  room_host_agent_id: roomHostAgentId = null,
-  room_host_auto_reply_enabled: roomHostAutoReplyEnabled = false,
+  agentId: agentId,
+  currentAgentName: currentAgentName,
+  currentAgentAvatar: currentAgentAvatar,
+  conversationId: conversationId,
+  roomId: roomId = null,
+  roomMembers: roomMembers,
+  roomHostAgentId: roomHostAgentId = null,
+  roomHostAutoReplyEnabled: roomHostAutoReplyEnabled = false,
   layout = "desktop",
-  initial_draft: initialDraft = null,
-  on_initial_draft_consumed: onInitialDraftConsumed,
-  on_open_agent_contact: onOpenAgentContact,
-  on_open_workspace_file: onOpenWorkspaceFile,
-  on_todos_change: onTodosChange,
-  on_loading_change: onLoadingChange,
-  on_conversation_snapshot_change: onConversationSnapshotChange,
-  on_create_conversation: onCreateConversation,
-  on_room_event: onRoomEvent,
+  initialDraft: initialDraft = null,
+  onInitialDraftConsumed: onInitialDraftConsumed,
+  onOpenAgentContact: onOpenAgentContact,
+  onOpenWorkspaceFile: onOpenWorkspaceFile,
+  onTodosChange: onTodosChange,
+  onLoadingChange: onLoadingChange,
+  onConversationSnapshotChange: onConversationSnapshotChange,
+  onCreateConversation: onCreateConversation,
+  onRoomEvent: onRoomEvent,
 }: GroupChatPanelProps) {
   const isMobileLayout = layout === "mobile";
   const { status: authStatus } = useAuth();
   const currentUserAvatar = authStatus?.avatar ?? null;
 
   const sessionKey = conversationId
-    ? build_room_shared_session_key(conversationId)
+    ? buildRoomSharedSessionKey(conversationId)
     : null;
   const defaultDeliveryPolicy = useDefaultChatDeliveryPolicy();
   const [goalRefreshSeq, setGoalRefreshSeq] = useState(0);
@@ -113,7 +113,7 @@ export function GroupChatPanel({
     setGoalRefreshSeq((value) => value + 1);
   }, []);
   const defaultRoomGoalLeadAgentId = useMemo(
-    () => resolve_default_room_goal_lead(roomMembers, roomHostAgentId),
+    () => resolveDefaultRoomGoalLead(roomMembers, roomHostAgentId),
     [roomHostAgentId, roomMembers],
   );
   const [roomGoalLeadAgentId, setRoomGoalLeadAgentId] = useState(
@@ -201,30 +201,30 @@ export function GroupChatPanel({
   });
 
   const todos = useExtractTodos(messages, sessionKey);
-  const { has_available_provider: hasAvailableProvider, is_ready: providerReady } = useProviderAvailability();
+  const { hasAvailableProvider, isReady: providerReady } = useProviderAvailability();
   const showProviderWarning = providerReady && !hasAvailableProvider;
-  const systemError = error && !is_provider_error(error) ? error : null;
+  const systemError = error && !isProviderError(error) ? error : null;
   const {
-    scroll_ref: scrollRef,
-    feed_ref: feedRef,
-    bottom_anchor_ref: bottomAnchorRef,
-    show_scroll_to_bottom: showScrollToBottom,
-    scroll_to_bottom: scrollToBottom,
-    prepare_history_prepend_restore: prepareHistoryPrependRestore,
-    cancel_history_prepend_restore: cancelHistoryPrependRestore,
-    on_scroll: onScroll,
-    on_wheel: onWheel,
-    on_touch_start: onTouchStart,
-    on_touch_move: onTouchMove,
-    on_touch_end: onTouchEnd,
+    scrollRef: scrollRef,
+    feedRef: feedRef,
+    bottomAnchorRef: bottomAnchorRef,
+    showScrollToBottom: showScrollToBottom,
+    scrollToBottom: scrollToBottom,
+    prepareHistoryPrependRestore: prepareHistoryPrependRestore,
+    cancelHistoryPrependRestore: cancelHistoryPrependRestore,
+    onScroll: onScroll,
+    onWheel: onWheel,
+    onTouchStart: onTouchStart,
+    onTouchMove: onTouchMove,
+    onTouchEnd: onTouchEnd,
   } = useFollowScroll({
-    message_count: messages.length,
-    auxiliary_block_count:
+    messageCount: messages.length,
+    auxiliaryBlockCount:
       pendingAgentSlots.length + pendingPermissions.length,
-    auxiliary_block_key: systemError,
-    is_loading: isLoading,
-    session_key: sessionKey,
-    history_prepend_token: historyPrependToken,
+    auxiliaryBlockKey: systemError,
+    isLoading,
+    sessionKey,
+    historyPrependToken,
   });
   const canControlSession = true;
   const observerReadOnlyReason = "";
@@ -270,20 +270,20 @@ export function GroupChatPanel({
   });
 
   const messageGroups = useMemo(
-    () => group_room_messages_by_round(messages),
+    () => groupRoomMessagesByRound(messages),
     [messages],
   );
   const pendingSlotGroups = useMemo(
-    () => group_room_pending_slots_by_round(pendingAgentSlots),
+    () => groupRoomPendingSlotsByRound(pendingAgentSlots),
     [pendingAgentSlots],
   );
   const pendingPermissionGroups = useMemo(
-    () => group_room_pending_permissions_by_round(pendingPermissions),
+    () => groupRoomPendingPermissionsByRound(pendingPermissions),
     [pendingPermissions],
   );
   const roundIds = useMemo(
     () =>
-      build_timeline_round_ids(messageGroups, liveRoundIds, [
+      buildTimelineRoundIds(messageGroups, liveRoundIds, [
         ...pendingSlotGroups.keys(),
         ...pendingPermissionGroups.keys(),
       ]),
@@ -294,16 +294,16 @@ export function GroupChatPanel({
       pendingSlotGroups,
     ],
   );
-  const { handle_scroll: handleScroll } = useConversationHistoryLoader({
-    scroll_ref: scrollRef,
-    message_count: messages.length,
-    has_more_history: hasMoreHistory,
-    is_history_loading: isHistoryLoading,
-    is_loading: isLoading,
-    load_older_messages: loadOlderMessages,
-    prepare_history_prepend_restore: prepareHistoryPrependRestore,
-    cancel_history_prepend_restore: cancelHistoryPrependRestore,
-    on_scroll: onScroll,
+  const { handleScroll } = useConversationHistoryLoader({
+    scrollRef,
+    messageCount: messages.length,
+    hasMoreHistory,
+    isHistoryLoading,
+    isLoading,
+    loadOlderMessages,
+    prepareHistoryPrependRestore,
+    cancelHistoryPrependRestore,
+    onScroll,
   });
 
   const handleStopMessage = useCallback(
@@ -314,19 +314,19 @@ export function GroupChatPanel({
     if (!roomId || !conversationId) {
       throw new Error("当前 Room 会话尚未就绪，暂时无法附加文件。");
     }
-    return prepare_room_conversation_attachments(roomId, conversationId, files);
+    return prepareRoomConversationAttachments(roomId, conversationId, files);
   }, [conversationId, roomId]);
-  const { handle_prepare_attachments: handlePrepareAttachments, handle_send_message: handleSendMessage } =
+  const { handlePrepareAttachments, handleSendMessage } =
     useConversationComposerHandlers({
-      can_send_initial_draft: canControlSession,
-      initial_draft: initialDraft,
-      initial_draft_log_label: "room",
-      is_loading: isLoading,
-      on_initial_draft_consumed: onInitialDraftConsumed,
-      prepare_attachments: prepareRoomAttachments,
-      scroll_to_bottom: scrollToBottom,
-      send_message: sendMessage,
-      session_key: sessionKey,
+      canSendInitialDraft: canControlSession,
+      initialDraft,
+      initialDraftLogLabel: "room",
+      isLoading,
+      onInitialDraftConsumed,
+      prepareAttachments: prepareRoomAttachments,
+      scrollToBottom,
+      sendMessage,
+      sessionKey,
     });
   const roomGoalCreateDisabledReason =
     roomMembers.length === 0
@@ -363,11 +363,11 @@ export function GroupChatPanel({
     if (!leadAgentId) {
       throw new Error("请选择 Room Goal 负责人。");
     }
-    await create_goal_api({
+    await createGoalApi({
       session_key: sessionKey,
       objective,
       token_budget: null,
-      metadata: build_room_goal_metadata(roomMembers, leadAgentId),
+      metadata: buildRoomGoalMetadata(roomMembers, leadAgentId),
     });
     refreshGoalPanel();
   }, [
@@ -384,11 +384,11 @@ export function GroupChatPanel({
     if (!leadAgentId) {
       throw new Error("请选择 Room Goal 负责人。");
     }
-    await create_goal_api({
+    await createGoalApi({
       session_key: sessionKey,
-      objective: build_room_loop_goal_objective(loop),
+      objective: buildRoomLoopGoalObjective(loop),
       token_budget: null,
-      metadata: build_room_loop_goal_metadata(roomMembers, leadAgentId, loop),
+      metadata: buildRoomLoopGoalMetadata(roomMembers, leadAgentId, loop),
     });
     refreshGoalPanel();
   }, [
@@ -398,25 +398,25 @@ export function GroupChatPanel({
     sessionKey,
   ]);
   useRoomThreadSource({
-    agent_avatar_map: agentAvatarMap,
-    agent_name_map: agentNameMap,
-    can_control_session: canControlSession,
-    conversation_id: conversationId,
-    current_user_avatar: currentUserAvatar,
-    message_groups: messageGroups,
-    observer_read_only_reason: observerReadOnlyReason,
-    on_open_workspace_file: onOpenWorkspaceFile,
-    on_stop_message: handleStopMessage,
-    pending_permission_groups: pendingPermissionGroups,
-    pending_slot_groups: pendingSlotGroups,
-    send_permission_response: sendPermissionResponse,
+    agentAvatarMap,
+    agentNameMap,
+    canControlSession,
+    conversationId,
+    currentUserAvatar,
+    messageGroups,
+    observerReadOnlyReason,
+    onOpenWorkspaceFile,
+    onStopMessage: handleStopMessage,
+    pendingPermissionGroups,
+    pendingSlotGroups,
+    sendPermissionResponse,
   });
   return (
     <div className="relative flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-transparent">
 
       {!sessionKey ? (
         <GroupConversationEmptyState
-          on_create_conversation={onCreateConversation ?? (() => {})}
+          onCreateConversation={onCreateConversation ?? (() => {})}
         />
       ) : (
         <>
@@ -441,31 +441,31 @@ export function GroupChatPanel({
               </div>
             ) : null}
             <GroupConversationFeed
-              agent_name_map={agentNameMap}
-              agent_avatar_map={agentAvatarMap}
-              bottom_anchor_ref={bottomAnchorRef}
-              feed_ref={feedRef}
-              scroll_ref={scrollRef}
-              current_agent_name={currentAgentName ?? null}
-              current_agent_avatar={currentAgentAvatar ?? null}
-              current_user_avatar={currentUserAvatar}
-              is_last_round_pending_permissions={pendingPermissions}
-              is_loading={isLoading}
-              runtime_phase={runtimePhase}
-              live_round_ids={liveRoundIds}
-              is_mobile_layout={isMobileLayout}
-              message_groups={messageGroups}
-              pending_permission_groups={pendingPermissionGroups}
-              pending_slot_groups={pendingSlotGroups}
-              on_open_agent_contact={onOpenAgentContact}
-              on_open_workspace_file={onOpenWorkspaceFile}
-              on_permission_response={sendPermissionResponse}
-              can_respond_to_permissions={canControlSession}
-              permission_read_only_reason={observerReadOnlyReason}
-              on_stop_message={
+              agentNameMap={agentNameMap}
+              agentAvatarMap={agentAvatarMap}
+              bottomAnchorRef={bottomAnchorRef}
+              feedRef={feedRef}
+              scrollRef={scrollRef}
+              currentAgentName={currentAgentName ?? null}
+              currentAgentAvatar={currentAgentAvatar ?? null}
+              currentUserAvatar={currentUserAvatar}
+              isLastRoundPendingPermissions={pendingPermissions}
+              isLoading={isLoading}
+              runtimePhase={runtimePhase}
+              liveRoundIds={liveRoundIds}
+              isMobileLayout={isMobileLayout}
+              messageGroups={messageGroups}
+              pendingPermissionGroups={pendingPermissionGroups}
+              pendingSlotGroups={pendingSlotGroups}
+              onOpenAgentContact={onOpenAgentContact}
+              onOpenWorkspaceFile={onOpenWorkspaceFile}
+              onPermissionResponse={sendPermissionResponse}
+              canRespondToPermissions={canControlSession}
+              permissionReadOnlyReason={observerReadOnlyReason}
+              onStopMessage={
                 canControlSession ? handleStopMessage : undefined
               }
-              round_ids={roundIds}
+              roundIds={roundIds}
             />
             {systemError ? (
               <div className={isMobileLayout ? "mt-4" : "mx-auto mt-2 w-full max-w-[980px]"}>
@@ -479,9 +479,9 @@ export function GroupChatPanel({
 
           {showScrollToBottom ? (
             <ScrollToLatestButton
-              is_loading={isLoading}
-              is_mobile_layout={isMobileLayout}
-              on_click={() => scrollToBottom("smooth")}
+              isLoading={isLoading}
+              isMobileLayout={isMobileLayout}
+              onClick={() => scrollToBottom("smooth")}
             />
           ) : null}
 
@@ -490,39 +490,39 @@ export function GroupChatPanel({
           ) : null}
 
           <RoomGoalPanel
-            activity_key={`${messages.length}:${isLoading ? "loading" : "idle"}:${goalRefreshSeq}`}
-            can_control_session={canControlSession}
-            is_loading={isLoading}
-            is_mobile_layout={isMobileLayout}
-            room_host_agent_id={roomHostAgentId}
-            room_host_auto_reply_enabled={Boolean(roomHostAutoReplyEnabled)}
-            room_members={roomMembers}
-            session_key={sessionKey}
+            activityKey={`${messages.length}:${isLoading ? "loading" : "idle"}:${goalRefreshSeq}`}
+            canControlSession={canControlSession}
+            isLoading={isLoading}
+            isMobileLayout={isMobileLayout}
+            roomHostAgentId={roomHostAgentId}
+            roomHostAutoReplyEnabled={Boolean(roomHostAutoReplyEnabled)}
+            roomMembers={roomMembers}
+            sessionKey={sessionKey}
           />
 
           <ComposerPanel
-            allow_send_while_loading
+            allowSendWhileLoading
             compact={isMobileLayout}
-            default_delivery_policy={defaultDeliveryPolicy}
-            enable_loops
-            goal_create_disabled_reason={roomGoalCreateDisabledReason}
-            goal_mode_extra={roomGoalLeadControl}
-            goal_scope_label={ROOM_GOAL_SCOPE_LABEL}
-            input_queue_items={inputQueueItems}
-            is_loading={isLoading}
-            queue_when_session_busy={false}
-            runtime_phase={runtimePhase}
-            on_create_loop_goal={sessionKey && canControlSession ? handleCreateLoopGoal : undefined}
-            on_create_goal={sessionKey && canControlSession ? handleCreateGoal : undefined}
-            on_delete_queued_message={deleteInputQueueMessage}
-            on_enqueue_message={enqueueInputQueueMessage}
-            on_guide_queued_message={guideInputQueueMessage}
-            on_prepare_attachments={handlePrepareAttachments}
-            on_reorder_queue_messages={reorderInputQueueMessages}
-            on_send_message={handleSendMessage}
-            on_stop={canControlSession ? () => stopGeneration() : undefined}
-            room_members={roomMembers}
-            tour_anchor={CONVERSATION_TOUR_ANCHORS.composer}
+            defaultDeliveryPolicy={defaultDeliveryPolicy}
+            enableLoops
+            goalCreateDisabledReason={roomGoalCreateDisabledReason}
+            goalModeExtra={roomGoalLeadControl}
+            goalScopeLabel={ROOM_GOAL_SCOPE_LABEL}
+            inputQueueItems={inputQueueItems}
+            isLoading={isLoading}
+            queueWhenSessionBusy={false}
+            runtimePhase={runtimePhase}
+            onCreateLoopGoal={sessionKey && canControlSession ? handleCreateLoopGoal : undefined}
+            onCreateGoal={sessionKey && canControlSession ? handleCreateGoal : undefined}
+            onDeleteQueuedMessage={deleteInputQueueMessage}
+            onEnqueueMessage={enqueueInputQueueMessage}
+            onGuideQueuedMessage={guideInputQueueMessage}
+            onPrepareAttachments={handlePrepareAttachments}
+            onReorderQueueMessages={reorderInputQueueMessages}
+            onSendMessage={handleSendMessage}
+            onStop={canControlSession ? () => stopGeneration() : undefined}
+            roomMembers={roomMembers}
+            tourAnchor={CONVERSATION_TOUR_ANCHORS.composer}
             disabled={!canControlSession}
           />
         </>

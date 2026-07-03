@@ -13,18 +13,18 @@ import { GlassSwitch } from "@/shared/ui/liquid-glass";
 import { AGENT_PERMISSION_MODES, AVAILABLE_AGENT_TOOLS } from "../agent-options-constants";
 
 interface AgentOptionsAdvancedTabProps {
-  permission_mode: string;
-  on_permission_mode_change: (mode: string) => void;
-  allowed_tools: string[];
-  on_toggle_tool: (toolName: string, type: "allowed" | "disallowed") => void;
+  permissionMode: string;
+  onPermissionModeChange: (mode: string) => void;
+  allowedTools: string[];
+  onToggleTool: (toolName: string, type: "allowed" | "disallowed") => void;
 }
 
 /** Advanced Tab 组件 — 权限控制与工具授权 */
 export function AgentOptionsAdvancedTab({
-  permission_mode: permissionMode,
-  on_permission_mode_change: onPermissionModeChange,
-  allowed_tools: allowedTools,
-  on_toggle_tool: onToggleTool,
+  permissionMode: permissionMode,
+  onPermissionModeChange: onPermissionModeChange,
+  allowedTools: allowedTools,
+  onToggleTool: onToggleTool,
 }: AgentOptionsAdvancedTabProps) {
   const { t } = useI18n();
   const isBypassPermissionMode = permissionMode === "bypassPermissions";
@@ -50,13 +50,13 @@ export function AgentOptionsAdvancedTab({
           {AGENT_PERMISSION_MODES.map((pm) => (
             <UiChoiceButton
               active={permissionMode === pm.value}
-              class_name="relative w-full flex-col items-stretch overflow-hidden text-left"
-              choice_size="md"
+              className="relative w-full flex-col items-stretch overflow-hidden text-left"
+              choiceSize="md"
               key={pm.value}
               onClick={() => onPermissionModeChange(pm.value)}
             >
               <div className="mb-1 flex items-center justify-between">
-                <span className="text-[13px] font-semibold">{t(pm.label_key)}</span>
+                <span className="text-[13px] font-semibold">{t(pm.labelKey)}</span>
                 {permissionMode === pm.value && (
                   <div className="flex h-4 w-4 items-center justify-center rounded-full bg-primary">
                     <svg
@@ -78,7 +78,7 @@ export function AgentOptionsAdvancedTab({
                 )}
               </div>
               <p className="text-[11.5px] leading-[1.5] text-muted-foreground">
-                {t(pm.description_key)}
+                {t(pm.descriptionKey)}
               </p>
             </UiChoiceButton>
           ))}
@@ -150,13 +150,13 @@ export function AgentOptionsAdvancedTab({
                 <div className="min-w-0 flex-1">
                   <div className="text-[12.5px] font-semibold leading-[1.35]">{tool.name}</div>
                   <div className="mt-0.5 text-[11.5px] leading-[1.45] text-muted-foreground">
-                    {t(tool.description_key)}
+                    {t(tool.descriptionKey)}
                   </div>
                 </div>
                 <div className="flex h-7 w-[58px] shrink-0 origin-right scale-[0.84] items-center justify-end">
                   <GlassSwitch
                     checked={isChecked}
-                    on_change={() => onToggleTool(tool.name, "allowed")}
+                    onChange={() => onToggleTool(tool.name, "allowed")}
                   />
                 </div>
               </div>

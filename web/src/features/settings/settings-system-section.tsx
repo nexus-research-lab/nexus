@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { ExternalLink, PackageOpen } from "lucide-react";
 
 import {
-  get_system_version_api,
+  getSystemVersionApi,
   type SystemVersionInfo,
 } from "@/lib/api/system-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -38,7 +38,7 @@ export function SettingsSystemSection() {
     const loadSystemVersion = async () => {
       try {
         setLoading(true);
-        const result = await get_system_version_api();
+        const result = await getSystemVersionApi();
         if (cancelled) {
           return;
         }

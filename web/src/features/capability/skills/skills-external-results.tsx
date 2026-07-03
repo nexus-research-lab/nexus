@@ -12,7 +12,7 @@ import type {
   ExternalSkillSourceStatus,
 } from "@/types/capability/skill";
 
-import { format_installs } from "./skills-helpers";
+import { formatInstalls } from "./skills-helpers";
 import { SkillStatePill } from "./skill-state-pill";
 import type { SkillMarketplaceController } from "./skills-view-model";
 
@@ -25,16 +25,16 @@ export function SkillsExternalResults({ ctrl }: SkillsExternalResultsProps) {
   const [activeSourceKey, setActiveSourceKey] = useState<string | null>(null);
   const sourceGroups = useMemo(
     () => {
-      if (!ctrl.external_submitted_query.trim() && !ctrl.external_results.length) {
+      if (!ctrl.externalSubmittedQuery.trim() && !ctrl.externalResults.length) {
         return [];
       }
       return groupExternalResultsBySource(
-        ctrl.external_results,
-        ctrl.external_source_statuses,
-        ctrl.external_sources,
+        ctrl.externalResults,
+        ctrl.externalSourceStatuses,
+        ctrl.externalSources,
       );
     },
-    [ctrl.external_submitted_query, ctrl.external_results, ctrl.external_source_statuses, ctrl.external_sources],
+    [ctrl.externalSubmittedQuery, ctrl.externalResults, ctrl.externalSourceStatuses, ctrl.externalSources],
   );
   const selectedSourceKey = sourceGroups.some((group) => group.key === activeSourceKey)
     ? activeSourceKey
@@ -43,13 +43,13 @@ export function SkillsExternalResults({ ctrl }: SkillsExternalResultsProps) {
     ? sourceGroups.find((group) => group.key === selectedSourceKey)
     : null;
   const visibleResults = useMemo(
-    () => [...ctrl.external_results]
+    () => [...ctrl.externalResults]
       .filter((item) => !selectedSourceKey || externalItemSourceKey(item) === selectedSourceKey)
       .sort(compareExternalItems),
-    [ctrl.external_results, selectedSourceKey],
+    [ctrl.externalResults, selectedSourceKey],
   );
 
-  if (ctrl.external_loading) {
+  if (ctrl.externalLoading) {
     return (
       <div className="flex items-center justify-center gap-2 py-12 text-sm text-(--text-soft)">
         <Loader2 className="h-4 w-4 animate-spin" />
@@ -58,7 +58,7 @@ export function SkillsExternalResults({ ctrl }: SkillsExternalResultsProps) {
     );
   }
 
-  if (ctrl.external_submitted_query && !ctrl.external_results.length && !sourceGroups.length) {
+  if (ctrl.externalSubmittedQuery && !ctrl.externalResults.length && !sourceGroups.length) {
     return (
       <div className="rounded-[12px] border border-dashed border-(--divider-subtle-color) px-5 py-8 text-center text-sm text-(--text-soft)">
         {t("capability.skills_external_empty")}
@@ -66,7 +66,7 @@ export function SkillsExternalResults({ ctrl }: SkillsExternalResultsProps) {
     );
   }
 
-  if (!ctrl.external_results.length && !sourceGroups.length) return null;
+  if (!ctrl.externalResults.length && !sourceGroups.length) return null;
 
   return (
     <section>
@@ -90,7 +90,7 @@ export function SkillsExternalResults({ ctrl }: SkillsExternalResultsProps) {
           type="button"
         >
           <span className="truncate font-medium text-(--text-strong)">全部来源</span>
-          <span className="shrink-0">{ctrl.external_results.length} 个</span>
+          <span className="shrink-0">{ctrl.externalResults.length} 个</span>
         </button>
         {sourceGroups.map((group) => (
           <button
@@ -117,11 +117,11 @@ export function SkillsExternalResults({ ctrl }: SkillsExternalResultsProps) {
           {visibleResults.map((item: ExternalSkillSearchItem) => (
             <ExternalResultRow
               key={`${item.source_key || item.package_spec}@${item.skill_slug}`}
-              busy_external_key={ctrl.busy_external_key}
-              imported_external_sources={ctrl.imported_external_sources}
+              busyExternalKey={ctrl.busyExternalKey}
+              importedExternalSources={ctrl.importedExternalSources}
               item={item}
-              on_import={() => void ctrl.handle_import_external(item)}
-              on_preview={() => ctrl.handle_preview_external(item)}
+              onImport={() => void ctrl.handleImportExternal(item)}
+              onPreview={() => ctrl.handlePreviewExternal(item)}
             />
           ))}
         </div>
@@ -244,18 +244,18 @@ function compareExternalItems(a: ExternalSkillSearchItem, b: ExternalSkillSearch
 
 interface ExternalResultRowProps {
   item: ExternalSkillSearchItem;
-  busy_external_key: string | null;
-  imported_external_sources: Map<string, Set<string>>;
-  on_preview: () => void;
-  on_import: () => void;
+  busyExternalKey: string | null;
+  importedExternalSources: Map<string, Set<string>>;
+  onPreview: () => void;
+  onImport: () => void;
 }
 
 function ExternalResultRow({
   item,
-  busy_external_key: busyExternalKey,
-  imported_external_sources: importedExternalSources,
-  on_preview: onPreview,
-  on_import: onImport,
+  busyExternalKey: busyExternalKey,
+  importedExternalSources: importedExternalSources,
+  onPreview: onPreview,
+  onImport: onImport,
 }: ExternalResultRowProps) {
   const importedSources = importedExternalSources.get(item.skill_slug);
   const alreadyImported = importedSources?.has(item.package_spec) ?? false;
@@ -269,13 +269,13 @@ function ExternalResultRow({
 
   return (
     <UiListRow
-      class_name="min-h-[72px] rounded-[14px] px-2 py-1.5"
+      className="min-h-[72px] rounded-[14px] px-2 py-1.5"
       leading={(
         <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[12px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_70%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_9%,var(--surface-panel-background))] text-sky-600 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
           <Puzzle className="h-4 w-4" />
         </span>
       )}
-      on_click={onPreview}
+      onClick={onPreview}
       right={(
         <div className="flex shrink-0 items-center gap-1.5">
           <SkillStatePill tone={stateTone}>
@@ -283,11 +283,11 @@ function ExternalResultRow({
           </SkillStatePill>
           {!alreadyImported && !hasNameConflict ? (
             <UiListActionButton
-              class_name="text-(--primary) hover:text-(--primary)"
+              className="text-(--primary) hover:text-(--primary)"
               disabled={isBusy || hasNameConflict}
               onClick={onImport}
               size="sm"
-              stop_propagation
+              stopPropagation
               title="导入到技能库"
               visibility="visible"
             >
@@ -314,7 +314,7 @@ function ExternalResultRow({
         <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] leading-4 text-(--text-soft)">
           <span className="truncate">{sourceRef}</span>
           <span className="shrink-0">·</span>
-          <span className="shrink-0">{format_installs(item.installs)} 次安装</span>
+          <span className="shrink-0">{formatInstalls(item.installs)} 次安装</span>
         </div>
       </div>
     </UiListRow>

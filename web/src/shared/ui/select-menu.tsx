@@ -11,12 +11,12 @@ import { Check, ChevronDown } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import {
-  estimate_select_menu_height,
-  get_select_menu_button_class_name,
-  get_select_menu_option_state_class_name,
-  get_select_menu_panel_surface_class_name,
-  get_select_menu_size_config,
-  resolve_select_menu_position,
+  estimateSelectMenuHeight,
+  getSelectMenuButtonClassName,
+  getSelectMenuOptionStateClassName,
+  getSelectMenuPanelSurfaceClassName,
+  getSelectMenuSizeConfig,
+  resolveSelectMenuPosition,
   type UiSelectMenuPlacement,
   type UiSelectMenuSize,
   type UiSelectMenuSurface,
@@ -31,17 +31,17 @@ export interface UiSelectMenuOption {
 }
 
 interface UiSelectMenuProps {
-  aria_label: string;
-  allow_label_wrap?: boolean;
-  button_class_name?: string;
-  class_name?: string;
+  ariaLabel: string;
+  allowLabelWrap?: boolean;
+  buttonClassName?: string;
+  className?: string;
   disabled?: boolean;
   id?: string;
   label?: ReactNode;
   leading?: ReactNode;
-  menu_class_name?: string;
-  menu_min_width?: number;
-  on_change: (value: string) => void;
+  menuClassName?: string;
+  menuMinWidth?: number;
+  onChange: (value: string) => void;
   options: UiSelectMenuOption[];
   placement?: UiSelectMenuPlacement;
   placeholder?: string;
@@ -52,17 +52,17 @@ interface UiSelectMenuProps {
 
 /** 共享自定义下拉菜单，避免业务侧重复实现原生 select 无法控制的弹层定位。 */
 export function UiSelectMenu({
-  aria_label: ariaLabel,
-  allow_label_wrap: allowLabelWrap = false,
-  button_class_name: buttonClassName,
-  class_name: className,
+  ariaLabel: ariaLabel,
+  allowLabelWrap: allowLabelWrap = false,
+  buttonClassName: buttonClassName,
+  className: className,
   disabled = false,
   id,
   label,
   leading,
-  menu_class_name: menuClassName,
-  menu_min_width: menuMinWidth,
-  on_change: onChange,
+  menuClassName: menuClassName,
+  menuMinWidth: menuMinWidth,
+  onChange: onChange,
   options,
   placement = "auto",
   placeholder = "请选择",
@@ -76,38 +76,38 @@ export function UiSelectMenu({
   );
   const activeOption = options.find((option) => option.value === value);
   const {
-    estimated_option_height: estimatedOptionHeight,
-    height_class_name: heightClassName,
-    option_height_class_name: optionHeightClassName,
-    rounded_class_name: roundedClassName,
-    text_class_name: textClassName,
-  } = get_select_menu_size_config(size);
+    estimatedOptionHeight,
+    heightClassName,
+    optionHeightClassName,
+    roundedClassName,
+    textClassName,
+  } = getSelectMenuSizeConfig(size);
 
   const estimatePosition = useCallback((button: HTMLButtonElement) => {
     const resolvedOptionHeight = allowLabelWrap
       ? Math.max(estimatedOptionHeight, 46)
       : estimatedOptionHeight;
-    return resolve_select_menu_position({
+    return resolveSelectMenuPosition({
       button,
-      estimated_height: estimate_select_menu_height(options.length, resolvedOptionHeight),
-      estimated_option_height: resolvedOptionHeight,
-      menu_min_width: menuMinWidth,
+      estimatedHeight: estimateSelectMenuHeight(options.length, resolvedOptionHeight),
+      estimatedOptionHeight: resolvedOptionHeight,
+      menuMinWidth,
       placement,
     });
   }, [allowLabelWrap, estimatedOptionHeight, menuMinWidth, options.length, placement]);
 
   const {
-    button_ref: buttonRef,
-    is_open: isOpen,
-    menu_id: menuId,
-    menu_position: menuPosition,
-    menu_ref: menuRef,
-    menu_style: menuStyle,
-    portal_container: portalContainer,
-    root_ref: rootRef,
-    set_is_open: setIsOpen,
-    update_menu_position: updateMenuPosition,
-  } = useSelectMenuLayer({ disabled, estimate_position: estimatePosition });
+    buttonRef,
+    isOpen,
+    menuId,
+    menuPosition,
+    menuRef,
+    menuStyle,
+    portalContainer,
+    rootRef,
+    setIsOpen,
+    updateMenuPosition,
+  } = useSelectMenuLayer({ disabled, estimatePosition });
 
   const changeValue = (nextValue: string) => {
     if (disabled) {
@@ -165,7 +165,7 @@ export function UiSelectMenu({
       aria-label={ariaLabel}
       className={cn(
         "fixed z-[120] overflow-y-auto rounded-[14px] border p-1 animate-in fade-in-0 zoom-in-95 duration-(--motion-duration-fast) data-[placement=bottom]:slide-in-from-top-1 data-[placement=top]:slide-in-from-bottom-1",
-        get_select_menu_panel_surface_class_name(surface),
+        getSelectMenuPanelSurfaceClassName(surface),
         menuClassName,
       )}
       data-placement={menuPosition?.placement ?? "bottom"}
@@ -186,7 +186,7 @@ export function UiSelectMenu({
               "flex w-full justify-between gap-2 rounded-[10px] px-2.5 text-left transition-[background-color,color] duration-(--motion-duration-fast) disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)",
               allowLabelWrap ? "items-start py-2" : "items-center",
               optionHeightClassName,
-              get_select_menu_option_state_class_name(surface, isActive),
+              getSelectMenuOptionStateClassName(surface, isActive),
             )}
             data-active={isActive ? "true" : undefined}
             disabled={option.disabled}
@@ -222,11 +222,11 @@ export function UiSelectMenu({
         aria-expanded={isOpen}
         aria-haspopup="listbox"
         aria-label={ariaLabel}
-        className={get_select_menu_button_class_name({
-          rounded_class_name: roundedClassName,
+        className={getSelectMenuButtonClassName({
+          roundedClassName,
           surface,
-          text_class_name: textClassName,
-          class_name: buttonClassName,
+          textClassName,
+          className: buttonClassName,
         })}
         disabled={disabled}
         id={id}

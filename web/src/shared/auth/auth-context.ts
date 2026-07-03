@@ -16,9 +16,9 @@ import { AuthStatus } from "@/lib/api/auth-api";
 export interface AuthContextValue {
   status: AuthStatus | null;
   loading: boolean;
-  is_bootstrapped: boolean;
+  isBootstrapped: boolean;
   error: string | null;
-  refresh_status: () => Promise<AuthStatus>;
+  refreshStatus: () => Promise<AuthStatus>;
   login: (username: string, password: string) => Promise<AuthStatus>;
   logout: () => Promise<AuthStatus>;
 }

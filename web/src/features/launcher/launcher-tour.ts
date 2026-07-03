@@ -12,7 +12,7 @@ export const LAUNCHER_TOUR_ANCHORS = {
   handoff: "launcher-handoff",
 } as const;
 
-export function build_launcher_tour(
+export function buildLauncherTour(
   t: I18nContextValue["t"],
 ): OnboardingTourDefinition {
   return {

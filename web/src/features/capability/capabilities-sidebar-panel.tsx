@@ -21,7 +21,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
-import { get_capability_summary_api, type CapabilitySummary } from "@/lib/api/capability-api";
+import { getCapabilitySummaryApi, type CapabilitySummary } from "@/lib/api/capability-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiSearchInput } from "@/shared/ui/form-control";
 import { SidebarListItem } from "@/shared/ui/sidebar/collapsible-section";
@@ -81,7 +81,7 @@ export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent()
       summaryPendingForceRefreshRef.current = false;
       summaryLastRefreshedAtRef.current = Date.now();
       try {
-        const nextSummary = await get_capability_summary_api();
+        const nextSummary = await getCapabilitySummaryApi();
         if (summaryMountedRef.current) {
           setSummary(nextSummary);
         }
@@ -172,11 +172,11 @@ export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent()
       path: AppRouteBuilders.connectors(),
     },
     {
-      id: SIDEBAR_CAPABILITY_ITEM_IDS.scheduled_tasks,
+      id: SIDEBAR_CAPABILITY_ITEM_IDS.scheduledTasks,
       icon: Calendar,
       label: t("capability.scheduled"),
       meta: String(summary.enabled_scheduled_tasks_count),
-      path: AppRouteBuilders.scheduled_tasks(),
+      path: AppRouteBuilders.scheduledTasks(),
     },
     {
       id: SIDEBAR_CAPABILITY_ITEM_IDS.channels,
@@ -220,9 +220,9 @@ export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent()
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="pb-2">
         <UiSearchInput
-          class_name="w-full"
-          input_class_name="text-[13px]"
-          on_change={setQuery}
+          className="w-full"
+          inputClassName="text-[13px]"
+          onChange={setQuery}
           placeholder={t("sidebar.search_capabilities")}
           value={query}
         />
@@ -235,11 +235,11 @@ export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent()
             return (
               <SidebarListItem
                 icon={<Icon className="h-4 w-4" />}
-                is_active={activePanelItemId === item.id}
+                isActive={activePanelItemId === item.id}
                 key={item.id}
                 label={item.label}
                 meta={item.meta}
-                on_click={() => {
+                onClick={() => {
                   setActivePanelItem(item.id);
                   navigate(item.path);
                 }}

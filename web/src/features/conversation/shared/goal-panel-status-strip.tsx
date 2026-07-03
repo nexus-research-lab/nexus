@@ -11,15 +11,15 @@ import {
   Target,
 } from "lucide-react";
 
-import { cn, format_tokens } from "@/lib/utils";
+import { cn, formatTokens } from "@/lib/utils";
 import { UiIconButton } from "@/shared/ui/button";
 import type { Goal, GoalStatus } from "@/types/conversation/goal";
 import type { GoalContinuationHold } from "./goal-continuation-hold";
 import {
   GOAL_STATUS_LABEL,
-  goal_budget_percent,
-  goal_status_tone,
-  goal_usage_total,
+  goalBudgetPercent,
+  goalStatusTone,
+  goalUsageTotal,
 } from "./goal-panel-model";
 import {
   GOAL_PANEL_BADGE_CLASS_NAME,
@@ -31,21 +31,21 @@ import {
 } from "./goal-panel-styles";
 
 interface GoalStatusStripProps {
-  can_resume: boolean;
+  canResume: boolean;
   compact: boolean;
-  continuation_hold?: GoalContinuationHold | null;
+  continuationHold?: GoalContinuationHold | null;
   disabled: boolean;
   error: string | null;
   goal: Goal;
-  is_generating: boolean;
-  is_loading: boolean;
-  scope_label: string;
-  status_extra?: ReactNode;
-  on_clear_request: () => void;
-  on_edit: () => void;
-  on_pause: () => void;
-  on_refresh: () => void;
-  on_resume: () => void;
+  isGenerating: boolean;
+  isLoading: boolean;
+  scopeLabel: string;
+  statusExtra?: ReactNode;
+  onClearRequest: () => void;
+  onEdit: () => void;
+  onPause: () => void;
+  onRefresh: () => void;
+  onResume: () => void;
 }
 
 function visibleGoalStatus({
@@ -74,33 +74,33 @@ function visibleGoalStatus({
 }
 
 function goalBudgetLabel(goal: Goal): string | null {
-  const usageTotal = goal_usage_total(goal);
+  const usageTotal = goalUsageTotal(goal);
   const budget = goal.token_budget ?? null;
   if (budget && budget > 0) {
-    return `${format_tokens(usageTotal)} / ${format_tokens(budget)}`;
+    return `${formatTokens(usageTotal)} / ${formatTokens(budget)}`;
   }
   if (usageTotal > 0) {
-    return format_tokens(usageTotal);
+    return formatTokens(usageTotal);
   }
   return null;
 }
 
 export function GoalStatusStrip({
-  can_resume: canResume,
+  canResume: canResume,
   compact,
-  continuation_hold: continuationHold = null,
+  continuationHold: continuationHold = null,
   disabled,
   error,
   goal,
-  is_generating: isGenerating,
-  is_loading: isLoading,
-  scope_label: scopeLabel,
-  status_extra: statusExtra = null,
-  on_clear_request: onClearRequest,
-  on_edit: onEdit,
-  on_pause: onPause,
-  on_refresh: onRefresh,
-  on_resume: onResume,
+  isGenerating: isGenerating,
+  isLoading: isLoading,
+  scopeLabel: scopeLabel,
+  statusExtra: statusExtra = null,
+  onClearRequest: onClearRequest,
+  onEdit: onEdit,
+  onPause: onPause,
+  onRefresh: onRefresh,
+  onResume: onResume,
 }: GoalStatusStripProps) {
   const activeContinuationHold =
     goal.status === "active" ? continuationHold : null;
@@ -109,9 +109,9 @@ export function GoalStatusStrip({
     goal,
     is_generating: isGenerating,
   });
-  const tone = goal_status_tone(visibleStatus.status);
+  const tone = goalStatusTone(visibleStatus.status);
   const budgetLabel = goalBudgetLabel(goal);
-  const usagePercent = goal_budget_percent(goal);
+  const usagePercent = goalBudgetPercent(goal);
   const attentionMessage = error ?? goal.last_error ?? null;
   const statusTitle = activeContinuationHold?.detail ?? visibleStatus.label;
 

@@ -15,16 +15,16 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 
 interface IconPickerProps {
     value?: string; // e.g. "13"
-    on_select: (iconId: string) => void;
-    max_icons?: number; // 默认 24
-    start_icon_id?: number; // 默认 1
+    onSelect: (iconId: string) => void;
+    maxIcons?: number; // 默认 24
+    startIconId?: number; // 默认 1
     columns?: number; // 默认 4
     layout?: "grid" | "row";
-    icon_size?: "sm" | "md" | "lg"; // 默认 md
-    icon_family?: AvatarIconFamily; // 默认 agent
-    show_clear?: boolean;
+    iconSize?: "sm" | "md" | "lg"; // 默认 md
+    iconFamily?: AvatarIconFamily; // 默认 agent
+    showClear?: boolean;
     disabled?: boolean;
-    class_name?: string;
+    className?: string;
 }
 
 const ICON_SIZE_MAP = {
@@ -35,16 +35,16 @@ const ICON_SIZE_MAP = {
 
 export function IconPicker({
     value,
-    on_select: onSelect,
-    max_icons: maxIcons = 24,
-    start_icon_id: startIconId = 1,
+    onSelect: onSelect,
+    maxIcons: maxIcons = 24,
+    startIconId: startIconId = 1,
     columns = 6,
     layout = "grid",
-    icon_size: iconSize = "md",
-    icon_family: iconFamily = "agent",
-    show_clear: showClear = true,
+    iconSize: iconSize = "md",
+    iconFamily: iconFamily = "agent",
+    showClear: showClear = true,
     disabled = false,
-    class_name: className,
+    className: className,
 }: IconPickerProps) {
     const { t } = useI18n();
 

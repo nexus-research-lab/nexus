@@ -9,7 +9,7 @@
 
 import type { TranslationKey } from "./messages.zh";
 
-export const en_messages: Record<TranslationKey, string> = {
+export const enMessages: Record<TranslationKey, string> = {
   "language.switch_label": "Language",
   "language.switch_title": "Switch language",
   "language.zh": "中",

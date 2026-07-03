@@ -1,4 +1,4 @@
-export function apply_desktop_entry_route(fallbackRoute: string) {
+export function applyDesktopEntryRoute(fallbackRoute: string) {
   if (typeof window === "undefined") {
     return;
   }

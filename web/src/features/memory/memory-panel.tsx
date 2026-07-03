@@ -12,21 +12,21 @@ import {
 } from "lucide-react";
 
 import {
-  add_user_memory_item_api,
-  cleanup_user_memory_api,
-  delete_user_memory_item_api,
-  get_user_memory_stats_api,
-  ignore_user_memory_item_api,
-  list_user_memory_items_api,
-  promote_user_memory_item_api,
-  search_user_memory_items_api,
-  update_user_memory_item_api,
+  addUserMemoryItemApi,
+  cleanupUserMemoryApi,
+  deleteUserMemoryItemApi,
+  getUserMemoryStatsApi,
+  ignoreUserMemoryItemApi,
+  listUserMemoryItemsApi,
+  promoteUserMemoryItemApi,
+  searchUserMemoryItemsApi,
+  updateUserMemoryItemApi,
 } from "@/lib/api/memory-api";
 import { cn } from "@/lib/utils";
 import {
-  format_memory_score,
-  format_memory_time,
-  memory_scope_label,
+  formatMemoryScore,
+  formatMemoryTime,
+  memoryScopeLabel,
 } from "@/features/memory/memory-utils";
 import { MemoryMetaChip, MemoryStatusBadge } from "@/features/memory/memory-ui";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -83,9 +83,9 @@ export function MemoryPanel() {
     try {
       const [nextItems, nextStats] = await Promise.all([
         query.trim()
-          ? search_user_memory_items_api(query.trim(), 100)
-          : list_user_memory_items_api({ limit: 200, status }),
-        get_user_memory_stats_api(),
+          ? searchUserMemoryItemsApi(query.trim(), 100)
+          : listUserMemoryItemsApi({ limit: 200, status }),
+        getUserMemoryStatsApi(),
       ]);
       setItems(nextItems);
       setStats(nextStats);
@@ -109,7 +109,7 @@ export function MemoryPanel() {
     }
     setLoading(true);
     try {
-      await add_user_memory_item_api({
+      await addUserMemoryItemApi({
         title: newTitle.trim(),
         content: newContent.trim(),
         kind: "LRN",
@@ -142,16 +142,16 @@ export function MemoryPanel() {
     setMutatingId(item.entry_id);
     try {
       if (action === "promote") {
-        await promote_user_memory_item_api(item.entry_id, "memory");
+        await promoteUserMemoryItemApi(item.entry_id, "memory");
         setFeedback({ tone: "success", message: "记忆已提升到 MEMORY.md" });
       } else if (action === "ignore") {
-        await ignore_user_memory_item_api(item.entry_id);
+        await ignoreUserMemoryItemApi(item.entry_id);
         setFeedback({ tone: "success", message: "候选记忆已忽略" });
       } else if (action === "delete") {
-        await delete_user_memory_item_api(item.entry_id);
+        await deleteUserMemoryItemApi(item.entry_id);
         setFeedback({ tone: "success", message: "记忆已删除" });
       } else {
-        await update_user_memory_item_api(item.entry_id, {
+        await updateUserMemoryItemApi(item.entry_id, {
           content: editingContent,
         });
         setEditingId("");
@@ -175,7 +175,7 @@ export function MemoryPanel() {
     }
     setCleaning(true);
     try {
-      const result = await cleanup_user_memory_api();
+      const result = await cleanupUserMemoryApi();
       setFeedback({
         tone: "success",
         message: `已清理 ${result.removed_session_files + result.removed_checkpoints + result.removed_empty_diaries} 项脏数据`,
@@ -200,7 +200,7 @@ export function MemoryPanel() {
 
   return (
     <WorkspaceSurfaceScaffold
-      body_scrollable
+      bodyScrollable
       header={
         <WorkspaceSurfaceHeader
           badge={t("capability.memory_badge", { count: stats?.total ?? items.length })}
@@ -222,7 +222,7 @@ export function MemoryPanel() {
           }
         />
       }
-      stable_gutter
+      stableGutter
     >
       <CapabilityPageLayout
         description={t("capability.memory_intro_description")}
@@ -230,13 +230,13 @@ export function MemoryPanel() {
       >
         <CapabilityFilterBar>
           <CapabilityFilterSearchInput
-            on_change={setQuery}
+            onChange={setQuery}
             placeholder={t("capability.memory_search_placeholder")}
             value={query}
           />
           <CapabilityFilterSelect
-            aria_label={t("capability.memory_filter_status_aria")}
-            on_change={setStatus}
+            ariaLabel={t("capability.memory_filter_status_aria")}
+            onChange={setStatus}
             options={STATUS_OPTIONS}
             value={status}
           />
@@ -315,16 +315,16 @@ export function MemoryPanel() {
                       <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1.5">
                         {item.kind ? <MemoryMetaChip>{item.kind}</MemoryMetaChip> : null}
                         {item.category ? <MemoryMetaChip>{item.category}</MemoryMetaChip> : null}
-                        {item.scope ? <MemoryMetaChip>{memory_scope_label(item.scope)}</MemoryMetaChip> : null}
+                        {item.scope ? <MemoryMetaChip>{memoryScopeLabel(item.scope)}</MemoryMetaChip> : null}
                         {item.source ? <MemoryMetaChip>{item.source}</MemoryMetaChip> : null}
-                        {item.created_at ? <MemoryMetaChip>{format_memory_time(item.created_at)}</MemoryMetaChip> : null}
+                        {item.created_at ? <MemoryMetaChip>{formatMemoryTime(item.created_at)}</MemoryMetaChip> : null}
                         <MemoryMetaChip>access {item.access_count}</MemoryMetaChip>
-                        {item.score !== undefined ? <MemoryMetaChip>{format_memory_score(item.score)}</MemoryMetaChip> : null}
+                        {item.score !== undefined ? <MemoryMetaChip>{formatMemoryScore(item.score)}</MemoryMetaChip> : null}
                       </div>
                       {isEditing ? (
                         <UiTextarea
-                          class_name="mt-2"
-                          control_size="md"
+                          className="mt-2"
+                          controlSize="md"
                           onChange={(event) => setEditingContent(event.target.value)}
                           value={editingContent}
                           variant="surface"
@@ -413,7 +413,7 @@ export function MemoryPanel() {
           {
             key: "memory-feedback",
             message: feedback.message,
-            on_dismiss: () => setFeedback(null),
+            onDismiss: () => setFeedback(null),
             title: feedback.tone === "error" ? "操作失败" : feedback.tone === "warning" ? "需要注意" : "操作完成",
             tone: feedback.tone,
           },

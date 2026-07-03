@@ -4,9 +4,9 @@ import { useCallback, useEffect, useState } from "react";
 import { Download, Loader2, MonitorCog } from "lucide-react";
 
 import {
-  export_desktop_logs,
-  get_desktop_app_version,
-  is_desktop_bridge_available,
+  exportDesktopLogs,
+  getDesktopAppVersion,
+  isDesktopBridgeAvailable,
   type DesktopAppVersion,
 } from "@/lib/desktop-bridge";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -25,7 +25,7 @@ import {
 
 export function SettingsDesktopSection() {
   const { t } = useI18n();
-  const [desktopAvailable] = useState(() => is_desktop_bridge_available());
+  const [desktopAvailable] = useState(() => isDesktopBridgeAvailable());
   const [desktopVersion, setDesktopVersion] =
     useState<DesktopAppVersion | null>(null);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(
@@ -40,7 +40,7 @@ export function SettingsDesktopSection() {
     let cancelled = false;
     const loadVersion = async () => {
       try {
-        const version = await get_desktop_app_version();
+        const version = await getDesktopAppVersion();
         if (!cancelled) {
           setDesktopVersion(version);
         }
@@ -64,7 +64,7 @@ export function SettingsDesktopSection() {
     try {
       setExportingLogs(true);
       setFeedbackMessage(null);
-      const result = await export_desktop_logs();
+      const result = await exportDesktopLogs();
       if (result.cancelled) {
         return;
       }

@@ -35,12 +35,12 @@ function getAttachmentIcon(kind: ComposerAttachmentKind) {
 
 export function ComposerAttachmentList({
   attachments,
-  on_remove: onRemove,
-  remove_label: removeLabel,
+  onRemove: onRemove,
+  removeLabel: removeLabel,
 }: {
   attachments: ComposerLocalAttachment[];
-  on_remove: (id: string) => void;
-  remove_label: string;
+  onRemove: (id: string) => void;
+  removeLabel: string;
 }) {
   if (attachments.length === 0) {
     return null;

@@ -8,26 +8,26 @@ import type { PendingPermission } from "@/types/conversation/permission";
 
 import type { MessageActivityState } from "../ui/message-primitives";
 
-export function resolve_activity_state({
+export function resolveActivityState({
   content,
-  streaming_block_indexes: streamingBlockIndexes,
-  tool_use_map: toolUseMap,
-  rendered_indices: renderedIndices,
-  fallback_activity_state: fallbackActivityState,
-  pending_permissions_by_tool_use_id: pendingPermissionsByToolUseId,
-  hidden_tool_names: hiddenToolNames,
+  streamingBlockIndexes,
+  toolUseMap,
+  renderedIndices,
+  fallbackActivityState,
+  pendingPermissionsByToolUseId,
+  hiddenToolNames,
 }: {
   content: ContentBlock[];
-  streaming_block_indexes?: ReadonlySet<number>;
-  tool_use_map: ReadonlyMap<string, {
+  streamingBlockIndexes?: ReadonlySet<number>;
+  toolUseMap: ReadonlyMap<string, {
     use: ToolUseContent;
     result?: ToolResultContent;
     index: number;
   }>;
-  rendered_indices: ReadonlySet<number>;
-  fallback_activity_state?: MessageActivityState | null;
-  pending_permissions_by_tool_use_id?: ReadonlyMap<string, PendingPermission>;
-  hidden_tool_names: string[];
+  renderedIndices: ReadonlySet<number>;
+  fallbackActivityState?: MessageActivityState | null;
+  pendingPermissionsByToolUseId?: ReadonlyMap<string, PendingPermission>;
+  hiddenToolNames: string[];
 }): MessageActivityState {
   const latestPendingTool = findLatestPendingToolUse(
     content,

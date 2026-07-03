@@ -5,11 +5,11 @@ import {
   RoomPendingAgentSlotState,
 } from "@/types/conversation/message";
 import { PendingPermission } from "@/types/conversation/permission";
-import { is_automation_trigger_user_message } from "@/types/conversation/automation-message";
-export { is_automation_trigger_user_message } from "@/types/conversation/automation-message";
+import { isAutomationTriggerUserMessage } from "@/types/conversation/automation-message";
+export { isAutomationTriggerUserMessage as is_automation_trigger_user_message } from "@/types/conversation/automation-message";
 
-/** 将消息按 round_id 分组 */
-export function group_messages_by_round(messages: Message[]): Map<string, Message[]> {
+/** 将消息按 roundId 分组 */
+export function groupMessagesByRound(messages: Message[]): Map<string, Message[]> {
   const groups = new Map<string, Message[]>();
   for (const message of messages) {
     const roundId = message.round_id || message.message_id;
@@ -22,10 +22,10 @@ export function group_messages_by_round(messages: Message[]): Map<string, Messag
 }
 
 /**
- * Room 模式下使用 `原始用户 round_id:agent_id` 作为 agent 子轮次。
- * 前端时间线需要把它重新折叠回用户发起的主 round_id，否则同一轮会被拆成多段。
+ * Room 模式下使用 `原始用户 roundId:agentId` 作为 agent 子轮次。
+ * 前端时间线需要把它重新折叠回用户发起的主 roundId，否则同一轮会被拆成多段。
  */
-export function get_room_base_round_id(roundId: string, agentId?: string | null): string {
+export function getRoomBaseRoundId(roundId: string, agentId?: string | null): string {
   if (!roundId) {
     return roundId;
   }
@@ -41,11 +41,11 @@ export function get_room_base_round_id(roundId: string, agentId?: string | null)
 }
 
 /** Room 时间线分组：将多 Agent 子轮次归并回同一条用户轮次。 */
-export function group_room_messages_by_round(messages: Message[]): Map<string, Message[]> {
+export function groupRoomMessagesByRound(messages: Message[]): Map<string, Message[]> {
   const groups = new Map<string, Message[]>();
 
   for (const message of messages) {
-    const roundId = get_room_base_round_id(message.round_id || message.message_id, message.agent_id);
+    const roundId = getRoomBaseRoundId(message.round_id || message.message_id, message.agent_id);
     if (!groups.has(roundId)) {
       groups.set(roundId, []);
     }
@@ -55,8 +55,8 @@ export function group_room_messages_by_round(messages: Message[]): Map<string, M
   return groups;
 }
 
-/** Room 权限请求分组：按主 round_id 归并，供主时间线与 Thread 共用。 */
-export function group_room_pending_permissions_by_round(
+/** Room 权限请求分组：按主 roundId 归并，供主时间线与 Thread 共用。 */
+export function groupRoomPendingPermissionsByRound(
   pendingPermissions: PendingPermission[],
 ): Map<string, PendingPermission[]> {
   const groups = new Map<string, PendingPermission[]>();
@@ -65,7 +65,7 @@ export function group_room_pending_permissions_by_round(
     if (!permission.caused_by) {
       continue;
     }
-    const roundId = get_room_base_round_id(permission.caused_by, permission.agent_id);
+    const roundId = getRoomBaseRoundId(permission.caused_by, permission.agent_id);
     if (!groups.has(roundId)) {
       groups.set(roundId, []);
     }
@@ -103,7 +103,7 @@ function isMultiAgentRound(messages: Message[]): boolean {
 }
 
 /** 判断一轮 Room 消息是否已经出现可归属到 Agent 的回复。 */
-export function has_room_agent_round_entries(
+export function hasRoomAgentRoundEntries(
   messages: Message[],
   pendingSlots: RoomPendingAgentSlotState[] = [],
 ): boolean {
@@ -112,7 +112,7 @@ export function has_room_agent_round_entries(
   ));
 }
 
-/** 将一轮消息按 agent_id 分组，仅分组 assistant 消息 */
+/** 将一轮消息按 agentId 分组，仅分组 assistant 消息 */
 function groupRoundByAgent(messages: Message[]): Map<string, AssistantMessage[]> {
   const groups = new Map<string, AssistantMessage[]>();
   for (const msg of messages) {
@@ -143,7 +143,7 @@ function buildResultSummaryMap(messages: Message[]): Map<string, ResultSummary> 
   return summaryMap;
 }
 
-/** 将当前主 round 下的 pending slot 按 agent_id 索引。 */
+/** 将当前主 round 下的 pending slot 按 agentId 索引。 */
 function buildPendingSlotMap(
   pendingSlots: RoomPendingAgentSlotState[],
 ): Map<string, RoomPendingAgentSlotState> {
@@ -207,7 +207,7 @@ function getAgentRoundStatus(
   if (hasCancelled) return "cancelled";
   if (hasDone) return "done";
 
-  // Room 的执行态必须由 pending slot 或 result_summary 驱动。
+  // Room 的执行态必须由 pending slot 或 resultSummary 驱动。
   // 仅凭“历史里留着 assistant 过程消息”不能继续判成 streaming，
   // 但如果 assistant 本身已经明确收口为 done，则仍应视为完成，
   // 这样无独立结果消息的正常结束轮次才能正确回退显示最终 assistant。
@@ -215,7 +215,7 @@ function getAgentRoundStatus(
 }
 
 /** 判断某个 Agent 子轮次是否仍在执行。 */
-export function is_agent_round_active(status: AgentRoundStatus): boolean {
+export function isAgentRoundActive(status: AgentRoundStatus): boolean {
   return status === "pending" || status === "streaming";
 }
 
@@ -244,7 +244,7 @@ function getAgentRoundTimestamp(
 }
 
 /** 构造一轮中所有 Agent 的聚合回复，用于主时间线和 Thread 共用。 */
-export function build_room_agent_round_entries(
+export function buildRoomAgentRoundEntries(
   messages: Message[],
   pendingSlots: RoomPendingAgentSlotState[] = [],
 ): RoomAgentRoundEntry[] {
@@ -274,7 +274,7 @@ export function build_room_agent_round_entries(
 }
 
 /** 读取某轮某个 Agent 的聚合回复。 */
-export function get_room_agent_round_entry(
+export function getRoomAgentRoundEntry(
   messages: Message[],
   agentId: string,
   pendingSlots: RoomPendingAgentSlotState[] = [],
@@ -299,14 +299,14 @@ export function get_room_agent_round_entry(
   };
 }
 
-/** 将 Room 前端占位槽位按主 round_id 分组。 */
-export function group_room_pending_slots_by_round(
+/** 将 Room 前端占位槽位按主 roundId 分组。 */
+export function groupRoomPendingSlotsByRound(
   pendingSlots: RoomPendingAgentSlotState[],
 ): Map<string, RoomPendingAgentSlotState[]> {
   const groups = new Map<string, RoomPendingAgentSlotState[]>();
 
   for (const slot of pendingSlots) {
-    const roundId = get_room_base_round_id(slot.round_id, slot.agent_id);
+    const roundId = getRoomBaseRoundId(slot.round_id, slot.agent_id);
     if (!groups.has(roundId)) {
       groups.set(roundId, []);
     }
@@ -317,9 +317,9 @@ export function group_room_pending_slots_by_round(
 }
 
 /** 过滤出 Thread 需要展示的用户消息和目标 Agent 的执行链。 */
-export function get_room_thread_messages(messages: Message[], agentId: string): Message[] {
+export function getRoomThreadMessages(messages: Message[], agentId: string): Message[] {
   return messages.filter((message) => (
-    (message.role === "user" && !is_automation_trigger_user_message(message)) ||
+    (message.role === "user" && !isAutomationTriggerUserMessage(message)) ||
     (
       message.role === "system" &&
       message.agent_id === agentId &&
@@ -343,9 +343,9 @@ function normalizePreviewText(text: string, maxLength: number): string {
 }
 
 /** 从 assistant 消息中提取最新的文本/思路预览（截取前 80 字符） */
-export function extract_agent_preview_text(messages: AssistantMessage[], maxLength = 80): string {
+export function extractAgentPreviewText(messages: AssistantMessage[], maxLength = 80): string {
   // Room 主时间线的占位摘要应该跟随“最新一段 assistant 完整消息”推进，
-  // 而不是永远停在第一段文本上。这里只看 text / thinking，忽略 tool_* 块。
+  // 而不是永远停在第一段文本上。这里只看 text / thinking，忽略工具块。
   for (let messageIndex = messages.length - 1; messageIndex >= 0; messageIndex -= 1) {
     const message = messages[messageIndex];
     if (!Array.isArray(message.content)) {
@@ -376,7 +376,7 @@ export function extract_agent_preview_text(messages: AssistantMessage[], maxLeng
 }
 
 /** 获取最近一条 assistant/result 消息的时间戳 */
-export function get_latest_reply_timestamp(messages: Message[]): number | null {
+export function getLatestReplyTimestamp(messages: Message[]): number | null {
   for (let i = messages.length - 1; i >= 0; i--) {
     const msg = messages[i];
     if (msg.role !== "assistant") continue;
@@ -394,7 +394,7 @@ export interface ConversationActivitySnapshot {
   latest_reply_timestamp: number | null;
 }
 
-export function build_conversation_activity_snapshot(
+export function buildConversationActivitySnapshot(
   scopeKey: string,
   latestReplyTimestamp: number | null,
 ): ConversationActivitySnapshot {
@@ -405,7 +405,7 @@ export function build_conversation_activity_snapshot(
 }
 
 /** 历史加载只建立基线；只有同一会话出现更新回复时才刷新活跃时间。 */
-export function should_emit_conversation_activity(
+export function shouldEmitConversationActivity(
   previous: ConversationActivitySnapshot | null,
   scopeKey: string,
   latestReplyTimestamp: number | null,

@@ -33,17 +33,17 @@ import type {
 
 interface ContactsAgentDetailProps {
   agent: Agent;
-  on_back: () => void;
-  on_create_team: (agentId: string) => void;
-  on_delete_agent: (agentId: string) => void;
-  on_open_direct_room: (agentId: string) => void;
-  on_save_agent_options: (
+  onBack: () => void;
+  onCreateTeam: (agentId: string) => void;
+  onDeleteAgent: (agentId: string) => void;
+  onOpenDirectRoom: (agentId: string) => void;
+  onSaveAgentOptions: (
     agentId: string,
     title: string,
     options: AgentOptions,
     identity: AgentIdentityDraft,
   ) => Promise<void>;
-  on_validate_agent_name: (
+  onValidateAgentName: (
     name: string,
     agentId?: string,
   ) => Promise<AgentNameValidationResult>;
@@ -54,12 +54,12 @@ type ContactDetailTabKey = TabKey | "private_domain" | "memory";
 /** 侧边栏联系人进入的内嵌 Agent 页面。 */
 export function ContactsAgentDetail({
   agent,
-  on_back: onBack,
-  on_create_team: onCreateTeam,
-  on_delete_agent: onDeleteAgent,
-  on_open_direct_room: onOpenDirectRoom,
-  on_save_agent_options: onSaveAgentOptions,
-  on_validate_agent_name: onValidateAgentName,
+  onBack: onBack,
+  onCreateTeam: onCreateTeam,
+  onDeleteAgent: onDeleteAgent,
+  onOpenDirectRoom: onOpenDirectRoom,
+  onSaveAgentOptions: onSaveAgentOptions,
+  onValidateAgentName: onValidateAgentName,
 }: ContactsAgentDetailProps) {
   const { t } = useI18n();
   const [activeTab, setActiveTab] = useResettableState<ContactDetailTabKey>(
@@ -164,13 +164,13 @@ export function ContactsAgentDetail({
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <WorkspaceSurfaceHeader
-        active_tab={activeTab}
+        activeTab={activeTab}
         density="compact"
-        leading={<UiAgentAvatar avatar={agent.avatar} class_name="h-full w-full border-0 shadow-none" name={agent.name} size="sm" />}
-        on_change_tab={setActiveTab}
+        leading={<UiAgentAvatar avatar={agent.avatar} className="h-full w-full border-0 shadow-none" name={agent.name} size="sm" />}
+        onChangeTab={setActiveTab}
         tabs={configTabs}
         title={agent.name}
-        title_trailing={titleTrailing}
+        titleTrailing={titleTrailing}
         trailing={trailing}
       />
 
@@ -180,23 +180,23 @@ export function ContactsAgentDetail({
         <ContactsAgentMemoryTab agent={agent} />
       ) : (
         <AgentOptionsEditor
-          active_tab={activeTab}
-          agent_id={agent.agent_id}
-          content_max_width_class_name={WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME}
-          hide_inline_nav
-          initial_avatar={agent.avatar ?? ""}
-          initial_description={agent.description ?? ""}
-          initial_options={initialOptions}
-          initial_title={agent.name}
-          initial_vibe_tags={agent.vibe_tags ?? []}
-          is_active
+          activeTab={activeTab}
+          agentId={agent.agent_id}
+          contentMaxWidthClassName={WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME}
+          hideInlineNav
+          initialAvatar={agent.avatar ?? ""}
+          initialDescription={agent.description ?? ""}
+          initialOptions={initialOptions}
+          initialTitle={agent.name}
+          initialVibeTags={agent.vibe_tags ?? []}
+          isActive
           mode="edit"
-          on_delete={onDeleteAgent}
-          on_save={handleSave}
-          on_tab_change={setActiveTab}
-          on_validate_name={handleValidateName}
-          show_cancel_button={false}
-          show_delete_button
+          onDelete={onDeleteAgent}
+          onSave={handleSave}
+          onTabChange={setActiveTab}
+          onValidateName={handleValidateName}
+          showCancelButton={false}
+          showDeleteButton
           variant="inline"
         />
       )}

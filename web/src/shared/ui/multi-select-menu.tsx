@@ -12,12 +12,12 @@ import { Check, ChevronDown, Loader2, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSelectMenuLayer } from "./select-menu-layer";
 import {
-  estimate_select_menu_height,
-  get_select_menu_button_class_name,
-  get_select_menu_option_state_class_name,
-  get_select_menu_panel_surface_class_name,
-  get_select_menu_size_config,
-  resolve_select_menu_position,
+  estimateSelectMenuHeight,
+  getSelectMenuButtonClassName,
+  getSelectMenuOptionStateClassName,
+  getSelectMenuPanelSurfaceClassName,
+  getSelectMenuSizeConfig,
+  resolveSelectMenuPosition,
   SELECT_MENU_SEARCH_ROW_HEIGHT,
   type UiSelectMenuPlacement,
   type UiSelectMenuSize,
@@ -32,50 +32,50 @@ interface UiMultiSelectMenuOption {
 }
 
 interface UiMultiSelectMenuProps {
-  aria_label: string;
-  button_class_name?: string;
-  class_name?: string;
+  ariaLabel: string;
+  buttonClassName?: string;
+  className?: string;
   disabled?: boolean;
-  empty_text?: ReactNode;
-  error_text?: ReactNode;
+  emptyText?: ReactNode;
+  errorText?: ReactNode;
   id?: string;
-  is_loading?: boolean;
+  isLoading?: boolean;
   label?: ReactNode;
   leading?: ReactNode;
-  loading_text?: ReactNode;
-  menu_class_name?: string;
-  on_change: (value: string[]) => void;
-  on_query_change?: (value: string) => void;
+  loadingText?: ReactNode;
+  menuClassName?: string;
+  onChange: (value: string[]) => void;
+  onQueryChange?: (value: string) => void;
   options: UiMultiSelectMenuOption[];
   placement?: UiSelectMenuPlacement;
   placeholder?: ReactNode;
   query?: string;
-  search_placeholder?: string;
+  searchPlaceholder?: string;
   size?: UiSelectMenuSize;
   surface?: UiSelectMenuSurface;
   value: string[];
 }
 
 export function UiMultiSelectMenu({
-  aria_label: ariaLabel,
-  button_class_name: buttonClassName,
-  class_name: className,
+  ariaLabel: ariaLabel,
+  buttonClassName: buttonClassName,
+  className: className,
   disabled = false,
-  empty_text: emptyText = "暂无选项",
-  error_text: errorText,
+  emptyText: emptyText = "暂无选项",
+  errorText: errorText,
   id,
-  is_loading: isLoading = false,
+  isLoading: isLoading = false,
   label,
   leading,
-  loading_text: loadingText = "加载中...",
-  menu_class_name: menuClassName,
-  on_change: onChange,
-  on_query_change: onQueryChange,
+  loadingText: loadingText = "加载中...",
+  menuClassName: menuClassName,
+  onChange: onChange,
+  onQueryChange: onQueryChange,
   options,
   placement = "auto",
   placeholder = "请选择",
   query = "",
-  search_placeholder: searchPlaceholder = "搜索",
+  searchPlaceholder: searchPlaceholder = "搜索",
   size = "md",
   surface = "surface",
   value,
@@ -87,39 +87,39 @@ export function UiMultiSelectMenu({
   );
   const hasOptionDescription = options.some((option) => Boolean(option.description));
   const {
-    estimated_option_height: estimatedOptionHeight,
-    height_class_name: heightClassName,
-    option_height_class_name: optionHeightClassName,
-    rounded_class_name: roundedClassName,
-    text_class_name: textClassName,
-  } = get_select_menu_size_config(size);
+    estimatedOptionHeight,
+    heightClassName,
+    optionHeightClassName,
+    roundedClassName,
+    textClassName,
+  } = getSelectMenuSizeConfig(size);
   const hasSearch = Boolean(onQueryChange);
 
   const estimatePosition = useCallback((button: HTMLButtonElement) => {
-    return resolve_select_menu_position({
+    return resolveSelectMenuPosition({
       button,
-      estimated_height: estimate_select_menu_height(
+      estimatedHeight: estimateSelectMenuHeight(
         Math.max(options.length, 1),
         hasOptionDescription ? 52 : estimatedOptionHeight,
         hasSearch ? SELECT_MENU_SEARCH_ROW_HEIGHT + 8 : 8,
       ),
-      estimated_option_height: hasOptionDescription ? 52 : estimatedOptionHeight,
+      estimatedOptionHeight: hasOptionDescription ? 52 : estimatedOptionHeight,
       placement,
     });
   }, [estimatedOptionHeight, hasOptionDescription, hasSearch, options.length, placement]);
 
   const {
-    button_ref: buttonRef,
-    is_open: isOpen,
-    menu_id: menuId,
-    menu_position: menuPosition,
-    menu_ref: menuRef,
-    menu_style: menuStyle,
-    portal_container: portalContainer,
-    root_ref: rootRef,
-    set_is_open: setIsOpen,
-    update_menu_position: updateMenuPosition,
-  } = useSelectMenuLayer({ disabled, estimate_position: estimatePosition });
+    buttonRef,
+    isOpen,
+    menuId,
+    menuPosition,
+    menuRef,
+    menuStyle,
+    portalContainer,
+    rootRef,
+    setIsOpen,
+    updateMenuPosition,
+  } = useSelectMenuLayer({ disabled, estimatePosition });
 
   const toggleOpen = () => {
     if (disabled) {
@@ -169,7 +169,7 @@ export function UiMultiSelectMenu({
       aria-label={ariaLabel}
       className={cn(
         "fixed z-[120] flex flex-col overflow-hidden rounded-[14px] border animate-in fade-in-0 zoom-in-95 duration-(--motion-duration-fast) data-[placement=bottom]:slide-in-from-top-1 data-[placement=top]:slide-in-from-bottom-1",
-        get_select_menu_panel_surface_class_name(surface),
+        getSelectMenuPanelSurfaceClassName(surface),
         menuClassName,
       )}
       data-placement={menuPosition?.placement ?? "bottom"}
@@ -217,7 +217,7 @@ export function UiMultiSelectMenu({
                 className={cn(
                   "flex w-full items-center gap-2 rounded-[10px] px-2.5 text-left transition-[background-color,color] duration-(--motion-duration-fast) disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)",
                   option.description ? "py-2 text-[13px]" : optionHeightClassName,
-                  get_select_menu_option_state_class_name(surface, isActive),
+                  getSelectMenuOptionStateClassName(surface, isActive),
                 )}
                 data-active={isActive ? "true" : undefined}
                 disabled={option.disabled}
@@ -257,11 +257,11 @@ export function UiMultiSelectMenu({
         aria-expanded={isOpen}
         aria-haspopup="listbox"
         aria-label={ariaLabel}
-        className={get_select_menu_button_class_name({
-          rounded_class_name: roundedClassName,
+        className={getSelectMenuButtonClassName({
+          roundedClassName,
           surface,
-          text_class_name: textClassName,
-          class_name: cn(value.length > 0 && "min-h-10 py-1.5", buttonClassName),
+          textClassName,
+          className: cn(value.length > 0 && "min-h-10 py-1.5", buttonClassName),
         })}
         disabled={disabled}
         id={id}

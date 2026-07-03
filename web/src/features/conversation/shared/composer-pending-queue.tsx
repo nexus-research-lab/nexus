@@ -36,17 +36,17 @@ function reorderPendingMessages(
 export function ComposerPendingQueue({
   compact,
   disabled,
-  input_queue_items: inputQueueItems,
-  on_delete_queued_message: onDeleteQueuedMessage,
-  on_guide_queued_message: onGuideQueuedMessage,
-  on_reorder_queue_messages: onReorderQueueMessages,
+  inputQueueItems: inputQueueItems,
+  onDeleteQueuedMessage: onDeleteQueuedMessage,
+  onGuideQueuedMessage: onGuideQueuedMessage,
+  onReorderQueueMessages: onReorderQueueMessages,
 }: {
   compact: boolean;
   disabled: boolean;
-  input_queue_items: InputQueueItem[];
-  on_delete_queued_message?: (itemId: string) => void | Promise<void>;
-  on_guide_queued_message?: (itemId: string) => void | Promise<void>;
-  on_reorder_queue_messages?: (orderedIds: string[]) => void | Promise<void>;
+  inputQueueItems: InputQueueItem[];
+  onDeleteQueuedMessage?: (itemId: string) => void | Promise<void>;
+  onGuideQueuedMessage?: (itemId: string) => void | Promise<void>;
+  onReorderQueueMessages?: (orderedIds: string[]) => void | Promise<void>;
 }) {
   const { t } = useI18n();
   const [draggingMessageId, setDraggingMessageId] = useState<string | null>(null);

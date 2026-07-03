@@ -1,6 +1,6 @@
 import { AgentPrivateEvent, AgentPrivateThread } from "@/types/agent/private-domain";
 
-export function private_thread_title(thread: AgentPrivateThread, agentId: string) {
+export function privateThreadTitle(thread: AgentPrivateThread, agentId: string) {
   const peers = thread.participants.filter((participant) => participant.agent_id !== agentId);
   if (peers.length === 0) {
     return "私有笔记";
@@ -8,7 +8,7 @@ export function private_thread_title(thread: AgentPrivateThread, agentId: string
   return peers.map((participant) => participant.name || participant.agent_id).join("、");
 }
 
-export function event_route_label(event: AgentPrivateEvent, agentId: string) {
+export function eventRouteLabel(event: AgentPrivateEvent, agentId: string) {
   const recipients = event.recipients
     .map((recipientId) => {
       const participant = event.participants.find((item) => item.agent_id === recipientId);

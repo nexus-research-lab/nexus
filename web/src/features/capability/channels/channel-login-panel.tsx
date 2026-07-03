@@ -13,7 +13,7 @@ import { ChannelLoginView } from "@/lib/api/channel-api";
 import { UiBadge } from "@/shared/ui/badge";
 import { UiButton } from "@/shared/ui/button";
 import { UiInput } from "@/shared/ui/form-control";
-import { is_channel_login_running } from "./channel-model";
+import { isChannelLoginRunning } from "./channel-model";
 
 function channelLoginStatusLabel(status: string) {
   switch (status) {
@@ -110,15 +110,15 @@ function LoginQRCode({ payload }: { payload?: string }) {
 
 export function ChannelLoginPanel({
   loading,
-  login_view: loginView,
-  on_submit_verify_code: onSubmitVerifyCode,
+  loginView: loginView,
+  onSubmitVerifyCode: onSubmitVerifyCode,
 }: {
   loading: boolean;
-  login_view: ChannelLoginView | null;
-  on_submit_verify_code: (value: string) => void;
+  loginView: ChannelLoginView | null;
+  onSubmitVerifyCode: (value: string) => void;
 }) {
   const [verifyCode, setVerifyCode] = useState("");
-  const running = is_channel_login_running(loginView);
+  const running = isChannelLoginRunning(loginView);
   const output = loginView?.output?.trimEnd() || (running ? "等待 iLink 扫码状态..." : "");
   const status = loginView?.status || "";
   const statusTone = channelLoginStatusTone(status);

@@ -4,27 +4,27 @@ import type { RefObject } from "react";
 const HISTORY_LOAD_THRESHOLD_PX = 120;
 
 interface UseConversationHistoryLoaderOptions {
-  scroll_ref: RefObject<HTMLDivElement | null>;
-  message_count: number;
-  has_more_history: boolean;
-  is_history_loading: boolean;
-  is_loading: boolean;
-  load_older_messages: () => Promise<boolean>;
-  prepare_history_prepend_restore: () => void;
-  cancel_history_prepend_restore: () => void;
-  on_scroll: () => void;
+  scrollRef: RefObject<HTMLDivElement | null>;
+  messageCount: number;
+  hasMoreHistory: boolean;
+  isHistoryLoading: boolean;
+  isLoading: boolean;
+  loadOlderMessages: () => Promise<boolean>;
+  prepareHistoryPrependRestore: () => void;
+  cancelHistoryPrependRestore: () => void;
+  onScroll: () => void;
 }
 
 export function useConversationHistoryLoader({
-  scroll_ref: scrollRef,
-  message_count: messageCount,
-  has_more_history: hasMoreHistory,
-  is_history_loading: isHistoryLoading,
-  is_loading: isLoading,
-  load_older_messages: loadOlderMessages,
-  prepare_history_prepend_restore: prepareHistoryPrependRestore,
-  cancel_history_prepend_restore: cancelHistoryPrependRestore,
-  on_scroll: onScroll,
+  scrollRef,
+  messageCount,
+  hasMoreHistory,
+  isHistoryLoading,
+  isLoading,
+  loadOlderMessages,
+  prepareHistoryPrependRestore,
+  cancelHistoryPrependRestore,
+  onScroll,
 }: UseConversationHistoryLoaderOptions) {
   const maybeLoadOlderMessages = useCallback(async () => {
     const container = scrollRef.current;
@@ -77,5 +77,5 @@ export function useConversationHistoryLoader({
     scrollRef,
   ]);
 
-  return { handle_scroll: handleScroll };
+  return { handleScroll };
 }

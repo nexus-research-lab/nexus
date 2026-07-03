@@ -1,29 +1,29 @@
 import type { Message } from "@/types/conversation/message";
 import {
-  collect_unresolved_tool_use_candidates,
-  match_pending_permissions_to_tool_uses,
+  collectUnresolvedToolUseCandidates,
+  matchPendingPermissionsToToolUses,
   type PendingPermission,
 } from "@/types/conversation/permission";
 
 export interface MessageItemPermissionMatch {
-  matched_pending_permissions_by_tool_use_id: Map<string, PendingPermission>;
-  unmatched_pending_permissions: PendingPermission[];
+  matchedPendingPermissionsByToolUseId: Map<string, PendingPermission>;
+  unmatchedPendingPermissions: PendingPermission[];
 }
 
-export function resolve_message_item_permissions(
+export function resolveMessageItemPermissions(
   messages: Message[],
   pendingPermissions: PendingPermission[],
 ): MessageItemPermissionMatch {
   if (pendingPermissions.length === 0) {
     return {
-      matched_pending_permissions_by_tool_use_id: new Map(),
-      unmatched_pending_permissions: [],
+      matchedPendingPermissionsByToolUseId: new Map(),
+      unmatchedPendingPermissions: [],
     };
   }
 
   const unresolvedToolUseCandidates =
-    collect_unresolved_tool_use_candidates(messages);
-  const permissionMatchResult = match_pending_permissions_to_tool_uses(
+    collectUnresolvedToolUseCandidates(messages);
+  const permissionMatchResult = matchPendingPermissionsToToolUses(
     pendingPermissions,
     unresolvedToolUseCandidates,
   );
@@ -44,8 +44,8 @@ export function resolve_message_item_permissions(
         !matchedPermissionsByToolUseId.has(candidate.tool_use_id),
     );
 
-  // Room 场景下 AskUserQuestion 的 permission_request 会先绑定占位槽位，
-  // 这里按 round_id 和单候选规则做一次安全补配，避免问答块丢失交互能力。
+  // Room 场景下 AskUserQuestion 的 permissionRequest 会先绑定占位槽位，
+  // 这里按 roundId 和单候选规则做一次安全补配，避免问答块丢失交互能力。
   for (const permission of unmatchedQuestionPermissions) {
     const candidatesByRound = unresolvedQuestionCandidates.filter(
       (candidate) =>
@@ -78,9 +78,8 @@ export function resolve_message_item_permissions(
   }
 
   return {
-    matched_pending_permissions_by_tool_use_id:
-      matchedPermissionsByToolUseId,
-    unmatched_pending_permissions:
+    matchedPendingPermissionsByToolUseId: matchedPermissionsByToolUseId,
+    unmatchedPendingPermissions:
       permissionMatchResult.unmatched_permissions.filter(
         (permission) =>
           permission.interaction_mode !== "question" &&

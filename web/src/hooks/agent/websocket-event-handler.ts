@@ -14,13 +14,13 @@ import {
 } from "@/types/agent/agent-conversation";
 import { WorkspaceEventPayload } from "@/types/app/workspace-live";
 import {
-  apply_stream_message,
-  normalize_assistant_message,
-  upsert_message,
+  applyStreamMessage,
+  normalizeAssistantMessage,
+  upsertMessage,
 } from "./message-helpers";
 import {
-  build_room_subscription_message,
-  build_session_bind_message,
+  buildRoomSubscriptionMessage,
+  buildSessionBindMessage,
 } from "./conversation-actions";
 
 function isEventMessage(data: unknown): data is EventMessage {
@@ -37,7 +37,7 @@ function isEventMessage(data: unknown): data is EventMessage {
 /**
  * 处理 Agent 会话的 WebSocket 事件。
  */
-export function handle_agent_conversation_web_socket_message({
+export function handleAgentConversationWebSocketMessage({
   backend_message: backendMessage,
   agent_id: agentId,
   room_id: roomId,
@@ -63,7 +63,7 @@ export function handle_agent_conversation_web_socket_message({
   track_chat_ack: trackChatAck,
   track_assistant_message: trackAssistantMessage,
   reload_current_session: reloadCurrentSession,
-  settle_agent_workspace_writes: settleAgentWorkspaceWrites,
+  settleAgentWorkspaceWrites: settleAgentWorkspaceWrites,
 }: HandleAgentConversationWebSocketMessageParams): void {
   if (!isEventMessage(backendMessage)) {
     console.warn("[websocket-event-handler] Received unexpected message shape:", backendMessage);
@@ -113,7 +113,7 @@ export function handle_agent_conversation_web_socket_message({
       ) {
         return;
       }
-      wsSendRef.current(build_room_subscription_message({
+      wsSendRef.current(buildRoomSubscriptionMessage({
         type: "subscribe_room",
         room_id: roomId,
         conversation_id: conversationId,
@@ -145,7 +145,7 @@ export function handle_agent_conversation_web_socket_message({
       ) {
         return;
       }
-      wsSendRef.current(build_session_bind_message({
+      wsSendRef.current(buildSessionBindMessage({
         session_key: sessionKey,
         last_seen_session_seq: sessionSeqCursorRef.current,
         agent_id: agentId,
@@ -257,7 +257,7 @@ export function handle_agent_conversation_web_socket_message({
     return;
   }
 
-  // session_status: 重连后后端告知该 session 是否仍在生成，恢复/收口 loading 态
+  // sessionStatus: 重连后后端告知该 session 是否仍在生成，恢复/收口 loading 态
   if (event.event_type === "session_status") {
     if (!isCurrentSessionEvent(incomingSessionKey)) {
       return;
@@ -297,7 +297,7 @@ export function handle_agent_conversation_web_socket_message({
     return;
   }
 
-  // chat_ack: 仅登记 Room 占位槽位，不再插入假 assistant 消息
+  // chatAck: 仅登记 Room 占位槽位，不再插入假 assistant 消息
   if (event.event_type === "chat_ack") {
     if (!isCurrentSessionEvent(incomingSessionKey)) {
       return;
@@ -310,7 +310,7 @@ export function handle_agent_conversation_web_socket_message({
     return;
   }
 
-  // stream_start: flip placeholder from pending → streaming
+  // streamStart: flip placeholder from pending → streaming
   if (event.event_type === "stream_start") {
     if (!isCurrentSessionEvent(incomingSessionKey)) {
       return;
@@ -324,7 +324,7 @@ export function handle_agent_conversation_web_socket_message({
     return;
   }
 
-  // stream_end: mark bubble done
+  // streamEnd: mark bubble done
   if (event.event_type === "stream_end") {
     if (!isCurrentSessionEvent(incomingSessionKey)) {
       return;
@@ -338,7 +338,7 @@ export function handle_agent_conversation_web_socket_message({
     return;
   }
 
-  // stream_cancelled: mark bubble cancelled, stop loading
+  // streamCancelled: mark bubble cancelled, stop loading
   if (event.event_type === "stream_cancelled") {
     if (!isCurrentSessionEvent(incomingSessionKey)) {
       return;
@@ -372,7 +372,7 @@ export function handle_agent_conversation_web_socket_message({
     if (enqueueStreamPayload) {
       enqueueStreamPayload(payload);
     } else {
-      setMessages((prev) => apply_stream_message(prev, payload));
+      setMessages((prev) => applyStreamMessage(prev, payload));
     }
     return;
   }
@@ -400,12 +400,12 @@ export function handle_agent_conversation_web_socket_message({
 
   const normalizedPayload =
     payloadWithDeliveryMode.role === "assistant"
-      ? normalize_assistant_message(
+      ? normalizeAssistantMessage(
           payloadWithDeliveryMode as AssistantMessage,
         )
       : payloadWithDeliveryMode;
 
-  setMessages((prev) => upsert_message(prev, normalizedPayload));
+  setMessages((prev) => upsertMessage(prev, normalizedPayload));
   if (normalizedPayload.role === "assistant") {
     trackAssistantMessage?.(normalizedPayload as AssistantMessage);
   }

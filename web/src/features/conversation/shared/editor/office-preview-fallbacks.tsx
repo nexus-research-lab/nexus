@@ -8,30 +8,30 @@ import {
 } from "./workspace-file-preview-chrome";
 
 interface OfficePreviewFallbackProps {
-  agent_id: string;
+  agentId: string;
   embedded?: boolean;
-  file_name: string;
-  is_preview_focused?: boolean;
-  on_resize_start: () => void;
-  on_toggle_preview_focus?: () => void;
+  fileName: string;
+  isPreviewFocused?: boolean;
+  onResizeStart: () => void;
+  onTogglePreviewFocus?: () => void;
   path: string;
 }
 
 function OfficePreviewFallback({
-  agent_id: agentId,
+  agentId: agentId,
   embedded,
-  file_name: fileName,
+  fileName: fileName,
   icon,
   label,
-  loading_label: loadingLabel,
-  on_resize_start: onResizeStart,
-  on_toggle_preview_focus: onTogglePreviewFocus,
-  is_preview_focused: isPreviewFocused,
+  loadingLabel: loadingLabel,
+  onResizeStart: onResizeStart,
+  onTogglePreviewFocus: onTogglePreviewFocus,
+  isPreviewFocused: isPreviewFocused,
   path,
 }: OfficePreviewFallbackProps & {
   icon: "spreadsheet" | "document";
   label: string;
-  loading_label: string;
+  loadingLabel: string;
 }) {
   const Icon = icon === "spreadsheet" ? FileSpreadsheet : FileText;
 
@@ -39,19 +39,19 @@ function OfficePreviewFallback({
     <>
       {!embedded ? (
         <ConversationResizeHandle
-          aria_label="调整编辑器宽度"
-          class_name="flex"
-          on_mouse_down={onResizeStart}
+          ariaLabel="调整编辑器宽度"
+          className="flex"
+          onMouseDown={onResizeStart}
         />
       ) : null}
 
       <WorkspaceFilePreviewHeader
         actions={(
           <>
-            <WorkspaceFileDownloadButton agent_id={agentId} file_name={fileName} path={path} />
+            <WorkspaceFileDownloadButton agentId={agentId} fileName={fileName} path={path} />
             <WorkspaceFilePreviewFocusButton
-              is_preview_focused={isPreviewFocused}
-              on_toggle_preview_focus={onTogglePreviewFocus}
+              isPreviewFocused={isPreviewFocused}
+              onTogglePreviewFocus={onTogglePreviewFocus}
             />
           </>
         )}
@@ -87,7 +87,7 @@ export function SpreadsheetPreviewFallback(props: OfficePreviewFallbackProps) {
       {...props}
       icon="spreadsheet"
       label="xlsx 预览"
-      loading_label="正在加载 xlsx 预览组件"
+      loadingLabel="正在加载 xlsx 预览组件"
     />
   );
 }
@@ -98,7 +98,7 @@ export function DocumentPreviewFallback(props: OfficePreviewFallbackProps) {
       {...props}
       icon="document"
       label="docx 预览"
-      loading_label="正在加载 docx 预览组件"
+      loadingLabel="正在加载 docx 预览组件"
     />
   );
 }
@@ -109,7 +109,7 @@ export function PresentationPreviewFallback(props: OfficePreviewFallbackProps) {
       {...props}
       icon="document"
       label="pptx 预览"
-      loading_label="正在加载 pptx 预览组件"
+      loadingLabel="正在加载 pptx 预览组件"
     />
   );
 }

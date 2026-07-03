@@ -16,18 +16,18 @@ import { cn } from "@/lib/utils";
 interface WorkspaceSurfaceScaffoldProps {
   header?: ReactNode;
   children: ReactNode;
-  body_class_name?: string;
-  body_scrollable?: boolean;
-  stable_gutter?: boolean;
+  bodyClassName?: string;
+  bodyScrollable?: boolean;
+  stableGutter?: boolean;
 }
 
 /** 中文注释：统一 room、dm 与目录页主内容区的“头部 + 主画布”骨架，避免页面各自维护一套。 */
 export function WorkspaceSurfaceScaffold({
   header,
   children,
-  body_class_name: bodyClassName,
-  body_scrollable: bodyScrollable = false,
-  stable_gutter: stableGutter = false,
+  bodyClassName: bodyClassName,
+  bodyScrollable: bodyScrollable = false,
+  stableGutter: stableGutter = false,
 }: WorkspaceSurfaceScaffoldProps) {
   return (
     <>

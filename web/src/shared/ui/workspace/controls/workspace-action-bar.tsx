@@ -16,7 +16,7 @@ interface WorkspaceActionCardProps {
   icon: ReactNode;
   title: string;
   description?: string;
-  on_click: () => void;
+  onClick: () => void;
 }
 
 export function WorkspaceActionBar({
@@ -40,7 +40,7 @@ export function WorkspaceActionCard({
   icon,
   title,
   description,
-  on_click: onClick,
+  onClick: onClick,
 }: WorkspaceActionCardProps) {
   return (
     <button

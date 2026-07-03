@@ -4,7 +4,7 @@
  * 使用 React Router <Outlet /> 渲染子路由内容。
  * 侧边栏直接挂在路由布局层，避免路由切换时被卸载/重新挂载。
  *
- * show_sidebar=false 用于 LauncherPage 等不需要侧边栏的页面。
+ * showSidebar=false 用于 LauncherPage 等不需要侧边栏的页面。
  */
 
 import { Outlet } from "react-router-dom";
@@ -13,7 +13,7 @@ import { HOME_PAGE_PADDING_CLASS } from "@/lib/layout/home-layout";
 import { cn } from "@/lib/utils";
 import { SidebarWidePanel } from "@/shared/ui/sidebar/sidebar-wide-panel";
 
-export function AppLayout({ show_sidebar: showSidebar = true }: { show_sidebar?: boolean }) {
+export function AppLayout({ showSidebar: showSidebar = true }: { showSidebar?: boolean }) {
   return (
     <main className="relative flex h-screen w-full overflow-hidden bg-transparent text-foreground">
       {showSidebar ? <SidebarWidePanel /> : null}

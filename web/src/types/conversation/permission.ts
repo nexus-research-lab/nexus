@@ -77,13 +77,13 @@ export interface PendingPermissionMatchResult {
 }
 
 /**
- * 从消息快照中提取仍未完成的 tool_use。
+ * 从消息快照中提取仍未完成的 toolUse。
  *
- * 中文注释：权限请求的唯一上游来源是后端事件里的 `message_id / caused_by`。
- * 这里先把当前 assistant 消息里仍未被 tool_result 收口的 tool_use 全部抽出来，
+ * 中文注释：权限请求的唯一上游来源是后端事件里的 `messageId / causedBy`。
+ * 这里先把当前 assistant 消息里仍未被 toolResult 收口的 toolUse 全部抽出来，
  * 后续所有权限绑定都只允许在这批候选里做精确匹配，不再跨消息猜测。
  */
-export function collect_unresolved_tool_use_candidates(
+export function collectUnresolvedToolUseCandidates(
   messages: Message[],
 ): PendingPermissionToolUseCandidate[] {
   const orderedCandidates: PendingPermissionToolUseCandidate[] = [];
@@ -124,13 +124,13 @@ export function collect_unresolved_tool_use_candidates(
 }
 
 /**
- * 将 pending permission 精确绑定到唯一的 tool_use。
+ * 将 pending permission 精确绑定到唯一的 toolUse。
  *
- * 中文注释：绑定主键只认 `permission.message_id`。
- * 同一条 assistant message 内如果有多个 tool_use，再用后端原样携带的工具载荷做精确定位；
- * 一旦缺少 `message_id` 或载荷不一致，就保留成未匹配卡片，不走跨消息签名兜底。
+ * 中文注释：绑定主键只认 `permission.messageId`。
+ * 同一条 assistant message 内如果有多个 toolUse，再用后端原样携带的工具载荷做精确定位；
+ * 一旦缺少 `messageId` 或载荷不一致，就保留成未匹配卡片，不走跨消息签名兜底。
  */
-export function match_pending_permissions_to_tool_uses(
+export function matchPendingPermissionsToToolUses(
   pendingPermissions: PendingPermission[],
   candidates: PendingPermissionToolUseCandidate[],
 ): PendingPermissionMatchResult {

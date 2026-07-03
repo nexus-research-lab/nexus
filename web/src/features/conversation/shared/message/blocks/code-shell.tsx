@@ -15,18 +15,18 @@ import { cn } from "@/lib/utils";
 
 interface CodeShellProps {
   language?: string;
-  right_slot?: ReactNode;
-  content_class_name?: string;
-  class_name?: string;
+  rightSlot?: ReactNode;
+  contentClassName?: string;
+  className?: string;
   children: ReactNode;
 }
 
 /** 中文注释：代码块壳层只在消息区复用，直接收进组件层，避免全局样式继续承担细节实现。 */
 export function CodeShell({
   language,
-  right_slot: rightSlot,
-  content_class_name: contentClassName,
-  class_name: className,
+  rightSlot: rightSlot,
+  contentClassName: contentClassName,
+  className: className,
   children,
 }: CodeShellProps) {
   return (

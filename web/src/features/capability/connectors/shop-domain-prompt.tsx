@@ -18,9 +18,9 @@ function normalizeShopDomain(value: string): string | null {
 }
 
 function ShopDomainPrompt({
-  on_finish: onFinish,
+  onFinish: onFinish,
 }: {
-  on_finish: (value: string | null) => void;
+  onFinish: (value: string | null) => void;
 }) {
   const [error, setError] = useState<string | null>(null);
 
@@ -39,11 +39,11 @@ function ShopDomainPrompt({
   return (
     <>
       <PromptDialog
-        default_value=""
-        is_open
+        defaultValue=""
+        isOpen
         message={error || "输入 myshopify.com 前面的店铺子域名。"}
-        on_cancel={() => onFinish(null)}
-        on_confirm={handleConfirm}
+        onCancel={() => onFinish(null)}
+        onConfirm={handleConfirm}
         placeholder="nexus-dev"
         title="Shopify 店铺"
       />
@@ -52,7 +52,7 @@ function ShopDomainPrompt({
 }
 
 /** 打开 Shopify 店铺域名输入弹窗，返回规范化后的 shop 子域名。 */
-export function open_shop_prompt(): Promise<string | null> {
+export function openShopPrompt(): Promise<string | null> {
   if (typeof document === "undefined") {
     return Promise.resolve(null);
   }
@@ -68,6 +68,6 @@ export function open_shop_prompt(): Promise<string | null> {
       resolve(value);
     };
 
-    root.render(<ShopDomainPrompt on_finish={finish} />);
+    root.render(<ShopDomainPrompt onFinish={finish} />);
   });
 }

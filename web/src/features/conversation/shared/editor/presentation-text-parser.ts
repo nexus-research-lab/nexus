@@ -2,53 +2,53 @@ import type {
   PresentationParagraph,
   PresentationTextRun,
 } from "./presentation-preview-model";
-import { read_fill_color } from "./presentation-shape-style";
+import { readFillColor } from "./presentation-shape-style";
 import {
-  children_by_local_name,
-  emu_to_pixel,
-  first_child_by_local_name,
-  first_descendant_by_local_name,
+  childrenByLocalName,
+  emuToPixel,
+  firstChildByLocalName,
+  firstDescendantByLocalName,
 } from "./presentation-xml-utils";
 
-export function parse_text_body(textBody: Element | null, shapeWidth: number): PresentationParagraph[] {
+export function parseTextBody(textBody: Element | null, shapeWidth: number): PresentationParagraph[] {
   if (!textBody) {
     return [];
   }
 
-  const listStyle = first_child_by_local_name(textBody, "lstStyle");
+  const listStyle = firstChildByLocalName(textBody, "lstStyle");
 
-  return children_by_local_name(textBody, "p")
+  return childrenByLocalName(textBody, "p")
     .map((paragraph) => {
-      const paragraphProperties = first_child_by_local_name(paragraph, "pPr");
+      const paragraphProperties = firstChildByLocalName(paragraph, "pPr");
       const listParagraphProperties = readListParagraphProperties(listStyle, paragraphProperties);
       const defaultRunProperties = [
-        first_child_by_local_name(paragraphProperties, "defRPr"),
-        first_child_by_local_name(listParagraphProperties, "defRPr"),
-        first_child_by_local_name(paragraph, "endParaRPr"),
+        firstChildByLocalName(paragraphProperties, "defRPr"),
+        firstChildByLocalName(listParagraphProperties, "defRPr"),
+        firstChildByLocalName(paragraph, "endParaRPr"),
       ];
       const align = readParagraphAlign(paragraphProperties);
       const defaultFontSize = readFontSizeFromCandidates(defaultRunProperties, shapeWidth);
-      const runs = children_by_local_name(paragraph, "r")
+      const runs = childrenByLocalName(paragraph, "r")
         .map((run) => parseTextRun(run, defaultRunProperties, shapeWidth, defaultFontSize))
         .filter((run): run is PresentationTextRun => !!run && run.text.length > 0);
-      const fallbackText = runs.length === 0 ? first_descendant_by_local_name(paragraph, "t")?.textContent || "" : "";
+      const fallbackText = runs.length === 0 ? firstDescendantByLocalName(paragraph, "t")?.textContent || "" : "";
       const textRuns = runs.length > 0
         ? runs
         : [{
           color: readFillColorFromCandidates(defaultRunProperties) || "#111827",
-          font_face: readFontFaceFromCandidates(defaultRunProperties),
-          font_size: defaultFontSize,
+          fontFace: readFontFaceFromCandidates(defaultRunProperties),
+          fontSize: defaultFontSize,
           text: fallbackText,
         }];
       const text = textRuns.map((run) => run.text).join("");
-      const paragraphFontSize = textRuns[0]?.font_size || defaultFontSize;
+      const paragraphFontSize = textRuns[0]?.fontSize || defaultFontSize;
 
       return {
         align,
         bullet: readParagraphBullet(paragraphProperties),
-        bullet_indent: readParagraphBulletIndent(paragraphProperties, paragraphFontSize),
-        font_size: paragraphFontSize,
-        line_height: readParagraphLineHeight(paragraphProperties, listParagraphProperties),
+        bulletIndent: readParagraphBulletIndent(paragraphProperties, paragraphFontSize),
+        fontSize: paragraphFontSize,
+        lineHeight: readParagraphLineHeight(paragraphProperties, listParagraphProperties),
         runs: textRuns,
         text,
       };
@@ -62,18 +62,18 @@ function parseTextRun(
   shapeWidth: number,
   defaultFontSize: number,
 ): PresentationTextRun | null {
-  const text = first_descendant_by_local_name(run, "t")?.textContent || "";
+  const text = firstDescendantByLocalName(run, "t")?.textContent || "";
   if (!text) {
     return null;
   }
 
-  const runProperties = first_child_by_local_name(run, "rPr");
+  const runProperties = firstChildByLocalName(run, "rPr");
   const runPropertyChain = [runProperties, ...defaultRunProperties];
   return {
     bold: readBooleanAttributeFromCandidates(runPropertyChain, "b", false),
     color: readFillColorFromCandidates(runPropertyChain) || "#111827",
-    font_face: readFontFaceFromCandidates(runPropertyChain),
-    font_size: readFontSizeFromCandidates(runPropertyChain, shapeWidth, defaultFontSize),
+    fontFace: readFontFaceFromCandidates(runPropertyChain),
+    fontSize: readFontSizeFromCandidates(runPropertyChain, shapeWidth, defaultFontSize),
     italic: readBooleanAttributeFromCandidates(runPropertyChain, "i", false),
     text,
   };
@@ -81,8 +81,8 @@ function parseTextRun(
 
 function readListParagraphProperties(listStyle: Element | null, paragraphProperties: Element | null): Element | null {
   const level = Math.max(Number(paragraphProperties?.getAttribute("lvl") || 0), 0);
-  return first_child_by_local_name(listStyle, `lvl${level + 1}pPr`)
-    || first_child_by_local_name(listStyle, "defPPr");
+  return firstChildByLocalName(listStyle, `lvl${level + 1}pPr`)
+    || firstChildByLocalName(listStyle, "defPPr");
 }
 
 function readBooleanAttributeFromCandidates(
@@ -103,8 +103,8 @@ function readBooleanAttributeFromCandidates(
 }
 
 function readFontFace(runProperties: Element | null): string | undefined {
-  return first_descendant_by_local_name(runProperties, "ea")?.getAttribute("typeface")
-    || first_descendant_by_local_name(runProperties, "latin")?.getAttribute("typeface")
+  return firstDescendantByLocalName(runProperties, "ea")?.getAttribute("typeface")
+    || firstDescendantByLocalName(runProperties, "latin")?.getAttribute("typeface")
     || undefined;
 }
 
@@ -120,7 +120,7 @@ function readFontFaceFromCandidates(elements: Array<Element | null>): string | u
 
 function readFillColorFromCandidates(elements: Array<Element | null>): string | undefined {
   for (const element of elements) {
-    const color = read_fill_color(element);
+    const color = readFillColor(element);
     if (color) {
       return color;
     }
@@ -129,16 +129,16 @@ function readFillColorFromCandidates(elements: Array<Element | null>): string | 
 }
 
 function readParagraphBullet(paragraphProperties: Element | null): string | undefined {
-  if (!paragraphProperties || first_child_by_local_name(paragraphProperties, "buNone")) {
+  if (!paragraphProperties || firstChildByLocalName(paragraphProperties, "buNone")) {
     return undefined;
   }
-  return first_child_by_local_name(paragraphProperties, "buChar")?.getAttribute("char") || undefined;
+  return firstChildByLocalName(paragraphProperties, "buChar")?.getAttribute("char") || undefined;
 }
 
 function readParagraphBulletIndent(paragraphProperties: Element | null, fontSize: number): number {
   const margin = Number(paragraphProperties?.getAttribute("marL") || 0);
   if (margin > 0) {
-    return Math.max(emu_to_pixel(margin), fontSize * 1.2);
+    return Math.max(emuToPixel(margin), fontSize * 1.2);
   }
   return fontSize * 1.35;
 }
@@ -147,9 +147,9 @@ function readParagraphLineHeight(
   paragraphProperties: Element | null,
   listParagraphProperties?: Element | null,
 ): number {
-  const lineSpacing = first_descendant_by_local_name(paragraphProperties, "lnSpc")
-    || first_descendant_by_local_name(listParagraphProperties || null, "lnSpc");
-  const spacingPercent = Number(first_child_by_local_name(lineSpacing, "spcPct")?.getAttribute("val") || 0);
+  const lineSpacing = firstDescendantByLocalName(paragraphProperties, "lnSpc")
+    || firstDescendantByLocalName(listParagraphProperties || null, "lnSpc");
+  const spacingPercent = Number(firstChildByLocalName(lineSpacing, "spcPct")?.getAttribute("val") || 0);
   if (spacingPercent > 0) {
     return Math.max(spacingPercent / 100000, 1);
   }

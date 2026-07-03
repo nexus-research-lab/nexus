@@ -173,7 +173,7 @@ export interface ProviderTestResult {
   tested_at?: string | null;
 }
 
-export function format_provider_label(provider?: string | null, displayName?: string | null): string {
+export function formatProviderLabel(provider?: string | null, displayName?: string | null): string {
   const normalizedDisplayName = displayName?.trim();
   if (normalizedDisplayName) {
     return normalizedDisplayName;

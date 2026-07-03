@@ -1,4 +1,4 @@
-import { resolve_agent_id } from "@/config/options";
+import { resolveAgentId } from "@/config/options";
 
 const AGENT_SESSION_PREFIX = "agent";
 const ROOM_SESSION_PREFIX = "room";
@@ -58,9 +58,9 @@ function splitAgentRefParts(parts: string[]): {
 }
 
 /**
- * 中文注释：前后端共享同一套 session_key 语义，前端不要再散落手拼字符串。
+ * 中文注释：前后端共享同一套 sessionKey 语义，前端不要再散落手拼字符串。
  */
-export function build_session_key({
+export function buildSessionKey({
   channel,
   chat_type: chatType,
   ref,
@@ -68,7 +68,7 @@ export function build_session_key({
   account_id: accountId,
   thread_id: threadId,
 }: BuildSessionKeyOptions): string {
-  const resolvedAgentId = resolve_agent_id(agentId);
+  const resolvedAgentId = resolveAgentId(agentId);
   const resolvedChannel = channel.trim();
   const resolvedChatType = chatType.trim();
   const resolvedRef = ref.trim();
@@ -82,16 +82,16 @@ export function build_session_key({
   return key;
 }
 
-export function build_room_shared_session_key(conversationId: string): string {
+export function buildRoomSharedSessionKey(conversationId: string): string {
   return `${ROOM_SHARED_SESSION_PREFIX}${conversationId}`;
 }
 
-export function build_room_agent_session_key(
+export function buildRoomAgentSessionKey(
   conversationId: string,
   agentId: string,
   roomType: "dm" | "room" = "room",
 ): string {
-  return build_session_key({
+  return buildSessionKey({
     channel: "ws",
     chat_type: roomType === "dm" ? "dm" : "group",
     ref: conversationId,
@@ -136,11 +136,11 @@ function getSessionKeyValidationError(sessionKey: string | null | undefined): st
   return "session_key must use structured gateway format";
 }
 
-export function is_structured_session_key(sessionKey: string): boolean {
+export function isStructuredSessionKey(sessionKey: string): boolean {
   return getSessionKeyValidationError(sessionKey) === null;
 }
 
-export function assert_structured_session_key(sessionKey: string | null | undefined): string {
+export function assertStructuredSessionKey(sessionKey: string | null | undefined): string {
   const errorMessage = getSessionKeyValidationError(sessionKey);
   if (errorMessage) {
     throw new Error(errorMessage);
@@ -149,7 +149,7 @@ export function assert_structured_session_key(sessionKey: string | null | undefi
 }
 
 
-export function parse_session_key(sessionKey: string | null | undefined): ParsedSessionKey {
+export function parseSessionKey(sessionKey: string | null | undefined): ParsedSessionKey {
   const normalizedKey = (sessionKey ?? "").trim();
   const validationError = getSessionKeyValidationError(normalizedKey);
   const result: ParsedSessionKey = {
@@ -170,7 +170,7 @@ export function parse_session_key(sessionKey: string | null | undefined): Parsed
     const parts = normalizedKey.split(":");
     result.kind = "agent";
     result.is_structured = validationError === null;
-    result.agent_id = resolve_agent_id(parts[1]);
+    result.agent_id = resolveAgentId(parts[1]);
     result.channel = parts[2] || null;
     result.chat_type = parts[3] || "dm";
 
@@ -204,13 +204,13 @@ export function parse_session_key(sessionKey: string | null | undefined): Parsed
   return result;
 }
 
-export function get_session_key_identity(sessionKey: string | null | undefined): string | null {
-  const parsed = parse_session_key(sessionKey);
+export function getSessionKeyIdentity(sessionKey: string | null | undefined): string | null {
+  const parsed = parseSessionKey(sessionKey);
   if (!parsed.raw) {
     return null;
   }
 
-  // Room 键比较时只认 conversation_id，避免未来 alias 演进时前端错判。
+  // Room 键比较时只认 conversationId，避免未来 alias 演进时前端错判。
   if (parsed.kind === "room" && parsed.conversation_id) {
     return `${ROOM_SESSION_PREFIX}:${parsed.conversation_id}`;
   }
@@ -218,11 +218,11 @@ export function get_session_key_identity(sessionKey: string | null | undefined):
   return parsed.raw;
 }
 
-export function are_equivalent_session_keys(
+export function areEquivalentSessionKeys(
   left: string | null | undefined,
   right: string | null | undefined,
 ): boolean {
-  const leftIdentity = get_session_key_identity(left);
-  const rightIdentity = get_session_key_identity(right);
+  const leftIdentity = getSessionKeyIdentity(left);
+  const rightIdentity = getSessionKeyIdentity(right);
   return Boolean(leftIdentity && rightIdentity && leftIdentity === rightIdentity);
 }

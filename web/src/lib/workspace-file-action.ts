@@ -1,26 +1,26 @@
-import { is_desktop_runtime } from "@/config/desktop-runtime";
+import { isDesktopRuntime } from "@/config/desktop-runtime";
 
 export interface WorkspaceFileExternalActionCopy {
-  aria_label: string;
+  ariaLabel: string;
   label: string;
   mode: "download" | "reveal";
   title: string;
 }
 
-export const get_workspace_file_external_action_copy = (
+export const getWorkspaceFileExternalActionCopy = (
   fileName?: string,
 ): WorkspaceFileExternalActionCopy => {
   const normalizedFileName = fileName?.trim() || "文件";
-  if (is_desktop_runtime()) {
+  if (isDesktopRuntime()) {
     return {
-      aria_label: `在文件夹中显示 ${normalizedFileName}`,
+      ariaLabel: `在文件夹中显示 ${normalizedFileName}`,
       label: "打开",
       mode: "reveal",
       title: `在文件夹中显示 ${normalizedFileName}`,
     };
   }
   return {
-    aria_label: `下载 ${normalizedFileName}`,
+    ariaLabel: `下载 ${normalizedFileName}`,
     label: "下载",
     mode: "download",
     title: `下载 ${normalizedFileName}`,

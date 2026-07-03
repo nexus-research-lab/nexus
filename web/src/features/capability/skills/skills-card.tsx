@@ -12,20 +12,20 @@ import { SkillStatePill } from "./skill-state-pill";
 interface SkillsCardProps {
   skill: SkillInfo;
   busy?: boolean;
-  class_name?: string;
-  on_select: () => void;
-  on_update?: () => void;
-  on_delete?: () => void;
+  className?: string;
+  onSelect: () => void;
+  onUpdate?: () => void;
+  onDelete?: () => void;
 }
 
 /** Skill 行 —— 与连接器目录保持一致的轻量列表结构。 */
 export function SkillsCard({
   skill,
   busy = false,
-  class_name: className,
-  on_select: onSelect,
-  on_update: onUpdate,
-  on_delete: onDelete,
+  className: className,
+  onSelect: onSelect,
+  onUpdate: onUpdate,
+  onDelete: onDelete,
 }: SkillsCardProps) {
   const {
     title,
@@ -45,7 +45,7 @@ export function SkillsCard({
 
   return (
     <UiListRow
-      class_name={cn(
+      className={cn(
         "min-h-[72px] rounded-[14px] px-2 py-1.5",
         busy && "opacity-60",
         className,
@@ -61,7 +61,7 @@ export function SkillsCard({
           {locked ? <Lock className="h-4 w-4" /> : <Puzzle className="h-4 w-4" />}
         </span>
       )}
-      on_click={onSelect}
+      onClick={onSelect}
       right={(
         <div className="flex shrink-0 items-center gap-1.5">
           <SkillStatePill tone={stateTone}>{stateLabel}</SkillStatePill>
@@ -70,7 +70,7 @@ export function SkillsCard({
               disabled={busy}
               onClick={onUpdate}
               size="sm"
-              stop_propagation
+              stopPropagation
               title="更新"
             >
               <RefreshCw className="h-3 w-3" />
@@ -81,7 +81,7 @@ export function SkillsCard({
               disabled={busy}
               onClick={onDelete}
               size="sm"
-              stop_propagation
+              stopPropagation
               title="从技能库删除"
               tone="danger"
             >

@@ -11,33 +11,33 @@ import {
   UiDialogHeader,
   UiDialogPortal,
 } from "@/shared/ui/dialog/dialog";
-import { get_dialog_action_class_name } from "@/shared/ui/dialog/dialog-styles";
+import { getDialogActionClassName } from "@/shared/ui/dialog/dialog-styles";
 import { UiField, UiInput, UiTextarea } from "@/shared/ui/form-control";
 
 interface GoalDraftFormProps {
   budget: string;
   disabled: boolean;
   error: string | null;
-  is_loading: boolean;
-  loading_label?: string | null;
+  isLoading: boolean;
+  loadingLabel?: string | null;
   objective: string;
-  on_budget_change: (value: string) => void;
-  on_cancel: () => void;
-  on_objective_change: (value: string) => void;
-  on_submit: (event: FormEvent) => void;
+  onBudgetChange: (value: string) => void;
+  onCancel: () => void;
+  onObjectiveChange: (value: string) => void;
+  onSubmit: (event: FormEvent) => void;
 }
 
 export function GoalDraftForm({
   budget,
   disabled,
   error,
-  is_loading: isLoading,
-  loading_label: loadingLabel = null,
+  isLoading: isLoading,
+  loadingLabel: loadingLabel = null,
   objective,
-  on_budget_change: onBudgetChange,
-  on_cancel: onCancel,
-  on_objective_change: onObjectiveChange,
-  on_submit: onSubmit,
+  onBudgetChange: onBudgetChange,
+  onCancel: onCancel,
+  onObjectiveChange: onObjectiveChange,
+  onSubmit: onSubmit,
 }: GoalDraftFormProps) {
   const objectiveRef = useRef<HTMLTextAreaElement | null>(null);
   const canClose = !disabled && !isLoading;
@@ -48,33 +48,33 @@ export function GoalDraftForm({
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
-        class_name="z-[9998]"
-        initial_focus_ref={objectiveRef}
-        labelled_by="goal-edit-dialog-title"
-        on_close={canClose ? onCancel : undefined}
+        className="z-[9998]"
+        initialFocusRef={objectiveRef}
+        labelledBy="goal-edit-dialog-title"
+        onClose={canClose ? onCancel : undefined}
       >
         <UiDialogFormShell
-          class_name="pointer-events-auto"
+          className="pointer-events-auto"
           size="md"
           onSubmit={onSubmit}
         >
           <UiDialogHeader
             icon={<Target className="h-4 w-4" />}
-            icon_class_name="text-(--primary)"
+            iconClassName="text-(--primary)"
             title="编辑 Goal"
-            title_id="goal-edit-dialog-title"
-            on_close={canClose ? onCancel : undefined}
+            titleId="goal-edit-dialog-title"
+            onClose={canClose ? onCancel : undefined}
           />
 
-          <UiDialogBody class_name="flex flex-col gap-4">
+          <UiDialogBody className="flex flex-col gap-4">
             <UiField
               error={error}
-              html_for="goal-objective-input"
+              htmlFor="goal-objective-input"
               label="目标"
             >
               <UiTextarea
                 ref={objectiveRef}
-                class_name="min-h-[128px]"
+                className="min-h-[128px]"
                 data-autofocus="true"
                 disabled={disabled || isLoading}
                 id="goal-objective-input"
@@ -86,11 +86,11 @@ export function GoalDraftForm({
             </UiField>
 
             <UiField
-              html_for="goal-budget-input"
+              htmlFor="goal-budget-input"
               label="Token 预算"
             >
               <UiInput
-                class_name="max-w-[180px]"
+                className="max-w-[180px]"
                 disabled={disabled || isLoading}
                 id="goal-budget-input"
                 inputMode="numeric"
@@ -102,9 +102,9 @@ export function GoalDraftForm({
             </UiField>
           </UiDialogBody>
 
-          <UiDialogFooter class_name="justify-end gap-3">
+          <UiDialogFooter className="justify-end gap-3">
             <button
-              className={get_dialog_action_class_name("default")}
+              className={getDialogActionClassName("default")}
               disabled={disabled || isLoading}
               type="button"
               onClick={onCancel}
@@ -112,7 +112,7 @@ export function GoalDraftForm({
               取消
             </button>
             <button
-              className={get_dialog_action_class_name(objective.trim() ? "primary" : "default")}
+              className={getDialogActionClassName(objective.trim() ? "primary" : "default")}
               disabled={disabled || isLoading || !objective.trim()}
               type="submit"
             >

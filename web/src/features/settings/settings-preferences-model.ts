@@ -1,7 +1,7 @@
-import { get_user_preferences } from "@/config/options";
+import { getUserPreferences } from "@/config/options";
 import type { ProviderOption } from "@/types/capability/provider";
 import {
-  normalize_agent_runtime_kind,
+  normalizeAgentRuntimeKind,
   type UpdateUserPreferencesParams,
   type UserPreferences,
 } from "@/types/settings/preferences";
@@ -12,7 +12,7 @@ export interface PreferenceFeedback {
   message: string;
 }
 
-export function build_preferences_update_payload(
+export function buildPreferencesUpdatePayload(
   preferences: UserPreferences,
 ): UpdateUserPreferencesParams {
   return {
@@ -26,12 +26,12 @@ export function build_preferences_update_payload(
   };
 }
 
-export function normalize_preferences(preferences: UserPreferences | null): UserPreferences {
-  const fallback = get_user_preferences();
+export function normalizePreferences(preferences: UserPreferences | null): UserPreferences {
+  const fallback = getUserPreferences();
   return {
     chat_default_delivery_policy:
       preferences?.chat_default_delivery_policy ?? fallback.chat_default_delivery_policy,
-    agent_runtime_kind: normalize_agent_runtime_kind(
+    agent_runtime_kind: normalizeAgentRuntimeKind(
       preferences?.agent_runtime_kind ?? fallback.agent_runtime_kind,
     ),
     agent_sdk_diagnostics_enabled: preferences === null
@@ -81,7 +81,7 @@ function encodeDefaultModelValue(provider: string, model: string): string {
   return JSON.stringify([provider, model]);
 }
 
-export function decode_default_model_value(value: string): { provider: string; model: string } | null {
+export function decodeDefaultModelValue(value: string): { provider: string; model: string } | null {
   try {
     const parsed = JSON.parse(value) as unknown;
     if (!Array.isArray(parsed) || parsed.length !== 2) {
@@ -102,7 +102,7 @@ export function decode_default_model_value(value: string): { provider: string; m
   }
 }
 
-export function encode_optional_model_selection(
+export function encodeOptionalModelSelection(
   provider?: string | null,
   model?: string | null,
 ): string {
@@ -114,7 +114,7 @@ export function encode_optional_model_selection(
   return encodeDefaultModelValue(normalizedProvider, normalizedModel);
 }
 
-export function build_default_model_options(providerOptions: ProviderOption[]) {
+export function buildDefaultModelOptions(providerOptions: ProviderOption[]) {
   return providerOptions.flatMap((provider) => (
     provider.models.map((model) => {
       const providerLabel = provider.display_name || provider.provider;

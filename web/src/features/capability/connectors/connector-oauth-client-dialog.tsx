@@ -3,7 +3,7 @@
 import { Check, Copy, ExternalLink, KeyRound, Save, Trash2 } from "lucide-react";
 import { type FormEvent, useCallback } from "react";
 
-import { get_connector_oauth_redirect_uri } from "@/config/desktop-runtime";
+import { getConnectorOauthRedirectUri } from "@/config/desktop-runtime";
 import { useCopyToClipboard } from "@/hooks/ui/use-copy-to-clipboard";
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import {
@@ -21,18 +21,18 @@ import type { ConnectorDetail } from "@/types/capability/connector";
 interface ConnectorOAuthClientDialogProps {
   detail: ConnectorDetail | null;
   busy: boolean;
-  on_close: () => void;
-  on_save: (connectorId: string, clientId: string, clientSecret: string) => void;
-  on_delete: (connectorId: string) => void;
+  onClose: () => void;
+  onSave: (connectorId: string, clientId: string, clientSecret: string) => void;
+  onDelete: (connectorId: string) => void;
 }
 
 /** OAuth Client 配置弹窗。 */
 export function ConnectorOAuthClientDialog({
   detail,
   busy,
-  on_close: onClose,
-  on_save: onSave,
-  on_delete: onDelete,
+  onClose: onClose,
+  onSave: onSave,
+  onDelete: onDelete,
 }: ConnectorOAuthClientDialogProps) {
   const detailResetKey = `${detail?.connector_id ?? ""}\x1f${detail?.oauth_client_id ?? ""}`;
   const [clientId, setClientId] = useResettableState(detail?.oauth_client_id ?? "", detailResetKey);
@@ -52,28 +52,28 @@ export function ConnectorOAuthClientDialog({
 
   const isConfigured = detail.oauth_client_configured ?? false;
   const canSave = clientId.trim() !== "" && clientSecret.trim() !== "";
-  const callbackUrl = get_connector_oauth_redirect_uri();
+  const callbackUrl = getConnectorOauthRedirectUri();
   const providerName = detail.connector_id === "feishu-docx" ? "飞书开放平台应用" : "OAuth 应用";
 
   return (
-    <UiDialogBackdrop on_close={onClose}>
-      <UiDialogFormShell class_name="max-h-[84vh]" onSubmit={handleSubmit} size="sm">
+    <UiDialogBackdrop onClose={onClose}>
+      <UiDialogFormShell className="max-h-[84vh]" onSubmit={handleSubmit} size="sm">
         <UiDialogHeader
           icon={<KeyRound className="h-4 w-4" />}
-          icon_class_name="h-9 w-9 rounded-[14px]"
-          on_close={onClose}
+          iconClassName="h-9 w-9 rounded-[14px]"
+          onClose={onClose}
           subtitle={detail.title}
           title="配置应用"
         />
 
-        <UiDialogBody class_name="space-y-3" scrollable>
-          <UiPanel class_name="text-[12px] leading-relaxed" padding="sm" variant="inset">
+        <UiDialogBody className="space-y-3" scrollable>
+          <UiPanel className="text-[12px] leading-relaxed" padding="sm" variant="inset">
             在{providerName}中填写下面的 Callback URL，再复制 App ID 和 App Secret。
           </UiPanel>
 
           {detail.docs_url ? (
             <UiLinkButton
-              class_name="w-fit"
+              className="w-fit"
               href={detail.docs_url}
               rel="noopener noreferrer"
               size="sm"
@@ -87,13 +87,13 @@ export function ConnectorOAuthClientDialog({
 
           <div className="space-y-1">
             <div className="text-[12px] font-medium text-(--text-muted)">Callback URL</div>
-            <UiPanel class_name="flex min-h-9 items-center gap-2" padding="sm" radius="sm" variant="inset">
+            <UiPanel className="flex min-h-9 items-center gap-2" padding="sm" radius="sm" variant="inset">
               <code className="min-w-0 flex-1 break-all text-[11px] leading-5 text-(--text-strong)">
                 {callbackUrl}
               </code>
               <UiIconButton
                 aria-label={callbackUrlCopied ? "已复制 Callback URL" : "复制 Callback URL"}
-                class_name="shrink-0"
+                className="shrink-0"
                 onClick={() => void copyCallbackUrl(callbackUrl)}
                 size="sm"
                 title={callbackUrlCopied ? "已复制" : "复制 Callback URL"}
@@ -109,7 +109,7 @@ export function ConnectorOAuthClientDialog({
             <UiInput
               autoCapitalize="off"
               autoCorrect="off"
-              control_size="sm"
+              controlSize="sm"
               id="oauth-client-id"
               onChange={(event) => setClientId(event.target.value)}
               placeholder="飞书应用 App ID"
@@ -124,7 +124,7 @@ export function ConnectorOAuthClientDialog({
               autoCapitalize="off"
               autoComplete="off"
               autoCorrect="off"
-              control_size="sm"
+              controlSize="sm"
               data-form-type="other"
               data-lpignore="true"
               id="oauth-client-secret"
@@ -138,7 +138,7 @@ export function ConnectorOAuthClientDialog({
           </label>
         </UiDialogBody>
 
-        <UiDialogFooter class_name="flex-wrap gap-1.5">
+        <UiDialogFooter className="flex-wrap gap-1.5">
           {isConfigured ? (
             <UiButton
               disabled={busy}

@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { prepare, layout } from "@chenglou/pretext";
-import { is_automation_trigger_user_message } from "@/types/conversation/automation-message";
+import { isAutomationTriggerUserMessage } from "@/types/conversation/automation-message";
 import { ContentBlock, Message } from "@/types/conversation/message";
 
 // Base font matching MarkdownRenderer prose text (text-sm = 14px, leading-7 = 28px)
@@ -43,7 +43,7 @@ function extractTextFromMessages(messages: Message[]): string {
   const parts: string[] = [];
   for (const msg of messages) {
     if (msg.role === "user" && typeof msg.content === "string") {
-      if (is_automation_trigger_user_message(msg)) {
+      if (isAutomationTriggerUserMessage(msg)) {
         continue;
       }
       parts.push(msg.content);
@@ -115,7 +115,7 @@ function useMessageHeight(
  * More efficient than calling useMessageHeight in a loop since we share
  * the prepare() cache across all messages.
  */
-export function estimate_round_heights(
+export function estimateRoundHeights(
   roundIds: string[],
   messageGroups: Map<string, Message[]>,
   containerWidth: number,

@@ -17,12 +17,12 @@ import {
   CreateAgentParams,
   UpdateAgentParams,
 } from "@/types/agent/agent";
-import { create_browser_json_storage } from "@/lib/storage/browser-storage";
+import { createBrowserJsonStorage } from "@/lib/storage/browser-storage";
 import {
-  get_agents,
-  create_agent_api,
-  update_agent_api,
-  delete_agent_api,
+  getAgents,
+  createAgentApi,
+  updateAgentApi,
+  deleteAgentApi,
 } from "@/lib/api/agent-manage-api";
 
 export const AGENT_LIST_UPDATED_EVENT_NAME = "nexus:agent-list-updated";
@@ -68,7 +68,7 @@ function runAgentListRequest(): Promise<Agent[]> {
     return loadAgentsInflight;
   }
 
-  loadAgentsInflight = get_agents().finally(() => {
+  loadAgentsInflight = getAgents().finally(() => {
     loadAgentsInflight = null;
   });
   return loadAgentsInflight;
@@ -112,7 +112,7 @@ export const useAgentStore = create<AgentStoreState>()(
 
       create_agent: async (params: CreateAgentParams): Promise<string> => {
         try {
-          const agent = await create_agent_api(params);
+          const agent = await createAgentApi(params);
           set((state) => ({
             agents: [agent, ...state.agents],
             agent_runtime_statuses: {
@@ -132,7 +132,7 @@ export const useAgentStore = create<AgentStoreState>()(
 
       delete_agent: async (agentId: string): Promise<void> => {
         try {
-          await delete_agent_api(agentId);
+          await deleteAgentApi(agentId);
           set((state) => {
             const newAgents = state.agents.filter(
               (a) => a.agent_id !== agentId,
@@ -164,7 +164,7 @@ export const useAgentStore = create<AgentStoreState>()(
         params: UpdateAgentParams,
       ): Promise<void> => {
         try {
-          const updated = await update_agent_api(agentId, params);
+          const updated = await updateAgentApi(agentId, params);
           set((state) => ({
             agents: state.agents.map((a) =>
               a.agent_id === agentId ? updated : a,
@@ -239,7 +239,7 @@ export const useAgentStore = create<AgentStoreState>()(
     }),
     {
       name: "agent-ui-agents",
-      storage: create_browser_json_storage(),
+      storage: createBrowserJsonStorage(),
       partialize: (state) => ({
         current_agent_id: state.current_agent_id,
       }),

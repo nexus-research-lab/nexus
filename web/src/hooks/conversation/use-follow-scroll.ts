@@ -78,53 +78,53 @@ function solveBezierProgress(progress: number): number {
 
 interface UseFollowScrollOptions {
   /** 消息数量变化时触发滚动 */
-  message_count: number;
+  messageCount: number;
   /** 权限/插槽块变化时触发滚动 */
-  auxiliary_block_count?: number;
+  auxiliaryBlockCount?: number;
   /** 辅助块内容变化时触发滚动，例如系统消息文本变化。 */
-  auxiliary_block_key?: string | null;
+  auxiliaryBlockKey?: string | null;
   /** loading 变化时触发滚动 */
-  is_loading: boolean;
+  isLoading: boolean;
   /** session 切换时重置跟随状态 */
-  session_key: string | null;
+  sessionKey: string | null;
   /** 历史消息 prepend 完成后，用于恢复滚动锚点 */
-  history_prepend_token?: number;
+  historyPrependToken?: number;
 }
 
 interface UseFollowScrollReturn {
   /** 挂载到滚动容器的 ref */
-  scroll_ref: React.RefObject<HTMLDivElement | null>;
+  scrollRef: React.RefObject<HTMLDivElement | null>;
   /** 挂载到 feed 内容区的 ref（ResizeObserver 用） */
-  feed_ref: React.RefObject<HTMLDivElement | null>;
+  feedRef: React.RefObject<HTMLDivElement | null>;
   /** 底部锚点 ref */
-  bottom_anchor_ref: React.RefObject<HTMLDivElement | null>;
+  bottomAnchorRef: React.RefObject<HTMLDivElement | null>;
   /** 是否显示"回到底部"按钮 */
-  show_scroll_to_bottom: boolean;
+  showScrollToBottom: boolean;
   /** 滚动到底部 */
-  scroll_to_bottom: (behavior?: ScrollBehavior) => void;
+  scrollToBottom: (behavior?: ScrollBehavior) => void;
   /** 在 prepend 历史消息前记录当前滚动锚点 */
-  prepare_history_prepend_restore: () => void;
+  prepareHistoryPrependRestore: () => void;
   /** prepend 被取消或失败时清理锚点 */
-  cancel_history_prepend_restore: () => void;
+  cancelHistoryPrependRestore: () => void;
   /** 事件处理器：挂载到滚动容器的 onScroll */
-  on_scroll: () => void;
+  onScroll: () => void;
   /** 事件处理器：挂载到滚动容器的 onWheel */
-  on_wheel: (event: React.WheelEvent<HTMLDivElement>) => void;
+  onWheel: (event: React.WheelEvent<HTMLDivElement>) => void;
   /** 事件处理器：挂载到滚动容器的 onTouchStart */
-  on_touch_start: (event: React.TouchEvent<HTMLDivElement>) => void;
+  onTouchStart: (event: React.TouchEvent<HTMLDivElement>) => void;
   /** 事件处理器：挂载到滚动容器的 onTouchMove */
-  on_touch_move: (event: React.TouchEvent<HTMLDivElement>) => void;
+  onTouchMove: (event: React.TouchEvent<HTMLDivElement>) => void;
   /** 事件处理器：挂载到滚动容器的 onTouchEnd */
-  on_touch_end: () => void;
+  onTouchEnd: () => void;
 }
 
 export function useFollowScroll({
-  message_count: messageCount,
-  auxiliary_block_count: auxiliaryBlockCount = 0,
-  auxiliary_block_key: auxiliaryBlockKey = null,
-  is_loading: isLoading,
-  session_key: sessionKey,
-  history_prepend_token: historyPrependToken = 0,
+  messageCount,
+  auxiliaryBlockCount = 0,
+  auxiliaryBlockKey = null,
+  isLoading,
+  sessionKey,
+  historyPrependToken = 0,
 }: UseFollowScrollOptions): UseFollowScrollReturn {
   const scrollRef = useRef<HTMLDivElement>(null);
   const feedRef = useRef<HTMLDivElement>(null);
@@ -134,8 +134,8 @@ export function useFollowScroll({
   const pendingScrollFrameRef = useRef<number | null>(null);
   const pendingScrollInnerFrameRef = useRef<number | null>(null);
   const pendingPrependRestoreRef = useRef<{
-    scroll_height: number;
-    scroll_top: number;
+    scrollHeight: number;
+    scrollTop: number;
   } | null>(null);
   const touchStartYRef = useRef<number | null>(null);
   const showScrollToBottomRef = useRef(false);
@@ -246,8 +246,8 @@ export function useFollowScroll({
     cancelPendingScroll();
     shouldFollowLatestRef.current = false;
     pendingPrependRestoreRef.current = {
-      scroll_height: container.scrollHeight,
-      scroll_top: container.scrollTop,
+      scrollHeight: container.scrollHeight,
+      scrollTop: container.scrollTop,
     };
   }, [cancelPendingScroll]);
 
@@ -281,8 +281,8 @@ export function useFollowScroll({
       return;
     }
     pendingPrependRestoreRef.current = null;
-    const heightDelta = container.scrollHeight - snapshot.scroll_height;
-    const nextScrollTop = snapshot.scroll_top + heightDelta;
+    const heightDelta = container.scrollHeight - snapshot.scrollHeight;
+    const nextScrollTop = snapshot.scrollTop + heightDelta;
     container.scrollTop = nextScrollTop;
     lastScrollTopRef.current = nextScrollTop;
     setScrollToBottomVisibility(true);
@@ -360,17 +360,17 @@ export function useFollowScroll({
   }, []);
 
   return {
-    scroll_ref: scrollRef,
-    feed_ref: feedRef,
-    bottom_anchor_ref: bottomAnchorRef,
-    show_scroll_to_bottom: showScrollToBottom,
-    scroll_to_bottom: scrollToBottom,
-    prepare_history_prepend_restore: prepareHistoryPrependRestore,
-    cancel_history_prepend_restore: cancelHistoryPrependRestore,
-    on_scroll: onScroll,
-    on_wheel: onWheel,
-    on_touch_start: onTouchStart,
-    on_touch_move: onTouchMove,
-    on_touch_end: onTouchEnd,
+    scrollRef: scrollRef,
+    feedRef: feedRef,
+    bottomAnchorRef: bottomAnchorRef,
+    showScrollToBottom: showScrollToBottom,
+    scrollToBottom: scrollToBottom,
+    prepareHistoryPrependRestore: prepareHistoryPrependRestore,
+    cancelHistoryPrependRestore: cancelHistoryPrependRestore,
+    onScroll: onScroll,
+    onWheel: onWheel,
+    onTouchStart: onTouchStart,
+    onTouchMove: onTouchMove,
+    onTouchEnd: onTouchEnd,
   };
 }

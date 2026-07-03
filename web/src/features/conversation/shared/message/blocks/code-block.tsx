@@ -7,7 +7,7 @@ import { StreamingCodeBlock } from "./streaming-code-block";
 
 interface CodeBlockProps {
   language: string;
-  is_streaming?: boolean;
+  isStreaming?: boolean;
   value: string;
 }
 
@@ -20,12 +20,12 @@ function CodeBlockLoadingFallback({ language, value }: CodeBlockProps) {
   return (
     <CodeShell
       language={language}
-      right_slot={(
+      rightSlot={(
         <span className="message-cjk-code-font text-[11px]" style={{ color: "var(--text-muted)" }}>
           Loading
         </span>
       )}
-      content_class_name="overflow-x-auto"
+      contentClassName="overflow-x-auto"
     >
       <pre
         className="message-cjk-code-font min-w-full whitespace-pre px-4 py-3.5 text-[13px] leading-[1.6]"
@@ -37,7 +37,7 @@ function CodeBlockLoadingFallback({ language, value }: CodeBlockProps) {
   );
 }
 
-export function CodeBlock({ language, value, is_streaming: isStreaming }: CodeBlockProps) {
+export function CodeBlock({ language, value, isStreaming: isStreaming }: CodeBlockProps) {
   if (isStreaming) {
     return <StreamingCodeBlock language={language} value={value} />;
   }

@@ -38,6 +38,21 @@ export default tseslint.config(
     rules: {
       ...reactHooks.configs.recommended.rules,
       ...jsxA11y.flatConfigs.recommended.rules,
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "JSXAttribute[name.name=/^[a-z][A-Za-z0-9]*_[A-Za-z0-9_]*$/]",
+          message: "前端 JSX props 使用 camelCase；协议对象字段不要放在 JSX attribute 上。",
+        },
+        {
+          selector: "ExportNamedDeclaration > FunctionDeclaration[id.name=/^[a-z][A-Za-z0-9]*_[A-Za-z0-9_]*$/]",
+          message: "前端 exported 函数名使用 camelCase。",
+        },
+        {
+          selector: "ExportNamedDeclaration > VariableDeclaration > VariableDeclarator[id.name=/^[a-z][A-Za-z0-9]*_[A-Za-z0-9_]*$/]",
+          message: "前端 exported 变量名使用 camelCase。",
+        },
+      ],
       "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
     },
   },

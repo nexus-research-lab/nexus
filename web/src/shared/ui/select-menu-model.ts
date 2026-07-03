@@ -7,7 +7,7 @@ export type UiSelectMenuSurface = "surface" | "dialog";
 export interface UiSelectMenuPosition {
   bottom?: number;
   left: number;
-  max_height: number;
+  maxHeight: number;
   placement: "bottom" | "top";
   top?: number;
   width: number;
@@ -19,35 +19,35 @@ const SELECT_MENU_MAX_HEIGHT = 280;
 
 export const SELECT_MENU_SEARCH_ROW_HEIGHT = 44;
 
-export function get_select_menu_size_config(size: UiSelectMenuSize) {
+export function getSelectMenuSizeConfig(size: UiSelectMenuSize) {
   return {
-    height_class_name: size === "xs" ? "h-7" : size === "sm" ? "h-9" : "h-10",
-    rounded_class_name: size === "xs" ? "rounded-[10px]" : size === "sm" ? "rounded-[12px]" : "rounded-[13px]",
-    text_class_name: size === "xs" ? "text-[11px]" : size === "sm" ? "text-[12px]" : "text-[13px]",
-    option_height_class_name: size === "xs" ? "min-h-7 text-[12px]" : "min-h-8 text-[13px]",
-    estimated_option_height: size === "xs" ? 28 : 32,
+    heightClassName: size === "xs" ? "h-7" : size === "sm" ? "h-9" : "h-10",
+    roundedClassName: size === "xs" ? "rounded-[10px]" : size === "sm" ? "rounded-[12px]" : "rounded-[13px]",
+    textClassName: size === "xs" ? "text-[11px]" : size === "sm" ? "text-[12px]" : "text-[13px]",
+    optionHeightClassName: size === "xs" ? "min-h-7 text-[12px]" : "min-h-8 text-[13px]",
+    estimatedOptionHeight: size === "xs" ? 28 : 32,
   };
 }
 
-export function estimate_select_menu_height(optionCount: number, optionHeight: number, extraHeight = 8): number {
+export function estimateSelectMenuHeight(optionCount: number, optionHeight: number, extraHeight = 8): number {
   return Math.min(
     SELECT_MENU_MAX_HEIGHT,
     Math.max(optionHeight + 8, optionCount * optionHeight + extraHeight),
   );
 }
 
-export function resolve_select_menu_position({
+export function resolveSelectMenuPosition({
   button,
-  estimated_height: estimatedHeight,
-  estimated_option_height: estimatedOptionHeight,
-  menu_min_width: menuMinWidth,
+  estimatedHeight,
+  estimatedOptionHeight,
+  menuMinWidth,
   placement,
 }: {
   button: HTMLButtonElement;
-  estimated_height: number;
-  estimated_option_height: number;
+  estimatedHeight: number;
+  estimatedOptionHeight: number;
   placement: UiSelectMenuPlacement;
-  menu_min_width?: number;
+  menuMinWidth?: number;
 }): UiSelectMenuPosition {
   const rect = button.getBoundingClientRect();
   const viewportWidth = window.innerWidth;
@@ -74,7 +74,7 @@ export function resolve_select_menu_position({
   return {
     left,
     width,
-    max_height: maxHeight,
+    maxHeight,
     placement: shouldPlaceTop ? "top" : "bottom",
     ...(shouldPlaceTop
       ? { bottom: Math.max(SELECT_MENU_VIEWPORT_MARGIN, viewportHeight - rect.top + SELECT_MENU_GAP) }
@@ -82,16 +82,16 @@ export function resolve_select_menu_position({
   };
 }
 
-export function get_select_menu_button_class_name({
-  rounded_class_name: roundedClassName,
+export function getSelectMenuButtonClassName({
+  roundedClassName,
   surface,
-  text_class_name: textClassName,
-  class_name: className,
+  textClassName,
+  className,
 }: {
-  rounded_class_name: string;
+  roundedClassName: string;
   surface: UiSelectMenuSurface;
-  text_class_name: string;
-  class_name?: string;
+  textClassName: string;
+  className?: string;
 }) {
   return cn(
     "flex h-full w-full items-center justify-between gap-2 px-3 transition-[background,border-color,box-shadow] duration-(--motion-duration-fast) focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)",
@@ -104,13 +104,13 @@ export function get_select_menu_button_class_name({
   );
 }
 
-export function get_select_menu_panel_surface_class_name(surface: UiSelectMenuSurface): string {
+export function getSelectMenuPanelSurfaceClassName(surface: UiSelectMenuSurface): string {
   return surface === "dialog"
     ? "border-(--modal-card-border) bg-[color:color-mix(in_srgb,var(--background)_94%,white)] shadow-[0_16px_36px_rgba(15,23,42,0.14)]"
     : "border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_96%,white)] shadow-[0_14px_32px_rgba(15,23,42,0.12)] backdrop-blur";
 }
 
-export function get_select_menu_option_state_class_name(surface: UiSelectMenuSurface, isActive: boolean): string {
+export function getSelectMenuOptionStateClassName(surface: UiSelectMenuSurface, isActive: boolean): string {
   if (isActive) {
     return surface === "dialog"
       ? "bg-[color:color-mix(in_srgb,var(--primary)_13%,transparent)] font-semibold text-(--text-strong) hover:bg-[color:color-mix(in_srgb,var(--primary)_16%,transparent)]"

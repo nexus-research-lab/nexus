@@ -45,37 +45,37 @@ declare global {
   }
 }
 
-export function is_desktop_bridge_available(): boolean {
+export function isDesktopBridgeAvailable(): boolean {
   return typeof window !== "undefined" && typeof window.__NEXUS_DESKTOP_BRIDGE__?.invoke === "function";
 }
 
-export async function get_desktop_app_version(): Promise<DesktopAppVersion> {
+export async function getDesktopAppVersion(): Promise<DesktopAppVersion> {
   return invokeDesktopBridge<Record<string, never>, DesktopAppVersion>("app.get_app_version", {});
 }
 
-export async function export_desktop_logs(): Promise<DesktopExportLogsResult> {
+export async function exportDesktopLogs(): Promise<DesktopExportLogsResult> {
   return invokeDesktopBridge<Record<string, never>, DesktopExportLogsResult>("app.export_logs", {});
 }
 
-export async function open_desktop_route(route: string): Promise<void> {
+export async function openDesktopRoute(route: string): Promise<void> {
   await invokeDesktopBridge<{ route: string }, { opened: boolean }>("app.open_route", { route });
 }
 
-export async function get_desktop_persistent_state(key: string): Promise<DesktopPersistentStateResult> {
+export async function getDesktopPersistentState(key: string): Promise<DesktopPersistentStateResult> {
   return invokeDesktopBridge<{ key: string }, DesktopPersistentStateResult>(
     "app.get_persistent_state",
     { key },
   );
 }
 
-export async function set_desktop_persistent_state(key: string, value: string): Promise<void> {
+export async function setDesktopPersistentState(key: string, value: string): Promise<void> {
   await invokeDesktopBridge<{ key: string; value: string }, { saved: boolean }>(
     "app.set_persistent_state",
     { key, value },
   );
 }
 
-export async function remove_desktop_persistent_state(key: string): Promise<void> {
+export async function removeDesktopPersistentState(key: string): Promise<void> {
   await invokeDesktopBridge<{ key: string }, { removed: boolean }>(
     "app.remove_persistent_state",
     { key },

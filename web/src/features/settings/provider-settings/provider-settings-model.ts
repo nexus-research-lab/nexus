@@ -41,8 +41,8 @@ export interface ModelOptionsState {
   provider_options_text: string;
 }
 
-export const SETTINGS_TABS: { key: SettingsTabKey; label_key: "settings.tabs.providers" }[] = [
-  { key: "providers", label_key: "settings.tabs.providers" },
+export const SETTINGS_TABS: { key: SettingsTabKey; labelKey: "settings.tabs.providers" }[] = [
+  { key: "providers", labelKey: "settings.tabs.providers" },
 ];
 
 export const PROVIDER_LABEL_CLASS_NAME = "text-[13px] font-semibold text-(--text-strong)";
@@ -99,7 +99,7 @@ function getPresetProviderKey(preset: ProviderPreset): string {
   return PRESET_PROVIDER_KEYS[preset.preset_key] ?? "";
 }
 
-export function get_preset_format(preset: ProviderPreset | null, apiFormat?: ProviderApiFormat): ProviderPresetFormat | null {
+export function getPresetFormat(preset: ProviderPreset | null, apiFormat?: ProviderApiFormat): ProviderPresetFormat | null {
   if (!preset) {
     return null;
   }
@@ -107,14 +107,14 @@ export function get_preset_format(preset: ProviderPreset | null, apiFormat?: Pro
   return preset.formats.find((item) => item.api_format === targetFormat) ?? preset.formats[0] ?? null;
 }
 
-export function format_supports_provider_kind(format: ProviderPresetFormat, providerKind: ProviderKind): boolean {
+export function formatSupportsProviderKind(format: ProviderPresetFormat, providerKind: ProviderKind): boolean {
   if (format.provider_kind) {
     return format.provider_kind === providerKind;
   }
   return apiFormatSupportedForKind(providerKind, format.api_format);
 }
 
-export function get_supported_preset_format(preset: ProviderPreset | null, providerKind?: ProviderKind): ProviderPresetFormat | null {
+export function getSupportedPresetFormat(preset: ProviderPreset | null, providerKind?: ProviderKind): ProviderPresetFormat | null {
   if (!preset) {
     return null;
   }
@@ -123,10 +123,10 @@ export function get_supported_preset_format(preset: ProviderPreset | null, provi
   if (explicitFormat) {
     return explicitFormat;
   }
-  return preset.formats.find((item) => format_supports_provider_kind(item, targetKind)) ?? null;
+  return preset.formats.find((item) => formatSupportsProviderKind(item, targetKind)) ?? null;
 }
 
-export function preset_provider_kinds(preset: ProviderPreset | null): ProviderKind[] {
+export function presetProviderKinds(preset: ProviderPreset | null): ProviderKind[] {
   if (!preset) {
     return [];
   }
@@ -148,21 +148,21 @@ export function preset_provider_kinds(preset: ProviderPreset | null): ProviderKi
 }
 
 function presetSupportsCurrentRuntime(preset: ProviderPreset): boolean {
-  return !!get_supported_preset_format(preset);
+  return !!getSupportedPresetFormat(preset);
 }
 
-export function preset_allows_non_runtime_config(preset: ProviderPreset | null): boolean {
+export function presetAllowsNonRuntimeConfig(preset: ProviderPreset | null): boolean {
   return !!preset && CONFIGURABLE_NON_RUNTIME_PRESET_KEYS.has(preset.preset_key);
 }
 
-export function preset_uses_builtin_endpoint(preset: ProviderPreset | null): boolean {
+export function presetUsesBuiltinEndpoint(preset: ProviderPreset | null): boolean {
   return !!preset && preset.preset_key !== "custom";
 }
 
-export function preset_is_configurable(preset: ProviderPreset): boolean {
-  return preset_provider_kinds(preset).includes("image_generation")
+export function presetIsConfigurable(preset: ProviderPreset): boolean {
+  return presetProviderKinds(preset).includes("image_generation")
     || presetSupportsCurrentRuntime(preset)
-    || preset_allows_non_runtime_config(preset);
+    || presetAllowsNonRuntimeConfig(preset);
 }
 
 function apiFormatSupportedForKind(providerKind: ProviderKind, apiFormat: ProviderApiFormat): boolean {
@@ -172,14 +172,14 @@ function apiFormatSupportedForKind(providerKind: ProviderKind, apiFormat: Provid
   return SUPPORTED_AGENT_API_FORMATS.has(apiFormat);
 }
 
-export function build_provider_draft(
+export function buildProviderDraft(
   presets: ProviderPreset[],
   presetKey = "anthropic",
 ): ProviderDraft {
   const preset = presets.find((item) => item.preset_key === presetKey) ?? presets[0] ?? null;
   const providerKind = preset?.provider_kind ?? "llm";
-  const supportedFormat = get_supported_preset_format(preset, providerKind);
-  const format = supportedFormat ?? get_preset_format(preset);
+  const supportedFormat = getSupportedPresetFormat(preset, providerKind);
+  const format = supportedFormat ?? getPresetFormat(preset);
   const providerKey = preset ? getPresetProviderKey(preset) : "";
   const isCustom = preset?.preset_key === "custom";
   return {
@@ -195,7 +195,7 @@ export function build_provider_draft(
   };
 }
 
-export function to_provider_draft(item: ProviderConfigRecord): ProviderDraft {
+export function toProviderDraft(item: ProviderConfigRecord): ProviderDraft {
   return {
     provider_kind: item.provider_kind,
     provider: item.provider,
@@ -213,21 +213,21 @@ function stringifyJson(value: unknown): string {
   return JSON.stringify(value ?? {}, null, 2);
 }
 
-export function get_provider_title(item: ProviderConfigRecord): string {
+export function getProviderTitle(item: ProviderConfigRecord): string {
   return item.display_name || item.provider;
 }
 
-export function is_custom_provider_record(item: ProviderConfigRecord): boolean {
+export function isCustomProviderRecord(item: ProviderConfigRecord): boolean {
   return !item.preset_key || item.preset_key === "custom";
 }
 
-export function get_usage_agent_title(agent: ProviderConfigRecord["used_by_agents"][number]): string {
+export function getUsageAgentTitle(agent: ProviderConfigRecord["used_by_agents"][number]): string {
   return agent.display_name?.trim() || agent.name?.trim() || agent.agent_id;
 }
 
 type TranslateFn = (key: TranslationKey, params?: Record<string, string | number>) => string;
 
-export function parse_provider_options(raw: string, invalidObjectMessage: string): Record<string, unknown> {
+export function parseProviderOptions(raw: string, invalidObjectMessage: string): Record<string, unknown> {
   const trimmed = raw.trim();
   if (!trimmed) {
     return {};
@@ -243,21 +243,21 @@ function getEffectiveEndpointFormat(
   draft: ProviderDraft,
   preset: ProviderPreset | null,
 ): ProviderPresetFormat | null {
-  if (!preset_uses_builtin_endpoint(preset)) {
+  if (!presetUsesBuiltinEndpoint(preset)) {
     return null;
   }
-  return get_preset_format(preset, draft.api_format);
+  return getPresetFormat(preset, draft.api_format);
 }
 
 function getEffectiveBaseUrl(draft: ProviderDraft, preset: ProviderPreset | null): string {
   return getEffectiveEndpointFormat(draft, preset)?.base_url ?? draft.base_url;
 }
 
-export function get_effective_models_path(draft: ProviderDraft, preset: ProviderPreset | null): string {
+export function getEffectiveModelsPath(draft: ProviderDraft, preset: ProviderPreset | null): string {
   return getEffectiveEndpointFormat(draft, preset)?.models_path ?? draft.models_path;
 }
 
-export function build_provider_payload_from_draft(
+export function buildProviderPayloadFromDraft(
   draft: ProviderDraft,
   preset: ProviderPreset | null,
 ): UpdateProviderConfigPayload {
@@ -267,12 +267,12 @@ export function build_provider_payload_from_draft(
     api_format: draft.api_format,
     display_name: draft.display_name.trim() || draft.provider.trim(),
     base_url: getEffectiveBaseUrl(draft, preset).trim(),
-    models_path: get_effective_models_path(draft, preset).trim(),
+    models_path: getEffectiveModelsPath(draft, preset).trim(),
     enabled: draft.enabled,
   };
 }
 
-export function get_provider_draft_error(
+export function getProviderDraftError(
   draft: ProviderDraft,
   preset: ProviderPreset | null,
   isCreating: boolean,
@@ -296,7 +296,7 @@ export function get_provider_draft_error(
   return null;
 }
 
-export function provider_draft_has_changes(
+export function providerDraftHasChanges(
   draft: ProviderDraft,
   record: ProviderConfigRecord | null,
   preset: ProviderPreset | null,
@@ -311,11 +311,11 @@ export function provider_draft_has_changes(
     || draft.api_format !== record.api_format
     || (draft.display_name.trim() || draft.provider.trim()) !== (record.display_name || record.provider)
     || getEffectiveBaseUrl(draft, preset).trim() !== record.base_url
-    || get_effective_models_path(draft, preset).trim() !== (record.models_path || "")
+    || getEffectiveModelsPath(draft, preset).trim() !== (record.models_path || "")
     || draft.enabled !== record.enabled;
 }
 
-export function format_token_preview(maskedToken: string | null | undefined, emptyLabel: string): string {
+export function formatTokenPreview(maskedToken: string | null | undefined, emptyLabel: string): string {
   const normalizedMaskedToken = maskedToken?.trim();
   if (!normalizedMaskedToken) {
     return emptyLabel;
@@ -323,11 +323,11 @@ export function format_token_preview(maskedToken: string | null | undefined, emp
   return normalizedMaskedToken;
 }
 
-export function provider_has_active_config(item: ProviderConfigRecord | null | undefined): boolean {
+export function providerHasActiveConfig(item: ProviderConfigRecord | null | undefined): boolean {
   return !!item?.enabled && !!item.auth_token_masked?.trim();
 }
 
-export function format_count(value?: number | null): string {
+export function formatCount(value?: number | null): string {
   if (!value || value <= 0) {
     return "auto";
   }
@@ -337,7 +337,7 @@ export function format_count(value?: number | null): string {
   return String(value);
 }
 
-export function normalize_custom_provider_key(value: string): string {
+export function normalizeCustomProviderKey(value: string): string {
   return value
     .trim()
     .toLowerCase()
@@ -345,14 +345,14 @@ export function normalize_custom_provider_key(value: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-export function get_effective_capabilities(model: ProviderModelRecord): ProviderModelCapabilities {
+export function getEffectiveCapabilities(model: ProviderModelRecord): ProviderModelCapabilities {
   return {
     ...model.capabilities_auto,
     ...model.capabilities_override,
   };
 }
 
-export function sort_models_enabled_first(models: ProviderModelRecord[]): ProviderModelRecord[] {
+export function sortModelsEnabledFirst(models: ProviderModelRecord[]): ProviderModelRecord[] {
   return [...models].sort((left, right) => {
     if (left.enabled !== right.enabled) {
       return left.enabled ? -1 : 1;
@@ -361,7 +361,7 @@ export function sort_models_enabled_first(models: ProviderModelRecord[]): Provid
   });
 }
 
-export function filter_provider_models(models: ProviderModelRecord[], rawQuery: string): ProviderModelRecord[] {
+export function filterProviderModels(models: ProviderModelRecord[], rawQuery: string): ProviderModelRecord[] {
   const query = rawQuery.trim().toLowerCase();
   if (!query) {
     return models;
@@ -373,13 +373,13 @@ export function filter_provider_models(models: ProviderModelRecord[], rawQuery: 
   ));
 }
 
-export function build_test_model_options(
+export function buildTestModelOptions(
   models: ProviderModelRecord[],
   autoLabel: string,
 ): { value: string; label: string }[] {
   return [
     { value: AUTO_TEST_MODEL_VALUE, label: autoLabel },
-    ...sort_models_enabled_first(models).map((model) => {
+    ...sortModelsEnabledFirst(models).map((model) => {
       const displayName = model.display_name || model.model_id;
       return {
         value: model.model_id,
@@ -389,7 +389,7 @@ export function build_test_model_options(
   ];
 }
 
-export function order_provider_records(
+export function orderProviderRecords(
   items: ProviderConfigRecord[],
   previousItems: ProviderConfigRecord[],
 ): ProviderConfigRecord[] {
@@ -406,22 +406,22 @@ export function order_provider_records(
     if (rightIndex !== undefined) {
       return 1;
     }
-    return get_provider_title(left).localeCompare(get_provider_title(right), "zh-Hans-CN");
+    return getProviderTitle(left).localeCompare(getProviderTitle(right), "zh-Hans-CN");
   });
 }
 
-export function first_builtin_preset_key(presets: ProviderPreset[]): string | null {
+export function firstBuiltinPresetKey(presets: ProviderPreset[]): string | null {
   return presets.find((preset) => preset.preset_key !== "custom")?.preset_key ?? null;
 }
 
-export function provider_for_preset(
+export function providerForPreset(
   items: ProviderConfigRecord[],
   presetKey: string,
 ): ProviderConfigRecord | null {
   return items.find((item) => item.preset_key === presetKey) ?? null;
 }
 
-export function model_options_from_record(model: ProviderModelRecord): ModelOptionsState {
+export function modelOptionsFromRecord(model: ProviderModelRecord): ModelOptionsState {
   return {
     model,
     capabilities: { ...model.capabilities_override },
@@ -431,7 +431,7 @@ export function model_options_from_record(model: ProviderModelRecord): ModelOpti
   };
 }
 
-export function model_update_payload(
+export function modelUpdatePayload(
   model: ProviderModelRecord,
   override?: Partial<UpdateProviderModelPayload>,
 ): UpdateProviderModelPayload {

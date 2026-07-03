@@ -4,13 +4,13 @@ import { cn } from "@/lib/utils";
 
 export function PrivateDomainToolbar({
   count,
-  is_loading: isLoading,
-  on_refresh: onRefresh,
+  isLoading: isLoading,
+  onRefresh: onRefresh,
   title,
 }: {
   count: number;
-  is_loading: boolean;
-  on_refresh: () => void;
+  isLoading: boolean;
+  onRefresh: () => void;
   title: string;
 }) {
   return (

@@ -31,21 +31,21 @@ type RoomAgentPanelTabKey = TabKey | "private_domain";
 
 interface RoomAgentAboutSurfaceProps {
   agent: Agent;
-  room_id: string | null;
-  conversation_id: string | null;
-  room_members: Agent[];
-  header_action?: ReactNode;
-  is_visible: boolean;
-  requested_agent_id?: string | null;
-  requested_tab?: RoomAgentPanelTabKey;
-  request_key?: number;
-  on_save_agent_options: (
+  roomId: string | null;
+  conversationId: string | null;
+  roomMembers: Agent[];
+  headerAction?: ReactNode;
+  isVisible: boolean;
+  requestedAgentId?: string | null;
+  requestedTab?: RoomAgentPanelTabKey;
+  requestKey?: number;
+  onSaveAgentOptions: (
     agentId: string,
     title: string,
     options: AgentOptions,
     identity: AgentIdentityDraft,
   ) => Promise<void>;
-  on_validate_agent_name: (
+  onValidateAgentName: (
     name: string,
     agentId?: string,
   ) => Promise<AgentNameValidationResult>;
@@ -53,16 +53,16 @@ interface RoomAgentAboutSurfaceProps {
 
 export function RoomAgentAboutSurface({
   agent,
-  room_id: roomId,
-  conversation_id: conversationId,
-  room_members: roomMembers,
-  header_action: headerAction,
-  is_visible: isVisible,
-  requested_agent_id: requestedAgentId,
-  requested_tab: requestedTab,
-  request_key: requestKey,
-  on_save_agent_options: onSaveAgentOptions,
-  on_validate_agent_name: onValidateAgentName,
+  roomId: roomId,
+  conversationId: conversationId,
+  roomMembers: roomMembers,
+  headerAction: headerAction,
+  isVisible: isVisible,
+  requestedAgentId: requestedAgentId,
+  requestedTab: requestedTab,
+  requestKey: requestKey,
+  onSaveAgentOptions: onSaveAgentOptions,
+  onValidateAgentName: onValidateAgentName,
 }: RoomAgentAboutSurfaceProps) {
   const { t } = useI18n();
   const [selectedAgentId, setSelectedAgentId] = useState(agent.agent_id);
@@ -114,53 +114,53 @@ export function RoomAgentAboutSurface({
   const titleTrailing = roomMembers.length > 1 ? (
     <RoomAgentSwitcher
       members={roomMembers}
-      selected_id={selectedAgent.agent_id}
-      on_select={setSelectedAgentId}
+      selectedId={selectedAgent.agent_id}
+      onSelect={setSelectedAgentId}
     />
   ) : null;
 
   return (
     <WorkspaceSurfaceView
       action={headerAction}
-      body_class_name="flex min-h-0 flex-1 flex-col px-0 py-0"
-      body_scrollable={false}
-      content_class_name="flex h-full min-h-0 flex-1 flex-col"
+      bodyClassName="flex min-h-0 flex-1 flex-col px-0 py-0"
+      bodyScrollable={false}
+      contentClassName="flex h-full min-h-0 flex-1 flex-col"
       eyebrow={t("room.about")}
-      max_width_class_name="max-w-none"
-      show_eyebrow={false}
+      maxWidthClassName="max-w-none"
+      showEyebrow={false}
       title={t("room.about")}
-      title_trailing={titleTrailing}
+      titleTrailing={titleTrailing}
     >
       <div className="flex h-full min-h-0 flex-1 flex-col">
         <RoomAgentPanelTabs
-          active_tab={activeTab}
-          on_change={setActiveTab}
+          activeTab={activeTab}
+          onChange={setActiveTab}
         />
         {activeTab === "private_domain" ? (
           <AgentPrivateDomainView
             agent={selectedAgent}
-            conversation_id={conversationId}
-            room_id={roomId}
+            conversationId={conversationId}
+            roomId={roomId}
             variant="preview"
           />
         ) : (
           <AgentOptionsEditor
-            active_tab={activeTab}
-            agent_id={selectedAgent.agent_id}
-            content_max_width_class_name="max-w-[860px]"
-            hide_inline_nav
-            initial_avatar={selectedAgent.avatar ?? ""}
-            initial_description={selectedAgent.description ?? ""}
-            initial_options={initialOptions}
-            initial_title={selectedAgent.name}
-            initial_vibe_tags={selectedAgent.vibe_tags ?? []}
-            is_active={isVisible}
+            activeTab={activeTab}
+            agentId={selectedAgent.agent_id}
+            contentMaxWidthClassName="max-w-[860px]"
+            hideInlineNav
+            initialAvatar={selectedAgent.avatar ?? ""}
+            initialDescription={selectedAgent.description ?? ""}
+            initialOptions={initialOptions}
+            initialTitle={selectedAgent.name}
+            initialVibeTags={selectedAgent.vibe_tags ?? []}
+            isActive={isVisible}
             mode="edit"
-            on_save={handleSave}
-            on_tab_change={setActiveTab}
-            on_validate_name={handleValidateName}
-            show_cancel_button={false}
-            show_delete_button={false}
+            onSave={handleSave}
+            onTabChange={setActiveTab}
+            onValidateName={handleValidateName}
+            showCancelButton={false}
+            showDeleteButton={false}
             variant="inline"
           />
         )}
@@ -181,20 +181,20 @@ const ROOM_AGENT_PANEL_TABS: Array<{
 ];
 
 function RoomAgentPanelTabs({
-  active_tab: activeTab,
-  on_change: onChange,
+  activeTab: activeTab,
+  onChange: onChange,
 }: {
-  active_tab: RoomAgentPanelTabKey;
-  on_change: (tab: RoomAgentPanelTabKey) => void;
+  activeTab: RoomAgentPanelTabKey;
+  onChange: (tab: RoomAgentPanelTabKey) => void;
 }) {
   return (
     <div className="flex h-[41px] min-w-0 items-center border-b dialog-divider px-6">
       <UiUnderlineTabs
-        active_value={activeTab}
-        aria_label="Agent 面板切换"
-        class_name="-mx-0.5 flex-1 px-0.5"
-        item_class_name="h-full"
-        on_change={onChange}
+        activeValue={activeTab}
+        ariaLabel="Agent 面板切换"
+        className="-mx-0.5 flex-1 px-0.5"
+        itemClassName="h-full"
+        onChange={onChange}
         options={ROOM_AGENT_PANEL_TABS.map((item) => ({
           icon: item.icon,
           label: item.label,

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { find_open_markdown_fence_language } from "./markdown-fence";
+import { findOpenMarkdownFenceLanguage } from "./markdown-fence";
 
 const STREAM_ACTIVE_INPUT_WINDOW_MS = 170;
 const STREAM_TARGET_LAG_CHARS = 5;
@@ -19,7 +19,7 @@ function countChars(value: string): number {
 }
 
 function shouldBypassStreamBuffer(content: string): boolean {
-  return find_open_markdown_fence_language(content) !== null;
+  return findOpenMarkdownFenceLanguage(content) !== null;
 }
 
 export function useSmoothStreamingMarkdownContent(content: string, enabled: boolean): string {

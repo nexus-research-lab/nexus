@@ -1,4 +1,4 @@
-export async function write_text_to_clipboard(text: string): Promise<boolean> {
+export async function writeTextToClipboard(text: string): Promise<boolean> {
   if (text.length === 0) {
     return false;
   }

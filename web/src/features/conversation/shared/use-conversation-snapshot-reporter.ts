@@ -3,9 +3,9 @@ import { useEffect, useRef } from "react";
 import type { Message } from "@/types/conversation/message";
 
 import {
-  build_conversation_activity_snapshot,
-  get_latest_reply_timestamp,
-  should_emit_conversation_activity,
+  buildConversationActivitySnapshot,
+  getLatestReplyTimestamp,
+  shouldEmitConversationActivity,
   type ConversationActivitySnapshot,
 } from "./utils";
 
@@ -37,8 +37,8 @@ export function useConversationSnapshotReporter<TSnapshot>({
     if (!scopeKey || messages.length === 0) return;
 
     const lastMessage = messages[messages.length - 1];
-    const latestReplyTimestamp = get_latest_reply_timestamp(messages);
-    const shouldReportLastActivity = should_emit_conversation_activity(
+    const latestReplyTimestamp = getLatestReplyTimestamp(messages);
+    const shouldReportLastActivity = shouldEmitConversationActivity(
       lastActivitySnapshotRef.current,
       scopeKey,
       latestReplyTimestamp,
@@ -50,7 +50,7 @@ export function useConversationSnapshotReporter<TSnapshot>({
       should_report_last_activity: shouldReportLastActivity,
     });
     const snapshotKey = JSON.stringify(snapshot);
-    const nextActivitySnapshot = build_conversation_activity_snapshot(
+    const nextActivitySnapshot = buildConversationActivitySnapshot(
       scopeKey,
       latestReplyTimestamp,
     );

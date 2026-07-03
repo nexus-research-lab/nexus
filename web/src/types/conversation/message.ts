@@ -129,7 +129,7 @@ export interface BaseMessage {
 }
 
 export type MessageAttachmentKind = "text" | "image" | "file";
-export type MessageAttachmentScope = "agent_workspace" | "room_conversation";
+export type MessageAttachmentScope = "agentWorkspace" | "roomConversation";
 
 export interface MessageAttachment {
   file_name: string;
@@ -311,7 +311,7 @@ export interface EventMessage {
   timestamp: number;
 }
 
-/** Pending agent slot from chat_ack */
+/** Pending agent slot from chatAck */
 export interface PendingAgentSlot {
   agent_id: string;
   msg_id: string;
@@ -327,7 +327,7 @@ export interface RoomPendingAgentSlotState extends PendingAgentSlot {
   timestamp: number;
 }
 
-/** chat_ack event data */
+/** chatAck event data */
 export interface ChatAckData {
   req_id: string;
   round_id: string;
@@ -355,7 +355,7 @@ export interface SystemMessageDisplayMeta {
   icon: SystemEventIcon;
 }
 
-export function get_system_message_display_meta(
+export function getSystemMessageDisplayMeta(
   message: SystemMessage,
 ): SystemMessageDisplayMeta {
   const subtype = message.metadata?.subtype;

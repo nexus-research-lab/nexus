@@ -4,31 +4,31 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { is_main_agent } from "@/config/options";
+import { isMainAgent } from "@/config/options";
 import {
-  add_room_member,
-  close_room_conversation_runtime,
-  create_room_conversation,
-  delete_room,
-  delete_room_conversation,
-  notify_room_directory_updated,
-  remove_room_member,
-  update_room,
-  update_room_conversation,
+  addRoomMember,
+  closeRoomConversationRuntime,
+  createRoomConversation,
+  deleteRoom,
+  deleteRoomConversation,
+  notifyRoomDirectoryUpdated,
+  removeRoomMember,
+  updateRoom,
+  updateRoomConversation,
 } from "@/lib/api/room-api";
 import {
-  build_external_session_conversation_id,
-  is_external_session_channel,
+  buildExternalSessionConversationId,
+  isExternalSessionChannel,
 } from "@/features/conversation/external-session-labels";
 import { useHomeWorkspaceController } from "@/hooks/home/use-home-workspace-controller";
 import {
-  apply_conversation_snapshot_to_room_contexts,
-  build_room_conversation_views,
-  resolve_current_agent_session_identity,
-  resolve_current_room_context,
-  resolve_room_member_agents,
-  resolve_selected_conversation_id,
-  resolve_selected_member_agent_id,
+  applyConversationSnapshotToRoomContexts,
+  buildRoomConversationViews,
+  resolveCurrentAgentSessionIdentity,
+  resolveCurrentRoomContext,
+  resolveRoomMemberAgents,
+  resolveSelectedConversationId,
+  resolveSelectedMemberAgentId,
 } from "@/hooks/room-page-controller/room-page-controller-core";
 import { useRoomPageAgentDialog } from "@/hooks/room-page-controller/use-room-page-agent-dialog";
 import { useRoomPageData } from "@/hooks/room-page-controller/use-room-page-data";
@@ -42,9 +42,9 @@ import { UpdateRoomParams } from "@/types/conversation/room";
 import { RoomPageControllerOptions } from "@/types/app/route";
 
 export function useRoomPageController({
-  room_id: roomId,
-  conversation_id: conversationId,
-  session_key: sessionKey,
+  roomId: roomId,
+  conversationId: conversationId,
+  sessionKey: sessionKey,
 }: RoomPageControllerOptions) {
   // 这里坚持使用细粒度 selector，避免 Room 页面因为 store
   // 里无关字段变动而整页重渲染。
@@ -58,35 +58,35 @@ export function useRoomPageController({
 
   const [selectedMemberAgentId, setSelectedMemberAgentId] = useState<string | null>(null);
   const {
-    is_bootstrapped: isBootstrapped,
-    room_contexts: roomContexts,
-    set_room_contexts: setRoomContexts,
-    room_error: roomError,
-    is_room_loading: isRoomLoading,
-    refresh_room_contexts: refreshRoomContexts,
+    isBootstrapped: isBootstrapped,
+    roomContexts: roomContexts,
+    setRoomContexts: setRoomContexts,
+    roomError: roomError,
+    isRoomLoading: isRoomLoading,
+    refreshRoomContexts: refreshRoomContexts,
   } = useRoomPageData({
-    room_id: roomId,
+    roomId: roomId,
   });
   const {
-    is_dialog_open: isDialogOpen,
-    dialog_mode: dialogMode,
-    editing_agent_id: editingAgentId,
-    dialog_initial_title: dialogInitialTitle,
-    dialog_initial_avatar: dialogInitialAvatar,
-    dialog_initial_description: dialogInitialDescription,
-    dialog_initial_options: dialogInitialOptions,
-    dialog_initial_vibe_tags: dialogInitialVibeTags,
-    set_is_dialog_open: setIsDialogOpen,
-    handle_open_create_agent: handleOpenCreateAgent,
-    handle_edit_agent: handleEditAgent,
-    handle_save_agent_options: handleSaveAgentOptions,
-    handle_save_existing_agent_options: handleSaveExistingAgentOptions,
-    handle_validate_agent_name: handleValidateAgentName,
-    handle_validate_agent_name_for_agent: handleValidateAgentNameForAgent,
+    isDialogOpen: isDialogOpen,
+    dialogMode: dialogMode,
+    editingAgentId: editingAgentId,
+    dialogInitialTitle: dialogInitialTitle,
+    dialogInitialAvatar: dialogInitialAvatar,
+    dialogInitialDescription: dialogInitialDescription,
+    dialogInitialOptions: dialogInitialOptions,
+    dialogInitialVibeTags: dialogInitialVibeTags,
+    setIsDialogOpen: setIsDialogOpen,
+    handleOpenCreateAgent: handleOpenCreateAgent,
+    handleEditAgent: handleEditAgent,
+    handleSaveAgentOptions: handleSaveAgentOptions,
+    handleSaveExistingAgentOptions: handleSaveExistingAgentOptions,
+    handleValidateAgentName: handleValidateAgentName,
+    handleValidateAgentNameForAgent: handleValidateAgentNameForAgent,
   } = useRoomPageAgentDialog({
     agents,
-    create_agent: createAgent,
-    update_agent: updateAgent,
+    createAgent: createAgent,
+    updateAgent: updateAgent,
   });
 
   const scopedRoomContexts = useMemo(
@@ -100,7 +100,7 @@ export function useRoomPageController({
   );
 
   const roomMemberAgents = useMemo(() => {
-    return resolve_room_member_agents(scopedRoomContexts);
+    return resolveRoomMemberAgents(scopedRoomContexts);
   }, [scopedRoomContexts]);
 
   const workspaceAgentIds = useMemo(() => {
@@ -108,7 +108,7 @@ export function useRoomPageController({
   }, [roomMemberAgents]);
 
   const baseRoomConversations = useMemo<RoomConversationView[]>(() => {
-    return build_room_conversation_views(scopedRoomContexts);
+    return buildRoomConversationViews(scopedRoomContexts);
   }, [scopedRoomContexts]);
   const routeSessionKey = useMemo(
     () => sessionKey?.trim() || null,
@@ -116,11 +116,11 @@ export function useRoomPageController({
   );
 
   const selectedBaseConversationId = useMemo(() => {
-    return resolve_selected_conversation_id(conversationId, baseRoomConversations);
+    return resolveSelectedConversationId(conversationId, baseRoomConversations);
   }, [baseRoomConversations, conversationId]);
 
   const currentRoomContext = useMemo(
-    () => resolve_current_room_context(scopedRoomContexts, selectedBaseConversationId),
+    () => resolveCurrentRoomContext(scopedRoomContexts, selectedBaseConversationId),
     [scopedRoomContexts, selectedBaseConversationId],
   );
 
@@ -143,12 +143,12 @@ export function useRoomPageController({
   );
 
   const {
-    external_agent_sessions: externalAgentSessions,
-    external_room_conversations: externalRoomConversations,
+    externalAgentSessions: externalAgentSessions,
+    externalRoomConversations: externalRoomConversations,
   } = useRoomExternalSessions({
-    agent_id: currentAgent?.agent_id ?? null,
-    room_id: currentRoom?.id ?? null,
-    room_type: currentRoom?.room_type ?? null,
+    agentId: currentAgent?.agent_id ?? null,
+    roomId: currentRoom?.id ?? null,
+    roomType: currentRoom?.room_type ?? null,
   });
 
   const currentRoomConversations = useMemo(
@@ -159,7 +159,7 @@ export function useRoomPageController({
 
   const selectedConversationId = useMemo(() => {
     if (routeSessionKey) {
-      return build_external_session_conversation_id(routeSessionKey);
+      return buildExternalSessionConversationId(routeSessionKey);
     }
     return selectedBaseConversationId;
   }, [routeSessionKey, selectedBaseConversationId]);
@@ -173,7 +173,7 @@ export function useRoomPageController({
   );
 
   useEffect(() => {
-    const nextSelectedMemberAgentId = resolve_selected_member_agent_id(
+    const nextSelectedMemberAgentId = resolveSelectedMemberAgentId(
       currentRoomContext,
       selectedMemberAgentId,
     );
@@ -184,7 +184,7 @@ export function useRoomPageController({
   }, [currentRoomContext, selectedMemberAgentId]);
 
   // Room 详情页现在直接基于当前 room context 解析 session 身份；
-  // 外部 IM 会话则以 route session_key 作为同一 Agent 下的独立会话。
+  // 外部 IM 会话则以 route sessionKey 作为同一 Agent 下的独立会话。
   const currentAgentSessionIdentity = useMemo<AgentConversationIdentity | null>(() => {
     if (routeSessionKey && currentAgent?.agent_id) {
       const externalSession = externalAgentSessions.find((item) => item.session_key === routeSessionKey);
@@ -197,11 +197,11 @@ export function useRoomPageController({
       };
     }
 
-    return resolve_current_agent_session_identity({
-      current_room_id: currentRoom?.id ?? null,
-      current_conversation_id: currentRoomContext?.conversation.id ?? null,
-      active_room_session: activeRoomSession,
-      current_room_type: currentRoom?.room_type ?? "dm",
+    return resolveCurrentAgentSessionIdentity({
+      currentRoomId: currentRoom?.id ?? null,
+      currentConversationId: currentRoomContext?.conversation.id ?? null,
+      activeRoomSession: activeRoomSession,
+      currentRoomType: currentRoom?.room_type ?? "dm",
     });
   }, [
     activeRoomSession,
@@ -216,7 +216,7 @@ export function useRoomPageController({
     const joinedAgentIds = new Set(roomMemberAgents.map((agent) => agent.agent_id));
     return agents.filter((agent) => (
       !joinedAgentIds.has(agent.agent_id) &&
-      !is_main_agent(agent.agent_id)
+      !isMainAgent(agent.agent_id)
     ));
   }, [agents, roomMemberAgents]);
 
@@ -225,8 +225,8 @@ export function useRoomPageController({
   }, [loadAgentsFromServer]);
 
   const workspace = useHomeWorkspaceController({
-    current_agent_id: currentAgent?.agent_id ?? null,
-    workspace_agent_ids: workspaceAgentIds,
+    currentAgentId: currentAgent?.agent_id ?? null,
+    workspaceAgentIds: workspaceAgentIds,
   });
 
   const handleSelectAgent = useCallback((agentId: string) => {
@@ -259,7 +259,7 @@ export function useRoomPageController({
     };
 
     setRoomContexts((prev) => {
-      return apply_conversation_snapshot_to_room_contexts(prev, {
+      return applyConversationSnapshotToRoomContexts(prev, {
         conversation_id: snapshotConversationId,
         room_session_id: snapshotRoomSessionId,
         session_id: snapshot.session_id ?? null,
@@ -276,8 +276,8 @@ export function useRoomPageController({
     }
 
     syncConversationSnapshot(snapshotSessionKey, nextSnapshot);
-    if (is_external_session_channel(null, snapshotSessionKey)) {
-      notify_room_directory_updated();
+    if (isExternalSessionChannel(null, snapshotSessionKey)) {
+      notifyRoomDirectoryUpdated();
     }
   }, [
     activeRoomSession?.id,
@@ -291,7 +291,7 @@ export function useRoomPageController({
     if (!roomId) {
       return;
     }
-    await update_room(roomId, params);
+    await updateRoom(roomId, params);
     await refreshRoomContexts(roomId);
   }, [refreshRoomContexts, roomId]);
 
@@ -299,14 +299,14 @@ export function useRoomPageController({
     if (!roomId) {
       return;
     }
-    await delete_room(roomId);
+    await deleteRoom(roomId);
   }, [roomId]);
 
   const handleCreateConversation = useCallback(async (title?: string) => {
     if (!roomId) {
       return null;
     }
-    const context = await create_room_conversation(roomId, {title});
+    const context = await createRoomConversation(roomId, {title});
     await refreshRoomContexts(roomId);
     return context.conversation.id;
   }, [refreshRoomContexts, roomId]);
@@ -315,7 +315,7 @@ export function useRoomPageController({
     if (!roomId) {
       return null;
     }
-    const fallbackContext = await delete_room_conversation(roomId, conversationId);
+    const fallbackContext = await deleteRoomConversation(roomId, conversationId);
     await refreshRoomContexts(roomId);
     return fallbackContext.conversation.id;
   }, [refreshRoomContexts, roomId]);
@@ -324,12 +324,12 @@ export function useRoomPageController({
     if (!roomId) {
       return;
     }
-    await close_room_conversation_runtime(roomId, conversationId);
+    await closeRoomConversationRuntime(roomId, conversationId);
   }, [roomId]);
 
   const handleUpdateConversationTitle = useCallback(async (conversationId: string, title: string) => {
     if (!roomId) return;
-    await update_room_conversation(roomId, conversationId, { title });
+    await updateRoomConversation(roomId, conversationId, { title });
     await refreshRoomContexts(roomId);
   }, [refreshRoomContexts, roomId]);
 
@@ -337,7 +337,7 @@ export function useRoomPageController({
     if (!roomId) {
       return;
     }
-    await add_room_member(roomId, agentId);
+    await addRoomMember(roomId, agentId);
     await refreshRoomContexts(roomId);
   }, [refreshRoomContexts, roomId]);
 
@@ -358,12 +358,12 @@ export function useRoomPageController({
     if (!roomId) {
       return;
     }
-    await remove_room_member(roomId, agentId);
+    await removeRoomMember(roomId, agentId);
     await refreshRoomContexts(roomId);
   }, [refreshRoomContexts, roomId]);
 
   const handleOpenConversationFromLauncher = useCallback((conversationId: string, agentId?: string) => {
-    // Launcher 打开 Room 时只认 conversation_id，不再接受其他回退标识。
+    // Launcher 打开 Room 时只认 conversationId，不再接受其他回退标识。
     const targetConversation = currentRoomConversations.find(
       (conversation) => conversation.conversation_id === conversationId,
     );
@@ -372,8 +372,8 @@ export function useRoomPageController({
       return;
     }
 
-    // 如果指定了 agent_id，优先使用
-    // 否则使用 conversation 的 agent_id
+    // 如果指定了 agentId，优先使用
+    // 否则使用 conversation 的 agentId
     const targetAgentId = agentId ?? targetConversation.agent_id ?? null;
 
     if (targetAgentId && roomMemberAgents.some((agent) => agent.agent_id === targetAgentId)) {
@@ -390,7 +390,7 @@ export function useRoomPageController({
     }
 
     await refreshRoomContexts(roomId);
-    notify_room_directory_updated();
+    notifyRoomDirectoryUpdated();
   }, [refreshRoomContexts, roomId]);
 
   const isHydrated = isBootstrapped && !isRoomLoading;
@@ -399,54 +399,54 @@ export function useRoomPageController({
   // 产生无意义重渲染。
   return useMemo(() => ({
     agents,
-    room_error: roomError,
-    current_room: currentRoom,
-    current_room_type: currentRoom?.room_type ?? "room",
-    current_room_title: currentRoom?.name?.trim() || currentAgent?.name || "未命名 room",
-    current_room_description: currentRoom?.description ?? "",
-    current_room_skill_names: currentRoom?.skill_names ?? [],
-    room_members: roomMemberAgents,
-    available_room_agents: availableRoomAgents,
-    handle_prepare_room_agent_catalog: handlePrepareRoomAgentCatalog,
-    current_agent: currentAgent,
-    current_agent_id: currentAgent?.agent_id ?? null,
-    current_room_conversations: currentRoomConversations,
-    current_room_conversation: currentRoomConversation,
-    current_agent_session_identity: currentAgentSessionIdentity,
-    conversation_id: selectedConversationId,
-    recent_agents: roomMemberAgents,
-    is_hydrated: isHydrated,
-    is_dialog_open: isDialogOpen,
-    dialog_mode: dialogMode,
-    editing_agent_id: editingAgentId,
-    dialog_initial_title: dialogInitialTitle,
-    dialog_initial_avatar: dialogInitialAvatar,
-    dialog_initial_description: dialogInitialDescription,
-    dialog_initial_options: dialogInitialOptions,
-    dialog_initial_vibe_tags: dialogInitialVibeTags,
-    set_is_dialog_open: setIsDialogOpen,
-    handle_open_create_agent: handleOpenCreateAgent,
-    handle_edit_agent: handleEditAgent,
-    handle_select_agent: handleSelectAgent,
-    handle_select_conversation: handleSelectConversation,
-    handle_back_to_directory: handleBackToDirectory,
-    handle_delete_agent: handleDeleteAgent,
-    handle_create_conversation: handleCreateConversation,
-    handle_save_agent_options: handleSaveAgentOptions,
-    handle_save_existing_agent_options: handleSaveExistingRoomMemberOptions,
-    handle_validate_agent_name: handleValidateAgentName,
-    handle_validate_agent_name_for_agent: handleValidateAgentNameForAgent,
-    handle_open_conversation_from_launcher: handleOpenConversationFromLauncher,
-    handle_refresh_room_state: handleRefreshRoomState,
-    handle_conversation_snapshot_change: handleConversationSnapshotChange,
-    handle_close_conversation: handleCloseConversation,
-    handle_delete_conversation: handleDeleteConversation,
-    handle_update_conversation_title: handleUpdateConversationTitle,
-    handle_update_room: handleUpdateRoom,
-    handle_delete_room: handleDeleteRoom,
-    handle_add_room_member: handleAddRoomMember,
-    handle_remove_room_member: handleRemoveRoomMember,
-    route_room_id: roomId ?? null,
+    roomError: roomError,
+    currentRoom: currentRoom,
+    currentRoomType: currentRoom?.room_type ?? "room",
+    currentRoomTitle: currentRoom?.name?.trim() || currentAgent?.name || "未命名 room",
+    currentRoomDescription: currentRoom?.description ?? "",
+    currentRoomSkillNames: currentRoom?.skill_names ?? [],
+    roomMembers: roomMemberAgents,
+    availableRoomAgents: availableRoomAgents,
+    handlePrepareRoomAgentCatalog: handlePrepareRoomAgentCatalog,
+    currentAgent: currentAgent,
+    currentAgentId: currentAgent?.agent_id ?? null,
+    currentRoomConversations: currentRoomConversations,
+    currentRoomConversation: currentRoomConversation,
+    currentAgentSessionIdentity: currentAgentSessionIdentity,
+    conversationId: selectedConversationId,
+    recentAgents: roomMemberAgents,
+    isHydrated: isHydrated,
+    isDialogOpen: isDialogOpen,
+    dialogMode: dialogMode,
+    editingAgentId: editingAgentId,
+    dialogInitialTitle: dialogInitialTitle,
+    dialogInitialAvatar: dialogInitialAvatar,
+    dialogInitialDescription: dialogInitialDescription,
+    dialogInitialOptions: dialogInitialOptions,
+    dialogInitialVibeTags: dialogInitialVibeTags,
+    setIsDialogOpen: setIsDialogOpen,
+    handleOpenCreateAgent: handleOpenCreateAgent,
+    handleEditAgent: handleEditAgent,
+    handleSelectAgent: handleSelectAgent,
+    handleSelectConversation: handleSelectConversation,
+    handleBackToDirectory: handleBackToDirectory,
+    handleDeleteAgent: handleDeleteAgent,
+    handleCreateConversation: handleCreateConversation,
+    handleSaveAgentOptions: handleSaveAgentOptions,
+    handleSaveExistingAgentOptions: handleSaveExistingRoomMemberOptions,
+    handleValidateAgentName: handleValidateAgentName,
+    handleValidateAgentNameForAgent: handleValidateAgentNameForAgent,
+    handleOpenConversationFromLauncher: handleOpenConversationFromLauncher,
+    handleRefreshRoomState: handleRefreshRoomState,
+    handleConversationSnapshotChange: handleConversationSnapshotChange,
+    handleCloseConversation: handleCloseConversation,
+    handleDeleteConversation: handleDeleteConversation,
+    handleUpdateConversationTitle: handleUpdateConversationTitle,
+    handleUpdateRoom: handleUpdateRoom,
+    handleDeleteRoom: handleDeleteRoom,
+    handleAddRoomMember: handleAddRoomMember,
+    handleRemoveRoomMember: handleRemoveRoomMember,
+    routeRoomId: roomId ?? null,
     ...workspace,
   }), [
     agents, roomError, currentRoom, currentAgent,

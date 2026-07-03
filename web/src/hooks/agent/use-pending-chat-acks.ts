@@ -1,6 +1,6 @@
 import { useCallback, useRef } from "react";
 
-import { get_message_send_ack_timeout_ms } from "@/config/options";
+import { getMessageSendAckTimeoutMs } from "@/config/options";
 
 type PendingChatAck = {
   reject: (error: Error) => void;
@@ -49,7 +49,7 @@ export function usePendingChatAcks() {
 
   const waitForChatAck = useCallback((roundId: string, onTimeout: () => void) =>
     new Promise<void>((resolve, reject) => {
-      const timeoutId = window.setTimeout(onTimeout, get_message_send_ack_timeout_ms());
+      const timeoutId = window.setTimeout(onTimeout, getMessageSendAckTimeoutMs());
       pendingChatAckRef.current.set(roundId, {
         resolve,
         reject,

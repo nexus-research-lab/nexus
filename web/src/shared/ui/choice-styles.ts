@@ -62,7 +62,7 @@ const CALENDAR_CHOICE_ACTIVE_CLASS_NAME =
 const CALENDAR_CHOICE_INACTIVE_CLASS_NAME =
   "border-transparent bg-transparent text-(--text-default) hover:bg-(--surface-interactive-hover-background)";
 
-export function get_ui_choice_class_name(
+export function getUiChoiceClassName(
   options: UiChoiceStyleOptions = {},
   className?: string,
 ): string {

@@ -5,14 +5,14 @@ import { useLocation } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import {
-  get_connector_oauth_redirect_uri,
-  get_desktop_connectors_return_uri,
-  is_desktop_loopback_oauth_callback,
+  getConnectorOauthRedirectUri,
+  getDesktopConnectorsReturnUri,
+  isDesktopLoopbackOauthCallback,
 } from "@/config/desktop-runtime";
-import { is_desktop_bridge_available, open_desktop_route } from "@/lib/desktop-bridge";
-import { complete_connector_o_auth_api } from "@/lib/api/connector-api";
+import { isDesktopBridgeAvailable, openDesktopRoute } from "@/lib/desktop-bridge";
+import { completeConnectorOAuthApi } from "@/lib/api/connector-api";
 import {
-  publish_connector_oauth_event,
+  publishConnectorOauthEvent,
   type ConnectorOAuthEventType,
 } from "@/features/capability/connectors/connector-oauth-events";
 
@@ -45,14 +45,14 @@ export function ConnectorOAuthCallbackPage() {
     };
 
     const postAndClose = (type: ConnectorOAuthEventType, msg: string) => {
-      publish_connector_oauth_event(type, msg);
+      publishConnectorOauthEvent(type, msg);
       closeCallbackWindow(msg);
     };
 
     const returnToDesktop = (msg: string) => {
       setMessage(`${msg}，正在返回 Nexus……`);
       window.setTimeout(() => {
-        window.location.href = get_desktop_connectors_return_uri();
+        window.location.href = getDesktopConnectorsReturnUri();
       }, 120);
       window.setTimeout(() => {
         setMessage(`${msg}，请返回 Nexus 或手动关闭此窗口`);
@@ -60,15 +60,15 @@ export function ConnectorOAuthCallbackPage() {
     };
 
     const completeSuccess = async () => {
-      if (is_desktop_bridge_available()) {
+      if (isDesktopBridgeAvailable()) {
         try {
-          await open_desktop_route(AppRouteBuilders.connectors());
+          await openDesktopRoute(AppRouteBuilders.connectors());
         } catch {
           // OAuth 已经完成，返回主窗口失败不应该阻止回调页关闭。
         }
       }
-      publish_connector_oauth_event("connector-oauth:success", "连接成功");
-      if (is_desktop_loopback_oauth_callback()) {
+      publishConnectorOauthEvent("connector-oauth:success", "连接成功");
+      if (isDesktopLoopbackOauthCallback()) {
         returnToDesktop("连接成功");
         return;
       }
@@ -84,7 +84,7 @@ export function ConnectorOAuthCallbackPage() {
       return;
     }
 
-    complete_connector_o_auth_api(code, state, get_connector_oauth_redirect_uri())
+    completeConnectorOAuthApi(code, state, getConnectorOauthRedirectUri())
       .then(completeSuccess)
       .catch((err: unknown) => {
         const text = err instanceof Error ? err.message : "OAuth 连接失败";

@@ -3,18 +3,18 @@
 import { type ReactNode, type RefObject, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 
-import { close_on_escape } from "@/shared/ui/dialog/dialog-keyboard";
+import { closeOnEscape } from "@/shared/ui/dialog/dialog-keyboard";
 
 import { PICKER_POPOVER_CLASS_NAME } from "./picker-styles";
 
 interface PickerPopoverProps {
-  anchor_ref: RefObject<HTMLElement | null>;
+  anchorRef: RefObject<HTMLElement | null>;
   children: ReactNode;
-  is_open: boolean;
-  on_close: () => void;
+  isOpen: boolean;
+  onClose: () => void;
 }
 
-export function PickerPopover({ anchor_ref: anchorRef, children, is_open: isOpen, on_close: onClose }: PickerPopoverProps) {
+export function PickerPopover({ anchorRef: anchorRef, children, isOpen: isOpen, onClose: onClose }: PickerPopoverProps) {
   const popoverRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -31,7 +31,7 @@ export function PickerPopover({ anchor_ref: anchorRef, children, is_open: isOpen
       onClose();
     };
 
-    const onKeyDown = (event: KeyboardEvent) => close_on_escape(event, onClose);
+    const onKeyDown = (event: KeyboardEvent) => closeOnEscape(event, onClose);
 
     document.addEventListener("mousedown", handlePointerDown, true);
     document.addEventListener("keydown", onKeyDown, true);

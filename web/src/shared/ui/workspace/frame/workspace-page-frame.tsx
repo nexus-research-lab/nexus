@@ -6,12 +6,12 @@ import { cn } from "@/lib/utils";
 
 interface WorkspacePageFrameProps {
   children: ReactNode;
-  content_padding_class_name?: string;
+  contentPaddingClassName?: string;
 }
 
 export function WorkspacePageFrame({
   children,
-  content_padding_class_name: contentPaddingClassName = "p-4 sm:p-5 xl:p-6",
+  contentPaddingClassName: contentPaddingClassName = "p-4 sm:p-5 xl:p-6",
 }: WorkspacePageFrameProps) {
   return (
     <section

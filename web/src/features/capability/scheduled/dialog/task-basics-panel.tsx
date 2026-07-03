@@ -18,44 +18,44 @@ interface OptionItem {
 }
 
 interface TaskBasicsPanelProps {
-  name_ref: RefObject<HTMLInputElement | null>;
-  task_name: string;
-  set_task_name: (value: string) => void;
-  execution_kind: ExecutionKind;
-  set_execution_kind: (value: ExecutionKind) => void;
-  execution_kind_options: Array<{ key: ExecutionKind; label: string }>;
-  target_type: TargetType;
-  set_target_type: (value: TargetType) => void;
-  target_type_options: Array<{ key: TargetType; label: string }>;
-  selected_agent_id: string;
-  set_selected_agent_id: (value: string) => void;
-  selected_room_id: string;
-  set_selected_room_id: (value: string) => void;
-  agent_options: OptionItem[];
-  room_options: OptionItem[];
-  agents_loading: boolean;
-  rooms_loading: boolean;
-  agents_error: string | null;
-  rooms_error: string | null;
-  execution_mode: ExecutionMode;
-  set_execution_mode: (value: ExecutionMode) => void;
-  execution_mode_options: Array<{ key: ExecutionMode; label: string }>;
-  dedicated_session_key: string;
-  set_dedicated_session_key: (value: string) => void;
-  selected_session_key: string;
-  set_selected_session_key: (value: string) => void;
-  session_options: Array<{ value: string; session_key: string; label: string }>;
-  session_loading: boolean;
-  session_error: string | null;
-  session_empty_message: string | null;
-  require_session_selection: boolean;
-  reply_mode: ReplyMode;
-  set_reply_mode: (value: ReplyMode) => void;
-  reply_mode_options: Array<{ key: ReplyMode; label: string }>;
-  disabled_reply_modes?: ReplyMode[];
-  selected_reply_session_key: string;
-  set_selected_reply_session_key: (value: string) => void;
-  on_reset_context_error: () => void;
+  nameRef: RefObject<HTMLInputElement | null>;
+  taskName: string;
+  setTaskName: (value: string) => void;
+  executionKind: ExecutionKind;
+  setExecutionKind: (value: ExecutionKind) => void;
+  executionKindOptions: Array<{ key: ExecutionKind; label: string }>;
+  targetType: TargetType;
+  setTargetType: (value: TargetType) => void;
+  targetTypeOptions: Array<{ key: TargetType; label: string }>;
+  selectedAgentId: string;
+  setSelectedAgentId: (value: string) => void;
+  selectedRoomId: string;
+  setSelectedRoomId: (value: string) => void;
+  agentOptions: OptionItem[];
+  roomOptions: OptionItem[];
+  agentsLoading: boolean;
+  roomsLoading: boolean;
+  agentsError: string | null;
+  roomsError: string | null;
+  executionMode: ExecutionMode;
+  setExecutionMode: (value: ExecutionMode) => void;
+  executionModeOptions: Array<{ key: ExecutionMode; label: string }>;
+  dedicatedSessionKey: string;
+  setDedicatedSessionKey: (value: string) => void;
+  selectedSessionKey: string;
+  setSelectedSessionKey: (value: string) => void;
+  sessionOptions: Array<{ value: string; sessionKey: string; label: string }>;
+  sessionLoading: boolean;
+  sessionError: string | null;
+  sessionEmptyMessage: string | null;
+  requireSessionSelection: boolean;
+  replyMode: ReplyMode;
+  setReplyMode: (value: ReplyMode) => void;
+  replyModeOptions: Array<{ key: ReplyMode; label: string }>;
+  disabledReplyModes?: ReplyMode[];
+  selectedReplySessionKey: string;
+  setSelectedReplySessionKey: (value: string) => void;
+  onResetContextError: () => void;
 }
 
 function getExecutionModeHelpText(mode: ExecutionMode): string {
@@ -90,49 +90,49 @@ function getReplyModeHelpText(mode: ReplyMode): string {
 
 export function TaskBasicsPanel(props: TaskBasicsPanelProps) {
   const {
-    name_ref: nameRef,
-    task_name: taskName,
-    set_task_name: setTaskName,
-    execution_kind: executionKind,
-    set_execution_kind: setExecutionKind,
-    execution_kind_options: executionKindOptions,
-    target_type: targetType,
-    set_target_type: setTargetType,
-    target_type_options: targetTypeOptions,
-    selected_agent_id: selectedAgentId,
-    set_selected_agent_id: setSelectedAgentId,
-    selected_room_id: selectedRoomId,
-    set_selected_room_id: setSelectedRoomId,
-    agent_options: agentOptions,
-    room_options: roomOptions,
-    agents_loading: agentsLoading,
-    rooms_loading: roomsLoading,
-    agents_error: agentsError,
-    rooms_error: roomsError,
-    execution_mode: executionMode,
-    set_execution_mode: setExecutionMode,
-    execution_mode_options: executionModeOptions,
-    dedicated_session_key: dedicatedSessionKey,
-    set_dedicated_session_key: setDedicatedSessionKey,
-    selected_session_key: selectedSessionKey,
-    set_selected_session_key: setSelectedSessionKey,
-    session_options: sessionOptions,
-    session_loading: sessionLoading,
-    session_error: sessionError,
-    session_empty_message: sessionEmptyMessage,
-    require_session_selection: requireSessionSelection,
-    reply_mode: replyMode,
-    set_reply_mode: setReplyMode,
-    reply_mode_options: replyModeOptions,
-    disabled_reply_modes: disabledReplyModes = [],
-    selected_reply_session_key: selectedReplySessionKey,
-    set_selected_reply_session_key: setSelectedReplySessionKey,
-    on_reset_context_error: onResetContextError,
+    nameRef: nameRef,
+    taskName: taskName,
+    setTaskName: setTaskName,
+    executionKind: executionKind,
+    setExecutionKind: setExecutionKind,
+    executionKindOptions: executionKindOptions,
+    targetType: targetType,
+    setTargetType: setTargetType,
+    targetTypeOptions: targetTypeOptions,
+    selectedAgentId: selectedAgentId,
+    setSelectedAgentId: setSelectedAgentId,
+    selectedRoomId: selectedRoomId,
+    setSelectedRoomId: setSelectedRoomId,
+    agentOptions: agentOptions,
+    roomOptions: roomOptions,
+    agentsLoading: agentsLoading,
+    roomsLoading: roomsLoading,
+    agentsError: agentsError,
+    roomsError: roomsError,
+    executionMode: executionMode,
+    setExecutionMode: setExecutionMode,
+    executionModeOptions: executionModeOptions,
+    dedicatedSessionKey: dedicatedSessionKey,
+    setDedicatedSessionKey: setDedicatedSessionKey,
+    selectedSessionKey: selectedSessionKey,
+    setSelectedSessionKey: setSelectedSessionKey,
+    sessionOptions: sessionOptions,
+    sessionLoading: sessionLoading,
+    sessionError: sessionError,
+    sessionEmptyMessage: sessionEmptyMessage,
+    requireSessionSelection: requireSessionSelection,
+    replyMode: replyMode,
+    setReplyMode: setReplyMode,
+    replyModeOptions: replyModeOptions,
+    disabledReplyModes: disabledReplyModes = [],
+    selectedReplySessionKey: selectedReplySessionKey,
+    setSelectedReplySessionKey: setSelectedReplySessionKey,
+    onResetContextError: onResetContextError,
   } = props;
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
-      <UiField html_for="task-name" label="任务名称">
+      <UiField htmlFor="task-name" label="任务名称">
         <UiInput
           ref={nameRef}
           id="task-name"
@@ -185,14 +185,14 @@ export function TaskBasicsPanel(props: TaskBasicsPanelProps) {
 
       <UiField
         error={executionKind === "script" || targetType === "agent" ? agentsError : roomsError}
-        html_for="task-target-object"
+        htmlFor="task-target-object"
         label={executionKind === "script" || targetType === "agent" ? "目标智能体" : "目标 Room"}
       >
         <UiSelectMenu
-          aria_label={executionKind === "script" || targetType === "agent" ? "选择目标智能体" : "选择目标 Room"}
+          ariaLabel={executionKind === "script" || targetType === "agent" ? "选择目标智能体" : "选择目标 Room"}
           disabled={executionKind === "script" || targetType === "agent" ? agentsLoading || agentOptions.length === 0 : roomsLoading || roomOptions.length === 0}
           id="task-target-object"
-          on_change={(value) => {
+          onChange={(value) => {
             if (executionKind === "script" || targetType === "agent") {
               setSelectedAgentId(value);
             } else {
@@ -241,7 +241,7 @@ export function TaskBasicsPanel(props: TaskBasicsPanelProps) {
       ) : null}
 
       {executionKind === "agent" && executionMode === "dedicated" ? (
-        <UiField html_for="task-dedicated-session-key" label="专用长期会话名称">
+        <UiField htmlFor="task-dedicated-session-key" label="专用长期会话名称">
           <UiInput
             id="task-dedicated-session-key"
             onChange={(e) => setDedicatedSessionKey(e.target.value)}
@@ -255,14 +255,14 @@ export function TaskBasicsPanel(props: TaskBasicsPanelProps) {
         <UiField
           description={sessionEmptyMessage}
           error={sessionError}
-          html_for="task-session-key"
+          htmlFor="task-session-key"
           label={targetType === "room" ? "执行成员" : "执行会话"}
         >
           <UiSelectMenu
-            aria_label={targetType === "room" ? "选择执行成员" : "选择执行会话"}
+            ariaLabel={targetType === "room" ? "选择执行成员" : "选择执行会话"}
             disabled={sessionLoading || sessionOptions.length === 0}
             id="task-session-key"
-            on_change={(value) => {
+            onChange={(value) => {
               setSelectedSessionKey(value);
               onResetContextError();
             }}
@@ -304,12 +304,12 @@ export function TaskBasicsPanel(props: TaskBasicsPanelProps) {
       ) : null}
 
       {executionKind === "agent" && replyMode === "selected" ? (
-        <UiField html_for="task-reply-session-key" label="回复会话">
+        <UiField htmlFor="task-reply-session-key" label="回复会话">
           <UiSelectMenu
-            aria_label="选择回复会话"
+            ariaLabel="选择回复会话"
             disabled={sessionLoading || sessionOptions.length === 0}
             id="task-reply-session-key"
-            on_change={(value) => {
+            onChange={(value) => {
               setSelectedReplySessionKey(value);
               onResetContextError();
             }}

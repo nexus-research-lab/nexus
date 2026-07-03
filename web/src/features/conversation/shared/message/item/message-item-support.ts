@@ -8,7 +8,7 @@
  */
 
 import { AgentConversationRuntimePhase } from "@/types/agent/agent-conversation";
-import { is_ask_user_question_timed_out_result } from "@/types/conversation/ask-user-question";
+import { isAskUserQuestionTimedOutResult } from "@/types/conversation/ask-user-question";
 import {
   ContentBlock,
   SystemEventTone,
@@ -17,28 +17,28 @@ import {
 
 export interface OrderedAssistantEntry {
   block: ContentBlock;
-  merged_index: number;
-  source_message_id: string;
-  source_order: number;
+  mergedIndex: number;
+  sourceMessageId: string;
+  sourceOrder: number;
 }
 
 export interface AssistantTurnEntry {
-  message_id: string;
+  messageId: string;
   content: ContentBlock[];
-  text_content: ContentBlock[];
-  streaming_indexes: Set<number>;
-  text_streaming_indexes: Set<number>;
+  textContent: ContentBlock[];
+  streamingIndexes: Set<number>;
+  textStreamingIndexes: Set<number>;
 }
 
 export interface ContentProjection {
   content: ContentBlock[];
-  streaming_indexes: Set<number>;
+  streamingIndexes: Set<number>;
 }
 
 const TOOL_USE_ERROR_TAG_PATTERN =
   /<tool_use_error>([\s\S]*?)<\/tool_use_error>/g;
 
-export function split_text_block_by_tool_use_error(
+export function splitTextBlockByToolUseError(
   block: TextContent,
 ): ContentBlock[] {
   if (!block.text.includes("<tool_use_error>")) {
@@ -74,7 +74,7 @@ export type AssistantContentMode =
   | "room_result";
 export const DEFAULT_TIMELINE_DOT_TOP = 12;
 
-export function map_runtime_phase_to_activity_state(
+export function mapRuntimePhaseToActivityState(
   phase?: AgentConversationRuntimePhase | null,
 ) {
   switch (phase) {
@@ -91,7 +91,7 @@ export function map_runtime_phase_to_activity_state(
   }
 }
 
-export function find_latest_streaming_block(
+export function findLatestStreamingBlock(
   content: ContentBlock[],
   streamingBlockIndexes: ReadonlySet<number>,
 ): ContentBlock | null {
@@ -117,7 +117,7 @@ export function find_latest_streaming_block(
   return null;
 }
 
-export function has_timed_out_ask_user_question(
+export function hasTimedOutAskUserQuestion(
   content: ContentBlock[],
 ): boolean {
   const askToolUseIds = new Set<string>();
@@ -135,7 +135,7 @@ export function has_timed_out_ask_user_question(
     if (!askToolUseIds.has(block.tool_use_id)) {
       continue;
     }
-    if (is_ask_user_question_timed_out_result(block)) {
+    if (isAskUserQuestionTimedOutResult(block)) {
       return true;
     }
   }
@@ -143,7 +143,7 @@ export function has_timed_out_ask_user_question(
   return false;
 }
 
-export function get_system_message_icon_class_name(
+export function getSystemMessageIconClassName(
   tone: SystemEventTone,
 ): string {
   if (tone === "warning") {
@@ -152,7 +152,7 @@ export function get_system_message_icon_class_name(
   return "text-(--icon-muted)";
 }
 
-export function get_system_message_label_class_name(
+export function getSystemMessageLabelClassName(
   tone: SystemEventTone,
 ): string {
   if (tone === "warning") {
@@ -161,7 +161,7 @@ export function get_system_message_label_class_name(
   return "text-(--text-muted)";
 }
 
-export function projection_from_ordered_entries(
+export function projectionFromOrderedEntries(
   entries: OrderedAssistantEntry[],
   streamingBlockIndexes: Set<number>,
 ): ContentProjection {
@@ -170,23 +170,23 @@ export function projection_from_ordered_entries(
 
   entries.forEach((entry, index) => {
     content.push(entry.block);
-    if (streamingBlockIndexes.has(entry.merged_index)) {
+    if (streamingBlockIndexes.has(entry.mergedIndex)) {
       streamingIndexes.add(index);
     }
   });
 
-  return { content, streaming_indexes: streamingIndexes };
+  return { content, streamingIndexes };
 }
 
 // Backend room control token, never shown to humans.
-// Mirrors NoReplyMarker in internal/chat/room/no_reply.go.
+// Mirrors the backend NoReplyMarker.
 const ROOM_CONTROL_MARKER = /<nexus_room_no_reply\s*\/>/g;
 
-export function strip_room_control_markers(text: string): string {
+export function stripRoomControlMarkers(text: string): string {
   return text.replace(ROOM_CONTROL_MARKER, "").trim();
 }
 
-export function extract_text_from_content_blocks(
+export function extractTextFromContentBlocks(
   content?: ContentBlock[] | null,
 ): string {
   if (!content || content.length === 0) {
@@ -199,10 +199,10 @@ export function extract_text_from_content_blocks(
       texts.push(block.text);
     }
   });
-  return strip_room_control_markers(texts.join("\n\n"));
+  return stripRoomControlMarkers(texts.join("\n\n"));
 }
 
-export function format_message_time(timestamp?: number | null): string {
+export function formatMessageTime(timestamp?: number | null): string {
   if (!timestamp) {
     return "-- --:--";
   }
@@ -221,7 +221,7 @@ export function format_message_time(timestamp?: number | null): string {
   });
 }
 
-export function get_timeline_anchor_element(
+export function getTimelineAnchorElement(
   contentElement: HTMLElement,
 ): HTMLElement | null {
   return (
@@ -262,7 +262,7 @@ function getFirstTextLineTop(contentElement: HTMLElement): number | null {
   return firstLineRect.top - contentRect.top + firstLineRect.height / 2;
 }
 
-export function get_timeline_anchor_top(
+export function getTimelineAnchorTop(
   contentElement: HTMLElement,
   anchorElement: HTMLElement | null,
 ): number {

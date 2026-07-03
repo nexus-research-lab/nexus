@@ -34,7 +34,7 @@ const STATE_BLOCK_VARIANT_CLASS_MAP: Record<UiStateBlockVariant, Record<UiStateB
   },
 };
 
-export function get_ui_state_block_class_name(
+export function getUiStateBlockClassName(
   options: UiStateBlockStyleOptions = {},
   className?: string,
 ): string {

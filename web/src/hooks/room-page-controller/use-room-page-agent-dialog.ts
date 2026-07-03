@@ -11,21 +11,21 @@
 
 import { useCallback, useMemo, useState } from "react";
 
-import { get_initial_agent_options } from "@/config/options";
-import { build_agent_options_save_payload } from "@/features/agents/options/agent-options-constants";
-import { validate_agent_name_api } from "@/lib/api/agent-manage-api";
+import { getInitialAgentOptions } from "@/config/options";
+import { buildAgentOptionsSavePayload } from "@/features/agents/options/agent-options-constants";
+import { validateAgentNameApi } from "@/lib/api/agent-manage-api";
 import { Agent, AgentIdentityDraft, AgentOptions } from "@/types/agent/agent";
 
 interface UseRoomPageAgentDialogOptions {
   agents: Agent[];
-  create_agent: (params: {
+  createAgent: (params: {
     name: string;
     options?: Partial<AgentOptions>;
     avatar?: string;
     description?: string;
     vibe_tags?: string[];
   }) => Promise<string>;
-  update_agent: (
+  updateAgent: (
     agentId: string,
     params: {
       name?: string;
@@ -39,8 +39,8 @@ interface UseRoomPageAgentDialogOptions {
 
 export function useRoomPageAgentDialog({
   agents,
-  create_agent: createAgent,
-  update_agent: updateAgent,
+  createAgent: createAgent,
+  updateAgent: updateAgent,
 }: UseRoomPageAgentDialogOptions) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [dialogMode, setDialogMode] = useState<"create" | "edit">("create");
@@ -70,7 +70,7 @@ export function useRoomPageAgentDialog({
 
   const dialogInitialOptions = useMemo(() => {
     if (dialogMode !== "edit" || !editingAgent) {
-      return get_initial_agent_options();
+      return getInitialAgentOptions();
     }
 
     return {
@@ -103,7 +103,7 @@ export function useRoomPageAgentDialog({
     options: AgentOptions,
     identity: AgentIdentityDraft,
   ) => {
-    const nextOptions = build_agent_options_save_payload(options);
+    const nextOptions = buildAgentOptionsSavePayload(options);
 
     if (dialogMode === "create") {
       await createAgent({
@@ -133,7 +133,7 @@ export function useRoomPageAgentDialog({
     options: AgentOptions,
     identity: AgentIdentityDraft,
   ) => {
-    const nextOptions = build_agent_options_save_payload(options);
+    const nextOptions = buildAgentOptionsSavePayload(options);
 
     await updateAgent(agentId, {
       name: title,
@@ -146,28 +146,28 @@ export function useRoomPageAgentDialog({
 
   const handleValidateAgentName = useCallback(async (name: string) => {
     const excludeAgentId = dialogMode === "edit" ? editingAgentId ?? undefined : undefined;
-    return validate_agent_name_api(name, excludeAgentId);
+    return validateAgentNameApi(name, excludeAgentId);
   }, [dialogMode, editingAgentId]);
 
   const handleValidateAgentNameForAgent = useCallback(async (name: string, agentId?: string) => {
-    return validate_agent_name_api(name, agentId);
+    return validateAgentNameApi(name, agentId);
   }, []);
 
   return {
-    is_dialog_open: isDialogOpen,
-    dialog_mode: dialogMode,
-    editing_agent_id: editingAgentId,
-    dialog_initial_title: dialogInitialTitle,
-    dialog_initial_avatar: dialogInitialAvatar,
-    dialog_initial_description: dialogInitialDescription,
-    dialog_initial_options: dialogInitialOptions,
-    dialog_initial_vibe_tags: dialogInitialVibeTags,
-    set_is_dialog_open: setIsDialogOpen,
-    handle_open_create_agent: handleOpenCreateAgent,
-    handle_edit_agent: handleEditAgent,
-    handle_save_agent_options: handleSaveAgentOptions,
-    handle_save_existing_agent_options: handleSaveExistingAgentOptions,
-    handle_validate_agent_name: handleValidateAgentName,
-    handle_validate_agent_name_for_agent: handleValidateAgentNameForAgent,
+    isDialogOpen: isDialogOpen,
+    dialogMode: dialogMode,
+    editingAgentId: editingAgentId,
+    dialogInitialTitle: dialogInitialTitle,
+    dialogInitialAvatar: dialogInitialAvatar,
+    dialogInitialDescription: dialogInitialDescription,
+    dialogInitialOptions: dialogInitialOptions,
+    dialogInitialVibeTags: dialogInitialVibeTags,
+    setIsDialogOpen: setIsDialogOpen,
+    handleOpenCreateAgent: handleOpenCreateAgent,
+    handleEditAgent: handleEditAgent,
+    handleSaveAgentOptions: handleSaveAgentOptions,
+    handleSaveExistingAgentOptions: handleSaveExistingAgentOptions,
+    handleValidateAgentName: handleValidateAgentName,
+    handleValidateAgentNameForAgent: handleValidateAgentNameForAgent,
   };
 }

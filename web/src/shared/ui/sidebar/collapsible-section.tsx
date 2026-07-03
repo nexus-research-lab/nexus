@@ -23,48 +23,48 @@ const SIDEBAR_SECTION_CHEVRON_SLOT_CLASS_NAME =
   "flex h-6 w-6 shrink-0 items-center justify-center";
 
 interface CollapsibleSectionProps {
-  section_id: string;
+  sectionId: string;
   title: string;
   count?: number;
   /** 标题左侧图标 */
   icon?: ReactNode;
   children: React.ReactNode;
   /** 标题点击行为，与折叠切换分离 */
-  on_title_click?: () => void;
+  onTitleClick?: () => void;
   /** 标题是否处于激活态 */
-  is_title_active?: boolean;
+  isTitleActive?: boolean;
   /** 标题栏右侧操作按钮（+ / → 等），固定宽度占位 */
-  on_action?: () => void;
+  onAction?: () => void;
   /** 操作按钮的 title 属性 */
-  action_title?: string;
+  actionTitle?: string;
   /** 操作按钮内容 */
-  action_icon?: ReactNode;
+  actionIcon?: ReactNode;
 }
 
 interface SidebarListItemProps {
   icon: ReactNode;
   label: string;
-  label_class_name?: string;
-  label_style?: CSSProperties;
+  labelClassName?: string;
+  labelStyle?: CSSProperties;
   meta?: string;
-  is_active?: boolean;
-  active_variant?: "default" | "avatar_emphasis";
-  on_click: () => void;
-  on_rename?: () => void;
-  on_delete?: () => void;
+  isActive?: boolean;
+  activeVariant?: "default" | "avatar_emphasis";
+  onClick: () => void;
+  onRename?: () => void;
+  onDelete?: () => void;
 }
 
 export function SidebarListItem({
   icon,
   label,
-  label_class_name: labelClassName,
-  label_style: labelStyle,
+  labelClassName: labelClassName,
+  labelStyle: labelStyle,
   meta,
-  is_active: isActive = false,
-  active_variant: activeVariant = "default",
-  on_click: onClick,
-  on_rename: onRename,
-  on_delete: onDelete,
+  isActive: isActive = false,
+  activeVariant: activeVariant = "default",
+  onClick: onClick,
+  onRename: onRename,
+  onDelete: onDelete,
 }: SidebarListItemProps) {
   const { t } = useI18n();
   const hasActions = Boolean(onRename || onDelete);
@@ -159,7 +159,7 @@ export function SidebarListItem({
               onClick={() => {
                 onRename();
               }}
-              stop_propagation
+              stopPropagation
               title={t("home.rename")}
               visibility={isActive ? "visible" : "subtle"}
             >
@@ -173,7 +173,7 @@ export function SidebarListItem({
               onClick={() => {
                 onDelete();
               }}
-              stop_propagation
+              stopPropagation
               title={t("common.delete")}
               tone="danger"
               visibility={isActive ? "visible" : "subtle"}
@@ -188,16 +188,16 @@ export function SidebarListItem({
 }
 
 function CollapsibleSection({
-  section_id: sectionId,
+  sectionId: sectionId,
   title,
   count,
   icon,
   children,
-  on_title_click: onTitleClick,
-  is_title_active: isTitleActive = false,
-  on_action: onAction,
-  action_title: actionTitle = "新建",
-  action_icon: actionIcon,
+  onTitleClick: onTitleClick,
+  isTitleActive: isTitleActive = false,
+  onAction: onAction,
+  actionTitle: actionTitle = "新建",
+  actionIcon: actionIcon,
 }: CollapsibleSectionProps) {
   const isCollapsed = useSidebarStore(
     (s) => s.collapsed_sections[sectionId] ?? false,
@@ -267,7 +267,7 @@ function CollapsibleSection({
             onClick={onAction}
             shape="round"
             size="md"
-            stop_propagation
+            stopPropagation
             title={actionTitle}
             visibility="visible"
           >

@@ -3,12 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
-import { get_agent_sessions_api } from "@/lib/api/agent-api";
-import { subscribe_room_directory_updates } from "@/lib/api/room-api";
+import { getAgentSessionsApi } from "@/lib/api/agent-api";
+import { subscribeRoomDirectoryUpdates } from "@/lib/api/room-api";
 import {
-  build_external_session_conversation_id,
-  format_external_session_title,
-  is_external_session_channel,
+  buildExternalSessionConversationId,
+  formatExternalSessionTitle,
+  isExternalSessionChannel,
 } from "@/features/conversation/external-session-labels";
 import { AgentSession } from "@/types/agent/agent";
 import { RoomConversationView } from "@/types/conversation/conversation";
@@ -16,10 +16,10 @@ import { RoomConversationView } from "@/types/conversation/conversation";
 const EXTERNAL_AGENT_SESSION_FALLBACK_REFRESH_INTERVAL_MS = 60000;
 
 function buildExternalRoomConversationViews({
-  room_id: roomId,
+  roomId: roomId,
   sessions,
 }: {
-  room_id: string | null;
+  roomId: string | null;
   sessions: AgentSession[];
 }): RoomConversationView[] {
   if (!roomId) {
@@ -28,16 +28,16 @@ function buildExternalRoomConversationViews({
   return sessions
     .filter((session) => (
       !session.room_id &&
-      is_external_session_channel(session.channel_type, session.session_key)
+      isExternalSessionChannel(session.channel_type, session.session_key)
     ))
     .map((session) => ({
       session_key: session.session_key,
       room_id: roomId,
-      conversation_id: build_external_session_conversation_id(session.session_key),
+      conversation_id: buildExternalSessionConversationId(session.session_key),
       conversation_type: "external",
       session_id: session.session_id,
       agent_id: session.agent_id,
-      title: format_external_session_title({
+      title: formatExternalSessionTitle({
         title: session.title,
       }),
       options: {
@@ -74,19 +74,19 @@ function filterExternalAgentSessions(sessions: AgentSession[]): AgentSession[] {
   return sessions
     .filter((item) => (
       !item.room_id &&
-      is_external_session_channel(item.channel_type, item.session_key)
+      isExternalSessionChannel(item.channel_type, item.session_key)
     ))
     .sort((left, right) => right.last_activity_at - left.last_activity_at);
 }
 
 export function useRoomExternalSessions({
-  agent_id: agentId,
-  room_id: roomId,
-  room_type: roomType,
+  agentId: agentId,
+  roomId: roomId,
+  roomType: roomType,
 }: {
-  agent_id: string | null;
-  room_id: string | null;
-  room_type: string | null;
+  agentId: string | null;
+  roomId: string | null;
+  roomType: string | null;
 }) {
   const externalSessionsResetKey = roomType === "dm" && agentId ? agentId : "inactive";
   const [externalAgentSessions, setExternalAgentSessions] = useResettableState<AgentSession[]>(
@@ -96,7 +96,7 @@ export function useRoomExternalSessions({
   const [externalSessionRefreshVersion, setExternalSessionRefreshVersion] = useState(0);
 
   useEffect(
-    () => subscribe_room_directory_updates(() => {
+    () => subscribeRoomDirectoryUpdates(() => {
       setExternalSessionRefreshVersion((version) => version + 1);
     }),
     [],
@@ -109,7 +109,7 @@ export function useRoomExternalSessions({
 
     let cancelled = false;
     const refreshExternalSessions = () => {
-      void get_agent_sessions_api(agentId)
+      void getAgentSessionsApi(agentId)
         .then((sessions) => {
           if (cancelled) {
             return;
@@ -153,14 +153,14 @@ export function useRoomExternalSessions({
 
   const externalRoomConversations = useMemo(
     () => buildExternalRoomConversationViews({
-      room_id: roomId,
+      roomId: roomId,
       sessions: externalAgentSessions,
     }),
     [externalAgentSessions, roomId],
   );
 
   return {
-    external_agent_sessions: externalAgentSessions,
-    external_room_conversations: externalRoomConversations,
+    externalAgentSessions: externalAgentSessions,
+    externalRoomConversations: externalRoomConversations,
   };
 }

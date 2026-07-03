@@ -17,60 +17,60 @@ import { cn } from '@/lib/utils';
 import {
     AskUserQuestionInput,
     UserQuestionAnswer,
-    is_ask_user_question_timed_out_result,
+    isAskUserQuestionTimedOutResult,
 } from '@/types/conversation/ask-user-question';
 import { ToolResultContent, ToolUseContent } from '@/types/conversation/message';
 import { MessageRail } from "../ui/message-rail";
 import { AskUserQuestionCard } from "./ask-user-question-card";
 import {
-    build_submitted_selection_state,
-    create_empty_question_selection_state,
-    has_selection_state_content,
-    normalize_question,
+    buildSubmittedSelectionState,
+    createEmptyQuestionSelectionState,
+    hasSelectionStateContent,
+    normalizeQuestion,
 } from "./ask-user-question-model";
 
 interface AskUserQuestionBlockProps {
-    tool_use: ToolUseContent;
-    tool_result?: ToolResultContent;
-    on_submit?: (toolUseId: string, answers: UserQuestionAnswer[]) => boolean | Promise<boolean>;
-    is_submitted?: boolean;
-    is_ready?: boolean;
-    interaction_disabled?: boolean;
-    interaction_disabled_reason?: string;
+    toolUse: ToolUseContent;
+    toolResult?: ToolResultContent;
+    onSubmit?: (toolUseId: string, answers: UserQuestionAnswer[]) => boolean | Promise<boolean>;
+    isSubmitted?: boolean;
+    isReady?: boolean;
+    interactionDisabled?: boolean;
+    interactionDisabledReason?: string;
 }
 
 export function AskUserQuestionBlock({
-    tool_use: toolUse,
-    tool_result: toolResult,
-    on_submit: onSubmit,
-    is_submitted: initialSubmitted = false,
-    is_ready: isReady = true,
-    interaction_disabled: interactionDisabled = false,
-    interaction_disabled_reason: interactionDisabledReason,
+    toolUse: toolUse,
+    toolResult: toolResult,
+    onSubmit: onSubmit,
+    isSubmitted: initialSubmitted = false,
+    isReady: isReady = true,
+    interactionDisabled: interactionDisabled = false,
+    interactionDisabledReason: interactionDisabledReason,
 }: AskUserQuestionBlockProps) {
     // 解析输入
     const input = toolUse.input as AskUserQuestionInput;
     const questions = useMemo(
-        () => (input?.questions || []).map(normalize_question),
+        () => (input?.questions || []).map(normalizeQuestion),
         [input?.questions],
     );
     const submittedSelectionState = useMemo(
-        () => build_submitted_selection_state(questions, toolResult),
+        () => buildSubmittedSelectionState(questions, toolResult),
         [questions, toolResult],
     );
     const hasSubmittedSelectionState = useMemo(
-        () => has_selection_state_content(submittedSelectionState),
+        () => hasSelectionStateContent(submittedSelectionState),
         [submittedSelectionState],
     );
 
     // 状态：每个问题的选中选项
     const [selections, setSelections] = useState<Map<number, Set<string>>>(
-        () => create_empty_question_selection_state(questions).selections,
+        () => createEmptyQuestionSelectionState(questions).selections,
     );
     const [customAnswers, setCustomAnswers] = useState<Map<number, string>>(
-        () => create_empty_question_selection_state(questions).custom_answers,
+        () => createEmptyQuestionSelectionState(questions).custom_answers,
     );
-    const isTimedOut = is_ask_user_question_timed_out_result(toolResult);
+    const isTimedOut = isAskUserQuestionTimedOutResult(toolResult);
     const isFailed = Boolean(toolResult?.is_error && !isTimedOut);
     const [hasLocalSubmission, setHasLocalSubmission] = useState(false);
     const isSubmitted = initialSubmitted || hasLocalSubmission;
@@ -86,7 +86,7 @@ export function AskUserQuestionBlock({
     }, [initialSubmitted, isFailed, isTimedOut]);
 
     useEffect(() => {
-        const emptyState = create_empty_question_selection_state(questions);
+        const emptyState = createEmptyQuestionSelectionState(questions);
         setSelections(emptyState.selections);
         setCustomAnswers(emptyState.custom_answers);
     }, [questions]);
@@ -238,7 +238,7 @@ export function AskUserQuestionBlock({
                     : "需要你的回应";
 
     return (
-        <MessageRail class_name="my-1.5">
+        <MessageRail className="my-1.5">
             {/* ═══════════ 头部（可点击展开/收起） ═══════════ */}
             <button
                 type="button"
@@ -308,13 +308,13 @@ export function AskUserQuestionBlock({
                         <AskUserQuestionCard
                             key={`${question.header ?? "question"}:${question.question}`}
                             question={question}
-                            question_index={index}
-                            selected_options={selections.get(index) || new Set()}
-                            custom_answer={customAnswers.get(index) || ''}
-                            on_toggle_option={handleToggleOption}
-                            on_custom_answer_change={handleCustomAnswerChange}
-                            is_submitted={isReadOnly}
-                            default_expanded={!isReadOnly}
+                            questionIndex={index}
+                            selectedOptions={selections.get(index) || new Set()}
+                            customAnswer={customAnswers.get(index) || ''}
+                            onToggleOption={handleToggleOption}
+                            onCustomAnswerChange={handleCustomAnswerChange}
+                            isSubmitted={isReadOnly}
+                            defaultExpanded={!isReadOnly}
                         />
                     ))}
                 </div>

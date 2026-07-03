@@ -5,7 +5,7 @@ import { useLayoutEffect, useRef } from "react";
 import { SessionLoaderOptions } from "@/types/conversation/conversation";
 
 /**
- * Session 加载器，监听 session_key 变化并触发加载。
+ * Session 加载器，监听 sessionKey 变化并触发加载。
  */
 export const useSessionLoader = ({
   session_key: sessionKey,

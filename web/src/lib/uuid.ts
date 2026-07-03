@@ -29,7 +29,7 @@ function fallbackUuidFromRandomValues(): string {
   ].join("-");
 }
 
-export function generate_uuid(): string {
+export function generateUuid(): string {
   const cryptoObject = globalThis.crypto;
   if (cryptoObject?.randomUUID) {
     return cryptoObject.randomUUID();

@@ -3,20 +3,20 @@
 import { Download, FileText, FolderOpen } from "lucide-react";
 
 import {
-  download_workspace_file_api,
+  downloadWorkspaceFileApi,
 } from "@/lib/api/agent-manage-api";
-import { get_workspace_file_external_action_copy } from "@/lib/workspace-file-action";
+import { getWorkspaceFileExternalActionCopy } from "@/lib/workspace-file-action";
 import { cn } from "@/lib/utils";
 import { useAgentStore } from "@/store/agent";
 
 interface FileArtifactBlockProps {
   label?: string;
   path: string;
-  display_path?: string;
-  on_open_workspace_file?: (path: string) => void;
-  workspace_agent_id?: string | null;
+  displayPath?: string;
+  onOpenWorkspaceFile?: (path: string) => void;
+  workspaceAgentId?: string | null;
   compact?: boolean;
-  class_name?: string;
+  className?: string;
 }
 
 function fileNameFromPath(path: string): string {
@@ -36,11 +36,11 @@ function fileParentFromPath(path: string): string {
 export function FileArtifactBlock({
   label = "已保存到",
   path,
-  display_path: displayPath,
-  on_open_workspace_file: onOpenWorkspaceFile,
-  workspace_agent_id: workspaceAgentId,
+  displayPath: displayPath,
+  onOpenWorkspaceFile: onOpenWorkspaceFile,
+  workspaceAgentId: workspaceAgentId,
   compact = false,
-  class_name: className,
+  className: className,
 }: FileArtifactBlockProps) {
   const currentAgentId = useAgentStore((state) => state.current_agent_id);
   const displayPathValue = displayPath?.trim() || path;
@@ -49,12 +49,12 @@ export function FileArtifactBlock({
   const canOpen = Boolean(onOpenWorkspaceFile);
   const downloadAgentId = workspaceAgentId?.trim() || currentAgentId || "";
   const canDownload = Boolean(downloadAgentId && path.trim());
-  const fileActionCopy = get_workspace_file_external_action_copy(fileName);
+  const fileActionCopy = getWorkspaceFileExternalActionCopy(fileName);
   const handleExternalAction = () => {
     if (!canDownload) {
       return;
     }
-    void download_workspace_file_api(downloadAgentId, path, fileName).catch((error) => {
+    void downloadWorkspaceFileApi(downloadAgentId, path, fileName).catch((error) => {
       console.error(`[FileArtifactBlock] ${fileActionCopy.label} workspace 文件失败:`, error);
     });
   };
@@ -107,7 +107,7 @@ export function FileArtifactBlock({
         </button>
         {canDownload ? (
           <button
-            aria-label={fileActionCopy.aria_label}
+            aria-label={fileActionCopy.ariaLabel}
             className={cn(
               "inline-flex shrink-0 items-center gap-1 rounded-[6px] border border-(--divider-subtle-color) text-(--text-muted) transition-colors hover:border-primary/25 hover:bg-primary/8 hover:text-primary",
               compact ? "px-1.5 py-1 text-[10px]" : "px-2 py-1 text-[11px]",

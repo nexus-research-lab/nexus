@@ -2,10 +2,10 @@ import { useCallback, useMemo, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 
 import {
-  fetch_provider_models_api,
-  test_provider_config_api,
-  test_provider_model_api,
-  update_provider_model_api,
+  fetchProviderModelsApi,
+  testProviderConfigApi,
+  testProviderModelApi,
+  updateProviderModelApi,
 } from "@/lib/api/provider-config-api";
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import type {
@@ -18,40 +18,40 @@ import {
   AUTO_TEST_MODEL_VALUE,
   FeedbackState,
   ModelOptionsState,
-  build_test_model_options,
-  filter_provider_models,
-  model_options_from_record,
-  model_update_payload,
-  parse_provider_options,
-  sort_models_enabled_first,
+  buildTestModelOptions,
+  filterProviderModels,
+  modelOptionsFromRecord,
+  modelUpdatePayload,
+  parseProviderOptions,
+  sortModelsEnabledFirst,
 } from "./provider-settings-model";
 
 type SaveProviderConfig = (options?: {
-  show_error?: boolean;
-  show_success?: boolean;
+  showError?: boolean;
+  showSuccess?: boolean;
 }) => Promise<ProviderConfigRecord | null>;
 
 interface UseProviderModelActionsOptions {
-  api_format: ProviderApiFormat;
-  pending_action: string | null;
-  selected_can_manage: boolean;
-  selected_record: ProviderConfigRecord | null;
-  set_feedback: Dispatch<SetStateAction<FeedbackState | null>>;
-  set_pending_action: Dispatch<SetStateAction<string | null>>;
-  save_provider: SaveProviderConfig;
-  refresh_all: (preferredProvider?: string | null) => Promise<void>;
+  apiFormat: ProviderApiFormat;
+  pendingAction: string | null;
+  selectedCanManage: boolean;
+  selectedRecord: ProviderConfigRecord | null;
+  setFeedback: Dispatch<SetStateAction<FeedbackState | null>>;
+  setPendingAction: Dispatch<SetStateAction<string | null>>;
+  saveProvider: SaveProviderConfig;
+  refreshAll: (preferredProvider?: string | null) => Promise<void>;
   t: I18nContextValue["t"];
 }
 
 export function useProviderModelActions({
-  api_format: apiFormat,
-  pending_action: pendingAction,
-  selected_can_manage: selectedCanManage,
-  selected_record: selectedRecord,
-  set_feedback: setFeedback,
-  set_pending_action: setPendingAction,
-  save_provider: saveProvider,
-  refresh_all: refreshAll,
+  apiFormat,
+  pendingAction,
+  selectedCanManage,
+  selectedRecord,
+  setFeedback,
+  setPendingAction,
+  saveProvider,
+  refreshAll,
   t,
 }: UseProviderModelActionsOptions) {
   const [modelQuery, setModelQuery] = useState("");
@@ -62,14 +62,14 @@ export function useProviderModelActions({
   const [manualModelEnabled, setManualModelEnabled] = useState(true);
 
   const filteredModels = useMemo(() => {
-    return filter_provider_models(selectedRecord?.models ?? [], modelQuery);
+    return filterProviderModels(selectedRecord?.models ?? [], modelQuery);
   }, [modelQuery, selectedRecord]);
   const displayedModels = useMemo(
-    () => sort_models_enabled_first(filteredModels),
+    () => sortModelsEnabledFirst(filteredModels),
     [filteredModels],
   );
   const testModelOptions = useMemo(() => {
-    return build_test_model_options(
+    return buildTestModelOptions(
       selectedRecord?.models ?? [],
       t("settings.providers.auto_select_model"),
     );
@@ -93,13 +93,13 @@ export function useProviderModelActions({
     try {
       setPendingAction("fetch");
       const providerRecord = await saveProvider({
-        show_error: true,
-        show_success: false,
+        showError: true,
+        showSuccess: false,
       });
       if (!providerRecord) {
         return;
       }
-      const result = await fetch_provider_models_api(providerRecord.provider);
+      const result = await fetchProviderModelsApi(providerRecord.provider);
       await refreshAll(providerRecord.provider);
       setFeedback({
         tone: "success",
@@ -155,7 +155,7 @@ export function useProviderModelActions({
     }
     try {
       setPendingAction(`add-model:${modelId}`);
-      await update_provider_model_api(selectedRecord.provider, modelId, {
+      await updateProviderModelApi(selectedRecord.provider, modelId, {
         enabled: manualModelEnabled,
         is_default: false,
         capabilities_override: {},
@@ -204,13 +204,13 @@ export function useProviderModelActions({
     try {
       setPendingAction("test");
       const providerRecord = await saveProvider({
-        show_error: true,
-        show_success: false,
+        showError: true,
+        showSuccess: false,
       });
       if (!providerRecord) {
         return;
       }
-      const result = await test_provider_config_api(providerRecord.provider);
+      const result = await testProviderConfigApi(providerRecord.provider);
       await refreshAll(providerRecord.provider);
       setFeedback({
         tone: result.success ? "success" : "error",
@@ -258,13 +258,13 @@ export function useProviderModelActions({
       try {
         setPendingAction(`test:${normalizedModelId}`);
         const providerRecord = await saveProvider({
-          show_error: true,
-          show_success: false,
+          showError: true,
+          showSuccess: false,
         });
         if (!providerRecord) {
           return;
         }
-        const result = await test_provider_model_api(
+        const result = await testProviderModelApi(
           providerRecord.provider,
           normalizedModelId,
         );
@@ -333,10 +333,10 @@ export function useProviderModelActions({
       }
       try {
         setPendingAction(`model:${model.model_id}`);
-        await update_provider_model_api(
+        await updateProviderModelApi(
           selectedRecord.provider,
           model.model_id,
-          model_update_payload(model, { enabled }),
+          modelUpdatePayload(model, { enabled }),
         );
         await refreshAll(selectedRecord.provider);
       } catch (error) {
@@ -369,14 +369,14 @@ export function useProviderModelActions({
     }
     try {
       setPendingAction(`options:${modelOptions.model.model_id}`);
-      const providerOptions = parse_provider_options(
+      const providerOptions = parseProviderOptions(
         modelOptions.provider_options_text,
         t("settings.providers.provider_options_json_object"),
       );
-      await update_provider_model_api(
+      await updateProviderModelApi(
         selectedRecord.provider,
         modelOptions.model.model_id,
-        model_update_payload(modelOptions.model, {
+        modelUpdatePayload(modelOptions.model, {
           capabilities_override: modelOptions.capabilities,
           context_window: modelOptions.context_window.trim()
             ? Number(modelOptions.context_window)
@@ -413,27 +413,27 @@ export function useProviderModelActions({
   ]);
 
   return {
-    add_model_open: addModelOpen,
-    displayed_models: displayedModels,
-    handle_add_model: handleAddModel,
-    handle_fetch_models: handleFetchModels,
-    handle_open_add_model: handleOpenAddModel,
-    handle_save_model_options: handleSaveModelOptions,
-    handle_test_selection: handleTestSelection,
-    handle_toggle_model: handleToggleModel,
-    manual_model_enabled: manualModelEnabled,
-    manual_model_id: manualModelId,
-    manual_model_placeholder: manualModelPlaceholder,
-    model_options: modelOptions,
-    model_query: modelQuery,
-    reset_model_controls: resetModelControls,
-    set_add_model_open: setAddModelOpen,
-    set_manual_model_enabled: setManualModelEnabled,
-    set_manual_model_id: setManualModelId,
-    set_model_options: setModelOptions,
-    set_model_options_from_record: (model: ProviderModelRecord) =>
-      setModelOptions(model_options_from_record(model)),
-    set_model_query: setModelQuery,
-    test_model_options: testModelOptions,
+    addModelOpen,
+    displayedModels,
+    handleAddModel,
+    handleFetchModels,
+    handleOpenAddModel,
+    handleSaveModelOptions,
+    handleTestSelection,
+    handleToggleModel,
+    manualModelEnabled,
+    manualModelId,
+    manualModelPlaceholder,
+    modelOptions,
+    modelQuery,
+    resetModelControls,
+    setAddModelOpen,
+    setManualModelEnabled,
+    setManualModelId,
+    setModelOptions,
+    setModelOptionsFromRecord: (model: ProviderModelRecord) =>
+      setModelOptions(modelOptionsFromRecord(model)),
+    setModelQuery,
+    testModelOptions,
   };
 }

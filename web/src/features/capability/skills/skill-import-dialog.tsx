@@ -56,8 +56,8 @@ function downloadRoomCollaborationMechanism() {
 }
 
 export function SkillImportDialog({ ctrl }: SkillImportDialogProps) {
-  const mode = ctrl.import_dialog_mode;
-  const setImportDialogMode = ctrl.set_import_dialog_mode;
+  const mode = ctrl.importDialogMode;
+  const setImportDialogMode = ctrl.setImportDialogMode;
   const importResetKey = mode ? "open" : "closed";
   const [gitUrl, setGitUrl] = useResettableState("", importResetKey);
   const [gitBranch, setGitBranch] = useResettableState("", importResetKey);
@@ -79,21 +79,21 @@ export function SkillImportDialog({ ctrl }: SkillImportDialogProps) {
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (mode !== "git") return;
-    void ctrl.handle_git_import(gitUrl, gitBranch, gitPath);
+    void ctrl.handleGitImport(gitUrl, gitBranch, gitPath);
   };
 
   return (
     <UiDialogPortal>
-      <UiDialogBackdrop class_name="z-[9999]" on_close={handleClose}>
-        <UiDialogFormShell class_name="max-h-[86vh]" onSubmit={handleSubmit} size="xl">
+      <UiDialogBackdrop className="z-[9999]" onClose={handleClose}>
+        <UiDialogFormShell className="max-h-[86vh]" onSubmit={handleSubmit} size="xl">
           <UiDialogHeader
             icon={mode === "git" ? <GitBranch className="h-4 w-4" /> : <PackageCheck className="h-4 w-4" />}
-            on_close={handleClose}
+            onClose={handleClose}
             subtitle="导入前请确认目录内包含合法的 SKILL.md，Room 技能需要显式声明 scope: room。"
             title="导入 Skill"
           />
 
-          <UiDialogBody class_name="grid min-h-0 gap-5 lg:grid-cols-[minmax(0,1fr)_340px]" scrollable>
+          <UiDialogBody className="grid min-h-0 gap-5 lg:grid-cols-[minmax(0,1fr)_340px]" scrollable>
             <section className="space-y-4">
               <div className="inline-flex rounded-[12px] border border-(--divider-subtle-color) p-1">
                 {(["local", "git"] as SkillImportDialogMode[]).map((item) => (
@@ -105,7 +105,7 @@ export function SkillImportDialog({ ctrl }: SkillImportDialogProps) {
                         ? "bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-(--primary)"
                         : "text-(--text-muted) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
                     )}
-                    onClick={() => ctrl.set_import_dialog_mode(item)}
+                    onClick={() => ctrl.setImportDialogMode(item)}
                     type="button"
                   >
                     {item === "git" ? <GitBranch className="h-3.5 w-3.5" /> : <FolderUp className="h-3.5 w-3.5" />}
@@ -165,8 +165,8 @@ export function SkillImportDialog({ ctrl }: SkillImportDialogProps) {
                         zip 内可以直接放一个 Skill 目录，也可以包含多层目录；系统会查找最靠近根部的 SKILL.md。
                       </p>
                       <UiButton
-                        class_name="mt-4"
-                        onClick={() => ctrl.file_input_ref.current?.click()}
+                        className="mt-4"
+                        onClick={() => ctrl.fileInputRef.current?.click()}
                         size="sm"
                         tone="primary"
                         variant="solid"
@@ -189,7 +189,7 @@ export function SkillImportDialog({ ctrl }: SkillImportDialogProps) {
                   </div>
                   <UiButton
                     aria-label="下载 Room 协作机制 Markdown 文档"
-                    class_name="shrink-0"
+                    className="shrink-0"
                     onClick={downloadRoomCollaborationMechanism}
                     size="xs"
                     tone="primary"
@@ -214,7 +214,7 @@ export function SkillImportDialog({ ctrl }: SkillImportDialogProps) {
             </aside>
           </UiDialogBody>
 
-          <UiDialogFooter class_name="gap-2">
+          <UiDialogFooter className="gap-2">
             <UiButton onClick={handleClose} size="sm" variant="surface">
               取消
             </UiButton>

@@ -3,8 +3,8 @@
 import { type ReactNode } from "react";
 import { Download, FolderOpen, Maximize2, Minimize2 } from "lucide-react";
 
-import { download_workspace_file_api } from "@/lib/api/agent-manage-api";
-import { get_workspace_file_external_action_copy } from "@/lib/workspace-file-action";
+import { downloadWorkspaceFileApi } from "@/lib/api/agent-manage-api";
+import { getWorkspaceFileExternalActionCopy } from "@/lib/workspace-file-action";
 import { cn } from "@/lib/utils";
 
 const WORKSPACE_FILE_TOOLBAR_BUTTON_CLASS_NAME = cn(
@@ -72,27 +72,27 @@ export function WorkspaceFilePreviewHeader({
 }
 
 export function WorkspaceFileDownloadButton({
-  agent_id: agentId,
+  agentId: agentId,
   path,
-  file_name: fileName,
+  fileName: fileName,
   label,
 }: {
-  agent_id: string;
+  agentId: string;
   path: string;
-  file_name: string;
+  fileName: string;
   label?: string;
 }) {
-  const fileActionCopy = get_workspace_file_external_action_copy(fileName);
+  const fileActionCopy = getWorkspaceFileExternalActionCopy(fileName);
   const visibleLabel = label ?? fileActionCopy.label;
   const handleExternalAction = () => {
-    void download_workspace_file_api(agentId, path, fileName).catch((error) => {
+    void downloadWorkspaceFileApi(agentId, path, fileName).catch((error) => {
       console.error(`[WorkspaceFileDownloadButton] ${fileActionCopy.label} workspace 文件失败:`, error);
     });
   };
 
   return (
     <button
-      aria-label={fileActionCopy.aria_label}
+      aria-label={fileActionCopy.ariaLabel}
       className={WORKSPACE_FILE_TOOLBAR_BUTTON_CLASS_NAME}
       onClick={handleExternalAction}
       title={fileActionCopy.title}
@@ -111,12 +111,12 @@ export function WorkspaceFileDownloadButton({
 export function WorkspaceFileToolbarButton({
   children,
   disabled = false,
-  on_click: onClick,
+  onClick: onClick,
   title,
 }: {
   children: ReactNode;
   disabled?: boolean;
-  on_click: () => void;
+  onClick: () => void;
   title?: string;
 }) {
   return (
@@ -134,11 +134,11 @@ export function WorkspaceFileToolbarButton({
 }
 
 export function WorkspaceFilePreviewFocusButton({
-  is_preview_focused: isPreviewFocused = false,
-  on_toggle_preview_focus: onTogglePreviewFocus,
+  isPreviewFocused: isPreviewFocused = false,
+  onTogglePreviewFocus: onTogglePreviewFocus,
 }: {
-  is_preview_focused?: boolean;
-  on_toggle_preview_focus?: () => void;
+  isPreviewFocused?: boolean;
+  onTogglePreviewFocus?: () => void;
 }) {
   if (!onTogglePreviewFocus) {
     return null;
@@ -146,7 +146,7 @@ export function WorkspaceFilePreviewFocusButton({
 
   return (
     <WorkspaceFileToolbarButton
-      on_click={onTogglePreviewFocus}
+      onClick={onTogglePreviewFocus}
       title={isPreviewFocused ? "还原文件树" : "聚焦预览"}
     >
       {isPreviewFocused ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}

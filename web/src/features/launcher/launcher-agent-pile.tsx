@@ -4,18 +4,18 @@ import { useEffect, useMemo, useRef } from "react";
 import Matter from "matter-js";
 
 import {
-  create_token_config,
-  get_token_brand_style,
-  hex_to_rgba,
+  createTokenConfig,
+  getTokenBrandStyle,
+  hexToRgba,
 } from "@/features/launcher/launcher-agent-pile-model";
 import { cn } from "@/lib/utils";
 import { SpotlightToken } from "@/types/app/launcher";
 
 interface SpotlightTokenPileProps {
-  class_name?: string;
+  className?: string;
   tokens: SpotlightToken[];
-  current_agent_id: string | null;
-  on_select_agent: (agentId: string) => void;
+  currentAgentId: string | null;
+  onSelectAgent: (agentId: string) => void;
 }
 
 function randomLauncherVelocity(min: number, max: number): number {
@@ -25,15 +25,15 @@ function randomLauncherVelocity(min: number, max: number): number {
 }
 
 export function AgentPile({
-  class_name: className,
+  className: className,
   tokens,
-  current_agent_id: currentAgentId,
-  on_select_agent: onSelectAgent,
+  currentAgentId: currentAgentId,
+  onSelectAgent: onSelectAgent,
 }: SpotlightTokenPileProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const tokenRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
-  const configs = useMemo(() => create_token_config(tokens, 560), [tokens]);
+  const configs = useMemo(() => createTokenConfig(tokens, 560), [tokens]);
   const configByKey = useMemo(
     () => new Map(configs.map((config) => [config.key, config])),
     [configs],
@@ -110,8 +110,8 @@ export function AgentPile({
 
       const body =
         token.kind === "agent"
-          ? Bodies.circle(config.spawn_x, config.spawn_y, config.size / 2, common)
-          : Bodies.rectangle(config.spawn_x, config.spawn_y, config.size, config.size, {
+          ? Bodies.circle(config.spawnX, config.spawnY, config.size / 2, common)
+          : Bodies.rectangle(config.spawnX, config.spawnY, config.size, config.size, {
             ...common,
             chamfer: { radius: config.radius },
           });
@@ -266,7 +266,7 @@ export function AgentPile({
         }
 
         const isActive = token.agent_id && token.agent_id === currentAgentId;
-        const brandStyle = get_token_brand_style(token);
+        const brandStyle = getTokenBrandStyle(token);
 
         return (
           <button
@@ -286,11 +286,11 @@ export function AgentPile({
               height: config.size,
               background: `linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(247,248,244,0.92) 100%)`,
               color: token.swatch.text,
-              borderColor: hex_to_rgba("#ffffff", 0.46),
+              borderColor: hexToRgba("#ffffff", 0.46),
               boxShadow:
                 token.kind === "agent"
-                  ? `inset 0 1px 0 ${hex_to_rgba("#ffffff", 0.74)}, 0 16px 34px rgba(10,14,28,0.16), 0 0 18px ${hex_to_rgba(token.swatch.fill, 0.18)}`
-                  : `inset 0 1px 0 ${hex_to_rgba("#ffffff", 0.68)}, 0 18px 38px rgba(10,14,28,0.18), 0 0 20px ${hex_to_rgba(token.swatch.fill, 0.2)}`,
+                  ? `inset 0 1px 0 ${hexToRgba("#ffffff", 0.74)}, 0 16px 34px rgba(10,14,28,0.16), 0 0 18px ${hexToRgba(token.swatch.fill, 0.18)}`
+                  : `inset 0 1px 0 ${hexToRgba("#ffffff", 0.68)}, 0 18px 38px rgba(10,14,28,0.18), 0 0 20px ${hexToRgba(token.swatch.fill, 0.2)}`,
             }}
             type="button"
           >
@@ -301,11 +301,11 @@ export function AgentPile({
                 token.kind === "agent" ? "rounded-full" : "rounded-[11px]",
               )}
               style={{
-                inset: brandStyle.inner_inset,
-                borderRadius: brandStyle.inner_radius,
-                background: `radial-gradient(circle at 28% 24%, ${hex_to_rgba("#ffffff", 0.32)} 0%, transparent 34%), linear-gradient(180deg, ${hex_to_rgba(token.swatch.fill, 0.88)} 0%, ${hex_to_rgba(token.swatch.fill, 1)} 100%)`,
-                borderColor: hex_to_rgba(token.swatch.ring, 0.78),
-                boxShadow: `inset 0 1px 0 ${hex_to_rgba("#ffffff", 0.34)}, inset 0 -3px 8px ${hex_to_rgba("#000000", 0.06)}`,
+                inset: brandStyle.innerInset,
+                borderRadius: brandStyle.innerRadius,
+                background: `radial-gradient(circle at 28% 24%, ${hexToRgba("#ffffff", 0.32)} 0%, transparent 34%), linear-gradient(180deg, ${hexToRgba(token.swatch.fill, 0.88)} 0%, ${hexToRgba(token.swatch.fill, 1)} 100%)`,
+                borderColor: hexToRgba(token.swatch.ring, 0.78),
+                boxShadow: `inset 0 1px 0 ${hexToRgba("#ffffff", 0.34)}, inset 0 -3px 8px ${hexToRgba("#000000", 0.06)}`,
               }}
             />
             <span
@@ -319,32 +319,32 @@ export function AgentPile({
                 right: "16%",
                 top: token.kind === "agent" ? "18%" : "16%",
                 height: "22%",
-                background: `linear-gradient(180deg, ${hex_to_rgba("#ffffff", brandStyle.gloss_opacity)} 0%, rgba(255,255,255,0) 100%)`,
+                background: `linear-gradient(180deg, ${hexToRgba("#ffffff", brandStyle.glossOpacity)} 0%, rgba(255,255,255,0) 100%)`,
               }}
             />
             <span
               className={cn(
                 "relative z-10 flex h-full w-full flex-col items-center justify-center leading-none",
-                brandStyle.rotation_class_name,
+                brandStyle.rotationClassName,
               )}
             >
               <span
                 className={cn(
                   "font-black",
-                  brandStyle.label_class_name,
+                  brandStyle.labelClassName,
                 )}
                 style={{
-                  color: hex_to_rgba(token.swatch.text, 0.98),
-                  textTransform: brandStyle.label_transform as "none" | "uppercase" | "capitalize",
-                  textShadow: `0 1px 0 ${hex_to_rgba("#ffffff", 0.24)}, 0 2px 5px ${hex_to_rgba("#000000", 0.12)}`,
+                  color: hexToRgba(token.swatch.text, 0.98),
+                  textTransform: brandStyle.labelTransform as "none" | "uppercase" | "capitalize",
+                  textShadow: `0 1px 0 ${hexToRgba("#ffffff", 0.24)}, 0 2px 5px ${hexToRgba("#000000", 0.12)}`,
                 }}
               >
                 {token.label}
               </span>
               <span
-                className={cn("mt-0.5 font-semibold uppercase", brandStyle.tag_class_name)}
+                className={cn("mt-0.5 font-semibold uppercase", brandStyle.tagClassName)}
                 style={{
-                  color: hex_to_rgba(token.swatch.text, brandStyle.tag_opacity),
+                  color: hexToRgba(token.swatch.text, brandStyle.tagOpacity),
                 }}
               >
                 {brandStyle.tag}

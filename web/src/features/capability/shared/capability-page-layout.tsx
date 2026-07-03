@@ -13,14 +13,14 @@ import { UiSelectMenu, type UiSelectMenuOption } from "@/shared/ui/select-menu";
 
 interface CapabilityPageLayoutProps {
   children: ReactNode;
-  class_name?: string;
+  className?: string;
   description: ReactNode;
   title: ReactNode;
 }
 
 interface CapabilityFilterBarProps {
   children: ReactNode;
-  class_name?: string;
+  className?: string;
 }
 
 interface CapabilitySectionHeaderProps {
@@ -30,31 +30,31 @@ interface CapabilitySectionHeaderProps {
 
 interface CapabilityFilterSearchInputProps {
   action?: ReactNode;
-  on_change: (value: string) => void;
-  on_composition_end?: CompositionEventHandler<HTMLInputElement>;
-  on_composition_start?: CompositionEventHandler<HTMLInputElement>;
-  on_key_down?: KeyboardEventHandler<HTMLInputElement>;
+  onChange: (value: string) => void;
+  onCompositionEnd?: CompositionEventHandler<HTMLInputElement>;
+  onCompositionStart?: CompositionEventHandler<HTMLInputElement>;
+  onKeyDown?: KeyboardEventHandler<HTMLInputElement>;
   placeholder: string;
   value: string;
 }
 
 interface CapabilityFilterSelectProps {
-  aria_label: string;
-  class_name?: string;
+  ariaLabel: string;
+  className?: string;
   disabled?: boolean;
   label?: ReactNode;
   leading?: ReactNode;
-  on_change: (value: string) => void;
+  onChange: (value: string) => void;
   options: UiSelectMenuOption[];
   placeholder?: string;
-  tour_anchor?: string;
+  tourAnchor?: string;
   value: string;
 }
 
 /** 中文注释：能力区目录页共用版心和介绍区，保持技能、连接器和其它入口节奏一致。 */
 export function CapabilityPageLayout({
   children,
-  class_name: className,
+  className: className,
   description,
   title,
 }: CapabilityPageLayoutProps) {
@@ -75,19 +75,19 @@ export function CapabilityPageLayout({
 
 export function CapabilityFilterSearchInput({
   action,
-  on_change: onChange,
-  on_composition_end: onCompositionEnd,
-  on_composition_start: onCompositionStart,
-  on_key_down: onKeyDown,
+  onChange: onChange,
+  onCompositionEnd: onCompositionEnd,
+  onCompositionStart: onCompositionStart,
+  onKeyDown: onKeyDown,
   placeholder,
   value,
 }: CapabilityFilterSearchInputProps) {
   return (
     <UiSearchInput
-      class_name="h-10 min-w-0 flex-1 rounded-[13px] border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_92%,white)] px-3.5"
-      input_class_name="text-[14px]"
+      className="h-10 min-w-0 flex-1 rounded-[13px] border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_92%,white)] px-3.5"
+      inputClassName="text-[14px]"
       action={action}
-      on_change={onChange}
+      onChange={onChange}
       onCompositionEnd={onCompositionEnd}
       onCompositionStart={onCompositionStart}
       onKeyDown={onKeyDown}
@@ -98,15 +98,15 @@ export function CapabilityFilterSearchInput({
 }
 
 export function CapabilityFilterSelect({
-  aria_label: ariaLabel,
-  class_name: className,
+  ariaLabel: ariaLabel,
+  className: className,
   disabled,
   label,
   leading,
-  on_change: onChange,
+  onChange: onChange,
   options,
   placeholder,
-  tour_anchor: tourAnchor,
+  tourAnchor: tourAnchor,
   value,
 }: CapabilityFilterSelectProps) {
   return (
@@ -115,11 +115,11 @@ export function CapabilityFilterSelect({
       data-tour-anchor={tourAnchor}
     >
       <UiSelectMenu
-        aria_label={ariaLabel}
+        ariaLabel={ariaLabel}
         disabled={disabled}
         label={label}
         leading={leading}
-        on_change={onChange}
+        onChange={onChange}
         options={options}
         placeholder={placeholder}
         value={value}
@@ -130,7 +130,7 @@ export function CapabilityFilterSelect({
 
 export function CapabilityFilterBar({
   children,
-  class_name: className,
+  className: className,
 }: CapabilityFilterBarProps) {
   return (
     <div className={cn("mb-5 flex w-full flex-col gap-2.5 sm:flex-row sm:items-center", className)}>

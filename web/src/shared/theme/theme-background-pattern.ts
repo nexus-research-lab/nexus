@@ -126,7 +126,7 @@ function applyForTheme(root: HTMLElement, theme: BackgroundTheme) {
   root.style.setProperty("--ambient-page-pattern", buildPatternUrl(variant));
 }
 
-export function apply_theme_background_pattern(
+export function applyThemeBackgroundPattern(
   theme: BackgroundTheme,
   root: HTMLElement = document.documentElement,
 ) {

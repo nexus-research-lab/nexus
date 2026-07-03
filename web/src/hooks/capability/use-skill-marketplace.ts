@@ -1,17 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
-  delete_skill_api,
-  get_external_skill_preview_api,
-  get_available_skills_api,
-  import_external_skill_api,
-  import_git_skill_api,
-  import_local_skill_api,
-  list_external_skill_sources_api,
-  search_external_skills_api,
-  update_external_skill_source_api,
-  update_imported_skills_api,
-  update_single_skill_api,
+  deleteSkillApi,
+  getExternalSkillPreviewApi,
+  getAvailableSkillsApi,
+  importExternalSkillApi,
+  importGitSkillApi,
+  importLocalSkillApi,
+  listExternalSkillSourcesApi,
+  searchExternalSkillsApi,
+  updateExternalSkillSourceApi,
+  updateImportedSkillsApi,
+  updateSingleSkillApi,
 } from "@/lib/api/skill-api";
 import type {
   ExternalSkillSearchItem,
@@ -59,7 +59,7 @@ export function useSkillMarketplace(): SkillMarketplaceController {
   /* ── 数据加载 ───────────────────────────────── */
 
   const loadSkills = useCallback(async (query: string) => {
-    const nextSkills = await get_available_skills_api({
+    const nextSkills = await getAvailableSkillsApi({
       q: query || undefined,
     });
     setSkills(nextSkills);
@@ -69,7 +69,7 @@ export function useSkillMarketplace(): SkillMarketplaceController {
     try {
       setSourceLoading(true);
       setErrorMessage(null);
-      const nextSources = await list_external_skill_sources_api();
+      const nextSources = await listExternalSkillSourcesApi();
       setExternalSources(nextSources);
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : "来源加载失败");
@@ -147,7 +147,7 @@ export function useSkillMarketplace(): SkillMarketplaceController {
       try {
         setExternalLoading(true);
         setErrorMessage(null);
-        const response = await search_external_skills_api(query, false, abortController.signal);
+        const response = await searchExternalSkillsApi(query, false, abortController.signal);
         if (requestId !== externalSearchRequestRef.current) return;
         setExternalResults(response.results);
         setExternalSourceStatuses(response.sources);
@@ -244,7 +244,7 @@ export function useSkillMarketplace(): SkillMarketplaceController {
     clearMessages();
     try {
       setBusySkillName(skillName);
-      await update_single_skill_api(skillName);
+      await updateSingleSkillApi(skillName);
       setStatusMessage(`已更新 ${skillName}`);
       await refreshMarketplace();
     } catch (err) {
@@ -258,7 +258,7 @@ export function useSkillMarketplace(): SkillMarketplaceController {
     clearMessages();
     try {
       setBusySkillName(skill.name);
-      await delete_skill_api(skill.name);
+      await deleteSkillApi(skill.name);
       setStatusMessage(`${skill.title || skill.name} 已从技能库删除`);
       await refreshMarketplace();
     } catch (err) {
@@ -271,7 +271,7 @@ export function useSkillMarketplace(): SkillMarketplaceController {
   const handleUpdateInstalled = useCallback(async () => {
     clearMessages();
     try {
-      const result = await update_imported_skills_api();
+      const result = await updateImportedSkillsApi();
       setStatusMessage(
         `更新完成：更新 ${result.updated_skills.length} 个，跳过 ${result.skipped_skills.length} 个`,
       );
@@ -289,7 +289,7 @@ export function useSkillMarketplace(): SkillMarketplaceController {
   const handleLocalImport = useCallback(async (file: File) => {
     clearMessages();
     try {
-      await import_local_skill_api(file);
+      await importLocalSkillApi(file);
       setStatusMessage(`已导入：${file.name}`);
       setImportDialogMode(null);
       await refreshMarketplace();
@@ -302,7 +302,7 @@ export function useSkillMarketplace(): SkillMarketplaceController {
     clearMessages();
     if (!url.trim()) return;
     try {
-      await import_git_skill_api(url.trim(), branch?.trim() || undefined, path?.trim() || undefined);
+      await importGitSkillApi(url.trim(), branch?.trim() || undefined, path?.trim() || undefined);
       setStatusMessage("已通过 Git 导入");
       setImportDialogMode(null);
       await refreshMarketplace();
@@ -322,7 +322,7 @@ export function useSkillMarketplace(): SkillMarketplaceController {
     }
     try {
       setExternalPreviewLoading(true);
-      const result = await get_external_skill_preview_api(previewUrl);
+      const result = await getExternalSkillPreviewApi(previewUrl);
       setPreviewExternalItem((prev) => {
         if (!prev || prev.detail_url !== item.detail_url) return prev;
         return { ...prev, readme_markdown: result.readme_markdown };
@@ -339,7 +339,7 @@ export function useSkillMarketplace(): SkillMarketplaceController {
     const externalKey = `${item.source_key || item.package_spec}@@${item.skill_slug}`;
     try {
       setBusyExternalKey(externalKey);
-      await import_external_skill_api(item);
+      await importExternalSkillApi(item);
       setStatusMessage(`已导入：${item.skill_slug}`);
       await refreshMarketplace();
       setPreviewExternalItem(null);
@@ -357,7 +357,7 @@ export function useSkillMarketplace(): SkillMarketplaceController {
     clearMessages();
     try {
       setSourceLoading(true);
-      await update_external_skill_source_api(source.source_id, { enabled });
+      await updateExternalSkillSourceApi(source.source_id, { enabled });
       setStatusMessage(`${source.name} 已${enabled ? "启用" : "停用"}`);
       await refreshExternalSources();
       setSourceRevision((value) => value + 1);
@@ -371,53 +371,53 @@ export function useSkillMarketplace(): SkillMarketplaceController {
   return {
     // 状态
     skills,
-    search_query: searchQuery,
-    discovery_mode: discoveryMode,
-    active_category: activeCategory,
-    external_query: externalQuery,
-    external_submitted_query: externalSubmittedQuery,
-    external_results: externalResults,
-    external_source_statuses: externalSourceStatuses,
-    external_sources: externalSources,
-    preview_external_item: previewExternalItem,
-    external_loading: externalLoading,
-    external_preview_loading: externalPreviewLoading,
-    source_manager_open: sourceManagerOpen,
-    source_loading: sourceLoading,
-    import_dialog_mode: importDialogMode,
+    searchQuery,
+    discoveryMode,
+    activeCategory,
+    externalQuery,
+    externalSubmittedQuery,
+    externalResults,
+    externalSourceStatuses,
+    externalSources,
+    previewExternalItem,
+    externalLoading,
+    externalPreviewLoading,
+    sourceManagerOpen,
+    sourceLoading,
+    importDialogMode,
     loading,
-    busy_skill_name: busySkillName,
-    busy_external_key: busyExternalKey,
-    status_message: statusMessage,
-    error_message: errorMessage,
-    file_input_ref: fileInputRef,
+    busySkillName,
+    busyExternalKey,
+    statusMessage,
+    errorMessage,
+    fileInputRef,
     // 派生数据
     categories,
-    visible_skills: visibleSkills,
-    grouped_skills: groupedSkills,
-    catalog_count: catalogCount,
-    imported_external_sources: importedExternalSources,
+    visibleSkills,
+    groupedSkills,
+    catalogCount,
+    importedExternalSources,
     // setter
-    set_search_query: setSearchQuery,
-    set_discovery_mode: setDiscoveryMode,
-    set_active_category: setActiveCategory,
-    set_external_query: setExternalQuery,
-    set_preview_external_item: setPreviewExternalItem,
-    set_source_manager_open: setSourceManagerOpen,
-    set_import_dialog_mode: setImportDialogMode,
-    set_status_message: setStatusMessage,
-    set_error_message: setErrorMessage,
+    setSearchQuery,
+    setDiscoveryMode,
+    setActiveCategory,
+    setExternalQuery,
+    setPreviewExternalItem,
+    setSourceManagerOpen,
+    setImportDialogMode,
+    setStatusMessage,
+    setErrorMessage,
     // 操作
-    refresh_marketplace: refreshMarketplace,
-    submit_external_search: submitExternalSearch,
-    handle_update_single: handleUpdateSingle,
-    handle_delete_skill: handleDeleteSkill,
-    handle_update_installed: handleUpdateInstalled,
-    handle_local_import: handleLocalImport,
-    handle_git_import: handleGitImport,
-    handle_preview_external: handlePreviewExternal,
-    handle_import_external: handleImportExternal,
-    refresh_external_sources: refreshExternalSources,
-    handle_toggle_external_source: handleToggleExternalSource,
+    refreshMarketplace,
+    submitExternalSearch,
+    handleUpdateSingle,
+    handleDeleteSkill,
+    handleUpdateInstalled,
+    handleLocalImport,
+    handleGitImport,
+    handlePreviewExternal,
+    handleImportExternal,
+    refreshExternalSources,
+    handleToggleExternalSource,
   };
 }

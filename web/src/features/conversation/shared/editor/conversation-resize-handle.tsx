@@ -5,15 +5,15 @@ import { MouseEventHandler } from "react";
 import { cn } from "@/lib/utils";
 
 interface ConversationResizeHandleProps {
-  aria_label: string;
-  class_name?: string;
-  on_mouse_down: MouseEventHandler<HTMLButtonElement>;
+  ariaLabel: string;
+  className?: string;
+  onMouseDown: MouseEventHandler<HTMLButtonElement>;
 }
 
 export function ConversationResizeHandle({
-  aria_label: ariaLabel,
-  class_name: className,
-  on_mouse_down: onMouseDown,
+  ariaLabel: ariaLabel,
+  className: className,
+  onMouseDown: onMouseDown,
 }: ConversationResizeHandleProps) {
   return (
     <button

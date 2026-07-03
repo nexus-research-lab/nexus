@@ -10,8 +10,8 @@ import {
   type Meridiem,
 } from "./picker-types";
 import {
-  get_picker_column_button_class_name,
-  get_picker_date_button_class_name,
+  getPickerColumnButtonClassName,
+  getPickerDateButtonClassName,
   PICKER_TRIGGER_CLASS_NAME,
 } from "./picker-styles";
 
@@ -22,58 +22,58 @@ interface CalendarDay {
 }
 
 interface SingleRunPickerProps {
-  anchor_ref: RefObject<HTMLButtonElement | null>;
+  anchorRef: RefObject<HTMLButtonElement | null>;
   display: string;
   hour12: string;
-  is_date_disabled: (value: string) => boolean;
-  is_hour_disabled: (value: string) => boolean;
-  is_open: boolean;
-  is_meridiem_disabled: (value: Meridiem) => boolean;
-  is_minute_disabled: (value: string) => boolean;
-  is_second_disabled: (value: string) => boolean;
+  isDateDisabled: (value: string) => boolean;
+  isHourDisabled: (value: string) => boolean;
+  isOpen: boolean;
+  isMeridiemDisabled: (value: Meridiem) => boolean;
+  isMinuteDisabled: (value: string) => boolean;
+  isSecondDisabled: (value: string) => boolean;
   meridiem: Meridiem;
   minute: string;
-  month_label: string;
-  on_close: () => void;
-  on_date_select: (value: string) => void;
-  on_hour_select: (value: string) => void;
-  on_meridiem_select: (value: Meridiem) => void;
-  on_minute_select: (value: string) => void;
-  on_next_month: () => void;
-  on_prev_month: () => void;
-  on_second_select: (value: string) => void;
-  on_toggle: () => void;
+  monthLabel: string;
+  onClose: () => void;
+  onDateSelect: (value: string) => void;
+  onHourSelect: (value: string) => void;
+  onMeridiemSelect: (value: Meridiem) => void;
+  onMinuteSelect: (value: string) => void;
+  onNextMonth: () => void;
+  onPrevMonth: () => void;
+  onSecondSelect: (value: string) => void;
+  onToggle: () => void;
   second: string;
-  selected_date: string;
-  visible_days: CalendarDay[];
+  selectedDate: string;
+  visibleDays: CalendarDay[];
 }
 
 export function SingleRunPicker(props: SingleRunPickerProps) {
   const {
-    anchor_ref: anchorRef,
+    anchorRef: anchorRef,
     display,
     hour12,
-    is_date_disabled: isDateDisabled,
-    is_hour_disabled: isHourDisabled,
-    is_open: isOpen,
-    is_meridiem_disabled: isMeridiemDisabled,
-    is_minute_disabled: isMinuteDisabled,
-    is_second_disabled: isSecondDisabled,
+    isDateDisabled: isDateDisabled,
+    isHourDisabled: isHourDisabled,
+    isOpen: isOpen,
+    isMeridiemDisabled: isMeridiemDisabled,
+    isMinuteDisabled: isMinuteDisabled,
+    isSecondDisabled: isSecondDisabled,
     meridiem,
     minute,
-    month_label: monthLabel,
-    on_close: onClose,
-    on_date_select: onDateSelect,
-    on_hour_select: onHourSelect,
-    on_meridiem_select: onMeridiemSelect,
-    on_minute_select: onMinuteSelect,
-    on_next_month: onNextMonth,
-    on_prev_month: onPrevMonth,
-    on_second_select: onSecondSelect,
-    on_toggle: onToggle,
+    monthLabel: monthLabel,
+    onClose: onClose,
+    onDateSelect: onDateSelect,
+    onHourSelect: onHourSelect,
+    onMeridiemSelect: onMeridiemSelect,
+    onMinuteSelect: onMinuteSelect,
+    onNextMonth: onNextMonth,
+    onPrevMonth: onPrevMonth,
+    onSecondSelect: onSecondSelect,
+    onToggle: onToggle,
     second,
-    selected_date: selectedDate,
-    visible_days: visibleDays,
+    selectedDate: selectedDate,
+    visibleDays: visibleDays,
   } = props;
 
   return (
@@ -87,7 +87,7 @@ export function SingleRunPicker(props: SingleRunPickerProps) {
         <span>{display}</span>
         <span className="text-xl text-(--text-default)">+</span>
       </button>
-      <PickerPopover anchor_ref={anchorRef} is_open={isOpen} on_close={onClose}>
+      <PickerPopover anchorRef={anchorRef} isOpen={isOpen} onClose={onClose}>
         <div className="grid gap-4 md:grid-cols-[196px,minmax(0,1fr)]">
           <div className="space-y-3">
             <div className="flex items-center justify-between">
@@ -104,7 +104,7 @@ export function SingleRunPicker(props: SingleRunPickerProps) {
                 const isDisabled = isDateDisabled(day.value);
                 return (
                   <button
-                    className={get_picker_date_button_class_name(isSelected, {
+                    className={getPickerDateButtonClassName(isSelected, {
                       disabled: isDisabled,
                       muted: day.muted,
                     })}
@@ -126,7 +126,7 @@ export function SingleRunPicker(props: SingleRunPickerProps) {
                   const isDisabled = isMeridiemDisabled(option.key);
                   return (
                   <button
-                    className={get_picker_column_button_class_name(meridiem === option.key, isDisabled)}
+                    className={getPickerColumnButtonClassName(meridiem === option.key, isDisabled)}
                     disabled={isDisabled}
                     key={option.key}
                     onClick={() => onMeridiemSelect(option.key)}
@@ -144,7 +144,7 @@ export function SingleRunPicker(props: SingleRunPickerProps) {
                   const isDisabled = isHourDisabled(option);
                   return (
                 <button
-                  className={get_picker_column_button_class_name(hour12 === option, isDisabled)}
+                  className={getPickerColumnButtonClassName(hour12 === option, isDisabled)}
                   disabled={isDisabled}
                   key={option}
                   onClick={() => onHourSelect(option)}
@@ -162,7 +162,7 @@ export function SingleRunPicker(props: SingleRunPickerProps) {
                   const isDisabled = isMinuteDisabled(option);
                   return (
                 <button
-                  className={get_picker_column_button_class_name(minute === option, isDisabled)}
+                  className={getPickerColumnButtonClassName(minute === option, isDisabled)}
                   disabled={isDisabled}
                   key={option}
                   onClick={() => onMinuteSelect(option)}
@@ -180,7 +180,7 @@ export function SingleRunPicker(props: SingleRunPickerProps) {
                   const isDisabled = isSecondDisabled(option);
                   return (
                 <button
-                  className={get_picker_column_button_class_name(second === option, isDisabled)}
+                  className={getPickerColumnButtonClassName(second === option, isDisabled)}
                   disabled={isDisabled}
                   key={option}
                   onClick={() => onSecondSelect(option)}

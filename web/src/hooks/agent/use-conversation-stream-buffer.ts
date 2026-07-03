@@ -7,7 +7,7 @@ import {
   useRef,
 } from "react";
 import { Message, StreamMessage } from "@/types";
-import { apply_stream_message } from "./message-helpers";
+import { applyStreamMessage } from "./message-helpers";
 
 export function useConversationStreamBuffer(
   setMessages: Dispatch<SetStateAction<Message[]>>,
@@ -27,7 +27,7 @@ export function useConversationStreamBuffer(
       setMessages((prev) => {
         let next = prev;
         for (const payload of payloads) {
-          next = apply_stream_message(next, payload);
+          next = applyStreamMessage(next, payload);
         }
         return next;
       });

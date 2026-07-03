@@ -15,10 +15,10 @@ import { cn } from "@/lib/utils";
 
 export function MessageRail({
   children,
-  class_name: className,
+  className: className,
 }: {
   children: ReactNode;
-  class_name?: string;
+  className?: string;
 }) {
   return (
     <div
@@ -36,11 +36,11 @@ export function MessageRail({
 export function MessageRailLabel({
   children,
   active = false,
-  class_name: className,
+  className: className,
 }: {
   children: ReactNode;
   active?: boolean;
-  class_name?: string;
+  className?: string;
 }) {
   return (
     <div
@@ -57,10 +57,10 @@ export function MessageRailLabel({
 
 export function MessageRailBody({
   children,
-  class_name: className,
+  className: className,
 }: {
   children: ReactNode;
-  class_name?: string;
+  className?: string;
 }) {
   return (
     <div className={cn("message-cjk-font min-w-0 max-w-full overflow-hidden break-words text-[11px] leading-[1.45] text-(--text-default)", className)}>
@@ -71,10 +71,10 @@ export function MessageRailBody({
 
 function MessageCallout({
   children,
-  class_name: className,
+  className,
 }: {
   children: ReactNode;
-  class_name?: string;
+  className?: string;
 }) {
   return (
     <div
@@ -91,11 +91,11 @@ function MessageCallout({
 
 function MessageCalloutTitle({
   children,
-  class_name: className,
+  className,
   ...props
 }: {
   children: ReactNode;
-  class_name?: string;
+  className?: string;
 } & HTMLAttributes<HTMLDivElement>) {
   return (
     <div className={cn("font-semibold text-(--status-info-soft-text)", className)} {...props}>
@@ -114,12 +114,12 @@ const RESULT_TONE_CLASS_MAP: Record<MessageResultTone, string> = {
 function MessageResultLabel({
   children,
   tone,
-  class_name: className,
+  className,
   ...props
 }: HTMLAttributes<HTMLDivElement> & {
   children: ReactNode;
   tone: MessageResultTone;
-  class_name?: string;
+  className?: string;
 }) {
   return (
     <div

@@ -3,14 +3,14 @@
 import { Filter, Plus, RefreshCw, ShieldCheck, Users } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { get_agents } from "@/lib/api/agent-manage-api";
+import { getAgents } from "@/lib/api/agent-manage-api";
 import {
-  delete_pairing_api,
+  deletePairingApi,
   ImChannelType,
   ImPairingStatus,
-  list_pairings_api,
+  listPairingsApi,
   PairingView,
-  update_pairing_api,
+  updatePairingApi,
 } from "@/lib/api/channel-api";
 import { useCopyToClipboard } from "@/hooks/ui/use-copy-to-clipboard";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -30,7 +30,7 @@ import {
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 import type { Agent } from "@/types/agent/agent";
 
-import { notify_capability_summary_mutated } from "../capability-summary-events";
+import { notifyCapabilitySummaryMutated } from "../capability-summary-events";
 
 import { CreatePairingDialog } from "./pairing-create-dialog";
 import {
@@ -99,8 +99,8 @@ export function PairingsDirectory() {
     setLoading(true);
     try {
       const [nextItems, nextAgents] = await Promise.all([
-        list_pairings_api({ channel_type: channel, status, agent_id: agentId }),
-        get_agents(),
+        listPairingsApi({ channel_type: channel, status, agent_id: agentId }),
+        getAgents(),
       ]);
       setItems(nextItems);
       setAgents(nextAgents);
@@ -118,9 +118,9 @@ export function PairingsDirectory() {
   const updatePairing = async (item: PairingView, next: { status?: ImPairingStatus; agent_id?: string }) => {
     setBusyId(item.pairing_id);
     try {
-      const updated = await update_pairing_api(item.pairing_id, next);
+      const updated = await updatePairingApi(item.pairing_id, next);
       setItems((current) => current.map((value) => value.pairing_id === updated.pairing_id ? updated : value));
-      notify_capability_summary_mutated({ source: "pairings", action: "update", pairing_id: updated.pairing_id });
+      notifyCapabilitySummaryMutated({ source: "pairings", action: "update", pairing_id: updated.pairing_id });
       setFeedback({ tone: "success", title: "配对已更新", message: `${updated.external_name || updated.external_ref} 已保存` });
     } catch (error) {
       setFeedback({ tone: "error", title: "更新失败", message: error instanceof Error ? error.message : "配对更新失败" });
@@ -132,9 +132,9 @@ export function PairingsDirectory() {
   const deletePairing = async (item: PairingView) => {
     setBusyId(item.pairing_id);
     try {
-      await delete_pairing_api(item.pairing_id);
+      await deletePairingApi(item.pairing_id);
       setItems((current) => current.filter((value) => value.pairing_id !== item.pairing_id));
-      notify_capability_summary_mutated({ source: "pairings", action: "delete", pairing_id: item.pairing_id });
+      notifyCapabilitySummaryMutated({ source: "pairings", action: "delete", pairing_id: item.pairing_id });
       setFeedback({ tone: "success", title: "配对已删除", message: `${item.external_name || item.external_ref} 已移除` });
     } catch (error) {
       setFeedback({ tone: "error", title: "删除失败", message: error instanceof Error ? error.message : "配对删除失败" });
@@ -171,14 +171,14 @@ export function PairingsDirectory() {
         tone: feedback.tone,
         title: feedback.title,
         message: feedback.message,
-        on_dismiss: () => setFeedback(null),
+        onDismiss: () => setFeedback(null),
       }]
     : [];
 
   return (
     <>
       <WorkspaceSurfaceScaffold
-        body_scrollable
+        bodyScrollable
         header={(
           <WorkspaceSurfaceHeader
             badge={t("capability.pairings_badge", { count: items.length })}
@@ -205,7 +205,7 @@ export function PairingsDirectory() {
             )}
           />
         )}
-        stable_gutter
+        stableGutter
       >
         <CapabilityPageLayout
           description={t("capability.pairings_intro_description")}
@@ -213,14 +213,14 @@ export function PairingsDirectory() {
         >
           <CapabilityFilterBar>
             <CapabilityFilterSearchInput
-              on_change={setQuery}
+              onChange={setQuery}
               placeholder={t("capability.pairings_search_placeholder")}
               value={query}
             />
             <CapabilityFilterSelect
-              aria_label={t("capability.pairings_filter_channel_aria")}
+              ariaLabel={t("capability.pairings_filter_channel_aria")}
               leading={<Filter className="h-3.5 w-3.5" />}
-              on_change={(value) => setChannel(value as ImChannelType | "")}
+              onChange={(value) => setChannel(value as ImChannelType | "")}
               options={[
                 { value: "", label: "全部渠道" },
                 ...CHANNEL_OPTIONS,
@@ -228,8 +228,8 @@ export function PairingsDirectory() {
               value={channel}
             />
             <CapabilityFilterSelect
-              aria_label={t("capability.pairings_filter_status_aria")}
-              on_change={(value) => setStatus(value as ImPairingStatus | "")}
+              ariaLabel={t("capability.pairings_filter_status_aria")}
+              onChange={(value) => setStatus(value as ImPairingStatus | "")}
               options={[
                 { value: "", label: "全部状态" },
                 ...Object.entries(STATUS_LABELS).map(([key, label]) => ({
@@ -240,10 +240,10 @@ export function PairingsDirectory() {
               value={status}
             />
             <CapabilityFilterSelect
-              aria_label="按处理智能体筛选"
-              class_name="sm:w-[220px]"
+              ariaLabel="按处理智能体筛选"
+              className="sm:w-[220px]"
               leading={<Users className="h-3.5 w-3.5" />}
-              on_change={setAgentId}
+              onChange={setAgentId}
               options={[
                 { value: "", label: "全部智能体" },
                 ...agents.map((agent) => ({
@@ -270,11 +270,11 @@ export function PairingsDirectory() {
           ) : (
             <PairingList
               agents={agents}
-              busy_id={busyId}
+              busyId={busyId}
               groups={groupedItems}
-              on_copy_session_key={copySessionKey}
-              on_delete_pairing={setDeleteTarget}
-              on_update_pairing={updatePairing}
+              onCopySessionKey={copySessionKey}
+              onDeletePairing={setDeleteTarget}
+              onUpdatePairing={updatePairing}
             />
           )}
         </CapabilityPageLayout>
@@ -283,21 +283,21 @@ export function PairingsDirectory() {
       {createOpen ? (
         <CreatePairingDialog
           agents={agents}
-          on_close={() => setCreateOpen(false)}
-          on_created={handlePairingCreated}
-          on_error={(message) => setFeedback({ tone: "error", title: "新增失败", message })}
+          onClose={() => setCreateOpen(false)}
+          onCreated={handlePairingCreated}
+          onError={(message) => setFeedback({ tone: "error", title: "新增失败", message })}
         />
       ) : null}
 
       <FeedbackBannerStack items={feedbackItems} />
       <ConfirmDialog
-        confirm_text="删除配对"
-        is_open={deleteTarget !== null}
+        confirmText="删除配对"
+        isOpen={deleteTarget !== null}
         message={deleteTarget
           ? `确认删除 ${deleteTarget.external_name || deleteTarget.external_ref} 的配对吗？删除后该外部对象需要重新授权。`
           : ""}
-        on_cancel={() => setDeleteTarget(null)}
-        on_confirm={confirmDeletePairing}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={confirmDeletePairing}
         title="删除配对"
         variant="danger"
       />

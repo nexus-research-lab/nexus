@@ -10,12 +10,12 @@ import {
 
 import { cn } from "@/lib/utils";
 
-import { supports_true_liquid_glass } from "./liquid-glass-engine";
+import { supportsTrueLiquidGlass } from "./liquid-glass-engine";
 
 interface GlassMagnifierProps {
   children?: ReactNode;
-  class_name?: string;
-  content_class_name?: string;
+  className?: string;
+  contentClassName?: string;
   height?: number;
   underlay?: ReactNode;
   width?: number;
@@ -47,15 +47,15 @@ function buildGlassSurfaceStyle(filterId: string | null): CSSProperties {
 
 export function GlassMagnifier({
   children,
-  class_name: className,
-  content_class_name: contentClassName,
+  className: className,
+  contentClassName: contentClassName,
   height = 36,
   underlay,
   width = 58,
 }: GlassMagnifierProps) {
   const rawFilterId = useId();
   const filterId = `glass-magnifier-${rawFilterId.replace(/:/g, "")}`;
-  const [canUseTrueGlass, setCanUseTrueGlass] = useState<boolean>(() => supports_true_liquid_glass());
+  const [canUseTrueGlass, setCanUseTrueGlass] = useState<boolean>(() => supportsTrueLiquidGlass());
   const rootRef = useRef<HTMLDivElement | null>(null);
   const shellRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
@@ -195,7 +195,7 @@ export function GlassMagnifier({
   }, [settleHoverWave]);
 
   useEffect(() => {
-    setCanUseTrueGlass(supports_true_liquid_glass());
+    setCanUseTrueGlass(supportsTrueLiquidGlass());
   }, []);
 
   useEffect(() => {

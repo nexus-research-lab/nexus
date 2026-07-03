@@ -4,10 +4,10 @@ import type {
   Message,
   ResultSummary,
 } from "@/types/conversation/message";
-import { get_result_summary_display_text } from "./message-item-stats";
+import { getResultSummaryDisplayText } from "./message-item-stats";
 import {
-  extract_text_from_content_blocks,
-  projection_from_ordered_entries,
+  extractTextFromContentBlocks,
+  projectionFromOrderedEntries,
   type AssistantContentMode,
   type AssistantTurnEntry,
   type ContentProjection,
@@ -15,25 +15,25 @@ import {
 } from "./message-item-support";
 
 interface FinalProjectionInput {
-  assistant_content_mode: AssistantContentMode;
-  assistant_messages: Message[];
-  ordered_projection: ContentProjection;
-  result_summary: ResultSummary | undefined;
-  round_id: string;
-  streaming_block_indexes: Set<number>;
-  visible_assistant_turns: AssistantTurnEntry[];
-  visible_ordered_assistant_entries: OrderedAssistantEntry[];
+  assistantContentMode: AssistantContentMode;
+  assistantMessages: Message[];
+  orderedProjection: ContentProjection;
+  resultSummary: ResultSummary | undefined;
+  roundId: string;
+  streamingBlockIndexes: Set<number>;
+  visibleAssistantTurns: AssistantTurnEntry[];
+  visibleOrderedAssistantEntries: OrderedAssistantEntry[];
 }
 
-export function resolve_message_item_final_projection({
-  assistant_content_mode: assistantContentMode,
-  assistant_messages: assistantMessages,
-  ordered_projection: orderedProjection,
-  result_summary: resultSummary,
-  round_id: roundId,
-  streaming_block_indexes: streamingBlockIndexes,
-  visible_assistant_turns: visibleAssistantTurns,
-  visible_ordered_assistant_entries: visibleOrderedAssistantEntries,
+export function resolveMessageItemFinalProjection({
+  assistantContentMode,
+  assistantMessages,
+  orderedProjection,
+  resultSummary,
+  roundId,
+  streamingBlockIndexes,
+  visibleAssistantTurns,
+  visibleOrderedAssistantEntries,
 }: FinalProjectionInput) {
   const finalAssistantTurn = resolveFinalAssistantTurn(
     assistantMessages,
@@ -45,11 +45,11 @@ export function resolve_message_item_final_projection({
     visibleOrderedAssistantEntries,
   );
   const archivedProcessProjection = buildArchivedProcessProjection({
-    final_assistant_turn: finalAssistantTurn,
-    final_tail_entries: finalTailEntries,
-    result_summary: resultSummary,
-    streaming_block_indexes: streamingBlockIndexes,
-    visible_ordered_assistant_entries: visibleOrderedAssistantEntries,
+    finalAssistantTurn,
+    finalTailEntries,
+    resultSummary,
+    streamingBlockIndexes,
+    visibleOrderedAssistantEntries,
   });
   const fallbackFinalAssistantContent = resolveFallbackFinalAssistantContent(
     finalAssistantTurn,
@@ -72,11 +72,11 @@ export function resolve_message_item_final_projection({
       ? archivedProcessProjection
       : emptyProjection();
   const finalAssistantContent = resolveFinalAssistantContent({
-    assistant_content_mode: assistantContentMode,
-    fallback_final_assistant_content: fallbackFinalAssistantContent,
-    final_assistant_turn: finalAssistantTurn,
-    final_tail_entries: finalTailEntries,
-    result_summary: resultSummary,
+    assistantContentMode,
+    fallbackFinalAssistantContent,
+    finalAssistantTurn,
+    finalTailEntries,
+    resultSummary,
   });
   const finalAssistantStreamingIndexes =
     assistantContentMode === "dm_live" ||
@@ -87,14 +87,14 @@ export function resolve_message_item_final_projection({
   const finalAssistantText =
     typeof finalAssistantContent === "string"
       ? finalAssistantContent
-      : extract_text_from_content_blocks(finalAssistantContent);
+      : extractTextFromContentBlocks(finalAssistantContent);
 
   return {
-    direct_ordered_projection: directOrderedProjection,
-    process_projection: processProjection,
-    final_assistant_content: finalAssistantContent,
-    final_assistant_streaming_indexes: finalAssistantStreamingIndexes,
-    final_assistant_text: finalAssistantText,
+    directOrderedProjection,
+    processProjection,
+    finalAssistantContent,
+    finalAssistantStreamingIndexes,
+    finalAssistantText,
   };
 }
 
@@ -108,7 +108,7 @@ function resolveFinalAssistantTurn(
     if (!message.parent_id || message.parent_id === roundId) {
       return (
         visibleAssistantTurns.find(
-          (turn) => turn.message_id === message.message_id,
+          (turn) => turn.messageId === message.message_id,
         ) ?? null
       );
     }
@@ -131,7 +131,7 @@ function resolveFinalTailEntries(
     index -= 1
   ) {
     const entry = visibleOrderedAssistantEntries[index];
-    if (entry.source_message_id !== finalAssistantTurn.message_id) {
+    if (entry.sourceMessageId !== finalAssistantTurn.messageId) {
       break;
     }
     if (entry.block.type !== "text" || !entry.block.text.trim()) {
@@ -143,17 +143,17 @@ function resolveFinalTailEntries(
 }
 
 function buildArchivedProcessProjection({
-  final_assistant_turn: finalAssistantTurn,
-  final_tail_entries: finalTailEntries,
-  result_summary: resultSummary,
-  streaming_block_indexes: streamingBlockIndexes,
-  visible_ordered_assistant_entries: visibleOrderedAssistantEntries,
+  finalAssistantTurn,
+  finalTailEntries,
+  resultSummary,
+  streamingBlockIndexes,
+  visibleOrderedAssistantEntries,
 }: {
-  final_assistant_turn: AssistantTurnEntry | null;
-  final_tail_entries: OrderedAssistantEntry[];
-  result_summary: ResultSummary | undefined;
-  streaming_block_indexes: Set<number>;
-  visible_ordered_assistant_entries: OrderedAssistantEntry[];
+  finalAssistantTurn: AssistantTurnEntry | null;
+  finalTailEntries: OrderedAssistantEntry[];
+  resultSummary: ResultSummary | undefined;
+  streamingBlockIndexes: Set<number>;
+  visibleOrderedAssistantEntries: OrderedAssistantEntry[];
 }) {
   const resultText = resultSummary?.result?.trim();
   const finalTailText = textFromEntries(finalTailEntries, "\n\n");
@@ -165,11 +165,11 @@ function buildArchivedProcessProjection({
 
   if (shouldStripTail) {
     const tailIndexes = new Set(
-      finalTailEntries.map((entry) => entry.merged_index),
+      finalTailEntries.map((entry) => entry.mergedIndex),
     );
-    return projection_from_ordered_entries(
+    return projectionFromOrderedEntries(
       visibleOrderedAssistantEntries.filter(
-        (entry) => !tailIndexes.has(entry.merged_index),
+        (entry) => !tailIndexes.has(entry.mergedIndex),
       ),
       streamingBlockIndexes,
     );
@@ -177,23 +177,23 @@ function buildArchivedProcessProjection({
 
   if (!resultText && finalAssistantTurn) {
     const finalAssistantTextMergedIndexes =
-      finalAssistantTurn.text_content.length > 0
+      finalAssistantTurn.textContent.length > 0
         ? textEntryIndexesForTurn(
           finalAssistantTurn,
           visibleOrderedAssistantEntries,
         )
         : new Set<number>();
-    return projection_from_ordered_entries(
+    return projectionFromOrderedEntries(
       visibleOrderedAssistantEntries.filter(
         (entry) =>
-          entry.source_message_id !== finalAssistantTurn.message_id ||
-          !finalAssistantTextMergedIndexes.has(entry.merged_index),
+          entry.sourceMessageId !== finalAssistantTurn.messageId ||
+          !finalAssistantTextMergedIndexes.has(entry.mergedIndex),
       ),
       streamingBlockIndexes,
     );
   }
 
-  return projection_from_ordered_entries(
+  return projectionFromOrderedEntries(
     visibleOrderedAssistantEntries,
     streamingBlockIndexes,
   );
@@ -209,8 +209,8 @@ function resolveFallbackFinalAssistantContent(
   if (!finalAssistantTurn) {
     return null;
   }
-  if (finalAssistantTurn.text_content.length > 0) {
-    return finalAssistantTurn.text_content;
+  if (finalAssistantTurn.textContent.length > 0) {
+    return finalAssistantTurn.textContent;
   }
   if (finalAssistantTurn.content.length > 0) {
     return finalAssistantTurn.content;
@@ -226,7 +226,7 @@ function resolveFallbackFinalAssistantStreamingIndexes(
   if (finalTailEntries.length > 0) {
     const nextIndexes = new Set<number>();
     finalTailEntries.forEach((entry, index) => {
-      if (streamingBlockIndexes.has(entry.merged_index)) {
+      if (streamingBlockIndexes.has(entry.mergedIndex)) {
         nextIndexes.add(index);
       }
     });
@@ -235,24 +235,24 @@ function resolveFallbackFinalAssistantStreamingIndexes(
   if (!finalAssistantTurn) {
     return new Set<number>();
   }
-  if (finalAssistantTurn.text_content.length > 0) {
-    return finalAssistantTurn.text_streaming_indexes;
+  if (finalAssistantTurn.textContent.length > 0) {
+    return finalAssistantTurn.textStreamingIndexes;
   }
-  return finalAssistantTurn.streaming_indexes;
+  return finalAssistantTurn.streamingIndexes;
 }
 
 function resolveFinalAssistantContent({
-  assistant_content_mode: assistantContentMode,
-  fallback_final_assistant_content: fallbackFinalAssistantContent,
-  final_assistant_turn: finalAssistantTurn,
-  final_tail_entries: finalTailEntries,
-  result_summary: resultSummary,
+  assistantContentMode,
+  fallbackFinalAssistantContent,
+  finalAssistantTurn,
+  finalTailEntries,
+  resultSummary,
 }: {
-  assistant_content_mode: AssistantContentMode;
-  fallback_final_assistant_content: ContentBlock[] | null;
-  final_assistant_turn: AssistantTurnEntry | null;
-  final_tail_entries: OrderedAssistantEntry[];
-  result_summary: ResultSummary | undefined;
+  assistantContentMode: AssistantContentMode;
+  fallbackFinalAssistantContent: ContentBlock[] | null;
+  finalAssistantTurn: AssistantTurnEntry | null;
+  finalTailEntries: OrderedAssistantEntry[];
+  resultSummary: ResultSummary | undefined;
 }) {
   if (
     assistantContentMode === "dm_live" ||
@@ -261,7 +261,7 @@ function resolveFinalAssistantContent({
     return null;
   }
 
-  const resultText = get_result_summary_display_text(resultSummary);
+  const resultText = getResultSummaryDisplayText(resultSummary);
   if (resultText) {
     return resultText;
   }
@@ -270,8 +270,8 @@ function resolveFinalAssistantContent({
     if (finalTailEntries.length > 0) {
       return finalTailEntries.map((entry) => entry.block);
     }
-    if (finalAssistantTurn?.text_content.length) {
-      return finalAssistantTurn.text_content;
+    if (finalAssistantTurn?.textContent.length) {
+      return finalAssistantTurn.textContent;
     }
     return null;
   }
@@ -285,13 +285,13 @@ function textEntryIndexesForTurn(
 ) {
   const nextIndexes = new Set<number>();
   for (const entry of visibleOrderedAssistantEntries) {
-    if (entry.source_message_id !== finalAssistantTurn.message_id) {
+    if (entry.sourceMessageId !== finalAssistantTurn.messageId) {
       continue;
     }
     if (entry.block.type !== "text" || !entry.block.text.trim()) {
       continue;
     }
-    nextIndexes.add(entry.merged_index);
+    nextIndexes.add(entry.mergedIndex);
   }
   return nextIndexes;
 }
@@ -309,5 +309,5 @@ function textFromEntries(entries: OrderedAssistantEntry[], separator: string) {
 }
 
 function emptyProjection(): ContentProjection {
-  return { content: [], streaming_indexes: new Set<number>() };
+  return { content: [], streamingIndexes: new Set<number>() };
 }

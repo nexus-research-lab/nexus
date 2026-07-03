@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
-  clamp_home_editor_width_percent,
+  clampHomeEditorWidthPercent,
   HOME_EDITOR_DEFAULT_WIDTH_PERCENT,
 } from "@/lib/layout/home-layout";
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
@@ -12,8 +12,8 @@ import { TodoItem } from "@/types/conversation/todo";
 import { HomeWorkspaceControllerOptions } from "@/types/app/workspace";
 
 export function useHomeWorkspaceController({
-  current_agent_id: currentAgentId,
-  workspace_agent_ids: workspaceAgentIds,
+  currentAgentId: currentAgentId,
+  workspaceAgentIds: workspaceAgentIds,
 }: HomeWorkspaceControllerOptions) {
   const agentResetKey = currentAgentId ? "has-agent" : "no-agent";
   const [activeWorkspacePath, setActiveWorkspacePath] = useResettableState<string | null>(null, agentResetKey);
@@ -85,7 +85,7 @@ export function useHomeWorkspaceController({
 
       const bounds = container.getBoundingClientRect();
       const nextPercent = ((bounds.right - event.clientX) / bounds.width) * 100;
-      setEditorWidthPercent(clamp_home_editor_width_percent(nextPercent));
+      setEditorWidthPercent(clampHomeEditorWidthPercent(nextPercent));
     };
 
     const handleMouseUp = () => {
@@ -102,16 +102,16 @@ export function useHomeWorkspaceController({
   }, [isResizingEditor]);
 
   return {
-    active_workspace_path: activeWorkspacePath,
-    is_editor_open: isEditorOpen,
-    editor_width_percent: editorWidthPercent,
-    is_resizing_editor: isResizingEditor,
-    current_todos: currentTodos,
-    is_conversation_busy: isConversationBusy,
-    workspace_split_ref: workspaceSplitRef,
-    set_current_todos: setCurrentTodos,
-    set_is_conversation_busy: setIsConversationBusy,
-    handle_open_workspace_file: handleOpenWorkspaceFile,
-    handle_start_editor_resize: handleStartEditorResize,
+    activeWorkspacePath: activeWorkspacePath,
+    isEditorOpen: isEditorOpen,
+    editorWidthPercent: editorWidthPercent,
+    isResizingEditor: isResizingEditor,
+    currentTodos: currentTodos,
+    isConversationBusy: isConversationBusy,
+    workspaceSplitRef: workspaceSplitRef,
+    setCurrentTodos: setCurrentTodos,
+    setIsConversationBusy: setIsConversationBusy,
+    handleOpenWorkspaceFile: handleOpenWorkspaceFile,
+    handleStartEditorResize: handleStartEditorResize,
   };
 }

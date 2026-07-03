@@ -21,42 +21,42 @@ import type {
 } from "@/types/capability/provider";
 
 import {
-  format_count,
-  get_effective_capabilities,
+  formatCount,
+  getEffectiveCapabilities,
 } from "./provider-settings-model";
 
 interface ProviderSettingsModelListProps {
-  displayed_models: ProviderModelRecord[];
-  has_models_endpoint: boolean;
-  is_api_format_configurable: boolean;
-  is_editing: boolean;
-  model_query: string;
-  on_default_model_disable_attempt: (model: ProviderModelRecord) => void;
-  on_fetch_models: () => void;
-  on_model_options: (model: ProviderModelRecord) => void;
-  on_model_query_change: (query: string) => void;
-  on_open_add_model: () => void;
-  on_toggle_model: (model: ProviderModelRecord, enabled: boolean) => void;
-  pending_action: string | null;
-  selected_can_manage: boolean;
-  selected_record: ProviderConfigRecord | null;
+  displayedModels: ProviderModelRecord[];
+  hasModelsEndpoint: boolean;
+  isApiFormatConfigurable: boolean;
+  isEditing: boolean;
+  modelQuery: string;
+  onDefaultModelDisableAttempt: (model: ProviderModelRecord) => void;
+  onFetchModels: () => void;
+  onModelOptions: (model: ProviderModelRecord) => void;
+  onModelQueryChange: (query: string) => void;
+  onOpenAddModel: () => void;
+  onToggleModel: (model: ProviderModelRecord, enabled: boolean) => void;
+  pendingAction: string | null;
+  selectedCanManage: boolean;
+  selectedRecord: ProviderConfigRecord | null;
 }
 
 export function ProviderSettingsModelList({
-  displayed_models: displayedModels,
-  has_models_endpoint: hasModelsEndpoint,
-  is_api_format_configurable: isApiFormatConfigurable,
-  is_editing: isEditing,
-  model_query: modelQuery,
-  on_default_model_disable_attempt: onDefaultModelDisableAttempt,
-  on_fetch_models: onFetchModels,
-  on_model_options: onModelOptions,
-  on_model_query_change: onModelQueryChange,
-  on_open_add_model: onOpenAddModel,
-  on_toggle_model: onToggleModel,
-  pending_action: pendingAction,
-  selected_can_manage: selectedCanManage,
-  selected_record: selectedRecord,
+  displayedModels: displayedModels,
+  hasModelsEndpoint: hasModelsEndpoint,
+  isApiFormatConfigurable: isApiFormatConfigurable,
+  isEditing: isEditing,
+  modelQuery: modelQuery,
+  onDefaultModelDisableAttempt: onDefaultModelDisableAttempt,
+  onFetchModels: onFetchModels,
+  onModelOptions: onModelOptions,
+  onModelQueryChange: onModelQueryChange,
+  onOpenAddModel: onOpenAddModel,
+  onToggleModel: onToggleModel,
+  pendingAction: pendingAction,
+  selectedCanManage: selectedCanManage,
+  selectedRecord: selectedRecord,
 }: ProviderSettingsModelListProps) {
   const { t } = useI18n();
 
@@ -103,9 +103,9 @@ export function ProviderSettingsModelList({
       </div>
 
       <UiSearchInput
-        class_name="w-full"
-        control_size="md"
-        on_change={onModelQueryChange}
+        className="w-full"
+        controlSize="md"
+        onChange={onModelQueryChange}
         placeholder={t("settings.providers.search_models")}
         value={modelQuery}
         variant="dialog"
@@ -120,7 +120,7 @@ export function ProviderSettingsModelList({
           </div>
         ) : (
           displayedModels.map((model) => {
-            const capabilities = get_effective_capabilities(model);
+            const capabilities = getEffectiveCapabilities(model);
             const pendingModel = pendingAction?.endsWith(model.model_id) ?? false;
             const displayName = model.display_name || model.model_id;
             const showModelId = model.model_id !== displayName;
@@ -142,7 +142,7 @@ export function ProviderSettingsModelList({
                     {capabilities.reasoning ? <Brain className="h-3 w-3" /> : null}
                     {capabilities.vision ? <Eye className="h-3 w-3" /> : null}
                     {capabilities.image_output ? <Image className="h-3 w-3" /> : null}
-                    <span>{format_count(model.context_window)}</span>
+                    <span>{formatCount(model.context_window)}</span>
                   </span>
                 </div>
                 <div className="flex min-w-0 items-center gap-2">
@@ -176,7 +176,7 @@ export function ProviderSettingsModelList({
                         checked={model.enabled}
                         disabled={disableModelToggle}
                         size="xs"
-                        on_change={(checked) => onToggleModel(model, checked)}
+                        onChange={(checked) => onToggleModel(model, checked)}
                       />
                     </span>
                   )}

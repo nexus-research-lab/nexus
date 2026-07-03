@@ -31,7 +31,7 @@ const DOCUMENT_EXTENSIONS = new Set(["pdf", "doc", "docx", "ppt", "pptx", "odt",
 
 export interface WorkspaceFileVisual {
   Icon: LucideIcon;
-  icon_class_name: string;
+  iconClassName: string;
 }
 
 function getFileExtension(name: string): string | null {
@@ -51,81 +51,81 @@ function getFileExtension(name: string): string | null {
 }
 
 /** 中文注释：文件图标映射独立成纯函数，避免视图文件继续承载规则表。 */
-export function get_workspace_file_visual(name: string): WorkspaceFileVisual {
+export function getWorkspaceFileVisual(name: string): WorkspaceFileVisual {
   const extension = getFileExtension(name);
 
   if (!extension) {
     return {
       Icon: FileText,
-      icon_class_name: "text-(--icon-muted)",
+      iconClassName: "text-(--icon-muted)",
     };
   }
 
   if (IMAGE_EXTENSIONS.has(extension)) {
     return {
       Icon: Image,
-      icon_class_name: "text-[color:color-mix(in_srgb,var(--primary)_68%,var(--destructive)_32%)]",
+      iconClassName: "text-[color:color-mix(in_srgb,var(--primary)_68%,var(--destructive)_32%)]",
     };
   }
 
   if (ARCHIVE_EXTENSIONS.has(extension)) {
     return {
       Icon: FileArchive,
-      icon_class_name: "text-[color:color-mix(in_srgb,var(--primary)_72%,var(--text-strong)_28%)]",
+      iconClassName: "text-[color:color-mix(in_srgb,var(--primary)_72%,var(--text-strong)_28%)]",
     };
   }
 
   if (SPREADSHEET_EXTENSIONS.has(extension)) {
     return {
       Icon: FileSpreadsheet,
-      icon_class_name: "text-(--success)",
+      iconClassName: "text-(--success)",
     };
   }
 
   if (JSON_EXTENSIONS.has(extension)) {
     return {
       Icon: FileJson,
-      icon_class_name: "text-(--success)",
+      iconClassName: "text-(--success)",
     };
   }
 
   if (WEB_CODE_EXTENSIONS.has(extension)) {
     return {
       Icon: FileCode2,
-      icon_class_name: "text-(--primary)",
+      iconClassName: "text-(--primary)",
     };
   }
 
   if (SCRIPT_EXTENSIONS.has(extension)) {
     return {
       Icon: FileCode2,
-      icon_class_name: extension === "py" ? "text-(--warning)" : "text-(--primary)",
+      iconClassName: extension === "py" ? "text-(--warning)" : "text-(--primary)",
     };
   }
 
   if (CONFIG_EXTENSIONS.has(extension)) {
     return {
       Icon: FileText,
-      icon_class_name: "text-(--accent)",
+      iconClassName: "text-(--accent)",
     };
   }
 
   if (TEXT_EXTENSIONS.has(extension)) {
     return {
       Icon: FileText,
-      icon_class_name: extension === "md" || extension === "markdown" ? "text-(--primary)" : "text-(--icon-muted)",
+      iconClassName: extension === "md" || extension === "markdown" ? "text-(--primary)" : "text-(--icon-muted)",
     };
   }
 
   if (DOCUMENT_EXTENSIONS.has(extension)) {
     return {
       Icon: FileType2,
-      icon_class_name: extension === "pdf" ? "text-(--destructive)" : "text-(--warning)",
+      iconClassName: extension === "pdf" ? "text-(--destructive)" : "text-(--warning)",
     };
   }
 
   return {
     Icon: File,
-    icon_class_name: "text-(--icon-muted)",
+    iconClassName: "text-(--icon-muted)",
   };
 }

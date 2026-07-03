@@ -4,7 +4,7 @@ import { ButtonHTMLAttributes, forwardRef, MouseEvent, ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 import {
-  get_ui_list_action_class_name,
+  getUiListActionClassName,
   type UiListActionShape,
   type UiListActionSize,
   type UiListActionTone,
@@ -13,10 +13,10 @@ import {
 
 interface UiListActionButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children: ReactNode;
-  class_name?: string;
+  className?: string;
   shape?: UiListActionShape;
   size?: UiListActionSize;
-  stop_propagation?: boolean;
+  stopPropagation?: boolean;
   tone?: UiListActionTone;
   visibility?: UiListActionVisibility;
 }
@@ -24,12 +24,11 @@ interface UiListActionButtonProps extends ButtonHTMLAttributes<HTMLButtonElement
 export const UiListActionButton = forwardRef<HTMLButtonElement, UiListActionButtonProps>(function UiListActionButton(
   {
     children,
-    class_name: legacyClassName,
     className,
     onClick,
     shape,
     size,
-    stop_propagation: stopPropagation = false,
+    stopPropagation: stopPropagation = false,
     tone,
     type = "button",
     visibility,
@@ -47,9 +46,9 @@ export const UiListActionButton = forwardRef<HTMLButtonElement, UiListActionButt
   return (
     <button
       ref={ref}
-      className={get_ui_list_action_class_name(
+      className={getUiListActionClassName(
         { shape, size, tone, visibility },
-        cn(className, legacyClassName),
+        cn(className),
       )}
       onClick={handleClick}
       type={type}

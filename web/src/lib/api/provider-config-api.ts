@@ -9,8 +9,8 @@
  * # =====================================================
  */
 
-import { get_agent_api_base_url } from "@/config/options";
-import { request_api } from "@/lib/api/http";
+import { getAgentApiBaseUrl } from "@/config/options";
+import { requestApi } from "@/lib/api/http";
 import type {
   FetchProviderModelsResponse,
   ProviderConfigPayload,
@@ -24,18 +24,18 @@ import type {
 } from "@/types/capability/provider";
 import type { AgentRuntimeKind } from "@/types/settings/preferences";
 
-const PROVIDER_CONFIG_BASE_URL = `${get_agent_api_base_url()}/settings/providers`;
-const PROVIDER_PRESETS_URL = `${get_agent_api_base_url()}/settings/provider-presets`;
+const PROVIDER_CONFIG_BASE_URL = `${getAgentApiBaseUrl()}/settings/providers`;
+const PROVIDER_PRESETS_URL = `${getAgentApiBaseUrl()}/settings/provider-presets`;
 
-export async function list_provider_configs_api(): Promise<
+export async function listProviderConfigsApi(): Promise<
   ProviderConfigRecord[]
 > {
-  return request_api<ProviderConfigRecord[]>(PROVIDER_CONFIG_BASE_URL, {
+  return requestApi<ProviderConfigRecord[]>(PROVIDER_CONFIG_BASE_URL, {
     method: "GET",
   });
 }
 
-export async function list_provider_options_api(
+export async function listProviderOptionsApi(
   runtimeKind?: AgentRuntimeKind | string,
 ): Promise<ProviderOptionsResponse> {
   const params = new URLSearchParams();
@@ -44,7 +44,7 @@ export async function list_provider_options_api(
     params.set("agent_runtime_kind", normalizedRuntimeKind);
   }
   const query = params.toString();
-  return request_api<ProviderOptionsResponse>(
+  return requestApi<ProviderOptionsResponse>(
     `${PROVIDER_CONFIG_BASE_URL}/options${query ? `?${query}` : ""}`,
     {
       method: "GET",
@@ -52,26 +52,26 @@ export async function list_provider_options_api(
   );
 }
 
-export async function list_provider_presets_api(): Promise<ProviderPreset[]> {
-  return request_api<ProviderPreset[]>(PROVIDER_PRESETS_URL, {
+export async function listProviderPresetsApi(): Promise<ProviderPreset[]> {
+  return requestApi<ProviderPreset[]>(PROVIDER_PRESETS_URL, {
     method: "GET",
   });
 }
 
-export async function create_provider_config_api(
+export async function createProviderConfigApi(
   payload: ProviderConfigPayload,
 ): Promise<ProviderConfigRecord> {
-  return request_api<ProviderConfigRecord>(PROVIDER_CONFIG_BASE_URL, {
+  return requestApi<ProviderConfigRecord>(PROVIDER_CONFIG_BASE_URL, {
     method: "POST",
     body: JSON.stringify(payload),
   });
 }
 
-export async function update_provider_config_api(
+export async function updateProviderConfigApi(
   provider: string,
   payload: UpdateProviderConfigPayload,
 ): Promise<ProviderConfigRecord> {
-  return request_api<ProviderConfigRecord>(
+  return requestApi<ProviderConfigRecord>(
     `${PROVIDER_CONFIG_BASE_URL}/${encodeURIComponent(provider)}`,
     {
       method: "PUT",
@@ -80,10 +80,10 @@ export async function update_provider_config_api(
   );
 }
 
-export async function fetch_provider_models_api(
+export async function fetchProviderModelsApi(
   provider: string,
 ): Promise<FetchProviderModelsResponse> {
-  return request_api<FetchProviderModelsResponse>(
+  return requestApi<FetchProviderModelsResponse>(
     `${PROVIDER_CONFIG_BASE_URL}/${encodeURIComponent(provider)}/models/fetch`,
     {
       method: "POST",
@@ -91,12 +91,12 @@ export async function fetch_provider_models_api(
   );
 }
 
-export async function update_provider_model_api(
+export async function updateProviderModelApi(
   provider: string,
   modelId: string,
   payload: UpdateProviderModelPayload,
 ): Promise<ProviderModelRecord> {
-  return request_api<ProviderModelRecord>(
+  return requestApi<ProviderModelRecord>(
     `${PROVIDER_CONFIG_BASE_URL}/${encodeURIComponent(provider)}/models/${encodeURIComponent(modelId)}`,
     {
       method: "PUT",
@@ -105,10 +105,10 @@ export async function update_provider_model_api(
   );
 }
 
-export async function test_provider_config_api(
+export async function testProviderConfigApi(
   provider: string,
 ): Promise<ProviderTestResult> {
-  return request_api<ProviderTestResult>(
+  return requestApi<ProviderTestResult>(
     `${PROVIDER_CONFIG_BASE_URL}/${encodeURIComponent(provider)}/test`,
     {
       method: "POST",
@@ -116,11 +116,11 @@ export async function test_provider_config_api(
   );
 }
 
-export async function test_provider_model_api(
+export async function testProviderModelApi(
   provider: string,
   modelId: string,
 ): Promise<ProviderTestResult> {
-  return request_api<ProviderTestResult>(
+  return requestApi<ProviderTestResult>(
     `${PROVIDER_CONFIG_BASE_URL}/${encodeURIComponent(provider)}/models/${encodeURIComponent(modelId)}/test`,
     {
       method: "POST",
@@ -128,7 +128,7 @@ export async function test_provider_model_api(
   );
 }
 
-export async function delete_provider_config_api(
+export async function deleteProviderConfigApi(
   provider: string,
   options: { force?: boolean } = {},
 ): Promise<{
@@ -142,7 +142,7 @@ export async function delete_provider_config_api(
     searchParams.set("force", "1");
   }
   const query = searchParams.toString();
-  return request_api<{
+  return requestApi<{
     provider: string;
     replacement_provider?: string;
     replacement_model?: string;

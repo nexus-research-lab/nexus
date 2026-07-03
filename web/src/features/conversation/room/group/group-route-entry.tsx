@@ -10,15 +10,15 @@ import { RoomConversationView } from "@/types/conversation/conversation";
 const METRIC_ROW_CLASS_NAME = "flex items-center justify-between gap-3 border-b border-(--divider-subtle-color) py-3 last:border-b-0";
 
 interface GroupRouteEntryProps {
-  room_id?: string;
-  conversation_id?: string;
+  roomId?: string;
+  conversationId?: string;
   agents: Agent[];
   conversations: RoomConversationView[];
 }
 
 export function GroupRouteEntry({
-  room_id: roomId,
-  conversation_id: conversationId,
+  roomId: roomId,
+  conversationId: conversationId,
   agents,
   conversations,
 }: GroupRouteEntryProps) {
@@ -43,18 +43,18 @@ export function GroupRouteEntry({
           <WorkspaceActionCard
             description={t("room.route_back_launcher_description")}
             icon={<MessageSquare className="h-5 w-5 text-(--icon-strong)" />}
-            on_click={() => navigate(AppRouteBuilders.launcher())}
+            onClick={() => navigate(AppRouteBuilders.launcher())}
             title={t("room.route_back_launcher")}
           />
           <WorkspaceActionCard
             description={t("room.route_browse_agents_description")}
             icon={<Users className="h-5 w-5 text-(--icon-strong)" />}
-            on_click={() => navigate(AppRouteBuilders.contacts())}
+            onClick={() => navigate(AppRouteBuilders.contacts())}
             title={t("room.route_browse_agents")}
           />
           <WorkspaceActionCard
             icon={<Sparkles className="h-5 w-5 text-(--icon-strong)" />}
-            on_click={() => navigate(AppRouteBuilders.launcher())}
+            onClick={() => navigate(AppRouteBuilders.launcher())}
             title={t("room.route_handoff")}
           />
         </WorkspaceActionBar>
@@ -84,7 +84,7 @@ export function GroupRouteEntry({
                     className="flex w-full items-center justify-between gap-3 py-3 text-left transition hover:text-(--text-strong)"
                     onClick={() =>
                       navigate(
-                        AppRouteBuilders.room_conversation(
+                        AppRouteBuilders.roomConversation(
                           conversation.room_id ?? roomId ?? "",
                           conversation.conversation_id,
                         ),

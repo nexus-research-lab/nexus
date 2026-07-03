@@ -5,7 +5,7 @@ import type {
   ScheduledTaskSource,
   ScheduledTaskSessionTarget,
 } from "@/types/capability/scheduled-task";
-import { format_scheduled_datetime } from "./scheduled-formatters";
+import { formatScheduledDatetime } from "./scheduled-formatters";
 
 function formatInterval(seconds: number): string {
   if (seconds % 86400 === 0) {
@@ -20,14 +20,14 @@ function formatInterval(seconds: number): string {
   return `${seconds} 秒`;
 }
 
-export function get_schedule_summary(schedule: ScheduledTaskSchedule): string {
+export function getScheduleSummary(schedule: ScheduledTaskSchedule): string {
   if (schedule.kind === "every") {
     return `每 ${formatInterval(schedule.interval_seconds)}`;
   }
   if (schedule.kind === "cron") {
     return `Cron · ${schedule.cron_expression}`;
   }
-  return `单次 · ${format_scheduled_datetime(new Date(schedule.run_at).getTime(), { empty_label: "未安排" })}`;
+  return `单次 · ${formatScheduledDatetime(new Date(schedule.run_at).getTime(), { emptyLabel: "未安排" })}`;
 }
 
 function getSessionTargetSummary(target: ScheduledTaskSessionTarget): string {
@@ -43,7 +43,7 @@ function getSessionTargetSummary(target: ScheduledTaskSessionTarget): string {
   return "每次新建临时会话";
 }
 
-export function get_source_kind_label(source: ScheduledTaskSource | null | undefined): string {
+export function getSourceKindLabel(source: ScheduledTaskSource | null | undefined): string {
   if (!source) {
     return "未知来源";
   }
@@ -59,7 +59,7 @@ export function get_source_kind_label(source: ScheduledTaskSource | null | undef
   return "系统创建";
 }
 
-export function get_delivery_summary(
+export function getDeliverySummary(
   delivery: ScheduledTaskDeliveryTarget,
   source: ScheduledTaskSource | null | undefined,
 ): string {
@@ -78,7 +78,7 @@ export function get_delivery_summary(
   return "回到指定位置";
 }
 
-export function get_context_summary(task: ScheduledTaskItem): string {
+export function getContextSummary(task: ScheduledTaskItem): string {
   const source = task.source;
   if (source?.context_type === "room" && source.context_label) {
     return `Room：${source.context_label}`;
@@ -89,7 +89,7 @@ export function get_context_summary(task: ScheduledTaskItem): string {
   return `智能体：${task.agent_id}`;
 }
 
-export function get_session_summary(task: ScheduledTaskItem): string {
+export function getSessionSummary(task: ScheduledTaskItem): string {
   if (task.execution_kind === "script") {
     return "脚本执行";
   }
@@ -111,7 +111,7 @@ function isSameSessionLoop(task: ScheduledTaskItem): boolean {
   );
 }
 
-export function get_behavior_summary(task: ScheduledTaskItem): string {
+export function getBehaviorSummary(task: ScheduledTaskItem): string {
   if (task.execution_kind === "script") {
     return "直接在工作区执行脚本，不占用 Agent 会话；运行输出会写入产物。";
   }
@@ -130,7 +130,7 @@ export function get_behavior_summary(task: ScheduledTaskItem): string {
   return "每次执行都会新开一条临时会话，不会复用旧上下文。";
 }
 
-export function get_primary_status(task: ScheduledTaskItem) {
+export function getPrimaryStatus(task: ScheduledTaskItem) {
   if (task.running) {
     return { label: "运行中", tone: "running" as const };
   }
@@ -143,7 +143,7 @@ export function get_primary_status(task: ScheduledTaskItem) {
   return { label: "已暂停", tone: "idle" as const };
 }
 
-export function get_run_status_label(status: string | null | undefined): string {
+export function getRunStatusLabel(status: string | null | undefined): string {
   if (status === "succeeded") {
     return "成功";
   }
@@ -168,7 +168,7 @@ export function get_run_status_label(status: string | null | undefined): string 
   return status || "暂无记录";
 }
 
-export function get_toggle_action(task: ScheduledTaskItem): {
+export function getToggleAction(task: ScheduledTaskItem): {
   label: string;
   pending_label: string;
   tone: "danger" | "primary";
@@ -187,7 +187,7 @@ export function get_toggle_action(task: ScheduledTaskItem): {
   };
 }
 
-export function sort_tasks(items: ScheduledTaskItem[]): ScheduledTaskItem[] {
+export function sortTasks(items: ScheduledTaskItem[]): ScheduledTaskItem[] {
   return [...items].sort((left, right) => {
     const leftRank = left.running ? 0 : left.enabled ? 1 : 2;
     const rightRank = right.running ? 0 : right.enabled ? 1 : 2;

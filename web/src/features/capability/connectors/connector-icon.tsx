@@ -2,7 +2,7 @@
 
 import { cn } from "@/lib/utils";
 
-import { get_connector_letter } from "./connector-icons";
+import { getConnectorLetter } from "./connector-icons";
 
 type ConnectorIconSize = "md" | "lg";
 
@@ -10,7 +10,7 @@ interface ConnectorIconProps {
   icon: string;
   title: string;
   size?: ConnectorIconSize;
-  class_name?: string;
+  className?: string;
 }
 
 const ICON_SIZE_CLASS: Record<ConnectorIconSize, string> = {
@@ -67,10 +67,10 @@ export function ConnectorIcon({
   icon,
   title,
   size = "md",
-  class_name: className,
+  className: className,
 }: ConnectorIconProps) {
   const staticIconSrc = getStaticConnectorIconSrc(icon);
-  const letter = get_connector_letter(icon, title);
+  const letter = getConnectorLetter(icon, title);
 
   return (
     <span

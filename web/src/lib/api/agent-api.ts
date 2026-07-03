@@ -19,12 +19,12 @@ import type {
   ApiRoomConversationMessagePage,
   RoomConversationMessagePage,
 } from "@/types/conversation/room";
-import { get_agent_api_base_url } from "@/config/options";
-import { request_api } from "@/lib/api/http";
-import { to_timestamp } from "@/lib/api/timestamp-utils";
-import { assert_structured_session_key } from "@/lib/conversation/session-key";
+import { getAgentApiBaseUrl } from "@/config/options";
+import { requestApi } from "@/lib/api/http";
+import { toTimestamp } from "@/lib/api/timestamp-utils";
+import { assertStructuredSessionKey } from "@/lib/conversation/session-key";
 
-const AGENT_API_BASE_URL = get_agent_api_base_url();
+const AGENT_API_BASE_URL = getAgentApiBaseUrl();
 
 // ==================== 类型转换 ====================
 
@@ -59,8 +59,8 @@ function transformApiAgentSession(
     channel_type: api.channel_type,
     chat_type: api.chat_type,
     status: api.status,
-    created_at: to_timestamp(api.created_at),
-    last_activity_at: to_timestamp(api.last_activity),
+    created_at: toTimestamp(api.created_at),
+    last_activity_at: toTimestamp(api.last_activity),
     title: api.title || "未命名会话",
     message_count: api.message_count,
     options: api.options || {},
@@ -69,8 +69,8 @@ function transformApiAgentSession(
 
 // ==================== 对话 API ====================
 
-export const get_conversations = async (): Promise<Conversation[]> => {
-  const result = await request_api<ApiConversation[]>(
+export const getConversations = async (): Promise<Conversation[]> => {
+  const result = await requestApi<ApiConversation[]>(
     `${AGENT_API_BASE_URL}/sessions`,
     {
       method: "GET",
@@ -79,10 +79,10 @@ export const get_conversations = async (): Promise<Conversation[]> => {
   return result.map(transformApiConversation);
 };
 
-export const get_agent_sessions_api = async (
+export const getAgentSessionsApi = async (
   agentId: string,
 ): Promise<AgentSessionRecord[]> => {
-  const result = await request_api<ApiAgentSessionRecord[]>(
+  const result = await requestApi<ApiAgentSessionRecord[]>(
     `${AGENT_API_BASE_URL}/agents/${encodeURIComponent(agentId)}/sessions`,
     {
       method: "GET",
@@ -91,7 +91,7 @@ export const get_agent_sessions_api = async (
   return result.map(transformApiAgentSession);
 };
 
-export async function get_session_messages_api(
+export async function getSessionMessagesApi(
   sessionKey: string,
   options: {
     limit?: number;
@@ -99,7 +99,7 @@ export async function get_session_messages_api(
     before_round_timestamp?: number | null;
   } = {},
 ): Promise<RoomConversationMessagePage> {
-  const normalizedSessionKey = assert_structured_session_key(sessionKey);
+  const normalizedSessionKey = assertStructuredSessionKey(sessionKey);
   const params = new URLSearchParams();
   params.set("session_key", normalizedSessionKey);
   if (options.limit && options.limit > 0) {
@@ -112,7 +112,7 @@ export async function get_session_messages_api(
     params.set("before_round_timestamp", String(options.before_round_timestamp));
   }
   const query = params.toString();
-  const result = await request_api<ApiRoomConversationMessagePage>(
+  const result = await requestApi<ApiRoomConversationMessagePage>(
     `${AGENT_API_BASE_URL}/sessions/messages?${query}`,
     {
       method: "GET",

@@ -10,7 +10,7 @@ type UiPanelVariant = "card" | "inset" | "dashed" | "plain";
 
 interface UiPanelProps extends HTMLAttributes<HTMLElement> {
   children: ReactNode;
-  class_name?: string;
+  className?: string;
   padding?: UiPanelPadding;
   radius?: UiPanelRadius;
   variant?: UiPanelVariant;
@@ -19,7 +19,7 @@ interface UiPanelProps extends HTMLAttributes<HTMLElement> {
 interface UiSectionHeaderProps extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {
   action?: ReactNode;
   children?: ReactNode;
-  class_name?: string;
+  className?: string;
   description?: ReactNode;
   icon?: ReactNode;
   title: ReactNode;
@@ -47,7 +47,6 @@ const PANEL_VARIANT_CLASS_MAP: Record<UiPanelVariant, string> = {
 
 export function UiPanel({
   children,
-  class_name: legacyClassName,
   className,
   padding = "md",
   radius = "md",
@@ -61,7 +60,6 @@ export function UiPanel({
         PANEL_RADIUS_CLASS_MAP[radius],
         PANEL_PADDING_CLASS_MAP[padding],
         className,
-        legacyClassName,
       )}
       {...props}
     >
@@ -73,7 +71,6 @@ export function UiPanel({
 function UiSectionHeader({
   action,
   children,
-  class_name: legacyClassName,
   className,
   description,
   icon,
@@ -81,7 +78,7 @@ function UiSectionHeader({
   ...props
 }: UiSectionHeaderProps) {
   return (
-    <div className={cn("flex items-start justify-between gap-3", className, legacyClassName)} {...props}>
+    <div className={cn("flex items-start justify-between gap-3", className)} {...props}>
       {children ?? (
         <div className="min-w-0">
           <div className="flex items-center gap-2">

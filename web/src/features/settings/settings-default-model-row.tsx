@@ -20,30 +20,30 @@ import {
 } from "./settings-panel-ui";
 
 interface SettingsDefaultModelRowProps {
-  description_key: TranslationKey;
-  empty_placeholder_key: TranslationKey;
-  feedback_message?: string | null;
+  descriptionKey: TranslationKey;
+  emptyPlaceholderKey: TranslationKey;
+  feedbackMessage?: string | null;
   icon: ReactNode;
-  on_change: (value: string, role: DefaultModelPreferenceRole) => void;
+  onChange: (value: string, role: DefaultModelPreferenceRole) => void;
   options: UiSelectMenuOption[];
-  provider_options_loading: boolean;
-  model_category: DefaultModelPreferenceRole;
-  saving_role: DefaultModelPreferenceRole | null;
-  title_key: TranslationKey;
+  providerOptionsLoading: boolean;
+  modelCategory: DefaultModelPreferenceRole;
+  savingRole: DefaultModelPreferenceRole | null;
+  titleKey: TranslationKey;
   value: string;
 }
 
 export function SettingsDefaultModelRow({
-  description_key: descriptionKey,
-  empty_placeholder_key: emptyPlaceholderKey,
-  feedback_message: feedbackMessage,
+  descriptionKey: descriptionKey,
+  emptyPlaceholderKey: emptyPlaceholderKey,
+  feedbackMessage: feedbackMessage,
   icon,
-  on_change: onChange,
+  onChange: onChange,
   options,
-  provider_options_loading: providerOptionsLoading,
-  model_category: modelCategory,
-  saving_role: savingRole,
-  title_key: titleKey,
+  providerOptionsLoading: providerOptionsLoading,
+  modelCategory: modelCategory,
+  savingRole: savingRole,
+  titleKey: titleKey,
   value,
 }: SettingsDefaultModelRowProps) {
   const { t } = useI18n();
@@ -68,13 +68,13 @@ export function SettingsDefaultModelRow({
           {t("settings.general.default_model_label")}
         </span>
         <UiSelectMenu
-          aria_label={t(titleKey)}
-          button_class_name={SETTINGS_SELECT_BUTTON_CLASS_NAME}
-          class_name={SETTINGS_CONTROL_HEIGHT_CLASS_NAME}
+          ariaLabel={t(titleKey)}
+          buttonClassName={SETTINGS_SELECT_BUTTON_CLASS_NAME}
+          className={SETTINGS_CONTROL_HEIGHT_CLASS_NAME}
           disabled={providerOptionsLoading || !!savingRole || options.length === 0}
           leading={savingRole === modelCategory ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-          menu_class_name="min-w-[260px]"
-          on_change={(nextValue) => onChange(nextValue, modelCategory)}
+          menuClassName="min-w-[260px]"
+          onChange={(nextValue) => onChange(nextValue, modelCategory)}
           options={options}
           placeholder={providerOptionsLoading
             ? t("settings.general.default_model_loading")

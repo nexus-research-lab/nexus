@@ -6,8 +6,8 @@ import { useNavigate } from "react-router-dom";
 
 import { APP_ROUTE_PATHS } from "@/app/router/route-paths";
 import {
-  is_desktop_bridge_available,
-  open_desktop_route,
+  isDesktopBridgeAvailable,
+  openDesktopRoute,
 } from "@/lib/desktop-bridge";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import {
@@ -24,15 +24,15 @@ type SettingsTabKey = "general" | "personal" | "providers";
 
 const SETTINGS_TABS: {
   key: SettingsTabKey;
-  label_key:
+  labelKey:
     | "settings.tabs.general"
     | "settings.tabs.personal"
     | "settings.tabs.providers";
   icon: typeof Palette;
 }[] = [
-  { key: "general", label_key: "settings.tabs.general", icon: Palette },
-  { key: "personal", label_key: "settings.tabs.personal", icon: UserRound },
-  { key: "providers", label_key: "settings.tabs.providers", icon: Cable },
+  { key: "general", labelKey: "settings.tabs.general", icon: Palette },
+  { key: "personal", labelKey: "settings.tabs.personal", icon: UserRound },
+  { key: "providers", labelKey: "settings.tabs.providers", icon: Cable },
 ];
 
 export function SettingsPanel() {
@@ -43,8 +43,8 @@ export function SettingsPanel() {
     SETTINGS_TABS.find((item) => item.key === activeTab) ?? SETTINGS_TABS[0];
   const ActiveIcon = activeTabConfig.icon;
   const handleBackToWorkspace = useCallback(() => {
-    if (is_desktop_bridge_available()) {
-      void open_desktop_route(APP_ROUTE_PATHS.home).catch((error) => {
+    if (isDesktopBridgeAvailable()) {
+      void openDesktopRoute(APP_ROUTE_PATHS.home).catch((error) => {
         console.error("[SettingsPanel] 桌面返回工作台失败:", error);
         navigate(APP_ROUTE_PATHS.home);
       });
@@ -55,17 +55,17 @@ export function SettingsPanel() {
 
   return (
     <WorkspaceSurfaceScaffold
-      body_scrollable
-      stable_gutter
+      bodyScrollable
+      stableGutter
       header={(
         <WorkspaceSurfaceHeader
-          active_tab={activeTab}
+          activeTab={activeTab}
           density="compact"
           leading={<ActiveIcon className="h-4 w-4" />}
-          on_change_tab={setActiveTab}
+          onChangeTab={setActiveTab}
           tabs={SETTINGS_TABS.map((item) => ({
             key: item.key,
-            label: t(item.label_key),
+            label: t(item.labelKey),
             icon: item.icon,
           }))}
           title={t("settings.title")}

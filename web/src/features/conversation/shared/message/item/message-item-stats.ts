@@ -1,6 +1,6 @@
 import type { AssistantMessage } from "@/types/conversation/message";
 
-import { strip_room_control_markers } from "./message-item-support";
+import { stripRoomControlMarkers } from "./message-item-support";
 import type { MessageStatsData } from "./message-item-types";
 
 function formatCompactCount(value: number): string {
@@ -16,10 +16,10 @@ function formatCompactCount(value: number): string {
   return `${value}`;
 }
 
-export function get_result_summary_display_text(
+export function getResultSummaryDisplayText(
   resultSummary: AssistantMessage["result_summary"] | undefined,
 ): string | null {
-  const resultText = strip_room_control_markers(resultSummary?.result ?? "");
+  const resultText = stripRoomControlMarkers(resultSummary?.result ?? "");
   if (resultText) {
     return resultText;
   }
@@ -35,7 +35,7 @@ export function get_result_summary_display_text(
   return null;
 }
 
-export function build_message_stats(
+export function buildMessageStats(
   resultSummary: AssistantMessage["result_summary"] | undefined,
 ): MessageStatsData | null {
   const usage = resultSummary?.usage;
@@ -61,7 +61,7 @@ export function build_message_stats(
     duration,
     tokens,
     cost,
-    cache_hit:
+    cacheHit:
       cacheHit && cacheHit > 0
         ? `缓存 ${formatCompactCount(cacheHit)}`
         : null,

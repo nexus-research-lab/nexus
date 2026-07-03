@@ -10,7 +10,7 @@ interface SkillMarkdownProps {
   markdown: string;
   title?: string;
   description?: string;
-  class_name?: string;
+  className?: string;
 }
 
 function normalizePlainText(value: string): string {
@@ -60,12 +60,12 @@ function stripLeadingDuplicateContent(markdown: string, title?: string, descript
   return nextMarkdown;
 }
 
-export function SkillMarkdown({ markdown, title, description, class_name: className }: SkillMarkdownProps) {
+export function SkillMarkdown({ markdown, title, description, className: className }: SkillMarkdownProps) {
   const normalizedMarkdown = stripLeadingDuplicateContent(markdown, title, description);
 
   return (
     <MarkdownRendererContent
-      class_name={cn(SKILL_MARKDOWN_CLASS_NAME, className)}
+      className={cn(SKILL_MARKDOWN_CLASS_NAME, className)}
       content={normalizedMarkdown || markdown}
     />
   );

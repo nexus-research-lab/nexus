@@ -1,6 +1,6 @@
 "use client";
 
-export function is_provider_error(error: string): boolean {
+export function isProviderError(error: string): boolean {
   const normalizedError = error.toLowerCase();
   if (
     normalizedError.includes("provider_error=") ||

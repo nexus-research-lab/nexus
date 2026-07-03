@@ -90,7 +90,7 @@ export function ConversationErrorBubble({
               compact ? "min-h-6 pb-0" : "h-7 pb-0.5",
             )}>
               {compact ? (
-                <MessageAvatar class_name="shrink-0" size="compact">
+                <MessageAvatar className="shrink-0" size="compact">
                   <CircleAlert className="h-3 w-3 text-destructive" />
                 </MessageAvatar>
               ) : null}

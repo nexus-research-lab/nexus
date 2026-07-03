@@ -3,23 +3,23 @@
 import { Download, FolderOpen, ImageIcon } from "lucide-react";
 
 import {
-  download_workspace_file_api,
-  get_workspace_file_preview_url,
+  downloadWorkspaceFileApi,
+  getWorkspaceFilePreviewUrl,
 } from "@/lib/api/agent-manage-api";
-import { get_workspace_file_external_action_copy } from "@/lib/workspace-file-action";
+import { getWorkspaceFileExternalActionCopy } from "@/lib/workspace-file-action";
 import { cn } from "@/lib/utils";
 import { type ImageContent } from "@/types/conversation/message";
 
 import {
-  resolve_workspace_artifact_path,
+  resolveWorkspaceArtifactPath,
   useMarkdownCurrentAgentID,
   useMarkdownFileResolver,
 } from "../markdown/markdown-workspace-artifacts";
 
 interface ImageBlockProps {
   block: ImageContent;
-  on_open_workspace_file?: (path: string) => void;
-  workspace_agent_id?: string | null;
+  onOpenWorkspaceFile?: (path: string) => void;
+  workspaceAgentId?: string | null;
 }
 
 interface ImageSource {
@@ -67,28 +67,28 @@ function resolveImageSource(
     return { src: rawPath, workspace_path: null };
   }
 
-  const workspacePath = resolve_workspace_artifact_path(rawPath, resolveFilePath);
+  const workspacePath = resolveWorkspaceArtifactPath(rawPath, resolveFilePath);
   if (workspacePath && currentAgentId) {
     return {
-      src: get_workspace_file_preview_url(currentAgentId, workspacePath),
+      src: getWorkspaceFilePreviewUrl(currentAgentId, workspacePath),
       workspace_path: workspacePath,
     };
   }
   return { src: rawPath, workspace_path: null };
 }
 
-export function ImageBlock({ block, on_open_workspace_file: onOpenWorkspaceFile, workspace_agent_id: workspaceAgentId }: ImageBlockProps) {
+export function ImageBlock({ block, onOpenWorkspaceFile: onOpenWorkspaceFile, workspaceAgentId: workspaceAgentId }: ImageBlockProps) {
   const resolveFilePath = useMarkdownFileResolver(workspaceAgentId);
   const currentAgentId = useMarkdownCurrentAgentID(workspaceAgentId);
   const { src, workspace_path: workspacePath } = resolveImageSource(block, resolveFilePath, currentAgentId);
   const canOpen = Boolean(workspacePath && onOpenWorkspaceFile);
   const canDownload = Boolean(workspacePath && currentAgentId);
-  const fileActionCopy = get_workspace_file_external_action_copy(workspacePath?.split("/").at(-1) || "image");
+  const fileActionCopy = getWorkspaceFileExternalActionCopy(workspacePath?.split("/").at(-1) || "image");
   const handleExternalAction = () => {
     if (!workspacePath || !currentAgentId) {
       return;
     }
-    void download_workspace_file_api(
+    void downloadWorkspaceFileApi(
       currentAgentId,
       workspacePath,
       workspacePath.split("/").at(-1) || "image",
@@ -132,7 +132,7 @@ export function ImageBlock({ block, on_open_workspace_file: onOpenWorkspaceFile,
       ) : null}
       {canDownload ? (
         <button
-          aria-label={fileActionCopy.aria_label}
+          aria-label={fileActionCopy.ariaLabel}
           className="mt-2 inline-flex items-center gap-1 rounded-[6px] border border-(--divider-subtle-color) px-2 py-1 text-[11px] font-medium text-(--text-muted) transition-colors hover:border-primary/25 hover:bg-primary/8 hover:text-primary"
           onClick={handleExternalAction}
           title={fileActionCopy.title}

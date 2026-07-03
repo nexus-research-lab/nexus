@@ -11,11 +11,11 @@ import {
 } from "react";
 
 import {
-  clear_goal_api,
-  get_current_goal_api,
-  pause_goal_api,
-  resume_goal_api,
-  update_goal_api,
+  clearGoalApi,
+  getCurrentGoalApi,
+  pauseGoalApi,
+  resumeGoalApi,
+  updateGoalApi,
 } from "@/lib/api/goal-api";
 import { ApiRequestError } from "@/lib/api/http";
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
@@ -27,15 +27,15 @@ import { GoalStatusStrip } from "./goal-panel-status-strip";
 type GoalDraftSavePhase = "idle" | "updating";
 
 interface GoalPanelProps {
-  session_key: string | null;
+  sessionKey: string | null;
   compact?: boolean;
   disabled?: boolean;
-  activity_key?: string | number | null;
-  continuation_hold?: GoalContinuationHold | null;
-  is_generating?: boolean;
-  scope_label?: string;
-  status_extra?: ReactNode;
-  on_goal_change?: (goal: Goal | null) => void;
+  activityKey?: string | number | null;
+  continuationHold?: GoalContinuationHold | null;
+  isGenerating?: boolean;
+  scopeLabel?: string;
+  statusExtra?: ReactNode;
+  onGoalChange?: (goal: Goal | null) => void;
 }
 
 function isGoalUnavailable(error: unknown) {
@@ -87,15 +87,15 @@ function resumePromptKey(goal: Goal): string {
 }
 
 export function GoalPanel({
-  session_key: sessionKey,
+  sessionKey: sessionKey,
   compact = false,
-  continuation_hold: continuationHold = null,
+  continuationHold: continuationHold = null,
   disabled = false,
-  activity_key: activityKey = null,
-  is_generating: isGenerating = false,
-  scope_label: scopeLabel = "会话 Goal",
-  status_extra: statusExtra = null,
-  on_goal_change: onGoalChange,
+  activityKey: activityKey = null,
+  isGenerating: isGenerating = false,
+  scopeLabel: scopeLabel = "会话 Goal",
+  statusExtra: statusExtra = null,
+  onGoalChange: onGoalChange,
 }: GoalPanelProps) {
   const [goal, setGoal] = useState<Goal | null>(null);
   const [isAvailable, setIsAvailable] = useState(true);
@@ -138,7 +138,7 @@ export function GoalPanel({
     }
     setIsLoading(true);
     try {
-      const current = await get_current_goal_api(sessionKey);
+      const current = await getCurrentGoalApi(sessionKey);
       if (!current) {
         setGoal(null);
         setResumePromptGoal(null);
@@ -188,7 +188,7 @@ export function GoalPanel({
     setIsLoading(true);
     try {
       const tokenBudget = nextBudgetInput(goal, budget);
-      const updated = await update_goal_api(goal.id, {
+      const updated = await updateGoalApi(goal.id, {
         objective: objective.trim(),
         token_budget: tokenBudget,
       });
@@ -223,7 +223,7 @@ export function GoalPanel({
     if (!goal || disabled) return;
     setIsLoading(true);
     try {
-      const result = await clear_goal_api(goal.id);
+      const result = await clearGoalApi(goal.id);
       if (result.cleared) {
         setGoal(null);
         setIsEditing(false);
@@ -238,7 +238,7 @@ export function GoalPanel({
 
   const confirmResumePrompt = () => {
     setResumePromptGoal(null);
-    void mutateGoal(resume_goal_api);
+    void mutateGoal(resumeGoalApi);
   };
 
   const cancelResumePrompt = () => {
@@ -278,54 +278,54 @@ export function GoalPanel({
   return (
     <>
       <GoalStatusStrip
-        can_resume={canResumeCurrentGoal}
+        canResume={canResumeCurrentGoal}
         compact={compact}
-        continuation_hold={continuationHold}
+        continuationHold={continuationHold}
         disabled={disabled}
         error={error}
         goal={goal}
-        is_generating={isGenerating}
-        is_loading={isLoading}
-        scope_label={scopeLabel}
-        status_extra={statusExtra}
-        on_clear_request={() => setIsClearConfirmOpen(true)}
-        on_edit={startEditingGoal}
-        on_pause={() => void mutateGoal(pause_goal_api)}
-        on_refresh={() => void refreshGoal()}
-        on_resume={() => void mutateGoal(resume_goal_api)}
+        isGenerating={isGenerating}
+        isLoading={isLoading}
+        scopeLabel={scopeLabel}
+        statusExtra={statusExtra}
+        onClearRequest={() => setIsClearConfirmOpen(true)}
+        onEdit={startEditingGoal}
+        onPause={() => void mutateGoal(pauseGoalApi)}
+        onRefresh={() => void refreshGoal()}
+        onResume={() => void mutateGoal(resumeGoalApi)}
       />
       {isEditing ? (
         <GoalDraftForm
           budget={budget}
           disabled={disabled}
           error={error}
-          is_loading={isLoading}
-          loading_label={draftSaveLoadingLabel(draftSavePhase)}
+          isLoading={isLoading}
+          loadingLabel={draftSaveLoadingLabel(draftSavePhase)}
           objective={objective}
-          on_budget_change={setBudget}
-          on_cancel={cancelEditingGoal}
-          on_objective_change={setObjective}
-          on_submit={submitGoal}
+          onBudgetChange={setBudget}
+          onCancel={cancelEditingGoal}
+          onObjectiveChange={setObjective}
+          onSubmit={submitGoal}
         />
       ) : null}
       <ConfirmDialog
-        cancel_text="取消"
-        confirm_text="清除"
-        is_open={isClearConfirmOpen}
+        cancelText="取消"
+        confirmText="清除"
+        isOpen={isClearConfirmOpen}
         message={`Goal：${goal.objective}`}
         title="清除当前 Goal?"
         variant="danger"
-        on_cancel={() => setIsClearConfirmOpen(false)}
-        on_confirm={confirmClearGoal}
+        onCancel={() => setIsClearConfirmOpen(false)}
+        onConfirm={confirmClearGoal}
       />
       <ConfirmDialog
-        cancel_text="暂不继续"
-        confirm_text="继续"
-        is_open={resumePromptGoal !== null}
+        cancelText="暂不继续"
+        confirmText="继续"
+        isOpen={resumePromptGoal !== null}
         message={`Goal：${resumePromptGoal?.objective ?? ""}`}
         title="继续当前 Goal?"
-        on_cancel={cancelResumePrompt}
-        on_confirm={confirmResumePrompt}
+        onCancel={cancelResumePrompt}
+        onConfirm={confirmResumePrompt}
       />
     </>
   );

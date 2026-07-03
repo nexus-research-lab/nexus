@@ -53,25 +53,25 @@ function sourceKindDescription(source: ExternalSkillSourceInfo): string {
 
 export function SkillSourceManagerDialog({ ctrl }: SkillSourceManagerDialogProps) {
   const { t } = useI18n();
-  const isOpen = ctrl.source_manager_open;
+  const isOpen = ctrl.sourceManagerOpen;
   if (!isOpen) return null;
 
-  const sortedSources = [...ctrl.external_sources].sort(
+  const sortedSources = [...ctrl.externalSources].sort(
     (a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name),
   );
 
   return (
     <UiDialogPortal>
-      <UiDialogBackdrop class_name="z-[9999]" on_close={() => ctrl.set_source_manager_open(false)}>
-        <UiDialogShell class_name="h-[76vh]" size="lg">
+      <UiDialogBackdrop className="z-[9999]" onClose={() => ctrl.setSourceManagerOpen(false)}>
+        <UiDialogShell className="h-[76vh]" size="lg">
           <UiDialogHeader
             icon={<Database className="h-4 w-4" />}
-            on_close={() => ctrl.set_source_manager_open(false)}
+            onClose={() => ctrl.setSourceManagerOpen(false)}
             subtitle={t("capability.skill_sources_description")}
             title={t("capability.skill_sources_title")}
           />
-          <UiDialogBody class_name="space-y-3" scrollable>
-            {ctrl.source_loading && !sortedSources.length ? (
+          <UiDialogBody className="space-y-3" scrollable>
+            {ctrl.sourceLoading && !sortedSources.length ? (
               <div className="flex items-center justify-center gap-2 py-12 text-sm text-(--text-soft)">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 {t("capability.skill_sources_loading")}
@@ -80,8 +80,8 @@ export function SkillSourceManagerDialog({ ctrl }: SkillSourceManagerDialogProps
               sortedSources.map((source) => (
                 <SourceRow
                   key={source.source_id}
-                  disabled={ctrl.source_loading}
-                  on_toggle={(enabled) => void ctrl.handle_toggle_external_source(source, enabled)}
+                  disabled={ctrl.sourceLoading}
+                  onToggle={(enabled) => void ctrl.handleToggleExternalSource(source, enabled)}
                   source={source}
                 />
               ))
@@ -92,10 +92,10 @@ export function SkillSourceManagerDialog({ ctrl }: SkillSourceManagerDialogProps
             )}
           </UiDialogBody>
 
-          <UiDialogFooter class_name="gap-2">
+          <UiDialogFooter className="gap-2">
             <UiButton
-              disabled={ctrl.source_loading}
-              onClick={() => ctrl.set_source_manager_open(false)}
+              disabled={ctrl.sourceLoading}
+              onClick={() => ctrl.setSourceManagerOpen(false)}
               size="sm"
               variant="surface"
             >
@@ -110,11 +110,11 @@ export function SkillSourceManagerDialog({ ctrl }: SkillSourceManagerDialogProps
 
 interface SourceRowProps {
   disabled: boolean;
-  on_toggle: (enabled: boolean) => void;
+  onToggle: (enabled: boolean) => void;
   source: ExternalSkillSourceInfo;
 }
 
-function SourceRow({ disabled, on_toggle: onToggle, source }: SourceRowProps) {
+function SourceRow({ disabled, onToggle: onToggle, source }: SourceRowProps) {
   return (
     <div
       className={cn(
@@ -150,7 +150,7 @@ function SourceRow({ disabled, on_toggle: onToggle, source }: SourceRowProps) {
         <GlassSwitch
           checked={source.enabled}
           disabled={disabled}
-          on_change={onToggle}
+          onChange={onToggle}
           size="sm"
         />
       </div>

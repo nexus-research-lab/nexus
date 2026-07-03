@@ -4,18 +4,18 @@ import { MouseEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } fro
 import { flushSync } from "react-dom";
 import { Plus, X } from "lucide-react";
 
-import { get_session_channel_label } from "@/features/conversation/external-session-labels";
+import { getSessionChannelLabel } from "@/features/conversation/external-session-labels";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { RoomConversationView } from "@/types/conversation/conversation";
 
 interface WorkspaceConversationTabsProps {
   conversations: RoomConversationView[];
-  conversation_id: string | null;
-  tour_anchor?: string;
-  on_select_conversation: (conversationId: string) => void;
-  on_close_conversation?: (conversationId: string) => Promise<void>;
-  on_create_conversation?: (title?: string) => Promise<string | null>;
+  conversationId: string | null;
+  tourAnchor?: string;
+  onSelectConversation: (conversationId: string) => void;
+  onCloseConversation?: (conversationId: string) => Promise<void>;
+  onCreateConversation?: (title?: string) => Promise<string | null>;
 }
 
 const CONVERSATION_TAB_BASE_CLASS_NAME =
@@ -61,7 +61,7 @@ function getExternalSessionLabel(conversation: RoomConversationView): string | n
   if (!isExternalSessionConversation(conversation)) {
     return null;
   }
-  return get_session_channel_label(
+  return getSessionChannelLabel(
     stringOption(conversation.options, "channel_type"),
     conversation.session_key,
   );
@@ -135,11 +135,11 @@ function calculateFilledTabWidths({
 
 export function WorkspaceConversationTabs({
   conversations,
-  conversation_id: conversationId,
-  tour_anchor: tourAnchor,
-  on_select_conversation: onSelectConversation,
-  on_close_conversation: onCloseConversation,
-  on_create_conversation: onCreateConversation,
+  conversationId: conversationId,
+  tourAnchor: tourAnchor,
+  onSelectConversation: onSelectConversation,
+  onCloseConversation: onCloseConversation,
+  onCreateConversation: onCreateConversation,
 }: WorkspaceConversationTabsProps) {
   const { t } = useI18n();
   const trackRef = useRef<HTMLElement | null>(null);

@@ -12,10 +12,10 @@ const LazyMermaidViewInner = lazy(async () => {
 });
 
 function MermaidViewLoadingFallback({
-  class_name: className,
+  className: className,
   compact = false,
-  constrain_height: constrainHeight = true,
-}: Pick<MermaidViewProps, "class_name" | "compact" | "constrain_height">) {
+  constrainHeight: constrainHeight = true,
+}: Pick<MermaidViewProps, "className" | "compact" | "constrainHeight">) {
   return (
     <div
       className={cn(
@@ -42,9 +42,9 @@ export function LazyMermaidView(props: MermaidViewProps) {
     <Suspense
       fallback={(
         <MermaidViewLoadingFallback
-          class_name={props.class_name}
+          className={props.className}
           compact={props.compact}
-          constrain_height={props.constrain_height}
+          constrainHeight={props.constrainHeight}
         />
       )}
     >

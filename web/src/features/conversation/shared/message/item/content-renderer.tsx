@@ -27,10 +27,10 @@ import {
   MessageRailLabel,
 } from "../ui/message-rail";
 import {
-  get_system_message_icon_class_name,
-  get_system_message_label_class_name,
+  getSystemMessageIconClassName,
+  getSystemMessageLabelClassName,
 } from "./message-item-support";
-import { resolve_activity_state } from "./content-renderer-activity";
+import { resolveActivityState } from "./content-renderer-activity";
 import { SystemEventIcon, TimelineBlock } from "./content-renderer-timeline";
 
 const API_RETRY_VISIBLE_ATTEMPT = 4;
@@ -38,18 +38,18 @@ const MAX_API_RETRY_ERROR_CHARS = 1000;
 
 interface ContentRendererProps {
   content: string | ContentBlock[];
-  is_streaming?: boolean;
-  streaming_block_indexes?: Set<number>;
-  fallback_activity_state?: MessageActivityState | null;
-  pending_permissions_by_tool_use_id?: ReadonlyMap<string, PendingPermission>;
-  on_permission_response?: (payload: PermissionDecisionPayload) => boolean;
-  can_respond_to_permissions?: boolean;
-  permission_read_only_reason?: string;
-  on_open_workspace_file?: (path: string) => void;
-  workspace_agent_id?: string | null;
-  hidden_tool_names?: string[];
-  class_name?: string;
-  show_timeline_dots?: boolean;
+  isStreaming?: boolean;
+  streamingBlockIndexes?: Set<number>;
+  fallbackActivityState?: MessageActivityState | null;
+  pendingPermissionsByToolUseId?: ReadonlyMap<string, PendingPermission>;
+  onPermissionResponse?: (payload: PermissionDecisionPayload) => boolean;
+  canRespondToPermissions?: boolean;
+  permissionReadOnlyReason?: string;
+  onOpenWorkspaceFile?: (path: string) => void;
+  workspaceAgentId?: string | null;
+  hiddenToolNames?: string[];
+  className?: string;
+  showTimelineDots?: boolean;
 }
 
 function isHiddenApiRetryBlock(block: SystemEventContent): boolean {
@@ -106,27 +106,27 @@ function ApiRetrySystemEventBody({ block }: { block: SystemEventContent }) {
 export function ContentRenderer(
   {
     content,
-    is_streaming: isStreaming = false,
-    streaming_block_indexes: streamingBlockIndexes,
-    fallback_activity_state: fallbackActivityState,
-    pending_permissions_by_tool_use_id: pendingPermissionsByToolUseId,
-    on_permission_response: onPermissionResponse,
-    can_respond_to_permissions: canRespondToPermissions = true,
-    permission_read_only_reason: permissionReadOnlyReason,
-    on_open_workspace_file: onOpenWorkspaceFile,
-    workspace_agent_id: workspaceAgentId,
-    hidden_tool_names: hiddenToolNames = [],
-    class_name: className,
-    show_timeline_dots: showTimelineDots = false,
+    isStreaming: isStreaming = false,
+    streamingBlockIndexes: streamingBlockIndexes,
+    fallbackActivityState: fallbackActivityState,
+    pendingPermissionsByToolUseId: pendingPermissionsByToolUseId,
+    onPermissionResponse: onPermissionResponse,
+    canRespondToPermissions: canRespondToPermissions = true,
+    permissionReadOnlyReason: permissionReadOnlyReason,
+    onOpenWorkspaceFile: onOpenWorkspaceFile,
+    workspaceAgentId: workspaceAgentId,
+    hiddenToolNames: hiddenToolNames = [],
+    className: className,
+    showTimelineDots: showTimelineDots = false,
   }: ContentRendererProps) {
   // Handle string content (Markdown)
   if (typeof content === 'string') {
     const markdown = (
       <MarkdownRenderer
         content={content}
-        is_streaming={isStreaming}
-        on_open_workspace_file={onOpenWorkspaceFile}
-        workspace_agent_id={workspaceAgentId}
+        isStreaming={isStreaming}
+        onOpenWorkspaceFile={onOpenWorkspaceFile}
+        workspaceAgentId={workspaceAgentId}
       />
     );
 
@@ -148,7 +148,7 @@ export function ContentRenderer(
   }
 
   // Handle structured content (ContentBlock[])
-  // 首先构建 tool_use 到 tool_result 的映射
+  // 首先构建 toolUse 到 toolResult 的映射
   const toolUseMap = new Map<string, {
     use: ToolUseContent;
     result?: ToolResultContent;
@@ -156,14 +156,14 @@ export function ContentRenderer(
   }>();
   const renderedIndices = new Set<number>();
 
-  // 第一遍：收集所有 tool_use 和对应的 tool_result
+  // 第一遍：收集所有 toolUse 和对应的 toolResult
   content.forEach((block, index) => {
     if (block.type === 'tool_use') {
       toolUseMap.set(block.id, { use: block, index });
     }
   });
 
-  // 第二遍：匹配 tool_result 到 tool_use
+  // 第二遍：匹配 toolResult 到 toolUse
   content.forEach((block, index) => {
     if (block.type === 'tool_result') {
       const toolUseData = toolUseMap.get(block.tool_use_id);
@@ -174,8 +174,8 @@ export function ContentRenderer(
     }
   });
 
-  // 第三遍：把 task_progress 按 tool_use_id 折叠到对应工具块（子 Agent 实时进度）。
-  // 不再单独渲染 task_progress 行，统一并入它所属的 Agent ToolBlock。
+  // 第三遍：把 taskProgress 按 toolUseId 折叠到对应工具块（子 Agent 实时进度）。
+  // 不再单独渲染 taskProgress 行，统一并入它所属的 Agent ToolBlock。
   const taskProgressByToolUseId = new Map<string, TaskProgressContent>();
   content.forEach((block) => {
     if (block.type === 'task_progress' && block.tool_use_id) {
@@ -186,14 +186,14 @@ export function ContentRenderer(
   // 只要当前轮次仍在进行，就持续在块尾渲染一个状态行；
   // 不再要求“没有 streaming block”才显示，否则纯文本回复阶段会出现状态空窗。
   const activityState = isStreaming
-    ? resolve_activity_state({
+    ? resolveActivityState({
       content,
-      streaming_block_indexes: streamingBlockIndexes,
-      tool_use_map: toolUseMap,
-      rendered_indices: renderedIndices,
-      fallback_activity_state: fallbackActivityState,
-      pending_permissions_by_tool_use_id: pendingPermissionsByToolUseId,
-      hidden_tool_names: hiddenToolNames,
+      streamingBlockIndexes,
+      toolUseMap,
+      renderedIndices,
+      fallbackActivityState,
+      pendingPermissionsByToolUseId,
+      hiddenToolNames,
     })
     : null;
 
@@ -202,7 +202,7 @@ export function ContentRenderer(
       {content.map((block, index) => {
         const blockIsStreaming = streamingBlockIndexes?.has(index) ?? false;
 
-        // 跳过已经被组合渲染的 tool_result
+        // 跳过已经被组合渲染的 toolResult
         if (renderedIndices.has(index)) {
           return null;
         }
@@ -233,10 +233,10 @@ export function ContentRenderer(
             index,
             <ContentRenderer
               content={block.text}
-              is_streaming={blockIsStreaming}
-              fallback_activity_state={blockIsStreaming ? "replying" : null}
-              on_open_workspace_file={onOpenWorkspaceFile}
-              workspace_agent_id={workspaceAgentId}
+              isStreaming={blockIsStreaming}
+              fallbackActivityState={blockIsStreaming ? "replying" : null}
+              onOpenWorkspaceFile={onOpenWorkspaceFile}
+              workspaceAgentId={workspaceAgentId}
             />,
           );
         }
@@ -253,8 +253,8 @@ export function ContentRenderer(
             index,
             <ThinkingBlock
               thinking={block.thinking || ''}
-              is_streaming={blockIsStreaming}
-              workspace_agent_id={workspaceAgentId}
+              isStreaming={blockIsStreaming}
+              workspaceAgentId={workspaceAgentId}
             />,
           );
         }
@@ -264,8 +264,8 @@ export function ContentRenderer(
             index,
             <ImageBlock
               block={block}
-              on_open_workspace_file={onOpenWorkspaceFile}
-              workspace_agent_id={workspaceAgentId}
+              onOpenWorkspaceFile={onOpenWorkspaceFile}
+              workspaceAgentId={workspaceAgentId}
             />,
           );
         }
@@ -275,8 +275,8 @@ export function ContentRenderer(
             return null;
           }
           return wrapBlock(index, (
-            <MessageRail class_name="min-w-0">
-              <MessageRailLabel class_name={cn("flex-1", get_system_message_label_class_name(block.tone))}>
+            <MessageRail className="min-w-0">
+              <MessageRailLabel className={cn("flex-1", getSystemMessageLabelClassName(block.tone))}>
                 <span
                   data-timeline-anchor
                   data-timeline-anchor-mode="box"
@@ -284,12 +284,12 @@ export function ContentRenderer(
                 >
                   <SystemEventIcon
                     icon={block.icon}
-                    class_name={cn("h-3 w-3", get_system_message_icon_class_name(block.tone))}
+                    className={cn("h-3 w-3", getSystemMessageIconClassName(block.tone))}
                   />
                 </span>
                 <span>{block.label}</span>
               </MessageRailLabel>
-              <MessageRailBody class_name="pt-1 text-[14px] leading-6 text-(--text-default)">
+              <MessageRailBody className="pt-1 text-[14px] leading-6 text-(--text-default)">
                 {block.subtype === "api_retry" ? (
                   <ApiRetrySystemEventBody block={block} />
                 ) : (
@@ -300,13 +300,13 @@ export function ContentRenderer(
           ));
         }
 
-        // task_progress 不再单独渲染：已按 tool_use_id 折叠进对应 Agent ToolBlock。
+          // taskProgress 不再单独渲染：已按 toolUseId 折叠进对应 Agent ToolBlock。
 
         if (block.type === 'workspace_file_artifact') {
           return wrapBlock(index, (
             <WorkspaceFileArtifactBlock
               artifact={block}
-              on_open_workspace_file={onOpenWorkspaceFile}
+              onOpenWorkspaceFile={onOpenWorkspaceFile}
             />
           ));
         }
@@ -322,13 +322,13 @@ export function ContentRenderer(
             return wrapBlock(index, (
               <div>
                 <AskUserQuestionBlock
-                  tool_use={block}
-                  tool_result={toolResult}
-                  is_submitted={hasResult && !toolResult?.is_error}
-                  is_ready={Boolean(isThisToolPending)}
-                  interaction_disabled={!canRespondToPermissions}
-                  interaction_disabled_reason={permissionReadOnlyReason}
-                  on_submit={(_, answers) => {
+                  toolUse={block}
+                  toolResult={toolResult}
+                  isSubmitted={hasResult && !toolResult?.is_error}
+                  isReady={Boolean(isThisToolPending)}
+                  interactionDisabled={!canRespondToPermissions}
+                  interactionDisabledReason={permissionReadOnlyReason}
+                  onSubmit={(_, answers) => {
                     if (!pendingPermission) {
                       return false;
                     }
@@ -363,11 +363,11 @@ export function ContentRenderer(
           return wrapBlock(index, (
             <div className="min-w-0">
               <ToolBlock
-                tool_use={block}
-                tool_result={toolData?.result}
-                live_progress={taskProgressByToolUseId.get(block.id) ?? null}
+                toolUse={block}
+                toolResult={toolData?.result}
+                liveProgress={taskProgressByToolUseId.get(block.id) ?? null}
                 status={toolStatus}
-                permission_request={isThisToolPendingPermission ? {
+                permissionRequest={isThisToolPendingPermission ? {
                   request_id: pendingPermission!.request_id,
                   tool_input: pendingPermission!.tool_input,
                   risk_level: pendingPermission!.risk_level,
@@ -386,16 +386,16 @@ export function ContentRenderer(
                     updated_permissions: updatedPermissions,
                   }),
                 } : undefined}
-                interaction_disabled={!canRespondToPermissions}
-                interaction_disabled_reason={permissionReadOnlyReason}
-                on_open_workspace_file={onOpenWorkspaceFile}
-                workspace_agent_id={workspaceAgentId}
+                interactionDisabled={!canRespondToPermissions}
+                interactionDisabledReason={permissionReadOnlyReason}
+                onOpenWorkspaceFile={onOpenWorkspaceFile}
+                workspaceAgentId={workspaceAgentId}
               />
             </div>
           ));
         }
 
-        // 独立的 tool_result（没有对应的 tool_use）
+        // 独立的 toolResult（没有对应的 toolUse）
         if (block.type === 'tool_result') {
           return null;
         }
@@ -403,7 +403,7 @@ export function ContentRenderer(
         return null;
       })}
       {activityState ? (
-        <MessageActivityStatus class_name="pt-1" state={activityState} />
+        <MessageActivityStatus className="pt-1" state={activityState} />
       ) : null}
     </div>
   );

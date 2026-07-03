@@ -15,7 +15,7 @@ import {
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiBadge } from "@/shared/ui/badge";
 import { UiButton } from "@/shared/ui/button";
-import { get_ui_button_class_name } from "@/shared/ui/button-styles";
+import { getUiButtonClassName } from "@/shared/ui/button-styles";
 import {
   UiDialogBackdrop,
   UiDialogBody,
@@ -29,19 +29,19 @@ import { UiPanel } from "@/shared/ui/panel";
 import { UiStateBlock } from "@/shared/ui/state-block";
 import type { ConnectorDetail, ConnectorFeatureDetail } from "@/types/capability/connector";
 
-import { is_direct_credential_auth } from "./connector-auth";
+import { isDirectCredentialAuth } from "./connector-auth";
 import { ConnectorIcon } from "./connector-icon";
-import { get_connector_category_label } from "./connectors-categories";
+import { getConnectorCategoryLabel } from "./connectors-categories";
 
 interface ConnectorDetailViewProps {
   detail: ConnectorDetail | null;
   loading: boolean;
   busy: boolean;
-  on_back: () => void;
-  on_connect: (connectorId: string) => void;
-  on_disconnect: (connectorId: string) => void;
-  on_configure_credential: (detail: ConnectorDetail) => void;
-  on_configure_oauth_client: (detail: ConnectorDetail) => void;
+  onBack: () => void;
+  onConnect: (connectorId: string) => void;
+  onDisconnect: (connectorId: string) => void;
+  onConfigureCredential: (detail: ConnectorDetail) => void;
+  onConfigureOauthClient: (detail: ConnectorDetail) => void;
 }
 
 function getConnectorAuthLabel(authType: ConnectorDetail["auth_type"]): string {
@@ -68,11 +68,11 @@ export function ConnectorDetailView({
   detail,
   loading,
   busy,
-  on_back: onBack,
-  on_connect: onConnect,
-  on_disconnect: onDisconnect,
-  on_configure_credential: onConfigureCredential,
-  on_configure_oauth_client: onConfigureOauthClient,
+  onBack: onBack,
+  onConnect: onConnect,
+  onDisconnect: onDisconnect,
+  onConfigureCredential: onConfigureCredential,
+  onConfigureOauthClient: onConfigureOauthClient,
 }: ConnectorDetailViewProps) {
   const { t } = useI18n();
   const [selectedFeature, setSelectedFeature] = useState<string | null>(null);
@@ -82,7 +82,7 @@ export function ConnectorDetailView({
   const requiresOauthClientConfig = detail?.oauth_client_config_required ?? false;
   const oauthClientConfigured = detail?.oauth_client_configured ?? false;
   const canConnect = detail && !isConnected && !isComingSoon && isConfigured;
-  const requiresDirectCredential = is_direct_credential_auth(detail?.auth_type);
+  const requiresDirectCredential = isDirectCredentialAuth(detail?.auth_type);
   const featureDetails = detail ? getConnectorFeatureDetails(detail) : [];
   const selectedFeatureDetail = featureDetails.find((feature) => feature.name === selectedFeature);
 
@@ -106,7 +106,7 @@ export function ConnectorDetailView({
       </div>
 
       {loading ? (
-        <UiStateBlock class_name="min-h-[420px]" size="md" title="加载连接器详情中..." variant="plain" />
+        <UiStateBlock className="min-h-[420px]" size="md" title="加载连接器详情中..." variant="plain" />
       ) : !detail ? (
         <UiStateBlock
           actions={(
@@ -114,7 +114,7 @@ export function ConnectorDetailView({
               返回连接器
             </UiButton>
           )}
-          class_name="min-h-[420px]"
+          className="min-h-[420px]"
           size="md"
           title="连接器不存在"
           variant="plain"
@@ -215,7 +215,7 @@ export function ConnectorDetailView({
                 <UiBadge>未连接</UiBadge>
               )}
               <UiBadge>{getConnectorAuthLabel(detail.auth_type)}</UiBadge>
-              <UiBadge>{get_connector_category_label(detail.category, t)}</UiBadge>
+              <UiBadge>{getConnectorCategoryLabel(detail.category, t)}</UiBadge>
               {detail.scopes.length > 0 ? <UiBadge>{detail.scopes.length} 项权限范围</UiBadge> : null}
             </div>
 
@@ -228,18 +228,18 @@ export function ConnectorDetailView({
                 <h2 className="mb-3 text-[16px] font-semibold tracking-[-0.025em] text-(--text-strong)">
                   包含内容
                 </h2>
-                <UiPanel class_name="divide-y divide-(--divider-subtle-color)" padding="none" radius="md" variant="inset">
+                <UiPanel className="divide-y divide-(--divider-subtle-color)" padding="none" radius="md" variant="inset">
                   {featureDetails.map((feature) => (
                     <UiListRow
                       key={feature.name}
-                      class_name="rounded-none"
+                      className="rounded-none"
                       description={feature.description}
                       leading={(
                         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-(--divider-subtle-color) bg-(--surface-panel-background)">
                           <Check className="h-4 w-4 text-(--icon-muted)" />
                         </span>
                       )}
-                      on_click={() => setSelectedFeature(feature.name)}
+                      onClick={() => setSelectedFeature(feature.name)}
                       right={<ChevronRight className="h-4 w-4 shrink-0 text-(--icon-muted)" />}
                       title={feature.name}
                     />
@@ -250,7 +250,7 @@ export function ConnectorDetailView({
 
             {detail.docs_url ? (
               <a
-                className={get_ui_button_class_name({ size: "sm", variant: "text" }, "w-fit")}
+                className={getUiButtonClassName({ size: "sm", variant: "text" }, "w-fit")}
                 href={detail.docs_url}
                 rel="noopener noreferrer"
                 target="_blank"
@@ -264,17 +264,17 @@ export function ConnectorDetailView({
           {selectedFeatureDetail ? (
             <UiDialogPortal>
               <UiDialogBackdrop
-                class_name="z-[9999]"
-                on_close={() => setSelectedFeature(null)}
+                className="z-[9999]"
+                onClose={() => setSelectedFeature(null)}
               >
-                <UiDialogShell class_name="max-h-[min(84vh,640px)]" size="lg">
+                <UiDialogShell className="max-h-[min(84vh,640px)]" size="lg">
                   <UiDialogHeader
                     icon={<Check className="h-4 w-4" />}
-                    on_close={() => setSelectedFeature(null)}
+                    onClose={() => setSelectedFeature(null)}
                     subtitle={`${detail.title} 能力`}
                     title={selectedFeatureDetail.name}
                   />
-                  <UiDialogBody class_name="space-y-4" scrollable>
+                  <UiDialogBody className="space-y-4" scrollable>
                     <p className="text-[14px] leading-7 text-(--text-default)">
                       {selectedFeatureDetail.description}
                     </p>

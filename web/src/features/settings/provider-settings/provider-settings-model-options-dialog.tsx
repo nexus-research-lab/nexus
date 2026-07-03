@@ -17,21 +17,21 @@ import { CapabilitySwitch } from "./provider-settings-capability-switch";
 import type { ModelOptionsState } from "./provider-settings-model";
 
 interface ProviderModelOptionsDialogProps {
-  model_options: ModelOptionsState | null;
-  on_close: () => void;
-  on_save: () => void;
-  pending_action: string | null;
-  selected_can_manage: boolean;
-  set_model_options: Dispatch<SetStateAction<ModelOptionsState | null>>;
+  modelOptions: ModelOptionsState | null;
+  onClose: () => void;
+  onSave: () => void;
+  pendingAction: string | null;
+  selectedCanManage: boolean;
+  setModelOptions: Dispatch<SetStateAction<ModelOptionsState | null>>;
 }
 
 export function ProviderModelOptionsDialog({
-  model_options: modelOptions,
-  on_close: onClose,
-  on_save: onSave,
-  pending_action: pendingAction,
-  selected_can_manage: selectedCanManage,
-  set_model_options: setModelOptions,
+  modelOptions: modelOptions,
+  onClose: onClose,
+  onSave: onSave,
+  pendingAction: pendingAction,
+  selectedCanManage: selectedCanManage,
+  setModelOptions: setModelOptions,
 }: ProviderModelOptionsDialogProps) {
   const { t } = useI18n();
 
@@ -42,15 +42,15 @@ export function ProviderModelOptionsDialog({
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
-        class_name="z-[9999]"
-        labelled_by="provider-model-options-title"
-        on_close={onClose}
+        className="z-[9999]"
+        labelledBy="provider-model-options-title"
+        onClose={onClose}
       >
-        <UiDialogShell class_name="max-w-[620px]" size="lg">
+        <UiDialogShell className="max-w-[620px]" size="lg">
           <UiDialogHeader
             icon={<SlidersHorizontal className="h-4.5 w-4.5" />}
-            icon_class_name="rounded-[12px]"
-            on_close={onClose}
+            iconClassName="rounded-[12px]"
+            onClose={onClose}
             subtitle={(
               <span className="inline-flex min-w-0 items-center gap-1.5">
                 <span>{t("settings.providers.model_options_subtitle")}</span>
@@ -60,9 +60,9 @@ export function ProviderModelOptionsDialog({
               </span>
             )}
             title={t("settings.providers.model_options")}
-            title_id="provider-model-options-title"
+            titleId="provider-model-options-title"
           />
-          <UiDialogBody class_name="space-y-5" scrollable>
+          <UiDialogBody className="space-y-5" scrollable>
             <section className="space-y-2.5">
               <div>
                 <h3 className="text-[13px] font-semibold text-(--text-strong)">
@@ -77,7 +77,7 @@ export function ProviderModelOptionsDialog({
                   checked={!!modelOptions.capabilities.vision}
                   icon={<Eye className="h-3.5 w-3.5" />}
                   label={t("settings.providers.capability_vision")}
-                  on_change={(checked) => setModelOptions((current) => current ? ({
+                  onChange={(checked) => setModelOptions((current) => current ? ({
                     ...current,
                     capabilities: { ...current.capabilities, vision: checked },
                   }) : current)}
@@ -86,7 +86,7 @@ export function ProviderModelOptionsDialog({
                   checked={!!modelOptions.capabilities.image_output}
                   icon={<Image className="h-3.5 w-3.5" />}
                   label={t("settings.providers.capability_image_output")}
-                  on_change={(checked) => setModelOptions((current) => current ? ({
+                  onChange={(checked) => setModelOptions((current) => current ? ({
                     ...current,
                     capabilities: { ...current.capabilities, image_output: checked },
                   }) : current)}
@@ -95,7 +95,7 @@ export function ProviderModelOptionsDialog({
                   checked={!!modelOptions.capabilities.tool_calling}
                   icon={<Wrench className="h-3.5 w-3.5" />}
                   label={t("settings.providers.capability_tool_calling")}
-                  on_change={(checked) => setModelOptions((current) => current ? ({
+                  onChange={(checked) => setModelOptions((current) => current ? ({
                     ...current,
                     capabilities: { ...current.capabilities, tool_calling: checked },
                   }) : current)}
@@ -104,7 +104,7 @@ export function ProviderModelOptionsDialog({
                   checked={!!modelOptions.capabilities.reasoning}
                   icon={<Brain className="h-3.5 w-3.5" />}
                   label={t("settings.providers.capability_reasoning")}
-                  on_change={(checked) => setModelOptions((current) => current ? ({
+                  onChange={(checked) => setModelOptions((current) => current ? ({
                     ...current,
                     capabilities: { ...current.capabilities, reasoning: checked },
                   }) : current)}
@@ -113,7 +113,7 @@ export function ProviderModelOptionsDialog({
                   checked={!!modelOptions.capabilities.embedding}
                   icon={<Database className="h-3.5 w-3.5" />}
                   label={t("settings.providers.capability_embedding")}
-                  on_change={(checked) => setModelOptions((current) => current ? ({
+                  onChange={(checked) => setModelOptions((current) => current ? ({
                     ...current,
                     capabilities: { ...current.capabilities, embedding: checked },
                   }) : current)}
@@ -127,7 +127,7 @@ export function ProviderModelOptionsDialog({
                   {t("settings.providers.context_window")}
                 </span>
                 <UiInput
-                  control_size="sm"
+                  controlSize="sm"
                   inputMode="numeric"
                   onChange={(event) => setModelOptions((current) => current ? ({ ...current, context_window: event.target.value }) : current)}
                   placeholder="auto"
@@ -139,7 +139,7 @@ export function ProviderModelOptionsDialog({
                   {t("settings.providers.max_output_tokens")}
                 </span>
                 <UiInput
-                  control_size="sm"
+                  controlSize="sm"
                   inputMode="numeric"
                   onChange={(event) => setModelOptions((current) => current ? ({ ...current, max_output_tokens: event.target.value }) : current)}
                   placeholder="auto"
@@ -153,15 +153,15 @@ export function ProviderModelOptionsDialog({
                 {t("settings.providers.provider_options_json")}
               </span>
               <UiTextarea
-                class_name="min-h-28 font-mono text-[12px] leading-5"
-                control_size="md"
+                className="min-h-28 font-mono text-[12px] leading-5"
+                controlSize="md"
                 onChange={(event) => setModelOptions((current) => current ? ({ ...current, provider_options_text: event.target.value }) : current)}
                 spellCheck={false}
                 value={modelOptions.provider_options_text}
               />
             </label>
           </UiDialogBody>
-          <UiDialogFooter class_name="gap-2">
+          <UiDialogFooter className="gap-2">
             <UiButton
               onClick={onClose}
               size="sm"

@@ -11,9 +11,9 @@ import {
 } from "lucide-react";
 
 import {
-  get_workspace_file_preview_url,
+  getWorkspaceFilePreviewUrl,
 } from "@/lib/api/agent-manage-api";
-import { get_workspace_file_external_action_copy } from "@/lib/workspace-file-action";
+import { getWorkspaceFileExternalActionCopy } from "@/lib/workspace-file-action";
 import { ConversationResizeHandle } from "./conversation-resize-handle";
 import {
   WorkspaceFileDownloadButton,
@@ -22,53 +22,53 @@ import {
 } from "./workspace-file-preview-chrome";
 
 interface PreviewFrameProps {
-  agent_id: string;
+  agentId: string;
   embedded?: boolean;
-  file_name: string;
-  is_preview_focused?: boolean;
-  on_resize_start: () => void;
-  on_toggle_preview_focus?: () => void;
+  fileName: string;
+  isPreviewFocused?: boolean;
+  onResizeStart: () => void;
+  onTogglePreviewFocus?: () => void;
   path: string;
 }
 
 interface BinaryFilePlaceholderProps {
-  agent_id: string;
+  agentId: string;
   embedded?: boolean;
-  file_name: string;
-  is_preview_focused?: boolean;
-  on_toggle_preview_focus?: () => void;
+  fileName: string;
+  isPreviewFocused?: boolean;
+  onTogglePreviewFocus?: () => void;
   path: string;
 }
 
 export function PdfPreview({
-  agent_id: agentId,
+  agentId: agentId,
   path,
-  file_name: fileName,
-  is_preview_focused: isPreviewFocused,
-  on_toggle_preview_focus: onTogglePreviewFocus,
-  on_resize_start: onResizeStart,
+  fileName: fileName,
+  isPreviewFocused: isPreviewFocused,
+  onTogglePreviewFocus: onTogglePreviewFocus,
+  onResizeStart: onResizeStart,
   embedded,
 }: PreviewFrameProps) {
   const [isLoaded, setIsLoaded] = useState(false);
-  const previewUrl = get_workspace_file_preview_url(agentId, path);
+  const previewUrl = getWorkspaceFilePreviewUrl(agentId, path);
 
   return (
     <>
       {!embedded ? (
         <ConversationResizeHandle
-          aria_label="调整编辑器宽度"
-          class_name="flex"
-          on_mouse_down={onResizeStart}
+          ariaLabel="调整编辑器宽度"
+          className="flex"
+          onMouseDown={onResizeStart}
         />
       ) : null}
 
       <WorkspaceFilePreviewHeader
         actions={(
           <>
-            <WorkspaceFileDownloadButton agent_id={agentId} file_name={fileName} path={path} />
+            <WorkspaceFileDownloadButton agentId={agentId} fileName={fileName} path={path} />
             <WorkspaceFilePreviewFocusButton
-              is_preview_focused={isPreviewFocused}
-              on_toggle_preview_focus={onTogglePreviewFocus}
+              isPreviewFocused={isPreviewFocused}
+              onTogglePreviewFocus={onTogglePreviewFocus}
             />
           </>
         )}
@@ -109,36 +109,36 @@ export function PdfPreview({
 }
 
 export function ImagePreview({
-  agent_id: agentId,
+  agentId: agentId,
   path,
-  file_name: fileName,
-  is_preview_focused: isPreviewFocused,
-  on_toggle_preview_focus: onTogglePreviewFocus,
-  on_resize_start: onResizeStart,
+  fileName: fileName,
+  isPreviewFocused: isPreviewFocused,
+  onTogglePreviewFocus: onTogglePreviewFocus,
+  onResizeStart: onResizeStart,
   embedded,
 }: PreviewFrameProps) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
-  const fileActionCopy = get_workspace_file_external_action_copy(fileName);
-  const previewUrl = get_workspace_file_preview_url(agentId, path);
+  const fileActionCopy = getWorkspaceFileExternalActionCopy(fileName);
+  const previewUrl = getWorkspaceFilePreviewUrl(agentId, path);
 
   return (
     <>
       {!embedded ? (
         <ConversationResizeHandle
-          aria_label="调整编辑器宽度"
-          class_name="flex"
-          on_mouse_down={onResizeStart}
+          ariaLabel="调整编辑器宽度"
+          className="flex"
+          onMouseDown={onResizeStart}
         />
       ) : null}
 
       <WorkspaceFilePreviewHeader
         actions={(
           <>
-            <WorkspaceFileDownloadButton agent_id={agentId} file_name={fileName} path={path} />
+            <WorkspaceFileDownloadButton agentId={agentId} fileName={fileName} path={path} />
             <WorkspaceFilePreviewFocusButton
-              is_preview_focused={isPreviewFocused}
-              on_toggle_preview_focus={onTogglePreviewFocus}
+              isPreviewFocused={isPreviewFocused}
+              onTogglePreviewFocus={onTogglePreviewFocus}
             />
           </>
         )}
@@ -197,14 +197,14 @@ export function ImagePreview({
 }
 
 export function BinaryFilePlaceholder({
-  agent_id: agentId,
+  agentId: agentId,
   path,
-  file_name: fileName,
-  is_preview_focused: isPreviewFocused,
-  on_toggle_preview_focus: onTogglePreviewFocus,
+  fileName: fileName,
+  isPreviewFocused: isPreviewFocused,
+  onTogglePreviewFocus: onTogglePreviewFocus,
   embedded,
 }: BinaryFilePlaceholderProps) {
-  const fileActionCopy = get_workspace_file_external_action_copy(fileName);
+  const fileActionCopy = getWorkspaceFileExternalActionCopy(fileName);
   const actionDescription = fileActionCopy.mode === "reveal"
     ? "在文件夹中显示此文件"
     : "获取此文件";
@@ -213,10 +213,10 @@ export function BinaryFilePlaceholder({
       <WorkspaceFilePreviewHeader
         actions={(
           <>
-            <WorkspaceFileDownloadButton agent_id={agentId} file_name={fileName} path={path} />
+            <WorkspaceFileDownloadButton agentId={agentId} fileName={fileName} path={path} />
             <WorkspaceFilePreviewFocusButton
-              is_preview_focused={isPreviewFocused}
-              on_toggle_preview_focus={onTogglePreviewFocus}
+              isPreviewFocused={isPreviewFocused}
+              onTogglePreviewFocus={onTogglePreviewFocus}
             />
           </>
         )}

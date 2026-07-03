@@ -1,7 +1,7 @@
 import {
   ComposerAttachmentKind,
-  get_attachment_rejection_reason,
-  get_composer_attachment_kind,
+  getAttachmentRejectionReason,
+  getComposerAttachmentKind,
 } from "./composer-attachments";
 
 export interface ComposerLocalAttachment {
@@ -43,7 +43,7 @@ function buildPastedImageFile(file: File, index: number): File {
   );
 }
 
-export function build_pasted_text_file(text: string): File {
+export function buildPastedTextFile(text: string): File {
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
   return new File([text], `pasted-text-${timestamp}.txt`, {
     lastModified: Date.now(),
@@ -51,7 +51,7 @@ export function build_pasted_text_file(text: string): File {
   });
 }
 
-export function get_clipboard_files(clipboardData: DataTransfer): File[] {
+export function getClipboardFiles(clipboardData: DataTransfer): File[] {
   const filesFromItems = Array.from(clipboardData.items)
     .filter((item) => item.kind === "file")
     .map((item) => item.getAsFile())
@@ -65,16 +65,16 @@ export function get_clipboard_files(clipboardData: DataTransfer): File[] {
   return Array.from(clipboardData.files).map(buildPastedImageFile);
 }
 
-export function build_local_attachment(
+export function buildLocalAttachment(
   file: File,
   unsupportedMessage: string,
 ): { attachment: ComposerLocalAttachment | null; rejection_reason: string | null } {
-  const rejectionReason = get_attachment_rejection_reason(file);
+  const rejectionReason = getAttachmentRejectionReason(file);
   if (rejectionReason) {
     return { attachment: null, rejection_reason: rejectionReason };
   }
 
-  const kind = get_composer_attachment_kind(file);
+  const kind = getComposerAttachmentKind(file);
   if (!kind) {
     return { attachment: null, rejection_reason: unsupportedMessage };
   }

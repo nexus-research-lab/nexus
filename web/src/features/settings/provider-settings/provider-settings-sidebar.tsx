@@ -12,41 +12,41 @@ import type {
 
 import { ProviderIcon } from "./provider-settings-icon";
 import {
-  get_provider_title,
-  is_custom_provider_record,
-  preset_is_configurable,
-  provider_has_active_config,
+  getProviderTitle,
+  isCustomProviderRecord,
+  presetIsConfigurable,
+  providerHasActiveConfig,
 } from "./provider-settings-model";
 
 interface ProviderSettingsSidebarProps {
-  configured_by_preset: Map<string, ProviderConfigRecord>;
-  custom_providers: ProviderConfigRecord[];
-  draft_preset_key: string;
-  is_creating: boolean;
-  is_editing: boolean;
+  configuredByPreset: Map<string, ProviderConfigRecord>;
+  customProviders: ProviderConfigRecord[];
+  draftPresetKey: string;
+  isCreating: boolean;
+  isEditing: boolean;
   loading: boolean;
-  on_create_from_preset: (presetKey: string) => void;
-  on_request_delete_provider: (item: ProviderConfigRecord) => void;
-  on_select_provider: (provider: string) => void;
-  pending_action: string | null;
-  preset_sidebar_items: ProviderPreset[];
-  selected_provider: string | null;
+  onCreateFromPreset: (presetKey: string) => void;
+  onRequestDeleteProvider: (item: ProviderConfigRecord) => void;
+  onSelectProvider: (provider: string) => void;
+  pendingAction: string | null;
+  presetSidebarItems: ProviderPreset[];
+  selectedProvider: string | null;
   submitting: boolean;
 }
 
 export function ProviderSettingsSidebar({
-  configured_by_preset: configuredByPreset,
-  custom_providers: customProviders,
-  draft_preset_key: draftPresetKey,
-  is_creating: isCreating,
-  is_editing: isEditing,
+  configuredByPreset: configuredByPreset,
+  customProviders: customProviders,
+  draftPresetKey: draftPresetKey,
+  isCreating: isCreating,
+  isEditing: isEditing,
   loading,
-  on_create_from_preset: onCreateFromPreset,
-  on_request_delete_provider: onRequestDeleteProvider,
-  on_select_provider: onSelectProvider,
-  pending_action: pendingAction,
-  preset_sidebar_items: presetSidebarItems,
-  selected_provider: selectedProvider,
+  onCreateFromPreset: onCreateFromPreset,
+  onRequestDeleteProvider: onRequestDeleteProvider,
+  onSelectProvider: onSelectProvider,
+  pendingAction: pendingAction,
+  presetSidebarItems: presetSidebarItems,
+  selectedProvider: selectedProvider,
   submitting,
 }: ProviderSettingsSidebarProps) {
   const { t } = useI18n();
@@ -84,7 +84,7 @@ export function ProviderSettingsSidebar({
               const isActive = item
                 ? item.provider === selectedProvider && isEditing
                 : isCreating && draftPresetKey === preset.preset_key;
-              const isUnsupportedPreset = !preset_is_configurable(preset);
+              const isUnsupportedPreset = !presetIsConfigurable(preset);
               return (
                 <button
                   className={cn(
@@ -110,9 +110,9 @@ export function ProviderSettingsSidebar({
                   type="button"
                 >
                   <ProviderIcon
-                    active={!isUnsupportedPreset && provider_has_active_config(item)}
+                    active={!isUnsupportedPreset && providerHasActiveConfig(item)}
                     name={preset.display_name}
-                    preset_key={preset.preset_key}
+                    presetKey={preset.preset_key}
                   />
                   <span className="min-w-0 flex-1 truncate">{preset.display_name}</span>
                   {isUnsupportedPreset ? (
@@ -126,7 +126,7 @@ export function ProviderSettingsSidebar({
 
             {customProviders.map((item) => {
               const isActive = item.provider === selectedProvider && isEditing;
-              const canShowDelete = is_custom_provider_record(item) && item.can_manage;
+              const canShowDelete = isCustomProviderRecord(item) && item.can_manage;
               return (
                 <div
                   className={cn(
@@ -143,16 +143,16 @@ export function ProviderSettingsSidebar({
                     type="button"
                   >
                     <ProviderIcon
-                      active={provider_has_active_config(item)}
-                      name={get_provider_title(item)}
-                      preset_key={item.preset_key}
+                      active={providerHasActiveConfig(item)}
+                      name={getProviderTitle(item)}
+                      presetKey={item.preset_key}
                     />
-                    <span className="min-w-0 flex-1 truncate">{get_provider_title(item)}</span>
+                    <span className="min-w-0 flex-1 truncate">{getProviderTitle(item)}</span>
                   </button>
                   {canShowDelete ? (
                     <UiIconButton
-                      aria-label={t("settings.providers.delete_aria", { name: get_provider_title(item) })}
-                      class_name={cn(
+                      aria-label={t("settings.providers.delete_aria", { name: getProviderTitle(item) })}
+                      className={cn(
                         "mr-1 h-7 w-7 transition-opacity group-hover:opacity-100 focus-visible:opacity-100",
                         isActive ? "opacity-100" : "opacity-0",
                       )}

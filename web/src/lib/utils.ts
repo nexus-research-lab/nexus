@@ -19,7 +19,7 @@ export { cn };
 /**
  * 格式化相对时间
  */
-export function format_relative_time(timestamp: number): string {
+export function formatRelativeTime(timestamp: number): string {
   if (!Number.isFinite(timestamp) || timestamp <= 0) {
     return '刚刚';
   }
@@ -43,7 +43,7 @@ export function format_relative_time(timestamp: number): string {
 /**
  * 格式化Token数量
  */
-export function format_tokens(tokens: number): string {
+export function formatTokens(tokens: number): string {
   if (tokens < 1000) return tokens.toString();
   if (tokens < 1000000) return `${(tokens / 1000).toFixed(1)}K`;
   return `${(tokens / 1000000).toFixed(1)}M`;
@@ -56,7 +56,7 @@ export function format_tokens(tokens: number): string {
 /**
  * 获取名称缩写
  */
-export function get_initials(
+export function getInitials(
   name: string | null | undefined,
   fallback = 'AG',
   maxLength = 2,
@@ -95,7 +95,7 @@ export const AGENT_ICON_ID_END = 53;
 export const ROOM_ICON_ID_START = 1;
 export const ROOM_ICON_ID_END = 36;
 
-export function get_icon_avatar_src(
+export function getIconAvatarSrc(
   avatar: string | null | undefined,
   iconFamily: AvatarIconFamily = "agent",
 ): string | null {
@@ -139,7 +139,7 @@ function getStableIconId(
 /**
  * 房间头像默认使用 room 图标全集里的稳定编号，保证未设置时也有稳定的视觉锚点。
  */
-export function get_room_avatar_icon_id(
+export function getRoomAvatarIconId(
   roomId: string | null | undefined,
   roomName: string | null | undefined,
   explicitAvatar?: string | null,

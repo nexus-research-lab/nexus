@@ -13,10 +13,10 @@ import {
 
 import { ONBOARDING_TOUR_CONTEXT } from "@/shared/ui/onboarding/tour-context";
 import {
-  hydrate_onboarding_state_from_desktop,
-  read_completed_tours,
-  reset_all_tour_state,
-  write_completed_tours,
+  hydrateOnboardingStateFromDesktop,
+  readCompletedTours,
+  resetAllTourState,
+  writeCompletedTours,
 } from "@/shared/ui/onboarding/tour-state";
 
 type TourPlacement = "top" | "right" | "bottom" | "left" | "center";
@@ -42,23 +42,23 @@ export interface OnboardingTourDefinition {
 }
 
 interface ActiveTourState {
-  tour_id: string;
-  step_index: number;
+  tourId: string;
+  stepIndex: number;
 }
 
 export interface OnboardingTourContextValue {
-  register_tour: (tour: OnboardingTourDefinition) => void;
-  unregister_tour: (tourId: string) => void;
-  start_tour: (tourId: string) => void;
-  close_tour: (options?: { completed?: boolean }) => void;
-  next_step: () => void;
-  previous_step: () => void;
-  has_completed_tour: (tourId: string) => boolean;
-  is_tour_registered: (tourId: string) => boolean;
-  reset_all_tours: () => void;
-  active_tour_id: string | null;
-  is_tour_state_ready: boolean;
-  reset_version: number;
+  registerTour: (tour: OnboardingTourDefinition) => void;
+  unregisterTour: (tourId: string) => void;
+  startTour: (tourId: string) => void;
+  closeTour: (options?: { completed?: boolean }) => void;
+  nextStep: () => void;
+  previousStep: () => void;
+  hasCompletedTour: (tourId: string) => boolean;
+  isTourRegistered: (tourId: string) => boolean;
+  resetAllTours: () => void;
+  activeTourId: string | null;
+  isTourStateReady: boolean;
+  resetVersion: number;
 }
 
 const OnboardingTourOverlay = lazy(() =>
@@ -77,7 +77,7 @@ function clampStepIndex(stepIndex: number, stepsCount: number): number {
 export function OnboardingTourProvider({ children }: { children: ReactNode }) {
   const toursRef = useRef<Record<string, OnboardingTourDefinition>>({});
   const [completedTours, setCompletedTours] = useState<Record<string, boolean>>(
-    () => read_completed_tours(),
+    () => readCompletedTours(),
   );
   const [activeTour, setActiveTour] = useState<ActiveTourState | null>(null);
   const [isTourStateReady, setIsTourStateReady] = useState(false);
@@ -85,11 +85,11 @@ export function OnboardingTourProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
-    void hydrate_onboarding_state_from_desktop().then((state) => {
+    void hydrateOnboardingStateFromDesktop().then((state) => {
       if (cancelled) {
         return;
       }
-      setCompletedTours(state.completed_tours);
+      setCompletedTours(state.completedTours);
       setIsTourStateReady(true);
     }).catch(() => {
       if (!cancelled) {
@@ -117,8 +117,8 @@ export function OnboardingTourProvider({ children }: { children: ReactNode }) {
     }
 
     setActiveTour({
-      tour_id: tourId,
-      step_index: 0,
+      tourId: tourId,
+      stepIndex: 0,
     });
   }, []);
 
@@ -132,9 +132,9 @@ export function OnboardingTourProvider({ children }: { children: ReactNode }) {
         setCompletedTours((previous) => {
           const nextValue = {
             ...previous,
-            [currentTour.tour_id]: true,
+            [currentTour.tourId]: true,
           };
-          write_completed_tours(nextValue);
+          writeCompletedTours(nextValue);
           return nextValue;
         });
       }
@@ -148,17 +148,17 @@ export function OnboardingTourProvider({ children }: { children: ReactNode }) {
       if (!currentTour) {
         return null;
       }
-      const currentDefinition = toursRef.current[currentTour.tour_id];
+      const currentDefinition = toursRef.current[currentTour.tourId];
       if (!currentDefinition) {
         return null;
       }
       const nextIndex = clampStepIndex(
-        currentTour.step_index + 1,
+        currentTour.stepIndex + 1,
         currentDefinition.steps.length,
       );
       return {
         ...currentTour,
-        step_index: nextIndex,
+        stepIndex: nextIndex,
       };
     });
   }, []);
@@ -168,17 +168,17 @@ export function OnboardingTourProvider({ children }: { children: ReactNode }) {
       if (!currentTour) {
         return null;
       }
-      const currentDefinition = toursRef.current[currentTour.tour_id];
+      const currentDefinition = toursRef.current[currentTour.tourId];
       if (!currentDefinition) {
         return null;
       }
       const nextIndex = clampStepIndex(
-        currentTour.step_index - 1,
+        currentTour.stepIndex - 1,
         currentDefinition.steps.length,
       );
       return {
         ...currentTour,
-        step_index: nextIndex,
+        stepIndex: nextIndex,
       };
     });
   }, []);
@@ -192,7 +192,7 @@ export function OnboardingTourProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const resetAllTours = useCallback(() => {
-    reset_all_tour_state();
+    resetAllTourState();
     setCompletedTours({});
     setActiveTour(null);
     setIsTourStateReady(true);
@@ -200,20 +200,20 @@ export function OnboardingTourProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const contextValue = useMemo<OnboardingTourContextValue>(() => ({
-    register_tour: registerTour,
-    unregister_tour: unregisterTour,
-    start_tour: startTour,
-    close_tour: closeTour,
-    next_step: nextStep,
-    previous_step: previousStep,
-    has_completed_tour: hasCompletedTour,
-    is_tour_registered: isTourRegistered,
-    reset_all_tours: resetAllTours,
-    active_tour_id: activeTour?.tour_id ?? null,
-    is_tour_state_ready: isTourStateReady,
-    reset_version: resetVersion,
+    registerTour: registerTour,
+    unregisterTour: unregisterTour,
+    startTour: startTour,
+    closeTour: closeTour,
+    nextStep: nextStep,
+    previousStep: previousStep,
+    hasCompletedTour: hasCompletedTour,
+    isTourRegistered: isTourRegistered,
+    resetAllTours: resetAllTours,
+    activeTourId: activeTour?.tourId ?? null,
+    isTourStateReady: isTourStateReady,
+    resetVersion: resetVersion,
   }), [
-    activeTour?.tour_id,
+    activeTour?.tourId,
     closeTour,
     hasCompletedTour,
     isTourRegistered,
@@ -228,7 +228,7 @@ export function OnboardingTourProvider({ children }: { children: ReactNode }) {
   ]);
 
   const activeTourDefinition = activeTour
-    ? toursRef.current[activeTour.tour_id] ?? null
+    ? toursRef.current[activeTour.tourId] ?? null
     : null;
 
   return (
@@ -237,10 +237,10 @@ export function OnboardingTourProvider({ children }: { children: ReactNode }) {
       {activeTourDefinition && activeTour ? (
         <Suspense fallback={null}>
           <OnboardingTourOverlay
-            on_close={closeTour}
-            on_next={nextStep}
-            on_previous={previousStep}
-            step_index={activeTour.step_index}
+            onClose={closeTour}
+            onNext={nextStep}
+            onPrevious={previousStep}
+            stepIndex={activeTour.stepIndex}
             tour={activeTourDefinition}
           />
         </Suspense>

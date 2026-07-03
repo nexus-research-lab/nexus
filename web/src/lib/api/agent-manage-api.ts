@@ -19,30 +19,30 @@ import {
   WorkspaceEntryRenameResponse,
 } from "@/types/agent/agent";
 import {
-  apply_desktop_request_headers,
-  is_desktop_runtime,
+  applyDesktopRequestHeaders,
+  isDesktopRuntime,
 } from "@/config/desktop-runtime";
-import { get_agent_api_base_url } from "@/config/options";
-import { transform_api_agent } from "@/lib/api/agent-transform";
-import { request_api } from "@/lib/api/http";
+import { getAgentApiBaseUrl } from "@/config/options";
+import { transformApiAgent } from "@/lib/api/agent-transform";
+import { requestApi } from "@/lib/api/http";
 
-const AGENT_API_BASE_URL = get_agent_api_base_url();
+const AGENT_API_BASE_URL = getAgentApiBaseUrl();
 
 // ==================== Agent API ====================
 
 /** 获取所有 Agent 列表 */
-export const get_agents = async (): Promise<Agent[]> => {
-  const result = await request_api<ApiAgent[]>(`${AGENT_API_BASE_URL}/agents`, {
+export const getAgents = async (): Promise<Agent[]> => {
+  const result = await requestApi<ApiAgent[]>(`${AGENT_API_BASE_URL}/agents`, {
     method: "GET",
   });
-  return result.map(transform_api_agent);
+  return result.map(transformApiAgent);
 };
 
 /** 创建 Agent */
-export const create_agent_api = async (
+export const createAgentApi = async (
   params: CreateAgentParams,
 ): Promise<Agent> => {
-  const result = await request_api<ApiAgent>(`${AGENT_API_BASE_URL}/agents`, {
+  const result = await requestApi<ApiAgent>(`${AGENT_API_BASE_URL}/agents`, {
     method: "POST",
     body: JSON.stringify({
       name: params.name,
@@ -52,15 +52,15 @@ export const create_agent_api = async (
       vibe_tags: params.vibe_tags ?? [],
     }),
   });
-  return transform_api_agent(result);
+  return transformApiAgent(result);
 };
 
 /** 更新 Agent */
-export const update_agent_api = async (
+export const updateAgentApi = async (
   agentId: string,
   params: UpdateAgentParams,
 ): Promise<Agent> => {
-  const result = await request_api<ApiAgent>(
+  const result = await requestApi<ApiAgent>(
     `${AGENT_API_BASE_URL}/agents/${agentId}`,
     {
       method: "PATCH",
@@ -73,14 +73,14 @@ export const update_agent_api = async (
       }),
     },
   );
-  return transform_api_agent(result);
+  return transformApiAgent(result);
 };
 
 /** 删除 Agent */
-export const delete_agent_api = async (
+export const deleteAgentApi = async (
   agentId: string,
 ): Promise<{ success: boolean }> => {
-  return request_api<{ success: boolean }>(
+  return requestApi<{ success: boolean }>(
     `${AGENT_API_BASE_URL}/agents/${agentId}`,
     {
       method: "DELETE",
@@ -89,7 +89,7 @@ export const delete_agent_api = async (
 };
 
 /** 校验 Agent 名称 */
-export const validate_agent_name_api = async (
+export const validateAgentNameApi = async (
   name: string,
   excludeAgentId?: string,
 ): Promise<AgentNameValidationResult> => {
@@ -98,7 +98,7 @@ export const validate_agent_name_api = async (
     query.set("exclude_agent_id", excludeAgentId);
   }
 
-  return request_api<AgentNameValidationResult>(
+  return requestApi<AgentNameValidationResult>(
     `${AGENT_API_BASE_URL}/agents/validate/name?${query.toString()}`,
     {
       method: "GET",
@@ -106,10 +106,10 @@ export const validate_agent_name_api = async (
   );
 };
 
-export const get_workspace_files_api = async (
+export const getWorkspaceFilesApi = async (
   agentId: string,
 ): Promise<WorkspaceFileEntry[]> => {
-  return request_api<WorkspaceFileEntry[]>(
+  return requestApi<WorkspaceFileEntry[]>(
     `${AGENT_API_BASE_URL}/agents/${agentId}/workspace/files`,
     {
       method: "GET",
@@ -117,12 +117,12 @@ export const get_workspace_files_api = async (
   );
 };
 
-export const get_workspace_file_content_api = async (
+export const getWorkspaceFileContentApi = async (
   agentId: string,
   path: string,
 ): Promise<WorkspaceFileContent> => {
   const query = new URLSearchParams({ path });
-  return request_api<WorkspaceFileContent>(
+  return requestApi<WorkspaceFileContent>(
     `${AGENT_API_BASE_URL}/agents/${agentId}/workspace/file?${query.toString()}`,
     {
       method: "GET",
@@ -130,12 +130,12 @@ export const get_workspace_file_content_api = async (
   );
 };
 
-export const update_workspace_file_content_api = async (
+export const updateWorkspaceFileContentApi = async (
   agentId: string,
   path: string,
   content: string,
 ): Promise<WorkspaceFileContent> => {
-  return request_api<WorkspaceFileContent>(
+  return requestApi<WorkspaceFileContent>(
     `${AGENT_API_BASE_URL}/agents/${agentId}/workspace/file`,
     {
       method: "PUT",
@@ -144,13 +144,13 @@ export const update_workspace_file_content_api = async (
   );
 };
 
-export const create_workspace_entry_api = async (
+export const createWorkspaceEntryApi = async (
   agentId: string,
   path: string,
   entryType: "file" | "directory",
   content: string = "",
 ): Promise<WorkspaceEntryMutationResponse> => {
-  return request_api<WorkspaceEntryMutationResponse>(
+  return requestApi<WorkspaceEntryMutationResponse>(
     `${AGENT_API_BASE_URL}/agents/${agentId}/workspace/entry`,
     {
       method: "POST",
@@ -159,12 +159,12 @@ export const create_workspace_entry_api = async (
   );
 };
 
-export const rename_workspace_entry_api = async (
+export const renameWorkspaceEntryApi = async (
   agentId: string,
   path: string,
   newPath: string,
 ): Promise<WorkspaceEntryRenameResponse> => {
-  return request_api<WorkspaceEntryRenameResponse>(
+  return requestApi<WorkspaceEntryRenameResponse>(
     `${AGENT_API_BASE_URL}/agents/${agentId}/workspace/entry`,
     {
       method: "PATCH",
@@ -173,12 +173,12 @@ export const rename_workspace_entry_api = async (
   );
 };
 
-export const delete_workspace_entry_api = async (
+export const deleteWorkspaceEntryApi = async (
   agentId: string,
   path: string,
 ): Promise<WorkspaceEntryMutationResponse> => {
   const query = new URLSearchParams({ path });
-  return request_api<WorkspaceEntryMutationResponse>(
+  return requestApi<WorkspaceEntryMutationResponse>(
     `${AGENT_API_BASE_URL}/agents/${agentId}/workspace/entry?${query.toString()}`,
     {
       method: "DELETE",
@@ -187,7 +187,7 @@ export const delete_workspace_entry_api = async (
 };
 
 /** 上传文件到 workspace */
-export const upload_workspace_file_api = async (
+export const uploadWorkspaceFileApi = async (
   agentId: string,
   file: File,
   path?: string,
@@ -198,7 +198,7 @@ export const upload_workspace_file_api = async (
     formData.append("path", path);
   }
 
-  const result = await request_api<{
+  const result = await requestApi<{
     path: string;
     name: string;
     size: number;
@@ -228,7 +228,7 @@ const getWorkspaceFileDownloadUrl = (
 };
 
 /** 获取 workspace 文件预览 URL */
-export const get_workspace_file_preview_url = (
+export const getWorkspaceFilePreviewUrl = (
   agentId: string,
   path: string,
 ): string => {
@@ -239,7 +239,7 @@ const revealWorkspaceFileInFolderApi = async (
   agentId: string,
   path: string,
 ): Promise<{ path: string }> => {
-  return request_api<{ path: string }>(
+  return requestApi<{ path: string }>(
     `${AGENT_API_BASE_URL}/agents/${agentId}/workspace/reveal`,
     {
       method: "POST",
@@ -258,12 +258,12 @@ function normalizeDownloadFileName(path: string, fileName?: string): string {
 }
 
 /** 桌面端在文件夹中定位，浏览器端下载文件，避免 HTML 触发桌面壳顶层导航。 */
-export async function download_workspace_file_api(
+export async function downloadWorkspaceFileApi(
   agentId: string,
   path: string,
   fileName?: string,
 ): Promise<void> {
-  if (is_desktop_runtime()) {
+  if (isDesktopRuntime()) {
     await revealWorkspaceFileInFolderApi(agentId, path);
     return;
   }
@@ -271,7 +271,7 @@ export async function download_workspace_file_api(
   const url = getWorkspaceFileDownloadUrl(agentId, path);
   const resolvedFileName = normalizeDownloadFileName(path, fileName);
   const headers = new Headers();
-  apply_desktop_request_headers(url, headers);
+  applyDesktopRequestHeaders(url, headers);
   const response = await fetch(url, {
     credentials: "include",
     headers,

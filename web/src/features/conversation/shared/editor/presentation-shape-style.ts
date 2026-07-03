@@ -7,43 +7,43 @@ import {
   type PresentationTransform,
 } from "./presentation-preview-model";
 import {
-  emu_to_pixel,
-  first_child_by_local_name,
-  first_descendant_by_local_name,
+  emuToPixel,
+  firstChildByLocalName,
+  firstDescendantByLocalName,
 } from "./presentation-xml-utils";
 
-export function read_group_transform(element: Element): PresentationGroupTransform | null {
-  const groupProperties = first_child_by_local_name(element, "grpSpPr");
-  const transform = first_child_by_local_name(groupProperties, "xfrm");
-  const offset = first_child_by_local_name(transform, "off");
-  const extent = first_child_by_local_name(transform, "ext");
-  const childOffset = first_child_by_local_name(transform, "chOff");
-  const childExtent = first_child_by_local_name(transform, "chExt");
+export function readGroupTransform(element: Element): PresentationGroupTransform | null {
+  const groupProperties = firstChildByLocalName(element, "grpSpPr");
+  const transform = firstChildByLocalName(groupProperties, "xfrm");
+  const offset = firstChildByLocalName(transform, "off");
+  const extent = firstChildByLocalName(transform, "ext");
+  const childOffset = firstChildByLocalName(transform, "chOff");
+  const childExtent = firstChildByLocalName(transform, "chExt");
   if (!offset || !extent || !childOffset || !childExtent) {
     return null;
   }
 
-  const childWidth = emu_to_pixel(Number(childExtent.getAttribute("cx") || 0));
-  const childHeight = emu_to_pixel(Number(childExtent.getAttribute("cy") || 0));
-  const width = emu_to_pixel(Number(extent.getAttribute("cx") || 0));
-  const height = emu_to_pixel(Number(extent.getAttribute("cy") || 0));
+  const childWidth = emuToPixel(Number(childExtent.getAttribute("cx") || 0));
+  const childHeight = emuToPixel(Number(childExtent.getAttribute("cy") || 0));
+  const width = emuToPixel(Number(extent.getAttribute("cx") || 0));
+  const height = emuToPixel(Number(extent.getAttribute("cy") || 0));
   if (childWidth <= 0 || childHeight <= 0 || width <= 0 || height <= 0) {
     return null;
   }
 
   return {
-    child_height: childHeight,
-    child_width: childWidth,
-    child_x: emu_to_pixel(Number(childOffset.getAttribute("x") || 0)),
-    child_y: emu_to_pixel(Number(childOffset.getAttribute("y") || 0)),
+    childHeight,
+    childWidth,
+    childX: emuToPixel(Number(childOffset.getAttribute("x") || 0)),
+    childY: emuToPixel(Number(childOffset.getAttribute("y") || 0)),
     height,
     width,
-    x: emu_to_pixel(Number(offset.getAttribute("x") || 0)),
-    y: emu_to_pixel(Number(offset.getAttribute("y") || 0)),
+    x: emuToPixel(Number(offset.getAttribute("x") || 0)),
+    y: emuToPixel(Number(offset.getAttribute("y") || 0)),
   };
 }
 
-export function apply_group_transform_to_element(
+export function applyGroupTransformToElement(
   element: PresentationElement,
   groupTransform: PresentationGroupTransform,
 ): PresentationElement {
@@ -61,18 +61,18 @@ export function apply_group_transform_to_element(
     ...transform,
     paragraphs: element.paragraphs.map((paragraph) => ({
       ...paragraph,
-      bullet_indent: paragraph.bullet_indent * scale,
-      font_size: paragraph.font_size * scale,
+      bulletIndent: paragraph.bulletIndent * scale,
+      fontSize: paragraph.fontSize * scale,
       runs: paragraph.runs.map((run) => ({
         ...run,
-        font_size: run.font_size * scale,
+        fontSize: run.fontSize * scale,
       })),
     })),
-    stroke_width: element.stroke_width * scale,
+    strokeWidth: element.strokeWidth * scale,
   };
 }
 
-export function map_group_placeholder_styles(
+export function mapGroupPlaceholderStyles(
   placeholderStyles: Map<string, PresentationPlaceholderStyle>,
   groupTransform: PresentationGroupTransform,
 ): Map<string, PresentationPlaceholderStyle> {
@@ -80,7 +80,7 @@ export function map_group_placeholder_styles(
     const scale = groupScale(groupTransform);
     return [key, {
       ...style,
-      stroke_width: style.stroke_width * scale,
+      strokeWidth: style.strokeWidth * scale,
       transform: applyGroupTransformToRect(style.transform, groupTransform),
     }];
   }));
@@ -90,40 +90,40 @@ function applyGroupTransformToRect(
   transform: PresentationTransform,
   groupTransform: PresentationGroupTransform,
 ): PresentationTransform {
-  const scaleX = groupTransform.width / groupTransform.child_width;
-  const scaleY = groupTransform.height / groupTransform.child_height;
+  const scaleX = groupTransform.width / groupTransform.childWidth;
+  const scaleY = groupTransform.height / groupTransform.childHeight;
   return {
     height: transform.height * scaleY,
     width: transform.width * scaleX,
-    x: groupTransform.x + ((transform.x - groupTransform.child_x) * scaleX),
-    y: groupTransform.y + ((transform.y - groupTransform.child_y) * scaleY),
+    x: groupTransform.x + ((transform.x - groupTransform.childX) * scaleX),
+    y: groupTransform.y + ((transform.y - groupTransform.childY) * scaleY),
   };
 }
 
 function groupScale(groupTransform: PresentationGroupTransform): number {
   return Math.min(
-    groupTransform.width / groupTransform.child_width,
-    groupTransform.height / groupTransform.child_height,
+    groupTransform.width / groupTransform.childWidth,
+    groupTransform.height / groupTransform.childHeight,
   );
 }
 
-export function read_transform(shapeProperties: Element | null): PresentationTransform | null {
-  const transform = first_child_by_local_name(shapeProperties, "xfrm") || first_descendant_by_local_name(shapeProperties, "xfrm");
-  const offset = first_child_by_local_name(transform, "off");
-  const extent = first_child_by_local_name(transform, "ext");
+export function readTransform(shapeProperties: Element | null): PresentationTransform | null {
+  const transform = firstChildByLocalName(shapeProperties, "xfrm") || firstDescendantByLocalName(shapeProperties, "xfrm");
+  const offset = firstChildByLocalName(transform, "off");
+  const extent = firstChildByLocalName(transform, "ext");
   if (!offset || !extent) {
     return null;
   }
 
   return {
-    height: emu_to_pixel(Number(extent.getAttribute("cy") || 0)),
-    width: emu_to_pixel(Number(extent.getAttribute("cx") || 0)),
-    x: emu_to_pixel(Number(offset.getAttribute("x") || 0)),
-    y: emu_to_pixel(Number(offset.getAttribute("y") || 0)),
+    height: emuToPixel(Number(extent.getAttribute("cy") || 0)),
+    width: emuToPixel(Number(extent.getAttribute("cx") || 0)),
+    x: emuToPixel(Number(offset.getAttribute("x") || 0)),
+    y: emuToPixel(Number(offset.getAttribute("y") || 0)),
   };
 }
 
-export function read_shape_geometry(
+export function readShapeGeometry(
   shapeProperties: Element | null,
   isConnector: boolean,
   fallbackGeometry?: PresentationShapeGeometry,
@@ -132,7 +132,7 @@ export function read_shape_geometry(
     return "line";
   }
 
-  const presetGeometry = first_child_by_local_name(shapeProperties, "prstGeom");
+  const presetGeometry = firstChildByLocalName(shapeProperties, "prstGeom");
   const preset = presetGeometry?.getAttribute("prst");
   switch (preset) {
     case "diamond":
@@ -153,34 +153,34 @@ export function read_shape_geometry(
   }
 }
 
-export function read_slide_background(slideDoc: Document): string | undefined {
-  const background = first_descendant_by_local_name(slideDoc, "bgPr");
-  return read_fill_color(background);
+export function readSlideBackground(slideDoc: Document): string | undefined {
+  const background = firstDescendantByLocalName(slideDoc, "bgPr");
+  return readFillColor(background);
 }
 
-export function read_fill_color(element: Element | null): string | undefined {
-  if (!element || first_child_by_local_name(element, "noFill")) {
+export function readFillColor(element: Element | null): string | undefined {
+  if (!element || firstChildByLocalName(element, "noFill")) {
     return undefined;
   }
 
-  const solidFill = first_descendant_by_local_name(element, "solidFill");
+  const solidFill = firstDescendantByLocalName(element, "solidFill");
   if (!solidFill) {
     return undefined;
   }
 
-  const srgbColor = first_child_by_local_name(solidFill, "srgbClr");
+  const srgbColor = firstChildByLocalName(solidFill, "srgbClr");
   const srgbValue = srgbColor?.getAttribute("val");
   if (srgbValue) {
     return applyColorLuminance(`#${srgbValue}`, srgbColor);
   }
 
-  const systemColor = first_child_by_local_name(solidFill, "sysClr");
+  const systemColor = firstChildByLocalName(solidFill, "sysClr");
   const systemValue = systemColor?.getAttribute("lastClr");
   if (systemValue) {
     return `#${systemValue}`;
   }
 
-  const presetColor = first_child_by_local_name(solidFill, "prstClr");
+  const presetColor = firstChildByLocalName(solidFill, "prstClr");
   const presetValue = presetColor?.getAttribute("val");
   if (presetValue === "white") {
     return "#ffffff";
@@ -189,7 +189,7 @@ export function read_fill_color(element: Element | null): string | undefined {
     return "#000000";
   }
 
-  const schemeColor = first_child_by_local_name(solidFill, "schemeClr");
+  const schemeColor = firstChildByLocalName(solidFill, "schemeClr");
   const schemeValue = schemeColor?.getAttribute("val");
   return schemeValue ? applyColorLuminance(SCHEME_COLORS[schemeValue], schemeColor) : undefined;
 }
@@ -199,8 +199,8 @@ function applyColorLuminance(color: string | undefined, colorElement: Element | 
     return undefined;
   }
 
-  const lumMod = Number(first_child_by_local_name(colorElement, "lumMod")?.getAttribute("val") || 100000);
-  const lumOff = Number(first_child_by_local_name(colorElement, "lumOff")?.getAttribute("val") || 0);
+  const lumMod = Number(firstChildByLocalName(colorElement, "lumMod")?.getAttribute("val") || 100000);
+  const lumOff = Number(firstChildByLocalName(colorElement, "lumOff")?.getAttribute("val") || 0);
   if (lumMod === 100000 && lumOff === 0) {
     return color;
   }
@@ -233,16 +233,16 @@ function clampColorChannel(value: number): number {
   return Math.max(0, Math.min(255, Math.round(value)));
 }
 
-export function read_stroke_color(shapeProperties: Element | null): string | undefined {
-  const line = first_child_by_local_name(shapeProperties, "ln");
-  if (!line || first_child_by_local_name(line, "noFill")) {
+export function readStrokeColor(shapeProperties: Element | null): string | undefined {
+  const line = firstChildByLocalName(shapeProperties, "ln");
+  if (!line || firstChildByLocalName(line, "noFill")) {
     return undefined;
   }
-  return read_fill_color(line) || "#64748b";
+  return readFillColor(line) || "#64748b";
 }
 
-export function read_stroke_width(shapeProperties: Element | null): number {
-  const line = first_child_by_local_name(shapeProperties, "ln");
+export function readStrokeWidth(shapeProperties: Element | null): number {
+  const line = firstChildByLocalName(shapeProperties, "ln");
   const width = Number(line?.getAttribute("w") || 0);
-  return width > 0 ? Math.max(emu_to_pixel(width), 1) : 1;
+  return width > 0 ? Math.max(emuToPixel(width), 1) : 1;
 }

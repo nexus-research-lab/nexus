@@ -14,10 +14,10 @@ import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 
-import { find_open_markdown_fence_language, read_markdown_fence_marker } from "./markdown-fence";
+import { findOpenMarkdownFenceLanguage, readMarkdownFenceMarker } from "./markdown-fence";
 import { remarkInlineHtmlTags, remarkMarkdownBreaks } from "./markdown-text-plugins";
 import {
-  resolve_workspace_artifact_path,
+  resolveWorkspaceArtifactPath,
   type ResolveWorkspaceFilePath,
 } from "./markdown-workspace-artifacts";
 
@@ -43,7 +43,7 @@ export const REHYPE_PLUGINS = [rehypeKatex];
 export const MARKDOWN_BODY_CLASS_NAME = "nexus-chat-markdown message-cjk-font w-full min-w-0 max-w-full overflow-x-hidden text-[15px] leading-7 text-(--text-strong) [&_strong]:font-semibold [&_strong]:text-(--text-strong) [&_em]:italic [&_hr]:my-4 [&_hr]:border-(--divider-subtle-color)";
 export const MARKDOWN_SUMMARY_CLASS_NAME = "nexus-chat-markdown message-cjk-font w-full min-w-0 max-w-full overflow-hidden text-[15px] leading-7 text-(--text-strong) [&_strong]:font-semibold [&_strong]:text-(--text-strong) [&_em]:italic";
 
-export function normalize_markdown_content(
+export function normalizeMarkdownContent(
   content: string,
   resolveFilePath: ResolveWorkspaceFilePath,
   onOpenWorkspaceFile?: (path: string) => void,
@@ -60,7 +60,7 @@ export function normalize_markdown_content(
     ) {
       return match;
     }
-    const resolvedPath = resolve_workspace_artifact_path(match, resolveFilePath);
+    const resolvedPath = resolveWorkspaceArtifactPath(match, resolveFilePath);
     return resolvedPath && onOpenWorkspaceFile ? `\`${match}\`` : match;
   });
 }
@@ -109,7 +109,7 @@ function escapeIdentifierAsterisksBeforeBrackets(content: string): string {
 
   return (content.match(/[^\n]*(?:\n|$)/g)?.filter((line) => line.length > 0) ?? [])
     .map((line) => {
-      const fenceMarker = read_markdown_fence_marker(line);
+      const fenceMarker = readMarkdownFenceMarker(line);
 
       if (openFence) {
         if (
@@ -165,7 +165,7 @@ function isInsideInlineCode(content: string, offset: number): boolean {
 function isInsideMarkdownProtectedRegion(content: string, offset: number): boolean {
   return (
     isInsideInlineCode(content, offset) ||
-    find_open_markdown_fence_language(content.slice(0, offset)) !== null
+    findOpenMarkdownFenceLanguage(content.slice(0, offset)) !== null
   );
 }
 

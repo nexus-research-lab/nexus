@@ -7,11 +7,11 @@ import { MessageRail, MessageRailBody, MessageRailLabel } from "../ui/message-ra
 
 interface ThinkingBlockProps {
   thinking: string;
-  is_streaming?: boolean;
-  workspace_agent_id?: string | null;
+  isStreaming?: boolean;
+  workspaceAgentId?: string | null;
 }
 
-export function ThinkingBlock({ thinking, is_streaming: isStreaming, workspace_agent_id: workspaceAgentId }: ThinkingBlockProps) {
+export function ThinkingBlock({ thinking, isStreaming: isStreaming, workspaceAgentId: workspaceAgentId }: ThinkingBlockProps) {
   const [isExpanded, setIsExpanded] = useState(Boolean(isStreaming));
   const [wasStreaming, setWasStreaming] = useState(Boolean(isStreaming));
 
@@ -32,7 +32,7 @@ export function ThinkingBlock({ thinking, is_streaming: isStreaming, workspace_a
         onClick={() => setIsExpanded((previous) => !previous)}
         type="button"
       >
-        <MessageRailLabel active={Boolean(isStreaming)} class_name="flex-1">
+        <MessageRailLabel active={Boolean(isStreaming)} className="flex-1">
           <span data-timeline-anchor data-timeline-anchor-mode="box" className="flex h-4 w-4 shrink-0 items-center justify-center">
             <Brain className={isStreaming ? "h-3 w-3 animate-pulse text-(--primary)" : "h-3 w-3 text-(--icon-muted)"} />
           </span>
@@ -47,12 +47,12 @@ export function ThinkingBlock({ thinking, is_streaming: isStreaming, workspace_a
         </span>
       </button>
       {isExpanded ? (
-        <MessageRailBody class_name="pt-1">
+        <MessageRailBody className="pt-1">
           <MarkdownRenderer
             content={thinking}
-            is_streaming={isStreaming}
-            class_name="min-w-0 max-w-full overflow-hidden break-all"
-            workspace_agent_id={workspaceAgentId}
+            isStreaming={isStreaming}
+            className="min-w-0 max-w-full overflow-hidden break-all"
+            workspaceAgentId={workspaceAgentId}
           />
         </MessageRailBody>
       ) : null}

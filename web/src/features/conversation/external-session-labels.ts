@@ -1,4 +1,4 @@
-import { parse_session_key } from "@/lib/conversation/session-key";
+import { parseSessionKey } from "@/lib/conversation/session-key";
 
 const CHANNEL_LABELS: Record<string, string> = {
   dingtalk: "钉钉",
@@ -19,21 +19,21 @@ const SUPPORTED_EXTERNAL_CHANNELS = new Set(Object.keys(CHANNEL_LABELS));
 const EXTERNAL_SESSION_CONVERSATION_PREFIX = "external-session:";
 
 function normalizeChannel(channelType?: string | null, sessionKey?: string | null): string {
-  const parsed = parse_session_key(sessionKey);
+  const parsed = parseSessionKey(sessionKey);
   return (channelType || parsed.channel || "").trim();
 }
 
-export function is_external_session_channel(channelType?: string | null, sessionKey?: string | null): boolean {
+export function isExternalSessionChannel(channelType?: string | null, sessionKey?: string | null): boolean {
   const channel = normalizeChannel(channelType, sessionKey);
   return !INTERNAL_CHANNELS.has(channel) && SUPPORTED_EXTERNAL_CHANNELS.has(channel);
 }
 
-export function get_session_channel_label(channelType?: string | null, sessionKey?: string | null): string {
+export function getSessionChannelLabel(channelType?: string | null, sessionKey?: string | null): string {
   const channel = normalizeChannel(channelType, sessionKey);
   return CHANNEL_LABELS[channel] ?? (channel || "外部通道");
 }
 
-export function format_external_session_title({
+export function formatExternalSessionTitle({
   title,
 }: {
   title?: string | null;
@@ -51,17 +51,17 @@ function formatExternalSessionSummary({
   chat_type?: string | null;
   session_key?: string | null;
 }): string {
-  const parsed = parse_session_key(sessionKey);
-  const channelLabel = get_session_channel_label(channelType, sessionKey);
+  const parsed = parseSessionKey(sessionKey);
+  const channelLabel = getSessionChannelLabel(channelType, sessionKey);
   const chatLabel = (chatType || parsed.chat_type) === "group" ? "群聊" : "私聊";
   return `${channelLabel}${chatLabel}`;
 }
 
-export function build_external_session_conversation_id(sessionKey: string): string {
+export function buildExternalSessionConversationId(sessionKey: string): string {
   return `${EXTERNAL_SESSION_CONVERSATION_PREFIX}${sessionKey.trim()}`;
 }
 
-export function get_external_session_key_from_conversation_id(conversationId?: string | null): string | null {
+export function getExternalSessionKeyFromConversationId(conversationId?: string | null): string | null {
   const normalized = (conversationId ?? "").trim();
   if (!normalized.startsWith(EXTERNAL_SESSION_CONVERSATION_PREFIX)) {
     return null;
@@ -69,6 +69,6 @@ export function get_external_session_key_from_conversation_id(conversationId?: s
   return normalized.slice(EXTERNAL_SESSION_CONVERSATION_PREFIX.length).trim() || null;
 }
 
-export function is_external_session_conversation_id(conversationId?: string | null): boolean {
-  return get_external_session_key_from_conversation_id(conversationId) !== null;
+export function isExternalSessionConversationId(conversationId?: string | null): boolean {
+  return getExternalSessionKeyFromConversationId(conversationId) !== null;
 }

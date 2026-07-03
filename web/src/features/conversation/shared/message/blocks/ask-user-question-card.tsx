@@ -13,25 +13,25 @@ import type { UserQuestion } from "@/types/conversation/ask-user-question";
 
 interface AskUserQuestionCardProps {
   question: UserQuestion;
-  question_index: number;
-  selected_options: Set<string>;
-  custom_answer: string;
-  on_toggle_option: (questionIndex: number, optionLabel: string, multiSelect: boolean) => void;
-  on_custom_answer_change: (questionIndex: number, customAnswer: string, multiSelect: boolean) => void;
-  is_submitted: boolean;
-  default_expanded?: boolean;
+  questionIndex: number;
+  selectedOptions: Set<string>;
+  customAnswer: string;
+  onToggleOption: (questionIndex: number, optionLabel: string, multiSelect: boolean) => void;
+  onCustomAnswerChange: (questionIndex: number, customAnswer: string, multiSelect: boolean) => void;
+  isSubmitted: boolean;
+  defaultExpanded?: boolean;
 }
 
 /** 单个问题卡片（支持独立收起） */
 export function AskUserQuestionCard({
   question,
-  question_index: questionIndex,
-  selected_options: selectedOptions,
-  custom_answer: customAnswer,
-  on_toggle_option: onToggleOption,
-  on_custom_answer_change: onCustomAnswerChange,
-  is_submitted: isSubmitted,
-  default_expanded: defaultExpanded = false,
+  questionIndex: questionIndex,
+  selectedOptions: selectedOptions,
+  customAnswer: customAnswer,
+  onToggleOption: onToggleOption,
+  onCustomAnswerChange: onCustomAnswerChange,
+  isSubmitted: isSubmitted,
+  defaultExpanded: defaultExpanded = false,
 }: AskUserQuestionCardProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const isMultiSelect = question.multi_select ?? false;

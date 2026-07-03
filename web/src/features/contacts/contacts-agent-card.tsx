@@ -5,7 +5,7 @@ import { MessageSquareText, Users } from "lucide-react";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiAgentAvatar } from "@/shared/ui/avatar";
 import { Agent } from "@/types/agent/agent";
-import { format_provider_label } from "@/types/capability/provider";
+import { formatProviderLabel } from "@/types/capability/provider";
 import {
   WorkspaceCatalogBody,
   WorkspaceCatalogCard,
@@ -18,51 +18,51 @@ import {
 interface ContactsAgentCardProps {
   agent: Agent;
   /** 点击卡片本身 → 打开 AgentOptions 对话框（edit 模式） */
-  on_open_profile: () => void;
+  onOpenProfile: () => void;
   /** 💬 Chat 按钮 → ensureDirectRoom 发起 DM */
-  on_open_room: () => void;
+  onOpenRoom: () => void;
   /** 👥 Create Team 按钮 → 用该 Agent 创建 Room */
-  on_create_team: () => void;
+  onCreateTeam: () => void;
 }
 
 /** Agent 卡片 — 居中布局，底部动作收为轻量文本按钮，避免主区继续堆胶囊层。 */
 export function ContactsAgentCard({
   agent,
-  on_open_profile: onOpenProfile,
-  on_open_room: onOpenRoom,
-  on_create_team: onCreateTeam,
+  onOpenProfile: onOpenProfile,
+  onOpenRoom: onOpenRoom,
+  onCreateTeam: onCreateTeam,
 }: ContactsAgentCardProps) {
   const { t } = useI18n();
 
   // 提取配置信息
   const permissionMode = agent.options.permission_mode || "default";
-  const provider = format_provider_label(agent.options.provider);
+  const provider = formatProviderLabel(agent.options.provider);
   const allowedToolsCount = agent.options.allowed_tools?.length || 0;
   const skillsCount = agent.skills_count || 0;
 
   return (
     <WorkspaceCatalogCard
       align="center"
-      class_name="relative h-full overflow-hidden"
+      className="relative h-full overflow-hidden"
       interactive
       onClick={onOpenProfile}
       size="comfort"
     >
       <UiAgentAvatar
         avatar={agent.avatar}
-        class_name="relative z-10 mx-auto transition-all duration-300 hover:scale-105"
+        className="relative z-10 mx-auto transition-all duration-300 hover:scale-105"
         name={agent.name}
         size="lg"
       />
 
-      <WorkspaceCatalogBody class_name="mt-3 w-full" grow={false}>
+      <WorkspaceCatalogBody className="mt-3 w-full" grow={false}>
         <WorkspaceCatalogTitle size="lg" truncate>
           {agent.name}
         </WorkspaceCatalogTitle>
 
         {/* Agent 描述 */}
         {agent.description && (
-          <WorkspaceCatalogDescription class_name="mt-1.5 line-clamp-2 text-[13px] leading-tight" min_height={false}>
+          <WorkspaceCatalogDescription className="mt-1.5 line-clamp-2 text-[13px] leading-tight" minHeight={false}>
             {agent.description}
           </WorkspaceCatalogDescription>
         )}
@@ -86,7 +86,7 @@ export function ContactsAgentCard({
         </div>
       </WorkspaceCatalogBody>
 
-      <WorkspaceCatalogFooter class_name="mt-2 w-full gap-4" justify="center" onClick={(e) => e.stopPropagation()}>
+      <WorkspaceCatalogFooter className="mt-2 w-full gap-4" justify="center" onClick={(e) => e.stopPropagation()}>
         <WorkspaceCatalogTextAction onClick={onOpenRoom} tone="primary">
           <MessageSquareText className="h-3 w-3" />
           {t("contacts.chat")}

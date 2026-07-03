@@ -11,8 +11,8 @@ interface TypewriterFileViewProps {
   /** The full content being written (grows over time) */
   content: string;
   /** Width of the view container in px; used to measure line wraps */
-  container_width?: number;
-  class_name?: string;
+  containerWidth?: number;
+  className?: string;
 }
 
 /**
@@ -24,8 +24,8 @@ interface TypewriterFileViewProps {
  */
 export function TypewriterFileView({
   content,
-  container_width: containerWidth,
-  class_name: className,
+  containerWidth: containerWidth,
+  className: className,
 }: TypewriterFileViewProps) {
   const [lineCount, setLineCount] = useState(1);
   const preRef = useRef<HTMLPreElement>(null);

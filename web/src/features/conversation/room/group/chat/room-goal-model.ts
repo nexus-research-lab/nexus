@@ -20,7 +20,7 @@ function metadataString(
   return typeof value === "string" ? value.trim() : "";
 }
 
-export function resolve_default_room_goal_lead(
+export function resolveDefaultRoomGoalLead(
   roomMembers: Agent[],
   hostAgentId: string | null | undefined,
 ): string {
@@ -37,7 +37,7 @@ export function resolve_default_room_goal_lead(
   return "";
 }
 
-export function resolve_room_goal_lead_agent_id(
+export function resolveRoomGoalLeadAgentId(
   goal: Goal | null,
   roomMembers: Agent[],
   fallbackAgentId: string,
@@ -55,7 +55,7 @@ export function resolve_room_goal_lead_agent_id(
   return fallbackAgentId;
 }
 
-export function build_room_goal_metadata(
+export function buildRoomGoalMetadata(
   roomMembers: Agent[],
   leadAgentId: string,
 ): Record<string, unknown> {
@@ -68,19 +68,19 @@ export function build_room_goal_metadata(
   };
 }
 
-export function build_room_loop_goal_metadata(
+export function buildRoomLoopGoalMetadata(
   roomMembers: Agent[],
   leadAgentId: string,
   loop: LoopCatalogItem,
 ): Record<string, unknown> {
   return {
-    ...build_room_goal_metadata(roomMembers, leadAgentId),
+    ...buildRoomGoalMetadata(roomMembers, leadAgentId),
     [ROOM_GOAL_LOOP_SLUG_KEY]: loop.slug,
     [ROOM_GOAL_LOOP_TITLE_KEY]: loop.title,
   };
 }
 
-export function build_room_loop_goal_objective(loop: LoopCatalogItem): string {
+export function buildRoomLoopGoalObjective(loop: LoopCatalogItem): string {
   const lines = [
     `按 Loop「${loop.title}」推进这个 Room Goal。`,
     "",

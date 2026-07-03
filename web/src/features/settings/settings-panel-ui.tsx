@@ -20,17 +20,17 @@ interface SettingsSegmentedControlOption<T extends string> {
 }
 
 interface SettingsSegmentedControlProps<T extends string> {
-  aria_label: string;
+  ariaLabel: string;
   disabled?: boolean;
-  on_change: (value: T) => void;
+  onChange: (value: T) => void;
   options: ReadonlyArray<SettingsSegmentedControlOption<T>>;
   value: T;
 }
 
 export function SettingsSegmentedControl<T extends string>({
-  aria_label: ariaLabel,
+  ariaLabel: ariaLabel,
   disabled,
-  on_change: onChange,
+  onChange: onChange,
   options,
   value,
 }: SettingsSegmentedControlProps<T>) {

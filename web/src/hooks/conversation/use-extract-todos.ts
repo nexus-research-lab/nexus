@@ -1,10 +1,10 @@
 import { useMemo, useRef } from "react";
-import { are_equivalent_session_keys } from "@/lib/conversation/session-key";
+import { areEquivalentSessionKeys } from "@/lib/conversation/session-key";
 import { AssistantMessage, Message, SystemMessage, TaskProgressContent } from "@/types/conversation/message";
 import { TodoItem } from "@/types/conversation/todo";
 
 function isSameSessionMessage(message: Message, externalSessionKey: string): boolean {
-  return !message.session_key || are_equivalent_session_keys(message.session_key, externalSessionKey);
+  return !message.session_key || areEquivalentSessionKeys(message.session_key, externalSessionKey);
 }
 
 function isSameTodo(left: TodoItem, right: TodoItem): boolean {
@@ -384,7 +384,7 @@ function inferSystemTaskStatus(
   ) {
     return "in_progress";
   }
-  // task_notification 表示子任务已回报最终结果 = 终态，须优先于运行中的 fallback。
+  // taskNotification 表示子任务已回报最终结果 = 终态，须优先于运行中的 fallback。
   if (subtype === "task_notification") {
     return "completed";
   }

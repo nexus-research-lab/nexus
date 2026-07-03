@@ -18,8 +18,8 @@ import {
   useState,
 } from "react";
 
-import { hydrate_runtime_options } from "@/config/options";
-import { AuthStatus, get_auth_status, login_api, logout_api } from "@/lib/api/auth-api";
+import { hydrateRuntimeOptions } from "@/config/options";
+import { AuthStatus, getAuthStatus, loginApi, logoutApi } from "@/lib/api/auth-api";
 import { AUTH_REQUIRED_EVENT } from "@/lib/api/http";
 import { AUTH_CONTEXT } from "@/shared/auth/auth-context";
 
@@ -57,7 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshStatus = useCallback(async (): Promise<AuthStatus> => {
     setLoading(true);
     try {
-      const nextStatus = await get_auth_status();
+      const nextStatus = await getAuthStatus();
       startTransition(() => {
         setStatus(nextStatus);
         setError(null);
@@ -115,9 +115,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = useCallback(async (username: string, password: string): Promise<AuthStatus> => {
-    const nextStatus = await login_api({ username, password });
+    const nextStatus = await loginApi({ username, password });
     // 登录切换了用户作用域，运行时配置必须重新拉取，不能继续复用匿名或上个用户的默认 agent。
-    await hydrate_runtime_options();
+    await hydrateRuntimeOptions();
     startTransition(() => {
       setStatus(nextStatus);
       setError(null);
@@ -127,9 +127,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(async (): Promise<AuthStatus> => {
-    const nextStatus = await logout_api();
+    const nextStatus = await logoutApi();
     // 登出后同样需要重置运行时配置，避免下一个用户继续看到上个用户的主智能体配置。
-    await hydrate_runtime_options();
+    await hydrateRuntimeOptions();
     startTransition(() => {
       setStatus(nextStatus);
       setError(null);
@@ -141,9 +141,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const contextValue = useMemo(() => ({
     status,
     loading,
-    is_bootstrapped: isBootstrapped,
+    isBootstrapped,
     error,
-    refresh_status: refreshStatus,
+    refreshStatus,
     login,
     logout,
   }), [error, isBootstrapped, loading, login, logout, refreshStatus, status]);

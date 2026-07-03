@@ -15,19 +15,19 @@ import {
 
 export function GroupThreadContextProvider({
   children,
-  on_open_thread: onOpenThread,
+  onOpenThread: onOpenThread,
 }: {
   children: ReactNode;
-  on_open_thread?: () => void;
+  onOpenThread?: () => void;
 }) {
   const [activeThread, setActiveThread] = useState<ThreadTarget | null>(null);
 
   const openThread = useCallback((roundId: string, agentId: string) => {
     onOpenThread?.();
     setActiveThread((current) => (
-      current?.round_id === roundId && current.agent_id === agentId
+      current?.roundId === roundId && current.agentId === agentId
         ? current
-        : { round_id: roundId, agent_id: agentId }
+        : { roundId, agentId }
     ));
   }, [onOpenThread]);
 
@@ -36,7 +36,7 @@ export function GroupThreadContextProvider({
   }, []);
 
   const controlValue = useMemo<ThreadControlState>(
-    () => ({ active_thread: activeThread, open_thread: openThread, close_thread: closeThread }),
+    () => ({ activeThread, openThread, closeThread }),
     [activeThread, openThread, closeThread],
   );
 

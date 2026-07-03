@@ -30,7 +30,7 @@ export interface RoomThreadSource {
   current_user_avatar?: string | null;
   can_control_session: boolean;
   observer_read_only_reason: string;
-  // 发布前已用 callbacks_ref 稳定，引用恒定。
+  // 发布前已用 callbacksRef 稳定，引用恒定。
   on_permission_response: (payload: PermissionDecisionPayload) => boolean;
   on_stop_message: (msgId: string) => void;
   on_open_workspace_file?: (path: string) => void;

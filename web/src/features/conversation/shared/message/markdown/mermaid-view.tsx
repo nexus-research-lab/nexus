@@ -24,17 +24,17 @@ import {
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { cn } from "@/lib/utils";
-import { write_text_to_clipboard } from "@/hooks/ui/clipboard";
+import { writeTextToClipboard } from "@/hooks/ui/clipboard";
 import { DIALOG_ICON_BUTTON_CLASS_NAME } from "@/shared/ui/dialog/dialog-styles";
 import { useMermaidSvg } from "./use-mermaid-svg";
 
 export interface MermaidViewProps {
   chart: string;
   compact?: boolean;
-  class_name?: string;
-  constrain_height?: boolean;
-  is_streaming?: boolean;
-  show_header?: boolean;
+  className?: string;
+  constrainHeight?: boolean;
+  isStreaming?: boolean;
+  showHeader?: boolean;
 }
 
 type MermaidViewMode = "preview" | "source";
@@ -45,11 +45,11 @@ const MERMAID_MARKDOWN_MAX_HEIGHT_CLASS_NAME = "max-h-[420px]";
 function MermaidModeButton({
   active,
   children,
-  on_click: onClick,
+  onClick: onClick,
 }: {
   active: boolean;
   children: ReactNode;
-  on_click: () => void;
+  onClick: () => void;
 }) {
   return (
     <button
@@ -93,11 +93,11 @@ function getMermaidSvgClassName(compact: boolean, constrainHeight: boolean) {
 function MermaidSourceView({
   chart,
   compact,
-  constrain_height: constrainHeight,
+  constrainHeight: constrainHeight,
 }: {
   chart: string;
   compact: boolean;
-  constrain_height: boolean;
+  constrainHeight: boolean;
 }) {
   return (
           <div
@@ -127,13 +127,13 @@ interface MermaidPreviewDragState {
 }
 
 function MermaidImagePreviewDialog({
-  is_open: isOpen,
+  isOpen: isOpen,
   svg,
-  on_close: onClose,
+  onClose: onClose,
 }: {
-  is_open: boolean;
+  isOpen: boolean;
   svg: string;
-  on_close: () => void;
+  onClose: () => void;
 }) {
   const imageUrl = useMemo(() => buildSvgDataUrl(svg), [svg]);
   const previewScrollRef = useRef<HTMLDivElement | null>(null);
@@ -295,10 +295,10 @@ function MermaidImagePreviewDialog({
 export function MermaidView({
   chart,
   compact = false,
-  class_name: className,
-  constrain_height: constrainHeight = true,
-  is_streaming: isStreaming = false,
-  show_header: showHeader = true,
+  className: className,
+  constrainHeight: constrainHeight = true,
+  isStreaming: isStreaming = false,
+  showHeader: showHeader = true,
 }: MermaidViewProps) {
   const renderIdPrefix = `mermaid-${useId().replace(/:/g, "")}`;
   const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -316,7 +316,7 @@ export function MermaidView({
   }, []);
 
   const handleCopySource = async () => {
-    if (!await write_text_to_clipboard(chart)) {
+    if (!await writeTextToClipboard(chart)) {
       return;
     }
 
@@ -432,14 +432,14 @@ export function MermaidView({
             >
               <MermaidModeButton
                 active={viewMode === "preview"}
-                on_click={() => setViewMode("preview")}
+                onClick={() => setViewMode("preview")}
               >
                 <Eye className="h-3.5 w-3.5" />
                 预览
               </MermaidModeButton>
               <MermaidModeButton
                 active={viewMode === "source"}
-                on_click={() => setViewMode("source")}
+                onClick={() => setViewMode("source")}
               >
                 <Code2 className="h-3.5 w-3.5" />
                 源码
@@ -459,15 +459,15 @@ export function MermaidView({
         )}
       >
         {viewMode === "source" ? (
-          <MermaidSourceView chart={chart} compact={compact} constrain_height={constrainHeight} />
+          <MermaidSourceView chart={chart} compact={compact} constrainHeight={constrainHeight} />
         ) : (
           renderPreview()
         )}
       </div>
       <MermaidImagePreviewDialog
-        is_open={isImagePreviewOpen}
+        isOpen={isImagePreviewOpen}
         svg={svg}
-        on_close={() => setIsImagePreviewOpen(false)}
+        onClose={() => setIsImagePreviewOpen(false)}
       />
     </div>
   );

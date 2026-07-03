@@ -16,9 +16,9 @@ export interface MentionTargetItem {
 interface MentionTargetPopoverProps {
     items: MentionTargetItem[];
     filter: string;
-    anchor_rect: DOMRect | null;
-    on_select: (item: MentionTargetItem) => void;
-    on_close: () => void;
+    anchorRect: DOMRect | null;
+    onSelect: (item: MentionTargetItem) => void;
+    onClose: () => void;
     placement?: "above" | "below" | "auto";
 }
 
@@ -30,9 +30,9 @@ interface MentionTargetPopoverProps {
 export const MentionTargetPopover = memo(({
     items,
     filter,
-    anchor_rect: anchorRect,
-    on_select: onSelect,
-    on_close: onClose,
+    anchorRect: anchorRect,
+    onSelect: onSelect,
+    onClose: onClose,
     placement = "auto",
 }: MentionTargetPopoverProps) => {
     const [activeIndex, setActiveIndex] = useResettableState(0, filter);

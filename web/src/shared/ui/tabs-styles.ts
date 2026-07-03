@@ -7,14 +7,14 @@ interface UiUnderlineTabStyleOptions {
   density?: UiTabsDensity;
 }
 
-export function get_ui_underline_tabs_nav_class_name(className?: string): string {
+export function getUiUnderlineTabsNavClassName(className?: string): string {
   return cn(
     "soft-scrollbar scrollbar-hide flex min-w-0 items-center gap-4 overflow-x-auto",
     className,
   );
 }
 
-export function get_ui_underline_tab_class_name(
+export function getUiUnderlineTabClassName(
   options: UiUnderlineTabStyleOptions = {},
   className?: string,
 ): string {

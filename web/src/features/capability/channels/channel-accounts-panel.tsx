@@ -26,12 +26,12 @@ function channelAccountStatusLabel(status: string) {
 
 export function ChannelAccountsPanel({
   accounts,
-  deleting_account_id: deletingAccountId,
-  on_delete: onDelete,
+  deletingAccountId: deletingAccountId,
+  onDelete: onDelete,
 }: {
   accounts: ChannelAccountView[];
-  deleting_account_id: string;
-  on_delete: (account: ChannelAccountView) => void;
+  deletingAccountId: string;
+  onDelete: (account: ChannelAccountView) => void;
 }) {
   return (
     <div className="rounded-[14px] border border-(--divider-subtle-color) bg-transparent px-4 py-3">
@@ -74,7 +74,7 @@ export function ChannelAccountsPanel({
                 disabled={deletingAccountId === account.account_id}
                 onClick={() => onDelete(account)}
                 size="sm"
-                stop_propagation
+                stopPropagation
                 title="删除该账号"
               >
                 {deletingAccountId === account.account_id ? (

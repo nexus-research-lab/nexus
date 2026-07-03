@@ -4,7 +4,7 @@ import { Loader2, Plus, ShieldCheck } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
 
 import {
-  create_pairing_api,
+  createPairingApi,
   ImChatType,
   ImChannelType,
   ImPairingStatus,
@@ -31,14 +31,14 @@ import {
 
 export function CreatePairingDialog({
   agents,
-  on_close: onClose,
-  on_created: onCreated,
-  on_error: onError,
+  onClose: onClose,
+  onCreated: onCreated,
+  onError: onError,
 }: {
   agents: Agent[];
-  on_close: () => void;
-  on_created: (item: PairingView) => void;
-  on_error: (message: string) => void;
+  onClose: () => void;
+  onCreated: (item: PairingView) => void;
+  onError: (message: string) => void;
 }) {
   const [channelType, setChannelType] = useState<ImChannelType>("feishu");
   const [accountId, setAccountId] = useState("");
@@ -65,7 +65,7 @@ export function CreatePairingDialog({
     }
     setSaving(true);
     try {
-      const created = await create_pairing_api({
+      const created = await createPairingApi({
         channel_type: channelType,
         account_id: accountId.trim() || undefined,
         chat_type: chatType,
@@ -86,22 +86,22 @@ export function CreatePairingDialog({
 
   return (
     <UiDialogPortal>
-      <UiDialogBackdrop class_name="z-[9999]" labelled_by="create-pairing-dialog-title" on_close={onClose}>
-        <UiDialogFormShell class_name="max-h-[86vh]" onSubmit={handleSubmit} size="lg">
+      <UiDialogBackdrop className="z-[9999]" labelledBy="create-pairing-dialog-title" onClose={onClose}>
+        <UiDialogFormShell className="max-h-[86vh]" onSubmit={handleSubmit} size="lg">
           <UiDialogHeader
             icon={<ShieldCheck className="h-5 w-5" />}
-            on_close={onClose}
+            onClose={onClose}
             subtitle="为已知外部用户、群或话题预先建立 IM 授权关系；只有渠道、会话类型、外部 ID 和 Thread 都相同时才会更新已有配对。"
             title="新增 IM 配对"
-            title_id="create-pairing-dialog-title"
+            titleId="create-pairing-dialog-title"
           />
 
-          <UiDialogBody class_name="space-y-4" scrollable>
+          <UiDialogBody className="space-y-4" scrollable>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <UiField label="渠道">
                 <UiSelectMenu
-                  aria_label="选择 IM 渠道"
-                  on_change={(value) => setChannelType(value as ImChannelType)}
+                  ariaLabel="选择 IM 渠道"
+                  onChange={(value) => setChannelType(value as ImChannelType)}
                   options={CHANNEL_OPTIONS}
                   size="sm"
                   value={channelType}
@@ -109,8 +109,8 @@ export function CreatePairingDialog({
               </UiField>
               <UiField label="会话类型">
                 <UiSelectMenu
-                  aria_label="选择会话类型"
-                  on_change={(value) => setChatType(value as ImChatType)}
+                  ariaLabel="选择会话类型"
+                  onChange={(value) => setChatType(value as ImChatType)}
                   options={CHAT_TYPE_OPTIONS}
                   size="sm"
                   value={chatType}
@@ -165,9 +165,9 @@ export function CreatePairingDialog({
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <UiField label={<>处理智能体 <span className="text-(--destructive)">*</span></>}>
                 <UiSelectMenu
-                  aria_label="选择处理智能体"
+                  ariaLabel="选择处理智能体"
                   disabled={agents.length === 0}
-                  on_change={setAgentId}
+                  onChange={setAgentId}
                   options={agents.map((agent) => ({
                     value: agent.agent_id,
                     label: agent.name,
@@ -178,8 +178,8 @@ export function CreatePairingDialog({
               </UiField>
               <UiField label="初始状态">
                 <UiSelectMenu
-                  aria_label="选择初始配对状态"
-                  on_change={(value) => setStatus(value as ImPairingStatus)}
+                  ariaLabel="选择初始配对状态"
+                  onChange={(value) => setStatus(value as ImPairingStatus)}
                   options={CREATE_PAIRING_STATUS_OPTIONS}
                   size="sm"
                   value={status}
@@ -193,11 +193,11 @@ export function CreatePairingDialog({
           </UiDialogBody>
 
           <UiDialogFooter>
-            <UiButton class_name="min-w-[104px]" disabled={saving} onClick={onClose} size="lg" type="button">
+            <UiButton className="min-w-[104px]" disabled={saving} onClick={onClose} size="lg" type="button">
               取消
             </UiButton>
             <UiButton
-              class_name="min-w-[124px]"
+              className="min-w-[124px]"
               disabled={saving || !externalRef.trim() || !agentId}
               size="lg"
               tone="primary"

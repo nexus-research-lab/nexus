@@ -34,7 +34,7 @@ function getInitials(name: string) {
   return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
 }
 
-export function truncate_launcher_chip_label(
+export function truncateLauncherChipLabel(
   label: string,
   maxChars: number = 10,
 ): string {
@@ -49,14 +49,14 @@ export function truncate_launcher_chip_label(
   return `${chars.slice(0, headCount).join("")}…${chars.slice(-tailCount).join("")}`;
 }
 
-export function is_launcher_chip_truncated(
+export function isLauncherChipTruncated(
   label: string,
   maxChars: number = 6,
 ): boolean {
   return Array.from(label.trim()).length > maxChars;
 }
 
-export function build_decorative_tokens(
+export function buildDecorativeTokens(
   agents: LauncherAgentSummary[],
   rooms: LauncherRoomSummary[],
 ): SpotlightToken[] {
@@ -121,7 +121,7 @@ export function build_decorative_tokens(
   return source.slice(0, 12);
 }
 
-export function build_launcher_mention_targets(
+export function buildLauncherMentionTargets(
   agents: LauncherAgentSummary[],
   rooms: LauncherRoomSummary[],
 ): MentionTargetItem[] {
@@ -151,7 +151,7 @@ export function build_launcher_mention_targets(
   return [...agentTargets, ...roomTargets];
 }
 
-export function find_launcher_mention_match(
+export function findLauncherMentionMatch(
   value: string,
   cursorPos: number,
 ): LauncherMentionMatch | null {
@@ -170,7 +170,7 @@ export function find_launcher_mention_match(
   };
 }
 
-export function build_recent_launcher_entries(
+export function buildRecentLauncherEntries(
   conversations: LauncherConversationSummary[],
 ): RecentLauncherEntry[] {
   return conversations

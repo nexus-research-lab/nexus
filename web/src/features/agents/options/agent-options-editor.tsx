@@ -27,33 +27,33 @@ export function AgentOptionsEditor(props: AgentOptionsEditorProps) {
   const controller = useAgentOptionsEditorController(props);
   const content = (
     <>
-      {controller.active_tab === "identity" && (
-        <AgentOptionsIdentityTab {...controller.identity_props} />
+      {controller.activeTab === "identity" && (
+        <AgentOptionsIdentityTab {...controller.identityProps} />
       )}
 
-      {controller.active_tab === "advanced" && (
-        <AgentOptionsAdvancedTab {...controller.advanced_props} />
+      {controller.activeTab === "advanced" && (
+        <AgentOptionsAdvancedTab {...controller.advancedProps} />
       )}
 
-      {controller.active_tab === "skills" && (
+      {controller.activeTab === "skills" && (
         <AgentOptionsSkillsTab
-          agent_id={controller.skills_agent_id}
-          is_visible={controller.is_active && controller.active_tab === "skills"}
+          agentId={controller.skillsAgentId}
+          isVisible={controller.isActive && controller.activeTab === "skills"}
         />
       )}
     </>
   );
 
   if (controller.variant === "inline") {
-    const saveFeedback = controller.save_feedback ? (
+    const saveFeedback = controller.saveFeedback ? (
       <span
         className={cn(
           "max-w-[280px] truncate text-[12px]",
-          controller.save_feedback.tone === "success" ? "text-(--success)" : "text-(--destructive)",
+          controller.saveFeedback.tone === "success" ? "text-(--success)" : "text-(--destructive)",
         )}
-        title={controller.save_feedback.message}
+        title={controller.saveFeedback.message}
       >
-        {controller.save_feedback.message}
+        {controller.saveFeedback.message}
       </span>
     ) : null;
     const saveButton = (
@@ -61,25 +61,25 @@ export function AgentOptionsEditor(props: AgentOptionsEditorProps) {
         {saveFeedback}
         <UiButton
           onClick={() => {
-            void controller.handle_save();
+            void controller.handleSave();
           }}
-          disabled={!controller.can_save}
+          disabled={!controller.canSave}
           size="sm"
-          tone={controller.can_save ? "primary" : "default"}
+          tone={controller.canSave ? "primary" : "default"}
           type="button"
           variant="surface"
         >
-          {controller.save_button_label}
+          {controller.saveButtonLabel}
         </UiButton>
       </>
     );
 
     return (
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        {!controller.hide_inline_nav ? (
+        {!controller.hideInlineNav ? (
           <AgentOptionsNav
-            active_tab={controller.active_tab}
-            on_tab_change={controller.set_active_tab}
+            activeTab={controller.activeTab}
+            onTabChange={controller.setActiveTab}
             variant="inline"
             trailing={saveButton}
           />
@@ -89,7 +89,7 @@ export function AgentOptionsEditor(props: AgentOptionsEditorProps) {
           <div
             className={cn(
               "w-full px-6 py-5",
-              controller.content_max_width_class_name,
+              controller.contentMaxWidthClassName,
               "mx-auto"
             )}
           >
@@ -97,29 +97,29 @@ export function AgentOptionsEditor(props: AgentOptionsEditorProps) {
           </div>
         </div>
 
-        {controller.can_delete || (controller.show_cancel_button && controller.on_cancel) || controller.hide_inline_nav ? (
+        {controller.canDelete || (controller.showCancelButton && controller.onCancel) || controller.hideInlineNav ? (
           <div className="flex items-center justify-end gap-2 border-t dialog-divider px-6 py-3">
-            {controller.can_delete ? (
+            {controller.canDelete ? (
               <UiButton
-                class_name="mr-auto"
-                onClick={controller.handle_delete}
+                className="mr-auto"
+                onClick={controller.handleDelete}
                 tone="danger"
                 type="button"
                 variant="surface"
               >
-                {controller.delete_agent_label}
+                {controller.deleteAgentLabel}
               </UiButton>
             ) : null}
-            {controller.show_cancel_button && controller.on_cancel ? (
+            {controller.showCancelButton && controller.onCancel ? (
               <UiButton
-                onClick={controller.on_cancel}
+                onClick={controller.onCancel}
                 type="button"
                 variant="surface"
               >
-                {controller.cancel_label}
+                {controller.cancelLabel}
               </UiButton>
             ) : null}
-            {controller.hide_inline_nav ? saveButton : null}
+            {controller.hideInlineNav ? saveButton : null}
           </div>
         ) : null}
       </div>
@@ -130,8 +130,8 @@ export function AgentOptionsEditor(props: AgentOptionsEditorProps) {
     <>
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <AgentOptionsNav
-          active_tab={controller.active_tab}
-          on_tab_change={controller.set_active_tab}
+          activeTab={controller.activeTab}
+          onTabChange={controller.setActiveTab}
         />
 
         <div className="flex-1 overflow-y-auto bg-transparent p-6 [overflow-anchor:none] [scrollbar-gutter:stable]">
@@ -140,46 +140,46 @@ export function AgentOptionsEditor(props: AgentOptionsEditorProps) {
       </div>
 
       <div className="dialog-footer px-5 py-3.5">
-        {controller.can_delete ? (
+        {controller.canDelete ? (
           <UiButton
-            class_name="mr-auto"
-            onClick={controller.handle_delete}
+            className="mr-auto"
+            onClick={controller.handleDelete}
             tone="danger"
             type="button"
             variant="surface"
           >
-            {controller.delete_agent_label}
+            {controller.deleteAgentLabel}
           </UiButton>
         ) : null}
-        {controller.show_cancel_button && controller.on_cancel ? (
+        {controller.showCancelButton && controller.onCancel ? (
           <UiButton
-            onClick={controller.on_cancel}
+            onClick={controller.onCancel}
             type="button"
             variant="surface"
           >
-            {controller.cancel_label}
+            {controller.cancelLabel}
           </UiButton>
         ) : null}
         <UiButton
           onClick={() => {
-            void controller.handle_save();
+            void controller.handleSave();
           }}
-          disabled={!controller.can_save}
-          tone={controller.can_save ? "primary" : "default"}
+          disabled={!controller.canSave}
+          tone={controller.canSave ? "primary" : "default"}
           type="button"
           variant="surface"
         >
-          {controller.save_button_label}
+          {controller.saveButtonLabel}
         </UiButton>
-        {controller.save_feedback ? (
+        {controller.saveFeedback ? (
           <span
             className={cn(
               "max-w-[260px] truncate text-[12px]",
-              controller.save_feedback.tone === "success" ? "text-(--success)" : "text-(--destructive)",
+              controller.saveFeedback.tone === "success" ? "text-(--success)" : "text-(--destructive)",
             )}
-            title={controller.save_feedback.message}
+            title={controller.saveFeedback.message}
           >
-            {controller.save_feedback.message}
+            {controller.saveFeedback.message}
           </span>
         ) : null}
       </div>

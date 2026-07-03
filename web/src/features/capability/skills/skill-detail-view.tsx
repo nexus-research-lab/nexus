@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { delete_skill_api, get_skill_detail_api, update_single_skill_api } from "@/lib/api/skill-api";
+import { deleteSkillApi, getSkillDetailApi, updateSingleSkillApi } from "@/lib/api/skill-api";
 import { UiBadge } from "@/shared/ui/badge";
 import { UiButton } from "@/shared/ui/button";
 import { WORKSPACE_DETAIL_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
@@ -24,10 +24,10 @@ import type { SkillDetail } from "@/types/capability/skill";
 import { SkillMarkdown } from "./skill-markdown";
 
 interface SkillDetailViewProps {
-  skill_name: string;
-  on_back: () => void;
-  on_deleted: () => Promise<void> | void;
-  on_refreshed: () => Promise<void> | void;
+  skillName: string;
+  onBack: () => void;
+  onDeleted: () => Promise<void> | void;
+  onRefreshed: () => Promise<void> | void;
 }
 
 function getSkillSourceLabel(skill: SkillDetail): string {
@@ -37,24 +37,28 @@ function getSkillSourceLabel(skill: SkillDetail): string {
   return "工作区技能";
 }
 
+function isHttpSource(value: string): boolean {
+  return value.startsWith("http:") || value.startsWith("https:");
+}
+
 /** Skill 详情页 —— 与连接器详情同样使用路由承载主体内容。 */
 export function SkillDetailView({
-  skill_name: skillName,
-  on_back: onBack,
-  on_deleted: onDeleted,
-  on_refreshed: onRefreshed,
+  skillName: skillName,
+  onBack: onBack,
+  onDeleted: onDeleted,
+  onRefreshed: onRefreshed,
 }: SkillDetailViewProps) {
   const [skill, setSkill] = useState<SkillDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const sourceUrl = skill?.source_ref && /^https?:\/\//.test(skill.source_ref) ? skill.source_ref : null;
+  const sourceUrl = skill?.source_ref && isHttpSource(skill.source_ref) ? skill.source_ref : null;
 
   const loadDetail = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      setSkill(await get_skill_detail_api(skillName));
+      setSkill(await getSkillDetailApi(skillName));
     } catch (err) {
       setError(err instanceof Error ? err.message : "加载 skill 详情失败");
       setSkill(null);
@@ -72,7 +76,7 @@ export function SkillDetailView({
     try {
       setActing(true);
       setError(null);
-      await update_single_skill_api(skill.name);
+      await updateSingleSkillApi(skill.name);
       await Promise.resolve(onRefreshed());
       await loadDetail();
     } catch (err) {
@@ -87,7 +91,7 @@ export function SkillDetailView({
     try {
       setActing(true);
       setError(null);
-      await delete_skill_api(skill.name);
+      await deleteSkillApi(skill.name);
       await Promise.resolve(onDeleted());
     } catch (err) {
       setError(err instanceof Error ? err.message : "删除 skill 失败");
@@ -117,7 +121,7 @@ export function SkillDetailView({
 
       {loading ? (
         <UiStateBlock
-          class_name="min-h-[420px]"
+          className="min-h-[420px]"
           icon={<Loader2 className="h-6 w-6 animate-spin" />}
           size="md"
           title="加载技能详情中..."
@@ -130,7 +134,7 @@ export function SkillDetailView({
               返回技能
             </UiButton>
           )}
-          class_name="min-h-[420px]"
+          className="min-h-[420px]"
           description={error}
           size="md"
           title="技能不存在"

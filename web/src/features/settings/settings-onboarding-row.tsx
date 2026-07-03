@@ -15,10 +15,10 @@ import {
 } from "./settings-panel-ui";
 
 interface SettingsOnboardingRowProps {
-  on_reset: () => void;
+  onReset: () => void;
 }
 
-export function SettingsOnboardingRow({ on_reset: onReset }: SettingsOnboardingRowProps) {
+export function SettingsOnboardingRow({ onReset: onReset }: SettingsOnboardingRowProps) {
   const { t } = useI18n();
 
   return (

@@ -9,21 +9,21 @@ import type {
 import type { AgentConversationChatType } from "@/types/agent/agent-conversation";
 import type { PendingPermission } from "@/types/conversation/permission";
 import {
-  get_terminal_message_status,
-  matches_round_lifecycle,
+  getTerminalMessageStatus,
+  matchesRoundLifecycle,
 } from "./conversation-runtime-state";
-import { is_ephemeral_message } from "./conversation-volatile-snapshot";
+import { isEphemeralMessage } from "./conversation-volatile-snapshot";
 
-export function filter_round_pending_agent_slots(
+export function filterRoundPendingAgentSlots(
   slots: RoomPendingAgentSlotState[],
   roundId: string,
 ): RoomPendingAgentSlotState[] {
   return slots.filter(
-    (slot) => !matches_round_lifecycle(slot.round_id, roundId),
+    (slot) => !matchesRoundLifecycle(slot.round_id, roundId),
   );
 }
 
-export function filter_round_pending_permissions(
+export function filterRoundPendingPermissions(
   permissions: PendingPermission[],
   roundId: string,
 ): PendingPermission[] {
@@ -31,11 +31,11 @@ export function filter_round_pending_permissions(
     if (!permission.caused_by) {
       return true;
     }
-    return !matches_round_lifecycle(permission.caused_by, roundId);
+    return !matchesRoundLifecycle(permission.caused_by, roundId);
   });
 }
 
-export function remove_failed_outbound_user_message(
+export function removeFailedOutboundUserMessage(
   messages: Message[],
   roundId: string,
 ): Message[] {
@@ -49,7 +49,7 @@ export function remove_failed_outbound_user_message(
   );
 }
 
-export function cancel_running_agent_slots(
+export function cancelRunningAgentSlots(
   slots: RoomPendingAgentSlotState[],
 ): RoomPendingAgentSlotState[] {
   return slots.map((slot) =>
@@ -62,7 +62,7 @@ export function cancel_running_agent_slots(
   );
 }
 
-export function reconcile_stopped_session_messages(
+export function reconcileStoppedSessionMessages(
   messages: Message[],
   terminalRoundIds: string[],
   chatType: AgentConversationChatType,
@@ -86,7 +86,7 @@ export function reconcile_stopped_session_messages(
   let hasChanges = false;
   const nextMessages: Message[] = [];
   for (const message of messages) {
-    if (is_ephemeral_message(message)) {
+    if (isEphemeralMessage(message)) {
       hasChanges = true;
       continue;
     }
@@ -116,7 +116,7 @@ export function reconcile_stopped_session_messages(
   return hasChanges ? nextMessages : messages;
 }
 
-export function update_assistant_message_status(
+export function updateAssistantMessageStatus(
   messages: Message[],
   msgId: string,
   status: AssistantMessageStatus,
@@ -128,7 +128,7 @@ export function update_assistant_message_status(
   );
 }
 
-export function update_pending_agent_slot_status(
+export function updatePendingAgentSlotStatus(
   slots: RoomPendingAgentSlotState[],
   msgId: string,
   status: AssistantMessageStatus,
@@ -145,7 +145,7 @@ export function update_pending_agent_slot_status(
   );
 }
 
-export function merge_chat_ack_pending_slots(
+export function mergeChatAckPendingSlots(
   slots: RoomPendingAgentSlotState[],
   ack: ChatAckData,
 ): RoomPendingAgentSlotState[] {
@@ -168,19 +168,19 @@ export function merge_chat_ack_pending_slots(
   return [...preservedSlots, ...nextSlots];
 }
 
-export function apply_terminal_round_message_status(
+export function applyTerminalRoundMessageStatus(
   messages: Message[],
   roundId: string,
   status: RoundLifecycleStatus,
 ): Message[] {
-  const terminalStatus = get_terminal_message_status(status);
+  const terminalStatus = getTerminalMessageStatus(status);
   let hasChanges = false;
   const nextMessages: Message[] = [];
 
   for (const message of messages) {
     if (
-      matches_round_lifecycle(message.round_id, roundId) &&
-      is_ephemeral_message(message)
+      matchesRoundLifecycle(message.round_id, roundId) &&
+      isEphemeralMessage(message)
     ) {
       hasChanges = true;
       continue;
@@ -189,7 +189,7 @@ export function apply_terminal_round_message_status(
       nextMessages.push(message);
       continue;
     }
-    if (!matches_round_lifecycle(message.round_id, roundId)) {
+    if (!matchesRoundLifecycle(message.round_id, roundId)) {
       nextMessages.push(message);
       continue;
     }

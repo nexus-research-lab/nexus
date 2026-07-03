@@ -1,10 +1,10 @@
 import { Dispatch, MutableRefObject, RefObject, SetStateAction } from "react";
-import { get_message_history_round_page_size } from "@/config/options";
-import { get_session_messages_api } from "@/lib/api/agent-api";
-import { get_room_conversation_messages } from "@/lib/api/room-api";
+import { getMessageHistoryRoundPageSize } from "@/config/options";
+import { getSessionMessagesApi } from "@/lib/api/agent-api";
+import { getRoomConversationMessages } from "@/lib/api/room-api";
 import { Message } from "@/types";
 import { AgentConversationIdentity } from "@/types/agent/agent-conversation";
-import { merge_loaded_messages, sort_messages } from "./message-helpers";
+import { mergeLoadedMessages, sortMessages } from "./message-helpers";
 
 export interface AgentConversationHistoryCursor {
   before_round_id: string | null;
@@ -24,7 +24,7 @@ export interface LoadOlderAgentConversationMessagesParams {
   set_error: Dispatch<SetStateAction<string | null>>;
 }
 
-export async function load_older_agent_conversation_messages({
+export async function loadOlderAgentConversationMessages({
   active_session_key_ref: activeSessionKeyRef,
   identity,
   history_cursor_ref: historyCursorRef,
@@ -55,17 +55,17 @@ export async function load_older_agent_conversation_messages({
   setHistoryLoading(true);
   try {
     const page = currentRoomId && currentConversationId
-      ? await get_room_conversation_messages(
+      ? await getRoomConversationMessages(
           currentRoomId,
           currentConversationId,
           {
-            limit: get_message_history_round_page_size(),
+            limit: getMessageHistoryRoundPageSize(),
             before_round_id: beforeRoundId,
             before_round_timestamp: beforeRoundTimestamp,
           },
         )
-      : await get_session_messages_api(activeSessionKey, {
-          limit: get_message_history_round_page_size(),
+      : await getSessionMessagesApi(activeSessionKey, {
+          limit: getMessageHistoryRoundPageSize(),
           before_round_id: beforeRoundId,
           before_round_timestamp: beforeRoundTimestamp,
         });
@@ -73,7 +73,7 @@ export async function load_older_agent_conversation_messages({
       return false;
     }
 
-    const sortedMessages = sort_messages(page.items ?? []);
+    const sortedMessages = sortMessages(page.items ?? []);
     if (sortedMessages.length === 0) {
       historyCursorRef.current = {
         before_round_id: null,
@@ -84,7 +84,7 @@ export async function load_older_agent_conversation_messages({
     }
 
     setMessages((currentMessages) =>
-      merge_loaded_messages(sortedMessages, currentMessages),
+      mergeLoadedMessages(sortedMessages, currentMessages),
     );
     historyCursorRef.current = {
       before_round_id: page.next_before_round_id ?? null,

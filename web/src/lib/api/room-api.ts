@@ -1,6 +1,6 @@
-import { get_agent_api_base_url } from "@/config/options";
-import { transform_api_agent } from "@/lib/api/agent-transform";
-import { ApiRequestError, request_api } from "@/lib/api/http";
+import { getAgentApiBaseUrl } from "@/config/options";
+import { transformApiAgent } from "@/lib/api/agent-transform";
+import { ApiRequestError, requestApi } from "@/lib/api/http";
 import { useAgentStore } from "@/store/agent";
 import {
   ApiRoomContextAggregate,
@@ -14,10 +14,10 @@ import {
   UpdateRoomParams,
 } from "@/types/conversation/room";
 
-const AGENT_API_BASE_URL = get_agent_api_base_url();
+const AGENT_API_BASE_URL = getAgentApiBaseUrl();
 const ROOM_DIRECTORY_UPDATED_EVENT_NAME = "nexus:room-directory-updated";
 
-export function notify_room_directory_updated() {
+export function notifyRoomDirectoryUpdated() {
   if (typeof window === "undefined") {
     return;
   }
@@ -27,7 +27,7 @@ export function notify_room_directory_updated() {
   window.dispatchEvent(new CustomEvent(ROOM_DIRECTORY_UPDATED_EVENT_NAME));
 }
 
-export function subscribe_room_directory_updates(
+export function subscribeRoomDirectoryUpdates(
   listener: () => void,
 ): () => void {
   if (typeof window === "undefined") {
@@ -67,14 +67,14 @@ function transformRoomContext(
       private_messages_enabled: apiContext.room.private_messages_enabled ?? false,
     },
     members: apiContext.members,
-    member_agents: (apiContext.member_agents ?? []).map(transform_api_agent),
+    member_agents: (apiContext.member_agents ?? []).map(transformApiAgent),
     conversation: apiContext.conversation,
     sessions: apiContext.sessions,
   };
 }
 
-export async function list_rooms(limit = 50): Promise<RoomAggregate[]> {
-  return request_api<RoomAggregate[]>(
+export async function listRooms(limit = 50): Promise<RoomAggregate[]> {
+  return requestApi<RoomAggregate[]>(
     `${AGENT_API_BASE_URL}/rooms?limit=${encodeURIComponent(String(limit))}`,
     {
       method: "GET",
@@ -82,10 +82,10 @@ export async function list_rooms(limit = 50): Promise<RoomAggregate[]> {
   );
 }
 
-export async function get_room_contexts(
+export async function getRoomContexts(
   roomId: string,
 ): Promise<RoomContextAggregate[]> {
-  const result = await request_api<ApiRoomContextAggregate[]>(
+  const result = await requestApi<ApiRoomContextAggregate[]>(
     `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(roomId)}/contexts`,
     {
       method: "GET",
@@ -94,7 +94,7 @@ export async function get_room_contexts(
   return result.map(transformRoomContext);
 }
 
-export async function get_room_conversation_messages(
+export async function getRoomConversationMessages(
   roomId: string,
   conversationId: string,
   options: {
@@ -117,7 +117,7 @@ export async function get_room_conversation_messages(
     );
   }
   const query = params.toString();
-  const result = await request_api<ApiRoomConversationMessagePage>(
+  const result = await requestApi<ApiRoomConversationMessagePage>(
     `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(roomId)}/conversations/${encodeURIComponent(conversationId)}/messages${query ? `?${query}` : ""}`,
     {
       method: "GET",
@@ -131,7 +131,7 @@ export async function get_room_conversation_messages(
   };
 }
 
-export async function upload_room_conversation_attachment_api(
+export async function uploadRoomConversationAttachmentApi(
   roomId: string,
   conversationId: string,
   file: File,
@@ -143,7 +143,7 @@ export async function upload_room_conversation_attachment_api(
     formData.append("path", path);
   }
 
-  return request_api<{ path: string; name: string; size: number }>(
+  return requestApi<{ path: string; name: string; size: number }>(
     `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(roomId)}/conversations/${encodeURIComponent(conversationId)}/attachments/upload`,
     {
       method: "POST",
@@ -152,7 +152,7 @@ export async function upload_room_conversation_attachment_api(
   );
 }
 
-export async function create_room(
+export async function createRoom(
   params: CreateRoomParams,
 ): Promise<RoomContextAggregate> {
   const body: Record<string, unknown> = {
@@ -174,18 +174,18 @@ export async function create_room(
   if (params.private_messages_enabled !== undefined) {
     body.private_messages_enabled = params.private_messages_enabled;
   }
-  const context = await request_api<ApiRoomContextAggregate>(
+  const context = await requestApi<ApiRoomContextAggregate>(
     `${AGENT_API_BASE_URL}/rooms`,
     {
       method: "POST",
       body: JSON.stringify(body),
     },
   );
-  notify_room_directory_updated();
+  notifyRoomDirectoryUpdated();
   return transformRoomContext(context);
 }
 
-export async function update_room(
+export async function updateRoom(
   roomId: string,
   params: UpdateRoomParams,
 ): Promise<RoomContextAggregate> {
@@ -207,23 +207,23 @@ export async function update_room(
   if (params.private_messages_enabled !== undefined) {
     body.private_messages_enabled = params.private_messages_enabled;
   }
-  const context = await request_api<ApiRoomContextAggregate>(
+  const context = await requestApi<ApiRoomContextAggregate>(
     `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(roomId)}`,
     {
       method: "PATCH",
       body: JSON.stringify(body),
     },
   );
-  notify_room_directory_updated();
+  notifyRoomDirectoryUpdated();
   return transformRoomContext(context);
 }
 
-export async function create_room_conversation(
+export async function createRoomConversation(
   roomId: string,
   params: CreateRoomConversationParams = {},
 ): Promise<RoomContextAggregate> {
   const normalizedTitle = normalizeConversationTitle(params.title);
-  const context = await request_api<ApiRoomContextAggregate>(
+  const context = await requestApi<ApiRoomContextAggregate>(
     `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(roomId)}/conversations`,
     {
       method: "POST",
@@ -232,16 +232,16 @@ export async function create_room_conversation(
       }),
     },
   );
-  notify_room_directory_updated();
+  notifyRoomDirectoryUpdated();
   return transformRoomContext(context);
 }
 
-export async function update_room_conversation(
+export async function updateRoomConversation(
   roomId: string,
   conversationId: string,
   params: UpdateRoomConversationParams,
 ): Promise<RoomContextAggregate> {
-  const context = await request_api<ApiRoomContextAggregate>(
+  const context = await requestApi<ApiRoomContextAggregate>(
     `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(roomId)}/conversations/${encodeURIComponent(conversationId)}`,
     {
       method: "PATCH",
@@ -250,29 +250,29 @@ export async function update_room_conversation(
       }),
     },
   );
-  notify_room_directory_updated();
+  notifyRoomDirectoryUpdated();
   return transformRoomContext(context);
 }
 
-export async function delete_room_conversation(
+export async function deleteRoomConversation(
   roomId: string,
   conversationId: string,
 ): Promise<RoomContextAggregate> {
-  const context = await request_api<ApiRoomContextAggregate>(
+  const context = await requestApi<ApiRoomContextAggregate>(
     `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(roomId)}/conversations/${encodeURIComponent(conversationId)}`,
     {
       method: "DELETE",
     },
   );
-  notify_room_directory_updated();
+  notifyRoomDirectoryUpdated();
   return transformRoomContext(context);
 }
 
-export async function close_room_conversation_runtime(
+export async function closeRoomConversationRuntime(
   roomId: string,
   conversationId: string,
 ): Promise<void> {
-  await request_api<{ closed: boolean }>(
+  await requestApi<{ closed: boolean }>(
     `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(roomId)}/conversations/${encodeURIComponent(conversationId)}/close`,
     {
       method: "POST",
@@ -280,11 +280,11 @@ export async function close_room_conversation_runtime(
   );
 }
 
-export async function add_room_member(
+export async function addRoomMember(
   roomId: string,
   agentId: string,
 ): Promise<RoomContextAggregate> {
-  const context = await request_api<ApiRoomContextAggregate>(
+  const context = await requestApi<ApiRoomContextAggregate>(
     `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(roomId)}/members`,
     {
       method: "POST",
@@ -293,43 +293,43 @@ export async function add_room_member(
       }),
     },
   );
-  notify_room_directory_updated();
+  notifyRoomDirectoryUpdated();
   return transformRoomContext(context);
 }
 
-export async function remove_room_member(
+export async function removeRoomMember(
   roomId: string,
   agentId: string,
 ): Promise<RoomContextAggregate> {
-  const context = await request_api<ApiRoomContextAggregate>(
+  const context = await requestApi<ApiRoomContextAggregate>(
     `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(roomId)}/members/${encodeURIComponent(agentId)}`,
     {
       method: "DELETE",
     },
   );
-  notify_room_directory_updated();
+  notifyRoomDirectoryUpdated();
   return transformRoomContext(context);
 }
 
-export async function delete_room(
+export async function deleteRoom(
   roomId: string,
 ): Promise<{ success: boolean }> {
-  const result = await request_api<{ success: boolean }>(
+  const result = await requestApi<{ success: boolean }>(
     `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(roomId)}`,
     {
       method: "DELETE",
     },
   );
-  notify_room_directory_updated();
+  notifyRoomDirectoryUpdated();
   return result;
 }
 
-export async function ensure_direct_room(
+export async function ensureDirectRoom(
   agentId: string,
 ): Promise<RoomContextAggregate> {
   let context: ApiRoomContextAggregate;
   try {
-    context = await request_api<ApiRoomContextAggregate>(
+    context = await requestApi<ApiRoomContextAggregate>(
       `${AGENT_API_BASE_URL}/rooms/dm/${encodeURIComponent(agentId)}`,
       {
         method: "GET",
@@ -345,6 +345,6 @@ export async function ensure_direct_room(
     }
     throw error;
   }
-  notify_room_directory_updated();
+  notifyRoomDirectoryUpdated();
   return transformRoomContext(context);
 }

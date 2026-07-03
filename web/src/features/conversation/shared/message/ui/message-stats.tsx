@@ -5,30 +5,30 @@ interface MessageStatsData {
   duration: string | null;
   tokens: string | null;
   cost: string | null;
-  cache_hit: string | null;
+  cacheHit: string | null;
 }
 
 interface MessageStatsProps {
   stats?: MessageStatsData;
-  show_cursor?: boolean;
+  showCursor?: boolean;
   compact?: boolean;
-  copied_assistant?: boolean;
-  on_copy_assistant?: () => void;
+  copiedAssistant?: boolean;
+  onCopyAssistant?: () => void;
 }
 
 export function MessageStats(
   {
     stats,
-    show_cursor: showCursor,
+    showCursor: showCursor,
     compact = false,
-    copied_assistant: copiedAssistant,
-    on_copy_assistant: onCopyAssistant,
+    copiedAssistant: copiedAssistant,
+    onCopyAssistant: onCopyAssistant,
   }: MessageStatsProps) {
   const statItems = [
     stats?.duration ?? null,
     stats?.tokens ?? null,
     stats?.cost ?? null,
-    stats?.cache_hit ?? null,
+    stats?.cacheHit ?? null,
   ].filter((item): item is string => Boolean(item));
 
   return (

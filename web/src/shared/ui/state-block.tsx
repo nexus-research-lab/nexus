@@ -4,7 +4,7 @@ import { type HTMLAttributes, type ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 import {
-  get_ui_state_block_class_name,
+  getUiStateBlockClassName,
   type UiStateBlockSize,
   type UiStateBlockTone,
   type UiStateBlockVariant,
@@ -12,7 +12,7 @@ import {
 
 interface UiStateBlockProps extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {
   actions?: ReactNode;
-  class_name?: string;
+  className?: string;
   description?: ReactNode;
   icon?: ReactNode;
   size?: UiStateBlockSize;
@@ -24,7 +24,6 @@ interface UiStateBlockProps extends Omit<HTMLAttributes<HTMLDivElement>, "title"
 export function UiStateBlock({
   actions,
   children,
-  class_name: legacyClassName,
   className,
   description,
   icon,
@@ -36,9 +35,9 @@ export function UiStateBlock({
 }: UiStateBlockProps) {
   return (
     <div
-      className={get_ui_state_block_class_name(
+      className={getUiStateBlockClassName(
         { size, tone, variant },
-        cn(className, legacyClassName),
+        cn(className),
       )}
       {...props}
     >

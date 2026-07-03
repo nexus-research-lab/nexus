@@ -6,33 +6,33 @@ import { GlassSwitch } from "@/shared/ui/liquid-glass";
 import { UiSelectMenu } from "@/shared/ui/select-menu";
 
 interface ProviderSettingsDetailHeaderProps {
-  detail_title: string;
+  detailTitle: string;
   enabled: boolean;
-  has_selected_record: boolean;
-  is_api_format_configurable: boolean;
-  is_editing: boolean;
-  on_enabled_change: (checked: boolean) => void;
-  on_test_selection: (value: string) => void;
-  pending_action: string | null;
-  preset_description?: string | null;
-  selected_can_manage: boolean;
+  hasSelectedRecord: boolean;
+  isApiFormatConfigurable: boolean;
+  isEditing: boolean;
+  onEnabledChange: (checked: boolean) => void;
+  onTestSelection: (value: string) => void;
+  pendingAction: string | null;
+  presetDescription?: string | null;
+  selectedCanManage: boolean;
   submitting: boolean;
-  test_model_options: Array<{ label: string; value: string }>;
+  testModelOptions: Array<{ label: string; value: string }>;
 }
 
 export function ProviderSettingsDetailHeader({
-  detail_title: detailTitle,
+  detailTitle: detailTitle,
   enabled,
-  has_selected_record: hasSelectedRecord,
-  is_api_format_configurable: isApiFormatConfigurable,
-  is_editing: isEditing,
-  on_enabled_change: onEnabledChange,
-  on_test_selection: onTestSelection,
-  pending_action: pendingAction,
-  preset_description: presetDescription,
-  selected_can_manage: selectedCanManage,
+  hasSelectedRecord: hasSelectedRecord,
+  isApiFormatConfigurable: isApiFormatConfigurable,
+  isEditing: isEditing,
+  onEnabledChange: onEnabledChange,
+  onTestSelection: onTestSelection,
+  pendingAction: pendingAction,
+  presetDescription: presetDescription,
+  selectedCanManage: selectedCanManage,
   submitting,
-  test_model_options: testModelOptions,
+  testModelOptions: testModelOptions,
 }: ProviderSettingsDetailHeaderProps) {
   const { t } = useI18n();
 
@@ -68,17 +68,17 @@ export function ProviderSettingsDetailHeader({
       <div className="flex shrink-0 items-center gap-2 pt-0.5">
         {isEditing ? (
           <UiSelectMenu
-            aria_label={t("settings.providers.test_provider")}
-            button_class_name="px-2"
-            class_name="w-auto min-w-18"
+            ariaLabel={t("settings.providers.test_provider")}
+            buttonClassName="px-2"
+            className="w-auto min-w-18"
             disabled={pendingAction !== null || submitting || !isApiFormatConfigurable || !selectedCanManage}
             leading={pendingAction?.startsWith("test") ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
             ) : (
               <Play className="h-3.5 w-3.5" />
             )}
-            menu_class_name="min-w-[220px]"
-            on_change={onTestSelection}
+            menuClassName="min-w-[220px]"
+            onChange={onTestSelection}
             options={testModelOptions}
             placeholder={t("settings.providers.test")}
             size="xs"
@@ -89,7 +89,7 @@ export function ProviderSettingsDetailHeader({
           checked={enabled}
           disabled={pendingAction !== null || submitting || !isApiFormatConfigurable || !selectedCanManage}
           size="sm"
-          on_change={onEnabledChange}
+          onChange={onEnabledChange}
         />
       </div>
     </div>

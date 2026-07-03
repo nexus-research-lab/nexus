@@ -7,22 +7,22 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
-  connect_connector_api,
-  delete_connector_oauth_client_api,
-  disconnect_connector_api,
-  get_connector_auth_url_api,
-  get_connector_detail_api,
-  get_connectors_api,
-  save_connector_oauth_client_api,
-  start_connector_device_auth_api,
+  connectConnectorApi,
+  deleteConnectorOauthClientApi,
+  disconnectConnectorApi,
+  getConnectorAuthUrlApi,
+  getConnectorDetailApi,
+  getConnectorsApi,
+  saveConnectorOauthClientApi,
+  startConnectorDeviceAuthApi,
 } from "@/lib/api/connector-api";
-import { get_connector_oauth_redirect_uri, is_desktop_runtime } from "@/config/desktop-runtime";
+import { getConnectorOauthRedirectUri, isDesktopRuntime } from "@/config/desktop-runtime";
 import {
-  build_direct_credential_payload,
-  get_direct_credential_label,
-  is_direct_credential_auth,
+  buildDirectCredentialPayload,
+  getDirectCredentialLabel,
+  isDirectCredentialAuth,
 } from "@/features/capability/connectors/connector-auth";
-import { open_shop_prompt } from "@/features/capability/connectors/shop-domain-prompt";
+import { openShopPrompt } from "@/features/capability/connectors/shop-domain-prompt";
 import { ConnectorDetail, ConnectorDeviceAuthStart, ConnectorInfo } from "@/types/capability/connector";
 import type { ConnectorDirectoryController } from "@/features/capability/connectors/connectors-view-model";
 
@@ -42,7 +42,7 @@ export function useConnectorController(): ConnectorDirectoryController {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const items = await get_connectors_api();
+      const items = await getConnectorsApi();
       setAllConnectors(items);
     } catch (e) {
       setErrorMessage(e instanceof Error ? e.message : "加载失败");
@@ -86,7 +86,7 @@ export function useConnectorController(): ConnectorDirectoryController {
     setDetailLoading(true);
     setSelectedDetail(null);
     try {
-      const detail = await get_connector_detail_api(connectorId);
+      const detail = await getConnectorDetailApi(connectorId);
       setSelectedDetail(detail);
     } catch (e) {
       setErrorMessage(e instanceof Error ? e.message : "获取详情失败");
@@ -113,15 +113,15 @@ export function useConnectorController(): ConnectorDirectoryController {
         if (target?.auth_type === "oauth2") {
           let shop: string | undefined;
           if (target.connector_id === "shopify" || target.requires_extra?.includes("shop")) {
-            const promptedShop = await open_shop_prompt();
+            const promptedShop = await openShopPrompt();
             if (!promptedShop) {
               return;
             }
             shop = promptedShop;
           }
 
-          if (target.connector_id === "github" && is_desktop_runtime()) {
-            const session = await start_connector_device_auth_api(connectorId);
+          if (target.connector_id === "github" && isDesktopRuntime()) {
+            const session = await startConnectorDeviceAuthApi(connectorId);
             setDeviceAuthSession(session);
             setStatusMessage("已生成 GitHub 授权码");
             const authUrl = session.verification_uri_complete || session.verification_uri;
@@ -132,8 +132,8 @@ export function useConnectorController(): ConnectorDirectoryController {
           }
 
           // 获取 OAuth 授权 URL 并在新窗口打开
-          const redirectUri = get_connector_oauth_redirect_uri();
-          const { auth_url: authUrl } = await get_connector_auth_url_api(connectorId, redirectUri, shop);
+          const redirectUri = getConnectorOauthRedirectUri();
+          const { auth_url: authUrl } = await getConnectorAuthUrlApi(connectorId, redirectUri, shop);
           if (!authUrl) {
             throw new Error("授权地址为空，请检查连接器配置");
           }
@@ -146,14 +146,14 @@ export function useConnectorController(): ConnectorDirectoryController {
             throw new Error("授权窗口被浏览器拦截，请允许弹窗后重试");
           }
           setStatusMessage("已打开授权页面，请在新窗口完成授权");
-        } else if (is_direct_credential_auth(target?.auth_type)) {
-          setErrorMessage(`请填写 ${get_direct_credential_label(target?.auth_type)} 后连接`);
+        } else if (isDirectCredentialAuth(target?.auth_type)) {
+          setErrorMessage(`请填写 ${getDirectCredentialLabel(target?.auth_type)} 后连接`);
         } else {
-          await connect_connector_api(connectorId);
+          await connectConnectorApi(connectorId);
           setStatusMessage("连接成功");
           await load();
           if (selectedDetail?.connector_id === connectorId) {
-            const detail = await get_connector_detail_api(connectorId);
+            const detail = await getConnectorDetailApi(connectorId);
             setSelectedDetail(detail);
           }
         }
@@ -171,14 +171,14 @@ export function useConnectorController(): ConnectorDirectoryController {
       setBusyId(connectorId);
       try {
         const target = allConnectors.find((c) => c.connector_id === connectorId);
-        if (!target || !is_direct_credential_auth(target.auth_type)) {
+        if (!target || !isDirectCredentialAuth(target.auth_type)) {
           throw new Error("当前连接器不支持直接凭证连接");
         }
-        await connect_connector_api(connectorId, build_direct_credential_payload(target.auth_type, credential));
+        await connectConnectorApi(connectorId, buildDirectCredentialPayload(target.auth_type, credential));
         setStatusMessage("连接成功");
         await load();
         if (selectedDetail?.connector_id === connectorId) {
-          const detail = await get_connector_detail_api(connectorId);
+          const detail = await getConnectorDetailApi(connectorId);
           setSelectedDetail(detail);
         }
         return true;
@@ -197,11 +197,11 @@ export function useConnectorController(): ConnectorDirectoryController {
     async (connectorId: string) => {
       setBusyId(connectorId);
       try {
-        await disconnect_connector_api(connectorId);
+        await disconnectConnectorApi(connectorId);
         setStatusMessage("已断开连接");
         await load();
         if (selectedDetail?.connector_id === connectorId) {
-          const detail = await get_connector_detail_api(connectorId);
+          const detail = await getConnectorDetailApi(connectorId);
           setSelectedDetail(detail);
         }
       } catch (e) {
@@ -217,10 +217,10 @@ export function useConnectorController(): ConnectorDirectoryController {
     async (connectorId: string, clientId: string, clientSecret: string) => {
       setBusyId(connectorId);
       try {
-        await save_connector_oauth_client_api(connectorId, { client_id: clientId, client_secret: clientSecret });
+        await saveConnectorOauthClientApi(connectorId, { client_id: clientId, client_secret: clientSecret });
         setStatusMessage("应用配置已保存");
         await load();
-        const detail = await get_connector_detail_api(connectorId);
+        const detail = await getConnectorDetailApi(connectorId);
         setSelectedDetail(detail);
         return true;
       } catch (e) {
@@ -237,10 +237,10 @@ export function useConnectorController(): ConnectorDirectoryController {
     async (connectorId: string) => {
       setBusyId(connectorId);
       try {
-        await delete_connector_oauth_client_api(connectorId);
+        await deleteConnectorOauthClientApi(connectorId);
         setStatusMessage("应用配置已删除");
         await load();
-        const detail = await get_connector_detail_api(connectorId);
+        const detail = await getConnectorDetailApi(connectorId);
         setSelectedDetail(detail);
         return true;
       } catch (e) {
@@ -256,27 +256,27 @@ export function useConnectorController(): ConnectorDirectoryController {
   return {
     connectors,
     loading,
-    search_query: searchQuery,
-    set_search_query: setSearchQuery,
-    active_category: activeCategory,
-    set_active_category: setActiveCategory,
-    connected_count: connectedCount,
-    selected_detail: selectedDetail,
-    detail_loading: detailLoading,
-    open_detail: openDetail,
-    close_detail: closeDetail,
-    device_auth_session: deviceAuthSession,
-    close_device_auth_session: closeDeviceAuthSession,
-    handle_connect: handleConnect,
-    handle_connect_with_credential: handleConnectWithCredential,
-    handle_disconnect: handleDisconnect,
-    handle_save_oauth_client: handleSaveOauthClient,
-    handle_delete_oauth_client: handleDeleteOauthClient,
-    busy_id: busyId,
-    status_message: statusMessage,
-    error_message: errorMessage,
-    set_status_message: setStatusMessage,
-    set_error_message: setErrorMessage,
+    searchQuery,
+    setSearchQuery,
+    activeCategory,
+    setActiveCategory,
+    connectedCount,
+    selectedDetail,
+    detailLoading,
+    openDetail,
+    closeDetail,
+    deviceAuthSession,
+    closeDeviceAuthSession,
+    handleConnect,
+    handleConnectWithCredential,
+    handleDisconnect,
+    handleSaveOauthClient,
+    handleDeleteOauthClient,
+    busyId,
+    statusMessage,
+    errorMessage,
+    setStatusMessage,
+    setErrorMessage,
     refresh: load,
   };
 }

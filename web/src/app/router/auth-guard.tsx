@@ -11,19 +11,19 @@ import { Navigate, Outlet, useLocation } from "react-router-dom";
 
 import { APP_ROUTE_PATHS } from "@/app/router/route-paths";
 import { useAuth } from "@/shared/auth/auth-context";
-import { get_ui_button_class_name } from "@/shared/ui/button-styles";
+import { getUiButtonClassName } from "@/shared/ui/button-styles";
 import { AppLoadingState } from "@/shared/ui/layout/app-loading-screen";
 
 function GuardState({
   title,
   description,
-  action_label: actionLabel,
-  on_action: onAction,
+  actionLabel: actionLabel,
+  onAction: onAction,
 }: {
   title: string;
   description: string;
-  action_label?: string;
-  on_action?: () => void;
+  actionLabel?: string;
+  onAction?: () => void;
 }) {
   return (
     <main className="flex min-h-screen items-center justify-center bg-background px-6 py-10 text-foreground">
@@ -35,7 +35,7 @@ function GuardState({
         <p className="mt-2 text-[14px] leading-6 text-(--text-muted)">{description}</p>
         {actionLabel && onAction ? (
           <button
-            className={get_ui_button_class_name(
+            className={getUiButtonClassName(
               { size: "lg", tone: "primary", variant: "solid" },
               "mt-5 rounded-full px-5 text-[14px]",
             )}
@@ -52,7 +52,7 @@ function GuardState({
 
 export function AuthGuard() {
   const location = useLocation();
-  const { status, is_bootstrapped: isBootstrapped, error, refresh_status: refreshStatus } = useAuth();
+  const { status, isBootstrapped: isBootstrapped, error, refreshStatus: refreshStatus } = useAuth();
   const handleRefresh = () => {
     void refreshStatus().catch((err: unknown) => console.warn("[AuthGuard] Auth refresh failed:", err));
   };
@@ -70,8 +70,8 @@ export function AuthGuard() {
       <GuardState
         title="无法连接认证服务"
         description={error}
-        action_label="重试"
-        on_action={handleRefresh}
+        actionLabel="重试"
+        onAction={handleRefresh}
       />
     );
   }
@@ -81,8 +81,8 @@ export function AuthGuard() {
       <GuardState
         title="认证状态不可用"
         description="服务端没有返回可用的登录状态，请稍后重试。"
-        action_label="重试"
-        on_action={handleRefresh}
+        actionLabel="重试"
+        onAction={handleRefresh}
       />
     );
   }

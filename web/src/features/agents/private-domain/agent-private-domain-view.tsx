@@ -8,10 +8,10 @@ import { PrivateDomainToolbar } from "@/features/agents/private-domain/agent-pri
 import { PrivateThreadList } from "@/features/agents/private-domain/agent-private-domain-thread-list";
 import {
   AgentPrivateDomainQuery,
-  list_agent_private_events_api,
-  list_agent_private_threads_api,
+  listAgentPrivateEventsApi,
+  listAgentPrivateThreadsApi,
 } from "@/lib/api/agent-private-domain-api";
-import { is_external_session_conversation_id } from "@/features/conversation/external-session-labels";
+import { isExternalSessionConversationId } from "@/features/conversation/external-session-labels";
 import {
   cn,
 } from "@/lib/utils";
@@ -24,19 +24,19 @@ import {
 
 interface AgentPrivateDomainViewProps {
   agent: Agent;
-  room_id?: string | null;
-  conversation_id?: string | null;
+  roomId?: string | null;
+  conversationId?: string | null;
   variant?: "full" | "preview";
 }
 
 export function AgentPrivateDomainView({
   agent,
-  room_id: roomId = null,
-  conversation_id: conversationId = null,
+  roomId: roomId = null,
+  conversationId: conversationId = null,
   variant = "full",
 }: AgentPrivateDomainViewProps) {
   const isPreview = variant === "preview";
-  const isExternalSessionConversation = is_external_session_conversation_id(conversationId);
+  const isExternalSessionConversation = isExternalSessionConversationId(conversationId);
   const queryResetKey = [
     agent.agent_id,
     roomId ?? "",
@@ -62,7 +62,7 @@ export function AgentPrivateDomainView({
     setThreadsLoading(true);
     setError(null);
     try {
-      const page = await list_agent_private_threads_api(agent.agent_id, query);
+      const page = await listAgentPrivateThreadsApi(agent.agent_id, query);
       const nextThreads = page.items ?? [];
       setThreads(nextThreads);
       setSelectedThreadId((current) => {
@@ -88,7 +88,7 @@ export function AgentPrivateDomainView({
     setEventsLoading(true);
     setError(null);
     try {
-      const page = await list_agent_private_events_api(agent.agent_id, threadId, {
+      const page = await listAgentPrivateEventsApi(agent.agent_id, threadId, {
         ...query,
         limit: isPreview ? 40 : 120,
       });
@@ -103,7 +103,7 @@ export function AgentPrivateDomainView({
 
   useEffect(() => {
     let cancelled = false;
-    void list_agent_private_threads_api(agent.agent_id, query)
+    void listAgentPrivateThreadsApi(agent.agent_id, query)
       .then((page) => {
         if (cancelled) return;
         const nextThreads = page.items ?? [];
@@ -133,7 +133,7 @@ export function AgentPrivateDomainView({
         cancelled = true;
       };
     }
-    void list_agent_private_events_api(agent.agent_id, selectedThreadId, {
+    void listAgentPrivateEventsApi(agent.agent_id, selectedThreadId, {
       ...query,
       limit: isPreview ? 40 : 120,
     })
@@ -175,27 +175,27 @@ export function AgentPrivateDomainView({
           <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-[14px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_36%,transparent)]">
             <PrivateDomainToolbar
               count={threads.length}
-              is_loading={threadsLoading || eventsLoading}
-              on_refresh={handleRefresh}
+              isLoading={threadsLoading || eventsLoading}
+              onRefresh={handleRefresh}
               title="联络"
             />
             <PrivateThreadList
-              agent_id={agent.agent_id}
-              class_name="min-h-0 flex-1"
+              agentId={agent.agent_id}
+              className="min-h-0 flex-1"
               compact
-              is_loading={threadsLoading}
-              on_select={setSelectedThreadId}
-              selected_thread_id={selectedThreadId}
+              isLoading={threadsLoading}
+              onSelect={setSelectedThreadId}
+              selectedThreadId={selectedThreadId}
               threads={threads}
             />
           </section>
           <PrivateEventTimeline
-            agent_id={agent.agent_id}
-            class_name="h-full min-h-0"
+            agentId={agent.agent_id}
+            className="h-full min-h-0"
             compact
             error={error}
             events={events}
-            is_loading={eventsLoading}
+            isLoading={eventsLoading}
             thread={selectedThread}
           />
         </div>
@@ -212,25 +212,25 @@ export function AgentPrivateDomainView({
         <section className="flex min-h-0 flex-col overflow-hidden rounded-[16px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_54%,transparent)]">
           <PrivateDomainToolbar
             count={threads.length}
-            is_loading={threadsLoading}
-            on_refresh={handleRefresh}
+            isLoading={threadsLoading}
+            onRefresh={handleRefresh}
             title="联络"
           />
           <PrivateThreadList
-            agent_id={agent.agent_id}
-            class_name="min-h-0 flex-1"
-            is_loading={threadsLoading}
-            on_select={setSelectedThreadId}
-            selected_thread_id={selectedThreadId}
+            agentId={agent.agent_id}
+            className="min-h-0 flex-1"
+            isLoading={threadsLoading}
+            onSelect={setSelectedThreadId}
+            selectedThreadId={selectedThreadId}
             threads={threads}
           />
         </section>
 
         <PrivateEventTimeline
-          agent_id={agent.agent_id}
+          agentId={agent.agent_id}
           error={error}
           events={events}
-          is_loading={eventsLoading}
+          isLoading={eventsLoading}
           thread={selectedThread}
         />
       </div>

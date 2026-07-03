@@ -9,8 +9,8 @@
 
 import { ApiResponse } from "@/types/system/api";
 import {
-  apply_desktop_request_headers,
-  recover_desktop_session_token_error,
+  applyDesktopRequestHeaders,
+  recoverDesktopSessionTokenError,
 } from "@/config/desktop-runtime";
 
 export const AUTH_REQUIRED_EVENT = "nexus:auth-required";
@@ -290,7 +290,7 @@ function buildErrorMessage(
   );
 }
 
-export async function request_api<T>(
+export async function requestApi<T>(
   input: string,
   init?: RequestApiOptions,
 ): Promise<T> {
@@ -302,7 +302,7 @@ export async function request_api<T>(
     ...requestInit
   } = init ?? {};
   const { body, headers } = normalizeRequestPayload(init);
-  apply_desktop_request_headers(input, headers);
+  applyDesktopRequestHeaders(input, headers);
   const { signal, cleanup, did_timeout: didTimeout } = buildAbortSignal(
     init?.signal,
     timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS,
@@ -331,7 +331,7 @@ export async function request_api<T>(
   if (!response.ok) {
     const message = buildErrorMessage(response, payload);
     if (response.status === 401) {
-      if (recover_desktop_session_token_error(message, input)) {
+      if (recoverDesktopSessionTokenError(message, input)) {
         throw new UnauthorizedError(message);
       }
       if (notifyOn401 !== false) {
@@ -349,6 +349,6 @@ export async function request_api<T>(
   return payload.data as T;
 }
 
-export function notify_auth_required() {
+export function notifyAuthRequired() {
   emitAuthRequired();
 }

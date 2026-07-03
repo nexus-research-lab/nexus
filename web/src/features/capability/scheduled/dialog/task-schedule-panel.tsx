@@ -18,61 +18,61 @@ import {
 
 export function TaskSchedulePanel(props: TaskSchedulePanelProps) {
   const {
-    close_daily_picker: closeDailyPicker,
-    close_single_picker: closeSinglePicker,
-    daily_anchor_ref: dailyAnchorRef,
-    daily_display: dailyDisplay,
-    daily_hour12: dailyHour12,
-    daily_meridiem: dailyMeridiem,
-    daily_minute: dailyMinute,
+    closeDailyPicker: closeDailyPicker,
+    closeSinglePicker: closeSinglePicker,
+    dailyAnchorRef: dailyAnchorRef,
+    dailyDisplay: dailyDisplay,
+    dailyHour12: dailyHour12,
+    dailyMeridiem: dailyMeridiem,
+    dailyMinute: dailyMinute,
     enabled,
-    error_message: errorMessage,
-    every_unit: everyUnit,
-    every_unit_options: everyUnitOptions,
-    every_value: everyValue,
+    errorMessage: errorMessage,
+    everyUnit: everyUnit,
+    everyUnitOptions: everyUnitOptions,
+    everyValue: everyValue,
     instruction,
-    instruction_label: instructionLabel,
-    instruction_placeholder: instructionPlaceholder,
-    is_daily_picker_open: isDailyPickerOpen,
-    is_single_picker_open: isSinglePickerOpen,
-    is_single_date_disabled: isSingleDateDisabled,
-    is_single_hour_disabled: isSingleHourDisabled,
-    is_single_meridiem_disabled: isSingleMeridiemDisabled,
-    is_single_minute_disabled: isSingleMinuteDisabled,
-    is_single_second_disabled: isSingleSecondDisabled,
-    on_daily_hour_select: onDailyHourSelect,
-    on_daily_meridiem_select: onDailyMeridiemSelect,
-    on_daily_minute_select: onDailyMinuteSelect,
-    on_daily_trigger_click: onDailyTriggerClick,
-    on_next_month: onNextMonth,
-    on_prev_month: onPrevMonth,
-    on_single_date_select: onSingleDateSelect,
-    on_single_hour_select: onSingleHourSelect,
-    on_single_meridiem_select: onSingleMeridiemSelect,
-    on_single_minute_select: onSingleMinuteSelect,
-    on_single_second_select: onSingleSecondSelect,
-    on_single_trigger_click: onSingleTriggerClick,
-    on_toggle_weekday: onToggleWeekday,
-    run_at_display: runAtDisplay,
-    schedule_kind: scheduleKind,
-    schedule_options: scheduleOptions,
-    selected_run_date: selectedRunDate,
-    selected_weekdays: selectedWeekdays,
-    set_enabled: setEnabled,
-    set_every_unit: setEveryUnit,
-    set_every_value: setEveryValue,
-    set_instruction: setInstruction,
-    set_schedule_kind: setScheduleKind,
-    set_timezone: setTimezone,
-    single_anchor_ref: singleAnchorRef,
-    single_hour12: singleHour12,
-    single_meridiem: singleMeridiem,
-    single_minute: singleMinute,
-    single_picker_days: singlePickerDays,
-    single_picker_month: singlePickerMonth,
-    single_second: singleSecond,
+    instructionLabel: instructionLabel,
+    instructionPlaceholder: instructionPlaceholder,
+    isDailyPickerOpen: isDailyPickerOpen,
+    isSinglePickerOpen: isSinglePickerOpen,
+    isSingleDateDisabled: isSingleDateDisabled,
+    isSingleHourDisabled: isSingleHourDisabled,
+    isSingleMeridiemDisabled: isSingleMeridiemDisabled,
+    isSingleMinuteDisabled: isSingleMinuteDisabled,
+    isSingleSecondDisabled: isSingleSecondDisabled,
+    onDailyHourSelect: onDailyHourSelect,
+    onDailyMeridiemSelect: onDailyMeridiemSelect,
+    onDailyMinuteSelect: onDailyMinuteSelect,
+    onDailyTriggerClick: onDailyTriggerClick,
+    onNextMonth: onNextMonth,
+    onPrevMonth: onPrevMonth,
+    onSingleDateSelect: onSingleDateSelect,
+    onSingleHourSelect: onSingleHourSelect,
+    onSingleMeridiemSelect: onSingleMeridiemSelect,
+    onSingleMinuteSelect: onSingleMinuteSelect,
+    onSingleSecondSelect: onSingleSecondSelect,
+    onSingleTriggerClick: onSingleTriggerClick,
+    onToggleWeekday: onToggleWeekday,
+    runAtDisplay: runAtDisplay,
+    scheduleKind: scheduleKind,
+    scheduleOptions: scheduleOptions,
+    selectedRunDate: selectedRunDate,
+    selectedWeekdays: selectedWeekdays,
+    setEnabled: setEnabled,
+    setEveryUnit: setEveryUnit,
+    setEveryValue: setEveryValue,
+    setInstruction: setInstruction,
+    setScheduleKind: setScheduleKind,
+    setTimezone: setTimezone,
+    singleAnchorRef: singleAnchorRef,
+    singleHour12: singleHour12,
+    singleMeridiem: singleMeridiem,
+    singleMinute: singleMinute,
+    singlePickerDays: singlePickerDays,
+    singlePickerMonth: singlePickerMonth,
+    singleSecond: singleSecond,
     timezone,
-    timezone_options: timezoneOptions,
+    timezoneOptions: timezoneOptions,
   } = props;
 
   return (
@@ -81,8 +81,8 @@ export function TaskSchedulePanel(props: TaskSchedulePanelProps) {
         <div className="flex items-center justify-between gap-4">
           <span className="dialog-label !mb-0">调度</span>
           <UiSegmentedControl
-            class_name="shrink-0"
-            on_change={setScheduleKind}
+            className="shrink-0"
+            onChange={setScheduleKind}
             options={scheduleOptions.map((option) => ({
               label: option.label,
               value: option.key,
@@ -95,47 +95,47 @@ export function TaskSchedulePanel(props: TaskSchedulePanelProps) {
 
       {scheduleKind === "at" ? (
         <SingleRunPicker
-          anchor_ref={singleAnchorRef}
+          anchorRef={singleAnchorRef}
           display={runAtDisplay}
           hour12={singleHour12}
-          is_date_disabled={isSingleDateDisabled}
-          is_hour_disabled={isSingleHourDisabled}
-          is_open={isSinglePickerOpen}
-          is_meridiem_disabled={isSingleMeridiemDisabled}
-          is_minute_disabled={isSingleMinuteDisabled}
-          is_second_disabled={isSingleSecondDisabled}
+          isDateDisabled={isSingleDateDisabled}
+          isHourDisabled={isSingleHourDisabled}
+          isOpen={isSinglePickerOpen}
+          isMeridiemDisabled={isSingleMeridiemDisabled}
+          isMinuteDisabled={isSingleMinuteDisabled}
+          isSecondDisabled={isSingleSecondDisabled}
           meridiem={singleMeridiem}
           minute={singleMinute}
-          month_label={`${singlePickerMonth.replace("-", "年")}月`}
-          on_close={closeSinglePicker}
-          on_date_select={onSingleDateSelect}
-          on_hour_select={onSingleHourSelect}
-          on_meridiem_select={onSingleMeridiemSelect}
-          on_minute_select={onSingleMinuteSelect}
-          on_next_month={onNextMonth}
-          on_prev_month={onPrevMonth}
-          on_second_select={onSingleSecondSelect}
-          on_toggle={onSingleTriggerClick}
+          monthLabel={`${singlePickerMonth.replace("-", "年")}月`}
+          onClose={closeSinglePicker}
+          onDateSelect={onSingleDateSelect}
+          onHourSelect={onSingleHourSelect}
+          onMeridiemSelect={onSingleMeridiemSelect}
+          onMinuteSelect={onSingleMinuteSelect}
+          onNextMonth={onNextMonth}
+          onPrevMonth={onPrevMonth}
+          onSecondSelect={onSingleSecondSelect}
+          onToggle={onSingleTriggerClick}
           second={singleSecond}
-          selected_date={selectedRunDate}
-          visible_days={singlePickerDays}
+          selectedDate={selectedRunDate}
+          visibleDays={singlePickerDays}
         />
       ) : null}
 
       {scheduleKind === "cron" ? (
         <div className="grid gap-4">
           <DailyTimePicker
-            anchor_ref={dailyAnchorRef}
+            anchorRef={dailyAnchorRef}
             display={dailyDisplay}
             hour12={dailyHour12}
-            is_open={isDailyPickerOpen}
+            isOpen={isDailyPickerOpen}
             meridiem={dailyMeridiem}
             minute={dailyMinute}
-            on_close={closeDailyPicker}
-            on_hour_select={onDailyHourSelect}
-            on_meridiem_select={onDailyMeridiemSelect}
-            on_minute_select={onDailyMinuteSelect}
-            on_toggle={onDailyTriggerClick}
+            onClose={closeDailyPicker}
+            onHourSelect={onDailyHourSelect}
+            onMeridiemSelect={onDailyMeridiemSelect}
+            onMinuteSelect={onDailyMinuteSelect}
+            onToggle={onDailyTriggerClick}
           />
           <div className="dialog-field">
             <span className="dialog-label">执行日</span>
@@ -145,13 +145,13 @@ export function TaskSchedulePanel(props: TaskSchedulePanelProps) {
                 return (
                   <UiChoiceButton
                     active={isSelected}
-                    choice_size="md"
-                    class_name="min-w-9 px-3"
+                    choiceSize="md"
+                    className="min-w-9 px-3"
                     key={option.key}
                     onClick={() => onToggleWeekday(option.key)}
                     shape="pill"
                   >
-                    {option.short_label}
+                    {option.shortLabel}
                   </UiChoiceButton>
                 );
               })}
@@ -168,8 +168,8 @@ export function TaskSchedulePanel(props: TaskSchedulePanelProps) {
           <div className="flex flex-wrap items-center gap-3">
             <span className="text-sm font-semibold text-(--text-default)">每隔</span>
             <UiInput
-              class_name="min-w-[96px]"
-              control_size="lg"
+              className="min-w-[96px]"
+              controlSize="lg"
               id="task-every-value"
               max="999"
               min="1"
@@ -179,10 +179,10 @@ export function TaskSchedulePanel(props: TaskSchedulePanelProps) {
               value={everyValue}
             />
             <UiSelectMenu
-              aria_label="选择间隔单位"
-              class_name="min-w-[132px]"
+              ariaLabel="选择间隔单位"
+              className="min-w-[132px]"
               id="task-every-unit"
-              on_change={(value) => setEveryUnit(value as EveryUnit)}
+              onChange={(value) => setEveryUnit(value as EveryUnit)}
               options={everyUnitOptions.map((option) => ({
                 value: option.key,
                 label: option.label,
@@ -199,9 +199,9 @@ export function TaskSchedulePanel(props: TaskSchedulePanelProps) {
           时区
         </label>
         <UiSelectMenu
-          aria_label="选择任务时区"
+          ariaLabel="选择任务时区"
           id="task-timezone"
-          on_change={setTimezone}
+          onChange={setTimezone}
           options={timezoneOptions.map((option) => ({
             value: option,
             label: option,
@@ -216,7 +216,7 @@ export function TaskSchedulePanel(props: TaskSchedulePanelProps) {
           {instructionLabel}
         </label>
         <UiTextarea
-          class_name="resize-none"
+          className="resize-none"
           id="task-instruction"
           onChange={(e) => setInstruction(e.target.value)}
           placeholder={instructionPlaceholder}
@@ -228,7 +228,7 @@ export function TaskSchedulePanel(props: TaskSchedulePanelProps) {
       <UiCheckboxRow
         checked={enabled}
         label="创建后立即启用任务"
-        on_change={setEnabled}
+        onChange={setEnabled}
       />
 
       {errorMessage ? (

@@ -16,21 +16,21 @@ import { cn } from "@/lib/utils";
 import { PromptDialog } from "@/shared/ui/dialog/confirm-dialog";
 import { MessageActionButton, MessageAvatar } from "../ui/message-primitives";
 import { ContentRenderer } from "./content-renderer";
-import { format_message_time } from "./message-item-support";
+import { formatMessageTime } from "./message-item-support";
 import type { MessageItemState } from "./message-item-types";
 import type { MessageAttachment } from "@/types/conversation/message";
 
 interface MessageUserSectionProps {
   compact: boolean;
-  user_message: MessageItemState["user_message"];
-  user_content: string;
-  user_attachments: MessageAttachment[];
-  current_user_avatar?: string | null;
-  copied_user: boolean;
-  on_copy_user: () => Promise<void>;
-  on_edit_user_message?: (messageId: string, newContent: string) => void;
-  on_open_workspace_file?: (path: string) => void;
-  workspace_agent_id?: string | null;
+  userMessage: MessageItemState["userMessage"];
+  userContent: string;
+  userAttachments: MessageAttachment[];
+  currentUserAvatar?: string | null;
+  copiedUser: boolean;
+  onCopyUser: () => Promise<void>;
+  onEditUserMessage?: (messageId: string, newContent: string) => void;
+  onOpenWorkspaceFile?: (path: string) => void;
+  workspaceAgentId?: string | null;
 }
 
 function getUserAttachmentIcon(kind: MessageAttachment["kind"]) {
@@ -55,12 +55,12 @@ function getUserAttachmentKindLabel(kind: MessageAttachment["kind"]) {
 
 function MessageAttachmentList({
   attachments,
-  on_open_workspace_file: onOpenWorkspaceFile,
-  workspace_agent_id: workspaceAgentId,
+  onOpenWorkspaceFile: onOpenWorkspaceFile,
+  workspaceAgentId: workspaceAgentId,
 }: {
   attachments: MessageAttachment[];
-  on_open_workspace_file?: (path: string) => void;
-  workspace_agent_id?: string | null;
+  onOpenWorkspaceFile?: (path: string) => void;
+  workspaceAgentId?: string | null;
 }) {
   if (attachments.length === 0) {
     return null;
@@ -125,15 +125,15 @@ function MessageAttachmentList({
 
 export function MessageUserSection({
   compact,
-  user_message: userMessage,
-  user_content: userContent,
-  user_attachments: userAttachments,
-  current_user_avatar: currentUserAvatar,
-  copied_user: copiedUser,
-  on_copy_user: onCopyUser,
-  on_edit_user_message: onEditUserMessage,
-  on_open_workspace_file: onOpenWorkspaceFile,
-  workspace_agent_id: workspaceAgentId,
+  userMessage: userMessage,
+  userContent: userContent,
+  userAttachments: userAttachments,
+  currentUserAvatar: currentUserAvatar,
+  copiedUser: copiedUser,
+  onCopyUser: onCopyUser,
+  onEditUserMessage: onEditUserMessage,
+  onOpenWorkspaceFile: onOpenWorkspaceFile,
+  workspaceAgentId: workspaceAgentId,
 }: MessageUserSectionProps) {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
@@ -183,7 +183,7 @@ export function MessageUserSection({
               </div>
 
               <span className="nexus-chat-meta hidden shrink-0 text-xs text-(--text-muted) sm:inline">
-                {format_message_time(userMessage.timestamp)}
+                {formatMessageTime(userMessage.timestamp)}
               </span>
               {isGuidedUserMessage ? (
                 <span className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-(--text-muted)">
@@ -195,9 +195,9 @@ export function MessageUserSection({
                 你
               </span>
               <MessageAvatar
-                class_name="nexus-chat-avatar shrink-0"
+                className="nexus-chat-avatar shrink-0"
                 size={compact ? "compact" : "full"}
-                avatar_url={currentUserAvatar}
+                avatarUrl={currentUserAvatar}
               >
                 {!currentUserAvatar && (
                   <User className={compact ? "h-3 w-3" : "h-4 w-4"} />
@@ -209,9 +209,9 @@ export function MessageUserSection({
               {userContent.trim() ? (
                 <ContentRenderer
                   content={userContent}
-                  on_open_workspace_file={onOpenWorkspaceFile}
-                  workspace_agent_id={workspaceAgentId}
-                  class_name={cn(
+                  onOpenWorkspaceFile={onOpenWorkspaceFile}
+                  workspaceAgentId={workspaceAgentId}
+                  className={cn(
                     "nexus-chat-user-content w-fit max-w-[min(100%,760px)] self-end break-words text-left text-(--text-strong)",
                     compact
                       ? "text-[15px] leading-6 [&_.katex-display]:my-2"
@@ -221,8 +221,8 @@ export function MessageUserSection({
               ) : null}
               <MessageAttachmentList
                 attachments={userAttachments}
-                on_open_workspace_file={onOpenWorkspaceFile}
-                workspace_agent_id={workspaceAgentId}
+                onOpenWorkspaceFile={onOpenWorkspaceFile}
+                workspaceAgentId={workspaceAgentId}
               />
             </div>
           </div>
@@ -231,14 +231,14 @@ export function MessageUserSection({
 
       {onEditUserMessage ? (
         <PromptDialog
-          is_open={isEditDialogOpen}
+          isOpen={isEditDialogOpen}
           title="编辑消息"
           message="修改后的内容会直接替换当前这条用户消息。"
           placeholder="输入新的消息内容"
-          default_value={userContent}
+          defaultValue={userContent}
           multiline
-          on_cancel={() => setIsEditDialogOpen(false)}
-          on_confirm={(nextContent) => {
+          onCancel={() => setIsEditDialogOpen(false)}
+          onConfirm={(nextContent) => {
             const normalizedContent = nextContent.trim();
             if (!normalizedContent || normalizedContent === userContent) {
               setIsEditDialogOpen(false);

@@ -20,7 +20,7 @@ export const DM_CONVERSATION_TOUR_ID = "dm-conversation";
 export const ROOM_CONVERSATION_TOUR_ID = "room-conversation";
 export const ROOM_EMPTY_CONVERSATION_TOUR_ID = "room-empty-conversation";
 
-export function build_dm_conversation_tour(
+export function buildDmConversationTour(
   t: I18nContextValue["t"],
 ): OnboardingTourDefinition {
   return {
@@ -85,7 +85,7 @@ export function build_dm_conversation_tour(
   };
 }
 
-export function build_room_conversation_tour(
+export function buildRoomConversationTour(
   t: I18nContextValue["t"],
 ): OnboardingTourDefinition {
   return {
@@ -158,7 +158,7 @@ export function build_room_conversation_tour(
   };
 }
 
-export function build_room_empty_conversation_tour(
+export function buildRoomEmptyConversationTour(
   t: I18nContextValue["t"],
 ): OnboardingTourDefinition {
   return {

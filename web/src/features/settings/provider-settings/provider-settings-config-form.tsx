@@ -16,53 +16,53 @@ import {
   API_FORMAT_SHORT_LABELS,
   PROVIDER_LABEL_CLASS_NAME,
   ProviderDraft,
-  format_token_preview,
+  formatTokenPreview,
 } from "./provider-settings-model";
 
 interface ProviderSettingsConfigFormProps {
-  builtin_endpoint_formats: ProviderPresetFormat[];
-  current_format: ProviderPresetFormat | null;
-  current_preset: ProviderPreset | null;
-  detail_title: string;
+  builtinEndpointFormats: ProviderPresetFormat[];
+  currentFormat: ProviderPresetFormat | null;
+  currentPreset: ProviderPreset | null;
+  detailTitle: string;
   draft: ProviderDraft;
-  format_options: UiSelectMenuOption[];
-  is_custom_provider: boolean;
-  is_editing: boolean;
-  on_api_format_change: (value: string) => void;
-  on_auth_token_change: (value: string) => void;
-  on_base_url_change: (value: string) => void;
-  on_field_blur: () => void;
-  on_provider_display_name_change: (value: string) => void;
-  on_provider_kind_change: (value: string) => void;
-  provider_kind_options: UiSelectMenuOption[];
-  selected_can_manage: boolean;
-  selected_record: ProviderConfigRecord | null;
-  show_provider_shape_controls: boolean;
-  show_runtime_format_badge: boolean;
-  uses_builtin_endpoint: boolean;
+  formatOptions: UiSelectMenuOption[];
+  isCustomProvider: boolean;
+  isEditing: boolean;
+  onApiFormatChange: (value: string) => void;
+  onAuthTokenChange: (value: string) => void;
+  onBaseUrlChange: (value: string) => void;
+  onFieldBlur: () => void;
+  onProviderDisplayNameChange: (value: string) => void;
+  onProviderKindChange: (value: string) => void;
+  providerKindOptions: UiSelectMenuOption[];
+  selectedCanManage: boolean;
+  selectedRecord: ProviderConfigRecord | null;
+  showProviderShapeControls: boolean;
+  showRuntimeFormatBadge: boolean;
+  usesBuiltinEndpoint: boolean;
 }
 
 export function ProviderSettingsConfigForm({
-  builtin_endpoint_formats: builtinEndpointFormats,
-  current_format: currentFormat,
-  current_preset: currentPreset,
-  detail_title: detailTitle,
+  builtinEndpointFormats: builtinEndpointFormats,
+  currentFormat: currentFormat,
+  currentPreset: currentPreset,
+  detailTitle: detailTitle,
   draft,
-  format_options: formatOptions,
-  is_custom_provider: isCustomProvider,
-  is_editing: isEditing,
-  on_api_format_change: onApiFormatChange,
-  on_auth_token_change: onAuthTokenChange,
-  on_base_url_change: onBaseUrlChange,
-  on_field_blur: onFieldBlur,
-  on_provider_display_name_change: onProviderDisplayNameChange,
-  on_provider_kind_change: onProviderKindChange,
-  provider_kind_options: providerKindOptions,
-  selected_can_manage: selectedCanManage,
-  selected_record: selectedRecord,
-  show_provider_shape_controls: showProviderShapeControls,
-  show_runtime_format_badge: showRuntimeFormatBadge,
-  uses_builtin_endpoint: usesBuiltinEndpoint,
+  formatOptions: formatOptions,
+  isCustomProvider: isCustomProvider,
+  isEditing: isEditing,
+  onApiFormatChange: onApiFormatChange,
+  onAuthTokenChange: onAuthTokenChange,
+  onBaseUrlChange: onBaseUrlChange,
+  onFieldBlur: onFieldBlur,
+  onProviderDisplayNameChange: onProviderDisplayNameChange,
+  onProviderKindChange: onProviderKindChange,
+  providerKindOptions: providerKindOptions,
+  selectedCanManage: selectedCanManage,
+  selectedRecord: selectedRecord,
+  showProviderShapeControls: showProviderShapeControls,
+  showRuntimeFormatBadge: showRuntimeFormatBadge,
+  usesBuiltinEndpoint: usesBuiltinEndpoint,
 }: ProviderSettingsConfigFormProps) {
   const { t } = useI18n();
 
@@ -76,7 +76,7 @@ export function ProviderSettingsConfigForm({
               <UiInput
                 autoCapitalize="off"
                 autoCorrect="off"
-                control_size="lg"
+                controlSize="lg"
                 disabled={!selectedCanManage}
                 onChange={(event) => onProviderDisplayNameChange(event.target.value)}
                 onBlur={onFieldBlur}
@@ -91,10 +91,10 @@ export function ProviderSettingsConfigForm({
           <label className="space-y-2">
             <span className={PROVIDER_LABEL_CLASS_NAME}>{t("settings.providers.kind")}</span>
             <UiSelectMenu
-              aria_label={t("settings.providers.kind")}
-              class_name="h-11"
+              ariaLabel={t("settings.providers.kind")}
+              className="h-11"
               disabled={!selectedCanManage || isEditing || providerKindOptions.length <= 1}
-              on_change={onProviderKindChange}
+              onChange={onProviderKindChange}
               options={providerKindOptions}
               size="sm"
               value={draft.provider_kind}
@@ -114,10 +114,10 @@ export function ProviderSettingsConfigForm({
               ) : null}
             </span>
             <UiSelectMenu
-              aria_label={t("settings.providers.api_format")}
-              class_name="h-11"
+              ariaLabel={t("settings.providers.api_format")}
+              className="h-11"
               disabled={!selectedCanManage || formatOptions.length <= 1}
-              on_change={onApiFormatChange}
+              onChange={onApiFormatChange}
               options={formatOptions}
               size="sm"
               value={draft.api_format}
@@ -132,7 +132,7 @@ export function ProviderSettingsConfigForm({
           autoCapitalize="off"
           autoComplete="off"
           autoCorrect="off"
-          control_size="md"
+          controlSize="md"
           data-form-type="other"
           data-lpignore="true"
           disabled={!selectedCanManage}
@@ -140,7 +140,7 @@ export function ProviderSettingsConfigForm({
           onChange={(event) => onAuthTokenChange(event.target.value)}
           onBlur={onFieldBlur}
           placeholder={isEditing
-            ? format_token_preview(
+            ? formatTokenPreview(
               selectedRecord?.auth_token_masked,
               t("settings.providers.api_key_empty"),
             )
@@ -187,7 +187,7 @@ export function ProviderSettingsConfigForm({
           <UiInput
             autoCapitalize="off"
             autoCorrect="off"
-            control_size="md"
+            controlSize="md"
             disabled={!selectedCanManage}
             onChange={(event) => onBaseUrlChange(event.target.value)}
             onBlur={onFieldBlur}

@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 import { UiBadge } from "@/shared/ui/badge";
 import { UiListActionButton } from "@/shared/ui/list-action";
 import { UiListRow } from "@/shared/ui/list-row";
-import { is_channel_planned } from "./channel-model";
+import { isChannelPlanned } from "./channel-model";
 import { ChannelIcon } from "./channel-ui-model";
 
 function ChannelStatPill({
@@ -44,12 +44,12 @@ function ChannelStatPill({
 
 export function ChannelCard({
   item,
-  on_configure: onConfigure,
+  onConfigure: onConfigure,
 }: {
   item: ChannelConfigView;
-  on_configure: (item: ChannelConfigView) => void;
+  onConfigure: (item: ChannelConfigView) => void;
 }) {
-  const planned = is_channel_planned(item);
+  const planned = isChannelPlanned(item);
   const description = planned
     ? "该频道将在后续版本补充，目前仅保留入口和信息结构。"
     : item.runtime_status === "external_adapter" && !item.configured
@@ -61,19 +61,19 @@ export function ChannelCard({
 
   return (
     <UiListRow
-      class_name={cn(
+      className={cn(
         "min-h-[72px] rounded-[14px] px-2 py-1.5",
         planned && "cursor-default opacity-70",
       )}
       leading={<ChannelIcon type={item.channel_type} />}
-      on_click={planned ? undefined : () => onConfigure(item)}
+      onClick={planned ? undefined : () => onConfigure(item)}
       right={(
         <div className="flex shrink-0 items-center gap-1.5">
           {!planned && item.docs_url ? (
             <UiListActionButton
               onClick={() => window.open(item.docs_url, "_blank", "noopener,noreferrer")}
               size="sm"
-              stop_propagation
+              stopPropagation
               title="查看接入文档"
             >
               <ExternalLink className="h-3 w-3" />
@@ -81,10 +81,10 @@ export function ChannelCard({
           ) : null}
           {!planned ? (
             <UiListActionButton
-              class_name="text-(--primary)"
+              className="text-(--primary)"
               onClick={() => onConfigure(item)}
               size="sm"
-              stop_propagation
+              stopPropagation
               title="设置机器人"
               visibility="visible"
             >

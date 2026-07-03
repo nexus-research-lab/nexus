@@ -23,7 +23,7 @@ function normalizeAssistantMessages(messages: Message[]): Message[] {
       return message;
     }
 
-    const normalizedMessage = normalize_assistant_message(message);
+    const normalizedMessage = normalizeAssistantMessage(message);
     if (
       normalizedMessage.stream_status === message.stream_status
       && normalizedMessage.is_complete === message.is_complete
@@ -39,15 +39,15 @@ function normalizeAssistantMessages(messages: Message[]): Message[] {
 }
 
 /**
- * 按 message_id 压缩消息列表。
+ * 按 messageId 压缩消息列表。
  *
  * 中文说明：
  * 前端消息会同时来自历史加载、WebSocket 完整消息、流式 patch、本地 optimistic。
  * 这些通道在重连和 reload 交错时，可能短暂把同一条业务消息重复带进来。
- * 这里建立消息状态层的硬约束：message_id 在内存里必须唯一。
- * assistant 快照会复用同一个 message_id 分批补充 content block，去重时必须按块身份合并。
+ * 这里建立消息状态层的硬约束：messageId 在内存里必须唯一。
+ * assistant 快照会复用同一个 messageId 分批补充 content block，去重时必须按块身份合并。
  */
-export function dedupe_messages_by_id(messages: Message[]): Message[] {
+export function dedupeMessagesById(messages: Message[]): Message[] {
   if (messages.length <= 1) {
     return messages;
   }
@@ -88,11 +88,11 @@ export function dedupe_messages_by_id(messages: Message[]): Message[] {
  * 将后端 assistant 快照统一归一化为前端运行态语义。
  *
  * 中文说明：
- * 后端的 is_complete 主要服务于持久化与非 Web 渠道发送，不等价于“这一轮已经结束”。
- * assistant turn 自身是否收口可以看 stop_reason / 显式 stream_status，
- * 但整轮 round 的结束必须以后端推送的 round_status 为准。
+ * 后端的 isComplete 主要服务于持久化与非 Web 渠道发送，不等价于“这一轮已经结束”。
+ * assistant turn 自身是否收口可以看 stopReason / 显式 streamStatus，
+ * 但整轮 round 的结束必须以后端推送的 roundStatus 为准。
  */
-export function normalize_assistant_message(incoming: AssistantMessage): AssistantMessage {
+export function normalizeAssistantMessage(incoming: AssistantMessage): AssistantMessage {
   return {
     ...incoming,
     stream_status: incoming.stream_status ?? (
@@ -102,12 +102,12 @@ export function normalize_assistant_message(incoming: AssistantMessage): Assista
 }
 
 /**
- * 按 message_id 合并完整消息。
+ * 按 messageId 合并完整消息。
  */
-export function upsert_message(messages: Message[], incoming: Message): Message[] {
+export function upsertMessage(messages: Message[], incoming: Message): Message[] {
   const normalizedIncoming = (
     incoming.role === 'assistant'
-      ? normalize_assistant_message(incoming)
+      ? normalizeAssistantMessage(incoming)
       : incoming
   );
   const existingIndex = messages.findIndex(
@@ -115,7 +115,7 @@ export function upsert_message(messages: Message[], incoming: Message): Message[
   );
   if (existingIndex === -1) {
     return normalizeAssistantMessages(
-      dedupe_messages_by_id([...messages, normalizedIncoming]),
+      dedupeMessagesById([...messages, normalizedIncoming]),
     );
   }
 
@@ -124,7 +124,7 @@ export function upsert_message(messages: Message[], incoming: Message): Message[
     nextMessages[existingIndex],
     normalizedIncoming,
   );
-  return normalizeAssistantMessages(dedupe_messages_by_id(nextMessages));
+  return normalizeAssistantMessages(dedupeMessagesById(nextMessages));
 }
 
 function mergeMessageById(existing: Message, incoming: Message): Message {
@@ -138,9 +138,9 @@ function mergeAssistantMessage(
   existing: AssistantMessage,
   incoming: AssistantMessage,
 ): AssistantMessage {
-  const normalizedExisting = normalize_assistant_message(existing);
-  const normalizedIncoming = normalize_assistant_message(incoming);
-  return normalize_assistant_message({
+  const normalizedExisting = normalizeAssistantMessage(existing);
+  const normalizedIncoming = normalizeAssistantMessage(incoming);
+  return normalizeAssistantMessage({
     ...normalizedExisting,
     ...normalizedIncoming,
     content: mergeAssistantContentBlocks(
@@ -276,7 +276,7 @@ function jsonEqual(left: unknown, right: unknown): boolean {
 /**
  * 将流式增量应用到当前消息列表。
  */
-export function apply_stream_message(messages: Message[], event: StreamMessage): Message[] {
+export function applyStreamMessage(messages: Message[], event: StreamMessage): Message[] {
   const existingIndex = messages.findIndex(
     (message) => message.role === 'assistant' && message.message_id === event.message_id,
   );
@@ -359,8 +359,8 @@ export function apply_stream_message(messages: Message[], event: StreamMessage):
 /**
  * 按时间戳排序消息，保证历史与实时消息顺序稳定。
  */
-export function sort_messages(messages: Message[]): Message[] {
-  const uniqueMessages = dedupe_messages_by_id(messages);
+export function sortMessages(messages: Message[]): Message[] {
+  const uniqueMessages = dedupeMessagesById(messages);
   return normalizeAssistantMessages(
     [...uniqueMessages].sort((left, right) => left.timestamp - right.timestamp),
   );
@@ -374,13 +374,13 @@ export function sort_messages(messages: Message[]): Message[] {
  * 2. 仅把服务端中不存在的本地消息补回去；
  * 3. 最终统一排序，避免 session 首屏加载把用户刚发出的消息冲掉。
  */
-export function merge_loaded_messages(
+export function mergeLoadedMessages(
   loadedMessages: Message[],
   localMessages: Message[],
 ): Message[] {
-  const uniqueLoadedMessages = dedupe_messages_by_id(loadedMessages);
+  const uniqueLoadedMessages = dedupeMessagesById(loadedMessages);
   if (localMessages.length === 0) {
-    return sort_messages(uniqueLoadedMessages);
+    return sortMessages(uniqueLoadedMessages);
   }
 
   const loadedMessageIds = new Set(
@@ -394,5 +394,5 @@ export function merge_loaded_messages(
     }
   }
 
-  return sort_messages(dedupe_messages_by_id(mergedMessages));
+  return sortMessages(dedupeMessagesById(mergedMessages));
 }

@@ -4,7 +4,7 @@ import { ExternalLink, Loader2, PackagePlus, Puzzle } from "lucide-react";
 
 import { UiBadge } from "@/shared/ui/badge";
 import { UiButton } from "@/shared/ui/button";
-import { get_ui_button_class_name } from "@/shared/ui/button-styles";
+import { getUiButtonClassName } from "@/shared/ui/button-styles";
 import {
   UiDialogBackdrop,
   UiDialogBody,
@@ -19,13 +19,13 @@ import { SkillMarkdown } from "./skill-markdown";
 
 interface ExternalSkillPreviewDialogProps {
   item: ExternalSkillSearchItem | null;
-  is_open: boolean;
+  isOpen: boolean;
   busy: boolean;
-  preview_loading: boolean;
-  name_conflict?: boolean;
-  already_imported: boolean;
-  on_close: () => void;
-  on_import_only: () => void;
+  previewLoading: boolean;
+  nameConflict?: boolean;
+  alreadyImported: boolean;
+  onClose: () => void;
+  onImportOnly: () => void;
 }
 
 function formatInstalls(installs: number): string {
@@ -37,13 +37,13 @@ function formatInstalls(installs: number): string {
 
 export function ExternalSkillPreviewDialog({
   item,
-  is_open: isOpen,
+  isOpen: isOpen,
   busy,
-  preview_loading: previewLoading,
-  name_conflict: nameConflict = false,
-  already_imported: alreadyImported,
-  on_close: onClose,
-  on_import_only: onImportOnly,
+  previewLoading: previewLoading,
+  nameConflict: nameConflict = false,
+  alreadyImported: alreadyImported,
+  onClose: onClose,
+  onImportOnly: onImportOnly,
 }: ExternalSkillPreviewDialogProps) {
   if (!isOpen || !item) return null;
   const isSkillsSh = item.source_kind === "skills_sh" || item.import_mode === "skills_sh";
@@ -57,11 +57,11 @@ export function ExternalSkillPreviewDialog({
 
   return (
     <UiDialogPortal>
-      <UiDialogBackdrop class_name="z-[9999]" on_close={onClose}>
-        <UiDialogShell class_name="h-[84vh]" size="xl">
+      <UiDialogBackdrop className="z-[9999]" onClose={onClose}>
+        <UiDialogShell className="h-[84vh]" size="xl">
           <UiDialogHeader
             icon={<Puzzle className="h-4 w-4" />}
-            on_close={onClose}
+            onClose={onClose}
             subtitle={`${sourceRef} · ${formatInstalls(item.installs)} 次安装`}
             title={item.title || item.skill_slug}
           />
@@ -81,10 +81,10 @@ export function ExternalSkillPreviewDialog({
             />
           </UiDialogBody>
 
-          <UiDialogFooter class_name="flex-wrap justify-between gap-3">
+          <UiDialogFooter className="flex-wrap justify-between gap-3">
             {item.detail_url ? (
               <a
-                className={get_ui_button_class_name({ size: "sm", variant: "text" }, "w-fit")}
+                className={getUiButtonClassName({ size: "sm", variant: "text" }, "w-fit")}
                 href={item.detail_url}
                 rel="noreferrer"
                 target="_blank"

@@ -5,13 +5,13 @@ import { type ReactNode } from "react";
 interface WorkspaceFileButtonProps {
   label: ReactNode;
   path: string;
-  on_open_workspace_file: (path: string) => void;
+  onOpenWorkspaceFile: (path: string) => void;
 }
 
 export function WorkspaceFileButton({
   label,
   path,
-  on_open_workspace_file: onOpenWorkspaceFile,
+  onOpenWorkspaceFile: onOpenWorkspaceFile,
 }: WorkspaceFileButtonProps) {
   return (
     <button

@@ -38,7 +38,7 @@ const LIST_ACTION_VISIBILITY_CLASS_MAP: Record<UiListActionVisibility, string> =
   visible: "opacity-100",
 };
 
-export function get_ui_list_action_class_name(
+export function getUiListActionClassName(
   options: UiListActionStyleOptions = {},
   className?: string,
 ): string {

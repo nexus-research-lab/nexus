@@ -22,39 +22,39 @@ import {
   type PresentationSlide,
 } from "./presentation-preview-model";
 import {
-  apply_group_transform_to_element,
-  map_group_placeholder_styles,
-  read_fill_color,
-  read_group_transform,
-  read_shape_geometry,
-  read_slide_background,
-  read_stroke_color,
-  read_stroke_width,
-  read_transform,
+  applyGroupTransformToElement,
+  mapGroupPlaceholderStyles,
+  readFillColor,
+  readGroupTransform,
+  readShapeGeometry,
+  readSlideBackground,
+  readStrokeColor,
+  readStrokeWidth,
+  readTransform,
 } from "./presentation-shape-style";
-import { parse_text_body } from "./presentation-text-parser";
+import { parseTextBody } from "./presentation-text-parser";
 import {
-  descendants_by_local_name,
-  emu_to_pixel,
-  first_child_by_local_name,
-  first_descendant_by_local_name,
-  parse_xml,
-  read_relationships,
-  read_zip_text,
-  relationship_attribute,
-  resolve_relationship_target,
-  revoke_object_urls,
+  descendantsByLocalName,
+  emuToPixel,
+  firstChildByLocalName,
+  firstDescendantByLocalName,
+  parseXml,
+  readRelationships,
+  readZipText,
+  relationshipAttribute,
+  resolveRelationshipTarget,
+  revokeObjectUrls,
 } from "./presentation-xml-utils";
 
-export async function parse_pptx(buffer: ArrayBuffer): Promise<PresentationParseResult> {
+export async function parsePptx(buffer: ArrayBuffer): Promise<PresentationParseResult> {
   const { default: JSZipConstructor } = await import("jszip");
   const zip = await JSZipConstructor.loadAsync(buffer);
   const objectUrls: string[] = [];
 
   try {
-    const presentationXml = await read_zip_text(zip, "ppt/presentation.xml");
-    const presentationDoc = parse_xml(presentationXml);
-    const presentationRels = await read_relationships(zip, "ppt/presentation.xml");
+    const presentationXml = await readZipText(zip, "ppt/presentation.xml");
+    const presentationDoc = parseXml(presentationXml);
+    const presentationRels = await readRelationships(zip, "ppt/presentation.xml");
     const { height, width } = readSlideSize(presentationDoc);
     const slidePaths = readSlidePaths(presentationDoc, presentationRels);
     const resolvedSlidePaths = slidePaths.length > 0 ? slidePaths : fallbackSlidePaths(zip);
@@ -69,20 +69,20 @@ export async function parse_pptx(buffer: ArrayBuffer): Promise<PresentationParse
       slides.push(slide);
     }
 
-    return { object_urls: objectUrls, slides };
+    return { objectUrls, slides };
   } catch (error) {
-    revoke_object_urls(objectUrls);
+    revokeObjectUrls(objectUrls);
     throw error;
   }
 }
 
 function readSlideSize(presentationDoc: Document): { height: number; width: number } {
-  const slideSize = first_descendant_by_local_name(presentationDoc, "sldSz");
+  const slideSize = firstDescendantByLocalName(presentationDoc, "sldSz");
   const widthEmu = Number(slideSize?.getAttribute("cx") || DEFAULT_SLIDE_WIDTH_EMU);
   const heightEmu = Number(slideSize?.getAttribute("cy") || DEFAULT_SLIDE_HEIGHT_EMU);
   return {
-    height: Math.max(emu_to_pixel(heightEmu), 1),
-    width: Math.max(emu_to_pixel(widthEmu), 1),
+    height: Math.max(emuToPixel(heightEmu), 1),
+    width: Math.max(emuToPixel(widthEmu), 1),
   };
 }
 
@@ -90,11 +90,11 @@ function readSlidePaths(
   presentationDoc: Document,
   presentationRels: Record<string, PresentationRelationship>,
 ): string[] {
-  return descendants_by_local_name(presentationDoc, "sldId")
+  return descendantsByLocalName(presentationDoc, "sldId")
     .map((slideId) => {
-      const relId = relationship_attribute(slideId, "id");
+      const relId = relationshipAttribute(slideId, "id");
       const rel = relId ? presentationRels[relId] : undefined;
-      return rel ? resolve_relationship_target("ppt/presentation.xml", rel.target) : null;
+      return rel ? resolveRelationshipTarget("ppt/presentation.xml", rel.target) : null;
     })
     .filter((path): path is string => !!path);
 }
@@ -117,27 +117,27 @@ async function parseSlide(
   height: number,
   objectUrls: string[],
 ): Promise<PresentationSlide> {
-  const slideXml = await read_zip_text(zip, slidePath);
-  const slideDoc = parse_xml(slideXml);
-  const slideRels = await read_relationships(zip, slidePath);
+  const slideXml = await readZipText(zip, slidePath);
+  const slideDoc = parseXml(slideXml);
+  const slideRels = await readRelationships(zip, slidePath);
   const layoutPath = resolveRelatedPartPath(slidePath, slideRels, SLIDE_LAYOUT_RELATIONSHIP_TYPE);
-  const layoutRels = layoutPath ? await read_relationships(zip, layoutPath) : {};
+  const layoutRels = layoutPath ? await readRelationships(zip, layoutPath) : {};
   const masterPath = layoutPath
     ? resolveRelatedPartPath(layoutPath, layoutRels, SLIDE_MASTER_RELATIONSHIP_TYPE)
     : null;
   const masterPart = masterPath ? await parsePresentationPart(zip, masterPath, objectUrls) : null;
   const layoutPart = layoutPath
-    ? await parsePresentationPart(zip, layoutPath, objectUrls, masterPart?.placeholder_styles)
+    ? await parsePresentationPart(zip, layoutPath, objectUrls, masterPart?.placeholderStyles)
     : null;
   const inheritedPlaceholders = mergePlaceholderStyles(
-    masterPart?.placeholder_styles,
-    layoutPart?.placeholder_styles,
+    masterPart?.placeholderStyles,
+    layoutPart?.placeholderStyles,
   );
-  const background = read_slide_background(slideDoc)
+  const background = readSlideBackground(slideDoc)
     || layoutPart?.background
     || masterPart?.background
     || "#ffffff";
-  const shapeTree = first_descendant_by_local_name(slideDoc, "spTree");
+  const shapeTree = firstDescendantByLocalName(slideDoc, "spTree");
   const slideResult = shapeTree ? await parseShapeTree(
     zip,
     slidePath,
@@ -145,12 +145,12 @@ async function parseSlide(
     shapeTree,
     objectUrls,
     {
-      element_index: 0,
-      fallback_placeholders: inheritedPlaceholders,
-      id_prefix: `slide-${index + 1}`,
-      include_placeholder_shapes: true,
+      elementIndex: 0,
+      fallbackPlaceholders: inheritedPlaceholders,
+      idPrefix: `slide-${index + 1}`,
+      includePlaceholderShapes: true,
     },
-  ) : { elements: [], placeholder_styles: new Map<string, PresentationPlaceholderStyle>() };
+  ) : { elements: [], placeholderStyles: new Map<string, PresentationPlaceholderStyle>() };
   const elements = [
     ...(masterPart?.elements ?? []),
     ...(layoutPart?.elements ?? []),
@@ -181,21 +181,21 @@ async function parsePresentationPart(
     return null;
   }
 
-  const partXml = await read_zip_text(zip, partPath);
-  const partDoc = parse_xml(partXml);
-  const rels = await read_relationships(zip, partPath);
-  const shapeTree = first_descendant_by_local_name(partDoc, "spTree");
+  const partXml = await readZipText(zip, partPath);
+  const partDoc = parseXml(partXml);
+  const rels = await readRelationships(zip, partPath);
+  const shapeTree = firstDescendantByLocalName(partDoc, "spTree");
   const result = shapeTree ? await parseShapeTree(zip, partPath, rels, shapeTree, objectUrls, {
-    element_index: 0,
-    fallback_placeholders: fallbackPlaceholders,
-    id_prefix: partPath.replace(/[^a-z0-9]+/gi, "-"),
-    include_placeholder_shapes: false,
-  }) : { elements: [], placeholder_styles: new Map<string, PresentationPlaceholderStyle>() };
+    elementIndex: 0,
+    fallbackPlaceholders: fallbackPlaceholders,
+    idPrefix: partPath.replace(/[^a-z0-9]+/gi, "-"),
+    includePlaceholderShapes: false,
+  }) : { elements: [], placeholderStyles: new Map<string, PresentationPlaceholderStyle>() };
 
   return {
-    background: read_slide_background(partDoc),
+    background: readSlideBackground(partDoc),
     elements: result.elements,
-    placeholder_styles: result.placeholder_styles,
+    placeholderStyles: result.placeholderStyles,
     rels,
   };
 }
@@ -206,10 +206,10 @@ function resolveRelatedPartPath(
   relationshipType: string,
 ): string | null {
   const rel = Object.values(sourceRels).find((relationship) => relationship.type === relationshipType);
-  if (!rel || rel.target_mode === "External") {
+  if (!rel || rel.targetMode === "External") {
     return null;
   }
-  return resolve_relationship_target(sourcePath, rel.target);
+  return resolveRelationshipTarget(sourcePath, rel.target);
 }
 
 function mergePlaceholderStyles(
@@ -239,12 +239,12 @@ async function parseShapeTree(
     switch (child.localName) {
       case "cxnSp":
       case "sp": {
-        const parsedShape = parseShape(child, `${context.id_prefix}-shape-${context.element_index}`, context);
-        context.element_index += 1;
-        if (parsedShape.placeholder_style) {
-          placeholderStyles.set(parsedShape.placeholder_style.key, parsedShape.placeholder_style);
+        const parsedShape = parseShape(child, `${context.idPrefix}-shape-${context.elementIndex}`, context);
+        context.elementIndex += 1;
+        if (parsedShape.placeholderStyle) {
+          placeholderStyles.set(parsedShape.placeholderStyle.key, parsedShape.placeholderStyle);
         }
-        if (parsedShape.shape && (!parsedShape.is_placeholder || context.include_placeholder_shapes)) {
+        if (parsedShape.shape && (!parsedShape.isPlaceholder || context.includePlaceholderShapes)) {
           elements.push(parsedShape.shape);
         }
         break;
@@ -257,9 +257,9 @@ async function parseShapeTree(
           child,
           objectUrls,
           context,
-          read_group_transform(child),
+          readGroupTransform(child),
         );
-        groupResult.placeholder_styles.forEach((style, key) => {
+        groupResult.placeholderStyles.forEach((style, key) => {
           placeholderStyles.set(key, style);
         });
         elements.push(...groupResult.elements);
@@ -271,10 +271,10 @@ async function parseShapeTree(
           slidePath,
           rels,
           child,
-          `${context.id_prefix}-image-${context.element_index}`,
+          `${context.idPrefix}-image-${context.elementIndex}`,
           objectUrls,
         );
-        context.element_index += 1;
+        context.elementIndex += 1;
         if (image) {
           elements.push(image);
         }
@@ -286,12 +286,12 @@ async function parseShapeTree(
   }
 
   if (!groupTransform) {
-    return { elements, placeholder_styles: placeholderStyles };
+    return { elements, placeholderStyles };
   }
 
   return {
-    elements: elements.map((element) => apply_group_transform_to_element(element, groupTransform)),
-    placeholder_styles: map_group_placeholder_styles(placeholderStyles, groupTransform),
+    elements: elements.map((element) => applyGroupTransformToElement(element, groupTransform)),
+    placeholderStyles: mapGroupPlaceholderStyles(placeholderStyles, groupTransform),
   };
 }
 
@@ -300,49 +300,49 @@ function parseShape(
   id: string,
   context: PresentationShapeTreeContext,
 ): {
-  is_placeholder: boolean;
-  placeholder_style: PresentationPlaceholderStyle | null;
+  isPlaceholder: boolean;
+  placeholderStyle: PresentationPlaceholderStyle | null;
   shape: PresentationShapeElement | null;
 } {
-  const shapeProperties = first_child_by_local_name(element, "spPr");
+  const shapeProperties = firstChildByLocalName(element, "spPr");
   const placeholderKey = readPlaceholderKey(element);
-  const fallbackPlaceholder = placeholderKey ? context.fallback_placeholders?.get(placeholderKey) : undefined;
-  const transform = read_transform(shapeProperties) || fallbackPlaceholder?.transform || null;
+  const fallbackPlaceholder = placeholderKey ? context.fallbackPlaceholders?.get(placeholderKey) : undefined;
+  const transform = readTransform(shapeProperties) || fallbackPlaceholder?.transform || null;
   if (!transform) {
     return {
-      is_placeholder: !!placeholderKey,
-      placeholder_style: null,
+      isPlaceholder: !!placeholderKey,
+      placeholderStyle: null,
       shape: null,
     };
   }
 
-  const textBody = first_child_by_local_name(element, "txBody");
-  const paragraphs = parse_text_body(textBody, transform.width);
-  const textAnchor = readTextAnchor(first_child_by_local_name(textBody, "bodyPr"));
-  const fill = read_fill_color(shapeProperties) || fallbackPlaceholder?.fill;
-  const stroke = read_stroke_color(shapeProperties) || fallbackPlaceholder?.stroke;
-  const strokeWidth = read_stroke_width(shapeProperties) || fallbackPlaceholder?.stroke_width || 1;
-  const geometry = read_shape_geometry(shapeProperties, element.localName === "cxnSp", fallbackPlaceholder?.geometry);
+  const textBody = firstChildByLocalName(element, "txBody");
+  const paragraphs = parseTextBody(textBody, transform.width);
+  const textAnchor = readTextAnchor(firstChildByLocalName(textBody, "bodyPr"));
+  const fill = readFillColor(shapeProperties) || fallbackPlaceholder?.fill;
+  const stroke = readStrokeColor(shapeProperties) || fallbackPlaceholder?.stroke;
+  const strokeWidth = readStrokeWidth(shapeProperties) || fallbackPlaceholder?.strokeWidth || 1;
+  const geometry = readShapeGeometry(shapeProperties, element.localName === "cxnSp", fallbackPlaceholder?.geometry);
   const placeholderStyle = placeholderKey ? {
     fill,
     geometry,
     key: placeholderKey,
     stroke,
-    stroke_width: strokeWidth,
+    strokeWidth,
     transform,
   } : null;
 
   if (shouldSkipShapePreview({ fill, geometry, height: transform.height, paragraphs, stroke, width: transform.width })) {
     return {
-      is_placeholder: !!placeholderKey,
-      placeholder_style: placeholderStyle,
+      isPlaceholder: !!placeholderKey,
+      placeholderStyle,
       shape: null,
     };
   }
 
   return {
-    is_placeholder: !!placeholderKey,
-    placeholder_style: placeholderStyle,
+    isPlaceholder: !!placeholderKey,
+    placeholderStyle,
     shape: {
       ...transform,
       fill,
@@ -350,8 +350,8 @@ function parseShape(
       id,
       paragraphs,
       stroke,
-      stroke_width: strokeWidth,
-      text_anchor: textAnchor,
+      strokeWidth,
+      textAnchor,
       type: "shape",
     },
   };
@@ -412,17 +412,17 @@ async function parsePicture(
   id: string,
   objectUrls: string[],
 ): Promise<PresentationImageElement | null> {
-  const shapeProperties = first_child_by_local_name(element, "spPr");
-  const transform = read_transform(shapeProperties);
-  const blip = first_descendant_by_local_name(element, "blip");
-  const relId = blip ? relationship_attribute(blip, "embed") || relationship_attribute(blip, "link") : undefined;
+  const shapeProperties = firstChildByLocalName(element, "spPr");
+  const transform = readTransform(shapeProperties);
+  const blip = firstDescendantByLocalName(element, "blip");
+  const relId = blip ? relationshipAttribute(blip, "embed") || relationshipAttribute(blip, "link") : undefined;
   const rel = relId ? rels[relId] : undefined;
 
-  if (!transform || !rel || rel.target_mode === "External") {
+  if (!transform || !rel || rel.targetMode === "External") {
     return null;
   }
 
-  const mediaPath = resolve_relationship_target(slidePath, rel.target);
+  const mediaPath = resolveRelationshipTarget(slidePath, rel.target);
   const mediaFile = zip.file(mediaPath);
   if (!mediaFile) {
     return null;
@@ -441,7 +441,7 @@ async function parsePicture(
 }
 
 function readPlaceholderKey(element: Element): string | undefined {
-  const placeholder = first_descendant_by_local_name(element, "ph");
+  const placeholder = firstDescendantByLocalName(element, "ph");
   if (!placeholder) {
     return undefined;
   }
@@ -455,7 +455,7 @@ function readPlaceholderKey(element: Element): string | undefined {
   return `type:${type}`;
 }
 
-function readTextAnchor(bodyProperties: Element | null): PresentationShapeElement["text_anchor"] {
+function readTextAnchor(bodyProperties: Element | null): PresentationShapeElement["textAnchor"] {
   const anchor = bodyProperties?.getAttribute("anchor");
   if (anchor === "ctr") {
     return "center";

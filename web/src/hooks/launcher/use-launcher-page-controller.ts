@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { is_main_agent } from "@/config/options";
+import { isMainAgent } from "@/config/options";
 import { useRoomPageAgentDialog } from "@/hooks/room-page-controller/use-room-page-agent-dialog";
-import { get_launcher_bootstrap_api } from "@/lib/api/launcher-api";
-import { subscribe_room_directory_updates } from "@/lib/api/room-api";
+import { getLauncherBootstrapApi } from "@/lib/api/launcher-api";
+import { subscribeRoomDirectoryUpdates } from "@/lib/api/room-api";
 import { useAgentStore } from "@/store/agent";
 import {
   LauncherAgentSummary,
@@ -27,12 +27,12 @@ export function useLauncherPageController() {
     LauncherConversationSummary[]
   >([]);
   const dialogAgents = useMemo(
-    () => storedAgents.filter((agent) => !is_main_agent(agent.agent_id)),
+    () => storedAgents.filter((agent) => !isMainAgent(agent.agent_id)),
     [storedAgents],
   );
 
   const refreshBootstrap = useCallback(() => {
-    void get_launcher_bootstrap_api().then((payload) => {
+    void getLauncherBootstrapApi().then((payload) => {
       setAgents(payload.agents);
       setRooms(payload.rooms);
       setConversations(payload.conversations);
@@ -41,13 +41,13 @@ export function useLauncherPageController() {
 
   const agentDialog = useRoomPageAgentDialog({
     agents: dialogAgents,
-    create_agent: async (params) => {
+    createAgent: async (params) => {
       const nextAgentId = await createAgent(params);
       setCurrentAgent(nextAgentId);
       refreshBootstrap();
       return nextAgentId;
     },
-    update_agent: async (agentId, params) => {
+    updateAgent: async (agentId, params) => {
       await updateAgent(agentId, params);
       refreshBootstrap();
     },
@@ -56,7 +56,7 @@ export function useLauncherPageController() {
   useEffect(() => {
     let isCancelled = false;
 
-    void get_launcher_bootstrap_api()
+    void getLauncherBootstrapApi()
       .then((payload) => {
         if (!isCancelled) {
           setAgents(payload.agents);
@@ -82,7 +82,7 @@ export function useLauncherPageController() {
   }, []);
 
   useEffect(
-    () => subscribe_room_directory_updates(refreshBootstrap),
+    () => subscribeRoomDirectoryUpdates(refreshBootstrap),
     [refreshBootstrap],
   );
 

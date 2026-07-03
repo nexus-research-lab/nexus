@@ -3,7 +3,7 @@
 import { Agent } from "@/types/agent/agent";
 
 
-export function matches_contacts_search(agent: Agent, query: string): boolean {
+export function matchesContactsSearch(agent: Agent, query: string): boolean {
   if (!query.trim()) {
     return true;
   }

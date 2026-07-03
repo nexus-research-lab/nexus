@@ -6,16 +6,16 @@ const FLOATING_ACTION_CHIP_CLASS_NAME =
   "absolute z-20 inline-flex h-10 w-10 items-center justify-center rounded-full border border-(--chip-default-border) bg-(--chip-default-background) text-(--text-default) transition-[transform,color,border-color,background] duration-(--motion-duration-fast) hover:-translate-y-[0.5px] hover:border-(--surface-interactive-active-border) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)";
 
 interface ScrollToLatestButtonProps {
-  is_loading: boolean;
-  is_mobile_layout: boolean;
-  on_click: () => void;
+  isLoading: boolean;
+  isMobileLayout: boolean;
+  onClick: () => void;
   placement?: "composer" | "panel";
 }
 
 export function ScrollToLatestButton({
-  is_loading: isLoading,
-  is_mobile_layout: isMobileLayout,
-  on_click: onClick,
+  isLoading: isLoading,
+  isMobileLayout: isMobileLayout,
+  onClick: onClick,
   placement = "composer",
 }: ScrollToLatestButtonProps) {
   const placementClassName =

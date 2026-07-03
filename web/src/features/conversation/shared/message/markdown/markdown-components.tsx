@@ -3,13 +3,13 @@
 import { type ReactNode } from "react";
 import { type Components } from "react-markdown";
 
-import { get_workspace_file_preview_url } from "@/lib/api/agent-manage-api";
+import { getWorkspaceFilePreviewUrl } from "@/lib/api/agent-manage-api";
 
 import { CodeBlock } from "../blocks/code-block";
 import { LazyMermaidView } from "./lazy-mermaid-view";
 import { WorkspaceFileButton } from "./markdown-workspace-file-button";
 import {
-  resolve_workspace_artifact_path,
+  resolveWorkspaceArtifactPath,
   type ResolveWorkspaceFilePath,
 } from "./markdown-workspace-artifacts";
 
@@ -21,10 +21,10 @@ type MarkdownNodeLike = {
 };
 
 interface CreateMarkdownComponentsOptions {
-  compact_mermaid?: boolean;
-  show_mermaid_header?: boolean;
-  stream_code_blocks?: boolean;
-  stream_mermaid?: boolean;
+  compactMermaid?: boolean;
+  showMermaidHeader?: boolean;
+  streamCodeBlocks?: boolean;
+  streamMermaid?: boolean;
 }
 
 const URL_TRAILING_PUNCTUATION_PATTERN = /[.,;:!?，。；：！？、]+$/u;
@@ -72,7 +72,7 @@ function countChar(value: string, char: string): number {
   return Array.from(value).filter((item) => item === char).length;
 }
 
-function splitTrailingUrlPunctuation(value: string): { href: string; trailing_text: string } {
+function splitTrailingUrlPunctuation(value: string): { href: string; trailingText: string } {
   let href = value.trim();
   let trailingText = "";
 
@@ -110,7 +110,7 @@ function splitTrailingUrlPunctuation(value: string): { href: string; trailing_te
     break;
   }
 
-  return { href, trailing_text: trailingText };
+  return { href, trailingText: trailingText };
 }
 
 function normalizeExternalMarkdownHref(href: string): string | null {
@@ -144,7 +144,7 @@ function compactExternalUrlLabel(href: string): string {
   }
 }
 
-export function create_markdown_components(
+export function createMarkdownComponents(
   resolveFilePath: ResolveWorkspaceFilePath,
   onOpenWorkspaceFile?: (path: string) => void,
   currentAgentId?: string | null,
@@ -162,22 +162,22 @@ export function create_markdown_components(
           return (
             <LazyMermaidView
               chart={value}
-              compact={options.compact_mermaid ?? true}
-              is_streaming={options.stream_mermaid}
-              show_header={options.show_mermaid_header}
+              compact={options.compactMermaid ?? true}
+              isStreaming={options.streamMermaid}
+              showHeader={options.showMermaidHeader}
             />
           );
         }
-        return <CodeBlock language={language} value={value} is_streaming={options.stream_code_blocks} />;
+        return <CodeBlock language={language} value={value} isStreaming={options.streamCodeBlocks} />;
       }
 
-      const resolvedPath = resolve_workspace_artifact_path(value, resolveFilePath);
+      const resolvedPath = resolveWorkspaceArtifactPath(value, resolveFilePath);
       if (resolvedPath && onOpenWorkspaceFile) {
         return (
           <WorkspaceFileButton
             label={value}
             path={resolvedPath}
-            on_open_workspace_file={onOpenWorkspaceFile}
+            onOpenWorkspaceFile={onOpenWorkspaceFile}
           />
         );
       }
@@ -217,13 +217,13 @@ export function create_markdown_components(
         return <span className="text-primary">{children}</span>;
       }
 
-      const resolvedPath = resolve_workspace_artifact_path(rawHref, resolveFilePath);
+      const resolvedPath = resolveWorkspaceArtifactPath(rawHref, resolveFilePath);
       if (resolvedPath && onOpenWorkspaceFile) {
         return (
           <WorkspaceFileButton
             label={children}
             path={resolvedPath}
-            on_open_workspace_file={onOpenWorkspaceFile}
+            onOpenWorkspaceFile={onOpenWorkspaceFile}
           />
         );
       }
@@ -239,7 +239,7 @@ export function create_markdown_components(
         );
       }
 
-      const { href: hrefWithoutTrailing, trailing_text: trailingText } = splitTrailingUrlPunctuation(rawHref);
+      const { href: hrefWithoutTrailing, trailingText: trailingText } = splitTrailingUrlPunctuation(rawHref);
       const externalHref = normalizeExternalMarkdownHref(hrefWithoutTrailing);
       if (!externalHref) {
         return <span className="text-primary">{children}</span>;
@@ -275,9 +275,9 @@ export function create_markdown_components(
     },
     img({ alt, src }) {
       const rawSrc = String(src || "").trim();
-      const resolvedPath = resolve_workspace_artifact_path(rawSrc, resolveFilePath);
+      const resolvedPath = resolveWorkspaceArtifactPath(rawSrc, resolveFilePath);
       const imageSrc = resolvedPath && currentAgentId
-        ? get_workspace_file_preview_url(currentAgentId, resolvedPath)
+        ? getWorkspaceFilePreviewUrl(currentAgentId, resolvedPath)
         : rawSrc;
       const image = (
         <img
@@ -345,12 +345,12 @@ export function create_markdown_components(
   };
 }
 
-export function create_markdown_summary_components(
+export function createMarkdownSummaryComponents(
   resolveFilePath: ResolveWorkspaceFilePath,
   onOpenWorkspaceFile?: (path: string) => void,
   currentAgentId?: string | null,
 ): Components {
-  const baseComponents = create_markdown_components(resolveFilePath, onOpenWorkspaceFile, currentAgentId);
+  const baseComponents = createMarkdownComponents(resolveFilePath, onOpenWorkspaceFile, currentAgentId);
 
   return {
     ...baseComponents,

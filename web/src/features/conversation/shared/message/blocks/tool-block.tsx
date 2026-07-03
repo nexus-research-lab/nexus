@@ -21,8 +21,8 @@ import {
 import { useScrollAnchoredState } from "@/hooks/conversation/use-scroll-anchored-state";
 import { useCopyToClipboard } from "@/hooks/ui/use-copy-to-clipboard";
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
-import { cn, format_tokens } from '@/lib/utils';
-import { get_ui_choice_class_name } from "@/shared/ui/choice-styles";
+import { cn, formatTokens } from '@/lib/utils';
+import { getUiChoiceClassName } from "@/shared/ui/choice-styles";
 import { CodeBlock } from './code-block';
 import { ImageBlock } from "./image-block";
 import { type TaskProgressContent, type ToolResultContent, type ToolUseContent } from '@/types/conversation/message';
@@ -31,13 +31,13 @@ import {
   FIELD_LABEL_MAP,
   TOOL_LABEL_STYLES,
   TOOL_TONE_STYLES,
-  format_permission_value,
-  get_input_summary,
-  get_primary_input_detail,
-  get_readable_suggestions,
-  get_result_summary,
-  get_tool_title,
-  is_image_content,
+  formatPermissionValue,
+  getInputSummary,
+  getPrimaryInputDetail,
+  getReadableSuggestions,
+  getResultSummary,
+  getToolTitle,
+  isImageContent,
 } from "./tool-block-model";
 
 interface ToolPermissionRequest {
@@ -53,24 +53,24 @@ interface ToolPermissionRequest {
 }
 
 interface ToolBlockProps {
-  tool_use: ToolUseContent;
-  tool_result?: ToolResultContent;
-  /** 子 Agent 运行中的实时进度（按 tool_use_id 折叠进来），仅运行态展示。 */
-  live_progress?: TaskProgressContent | null;
+  toolUse: ToolUseContent;
+  toolResult?: ToolResultContent;
+  /** 子 Agent 运行中的实时进度（按 toolUseId 折叠进来），仅运行态展示。 */
+  liveProgress?: TaskProgressContent | null;
   status?: "pending" | "running" | "success" | "error" | "waiting_permission";
-  start_time?: number;
-  end_time?: number;
-  permission_request?: ToolPermissionRequest;
-  interaction_disabled?: boolean;
-  interaction_disabled_reason?: string;
-  on_open_workspace_file?: (path: string) => void;
-  workspace_agent_id?: string | null;
+  startTime?: number;
+  endTime?: number;
+  permissionRequest?: ToolPermissionRequest;
+  interactionDisabled?: boolean;
+  interactionDisabledReason?: string;
+  onOpenWorkspaceFile?: (path: string) => void;
+  workspaceAgentId?: string | null;
 }
 
 // ==================== 辅助函数 ====================
 
 const getPermissionChoiceClassName = (selected: boolean) =>
-  get_ui_choice_class_name({ active: selected, size: "xs", variant: "surface" });
+  getUiChoiceClassName({ active: selected, size: "xs", variant: "surface" });
 
 const TOOL_DETAIL_SCROLL_CLASS_NAME =
   "min-w-0 max-h-[18rem] overflow-auto overscroll-contain custom-scrollbar";
@@ -78,22 +78,22 @@ const TOOL_DETAIL_SCROLL_CLASS_NAME =
 // ==================== 主组件 ====================
 
 export function ToolBlock({
-  tool_use: toolUse,
-  tool_result: toolResult,
-  live_progress: liveProgress,
+  toolUse: toolUse,
+  toolResult: toolResult,
+  liveProgress: liveProgress,
   status = 'success',
-  start_time: startTime,
-  end_time: endTime,
-  permission_request: permissionRequest,
-  interaction_disabled: interactionDisabled = false,
-  interaction_disabled_reason: interactionDisabledReason,
-  on_open_workspace_file: onOpenWorkspaceFile,
-  workspace_agent_id: workspaceAgentId,
+  startTime: startTime,
+  endTime: endTime,
+  permissionRequest: permissionRequest,
+  interactionDisabled: interactionDisabled = false,
+  interactionDisabledReason: interactionDisabledReason,
+  onOpenWorkspaceFile: onOpenWorkspaceFile,
+  workspaceAgentId: workspaceAgentId,
 }: ToolBlockProps) {
   const {
-    is_open: isExpanded,
+    isOpen: isExpanded,
     toggle: toggleExpanded,
-    anchor_ref: toolAnchorRef,
+    anchorRef: toolAnchorRef,
   } = useScrollAnchoredState(false);
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useResettableState<number>(
     -1,
@@ -125,14 +125,14 @@ export function ToolBlock({
   }, [duration]);
 
   // 路径显示
-  const inputSummary = useMemo(() => get_input_summary(toolUse.input), [toolUse.input]);
-  const toolTitle = useMemo(() => get_tool_title(toolUse.name), [toolUse.name]);
+  const inputSummary = useMemo(() => getInputSummary(toolUse.input), [toolUse.input]);
+  const toolTitle = useMemo(() => getToolTitle(toolUse.name), [toolUse.name]);
   const primaryInputDetail = useMemo(
-    () => get_primary_input_detail(permissionRequest?.tool_input || toolUse.input),
+    () => getPrimaryInputDetail(permissionRequest?.tool_input || toolUse.input),
     [permissionRequest?.tool_input, toolUse.input],
   );
   const readableSuggestions = useMemo(
-    () => get_readable_suggestions(permissionRequest?.suggestions || []),
+    () => getReadableSuggestions(permissionRequest?.suggestions || []),
     [permissionRequest?.suggestions],
   );
   const readablePermissionFields = useMemo(() => {
@@ -143,15 +143,15 @@ export function ToolBlock({
       .map(([key, value]) => ({
         key,
         label: FIELD_LABEL_MAP[key] || key,
-        value: format_permission_value(value),
+        value: formatPermissionValue(value),
       }));
   }, [permissionRequest?.tool_input, primaryInputDetail?.key]);
   const resultSummary = useMemo(() => {
     if (!toolResult) return null;
-    return get_result_summary(toolResult.content);
+    return getResultSummary(toolResult.content);
   }, [toolResult]);
   const expandedInputDetail = useMemo(
-    () => get_primary_input_detail(toolUse.input),
+    () => getPrimaryInputDetail(toolUse.input),
     [toolUse.input],
   );
   const permissionFieldSummary = useMemo(() => {
@@ -165,7 +165,7 @@ export function ToolBlock({
     const totalTokens = liveProgress.usage?.total_tokens;
     const parts = [
       liveProgress.last_tool_name ? `当前 ${liveProgress.last_tool_name}` : null,
-      typeof totalTokens === "number" && totalTokens > 0 ? format_tokens(totalTokens) : null,
+      typeof totalTokens === "number" && totalTokens > 0 ? formatTokens(totalTokens) : null,
     ].filter(Boolean);
     return parts.length ? parts.join(" · ") : null;
   }, [liveProgress]);
@@ -398,15 +398,15 @@ export function ToolBlock({
               <pre className="message-cjk-font px-0 py-0 text-xs whitespace-pre-wrap break-all text-(--text-strong)">
                 {toolResult.content}
               </pre>
-            ) : Array.isArray(toolResult.content) && toolResult.content.some(is_image_content) ? (
+            ) : Array.isArray(toolResult.content) && toolResult.content.some(isImageContent) ? (
               <div className="space-y-2">
                 {toolResult.content.map((item) => (
-                  is_image_content(item) ? (
+                  isImageContent(item) ? (
                     <ImageBlock
                       key={getToolResultContentKey(item)}
                       block={item}
-                      on_open_workspace_file={onOpenWorkspaceFile}
-                      workspace_agent_id={workspaceAgentId}
+                      onOpenWorkspaceFile={onOpenWorkspaceFile}
+                      workspaceAgentId={workspaceAgentId}
                     />
                   ) : (
                     <CodeBlock

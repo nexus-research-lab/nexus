@@ -1,4 +1,4 @@
-import { read_markdown_fence_marker } from "./markdown-fence";
+import { readMarkdownFenceMarker } from "./markdown-fence";
 
 type MarkdownStreamBlockState = "revealed" | "streaming";
 
@@ -47,7 +47,7 @@ function splitMarkdownRawBlocks(content: string): MarkdownRawBlock[] {
   };
 
   for (const line of getLinesWithEndings(content)) {
-    const fenceMarker = read_markdown_fence_marker(line);
+    const fenceMarker = readMarkdownFenceMarker(line);
 
     buffer.push(line);
     cursorOffset += line.length;
@@ -78,7 +78,7 @@ function splitMarkdownRawBlocks(content: string): MarkdownRawBlock[] {
   return blocks;
 }
 
-export function split_streaming_markdown_blocks(content: string): MarkdownStreamBlock[] {
+export function splitStreamingMarkdownBlocks(content: string): MarkdownStreamBlock[] {
   const rawBlocks = splitMarkdownRawBlocks(content);
   const tailIndex = rawBlocks.length - 1;
 

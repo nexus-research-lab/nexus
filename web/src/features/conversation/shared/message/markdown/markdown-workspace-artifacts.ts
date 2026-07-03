@@ -75,7 +75,7 @@ function clickableWorkspaceArtifactPath(path: string): string {
   return match.groups.relative;
 }
 
-export function resolve_workspace_artifact_path(
+export function resolveWorkspaceArtifactPath(
   path: string,
   resolveFilePath: ResolveWorkspaceFilePath,
 ): string | null {
@@ -114,7 +114,7 @@ function isWorkspaceRelativeArtifactPath(path: string): boolean {
   );
 }
 
-export function split_markdown_file_artifacts(
+export function splitMarkdownFileArtifacts(
   content: string,
   resolveFilePath: ResolveWorkspaceFilePath,
 ): MarkdownContentSegment[] {
@@ -138,7 +138,7 @@ export function split_markdown_file_artifacts(
       continue;
     }
 
-    const resolvedPath = resolve_workspace_artifact_path(path, resolveFilePath);
+    const resolvedPath = resolveWorkspaceArtifactPath(path, resolveFilePath);
     if (!resolvedPath) {
       pendingText.push(line);
       continue;

@@ -63,7 +63,7 @@ export const TIMEZONE_OPTIONS = [
   "Europe/London",
 ];
 
-export function get_default_timezone(): string {
+export function getDefaultTimezone(): string {
   if (typeof Intl === "undefined") {
     return "Asia/Shanghai";
   }

@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { get_desktop_websocket_protocols } from "@/config/desktop-runtime";
-import { get_agent_ws_url } from "@/config/options";
-import { get_launcher_bootstrap_api } from "@/lib/api/launcher-api";
-import { subscribe_room_directory_updates } from "@/lib/api/room-api";
+import { getDesktopWebsocketProtocols } from "@/config/desktop-runtime";
+import { getAgentWsUrl } from "@/config/options";
+import { getLauncherBootstrapApi } from "@/lib/api/launcher-api";
+import { subscribeRoomDirectoryUpdates } from "@/lib/api/room-api";
 import { useWebSocket } from "@/lib/websocket";
 import { AGENT_LIST_UPDATED_EVENT_NAME, useAgentStore } from "@/store/agent";
 import type { AgentRuntimeStatus } from "@/types/agent/agent";
@@ -18,8 +18,8 @@ export interface SidebarDirectoryState {
   agents: LauncherAgentSummary[];
   rooms: LauncherRoomSummary[];
   conversations: LauncherConversationSummary[];
-  is_loading: boolean;
-  refresh_directory: () => void;
+  isLoading: boolean;
+  refreshDirectory: () => void;
 }
 
 interface SidebarDirectorySnapshot {
@@ -33,7 +33,7 @@ let sidebarDirectoryCache: SidebarDirectorySnapshot | null = null;
 const SIDEBAR_DIRECTORY_FALLBACK_REFRESH_INTERVAL_MS = 120000;
 
 export function useSidebarDirectory(): SidebarDirectoryState {
-  const wsUrl = get_agent_ws_url();
+  const wsUrl = getAgentWsUrl();
   const applyAgentRuntimeStatus = useAgentStore((s) => s.apply_agent_runtime_status);
   const [agents, setAgents] = useState<LauncherAgentSummary[]>(() => sidebarDirectoryCache?.agents ?? []);
   const [rooms, setRooms] = useState<LauncherRoomSummary[]>(() => sidebarDirectoryCache?.rooms ?? []);
@@ -46,7 +46,7 @@ export function useSidebarDirectory(): SidebarDirectoryState {
     if (sidebarDirectoryCache === null) {
       setIsLoading(true);
     }
-    void get_launcher_bootstrap_api().then((payload) => {
+    void getLauncherBootstrapApi().then((payload) => {
       sidebarDirectoryCache = {
         agents: payload.agents,
         rooms: payload.rooms,
@@ -89,7 +89,7 @@ export function useSidebarDirectory(): SidebarDirectoryState {
     };
   }, [refreshDirectory]);
 
-  useEffect(() => subscribe_room_directory_updates(refreshDirectory), [refreshDirectory]);
+  useEffect(() => subscribeRoomDirectoryUpdates(refreshDirectory), [refreshDirectory]);
 
   useEffect(() => {
     window.addEventListener(AGENT_LIST_UPDATED_EVENT_NAME, refreshDirectory);
@@ -117,11 +117,11 @@ export function useSidebarDirectory(): SidebarDirectoryState {
 
   const { state: runtimeWsState, send: runtimeWsSend } = useWebSocket({
     url: wsUrl,
-    protocols: get_desktop_websocket_protocols(),
-    auto_connect: true,
+    protocols: getDesktopWebsocketProtocols(),
+    autoConnect: true,
     reconnect: true,
-    heartbeat_interval: 30000,
-    on_message: handleRuntimeMessage,
+    heartbeatInterval: 30000,
+    onMessage: handleRuntimeMessage,
   });
 
   useEffect(() => {
@@ -152,7 +152,7 @@ export function useSidebarDirectory(): SidebarDirectoryState {
     agents,
     rooms,
     conversations,
-    is_loading: isLoading,
-    refresh_directory: refreshDirectory,
+    isLoading,
+    refreshDirectory,
   };
 }

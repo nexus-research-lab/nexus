@@ -6,7 +6,7 @@ export interface ConversationDeleteState {
   reason: string | null;
 }
 
-export function resolve_room_conversation_delete_state(
+export function resolveRoomConversationDeleteState(
   conversation: RoomConversationView,
   conversationCount: number,
   canManageConversations: boolean,

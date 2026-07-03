@@ -3,19 +3,19 @@ import { createRoot } from "react-dom/client";
 
 import "@/app/globals.css";
 import {
-  get_desktop_render_snapshot,
-  get_desktop_session_token,
-  mark_desktop_performance,
-  notify_desktop_render_health,
-  notify_desktop_web_fatal,
-  notify_desktop_web_ready,
-  recover_desktop_session_token_error,
+  getDesktopRenderSnapshot,
+  getDesktopSessionToken,
+  markDesktopPerformance,
+  notifyDesktopRenderHealth,
+  notifyDesktopWebFatal,
+  notifyDesktopWebReady,
+  recoverDesktopSessionTokenError,
 } from "@/config/desktop-runtime";
 import type { DesktopRenderHealthStatus, DesktopRenderSnapshot } from "@/config/desktop-runtime";
-import { get_agent_api_base_url, hydrate_runtime_options, is_strict_mode_enabled } from "@/config/options";
-import { apply_theme, detect_initial_theme } from "@/shared/theme/theme-context";
+import { getAgentApiBaseUrl, hydrateRuntimeOptions, isStrictModeEnabled } from "@/config/options";
+import { applyTheme, detectInitialTheme } from "@/shared/theme/theme-context";
 
-mark_desktop_performance("bootstrap.module_loaded");
+markDesktopPerformance("bootstrap.module_loaded");
 
 const APP_BLANK_RENDER_RELOAD_KEY_PREFIX = "nexus:app-blank-render-reload:";
 const APP_CHUNK_ERROR_RELOAD_KEY_PREFIX = "nexus:app-chunk-error-reload:";
@@ -44,28 +44,28 @@ interface RootErrorBoundaryProps {
 }
 
 interface RootErrorBoundaryState {
-  has_error: boolean;
+  hasError: boolean;
 }
 
 class RootErrorBoundary extends Component<RootErrorBoundaryProps, RootErrorBoundaryState> {
   public state: RootErrorBoundaryState = {
-    has_error: false,
+    hasError: false,
   };
 
   public static getDerivedStateFromError(): RootErrorBoundaryState {
-    return { has_error: true };
+    return { hasError: true };
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
     console.error("[RootErrorBoundary] 应用渲染失败", error, errorInfo);
-    notify_desktop_web_fatal("react.render", error, {
-      component_stack: errorInfo.componentStack ?? undefined,
+    notifyDesktopWebFatal("react.render", error, {
+      componentStack: errorInfo.componentStack ?? undefined,
     });
     recoverFromChunkLoadError("react.render", error);
   }
 
   public render(): ReactNode {
-    if (this.state.has_error) {
+    if (this.state.hasError) {
       return (
         <main className="flex min-h-screen items-center justify-center bg-background px-6 py-10 text-foreground">
           <section className="surface-panel surface-radius-xl w-full max-w-[520px] border px-8 py-9 text-center">
@@ -94,12 +94,12 @@ class RootErrorBoundary extends Component<RootErrorBoundaryProps, RootErrorBound
   }
 }
 
-export function bootstrap_react_app(render: () => ReactNode) {
+export function bootstrapReactApp(render: () => ReactNode) {
   void bootstrap(render);
 }
 
 function withOptionalStrictMode(children: ReactNode) {
-  if (!is_strict_mode_enabled()) {
+  if (!isStrictModeEnabled()) {
     return children;
   }
   return (
@@ -110,19 +110,19 @@ function withOptionalStrictMode(children: ReactNode) {
 }
 
 function renderApplication(render: () => ReactNode) {
-  mark_desktop_performance("react.render_begin");
+  markDesktopPerformance("react.render_begin");
   root.render(withOptionalStrictMode(
     <RootErrorBoundary>
       {render()}
     </RootErrorBoundary>,
   ));
-  mark_desktop_performance("react.render_scheduled");
+  markDesktopPerformance("react.render_scheduled");
   notifyReadyAfterPaint();
   startAppRenderWatchdog();
 }
 
 function renderBootstrapError(message: string) {
-  mark_desktop_performance("react.error_render_begin");
+  markDesktopPerformance("react.error_render_begin");
   root.render(withOptionalStrictMode(
     <main className="flex min-h-screen items-center justify-center bg-background px-6 py-10 text-foreground">
       <section className="surface-panel surface-radius-xl w-full max-w-[480px] border px-8 py-9 text-center">
@@ -143,7 +143,7 @@ function renderBootstrapError(message: string) {
       </section>
     </main>,
   ));
-  mark_desktop_performance("react.error_render_scheduled");
+  markDesktopPerformance("react.error_render_scheduled");
   notifyReadyAfterPaint();
 }
 
@@ -154,24 +154,24 @@ function notifyReadyAfterPaint() {
       return;
     }
     didNotify = true;
-    mark_desktop_performance(`react.ready.${source}`);
-    notify_desktop_web_ready(source);
-    notify_desktop_render_health(source, "ready");
+    markDesktopPerformance(`react.ready.${source}`);
+    notifyDesktopWebReady(source);
+    notifyDesktopRenderHealth(source, "ready");
   };
 
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
-      notifyOnce("after_paint");
+      notifyOnce("afterPaint");
     });
   });
   window.setTimeout(() => {
-    notifyOnce("timer_fallback");
+    notifyOnce("timerFallback");
   }, 250);
 }
 
 function renderRecoveryScreen(reason: string) {
   reconnectRootContainer();
-  mark_desktop_performance("react.recovery_render_begin");
+  markDesktopPerformance("react.recovery_render_begin");
   root.render(withOptionalStrictMode(
     <main className="flex min-h-screen items-center justify-center bg-background px-6 py-10 text-foreground">
       <section className="surface-panel surface-radius-xl w-full max-w-[520px] border px-8 py-9 text-center">
@@ -194,8 +194,8 @@ function renderRecoveryScreen(reason: string) {
       </section>
     </main>,
   ));
-  mark_desktop_performance("react.recovery_render_scheduled");
-  notify_desktop_render_health("recovery_screen", "ready");
+  markDesktopPerformance("react.recovery_render_scheduled");
+  notifyDesktopRenderHealth("recoveryScreen", "ready");
 }
 
 function reconnectRootContainer() {
@@ -214,11 +214,11 @@ function installGlobalErrorHandlers() {
   didInstallGlobalErrorHandlers = true;
   window.addEventListener("error", (event) => {
     const error = event.error ?? event.message;
-    notify_desktop_web_fatal("window.error", error);
+    notifyDesktopWebFatal("window.error", error);
     recoverFromChunkLoadError("window.error", error);
   });
   window.addEventListener("unhandledrejection", (event) => {
-    notify_desktop_web_fatal("window.unhandledrejection", event.reason);
+    notifyDesktopWebFatal("window.unhandledrejection", event.reason);
     recoverFromChunkLoadError("window.unhandledrejection", event.reason);
   });
 }
@@ -231,23 +231,23 @@ function startAppRenderWatchdog() {
   didStartAppRenderWatchdog = true;
   let consecutiveUnhealthyCount = 0;
   const checkRenderHealth = (source: string) => {
-    const snapshot = get_desktop_render_snapshot();
+    const snapshot = getDesktopRenderSnapshot();
     const unhealthyStatus = getRenderUnhealthyStatus(snapshot);
     if (!unhealthyStatus) {
       if (consecutiveUnhealthyCount > 0) {
-        notify_desktop_render_health(source, "ready");
+        notifyDesktopRenderHealth(source, "ready");
       }
       consecutiveUnhealthyCount = 0;
       return;
     }
 
     consecutiveUnhealthyCount += 1;
-    notify_desktop_render_health(source, unhealthyStatus);
+    notifyDesktopRenderHealth(source, unhealthyStatus);
     if (consecutiveUnhealthyCount < APP_RENDER_WATCHDOG_UNHEALTHY_THRESHOLD) {
       return;
     }
     if (shouldReloadOnce(APP_BLANK_RENDER_RELOAD_KEY_PREFIX, unhealthyStatus)) {
-      mark_desktop_performance(`web.health.${unhealthyStatus}_reload`);
+      markDesktopPerformance(`web.health.${unhealthyStatus}.reload`);
       window.location.reload();
       return;
     }
@@ -269,13 +269,13 @@ function startAppRenderWatchdog() {
 }
 
 function getRenderUnhealthyStatus(snapshot: DesktopRenderSnapshot): DesktopRenderHealthStatus | null {
-  if (snapshot.ready_state === "loading") {
+  if (snapshot.readyState === "loading") {
     return null;
   }
-  if (!snapshot.has_root || snapshot.root_children <= 0) {
+  if (!snapshot.hasRoot || snapshot.rootChildren <= 0) {
     return "empty_root";
   }
-  if (snapshot.root_text_length <= 0 && snapshot.body_text_length <= 0) {
+  if (snapshot.rootTextLength <= 0 && snapshot.bodyTextLength <= 0) {
     return "blank_root";
   }
   return null;
@@ -286,11 +286,11 @@ function shouldRecoverAfterDesktopRuntimeAuthError(error: unknown): boolean {
     return false;
   }
 
-  return recover_desktop_session_token_error(error.message, `${get_agent_api_base_url()}/runtime/options`);
+  return recoverDesktopSessionTokenError(error.message, `${getAgentApiBaseUrl()}/runtime/options`);
 }
 
 function shouldReloadOnce(prefix: string, reason: string): boolean {
-  const runtimeKey = get_desktop_session_token() || window.location.origin || "web";
+  const runtimeKey = getDesktopSessionToken() || window.location.origin || "web";
   const reloadKey = `${prefix}${runtimeKey}:${reason}:${window.location.pathname}`;
   try {
     if (window.sessionStorage.getItem(reloadKey) === "1") {
@@ -309,12 +309,12 @@ function recoverFromChunkLoadError(source: string, error: unknown): boolean {
     return false;
   }
 
-  notify_desktop_web_fatal(`${source}.chunk_load`, error);
+  notifyDesktopWebFatal(`${source}.chunkLoad`, error);
   if (!shouldReloadOnce(APP_CHUNK_ERROR_RELOAD_KEY_PREFIX, source)) {
     return false;
   }
 
-  mark_desktop_performance(`web.chunk_error_reload.${source}`);
+  markDesktopPerformance(`web.chunkErrorReload.${source}`);
   window.setTimeout(() => {
     window.location.reload();
   }, 0);
@@ -341,24 +341,24 @@ function diagnosticText(error: unknown): string {
 }
 
 async function bootstrap(render: () => ReactNode) {
-  mark_desktop_performance("bootstrap.start");
+  markDesktopPerformance("bootstrap.start");
   installGlobalErrorHandlers();
-  apply_theme(detect_initial_theme());
+  applyTheme(detectInitialTheme());
   try {
-    mark_desktop_performance("runtime_options.hydrate_begin");
-    await hydrate_runtime_options();
-    mark_desktop_performance("runtime_options.hydrate_end");
+    markDesktopPerformance("runtimeOptions.hydrateBegin");
+    await hydrateRuntimeOptions();
+    markDesktopPerformance("runtimeOptions.hydrateEnd");
     renderApplication(render);
   } catch (error) {
-    notify_desktop_web_fatal("bootstrap", error);
+    notifyDesktopWebFatal("bootstrap", error);
     if (shouldRecoverAfterDesktopRuntimeAuthError(error)) {
-      mark_desktop_performance("runtime_options.auth_reload");
+      markDesktopPerformance("runtimeOptions.authReload");
       return;
     }
     // 启动期失败时必须把真实错误渲染出来，否则生产环境只会看到空白页或 failed。
     const message = error instanceof Error ? error.message : "加载运行时配置失败";
     console.error("Bootstrap failed:", error);
-    mark_desktop_performance("bootstrap.error");
+    markDesktopPerformance("bootstrap.error");
     renderBootstrapError(message);
   }
 }

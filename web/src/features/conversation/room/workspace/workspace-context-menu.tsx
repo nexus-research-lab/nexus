@@ -13,7 +13,7 @@ import { createPortal } from "react-dom";
 import { useEffect, useRef } from "react";
 import { Download, FilePlus, FolderOpen, FolderPlus, Pencil, Trash2, Upload } from "lucide-react";
 
-import { get_workspace_file_external_action_copy } from "@/lib/workspace-file-action";
+import { getWorkspaceFileExternalActionCopy } from "@/lib/workspace-file-action";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { DIALOG_POPOVER_CLASS_NAME } from "@/shared/ui/dialog/dialog-styles";
 import { WorkspaceFileEntry } from "@/types/agent/agent";
@@ -21,31 +21,31 @@ import { WorkspaceFileEntry } from "@/types/agent/agent";
 interface WorkspaceContextMenuProps {
   position: { x: number; y: number } | null;
   entry: WorkspaceFileEntry | null;
-  can_create_children: boolean;
-  on_upload: () => void;
-  on_create_file: () => void;
-  on_create_folder: () => void;
-  on_download: () => void;
-  on_rename: () => void;
-  on_delete: () => void;
-  on_close: () => void;
+  canCreateChildren: boolean;
+  onUpload: () => void;
+  onCreateFile: () => void;
+  onCreateFolder: () => void;
+  onDownload: () => void;
+  onRename: () => void;
+  onDelete: () => void;
+  onClose: () => void;
 }
 
 export function WorkspaceContextMenu({
   position,
   entry,
-  can_create_children: canCreateChildren,
-  on_upload: onUpload,
-  on_create_file: onCreateFile,
-  on_create_folder: onCreateFolder,
-  on_download: onDownload,
-  on_rename: onRename,
-  on_delete: onDelete,
-  on_close: onClose,
+  canCreateChildren: canCreateChildren,
+  onUpload: onUpload,
+  onCreateFile: onCreateFile,
+  onCreateFolder: onCreateFolder,
+  onDownload: onDownload,
+  onRename: onRename,
+  onDelete: onDelete,
+  onClose: onClose,
 }: WorkspaceContextMenuProps) {
   const { t } = useI18n();
   const menuRef = useRef<HTMLDivElement>(null);
-  const fileActionCopy = get_workspace_file_external_action_copy(entry?.name);
+  const fileActionCopy = getWorkspaceFileExternalActionCopy(entry?.name);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -122,7 +122,7 @@ export function WorkspaceContextMenu({
           <>
             {!entry.is_dir ? (
               <button
-                aria-label={fileActionCopy.aria_label}
+                aria-label={fileActionCopy.ariaLabel}
                 type="button"
                 className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
                 onClick={() => { onDownload(); onClose(); }}

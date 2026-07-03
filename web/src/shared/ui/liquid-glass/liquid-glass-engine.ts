@@ -226,7 +226,7 @@ function getLiquidGlassAssets(options: LiquidGlassAssetOptions): LiquidGlassAsse
   return assets;
 }
 
-export function supports_true_liquid_glass(): boolean {
+export function supportsTrueLiquidGlass(): boolean {
   if (typeof window === "undefined" || typeof CSS === "undefined" || typeof navigator === "undefined") {
     return false;
   }

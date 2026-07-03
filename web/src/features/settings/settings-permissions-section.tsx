@@ -22,17 +22,17 @@ import {
 } from "./settings-panel-ui";
 
 interface SettingsPermissionsSectionProps {
-  feedback_message?: string | null;
-  on_permission_mode_change: (value: string) => void;
-  permission_mode: string;
-  preferences_loading: boolean;
+  feedbackMessage?: string | null;
+  onPermissionModeChange: (value: string) => void;
+  permissionMode: string;
+  preferencesLoading: boolean;
 }
 
 export function SettingsPermissionsSection({
-  feedback_message: feedbackMessage,
-  on_permission_mode_change: onPermissionModeChange,
-  permission_mode: permissionMode,
-  preferences_loading: preferencesLoading,
+  feedbackMessage: feedbackMessage,
+  onPermissionModeChange: onPermissionModeChange,
+  permissionMode: permissionMode,
+  preferencesLoading: preferencesLoading,
 }: SettingsPermissionsSectionProps) {
   const { t } = useI18n();
   const selectedPermissionMode = AGENT_PERMISSION_MODES.find((mode) => mode.value === permissionMode) ?? AGENT_PERMISSION_MODES[0];
@@ -69,23 +69,23 @@ export function SettingsPermissionsSection({
               {t("settings.general.default_permission_mode")}
             </label>
             <UiSelectMenu
-              aria_label={t("settings.general.default_permission_mode")}
-              button_class_name={SETTINGS_SELECT_BUTTON_CLASS_NAME}
-              class_name={SETTINGS_CONTROL_HEIGHT_CLASS_NAME}
+              ariaLabel={t("settings.general.default_permission_mode")}
+              buttonClassName={SETTINGS_SELECT_BUTTON_CLASS_NAME}
+              className={SETTINGS_CONTROL_HEIGHT_CLASS_NAME}
               disabled={preferencesLoading}
               id="default-permission-mode"
-              menu_class_name="rounded-[12px]"
-              on_change={onPermissionModeChange}
+              menuClassName="rounded-[12px]"
+              onChange={onPermissionModeChange}
               options={AGENT_PERMISSION_MODES.map((mode) => ({
                 value: mode.value,
-                label: t(mode.label_key),
+                label: t(mode.labelKey),
               }))}
               placement="top"
               size="xs"
               value={permissionMode}
             />
             <p className="text-[11px] leading-4 text-(--text-soft)">
-              {t(selectedPermissionMode.description_key)}
+              {t(selectedPermissionMode.descriptionKey)}
             </p>
           </div>
         </div>

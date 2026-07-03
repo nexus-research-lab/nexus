@@ -23,10 +23,10 @@ interface FeedbackBannerProps {
   tone: "success" | "warning" | "error";
   title: string;
   message: string;
-  on_dismiss?: () => void;
+  onDismiss?: () => void;
 }
 
-export function FeedbackBanner({ tone, title, message, on_dismiss: onDismiss }: FeedbackBannerProps) {
+export function FeedbackBanner({ tone, title, message, onDismiss: onDismiss }: FeedbackBannerProps) {
   const items = splitFeedbackItems(message);
   const isSuccess = tone === "success";
   const isWarning = tone === "warning";

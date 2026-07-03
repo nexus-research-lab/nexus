@@ -3,11 +3,11 @@
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, Clock3, MessageSquarePlus, Pencil, Trash2, X } from "lucide-react";
 
-import { get_session_channel_label } from "@/features/conversation/external-session-labels";
-import { cn, format_relative_time } from "@/lib/utils";
+import { getSessionChannelLabel } from "@/features/conversation/external-session-labels";
+import { cn, formatRelativeTime } from "@/lib/utils";
 import {
   ConversationDeleteState,
-  resolve_room_conversation_delete_state,
+  resolveRoomConversationDeleteState,
 } from "@/lib/conversation/room-conversation-delete";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
@@ -16,15 +16,15 @@ import { WorkspaceSurfaceView } from "@/shared/ui/workspace/surface/workspace-su
 import { RoomConversationView } from "@/types/conversation/conversation";
 
 interface RoomHistorySurfaceProps {
-  can_manage_conversations?: boolean;
+  canManageConversations?: boolean;
   conversations: RoomConversationView[];
-  conversation_id: string | null;
-  current_room_type: string;
-  header_action?: ReactNode;
-  on_create_conversation: (title?: string) => Promise<string | null>;
-  on_delete_conversation: (conversationId: string) => Promise<string | null>;
-  on_select_conversation: (conversationId: string) => void;
-  on_update_conversation_title?: (conversationId: string, title: string) => Promise<void>;
+  conversationId: string | null;
+  currentRoomType: string;
+  headerAction?: ReactNode;
+  onCreateConversation: (title?: string) => Promise<string | null>;
+  onDeleteConversation: (conversationId: string) => Promise<string | null>;
+  onSelectConversation: (conversationId: string) => void;
+  onUpdateConversationTitle?: (conversationId: string, title: string) => Promise<void>;
 }
 
 function getConversationIds(conversations: RoomConversationView[]): string[] {
@@ -47,22 +47,22 @@ function getExternalSessionLabel(conversation: RoomConversationView): string | n
   if (conversation.options?.external_session !== true) {
     return null;
   }
-  return get_session_channel_label(
+  return getSessionChannelLabel(
     stringOption(conversation.options, "channel_type"),
     conversation.session_key,
   );
 }
 
 export function RoomHistorySurface({
-  can_manage_conversations: canManageConversations = true,
+  canManageConversations: canManageConversations = true,
   conversations,
-  conversation_id: conversationId,
-  current_room_type: currentRoomType,
-  header_action: headerAction,
-  on_create_conversation: onCreateConversation,
-  on_delete_conversation: onDeleteConversation,
-  on_select_conversation: onSelectConversation,
-  on_update_conversation_title: onUpdateConversationTitle,
+  conversationId: conversationId,
+  currentRoomType: currentRoomType,
+  headerAction: headerAction,
+  onCreateConversation: onCreateConversation,
+  onDeleteConversation: onDeleteConversation,
+  onSelectConversation: onSelectConversation,
+  onUpdateConversationTitle: onUpdateConversationTitle,
 }: RoomHistorySurfaceProps) {
   const { t } = useI18n();
   const incomingConversationIds = useMemo(
@@ -121,11 +121,11 @@ export function RoomHistorySurface({
     <>
       <WorkspaceSurfaceView
         action={action}
-        body_class_name="px-4 py-3.5 sm:px-5 xl:px-6"
-        content_class_name="space-y-1.5"
+        bodyClassName="px-4 py-3.5 sm:px-5 xl:px-6"
+        contentClassName="space-y-1.5"
         eyebrow={t("room.history")}
-        max_width_class_name="max-w-none"
-        show_eyebrow={false}
+        maxWidthClassName="max-w-none"
+        showEyebrow={false}
         title={currentRoomType === "dm" ? t("room.history_view_title_dm") : t("room.history_view_title")}
       >
         {orderedConversations.length > 0 ? (
@@ -134,7 +134,7 @@ export function RoomHistorySurface({
               const isExternalSession = conversation.options?.external_session === true;
               const deleteState = isExternalSession
                 ? { enabled: false, reason: "外部会话由 IM 通道生成" }
-                : resolve_room_conversation_delete_state(
+                : resolveRoomConversationDeleteState(
                   conversation,
                   orderedConversations.length,
                   canManageConversations,
@@ -143,13 +143,13 @@ export function RoomHistorySurface({
               return (
                 <ConversationHistoryItem
                   key={conversation.conversation_id}
-                  can_rename={!isExternalSession && canManageConversations && onUpdateConversationTitle !== undefined}
+                  canRename={!isExternalSession && canManageConversations && onUpdateConversationTitle !== undefined}
                   conversation={conversation}
-                  delete_state={deleteState}
-                  is_active={conversation.conversation_id === conversationId}
-                  on_delete={() => setPendingDeleteConversation(conversation)}
-                  on_rename={(title) => void onUpdateConversationTitle?.(conversation.conversation_id, title)}
-                  on_select={() => onSelectConversation(conversation.conversation_id)}
+                  deleteState={deleteState}
+                  isActive={conversation.conversation_id === conversationId}
+                  onDelete={() => setPendingDeleteConversation(conversation)}
+                  onRename={(title) => void onUpdateConversationTitle?.(conversation.conversation_id, title)}
+                  onSelect={() => onSelectConversation(conversation.conversation_id)}
                 />
               );
             })}
@@ -182,13 +182,13 @@ export function RoomHistorySurface({
       </WorkspaceSurfaceView>
 
       <ConfirmDialog
-        confirm_text={t("common.delete")}
-        is_open={Boolean(pendingDeleteConversation)}
+        confirmText={t("common.delete")}
+        isOpen={Boolean(pendingDeleteConversation)}
         message={t("room.delete_conversation_message", {
           title: pendingDeleteConversation?.title?.trim() || t("room.untitled_conversation"),
         })}
-        on_cancel={() => setPendingDeleteConversation(null)}
-        on_confirm={() => {
+        onCancel={() => setPendingDeleteConversation(null)}
+        onConfirm={() => {
           const target = pendingDeleteConversation;
           setPendingDeleteConversation(null);
           if (target) {
@@ -204,21 +204,21 @@ export function RoomHistorySurface({
 
 /** 中文注释：历史条目需要支持整卡切换与内联重命名，因此动作区和主体区分开处理。 */
 function ConversationHistoryItem({
-  can_rename: canRename,
+  canRename: canRename,
   conversation,
-  delete_state: deleteState,
-  is_active: isActive,
-  on_delete: onDelete,
-  on_rename: onRename,
-  on_select: onSelect,
+  deleteState: deleteState,
+  isActive: isActive,
+  onDelete: onDelete,
+  onRename: onRename,
+  onSelect: onSelect,
 }: {
-  can_rename: boolean;
+  canRename: boolean;
   conversation: RoomConversationView;
-  delete_state: ConversationDeleteState;
-  is_active: boolean;
-  on_delete: () => void;
-  on_rename: (title: string) => void;
-  on_select: () => void;
+  deleteState: ConversationDeleteState;
+  isActive: boolean;
+  onDelete: () => void;
+  onRename: (title: string) => void;
+  onSelect: () => void;
 }) {
   const { t } = useI18n();
   const [isEditing, setIsEditing] = useState(false);
@@ -327,7 +327,7 @@ function ConversationHistoryItem({
                   <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[10.5px] text-(--text-soft)">
                     <span className="inline-flex items-center gap-1.5">
                       <Clock3 className="h-3 w-3 shrink-0" />
-                      <span>{format_relative_time(conversation.last_activity_at)}</span>
+                      <span>{formatRelativeTime(conversation.last_activity_at)}</span>
                     </span>
                   </div>
                 </div>
@@ -350,7 +350,7 @@ function ConversationHistoryItem({
             <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[10.5px] text-(--text-soft)">
               <span className="inline-flex items-center gap-1.5">
                 <Clock3 className="h-3 w-3 shrink-0" />
-                <span>{format_relative_time(conversation.last_activity_at)}</span>
+                <span>{formatRelativeTime(conversation.last_activity_at)}</span>
               </span>
             </div>
           ) : null}

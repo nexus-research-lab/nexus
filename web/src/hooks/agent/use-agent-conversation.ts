@@ -8,10 +8,10 @@ import {
   useSyncExternalStore,
 } from "react";
 import {
-  get_agent_ws_url,
+  getAgentWsUrl,
 } from "@/config/options";
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
-import { are_equivalent_session_keys } from "@/lib/conversation/session-key";
+import { areEquivalentSessionKeys } from "@/lib/conversation/session-key";
 import { useAgentStore } from "@/store/agent";
 import { useWorkspaceLiveStore } from "@/store/workspace-live";
 import {
@@ -33,7 +33,7 @@ import {
   RoomEventPayload,
   UseAgentConversationOptions,
   UseAgentConversationReturn,
-  get_agent_conversation_identity_key,
+  getAgentConversationIdentityKey,
 } from "@/types/agent/agent-conversation";
 import {
   AssistantMessage,
@@ -41,55 +41,55 @@ import {
   RoomPendingAgentSlotState,
 } from "@/types";
 import {
-  clear_agent_session,
-  load_agent_session,
-  reset_agent_session,
-  start_agent_session,
+  clearAgentSession,
+  loadAgentSession,
+  resetAgentSession,
+  startAgentSession,
 } from "./conversation-lifecycle";
 import {
-  dedupe_messages_by_id,
-  merge_loaded_messages,
-  upsert_message,
+  dedupeMessagesById,
+  mergeLoadedMessages,
+  upsertMessage,
 } from "./message-helpers";
-import { handle_agent_conversation_web_socket_message } from "./websocket-event-handler";
+import { handleAgentConversationWebSocketMessage } from "./websocket-event-handler";
 import {
-  delete_input_queue_message as send_delete_input_queue_message,
-  enqueue_input_queue_message as send_enqueue_input_queue_message,
-  guide_input_queue_message as send_guide_input_queue_message,
-  reorder_input_queue_messages as send_reorder_input_queue_messages,
-  send_session_message,
-  send_session_permission_response,
-  stop_session_generation,
+  deleteInputQueueMessage as send_delete_input_queue_message,
+  enqueueInputQueueMessage as send_enqueue_input_queue_message,
+  guideInputQueueMessage as send_guide_input_queue_message,
+  reorderInputQueueMessages as send_reorder_input_queue_messages,
+  sendSessionMessage,
+  sendSessionPermissionResponse,
+  stopSessionGeneration,
 } from "./conversation-actions";
 import {
   AgentConversationRuntimeMachine,
 } from "./agent-conversation-runtime-machine";
 import {
-  apply_terminal_round_message_status,
-  cancel_running_agent_slots,
-  filter_round_pending_agent_slots,
-  filter_round_pending_permissions,
-  merge_chat_ack_pending_slots,
-  reconcile_stopped_session_messages,
-  remove_failed_outbound_user_message,
-  update_assistant_message_status,
-  update_pending_agent_slot_status,
+  applyTerminalRoundMessageStatus,
+  cancelRunningAgentSlots,
+  filterRoundPendingAgentSlots,
+  filterRoundPendingPermissions,
+  mergeChatAckPendingSlots,
+  reconcileStoppedSessionMessages,
+  removeFailedOutboundUserMessage,
+  updateAssistantMessageStatus,
+  updatePendingAgentSlotStatus,
 } from "./conversation-runtime-reconciliation";
 import {
   AgentConversationHistoryCursor,
-  load_older_agent_conversation_messages,
+  loadOlderAgentConversationMessages,
 } from "./conversation-history";
 import {
-  build_volatile_conversation_snapshot,
-  filter_pending_permissions_from_snapshot,
-  filter_pending_slots_from_snapshot,
-  get_next_pending_permission_timeout_ms,
-  is_ephemeral_message,
-  merge_pending_agent_slots,
-  prune_expired_pending_permissions,
-  read_volatile_conversation_snapshot,
-  remove_volatile_conversation_snapshot,
-  write_volatile_conversation_snapshot,
+  buildVolatileConversationSnapshot,
+  filterPendingPermissionsFromSnapshot,
+  filterPendingSlotsFromSnapshot,
+  getNextPendingPermissionTimeoutMs,
+  isEphemeralMessage,
+  mergePendingAgentSlots,
+  pruneExpiredPendingPermissions,
+  readVolatileConversationSnapshot,
+  removeVolatileConversationSnapshot,
+  writeVolatileConversationSnapshot,
 } from "./conversation-volatile-snapshot";
 import { useConversationStreamBuffer } from "./use-conversation-stream-buffer";
 import { usePendingChatAcks } from "./use-pending-chat-acks";
@@ -98,7 +98,7 @@ import { useAgentConversationSocket } from "./use-agent-conversation-socket";
 export function useAgentConversation(
   options: UseAgentConversationOptions = {},
 ): UseAgentConversationReturn {
-  const wsUrl = options.ws_url || get_agent_ws_url();
+  const wsUrl = options.ws_url || getAgentWsUrl();
   const identity = options.identity ?? null;
   const agentId = identity?.agent_id ?? null;
   const roomId = identity?.room_id ?? null;
@@ -143,7 +143,7 @@ export function useAgentConversation(
 
   const activeSessionKeyRef = useRef<string | null>(identitySessionKey);
   const activeIdentityKeyRef = useRef<string | null>(
-    get_agent_conversation_identity_key(identity),
+    getAgentConversationIdentityKey(identity),
   );
   const loadRequestIdRef = useRef(0);
   const sessionSeqCursorRef = useRef(0);
@@ -168,9 +168,9 @@ export function useAgentConversation(
   // Per-session message cache: accumulates messages received for non-active sessions
   // so they are not lost when the user switches conversations.
   const bgMessageCacheRef = useRef<Map<string, Message[]>>(new Map());
-  const isLoading = runtimeSnapshot.is_loading;
+  const isLoading = runtimeSnapshot.isLoading;
   const runtimePhase = runtimeSnapshot.phase;
-  const liveRoundIds = runtimeSnapshot.live_round_ids;
+  const liveRoundIds = runtimeSnapshot.liveRoundIds;
 
   const setMessages = useCallback((nextState: SetStateAction<Message[]>) => {
     setMessagesState((currentMessages) => {
@@ -178,7 +178,7 @@ export function useAgentConversation(
         typeof nextState === "function"
           ? nextState(currentMessages)
           : nextState;
-      return dedupe_messages_by_id(nextMessages);
+      return dedupeMessagesById(nextMessages);
     });
   }, []);
 
@@ -253,7 +253,7 @@ export function useAgentConversation(
           : nextState;
       pendingPermissionsRef.current = next;
       applyRuntimeTransition((machine) => {
-        machine.set_pending_permission_count(next.length);
+        machine.setPendingPermissionCount(next.length);
       });
       setPendingPermissionsState(next);
     },
@@ -281,7 +281,7 @@ export function useAgentConversation(
       if (!incomingSessionKey) {
         return false;
       }
-      return are_equivalent_session_keys(
+      return areEquivalentSessionKeys(
         activeSessionKeyRef.current,
         incomingSessionKey,
       );
@@ -300,12 +300,12 @@ export function useAgentConversation(
   );
 
   const onBackgroundMessage = useCallback((key: string, message: Message) => {
-    if (is_ephemeral_message(message)) {
+    if (isEphemeralMessage(message)) {
       return;
     }
     const cache = bgMessageCacheRef.current;
     const existing = cache.get(key) ?? [];
-    const next = upsert_message(existing, message);
+    const next = upsertMessage(existing, message);
     cache.set(key, next);
   }, []);
 
@@ -329,16 +329,16 @@ export function useAgentConversation(
         return;
       }
       applyRuntimeTransition((machine) => {
-        machine.clear_round(roundId, chatType === "group");
+        machine.clearRound(roundId, chatType === "group");
       });
       setPendingAgentSlots((prev) =>
-        filter_round_pending_agent_slots(prev, roundId),
+        filterRoundPendingAgentSlots(prev, roundId),
       );
       setPendingPermissions((prev) =>
-        filter_round_pending_permissions(prev, roundId),
+        filterRoundPendingPermissions(prev, roundId),
       );
       setMessages((prev) =>
-        remove_failed_outbound_user_message(prev, roundId),
+        removeFailedOutboundUserMessage(prev, roundId),
       );
       setError(message);
       if (wsStateRef.current === "connected") {
@@ -364,20 +364,20 @@ export function useAgentConversation(
   const reconcileRuntimeStateFromSnapshot = useCallback(
     (snapshotMessages: Message[]) => {
       applyRuntimeTransition((machine) => {
-        machine.reconcile_from_snapshot(snapshotMessages);
+        machine.reconcileFromSnapshot(snapshotMessages);
       });
       const isRoundTerminal = (roundId: string) =>
-        runtimeMachineRef.current.is_round_terminal(roundId);
+        runtimeMachineRef.current.isRoundTerminal(roundId);
 
       setPendingAgentSlots(
-        filter_pending_slots_from_snapshot(
+        filterPendingSlotsFromSnapshot(
           pendingAgentSlotsRef.current,
           snapshotMessages,
           isRoundTerminal,
         ),
       );
       setPendingPermissions(
-        filter_pending_permissions_from_snapshot(
+        filterPendingPermissionsFromSnapshot(
           pendingPermissionsRef.current,
           snapshotMessages,
           isRoundTerminal,
@@ -406,21 +406,21 @@ export function useAgentConversation(
       bg_message_cache_ref: bgMessageCacheRef,
       restore_volatile_session_snapshot: (targetSessionKey) => {
         const snapshot =
-          read_volatile_conversation_snapshot(targetSessionKey);
+          readVolatileConversationSnapshot(targetSessionKey);
         if (!snapshot) {
           return false;
         }
 
         let restoredMessages = snapshot.messages;
         setMessages((currentMessages) => {
-          restoredMessages = merge_loaded_messages(
+          restoredMessages = mergeLoadedMessages(
             snapshot.messages,
             currentMessages,
           );
           return restoredMessages;
         });
         setPendingAgentSlots((currentSlots) =>
-          merge_pending_agent_slots(
+          mergePendingAgentSlots(
             snapshot.pending_agent_slots,
             currentSlots,
           ),
@@ -465,21 +465,21 @@ export function useAgentConversation(
       return;
     }
 
-    const snapshot = build_volatile_conversation_snapshot(
+    const snapshot = buildVolatileConversationSnapshot(
       messages,
       runtimeSnapshot,
       pendingAgentSlots,
     );
     if (!snapshot) {
-      remove_volatile_conversation_snapshot(sessionKey);
+      removeVolatileConversationSnapshot(sessionKey);
       return;
     }
 
-    write_volatile_conversation_snapshot(sessionKey, snapshot);
+    writeVolatileConversationSnapshot(sessionKey, snapshot);
   }, [messages, pendingAgentSlots, runtimeSnapshot, sessionKey]);
 
   useEffect(() => {
-    const nextPermissions = prune_expired_pending_permissions(
+    const nextPermissions = pruneExpiredPendingPermissions(
       pendingPermissionsRef.current,
     );
     if (nextPermissions !== pendingPermissionsRef.current) {
@@ -487,7 +487,7 @@ export function useAgentConversation(
       return;
     }
 
-    const nextTimeoutMs = get_next_pending_permission_timeout_ms(
+    const nextTimeoutMs = getNextPendingPermissionTimeoutMs(
       pendingPermissionsRef.current,
     );
     if (nextTimeoutMs == null) {
@@ -496,7 +496,7 @@ export function useAgentConversation(
 
     const timeoutId = window.setTimeout(() => {
       setPendingPermissions((currentPermissions) =>
-        prune_expired_pending_permissions(currentPermissions),
+        pruneExpiredPendingPermissions(currentPermissions),
       );
     }, nextTimeoutMs + 1);
 
@@ -511,11 +511,11 @@ export function useAgentConversation(
       return;
     }
 
-    await load_agent_session(activeSessionKey, lifecycleContext, true);
+    await loadAgentSession(activeSessionKey, lifecycleContext, true);
   }, [lifecycleContext]);
 
   const loadOlderMessages = useCallback(async (): Promise<boolean> => {
-    return load_older_agent_conversation_messages({
+    return loadOlderAgentConversationMessages({
       active_session_key_ref: activeSessionKeyRef,
       identity,
       history_cursor_ref: historyCursorRef,
@@ -547,11 +547,11 @@ export function useAgentConversation(
       settleAgentWorkspaceWrites(agentId);
     }
     setPendingPermissions([]);
-    setPendingAgentSlots(cancel_running_agent_slots);
+    setPendingAgentSlots(cancelRunningAgentSlots);
     setMessages((prev) =>
-      reconcile_stopped_session_messages(
+      reconcileStoppedSessionMessages(
         prev,
-        runtimeSnapshotBeforeReset.terminal_round_ids,
+        runtimeSnapshotBeforeReset.terminalRoundIds,
         chatType,
       ),
     );
@@ -577,7 +577,7 @@ export function useAgentConversation(
         return;
       }
       applyRuntimeTransition((machine) => {
-        machine.sync_running_rounds(runningRoundIds);
+        machine.syncRunningRounds(runningRoundIds);
       });
     },
     [applyRuntimeTransition, reconcileStoppedSession],
@@ -590,13 +590,13 @@ export function useAgentConversation(
       roundId?: string | null,
     ) => {
       setMessages((prev) =>
-        update_assistant_message_status(prev, msgId, status),
+        updateAssistantMessageStatus(prev, msgId, status),
       );
       setPendingAgentSlots((prev) =>
-        update_pending_agent_slot_status(prev, msgId, status, roundId),
+        updatePendingAgentSlotStatus(prev, msgId, status, roundId),
       );
       applyRuntimeTransition((machine) => {
-        machine.update_message_status(msgId, status, roundId);
+        machine.updateMessageStatus(msgId, status, roundId);
       });
     },
     [applyRuntimeTransition, setMessages, setPendingAgentSlots],
@@ -605,10 +605,10 @@ export function useAgentConversation(
   const trackChatAck = useCallback(
     (ack: import("@/types").ChatAckData, _sessionKey?: string | null) => {
       applyRuntimeTransition((machine) => {
-        machine.track_chat_ack(ack);
+        machine.trackChatAck(ack);
       });
       clearPendingChatAck(ack.round_id);
-      setPendingAgentSlots((prev) => merge_chat_ack_pending_slots(prev, ack));
+      setPendingAgentSlots((prev) => mergeChatAckPendingSlots(prev, ack));
     },
     [applyRuntimeTransition, clearPendingChatAck, setPendingAgentSlots],
   );
@@ -617,7 +617,7 @@ export function useAgentConversation(
     (message: AssistantMessage) => {
       clearPendingChatAck(message.round_id);
       applyRuntimeTransition((machine) => {
-        machine.track_assistant_message(message);
+        machine.trackAssistantMessage(message);
       });
     },
     [applyRuntimeTransition, clearPendingChatAck],
@@ -626,25 +626,25 @@ export function useAgentConversation(
   const applyRoundStatus = useCallback(
     (roundId: string, status: RoundLifecycleStatus) => {
       applyRuntimeTransition((machine) => {
-        machine.track_round_status(roundId, status);
+        machine.trackRoundStatus(roundId, status);
       });
       clearPendingChatAck(roundId);
 
       if (status === "running") {
         return;
       }
-      if (agentId && !runtimeMachineRef.current.snapshot().is_loading) {
+      if (agentId && !runtimeMachineRef.current.snapshot().isLoading) {
         settleAgentWorkspaceWrites(agentId);
       }
 
       setPendingPermissions((prev) =>
-        filter_round_pending_permissions(prev, roundId),
+        filterRoundPendingPermissions(prev, roundId),
       );
       setPendingAgentSlots((prev) =>
-        filter_round_pending_agent_slots(prev, roundId),
+        filterRoundPendingAgentSlots(prev, roundId),
       );
       setMessages((prev) =>
-        apply_terminal_round_message_status(prev, roundId, status),
+        applyTerminalRoundMessageStatus(prev, roundId, status),
       );
     },
     [
@@ -660,7 +660,7 @@ export function useAgentConversation(
 
   const handleWebsocketMessage = useCallback(
     (backendMessage: unknown) => {
-      handle_agent_conversation_web_socket_message({
+      handleAgentConversationWebSocketMessage({
         backend_message: backendMessage,
         agent_id: agentId,
         room_id: roomId,
@@ -687,7 +687,7 @@ export function useAgentConversation(
         track_chat_ack: trackChatAck,
         track_assistant_message: trackAssistantMessage,
         reload_current_session: reloadCurrentSession,
-        settle_agent_workspace_writes: settleAgentWorkspaceWrites,
+        settleAgentWorkspaceWrites: settleAgentWorkspaceWrites,
       });
     },
     [
@@ -716,11 +716,11 @@ export function useAgentConversation(
   );
 
   useEffect(() => {
-    runtimeMachineRef.current.set_chat_type(chatType);
+    runtimeMachineRef.current.setChatType(chatType);
     runtimeMachineRef.current.emit();
   }, [chatType]);
 
-  const nextIdentityKey = get_agent_conversation_identity_key(identity);
+  const nextIdentityKey = getAgentConversationIdentityKey(identity);
   const shouldResetIdentityState = activeIdentityKeyRef.current !== nextIdentityKey;
   if (shouldResetIdentityState) {
     activeIdentityKeyRef.current = nextIdentityKey;
@@ -752,20 +752,20 @@ export function useAgentConversation(
     };
   }, [cancelPendingChatAcks]);
 
-  const { ws_state: wsState, ws_send: wsSend } = useAgentConversationSocket({
-    ws_url: wsUrl,
-    agent_id: agentId,
-    room_id: roomId,
-    conversation_id: conversationId,
-    session_key: sessionKey,
-    session_seq_cursor_ref: sessionSeqCursorRef,
-    room_seq_cursor_ref: roomSeqCursorRef,
-    ws_send_ref: wsSendRef,
-    ws_reconnect_ref: wsReconnectRef,
-    ws_state_ref: wsStateRef,
-    on_message: handleWebsocketMessage,
-    on_error: onError,
-    set_error: setError,
+  const { wsState, wsSend } = useAgentConversationSocket({
+    wsUrl,
+    agentId,
+    roomId,
+    conversationId,
+    sessionKey,
+    sessionSeqCursorRef,
+    roomSeqCursorRef,
+    wsSendRef,
+    wsReconnectRef,
+    wsStateRef,
+    onMessage: handleWebsocketMessage,
+    onError,
+    setError,
   });
 
   useEffect(() => {
@@ -814,13 +814,13 @@ export function useAgentConversation(
 
   const sendMessage = useCallback(
     async (content: string, options: AgentConversationSendOptions = {}) => {
-      const roundId = await send_session_message(content, actionContext, options);
+      const roundId = await sendSessionMessage(content, actionContext, options);
       if (!roundId) {
         return;
       }
 
       applyRuntimeTransition((machine) => {
-        machine.track_outbound_round(roundId);
+        machine.trackOutboundRound(roundId);
       });
 
       await waitForChatAck(roundId, () => {
@@ -869,10 +869,10 @@ export function useAgentConversation(
 
   const stopGeneration = useCallback(
     (msgId?: string) => {
-      stop_session_generation(actionContext, msgId);
+      stopSessionGeneration(actionContext, msgId);
       if (msgId) {
         applyRuntimeTransition((machine) => {
-          machine.update_message_status(msgId, "cancelled");
+          machine.updateMessageStatus(msgId, "cancelled");
         });
         setPendingAgentSlots((prev) =>
           prev.map((slot) =>
@@ -892,14 +892,14 @@ export function useAgentConversation(
 
   const sendPermissionResponse = useCallback(
     (payload: PermissionDecisionPayload) => {
-      return send_session_permission_response(payload, actionContext);
+      return sendSessionPermissionResponse(payload, actionContext);
     },
     [actionContext],
   );
 
   const startSession = useCallback(() => {
     cancelPendingChatAcks("会话已重建，未确认的消息发送已取消");
-    start_agent_session(lifecycleContext);
+    startAgentSession(lifecycleContext);
     resetHistoryPagination();
     resetRuntimeMachine();
   }, [
@@ -911,14 +911,14 @@ export function useAgentConversation(
 
   const loadSession = useCallback(
     async (id: string): Promise<void> => {
-      await load_agent_session(id, lifecycleContext);
+      await loadAgentSession(id, lifecycleContext);
     },
     [lifecycleContext],
   );
 
   const clearSession = useCallback(() => {
     cancelPendingChatAcks("会话已清空，未确认的消息发送已取消");
-    clear_agent_session(lifecycleContext);
+    clearAgentSession(lifecycleContext);
     resetHistoryPagination();
     resetRuntimeMachine();
   }, [
@@ -958,7 +958,7 @@ export function useAgentConversation(
 
   const resetSession = useCallback(() => {
     cancelPendingChatAcks("会话已重置，未确认的消息发送已取消");
-    reset_agent_session(lifecycleContext);
+    resetAgentSession(lifecycleContext);
     resetHistoryPagination();
     resetRuntimeMachine();
   }, [

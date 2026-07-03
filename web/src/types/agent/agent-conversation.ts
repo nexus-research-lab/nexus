@@ -8,7 +8,7 @@
  */
 
 import { Dispatch, RefObject, SetStateAction } from 'react';
-import { get_session_key_identity } from '@/lib/conversation/session-key';
+import { getSessionKeyIdentity } from '@/lib/conversation/session-key';
 
 import {
   AssistantMessage,
@@ -40,7 +40,7 @@ export interface AgentConversationIdentity {
   chat_type: AgentConversationChatType;
 }
 
-export function get_agent_conversation_identity_key(
+export function getAgentConversationIdentityKey(
   identity: AgentConversationIdentity | null | undefined,
 ): string | null {
   if (!identity) {
@@ -55,7 +55,7 @@ export function get_agent_conversation_identity_key(
     return `room-conversation:${identity.conversation_id}`;
   }
 
-  const sessionIdentity = get_session_key_identity(identity.session_key);
+  const sessionIdentity = getSessionKeyIdentity(identity.session_key);
   return sessionIdentity ? `session:${sessionIdentity}` : null;
 }
 
@@ -63,7 +63,7 @@ export interface UseAgentConversationOptions {
   ws_url?: string;
   identity?: AgentConversationIdentity | null;
   on_error?: (error: Error) => void;
-  /** Called when a room-level WS event arrives (member_added/removed/room_deleted) */
+  /** Called when a room-level WS event arrives for member or room changes. */
   on_room_event?: (eventType: string, data: RoomEventPayload) => void;
 }
 
@@ -245,13 +245,13 @@ export interface HandleAgentConversationWebSocketMessageParams {
   set_pending_agent_slots: Dispatch<SetStateAction<RoomPendingAgentSlotState[]>>;
   set_input_queue_items: Dispatch<SetStateAction<InputQueueItem[]>>;
   set_pending_permissions: Dispatch<SetStateAction<PendingPermission[]>>;
-  /** Enqueue a stream payload into the rAF batch buffer instead of calling set_messages directly */
+  /** Enqueue a stream payload into the rAF batch buffer instead of calling setMessages directly. */
   enqueue_stream_payload?: (payload: StreamMessage) => void;
   /** Called when a complete message arrives for a non-active session (for background caching) */
   on_background_message?: (sessionKey: string, message: Message) => void;
   /** Room-level events from the server (member add/remove/room deleted) */
   on_room_event?: (eventType: string, data: RoomEventPayload) => void;
-  /** Update a single message's stream_status field */
+  /** Update a single message's streamStatus field. */
   update_message_status?: (
     msgId: string,
     status: import('@/types/conversation/message').AssistantMessageStatus,
@@ -261,12 +261,12 @@ export interface HandleAgentConversationWebSocketMessageParams {
   sync_session_status?: (payload: SessionStatusEventPayload) => void;
   /** 后端同步单个 round 的权威生命周期 */
   apply_round_status?: (roundId: string, status: RoundLifecycleStatus) => void;
-  /** 记录本轮 chat_ack 预分配的活跃消息槽位 */
+  /** 记录本轮 chatAck 预分配的活跃消息槽位 */
   track_chat_ack?: (ack: ChatAckData, sessionKey: string | null) => void;
   /** 同步 assistant 完整消息的终态 */
   track_assistant_message?: (message: AssistantMessage) => void;
   /** Resync 当前 session/room 快照后重新绑定 WebSocket cursor */
   reload_current_session?: () => Promise<void>;
   /** 当前 agent 后台任务归零后结算 workspace 写入 */
-  settle_agent_workspace_writes?: (agentId: string) => void;
+  settleAgentWorkspaceWrites?: (agentId: string) => void;
 }

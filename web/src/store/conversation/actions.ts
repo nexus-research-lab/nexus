@@ -8,7 +8,7 @@
  */
 
 import { Conversation, ConversationStoreState } from '@/types/conversation/conversation';
-import { get_conversations } from "@/lib/api/agent-api";
+import { getConversations } from "@/lib/api/agent-api";
 
 type ConversationStoreSetter = (
   update:
@@ -27,7 +27,7 @@ function dedupeConversationsBySessionKey(
       continue;
     }
 
-    // 同一 session_key 必须只保留一条。
+    // 同一 sessionKey 必须只保留一条。
     // 冲突时优先使用最近活跃的记录，避免首页和 Launcher 出现重复 key。
     if (conversation.last_activity_at >= existingConversation.last_activity_at) {
       uniqueConversations.set(conversation.session_key, conversation);
@@ -36,7 +36,7 @@ function dedupeConversationsBySessionKey(
   return Array.from(uniqueConversations.values());
 }
 
-export const sync_conversation_snapshot_action = (
+export const syncConversationSnapshotAction = (
   set: ConversationStoreSetter
 ) => (
   key: string,
@@ -81,13 +81,13 @@ export const sync_conversation_snapshot_action = (
   });
 };
 
-export const load_conversations_from_server_action = (
+export const loadConversationsFromServerAction = (
   set: ConversationStoreSetter,
 ) => async (): Promise<void> => {
   try {
     set({ loading: true, error: null });
 
-    const conversations = await get_conversations();
+    const conversations = await getConversations();
 
     if (conversations && Array.isArray(conversations)) {
       const sortedConversations = dedupeConversationsBySessionKey(conversations)
@@ -106,7 +106,7 @@ export const load_conversations_from_server_action = (
   }
 };
 
-export const clear_all_conversations_action = (
+export const clearAllConversationsAction = (
   set: ConversationStoreSetter
 ) => (): void => {
   set({

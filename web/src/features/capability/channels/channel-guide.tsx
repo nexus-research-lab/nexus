@@ -2,10 +2,10 @@ import type { ReactNode } from "react";
 
 import { ChannelConfigView, ImChannelType } from "@/lib/api/channel-api";
 import {
-  get_dialog_note_class_name,
-  get_dialog_note_style,
+  getDialogNoteClassName,
+  getDialogNoteStyle,
 } from "@/shared/ui/dialog/dialog-styles";
-import { is_personal_weixin_channel } from "./channel-model";
+import { isPersonalWeixinChannel } from "./channel-model";
 
 interface ChannelGuideStep {
   content: ReactNode;
@@ -77,7 +77,7 @@ export function ChannelGuide({
   }
 
   return (
-    <div className={get_dialog_note_class_name("default")} style={get_dialog_note_style("default")}>
+    <div className={getDialogNoteClassName("default")} style={getDialogNoteStyle("default")}>
       <div className="mb-2 text-[13px] font-semibold text-(--text-strong)">如何连接</div>
       <ol className="list-decimal space-y-1 pl-5 text-[13px] leading-6 text-(--text-default)">
         {steps.map((step) => (
@@ -96,7 +96,7 @@ export function ChannelGuide({
           本通道默认使用飞书长连接事件订阅；请确认应用已选择长连接并订阅“接收消息”事件。
         </div>
       ) : null}
-      {is_personal_weixin_channel(item.channel_type) ? (
+      {isPersonalWeixinChannel(item.channel_type) ? (
         <div className="mt-4 border-t border-(--divider-subtle-color) pt-3 text-[12px] font-medium leading-5 text-(--text-muted)">
           微信与企业微信分开配置；本通道由 Nexus 内置 iLink 连接能力提供，不复用企业微信回调。
         </div>

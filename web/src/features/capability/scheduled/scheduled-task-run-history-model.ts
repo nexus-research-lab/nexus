@@ -1,7 +1,7 @@
 import type { ScheduledTaskItem, ScheduledTaskRunItem } from "@/types/capability/scheduled-task";
-import { format_scheduled_datetime } from "./scheduled-formatters";
+import { formatScheduledDatetime } from "./scheduled-formatters";
 
-export function format_duration(startedAt: number | null, finishedAt: number | null): string {
+export function formatDuration(startedAt: number | null, finishedAt: number | null): string {
   if (!startedAt || !finishedAt) {
     return "未完成";
   }
@@ -14,7 +14,7 @@ export function format_duration(startedAt: number | null, finishedAt: number | n
   return `${minutes} 分 ${seconds} 秒`;
 }
 
-export function get_status_meta(status: ScheduledTaskRunItem["status"]) {
+export function getStatusMeta(status: ScheduledTaskRunItem["status"]) {
   if (status === "succeeded") {
     return { label: "成功", tone: "success" as const };
   }
@@ -36,7 +36,7 @@ export function get_status_meta(status: ScheduledTaskRunItem["status"]) {
   return { label: "失败", tone: "default" as const };
 }
 
-export function get_delivery_status_meta(status: ScheduledTaskRunItem["delivery_status"]) {
+export function getDeliveryStatusMeta(status: ScheduledTaskRunItem["delivery_status"]) {
   if (status === "succeeded") {
     return { label: "投递成功", tone: "success" as const };
   }
@@ -55,22 +55,22 @@ export function get_delivery_status_meta(status: ScheduledTaskRunItem["delivery_
   return null;
 }
 
-export function should_show_assistant_text(run: ScheduledTaskRunItem): boolean {
+export function shouldShowAssistantText(run: ScheduledTaskRunItem): boolean {
   if (!run.assistant_text) {
     return false;
   }
   return run.assistant_text.trim() !== (run.result_text ?? "").trim();
 }
 
-export function artifact_file_name(path: string): string {
+export function artifactFileName(path: string): string {
   return path.split("/").filter(Boolean).at(-1) ?? "automation-run.md";
 }
 
-export function is_retryable_status(status: ScheduledTaskRunItem["status"]): boolean {
+export function isRetryableStatus(status: ScheduledTaskRunItem["status"]): boolean {
   return status === "failed" || status === "cancelled" || status === "skipped";
 }
 
-export function build_run_diagnostic(task: ScheduledTaskItem, run: ScheduledTaskRunItem): string {
+export function buildRunDiagnostic(task: ScheduledTaskItem, run: ScheduledTaskRunItem): string {
   const lines = [
     `Task: ${task.name}`,
     `Job ID: ${task.job_id}`,
@@ -80,14 +80,14 @@ export function build_run_diagnostic(task: ScheduledTaskItem, run: ScheduledTask
     `Status: ${run.status}`,
     `Delivery Status: ${run.delivery_status || ""}`,
     `Delivery Attempts: ${run.delivery_attempts ?? 0}`,
-    `Delivered At: ${format_scheduled_datetime(run.delivered_at, { include_seconds: true })}`,
-    `Delivery Next Attempt: ${format_scheduled_datetime(run.delivery_next_attempt_at, { include_seconds: true })}`,
-    `Delivery Dead Letter At: ${format_scheduled_datetime(run.delivery_dead_letter_at, { include_seconds: true })}`,
+    `Delivered At: ${formatScheduledDatetime(run.delivered_at, { includeSeconds: true })}`,
+    `Delivery Next Attempt: ${formatScheduledDatetime(run.delivery_next_attempt_at, { includeSeconds: true })}`,
+    `Delivery Dead Letter At: ${formatScheduledDatetime(run.delivery_dead_letter_at, { includeSeconds: true })}`,
     `Trigger: ${run.trigger_kind || ""}`,
-    `Scheduled: ${format_scheduled_datetime(run.scheduled_for, { include_seconds: true })}`,
-    `Started: ${format_scheduled_datetime(run.started_at, { include_seconds: true })}`,
-    `Finished: ${format_scheduled_datetime(run.finished_at, { include_seconds: true })}`,
-    `Duration: ${format_duration(run.started_at, run.finished_at)}`,
+    `Scheduled: ${formatScheduledDatetime(run.scheduled_for, { includeSeconds: true })}`,
+    `Started: ${formatScheduledDatetime(run.started_at, { includeSeconds: true })}`,
+    `Finished: ${formatScheduledDatetime(run.finished_at, { includeSeconds: true })}`,
+    `Duration: ${formatDuration(run.started_at, run.finished_at)}`,
     `Attempts: ${run.attempts}`,
     `Session: ${run.session_key || ""}`,
     `Round: ${run.round_id || ""}`,

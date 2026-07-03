@@ -6,17 +6,16 @@ import { cn } from "@/lib/utils";
 import { UiPanel } from "@/shared/ui/panel";
 
 interface UiSkeletonProps extends HTMLAttributes<HTMLSpanElement> {
-  class_name?: string;
+  className?: string;
 }
 
 interface UiSkeletonCardListProps {
-  card_class_name?: string;
-  class_name?: string;
+  cardClassName?: string;
+  className?: string;
   count?: number;
 }
 
 export function UiSkeleton({
-  class_name: legacyClassName,
   className,
   ...props
 }: UiSkeletonProps) {
@@ -25,7 +24,6 @@ export function UiSkeleton({
       className={cn(
         "block animate-pulse rounded-full bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_62%,transparent)]",
         className,
-        legacyClassName,
       )}
       {...props}
     />
@@ -33,14 +31,14 @@ export function UiSkeleton({
 }
 
 export function UiSkeletonCardList({
-  card_class_name: cardClassName,
-  class_name: className,
+  cardClassName: cardClassName,
+  className: className,
   count = 3,
 }: UiSkeletonCardListProps) {
   return (
     <div className={cn("space-y-3", className)}>
       {Array.from({ length: count }, (_, index) => (
-        <UiPanel class_name={cn("min-h-[132px]", cardClassName)} key={index} padding="none" variant="dashed">
+        <UiPanel className={cn("min-h-[132px]", cardClassName)} key={index} padding="none" variant="dashed">
           <span className="sr-only">加载中</span>
         </UiPanel>
       ))}

@@ -66,7 +66,7 @@ const imageExtensions = new Set([
   "avif",
 ]);
 
-export function get_workspace_file_preview_kind(
+export function getWorkspaceFilePreviewKind(
   path: string,
 ): WorkspaceFilePreviewKind {
   const ext = path.split(".").pop()?.toLowerCase() || "";
@@ -100,7 +100,7 @@ export function get_workspace_file_preview_kind(
   return "binary";
 }
 
-export function is_workspace_text_preview_kind(
+export function isWorkspaceTextPreviewKind(
   kind: WorkspaceFilePreviewKind,
 ): boolean {
   return (
@@ -111,7 +111,7 @@ export function is_workspace_text_preview_kind(
   );
 }
 
-export function workspace_file_kind_label(
+export function workspaceFileKindLabel(
   fileType: WorkspaceFilePreviewKind,
 ): string {
   switch (fileType) {

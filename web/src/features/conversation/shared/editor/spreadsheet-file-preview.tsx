@@ -5,7 +5,7 @@ import { type VirtualItem, useVirtualizer } from "@tanstack/react-virtual";
 import { Eye, FileSpreadsheet, FileWarning, LoaderCircle } from "lucide-react";
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
-import { get_workspace_file_preview_url } from "@/lib/api/agent-manage-api";
+import { getWorkspaceFilePreviewUrl } from "@/lib/api/agent-manage-api";
 import { cn } from "@/lib/utils";
 import { ConversationResizeHandle } from "./conversation-resize-handle";
 import {
@@ -13,7 +13,7 @@ import {
   type SpreadsheetPreviewCellStyle,
   type SpreadsheetPreviewSheetData,
   type SpreadsheetPreviewWorkbookData,
-  workbook_to_spreadsheet_preview_data,
+  workbookToSpreadsheetPreviewData,
 } from "./spreadsheet-preview-model";
 import {
   WorkspaceFileDownloadButton,
@@ -51,22 +51,22 @@ type SpreadsheetPreviewStatus =
   | { state: "error"; message: string };
 
 interface SpreadsheetFilePreviewProps {
-  agent_id: string;
+  agentId: string;
   embedded?: boolean;
-  file_name: string;
-  is_preview_focused?: boolean;
-  on_resize_start: () => void;
-  on_toggle_preview_focus?: () => void;
+  fileName: string;
+  isPreviewFocused?: boolean;
+  onResizeStart: () => void;
+  onTogglePreviewFocus?: () => void;
   path: string;
 }
 
 export function SpreadsheetFilePreview({
-  agent_id: agentId,
+  agentId: agentId,
   embedded,
-  file_name: fileName,
-  is_preview_focused: isPreviewFocused,
-  on_resize_start: onResizeStart,
-  on_toggle_preview_focus: onTogglePreviewFocus,
+  fileName: fileName,
+  isPreviewFocused: isPreviewFocused,
+  onResizeStart: onResizeStart,
+  onTogglePreviewFocus: onTogglePreviewFocus,
   path,
 }: SpreadsheetFilePreviewProps) {
   const previewKey = `${agentId}\x1f${path}`;
@@ -83,7 +83,7 @@ export function SpreadsheetFilePreview({
 
     async function loadPreview() {
       try {
-        const previewUrl = get_workspace_file_preview_url(agentId, path);
+        const previewUrl = getWorkspaceFilePreviewUrl(agentId, path);
         const response = await fetch(previewUrl, {
           credentials: "include",
           signal: abortController.signal,
@@ -113,7 +113,7 @@ export function SpreadsheetFilePreview({
 
         const workbook = new ExcelJS.Workbook();
         await workbook.xlsx.load(buffer);
-        const workbookPreview = workbook_to_spreadsheet_preview_data(workbook);
+        const workbookPreview = workbookToSpreadsheetPreviewData(workbook);
         if (workbookPreview.sheets.length === 0) {
           throw new Error("未找到可预览的工作表");
         }
@@ -150,19 +150,19 @@ export function SpreadsheetFilePreview({
     <>
       {!embedded ? (
         <ConversationResizeHandle
-          aria_label="调整编辑器宽度"
-          class_name="flex"
-          on_mouse_down={onResizeStart}
+          ariaLabel="调整编辑器宽度"
+          className="flex"
+          onMouseDown={onResizeStart}
         />
       ) : null}
 
       <WorkspaceFilePreviewHeader
         actions={(
           <>
-            <WorkspaceFileDownloadButton agent_id={agentId} file_name={fileName} path={path} />
+            <WorkspaceFileDownloadButton agentId={agentId} fileName={fileName} path={path} />
             <WorkspaceFilePreviewFocusButton
-              is_preview_focused={isPreviewFocused}
-              on_toggle_preview_focus={onTogglePreviewFocus}
+              isPreviewFocused={isPreviewFocused}
+              onTogglePreviewFocus={onTogglePreviewFocus}
             />
           </>
         )}
@@ -174,8 +174,8 @@ export function SpreadsheetFilePreview({
       <div className="relative min-h-0 flex-1 overflow-hidden bg-[var(--surface-panel-subtle-background)]">
         {workbookData ? (
           <SpreadsheetReadonlyWorkbook
-            active_sheet_index={activeSheetIndex}
-            on_select_sheet={setActiveSheetIndex}
+            activeSheetIndex={activeSheetIndex}
+            onSelectSheet={setActiveSheetIndex}
             workbook={workbookData}
           />
         ) : null}
@@ -188,12 +188,12 @@ export function SpreadsheetFilePreview({
 }
 
 function SpreadsheetReadonlyWorkbook({
-  active_sheet_index: activeSheetIndex,
-  on_select_sheet: onSelectSheet,
+  activeSheetIndex: activeSheetIndex,
+  onSelectSheet: onSelectSheet,
   workbook,
 }: {
-  active_sheet_index: number;
-  on_select_sheet: (index: number) => void;
+  activeSheetIndex: number;
+  onSelectSheet: (index: number) => void;
   workbook: SpreadsheetPreviewWorkbookData;
 }) {
   const activeSheet = workbook.sheets[Math.min(activeSheetIndex, workbook.sheets.length - 1)];

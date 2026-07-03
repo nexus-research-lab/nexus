@@ -3,20 +3,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
-  set_default_agent_model,
-  set_default_agent_provider,
-  set_user_preferences,
+  setDefaultAgentModel,
+  setDefaultAgentProvider,
+  setUserPreferences,
 } from "@/config/options";
 import {
   DEFAULT_AGENT_PERMISSION_MODE,
 } from "@/features/agents/options/agent-options-constants";
 import {
-  list_provider_options_api,
+  listProviderOptionsApi,
 } from "@/lib/api/provider-config-api";
-import { get_nxs_runtime_status_api } from "@/lib/api/runtime-api";
+import { getNxsRuntimeStatusApi } from "@/lib/api/runtime-api";
 import {
-  get_user_preferences_api,
-  update_user_preferences_api,
+  getUserPreferencesApi,
+  updateUserPreferencesApi,
 } from "@/lib/api/settings-preferences-api";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -25,7 +25,7 @@ import { useOnboardingTour } from "@/shared/ui/onboarding/use-onboarding-tour";
 import type { AgentConversationDefaultDeliveryPolicy } from "@/types/agent/agent-conversation";
 import type { ProviderOption } from "@/types/capability/provider";
 import {
-  normalize_agent_runtime_kind,
+  normalizeAgentRuntimeKind,
   type AgentRuntimeKind,
   type UserPreferences,
 } from "@/types/settings/preferences";
@@ -37,19 +37,19 @@ import { SettingsPermissionsSection } from "./settings-permissions-section";
 import {
   type DefaultModelPreferenceRole,
   type PreferenceFeedback,
-  build_default_model_options,
-  build_preferences_update_payload,
-  decode_default_model_value,
-  encode_optional_model_selection,
-  normalize_preferences,
+  buildDefaultModelOptions,
+  buildPreferencesUpdatePayload,
+  decodeDefaultModelValue,
+  encodeOptionalModelSelection,
+  normalizePreferences,
 } from "./settings-preferences-model";
 import { SettingsSystemSection } from "./settings-system-section";
 
 export function SettingsGeneralSection() {
   const { t } = useI18n();
-  const { reset_all_tours: resetAllTours } = useOnboardingTour();
+  const { resetAllTours: resetAllTours } = useOnboardingTour();
   const [preferences, setPreferences] = useState<UserPreferences>(() =>
-    normalize_preferences(null),
+    normalizePreferences(null),
   );
   const [preferencesLoading, setPreferencesLoading] = useState(true);
   const [preferencesSaving, setPreferencesSaving] = useState(false);
@@ -80,7 +80,7 @@ export function SettingsGeneralSection() {
   const providerDefaultSelectionRef = useRef({ provider: "", model: "" });
   const imageDefaultSelectionRef = useRef({ provider: "", model: "" });
   const saveSequenceRef = useRef(0);
-  const agentRuntimeKind = normalize_agent_runtime_kind(
+  const agentRuntimeKind = normalizeAgentRuntimeKind(
     preferences.agent_runtime_kind,
   );
   const permissionMode =
@@ -94,13 +94,13 @@ export function SettingsGeneralSection() {
       const agentModel =
         nextPreferences.default_agent_options.model?.trim() ||
         providerDefaultSelectionRef.current.model;
-      set_default_agent_provider(agentProvider);
-      set_default_agent_model(agentModel);
+      setDefaultAgentProvider(agentProvider);
+      setDefaultAgentModel(agentModel);
       setDefaultModelValue(
-        encode_optional_model_selection(agentProvider, agentModel),
+        encodeOptionalModelSelection(agentProvider, agentModel),
       );
       setDefaultImageModelValue(
-        encode_optional_model_selection(
+        encodeOptionalModelSelection(
           nextPreferences.default_image_model_selection?.provider ||
             imageDefaultSelectionRef.current.provider,
           nextPreferences.default_image_model_selection?.model ||
@@ -108,7 +108,7 @@ export function SettingsGeneralSection() {
         ),
       );
       setDefaultBackgroundModelValue(
-        encode_optional_model_selection(
+        encodeOptionalModelSelection(
           nextPreferences.default_background_model_selection?.provider,
           nextPreferences.default_background_model_selection?.model,
         ),
@@ -123,10 +123,10 @@ export function SettingsGeneralSection() {
         setProviderOptionsLoading(true);
         const selectedRuntimeKind =
           runtimeKind ??
-          normalize_agent_runtime_kind(
+          normalizeAgentRuntimeKind(
             preferencesRef.current.agent_runtime_kind,
           );
-        const result = await list_provider_options_api(selectedRuntimeKind);
+        const result = await listProviderOptionsApi(selectedRuntimeKind);
         setProviderOptions(result.items ?? []);
         setBackgroundProviderOptions(
           result.background_items ?? result.items ?? [],
@@ -163,12 +163,12 @@ export function SettingsGeneralSection() {
     const loadPreferences = async () => {
       try {
         setPreferencesLoading(true);
-        const result = await get_user_preferences_api();
+        const result = await getUserPreferencesApi();
         if (cancelled) {
           return;
         }
-        const normalized = normalize_preferences(result);
-        set_user_preferences(normalized);
+        const normalized = normalizePreferences(result);
+        setUserPreferences(normalized);
         setPreferences(normalized);
         preferencesRef.current = normalized;
         lastSavedPreferencesRef.current = normalized;
@@ -199,25 +199,25 @@ export function SettingsGeneralSection() {
     async (nextPreferences: UserPreferences) => {
       const sequence = saveSequenceRef.current + 1;
       saveSequenceRef.current = sequence;
-      const normalized = normalize_preferences(nextPreferences);
+      const normalized = normalizePreferences(nextPreferences);
 
       preferencesRef.current = normalized;
       setPreferences(normalized);
-      set_user_preferences(normalized);
+      setUserPreferences(normalized);
       setPreferenceFeedback(null);
       setPreferencesSaving(true);
 
       try {
-        const result = await update_user_preferences_api(
-          build_preferences_update_payload(normalized),
+        const result = await updateUserPreferencesApi(
+          buildPreferencesUpdatePayload(normalized),
         );
         if (saveSequenceRef.current !== sequence) {
           return;
         }
-        const saved = normalize_preferences(result);
+        const saved = normalizePreferences(result);
         preferencesRef.current = saved;
         lastSavedPreferencesRef.current = saved;
-        set_user_preferences(saved);
+        setUserPreferences(saved);
         setPreferences(saved);
       } catch (error) {
         if (saveSequenceRef.current !== sequence) {
@@ -226,7 +226,7 @@ export function SettingsGeneralSection() {
         const fallback = lastSavedPreferencesRef.current;
         if (fallback) {
           preferencesRef.current = fallback;
-          set_user_preferences(fallback);
+          setUserPreferences(fallback);
           setPreferences(fallback);
         }
         setPreferenceFeedback({
@@ -271,7 +271,7 @@ export function SettingsGeneralSection() {
       const currentPreferences = preferencesRef.current;
       if (
         value ===
-        normalize_agent_runtime_kind(currentPreferences.agent_runtime_kind)
+        normalizeAgentRuntimeKind(currentPreferences.agent_runtime_kind)
       ) {
         return;
       }
@@ -289,7 +289,7 @@ export function SettingsGeneralSection() {
         setNxsRuntimeChecking(true);
         setPreferenceFeedback(null);
         try {
-          const status = await get_nxs_runtime_status_api();
+          const status = await getNxsRuntimeStatusApi();
           if (status.available) {
             await persistPreferences({
               ...preferencesRef.current,
@@ -333,21 +333,21 @@ export function SettingsGeneralSection() {
   );
 
   const defaultModelOptions = useMemo(
-    () => build_default_model_options(providerOptions),
+    () => buildDefaultModelOptions(providerOptions),
     [providerOptions],
   );
   const defaultImageModelOptions = useMemo(
-    () => build_default_model_options(imageProviderOptions),
+    () => buildDefaultModelOptions(imageProviderOptions),
     [imageProviderOptions],
   );
   const defaultBackgroundModelOptions = useMemo(
-    () => build_default_model_options(backgroundProviderOptions),
+    () => buildDefaultModelOptions(backgroundProviderOptions),
     [backgroundProviderOptions],
   );
 
   const handleDefaultModelChange = useCallback(
     (value: string, role: DefaultModelPreferenceRole) => {
-      const selection = decode_default_model_value(value);
+      const selection = decodeDefaultModelValue(value);
       if (!selection || defaultModelSavingRole) {
         return;
       }
@@ -369,7 +369,7 @@ export function SettingsGeneralSection() {
         }
         try {
           const currentPreferences = preferencesRef.current;
-          const nextPreferences = normalize_preferences({
+          const nextPreferences = normalizePreferences({
             ...currentPreferences,
             default_agent_options:
               role === "agent_runtime"
@@ -390,30 +390,30 @@ export function SettingsGeneralSection() {
           });
           preferencesRef.current = nextPreferences;
           setPreferences(nextPreferences);
-          set_user_preferences(nextPreferences);
-          const result = await update_user_preferences_api(
-            build_preferences_update_payload(nextPreferences),
+          setUserPreferences(nextPreferences);
+          const result = await updateUserPreferencesApi(
+            buildPreferencesUpdatePayload(nextPreferences),
           );
-          const saved = normalize_preferences(result);
+          const saved = normalizePreferences(result);
           preferencesRef.current = saved;
           lastSavedPreferencesRef.current = saved;
           setPreferences(saved);
-          set_user_preferences(saved);
+          setUserPreferences(saved);
           if (role === "agent_runtime") {
-            set_default_agent_provider(selection.provider);
-            set_default_agent_model(selection.model);
+            setDefaultAgentProvider(selection.provider);
+            setDefaultAgentModel(selection.model);
           }
         } catch (error) {
           const fallback = lastSavedPreferencesRef.current;
           if (fallback) {
             preferencesRef.current = fallback;
             setPreferences(fallback);
-            set_user_preferences(fallback);
+            setUserPreferences(fallback);
             if (role === "agent_runtime") {
-              set_default_agent_provider(
+              setDefaultAgentProvider(
                 fallback.default_agent_options.provider,
               );
-              set_default_agent_model(fallback.default_agent_options.model);
+              setDefaultAgentModel(fallback.default_agent_options.model);
             }
           }
           if (role === "image_generation") {
@@ -447,37 +447,37 @@ export function SettingsGeneralSection() {
       <SettingsAppearanceSection />
 
       <SettingsGeneralBehaviorSection
-        agent_runtime_kind={agentRuntimeKind}
-        agent_sdk_diagnostics_enabled={
+        agentRuntimeKind={agentRuntimeKind}
+        agentSdkDiagnosticsEnabled={
           preferences.agent_sdk_diagnostics_enabled === true
         }
-        chat_default_delivery_policy={preferences.chat_default_delivery_policy}
-        default_background_model_options={defaultBackgroundModelOptions}
-        default_background_model_value={defaultBackgroundModelValue}
-        default_image_model_options={defaultImageModelOptions}
-        default_image_model_value={defaultImageModelValue}
-        default_model_feedback_message={defaultModelFeedback?.message}
-        default_model_options={defaultModelOptions}
-        default_model_saving_role={defaultModelSavingRole}
-        default_model_value={defaultModelValue}
-        nxs_runtime_checking={nxsRuntimeChecking}
-        on_agent_runtime_kind_change={handleAgentRuntimeKindChange}
-        on_agent_sdk_diagnostics_change={handleAgentSdkDiagnosticsChange}
-        on_default_delivery_policy_change={handleDeliveryPolicyChange}
-        on_default_model_change={handleDefaultModelChange}
-        on_reset_tours={resetAllTours}
-        preferences_loading={preferencesLoading}
-        preferences_saving={preferencesSaving}
-        provider_options_loading={providerOptionsLoading}
+        chatDefaultDeliveryPolicy={preferences.chat_default_delivery_policy}
+        defaultBackgroundModelOptions={defaultBackgroundModelOptions}
+        defaultBackgroundModelValue={defaultBackgroundModelValue}
+        defaultImageModelOptions={defaultImageModelOptions}
+        defaultImageModelValue={defaultImageModelValue}
+        defaultModelFeedbackMessage={defaultModelFeedback?.message}
+        defaultModelOptions={defaultModelOptions}
+        defaultModelSavingRole={defaultModelSavingRole}
+        defaultModelValue={defaultModelValue}
+        nxsRuntimeChecking={nxsRuntimeChecking}
+        onAgentRuntimeKindChange={handleAgentRuntimeKindChange}
+        onAgentSdkDiagnosticsChange={handleAgentSdkDiagnosticsChange}
+        onDefaultDeliveryPolicyChange={handleDeliveryPolicyChange}
+        onDefaultModelChange={handleDefaultModelChange}
+        onResetTours={resetAllTours}
+        preferencesLoading={preferencesLoading}
+        preferencesSaving={preferencesSaving}
+        providerOptionsLoading={providerOptionsLoading}
       />
 
       <SettingsDesktopSection />
 
       <SettingsPermissionsSection
-        feedback_message={preferenceFeedback?.message}
-        on_permission_mode_change={handlePermissionModeChange}
-        permission_mode={permissionMode}
-        preferences_loading={preferencesLoading}
+        feedbackMessage={preferenceFeedback?.message}
+        onPermissionModeChange={handlePermissionModeChange}
+        permissionMode={permissionMode}
+        preferencesLoading={preferencesLoading}
       />
     </div>
   );

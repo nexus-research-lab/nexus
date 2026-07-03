@@ -17,21 +17,21 @@ import type { SidebarConversationItem } from "./home-sidebar-conversation-model"
 
 export function SidebarSearchField({
   action,
-  on_change: onChange,
+  onChange: onChange,
   placeholder,
   value,
 }: {
   action?: ReactNode;
-  on_change: (value: string) => void;
+  onChange: (value: string) => void;
   placeholder: string;
   value: string;
 }) {
   return (
     <div className="flex items-center gap-2 px-2.5 pb-2">
       <UiSearchInput
-        class_name="flex-1"
-        input_class_name="text-[13px]"
-        on_change={onChange}
+        className="flex-1"
+        inputClassName="text-[13px]"
+        onChange={onChange}
         placeholder={placeholder}
         value={value}
       />
@@ -61,41 +61,41 @@ export function SidebarListLoadingRows({ count = 4 }: { count?: number }) {
 
 export function ConversationRow({
   item,
-  is_active: isActive,
-  on_click: onClick,
-  on_delete: onDelete,
+  isActive: isActive,
+  onClick: onClick,
+  onDelete: onDelete,
 }: {
   item: SidebarConversationItem;
-  is_active: boolean;
-  on_click: () => void;
-  on_delete?: () => void;
+  isActive: boolean;
+  onClick: () => void;
+  onDelete?: () => void;
 }) {
   const { t } = useI18n();
-  const isWorking = item.running_task_count > 0;
+  const isWorking = item.runningTaskCount > 0;
   const leading = item.kind === "room" ? (
-    <UiRoomAvatar avatar={item.avatar} members={item.members} room_id={item.room_id} title={item.title} />
+    <UiRoomAvatar avatar={item.avatar} members={item.members} roomId={item.roomId} title={item.title} />
   ) : (
     <UiAgentAvatar
       avatar={(item.members[0]?.avatar ?? item.avatar) ?? undefined}
-      is_working={isWorking}
+      isWorking={isWorking}
       name={item.members[0]?.name ?? item.title}
     />
   );
-  const meta = item.time_label || onDelete ? (
+  const meta = item.timeLabel || onDelete ? (
     <span className="relative flex h-7 w-10 shrink-0 items-center justify-end">
-      {item.time_label ? (
+      {item.timeLabel ? (
         <span
           className={cn(
             "text-[11px] tabular-nums text-(--text-soft) transition-opacity duration-(--motion-duration-fast)",
             onDelete && "group-hover/item:opacity-0",
           )}
         >
-          {item.time_label}
+          {item.timeLabel}
         </span>
       ) : null}
       {onDelete ? (
         <UiIconButton
-          class_name="absolute right-0 top-1/2 -translate-y-1/2 opacity-0 group-hover/item:opacity-100"
+          className="absolute right-0 top-1/2 -translate-y-1/2 opacity-0 group-hover/item:opacity-100"
           onClick={(event) => {
             event.stopPropagation();
             onDelete();
@@ -118,7 +118,7 @@ export function ConversationRow({
           {t("status.working")}
         </UiBadge>
       ) : null}
-      <UiCounterBadge count={item.unread_count ?? 0} />
+      <UiCounterBadge count={item.unreadCount ?? 0} />
     </>
   );
 
@@ -128,8 +128,8 @@ export function ConversationRow({
       description={item.summary}
       leading={leading}
       meta={meta}
-      on_click={onClick}
-      subtitle_trailing={status}
+      onClick={onClick}
+      subtitleTrailing={status}
       title={item.title}
     />
   );
@@ -137,18 +137,18 @@ export function ConversationRow({
 
 export function ContactRow({
   agent,
-  is_active: isActive,
-  is_working: isWorking,
-  on_chat: onChat,
-  on_open_directory: onOpenDirectory,
-  running_task_count: runningTaskCount,
+  isActive: isActive,
+  isWorking: isWorking,
+  onChat: onChat,
+  onOpenDirectory: onOpenDirectory,
+  runningTaskCount: runningTaskCount,
 }: {
   agent: LauncherAgentSummary;
-  is_active: boolean;
-  is_working: boolean;
-  on_chat: () => void;
-  on_open_directory: () => void;
-  running_task_count: number;
+  isActive: boolean;
+  isWorking: boolean;
+  onChat: () => void;
+  onOpenDirectory: () => void;
+  runningTaskCount: number;
 }) {
   const { t } = useI18n();
   const description = agent.description?.trim();
@@ -165,12 +165,12 @@ export function ContactRow({
     <UiListRow
       active={isActive}
       description={subtitle}
-      leading={<UiAgentAvatar avatar={agent.avatar} is_working={isWorking} name={agent.name} />}
+      leading={<UiAgentAvatar avatar={agent.avatar} isWorking={isWorking} name={agent.name} />}
       meta={status}
-      on_click={onOpenDirectory}
+      onClick={onOpenDirectory}
       right={(
         <UiIconButton
-          class_name="opacity-0 group-hover/item:opacity-100"
+          className="opacity-0 group-hover/item:opacity-100"
           onClick={(event) => {
             event.stopPropagation();
             onChat();

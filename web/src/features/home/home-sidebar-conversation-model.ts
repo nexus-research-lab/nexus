@@ -1,5 +1,5 @@
-import { is_main_agent } from "@/config/options";
-import { is_external_session_channel } from "@/features/conversation/external-session-labels";
+import { isMainAgent } from "@/config/options";
+import { isExternalSessionChannel } from "@/features/conversation/external-session-labels";
 import type { ChatNotificationTargetState } from "@/store/sidebar";
 import type { AgentRuntimeStatus } from "@/types/agent/agent";
 import type {
@@ -10,8 +10,8 @@ import type {
 } from "@/types/app/launcher";
 
 import {
-  build_chat_notification_target_key,
-  is_chat_notification_target_active,
+  buildChatNotificationTargetKey,
+  isChatNotificationTargetActive,
   type ActiveChatNotificationTarget,
 } from "./chat-notification-target";
 
@@ -20,35 +20,35 @@ export interface SidebarConversationItem {
   kind: "room" | "dm";
   title: string;
   summary: string;
-  time_label: string;
+  timeLabel: string;
   members: LauncherRoomMemberSummary[];
   avatar?: string | null;
-  room_id?: string;
-  route_room_id?: string;
-  conversation_id?: string;
-  session_key?: string;
-  agent_id?: string;
-  last_activity_at: number;
-  message_count: number;
-  notification_key?: string | null;
-  running_task_count: number;
-  unread_conversation_id?: string | null;
-  unread_count?: number;
-  unread_target_key?: string | null;
-  can_delete: boolean;
+  roomId?: string;
+  routeRoomId?: string;
+  conversationId?: string;
+  sessionKey?: string;
+  agentId?: string;
+  lastActivityAt: number;
+  messageCount: number;
+  notificationKey?: string | null;
+  runningTaskCount: number;
+  unreadConversationId?: string | null;
+  unreadCount?: number;
+  unreadTargetKey?: string | null;
+  canDelete: boolean;
 }
 
-export function normalize_query(value: string): string {
+export function normalizeQuery(value: string): string {
   return value.trim().toLowerCase();
 }
 
-export function is_active_sidebar_chat_item(
+export function isActiveSidebarChatItem(
   item: SidebarConversationItem,
   activeTarget: ActiveChatNotificationTarget | null,
 ): boolean {
-  return is_chat_notification_target_active(activeTarget, {
-    key: item.notification_key,
-    room_id: item.room_id,
+  return isChatNotificationTargetActive(activeTarget, {
+    key: item.notificationKey,
+    room_id: item.roomId,
   });
 }
 
@@ -83,11 +83,11 @@ function formatSidebarTime(timestamp: number): string {
   return `${date.getMonth() + 1}/${date.getDate()}`;
 }
 
-export function is_main_agent_dm_room(room: LauncherRoomSummary): boolean {
+export function isMainAgentDmRoom(room: LauncherRoomSummary): boolean {
   if (room.room_type !== "dm") {
     return false;
   }
-  return Boolean(room.dm_target_agent_id && is_main_agent(room.dm_target_agent_id));
+  return Boolean(room.dm_target_agent_id && isMainAgent(room.dm_target_agent_id));
 }
 
 function buildLatestConversationByRoomId(
@@ -97,7 +97,7 @@ function buildLatestConversationByRoomId(
   for (const conversation of conversations) {
     if (
       !conversation.room_id ||
-      is_external_session_channel(conversation.channel_type, conversation.session_key)
+      isExternalSessionChannel(conversation.channel_type, conversation.session_key)
     ) {
       continue;
     }
@@ -119,14 +119,14 @@ function isLauncherConversationActive(
 }
 
 function runningTaskCountForSidebarConversation({
-  agent_runtime_statuses: agentRuntimeStatuses,
-  dm_agent_id: dmAgentId,
-  is_dm: isDm,
+  agentRuntimeStatuses,
+  dmAgentId,
+  isDm,
   latest,
 }: {
-  agent_runtime_statuses: Record<string, AgentRuntimeStatus>;
-  dm_agent_id?: string;
-  is_dm: boolean;
+  agentRuntimeStatuses: Record<string, AgentRuntimeStatus>;
+  dmAgentId?: string;
+  isDm: boolean;
   latest?: LauncherConversationSummary;
 }): number {
   if (isDm) {
@@ -136,27 +136,27 @@ function runningTaskCountForSidebarConversation({
   return isLauncherConversationActive(latest) ? 1 : 0;
 }
 
-export function build_conversation_items({
+export function buildConversationItems({
   agents,
-  agent_runtime_statuses: agentRuntimeStatuses,
+  agentRuntimeStatuses,
   conversations,
-  format_running_tasks_summary: formatRunningTasksSummary,
+  formatRunningTasksSummary,
   rooms,
-  untitled_room_label: untitledRoomLabel,
+  untitledRoomLabel,
 }: {
   agents: LauncherAgentSummary[];
-  agent_runtime_statuses: Record<string, AgentRuntimeStatus>;
+  agentRuntimeStatuses: Record<string, AgentRuntimeStatus>;
   conversations: LauncherConversationSummary[];
-  format_running_tasks_summary: (count: number) => string;
+  formatRunningTasksSummary: (count: number) => string;
   rooms: LauncherRoomSummary[];
-  untitled_room_label: string;
+  untitledRoomLabel: string;
 }): SidebarConversationItem[] {
   const agentById = new Map(agents.map((agent) => [agent.id, agent]));
   const latestByRoomId = buildLatestConversationByRoomId(conversations);
   const items: SidebarConversationItem[] = [];
 
   for (const room of rooms) {
-    if (is_main_agent_dm_room(room)) {
+    if (isMainAgentDmRoom(room)) {
       continue;
     }
     const latestRoom = latestByRoomId.get(room.id);
@@ -170,9 +170,9 @@ export function build_conversation_items({
       ? dmAgent ? [{ id: dmAgent.id, name: dmAgent.name, avatar: dmAgent.avatar }] : []
       : room.members ?? [];
     const runningTaskCount = runningTaskCountForSidebarConversation({
-      agent_runtime_statuses: agentRuntimeStatuses,
-      dm_agent_id: room.dm_target_agent_id,
-      is_dm: isDm,
+      agentRuntimeStatuses,
+      dmAgentId: room.dm_target_agent_id,
+      isDm,
       latest: latestRoom,
     });
     const title = isDm
@@ -186,47 +186,47 @@ export function build_conversation_items({
       summary: runningTaskCount > 0
         ? formatRunningTasksSummary(runningTaskCount)
         : latestRoom.title.trim(),
-      time_label: formatSidebarTime(lastActivityAt),
+      timeLabel: formatSidebarTime(lastActivityAt),
       members,
       avatar: room.avatar,
-      room_id: room.id,
-      route_room_id: room.id,
-      conversation_id: latestRoom.conversation_id,
-      session_key: latestRoom.session_key,
-      agent_id: room.dm_target_agent_id,
-      last_activity_at: lastActivityAt,
-      message_count: latestRoom.message_count ?? 0,
-      running_task_count: runningTaskCount,
-      can_delete: true,
+      roomId: room.id,
+      routeRoomId: room.id,
+      conversationId: latestRoom.conversation_id,
+      sessionKey: latestRoom.session_key,
+      agentId: room.dm_target_agent_id,
+      lastActivityAt,
+      messageCount: latestRoom.message_count ?? 0,
+      runningTaskCount,
+      canDelete: true,
     });
   }
 
   return items.sort((left, right) => {
-    if (left.last_activity_at !== right.last_activity_at) {
-      return right.last_activity_at - left.last_activity_at;
+    if (left.lastActivityAt !== right.lastActivityAt) {
+      return right.lastActivityAt - left.lastActivityAt;
     }
     return left.title.localeCompare(right.title, "zh-CN");
   });
 }
 
-export function get_sidebar_item_unread_state({
-  chat_unread_counts: chatUnreadCounts,
-  chat_unread_targets: chatUnreadTargets,
-  chat_unread_timestamps: chatUnreadTimestamps,
-  notification_key: notificationKey,
-  room_id: roomId,
-  session_key: sessionKey,
+export function getSidebarItemUnreadState({
+  chatUnreadCounts,
+  chatUnreadTargets,
+  chatUnreadTimestamps,
+  notificationKey,
+  roomId,
+  sessionKey,
 }: {
-  chat_unread_counts: Record<string, number>;
-  chat_unread_targets: Record<string, ChatNotificationTargetState>;
-  chat_unread_timestamps: Record<string, number>;
-  notification_key?: string | null;
-  room_id?: string | null;
-  session_key?: string | null;
+  chatUnreadCounts: Record<string, number>;
+  chatUnreadTargets: Record<string, ChatNotificationTargetState>;
+  chatUnreadTimestamps: Record<string, number>;
+  notificationKey?: string | null;
+  roomId?: string | null;
+  sessionKey?: string | null;
 }): {
-  unread_conversation_id: string | null;
-  unread_count: number;
-  unread_target_key: string | null;
+  unreadConversationId: string | null;
+  unreadCount: number;
+  unreadTargetKey: string | null;
 } {
   const normalizedRoomId = roomId?.trim();
   let unreadCount = 0;
@@ -284,7 +284,7 @@ export function get_sidebar_item_unread_state({
     }
   }
 
-  const sessionNotificationKey = build_chat_notification_target_key({ session_key: sessionKey });
+  const sessionNotificationKey = buildChatNotificationTargetKey({ session_key: sessionKey });
   if (sessionNotificationKey && !countedKeys.has(sessionNotificationKey)) {
     const sessionUnreadCount = chatUnreadCounts[sessionNotificationKey] ?? 0;
     if (sessionUnreadCount > 0) {
@@ -303,16 +303,16 @@ export function get_sidebar_item_unread_state({
   }
 
   return {
-    unread_conversation_id: unreadTarget?.conversation_id ?? null,
-    unread_count: unreadCount,
-    unread_target_key: unreadTarget?.key ?? null,
+    unreadConversationId: unreadTarget?.conversation_id ?? null,
+    unreadCount,
+    unreadTargetKey: unreadTarget?.key ?? null,
   };
 }
 
-export function build_sidebar_item_notification_key(item: SidebarConversationItem): string | null {
-  return build_chat_notification_target_key({
-    conversation_id: item.conversation_id,
-    room_id: item.room_id,
-    session_key: item.session_key,
+export function buildSidebarItemNotificationKey(item: SidebarConversationItem): string | null {
+  return buildChatNotificationTargetKey({
+    conversation_id: item.conversationId,
+    room_id: item.roomId,
+    session_key: item.sessionKey,
   });
 }

@@ -25,10 +25,10 @@ import {
 } from "lucide-react";
 
 import {
-  change_password_api,
-  get_personal_profile_api,
+  changePasswordApi,
+  getPersonalProfileApi,
   type PersonalProfile,
-  update_personal_profile_api,
+  updatePersonalProfileApi,
 } from "@/lib/api/auth-api";
 import {
   AGENT_ICON_ID_END,
@@ -38,7 +38,7 @@ import {
 import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiAgentAvatar } from "@/shared/ui/avatar";
-import { get_ui_button_class_name } from "@/shared/ui/button-styles";
+import { getUiButtonClassName } from "@/shared/ui/button-styles";
 import { FeedbackBannerStack } from "@/shared/ui/feedback/feedback-banner-stack";
 import { IconPicker } from "@/shared/ui/icon-picker/icon-picker";
 import { WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
@@ -47,9 +47,9 @@ import { PersonalSettingsTokenUsageSection } from "./personal-settings-token-usa
 type FeedbackTone = "success" | "error";
 
 interface PasswordDraft {
-  current_password: string;
-  new_password: string;
-  confirm_password: string;
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
 }
 
 interface FeedbackState {
@@ -59,16 +59,16 @@ interface FeedbackState {
 }
 
 const EMPTY_PASSWORD_DRAFT: PasswordDraft = {
-  current_password: "",
-  new_password: "",
-  confirm_password: "",
+  currentPassword: "",
+  newPassword: "",
+  confirmPassword: "",
 };
 
-const PERSONAL_PRIMARY_BUTTON_CLASS_NAME = get_ui_button_class_name(
+const PERSONAL_PRIMARY_BUTTON_CLASS_NAME = getUiButtonClassName(
   { size: "md", tone: "primary", variant: "solid" },
   "gap-2 tracking-tight",
 );
-const PERSONAL_SECONDARY_BUTTON_CLASS_NAME = get_ui_button_class_name(
+const PERSONAL_SECONDARY_BUTTON_CLASS_NAME = getUiButtonClassName(
   { size: "md", variant: "surface" },
   "gap-2 tracking-tight",
 );
@@ -99,7 +99,7 @@ function userRoleLabel(value: string, t: ReturnType<typeof useI18n>["t"]): strin
 
 export function PersonalSettingsPanel() {
   const { t } = useI18n();
-  const { refresh_status: refreshStatus } = useAuth();
+  const { refreshStatus: refreshStatus } = useAuth();
   const [profile, setProfile] = useState<PersonalProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [passwordDraft, setPasswordDraft] = useState<PasswordDraft>(EMPTY_PASSWORD_DRAFT);
@@ -110,7 +110,7 @@ export function PersonalSettingsPanel() {
   const loadProfile = useCallback(async () => {
     try {
       setLoading(true);
-      const result = await get_personal_profile_api();
+      const result = await getPersonalProfileApi();
       setProfile(result);
       setFeedback((current) => (current?.tone === "error" ? null : current));
     } catch (error) {
@@ -132,25 +132,25 @@ export function PersonalSettingsPanel() {
     if (!profile?.can_change_password) {
       return t("settings.personal.password_disabled");
     }
-    if (!passwordDraft.current_password.trim()) {
+    if (!passwordDraft.currentPassword.trim()) {
       return t("settings.personal.validation_current_required");
     }
-    if (!passwordDraft.new_password.trim()) {
+    if (!passwordDraft.newPassword.trim()) {
       return t("settings.personal.validation_new_required");
     }
-    if (passwordDraft.new_password.length < 8) {
+    if (passwordDraft.newPassword.length < 8) {
       return t("settings.personal.validation_new_length");
     }
-    if (passwordDraft.new_password !== passwordDraft.confirm_password) {
+    if (passwordDraft.newPassword !== passwordDraft.confirmPassword) {
       return t("settings.personal.validation_confirm_mismatch");
     }
     return null;
   }, [passwordDraft, profile?.can_change_password, t]);
 
   const hasPasswordInput = Boolean(
-    passwordDraft.current_password ||
-    passwordDraft.new_password ||
-    passwordDraft.confirm_password,
+    passwordDraft.currentPassword ||
+    passwordDraft.newPassword ||
+    passwordDraft.confirmPassword,
   );
   const canSubmitPassword = !validationError && !submitting && !loading;
   const usage = profile?.token_usage;
@@ -172,9 +172,9 @@ export function PersonalSettingsPanel() {
 
     try {
       setSubmitting(true);
-      await change_password_api({
-        current_password: passwordDraft.current_password,
-        new_password: passwordDraft.new_password,
+      await changePasswordApi({
+        current_password: passwordDraft.currentPassword,
+        new_password: passwordDraft.newPassword,
       });
       await refreshStatus();
       setPasswordDraft(EMPTY_PASSWORD_DRAFT);
@@ -200,7 +200,7 @@ export function PersonalSettingsPanel() {
     }
     try {
       setSavingAvatar(true);
-      const result = await update_personal_profile_api({ avatar: nextAvatar });
+      const result = await updatePersonalProfileApi({ avatar: nextAvatar });
       setProfile(result);
       await refreshStatus();
       setFeedback({
@@ -240,7 +240,7 @@ export function PersonalSettingsPanel() {
                   <div className="flex min-w-0 items-center gap-3">
                     <UiAgentAvatar
                       avatar={avatar}
-                      class_name="h-12 w-12 rounded-[16px]"
+                      className="h-12 w-12 rounded-[16px]"
                       name={profile?.user.display_name || profile?.user.username || t("settings.personal.avatar_alt")}
                       shape="rounded"
                     />
@@ -276,15 +276,15 @@ export function PersonalSettingsPanel() {
                     ) : null}
                   </div>
                   <IconPicker
-                    class_name="min-w-0"
+                    className="min-w-0"
                     columns={8}
                     disabled={!canUpdateAvatar}
-                    icon_size="sm"
+                    iconSize="sm"
                     layout="row"
-                    max_icons={AGENT_ICON_ID_END - AGENT_ICON_ID_START + 1}
-                    on_select={handleAvatarChange}
-                    show_clear
-                    start_icon_id={AGENT_ICON_ID_START}
+                    maxIcons={AGENT_ICON_ID_END - AGENT_ICON_ID_START + 1}
+                    onSelect={handleAvatarChange}
+                    showClear
+                    startIconId={AGENT_ICON_ID_START}
                     value={avatar}
                   />
                   {!profile?.can_update_profile ? (
@@ -327,10 +327,10 @@ export function PersonalSettingsPanel() {
                       disabled={!profile?.can_change_password || submitting}
                       onChange={(event) => setPasswordDraft((current) => ({
                         ...current,
-                        current_password: event.target.value,
+                        currentPassword: event.target.value,
                       }))}
                       type="password"
-                      value={passwordDraft.current_password}
+                      value={passwordDraft.currentPassword}
                     />
                   </label>
                   <label className="space-y-1.5">
@@ -343,10 +343,10 @@ export function PersonalSettingsPanel() {
                       disabled={!profile?.can_change_password || submitting}
                       onChange={(event) => setPasswordDraft((current) => ({
                         ...current,
-                        new_password: event.target.value,
+                        newPassword: event.target.value,
                       }))}
                       type="password"
-                      value={passwordDraft.new_password}
+                      value={passwordDraft.newPassword}
                     />
                   </label>
                   <label className="space-y-1.5">
@@ -359,10 +359,10 @@ export function PersonalSettingsPanel() {
                       disabled={!profile?.can_change_password || submitting}
                       onChange={(event) => setPasswordDraft((current) => ({
                         ...current,
-                        confirm_password: event.target.value,
+                        confirmPassword: event.target.value,
                       }))}
                       type="password"
-                      value={passwordDraft.confirm_password}
+                      value={passwordDraft.confirmPassword}
                     />
                   </label>
                 </div>
@@ -396,7 +396,7 @@ export function PersonalSettingsPanel() {
           {
             key: "personal-settings-feedback",
             message: feedback.message,
-            on_dismiss: () => setFeedback(null),
+            onDismiss: () => setFeedback(null),
             title: feedback.title,
             tone: feedback.tone,
           },

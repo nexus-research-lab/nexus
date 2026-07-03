@@ -8,7 +8,7 @@
  */
 
 import { cn } from "@/lib/utils";
-import { get_ui_icon_button_class_name } from "@/shared/ui/button-styles";
+import { getUiIconButtonClassName } from "@/shared/ui/button-styles";
 
 export const COMPOSER_ATTACHMENT_CLASS_NAME =
   "chip-default group relative inline-flex items-center gap-2 rounded-[14px] px-3 py-[0.45rem]";
@@ -20,22 +20,22 @@ export const COMPOSER_ATTACHMENT_REMOVE_CLASS_NAME =
   "ml-1 rounded-full p-0.5 text-(--destructive) opacity-60 transition-[background,opacity] duration-(--motion-duration-fast) hover:bg-[color:color-mix(in_srgb,var(--destructive)_10%,transparent)] focus-visible:ring-2 focus-visible:ring-primary/50";
 
 export const COMPOSER_ACTION_BUTTON_CLASS_NAME =
-  get_ui_icon_button_class_name({ size: "lg", variant: "surface" }, "shrink-0");
+  getUiIconButtonClassName({ size: "lg", variant: "surface" }, "shrink-0");
 
 export const COMPOSER_PRIMARY_ACTION_BUTTON_CLASS_NAME =
-  get_ui_icon_button_class_name({ size: "lg", tone: "primary", variant: "solid" }, "shrink-0");
+  getUiIconButtonClassName({ size: "lg", tone: "primary", variant: "solid" }, "shrink-0");
 
 export const COMPOSER_DANGER_ACTION_BUTTON_CLASS_NAME =
-  get_ui_icon_button_class_name({ size: "lg", tone: "danger", variant: "surface" }, "shrink-0");
+  getUiIconButtonClassName({ size: "lg", tone: "danger", variant: "surface" }, "shrink-0");
 
-export function get_composer_shell_class_name(disabled: boolean) {
+export function getComposerShellClassName(disabled: boolean) {
   return cn(
     "input-shell overflow-hidden rounded-[18px]",
     disabled && "cursor-not-allowed opacity-(--disabled-opacity)",
   );
 }
 
-export function get_composer_shell_style(compact: boolean) {
+export function getComposerShellStyle(compact: boolean) {
   void compact;
   return undefined;
 }

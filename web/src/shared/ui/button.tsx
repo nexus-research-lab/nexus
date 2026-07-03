@@ -4,8 +4,8 @@ import { AnchorHTMLAttributes, ButtonHTMLAttributes, forwardRef, ReactNode } fro
 
 import { cn } from "@/lib/utils";
 import {
-  get_ui_button_class_name,
-  get_ui_icon_button_class_name,
+  getUiButtonClassName,
+  getUiIconButtonClassName,
   type UiButtonSize,
   type UiButtonTone,
   type UiButtonVariant,
@@ -14,7 +14,7 @@ import {
 
 interface UiButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children: ReactNode;
-  class_name?: string;
+  className?: string;
   size?: UiButtonSize;
   tone?: UiButtonTone;
   variant?: UiButtonVariant;
@@ -22,7 +22,7 @@ interface UiButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 interface UiLinkButtonProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
   children: ReactNode;
-  class_name?: string;
+  className?: string;
   size?: UiButtonSize;
   tone?: UiButtonTone;
   variant?: UiButtonVariant;
@@ -30,7 +30,7 @@ interface UiLinkButtonProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
 
 interface UiIconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children: ReactNode;
-  class_name?: string;
+  className?: string;
   size?: UiIconButtonSize;
   tone?: UiButtonTone;
   variant?: Exclude<UiButtonVariant, "text">;
@@ -39,7 +39,6 @@ interface UiIconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 export const UiButton = forwardRef<HTMLButtonElement, UiButtonProps>(function UiButton(
   {
     children,
-    class_name: legacyClassName,
     className,
     size,
     tone,
@@ -52,7 +51,7 @@ export const UiButton = forwardRef<HTMLButtonElement, UiButtonProps>(function Ui
   return (
     <button
       ref={ref}
-      className={get_ui_button_class_name({ size, tone, variant }, cn(className, legacyClassName))}
+      className={getUiButtonClassName({ size, tone, variant }, cn(className))}
       type={type}
       {...props}
     >
@@ -64,7 +63,6 @@ export const UiButton = forwardRef<HTMLButtonElement, UiButtonProps>(function Ui
 export const UiLinkButton = forwardRef<HTMLAnchorElement, UiLinkButtonProps>(function UiLinkButton(
   {
     children,
-    class_name: legacyClassName,
     className,
     size,
     tone,
@@ -76,7 +74,7 @@ export const UiLinkButton = forwardRef<HTMLAnchorElement, UiLinkButtonProps>(fun
   return (
     <a
       ref={ref}
-      className={get_ui_button_class_name({ size, tone, variant }, cn(className, legacyClassName))}
+      className={getUiButtonClassName({ size, tone, variant }, cn(className))}
       {...props}
     >
       {children}
@@ -87,7 +85,6 @@ export const UiLinkButton = forwardRef<HTMLAnchorElement, UiLinkButtonProps>(fun
 export const UiIconButton = forwardRef<HTMLButtonElement, UiIconButtonProps>(function UiIconButton(
   {
     children,
-    class_name: legacyClassName,
     className,
     size,
     tone,
@@ -100,7 +97,7 @@ export const UiIconButton = forwardRef<HTMLButtonElement, UiIconButtonProps>(fun
   return (
     <button
       ref={ref}
-      className={get_ui_icon_button_class_name({ size, tone, variant }, cn(className, legacyClassName))}
+      className={getUiIconButtonClassName({ size, tone, variant }, cn(className))}
       type={type}
       {...props}
     >

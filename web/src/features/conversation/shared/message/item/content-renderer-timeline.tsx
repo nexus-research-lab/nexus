@@ -6,17 +6,17 @@ import type { SystemEventContent } from "@/types/conversation/message";
 
 import {
   DEFAULT_TIMELINE_DOT_TOP,
-  get_system_message_icon_class_name,
-  get_timeline_anchor_element,
-  get_timeline_anchor_top,
+  getSystemMessageIconClassName,
+  getTimelineAnchorElement,
+  getTimelineAnchorTop,
 } from "./message-item-support";
 
 export function SystemEventIcon({
   icon,
-  class_name: className,
+  className: className,
 }: {
   icon: SystemEventContent["icon"];
-  class_name?: string;
+  className?: string;
 }) {
   if (icon === "retry") {
     return <RotateCcw className={className} />;
@@ -50,8 +50,8 @@ export function TimelineBlock({
 
     // 圆点位置是纯 DOM 对齐值，避免用 state 回写触发渲染递归。
     const updateDotTop = () => {
-      const anchorElement = get_timeline_anchor_element(contentElement);
-      const nextDotTop = get_timeline_anchor_top(contentElement, anchorElement);
+      const anchorElement = getTimelineAnchorElement(contentElement);
+      const nextDotTop = getTimelineAnchorTop(contentElement, anchorElement);
       if (Math.abs(dotTopRef.current - nextDotTop) < 0.5) {
         return;
       }

@@ -7,29 +7,29 @@ import { cn } from "@/lib/utils";
 import { AssistantMessage, Message, RoomPendingAgentSlotState, } from "@/types/conversation/message";
 import { PendingPermission, PermissionDecisionPayload } from "@/types/conversation/permission";
 import {
-  build_room_agent_round_entries,
-  is_agent_round_active,
+  buildRoomAgentRoundEntries,
+  isAgentRoundActive,
   is_automation_trigger_user_message,
 } from "@/features/conversation/shared/utils";
 import { GroupAgentStatusCard } from "./group-agent-status-card";
 import { useGroupThread } from "./group-thread-state";
 
 interface GroupRoundCardGroupProps {
-  round_id: string;
+  roundId: string;
   messages: Message[];
-  pending_permissions?: PendingPermission[];
-  pending_slots?: RoomPendingAgentSlotState[];
-  agent_name_map?: Record<string, string>;
-  agent_avatar_map?: Record<string, string | null>;
-  current_user_avatar?: string | null;
-  is_last_round: boolean;
-  is_loading: boolean;
-  on_permission_response?: (payload: PermissionDecisionPayload) => boolean;
-  can_respond_to_permissions?: boolean;
-  permission_read_only_reason?: string;
-  on_stop_message?: (msgId: string) => void;
-  on_open_agent_contact?: (agentId: string) => void;
-  on_open_workspace_file?: (path: string) => void;
+  pendingPermissions?: PendingPermission[];
+  pendingSlots?: RoomPendingAgentSlotState[];
+  agentNameMap?: Record<string, string>;
+  agentAvatarMap?: Record<string, string | null>;
+  currentUserAvatar?: string | null;
+  isLastRound: boolean;
+  isLoading: boolean;
+  onPermissionResponse?: (payload: PermissionDecisionPayload) => boolean;
+  canRespondToPermissions?: boolean;
+  permissionReadOnlyReason?: string;
+  onStopMessage?: (msgId: string) => void;
+  onOpenAgentContact?: (agentId: string) => void;
+  onOpenWorkspaceFile?: (path: string) => void;
 }
 
 function getUserAttachmentWorkspaceAgentId(message: Message | undefined) {
@@ -41,25 +41,25 @@ function getUserAttachmentWorkspaceAgentId(message: Message | undefined) {
 
 function GroupCompletedReply(
   {
-    round_id: roundId,
-    agent_id: agentId,
-    agent_name: agentName,
-    agent_avatar: agentAvatar,
-    assistant_messages: assistantMessages,
-    is_thread_active: isThreadActive,
-    on_click_thread: onClickThread,
-    on_open_agent_contact: onOpenAgentContact,
-    on_open_workspace_file: onOpenWorkspaceFile,
+    roundId: roundId,
+    agentId: agentId,
+    agentName: agentName,
+    agentAvatar: agentAvatar,
+    assistantMessages: assistantMessages,
+    isThreadActive: isThreadActive,
+    onClickThread: onClickThread,
+    onOpenAgentContact: onOpenAgentContact,
+    onOpenWorkspaceFile: onOpenWorkspaceFile,
   }: {
-    round_id: string;
-    agent_id: string;
-    agent_name: string;
-    agent_avatar: string | null;
-    assistant_messages: AssistantMessage[];
-    is_thread_active: boolean;
-    on_click_thread: () => void;
-    on_open_agent_contact?: (agentId: string) => void;
-    on_open_workspace_file?: (path: string) => void;
+    roundId: string;
+    agentId: string;
+    agentName: string;
+    agentAvatar: string | null;
+    assistantMessages: AssistantMessage[];
+    isThreadActive: boolean;
+    onClickThread: () => void;
+    onOpenAgentContact?: (agentId: string) => void;
+    onOpenWorkspaceFile?: (path: string) => void;
   }) {
   const messagesForRender = useMemo<Message[]>(
     () => [...assistantMessages],
@@ -69,17 +69,17 @@ function GroupCompletedReply(
   return (
     <div className="border-b border-(--divider-subtle-color)">
       <MessageItem
-        current_agent_name={agentName}
-        current_agent_avatar={agentAvatar}
-        workspace_agent_id={agentId}
-        round_id={`${roundId}:${agentId}`}
+        currentAgentName={agentName}
+        currentAgentAvatar={agentAvatar}
+        workspaceAgentId={agentId}
+        roundId={`${roundId}:${agentId}`}
         messages={messagesForRender}
-        assistant_content_mode="room_result"
-        is_last_round={false}
-        is_loading={false}
-        on_open_agent_contact={onOpenAgentContact}
-        on_open_workspace_file={onOpenWorkspaceFile}
-        assistant_header_action={(
+        assistantContentMode="room_result"
+        isLastRound={false}
+        isLoading={false}
+        onOpenAgentContact={onOpenAgentContact}
+        onOpenWorkspaceFile={onOpenWorkspaceFile}
+        assistantHeaderAction={(
           <button
             className={cn(
               "rounded-md border px-2 py-1 text-[11px] font-medium transition-colors",
@@ -93,7 +93,7 @@ function GroupCompletedReply(
             {isThreadActive ? "关闭 Thread" : "查看 Thread"}
           </button>
         )}
-        class_name="border-b-0"
+        className="border-b-0"
       />
     </div>
   );
@@ -108,21 +108,21 @@ function GroupCompletedReply(
  */
 function GroupRoundCardGroupInner(
   {
-    round_id: roundId,
+    roundId: roundId,
     messages,
-    pending_permissions: pendingPermissions = [],
-    pending_slots: pendingSlots = [],
-    agent_name_map: agentNameMap,
-    agent_avatar_map: agentAvatarMap,
-    current_user_avatar: currentUserAvatar,
-    on_permission_response: onPermissionResponse,
-    can_respond_to_permissions: canRespondToPermissions = true,
-    permission_read_only_reason: permissionReadOnlyReason,
-    on_stop_message: onStopMessage,
-    on_open_agent_contact: onOpenAgentContact,
-    on_open_workspace_file: onOpenWorkspaceFile,
+    pendingPermissions: pendingPermissions = [],
+    pendingSlots: pendingSlots = [],
+    agentNameMap: agentNameMap,
+    agentAvatarMap: agentAvatarMap,
+    currentUserAvatar: currentUserAvatar,
+    onPermissionResponse: onPermissionResponse,
+    canRespondToPermissions: canRespondToPermissions = true,
+    permissionReadOnlyReason: permissionReadOnlyReason,
+    onStopMessage: onStopMessage,
+    onOpenAgentContact: onOpenAgentContact,
+    onOpenWorkspaceFile: onOpenWorkspaceFile,
   }: GroupRoundCardGroupProps) {
-  const {active_thread: activeThread, close_thread: closeThread, open_thread: openThread} = useGroupThread();
+  const { activeThread, closeThread, openThread } = useGroupThread();
 
   const userMessage = useMemo(
     () => messages.find((message) => message.role === "user" && !is_automation_trigger_user_message(message)),
@@ -130,10 +130,10 @@ function GroupRoundCardGroupInner(
   );
 
   const agentEntries = useMemo(() => {
-    return build_room_agent_round_entries(messages, pendingSlots).map((entry) => ({
+    return buildRoomAgentRoundEntries(messages, pendingSlots).map((entry) => ({
       ...entry,
-      agent_name: agentNameMap?.[entry.agent_id] ?? entry.agent_id,
-      agent_avatar: agentAvatarMap?.[entry.agent_id] ?? null,
+      agentName: agentNameMap?.[entry.agent_id] ?? entry.agent_id,
+      agentAvatar: agentAvatarMap?.[entry.agent_id] ?? null,
     }));
   }, [agentAvatarMap, agentNameMap, messages, pendingSlots]);
 
@@ -150,7 +150,7 @@ function GroupRoundCardGroupInner(
   );
 
   const toggleThread = useCallback((agentId: string) => {
-    if (activeThread?.round_id === roundId && activeThread.agent_id === agentId) {
+    if (activeThread?.roundId === roundId && activeThread.agentId === agentId) {
       closeThread();
       return;
     }
@@ -162,35 +162,35 @@ function GroupRoundCardGroupInner(
     <div className="w-full min-w-0 animate-in fade-in slide-in-from-bottom-2 duration-300">
       {userMessage ? (
         <div className="border-b border-(--divider-subtle-color)">
-          {/* 仅复用用户消息样式，传入 is_loading 避免渲染空的助手区域。 */}
+          {/* 仅复用用户消息样式，传入 isLoading 避免渲染空的助手区域。 */}
           <MessageItem
-            round_id={roundId}
+            roundId={roundId}
             messages={[userMessage]}
-            workspace_agent_id={getUserAttachmentWorkspaceAgentId(userMessage)}
-            current_user_avatar={currentUserAvatar}
-            is_last_round={false}
-            is_loading
-            on_open_workspace_file={onOpenWorkspaceFile}
-            class_name="border-b-0"
+            workspaceAgentId={getUserAttachmentWorkspaceAgentId(userMessage)}
+            currentUserAvatar={currentUserAvatar}
+            isLastRound={false}
+            isLoading
+            onOpenWorkspaceFile={onOpenWorkspaceFile}
+            className="border-b-0"
           />
         </div>
       ) : null}
 
       {completedEntries.map((entry) => {
-        const isThreadActive = activeThread?.round_id === roundId && activeThread.agent_id === entry.agent_id;
+        const isThreadActive = activeThread?.roundId === roundId && activeThread.agentId === entry.agent_id;
 
         return (
           <GroupCompletedReply
             key={entry.agent_id}
-            round_id={roundId}
-            agent_id={entry.agent_id}
-            agent_name={entry.agent_name}
-            agent_avatar={entry.agent_avatar}
-            assistant_messages={entry.assistant_messages}
-            is_thread_active={isThreadActive}
-            on_click_thread={() => toggleThread(entry.agent_id)}
-            on_open_agent_contact={onOpenAgentContact}
-            on_open_workspace_file={onOpenWorkspaceFile}
+            roundId={roundId}
+            agentId={entry.agent_id}
+            agentName={entry.agentName}
+            agentAvatar={entry.agentAvatar}
+            assistantMessages={entry.assistant_messages}
+            isThreadActive={isThreadActive}
+            onClickThread={() => toggleThread(entry.agent_id)}
+            onOpenAgentContact={onOpenAgentContact}
+            onOpenWorkspaceFile={onOpenWorkspaceFile}
           />
         );
       })}
@@ -198,7 +198,7 @@ function GroupRoundCardGroupInner(
       {pendingEntries.length > 0 ? (
         <>
           {pendingEntries.map((entry) => {
-            const isThreadActive = activeThread?.round_id === roundId && activeThread.agent_id === entry.agent_id;
+            const isThreadActive = activeThread?.roundId === roundId && activeThread.agentId === entry.agent_id;
             const entryPendingPermissions = pendingPermissions.filter(
               (permission) => permission.agent_id === entry.agent_id,
             );
@@ -208,22 +208,22 @@ function GroupRoundCardGroupInner(
                 <div className="w-full px-2 sm:px-3">
                   <div className="mx-auto w-full max-w-[980px]">
                     <GroupAgentStatusCard
-                      agent_id={entry.agent_id}
-                      agent_name={entry.agent_name}
-                      agent_avatar={entry.agent_avatar}
+                      agentId={entry.agent_id}
+                      agentName={entry.agentName}
+                      agentAvatar={entry.agentAvatar}
                       messages={entry.assistant_messages}
-                      result_summary={entry.result_summary}
-                      pending_slot={entry.pending_slot}
+                      resultSummary={entry.result_summary}
+                      pendingSlot={entry.pending_slot}
                       status={entry.status}
-                      pending_permissions={entryPendingPermissions}
-                      is_thread_active={isThreadActive}
-                      on_click_thread={() => toggleThread(entry.agent_id)}
-                      on_permission_response={onPermissionResponse}
-                      can_respond_to_permissions={canRespondToPermissions}
-                      permission_read_only_reason={permissionReadOnlyReason}
-                      on_open_agent_contact={onOpenAgentContact}
-                      on_stop_message={
-                        entry.pending_slot && onStopMessage && is_agent_round_active(entry.status)
+                      pendingPermissions={entryPendingPermissions}
+                      isThreadActive={isThreadActive}
+                      onClickThread={() => toggleThread(entry.agent_id)}
+                      onPermissionResponse={onPermissionResponse}
+                      canRespondToPermissions={canRespondToPermissions}
+                      permissionReadOnlyReason={permissionReadOnlyReason}
+                      onOpenAgentContact={onOpenAgentContact}
+                      onStopMessage={
+                        entry.pending_slot && onStopMessage && isAgentRoundActive(entry.status)
                           ? () => onStopMessage(entry.pending_slot!.msg_id)
                           : undefined
                       }

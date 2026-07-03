@@ -1,6 +1,6 @@
 export const SCHEDULED_TASKS_MUTATED_EVENT = "nexus:scheduled-tasks-mutated";
 
-export function notify_scheduled_tasks_mutated(agentId: string): void {
+export function notifyScheduledTasksMutated(agentId: string): void {
   if (typeof window === "undefined") {
     return;
   }

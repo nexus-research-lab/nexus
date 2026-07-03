@@ -7,12 +7,12 @@ import type { TranslationKey } from "@/shared/i18n/messages";
 import type { ConnectorInfo } from "@/types/capability/connector";
 
 import { ConnectorCard } from "./connector-card";
-import { get_connector_category_label } from "./connectors-categories";
+import { getConnectorCategoryLabel } from "./connectors-categories";
 import type { ConnectorDirectoryController } from "./connectors-view-model";
 
 interface ConnectorsGridProps {
   ctrl: ConnectorDirectoryController;
-  on_open_connector: (connectorId: string) => void;
+  onOpenConnector: (connectorId: string) => void;
 }
 
 interface ConnectorSection {
@@ -25,13 +25,13 @@ function buildConnectorSections(
   ctrl: ConnectorDirectoryController,
   t: (key: TranslationKey) => string,
 ): ConnectorSection[] {
-  const isScopedView = ctrl.active_category !== "all" || ctrl.search_query.trim() !== "";
+  const isScopedView = ctrl.activeCategory !== "all" || ctrl.searchQuery.trim() !== "";
   if (isScopedView) {
     return [{
       key: "filtered",
-      title: ctrl.search_query.trim()
+      title: ctrl.searchQuery.trim()
         ? t("capability.connector_section_search_results")
-        : get_connector_category_label(ctrl.active_category, t),
+        : getConnectorCategoryLabel(ctrl.activeCategory, t),
       connectors: ctrl.connectors,
     }];
   }
@@ -54,7 +54,7 @@ function buildConnectorSections(
     if (connectors.length > 0) {
       sections.push({
         key: category,
-        title: get_connector_category_label(category, t),
+        title: getConnectorCategoryLabel(category, t),
         connectors,
       });
     }
@@ -74,7 +74,7 @@ function buildConnectorSections(
 }
 
 /** 连接器卡片网格 */
-export function ConnectorsGrid({ ctrl, on_open_connector: onOpenConnector }: ConnectorsGridProps) {
+export function ConnectorsGrid({ ctrl, onOpenConnector: onOpenConnector }: ConnectorsGridProps) {
   const { t } = useI18n();
 
   if (ctrl.loading) {
@@ -114,10 +114,10 @@ export function ConnectorsGrid({ ctrl, on_open_connector: onOpenConnector }: Con
             {section.connectors.map((connector) => (
               <ConnectorCard
                 key={connector.connector_id}
-                busy={ctrl.busy_id === connector.connector_id}
+                busy={ctrl.busyId === connector.connector_id}
                 connector={connector}
-                on_connect={() => void ctrl.handle_connect(connector.connector_id)}
-                on_select={() => onOpenConnector(connector.connector_id)}
+                onConnect={() => void ctrl.handleConnect(connector.connector_id)}
+                onSelect={() => onOpenConnector(connector.connector_id)}
               />
             ))}
           </div>

@@ -15,20 +15,20 @@ import { MentionTargetItem } from "./mention-popover";
 
 interface UseComposerMentionOptions {
   input: string;
-  is_goal_mode: boolean;
-  mention_unavailable_agent_ids: string[];
-  room_members: Agent[];
-  set_input: Dispatch<SetStateAction<string>>;
-  textarea_ref: RefObject<HTMLTextAreaElement | null>;
+  isGoalMode: boolean;
+  mentionUnavailableAgentIds: string[];
+  roomMembers: Agent[];
+  setInput: Dispatch<SetStateAction<string>>;
+  textareaRef: RefObject<HTMLTextAreaElement | null>;
 }
 
 export function useComposerMention({
   input,
-  is_goal_mode: isGoalMode,
-  mention_unavailable_agent_ids: mentionUnavailableAgentIds,
-  room_members: roomMembers,
-  set_input: setInput,
-  textarea_ref: textareaRef,
+  isGoalMode,
+  mentionUnavailableAgentIds,
+  roomMembers,
+  setInput,
+  textareaRef,
 }: UseComposerMentionOptions) {
   const availableRoomMembers = useMemo(() => {
     const unavailableIds = new Set(mentionUnavailableAgentIds);
@@ -113,11 +113,11 @@ export function useComposerMention({
   ]);
 
   return {
-    close_mention: closeMention,
-    mention_active: mentionActive,
-    mention_filter: mentionFilter,
-    mention_target_items: mentionTargetItems,
-    select_mention_item: selectMentionItem,
-    update_mention_for_input: updateMentionForInput,
+    closeMention,
+    mentionActive,
+    mentionFilter,
+    mentionTargetItems,
+    selectMentionItem,
+    updateMentionForInput,
   };
 }

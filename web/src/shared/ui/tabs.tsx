@@ -4,8 +4,8 @@ import { type ReactNode } from "react";
 import { type LucideIcon } from "lucide-react";
 
 import {
-  get_ui_underline_tab_class_name,
-  get_ui_underline_tabs_nav_class_name,
+  getUiUnderlineTabClassName,
+  getUiUnderlineTabsNavClassName,
   type UiTabsDensity,
 } from "@/shared/ui/tabs-styles";
 
@@ -18,30 +18,30 @@ interface UiUnderlineTabOption<TValue extends string> {
 }
 
 interface UiUnderlineTabsProps<TValue extends string> {
-  active_value?: TValue;
-  aria_label: string;
-  class_name?: string;
+  activeValue?: TValue;
+  ariaLabel: string;
+  className?: string;
   density?: UiTabsDensity;
-  item_class_name?: string;
-  nav_anchor?: string;
-  on_change?: (value: TValue) => void;
+  itemClassName?: string;
+  navAnchor?: string;
+  onChange?: (value: TValue) => void;
   options: Array<UiUnderlineTabOption<TValue>>;
 }
 
 export function UiUnderlineTabs<TValue extends string>({
-  active_value: activeValue,
-  aria_label: ariaLabel,
-  class_name: className,
+  activeValue: activeValue,
+  ariaLabel: ariaLabel,
+  className: className,
   density,
-  item_class_name: itemClassName,
-  nav_anchor: navAnchor,
-  on_change: onChange,
+  itemClassName: itemClassName,
+  navAnchor: navAnchor,
+  onChange: onChange,
   options,
 }: UiUnderlineTabsProps<TValue>) {
   return (
     <nav
       aria-label={ariaLabel}
-      className={get_ui_underline_tabs_nav_class_name(className)}
+      className={getUiUnderlineTabsNavClassName(className)}
       data-tour-anchor={navAnchor}
     >
       {options.map((option) => {
@@ -51,7 +51,7 @@ export function UiUnderlineTabs<TValue extends string>({
           <button
             aria-current={isActive ? "page" : undefined}
             aria-pressed={isActive}
-            className={get_ui_underline_tab_class_name(
+            className={getUiUnderlineTabClassName(
               { active: isActive, density },
               itemClassName,
             )}

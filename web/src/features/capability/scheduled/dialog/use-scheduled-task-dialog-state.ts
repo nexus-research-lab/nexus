@@ -11,18 +11,18 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { create_scheduled_task_api, update_scheduled_task_api } from "@/lib/api/scheduled-task-api";
-import { close_on_escape } from "@/shared/ui/dialog/dialog-keyboard";
+import { createScheduledTaskApi, updateScheduledTaskApi } from "@/lib/api/scheduled-task-api";
+import { closeOnEscape } from "@/shared/ui/dialog/dialog-keyboard";
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task";
 
-import { get_default_timezone } from "./scheduled-task-dialog-options";
+import { getDefaultTimezone } from "./scheduled-task-dialog-options";
 import {
-  build_default_dialog_initial_state,
-  build_task_dialog_initial_state,
+  buildDefaultDialogInitialState,
+  buildTaskDialogInitialState,
 } from "./scheduled-task-dialog-initializer";
 import {
-  build_scheduled_task_payload,
-  get_scheduled_task_validation_error,
+  buildScheduledTaskPayload,
+  getScheduledTaskValidationError,
   type ScheduledTaskDialogSubmitState,
 } from "./scheduled-task-dialog-submit";
 import type {
@@ -35,19 +35,19 @@ import { useScheduledTaskDialogData } from "./use-scheduled-task-dialog-data";
 import { useScheduledTaskDialogScheduleState } from "./use-scheduled-task-dialog-schedule";
 
 export function useScheduledTaskDialogState({
-  agent_id: agentId,
-  initial_task: initialTask,
-  is_open: isOpen,
-  on_close: onClose,
-  on_created: onCreated,
-  on_saved: onSaved,
+  agentId,
+  initialTask,
+  isOpen,
+  onClose,
+  onCreated,
+  onSaved,
 }: {
-  agent_id: string;
-  initial_task?: ScheduledTaskItem | null;
-  is_open: boolean;
-  on_close: () => void;
-  on_created?: (task: ScheduledTaskItem) => void | Promise<void>;
-  on_saved?: (task: ScheduledTaskItem) => void | Promise<void>;
+  agentId: string;
+  initialTask?: ScheduledTaskItem | null;
+  isOpen: boolean;
+  onClose: () => void;
+  onCreated?: (task: ScheduledTaskItem) => void | Promise<void>;
+  onSaved?: (task: ScheduledTaskItem) => void | Promise<void>;
 }) {
   const nameRef = useRef<HTMLInputElement>(null);
   const [taskName, setTaskName] = useState("");
@@ -60,7 +60,7 @@ export function useScheduledTaskDialogState({
   const [replyMode, setReplyMode] = useState<ReplyMode>("execution");
   const [selectedReplySessionKey, setSelectedReplySessionKeyState] = useState("");
   const [dedicatedSessionKey, setDedicatedSessionKey] = useState("");
-  const [timezone, setTimezone] = useState(get_default_timezone());
+  const [timezone, setTimezone] = useState(getDefaultTimezone());
   const [enabled, setEnabled] = useState(true);
   const [instruction, setInstruction] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -130,38 +130,38 @@ export function useScheduledTaskDialogState({
   }, []);
 
   const data = useScheduledTaskDialogData({
-    is_open: isOpen,
-    target_type: targetType,
-    selected_agent_id: selectedAgentId,
-    selected_room_id: selectedRoomId,
+    isOpen,
+    targetType,
+    selectedAgentId,
+    selectedRoomId,
   });
 
-  const selectedSession = data.session_options.find((option) => option.value === selectedSessionKey) ?? null;
-  const selectedReplySession = data.session_options.find((option) => option.value === selectedReplySessionKey) ?? null;
+  const selectedSession = data.sessionOptions.find((option) => option.value === selectedSessionKey) ?? null;
+  const selectedReplySession = data.sessionOptions.find((option) => option.value === selectedReplySessionKey) ?? null;
 
   const applyDialogInitialState = useCallback(() => {
     const nextState = initialTask
-      ? build_task_dialog_initial_state(initialTask)
-      : build_default_dialog_initial_state(agentId);
+      ? buildTaskDialogInitialState(initialTask)
+      : buildDefaultDialogInitialState(agentId);
 
-    setTaskName(nextState.task_name);
-    setTargetTypeState(nextState.target_type);
-    setExecutionKindState(nextState.execution_kind);
-    setSelectedAgentIdState(nextState.selected_agent_id);
-    setSelectedRoomIdState(nextState.selected_room_id);
-    setExecutionModeState(nextState.execution_mode);
-    setSelectedSessionKeyState(nextState.selected_session_key);
-    setReplyMode(nextState.reply_mode);
-    setSelectedReplySessionKeyState(nextState.selected_reply_session_key);
-    setDedicatedSessionKey(nextState.dedicated_session_key);
+    setTaskName(nextState.taskName);
+    setTargetTypeState(nextState.targetType);
+    setExecutionKindState(nextState.executionKind);
+    setSelectedAgentIdState(nextState.selectedAgentId);
+    setSelectedRoomIdState(nextState.selectedRoomId);
+    setExecutionModeState(nextState.executionMode);
+    setSelectedSessionKeyState(nextState.selectedSessionKey);
+    setReplyMode(nextState.replyMode);
+    setSelectedReplySessionKeyState(nextState.selectedReplySessionKey);
+    setDedicatedSessionKey(nextState.dedicatedSessionKey);
     setTimezone(nextState.timezone);
     setEnabled(nextState.enabled);
     setInstruction(nextState.instruction);
     setErrorMessage(null);
     setIsSubmitting(false);
 
-    if (initialTask && nextState.schedule_snapshot) {
-      hydrateSchedule(nextState.schedule_snapshot);
+    if (initialTask && nextState.scheduleSnapshot) {
+      hydrateSchedule(nextState.scheduleSnapshot);
       return;
     }
     resetSchedule();
@@ -169,29 +169,29 @@ export function useScheduledTaskDialogState({
 
   function buildSubmitState(): ScheduledTaskDialogSubmitState {
     return {
-      task_name: taskName,
-      target_type: targetType,
-      execution_kind: executionKind,
-      selected_agent_id: selectedAgentId,
-      selected_room_id: selectedRoomId,
-      execution_mode: executionMode,
-      selected_session_key: selectedSessionKey,
-      reply_mode: replyMode,
-      selected_reply_session_key: selectedReplySessionKey,
-      dedicated_session_key: dedicatedSessionKey,
+      taskName: taskName,
+      targetType: targetType,
+      executionKind: executionKind,
+      selectedAgentId: selectedAgentId,
+      selectedRoomId: selectedRoomId,
+      executionMode: executionMode,
+      selectedSessionKey: selectedSessionKey,
+      replyMode: replyMode,
+      selectedReplySessionKey: selectedReplySessionKey,
+      dedicatedSessionKey: dedicatedSessionKey,
       timezone,
       enabled,
       instruction,
-      every_value: schedule.every_value,
-      every_unit: schedule.every_unit,
-      daily_time: schedule.daily_time,
-      selected_weekdays: schedule.selected_weekdays,
-      run_at: schedule.run_at,
-      selected_session: selectedSession,
-      selected_reply_session: selectedReplySession,
-      agent_options: data.agent_options,
-      room_options: data.room_options,
-      schedule_kind: schedule.schedule_kind,
+      everyValue: schedule.everyValue,
+      everyUnit: schedule.everyUnit,
+      dailyTime: schedule.dailyTime,
+      selectedWeekdays: schedule.selectedWeekdays,
+      runAt: schedule.runAt,
+      selectedSession: selectedSession,
+      selectedReplySession: selectedReplySession,
+      agentOptions: data.agentOptions,
+      roomOptions: data.roomOptions,
+      scheduleKind: schedule.scheduleKind,
     };
   }
 
@@ -201,7 +201,7 @@ export function useScheduledTaskDialogState({
 
   async function handleSubmit() {
     const submitState = buildSubmitState();
-    const validationError = get_scheduled_task_validation_error(submitState);
+    const validationError = getScheduledTaskValidationError(submitState);
     if (validationError) {
       setErrorMessage(validationError);
       return;
@@ -210,12 +210,12 @@ export function useScheduledTaskDialogState({
     setIsSubmitting(true);
     setErrorMessage(null);
     try {
-      const payload = build_scheduled_task_payload(submitState, initialTask?.source);
+      const payload = buildScheduledTaskPayload(submitState, initialTask?.source);
       if (initialTask) {
-        const updated = await update_scheduled_task_api(initialTask.job_id, payload);
+        const updated = await updateScheduledTaskApi(initialTask.job_id, payload);
         await onSaved?.(updated);
       } else {
-        const created = await create_scheduled_task_api(payload);
+        const created = await createScheduledTaskApi(payload);
         await onCreated?.(created);
       }
       onClose();
@@ -237,7 +237,7 @@ export function useScheduledTaskDialogState({
       if (!isOpen) {
         return;
       }
-      close_on_escape(event, onClose);
+      closeOnEscape(event, onClose);
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
@@ -253,41 +253,41 @@ export function useScheduledTaskDialogState({
   return {
     ...schedule,
     ...data,
-    name_ref: nameRef,
-    task_name: taskName,
-    set_task_name: setTaskName,
-    target_type: targetType,
-    set_target_type: setTargetType,
-    execution_kind: executionKind,
-    set_execution_kind: setExecutionKind,
-    selected_agent_id: selectedAgentId,
-    set_selected_agent_id: setSelectedAgentId,
-    selected_room_id: selectedRoomId,
-    set_selected_room_id: setSelectedRoomId,
-    execution_mode: executionMode,
-    set_execution_mode: setExecutionMode,
-    selected_session_key: selectedSessionKey,
-    set_selected_session_key: setSelectedSessionKey,
-    reply_mode: replyMode,
-    set_reply_mode: setReplyMode,
-    selected_reply_session_key: selectedReplySessionKey,
-    set_selected_reply_session_key: setSelectedReplySessionKey,
-    dedicated_session_key: dedicatedSessionKey,
-    set_dedicated_session_key: setDedicatedSessionKey,
+    nameRef: nameRef,
+    taskName: taskName,
+    setTaskName: setTaskName,
+    targetType: targetType,
+    setTargetType: setTargetType,
+    executionKind: executionKind,
+    setExecutionKind: setExecutionKind,
+    selectedAgentId: selectedAgentId,
+    setSelectedAgentId: setSelectedAgentId,
+    selectedRoomId: selectedRoomId,
+    setSelectedRoomId: setSelectedRoomId,
+    executionMode: executionMode,
+    setExecutionMode: setExecutionMode,
+    selectedSessionKey: selectedSessionKey,
+    setSelectedSessionKey: setSelectedSessionKey,
+    replyMode: replyMode,
+    setReplyMode: setReplyMode,
+    selectedReplySessionKey: selectedReplySessionKey,
+    setSelectedReplySessionKey: setSelectedReplySessionKey,
+    dedicatedSessionKey: dedicatedSessionKey,
+    setDedicatedSessionKey: setDedicatedSessionKey,
     enabled,
-    set_enabled: setEnabled,
+    setEnabled: setEnabled,
     timezone,
-    set_timezone: setTimezone,
+    setTimezone: setTimezone,
     instruction,
-    set_instruction: setInstruction,
-    error_message: errorMessage,
-    set_error_message: setErrorMessage,
-    is_submitting: isSubmitting,
-    daily_picker_anchor_ref: dailyPickerAnchorRef,
-    single_picker_anchor_ref: singlePickerAnchorRef,
-    selected_session: selectedSession,
-    selected_reply_session: selectedReplySession,
-    is_room_executor_selection_required: isRoomExecutorSelectionRequired,
-    handle_submit: handleSubmit,
+    setInstruction: setInstruction,
+    errorMessage: errorMessage,
+    setErrorMessage: setErrorMessage,
+    isSubmitting: isSubmitting,
+    dailyPickerAnchorRef: dailyPickerAnchorRef,
+    singlePickerAnchorRef: singlePickerAnchorRef,
+    selectedSession: selectedSession,
+    selectedReplySession: selectedReplySession,
+    isRoomExecutorSelectionRequired: isRoomExecutorSelectionRequired,
+    handleSubmit: handleSubmit,
   };
 }

@@ -36,29 +36,29 @@ import { TaskSchedulePanel } from "./task-schedule-panel";
 import { useScheduledTaskDialogState } from "./use-scheduled-task-dialog-state";
 
 interface ScheduledTaskDialogProps {
-  agent_id: string;
-  is_open: boolean;
-  on_close: () => void;
-  initial_task?: ScheduledTaskItem | null;
-  on_created?: (task: ScheduledTaskItem) => void | Promise<void>;
-  on_saved?: (task: ScheduledTaskItem) => void | Promise<void>;
+  agentId: string;
+  isOpen: boolean;
+  onClose: () => void;
+  initialTask?: ScheduledTaskItem | null;
+  onCreated?: (task: ScheduledTaskItem) => void | Promise<void>;
+  onSaved?: (task: ScheduledTaskItem) => void | Promise<void>;
 }
 
 export function ScheduledTaskDialog({
-  agent_id: agentId,
-  is_open: isOpen,
-  initial_task: initialTask = null,
-  on_close: onClose,
-  on_created: onCreated,
-  on_saved: onSaved,
+  agentId: agentId,
+  isOpen: isOpen,
+  initialTask: initialTask = null,
+  onClose: onClose,
+  onCreated: onCreated,
+  onSaved: onSaved,
 }: ScheduledTaskDialogProps) {
   const state = useScheduledTaskDialogState({
-    agent_id: agentId,
-    initial_task: initialTask,
-    is_open: isOpen,
-    on_close: onClose,
-    on_created: onCreated,
-    on_saved: onSaved,
+    agentId,
+    initialTask,
+    isOpen,
+    onClose,
+    onCreated,
+    onSaved,
   });
 
   if (!isOpen) return null;
@@ -66,148 +66,148 @@ export function ScheduledTaskDialog({
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
-        class_name="z-[9999]"
-        labelled_by="create-task-dialog-title"
-        on_close={onClose}
+        className="z-[9999]"
+        labelledBy="create-task-dialog-title"
+        onClose={onClose}
         onPointerDown={(event) => event.stopPropagation()}
         onPointerMove={(event) => event.stopPropagation()}
         onPointerUp={(event) => event.stopPropagation()}
       >
-        <UiDialogShell class_name="max-h-[90vh] max-w-[1120px]" size="wide">
+        <UiDialogShell className="max-h-[90vh] max-w-[1120px]" size="wide">
           <UiDialogHeader
-            on_close={onClose}
+            onClose={onClose}
             subtitle={
               initialTask
                 ? "修改调度、执行会话和结果回传方式。"
                 : "先选目标对象，再决定执行会话和结果回传方式。"
             }
             title={initialTask ? "编辑任务" : "新建任务"}
-            title_id="create-task-dialog-title"
+            titleId="create-task-dialog-title"
           />
 
           <UiDialogBody
-            class_name="grid grid-cols-1 gap-6 md:grid-cols-2 md:items-start"
+            className="grid grid-cols-1 gap-6 md:grid-cols-2 md:items-start"
             scrollable
           >
             <TaskBasicsPanel
-              agent_options={state.agent_options}
-              agents_error={state.agents_error}
-              agents_loading={state.agents_loading}
-              dedicated_session_key={state.dedicated_session_key}
-              execution_kind={state.execution_kind}
-              execution_kind_options={EXECUTION_KIND_OPTIONS}
-              execution_mode={state.execution_mode}
-              execution_mode_options={EXECUTION_MODE_OPTIONS}
-              name_ref={state.name_ref}
-              on_reset_context_error={() => state.set_error_message(null)}
-              reply_mode={state.reply_mode}
-              reply_mode_options={REPLY_MODE_OPTIONS}
-              disabled_reply_modes={state.execution_mode === "main" ? ["execution", "selected"] : []}
-              room_options={state.room_options}
-              rooms_error={state.rooms_error}
-              rooms_loading={state.rooms_loading}
-              selected_agent_id={state.selected_agent_id}
-              selected_reply_session_key={state.selected_reply_session_key}
-              selected_room_id={state.selected_room_id}
-              selected_session_key={state.selected_session_key}
-              session_empty_message={
-                state.target_type === "agent"
-                  ? state.selected_agent_id && !state.agent_sessions_loading && state.session_options.length === 0
+              agentOptions={state.agentOptions}
+              agentsError={state.agentsError}
+              agentsLoading={state.agentsLoading}
+              dedicatedSessionKey={state.dedicatedSessionKey}
+              executionKind={state.executionKind}
+              executionKindOptions={EXECUTION_KIND_OPTIONS}
+              executionMode={state.executionMode}
+              executionModeOptions={EXECUTION_MODE_OPTIONS}
+              nameRef={state.nameRef}
+              onResetContextError={() => state.setErrorMessage(null)}
+              replyMode={state.replyMode}
+              replyModeOptions={REPLY_MODE_OPTIONS}
+              disabledReplyModes={state.executionMode === "main" ? ["execution", "selected"] : []}
+              roomOptions={state.roomOptions}
+              roomsError={state.roomsError}
+              roomsLoading={state.roomsLoading}
+              selectedAgentId={state.selectedAgentId}
+              selectedReplySessionKey={state.selectedReplySessionKey}
+              selectedRoomId={state.selectedRoomId}
+              selectedSessionKey={state.selectedSessionKey}
+              sessionEmptyMessage={
+                state.targetType === "agent"
+                  ? state.selectedAgentId && !state.agentSessionsLoading && state.sessionOptions.length === 0
                     ? "这个智能体没有可选会话"
                     : null
-                  : state.selected_room_id && !state.room_contexts_loading && state.session_options.length === 0
+                  : state.selectedRoomId && !state.roomContextsLoading && state.sessionOptions.length === 0
                     ? "这个 Room 没有可选会话"
                     : null
               }
-              session_error={state.target_type === "agent" ? state.agent_sessions_error : state.room_contexts_error}
-              session_loading={state.target_type === "agent" ? state.agent_sessions_loading : state.room_contexts_loading}
-              session_options={state.session_options}
-              set_dedicated_session_key={state.set_dedicated_session_key}
-              set_execution_kind={state.set_execution_kind}
-              set_execution_mode={state.set_execution_mode}
-              set_reply_mode={state.set_reply_mode}
-              set_selected_agent_id={state.set_selected_agent_id}
-              set_selected_reply_session_key={state.set_selected_reply_session_key}
-              set_selected_room_id={state.set_selected_room_id}
-              set_selected_session_key={state.set_selected_session_key}
-              set_target_type={state.set_target_type}
-              set_task_name={state.set_task_name}
-              target_type={state.target_type}
-              target_type_options={TARGET_TYPE_OPTIONS}
-              task_name={state.task_name}
-              require_session_selection={state.execution_kind === "agent" && (state.execution_mode === "existing" || state.is_room_executor_selection_required())}
+              sessionError={state.targetType === "agent" ? state.agentSessionsError : state.roomContextsError}
+              sessionLoading={state.targetType === "agent" ? state.agentSessionsLoading : state.roomContextsLoading}
+              sessionOptions={state.sessionOptions}
+              setDedicatedSessionKey={state.setDedicatedSessionKey}
+              setExecutionKind={state.setExecutionKind}
+              setExecutionMode={state.setExecutionMode}
+              setReplyMode={state.setReplyMode}
+              setSelectedAgentId={state.setSelectedAgentId}
+              setSelectedReplySessionKey={state.setSelectedReplySessionKey}
+              setSelectedRoomId={state.setSelectedRoomId}
+              setSelectedSessionKey={state.setSelectedSessionKey}
+              setTargetType={state.setTargetType}
+              setTaskName={state.setTaskName}
+              targetType={state.targetType}
+              targetTypeOptions={TARGET_TYPE_OPTIONS}
+              taskName={state.taskName}
+              requireSessionSelection={state.executionKind === "agent" && (state.executionMode === "existing" || state.isRoomExecutorSelectionRequired())}
             />
 
             <TaskSchedulePanel
-              close_daily_picker={() => state.set_is_daily_picker_open(false)}
-              close_single_picker={() => state.set_is_single_picker_open(false)}
-              daily_anchor_ref={state.daily_picker_anchor_ref}
-              daily_display={state.daily_display}
-              daily_hour12={state.daily_meridiem_parts.hour12}
-              daily_meridiem={state.daily_meridiem_parts.meridiem}
-              daily_minute={state.daily_meridiem_parts.minute}
+              closeDailyPicker={() => state.setIsDailyPickerOpen(false)}
+              closeSinglePicker={() => state.setIsSinglePickerOpen(false)}
+              dailyAnchorRef={state.dailyPickerAnchorRef}
+              dailyDisplay={state.dailyDisplay}
+              dailyHour12={state.dailyMeridiemParts.hour12}
+              dailyMeridiem={state.dailyMeridiemParts.meridiem}
+              dailyMinute={state.dailyMeridiemParts.minute}
               enabled={state.enabled}
-              error_message={state.error_message}
-              every_unit={state.every_unit}
-              every_unit_options={EVERY_UNIT_OPTIONS}
-              every_value={state.every_value}
+              errorMessage={state.errorMessage}
+              everyUnit={state.everyUnit}
+              everyUnitOptions={EVERY_UNIT_OPTIONS}
+              everyValue={state.everyValue}
               instruction={state.instruction}
-              instruction_label={state.execution_kind === "script" ? "脚本内容" : "任务指令"}
-              instruction_placeholder={state.execution_kind === "script" ? "输入要在目标工作区执行的 shell 脚本" : "输入 Agent 需要执行的指令"}
-              is_daily_picker_open={state.is_daily_picker_open}
-              is_single_picker_open={state.is_single_picker_open}
-              is_single_date_disabled={state.is_single_date_disabled}
-              is_single_hour_disabled={state.is_single_hour_disabled}
-              is_single_meridiem_disabled={state.is_single_meridiem_disabled}
-              is_single_minute_disabled={state.is_single_minute_disabled}
-              is_single_second_disabled={state.is_single_second_disabled}
-              on_daily_hour_select={(value) => state.update_daily_picker({ hour12: value })}
-              on_daily_meridiem_select={(value) => state.update_daily_picker({ meridiem: value })}
-              on_daily_minute_select={(value) => state.update_daily_picker({ minute: value })}
-              on_daily_trigger_click={() => {
-                state.set_is_daily_picker_open((value) => !value);
-                state.set_is_single_picker_open(false);
+              instructionLabel={state.executionKind === "script" ? "脚本内容" : "任务指令"}
+              instructionPlaceholder={state.executionKind === "script" ? "输入要在目标工作区执行的 shell 脚本" : "输入 Agent 需要执行的指令"}
+              isDailyPickerOpen={state.isDailyPickerOpen}
+              isSinglePickerOpen={state.isSinglePickerOpen}
+              isSingleDateDisabled={state.isSingleDateDisabled}
+              isSingleHourDisabled={state.isSingleHourDisabled}
+              isSingleMeridiemDisabled={state.isSingleMeridiemDisabled}
+              isSingleMinuteDisabled={state.isSingleMinuteDisabled}
+              isSingleSecondDisabled={state.isSingleSecondDisabled}
+              onDailyHourSelect={(value) => state.updateDailyPicker({ hour12: value })}
+              onDailyMeridiemSelect={(value) => state.updateDailyPicker({ meridiem: value })}
+              onDailyMinuteSelect={(value) => state.updateDailyPicker({ minute: value })}
+              onDailyTriggerClick={() => {
+                state.setIsDailyPickerOpen((value) => !value);
+                state.setIsSinglePickerOpen(false);
               }}
-              on_next_month={state.go_to_next_month}
-              on_prev_month={state.go_to_prev_month}
-              on_single_date_select={(value) => state.update_single_picker({ date: value })}
-              on_single_hour_select={(value) => state.update_single_picker({ hour12: value })}
-              on_single_meridiem_select={(value) => state.update_single_picker({ meridiem: value })}
-              on_single_minute_select={(value) => state.update_single_picker({ minute: value })}
-              on_single_second_select={(value) => state.update_single_picker({ second: value })}
-              on_single_trigger_click={() => {
-                state.sync_single_picker_to_now();
-                state.set_is_single_picker_open((value) => !value);
-                state.set_is_daily_picker_open(false);
+              onNextMonth={state.goToNextMonth}
+              onPrevMonth={state.goToPrevMonth}
+              onSingleDateSelect={(value) => state.updateSinglePicker({ date: value })}
+              onSingleHourSelect={(value) => state.updateSinglePicker({ hour12: value })}
+              onSingleMeridiemSelect={(value) => state.updateSinglePicker({ meridiem: value })}
+              onSingleMinuteSelect={(value) => state.updateSinglePicker({ minute: value })}
+              onSingleSecondSelect={(value) => state.updateSinglePicker({ second: value })}
+              onSingleTriggerClick={() => {
+                state.syncSinglePickerToNow();
+                state.setIsSinglePickerOpen((value) => !value);
+                state.setIsDailyPickerOpen(false);
               }}
-              on_toggle_weekday={state.toggle_weekday}
-              run_at_display={state.run_at_display}
-              schedule_kind={state.schedule_kind}
-              schedule_options={SCHEDULE_OPTIONS}
-              selected_run_date={state.run_at_parts.date}
-              selected_weekdays={state.selected_weekdays}
-              set_enabled={state.set_enabled}
-              set_every_unit={state.set_every_unit}
-              set_every_value={state.set_every_value}
-              set_instruction={state.set_instruction}
-              set_schedule_kind={state.set_schedule_kind}
-              set_timezone={state.set_timezone}
-              single_anchor_ref={state.single_picker_anchor_ref}
-              single_hour12={state.single_meridiem_parts.hour12}
-              single_meridiem={state.single_meridiem_parts.meridiem}
-              single_minute={state.single_meridiem_parts.minute}
-              single_picker_days={state.single_picker_days}
-              single_picker_month={state.single_picker_month}
-              single_second={state.single_meridiem_parts.second}
+              onToggleWeekday={state.toggleWeekday}
+              runAtDisplay={state.runAtDisplay}
+              scheduleKind={state.scheduleKind}
+              scheduleOptions={SCHEDULE_OPTIONS}
+              selectedRunDate={state.runAtParts.date}
+              selectedWeekdays={state.selectedWeekdays}
+              setEnabled={state.setEnabled}
+              setEveryUnit={state.setEveryUnit}
+              setEveryValue={state.setEveryValue}
+              setInstruction={state.setInstruction}
+              setScheduleKind={state.setScheduleKind}
+              setTimezone={state.setTimezone}
+              singleAnchorRef={state.singlePickerAnchorRef}
+              singleHour12={state.singleMeridiemParts.hour12}
+              singleMeridiem={state.singleMeridiemParts.meridiem}
+              singleMinute={state.singleMeridiemParts.minute}
+              singlePickerDays={state.singlePickerDays}
+              singlePickerMonth={state.singlePickerMonth}
+              singleSecond={state.singleMeridiemParts.second}
               timezone={state.timezone}
-              timezone_options={TIMEZONE_OPTIONS}
+              timezoneOptions={TIMEZONE_OPTIONS}
             />
           </UiDialogBody>
 
           <UiDialogFooter>
             <UiButton
-              class_name="min-w-[104px]"
-              disabled={state.is_submitting}
+              className="min-w-[104px]"
+              disabled={state.isSubmitting}
               onClick={onClose}
               type="button"
               variant="surface"
@@ -215,14 +215,14 @@ export function ScheduledTaskDialog({
               取消
             </UiButton>
             <UiButton
-              class_name="min-w-[124px]"
-              disabled={state.is_submitting}
-              onClick={() => void state.handle_submit()}
+              className="min-w-[124px]"
+              disabled={state.isSubmitting}
+              onClick={() => void state.handleSubmit()}
               tone="primary"
               type="button"
               variant="solid"
             >
-              {state.is_submitting ? (initialTask ? "保存中" : "创建中") : (
+              {state.isSubmitting ? (initialTask ? "保存中" : "创建中") : (
                 <>
                   {initialTask ? <Pencil className="h-3.5 w-3.5" /> : null}
                   {initialTask ? "保存修改" : "创建"}

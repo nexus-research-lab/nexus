@@ -6,8 +6,8 @@
  * [POS]: lib 模块的 Skill API 层，被技能市场、Agent 配置与联系人页消费
  */
 
-import { get_agent_api_base_url } from "@/config/options";
-import { request_api, type RequestApiOptions } from "@/lib/api/http";
+import { getAgentApiBaseUrl } from "@/config/options";
+import { requestApi, type RequestApiOptions } from "@/lib/api/http";
 import type {
   AgentSkillEntry,
   ExternalSkillSourceInfo,
@@ -20,7 +20,7 @@ import type {
   UpdateInstalledSkillsResponse,
 } from "@/types/capability/skill";
 
-const AGENT_API_BASE_URL = get_agent_api_base_url();
+const AGENT_API_BASE_URL = getAgentApiBaseUrl();
 const SKILL_GIT_OPERATION_TIMEOUT_MS = 360_000;
 
 interface SkillQueryParams {
@@ -69,7 +69,7 @@ async function requestSkillApi<T>(
   init?: RequestApiOptions,
 ): Promise<T> {
   try {
-    return await request_api<T>(`${AGENT_API_BASE_URL}${path}`, init);
+    return await requestApi<T>(`${AGENT_API_BASE_URL}${path}`, init);
   } catch (error) {
     const errorPayload = error as ApiErrorPayload | null;
     throw new Error(
@@ -81,7 +81,7 @@ async function requestSkillApi<T>(
 }
 
 /** 获取所有可用 Skill 清单 */
-export const get_available_skills_api = async (
+export const getAvailableSkillsApi = async (
   params?: SkillQueryParams,
 ): Promise<SkillInfo[]> => {
   const query = buildQuery(normalizeSkillQuery(params));
@@ -91,7 +91,7 @@ export const get_available_skills_api = async (
 };
 
 /** 获取单个 Skill 详情 */
-export const get_skill_detail_api = async (
+export const getSkillDetailApi = async (
   skillName: string,
   params?: { agent_id?: string },
 ): Promise<SkillDetail> => {
@@ -105,7 +105,7 @@ export const get_skill_detail_api = async (
 };
 
 /** 导入本地 Skill，支持文件上传或本地路径 */
-export const import_local_skill_api = async (
+export const importLocalSkillApi = async (
   fileOrPath: File | string,
 ): Promise<SkillDetail> => {
   const formData = new FormData();
@@ -123,7 +123,7 @@ export const import_local_skill_api = async (
 };
 
 /** 通过 Git 仓库导入 Skill */
-export const import_git_skill_api = async (
+export const importGitSkillApi = async (
   url: string,
   branch?: string,
   path?: string,
@@ -136,7 +136,7 @@ export const import_git_skill_api = async (
 };
 
 /** 从社区来源搜索外部 Skill */
-export const search_external_skills_api = async (
+export const searchExternalSkillsApi = async (
   q: string,
   includeReadme: boolean = false,
   signal?: AbortSignal,
@@ -155,7 +155,7 @@ export const search_external_skills_api = async (
 };
 
 /** 获取社区 Skill 预览内容 */
-export const get_external_skill_preview_api = async (
+export const getExternalSkillPreviewApi = async (
   detailUrl: string,
 ): Promise<ExternalSkillPreviewResponse> => {
   const query = buildQuery({ detail_url: detailUrl });
@@ -168,7 +168,7 @@ export const get_external_skill_preview_api = async (
 };
 
 /** 从社区来源导入指定 Skill */
-export const import_external_skill_api = async (
+export const importExternalSkillApi = async (
   item: ExternalSkillSearchItem,
 ): Promise<SkillDetail> => {
   return requestSkillApi<SkillDetail>("/skills/import/skills-sh", {
@@ -179,7 +179,7 @@ export const import_external_skill_api = async (
 };
 
 /** 获取社区 Skill 来源配置 */
-export const list_external_skill_sources_api =
+export const listExternalSkillSourcesApi =
   async (): Promise<ExternalSkillSourceInfo[]> => {
     return requestSkillApi<ExternalSkillSourceInfo[]>("/skills/sources", {
       method: "GET",
@@ -187,7 +187,7 @@ export const list_external_skill_sources_api =
   };
 
 /** 更新社区 Skill 来源配置 */
-export const update_external_skill_source_api = async (
+export const updateExternalSkillSourceApi = async (
   sourceId: string,
   payload: Partial<ExternalSkillSourceRequest>,
 ): Promise<ExternalSkillSourceInfo> => {
@@ -201,7 +201,7 @@ export const update_external_skill_source_api = async (
 };
 
 /** 更新全局已导入 Skill */
-export const update_imported_skills_api =
+export const updateImportedSkillsApi =
   async (): Promise<UpdateInstalledSkillsResponse> => {
     return requestSkillApi<UpdateInstalledSkillsResponse>(
       "/skills/update-imported",
@@ -213,7 +213,7 @@ export const update_imported_skills_api =
   };
 
 /** 更新单个全局 Skill */
-export const update_single_skill_api = async (
+export const updateSingleSkillApi = async (
   skillName: string,
 ): Promise<SkillDetail> => {
   return requestSkillApi<SkillDetail>(
@@ -226,7 +226,7 @@ export const update_single_skill_api = async (
 };
 
 /** 从技能库删除外部 Skill */
-export const delete_skill_api = async (skillName: string): Promise<void> => {
+export const deleteSkillApi = async (skillName: string): Promise<void> => {
   await requestSkillApi<{ success: boolean }>(
     `/skills/${encodeURIComponent(skillName)}`,
     {
@@ -236,7 +236,7 @@ export const delete_skill_api = async (skillName: string): Promise<void> => {
 };
 
 /** 获取 Agent 的 Skill 列表（含安装状态） */
-export const get_agent_skills_api = async (
+export const getAgentSkillsApi = async (
   agentId: string,
 ): Promise<AgentSkillEntry[]> => {
   return requestSkillApi<AgentSkillEntry[]>(
@@ -248,7 +248,7 @@ export const get_agent_skills_api = async (
 };
 
 /** 为 Agent 安装 Skill */
-export const install_skill_api = async (
+export const installSkillApi = async (
   agentId: string,
   skillName: string,
 ): Promise<AgentSkillEntry> => {
@@ -262,7 +262,7 @@ export const install_skill_api = async (
 };
 
 /** 从 Agent 卸载 Skill */
-export const uninstall_skill_api = async (
+export const uninstallSkillApi = async (
   agentId: string,
   skillName: string,
 ): Promise<void> => {

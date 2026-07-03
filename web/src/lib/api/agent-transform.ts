@@ -4,7 +4,7 @@
 
 import type { Agent, ApiAgent } from "@/types/agent/agent";
 
-export function transform_api_agent(apiAgent: ApiAgent): Agent {
+export function transformApiAgent(apiAgent: ApiAgent): Agent {
   return {
     agent_id: apiAgent.agent_id,
     name: apiAgent.name,

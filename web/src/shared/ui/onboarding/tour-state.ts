@@ -1,10 +1,10 @@
 "use client";
 
 import {
-  get_desktop_persistent_state,
-  is_desktop_bridge_available,
-  remove_desktop_persistent_state,
-  set_desktop_persistent_state,
+  getDesktopPersistentState,
+  isDesktopBridgeAvailable,
+  removeDesktopPersistentState,
+  setDesktopPersistentState,
 } from "@/lib/desktop-bridge";
 
 const TOUR_COMPLETION_STORAGE_KEY = "nexus:onboarding:tours";
@@ -17,7 +17,7 @@ const DESKTOP_DISMISSED_TOURS_KEY = "onboarding.dismissed_tours";
 const DESKTOP_SIDEBAR_HINT_KEY = "onboarding.sidebar_hint_dismissed";
 
 export interface HydratedOnboardingState {
-  completed_tours: Record<string, boolean>;
+  completedTours: Record<string, boolean>;
 }
 
 function readBooleanMap(storageKey: string): Record<string, boolean> {
@@ -58,25 +58,25 @@ function normalizeBooleanMap(value: Record<string, boolean>): Record<string, boo
 }
 
 function persistDesktopValue(key: string, value: string) {
-  if (!is_desktop_bridge_available()) {
+  if (!isDesktopBridgeAvailable()) {
     return;
   }
-  void set_desktop_persistent_state(key, value).catch(() => {});
+  void setDesktopPersistentState(key, value).catch(() => {});
 }
 
 function removeDesktopValue(key: string) {
-  if (!is_desktop_bridge_available()) {
+  if (!isDesktopBridgeAvailable()) {
     return;
   }
-  void remove_desktop_persistent_state(key).catch(() => {});
+  void removeDesktopPersistentState(key).catch(() => {});
 }
 
 async function readDesktopBooleanMap(key: string): Promise<Record<string, boolean> | null> {
-  if (!is_desktop_bridge_available()) {
+  if (!isDesktopBridgeAvailable()) {
     return null;
   }
 
-  const result = await get_desktop_persistent_state(key);
+  const result = await getDesktopPersistentState(key);
   if (!result.value) {
     return null;
   }
@@ -89,21 +89,21 @@ async function readDesktopBooleanMap(key: string): Promise<Record<string, boolea
 }
 
 async function readDesktopBoolean(key: string): Promise<boolean | null> {
-  if (!is_desktop_bridge_available()) {
+  if (!isDesktopBridgeAvailable()) {
     return null;
   }
 
-  const result = await get_desktop_persistent_state(key);
+  const result = await getDesktopPersistentState(key);
   if (result.value === null || typeof result.value === "undefined") {
     return null;
   }
   return result.value === "true";
 }
 
-export async function hydrate_onboarding_state_from_desktop(): Promise<HydratedOnboardingState> {
-  const localCompletedTours = read_completed_tours();
-  if (!is_desktop_bridge_available()) {
-    return { completed_tours: localCompletedTours };
+export async function hydrateOnboardingStateFromDesktop(): Promise<HydratedOnboardingState> {
+  const localCompletedTours = readCompletedTours();
+  if (!isDesktopBridgeAvailable()) {
+    return { completedTours: localCompletedTours };
   }
 
   try {
@@ -138,17 +138,17 @@ export async function hydrate_onboarding_state_from_desktop(): Promise<HydratedO
       persistDesktopValue(DESKTOP_SIDEBAR_HINT_KEY, "true");
     }
 
-    return { completed_tours: completedTours };
+    return { completedTours: completedTours };
   } catch {
-    return { completed_tours: localCompletedTours };
+    return { completedTours: localCompletedTours };
   }
 }
 
-export function read_completed_tours(): Record<string, boolean> {
+export function readCompletedTours(): Record<string, boolean> {
   return readBooleanMap(TOUR_COMPLETION_STORAGE_KEY);
 }
 
-export function write_completed_tours(nextValue: Record<string, boolean>) {
+export function writeCompletedTours(nextValue: Record<string, boolean>) {
   const normalized = normalizeBooleanMap(nextValue);
   writeBooleanMap(TOUR_COMPLETION_STORAGE_KEY, normalized);
   persistDesktopValue(DESKTOP_COMPLETED_TOURS_KEY, JSON.stringify(normalized));
@@ -164,11 +164,11 @@ function writeDismissedTours(nextValue: Record<string, boolean>) {
   persistDesktopValue(DESKTOP_DISMISSED_TOURS_KEY, JSON.stringify(normalized));
 }
 
-export function is_tour_dismissed(tourId: string): boolean {
+export function isTourDismissed(tourId: string): boolean {
   return Boolean(readDismissedTours()[tourId]);
 }
 
-export function set_tour_dismissed(tourId: string, dismissed: boolean) {
+export function setTourDismissed(tourId: string, dismissed: boolean) {
   const nextValue = readDismissedTours();
   if (dismissed) {
     nextValue[tourId] = true;
@@ -193,7 +193,7 @@ function setSidebarOnboardingHintDismissed() {
   persistDesktopValue(DESKTOP_SIDEBAR_HINT_KEY, "true");
 }
 
-export function read_requested_tour_id(): string | null {
+export function readRequestedTourId(): string | null {
   if (typeof window === "undefined") {
     return null;
   }
@@ -202,14 +202,14 @@ export function read_requested_tour_id(): string | null {
   return raw?.trim() || null;
 }
 
-export function set_requested_tour_id(tourId: string) {
+export function setRequestedTourId(tourId: string) {
   if (typeof window === "undefined") {
     return;
   }
   window.localStorage.setItem(TOUR_PENDING_REQUEST_STORAGE_KEY, tourId);
 }
 
-export function clear_requested_tour_id(expectedTourId?: string) {
+export function clearRequestedTourId(expectedTourId?: string) {
   if (typeof window === "undefined") {
     return;
   }
@@ -219,13 +219,13 @@ export function clear_requested_tour_id(expectedTourId?: string) {
     return;
   }
 
-  const currentTourId = read_requested_tour_id();
+  const currentTourId = readRequestedTourId();
   if (currentTourId === expectedTourId) {
     window.localStorage.removeItem(TOUR_PENDING_REQUEST_STORAGE_KEY);
   }
 }
 
-export function reset_all_tour_state() {
+export function resetAllTourState() {
   if (typeof window === "undefined") {
     return;
   }

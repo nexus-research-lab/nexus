@@ -1,7 +1,7 @@
-import { get_agent_api_base_url } from "@/config/options";
-import { request_api } from "@/lib/api/http";
+import { getAgentApiBaseUrl } from "@/config/options";
+import { requestApi } from "@/lib/api/http";
 
-const SYSTEM_VERSION_API_URL = `${get_agent_api_base_url()}/system/version`;
+const SYSTEM_VERSION_API_URL = `${getAgentApiBaseUrl()}/system/version`;
 
 export interface SystemVersionInfo {
   project: string;
@@ -14,8 +14,8 @@ export interface SystemVersionInfo {
   release_url: string;
 }
 
-export async function get_system_version_api(): Promise<SystemVersionInfo> {
-  return request_api<SystemVersionInfo>(SYSTEM_VERSION_API_URL, {
+export async function getSystemVersionApi(): Promise<SystemVersionInfo> {
+  return requestApi<SystemVersionInfo>(SYSTEM_VERSION_API_URL, {
     method: "GET",
     notify_on_401: false,
   });

@@ -68,7 +68,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
 
   const value: I18nContextValue = {
     locale,
-    set_locale: setLocale,
+    setLocale,
     t: (key, params) => formatMessage(MESSAGES[locale][key] ?? MESSAGES[DEFAULT_LOCALE][key], params),
   };
 

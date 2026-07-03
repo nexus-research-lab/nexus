@@ -22,7 +22,7 @@ const memoryStorage = (): StateStorage => {
   };
 };
 
-export const create_browser_json_storage = () => createJSONStorage(() => {
+export const createBrowserJsonStorage = () => createJSONStorage(() => {
   if (typeof window !== 'undefined' && window.localStorage) {
     return window.localStorage;
   }

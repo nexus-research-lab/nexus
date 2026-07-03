@@ -7,7 +7,7 @@ export interface GoalContinuationHold {
   label: string;
 }
 
-export function goal_continuation_hold_for_permission(
+export function goalContinuationHoldForPermission(
   agentName: string | null | undefined,
   permissionMode: string | null | undefined,
 ): GoalContinuationHold | null {
@@ -26,13 +26,13 @@ export function goal_continuation_hold_for_permission(
 function goalContinuationHoldForAgent(
   agent: Pick<Agent, "name" | "options"> | null | undefined,
 ): GoalContinuationHold | null {
-  return goal_continuation_hold_for_permission(
+  return goalContinuationHoldForPermission(
     agent?.name,
     agent?.options?.permission_mode,
   );
 }
 
-export function goal_continuation_hold_for_room_target(
+export function goalContinuationHoldForRoomTarget(
   roomMembers: Agent[],
   leadAgentId: string | null | undefined,
   roomHostAutoReplyEnabled = true,

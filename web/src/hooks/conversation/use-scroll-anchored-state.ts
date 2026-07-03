@@ -31,13 +31,13 @@ function findScrollContainer(el: HTMLElement | null): HTMLElement | null {
 }
 
 interface UseScrollAnchoredStateReturn {
-  is_open: boolean;
+  isOpen: boolean;
   /** Toggle with scroll anchoring — use for user-initiated expand/collapse. */
   toggle: () => void;
   /** Direct setter without scroll anchoring — use for programmatic changes (e.g. auto-expand on loading). */
-  set_open: Dispatch<SetStateAction<boolean>>;
+  setOpen: Dispatch<SetStateAction<boolean>>;
   /** Ref to attach to a DOM element inside the scrollable area. */
-  anchor_ref: React.RefObject<HTMLElement | null>;
+  anchorRef: React.RefObject<HTMLElement | null>;
 }
 
 export function useScrollAnchoredState(
@@ -76,5 +76,5 @@ export function useScrollAnchoredState(
     }
   }, [isOpen]);
 
-  return { is_open: isOpen, toggle, set_open: setOpen, anchor_ref: anchorRef };
+  return { isOpen: isOpen, toggle, setOpen: setOpen, anchorRef: anchorRef };
 }

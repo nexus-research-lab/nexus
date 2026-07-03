@@ -19,7 +19,7 @@ export type TabKey = "identity" | "skills" | "advanced";
 /** 单个导航项配置 */
 interface NavItem {
   key: TabKey;
-  label_key:
+  labelKey:
     | "agent_options.nav.identity"
     | "agent_options.nav.tools"
     | "agent_options.nav.skills";
@@ -28,22 +28,22 @@ interface NavItem {
 
 /** 导航栏 Tab 配置列表 */
 const NAV_ITEMS: NavItem[] = [
-  { key: "identity", label_key: "agent_options.nav.identity", icon: UserPen },
-  { key: "advanced", label_key: "agent_options.nav.tools", icon: ToolCase },
-  { key: "skills", label_key: "agent_options.nav.skills", icon: Album },
+  { key: "identity", labelKey: "agent_options.nav.identity", icon: UserPen },
+  { key: "advanced", labelKey: "agent_options.nav.tools", icon: ToolCase },
+  { key: "skills", labelKey: "agent_options.nav.skills", icon: Album },
 ];
 
 interface AgentOptionsNavProps {
-  active_tab: TabKey;
-  on_tab_change: (tab: TabKey) => void;
+  activeTab: TabKey;
+  onTabChange: (tab: TabKey) => void;
   variant?: "sidebar" | "inline";
   trailing?: ReactNode;
 }
 
 /** 左侧图标导航栏组件 */
 export function AgentOptionsNav({
-  active_tab: activeTab,
-  on_tab_change: onTabChange,
+  activeTab: activeTab,
+  onTabChange: onTabChange,
   variant = "sidebar",
   trailing,
 }: AgentOptionsNavProps) {
@@ -53,13 +53,13 @@ export function AgentOptionsNav({
     return (
       <div className="flex h-[41px] min-w-0 items-center justify-between gap-4 border-b dialog-divider px-6">
         <UiUnderlineTabs
-          active_value={activeTab}
-          aria_label="Agent 配置切换"
-          class_name="-mx-0.5 flex-1 px-0.5"
-          item_class_name="h-full"
-          on_change={onTabChange}
+          activeValue={activeTab}
+          ariaLabel="Agent 配置切换"
+          className="-mx-0.5 flex-1 px-0.5"
+          itemClassName="h-full"
+          onChange={onTabChange}
           options={NAV_ITEMS.map((item) => {
-            const label = t(item.label_key);
+            const label = t(item.labelKey);
             return {
               icon: item.icon,
               label,
@@ -82,12 +82,12 @@ export function AgentOptionsNav({
       {NAV_ITEMS.map((item) => {
         const Icon = item.icon;
         const isActive = activeTab === item.key;
-        const label = t(item.label_key);
+        const label = t(item.labelKey);
         return (
           <UiChoiceButton
             active={isActive}
-            class_name="relative w-full justify-start gap-2.5 rounded-[16px] px-2.5 py-2.5 text-left"
-            choice_size="lg"
+            className="relative w-full justify-start gap-2.5 rounded-[16px] px-2.5 py-2.5 text-left"
+            choiceSize="lg"
             key={item.key}
             onClick={() => onTabChange(item.key)}
             title={label}

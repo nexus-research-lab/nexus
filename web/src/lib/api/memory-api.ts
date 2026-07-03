@@ -1,5 +1,5 @@
-import { get_agent_api_base_url } from "@/config/options";
-import { request_api } from "@/lib/api/http";
+import { getAgentApiBaseUrl } from "@/config/options";
+import { requestApi } from "@/lib/api/http";
 import type {
   MemoryCleanupResult,
   MemoryInjection,
@@ -8,7 +8,7 @@ import type {
   MemoryWriteInput,
 } from "@/types/memory/memory";
 
-const AGENT_API_BASE_URL = get_agent_api_base_url();
+const AGENT_API_BASE_URL = getAgentApiBaseUrl();
 
 interface MemoryItemsResponse {
   items: MemoryItem[];
@@ -36,66 +36,66 @@ function memoryItemsQuery(params: { limit?: number; status?: string; scope?: str
   return query.toString() ? `?${query.toString()}` : "";
 }
 
-export async function list_memory_items_api(
+export async function listMemoryItemsApi(
   agentId: string,
   params: { limit?: number; status?: string; scope?: string } = {},
 ): Promise<MemoryItem[]> {
   const suffix = memoryItemsQuery(params);
-  const result = await request_api<MemoryItemsResponse>(
+  const result = await requestApi<MemoryItemsResponse>(
     `${agentMemoryBaseUrl(agentId)}/items${suffix}`,
     { method: "GET" },
   );
   return result.items;
 }
 
-export async function list_user_memory_items_api(
+export async function listUserMemoryItemsApi(
   params: { limit?: number; status?: string; scope?: string } = {},
 ): Promise<MemoryItem[]> {
   const suffix = memoryItemsQuery(params);
-  const result = await request_api<MemoryItemsResponse>(
+  const result = await requestApi<MemoryItemsResponse>(
     `${userMemoryBaseUrl()}/items${suffix}`,
     { method: "GET" },
   );
   return result.items;
 }
 
-export async function search_memory_items_api(
+export async function searchMemoryItemsApi(
   agentId: string,
   queryText: string,
   limit = 8,
 ): Promise<MemoryItem[]> {
   const query = new URLSearchParams({ q: queryText, limit: String(limit) });
-  const result = await request_api<MemoryItemsResponse>(
+  const result = await requestApi<MemoryItemsResponse>(
     `${agentMemoryBaseUrl(agentId)}/search?${query.toString()}`,
     { method: "GET" },
   );
   return result.items;
 }
 
-export async function search_user_memory_items_api(
+export async function searchUserMemoryItemsApi(
   queryText: string,
   limit = 8,
 ): Promise<MemoryItem[]> {
   const query = new URLSearchParams({ q: queryText, limit: String(limit) });
-  const result = await request_api<MemoryItemsResponse>(
+  const result = await requestApi<MemoryItemsResponse>(
     `${userMemoryBaseUrl()}/search?${query.toString()}`,
     { method: "GET" },
   );
   return result.items;
 }
 
-export async function add_user_memory_item_api(input: MemoryWriteInput): Promise<MemoryItem> {
-  return request_api<MemoryItem>(`${userMemoryBaseUrl()}/items`, {
+export async function addUserMemoryItemApi(input: MemoryWriteInput): Promise<MemoryItem> {
+  return requestApi<MemoryItem>(`${userMemoryBaseUrl()}/items`, {
     method: "POST",
     body: { ...input },
   });
 }
 
-export async function update_user_memory_item_api(
+export async function updateUserMemoryItemApi(
   entryId: string,
   input: MemoryWriteInput,
 ): Promise<MemoryItem> {
-  return request_api<MemoryItem>(
+  return requestApi<MemoryItem>(
     `${userMemoryBaseUrl()}/items/${encodeURIComponent(entryId)}`,
     {
       method: "PATCH",
@@ -104,30 +104,30 @@ export async function update_user_memory_item_api(
   );
 }
 
-export async function delete_memory_item_api(
+export async function deleteMemoryItemApi(
   agentId: string,
   entryId: string,
 ): Promise<{ deleted: boolean }> {
-  return request_api<{ deleted: boolean }>(
+  return requestApi<{ deleted: boolean }>(
     `${agentMemoryBaseUrl(agentId)}/items/${encodeURIComponent(entryId)}`,
     { method: "DELETE" },
   );
 }
 
-export async function delete_user_memory_item_api(
+export async function deleteUserMemoryItemApi(
   entryId: string,
 ): Promise<{ deleted: boolean }> {
-  return request_api<{ deleted: boolean }>(
+  return requestApi<{ deleted: boolean }>(
     `${userMemoryBaseUrl()}/items/${encodeURIComponent(entryId)}`,
     { method: "DELETE" },
   );
 }
 
-export async function promote_user_memory_item_api(
+export async function promoteUserMemoryItemApi(
   entryId: string,
   target = "memory",
 ): Promise<{ path: string; content: string }> {
-  return request_api<{ path: string; content: string }>(
+  return requestApi<{ path: string; content: string }>(
     `${userMemoryBaseUrl()}/items/${encodeURIComponent(entryId)}/promote`,
     {
       method: "POST",
@@ -136,11 +136,11 @@ export async function promote_user_memory_item_api(
   );
 }
 
-export async function ignore_user_memory_item_api(
+export async function ignoreUserMemoryItemApi(
   entryId: string,
   note = "",
 ): Promise<MemoryItem> {
-  return request_api<MemoryItem>(
+  return requestApi<MemoryItem>(
     `${userMemoryBaseUrl()}/items/${encodeURIComponent(entryId)}/ignore`,
     {
       method: "POST",
@@ -149,27 +149,27 @@ export async function ignore_user_memory_item_api(
   );
 }
 
-export async function get_memory_stats_api(agentId: string): Promise<MemoryStats> {
-  return request_api<MemoryStats>(`${agentMemoryBaseUrl(agentId)}/stats`, {
+export async function getMemoryStatsApi(agentId: string): Promise<MemoryStats> {
+  return requestApi<MemoryStats>(`${agentMemoryBaseUrl(agentId)}/stats`, {
     method: "GET",
   });
 }
 
-export async function get_user_memory_stats_api(): Promise<MemoryStats> {
-  return request_api<MemoryStats>(`${userMemoryBaseUrl()}/stats`, {
+export async function getUserMemoryStatsApi(): Promise<MemoryStats> {
+  return requestApi<MemoryStats>(`${userMemoryBaseUrl()}/stats`, {
     method: "GET",
   });
 }
 
-export async function cleanup_memory_api(agentId: string): Promise<MemoryCleanupResult> {
-  return request_api<MemoryCleanupResult>(`${agentMemoryBaseUrl(agentId)}/cleanup`, {
+export async function cleanupMemoryApi(agentId: string): Promise<MemoryCleanupResult> {
+  return requestApi<MemoryCleanupResult>(`${agentMemoryBaseUrl(agentId)}/cleanup`, {
     method: "POST",
     body: {},
   });
 }
 
-export async function cleanup_user_memory_api(): Promise<MemoryCleanupResult> {
-  return request_api<MemoryCleanupResult>(`${userMemoryBaseUrl()}/cleanup`, {
+export async function cleanupUserMemoryApi(): Promise<MemoryCleanupResult> {
+  return requestApi<MemoryCleanupResult>(`${userMemoryBaseUrl()}/cleanup`, {
     method: "POST",
     body: {},
   });

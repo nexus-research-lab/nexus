@@ -26,11 +26,11 @@ import {
 import { CONVERSATION_TOUR_ANCHORS } from "../../room-tour";
 
 interface GroupConversationEmptyStateProps {
-  on_create_conversation: (title?: string) => void | Promise<string | null>;
+  onCreateConversation: (title?: string) => void | Promise<string | null>;
 }
 
 export function GroupConversationEmptyState({
-  on_create_conversation: onCreateConversation,
+  onCreateConversation: onCreateConversation,
 }: GroupConversationEmptyStateProps) {
   const { t } = useI18n();
   const highlights = [
@@ -41,30 +41,30 @@ export function GroupConversationEmptyState({
 
   return (
     <div className="flex min-h-0 flex-1 items-center justify-center p-6 sm:p-8">
-      <WorkspaceCatalogCard class_name="w-full max-w-[56rem]" size="hero">
+      <WorkspaceCatalogCard className="w-full max-w-[56rem]" size="hero">
         <div className="flex flex-col gap-8 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-[34rem]">
-            <WorkspaceCatalogHeader class_name="items-center">
-              <WorkspaceIconFrame class_name="h-16 w-16" shape="round" size="lg" tone="primary">
+            <WorkspaceCatalogHeader className="items-center">
+              <WorkspaceIconFrame className="h-16 w-16" shape="round" size="lg" tone="primary">
                 <FolderKanban className="h-7 w-7" />
               </WorkspaceIconFrame>
               <div>
-                <WorkspaceCatalogTag class_name="text-[11px] font-semibold uppercase tracking-[0.14em]">
+                <WorkspaceCatalogTag className="text-[11px] font-semibold uppercase tracking-[0.14em]">
                   {t("room.empty_group_tag")}
                 </WorkspaceCatalogTag>
-                <WorkspaceCatalogTitle as="h2" class_name="mt-3" size="hero">
+                <WorkspaceCatalogTitle as="h2" className="mt-3" size="hero">
                   {t("room.empty_group_title")}
                 </WorkspaceCatalogTitle>
               </div>
             </WorkspaceCatalogHeader>
 
-            <WorkspaceCatalogBody class_name="mt-5">
+            <WorkspaceCatalogBody className="mt-5">
               <WorkspaceCatalogDescription lines={3} size="md">
                 {t("room.empty_group_description")}
               </WorkspaceCatalogDescription>
             </WorkspaceCatalogBody>
 
-            <WorkspaceCatalogFooter class_name="mt-6 flex-wrap gap-2.5" justify="start">
+            <WorkspaceCatalogFooter className="mt-6 flex-wrap gap-2.5" justify="start">
               <WorkspaceCatalogTextAction
                 data-tour-anchor={CONVERSATION_TOUR_ANCHORS.empty_create}
                 tone="primary"
@@ -84,7 +84,7 @@ export function GroupConversationEmptyState({
                 <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-(--text-soft)">
                   {t("room.empty_group_highlight_label")}
                 </p>
-                <WorkspaceCatalogTitle class_name="mt-2" size="sm">
+                <WorkspaceCatalogTitle className="mt-2" size="sm">
                   {highlight}
                 </WorkspaceCatalogTitle>
               </WorkspaceCatalogCard>

@@ -7,16 +7,16 @@ import { FileArtifactBlock } from "./file-artifact-block";
 
 interface WorkspaceFileArtifactListProps {
   artifacts: WorkspaceFileArtifactContent[];
-  on_open_workspace_file?: (path: string) => void;
+  onOpenWorkspaceFile?: (path: string) => void;
   label?: string;
-  class_name?: string;
+  className?: string;
 }
 
 interface WorkspaceFileArtifactBlockProps {
   artifact: WorkspaceFileArtifactContent;
-  on_open_workspace_file?: (path: string) => void;
+  onOpenWorkspaceFile?: (path: string) => void;
   compact?: boolean;
-  class_name?: string;
+  className?: string;
 }
 
 function artifactKey(artifact: WorkspaceFileArtifactContent): string {
@@ -28,28 +28,28 @@ function artifactKey(artifact: WorkspaceFileArtifactContent): string {
 
 export function WorkspaceFileArtifactBlock({
   artifact,
-  on_open_workspace_file: onOpenWorkspaceFile,
+  onOpenWorkspaceFile: onOpenWorkspaceFile,
   compact = false,
-  class_name: className,
+  className: className,
 }: WorkspaceFileArtifactBlockProps) {
   return (
     <FileArtifactBlock
       compact={compact}
-      class_name={className}
+      className={className}
       label={artifact.label ?? "文件"}
       path={artifact.path}
-      display_path={artifact.display_path ?? artifact.path}
-      workspace_agent_id={artifact.workspace_agent_id}
-      on_open_workspace_file={onOpenWorkspaceFile}
+      displayPath={artifact.display_path ?? artifact.path}
+      workspaceAgentId={artifact.workspace_agent_id}
+      onOpenWorkspaceFile={onOpenWorkspaceFile}
     />
   );
 }
 
 export function WorkspaceFileArtifactList({
   artifacts,
-  on_open_workspace_file: onOpenWorkspaceFile,
+  onOpenWorkspaceFile: onOpenWorkspaceFile,
   label = "生成文件",
-  class_name: className,
+  className: className,
 }: WorkspaceFileArtifactListProps) {
   if (!onOpenWorkspaceFile || artifacts.length === 0) {
     return null;
@@ -68,7 +68,7 @@ export function WorkspaceFileArtifactList({
             key={artifactKey(artifact)}
             compact
             artifact={{ ...artifact, label: "" }}
-            on_open_workspace_file={onOpenWorkspaceFile}
+            onOpenWorkspaceFile={onOpenWorkspaceFile}
           />
         ))}
       </div>

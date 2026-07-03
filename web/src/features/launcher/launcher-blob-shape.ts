@@ -23,7 +23,7 @@ export const DEFAULT_OUTER_POINTS: BlobPoint[] = [
   {"x": 288.28411989795916, "y": 351.75826014219996}
 ];
 
-export function create_closed_spline_path(points: BlobPoint[]): string {
+export function createClosedSplinePath(points: BlobPoint[]): string {
   if (points.length < 3) {
     return "";
   }
@@ -53,7 +53,7 @@ export function create_closed_spline_path(points: BlobPoint[]): string {
   return `${path} Z`;
 }
 
-export function create_inner_points(points: BlobPoint[], scaleX = 0.82, scaleY = 0.8): BlobPoint[] {
+export function createInnerPoints(points: BlobPoint[], scaleX = 0.82, scaleY = 0.8): BlobPoint[] {
   if (points.length === 0) {
     return points;
   }

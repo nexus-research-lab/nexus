@@ -14,7 +14,7 @@ import { Brain, Globe, MessageCircleMore, MessageSquareText, ShieldAlert, Wrench
 import spinners, { type BrailleSpinnerName } from "unicode-animations";
 
 import { usePrefersReducedMotion } from "@/hooks/ui/use-prefers-reduced-motion";
-import { cn, get_icon_avatar_src } from "@/lib/utils";
+import { cn, getIconAvatarSrc } from "@/lib/utils";
 
 type MessageAvatarSize = "full" | "compact";
 type MessageActionTone = "default" | "success" | "danger";
@@ -77,23 +77,23 @@ const ACTIVITY_SPINNER_MAP: Record<MessageActivityState, BrailleSpinnerName> = {
 };
 
 export function MessageAvatar({
-  aria_label: ariaLabel,
-  avatar_url: avatarUrl,
+  ariaLabel: ariaLabel,
+  avatarUrl: avatarUrl,
   children,
   size = "full",
-  class_name: className,
-  on_click: onClick,
+  className: className,
+  onClick: onClick,
   title,
 }: {
-  aria_label?: string;
-  avatar_url?: string | null;
+  ariaLabel?: string;
+  avatarUrl?: string | null;
   children?: ReactNode;
   size?: MessageAvatarSize;
-  class_name?: string;
-  on_click?: (event: MouseEvent<HTMLButtonElement>) => void;
+  className?: string;
+  onClick?: (event: MouseEvent<HTMLButtonElement>) => void;
   title?: string;
 }) {
-  const resolvedAvatarUrl = get_icon_avatar_src(avatarUrl);
+  const resolvedAvatarUrl = getIconAvatarSrc(avatarUrl);
   const avatarShellClassName = cn(
     "overflow-hidden border border-(--surface-avatar-border) bg-(--surface-avatar-background) shadow-(--surface-avatar-shadow)",
     "transition-[transform,box-shadow,border-color] duration-(--motion-duration-fast) ease-out",
@@ -147,12 +147,12 @@ export function MessageAvatar({
 
 export function MessageActionButton({
   children,
-  class_name: className,
+  className: className,
   tone = "default",
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & {
   children: ReactNode;
-  class_name?: string;
+  className?: string;
   tone?: MessageActionTone;
 }) {
   return (
@@ -172,11 +172,11 @@ export function MessageActionButton({
 
 function MessageLoadingDots({
   size: _size = "md",
-  class_name: className,
+  className: className,
   name = "braille",
 }: {
   size?: MessageLoadingDotsSize;
-  class_name?: string;
+  className?: string;
   name?: BrailleSpinnerName;
 }) {
   const spinner = spinners[name];
@@ -280,10 +280,10 @@ function MessageActivityLabel({ state }: { state: MessageActivityState }) {
 
 export function MessageActivityStatus({
   state,
-  class_name: className,
+  className: className,
 }: {
   state: MessageActivityState;
-  class_name?: string;
+  className?: string;
 }) {
   return (
     <div className={cn("flex min-w-0 items-center", className)}>
@@ -295,7 +295,7 @@ export function MessageActivityStatus({
         <MessageLoadingDots
           size="sm"
           name={ACTIVITY_SPINNER_MAP[state]}
-          class_name="shrink-0 opacity-70"
+          className="shrink-0 opacity-70"
         />
       </div>
     </div>
@@ -305,11 +305,11 @@ export function MessageActivityStatus({
 export function MessageShell({
   children,
   separated = false,
-  class_name: className,
+  className: className,
 }: {
   children: ReactNode;
   separated?: boolean;
-  class_name?: string;
+  className?: string;
 }) {
   return (
     <div

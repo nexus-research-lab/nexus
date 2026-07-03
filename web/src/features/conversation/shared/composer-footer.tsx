@@ -9,59 +9,59 @@ import { GlassSwitch } from "@/shared/ui/liquid-glass";
 import { COMPOSER_FOOTER_CLASS_NAME } from "./composer-styles";
 
 interface ComposerFooterProps {
-  action_button_ref: RefObject<HTMLButtonElement | null>;
-  active_error: string | null;
-  can_create_goal: boolean;
-  can_use_loop: boolean;
-  can_stop_generation: boolean;
-  char_count: number;
-  goal_mode_extra: ReactNode;
-  goal_scope_label: string;
-  history_index: number;
-  input_history_length: number;
-  is_action_menu_open: boolean;
-  is_dispatching: boolean;
-  is_goal_creating: boolean;
-  is_goal_mode: boolean;
-  is_input_locked: boolean;
-  is_near_limit: boolean;
-  is_over_limit: boolean;
-  is_preparing_attachments: boolean;
-  max_length: number;
-  on_action_menu_close: () => void;
-  on_action_menu_toggle: () => void;
-  on_attachment_select: () => void;
-  on_cancel_goal: () => void;
-  on_goal_toggle: (checked: boolean) => void;
-  on_loop_select: () => void;
+  actionButtonRef: RefObject<HTMLButtonElement | null>;
+  activeError: string | null;
+  canCreateGoal: boolean;
+  canUseLoop: boolean;
+  canStopGeneration: boolean;
+  charCount: number;
+  goalModeExtra: ReactNode;
+  goalScopeLabel: string;
+  historyIndex: number;
+  inputHistoryLength: number;
+  isActionMenuOpen: boolean;
+  isDispatching: boolean;
+  isGoalCreating: boolean;
+  isGoalMode: boolean;
+  isInputLocked: boolean;
+  isNearLimit: boolean;
+  isOverLimit: boolean;
+  isPreparingAttachments: boolean;
+  maxLength: number;
+  onActionMenuClose: () => void;
+  onActionMenuToggle: () => void;
+  onAttachmentSelect: () => void;
+  onCancelGoal: () => void;
+  onGoalToggle: (checked: boolean) => void;
+  onLoopSelect: () => void;
 }
 
 export function ComposerFooter({
-  action_button_ref: actionButtonRef,
-  active_error: activeError,
-  can_create_goal: canCreateGoal,
-  can_use_loop: canUseLoop,
-  can_stop_generation: canStopGeneration,
-  char_count: charCount,
-  goal_mode_extra: goalModeExtra,
-  goal_scope_label: goalScopeLabel,
-  history_index: historyIndex,
-  input_history_length: inputHistoryLength,
-  is_action_menu_open: isActionMenuOpen,
-  is_dispatching: isDispatching,
-  is_goal_creating: isGoalCreating,
-  is_goal_mode: isGoalMode,
-  is_input_locked: isInputLocked,
-  is_near_limit: isNearLimit,
-  is_over_limit: isOverLimit,
-  is_preparing_attachments: isPreparingAttachments,
-  max_length: maxLength,
-  on_action_menu_close: onActionMenuClose,
-  on_action_menu_toggle: onActionMenuToggle,
-  on_attachment_select: onAttachmentSelect,
-  on_cancel_goal: onCancelGoal,
-  on_goal_toggle: onGoalToggle,
-  on_loop_select: onLoopSelect,
+  actionButtonRef: actionButtonRef,
+  activeError: activeError,
+  canCreateGoal: canCreateGoal,
+  canUseLoop: canUseLoop,
+  canStopGeneration: canStopGeneration,
+  charCount: charCount,
+  goalModeExtra: goalModeExtra,
+  goalScopeLabel: goalScopeLabel,
+  historyIndex: historyIndex,
+  inputHistoryLength: inputHistoryLength,
+  isActionMenuOpen: isActionMenuOpen,
+  isDispatching: isDispatching,
+  isGoalCreating: isGoalCreating,
+  isGoalMode: isGoalMode,
+  isInputLocked: isInputLocked,
+  isNearLimit: isNearLimit,
+  isOverLimit: isOverLimit,
+  isPreparingAttachments: isPreparingAttachments,
+  maxLength: maxLength,
+  onActionMenuClose: onActionMenuClose,
+  onActionMenuToggle: onActionMenuToggle,
+  onAttachmentSelect: onAttachmentSelect,
+  onCancelGoal: onCancelGoal,
+  onGoalToggle: onGoalToggle,
+  onLoopSelect: onLoopSelect,
 }: ComposerFooterProps) {
   const { t } = useI18n();
 
@@ -82,9 +82,9 @@ export function ComposerFooter({
             <Plus className="h-4 w-4" />
           </button>
           <UiActionMenu
-            anchor_ref={actionButtonRef}
-            aria_label={t("composer.open_actions")}
-            is_open={isActionMenuOpen}
+            anchorRef={actionButtonRef}
+            ariaLabel={t("composer.open_actions")}
+            isOpen={isActionMenuOpen}
             items={[
               {
                 value: "attachment",
@@ -113,7 +113,7 @@ export function ComposerFooter({
                     <GlassSwitch
                       checked={isGoalMode}
                       disabled={!canCreateGoal || isInputLocked || isGoalCreating}
-                      on_change={onGoalToggle}
+                      onChange={onGoalToggle}
                       size="xs"
                     />
                   </span>
@@ -124,8 +124,8 @@ export function ComposerFooter({
               },
             ]}
             placement="top"
-            on_close={onActionMenuClose}
-            on_select={(value) => {
+            onClose={onActionMenuClose}
+            onSelect={(value) => {
               if (value === "attachment") {
                 onAttachmentSelect();
                 return;

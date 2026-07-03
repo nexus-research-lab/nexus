@@ -28,27 +28,27 @@ import {
 
 import { AgentPile } from "./launcher-agent-pile";
 import {
-  find_launcher_mention_match,
-  is_launcher_chip_truncated,
-  truncate_launcher_chip_label,
+  findLauncherMentionMatch,
+  isLauncherChipTruncated,
+  truncateLauncherChipLabel,
 } from "./launcher-console-helpers";
 import { HeroStageProps, LauncherMentionMatch } from "./launcher-console-types";
 
 const MemoAgentPile = memo(AgentPile);
 
 export const LauncherHeroStage = memo(function LauncherHeroStage({
-  current_agent_id: currentAgentId,
-  decorative_tokens: decorativeTokens,
-  mention_targets: mentionTargets,
-  on_enter_home: onEnterHome,
-  on_open_main_agent_dm: onOpenMainAgentDm,
-  on_query_change: onQueryChange,
-  on_select_agent: onSelectAgent,
-  on_open_recent_entry: onOpenRecentEntry,
-  on_submit: onSubmit,
+  currentAgentId: currentAgentId,
+  decorativeTokens: decorativeTokens,
+  mentionTargets: mentionTargets,
+  onEnterHome: onEnterHome,
+  onOpenMainAgentDm: onOpenMainAgentDm,
+  onQueryChange: onQueryChange,
+  onSelectAgent: onSelectAgent,
+  onOpenRecentEntry: onOpenRecentEntry,
+  onSubmit: onSubmit,
   query,
-  recent_entries: recentEntries,
-  is_query_loading: isQueryLoading,
+  recentEntries: recentEntries,
+  isQueryLoading: isQueryLoading,
 }: HeroStageProps) {
   const { t } = useI18n();
   const isComposingRef = useRef(false);
@@ -70,7 +70,7 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
 
   const syncMentionMatch = useCallback(
     (value: string, cursorPos: number) => {
-      setMentionMatch(find_launcher_mention_match(value, cursorPos));
+      setMentionMatch(findLauncherMentionMatch(value, cursorPos));
     },
     [],
   );
@@ -154,9 +154,9 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
       onKeyDown={(e) => e.stopPropagation()}
       role="presentation"
     >
-      <HeroBlobShell class_name="z-10 transition-transform duration-500 ease-out">
+      <HeroBlobShell className="z-10 transition-transform duration-500 ease-out">
         <div className="space-y-3 sm:space-y-4">
-          <FadeSlideIn delay_ms={0} duration_ms={380} y_offset={6}>
+          <FadeSlideIn delayMs={0} durationMs={380} yOffset={6}>
             <div className="flex flex-col items-center gap-2.5">
               <div className="flex items-center gap-2">
                 <button
@@ -194,22 +194,22 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
           </FadeSlideIn>
           <div className="relative inline-block">
             <LottiePlayer
-              class_name="pointer-events-none absolute -right-4 -top-5 h-12 w-12 opacity-[0.46] sm:-right-16 sm:-top-14 sm:h-24 sm:w-24"
-              inline_style={undefined}
+              className="pointer-events-none absolute -right-4 -top-5 h-12 w-12 opacity-[0.46] sm:-right-16 sm:-top-14 sm:h-24 sm:w-24"
+              inlineStyle={undefined}
               src={ANIMATIONS.SPARKLES}
             />
             <h1 className="mb-2 text-[24px] font-extrabold leading-[1.12] tracking-[-0.05em] text-foreground/96 sm:text-[42px] sm:leading-[1.05]">
               <AnimatedHeroText
                 text={t("launcher.hero_title")}
-                initial_delay_ms={80}
-                stagger_ms={26}
+                initialDelayMs={80}
+                staggerMs={26}
               />
             </h1>
           </div>
         </div>
 
         <div className="mt-8 sm:mt-10">
-          <FadeSlideIn delay_ms={440} duration_ms={420} y_offset={10}>
+          <FadeSlideIn delayMs={440} durationMs={420} yOffset={10}>
             <div
               data-tour-anchor={LAUNCHER_TOUR_ANCHORS.composer}
               className="mx-auto w-full max-w-[326px] rounded-2xl border px-4 py-1 sm:max-w-[420px] "
@@ -224,13 +224,13 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
               <div className="relative flex min-w-0 items-center gap-2.5 sm:gap-3">
                 {mentionMatch ? (
                   <MentionTargetPopover
-                    anchor_rect={
+                    anchorRect={
                       inputRef.current?.getBoundingClientRect() ?? null
                     }
                     filter={mentionMatch.filter}
                     items={visibleMentionTargets}
-                    on_close={handleMentionClose}
-                    on_select={handleMentionSelect}
+                    onClose={handleMentionClose}
+                    onSelect={handleMentionSelect}
                     placement="below"
                   />
                 ) : null}
@@ -336,13 +336,13 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
             {recentEntries.map((entry, index) => (
               <FadeSlideIn
                 key={entry.key}
-                delay_ms={580 + index * 55}
-                duration_ms={360}
-                y_offset={6}
+                delayMs={580 + index * 55}
+                durationMs={360}
+                yOffset={6}
                 style={{ display: "inline-flex" }}
               >
                 <div className="group relative inline-flex">
-                  {is_launcher_chip_truncated(entry.label) ? (
+                  {isLauncherChipTruncated(entry.label) ? (
                     <div
                       className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 w-max max-w-[220px] -translate-x-1/2 translate-y-1 rounded-2xl px-3 py-2 text-center text-xs font-medium leading-5 opacity-0 shadow-[0_18px_42px_rgba(38,52,76,0.16)] transition duration-200 ease-out group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100"
                       style={{
@@ -393,16 +393,16 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
                       />
                     ) : null}
                     {entry.type === "room" ? "#" : ""}
-                    {truncate_launcher_chip_label(entry.label)}
+                    {truncateLauncherChipLabel(entry.label)}
                   </button>
                 </div>
               </FadeSlideIn>
             ))}
 
             <FadeSlideIn
-              delay_ms={580 + recentEntries.length * 55}
-              duration_ms={360}
-              y_offset={6}
+              delayMs={580 + recentEntries.length * 55}
+              durationMs={360}
+              yOffset={6}
               style={{ display: "inline-flex" }}
             >
               <button
@@ -423,9 +423,9 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
       </HeroBlobShell>
 
       <MemoAgentPile
-        class_name="hidden min-[400px]:block"
-        current_agent_id={currentAgentId}
-        on_select_agent={onSelectAgent}
+        className="hidden min-[400px]:block"
+        currentAgentId={currentAgentId}
+        onSelectAgent={onSelectAgent}
         tokens={decorativeTokens}
       />
     </div>

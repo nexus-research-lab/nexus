@@ -5,11 +5,11 @@
  * 只有显式配置了绝对地址时，才会直连外部 API / WebSocket。
  */
 
-import { request_api } from "@/lib/api/http";
-import { get_desktop_runtime_config } from "@/config/desktop-runtime";
+import { requestApi } from "@/lib/api/http";
+import { getDesktopRuntimeConfig } from "@/config/desktop-runtime";
 import type { AgentOptions, AgentProvider } from "@/types/agent/agent";
 import type { AgentConversationDefaultDeliveryPolicy } from "@/types/agent/agent-conversation";
-import { normalize_agent_runtime_kind, type AgentRuntimeKind, type UserPreferences } from "@/types/settings/preferences";
+import { normalizeAgentRuntimeKind, type AgentRuntimeKind, type UserPreferences } from "@/types/settings/preferences";
 import {
   DEFAULT_AGENT_ALLOWED_TOOLS,
   DEFAULT_AGENT_PERMISSION_MODE,
@@ -64,39 +64,39 @@ function resolveRuntimeUrl(rawUrl: string | undefined, fallbackPath: string, use
   return normalizedRawUrl;
 }
 
-export function get_agent_api_base_url(): string {
-  const desktopUrl = get_desktop_runtime_config()?.api_base_url?.trim();
+export function getAgentApiBaseUrl(): string {
+  const desktopUrl = getDesktopRuntimeConfig()?.apiBaseUrl?.trim();
   if (desktopUrl) {
     return desktopUrl;
   }
   return resolveRuntimeUrl(import.meta.env.VITE_API_URL, DEFAULT_API_PATH, false);
 }
 
-export function get_agent_ws_url(): string {
-  const desktopUrl = get_desktop_runtime_config()?.ws_url?.trim();
+export function getAgentWsUrl(): string {
+  const desktopUrl = getDesktopRuntimeConfig()?.wsUrl?.trim();
   if (desktopUrl) {
     return desktopUrl;
   }
   return resolveRuntimeUrl(import.meta.env.VITE_WS_URL, DEFAULT_WS_PATH, true);
 }
 
-export function is_strict_mode_enabled(): boolean {
+export function isStrictModeEnabled(): boolean {
   return ENABLE_STRICT_MODE;
 }
 
-export function get_message_history_round_page_size(): number {
+export function getMessageHistoryRoundPageSize(): number {
   return MESSAGE_HISTORY_ROUND_PAGE_SIZE;
 }
 
-export function get_message_send_ack_timeout_ms(): number {
+export function getMessageSendAckTimeoutMs(): number {
   return MESSAGE_SEND_ACK_TIMEOUT_MS;
 }
 
-export function get_default_agent_id(): string {
+export function getDefaultAgentId(): string {
   return DEFAULT_AGENT_ID;
 }
 
-export function get_default_agent_avatar(): string {
+export function getDefaultAgentAvatar(): string {
   return DEFAULT_AGENT_AVATAR;
 }
 
@@ -105,46 +105,46 @@ function setDefaultAgentAvatar(avatar?: string | null): void {
   DEFAULT_AGENT_AVATAR = normalizedAvatar || "";
 }
 
-export function set_default_agent_provider(provider?: string | null): void {
+export function setDefaultAgentProvider(provider?: string | null): void {
   const normalizedProvider = provider?.trim();
   DEFAULT_AGENT_PROVIDER = normalizedProvider || "";
 }
 
-export function set_default_agent_model(model?: string | null): void {
+export function setDefaultAgentModel(model?: string | null): void {
   const normalizedModel = model?.trim();
   DEFAULT_AGENT_MODEL = normalizedModel || "";
 }
 
-export function get_initial_agent_options(): Partial<AgentOptions> {
+export function getInitialAgentOptions(): Partial<AgentOptions> {
   return cloneAgentOptions(DEFAULT_AGENT_OPTIONS);
 }
 
-export function get_default_chat_delivery_policy(): AgentConversationDefaultDeliveryPolicy {
+export function getDefaultChatDeliveryPolicy(): AgentConversationDefaultDeliveryPolicy {
 	return DEFAULT_CHAT_DELIVERY_POLICY;
 }
 
-export function get_default_agent_runtime_kind(): AgentRuntimeKind {
+export function getDefaultAgentRuntimeKind(): AgentRuntimeKind {
   return DEFAULT_AGENT_RUNTIME_KIND;
 }
 
-export function get_user_preferences(): UserPreferences {
+export function getUserPreferences(): UserPreferences {
   return {
     chat_default_delivery_policy: DEFAULT_CHAT_DELIVERY_POLICY,
     agent_runtime_kind: DEFAULT_AGENT_RUNTIME_KIND,
     agent_sdk_diagnostics_enabled: DEFAULT_AGENT_SDK_DIAGNOSTICS_ENABLED,
-    default_agent_options: get_initial_agent_options(),
+    default_agent_options: getInitialAgentOptions(),
     default_image_model_selection: DEFAULT_IMAGE_MODEL_SELECTION,
     default_background_model_selection: DEFAULT_BACKGROUND_MODEL_SELECTION,
   };
 }
 
-export function set_user_preferences(preferences?: Partial<UserPreferences> | null): void {
+export function setUserPreferences(preferences?: Partial<UserPreferences> | null): void {
   const policy = preferences?.chat_default_delivery_policy;
   if (policy !== undefined) {
     DEFAULT_CHAT_DELIVERY_POLICY = policy;
   }
   if (preferences?.agent_runtime_kind !== undefined) {
-    DEFAULT_AGENT_RUNTIME_KIND = normalize_agent_runtime_kind(preferences.agent_runtime_kind);
+    DEFAULT_AGENT_RUNTIME_KIND = normalizeAgentRuntimeKind(preferences.agent_runtime_kind);
   }
   if (preferences !== undefined && preferences !== null) {
     DEFAULT_AGENT_SDK_DIAGNOSTICS_ENABLED = preferences.agent_sdk_diagnostics_enabled === true;
@@ -155,23 +155,23 @@ export function set_user_preferences(preferences?: Partial<UserPreferences> | nu
   notifyUserPreferencesChanged();
 }
 
-export function is_main_agent(agentId?: string | null): boolean {
+export function isMainAgent(agentId?: string | null): boolean {
   return (agentId ?? "").trim() === DEFAULT_AGENT_ID;
 }
 
-export function resolve_agent_id(agentId?: string | null): string {
+export function resolveAgentId(agentId?: string | null): string {
   return (agentId ?? "").trim() || DEFAULT_AGENT_ID;
 }
 
-export async function hydrate_runtime_options(): Promise<void> {
-  const payload = await request_api<{
+export async function hydrateRuntimeOptions(): Promise<void> {
+  const payload = await requestApi<{
     default_agent_id: string;
     default_agent_avatar?: string | null;
     default_agent_provider?: string | null;
     default_agent_model?: string | null;
     preferences?: UserPreferences | null;
   }>(
-    `${get_agent_api_base_url()}/runtime/options`,
+    `${getAgentApiBaseUrl()}/runtime/options`,
     {
       method: "GET",
       notify_on_401: false,
@@ -184,9 +184,9 @@ export async function hydrate_runtime_options(): Promise<void> {
 
   DEFAULT_AGENT_ID = nextDefaultAgentId;
   setDefaultAgentAvatar(payload?.default_agent_avatar);
-  set_default_agent_provider(payload?.default_agent_provider);
-  set_default_agent_model(payload?.default_agent_model);
-  set_user_preferences(payload?.preferences);
+  setDefaultAgentProvider(payload?.default_agent_provider);
+  setDefaultAgentModel(payload?.default_agent_model);
+  setUserPreferences(payload?.preferences);
 }
 
 function cloneAgentOptions(options: Partial<AgentOptions>): Partial<AgentOptions> {
@@ -226,6 +226,6 @@ function notifyUserPreferencesChanged(): void {
   }
   window.dispatchEvent(new CustomEvent<UserPreferences>(
     USER_PREFERENCES_CHANGED_EVENT,
-    { detail: get_user_preferences() },
+    { detail: getUserPreferences() },
   ));
 }

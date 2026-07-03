@@ -8,7 +8,7 @@ import { cn } from "@/shared/ui/class-name";
 import {
   DIALOG_BACKDROP_CLASS_NAME,
   DIALOG_ICON_BUTTON_CLASS_NAME,
-  get_dialog_action_class_name,
+  getDialogActionClassName,
 } from "@/shared/ui/dialog/dialog-styles";
 
 export interface OnboardingGuideCenterItem {
@@ -16,33 +16,33 @@ export interface OnboardingGuideCenterItem {
   icon: LucideIcon;
   title: string;
   description: string;
-  action_label: string;
+  actionLabel: string;
   completed?: boolean;
-  on_action: () => void;
+  onAction: () => void;
 }
 
 interface OnboardingGuideCenterProps {
-  is_open: boolean;
+  isOpen: boolean;
   title: string;
   description: string;
   items: OnboardingGuideCenterItem[];
-  reset_label: string;
-  close_label: string;
-  reviewed_label: string;
-  on_close: () => void;
-  on_reset: () => void;
+  resetLabel: string;
+  closeLabel: string;
+  reviewedLabel: string;
+  onClose: () => void;
+  onReset: () => void;
 }
 
 export function OnboardingGuideCenter({
-  is_open: isOpen,
+  isOpen: isOpen,
   title,
   description,
   items,
-  reset_label: resetLabel,
-  close_label: closeLabel,
-  reviewed_label: reviewedLabel,
-  on_close: onClose,
-  on_reset: onReset,
+  resetLabel: resetLabel,
+  closeLabel: closeLabel,
+  reviewedLabel: reviewedLabel,
+  onClose: onClose,
+  onReset: onReset,
 }: OnboardingGuideCenterProps) {
   if (!isOpen || typeof document === "undefined") {
     return null;
@@ -148,11 +148,11 @@ export function OnboardingGuideCenter({
                     </div>
 
                     <button
-                      className={get_dialog_action_class_name("primary", "compact", "shrink-0")}
-                      onClick={item.on_action}
+                      className={getDialogActionClassName("primary", "compact", "shrink-0")}
+                      onClick={item.onAction}
                       type="button"
                     >
-                      {item.action_label}
+                      {item.actionLabel}
                     </button>
                   </div>
                 </section>
@@ -162,14 +162,14 @@ export function OnboardingGuideCenter({
 
           <div className="dialog-footer !px-4 !py-2.5 border-t border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--modal-card-background)_84%,transparent)]">
             <button
-              className={get_dialog_action_class_name("default", "compact")}
+              className={getDialogActionClassName("default", "compact")}
               onClick={handleCloseClick}
               type="button"
             >
               {closeLabel}
             </button>
             <button
-              className={get_dialog_action_class_name(
+              className={getDialogActionClassName(
                 "default",
                 "inline-flex items-center gap-1.5 text-[11px]",
               )}

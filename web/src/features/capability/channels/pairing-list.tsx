@@ -23,13 +23,13 @@ export interface PairingGroup {
 
 interface PairingListProps {
   agents: Agent[];
-  busy_id: string | null;
+  busyId: string | null;
   groups: PairingGroup[];
-  on_copy_session_key: (item: PairingView) => void | Promise<void>;
-  on_delete_pairing: (item: PairingView) => void;
-  on_update_pairing: (
+  onCopySessionKey: (item: PairingView) => void | Promise<void>;
+  onDeletePairing: (item: PairingView) => void;
+  onUpdatePairing: (
     item: PairingView,
-    next: { status?: ImPairingStatus; agent_id?: string },
+    next: { status?: ImPairingStatus; agentId?: string },
   ) => void | Promise<void>;
 }
 
@@ -71,11 +71,11 @@ function sessionKeyForPairing(item: PairingView) {
 
 export function PairingList({
   agents,
-  busy_id: busyId,
+  busyId: busyId,
   groups,
-  on_copy_session_key: onCopySessionKey,
-  on_delete_pairing: onDeletePairing,
-  on_update_pairing: onUpdatePairing,
+  onCopySessionKey: onCopySessionKey,
+  onDeletePairing: onDeletePairing,
+  onUpdatePairing: onUpdatePairing,
 }: PairingListProps) {
   return (
     <div className="space-y-5">
@@ -95,7 +95,7 @@ export function PairingList({
           <div className="space-y-2.5">
             {group.items.map((item) => (
               <UiPanel
-                class_name="grid grid-cols-[minmax(0,1.2fr)_minmax(210px,0.8fr)_minmax(260px,1fr)_auto] items-center gap-4 max-2xl:grid-cols-[minmax(0,1fr)_minmax(240px,1fr)] max-lg:grid-cols-1"
+                className="grid grid-cols-[minmax(0,1.2fr)_minmax(210px,0.8fr)_minmax(260px,1fr)_auto] items-center gap-4 max-2xl:grid-cols-[minmax(0,1fr)_minmax(240px,1fr)] max-lg:grid-cols-1"
                 key={item.pairing_id}
               >
                 <div className="min-w-0">
@@ -120,11 +120,11 @@ export function PairingList({
                   ) : null}
                 </div>
 
-                <UiField class_name="min-w-0" label="处理智能体">
+                <UiField className="min-w-0" label="处理智能体">
                   <UiSelectMenu
-                    aria_label="选择配对处理智能体"
+                    ariaLabel="选择配对处理智能体"
                     disabled={busyId === item.pairing_id}
-                    on_change={(value) => void onUpdatePairing(item, { agent_id: value })}
+                    onChange={(value) => void onUpdatePairing(item, { agentId: value })}
                     options={agents.map((agent) => ({
                       value: agent.agent_id,
                       label: agent.name,
@@ -145,7 +145,7 @@ export function PairingList({
                     <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase text-(--text-soft)">
                       <span>IM Session</span>
                       <UiIconButton
-                        class_name="h-6 w-6"
+                        className="h-6 w-6"
                         disabled={busyId === item.pairing_id}
                         onClick={() => void onCopySessionKey(item)}
                         size="sm"

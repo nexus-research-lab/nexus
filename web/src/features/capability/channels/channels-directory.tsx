@@ -8,11 +8,11 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { get_agents } from "@/lib/api/agent-manage-api";
+import { getAgents } from "@/lib/api/agent-manage-api";
 import {
   ChannelConfigView,
   ImChannelType,
-  list_channels_api,
+  listChannelsApi,
 } from "@/lib/api/channel-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
@@ -32,20 +32,20 @@ import {
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 import type { Agent } from "@/types/agent/agent";
 
-import { notify_capability_summary_mutated } from "../capability-summary-events";
+import { notifyCapabilitySummaryMutated } from "../capability-summary-events";
 import { ChannelCard } from "./channel-card";
 import { ChannelConnectDialog } from "./channel-connect-dialog";
-import { is_channel_planned } from "./channel-model";
+import { isChannelPlanned } from "./channel-model";
 
 const CHANNEL_ORDER: ImChannelType[] = ["dingtalk", "wechat", "weixin-personal", "feishu", "telegram", "discord"];
 type ChannelFilter = "all" | "connected" | "configured" | "unconfigured" | "planned";
 
-const CHANNEL_FILTER_OPTIONS: ReadonlyArray<{ value: ChannelFilter; label_key: TranslationKey }> = [
-  { value: "all", label_key: "capability.channels_filter_all" },
-  { value: "connected", label_key: "capability.channels_filter_connected" },
-  { value: "configured", label_key: "capability.channels_filter_configured" },
-  { value: "unconfigured", label_key: "capability.channels_filter_unconfigured" },
-  { value: "planned", label_key: "capability.channels_filter_planned" },
+const CHANNEL_FILTER_OPTIONS: ReadonlyArray<{ value: ChannelFilter; labelKey: TranslationKey }> = [
+  { value: "all", labelKey: "capability.channels_filter_all" },
+  { value: "connected", labelKey: "capability.channels_filter_connected" },
+  { value: "configured", labelKey: "capability.channels_filter_configured" },
+  { value: "unconfigured", labelKey: "capability.channels_filter_unconfigured" },
+  { value: "planned", labelKey: "capability.channels_filter_planned" },
 ];
 
 function ChannelLoadingGrid() {
@@ -88,13 +88,13 @@ export function ChannelsDirectory() {
         return item.connection_state === "connected";
       }
       if (channelFilter === "configured") {
-        return item.configured && !is_channel_planned(item);
+        return item.configured && !isChannelPlanned(item);
       }
       if (channelFilter === "unconfigured") {
-        return !item.configured && !is_channel_planned(item);
+        return !item.configured && !isChannelPlanned(item);
       }
       if (channelFilter === "planned") {
-        return is_channel_planned(item);
+        return isChannelPlanned(item);
       }
       return true;
     });
@@ -103,7 +103,7 @@ export function ChannelsDirectory() {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [nextChannels, nextAgents] = await Promise.all([list_channels_api(), get_agents()]);
+      const [nextChannels, nextAgents] = await Promise.all([listChannelsApi(), getAgents()]);
       setChannels(nextChannels);
       setAgents(nextAgents);
       return true;
@@ -121,7 +121,7 @@ export function ChannelsDirectory() {
 
   const handleChannelSaved = useCallback((item: ChannelConfigView, announce = true) => {
     setChannels((current) => current.map((value) => value.channel_type === item.channel_type ? item : value));
-    notify_capability_summary_mutated({ source: "channels", action: "save", channel_type: item.channel_type });
+    notifyCapabilitySummaryMutated({ source: "channels", action: "save", channel_type: item.channel_type });
     if (announce) {
       setFeedback({ tone: "success", title: "连接成功", message: `${item.title} 已完成配置` });
     }
@@ -142,14 +142,14 @@ export function ChannelsDirectory() {
         tone: feedback.tone,
         title: feedback.title,
         message: feedback.message,
-        on_dismiss: () => setFeedback(null),
+        onDismiss: () => setFeedback(null),
       }]
     : [];
 
   return (
     <>
       <WorkspaceSurfaceScaffold
-        body_scrollable
+        bodyScrollable
         header={(
           <WorkspaceSurfaceHeader
             badge={t("capability.channels_badge", { count: channels.length || 6 })}
@@ -165,7 +165,7 @@ export function ChannelsDirectory() {
             )}
           />
         )}
-        stable_gutter
+        stableGutter
       >
         <CapabilityPageLayout
           description={t("capability.channels_intro_description")}
@@ -173,18 +173,18 @@ export function ChannelsDirectory() {
         >
           <CapabilityFilterBar>
             <CapabilityFilterSearchInput
-              on_change={setSearchQuery}
+              onChange={setSearchQuery}
               placeholder={t("capability.channels_search_placeholder")}
               value={searchQuery}
             />
             <CapabilityFilterSelect
-              aria_label={t("capability.channels_filter_aria")}
+              ariaLabel={t("capability.channels_filter_aria")}
               label={t("capability.category_label")}
               leading={<SlidersHorizontal className="h-3.5 w-3.5" />}
-              on_change={(value) => setChannelFilter(value as ChannelFilter)}
+              onChange={(value) => setChannelFilter(value as ChannelFilter)}
               options={CHANNEL_FILTER_OPTIONS.map((option) => ({
                 value: option.value,
-                label: t(option.label_key),
+                label: t(option.labelKey),
               }))}
               value={channelFilter}
             />
@@ -207,7 +207,7 @@ export function ChannelsDirectory() {
               />
               <div className="grid grid-cols-1 gap-x-12 gap-y-4 md:grid-cols-2">
                 {visibleChannels.map((item) => (
-                  <ChannelCard item={item} key={item.channel_type} on_configure={setSelected} />
+                  <ChannelCard item={item} key={item.channel_type} onConfigure={setSelected} />
                 ))}
               </div>
             </section>
@@ -219,10 +219,10 @@ export function ChannelsDirectory() {
         <ChannelConnectDialog
           agents={agents}
           item={selected}
-          on_close={() => setSelected(null)}
-          on_deleted={handleChannelDeleted}
-          on_error={(message) => setFeedback({ tone: "error", title: "频道操作失败", message })}
-          on_saved={handleChannelSaved}
+          onClose={() => setSelected(null)}
+          onDeleted={handleChannelDeleted}
+          onError={(message) => setFeedback({ tone: "error", title: "频道操作失败", message })}
+          onSaved={handleChannelSaved}
         />
       ) : null}
 

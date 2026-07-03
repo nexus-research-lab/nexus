@@ -4,7 +4,7 @@ import { ButtonHTMLAttributes, forwardRef, ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 import {
-  get_ui_choice_class_name,
+  getUiChoiceClassName,
   type UiChoiceShape,
   type UiChoiceSize,
   type UiChoiceTone,
@@ -14,8 +14,8 @@ import {
 interface UiChoiceButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   active?: boolean;
   children: ReactNode;
-  choice_size?: UiChoiceSize;
-  class_name?: string;
+  choiceSize?: UiChoiceSize;
+  className?: string;
   muted?: boolean;
   shape?: UiChoiceShape;
   tone?: UiChoiceTone;
@@ -26,8 +26,7 @@ export const UiChoiceButton = forwardRef<HTMLButtonElement, UiChoiceButtonProps>
   {
     active = false,
     children,
-    choice_size: choiceSize,
-    class_name: legacyClassName,
+    choiceSize: choiceSize,
     className,
     disabled,
     muted,
@@ -43,9 +42,9 @@ export const UiChoiceButton = forwardRef<HTMLButtonElement, UiChoiceButtonProps>
     <button
       ref={ref}
       aria-pressed={active}
-      className={get_ui_choice_class_name(
+      className={getUiChoiceClassName(
         { active, disabled, muted, shape, size: choiceSize, tone, variant },
-        cn(className, legacyClassName),
+        cn(className),
       )}
       data-active={active}
       disabled={disabled}

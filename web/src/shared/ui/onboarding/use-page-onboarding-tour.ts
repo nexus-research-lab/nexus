@@ -5,32 +5,32 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { OnboardingTourDefinition } from "@/shared/ui/onboarding/tour-provider";
 import { useOnboardingTour } from "@/shared/ui/onboarding/use-onboarding-tour";
 import {
-  clear_requested_tour_id,
-  is_tour_dismissed,
-  read_requested_tour_id,
-  set_tour_dismissed,
+  clearRequestedTourId,
+  isTourDismissed,
+  readRequestedTourId,
+  setTourDismissed,
 } from "@/shared/ui/onboarding/tour-state";
 
 interface UsePageOnboardingTourOptions {
   tour: OnboardingTourDefinition | null;
   enabled?: boolean;
-  auto_start_delay_ms?: number;
+  autoStartDelayMs?: number;
 }
 
 export function usePageOnboardingTour({
   tour,
   enabled = true,
-  auto_start_delay_ms: autoStartDelayMs = 220,
+  autoStartDelayMs: autoStartDelayMs = 220,
 }: UsePageOnboardingTourOptions) {
   const {
-    active_tour_id: activeTourId,
-    close_tour: closeTour,
-    has_completed_tour: hasCompletedTour,
-    is_tour_state_ready: isTourStateReady,
-    register_tour: registerTour,
-    reset_version: resetVersion,
-    start_tour: startTour,
-    unregister_tour: unregisterTour,
+    activeTourId: activeTourId,
+    closeTour: closeTour,
+    hasCompletedTour: hasCompletedTour,
+    isTourStateReady: isTourStateReady,
+    registerTour: registerTour,
+    resetVersion: resetVersion,
+    startTour: startTour,
+    unregisterTour: unregisterTour,
   } = useOnboardingTour();
   const autoStartedTourIdsRef = useRef<Set<string>>(new Set());
   const previousActiveTourIdRef = useRef<string | null>(null);
@@ -61,7 +61,7 @@ export function usePageOnboardingTour({
       currentTourId &&
       !hasCompletedTour(currentTourId)
     ) {
-      set_tour_dismissed(currentTourId, true);
+      setTourDismissed(currentTourId, true);
     }
 
     previousActiveTourIdRef.current = activeTourId;
@@ -75,14 +75,14 @@ export function usePageOnboardingTour({
       return undefined;
     }
 
-    const requestedTourId = read_requested_tour_id();
+    const requestedTourId = readRequestedTourId();
     if (requestedTourId !== tour.id) {
       return undefined;
     }
 
     const timeoutId = window.setTimeout(() => {
-      clear_requested_tour_id(tour.id);
-      set_tour_dismissed(tour.id, false);
+      clearRequestedTourId(tour.id);
+      setTourDismissed(tour.id, false);
       startTour(tour.id);
     }, 120);
 
@@ -101,7 +101,7 @@ export function usePageOnboardingTour({
     if (hasCompletedTour(tour.id)) {
       return undefined;
     }
-    if (is_tour_dismissed(tour.id)) {
+    if (isTourDismissed(tour.id)) {
       return undefined;
     }
     if (autoStartedTourIdsRef.current.has(tour.id)) {
@@ -130,7 +130,7 @@ export function usePageOnboardingTour({
     if (!tour) {
       return;
     }
-    set_tour_dismissed(tour.id, false);
+    setTourDismissed(tour.id, false);
     startTour(tour.id);
   }, [startTour, tour]);
 
@@ -138,17 +138,17 @@ export function usePageOnboardingTour({
     if (!tour) {
       return;
     }
-    set_tour_dismissed(tour.id, true);
+    setTourDismissed(tour.id, true);
     closeTour();
   }, [closeTour, tour]);
 
   return useMemo(
     () => ({
-      active_tour_id: activeTourId,
-      close_current_tour: closeCurrentTour,
-      has_completed_current_tour: tour ? hasCompletedTour(tour.id) : false,
-      is_current_tour_running: tour ? activeTourId === tour.id : false,
-      start_current_tour: startCurrentTour,
+      activeTourId: activeTourId,
+      closeCurrentTour: closeCurrentTour,
+      hasCompletedCurrentTour: tour ? hasCompletedTour(tour.id) : false,
+      isCurrentTourRunning: tour ? activeTourId === tour.id : false,
+      startCurrentTour: startCurrentTour,
     }),
     [
       activeTourId,

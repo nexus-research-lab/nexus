@@ -3,15 +3,15 @@
 import { useEffect, useMemo } from "react";
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
-import { get_agents } from "@/lib/api/agent-manage-api";
-import { get_agent_sessions_api } from "@/lib/api/agent-api";
-import { get_room_contexts, list_rooms } from "@/lib/api/room-api";
+import { getAgents } from "@/lib/api/agent-manage-api";
+import { getAgentSessionsApi } from "@/lib/api/agent-api";
+import { getRoomContexts, listRooms } from "@/lib/api/room-api";
 import type { Agent, AgentSession } from "@/types/agent/agent";
 import type { RoomAggregate, RoomContextAggregate } from "@/types/conversation/room";
 
 import {
-  build_room_session_selections,
-  format_session_label,
+  buildRoomSessionSelections,
+  formatSessionLabel,
 } from "./scheduled-task-dialog-time";
 import type {
   ScheduledTaskDialogLabelOption,
@@ -26,15 +26,15 @@ interface ResourceState<T> {
 }
 
 export function useScheduledTaskDialogData({
-  is_open: isOpen,
-  target_type: targetType,
-  selected_agent_id: selectedAgentId,
-  selected_room_id: selectedRoomId,
+  isOpen,
+  targetType,
+  selectedAgentId,
+  selectedRoomId,
 }: {
-  is_open: boolean;
-  target_type: TargetType;
-  selected_agent_id: string;
-  selected_room_id: string;
+  isOpen: boolean;
+  targetType: TargetType;
+  selectedAgentId: string;
+  selectedRoomId: string;
 }) {
   const shouldLoadAgents = isOpen;
   const shouldLoadRooms = isOpen && targetType === "room";
@@ -74,7 +74,7 @@ export function useScheduledTaskDialogData({
       return;
     }
     let cancelled = false;
-    void get_agents()
+    void getAgents()
       .then((nextAgents) => {
         if (!cancelled) {
           setAgentsState({ error: null, items: nextAgents, loading: false });
@@ -99,7 +99,7 @@ export function useScheduledTaskDialogData({
       return;
     }
     let cancelled = false;
-    void list_rooms(200)
+    void listRooms(200)
       .then((nextRooms) => {
         if (!cancelled) {
           setRoomsState({ error: null, items: nextRooms, loading: false });
@@ -122,7 +122,7 @@ export function useScheduledTaskDialogData({
   useEffect(() => {
     if (!shouldLoadAgentSessions) return;
     let cancelled = false;
-    void get_agent_sessions_api(selectedAgentId)
+    void getAgentSessionsApi(selectedAgentId)
       .then((nextSessions) => {
         if (!cancelled) {
           setAgentSessionsState({ error: null, items: nextSessions, loading: false });
@@ -145,7 +145,7 @@ export function useScheduledTaskDialogData({
   useEffect(() => {
     if (!shouldLoadRoomContexts) return;
     let cancelled = false;
-    void get_room_contexts(selectedRoomId)
+    void getRoomContexts(selectedRoomId)
       .then((nextContexts) => {
         if (!cancelled) {
           setRoomContextsState({ error: null, items: nextContexts, loading: false });
@@ -183,19 +183,19 @@ export function useScheduledTaskDialogData({
   const agentSessionOptions = useMemo<ScheduledTaskDialogSessionOption[]>(
     () => agentSessions.map((session) => ({
       value: session.session_key,
-      session_key: session.session_key,
-      agent_id: session.agent_id,
-      label: format_session_label(session.title?.trim() || "未命名会话", agentNameById.get(session.agent_id) || session.agent_id),
+      sessionKey: session.session_key,
+      agentId: session.agent_id,
+      label: formatSessionLabel(session.title?.trim() || "未命名会话", agentNameById.get(session.agent_id) || session.agent_id),
     })),
     [agentNameById, agentSessions],
   );
 
   const roomSessionOptions = useMemo<ScheduledTaskDialogSessionOption[]>(() => {
-    const options = build_room_session_selections(roomContexts, agentNameById);
+    const options = buildRoomSessionSelections(roomContexts, agentNameById);
     return options.map((option) => ({
       value: option.value,
-      session_key: option.session_key,
-      agent_id: option.agent_id,
+      sessionKey: option.session_key,
+      agentId: option.agent_id,
       label: option.label,
     }));
   }, [agentNameById, roomContexts]);
@@ -203,16 +203,16 @@ export function useScheduledTaskDialogData({
   const sessionOptions = targetType === "agent" ? agentSessionOptions : roomSessionOptions;
 
   return {
-    agents_loading: agentsLoading,
-    agent_sessions_loading: agentSessionsLoading,
-    rooms_loading: roomsLoading,
-    room_contexts_loading: roomContextsLoading,
-    agents_error: agentsError,
-    agent_sessions_error: agentSessionsError,
-    rooms_error: roomsError,
-    room_contexts_error: roomContextsError,
-    agent_options: agentOptions,
-    room_options: roomOptions,
-    session_options: sessionOptions,
+    agentsLoading: agentsLoading,
+    agentSessionsLoading: agentSessionsLoading,
+    roomsLoading: roomsLoading,
+    roomContextsLoading: roomContextsLoading,
+    agentsError: agentsError,
+    agentSessionsError: agentSessionsError,
+    roomsError: roomsError,
+    roomContextsError: roomContextsError,
+    agentOptions: agentOptions,
+    roomOptions: roomOptions,
+    sessionOptions: sessionOptions,
   };
 }

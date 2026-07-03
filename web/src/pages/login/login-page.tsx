@@ -60,7 +60,7 @@ export function LoginPage() {
     () => resolveRedirectPath(searchParams.get("redirect")),
     [searchParams],
   );
-  const { status, loading, is_bootstrapped: isBootstrapped, error, login, refresh_status: refreshStatus } = useAuth();
+  const { status, loading, isBootstrapped: isBootstrapped, error, login, refreshStatus: refreshStatus } = useAuth();
   const handleRefresh = () => {
     void refreshStatus().catch((err: unknown) =>
       console.warn("[LoginPage] Auth refresh failed:", err),
@@ -197,7 +197,7 @@ export function LoginPage() {
               </div>
 
               <UiButton
-                class_name="min-h-11 w-full rounded-[10px] px-5 text-sm"
+                className="min-h-11 w-full rounded-[10px] px-5 text-sm"
                 onClick={handleRefresh}
                 size="lg"
                 variant="solid"
@@ -213,8 +213,8 @@ export function LoginPage() {
                 </span>
                 <UiInput
                   autoComplete="username"
-                  class_name="min-h-12 rounded-[10px] border-[rgba(117,131,149,0.2)] bg-white/60 px-4 text-base shadow-none"
-                  control_size="lg"
+                  className="min-h-12 rounded-[10px] border-[rgba(117,131,149,0.2)] bg-white/60 px-4 text-base shadow-none"
+                  controlSize="lg"
                   id="nexus-login-username"
                   onChange={(event) => setUsername(event.target.value)}
                   placeholder={t("login.username_placeholder")}
@@ -230,8 +230,8 @@ export function LoginPage() {
                 </span>
                 <UiInput
                   autoComplete="current-password"
-                  class_name="min-h-12 rounded-[10px] border-[rgba(117,131,149,0.2)] bg-white/60 px-4 text-base shadow-none"
-                  control_size="lg"
+                  className="min-h-12 rounded-[10px] border-[rgba(117,131,149,0.2)] bg-white/60 px-4 text-base shadow-none"
+                  controlSize="lg"
                   id="nexus-login-password"
                   onChange={(event) => setPassword(event.target.value)}
                   placeholder={t("login.password_placeholder")}
@@ -248,7 +248,7 @@ export function LoginPage() {
               ) : null}
 
               <UiButton
-                class_name="min-h-12 w-full rounded-[10px] px-5 text-base shadow-[0_14px_30px_rgba(23,33,44,0.14)]"
+                className="min-h-12 w-full rounded-[10px] px-5 text-base shadow-[0_14px_30px_rgba(23,33,44,0.14)]"
                 disabled={isSubmitting}
                 size="lg"
                 tone="primary"

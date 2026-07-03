@@ -7,10 +7,10 @@ import type { SkillMarketplaceController } from "./skills-view-model";
 
 interface SkillsCatalogGridProps {
   ctrl: SkillMarketplaceController;
-  on_open_skill: (skillName: string) => void;
+  onOpenSkill: (skillName: string) => void;
 }
 
-export function SkillsCatalogGrid({ ctrl, on_open_skill: onOpenSkill }: SkillsCatalogGridProps) {
+export function SkillsCatalogGrid({ ctrl, onOpenSkill: onOpenSkill }: SkillsCatalogGridProps) {
   if (ctrl.loading) {
     return (
       <div className="flex min-h-80 items-center justify-center">
@@ -19,7 +19,7 @@ export function SkillsCatalogGrid({ ctrl, on_open_skill: onOpenSkill }: SkillsCa
     );
   }
 
-  if (!ctrl.grouped_skills.length) {
+  if (!ctrl.groupedSkills.length) {
     return (
       <div className="flex min-h-80 flex-col items-center justify-center gap-3 text-center">
         <div className="flex h-14 w-14 items-center justify-center rounded-full border border-(--divider-subtle-color) bg-transparent">
@@ -37,7 +37,7 @@ export function SkillsCatalogGrid({ ctrl, on_open_skill: onOpenSkill }: SkillsCa
 
   return (
     <div className="space-y-9">
-      {ctrl.grouped_skills.map(([categoryName, items]: [string, SkillInfo[]]) => (
+      {ctrl.groupedSkills.map(([categoryName, items]: [string, SkillInfo[]]) => (
         <section key={categoryName}>
           <div className="mb-3 flex items-end justify-between border-b border-(--divider-subtle-color) pb-2">
             <h2 className="text-[18px] font-medium tracking-[-0.025em] text-(--text-strong)">
@@ -51,11 +51,11 @@ export function SkillsCatalogGrid({ ctrl, on_open_skill: onOpenSkill }: SkillsCa
             {items.map((skill: SkillInfo) => (
               <SkillsCard
                 key={skill.name}
-                busy={ctrl.busy_skill_name === skill.name}
-                class_name="transition-opacity"
-                on_delete={() => void ctrl.handle_delete_skill(skill)}
-                on_select={() => onOpenSkill(skill.name)}
-                on_update={() => void ctrl.handle_update_single(skill.name)}
+                busy={ctrl.busySkillName === skill.name}
+                className="transition-opacity"
+                onDelete={() => void ctrl.handleDeleteSkill(skill)}
+                onSelect={() => onOpenSkill(skill.name)}
+                onUpdate={() => void ctrl.handleUpdateSingle(skill.name)}
                 skill={skill}
               />
             ))}

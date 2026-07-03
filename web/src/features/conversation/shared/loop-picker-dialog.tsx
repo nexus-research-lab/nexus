@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Repeat2 } from "lucide-react";
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
-import { list_loops_api } from "@/lib/api/loop-api";
+import { listLoopsApi } from "@/lib/api/loop-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import {
   UiDialogBackdrop,
@@ -21,9 +21,9 @@ import type { LoopCatalogItem } from "@/types/capability/loop";
 const ALL_CATEGORIES = "__all__";
 
 interface LoopPickerDialogProps {
-  is_open: boolean;
-  on_close: () => void;
-  on_select: (loop: LoopCatalogItem) => void | Promise<void>;
+  isOpen: boolean;
+  onClose: () => void;
+  onSelect: (loop: LoopCatalogItem) => void | Promise<void>;
 }
 
 interface LoopPickerState {
@@ -47,9 +47,9 @@ function matchesLoop(loop: LoopCatalogItem, query: string): boolean {
 }
 
 export function LoopPickerDialog({
-  is_open: isOpen,
-  on_close: onClose,
-  on_select: onSelect,
+  isOpen: isOpen,
+  onClose: onClose,
+  onSelect: onSelect,
 }: LoopPickerDialogProps) {
   const { locale, t } = useI18n();
   const [loopState, setLoopState] = useResettableState<LoopPickerState>(
@@ -73,7 +73,7 @@ export function LoopPickerDialog({
       return;
     }
     let cancelled = false;
-    list_loops_api(locale)
+    listLoopsApi(locale)
       .then((items) => {
         if (!cancelled) {
           setLoopState({ error: null, loading: false, loops: items });
@@ -131,32 +131,32 @@ export function LoopPickerDialog({
 
   return (
     <UiDialogPortal>
-      <UiDialogBackdrop on_close={onClose}>
+      <UiDialogBackdrop onClose={onClose}>
         <UiDialogShell
           size="lg"
           style={{ maxHeight: "min(640px, calc(100vh - 96px))" }}
         >
           <UiDialogHeader
             icon={<Repeat2 className="h-4 w-4" />}
-            on_close={onClose}
+            onClose={onClose}
             subtitle={t("composer.loop_picker_subtitle")}
             title={t("composer.loop_picker_title")}
           />
-          <UiDialogBody class_name="flex min-h-0 flex-1 flex-col gap-3">
+          <UiDialogBody className="flex min-h-0 flex-1 flex-col gap-3">
             <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
               <UiSearchInput
                 aria-label={t("composer.loop_search_placeholder")}
-                class_name="min-w-0 flex-1"
-                input_class_name="text-[13px]"
+                className="min-w-0 flex-1"
+                inputClassName="text-[13px]"
                 ref={searchInputRef}
-                on_change={setQuery}
+                onChange={setQuery}
                 placeholder={t("composer.loop_search_placeholder")}
                 value={query}
               />
               <UiSelectMenu
-                aria_label={t("capability.loops_filter_aria")}
-                class_name="sm:w-[180px]"
-                on_change={setCategory}
+                ariaLabel={t("capability.loops_filter_aria")}
+                className="sm:w-[180px]"
+                onChange={setCategory}
                 options={categoryOptions}
                 size="sm"
                 surface="dialog"

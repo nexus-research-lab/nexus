@@ -7,7 +7,7 @@
  * =====================================================
  */
 
-export const zh_messages = {
+export const zhMessages = {
   "language.switch_label": "语言",
   "language.switch_title": "切换语言",
   "language.zh": "中",
@@ -788,4 +788,4 @@ export const zh_messages = {
   "login.unknown_error": "登录失败，请稍后重试。",
 } as const;
 
-export type TranslationKey = keyof typeof zh_messages;
+export type TranslationKey = keyof typeof zhMessages;

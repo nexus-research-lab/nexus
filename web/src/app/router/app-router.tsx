@@ -84,12 +84,12 @@ export function AppRouter() {
             <Route element={<AuthGuard />}>
               <Route
                 element={<ConnectorOAuthCallbackPage />}
-                path={APP_ROUTE_PATHS.connectors_oauth_callback}
+                path={APP_ROUTE_PATHS.connectorsOauthCallback}
               />
 
               <Route element={<AuthenticatedAppSessionRoot />}>
                 {/* Launcher — 无侧边栏布局，主窗口只有进入该路由时才加载 */}
-                <Route element={<AppLayout show_sidebar={false} />} path={APP_ROUTE_PATHS.launcher}>
+                <Route element={<AppLayout showSidebar={false} />} path={APP_ROUTE_PATHS.launcher}>
                   <Route index element={<LauncherPage />} />
                 </Route>
 
@@ -99,8 +99,8 @@ export function AppRouter() {
 
                   {/* Room 路由 */}
                   <Route element={<RoomPage />} path={APP_ROUTE_PATHS.room} />
-                  <Route element={<RoomPage />} path={APP_ROUTE_PATHS.room_conversation} />
-                  <Route element={<RoomPage />} path={APP_ROUTE_PATHS.room_session} />
+                  <Route element={<RoomPage />} path={APP_ROUTE_PATHS.roomConversation} />
+                  <Route element={<RoomPage />} path={APP_ROUTE_PATHS.roomSession} />
 
                   {/* /rooms 独立路由重定向到 /app */}
                   <Route element={<Navigate replace to={APP_ROUTE_PATHS.home} />} path="/rooms" />
@@ -110,14 +110,14 @@ export function AppRouter() {
 
                   {/* Skills 路由 */}
                   <Route element={<SkillsPage />} path={APP_ROUTE_PATHS.skills} />
-                  <Route element={<SkillsPage />} path={APP_ROUTE_PATHS.skill_detail} />
+                  <Route element={<SkillsPage />} path={APP_ROUTE_PATHS.skillDetail} />
 
                   {/* 能力子路由 */}
                   <Route element={<LoopsPage />} path={APP_ROUTE_PATHS.loops} />
-                  <Route element={<LoopsPage />} path={APP_ROUTE_PATHS.loop_detail} />
+                  <Route element={<LoopsPage />} path={APP_ROUTE_PATHS.loopDetail} />
                   <Route element={<ConnectorsPage />} path={APP_ROUTE_PATHS.connectors} />
-                  <Route element={<ConnectorsPage />} path={APP_ROUTE_PATHS.connector_detail} />
-                  <Route element={<ScheduledTasksPage />} path={APP_ROUTE_PATHS.scheduled_tasks} />
+                  <Route element={<ConnectorsPage />} path={APP_ROUTE_PATHS.connectorDetail} />
+                  <Route element={<ScheduledTasksPage />} path={APP_ROUTE_PATHS.scheduledTasks} />
                   <Route element={<ChannelsPage />} path={APP_ROUTE_PATHS.channels} />
                   <Route element={<PairingsPage />} path={APP_ROUTE_PATHS.pairings} />
                   <Route element={<MemoryPage />} path={APP_ROUTE_PATHS.memory} />

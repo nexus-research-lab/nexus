@@ -5,14 +5,14 @@ import { cn } from "@/lib/utils";
 
 import "katex/dist/katex.min.css";
 import {
-  create_markdown_components,
-  create_markdown_summary_components,
+  createMarkdownComponents,
+  createMarkdownSummaryComponents,
 } from "./markdown-components";
 import {
   MARKDOWN_BODY_CLASS_NAME,
   MARKDOWN_SUMMARY_CLASS_NAME,
   MARKDOWN_PLUGINS,
-  normalize_markdown_content,
+  normalizeMarkdownContent,
   REHYPE_PLUGINS,
 } from "./markdown-renderer-shared";
 import {
@@ -27,21 +27,21 @@ import { useSmoothStreamingMarkdownContent } from "./use-smooth-streaming-markdo
 
 interface MarkdownRendererProps {
   content: string;
-  class_name?: string;
-  is_streaming?: boolean;
-  mermaid_show_header?: boolean;
-  on_open_workspace_file?: (path: string) => void;
-  workspace_agent_id?: string | null;
+  className?: string;
+  isStreaming?: boolean;
+  mermaidShowHeader?: boolean;
+  onOpenWorkspaceFile?: (path: string) => void;
+  workspaceAgentId?: string | null;
   variant?: "body" | "summary";
 }
 
 export function MarkdownRendererContent({
   content,
-  class_name: className,
-  is_streaming: isStreaming = false,
-  mermaid_show_header: mermaidShowHeader = true,
-  on_open_workspace_file: onOpenWorkspaceFile,
-  workspace_agent_id: workspaceAgentId,
+  className: className,
+  isStreaming: isStreaming = false,
+  mermaidShowHeader: mermaidShowHeader = true,
+  onOpenWorkspaceFile: onOpenWorkspaceFile,
+  workspaceAgentId: workspaceAgentId,
   variant = "body",
 }: MarkdownRendererProps) {
   const resolveFilePath = useMarkdownFileResolver(workspaceAgentId);
@@ -50,32 +50,32 @@ export function MarkdownRendererContent({
   const displayedContent = useSmoothStreamingMarkdownContent(content, shouldStream);
   const markdownComponents = useMemo(
     () => variant === "summary"
-      ? create_markdown_summary_components(resolveFilePath, onOpenWorkspaceFile, currentAgentId)
-      : create_markdown_components(
+      ? createMarkdownSummaryComponents(resolveFilePath, onOpenWorkspaceFile, currentAgentId)
+      : createMarkdownComponents(
         resolveFilePath,
         onOpenWorkspaceFile,
         currentAgentId,
-        { compact_mermaid: false, show_mermaid_header: mermaidShowHeader },
+        { compactMermaid: false, showMermaidHeader: mermaidShowHeader },
       ),
     [currentAgentId, mermaidShowHeader, onOpenWorkspaceFile, resolveFilePath, variant],
   );
   const streamingMarkdownComponents = useMemo(
     () => variant === "summary"
-      ? create_markdown_summary_components(resolveFilePath, onOpenWorkspaceFile, currentAgentId)
-      : create_markdown_components(
+      ? createMarkdownSummaryComponents(resolveFilePath, onOpenWorkspaceFile, currentAgentId)
+      : createMarkdownComponents(
         resolveFilePath,
         onOpenWorkspaceFile,
         currentAgentId,
         {
-          compact_mermaid: false,
-          show_mermaid_header: mermaidShowHeader,
-          stream_code_blocks: true,
-          stream_mermaid: true,
+          compactMermaid: false,
+          showMermaidHeader: mermaidShowHeader,
+          streamCodeBlocks: true,
+          streamMermaid: true,
         },
       ),
     [currentAgentId, mermaidShowHeader, onOpenWorkspaceFile, resolveFilePath, variant],
   );
-  const normalizedContent = normalize_markdown_content(
+  const normalizedContent = normalizeMarkdownContent(
     displayedContent,
     resolveFilePath,
     onOpenWorkspaceFile,
@@ -84,8 +84,8 @@ export function MarkdownRendererContent({
   const sharedProps = {
     components: markdownComponents,
     content: normalizedContent,
-    rehype_plugins: REHYPE_PLUGINS,
-    remark_plugins: MARKDOWN_PLUGINS,
+    rehypePlugins: REHYPE_PLUGINS,
+    remarkPlugins: MARKDOWN_PLUGINS,
   };
 
   return (
@@ -99,7 +99,7 @@ export function MarkdownRendererContent({
       {shouldStream ? (
         <StreamingMarkdownText
           {...sharedProps}
-          streaming_components={streamingMarkdownComponents}
+          streamingComponents={streamingMarkdownComponents}
         />
       ) : (
         <StableMarkdownText {...sharedProps} />

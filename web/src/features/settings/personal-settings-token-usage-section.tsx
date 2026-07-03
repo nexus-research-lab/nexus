@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 
 import type { TokenUsageSummary } from "@/lib/api/auth-api";
-import { cn, format_tokens } from "@/lib/utils";
+import { cn, formatTokens } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
 
 function formatUpdatedAt(value: string, locale: "zh" | "en"): string {
@@ -34,7 +34,7 @@ export function PersonalSettingsTokenUsageSection({
   const { locale, t } = useI18n();
   const quotaText = usage?.quota_limit_tokens == null
     ? t("settings.personal.quota_unset")
-    : `${format_tokens(usage.total_tokens)} / ${format_tokens(usage.quota_limit_tokens)}`;
+    : `${formatTokens(usage.total_tokens)} / ${formatTokens(usage.quota_limit_tokens)}`;
 
   return (
     <section className="order-last overflow-hidden rounded-[12px] border border-(--divider-subtle-color) bg-transparent">
@@ -56,7 +56,7 @@ export function PersonalSettingsTokenUsageSection({
         </div>
         <div className="text-left lg:text-right">
           <div className="text-[24px] font-semibold tracking-tight text-(--text-strong)">
-            {format_tokens(usage?.total_tokens ?? 0)}
+            {formatTokens(usage?.total_tokens ?? 0)}
           </div>
           <div className="mt-1 text-[11px] font-medium text-(--text-soft)">
             {t("settings.personal.total_tokens")}
@@ -75,17 +75,17 @@ export function PersonalSettingsTokenUsageSection({
         <UsageMetric
           icon={<KeyRound className="h-3.5 w-3.5" />}
           label={t("settings.personal.input_tokens")}
-          value={format_tokens(usage?.input_tokens ?? 0)}
+          value={formatTokens(usage?.input_tokens ?? 0)}
         />
         <UsageMetric
           icon={<LockKeyhole className="h-3.5 w-3.5" />}
           label={t("settings.personal.output_tokens")}
-          value={format_tokens(usage?.output_tokens ?? 0)}
+          value={formatTokens(usage?.output_tokens ?? 0)}
         />
         <UsageMetric
           icon={<Database className="h-3.5 w-3.5" />}
           label={t("settings.personal.cache_tokens")}
-          value={format_tokens(
+          value={formatTokens(
             (usage?.cache_creation_input_tokens ?? 0) + (usage?.cache_read_input_tokens ?? 0),
           )}
         />
@@ -158,19 +158,19 @@ function TokenUsageChart({
       key: "input",
       label: labels.input,
       value: inputTokens,
-      class_name: "bg-primary",
+      className: "bg-primary",
     },
     {
       key: "output",
       label: labels.output,
       value: outputTokens,
-      class_name: "bg-sky-500",
+      className: "bg-sky-500",
     },
     {
       key: "cache",
       label: labels.cache,
       value: cacheTokens,
-      class_name: "bg-amber-500",
+      className: "bg-amber-500",
     },
   ];
 
@@ -179,7 +179,7 @@ function TokenUsageChart({
       <div className="flex h-2 overflow-hidden rounded-full bg-[color:color-mix(in_srgb,var(--divider-subtle-color)_55%,transparent)]">
         {items.map((item) => (
           <div
-            className={cn(item.value > 0 ? "min-w-[2px]" : "", item.class_name)}
+            className={cn(item.value > 0 ? "min-w-[2px]" : "", item.className)}
             key={item.key}
             style={{ width: `${(item.value / total) * 100}%` }}
           />
@@ -188,9 +188,9 @@ function TokenUsageChart({
       <div className="mt-3 grid gap-2 sm:grid-cols-3">
         {items.map((item) => (
           <div className="flex min-w-0 items-center gap-2 text-[11px] text-(--text-soft)" key={item.key}>
-            <span className={cn("h-2 w-2 shrink-0 rounded-full", item.class_name)} />
+            <span className={cn("h-2 w-2 shrink-0 rounded-full", item.className)} />
             <span className="min-w-0 flex-1 truncate">{item.label}</span>
-            <span className="font-semibold text-(--text-strong)">{format_tokens(item.value)}</span>
+            <span className="font-semibold text-(--text-strong)">{formatTokens(item.value)}</span>
           </div>
         ))}
       </div>

@@ -3,10 +3,10 @@ import { AgentPrivateParticipant } from "@/types/agent/private-domain";
 import { cn } from "@/lib/utils";
 
 export function PrivateParticipantAvatarStack({
-  owner_agent_id: ownerAgentId,
+  ownerAgentId: ownerAgentId,
   participants,
 }: {
-  owner_agent_id: string;
+  ownerAgentId: string;
   participants: AgentPrivateParticipant[];
 }) {
   const peers = participants.filter((participant) => participant.agent_id !== ownerAgentId);
@@ -45,7 +45,7 @@ export function PrivateParticipantAvatar({
   return (
     <UiAgentAvatar
       avatar={participant?.avatar}
-      class_name={size === "sm" ? "h-5 w-5" : size === "stack" ? "h-6 w-6" : "h-8 w-8"}
+      className={size === "sm" ? "h-5 w-5" : size === "stack" ? "h-6 w-6" : "h-8 w-8"}
       name={participant?.name || participant?.agent_id || "Agent"}
       size={avatarSize}
     />

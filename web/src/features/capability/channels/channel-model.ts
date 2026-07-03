@@ -4,14 +4,14 @@ import {
   ImChannelType,
 } from "@/lib/api/channel-api";
 
-export function is_channel_planned(item: ChannelConfigView) {
+export function isChannelPlanned(item: ChannelConfigView) {
   return item.runtime_status === "planned";
 }
 
-export function is_personal_weixin_channel(channelType: ImChannelType) {
+export function isPersonalWeixinChannel(channelType: ImChannelType) {
   return channelType === "weixin-personal";
 }
 
-export function is_channel_login_running(view: ChannelLoginView | null) {
+export function isChannelLoginRunning(view: ChannelLoginView | null) {
   return view?.status === "running";
 }

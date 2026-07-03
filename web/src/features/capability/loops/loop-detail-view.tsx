@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { ArrowLeft, Check, Copy } from "lucide-react";
 
-import { get_loop_api } from "@/lib/api/loop-api";
-import { write_text_to_clipboard } from "@/hooks/ui/clipboard";
+import { getLoopApi } from "@/lib/api/loop-api";
+import { writeTextToClipboard } from "@/hooks/ui/clipboard";
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button";
@@ -13,7 +13,7 @@ import type { LoopCatalogItem } from "@/types/capability/loop";
 
 interface LoopDetailViewProps {
   slug: string;
-  on_back: () => void;
+  onBack: () => void;
 }
 
 interface LoopDetailState {
@@ -22,7 +22,7 @@ interface LoopDetailState {
   loop: LoopCatalogItem | null;
 }
 
-export function LoopDetailView({ slug, on_back: onBack }: LoopDetailViewProps) {
+export function LoopDetailView({ slug, onBack: onBack }: LoopDetailViewProps) {
   const { locale, t } = useI18n();
   const [state, setState] = useResettableState<LoopDetailState>(
     { error: null, loading: true, loop: null },
@@ -33,7 +33,7 @@ export function LoopDetailView({ slug, on_back: onBack }: LoopDetailViewProps) {
 
   useEffect(() => {
     let cancelled = false;
-    get_loop_api(slug, locale)
+    getLoopApi(slug, locale)
       .then((item) => {
         if (!cancelled) {
           setState({ error: null, loading: false, loop: item });
@@ -57,14 +57,14 @@ export function LoopDetailView({ slug, on_back: onBack }: LoopDetailViewProps) {
     if (!loop) {
       return;
     }
-    if (await write_text_to_clipboard(loop.kickoff_prompt)) {
+    if (await writeTextToClipboard(loop.kickoff_prompt)) {
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1800);
     }
   };
 
   return (
-    <WorkspaceSurfaceScaffold body_scrollable stable_gutter>
+    <WorkspaceSurfaceScaffold bodyScrollable stableGutter>
       <div className="mx-auto w-full max-w-[960px] px-4 py-5 sm:px-6 lg:px-8">
         <UiButton size="sm" variant="text" onClick={onBack}>
           <ArrowLeft className="h-4 w-4" />
@@ -101,7 +101,7 @@ export function LoopDetailView({ slug, on_back: onBack }: LoopDetailViewProps) {
                     {loop.description}
                   </p>
                 </div>
-                <UiButton class_name="shrink-0" size="sm" onClick={() => void copyPrompt()}>
+                <UiButton className="shrink-0" size="sm" onClick={() => void copyPrompt()}>
                   {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                   {t("capability.loops_copy_prompt")}
                 </UiButton>

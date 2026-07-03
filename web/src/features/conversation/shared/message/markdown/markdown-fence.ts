@@ -8,7 +8,7 @@ interface MarkdownOpenFence extends MarkdownFenceMarker {
   start_offset: number;
 }
 
-export function read_markdown_fence_marker(line: string): MarkdownFenceMarker | null {
+export function readMarkdownFenceMarker(line: string): MarkdownFenceMarker | null {
   const match = /^ {0,3}(`{3,}|~{3,})(?<info>[^\r\n]*)$/.exec(line.trimEnd());
   if (!match) {
     return null;
@@ -27,7 +27,7 @@ function findOpenMarkdownFence(content: string): MarkdownOpenFence | null {
   let cursorOffset = 0;
 
   for (const line of content.match(/[^\n]*(?:\n|$)/g)?.filter((item) => item.length > 0) ?? []) {
-    const marker = read_markdown_fence_marker(line);
+    const marker = readMarkdownFenceMarker(line);
     if (!marker) {
       cursorOffset += line.length;
       continue;
@@ -52,6 +52,6 @@ function findOpenMarkdownFence(content: string): MarkdownOpenFence | null {
   return openFence;
 }
 
-export function find_open_markdown_fence_language(content: string): string | null {
+export function findOpenMarkdownFenceLanguage(content: string): string | null {
   return findOpenMarkdownFence(content)?.language ?? null;
 }

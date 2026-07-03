@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 
-import { get_desktop_websocket_protocols } from "@/config/desktop-runtime";
-import { get_agent_ws_url } from "@/config/options";
-import { get_launcher_bootstrap_api } from "@/lib/api/launcher-api";
+import { getDesktopWebsocketProtocols } from "@/config/desktop-runtime";
+import { getAgentWsUrl } from "@/config/options";
+import { getLauncherBootstrapApi } from "@/lib/api/launcher-api";
 import {
-  notify_room_directory_updated,
-  subscribe_room_directory_updates,
+  notifyRoomDirectoryUpdated,
+  subscribeRoomDirectoryUpdates,
 } from "@/lib/api/room-api";
 import { useAppEventSubscription, useWebSocket } from "@/lib/websocket";
 import {
@@ -14,9 +14,9 @@ import {
   useSidebarStore,
 } from "@/store/sidebar";
 import {
-  build_chat_notification_target_key,
-  get_active_chat_target_from_path,
-  is_chat_notification_target_active,
+  buildChatNotificationTargetKey,
+  getActiveChatTargetFromPath,
+  isChatNotificationTargetActive,
   type ActiveChatNotificationTarget,
 } from "./chat-notification-target";
 import type {
@@ -196,7 +196,7 @@ function buildMessageTarget(
     : sessionKey ? conversationBySessionKey.get(sessionKey) : undefined;
   const conversationId = eventConversationId ?? directoryConversation?.conversation_id ?? null;
   const roomId = event.room_id ?? message.room_id ?? directoryConversation?.room_id ?? null;
-  const key = build_chat_notification_target_key({
+  const key = buildChatNotificationTargetKey({
     conversation_id: conversationId,
     room_id: roomId,
     session_key: sessionKey,
@@ -239,7 +239,7 @@ function getNotificationMessageId(
 
 export function useChatCompletionNotifications(): void {
   const location = useLocation();
-  const wsUrl = get_agent_ws_url();
+  const wsUrl = getAgentWsUrl();
   const recordChatNotification = useSidebarStore((s) => s.record_chat_notification);
   const clearChatNotificationsForTarget = useSidebarStore(
     (s) => s.clear_chat_notifications_for_target,
@@ -251,7 +251,7 @@ export function useChatCompletionNotifications(): void {
     () => chatNotificationDirectoryCache ?? EMPTY_DIRECTORY,
   );
   const activeTargetRef = useRef<ActiveChatNotificationTarget | null>(
-    get_active_chat_target_from_path(location.pathname),
+    getActiveChatTargetFromPath(location.pathname),
   );
   const directoryRef = useRef(directory);
   const roomSeqCursorRef = useRef<Record<string, number>>({});
@@ -264,7 +264,7 @@ export function useChatCompletionNotifications(): void {
     const sessionTargetKeys = new Set(
       directoryRef.current.conversations
         .filter((conversation) => conversation.room_id === roomId)
-        .map((conversation) => build_chat_notification_target_key({
+        .map((conversation) => buildChatNotificationTargetKey({
           session_key: conversation.session_key,
         }))
         .filter((key): key is string => Boolean(key)),
@@ -287,7 +287,7 @@ export function useChatCompletionNotifications(): void {
   }, [clearChatNotificationsForTarget, clearRoomNotifications]);
 
   useEffect(() => {
-    activeTargetRef.current = get_active_chat_target_from_path(location.pathname);
+    activeTargetRef.current = getActiveChatTargetFromPath(location.pathname);
     clearActiveTargetNotifications();
   }, [clearActiveTargetNotifications, location.pathname]);
 
@@ -320,7 +320,7 @@ export function useChatCompletionNotifications(): void {
   }, []);
 
   const refreshDirectory = useCallback(() => {
-    void get_launcher_bootstrap_api().then((payload) => {
+    void getLauncherBootstrapApi().then((payload) => {
       const nextDirectory = {
         agents: payload.agents,
         conversations: payload.conversations,
@@ -335,7 +335,7 @@ export function useChatCompletionNotifications(): void {
 
   useEffect(() => {
     refreshDirectory();
-    return subscribe_room_directory_updates(refreshDirectory);
+    return subscribeRoomDirectoryUpdates(refreshDirectory);
   }, [refreshDirectory]);
 
   useEffect(() => {
@@ -356,7 +356,7 @@ export function useChatCompletionNotifications(): void {
   const handleWebsocketMessage = useCallback((rawMessage: unknown) => {
     const event = rawMessage as EventMessage;
     if (event.event_type === "directory_changed") {
-      notify_room_directory_updated();
+      notifyRoomDirectoryUpdated();
       return;
     }
     if (event.room_id && typeof event.room_seq === "number") {
@@ -373,7 +373,7 @@ export function useChatCompletionNotifications(): void {
           event.data.latest_room_seq,
         );
       }
-      notify_room_directory_updated();
+      notifyRoomDirectoryUpdated();
       return;
     }
 
@@ -391,9 +391,9 @@ export function useChatCompletionNotifications(): void {
       return;
     }
 
-    notify_room_directory_updated();
+    notifyRoomDirectoryUpdated();
     const activeTarget = activeTargetRef.current;
-    const targetIsActive = is_chat_notification_target_active(activeTarget, target);
+    const targetIsActive = isChatNotificationTargetActive(activeTarget, target);
     if (targetIsActive && isWindowActive()) {
       if (target.room_id) {
         clearRoomNotifications(target.room_id);
@@ -419,11 +419,11 @@ export function useChatCompletionNotifications(): void {
 
   const { send: wsSend, state: wsState } = useWebSocket({
     url: wsUrl,
-    protocols: get_desktop_websocket_protocols(),
-    auto_connect: true,
+    protocols: getDesktopWebsocketProtocols(),
+    autoConnect: true,
     reconnect: true,
-    heartbeat_interval: 30000,
-    on_message: handleWebsocketMessage,
+    heartbeatInterval: 30000,
+    onMessage: handleWebsocketMessage,
   });
 
   useAppEventSubscription(wsSend, wsState);
@@ -450,6 +450,6 @@ export function useChatCompletionNotifications(): void {
         });
       }
     };
-    // room_ids_key 是稳定依赖，避免数组引用导致反复重订阅。
+    // roomIdsKey 是稳定依赖，避免数组引用导致反复重订阅。
   }, [roomIds, roomIdsKey, wsSend, wsState]);
 }

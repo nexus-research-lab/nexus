@@ -7,10 +7,10 @@
  * =====================================================
  */
 
-import { get_agent_api_base_url } from "@/config/options";
-import { request_api } from "@/lib/api/http";
+import { getAgentApiBaseUrl } from "@/config/options";
+import { requestApi } from "@/lib/api/http";
 
-const AGENT_API_BASE_URL = get_agent_api_base_url();
+const AGENT_API_BASE_URL = getAgentApiBaseUrl();
 
 export interface CapabilitySummary {
   skills_count: number;
@@ -22,8 +22,8 @@ export interface CapabilitySummary {
   loops_count?: number;
 }
 
-export async function get_capability_summary_api(): Promise<CapabilitySummary> {
-  return request_api<CapabilitySummary>(
+export async function getCapabilitySummaryApi(): Promise<CapabilitySummary> {
+  return requestApi<CapabilitySummary>(
     `${AGENT_API_BASE_URL}/capability/summary`,
     {
       method: "GET",

@@ -8,17 +8,17 @@
  */
 
 interface FormatScheduledDatetimeOptions {
-  empty_label?: string;
-  include_seconds?: boolean;
+  emptyLabel?: string;
+  includeSeconds?: boolean;
 }
 
-export function format_scheduled_datetime(
+export function formatScheduledDatetime(
   value: number | null,
   options: FormatScheduledDatetimeOptions = {},
 ): string {
   const {
-    empty_label: emptyLabel = "未记录",
-    include_seconds: includeSeconds = false,
+    emptyLabel = "未记录",
+    includeSeconds = false,
   } = options;
 
   if (!value) {

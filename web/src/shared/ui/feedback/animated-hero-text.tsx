@@ -10,11 +10,11 @@ import { cn } from "@/lib/utils";
 
 interface AnimatedHeroTextProps {
   text: string;
-  class_name?: string;
+  className?: string;
   /** Per-grapheme stagger interval in ms */
-  stagger_ms?: number;
+  staggerMs?: number;
   /** Delay before first grapheme starts appearing */
-  initial_delay_ms?: number;
+  initialDelayMs?: number;
 }
 
 // Intl.Segmenter is available in TypeScript ≥ 4.7 / ES2022 lib; cast via unknown
@@ -65,9 +65,9 @@ function getKeyedGraphemes(graphemes: string[]): KeyedGrapheme[] {
 
 export function AnimatedHeroText({
   text,
-  class_name: className,
-  stagger_ms: staggerMs = 26,
-  initial_delay_ms: initialDelayMs = 100,
+  className: className,
+  staggerMs: staggerMs = 26,
+  initialDelayMs: initialDelayMs = 100,
 }: AnimatedHeroTextProps) {
   const [graphemes, setGraphemes] = useState<string[]>([]);
   const [visible, setVisible] = useState(false);
@@ -123,20 +123,20 @@ export function AnimatedHeroText({
 
 interface FadeSlideInProps {
   children: React.ReactNode;
-  delay_ms?: number;
-  duration_ms?: number;
+  delayMs?: number;
+  durationMs?: number;
   /** translateY distance to start from (px). Negative = slide down. */
-  y_offset?: number;
-  class_name?: string;
+  yOffset?: number;
+  className?: string;
   style?: CSSProperties;
 }
 
 export function FadeSlideIn({
   children,
-  delay_ms: delayMs = 0,
-  duration_ms: durationMs = 420,
-  y_offset: yOffset = 10,
-  class_name: className,
+  delayMs: delayMs = 0,
+  durationMs: durationMs = 420,
+  yOffset: yOffset = 10,
+  className: className,
   style,
 }: FadeSlideInProps) {
   const [visible, setVisible] = useState(false);

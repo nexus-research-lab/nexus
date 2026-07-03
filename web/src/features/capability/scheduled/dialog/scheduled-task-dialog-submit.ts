@@ -19,8 +19,8 @@ import type {
 } from "@/types/capability/scheduled-task";
 
 import {
-  build_daily_cron_expression,
-  to_interval_seconds,
+  buildDailyCronExpression,
+  toIntervalSeconds,
   zonedDateTimeToEpochMs,
 } from "./scheduled-task-dialog-time";
 import type {
@@ -35,128 +35,128 @@ import type {
 import type { Weekday } from "../pickers/picker-types";
 
 export interface ScheduledTaskDialogSubmitState {
-  task_name: string;
-  target_type: TargetType;
-  execution_kind: ExecutionKind;
-  selected_agent_id: string;
-  selected_room_id: string;
-  execution_mode: ExecutionMode;
-  selected_session_key: string;
-  reply_mode: ReplyMode;
-  selected_reply_session_key: string;
-  dedicated_session_key: string;
+  taskName: string;
+  targetType: TargetType;
+  executionKind: ExecutionKind;
+  selectedAgentId: string;
+  selectedRoomId: string;
+  executionMode: ExecutionMode;
+  selectedSessionKey: string;
+  replyMode: ReplyMode;
+  selectedReplySessionKey: string;
+  dedicatedSessionKey: string;
   timezone: string;
   enabled: boolean;
   instruction: string;
-  every_value: string;
-  every_unit: EveryUnit;
-  daily_time: string;
-  selected_weekdays: Weekday[];
-  run_at: string;
-  selected_session: ScheduledTaskDialogSessionOption | null;
-  selected_reply_session: ScheduledTaskDialogSessionOption | null;
-  agent_options: ScheduledTaskDialogLabelOption[];
-  room_options: ScheduledTaskDialogLabelOption[];
-  schedule_kind: ScheduledTaskSchedule["kind"];
+  everyValue: string;
+  everyUnit: EveryUnit;
+  dailyTime: string;
+  selectedWeekdays: Weekday[];
+  runAt: string;
+  selectedSession: ScheduledTaskDialogSessionOption | null;
+  selectedReplySession: ScheduledTaskDialogSessionOption | null;
+  agentOptions: ScheduledTaskDialogLabelOption[];
+  roomOptions: ScheduledTaskDialogLabelOption[];
+  scheduleKind: ScheduledTaskSchedule["kind"];
 }
 
 function buildSessionTarget(state: ScheduledTaskDialogSubmitState): ScheduledTaskSessionTarget {
-  if (state.target_type === "room") {
-    if (!state.selected_session) {
+  if (state.targetType === "room") {
+    if (!state.selectedSession) {
       throw new Error("请选择执行成员");
     }
     return {
       kind: "bound",
-      bound_session_key: state.selected_session.session_key,
+      bound_session_key: state.selectedSession.sessionKey,
       wake_mode: "next-heartbeat",
     };
   }
-  if (state.execution_mode === "main") {
+  if (state.executionMode === "main") {
     return { kind: "main", wake_mode: "next-heartbeat" };
   }
-  if (state.execution_mode === "temporary") {
+  if (state.executionMode === "temporary") {
     return { kind: "isolated", wake_mode: "next-heartbeat" };
   }
-  if (state.execution_mode === "dedicated") {
-    return { kind: "named", named_session_key: state.dedicated_session_key.trim(), wake_mode: "next-heartbeat" };
+  if (state.executionMode === "dedicated") {
+    return { kind: "named", named_session_key: state.dedicatedSessionKey.trim(), wake_mode: "next-heartbeat" };
   }
-  if (!state.selected_session) {
+  if (!state.selectedSession) {
     throw new Error("请选择执行会话");
   }
   return {
     kind: "bound",
-    bound_session_key: state.selected_session.session_key,
+    bound_session_key: state.selectedSession.sessionKey,
     wake_mode: "next-heartbeat",
   };
 }
 
 function buildDelivery(state: ScheduledTaskDialogSubmitState): ScheduledTaskDeliveryTarget {
-  if (state.reply_mode === "none") {
+  if (state.replyMode === "none") {
     return { mode: "none" };
   }
-  if (state.reply_mode === "execution") {
-    if (state.execution_mode === "main") {
+  if (state.replyMode === "execution") {
+    if (state.executionMode === "main") {
       return { mode: "none" };
     }
-    if (state.execution_mode === "existing" || state.target_type === "room") {
-      if (!state.selected_session) {
-        throw new Error(state.target_type === "room" ? "请选择执行成员" : "请选择执行会话");
+    if (state.executionMode === "existing" || state.targetType === "room") {
+      if (!state.selectedSession) {
+        throw new Error(state.targetType === "room" ? "请选择执行成员" : "请选择执行会话");
       }
-      return { mode: "explicit", channel: "websocket", to: state.selected_session.session_key };
+      return { mode: "explicit", channel: "websocket", to: state.selectedSession.sessionKey };
     }
     return { mode: "none" };
   }
-  if (!state.selected_reply_session) {
+  if (!state.selectedReplySession) {
     throw new Error("请选择回复会话");
   }
-  return { mode: "explicit", channel: "websocket", to: state.selected_reply_session.session_key };
+  return { mode: "explicit", channel: "websocket", to: state.selectedReplySession.sessionKey };
 }
 
 function resolveAgentIdForTask(state: ScheduledTaskDialogSubmitState): string {
-  if (state.execution_kind === "script") {
-    return state.selected_agent_id.trim();
+  if (state.executionKind === "script") {
+    return state.selectedAgentId.trim();
   }
-  if (state.target_type === "agent") {
-    return state.selected_agent_id.trim();
+  if (state.targetType === "agent") {
+    return state.selectedAgentId.trim();
   }
-  if (!state.selected_session) {
+  if (!state.selectedSession) {
     throw new Error("请选择执行成员");
   }
-  return state.selected_session.agent_id;
+  return state.selectedSession.agentId;
 }
 
 function buildSchedule(state: ScheduledTaskDialogSubmitState): ScheduledTaskSchedule {
   const timezone = state.timezone.trim() || "Asia/Shanghai";
-  if (state.schedule_kind === "every") {
-    const intervalSeconds = to_interval_seconds(state.every_value, state.every_unit);
+  if (state.scheduleKind === "every") {
+    const intervalSeconds = toIntervalSeconds(state.everyValue, state.everyUnit);
     if (intervalSeconds === null) {
       throw new Error("循环间隔必须是大于 0 的整数");
     }
     return { kind: "every", interval_seconds: intervalSeconds, timezone };
   }
-  if (state.schedule_kind === "cron") {
-    const cronExpression = build_daily_cron_expression(state.daily_time, state.selected_weekdays);
+  if (state.scheduleKind === "cron") {
+    const cronExpression = buildDailyCronExpression(state.dailyTime, state.selectedWeekdays);
     if (!cronExpression) {
       throw new Error("请选择有效的固定执行时间");
     }
     return { kind: "cron", cron_expression: cronExpression, timezone };
   }
-  return { kind: "at", run_at: state.run_at.trim(), timezone };
+  return { kind: "at", run_at: state.runAt.trim(), timezone };
 }
 
 function buildSourceSnapshot(
   state: ScheduledTaskDialogSubmitState,
   originalSource?: ScheduledTaskSource | null,
 ): ScheduledTaskSource {
-  const selectedAgent = state.agent_options.find((option) => option.value === state.selected_agent_id);
-  const selectedRoom = state.room_options.find((option) => option.value === state.selected_room_id);
-  if (state.execution_kind === "script") {
+  const selectedAgent = state.agentOptions.find((option) => option.value === state.selectedAgentId);
+  const selectedRoom = state.roomOptions.find((option) => option.value === state.selectedRoomId);
+  if (state.executionKind === "script") {
     return {
       kind: (originalSource?.kind || "user_page") as ScheduledTaskSourceKind,
       creator_agent_id: originalSource?.creator_agent_id ?? null,
       context_type: "agent",
-      context_id: state.selected_agent_id.trim(),
-      context_label: selectedAgent?.label || state.selected_agent_id.trim(),
+      context_id: state.selectedAgentId.trim(),
+      context_label: selectedAgent?.label || state.selectedAgentId.trim(),
       session_key: null,
       session_label: null,
     };
@@ -164,59 +164,59 @@ function buildSourceSnapshot(
   return {
     kind: (originalSource?.kind || "user_page") as ScheduledTaskSourceKind,
     creator_agent_id: originalSource?.creator_agent_id ?? null,
-    context_type: state.target_type,
-    context_id: state.target_type === "agent" ? state.selected_agent_id.trim() : state.selected_room_id.trim(),
-    context_label: state.target_type === "agent"
-      ? (selectedAgent?.label || state.selected_agent_id.trim())
-      : (selectedRoom?.label || state.selected_room_id.trim()),
-    session_key: state.selected_session?.session_key ?? null,
-    session_label: state.selected_session?.label ?? null,
+    context_type: state.targetType,
+    context_id: state.targetType === "agent" ? state.selectedAgentId.trim() : state.selectedRoomId.trim(),
+    context_label: state.targetType === "agent"
+      ? (selectedAgent?.label || state.selectedAgentId.trim())
+      : (selectedRoom?.label || state.selectedRoomId.trim()),
+    session_key: state.selectedSession?.sessionKey ?? null,
+    session_label: state.selectedSession?.label ?? null,
   };
 }
 
-export function get_scheduled_task_validation_error(state: ScheduledTaskDialogSubmitState): string | null {
-  if (!state.task_name.trim()) {
+export function getScheduledTaskValidationError(state: ScheduledTaskDialogSubmitState): string | null {
+  if (!state.taskName.trim()) {
     return "请输入任务名称";
   }
   if (!state.instruction.trim()) {
-    return state.execution_kind === "script" ? "请输入脚本内容" : "请输入任务指令";
+    return state.executionKind === "script" ? "请输入脚本内容" : "请输入任务指令";
   }
-  if (state.execution_kind === "script") {
-    if (!state.selected_agent_id.trim()) {
+  if (state.executionKind === "script") {
+    if (!state.selectedAgentId.trim()) {
       return "请选择智能体";
     }
-  } else if (state.target_type === "agent") {
-    if (!state.selected_agent_id.trim()) {
+  } else if (state.targetType === "agent") {
+    if (!state.selectedAgentId.trim()) {
       return "请选择智能体";
     }
-  } else if (!state.selected_room_id.trim()) {
+  } else if (!state.selectedRoomId.trim()) {
     return "请选择 Room";
   }
-  if (state.execution_kind !== "script") {
-    if (state.target_type === "room" && !state.selected_session_key.trim()) {
+  if (state.executionKind !== "script") {
+    if (state.targetType === "room" && !state.selectedSessionKey.trim()) {
       return "请选择执行成员";
     }
-    if (state.execution_mode === "existing" && !state.selected_session_key.trim()) {
+    if (state.executionMode === "existing" && !state.selectedSessionKey.trim()) {
       return "请选择执行会话";
     }
-    if (state.execution_mode === "dedicated" && !state.dedicated_session_key.trim()) {
+    if (state.executionMode === "dedicated" && !state.dedicatedSessionKey.trim()) {
       return "请输入专用长期会话名称";
     }
-    if (state.reply_mode === "selected" && !state.selected_reply_session_key.trim()) {
+    if (state.replyMode === "selected" && !state.selectedReplySessionKey.trim()) {
       return "请选择回复会话";
     }
   }
-  if (state.schedule_kind === "every" && to_interval_seconds(state.every_value, state.every_unit) === null) {
+  if (state.scheduleKind === "every" && toIntervalSeconds(state.everyValue, state.everyUnit) === null) {
     return "循环间隔必须是大于 0 的整数";
   }
-  if (state.schedule_kind === "cron" && !build_daily_cron_expression(state.daily_time, state.selected_weekdays)) {
-    return state.selected_weekdays.length === 0 ? "请至少选择一个执行日" : "请选择有效的固定执行时间";
+  if (state.scheduleKind === "cron" && !buildDailyCronExpression(state.dailyTime, state.selectedWeekdays)) {
+    return state.selectedWeekdays.length === 0 ? "请至少选择一个执行日" : "请选择有效的固定执行时间";
   }
-  if (state.schedule_kind === "at") {
-    if (!state.run_at.trim()) {
+  if (state.scheduleKind === "at") {
+    if (!state.runAt.trim()) {
       return "请选择有效的执行时间";
     }
-    const runAtEpoch = zonedDateTimeToEpochMs(state.run_at, state.timezone.trim() || "Asia/Shanghai");
+    const runAtEpoch = zonedDateTimeToEpochMs(state.runAt, state.timezone.trim() || "Asia/Shanghai");
     if (runAtEpoch === null) {
       return "请选择有效的执行时间";
     }
@@ -224,20 +224,20 @@ export function get_scheduled_task_validation_error(state: ScheduledTaskDialogSu
       return "单次执行时间必须晚于当前时间";
     }
   }
-  if (state.execution_kind !== "script" && state.execution_mode === "main" && state.reply_mode !== "none") {
+  if (state.executionKind !== "script" && state.executionMode === "main" && state.replyMode !== "none") {
     return "主会话任务暂不支持额外结果回传";
   }
   return null;
 }
 
-export function build_scheduled_task_payload(
+export function buildScheduledTaskPayload(
   state: ScheduledTaskDialogSubmitState,
   originalSource?: ScheduledTaskSource | null,
 ): CreateScheduledTaskParams {
   const resolvedAgentId = resolveAgentIdForTask(state);
-  if (state.execution_kind === "script") {
+  if (state.executionKind === "script") {
     return {
-      name: state.task_name.trim(),
+      name: state.taskName.trim(),
       schedule: buildSchedule(state),
       instruction: state.instruction.trim(),
       execution_kind: "script",
@@ -249,7 +249,7 @@ export function build_scheduled_task_payload(
     };
   }
   return {
-    name: state.task_name.trim(),
+    name: state.taskName.trim(),
     schedule: buildSchedule(state),
     instruction: state.instruction.trim(),
     execution_kind: "agent",

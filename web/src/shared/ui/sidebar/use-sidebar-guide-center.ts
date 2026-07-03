@@ -21,14 +21,14 @@ import {
   ROOM_EMPTY_CONVERSATION_TOUR_ID,
 } from "@/features/conversation/room/room-tour";
 import { LAUNCHER_TOUR_ID } from "@/features/launcher/launcher-tour";
-import { get_launcher_bootstrap_api } from "@/lib/api/launcher-api";
-import { resolve_direct_room_navigation_target } from "@/lib/conversation/direct-room-navigation";
+import { getLauncherBootstrapApi } from "@/lib/api/launcher-api";
+import { resolveDirectRoomNavigationTarget } from "@/lib/conversation/direct-room-navigation";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { OnboardingGuideCenterItem } from "@/shared/ui/onboarding/onboarding-guide-center";
-import { set_requested_tour_id } from "@/shared/ui/onboarding/tour-state";
+import { setRequestedTourId } from "@/shared/ui/onboarding/tour-state";
 import { useOnboardingTour } from "@/shared/ui/onboarding/use-onboarding-tour";
 import {
-  build_sidebar_navigation_tour,
+  buildSidebarNavigationTour,
   SIDEBAR_NAVIGATION_TOUR_ID,
 } from "@/shared/ui/sidebar/sidebar-navigation-tour";
 import { SIDEBAR_CAPABILITY_ITEM_IDS } from "@/store/sidebar";
@@ -47,18 +47,18 @@ export function useSidebarGuideCenter({
   const [isGuideCenterOpen, setIsGuideCenterOpen] = useState(false);
   const hasAutoStartedTourRef = useRef(false);
   const {
-    active_tour_id: activeTourId,
-    has_completed_tour: hasCompletedTour,
-    is_tour_registered: isTourRegistered,
-    is_tour_state_ready: isTourStateReady,
-    register_tour: registerTour,
-    reset_version: resetVersion,
-    reset_all_tours: resetAllTours,
-    start_tour: startTour,
-    unregister_tour: unregisterTour,
+    activeTourId: activeTourId,
+    hasCompletedTour: hasCompletedTour,
+    isTourRegistered: isTourRegistered,
+    isTourStateReady: isTourStateReady,
+    registerTour: registerTour,
+    resetVersion: resetVersion,
+    resetAllTours: resetAllTours,
+    startTour: startTour,
+    unregisterTour: unregisterTour,
   } = useOnboardingTour();
   const sidebarNavigationTour = useMemo(
-    () => build_sidebar_navigation_tour(t),
+    () => buildSidebarNavigationTour(t),
     [t],
   );
   const isDmTourRegistered = isTourRegistered(DM_CONVERSATION_TOUR_ID);
@@ -131,7 +131,7 @@ export function useSidebarGuideCenter({
     route: string,
     sidebarItemId?: string | null,
   ) => {
-    set_requested_tour_id(tourId);
+    setRequestedTourId(tourId);
     setIsGuideCenterOpen(false);
     if (sidebarItemId) {
       setActivePanelItem(sidebarItemId);
@@ -152,8 +152,8 @@ export function useSidebarGuideCenter({
     }
 
     try {
-      const target = await resolve_direct_room_navigation_target(defaultAgentId);
-      set_requested_tour_id(DM_CONVERSATION_TOUR_ID);
+      const target = await resolveDirectRoomNavigationTarget(defaultAgentId);
+      setRequestedTourId(DM_CONVERSATION_TOUR_ID);
       setActivePanelItem(target.context.room.id);
       navigate(target.route);
     } catch (error) {
@@ -177,7 +177,7 @@ export function useSidebarGuideCenter({
     setIsGuideCenterOpen(false);
 
     try {
-      const payload = await get_launcher_bootstrap_api();
+      const payload = await getLauncherBootstrapApi();
       const targetRoom = payload.rooms.find((room) => room.room_type === "room");
 
       if (!targetRoom) {
@@ -193,9 +193,9 @@ export function useSidebarGuideCenter({
 
       setActivePanelItem(targetRoom.id);
       if (roomConversations.length > 0 && roomConversations[0].conversation_id) {
-        set_requested_tour_id(ROOM_CONVERSATION_TOUR_ID);
+        setRequestedTourId(ROOM_CONVERSATION_TOUR_ID);
         navigate(
-          AppRouteBuilders.room_conversation(
+          AppRouteBuilders.roomConversation(
             targetRoom.id,
             roomConversations[0].conversation_id,
           ),
@@ -203,7 +203,7 @@ export function useSidebarGuideCenter({
         return;
       }
 
-      set_requested_tour_id(ROOM_EMPTY_CONVERSATION_TOUR_ID);
+      setRequestedTourId(ROOM_EMPTY_CONVERSATION_TOUR_ID);
       navigate(AppRouteBuilders.room(targetRoom.id));
     } catch (error) {
       console.error("[SidebarWidePanel] 打开 Room 引导失败:", error);
@@ -222,9 +222,9 @@ export function useSidebarGuideCenter({
       icon: Rocket,
       title: t("launcher.tour_intro_title"),
       description: t("launcher.tour_intro_description"),
-      action_label: t("common.view_guide"),
+      actionLabel: t("common.view_guide"),
       completed: hasCompletedTour(LAUNCHER_TOUR_ID),
-      on_action: () => handleRequestPageTour(
+      onAction: () => handleRequestPageTour(
         LAUNCHER_TOUR_ID,
         AppRouteBuilders.launcher(),
       ),
@@ -234,18 +234,18 @@ export function useSidebarGuideCenter({
       icon: Compass,
       title: t("sidebar.tour_intro_title"),
       description: t("sidebar.tour_intro_description"),
-      action_label: t("common.view_guide"),
+      actionLabel: t("common.view_guide"),
       completed: hasCompletedTour(SIDEBAR_NAVIGATION_TOUR_ID),
-      on_action: () => handleStartTourFromCenter(SIDEBAR_NAVIGATION_TOUR_ID),
+      onAction: () => handleStartTourFromCenter(SIDEBAR_NAVIGATION_TOUR_ID),
     },
     {
       id: DM_CONVERSATION_TOUR_ID,
       icon: MessageSquare,
       title: t("room.tour_dm_intro_title"),
       description: t("room.tour_dm_intro_description"),
-      action_label: t("common.view_guide"),
+      actionLabel: t("common.view_guide"),
       completed: hasCompletedTour(DM_CONVERSATION_TOUR_ID),
-      on_action: () => {
+      onAction: () => {
         void handleOpenDmTour();
       },
     },
@@ -254,10 +254,10 @@ export function useSidebarGuideCenter({
       icon: MessageSquare,
       title: t("room.tour_group_intro_title"),
       description: t("room.tour_group_intro_description"),
-      action_label: t("common.view_guide"),
+      actionLabel: t("common.view_guide"),
       completed: hasCompletedTour(ROOM_CONVERSATION_TOUR_ID)
         || hasCompletedTour(ROOM_EMPTY_CONVERSATION_TOUR_ID),
-      on_action: () => {
+      onAction: () => {
         void handleOpenRoomTour();
       },
     },
@@ -266,9 +266,9 @@ export function useSidebarGuideCenter({
       icon: Wrench,
       title: t("capability.skills_tour_intro_title"),
       description: t("capability.skills_tour_intro_description"),
-      action_label: t("common.view_guide"),
+      actionLabel: t("common.view_guide"),
       completed: hasCompletedTour(SKILLS_TOUR_ID),
-      on_action: () => {
+      onAction: () => {
         if (isTourRegistered(SKILLS_TOUR_ID)) {
           handleStartTourFromCenter(SKILLS_TOUR_ID);
           return;
@@ -291,14 +291,14 @@ export function useSidebarGuideCenter({
   ]);
 
   const guideCenterProps = useMemo(() => ({
-    close_label: t("common.close"),
+    closeLabel: t("common.close"),
     description: t("onboarding.guide_center_description"),
-    is_open: isGuideCenterOpen,
+    isOpen: isGuideCenterOpen,
     items: guideCenterItems,
-    on_close: closeGuideCenter,
-    on_reset: handleResetGuides,
-    reset_label: t("common.reset_guides"),
-    reviewed_label: t("common.reviewed"),
+    onClose: closeGuideCenter,
+    onReset: handleResetGuides,
+    resetLabel: t("common.reset_guides"),
+    reviewedLabel: t("common.reviewed"),
     title: t("common.guide_center"),
   }), [
     closeGuideCenter,

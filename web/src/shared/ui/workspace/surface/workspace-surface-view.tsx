@@ -9,33 +9,33 @@ import { WorkspaceSurfaceScaffold } from "./workspace-surface-scaffold";
 interface WorkspaceSurfaceViewProps {
   eyebrow: string;
   title: string;
-  title_trailing?: ReactNode;
+  titleTrailing?: ReactNode;
   action?: ReactNode;
   children: ReactNode;
-  body_scrollable?: boolean;
-  show_eyebrow?: boolean;
+  bodyScrollable?: boolean;
+  showEyebrow?: boolean;
   /** 中文注释：这里只允许滚动区和内容宽度的布局调整，不再承担视觉覆写。 */
-  body_class_name?: string;
-  content_class_name?: string;
-  max_width_class_name?: string;
+  bodyClassName?: string;
+  contentClassName?: string;
+  maxWidthClassName?: string;
 }
 
 export function WorkspaceSurfaceView({
   eyebrow,
   title,
-  title_trailing: titleTrailing,
+  titleTrailing: titleTrailing,
   action,
   children,
-  body_scrollable: bodyScrollable = true,
-  show_eyebrow: showEyebrow = true,
-  body_class_name: bodyClassName,
-  content_class_name: contentClassName,
-  max_width_class_name: maxWidthClassName = "max-w-[760px]",
+  bodyScrollable: bodyScrollable = true,
+  showEyebrow: showEyebrow = true,
+  bodyClassName: bodyClassName,
+  contentClassName: contentClassName,
+  maxWidthClassName: maxWidthClassName = "max-w-[760px]",
 }: WorkspaceSurfaceViewProps) {
   return (
     <WorkspaceSurfaceScaffold
-      body_class_name={cn("px-4 py-4 sm:px-5 xl:px-6", bodyClassName)}
-      body_scrollable={bodyScrollable}
+      bodyClassName={cn("px-4 py-4 sm:px-5 xl:px-6", bodyClassName)}
+      bodyScrollable={bodyScrollable}
       header={(
         <div className={cn("px-5 xl:px-6", showEyebrow ? "py-3" : "py-2.5")}>
           <div className={cn("mx-auto flex w-full items-center justify-between gap-3", maxWidthClassName)}>
@@ -63,7 +63,7 @@ export function WorkspaceSurfaceView({
           </div>
         </div>
       )}
-      stable_gutter
+      stableGutter
     >
       <div
         className={cn("mx-auto w-full", maxWidthClassName, contentClassName)}

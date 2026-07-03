@@ -10,11 +10,11 @@ interface UiSegmentedControlOption<T extends string> {
 }
 
 interface UiSegmentedControlProps<T extends string> {
-  class_name?: string;
+  className?: string;
   density?: "default" | "compact";
   disabled?: boolean;
   icon?: LucideIcon;
-  on_change: (value: T) => void;
+  onChange: (value: T) => void;
   options: UiSegmentedControlOption<T>[];
   stretch?: boolean;
   title: string;
@@ -22,11 +22,11 @@ interface UiSegmentedControlProps<T extends string> {
 }
 
 export function UiSegmentedControl<T extends string>({
-  class_name: className,
+  className: className,
   density = "default",
   disabled = false,
   icon: Icon,
-  on_change: onChange,
+  onChange: onChange,
   options,
   stretch = false,
   title,

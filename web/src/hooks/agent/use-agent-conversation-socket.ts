@@ -6,7 +6,7 @@ import {
   useRef,
 } from "react";
 
-import { get_desktop_websocket_protocols } from "@/config/desktop-runtime";
+import { getDesktopWebsocketProtocols } from "@/config/desktop-runtime";
 import { useWebSocket } from "@/lib/websocket";
 import {
   WebSocketMessage,
@@ -15,42 +15,42 @@ import {
 } from "@/types/system/websocket";
 
 import {
-  build_room_subscription_message,
-  build_session_bind_message,
+  buildRoomSubscriptionMessage,
+  buildSessionBindMessage,
 } from "./conversation-actions";
 
 type ConversationSocketSend = (payload: WebSocketMessage) => WebSocketSendResult;
 
 interface UseAgentConversationSocketOptions {
-  ws_url: string;
-  agent_id: string | null;
-  room_id: string | null;
-  conversation_id: string | null;
-  session_key: string | null;
-  session_seq_cursor_ref: MutableRefObject<number>;
-  room_seq_cursor_ref: MutableRefObject<number>;
-  ws_send_ref: MutableRefObject<ConversationSocketSend>;
-  ws_reconnect_ref: MutableRefObject<() => void>;
-  ws_state_ref: MutableRefObject<WebSocketState>;
-  on_message: (backendMessage: unknown) => void;
-  on_error?: (error: Error) => void;
-  set_error: Dispatch<SetStateAction<string | null>>;
+  wsUrl: string;
+  agentId: string | null;
+  roomId: string | null;
+  conversationId: string | null;
+  sessionKey: string | null;
+  sessionSeqCursorRef: MutableRefObject<number>;
+  roomSeqCursorRef: MutableRefObject<number>;
+  wsSendRef: MutableRefObject<ConversationSocketSend>;
+  wsReconnectRef: MutableRefObject<() => void>;
+  wsStateRef: MutableRefObject<WebSocketState>;
+  onMessage: (backendMessage: unknown) => void;
+  onError?: (error: Error) => void;
+  setError: Dispatch<SetStateAction<string | null>>;
 }
 
 export function useAgentConversationSocket({
-  ws_url: wsUrl,
-  agent_id: agentId,
-  room_id: roomId,
-  conversation_id: conversationId,
-  session_key: sessionKey,
-  session_seq_cursor_ref: sessionSeqCursorRef,
-  room_seq_cursor_ref: roomSeqCursorRef,
-  ws_send_ref: wsSendRef,
-  ws_reconnect_ref: wsReconnectRef,
-  ws_state_ref: wsStateRef,
-  on_message: onMessage,
-  on_error: onError,
-  set_error: setError,
+  wsUrl,
+  agentId,
+  roomId,
+  conversationId,
+  sessionKey,
+  sessionSeqCursorRef,
+  roomSeqCursorRef,
+  wsSendRef,
+  wsReconnectRef,
+  wsStateRef,
+  onMessage,
+  onError,
+  setError,
 }: UseAgentConversationSocketOptions) {
   const hasConnectedRef = useRef(false);
 
@@ -60,12 +60,12 @@ export function useAgentConversationSocket({
     reconnect: wsReconnect,
   } = useWebSocket({
     url: wsUrl,
-    protocols: get_desktop_websocket_protocols(),
-    auto_connect: true,
+    protocols: getDesktopWebsocketProtocols(),
+    autoConnect: true,
     reconnect: true,
-    heartbeat_interval: 30000,
-    on_message: onMessage,
-    on_error: (event) => {
+    heartbeatInterval: 30000,
+    onMessage: onMessage,
+    onError: (event) => {
       // 开发环境 StrictMode 会触发一次挂载后立即清理，
       // 这时 connecting 阶段被主动断开会产生一次无意义的 error。
       if (!hasConnectedRef.current) {
@@ -129,7 +129,7 @@ export function useAgentConversationSocket({
 
     // WebSocket 重连后，后端需要重新知道当前连接服务哪个 session，
     // 否则挂起中的权限请求无法重投到新连接。
-    wsSend(build_session_bind_message({
+    wsSend(buildSessionBindMessage({
       session_key: sessionKey,
       last_seen_session_seq: sessionSeqCursorRef.current,
       agent_id: agentId,
@@ -165,7 +165,7 @@ export function useAgentConversationSocket({
       return;
     }
 
-    wsSend(build_room_subscription_message({
+    wsSend(buildRoomSubscriptionMessage({
       type: "subscribe_room",
       room_id: roomId,
       conversation_id: conversationId,
@@ -173,7 +173,7 @@ export function useAgentConversationSocket({
     }));
 
     return () => {
-      wsSend(build_room_subscription_message({
+      wsSend(buildRoomSubscriptionMessage({
         type: "unsubscribe_room",
         room_id: roomId,
         conversation_id: conversationId,
@@ -181,5 +181,5 @@ export function useAgentConversationSocket({
     };
   }, [conversationId, roomId, roomSeqCursorRef, wsSend, wsState]);
 
-  return { ws_send: wsSend, ws_state: wsState };
+  return { wsSend, wsState };
 }

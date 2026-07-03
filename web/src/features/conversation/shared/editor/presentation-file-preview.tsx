@@ -4,17 +4,17 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Eye, FileText, FileWarning, LoaderCircle } from "lucide-react";
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
-import { get_workspace_file_preview_url } from "@/lib/api/agent-manage-api";
+import { getWorkspaceFilePreviewUrl } from "@/lib/api/agent-manage-api";
 import { cn } from "@/lib/utils";
 import { ConversationResizeHandle } from "./conversation-resize-handle";
-import { parse_pptx } from "./presentation-pptx-parser";
+import { parsePptx } from "./presentation-pptx-parser";
 import {
   MAX_PPTX_PREVIEW_BYTES,
   type PresentationPreviewStatus,
   type PresentationSlide,
 } from "./presentation-preview-model";
 import { PresentationSlideCanvas } from "./presentation-slide-canvas";
-import { revoke_object_urls } from "./presentation-xml-utils";
+import { revokeObjectUrls } from "./presentation-xml-utils";
 import {
   WorkspaceFileDownloadButton,
   WorkspaceFilePreviewFocusButton,
@@ -22,22 +22,22 @@ import {
 } from "./workspace-file-preview-chrome";
 
 interface PresentationFilePreviewProps {
-  agent_id: string;
+  agentId: string;
   embedded?: boolean;
-  file_name: string;
-  is_preview_focused?: boolean;
-  on_resize_start: () => void;
-  on_toggle_preview_focus?: () => void;
+  fileName: string;
+  isPreviewFocused?: boolean;
+  onResizeStart: () => void;
+  onTogglePreviewFocus?: () => void;
   path: string;
 }
 
 export function PresentationFilePreview({
-  agent_id: agentId,
+  agentId: agentId,
   embedded,
-  file_name: fileName,
-  is_preview_focused: isPreviewFocused,
-  on_resize_start: onResizeStart,
-  on_toggle_preview_focus: onTogglePreviewFocus,
+  fileName: fileName,
+  isPreviewFocused: isPreviewFocused,
+  onResizeStart: onResizeStart,
+  onTogglePreviewFocus: onTogglePreviewFocus,
   path,
 }: PresentationFilePreviewProps) {
   const cleanupUrlsRef = useRef<() => void>(() => undefined);
@@ -58,7 +58,7 @@ export function PresentationFilePreview({
 
     async function loadPreview() {
       try {
-        const previewUrl = get_workspace_file_preview_url(agentId, path);
+        const previewUrl = getWorkspaceFilePreviewUrl(agentId, path);
         const response = await fetch(previewUrl, {
           credentials: "include",
           signal: abortController.signal,
@@ -82,16 +82,16 @@ export function PresentationFilePreview({
         }
 
         setStatus({ state: "loading", message: "解析 pptx 文件中" });
-        const result = await parse_pptx(buffer);
+        const result = await parsePptx(buffer);
         if (cancelled) {
-          revoke_object_urls(result.object_urls);
+          revokeObjectUrls(result.objectUrls);
           return;
         }
 
-        cleanupUrlsRef.current = () => revoke_object_urls(result.object_urls);
+        cleanupUrlsRef.current = () => revokeObjectUrls(result.objectUrls);
         setSlides(result.slides);
         setActiveSlideIndex(0);
-        setStatus({ state: "loaded", slide_count: result.slides.length });
+        setStatus({ state: "loaded", slideCount: result.slides.length });
       } catch (previewError) {
         if (cancelled || abortController.signal.aborted) {
           return;
@@ -123,19 +123,19 @@ export function PresentationFilePreview({
     <>
       {!embedded ? (
         <ConversationResizeHandle
-          aria_label="调整编辑器宽度"
-          class_name="flex"
-          on_mouse_down={onResizeStart}
+          ariaLabel="调整编辑器宽度"
+          className="flex"
+          onMouseDown={onResizeStart}
         />
       ) : null}
 
       <WorkspaceFilePreviewHeader
         actions={(
           <>
-            <WorkspaceFileDownloadButton agent_id={agentId} file_name={fileName} path={path} />
+            <WorkspaceFileDownloadButton agentId={agentId} fileName={fileName} path={path} />
             <WorkspaceFilePreviewFocusButton
-              is_preview_focused={isPreviewFocused}
-              on_toggle_preview_focus={onTogglePreviewFocus}
+              isPreviewFocused={isPreviewFocused}
+              onTogglePreviewFocus={onTogglePreviewFocus}
             />
           </>
         )}
@@ -154,7 +154,7 @@ export function PresentationFilePreview({
             ) : isLoaded ? (
               <span className="flex items-center gap-1 text-(--success)">
                 <Eye className="h-3 w-3" />
-                已加载 {status.slide_count} 页
+                已加载 {status.slideCount} 页
               </span>
             ) : (
               <span className="flex items-center gap-1">
@@ -193,7 +193,7 @@ export function PresentationFilePreview({
                       onClick={() => setActiveSlideIndex(index)}
                       type="button"
                     >
-                      <PresentationSlideCanvas class_name="rounded-[2px] shadow-none" slide={slide} thumbnail />
+                      <PresentationSlideCanvas className="rounded-[2px] shadow-none" slide={slide} thumbnail />
                       <span className="mt-1 block truncate text-[10px] font-medium text-(--text-muted)">
                         {index + 1}. {slide.title}
                       </span>

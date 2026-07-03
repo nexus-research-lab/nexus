@@ -35,12 +35,12 @@ function getCustomProviderInitials(name: string): string {
 export function ProviderIcon({
   active = false,
   name,
-  preset_key: presetKey,
+  presetKey: presetKey,
   size = "sm",
 }: {
   active?: boolean;
   name: string;
-  preset_key?: string | null;
+  presetKey?: string | null;
   size?: "sm" | "md";
 }) {
   if ((presetKey || "custom") === "custom") {

@@ -23,8 +23,8 @@ import { useCallback, useEffect, useMemo } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
-import { get_default_agent_avatar, get_default_agent_id, is_main_agent } from "@/config/options";
-import { is_desktop_runtime } from "@/config/desktop-runtime";
+import { getDefaultAgentAvatar, getDefaultAgentId, isMainAgent } from "@/config/options";
+import { isDesktopRuntime } from "@/config/desktop-runtime";
 import { CapabilitiesPanelContent } from "@/features/capability/capabilities-sidebar-panel";
 import {
   ChatSidebarPanelContent,
@@ -32,9 +32,9 @@ import {
 } from "@/features/home/home-sidebar-panel";
 import { useChatCompletionNotifications } from "@/features/home/use-chat-completion-notifications";
 import { usePrefersReducedMotion } from "@/hooks/ui/use-prefers-reduced-motion";
-import { resolve_direct_room_navigation_target } from "@/lib/conversation/direct-room-navigation";
+import { resolveDirectRoomNavigationTarget } from "@/lib/conversation/direct-room-navigation";
 import { HOME_SIDEBAR_PADDING_CLASS } from "@/lib/layout/home-layout";
-import { cn, get_icon_avatar_src } from "@/lib/utils";
+import { cn, getIconAvatarSrc } from "@/lib/utils";
 import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiCounterBadge } from "@/shared/ui/badge";
@@ -50,7 +50,7 @@ import { COMPACT_WORKSPACE_HEADER_TOTAL_HEIGHT_CLASS } from "@/shared/ui/workspa
 import { useAgentStore } from "@/store/agent";
 import {
   SIDEBAR_CAPABILITY_ITEM_IDS,
-  derive_sidebar_item_id_from_path,
+  deriveSidebarItemIdFromPath,
   SIDEBAR_SYSTEM_ITEM_IDS,
   useSidebarStore,
 } from "@/store/sidebar";
@@ -85,12 +85,12 @@ export function SidebarWidePanel() {
   const toggleWidePanelCollapsed = useSidebarStore((s) => s.toggle_wide_panel_collapsed);
   const isSettingsRoute = pathname.startsWith(AppRouteBuilders.settings());
   const activePrimaryTab = derivePrimaryTabFromPath(pathname);
-  const shouldShowLogout = !is_desktop_runtime();
+  const shouldShowLogout = !isDesktopRuntime();
   const prefersReducedMotion = usePrefersReducedMotion();
-  const defaultAgentId = get_default_agent_id();
-  const nexusAgent = agents.find((agent) => is_main_agent(agent.agent_id)) ?? null;
-  const nexusAvatar = nexusAgent?.avatar?.trim() || get_default_agent_avatar();
-  const nexusAvatarSrc = get_icon_avatar_src(nexusAvatar);
+  const defaultAgentId = getDefaultAgentId();
+  const nexusAgent = agents.find((agent) => isMainAgent(agent.agent_id)) ?? null;
+  const nexusAvatar = nexusAgent?.avatar?.trim() || getDefaultAgentAvatar();
+  const nexusAvatarSrc = getIconAvatarSrc(nexusAvatar);
   const isNexusActive = activePanelItemId === SIDEBAR_SYSTEM_ITEM_IDS.nexus
     || (nexusRoomId ? activePanelItemId === nexusRoomId : false);
   useChatCompletionNotifications();
@@ -117,7 +117,7 @@ export function SidebarWidePanel() {
 
   /** 路由变化时统一同步侧栏高亮，避免能力和房间走两套状态。 */
   useEffect(() => {
-    const nextActiveItemId = derive_sidebar_item_id_from_path(pathname);
+    const nextActiveItemId = deriveSidebarItemIdFromPath(pathname);
     if (nextActiveItemId === activePanelItemId) {
       return;
     }
@@ -130,7 +130,7 @@ export function SidebarWidePanel() {
     }
 
     setActivePanelItem(SIDEBAR_SYSTEM_ITEM_IDS.nexus);
-    void resolve_direct_room_navigation_target(defaultAgentId).then(({ route }) => {
+    void resolveDirectRoomNavigationTarget(defaultAgentId).then(({ route }) => {
       navigate(route);
     }).catch((error) => {
       console.error("[SidebarWidePanel] 打开 Nexus DM 失败:", error);
@@ -226,7 +226,7 @@ export function SidebarWidePanel() {
                     )}
                   />
                   <UiCounterBadge
-                    class_name="absolute -right-1 -top-1 h-4 min-w-4 px-1 text-[10px] shadow-[0_2px_6px_rgba(255,76,84,0.28)]"
+                    className="absolute -right-1 -top-1 h-4 min-w-4 px-1 text-[10px] shadow-[0_2px_6px_rgba(255,76,84,0.28)]"
                     count={tab.badge_count ?? 0}
                   />
                 </button>
@@ -320,7 +320,7 @@ export function SidebarWidePanel() {
           type="button"
         >
           <GlassMagnifierStatic
-            class_name={cn(
+            className={cn(
               "relative z-10 transition-transform duration-(--motion-duration-normal)",
               !prefersReducedMotion && "group-hover/nexus:scale-[1.03]",
               isNexusActive && "drop-shadow-[0_8px_20px_color-mix(in_srgb,var(--primary)_12%,transparent)]",
@@ -430,7 +430,7 @@ export function SidebarWidePanel() {
                     )}
                   />
                   <UiCounterBadge
-                    class_name="absolute -right-2.5 -top-2 h-4 min-w-4 px-1 text-[10px] shadow-[0_2px_6px_rgba(255,76,84,0.28)]"
+                    className="absolute -right-2.5 -top-2 h-4 min-w-4 px-1 text-[10px] shadow-[0_2px_6px_rgba(255,76,84,0.28)]"
                     count={tab.badge_count ?? 0}
                   />
                 </span>

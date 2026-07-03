@@ -7,7 +7,7 @@
  * =====================================================
  */
 
-import { build_room_agent_session_key, build_room_shared_session_key } from "@/lib/conversation/session-key";
+import { buildRoomAgentSessionKey, buildRoomSharedSessionKey } from "@/lib/conversation/session-key";
 import { Agent } from "@/types/agent/agent";
 import { AgentConversationIdentity } from "@/types/agent/agent-conversation";
 import { RoomConversationView } from "@/types/conversation/conversation";
@@ -39,7 +39,7 @@ function getRoomConversationSessionKey(
 ): string {
   if (context.room.room_type === "dm") {
     if (fallbackSession?.agent_id) {
-      return build_room_agent_session_key(
+      return buildRoomAgentSessionKey(
         context.conversation.id,
         fallbackSession.agent_id,
         "dm",
@@ -47,7 +47,7 @@ function getRoomConversationSessionKey(
     }
   }
 
-  return build_room_shared_session_key(context.conversation.id);
+  return buildRoomSharedSessionKey(context.conversation.id);
 }
 
 function buildFallbackRoomMemberAgent(
@@ -78,7 +78,7 @@ function buildFallbackRoomMemberAgent(
   };
 }
 
-export function build_room_conversation_views(
+export function buildRoomConversationViews(
   roomContexts: RoomContextAggregate[],
 ): RoomConversationView[] {
   return roomContexts
@@ -120,7 +120,7 @@ export function build_room_conversation_views(
     .sort((left, right) => right.last_activity_at - left.last_activity_at);
 }
 
-export function resolve_selected_conversation_id(
+export function resolveSelectedConversationId(
   routeConversationId: string | null | undefined,
   roomConversations: RoomConversationView[],
 ): string | null {
@@ -134,7 +134,7 @@ export function resolve_selected_conversation_id(
   return roomConversations[0]?.conversation_id ?? null;
 }
 
-export function resolve_current_room_context(
+export function resolveCurrentRoomContext(
   roomContexts: RoomContextAggregate[],
   selectedConversationId: string | null,
 ): RoomContextAggregate | null {
@@ -143,7 +143,7 @@ export function resolve_current_room_context(
     null;
 }
 
-export function resolve_selected_member_agent_id(
+export function resolveSelectedMemberAgentId(
   currentRoomContext: RoomContextAggregate | null,
   currentSelectedMemberAgentId: string | null,
 ): string | null {
@@ -166,17 +166,17 @@ export function resolve_selected_member_agent_id(
   return memberAgentIds[0];
 }
 
-export function resolve_current_agent_session_identity(params: {
-  current_room_id: string | null;
-  current_conversation_id: string | null;
-  active_room_session: RoomContextAggregate["sessions"][number] | null;
-  current_room_type: string;
+export function resolveCurrentAgentSessionIdentity(params: {
+  currentRoomId: string | null;
+  currentConversationId: string | null;
+  activeRoomSession: RoomContextAggregate["sessions"][number] | null;
+  currentRoomType: string;
 }): AgentConversationIdentity | null {
   const {
-    current_room_id: currentRoomId,
-    current_conversation_id: currentConversationId,
-    active_room_session: activeRoomSession,
-    current_room_type: currentRoomType,
+    currentRoomId: currentRoomId,
+    currentConversationId: currentConversationId,
+    activeRoomSession: activeRoomSession,
+    currentRoomType: currentRoomType,
   } = params;
 
   const resolvedAgentId = activeRoomSession?.agent_id ?? null;
@@ -188,8 +188,8 @@ export function resolve_current_agent_session_identity(params: {
   if (!resolvedSessionKey && resolvedConversationId) {
     resolvedSessionKey = (
       currentRoomType === "dm" && resolvedAgentId
-        ? build_room_agent_session_key(resolvedConversationId, resolvedAgentId, "dm")
-        : build_room_shared_session_key(resolvedConversationId)
+        ? buildRoomAgentSessionKey(resolvedConversationId, resolvedAgentId, "dm")
+        : buildRoomSharedSessionKey(resolvedConversationId)
     );
   }
 
@@ -207,7 +207,7 @@ export function resolve_current_agent_session_identity(params: {
   };
 }
 
-export function resolve_room_member_agents(roomContexts: RoomContextAggregate[]): Agent[] {
+export function resolveRoomMemberAgents(roomContexts: RoomContextAggregate[]): Agent[] {
   const memberAgents = roomContexts[0]?.member_agents ?? [];
   if (memberAgents.length > 0) {
     return memberAgents;
@@ -224,7 +224,7 @@ export function resolve_room_member_agents(roomContexts: RoomContextAggregate[])
   ));
 }
 
-export function apply_conversation_snapshot_to_room_contexts(
+export function applyConversationSnapshotToRoomContexts(
   contexts: RoomContextAggregate[],
   snapshot: {
     conversation_id: string | null;

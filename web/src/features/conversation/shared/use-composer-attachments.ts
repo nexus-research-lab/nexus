@@ -6,24 +6,24 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 
 import { PreparedComposerAttachment } from "./composer-attachments";
 import {
-  build_local_attachment,
-  build_pasted_text_file,
+  buildLocalAttachment,
+  buildPastedTextFile,
   ComposerLocalAttachment,
-  get_clipboard_files,
+  getClipboardFiles,
   MAX_COMPOSER_ATTACHMENTS,
   PASTED_TEXT_ATTACHMENT_THRESHOLD,
 } from "./composer-local-attachment-model";
 
 interface UseComposerAttachmentsOptions {
-  is_goal_mode: boolean;
-  on_goal_attachment_rejected: (message: string) => void;
-  on_prepare_attachments?: (files: File[]) => Promise<PreparedComposerAttachment[]>;
+  isGoalMode: boolean;
+  onGoalAttachmentRejected: (message: string) => void;
+  onPrepareAttachments?: (files: File[]) => Promise<PreparedComposerAttachment[]>;
 }
 
 export function useComposerAttachments({
-  is_goal_mode: isGoalMode,
-  on_goal_attachment_rejected: onGoalAttachmentRejected,
-  on_prepare_attachments: onPrepareAttachments,
+  isGoalMode,
+  onGoalAttachmentRejected,
+  onPrepareAttachments,
 }: UseComposerAttachmentsOptions) {
   const { t } = useI18n();
   const [attachments, setAttachments] = useState<ComposerLocalAttachment[]>([]);
@@ -47,7 +47,7 @@ export function useComposerAttachments({
     const rejectedFiles: string[] = [];
 
     files.forEach((file) => {
-      const { attachment, rejection_reason: rejectionReason } = build_local_attachment(
+      const { attachment, rejection_reason: rejectionReason } = buildLocalAttachment(
         file,
         t("composer.attachment_format_unsupported"),
       );
@@ -82,12 +82,12 @@ export function useComposerAttachments({
   }, [appendAttachmentFiles]);
 
   const handlePaste = useCallback((event: ClipboardEvent<HTMLTextAreaElement>) => {
-    const pastedFiles = get_clipboard_files(event.clipboardData);
+    const pastedFiles = getClipboardFiles(event.clipboardData);
     if (pastedFiles.length === 0) {
       const pastedText = event.clipboardData.getData("text/plain");
       if (!isGoalMode && pastedText.length > PASTED_TEXT_ATTACHMENT_THRESHOLD) {
         event.preventDefault();
-        appendAttachmentFiles([build_pasted_text_file(pastedText)]);
+        appendAttachmentFiles([buildPastedTextFile(pastedText)]);
       }
       return;
     }
@@ -135,14 +135,14 @@ export function useComposerAttachments({
   }, []);
 
   return {
-    attachment_error: attachmentError,
+    attachmentError,
     attachments,
-    clear_attachment_error: clearAttachmentError,
-    clear_attachments: clearAttachments,
-    handle_file_select: handleFileSelect,
-    handle_paste: handlePaste,
-    is_preparing_attachments: isPreparingAttachments,
-    prepare_attachments: prepareAttachments,
-    remove_attachment: removeAttachment,
+    clearAttachmentError,
+    clearAttachments,
+    handleFileSelect,
+    handlePaste,
+    isPreparingAttachments,
+    prepareAttachments,
+    removeAttachment,
   };
 }

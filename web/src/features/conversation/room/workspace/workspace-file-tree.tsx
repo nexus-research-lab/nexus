@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { WorkspaceFileEntry } from "@/types/agent/agent";
 
-import { get_workspace_file_visual } from "./workspace-file-visuals";
+import { getWorkspaceFileVisual } from "./workspace-file-visuals";
 
 interface TreeNode {
   entry: WorkspaceFileEntry;
@@ -25,13 +25,13 @@ interface TreeNode {
 
 interface WorkspaceFileTreeProps {
   entries: WorkspaceFileEntry[];
-  active_path: string | null;
-  focused_directory_path: string | null;
-  on_click_file: (path: string) => void;
-  on_click_directory: (path: string) => void;
-  on_rename_entry: (entry: WorkspaceFileEntry) => void;
-  on_delete_entry: (entry: WorkspaceFileEntry) => void;
-  on_context_menu: (event: React.MouseEvent, entry: WorkspaceFileEntry) => void;
+  activePath: string | null;
+  focusedDirectoryPath: string | null;
+  onClickFile: (path: string) => void;
+  onClickDirectory: (path: string) => void;
+  onRenameEntry: (entry: WorkspaceFileEntry) => void;
+  onDeleteEntry: (entry: WorkspaceFileEntry) => void;
+  onContextMenu: (event: React.MouseEvent, entry: WorkspaceFileEntry) => void;
 }
 
 function buildTree(entries: WorkspaceFileEntry[]): TreeNode[] {
@@ -63,33 +63,33 @@ function buildTree(entries: WorkspaceFileEntry[]): TreeNode[] {
 
 interface WorkspaceFileTreeRowProps {
   node: TreeNode;
-  active_path: string | null;
-  focused_directory_path: string | null;
+  activePath: string | null;
+  focusedDirectoryPath: string | null;
   depth: number;
-  on_click_file: (path: string) => void;
-  on_click_directory: (path: string) => void;
-  on_rename_entry: (entry: WorkspaceFileEntry) => void;
-  on_delete_entry: (entry: WorkspaceFileEntry) => void;
-  on_context_menu: (event: React.MouseEvent, entry: WorkspaceFileEntry) => void;
+  onClickFile: (path: string) => void;
+  onClickDirectory: (path: string) => void;
+  onRenameEntry: (entry: WorkspaceFileEntry) => void;
+  onDeleteEntry: (entry: WorkspaceFileEntry) => void;
+  onContextMenu: (event: React.MouseEvent, entry: WorkspaceFileEntry) => void;
 }
 
 const WorkspaceFileTreeRow = memo(function WorkspaceFileTreeRow({
   node,
-  active_path: activePath,
-  focused_directory_path: focusedDirectoryPath,
+  activePath: activePath,
+  focusedDirectoryPath: focusedDirectoryPath,
   depth,
-  on_click_file: onClickFile,
-  on_click_directory: onClickDirectory,
-  on_rename_entry: onRenameEntry,
-  on_delete_entry: onDeleteEntry,
-  on_context_menu: onContextMenu,
+  onClickFile: onClickFile,
+  onClickDirectory: onClickDirectory,
+  onRenameEntry: onRenameEntry,
+  onDeleteEntry: onDeleteEntry,
+  onContextMenu: onContextMenu,
 }: WorkspaceFileTreeRowProps) {
   const { t } = useI18n();
   const { entry, children } = node;
   const isActive = entry.path === activePath;
   const isDirectoryTarget = entry.is_dir && entry.path === focusedDirectoryPath;
   const isSelected = isActive || isDirectoryTarget;
-  const { Icon: FileIcon, icon_class_name: iconClassName } = get_workspace_file_visual(entry.name);
+  const { Icon: FileIcon, iconClassName: iconClassName } = getWorkspaceFileVisual(entry.name);
   const [isOpen, setIsOpen] = useState(depth === 0);
 
   const handleClick = useCallback(() => {
@@ -215,14 +215,14 @@ const WorkspaceFileTreeRow = memo(function WorkspaceFileTreeRow({
             <WorkspaceFileTreeRow
               key={child.entry.path}
               node={child}
-              active_path={activePath}
-              focused_directory_path={focusedDirectoryPath}
+              activePath={activePath}
+              focusedDirectoryPath={focusedDirectoryPath}
               depth={depth + 1}
-              on_click_file={onClickFile}
-              on_click_directory={onClickDirectory}
-              on_rename_entry={onRenameEntry}
-              on_delete_entry={onDeleteEntry}
-              on_context_menu={onContextMenu}
+              onClickFile={onClickFile}
+              onClickDirectory={onClickDirectory}
+              onRenameEntry={onRenameEntry}
+              onDeleteEntry={onDeleteEntry}
+              onContextMenu={onContextMenu}
             />
           ))}
         </div>
@@ -233,13 +233,13 @@ const WorkspaceFileTreeRow = memo(function WorkspaceFileTreeRow({
 
 export function WorkspaceFileTree({
   entries,
-  active_path: activePath,
-  focused_directory_path: focusedDirectoryPath,
-  on_click_file: onClickFile,
-  on_click_directory: onClickDirectory,
-  on_rename_entry: onRenameEntry,
-  on_delete_entry: onDeleteEntry,
-  on_context_menu: onContextMenu,
+  activePath: activePath,
+  focusedDirectoryPath: focusedDirectoryPath,
+  onClickFile: onClickFile,
+  onClickDirectory: onClickDirectory,
+  onRenameEntry: onRenameEntry,
+  onDeleteEntry: onDeleteEntry,
+  onContextMenu: onContextMenu,
 }: WorkspaceFileTreeProps) {
   const tree = useMemo(() => buildTree(entries), [entries]);
 
@@ -249,14 +249,14 @@ export function WorkspaceFileTree({
         <WorkspaceFileTreeRow
           key={node.entry.path}
           node={node}
-          active_path={activePath}
-          focused_directory_path={focusedDirectoryPath}
+          activePath={activePath}
+          focusedDirectoryPath={focusedDirectoryPath}
           depth={0}
-          on_click_file={onClickFile}
-          on_click_directory={onClickDirectory}
-          on_rename_entry={onRenameEntry}
-          on_delete_entry={onDeleteEntry}
-          on_context_menu={onContextMenu}
+          onClickFile={onClickFile}
+          onClickDirectory={onClickDirectory}
+          onRenameEntry={onRenameEntry}
+          onDeleteEntry={onDeleteEntry}
+          onContextMenu={onContextMenu}
         />
       ))}
     </>

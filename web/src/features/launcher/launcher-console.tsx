@@ -8,16 +8,16 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { LottiePlayer } from "@/shared/ui/feedback/lottie-player";
 import { cn } from "@/lib/utils";
 import { useSidebarStore } from "@/store/sidebar";
-import { query_launcher } from "@/lib/api/launcher-api";
-import { ensure_direct_room, get_room_contexts } from "@/lib/api/room-api";
+import { queryLauncher } from "@/lib/api/launcher-api";
+import { ensureDirectRoom, getRoomContexts } from "@/lib/api/room-api";
 import {
-  build_launcher_tour,
+  buildLauncherTour,
 } from "@/features/launcher/launcher-tour";
 import { usePageOnboardingTour } from "@/shared/ui/onboarding/use-page-onboarding-tour";
 import {
-  build_decorative_tokens,
-  build_launcher_mention_targets,
-  build_recent_launcher_entries,
+  buildDecorativeTokens,
+  buildLauncherMentionTargets,
+  buildRecentLauncherEntries,
 } from "./launcher-console-helpers";
 import {
   LauncherConsoleProps,
@@ -29,33 +29,33 @@ export function LauncherConsole({
   agents,
   rooms,
   conversations,
-  current_agent_id: currentAgentId,
-  on_open_main_agent_dm: onOpenMainAgentDm,
-  on_open_route: onOpenRoute,
-  on_select_agent: onSelectAgent,
+  currentAgentId: currentAgentId,
+  onOpenMainAgentDm: onOpenMainAgentDm,
+  onOpenRoute: onOpenRoute,
+  onSelectAgent: onSelectAgent,
 }: LauncherConsoleProps) {
   const { t } = useI18n();
   const [query, setQuery] = useState("");
   const [isQueryLoading, setIsQueryLoading] = useState(false);
   const setActivePanelItem = useSidebarStore((s) => s.set_active_panel_item);
-  const launcherTour = useMemo(() => build_launcher_tour(t), [t]);
+  const launcherTour = useMemo(() => buildLauncherTour(t), [t]);
   usePageOnboardingTour({
     tour: launcherTour,
     enabled: true,
-    auto_start_delay_ms: 260,
+    autoStartDelayMs: 260,
   });
   const decorativeTokens = useMemo(
-    () => build_decorative_tokens(agents, rooms),
+    () => buildDecorativeTokens(agents, rooms),
     [agents, rooms],
   );
 
   const mentionTargets = useMemo(
-    () => build_launcher_mention_targets(agents, rooms),
+    () => buildLauncherMentionTargets(agents, rooms),
     [agents, rooms],
   );
 
   const recentEntries = useMemo(
-    () => build_recent_launcher_entries(conversations),
+    () => buildRecentLauncherEntries(conversations),
     [conversations],
   );
 
@@ -69,17 +69,17 @@ export function LauncherConsole({
             }
             setActivePanelItem(entry.room_id);
             onOpenRoute(
-              AppRouteBuilders.room_conversation(entry.room_id, entry.conversation_id),
+              AppRouteBuilders.roomConversation(entry.room_id, entry.conversation_id),
             );
             return;
           }
 
           if (entry.type === "dm" && entry.agent_id) {
             onSelectAgent(entry.agent_id);
-            const context = await ensure_direct_room(entry.agent_id);
+            const context = await ensureDirectRoom(entry.agent_id);
             setActivePanelItem(context.room.id);
             onOpenRoute(
-              AppRouteBuilders.room_conversation(context.room.id, context.conversation.id),
+              AppRouteBuilders.roomConversation(context.room.id, context.conversation.id),
             );
             return;
           }
@@ -88,11 +88,11 @@ export function LauncherConsole({
             return;
           }
 
-          const contexts = await get_room_contexts(entry.room_id);
+          const contexts = await getRoomContexts(entry.room_id);
           if (contexts.length > 0) {
             setActivePanelItem(entry.room_id);
             onOpenRoute(
-              AppRouteBuilders.room_conversation(entry.room_id, contexts[0].conversation.id),
+              AppRouteBuilders.roomConversation(entry.room_id, contexts[0].conversation.id),
             );
           }
         } catch (error) {
@@ -112,15 +112,15 @@ export function LauncherConsole({
 
       setIsQueryLoading(true);
       try {
-        const action = await query_launcher({ query: trimmed });
+        const action = await queryLauncher({ query: trimmed });
 
         switch (action.action_type) {
           case "open_agent_dm": {
             onSelectAgent(action.target_id);
-            const context = await ensure_direct_room(action.target_id);
+            const context = await ensureDirectRoom(action.target_id);
             if (context) {
               setActivePanelItem(context.room.id);
-              const route = AppRouteBuilders.room_conversation(
+              const route = AppRouteBuilders.roomConversation(
                 context.room.id,
                 context.conversation.id,
               );
@@ -136,10 +136,10 @@ export function LauncherConsole({
             break;
           }
           case "open_room": {
-            const contexts = await get_room_contexts(action.target_id);
+            const contexts = await getRoomContexts(action.target_id);
             if (contexts.length > 0) {
               setActivePanelItem(action.target_id);
-              const route = AppRouteBuilders.room_conversation(
+              const route = AppRouteBuilders.roomConversation(
                 action.target_id,
                 contexts[0].conversation.id,
               );
@@ -194,8 +194,8 @@ export function LauncherConsole({
       <div className="pointer-events-none absolute left-3 top-3 z-20 sm:left-5 sm:top-4">
         <div className="relative flex items-center gap-1 px-1 py-1">
           <LottiePlayer
-            class_name="pointer-events-none absolute left-10 -top-4 h-12 w-12 opacity-[0.72] sm:left-3 sm:-top-15 sm:h-30 sm:w-30"
-            inline_style={undefined}
+            className="pointer-events-none absolute left-10 -top-4 h-12 w-12 opacity-[0.72] sm:left-3 sm:-top-15 sm:h-30 sm:w-30"
+            inlineStyle={undefined}
             src={ANIMATIONS.BOM}
           />
           <img alt="" className="h-9 w-9 sm:h-10 sm:w-10" src="/logo.webp" />
@@ -217,18 +217,18 @@ export function LauncherConsole({
         )}
       >
         <LauncherHeroStage
-          current_agent_id={currentAgentId}
-          decorative_tokens={decorativeTokens}
-          mention_targets={mentionTargets}
-          on_enter_home={handleEnterHome}
-          on_open_main_agent_dm={onOpenMainAgentDm}
-          on_query_change={handleInputChange}
-          on_select_agent={onSelectAgent}
-          on_open_recent_entry={handleOpenRecentEntry}
-          on_submit={handlePrimaryAction}
+          currentAgentId={currentAgentId}
+          decorativeTokens={decorativeTokens}
+          mentionTargets={mentionTargets}
+          onEnterHome={handleEnterHome}
+          onOpenMainAgentDm={onOpenMainAgentDm}
+          onQueryChange={handleInputChange}
+          onSelectAgent={onSelectAgent}
+          onOpenRecentEntry={handleOpenRecentEntry}
+          onSubmit={handlePrimaryAction}
           query={query}
-          recent_entries={recentEntries}
-          is_query_loading={isQueryLoading}
+          recentEntries={recentEntries}
+          isQueryLoading={isQueryLoading}
         />
       </div>
     </section>

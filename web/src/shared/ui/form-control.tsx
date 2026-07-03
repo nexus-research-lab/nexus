@@ -11,48 +11,48 @@ import { Search } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import {
-  get_ui_form_control_class_name,
-  get_ui_search_input_shell_class_name,
+  getUiFormControlClassName,
+  getUiSearchInputShellClassName,
   type UiFormControlSize,
   type UiFormControlVariant,
 } from "@/shared/ui/form-control-styles";
 
 interface UiFieldProps {
   children: ReactNode;
-  class_name?: string;
+  className?: string;
   description?: ReactNode;
   error?: ReactNode;
-  html_for?: string;
+  htmlFor?: string;
   label?: ReactNode;
 }
 
 interface UiInputProps extends InputHTMLAttributes<HTMLInputElement> {
-  class_name?: string;
-  control_size?: UiFormControlSize;
+  className?: string;
+  controlSize?: UiFormControlSize;
   variant?: UiFormControlVariant;
 }
 
 interface UiTextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
-  class_name?: string;
-  control_size?: UiFormControlSize;
+  className?: string;
+  controlSize?: UiFormControlSize;
   variant?: UiFormControlVariant;
 }
 
 interface UiSearchInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "onChange" | "size"> {
   action?: ReactNode;
-  class_name?: string;
-  control_size?: UiFormControlSize;
-  input_class_name?: string;
-  on_change: (value: string) => void;
+  className?: string;
+  controlSize?: UiFormControlSize;
+  inputClassName?: string;
+  onChange: (value: string) => void;
   variant?: UiFormControlVariant;
 }
 
 export function UiField({
   children,
-  class_name: className,
+  className: className,
   description,
   error,
-  html_for: htmlFor,
+  htmlFor: htmlFor,
   label,
 }: UiFieldProps) {
   return (
@@ -78,9 +78,8 @@ export function UiField({
 
 export const UiInput = forwardRef<HTMLInputElement, UiInputProps>(function UiInput(
   {
-    class_name: legacyClassName,
     className,
-    control_size: controlSize,
+    controlSize: controlSize,
     type = "text",
     variant,
     ...props
@@ -90,9 +89,9 @@ export const UiInput = forwardRef<HTMLInputElement, UiInputProps>(function UiInp
   return (
     <input
       ref={ref}
-      className={get_ui_form_control_class_name(
+      className={getUiFormControlClassName(
         { size: controlSize, variant },
-        cn(className, legacyClassName),
+        cn(className),
       )}
       type={type}
       {...props}
@@ -102,9 +101,8 @@ export const UiInput = forwardRef<HTMLInputElement, UiInputProps>(function UiInp
 
 export const UiTextarea = forwardRef<HTMLTextAreaElement, UiTextareaProps>(function UiTextarea(
   {
-    class_name: legacyClassName,
     className,
-    control_size: controlSize,
+    controlSize: controlSize,
     variant,
     ...props
   },
@@ -113,9 +111,9 @@ export const UiTextarea = forwardRef<HTMLTextAreaElement, UiTextareaProps>(funct
   return (
     <textarea
       ref={ref}
-      className={get_ui_form_control_class_name(
+      className={getUiFormControlClassName(
         { multiline: true, size: controlSize, variant },
-        cn("resize-y", className, legacyClassName),
+        cn("resize-y", className),
       )}
       {...props}
     />
@@ -124,11 +122,10 @@ export const UiTextarea = forwardRef<HTMLTextAreaElement, UiTextareaProps>(funct
 
 export const UiSearchInput = forwardRef<HTMLInputElement, UiSearchInputProps>(function UiSearchInput({
   action,
-  class_name: legacyClassName,
   className,
-  control_size: controlSize,
-  input_class_name: inputClassName,
-  on_change: onChange,
+  controlSize: controlSize,
+  inputClassName: inputClassName,
+  onChange: onChange,
   placeholder = "搜索",
   type,
   value,
@@ -141,9 +138,9 @@ export const UiSearchInput = forwardRef<HTMLInputElement, UiSearchInputProps>(fu
 
   return (
     <label
-      className={get_ui_search_input_shell_class_name(
+      className={getUiSearchInputShellClassName(
         { size: controlSize, variant },
-        cn(className, legacyClassName),
+        cn(className),
       )}
     >
       <Search className="h-4 w-4 shrink-0 text-(--icon-default)" />

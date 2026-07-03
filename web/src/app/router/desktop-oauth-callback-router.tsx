@@ -23,10 +23,10 @@ export function DesktopOAuthCallbackRouter() {
           <Route element={<AuthGuard />}>
             <Route
               element={<ConnectorOAuthCallbackPage />}
-              path={APP_ROUTE_PATHS.connectors_oauth_callback}
+              path={APP_ROUTE_PATHS.connectorsOauthCallback}
             />
           </Route>
-          <Route element={<Navigate replace to={APP_ROUTE_PATHS.connectors_oauth_callback} />} path="*" />
+          <Route element={<Navigate replace to={APP_ROUTE_PATHS.connectorsOauthCallback} />} path="*" />
         </Routes>
       </Suspense>
     </BrowserRouter>

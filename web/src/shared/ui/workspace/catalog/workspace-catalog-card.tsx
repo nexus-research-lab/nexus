@@ -94,7 +94,7 @@ const CATALOG_DESCRIPTION_CLASS_MAP: Record<CatalogDescriptionSize, string> = {
 /** 中文注释：这组目录卡片是高频共享块，长相收回组件层，避免全局 CSS 继续膨胀。 */
 export function WorkspaceCatalogCard({
   children,
-  class_name: className,
+  className: className,
   muted = false,
   size = "catalog",
   align = "start",
@@ -103,7 +103,7 @@ export function WorkspaceCatalogCard({
   ...props
 }: HTMLAttributes<HTMLElement> & {
   children: ReactNode;
-  class_name?: string;
+  className?: string;
   muted?: boolean;
   size?: CatalogCardSize;
   align?: CatalogCardAlign;
@@ -140,12 +140,12 @@ export function WorkspaceCatalogCard({
 
 export function WorkspaceCatalogHeader({
   children,
-  class_name: className,
+  className: className,
   align = "start",
   ...props
 }: HTMLAttributes<HTMLDivElement> & {
   children: ReactNode;
-  class_name?: string;
+  className?: string;
   align?: CatalogCardAlign;
 }) {
   return (
@@ -160,12 +160,12 @@ export function WorkspaceCatalogHeader({
 
 export function WorkspaceCatalogBody({
   children,
-  class_name: className,
+  className: className,
   grow = false,
   ...props
 }: HTMLAttributes<HTMLDivElement> & {
   children: ReactNode;
-  class_name?: string;
+  className?: string;
   grow?: boolean;
 }) {
   return (
@@ -177,12 +177,12 @@ export function WorkspaceCatalogBody({
 
 export function WorkspaceCatalogFooter({
   children,
-  class_name: className,
+  className: className,
   justify = "between",
   ...props
 }: HTMLAttributes<HTMLDivElement> & {
   children: ReactNode;
-  class_name?: string;
+  className?: string;
   justify?: CatalogFooterJustify;
 }) {
   return (
@@ -202,14 +202,14 @@ export function WorkspaceCatalogFooter({
 export function WorkspaceCatalogTitle({
   children,
   as,
-  class_name: className,
+  className: className,
   size = "md",
   truncate = false,
   ...props
 }: HTMLAttributes<HTMLElement> & {
   children: ReactNode;
   as?: ElementType;
-  class_name?: string;
+  className?: string;
   size?: CatalogTitleSize;
   truncate?: boolean;
 }) {
@@ -231,16 +231,16 @@ export function WorkspaceCatalogTitle({
 
 export function WorkspaceCatalogDescription({
   children,
-  class_name: className,
+  className: className,
   lines = 2,
-  min_height: minHeight = false,
+  minHeight: minHeight = false,
   size = "sm",
   ...props
 }: HTMLAttributes<HTMLParagraphElement> & {
   children: ReactNode;
-  class_name?: string;
+  className?: string;
   lines?: 1 | 2 | 3;
-  min_height?: boolean;
+  minHeight?: boolean;
   size?: CatalogDescriptionSize;
 }) {
   const lineClampClassName =
@@ -264,14 +264,14 @@ export function WorkspaceCatalogDescription({
 /** 中文注释：统一高频图标容器，侧栏、卡片和弹窗都用这套边界语法。 */
 export function WorkspaceIconFrame({
   children,
-  class_name: className,
+  className: className,
   shape = "rounded",
   size = "md",
   tone = "default",
   ...props
 }: HTMLAttributes<HTMLDivElement> & {
   children: ReactNode;
-  class_name?: string;
+  className?: string;
   shape?: CatalogMediaShape;
   size?: IconFrameSize;
   tone?: IconFrameTone;
@@ -297,20 +297,20 @@ export function WorkspaceIconFrame({
 
 export function WorkspaceCatalogAction({
   children,
-  class_name: className,
+  className,
   tone = "default",
   size = "md",
   type = "button",
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & {
   children: ReactNode;
-  class_name?: string;
+  className?: string;
   tone?: CatalogActionTone;
   size?: CatalogActionSize;
 }) {
   return (
     <UiListActionButton
-      class_name={className}
+      className={className}
       size={size === "sm" ? "xs" : "md"}
       tone={tone}
       type={type}
@@ -324,18 +324,18 @@ export function WorkspaceCatalogAction({
 
 export function WorkspaceCatalogTextAction({
   children,
-  class_name: className,
+  className,
   tone = "default",
   type = "button",
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & {
   children: ReactNode;
-  class_name?: string;
+  className?: string;
   tone?: CatalogTextActionTone;
 }) {
   return (
     <UiButton
-      class_name={className}
+      className={className}
       size="sm"
       tone={tone}
       type={type}
@@ -349,10 +349,10 @@ export function WorkspaceCatalogTextAction({
 
 export function WorkspaceCatalogTag({
   children,
-  class_name: className,
+  className: className,
 }: {
   children: ReactNode;
-  class_name?: string;
+  className?: string;
 }) {
   return (
     <span
@@ -372,13 +372,13 @@ export function WorkspaceCatalogTag({
 
 export function WorkspaceCatalogGhostCard({
   children,
-  class_name: className,
+  className: className,
   size = "comfort",
   onClick,
   ...props
 }: HTMLAttributes<HTMLElement> & {
   children: ReactNode;
-  class_name?: string;
+  className?: string;
   size?: Extract<CatalogCardSize, "compact" | "catalog" | "comfort" | "panel">;
 }) {
   return (
