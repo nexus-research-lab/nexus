@@ -42,6 +42,7 @@ export interface SkillMarketplaceController {
   busy_skill_name: string | null;
   busy_external_key: string | null;
   status_message: string | null;
+  warning_message: string | null;
   error_message: string | null;
   file_input_ref: RefObject<HTMLInputElement | null>;
   categories: Array<{ key: string; label: string }>;
@@ -58,6 +59,7 @@ export interface SkillMarketplaceController {
   set_source_manager_open: (value: boolean) => void;
   set_import_dialog_mode: (value: SkillImportDialogMode | null) => void;
   set_status_message: (value: string | null) => void;
+  set_warning_message: (value: string | null) => void;
   set_error_message: (value: string | null) => void;
   refresh_marketplace: () => Promise<void>;
   submit_external_search: () => void;

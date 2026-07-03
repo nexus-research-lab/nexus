@@ -108,7 +108,7 @@ func (s *Service) deploySkillToWorkspace(agentValue *protocol.Agent, record cata
 
 func (s *Service) redeploySkillToInstalledAgents(ctx context.Context, skillName string) (*RedeployResult, error) {
 	result := &RedeployResult{
-		SuccessAgents: make([]string, 0),
+		SuccessAgents: make([]RedeployAgentSuccess, 0),
 		Failures:      make([]RedeployAgentFailure, 0),
 	}
 	if s.agents == nil {
@@ -148,7 +148,10 @@ func (s *Service) redeploySkillToInstalledAgents(ctx context.Context, skillName 
 			})
 			continue
 		}
-		result.SuccessAgents = append(result.SuccessAgents, agentValue.AgentID)
+		result.SuccessAgents = append(result.SuccessAgents, RedeployAgentSuccess{
+			AgentID:   agentValue.AgentID,
+			AgentName: agentValue.Name,
+		})
 	}
 	return result, nil
 }

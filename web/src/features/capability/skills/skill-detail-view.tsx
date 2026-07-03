@@ -21,6 +21,7 @@ import { UiPanel } from "@/shared/ui/panel";
 import { UiStateBlock } from "@/shared/ui/state-block";
 import type { SkillDetail } from "@/types/capability/skill";
 
+import { format_deploy_failure_message } from "./skill-deploy-failures";
 import { SkillMarkdown } from "./skill-markdown";
 
 interface SkillDetailViewProps {
@@ -48,12 +49,14 @@ export function SkillDetailView({
   const [loading, set_loading] = useState(true);
   const [active_action, set_active_action] = useState<"delete" | "update" | null>(null);
   const [error, set_error] = useState<string | null>(null);
+  const [warning, set_warning] = useState<string | null>(null);
   const source_url = skill?.source_ref && /^https?:\/\//.test(skill.source_ref) ? skill.source_ref : null;
 
   const load_detail = useCallback(async () => {
     try {
       set_loading(true);
       set_error(null);
+      set_warning(null);
       set_skill(await get_skill_detail_api(skill_name));
     } catch (err) {
       set_error(err instanceof Error ? err.message : "加载 skill 详情失败");
@@ -72,9 +75,11 @@ export function SkillDetailView({
     try {
       set_active_action("update");
       set_error(null);
-      await update_single_skill_api(skill.name);
+      set_warning(null);
+      const detail = await update_single_skill_api(skill.name);
       await Promise.resolve(on_refreshed());
       await load_detail();
+      set_warning(format_deploy_failure_message(skill.name, detail.deploy_failures));
     } catch (err) {
       set_error(err instanceof Error ? err.message : "更新 skill 失败");
     } finally {
@@ -87,6 +92,7 @@ export function SkillDetailView({
     try {
       set_active_action("delete");
       set_error(null);
+      set_warning(null);
       await delete_skill_api(skill.name);
       await Promise.resolve(on_deleted());
     } catch (err) {
@@ -204,6 +210,9 @@ export function SkillDetailView({
 
             {error ? (
               <UiStateBlock description={error} size="sm" title="操作失败" tone="danger" />
+            ) : null}
+            {warning ? (
+              <UiStateBlock description={warning} size="sm" title="部分完成" />
             ) : null}
 
             <section>

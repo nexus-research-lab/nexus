@@ -24,6 +24,7 @@ import type {
   SkillImportDialogMode,
   SkillMarketplaceController,
 } from "@/features/capability/skills/skills-view-model";
+import { format_deploy_failure_message } from "@/features/capability/skills/skill-deploy-failures";
 
 const MIN_EXTERNAL_SEARCH_LENGTH = 2;
 const UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
@@ -63,6 +64,7 @@ export function useSkillMarketplace(): SkillMarketplaceController {
   const [importing_skill, set_importing_skill] = useState(false);
   const [busy_skill_name, set_busy_skill_name] = useState<string | null>(null);
   const [status_message, set_status_message] = useState<string | null>(null);
+  const [warning_message, set_warning_message] = useState<string | null>(null);
   const [error_message, set_error_message] = useState<string | null>(null);
   const file_input_ref = useRef<HTMLInputElement | null>(null);
   const external_search_request_ref = useRef(0);
@@ -244,6 +246,7 @@ export function useSkillMarketplace(): SkillMarketplaceController {
   const clear_messages = () => {
     set_check_update_message(null);
     set_status_message(null);
+    set_warning_message(null);
     set_error_message(null);
   };
 
@@ -271,8 +274,13 @@ export function useSkillMarketplace(): SkillMarketplaceController {
     clear_messages();
     try {
       set_busy_skill_name(skill_name);
-      await update_single_skill_api(skill_name);
-      set_status_message(`已更新 ${skill_name}`);
+      const detail = await update_single_skill_api(skill_name);
+      const deploy_failure_message = format_deploy_failure_message(skill_name, detail.deploy_failures);
+      if (deploy_failure_message) {
+        set_warning_message(deploy_failure_message);
+      } else {
+        set_status_message(`已更新 ${skill_name}`);
+      }
       await refresh_marketplace();
     } catch (err) {
       set_error_message(err instanceof Error ? err.message : "更新失败");
@@ -458,6 +466,7 @@ export function useSkillMarketplace(): SkillMarketplaceController {
     busy_skill_name,
     busy_external_key,
     status_message,
+    warning_message,
     error_message,
     file_input_ref,
     // 派生数据
@@ -476,6 +485,7 @@ export function useSkillMarketplace(): SkillMarketplaceController {
     set_source_manager_open,
     set_import_dialog_mode,
     set_status_message,
+    set_warning_message,
     set_error_message,
     // 操作
     refresh_marketplace,
