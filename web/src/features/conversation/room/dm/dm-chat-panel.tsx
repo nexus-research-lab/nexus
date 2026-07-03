@@ -21,7 +21,6 @@ import {
   prepareWorkspaceAttachments,
 } from "@/features/conversation/shared/composer-attachments";
 import { ConversationErrorBubble } from "@/features/conversation/shared/conversation-error-bubble";
-import { isProviderError } from "@/features/conversation/shared/conversation-error-utils";
 import { ConversationFeed } from "@/features/conversation/shared/conversation-feed";
 import { goalContinuationHoldForPermission } from "@/features/conversation/shared/goal-continuation-hold";
 import { GoalPanel } from "@/features/conversation/shared/goal-panel";
@@ -135,7 +134,7 @@ export function DmChatPanel({
   const todos = useExtractTodos(messages, sessionKey);
   const { hasAvailableProvider, isReady: providerReady } = useProviderAvailability();
   const showProviderWarning = providerReady && !hasAvailableProvider;
-  const systemError = error && !isProviderError(error) ? error : null;
+  const systemError = error;
   const {
     scrollRef: scrollRef,
     feedRef: feedRef,

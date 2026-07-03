@@ -36,6 +36,13 @@ func TestChatErrorDetailExplainsProviderConfig(t *testing.T) {
 	}
 }
 
+func TestChatErrorDetailExplainsUnsupportedResponsesAPIFormat(t *testing.T) {
+	message := chatErrorDetail(errors.New("provider=ri 的 api_format=responses 暂不可用于 Agent runtime"))
+	if !strings.Contains(message, "Responses API") || !strings.Contains(message, "Agent runtime") {
+		t.Fatalf("Responses API 不支持时应返回可操作提示: %q", message)
+	}
+}
+
 func TestChatErrorDetailExplainsProviderOverload(t *testing.T) {
 	message := chatErrorDetail(errors.New(`client: runtime startup failed: provider_error=server_overload stderr="API error: 529 {\"type\":\"overloaded_error\"}": context deadline exceeded`))
 	if !strings.Contains(message, "模型请求暂时受限") || !strings.Contains(message, "LLM Provider") {
@@ -47,5 +54,23 @@ func TestChatErrorDetailExplainsProviderRateLimit(t *testing.T) {
 	message := chatErrorDetail(errors.New(`client: runtime startup failed: provider_error=rate_limit stderr="API error: 429 rate_limit_error": context deadline exceeded`))
 	if !strings.Contains(message, "模型请求暂时受限") || !strings.Contains(message, "LLM Provider") {
 		t.Fatalf("Provider 限流时应返回受限提示: %q", message)
+	}
+}
+
+func TestNewGatewayErrorEventUsesRoundIDAsCause(t *testing.T) {
+	event := (&Handler{}).newGatewayErrorEvent(
+		"agent:agent-1:ws:dm:session-1",
+		"chat_error",
+		"启动失败",
+		map[string]any{
+			"type":     "chat",
+			"round_id": "round-1",
+		},
+	)
+	if event.CausedBy != "round-1" {
+		t.Fatalf("error caused_by = %q, want round-1", event.CausedBy)
+	}
+	if got := event.Data["round_id"]; got != "round-1" {
+		t.Fatalf("error data.round_id = %#v, want round-1", got)
 	}
 }

@@ -34,6 +34,19 @@ function isEventMessage(data: unknown): data is EventMessage {
   );
 }
 
+function eventRoundId(event: EventMessage): string | null {
+  const dataRoundId = typeof event.data?.round_id === "string"
+    ? event.data.round_id.trim()
+    : "";
+  if (dataRoundId) {
+    return dataRoundId;
+  }
+  const causedBy = typeof event.caused_by === "string"
+    ? event.caused_by.trim()
+    : "";
+  return causedBy || null;
+}
+
 /**
  * 处理 Agent 会话的 WebSocket 事件。
  */
@@ -178,8 +191,12 @@ export function handleAgentConversationWebSocketMessage({
     ) {
       return;
     }
+    const roundId = eventRoundId(event);
+    if (roundId) {
+      applyRoundStatus?.(roundId, "error");
+    }
     if (event.message_id) {
-      updateMessageStatus?.(event.message_id, "error", event.caused_by);
+      updateMessageStatus?.(event.message_id, "error", roundId ?? event.caused_by);
     }
     setError(event.data?.message || "Unknown error");
     return;

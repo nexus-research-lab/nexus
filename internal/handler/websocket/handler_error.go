@@ -51,6 +51,9 @@ func chatErrorDetail(err error) string {
 	}
 	message := strings.TrimSpace(err.Error())
 	switch {
+	case strings.Contains(message, "api_format=responses") &&
+		strings.Contains(message, "暂不可用于 Agent runtime"):
+		return "当前 Provider 使用 Responses API，暂不可用于 Agent runtime。请切换到 Agent runtime 支持的 Provider/API 格式后重试。"
 	case isProviderCapacityError(message):
 		return "模型请求暂时受限，当前 LLM Provider 返回限流或过载。请稍后重试，或临时切换到可用 Provider/模型。"
 	case strings.Contains(message, "nxs"):
@@ -98,5 +101,8 @@ func (h *Handler) newGatewayErrorEvent(
 	}
 	event := protocol.NewEvent(protocol.EventTypeError, data)
 	event.SessionKey = sessionKey
+	if roundID := strings.TrimSpace(handlershared.StringValue(details["round_id"])); roundID != "" {
+		event.CausedBy = roundID
+	}
 	return event
 }

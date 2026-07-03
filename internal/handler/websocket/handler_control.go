@@ -60,6 +60,10 @@ func (h *Handler) handleControlMessage(
 			if roundID != "" {
 				details["round_id"] = roundID
 			}
+			if roundID != "" {
+				reqID := firstStringValue(inbound["req_id"], roundID)
+				_ = sender.SendEvent(ctx, protocol.NewChatAckEvent(sessionKey, reqID, roundID, []map[string]any{}))
+			}
 			h.sendGatewayError(ctx, sender, sessionKey, errorType, err, details)
 			if roundID != "" {
 				_ = sender.SendEvent(ctx, protocol.NewRoundStatusEvent(sessionKey, roundID, "error", "error"))

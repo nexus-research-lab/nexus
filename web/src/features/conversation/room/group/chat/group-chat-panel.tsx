@@ -22,7 +22,6 @@ import { ScrollToLatestButton } from "@/features/conversation/shared/scroll-to-l
 import { ComposerPanel } from "@/features/conversation/shared/composer-panel";
 import { prepareRoomConversationAttachments } from "@/features/conversation/shared/composer-attachments";
 import { ConversationErrorBubble } from "@/features/conversation/shared/conversation-error-bubble";
-import { isProviderError } from "@/features/conversation/shared/conversation-error-utils";
 import { ProviderUnavailableBanner } from "@/features/conversation/shared/provider-unavailable-banner";
 import { ROOM_GOAL_SCOPE_LABEL } from "@/features/conversation/shared/goal-continuation-hold";
 import { buildTimelineRoundIds } from "@/features/conversation/shared/timeline-rounds";
@@ -203,7 +202,7 @@ export function GroupChatPanel({
   const todos = useExtractTodos(messages, sessionKey);
   const { hasAvailableProvider, isReady: providerReady } = useProviderAvailability();
   const showProviderWarning = providerReady && !hasAvailableProvider;
-  const systemError = error && !isProviderError(error) ? error : null;
+  const systemError = error;
   const {
     scrollRef: scrollRef,
     feedRef: feedRef,
