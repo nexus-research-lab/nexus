@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/storage"
@@ -311,8 +312,8 @@ VALUES (%s)`, r.dialect.BindList(5)),
 	}
 
 	if _, err = tx.ExecContext(ctx, fmt.Sprintf(`
-INSERT INTO conversations (id, room_id, conversation_type, title)
-VALUES (%s)`, r.dialect.BindList(4)),
+INSERT INTO conversations (id, room_id, conversation_type, title, last_activity_at)
+VALUES (%s, %s)`, r.dialect.BindList(4), r.dialect.CurrentTimestamp()),
 		bundle.Conversation.ID,
 		bundle.Conversation.RoomID,
 		bundle.Conversation.ConversationType,
@@ -576,8 +577,8 @@ func (r *SQLRepository) CreateConversation(ctx context.Context, bundle CreateCon
 	}
 
 	if _, err = tx.ExecContext(ctx, fmt.Sprintf(`
-INSERT INTO conversations (id, room_id, conversation_type, title)
-VALUES (%s)`, r.dialect.BindList(4)),
+INSERT INTO conversations (id, room_id, conversation_type, title, last_activity_at)
+VALUES (%s, %s)`, r.dialect.BindList(4), r.dialect.CurrentTimestamp()),
 		bundle.Conversation.ID,
 		bundle.Conversation.RoomID,
 		bundle.Conversation.ConversationType,
@@ -650,6 +651,36 @@ WHERE id = `+r.dialect.Bind(2),
 		return err
 	}
 	_, err = result.RowsAffected()
+	return err
+}
+
+// TouchConversationActivity 更新 conversation 级最近活动时间。
+func (r *SQLRepository) TouchConversationActivity(ctx context.Context, conversationID string, activityAt time.Time) error {
+	if conversationID == "" {
+		return nil
+	}
+	if activityAt.IsZero() {
+		activityAt = time.Now().UTC()
+	}
+	activityValue := r.dialect.TimestampValue(activityAt)
+	_, err := r.db.ExecContext(ctx, `
+UPDATE conversations
+SET
+    last_activity_at = CASE
+        WHEN COALESCE(last_activity_at, created_at) < `+r.dialect.Bind(1)+` THEN `+r.dialect.Bind(2)+`
+        ELSE COALESCE(last_activity_at, updated_at, created_at)
+    END,
+    updated_at = CASE
+        WHEN updated_at < `+r.dialect.Bind(3)+` THEN `+r.dialect.Bind(4)+`
+        ELSE updated_at
+    END
+WHERE id = `+r.dialect.Bind(5),
+		activityValue,
+		activityValue,
+		activityValue,
+		activityValue,
+		conversationID,
+	)
 	return err
 }
 

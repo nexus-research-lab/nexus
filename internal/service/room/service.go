@@ -3,6 +3,7 @@ package room
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -38,6 +39,7 @@ type Repository interface {
 	UpdateConversation(context.Context, string, string, string, string) (*protocol.ConversationContextAggregate, error)
 	DeleteConversation(context.Context, string, string, string) (*protocol.ConversationContextAggregate, error)
 	UpdateSessionSDKSessionID(context.Context, string, string) error
+	TouchConversationActivity(context.Context, string, time.Time) error
 }
 
 type goalCleaner interface {

@@ -27,15 +27,17 @@ interface RoomHistorySurfaceProps {
   onUpdateConversationTitle?: (conversationId: string, title: string) => Promise<void>;
 }
 
-function getConversationIds(conversations: RoomConversationView[]): string[] {
-  return conversations.map((conversation) => conversation.conversation_id);
-}
-
-function areConversationIdsEqual(leftIds: string[], rightIds: string[]): boolean {
-  if (leftIds.length !== rightIds.length) {
-    return false;
+function compareConversationsByRecentActivity(
+  left: RoomConversationView,
+  right: RoomConversationView,
+): number {
+  if (left.last_activity_at !== right.last_activity_at) {
+    return right.last_activity_at - left.last_activity_at;
   }
-  return leftIds.every((id, index) => id === rightIds[index]);
+  if (left.created_at !== right.created_at) {
+    return right.created_at - left.created_at;
+  }
+  return left.conversation_id.localeCompare(right.conversation_id);
 }
 
 function stringOption(options: Record<string, unknown>, key: string): string | null {
@@ -65,38 +67,11 @@ export function RoomHistorySurface({
   onUpdateConversationTitle: onUpdateConversationTitle,
 }: RoomHistorySurfaceProps) {
   const { t } = useI18n();
-  const incomingConversationIds = useMemo(
-    () => getConversationIds(conversations),
-    [conversations],
-  );
-  const [conversationOrderIds, setConversationOrderIds] = useState<string[]>(() => incomingConversationIds);
   const [pendingDeleteConversation, setPendingDeleteConversation] = useState<RoomConversationView | null>(null);
-  const conversationsById = useMemo(
-    () => new Map(conversations.map((conversation) => [conversation.conversation_id, conversation])),
+  const orderedConversations = useMemo(
+    () => [...conversations].sort(compareConversationsByRecentActivity),
     [conversations],
   );
-  const orderedConversationIds = useMemo(() => {
-    const liveIds = new Set(incomingConversationIds);
-    const existingIds = conversationOrderIds.filter((id) => liveIds.has(id));
-    const existingIdSet = new Set(existingIds);
-    const addedIds = incomingConversationIds.filter((id) => !existingIdSet.has(id));
-    return [...addedIds, ...existingIds];
-  }, [conversationOrderIds, incomingConversationIds]);
-  const orderedConversations = useMemo(
-    () => orderedConversationIds
-      .map((id) => conversationsById.get(id))
-      .filter((conversation): conversation is RoomConversationView => Boolean(conversation)),
-    [conversationsById, orderedConversationIds],
-  );
-
-  useEffect(() => {
-    // 中文注释：历史面板保持浏览时的视觉顺序，避免活跃会话更新时间后整列重排。
-    setConversationOrderIds((currentIds) => (
-      areConversationIdsEqual(currentIds, orderedConversationIds)
-        ? currentIds
-        : orderedConversationIds
-    ));
-  }, [orderedConversationIds]);
 
   const createAction = canManageConversations ? (
     <WorkspaceSurfaceToolbarAction

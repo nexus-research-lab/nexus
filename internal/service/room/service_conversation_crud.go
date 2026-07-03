@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
@@ -135,4 +136,16 @@ func (s *Service) UpdateSessionSDKSessionID(ctx context.Context, sessionID strin
 		return nil
 	}
 	return s.repository.UpdateSessionSDKSessionID(ctx, sessionID, sdkSessionID)
+}
+
+// TouchConversationActivity 更新 conversation 级最近活动时间。
+func (s *Service) TouchConversationActivity(ctx context.Context, conversationID string, activityAt time.Time) error {
+	conversationID = strings.TrimSpace(conversationID)
+	if conversationID == "" {
+		return nil
+	}
+	if activityAt.IsZero() {
+		activityAt = time.Now().UTC()
+	}
+	return s.repository.TouchConversationActivity(ctx, conversationID, activityAt.UTC())
 }

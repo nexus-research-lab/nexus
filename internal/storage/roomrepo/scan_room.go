@@ -2,6 +2,7 @@ package roomrepo
 
 import (
 	"database/sql"
+	"strings"
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -122,9 +123,10 @@ func ScanRoomMemberAgent(scanner Scanner) (protocol.Agent, error) {
 
 func ScanConversationRecord(scanner Scanner) (protocol.ConversationRecord, error) {
 	var (
-		item      protocol.ConversationRecord
-		createdAt time.Time
-		updatedAt time.Time
+		item           protocol.ConversationRecord
+		lastActivityAt any
+		createdAt      time.Time
+		updatedAt      time.Time
 	)
 	err := scanner.Scan(
 		&item.ID,
@@ -132,6 +134,7 @@ func ScanConversationRecord(scanner Scanner) (protocol.ConversationRecord, error
 		&item.ConversationType,
 		&item.Title,
 		&item.MessageCount,
+		&lastActivityAt,
 		&createdAt,
 		&updatedAt,
 	)
@@ -140,7 +143,49 @@ func ScanConversationRecord(scanner Scanner) (protocol.ConversationRecord, error
 	}
 	item.CreatedAt = createdAt
 	item.UpdatedAt = updatedAt
+	if parsed, ok := scanRoomTimeValue(lastActivityAt); ok {
+		item.LastActivityAt = parsed
+	} else if !updatedAt.IsZero() {
+		item.LastActivityAt = updatedAt
+	} else {
+		item.LastActivityAt = createdAt
+	}
 	return item, nil
+}
+
+func scanRoomTimeValue(value any) (time.Time, bool) {
+	switch typed := value.(type) {
+	case time.Time:
+		return typed.UTC(), true
+	case string:
+		return parseRoomTimeString(typed)
+	case []byte:
+		return parseRoomTimeString(string(typed))
+	default:
+		return time.Time{}, false
+	}
+}
+
+func parseRoomTimeString(value string) (time.Time, bool) {
+	normalized := strings.TrimSpace(value)
+	if normalized == "" {
+		return time.Time{}, false
+	}
+	for _, layout := range []string{
+		time.RFC3339Nano,
+		time.RFC3339,
+		"2006-01-02 15:04:05.999999999Z07:00",
+		"2006-01-02 15:04:05.999999Z07:00",
+		"2006-01-02 15:04:05Z07:00",
+		"2006-01-02 15:04:05.999999999",
+		"2006-01-02 15:04:05.999999",
+		"2006-01-02 15:04:05",
+	} {
+		if parsed, err := time.Parse(layout, normalized); err == nil {
+			return parsed.UTC(), true
+		}
+	}
+	return time.Time{}, false
 }
 
 func ScanSessionRecord(scanner Scanner) (protocol.SessionRecord, error) {
@@ -205,7 +250,10 @@ func PickLatestConversationContext(contexts []protocol.ConversationContextAggreg
 }
 
 func conversationContextLastActivityAt(contextValue protocol.ConversationContextAggregate) time.Time {
-	latestAt := contextValue.Conversation.UpdatedAt
+	latestAt := contextValue.Conversation.LastActivityAt
+	if latestAt.IsZero() {
+		latestAt = contextValue.Conversation.UpdatedAt
+	}
 	if latestAt.IsZero() {
 		latestAt = contextValue.Conversation.CreatedAt
 	}

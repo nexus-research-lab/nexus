@@ -24,13 +24,20 @@ function toTimestamp(value?: string | null): number {
 
 function getContextLastActivityTimestamp(context: RoomContextAggregate): number {
   const sessionTimestamps = context.sessions.map((session) => (
-    toTimestamp(session.last_activity_at)
+    Math.max(
+      toTimestamp(session.last_activity_at),
+      toTimestamp(session.updated_at),
+      toTimestamp(session.created_at),
+    )
   ));
-  const latestSessionTimestamp = Math.max(0, ...sessionTimestamps);
 
-  return latestSessionTimestamp ||
-    toTimestamp(context.conversation.updated_at) ||
-    toTimestamp(context.conversation.created_at);
+  return Math.max(
+    toTimestamp(context.conversation.last_activity_at),
+    toTimestamp(context.conversation.updated_at),
+    toTimestamp(context.conversation.created_at),
+    0,
+    ...sessionTimestamps,
+  );
 }
 
 function getRoomConversationSessionKey(
@@ -248,9 +255,12 @@ export function applyConversationSnapshotToRoomContexts(
     }
 
     let contextChanged = false;
+    const nextConversationLastActivityAt =
+      nextLastActivityAt ?? context.conversation.last_activity_at;
     const nextConversationUpdatedAt =
       nextLastActivityAt ?? context.conversation.updated_at;
     const conversationChanged =
+      context.conversation.last_activity_at !== nextConversationLastActivityAt ||
       context.conversation.updated_at !== nextConversationUpdatedAt;
 
     const nextSessions = context.sessions.map((session) => {
@@ -287,6 +297,7 @@ export function applyConversationSnapshotToRoomContexts(
       ...context,
       conversation: {
         ...context.conversation,
+        last_activity_at: nextConversationLastActivityAt,
         updated_at: nextConversationUpdatedAt,
       },
       sessions: nextSessions,

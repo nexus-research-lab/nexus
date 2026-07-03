@@ -36,6 +36,7 @@ func (s *RealtimeService) HandleDirectedMessage(
 	if err = s.directedMessages.AppendMessage(*message); err != nil {
 		return nil, err
 	}
+	s.touchSharedConversationActivity(ctx, message.ConversationID, time.UnixMilli(message.Timestamp).UTC())
 
 	event := newRoomDirectedMessageEvent(*message)
 	s.broadcastSharedEventWithTimeout(ctx, protocol.BuildRoomSharedSessionKey(message.ConversationID), message.RoomID, event)
