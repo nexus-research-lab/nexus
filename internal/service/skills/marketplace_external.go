@@ -140,9 +140,10 @@ type SkillActionFailure struct {
 
 // UpdateInstalledSkillsResponse 表示批量更新结果。
 type UpdateInstalledSkillsResponse struct {
-	UpdatedSkills []string             `json:"updated_skills"`
-	SkippedSkills []string             `json:"skipped_skills"`
-	Failures      []SkillActionFailure `json:"failures"`
+	UpdatedSkills []string              `json:"updated_skills"`
+	SkippedSkills []string              `json:"skipped_skills"`
+	Failures      []SkillActionFailure  `json:"failures"`
+	DeployResults []SkillRedeployResult `json:"deploy_results,omitempty"`
 }
 
 // CheckSkillUpdatesResponse 表示批量检查更新结果。
@@ -150,4 +151,30 @@ type CheckSkillUpdatesResponse struct {
 	AvailableSkills []string             `json:"available_skills"`
 	SkippedSkills   []string             `json:"skipped_skills"`
 	Failures        []SkillActionFailure `json:"failures"`
+}
+
+// RedeployAgentSuccess 表示单个 Agent 的技能重新部署成功。
+type RedeployAgentSuccess struct {
+	AgentID   string `json:"agent_id"`
+	AgentName string `json:"agent_name"`
+}
+
+// RedeployAgentFailure 表示单个 Agent 的技能重新部署失败。
+type RedeployAgentFailure struct {
+	AgentID   string `json:"agent_id"`
+	AgentName string `json:"agent_name"`
+	Error     string `json:"error"`
+}
+
+// SkillRedeployResult 表示单个技能重新部署到多个 Agent 的结果。
+type SkillRedeployResult struct {
+	SkillName     string                 `json:"skill_name"`
+	SuccessAgents []RedeployAgentSuccess `json:"success_agents"`
+	Failures      []RedeployAgentFailure `json:"failures"`
+}
+
+// RedeployResult 表示技能重新部署到多 Agent 的聚合结果。
+type RedeployResult struct {
+	SuccessAgents []RedeployAgentSuccess `json:"success_agents"`
+	Failures      []RedeployAgentFailure `json:"failures"`
 }

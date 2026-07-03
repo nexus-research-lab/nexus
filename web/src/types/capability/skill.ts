@@ -34,6 +34,8 @@ export interface SkillInfo {
 export interface SkillDetail extends SkillInfo {
     readme_markdown: string;
     recommendation: string;
+    deploy_successes?: RedeployAgentSuccess[];
+    deploy_failures?: RedeployAgentFailure[];
 }
 
 export interface AgentSkillEntry extends SkillInfo {}
@@ -41,6 +43,21 @@ export interface AgentSkillEntry extends SkillInfo {}
 export interface SkillActionFailure {
     skill_name: string;
     error: string;
+}
+
+export interface RedeployAgentSuccess {
+    agent_id: string;
+    agent_name: string;
+}
+
+export interface RedeployAgentFailure extends RedeployAgentSuccess {
+    error: string;
+}
+
+export interface SkillRedeployResult {
+    skill_name: string;
+    success_agents: RedeployAgentSuccess[];
+    failures: RedeployAgentFailure[];
 }
 
 export interface BatchInstallSkillsResponse {
@@ -52,6 +69,7 @@ export interface UpdateInstalledSkillsResponse {
     updated_skills: string[];
     skipped_skills: string[];
     failures: SkillActionFailure[];
+    deploy_results?: SkillRedeployResult[];
 }
 
 export interface CheckSkillUpdatesResponse {

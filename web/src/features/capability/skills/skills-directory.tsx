@@ -61,6 +61,15 @@ export function SkillsDirectory({ on_replay_tour }: SkillsDirectoryProps) {
       tone: operation_pending ? "warning" : "success",
     });
   }
+  if (ctrl.warning_message) {
+    feedback_items.push({
+      key: "warning",
+      message: ctrl.warning_message,
+      on_dismiss: () => ctrl.set_warning_message(null),
+      title: "部分完成",
+      tone: "warning",
+    });
+  }
   if (ctrl.error_message) {
     feedback_items.push({
       key: "error",

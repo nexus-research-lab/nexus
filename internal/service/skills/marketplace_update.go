@@ -3,6 +3,7 @@ package skills
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"maps"
 	"net/http"
@@ -67,6 +68,7 @@ func (s *Service) UpdateImportedSkills(ctx context.Context) (*UpdateInstalledSki
 		UpdatedSkills: make([]string, 0),
 		SkippedSkills: make([]string, 0),
 		Failures:      make([]SkillActionFailure, 0),
+		DeployResults: make([]SkillRedeployResult, 0),
 	}
 	names := slices.Sorted(maps.Keys(records))
 	for _, name := range names {
@@ -82,14 +84,30 @@ func (s *Service) UpdateImportedSkills(ctx context.Context) (*UpdateInstalledSki
 			})
 			continue
 		}
-		if redeployErr := s.redeploySkillToInstalledAgents(ctx, detail.Name); redeployErr != nil {
+		result.UpdatedSkills = append(result.UpdatedSkills, name)
+		redeployResult, redeployErr := s.redeploySkillToInstalledAgents(ctx, detail.Name)
+		if redeployErr != nil {
 			result.Failures = append(result.Failures, SkillActionFailure{
 				SkillName: name,
 				Error:     redeployErr.Error(),
 			})
 			continue
 		}
-		result.UpdatedSkills = append(result.UpdatedSkills, name)
+		if len(redeployResult.SuccessAgents) > 0 || len(redeployResult.Failures) > 0 {
+			result.DeployResults = append(result.DeployResults, SkillRedeployResult{
+				SkillName:     name,
+				SuccessAgents: redeployResult.SuccessAgents,
+				Failures:      redeployResult.Failures,
+			})
+		}
+		if len(redeployResult.Failures) > 0 {
+			for _, f := range redeployResult.Failures {
+				result.Failures = append(result.Failures, SkillActionFailure{
+					SkillName: name,
+					Error:     fmt.Sprintf("agent %s (%s): %s", f.AgentName, f.AgentID, f.Error),
+				})
+			}
+		}
 	}
 	return result, nil
 }
@@ -108,8 +126,13 @@ func (s *Service) UpdateSingleSkill(ctx context.Context, skillName string) (*Det
 	if err != nil {
 		return nil, err
 	}
-	if err = s.redeploySkillToInstalledAgents(ctx, detail.Name); err != nil {
+	redeployResult, err := s.redeploySkillToInstalledAgents(ctx, detail.Name)
+	if err != nil {
 		return nil, err
+	}
+	detail.DeploySuccesses = redeployResult.SuccessAgents
+	if len(redeployResult.Failures) > 0 {
+		detail.DeployFailures = redeployResult.Failures
 	}
 	return detail, nil
 }

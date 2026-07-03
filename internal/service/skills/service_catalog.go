@@ -106,36 +106,54 @@ func (s *Service) deploySkillToWorkspace(agentValue *protocol.Agent, record cata
 	return workspacesvc.DeploySkill(record.Detail.Name, record.SourcePath, agentValue.WorkspacePath, context)
 }
 
-func (s *Service) redeploySkillToInstalledAgents(ctx context.Context, skillName string) error {
+func (s *Service) redeploySkillToInstalledAgents(ctx context.Context, skillName string) (*RedeployResult, error) {
+	result := &RedeployResult{
+		SuccessAgents: make([]RedeployAgentSuccess, 0),
+		Failures:      make([]RedeployAgentFailure, 0),
+	}
 	if s.agents == nil {
-		return nil
+		return result, nil
 	}
 	records, err := s.loadCatalogRecords(ctx)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	record, ok := records[strings.TrimSpace(skillName)]
 	if !ok {
-		return errors.New("skill not found")
+		return nil, errors.New("skill not found")
 	}
 	agents, err := s.agents.ListAgentRecords(ctx)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	for index := range agents {
 		agentValue := agents[index]
 		names, err := workspacesvc.ListDeployedSkills(agentValue.WorkspacePath)
 		if err != nil {
-			return err
+			result.Failures = append(result.Failures, RedeployAgentFailure{
+				AgentID:   agentValue.AgentID,
+				AgentName: agentValue.Name,
+				Error:     err.Error(),
+			})
+			continue
 		}
 		if !slices.Contains(names, record.Detail.Name) {
 			continue
 		}
 		if err = s.deploySkillToWorkspace(&agentValue, record); err != nil {
-			return err
+			result.Failures = append(result.Failures, RedeployAgentFailure{
+				AgentID:   agentValue.AgentID,
+				AgentName: agentValue.Name,
+				Error:     err.Error(),
+			})
+			continue
 		}
+		result.SuccessAgents = append(result.SuccessAgents, RedeployAgentSuccess{
+			AgentID:   agentValue.AgentID,
+			AgentName: agentValue.Name,
+		})
 	}
-	return nil
+	return result, nil
 }
 
 func (s *Service) loadCatalogRecords(ctx context.Context) (map[string]catalogRecord, error) {
