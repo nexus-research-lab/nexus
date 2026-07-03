@@ -20,7 +20,7 @@ const nexusctlWorkspacePathEnvName = "NEXUSCTL_WORKSPACE_PATH"
 const nexusctlCommandPathEnvName = "NEXUSCTL_COMMAND_PATH"
 const apiFormatAnthropicMessages = runtimeprovider.APIFormatAnthropicMessages
 const apiFormatChatCompletions = runtimeprovider.APIFormatChatCompletions
-const claudeAutoCompactPctOverrideEnvName = "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE"
+const nexusAutoCompactPctOverrideEnvName = "NEXUS_AUTOCOMPACT_PCT_OVERRIDE"
 const defaultClaudeAutoCompactPctOverride = "70"
 const thinkingCapabilityName = "thinking"
 const nexusAPIProviderEnvName = "NEXUS_API_PROVIDER"
@@ -61,7 +61,7 @@ func anthropicRuntimeEnvFromConfig(runtimeConfig *RuntimeConfig) map[string]stri
 		"ANTHROPIC_DEFAULT_OPUS_MODEL":   runtimeConfig.Model,
 		"ANTHROPIC_DEFAULT_SONNET_MODEL": runtimeConfig.Model,
 		"ANTHROPIC_DEFAULT_HAIKU_MODEL":  runtimeConfig.Model,
-		"CLAUDE_CODE_SUBAGENT_MODEL":     runtimeConfig.Model,
+		"NEXUS_SUBAGENT_MODEL":           runtimeConfig.Model,
 		NexusRuntimeProviderEnvName:      runtimeConfig.Provider,
 		nexusAPIProviderEnvName:          "anthropic-compatible",
 	}
@@ -104,12 +104,12 @@ func isFirstPartyAnthropicBaseURL(baseURL string) bool {
 
 func openAIRuntimeEnvFromConfig(runtimeConfig *RuntimeConfig) map[string]string {
 	return map[string]string{
-		"OPENAI_API_KEY":             runtimeConfig.AuthToken,
-		"OPENAI_BASE_URL":            runtimeConfig.BaseURL,
-		"OPENAI_MODEL":               runtimeConfig.Model,
-		"CLAUDE_CODE_SUBAGENT_MODEL": runtimeConfig.Model,
-		NexusRuntimeProviderEnvName:  runtimeConfig.Provider,
-		nexusAPIProviderEnvName:      "openai",
+		"OPENAI_API_KEY":            runtimeConfig.AuthToken,
+		"OPENAI_BASE_URL":           runtimeConfig.BaseURL,
+		"OPENAI_MODEL":              runtimeConfig.Model,
+		"NEXUS_SUBAGENT_MODEL":      runtimeConfig.Model,
+		NexusRuntimeProviderEnvName: runtimeConfig.Provider,
+		nexusAPIProviderEnvName:     "openai",
 	}
 }
 
@@ -126,7 +126,7 @@ func applyDefaultModelCapabilitiesEnv(env map[string]string, capabilities ...str
 
 func defaultRuntimeEnv() map[string]string {
 	return map[string]string{
-		claudeAutoCompactPctOverrideEnvName:    defaultClaudeAutoCompactPctOverride,
+		nexusAutoCompactPctOverrideEnvName:     defaultClaudeAutoCompactPctOverride,
 		nexusDisableProjectInstructionsEnvName: "1",
 	}
 }

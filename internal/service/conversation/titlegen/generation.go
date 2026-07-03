@@ -3,6 +3,7 @@ package titlegen
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -12,7 +13,7 @@ import (
 
 const (
 	titleAttemptTimeout = 20 * time.Second
-	titleMaxTokens      = 32
+	titleMaxTokens      = 128
 	titleMaxAttempts    = 2
 	titleSystemPrompt   = `你是会话标题生成器。
 请根据用户的第一条消息生成一个简短标题。
@@ -61,9 +62,13 @@ func (s *Service) generateAndApply(ctx context.Context, request Request) {
 		}
 	}
 	if !sessionEligible && !conversationEligible {
-		s.logger.Debug("跳过标题生成：目标当前不可自动更新",
+		s.logger.Info("跳过标题生成：目标当前不可自动更新",
 			"session_key", request.SessionKey,
 			"conversation_id", request.ConversationID,
+			"session_title", request.SessionTitle,
+			"conversation_title", request.ConversationTitle,
+			"conversation_room_name", request.ConversationRoomName,
+			"fallback_title", request.FallbackTitle,
 			"session_eligible", sessionEligible,
 			"conversation_eligible", conversationEligible,
 		)
@@ -73,10 +78,12 @@ func (s *Service) generateAndApply(ctx context.Context, request Request) {
 	title, err := s.generateTitle(ctx, request, request.Content)
 	if err != nil {
 		if errors.Is(err, errEmptyGeneratedTitle) {
-			s.logger.Debug("生成会话标题返回空结果",
+			s.logger.Warn("生成会话标题返回空结果",
 				"session_key", request.SessionKey,
 				"conversation_id", request.ConversationID,
 				"provider", strings.TrimSpace(request.Provider),
+				"model", strings.TrimSpace(request.Model),
+				"err", err,
 			)
 			return
 		}
@@ -84,6 +91,7 @@ func (s *Service) generateAndApply(ctx context.Context, request Request) {
 			"session_key", request.SessionKey,
 			"conversation_id", request.ConversationID,
 			"provider", strings.TrimSpace(request.Provider),
+			"model", strings.TrimSpace(request.Model),
 			"err", err,
 		)
 		return
@@ -146,18 +154,21 @@ func (s *Service) generateTitle(
 ) (string, error) {
 	runtimeConfig, err := s.resolveLLMConfig(ctx, request)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("解析标题模型配置失败 request_provider=%q request_model=%q: %w", strings.TrimSpace(request.Provider), strings.TrimSpace(request.Model), err)
 	}
 	llmRequest := llm.GenerateTextRequest{
-		Config:      runtimeConfig,
-		System:      titleSystemPrompt,
-		Messages:    []llm.Message{{Role: "user", Content: truncatePromptContent(content, 400)}},
-		MaxTokens:   titleMaxTokens,
-		Temperature: 0,
+		Config:           runtimeConfig,
+		System:           titleSystemPrompt,
+		Messages:         []llm.Message{{Role: "user", Content: truncatePromptContent(content, 400)}},
+		MaxTokens:        titleMaxTokens,
+		Temperature:      0,
+		DisableReasoning: true,
 	}
 
 	var lastErr error
+	attempts := 0
 	for attempt := 1; attempt <= titleMaxAttempts; attempt++ {
+		attempts = attempt
 		attemptCtx, cancel := context.WithTimeout(ctx, titleAttemptTimeout)
 		title, err := s.doGenerateTitle(attemptCtx, llmRequest)
 		cancel()
@@ -174,7 +185,15 @@ func (s *Service) generateTitle(
 		case <-time.After(600 * time.Millisecond):
 		}
 	}
-	return "", lastErr
+	return "", fmt.Errorf(
+		"标题模型请求失败 resolved_provider=%q resolved_model=%q api_format=%q base_url_set=%t attempts=%d: %w",
+		strings.TrimSpace(runtimeConfig.Provider),
+		strings.TrimSpace(runtimeConfig.Model),
+		strings.TrimSpace(runtimeConfig.APIFormat),
+		strings.TrimSpace(runtimeConfig.BaseURL) != "",
+		attempts,
+		lastErr,
+	)
 }
 
 func (s *Service) resolveLLMConfig(

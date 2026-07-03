@@ -128,7 +128,7 @@ func TestRealtimeServiceForwardsProviderModelOption(t *testing.T) {
 	if options.Env["ANTHROPIC_DEFAULT_SONNET_MODEL"] != "glm-5.1" {
 		t.Fatalf("room runtime 未注入默认 sonnet model: %+v", options.Env)
 	}
-	if options.Env["CLAUDE_CODE_SUBAGENT_MODEL"] != "glm-5.1" {
+	if options.Env["NEXUS_SUBAGENT_MODEL"] != "glm-5.1" {
 		t.Fatalf("room runtime 未注入 subagent model: %+v", options.Env)
 	}
 	titleRequest := titleScheduler.LastRequest()

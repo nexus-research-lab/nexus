@@ -93,7 +93,7 @@ func TestScheduleRetriesTimeoutOnce(t *testing.T) {
 	}
 }
 
-func TestScheduleDoesNotWarnOnEmptyGeneratedTitle(t *testing.T) {
+func TestScheduleWarnsOnEmptyGeneratedTitle(t *testing.T) {
 	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -102,7 +102,7 @@ func TestScheduleDoesNotWarnOnEmptyGeneratedTitle(t *testing.T) {
 			"content": []map[string]any{
 				{
 					"type": "text",
-					"text": "   ",
+					"text": "!!!",
 				},
 			},
 		})
@@ -144,8 +144,9 @@ func TestScheduleDoesNotWarnOnEmptyGeneratedTitle(t *testing.T) {
 	if got := sessionStore.sessions["agent:a:ws:dm:conv_1"].Title; got != "New Chat" {
 		t.Fatalf("空标题不应更新 session 标题: %s", got)
 	}
-	if output := buffer.String(); strings.Contains(output, "生成会话标题失败") {
-		t.Fatalf("空标题不应写入 warn 日志: %s", output)
+	output := buffer.String()
+	if !strings.Contains(output, "生成会话标题返回空结果") || !strings.Contains(output, "resolved_model") {
+		t.Fatalf("空标题应写入可诊断 warn 日志: %s", output)
 	}
 }
 
@@ -245,6 +246,66 @@ func TestGenerateTitleSupportsChatCompletions(t *testing.T) {
 	}
 	if receivedSystem == "" {
 		t.Fatal("Chat Completions 缺少 system prompt")
+	}
+}
+
+func TestGenerateTitleDisablesGLMThinking(t *testing.T) {
+	t.Parallel()
+
+	var receivedThinking map[string]any
+	var receivedMaxTokens float64
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		defer request.Body.Close()
+		var payload map[string]any
+		if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+			t.Fatalf("解析请求失败: %v", err)
+		}
+		if thinking, ok := payload["thinking"].(map[string]any); ok {
+			receivedThinking = thinking
+		}
+		if value, ok := payload["max_tokens"].(float64); ok {
+			receivedMaxTokens = value
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(map[string]any{
+			"choices": []map[string]any{
+				{
+					"message": map[string]any{
+						"content": "简单问候",
+					},
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	service := NewService(&fakeProviderResolver{
+		config: &clientopts.RuntimeConfig{
+			Provider:    "glm-coding-plan",
+			DisplayName: "GLM Coding Plan",
+			AuthToken:   "glm-key",
+			BaseURL:     server.URL + "/api/coding/paas/v4",
+			Model:       "glm-4.5-air",
+			APIFormat:   "chat_completions",
+			Reasoning:   true,
+		},
+	}, nil, nil, nil)
+
+	title, err := service.generateTitle(context.Background(), Request{
+		Provider: "glm-coding-plan",
+		Model:    "glm-5.2",
+	}, "hey")
+	if err != nil {
+		t.Fatalf("生成标题失败: %v", err)
+	}
+	if title != "简单问候" {
+		t.Fatalf("标题不正确: %s", title)
+	}
+	if receivedThinking["type"] != "disabled" {
+		t.Fatalf("GLM 标题生成应关闭 thinking: %+v", receivedThinking)
+	}
+	if receivedMaxTokens != titleMaxTokens {
+		t.Fatalf("标题 max_tokens 不正确: %v", receivedMaxTokens)
 	}
 }
 

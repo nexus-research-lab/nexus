@@ -27,11 +27,12 @@ type Message struct {
 
 // GenerateTextRequest 描述一次非流式文本生成请求。
 type GenerateTextRequest struct {
-	Config      *clientopts.RuntimeConfig
-	System      string
-	Messages    []Message
-	MaxTokens   int
-	Temperature float64
+	Config           *clientopts.RuntimeConfig
+	System           string
+	Messages         []Message
+	MaxTokens        int
+	Temperature      float64
+	DisableReasoning bool
 }
 
 // NewClient 创建轻量 LLM client。
@@ -77,7 +78,11 @@ func (c *Client) GenerateText(ctx context.Context, request GenerateTextRequest) 
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		return "", fmt.Errorf("llm api 返回异常状态: %d %s", response.StatusCode, strings.TrimSpace(string(responseBody)))
 	}
-	return parseTextResponse(request.Config.APIFormat, responseBody)
+	text, err := parseTextResponse(request.Config.APIFormat, responseBody)
+	if err != nil {
+		return "", fmt.Errorf("llm api 解析响应失败: %w body=%s", err, trimResponseBody(responseBody))
+	}
+	return text, nil
 }
 
 func requestPayload(request GenerateTextRequest) any {
@@ -91,21 +96,25 @@ func requestPayload(request GenerateTextRequest) any {
 	}
 	switch normalizeAPIFormat(config.APIFormat) {
 	case providersvc.APIFormatResponses:
-		return responsesRequest{
+		payload := responsesRequest{
 			Model:           model,
 			Input:           messagesWithSystem(systemPrompt, messages),
 			MaxOutputTokens: maxTokens,
 			Temperature:     request.Temperature,
 			Stream:          false,
 		}
+		applyResponsesReasoningDisableOptions(&payload, config, request)
+		return payload
 	case providersvc.APIFormatChatCompletions:
-		return chatCompletionsRequest{
+		payload := chatCompletionsRequest{
 			Model:       model,
 			MaxTokens:   maxTokens,
 			Temperature: request.Temperature,
 			Stream:      false,
 			Messages:    messagesWithSystem(systemPrompt, messages),
 		}
+		applyChatCompletionsReasoningDisableOptions(&payload, config, request)
+		return payload
 	default:
 		return anthropicMessagesRequest{
 			Model:       model,
@@ -128,6 +137,190 @@ func normalizeMessages(messages []Message) []Message {
 		result = append(result, Message{Role: role, Content: content})
 	}
 	return result
+}
+
+func applyChatCompletionsReasoningDisableOptions(
+	payload *chatCompletionsRequest,
+	config *clientopts.RuntimeConfig,
+	request GenerateTextRequest,
+) {
+	if !shouldDisableReasoning(config, request) {
+		return
+	}
+	switch {
+	case shouldUseThinkingDisable(config):
+		payload.Thinking = map[string]string{"type": "disabled"}
+	case shouldUseEnableThinkingDisable(config):
+		payload.EnableThinking = boolPointer(false)
+	case shouldUseChatTemplateThinkingDisable(config):
+		payload.ChatTemplateKwargs = map[string]bool{"enable_thinking": false}
+	case shouldUseOpenAIReasoningEffortNone(config):
+		payload.ReasoningEffort = "none"
+	}
+}
+
+func applyResponsesReasoningDisableOptions(
+	payload *responsesRequest,
+	config *clientopts.RuntimeConfig,
+	request GenerateTextRequest,
+) {
+	if !shouldDisableReasoning(config, request) {
+		return
+	}
+	switch {
+	case shouldUseThinkingDisable(config):
+		payload.Thinking = map[string]string{"type": "disabled"}
+	case shouldUseEnableThinkingDisable(config):
+		payload.EnableThinking = boolPointer(false)
+	case shouldUseOpenAIReasoningEffortNone(config):
+		payload.Reasoning = &responsesReasoning{Effort: "none"}
+	}
+}
+
+func shouldDisableReasoning(config *clientopts.RuntimeConfig, request GenerateTextRequest) bool {
+	return request.DisableReasoning && config != nil
+}
+
+func shouldUseThinkingDisable(config *clientopts.RuntimeConfig) bool {
+	return isGLMRuntimeConfig(config) ||
+		isVolcengineRuntimeConfig(config) ||
+		isKimiRuntimeConfigWithDisableSupport(config)
+}
+
+func shouldUseEnableThinkingDisable(config *clientopts.RuntimeConfig) bool {
+	return isDashScopeRuntimeConfig(config) ||
+		isQwenTokenPlanRuntimeConfig(config) ||
+		isModelScopeQwenRuntimeConfig(config)
+}
+
+func shouldUseChatTemplateThinkingDisable(config *clientopts.RuntimeConfig) bool {
+	return isLocalOpenAICompatibleRuntimeConfig(config) && isQwenModel(config)
+}
+
+func shouldUseOpenAIReasoningEffortNone(config *clientopts.RuntimeConfig) bool {
+	if !config.Reasoning || !isOpenAIRuntimeConfig(config) {
+		return false
+	}
+	return openAIModelSupportsReasoningEffortNone(config.Model)
+}
+
+func isGLMRuntimeConfig(config *clientopts.RuntimeConfig) bool {
+	return runtimeContains(config, "bigmodel.cn") ||
+		providerOrDisplayContains(config, "glm")
+}
+
+func isVolcengineRuntimeConfig(config *clientopts.RuntimeConfig) bool {
+	return runtimeContains(config, "volcengine", "volces.com", "doubao", "火山", "方舟")
+}
+
+func isKimiRuntimeConfigWithDisableSupport(config *clientopts.RuntimeConfig) bool {
+	if !runtimeContains(config, "kimi", "moonshot") {
+		return false
+	}
+	model := normalizeMatchText(config.Model)
+	return !strings.Contains(model, "kimi-for-coding") &&
+		!strings.Contains(model, "kimi-k2.7-code")
+}
+
+func isDashScopeRuntimeConfig(config *clientopts.RuntimeConfig) bool {
+	return runtimeContains(config, "dashscope", "bailian", "aliyun", "alibaba")
+}
+
+func isQwenTokenPlanRuntimeConfig(config *clientopts.RuntimeConfig) bool {
+	return runtimeContains(config, "qwen-token-plan", "token-plan.cn") ||
+		(providerOrDisplayContains(config, "qwen") && isQwenModel(config))
+}
+
+func isModelScopeQwenRuntimeConfig(config *clientopts.RuntimeConfig) bool {
+	return runtimeContains(config, "modelscope") && isQwenModel(config)
+}
+
+func isLocalOpenAICompatibleRuntimeConfig(config *clientopts.RuntimeConfig) bool {
+	return runtimeContains(
+		config,
+		"vllm",
+		"sglang",
+		"llama",
+		"localhost",
+		"127.0.0.1",
+		"0.0.0.0",
+		"[::1]",
+		"://10.",
+		"://192.168.",
+		"://172.16.",
+		"://172.17.",
+		"://172.18.",
+		"://172.19.",
+		"://172.20.",
+		"://172.21.",
+		"://172.22.",
+		"://172.23.",
+		"://172.24.",
+		"://172.25.",
+		"://172.26.",
+		"://172.27.",
+		"://172.28.",
+		"://172.29.",
+		"://172.30.",
+		"://172.31.",
+	)
+}
+
+func isOpenAIRuntimeConfig(config *clientopts.RuntimeConfig) bool {
+	provider := normalizeMatchText(config.Provider)
+	displayName := normalizeMatchText(config.DisplayName)
+	return provider == "openai" ||
+		displayName == "openai" ||
+		runtimeContains(config, "api.openai.com")
+}
+
+func isQwenModel(config *clientopts.RuntimeConfig) bool {
+	model := normalizeMatchText(config.Model)
+	return strings.Contains(model, "qwen") || strings.Contains(model, "qwq")
+}
+
+func openAIModelSupportsReasoningEffortNone(model string) bool {
+	normalized := normalizeMatchText(model)
+	if strings.Contains(normalized, "pro") {
+		return false
+	}
+	return strings.HasPrefix(normalized, "gpt-5.1") ||
+		strings.HasPrefix(normalized, "gpt-5.2") ||
+		strings.HasPrefix(normalized, "gpt-5.3") ||
+		strings.HasPrefix(normalized, "gpt-5.4") ||
+		strings.HasPrefix(normalized, "gpt-5.5")
+}
+
+func runtimeContains(config *clientopts.RuntimeConfig, terms ...string) bool {
+	for _, value := range []string{config.Provider, config.DisplayName, config.BaseURL} {
+		normalized := normalizeMatchText(value)
+		for _, term := range terms {
+			if strings.Contains(normalized, normalizeMatchText(term)) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func providerOrDisplayContains(config *clientopts.RuntimeConfig, terms ...string) bool {
+	for _, value := range []string{config.Provider, config.DisplayName} {
+		normalized := normalizeMatchText(value)
+		for _, term := range terms {
+			if strings.Contains(normalized, normalizeMatchText(term)) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func normalizeMatchText(value string) string {
+	return strings.ToLower(strings.TrimSpace(value))
+}
+
+func boolPointer(value bool) *bool {
+	return &value
 }
 
 func messagesWithSystem(systemPrompt string, messages []Message) []Message {
@@ -203,6 +396,15 @@ func normalizeAPIFormat(apiFormat string) string {
 	}
 }
 
+func trimResponseBody(body []byte) string {
+	const limit = 1024
+	text := strings.TrimSpace(string(body))
+	if len(text) <= limit {
+		return text
+	}
+	return text[:limit] + "...(truncated)"
+}
+
 type anthropicMessagesRequest struct {
 	Model       string    `json:"model"`
 	MaxTokens   int       `json:"max_tokens"`
@@ -212,17 +414,28 @@ type anthropicMessagesRequest struct {
 }
 
 type chatCompletionsRequest struct {
-	Model       string    `json:"model"`
-	MaxTokens   int       `json:"max_tokens"`
-	Temperature float64   `json:"temperature,omitempty"`
-	Stream      bool      `json:"stream"`
-	Messages    []Message `json:"messages"`
+	Model              string            `json:"model"`
+	MaxTokens          int               `json:"max_tokens"`
+	Temperature        float64           `json:"temperature,omitempty"`
+	Stream             bool              `json:"stream"`
+	Messages           []Message         `json:"messages"`
+	Thinking           map[string]string `json:"thinking,omitempty"`
+	EnableThinking     *bool             `json:"enable_thinking,omitempty"`
+	ChatTemplateKwargs map[string]bool   `json:"chat_template_kwargs,omitempty"`
+	ReasoningEffort    string            `json:"reasoning_effort,omitempty"`
 }
 
 type responsesRequest struct {
-	Model           string    `json:"model"`
-	Input           []Message `json:"input"`
-	MaxOutputTokens int       `json:"max_output_tokens"`
-	Temperature     float64   `json:"temperature,omitempty"`
-	Stream          bool      `json:"stream"`
+	Model           string              `json:"model"`
+	Input           []Message           `json:"input"`
+	MaxOutputTokens int                 `json:"max_output_tokens"`
+	Temperature     float64             `json:"temperature,omitempty"`
+	Stream          bool                `json:"stream"`
+	Thinking        map[string]string   `json:"thinking,omitempty"`
+	EnableThinking  *bool               `json:"enable_thinking,omitempty"`
+	Reasoning       *responsesReasoning `json:"reasoning,omitempty"`
+}
+
+type responsesReasoning struct {
+	Effort string `json:"effort,omitempty"`
 }

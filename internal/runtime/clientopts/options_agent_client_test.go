@@ -111,7 +111,7 @@ func TestBuildAgentClientOptionsUsesProviderRuntimeEnv(t *testing.T) {
 	if _, ok := options.Env[enableToolSearchEnvName]; ok {
 		t.Fatalf("宿主不应注入 tool search 开关，应交给 SDK 按 CC 规则判断: %+v", options.Env)
 	}
-	if options.Env[claudeAutoCompactPctOverrideEnvName] != defaultClaudeAutoCompactPctOverride {
+	if options.Env[nexusAutoCompactPctOverrideEnvName] != defaultClaudeAutoCompactPctOverride {
 		t.Fatalf("默认自动压缩阈值未注入: %+v", options.Env)
 	}
 	if options.Session.ResumeID != "sdk-session-1" {
@@ -228,7 +228,7 @@ func TestBuildAgentClientOptionsAllowsExtraEnvOverride(t *testing.T) {
 	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
 		WorkspacePath: "/tmp/workspace",
 		ExtraEnv: map[string]string{
-			claudeAutoCompactPctOverrideEnvName:    "80",
+			nexusAutoCompactPctOverrideEnvName:     "80",
 			nexusDisableProjectInstructionsEnvName: "0",
 			enableToolSearchEnvName:                "true",
 		},
@@ -236,7 +236,7 @@ func TestBuildAgentClientOptionsAllowsExtraEnvOverride(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
 	}
-	if options.Env[claudeAutoCompactPctOverrideEnvName] != "80" {
+	if options.Env[nexusAutoCompactPctOverrideEnvName] != "80" {
 		t.Fatalf("ExtraEnv 应覆盖默认自动压缩阈值: %+v", options.Env)
 	}
 	if options.Env[nexusDisableProjectInstructionsEnvName] != "0" {
@@ -314,6 +314,7 @@ func TestBuildAgentClientOptionsInjectsReasoningCapabilities(t *testing.T) {
 }
 
 func TestBuildAgentClientOptionsUsesBridgeRuntimeKind(t *testing.T) {
+	clearAmbientNXSProcessRuntimeEnv(t)
 	t.Setenv(nexusNXSCommandPathEnvName, "")
 	t.Setenv(runtimectx.AgentSDKDiagnosticsEnvName, "stderr")
 	t.Setenv(runtimectx.AgentSDKDiagnosticsJSONLEnvName, "1")
@@ -355,6 +356,7 @@ func TestBuildAgentClientOptionsUsesBridgeRuntimeKind(t *testing.T) {
 }
 
 func TestBuildAgentClientOptionsEnablesNXSAgentSDKDiagnostics(t *testing.T) {
+	clearAmbientNXSProcessRuntimeEnv(t)
 	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
 		RuntimeKind:                runtimeKindNXS,
 		AgentSDKDiagnosticsEnabled: true,
@@ -431,12 +433,12 @@ func TestBuildAgentClientOptionsDefaultsToNXSChatCompletionsProviderEnv(t *testi
 		t.Fatalf("未启用 nxs runtime: %+v", options.Runtime)
 	}
 	wantEnv := map[string]string{
-		"OPENAI_API_KEY":             "openai-token",
-		"OPENAI_BASE_URL":            "https://api.openai.com/v1",
-		"OPENAI_MODEL":               "gpt-4o",
-		"CLAUDE_CODE_SUBAGENT_MODEL": "gpt-4o",
-		NexusRuntimeProviderEnvName:  "openai",
-		nexusAPIProviderEnvName:      "openai",
+		"OPENAI_API_KEY":            "openai-token",
+		"OPENAI_BASE_URL":           "https://api.openai.com/v1",
+		"OPENAI_MODEL":              "gpt-4o",
+		"NEXUS_SUBAGENT_MODEL":      "gpt-4o",
+		NexusRuntimeProviderEnvName: "openai",
+		nexusAPIProviderEnvName:     "openai",
 	}
 	for key, want := range wantEnv {
 		if options.Env[key] != want {
@@ -690,4 +692,16 @@ func countTool(tools []string, expected string) int {
 		}
 	}
 	return count
+}
+
+func clearAmbientNXSProcessRuntimeEnv(t *testing.T) {
+	t.Helper()
+	for _, key := range []string{
+		runtimectx.AgentSDKDiagnosticsJSONLEnvName,
+		runtimectx.AgentSDKDiagnosticsStreamProgressEnvName,
+		runtimectx.AgentSDKProviderDebugBodyEnvName,
+		nexusCachedMicrocompactEnvName,
+	} {
+		t.Setenv(key, "")
+	}
 }

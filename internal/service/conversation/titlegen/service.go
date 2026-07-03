@@ -105,7 +105,7 @@ func (s *Service) Schedule(ctx context.Context, request Request) {
 		return
 	}
 
-	s.logger.Debug("调度标题生成",
+	s.logger.Info("调度标题生成",
 		"target_key", targetKey,
 		"session_key", request.SessionKey,
 		"conversation_id", request.ConversationID,
@@ -114,6 +114,9 @@ func (s *Service) Schedule(ctx context.Context, request Request) {
 		"model", request.Model,
 		"session_title", request.SessionTitle,
 		"session_message_count", request.SessionMessageCount,
+		"conversation_title", request.ConversationTitle,
+		"conversation_room_name", request.ConversationRoomName,
+		"conversation_message_count", request.ConversationMessageCount,
 	)
 	asyncCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), titleRequestTimeout)
 	s.runAsync(func() {
