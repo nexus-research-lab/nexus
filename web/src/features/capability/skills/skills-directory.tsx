@@ -10,6 +10,7 @@ import { WORKSPACE_DETAIL_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-d
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 
 import { useSkillMarketplace } from "@/hooks/capability/use-skill-marketplace";
+import type { SkillsRouteParams } from "@/types/app/route";
 
 import { ExternalSkillPreviewDialog } from "./external-skill-preview-dialog";
 import { SkillDetailView } from "./skill-detail-view";
@@ -31,7 +32,7 @@ export function SkillsDirectory({ onReplayTour: onReplayTour }: SkillsDirectoryP
   const { t } = useI18n();
   const ctrl = useSkillMarketplace();
   const navigate = useNavigate();
-  const { skill_name: skillName } = useParams<{ skill_name?: string }>();
+  const { skillName } = useParams<SkillsRouteParams>();
   const openSkillPage = useCallback(
     (name: string) => {
       navigate(AppRouteBuilders.skillDetail(name));

@@ -12,6 +12,10 @@ export interface SkillsRouteParams extends Record<string, string | undefined> {
   skillName?: string;
 }
 
+export interface ConnectorsRouteParams extends Record<string, string | undefined> {
+  connectorId?: string;
+}
+
 export interface RoomPageControllerOptions {
   roomId?: string | null;
   conversationId?: string | null;

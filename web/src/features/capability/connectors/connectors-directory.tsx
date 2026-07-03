@@ -6,6 +6,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { useConnectorController } from "@/hooks/capability/use-connector-controller";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import type { ConnectorsRouteParams } from "@/types/app/route";
 import type { ConnectorDetail } from "@/types/capability/connector";
 
 import {
@@ -30,7 +31,7 @@ export function ConnectorsDirectory() {
   const { t } = useI18n();
   const ctrl = useConnectorController();
   const navigate = useNavigate();
-  const { connector_id: connectorId } = useParams<{ connector_id?: string }>();
+  const { connectorId } = useParams<ConnectorsRouteParams>();
   const [credentialDetail, setCredentialDetail] = useState<ConnectorDetail | null>(null);
   const [oauthClientDetail, setOauthClientDetail] = useState<ConnectorDetail | null>(null);
   const {
