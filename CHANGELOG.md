@@ -10,25 +10,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.23] - 2026-07-04
 
 ### Added
-- Added session-scoped Agent SDK provider cache JSONL diagnostics for `nxs` instead of defaulting the runtime diagnostics setting to stderr logs.
-- Added real background subagent task lifecycle support across SDK task events, Nexus indexing, and DM/Room task transcript UI.
-- Added a Background Tasks follow-up composer that queues messages to running subagents and refreshes the subagent transcript.
+
+- Added session-scoped provider diagnostics for `nxs` and surfaced background subagent task lifecycle events across indexing, DM, and Room transcripts.
+- Added Background Tasks follow-up messaging, conversation session navigation, subscription operations, and Room Goal loop/title improvements.
+
+### Changed
+
+- Refined Skill update discovery, update/import busy states, desktop window chrome, sidebar density, runtime retry copy, and frontend camelCase module boundaries.
+- Updated bridge/runtime integration for subagent tasks and provider diagnostics while reducing noisy SDK stderr output.
 
 ### Fixed
-- Fixed imported Skill updates when the cached `.nexus-skill.json` manifest is missing but the database still has the import metadata.
-- Fixed a flaky reciprocal Room public mention test by waiting for both mention rounds to finish before cleanup.
-- Fixed a Room `RunningSubagents` data race by making the post-round subagent wait flag atomic.
-- Fixed subagent task progress status inference so incomplete or negated completion text is not marked completed.
-- Made Skill update checks surface available updates at the top of the library and added clearer busy states for update and import actions.
-- Changed Skill library updates to first check imported skill sources and only show per-skill update actions when a newer remote version is detected.
-- Refined desktop window chrome on macOS and Windows so native title bars align with the shared Nexus surface palette.
-- Tightened the desktop sidebar brand header and chat/contact list density.
-- Resumed DM and Room Goal continuations after background subagent terminal notifications instead of suppressing waiting rounds as empty progress.
-- Preserved SDK terminal `errors` text in round failure summaries instead of falling back to a generic runtime failure message.
-- Restored the scroll-to-bottom affordance inside Room Thread detail panels.
-- Fixed Room Goal auto-continuation from background contexts so missing request ownership no longer makes active Room Goals disappear.
-- Clarified conversation connection error copy and provider retry UI so runtime stalls are not presented as a stopped backend service.
-- Preserved runtime `compact_boundary` system events so context compaction is visible in conversation history.
+
+- Fixed imported Skill update recovery, partial Skill redeploy failure reporting, title generation, room conversation sorting, GLM runtime ToolSearch behavior, and spreadsheet preview dependency regressions.
+- Fixed subagent and Goal continuation regressions, Room thread scrolling, WebSocket recovery, compact-boundary visibility, terminal error summaries, and several Room runtime data races.
+- Renumbered post-merge sqlite/postgres migrations so versions 44, 45, and 46 apply without duplicate Goose migration versions.
+
+### Security
+
+- Cleared frontend audit findings by overriding vulnerable transitive `js-yaml` and `@babel/core` versions.
 
 ## [0.1.22] - 2026-06-22
 
