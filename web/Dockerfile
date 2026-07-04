@@ -28,8 +28,13 @@ RUN pnpm run build
 FROM nginx:1.28-alpine AS runner
 
 COPY deploy/nginx.conf /etc/nginx/nginx.conf
+COPY deploy/nginx-locations.conf /etc/nginx/snippets/nexus-locations.conf
+COPY deploy/nginx-http.conf.template /etc/nginx/nexus-templates/http.conf.template
+COPY deploy/nginx-http-redirect.conf.template /etc/nginx/nexus-templates/http-redirect.conf.template
+COPY deploy/nginx-https.conf.template /etc/nginx/nexus-templates/https.conf.template
+COPY deploy/nginx-entrypoint.sh /docker-entrypoint.d/10-nexus-nginx.sh
 COPY --from=builder /app/web/dist /usr/share/nginx/html
 
-EXPOSE 80
+EXPOSE 80 443
 
 CMD ["nginx", "-g", "daemon off;"]

@@ -1,0 +1,20 @@
+server {
+    listen 80;
+    server_name ${NGINX_SERVER_NAME};
+    root /usr/share/nginx/html;
+
+    location = /nginx-health {
+        access_log off;
+        add_header Content-Type text/plain;
+        return 200 'ok';
+    }
+
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/acme;
+        try_files $uri =404;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}

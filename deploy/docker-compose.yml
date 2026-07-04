@@ -95,12 +95,19 @@ services:
     restart: unless-stopped
     environment:
       TZ: ${TZ:-Asia/Shanghai}
+      NGINX_SERVER_NAME: ${NGINX_SERVER_NAME:-_}
+      NGINX_SSL_CERTIFICATE: ${NGINX_SSL_CERTIFICATE:-/etc/nginx/certs/fullchain.pem}
+      NGINX_SSL_CERTIFICATE_KEY: ${NGINX_SSL_CERTIFICATE_KEY:-/etc/nginx/certs/privkey.pem}
+      NGINX_REDIRECT_HTTPS: ${NGINX_REDIRECT_HTTPS:-true}
     depends_on:
       nexus:
         condition: service_healthy
     ports:
-      # TLS should terminate at an outer reverse proxy/load balancer unless nginx.conf is extended with certificates.
       - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    volumes:
+      - ${HOST_DATA_DIR:-./data}/certs:/etc/nginx/certs:ro
+      - ${HOST_DATA_DIR:-./data}/acme:/var/www/acme
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/nginx-health || exit 1"]
       interval: 30s
