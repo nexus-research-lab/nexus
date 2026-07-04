@@ -15,7 +15,7 @@ interface CodeBlockContentProps {
   value: string;
 }
 
-const MESSAGE_CODE_FONT_FAMILY = "\"KingHwa_OldSong\", var(--font-mono), monospace";
+const MESSAGE_CODE_FONT_FAMILY = "\"KingHwaOldSong\", var(--font-mono), monospace";
 
 export function CodeBlockContent({ language, value }: CodeBlockContentProps) {
   const { theme } = useTheme();

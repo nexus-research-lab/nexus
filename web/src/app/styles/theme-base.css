@@ -92,6 +92,7 @@
     background-size: var(--ambient-page-pattern-size), 100% 100%;
     color: var(--foreground);
     font-family: var(--font-sans);
+    font-weight: normal;
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
@@ -111,7 +112,7 @@
 
   .message-cjk-font {
     font-family:
-      "KingHwa_OldSong",
+      "KingHwaOldSong",
       "PingFang SC",
       "Hiragino Sans GB",
       "Source Han Serif SC",
@@ -121,7 +122,7 @@
 
   .message-cjk-code-font {
     font-family:
-      "KingHwa_OldSong",
+      "KingHwaOldSong",
       var(--font-mono),
       "PingFang SC",
       "Hiragino Sans GB",
