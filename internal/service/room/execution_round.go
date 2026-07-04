@@ -33,7 +33,7 @@ func (s *RealtimeService) runRound(
 	}
 	waitGroup.Wait()
 
-	roundValue.RunningSubagents = roundValue.hasRunningSubagentTasks()
+	roundValue.RunningSubagents.Store(roundValue.hasRunningSubagentTasks())
 	s.finishRound(roundValue)
 
 	finalStatus := "finished"
@@ -52,7 +52,7 @@ func (s *RealtimeService) runRound(
 		mapTerminalSubtype(finalStatus),
 	))
 	s.broadcastSessionStatus(ctx, roundValue.SessionKey)
-	if roundValue.RunningSubagents {
+	if roundValue.RunningSubagents.Load() {
 		s.startIdleSubagentNotificationDrains(contextWithQueueOwner(context.Background(), roundValue.OwnerUserID), roundValue)
 	}
 	if finalStatus == "finished" {

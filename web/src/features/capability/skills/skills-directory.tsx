@@ -21,6 +21,7 @@ import { SkillsExternalResults } from "./skills-external-results";
 import { SkillsHeader } from "./skills-header";
 import { SkillsSearchBar } from "./skills-search-bar";
 import { SKILLS_TOUR_ANCHORS } from "./skills-tour";
+import { SkillsUpdateHighlight } from "./skills-update-highlight";
 
 /* ── Skills 页面主编排组件 ────────────────────── */
 
@@ -28,7 +29,7 @@ interface SkillsDirectoryProps {
   onReplayTour?: () => void;
 }
 
-export function SkillsDirectory({ onReplayTour: onReplayTour }: SkillsDirectoryProps) {
+export function SkillsDirectory({ onReplayTour }: SkillsDirectoryProps) {
   const { t } = useI18n();
   const ctrl = useSkillMarketplace();
   const navigate = useNavigate();
@@ -46,15 +47,28 @@ export function SkillsDirectory({ onReplayTour: onReplayTour }: SkillsDirectoryP
     await ctrl.refreshMarketplace();
     navigate(AppRouteBuilders.skills());
   }, [ctrl, navigate]);
+  const operationPending = ctrl.checkingUpdates ||
+    ctrl.importingSkill ||
+    Boolean(ctrl.busyExternalKey) ||
+    Boolean(ctrl.busySkillName);
 
   const feedbackItems: FeedbackBannerItem[] = [];
   if (ctrl.statusMessage) {
     feedbackItems.push({
       key: "status",
       message: ctrl.statusMessage,
-      onDismiss: () => ctrl.setStatusMessage(null),
-      title: "操作完成",
-      tone: "success",
+      onDismiss: operationPending ? undefined : () => ctrl.setStatusMessage(null),
+      title: operationPending ? "处理中" : "已完成",
+      tone: operationPending ? "warning" : "success",
+    });
+  }
+  if (ctrl.warningMessage) {
+    feedbackItems.push({
+      key: "warning",
+      message: ctrl.warningMessage,
+      onDismiss: () => ctrl.setWarningMessage(null),
+      title: "部分完成",
+      tone: "warning",
     });
   }
   if (ctrl.errorMessage) {
@@ -72,8 +86,8 @@ export function SkillsDirectory({ onReplayTour: onReplayTour }: SkillsDirectoryP
       {/* 隐藏的文件选择器 */}
       <input
         accept=".zip,application/zip"
-        aria-label="导入 Skill 压缩包"
         className="hidden"
+        disabled={ctrl.importingSkill}
         onChange={(e) => {
           const file = e.target.files?.[0];
           if (file) void ctrl.handleLocalImport(file);
@@ -117,7 +131,10 @@ export function SkillsDirectory({ onReplayTour: onReplayTour }: SkillsDirectoryP
             <div data-tour-anchor={SKILLS_TOUR_ANCHORS.catalog}>
               {ctrl.discoveryMode === "external" && <SkillsExternalResults ctrl={ctrl} />}
               {ctrl.discoveryMode === "catalog" && (
-                <SkillsCatalogGrid ctrl={ctrl} onOpenSkill={openSkillPage} />
+                <>
+                  <SkillsUpdateHighlight ctrl={ctrl} onOpenSkill={openSkillPage} />
+                  <SkillsCatalogGrid ctrl={ctrl} onOpenSkill={openSkillPage} />
+                </>
               )}
             </div>
           </div>

@@ -198,20 +198,20 @@ func TestRealtimeServiceReleasesSubagentWaitAndPlansRoomGoalContinuation(t *test
 		goals: goalProvider,
 	}
 	roundValue := &activeRoomRound{
-		SessionKey:       "room:group:conversation-1",
-		ConversationID:   "conversation-1",
-		RoundID:          "round-1",
-		RunningSubagents: true,
+		SessionKey:     "room:group:conversation-1",
+		ConversationID: "conversation-1",
+		RoundID:        "round-1",
 		Slots: map[string]*activeRoomSlot{
 			"agent-1": {AgentID: "agent-1"},
 		},
 	}
+	roundValue.RunningSubagents.Store(true)
 
 	service.releaseRoundSubagentWait(roundValue)
 
 	goalProvider.mu.Lock()
 	defer goalProvider.mu.Unlock()
-	if roundValue.RunningSubagents {
+	if roundValue.RunningSubagents.Load() {
 		t.Fatal("RunningSubagents = true, want released after all subagent tasks finish")
 	}
 	if goalProvider.planCalls != 1 {

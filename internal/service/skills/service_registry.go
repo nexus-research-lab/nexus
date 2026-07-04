@@ -53,6 +53,30 @@ func (s *Service) buildExternalRecordFromEntity(root string, record skillstore.I
 	if tags == nil {
 		tags = []string{}
 	}
+	manifest := externalManifest{
+		Name:           record.SkillName,
+		Title:          record.Title,
+		Description:    record.Description,
+		Scope:          record.Scope,
+		Tags:           tags,
+		CategoryKey:    record.CategoryKey,
+		CategoryName:   record.CategoryName,
+		Version:        record.Version,
+		SourceType:     sourceTypeExternal,
+		SourceRef:      record.SourceRef,
+		SourceKind:     record.SourceKind,
+		SourceKey:      record.SourceID,
+		SourceName:     record.SourceName,
+		SourceTrust:    record.SourceTrust,
+		ImportMode:     record.ImportMode,
+		Recommendation: record.Recommendation,
+		GitURL:         record.GitURL,
+		GitBranch:      record.GitBranch,
+		GitPath:        record.GitPath,
+		GitCommit:      record.GitCommit,
+		RawURL:         record.RawURL,
+		DetailURL:      record.DetailURL,
+	}
 	detail := Detail{
 		Info: Info{
 			Name:         firstNonEmpty(record.SkillName, parsed.Name),
@@ -66,7 +90,7 @@ func (s *Service) buildExternalRecordFromEntity(root string, record skillstore.I
 			SourceRef:    firstNonEmpty(record.SourceRef, skillDir),
 			Version:      firstNonEmpty(record.Version, parsed.Version, "external"),
 			Locked:       false,
-			HasUpdate:    record.ImportMode == "git" || record.ImportMode == "skills_sh" || record.ImportMode == "url",
+			HasUpdate:    record.UpdateAvailable,
 			Deletable:    true,
 			SourceKind:   record.SourceKind,
 			SourceName:   record.SourceName,
@@ -77,7 +101,7 @@ func (s *Service) buildExternalRecordFromEntity(root string, record skillstore.I
 		ReadmeMarkdown: parsed.ReadmeMarkdown,
 		Recommendation: firstNonEmpty(record.Recommendation, parsed.Recommendation, "外部导入能力。"),
 	}
-	return catalogRecord{Detail: detail, SourcePath: skillDir}
+	return catalogRecord{Detail: detail, SourcePath: skillDir, Manifest: manifest}
 }
 
 func (s *Service) backfillImportedSkillRecords(ctx context.Context, root string) error {
@@ -221,13 +245,13 @@ func (s *Service) loadExternalRecordsFromRoot(root string) (map[string]catalogRe
 				SourceRef:    firstNonEmpty(manifest.SourceRef, skillDir),
 				Version:      firstNonEmpty(manifest.Version, parsed.Version, "external"),
 				Locked:       false,
-				HasUpdate:    manifest.ImportMode == "git" || manifest.ImportMode == "skills_sh" || manifest.ImportMode == "url",
+				HasUpdate:    false,
 				Deletable:    true,
 			},
 			ReadmeMarkdown: parsed.ReadmeMarkdown,
 			Recommendation: firstNonEmpty(manifest.Recommendation, parsed.Recommendation, "外部导入能力。"),
 		}
-		result[detail.Name] = catalogRecord{Detail: detail, SourcePath: skillDir}
+		result[detail.Name] = catalogRecord{Detail: detail, SourcePath: skillDir, Manifest: manifest}
 	}
 	return result, nil
 }

@@ -248,8 +248,8 @@ func TestGoalCompatMigrationRunsAfterAppliedVersion36(t *testing.T) {
 	if err := db.QueryRow("SELECT MAX(version_id) FROM goose_db_version WHERE is_applied = 1").Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != 45 {
-		t.Fatalf("goose version = %d, want 45", version)
+	if version != 46 {
+		t.Fatalf("goose version = %d, want 46", version)
 	}
 }
 

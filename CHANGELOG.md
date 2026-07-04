@@ -13,6 +13,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added a Background Tasks follow-up composer that queues messages to running subagents and refreshes the subagent transcript.
 
 ### Fixed
+- Fixed imported Skill updates when the cached `.nexus-skill.json` manifest is missing but the database still has the import metadata.
+- Fixed a flaky reciprocal Room public mention test by waiting for both mention rounds to finish before cleanup.
+- Fixed a Room `RunningSubagents` data race by making the post-round subagent wait flag atomic.
+- Fixed subagent task progress status inference so incomplete or negated completion text is not marked completed.
+- Made Skill update checks surface available updates at the top of the library and added clearer busy states for update and import actions.
+- Changed Skill library updates to first check imported skill sources and only show per-skill update actions when a newer remote version is detected.
+- Refined desktop window chrome on macOS and Windows so native title bars align with the shared Nexus surface palette.
+- Tightened the desktop sidebar brand header and chat/contact list density.
 - Resumed DM and Room Goal continuations after background subagent terminal notifications instead of suppressing waiting rounds as empty progress.
 - Preserved SDK terminal `errors` text in round failure summaries instead of falling back to a generic runtime failure message.
 - Restored the scroll-to-bottom affordance inside Room Thread detail panels.

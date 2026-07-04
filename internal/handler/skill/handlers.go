@@ -240,6 +240,16 @@ func (h *Handlers) HandleUpdateExternalSkillSource(writer http.ResponseWriter, r
 	h.api.WriteSuccess(writer, item)
 }
 
+// HandleCheckSkillUpdates 检查外部导入技能是否有更新。
+func (h *Handlers) HandleCheckSkillUpdates(writer http.ResponseWriter, request *http.Request) {
+	item, err := h.skills.CheckImportedSkillUpdates(request.Context())
+	if err != nil {
+		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
+	h.api.WriteSuccess(writer, item)
+}
+
 // HandleUpdateImportedSkills 更新全部导入技能。
 func (h *Handlers) HandleUpdateImportedSkills(writer http.ResponseWriter, request *http.Request) {
 	item, err := h.skills.UpdateImportedSkills(request.Context())

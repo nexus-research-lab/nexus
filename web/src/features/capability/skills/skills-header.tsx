@@ -1,4 +1,4 @@
-import { Compass, Download, Puzzle, RefreshCw, SlidersHorizontal } from "lucide-react";
+import { Compass, Download, Loader2, Puzzle, RefreshCw, SlidersHorizontal } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import {
@@ -20,7 +20,7 @@ interface SkillsHeaderProps {
   onReplayTour?: () => void;
 }
 
-export function SkillsHeader({ ctrl, onReplayTour: onReplayTour }: SkillsHeaderProps) {
+export function SkillsHeader({ ctrl, onReplayTour }: SkillsHeaderProps) {
   const { t } = useI18n();
 
   return (
@@ -39,15 +39,25 @@ export function SkillsHeader({ ctrl, onReplayTour: onReplayTour }: SkillsHeaderP
       trailing={
         <div className="flex items-center gap-2">
           <div className="flex items-center" data-tour-anchor={SKILLS_TOUR_ANCHORS.import_skill}>
-            <WorkspaceSurfaceToolbarAction onClick={() => ctrl.setImportDialogMode("local")}>
+            <WorkspaceSurfaceToolbarAction
+              disabled={ctrl.importingSkill}
+              onClick={() => ctrl.setImportDialogMode("local")}
+            >
               <Download className="h-3.5 w-3.5" />
-              {t("capability.import_skill")}
+              {ctrl.importingSkill ? "导入中" : t("capability.import_skill")}
             </WorkspaceSurfaceToolbarAction>
           </div>
           <div className="flex items-center" data-tour-anchor={SKILLS_TOUR_ANCHORS.update_library}>
-            <WorkspaceSurfaceToolbarAction onClick={() => void ctrl.handleUpdateInstalled()}>
-              <RefreshCw className="h-3.5 w-3.5" />
-              {t("capability.update_library")}
+            <WorkspaceSurfaceToolbarAction
+              disabled={ctrl.checkingUpdates}
+              onClick={() => void ctrl.handleCheckUpdates()}
+            >
+              {ctrl.checkingUpdates ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="h-3.5 w-3.5" />
+              )}
+              {ctrl.checkingUpdates ? "检查中" : t("capability.update_library")}
             </WorkspaceSurfaceToolbarAction>
           </div>
           <div className="flex items-center">

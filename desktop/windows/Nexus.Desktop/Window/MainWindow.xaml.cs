@@ -1,5 +1,7 @@
 using System.ComponentModel;
+using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Interop;
 using Microsoft.Web.WebView2.Wpf;
 using Nexus.Desktop.Diagnostics;
 using Nexus.Desktop.Lifecycle;
@@ -31,6 +33,7 @@ public partial class MainWindow : System.Windows.Window
         this.startupTimeline = startupTimeline;
         this.updateChecker = updateChecker;
         InitializeComponent();
+        ConfigureWebViewSurface(MainWebView);
         trayController = new DesktopTrayController(
             startupTimeline,
             RestoreFromTray,
@@ -43,6 +46,12 @@ public partial class MainWindow : System.Windows.Window
         };
         webViewHealthProbeTimer.Tick += (_, _) => RecoverVisibleWebView("periodic_visible");
         webViewHealthProbeTimer.Start();
+    }
+
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+        ConfigureNativeWindowBackdrop(new WindowInteropHelper(this).Handle);
     }
 
     protected override void OnClosing(CancelEventArgs e)
@@ -135,6 +144,7 @@ public partial class MainWindow : System.Windows.Window
         }
 
         WebView2 nextWebView = new();
+        ConfigureWebViewSurface(nextWebView);
         WebViewContainer.Children.Add(nextWebView);
         return nextWebView;
     }
@@ -172,6 +182,7 @@ public partial class MainWindow : System.Windows.Window
             DisposeWebView();
             WebViewContainer.Children.Clear();
             WebView2 replacement = new();
+            ConfigureWebViewSurface(replacement);
             WebViewContainer.Children.Add(replacement);
             webViewHost = CreateWebViewHost(replacement);
             await webViewHost.InitializeAsync();
@@ -311,5 +322,53 @@ public partial class MainWindow : System.Windows.Window
             return normalized;
         }
         return normalized[..maxLength] + "...";
+    }
+
+    private static void ConfigureWebViewSurface(WebView2 webView)
+    {
+        webView.DefaultBackgroundColor = System.Drawing.Color.Transparent;
+    }
+
+    private static void ConfigureNativeWindowBackdrop(IntPtr hwnd)
+    {
+        if (hwnd == IntPtr.Zero)
+        {
+            return;
+        }
+
+        TrySetDwmAttribute(hwnd, DwmWindowAttribute.SystemBackdropType, DwmSystemBackdropType.MainWindow);
+        TrySetDwmAttribute(hwnd, DwmWindowAttribute.WindowCornerPreference, DwmWindowCornerPreference.Round);
+        TrySetDwmAttribute(hwnd, DwmWindowAttribute.UseImmersiveDarkMode, 0);
+        TrySetDwmAttribute(hwnd, DwmWindowAttribute.CaptionColor, 0x00EFF1F0);
+        TrySetDwmAttribute(hwnd, DwmWindowAttribute.BorderColor, 0x00D8DDDA);
+        TrySetDwmAttribute(hwnd, DwmWindowAttribute.TextColor, 0x002C2117);
+    }
+
+    private static void TrySetDwmAttribute(IntPtr hwnd, int attribute, int value)
+    {
+        _ = DwmSetWindowAttribute(hwnd, attribute, ref value, sizeof(int));
+    }
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int dwAttribute, ref int pvAttribute, int cbAttribute);
+
+    private static class DwmWindowAttribute
+    {
+        internal const int UseImmersiveDarkMode = 20;
+        internal const int WindowCornerPreference = 33;
+        internal const int BorderColor = 34;
+        internal const int CaptionColor = 35;
+        internal const int TextColor = 36;
+        internal const int SystemBackdropType = 38;
+    }
+
+    private static class DwmWindowCornerPreference
+    {
+        internal const int Round = 2;
+    }
+
+    private static class DwmSystemBackdropType
+    {
+        internal const int MainWindow = 2;
     }
 }

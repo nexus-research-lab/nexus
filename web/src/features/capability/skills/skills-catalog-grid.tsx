@@ -10,7 +10,7 @@ interface SkillsCatalogGridProps {
   onOpenSkill: (skillName: string) => void;
 }
 
-export function SkillsCatalogGrid({ ctrl, onOpenSkill: onOpenSkill }: SkillsCatalogGridProps) {
+export function SkillsCatalogGrid({ ctrl, onOpenSkill }: SkillsCatalogGridProps) {
   if (ctrl.loading) {
     return (
       <div className="flex min-h-80 items-center justify-center">
@@ -55,7 +55,6 @@ export function SkillsCatalogGrid({ ctrl, onOpenSkill: onOpenSkill }: SkillsCata
                 className="transition-opacity"
                 onDelete={() => void ctrl.handleDeleteSkill(skill)}
                 onSelect={() => onOpenSkill(skill.name)}
-                onUpdate={() => void ctrl.handleUpdateSingle(skill.name)}
                 skill={skill}
               />
             ))}

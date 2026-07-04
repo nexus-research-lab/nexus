@@ -8,6 +8,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -53,7 +54,7 @@ tags: [url]
 	if err != nil {
 		t.Fatalf("URL 导入失败: %v", err)
 	}
-	if detail.Name != "url-demo" || !detail.HasUpdate {
+	if detail.Name != "url-demo" || detail.HasUpdate {
 		t.Fatalf("URL 导入详情不正确: %+v", detail)
 	}
 	manifest, err := service.readManifest(filepath.Join(service.registryRoot(context.Background()), "url-demo"))
@@ -489,6 +490,9 @@ func TestGitImportAndUpdateImportedSkillsUseStoredMetadata(t *testing.T) {
 		if len(command) >= 2 && command[0] == "git" && stringSliceContains(command, "clone") {
 			return "", copyDirectory(activeRepo, command[len(command)-1])
 		}
+		if len(command) >= 2 && command[0] == "git" && stringSliceContains(command, "ls-remote") {
+			return activeCommit + "\trefs/heads/main", nil
+		}
 		if len(command) >= 3 && command[0] == "git" && command[1] == "rev-parse" && workDir != "" {
 			return activeCommit, nil
 		}
@@ -509,6 +513,17 @@ func TestGitImportAndUpdateImportedSkillsUseStoredMetadata(t *testing.T) {
 	if record == nil || record.GitURL != "https://example.com/skills.git" || record.GitBranch != "main" || record.GitPath != "skills/git-skill" {
 		t.Fatalf("Git 导入 DB 记录不正确: %+v", record)
 	}
+	if err = os.Remove(filepath.Join(service.registryRoot(ctx), "git-skill", ".nexus-skill.json")); err != nil {
+		t.Fatalf("删除缓存 manifest 失败: %v", err)
+	}
+	initialSkills, err := service.ListSkills(ctx, Query{})
+	if err != nil {
+		t.Fatalf("读取初始 skill 列表失败: %v", err)
+	}
+	initialGitSkill, ok := findSkill(initialSkills, "git-skill")
+	if !ok || initialGitSkill.HasUpdate {
+		t.Fatalf("检查前不应显示有更新: %+v", initialGitSkill)
+	}
 
 	localRoot := filepath.Join(t.TempDir(), "local-skill")
 	writeTestSkillDir(t, localRoot, "local-skill", "Local Skill", false)
@@ -518,6 +533,24 @@ func TestGitImportAndUpdateImportedSkillsUseStoredMetadata(t *testing.T) {
 
 	activeRepo = repoV2
 	activeCommit = "commit-v2"
+	checkResult, err := service.CheckImportedSkillUpdates(ctx)
+	if err != nil {
+		t.Fatalf("检查技能更新失败: %v", err)
+	}
+	if !stringSliceContains(checkResult.AvailableSkills, "git-skill") {
+		t.Fatalf("Git skill 应检查出可更新: %+v", checkResult)
+	}
+	if !stringSliceContains(checkResult.SkippedSkills, "local-skill") {
+		t.Fatalf("本地导入 skill 应被检查跳过: %+v", checkResult)
+	}
+	checkedSkills, err := service.ListSkills(ctx, Query{})
+	if err != nil {
+		t.Fatalf("读取检查后 skill 列表失败: %v", err)
+	}
+	checkedGitSkill, ok := findSkill(checkedSkills, "git-skill")
+	if !ok || !checkedGitSkill.HasUpdate {
+		t.Fatalf("远端变化后应显示有更新: %+v", checkedGitSkill)
+	}
 	updateResult, err := service.UpdateImportedSkills(ctx)
 	if err != nil {
 		t.Fatalf("更新技能库失败: %v", err)
@@ -534,6 +567,14 @@ func TestGitImportAndUpdateImportedSkillsUseStoredMetadata(t *testing.T) {
 	}
 	if updated.Title != "Git Skill v2" || updated.Version != "commit-v2" {
 		t.Fatalf("Git 更新后详情不正确: %+v", updated.Info)
+	}
+	refreshedSkills, err := service.ListSkills(ctx, Query{})
+	if err != nil {
+		t.Fatalf("读取更新后 skill 列表失败: %v", err)
+	}
+	refreshedGitSkill, ok := findSkill(refreshedSkills, "git-skill")
+	if !ok || refreshedGitSkill.HasUpdate {
+		t.Fatalf("更新后应清除有更新标记: %+v", refreshedGitSkill)
 	}
 }
 

@@ -267,7 +267,7 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
       {isLoading ? (
         <SidebarListLoadingRows />
       ) : (
-        <div className="flex min-h-0 flex-1 flex-col gap-1 px-2 pb-2">
+        <div className="flex min-h-0 flex-1 flex-col gap-0.5 px-2 pb-2">
           {filteredItems.length > 0 ? (
             filteredItems.map((item) => (
               <ConversationRow
@@ -388,7 +388,7 @@ export const ContactsSidebarPanelContent = memo(function ContactsSidebarPanelCon
       {isLoading ? (
         <SidebarListLoadingRows />
       ) : (
-        <div className="flex min-h-0 flex-1 flex-col gap-1 px-2 pb-2">
+        <div className="flex min-h-0 flex-1 flex-col gap-0.5 px-2 pb-2">
           {filteredAgents.length > 0 ? (
             filteredAgents.map((agent) => {
               const runningTaskCount = agentRuntimeStatuses[agent.id]?.running_task_count ?? 0;

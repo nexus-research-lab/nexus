@@ -10,6 +10,7 @@ import { getAgentApiBaseUrl } from "@/config/options";
 import { requestApi, type RequestApiOptions } from "@/lib/api/http";
 import type {
   AgentSkillEntry,
+  CheckSkillUpdatesResponse,
   ExternalSkillSourceInfo,
   ExternalSkillSourceRequest,
   ExternalSkillSearchItem,
@@ -205,6 +206,18 @@ export const updateImportedSkillsApi =
   async (): Promise<UpdateInstalledSkillsResponse> => {
     return requestSkillApi<UpdateInstalledSkillsResponse>(
       "/skills/update-imported",
+      {
+        method: "POST",
+        timeout_ms: SKILL_GIT_OPERATION_TIMEOUT_MS,
+      },
+    );
+  };
+
+/** 检查全局已导入 Skill 是否有更新 */
+export const checkSkillUpdatesApi =
+  async (): Promise<CheckSkillUpdatesResponse> => {
+    return requestSkillApi<CheckSkillUpdatesResponse>(
+      "/skills/check-updates",
       {
         method: "POST",
         timeout_ms: SKILL_GIT_OPERATION_TIMEOUT_MS,

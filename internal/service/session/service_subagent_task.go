@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"unicode"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
@@ -309,26 +310,62 @@ func subagentTaskProgressBlocks(message protocol.Message) []map[string]any {
 }
 
 func inferSubagentTaskProgressStatus(text string) string {
-	normalized := strings.ToLower(strings.TrimSpace(text))
+	normalized := normalizeSubagentTaskProgressStatusText(text)
 	if normalized == "" {
 		return ""
 	}
+	for _, marker := range []string{"failed to complete", "failed to finish", "could not complete", "could not finish"} {
+		if containsSubagentTaskStatusMarker(normalized, marker) {
+			return "failed"
+		}
+	}
+	for _, marker := range []string{"incomplete", "unfinished", "not completed", "not complete", "not done", "not finished", "not yet completed", "not yet complete", "not yet done", "not yet finished", "未完成", "没完成"} {
+		if containsSubagentTaskStatusMarker(normalized, marker) {
+			return ""
+		}
+	}
 	for _, marker := range []string{"completed", "complete", "finished", "done", "已完成", "完成"} {
-		if strings.Contains(normalized, marker) {
+		if containsSubagentTaskStatusMarker(normalized, marker) {
 			return "completed"
 		}
 	}
 	for _, marker := range []string{"failed", "error", "失败", "错误"} {
-		if strings.Contains(normalized, marker) {
+		if containsSubagentTaskStatusMarker(normalized, marker) {
 			return "failed"
 		}
 	}
-	for _, marker := range []string{"running", "in_progress", "in progress", "正在", "处理中"} {
-		if strings.Contains(normalized, marker) {
+	for _, marker := range []string{"running", "in progress", "正在", "处理中"} {
+		if containsSubagentTaskStatusMarker(normalized, marker) {
 			return "running"
 		}
 	}
 	return ""
+}
+
+func normalizeSubagentTaskProgressStatusText(text string) string {
+	text = strings.ToLower(strings.TrimSpace(text))
+	if text == "" {
+		return ""
+	}
+	text = strings.Map(func(r rune) rune {
+		if unicode.IsLetter(r) || unicode.IsNumber(r) {
+			return r
+		}
+		return ' '
+	}, text)
+	return strings.Join(strings.Fields(text), " ")
+}
+
+func containsSubagentTaskStatusMarker(text string, marker string) bool {
+	if marker == "" {
+		return false
+	}
+	for _, r := range marker {
+		if r > 127 {
+			return strings.Contains(text, marker)
+		}
+	}
+	return strings.Contains(" "+text+" ", " "+marker+" ")
 }
 
 func setSubagentTaskString(target *string, source map[string]any, key string) {

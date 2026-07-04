@@ -123,6 +123,17 @@ export function isDesktopRuntime(): boolean {
   return getDesktopRuntimeConfig()?.appMode === "desktop";
 }
 
+export function applyDesktopRuntimeDocumentFlags(): void {
+  const runtimeConfig = getDesktopRuntimeConfig();
+  if (runtimeConfig?.appMode !== "desktop") {
+    return;
+  }
+  document.documentElement.dataset.desktopRuntime = "true";
+  if (runtimeConfig.platform) {
+    document.documentElement.dataset.desktopPlatform = runtimeConfig.platform;
+  }
+}
+
 export function getDesktopSessionToken(): string {
   return getDesktopRuntimeConfig()?.authToken?.trim() || "";
 }

@@ -62,8 +62,10 @@ type Info struct {
 // Detail 表示 skill 详情。
 type Detail struct {
 	Info
-	ReadmeMarkdown string `json:"readme_markdown"`
-	Recommendation string `json:"recommendation"`
+	ReadmeMarkdown  string                 `json:"readme_markdown"`
+	Recommendation  string                 `json:"recommendation"`
+	DeploySuccesses []RedeployAgentSuccess `json:"deploy_successes,omitempty"`
+	DeployFailures  []RedeployAgentFailure `json:"deploy_failures,omitempty"`
 }
 
 // Query 表示技能查询参数。
@@ -112,6 +114,7 @@ type externalManifest struct {
 type catalogRecord struct {
 	Detail     Detail
 	SourcePath string
+	Manifest   externalManifest
 }
 
 type commandRunnerFunc func(ctx context.Context, workDir string, extraEnv []string, command ...string) (string, error)

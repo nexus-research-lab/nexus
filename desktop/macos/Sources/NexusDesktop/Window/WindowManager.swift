@@ -152,6 +152,9 @@ final class WindowManager: NSObject, NSWindowDelegate {
         defer: false
       )
       window.title = "Nexus"
+      window.titleVisibility = .hidden
+      window.titlebarAppearsTransparent = true
+      window.styleMask.insert(.fullSizeContentView)
       window.minSize = NSSize(width: 1120, height: 640)
       window.isReleasedWhenClosed = false
       window.delegate = self
