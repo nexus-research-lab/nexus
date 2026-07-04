@@ -33,7 +33,7 @@ PNPM ?= corepack pnpm
 	dev dev-nxs install gen-protocol-types lint-web typecheck-web prepare-host-data \
 	check-backend check-go check test run-web run-backend run-backend-go \
 	app-build-dev app-run-dev app-build app-run app-smoke app-package app-dmg build-dmg app-check app-win-build app-win-run app-win-smoke app-win-package \
-	pull deploy start-no-build
+	pull deploy start-no-build ssl-check ssl-issue ssl-renew ssl-renew-dry-run
 
 # Show help
 help: ## Show this help message
@@ -222,6 +222,18 @@ logs-nginx: ## Show nginx Docker service logs
 
 status: ## Show Docker service status
 	TAG=$(TAG) $(COMPOSE_CMD) ps
+
+ssl-check: prepare-host-data ## 检查 ACME HTTP-01 challenge 路径
+	ENV_FILE=$(ENV_FILE) deploy/ssl-certbot.sh check
+
+ssl-issue: prepare-host-data ## 使用 certbot Docker 镜像申请 Let's Encrypt 证书
+	ENV_FILE=$(ENV_FILE) deploy/ssl-certbot.sh issue
+
+ssl-renew: prepare-host-data ## 续期 Let's Encrypt 证书
+	ENV_FILE=$(ENV_FILE) deploy/ssl-certbot.sh renew
+
+ssl-renew-dry-run: prepare-host-data ## 测试 Let's Encrypt 续期流程
+	ENV_FILE=$(ENV_FILE) deploy/ssl-certbot.sh dry-run
 
 clean: ## Clean up Docker resources
 	TAG=$(TAG) $(COMPOSE_CMD) down -v
