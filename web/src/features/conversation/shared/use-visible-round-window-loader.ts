@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef } from "react";
 import type { RefObject } from "react";
 
+import { getConversationRoundNavigationTarget } from "./conversation-round-scroll";
+
 const UNLOADED_ROUND_SELECTOR =
   '[data-conversation-round-id][data-conversation-round-loaded="false"]';
 const LOAD_ROOT_MARGIN_PX = 180;
@@ -130,6 +132,9 @@ export function useVisibleRoundWindowLoader({
 
       const scrollElement = scrollRef.current;
       if (!scrollElement) {
+        return;
+      }
+      if (getConversationRoundNavigationTarget(scrollElement)) {
         return;
       }
 

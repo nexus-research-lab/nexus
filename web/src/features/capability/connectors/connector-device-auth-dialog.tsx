@@ -106,7 +106,7 @@ export function ConnectorDeviceAuthDialog({
         clearTimeout(timeoutId);
       }
     };
-  }, [session]);
+  }, [session, setPollingMessage]);
 
   const handleCopy = useCallback(async () => {
     if (!session) {

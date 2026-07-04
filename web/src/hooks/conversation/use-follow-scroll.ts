@@ -25,6 +25,10 @@ const EASE_Y1 = 1;
 const EASE_X2 = 0.32;
 const EASE_Y2 = 1;
 
+function getScrollBottomTop(element: HTMLDivElement): number {
+  return Math.max(0, element.scrollHeight - element.clientHeight);
+}
+
 function sampleCubic(a: number, b: number, c: number, t: number): number {
   return ((a * t + b) * t + c) * t;
 }
@@ -152,7 +156,7 @@ export function useFollowScroll({
 
     showScrollToBottomRef.current = visible;
     setShowScrollToBottom(visible);
-  }, []);
+  }, [setShowScrollToBottom]);
 
   const updateFollowState = useCallback(() => {
     const container = scrollRef.current;
@@ -187,7 +191,7 @@ export function useFollowScroll({
 
       // 流式输出时直接贴到底部，避免等待两帧后再修正位置导致换行抖动
       if (behavior === "auto") {
-        container.scrollTop = container.scrollHeight;
+        container.scrollTop = getScrollBottomTop(container);
         lastScrollTopRef.current = container.scrollTop;
         return;
       }
@@ -195,7 +199,7 @@ export function useFollowScroll({
       pendingScrollFrameRef.current = requestAnimationFrame(() => {
         const next = scrollRef.current;
         if (!next) return;
-        const targetTop = next.scrollHeight;
+        const targetTop = getScrollBottomTop(next);
         const startTop = next.scrollTop;
         const distance = targetTop - startTop;
 

@@ -37,6 +37,16 @@ export function getRoomBaseRoundId(roundId: string, agentId?: string | null): st
     }
   }
 
+  if (
+    roundId.startsWith("room_mention_") ||
+    roundId.startsWith("room_directed_message_")
+  ) {
+    const suffixIndex = roundId.lastIndexOf(":");
+    if (suffixIndex > 0) {
+      return roundId.slice(0, suffixIndex);
+    }
+  }
+
   return roundId;
 }
 

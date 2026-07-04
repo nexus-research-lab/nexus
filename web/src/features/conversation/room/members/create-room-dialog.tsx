@@ -241,14 +241,14 @@ export function CreateRoomDialog({
       if (prev.length >= MAX_MEMBERS) return prev;
       return [...prev, agentId];
     });
-  }, []);
+  }, [setSelectedIds]);
 
   const handleChangeHostAgent = useCallback((agentId: string) => {
     setSelectedHostAgentId(agentId);
     if (!agentId) {
       setHostAutoReplyEnabled(false);
     }
-  }, []);
+  }, [setHostAutoReplyEnabled, setSelectedHostAgentId]);
 
   const handleCreate = useCallback(() => {
     if (selectedIds.length === 0 || !roomName.trim()) return;

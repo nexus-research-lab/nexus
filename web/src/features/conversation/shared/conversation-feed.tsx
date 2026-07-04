@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import type { RefObject } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
@@ -14,6 +14,7 @@ import type {
 } from "./conversation-round-scroll";
 import {
   findConversationRoundElement,
+  getConversationRoundFocusOffset,
   scrollToConversationRoundElement,
 } from "./conversation-round-scroll";
 import { ConversationRoundPlaceholder } from "./conversation-round-placeholder";
@@ -297,13 +298,19 @@ function VirtualFeed({
 
   // Measure scroll container width for pretext height estimation
   const containerWidthRef = useRef(680);
+  const [scrollPaddingStart, setScrollPaddingStart] = useState(180);
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    containerWidthRef.current = el.clientWidth || 680;
-    const observer = new ResizeObserver(() => {
+    const syncScrollMetrics = () => {
       containerWidthRef.current = el.clientWidth || 680;
-    });
+      const nextPaddingStart = getConversationRoundFocusOffset(el);
+      setScrollPaddingStart((current) =>
+        current === nextPaddingStart ? current : nextPaddingStart,
+      );
+    };
+    syncScrollMetrics();
+    const observer = new ResizeObserver(syncScrollMetrics);
     observer.observe(el);
     return () => observer.disconnect();
   }, [scrollRef]);
@@ -320,6 +327,7 @@ function VirtualFeed({
     getScrollElement: () => scrollRef.current,
     estimateSize: (i) => heightMap.get(roundIds[i]) ?? 200,
     overscan: 5,
+    scrollPaddingStart,
     // Allow measured sizes to override estimates as items render
     measureElement: (el) => el.getBoundingClientRect().height,
   });
@@ -336,9 +344,24 @@ function VirtualFeed({
         roundId: string,
         options?: ConversationRoundScrollOptions,
       ) => {
+        const scrollElement = scrollRef.current;
+        const target = scrollElement
+          ? findConversationRoundElement(scrollElement, roundId)
+          : null;
+        if (scrollElement && target) {
+          scrollToConversationRoundElement(scrollElement, target, options);
+          return true;
+        }
         const targetIndex = roundIds.indexOf(roundId);
         if (targetIndex < 0) {
           return false;
+        }
+        if (targetIndex === 0) {
+          scrollElement?.scrollTo({
+            behavior: options?.behavior ?? "smooth",
+            top: 0,
+          });
+          return true;
         }
         virtualizer.scrollToIndex(targetIndex, {
           align: "start",
@@ -353,7 +376,7 @@ function VirtualFeed({
         roundScrollRef.current = null;
       }
     };
-  }, [roundScrollRef, roundIds, virtualizer]);
+  }, [roundScrollRef, roundIds, scrollRef, virtualizer]);
 
   return (
     <div

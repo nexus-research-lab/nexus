@@ -163,7 +163,13 @@ export function useAgentOptionsEditorController({
     return () => {
       cancelled = true;
     };
-  }, [isActive, t]);
+  }, [
+    isActive,
+    setDefaultModel,
+    setDefaultProvider,
+    setProviderOptionsError,
+    t,
+  ]);
 
   useEffect(() => {
     if (!isActive) return;
@@ -211,7 +217,15 @@ export function useAgentOptionsEditorController({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [trimmedTitle, hasTitleChanged, isActive, onValidateName, t]);
+  }, [
+    trimmedTitle,
+    hasTitleChanged,
+    isActive,
+    onValidateName,
+    setIsValidatingName,
+    setNameValidation,
+    t,
+  ]);
 
   const toggleTool = (
     toolName: string,

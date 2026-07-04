@@ -112,7 +112,7 @@ export function PresentationFilePreview({
       cleanupUrlsRef.current();
       cleanupUrlsRef.current = () => undefined;
     };
-  }, [agentId, path]);
+  }, [agentId, path, setActiveSlideIndex, setSlides, setStatus]);
 
   const isLoaded = status.state === "loaded";
   const isLoading = status.state === "loading";

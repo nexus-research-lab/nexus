@@ -320,9 +320,10 @@ export function GroupChatPanel({
     scrollRef,
   });
   const { handleScroll } = useConversationHistoryLoader({
+    autoFillViewport: !useIndexedTimeline,
     scrollRef,
     messageCount: messages.length,
-    hasMoreHistory: !useIndexedTimeline && hasMoreHistory,
+    hasMoreHistory,
     isHistoryLoading,
     isLoading,
     loadOlderMessages,

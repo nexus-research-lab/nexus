@@ -138,6 +138,37 @@ func TestPaginateNormalizedHistoryRowsCollapsesRoomAgentSubRounds(t *testing.T) 
 	}
 }
 
+func TestPaginateNormalizedHistoryRowsCollapsesSuffixedRoomMarker(t *testing.T) {
+	rows := []protocol.Message{
+		{
+			"message_id": "room_mention_abc:agent-a",
+			"round_id":   "room_mention_abc:agent-a",
+			"role":       "user",
+			"timestamp":  1000,
+		},
+		{
+			"message_id": "result-agent-a",
+			"round_id":   "room_mention_abc:agent-a",
+			"agent_id":   "agent-a",
+			"role":       "result",
+			"timestamp":  2000,
+		},
+	}
+
+	page := paginateNormalizedHistoryRows(rows, 1, "", 0, true)
+	if page.HasMore {
+		t.Fatalf("只有一个归一后的 room round，不应还有更多历史: %+v", page)
+	}
+	if len(page.Items) != 2 {
+		t.Fatalf("带 agent 后缀的 marker/result 应同页返回: got=%d", len(page.Items))
+	}
+	for _, item := range page.Items {
+		if item["round_id"] != "room_mention_abc" {
+			t.Fatalf("返回给前端的 round_id 应已归一: %+v", page.Items)
+		}
+	}
+}
+
 func TestPaginateNormalizedHistoryRowsAroundRound(t *testing.T) {
 	rows := []protocol.Message{
 		{"message_id": "user-1", "round_id": "round-1", "role": "user", "timestamp": 1000},

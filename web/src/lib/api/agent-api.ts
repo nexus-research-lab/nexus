@@ -157,5 +157,9 @@ export async function getSessionRoundIndexApi(
       status: item.status?.trim() || null,
       durationMs: item.duration_ms && item.duration_ms > 0 ? item.duration_ms : null,
       isLive: item.is_live ?? false,
+      hasUserMessage: item.has_user_message ?? false,
+      agentIds: (item.agent_ids ?? [])
+        .map((agentId) => agentId.trim())
+        .filter(Boolean),
     }));
 }

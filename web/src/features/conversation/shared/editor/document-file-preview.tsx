@@ -90,7 +90,7 @@ export function DocumentFilePreview({
     setPreviewScale((current) => (
       Math.abs(current - roundedScale) > 0.005 ? roundedScale : current
     ));
-  }, []);
+  }, [setPreviewScale]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -181,7 +181,7 @@ export function DocumentFilePreview({
       }
       setPreviewScale(1);
     };
-  }, [agentId, path, updatePreviewScale]);
+  }, [agentId, path, setPreviewScale, setStatus, updatePreviewScale]);
 
   useEffect(() => {
     if (status.state !== "loaded") {

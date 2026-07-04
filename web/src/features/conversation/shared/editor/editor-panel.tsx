@@ -236,7 +236,7 @@ export function EditorPanel({
       return;
     }
     setIsEditing(true);
-  }, [isExternalWriting]);
+  }, [isExternalWriting, setIsEditing]);
 
   const handleSave = async () => {
     if (!path || !isDirty || isSaving || !isText) {

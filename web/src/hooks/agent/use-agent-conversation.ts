@@ -973,6 +973,7 @@ export function useAgentConversation(
       resetHistoryPagination,
       resetRuntimeMachine,
       setIsSessionLoading,
+      setSessionKey,
     ],
   );
 

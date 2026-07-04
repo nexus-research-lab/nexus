@@ -149,7 +149,12 @@ export function useRoomExternalSessions({
       window.removeEventListener("focus", refreshIfVisible);
       document.removeEventListener("visibilitychange", refreshIfVisible);
     };
-  }, [agentId, externalSessionRefreshVersion, roomType]);
+  }, [
+    agentId,
+    externalSessionRefreshVersion,
+    roomType,
+    setExternalAgentSessions,
+  ]);
 
   const externalRoomConversations = useMemo(
     () => buildExternalRoomConversationViews({

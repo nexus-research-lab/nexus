@@ -124,7 +124,14 @@ export function ChannelConnectDialog({ item, agents, onClose: onClose, onDeleted
     } finally {
       setLoginLoading(false);
     }
-  }, [currentItem.channel_type, loginId, onError, supportsPersonalWeixinLogin]);
+  }, [
+    currentItem.channel_type,
+    loginId,
+    onError,
+    setLoginLoading,
+    setLoginView,
+    supportsPersonalWeixinLogin,
+  ]);
 
   const refreshCurrentChannel = useCallback(async () => {
     const items = await listChannelsApi();
@@ -132,7 +139,7 @@ export function ChannelConnectDialog({ item, agents, onClose: onClose, onDeleted
     if (!updated) return;
     setCurrentItem(updated);
     onSaved(updated, false);
-  }, [currentItem.channel_type, onSaved]);
+  }, [currentItem.channel_type, onSaved, setCurrentItem]);
 
   useEffect(() => {
     if (!supportsPersonalWeixinLogin || !loginId || loginStatus !== "running") {
@@ -151,7 +158,15 @@ export function ChannelConnectDialog({ item, agents, onClose: onClose, onDeleted
       }
     }, 1500);
     return () => window.clearInterval(timer);
-  }, [currentItem.channel_type, loginId, loginStatus, onError, refreshCurrentChannel, supportsPersonalWeixinLogin]);
+  }, [
+    currentItem.channel_type,
+    loginId,
+    loginStatus,
+    onError,
+    refreshCurrentChannel,
+    setLoginView,
+    supportsPersonalWeixinLogin,
+  ]);
 
   const saveChannel = useCallback(async (closeOnSuccess: boolean) => {
     if (!agentId) return;
@@ -179,12 +194,25 @@ export function ChannelConnectDialog({ item, agents, onClose: onClose, onDeleted
       setSaving(false);
       setLoginLoading(false);
     }
-  }, [agentId, config, credentials, currentItem.channel_type, isPlanned, onClose, onError, onSaved]);
+  }, [
+    agentId,
+    config,
+    credentials,
+    currentItem.channel_type,
+    isPlanned,
+    onClose,
+    onError,
+    onSaved,
+    setCurrentItem,
+    setLoginLoading,
+    setLoginView,
+    setSaving,
+  ]);
 
   const requestDeleteChannel = useCallback(() => {
     if (!currentItem.configured || isPlanned || deleting) return;
     setPendingDelete({ kind: "channel" });
-  }, [currentItem.configured, deleting, isPlanned]);
+  }, [currentItem.configured, deleting, isPlanned, setPendingDelete]);
 
   const deleteChannel = useCallback(async () => {
     if (!currentItem.configured || isPlanned || deleting) return;
@@ -199,12 +227,12 @@ export function ChannelConnectDialog({ item, agents, onClose: onClose, onDeleted
       onError(error instanceof Error ? error.message : "断开频道失败");
       setDeleting(false);
     }
-  }, [currentItem, deleting, isPlanned, onClose, onDeleted, onError]);
+  }, [currentItem, deleting, isPlanned, onClose, onDeleted, onError, setDeleting]);
 
   const requestDeleteAccount = useCallback((account: ChannelAccountView) => {
     if (!account.account_id || deletingAccountId) return;
     setPendingDelete({ kind: "account", account });
-  }, [deletingAccountId]);
+  }, [deletingAccountId, setPendingDelete]);
 
   const deleteAccount = useCallback(async (account: ChannelAccountView) => {
     if (!account.account_id || deletingAccountId) return;
@@ -219,7 +247,14 @@ export function ChannelConnectDialog({ item, agents, onClose: onClose, onDeleted
     } finally {
       setDeletingAccountId("");
     }
-  }, [currentItem.channel_type, deletingAccountId, onError, onSaved]);
+  }, [
+    currentItem.channel_type,
+    deletingAccountId,
+    onError,
+    onSaved,
+    setCurrentItem,
+    setDeletingAccountId,
+  ]);
 
   const confirmDelete = useCallback(() => {
     const target = pendingDelete;
@@ -230,7 +265,7 @@ export function ChannelConnectDialog({ item, agents, onClose: onClose, onDeleted
       return;
     }
     void deleteAccount(target.account);
-  }, [deleteAccount, deleteChannel, pendingDelete]);
+  }, [deleteAccount, deleteChannel, pendingDelete, setPendingDelete]);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();

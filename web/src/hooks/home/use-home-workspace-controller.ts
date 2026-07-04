@@ -66,7 +66,7 @@ export function useHomeWorkspaceController({
     // 不能因为重复点击同一路径就把编辑器反向关掉。
     setActiveWorkspacePath(path);
     setIsEditorOpen(Boolean(path));
-  }, []);
+  }, [setActiveWorkspacePath, setIsEditorOpen]);
 
   const handleStartEditorResize = useCallback(() => {
     setIsResizingEditor(true);

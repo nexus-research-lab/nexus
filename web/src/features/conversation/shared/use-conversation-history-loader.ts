@@ -1,9 +1,12 @@
 import { useCallback, useEffect } from "react";
 import type { RefObject } from "react";
 
+import { getConversationRoundNavigationTarget } from "./conversation-round-scroll";
+
 const HISTORY_LOAD_THRESHOLD_PX = 120;
 
 interface UseConversationHistoryLoaderOptions {
+  autoFillViewport?: boolean;
   scrollRef: RefObject<HTMLDivElement | null>;
   messageCount: number;
   hasMoreHistory: boolean;
@@ -16,6 +19,7 @@ interface UseConversationHistoryLoaderOptions {
 }
 
 export function useConversationHistoryLoader({
+  autoFillViewport = true,
   scrollRef,
   messageCount,
   hasMoreHistory,
@@ -32,6 +36,7 @@ export function useConversationHistoryLoader({
       !container ||
       !hasMoreHistory ||
       isHistoryLoading ||
+      getConversationRoundNavigationTarget(container) ||
       container.scrollTop > HISTORY_LOAD_THRESHOLD_PX
     ) {
       return;
@@ -59,6 +64,7 @@ export function useConversationHistoryLoader({
   useEffect(() => {
     const container = scrollRef.current;
     if (
+      !autoFillViewport ||
       !container ||
       !hasMoreHistory ||
       isHistoryLoading ||
@@ -69,6 +75,7 @@ export function useConversationHistoryLoader({
     }
     void maybeLoadOlderMessages();
   }, [
+    autoFillViewport,
     hasMoreHistory,
     isHistoryLoading,
     isLoading,

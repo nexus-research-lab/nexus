@@ -78,7 +78,7 @@ export const MentionTargetPopover = memo(({
                 onClose();
                 break;
         }
-    }, [activeIndex, filteredItems, onClose, onSelect]);
+    }, [activeIndex, filteredItems, onClose, onSelect, setActiveIndex]);
 
     useEffect(() => {
         document.addEventListener("keydown", handleKeyDown, true);

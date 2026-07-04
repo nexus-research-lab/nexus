@@ -158,16 +158,16 @@ export function useRoomWorkspaceController(
 
   useEffect(() => {
     setFocusedDirectoryPath(getWorkspaceFocusDirectoryPath(activeWorkspacePath));
-  }, [activeWorkspacePath, viewAgentId]);
+  }, [activeWorkspacePath, setFocusedDirectoryPath, viewAgentId]);
 
   const handleClickFile = useCallback((path: string) => {
     setFocusedDirectoryPath(getParentDirectoryPath(path));
     onOpenWorkspaceFile(path);
-  }, [onOpenWorkspaceFile]);
+  }, [onOpenWorkspaceFile, setFocusedDirectoryPath]);
 
   const handleClickDirectory = useCallback((path: string) => {
     setFocusedDirectoryPath(path);
-  }, []);
+  }, [setFocusedDirectoryPath]);
 
   const handleUploadClick = useCallback((directoryPath?: string | null) => {
     setUploadTargetDirectory(directoryPath ?? focusedDirectoryPath);
@@ -268,7 +268,15 @@ export function useRoomWorkspaceController(
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "工作区操作失败");
     }
-  }, [activeWorkspacePath, focusedDirectoryPath, onOpenWorkspaceFile, promptState, refreshFiles, viewAgentId]);
+  }, [
+    activeWorkspacePath,
+    focusedDirectoryPath,
+    onOpenWorkspaceFile,
+    promptState,
+    refreshFiles,
+    setFocusedDirectoryPath,
+    viewAgentId,
+  ]);
 
   const handleConfirmDelete = useCallback(async () => {
     if (!deleteTarget) {
@@ -289,7 +297,15 @@ export function useRoomWorkspaceController(
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "删除失败");
     }
-  }, [activeWorkspacePath, deleteTarget, focusedDirectoryPath, onOpenWorkspaceFile, refreshFiles, viewAgentId]);
+  }, [
+    activeWorkspacePath,
+    deleteTarget,
+    focusedDirectoryPath,
+    onOpenWorkspaceFile,
+    refreshFiles,
+    setFocusedDirectoryPath,
+    viewAgentId,
+  ]);
 
   const handleContextMenu = useCallback((event: MouseEvent, entry: WorkspaceFileEntry) => {
     setContextMenu({

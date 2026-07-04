@@ -129,7 +129,7 @@ function useHtmlPreviewDocument(content: string, isStreaming: boolean) {
     }, HTML_PREVIEW_COMMIT_INTERVAL_MS - elapsed);
 
     return () => clearPendingTimer();
-  }, [commitContent, content, isStreaming]);
+  }, [clearPendingTimer, commitContent, content, isStreaming]);
 
   useEffect(() => () => clearPendingTimer(), [clearPendingTimer]);
 

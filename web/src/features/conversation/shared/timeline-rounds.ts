@@ -63,7 +63,62 @@ export function buildTimelineRoundIds(
   return roundIds;
 }
 
-/** 用完整索引补齐 feed 时间轴，消息内容仍按已加载窗口渲染。 */
+function appendUniqueRoundId(
+  roundIds: string[],
+  seen: Set<string>,
+  roundId: string | null | undefined,
+) {
+  const normalized = roundId?.trim();
+  if (!normalized || seen.has(normalized)) {
+    return;
+  }
+  seen.add(normalized);
+  roundIds.push(normalized);
+}
+
+function getIndexedLoadedRoundIndexes(
+  indexedRoundIds: string[],
+  loadedRoundIds: string[],
+): number[] {
+  const indexByRoundId = new Map<string, number>();
+  indexedRoundIds.forEach((roundId, index) => {
+    indexByRoundId.set(roundId, index);
+  });
+
+  const indexes = new Set<number>();
+  for (const roundId of loadedRoundIds) {
+    const index = indexByRoundId.get(roundId);
+    if (index !== undefined) {
+      indexes.add(index);
+    }
+  }
+  return Array.from(indexes).sort((left, right) => left - right);
+}
+
+function isLatestLoadedWindow(
+  indexedRoundIds: string[],
+  loadedIndexes: number[],
+): boolean {
+  if (loadedIndexes.length === 0) {
+    return false;
+  }
+  const firstLoadedIndex = loadedIndexes[0];
+  const expectedLength = indexedRoundIds.length - firstLoadedIndex;
+  if (expectedLength !== loadedIndexes.length) {
+    return false;
+  }
+  return loadedIndexes.every(
+    (index, offset) => index === firstLoadedIndex + offset,
+  );
+}
+
+/**
+ * 用完整索引确定 feed 顺序，但正文只渲染已加载窗口。
+ *
+ * 最新历史页不插入未加载占位，避免新打开旧 session 时因为全量索引
+ * 直接产生很长的空滚动；非最新窗口保留相邻占位，让点击定位后还能
+ * 继续通过正常滚动触发局部加载。
+ */
 export function buildIndexedTimelineRoundIds(
   roundIndexItems: SessionRoundIndexItem[],
   loadedRoundIds: string[],
@@ -72,22 +127,38 @@ export function buildIndexedTimelineRoundIds(
     return loadedRoundIds;
   }
 
-  const roundIds: string[] = [];
+  const indexedRoundIds = roundIndexItems
+    .map((item) => item.roundId.trim())
+    .filter(Boolean);
+  const indexedRoundIdSet = new Set(indexedRoundIds);
+  const loadedIndexes = getIndexedLoadedRoundIndexes(
+    indexedRoundIds,
+    loadedRoundIds,
+  );
+  const shouldIncludeBoundaryPlaceholders =
+    !isLatestLoadedWindow(indexedRoundIds, loadedIndexes);
   const seen = new Set<string>();
-  const append = (roundId: string | null | undefined) => {
-    const normalized = roundId?.trim();
-    if (!normalized || seen.has(normalized)) {
-      return;
-    }
-    seen.add(normalized);
-    roundIds.push(normalized);
-  };
+  const roundIds: string[] = [];
 
-  for (const item of roundIndexItems) {
-    append(item.roundId);
+  const visibleIndexSet = new Set(loadedIndexes);
+  if (shouldIncludeBoundaryPlaceholders) {
+    for (const index of loadedIndexes) {
+      if (index > 0) {
+        visibleIndexSet.add(index - 1);
+      }
+      if (index < indexedRoundIds.length - 1) {
+        visibleIndexSet.add(index + 1);
+      }
+    }
+  }
+
+  for (const index of Array.from(visibleIndexSet).sort((left, right) => left - right)) {
+    appendUniqueRoundId(roundIds, seen, indexedRoundIds[index]);
   }
   for (const roundId of loadedRoundIds) {
-    append(roundId);
+    if (!indexedRoundIdSet.has(roundId)) {
+      appendUniqueRoundId(roundIds, seen, roundId);
+    }
   }
   return roundIds;
 }

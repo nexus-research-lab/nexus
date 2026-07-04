@@ -185,10 +185,30 @@ func buildHistoryPageGroups(
 				Items:                make([]protocol.Message, 0, 1),
 			}
 		}
-		currentGroup.Items = append(currentGroup.Items, row)
+		currentGroup.Items = append(
+			currentGroup.Items,
+			normalizeHistoryPageRow(row, collapseRoomAgentRounds),
+		)
 	}
 	flushCurrentGroup()
 	return groups
+}
+
+func normalizeHistoryPageRow(row protocol.Message, collapseRoomAgentRounds bool) protocol.Message {
+	if !collapseRoomAgentRounds {
+		return row
+	}
+	roundID := stringFromAny(row["round_id"])
+	if roundID == "" {
+		return row
+	}
+	normalizedRoundID := normalizeRoomHistoryRoundID(roundID, stringFromAny(row["agent_id"]))
+	if normalizedRoundID == "" || normalizedRoundID == roundID {
+		return row
+	}
+	normalized := protocol.Clone(row)
+	normalized["round_id"] = normalizedRoundID
+	return normalized
 }
 
 func historyPageCursorRoundID(row protocol.Message, collapseRoomAgentRounds bool) string {
@@ -221,12 +241,20 @@ func historyPageGroupKey(row protocol.Message, collapseRoomAgentRounds bool) str
 func normalizeRoomHistoryRoundID(roundID string, agentID string) string {
 	trimmedRoundID := strings.TrimSpace(roundID)
 	trimmedAgentID := strings.TrimSpace(agentID)
-	if trimmedRoundID == "" || trimmedAgentID == "" {
+	if trimmedRoundID == "" {
 		return trimmedRoundID
 	}
-	suffix := ":" + trimmedAgentID
-	if strings.HasSuffix(trimmedRoundID, suffix) {
-		return strings.TrimSuffix(trimmedRoundID, suffix)
+	if trimmedAgentID != "" {
+		suffix := ":" + trimmedAgentID
+		if strings.HasSuffix(trimmedRoundID, suffix) {
+			return strings.TrimSuffix(trimmedRoundID, suffix)
+		}
+	}
+	if strings.HasPrefix(trimmedRoundID, "room_mention_") ||
+		strings.HasPrefix(trimmedRoundID, "room_directed_message_") {
+		if index := strings.LastIndex(trimmedRoundID, ":"); index > 0 {
+			return trimmedRoundID[:index]
+		}
 	}
 	return trimmedRoundID
 }

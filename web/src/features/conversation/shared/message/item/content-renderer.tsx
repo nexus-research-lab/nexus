@@ -74,7 +74,7 @@ function ApiRetrySystemEventBody({ block }: { block: SystemEventContent }) {
     }
     const intervalId = window.setInterval(() => setNowMs(Date.now()), 1000);
     return () => window.clearInterval(intervalId);
-  }, [block.timestamp, retryDelayMs]);
+  }, [block.timestamp, retryDelayMs, setNowMs]);
 
   const retryDueAt = block.timestamp + retryDelayMs;
   const retryInSeconds = Math.max(

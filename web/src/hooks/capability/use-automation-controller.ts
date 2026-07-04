@@ -88,7 +88,7 @@ export function useAutomationController(
       setTasksError(null);
       setScheduledTasks((currentItems) => updater(currentItems));
     },
-    [],
+    [setScheduledTasks, setTasksError, setTasksLoading],
   );
 
   function isActiveHeartbeatRequest(requestAgentId: string, requestToken: number): boolean {
@@ -109,7 +109,7 @@ export function useAutomationController(
     activeAgentIdRef.current = agentId;
     heartbeatRequestTokenRef.current += 1;
     tasksRequestTokenRef.current += 1;
-  }, [agentId]);
+  }, [agentId, setHeartbeat, setHeartbeatError, setHeartbeatLoading]);
 
   const refreshHeartbeat = useCallback(async () => {
     const requestAgentId = agentId;
@@ -135,7 +135,7 @@ export function useAutomationController(
       }
       setHeartbeatLoading(false);
     }
-  }, [agentId]);
+  }, [agentId, setHeartbeat, setHeartbeatError, setHeartbeatLoading]);
 
   const refreshTasks = useCallback(async (options?: { silent?: boolean }) => {
     const requestAgentId = agentId;
@@ -166,7 +166,13 @@ export function useAutomationController(
         setTasksLoading(false);
       }
     }
-  }, [agentId, includeAllTasks]);
+  }, [
+    agentId,
+    includeAllTasks,
+    setScheduledTasks,
+    setTasksError,
+    setTasksLoading,
+  ]);
 
   const refreshAll = useCallback(async () => {
     const results = await Promise.allSettled([refreshHeartbeat(), refreshTasks()]);
@@ -196,7 +202,7 @@ export function useAutomationController(
       setHeartbeatError(null);
     }
     return nextConfig;
-  }, [agentId]);
+  }, [agentId, setHeartbeat, setHeartbeatError]);
 
   const createTask = useCallback(async (params: CreateScheduledTaskParams) => {
     const requestAgentId = agentId;

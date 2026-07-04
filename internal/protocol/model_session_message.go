@@ -57,10 +57,12 @@ type SessionRoundIndex struct {
 
 // SessionRoundIndexItem 表示一个 round 的轻量导航元数据。
 type SessionRoundIndexItem struct {
-	RoundID    string `json:"round_id"`
-	Title      string `json:"title,omitempty"`
-	Timestamp  int64  `json:"timestamp,omitempty"`
-	Status     string `json:"status,omitempty"`
-	DurationMS *int64 `json:"duration_ms,omitempty"`
-	IsLive     bool   `json:"is_live,omitempty"`
+	RoundID        string   `json:"round_id"`
+	Title          string   `json:"title,omitempty"`
+	Timestamp      int64    `json:"timestamp,omitempty"`
+	Status         string   `json:"status,omitempty"`
+	DurationMS     *int64   `json:"duration_ms,omitempty"`
+	IsLive         bool     `json:"is_live,omitempty"`
+	HasUserMessage bool     `json:"has_user_message,omitempty"`
+	AgentIDs       []string `json:"agent_ids,omitempty"`
 }

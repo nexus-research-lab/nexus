@@ -78,7 +78,14 @@ export function AgentPrivateDomainView({
     } finally {
       setThreadsLoading(false);
     }
-  }, [agent.agent_id, query]);
+  }, [
+    agent.agent_id,
+    query,
+    setError,
+    setSelectedThreadId,
+    setThreads,
+    setThreadsLoading,
+  ]);
 
   const loadEvents = useCallback(async (threadId: string | null) => {
     if (!threadId) {
@@ -99,7 +106,14 @@ export function AgentPrivateDomainView({
     } finally {
       setEventsLoading(false);
     }
-  }, [agent.agent_id, isPreview, query]);
+  }, [
+    agent.agent_id,
+    isPreview,
+    query,
+    setError,
+    setEvents,
+    setEventsLoading,
+  ]);
 
   useEffect(() => {
     let cancelled = false;
@@ -124,7 +138,14 @@ export function AgentPrivateDomainView({
     return () => {
       cancelled = true;
     };
-  }, [agent.agent_id, query]);
+  }, [
+    agent.agent_id,
+    query,
+    setError,
+    setSelectedThreadId,
+    setThreads,
+    setThreadsLoading,
+  ]);
 
   useEffect(() => {
     let cancelled = false;
@@ -156,7 +177,15 @@ export function AgentPrivateDomainView({
     return () => {
       cancelled = true;
     };
-  }, [agent.agent_id, isPreview, query, selectedThreadId]);
+  }, [
+    agent.agent_id,
+    isPreview,
+    query,
+    selectedThreadId,
+    setError,
+    setEvents,
+    setEventsLoading,
+  ]);
 
   const selectedThread = useMemo(
     () => threads.find((thread) => thread.thread_id === selectedThreadId) ?? null,

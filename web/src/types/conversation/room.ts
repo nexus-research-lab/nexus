@@ -135,6 +135,8 @@ export interface ApiSessionRoundIndexItem {
   status?: string;
   duration_ms?: number | null;
   is_live?: boolean;
+  has_user_message?: boolean;
+  agent_ids?: string[] | null;
 }
 
 export interface ApiSessionRoundIndex {
@@ -148,4 +150,6 @@ export interface SessionRoundIndexItem {
   status: string | null;
   durationMs: number | null;
   isLive: boolean;
+  hasUserMessage: boolean;
+  agentIds: string[];
 }

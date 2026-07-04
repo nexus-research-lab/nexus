@@ -12,7 +12,8 @@ import (
 )
 
 type sessionRoundIndexAccumulator struct {
-	item protocol.SessionRoundIndexItem
+	agentIDs map[string]struct{}
+	item     protocol.SessionRoundIndexItem
 }
 
 type roundIndexOverlayJSONRow struct {
@@ -44,6 +45,7 @@ func (s *AgentHistoryStore) ReadRoundIndex(
 		s.paths.SessionOverlayPath(workspacePath, sessionValue.SessionKey),
 		active,
 		false,
+		strings.TrimSpace(sessionValue.AgentID),
 	)
 }
 
@@ -56,6 +58,7 @@ func (s *RoomHistoryStore) ReadRoundIndex(
 		s.paths.RoomConversationOverlayPath(conversationID),
 		normalizeActiveRoundIDs(activeRoundIDs),
 		true,
+		"",
 	)
 }
 
@@ -63,6 +66,7 @@ func readRoundIndexFromJSONL(
 	path string,
 	activeRoundIDs map[string]struct{},
 	collapseRoomAgentRounds bool,
+	defaultAgentID string,
 ) (protocol.SessionRoundIndex, error) {
 	file, err := os.Open(path)
 	if errors.Is(err, os.ErrNotExist) {
@@ -83,7 +87,7 @@ func readRoundIndexFromJSONL(
 			}
 			return protocol.SessionRoundIndex{}, err
 		}
-		row.applyToIndex(entries, activeRoundIDs, collapseRoomAgentRounds)
+		row.applyToIndex(entries, activeRoundIDs, collapseRoomAgentRounds, defaultAgentID)
 	}
 }
 
@@ -91,20 +95,27 @@ func (row roundIndexOverlayJSONRow) applyToIndex(
 	entries map[string]*sessionRoundIndexAccumulator,
 	activeRoundIDs map[string]struct{},
 	collapseRoomAgentRounds bool,
+	defaultAgentID string,
 ) {
 	overlayKind := strings.TrimSpace(row.OverlayKind)
 	if overlayKind == overlayKindRoundMarker {
 		if row.HiddenFromUser {
 			return
 		}
-		roundID := strings.TrimSpace(row.RoundID)
+		rawRoundID := strings.TrimSpace(row.RoundID)
+		roundID := normalizeRoundIndexRoundID(
+			rawRoundID,
+			row.AgentID,
+			collapseRoomAgentRounds,
+		)
 		if roundID == "" {
 			return
 		}
 		entry := ensureRoundIndexEntry(entries, roundID)
+		entry.item.HasUserMessage = true
 		updateRoundIndexTimestamp(entry, roundIndexInt64FromRaw(row.Timestamp))
 		updateRoundIndexTitle(entry, roundIndexTextFromRaw(row.Content))
-		markRoundIndexActive(entry, roundID, roundID, activeRoundIDs)
+		markRoundIndexActive(entry, rawRoundID, roundID, activeRoundIDs)
 		return
 	}
 	if overlayKind == overlayKindRoomPublicCursor || overlayKind == "room_context_checkpoint" {
@@ -120,9 +131,14 @@ func (row roundIndexOverlayJSONRow) applyToIndex(
 	entry := ensureRoundIndexEntry(entries, roundID)
 	updateRoundIndexTimestamp(entry, roundIndexInt64FromRaw(row.Timestamp))
 	if strings.TrimSpace(row.Role) == "user" {
+		entry.item.HasUserMessage = true
 		updateRoundIndexTitle(entry, roundIndexTextFromRaw(row.Content))
 	}
-	if strings.TrimSpace(row.Role) == "result" {
+	role := strings.TrimSpace(row.Role)
+	if role == "assistant" || role == "result" {
+		addRoundIndexAgentID(entry, row.AgentID, defaultAgentID)
+	}
+	if role == "result" {
 		updateRoundIndexResult(entry, strings.TrimSpace(row.Subtype), roundIndexInt64FromRaw(row.DurationMS))
 	}
 	if row.ResultSummary != nil {
@@ -171,12 +187,32 @@ func ensureRoundIndexEntry(
 		return entry
 	}
 	entry = &sessionRoundIndexAccumulator{
+		agentIDs: make(map[string]struct{}),
 		item: protocol.SessionRoundIndexItem{
 			RoundID: roundID,
 		},
 	}
 	entries[roundID] = entry
 	return entry
+}
+
+func addRoundIndexAgentID(
+	entry *sessionRoundIndexAccumulator,
+	agentID string,
+	defaultAgentID string,
+) {
+	normalizedAgentID := strings.TrimSpace(agentID)
+	if normalizedAgentID == "" {
+		normalizedAgentID = strings.TrimSpace(defaultAgentID)
+	}
+	if normalizedAgentID == "" {
+		return
+	}
+	if _, ok := entry.agentIDs[normalizedAgentID]; ok {
+		return
+	}
+	entry.agentIDs[normalizedAgentID] = struct{}{}
+	entry.item.AgentIDs = append(entry.item.AgentIDs, normalizedAgentID)
 }
 
 func normalizeRoundIndexRoundID(

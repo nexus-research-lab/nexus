@@ -144,7 +144,10 @@ export function MessageUserSection({
     userMessage.role === "user" && userMessage.delivery_policy === "guide";
 
   return (
-    <div className={cn("nexus-chat-message-section w-full", compact ? "px-0" : "px-2 sm:px-3")}>
+    <div
+      className={cn("nexus-chat-message-section w-full", compact ? "px-0" : "px-2 sm:px-3")}
+      data-conversation-round-user-anchor="true"
+    >
       <div className="w-full">
         <div
           className={cn(

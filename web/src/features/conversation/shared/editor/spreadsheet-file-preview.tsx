@@ -144,7 +144,7 @@ export function SpreadsheetFilePreview({
       cancelled = true;
       abortController.abort();
     };
-  }, [agentId, path]);
+  }, [agentId, path, setStatus, setWorkbookData]);
 
   return (
     <>
