@@ -1,5 +1,6 @@
 server {
-    listen 443 ssl http2;
+    listen 443 ssl;
+    http2 on;
     server_name ${NGINX_SERVER_NAME};
 
     ssl_certificate ${NGINX_SSL_CERTIFICATE};
