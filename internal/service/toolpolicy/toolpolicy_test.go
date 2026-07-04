@@ -169,6 +169,7 @@ func TestWithManagedRuntimeAllowedToolsIncludesGoalAndSelectedImagegen(t *testin
 	approved := NormalizeSet(tools)
 	for _, toolName := range []string{
 		"Read",
+		"Agent",
 		"nexus_imagegen",
 		"mcp__nexus_goal__get_goal",
 		"mcp__nexus_imagegen__generate_image",
@@ -177,6 +178,14 @@ func TestWithManagedRuntimeAllowedToolsIncludesGoalAndSelectedImagegen(t *testin
 		if !Contains(approved, toolName) {
 			t.Fatalf("expected runtime allowed tools to include %q: %+v", toolName, tools)
 		}
+	}
+}
+
+func TestWithManagedRuntimeAllowedToolsKeepsMainThreadAgent(t *testing.T) {
+	tools := WithManagedRuntimeAllowedTools([]string{"Read"}, false)
+	approved := NormalizeSet(tools)
+	if !Contains(approved, "Agent") {
+		t.Fatalf("显式白名单应保留主线程 Agent 工具: %+v", tools)
 	}
 }
 

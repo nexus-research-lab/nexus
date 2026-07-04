@@ -38,6 +38,10 @@ var managedImagegenAllowedTools = []string{
 	"edit_image",
 }
 
+var managedMainThreadAllowedTools = []string{
+	"Agent",
+}
+
 // NormalizeSet 把工具名列表归一成集合；nil/空列表表示没有显式策略。
 func NormalizeSet(items []string) map[string]struct{} {
 	if len(items) == 0 {
@@ -199,6 +203,7 @@ func WithManagedRuntimeAllowedTools(tools []string, imagegenDefaultEnabled bool)
 	if len(NormalizeSet(result)) == 0 {
 		return result
 	}
+	result = appendDistinctTools(result, managedMainThreadAllowedTools...)
 	if !imagegenDefaultEnabled {
 		return withoutManagedImagegenAllowedTools(result)
 	}
