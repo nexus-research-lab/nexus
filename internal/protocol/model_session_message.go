@@ -49,3 +49,18 @@ type MessagePage struct {
 	NextBeforeRoundID        *string   `json:"next_before_round_id,omitempty"`
 	NextBeforeRoundTimestamp *int64    `json:"next_before_round_timestamp,omitempty"`
 }
+
+// SessionRoundIndex 表示 session 级 round 导航索引。
+type SessionRoundIndex struct {
+	Items []SessionRoundIndexItem `json:"items"`
+}
+
+// SessionRoundIndexItem 表示一个 round 的轻量导航元数据。
+type SessionRoundIndexItem struct {
+	RoundID    string `json:"round_id"`
+	Title      string `json:"title,omitempty"`
+	Timestamp  int64  `json:"timestamp,omitempty"`
+	Status     string `json:"status,omitempty"`
+	DurationMS *int64 `json:"duration_ms,omitempty"`
+	IsLive     bool   `json:"is_live,omitempty"`
+}

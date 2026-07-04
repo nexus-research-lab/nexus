@@ -37,6 +37,16 @@ func (h *Handlers) HandleConversationMessages(writer http.ResponseWriter, reques
 		}
 		beforeRoundTimestamp = parsedBeforeTimestamp
 	}
+	aroundRoundID := strings.TrimSpace(request.URL.Query().Get("around_round_id"))
+	aroundLimit := 0
+	if rawAroundLimit := strings.TrimSpace(request.URL.Query().Get("around_limit")); rawAroundLimit != "" {
+		parsedAroundLimit, parseErr := strconv.Atoi(rawAroundLimit)
+		if parseErr != nil || parsedAroundLimit <= 0 {
+			h.api.WriteFailure(writer, http.StatusBadRequest, "around_limit 参数错误")
+			return
+		}
+		aroundLimit = parsedAroundLimit
+	}
 
 	contextValue, err := h.roomService.GetConversationContext(request.Context(), conversationID)
 	if errors.Is(err, roompkg.ErrConversationNotFound) {
@@ -70,6 +80,8 @@ func (h *Handlers) HandleConversationMessages(writer http.ResponseWriter, reques
 		Limit:                limit,
 		BeforeRoundID:        beforeRoundID,
 		BeforeRoundTimestamp: beforeRoundTimestamp,
+		AroundRoundID:        aroundRoundID,
+		AroundLimit:          aroundLimit,
 	})
 	if handlershared.IsStructuredSessionKeyError(err) {
 		h.api.WriteFailure(writer, http.StatusUnprocessableEntity, err.Error())

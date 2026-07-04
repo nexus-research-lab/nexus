@@ -77,6 +77,7 @@ import {
 } from "./conversation-runtime-reconciliation";
 import {
   AgentConversationHistoryCursor,
+  loadAgentConversationMessagesAroundRound,
   loadOlderAgentConversationMessages,
 } from "./conversation-history";
 import {
@@ -149,6 +150,7 @@ export function useAgentConversation(
   const sessionSeqCursorRef = useRef(0);
   const roomSeqCursorRef = useRef(0);
   const isHistoryLoadingRef = useRef(false);
+  const isRoundWindowLoadingRef = useRef(false);
   const hasMoreHistoryRef = useRef(false);
   const historyCursorRef = useRef<AgentConversationHistoryCursor>({
     before_round_id: null,
@@ -532,6 +534,24 @@ export function useAgentConversation(
     setError,
     setHasMoreHistory,
     setHistoryLoading,
+    setMessages,
+  ]);
+
+  const loadRoundWindow = useCallback(async (roundId: string): Promise<boolean> => {
+    return loadAgentConversationMessagesAroundRound({
+      active_session_key_ref: activeSessionKeyRef,
+      identity,
+      history_cursor_ref: historyCursorRef,
+      is_round_window_loading_ref: isRoundWindowLoadingRef,
+      round_id: roundId,
+      set_has_more_history: setHasMoreHistory,
+      set_messages: setMessages,
+      set_error: setError,
+    });
+  }, [
+    identity,
+    setError,
+    setHasMoreHistory,
     setMessages,
   ]);
 
@@ -992,6 +1012,7 @@ export function useAgentConversation(
     start_session: startSession,
     load_session: loadSession,
     load_older_messages: loadOlderMessages,
+    load_round_window: loadRoundWindow,
     clear_session: clearSession,
     reset_session: resetSession,
     stop_generation: stopGeneration,

@@ -6,6 +6,8 @@ import { Message } from "@/types";
 import { AgentConversationIdentity } from "@/types/agent/agent-conversation";
 import { mergeLoadedMessages, sortMessages } from "./message-helpers";
 
+const TARGET_ROUND_WINDOW_RADIUS = 1;
+
 export interface AgentConversationHistoryCursor {
   before_round_id: string | null;
   before_round_timestamp: number | null;
@@ -106,5 +108,82 @@ export async function loadOlderAgentConversationMessages({
     if (activeSessionKeyRef.current === activeSessionKey) {
       setHistoryLoading(false);
     }
+  }
+}
+
+export async function loadAgentConversationMessagesAroundRound({
+  active_session_key_ref: activeSessionKeyRef,
+  identity,
+  history_cursor_ref: historyCursorRef,
+  is_round_window_loading_ref: isRoundWindowLoadingRef,
+  round_id: roundId,
+  set_has_more_history: setHasMoreHistory,
+  set_messages: setMessages,
+  set_error: setError,
+}: Omit<
+  LoadOlderAgentConversationMessagesParams,
+  | "has_more_history_ref"
+  | "is_history_loading_ref"
+  | "set_history_loading"
+  | "set_history_prepend_token"
+> & {
+  is_round_window_loading_ref: MutableRefObject<boolean>;
+  round_id: string;
+}): Promise<boolean> {
+  const activeSessionKey = activeSessionKeyRef.current;
+  const currentRoomId = identity?.room_id?.trim() ?? "";
+  const currentConversationId = identity?.conversation_id?.trim() ?? "";
+  const targetRoundId = roundId.trim();
+
+  if (!activeSessionKey || !targetRoundId || isRoundWindowLoadingRef.current) {
+    return false;
+  }
+
+  isRoundWindowLoadingRef.current = true;
+  try {
+    const page = currentRoomId && currentConversationId
+      ? await getRoomConversationMessages(
+          currentRoomId,
+          currentConversationId,
+          {
+            around_round_id: targetRoundId,
+            around_limit: TARGET_ROUND_WINDOW_RADIUS,
+          },
+        )
+      : await getSessionMessagesApi(activeSessionKey, {
+          around_round_id: targetRoundId,
+          around_limit: TARGET_ROUND_WINDOW_RADIUS,
+        });
+    if (activeSessionKeyRef.current !== activeSessionKey) {
+      return false;
+    }
+
+    const sortedMessages = sortMessages(page.items ?? []);
+    if (sortedMessages.length === 0) {
+      return false;
+    }
+
+    setMessages((currentMessages) =>
+      mergeLoadedMessages(sortedMessages, currentMessages),
+    );
+    if (page.next_before_round_timestamp) {
+      historyCursorRef.current = {
+        before_round_id: page.next_before_round_id ?? null,
+        before_round_timestamp: page.next_before_round_timestamp,
+      };
+      setHasMoreHistory(page.has_more ?? false);
+    }
+    return true;
+  } catch (err) {
+    if (activeSessionKeyRef.current !== activeSessionKey) {
+      return false;
+    }
+    console.error("[useAgentConversation] 加载目标轮次附近消息失败:", err);
+    setError(
+      err instanceof Error ? err.message : "Failed to load target messages",
+    );
+    return false;
+  } finally {
+    isRoundWindowLoadingRef.current = false;
   }
 }

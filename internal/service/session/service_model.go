@@ -39,4 +39,6 @@ type MessagePageRequest struct {
 	Limit                int
 	BeforeRoundID        string
 	BeforeRoundTimestamp int64
+	AroundRoundID        string
+	AroundLimit          int
 }

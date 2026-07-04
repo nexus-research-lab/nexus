@@ -29,12 +29,22 @@ func (s *AgentHistoryStore) ReadMessagesPage(
 	limit int,
 	beforeRoundID string,
 	beforeRoundTimestamp int64,
+	aroundRoundID string,
+	aroundLimit int,
 ) (protocol.MessagePage, error) {
 	rows, err := s.readHistoryRows(workspacePath, sessionValue)
 	if err != nil {
 		return protocol.MessagePage{}, err
 	}
 	normalizedRows := normalizeHistoryRows(rows, normalizeActiveRoundIDs(activeRoundIDs))
+	if strings.TrimSpace(aroundRoundID) != "" {
+		return paginateNormalizedHistoryRowsAround(
+			normalizedRows,
+			aroundRoundID,
+			aroundLimit,
+			false,
+		), nil
+	}
 	return paginateNormalizedHistoryRows(
 		normalizedRows,
 		limit,

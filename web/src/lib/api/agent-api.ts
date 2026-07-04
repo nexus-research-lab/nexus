@@ -17,7 +17,9 @@ import {
 } from "@/types/agent/agent";
 import type {
   ApiRoomConversationMessagePage,
+  ApiSessionRoundIndex,
   RoomConversationMessagePage,
+  SessionRoundIndexItem,
 } from "@/types/conversation/room";
 import { getAgentApiBaseUrl } from "@/config/options";
 import { requestApi } from "@/lib/api/http";
@@ -97,6 +99,8 @@ export async function getSessionMessagesApi(
     limit?: number;
     before_round_id?: string | null;
     before_round_timestamp?: number | null;
+    around_round_id?: string | null;
+    around_limit?: number | null;
   } = {},
 ): Promise<RoomConversationMessagePage> {
   const normalizedSessionKey = assertStructuredSessionKey(sessionKey);
@@ -110,6 +114,12 @@ export async function getSessionMessagesApi(
   }
   if (options.before_round_timestamp && options.before_round_timestamp > 0) {
     params.set("before_round_timestamp", String(options.before_round_timestamp));
+  }
+  if (options.around_round_id) {
+    params.set("around_round_id", options.around_round_id);
+  }
+  if (options.around_limit && options.around_limit > 0) {
+    params.set("around_limit", String(options.around_limit));
   }
   const query = params.toString();
   const result = await requestApi<ApiRoomConversationMessagePage>(
@@ -126,3 +136,26 @@ export async function getSessionMessagesApi(
   };
 }
 
+export async function getSessionRoundIndexApi(
+  sessionKey: string,
+): Promise<SessionRoundIndexItem[]> {
+  const normalizedSessionKey = assertStructuredSessionKey(sessionKey);
+  const params = new URLSearchParams();
+  params.set("session_key", normalizedSessionKey);
+  const result = await requestApi<ApiSessionRoundIndex>(
+    `${AGENT_API_BASE_URL}/sessions/rounds?${params.toString()}`,
+    {
+      method: "GET",
+    },
+  );
+  return (result.items ?? [])
+    .filter((item) => item.round_id.trim() !== "")
+    .map((item) => ({
+      roundId: item.round_id,
+      title: item.title?.trim() || "",
+      timestamp: item.timestamp && item.timestamp > 0 ? item.timestamp : null,
+      status: item.status?.trim() || null,
+      durationMs: item.duration_ms && item.duration_ms > 0 ? item.duration_ms : null,
+      isLive: item.is_live ?? false,
+    }));
+}

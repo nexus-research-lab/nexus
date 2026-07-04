@@ -97,6 +97,7 @@ export interface UseAgentConversationReturn {
   start_session: () => void;
   load_session: (key: string) => Promise<void>;
   load_older_messages: () => Promise<boolean>;
+  load_round_window: (roundId: string) => Promise<boolean>;
   clear_session: () => void;
   reset_session: () => void;
   stop_generation: (msgId?: string) => void;

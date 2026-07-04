@@ -102,6 +102,8 @@ interface UseFollowScrollReturn {
   showScrollToBottom: boolean;
   /** 滚动到底部 */
   scrollToBottom: (behavior?: ScrollBehavior) => void;
+  /** 用户主动跳转到非底部内容时，暂停自动跟随最新消息。 */
+  pauseFollowLatest: () => void;
   /** 在 prepend 历史消息前记录当前滚动锚点 */
   prepareHistoryPrependRestore: () => void;
   /** prepend 被取消或失败时清理锚点 */
@@ -238,6 +240,12 @@ export function useFollowScroll({
     [scheduleScrollToBottom, setScrollToBottomVisibility],
   );
 
+  const pauseFollowLatest = useCallback(() => {
+    cancelPendingScroll();
+    shouldFollowLatestRef.current = false;
+    setScrollToBottomVisibility(true);
+  }, [cancelPendingScroll, setScrollToBottomVisibility]);
+
   const prepareHistoryPrependRestore = useCallback(() => {
     const container = scrollRef.current;
     if (!container) {
@@ -365,6 +373,7 @@ export function useFollowScroll({
     bottomAnchorRef: bottomAnchorRef,
     showScrollToBottom: showScrollToBottom,
     scrollToBottom: scrollToBottom,
+    pauseFollowLatest: pauseFollowLatest,
     prepareHistoryPrependRestore: prepareHistoryPrependRestore,
     cancelHistoryPrependRestore: cancelHistoryPrependRestore,
     onScroll: onScroll,

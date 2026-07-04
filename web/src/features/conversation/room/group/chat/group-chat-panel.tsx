@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { UserRound } from "lucide-react";
 
 import { useAgentConversation } from "@/hooks/agent";
@@ -8,6 +8,7 @@ import { useProviderAvailability } from "@/hooks/capability/use-provider-availab
 import { useExtractTodos } from "@/hooks/conversation/use-extract-todos";
 import { useFollowScroll } from "@/hooks/conversation/use-follow-scroll";
 import { useSessionLoader } from "@/hooks/conversation/use-session-loader";
+import { useSessionRoundIndex } from "@/hooks/conversation/use-session-round-index";
 import { useDefaultChatDeliveryPolicy } from "@/hooks/settings/use-default-chat-delivery-policy";
 import { createGoalApi } from "@/lib/api/goal-api";
 import { buildRoomSharedSessionKey } from "@/lib/conversation/session-key";
@@ -22,9 +23,16 @@ import { ScrollToLatestButton } from "@/features/conversation/shared/scroll-to-l
 import { ComposerPanel } from "@/features/conversation/shared/composer-panel";
 import { prepareRoomConversationAttachments } from "@/features/conversation/shared/composer-attachments";
 import { ConversationErrorBubble } from "@/features/conversation/shared/conversation-error-bubble";
+import type {
+  ConversationRoundScrollHandle,
+} from "@/features/conversation/shared/conversation-round-scroll";
+import { ConversationSessionNavigator } from "@/features/conversation/shared/conversation-session-navigator";
 import { ProviderUnavailableBanner } from "@/features/conversation/shared/provider-unavailable-banner";
 import { ROOM_GOAL_SCOPE_LABEL } from "@/features/conversation/shared/goal-continuation-hold";
-import { buildTimelineRoundIds } from "@/features/conversation/shared/timeline-rounds";
+import {
+  buildIndexedTimelineRoundIds,
+  buildTimelineRoundIds,
+} from "@/features/conversation/shared/timeline-rounds";
 import { useConversationComposerHandlers } from "@/features/conversation/shared/use-conversation-composer-handlers";
 import { useConversationHistoryLoader } from "@/features/conversation/shared/use-conversation-history-loader";
 import {
@@ -36,6 +44,7 @@ import {
   groupRoomPendingSlotsByRound,
   groupRoomMessagesByRound,
 } from "@/features/conversation/shared/utils";
+import { useVisibleRoundWindowLoader } from "@/features/conversation/shared/use-visible-round-window-loader";
 import { GroupConversationFeed } from "./group-conversation-feed";
 import { useRoomThreadSource } from "./use-room-thread-panel-data";
 import { GroupConversationEmptyState } from "./group-conversation-empty-state";
@@ -106,6 +115,7 @@ export function GroupChatPanel({
   const sessionKey = conversationId
     ? buildRoomSharedSessionKey(conversationId)
     : null;
+  const roundScrollRef = useRef<ConversationRoundScrollHandle | null>(null);
   const defaultDeliveryPolicy = useDefaultChatDeliveryPolicy();
   const [goalRefreshSeq, setGoalRefreshSeq] = useState(0);
   const refreshGoalPanel = useCallback(() => {
@@ -183,6 +193,7 @@ export function GroupChatPanel({
     stop_generation: stopGeneration,
     load_session: loadSession,
     load_older_messages: loadOlderMessages,
+    load_round_window: loadRoundWindow,
     send_permission_response: sendPermissionResponse,
     runtime_phase: runtimePhase,
     live_round_ids: liveRoundIds,
@@ -209,6 +220,7 @@ export function GroupChatPanel({
     bottomAnchorRef: bottomAnchorRef,
     showScrollToBottom: showScrollToBottom,
     scrollToBottom: scrollToBottom,
+    pauseFollowLatest: pauseFollowLatest,
     prepareHistoryPrependRestore: prepareHistoryPrependRestore,
     cancelHistoryPrependRestore: cancelHistoryPrependRestore,
     onScroll: onScroll,
@@ -280,7 +292,7 @@ export function GroupChatPanel({
     () => groupRoomPendingPermissionsByRound(pendingPermissions),
     [pendingPermissions],
   );
-  const roundIds = useMemo(
+  const loadedRoundIds = useMemo(
     () =>
       buildTimelineRoundIds(messageGroups, liveRoundIds, [
         ...pendingSlotGroups.keys(),
@@ -293,10 +305,24 @@ export function GroupChatPanel({
       pendingSlotGroups,
     ],
   );
+  const roundIndexItems = useSessionRoundIndex(sessionKey);
+  const feedRoundIds = useMemo(
+    () => buildIndexedTimelineRoundIds(roundIndexItems, loadedRoundIds),
+    [loadedRoundIds, roundIndexItems],
+  );
+  const useIndexedTimeline = roundIndexItems.length > 0;
+  const visibleRoundLoaderRevision = `${feedRoundIds.length}:${messages.length}:${pendingAgentSlots.length}:${pendingPermissions.length}:${liveRoundIds.length}`;
+  useVisibleRoundWindowLoader({
+    enabled: useIndexedTimeline,
+    loadRoundWindow,
+    revision: visibleRoundLoaderRevision,
+    scopeKey: sessionKey,
+    scrollRef,
+  });
   const { handleScroll } = useConversationHistoryLoader({
     scrollRef,
     messageCount: messages.length,
-    hasMoreHistory,
+    hasMoreHistory: !useIndexedTimeline && hasMoreHistory,
     isHistoryLoading,
     isLoading,
     loadOlderMessages,
@@ -412,6 +438,18 @@ export function GroupChatPanel({
   });
   return (
     <div className="relative flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-transparent">
+      {!isMobileLayout && sessionKey ? (
+        <ConversationSessionNavigator
+          className="absolute bottom-[156px] left-3 top-7 z-20"
+          liveRoundIds={liveRoundIds}
+          messageGroups={messageGroups}
+          onLoadRoundWindow={loadRoundWindow}
+          onNavigateStart={pauseFollowLatest}
+          roundScrollRef={roundScrollRef}
+          roundIndexItems={roundIndexItems}
+          scrollRef={scrollRef}
+        />
+      ) : null}
 
       {!sessionKey ? (
         <GroupConversationEmptyState
@@ -464,7 +502,9 @@ export function GroupChatPanel({
               onStopMessage={
                 canControlSession ? handleStopMessage : undefined
               }
-              roundIds={roundIds}
+              roundScrollRef={roundScrollRef}
+              roundIndexItems={roundIndexItems}
+              roundIds={feedRoundIds}
             />
             {systemError ? (
               <div className={isMobileLayout ? "mt-4" : "mx-auto mt-2 w-full max-w-[980px]"}>

@@ -1,4 +1,5 @@
 import type { AssistantMessage, Message } from "@/types/conversation/message";
+import type { SessionRoundIndexItem } from "@/types/conversation/room";
 import { stripRoomControlMarkers } from "./message/item/message-item-support";
 
 // 终态轮次里 assistant 仅剩无回复标记（剥离后无文本、无工具/图片等块）时，
@@ -57,6 +58,35 @@ export function buildTimelineRoundIds(
     append(roundId);
   }
   for (const roundId of liveRoundIds) {
+    append(roundId);
+  }
+  return roundIds;
+}
+
+/** 用完整索引补齐 feed 时间轴，消息内容仍按已加载窗口渲染。 */
+export function buildIndexedTimelineRoundIds(
+  roundIndexItems: SessionRoundIndexItem[],
+  loadedRoundIds: string[],
+): string[] {
+  if (roundIndexItems.length === 0) {
+    return loadedRoundIds;
+  }
+
+  const roundIds: string[] = [];
+  const seen = new Set<string>();
+  const append = (roundId: string | null | undefined) => {
+    const normalized = roundId?.trim();
+    if (!normalized || seen.has(normalized)) {
+      return;
+    }
+    seen.add(normalized);
+    roundIds.push(normalized);
+  };
+
+  for (const item of roundIndexItems) {
+    append(item.roundId);
+  }
+  for (const roundId of loadedRoundIds) {
     append(roundId);
   }
   return roundIds;

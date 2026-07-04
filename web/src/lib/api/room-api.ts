@@ -101,6 +101,8 @@ export async function getRoomConversationMessages(
     limit?: number;
     before_round_id?: string | null;
     before_round_timestamp?: number | null;
+    around_round_id?: string | null;
+    around_limit?: number | null;
   } = {},
 ): Promise<RoomConversationMessagePage> {
   const params = new URLSearchParams();
@@ -115,6 +117,12 @@ export async function getRoomConversationMessages(
       "before_round_timestamp",
       String(options.before_round_timestamp),
     );
+  }
+  if (options.around_round_id) {
+    params.set("around_round_id", options.around_round_id);
+  }
+  if (options.around_limit && options.around_limit > 0) {
+    params.set("around_limit", String(options.around_limit));
   }
   const query = params.toString();
   const result = await requestApi<ApiRoomConversationMessagePage>(

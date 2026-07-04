@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useAgentConversation } from "@/hooks/agent";
 import { useProviderAvailability } from "@/hooks/capability/use-provider-availability";
 import { useExtractTodos } from "@/hooks/conversation/use-extract-todos";
 import { useFollowScroll } from "@/hooks/conversation/use-follow-scroll";
 import { useSessionLoader } from "@/hooks/conversation/use-session-loader";
+import { useSessionRoundIndex } from "@/hooks/conversation/use-session-round-index";
 import { useDefaultChatDeliveryPolicy } from "@/hooks/settings/use-default-chat-delivery-policy";
 import { createGoalApi } from "@/lib/api/goal-api";
 import { useAuth } from "@/shared/auth/auth-context";
@@ -22,11 +23,18 @@ import {
 } from "@/features/conversation/shared/composer-attachments";
 import { ConversationErrorBubble } from "@/features/conversation/shared/conversation-error-bubble";
 import { ConversationFeed } from "@/features/conversation/shared/conversation-feed";
+import type {
+  ConversationRoundScrollHandle,
+} from "@/features/conversation/shared/conversation-round-scroll";
+import { ConversationSessionNavigator } from "@/features/conversation/shared/conversation-session-navigator";
 import { goalContinuationHoldForPermission } from "@/features/conversation/shared/goal-continuation-hold";
 import { GoalPanel } from "@/features/conversation/shared/goal-panel";
 import { ProviderUnavailableBanner } from "@/features/conversation/shared/provider-unavailable-banner";
 import { ScrollToLatestButton } from "@/features/conversation/shared/scroll-to-latest-button";
-import { buildTimelineRoundIds } from "@/features/conversation/shared/timeline-rounds";
+import {
+  buildIndexedTimelineRoundIds,
+  buildTimelineRoundIds,
+} from "@/features/conversation/shared/timeline-rounds";
 import { useConversationComposerHandlers } from "@/features/conversation/shared/use-conversation-composer-handlers";
 import { useConversationHistoryLoader } from "@/features/conversation/shared/use-conversation-history-loader";
 import {
@@ -36,6 +44,7 @@ import {
 import {
   groupMessagesByRound,
 } from "@/features/conversation/shared/utils";
+import { useVisibleRoundWindowLoader } from "@/features/conversation/shared/use-visible-round-window-loader";
 import { CONVERSATION_TOUR_ANCHORS } from "../room-tour";
 
 export interface DmChatPanelProps {
@@ -74,6 +83,7 @@ export function DmChatPanel({
 }: DmChatPanelProps) {
   const isMobileLayout = layout === "mobile";
   const sessionKey = sessionIdentity?.session_key ?? null;
+  const roundScrollRef = useRef<ConversationRoundScrollHandle | null>(null);
   const defaultDeliveryPolicy = useDefaultChatDeliveryPolicy();
   const { status: authStatus } = useAuth();
   const currentUserAvatar = authStatus?.avatar ?? null;
@@ -115,6 +125,7 @@ export function DmChatPanel({
     stop_generation: stopGeneration,
     load_session: loadSession,
     load_older_messages: loadOlderMessages,
+    load_round_window: loadRoundWindow,
     send_permission_response: sendPermissionResponse,
     runtime_phase: runtimePhase,
     live_round_ids: liveRoundIds,
@@ -141,6 +152,7 @@ export function DmChatPanel({
     bottomAnchorRef: bottomAnchorRef,
     showScrollToBottom: showScrollToBottom,
     scrollToBottom: scrollToBottom,
+    pauseFollowLatest: pauseFollowLatest,
     prepareHistoryPrependRestore: prepareHistoryPrependRestore,
     cancelHistoryPrependRestore: cancelHistoryPrependRestore,
     onScroll: onScroll,
@@ -223,15 +235,29 @@ export function DmChatPanel({
     () => groupMessagesByRound(messages),
     [messages],
   );
-  const roundIds = useMemo(
+  const loadedRoundIds = useMemo(
     () => buildTimelineRoundIds(messageGroups, liveRoundIds),
     [liveRoundIds, messageGroups],
   );
+  const roundIndexItems = useSessionRoundIndex(sessionKey);
+  const feedRoundIds = useMemo(
+    () => buildIndexedTimelineRoundIds(roundIndexItems, loadedRoundIds),
+    [loadedRoundIds, roundIndexItems],
+  );
+  const useIndexedTimeline = roundIndexItems.length > 0;
+  const visibleRoundLoaderRevision = `${feedRoundIds.length}:${messages.length}:${liveRoundIds.length}`;
+  useVisibleRoundWindowLoader({
+    enabled: useIndexedTimeline,
+    loadRoundWindow,
+    revision: visibleRoundLoaderRevision,
+    scopeKey: sessionKey,
+    scrollRef,
+  });
 
   const { handleScroll } = useConversationHistoryLoader({
     scrollRef,
     messageCount: messages.length,
-    hasMoreHistory,
+    hasMoreHistory: !useIndexedTimeline && hasMoreHistory,
     isHistoryLoading,
     isLoading,
     loadOlderMessages,
@@ -256,6 +282,18 @@ export function DmChatPanel({
 
   return (
     <div className="relative flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-transparent">
+      {!isMobileLayout ? (
+        <ConversationSessionNavigator
+          className="absolute bottom-[156px] left-3 top-7 z-20"
+          liveRoundIds={liveRoundIds}
+          messageGroups={messageGroups}
+          onLoadRoundWindow={loadRoundWindow}
+          onNavigateStart={pauseFollowLatest}
+          roundScrollRef={roundScrollRef}
+          roundIndexItems={roundIndexItems}
+          scrollRef={scrollRef}
+        />
+      ) : null}
 
       <div
         data-tour-anchor={CONVERSATION_TOUR_ANCHORS.feed}
@@ -294,7 +332,9 @@ export function DmChatPanel({
           onOpenAgentContact={onOpenAgentContact}
           onOpenWorkspaceFile={onOpenWorkspaceFile}
           onPermissionResponse={sendPermissionResponse}
-          roundIds={roundIds}
+          roundScrollRef={roundScrollRef}
+          roundIndexItems={roundIndexItems}
+          roundIds={feedRoundIds}
         />
         {systemError ? (
           <div className={isMobileLayout ? "mt-4" : "mx-auto mt-2 w-full max-w-[980px]"}>

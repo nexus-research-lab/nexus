@@ -50,6 +50,8 @@ func (s *Service) GetSessionMessagesPage(
 			request.Limit,
 			request.BeforeRoundID,
 			request.BeforeRoundTimestamp,
+			request.AroundRoundID,
+			request.AroundLimit,
 		)
 		if err != nil {
 			return nil, err
@@ -75,11 +77,52 @@ func (s *Service) GetSessionMessagesPage(
 		request.Limit,
 		request.BeforeRoundID,
 		request.BeforeRoundTimestamp,
+		request.AroundRoundID,
+		request.AroundLimit,
 	)
 	if err != nil {
 		return nil, err
 	}
 	return &page, nil
+}
+
+// GetSessionRoundIndex 读取 session 的轻量 round 导航索引。
+func (s *Service) GetSessionRoundIndex(ctx context.Context, rawSessionKey string) (*protocol.SessionRoundIndex, error) {
+	sessionKey, parsed, err := s.requireSessionKey(rawSessionKey)
+	if err != nil {
+		return nil, err
+	}
+	if parsed.Kind == protocol.SessionKeyKindRoom {
+		index, err := s.roomHistory.ReadRoundIndex(
+			parsed.ConversationID,
+			s.activeRoundIDs(sessionKey),
+		)
+		if err != nil {
+			return nil, err
+		}
+		return &index, nil
+	}
+
+	workspacePaths, err := s.resolveWorkspacePaths(ctx, parsed.AgentID)
+	if err != nil {
+		return nil, err
+	}
+	sessionValue, workspacePath, err := s.loadHistorySession(ctx, workspacePaths, parsed, sessionKey)
+	if err != nil {
+		return nil, err
+	}
+	if sessionValue == nil {
+		return nil, ErrSessionNotFound
+	}
+	index, err := s.history.ReadRoundIndex(
+		workspacePath,
+		*sessionValue,
+		s.activeRoundIDs(sessionKey),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &index, nil
 }
 
 func (s *Service) loadHistorySession(

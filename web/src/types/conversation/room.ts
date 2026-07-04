@@ -127,3 +127,25 @@ export interface RoomConversationMessagePage {
   next_before_round_id: string | null;
   next_before_round_timestamp: number | null;
 }
+
+export interface ApiSessionRoundIndexItem {
+  round_id: string;
+  title?: string;
+  timestamp?: number;
+  status?: string;
+  duration_ms?: number | null;
+  is_live?: boolean;
+}
+
+export interface ApiSessionRoundIndex {
+  items?: ApiSessionRoundIndexItem[];
+}
+
+export interface SessionRoundIndexItem {
+  roundId: string;
+  title: string;
+  timestamp: number | null;
+  status: string | null;
+  durationMs: number | null;
+  isLive: boolean;
+}

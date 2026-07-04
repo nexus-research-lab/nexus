@@ -9,6 +9,8 @@ import (
 const (
 	defaultMessageHistoryRoundPageSize = 3
 	maxMessageHistoryRoundPageSize     = 10
+	defaultMessageHistoryAroundLimit   = 2
+	maxMessageHistoryAroundLimit       = 3
 )
 
 type historyPageGroup struct {
@@ -22,6 +24,13 @@ func normalizeRoundPageLimit(limit int) int {
 		return defaultMessageHistoryRoundPageSize
 	}
 	return min(limit, maxMessageHistoryRoundPageSize)
+}
+
+func normalizeRoundAroundLimit(limit int) int {
+	if limit <= 0 {
+		return defaultMessageHistoryAroundLimit
+	}
+	return min(limit, maxMessageHistoryAroundLimit)
 }
 
 func paginateNormalizedHistoryRows(
@@ -68,6 +77,71 @@ func paginateNormalizedHistoryRows(
 	}
 	if page.HasMore && len(pageItems) > 0 {
 		oldestGroup := groups[startGroupIndex]
+		if strings.TrimSpace(oldestGroup.CursorRoundID) != "" {
+			page.NextBeforeRoundID = stringPointer(oldestGroup.CursorRoundID)
+		}
+		timestamp := oldestGroup.CursorRoundTimestamp
+		page.NextBeforeRoundTimestamp = &timestamp
+	}
+	return page
+}
+
+func paginateNormalizedHistoryRowsAround(
+	rows []protocol.Message,
+	aroundRoundID string,
+	aroundLimit int,
+	collapseRoomAgentRounds bool,
+) protocol.MessagePage {
+	if len(rows) == 0 {
+		return protocol.MessagePage{
+			Items:   []protocol.Message{},
+			HasMore: false,
+		}
+	}
+
+	aroundRoundID = strings.TrimSpace(aroundRoundID)
+	if aroundRoundID == "" {
+		return protocol.MessagePage{
+			Items:   []protocol.Message{},
+			HasMore: false,
+		}
+	}
+
+	groups := buildHistoryPageGroups(rows, collapseRoomAgentRounds)
+	targetIndex := -1
+	for index, group := range groups {
+		if group.CursorRoundID == aroundRoundID {
+			targetIndex = index
+			break
+		}
+	}
+	if targetIndex < 0 {
+		return protocol.MessagePage{
+			Items:   []protocol.Message{},
+			HasMore: len(groups) > 0,
+		}
+	}
+
+	radius := normalizeRoundAroundLimit(aroundLimit)
+	startIndex := targetIndex - radius
+	if startIndex < 0 {
+		startIndex = 0
+	}
+	endIndex := targetIndex + radius + 1
+	if endIndex > len(groups) {
+		endIndex = len(groups)
+	}
+
+	pageItems := make([]protocol.Message, 0)
+	for _, group := range groups[startIndex:endIndex] {
+		pageItems = append(pageItems, group.Items...)
+	}
+	page := protocol.MessagePage{
+		Items:   pageItems,
+		HasMore: startIndex > 0 || endIndex < len(groups),
+	}
+	if startIndex > 0 {
+		oldestGroup := groups[startIndex]
 		if strings.TrimSpace(oldestGroup.CursorRoundID) != "" {
 			page.NextBeforeRoundID = stringPointer(oldestGroup.CursorRoundID)
 		}

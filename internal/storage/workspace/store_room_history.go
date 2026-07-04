@@ -68,12 +68,22 @@ func (s *RoomHistoryStore) ReadMessagesPage(
 	limit int,
 	beforeRoundID string,
 	beforeRoundTimestamp int64,
+	aroundRoundID string,
+	aroundLimit int,
 ) (protocol.MessagePage, error) {
 	rows, err := s.readResolvedRows(conversationID)
 	if err != nil {
 		return protocol.MessagePage{}, err
 	}
 	normalizedRows := normalizeHistoryRows(rows, normalizeActiveRoundIDs(activeRoundIDs))
+	if strings.TrimSpace(aroundRoundID) != "" {
+		return paginateNormalizedHistoryRowsAround(
+			normalizedRows,
+			aroundRoundID,
+			aroundLimit,
+			true,
+		), nil
+	}
 	return paginateNormalizedHistoryRows(
 		normalizedRows,
 		limit,

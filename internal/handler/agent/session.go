@@ -53,6 +53,29 @@ func (h *Handlers) HandleSessionMessagesByQuery(writer http.ResponseWriter, requ
 	h.writeSessionMessages(writer, request, sessionKey)
 }
 
+// HandleSessionRoundsByQuery 返回指定 session 的完整 round 导航索引。
+func (h *Handlers) HandleSessionRoundsByQuery(writer http.ResponseWriter, request *http.Request) {
+	sessionKey := strings.TrimSpace(request.URL.Query().Get("session_key"))
+	if sessionKey == "" {
+		h.api.WriteFailure(writer, http.StatusBadRequest, "session_key 参数缺失")
+		return
+	}
+	index, err := h.sessions.GetSessionRoundIndex(request.Context(), sessionKey)
+	if handlershared.IsStructuredSessionKeyError(err) {
+		h.api.WriteFailure(writer, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	if errors.Is(err, sessionpkg.ErrSessionNotFound) {
+		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+		return
+	}
+	if err != nil {
+		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
+	h.api.WriteSuccess(writer, index)
+}
+
 func (h *Handlers) writeSessionMessages(writer http.ResponseWriter, request *http.Request, sessionKey string) {
 	limit := 0
 	if rawLimit := strings.TrimSpace(request.URL.Query().Get("limit")); rawLimit != "" {
@@ -73,11 +96,23 @@ func (h *Handlers) writeSessionMessages(writer http.ResponseWriter, request *htt
 		}
 		beforeRoundTimestamp = parsedBeforeTimestamp
 	}
+	aroundRoundID := strings.TrimSpace(request.URL.Query().Get("around_round_id"))
+	aroundLimit := 0
+	if rawAroundLimit := strings.TrimSpace(request.URL.Query().Get("around_limit")); rawAroundLimit != "" {
+		parsedAroundLimit, parseErr := strconv.Atoi(rawAroundLimit)
+		if parseErr != nil || parsedAroundLimit <= 0 {
+			h.api.WriteFailure(writer, http.StatusBadRequest, "around_limit 参数错误")
+			return
+		}
+		aroundLimit = parsedAroundLimit
+	}
 
 	page, err := h.sessions.GetSessionMessagesPage(request.Context(), sessionKey, sessionpkg.MessagePageRequest{
 		Limit:                limit,
 		BeforeRoundID:        beforeRoundID,
 		BeforeRoundTimestamp: beforeRoundTimestamp,
+		AroundRoundID:        aroundRoundID,
+		AroundLimit:          aroundLimit,
 	})
 	if handlershared.IsStructuredSessionKeyError(err) {
 		h.api.WriteFailure(writer, http.StatusUnprocessableEntity, err.Error())

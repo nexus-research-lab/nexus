@@ -7,7 +7,17 @@ import { hasRoomAgentRoundEntries } from "@/features/conversation/shared/utils";
 import { AgentConversationRuntimePhase } from "@/types/agent/agent-conversation";
 import { Message, RoomPendingAgentSlotState } from "@/types/conversation/message";
 import { PendingPermission, PermissionDecisionPayload } from "@/types/conversation/permission";
+import type { SessionRoundIndexItem } from "@/types/conversation/room";
 import { estimateRoundHeights } from "@/hooks/conversation/use-message-height";
+import { ConversationRoundPlaceholder } from "@/features/conversation/shared/conversation-round-placeholder";
+import type {
+  ConversationRoundScrollHandleRef,
+  ConversationRoundScrollOptions,
+} from "@/features/conversation/shared/conversation-round-scroll";
+import {
+  findConversationRoundElement,
+  scrollToConversationRoundElement,
+} from "@/features/conversation/shared/conversation-round-scroll";
 import { GroupRoundCardGroup } from "../thread/group-round-card-group";
 
 interface GroupConversationFeedProps {
@@ -38,6 +48,8 @@ interface GroupConversationFeedProps {
   permissionReadOnlyReason?: string;
   /** Room 并发模式：停止单条消息生成 */
   onStopMessage?: (msgId: string) => void;
+  roundScrollRef?: ConversationRoundScrollHandleRef;
+  roundIndexItems?: SessionRoundIndexItem[];
   roundIds: string[];
 }
 
@@ -84,6 +96,18 @@ function resolveRoundAgentId(messages: Message[]): string | null {
   return null;
 }
 
+function buildRoundIndexItemMap(
+  items: SessionRoundIndexItem[] | undefined,
+): Map<string, SessionRoundIndexItem> {
+  const map = new Map<string, SessionRoundIndexItem>();
+  for (const item of items ?? []) {
+    if (item.roundId.trim()) {
+      map.set(item.roundId, item);
+    }
+  }
+  return map;
+}
+
 export const GroupConversationFeed = memo(function GroupConversationFeed({
   bottomAnchorRef: bottomAnchorRef,
   feedRef: feedRef,
@@ -107,9 +131,44 @@ export const GroupConversationFeed = memo(function GroupConversationFeed({
   canRespondToPermissions: canRespondToPermissions = true,
   permissionReadOnlyReason: permissionReadOnlyReason,
   onStopMessage: onStopMessage,
+  roundScrollRef: roundScrollRef,
+  roundIndexItems: roundIndexItems,
   roundIds: roundIds,
 }: GroupConversationFeedProps) {
   const useVirtual = roundIds.length >= VIRTUAL_THRESHOLD;
+  const roundIndexItemById = useMemo(
+    () => buildRoundIndexItemMap(roundIndexItems),
+    [roundIndexItems],
+  );
+
+  useEffect(() => {
+    if (!roundScrollRef || useVirtual) {
+      return;
+    }
+    const handle = {
+      scrollToRoundId: (
+        roundId: string,
+        options?: ConversationRoundScrollOptions,
+      ) => {
+        const scrollElement = scrollRef?.current;
+        if (!scrollElement) {
+          return false;
+        }
+        const target = findConversationRoundElement(scrollElement, roundId);
+        if (!target) {
+          return false;
+        }
+        scrollToConversationRoundElement(scrollElement, target, options);
+        return true;
+      },
+    };
+    roundScrollRef.current = handle;
+    return () => {
+      if (roundScrollRef.current === handle) {
+        roundScrollRef.current = null;
+      }
+    };
+  }, [roundScrollRef, scrollRef, useVirtual]);
 
   if (useVirtual && scrollRef) {
     return (
@@ -136,6 +195,8 @@ export const GroupConversationFeed = memo(function GroupConversationFeed({
         canRespondToPermissions={canRespondToPermissions}
         permissionReadOnlyReason={permissionReadOnlyReason}
         onStopMessage={onStopMessage}
+        roundScrollRef={roundScrollRef}
+        roundIndexItems={roundIndexItems}
         roundIds={roundIds}
       />
     );
@@ -153,28 +214,55 @@ export const GroupConversationFeed = memo(function GroupConversationFeed({
         const isLastRound = idx === roundIds.length - 1;
         const isLastRoundLive = isLastRound && liveRoundIds.includes(roundId);
         const hasRoomEntries = hasRoomAgentRoundEntries(roundMessages, roundPendingSlots);
+        const isRoundLoaded =
+          roundMessages.length > 0 ||
+          roundPendingPermissions.length > 0 ||
+          roundPendingSlots.length > 0 ||
+          isLastRoundLive;
+
+        if (!isRoundLoaded) {
+          return (
+            <div
+              key={roundId}
+              data-conversation-round-id={roundId}
+              data-conversation-round-index={idx}
+              data-conversation-round-loaded="false"
+            >
+              <ConversationRoundPlaceholder
+                indexItem={roundIndexItemById.get(roundId)}
+                roundId={roundId}
+              />
+            </div>
+          );
+        }
 
         // Group Room 中一旦出现 Agent 回复，就统一走 GroupRoundCardGroup。
         if (hasRoomEntries) {
           return (
-            <GroupRoundCardGroup
+            <div
               key={roundId}
-              roundId={roundId}
-              messages={roundMessages}
-              pendingPermissions={roundPendingPermissions}
-              pendingSlots={roundPendingSlots}
-              agentNameMap={agentNameMap}
-              agentAvatarMap={agentAvatarMap}
-              currentUserAvatar={currentUserAvatar}
-              isLastRound={isLastRound}
-              isLoading={isLastRoundLive}
-              onPermissionResponse={onPermissionResponse}
-              canRespondToPermissions={canRespondToPermissions}
-              permissionReadOnlyReason={permissionReadOnlyReason}
-              onOpenAgentContact={onOpenAgentContact}
-              onStopMessage={onStopMessage}
-              onOpenWorkspaceFile={onOpenWorkspaceFile}
-            />
+              data-conversation-round-id={roundId}
+              data-conversation-round-index={idx}
+              data-conversation-round-loaded="true"
+            >
+              <GroupRoundCardGroup
+                roundId={roundId}
+                messages={roundMessages}
+                pendingPermissions={roundPendingPermissions}
+                pendingSlots={roundPendingSlots}
+                agentNameMap={agentNameMap}
+                agentAvatarMap={agentAvatarMap}
+                currentUserAvatar={currentUserAvatar}
+                isLastRound={isLastRound}
+                isLoading={isLastRoundLive}
+                onPermissionResponse={onPermissionResponse}
+                canRespondToPermissions={canRespondToPermissions}
+                permissionReadOnlyReason={permissionReadOnlyReason}
+                onOpenAgentContact={onOpenAgentContact}
+                onStopMessage={onStopMessage}
+                onOpenWorkspaceFile={onOpenWorkspaceFile}
+              />
+            </div>
           );
         }
 
@@ -183,26 +271,32 @@ export const GroupConversationFeed = memo(function GroupConversationFeed({
         const roundAgentAvatar = resolveRoundAgentAvatar(roundMessages, agentAvatarMap) ?? currentAgentAvatar;
         const roundWorkspaceAgentId = resolveRoundAgentId(roundMessages);
         return (
-          <MessageItem
+          <div
             key={roundId}
-            compact={compact}
-            currentAgentName={roundAgentName}
-            currentAgentAvatar={roundAgentAvatar}
-            workspaceAgentId={roundWorkspaceAgentId}
-            currentUserAvatar={currentUserAvatar}
-            roundId={roundId}
-            messages={roundMessages}
-            isLastRound={isLastRound}
-            isLoading={isLastRoundLive}
-            runtimePhase={isLastRoundLive ? runtimePhase : null}
-            pendingPermissions={isLastRoundLive ? isLastRoundPendingPermissions : []}
-            onPermissionResponse={onPermissionResponse}
-            canRespondToPermissions={canRespondToPermissions}
-            permissionReadOnlyReason={permissionReadOnlyReason}
-            onOpenAgentContact={onOpenAgentContact}
-            onOpenWorkspaceFile={onOpenWorkspaceFile}
-            onStopMessage={onStopMessage}
-          />
+            data-conversation-round-id={roundId}
+            data-conversation-round-index={idx}
+            data-conversation-round-loaded="true"
+          >
+            <MessageItem
+              compact={compact}
+              currentAgentName={roundAgentName}
+              currentAgentAvatar={roundAgentAvatar}
+              workspaceAgentId={roundWorkspaceAgentId}
+              currentUserAvatar={currentUserAvatar}
+              roundId={roundId}
+              messages={roundMessages}
+              isLastRound={isLastRound}
+              isLoading={isLastRoundLive}
+              runtimePhase={isLastRoundLive ? runtimePhase : null}
+              pendingPermissions={isLastRoundLive ? isLastRoundPendingPermissions : []}
+              onPermissionResponse={onPermissionResponse}
+              canRespondToPermissions={canRespondToPermissions}
+              permissionReadOnlyReason={permissionReadOnlyReason}
+              onOpenAgentContact={onOpenAgentContact}
+              onOpenWorkspaceFile={onOpenWorkspaceFile}
+              onStopMessage={onStopMessage}
+            />
+          </div>
         );
       })}
       <div ref={bottomAnchorRef} className="h-px w-full" />
@@ -235,9 +329,15 @@ function VirtualFeed({
   canRespondToPermissions: canRespondToPermissions = true,
   permissionReadOnlyReason: permissionReadOnlyReason,
   onStopMessage: onStopMessage,
+  roundScrollRef: roundScrollRef,
+  roundIndexItems: roundIndexItems,
   roundIds: roundIds,
 }: Omit<GroupConversationFeedProps, "isLoading" | "scrollRef"> & { scrollRef: RefObject<HTMLDivElement | null> }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const roundIndexItemById = useMemo(
+    () => buildRoundIndexItemMap(roundIndexItems),
+    [roundIndexItems],
+  );
 
   // Measure scroll container width for pretext height estimation
   const containerWidthRef = useRef(680);
@@ -271,6 +371,34 @@ function VirtualFeed({
   const virtualItems = virtualizer.getVirtualItems();
   const totalSize = virtualizer.getTotalSize();
 
+  useEffect(() => {
+    if (!roundScrollRef) {
+      return;
+    }
+    const handle = {
+      scrollToRoundId: (
+        roundId: string,
+        options?: ConversationRoundScrollOptions,
+      ) => {
+        const targetIndex = roundIds.indexOf(roundId);
+        if (targetIndex < 0) {
+          return false;
+        }
+        virtualizer.scrollToIndex(targetIndex, {
+          align: "start",
+          behavior: options?.behavior ?? "smooth",
+        });
+        return true;
+      },
+    };
+    roundScrollRef.current = handle;
+    return () => {
+      if (roundScrollRef.current === handle) {
+        roundScrollRef.current = null;
+      }
+    };
+  }, [roundScrollRef, roundIds, virtualizer]);
+
   return (
     <div
       ref={(el) => {
@@ -298,14 +426,27 @@ function VirtualFeed({
           const isLastRound = virtualItem.index === roundIds.length - 1;
           const isLastRoundLive = isLastRound && liveRoundIds.includes(roundId);
           const hasRoomEntries = hasRoomAgentRoundEntries(roundMessages, roundPendingSlots);
+          const isRoundLoaded =
+            roundMessages.length > 0 ||
+            roundPendingPermissions.length > 0 ||
+            roundPendingSlots.length > 0 ||
+            isLastRoundLive;
 
           return (
             <div
               key={roundId}
               data-index={virtualItem.index}
+              data-conversation-round-id={roundId}
+              data-conversation-round-index={virtualItem.index}
+              data-conversation-round-loaded={isRoundLoaded ? "true" : "false"}
               ref={virtualizer.measureElement}
             >
-              {hasRoomEntries ? (
+              {!isRoundLoaded ? (
+                <ConversationRoundPlaceholder
+                  indexItem={roundIndexItemById.get(roundId)}
+                  roundId={roundId}
+                />
+              ) : hasRoomEntries ? (
                 <GroupRoundCardGroup
                   roundId={roundId}
                   messages={roundMessages}
