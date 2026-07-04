@@ -92,7 +92,6 @@
     background-size: var(--ambient-page-pattern-size), 100% 100%;
     color: var(--foreground);
     font-family: var(--font-sans);
-    font-weight: normal;
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
