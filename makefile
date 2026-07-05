@@ -24,7 +24,7 @@ NXS_DEV_BINARY_NAME := nxs.exe
 endif
 NXS_DEV_RUNTIME_PATH ?= $(abspath ../nexus-agent-sdk/nexus-agent-sdk-go/dist/nxs/$(NXS_DEV_GOOS)-$(NXS_DEV_GOARCH)/$(NXS_DEV_BINARY_NAME))
 COMPOSE_CMD ?= docker compose --env-file $(ENV_FILE) -f deploy/docker-compose.yml
-PNPM ?= corepack pnpm
+PNPM ?= pnpm
 
 # Default target
 .DEFAULT_GOAL := help
