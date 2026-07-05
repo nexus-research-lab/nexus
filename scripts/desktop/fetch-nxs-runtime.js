@@ -2,6 +2,7 @@
 "use strict";
 
 const crypto = require("crypto");
+const childProcess = require("child_process");
 const fs = require("fs");
 const http = require("http");
 const https = require("https");
@@ -32,6 +33,22 @@ async function main() {
     env("NEXUS_DESKTOP_NXS_MANIFEST_URL") ||
     env("NEXUS_NXS_RUNTIME_MANIFEST_URL") ||
     `https://github.com/${repo}/releases/download/${release}/nxs-manifest.json`;
+  const token =
+    env("NEXUS_DESKTOP_NXS_DOWNLOAD_TOKEN") ||
+    env("NEXUS_NXS_RUNTIME_GITHUB_TOKEN") ||
+    env("GH_TOKEN") ||
+    env("GITHUB_TOKEN");
+  if (args.printCacheKey) {
+    const manifest = JSON.parse(downloadManifestForCacheKey(manifestURL, token).toString("utf8"));
+    console.log(runtimeManifestCacheKey(release, manifest));
+    return;
+  }
+  const client = new GitHubReleaseClient({
+    token,
+    repo,
+    release,
+  });
+  const manifest = JSON.parse((await client.downloadManifest(manifestURL)).toString("utf8"));
   const goos = args.goos || env("NEXUS_DESKTOP_NXS_GOOS") || nodePlatformToGOOS(process.platform);
   const goarch = args.goarch || env("NEXUS_DESKTOP_NXS_GOARCH") || nodeArchToGOARCH(process.arch);
   if (!args.output) {
@@ -41,16 +58,6 @@ async function main() {
     throw new Error(`unsupported platform ${process.platform}/${process.arch}; pass --goos and --goarch`);
   }
 
-  const client = new GitHubReleaseClient({
-    token:
-      env("NEXUS_DESKTOP_NXS_DOWNLOAD_TOKEN") ||
-      env("NEXUS_NXS_RUNTIME_GITHUB_TOKEN") ||
-      env("GH_TOKEN") ||
-      env("GITHUB_TOKEN"),
-    repo,
-    release,
-  });
-  const manifest = JSON.parse((await client.downloadManifest(manifestURL)).toString("utf8"));
   const selection = selectAsset(manifest, goos, goarch);
   const asset = selection.asset;
   const archiveBytes = await client.downloadAsset(asset.url, asset.filename);
@@ -98,6 +105,9 @@ function parseArgs(values) {
       case "--manifest-url":
         args.manifestURL = requireValue(values, ++index, value);
         break;
+      case "--print-cache-key":
+        args.printCacheKey = true;
+        break;
       default:
         throw new Error(`unknown argument: ${value}`);
     }
@@ -115,8 +125,10 @@ function requireValue(values, index, flag) {
 
 function printHelp() {
   console.log(`Usage: node scripts/desktop/fetch-nxs-runtime.js --output <path> [--goos darwin] [--goarch arm64]
+       node scripts/desktop/fetch-nxs-runtime.js --print-cache-key
 
 Downloads the nxs runtime from the bridge release manifest, verifies sha256, and writes the executable.
+Use --print-cache-key to print a stable Docker build cache key for the selected manifest.
 
 Environment:
   NEXUS_DESKTOP_NXS_RELEASE          Release tag, default ${DEFAULT_RELEASE}
@@ -268,6 +280,32 @@ function runtimeManifestCandidates(manifest) {
   return candidates;
 }
 
+function runtimeManifestCacheKey(release, manifest) {
+  const hash = crypto.createHash("sha256");
+  hash.update(JSON.stringify(manifest));
+  return `${release}:${hash.digest("hex").slice(0, 16)}`;
+}
+
+function downloadManifestForCacheKey(manifestURL, token) {
+  const args = ["-fsSL", "-H", `Accept: application/octet-stream`, "-H", `User-Agent: ${USER_AGENT}`];
+  if (token && isGitHubHost(new URL(manifestURL).hostname)) {
+    args.push("-H", `Authorization: Bearer ${token}`);
+  }
+  args.push(manifestURL);
+  const result = childProcess.spawnSync("curl", args, {
+    encoding: "buffer",
+    maxBuffer: 10 * 1024 * 1024,
+  });
+  if (result.error) {
+    throw result.error;
+  }
+  if (result.status !== 0) {
+    const stderr = result.stderr ? result.stderr.toString("utf8").trim() : "";
+    throw new Error(`curl failed while downloading ${manifestURL}${stderr ? `: ${stderr}` : ""}`);
+  }
+  return result.stdout;
+}
+
 function downloadURL(rawURL, options) {
   const url = new URL(rawURL);
   const transport = url.protocol === "http:" ? http : https;
@@ -310,6 +348,9 @@ function downloadURL(rawURL, options) {
         }
         resolve(body);
       });
+    });
+    request.setTimeout(30000, () => {
+      request.destroy(new Error(`timeout while downloading ${rawURL}`));
     });
     request.on("error", reject);
   });

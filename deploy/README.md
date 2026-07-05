@@ -13,12 +13,15 @@ NGINX_SSL_CERTIFICATE=/etc/nginx/certs/live/www.example.com/fullchain.pem
 NGINX_SSL_CERTIFICATE_KEY=/etc/nginx/certs/live/www.example.com/privkey.pem
 NGINX_REDIRECT_HTTPS=true
 HTTPS_PORT=443
+NEXUS_NXS_RUNTIME_RELEASE=nxs-stable
 
 SSL_DOMAINS=www.example.com
 SSL_EMAIL=
 ```
 
 `NGINX_SSL_CERTIFICATE` 和 `NGINX_SSL_CERTIFICATE_KEY` 是 nginx 容器内路径。宿主机证书实际存放在 `${HOST_DATA_DIR}/certs`，ACME HTTP-01 challenge 文件存放在 `${HOST_DATA_DIR}/acme`。
+
+`make build` / `make start` 会自动解析 `NEXUS_NXS_RUNTIME_RELEASE` 对应 manifest，并把 manifest hash 作为 Docker build cache key。默认使用 `nxs-stable`，stable 指向新版 runtime 后会自动破掉旧 runtime 层缓存；需要灰度或回滚时再把 `NEXUS_NXS_RUNTIME_RELEASE` 固定到具体 `nxs-v*`。
 
 ## 首次申请证书
 

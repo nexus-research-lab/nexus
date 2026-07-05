@@ -65,6 +65,7 @@ ARG TARGETOS=linux
 ARG TARGETARCH=amd64
 ARG NEXUS_DOCKER_BUNDLE_NXS_RUNTIME=1
 ARG NEXUS_NXS_RUNTIME_RELEASE=nxs-stable
+ARG NEXUS_NXS_RUNTIME_CACHE_KEY=nxs-stable
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
@@ -137,7 +138,8 @@ COPY scripts/desktop/fetch-nxs-runtime.js /opt/app/scripts/desktop/fetch-nxs-run
 COPY deploy/entrypoint.sh /opt/app/deploy/entrypoint.sh
 COPY deploy/nexus-apt-install /usr/local/bin/nexus-apt-install
 
-RUN if [ "${NEXUS_DOCKER_BUNDLE_NXS_RUNTIME}" = "1" ]; then \
+RUN printf 'nxs runtime cache key: %s\n' "${NEXUS_NXS_RUNTIME_CACHE_KEY}" && \
+    if [ "${NEXUS_DOCKER_BUNDLE_NXS_RUNTIME}" = "1" ]; then \
         node /opt/app/scripts/desktop/fetch-nxs-runtime.js \
         --goos "${TARGETOS:-linux}" \
         --goarch "${TARGETARCH:-amd64}" \

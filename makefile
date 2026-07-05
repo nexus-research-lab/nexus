@@ -22,6 +22,8 @@ NXS_DEV_BINARY_NAME := nxs
 ifeq ($(NXS_DEV_GOOS),windows)
 NXS_DEV_BINARY_NAME := nxs.exe
 endif
+NEXUS_NXS_RUNTIME_RELEASE ?= nxs-stable
+NEXUS_NXS_RUNTIME_CACHE_KEY_CMD = node scripts/desktop/fetch-nxs-runtime.js --release "$(NEXUS_NXS_RUNTIME_RELEASE)" --print-cache-key
 NXS_DEV_RUNTIME_PATH ?= $(abspath ../nexus-agent-sdk/nexus-agent-sdk-go/dist/nxs/$(NXS_DEV_GOOS)-$(NXS_DEV_GOARCH)/$(NXS_DEV_BINARY_NAME))
 COMPOSE_CMD ?= docker compose --env-file $(ENV_FILE) -f deploy/docker-compose.yml
 PNPM ?= pnpm
@@ -153,7 +155,10 @@ app-win-package: ## 构建、烟测并打包 Windows WPF/WebView2 桌面 app ins
 
 # Docker commands
 build: ## Build Docker images
-	TAG=$(TAG) $(COMPOSE_CMD) build
+	@set -eu; \
+	cache_key="$$($(NEXUS_NXS_RUNTIME_CACHE_KEY_CMD))"; \
+	echo "nxs runtime cache key: $$cache_key"; \
+	TAG=$(TAG) NEXUS_NXS_RUNTIME_RELEASE=$(NEXUS_NXS_RUNTIME_RELEASE) NEXUS_NXS_RUNTIME_CACHE_KEY="$$cache_key" $(COMPOSE_CMD) build
 
 prepare-host-data: ## Prepare host bind-mount directories for Docker runtime
 	@set -eu; \
@@ -191,7 +196,10 @@ package-release: ## Build Go + web release package without macOS app
 	./scripts/package-release.sh $(TAG)
 
 start: prepare-host-data ## Start all services with Docker
-	TAG=$(TAG) $(COMPOSE_CMD) up -d --build --force-recreate
+	@set -eu; \
+	cache_key="$$($(NEXUS_NXS_RUNTIME_CACHE_KEY_CMD))"; \
+	echo "nxs runtime cache key: $$cache_key"; \
+	TAG=$(TAG) NEXUS_NXS_RUNTIME_RELEASE=$(NEXUS_NXS_RUNTIME_RELEASE) NEXUS_NXS_RUNTIME_CACHE_KEY="$$cache_key" $(COMPOSE_CMD) up -d --build --force-recreate
 	@echo ""
 	@echo "✅ Nexus Core is running!"
 	@echo "🌐 Web UI: http://localhost"

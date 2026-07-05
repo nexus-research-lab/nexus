@@ -25,6 +25,7 @@ services:
         BUN_CONFIG_REGISTRY: ${BUN_CONFIG_REGISTRY:-https://registry.npmjs.org/}
         NEXUS_DOCKER_BUNDLE_NXS_RUNTIME: ${NEXUS_DOCKER_BUNDLE_NXS_RUNTIME:-1}
         NEXUS_NXS_RUNTIME_RELEASE: ${NEXUS_NXS_RUNTIME_RELEASE:-nxs-stable}
+        NEXUS_NXS_RUNTIME_CACHE_KEY: ${NEXUS_NXS_RUNTIME_CACHE_KEY:-nxs-stable}
     image: ${IMAGE:-nexus}:app-${TAG:-latest}
     restart: unless-stopped
     env_file:
