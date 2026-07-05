@@ -216,10 +216,14 @@ func TestServiceHandleChatInterruptPolicyStopsRunningRound(t *testing.T) {
 
 	client.mu.Lock()
 	interruptCalls := client.interruptCalls
+	interruptReasons := append([]string(nil), client.interruptReasons...)
 	sentContents := append([]string(nil), client.sentContents...)
 	client.mu.Unlock()
 	if interruptCalls == 0 {
 		t.Fatal("打断策略应中断运行中 DM round")
+	}
+	if len(interruptReasons) == 0 || interruptReasons[0] != "interrupt" {
+		t.Fatalf("打断策略应传递 submit-interrupt reason: %+v", interruptReasons)
 	}
 	if len(sentContents) != 0 {
 		t.Fatalf("打断策略不应走 streaming input: %+v", sentContents)

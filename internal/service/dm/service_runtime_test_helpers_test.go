@@ -14,22 +14,23 @@ import (
 )
 
 type fakeDMClient struct {
-	mu              sync.Mutex
-	sessionID       string
-	messages        chan sdkprotocol.ReceivedMessage
-	interruptCalls  int
-	connectCalls    int
-	disconnectCalls int
-	interruptErrors []error
-	disconnectErrs  []error
-	connectErrors   []error
-	queryErrors     []error
-	queryPrompts    []string
-	sentContents    []string
-	queryOptions    []sdkprotocol.OutboundMessageOptions
-	reconfigureOps  []agentclient.Options
-	onQuery         func(context.Context, string)
-	onInterrupt     func(context.Context)
+	mu               sync.Mutex
+	sessionID        string
+	messages         chan sdkprotocol.ReceivedMessage
+	interruptCalls   int
+	interruptReasons []string
+	connectCalls     int
+	disconnectCalls  int
+	interruptErrors  []error
+	disconnectErrs   []error
+	connectErrors    []error
+	queryErrors      []error
+	queryPrompts     []string
+	sentContents     []string
+	queryOptions     []sdkprotocol.OutboundMessageOptions
+	reconfigureOps   []agentclient.Options
+	onQuery          func(context.Context, string)
+	onInterrupt      func(context.Context)
 }
 
 type fakeTokenUsageRecorder struct {
@@ -155,8 +156,17 @@ func (c *fakeDMClient) SendContent(_ context.Context, content any, _ *string, _ 
 }
 
 func (c *fakeDMClient) Interrupt(ctx context.Context) error {
+	return c.interrupt(ctx, "")
+}
+
+func (c *fakeDMClient) InterruptWithReason(ctx context.Context, reason string) error {
+	return c.interrupt(ctx, reason)
+}
+
+func (c *fakeDMClient) interrupt(ctx context.Context, reason string) error {
 	c.mu.Lock()
 	c.interruptCalls++
+	c.interruptReasons = append(c.interruptReasons, reason)
 	if len(c.interruptErrors) > 0 {
 		err := c.interruptErrors[0]
 		c.interruptErrors = c.interruptErrors[1:]

@@ -137,6 +137,14 @@ func (c *sdkClientAdapter) Interrupt(ctx context.Context) error {
 	return session.Interrupt(ctx)
 }
 
+func (c *sdkClientAdapter) InterruptWithReason(ctx context.Context, reason string) error {
+	session, err := c.currentSession()
+	if err != nil {
+		return err
+	}
+	return session.InterruptWithReason(ctx, reason)
+}
+
 func (c *sdkClientAdapter) StopTask(ctx context.Context, taskID string) error {
 	session, err := c.currentSession()
 	if err != nil {

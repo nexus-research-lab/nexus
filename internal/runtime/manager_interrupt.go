@@ -9,6 +9,12 @@ import (
 )
 
 const interruptForceCancelDelay = 150 * time.Millisecond
+const clientInterruptReasonSubmit = "interrupt"
+const clientInterruptWithoutMessage = "__nexus_interrupt_without_message__"
+
+type reasonInterruptClient interface {
+	InterruptWithReason(context.Context, string) error
+}
 
 // InterruptSession 中断当前 session 的全部运行中 round。
 func (m *Manager) InterruptSession(ctx context.Context, sessionKey string, reason string) ([]string, error) {
@@ -57,7 +63,7 @@ func (m *Manager) InterruptSession(ctx context.Context, sessionKey string, reaso
 		}
 		return roundIDs, nil
 	}
-	if err := client.Interrupt(ctx); err != nil {
+	if err := interruptClient(ctx, client, interruptReason); err != nil {
 		return roundIDs, err
 	}
 	if err := waitRoundDoneSignals(ctx, doneSignals, func() {
@@ -68,6 +74,24 @@ func (m *Manager) InterruptSession(ctx context.Context, sessionKey string, reaso
 		return roundIDs, err
 	}
 	return roundIDs, nil
+}
+
+func interruptClient(ctx context.Context, client Client, reason string) error {
+	wireReason := clientInterruptWireReason(reason)
+	if wireReason != "" {
+		if reasonClient, ok := client.(reasonInterruptClient); ok {
+			return reasonClient.InterruptWithReason(ctx, wireReason)
+		}
+	}
+	return client.Interrupt(ctx)
+}
+
+func clientInterruptWireReason(reason string) string {
+	trimmed := strings.TrimSpace(reason)
+	if trimmed == "" || trimmed == clientInterruptWithoutMessage {
+		return ""
+	}
+	return clientInterruptReasonSubmit
 }
 
 // GetInterruptReason 返回 round 是否已收到显式中断请求。
