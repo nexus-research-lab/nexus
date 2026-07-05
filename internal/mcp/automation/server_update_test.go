@@ -28,50 +28,57 @@ func TestUpdateCanDisableDeliveryWithoutExecutionMode(t *testing.T) {
 	}
 }
 
-func TestUpdateCanRetargetDeliveryWithoutExecutionMode(t *testing.T) {
-	svc := &stubService{}
-	result, isError := callTool(t, svc, contract.ServerContext{IsMainAgent: true}, "update_scheduled_task", map[string]any{
-		"job_id":        "job-1",
-		"reply_mode":    "channel",
-		"reply_channel": "feishu",
-		"reply_to":      "oc_group_123",
-	})
-	if isError {
-		t.Fatalf("unexpected error: %s", extractText(t, result))
+func TestUpdateCanRetargetDeliveryToChannel(t *testing.T) {
+	tests := []struct {
+		name  string
+		sctx  contract.ServerContext
+		svc   *stubService
+		input map[string]any
+	}{
+		{
+			name: "explicit mode",
+			sctx: contract.ServerContext{IsMainAgent: true},
+			svc:  &stubService{},
+			input: map[string]any{
+				"job_id":        "job-1",
+				"reply_mode":    "channel",
+				"reply_channel": "feishu",
+				"reply_to":      "oc_group_123",
+			},
+		},
+		{
+			name: "inferred mode",
+			sctx: contract.ServerContext{CurrentAgentID: "agent-1"},
+			svc: &stubService{
+				jobs: []protocol.CronJob{{
+					JobID:    "job-1",
+					AgentID:  "agent-1",
+					Schedule: protocol.Schedule{Timezone: "Asia/Shanghai"},
+				}},
+			},
+			input: map[string]any{
+				"job_id":        "job-1",
+				"reply_channel": "feishu",
+				"reply_to":      "oc_group_123",
+			},
+		},
 	}
-	if svc.updateInput.SessionTarget != nil {
-		t.Fatalf("delivery-only update must not rewrite execution target, got %+v", svc.updateInput.SessionTarget)
-	}
-	if svc.updateInput.Delivery == nil ||
-		svc.updateInput.Delivery.Channel != protocol.SessionChannelFeishu ||
-		svc.updateInput.Delivery.To != "oc_group_123" {
-		t.Fatalf("expected feishu delivery target, got %+v", svc.updateInput.Delivery)
-	}
-}
 
-func TestUpdateInfersChannelReplyModeFromDeliveryFields(t *testing.T) {
-	svc := &stubService{
-		jobs: []protocol.CronJob{{
-			JobID:    "job-1",
-			AgentID:  "agent-1",
-			Schedule: protocol.Schedule{Timezone: "Asia/Shanghai"},
-		}},
-	}
-	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "update_scheduled_task", map[string]any{
-		"job_id":        "job-1",
-		"reply_channel": "feishu",
-		"reply_to":      "oc_group_123",
-	})
-	if isError {
-		t.Fatalf("unexpected error: %s", extractText(t, result))
-	}
-	if svc.updateInput.SessionTarget != nil {
-		t.Fatalf("delivery-only update must not rewrite execution target, got %+v", svc.updateInput.SessionTarget)
-	}
-	if svc.updateInput.Delivery == nil ||
-		svc.updateInput.Delivery.Channel != protocol.SessionChannelFeishu ||
-		svc.updateInput.Delivery.To != "oc_group_123" {
-		t.Fatalf("expected feishu delivery target inferred from fields, got %+v", svc.updateInput.Delivery)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result, isError := callTool(t, test.svc, test.sctx, "update_scheduled_task", test.input)
+			if isError {
+				t.Fatalf("unexpected error: %s", extractText(t, result))
+			}
+			if test.svc.updateInput.SessionTarget != nil {
+				t.Fatalf("delivery-only update must not rewrite execution target, got %+v", test.svc.updateInput.SessionTarget)
+			}
+			if test.svc.updateInput.Delivery == nil ||
+				test.svc.updateInput.Delivery.Channel != protocol.SessionChannelFeishu ||
+				test.svc.updateInput.Delivery.To != "oc_group_123" {
+				t.Fatalf("expected feishu delivery target, got %+v", test.svc.updateInput.Delivery)
+			}
+		})
 	}
 }
 
@@ -223,52 +230,35 @@ func TestUpdateSelectedReplyDefaultsToCurrentConversation(t *testing.T) {
 	}
 }
 
-func TestUpdateSelectedReplyStillRequiresTargetWithoutCurrentConversation(t *testing.T) {
-	svc := &stubService{
-		jobs: []protocol.CronJob{{
-			JobID:    "job-1",
-			AgentID:  "agent-1",
-			Schedule: protocol.Schedule{Timezone: "Asia/Shanghai"},
-		}},
+func TestUpdateSelectedReplyRequiresConversationTarget(t *testing.T) {
+	tests := []contract.ServerContext{
+		{CurrentAgentID: "agent-1"},
+		{CurrentAgentID: "agent-1", CurrentSessionKey: "agent:agent-1:fs:group:oc_group_123"},
 	}
-	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "update_scheduled_task", map[string]any{
-		"job_id":     "job-1",
-		"reply_mode": "selected",
-	})
-	if !isError {
-		t.Fatalf("expected missing selected reply target error, got %+v", result)
-	}
-	if !strings.Contains(extractText(t, result), "selected_reply_session_key") {
-		t.Fatalf("error should mention selected_reply_session_key, got %q", extractText(t, result))
-	}
-	if svc.updateJobID != "" {
-		t.Fatalf("invalid selected update should not reach service, got job_id=%q", svc.updateJobID)
-	}
-}
 
-func TestUpdateSelectedReplyDoesNotDefaultToCurrentExternalGroup(t *testing.T) {
-	svc := &stubService{
-		jobs: []protocol.CronJob{{
-			JobID:    "job-1",
-			AgentID:  "agent-1",
-			Schedule: protocol.Schedule{Timezone: "Asia/Shanghai"},
-		}},
-	}
-	result, isError := callTool(t, svc, contract.ServerContext{
-		CurrentAgentID:    "agent-1",
-		CurrentSessionKey: "agent:agent-1:fs:group:oc_group_123",
-	}, "update_scheduled_task", map[string]any{
-		"job_id":     "job-1",
-		"reply_mode": "selected",
-	})
-	if !isError {
-		t.Fatalf("expected external group selected reply target error, got %+v", result)
-	}
-	if !strings.Contains(extractText(t, result), "selected_reply_session_key") {
-		t.Fatalf("error should mention selected_reply_session_key, got %q", extractText(t, result))
-	}
-	if svc.updateJobID != "" {
-		t.Fatalf("invalid selected external update should not reach service, got job_id=%q", svc.updateJobID)
+	for _, sctx := range tests {
+		t.Run(sctx.CurrentSessionKey, func(t *testing.T) {
+			svc := &stubService{
+				jobs: []protocol.CronJob{{
+					JobID:    "job-1",
+					AgentID:  "agent-1",
+					Schedule: protocol.Schedule{Timezone: "Asia/Shanghai"},
+				}},
+			}
+			result, isError := callTool(t, svc, sctx, "update_scheduled_task", map[string]any{
+				"job_id":     "job-1",
+				"reply_mode": "selected",
+			})
+			if !isError {
+				t.Fatalf("expected missing selected reply target error, got %+v", result)
+			}
+			if !strings.Contains(extractText(t, result), "selected_reply_session_key") {
+				t.Fatalf("error should mention selected_reply_session_key, got %q", extractText(t, result))
+			}
+			if svc.updateJobID != "" {
+				t.Fatalf("invalid selected update should not reach service, got job_id=%q", svc.updateJobID)
+			}
+		})
 	}
 }
 

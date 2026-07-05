@@ -103,7 +103,7 @@ func TestServiceLoadActiveConnectionDecryptsAccessToken(t *testing.T) {
 	}
 }
 
-func TestServiceConnectsAmapWithAPIKey(t *testing.T) {
+func TestServiceConnectsAPIKeyConnectors(t *testing.T) {
 	cfg := newConnectorsTestConfig(t)
 	migrateConnectorsSQLite(t, cfg.DatabaseURL)
 
@@ -116,96 +116,70 @@ func TestServiceConnectsAmapWithAPIKey(t *testing.T) {
 	service := NewService(cfg, db)
 	ctx := context.Background()
 
-	items, err := service.ListConnectors(ctx, auth.SystemUserID, "高德", "", "")
-	if err != nil {
-		t.Fatalf("列出高德连接器失败: %v", err)
-	}
-	if len(items) != 1 || items[0].ConnectorID != "amap" || items[0].AuthType != "api_key" || !items[0].IsConfigured {
-		t.Fatalf("高德连接器目录不正确: %+v", items)
-	}
-
-	if _, err = service.Connect(ctx, auth.SystemUserID, "amap", map[string]string{}); err == nil || !strings.Contains(err.Error(), "API Key") {
-		t.Fatalf("缺少高德 API Key 应报错，实际: %v", err)
-	}
-
-	info, err := service.Connect(ctx, auth.SystemUserID, "amap", map[string]string{"api_key": "amap-key"})
-	if err != nil {
-		t.Fatalf("连接高德失败: %v", err)
-	}
-	if info.ConnectionState != "connected" {
-		t.Fatalf("高德连接状态不正确: %+v", info)
-	}
-
-	snapshot, err := service.LoadActiveConnection(ctx, auth.SystemUserID, "amap")
-	if err != nil {
-		t.Fatalf("读取高德连接快照失败: %v", err)
-	}
-	if snapshot == nil || snapshot.AccessToken != "amap-key" || snapshot.APIBaseURL != "https://restapi.amap.com" {
-		t.Fatalf("高德连接快照不正确: %+v", snapshot)
+	tests := []struct {
+		connectorID string
+		query       string
+		key         string
+		apiBaseURL  string
+		mcpURL      string
+	}{
+		{
+			connectorID: "amap",
+			query:       "高德",
+			key:         "amap-key",
+			apiBaseURL:  "https://restapi.amap.com",
+			mcpURL:      "https://mcp.amap.com/mcp",
+		},
+		{
+			connectorID: "didi",
+			query:       "滴滴",
+			key:         "didi-key",
+			apiBaseURL:  "https://mcp.didichuxing.com",
+			mcpURL:      "https://mcp.didichuxing.com/mcp-servers",
+		},
 	}
 
-	detail, err := service.GetConnectorDetail(ctx, auth.SystemUserID, "amap")
-	if err != nil {
-		t.Fatalf("读取高德详情失败: %v", err)
-	}
-	if detail.MCPServerURL != "https://mcp.amap.com/mcp" {
-		t.Fatalf("高德 MCP server 地址不正确: %s", detail.MCPServerURL)
-	}
-	if len(detail.FeatureDetails) != len(detail.Features) {
-		t.Fatalf("高德能力说明不完整: features=%v details=%v", detail.Features, detail.FeatureDetails)
-	}
-}
+	for _, tt := range tests {
+		t.Run(tt.connectorID, func(t *testing.T) {
+			items, err := service.ListConnectors(ctx, auth.SystemUserID, tt.query, "", "")
+			if err != nil {
+				t.Fatalf("列出连接器失败: %v", err)
+			}
+			if len(items) != 1 || items[0].ConnectorID != tt.connectorID || items[0].AuthType != "api_key" || !items[0].IsConfigured {
+				t.Fatalf("连接器目录不正确: %+v", items)
+			}
 
-func TestServiceConnectsDidiWithMCPKey(t *testing.T) {
-	cfg := newConnectorsTestConfig(t)
-	migrateConnectorsSQLite(t, cfg.DatabaseURL)
+			if _, err = service.Connect(ctx, auth.SystemUserID, tt.connectorID, map[string]string{}); err == nil || !strings.Contains(err.Error(), "API Key") {
+				t.Fatalf("缺少 API Key 应报错，实际: %v", err)
+			}
 
-	db, err := sql.Open("sqlite", cfg.DatabaseURL)
-	if err != nil {
-		t.Fatalf("打开测试数据库失败: %v", err)
-	}
-	defer func() { _ = db.Close() }()
+			info, err := service.Connect(ctx, auth.SystemUserID, tt.connectorID, map[string]string{"api_key": tt.key})
+			if err != nil {
+				t.Fatalf("连接失败: %v", err)
+			}
+			if info.ConnectionState != "connected" {
+				t.Fatalf("连接状态不正确: %+v", info)
+			}
 
-	service := NewService(cfg, db)
-	ctx := context.Background()
+			snapshot, err := service.LoadActiveConnection(ctx, auth.SystemUserID, tt.connectorID)
+			if err != nil {
+				t.Fatalf("读取连接快照失败: %v", err)
+			}
+			if snapshot == nil || snapshot.AccessToken != tt.key || snapshot.APIBaseURL != tt.apiBaseURL {
+				t.Fatalf("连接快照不正确: %+v", snapshot)
+			}
 
-	items, err := service.ListConnectors(ctx, auth.SystemUserID, "滴滴", "", "")
-	if err != nil {
-		t.Fatalf("列出滴滴连接器失败: %v", err)
-	}
-	if len(items) != 1 || items[0].ConnectorID != "didi" || items[0].AuthType != "api_key" || !items[0].IsConfigured {
-		t.Fatalf("滴滴连接器目录不正确: %+v", items)
-	}
-
-	if _, err = service.Connect(ctx, auth.SystemUserID, "didi", map[string]string{}); err == nil || !strings.Contains(err.Error(), "API Key") {
-		t.Fatalf("缺少滴滴 MCP Key 应报错，实际: %v", err)
-	}
-
-	info, err := service.Connect(ctx, auth.SystemUserID, "didi", map[string]string{"api_key": "didi-key"})
-	if err != nil {
-		t.Fatalf("连接滴滴失败: %v", err)
-	}
-	if info.ConnectionState != "connected" {
-		t.Fatalf("滴滴连接状态不正确: %+v", info)
-	}
-
-	snapshot, err := service.LoadActiveConnection(ctx, auth.SystemUserID, "didi")
-	if err != nil {
-		t.Fatalf("读取滴滴连接快照失败: %v", err)
-	}
-	if snapshot == nil || snapshot.AccessToken != "didi-key" || snapshot.APIBaseURL != "https://mcp.didichuxing.com" {
-		t.Fatalf("滴滴连接快照不正确: %+v", snapshot)
-	}
-
-	detail, err := service.GetConnectorDetail(ctx, auth.SystemUserID, "didi")
-	if err != nil {
-		t.Fatalf("读取滴滴详情失败: %v", err)
-	}
-	if detail.MCPServerURL != "https://mcp.didichuxing.com/mcp-servers" {
-		t.Fatalf("滴滴 MCP server 地址不正确: %s", detail.MCPServerURL)
-	}
-	if len(detail.FeatureDetails) != len(detail.Features) {
-		t.Fatalf("滴滴能力说明不完整: features=%v details=%v", detail.Features, detail.FeatureDetails)
+			detail, err := service.GetConnectorDetail(ctx, auth.SystemUserID, tt.connectorID)
+			if err != nil {
+				t.Fatalf("读取详情失败: %v", err)
+			}
+			if detail.MCPServerURL != tt.mcpURL {
+				t.Fatalf("MCP server 地址不正确: got=%q want=%q", detail.MCPServerURL, tt.mcpURL)
+			}
+			if len(detail.FeatureDetails) != len(detail.Features) {
+				t.Fatalf("能力说明不完整: features=%v details=%v", detail.Features, detail.FeatureDetails)
+			}
+		})
 	}
 }
 

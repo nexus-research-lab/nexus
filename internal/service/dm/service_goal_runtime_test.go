@@ -236,58 +236,34 @@ func TestRoundRunnerRecordsUserGoalActivityInsteadOfContinuationProgress(t *test
 }
 
 func TestRoundRunnerClosesGoalUsageAfterUpdateGoal(t *testing.T) {
-	goalProvider := &fakeGoalContextProvider{}
-	runner := &roundRunner{
-		service:        &Service{goals: goalProvider},
-		sessionKey:     "agent:nexus:ws:dm:test",
-		roundID:        "round-1",
-		goalIDForUsage: "goal-1",
-		goalUsage:      goalsvc.NewRuntimeUsageAccumulator(true),
-	}
+	for _, toolName := range []string{"update_goal", "mcp__nexus_goal__update_goal"} {
+		t.Run(toolName, func(t *testing.T) {
+			goalProvider := &fakeGoalContextProvider{}
+			runner := &roundRunner{
+				service:        &Service{goals: goalProvider},
+				sessionKey:     "agent:nexus:ws:dm:test",
+				roundID:        "round-1",
+				goalIDForUsage: "goal-1",
+				goalUsage:      goalsvc.NewRuntimeUsageAccumulator(true),
+			}
 
-	runner.recordGoalUsageFromAssistantMessage(goalToolResultAssistantMessage("tool-1", "update_goal", false, 10, 2))
-	runner.recordGoalUsage(context.Background(), runtimectx.RoundExecutionResult{
-		Usage: sdkprotocol.TokenUsage{
-			InputTokens:  20,
-			OutputTokens: 5,
-			TotalTokens:  25,
-		},
-	}, nil)
+			runner.recordGoalUsageFromAssistantMessage(goalToolResultAssistantMessage("tool-1", toolName, false, 10, 2))
+			runner.recordGoalUsage(context.Background(), runtimectx.RoundExecutionResult{
+				Usage: sdkprotocol.TokenUsage{
+					InputTokens:  20,
+					OutputTokens: 5,
+					TotalTokens:  25,
+				},
+			}, nil)
 
-	usages := goalProvider.recordedUsage()
-	if len(usages) != 1 {
-		t.Fatalf("len(usages) = %d, want 1", len(usages))
-	}
-	if usages[0].InputTokens != 10 || usages[0].OutputTokens != 2 || usages[0].Total() != 12 {
-		t.Fatalf("usage = %#v, want update_goal usage only", usages[0])
-	}
-}
-
-func TestRoundRunnerClosesGoalUsageAfterMCPUpdateGoal(t *testing.T) {
-	goalProvider := &fakeGoalContextProvider{}
-	runner := &roundRunner{
-		service:        &Service{goals: goalProvider},
-		sessionKey:     "agent:nexus:ws:dm:test",
-		roundID:        "round-1",
-		goalIDForUsage: "goal-1",
-		goalUsage:      goalsvc.NewRuntimeUsageAccumulator(true),
-	}
-
-	runner.recordGoalUsageFromAssistantMessage(goalToolResultAssistantMessage("tool-1", "mcp__nexus_goal__update_goal", false, 10, 2))
-	runner.recordGoalUsage(context.Background(), runtimectx.RoundExecutionResult{
-		Usage: sdkprotocol.TokenUsage{
-			InputTokens:  20,
-			OutputTokens: 5,
-			TotalTokens:  25,
-		},
-	}, nil)
-
-	usages := goalProvider.recordedUsage()
-	if len(usages) != 1 {
-		t.Fatalf("len(usages) = %d, want 1", len(usages))
-	}
-	if usages[0].InputTokens != 10 || usages[0].OutputTokens != 2 || usages[0].Total() != 12 {
-		t.Fatalf("usage = %#v, want MCP update_goal usage only", usages[0])
+			usages := goalProvider.recordedUsage()
+			if len(usages) != 1 {
+				t.Fatalf("len(usages) = %d, want 1", len(usages))
+			}
+			if usages[0].InputTokens != 10 || usages[0].OutputTokens != 2 || usages[0].Total() != 12 {
+				t.Fatalf("usage = %#v, want update_goal usage only", usages[0])
+			}
+		})
 	}
 }
 
@@ -349,56 +325,33 @@ func TestRoundRunnerActivateGoalUsageRestartsFromCurrentSnapshot(t *testing.T) {
 }
 
 func TestRoundRunnerResetsGoalUsageAfterCreateGoal(t *testing.T) {
-	goalProvider := &fakeGoalContextProvider{}
-	runner := &roundRunner{
-		service:    &Service{goals: goalProvider},
-		sessionKey: "agent:nexus:ws:dm:test",
-		roundID:    "round-1",
-		goalUsage:  goalsvc.NewRuntimeUsageAccumulator(false),
-	}
+	for _, toolName := range []string{"create_goal", "mcp__nexus_goal__create_goal"} {
+		t.Run(toolName, func(t *testing.T) {
+			goalProvider := &fakeGoalContextProvider{}
+			runner := &roundRunner{
+				service:    &Service{goals: goalProvider},
+				sessionKey: "agent:nexus:ws:dm:test",
+				roundID:    "round-1",
+				goalUsage:  goalsvc.NewRuntimeUsageAccumulator(false),
+			}
 
-	runner.recordGoalUsageFromAssistantMessage(goalToolResultAssistantMessage("tool-1", "create_goal", false, 5, 1))
-	runner.recordGoalUsage(context.Background(), runtimectx.RoundExecutionResult{
-		Usage: sdkprotocol.TokenUsage{
-			InputTokens:  8,
-			OutputTokens: 3,
-			TotalTokens:  11,
-		},
-	}, nil)
+			runner.recordGoalUsageFromAssistantMessage(goalToolResultAssistantMessage("tool-1", toolName, false, 5, 1))
+			runner.recordGoalUsage(context.Background(), runtimectx.RoundExecutionResult{
+				Usage: sdkprotocol.TokenUsage{
+					InputTokens:  8,
+					OutputTokens: 3,
+					TotalTokens:  11,
+				},
+			}, nil)
 
-	usages := goalProvider.recordedUsage()
-	if len(usages) != 1 {
-		t.Fatalf("len(usages) = %d, want 1", len(usages))
-	}
-	if usages[0].InputTokens != 3 || usages[0].OutputTokens != 2 || usages[0].Total() != 5 {
-		t.Fatalf("usage = %#v, want post-create delta 3/2", usages[0])
-	}
-}
-
-func TestRoundRunnerResetsGoalUsageAfterMCPCreateGoal(t *testing.T) {
-	goalProvider := &fakeGoalContextProvider{}
-	runner := &roundRunner{
-		service:    &Service{goals: goalProvider},
-		sessionKey: "agent:nexus:ws:dm:test",
-		roundID:    "round-1",
-		goalUsage:  goalsvc.NewRuntimeUsageAccumulator(false),
-	}
-
-	runner.recordGoalUsageFromAssistantMessage(goalToolResultAssistantMessage("tool-1", "mcp__nexus_goal__create_goal", false, 5, 1))
-	runner.recordGoalUsage(context.Background(), runtimectx.RoundExecutionResult{
-		Usage: sdkprotocol.TokenUsage{
-			InputTokens:  8,
-			OutputTokens: 3,
-			TotalTokens:  11,
-		},
-	}, nil)
-
-	usages := goalProvider.recordedUsage()
-	if len(usages) != 1 {
-		t.Fatalf("len(usages) = %d, want 1", len(usages))
-	}
-	if usages[0].InputTokens != 3 || usages[0].OutputTokens != 2 || usages[0].Total() != 5 {
-		t.Fatalf("usage = %#v, want post-MCP-create delta 3/2", usages[0])
+			usages := goalProvider.recordedUsage()
+			if len(usages) != 1 {
+				t.Fatalf("len(usages) = %d, want 1", len(usages))
+			}
+			if usages[0].InputTokens != 3 || usages[0].OutputTokens != 2 || usages[0].Total() != 5 {
+				t.Fatalf("usage = %#v, want post-create delta 3/2", usages[0])
+			}
+		})
 	}
 }
 

@@ -17,166 +17,59 @@ func writeTestEnv(t *testing.T, content string) string {
 	return path
 }
 
-func TestParseEnvBytes_Basic(t *testing.T) {
-	raw := []byte("FOO=bar\nBAZ=123\n")
-	m, err := parseEnvBytes(raw)
-	if err != nil {
-		t.Fatal(err)
+func TestParseEnvBytes(t *testing.T) {
+	tests := []struct {
+		name   string
+		raw    string
+		env    map[string]string
+		want   map[string]string
+		hasErr bool
+	}{
+		{name: "basic", raw: "FOO=bar\nBAZ=123\n", want: map[string]string{"FOO": "bar", "BAZ": "123"}},
+		{name: "comments", raw: "# 这是注释\nFOO=bar\n# 另一条注释\nBAZ=qux\n", want: map[string]string{"FOO": "bar", "BAZ": "qux"}},
+		{name: "inline comments", raw: "FOO=bar # 这是一个注释\n", want: map[string]string{"FOO": "bar"}},
+		{name: "single quoted", raw: "FOO='hello world'\n", want: map[string]string{"FOO": "hello world"}},
+		{name: "double quoted", raw: "FOO=\"hello world\"\n", want: map[string]string{"FOO": "hello world"}},
+		{name: "double quoted escapes", raw: `FOO="line1\nline2"` + "\n", want: map[string]string{"FOO": "line1\nline2"}},
+		{name: "export prefix", raw: "export FOO=bar\n", want: map[string]string{"FOO": "bar"}},
+		{name: "blank lines", raw: "\n\nFOO=bar\n\nBAZ=qux\n\n", want: map[string]string{"FOO": "bar", "BAZ": "qux"}},
+		{name: "var expansion", raw: "BASE=/opt\nPATH=${BASE}/bin\n", want: map[string]string{"BASE": "/opt", "PATH": "/opt/bin"}},
+		{
+			name: "simple var expansion",
+			raw:  "URL=\"https://$NEXUS_TEST_EXT/api\"\n",
+			env:  map[string]string{"NEXUS_TEST_EXT": "external"},
+			want: map[string]string{"URL": "https://external/api"},
+		},
+		{name: "windows line endings", raw: "FOO=bar\r\nBAZ=qux\r\n", want: map[string]string{"FOO": "bar", "BAZ": "qux"}},
+		{name: "escaped dollar", raw: `FOO=\${BAR}` + "\n", want: map[string]string{"FOO": "${BAR}"}},
+		{name: "yaml colon", raw: "FOO: bar\n", want: map[string]string{"FOO": "bar"}},
+		{name: "unterminated quote", raw: `FOO="unterminated` + "\n", hasErr: true},
 	}
-	if m["FOO"] != "bar" {
-		t.Errorf("FOO=%q, want bar", m["FOO"])
-	}
-	if m["BAZ"] != "123" {
-		t.Errorf("BAZ=%q, want 123", m["BAZ"])
-	}
-}
 
-func TestParseEnvBytes_Comments(t *testing.T) {
-	raw := []byte("# 这是注释\nFOO=bar\n# 另一条注释\nBAZ=qux\n")
-	m, err := parseEnvBytes(raw)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(m) != 2 {
-		t.Errorf("got %d entries, want 2", len(m))
-	}
-	if m["FOO"] != "bar" {
-		t.Errorf("FOO=%q, want bar", m["FOO"])
-	}
-}
-
-func TestParseEnvBytes_InlineComments(t *testing.T) {
-	raw := []byte("FOO=bar # 这是一个注释\n")
-	m, err := parseEnvBytes(raw)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if m["FOO"] != "bar" {
-		t.Errorf("FOO=%q, want bar (inline comment stripped)", m["FOO"])
-	}
-}
-
-func TestParseEnvBytes_SingleQuoted(t *testing.T) {
-	raw := []byte(`FOO='hello world'` + "\n")
-	m, err := parseEnvBytes(raw)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if m["FOO"] != "hello world" {
-		t.Errorf("FOO=%q, want 'hello world'", m["FOO"])
-	}
-}
-
-func TestParseEnvBytes_DoubleQuoted(t *testing.T) {
-	raw := []byte(`FOO="hello world"` + "\n")
-	m, err := parseEnvBytes(raw)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if m["FOO"] != "hello world" {
-		t.Errorf("FOO=%q, want 'hello world'", m["FOO"])
-	}
-}
-
-func TestParseEnvBytes_DoubleQuotedEscapes(t *testing.T) {
-	raw := []byte(`FOO="line1\nline2"` + "\n")
-	m, err := parseEnvBytes(raw)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if m["FOO"] != "line1\nline2" {
-		t.Errorf("FOO=%q, want 'line1\\nline2'", m["FOO"])
-	}
-}
-
-func TestParseEnvBytes_ExportPrefix(t *testing.T) {
-	raw := []byte("export FOO=bar\n")
-	m, err := parseEnvBytes(raw)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if m["FOO"] != "bar" {
-		t.Errorf("FOO=%q, want bar", m["FOO"])
-	}
-}
-
-func TestParseEnvBytes_BlankLines(t *testing.T) {
-	raw := []byte("\n\nFOO=bar\n\nBAZ=qux\n\n")
-	m, err := parseEnvBytes(raw)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(m) != 2 {
-		t.Errorf("got %d entries, want 2", len(m))
-	}
-}
-
-func TestParseEnvBytes_VarExpansion(t *testing.T) {
-	raw := []byte("BASE=/opt\nPATH=${BASE}/bin\n")
-	m, err := parseEnvBytes(raw)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if m["PATH"] != "/opt/bin" {
-		t.Errorf("PATH=%q, want /opt/bin", m["PATH"])
-	}
-}
-
-func TestParseEnvBytes_SimpleVarExpansion(t *testing.T) {
-	os.Setenv("NEXUS_TEST_EXT", "external")
-	defer os.Unsetenv("NEXUS_TEST_EXT")
-
-	raw := []byte(`URL="https://$NEXUS_TEST_EXT/api"` + "\n")
-	m, err := parseEnvBytes(raw)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if m["URL"] != "https://external/api" {
-		t.Errorf("URL=%q, want https://external/api", m["URL"])
-	}
-}
-
-func TestParseEnvBytes_WindowsLineEndings(t *testing.T) {
-	raw := []byte("FOO=bar\r\nBAZ=qux\r\n")
-	m, err := parseEnvBytes(raw)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if m["FOO"] != "bar" {
-		t.Errorf("FOO=%q, want bar", m["FOO"])
-	}
-	if m["BAZ"] != "qux" {
-		t.Errorf("BAZ=%q, want qux", m["BAZ"])
-	}
-}
-
-func TestParseEnvBytes_EscapedDollar(t *testing.T) {
-	raw := []byte(`FOO=\${BAR}` + "\n")
-	m, err := parseEnvBytes(raw)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if m["FOO"] != "${BAR}" {
-		t.Errorf("FOO=%q, want '${BAR}'", m["FOO"])
-	}
-}
-
-func TestParseEnvBytes_YamlColon(t *testing.T) {
-	raw := []byte("FOO: bar\n")
-	m, err := parseEnvBytes(raw)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if m["FOO"] != "bar" {
-		t.Errorf("FOO=%q, want bar", m["FOO"])
-	}
-}
-
-func TestParseEnvBytes_UnterminatedQuote(t *testing.T) {
-	raw := []byte(`FOO="unterminated` + "\n")
-	_, err := parseEnvBytes(raw)
-	if err == nil {
-		t.Error("expected error for unterminated quote")
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			for key, value := range test.env {
+				t.Setenv(key, value)
+			}
+			got, err := parseEnvBytes([]byte(test.raw))
+			if test.hasErr {
+				if err == nil {
+					t.Fatal("parseEnvBytes() error = nil, want error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("parseEnvBytes() error = %v", err)
+			}
+			if len(got) != len(test.want) {
+				t.Fatalf("parseEnvBytes() = %#v, want %#v", got, test.want)
+			}
+			for key, want := range test.want {
+				if got[key] != want {
+					t.Fatalf("parseEnvBytes()[%q] = %q, want %q", key, got[key], want)
+				}
+			}
+		})
 	}
 }
 

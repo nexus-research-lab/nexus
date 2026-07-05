@@ -55,120 +55,112 @@ func TestCreateResolvesDeliveryFromReplyModeSelected(t *testing.T) {
 	}
 }
 
-func TestCreateCanDeliverToExplicitChannel(t *testing.T) {
-	svc := &stubService{}
-	sctx := contract.ServerContext{
-		CurrentAgentID:    "agent-1",
-		CurrentSessionKey: "agent:agent-1:ws:dm:current",
-		SourceContextType: "agent",
+func TestCreateCanDeliverToChannel(t *testing.T) {
+	tests := []struct {
+		name  string
+		input map[string]any
+	}{
+		{
+			name: "explicit mode",
+			input: map[string]any{
+				"reply_mode":    "channel",
+				"reply_channel": "feishu",
+				"reply_to":      "oc_group_123",
+			},
+		},
+		{
+			name: "inferred mode",
+			input: map[string]any{
+				"reply_channel": "feishu",
+				"reply_to":      "oc_group_123",
+			},
+		},
 	}
-	result, isError := callTool(t, svc, sctx, "create_scheduled_task", map[string]any{
-		"name":           "新闻日报",
-		"instruction":    "搜索今天的重要新闻并整理摘要",
-		"execution_mode": "temporary",
-		"reply_mode":     "channel",
-		"reply_channel":  "feishu",
-		"reply_to":       "oc_group_123",
-		"schedule":       dailySchedule("09:00"),
-	})
-	if isError {
-		t.Fatalf("unexpected error: %s", extractText(t, result))
-	}
-	if svc.createInput.Delivery.Mode != protocol.DeliveryModeExplicit ||
-		svc.createInput.Delivery.Channel != protocol.SessionChannelFeishu ||
-		svc.createInput.Delivery.To != "oc_group_123" {
-		t.Fatalf("expected explicit feishu delivery, got %+v", svc.createInput.Delivery)
-	}
-}
 
-func TestCreateInfersChannelReplyModeFromDeliveryFields(t *testing.T) {
-	svc := &stubService{}
-	sctx := contract.ServerContext{
-		CurrentAgentID:    "agent-1",
-		CurrentSessionKey: "agent:agent-1:ws:dm:current",
-		SourceContextType: "agent",
-	}
-	result, isError := callTool(t, svc, sctx, "create_scheduled_task", map[string]any{
-		"name":           "新闻日报",
-		"instruction":    "搜索今天的重要新闻并整理摘要",
-		"execution_mode": "temporary",
-		"reply_channel":  "feishu",
-		"reply_to":       "oc_group_123",
-		"schedule":       dailySchedule("09:00"),
-	})
-	if isError {
-		t.Fatalf("unexpected error: %s", extractText(t, result))
-	}
-	if svc.createInput.Delivery.Mode != protocol.DeliveryModeExplicit ||
-		svc.createInput.Delivery.Channel != protocol.SessionChannelFeishu ||
-		svc.createInput.Delivery.To != "oc_group_123" {
-		t.Fatalf("expected explicit feishu delivery inferred from fields, got %+v", svc.createInput.Delivery)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			svc := &stubService{}
+			input := map[string]any{
+				"name":           "新闻日报",
+				"instruction":    "搜索今天的重要新闻并整理摘要",
+				"execution_mode": "temporary",
+				"schedule":       dailySchedule("09:00"),
+			}
+			for key, value := range test.input {
+				input[key] = value
+			}
+			result, isError := callTool(t, svc, contract.ServerContext{
+				CurrentAgentID:    "agent-1",
+				CurrentSessionKey: "agent:agent-1:ws:dm:current",
+				SourceContextType: "agent",
+			}, "create_scheduled_task", input)
+			if isError {
+				t.Fatalf("unexpected error: %s", extractText(t, result))
+			}
+			if svc.createInput.Delivery.Mode != protocol.DeliveryModeExplicit ||
+				svc.createInput.Delivery.Channel != protocol.SessionChannelFeishu ||
+				svc.createInput.Delivery.To != "oc_group_123" {
+				t.Fatalf("expected explicit feishu delivery, got %+v", svc.createInput.Delivery)
+			}
+		})
 	}
 }
 
 func TestCreateCanDeliverToAgentInbox(t *testing.T) {
-	svc := &stubService{}
-	sctx := contract.ServerContext{
-		CurrentAgentID:    "main",
-		CurrentSessionKey: "agent:main:ws:dm:current",
-		SourceContextType: "agent",
-		IsMainAgent:       true,
+	tests := []struct {
+		name  string
+		input map[string]any
+	}{
+		{
+			name: "explicit mode",
+			input: map[string]any{
+				"agent_id":   "agent-2",
+				"reply_mode": "agent",
+			},
+		},
+		{
+			name: "inferred mode",
+			input: map[string]any{
+				"agent_id":       "agent-1",
+				"reply_agent_id": "agent-2",
+			},
+		},
 	}
-	result, isError := callTool(t, svc, sctx, "create_scheduled_task", map[string]any{
-		"name":           "新闻日报",
-		"agent_id":       "agent-2",
-		"instruction":    "搜索今天的重要新闻并整理摘要",
-		"execution_mode": "temporary",
-		"reply_mode":     "agent",
-		"schedule":       dailySchedule("09:00"),
-	})
-	if isError {
-		t.Fatalf("unexpected error: %s", extractText(t, result))
-	}
-	expectedSessionKey := protocol.BuildAgentSessionKey(
-		"agent-2",
-		protocol.SessionChannelInternalSegment,
-		"dm",
-		protocol.AutomationInboxSessionRef,
-		"",
-	)
-	if svc.createInput.Delivery.Mode != protocol.DeliveryModeExplicit ||
-		svc.createInput.Delivery.Channel != protocol.SessionChannelInternalSegment ||
-		svc.createInput.Delivery.To != expectedSessionKey {
-		t.Fatalf("expected explicit internal agent delivery, got %+v", svc.createInput.Delivery)
-	}
-}
 
-func TestCreateInfersAgentReplyModeFromReplyAgentID(t *testing.T) {
-	svc := &stubService{}
-	sctx := contract.ServerContext{
-		CurrentAgentID:    "main",
-		CurrentSessionKey: "agent:main:ws:dm:current",
-		SourceContextType: "agent",
-		IsMainAgent:       true,
-	}
-	result, isError := callTool(t, svc, sctx, "create_scheduled_task", map[string]any{
-		"name":           "新闻日报",
-		"agent_id":       "agent-1",
-		"instruction":    "搜索今天的重要新闻并整理摘要",
-		"execution_mode": "temporary",
-		"reply_agent_id": "agent-2",
-		"schedule":       dailySchedule("09:00"),
-	})
-	if isError {
-		t.Fatalf("unexpected error: %s", extractText(t, result))
-	}
-	expectedSessionKey := protocol.BuildAgentSessionKey(
-		"agent-2",
-		protocol.SessionChannelInternalSegment,
-		"dm",
-		protocol.AutomationInboxSessionRef,
-		"",
-	)
-	if svc.createInput.Delivery.Mode != protocol.DeliveryModeExplicit ||
-		svc.createInput.Delivery.Channel != protocol.SessionChannelInternalSegment ||
-		svc.createInput.Delivery.To != expectedSessionKey {
-		t.Fatalf("expected agent inbox delivery inferred from reply_agent_id, got %+v", svc.createInput.Delivery)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			svc := &stubService{}
+			input := map[string]any{
+				"name":           "新闻日报",
+				"instruction":    "搜索今天的重要新闻并整理摘要",
+				"execution_mode": "temporary",
+				"schedule":       dailySchedule("09:00"),
+			}
+			for key, value := range test.input {
+				input[key] = value
+			}
+			result, isError := callTool(t, svc, contract.ServerContext{
+				CurrentAgentID:    "main",
+				CurrentSessionKey: "agent:main:ws:dm:current",
+				SourceContextType: "agent",
+				IsMainAgent:       true,
+			}, "create_scheduled_task", input)
+			if isError {
+				t.Fatalf("unexpected error: %s", extractText(t, result))
+			}
+			expectedSessionKey := protocol.BuildAgentSessionKey(
+				"agent-2",
+				protocol.SessionChannelInternalSegment,
+				"dm",
+				protocol.AutomationInboxSessionRef,
+				"",
+			)
+			if svc.createInput.Delivery.Mode != protocol.DeliveryModeExplicit ||
+				svc.createInput.Delivery.Channel != protocol.SessionChannelInternalSegment ||
+				svc.createInput.Delivery.To != expectedSessionKey {
+				t.Fatalf("expected internal agent delivery, got %+v", svc.createInput.Delivery)
+			}
+		})
 	}
 }
 
