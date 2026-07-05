@@ -297,11 +297,8 @@ func (s *Service) acquireRuntimeClient(
 		s.logRuntimeStartupFailure(ctx, sessionKey, "connect", options, err)
 		return nil, err
 	}
-	s.loggerFor(ctx).Info("DM runtime 启动成功",
-		append(clientopts.RuntimeStartupLogFields(options),
-			"session_key", sessionKey,
-			"sdk_session_id", strings.TrimSpace(client.SessionID()),
-		)...,
+	s.loggerFor(ctx).Info("session_key", sessionKey,
+		"sdk_session_id", strings.TrimSpace(client.SessionID()),
 	)
 	return client, nil
 }
