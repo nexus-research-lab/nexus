@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.24] - 2026-07-05
+
+### Changed
+
+- Streamlined runtime startup success logging, Goal runtime usage test logging, and PNPM command selection.
+- Limited the KingHwa font override to chat output so the rest of the UI keeps the standard typography.
+
+### Fixed
+
+- Kept the Agent tool available in runtime allowed-tool lists.
+- Propagated submit interrupt reasons through the SDK bridge and classified SDK abort stream closes as intentional interrupts instead of generic runtime failures.
+
 ## [0.1.23] - 2026-07-04
 
 ### Added
