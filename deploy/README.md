@@ -21,7 +21,7 @@ SSL_EMAIL=
 
 `NGINX_SSL_CERTIFICATE` 和 `NGINX_SSL_CERTIFICATE_KEY` 是 nginx 容器内路径。宿主机证书实际存放在 `${HOST_DATA_DIR}/certs`，ACME HTTP-01 challenge 文件存放在 `${HOST_DATA_DIR}/acme`。
 
-`make build` / `make start` 会自动解析 `NEXUS_NXS_RUNTIME_RELEASE` 对应 manifest，并把 manifest hash 作为 Docker build cache key。默认使用 `nxs-stable`，stable 指向新版 runtime 后会自动破掉旧 runtime 层缓存；需要灰度或回滚时再把 `NEXUS_NXS_RUNTIME_RELEASE` 固定到具体 `nxs-v*`。
+`make build` / `make start` 会在构建前把 `nxs-stable` 解析成当前具体的 `nxs-v*` runtime release，再传给 Docker build。stable 指向新版 runtime 后，Docker build arg 会自动变化，旧 runtime 层缓存会失效；需要灰度或回滚时也可以直接把 `NEXUS_NXS_RUNTIME_RELEASE` 固定到具体 `nxs-v*`。
 
 ## 首次申请证书
 
