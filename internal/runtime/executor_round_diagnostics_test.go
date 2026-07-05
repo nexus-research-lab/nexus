@@ -51,6 +51,55 @@ func TestExecuteRoundReturnsInterruptedWhenSDKAborted(t *testing.T) {
 	}
 }
 
+func TestExecuteRoundReturnsInterruptedWhenStreamAbortedAfterToolUse(t *testing.T) {
+	client := &fakeRoundExecutionClient{
+		sessionID: "sdk-session-1",
+		streamErr: agentclient.ErrAborted,
+		messages:  make(chan sdkprotocol.ReceivedMessage, 3),
+	}
+	client.messages <- sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeStreamEvent,
+		SessionID: "sdk-session-1",
+		Stream: &sdkprotocol.StreamEvent{
+			Event: map[string]any{
+				"type": "message_delta",
+				"delta": map[string]any{
+					"stop_reason": "tool_use",
+				},
+			},
+		},
+	}
+	client.messages <- sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeStreamEvent,
+		SessionID: "sdk-session-1",
+		Stream: &sdkprotocol.StreamEvent{
+			Event: map[string]any{"type": "message_stop"},
+		},
+	}
+	client.messages <- sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeToolProgress,
+		SessionID: "sdk-session-1",
+		ToolProgress: &sdkprotocol.ToolProgressMessage{
+			ToolName: "Agent",
+		},
+	}
+	close(client.messages)
+
+	_, err := ExecuteRound(context.Background(), RoundExecutionRequest{
+		Query:  "需要 Agent",
+		Client: client,
+		Mapper: &fakeRoundExecutionMapper{
+			results: []RoundMapResult{{}, {}, {}},
+		},
+	})
+	if !errors.Is(err, ErrRoundInterrupted) {
+		t.Fatalf("期望返回 ErrRoundInterrupted，实际 %v", err)
+	}
+	if errors.Is(err, ErrRoundStreamClosedBeforeTerminal) {
+		t.Fatalf("abort 不应归类为 stream closed: %v", err)
+	}
+}
+
 func TestExecuteRoundReturnsStreamClosedDiagnostics(t *testing.T) {
 	client := &fakeRoundExecutionClient{
 		sessionID: "sdk-session-1",

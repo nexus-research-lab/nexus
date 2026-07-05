@@ -155,3 +155,17 @@ func buildRoundStreamClosedError(
 	}
 	return result
 }
+
+func clientStreamAbortError(client Client) error {
+	if streamErrorer, ok := client.(clientStreamErrorer); ok {
+		if err := streamErrorer.StreamError(); isRoundAbortError(nil, err) {
+			return err
+		}
+	}
+	if waiter, ok := client.(clientWaiter); ok {
+		if err := waiter.Wait(); isRoundAbortError(nil, err) {
+			return err
+		}
+	}
+	return nil
+}

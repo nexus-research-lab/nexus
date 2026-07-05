@@ -282,9 +282,10 @@ func (c *sdkClientAdapter) pumpMessages(
 	for {
 		message, err := session.Recv(ctx)
 		if err != nil {
-			if errors.Is(err, context.Canceled) || errors.Is(err, agentclient.ErrAborted) || errors.Is(err, io.EOF) {
+			if errors.Is(err, io.EOF) {
 				return
 			}
+			// 中文注释：SDK abort 是有效的 round 中断信号，不能当作普通 EOF 吞掉。
 			readErr = err
 			return
 		}
