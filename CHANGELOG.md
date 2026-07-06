@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Prevented ad-hoc, non-notarized macOS release packages from being offered as automatic desktop updates.
+
 ## [0.1.25] - 2026-07-05
 
 ### Changed

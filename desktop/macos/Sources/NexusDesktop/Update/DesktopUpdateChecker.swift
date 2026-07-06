@@ -160,7 +160,8 @@ final class DesktopUpdateChecker {
           releaseNotes: release.body,
           publishedAt: release.publishedAt,
           isPrerelease: release.prerelease,
-          source: "github_release_metadata"
+          source: "github_release_metadata",
+          packageSigning: metadata.signing
         )
       } catch {
         startupTimeline.mark("update_check.metadata_failed", metadata: [
@@ -181,7 +182,8 @@ final class DesktopUpdateChecker {
       releaseNotes: release.body,
       publishedAt: release.publishedAt,
       isPrerelease: release.prerelease,
-      source: "github_release"
+      source: "github_release",
+      packageSigning: nil
     )
   }
 
@@ -204,12 +206,16 @@ final class DesktopUpdateChecker {
   }
 
   private func showUpdateAvailableAlert(_ latest: DesktopReleaseInfo) {
-    let canInstall = latest.canDownloadPackage && currentInstallTargetURL() != nil
+    let canInstall = latest.canAutoInstallPackage && currentInstallTargetURL() != nil
     startupTimeline.mark("update_check.prompt_shown", metadata: [
       "latest_version": latest.version,
       "latest_build": latest.buildNumber ?? "",
       "can_download_package": latest.canDownloadPackage ? "true" : "false",
+      "can_auto_install_package": latest.canAutoInstallPackage ? "true" : "false",
       "can_install_in_place": canInstall ? "true" : "false",
+      "package_signing": latest.packageSigning?.kind ?? "unknown",
+      "package_developer_id": latest.packageSigning.map { $0.developerID ? "true" : "false" } ?? "unknown",
+      "package_notarized": latest.packageSigning.map { $0.notarized ? "true" : "false" } ?? "unknown",
     ])
 
     let alert = NSAlert()
@@ -264,11 +270,12 @@ final class DesktopUpdateChecker {
   }
 
   private func downloadAndInstallUpdate(_ latest: DesktopReleaseInfo) async {
-    guard latest.canDownloadPackage else {
+    guard latest.canAutoInstallPackage else {
       startupTimeline.mark("update_check.download_unavailable", metadata: [
         "latest_version": latest.version,
         "has_package": (latest.packageDownloadURL != nil) ? "true" : "false",
         "has_sha256": (latest.packageSHA256URL != nil) ? "true" : "false",
+        "reason": latest.automaticInstallUnavailableReason ?? "unknown",
       ])
       showManualDownloadOnlyAlert(latest)
       return
@@ -506,8 +513,9 @@ final class DesktopUpdateChecker {
   private func showManualDownloadOnlyAlert(_ latest: DesktopReleaseInfo) {
     let alert = NSAlert()
     alert.messageText = "Nexus 更新暂不可自动安装"
+    let reason = latest.automaticInstallUnavailableReason ?? "当前 Nexus.app 所在位置不可替换。"
     alert.informativeText = """
-    当前 Release 缺少可自动校验的 macOS 安装包或 sha256 文件，或者当前 App 所在位置不可替换。
+    \(reason)
     是否打开下载页手动处理？
     """
     alert.alertStyle = .informational
@@ -559,10 +567,15 @@ final class DesktopUpdateChecker {
       lines.append(releaseNotes)
       lines.append("")
     }
-    if latest.canDownloadPackage && currentInstallTargetURL() != nil {
+    if latest.canAutoInstallPackage && currentInstallTargetURL() != nil {
       lines.append("选择“下载并更新”会下载安装包和 sha256 文件，通过 macOS 本地信任校验后再询问是否退出并替换当前 App。")
+    } else if let reason = latest.automaticInstallUnavailableReason {
+      lines.append(reason)
+      lines.append("可打开下载页手动下载安装。")
+    } else if latest.canDownloadPackage {
+      lines.append("当前 Nexus.app 所在位置不可自动替换。")
     } else {
-      lines.append("当前 Release 缺少可自动校验的 macOS 安装包或 sha256 文件，或者当前 App 所在位置不可替换。")
+      lines.append("当前 Release 缺少可自动校验的 macOS 安装包或 sha256 文件。")
     }
     return lines.joined(separator: "\n")
   }
