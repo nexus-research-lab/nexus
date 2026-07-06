@@ -98,6 +98,7 @@ type RealtimeService struct {
 	directedMessages *workspacestore.RoomDirectedMessageStore
 	inputQueue       *workspacestore.InputQueueStore
 	usage            usageRecorder
+	quota            quotaChecker
 	goals            goalContextProvider
 	factory          roomClientFactory
 	broadcaster      RoomBroadcaster

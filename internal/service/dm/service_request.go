@@ -67,6 +67,10 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 		}
 	}
 
+	if err = s.ensureQuotaAvailable(ctx); err != nil {
+		return err
+	}
+
 	if !request.Internal && deliveryPolicy == protocol.ChatDeliveryPolicyInterrupt {
 		if err = s.interruptSession(ctx, sessionKey, "收到新的用户消息，上一轮已停止"); err != nil {
 			return err

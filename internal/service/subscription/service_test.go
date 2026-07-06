@@ -3,6 +3,7 @@ package subscription
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"testing"
 	"time"
 
@@ -83,6 +84,23 @@ func TestPlanLimitIsManagedByPlan(t *testing.T) {
 	}
 	if account.MonthlyTokenLimit == nil || *account.MonthlyTokenLimit != limit {
 		t.Fatalf("套餐额度 = %v, want %d", account.MonthlyTokenLimit, limit)
+	}
+}
+
+func TestEnsureQuotaAvailableBlocksAtMonthlyLimit(t *testing.T) {
+	service, db := newTestService(t)
+	fixedNow := time.Date(2026, 7, 15, 8, 30, 0, 0, time.UTC)
+	service.now = func() time.Time { return fixedNow }
+	insertUser(t, db, "user-1", "alice", "Alice", "member")
+
+	if err := service.EnsureQuotaAvailable(context.Background(), "user-1"); err != nil {
+		t.Fatalf("未使用额度时不应拦截: %v", err)
+	}
+
+	insertUsage(t, db, "user-1", "usage-limit", 200000, fixedNow.Add(-time.Hour))
+	err := service.EnsureQuotaAvailable(context.Background(), "user-1")
+	if !errors.Is(err, ErrQuotaExceeded) {
+		t.Fatalf("达到额度应返回 ErrQuotaExceeded，实际: %v", err)
 	}
 }
 

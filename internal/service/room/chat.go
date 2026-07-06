@@ -58,6 +58,11 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 			targetResolution = "room_host_default"
 		}
 	}
+	if len(targetAgentIDs) > 0 {
+		if err = s.ensureQuotaAvailable(ctx); err != nil {
+			return err
+		}
+	}
 	s.loggerFor(ctx).Info("受理 Room 会话消息",
 		"session_key", sessionKey,
 		"room_id", roomID,
