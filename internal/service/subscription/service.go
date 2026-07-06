@@ -13,7 +13,10 @@ import (
 	storagesubscription "github.com/nexus-research-lab/nexus/internal/storage/subscription"
 )
 
-var ErrInvalidInput = errors.New("invalid subscription input")
+var (
+	ErrInvalidInput  = errors.New("invalid subscription input")
+	ErrQuotaExceeded = errors.New("subscription token quota exceeded")
+)
 
 var planKeyPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$`)
 
@@ -70,6 +73,18 @@ func (s *Service) CurrentAccount(ctx context.Context, ownerUserID string) (*Acco
 	}
 	result := mapAccount(*account, periodStart, periodEnd)
 	return &result, nil
+}
+
+// EnsureQuotaAvailable 在账号达到月度 token 额度后阻止新的 runtime 请求。
+func (s *Service) EnsureQuotaAvailable(ctx context.Context, ownerUserID string) error {
+	account, err := s.CurrentAccount(ctx, ownerUserID)
+	if err != nil || account == nil || account.MonthlyTokenLimit == nil {
+		return err
+	}
+	if account.UsedTokens >= *account.MonthlyTokenLimit {
+		return fmt.Errorf("%w: used %d of %d monthly tokens", ErrQuotaExceeded, account.UsedTokens, *account.MonthlyTokenLimit)
+	}
+	return nil
 }
 
 func (s *Service) UpdateUserSubscription(ctx context.Context, input UpdateUserSubscriptionInput) (Overview, error) {
