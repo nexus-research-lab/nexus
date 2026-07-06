@@ -30,6 +30,7 @@ go.work.sum
 cache
 .idea
 .vscode
+.trae
 .DS_Store
 .claude
 .agents
