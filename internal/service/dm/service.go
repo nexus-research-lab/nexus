@@ -75,6 +75,7 @@ type Service struct {
 	history    *workspacestore.AgentHistoryStore
 	inputQueue *workspacestore.InputQueueStore
 	usage      usageRecorder
+	quota      quotaChecker
 	goals      goalContextProvider
 	logger     *slog.Logger
 	mcpServers MCPServerBuilder
