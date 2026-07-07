@@ -44,6 +44,7 @@ func (s *Service) ensureClient(
 		}
 	}
 	permissionHandler = toolpolicy.WithManagedGoalAutoApproval(permissionHandler)
+	permissionHandler = toolpolicy.WithMalformedInputDeny(permissionHandler)
 	if err := workspacepkg.EnsureInitialized(
 		agentValue.AgentID,
 		agentValue.Name,

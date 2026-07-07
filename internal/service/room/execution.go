@@ -153,6 +153,7 @@ func (s *RealtimeService) runSlot(
 	}
 	permissionHandler = runtimepolicy.PermissionHandler(permissionHandler, roundValue.Context.Room.PrivateMessagesEnabled)
 	permissionHandler = toolpolicy.WithManagedGoalAutoApproval(permissionHandler)
+	permissionHandler = toolpolicy.WithMalformedInputDeny(permissionHandler)
 	runtimeSelection, err := s.resolveAgentRuntimeSelection(slotCtx, roundValue, agentValue)
 	if err != nil {
 		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)

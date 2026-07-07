@@ -131,6 +131,10 @@ export function useMessageItemState({
     return firstAssistant?.stream_status ?? null;
   }, [firstAssistant]);
 
+  const stopReason = useMemo(() => {
+    return firstAssistant?.stop_reason ?? null;
+  }, [firstAssistant]);
+
   const stats = useMemo(
     () => buildMessageStats(resultSummary),
     [resultSummary],
@@ -440,6 +444,7 @@ export function useMessageItemState({
     model,
     timestamp,
     streamStatus,
+    stopReason,
     stats,
     matchedPendingPermissionsByToolUseId,
     unmatchedPendingPermissions,

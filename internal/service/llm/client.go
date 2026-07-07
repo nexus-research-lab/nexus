@@ -147,15 +147,23 @@ func applyChatCompletionsReasoningDisableOptions(
 	if !shouldDisableReasoning(config, request) {
 		return
 	}
+	// chat_completions 协议：标准方式是 thinking.type=disabled（OpenAI-compatible）
+	// 部分 provider 使用非标字段，先处理这些特例
 	switch {
-	case shouldUseThinkingDisable(config):
-		payload.Thinking = map[string]string{"type": "disabled"}
 	case shouldUseEnableThinkingDisable(config):
 		payload.EnableThinking = boolPointer(false)
 	case shouldUseChatTemplateThinkingDisable(config):
 		payload.ChatTemplateKwargs = map[string]bool{"enable_thinking": false}
 	case shouldUseOpenAIReasoningEffortNone(config):
 		payload.ReasoningEffort = "none"
+	case isKimiAlwaysThinkingModel(config):
+		// Kimi 始终推理模型，不支持关闭 thinking
+		return
+	default:
+		// 协议通用 fallback：仅对明确启用推理的模型生效
+		if config.Reasoning {
+			payload.Thinking = map[string]string{"type": "disabled"}
+		}
 	}
 }
 
@@ -167,13 +175,18 @@ func applyResponsesReasoningDisableOptions(
 	if !shouldDisableReasoning(config, request) {
 		return
 	}
+	// responses 协议：标准方式是 reasoning.effort=none（OpenAI Responses API）
 	switch {
-	case shouldUseThinkingDisable(config):
-		payload.Thinking = map[string]string{"type": "disabled"}
 	case shouldUseEnableThinkingDisable(config):
 		payload.EnableThinking = boolPointer(false)
-	case shouldUseOpenAIReasoningEffortNone(config):
-		payload.Reasoning = &responsesReasoning{Effort: "none"}
+	case shouldUseThinkingDisable(config):
+		payload.Thinking = map[string]string{"type": "disabled"}
+	case isKimiAlwaysThinkingModel(config):
+		return
+	default:
+		if config.Reasoning {
+			payload.Reasoning = &responsesReasoning{Effort: "none"}
+		}
 	}
 }
 
@@ -202,6 +215,14 @@ func shouldUseOpenAIReasoningEffortNone(config *clientopts.RuntimeConfig) bool {
 		return false
 	}
 	return openAIModelSupportsReasoningEffortNone(config.Model)
+}
+
+// isKimiAlwaysThinkingModel 判断是否为始终推理且无法关闭的 Kimi 模型。
+func isKimiAlwaysThinkingModel(config *clientopts.RuntimeConfig) bool {
+	if !runtimeContains(config, "kimi", "moonshot") {
+		return false
+	}
+	return !isKimiRuntimeConfigWithDisableSupport(config)
 }
 
 func isGLMRuntimeConfig(config *clientopts.RuntimeConfig) bool {
