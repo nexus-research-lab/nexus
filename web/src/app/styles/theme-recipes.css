@@ -9,10 +9,6 @@
 
 /* 中文注释：共享配方层只负责“材质语法”，业务组件只能组合这些规则，不再自己发明玻璃写法。 */
 @layer components {
-  :root[data-desktop-platform="macos"] {
-    --desktop-window-top-inset: 28px;
-  }
-
   /* 中文注释：表面原语只保留少数稳定语义，其他组件统一映射回来，避免继续堆近义 recipe。
    * 1. desktop-rail：桌面侧栏底面
    * 2. surface-panel：主面板
