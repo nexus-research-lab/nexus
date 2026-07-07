@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.26] - 2026-07-08
+
 ### Changed
 
 - Reworked the conversation turn protocol: the backend now mints `round_id` / `user_message_id` / `agent_round_id`, the frontend only sends `client_request_id` / `client_message_id`, and `chat_ack` returns the canonical ids. Removed the legacy `req_id == round_id`, `message_id == round_id`, and `round_id:agent_id` suffix conventions (breaking realtime protocol change; old on-disk history is normalized at read time).
@@ -24,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Made macOS desktop termination wait for sidecar shutdown and preserve pid records when forced cleanup cannot finish.
 - Added Windows desktop sidecar orphan cleanup and a short port-release wait before binding the fixed local port.
 - Fixed login recovery when old session cleanup fails, bounded `nxs` runtime release lookup timeouts, restored deleted core tests, and enforced subscription token quota before new DM/Room runtime rounds.
+- Updated the Nexus Agent SDK Bridge dependency to `v0.1.18`.
 
 ## [0.1.25] - 2026-07-05
 
