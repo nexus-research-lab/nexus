@@ -222,6 +222,7 @@ final class DesktopUpdateChecker {
     alert.messageText = "发现 Nexus 新版本"
     alert.informativeText = updateAvailableMessage(latest)
     alert.alertStyle = .informational
+    alert.accessoryView = Self.releaseNotesAccessoryView(latest.releaseNotes)
     if canInstall {
       alert.addButton(withTitle: "下载并更新")
       alert.addButton(withTitle: "打开下载页")
@@ -561,12 +562,10 @@ final class DesktopUpdateChecker {
     if latest.isPrerelease {
       lines.append("这是一个预发布版本。")
     }
-    lines.append("")
-    if let releaseNotes = Self.formatReleaseNotes(latest.releaseNotes) {
-      lines.append("更新内容：")
-      lines.append(releaseNotes)
-      lines.append("")
+    if Self.formatReleaseNotes(latest.releaseNotes) != nil {
+      lines.append("更新内容请在下方查看，完整内容可打开 Release 页面。")
     }
+    lines.append("")
     if latest.canAutoInstallPackage && currentInstallTargetURL() != nil {
       lines.append("选择“下载并更新”会下载安装包和 sha256 文件，通过 macOS 本地信任校验后再询问是否退出并替换当前 App。")
     } else if let reason = latest.automaticInstallUnavailableReason {
@@ -636,6 +635,10 @@ final class DesktopUpdateChecker {
 }
 
 private extension DesktopUpdateChecker {
+  static let releaseNotesAccessoryWidth: CGFloat = 620
+  static let releaseNotesAccessoryHeight: CGFloat = 300
+  static let releaseNotesTitleHeight: CGFloat = 22
+  static let releaseNotesSpacing: CGFloat = 8
   static let releaseNotesMaxCharacters = 1800
   static let releaseNotesMaxLines = 24
 
@@ -764,6 +767,68 @@ private extension DesktopUpdateChecker {
       clipped.append("\n...\n完整更新内容请打开 Release 页面查看。")
     }
     return clipped
+  }
+
+  static func releaseNotesAccessoryView(_ rawNotes: String?) -> NSView? {
+    guard let releaseNotes = formatReleaseNotes(rawNotes) else {
+      return nil
+    }
+
+    let container = NSView(frame: NSRect(
+      x: 0,
+      y: 0,
+      width: releaseNotesAccessoryWidth,
+      height: releaseNotesAccessoryHeight
+    ))
+
+    let title = NSTextField(labelWithString: "更新内容")
+    title.font = NSFont.systemFont(ofSize: 13, weight: .semibold)
+    title.textColor = .labelColor
+    title.frame = NSRect(
+      x: 0,
+      y: releaseNotesAccessoryHeight - releaseNotesTitleHeight,
+      width: releaseNotesAccessoryWidth,
+      height: releaseNotesTitleHeight
+    )
+
+    let scrollHeight = releaseNotesAccessoryHeight - releaseNotesTitleHeight - releaseNotesSpacing
+    let scrollView = NSScrollView(frame: NSRect(
+      x: 0,
+      y: 0,
+      width: releaseNotesAccessoryWidth,
+      height: scrollHeight
+    ))
+    scrollView.borderType = .bezelBorder
+    scrollView.hasVerticalScroller = true
+    scrollView.hasHorizontalScroller = false
+    scrollView.autohidesScrollers = true
+
+    let textView = NSTextView(frame: NSRect(
+      x: 0,
+      y: 0,
+      width: scrollView.contentSize.width,
+      height: scrollView.contentSize.height
+    ))
+    textView.string = releaseNotes
+    textView.isEditable = false
+    textView.isSelectable = true
+    textView.drawsBackground = false
+    textView.font = NSFont.systemFont(ofSize: 12)
+    textView.textColor = .labelColor
+    textView.textContainerInset = NSSize(width: 8, height: 8)
+    textView.isHorizontallyResizable = false
+    textView.isVerticallyResizable = true
+    textView.autoresizingMask = [.width]
+    textView.textContainer?.containerSize = NSSize(
+      width: scrollView.contentSize.width,
+      height: .greatestFiniteMagnitude
+    )
+    textView.textContainer?.widthTracksTextView = true
+
+    scrollView.documentView = textView
+    container.addSubview(title)
+    container.addSubview(scrollView)
+    return container
   }
 
   static func readExpectedSHA256(from sha256URL: URL, packageFileName: String) throws -> String {
