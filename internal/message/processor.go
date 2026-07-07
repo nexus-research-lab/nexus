@@ -229,7 +229,12 @@ func (p *Processor) processStreamEvent(message sdkprotocol.ReceivedMessage, outp
 }
 
 func (p *Processor) processAssistantMessage(message sdkprotocol.ReceivedMessage) *protocol.Message {
-	if !p.segment.IsStarted() {
+	// 同一轮内 assistant 会分多段（不同 message id）。直播时靠 stream 的
+	// message_start 轮转段；历史投影没有 stream 事件，必须在快照 id 变化时
+	// 主动轮转，否则整轮坍缩进第一个 id、内容相互覆盖。
+	incomingID := strings.TrimSpace(message.Assistant.Message.ID)
+	if !p.segment.IsStarted() ||
+		(incomingID != "" && incomingID != p.segment.MessageID()) {
 		p.segment.Start(
 			message.Assistant.Message.ID,
 			message.Assistant.Message.Model,

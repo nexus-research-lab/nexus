@@ -53,7 +53,7 @@ func projectTranscriptChain(
 			if isTranscriptToolResult(decoded) {
 				if processor == nil {
 					currentRoundID = firstNonEmpty(stringFromAny(entry.Data["parentUuid"]), strings.TrimSpace(decoded.UUID))
-					processor = newTranscriptProcessor(workspacePath, sessionKey, agentID, currentRoundID, decoded.SessionID)
+					processor = newTranscriptProcessor(workspacePath, sessionKey, agentID, currentRoundID, "msg_user_"+currentRoundID, decoded.SessionID)
 				}
 				output := processor.Process(decoded)
 				projected = append(projected, stampTranscriptDurableMessages(output.DurableMessages, entryTimestamp)...)
@@ -67,7 +67,8 @@ func projectTranscriptChain(
 			}
 			marker := consumeTranscriptRoundMarker(alignedMarkers, &markerIndex)
 			currentRoundID = firstNonEmpty(marker.RoundID, buildTranscriptRoundID(decoded.UUID))
-			processor = newTranscriptProcessor(workspacePath, sessionKey, agentID, currentRoundID, decoded.SessionID)
+			currentParentID := firstNonEmpty(strings.TrimSpace(marker.UserMessageID), "msg_user_"+currentRoundID)
+			processor = newTranscriptProcessor(workspacePath, sessionKey, agentID, currentRoundID, currentParentID, decoded.SessionID)
 			if marker.HiddenFromUser || isTranscriptGoalContextOnlyUserTurn(entry.Data) {
 				continue
 			}
@@ -92,7 +93,7 @@ func projectTranscriptChain(
 			sdkprotocol.MessageTypeTaskProgress:
 			if processor == nil {
 				currentRoundID = buildTranscriptRoundID(decoded.UUID)
-				processor = newTranscriptProcessor(workspacePath, sessionKey, agentID, currentRoundID, decoded.SessionID)
+				processor = newTranscriptProcessor(workspacePath, sessionKey, agentID, currentRoundID, "msg_user_"+currentRoundID, decoded.SessionID)
 			}
 			output := processor.Process(decoded)
 			projected = append(projected, stampTranscriptDurableMessages(output.DurableMessages, entryTimestamp)...)
@@ -114,6 +115,7 @@ func newTranscriptProcessor(
 	sessionKey string,
 	agentID string,
 	roundID string,
+	parentID string,
 	sessionID string,
 ) *message.Processor {
 	return message.NewProcessor(message.MessageContext{
@@ -121,7 +123,7 @@ func newTranscriptProcessor(
 		AgentID:       agentID,
 		WorkspacePath: strings.TrimSpace(workspacePath),
 		RoundID:       roundID,
-		ParentID:      roundID,
+		ParentID:      parentID,
 	}, strings.TrimSpace(sessionID))
 }
 

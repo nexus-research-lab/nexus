@@ -290,15 +290,21 @@ func TestServiceHandleChatBroadcastsMergedParallelToolResults(t *testing.T) {
 	events := collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
 		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
 	})
-	assistantPayload := findLatestAssistantMessagePayload(t, events, "assistant-parallel-tools")
-	blocks := contentBlocksFromPayload(t, assistantPayload)
-	assertContentBlockTypes(t, blocks, []string{"tool_use", "tool_use", "tool_result", "tool_result", "text"})
-	assertToolResultIDs(t, blocks, []string{"tool-connectors", "tool-automation"})
-	if assistantPayload["is_complete"] != true || assistantPayload["stop_reason"] != "end_turn" {
-		t.Fatalf("最终实时 assistant 应标记完成: %+v", assistantPayload)
+	// 工具段与最终文本段是两条独立 assistant 消息（按快照 id 分段），
+	// 与直播 stream 的 message_start 分段语义一致。
+	toolsPayload := findLatestAssistantMessagePayload(t, events, "assistant-parallel-tools")
+	toolBlocks := contentBlocksFromPayload(t, toolsPayload)
+	assertContentBlockTypes(t, toolBlocks, []string{"tool_use", "tool_use", "tool_result", "tool_result"})
+	assertToolResultIDs(t, toolBlocks, []string{"tool-connectors", "tool-automation"})
+
+	finalPayload := findLatestAssistantMessagePayload(t, events, "assistant-parallel-final")
+	finalBlocks := contentBlocksFromPayload(t, finalPayload)
+	assertContentBlockTypes(t, finalBlocks, []string{"text"})
+	if finalPayload["is_complete"] != true || finalPayload["stop_reason"] != "end_turn" {
+		t.Fatalf("最终实时 assistant 应标记完成: %+v", finalPayload)
 	}
-	if _, exists := assistantPayload["stream_status"]; exists {
-		t.Fatalf("durable assistant 不应补写 stream_status: %+v", assistantPayload)
+	if _, exists := finalPayload["stream_status"]; exists {
+		t.Fatalf("durable assistant 不应补写 stream_status: %+v", finalPayload)
 	}
 }
 
