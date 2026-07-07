@@ -419,12 +419,12 @@ func hasChatAckPendingAgent(events []protocol.EventMessage, agentID string) bool
 		if event.EventType != protocol.EventTypeChatAck {
 			continue
 		}
-		pending, ok := event.Data["pending"].([]map[string]any)
+		pending, ok := event.Data["pending"].([]protocol.ChatAckPendingSlot)
 		if !ok {
 			continue
 		}
 		for _, item := range pending {
-			if item["agent_id"] == agentID {
+			if item.AgentID == agentID {
 				return true
 			}
 		}

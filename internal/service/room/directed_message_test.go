@@ -277,7 +277,6 @@ func TestRealtimeServiceQueuesDirectedMessageWhenTargetRunning(t *testing.T) {
 		ConversationID: roomContext.Conversation.ID,
 		Content:        "@Devin 先处理一个长任务",
 		RoundID:        "room-round-devin-directed-busy",
-		ReqID:          "room-round-devin-directed-busy",
 	}); err != nil {
 		t.Fatalf("启动 Devin 长任务失败: %v", err)
 	}

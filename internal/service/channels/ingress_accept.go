@@ -71,7 +71,6 @@ func (s *IngressService) Accept(ctx context.Context, request IngressRequest) (*I
 		AgentID:              normalized.agentID,
 		Content:              normalized.content,
 		RoundID:              normalized.roundID,
-		ReqID:                normalized.reqID,
 		PermissionMode:       normalized.permissionMode,
 		BroadcastUserMessage: true,
 		InputOptions: sdkprotocol.OutboundMessageOptions{

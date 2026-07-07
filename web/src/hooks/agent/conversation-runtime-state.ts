@@ -62,15 +62,6 @@ export function areRuntimeSnapshotsEqual(
   return true;
 }
 
-export function matchesRoundLifecycle(
-  roundId: string,
-  targetRoundId: string,
-): boolean {
-  return (
-    roundId === targetRoundId || roundId.startsWith(`${targetRoundId}:`)
-  );
-}
-
 export function getTerminalMessageStatus(
   status: RoundLifecycleStatus,
 ): AssistantMessageStatus {

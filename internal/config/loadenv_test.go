@@ -133,6 +133,58 @@ func TestLoadRuntimeIdleSessionSettings(t *testing.T) {
 	}
 }
 
+func TestLoadWorkspacePathUsesRuntimeSettingsWhenEnvEmpty(t *testing.T) {
+	root := t.TempDir()
+	workspacePath := filepath.Join(root, "custom-workspace")
+	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(root, ".nexus"))
+	t.Setenv("WORKSPACE_PATH", "")
+	if _, err := SaveRuntimeSettings(RuntimeSettings{WorkspacePath: workspacePath}); err != nil {
+		t.Fatalf("写入 runtime settings 失败: %v", err)
+	}
+
+	cfg := Load()
+
+	if cfg.WorkspacePath != workspacePath {
+		t.Fatalf("WorkspacePath = %q, want %q", cfg.WorkspacePath, workspacePath)
+	}
+}
+
+func TestLoadWorkspacePathKeepsExplicitEnv(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, ".nexus")
+	persistedPath := filepath.Join(root, "persisted-workspace")
+	envPath := filepath.Join(root, "env-workspace")
+	t.Setenv("NEXUS_CONFIG_DIR", configDir)
+	t.Setenv("WORKSPACE_PATH", envPath)
+	if _, err := SaveRuntimeSettings(RuntimeSettings{WorkspacePath: persistedPath}); err != nil {
+		t.Fatalf("写入 runtime settings 失败: %v", err)
+	}
+
+	cfg := Load()
+
+	if cfg.WorkspacePath != envPath {
+		t.Fatalf("WorkspacePath = %q, want explicit env %q", cfg.WorkspacePath, envPath)
+	}
+}
+
+func TestLoadWorkspacePathOverridesDesktopDefaultEnv(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, ".nexus")
+	persistedPath := filepath.Join(root, "persisted-workspace")
+	t.Setenv("NEXUS_CONFIG_DIR", configDir)
+	t.Setenv("NEXUS_APP_MODE", "desktop")
+	t.Setenv("WORKSPACE_PATH", filepath.Join(configDir, "workspace"))
+	if _, err := SaveRuntimeSettings(RuntimeSettings{WorkspacePath: persistedPath}); err != nil {
+		t.Fatalf("写入 runtime settings 失败: %v", err)
+	}
+
+	cfg := Load()
+
+	if cfg.WorkspacePath != persistedPath {
+		t.Fatalf("WorkspacePath = %q, want persisted %q", cfg.WorkspacePath, persistedPath)
+	}
+}
+
 func TestLoadDotEnv_Complex(t *testing.T) {
 	content := `# 应用配置
 export APP_NAME=nexus

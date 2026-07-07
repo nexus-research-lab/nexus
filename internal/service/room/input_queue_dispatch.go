@@ -97,7 +97,6 @@ func (s *RealtimeService) dispatchInputQueueItem(
 		Content:        item.Content,
 		Attachments:    item.Attachments,
 		RoundID:        "queue_" + item.ID,
-		ReqID:          "queue_" + item.ID,
 		DeliveryPolicy: protocol.NormalizeChatDeliveryPolicy(string(item.DeliveryPolicy)),
 	})
 }

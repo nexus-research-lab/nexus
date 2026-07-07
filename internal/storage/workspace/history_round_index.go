@@ -26,6 +26,7 @@ type roundIndexOverlayJSONRow struct {
 	Role           string                       `json:"role"`
 	RoundID        string                       `json:"round_id"`
 	Subtype        string                       `json:"subtype"`
+	TargetRoundID  string                       `json:"target_round_id"`
 	Timestamp      json.RawMessage              `json:"timestamp"`
 }
 
@@ -79,6 +80,7 @@ func readRoundIndexFromJSONL(
 
 	decoder := json.NewDecoder(file)
 	entries := make(map[string]*sessionRoundIndexAccumulator)
+	hiddenRoundIDs := make(map[string]struct{})
 	for {
 		var row roundIndexOverlayJSONRow
 		if err := decoder.Decode(&row); err != nil {
@@ -87,17 +89,30 @@ func readRoundIndexFromJSONL(
 			}
 			return protocol.SessionRoundIndex{}, err
 		}
-		row.applyToIndex(entries, activeRoundIDs, collapseRoomAgentRounds, defaultAgentID)
+		row.applyToIndex(entries, hiddenRoundIDs, activeRoundIDs, collapseRoomAgentRounds, defaultAgentID)
 	}
 }
 
 func (row roundIndexOverlayJSONRow) applyToIndex(
 	entries map[string]*sessionRoundIndexAccumulator,
+	hiddenRoundIDs map[string]struct{},
 	activeRoundIDs map[string]struct{},
 	collapseRoomAgentRounds bool,
 	defaultAgentID string,
 ) {
 	overlayKind := strings.TrimSpace(row.OverlayKind)
+	if overlayKind == overlayKindHistoryRewrite {
+		targetRoundID := normalizeRoundIndexRoundID(
+			strings.TrimSpace(row.TargetRoundID),
+			"",
+			collapseRoomAgentRounds,
+		)
+		if targetRoundID != "" {
+			hiddenRoundIDs[targetRoundID] = struct{}{}
+			delete(entries, targetRoundID)
+		}
+		return
+	}
 	if overlayKind == overlayKindRoundMarker {
 		if row.HiddenFromUser {
 			return
@@ -109,6 +124,9 @@ func (row roundIndexOverlayJSONRow) applyToIndex(
 			collapseRoomAgentRounds,
 		)
 		if roundID == "" {
+			return
+		}
+		if _, hidden := hiddenRoundIDs[roundID]; hidden {
 			return
 		}
 		entry := ensureRoundIndexEntry(entries, roundID)
@@ -125,6 +143,9 @@ func (row roundIndexOverlayJSONRow) applyToIndex(
 	rawRoundID := strings.TrimSpace(row.RoundID)
 	roundID := normalizeRoundIndexRoundID(rawRoundID, strings.TrimSpace(row.AgentID), collapseRoomAgentRounds)
 	if roundID == "" {
+		return
+	}
+	if _, hidden := hiddenRoundIDs[roundID]; hidden {
 		return
 	}
 

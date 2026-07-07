@@ -5,10 +5,10 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
 func (s *Service) queueRunningInput(
@@ -33,7 +33,12 @@ func (s *Service) queueRunningInput(
 	if _, err := s.runtime.SendContentToRunningRound(ctx, sessionKey, runtimeContent.Payload()); err != nil {
 		return false, err
 	}
-	if err := s.recordRoundMarker(agentValue.WorkspacePath, sessionItem, request.RoundID, content, protocol.ChatDeliveryPolicyQueue, attachments); err != nil {
+	if err := s.recordRoundMarkerWithOptions(agentValue.WorkspacePath, sessionItem, request.RoundID, content, workspacestore.RoundMarkerOptions{
+		UserMessageID:  request.UserMessageID,
+		AgentRoundID:   request.AgentRoundID,
+		DeliveryPolicy: string(protocol.ChatDeliveryPolicyQueue),
+		Attachments:    attachments,
+	}); err != nil {
 		s.loggerFor(ctx).Error("DM 排队消息持久化失败",
 			"session_key", sessionKey,
 			"agent_id", agentValue.AgentID,
@@ -53,9 +58,16 @@ func (s *Service) queueRunningInput(
 	}
 	runtimeProvider, runtimeModel := runtimeSelectionFromSession(sessionItem)
 	s.scheduleTitleGeneration(ctx, protocol.ParseSessionKey(sessionKey), sessionItem, content, initialMessageCount, runtimeProvider, runtimeModel)
-	s.broadcastEventWithTimeout(ctx, sessionKey, protocol.NewChatAckEvent(sessionKey, dmdomain.FirstNonEmpty(request.ReqID, request.RoundID), request.RoundID, []map[string]any{}))
+	s.broadcastEventWithTimeout(ctx, sessionKey, protocol.NewChatAckEvent(
+		sessionKey,
+		request.ClientRequestID,
+		request.ClientMessageID,
+		request.RoundID,
+		request.UserMessageID,
+		nil,
+	))
 	if request.BroadcastUserMessage {
-		s.broadcastUserRoundMarker(ctx, sessionItem, request.RoundID, content, protocol.ChatDeliveryPolicyQueue, attachments)
+		s.broadcastUserRoundMarker(ctx, sessionItem, request.RoundID, request.UserMessageID, content, protocol.ChatDeliveryPolicyQueue, attachments)
 	}
 	s.broadcastSessionStatus(ctx, sessionKey)
 	s.loggerFor(ctx).Info("排队 DM 消息到运行中 round",
@@ -87,7 +99,14 @@ func (s *Service) guideRunningInput(
 	if err != nil {
 		return false, err
 	}
-	s.broadcastEventWithTimeout(ctx, sessionKey, protocol.NewChatAckEvent(sessionKey, dmdomain.FirstNonEmpty(request.ReqID, request.RoundID), request.RoundID, []map[string]any{}))
+	s.broadcastEventWithTimeout(ctx, sessionKey, protocol.NewChatAckEvent(
+		sessionKey,
+		request.ClientRequestID,
+		request.ClientMessageID,
+		request.RoundID,
+		request.UserMessageID,
+		nil,
+	))
 	if request.BroadcastUserMessage {
 		for _, targetRoundID := range runningRoundIDs {
 			s.broadcastGuidanceMessage(ctx, sessionItem, targetRoundID, request.RoundID, content)

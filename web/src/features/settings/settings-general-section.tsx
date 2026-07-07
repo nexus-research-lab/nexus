@@ -44,6 +44,7 @@ import {
   normalizePreferences,
 } from "./settings-preferences-model";
 import { SettingsSystemSection } from "./settings-system-section";
+import { SettingsWorkspaceSection } from "./settings-workspace-section";
 
 export function SettingsGeneralSection() {
   const { t } = useI18n();
@@ -479,6 +480,8 @@ export function SettingsGeneralSection() {
         preferencesSaving={preferencesSaving}
         providerOptionsLoading={providerOptionsLoading}
       />
+
+      <SettingsWorkspaceSection />
 
       <SettingsDesktopSection />
 

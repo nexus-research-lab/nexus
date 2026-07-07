@@ -224,7 +224,7 @@ function GroupRoundCardGroupInner(
                       onOpenAgentContact={onOpenAgentContact}
                       onStopMessage={
                         entry.pending_slot && onStopMessage && isAgentRoundActive(entry.status)
-                          ? () => onStopMessage(entry.pending_slot!.msg_id)
+                          ? () => onStopMessage(entry.pending_slot!.agent_round_id)
                           : undefined
                       }
                     />

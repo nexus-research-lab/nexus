@@ -105,44 +105,28 @@ export class AgentConversationRuntimeMachine {
     this.pendingPermissionCount = 0;
   }
 
-  public trackOutboundRound(roundId: string): void {
-    this.terminalRoundIds.delete(roundId);
-    this.sendingRoundIds.add(roundId);
+  /** 发送中状态按 client_request_id 追踪，ack 后转为 canonical round。 */
+  public trackOutboundRequest(clientRequestId: string): void {
+    this.sendingRoundIds.add(clientRequestId);
   }
 
-  public clearRound(
-    roundId?: string | null,
-    includeRelatedRounds: boolean = false,
-  ): void {
+  public clearOutboundRequest(clientRequestId?: string | null): void {
+    if (clientRequestId) {
+      this.sendingRoundIds.delete(clientRequestId);
+    }
+  }
+
+  public clearRound(roundId?: string | null): void {
     if (!roundId) {
       return;
     }
 
-    const shouldClearRound = (trackedRoundId: string) => (
-      trackedRoundId === roundId ||
-      (includeRelatedRounds && trackedRoundId.startsWith(`${roundId}:`))
-    );
-
-    for (const trackedRoundId of [...this.sendingRoundIds]) {
-      if (shouldClearRound(trackedRoundId)) {
-        this.sendingRoundIds.delete(trackedRoundId);
-      }
-    }
-
-    for (const trackedRoundId of [...this.runningRoundIds]) {
-      if (shouldClearRound(trackedRoundId)) {
-        this.runningRoundIds.delete(trackedRoundId);
-      }
-    }
-
-    for (const trackedRoundId of [...this.terminalRoundIds]) {
-      if (shouldClearRound(trackedRoundId)) {
-        this.terminalRoundIds.delete(trackedRoundId);
-      }
-    }
+    this.sendingRoundIds.delete(roundId);
+    this.runningRoundIds.delete(roundId);
+    this.terminalRoundIds.delete(roundId);
 
     for (const [messageId, tracker] of this.activeMessageTrackers.entries()) {
-      if (shouldClearRound(tracker.roundId)) {
+      if (tracker.roundId === roundId) {
         this.activeMessageTrackers.delete(messageId);
       }
     }
@@ -172,19 +156,15 @@ export class AgentConversationRuntimeMachine {
   }
 
   public trackChatAck(ack: ChatAckData): void {
-    this.sendingRoundIds.delete(ack.round_id);
-    const pendingCount = ack.pending?.length ?? 0;
+    this.sendingRoundIds.delete(ack.client_request_id);
+    this.terminalRoundIds.delete(ack.round_id);
 
     for (const slot of ack.pending ?? []) {
-      const agentRoundId = (
-        slot.round_id ||
-        (pendingCount > 1 ? `${ack.round_id}:${slot.agent_id}` : ack.round_id)
-      );
-      if (this.isRoundTerminal(agentRoundId)) {
+      if (this.isRoundTerminal(ack.round_id)) {
         continue;
       }
       this.activeMessageTrackers.set(slot.msg_id, {
-        roundId: agentRoundId,
+        roundId: ack.round_id,
         status: slot.status ?? 'pending',
       });
     }
@@ -219,7 +199,13 @@ export class AgentConversationRuntimeMachine {
     }
 
     this.terminalRoundIds.add(roundId);
-    this.clearRound(roundId, this.chatType === 'group');
+    this.sendingRoundIds.delete(roundId);
+    this.runningRoundIds.delete(roundId);
+    for (const [messageId, tracker] of this.activeMessageTrackers.entries()) {
+      if (tracker.roundId === roundId) {
+        this.activeMessageTrackers.delete(messageId);
+      }
+    }
   }
 
   public syncRunningRounds(roundIds: string[]): void {
@@ -311,21 +297,7 @@ export class AgentConversationRuntimeMachine {
   }
 
   public isRoundTerminal(roundId: string): boolean {
-    if (!roundId) {
-      return false;
-    }
-    if (this.terminalRoundIds.has(roundId)) {
-      return true;
-    }
-    if (this.chatType !== 'group') {
-      return false;
-    }
-    for (const terminalRoundId of this.terminalRoundIds) {
-      if (roundId.startsWith(`${terminalRoundId}:`)) {
-        return true;
-      }
-    }
-    return false;
+    return Boolean(roundId) && this.terminalRoundIds.has(roundId);
   }
 
   private resolvePhase(): AgentConversationRuntimePhase {

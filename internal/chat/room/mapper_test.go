@@ -16,7 +16,8 @@ func TestSlotMessageMapperUsesAssistantMessageIDForStream(t *testing.T) {
 		"conversation-1",
 		"agent-1",
 		"slot-1",
-		"round-chat-1:agent-1",
+		"round-chat-1",
+		"agent-round-chat-1",
 	)
 
 	events, _, _, err := mapper.Map(sdkprotocol.ReceivedMessage{
@@ -144,7 +145,8 @@ func TestSlotMessageMapperMapsToolResultMessage(t *testing.T) {
 		"conversation-1",
 		"agent-1",
 		"slot-1",
-		"round-chat-1:agent-1",
+		"round-chat-1",
+		"agent-round-chat-1",
 	)
 
 	// 先注入 tool_use
@@ -197,7 +199,8 @@ func TestSlotMessageMapperProjectsResultOntoAssistant(t *testing.T) {
 		"conversation-1",
 		"agent-1",
 		"slot-1",
-		"round-chat-1:agent-1",
+		"round-chat-1",
+		"agent-round-chat-1",
 	)
 
 	events, messages, _, err := mapper.Map(sdkprotocol.ReceivedMessage{

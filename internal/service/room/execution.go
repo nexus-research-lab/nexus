@@ -73,10 +73,12 @@ func (s *RealtimeService) runSlot(
 		roundValue.ConversationID,
 		slot.AgentID,
 		slot.MsgID,
+		roundValue.RootRoundID,
 		slot.AgentRoundID,
 		agentValue.WorkspacePath,
 	)
 	slot.setStatus("running")
+	s.broadcastAgentRoundStatus(slotCtx, roundValue, slot, "running")
 	logger.Info("开始执行 Room slot")
 	defer s.finishSlot(slot)
 
@@ -86,7 +88,8 @@ func (s *RealtimeService) runSlot(
 		ConversationID:     roundValue.ConversationID,
 		AgentID:            slot.AgentID,
 		MessageID:          slot.MsgID,
-		CausedBy:           slot.AgentRoundID,
+		RoundID:            roundValue.RootRoundID,
+		AgentRoundID:       slot.AgentRoundID,
 	})
 	defer s.permission.UnbindSessionRoute(slot.RuntimeSessionKey)
 
@@ -136,7 +139,7 @@ func (s *RealtimeService) runSlot(
 		mcpServers = s.mcpServers(
 			agentValue.AgentID,
 			roundValue.SessionKey,
-			slot.AgentRoundID,
+			roundValue.RootRoundID,
 			"room",
 			roundValue.RoomID,
 			roomSourceContextLabel(roundValue),
@@ -254,6 +257,7 @@ func (s *RealtimeService) runSlot(
 		roundValue.ConversationID,
 		slot.AgentID,
 		slot.MsgID,
+		roundValue.RootRoundID,
 		slot.AgentRoundID,
 	))
 
@@ -384,6 +388,7 @@ func (s *RealtimeService) runSlot(
 	if slot.getStatus() == "running" {
 		slot.setStatus(resultStatus(result.ResultSubtype))
 	}
+	s.broadcastAgentRoundStatus(slotCtx, roundValue, slot, slot.getStatus())
 	if !slot.shouldSuppressOutput() {
 		if err := s.recordRoomDirectedMessageReply(slotCtx, roundValue, slot, mapper.LastAssistantMessage()); err != nil {
 			s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
@@ -425,6 +430,7 @@ func (s *RealtimeService) runSlot(
 		roundValue.ConversationID,
 		slot.AgentID,
 		slot.MsgID,
+		roundValue.RootRoundID,
 		slot.AgentRoundID,
 	))
 	logger.Info("Room slot 结束",

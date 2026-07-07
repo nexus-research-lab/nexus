@@ -236,7 +236,7 @@ export function MessageUserSection({
         <PromptDialog
           isOpen={isEditDialogOpen}
           title="编辑消息"
-          message="修改后的内容会直接替换当前这条用户消息。"
+          message="修改后会重写最后一轮并重新生成回复。"
           placeholder="输入新的消息内容"
           defaultValue={userContent}
           multiline
@@ -247,7 +247,7 @@ export function MessageUserSection({
               setIsEditDialogOpen(false);
               return;
             }
-            onEditUserMessage(userMessage.message_id, normalizedContent);
+            onEditUserMessage(userMessage.round_id, normalizedContent);
             setIsEditDialogOpen(false);
           }}
         />

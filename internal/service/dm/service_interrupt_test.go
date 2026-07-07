@@ -50,7 +50,6 @@ func TestServiceHandleInterruptEmitsInterruptedRound(t *testing.T) {
 		SessionKey: sessionKey,
 		Content:    "你好",
 		RoundID:    "round-2",
-		ReqID:      "round-2",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}
@@ -120,7 +119,6 @@ func TestServiceHandleInterruptCleansStaleRuntimeWhenClientInterruptFails(t *tes
 		SessionKey: sessionKey,
 		Content:    "停止一个已经退出的进程",
 		RoundID:    "round-interrupt-stale",
-		ReqID:      "round-interrupt-stale",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}
@@ -191,7 +189,6 @@ func TestServiceHandleChatInterruptPolicyStopsRunningRound(t *testing.T) {
 		SessionKey: sessionKey,
 		Content:    "第一轮",
 		RoundID:    "round-interrupt-policy-1",
-		ReqID:      "round-interrupt-policy-1",
 	}); err != nil {
 		t.Fatalf("第一轮 HandleChat 失败: %v", err)
 	}
@@ -201,7 +198,6 @@ func TestServiceHandleChatInterruptPolicyStopsRunningRound(t *testing.T) {
 		SessionKey:     sessionKey,
 		Content:        "第二轮",
 		RoundID:        "round-interrupt-policy-2",
-		ReqID:          "round-interrupt-policy-2",
 		DeliveryPolicy: protocol.ChatDeliveryPolicyInterrupt,
 	}); err != nil {
 		t.Fatalf("打断策略 HandleChat 失败: %v", err)
@@ -267,7 +263,6 @@ func TestServiceHandleInterruptCoercesTerminalErrorIntoInterrupted(t *testing.T)
 		SessionKey: sessionKey,
 		Content:    "停止测试",
 		RoundID:    "round-interrupt-error",
-		ReqID:      "round-interrupt-error",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}
@@ -367,7 +362,6 @@ func TestServiceHandleChatAfterInterruptKeepsSameClientAndConsumesExplicitStop(t
 		SessionKey: sessionKey,
 		Content:    "第一轮",
 		RoundID:    "round-interrupt-1",
-		ReqID:      "round-interrupt-1",
 	}); err != nil {
 		t.Fatalf("第一轮 HandleChat 失败: %v", err)
 	}
@@ -384,7 +378,6 @@ func TestServiceHandleChatAfterInterruptKeepsSameClientAndConsumesExplicitStop(t
 		SessionKey: sessionKey,
 		Content:    "第二轮",
 		RoundID:    "round-interrupt-2",
-		ReqID:      "round-interrupt-2",
 	}); err != nil {
 		t.Fatalf("第二轮 HandleChat 失败: %v", err)
 	}

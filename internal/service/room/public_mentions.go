@@ -3,7 +3,6 @@ package room
 import (
 	"cmp"
 	"context"
-	"fmt"
 	"slices"
 	"strings"
 	"time"
@@ -205,13 +204,10 @@ func (s *RealtimeService) startPublicMentionRound(
 		targetAgentIDs = append(targetAgentIDs, pendingSlot.targetAgentID)
 	}
 
-	pending := make([]map[string]any, 0, len(pendingSlots))
+	pending := make([]protocol.ChatAckPendingSlot, 0, len(pendingSlots))
 	for index, pendingSlot := range pendingSlots {
 		msgID := newRealtimeID()
-		agentRoundID := roundID
-		if len(pendingSlots) > 1 {
-			agentRoundID = fmt.Sprintf("%s:%s", roundID, pendingSlot.targetAgentID)
-		}
+		agentRoundID := protocol.NewAgentRoundID()
 		slotIndex := index
 		activeRound.Slots[msgID] = buildPublicMentionSlot(
 			contextValue,
@@ -222,13 +218,13 @@ func (s *RealtimeService) startPublicMentionRound(
 			msgID,
 			slotIndex,
 		)
-		pending = append(pending, map[string]any{
-			"agent_id":  pendingSlot.targetAgentID,
-			"msg_id":    msgID,
-			"round_id":  agentRoundID,
-			"status":    "pending",
-			"timestamp": time.Now().UnixMilli(),
-			"index":     slotIndex,
+		pending = append(pending, protocol.ChatAckPendingSlot{
+			AgentID:      pendingSlot.targetAgentID,
+			AgentRoundID: agentRoundID,
+			MsgID:        msgID,
+			Status:       "pending",
+			Timestamp:    time.Now().UnixMilli(),
+			Index:        slotIndex,
 		})
 	}
 
@@ -245,7 +241,8 @@ func (s *RealtimeService) startPublicMentionRound(
 		"pending", len(pending),
 	)
 	s.broadcastSharedEvent(ctx, sessionKey, contextValue.Room.ID, roomdomain.WrapRoundStatusEvent(sessionKey, contextValue.Room.ID, contextValue.Conversation.ID, roundID, "running", ""))
-	s.broadcastSharedEvent(ctx, sessionKey, contextValue.Room.ID, roomdomain.WrapChatAckEvent(sessionKey, contextValue.Room.ID, contextValue.Conversation.ID, roundID, roundID, pending))
+	// 公区 @ 唤醒由后端发起，没有前端请求，client 关联字段留空。
+	s.broadcastSharedEvent(ctx, sessionKey, contextValue.Room.ID, roomdomain.WrapChatAckEvent(sessionKey, contextValue.Room.ID, contextValue.Conversation.ID, "", "", roundID, "", pending))
 	for _, pendingSlot := range pendingSlots {
 		if normalizeWakeQueueSource(pendingSlot.wake) != protocol.InputQueueSourceAgentRoomMessage {
 			continue

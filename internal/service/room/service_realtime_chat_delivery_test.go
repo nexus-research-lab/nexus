@@ -104,7 +104,6 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 		ConversationID: dmContext.Conversation.ID,
 		Content:        "你好",
 		RoundID:        "room-round-1",
-		ReqID:          "room-round-1",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}
@@ -118,9 +117,11 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 		protocol.EventTypeRoundStatus,
 		protocol.EventTypeChatAck,
 		protocol.EventTypeSessionStatus,
+		protocol.EventTypeAgentRoundStatus,
 		protocol.EventTypeStreamStart,
 		protocol.EventTypeMessage,
 		protocol.EventTypeMessage,
+		protocol.EventTypeAgentRoundStatus,
 		protocol.EventTypeStreamEnd,
 		protocol.EventTypeRoundStatus,
 	})
@@ -145,16 +146,8 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 	pendingMsgID := ""
 	for _, event := range events {
 		if event.EventType == protocol.EventTypeChatAck {
-			pending, _ := event.Data["pending"].([]map[string]any)
-			if len(pending) == 0 {
-				rawPending, _ := event.Data["pending"].([]any)
-				if len(rawPending) > 0 {
-					if payload, ok := rawPending[0].(map[string]any); ok {
-						pendingMsgID = normalizePendingValue(payload["msg_id"])
-					}
-				}
-			} else {
-				pendingMsgID = normalizePendingValue(pending[0]["msg_id"])
+			if pending, ok := event.Data["pending"].([]protocol.ChatAckPendingSlot); ok && len(pending) > 0 {
+				pendingMsgID = pending[0].MsgID
 			}
 		}
 		if event.EventType == protocol.EventTypeMessage && event.MessageID == "assistant-sdk-1" {
@@ -212,7 +205,7 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 	if err != nil {
 		t.Fatalf("读取 Room 公区 cursor 失败: %v", err)
 	}
-	if !ok || cursor.LastPublicMessageID != "room-round-1" {
+	if !ok || !strings.HasPrefix(cursor.LastPublicMessageID, "msg_user_") {
 		t.Fatalf("成功 round 应记录目标 agent 公区消费位置: ok=%v cursor=%+v", ok, cursor)
 	}
 	roomTranscriptBaseTime := time.Now().Add(-2 * time.Second).UTC()
@@ -342,7 +335,6 @@ func TestRealtimeServiceRoutesUnmentionedGroupMessageToRoomHost(t *testing.T) {
 		ConversationID: roomContext.Conversation.ID,
 		Content:        "帮我拆一下这个需求",
 		RoundID:        "room-round-host-default",
-		ReqID:          "room-round-host-default",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}
@@ -373,7 +365,7 @@ func TestRealtimeServiceRoutesUnmentionedGroupMessageToRoomHost(t *testing.T) {
 	}
 	foundUserMessage := false
 	for _, message := range sharedMessages {
-		if message["message_id"] == "room-round-host-default" && message["role"] == "user" {
+		if message["round_id"] == "room-round-host-default" && message["role"] == "user" {
 			foundUserMessage = true
 			if message["content"] != "帮我拆一下这个需求" {
 				t.Fatalf("群主默认接管用户输入内容不正确: %+v", message)
@@ -430,7 +422,6 @@ func TestRealtimeServiceAcksPublicMessageWithoutMention(t *testing.T) {
 		ConversationID: roomContext.Conversation.ID,
 		Content:        "先记一下这个背景",
 		RoundID:        "room-round-no-mention",
-		ReqID:          "room-round-no-mention",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}
@@ -542,7 +533,6 @@ func TestRealtimeServiceSuppressesNoReplyMarkerProjection(t *testing.T) {
 		ConversationID: roomContext.Conversation.ID,
 		Content:        "@Amy 这条不用你回答",
 		RoundID:        "room-round-no-reply",
-		ReqID:          "room-round-no-reply",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}

@@ -8,11 +8,14 @@ import { PendingPermission } from "@/types/conversation/permission";
 import { isAutomationTriggerUserMessage } from "@/types/conversation/automation-message";
 export { isAutomationTriggerUserMessage as is_automation_trigger_user_message } from "@/types/conversation/automation-message";
 
-/** 将消息按 roundId 分组 */
+/** 将消息按 root round_id 分组。round_id 由后端保证存在且为 root round。 */
 export function groupMessagesByRound(messages: Message[]): Map<string, Message[]> {
   const groups = new Map<string, Message[]>();
   for (const message of messages) {
-    const roundId = message.round_id || message.message_id;
+    const roundId = message.round_id;
+    if (!roundId) {
+      continue;
+    }
     if (!groups.has(roundId)) {
       groups.set(roundId, []);
     }
@@ -21,61 +24,22 @@ export function groupMessagesByRound(messages: Message[]): Map<string, Message[]
   return groups;
 }
 
-/**
- * Room 模式下使用 `原始用户 roundId:agentId` 作为 agent 子轮次。
- * 前端时间线需要把它重新折叠回用户发起的主 roundId，否则同一轮会被拆成多段。
- */
-export function getRoomBaseRoundId(roundId: string, agentId?: string | null): string {
-  if (!roundId) {
-    return roundId;
-  }
-
-  if (agentId) {
-    const suffix = `:${agentId}`;
-    if (roundId.endsWith(suffix)) {
-      return roundId.slice(0, -suffix.length);
-    }
-  }
-
-  if (
-    roundId.startsWith("room_mention_") ||
-    roundId.startsWith("room_directed_message_")
-  ) {
-    const suffixIndex = roundId.lastIndexOf(":");
-    if (suffixIndex > 0) {
-      return roundId.slice(0, suffixIndex);
-    }
-  }
-
-  return roundId;
-}
-
-/** Room 时间线分组：将多 Agent 子轮次归并回同一条用户轮次。 */
+/** Room 时间线分组：消息自带 root round_id，直接分组。 */
 export function groupRoomMessagesByRound(messages: Message[]): Map<string, Message[]> {
-  const groups = new Map<string, Message[]>();
-
-  for (const message of messages) {
-    const roundId = getRoomBaseRoundId(message.round_id || message.message_id, message.agent_id);
-    if (!groups.has(roundId)) {
-      groups.set(roundId, []);
-    }
-    groups.get(roundId)!.push(message);
-  }
-
-  return groups;
+  return groupMessagesByRound(messages);
 }
 
-/** Room 权限请求分组：按主 roundId 归并，供主时间线与 Thread 共用。 */
+/** Room 权限请求分组：按显式 round_id 归并，供主时间线与 Thread 共用。 */
 export function groupRoomPendingPermissionsByRound(
   pendingPermissions: PendingPermission[],
 ): Map<string, PendingPermission[]> {
   const groups = new Map<string, PendingPermission[]>();
 
   for (const permission of pendingPermissions) {
-    if (!permission.caused_by) {
+    const roundId = permission.round_id;
+    if (!roundId) {
       continue;
     }
-    const roundId = getRoomBaseRoundId(permission.caused_by, permission.agent_id);
     if (!groups.has(roundId)) {
       groups.set(roundId, []);
     }
@@ -309,14 +273,14 @@ export function getRoomAgentRoundEntry(
   };
 }
 
-/** 将 Room 前端占位槽位按主 roundId 分组。 */
+/** 将 Room 前端占位槽位按 root round_id 分组。 */
 export function groupRoomPendingSlotsByRound(
   pendingSlots: RoomPendingAgentSlotState[],
 ): Map<string, RoomPendingAgentSlotState[]> {
   const groups = new Map<string, RoomPendingAgentSlotState[]>();
 
   for (const slot of pendingSlots) {
-    const roundId = getRoomBaseRoundId(slot.round_id, slot.agent_id);
+    const roundId = slot.round_id;
     if (!groups.has(roundId)) {
       groups.set(roundId, []);
     }

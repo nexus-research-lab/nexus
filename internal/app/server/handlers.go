@@ -51,6 +51,7 @@ func newHandlerSet(
 	return handlerSet{
 		auth: authhandler.New(api, services.Auth, services.Usage, services.Subscription),
 		core: corehandler.New(
+			cfg,
 			api,
 			services.Core.Agent,
 			services.Provider,

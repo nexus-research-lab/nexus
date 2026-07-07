@@ -29,21 +29,13 @@ import type {
 import { ConversationSessionNavigator } from "@/features/conversation/shared/conversation-session-navigator";
 import { ProviderUnavailableBanner } from "@/features/conversation/shared/provider-unavailable-banner";
 import { ROOM_GOAL_SCOPE_LABEL } from "@/features/conversation/shared/goal-continuation-hold";
-import {
-  buildIndexedTimelineRoundIds,
-  buildTimelineRoundIds,
-} from "@/features/conversation/shared/timeline-rounds";
+import { useConversationTimeline } from "@/features/conversation/shared/use-conversation-timeline";
 import { useConversationComposerHandlers } from "@/features/conversation/shared/use-conversation-composer-handlers";
 import { useConversationHistoryLoader } from "@/features/conversation/shared/use-conversation-history-loader";
 import {
   useConversationSnapshotReporter,
   type ConversationSnapshotBuildInput,
 } from "@/features/conversation/shared/use-conversation-snapshot-reporter";
-import {
-  groupRoomPendingPermissionsByRound,
-  groupRoomPendingSlotsByRound,
-  groupRoomMessagesByRound,
-} from "@/features/conversation/shared/utils";
 import { useVisibleRoundWindowLoader } from "@/features/conversation/shared/use-visible-round-window-loader";
 import { GroupConversationFeed } from "./group-conversation-feed";
 import { useRoomThreadSource } from "./use-room-thread-panel-data";
@@ -280,36 +272,19 @@ export function GroupChatPanel({
     debug_name: "GroupChatPanel",
   });
 
-  const messageGroups = useMemo(
-    () => groupRoomMessagesByRound(messages),
-    [messages],
-  );
-  const pendingSlotGroups = useMemo(
-    () => groupRoomPendingSlotsByRound(pendingAgentSlots),
-    [pendingAgentSlots],
-  );
-  const pendingPermissionGroups = useMemo(
-    () => groupRoomPendingPermissionsByRound(pendingPermissions),
-    [pendingPermissions],
-  );
-  const loadedRoundIds = useMemo(
-    () =>
-      buildTimelineRoundIds(messageGroups, liveRoundIds, [
-        ...pendingSlotGroups.keys(),
-        ...pendingPermissionGroups.keys(),
-      ]),
-    [
-      liveRoundIds,
-      messageGroups,
-      pendingPermissionGroups,
-      pendingSlotGroups,
-    ],
-  );
   const roundIndexItems = useSessionRoundIndex(sessionKey);
-  const feedRoundIds = useMemo(
-    () => buildIndexedTimelineRoundIds(roundIndexItems, loadedRoundIds),
-    [loadedRoundIds, roundIndexItems],
-  );
+  const timeline = useConversationTimeline({
+    chat_type: "group",
+    messages,
+    live_round_ids: liveRoundIds,
+    round_index_items: roundIndexItems,
+    pending_agent_slots: pendingAgentSlots,
+    pending_permissions: pendingPermissions,
+  });
+  const messageGroups = timeline.message_groups;
+  const pendingSlotGroups = timeline.pending_slot_groups;
+  const pendingPermissionGroups = timeline.pending_permission_groups;
+  const feedRoundIds = timeline.feed_round_ids;
   const useIndexedTimeline = roundIndexItems.length > 0;
   const visibleRoundLoaderRevision = `${feedRoundIds.length}:${messages.length}:${pendingAgentSlots.length}:${pendingPermissions.length}:${liveRoundIds.length}`;
   useVisibleRoundWindowLoader({
@@ -442,12 +417,10 @@ export function GroupChatPanel({
       {!isMobileLayout && sessionKey ? (
         <ConversationSessionNavigator
           className="absolute bottom-[156px] left-3 top-7 z-20"
-          liveRoundIds={liveRoundIds}
-          messageGroups={messageGroups}
+          timeline={timeline}
           onLoadRoundWindow={loadRoundWindow}
           onNavigateStart={pauseFollowLatest}
           roundScrollRef={roundScrollRef}
-          roundIndexItems={roundIndexItems}
           scrollRef={scrollRef}
         />
       ) : null}

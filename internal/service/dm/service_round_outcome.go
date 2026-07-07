@@ -81,7 +81,8 @@ func (r *roundRunner) failRound(err error) {
 	errorEvent := protocol.NewErrorEvent(r.sessionKey, err.Error())
 	r.refreshSessionMetaAfterRoundFinished()
 	errorEvent.AgentID = r.agent.AgentID
-	errorEvent.CausedBy = r.roundID
+	errorEvent.RoundID = r.roundID
+	errorEvent.AgentRoundID = r.agentRoundID
 	if messageID := strings.TrimSpace(r.mapper.CurrentMessageID()); messageID != "" {
 		errorEvent.MessageID = messageID
 	}

@@ -44,7 +44,9 @@ export interface PendingPermission {
   session_key?: string | null;
   agent_id?: string | null;
   message_id?: string | null;
-  caused_by?: string | null;
+  round_id?: string | null;
+  agent_round_id?: string | null;
+  tool_use_id?: string | null;
   interaction_mode?: PermissionInteractionMode;
   risk_level?: PermissionRiskLevel;
   risk_label?: string;
@@ -126,9 +128,8 @@ export function collectUnresolvedToolUseCandidates(
 /**
  * 将 pending permission 精确绑定到唯一的 toolUse。
  *
- * 中文注释：绑定主键只认 `permission.messageId`。
- * 同一条 assistant message 内如果有多个 toolUse，再用后端原样携带的工具载荷做精确定位；
- * 一旦缺少 `messageId` 或载荷不一致，就保留成未匹配卡片，不走跨消息签名兜底。
+ * 绑定主键是 `tool_use_id`；旧事件缺 tool_use_id 时退回 message_id + 工具载荷精确匹配。
+ * 不做跨消息或单候选猜测。
  */
 export function matchPendingPermissionsToToolUses(
   pendingPermissions: PendingPermission[],
@@ -136,35 +137,53 @@ export function matchPendingPermissionsToToolUses(
 ): PendingPermissionMatchResult {
   const matchedPermissionsByToolUseId = new Map<string, PendingPermission>();
   const matchedRequestIds = new Set<string>();
+  const candidateByToolUseId = new Map<string, PendingPermissionToolUseCandidate>();
   const candidateQueueByMessageId = new Map<string, PendingPermissionToolUseCandidate[]>();
 
   for (const candidate of candidates) {
+    candidateByToolUseId.set(candidate.tool_use_id, candidate);
     const queue = candidateQueueByMessageId.get(candidate.message_id) ?? [];
     queue.push(candidate);
     candidateQueueByMessageId.set(candidate.message_id, queue);
   }
 
+  const consumeCandidate = (candidate: PendingPermissionToolUseCandidate) => {
+    candidateByToolUseId.delete(candidate.tool_use_id);
+    const queue = candidateQueueByMessageId.get(candidate.message_id);
+    if (queue) {
+      const index = queue.indexOf(candidate);
+      if (index >= 0) {
+        queue.splice(index, 1);
+      }
+    }
+  };
+
   for (const permission of pendingPermissions) {
+    const toolUseId = permission.tool_use_id?.trim();
+    if (toolUseId) {
+      const candidate = candidateByToolUseId.get(toolUseId);
+      if (candidate) {
+        consumeCandidate(candidate);
+        matchedPermissionsByToolUseId.set(candidate.tool_use_id, permission);
+        matchedRequestIds.add(permission.request_id);
+      }
+      continue;
+    }
+
     const messageId = permission.message_id?.trim();
     if (!messageId) {
       continue;
     }
-
     const queue = candidateQueueByMessageId.get(messageId);
     if (!queue?.length) {
       continue;
     }
-
     const matchedIndex = queue.findIndex((candidate) => isSameToolInvocation(permission, candidate));
     if (matchedIndex < 0) {
       continue;
     }
-
-    const [candidate] = queue.splice(matchedIndex, 1);
-    if (!candidate) {
-      continue;
-    }
-
+    const candidate = queue[matchedIndex];
+    consumeCandidate(candidate);
     matchedPermissionsByToolUseId.set(candidate.tool_use_id, permission);
     matchedRequestIds.add(permission.request_id);
   }

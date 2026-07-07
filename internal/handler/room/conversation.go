@@ -94,6 +94,78 @@ func (h *Handlers) HandleConversationMessages(writer http.ResponseWriter, reques
 	h.api.WriteSuccess(writer, items)
 }
 
+// HandleConversationTurns 返回 Room conversation 的 ConversationTurn 分页。
+func (h *Handlers) HandleConversationTurns(writer http.ResponseWriter, request *http.Request) {
+	roomID := chi.URLParam(request, "room_id")
+	conversationID := chi.URLParam(request, "conversation_id")
+	limit := 0
+	if rawLimit := strings.TrimSpace(request.URL.Query().Get("limit")); rawLimit != "" {
+		parsedLimit, parseErr := strconv.Atoi(rawLimit)
+		if parseErr != nil || parsedLimit <= 0 {
+			h.api.WriteFailure(writer, http.StatusBadRequest, "limit 参数错误")
+			return
+		}
+		limit = parsedLimit
+	}
+
+	sessionKey, ok := h.resolveConversationSessionKey(writer, request, roomID, conversationID)
+	if !ok {
+		return
+	}
+	page, err := h.sessions.GetSessionTurnsPage(request.Context(), sessionKey, sessionpkg.TurnPageRequest{
+		Limit:         limit,
+		BeforeRoundID: strings.TrimSpace(request.URL.Query().Get("before_round_id")),
+		AroundRoundID: strings.TrimSpace(request.URL.Query().Get("around_round_id")),
+		Sort:          strings.TrimSpace(request.URL.Query().Get("sort")),
+		View:          strings.TrimSpace(request.URL.Query().Get("view")),
+	})
+	if handlershared.IsStructuredSessionKeyError(err) {
+		h.api.WriteFailure(writer, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	if err != nil {
+		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
+	h.api.WriteSuccess(writer, page)
+}
+
+// resolveConversationSessionKey 校验 conversation 归属并解析历史读取用 session key。
+func (h *Handlers) resolveConversationSessionKey(
+	writer http.ResponseWriter,
+	request *http.Request,
+	roomID string,
+	conversationID string,
+) (string, bool) {
+	contextValue, err := h.roomService.GetConversationContext(request.Context(), conversationID)
+	if errors.Is(err, roompkg.ErrConversationNotFound) {
+		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+		return "", false
+	}
+	if err != nil {
+		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		return "", false
+	}
+	if contextValue.Room.ID != roomID {
+		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+		return "", false
+	}
+	sessionKey := protocol.BuildRoomSharedSessionKey(conversationID)
+	if contextValue.Room.RoomType == protocol.RoomTypeDM {
+		primarySession := findPrimaryConversationSession(contextValue.Sessions)
+		if primarySession == nil || strings.TrimSpace(primarySession.AgentID) == "" {
+			h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+			return "", false
+		}
+		sessionKey = protocol.BuildRoomAgentSessionKey(
+			conversationID,
+			strings.TrimSpace(primarySession.AgentID),
+			protocol.RoomTypeDM,
+		)
+	}
+	return sessionKey, true
+}
+
 // HandleUploadConversationAttachment 上传 Room conversation 级公共附件。
 func (h *Handlers) HandleUploadConversationAttachment(writer http.ResponseWriter, request *http.Request) {
 	file, header, err := request.FormFile("file")

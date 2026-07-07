@@ -272,7 +272,6 @@ func (s *RealtimeService) DispatchGoalContinuation(ctx context.Context, plan pro
 		GoalContext:    goalContext,
 		TargetAgentIDs: targetAgentIDs,
 		RoundID:        plan.RoundID,
-		ReqID:          plan.RoundID,
 		DeliveryPolicy: protocol.ChatDeliveryPolicyQueue,
 		Internal:       true,
 		InputOptions:   goalContinuationInputOptions(plan),

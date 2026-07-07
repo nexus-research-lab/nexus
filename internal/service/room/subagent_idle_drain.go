@@ -27,6 +27,7 @@ func (s *RealtimeService) startIdleSubagentNotificationDrains(ctx context.Contex
 			roundValue.ConversationID,
 			slot.AgentID,
 			slot.MsgID,
+			roundValue.RootRoundID,
 			slot.AgentRoundID,
 			slot.WorkspacePath,
 		)

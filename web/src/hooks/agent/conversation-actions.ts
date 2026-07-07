@@ -63,14 +63,20 @@ export function buildRoomSubscriptionMessage({
   };
 }
 
+export interface OutboundChatRequest {
+  client_request_id: string;
+  client_message_id: string;
+}
+
 /**
  * 发送用户消息并建立当前轮次的本地状态。
+ * round_id 由后端 mint；前端只生成 client_request_id / client_message_id。
  */
 export async function sendSessionMessage(
   content: string,
   context: AgentConversationActionContext,
   options: AgentConversationSendOptions = {},
-): Promise<string | null> {
+): Promise<OutboundChatRequest | null> {
   const {
     identity,
     session_key: sessionKey,
@@ -101,13 +107,15 @@ export async function sendSessionMessage(
     failSend(setError, 'WebSocket未连接，请稍候重试');
   }
 
-  const roundId = generateUuid();
+  const clientRequestId = `req_${generateUuid()}`;
+  const clientMessageId = `local_msg_${generateUuid()}`;
   const deliveryPolicy = options.delivery_policy ?? 'queue';
   activeSessionKeyRef.current = resolvedSessionKey;
+  // optimistic user message：message_id 用本地 id，ack 后由 canonical id 替换。
   const userMessage: Message = {
-    message_id: roundId,
+    message_id: clientMessageId,
     session_key: resolvedSessionKey,
-    round_id: roundId,
+    round_id: clientMessageId,
     agent_id: resolveAgentId(agentId),
     role: 'user',
     content,
@@ -122,8 +130,8 @@ export async function sendSessionMessage(
     content,
     session_key: resolvedSessionKey,
     agent_id: resolveAgentId(agentId),
-    round_id: roundId,
-    req_id: roundId,  // echo'd back in chatAck for correlation
+    client_request_id: clientRequestId,
+    client_message_id: clientMessageId,
     delivery_policy: deliveryPolicy,
   };
   if (attachments.length > 0) {
@@ -145,7 +153,66 @@ export async function sendSessionMessage(
   setMessages((prev) => upsertMessage(prev, userMessage));
   setPendingPermissions([]);
   setError(null);
-  return roundId;
+  return { client_request_id: clientRequestId, client_message_id: clientMessageId };
+}
+
+/**
+ * 编辑最后一条用户消息，并请求后端按有效历史重新生成。
+ */
+export async function rewriteLastUserMessage(
+  targetRoundId: string,
+  content: string,
+  context: AgentConversationActionContext,
+): Promise<OutboundChatRequest | null> {
+  const {
+    identity,
+    session_key: sessionKey,
+    ws_state: wsState,
+    ws_send: wsSend,
+    active_session_key_ref: activeSessionKeyRef,
+    set_error: setError,
+  } = context;
+  const resolvedSessionKey = sessionKey || activeSessionKeyRef.current;
+  const agentId = identity?.agent_id;
+
+  if (!content.trim()) {
+    return null;
+  }
+  if (!targetRoundId.trim()) {
+    failSend(setError, '找不到要编辑的消息，请刷新后重试');
+  }
+  if (!resolvedSessionKey) {
+    failSend(setError, '请先选择或创建会话');
+  }
+  if (!isStructuredSessionKey(resolvedSessionKey)) {
+    failSend(setError, '当前会话的 session_key 非法，请刷新后重试');
+  }
+  if (identity?.chat_type === 'group') {
+    failSend(setError, 'Room 会话暂不支持编辑重跑');
+  }
+  if (wsState !== 'connected') {
+    failSend(setError, 'WebSocket未连接，请稍候重试');
+  }
+
+  const clientRequestId = `req_${generateUuid()}`;
+  const clientMessageId = `local_msg_${generateUuid()}`;
+  activeSessionKeyRef.current = resolvedSessionKey;
+  // replacement round_id 由后端 mint 并通过 chat_ack 回传。
+  const sendResult = wsSend({
+    type: 'chat_rewrite_last',
+    content,
+    session_key: resolvedSessionKey,
+    agent_id: resolveAgentId(agentId),
+    target_round_id: targetRoundId,
+    client_request_id: clientRequestId,
+    client_message_id: clientMessageId,
+  } as WebSocketMessage);
+  if (sendResult.disposition !== 'sent') {
+    failSend(setError, '消息未发送到后端，请检查连接后重试');
+  }
+
+  setError(null);
+  return { client_request_id: clientRequestId, client_message_id: clientMessageId };
 }
 
 function buildInputQueueBasePayload(
@@ -252,11 +319,11 @@ export function reorderInputQueueMessages(
 /**
  * 中断当前会话生成。
  * @param context - 会话上下文
- * @param msgId - 可选，指定只取消某个 Agent 气泡（Room 并发场景）
+ * @param agentRoundId - 可选，Room 并发场景下只停某个 agent slot
  */
 export function stopSessionGeneration(
   context: AgentConversationActionContext,
-  msgId?: string,
+  agentRoundId?: string,
 ): void {
   const {
     identity,
@@ -265,7 +332,6 @@ export function stopSessionGeneration(
     ws_send: wsSend,
     active_session_key_ref: activeSessionKeyRef,
     messages,
-    pending_agent_slots: pendingAgentSlots,
     set_error: setError,
     set_pending_permissions: setPendingPermissions,
   } = context;
@@ -293,16 +359,8 @@ export function stopSessionGeneration(
     agent_id: resolveAgentId(agentId),
     round_id: latestUserRoundId,
   };
-
-  // per-msgId interrupt for Room multi-agent scenario
-  if (msgId) {
-    payload.msg_id = msgId;
-    // Room 的占位槽位不再写入 messages，需要同时查本地 slot 状态。
-    const targetMessage = messages.find((m) => m.message_id === msgId);
-    const targetSlot = pendingAgentSlots.find((slot) => slot.msg_id === msgId);
-    if (targetMessage?.agent_id || targetSlot?.agent_id) {
-      payload.target_agent_id = targetMessage?.agent_id ?? targetSlot?.agent_id;
-    }
+  if (agentRoundId) {
+    payload.agent_round_id = agentRoundId;
   }
   if (chatType === 'group') {
     if (roomId) payload.room_id = roomId;

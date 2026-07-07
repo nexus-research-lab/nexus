@@ -57,6 +57,7 @@ import {
   enqueueInputQueueMessage as send_enqueue_input_queue_message,
   guideInputQueueMessage as send_guide_input_queue_message,
   reorderInputQueueMessages as send_reorder_input_queue_messages,
+  rewriteLastUserMessage as send_rewrite_last_user_message,
   sendSessionMessage,
   sendSessionPermissionResponse,
   stopSessionGeneration,
@@ -67,11 +68,13 @@ import {
 import {
   applyTerminalRoundMessageStatus,
   cancelRunningAgentSlots,
+  filterAgentRoundPendingAgentSlots,
   filterRoundPendingAgentSlots,
   filterRoundPendingPermissions,
   mergeChatAckPendingSlots,
   reconcileStoppedSessionMessages,
   removeFailedOutboundUserMessage,
+  replaceOptimisticUserMessage,
   updateAssistantMessageStatus,
   updatePendingAgentSlotStatus,
 } from "./conversation-runtime-reconciliation";
@@ -325,22 +328,18 @@ export function useAgentConversation(
     wait_for_chat_ack: waitForChatAck,
   } = usePendingChatAcks();
 
+  // ack 超时/失败：只按 client_request_id 拒绝、按 client_message_id 清理 optimistic 消息。
+  // 此时可能还没有 canonical round_id，不做按 round 清理。
   const failPendingChatAck = useCallback(
-    (roundId: string, message: string) => {
-      if (!rejectPendingChatAck(roundId, message)) {
+    (clientRequestId: string, clientMessageId: string, message: string) => {
+      if (!rejectPendingChatAck(clientRequestId, message)) {
         return;
       }
       applyRuntimeTransition((machine) => {
-        machine.clearRound(roundId, chatType === "group");
+        machine.clearOutboundRequest(clientRequestId);
       });
-      setPendingAgentSlots((prev) =>
-        filterRoundPendingAgentSlots(prev, roundId),
-      );
-      setPendingPermissions((prev) =>
-        filterRoundPendingPermissions(prev, roundId),
-      );
       setMessages((prev) =>
-        removeFailedOutboundUserMessage(prev, roundId),
+        removeFailedOutboundUserMessage(prev, clientMessageId),
       );
       setError(message);
       if (wsStateRef.current === "connected") {
@@ -349,11 +348,8 @@ export function useAgentConversation(
     },
     [
       applyRuntimeTransition,
-      chatType,
       rejectPendingChatAck,
       setMessages,
-      setPendingAgentSlots,
-      setPendingPermissions,
     ],
   );
 
@@ -627,20 +623,29 @@ export function useAgentConversation(
       applyRuntimeTransition((machine) => {
         machine.trackChatAck(ack);
       });
-      clearPendingChatAck(ack.round_id);
+      clearPendingChatAck(ack.client_request_id);
+      if (ack.client_message_id && ack.user_message_id) {
+        setMessages((prev) =>
+          replaceOptimisticUserMessage(
+            prev,
+            ack.client_message_id,
+            ack.user_message_id,
+            ack.round_id,
+          ),
+        );
+      }
       setPendingAgentSlots((prev) => mergeChatAckPendingSlots(prev, ack));
     },
-    [applyRuntimeTransition, clearPendingChatAck, setPendingAgentSlots],
+    [applyRuntimeTransition, clearPendingChatAck, setMessages, setPendingAgentSlots],
   );
 
   const trackAssistantMessage = useCallback(
     (message: AssistantMessage) => {
-      clearPendingChatAck(message.round_id);
       applyRuntimeTransition((machine) => {
         machine.trackAssistantMessage(message);
       });
     },
-    [applyRuntimeTransition, clearPendingChatAck],
+    [applyRuntimeTransition],
   );
 
   const applyRoundStatus = useCallback(
@@ -648,7 +653,6 @@ export function useAgentConversation(
       applyRuntimeTransition((machine) => {
         machine.trackRoundStatus(roundId, status);
       });
-      clearPendingChatAck(roundId);
 
       if (status === "running") {
         return;
@@ -670,12 +674,37 @@ export function useAgentConversation(
     [
       applyRuntimeTransition,
       agentId,
-      clearPendingChatAck,
       settleAgentWorkspaceWrites,
       setMessages,
       setPendingAgentSlots,
       setPendingPermissions,
     ],
+  );
+
+  // Room slot 状态：只收口对应 agent slot，不结束 root turn。
+  const applyAgentRoundStatus = useCallback(
+    (payload: import("@/types").AgentRoundStatusEventPayload) => {
+      if (!payload.is_terminal) {
+        setPendingAgentSlots((prev) =>
+          prev.map((slot) =>
+            slot.agent_round_id === payload.agent_round_id
+              ? { ...slot, status: "streaming" }
+              : slot,
+          ),
+        );
+        return;
+      }
+      setPendingAgentSlots((prev) =>
+        filterAgentRoundPendingAgentSlots(prev, payload.agent_round_id),
+      );
+      setPendingPermissions((prev) =>
+        prev.filter(
+          (permission) =>
+            permission.agent_round_id !== payload.agent_round_id,
+        ),
+      );
+    },
+    [setPendingAgentSlots, setPendingPermissions],
   );
 
   const handleWebsocketMessage = useCallback(
@@ -704,6 +733,7 @@ export function useAgentConversation(
         update_message_status: updateMessageStatus,
         sync_session_status: syncSessionStatus,
         apply_round_status: applyRoundStatus,
+        apply_agent_round_status: applyAgentRoundStatus,
         track_chat_ack: trackChatAck,
         track_assistant_message: trackAssistantMessage,
         reload_current_session: reloadCurrentSession,
@@ -723,6 +753,7 @@ export function useAgentConversation(
       conversationId,
       reloadCurrentSession,
       applyRoundStatus,
+      applyAgentRoundStatus,
       settleAgentWorkspaceWrites,
       setPendingAgentSlots,
       setInputQueueItems,
@@ -834,17 +865,48 @@ export function useAgentConversation(
 
   const sendMessage = useCallback(
     async (content: string, options: AgentConversationSendOptions = {}) => {
-      const roundId = await sendSessionMessage(content, actionContext, options);
-      if (!roundId) {
+      const request = await sendSessionMessage(content, actionContext, options);
+      if (!request) {
         return;
       }
 
       applyRuntimeTransition((machine) => {
-        machine.trackOutboundRound(roundId);
+        machine.trackOutboundRequest(request.client_request_id);
       });
 
-      await waitForChatAck(roundId, () => {
-        failPendingChatAck(roundId, "消息未送达后端，请重试");
+      await waitForChatAck(request.client_request_id, () => {
+        failPendingChatAck(
+          request.client_request_id,
+          request.client_message_id,
+          "消息未送达后端，请重试",
+        );
+      });
+    },
+    [
+      actionContext,
+      applyRuntimeTransition,
+      failPendingChatAck,
+      waitForChatAck,
+    ],
+  );
+
+  const rewriteLastMessage = useCallback(
+    async (targetRoundId: string, content: string) => {
+      const request = await send_rewrite_last_user_message(targetRoundId, content, actionContext);
+      if (!request) {
+        return;
+      }
+
+      applyRuntimeTransition((machine) => {
+        machine.trackOutboundRequest(request.client_request_id);
+      });
+
+      await waitForChatAck(request.client_request_id, () => {
+        failPendingChatAck(
+          request.client_request_id,
+          request.client_message_id,
+          "消息未送达后端，请重试",
+        );
       });
     },
     [
@@ -888,15 +950,12 @@ export function useAgentConversation(
   );
 
   const stopGeneration = useCallback(
-    (msgId?: string) => {
-      stopSessionGeneration(actionContext, msgId);
-      if (msgId) {
-        applyRuntimeTransition((machine) => {
-          machine.updateMessageStatus(msgId, "cancelled");
-        });
+    (agentRoundId?: string) => {
+      stopSessionGeneration(actionContext, agentRoundId);
+      if (agentRoundId) {
         setPendingAgentSlots((prev) =>
           prev.map((slot) =>
-            slot.msg_id === msgId
+            slot.agent_round_id === agentRoundId
               ? {
                   ...slot,
                   status: "cancelled",
@@ -907,7 +966,7 @@ export function useAgentConversation(
         return;
       }
     },
-    [actionContext, applyRuntimeTransition, setPendingAgentSlots],
+    [actionContext, setPendingAgentSlots],
   );
 
   const sendPermissionResponse = useCallback(
@@ -1005,6 +1064,7 @@ export function useAgentConversation(
     input_queue_items: inputQueueItems,
     pending_permissions: pendingPermissions,
     send_message: sendMessage,
+    rewrite_last_user_message: rewriteLastMessage,
     enqueue_input_queue_message: enqueueInputQueueMessage,
     delete_input_queue_message: deleteInputQueueMessage,
     guide_input_queue_message: guideInputQueueMessage,

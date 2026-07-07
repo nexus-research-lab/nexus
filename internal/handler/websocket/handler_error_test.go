@@ -65,7 +65,7 @@ func TestChatErrorDetailExplainsRuntimeFailures(t *testing.T) {
 	}
 }
 
-func TestNewGatewayErrorEventUsesRoundIDAsCause(t *testing.T) {
+func TestNewGatewayErrorEventUsesRoundID(t *testing.T) {
 	event := (&Handler{}).newGatewayErrorEvent(
 		"agent:agent-1:ws:dm:session-1",
 		"chat_error",
@@ -75,8 +75,8 @@ func TestNewGatewayErrorEventUsesRoundIDAsCause(t *testing.T) {
 			"round_id": "round-1",
 		},
 	)
-	if event.CausedBy != "round-1" {
-		t.Fatalf("error caused_by = %q, want round-1", event.CausedBy)
+	if event.RoundID != "round-1" {
+		t.Fatalf("error round_id = %q, want round-1", event.RoundID)
 	}
 	if got := event.Data["round_id"]; got != "round-1" {
 		t.Fatalf("error data.round_id = %#v, want round-1", got)

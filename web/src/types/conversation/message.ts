@@ -120,6 +120,8 @@ export interface BaseMessage {
   conversation_id?: string | null;
   agent_id: string;
   round_id: string;
+  /** Room slot / agent 私有执行轮次 id；round_id 永远是 root round。 */
+  agent_round_id?: string | null;
   session_id?: SessionId;
   parent_id?: string;
   role: MessageRole;
@@ -289,6 +291,7 @@ export interface EventMessage {
     | "chat_ack"
     | "input_queue"
     | "round_status"
+    | "agent_round_status"
     | "stream_start"
     | "stream_end"
     | "stream_cancelled"
@@ -306,7 +309,8 @@ export interface EventMessage {
   agent_id?: string | null;
   message_id?: string | null;
   session_id?: SessionId | null;
-  caused_by?: string | null;
+  round_id?: string | null;
+  agent_round_id?: string | null;
   data: any;
   timestamp: number;
 }
@@ -314,13 +318,14 @@ export interface EventMessage {
 /** Pending agent slot from chatAck */
 export interface PendingAgentSlot {
   agent_id: string;
+  agent_round_id: string;
   msg_id: string;
-  round_id?: string;
   status?: AssistantMessageStatus;
   timestamp?: number;
+  index?: number;
 }
 
-/** Room 前端占位槽位状态。 */
+/** Room 前端占位槽位状态。round_id 是 root round。 */
 export interface RoomPendingAgentSlotState extends PendingAgentSlot {
   round_id: string;
   status: AssistantMessageStatus;
@@ -329,10 +334,21 @@ export interface RoomPendingAgentSlotState extends PendingAgentSlot {
 
 /** chatAck event data */
 export interface ChatAckData {
-  req_id: string;
+  client_request_id: string;
+  client_message_id: string;
   round_id: string;
+  user_message_id: string;
   pending: PendingAgentSlot[];
   ack_timeout_ms?: number;
+}
+
+/** agent_round_status event data（Room slot 生命周期）。 */
+export interface AgentRoundStatusEventPayload {
+  round_id: string;
+  agent_round_id: string;
+  agent_id: string;
+  status: RoundLifecycleStatus;
+  is_terminal: boolean;
 }
 
 export type RoomCollaborationEventType = "agent_message" | "room_broadcast";

@@ -90,7 +90,6 @@ func TestRealtimeServiceMCPBuilderUsesSharedRoomSessionContext(t *testing.T) {
 		ConversationID: roomContext.Conversation.ID,
 		Content:        "@助手甲 每天 9 点检查新闻并发回这个房间",
 		RoundID:        "room-round-mcp-context",
-		ReqID:          "room-round-mcp-context",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}
@@ -214,7 +213,6 @@ func TestRealtimeServiceUsesAndPersistsRoomSDKSessionID(t *testing.T) {
 		ConversationID: roomContext.Conversation.ID,
 		Content:        "测试 room resume",
 		RoundID:        "room-round-resume",
-		ReqID:          "room-round-resume",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}
@@ -326,7 +324,6 @@ func TestRealtimeServiceSkipsRoomSDKSessionIDWhenTranscriptMissing(t *testing.T)
 		ConversationID: roomContext.Conversation.ID,
 		Content:        "测试缺失 transcript 时跳过 room resume",
 		RoundID:        "room-round-missing-transcript",
-		ReqID:          "room-round-missing-transcript",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}
@@ -423,7 +420,6 @@ func TestRealtimeServiceDoesNotPersistRoomSDKSessionIDWithoutTranscript(t *testi
 		ConversationID: roomContext.Conversation.ID,
 		Content:        "测试无 transcript 时不写 room resume",
 		RoundID:        "room-round-without-transcript",
-		ReqID:          "room-round-without-transcript",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}
@@ -549,7 +545,6 @@ func TestRealtimeServiceRetriesRoomRuntimeWithoutStaleSDKSessionID(t *testing.T)
 		ConversationID: roomContext.Conversation.ID,
 		Content:        "测试 room stale resume 恢复",
 		RoundID:        "room-round-stale-resume",
-		ReqID:          "room-round-stale-resume",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}

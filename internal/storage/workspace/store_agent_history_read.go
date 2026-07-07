@@ -59,17 +59,18 @@ func (s *AgentHistoryStore) readHistoryRows(
 	sessionValue protocol.Session,
 ) ([]protocol.Message, error) {
 	sessionID := strings.TrimSpace(stringPointerValue(sessionValue.SessionID))
-	overlayRows, roundMarkers, err := s.readOverlayRowsAndMarkers(workspacePath, sessionValue.SessionKey)
+	overlayState, err := s.readOverlayHistoryState(workspacePath, sessionValue.SessionKey)
 	if err != nil {
 		return nil, err
 	}
 	if sessionID == "" {
-		return buildOverlayOnlyHistoryRows(
+		rows := buildOverlayOnlyHistoryRows(
 			sessionValue.SessionKey,
 			sessionValue.AgentID,
-			overlayRows,
-			roundMarkers,
-		), nil
+			overlayState.MessageRows,
+			overlayState.RoundMarkers,
+		)
+		return applyHistoryRewrites(rows, overlayState.Rewrites), nil
 	}
 
 	transcriptRows, err := s.readTranscriptMessages(
@@ -77,22 +78,24 @@ func (s *AgentHistoryStore) readHistoryRows(
 		sessionValue.SessionKey,
 		sessionValue.AgentID,
 		sessionID,
-		roundMarkers,
+		overlayState.RoundMarkers,
 	)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			// transcript 文件尚未出现时，只返回当前 overlay/round marker。
-			return buildOverlayOnlyHistoryRows(
+			rows := buildOverlayOnlyHistoryRows(
 				sessionValue.SessionKey,
 				sessionValue.AgentID,
-				overlayRows,
-				roundMarkers,
-			), nil
+				overlayState.MessageRows,
+				overlayState.RoundMarkers,
+			)
+			return applyHistoryRewrites(rows, overlayState.Rewrites), nil
 		}
 		return nil, err
 	}
 
-	return mergeTranscriptAndOverlayRows(transcriptRows, overlayRows), nil
+	rows := mergeTranscriptAndOverlayRows(transcriptRows, overlayState.MessageRows)
+	return applyHistoryRewrites(rows, overlayState.Rewrites), nil
 }
 
 func buildOverlayOnlyHistoryRows(
@@ -133,14 +136,23 @@ func materializeRoundMarkerMessages(
 		if roundID == "" || marker.HiddenFromUser {
 			continue
 		}
+		// 旧 marker 没有独立 user_message_id（历史上 message_id == round_id），
+		// 读取时归一化为稳定派生 id，运行时不再出现两者相等的形状。
+		userMessageID := strings.TrimSpace(marker.UserMessageID)
+		if userMessageID == "" {
+			userMessageID = "msg_user_" + roundID
+		}
 		row := protocol.Message{
-			"message_id":  roundID,
+			"message_id":  userMessageID,
 			"session_key": sessionKey,
 			"agent_id":    strings.TrimSpace(agentID),
 			"round_id":    roundID,
 			"role":        "user",
 			"content":     strings.TrimSpace(marker.Content),
 			"timestamp":   marker.Timestamp,
+		}
+		if agentRoundID := strings.TrimSpace(marker.AgentRoundID); agentRoundID != "" {
+			row["agent_round_id"] = agentRoundID
 		}
 		if strings.TrimSpace(marker.DeliveryPolicy) != "" {
 			row["delivery_policy"] = string(protocol.NormalizeChatDeliveryPolicy(marker.DeliveryPolicy))

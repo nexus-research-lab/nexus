@@ -28,12 +28,13 @@ func (s *Service) broadcastUserRoundMarker(
 	ctx context.Context,
 	sessionValue protocol.Session,
 	roundID string,
+	userMessageID string,
 	content string,
 	deliveryPolicy protocol.ChatDeliveryPolicy,
 	attachments []protocol.ChatAttachment,
 ) {
-	message := dmdomain.BuildUserRoundMarker(sessionValue, roundID, content, deliveryPolicy, attachments)
-	event := dmdomain.WrapSessionMessageEvent(sessionValue, message, "durable", "")
+	message := dmdomain.BuildUserRoundMarker(sessionValue, roundID, userMessageID, content, deliveryPolicy, attachments)
+	event := dmdomain.WrapSessionMessageEvent(sessionValue, message, "durable", roundID)
 	s.broadcastEventWithTimeout(ctx, sessionValue.SessionKey, event)
 }
 

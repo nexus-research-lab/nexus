@@ -52,7 +52,9 @@ type roundRunner struct {
 	agent               *protocol.Agent
 	sessionKey          string
 	roundID             string
-	reqID               string
+	agentRoundID        string
+	userMessageID       string
+	clientRequestID     string
 	content             string
 	runtimeContent      conversationsvc.RuntimeContent
 	client              runtimectx.Client
@@ -199,7 +201,8 @@ func (r *roundRunner) handleDurableMessage(message protocol.Message) error {
 			DispatchSessionKey: r.sessionKey,
 			AgentID:            r.agent.AgentID,
 			MessageID:          dmdomain.NormalizeString(message["message_id"]),
-			CausedBy:           r.roundID,
+			RoundID:            r.roundID,
+			AgentRoundID:       r.agentRoundID,
 		})
 	}
 	return nil

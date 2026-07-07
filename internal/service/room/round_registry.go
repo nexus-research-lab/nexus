@@ -3,6 +3,8 @@ package room
 import (
 	"sort"
 	"strings"
+
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 // ActiveRoundSnapshot 表示 Room 当前仍在执行的主轮次快照。
@@ -11,7 +13,7 @@ type ActiveRoundSnapshot struct {
 	RoomID         string
 	ConversationID string
 	RoundID        string
-	Pending        []map[string]any
+	Pending        []protocol.ChatAckPendingSlot
 }
 
 // CountRunningTasks 返回指定 Agent 当前在 Room 中的活跃任务数。
@@ -35,7 +37,7 @@ func (s *RealtimeService) GetActiveRoundSnapshot(conversationID string) *ActiveR
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	pending := make([]map[string]any, 0)
+	pending := make([]protocol.ChatAckPendingSlot, 0)
 	snapshot := &ActiveRoundSnapshot{}
 	for _, roundValue := range s.activeRounds {
 		if roundValue == nil || roundValue.ConversationID != conversationID {
@@ -45,7 +47,7 @@ func (s *RealtimeService) GetActiveRoundSnapshot(conversationID string) *ActiveR
 			snapshot.SessionKey = roundValue.SessionKey
 			snapshot.RoomID = roundValue.RoomID
 			snapshot.ConversationID = roundValue.ConversationID
-			snapshot.RoundID = roundValue.RoundID
+			snapshot.RoundID = roomRootRoundID(roundValue)
 		}
 		for _, slot := range roundValue.Slots {
 			if slot == nil || slot.isTerminal() {
@@ -55,13 +57,13 @@ func (s *RealtimeService) GetActiveRoundSnapshot(conversationID string) *ActiveR
 			if status == "running" {
 				status = "streaming"
 			}
-			pending = append(pending, map[string]any{
-				"agent_id":  slot.AgentID,
-				"msg_id":    slot.MsgID,
-				"round_id":  slot.AgentRoundID,
-				"status":    status,
-				"timestamp": slot.TimestampMS,
-				"index":     slot.Index,
+			pending = append(pending, protocol.ChatAckPendingSlot{
+				AgentID:      slot.AgentID,
+				AgentRoundID: slot.AgentRoundID,
+				MsgID:        slot.MsgID,
+				Status:       status,
+				Timestamp:    slot.TimestampMS,
+				Index:        slot.Index,
 			})
 		}
 	}
@@ -69,16 +71,11 @@ func (s *RealtimeService) GetActiveRoundSnapshot(conversationID string) *ActiveR
 		return nil
 	}
 	sort.Slice(pending, func(i int, j int) bool {
-		leftTime := normalizeInt64(pending[i]["timestamp"])
-		rightTime := normalizeInt64(pending[j]["timestamp"])
-		if leftTime != rightTime {
-			return leftTime < rightTime
+		if pending[i].Timestamp != pending[j].Timestamp {
+			return pending[i].Timestamp < pending[j].Timestamp
 		}
-		return intValue(pending[i]["index"]) < intValue(pending[j]["index"])
+		return pending[i].Index < pending[j].Index
 	})
-	for _, item := range pending {
-		delete(item, "index")
-	}
 	snapshot.Pending = pending
 	return snapshot
 }

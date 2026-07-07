@@ -53,6 +53,77 @@ func (h *Handlers) HandleSessionMessagesByQuery(writer http.ResponseWriter, requ
 	h.writeSessionMessages(writer, request, sessionKey)
 }
 
+// HandleSessionTurns 返回指定 session 的 ConversationTurn 分页。
+func (h *Handlers) HandleSessionTurns(writer http.ResponseWriter, request *http.Request) {
+	sessionKey := strings.TrimSpace(chi.URLParam(request, "session_key"))
+	h.writeSessionTurns(writer, request, sessionKey)
+}
+
+// HandleSessionTurnsByQuery 返回指定 session 的 ConversationTurn 分页。
+func (h *Handlers) HandleSessionTurnsByQuery(writer http.ResponseWriter, request *http.Request) {
+	sessionKey := strings.TrimSpace(request.URL.Query().Get("session_key"))
+	if sessionKey == "" {
+		h.api.WriteFailure(writer, http.StatusBadRequest, "session_key 参数缺失")
+		return
+	}
+	h.writeSessionTurns(writer, request, sessionKey)
+}
+
+func (h *Handlers) writeSessionTurns(writer http.ResponseWriter, request *http.Request, sessionKey string) {
+	limit := 0
+	if rawLimit := strings.TrimSpace(request.URL.Query().Get("limit")); rawLimit != "" {
+		parsedLimit, parseErr := strconv.Atoi(rawLimit)
+		if parseErr != nil || parsedLimit <= 0 {
+			h.api.WriteFailure(writer, http.StatusBadRequest, "limit 参数错误")
+			return
+		}
+		limit = parsedLimit
+	}
+	page, err := h.sessions.GetSessionTurnsPage(request.Context(), sessionKey, sessionpkg.TurnPageRequest{
+		Limit:         limit,
+		BeforeRoundID: strings.TrimSpace(request.URL.Query().Get("before_round_id")),
+		AroundRoundID: strings.TrimSpace(request.URL.Query().Get("around_round_id")),
+		Sort:          strings.TrimSpace(request.URL.Query().Get("sort")),
+		View:          strings.TrimSpace(request.URL.Query().Get("view")),
+	})
+	if handlershared.IsStructuredSessionKeyError(err) {
+		h.api.WriteFailure(writer, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	if errors.Is(err, sessionpkg.ErrSessionNotFound) {
+		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+		return
+	}
+	if err != nil {
+		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
+	h.api.WriteSuccess(writer, page)
+}
+
+// HandleSessionTurnIndexByQuery 返回指定 session 的 turn 导航索引。
+func (h *Handlers) HandleSessionTurnIndexByQuery(writer http.ResponseWriter, request *http.Request) {
+	sessionKey := strings.TrimSpace(request.URL.Query().Get("session_key"))
+	if sessionKey == "" {
+		h.api.WriteFailure(writer, http.StatusBadRequest, "session_key 参数缺失")
+		return
+	}
+	items, err := h.sessions.GetSessionTurnIndex(request.Context(), sessionKey)
+	if handlershared.IsStructuredSessionKeyError(err) {
+		h.api.WriteFailure(writer, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	if errors.Is(err, sessionpkg.ErrSessionNotFound) {
+		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+		return
+	}
+	if err != nil {
+		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
+	h.api.WriteSuccess(writer, map[string]any{"items": items})
+}
+
 // HandleSessionRoundsByQuery 返回指定 session 的完整 round 导航索引。
 func (h *Handlers) HandleSessionRoundsByQuery(writer http.ResponseWriter, request *http.Request) {
 	sessionKey := strings.TrimSpace(request.URL.Query().Get("session_key"))

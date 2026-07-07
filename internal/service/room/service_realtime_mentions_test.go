@@ -69,7 +69,6 @@ func TestRealtimeServiceWakesMentionedAgentFromPublicAssistantReply(t *testing.T
 		ConversationID: roomContext.Conversation.ID,
 		Content:        "@Amy 让 Devin 查下天气",
 		RoundID:        "room-round-public-mention",
-		ReqID:          "room-round-public-mention",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}
@@ -162,7 +161,6 @@ func TestRealtimeServiceAllowsReciprocalPublicMentionChain(t *testing.T) {
 		ConversationID: roomContext.Conversation.ID,
 		Content:        "@Amy 你俩接力 5 轮",
 		RoundID:        "room-round-public-mention-chain",
-		ReqID:          "room-round-public-mention-chain",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}
@@ -251,7 +249,6 @@ func TestRealtimeServiceQueuesPublicMentionWhenTargetRunning(t *testing.T) {
 		ConversationID: roomContext.Conversation.ID,
 		Content:        "@Devin 先处理一个长任务",
 		RoundID:        "room-round-devin-busy",
-		ReqID:          "room-round-devin-busy",
 	}); err != nil {
 		t.Fatalf("启动 Devin 长任务失败: %v", err)
 	}
@@ -265,7 +262,6 @@ func TestRealtimeServiceQueuesPublicMentionWhenTargetRunning(t *testing.T) {
 		ConversationID: roomContext.Conversation.ID,
 		Content:        "@Amy 让 Devin 查下天气",
 		RoundID:        "room-round-amy-mentions-busy-devin",
-		ReqID:          "room-round-amy-mentions-busy-devin",
 	}); err != nil {
 		t.Fatalf("启动 Amy 公区 @ 失败: %v", err)
 	}

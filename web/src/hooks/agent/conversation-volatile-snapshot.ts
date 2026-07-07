@@ -241,7 +241,7 @@ export function filterPendingPermissionsFromSnapshot(
       return false;
     }
 
-    if (permission.caused_by && isRoundTerminal(permission.caused_by)) {
+    if (permission.round_id && isRoundTerminal(permission.round_id)) {
       return false;
     }
 

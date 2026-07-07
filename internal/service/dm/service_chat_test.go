@@ -96,7 +96,6 @@ func TestServiceHandleChatPersistsMessages(t *testing.T) {
 		SessionKey: sessionKey,
 		Content:    "你好",
 		RoundID:    "round-1",
-		ReqID:      "round-1",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}
@@ -284,7 +283,6 @@ func TestServiceHandleChatBroadcastsMergedParallelToolResults(t *testing.T) {
 		SessionKey: sessionKey,
 		Content:    "再试一下两个工具",
 		RoundID:    "round-parallel-tools",
-		ReqID:      "round-parallel-tools",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}
@@ -421,7 +419,6 @@ func TestServiceHandleChatKeepsThinkingDuringStreamingAndHistoryReplay(t *testin
 		SessionKey: sessionKey,
 		Content:    "今天天气怎么样呀",
 		RoundID:    "round-think-stream",
-		ReqID:      "round-think-stream",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}
@@ -523,7 +520,6 @@ func TestServiceHandleChatPersistsStructuredChannelMetadata(t *testing.T) {
 		SessionKey: sessionKey,
 		Content:    "结构化入口",
 		RoundID:    "round-structured",
-		ReqID:      "round-structured",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}
@@ -609,7 +605,6 @@ func TestServiceHandleChatFailsRoundWhenStreamEndsWithoutTerminalResult(t *testi
 		SessionKey: sessionKey,
 		Content:    "测试提前结束",
 		RoundID:    "round-premature",
-		ReqID:      "round-premature",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}

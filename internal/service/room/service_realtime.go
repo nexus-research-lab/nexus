@@ -48,6 +48,8 @@ func (f defaultRoomClientFactory) New(options agentclient.Options) runtimectx.Cl
 }
 
 // ChatRequest 表示 Room 共享会话的一次聊天请求。
+// RoundID / UserMessageID 由后端 mint：WS 入口不填，HandleChat 内部生成；
+// 后端内部调用方（automation / mention / queue）可预置 RoundID。
 type ChatRequest struct {
 	SessionKey           string
 	RoomID               string
@@ -57,8 +59,10 @@ type ChatRequest struct {
 	GoalContext          string
 	Attachments          []protocol.ChatAttachment
 	TargetAgentIDs       []string
+	ClientRequestID      string
+	ClientMessageID      string
 	RoundID              string
-	ReqID                string
+	UserMessageID        string
 	DeliveryPolicy       protocol.ChatDeliveryPolicy
 	BroadcastUserMessage bool
 	Internal             bool
@@ -68,10 +72,11 @@ type ChatRequest struct {
 	EventObserver        RoomEventObserver
 }
 
-// InterruptRequest 表示 Room 会话中断请求。
+// InterruptRequest 表示 Room 会话中断请求。按 root round + agent slot 定位执行对象。
 type InterruptRequest struct {
-	SessionKey string
-	MsgID      string
+	SessionKey   string
+	RoundID      string
+	AgentRoundID string
 }
 
 // MCPServerBuilder 由 server app 注入，按当前会话上下文构造一组 MCP server。

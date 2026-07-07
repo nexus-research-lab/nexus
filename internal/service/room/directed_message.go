@@ -314,7 +314,6 @@ func newRoomDirectedMessageWakeEvent(
 	event.ConversationID = roundValue.ConversationID
 	event.AgentID = strings.TrimSpace(wake.SourceAgentID)
 	event.MessageID = strings.TrimSpace(wake.MessageID)
-	event.CausedBy = strings.TrimSpace(wake.MessageID)
 	return event
 }
 
@@ -336,6 +335,5 @@ func newRoomDirectedMessageScheduledWakeEvent(message protocol.RoomDirectedMessa
 	event.ConversationID = message.ConversationID
 	event.AgentID = message.SourceAgentID
 	event.MessageID = message.MessageID
-	event.CausedBy = strings.TrimSpace(message.MessageID)
 	return event
 }

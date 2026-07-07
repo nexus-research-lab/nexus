@@ -78,7 +78,6 @@ func TestRealtimeServiceCompletesRoomRoundFromTerminalAssistantWithoutResult(t *
 		ConversationID: roomContext.Conversation.ID,
 		Content:        "@终态助手 写一句话",
 		RoundID:        "room-round-assistant-terminal",
-		ReqID:          "room-round-assistant-terminal",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}
@@ -247,7 +246,6 @@ func TestRealtimeServiceKeepsThinkingDuringStreamingAndHistoryReplay(t *testing.
 		ConversationID: dmContext.Conversation.ID,
 		Content:        "今天天气怎么样呀",
 		RoundID:        "room-round-think-stream",
-		ReqID:          "room-round-think-stream",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}

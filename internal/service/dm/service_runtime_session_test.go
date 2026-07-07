@@ -142,7 +142,6 @@ func TestServiceHandleChatUsesPersistedSessionIDAsResume(t *testing.T) {
 		SessionKey: sessionKey,
 		Content:    "测试 resume",
 		RoundID:    "round-resume",
-		ReqID:      "round-resume",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}
@@ -192,7 +191,6 @@ func TestServiceHandleChatDoesNotPersistSDKSessionIDWithoutTranscript(t *testing
 		SessionKey: sessionKey,
 		Content:    "测试 transcript 未落盘不写 resume",
 		RoundID:    "round-without-transcript",
-		ReqID:      "round-without-transcript",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}

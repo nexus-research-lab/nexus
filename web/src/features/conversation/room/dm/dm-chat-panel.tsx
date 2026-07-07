@@ -31,19 +31,13 @@ import { goalContinuationHoldForPermission } from "@/features/conversation/share
 import { GoalPanel } from "@/features/conversation/shared/goal-panel";
 import { ProviderUnavailableBanner } from "@/features/conversation/shared/provider-unavailable-banner";
 import { ScrollToLatestButton } from "@/features/conversation/shared/scroll-to-latest-button";
-import {
-  buildIndexedTimelineRoundIds,
-  buildTimelineRoundIds,
-} from "@/features/conversation/shared/timeline-rounds";
+import { useConversationTimeline } from "@/features/conversation/shared/use-conversation-timeline";
 import { useConversationComposerHandlers } from "@/features/conversation/shared/use-conversation-composer-handlers";
 import { useConversationHistoryLoader } from "@/features/conversation/shared/use-conversation-history-loader";
 import {
   useConversationSnapshotReporter,
   type ConversationSnapshotBuildInput,
 } from "@/features/conversation/shared/use-conversation-snapshot-reporter";
-import {
-  groupMessagesByRound,
-} from "@/features/conversation/shared/utils";
 import { useVisibleRoundWindowLoader } from "@/features/conversation/shared/use-visible-round-window-loader";
 import { CONVERSATION_TOUR_ANCHORS } from "../room-tour";
 
@@ -122,6 +116,7 @@ export function DmChatPanel({
     history_prepend_token: historyPrependToken,
     pending_permissions: pendingPermissions,
     send_message: sendMessage,
+    rewrite_last_user_message: rewriteLastUserMessage,
     stop_generation: stopGeneration,
     load_session: loadSession,
     load_older_messages: loadOlderMessages,
@@ -231,19 +226,15 @@ export function DmChatPanel({
     debug_name: "DmChatPanel",
   });
 
-  const messageGroups = useMemo(
-    () => groupMessagesByRound(messages),
-    [messages],
-  );
-  const loadedRoundIds = useMemo(
-    () => buildTimelineRoundIds(messageGroups, liveRoundIds),
-    [liveRoundIds, messageGroups],
-  );
   const roundIndexItems = useSessionRoundIndex(sessionKey);
-  const feedRoundIds = useMemo(
-    () => buildIndexedTimelineRoundIds(roundIndexItems, loadedRoundIds),
-    [loadedRoundIds, roundIndexItems],
-  );
+  const timeline = useConversationTimeline({
+    chat_type: "dm",
+    messages,
+    live_round_ids: liveRoundIds,
+    round_index_items: roundIndexItems,
+  });
+  const messageGroups = timeline.message_groups;
+  const feedRoundIds = timeline.feed_round_ids;
   const useIndexedTimeline = roundIndexItems.length > 0;
   const visibleRoundLoaderRevision = `${feedRoundIds.length}:${messages.length}:${liveRoundIds.length}`;
   useVisibleRoundWindowLoader({
@@ -269,6 +260,13 @@ export function DmChatPanel({
 
   const handleStop = () => stopGeneration();
 
+  const handleEditLastUserMessage = useCallback(
+    (messageId: string, newContent: string) => {
+      void rewriteLastUserMessage(messageId, newContent);
+    },
+    [rewriteLastUserMessage],
+  );
+
   const handleCreateGoal = useCallback(async (objective: string) => {
     if (!sessionKey) {
       throw new Error("当前会话尚未准备好，暂时无法启动 Goal。");
@@ -286,12 +284,10 @@ export function DmChatPanel({
       {!isMobileLayout ? (
         <ConversationSessionNavigator
           className="absolute bottom-[156px] left-3 top-7 z-20"
-          liveRoundIds={liveRoundIds}
-          messageGroups={messageGroups}
+          timeline={timeline}
           onLoadRoundWindow={loadRoundWindow}
           onNavigateStart={pauseFollowLatest}
           roundScrollRef={roundScrollRef}
-          roundIndexItems={roundIndexItems}
           scrollRef={scrollRef}
         />
       ) : null}
@@ -332,6 +328,7 @@ export function DmChatPanel({
           messageGroups={messageGroups}
           onOpenAgentContact={onOpenAgentContact}
           onOpenWorkspaceFile={onOpenWorkspaceFile}
+          onEditLastUserMessage={handleEditLastUserMessage}
           onPermissionResponse={sendPermissionResponse}
           roundScrollRef={roundScrollRef}
           roundIndexItems={roundIndexItems}

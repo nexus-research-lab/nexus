@@ -42,3 +42,12 @@ type MessagePageRequest struct {
 	AroundRoundID        string
 	AroundLimit          int
 }
+
+// TurnPageRequest 表示 turn 投影分页读取请求。
+type TurnPageRequest struct {
+	Limit         int
+	BeforeRoundID string
+	AroundRoundID string
+	Sort          string // asc | desc
+	View          string // summary | full
+}

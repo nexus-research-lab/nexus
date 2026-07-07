@@ -9,7 +9,6 @@ import type {
 } from "@/types/conversation/permission";
 import {
   getRoomAgentRoundEntry,
-  getRoomBaseRoundId,
   getRoomThreadMessages,
   isAgentRoundActive,
 } from "@/features/conversation/shared/utils";
@@ -51,19 +50,8 @@ function getThreadPendingPermissions(
     if (permission.agent_id !== agentId) {
       return false;
     }
-    if (!permission.caused_by) {
-      return false;
-    }
-    if (
-      getRoomBaseRoundId(permission.caused_by, permission.agent_id) !==
-      roundId
-    ) {
-      return false;
-    }
-    // Room 的权限请求在很多场景下绑定的是占位槽位 msgId，
-    // 不是 assistant 真正的 messageId。Thread 已经按 roundId + agentId 收口，
-    // 这里不能再按 messageId 二次过滤，否则问答/权限会被错误吞掉。
-    return true;
+    // 权限事件带显式 root round_id，直接精确匹配。
+    return permission.round_id === roundId;
   });
 }
 

@@ -23,6 +23,17 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 	if err != nil {
 		return err
 	}
+	// round_id / user_message_id / agent_round_id 一律由后端 mint；
+	// RoundID 允许后端内部调用方预置（automation / queue / goal）。
+	if strings.TrimSpace(request.RoundID) == "" {
+		request.RoundID = protocol.NewRoundID()
+	}
+	if strings.TrimSpace(request.UserMessageID) == "" {
+		request.UserMessageID = protocol.NewUserMessageID()
+	}
+	if strings.TrimSpace(request.AgentRoundID) == "" {
+		request.AgentRoundID = protocol.NewAgentRoundID()
+	}
 	agentID := dmdomain.FirstNonEmpty(parsed.AgentID, request.AgentID)
 	if agentID == "" {
 		defaultAgent, defaultErr := s.agents.GetDefaultAgent(ctx)
@@ -43,6 +54,12 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 		return err
 	}
 	initialMessageCount := sessionItem.MessageCount
+	if request.ForceNewRuntimeSession {
+		if err = s.runtime.CloseSession(ctx, sessionKey); err != nil && !runtimectx.IsRuntimeTransportClosedError(err) {
+			return err
+		}
+		sessionItem.SessionID = nil
+	}
 	deliveryPolicy := protocol.NormalizeChatDeliveryPolicy(string(request.DeliveryPolicy))
 
 	if !request.Internal && protocol.ShouldGuideRunningRound(deliveryPolicy) {
@@ -76,6 +93,9 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 	if err != nil {
 		return err
 	}
+	if prefix := strings.TrimSpace(request.HistoryContextPrefix); prefix != "" {
+		runtimeContent = runtimeContent.PrependText(prefix)
+	}
 	runtimeContent = s.injectMemoryContext(ctx, agentValue, sessionItem, sessionKey, request.Content, runtimeContent)
 	runtimeContent = s.appendRuntimeUserContext(ctx, sessionKey, agentValue, runtimeContent)
 
@@ -92,12 +112,31 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 	if override := strings.TrimSpace(request.GoalContext); request.Internal && override != "" {
 		goalContext = override
 	}
+	if err = s.recordHistoryRewrite(ctx, runnerRewriteInput{
+		WorkspacePath:      agentValue.WorkspacePath,
+		SessionKey:         sessionKey,
+		TargetRoundID:      request.RewriteTargetRoundID,
+		ReplacementRoundID: request.RoundID,
+		Content:            request.Content,
+		Attachments:        request.Attachments,
+	}); err != nil {
+		if closeErr := s.runtime.CloseSession(ctx, sessionKey); closeErr != nil && !runtimectx.IsRuntimeTransportClosedError(closeErr) {
+			s.loggerFor(ctx).Warn("DM rewrite marker 写入失败后关闭 runtime 失败",
+				"session_key", sessionKey,
+				"agent_id", agentID,
+				"round_id", request.RoundID,
+				"err", closeErr,
+			)
+		}
+		return err
+	}
 	roundCtx, cancel := context.WithCancel(context.Background())
 	s.runtime.StartRound(sessionKey, request.RoundID, cancel)
 	s.permission.BindSessionRoute(sessionKey, permissionctx.RouteContext{
 		DispatchSessionKey: sessionKey,
 		AgentID:            agentID,
-		CausedBy:           request.RoundID,
+		RoundID:            request.RoundID,
+		AgentRoundID:       request.AgentRoundID,
 	})
 
 	runner := &roundRunner{
@@ -107,7 +146,9 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 		agent:               agentValue,
 		sessionKey:          sessionKey,
 		roundID:             request.RoundID,
-		reqID:               dmdomain.FirstNonEmpty(request.ReqID, request.RoundID),
+		agentRoundID:        request.AgentRoundID,
+		userMessageID:       request.UserMessageID,
+		clientRequestID:     request.ClientRequestID,
 		content:             strings.TrimSpace(request.Content),
 		runtimeContent:      runtimeContent,
 		client:              client,
@@ -115,7 +156,7 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 		runtimeProvider:     runtimeProvider,
 		runtimeModel:        runtimeModel,
 		ownerUserID:         authctx.OwnerUserID(ctx),
-		mapper:              dmdomain.NewMessageMapper(sessionKey, agentID, request.RoundID, agentValue.WorkspacePath),
+		mapper:              dmdomain.NewMessageMapper(sessionKey, agentID, request.RoundID, request.AgentRoundID, request.UserMessageID, agentValue.WorkspacePath),
 		inputOptions:        request.InputOptions,
 		internal:            request.Internal,
 		externalReplyTarget: request.ExternalReplyTarget,
@@ -134,13 +175,15 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 		"session_key", sessionKey,
 		"agent_id", agentID,
 		"round_id", request.RoundID,
-		"req_id", runner.reqID,
+		"client_request_id", runner.clientRequestID,
 		"content_chars", utf8.RuneCountInString(runner.content),
 		"content_preview", logx.PreviewText(runner.content, 240),
 		"attachment_count", len(request.Attachments),
 	)
 
 	markerOptions := workspacestore.RoundMarkerOptions{
+		UserMessageID:  request.UserMessageID,
+		AgentRoundID:   request.AgentRoundID,
 		DeliveryPolicy: string(deliveryPolicy),
 		Attachments:    request.Attachments,
 		HiddenFromUser: request.Internal || request.InputOptions.HiddenFromUser,
@@ -205,16 +248,38 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 	}
 
 	if !request.Internal {
-		s.broadcastEventWithTimeout(ctx, sessionKey, protocol.NewChatAckEvent(sessionKey, runner.reqID, request.RoundID, []map[string]any{}))
+		s.broadcastEventWithTimeout(ctx, sessionKey, protocol.NewChatAckEvent(
+			sessionKey,
+			request.ClientRequestID,
+			request.ClientMessageID,
+			request.RoundID,
+			request.UserMessageID,
+			dmChatAckPendingSlots(agentID, request.AgentRoundID),
+		))
 	}
 	if request.BroadcastUserMessage {
-		s.broadcastUserRoundMarker(ctx, runner.session, runner.roundID, runner.content, deliveryPolicy, request.Attachments)
+		s.broadcastUserRoundMarker(ctx, runner.session, runner.roundID, request.UserMessageID, runner.content, deliveryPolicy, request.Attachments)
+	}
+	if strings.TrimSpace(request.RewriteTargetRoundID) != "" {
+		s.broadcastHistoryRewriteResync(ctx, sessionKey, request.RewriteTargetRoundID, request.RoundID)
 	}
 	s.broadcastEventWithTimeout(ctx, sessionKey, protocol.NewRoundStatusEvent(sessionKey, request.RoundID, "running", ""))
 	s.broadcastSessionStatus(ctx, sessionKey)
 
 	go runner.run(roundCtx)
 	return nil
+}
+
+// dmChatAckPendingSlots 构造 DM chat_ack 的单 slot 占位，DM 与 Room 共用 agent_slots 语义。
+func dmChatAckPendingSlots(agentID string, agentRoundID string) []protocol.ChatAckPendingSlot {
+	return []protocol.ChatAckPendingSlot{{
+		AgentID:      agentID,
+		AgentRoundID: agentRoundID,
+		MsgID:        agentRoundID,
+		Status:       "pending",
+		Timestamp:    time.Now().UnixMilli(),
+		Index:        0,
+	}}
 }
 
 func (s *Service) validateRequest(request Request) (string, protocol.SessionKey, error) {
@@ -225,9 +290,6 @@ func (s *Service) validateRequest(request Request) (string, protocol.SessionKey,
 	if !protocol.HasChatInput(request.Content, request.Attachments) &&
 		!(request.Internal && strings.TrimSpace(request.GoalContext) != "") {
 		return "", protocol.SessionKey{}, errors.New("content is required")
-	}
-	if strings.TrimSpace(request.RoundID) == "" {
-		return "", protocol.SessionKey{}, errors.New("round_id is required")
 	}
 
 	parsed := protocol.ParseSessionKey(sessionKey)

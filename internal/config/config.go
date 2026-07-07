@@ -109,6 +109,7 @@ func Load() Config {
 			logFormat = "json"
 		}
 	}
+	workspacePath := configuredWorkspacePath(getEnv("WORKSPACE_PATH", ""))
 	return Config{
 		Host:                           getEnv("HOST", "0.0.0.0"),
 		Port:                           parseIntEnv(getEnv("PORT", "8010"), 8010),
@@ -130,7 +131,7 @@ func Load() Config {
 		WebSocketPath:                  getEnv("WEBSOCKET_PATH", "/nexus/v1/chat/ws"),
 		DefaultAgentID:                 getEnv("DEFAULT_AGENT_ID", "nexus"),
 		DefaultTimezone:                getEnv("DEFAULT_TIMEZONE", "Asia/Shanghai"),
-		WorkspacePath:                  getEnv("WORKSPACE_PATH", ""),
+		WorkspacePath:                  workspacePath,
 		CacheFileDir:                   cacheDir,
 		WebDistDir:                     getEnv("WEB_DIST_DIR", ""),
 		AppMode:                        getEnv("NEXUS_APP_MODE", ""),

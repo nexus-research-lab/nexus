@@ -85,6 +85,10 @@ export interface UseAgentConversationReturn {
     content: string,
     options?: AgentConversationSendOptions,
   ) => Promise<void>;
+  rewrite_last_user_message: (
+    targetRoundId: string,
+    content: string,
+  ) => Promise<void>;
   enqueue_input_queue_message: (
     content: string,
     deliveryPolicy?: AgentConversationDeliveryPolicy,
@@ -100,7 +104,7 @@ export interface UseAgentConversationReturn {
   load_round_window: (roundId: string) => Promise<boolean>;
   clear_session: () => void;
   reset_session: () => void;
-  stop_generation: (msgId?: string) => void;
+  stop_generation: (agentRoundId?: string) => void;
   pending_permissions: PendingPermission[];
   send_permission_response: (payload: PermissionDecisionPayload) => boolean;
 }
@@ -262,6 +266,10 @@ export interface HandleAgentConversationWebSocketMessageParams {
   sync_session_status?: (payload: SessionStatusEventPayload) => void;
   /** 后端同步单个 round 的权威生命周期 */
   apply_round_status?: (roundId: string, status: RoundLifecycleStatus) => void;
+  /** 后端同步 Room slot 的权威生命周期 */
+  apply_agent_round_status?: (
+    payload: import('@/types/conversation/message').AgentRoundStatusEventPayload,
+  ) => void;
   /** 记录本轮 chatAck 预分配的活跃消息槽位 */
   track_chat_ack?: (ack: ChatAckData, sessionKey: string | null) => void;
   /** 同步 assistant 完整消息的终态 */

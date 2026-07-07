@@ -8,19 +8,21 @@ import type {
 } from "@/types";
 import type { AgentConversationChatType } from "@/types/agent/agent-conversation";
 import type { PendingPermission } from "@/types/conversation/permission";
-import {
-  getTerminalMessageStatus,
-  matchesRoundLifecycle,
-} from "./conversation-runtime-state";
+import { getTerminalMessageStatus } from "./conversation-runtime-state";
 import { isEphemeralMessage } from "./conversation-volatile-snapshot";
 
 export function filterRoundPendingAgentSlots(
   slots: RoomPendingAgentSlotState[],
   roundId: string,
 ): RoomPendingAgentSlotState[] {
-  return slots.filter(
-    (slot) => !matchesRoundLifecycle(slot.round_id, roundId),
-  );
+  return slots.filter((slot) => slot.round_id !== roundId);
+}
+
+export function filterAgentRoundPendingAgentSlots(
+  slots: RoomPendingAgentSlotState[],
+  agentRoundId: string,
+): RoomPendingAgentSlotState[] {
+  return slots.filter((slot) => slot.agent_round_id !== agentRoundId);
 }
 
 export function filterRoundPendingPermissions(
@@ -28,25 +30,43 @@ export function filterRoundPendingPermissions(
   roundId: string,
 ): PendingPermission[] {
   return permissions.filter((permission) => {
-    if (!permission.caused_by) {
+    if (!permission.round_id) {
       return true;
     }
-    return !matchesRoundLifecycle(permission.caused_by, roundId);
+    return permission.round_id !== roundId;
   });
 }
 
 export function removeFailedOutboundUserMessage(
   messages: Message[],
-  roundId: string,
+  clientMessageId: string,
 ): Message[] {
   return messages.filter(
     (message) =>
-      !(
-        message.role === "user" &&
-        message.message_id === roundId &&
-        message.round_id === roundId
-      ),
+      !(message.role === "user" && message.message_id === clientMessageId),
   );
+}
+
+/** ack 后把 optimistic user message 替换成 canonical id。 */
+export function replaceOptimisticUserMessage(
+  messages: Message[],
+  clientMessageId: string,
+  userMessageId: string,
+  roundId: string,
+): Message[] {
+  let hasChanges = false;
+  const next = messages.map((message) => {
+    if (message.role !== "user" || message.message_id !== clientMessageId) {
+      return message;
+    }
+    hasChanges = true;
+    return {
+      ...message,
+      message_id: userMessageId,
+      round_id: roundId,
+    };
+  });
+  return hasChanges ? next : messages;
 }
 
 export function cancelRunningAgentSlots(
@@ -65,23 +85,10 @@ export function cancelRunningAgentSlots(
 export function reconcileStoppedSessionMessages(
   messages: Message[],
   terminalRoundIds: string[],
-  chatType: AgentConversationChatType,
+  _chatType: AgentConversationChatType,
 ): Message[] {
   const terminalRoundSet = new Set(terminalRoundIds);
-  const isTerminalRound = (roundId: string) => {
-    if (terminalRoundSet.has(roundId)) {
-      return true;
-    }
-    if (chatType !== "group") {
-      return false;
-    }
-    for (const terminalRoundId of terminalRoundSet) {
-      if (roundId.startsWith(`${terminalRoundId}:`)) {
-        return true;
-      }
-    }
-    return false;
-  };
+  const isTerminalRound = (roundId: string) => terminalRoundSet.has(roundId);
 
   let hasChanges = false;
   const nextMessages: Message[] = [];
@@ -149,19 +156,12 @@ export function mergeChatAckPendingSlots(
   slots: RoomPendingAgentSlotState[],
   ack: ChatAckData,
 ): RoomPendingAgentSlotState[] {
-  const pendingCount = ack.pending?.length ?? 0;
-  const preservedSlots = slots.filter((slot) => {
-    const baseRoundId = slot.round_id.split(":", 1)[0];
-    return baseRoundId !== ack.round_id;
-  });
+  const preservedSlots = slots.filter((slot) => slot.round_id !== ack.round_id);
   const nextSlots = (ack.pending ?? []).map((slot) => ({
     agent_id: slot.agent_id,
+    agent_round_id: slot.agent_round_id,
     msg_id: slot.msg_id,
-    round_id:
-      slot.round_id ||
-      (pendingCount > 1
-        ? `${ack.round_id}:${slot.agent_id}`
-        : ack.round_id),
+    round_id: ack.round_id,
     status: (slot.status ?? "pending") as AssistantMessageStatus,
     timestamp: slot.timestamp ?? Date.now(),
   }));
@@ -178,10 +178,7 @@ export function applyTerminalRoundMessageStatus(
   const nextMessages: Message[] = [];
 
   for (const message of messages) {
-    if (
-      matchesRoundLifecycle(message.round_id, roundId) &&
-      isEphemeralMessage(message)
-    ) {
+    if (message.round_id === roundId && isEphemeralMessage(message)) {
       hasChanges = true;
       continue;
     }
@@ -189,7 +186,7 @@ export function applyTerminalRoundMessageStatus(
       nextMessages.push(message);
       continue;
     }
-    if (!matchesRoundLifecycle(message.round_id, roundId)) {
+    if (message.round_id !== roundId) {
       nextMessages.push(message);
       continue;
     }

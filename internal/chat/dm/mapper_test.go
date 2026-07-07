@@ -10,7 +10,7 @@ import (
 )
 
 func TestMessageMapperEmitsStreamLifecycleAndCumulativeBlocks(t *testing.T) {
-	mapper := NewMessageMapper("agent:nexus:ws:dm:test", "nexus", "round-stream")
+	mapper := NewMessageMapper("agent:nexus:ws:dm:test", "nexus", "round-stream", "agent-round-stream", "msg-user-stream")
 
 	events, _, _, _, err := mapper.Map(sdkprotocol.ReceivedMessage{
 		Type:      sdkprotocol.MessageTypeStreamEvent,
@@ -140,7 +140,7 @@ func TestMessageMapperEmitsStreamLifecycleAndCumulativeBlocks(t *testing.T) {
 }
 
 func TestMessageMapperMapsSystemTaskProgress(t *testing.T) {
-	mapper := NewMessageMapper("agent:nexus:ws:dm:test", "nexus", "round-system")
+	mapper := NewMessageMapper("agent:nexus:ws:dm:test", "nexus", "round-system", "agent-round-system", "msg-user-system")
 
 	events, _, _, _, err := mapper.Map(sdkprotocol.ReceivedMessage{
 		Type:      sdkprotocol.MessageTypeSystem,
@@ -173,7 +173,7 @@ func TestMessageMapperMapsSystemTaskProgress(t *testing.T) {
 }
 
 func TestMessageMapperMapsTaskStarted(t *testing.T) {
-	mapper := NewMessageMapper("agent:nexus:ws:dm:test", "nexus", "round-task-started")
+	mapper := NewMessageMapper("agent:nexus:ws:dm:test", "nexus", "round-task-started", "agent-round-task-started", "msg-user-task-started")
 
 	events, _, _, _, err := mapper.Map(sdkprotocol.ReceivedMessage{
 		Type:      sdkprotocol.MessageTypeTaskStarted,
@@ -213,7 +213,7 @@ func TestMessageMapperMapsTaskStarted(t *testing.T) {
 }
 
 func TestMessageMapperMapsTaskNotification(t *testing.T) {
-	mapper := NewMessageMapper("agent:nexus:ws:dm:test", "nexus", "round-task")
+	mapper := NewMessageMapper("agent:nexus:ws:dm:test", "nexus", "round-task", "agent-round-task", "msg-user-task")
 
 	events, _, _, _, err := mapper.Map(sdkprotocol.ReceivedMessage{
 		Type:      sdkprotocol.MessageTypeTaskNotification,
@@ -262,7 +262,7 @@ func TestMessageMapperMapsTaskNotification(t *testing.T) {
 }
 
 func TestMessageMapperMapsTaskUpdated(t *testing.T) {
-	mapper := NewMessageMapper("agent:nexus:ws:dm:test", "nexus", "round-task-updated")
+	mapper := NewMessageMapper("agent:nexus:ws:dm:test", "nexus", "round-task-updated", "agent-round-task-updated", "msg-user-task-updated")
 
 	events, _, _, _, err := mapper.Map(sdkprotocol.ReceivedMessage{
 		Type:      sdkprotocol.MessageTypeSystem,
@@ -302,7 +302,7 @@ func TestMessageMapperMapsTaskUpdated(t *testing.T) {
 }
 
 func TestMessageMapperEmitsApiRetryAsEphemeralSystemMessage(t *testing.T) {
-	mapper := NewMessageMapper("agent:nexus:ws:dm:test", "nexus", "round-api-retry")
+	mapper := NewMessageMapper("agent:nexus:ws:dm:test", "nexus", "round-api-retry", "agent-round-api-retry", "msg-user-api-retry")
 
 	events, durableMessages, _, _, err := mapper.Map(sdkprotocol.ReceivedMessage{
 		Type:      sdkprotocol.MessageTypeSystem,
@@ -333,7 +333,7 @@ func TestMessageMapperEmitsApiRetryAsEphemeralSystemMessage(t *testing.T) {
 }
 
 func TestMessageMapperEmitsCumulativeIndexesWhenRawIndexIsReused(t *testing.T) {
-	mapper := NewMessageMapper("agent:nexus:ws:dm:test", "nexus", "round-reused-index")
+	mapper := NewMessageMapper("agent:nexus:ws:dm:test", "nexus", "round-reused-index", "agent-round-reused-index", "msg-user-reused-index")
 
 	if _, _, _, _, err := mapper.Map(sdkprotocol.ReceivedMessage{
 		Type:      sdkprotocol.MessageTypeStreamEvent,
@@ -398,7 +398,7 @@ func TestMessageMapperEmitsCumulativeIndexesWhenRawIndexIsReused(t *testing.T) {
 }
 
 func TestMessageMapperMapsToolResultMessage(t *testing.T) {
-	mapper := NewMessageMapper("agent:nexus:ws:dm:test", "nexus", "round-tool-result")
+	mapper := NewMessageMapper("agent:nexus:ws:dm:test", "nexus", "round-tool-result", "agent-round-tool-result", "msg-user-tool-result")
 
 	// 先注入 tool_use 使 segment 能查到工具名
 	if _, _, _, _, err := mapper.Map(sdkprotocol.ReceivedMessage{
@@ -450,7 +450,7 @@ func TestMessageMapperMapsToolResultMessage(t *testing.T) {
 }
 
 func TestMessageMapperProjectsResultOntoAssistant(t *testing.T) {
-	mapper := NewMessageMapper("agent:nexus:ws:dm:test", "nexus", "round-result")
+	mapper := NewMessageMapper("agent:nexus:ws:dm:test", "nexus", "round-result", "agent-round-result", "msg-user-result")
 
 	events, durableMessages, _, _, err := mapper.Map(sdkprotocol.ReceivedMessage{
 		Type: sdkprotocol.MessageTypeAssistant,
@@ -510,7 +510,7 @@ func TestMessageMapperProjectsResultOntoAssistant(t *testing.T) {
 }
 
 func TestMessageMapperProjectsAssistantAPIErrorAsErrorMessage(t *testing.T) {
-	mapper := NewMessageMapper("agent:nexus:ws:dm:test", "nexus", "round-api-error")
+	mapper := NewMessageMapper("agent:nexus:ws:dm:test", "nexus", "round-api-error", "agent-round-api-error", "msg-user-api-error")
 
 	events, durableMessages, terminalStatus, resultSubtype, err := mapper.Map(sdkprotocol.ReceivedMessage{
 		Type: sdkprotocol.MessageTypeAssistant,

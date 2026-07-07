@@ -41,6 +41,7 @@ interface ConversationFeedProps {
   messageGroups: Map<string, Message[]>;
   onOpenAgentContact?: (agentId: string) => void;
   onOpenWorkspaceFile?: (path: string) => void;
+  onEditLastUserMessage?: (messageId: string, newContent: string) => void;
   onPermissionResponse: (payload: PermissionDecisionPayload) => boolean;
   canRespondToPermissions?: boolean;
   permissionReadOnlyReason?: string;
@@ -124,6 +125,7 @@ export const ConversationFeed = memo(function ConversationFeed({
   messageGroups: messageGroups,
   onOpenAgentContact: onOpenAgentContact,
   onOpenWorkspaceFile: onOpenWorkspaceFile,
+  onEditLastUserMessage: onEditLastUserMessage,
   onPermissionResponse: onPermissionResponse,
   canRespondToPermissions: canRespondToPermissions = true,
   permissionReadOnlyReason: permissionReadOnlyReason,
@@ -252,6 +254,7 @@ export const ConversationFeed = memo(function ConversationFeed({
               permissionReadOnlyReason={permissionReadOnlyReason}
               onOpenAgentContact={onOpenAgentContact}
               onOpenWorkspaceFile={onOpenWorkspaceFile}
+              onEditUserMessage={isLastRound && !isLastRoundLive ? onEditLastUserMessage : undefined}
               onStopMessage={onStopMessage}
             />
           </div>
@@ -282,6 +285,7 @@ function VirtualFeed({
   messageGroups: messageGroups,
   onOpenAgentContact: onOpenAgentContact,
   onOpenWorkspaceFile: onOpenWorkspaceFile,
+  onEditLastUserMessage: onEditLastUserMessage,
   onPermissionResponse: onPermissionResponse,
   canRespondToPermissions: canRespondToPermissions = true,
   permissionReadOnlyReason: permissionReadOnlyReason,
@@ -451,6 +455,7 @@ function VirtualFeed({
                 permissionReadOnlyReason={permissionReadOnlyReason}
                 onOpenAgentContact={onOpenAgentContact}
                 onOpenWorkspaceFile={onOpenWorkspaceFile}
+                onEditUserMessage={isLastRound && !isLastRoundLive ? onEditLastUserMessage : undefined}
                 onStopMessage={onStopMessage}
               />
             </div>

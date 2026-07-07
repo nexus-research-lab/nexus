@@ -14,6 +14,7 @@ import {
 } from "@/shared/ui/dialog/dialog-styles";
 import type { AssistantMessage, Message, UserMessage } from "@/types/conversation/message";
 import type { SessionRoundIndexItem } from "@/types/conversation/room";
+import type { ConversationTimeline } from "./use-conversation-timeline";
 import type {
   ConversationRoundScrollHandleRef,
   ConversationRoundScrollOptions,
@@ -38,12 +39,11 @@ import {
 interface ConversationSessionNavigatorProps {
   agentNameMap?: Record<string, string>;
   className?: string;
-  liveRoundIds: string[];
-  messageGroups: Map<string, Message[]>;
+  /** 统一时间线投影，navigator 不再自行分组消息。 */
+  timeline: ConversationTimeline;
   onLoadRoundWindow?: (roundId: string) => Promise<boolean>;
   onNavigateStart?: () => void;
   roundScrollRef?: ConversationRoundScrollHandleRef;
-  roundIndexItems?: SessionRoundIndexItem[];
   scrollRef: RefObject<HTMLDivElement | null>;
 }
 
@@ -396,14 +396,17 @@ function resolveVisibleRoundId(
 export function ConversationSessionNavigator({
   agentNameMap,
   className,
-  liveRoundIds,
-  messageGroups,
+  timeline,
   onLoadRoundWindow,
   onNavigateStart,
   roundScrollRef,
-  roundIndexItems = [],
   scrollRef,
 }: ConversationSessionNavigatorProps) {
+  const {
+    message_groups: messageGroups,
+    live_round_ids: liveRoundIds,
+    round_index_items: roundIndexItems,
+  } = timeline;
   const [activeRoundId, setActiveRoundId] = useState<string | null>(null);
   const [pendingScrollRoundId, setPendingScrollRoundId] = useState<string | null>(null);
   const loadingRoundIdRef = useRef<string | null>(null);

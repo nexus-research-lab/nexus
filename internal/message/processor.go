@@ -22,6 +22,7 @@ type MessageContext struct {
 	AgentID        string
 	WorkspacePath  string
 	RoundID        string
+	AgentRoundID   string
 	ParentID       string
 }
 
@@ -273,6 +274,7 @@ func (p *Processor) buildStreamPayload(streamType string) StreamPayload {
 			"conversation_id": emptyToNil(p.ctx.ConversationID),
 			"agent_id":        p.ctx.AgentID,
 			"round_id":        p.ctx.RoundID,
+			"agent_round_id":  emptyToNil(p.ctx.AgentRoundID),
 			"session_id":      emptyToNil(p.sessionID),
 			"type":            streamType,
 			"timestamp":       time.Now().UnixMilli(),
@@ -319,6 +321,9 @@ func baseMessageEnvelope(ctx MessageContext, sessionID string, messageID string,
 		"round_id":    ctx.RoundID,
 		"role":        role,
 		"timestamp":   time.Now().UnixMilli(),
+	}
+	if agentRoundID := strings.TrimSpace(ctx.AgentRoundID); agentRoundID != "" {
+		payload["agent_round_id"] = agentRoundID
 	}
 	if sessionID != "" {
 		payload["session_id"] = sessionID

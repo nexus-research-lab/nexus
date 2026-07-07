@@ -121,7 +121,6 @@ func (r *roundRunner) dispatchGoalContinuation(ctx context.Context) {
 		AgentID:              r.agent.AgentID,
 		GoalContext:          plan.Prompt,
 		RoundID:              plan.RoundID,
-		ReqID:                plan.RoundID,
 		DeliveryPolicy:       protocol.ChatDeliveryPolicyQueue,
 		BroadcastUserMessage: false,
 		Internal:             true,

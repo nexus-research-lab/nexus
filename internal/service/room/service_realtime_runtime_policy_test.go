@@ -109,7 +109,6 @@ func TestRealtimeServiceForwardsProviderModelOption(t *testing.T) {
 		ConversationID: dmContext.Conversation.ID,
 		Content:        "测试 room model 透传",
 		RoundID:        "room-round-no-model",
-		ReqID:          "room-round-no-model",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}
@@ -209,7 +208,6 @@ func TestRealtimeServiceBypassPermissionsKeepsQuestionChannel(t *testing.T) {
 		ConversationID: dmContext.Conversation.ID,
 		Content:        "测试 room bypass 权限处理器",
 		RoundID:        "room-round-bypass",
-		ReqID:          "room-round-bypass",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}
@@ -420,7 +418,6 @@ func TestRealtimeServiceChatRequestCanOverridePermissionHandler(t *testing.T) {
 		ConversationID:    dmContext.Conversation.ID,
 		Content:           "测试 room 请求级权限处理器",
 		RoundID:           "room-round-permission-handler",
-		ReqID:             "room-round-permission-handler",
 		PermissionHandler: requestHandler,
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)

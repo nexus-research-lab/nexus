@@ -1,4 +1,5 @@
 import {
+  AgentRoundStatusEventPayload,
   AssistantMessage,
   ChatAckData,
   EventMessage,
@@ -41,10 +42,10 @@ function eventRoundId(event: EventMessage): string | null {
   if (dataRoundId) {
     return dataRoundId;
   }
-  const causedBy = typeof event.caused_by === "string"
-    ? event.caused_by.trim()
+  const envelopeRoundId = typeof event.round_id === "string"
+    ? event.round_id.trim()
     : "";
-  return causedBy || null;
+  return envelopeRoundId || null;
 }
 
 /**
@@ -73,6 +74,7 @@ export function handleAgentConversationWebSocketMessage({
   update_message_status: updateMessageStatus,
   sync_session_status: syncSessionStatus,
   apply_round_status: applyRoundStatus,
+  apply_agent_round_status: applyAgentRoundStatus,
   track_chat_ack: trackChatAck,
   track_assistant_message: trackAssistantMessage,
   reload_current_session: reloadCurrentSession,
@@ -196,7 +198,7 @@ export function handleAgentConversationWebSocketMessage({
       applyRoundStatus?.(roundId, "error");
     }
     if (event.message_id) {
-      updateMessageStatus?.(event.message_id, "error", roundId ?? event.caused_by);
+      updateMessageStatus?.(event.message_id, "error", roundId);
     }
     setError(event.data?.message || "Unknown error");
     return;
@@ -213,9 +215,11 @@ export function handleAgentConversationWebSocketMessage({
         tool_name: data.tool_name,
         tool_input: data.tool_input || {},
         session_key: incomingSessionKey,
-        agent_id: event.agent_id ?? null,
-        message_id: event.message_id ?? null,
-        caused_by: event.caused_by ?? null,
+        agent_id: data.agent_id ?? event.agent_id ?? null,
+        message_id: data.message_id ?? event.message_id ?? null,
+        round_id: data.round_id ?? event.round_id ?? null,
+        agent_round_id: data.agent_round_id ?? event.agent_round_id ?? null,
+        tool_use_id: data.tool_use_id ?? null,
         interaction_mode:
           data.interaction_mode ??
           (data.tool_name === "AskUserQuestion" ? "question" : "permission"),
@@ -314,7 +318,20 @@ export function handleAgentConversationWebSocketMessage({
     return;
   }
 
-  // chatAck: 仅登记 Room 占位槽位，不再插入假 assistant 消息
+  // agent_round_status: Room slot 生命周期，只收口对应 slot
+  if (event.event_type === "agent_round_status") {
+    if (!isCurrentSessionEvent(incomingSessionKey)) {
+      return;
+    }
+    const payload = (event.data ?? {}) as AgentRoundStatusEventPayload;
+    if (!payload.agent_round_id || !payload.status) {
+      return;
+    }
+    applyAgentRoundStatus?.(payload);
+    return;
+  }
+
+  // chatAck: 关联 client_request_id、替换 optimistic user message、登记占位槽位
   if (event.event_type === "chat_ack") {
     if (!isCurrentSessionEvent(incomingSessionKey)) {
       return;

@@ -12,7 +12,6 @@ import (
 type EventMapperOptions struct {
 	Context                MessageContext
 	InitialSessionID       string
-	CausedBy               string
 	IncludeStreamLifecycle bool
 }
 
@@ -27,7 +26,6 @@ type EventMapResult struct {
 // EventMapper 基于统一 Processor 生成场景化 protocol event。
 type EventMapper struct {
 	ctx                    MessageContext
-	causedBy               string
 	includeStreamLifecycle bool
 	processor              *Processor
 	lastAssistantMessage   protocol.Message
@@ -37,7 +35,6 @@ type EventMapper struct {
 func NewEventMapper(options EventMapperOptions) *EventMapper {
 	return &EventMapper{
 		ctx:                    options.Context,
-		causedBy:               options.CausedBy,
 		includeStreamLifecycle: options.IncludeStreamLifecycle,
 		processor:              NewProcessor(options.Context, options.InitialSessionID),
 	}
@@ -136,7 +133,8 @@ func (m *EventMapper) wrapEvent(eventType protocol.EventType, data map[string]an
 	event.ConversationID = m.ctx.ConversationID
 	event.AgentID = m.ctx.AgentID
 	event.MessageID = normalizeString(messageID)
-	event.CausedBy = m.causedBy
+	event.RoundID = m.ctx.RoundID
+	event.AgentRoundID = m.ctx.AgentRoundID
 	if sessionID := normalizeString(data["session_id"]); sessionID != "" {
 		event.SessionID = sessionID
 	}
