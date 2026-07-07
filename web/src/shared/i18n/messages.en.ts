@@ -842,4 +842,5 @@ export const enMessages: Record<TranslationKey, string> = {
   "login.disabled_title": "Password sign-in is disabled",
   "login.disabled_description": "This instance currently uses another auth mode, so the web UI cannot sign in directly. Configure AUTH_LOGIN_PASSWORD on the backend and refresh this page.",
   "login.unknown_error": "Sign-in failed. Please try again.",
+  "message.max_tokens_warning": "The model output has reached its limit and the reply may be incomplete",
 };

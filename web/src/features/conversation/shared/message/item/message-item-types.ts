@@ -67,6 +67,7 @@ export interface MessageItemState {
   model: string | undefined;
   timestamp: number | undefined;
   streamStatus: AssistantMessage["stream_status"] | null;
+  stopReason: AssistantMessage["stop_reason"] | null;
   stats: MessageStatsData | null;
   matchedPendingPermissionsByToolUseId: ReadonlyMap<string, PendingPermission>;
   unmatchedPendingPermissions: PendingPermission[];

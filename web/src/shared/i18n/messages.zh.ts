@@ -840,6 +840,7 @@ export const zhMessages = {
   "login.disabled_title": "当前实例未启用密码登录",
   "login.disabled_description": "服务端目前只配置了其他鉴权方式，Web 界面无法直接完成登录。请在后端环境变量中设置 AUTH_LOGIN_PASSWORD 后刷新本页。",
   "login.unknown_error": "登录失败，请稍后重试。",
+  "message.max_tokens_warning": "大模型输出已达上限。",
 } as const;
 
 export type TranslationKey = keyof typeof zhMessages;
