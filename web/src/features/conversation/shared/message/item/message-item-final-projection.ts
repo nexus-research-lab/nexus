@@ -20,6 +20,8 @@ interface FinalProjectionInput {
   orderedProjection: ContentProjection;
   resultSummary: ResultSummary | undefined;
   roundId: string;
+  /** 本轮 durable user message id；新协议下顶层 assistant 的 parent_id 指向它。 */
+  userMessageId?: string | null;
   streamingBlockIndexes: Set<number>;
   visibleAssistantTurns: AssistantTurnEntry[];
   visibleOrderedAssistantEntries: OrderedAssistantEntry[];
@@ -31,6 +33,7 @@ export function resolveMessageItemFinalProjection({
   orderedProjection,
   resultSummary,
   roundId,
+  userMessageId,
   streamingBlockIndexes,
   visibleAssistantTurns,
   visibleOrderedAssistantEntries,
@@ -38,6 +41,7 @@ export function resolveMessageItemFinalProjection({
   const finalAssistantTurn = resolveFinalAssistantTurn(
     assistantMessages,
     roundId,
+    userMessageId ?? null,
     visibleAssistantTurns,
   );
   const finalTailEntries = resolveFinalTailEntries(
@@ -47,7 +51,6 @@ export function resolveMessageItemFinalProjection({
   const archivedProcessProjection = buildArchivedProcessProjection({
     finalAssistantTurn,
     finalTailEntries,
-    resultSummary,
     streamingBlockIndexes,
     visibleOrderedAssistantEntries,
   });
@@ -101,11 +104,18 @@ export function resolveMessageItemFinalProjection({
 function resolveFinalAssistantTurn(
   assistantMessages: Message[],
   roundId: string,
+  userMessageId: string | null,
   visibleAssistantTurns: AssistantTurnEntry[],
 ) {
+  // 顶层 assistant 的 parent 指向本轮 user message（旧数据指向 round_id）；
+  // 其他 parent（tool_use / slot msg）属于子执行，不能当最终回复。
+  const isTopLevelParent = (parentId: string | undefined) =>
+    !parentId ||
+    parentId === roundId ||
+    (userMessageId != null && parentId === userMessageId);
   for (let index = assistantMessages.length - 1; index >= 0; index -= 1) {
     const message = assistantMessages[index] as AssistantMessage;
-    if (!message.parent_id || message.parent_id === roundId) {
+    if (isTopLevelParent(message.parent_id)) {
       return (
         visibleAssistantTurns.find(
           (turn) => turn.messageId === message.message_id,
@@ -145,25 +155,17 @@ function resolveFinalTailEntries(
 function buildArchivedProcessProjection({
   finalAssistantTurn,
   finalTailEntries,
-  resultSummary,
   streamingBlockIndexes,
   visibleOrderedAssistantEntries,
 }: {
   finalAssistantTurn: AssistantTurnEntry | null;
   finalTailEntries: OrderedAssistantEntry[];
-  resultSummary: ResultSummary | undefined;
   streamingBlockIndexes: Set<number>;
   visibleOrderedAssistantEntries: OrderedAssistantEntry[];
 }) {
-  const resultText = resultSummary?.result?.trim();
-  const finalTailText = textFromEntries(finalTailEntries, "\n\n");
-  const shouldStripTail =
-    finalTailEntries.length > 0 &&
-    (!resultText ||
-      finalTailText === resultText ||
-      textFromEntries(finalTailEntries, "").trim() === resultText);
-
-  if (shouldStripTail) {
+  // 最终回复由独立区域渲染（tail / turn 文本 / result 摘要），
+  // 过程链无条件剥离它，避免同一段答案在过程和最终各出现一次。
+  if (finalTailEntries.length > 0) {
     const tailIndexes = new Set(
       finalTailEntries.map((entry) => entry.mergedIndex),
     );
@@ -175,14 +177,11 @@ function buildArchivedProcessProjection({
     );
   }
 
-  if (!resultText && finalAssistantTurn) {
-    const finalAssistantTextMergedIndexes =
-      finalAssistantTurn.textContent.length > 0
-        ? textEntryIndexesForTurn(
-          finalAssistantTurn,
-          visibleOrderedAssistantEntries,
-        )
-        : new Set<number>();
+  if (finalAssistantTurn && finalAssistantTurn.textContent.length > 0) {
+    const finalAssistantTextMergedIndexes = textEntryIndexesForTurn(
+      finalAssistantTurn,
+      visibleOrderedAssistantEntries,
+    );
     return projectionFromOrderedEntries(
       visibleOrderedAssistantEntries.filter(
         (entry) =>
@@ -262,18 +261,21 @@ function resolveFinalAssistantContent({
   }
 
   const resultText = getResultSummaryDisplayText(resultSummary);
-  if (resultText) {
-    return resultText;
-  }
 
   if (assistantContentMode === "dm_archived") {
+    // 优先用消息正文（过程链已剥离同一段内容）；
+    // result 摘要文本只在正文缺失时兜底，避免两边措辞不一致时重复展示。
     if (finalTailEntries.length > 0) {
       return finalTailEntries.map((entry) => entry.block);
     }
     if (finalAssistantTurn?.textContent.length) {
       return finalAssistantTurn.textContent;
     }
-    return null;
+    return resultText || null;
+  }
+
+  if (resultText) {
+    return resultText;
   }
 
   return fallbackFinalAssistantContent;
@@ -294,18 +296,6 @@ function textEntryIndexesForTurn(
     nextIndexes.add(entry.mergedIndex);
   }
   return nextIndexes;
-}
-
-function textFromEntries(entries: OrderedAssistantEntry[], separator: string) {
-  return entries
-    .map((entry) => entry.block)
-    .filter(
-      (block): block is Extract<ContentBlock, { type: "text" }> =>
-        block.type === "text",
-    )
-    .map((block) => block.text)
-    .join(separator)
-    .trim();
 }
 
 function emptyProjection(): ContentProjection {

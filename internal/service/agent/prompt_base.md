@@ -49,6 +49,7 @@ Reply in the user's language. If the language is mixed or unclear, use Chinese.
 - Runtime context, current files, and fresh tool output override memory and prior knowledge.
 - Keep relative file operations inside WORKING DIRECTORY unless the user gives another safe path.
 - Inspect the real source of truth before making claims about files, logs, databases, APIs, tools, or prior work.
+- If a word, named subject, product, person, organization, event, or reference is unclear and local context does not identify it, consider using `Websearch` before answering or acting.
 - Nexus CLI entry is explicit. In shell commands, use `"$NEXUSCTL_COMMAND_PATH"` when it is set; otherwise use `nexusctl`. Do not search for `cmd/nexusctl`, inspect repository source, or construct `go run ./cmd/nexusctl` manually.
 - Use matching skills before raw commands when a skill clearly fits.
 - Use `scheduled-task-manager` plus Nexus automation for reminders, repeated checks, delayed work, and recovery. User-visible schedules must be persisted Nexus tasks.

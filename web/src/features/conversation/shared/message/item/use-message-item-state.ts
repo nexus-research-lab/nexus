@@ -9,7 +9,7 @@
 
 "use client";
 
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { useAssistantContentMerge } from "@/hooks/conversation/use-assistant-content-merge";
 import { useScrollAnchoredState } from "@/hooks/conversation/use-scroll-anchored-state";
@@ -241,6 +241,7 @@ export function useMessageItemState({
         orderedProjection,
         resultSummary,
         roundId,
+        userMessageId: userMessage?.message_id ?? null,
         streamingBlockIndexes,
         visibleAssistantTurns,
         visibleOrderedAssistantEntries,
@@ -251,6 +252,7 @@ export function useMessageItemState({
       orderedProjection,
       resultSummary,
       roundId,
+      userMessage,
       streamingBlockIndexes,
       visibleAssistantTurns,
       visibleOrderedAssistantEntries,
@@ -355,6 +357,17 @@ export function useMessageItemState({
       setIsProcessExpanded(true);
     }
   }, [pendingPermissions.length, setIsProcessExpanded]);
+
+  // 轮次由 live 转入 archived 时把过程链收口成摘要行，
+  // 覆盖权限弹窗等场景遗留的强制展开态。
+  const wasLiveModeRef = useRef(assistantContentMode === "dm_live");
+  useEffect(() => {
+    const isLiveMode = assistantContentMode === "dm_live";
+    if (wasLiveModeRef.current && !isLiveMode) {
+      setIsProcessExpanded(false);
+    }
+    wasLiveModeRef.current = isLiveMode;
+  }, [assistantContentMode, setIsProcessExpanded]);
 
   useEffect(() => {
     if (hasTimedOutQuestionInProcess) {

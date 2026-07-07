@@ -15,12 +15,13 @@ export function ThinkingBlock({ thinking, isStreaming: isStreaming, workspaceAge
   const [isExpanded, setIsExpanded] = useState(Boolean(isStreaming));
   const [wasStreaming, setWasStreaming] = useState(Boolean(isStreaming));
 
-  // 流式思考需要即时可见，历史思考默认保持收起。
+  // 流式思考需要即时可见；输出结束后自动收起，历史思考默认保持收起。
   if (isStreaming && !wasStreaming) {
     setWasStreaming(true);
     setIsExpanded(true);
   } else if (!isStreaming && wasStreaming) {
     setWasStreaming(false);
+    setIsExpanded(false);
   }
 
   if (!thinking) return null;
