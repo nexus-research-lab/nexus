@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Prevented ad-hoc, non-notarized macOS release packages from being offered as automatic desktop updates.
+- Made macOS desktop termination wait for sidecar shutdown and preserve pid records when forced cleanup cannot finish.
+- Added Windows desktop sidecar orphan cleanup and a short port-release wait before binding the fixed local port.
 - Fixed login recovery when old session cleanup fails, bounded `nxs` runtime release lookup timeouts, restored deleted core tests, and enforced subscription token quota before new DM/Room runtime rounds.
 
 ## [0.1.25] - 2026-07-05

@@ -1,6 +1,11 @@
+import Darwin
 import Foundation
 
 final class SidecarSupervisor {
+  private static let stopTimeoutSeconds: TimeInterval = 8
+  private static let killTimeoutSeconds: TimeInterval = 2
+  private static let stopPollInterval: TimeInterval = 0.1
+
   private let locator: SidecarBundleLocator
   private let port: Int
   private let runtimeConfig: SidecarRuntimeConfig
@@ -19,7 +24,7 @@ final class SidecarSupervisor {
     )
     startupTimeline?.mark("sidecar.reap_begin")
     orphanReaper.reapIfNeeded()
-    port = try SidecarPortAllocator.allocate()
+    port = try SidecarPortAllocator.allocate(startupTimeline: startupTimeline)
     runtimeConfig = SidecarRuntimeConfig(port: port, sessionToken: try DesktopSessionToken.generate())
     startupTimeline?.mark("sidecar.config_resolved", metadata: [
       "mode": locator.projectRoot == nil ? "bundle" : "development",
@@ -55,17 +60,54 @@ final class SidecarSupervisor {
   }
 
   func stop() {
+    var shouldRemoveRecord = true
     defer {
-      orphanReaper.removeRecord()
+      if shouldRemoveRecord {
+        orphanReaper.removeRecord()
+      }
       stdoutPipe.close()
       stderrPipe.close()
+      process = nil
     }
 
-    guard let process, process.isRunning else {
+    guard let sidecarProcess = process else {
       return
     }
-    process.terminate()
-    process.waitUntilExit()
+    guard sidecarProcess.isRunning else {
+      sidecarProcess.waitUntilExit()
+      return
+    }
+
+    let pid = sidecarProcess.processIdentifier
+    startupTimeline?.mark("sidecar.stop_begin", metadata: [
+      "pid": "\(pid)",
+    ])
+    sidecarProcess.terminate()
+    if waitUntilExited(sidecarProcess, timeout: Self.stopTimeoutSeconds) {
+      startupTimeline?.mark("sidecar.stop_finished", metadata: [
+        "pid": "\(pid)",
+        "exit_code": "\(sidecarProcess.terminationStatus)",
+      ])
+      return
+    }
+
+    startupTimeline?.mark("sidecar.stop_timeout", metadata: [
+      "pid": "\(pid)",
+    ])
+    _ = kill(pid, SIGKILL)
+    if waitUntilExited(sidecarProcess, timeout: Self.killTimeoutSeconds) {
+      startupTimeline?.mark("sidecar.stop_killed", metadata: [
+        "pid": "\(pid)",
+        "exit_code": "\(sidecarProcess.terminationStatus)",
+      ])
+      return
+    }
+
+    // 仍未退出时保留 pid record，让下一次启动的 orphan reaper 继续清理。
+    shouldRemoveRecord = false
+    startupTimeline?.mark("sidecar.stop_failed", metadata: [
+      "pid": "\(pid)",
+    ])
   }
 
   private func buildEnvironment() throws -> [String: String] {
@@ -243,6 +285,18 @@ final class SidecarSupervisor {
     } catch {
       return false
     }
+  }
+
+  private func waitUntilExited(_ process: Process, timeout: TimeInterval) -> Bool {
+    let deadline = Date().addingTimeInterval(timeout)
+    while process.isRunning && Date() < deadline {
+      Thread.sleep(forTimeInterval: Self.stopPollInterval)
+    }
+    guard !process.isRunning else {
+      return false
+    }
+    process.waitUntilExit()
+    return true
   }
 
 }

@@ -55,6 +55,11 @@ public partial class App : System.Windows.Application
         {
             sidecar = new SidecarSupervisor(startupTimeline);
             SidecarRuntimeConfig runtime = await sidecar.StartAsync();
+            if (exitRequested || Dispatcher.HasShutdownStarted)
+            {
+                sidecar.Dispose();
+                return;
+            }
             startupTimeline.Mark("sidecar.ready");
 
             updateChecker = new DesktopUpdateChecker(startupTimeline);
@@ -68,6 +73,10 @@ public partial class App : System.Windows.Application
         }
         catch (Exception exception)
         {
+            if (exitRequested || Dispatcher.HasShutdownStarted)
+            {
+                return;
+            }
             ShowStartupError(exception);
         }
     }

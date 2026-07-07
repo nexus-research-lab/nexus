@@ -4,6 +4,8 @@ import AppKit
 final class AppDelegate: NSObject, NSApplicationDelegate {
   private static let showMainWindowNotification = Notification.Name("com.leemysw.nexus.showMainWindow")
   private static let showLauncherNotification = Notification.Name("com.leemysw.nexus.showLauncher")
+  private static let exitNotification = Notification.Name("com.leemysw.nexus.exit")
+  private static let exitCommandArgument = "--nexus-desktop-exit"
 
   private let startupTimeline = DesktopStartupTimeline()
   private lazy var updateChecker = DesktopUpdateChecker(startupTimeline: startupTimeline)
@@ -14,11 +16,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private var globalShortcutLastError: String?
   private var pendingApplicationURLs: [URL] = []
   private var shouldShowSettingsAfterStart = false
+  private var terminationRequested = false
+  private var runtimeShutdownCompleted = false
 
   func applicationDidFinishLaunching(_ notification: Notification) {
     startupTimeline.mark("app.did_finish_launching")
     NSApp.setActivationPolicy(.regular)
     ApplicationMenuBuilder.install(target: self)
+
+    if Self.isExitCommandRequested {
+      startupTimeline.mark("app.exit_activation")
+      notifyRunningInstanceToExit()
+      NSApp.terminate(nil)
+      return
+    }
 
     do {
       singleInstanceGuard = try SingleInstanceGuard.acquire()
@@ -44,17 +55,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       name: Self.showLauncherNotification,
       object: nil
     )
+    DistributedNotificationCenter.default().addObserver(
+      self,
+      selector: #selector(exitFromDistributedNotification(_:)),
+      name: Self.exitNotification,
+      object: nil
+    )
 
     Task {
       await start()
     }
   }
 
+  func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+    if runtimeShutdownCompleted {
+      return .terminateNow
+    }
+    terminationRequested = true
+    shutdownRuntime(reason: "application_should_terminate")
+    return .terminateNow
+  }
+
   func applicationWillTerminate(_ notification: Notification) {
-    DistributedNotificationCenter.default().removeObserver(self)
-    globalShortcutMonitor?.stop()
-    sidecar?.stop()
-    singleInstanceGuard = nil
+    shutdownRuntime(reason: "application_will_terminate")
   }
 
   func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -100,6 +123,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       let supervisor = try SidecarSupervisor(startupTimeline: startupTimeline)
       sidecar = supervisor
       let runtime = try await supervisor.start()
+      guard !terminationRequested else {
+        supervisor.stop()
+        return
+      }
       let manager = WindowManager(
         runtime: runtime,
         startupTimeline: startupTimeline,
@@ -125,6 +152,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       applyGlobalShortcutPreference()
       drainPendingStartupActions(manager: manager)
     } catch {
+      guard !terminationRequested else {
+        return
+      }
       showStartupError(error)
     }
   }
@@ -249,6 +279,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     windowManager?.showLauncher()
   }
 
+  @objc
+  private func exitFromDistributedNotification(_ notification: Notification) {
+    Task { @MainActor [weak self] in
+      self?.startupTimeline.mark("app.exit_requested", metadata: [
+        "source": "distributed_notification",
+      ])
+      NSApp.terminate(nil)
+    }
+  }
+
+  private static var isExitCommandRequested: Bool {
+    ProcessInfo.processInfo.arguments.contains { argument in
+      argument.caseInsensitiveCompare(exitCommandArgument) == .orderedSame
+    }
+  }
+
   private func notifyRunningInstance() {
     DistributedNotificationCenter.default().postNotificationName(
       Self.showLauncherNotification,
@@ -266,6 +312,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       .activate(options: [.activateAllWindows])
   }
 
+  private func notifyRunningInstanceToExit() {
+    DistributedNotificationCenter.default().postNotificationName(
+      Self.exitNotification,
+      object: nil,
+      userInfo: nil,
+      deliverImmediately: true
+    )
+  }
+
   private func showStartupError(_ error: Error) {
     startupTimeline.mark("startup.failed", metadata: ["error": error.localizedDescription])
     let diagnosticsURL = DesktopDiagnosticsReport.writeStartupFailure(error: error, startupTimeline: startupTimeline)
@@ -279,5 +334,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     alert.alertStyle = .critical
     alert.runModal()
     NSApp.terminate(nil)
+  }
+
+  private func shutdownRuntime(reason: String) {
+    guard !runtimeShutdownCompleted else {
+      return
+    }
+    runtimeShutdownCompleted = true
+    startupTimeline.mark("desktop.shutdown_begin", metadata: [
+      "reason": reason,
+    ])
+    DistributedNotificationCenter.default().removeObserver(self)
+    globalShortcutMonitor?.stop()
+    globalShortcutMonitor = nil
+    sidecar?.stop()
+    sidecar = nil
+    singleInstanceGuard = nil
+    startupTimeline.mark("desktop.shutdown_finished", metadata: [
+      "reason": reason,
+    ])
   }
 }
