@@ -7,6 +7,7 @@ export type DesktopRuntimeConfig = {
   buildNumber?: string;
   platform?: string;
   oauthRedirectUri?: string;
+  desktopWindowTopInset?: number;
 };
 
 type DesktopPerformanceMark = {
@@ -76,6 +77,7 @@ const DESKTOP_LOOPBACK_OAUTH_PORT = "34343";
 const DESKTOP_CONNECTORS_RETURN_URI = "nexus://capability/connectors";
 const DESKTOP_DIAGNOSTIC_TEXT_LIMIT = 4_096;
 const DESKTOP_SESSION_TOKEN_RELOAD_KEY_PREFIX = "nexus:desktop-session-token-reload:";
+const DESKTOP_WINDOW_TOP_INSET_PROPERTY = "--desktop-window-top-inset";
 
 declare global {
   interface Window {
@@ -95,6 +97,14 @@ function readRuntimeString(runtimeConfig: Record<string, unknown>, key: string):
   return typeof value === "string" ? value : undefined;
 }
 
+function readRuntimeNumber(runtimeConfig: Record<string, unknown>, key: string): number | undefined {
+  const value = runtimeConfig[key];
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return undefined;
+  }
+  return value;
+}
+
 function normalizeDesktopRuntimeConfig(runtimeConfig: Record<string, unknown>): DesktopRuntimeConfig {
   return {
     apiBaseUrl: readRuntimeString(runtimeConfig, "api_base_url"),
@@ -105,6 +115,7 @@ function normalizeDesktopRuntimeConfig(runtimeConfig: Record<string, unknown>): 
     buildNumber: readRuntimeString(runtimeConfig, "build_number"),
     platform: readRuntimeString(runtimeConfig, "platform"),
     oauthRedirectUri: readRuntimeString(runtimeConfig, "oauth_redirect_uri"),
+    desktopWindowTopInset: readRuntimeNumber(runtimeConfig, "desktop_window_top_inset"),
   };
 }
 
@@ -131,6 +142,12 @@ export function applyDesktopRuntimeDocumentFlags(): void {
   document.documentElement.dataset.desktopRuntime = "true";
   if (runtimeConfig.platform) {
     document.documentElement.dataset.desktopPlatform = runtimeConfig.platform;
+  }
+  if (typeof runtimeConfig.desktopWindowTopInset === "number" && runtimeConfig.desktopWindowTopInset >= 0) {
+    document.documentElement.style.setProperty(
+      DESKTOP_WINDOW_TOP_INSET_PROPERTY,
+      `${runtimeConfig.desktopWindowTopInset}px`,
+    );
   }
 }
 

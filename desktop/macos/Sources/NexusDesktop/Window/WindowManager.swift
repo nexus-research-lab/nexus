@@ -160,6 +160,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
       window.delegate = self
       window.backgroundColor = .clear
       window.isOpaque = false
+      window.isMovableByWindowBackground = true
       window.alphaValue = 0
       window.center()
       window.contentView = DesktopWindowSurface(

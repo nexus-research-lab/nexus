@@ -93,6 +93,8 @@ type ComposerNativeKeyboardEvent = globalThis.KeyboardEvent & {
 
 const IME_COMPOSITION_KEY_CODE = 229;
 const COMPOSITION_END_ENTER_GUARD_MS = 80;
+const COMPOSER_SHORTCUT_KEY_CLASS_NAME =
+  "font-mono text-[11px] font-semibold leading-none text-(--text-muted)";
 type ComposerInputMode = "message" | "goal";
 function isCaretOnFirstLine(target: HTMLTextAreaElement) {
   const selectionStart = target.selectionStart ?? 0;
@@ -515,6 +517,7 @@ const ComposerPanelView = memo(({
     : queueWhenSessionBusy && (isLoading || inputQueueItems.length > 0)
       ? t("composer.enter_queue")
       : t("composer.enter_send");
+  const sendButtonShortLabel = inlineEnterLabel;
   const shouldShowInlineShortcuts = !compact && input.length === 0;
   let composerInputRowPaddingClass = compact ? "px-2 py-2" : "px-3 py-3";
   if (hasPendingQueue) {
@@ -612,15 +615,19 @@ const ComposerPanelView = memo(({
               value={input}
             />
             {shouldShowInlineShortcuts ? (
-              <div className="pointer-events-none absolute right-0 top-1/2 hidden -translate-y-1/2 items-center gap-2 text-[10px] text-(--text-soft) min-[760px]:flex">
-                <span className="flex items-center gap-1">
-                  <kbd>Enter</kbd>
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute right-0 top-1/2 hidden -translate-y-1/2 items-center gap-1.5 text-[11px] leading-none text-(--text-soft) min-[760px]:flex"
+              >
+                <span className="inline-flex items-center gap-1">
+                  <kbd className={COMPOSER_SHORTCUT_KEY_CLASS_NAME}>Enter</kbd>
                   <span>{inlineEnterLabel}</span>
                 </span>
-                <span className="flex items-center gap-1">
-                  <kbd>Shift</kbd>
-                  <span>+</span>
-                  <kbd>Enter</kbd>
+                <span className="text-(--text-faint)">·</span>
+                <span className="inline-flex items-center gap-1">
+                  <kbd className={COMPOSER_SHORTCUT_KEY_CLASS_NAME}>Shift</kbd>
+                  <span className="text-(--text-faint)">+</span>
+                  <kbd className={COMPOSER_SHORTCUT_KEY_CLASS_NAME}>Enter</kbd>
                   <span>{t("composer.shift_enter_newline")}</span>
                 </span>
               </div>
@@ -639,13 +646,19 @@ const ComposerPanelView = memo(({
           ) : (
             <button
               aria-label={sendButtonLabel}
-              className={COMPOSER_PRIMARY_ACTION_BUTTON_CLASS_NAME}
+              className={cn(
+                COMPOSER_PRIMARY_ACTION_BUTTON_CLASS_NAME,
+                "gap-1.5 min-[760px]:w-auto min-[760px]:px-3",
+              )}
               disabled={isSendDisabled}
               onClick={() => {
                 void handleSend();
               }}
               type="button"
             >
+              <span className="hidden text-[12px] font-semibold min-[760px]:inline">
+                {sendButtonShortLabel}
+              </span>
               {isPreparingAttachments || isGoalCreating ? (
                 <LoadingOrb frames={["·", "◦", "•", "◦"]} />
               ) : isGoalMode ? (
