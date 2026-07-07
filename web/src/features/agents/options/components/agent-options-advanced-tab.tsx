@@ -10,7 +10,11 @@ import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiChoiceButton } from "@/shared/ui/choice";
 import { GlassSwitch } from "@/shared/ui/liquid-glass";
-import { AGENT_PERMISSION_MODES, AVAILABLE_AGENT_TOOLS } from "../agent-options-constants";
+import {
+  AGENT_PERMISSION_MODES,
+  AVAILABLE_AGENT_TOOLS,
+  countVisibleAgentPreauthorizedTools,
+} from "../agent-options-constants";
 
 interface AgentOptionsAdvancedTabProps {
   permissionMode: string;
@@ -28,6 +32,7 @@ export function AgentOptionsAdvancedTab({
 }: AgentOptionsAdvancedTabProps) {
   const { t } = useI18n();
   const isBypassPermissionMode = permissionMode === "bypassPermissions";
+  const preauthorizedToolCount = countVisibleAgentPreauthorizedTools(allowedTools);
 
   return (
     <div className="space-y-4 animate-in slide-in-from-right-4 duration-300 [overflow-anchor:none]">
@@ -103,7 +108,7 @@ export function AgentOptionsAdvancedTab({
             </h3>
           </div>
           <span className="min-w-[92px] text-right text-[11px] tabular-nums text-(--text-soft)">
-            {t("agent_options.advanced.enabled_tools", { count: allowedTools.length })}
+            {t("agent_options.advanced.enabled_tools", { count: preauthorizedToolCount })}
           </span>
         </div>
 

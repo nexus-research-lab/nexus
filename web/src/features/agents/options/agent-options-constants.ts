@@ -40,27 +40,75 @@ export const AVAILABLE_AGENT_TOOLS: ReadonlyArray<{
   name: string;
   descriptionKey: TranslationKey;
 }> = [
-  { name: "Task", descriptionKey: "agent_options.advanced.tool.task" },
-  { name: "TaskOutput", descriptionKey: "agent_options.advanced.tool.task_output" },
+  { name: "Agent", descriptionKey: "agent_options.advanced.tool.agent" },
   { name: "Bash", descriptionKey: "agent_options.advanced.tool.bash" },
-  { name: "Glob", descriptionKey: "agent_options.advanced.tool.glob" },
-  { name: "Grep", descriptionKey: "agent_options.advanced.tool.grep" },
-  { name: "LS", descriptionKey: "agent_options.advanced.tool.ls" },
-  { name: "ExitPlanMode", descriptionKey: "agent_options.advanced.tool.exit_plan_mode" },
-  { name: "Read", descriptionKey: "agent_options.advanced.tool.read" },
   { name: "Edit", descriptionKey: "agent_options.advanced.tool.edit" },
   { name: "Write", descriptionKey: "agent_options.advanced.tool.write" },
   { name: "NotebookEdit", descriptionKey: "agent_options.advanced.tool.notebook_edit" },
   { name: "WebFetch", descriptionKey: "agent_options.advanced.tool.web_fetch" },
-  { name: "TodoWrite", descriptionKey: "agent_options.advanced.tool.todo_write" },
   { name: "WebSearch", descriptionKey: "agent_options.advanced.tool.web_search" },
-  { name: "KillShell", descriptionKey: "agent_options.advanced.tool.kill_shell" },
-  { name: "AskUserQuestion", descriptionKey: "agent_options.advanced.tool.ask_user_question" },
-  { name: "Skill", descriptionKey: "agent_options.advanced.tool.skill" },
-  { name: "nexus_imagegen", descriptionKey: "agent_options.advanced.tool.nexus_imagegen" },
 ] as const;
 
 export const DEFAULT_AGENT_ALLOWED_TOOLS: string[] = [];
+
+const VISIBLE_AGENT_PREAUTHORIZED_TOOLS = new Set(AVAILABLE_AGENT_TOOLS.map((tool) => tool.name));
+
+const RETIRED_AGENT_PREAUTH_TOOL_ALIASES: Record<string, string | null> = {
+  Task: "Agent",
+  TaskOutput: null,
+  Glob: null,
+  Grep: null,
+  LS: null,
+  Read: null,
+  TodoWrite: null,
+  KillShell: null,
+  AskUserQuestion: null,
+  Skill: null,
+  EnterPlanMode: null,
+  ExitPlanMode: null,
+  nexus_imagegen: null,
+  generate_image: null,
+  edit_image: null,
+  mcp__nexus_imagegen__generate_image: null,
+  mcp__nexus_imagegen__edit_image: null,
+};
+
+function normalizeAgentAllowedToolName(toolName: string): string | null {
+  const normalizedToolName = toolName.trim();
+  if (!normalizedToolName) {
+    return null;
+  }
+  if (
+    normalizedToolName.startsWith("Skill(") ||
+    normalizedToolName.startsWith("mcp__nexus_imagegen__") ||
+    normalizedToolName.startsWith("nexus_imagegen__") ||
+    normalizedToolName.startsWith("nexus_imagegen.")
+  ) {
+    return null;
+  }
+  if (Object.prototype.hasOwnProperty.call(RETIRED_AGENT_PREAUTH_TOOL_ALIASES, normalizedToolName)) {
+    return RETIRED_AGENT_PREAUTH_TOOL_ALIASES[normalizedToolName] ?? null;
+  }
+  return normalizedToolName;
+}
+
+export function normalizeAgentAllowedToolsForEditor(tools?: string[] | null): string[] {
+  const result: string[] = [];
+  const seenTools = new Set<string>();
+  for (const toolName of tools ?? []) {
+    const normalizedToolName = normalizeAgentAllowedToolName(toolName);
+    if (!normalizedToolName || seenTools.has(normalizedToolName)) {
+      continue;
+    }
+    seenTools.add(normalizedToolName);
+    result.push(normalizedToolName);
+  }
+  return result;
+}
+
+export function countVisibleAgentPreauthorizedTools(tools: string[]): number {
+  return tools.filter((toolName) => VISIBLE_AGENT_PREAUTHORIZED_TOOLS.has(toolName.trim())).length;
+}
 
 export function normalizeAgentOptionProvider(provider?: string | null): string {
   const normalizedProvider = provider?.trim();

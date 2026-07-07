@@ -20,6 +20,7 @@ import {
   DEFAULT_AGENT_OPTION_MODEL,
   DEFAULT_AGENT_PERMISSION_MODE,
   DEFAULT_AGENT_OPTION_PROVIDER,
+  normalizeAgentAllowedToolsForEditor,
   normalizeAgentOptionProvider,
 } from "@/features/agents/options/agent-options-constants";
 import type {
@@ -62,7 +63,7 @@ export function useAgentOptionsEditorController({
     ? normalizeAgentOptionProvider(sourceOptions.provider) || DEFAULT_AGENT_OPTION_PROVIDER
     : DEFAULT_AGENT_OPTION_PROVIDER;
   const initialPermissionMode = sourceOptions.permission_mode || DEFAULT_AGENT_PERMISSION_MODE;
-  const initialAllowedTools = sourceOptions.allowed_tools || [];
+  const initialAllowedTools = normalizeAgentAllowedToolsForEditor(sourceOptions.allowed_tools);
   const initialDisallowedTools = sourceOptions.disallowed_tools || [];
   const initialAllowedToolsSignature = initialAllowedTools.join("\x1f");
   const initialDisallowedToolsSignature = initialDisallowedTools.join("\x1f");
@@ -298,7 +299,7 @@ export function useAgentOptionsEditorController({
       provider: hasExplicitModel ? selectedProvider : DEFAULT_AGENT_OPTION_PROVIDER,
       model: hasExplicitModel ? selectedModel : DEFAULT_AGENT_OPTION_MODEL,
       permission_mode: permissionMode,
-      allowed_tools: allowedTools,
+      allowed_tools: normalizeAgentAllowedToolsForEditor(allowedTools),
       disallowed_tools: disallowedTools,
       max_turns: sourceOptions.max_turns,
       max_thinking_tokens: sourceOptions.max_thinking_tokens,
