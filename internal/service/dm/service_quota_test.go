@@ -44,7 +44,6 @@ func TestServiceHandleChatBlocksRuntimeWhenQuotaExceeded(t *testing.T) {
 		SessionKey: sessionKey,
 		Content:    "should not start runtime",
 		RoundID:    "round-quota",
-		ReqID:      "round-quota",
 	})
 	if !errors.Is(err, errQuota) {
 		t.Fatalf("quota exceeded 应阻止 DM runtime，实际: %v", err)
