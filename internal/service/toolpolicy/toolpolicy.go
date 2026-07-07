@@ -2,6 +2,7 @@ package toolpolicy
 
 import (
 	"context"
+	"fmt"
 	"maps"
 	"slices"
 	"strings"
@@ -171,6 +172,34 @@ func WithManagedGoalAutoApproval(handler sdkpermission.Handler) sdkpermission.Ha
 	return func(ctx context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
 		if IsManagedGoalPermission(request.ToolName, request.Input) {
 			return sdkpermission.Allow(cloneInput(request.Input), nil), nil
+		}
+		return handler(ctx, request)
+	}
+}
+
+// WithMalformedInputDeny 检测工具输入 JSON 解析失败时拒绝执行，
+// 将错误原因反馈给大模型使其可以重试或纠正，同时前端能看到出错工具调用。
+func WithMalformedInputDeny(handler sdkpermission.Handler) sdkpermission.Handler {
+	if handler == nil {
+		return nil
+	}
+	return func(ctx context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
+		if rawParseError, ok := request.Input["_nexus_parse_error"]; ok {
+			parseError, _ := rawParseError.(string)
+			message := "工具输入 JSON 解析失败"
+			if parseError != "" {
+				message = fmt.Sprintf("工具输入 JSON 解析失败: %s", parseError)
+			}
+			if rawRawInput, ok := request.Input["_nexus_raw_input"]; ok {
+				if rawInput, ok := rawRawInput.(string); ok && rawInput != "" {
+					truncated := rawInput
+					if len(truncated) > 200 {
+						truncated = truncated[:200] + "..."
+					}
+					message = fmt.Sprintf("%s（原始输入: %s）", message, truncated)
+				}
+			}
+			return sdkpermission.Deny(message, false), nil
 		}
 		return handler(ctx, request)
 	}

@@ -2,6 +2,7 @@
 
 import { type ReactNode, useCallback } from "react";
 import {
+  AlertTriangle,
   Bot,
   ChevronDown,
   ChevronRight,
@@ -10,6 +11,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import type {
   PendingPermission,
   PermissionDecisionPayload,
@@ -135,6 +137,7 @@ export function MessageAssistantSection({
   assistantContentMode: assistantContentMode,
   state,
 }: MessageAssistantSectionProps) {
+  const { t } = useI18n();
   const isRoomThreadMode = assistantContentMode === "room_thread";
   const contentWorkspaceAgentId = state.assistantAgentId ?? workspaceAgentId;
   const avatarAgentId = state.assistantAgentId ?? workspaceAgentId ?? null;
@@ -377,6 +380,13 @@ export function MessageAssistantSection({
                     onOpenWorkspaceFile={onOpenWorkspaceFile}
                     workspaceAgentId={contentWorkspaceAgentId}
                   />
+                </div>
+              ) : null}
+
+              {state.stopReason === "max_tokens" ? (
+                <div className="mt-2 flex items-center gap-1.5 rounded-[8px] border border-[color:color-mix(in_srgb,var(--warning)_18%,transparent)] px-3 py-2 text-xs leading-5 text-(--warning)">
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                  <span>{t("message.max_tokens_warning")}</span>
                 </div>
               ) : null}
 

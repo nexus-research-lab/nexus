@@ -309,6 +309,61 @@ func TestGenerateTitleDisablesGLMThinking(t *testing.T) {
 	}
 }
 
+func TestGenerateTitleDisablesGLMThinkingViaUnknownProvider(t *testing.T) {
+	t.Parallel()
+
+	var receivedThinking map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		defer request.Body.Close()
+		var payload map[string]any
+		if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+			t.Fatalf("解析请求失败: %v", err)
+		}
+		if thinking, ok := payload["thinking"].(map[string]any); ok {
+			receivedThinking = thinking
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(map[string]any{
+			"choices": []map[string]any{
+				{
+					"message": map[string]any{
+						"content": "健康提醒",
+					},
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	// 模拟 enterprise provider：provider 名不含 "glm"，isGLMRuntimeConfig 无法识别，
+	// 但 config.Reasoning=true，应走到 default fallback 发送 thinking.type=disabled
+	service := NewService(&fakeProviderResolver{
+		config: &clientopts.RuntimeConfig{
+			Provider:    "enterprise",
+			DisplayName: "企业代理",
+			AuthToken:   "ent-key",
+			BaseURL:     server.URL + "/api/paas/v4",
+			Model:       "glm-5.2",
+			APIFormat:   "chat_completions",
+			Reasoning:   true,
+		},
+	}, nil, nil, nil)
+
+	title, err := service.generateTitle(context.Background(), Request{
+		Provider: "enterprise",
+		Model:    "glm-5.2",
+	}, "提醒我喝水")
+	if err != nil {
+		t.Fatalf("生成标题失败: %v", err)
+	}
+	if title != "健康提醒" {
+		t.Fatalf("标题不正确: %s", title)
+	}
+	if receivedThinking["type"] != "disabled" {
+		t.Fatalf("未知 provider 路由的 GLM 模型也应关闭 thinking: %+v", receivedThinking)
+	}
+}
+
 func TestGenerateTitleSupportsResponses(t *testing.T) {
 	t.Parallel()
 
