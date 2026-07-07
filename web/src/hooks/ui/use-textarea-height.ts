@@ -80,7 +80,7 @@ export function useTextareaHeight(
     let contentHeight: number;
     try {
       // pretext measures the full text including \n hard breaks
-      const prepared = prepare(value || " ", fontRef.current);
+      const prepared = prepare(value || " ", fontRef.current, { whiteSpace: "pre-wrap" });
       const result = layout(prepared, widthRef.current, lineHeight);
       contentHeight = result.height + paddingY;
     } catch {
