@@ -127,7 +127,7 @@ func normalizeUpdateInput(current providerstore.Entity, input UpdateInput) (prov
 	if input.AuthToken != nil {
 		authToken = strings.TrimSpace(*input.AuthToken)
 	}
-	if authToken == "" {
+	if input.Enabled && authToken == "" {
 		return providerstore.Entity{}, errors.New("auth_token 不能为空")
 	}
 	current.DisplayName = displayName

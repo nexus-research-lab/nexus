@@ -393,21 +393,39 @@ export function ProviderSettingsPanel({
   }, [canSave, currentPreset, draft, handleSave, isEditing, pendingAction, selectedRecord, submitting]);
 
   const handleEnabledChange = useCallback((checked: boolean) => {
-    if (!selectedCanManage) {
+    if (!selectedCanManage || !selectedRecord) {
       return;
     }
     setDraft((current) => ({ ...current, enabled: checked }));
     void (async () => {
-      const result = await handleSave({
-        draftOverrides: { enabled: checked },
-        showError: true,
-        showSuccess: false,
-      });
-      if (!result) {
+      setSubmitting(true);
+      try {
+        const payload = {
+          provider_kind: selectedRecord.provider_kind,
+          preset_key: selectedRecord.preset_key,
+          api_format: selectedRecord.api_format,
+          display_name: selectedRecord.display_name || selectedRecord.provider,
+          base_url: selectedRecord.base_url,
+          models_path: selectedRecord.models_path || "",
+          enabled: checked,
+        };
+        const draftAuthToken = draft.auth_token.trim();
+        const result = await providerApi.updateConfig(selectedRecord.provider, checked
+          ? (draftAuthToken ? { ...payload, auth_token: draftAuthToken } : payload)
+          : { ...payload, auth_token: "" });
+        await refreshAll(result.provider);
+      } catch (error) {
         setDraft((current) => ({ ...current, enabled: !checked }));
+        setFeedback({
+          tone: "error",
+          title: t("settings.providers.save_failed_title"),
+          message: error instanceof Error ? error.message : t("settings.providers.check_config_retry"),
+        });
+      } finally {
+        setSubmitting(false);
       }
     })();
-  }, [handleSave, selectedCanManage]);
+  }, [draft.auth_token, providerApi, refreshAll, selectedCanManage, selectedRecord, t]);
 
   const handleRequestDeleteProvider = useCallback((item: ProviderConfigRecord) => {
     if (!isCustomProviderRecord(item)) {

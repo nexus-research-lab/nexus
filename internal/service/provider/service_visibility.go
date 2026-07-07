@@ -47,9 +47,6 @@ func (s *Service) createVisibility(ctx context.Context, requested string) (strin
 func normalizeProviderVisibility(requested string, canManagePublic bool) (string, error) {
 	switch strings.TrimSpace(requested) {
 	case "":
-		if canManagePublic {
-			return providerstore.VisibilityPublic, nil
-		}
 		return providerstore.VisibilityPrivate, nil
 	case providerstore.VisibilityPublic:
 		if !canManagePublic {

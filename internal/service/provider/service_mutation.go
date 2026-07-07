@@ -3,12 +3,27 @@ package provider
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	providerstore "github.com/nexus-research-lab/nexus/internal/storage/provider"
 )
 
 // Create 新增 Provider 配置。
 func (s *Service) Create(ctx context.Context, input CreateInput) (*Record, error) {
+	if strings.TrimSpace(input.Visibility) == providerstore.VisibilityPublic {
+		return nil, fmt.Errorf("普通设置只能创建私有 Provider，请使用运营页面创建订阅 Provider")
+	}
+	input.Visibility = providerstore.VisibilityPrivate
+	return s.createScoped(ctx, input)
+}
+
+// CreatePublic 新增订阅运营使用的公共 Provider 配置。
+func (s *Service) CreatePublic(ctx context.Context, input CreateInput) (*Record, error) {
+	input.Visibility = providerstore.VisibilityPublic
+	return s.createScoped(ctx, input)
+}
+
+func (s *Service) createScoped(ctx context.Context, input CreateInput) (*Record, error) {
 	normalized, err := normalizeCreateInput(input)
 	if err != nil {
 		return nil, err
@@ -49,12 +64,6 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (*Record, error
 	return s.recordForScopedItem(ctx, item)
 }
 
-// CreatePublic 新增订阅运营使用的公共 Provider 配置。
-func (s *Service) CreatePublic(ctx context.Context, input CreateInput) (*Record, error) {
-	input.Visibility = providerstore.VisibilityPublic
-	return s.Create(ctx, input)
-}
-
 // Update 更新 Provider 配置。
 func (s *Service) Update(ctx context.Context, provider string, input UpdateInput) (*Record, error) {
 	normalizedProvider, err := NormalizeProvider(provider, false)
@@ -70,13 +79,6 @@ func (s *Service) Update(ctx context.Context, provider string, input UpdateInput
 	}
 	if err = s.requireProviderManagement(ctx, *current); err != nil {
 		return nil, err
-	}
-	usageCount, err := s.usageCountForMutation(ctx, *current)
-	if err != nil {
-		return nil, err
-	}
-	if current.ProviderKind == ProviderKindLLM && usageCount > 0 && !input.Enabled {
-		return nil, fmt.Errorf("provider=%s 仍被 %d 个 Agent 使用，不能禁用", normalizedProvider, usageCount)
 	}
 	updated, err := normalizeUpdateInput(*current, input)
 	if err != nil {
@@ -94,13 +96,6 @@ func (s *Service) UpdatePublic(ctx context.Context, provider string, input Updat
 	normalizedProvider, current, err := s.getPublicProvider(ctx, provider)
 	if err != nil {
 		return nil, err
-	}
-	usageCount, err := s.usageCountForMutation(ctx, *current)
-	if err != nil {
-		return nil, err
-	}
-	if current.ProviderKind == ProviderKindLLM && usageCount > 0 && !input.Enabled {
-		return nil, fmt.Errorf("provider=%s 仍被 %d 个 Agent 使用，不能禁用", normalizedProvider, usageCount)
 	}
 	updated, err := normalizeUpdateInput(*current, input)
 	if err != nil {

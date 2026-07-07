@@ -62,9 +62,8 @@ func TestProviderVisibilityScopesProvidersByOwner(t *testing.T) {
 	ownerACtx := providerTestContext("owner-a", authctx.RoleMember)
 	ownerBCtx := providerTestContext("owner-b", authctx.RoleMember)
 
-	publicProvider, err := service.Create(adminCtx, CreateInput{
+	publicProvider, err := service.CreatePublic(adminCtx, CreateInput{
 		Provider:    "shared",
-		Visibility:  providerstore.VisibilityPublic,
 		PresetKey:   presetCustom,
 		APIFormat:   APIFormatAnthropicMessages,
 		AuthToken:   "public-key",
@@ -205,6 +204,7 @@ func TestProviderPublicAdminMethodsUsePublicScope(t *testing.T) {
 
 func TestProviderPublicCreateRequiresAdmin(t *testing.T) {
 	service, _ := newTestService(t)
+	adminCtx := providerTestContext("admin-user", authctx.RoleAdmin)
 	memberCtx := providerTestContext("member-user", authctx.RoleMember)
 
 	if _, err := service.Create(memberCtx, CreateInput{
@@ -212,8 +212,26 @@ func TestProviderPublicCreateRequiresAdmin(t *testing.T) {
 		Visibility: providerstore.VisibilityPublic,
 		AuthToken:  "member-key",
 		BaseURL:    "https://member.example.com",
+	}); err == nil || !strings.Contains(err.Error(), "普通设置只能创建私有 Provider") {
+		t.Fatalf("普通设置入口不应能创建公共 provider: %v", err)
+	}
+	if _, err := service.CreatePublic(memberCtx, CreateInput{
+		Provider:  "member-public",
+		AuthToken: "member-key",
+		BaseURL:   "https://member.example.com",
 	}); err == nil || !strings.Contains(err.Error(), "只有管理员") {
-		t.Fatalf("普通成员不应能创建公共 provider: %v", err)
+		t.Fatalf("普通成员不应通过运营入口创建公共 provider: %v", err)
+	}
+	adminPrivateProvider, err := service.Create(adminCtx, CreateInput{
+		Provider:  "admin-private",
+		AuthToken: "admin-key",
+		BaseURL:   "https://admin.example.com",
+	})
+	if err != nil {
+		t.Fatalf("管理员普通设置入口应能创建私有 provider: %v", err)
+	}
+	if adminPrivateProvider.Visibility != providerstore.VisibilityPrivate || adminPrivateProvider.OwnerUserID != "admin-user" {
+		t.Fatalf("管理员普通设置入口默认应创建私有 provider: %+v", adminPrivateProvider)
 	}
 
 	privateProvider, err := service.Create(memberCtx, CreateInput{
@@ -233,9 +251,8 @@ func TestProviderPublicMutationRequiresAdminAndDeleteProtectsGlobalUsage(t *test
 	service, db := newTestService(t)
 	adminCtx := providerTestContext("admin-user", authctx.RoleAdmin)
 	memberCtx := providerTestContext("member-user", authctx.RoleMember)
-	record, err := service.Create(adminCtx, CreateInput{
+	record, err := service.CreatePublic(adminCtx, CreateInput{
 		Provider:    "public-guard",
-		Visibility:  providerstore.VisibilityPublic,
 		PresetKey:   presetCustom,
 		APIFormat:   APIFormatAnthropicMessages,
 		AuthToken:   "public-key",
@@ -263,6 +280,49 @@ func TestProviderPublicMutationRequiresAdminAndDeleteProtectsGlobalUsage(t *test
 	insertProviderUsageAgentForOwner(t, db, "owner-b", "agent-public-b", "public-b", "Public B", "", false, record.Provider, "active")
 	if _, err = service.Delete(adminCtx, record.Provider, DeleteInput{}); err == nil || !strings.Contains(err.Error(), "2 个 Agent") {
 		t.Fatalf("公共 provider 删除应按全局使用保护: %v", err)
+	}
+}
+
+func TestProviderDisableClearsTokenAndAllowsExistingUsage(t *testing.T) {
+	service, db := newTestService(t)
+	ctx := providerTestContext("owner-user", authctx.RoleMember)
+	record, err := service.Create(ctx, CreateInput{
+		Provider:    "used-private",
+		PresetKey:   presetCustom,
+		APIFormat:   APIFormatAnthropicMessages,
+		AuthToken:   "private-token",
+		BaseURL:     "https://private.example.com",
+		ModelsPath:  "/models",
+		Enabled:     true,
+		DisplayName: "Used Private",
+	})
+	if err != nil {
+		t.Fatalf("创建私有 provider 失败: %v", err)
+	}
+	insertProviderUsageAgentForOwner(t, db, "owner-user", "agent-used-private", "used-private", "Used Private Agent", "", false, record.Provider, "active")
+
+	updated, err := service.Update(ctx, record.Provider, UpdateInput{
+		PresetKey:    record.PresetKey,
+		APIFormat:    record.APIFormat,
+		DisplayName:  record.DisplayName,
+		BaseURL:      record.BaseURL,
+		ModelsPath:   record.ModelsPath,
+		ProviderKind: record.ProviderKind,
+		AuthToken:    stringPointer(""),
+		Enabled:      false,
+	})
+	if err != nil {
+		t.Fatalf("关闭正在使用的 provider 应成功: %v", err)
+	}
+	if updated.Enabled {
+		t.Fatalf("provider 应已关闭: %+v", updated)
+	}
+	entity, err := service.repository.GetVisibleByProvider(ctx, "owner-user", record.Provider)
+	if err != nil {
+		t.Fatalf("读取 provider 失败: %v", err)
+	}
+	if entity == nil || entity.AuthToken != "" {
+		t.Fatalf("关闭 provider 应清空 token: %+v", entity)
 	}
 }
 
