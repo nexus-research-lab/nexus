@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
@@ -21,7 +21,7 @@ func TestRecordGoalUsageForRoomSlotUsesToolCompletionDelta(t *testing.T) {
 	}
 
 	service.recordGoalUsageFromSlotAssistantMessage(context.Background(), slot, roomGoalToolResultAssistantMessage("tool-1", "read_file", 4, 1))
-	service.recordGoalUsageForSlot(context.Background(), slot, runtimectx.RoundExecutionResult{
+	service.recordGoalUsageForSlot(context.Background(), slot, exec.RoundExecutionResult{
 		Usage: sdkprotocol.TokenUsage{
 			InputTokens:  6,
 			OutputTokens: 3,
@@ -52,7 +52,7 @@ func TestRecordGoalUsageForRoomSlotUsesAssistantSnapshotOnAbort(t *testing.T) {
 	}
 
 	service.recordGoalUsageFromSlotAssistantMessage(context.Background(), slot, roomGoalToolResultAssistantMessage("tool-1", "read_file", 4, 1))
-	service.recordGoalUsageForSlot(context.Background(), slot, runtimectx.RoundExecutionResult{}, roomGoalAssistantUsageMessage(9, 4))
+	service.recordGoalUsageForSlot(context.Background(), slot, exec.RoundExecutionResult{}, roomGoalAssistantUsageMessage(9, 4))
 
 	usages := goalProvider.recordedUsage()
 	if len(usages) != 2 {
@@ -77,7 +77,7 @@ func TestRoomSlotRecordsUsageToSharedGoalAfterCreateGoalTool(t *testing.T) {
 			}
 
 			service.recordGoalUsageFromSlotAssistantMessage(context.Background(), slot, roomGoalToolResultAssistantMessage("tool-1", toolName, 4, 1))
-			service.recordGoalUsageForSlot(context.Background(), slot, runtimectx.RoundExecutionResult{
+			service.recordGoalUsageForSlot(context.Background(), slot, exec.RoundExecutionResult{
 				Usage: sdkprotocol.TokenUsage{
 					InputTokens:  9,
 					OutputTokens: 3,

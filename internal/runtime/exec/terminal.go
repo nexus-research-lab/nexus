@@ -1,10 +1,11 @@
-package runtime
+package exec
 
 import (
 	"strings"
 	"time"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
@@ -24,7 +25,7 @@ func terminalRoundResult(
 	if resultMessage != nil {
 		result.Usage, _ = resultMessage.TokenUsage()
 		result.TerminalCategory = resultMessage.TerminalCategory()
-		result.UsageLimitReached, result.UsageLimitReason = ResultUsageLimitReached(resultMessage)
+		result.UsageLimitReached, result.UsageLimitReason = runtimectx.ResultUsageLimitReached(resultMessage)
 	}
 	if !isSuccessfulRoundResult(result) {
 		return roundResultWithElapsed(result, startedAt)

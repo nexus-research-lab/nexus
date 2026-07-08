@@ -1,4 +1,4 @@
-package runtime
+package exec
 
 import (
 	"fmt"
@@ -6,6 +6,7 @@ import (
 	"time"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
+	"github.com/nexus-research-lab/nexus/internal/runtime/trace"
 )
 
 // RoundStreamClosedError 携带 SDK 流提前关闭时的定位信息。
@@ -114,7 +115,7 @@ func buildRoundStreamIdleTimeoutError(
 		IdleTimeout:        idleTimeout,
 		MessagesSeen:       messagesSeen,
 		LastMessageType:    strings.TrimSpace(string(lastMessage.Type)),
-		LastMessageSummary: strings.TrimSpace(BuildSDKMessageLogSummary(lastMessage)),
+		LastMessageSummary: strings.TrimSpace(trace.BuildSDKMessageLogSummary(lastMessage)),
 		LastSessionID:      strings.TrimSpace(lastMessage.SessionID),
 		LastMessageID:      strings.TrimSpace(receivedMessageID(lastMessage)),
 		LastStreamStop:     lastStreamStop,
@@ -138,7 +139,7 @@ func buildRoundStreamClosedError(
 	result := &RoundStreamClosedError{
 		MessagesSeen:       messagesSeen,
 		LastMessageType:    strings.TrimSpace(string(lastMessage.Type)),
-		LastMessageSummary: strings.TrimSpace(BuildSDKMessageLogSummary(lastMessage)),
+		LastMessageSummary: strings.TrimSpace(trace.BuildSDKMessageLogSummary(lastMessage)),
 		LastSessionID:      strings.TrimSpace(lastMessage.SessionID),
 		LastMessageID:      strings.TrimSpace(receivedMessageID(lastMessage)),
 		LastStreamStop:     lastStreamStop,

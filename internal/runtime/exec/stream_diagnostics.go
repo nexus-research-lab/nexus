@@ -1,10 +1,11 @@
-package runtime
+package exec
 
 import (
 	"strings"
 	"time"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
+	"github.com/nexus-research-lab/nexus/internal/runtime/trace"
 )
 
 // RoundStreamStopDiagnostics 表示最近一次 provider message_stop 的定位信息。
@@ -67,16 +68,16 @@ func (d *roundStreamDiagnostics) Observe(message sdkprotocol.ReceivedMessage, me
 		return
 	}
 	payload := streamEventPayload(message)
-	eventType := strings.TrimSpace(rawString(payload["type"]))
+	eventType := strings.TrimSpace(trace.RawString(payload["type"]))
 	switch eventType {
 	case "message_start":
-		startMessage := rawMap(payload["message"])
-		d.currentMessageID = strings.TrimSpace(rawString(startMessage["id"]))
-		d.currentModel = strings.TrimSpace(rawString(startMessage["model"]))
+		startMessage := trace.RawMap(payload["message"])
+		d.currentMessageID = strings.TrimSpace(trace.RawString(startMessage["id"]))
+		d.currentModel = strings.TrimSpace(trace.RawString(startMessage["model"]))
 		d.currentStopReason = ""
 	case "message_delta":
-		delta := rawMap(payload["delta"])
-		if stopReason := strings.TrimSpace(rawString(delta["stop_reason"])); stopReason != "" {
+		delta := trace.RawMap(payload["delta"])
+		if stopReason := strings.TrimSpace(trace.RawString(delta["stop_reason"])); stopReason != "" {
 			d.currentStopReason = stopReason
 		}
 	case "message_stop":
@@ -84,11 +85,11 @@ func (d *roundStreamDiagnostics) Observe(message sdkprotocol.ReceivedMessage, me
 		d.lastStreamStop = RoundStreamStopDiagnostics{
 			Observed:     true,
 			MessageIndex: messageIndex,
-			Summary:      strings.TrimSpace(BuildSDKMessageLogSummary(message)),
-			StopReason:   firstNonEmpty(strings.TrimSpace(rawString(payload["stop_reason"])), d.currentStopReason),
+			Summary:      strings.TrimSpace(trace.BuildSDKMessageLogSummary(message)),
+			StopReason:   trace.FirstNonEmpty(strings.TrimSpace(trace.RawString(payload["stop_reason"])), d.currentStopReason),
 			SessionID:    strings.TrimSpace(message.SessionID),
-			MessageID:    firstNonEmpty(strings.TrimSpace(receivedMessageID(message)), d.currentMessageID),
-			Model:        firstNonEmpty(strings.TrimSpace(rawString(payload["model"])), d.currentModel),
+			MessageID:    trace.FirstNonEmpty(strings.TrimSpace(receivedMessageID(message)), d.currentMessageID),
+			Model:        trace.FirstNonEmpty(strings.TrimSpace(trace.RawString(payload["model"])), d.currentModel),
 		}
 	}
 }
@@ -151,10 +152,10 @@ func streamEventPayload(message sdkprotocol.ReceivedMessage) map[string]any {
 	if message.Stream == nil {
 		return nil
 	}
-	if payload := rawMap(message.Stream.Event); len(payload) > 0 {
+	if payload := trace.RawMap(message.Stream.Event); len(payload) > 0 {
 		return payload
 	}
-	return rawMap(message.Stream.Data)
+	return trace.RawMap(message.Stream.Data)
 }
 
 func receivedMessageID(message sdkprotocol.ReceivedMessage) string {

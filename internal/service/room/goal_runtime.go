@@ -9,7 +9,7 @@ import (
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	messageutil "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 )
 
@@ -87,7 +87,7 @@ func (s *RealtimeService) recordGoalContinuationProgressForSlot(
 	ctx context.Context,
 	slot *activeRoomSlot,
 	roundValue *activeRoomRound,
-	result runtimectx.RoundExecutionResult,
+	result exec.RoundExecutionResult,
 	finalAssistant protocol.Message,
 ) {
 	if s.goals == nil || slot == nil || slot.GoalRuntimeIgnored || strings.TrimSpace(slot.GoalIDForUsage) == "" {

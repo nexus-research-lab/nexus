@@ -1,4 +1,4 @@
-package runtime
+package trace
 
 import (
 	"fmt"
@@ -106,11 +106,11 @@ func buildStreamEventFields(message sdkprotocol.ReceivedMessage) []any {
 	if message.Stream == nil {
 		return nil
 	}
-	event := rawMap(message.Stream.Event)
+	event := RawMap(message.Stream.Event)
 	if len(event) == 0 {
-		event = rawMap(message.Stream.Data)
+		event = RawMap(message.Stream.Data)
 	}
-	eventType := strings.TrimSpace(rawString(event["type"]))
+	eventType := strings.TrimSpace(RawString(event["type"]))
 	if eventType == "" {
 		return nil
 	}
@@ -118,42 +118,42 @@ func buildStreamEventFields(message sdkprotocol.ReceivedMessage) []any {
 	fields = appendRawLogField(fields, "stream_index", event["index"])
 	switch eventType {
 	case "message_start":
-		startMessage := rawMap(event["message"])
+		startMessage := RawMap(event["message"])
 		fields = appendRawLogField(fields, "stream_role", startMessage["role"])
 		fields = appendRawLogField(fields, "stream_model", startMessage["model"])
 	case "content_block_start":
-		block := rawMap(event["content_block"])
-		blockType := normalizeSDKBlockType(rawString(block["type"]))
+		block := RawMap(event["content_block"])
+		blockType := normalizeSDKBlockType(RawString(block["type"]))
 		fields = appendRawLogField(fields, "stream_block", blockType)
 		switch blockType {
 		case "text":
-			if text := streamDebugText(rawString(block["text"])); text != "" {
+			if text := streamDebugText(RawString(block["text"])); text != "" {
 				fields = append(fields, "stream_text", text)
 			}
 		case "tool_use":
-			if toolName := strings.TrimSpace(firstNonEmpty(rawString(block["name"]), rawString(block["id"]))); toolName != "" {
+			if toolName := strings.TrimSpace(FirstNonEmpty(RawString(block["name"]), RawString(block["id"]))); toolName != "" {
 				fields = append(fields, "tool", toolName)
 			}
 		}
 	case "content_block_delta":
-		delta := rawMap(event["delta"])
-		deltaType := strings.TrimSpace(rawString(delta["type"]))
+		delta := RawMap(event["delta"])
+		deltaType := strings.TrimSpace(RawString(delta["type"]))
 		fields = appendRawLogField(fields, "stream_delta", deltaType)
 		switch deltaType {
 		case "text_delta":
-			text := rawString(delta["text"])
+			text := RawString(delta["text"])
 			if preview := streamDebugText(text); preview != "" {
 				fields = append(fields, "delta", preview)
 			}
 		case "thinking_delta":
-			text := firstNonEmpty(rawString(delta["thinking"]), rawString(delta["text"]))
+			text := FirstNonEmpty(RawString(delta["thinking"]), RawString(delta["text"]))
 			if preview := streamDebugText(text); preview != "" {
 				fields = append(fields, "thinking", preview)
 			}
 		}
 	case "content_block_stop":
 	case "message_delta":
-		delta := rawMap(event["delta"])
+		delta := RawMap(event["delta"])
 		fields = appendRawLogField(fields, "stream_stop_reason", delta["stop_reason"])
 		fields = appendRawLogField(fields, "stream_stop_sequence", delta["stop_sequence"])
 	case "message_stop":

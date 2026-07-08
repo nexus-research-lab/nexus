@@ -1,4 +1,4 @@
-package runtime
+package exec
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"time"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 )
 
 // ExecuteRound 统一执行 query -> receive -> map -> persist -> emit 的主链路。
@@ -22,11 +23,11 @@ func ExecuteRound(
 	}
 	startedAt := time.Now()
 
-	queryContent, err := prepareRoundContentWithContext(ctx, request.Client, roundQueryContent(request), request.ContextualInputs)
+	queryContent, err := runtimectx.PrepareRoundContentWithContext(ctx, request.Client, roundQueryContent(request), request.ContextualInputs)
 	if err != nil {
 		return RoundExecutionResult{}, err
 	}
-	if err := QueryClientContentWithOptions(ctx, request.Client, queryContent, request.InputOptions); err != nil {
+	if err := runtimectx.QueryClientContentWithOptions(ctx, request.Client, queryContent, request.InputOptions); err != nil {
 		if isRoundAbortError(ctx, err) {
 			return RoundExecutionResult{}, ErrRoundInterrupted
 		}

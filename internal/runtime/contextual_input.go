@@ -33,7 +33,7 @@ type nextTurnContextClient interface {
 
 const contextOnlyTurnTrigger = "Continue."
 
-func prepareRoundContentWithContext(
+func PrepareRoundContentWithContext(
 	ctx context.Context,
 	client Client,
 	content any,

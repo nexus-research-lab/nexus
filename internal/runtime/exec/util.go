@@ -1,4 +1,4 @@
-package runtime
+package exec
 
 import (
 	"context"
@@ -7,12 +7,13 @@ import (
 	"time"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
+
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 )
 
 const (
 	defaultAssistantTerminalGrace = 1500 * time.Millisecond
 	defaultRoundIdleTimeout       = 5 * time.Minute
-	roundIdleAbortTimeout         = 5 * time.Second
 )
 
 func roundQueryContent(request RoundExecutionRequest) any {
@@ -70,11 +71,11 @@ func abortRoundClientAfterIdleTimeout(client Client) {
 	if client == nil {
 		return
 	}
-	interruptCtx, interruptCancel := context.WithTimeout(context.Background(), roundIdleAbortTimeout)
+	interruptCtx, interruptCancel := context.WithTimeout(context.Background(), runtimectx.RoundIdleAbortTimeout)
 	_ = client.Interrupt(interruptCtx)
 	interruptCancel()
 
-	disconnectCtx, disconnectCancel := context.WithTimeout(context.Background(), roundIdleAbortTimeout)
+	disconnectCtx, disconnectCancel := context.WithTimeout(context.Background(), runtimectx.RoundIdleAbortTimeout)
 	_ = client.Disconnect(disconnectCtx)
 	disconnectCancel()
 }

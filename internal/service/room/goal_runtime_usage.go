@@ -9,6 +9,7 @@ import (
 	messageutil "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 )
 
@@ -51,7 +52,7 @@ func (s *RealtimeService) registerSlotGoalRuntime(slot *activeRoomSlot) func() {
 func (s *RealtimeService) recordGoalUsageForSlot(
 	ctx context.Context,
 	slot *activeRoomSlot,
-	result runtimectx.RoundExecutionResult,
+	result exec.RoundExecutionResult,
 	finalAssistant protocol.Message,
 ) {
 	if s.goals == nil || slot == nil || slot.GoalRuntimeIgnored {
@@ -67,7 +68,7 @@ func (s *RealtimeService) recordGoalUsageForSlot(
 func (s *RealtimeService) recordGoalUsageLimitForSlot(
 	ctx context.Context,
 	slot *activeRoomSlot,
-	result runtimectx.RoundExecutionResult,
+	result exec.RoundExecutionResult,
 ) {
 	if s.goals == nil || slot == nil || slot.GoalRuntimeIgnored || !result.UsageLimitReached {
 		return
@@ -84,7 +85,7 @@ func (s *RealtimeService) recordGoalUsageLimitForSlot(
 }
 
 func (s *RealtimeService) flushGoalUsageForSlot(ctx context.Context, slot *activeRoomSlot) error {
-	s.recordGoalUsageForSlot(ctx, slot, runtimectx.RoundExecutionResult{}, slot.lastGoalAssistantMessage())
+	s.recordGoalUsageForSlot(ctx, slot, exec.RoundExecutionResult{}, slot.lastGoalAssistantMessage())
 	return nil
 }
 
@@ -135,7 +136,7 @@ func (s *RealtimeService) recordGoalUsageFromSlotAssistantMessage(
 
 func slotFinalGoalUsageSnapshot(
 	slot *activeRoomSlot,
-	result runtimectx.RoundExecutionResult,
+	result exec.RoundExecutionResult,
 	finalAssistant protocol.Message,
 ) (goalsvc.RuntimeUsageSnapshot, bool) {
 	usage := runtimectx.GoalUsageFromTokenUsage(result.Usage)

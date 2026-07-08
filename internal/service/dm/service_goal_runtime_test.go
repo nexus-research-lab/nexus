@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
@@ -25,7 +25,7 @@ func TestRoundRunnerRecordsGoalUsageAtToolCompletion(t *testing.T) {
 	}
 
 	runner.recordGoalUsageFromAssistantMessage(goalToolResultAssistantMessage("tool-1", "read_file", false, 4, 3))
-	runner.recordGoalUsage(context.Background(), runtimectx.RoundExecutionResult{
+	runner.recordGoalUsage(context.Background(), exec.RoundExecutionResult{
 		Usage: sdkprotocol.TokenUsage{
 			InputTokens:  10,
 			OutputTokens: 5,
@@ -56,7 +56,7 @@ func TestRoundRunnerRecordsAbortGoalUsageFromAssistantSnapshot(t *testing.T) {
 	}
 
 	runner.recordGoalUsageFromAssistantMessage(goalToolResultAssistantMessage("tool-1", "read_file", false, 4, 1))
-	runner.recordGoalUsage(context.Background(), runtimectx.RoundExecutionResult{}, goalAssistantUsageMessage(7, 3))
+	runner.recordGoalUsage(context.Background(), exec.RoundExecutionResult{}, goalAssistantUsageMessage(7, 3))
 
 	usages := goalProvider.recordedUsage()
 	if len(usages) != 2 {
@@ -77,7 +77,7 @@ func TestRoundRunnerMarksUsageLimitAfterAccounting(t *testing.T) {
 		goalUsage:      goalsvc.NewRuntimeUsageAccumulator(true),
 	}
 
-	runner.recordGoalUsage(context.Background(), runtimectx.RoundExecutionResult{
+	runner.recordGoalUsage(context.Background(), exec.RoundExecutionResult{
 		Usage: sdkprotocol.TokenUsage{
 			InputTokens:  3,
 			OutputTokens: 2,
@@ -86,7 +86,7 @@ func TestRoundRunnerMarksUsageLimitAfterAccounting(t *testing.T) {
 		UsageLimitReached: true,
 		UsageLimitReason:  "You've hit your usage limit.",
 	}, nil)
-	runner.recordGoalUsageLimit(runtimectx.RoundExecutionResult{
+	runner.recordGoalUsageLimit(exec.RoundExecutionResult{
 		UsageLimitReached: true,
 		UsageLimitReason:  "You've hit your usage limit.",
 	})
@@ -113,7 +113,7 @@ func TestRoundRunnerRecordsEmptyGoalContinuationProgress(t *testing.T) {
 		},
 	}
 
-	runner.recordGoalContinuationProgress(runtimectx.RoundExecutionResult{})
+	runner.recordGoalContinuationProgress(exec.RoundExecutionResult{})
 
 	progress := goalProvider.recordedProgress()
 	if len(progress) != 1 || progress[0] {
@@ -134,7 +134,7 @@ func TestRoundRunnerSkipsEmptyGoalContinuationProgressWhileSubagentRuns(t *testi
 		},
 	}
 
-	runner.recordGoalContinuationProgress(runtimectx.RoundExecutionResult{})
+	runner.recordGoalContinuationProgress(exec.RoundExecutionResult{})
 
 	if progress := goalProvider.recordedProgress(); len(progress) != 0 {
 		t.Fatalf("progress = %#v, want running subagent to defer empty continuation progress", progress)
@@ -153,7 +153,7 @@ func TestRoundRunnerRecordsGoalContinuationFailure(t *testing.T) {
 		},
 	}
 
-	runner.recordGoalContinuationProgress(runtimectx.RoundExecutionResult{
+	runner.recordGoalContinuationProgress(exec.RoundExecutionResult{
 		TerminalStatus: "error",
 		ResultSubtype:  "error",
 		ErrorMessage:   "Failed to authenticate. API Error: 401",
@@ -182,7 +182,7 @@ func TestRoundRunnerRecordsGoalContinuationToolProgress(t *testing.T) {
 	}
 
 	runner.recordGoalUsageFromAssistantMessage(goalToolResultAssistantMessage("tool-1", "read_file", false, 4, 1))
-	runner.recordGoalContinuationProgress(runtimectx.RoundExecutionResult{})
+	runner.recordGoalContinuationProgress(exec.RoundExecutionResult{})
 
 	progress := goalProvider.recordedProgress()
 	if len(progress) != 1 || !progress[0] {
@@ -203,7 +203,7 @@ func TestRoundRunnerRecordsGoalCompletionToolMiss(t *testing.T) {
 	}
 	runner.rememberGoalAssistantMessage(goalCompletionToolMissAssistantMessage())
 
-	runner.recordGoalContinuationProgress(runtimectx.RoundExecutionResult{})
+	runner.recordGoalContinuationProgress(exec.RoundExecutionResult{})
 
 	misses := goalProvider.recordedCompletionMisses()
 	if len(misses) != 1 || !strings.Contains(misses[0], "mcp__nexus_goal__update_goal") {
@@ -223,7 +223,7 @@ func TestRoundRunnerRecordsUserGoalActivityInsteadOfContinuationProgress(t *test
 		goalIDForUsage: "goal-1",
 	}
 
-	runner.recordGoalContinuationProgress(runtimectx.RoundExecutionResult{})
+	runner.recordGoalContinuationProgress(exec.RoundExecutionResult{})
 
 	goalProvider.mu.Lock()
 	defer goalProvider.mu.Unlock()
@@ -248,7 +248,7 @@ func TestRoundRunnerClosesGoalUsageAfterUpdateGoal(t *testing.T) {
 			}
 
 			runner.recordGoalUsageFromAssistantMessage(goalToolResultAssistantMessage("tool-1", toolName, false, 10, 2))
-			runner.recordGoalUsage(context.Background(), runtimectx.RoundExecutionResult{
+			runner.recordGoalUsage(context.Background(), exec.RoundExecutionResult{
 				Usage: sdkprotocol.TokenUsage{
 					InputTokens:  20,
 					OutputTokens: 5,
@@ -278,7 +278,7 @@ func TestRoundRunnerClearGoalUsageStopsLaterAccounting(t *testing.T) {
 	}
 
 	runner.clearGoalUsage()
-	runner.recordGoalUsage(context.Background(), runtimectx.RoundExecutionResult{
+	runner.recordGoalUsage(context.Background(), exec.RoundExecutionResult{
 		Usage: sdkprotocol.TokenUsage{
 			InputTokens:  20,
 			OutputTokens: 5,
@@ -307,7 +307,7 @@ func TestRoundRunnerActivateGoalUsageRestartsFromCurrentSnapshot(t *testing.T) {
 	if err := runner.activateGoalUsage(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	runner.recordGoalUsage(context.Background(), runtimectx.RoundExecutionResult{
+	runner.recordGoalUsage(context.Background(), exec.RoundExecutionResult{
 		Usage: sdkprotocol.TokenUsage{
 			InputTokens:  10,
 			OutputTokens: 5,
@@ -336,7 +336,7 @@ func TestRoundRunnerResetsGoalUsageAfterCreateGoal(t *testing.T) {
 			}
 
 			runner.recordGoalUsageFromAssistantMessage(goalToolResultAssistantMessage("tool-1", toolName, false, 5, 1))
-			runner.recordGoalUsage(context.Background(), runtimectx.RoundExecutionResult{
+			runner.recordGoalUsage(context.Background(), exec.RoundExecutionResult{
 				Usage: sdkprotocol.TokenUsage{
 					InputTokens:  8,
 					OutputTokens: 3,
@@ -368,18 +368,18 @@ func TestRoundRunnerIgnoresGoalRuntimeInPlanMode(t *testing.T) {
 	}
 
 	runner.recordGoalUsageFromAssistantMessage(goalToolResultAssistantMessage("tool-1", "read_file", false, 4, 1))
-	runner.recordGoalUsage(context.Background(), runtimectx.RoundExecutionResult{
+	runner.recordGoalUsage(context.Background(), exec.RoundExecutionResult{
 		Usage: sdkprotocol.TokenUsage{
 			InputTokens:  10,
 			OutputTokens: 2,
 		},
 		ElapsedTimeSeconds: 3,
 	}, protocol.Message{})
-	runner.recordGoalUsageLimit(runtimectx.RoundExecutionResult{
+	runner.recordGoalUsageLimit(exec.RoundExecutionResult{
 		UsageLimitReached: true,
 		UsageLimitReason:  "usage limit",
 	})
-	runner.recordGoalContinuationProgress(runtimectx.RoundExecutionResult{})
+	runner.recordGoalContinuationProgress(exec.RoundExecutionResult{})
 
 	if usages := goalProvider.recordedUsage(); len(usages) != 0 {
 		t.Fatalf("plan mode recorded goal usage: %#v", usages)

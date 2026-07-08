@@ -10,10 +10,11 @@ import (
 	messageutil "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 )
 
-func (r *roundRunner) recordGoalUsage(ctx context.Context, result runtimectx.RoundExecutionResult, finalAssistant protocol.Message) {
+func (r *roundRunner) recordGoalUsage(ctx context.Context, result exec.RoundExecutionResult, finalAssistant protocol.Message) {
 	if r.service.goals == nil || r.ignoreGoalRuntime() {
 		return
 	}
@@ -24,7 +25,7 @@ func (r *roundRunner) recordGoalUsage(ctx context.Context, result runtimectx.Rou
 	r.recordGoalUsageSnapshot(ctx, snapshot)
 }
 
-func (r *roundRunner) recordGoalUsageLimit(result runtimectx.RoundExecutionResult) {
+func (r *roundRunner) recordGoalUsageLimit(result exec.RoundExecutionResult) {
 	if r.service.goals == nil || r.ignoreGoalRuntime() || !result.UsageLimitReached {
 		return
 	}
@@ -40,7 +41,7 @@ func (r *roundRunner) recordGoalUsageLimit(result runtimectx.RoundExecutionResul
 }
 
 func (r *roundRunner) flushGoalUsage(ctx context.Context) error {
-	r.recordGoalUsage(ctx, runtimectx.RoundExecutionResult{}, r.lastGoalAssistantMessage())
+	r.recordGoalUsage(ctx, exec.RoundExecutionResult{}, r.lastGoalAssistantMessage())
 	return nil
 }
 
@@ -122,7 +123,7 @@ func (r *roundRunner) recordGoalUsageFromAssistantMessage(message protocol.Messa
 	}
 }
 
-func (r *roundRunner) recordGoalContinuationProgress(result runtimectx.RoundExecutionResult) {
+func (r *roundRunner) recordGoalContinuationProgress(result exec.RoundExecutionResult) {
 	if r.service.goals == nil || r.ignoreGoalRuntime() || strings.TrimSpace(r.goalIDForUsage) == "" {
 		return
 	}
@@ -204,7 +205,7 @@ func (r *roundRunner) hasGoalToolProgress() bool {
 }
 
 func (r *roundRunner) finalGoalUsageSnapshot(
-	result runtimectx.RoundExecutionResult,
+	result exec.RoundExecutionResult,
 	finalAssistant protocol.Message,
 ) (goalsvc.RuntimeUsageSnapshot, bool) {
 	usage := runtimectx.GoalUsageFromTokenUsage(result.Usage)

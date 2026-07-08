@@ -9,6 +9,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
@@ -257,7 +258,7 @@ func TestClearGoalUsageForRoomSlotStopsLaterAccounting(t *testing.T) {
 	}
 
 	clearGoalUsageForSlot(slot)
-	service.recordGoalUsageForSlot(context.Background(), slot, runtimectx.RoundExecutionResult{
+	service.recordGoalUsageForSlot(context.Background(), slot, exec.RoundExecutionResult{
 		Usage: sdkprotocol.TokenUsage{
 			InputTokens:  6,
 			OutputTokens: 3,
@@ -284,7 +285,7 @@ func TestActivateGoalUsageForRoomSlotRestartsFromCurrentSnapshot(t *testing.T) {
 	clearGoalUsageForSlot(slot)
 	slot.rememberGoalAssistantMessage(roomGoalToolResultAssistantMessage("tool-2", "read_file", 7, 3))
 	activateGoalUsageForSlot(context.Background(), slot)
-	service.recordGoalUsageForSlot(context.Background(), slot, runtimectx.RoundExecutionResult{
+	service.recordGoalUsageForSlot(context.Background(), slot, exec.RoundExecutionResult{
 		Usage: sdkprotocol.TokenUsage{
 			InputTokens:  10,
 			OutputTokens: 5,
@@ -310,7 +311,7 @@ func TestRecordGoalUsageLimitForRoomSlotUsesGoalSessionKey(t *testing.T) {
 		AgentRoundID:      "round-1",
 	}
 
-	service.recordGoalUsageLimitForSlot(context.Background(), slot, runtimectx.RoundExecutionResult{
+	service.recordGoalUsageLimitForSlot(context.Background(), slot, exec.RoundExecutionResult{
 		UsageLimitReached: true,
 		UsageLimitReason:  "The usage limit has been reached",
 	})
@@ -328,7 +329,7 @@ func TestRecordGoalUsageLimitForRoomSlot(t *testing.T) {
 		AgentRoundID:      "round-1",
 	}
 
-	service.recordGoalUsageLimitForSlot(context.Background(), slot, runtimectx.RoundExecutionResult{
+	service.recordGoalUsageLimitForSlot(context.Background(), slot, exec.RoundExecutionResult{
 		UsageLimitReached: true,
 		UsageLimitReason:  "The usage limit has been reached",
 	})
@@ -354,20 +355,20 @@ func TestRoomSlotIgnoresGoalRuntimeInPlanMode(t *testing.T) {
 
 	beginGoalUsageForSlot(slot)
 	service.recordGoalUsageFromSlotAssistantMessage(context.Background(), slot, roomGoalToolResultAssistantMessage("tool-1", "read_file", 4, 1))
-	service.recordGoalUsageForSlot(context.Background(), slot, runtimectx.RoundExecutionResult{
+	service.recordGoalUsageForSlot(context.Background(), slot, exec.RoundExecutionResult{
 		Usage: sdkprotocol.TokenUsage{
 			InputTokens:  10,
 			OutputTokens: 2,
 		},
 		ElapsedTimeSeconds: 3,
 	}, protocol.Message{})
-	service.recordGoalUsageLimitForSlot(context.Background(), slot, runtimectx.RoundExecutionResult{
+	service.recordGoalUsageLimitForSlot(context.Background(), slot, exec.RoundExecutionResult{
 		UsageLimitReached: true,
 		UsageLimitReason:  "usage limit",
 	})
 	service.recordGoalContinuationProgressForSlot(context.Background(), slot, &activeRoomRound{
 		InputOptions: sdkprotocol.OutboundMessageOptions{Purpose: "goal_continuation"},
-	}, runtimectx.RoundExecutionResult{}, nil)
+	}, exec.RoundExecutionResult{}, nil)
 
 	if usages := goalProvider.recordedUsage(); len(usages) != 0 {
 		t.Fatalf("plan mode recorded room goal usage: %#v", usages)

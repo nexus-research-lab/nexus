@@ -1,4 +1,4 @@
-package runtime
+package trace
 
 import (
 	"strings"
@@ -16,14 +16,14 @@ func normalizeSDKBlockType(blockType string) string {
 	}
 }
 
-func rawMap(value any) map[string]any {
+func RawMap(value any) map[string]any {
 	if payload, ok := value.(map[string]any); ok {
 		return payload
 	}
 	return map[string]any{}
 }
 
-func rawString(value any) string {
+func RawString(value any) string {
 	switch typed := value.(type) {
 	case string:
 		return typed
@@ -86,7 +86,7 @@ func streamDebugText(value string) string {
 	return string(runes[:maxRunes]) + "..."
 }
 
-func firstNonEmpty(values ...string) string {
+func FirstNonEmpty(values ...string) string {
 	for _, value := range values {
 		if strings.TrimSpace(value) != "" {
 			return value

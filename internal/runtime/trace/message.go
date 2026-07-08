@@ -1,4 +1,4 @@
-package runtime
+package trace
 
 import sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 

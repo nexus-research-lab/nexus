@@ -1,4 +1,4 @@
-package runtime
+package trace
 
 import (
 	"strings"
@@ -42,40 +42,40 @@ func summarizeStreamMessage(message sdkprotocol.ReceivedMessage) string {
 	if message.Stream == nil {
 		return "stream"
 	}
-	event := rawMap(message.Stream.Event)
+	event := RawMap(message.Stream.Event)
 	if len(event) == 0 {
-		event = rawMap(message.Stream.Data)
+		event = RawMap(message.Stream.Data)
 	}
-	eventType := strings.TrimSpace(rawString(event["type"]))
+	eventType := strings.TrimSpace(RawString(event["type"]))
 	if eventType == "" {
 		return "stream"
 	}
 	preview := ""
 	switch eventType {
 	case "message_start":
-		startMessage := rawMap(event["message"])
-		role := strings.TrimSpace(rawString(startMessage["role"]))
+		startMessage := RawMap(event["message"])
+		role := strings.TrimSpace(RawString(startMessage["role"]))
 		if role != "" {
 			return "stream message_start(" + role + ")"
 		}
 	case "content_block_delta":
-		delta := rawMap(event["delta"])
-		deltaType := strings.TrimSpace(rawString(delta["type"]))
+		delta := RawMap(event["delta"])
+		deltaType := strings.TrimSpace(RawString(delta["type"]))
 		if deltaType != "" {
 			return "stream content_block_delta(" + deltaType + ")"
 		}
 	case "content_block_start":
-		block := rawMap(event["content_block"])
-		blockType := normalizeSDKBlockType(rawString(block["type"]))
+		block := RawMap(event["content_block"])
+		blockType := normalizeSDKBlockType(RawString(block["type"]))
 		if blockType != "" {
 			if blockType == "tool_use" {
-				preview = strings.TrimSpace(rawString(block["name"]))
+				preview = strings.TrimSpace(RawString(block["name"]))
 			}
 			return appendSummaryPreview("stream content_block_start("+blockType+")", preview)
 		}
 	case "message_delta":
-		delta := rawMap(event["delta"])
-		stopReason := strings.TrimSpace(rawString(delta["stop_reason"]))
+		delta := RawMap(event["delta"])
+		stopReason := strings.TrimSpace(RawString(delta["stop_reason"]))
 		if stopReason != "" {
 			return "stream message_delta(stop_reason=" + stopReason + ")"
 		}
@@ -211,7 +211,7 @@ func summarizeContentBlocks(blocks []sdkprotocol.ContentBlock) ([]string, string
 		switch blockType {
 		case "tool_use":
 			if toolUseBlock, ok := sdkprotocol.AsToolUseBlock(block); ok {
-				if toolName := strings.TrimSpace(firstNonEmpty(toolUseBlock.Name, toolUseBlock.ID)); toolName != "" {
+				if toolName := strings.TrimSpace(FirstNonEmpty(toolUseBlock.Name, toolUseBlock.ID)); toolName != "" {
 					previewParts = append(previewParts, "tool_use:"+toolName)
 				}
 			}

@@ -377,7 +377,7 @@ func closeSDKSession(session *agentclient.Session) {
 	if session == nil {
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), roundIdleAbortTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), RoundIdleAbortTimeout)
 	defer cancel()
 	_ = session.Close(ctx)
 }

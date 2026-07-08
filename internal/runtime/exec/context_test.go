@@ -1,4 +1,4 @@
-package runtime
+package exec
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 )
 
 func TestExecuteRoundUsesInternalContextWhenSupported(t *testing.T) {
@@ -27,7 +28,7 @@ func TestExecuteRoundUsesInternalContextWhenSupported(t *testing.T) {
 	_, err := ExecuteRound(context.Background(), RoundExecutionRequest{
 		Content: "用户输入",
 		ContextualInputs: []ContextualInputBlock{
-			NewContextualInputBlock("goal", "Continue.", 0, map[string]string{"goal_id": "goal-1"}),
+			runtimectx.NewContextualInputBlock("goal", "Continue.", 0, map[string]string{"goal_id": "goal-1"}),
 		},
 		Client: client,
 		Mapper: &fakeRoundExecutionMapper{
@@ -63,7 +64,7 @@ func TestExecuteRoundInlinesContextOnlyInternalTurn(t *testing.T) {
 	_, err := ExecuteRound(context.Background(), RoundExecutionRequest{
 		Content: "",
 		ContextualInputs: []ContextualInputBlock{
-			NewContextualInputBlock("goal", "Continue.", 0, map[string]string{"goal_id": "goal-1"}),
+			runtimectx.NewContextualInputBlock("goal", "Continue.", 0, map[string]string{"goal_id": "goal-1"}),
 		},
 		Client: client,
 		Mapper: &fakeRoundExecutionMapper{
@@ -101,7 +102,7 @@ func TestExecuteRoundFallsBackToUserContextPrefixWhenInternalContextUnsupported(
 	_, err := ExecuteRound(context.Background(), RoundExecutionRequest{
 		Content: "用户输入",
 		ContextualInputs: []ContextualInputBlock{
-			NewContextualInputBlock("goal", "Continue.", 0, nil),
+			runtimectx.NewContextualInputBlock("goal", "Continue.", 0, nil),
 		},
 		Client: client,
 		Mapper: &fakeRoundExecutionMapper{
@@ -138,7 +139,7 @@ func TestExecuteRoundFallsBackToStructuredContentPrefixWhenInternalContextUnsupp
 	_, err := ExecuteRound(context.Background(), RoundExecutionRequest{
 		Content: content,
 		ContextualInputs: []ContextualInputBlock{
-			NewContextualInputBlock("goal", "Continue.", 0, nil),
+			runtimectx.NewContextualInputBlock("goal", "Continue.", 0, nil),
 		},
 		Client: client,
 		Mapper: &fakeRoundExecutionMapper{
@@ -177,7 +178,7 @@ func TestExecuteRoundLeavesUnknownContentShapeWhenInternalContextUnsupported(t *
 	_, err := ExecuteRound(context.Background(), RoundExecutionRequest{
 		Content: content,
 		ContextualInputs: []ContextualInputBlock{
-			NewContextualInputBlock("goal", "Continue.", 0, nil),
+			runtimectx.NewContextualInputBlock("goal", "Continue.", 0, nil),
 		},
 		Client: client,
 		Mapper: &fakeRoundExecutionMapper{
