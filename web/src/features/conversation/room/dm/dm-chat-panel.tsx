@@ -23,6 +23,9 @@ import {
 } from "@/features/conversation/shared/composer-attachments";
 import { ConversationErrorBubble } from "@/features/conversation/shared/conversation-error-bubble";
 import { ConversationFeed } from "@/features/conversation/shared/conversation-feed";
+import {
+  buildConversationScrollContentKey,
+} from "@/features/conversation/shared/conversation-scroll-content-key";
 import type {
   ConversationRoundScrollHandle,
 } from "@/features/conversation/shared/conversation-round-scroll";
@@ -141,6 +144,10 @@ export function DmChatPanel({
   const { hasAvailableProvider, isReady: providerReady } = useProviderAvailability();
   const showProviderWarning = providerReady && !hasAvailableProvider;
   const systemError = error;
+  const scrollContentKey = useMemo(
+    () => buildConversationScrollContentKey(sessionKey, messages),
+    [messages, sessionKey],
+  );
   const {
     scrollRef: scrollRef,
     feedRef: feedRef,
@@ -159,6 +166,7 @@ export function DmChatPanel({
     messageCount: messages.length,
     auxiliaryBlockCount: pendingPermissions.length,
     auxiliaryBlockKey: systemError,
+    contentKey: scrollContentKey,
     isLoading,
     sessionKey,
     historyPrependToken,

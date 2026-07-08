@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Restored chat feed auto-follow when switching between conversations or thread panels with the same message count, and moved the smaller, less transparent floating scroll-to-latest button to the center of the chat feed.
+
 ## [0.1.26] - 2026-07-08
 
 ### Changed

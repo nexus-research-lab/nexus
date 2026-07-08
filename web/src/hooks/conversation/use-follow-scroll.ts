@@ -87,6 +87,8 @@ interface UseFollowScrollOptions {
   auxiliaryBlockCount?: number;
   /** 辅助块内容变化时触发滚动，例如系统消息文本变化。 */
   auxiliaryBlockKey?: string | null;
+  /** 内容身份变化时触发滚动，例如切换到同消息数的新会话。 */
+  contentKey?: string | null;
   /** loading 变化时触发滚动 */
   isLoading: boolean;
   /** session 切换时重置跟随状态 */
@@ -128,6 +130,7 @@ export function useFollowScroll({
   messageCount,
   auxiliaryBlockCount = 0,
   auxiliaryBlockKey = null,
+  contentKey = null,
   isLoading,
   sessionKey,
   historyPrependToken = 0,
@@ -280,6 +283,7 @@ export function useFollowScroll({
   }, [
     auxiliaryBlockCount,
     auxiliaryBlockKey,
+    contentKey,
     isLoading,
     messageCount,
     scheduleScrollToBottom,
@@ -318,12 +322,12 @@ export function useFollowScroll({
   }, [scheduleScrollToBottom, setScrollToBottomVisibility]);
 
   // session 切换时重置
-  useEffect(() => {
+  useLayoutEffect(() => {
     shouldFollowLatestRef.current = true;
-    showScrollToBottomRef.current = false;
-    lastScrollTopRef.current = scrollRef.current?.scrollTop || 0;
     pendingPrependRestoreRef.current = null;
-  }, [sessionKey]);
+    setScrollToBottomVisibility(false);
+    scheduleScrollToBottom("auto");
+  }, [scheduleScrollToBottom, sessionKey, setScrollToBottomVisibility]);
 
   // 卸载时清理
   useEffect(() => {

@@ -27,6 +27,9 @@ import type {
   ConversationRoundScrollHandle,
 } from "@/features/conversation/shared/conversation-round-scroll";
 import { ConversationSessionNavigator } from "@/features/conversation/shared/conversation-session-navigator";
+import {
+  buildConversationScrollContentKey,
+} from "@/features/conversation/shared/conversation-scroll-content-key";
 import { ProviderUnavailableBanner } from "@/features/conversation/shared/provider-unavailable-banner";
 import { ROOM_GOAL_SCOPE_LABEL } from "@/features/conversation/shared/goal-continuation-hold";
 import { useConversationTimeline } from "@/features/conversation/shared/use-conversation-timeline";
@@ -206,6 +209,10 @@ export function GroupChatPanel({
   const { hasAvailableProvider, isReady: providerReady } = useProviderAvailability();
   const showProviderWarning = providerReady && !hasAvailableProvider;
   const systemError = error;
+  const scrollContentKey = useMemo(
+    () => buildConversationScrollContentKey(sessionKey, messages),
+    [messages, sessionKey],
+  );
   const {
     scrollRef: scrollRef,
     feedRef: feedRef,
@@ -225,6 +232,7 @@ export function GroupChatPanel({
     auxiliaryBlockCount:
       pendingAgentSlots.length + pendingPermissions.length,
     auxiliaryBlockKey: systemError,
+    contentKey: scrollContentKey,
     isLoading,
     sessionKey,
     historyPrependToken,

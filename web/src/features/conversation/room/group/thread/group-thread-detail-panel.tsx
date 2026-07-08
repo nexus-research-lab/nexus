@@ -9,6 +9,9 @@ import {
   PendingPermission,
   PermissionDecisionPayload,
 } from "@/types/conversation/permission";
+import {
+  buildConversationScrollContentKey,
+} from "@/features/conversation/shared/conversation-scroll-content-key";
 import { ScrollToLatestButton } from "@/features/conversation/shared/scroll-to-latest-button";
 import { MessageItem } from "@/features/conversation/shared/message";
 import { MessageAvatar } from "@/features/conversation/shared/message/ui/message-primitives";
@@ -59,6 +62,10 @@ export function GroupThreadDetailPanel({
     () => `${roundId}:${agentId}`,
     [agentId, roundId],
   );
+  const scrollContentKey = useMemo(
+    () => buildConversationScrollContentKey(threadSessionKey, messages),
+    [messages, threadSessionKey],
+  );
   const {
     scrollRef: scrollRef,
     feedRef: feedRef,
@@ -74,6 +81,7 @@ export function GroupThreadDetailPanel({
     // Thread 和 DM 实时态一样，需要在过程消息、权限确认和 loading 变化时持续跟随到底部。
     messageCount: messages.length,
     auxiliaryBlockCount: pendingPermissions.length,
+    contentKey: scrollContentKey,
     isLoading,
     sessionKey: threadSessionKey,
   });
