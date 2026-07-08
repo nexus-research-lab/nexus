@@ -239,6 +239,20 @@ func (c *sdkClientAdapter) StreamError() error {
 	return c.streamErr
 }
 
+func (c *sdkClientAdapter) Wait() error {
+	c.mu.Lock()
+	session := c.session
+	streamErr := c.streamErr
+	c.mu.Unlock()
+	if streamErr != nil {
+		return streamErr
+	}
+	if session == nil {
+		return nil
+	}
+	return session.Wait()
+}
+
 func (c *sdkClientAdapter) setStreamError(err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -283,6 +297,7 @@ func (c *sdkClientAdapter) pumpMessages(
 		message, err := session.Recv(ctx)
 		if err != nil {
 			if errors.Is(err, io.EOF) {
+				readErr = session.Wait()
 				return
 			}
 			// 中文注释：SDK abort 是有效的 round 中断信号，不能当作普通 EOF 吞掉。

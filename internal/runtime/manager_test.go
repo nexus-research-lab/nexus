@@ -92,6 +92,15 @@ func (c *fakeRuntimeClient) Reconfigure(_ context.Context, options agentclient.O
 
 func (c *fakeRuntimeClient) SessionID() string { return "" }
 
+func TestSDKClientAdapterWaitReturnsStreamError(t *testing.T) {
+	processErr := errors.New("process: command exited with error: exit status 2")
+	client := &sdkClientAdapter{streamErr: processErr}
+
+	if err := client.Wait(); !errors.Is(err, processErr) {
+		t.Fatalf("Wait() error = %v，期望返回 stream error", err)
+	}
+}
+
 type fakeSDKMCPServer struct{}
 
 func (fakeSDKMCPServer) HandleMessage(context.Context, map[string]any) (map[string]any, error) {
