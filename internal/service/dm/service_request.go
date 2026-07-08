@@ -54,12 +54,6 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 		return err
 	}
 	initialMessageCount := sessionItem.MessageCount
-	if request.ForceNewRuntimeSession {
-		if err = s.runtime.CloseSession(ctx, sessionKey); err != nil && !runtimectx.IsRuntimeTransportClosedError(err) {
-			return err
-		}
-		sessionItem.SessionID = nil
-	}
 	deliveryPolicy := protocol.NormalizeChatDeliveryPolicy(string(request.DeliveryPolicy))
 
 	if !request.Internal && protocol.ShouldGuideRunningRound(deliveryPolicy) {
@@ -97,9 +91,6 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 	if err != nil {
 		return err
 	}
-	if prefix := strings.TrimSpace(request.HistoryContextPrefix); prefix != "" {
-		runtimeContent = runtimeContent.PrependText(prefix)
-	}
 	runtimeContent = s.injectMemoryContext(ctx, agentValue, sessionItem, sessionKey, request.Content, runtimeContent)
 	runtimeContent = s.appendRuntimeUserContext(ctx, sessionKey, agentValue, runtimeContent)
 
@@ -116,16 +107,32 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 	if override := strings.TrimSpace(request.GoalContext); request.Internal && override != "" {
 		goalContext = override
 	}
-	if err = s.recordHistoryRewrite(ctx, runnerRewriteInput{
+	if strings.TrimSpace(request.RewriteTargetRoundID) != "" && len(request.RewriteRemoveMessageUUIDs) == 0 {
+		return errors.New("rewrite remove message uuids are required")
+	}
+	if len(request.RewriteRemoveMessageUUIDs) > 0 {
+		if err = client.RemoveMessages(ctx, request.RewriteRemoveMessageUUIDs); err != nil {
+			s.loggerFor(ctx).Error("DM rewrite 删除 runtime 历史失败",
+				"session_key", sessionKey,
+				"agent_id", agentID,
+				"round_id", request.RoundID,
+				"target_round_id", request.RewriteTargetRoundID,
+				"message_uuid_count", len(request.RewriteRemoveMessageUUIDs),
+				"err", err,
+			)
+			return err
+		}
+	}
+	if err = s.pruneHistoryRewriteTail(ctx, rewritePruneInput{
 		WorkspacePath:      agentValue.WorkspacePath,
 		SessionKey:         sessionKey,
 		TargetRoundID:      request.RewriteTargetRoundID,
 		ReplacementRoundID: request.RoundID,
-		Content:            request.Content,
-		Attachments:        request.Attachments,
+		RoundIDs:           request.RewriteRemoveRoundIDs,
+		RemoveMessageCount: request.RewriteRemoveMessageCount,
 	}); err != nil {
 		if closeErr := s.runtime.CloseSession(ctx, sessionKey); closeErr != nil && !runtimectx.IsRuntimeTransportClosedError(closeErr) {
-			s.loggerFor(ctx).Warn("DM rewrite marker 写入失败后关闭 runtime 失败",
+			s.loggerFor(ctx).Warn("DM rewrite overlay 裁剪失败后关闭 runtime 失败",
 				"session_key", sessionKey,
 				"agent_id", agentID,
 				"round_id", request.RoundID,
@@ -133,6 +140,13 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 			)
 		}
 		return err
+	}
+	if request.RewriteRemoveMessageCount > 0 {
+		sessionItem.MessageCount -= request.RewriteRemoveMessageCount
+		if sessionItem.MessageCount < 0 {
+			sessionItem.MessageCount = 0
+		}
+		initialMessageCount = sessionItem.MessageCount
 	}
 	roundCtx, cancel := context.WithCancel(context.Background())
 	s.runtime.StartRound(sessionKey, request.RoundID, cancel)

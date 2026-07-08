@@ -31,6 +31,8 @@ func (c *permissionModeTestClient) SendTaskMessage(context.Context, string, stri
 	return nil
 }
 
+func (c *permissionModeTestClient) RemoveMessages(context.Context, []string) error { return nil }
+
 func (c *permissionModeTestClient) SetPermissionMode(_ context.Context, mode sdkpermission.Mode) error {
 	c.modes = append(c.modes, mode)
 	return nil

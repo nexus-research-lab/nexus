@@ -21,6 +21,7 @@ type Client interface {
 	Interrupt(context.Context) error
 	StopTask(context.Context, string) error
 	SendTaskMessage(context.Context, string, string, string) error
+	RemoveMessages(context.Context, []string) error
 	SetPermissionMode(context.Context, sdkpermission.Mode) error
 	Disconnect(context.Context) error
 	Reconfigure(context.Context, agentclient.Options) error
@@ -161,6 +162,14 @@ func (c *sdkClientAdapter) SendTaskMessage(ctx context.Context, taskID string, m
 		return err
 	}
 	return session.Control().SendTaskMessage(ctx, taskID, message, summary)
+}
+
+func (c *sdkClientAdapter) RemoveMessages(ctx context.Context, uuids []string) error {
+	session, err := c.currentSession()
+	if err != nil {
+		return err
+	}
+	return session.Control().RemoveMessages(ctx, uuids)
 }
 
 func (c *sdkClientAdapter) SetPermissionMode(ctx context.Context, mode sdkpermission.Mode) error {

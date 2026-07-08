@@ -57,6 +57,8 @@ func (c *fakeRoundExecutionClient) SendTaskMessage(context.Context, string, stri
 	return nil
 }
 
+func (c *fakeRoundExecutionClient) RemoveMessages(context.Context, []string) error { return nil }
+
 func (c *fakeRoundExecutionClient) SetPermissionMode(context.Context, sdkpermission.Mode) error {
 	return nil
 }

@@ -70,7 +70,7 @@ func (s *AgentHistoryStore) readHistoryRows(
 			overlayState.MessageRows,
 			overlayState.RoundMarkers,
 		)
-		return applyHistoryRewrites(rows, overlayState.Rewrites), nil
+		return rows, nil
 	}
 
 	transcriptRows, err := s.readTranscriptMessages(
@@ -89,13 +89,13 @@ func (s *AgentHistoryStore) readHistoryRows(
 				overlayState.MessageRows,
 				overlayState.RoundMarkers,
 			)
-			return applyHistoryRewrites(rows, overlayState.Rewrites), nil
+			return rows, nil
 		}
 		return nil, err
 	}
 
 	rows := mergeTranscriptAndOverlayRows(transcriptRows, overlayState.MessageRows)
-	return applyHistoryRewrites(rows, overlayState.Rewrites), nil
+	return rows, nil
 }
 
 func buildOverlayOnlyHistoryRows(

@@ -74,6 +74,7 @@ import {
   mergeChatAckPendingSlots,
   reconcileStoppedSessionMessages,
   removeFailedOutboundUserMessage,
+  removeRoundMessages,
   replaceOptimisticUserMessage,
   updateAssistantMessageStatus,
   updatePendingAgentSlotStatus,
@@ -667,6 +668,19 @@ export function useAgentConversation(
     [applyRuntimeTransition],
   );
 
+  const removeRewrittenRound = useCallback(
+    (roundId: string) => {
+      setMessages((prev) => removeRoundMessages(prev, roundId));
+      setPendingPermissions((prev) =>
+        filterRoundPendingPermissions(prev, roundId),
+      );
+      setPendingAgentSlots((prev) =>
+        filterRoundPendingAgentSlots(prev, roundId),
+      );
+    },
+    [setMessages, setPendingAgentSlots, setPendingPermissions],
+  );
+
   const applyRoundStatus = useCallback(
     (roundId: string, status: RoundLifecycleStatus) => {
       applyRuntimeTransition((machine) => {
@@ -756,6 +770,7 @@ export function useAgentConversation(
         track_chat_ack: trackChatAck,
         reject_chat_ack: rejectPendingChatAck,
         track_assistant_message: trackAssistantMessage,
+        remove_rewritten_round: removeRewrittenRound,
         reload_current_session: reloadCurrentSession,
         settleAgentWorkspaceWrites: settleAgentWorkspaceWrites,
       });
@@ -781,6 +796,7 @@ export function useAgentConversation(
       setPendingPermissions,
       syncSessionStatus,
       rejectPendingChatAck,
+      removeRewrittenRound,
       trackAssistantMessage,
       trackChatAck,
       updateMessageStatus,

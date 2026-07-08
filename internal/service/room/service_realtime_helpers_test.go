@@ -86,6 +86,8 @@ func (c *fakeRoomClient) StopTask(context.Context, string) error { return nil }
 
 func (c *fakeRoomClient) SendTaskMessage(context.Context, string, string, string) error { return nil }
 
+func (c *fakeRoomClient) RemoveMessages(context.Context, []string) error { return nil }
+
 func (c *fakeRoomClient) SetPermissionMode(context.Context, sdkpermission.Mode) error { return nil }
 
 func (c *fakeRoomClient) Disconnect(context.Context) error {

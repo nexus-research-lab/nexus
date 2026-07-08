@@ -78,6 +78,7 @@ export function handleAgentConversationWebSocketMessage({
   track_chat_ack: trackChatAck,
   reject_chat_ack: rejectChatAck,
   track_assistant_message: trackAssistantMessage,
+  remove_rewritten_round: removeRewrittenRound,
   reload_current_session: reloadCurrentSession,
   settleAgentWorkspaceWrites: settleAgentWorkspaceWrites,
 }: HandleAgentConversationWebSocketMessageParams): void {
@@ -150,6 +151,15 @@ export function handleAgentConversationWebSocketMessage({
         sessionSeqCursorRef.current,
         latestSessionSeq,
       );
+    }
+    const reason = typeof event.data?.reason === "string"
+      ? event.data.reason
+      : "";
+    const targetRoundId = typeof event.data?.target_round_id === "string"
+      ? event.data.target_round_id.trim()
+      : "";
+    if (reason === "history_rewrite" && targetRoundId) {
+      removeRewrittenRound?.(targetRoundId);
     }
     onRoomEvent?.(event.event_type, event.data ?? {});
     void reloadCurrentSession?.().finally(() => {

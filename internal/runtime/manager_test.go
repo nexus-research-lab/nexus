@@ -77,6 +77,8 @@ func (c *fakeRuntimeClient) SendTaskMessage(context.Context, string, string, str
 	return nil
 }
 
+func (c *fakeRuntimeClient) RemoveMessages(context.Context, []string) error { return nil }
+
 func (c *fakeRuntimeClient) SetPermissionMode(_ context.Context, mode sdkpermission.Mode) error {
 	c.permissionModes = append(c.permissionModes, mode)
 	return nil

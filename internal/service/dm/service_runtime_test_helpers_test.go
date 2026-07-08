@@ -27,6 +27,7 @@ type fakeDMClient struct {
 	connectErrors    []error
 	queryErrors      []error
 	queryPrompts     []string
+	removeMessages   [][]string
 	sentContents     []string
 	queryOptions     []sdkprotocol.OutboundMessageOptions
 	reconfigureOps   []agentclient.Options
@@ -185,6 +186,13 @@ func (c *fakeDMClient) interrupt(ctx context.Context, reason string) error {
 func (c *fakeDMClient) StopTask(context.Context, string) error { return nil }
 
 func (c *fakeDMClient) SendTaskMessage(context.Context, string, string, string) error { return nil }
+
+func (c *fakeDMClient) RemoveMessages(_ context.Context, uuids []string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.removeMessages = append(c.removeMessages, append([]string(nil), uuids...))
+	return nil
+}
 
 func (c *fakeDMClient) SetPermissionMode(context.Context, sdkpermission.Mode) error { return nil }
 

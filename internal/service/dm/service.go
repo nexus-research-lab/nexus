@@ -31,26 +31,27 @@ var (
 // RoundID / UserMessageID / AgentRoundID 由后端 mint：
 // WS 入口不填，HandleChat 内部生成；后端内部调用方（automation / queue / goal）可预置 RoundID。
 type Request struct {
-	SessionKey             string
-	AgentID                string
-	Content                string
-	GoalContext            string
-	HistoryContextPrefix   string
-	Attachments            []protocol.ChatAttachment
-	ClientRequestID        string
-	ClientMessageID        string
-	RoundID                string
-	UserMessageID          string
-	AgentRoundID           string
-	DeliveryPolicy         protocol.ChatDeliveryPolicy
-	BroadcastUserMessage   bool
-	ForceNewRuntimeSession bool
-	RewriteTargetRoundID   string
-	Internal               bool
-	InputOptions           sdkprotocol.OutboundMessageOptions
-	PermissionMode         sdkpermission.Mode
-	PermissionHandler      sdkpermission.Handler
-	ExternalReplyTarget    *ExternalReplyTarget
+	SessionKey                string
+	AgentID                   string
+	Content                   string
+	GoalContext               string
+	Attachments               []protocol.ChatAttachment
+	ClientRequestID           string
+	ClientMessageID           string
+	RoundID                   string
+	UserMessageID             string
+	AgentRoundID              string
+	DeliveryPolicy            protocol.ChatDeliveryPolicy
+	BroadcastUserMessage      bool
+	RewriteTargetRoundID      string
+	RewriteRemoveMessageUUIDs []string
+	RewriteRemoveRoundIDs     []string
+	RewriteRemoveMessageCount int
+	Internal                  bool
+	InputOptions              sdkprotocol.OutboundMessageOptions
+	PermissionMode            sdkpermission.Mode
+	PermissionHandler         sdkpermission.Handler
+	ExternalReplyTarget       *ExternalReplyTarget
 }
 
 // RewriteRequest 表示一次 DM 最后一条用户消息重写请求。replacement round_id 由后端 mint。
