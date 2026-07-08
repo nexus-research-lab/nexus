@@ -2187,11 +2187,13 @@ function verify_browser_fallback_builds_search_results(now) {
 
   assert(items.length === 4, `browser fallback should keep search result rows without JSON wrapper rows, got ${items.length}`);
   assert(items[0].url === "https://example.com/stage", `plain URL result should preserve URL, got ${items[0].url}`);
+  assert(items[0].kind === "link", `plain URL result should be rendered as a link, got ${items[0].kind}`);
   assert(items[0].title.includes("example.com"), `plain URL result should derive readable title, got ${items[0].title}`);
   assert(items[1].url === "https://developer.apple.com/design/human-interface-guidelines/windows", `quoted URL result should be cleaned, got ${items[1].url}`);
   assert(items[2].title === "Nexus Desktop", `markdown link result should preserve title, got ${items[2].title}`);
   assert(items[2].url === "https://nexus.example.com/desktop", `markdown link result should preserve URL, got ${items[2].url}`);
-  assert(items[3].url.startsWith("nexus-search://"), `plain text result should become a local search row, got ${items[3].url}`);
+  assert(items[3].url === null, `plain text result should not invent a URL, got ${items[3].url}`);
+  assert(items[3].kind === "summary", `plain text result should become a summary row, got ${items[3].kind}`);
   assert(items[3].snippet === "Local summary without a URL", `plain text result should preserve snippet, got ${items[3].snippet}`);
 }
 

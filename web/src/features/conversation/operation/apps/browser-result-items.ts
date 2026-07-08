@@ -2,8 +2,9 @@ import type { NexusOperationEvent } from "../operation-types";
 
 export interface BrowserResultItem {
   title: string;
-  url: string;
+  url: string | null;
   snippet: string;
+  kind: "link" | "summary";
 }
 
 export function build_browser_result_items({
@@ -78,8 +79,9 @@ function browser_result_item_from_record(value: unknown, query: string, index: n
   }
   return {
     title: title ?? (url ? readable_url_title(url) : index === 0 ? query : `结果 ${index + 1}`),
-    url: url ?? `nexus-search://${encodeURIComponent(query)}/${index + 1}`,
+    url,
     snippet: snippet ?? query,
+    kind: url ? "link" : "summary",
   };
 }
 
@@ -115,6 +117,7 @@ function normalize_browser_result_line(line: string, query: string, index: numbe
       title: readable_url_title(trimmed),
       url: trimmed,
       snippet: query,
+      kind: "link",
     };
   }
 
@@ -124,6 +127,7 @@ function normalize_browser_result_line(line: string, query: string, index: numbe
       title: markdown_link[1],
       url: markdown_link[2],
       snippet: trimmed.replace(markdown_link[0], "").replace(/^[-:\s]+/, "") || query,
+      kind: "link",
     };
   }
 
@@ -134,13 +138,15 @@ function normalize_browser_result_line(line: string, query: string, index: numbe
       title: trimmed.slice(0, url_match.index).replace(/^[-*\s]+|[-:\s]+$/g, "") || readable_url_title(url),
       url,
       snippet: trimmed.replace(url_match[0], "").replace(/^[-:\s]+/, "") || query,
+      kind: "link",
     };
   }
 
   return {
-    title: index === 0 ? query : `结果 ${index + 1}`,
-    url: `nexus-search://${encodeURIComponent(query)}/${index + 1}`,
+    title: index === 0 ? "工具返回摘要" : `摘要片段 ${index + 1}`,
+    url: null,
     snippet: trimmed,
+    kind: "summary",
   };
 }
 

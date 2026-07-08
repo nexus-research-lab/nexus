@@ -292,6 +292,8 @@ function BrowserSearchResults({
   query: string;
 }) {
   const result_items = build_browser_result_items({ event, lines, query });
+  const has_link_results = result_items.some((item) => item.kind === "link");
+  const result_label = has_link_results ? "搜索结果" : "工具返回摘要";
 
   return (
     <div className="soft-scrollbar min-h-0 flex-1 overflow-auto bg-[radial-gradient(70%_42%_at_50%_0%,rgba(91,114,255,0.055),transparent_70%),#fbfcfe]">
@@ -307,7 +309,7 @@ function BrowserSearchResults({
               {event.phase === "running" ? <Loader2 className="h-4 w-4 shrink-0 animate-spin text-[color:var(--primary)]" /> : null}
             </div>
             <p className="mt-3 text-[11px] text-(--text-soft)">
-              Safari 搜索 · {PHASE_LABEL[event.phase]} · {result_items.length} 条结果
+              Safari {has_link_results ? "搜索" : "阅读"} · {PHASE_LABEL[event.phase]} · {result_items.length} 条记录
             </p>
             {event.phase === "running" ? (
               <div className="operation-web-loading mx-auto mt-3 h-1.5 max-w-[420px] overflow-hidden rounded-full bg-[rgba(91,114,255,0.10)]" />
@@ -323,22 +325,24 @@ function BrowserSearchResults({
           <div className="overflow-hidden rounded-[16px] border border-(--divider-subtle-color) bg-white/74 shadow-[0_18px_54px_rgba(18,28,42,0.075)]">
             <div className="grid grid-cols-[22px_minmax(0,1fr)_auto] items-center gap-2 border-b border-(--divider-subtle-color) bg-[#f4f6fa] px-4 py-2 text-[10px] font-black text-(--text-soft)">
               <BookOpen className="h-3.5 w-3.5" />
-              <span>搜索结果</span>
+              <span>{result_label}</span>
               <span>Safari</span>
             </div>
             {result_items.map((item) => (
               <article
                 className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 border-b border-(--divider-subtle-color) px-4 py-3 last:border-b-0"
-                key={`${item.url}:${item.title}`}
+                key={`${item.kind}:${item.url ?? item.title}:${item.snippet}`}
               >
                 <div className="min-w-0">
-                  <p className="truncate text-[11px] font-semibold text-[color:var(--success)]">{item.url}</p>
+                  <p className="truncate text-[11px] font-semibold text-[color:var(--success)]">
+                    {item.url ?? "工具输出摘要"}
+                  </p>
                   <h3 className="mt-1 line-clamp-2 text-[14px] font-black tracking-normal text-(--text-strong)">
                     {item.title}
                   </h3>
                   <p className="mt-1.5 line-clamp-2 text-[12px] leading-5 text-(--text-default)">{item.snippet}</p>
                 </div>
-                <ExternalLink className="mt-1 h-4 w-4 shrink-0 text-(--icon-muted)" />
+                {item.url ? <ExternalLink className="mt-1 h-4 w-4 shrink-0 text-(--icon-muted)" /> : null}
               </article>
             ))}
           </div>
