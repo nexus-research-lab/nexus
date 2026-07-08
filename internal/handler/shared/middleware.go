@@ -145,6 +145,9 @@ func AccessLogMiddleware() func(http.Handler) http.Handler {
 }
 
 func accessLogLevel(request *http.Request, status int, duration time.Duration) slog.Level {
+	if status == 499 {
+		return slog.LevelDebug
+	}
 	if status >= http.StatusInternalServerError {
 		return slog.LevelError
 	}

@@ -76,6 +76,7 @@ export function handleAgentConversationWebSocketMessage({
   apply_round_status: applyRoundStatus,
   apply_agent_round_status: applyAgentRoundStatus,
   track_chat_ack: trackChatAck,
+  reject_chat_ack: rejectChatAck,
   track_assistant_message: trackAssistantMessage,
   reload_current_session: reloadCurrentSession,
   settleAgentWorkspaceWrites: settleAgentWorkspaceWrites,
@@ -200,7 +201,15 @@ export function handleAgentConversationWebSocketMessage({
     if (event.message_id) {
       updateMessageStatus?.(event.message_id, "error", roundId);
     }
-    setError(event.data?.message || "Unknown error");
+    const message = event.data?.message || "Unknown error";
+    const clientRequestId =
+      typeof event.data?.client_request_id === "string"
+        ? event.data.client_request_id
+        : "";
+    if (clientRequestId) {
+      rejectChatAck?.(clientRequestId, message);
+    }
+    setError(message);
     return;
   }
 

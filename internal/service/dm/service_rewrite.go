@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
+	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	messageutil "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
@@ -27,9 +29,24 @@ type runnerRewriteInput struct {
 func (s *Service) HandleRewriteLastUserMessage(ctx context.Context, request RewriteRequest) error {
 	sessionKey, parsed, err := s.validateRewriteRequest(request)
 	if err != nil {
+		s.loggerFor(ctx).Warn("拒绝 DM rewrite 请求",
+			"session_key", strings.TrimSpace(request.SessionKey),
+			"agent_id", strings.TrimSpace(request.AgentID),
+			"target_round_id", strings.TrimSpace(request.TargetRoundID),
+			"client_request_id", strings.TrimSpace(request.ClientRequestID),
+			"client_message_id", strings.TrimSpace(request.ClientMessageID),
+			"err", err,
+		)
 		return err
 	}
+	logger := s.loggerFor(ctx).With(
+		"session_key", sessionKey,
+		"target_round_id", strings.TrimSpace(request.TargetRoundID),
+		"client_request_id", strings.TrimSpace(request.ClientRequestID),
+		"client_message_id", strings.TrimSpace(request.ClientMessageID),
+	)
 	if runningRoundIDs := s.runtime.GetRunningRoundIDs(sessionKey); len(runningRoundIDs) > 0 {
+		logger.Warn("拒绝 DM rewrite：已有运行中 round", "running_round_ids", runningRoundIDs)
 		return errors.New("cannot rewrite while a round is running")
 	}
 
@@ -37,28 +54,42 @@ func (s *Service) HandleRewriteLastUserMessage(ctx context.Context, request Rewr
 	if agentID == "" {
 		defaultAgent, defaultErr := s.agents.GetDefaultAgent(ctx)
 		if defaultErr != nil {
+			logger.Warn("DM rewrite 读取默认 Agent 失败", "err", defaultErr)
 			return defaultErr
 		}
 		agentID = defaultAgent.AgentID
 	}
+	logger = logger.With("agent_id", agentID)
+	logger.Info("受理 DM rewrite 请求",
+		"content_chars", utf8.RuneCountInString(strings.TrimSpace(request.Content)),
+		"content_preview", logx.PreviewText(strings.TrimSpace(request.Content), 240),
+		"attachment_count", len(request.Attachments),
+	)
 	agentValue, err := s.agents.GetAgent(ctx, agentID)
 	if err != nil {
+		logger.Warn("DM rewrite 读取 Agent 失败", "err", err)
 		return err
 	}
 	sessionItem, err := s.ensureSession(ctx, agentValue, parsed, sessionKey)
 	if err != nil {
+		logger.Warn("DM rewrite 确保 session 失败", "err", err)
 		return err
 	}
 	rows, err := s.history.ReadMessages(agentValue.WorkspacePath, sessionItem, nil)
 	if err != nil {
+		logger.Warn("DM rewrite 读取历史失败", "workspace_path", agentValue.WorkspacePath, "err", err)
 		return err
 	}
 	lastUser, ok := lastVisibleUserMessage(rows)
 	if !ok {
+		logger.Warn("拒绝 DM rewrite：会话为空")
 		return errors.New("cannot rewrite an empty conversation")
 	}
 	targetRoundID := strings.TrimSpace(request.TargetRoundID)
 	if targetRoundID != strings.TrimSpace(dmdomain.NormalizeString(lastUser["round_id"])) {
+		logger.Warn("拒绝 DM rewrite：目标不是最后一条用户消息",
+			"last_user_round_id", strings.TrimSpace(dmdomain.NormalizeString(lastUser["round_id"])),
+		)
 		return fmt.Errorf("can only rewrite the last user message")
 	}
 
@@ -67,13 +98,20 @@ func (s *Service) HandleRewriteLastUserMessage(ctx context.Context, request Rewr
 		attachments = protocol.ChatAttachmentsFromAny(lastUser["attachments"])
 	}
 	historyContext := buildRewriteRuntimeHistoryContext(rows, targetRoundID)
+	replacementRoundID := protocol.NewRoundID()
+	logger.Info("准备重跑 DM rewrite",
+		"replacement_round_id", replacementRoundID,
+		"history_context_chars", utf8.RuneCountInString(historyContext),
+		"source_row_count", len(rows),
+		"attachment_count", len(attachments),
+	)
 	return s.HandleChat(ctx, Request{
 		SessionKey:             sessionKey,
 		AgentID:                agentID,
 		Content:                request.Content,
 		HistoryContextPrefix:   historyContext,
 		Attachments:            attachments,
-		RoundID:                protocol.NewRoundID(),
+		RoundID:                replacementRoundID,
 		ClientRequestID:        request.ClientRequestID,
 		ClientMessageID:        request.ClientMessageID,
 		DeliveryPolicy:         protocol.ChatDeliveryPolicyQueue,
@@ -121,6 +159,14 @@ func (s *Service) recordHistoryRewrite(ctx context.Context, input runnerRewriteI
 			"replacement_round_id", input.ReplacementRoundID,
 			"err", err,
 		)
+	} else {
+		s.loggerFor(ctx).Info("DM history rewrite marker 已写入",
+			"session_key", input.SessionKey,
+			"target_round_id", input.TargetRoundID,
+			"replacement_round_id", input.ReplacementRoundID,
+			"content_chars", utf8.RuneCountInString(strings.TrimSpace(input.Content)),
+			"attachment_count", len(input.Attachments),
+		)
 	}
 	return err
 }
@@ -137,6 +183,11 @@ func (s *Service) broadcastHistoryRewriteResync(
 		"replacement_round_id": strings.TrimSpace(replacementRoundID),
 	})
 	event.SessionKey = sessionKey
+	s.loggerFor(ctx).Info("广播 DM rewrite 历史刷新",
+		"session_key", sessionKey,
+		"target_round_id", strings.TrimSpace(targetRoundID),
+		"replacement_round_id", strings.TrimSpace(replacementRoundID),
+	)
 	s.broadcastEventWithTimeout(ctx, sessionKey, event)
 }
 

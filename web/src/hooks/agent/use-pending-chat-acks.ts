@@ -10,13 +10,17 @@ type PendingChatAck = {
 
 export function usePendingChatAcks() {
   const pendingChatAckRef = useRef<Map<string, PendingChatAck>>(new Map());
+  const settledChatAckRef = useRef<Set<string>>(new Set());
+  const rejectedChatAckRef = useRef<Map<string, string>>(new Map());
 
   const clearPendingChatAck = useCallback((roundId?: string | null) => {
     if (!roundId) {
       return false;
     }
+    rejectedChatAckRef.current.delete(roundId);
     const pendingRequest = pendingChatAckRef.current.get(roundId);
     if (!pendingRequest) {
+      settledChatAckRef.current.add(roundId);
       return false;
     }
     window.clearTimeout(pendingRequest.timeout_id);
@@ -26,8 +30,10 @@ export function usePendingChatAcks() {
   }, []);
 
   const rejectPendingChatAck = useCallback((roundId: string, reason: string) => {
+    settledChatAckRef.current.delete(roundId);
     const pendingRequest = pendingChatAckRef.current.get(roundId);
     if (!pendingRequest) {
+      rejectedChatAckRef.current.set(roundId, reason);
       return false;
     }
     window.clearTimeout(pendingRequest.timeout_id);
@@ -45,10 +51,22 @@ export function usePendingChatAcks() {
       pendingRequest.reject(new Error(reason));
       pendingChatAckRef.current.delete(roundId);
     }
+    settledChatAckRef.current.clear();
+    rejectedChatAckRef.current.clear();
   }, []);
 
   const waitForChatAck = useCallback((roundId: string, onTimeout: () => void) =>
     new Promise<void>((resolve, reject) => {
+      if (settledChatAckRef.current.delete(roundId)) {
+        resolve();
+        return;
+      }
+      const rejectedReason = rejectedChatAckRef.current.get(roundId);
+      if (rejectedReason) {
+        rejectedChatAckRef.current.delete(roundId);
+        reject(new Error(rejectedReason));
+        return;
+      }
       const timeoutId = window.setTimeout(onTimeout, getMessageSendAckTimeoutMs());
       pendingChatAckRef.current.set(roundId, {
         resolve,
