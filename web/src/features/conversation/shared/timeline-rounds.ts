@@ -1,10 +1,25 @@
-import type { AssistantMessage, Message } from "@/types/conversation/message";
+import type {
+  AssistantMessage,
+  Message,
+  UserMessage,
+} from "@/types/conversation/message";
 import type { SessionRoundIndexItem } from "@/types/conversation/room";
 import { stripRoomControlMarkers } from "./message/item/message-item-support";
 
 // 终态轮次里 assistant 仅剩无回复标记（剥离后无文本、无工具/图片等块）时，
 // 视为纯 no-reply，不在时间线显示。保守判定：任何工具/非文本块都算可见输出。
 function isBlankNoReplyRound(messages: Message[]): boolean {
+  // 只要本轮带有用户消息（正文或附件），就必须显示——用户自己的消息不能因为
+  // assistant 回复为空（如失败轮/纯工具轮）而被整轮吞掉。
+  const hasVisibleUserMessage = messages.some(
+    (message): message is UserMessage =>
+      message.role === "user" &&
+      (Boolean(message.content.trim()) ||
+        (message.attachments?.length ?? 0) > 0),
+  );
+  if (hasVisibleUserMessage) {
+    return false;
+  }
   const assistants = messages.filter(
     (message): message is AssistantMessage => message.role === "assistant",
   );

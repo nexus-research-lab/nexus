@@ -13,15 +13,17 @@ import (
 
 const (
 	titleAttemptTimeout = 20 * time.Second
-	titleMaxTokens      = 128
-	titleMaxAttempts    = 2
-	titleSystemPrompt   = `你是会话标题生成器。
+	// 部分 provider（如 Kimi 始终推理模型）无法关闭思考，128 token 会被推理吃光、
+	// 正文为空触发 max_tokens 截断；放宽到 1024 给标题正文留足空间。
+	titleMaxTokens    = 1024
+	titleMaxAttempts  = 2
+	titleSystemPrompt = `你是会话标题生成器。
 请根据用户的第一条消息生成一个简短标题。
 要求：
 1. 用自己的话概括核心意图，不要原样复述。
 2. 中文控制在 2 到 12 个字；英文控制在 2 到 6 个单词。
 3. 不要使用引号、句号、冒号、emoji。
-4. 只返回标题文本。`
+4. 不要输出任何思考过程、解释或前缀，直接给出标题文本。`
 )
 
 var errEmptyGeneratedTitle = errors.New("标题生成返回空结果")

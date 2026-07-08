@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Disabled reasoning on `anthropic_messages` title-generation requests and raised the title token budget to 1024, so always-thinking models (e.g. Kimi) no longer exhaust the output cap before emitting the title and leave conversations untitled.
+- Kept a round's user message visible in the conversation timeline even when the assistant reply is blank (failed or tool-only rounds), instead of hiding the whole round and swallowing the user's own message.
 - Removed old DM rewrite rounds from the SDK transcript, Nexus overlay history, and the active frontend timeline before regenerating the replacement answer.
 - Applied agent permission mode changes to active DM and Room runtimes immediately without restarting the SDK session.
 - Preserved SDK process wait errors when a DM runtime message stream closes before a terminal result, so round failure logs include the underlying runtime exit reason.
