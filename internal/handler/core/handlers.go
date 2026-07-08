@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/config"
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	agentpkg "github.com/nexus-research-lab/nexus/internal/service/agent"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
@@ -16,6 +17,7 @@ import (
 // Handlers 封装核心 HTTP handlers。
 type Handlers struct {
 	api       *handlershared.API
+	config    config.Config
 	agents    *agentpkg.Service
 	providers *providercfg.Service
 	prefs     *preferencessvc.Service
@@ -24,6 +26,7 @@ type Handlers struct {
 
 // New 创建核心 handlers。
 func New(
+	cfg config.Config,
 	api *handlershared.API,
 	agents *agentpkg.Service,
 	providers *providercfg.Service,
@@ -35,6 +38,7 @@ func New(
 	}
 	return &Handlers{
 		api:       api,
+		config:    cfg,
 		agents:    agents,
 		providers: providers,
 		prefs:     prefService,
@@ -136,6 +140,30 @@ func (h *Handlers) HandleUpdatePreferences(writer http.ResponseWriter, request *
 	h.api.WriteSuccess(writer, item)
 }
 
+// HandleGetRuntimeSettings 返回当前主机级运行配置。
+func (h *Handlers) HandleGetRuntimeSettings(writer http.ResponseWriter, request *http.Request) {
+	settings, err := config.LoadRuntimeSettings()
+	if err != nil {
+		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
+	h.api.WriteSuccess(writer, h.runtimeSettingsResponse(settings))
+}
+
+// HandleUpdateRuntimeSettings 更新当前主机级运行配置。
+func (h *Handlers) HandleUpdateRuntimeSettings(writer http.ResponseWriter, request *http.Request) {
+	var payload config.RuntimeSettings
+	if !h.api.BindJSON(writer, request, &payload) {
+		return
+	}
+	settings, err := config.SaveRuntimeSettings(payload)
+	if err != nil {
+		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
+	h.api.WriteSuccess(writer, h.runtimeSettingsResponse(settings))
+}
+
 // HandleNXSRuntimeStatus 返回当前主机上 nxs runtime 的本地可用状态。
 func (h *Handlers) HandleNXSRuntimeStatus(writer http.ResponseWriter, request *http.Request) {
 	h.api.WriteSuccess(writer, h.nxs.Status())
@@ -150,4 +178,13 @@ func (h *Handlers) currentPreferences(request *http.Request) (preferencessvc.Pre
 
 func currentOwnerUserID(request *http.Request) string {
 	return authsvc.OwnerUserID(request.Context())
+}
+
+func (h *Handlers) runtimeSettingsResponse(settings config.RuntimeSettings) map[string]any {
+	return map[string]any{
+		"workspace_path":         strings.TrimSpace(settings.WorkspacePath),
+		"current_workspace_path": agentpkg.WorkspaceBasePath(h.config),
+		"restart_required":       true,
+		"updated_at":             strings.TrimSpace(settings.UpdatedAt),
+	}
 }

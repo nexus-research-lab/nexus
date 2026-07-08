@@ -14,7 +14,7 @@ export interface FeedbackBannerItem {
   tone: "success" | "warning" | "error";
   title: string;
   message: string;
-  on_dismiss?: () => void;
+  onDismiss?: () => void;
 }
 
 interface FeedbackBannerStackProps {
@@ -32,7 +32,7 @@ export function FeedbackBannerStack({ items }: FeedbackBannerStackProps) {
         <FeedbackBanner
           key={item.key}
           message={item.message}
-          on_dismiss={item.on_dismiss}
+          onDismiss={item.onDismiss}
           title={item.title}
           tone={item.tone}
         />

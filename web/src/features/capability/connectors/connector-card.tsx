@@ -9,23 +9,23 @@ import { UiBadge } from "@/shared/ui/badge";
 import { UiIconButton } from "@/shared/ui/button";
 import { ConnectorInfo } from "@/types/capability/connector";
 
-import { is_direct_credential_auth } from "./connector-auth";
+import { isDirectCredentialAuth } from "./connector-auth";
 import { ConnectorIcon } from "./connector-icon";
-import { get_connector_category_label } from "./connectors-categories";
+import { getConnectorCategoryLabel } from "./connectors-categories";
 
 interface ConnectorCardProps {
   connector: ConnectorInfo;
   busy?: boolean;
-  on_select: () => void;
-  on_connect?: () => void;
+  onSelect: () => void;
+  onConnect?: () => void;
 }
 
 /** 连接器行 —— 学习 Codex 插件目录的轻量列表结构。 */
 export function ConnectorCard({
   connector,
   busy = false,
-  on_select,
-  on_connect,
+  onSelect: onSelect,
+  onConnect: onConnect,
 }: ConnectorCardProps) {
   const { t } = useI18n();
   const {
@@ -33,27 +33,27 @@ export function ConnectorCard({
     description,
     icon,
     status,
-    connection_state,
-    is_configured,
+    connection_state: connectionState,
+    is_configured: isConfigured,
     category,
-    oauth_client_config_required,
+    oauth_client_config_required: oauthClientConfigRequired,
   } = connector;
-  const is_connected = connection_state === "connected";
-  const is_coming_soon = status === "coming_soon";
-  const requires_direct_credential = is_direct_credential_auth(connector.auth_type);
-  const should_configure = !is_configured && oauth_client_config_required;
-  const can_connect = !busy && !is_connected && !is_coming_soon && is_configured;
+  const isConnected = connectionState === "connected";
+  const isComingSoon = status === "coming_soon";
+  const requiresDirectCredential = isDirectCredentialAuth(connector.auth_type);
+  const shouldConfigure = !isConfigured && oauthClientConfigRequired;
+  const canConnect = !busy && !isConnected && !isComingSoon && isConfigured;
 
-  const handle_action_click = (event: MouseEvent<HTMLButtonElement>) => {
+  const handleActionClick = (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
-    if (can_connect && !requires_direct_credential) {
-      on_connect?.();
+    if (canConnect && !requiresDirectCredential) {
+      onConnect?.();
       return;
     }
-    on_select();
+    onSelect();
   };
 
-  const handle_row_key_down = (event: KeyboardEvent<HTMLDivElement>) => {
+  const handleRowKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.target !== event.currentTarget) {
       return;
     }
@@ -61,7 +61,7 @@ export function ConnectorCard({
       return;
     }
     event.preventDefault();
-    on_select();
+    onSelect();
   };
 
   return (
@@ -71,8 +71,8 @@ export function ConnectorCard({
         "hover:bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_64%,transparent)] focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_28%,transparent)]",
         busy && "opacity-65",
       )}
-      onClick={on_select}
-      onKeyDown={handle_row_key_down}
+      onClick={onSelect}
+      onKeyDown={handleRowKeyDown}
       role="button"
       tabIndex={0}
     >
@@ -83,11 +83,11 @@ export function ConnectorCard({
           <span className="truncate text-[15px] font-semibold tracking-[-0.02em] text-(--text-strong)">
             {title}
           </span>
-          {is_coming_soon ? (
+          {isComingSoon ? (
             <UiBadge size="xs">
               即将推出
             </UiBadge>
-          ) : should_configure ? (
+          ) : shouldConfigure ? (
             <UiBadge size="xs" tone="warning">
               待配置
             </UiBadge>
@@ -97,27 +97,27 @@ export function ConnectorCard({
           {description}
         </span>
         <span className="mt-0.5 block text-[11px] leading-4 text-(--text-soft)">
-          {get_connector_category_label(category, t)}
+          {getConnectorCategoryLabel(category, t)}
         </span>
       </span>
 
       <span className="flex h-9 w-9 shrink-0 items-center justify-center">
         {busy ? (
           <Loader2 className="h-4 w-4 animate-spin text-(--icon-default)" />
-        ) : is_connected ? (
+        ) : isConnected ? (
           <Check className="h-4 w-4 text-(--icon-muted)" />
-        ) : is_coming_soon ? (
+        ) : isComingSoon ? (
           <Clock3 className="h-4 w-4 text-(--icon-muted)" />
         ) : (
           <UiIconButton
-            aria-label={should_configure || requires_direct_credential ? `配置 ${title}` : `连接 ${title}`}
-            onClick={handle_action_click}
+            aria-label={shouldConfigure || requiresDirectCredential ? `配置 ${title}` : `连接 ${title}`}
+            onClick={handleActionClick}
             size="md"
             type="button"
           >
-            {should_configure ? (
+            {shouldConfigure ? (
               <Settings2 className="h-4 w-4" />
-            ) : requires_direct_credential ? (
+            ) : requiresDirectCredential ? (
               <KeyRound className="h-4 w-4" />
             ) : (
               <Plus className="h-4 w-4" />

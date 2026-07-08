@@ -12,22 +12,22 @@ const LazyMermaidViewInner = lazy(async () => {
 });
 
 function MermaidViewLoadingFallback({
-  class_name,
+  className: className,
   compact = false,
-  constrain_height = true,
-}: Pick<MermaidViewProps, "class_name" | "compact" | "constrain_height">) {
+  constrainHeight: constrainHeight = true,
+}: Pick<MermaidViewProps, "className" | "compact" | "constrainHeight">) {
   return (
     <div
       className={cn(
         "flex min-w-0 flex-col overflow-hidden rounded-[8px] border border-(--divider-subtle-color) bg-(--surface-panel-background)",
-        compact ? "my-2 max-h-[360px]" : constrain_height ? "my-3 max-h-[460px]" : "min-h-0",
-        class_name,
+        compact ? "my-2 max-h-[360px]" : constrainHeight ? "my-3 max-h-[460px]" : "min-h-0",
+        className,
       )}
     >
       <div
         className={cn(
           "flex items-center justify-center px-4 text-sm text-(--text-muted)",
-          compact ? "min-h-24 py-6" : constrain_height ? "min-h-56 py-8" : "min-h-[240px] flex-1 py-8",
+          compact ? "min-h-24 py-6" : constrainHeight ? "min-h-56 py-8" : "min-h-[240px] flex-1 py-8",
         )}
       >
         <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
@@ -42,9 +42,9 @@ export function LazyMermaidView(props: MermaidViewProps) {
     <Suspense
       fallback={(
         <MermaidViewLoadingFallback
-          class_name={props.class_name}
+          className={props.className}
           compact={props.compact}
-          constrain_height={props.constrain_height}
+          constrainHeight={props.constrainHeight}
         />
       )}
     >

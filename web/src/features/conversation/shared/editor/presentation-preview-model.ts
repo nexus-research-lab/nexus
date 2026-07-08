@@ -29,7 +29,7 @@ export const SCHEME_COLORS: Record<string, string> = {
 
 export type PresentationPreviewStatus =
   | { state: "loading"; message: string }
-  | { state: "loaded"; slide_count: number }
+  | { state: "loaded"; slideCount: number }
   | { state: "error"; message: string };
 
 export type PresentationShapeGeometry =
@@ -44,8 +44,8 @@ export type PresentationShapeGeometry =
 export interface PresentationTextRun {
   bold?: boolean;
   color?: string;
-  font_face?: string;
-  font_size: number;
+  fontFace?: string;
+  fontSize: number;
   italic?: boolean;
   text: string;
 }
@@ -53,9 +53,9 @@ export interface PresentationTextRun {
 export interface PresentationParagraph {
   align?: "center" | "left" | "right";
   bullet?: string;
-  bullet_indent: number;
-  font_size: number;
-  line_height: number;
+  bulletIndent: number;
+  fontSize: number;
+  lineHeight: number;
   runs: PresentationTextRun[];
   text: string;
 }
@@ -67,8 +67,8 @@ export interface PresentationShapeElement {
   id: string;
   paragraphs: PresentationParagraph[];
   stroke?: string;
-  stroke_width: number;
-  text_anchor: "bottom" | "center" | "top";
+  strokeWidth: number;
+  textAnchor: "bottom" | "center" | "top";
   type: "shape";
   width: number;
   x: number;
@@ -98,12 +98,12 @@ export interface PresentationSlide {
 
 export interface PresentationRelationship {
   target: string;
-  target_mode?: string;
+  targetMode?: string;
   type?: string;
 }
 
 export interface PresentationParseResult {
-  object_urls: string[];
+  objectUrls: string[];
   slides: PresentationSlide[];
 }
 
@@ -114,32 +114,32 @@ export interface PresentationPlaceholderStyle {
   geometry: PresentationShapeGeometry;
   key: string;
   stroke?: string;
-  stroke_width: number;
+  strokeWidth: number;
   transform: PresentationTransform;
 }
 
 export interface PresentationPart {
   background?: string;
   elements: PresentationElement[];
-  placeholder_styles: Map<string, PresentationPlaceholderStyle>;
+  placeholderStyles: Map<string, PresentationPlaceholderStyle>;
   rels: Record<string, PresentationRelationship>;
 }
 
 export interface PresentationShapeTreeContext {
-  element_index: number;
-  fallback_placeholders?: Map<string, PresentationPlaceholderStyle>;
-  id_prefix: string;
-  include_placeholder_shapes: boolean;
+  elementIndex: number;
+  fallbackPlaceholders?: Map<string, PresentationPlaceholderStyle>;
+  idPrefix: string;
+  includePlaceholderShapes: boolean;
 }
 
 export interface PresentationShapeTreeResult {
   elements: PresentationElement[];
-  placeholder_styles: Map<string, PresentationPlaceholderStyle>;
+  placeholderStyles: Map<string, PresentationPlaceholderStyle>;
 }
 
 export interface PresentationGroupTransform extends PresentationTransform {
-  child_height: number;
-  child_width: number;
-  child_x: number;
-  child_y: number;
+  childHeight: number;
+  childWidth: number;
+  childX: number;
+  childY: number;
 }

@@ -32,15 +32,6 @@ async function main() {
     env("NEXUS_DESKTOP_NXS_MANIFEST_URL") ||
     env("NEXUS_NXS_RUNTIME_MANIFEST_URL") ||
     `https://github.com/${repo}/releases/download/${release}/nxs-manifest.json`;
-  const goos = args.goos || env("NEXUS_DESKTOP_NXS_GOOS") || nodePlatformToGOOS(process.platform);
-  const goarch = args.goarch || env("NEXUS_DESKTOP_NXS_GOARCH") || nodeArchToGOARCH(process.arch);
-  if (!args.output) {
-    throw new Error("--output is required");
-  }
-  if (!goos || !goarch) {
-    throw new Error(`unsupported platform ${process.platform}/${process.arch}; pass --goos and --goarch`);
-  }
-
   const client = new GitHubReleaseClient({
     token:
       env("NEXUS_DESKTOP_NXS_DOWNLOAD_TOKEN") ||
@@ -51,6 +42,15 @@ async function main() {
     release,
   });
   const manifest = JSON.parse((await client.downloadManifest(manifestURL)).toString("utf8"));
+  const goos = args.goos || env("NEXUS_DESKTOP_NXS_GOOS") || nodePlatformToGOOS(process.platform);
+  const goarch = args.goarch || env("NEXUS_DESKTOP_NXS_GOARCH") || nodeArchToGOARCH(process.arch);
+  if (!args.output) {
+    throw new Error("--output is required");
+  }
+  if (!goos || !goarch) {
+    throw new Error(`unsupported platform ${process.platform}/${process.arch}; pass --goos and --goarch`);
+  }
+
   const selection = selectAsset(manifest, goos, goarch);
   const asset = selection.asset;
   const archiveBytes = await client.downloadAsset(asset.url, asset.filename);
@@ -310,6 +310,9 @@ function downloadURL(rawURL, options) {
         }
         resolve(body);
       });
+    });
+    request.setTimeout(30000, () => {
+      request.destroy(new Error(`timeout while downloading ${rawURL}`));
     });
     request.on("error", reject);
   });

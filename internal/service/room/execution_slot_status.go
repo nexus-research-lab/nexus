@@ -101,6 +101,25 @@ func slotWorkspacePath(slot *activeRoomSlot) string {
 	return strings.TrimSpace(slot.WorkspacePath)
 }
 
+// broadcastAgentRoundStatus 广播 slot 生命周期状态；内部 "cancelled" 对外统一为 "interrupted"。
+func (s *RealtimeService) broadcastAgentRoundStatus(ctx context.Context, roundValue *activeRoomRound, slot *activeRoomSlot, status string) {
+	if roundValue == nil || slot == nil {
+		return
+	}
+	if status == "cancelled" {
+		status = "interrupted"
+	}
+	s.broadcastSharedEventWithTimeout(ctx, roundValue.SessionKey, roundValue.RoomID, roomdomain.WrapAgentRoundStatusEvent(
+		roundValue.SessionKey,
+		roundValue.RoomID,
+		roundValue.ConversationID,
+		roundValue.RootRoundID,
+		slot.AgentRoundID,
+		slot.AgentID,
+		status,
+	))
+}
+
 func (s *RealtimeService) handleSlotFailure(ctx context.Context, roundValue *activeRoomRound, slot *activeRoomSlot, mapper *roomdomain.SlotMessageMapper, err error) {
 	fields := []any{
 		"session_key", roundValue.SessionKey,
@@ -118,13 +137,15 @@ func (s *RealtimeService) handleSlotFailure(ctx context.Context, roundValue *act
 		ErrorMessage:   err.Error(),
 	}, slot.lastGoalAssistantMessage())
 	slot.setStatus("error")
+	s.broadcastAgentRoundStatus(ctx, roundValue, slot, "error")
 	resultMessage := protocol.Message{
 		"message_id":      "result_" + slot.AgentRoundID,
 		"session_key":     roundValue.SessionKey,
 		"room_id":         roundValue.RoomID,
 		"conversation_id": roundValue.ConversationID,
 		"agent_id":        slot.AgentID,
-		"round_id":        slot.AgentRoundID,
+		"round_id":        roundValue.RootRoundID,
+		"agent_round_id":  slot.AgentRoundID,
 		"parent_id":       slot.MsgID,
 		"role":            "result",
 		"subtype":         "error",
@@ -150,10 +171,10 @@ func (s *RealtimeService) handleSlotFailure(ctx context.Context, roundValue *act
 				roundValue.RoomID,
 				roundValue.ConversationID,
 				projectedMessage,
-				slot.AgentRoundID,
+				roundValue.RootRoundID,
 			),
 		)
-		s.broadcastSharedEventWithTimeout(ctx, roundValue.SessionKey, roundValue.RoomID, roomdomain.NewErrorEvent(roundValue.SessionKey, roundValue.RoomID, roundValue.ConversationID, "room_error", err.Error(), slot.AgentRoundID))
+		s.broadcastSharedEventWithTimeout(ctx, roundValue.SessionKey, roundValue.RoomID, roomdomain.NewErrorEvent(roundValue.SessionKey, roundValue.RoomID, roundValue.ConversationID, "room_error", err.Error(), roundValue.RootRoundID))
 	}
 	s.broadcastSharedEventWithTimeout(ctx, roundValue.SessionKey, roundValue.RoomID, roomdomain.WrapLifecycleEvent(
 		protocol.EventTypeStreamEnd,
@@ -162,6 +183,7 @@ func (s *RealtimeService) handleSlotFailure(ctx context.Context, roundValue *act
 		roundValue.ConversationID,
 		slot.AgentID,
 		slot.MsgID,
+		roundValue.RootRoundID,
 		slot.AgentRoundID,
 	))
 }
@@ -236,6 +258,7 @@ func (s *RealtimeService) markSlotCancelled(slot *activeRoomSlot) bool {
 }
 
 func (s *RealtimeService) broadcastSlotCancelled(ctx context.Context, roundValue *activeRoomRound, slot *activeRoomSlot) {
+	s.broadcastAgentRoundStatus(ctx, roundValue, slot, "interrupted")
 	s.broadcastSharedEventWithTimeout(ctx, roundValue.SessionKey, roundValue.RoomID, roomdomain.WrapLifecycleEvent(
 		protocol.EventTypeStreamCancelled,
 		roundValue.SessionKey,
@@ -243,6 +266,7 @@ func (s *RealtimeService) broadcastSlotCancelled(ctx context.Context, roundValue
 		roundValue.ConversationID,
 		slot.AgentID,
 		slot.MsgID,
+		roundValue.RootRoundID,
 		slot.AgentRoundID,
 	))
 }
@@ -257,7 +281,8 @@ func (s *RealtimeService) emitInterruptedSlotResult(roundValue *activeRoomRound,
 		"room_id":         roundValue.RoomID,
 		"conversation_id": roundValue.ConversationID,
 		"agent_id":        slot.AgentID,
-		"round_id":        slot.AgentRoundID,
+		"round_id":        roundValue.RootRoundID,
+		"agent_round_id":  slot.AgentRoundID,
 		"parent_id":       slot.MsgID,
 		"role":            "result",
 		"subtype":         "interrupted",
@@ -296,7 +321,7 @@ func (s *RealtimeService) emitInterruptedSlotResult(roundValue *activeRoomRound,
 					roundValue.RoomID,
 					roundValue.ConversationID,
 					projectedMessage,
-					slot.AgentRoundID,
+					roundValue.RootRoundID,
 				),
 			)
 		}

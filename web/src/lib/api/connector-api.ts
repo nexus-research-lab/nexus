@@ -11,13 +11,13 @@ import {
   ConnectorDeviceAuthStart,
   ConnectorInfo,
 } from "@/types/capability/connector";
-import { get_agent_api_base_url } from "@/config/options";
-import { request_api } from "@/lib/api/http";
+import { getAgentApiBaseUrl } from "@/config/options";
+import { requestApi } from "@/lib/api/http";
 
-const BASE = get_agent_api_base_url();
+const BASE = getAgentApiBaseUrl();
 
 /** 获取连接器列表 */
-export const get_connectors_api = async (params?: {
+export const getConnectorsApi = async (params?: {
   q?: string;
   category?: string;
   status?: string;
@@ -28,34 +28,23 @@ export const get_connectors_api = async (params?: {
   if (params?.status) sp.set("status", params.status);
   const qs = sp.toString();
   const url = `${BASE}/connectors${qs ? `?${qs}` : ""}`;
-  return request_api<ConnectorInfo[]>(url, {
+  return requestApi<ConnectorInfo[]>(url, {
     method: "GET",
   });
 };
 
-/** 获取已连接连接器数量 */
-export const get_connected_count_api = async (): Promise<number> => {
-  const result = await request_api<{ count: number }>(
-    `${BASE}/connectors/count`,
-    {
-      method: "GET",
-    },
-  );
-  return result.count;
-};
-
 /** 获取连接器详情 */
-export const get_connector_detail_api = async (
-  connector_id: string,
+export const getConnectorDetailApi = async (
+  connectorId: string,
 ): Promise<ConnectorDetail> => {
-  return request_api<ConnectorDetail>(`${BASE}/connectors/${connector_id}`, {
+  return requestApi<ConnectorDetail>(`${BASE}/connectors/${connectorId}`, {
     method: "GET",
   });
 };
 
 /** 授权连接 */
-export const connect_connector_api = async (
-  connector_id: string,
+export const connectConnectorApi = async (
+  connectorId: string,
   body?: {
     auth_code?: string;
     api_key?: string;
@@ -63,8 +52,8 @@ export const connect_connector_api = async (
     redirect_uri?: string;
   },
 ): Promise<ConnectorInfo> => {
-  return request_api<ConnectorInfo>(
-    `${BASE}/connectors/${connector_id}/connect`,
+  return requestApi<ConnectorInfo>(
+    `${BASE}/connectors/${connectorId}/connect`,
     {
       method: "POST",
       body: JSON.stringify(body),
@@ -73,11 +62,11 @@ export const connect_connector_api = async (
 };
 
 /** 断开连接 */
-export const disconnect_connector_api = async (
-  connector_id: string,
+export const disconnectConnectorApi = async (
+  connectorId: string,
 ): Promise<ConnectorInfo> => {
-  return request_api<ConnectorInfo>(
-    `${BASE}/connectors/${connector_id}/disconnect`,
+  return requestApi<ConnectorInfo>(
+    `${BASE}/connectors/${connectorId}/disconnect`,
     {
       method: "POST",
     },
@@ -85,15 +74,15 @@ export const disconnect_connector_api = async (
 };
 
 /** 保存用户自有 OAuth Client 配置 */
-export const save_connector_oauth_client_api = async (
-  connector_id: string,
+export const saveConnectorOauthClientApi = async (
+  connectorId: string,
   body: {
     client_id: string;
     client_secret: string;
   },
 ): Promise<ConnectorInfo> => {
-  return request_api<ConnectorInfo>(
-    `${BASE}/connectors/${connector_id}/oauth-client`,
+  return requestApi<ConnectorInfo>(
+    `${BASE}/connectors/${connectorId}/oauth-client`,
     {
       method: "PUT",
       body: JSON.stringify(body),
@@ -102,11 +91,11 @@ export const save_connector_oauth_client_api = async (
 };
 
 /** 删除用户自有 OAuth Client 配置 */
-export const delete_connector_oauth_client_api = async (
-  connector_id: string,
+export const deleteConnectorOauthClientApi = async (
+  connectorId: string,
 ): Promise<ConnectorInfo> => {
-  return request_api<ConnectorInfo>(
-    `${BASE}/connectors/${connector_id}/oauth-client`,
+  return requestApi<ConnectorInfo>(
+    `${BASE}/connectors/${connectorId}/oauth-client`,
     {
       method: "DELETE",
     },
@@ -114,40 +103,40 @@ export const delete_connector_oauth_client_api = async (
 };
 
 /** 获取 OAuth 授权 URL */
-export const get_connector_auth_url_api = async (
-  connector_id: string,
-  redirect_uri?: string,
+export const getConnectorAuthUrlApi = async (
+  connectorId: string,
+  redirectUri?: string,
   shop?: string,
 ): Promise<{ auth_url: string }> => {
   const sp = new URLSearchParams();
-  if (redirect_uri) sp.set("redirect_uri", redirect_uri);
+  if (redirectUri) sp.set("redirect_uri", redirectUri);
   if (shop) sp.set("shop", shop);
   const qs = sp.toString();
-  const url = `${BASE}/connectors/${connector_id}/auth-url${qs ? `?${qs}` : ""}`;
-  return request_api<{ auth_url: string }>(url, {
+  const url = `${BASE}/connectors/${connectorId}/auth-url${qs ? `?${qs}` : ""}`;
+  return requestApi<{ auth_url: string }>(url, {
     method: "GET",
   });
 };
 
 /** 完成 OAuth 回调 */
-export const complete_connector_o_auth_api = async (
+export const completeConnectorOAuthApi = async (
   code: string,
   state: string,
-  redirect_uri?: string,
+  redirectUri?: string,
 ): Promise<ConnectorInfo> => {
-  const body = { code, state, redirect_uri };
-  return request_api<ConnectorInfo>(`${BASE}/connectors/oauth/callback`, {
+  const body = { code, state, redirect_uri: redirectUri };
+  return requestApi<ConnectorInfo>(`${BASE}/connectors/oauth/callback`, {
     method: "POST",
     body: JSON.stringify(body),
   });
 };
 
 /** 启动 OAuth Device Flow */
-export const start_connector_device_auth_api = async (
-  connector_id: string,
+export const startConnectorDeviceAuthApi = async (
+  connectorId: string,
 ): Promise<ConnectorDeviceAuthStart> => {
-  return request_api<ConnectorDeviceAuthStart>(
-    `${BASE}/connectors/${connector_id}/device/start`,
+  return requestApi<ConnectorDeviceAuthStart>(
+    `${BASE}/connectors/${connectorId}/device/start`,
     {
       method: "POST",
     },
@@ -155,15 +144,15 @@ export const start_connector_device_auth_api = async (
 };
 
 /** 轮询 OAuth Device Flow */
-export const poll_connector_device_auth_api = async (
-  connector_id: string,
-  device_code: string,
+export const pollConnectorDeviceAuthApi = async (
+  connectorId: string,
+  deviceCode: string,
 ): Promise<ConnectorDeviceAuthPollResult> => {
-  return request_api<ConnectorDeviceAuthPollResult>(
-    `${BASE}/connectors/${connector_id}/device/poll`,
+  return requestApi<ConnectorDeviceAuthPollResult>(
+    `${BASE}/connectors/${connectorId}/device/poll`,
     {
       method: "POST",
-      body: JSON.stringify({ device_code }),
+      body: JSON.stringify({ device_code: deviceCode }),
     },
   );
 };

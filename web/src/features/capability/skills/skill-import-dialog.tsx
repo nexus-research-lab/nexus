@@ -1,7 +1,7 @@
 "use client";
 
-import { type FormEvent, useCallback, useEffect, useState } from "react";
-import { Download, FileText, FolderUp, GitBranch, Info, PackageCheck } from "lucide-react";
+import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { Download, FileText, FolderUp, GitBranch, Info, Loader2, PackageCheck } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { UiButton } from "@/shared/ui/button";
@@ -16,7 +16,7 @@ import {
 import { UiField, UiInput } from "@/shared/ui/form-control";
 
 import type { SkillImportDialogMode, SkillMarketplaceController } from "./skills-view-model";
-import room_collaboration_mechanism_markdown from "../../../../../docs/specs/room-collaboration-mechanism.md?raw";
+import roomCollaborationMechanismMarkdown from "../../../../../docs/specs/room-collaboration-mechanism.md?raw";
 
 interface SkillImportDialogProps {
   ctrl: SkillMarketplaceController;
@@ -39,8 +39,8 @@ const MODE_LABELS: Record<SkillImportDialogMode, string> = {
 
 const ROOM_COLLABORATION_MECHANISM_FILE_NAME = "room-collaboration-mechanism.md";
 
-function download_room_collaboration_mechanism() {
-  const blob = new Blob([room_collaboration_mechanism_markdown], {
+function downloadRoomCollaborationMechanism() {
+  const blob = new Blob([roomCollaborationMechanismMarkdown], {
     type: "text/markdown;charset=utf-8",
   });
   const url = URL.createObjectURL(blob);
@@ -55,44 +55,50 @@ function download_room_collaboration_mechanism() {
 }
 
 export function SkillImportDialog({ ctrl }: SkillImportDialogProps) {
-  const mode = ctrl.import_dialog_mode;
-  const set_import_dialog_mode = ctrl.set_import_dialog_mode;
-  const [git_url, set_git_url] = useState("");
-  const [git_branch, set_git_branch] = useState("");
-  const [git_path, set_git_path] = useState("");
+  const mode = ctrl.importDialogMode;
+  const setImportDialogMode = ctrl.setImportDialogMode;
+  const [gitUrl, setGitUrl] = useState("");
+  const [gitBranch, setGitBranch] = useState("");
+  const [gitPath, setGitPath] = useState("");
+  const gitUrlInputRef = useRef<HTMLInputElement>(null);
+  const importing = ctrl.importingSkill;
 
   useEffect(() => {
     if (!mode) {
-      set_git_url("");
-      set_git_branch("");
-      set_git_path("");
+      setGitUrl("");
+      setGitBranch("");
+      setGitPath("");
+    } else if (mode === "git") {
+      gitUrlInputRef.current?.focus();
     }
   }, [mode]);
 
-  const handle_close = useCallback(() => {
-    set_import_dialog_mode(null);
-  }, [set_import_dialog_mode]);
+  const handleClose = useCallback(() => {
+    if (ctrl.importingSkill) return;
+    setImportDialogMode(null);
+  }, [ctrl.importingSkill, setImportDialogMode]);
 
   if (!mode) return null;
 
-  const handle_submit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (importing) return;
     if (mode !== "git") return;
-    void ctrl.handle_git_import(git_url, git_branch, git_path);
+    void ctrl.handleGitImport(gitUrl, gitBranch, gitPath);
   };
 
   return (
     <UiDialogPortal>
-      <UiDialogBackdrop class_name="z-[9999]" on_close={handle_close}>
-        <UiDialogFormShell class_name="max-h-[86vh]" onSubmit={handle_submit} size="xl">
+      <UiDialogBackdrop className="z-[9999]" onClose={importing ? undefined : handleClose}>
+        <UiDialogFormShell className="max-h-[86vh]" onSubmit={handleSubmit} size="xl">
           <UiDialogHeader
             icon={mode === "git" ? <GitBranch className="h-4 w-4" /> : <PackageCheck className="h-4 w-4" />}
-            on_close={handle_close}
+            onClose={importing ? undefined : handleClose}
             subtitle="导入前请确认目录内包含合法的 SKILL.md，Room 技能需要显式声明 scope: room。"
             title="导入 Skill"
           />
 
-          <UiDialogBody class_name="grid min-h-0 gap-5 lg:grid-cols-[minmax(0,1fr)_340px]" scrollable>
+          <UiDialogBody className="grid min-h-0 gap-5 lg:grid-cols-[minmax(0,1fr)_340px]" scrollable>
             <section className="space-y-4">
               <div className="inline-flex rounded-[12px] border border-(--divider-subtle-color) p-1">
                 {(["local", "git"] as SkillImportDialogMode[]).map((item) => (
@@ -104,7 +110,8 @@ export function SkillImportDialog({ ctrl }: SkillImportDialogProps) {
                         ? "bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-(--primary)"
                         : "text-(--text-muted) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
                     )}
-                    onClick={() => ctrl.set_import_dialog_mode(item)}
+                    disabled={importing}
+                    onClick={() => ctrl.setImportDialogMode(item)}
                     type="button"
                   >
                     {item === "git" ? <GitBranch className="h-3.5 w-3.5" /> : <FolderUp className="h-3.5 w-3.5" />}
@@ -120,12 +127,14 @@ export function SkillImportDialog({ ctrl }: SkillImportDialogProps) {
                     label="Git 仓库 URL"
                   >
                     <UiInput
-                      autoFocus
-                      onChange={(event) => set_git_url(event.target.value)}
+                      aria-label="Git 仓库 URL"
+                      disabled={importing}
+                      onChange={(event) => setGitUrl(event.target.value)}
                       placeholder="https://github.com/owner/repo.git"
+                      ref={gitUrlInputRef}
                       required
                       type="url"
-                      value={git_url}
+                      value={gitUrl}
                     />
                   </UiField>
                   <div className="grid gap-3 sm:grid-cols-2">
@@ -134,9 +143,10 @@ export function SkillImportDialog({ ctrl }: SkillImportDialogProps) {
                       label="Branch"
                     >
                       <UiInput
-                        onChange={(event) => set_git_branch(event.target.value)}
+                        disabled={importing}
+                        onChange={(event) => setGitBranch(event.target.value)}
                         placeholder="main"
-                        value={git_branch}
+                        value={gitBranch}
                       />
                     </UiField>
                     <UiField
@@ -144,9 +154,10 @@ export function SkillImportDialog({ ctrl }: SkillImportDialogProps) {
                       label="子目录 Path"
                     >
                       <UiInput
-                        onChange={(event) => set_git_path(event.target.value)}
+                        disabled={importing}
+                        onChange={(event) => setGitPath(event.target.value)}
                         placeholder="skills/room-playbook"
-                        value={git_path}
+                        value={gitPath}
                       />
                     </UiField>
                   </div>
@@ -163,14 +174,15 @@ export function SkillImportDialog({ ctrl }: SkillImportDialogProps) {
                         zip 内可以直接放一个 Skill 目录，也可以包含多层目录；系统会查找最靠近根部的 SKILL.md。
                       </p>
                       <UiButton
-                        class_name="mt-4"
-                        onClick={() => ctrl.file_input_ref.current?.click()}
+                        className="mt-4"
+                        disabled={importing}
+                        onClick={() => ctrl.fileInputRef.current?.click()}
                         size="sm"
                         tone="primary"
                         variant="solid"
                       >
-                        <FolderUp className="h-4 w-4" />
-                        选择 zip 文件
+                        {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <FolderUp className="h-4 w-4" />}
+                        {importing ? "导入中" : "选择 zip 文件"}
                       </UiButton>
                     </div>
                   </div>
@@ -187,8 +199,9 @@ export function SkillImportDialog({ ctrl }: SkillImportDialogProps) {
                   </div>
                   <UiButton
                     aria-label="下载 Room 协作机制 Markdown 文档"
-                    class_name="shrink-0"
-                    onClick={download_room_collaboration_mechanism}
+                    className="shrink-0"
+                    disabled={importing}
+                    onClick={downloadRoomCollaborationMechanism}
                     size="xs"
                     tone="primary"
                     variant="surface"
@@ -202,7 +215,7 @@ export function SkillImportDialog({ ctrl }: SkillImportDialogProps) {
                   <li>`scope: any` 可安装到 Agent；`scope: main` 只给主 Agent；`scope: room` 只给群聊。</li>
                   <li>编写 Room Skill 时，把“room协作机制”文档交给 agent 参考，先明确公开协作和私下协作的边界。</li>
                   <li>Room Skill 导入后在群聊管理弹窗的“群聊技能”里选择，不会安装到单个 Agent。</li>
-                  <li>Git 导入会保存 URL、branch、path 和 commit，后续“更新技能库”会按这些信息重新拉取。</li>
+                  <li>Git 导入会保存 URL、branch、path 和 commit，后续检查更新会按这些信息比对远端版本。</li>
                 </ul>
               </div>
 
@@ -212,14 +225,20 @@ export function SkillImportDialog({ ctrl }: SkillImportDialogProps) {
             </aside>
           </UiDialogBody>
 
-          <UiDialogFooter class_name="gap-2">
-            <UiButton onClick={handle_close} size="sm" variant="surface">
+          <UiDialogFooter className="gap-2">
+            <UiButton disabled={importing} onClick={handleClose} size="sm" variant="surface">
               取消
             </UiButton>
             {mode === "git" ? (
-              <UiButton size="sm" tone="primary" type="submit" variant="solid">
-                <Download className="h-4 w-4" />
-                导入 Git Skill
+              <UiButton
+                disabled={importing || !gitUrl.trim()}
+                size="sm"
+                tone="primary"
+                type="submit"
+                variant="solid"
+              >
+                {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                {importing ? "导入中" : "导入 Git Skill"}
               </UiButton>
             ) : null}
           </UiDialogFooter>

@@ -2,15 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { PrivateEventTimeline } from "@/features/agents/private-domain/agent-private-domain-timeline";
 import { PrivateDomainToolbar } from "@/features/agents/private-domain/agent-private-domain-toolbar";
 import { PrivateThreadList } from "@/features/agents/private-domain/agent-private-domain-thread-list";
 import {
   AgentPrivateDomainQuery,
-  list_agent_private_events_api,
-  list_agent_private_threads_api,
+  listAgentPrivateEventsApi,
+  listAgentPrivateThreadsApi,
 } from "@/lib/api/agent-private-domain-api";
-import { is_external_session_conversation_id } from "@/features/conversation/external-session-labels";
+import { isExternalSessionConversationId } from "@/features/conversation/external-session-labels";
 import {
   cn,
 } from "@/lib/utils";
@@ -23,177 +24,208 @@ import {
 
 interface AgentPrivateDomainViewProps {
   agent: Agent;
-  room_id?: string | null;
-  conversation_id?: string | null;
+  roomId?: string | null;
+  conversationId?: string | null;
   variant?: "full" | "preview";
 }
 
 export function AgentPrivateDomainView({
   agent,
-  room_id = null,
-  conversation_id = null,
+  roomId: roomId = null,
+  conversationId: conversationId = null,
   variant = "full",
 }: AgentPrivateDomainViewProps) {
-  const [threads, set_threads] = useState<AgentPrivateThread[]>([]);
-  const [selected_thread_id, set_selected_thread_id] = useState<string | null>(null);
-  const [events, set_events] = useState<AgentPrivateEvent[]>([]);
-  const [threads_loading, set_threads_loading] = useState(false);
-  const [events_loading, set_events_loading] = useState(false);
-  const [error, set_error] = useState<string | null>(null);
-  const is_preview = variant === "preview";
-  const is_external_session_conversation = is_external_session_conversation_id(conversation_id);
+  const isPreview = variant === "preview";
+  const isExternalSessionConversation = isExternalSessionConversationId(conversationId);
+  const queryResetKey = [
+    agent.agent_id,
+    roomId ?? "",
+    conversationId ?? "",
+    variant,
+  ].join("\x1f");
+  const [threads, setThreads] = useResettableState<AgentPrivateThread[]>([], queryResetKey);
+  const [selectedThreadId, setSelectedThreadId] = useResettableState<string | null>(null, queryResetKey);
+  const eventsResetKey = `${queryResetKey}\x1e${selectedThreadId ?? ""}`;
+  const [events, setEvents] = useResettableState<AgentPrivateEvent[]>([], eventsResetKey);
+  const [threadsLoading, setThreadsLoading] = useResettableState(true, queryResetKey);
+  const [eventsLoading, setEventsLoading] = useResettableState(Boolean(selectedThreadId), eventsResetKey);
+  const [error, setError] = useResettableState<string | null>(null, eventsResetKey);
 
   const query = useMemo<AgentPrivateDomainQuery>(() => ({
-    room_id,
-    conversation_id: is_external_session_conversation ? null : conversation_id,
-    limit: is_preview ? 16 : 80,
-    room_limit: is_preview ? 1 : 160,
-  }), [conversation_id, is_external_session_conversation, is_preview, room_id]);
+    room_id: roomId,
+    conversation_id: isExternalSessionConversation ? null : conversationId,
+    limit: isPreview ? 16 : 80,
+    room_limit: isPreview ? 1 : 160,
+  }), [conversationId, isExternalSessionConversation, isPreview, roomId]);
 
-  const load_threads = useCallback(async () => {
-    set_threads_loading(true);
-    set_error(null);
+  const loadThreads = useCallback(async () => {
+    setThreadsLoading(true);
+    setError(null);
     try {
-      const page = await list_agent_private_threads_api(agent.agent_id, query);
-      const next_threads = page.items ?? [];
-      set_threads(next_threads);
-      set_selected_thread_id((current) => {
-        if (current && next_threads.some((thread) => thread.thread_id === current)) {
+      const page = await listAgentPrivateThreadsApi(agent.agent_id, query);
+      const nextThreads = page.items ?? [];
+      setThreads(nextThreads);
+      setSelectedThreadId((current) => {
+        if (current && nextThreads.some((thread) => thread.thread_id === current)) {
           return current;
         }
-        return next_threads[0]?.thread_id ?? null;
+        return nextThreads[0]?.thread_id ?? null;
       });
-    } catch (load_error) {
-      set_error(load_error instanceof Error ? load_error.message : "加载联络记录失败");
-      set_threads([]);
-      set_selected_thread_id(null);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "加载联络记录失败");
+      setThreads([]);
+      setSelectedThreadId(null);
     } finally {
-      set_threads_loading(false);
+      setThreadsLoading(false);
     }
-  }, [agent.agent_id, query]);
+  }, [
+    agent.agent_id,
+    query,
+    setError,
+    setSelectedThreadId,
+    setThreads,
+    setThreadsLoading,
+  ]);
 
-  const load_events = useCallback(async (thread_id: string | null) => {
-    if (!thread_id) {
-      set_events([]);
+  const loadEvents = useCallback(async (threadId: string | null) => {
+    if (!threadId) {
+      setEvents([]);
       return;
     }
-    set_events_loading(true);
-    set_error(null);
+    setEventsLoading(true);
+    setError(null);
     try {
-      const page = await list_agent_private_events_api(agent.agent_id, thread_id, {
+      const page = await listAgentPrivateEventsApi(agent.agent_id, threadId, {
         ...query,
-        limit: is_preview ? 40 : 120,
+        limit: isPreview ? 40 : 120,
       });
-      set_events(page.items ?? []);
-    } catch (load_error) {
-      set_error(load_error instanceof Error ? load_error.message : "加载联络消息失败");
-      set_events([]);
+      setEvents(page.items ?? []);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "加载联络消息失败");
+      setEvents([]);
     } finally {
-      set_events_loading(false);
+      setEventsLoading(false);
     }
-  }, [agent.agent_id, is_preview, query]);
+  }, [
+    agent.agent_id,
+    isPreview,
+    query,
+    setError,
+    setEvents,
+    setEventsLoading,
+  ]);
 
   useEffect(() => {
     let cancelled = false;
-    set_threads_loading(true);
-    set_error(null);
-    void list_agent_private_threads_api(agent.agent_id, query)
+    void listAgentPrivateThreadsApi(agent.agent_id, query)
       .then((page) => {
         if (cancelled) return;
-        const next_threads = page.items ?? [];
-        set_threads(next_threads);
-        set_selected_thread_id(next_threads[0]?.thread_id ?? null);
+        const nextThreads = page.items ?? [];
+        setThreads(nextThreads);
+        setSelectedThreadId(nextThreads[0]?.thread_id ?? null);
       })
-      .catch((load_error) => {
+      .catch((loadError) => {
         if (cancelled) return;
-        set_error(load_error instanceof Error ? load_error.message : "加载联络记录失败");
-        set_threads([]);
-        set_selected_thread_id(null);
+        setError(loadError instanceof Error ? loadError.message : "加载联络记录失败");
+        setThreads([]);
+        setSelectedThreadId(null);
       })
       .finally(() => {
         if (!cancelled) {
-          set_threads_loading(false);
+          setThreadsLoading(false);
         }
       });
     return () => {
       cancelled = true;
     };
-  }, [agent.agent_id, query]);
+  }, [
+    agent.agent_id,
+    query,
+    setError,
+    setSelectedThreadId,
+    setThreads,
+    setThreadsLoading,
+  ]);
 
   useEffect(() => {
     let cancelled = false;
-    if (!selected_thread_id) {
-      set_events([]);
+    if (!selectedThreadId) {
       return () => {
         cancelled = true;
       };
     }
-    set_events_loading(true);
-    set_error(null);
-    void list_agent_private_events_api(agent.agent_id, selected_thread_id, {
+    void listAgentPrivateEventsApi(agent.agent_id, selectedThreadId, {
       ...query,
-      limit: is_preview ? 40 : 120,
+      limit: isPreview ? 40 : 120,
     })
       .then((page) => {
         if (!cancelled) {
-          set_events(page.items ?? []);
+          setEvents(page.items ?? []);
         }
       })
-      .catch((load_error) => {
+      .catch((loadError) => {
         if (!cancelled) {
-          set_error(load_error instanceof Error ? load_error.message : "加载联络消息失败");
-          set_events([]);
+          setError(loadError instanceof Error ? loadError.message : "加载联络消息失败");
+          setEvents([]);
         }
       })
       .finally(() => {
         if (!cancelled) {
-          set_events_loading(false);
+          setEventsLoading(false);
         }
       });
     return () => {
       cancelled = true;
     };
-  }, [agent.agent_id, is_preview, query, selected_thread_id]);
+  }, [
+    agent.agent_id,
+    isPreview,
+    query,
+    selectedThreadId,
+    setError,
+    setEvents,
+    setEventsLoading,
+  ]);
 
-  const selected_thread = useMemo(
-    () => threads.find((thread) => thread.thread_id === selected_thread_id) ?? null,
-    [selected_thread_id, threads],
+  const selectedThread = useMemo(
+    () => threads.find((thread) => thread.thread_id === selectedThreadId) ?? null,
+    [selectedThreadId, threads],
   );
 
-  const handle_refresh = useCallback(() => {
-    void load_threads();
-    void load_events(selected_thread_id);
-  }, [load_events, load_threads, selected_thread_id]);
+  const handleRefresh = useCallback(() => {
+    void loadThreads();
+    void loadEvents(selectedThreadId);
+  }, [loadEvents, loadThreads, selectedThreadId]);
 
-  if (is_preview) {
+  if (isPreview) {
     return (
       <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
         <div className="grid h-full min-h-0 flex-1 grid-cols-[230px_minmax(0,1fr)] items-stretch gap-3 overflow-hidden px-4 pb-4 pt-3 2xl:grid-cols-[250px_minmax(0,1fr)]">
           <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-[14px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_36%,transparent)]">
             <PrivateDomainToolbar
               count={threads.length}
-              is_loading={threads_loading || events_loading}
-              on_refresh={handle_refresh}
+              isLoading={threadsLoading || eventsLoading}
+              onRefresh={handleRefresh}
               title="联络"
             />
             <PrivateThreadList
-              agent_id={agent.agent_id}
-              class_name="min-h-0 flex-1"
+              agentId={agent.agent_id}
+              className="min-h-0 flex-1"
               compact
-              is_loading={threads_loading}
-              on_select={set_selected_thread_id}
-              selected_thread_id={selected_thread_id}
+              isLoading={threadsLoading}
+              onSelect={setSelectedThreadId}
+              selectedThreadId={selectedThreadId}
               threads={threads}
             />
           </section>
           <PrivateEventTimeline
-            agent_id={agent.agent_id}
-            class_name="h-full min-h-0"
+            agentId={agent.agent_id}
+            className="h-full min-h-0"
             compact
             error={error}
             events={events}
-            is_loading={events_loading}
-            thread={selected_thread}
+            isLoading={eventsLoading}
+            thread={selectedThread}
           />
         </div>
       </div>
@@ -209,26 +241,26 @@ export function AgentPrivateDomainView({
         <section className="flex min-h-0 flex-col overflow-hidden rounded-[16px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_54%,transparent)]">
           <PrivateDomainToolbar
             count={threads.length}
-            is_loading={threads_loading}
-            on_refresh={handle_refresh}
+            isLoading={threadsLoading}
+            onRefresh={handleRefresh}
             title="联络"
           />
           <PrivateThreadList
-            agent_id={agent.agent_id}
-            class_name="min-h-0 flex-1"
-            is_loading={threads_loading}
-            on_select={set_selected_thread_id}
-            selected_thread_id={selected_thread_id}
+            agentId={agent.agent_id}
+            className="min-h-0 flex-1"
+            isLoading={threadsLoading}
+            onSelect={setSelectedThreadId}
+            selectedThreadId={selectedThreadId}
             threads={threads}
           />
         </section>
 
         <PrivateEventTimeline
-          agent_id={agent.agent_id}
+          agentId={agent.agent_id}
           error={error}
           events={events}
-          is_loading={events_loading}
-          thread={selected_thread}
+          isLoading={eventsLoading}
+          thread={selectedThread}
         />
       </div>
     </div>

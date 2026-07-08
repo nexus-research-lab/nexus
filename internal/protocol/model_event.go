@@ -19,6 +19,7 @@ const (
 	EventTypeChatAck                     EventType = "chat_ack"
 	EventTypeInputQueue                  EventType = "input_queue"
 	EventTypeRoundStatus                 EventType = "round_status"
+	EventTypeAgentRoundStatus            EventType = "agent_round_status"
 	EventTypeSessionStatus               EventType = "session_status"
 	EventTypeGoalCreated                 EventType = "goal_created"
 	EventTypeGoalUpdated                 EventType = "goal_updated"
@@ -60,7 +61,8 @@ type EventMessage struct {
 	AgentID         string         `json:"agent_id,omitempty"`
 	MessageID       string         `json:"message_id,omitempty"`
 	SessionID       string         `json:"session_id,omitempty"`
-	CausedBy        string         `json:"caused_by,omitempty"`
+	RoundID         string         `json:"round_id,omitempty"`
+	AgentRoundID    string         `json:"agent_round_id,omitempty"`
 	Data            map[string]any `json:"data"`
 	Timestamp       int64          `json:"timestamp"`
 }
@@ -127,13 +129,47 @@ func NewRoundStatusEvent(sessionKey string, roundID string, status string, resul
 	return event
 }
 
-// NewChatAckEvent 构造 chat_ack 事件。
-func NewChatAckEvent(sessionKey string, reqID string, roundID string, pending []map[string]any) EventMessage {
+// ChatAckPendingSlot 表示 chat_ack 中一个 agent slot 的占位信息。
+type ChatAckPendingSlot struct {
+	AgentID      string `json:"agent_id"`
+	AgentRoundID string `json:"agent_round_id"`
+	MsgID        string `json:"msg_id"`
+	Status       string `json:"status"`
+	Timestamp    int64  `json:"timestamp"`
+	Index        int    `json:"index"`
+}
+
+// NewChatAckEvent 构造 chat_ack 事件。round_id / user_message_id 由后端 mint，
+// client_request_id / client_message_id 原样回传供前端关联。
+func NewChatAckEvent(sessionKey string, clientRequestID string, clientMessageID string, roundID string, userMessageID string, pending []ChatAckPendingSlot) EventMessage {
+	if pending == nil {
+		pending = []ChatAckPendingSlot{}
+	}
 	event := NewEvent(EventTypeChatAck, map[string]any{
-		"req_id":         reqID,
+		"client_request_id": clientRequestID,
+		"client_message_id": clientMessageID,
+		"round_id":          roundID,
+		"user_message_id":   userMessageID,
+		"pending":           pending,
+		"ack_timeout_ms":    ChatAckTimeoutMS,
+	})
+	event.SessionKey = sessionKey
+	return event
+}
+
+// IsTerminalRoundStatus 判断 round / slot 状态是否终态。
+func IsTerminalRoundStatus(status string) bool {
+	return status == "finished" || status == "interrupted" || status == "error"
+}
+
+// NewAgentRoundStatusEvent 构造 agent_round_status 事件（Room slot 生命周期）。
+func NewAgentRoundStatusEvent(sessionKey string, roundID string, agentRoundID string, agentID string, status string) EventMessage {
+	event := NewEvent(EventTypeAgentRoundStatus, map[string]any{
 		"round_id":       roundID,
-		"pending":        pending,
-		"ack_timeout_ms": ChatAckTimeoutMS,
+		"agent_round_id": agentRoundID,
+		"agent_id":       agentID,
+		"status":         status,
+		"is_terminal":    IsTerminalRoundStatus(status),
 	})
 	event.SessionKey = sessionKey
 	return event

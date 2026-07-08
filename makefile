@@ -5,7 +5,7 @@ include $(ENV_FILE)
 export $(shell sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' $(ENV_FILE))
 endif
 
-TAG ?= 0.1.22
+TAG ?= 0.1.26
 BACKEND_PORT ?= 8010
 WEB_PORT ?= 3000
 AGENT_UID ?= 1001
@@ -22,8 +22,11 @@ NXS_DEV_BINARY_NAME := nxs
 ifeq ($(NXS_DEV_GOOS),windows)
 NXS_DEV_BINARY_NAME := nxs.exe
 endif
+NEXUS_NXS_RUNTIME_RELEASE ?= nxs-stable
+NEXUS_NXS_RUNTIME_RELEASE_CMD = sh scripts/resolve-nxs-runtime-release.sh "$(NEXUS_NXS_RUNTIME_RELEASE)"
 NXS_DEV_RUNTIME_PATH ?= $(abspath ../nexus-agent-sdk/nexus-agent-sdk-go/dist/nxs/$(NXS_DEV_GOOS)-$(NXS_DEV_GOARCH)/$(NXS_DEV_BINARY_NAME))
 COMPOSE_CMD ?= docker compose --env-file $(ENV_FILE) -f deploy/docker-compose.yml
+PNPM ?= pnpm
 
 # Default target
 .DEFAULT_GOAL := help
@@ -32,7 +35,7 @@ COMPOSE_CMD ?= docker compose --env-file $(ENV_FILE) -f deploy/docker-compose.ym
 	dev dev-nxs install gen-protocol-types lint-web typecheck-web prepare-host-data \
 	check-backend check-go check test run-web run-backend run-backend-go \
 	app-build-dev app-run-dev app-build app-run app-smoke app-package app-dmg build-dmg app-check app-win-build app-win-run app-win-smoke app-win-package \
-	pull deploy start-no-build
+	pull deploy start-no-build ssl-check ssl-issue ssl-renew ssl-renew-dry-run
 
 # Show help
 help: ## Show this help message
@@ -46,7 +49,7 @@ endif
 
 # Development commands
 run-web: ## Run frontend in development mode
-	cd web && pnpm exec vite -- --host 0.0.0.0 --port $(WEB_PORT)
+	cd web && $(PNPM) exec vite -- --host 0.0.0.0 --port $(WEB_PORT)
 
 gen-protocol-types: ## Generate frontend protocol types from Go protocol definitions
 	go generate ./internal/protocol
@@ -96,13 +99,13 @@ install: ## Install all dependencies
 		exit 1; \
 	fi
 	@echo "Installing frontend dependencies..."
-	cd web && pnpm install
+	cd web && $(PNPM) install
 
 lint-web: ## Run frontend lint
-	cd web && pnpm run lint
+	cd web && $(PNPM) run lint
 
 typecheck-web: ## Run frontend type check
-	cd web && pnpm run typecheck
+	cd web && $(PNPM) run typecheck
 
 check-go: ## Run Go build and test checks
 	go test ./...
@@ -152,7 +155,10 @@ app-win-package: ## 构建、烟测并打包 Windows WPF/WebView2 桌面 app ins
 
 # Docker commands
 build: ## Build Docker images
-	TAG=$(TAG) $(COMPOSE_CMD) build
+	@set -eu; \
+	runtime_release="$$($(NEXUS_NXS_RUNTIME_RELEASE_CMD))"; \
+	echo "nxs runtime release: $$runtime_release"; \
+	TAG=$(TAG) NEXUS_NXS_RUNTIME_RELEASE="$$runtime_release" $(COMPOSE_CMD) build
 
 prepare-host-data: ## Prepare host bind-mount directories for Docker runtime
 	@set -eu; \
@@ -167,6 +173,7 @@ prepare-host-data: ## Prepare host bind-mount directories for Docker runtime
 	esac; \
 	echo "Preparing host data directory: $$resolved_dir"; \
 	$(HOST_SUDO) mkdir -p "$$resolved_dir" "$$resolved_dir/.nexus" "$$resolved_dir/.claude"; \
+	$(HOST_SUDO) mkdir -p "$$resolved_dir/certs" "$$resolved_dir/acme"; \
 	if $(HOST_SUDO) test -d "$$resolved_dir/.claude.json"; then \
 		echo "Error: $$resolved_dir/.claude.json is a directory, expected a file."; \
 		exit 1; \
@@ -175,6 +182,7 @@ prepare-host-data: ## Prepare host bind-mount directories for Docker runtime
 	$(HOST_SUDO) chown -R $(AGENT_UID):$(AGENT_GID) "$$resolved_dir/.nexus" "$$resolved_dir/.claude"; \
 	$(HOST_SUDO) chown $(AGENT_UID):$(AGENT_GID) "$$resolved_dir/.claude.json"; \
 	$(HOST_SUDO) chmod 0755 "$$resolved_dir/.nexus" "$$resolved_dir/.claude"; \
+	$(HOST_SUDO) chmod 0755 "$$resolved_dir/certs" "$$resolved_dir/acme"; \
 	$(HOST_SUDO) chmod 0644 "$$resolved_dir/.claude.json"; \
 	echo "Host data directory is ready: $$resolved_dir"
 
@@ -188,7 +196,10 @@ package-release: ## Build Go + web release package without macOS app
 	./scripts/package-release.sh $(TAG)
 
 start: prepare-host-data ## Start all services with Docker
-	TAG=$(TAG) $(COMPOSE_CMD) up -d --build --force-recreate
+	@set -eu; \
+	runtime_release="$$($(NEXUS_NXS_RUNTIME_RELEASE_CMD))"; \
+	echo "nxs runtime release: $$runtime_release"; \
+	TAG=$(TAG) NEXUS_NXS_RUNTIME_RELEASE="$$runtime_release" $(COMPOSE_CMD) up -d --build --force-recreate
 	@echo ""
 	@echo "✅ Nexus Core is running!"
 	@echo "🌐 Web UI: http://localhost"
@@ -219,6 +230,18 @@ logs-nginx: ## Show nginx Docker service logs
 
 status: ## Show Docker service status
 	TAG=$(TAG) $(COMPOSE_CMD) ps
+
+ssl-check: prepare-host-data ## 检查 ACME HTTP-01 challenge 路径
+	ENV_FILE=$(ENV_FILE) deploy/ssl-certbot.sh check
+
+ssl-issue: prepare-host-data ## 使用 certbot Docker 镜像申请 Let's Encrypt 证书
+	ENV_FILE=$(ENV_FILE) deploy/ssl-certbot.sh issue
+
+ssl-renew: prepare-host-data ## 续期 Let's Encrypt 证书
+	ENV_FILE=$(ENV_FILE) deploy/ssl-certbot.sh renew
+
+ssl-renew-dry-run: prepare-host-data ## 测试 Let's Encrypt 续期流程
+	ENV_FILE=$(ENV_FILE) deploy/ssl-certbot.sh dry-run
 
 clean: ## Clean up Docker resources
 	TAG=$(TAG) $(COMPOSE_CMD) down -v

@@ -2,8 +2,8 @@ import { CSSProperties } from "react";
 
 import { cn } from "@/lib/utils";
 import {
-  get_ui_button_class_name,
-  get_ui_icon_button_class_name,
+  getUiButtonClassName,
+  getUiIconButtonClassName,
 } from "@/shared/ui/button-styles";
 
 export const DIALOG_HEADER_LEADING_CLASS_NAME = "flex min-w-0 items-center gap-2.5";
@@ -19,53 +19,53 @@ export const DIALOG_POPOVER_CLASS_NAME =
 export const DIALOG_HEADER_ICON_CLASS_NAME =
   "flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] border border-[color:color-mix(in_srgb,var(--primary)_16%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_6%,transparent)] text-(--text-strong)";
 
-export const DIALOG_ICON_BUTTON_CLASS_NAME = get_ui_icon_button_class_name({
+export const DIALOG_ICON_BUTTON_CLASS_NAME = getUiIconButtonClassName({
   size: "md",
   variant: "ghost",
 });
 
-export const DIALOG_EMPTY_CLASS_NAME =
+const DIALOG_EMPTY_CLASS_NAME =
   "flex items-center justify-center rounded-[12px] px-4 py-4 text-[13px] text-(--text-muted)";
 
-export const DIALOG_TAG_CLASS_NAME =
+const DIALOG_TAG_CLASS_NAME =
   "inline-flex items-center gap-1 rounded-[6px] border border-(--divider-subtle-color) bg-transparent px-2 py-0.5 text-[11px] font-medium text-(--text-muted)";
 
-export function get_dialog_action_class_name(
+export function getDialogActionClassName(
   tone: "default" | "primary" | "danger",
-  size_or_class_name?: "default" | "compact" | string,
-  class_name?: string,
+  sizeOrClassName?: "default" | "compact" | string,
+  className?: string,
 ): string {
-  const size = size_or_class_name === "compact" || size_or_class_name === "default"
-    ? size_or_class_name
+  const size = sizeOrClassName === "compact" || sizeOrClassName === "default"
+    ? sizeOrClassName
     : "default";
-  const resolved_class_name =
-    typeof size_or_class_name === "string" &&
-      size_or_class_name !== "compact" &&
-      size_or_class_name !== "default"
-      ? size_or_class_name
-      : class_name;
+  const resolvedClassName =
+    typeof sizeOrClassName === "string" &&
+      sizeOrClassName !== "compact" &&
+      sizeOrClassName !== "default"
+      ? sizeOrClassName
+      : className;
 
-  return get_ui_button_class_name(
+  return getUiButtonClassName(
     {
       size: size === "compact" ? "sm" : "md",
       tone,
       variant: "surface",
     },
-    resolved_class_name,
+    resolvedClassName,
   );
 }
 
-export function get_dialog_note_class_name(tone: "default" | "danger", class_name?: string): string {
+export function getDialogNoteClassName(tone: "default" | "danger", className?: string): string {
   return cn(
     "rounded-[14px] px-4 py-[0.95rem] text-[13px] leading-[1.65]",
     tone === "default"
       ? "border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_76%,transparent)] bg-transparent text-(--text-default)"
       : "border text-(--text-default)",
-    class_name,
+    className,
   );
 }
 
-export function get_dialog_note_style(tone: "default" | "danger"): CSSProperties | undefined {
+export function getDialogNoteStyle(tone: "default" | "danger"): CSSProperties | undefined {
   if (tone !== "danger") {
     return undefined;
   }

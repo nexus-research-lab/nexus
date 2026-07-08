@@ -53,10 +53,49 @@ func (s *Service) GetConversationContext(ctx context.Context, conversationID str
 	return contextValue, nil
 }
 
+// GetConversationContextForSystem 供内部系统续跑在没有请求主体时恢复 Room owner。
+func (s *Service) GetConversationContextForSystem(ctx context.Context, conversationID string) (*protocol.ConversationContextAggregate, error) {
+	contextValue, err := s.repository.GetConversationContextForSystem(ctx, strings.TrimSpace(conversationID))
+	if err != nil {
+		return nil, err
+	}
+	if contextValue == nil {
+		return nil, ErrConversationNotFound
+	}
+	return contextValue, nil
+}
+
 // GetConversationContext 暴露 Room conversation 聚合，供 automation 做目标成员校验。
 func (s *RealtimeService) GetConversationContext(ctx context.Context, conversationID string) (*protocol.ConversationContextAggregate, error) {
 	if s.rooms == nil {
 		return nil, errors.New("room service is not configured")
 	}
 	return s.rooms.GetConversationContext(ctx, strings.TrimSpace(conversationID))
+}
+
+func (s *RealtimeService) internalConversationContext(ctx context.Context, conversationID string, internal bool) (context.Context, *protocol.ConversationContextAggregate, error) {
+	if s.rooms == nil {
+		return ctx, nil, errors.New("room service is not configured")
+	}
+	if !internal {
+		contextValue, err := s.rooms.GetConversationContext(ctx, strings.TrimSpace(conversationID))
+		return ctx, contextValue, err
+	}
+	if _, ok := authctx.CurrentUserID(ctx); ok {
+		contextValue, err := s.rooms.GetConversationContext(ctx, strings.TrimSpace(conversationID))
+		return ctx, contextValue, err
+	}
+	contextValue, err := s.rooms.GetConversationContextForSystem(ctx, strings.TrimSpace(conversationID))
+	if err != nil || contextValue == nil {
+		return ctx, contextValue, err
+	}
+	ownerUserID := strings.TrimSpace(contextValue.Room.OwnerUserID)
+	if ownerUserID == "" {
+		return ctx, contextValue, nil
+	}
+	return authctx.WithPrincipal(ctx, &authctx.Principal{
+		UserID:     ownerUserID,
+		Role:       authctx.RoleOwner,
+		AuthMethod: authctx.AuthMethodLocal,
+	}), contextValue, nil
 }

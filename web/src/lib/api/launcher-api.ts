@@ -2,8 +2,8 @@
  * Launcher API 客户端
  */
 
-import { get_agent_api_base_url } from "@/config/options";
-import { request_api } from "@/lib/api/http";
+import { getAgentApiBaseUrl } from "@/config/options";
+import { requestApi } from "@/lib/api/http";
 import type { LauncherBootstrapResponse } from "@/types/app/launcher";
 
 export interface LauncherQueryParams {
@@ -16,23 +16,32 @@ export interface LauncherQueryResponse {
   initial_message?: string;
 }
 
-export async function get_launcher_bootstrap_api(): Promise<LauncherBootstrapResponse> {
-  return request_api<LauncherBootstrapResponse>(
-    `${get_agent_api_base_url()}/launcher/bootstrap`,
+let launcherBootstrapInflight: Promise<LauncherBootstrapResponse> | null = null;
+
+export async function getLauncherBootstrapApi(): Promise<LauncherBootstrapResponse> {
+  if (launcherBootstrapInflight) {
+    return launcherBootstrapInflight;
+  }
+
+  launcherBootstrapInflight = requestApi<LauncherBootstrapResponse>(
+    `${getAgentApiBaseUrl()}/launcher/bootstrap`,
     {
       method: "GET",
     },
-  );
+  ).finally(() => {
+    launcherBootstrapInflight = null;
+  });
+  return launcherBootstrapInflight;
 }
 
 /**
  * 解析 Launcher 查询
  */
-export async function query_launcher(
+export async function queryLauncher(
   params: LauncherQueryParams,
 ): Promise<LauncherQueryResponse> {
-  return request_api<LauncherQueryResponse>(
-    `${get_agent_api_base_url()}/launcher/query`,
+  return requestApi<LauncherQueryResponse>(
+    `${getAgentApiBaseUrl()}/launcher/query`,
     {
       method: "POST",
       body: JSON.stringify(params),

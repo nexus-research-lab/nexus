@@ -151,14 +151,8 @@ func (s *RealtimeService) guideActiveAgentSlots(
 		if slot == nil {
 			continue
 		}
+		// 轮内引导注入不带 runtime context（情绪态）：避免逐步污染 prompt 前缀缓存。
 		runtimeText := conversationsvc.NewRuntimeTextContent(runtimeContent)
-		if s.agents != nil {
-			agentValue, err := s.agents.GetAgent(ctx, agentID)
-			if err != nil {
-				return guidedAgentIDs, err
-			}
-			runtimeText = s.appendRuntimeUserContext(ctx, conversationID, agentValue, runtimeText)
-		}
 		slot.enqueueGuidedInput(roundID, runtimeText.PlainText())
 		guidanceMessage := buildRoomGuidanceMessage(sessionKey, roomID, conversationID, slot, roundID, content)
 		s.broadcastSlotGuidanceMessage(ctx, sessionKey, roomID, conversationID, roundID, guidanceMessage)

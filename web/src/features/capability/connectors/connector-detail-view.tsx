@@ -15,7 +15,7 @@ import {
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiBadge } from "@/shared/ui/badge";
 import { UiButton } from "@/shared/ui/button";
-import { get_ui_button_class_name } from "@/shared/ui/button-styles";
+import { getUiButtonClassName } from "@/shared/ui/button-styles";
 import {
   UiDialogBackdrop,
   UiDialogBody,
@@ -29,38 +29,38 @@ import { UiPanel } from "@/shared/ui/panel";
 import { UiStateBlock } from "@/shared/ui/state-block";
 import type { ConnectorDetail, ConnectorFeatureDetail } from "@/types/capability/connector";
 
-import { is_direct_credential_auth } from "./connector-auth";
+import { isDirectCredentialAuth } from "./connector-auth";
 import { ConnectorIcon } from "./connector-icon";
-import { get_connector_category_label } from "./connectors-categories";
+import { getConnectorCategoryLabel } from "./connectors-categories";
 
 interface ConnectorDetailViewProps {
   detail: ConnectorDetail | null;
   loading: boolean;
   busy: boolean;
-  on_back: () => void;
-  on_connect: (connector_id: string) => void;
-  on_disconnect: (connector_id: string) => void;
-  on_configure_credential: (detail: ConnectorDetail) => void;
-  on_configure_oauth_client: (detail: ConnectorDetail) => void;
+  onBack: () => void;
+  onConnect: (connectorId: string) => void;
+  onDisconnect: (connectorId: string) => void;
+  onConfigureCredential: (detail: ConnectorDetail) => void;
+  onConfigureOauthClient: (detail: ConnectorDetail) => void;
 }
 
-function get_connector_auth_label(auth_type: ConnectorDetail["auth_type"]): string {
-  if (auth_type === "oauth2") return "OAuth 2.0";
-  if (auth_type === "api_key") return "API Key";
-  if (auth_type === "token") return "Token";
+function getConnectorAuthLabel(authType: ConnectorDetail["auth_type"]): string {
+  if (authType === "oauth2") return "OAuth 2.0";
+  if (authType === "api_key") return "API Key";
+  if (authType === "token") return "Token";
   return "无需授权";
 }
 
-function get_connector_feature_details(detail: ConnectorDetail): ConnectorFeatureDetail[] {
+function getConnectorFeatureDetails(detail: ConnectorDetail): ConnectorFeatureDetail[] {
   if (!detail.feature_details || detail.feature_details.length === 0) {
     return [];
   }
 
-  const detail_by_name = new Map(detail.feature_details.map((feature) => [feature.name, feature]));
+  const detailByName = new Map(detail.feature_details.map((feature) => [feature.name, feature]));
   if (detail.features.length === 0) {
     return detail.feature_details;
   }
-  return detail.features.map((name) => detail_by_name.get(name)).filter((feature): feature is ConnectorFeatureDetail => Boolean(feature));
+  return detail.features.map((name) => detailByName.get(name)).filter((feature): feature is ConnectorFeatureDetail => Boolean(feature));
 }
 
 /** 连接器详情页 —— 一级应用点击后进入完整页面，不使用弹窗承载主体内容。 */
@@ -68,30 +68,30 @@ export function ConnectorDetailView({
   detail,
   loading,
   busy,
-  on_back,
-  on_connect,
-  on_disconnect,
-  on_configure_credential,
-  on_configure_oauth_client,
+  onBack: onBack,
+  onConnect: onConnect,
+  onDisconnect: onDisconnect,
+  onConfigureCredential: onConfigureCredential,
+  onConfigureOauthClient: onConfigureOauthClient,
 }: ConnectorDetailViewProps) {
   const { t } = useI18n();
-  const [selected_feature, set_selected_feature] = useState<string | null>(null);
-  const is_connected = detail?.connection_state === "connected";
-  const is_coming_soon = detail?.status === "coming_soon";
-  const is_configured = detail?.is_configured ?? true;
-  const requires_oauth_client_config = detail?.oauth_client_config_required ?? false;
-  const oauth_client_configured = detail?.oauth_client_configured ?? false;
-  const can_connect = detail && !is_connected && !is_coming_soon && is_configured;
-  const requires_direct_credential = is_direct_credential_auth(detail?.auth_type);
-  const feature_details = detail ? get_connector_feature_details(detail) : [];
-  const selected_feature_detail = feature_details.find((feature) => feature.name === selected_feature);
+  const [selectedFeature, setSelectedFeature] = useState<string | null>(null);
+  const isConnected = detail?.connection_state === "connected";
+  const isComingSoon = detail?.status === "coming_soon";
+  const isConfigured = detail?.is_configured ?? true;
+  const requiresOauthClientConfig = detail?.oauth_client_config_required ?? false;
+  const oauthClientConfigured = detail?.oauth_client_configured ?? false;
+  const canConnect = detail && !isConnected && !isComingSoon && isConfigured;
+  const requiresDirectCredential = isDirectCredentialAuth(detail?.auth_type);
+  const featureDetails = detail ? getConnectorFeatureDetails(detail) : [];
+  const selectedFeatureDetail = featureDetails.find((feature) => feature.name === selectedFeature);
 
   return (
     <div className={WORKSPACE_DETAIL_PAGE_CLASS_NAME}>
       <div className="flex items-center gap-2 text-[14px] text-(--text-muted)">
         <button
           className="inline-flex items-center gap-1 rounded-full px-2 py-1 font-medium transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_28%,transparent)]"
-          onClick={on_back}
+          onClick={onBack}
           type="button"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
@@ -106,15 +106,15 @@ export function ConnectorDetailView({
       </div>
 
       {loading ? (
-        <UiStateBlock class_name="min-h-[420px]" size="md" title="加载连接器详情中..." variant="plain" />
+        <UiStateBlock className="min-h-[420px]" size="md" title="加载连接器详情中..." variant="plain" />
       ) : !detail ? (
         <UiStateBlock
           actions={(
-            <UiButton onClick={on_back} size="sm" type="button">
+            <UiButton onClick={onBack} size="sm" type="button">
               返回连接器
             </UiButton>
           )}
-          class_name="min-h-[420px]"
+          className="min-h-[420px]"
           size="md"
           title="连接器不存在"
           variant="plain"
@@ -136,56 +136,56 @@ export function ConnectorDetailView({
             </div>
 
             <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-              {requires_oauth_client_config && !is_connected ? (
+              {requiresOauthClientConfig && !isConnected ? (
                 <UiButton
                   disabled={busy}
-                  onClick={() => on_configure_oauth_client(detail)}
+                  onClick={() => onConfigureOauthClient(detail)}
                   size="sm"
-                  tone={oauth_client_configured ? "default" : "primary"}
+                  tone={oauthClientConfigured ? "default" : "primary"}
                   type="button"
-                  variant={oauth_client_configured ? "surface" : "solid"}
+                  variant={oauthClientConfigured ? "surface" : "solid"}
                 >
                   <KeyRound className="h-3.5 w-3.5" />
                   配置应用
                 </UiButton>
               ) : null}
-              {is_connected ? (
+              {isConnected ? (
                 <UiButton
                   disabled={busy}
-                  onClick={() => on_disconnect(detail.connector_id)}
+                  onClick={() => onDisconnect(detail.connector_id)}
                   size="sm"
                   type="button"
                 >
                   <Unplug className="h-3.5 w-3.5" />
                   断开连接
                 </UiButton>
-              ) : can_connect ? (
+              ) : canConnect ? (
                 <UiButton
                   disabled={busy}
                   onClick={() => {
-                    if (requires_direct_credential) {
-                      on_configure_credential(detail);
+                    if (requiresDirectCredential) {
+                      onConfigureCredential(detail);
                       return;
                     }
-                    on_connect(detail.connector_id);
+                    onConnect(detail.connector_id);
                   }}
                   size="sm"
                   tone="primary"
                   type="button"
                   variant="solid"
                 >
-                  {requires_direct_credential ? (
+                  {requiresDirectCredential ? (
                     <KeyRound className="h-3.5 w-3.5" />
                   ) : (
                     <Link2 className="h-3.5 w-3.5" />
                   )}
-                  {requires_direct_credential ? "配置凭证" : "添加到 Nexus"}
+                  {requiresDirectCredential ? "配置凭证" : "添加到 Nexus"}
                 </UiButton>
-              ) : is_coming_soon ? (
+              ) : isComingSoon ? (
                 <UiButton disabled size="sm" type="button">
                   即将推出
                 </UiButton>
-              ) : requires_oauth_client_config ? null : (
+              ) : requiresOauthClientConfig ? null : (
                 <UiButton disabled size="sm" type="button">
                   <Shield className="h-3.5 w-3.5" />
                   后端未配置
@@ -200,46 +200,46 @@ export function ConnectorDetailView({
             </p>
 
             <div className="flex flex-wrap gap-2">
-              {is_connected ? (
+              {isConnected ? (
                 <UiBadge tone="success">
                   <Check className="h-3.5 w-3.5" />
                   已连接
                 </UiBadge>
-              ) : is_coming_soon ? (
+              ) : isComingSoon ? (
                 <UiBadge>即将推出</UiBadge>
-              ) : !is_configured ? (
+              ) : !isConfigured ? (
                 <UiBadge tone="warning">
-                  {requires_oauth_client_config ? "待配置应用" : "后端未配置"}
+                  {requiresOauthClientConfig ? "待配置应用" : "后端未配置"}
                 </UiBadge>
               ) : (
                 <UiBadge>未连接</UiBadge>
               )}
-              <UiBadge>{get_connector_auth_label(detail.auth_type)}</UiBadge>
-              <UiBadge>{get_connector_category_label(detail.category, t)}</UiBadge>
+              <UiBadge>{getConnectorAuthLabel(detail.auth_type)}</UiBadge>
+              <UiBadge>{getConnectorCategoryLabel(detail.category, t)}</UiBadge>
               {detail.scopes.length > 0 ? <UiBadge>{detail.scopes.length} 项权限范围</UiBadge> : null}
             </div>
 
-            {!is_connected && !is_coming_soon && !is_configured && detail.config_error && !requires_oauth_client_config ? (
+            {!isConnected && !isComingSoon && !isConfigured && detail.config_error && !requiresOauthClientConfig ? (
               <UiStateBlock description={detail.config_error} size="sm" title="配置不可用" tone="danger" />
             ) : null}
 
-            {feature_details.length > 0 ? (
+            {featureDetails.length > 0 ? (
               <section>
                 <h2 className="mb-3 text-[16px] font-semibold tracking-[-0.025em] text-(--text-strong)">
                   包含内容
                 </h2>
-                <UiPanel class_name="divide-y divide-(--divider-subtle-color)" padding="none" radius="md" variant="inset">
-                  {feature_details.map((feature) => (
+                <UiPanel className="divide-y divide-(--divider-subtle-color)" padding="none" radius="md" variant="inset">
+                  {featureDetails.map((feature) => (
                     <UiListRow
                       key={feature.name}
-                      class_name="rounded-none"
+                      className="rounded-none"
                       description={feature.description}
                       leading={(
                         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-(--divider-subtle-color) bg-(--surface-panel-background)">
                           <Check className="h-4 w-4 text-(--icon-muted)" />
                         </span>
                       )}
-                      on_click={() => set_selected_feature(feature.name)}
+                      onClick={() => setSelectedFeature(feature.name)}
                       right={<ChevronRight className="h-4 w-4 shrink-0 text-(--icon-muted)" />}
                       title={feature.name}
                     />
@@ -250,7 +250,7 @@ export function ConnectorDetailView({
 
             {detail.docs_url ? (
               <a
-                className={get_ui_button_class_name({ size: "sm", variant: "text" }, "w-fit")}
+                className={getUiButtonClassName({ size: "sm", variant: "text" }, "w-fit")}
                 href={detail.docs_url}
                 rel="noopener noreferrer"
                 target="_blank"
@@ -261,29 +261,29 @@ export function ConnectorDetailView({
             ) : null}
           </div>
 
-          {selected_feature_detail ? (
+          {selectedFeatureDetail ? (
             <UiDialogPortal>
               <UiDialogBackdrop
-                class_name="z-[9999]"
-                on_close={() => set_selected_feature(null)}
+                className="z-[9999]"
+                onClose={() => setSelectedFeature(null)}
               >
-                <UiDialogShell class_name="max-h-[min(84vh,640px)]" size="lg">
+                <UiDialogShell className="max-h-[min(84vh,640px)]" size="lg">
                   <UiDialogHeader
                     icon={<Check className="h-4 w-4" />}
-                    on_close={() => set_selected_feature(null)}
+                    onClose={() => setSelectedFeature(null)}
                     subtitle={`${detail.title} 能力`}
-                    title={selected_feature_detail.name}
+                    title={selectedFeatureDetail.name}
                   />
-                  <UiDialogBody class_name="space-y-4" scrollable>
+                  <UiDialogBody className="space-y-4" scrollable>
                     <p className="text-[14px] leading-7 text-(--text-default)">
-                      {selected_feature_detail.description}
+                      {selectedFeatureDetail.description}
                     </p>
 
-                    {selected_feature_detail.items && selected_feature_detail.items.length > 0 ? (
+                    {selectedFeatureDetail.items && selectedFeatureDetail.items.length > 0 ? (
                       <UiPanel padding="sm" radius="sm" variant="inset">
                         <div className="mb-2 text-[12px] font-semibold text-(--text-strong)">能力范围</div>
                         <div className="space-y-2">
-                          {selected_feature_detail.items.map((item) => (
+                          {selectedFeatureDetail.items.map((item) => (
                             <div key={item} className="flex gap-2 text-[13px] leading-6 text-(--text-default)">
                               <Check className="mt-1 h-3.5 w-3.5 shrink-0 text-(--primary)" />
                               <span>{item}</span>
@@ -293,11 +293,11 @@ export function ConnectorDetailView({
                       </UiPanel>
                     ) : null}
 
-                    {selected_feature_detail.scopes && selected_feature_detail.scopes.length > 0 ? (
+                    {selectedFeatureDetail.scopes && selectedFeatureDetail.scopes.length > 0 ? (
                       <div>
                         <div className="mb-2 text-[12px] font-medium text-(--text-muted)">相关 OAuth scopes</div>
                         <div className="flex flex-wrap gap-1.5">
-                          {selected_feature_detail.scopes.map((scope) => (
+                          {selectedFeatureDetail.scopes.map((scope) => (
                             <UiBadge key={scope} size="xs">
                               {scope}
                             </UiBadge>

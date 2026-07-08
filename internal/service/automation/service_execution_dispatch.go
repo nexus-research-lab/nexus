@@ -91,7 +91,6 @@ func (s *Service) dispatchJobToSession(
 			Content:           job.Instruction,
 			TargetAgentIDs:    []string{strings.TrimSpace(job.AgentID)},
 			RoundID:           roundID,
-			ReqID:             roundID,
 			PermissionMode:    sdkpermission.ModeDefault,
 			PermissionHandler: permissionHandler,
 			EventObserver:     eventObserver,
@@ -105,7 +104,6 @@ func (s *Service) dispatchJobToSession(
 		AgentID:           firstNonEmpty(job.AgentID, parsed.AgentID),
 		Content:           job.Instruction,
 		RoundID:           roundID,
-		ReqID:             roundID,
 		PermissionMode:    sdkpermission.ModeDefault,
 		PermissionHandler: permissionHandler,
 	})

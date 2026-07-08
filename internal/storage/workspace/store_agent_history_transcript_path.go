@@ -58,9 +58,6 @@ func transcriptConfigHomeDir() string {
 	if value := strings.TrimSpace(os.Getenv("NEXUS_CONFIG_DIR")); value != "" {
 		return norm.NFC.String(value)
 	}
-	if value := strings.TrimSpace(os.Getenv("CLAUDE_CONFIG_DIR")); value != "" {
-		return norm.NFC.String(value)
-	}
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return norm.NFC.String(filepath.Join(".", ".nexus"))

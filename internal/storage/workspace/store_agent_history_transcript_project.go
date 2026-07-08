@@ -53,7 +53,7 @@ func projectTranscriptChain(
 			if isTranscriptToolResult(decoded) {
 				if processor == nil {
 					currentRoundID = firstNonEmpty(stringFromAny(entry.Data["parentUuid"]), strings.TrimSpace(decoded.UUID))
-					processor = newTranscriptProcessor(workspacePath, sessionKey, agentID, currentRoundID, decoded.SessionID)
+					processor = newTranscriptProcessor(workspacePath, sessionKey, agentID, currentRoundID, "msg_user_"+currentRoundID, decoded.SessionID)
 				}
 				output := processor.Process(decoded)
 				projected = append(projected, stampTranscriptDurableMessages(output.DurableMessages, entryTimestamp)...)
@@ -67,7 +67,8 @@ func projectTranscriptChain(
 			}
 			marker := consumeTranscriptRoundMarker(alignedMarkers, &markerIndex)
 			currentRoundID = firstNonEmpty(marker.RoundID, buildTranscriptRoundID(decoded.UUID))
-			processor = newTranscriptProcessor(workspacePath, sessionKey, agentID, currentRoundID, decoded.SessionID)
+			currentParentID := firstNonEmpty(strings.TrimSpace(marker.UserMessageID), "msg_user_"+currentRoundID)
+			processor = newTranscriptProcessor(workspacePath, sessionKey, agentID, currentRoundID, currentParentID, decoded.SessionID)
 			if marker.HiddenFromUser || isTranscriptGoalContextOnlyUserTurn(entry.Data) {
 				continue
 			}
@@ -75,6 +76,7 @@ func projectTranscriptChain(
 				sessionKey,
 				agentID,
 				currentRoundID,
+				marker.UserMessageID,
 				decoded.SessionID,
 				entry.Data,
 				marker.Content,
@@ -91,7 +93,7 @@ func projectTranscriptChain(
 			sdkprotocol.MessageTypeTaskProgress:
 			if processor == nil {
 				currentRoundID = buildTranscriptRoundID(decoded.UUID)
-				processor = newTranscriptProcessor(workspacePath, sessionKey, agentID, currentRoundID, decoded.SessionID)
+				processor = newTranscriptProcessor(workspacePath, sessionKey, agentID, currentRoundID, "msg_user_"+currentRoundID, decoded.SessionID)
 			}
 			output := processor.Process(decoded)
 			projected = append(projected, stampTranscriptDurableMessages(output.DurableMessages, entryTimestamp)...)
@@ -113,6 +115,7 @@ func newTranscriptProcessor(
 	sessionKey string,
 	agentID string,
 	roundID string,
+	parentID string,
 	sessionID string,
 ) *message.Processor {
 	return message.NewProcessor(message.MessageContext{
@@ -120,7 +123,7 @@ func newTranscriptProcessor(
 		AgentID:       agentID,
 		WorkspacePath: strings.TrimSpace(workspacePath),
 		RoundID:       roundID,
-		ParentID:      roundID,
+		ParentID:      parentID,
 	}, strings.TrimSpace(sessionID))
 }
 
@@ -128,6 +131,7 @@ func buildTranscriptUserMessage(
 	sessionKey string,
 	agentID string,
 	roundID string,
+	userMessageID string,
 	sessionID string,
 	entry map[string]any,
 	contentOverride string,
@@ -139,8 +143,12 @@ func buildTranscriptUserMessage(
 	if content == "" {
 		return nil
 	}
+	// 与 overlay marker 物化保持同一派生规则，保证按 message_id 去重仍然生效。
+	if userMessageID = strings.TrimSpace(userMessageID); userMessageID == "" {
+		userMessageID = "msg_user_" + roundID
+	}
 	payload := protocol.Message{
-		"message_id":  roundID,
+		"message_id":  userMessageID,
 		"session_key": sessionKey,
 		"agent_id":    agentID,
 		"round_id":    roundID,

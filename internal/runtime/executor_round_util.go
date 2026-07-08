@@ -48,7 +48,7 @@ func normalizeRoundIdleTimeout(timeout time.Duration) time.Duration {
 }
 
 func isRoundAbortError(ctx context.Context, err error) bool {
-	return ctx.Err() != nil ||
+	return (ctx != nil && ctx.Err() != nil) ||
 		errors.Is(err, context.Canceled) ||
 		errors.Is(err, agentclient.ErrAborted)
 }

@@ -37,6 +37,26 @@ func isDefaultConversationTitle(title string, roomName string) bool {
 	return defaultConversationPattern.MatchString(normalizedTitle)
 }
 
+func canReplaceSessionTitle(title string, fallbackTitle string) bool {
+	if isDefaultSessionTitle(title) {
+		return true
+	}
+	return sameNonEmptyTitle(title, fallbackTitle)
+}
+
+func canReplaceConversationTitle(title string, roomName string, fallbackTitle string) bool {
+	if isDefaultConversationTitle(title, roomName) {
+		return true
+	}
+	return sameNonEmptyTitle(title, fallbackTitle)
+}
+
+func sameNonEmptyTitle(left string, right string) bool {
+	left = strings.TrimSpace(left)
+	right = strings.TrimSpace(right)
+	return left != "" && right != "" && left == right
+}
+
 func truncatePromptContent(content string, maxRunes int) string {
 	normalized := strings.TrimSpace(content)
 	if normalized == "" || maxRunes <= 0 {

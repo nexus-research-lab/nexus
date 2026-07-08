@@ -75,7 +75,6 @@ func TestServiceHandleChatForwardsRuntimeOptions(t *testing.T) {
 		SessionKey: sessionKey,
 		Content:    "测试 model 透传",
 		RoundID:    "round-no-model",
-		ReqID:      "round-no-model",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}
@@ -100,7 +99,7 @@ func TestServiceHandleChatForwardsRuntimeOptions(t *testing.T) {
 	if options.Env["ANTHROPIC_DEFAULT_SONNET_MODEL"] != "glm-5.1" {
 		t.Fatalf("runtime 未注入默认 sonnet model: %+v", options.Env)
 	}
-	if options.Env["CLAUDE_CODE_SUBAGENT_MODEL"] != "glm-5.1" {
+	if options.Env["NEXUS_SUBAGENT_MODEL"] != "glm-5.1" {
 		t.Fatalf("runtime 未注入 subagent model: %+v", options.Env)
 	}
 	if options.Runtime.MaxThinkingTokens != maxThinkingTokens {
@@ -208,7 +207,6 @@ func TestServiceHandleChatUsesPreferenceDefaultModelForIncompleteAgentSelection(
 		SessionKey: sessionKey,
 		Content:    "测试常规默认模型",
 		RoundID:    "round-preference-default",
-		ReqID:      "round-preference-default",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}
@@ -275,7 +273,6 @@ func TestServiceHandleChatBypassPermissionsKeepsQuestionChannel(t *testing.T) {
 		SessionKey: sessionKey,
 		Content:    "测试 bypass 权限处理器",
 		RoundID:    "round-bypass",
-		ReqID:      "round-bypass",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}
@@ -355,7 +352,6 @@ func TestServiceHandleChatUsesExplicitProvider(t *testing.T) {
 		AgentID:    created.AgentID,
 		Content:    "测试显式 provider",
 		RoundID:    "round-explicit-provider",
-		ReqID:      "round-explicit-provider",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}

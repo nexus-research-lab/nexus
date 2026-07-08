@@ -7,10 +7,10 @@
  * =====================================================
  */
 
-import { get_agent_api_base_url } from "@/config/options";
-import { request_api } from "@/lib/api/http";
+import { getAgentApiBaseUrl } from "@/config/options";
+import { requestApi } from "@/lib/api/http";
 
-const AUTH_API_BASE_URL = get_agent_api_base_url();
+const AUTH_API_BASE_URL = getAgentApiBaseUrl();
 
 export interface AuthStatus {
   auth_required: boolean;
@@ -43,6 +43,16 @@ export interface TokenUsageSummary {
   updated_at: string;
 }
 
+export interface PersonalSubscriptionSummary {
+  plan_key: string;
+  plan_name: string;
+  monthly_token_limit: number | null;
+  used_tokens: number;
+  used_percent: number | null;
+  period_start: string;
+  period_end: string;
+}
+
 export interface PersonalProfile {
   user: {
     user_id: string;
@@ -53,6 +63,7 @@ export interface PersonalProfile {
     auth_method: string;
   };
   token_usage: TokenUsageSummary;
+  subscription?: PersonalSubscriptionSummary | null;
   can_change_password: boolean;
   can_update_profile: boolean;
 }
@@ -66,36 +77,36 @@ export interface UpdatePersonalProfileParams {
   avatar?: string;
 }
 
-export async function get_auth_status(): Promise<AuthStatus> {
-  return request_api<AuthStatus>(`${AUTH_API_BASE_URL}/auth/status`, {
+export async function getAuthStatus(): Promise<AuthStatus> {
+  return requestApi<AuthStatus>(`${AUTH_API_BASE_URL}/auth/status`, {
     method: "GET",
     notify_on_401: false,
   });
 }
 
-export async function login_api(params: LoginParams): Promise<AuthStatus> {
-  return request_api<AuthStatus>(`${AUTH_API_BASE_URL}/auth/login`, {
+export async function loginApi(params: LoginParams): Promise<AuthStatus> {
+  return requestApi<AuthStatus>(`${AUTH_API_BASE_URL}/auth/login`, {
     method: "POST",
     notify_on_401: false,
     body: JSON.stringify(params),
   });
 }
 
-export async function logout_api(): Promise<AuthStatus> {
-  return request_api<AuthStatus>(`${AUTH_API_BASE_URL}/auth/logout`, {
+export async function logoutApi(): Promise<AuthStatus> {
+  return requestApi<AuthStatus>(`${AUTH_API_BASE_URL}/auth/logout`, {
     method: "POST",
     notify_on_401: false,
   });
 }
 
-export async function get_personal_profile_api(): Promise<PersonalProfile> {
-  return request_api<PersonalProfile>(`${AUTH_API_BASE_URL}/settings/profile`, {
+export async function getPersonalProfileApi(): Promise<PersonalProfile> {
+  return requestApi<PersonalProfile>(`${AUTH_API_BASE_URL}/settings/profile`, {
     method: "GET",
   });
 }
 
-export async function update_personal_profile_api(params: UpdatePersonalProfileParams): Promise<PersonalProfile> {
-  return request_api<PersonalProfile>(`${AUTH_API_BASE_URL}/settings/profile`, {
+export async function updatePersonalProfileApi(params: UpdatePersonalProfileParams): Promise<PersonalProfile> {
+  return requestApi<PersonalProfile>(`${AUTH_API_BASE_URL}/settings/profile`, {
     method: "PATCH",
     body: {
       avatar: params.avatar ?? "",
@@ -103,8 +114,8 @@ export async function update_personal_profile_api(params: UpdatePersonalProfileP
   });
 }
 
-export async function change_password_api(params: ChangePasswordParams): Promise<AuthStatus> {
-  return request_api<AuthStatus>(`${AUTH_API_BASE_URL}/settings/profile/password`, {
+export async function changePasswordApi(params: ChangePasswordParams): Promise<AuthStatus> {
+  return requestApi<AuthStatus>(`${AUTH_API_BASE_URL}/settings/profile/password`, {
     method: "POST",
     body: {
       current_password: params.current_password,

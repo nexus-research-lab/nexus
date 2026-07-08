@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from "react";
 
-import { are_equivalent_session_keys } from "@/lib/conversation/session-key";
+import { areEquivalentSessionKeys } from "@/lib/conversation/session-key";
 import { useWorkspaceLiveStore } from "@/store/workspace-live";
 import type { AgentConversationIdentity } from "@/types/agent/agent-conversation";
 import type { Message } from "@/types/conversation/message";
@@ -67,7 +67,7 @@ export function useOperationProjectionSync({
 
     return recent_workspace_events.filter((event) => {
       if (event.session_key) {
-        return are_equivalent_session_keys(event.session_key, session_key);
+        return areEquivalentSessionKeys(event.session_key, session_key);
       }
       return event.updated_at >= workspace_event_floor;
     });

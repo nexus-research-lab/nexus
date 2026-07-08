@@ -38,6 +38,7 @@ func (s *RealtimeService) HandlePublicMessage(
 	}
 
 	messageID := newRealtimeID()
+	roundID := protocol.NewRoundID()
 	sessionKey := protocol.BuildRoomSharedSessionKey(contextValue.Conversation.ID)
 	message := protocol.Message{
 		"message_id":      messageID,
@@ -45,7 +46,7 @@ func (s *RealtimeService) HandlePublicMessage(
 		"room_id":         contextValue.Room.ID,
 		"conversation_id": contextValue.Conversation.ID,
 		"agent_id":        sourceAgentID,
-		"round_id":        messageID,
+		"round_id":        roundID,
 		"role":            "assistant",
 		"content": []map[string]any{
 			{"type": "text", "text": content},
@@ -66,7 +67,7 @@ func (s *RealtimeService) HandlePublicMessage(
 		ctx,
 		sessionKey,
 		contextValue.Room.ID,
-		roomdomain.WrapMessageEvent(contextValue.Room.ID, contextValue.Conversation.ID, message, messageID),
+		roomdomain.WrapMessageEvent(contextValue.Room.ID, contextValue.Conversation.ID, message, roundID),
 	)
 	s.loggerFor(ctx).Info("Room public message 已发布",
 		"room_id", contextValue.Room.ID,

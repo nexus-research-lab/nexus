@@ -7,33 +7,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Restored chat feed auto-follow when switching between conversations or thread panels with the same message count, and moved the smaller, less transparent floating scroll-to-latest button to the center of the chat feed.
+- Made the conversation navigator's active-round status hide based on the chat container width instead of viewport width, preventing overlap when the workspace panel is open.
+
+## [0.1.26] - 2026-07-08
+
 ### Changed
-- Removed the Operation Stage empty desktop placeholder so new user queries do not open a blank Nexus OS scene before real app work exists.
-- Added manual Operation Stage window resizing and removed the image preview inspector rail.
-- Removed the Operation Stage generic tool detail window; unclassified actions now stay in the execution path until a real app/result can represent them.
-- Routed Operation Stage tool results with generated file paths directly into preview apps instead of the generic tool surface.
-- Raised the Operation Stage system bar to give zoomed apps more breathing room.
-- Tightened the Operation Stage menu-to-window spacing so foreground apps sit closer to the system bar.
-- Refined the Operation Stage shortcut tool app into a read-only run detail surface with clearer inputs and results.
-- Removed the idle Operation Stage particle canvas animation.
-- Moved the Operation Stage execution path into a clickable system-bar dropdown.
-- Removed the empty-desktop recovery card and refined the Operation Stage static wallpaper.
-- Simplified the Operation Stage system bar by removing fake app menus and inactive status icons.
-- Removed the Operation Stage workspace summary tile from the left switchboard.
-- Removed the Operation Stage Agent Activity rail to keep focus on the desktop windows and Dock.
-- Added a draggable splitter so the Operation Stage panel can be resized beside the conversation.
-- Moved the Operation Stage exit action into the Nexus OS system bar and removed the evidence summary overlay entry.
-- Operation stage routes tool calls into desktop app sessions so Bash/Terminal output, HTML opens, web search, and fetch activity update and focus persistent macOS-like windows.
-- Expanded Operation Stage into a visual execution runtime with runtime events, interactive Code/Terminal/Safari/Permission/Finder/Activity/Handoff app surfaces, real Code writer content projection, and stage preview verification.
+
+- Reworked the conversation turn protocol: the backend now mints `round_id` / `user_message_id` / `agent_round_id`, the frontend only sends `client_request_id` / `client_message_id`, and `chat_ack` returns the canonical ids. Removed the legacy `req_id == round_id`, `message_id == round_id`, and `round_id:agent_id` suffix conventions (breaking realtime protocol change; old on-disk history is normalized at read time).
+- Room agent slots now emit explicit `agent_round_status` lifecycle events, permission requests carry `round_id` / `agent_round_id` / `message_id` / `tool_use_id` for exact binding, and slot interrupts target `agent_round_id`.
+- Added a backend `ConversationTurn` projection with new history endpoints (`/sessions/{key}/turns`, `/rooms/{id}/conversations/{id}/turns`, turn index), and unified the frontend DM/Room timeline grouping behind a single projection hook.
+- Reduced Agent tool pre-authorization settings to only the tools that benefit from explicit allow rules, while retiring basic, managed, and interaction-only tools from the editor.
+- Clarified the default Agent and Nexus prompts so internet research pairs `WebSearch` discovery with `WebFetch` source verification without changing permission defaults.
+- Refined empty conversation composer shortcut hints and the desktop send button label.
 
 ### Fixed
-- Aligned Operation Stage zoomed windows with the Nexus OS system bar while keeping a small visual gap.
-- Removed the decorative Operation Stage agent cursor so the desktop only shows the real system pointer.
-- Show every minimized Operation Stage window in Dock instead of collapsing them into a count tile.
-- Made Operation Stage zoomed windows use the full desktop area below the system bar and hide Dock while zoomed.
-- Kept manually minimized Operation Stage windows in Dock when another window is minimized.
-- Clarified conversation connection error copy and provider retry UI so runtime stalls are not presented as a stopped backend service.
-- Preserved runtime `compact_boundary` system events so context compaction is visible in conversation history.
+
+- Rotated assistant segments by snapshot message id in history projection so multi-segment rounds no longer collapse into one message (which corrupted content and message ordering after a session resync), auto-collapsed thinking/process sections once a round finishes, and stopped duplicating the final answer when a runtime's result summary text differs from the message body.
+- Injected macOS desktop window chrome metrics into the Web runtime so top-edge content uses the native drag-strip height as its single source of truth.
+- Prevented ad-hoc, non-notarized macOS release packages from being offered as automatic desktop updates.
+- Made macOS desktop termination wait for sidecar shutdown and preserve pid records when forced cleanup cannot finish.
+- Added Windows desktop sidecar orphan cleanup and a short port-release wait before binding the fixed local port.
+- Fixed login recovery when old session cleanup fails, bounded `nxs` runtime release lookup timeouts, restored deleted core tests, and enforced subscription token quota before new DM/Room runtime rounds.
+- Updated the Nexus Agent SDK Bridge dependency to `v0.1.18`.
+
+## [0.1.25] - 2026-07-05
+
+### Changed
+
+- Rebuilt desktop releases against the refreshed stable `nxs` runtime channel so packaged apps include `nxs-v0.1.11` with the bundled `rg` sidecar.
+
+## [0.1.24] - 2026-07-05
+
+### Changed
+
+- Streamlined runtime startup success logging, Goal runtime usage test logging, and PNPM command selection.
+- Limited the KingHwa font override to chat output so the rest of the UI keeps the standard typography.
+
+### Fixed
+
+- Kept the Agent tool available in runtime allowed-tool lists.
+- Propagated submit interrupt reasons through the SDK bridge and classified SDK abort stream closes as intentional interrupts instead of generic runtime failures.
+
+## [0.1.23] - 2026-07-04
+
+### Added
+
+- Added session-scoped provider diagnostics for `nxs` and surfaced background subagent task lifecycle events across indexing, DM, and Room transcripts.
+- Added Background Tasks follow-up messaging, conversation session navigation, subscription operations, and Room Goal loop/title improvements.
+
+### Changed
+
+- Refined Skill update discovery, update/import busy states, desktop window chrome, sidebar density, runtime retry copy, and frontend camelCase module boundaries.
+- Updated bridge/runtime integration for subagent tasks and provider diagnostics while reducing noisy SDK stderr output.
+
+### Fixed
+
+- Fixed imported Skill update recovery, partial Skill redeploy failure reporting, title generation, room conversation sorting, GLM runtime ToolSearch behavior, and spreadsheet preview dependency regressions.
+- Fixed subagent and Goal continuation regressions, Room thread scrolling, WebSocket recovery, compact-boundary visibility, terminal error summaries, and several Room runtime data races.
+- Renumbered post-merge sqlite/postgres migrations so versions 44, 45, and 46 apply without duplicate Goose migration versions.
+
+### Security
+
+- Cleared frontend audit findings by overriding vulnerable transitive `js-yaml` and `@babel/core` versions.
 
 ## [0.1.22] - 2026-06-22
 

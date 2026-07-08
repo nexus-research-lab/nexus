@@ -26,6 +26,13 @@ func canManagePublicProviders(ctx context.Context) bool {
 	}
 }
 
+func requirePublicProviderManagement(ctx context.Context) error {
+	if canManagePublicProviders(ctx) {
+		return nil
+	}
+	return errors.New("只有管理员可以维护公共 Provider")
+}
+
 func (s *Service) createVisibility(ctx context.Context, requested string) (string, string, error) {
 	visibility, err := normalizeProviderVisibility(requested, canManagePublicProviders(ctx))
 	if err != nil {
@@ -40,9 +47,6 @@ func (s *Service) createVisibility(ctx context.Context, requested string) (strin
 func normalizeProviderVisibility(requested string, canManagePublic bool) (string, error) {
 	switch strings.TrimSpace(requested) {
 	case "":
-		if canManagePublic {
-			return providerstore.VisibilityPublic, nil
-		}
 		return providerstore.VisibilityPrivate, nil
 	case providerstore.VisibilityPublic:
 		if !canManagePublic {
@@ -60,10 +64,7 @@ func (s *Service) requireProviderManagement(ctx context.Context, item providerst
 	if item.Visibility != providerstore.VisibilityPublic {
 		return nil
 	}
-	if canManagePublicProviders(ctx) {
-		return nil
-	}
-	return errors.New("只有管理员可以维护公共 Provider")
+	return requirePublicProviderManagement(ctx)
 }
 
 func (s *Service) usageCountForMutation(ctx context.Context, item providerstore.Entity) (int, error) {

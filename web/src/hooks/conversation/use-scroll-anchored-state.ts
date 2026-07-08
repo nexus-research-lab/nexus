@@ -18,7 +18,7 @@ import { type Dispatch, type SetStateAction, useCallback, useLayoutEffect, useRe
  * Find the nearest scrollable ancestor of `el`.
  * Returns null if none found (unlikely in a chat UI).
  */
-function find_scroll_container(el: HTMLElement | null): HTMLElement | null {
+function findScrollContainer(el: HTMLElement | null): HTMLElement | null {
   let node = el?.parentElement ?? null;
   while (node) {
     const { overflowY } = getComputedStyle(node);
@@ -31,50 +31,50 @@ function find_scroll_container(el: HTMLElement | null): HTMLElement | null {
 }
 
 interface UseScrollAnchoredStateReturn {
-  is_open: boolean;
+  isOpen: boolean;
   /** Toggle with scroll anchoring — use for user-initiated expand/collapse. */
   toggle: () => void;
   /** Direct setter without scroll anchoring — use for programmatic changes (e.g. auto-expand on loading). */
-  set_open: Dispatch<SetStateAction<boolean>>;
+  setOpen: Dispatch<SetStateAction<boolean>>;
   /** Ref to attach to a DOM element inside the scrollable area. */
-  anchor_ref: React.RefObject<HTMLElement | null>;
+  anchorRef: React.RefObject<HTMLElement | null>;
 }
 
 export function useScrollAnchoredState(
-  initial_value: boolean,
+  initialValue: boolean,
 ): UseScrollAnchoredStateReturn {
-  const [is_open, set_open] = useState(initial_value);
-  const anchor_ref = useRef<HTMLElement | null>(null);
+  const [isOpen, setOpen] = useState(initialValue);
+  const anchorRef = useRef<HTMLElement | null>(null);
 
   // Snapshot: distance from bottom before toggle
-  const snapshot_ref = useRef<{
+  const snapshotRef = useRef<{
     distance_from_bottom: number;
     container: HTMLElement;
   } | null>(null);
 
   const toggle = useCallback(() => {
-    const container = find_scroll_container(anchor_ref.current);
+    const container = findScrollContainer(anchorRef.current);
     if (container) {
-      snapshot_ref.current = {
+      snapshotRef.current = {
         distance_from_bottom:
           container.scrollHeight - container.scrollTop,
         container,
       };
     }
-    set_open((prev) => !prev);
+    setOpen((prev) => !prev);
   }, []);
 
   useLayoutEffect(() => {
-    const snapshot = snapshot_ref.current;
+    const snapshot = snapshotRef.current;
     if (!snapshot) return;
-    snapshot_ref.current = null;
+    snapshotRef.current = null;
 
-    const { container, distance_from_bottom } = snapshot;
-    const new_scroll_top = container.scrollHeight - distance_from_bottom;
-    if (Math.abs(container.scrollTop - new_scroll_top) > 1) {
-      container.scrollTop = new_scroll_top;
+    const { container, distance_from_bottom: distanceFromBottom } = snapshot;
+    const newScrollTop = container.scrollHeight - distanceFromBottom;
+    if (Math.abs(container.scrollTop - newScrollTop) > 1) {
+      container.scrollTop = newScrollTop;
     }
-  }, [is_open]);
+  }, [isOpen]);
 
-  return { is_open, toggle, set_open, anchor_ref };
+  return { isOpen: isOpen, toggle, setOpen: setOpen, anchorRef: anchorRef };
 }

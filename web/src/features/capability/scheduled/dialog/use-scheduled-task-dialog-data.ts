@@ -1,16 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 
-import { get_agents } from "@/lib/api/agent-manage-api";
-import { get_agent_sessions_api } from "@/lib/api/agent-api";
-import { get_room_contexts, list_rooms } from "@/lib/api/room-api";
+import { useResettableState } from "@/hooks/ui/use-resettable-state";
+import { getAgents } from "@/lib/api/agent-manage-api";
+import { getAgentSessionsApi } from "@/lib/api/agent-api";
+import { getRoomContexts, listRooms } from "@/lib/api/room-api";
 import type { Agent, AgentSession } from "@/types/agent/agent";
 import type { RoomAggregate, RoomContextAggregate } from "@/types/conversation/room";
 
 import {
-  build_room_session_selections,
-  format_session_label,
+  buildRoomSessionSelections,
+  formatSessionLabel,
 } from "./scheduled-task-dialog-time";
 import type {
   ScheduledTaskDialogLabelOption,
@@ -18,192 +19,200 @@ import type {
   TargetType,
 } from "./scheduled-task-dialog-types";
 
+interface ResourceState<T> {
+  error: string | null;
+  items: T[];
+  loading: boolean;
+}
+
 export function useScheduledTaskDialogData({
-  is_open,
-  target_type,
-  selected_agent_id,
-  selected_room_id,
+  isOpen,
+  targetType,
+  selectedAgentId,
+  selectedRoomId,
 }: {
-  is_open: boolean;
-  target_type: TargetType;
-  selected_agent_id: string;
-  selected_room_id: string;
+  isOpen: boolean;
+  targetType: TargetType;
+  selectedAgentId: string;
+  selectedRoomId: string;
 }) {
-  const [agents, set_agents] = useState<Agent[]>([]);
-  const [agent_sessions, set_agent_sessions] = useState<AgentSession[]>([]);
-  const [rooms, set_rooms] = useState<RoomAggregate[]>([]);
-  const [room_contexts, set_room_contexts] = useState<RoomContextAggregate[]>([]);
-  const [agents_loading, set_agents_loading] = useState(false);
-  const [agent_sessions_loading, set_agent_sessions_loading] = useState(false);
-  const [rooms_loading, set_rooms_loading] = useState(false);
-  const [room_contexts_loading, set_room_contexts_loading] = useState(false);
-  const [agents_error, set_agents_error] = useState<string | null>(null);
-  const [agent_sessions_error, set_agent_sessions_error] = useState<string | null>(null);
-  const [rooms_error, set_rooms_error] = useState<string | null>(null);
-  const [room_contexts_error, set_room_contexts_error] = useState<string | null>(null);
+  const shouldLoadAgents = isOpen;
+  const shouldLoadRooms = isOpen && targetType === "room";
+  const shouldLoadAgentSessions = isOpen && targetType === "agent" && Boolean(selectedAgentId);
+  const shouldLoadRoomContexts = isOpen && targetType === "room" && Boolean(selectedRoomId);
+  const [agentsState, setAgentsState] = useResettableState<ResourceState<Agent>>(
+    { error: null, items: [], loading: shouldLoadAgents },
+    isOpen ? "open" : "closed",
+  );
+  const [agentSessionsState, setAgentSessionsState] = useResettableState<ResourceState<AgentSession>>(
+    { error: null, items: [], loading: shouldLoadAgentSessions },
+    `${isOpen ? "open" : "closed"}\x1f${targetType}\x1f${selectedAgentId}`,
+  );
+  const [roomsState, setRoomsState] = useResettableState<ResourceState<RoomAggregate>>(
+    { error: null, items: [], loading: shouldLoadRooms },
+    `${isOpen ? "open" : "closed"}\x1f${targetType}`,
+  );
+  const [roomContextsState, setRoomContextsState] = useResettableState<ResourceState<RoomContextAggregate>>(
+    { error: null, items: [], loading: shouldLoadRoomContexts },
+    `${isOpen ? "open" : "closed"}\x1f${targetType}\x1f${selectedRoomId}`,
+  );
+  const { error: agentsError, items: agents, loading: agentsLoading } = agentsState;
+  const {
+    error: agentSessionsError,
+    items: agentSessions,
+    loading: agentSessionsLoading,
+  } = agentSessionsState;
+  const { error: roomsError, items: rooms, loading: roomsLoading } = roomsState;
+  const {
+    error: roomContextsError,
+    items: roomContexts,
+    loading: roomContextsLoading,
+  } = roomContextsState;
 
   useEffect(() => {
-    if (!is_open) {
+    if (!shouldLoadAgents) {
       return;
     }
     let cancelled = false;
-    set_agents_loading(true);
-    set_agents_error(null);
-    void get_agents()
-      .then((next_agents) => {
+    void getAgents()
+      .then((nextAgents) => {
         if (!cancelled) {
-          set_agents(next_agents);
+          setAgentsState({ error: null, items: nextAgents, loading: false });
         }
       })
       .catch((error) => {
         if (!cancelled) {
-          set_agents_error(error instanceof Error ? error.message : "加载智能体失败");
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          set_agents_loading(false);
+          setAgentsState({
+            error: error instanceof Error ? error.message : "加载智能体失败",
+            items: [],
+            loading: false,
+          });
         }
       });
     return () => {
       cancelled = true;
     };
-  }, [is_open]);
+  }, [setAgentsState, shouldLoadAgents]);
 
   useEffect(() => {
-    if (!is_open || target_type !== "room") {
+    if (!shouldLoadRooms) {
       return;
     }
     let cancelled = false;
-    set_rooms_loading(true);
-    set_rooms_error(null);
-    void list_rooms(200)
-      .then((next_rooms) => {
+    void listRooms(200)
+      .then((nextRooms) => {
         if (!cancelled) {
-          set_rooms(next_rooms);
+          setRoomsState({ error: null, items: nextRooms, loading: false });
         }
       })
       .catch((error) => {
         if (!cancelled) {
-          set_rooms_error(error instanceof Error ? error.message : "加载 Room 列表失败");
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          set_rooms_loading(false);
+          setRoomsState({
+            error: error instanceof Error ? error.message : "加载 Room 列表失败",
+            items: [],
+            loading: false,
+          });
         }
       });
     return () => {
       cancelled = true;
     };
-  }, [is_open, target_type]);
+  }, [setRoomsState, shouldLoadRooms]);
 
   useEffect(() => {
-    if (!is_open || target_type !== "agent" || !selected_agent_id) {
-      set_agent_sessions([]);
-      return;
-    }
+    if (!shouldLoadAgentSessions) return;
     let cancelled = false;
-    set_agent_sessions_loading(true);
-    set_agent_sessions_error(null);
-    void get_agent_sessions_api(selected_agent_id)
-      .then((next_sessions) => {
+    void getAgentSessionsApi(selectedAgentId)
+      .then((nextSessions) => {
         if (!cancelled) {
-          set_agent_sessions(next_sessions);
+          setAgentSessionsState({ error: null, items: nextSessions, loading: false });
         }
       })
       .catch((error) => {
         if (!cancelled) {
-          set_agent_sessions_error(error instanceof Error ? error.message : "加载智能体会话失败");
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          set_agent_sessions_loading(false);
+          setAgentSessionsState({
+            error: error instanceof Error ? error.message : "加载智能体会话失败",
+            items: [],
+            loading: false,
+          });
         }
       });
     return () => {
       cancelled = true;
     };
-  }, [is_open, selected_agent_id, target_type]);
+  }, [selectedAgentId, setAgentSessionsState, shouldLoadAgentSessions]);
 
   useEffect(() => {
-    if (!is_open || target_type !== "room" || !selected_room_id) {
-      set_room_contexts([]);
-      return;
-    }
+    if (!shouldLoadRoomContexts) return;
     let cancelled = false;
-    set_room_contexts_loading(true);
-    set_room_contexts_error(null);
-    void get_room_contexts(selected_room_id)
-      .then((next_contexts) => {
+    void getRoomContexts(selectedRoomId)
+      .then((nextContexts) => {
         if (!cancelled) {
-          set_room_contexts(next_contexts);
+          setRoomContextsState({ error: null, items: nextContexts, loading: false });
         }
       })
       .catch((error) => {
         if (!cancelled) {
-          set_room_contexts_error(error instanceof Error ? error.message : "加载 Room 会话失败");
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          set_room_contexts_loading(false);
+          setRoomContextsState({
+            error: error instanceof Error ? error.message : "加载 Room 会话失败",
+            items: [],
+            loading: false,
+          });
         }
       });
     return () => {
       cancelled = true;
     };
-  }, [is_open, selected_room_id, target_type]);
+  }, [selectedRoomId, setRoomContextsState, shouldLoadRoomContexts]);
 
-  const agent_name_by_id = useMemo(
+  const agentNameById = useMemo(
     () => new Map(agents.map((agent) => [agent.agent_id, agent.name])),
     [agents],
   );
 
-  const agent_options = useMemo<ScheduledTaskDialogLabelOption[]>(
+  const agentOptions = useMemo<ScheduledTaskDialogLabelOption[]>(
     () => agents.map((agent) => ({ value: agent.agent_id, label: agent.name || agent.agent_id })),
     [agents],
   );
 
-  const room_options = useMemo<ScheduledTaskDialogLabelOption[]>(
+  const roomOptions = useMemo<ScheduledTaskDialogLabelOption[]>(
     () => rooms.map((room) => ({ value: room.room.id, label: room.room.name?.trim() || room.room.id })),
     [rooms],
   );
 
-  const agent_session_options = useMemo<ScheduledTaskDialogSessionOption[]>(
-    () => agent_sessions.map((session) => ({
+  const agentSessionOptions = useMemo<ScheduledTaskDialogSessionOption[]>(
+    () => agentSessions.map((session) => ({
       value: session.session_key,
-      session_key: session.session_key,
-      agent_id: session.agent_id,
-      label: format_session_label(session.title?.trim() || "未命名会话", agent_name_by_id.get(session.agent_id) || session.agent_id),
+      sessionKey: session.session_key,
+      agentId: session.agent_id,
+      label: formatSessionLabel(session.title?.trim() || "未命名会话", agentNameById.get(session.agent_id) || session.agent_id),
     })),
-    [agent_name_by_id, agent_sessions],
+    [agentNameById, agentSessions],
   );
 
-  const room_session_options = useMemo<ScheduledTaskDialogSessionOption[]>(() => {
-    const options = build_room_session_selections(room_contexts, agent_name_by_id);
+  const roomSessionOptions = useMemo<ScheduledTaskDialogSessionOption[]>(() => {
+    const options = buildRoomSessionSelections(roomContexts, agentNameById);
     return options.map((option) => ({
       value: option.value,
-      session_key: option.session_key,
-      agent_id: option.agent_id,
+      sessionKey: option.session_key,
+      agentId: option.agent_id,
       label: option.label,
     }));
-  }, [agent_name_by_id, room_contexts]);
+  }, [agentNameById, roomContexts]);
 
-  const session_options = target_type === "agent" ? agent_session_options : room_session_options;
+  const sessionOptions = targetType === "agent" ? agentSessionOptions : roomSessionOptions;
 
   return {
-    agents_loading,
-    agent_sessions_loading,
-    rooms_loading,
-    room_contexts_loading,
-    agents_error,
-    agent_sessions_error,
-    rooms_error,
-    room_contexts_error,
-    agent_options,
-    room_options,
-    session_options,
+    agentsLoading: agentsLoading,
+    agentSessionsLoading: agentSessionsLoading,
+    roomsLoading: roomsLoading,
+    roomContextsLoading: roomContextsLoading,
+    agentsError: agentsError,
+    agentSessionsError: agentSessionsError,
+    roomsError: roomsError,
+    roomContextsError: roomContextsError,
+    agentOptions: agentOptions,
+    roomOptions: roomOptions,
+    sessionOptions: sessionOptions,
   };
 }

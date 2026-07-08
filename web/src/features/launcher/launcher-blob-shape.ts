@@ -23,20 +23,20 @@ export const DEFAULT_OUTER_POINTS: BlobPoint[] = [
   {"x": 288.28411989795916, "y": 351.75826014219996}
 ];
 
-export function create_closed_spline_path(points: BlobPoint[]): string {
+export function createClosedSplinePath(points: BlobPoint[]): string {
   if (points.length < 3) {
     return "";
   }
 
   const size = points.length;
-  const get_point = (index: number) => points[(index + size) % size];
+  const getPoint = (index: number) => points[(index + size) % size];
   let path = `M ${points[0].x} ${points[0].y}`;
 
   for (let index = 0; index < size; index += 1) {
-    const previous = get_point(index - 1);
-    const current = get_point(index);
-    const next = get_point(index + 1);
-    const afterNext = get_point(index + 2);
+    const previous = getPoint(index - 1);
+    const current = getPoint(index);
+    const next = getPoint(index + 1);
+    const afterNext = getPoint(index + 2);
 
     const controlPoint1 = {
       x: current.x + (next.x - previous.x) / 6,
@@ -53,7 +53,7 @@ export function create_closed_spline_path(points: BlobPoint[]): string {
   return `${path} Z`;
 }
 
-export function create_inner_points(points: BlobPoint[], scaleX = 0.82, scaleY = 0.8): BlobPoint[] {
+export function createInnerPoints(points: BlobPoint[], scaleX = 0.82, scaleY = 0.8): BlobPoint[] {
   if (points.length === 0) {
     return points;
   }

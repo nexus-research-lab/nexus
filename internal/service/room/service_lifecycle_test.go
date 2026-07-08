@@ -3,6 +3,7 @@ package room_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -142,6 +143,63 @@ func TestRoomServiceLifecycle(t *testing.T) {
 	}
 	if len(dmContext.Sessions) != 1 {
 		t.Fatalf("直聊 session 数量不正确: got=%d want=1", len(dmContext.Sessions))
+	}
+}
+
+func TestRoomServiceTouchConversationActivityOrdersContexts(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+
+	ctx := context.Background()
+	agentA := createTestAgent(t, agentService, ctx, "测试助手A")
+	agentB := createTestAgent(t, agentService, ctx, "测试助手B")
+	mainContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
+		AgentIDs: []string{agentA.AgentID, agentB.AgentID},
+		Name:     "产品讨论",
+	})
+	if err != nil {
+		t.Fatalf("创建 room 失败: %v", err)
+	}
+	if _, err = roomService.CreateConversation(ctx, mainContext.Room.ID, protocol.CreateConversationRequest{
+		Title: "后创建的话题",
+	}); err != nil {
+		t.Fatalf("创建 topic 失败: %v", err)
+	}
+
+	activityAt := time.Now().UTC().Add(2 * time.Hour).Truncate(time.Second)
+	if err = roomService.TouchConversationActivity(ctx, mainContext.Conversation.ID, activityAt); err != nil {
+		t.Fatalf("更新 conversation 活动时间失败: %v", err)
+	}
+
+	contexts, err := roomService.GetRoomContexts(ctx, mainContext.Room.ID)
+	if err != nil {
+		t.Fatalf("读取 room contexts 失败: %v", err)
+	}
+	if len(contexts) < 2 {
+		t.Fatalf("room contexts 数量不正确: got=%d want>=2", len(contexts))
+	}
+	if contexts[0].Conversation.ID != mainContext.Conversation.ID {
+		t.Fatalf("最近活动 conversation 未排第一: got=%s want=%s", contexts[0].Conversation.ID, mainContext.Conversation.ID)
+	}
+	if contexts[0].Conversation.LastActivityAt.Before(activityAt.Add(-time.Second)) {
+		t.Fatalf("conversation last_activity_at 未写入: got=%s want>=%s", contexts[0].Conversation.LastActivityAt, activityAt)
+	}
+
+	if err = roomService.TouchConversationActivity(ctx, mainContext.Conversation.ID, activityAt.Add(-time.Hour)); err != nil {
+		t.Fatalf("重复更新 conversation 活动时间失败: %v", err)
+	}
+	contexts, err = roomService.GetRoomContexts(ctx, mainContext.Room.ID)
+	if err != nil {
+		t.Fatalf("重新读取 room contexts 失败: %v", err)
+	}
+	if contexts[0].Conversation.LastActivityAt.Before(activityAt.Add(-time.Second)) {
+		t.Fatalf("conversation last_activity_at 被旧时间回退: got=%s want>=%s", contexts[0].Conversation.LastActivityAt, activityAt)
 	}
 }
 

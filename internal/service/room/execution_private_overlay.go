@@ -16,15 +16,8 @@ func (s *RealtimeService) recordPrivateRoundMarker(roundValue *activeRoomRound, 
 		return nil
 	}
 	options := roomRoundMarkerOptions(roundValue)
-	if !options.HiddenFromUser && !options.Synthetic && strings.TrimSpace(options.Purpose) == "" && len(options.Metadata) == 0 {
-		return s.history.AppendRoundMarker(
-			slot.WorkspacePath,
-			slot.RuntimeSessionKey,
-			slot.AgentRoundID,
-			strings.TrimSpace(dispatchPrompt),
-			time.Now().UnixMilli(),
-		)
-	}
+	// 私有会话内 slot 自成一轮，round 与 agent round 同源。
+	options.AgentRoundID = slot.AgentRoundID
 	return s.history.AppendRoundMarkerWithOptions(
 		slot.WorkspacePath,
 		slot.RuntimeSessionKey,
@@ -71,6 +64,12 @@ func (s *RealtimeService) persistPrivateOverlayMessage(slot *activeRoomSlot, mes
 	}
 	privateMessage := normalizePrivateOverlayMessage(cloneMessageWithSessionKey(message, slot.RuntimeSessionKey))
 	privateMessage["session_key"] = slot.RuntimeSessionKey
+	// 私有会话内 slot 自成一轮：round 对齐私有 round marker（= agent_round_id），
+	// 避免与共享历史的 root round 混用导致私有轮被拆开。
+	if agentRoundID := strings.TrimSpace(slot.AgentRoundID); agentRoundID != "" {
+		privateMessage["round_id"] = agentRoundID
+		privateMessage["agent_round_id"] = agentRoundID
+	}
 	if sessionID := cmp.Or(strings.TrimSpace(anyString(privateMessage["session_id"])), slot.getSDKSessionID()); sessionID != "" {
 		privateMessage["session_id"] = sessionID
 	}

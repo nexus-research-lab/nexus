@@ -195,8 +195,9 @@ func logWebStaticRequest(
 }
 
 func webStaticRequestKind(relativePath string, targetPath string, usedFallback bool) string {
+	isHTML := strings.HasSuffix(targetPath, ".html")
 	if usedFallback {
-		if strings.HasSuffix(targetPath, ".html") {
+		if isHTML {
 			return "html_fallback"
 		}
 		return "fallback"
@@ -204,7 +205,7 @@ func webStaticRequestKind(relativePath string, targetPath string, usedFallback b
 	if strings.HasPrefix(relativePath, "assets/") {
 		return "asset"
 	}
-	if strings.HasSuffix(targetPath, ".html") {
+	if isHTML {
 		return "html_file"
 	}
 	return "file"

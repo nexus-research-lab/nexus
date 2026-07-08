@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // MigrationDirName 返回数据库驱动对应的 migration 目录名。
@@ -90,6 +91,15 @@ func (d SQLDialect) CurrentTimestamp() string {
 		return "now()"
 	}
 	return "CURRENT_TIMESTAMP"
+}
+
+// TimestampValue 返回适合当前 SQL 方言比较和写入的时间值。
+func (d SQLDialect) TimestampValue(value time.Time) any {
+	normalized := value.UTC()
+	if d.postgres {
+		return normalized
+	}
+	return normalized.Format("2006-01-02 15:04:05.999999999")
 }
 
 func (d SQLDialect) JSONText(expression string) string {

@@ -21,14 +21,41 @@ type fakeRuntimeClient struct {
 	sentContents     []string
 	reconfigureErr   error
 	disconnectCalls  int
+	stoppedTasks     []string
+	stopTaskErr      error
+	messages         <-chan sdkprotocol.ReceivedMessage
 }
 
 func (c *fakeRuntimeClient) Connect(context.Context) error { return nil }
 
 func (c *fakeRuntimeClient) Query(context.Context, string) error { return nil }
 
-func (c *fakeRuntimeClient) ReceiveMessages(context.Context) <-chan sdkprotocol.ReceivedMessage {
-	return nil
+func (c *fakeRuntimeClient) ReceiveMessages(ctx context.Context) <-chan sdkprotocol.ReceivedMessage {
+	if c.messages == nil {
+		closed := make(chan sdkprotocol.ReceivedMessage)
+		close(closed)
+		return closed
+	}
+	out := make(chan sdkprotocol.ReceivedMessage)
+	go func() {
+		defer close(out)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case message, ok := <-c.messages:
+				if !ok {
+					return
+				}
+				select {
+				case <-ctx.Done():
+					return
+				case out <- message:
+				}
+			}
+		}
+	}()
+	return out
 }
 
 func (c *fakeRuntimeClient) SendContent(_ context.Context, content any, _ *string, _ string) error {
@@ -39,6 +66,15 @@ func (c *fakeRuntimeClient) SendContent(_ context.Context, content any, _ *strin
 }
 
 func (c *fakeRuntimeClient) Interrupt(context.Context) error { return nil }
+
+func (c *fakeRuntimeClient) StopTask(_ context.Context, taskID string) error {
+	c.stoppedTasks = append(c.stoppedTasks, taskID)
+	return c.stopTaskErr
+}
+
+func (c *fakeRuntimeClient) SendTaskMessage(context.Context, string, string, string) error {
+	return nil
+}
 
 func (c *fakeRuntimeClient) Disconnect(context.Context) error {
 	c.disconnectCalls++
@@ -108,6 +144,69 @@ func TestManagerGetOrCreateReconfiguresExistingClient(t *testing.T) {
 	}
 	if client.lastOptions.Runtime.PermissionMode != sdkpermission.ModeAcceptEdits {
 		t.Fatalf("Reconfigure 未收到权限模式: %+v", client.lastOptions)
+	}
+}
+
+func TestManagerStopTaskForwardsToRuntimeClient(t *testing.T) {
+	client := &fakeRuntimeClient{}
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: client})
+	sessionKey := "agent:nexus:ws:dm:test"
+	if _, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{}); err != nil {
+		t.Fatalf("创建 runtime client 失败: %v", err)
+	}
+
+	if err := manager.StopTask(context.Background(), sessionKey, "task-1"); err != nil {
+		t.Fatalf("StopTask 返回错误: %v", err)
+	}
+	if len(client.stoppedTasks) != 1 || client.stoppedTasks[0] != "task-1" {
+		t.Fatalf("stoppedTasks = %+v, want task-1", client.stoppedTasks)
+	}
+}
+
+func TestManagerIdleMessageDrainHandlesMessages(t *testing.T) {
+	messages := make(chan sdkprotocol.ReceivedMessage, 1)
+	client := &fakeRuntimeClient{messages: messages}
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: client})
+	sessionKey := "agent:nexus:ws:dm:test"
+	if _, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{}); err != nil {
+		t.Fatalf("创建 runtime client 失败: %v", err)
+	}
+
+	handled := make(chan struct{}, 1)
+	manager.StartIdleMessageDrain(sessionKey, func(context.Context, sdkprotocol.ReceivedMessage) bool {
+		handled <- struct{}{}
+		return false
+	})
+	messages <- sdkprotocol.ReceivedMessage{Type: sdkprotocol.MessageTypeTaskNotification}
+
+	select {
+	case <-handled:
+	case <-time.After(time.Second):
+		t.Fatal("idle drain 未处理后台 task 通知")
+	}
+}
+
+func TestManagerStartRoundCancelsIdleMessageDrain(t *testing.T) {
+	messages := make(chan sdkprotocol.ReceivedMessage, 1)
+	client := &fakeRuntimeClient{messages: messages}
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: client})
+	sessionKey := "agent:nexus:ws:dm:test"
+	if _, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{}); err != nil {
+		t.Fatalf("创建 runtime client 失败: %v", err)
+	}
+
+	handled := make(chan struct{}, 1)
+	manager.StartIdleMessageDrain(sessionKey, func(context.Context, sdkprotocol.ReceivedMessage) bool {
+		handled <- struct{}{}
+		return true
+	})
+	manager.StartRound(sessionKey, "round-1", nil)
+	messages <- sdkprotocol.ReceivedMessage{Type: sdkprotocol.MessageTypeTaskNotification}
+
+	select {
+	case <-handled:
+		t.Fatal("StartRound 后 idle drain 不应继续消费消息")
+	case <-time.After(100 * time.Millisecond):
 	}
 }
 

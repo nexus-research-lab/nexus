@@ -4,10 +4,10 @@ import type {
   Message,
   ResultSummary,
 } from "@/types/conversation/message";
-import { get_result_summary_display_text } from "./message-item-stats";
+import { getResultSummaryDisplayText } from "./message-item-stats";
 import {
-  extract_text_from_content_blocks,
-  projection_from_ordered_entries,
+  extractTextFromContentBlocks,
+  projectionFromOrderedEntries,
   type AssistantContentMode,
   type AssistantTurnEntry,
   type ContentProjection,
@@ -15,299 +15,289 @@ import {
 } from "./message-item-support";
 
 interface FinalProjectionInput {
-  assistant_content_mode: AssistantContentMode;
-  assistant_messages: Message[];
-  ordered_projection: ContentProjection;
-  result_summary: ResultSummary | undefined;
-  round_id: string;
-  streaming_block_indexes: Set<number>;
-  visible_assistant_turns: AssistantTurnEntry[];
-  visible_ordered_assistant_entries: OrderedAssistantEntry[];
+  assistantContentMode: AssistantContentMode;
+  assistantMessages: Message[];
+  orderedProjection: ContentProjection;
+  resultSummary: ResultSummary | undefined;
+  roundId: string;
+  /** 本轮 durable user message id；新协议下顶层 assistant 的 parent_id 指向它。 */
+  userMessageId?: string | null;
+  streamingBlockIndexes: Set<number>;
+  visibleAssistantTurns: AssistantTurnEntry[];
+  visibleOrderedAssistantEntries: OrderedAssistantEntry[];
 }
 
-export function resolve_message_item_final_projection({
-  assistant_content_mode,
-  assistant_messages,
-  ordered_projection,
-  result_summary,
-  round_id,
-  streaming_block_indexes,
-  visible_assistant_turns,
-  visible_ordered_assistant_entries,
+export function resolveMessageItemFinalProjection({
+  assistantContentMode,
+  assistantMessages,
+  orderedProjection,
+  resultSummary,
+  roundId,
+  userMessageId,
+  streamingBlockIndexes,
+  visibleAssistantTurns,
+  visibleOrderedAssistantEntries,
 }: FinalProjectionInput) {
-  const final_assistant_turn = resolve_final_assistant_turn(
-    assistant_messages,
-    round_id,
-    visible_assistant_turns,
+  const finalAssistantTurn = resolveFinalAssistantTurn(
+    assistantMessages,
+    roundId,
+    userMessageId ?? null,
+    visibleAssistantTurns,
   );
-  const final_tail_entries = resolve_final_tail_entries(
-    final_assistant_turn,
-    visible_ordered_assistant_entries,
+  const finalTailEntries = resolveFinalTailEntries(
+    finalAssistantTurn,
+    visibleOrderedAssistantEntries,
   );
-  const archived_process_projection = build_archived_process_projection({
-    final_assistant_turn,
-    final_tail_entries,
-    result_summary,
-    streaming_block_indexes,
-    visible_ordered_assistant_entries,
+  const archivedProcessProjection = buildArchivedProcessProjection({
+    finalAssistantTurn,
+    finalTailEntries,
+    streamingBlockIndexes,
+    visibleOrderedAssistantEntries,
   });
-  const fallback_final_assistant_content = resolve_fallback_final_assistant_content(
-    final_assistant_turn,
-    final_tail_entries,
+  const fallbackFinalAssistantContent = resolveFallbackFinalAssistantContent(
+    finalAssistantTurn,
+    finalTailEntries,
   );
-  const fallback_final_assistant_streaming_indexes =
-    resolve_fallback_final_assistant_streaming_indexes(
-      final_assistant_turn,
-      final_tail_entries,
-      streaming_block_indexes,
+  const fallbackFinalAssistantStreamingIndexes =
+    resolveFallbackFinalAssistantStreamingIndexes(
+      finalAssistantTurn,
+      finalTailEntries,
+      streamingBlockIndexes,
     );
 
-  const direct_ordered_projection =
-    assistant_content_mode === "dm_live" ||
-    assistant_content_mode === "room_thread"
-      ? ordered_projection
-      : empty_projection();
-  const process_projection =
-    assistant_content_mode === "dm_archived"
-      ? archived_process_projection
-      : empty_projection();
-  const final_assistant_content = resolve_final_assistant_content({
-    assistant_content_mode,
-    fallback_final_assistant_content,
-    final_assistant_turn,
-    final_tail_entries,
-    result_summary,
+  const directOrderedProjection =
+    assistantContentMode === "dm_live" ||
+    assistantContentMode === "room_thread"
+      ? orderedProjection
+      : emptyProjection();
+  const processProjection =
+    assistantContentMode === "dm_archived"
+      ? archivedProcessProjection
+      : emptyProjection();
+  const finalAssistantContent = resolveFinalAssistantContent({
+    assistantContentMode,
+    fallbackFinalAssistantContent,
+    finalAssistantTurn,
+    finalTailEntries,
+    resultSummary,
   });
-  const final_assistant_streaming_indexes =
-    assistant_content_mode === "dm_live" ||
-    assistant_content_mode === "room_thread" ||
-    typeof final_assistant_content === "string"
+  const finalAssistantStreamingIndexes =
+    assistantContentMode === "dm_live" ||
+    assistantContentMode === "room_thread" ||
+    typeof finalAssistantContent === "string"
       ? new Set<number>()
-      : fallback_final_assistant_streaming_indexes;
-  const final_assistant_text =
-    typeof final_assistant_content === "string"
-      ? final_assistant_content
-      : extract_text_from_content_blocks(final_assistant_content);
+      : fallbackFinalAssistantStreamingIndexes;
+  const finalAssistantText =
+    typeof finalAssistantContent === "string"
+      ? finalAssistantContent
+      : extractTextFromContentBlocks(finalAssistantContent);
 
   return {
-    direct_ordered_projection,
-    process_projection,
-    final_assistant_content,
-    final_assistant_streaming_indexes,
-    final_assistant_text,
+    directOrderedProjection,
+    processProjection,
+    finalAssistantContent,
+    finalAssistantStreamingIndexes,
+    finalAssistantText,
   };
 }
 
-function resolve_final_assistant_turn(
-  assistant_messages: Message[],
-  round_id: string,
-  visible_assistant_turns: AssistantTurnEntry[],
+function resolveFinalAssistantTurn(
+  assistantMessages: Message[],
+  roundId: string,
+  userMessageId: string | null,
+  visibleAssistantTurns: AssistantTurnEntry[],
 ) {
-  for (let index = assistant_messages.length - 1; index >= 0; index -= 1) {
-    const message = assistant_messages[index] as AssistantMessage;
-    if (!message.parent_id || message.parent_id === round_id) {
+  // 顶层 assistant 的 parent 指向本轮 user message（旧数据指向 round_id）；
+  // 其他 parent（tool_use / slot msg）属于子执行，不能当最终回复。
+  const isTopLevelParent = (parentId: string | undefined) =>
+    !parentId ||
+    parentId === roundId ||
+    (userMessageId != null && parentId === userMessageId);
+  for (let index = assistantMessages.length - 1; index >= 0; index -= 1) {
+    const message = assistantMessages[index] as AssistantMessage;
+    if (isTopLevelParent(message.parent_id)) {
       return (
-        visible_assistant_turns.find(
-          (turn) => turn.message_id === message.message_id,
+        visibleAssistantTurns.find(
+          (turn) => turn.messageId === message.message_id,
         ) ?? null
       );
     }
   }
-  return visible_assistant_turns.at(-1) ?? null;
+  return visibleAssistantTurns.at(-1) ?? null;
 }
 
-function resolve_final_tail_entries(
-  final_assistant_turn: AssistantTurnEntry | null,
-  visible_ordered_assistant_entries: OrderedAssistantEntry[],
+function resolveFinalTailEntries(
+  finalAssistantTurn: AssistantTurnEntry | null,
+  visibleOrderedAssistantEntries: OrderedAssistantEntry[],
 ) {
-  if (!final_assistant_turn) {
+  if (!finalAssistantTurn) {
     return [];
   }
 
-  const tail_entries: OrderedAssistantEntry[] = [];
+  const tailEntries: OrderedAssistantEntry[] = [];
   for (
-    let index = visible_ordered_assistant_entries.length - 1;
+    let index = visibleOrderedAssistantEntries.length - 1;
     index >= 0;
     index -= 1
   ) {
-    const entry = visible_ordered_assistant_entries[index];
-    if (entry.source_message_id !== final_assistant_turn.message_id) {
+    const entry = visibleOrderedAssistantEntries[index];
+    if (entry.sourceMessageId !== finalAssistantTurn.messageId) {
       break;
     }
     if (entry.block.type !== "text" || !entry.block.text.trim()) {
       break;
     }
-    tail_entries.unshift(entry);
+    tailEntries.unshift(entry);
   }
-  return tail_entries;
+  return tailEntries;
 }
 
-function build_archived_process_projection({
-  final_assistant_turn,
-  final_tail_entries,
-  result_summary,
-  streaming_block_indexes,
-  visible_ordered_assistant_entries,
+function buildArchivedProcessProjection({
+  finalAssistantTurn,
+  finalTailEntries,
+  streamingBlockIndexes,
+  visibleOrderedAssistantEntries,
 }: {
-  final_assistant_turn: AssistantTurnEntry | null;
-  final_tail_entries: OrderedAssistantEntry[];
-  result_summary: ResultSummary | undefined;
-  streaming_block_indexes: Set<number>;
-  visible_ordered_assistant_entries: OrderedAssistantEntry[];
+  finalAssistantTurn: AssistantTurnEntry | null;
+  finalTailEntries: OrderedAssistantEntry[];
+  streamingBlockIndexes: Set<number>;
+  visibleOrderedAssistantEntries: OrderedAssistantEntry[];
 }) {
-  const result_text = result_summary?.result?.trim();
-  const final_tail_text = text_from_entries(final_tail_entries, "\n\n");
-  const should_strip_tail =
-    final_tail_entries.length > 0 &&
-    (!result_text ||
-      final_tail_text === result_text ||
-      text_from_entries(final_tail_entries, "").trim() === result_text);
-
-  if (should_strip_tail) {
-    const tail_indexes = new Set(
-      final_tail_entries.map((entry) => entry.merged_index),
+  // 最终回复由独立区域渲染（tail / turn 文本 / result 摘要），
+  // 过程链无条件剥离它，避免同一段答案在过程和最终各出现一次。
+  if (finalTailEntries.length > 0) {
+    const tailIndexes = new Set(
+      finalTailEntries.map((entry) => entry.mergedIndex),
     );
-    return projection_from_ordered_entries(
-      visible_ordered_assistant_entries.filter(
-        (entry) => !tail_indexes.has(entry.merged_index),
+    return projectionFromOrderedEntries(
+      visibleOrderedAssistantEntries.filter(
+        (entry) => !tailIndexes.has(entry.mergedIndex),
       ),
-      streaming_block_indexes,
+      streamingBlockIndexes,
     );
   }
 
-  if (!result_text && final_assistant_turn) {
-    const final_assistant_text_merged_indexes =
-      final_assistant_turn.text_content.length > 0
-        ? text_entry_indexes_for_turn(
-          final_assistant_turn,
-          visible_ordered_assistant_entries,
-        )
-        : new Set<number>();
-    return projection_from_ordered_entries(
-      visible_ordered_assistant_entries.filter(
+  if (finalAssistantTurn && finalAssistantTurn.textContent.length > 0) {
+    const finalAssistantTextMergedIndexes = textEntryIndexesForTurn(
+      finalAssistantTurn,
+      visibleOrderedAssistantEntries,
+    );
+    return projectionFromOrderedEntries(
+      visibleOrderedAssistantEntries.filter(
         (entry) =>
-          entry.source_message_id !== final_assistant_turn.message_id ||
-          !final_assistant_text_merged_indexes.has(entry.merged_index),
+          entry.sourceMessageId !== finalAssistantTurn.messageId ||
+          !finalAssistantTextMergedIndexes.has(entry.mergedIndex),
       ),
-      streaming_block_indexes,
+      streamingBlockIndexes,
     );
   }
 
-  return projection_from_ordered_entries(
-    visible_ordered_assistant_entries,
-    streaming_block_indexes,
+  return projectionFromOrderedEntries(
+    visibleOrderedAssistantEntries,
+    streamingBlockIndexes,
   );
 }
 
-function resolve_fallback_final_assistant_content(
-  final_assistant_turn: AssistantTurnEntry | null,
-  final_tail_entries: OrderedAssistantEntry[],
+function resolveFallbackFinalAssistantContent(
+  finalAssistantTurn: AssistantTurnEntry | null,
+  finalTailEntries: OrderedAssistantEntry[],
 ) {
-  if (final_tail_entries.length > 0) {
-    return final_tail_entries.map((entry) => entry.block);
+  if (finalTailEntries.length > 0) {
+    return finalTailEntries.map((entry) => entry.block);
   }
-  if (!final_assistant_turn) {
+  if (!finalAssistantTurn) {
     return null;
   }
-  if (final_assistant_turn.text_content.length > 0) {
-    return final_assistant_turn.text_content;
+  if (finalAssistantTurn.textContent.length > 0) {
+    return finalAssistantTurn.textContent;
   }
-  if (final_assistant_turn.content.length > 0) {
-    return final_assistant_turn.content;
+  if (finalAssistantTurn.content.length > 0) {
+    return finalAssistantTurn.content;
   }
   return null;
 }
 
-function resolve_fallback_final_assistant_streaming_indexes(
-  final_assistant_turn: AssistantTurnEntry | null,
-  final_tail_entries: OrderedAssistantEntry[],
-  streaming_block_indexes: Set<number>,
+function resolveFallbackFinalAssistantStreamingIndexes(
+  finalAssistantTurn: AssistantTurnEntry | null,
+  finalTailEntries: OrderedAssistantEntry[],
+  streamingBlockIndexes: Set<number>,
 ) {
-  if (final_tail_entries.length > 0) {
-    const next_indexes = new Set<number>();
-    final_tail_entries.forEach((entry, index) => {
-      if (streaming_block_indexes.has(entry.merged_index)) {
-        next_indexes.add(index);
+  if (finalTailEntries.length > 0) {
+    const nextIndexes = new Set<number>();
+    finalTailEntries.forEach((entry, index) => {
+      if (streamingBlockIndexes.has(entry.mergedIndex)) {
+        nextIndexes.add(index);
       }
     });
-    return next_indexes;
+    return nextIndexes;
   }
-  if (!final_assistant_turn) {
+  if (!finalAssistantTurn) {
     return new Set<number>();
   }
-  if (final_assistant_turn.text_content.length > 0) {
-    return final_assistant_turn.text_streaming_indexes;
+  if (finalAssistantTurn.textContent.length > 0) {
+    return finalAssistantTurn.textStreamingIndexes;
   }
-  return final_assistant_turn.streaming_indexes;
+  return finalAssistantTurn.streamingIndexes;
 }
 
-function resolve_final_assistant_content({
-  assistant_content_mode,
-  fallback_final_assistant_content,
-  final_assistant_turn,
-  final_tail_entries,
-  result_summary,
+function resolveFinalAssistantContent({
+  assistantContentMode,
+  fallbackFinalAssistantContent,
+  finalAssistantTurn,
+  finalTailEntries,
+  resultSummary,
 }: {
-  assistant_content_mode: AssistantContentMode;
-  fallback_final_assistant_content: ContentBlock[] | null;
-  final_assistant_turn: AssistantTurnEntry | null;
-  final_tail_entries: OrderedAssistantEntry[];
-  result_summary: ResultSummary | undefined;
+  assistantContentMode: AssistantContentMode;
+  fallbackFinalAssistantContent: ContentBlock[] | null;
+  finalAssistantTurn: AssistantTurnEntry | null;
+  finalTailEntries: OrderedAssistantEntry[];
+  resultSummary: ResultSummary | undefined;
 }) {
   if (
-    assistant_content_mode === "dm_live" ||
-    assistant_content_mode === "room_thread"
+    assistantContentMode === "dm_live" ||
+    assistantContentMode === "room_thread"
   ) {
     return null;
   }
 
-  const result_text = get_result_summary_display_text(result_summary);
-  if (result_text) {
-    return result_text;
+  const resultText = getResultSummaryDisplayText(resultSummary);
+
+  if (assistantContentMode === "dm_archived") {
+    // 优先用消息正文（过程链已剥离同一段内容）；
+    // result 摘要文本只在正文缺失时兜底，避免两边措辞不一致时重复展示。
+    if (finalTailEntries.length > 0) {
+      return finalTailEntries.map((entry) => entry.block);
+    }
+    if (finalAssistantTurn?.textContent.length) {
+      return finalAssistantTurn.textContent;
+    }
+    return resultText || null;
   }
 
-  if (assistant_content_mode === "dm_archived") {
-    if (final_tail_entries.length > 0) {
-      return final_tail_entries.map((entry) => entry.block);
-    }
-    if (final_assistant_turn?.text_content.length) {
-      return final_assistant_turn.text_content;
-    }
-    return null;
+  if (resultText) {
+    return resultText;
   }
 
-  return fallback_final_assistant_content;
+  return fallbackFinalAssistantContent;
 }
 
-function text_entry_indexes_for_turn(
-  final_assistant_turn: AssistantTurnEntry,
-  visible_ordered_assistant_entries: OrderedAssistantEntry[],
+function textEntryIndexesForTurn(
+  finalAssistantTurn: AssistantTurnEntry,
+  visibleOrderedAssistantEntries: OrderedAssistantEntry[],
 ) {
-  const next_indexes = new Set<number>();
-  for (const entry of visible_ordered_assistant_entries) {
-    if (entry.source_message_id !== final_assistant_turn.message_id) {
+  const nextIndexes = new Set<number>();
+  for (const entry of visibleOrderedAssistantEntries) {
+    if (entry.sourceMessageId !== finalAssistantTurn.messageId) {
       continue;
     }
     if (entry.block.type !== "text" || !entry.block.text.trim()) {
       continue;
     }
-    next_indexes.add(entry.merged_index);
+    nextIndexes.add(entry.mergedIndex);
   }
-  return next_indexes;
+  return nextIndexes;
 }
 
-function text_from_entries(entries: OrderedAssistantEntry[], separator: string) {
-  return entries
-    .map((entry) => entry.block)
-    .filter(
-      (block): block is Extract<ContentBlock, { type: "text" }> =>
-        block.type === "text",
-    )
-    .map((block) => block.text)
-    .join(separator)
-    .trim();
-}
-
-function empty_projection(): ContentProjection {
-  return { content: [], streaming_indexes: new Set<number>() };
+function emptyProjection(): ContentProjection {
+  return { content: [], streamingIndexes: new Set<number>() };
 }

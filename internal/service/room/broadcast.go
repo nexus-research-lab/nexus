@@ -72,5 +72,5 @@ func eventRoundID(event protocol.EventMessage) string {
 	if roundID := strings.TrimSpace(anyString(event.Data["round_id"])); roundID != "" {
 		return roundID
 	}
-	return strings.TrimSpace(event.CausedBy)
+	return strings.TrimSpace(event.RoundID)
 }

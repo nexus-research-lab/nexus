@@ -38,9 +38,9 @@ const SEARCH_SHELL_SIZE_CLASS_MAP: Record<UiFormControlSize, string> = {
   lg: "h-11 rounded-[14px] px-4 text-[15px]",
 };
 
-export function get_ui_form_control_class_name(
+export function getUiFormControlClassName(
   options: UiFormControlStyleOptions = {},
-  class_name?: string,
+  className?: string,
 ): string {
   const {
     multiline = false,
@@ -52,13 +52,13 @@ export function get_ui_form_control_class_name(
     FORM_CONTROL_BASE_CLASS_NAME,
     FORM_CONTROL_VARIANT_CLASS_MAP[variant],
     multiline ? FORM_TEXTAREA_SIZE_CLASS_MAP[size] : FORM_CONTROL_SIZE_CLASS_MAP[size],
-    class_name,
+    className,
   );
 }
 
-export function get_ui_search_input_shell_class_name(
+export function getUiSearchInputShellClassName(
   options: Pick<UiFormControlStyleOptions, "size" | "variant"> = {},
-  class_name?: string,
+  className?: string,
 ): string {
   const {
     size = "md",
@@ -69,6 +69,6 @@ export function get_ui_search_input_shell_class_name(
     "inline-flex min-w-0 items-center gap-2 text-(--text-default)",
     FORM_CONTROL_VARIANT_CLASS_MAP[variant],
     SEARCH_SHELL_SIZE_CLASS_MAP[size],
-    class_name,
+    className,
   );
 }

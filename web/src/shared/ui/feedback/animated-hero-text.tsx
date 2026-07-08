@@ -10,11 +10,11 @@ import { cn } from "@/lib/utils";
 
 interface AnimatedHeroTextProps {
   text: string;
-  class_name?: string;
+  className?: string;
   /** Per-grapheme stagger interval in ms */
-  stagger_ms?: number;
+  staggerMs?: number;
   /** Delay before first grapheme starts appearing */
-  initial_delay_ms?: number;
+  initialDelayMs?: number;
 }
 
 // Intl.Segmenter is available in TypeScript ≥ 4.7 / ES2022 lib; cast via unknown
@@ -24,7 +24,7 @@ type IntlSegmenterCtor = new (
   options?: { granularity?: "grapheme" | "word" | "sentence" },
 ) => { segment(input: string): Iterable<{ segment: string }> };
 
-function split_graphemes(text: string, font: string): string[] {
+function splitGraphemes(text: string, font: string): string[] {
   try {
     const prepared = prepareWithSegments(text, font);
     return prepared.segments;
@@ -38,11 +38,36 @@ function split_graphemes(text: string, font: string): string[] {
   }
 }
 
+interface KeyedGrapheme {
+  char: string;
+  key: string;
+  position: number;
+}
+
+function getKeyedGraphemes(graphemes: string[]): KeyedGrapheme[] {
+  const seenCounts = new Map<string, number>();
+  const keyedGraphemes: KeyedGrapheme[] = [];
+  let position = 0;
+
+  for (const char of graphemes) {
+    const occurrence = seenCounts.get(char) ?? 0;
+    seenCounts.set(char, occurrence + 1);
+    keyedGraphemes.push({
+      char,
+      key: `${char}-${occurrence}`,
+      position,
+    });
+    position += 1;
+  }
+
+  return keyedGraphemes;
+}
+
 export function AnimatedHeroText({
   text,
-  class_name,
-  stagger_ms = 26,
-  initial_delay_ms = 100,
+  className: className,
+  staggerMs: staggerMs = 26,
+  initialDelayMs: initialDelayMs = 100,
 }: AnimatedHeroTextProps) {
   const [graphemes, setGraphemes] = useState<string[]>([]);
   const [visible, setVisible] = useState(false);
@@ -53,24 +78,24 @@ export function AnimatedHeroText({
     const font = el
       ? window.getComputedStyle(el).font || "800 42px system-ui"
       : "800 42px system-ui";
-    setGraphemes(split_graphemes(text, font));
+    setGraphemes(splitGraphemes(text, font));
     const t = setTimeout(() => setVisible(true), 16);
     return () => clearTimeout(t);
   }, [text]);
 
   if (graphemes.length === 0) {
     return (
-      <span ref={ref} className={cn("opacity-0", class_name)} aria-hidden>
+      <span ref={ref} className={cn("opacity-0", className)} aria-hidden>
         {text}
       </span>
     );
   }
 
   return (
-    <span ref={ref} className={class_name} aria-label={text}>
-      {graphemes.map((char, i) => (
+    <span ref={ref} className={className} aria-label={text}>
+      {getKeyedGraphemes(graphemes).map(({ char, key, position }) => (
         <span
-          key={i}
+          key={key}
           aria-hidden
           className="inline-block"
           style={{
@@ -81,7 +106,7 @@ export function AnimatedHeroText({
               transform: "translateY(8px) scale(0.94)",
             }),
             transition: "opacity 0.4s ease, transform 0.45s cubic-bezier(0.22,1,0.36,1)",
-            transitionDelay: visible ? `${initial_delay_ms + i * stagger_ms}ms` : "0ms",
+            transitionDelay: visible ? `${initialDelayMs + position * staggerMs}ms` : "0ms",
             whiteSpace: char === " " ? "pre" : undefined,
           }}
         >
@@ -98,20 +123,20 @@ export function AnimatedHeroText({
 
 interface FadeSlideInProps {
   children: React.ReactNode;
-  delay_ms?: number;
-  duration_ms?: number;
+  delayMs?: number;
+  durationMs?: number;
   /** translateY distance to start from (px). Negative = slide down. */
-  y_offset?: number;
-  class_name?: string;
+  yOffset?: number;
+  className?: string;
   style?: CSSProperties;
 }
 
 export function FadeSlideIn({
   children,
-  delay_ms = 0,
-  duration_ms = 420,
-  y_offset = 10,
-  class_name,
+  delayMs: delayMs = 0,
+  durationMs: durationMs = 420,
+  yOffset: yOffset = 10,
+  className: className,
   style,
 }: FadeSlideInProps) {
   const [visible, setVisible] = useState(false);
@@ -123,60 +148,20 @@ export function FadeSlideIn({
 
   return (
     <div
-      className={class_name}
+      className={className}
       style={{
         // 容器完成进入动画后不再保留 transform，
         // 这样 launcher 推荐按钮和 Hero 分组不会持续挂在独立层上。
         ...(visible ? null : {
           opacity: 0,
-          transform: `translateY(${y_offset}px)`,
+          transform: `translateY(${yOffset}px)`,
         }),
-        transition: `opacity ${duration_ms}ms ease, transform ${duration_ms}ms cubic-bezier(0.22,1,0.36,1)`,
-        transitionDelay: `${delay_ms}ms`,
+        transition: `opacity ${durationMs}ms ease, transform ${durationMs}ms cubic-bezier(0.22,1,0.36,1)`,
+        transitionDelay: `${delayMs}ms`,
         ...style,
       }}
     >
       {children}
-    </div>
-  );
-}
-
-// ─── StaggerList ─────────────────────────────────────────────────────────────
-// Wraps a list of items and applies staggered FadeSlideIn to each child.
-
-interface StaggerListProps {
-  children: React.ReactNode[];
-  base_delay_ms?: number;
-  stagger_ms?: number;
-  duration_ms?: number;
-  y_offset?: number;
-  class_name?: string;
-  item_class_name?: string;
-}
-
-export function StaggerList({
-  children,
-  base_delay_ms = 0,
-  stagger_ms = 55,
-  duration_ms = 380,
-  y_offset = 8,
-  class_name,
-  item_class_name,
-}: StaggerListProps) {
-  return (
-    <div className={class_name}>
-      {children.map((child, i) => (
-        <FadeSlideIn
-          key={i}
-          delay_ms={base_delay_ms + i * stagger_ms}
-          duration_ms={duration_ms}
-          y_offset={y_offset}
-          class_name={item_class_name}
-          style={{ display: "contents" }}
-        >
-          {child}
-        </FadeSlideIn>
-      ))}
     </div>
   );
 }

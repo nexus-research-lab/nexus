@@ -193,6 +193,6 @@ func newRoomDirectedMessageConsumedEvent(cursor workspacestore.RoomDirectedMessa
 	event.RoomID = cursor.RoomID
 	event.ConversationID = cursor.ConversationID
 	event.AgentID = cursor.AgentID
-	event.CausedBy = cursor.RoundID
+	event.RoundID = cursor.RoundID
 	return event
 }

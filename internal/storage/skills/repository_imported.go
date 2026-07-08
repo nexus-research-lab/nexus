@@ -47,10 +47,10 @@ INSERT INTO imported_skills (
     owner_user_id, skill_name, title, description, scope, tags, category_key, category_name,
     recommendation, version, source_id, source_kind, source_ref, source_name, source_trust,
     import_mode, git_url, git_branch, git_path, git_commit, raw_url, detail_url, content_hash,
-    last_imported_at, last_checked_at, last_error, created_at, updated_at
+    update_available, last_imported_at, last_checked_at, last_error, created_at, updated_at
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
-    $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26,
+    $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27,
     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
 )
 ON CONFLICT (owner_user_id, skill_name) DO UPDATE SET
@@ -75,6 +75,7 @@ ON CONFLICT (owner_user_id, skill_name) DO UPDATE SET
     raw_url = EXCLUDED.raw_url,
     detail_url = EXCLUDED.detail_url,
     content_hash = EXCLUDED.content_hash,
+    update_available = EXCLUDED.update_available,
     last_imported_at = EXCLUDED.last_imported_at,
     last_checked_at = EXCLUDED.last_checked_at,
     last_error = EXCLUDED.last_error,
@@ -88,9 +89,9 @@ INSERT INTO imported_skills (
     owner_user_id, skill_name, title, description, scope, tags, category_key, category_name,
     recommendation, version, source_id, source_kind, source_ref, source_name, source_trust,
     import_mode, git_url, git_branch, git_path, git_commit, raw_url, detail_url, content_hash,
-    last_imported_at, last_checked_at, last_error, created_at, updated_at
+    update_available, last_imported_at, last_checked_at, last_error, created_at, updated_at
 ) VALUES (
-    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
 )
 ON CONFLICT(owner_user_id, skill_name) DO UPDATE SET
@@ -115,6 +116,7 @@ ON CONFLICT(owner_user_id, skill_name) DO UPDATE SET
     raw_url = excluded.raw_url,
     detail_url = excluded.detail_url,
     content_hash = excluded.content_hash,
+    update_available = excluded.update_available,
     last_imported_at = excluded.last_imported_at,
     last_checked_at = excluded.last_checked_at,
     last_error = excluded.last_error,
@@ -134,12 +136,25 @@ func (r *Repository) DeleteImportedSkill(ctx context.Context, ownerUserID string
 	return err
 }
 
+func (r *Repository) RecordImportedSkillCheck(ctx context.Context, ownerUserID string, skillName string, updateAvailable bool, checkedAt time.Time, lastError string) error {
+	_, err := r.db.ExecContext(
+		ctx,
+		"UPDATE imported_skills SET update_available = "+r.bind(1)+", last_checked_at = "+r.bind(2)+", last_error = "+r.bind(3)+", updated_at = CURRENT_TIMESTAMP WHERE owner_user_id = "+r.bind(4)+" AND skill_name = "+r.bind(5),
+		updateAvailable,
+		checkedAt,
+		strings.TrimSpace(lastError),
+		strings.TrimSpace(ownerUserID),
+		strings.TrimSpace(skillName),
+	)
+	return err
+}
+
 func importedSkillSelectSQL() string {
 	return `
 SELECT owner_user_id, skill_name, title, description, scope, tags, category_key, category_name,
        recommendation, version, source_id, source_kind, source_ref, source_name, source_trust,
        import_mode, git_url, git_branch, git_path, git_commit, raw_url, detail_url, content_hash,
-       last_imported_at, last_checked_at, last_error, created_at, updated_at
+       update_available, last_imported_at, last_checked_at, last_error, created_at, updated_at
 FROM imported_skills
 `
 }
@@ -169,6 +184,7 @@ func importedSkillArgs(item ImportedSkillEntity) []any {
 		strings.TrimSpace(item.RawURL),
 		strings.TrimSpace(item.DetailURL),
 		strings.TrimSpace(item.ContentHash),
+		item.UpdateAvailable,
 		item.LastImportedAt,
 		item.LastCheckedAt,
 		strings.TrimSpace(item.LastError),
@@ -215,6 +231,7 @@ func scanImportedSkill(row rowScanner) (ImportedSkillEntity, error) {
 		&item.RawURL,
 		&item.DetailURL,
 		&item.ContentHash,
+		&item.UpdateAvailable,
 		&lastImported,
 		&lastChecked,
 		&item.LastError,

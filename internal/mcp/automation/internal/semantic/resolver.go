@@ -271,9 +271,7 @@ func Source(sctx contract.ServerContext, agentID string) protocol.Source {
 		if contextType == "room" {
 			contextID = roomContextIDFallback(sctx.CurrentSessionKey)
 		}
-		if contextID == "" {
-			contextID = agentID
-		}
+		contextID = argx.FirstNonEmpty(contextID, agentID)
 	}
 	contextLabel := strings.TrimSpace(sctx.SourceContextLabel)
 	if contextLabel == "" && contextType == "agent" {

@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
+using System.Text.Json;
 using Nexus.Desktop.Diagnostics;
 using Nexus.Desktop.Runtime;
 
@@ -9,6 +10,8 @@ namespace Nexus.Desktop.Sidecar;
 internal sealed class SidecarSupervisor : IDisposable
 {
     private const int OutputTailLineLimit = 200;
+    private const int StopTimeoutMilliseconds = 3000;
+    private const int ReapTimeoutMilliseconds = 3000;
 
     private readonly DesktopStartupTimeline startupTimeline;
     private readonly SidecarBundle locator;
@@ -22,7 +25,9 @@ internal sealed class SidecarSupervisor : IDisposable
     {
         this.startupTimeline = startupTimeline;
         locator = SidecarBundleLocator.Resolve();
-        int port = SidecarPortAllocator.Allocate();
+        startupTimeline.Mark("sidecar.reap_begin");
+        ReapOrphanedSidecars();
+        int port = SidecarPortAllocator.Allocate(startupTimeline);
         runtime = new SidecarRuntimeConfig(
             Port: port,
             SessionToken: DesktopSessionToken.Generate(),
@@ -63,6 +68,7 @@ internal sealed class SidecarSupervisor : IDisposable
         {
             ["pid"] = process.Id.ToString(),
         });
+        WriteProcessRecord(process);
 
         await WaitUntilHealthyAsync();
         startupTimeline.Mark("sidecar.health_ready");
@@ -71,12 +77,49 @@ internal sealed class SidecarSupervisor : IDisposable
 
     public void Dispose()
     {
-        if (process is { HasExited: false })
+        bool removeRecord = true;
+        try
         {
-            process.Kill(entireProcessTree: true);
-            process.WaitForExit(3000);
+            if (process is { HasExited: false })
+            {
+                startupTimeline.Mark("sidecar.stop_begin", new Dictionary<string, string>
+                {
+                    ["pid"] = process.Id.ToString(),
+                });
+                process.Kill(entireProcessTree: true);
+                if (process.WaitForExit(StopTimeoutMilliseconds))
+                {
+                    startupTimeline.Mark("sidecar.stop_finished", new Dictionary<string, string>
+                    {
+                        ["pid"] = process.Id.ToString(),
+                        ["exit_code"] = process.ExitCode.ToString(),
+                    });
+                }
+                else
+                {
+                    removeRecord = false;
+                    startupTimeline.Mark("sidecar.stop_failed", new Dictionary<string, string>
+                    {
+                        ["pid"] = process.Id.ToString(),
+                    });
+                }
+            }
         }
-        process?.Dispose();
+        catch (InvalidOperationException)
+        {
+        }
+        catch (Exception exception) when (exception is System.ComponentModel.Win32Exception or NotSupportedException)
+        {
+            removeRecord = false;
+        }
+        finally
+        {
+            if (removeRecord)
+            {
+                RemoveProcessRecord();
+            }
+            process?.Dispose();
+        }
     }
 
     private ProcessStartInfo BuildStartInfo()
@@ -249,6 +292,192 @@ internal sealed class SidecarSupervisor : IDisposable
         Directory.CreateDirectory(DesktopPaths.DebugDirectory);
     }
 
+    private void ReapOrphanedSidecars()
+    {
+        SidecarProcessRecord? record = ReadProcessRecord();
+        if (record is not null)
+        {
+            ReapRecordedProcess(record);
+        }
+        ReapMatchingProcesses();
+    }
+
+    private void ReapRecordedProcess(SidecarProcessRecord record)
+    {
+        if (record.Pid <= 0 || !SamePath(record.ExecutablePath, locator.Command))
+        {
+            RemoveProcessRecord();
+            return;
+        }
+
+        try
+        {
+            using Process orphan = Process.GetProcessById(record.Pid);
+            if (!IsExpectedSidecar(orphan))
+            {
+                RemoveProcessRecord();
+                return;
+            }
+
+            startupTimeline.Mark("sidecar.reap_recorded", new Dictionary<string, string>
+            {
+                ["pid"] = orphan.Id.ToString(),
+            });
+            KillProcessTree(orphan);
+        }
+        catch (ArgumentException)
+        {
+            RemoveProcessRecord();
+        }
+        catch (InvalidOperationException)
+        {
+            RemoveProcessRecord();
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+        }
+    }
+
+    private void ReapMatchingProcesses()
+    {
+        if (!Path.IsPathFullyQualified(locator.Command))
+        {
+            return;
+        }
+
+        string processName = Path.GetFileNameWithoutExtension(locator.Command);
+        if (string.IsNullOrWhiteSpace(processName))
+        {
+            return;
+        }
+
+        foreach (Process candidate in Process.GetProcessesByName(processName))
+        {
+            using (candidate)
+            {
+                if (candidate.Id == Environment.ProcessId || !IsExpectedSidecar(candidate))
+                {
+                    continue;
+                }
+
+                startupTimeline.Mark("sidecar.reap_matching", new Dictionary<string, string>
+                {
+                    ["pid"] = candidate.Id.ToString(),
+                });
+                KillProcessTree(candidate);
+            }
+        }
+    }
+
+    private void KillProcessTree(Process target)
+    {
+        try
+        {
+            target.Kill(entireProcessTree: true);
+            if (target.WaitForExit(ReapTimeoutMilliseconds))
+            {
+                RemoveProcessRecord();
+                return;
+            }
+            startupTimeline.Mark("sidecar.reap_timeout", new Dictionary<string, string>
+            {
+                ["pid"] = target.Id.ToString(),
+            });
+        }
+        catch (InvalidOperationException)
+        {
+            RemoveProcessRecord();
+        }
+        catch (Exception exception) when (exception is System.ComponentModel.Win32Exception or NotSupportedException)
+        {
+            startupTimeline.Mark("sidecar.reap_failed", new Dictionary<string, string>
+            {
+                ["pid"] = target.Id.ToString(),
+                ["reason"] = exception.GetType().Name,
+            });
+        }
+    }
+
+    private bool IsExpectedSidecar(Process target)
+    {
+        try
+        {
+            string? executablePath = target.MainModule?.FileName;
+            return SamePath(executablePath, locator.Command);
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            return false;
+        }
+    }
+
+    private void WriteProcessRecord(Process startedProcess)
+    {
+        try
+        {
+            Directory.CreateDirectory(DesktopPaths.RootDirectory);
+            var record = new SidecarProcessRecord(startedProcess.Id, locator.Command);
+            File.WriteAllText(DesktopPaths.SidecarPIDFilePath, JsonSerializer.Serialize(record));
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
+        {
+            Trace.WriteLine($"[Nexus Sidecar] failed to write pid record: {exception.Message}");
+        }
+    }
+
+    private static SidecarProcessRecord? ReadProcessRecord()
+    {
+        try
+        {
+            if (!File.Exists(DesktopPaths.SidecarPIDFilePath))
+            {
+                return null;
+            }
+            string text = File.ReadAllText(DesktopPaths.SidecarPIDFilePath);
+            return JsonSerializer.Deserialize<SidecarProcessRecord>(text);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
+        {
+            RemoveProcessRecord();
+            Trace.WriteLine($"[Nexus Sidecar] removed invalid pid record: {exception.Message}");
+            return null;
+        }
+    }
+
+    private static void RemoveProcessRecord()
+    {
+        try
+        {
+            if (File.Exists(DesktopPaths.SidecarPIDFilePath))
+            {
+                File.Delete(DesktopPaths.SidecarPIDFilePath);
+            }
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            Trace.WriteLine($"[Nexus Sidecar] failed to remove pid record: {exception.Message}");
+        }
+    }
+
+    private static bool SamePath(string? left, string? right)
+    {
+        if (string.IsNullOrWhiteSpace(left) || string.IsNullOrWhiteSpace(right))
+        {
+            return false;
+        }
+        try
+        {
+            return string.Equals(
+                Path.GetFullPath(left),
+                Path.GetFullPath(right),
+                StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception exception) when (exception is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return false;
+        }
+    }
+
     private async Task WaitUntilHealthyAsync()
     {
         using HttpClient client = new();
@@ -332,3 +561,5 @@ internal sealed class SidecarSupervisor : IDisposable
         }
     }
 }
+
+internal sealed record SidecarProcessRecord(int Pid, string ExecutablePath);

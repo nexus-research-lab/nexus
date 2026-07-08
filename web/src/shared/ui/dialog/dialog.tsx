@@ -35,47 +35,47 @@ interface UiDialogPortalProps {
 
 interface UiDialogBackdropProps extends HTMLAttributes<HTMLDivElement> {
   children: ReactNode;
-  class_name?: string;
-  labelled_by?: string;
-  described_by?: string;
-  initial_focus_ref?: RefObject<HTMLElement | null>;
-  on_close?: () => void;
-  trap_focus?: boolean;
+  className?: string;
+  labelledBy?: string;
+  describedBy?: string;
+  initialFocusRef?: RefObject<HTMLElement | null>;
+  onClose?: () => void;
+  trapFocus?: boolean;
 }
 
 interface UiDialogShellProps extends HTMLAttributes<HTMLElement> {
   children: ReactNode;
-  class_name?: string;
+  className?: string;
   size?: UiDialogSize;
 }
 
 interface UiDialogFormShellProps extends FormHTMLAttributes<HTMLFormElement> {
   children: ReactNode;
-  class_name?: string;
+  className?: string;
   size?: UiDialogSize;
 }
 
 interface UiDialogHeaderProps extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {
   actions?: ReactNode;
   children?: ReactNode;
-  class_name?: string;
+  className?: string;
   icon?: ReactNode;
-  icon_class_name?: string;
-  on_close?: () => void;
+  iconClassName?: string;
+  onClose?: () => void;
   subtitle?: ReactNode;
   title?: ReactNode;
-  title_id?: string;
+  titleId?: string;
 }
 
 interface UiDialogBodyProps extends HTMLAttributes<HTMLDivElement> {
   children: ReactNode;
-  class_name?: string;
+  className?: string;
   scrollable?: boolean;
 }
 
 interface UiDialogFooterProps extends HTMLAttributes<HTMLDivElement> {
   children: ReactNode;
-  class_name?: string;
+  className?: string;
 }
 
 export function UiDialogPortal({ children }: UiDialogPortalProps) {
@@ -89,37 +89,42 @@ export function UiDialogPortal({ children }: UiDialogPortalProps) {
 /** 中文注释：弹窗骨架统一处理遮罩点击，避免业务弹窗各写一套事件判断。 */
 export function UiDialogBackdrop({
   children,
-  class_name,
   className,
-  described_by,
-  initial_focus_ref,
-  labelled_by,
+  describedBy: describedBy,
+  initialFocusRef: initialFocusRef,
+  labelledBy: labelledBy,
   onClick,
-  on_close,
-  trap_focus = true,
+  onClose: onClose,
+  trapFocus: trapFocus = true,
   ...props
 }: UiDialogBackdropProps) {
-  const root_ref = useRef<HTMLDivElement | null>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
   useDialogModalBehavior({
-    enabled: trap_focus,
-    initial_focus_ref,
-    on_close,
-    root_ref,
+    enabled: trapFocus,
+    initialFocusRef,
+    onClose,
+    rootRef,
   });
 
   return (
+    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- backdrop click-to-close + Escape is a standard modal dialog pattern
     <div
-      ref={root_ref}
-      aria-describedby={described_by}
-      aria-labelledby={labelled_by}
+      ref={rootRef}
+      aria-describedby={describedBy}
+      aria-labelledby={labelledBy}
       aria-modal="true"
-      className={cn(DIALOG_BACKDROP_CLASS_NAME, className, class_name)}
+      className={cn(DIALOG_BACKDROP_CLASS_NAME, className)}
       data-modal-root="true"
       data-ui-dialog-root="true"
       onClick={(event) => {
         onClick?.(event);
         if (!event.defaultPrevented && event.target === event.currentTarget) {
-          on_close?.();
+          onClose?.();
+        }
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          onClose?.();
         }
       }}
       role="dialog"
@@ -133,7 +138,6 @@ export function UiDialogBackdrop({
 
 export function UiDialogShell({
   children,
-  class_name,
   className,
   size = "md",
   ...props
@@ -144,7 +148,6 @@ export function UiDialogShell({
         "dialog-shell surface-radius-md flex w-full flex-col overflow-hidden animate-in zoom-in-95 duration-(--motion-duration-fast)",
         DIALOG_SIZE_CLASS_MAP[size],
         className,
-        class_name,
       )}
       tabIndex={-1}
       {...props}
@@ -156,7 +159,6 @@ export function UiDialogShell({
 
 export function UiDialogFormShell({
   children,
-  class_name,
   className,
   size = "md",
   ...props
@@ -167,7 +169,6 @@ export function UiDialogFormShell({
         "dialog-shell surface-radius-md flex w-full flex-col overflow-hidden animate-in zoom-in-95 duration-(--motion-duration-fast)",
         DIALOG_SIZE_CLASS_MAP[size],
         className,
-        class_name,
       )}
       tabIndex={-1}
       {...props}
@@ -180,28 +181,27 @@ export function UiDialogFormShell({
 export function UiDialogHeader({
   actions,
   children,
-  class_name,
   className,
   icon,
-  icon_class_name,
-  on_close,
+  iconClassName: iconClassName,
+  onClose: onClose,
   subtitle,
   title,
-  title_id,
+  titleId: titleId,
   ...props
 }: UiDialogHeaderProps) {
   return (
-    <div className={cn("dialog-header", className, class_name)} {...props}>
+    <div className={cn("dialog-header", className)} {...props}>
       {children ?? (
         <div className={cn(DIALOG_HEADER_LEADING_CLASS_NAME, "min-w-0 flex-1 items-center")}>
           {icon ? (
-            <div className={cn(DIALOG_HEADER_ICON_CLASS_NAME, icon_class_name)}>
+            <div className={cn(DIALOG_HEADER_ICON_CLASS_NAME, iconClassName)}>
               {icon}
             </div>
           ) : null}
           <div className="min-w-0 flex-1">
             {title ? (
-              <h2 className="dialog-title" id={title_id}>
+              <h2 className="dialog-title" id={titleId}>
                 {title}
               </h2>
             ) : null}
@@ -210,14 +210,13 @@ export function UiDialogHeader({
         </div>
       )}
       {actions}
-      {on_close ? <UiDialogCloseButton on_close={on_close} /> : null}
+      {onClose ? <UiDialogCloseButton onClose={onClose} /> : null}
     </div>
   );
 }
 
 export function UiDialogBody({
   children,
-  class_name,
   className,
   scrollable = false,
   ...props
@@ -228,7 +227,6 @@ export function UiDialogBody({
         "dialog-body",
         scrollable && "dialog-body--scroll soft-scrollbar min-h-0 flex-1",
         className,
-        class_name,
       )}
       {...props}
     >
@@ -239,34 +237,31 @@ export function UiDialogBody({
 
 export function UiDialogFooter({
   children,
-  class_name,
   className,
   ...props
 }: UiDialogFooterProps) {
   return (
-    <div className={cn("dialog-footer", className, class_name)} {...props}>
+    <div className={cn("dialog-footer", className)} {...props}>
       {children}
     </div>
   );
 }
 
 export function UiDialogCloseButton({
-  class_name,
   className,
-  on_close,
+  onClose: onClose,
 }: {
-  class_name?: string;
   className?: string;
-  on_close: () => void;
+  onClose: () => void;
 }) {
   return (
     <button
       aria-label="关闭"
-      className={cn(DIALOG_ICON_BUTTON_CLASS_NAME, className, class_name)}
+      className={cn(DIALOG_ICON_BUTTON_CLASS_NAME, className)}
       onClick={(event) => {
         event.preventDefault();
         event.stopPropagation();
-        on_close();
+        onClose();
       }}
       onPointerDown={(event) => {
         event.stopPropagation();

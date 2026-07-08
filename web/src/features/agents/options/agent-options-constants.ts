@@ -11,63 +11,111 @@ export const DEFAULT_AGENT_PERMISSION_MODE = "default";
 
 export const AGENT_PERMISSION_MODES: ReadonlyArray<{
   value: string;
-  label_key: TranslationKey;
-  description_key: TranslationKey;
+  labelKey: TranslationKey;
+  descriptionKey: TranslationKey;
 }> = [
   {
     value: "default",
-    label_key: "agent_options.advanced.permission.default.label",
-    description_key: "agent_options.advanced.permission.default.description",
+    labelKey: "agent_options.advanced.permission.default.label",
+    descriptionKey: "agent_options.advanced.permission.default.description",
   },
   {
     value: "plan",
-    label_key: "agent_options.advanced.permission.plan.label",
-    description_key: "agent_options.advanced.permission.plan.description",
+    labelKey: "agent_options.advanced.permission.plan.label",
+    descriptionKey: "agent_options.advanced.permission.plan.description",
   },
   {
     value: "acceptEdits",
-    label_key: "agent_options.advanced.permission.accept_edits.label",
-    description_key: "agent_options.advanced.permission.accept_edits.description",
+    labelKey: "agent_options.advanced.permission.accept_edits.label",
+    descriptionKey: "agent_options.advanced.permission.accept_edits.description",
   },
   {
     value: "bypassPermissions",
-    label_key: "agent_options.advanced.permission.bypass.label",
-    description_key: "agent_options.advanced.permission.bypass.description",
+    labelKey: "agent_options.advanced.permission.bypass.label",
+    descriptionKey: "agent_options.advanced.permission.bypass.description",
   },
 ] as const;
 
 export const AVAILABLE_AGENT_TOOLS: ReadonlyArray<{
   name: string;
-  description_key: TranslationKey;
+  descriptionKey: TranslationKey;
 }> = [
-  { name: "Task", description_key: "agent_options.advanced.tool.task" },
-  { name: "TaskOutput", description_key: "agent_options.advanced.tool.task_output" },
-  { name: "Bash", description_key: "agent_options.advanced.tool.bash" },
-  { name: "Glob", description_key: "agent_options.advanced.tool.glob" },
-  { name: "Grep", description_key: "agent_options.advanced.tool.grep" },
-  { name: "LS", description_key: "agent_options.advanced.tool.ls" },
-  { name: "ExitPlanMode", description_key: "agent_options.advanced.tool.exit_plan_mode" },
-  { name: "Read", description_key: "agent_options.advanced.tool.read" },
-  { name: "Edit", description_key: "agent_options.advanced.tool.edit" },
-  { name: "Write", description_key: "agent_options.advanced.tool.write" },
-  { name: "NotebookEdit", description_key: "agent_options.advanced.tool.notebook_edit" },
-  { name: "WebFetch", description_key: "agent_options.advanced.tool.web_fetch" },
-  { name: "TodoWrite", description_key: "agent_options.advanced.tool.todo_write" },
-  { name: "WebSearch", description_key: "agent_options.advanced.tool.web_search" },
-  { name: "KillShell", description_key: "agent_options.advanced.tool.kill_shell" },
-  { name: "AskUserQuestion", description_key: "agent_options.advanced.tool.ask_user_question" },
-  { name: "Skill", description_key: "agent_options.advanced.tool.skill" },
-  { name: "nexus_imagegen", description_key: "agent_options.advanced.tool.nexus_imagegen" },
+  { name: "Agent", descriptionKey: "agent_options.advanced.tool.agent" },
+  { name: "Bash", descriptionKey: "agent_options.advanced.tool.bash" },
+  { name: "Edit", descriptionKey: "agent_options.advanced.tool.edit" },
+  { name: "Write", descriptionKey: "agent_options.advanced.tool.write" },
+  { name: "NotebookEdit", descriptionKey: "agent_options.advanced.tool.notebook_edit" },
+  { name: "WebFetch", descriptionKey: "agent_options.advanced.tool.web_fetch" },
+  { name: "WebSearch", descriptionKey: "agent_options.advanced.tool.web_search" },
 ] as const;
 
 export const DEFAULT_AGENT_ALLOWED_TOOLS: string[] = [];
 
-export function normalize_agent_option_provider(provider?: string | null): string {
-  const normalized_provider = provider?.trim();
-  return normalized_provider || DEFAULT_AGENT_OPTION_PROVIDER;
+const VISIBLE_AGENT_PREAUTHORIZED_TOOLS = new Set(AVAILABLE_AGENT_TOOLS.map((tool) => tool.name));
+
+const RETIRED_AGENT_PREAUTH_TOOL_ALIASES: Record<string, string | null> = {
+  Task: "Agent",
+  TaskOutput: null,
+  Glob: null,
+  Grep: null,
+  LS: null,
+  Read: null,
+  TodoWrite: null,
+  KillShell: null,
+  AskUserQuestion: null,
+  Skill: null,
+  EnterPlanMode: null,
+  ExitPlanMode: null,
+  nexus_imagegen: null,
+  generate_image: null,
+  edit_image: null,
+  mcp__nexus_imagegen__generate_image: null,
+  mcp__nexus_imagegen__edit_image: null,
+};
+
+function normalizeAgentAllowedToolName(toolName: string): string | null {
+  const normalizedToolName = toolName.trim();
+  if (!normalizedToolName) {
+    return null;
+  }
+  if (
+    normalizedToolName.startsWith("Skill(") ||
+    normalizedToolName.startsWith("mcp__nexus_imagegen__") ||
+    normalizedToolName.startsWith("nexus_imagegen__") ||
+    normalizedToolName.startsWith("nexus_imagegen.")
+  ) {
+    return null;
+  }
+  if (Object.prototype.hasOwnProperty.call(RETIRED_AGENT_PREAUTH_TOOL_ALIASES, normalizedToolName)) {
+    return RETIRED_AGENT_PREAUTH_TOOL_ALIASES[normalizedToolName] ?? null;
+  }
+  return normalizedToolName;
 }
 
-export function build_agent_options_save_payload(options: AgentOptions): AgentOptions {
+export function normalizeAgentAllowedToolsForEditor(tools?: string[] | null): string[] {
+  const result: string[] = [];
+  const seenTools = new Set<string>();
+  for (const toolName of tools ?? []) {
+    const normalizedToolName = normalizeAgentAllowedToolName(toolName);
+    if (!normalizedToolName || seenTools.has(normalizedToolName)) {
+      continue;
+    }
+    seenTools.add(normalizedToolName);
+    result.push(normalizedToolName);
+  }
+  return result;
+}
+
+export function countVisibleAgentPreauthorizedTools(tools: string[]): number {
+  return tools.filter((toolName) => VISIBLE_AGENT_PREAUTHORIZED_TOOLS.has(toolName.trim())).length;
+}
+
+export function normalizeAgentOptionProvider(provider?: string | null): string {
+  const normalizedProvider = provider?.trim();
+  return normalizedProvider || DEFAULT_AGENT_OPTION_PROVIDER;
+}
+
+export function buildAgentOptionsSavePayload(options: AgentOptions): AgentOptions {
   return {
     provider: options.provider,
     model: options.model,

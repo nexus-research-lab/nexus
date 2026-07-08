@@ -93,6 +93,16 @@ func TestRepositoryStoresSourcesAndImportedSkills(t *testing.T) {
 	if len(items) != 1 || items[0].Version != "v2" || items[0].ContentHash != "hash-b" {
 		t.Fatalf("导入 skill upsert 不正确: %+v", items)
 	}
+	if err = repository.RecordImportedSkillCheck(ctx, "owner-a", "demo-skill", true, checkedAt, ""); err != nil {
+		t.Fatalf("记录导入 skill 检查状态失败: %v", err)
+	}
+	checkedSkill, err := repository.GetImportedSkill(ctx, "owner-a", "demo-skill")
+	if err != nil {
+		t.Fatalf("读取检查后的导入 skill 失败: %v", err)
+	}
+	if checkedSkill == nil || !checkedSkill.UpdateAvailable || checkedSkill.LastCheckedAt == nil {
+		t.Fatalf("导入 skill 检查状态未写入: %+v", checkedSkill)
+	}
 }
 
 func createSkillRepositoryTestSchema(t *testing.T, db *sql.DB) {
@@ -138,6 +148,7 @@ func createSkillRepositoryTestSchema(t *testing.T, db *sql.DB) {
 			raw_url TEXT NOT NULL DEFAULT '',
 			detail_url TEXT NOT NULL DEFAULT '',
 			content_hash VARCHAR(128) NOT NULL DEFAULT '',
+			update_available BOOLEAN NOT NULL DEFAULT 0,
 			last_imported_at DATETIME,
 			last_checked_at DATETIME,
 			last_error TEXT NOT NULL DEFAULT '',

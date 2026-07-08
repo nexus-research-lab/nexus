@@ -50,6 +50,12 @@ func (c *fakeRoundExecutionClient) Interrupt(context.Context) error {
 	return nil
 }
 
+func (c *fakeRoundExecutionClient) StopTask(context.Context, string) error { return nil }
+
+func (c *fakeRoundExecutionClient) SendTaskMessage(context.Context, string, string, string) error {
+	return nil
+}
+
 func (c *fakeRoundExecutionClient) Disconnect(context.Context) error {
 	c.disconnects++
 	return nil
@@ -207,6 +213,43 @@ func TestExecuteRoundReturnsTerminalErrorMessage(t *testing.T) {
 		t.Fatalf("result = %+v, want terminal error", result)
 	}
 	if result.ErrorMessage != "Failed to authenticate. API Error: 401" {
+		t.Fatalf("ErrorMessage = %q", result.ErrorMessage)
+	}
+}
+
+func TestExecuteRoundReturnsTerminalErrorMessageFromErrorsArray(t *testing.T) {
+	client := &fakeRoundExecutionClient{
+		sessionID: "sdk-session-error",
+		messages:  make(chan sdkprotocol.ReceivedMessage, 1),
+	}
+	client.messages <- sdkprotocol.ReceivedMessage{Type: sdkprotocol.MessageTypeResult}
+	close(client.messages)
+
+	mapper := &fakeRoundExecutionMapper{
+		results: []RoundMapResult{{
+			DurableMessages: []protocol.Message{
+				{
+					"message_id": "result-error",
+					"role":       "result",
+					"subtype":    "error",
+					"is_error":   true,
+					"errors":     []any{"client: stream closed before result message"},
+				},
+			},
+			TerminalStatus: "error",
+			ResultSubtype:  "error",
+		}},
+	}
+
+	result, err := ExecuteRound(context.Background(), RoundExecutionRequest{
+		Query:  "continue",
+		Client: client,
+		Mapper: mapper,
+	})
+	if err != nil {
+		t.Fatalf("ExecuteRound 失败: %v", err)
+	}
+	if result.ErrorMessage != "client: stream closed before result message" {
 		t.Fatalf("ErrorMessage = %q", result.ErrorMessage)
 	}
 }

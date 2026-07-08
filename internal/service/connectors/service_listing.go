@@ -122,10 +122,10 @@ func (s *Service) toDetail(ctx context.Context, ownerUserID string, entry Catalo
 		Info:           info,
 		AuthURL:        entry.AuthURL,
 		TokenURL:       entry.TokenURL,
-		Scopes:         slices.Clone(entry.Scopes),
+		Scopes:         append([]string{}, entry.Scopes...),
 		MCPServerURL:   entry.MCPServerURL,
 		DocsURL:        entry.DocsURL,
-		Features:       slices.Clone(entry.Features),
+		Features:       append([]string{}, entry.Features...),
 		FeatureDetails: connectorFeatureDetailsFor(entry),
 		OAuthClientID:  oauthClientID,
 	}

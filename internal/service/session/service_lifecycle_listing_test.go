@@ -122,7 +122,7 @@ func TestSessionServiceLifecycle(t *testing.T) {
 	if len(messagePage.Items) != 3 || messagePage.HasMore {
 		t.Fatalf("普通 session 最新页结果不正确: %+v", messagePage)
 	}
-	if messagePage.Items[0]["message_id"] != "round_1" {
+	if messagePage.Items[0]["message_id"] != "msg_user_round_1" {
 		t.Fatalf("普通 session 最新页起点不正确: %+v", messagePage.Items)
 	}
 	if messagePage.Items[1]["message_id"] != "msg_assistant_1" {

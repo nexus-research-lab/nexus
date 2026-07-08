@@ -12,13 +12,14 @@ type SlotMessageMapper struct {
 	*message.EventMapper
 }
 
-// NewSlotMessageMapper 创建 Room slot 消息映射器。
+// NewSlotMessageMapper 创建 Room slot 消息映射器。roundID 是 root round，agentRoundID 是 slot 执行轮次。
 func NewSlotMessageMapper(
 	sessionKey string,
 	roomID string,
 	conversationID string,
 	agentID string,
 	slotMessageID string,
+	roundID string,
 	agentRoundID string,
 	workspacePath ...string,
 ) *SlotMessageMapper {
@@ -29,10 +30,10 @@ func NewSlotMessageMapper(
 			ConversationID: conversationID,
 			AgentID:        agentID,
 			WorkspacePath:  firstNonEmpty(workspacePath...),
-			RoundID:        agentRoundID,
+			RoundID:        roundID,
+			AgentRoundID:   agentRoundID,
 			ParentID:       slotMessageID,
 		},
-		CausedBy: agentRoundID,
 	})}
 }
 

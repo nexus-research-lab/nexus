@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import type { Message, RoomPendingAgentSlotState } from "@/types/conversation/message";
 import type {
@@ -8,166 +8,208 @@ import type {
   PermissionDecisionPayload,
 } from "@/types/conversation/permission";
 import {
-  get_room_agent_round_entry,
-  get_room_base_round_id,
-  get_room_thread_messages,
-  is_agent_round_active,
+  getRoomAgentRoundEntry,
+  getRoomThreadMessages,
+  isAgentRoundActive,
 } from "@/features/conversation/shared/utils";
 import {
-  useGroupThread,
-  useSetGroupThreadPanelData,
+  useRoomThreadLiveStore,
+  type RoomThreadSource,
+} from "@/store/room-thread-live";
+import { useGroupThread } from "../thread/group-thread-state";
+import type {
+  ThreadPanelData,
+  ThreadTarget,
 } from "../thread/group-thread-state";
 
-interface UseRoomThreadPanelDataOptions {
-  agent_avatar_map?: Record<string, string | null>;
-  agent_name_map?: Record<string, string>;
-  can_control_session: boolean;
-  conversation_id: string | null;
-  current_user_avatar?: string | null;
-  is_loading: boolean;
-  message_groups: Map<string, Message[]>;
-  observer_read_only_reason: string;
-  on_open_workspace_file?: (path: string) => void;
-  on_stop_message: (msg_id: string) => void;
-  pending_permission_groups: Map<string, PendingPermission[]>;
-  pending_slot_groups: Map<string, RoomPendingAgentSlotState[]>;
-  send_permission_response: (payload: PermissionDecisionPayload) => boolean;
+interface UseRoomThreadSourceOptions {
+  agentAvatarMap?: Record<string, string | null>;
+  agentNameMap?: Record<string, string>;
+  canControlSession: boolean;
+  conversationId: string | null;
+  currentUserAvatar?: string | null;
+  messageGroups: Map<string, Message[]>;
+  observerReadOnlyReason: string;
+  onOpenWorkspaceFile?: (path: string) => void;
+  onStopMessage: (msgId: string) => void;
+  pendingPermissionGroups: Map<string, PendingPermission[]>;
+  pendingSlotGroups: Map<string, RoomPendingAgentSlotState[]>;
+  sendPermissionResponse: (payload: PermissionDecisionPayload) => boolean;
 }
 
-function get_thread_pending_permissions(
-  round_id: string,
-  agent_id: string,
-  pending_permissions: PendingPermission[],
+function getThreadPendingPermissions(
+  roundId: string,
+  agentId: string,
+  pendingPermissions: PendingPermission[],
 ): PendingPermission[] {
-  if (pending_permissions.length === 0) {
+  if (pendingPermissions.length === 0) {
     return [];
   }
 
-  return pending_permissions.filter((permission) => {
-    if (permission.agent_id !== agent_id) {
+  return pendingPermissions.filter((permission) => {
+    if (permission.agent_id !== agentId) {
       return false;
     }
-    if (!permission.caused_by) {
-      return false;
-    }
-    if (
-      get_room_base_round_id(permission.caused_by, permission.agent_id) !==
-      round_id
-    ) {
-      return false;
-    }
-    // Room 的权限请求在很多场景下绑定的是占位槽位 msg_id，
-    // 不是 assistant 真正的 message_id。Thread 已经按 round_id + agent_id 收口，
-    // 这里不能再按 message_id 二次过滤，否则问答/权限会被错误吞掉。
-    return true;
+    // 权限事件带显式 root round_id，直接精确匹配。
+    return permission.round_id === roundId;
   });
 }
 
-export function useRoomThreadPanelData({
-  agent_avatar_map,
-  agent_name_map,
-  can_control_session,
-  conversation_id,
-  current_user_avatar,
-  is_loading,
-  message_groups,
-  observer_read_only_reason,
-  on_open_workspace_file,
-  on_stop_message,
-  pending_permission_groups,
-  pending_slot_groups,
-  send_permission_response,
-}: UseRoomThreadPanelDataOptions) {
-  const { active_thread, close_thread } = useGroupThread();
-  const { set_thread_panel_data } = useSetGroupThreadPanelData();
+/**
+ * 由 source（GroupChatPanel 发布的会话切片）+ activeThread 派生出 Thread 面板数据。
+ * 纯函数，无副作用——在消费者 render 内调用，不写回渲染周期。
+ */
+function deriveThreadPanelData(
+  source: RoomThreadSource | null,
+  activeThread: ThreadTarget | null,
+): ThreadPanelData | null {
+  if (!source || !activeThread) {
+    return null;
+  }
 
+  const roundMessages = source.message_groups.get(activeThread.roundId) ?? [];
+  const messages = getRoomThreadMessages(roundMessages, activeThread.agentId);
+  const entry = getRoomAgentRoundEntry(
+    roundMessages,
+    activeThread.agentId,
+    source.pending_slot_groups.get(activeThread.roundId) ?? [],
+  );
+  const isLoading = Boolean(entry && isAgentRoundActive(entry.status));
+  const agentName = source.agent_name_map
+    ? (source.agent_name_map[activeThread.agentId] ?? activeThread.agentId)
+    : null;
+  const agentAvatar = source.agent_avatar_map
+    ? (source.agent_avatar_map[activeThread.agentId] ?? null)
+    : null;
+  const pendingPermissions = getThreadPendingPermissions(
+    activeThread.roundId,
+    activeThread.agentId,
+    source.pending_permission_groups.get(activeThread.roundId) ?? [],
+  );
+
+  return {
+    messages,
+    agentName,
+    agentAvatar,
+    userAvatar: source.current_user_avatar,
+    isLoading,
+    pendingPermissions,
+    onPermissionResponse: source.on_permission_response,
+    canRespondToPermissions: source.can_control_session,
+    permissionReadOnlyReason: source.observer_read_only_reason,
+    onStopMessage: source.can_control_session ? source.on_stop_message : undefined,
+    onOpenWorkspaceFile: source.on_open_workspace_file,
+  };
+}
+
+/**
+ * 生产者侧：把会话切片发布到 room-thread-live store。
+ * 不订阅 store → 写入不会重渲染自己 → 无反馈环。
+ */
+export function useRoomThreadSource({
+  agentAvatarMap,
+  agentNameMap,
+  canControlSession,
+  conversationId,
+  currentUserAvatar,
+  messageGroups,
+  observerReadOnlyReason,
+  onOpenWorkspaceFile,
+  onStopMessage,
+  pendingPermissionGroups,
+  pendingSlotGroups,
+  sendPermissionResponse,
+}: UseRoomThreadSourceOptions) {
+  const { closeThread } = useGroupThread();
+  const setSource = useRoomThreadLiveStore((state) => state.set_source);
+  const clearSource = useRoomThreadLiveStore((state) => state.clear_source);
+
+  const callbacksRef = useRef({
+    onOpenWorkspaceFile,
+    onStopMessage,
+    sendPermissionResponse,
+  });
   useEffect(() => {
-    close_thread();
-  }, [conversation_id, close_thread]);
-
-  const thread_round_messages = useMemo(
-    () =>
-      active_thread ? (message_groups.get(active_thread.round_id) ?? []) : [],
-    [active_thread, message_groups],
-  );
-  const thread_messages = useMemo(() => {
-    if (!active_thread) {
-      return [];
-    }
-
-    return get_room_thread_messages(
-      thread_round_messages,
-      active_thread.agent_id,
-    );
-  }, [active_thread, thread_round_messages]);
-  const thread_entry = useMemo(
-    () =>
-      active_thread
-        ? get_room_agent_round_entry(
-            thread_round_messages,
-            active_thread.agent_id,
-            pending_slot_groups.get(active_thread.round_id) ?? [],
-          )
-        : null,
-    [active_thread, pending_slot_groups, thread_round_messages],
-  );
-  const thread_is_loading = useMemo(
-    () => Boolean(thread_entry && is_agent_round_active(thread_entry.status)),
-    [thread_entry],
-  );
-  const thread_agent_name =
-    active_thread && agent_name_map
-      ? (agent_name_map[active_thread.agent_id] ?? active_thread.agent_id)
-      : null;
-  const thread_agent_avatar =
-    active_thread && agent_avatar_map
-      ? (agent_avatar_map[active_thread.agent_id] ?? null)
-      : null;
-  const thread_pending_permissions = useMemo(
-    () =>
-      active_thread
-        ? get_thread_pending_permissions(
-            active_thread.round_id,
-            active_thread.agent_id,
-            pending_permission_groups.get(active_thread.round_id) ?? [],
-          )
-        : [],
-    [active_thread, pending_permission_groups],
-  );
-  const thread_panel_data = useMemo(() => {
-    if (!active_thread) {
-      return null;
-    }
-
-    return {
-      messages: thread_messages,
-      agent_name: thread_agent_name,
-      agent_avatar: thread_agent_avatar,
-      user_avatar: current_user_avatar,
-      is_loading: thread_is_loading,
-      pending_permissions: thread_pending_permissions,
-      on_permission_response: send_permission_response,
-      can_respond_to_permissions: can_control_session,
-      permission_read_only_reason: observer_read_only_reason,
-      on_stop_message: can_control_session ? on_stop_message : undefined,
-      on_open_workspace_file,
+    callbacksRef.current = {
+      onOpenWorkspaceFile,
+      onStopMessage,
+      sendPermissionResponse,
     };
-  }, [
-    active_thread,
-    can_control_session,
-    current_user_avatar,
-    observer_read_only_reason,
-    on_open_workspace_file,
-    on_stop_message,
-    send_permission_response,
-    thread_agent_avatar,
-    thread_agent_name,
-    thread_is_loading,
-    thread_messages,
-    thread_pending_permissions,
-  ]);
+  }, [onOpenWorkspaceFile, onStopMessage, sendPermissionResponse]);
 
+  const handlePermissionResponse = useCallback(
+    (payload: PermissionDecisionPayload) =>
+      callbacksRef.current.sendPermissionResponse(payload),
+    [],
+  );
+  const handleStopMessage = useCallback((msgId: string) => {
+    callbacksRef.current.onStopMessage(msgId);
+  }, []);
+  const canOpenWorkspaceFile = Boolean(onOpenWorkspaceFile);
+  const handleOpenWorkspaceFile = useCallback((path: string) => {
+    callbacksRef.current.onOpenWorkspaceFile?.(path);
+  }, []);
+
+  // 会话切换时收起 Thread。
   useEffect(() => {
-    set_thread_panel_data(thread_panel_data);
-  }, [set_thread_panel_data, thread_panel_data]);
+    closeThread();
+  }, [conversationId, closeThread]);
+
+  const source = useMemo<RoomThreadSource>(
+    () => ({
+      conversation_id: conversationId,
+      message_groups: messageGroups,
+      pending_permission_groups: pendingPermissionGroups,
+      pending_slot_groups: pendingSlotGroups,
+      agent_name_map: agentNameMap,
+      agent_avatar_map: agentAvatarMap,
+      current_user_avatar: currentUserAvatar,
+      can_control_session: canControlSession,
+      observer_read_only_reason: observerReadOnlyReason,
+      on_permission_response: handlePermissionResponse,
+      on_stop_message: handleStopMessage,
+      on_open_workspace_file: canOpenWorkspaceFile
+        ? handleOpenWorkspaceFile
+        : undefined,
+    }),
+    [
+      agentAvatarMap,
+      agentNameMap,
+      canControlSession,
+      canOpenWorkspaceFile,
+      conversationId,
+      currentUserAvatar,
+      handleOpenWorkspaceFile,
+      handlePermissionResponse,
+      handleStopMessage,
+      messageGroups,
+      observerReadOnlyReason,
+      pendingPermissionGroups,
+      pendingSlotGroups,
+    ],
+  );
+
+  // 入参（均已 memo / 稳定回调）不变时 source 引用恒定 → 仅真实更新才发布。
+  useEffect(() => {
+    setSource(source);
+  }, [source, setSource]);
+
+  // 卸载时清空，避免离开房间后残留陈旧切片。
+  useEffect(() => {
+    return () => {
+      clearSource();
+    };
+  }, [clearSource]);
+}
+
+/**
+ * 消费者侧：Thread 面板调用，读 activeThread + store source 派生展示数据。
+ */
+export function useRoomThreadPanel(): ThreadPanelData | null {
+  const { activeThread } = useGroupThread();
+  const source = useRoomThreadLiveStore((state) => state.source);
+  return useMemo(
+    () => deriveThreadPanelData(source, activeThread),
+    [source, activeThread],
+  );
 }

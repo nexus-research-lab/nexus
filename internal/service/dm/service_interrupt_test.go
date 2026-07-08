@@ -50,7 +50,6 @@ func TestServiceHandleInterruptEmitsInterruptedRound(t *testing.T) {
 		SessionKey: sessionKey,
 		Content:    "你好",
 		RoundID:    "round-2",
-		ReqID:      "round-2",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}
@@ -120,7 +119,6 @@ func TestServiceHandleInterruptCleansStaleRuntimeWhenClientInterruptFails(t *tes
 		SessionKey: sessionKey,
 		Content:    "停止一个已经退出的进程",
 		RoundID:    "round-interrupt-stale",
-		ReqID:      "round-interrupt-stale",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}
@@ -191,7 +189,6 @@ func TestServiceHandleChatInterruptPolicyStopsRunningRound(t *testing.T) {
 		SessionKey: sessionKey,
 		Content:    "第一轮",
 		RoundID:    "round-interrupt-policy-1",
-		ReqID:      "round-interrupt-policy-1",
 	}); err != nil {
 		t.Fatalf("第一轮 HandleChat 失败: %v", err)
 	}
@@ -201,7 +198,6 @@ func TestServiceHandleChatInterruptPolicyStopsRunningRound(t *testing.T) {
 		SessionKey:     sessionKey,
 		Content:        "第二轮",
 		RoundID:        "round-interrupt-policy-2",
-		ReqID:          "round-interrupt-policy-2",
 		DeliveryPolicy: protocol.ChatDeliveryPolicyInterrupt,
 	}); err != nil {
 		t.Fatalf("打断策略 HandleChat 失败: %v", err)
@@ -216,10 +212,14 @@ func TestServiceHandleChatInterruptPolicyStopsRunningRound(t *testing.T) {
 
 	client.mu.Lock()
 	interruptCalls := client.interruptCalls
+	interruptReasons := append([]string(nil), client.interruptReasons...)
 	sentContents := append([]string(nil), client.sentContents...)
 	client.mu.Unlock()
 	if interruptCalls == 0 {
 		t.Fatal("打断策略应中断运行中 DM round")
+	}
+	if len(interruptReasons) == 0 || interruptReasons[0] != "interrupt" {
+		t.Fatalf("打断策略应传递 submit-interrupt reason: %+v", interruptReasons)
 	}
 	if len(sentContents) != 0 {
 		t.Fatalf("打断策略不应走 streaming input: %+v", sentContents)
@@ -263,7 +263,6 @@ func TestServiceHandleInterruptCoercesTerminalErrorIntoInterrupted(t *testing.T)
 		SessionKey: sessionKey,
 		Content:    "停止测试",
 		RoundID:    "round-interrupt-error",
-		ReqID:      "round-interrupt-error",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}
@@ -363,7 +362,6 @@ func TestServiceHandleChatAfterInterruptKeepsSameClientAndConsumesExplicitStop(t
 		SessionKey: sessionKey,
 		Content:    "第一轮",
 		RoundID:    "round-interrupt-1",
-		ReqID:      "round-interrupt-1",
 	}); err != nil {
 		t.Fatalf("第一轮 HandleChat 失败: %v", err)
 	}
@@ -380,7 +378,6 @@ func TestServiceHandleChatAfterInterruptKeepsSameClientAndConsumesExplicitStop(t
 		SessionKey: sessionKey,
 		Content:    "第二轮",
 		RoundID:    "round-interrupt-2",
-		ReqID:      "round-interrupt-2",
 	}); err != nil {
 		t.Fatalf("第二轮 HandleChat 失败: %v", err)
 	}

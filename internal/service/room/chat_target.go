@@ -52,9 +52,6 @@ func (s *RealtimeService) validateChatRequest(request ChatRequest) (string, stri
 	if !protocol.IsRoomSharedSessionKey(sessionKey) {
 		return "", "", errors.New("session_key must be room shared key")
 	}
-	if strings.TrimSpace(request.RoundID) == "" {
-		return "", "", errors.New("round_id is required")
-	}
 	if !protocol.HasChatInput(request.Content, request.Attachments) &&
 		!(request.Internal && strings.TrimSpace(request.GoalContext) != "") {
 		return "", "", errors.New("content is required")

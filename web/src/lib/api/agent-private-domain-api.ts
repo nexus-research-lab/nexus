@@ -1,11 +1,11 @@
-import { get_agent_api_base_url } from "@/config/options";
-import { request_api } from "@/lib/api/http";
+import { getAgentApiBaseUrl } from "@/config/options";
+import { requestApi } from "@/lib/api/http";
 import {
   AgentPrivateEventPage,
   AgentPrivateThreadPage,
 } from "@/types/agent/private-domain";
 
-const AGENT_API_BASE_URL = get_agent_api_base_url();
+const AGENT_API_BASE_URL = getAgentApiBaseUrl();
 
 export interface AgentPrivateDomainQuery {
   room_id?: string | null;
@@ -14,7 +14,7 @@ export interface AgentPrivateDomainQuery {
   room_limit?: number;
 }
 
-function build_private_domain_query(options: AgentPrivateDomainQuery = {}) {
+function buildPrivateDomainQuery(options: AgentPrivateDomainQuery = {}) {
   const params = new URLSearchParams();
   if (options.room_id) {
     params.set("room_id", options.room_id);
@@ -32,25 +32,25 @@ function build_private_domain_query(options: AgentPrivateDomainQuery = {}) {
   return query ? `?${query}` : "";
 }
 
-export async function list_agent_private_threads_api(
-  agent_id: string,
+export async function listAgentPrivateThreadsApi(
+  agentId: string,
   options: AgentPrivateDomainQuery = {},
 ): Promise<AgentPrivateThreadPage> {
-  return request_api<AgentPrivateThreadPage>(
-    `${AGENT_API_BASE_URL}/agents/${encodeURIComponent(agent_id)}/private-domain/threads${build_private_domain_query(options)}`,
+  return requestApi<AgentPrivateThreadPage>(
+    `${AGENT_API_BASE_URL}/agents/${encodeURIComponent(agentId)}/private-domain/threads${buildPrivateDomainQuery(options)}`,
     {
       method: "GET",
     },
   );
 }
 
-export async function list_agent_private_events_api(
-  agent_id: string,
-  thread_id: string,
+export async function listAgentPrivateEventsApi(
+  agentId: string,
+  threadId: string,
   options: AgentPrivateDomainQuery = {},
 ): Promise<AgentPrivateEventPage> {
-  return request_api<AgentPrivateEventPage>(
-    `${AGENT_API_BASE_URL}/agents/${encodeURIComponent(agent_id)}/private-domain/threads/${encodeURIComponent(thread_id)}/events${build_private_domain_query(options)}`,
+  return requestApi<AgentPrivateEventPage>(
+    `${AGENT_API_BASE_URL}/agents/${encodeURIComponent(agentId)}/private-domain/threads/${encodeURIComponent(threadId)}/events${buildPrivateDomainQuery(options)}`,
     {
       method: "GET",
     },

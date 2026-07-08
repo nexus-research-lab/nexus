@@ -7,8 +7,8 @@
  * =====================================================
  */
 
-import { en_messages } from "./messages.en";
-import { zh_messages } from "./messages.zh";
+import { enMessages } from "./messages.en";
+import { zhMessages } from "./messages.zh";
 import type { TranslationKey } from "./messages.zh";
 
 export type Locale = "zh" | "en";
@@ -18,6 +18,6 @@ export const DEFAULT_LOCALE: Locale = "zh";
 export const LOCALE_STORAGE_KEY = "nexus-locale";
 
 export const MESSAGES: Record<Locale, Record<TranslationKey, string>> = {
-  zh: zh_messages,
-  en: en_messages,
+  zh: zhMessages,
+  en: enMessages,
 };

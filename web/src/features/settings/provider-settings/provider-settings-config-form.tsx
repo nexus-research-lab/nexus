@@ -16,70 +16,70 @@ import {
   API_FORMAT_SHORT_LABELS,
   PROVIDER_LABEL_CLASS_NAME,
   ProviderDraft,
-  format_token_preview,
+  formatTokenPreview,
 } from "./provider-settings-model";
 
 interface ProviderSettingsConfigFormProps {
-  builtin_endpoint_formats: ProviderPresetFormat[];
-  current_format: ProviderPresetFormat | null;
-  current_preset: ProviderPreset | null;
-  detail_title: string;
+  builtinEndpointFormats: ProviderPresetFormat[];
+  currentFormat: ProviderPresetFormat | null;
+  currentPreset: ProviderPreset | null;
+  detailTitle: string;
   draft: ProviderDraft;
-  format_options: UiSelectMenuOption[];
-  is_custom_provider: boolean;
-  is_editing: boolean;
-  on_api_format_change: (value: string) => void;
-  on_auth_token_change: (value: string) => void;
-  on_base_url_change: (value: string) => void;
-  on_field_blur: () => void;
-  on_provider_display_name_change: (value: string) => void;
-  on_provider_kind_change: (value: string) => void;
-  provider_kind_options: UiSelectMenuOption[];
-  selected_can_manage: boolean;
-  selected_record: ProviderConfigRecord | null;
-  show_provider_shape_controls: boolean;
-  show_runtime_format_badge: boolean;
-  uses_builtin_endpoint: boolean;
+  formatOptions: UiSelectMenuOption[];
+  isCustomProvider: boolean;
+  isEditing: boolean;
+  onApiFormatChange: (value: string) => void;
+  onAuthTokenChange: (value: string) => void;
+  onBaseUrlChange: (value: string) => void;
+  onFieldBlur: () => void;
+  onProviderDisplayNameChange: (value: string) => void;
+  onProviderKindChange: (value: string) => void;
+  providerKindOptions: UiSelectMenuOption[];
+  selectedCanManage: boolean;
+  selectedRecord: ProviderConfigRecord | null;
+  showProviderShapeControls: boolean;
+  showRuntimeFormatBadge: boolean;
+  usesBuiltinEndpoint: boolean;
 }
 
 export function ProviderSettingsConfigForm({
-  builtin_endpoint_formats,
-  current_format,
-  current_preset,
-  detail_title,
+  builtinEndpointFormats: builtinEndpointFormats,
+  currentFormat: currentFormat,
+  currentPreset: currentPreset,
+  detailTitle: detailTitle,
   draft,
-  format_options,
-  is_custom_provider,
-  is_editing,
-  on_api_format_change,
-  on_auth_token_change,
-  on_base_url_change,
-  on_field_blur,
-  on_provider_display_name_change,
-  on_provider_kind_change,
-  provider_kind_options,
-  selected_can_manage,
-  selected_record,
-  show_provider_shape_controls,
-  show_runtime_format_badge,
-  uses_builtin_endpoint,
+  formatOptions: formatOptions,
+  isCustomProvider: isCustomProvider,
+  isEditing: isEditing,
+  onApiFormatChange: onApiFormatChange,
+  onAuthTokenChange: onAuthTokenChange,
+  onBaseUrlChange: onBaseUrlChange,
+  onFieldBlur: onFieldBlur,
+  onProviderDisplayNameChange: onProviderDisplayNameChange,
+  onProviderKindChange: onProviderKindChange,
+  providerKindOptions: providerKindOptions,
+  selectedCanManage: selectedCanManage,
+  selectedRecord: selectedRecord,
+  showProviderShapeControls: showProviderShapeControls,
+  showRuntimeFormatBadge: showRuntimeFormatBadge,
+  usesBuiltinEndpoint: usesBuiltinEndpoint,
 }: ProviderSettingsConfigFormProps) {
   const { t } = useI18n();
 
   return (
     <>
-      {show_provider_shape_controls ? (
-        <div className={is_custom_provider ? "grid gap-4 md:grid-cols-[minmax(0,1fr)_180px_260px]" : "grid gap-4 md:grid-cols-[180px_260px]"}>
-          {is_custom_provider ? (
+      {showProviderShapeControls ? (
+        <div className={isCustomProvider ? "grid gap-4 md:grid-cols-[minmax(0,1fr)_180px_260px]" : "grid gap-4 md:grid-cols-[180px_260px]"}>
+          {isCustomProvider ? (
             <label className="space-y-2">
               <span className={PROVIDER_LABEL_CLASS_NAME}>{t("settings.providers.provider_name")}</span>
               <UiInput
                 autoCapitalize="off"
                 autoCorrect="off"
-                control_size="lg"
-                disabled={!selected_can_manage}
-                onChange={(event) => on_provider_display_name_change(event.target.value)}
-                onBlur={on_field_blur}
+                controlSize="lg"
+                disabled={!selectedCanManage}
+                onChange={(event) => onProviderDisplayNameChange(event.target.value)}
+                onBlur={onFieldBlur}
                 placeholder={t("settings.providers.provider_name_placeholder")}
                 spellCheck={false}
                 type="text"
@@ -91,11 +91,11 @@ export function ProviderSettingsConfigForm({
           <label className="space-y-2">
             <span className={PROVIDER_LABEL_CLASS_NAME}>{t("settings.providers.kind")}</span>
             <UiSelectMenu
-              aria_label={t("settings.providers.kind")}
-              class_name="h-11"
-              disabled={!selected_can_manage || is_editing || provider_kind_options.length <= 1}
-              on_change={on_provider_kind_change}
-              options={provider_kind_options}
+              ariaLabel={t("settings.providers.kind")}
+              className="h-11"
+              disabled={!selectedCanManage || isEditing || providerKindOptions.length <= 1}
+              onChange={onProviderKindChange}
+              options={providerKindOptions}
               size="sm"
               value={draft.provider_kind}
             />
@@ -104,7 +104,7 @@ export function ProviderSettingsConfigForm({
           <label className="space-y-2">
             <span className="flex items-center gap-2">
               <span className={PROVIDER_LABEL_CLASS_NAME}>{t("settings.providers.api_format")}</span>
-              {show_runtime_format_badge ? (
+              {showRuntimeFormatBadge ? (
                 <span
                   className="rounded-full bg-(--surface-muted-background) px-1.5 py-0.5 text-[10px] font-medium leading-4 text-(--text-muted)"
                   title={t("settings.providers.api_format_runtime_hint")}
@@ -114,11 +114,11 @@ export function ProviderSettingsConfigForm({
               ) : null}
             </span>
             <UiSelectMenu
-              aria_label={t("settings.providers.api_format")}
-              class_name="h-11"
-              disabled={!selected_can_manage || format_options.length <= 1}
-              on_change={on_api_format_change}
-              options={format_options}
+              ariaLabel={t("settings.providers.api_format")}
+              className="h-11"
+              disabled={!selectedCanManage || formatOptions.length <= 1}
+              onChange={onApiFormatChange}
+              options={formatOptions}
               size="sm"
               value={draft.api_format}
             />
@@ -132,16 +132,16 @@ export function ProviderSettingsConfigForm({
           autoCapitalize="off"
           autoComplete="off"
           autoCorrect="off"
-          control_size="md"
+          controlSize="md"
           data-form-type="other"
           data-lpignore="true"
-          disabled={!selected_can_manage}
+          disabled={!selectedCanManage}
           name="provider-auth-token"
-          onChange={(event) => on_auth_token_change(event.target.value)}
-          onBlur={on_field_blur}
-          placeholder={is_editing
-            ? format_token_preview(
-              selected_record?.auth_token_masked,
+          onChange={(event) => onAuthTokenChange(event.target.value)}
+          onBlur={onFieldBlur}
+          placeholder={isEditing
+            ? formatTokenPreview(
+              selectedRecord?.auth_token_masked,
               t("settings.providers.api_key_empty"),
             )
             : t("settings.providers.api_key_placeholder")}
@@ -149,14 +149,14 @@ export function ProviderSettingsConfigForm({
           type="password"
           value={draft.auth_token}
         />
-        {current_preset?.key_url ? (
+        {currentPreset?.key_url ? (
           <a
             className="inline-flex items-center gap-1 text-[12px] font-medium text-primary hover:underline"
-            href={current_preset.key_url}
+            href={currentPreset.key_url}
             rel="noreferrer"
             target="_blank"
           >
-            {t("settings.providers.get_api_key_from", { name: detail_title })}
+            {t("settings.providers.get_api_key_from", { name: detailTitle })}
             <ExternalLink className="h-3.5 w-3.5" />
           </a>
         ) : null}
@@ -164,9 +164,9 @@ export function ProviderSettingsConfigForm({
 
       <div className="block space-y-2">
         <span className={PROVIDER_LABEL_CLASS_NAME}>{t("settings.providers.base_url")}</span>
-        {uses_builtin_endpoint ? (
+        {usesBuiltinEndpoint ? (
           <div className="space-y-1.5">
-            {builtin_endpoint_formats.map((format) => (
+            {builtinEndpointFormats.map((format) => (
               <div
                 className="input-shell grid min-h-9 grid-cols-1 items-center gap-1.5 rounded-[12px] px-3.5 py-1.5 text-sm text-(--text-default) sm:grid-cols-[88px_minmax(0,1fr)] sm:gap-3"
                 key={format.api_format}
@@ -187,11 +187,11 @@ export function ProviderSettingsConfigForm({
           <UiInput
             autoCapitalize="off"
             autoCorrect="off"
-            control_size="md"
-            disabled={!selected_can_manage}
-            onChange={(event) => on_base_url_change(event.target.value)}
-            onBlur={on_field_blur}
-            placeholder={current_format?.base_url || "https://api.example.com/v1"}
+            controlSize="md"
+            disabled={!selectedCanManage}
+            onChange={(event) => onBaseUrlChange(event.target.value)}
+            onBlur={onFieldBlur}
+            placeholder={currentFormat?.base_url || "https://api.example.com/v1"}
             spellCheck={false}
             type="text"
             value={draft.base_url}

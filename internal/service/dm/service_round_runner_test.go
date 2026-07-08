@@ -346,7 +346,6 @@ func TestHandleChatSchedulesTitleForExistingExternalIMDefaultTitle(t *testing.T)
 		SessionKey: sessionKey,
 		Content:    "中午吃点啥好你觉得",
 		RoundID:    "round-external-im-title",
-		ReqID:      "round-external-im-title",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}

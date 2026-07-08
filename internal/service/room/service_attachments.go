@@ -60,29 +60,6 @@ func (s *RealtimeService) appendRuntimeUserContext(
 	return runtimeContent.AppendText(s.agents.BuildRuntimeUserMessageSuffixForContext(ctx, agentValue, "room:"+strings.TrimSpace(conversationID)))
 }
 
-func (s *RealtimeService) resolveRuntimeUserContextAgent(
-	ctx context.Context,
-	roundValue *activeRoomRound,
-	agentID string,
-) (*protocol.Agent, error) {
-	normalizedAgentID := strings.TrimSpace(agentID)
-	if normalizedAgentID == "" {
-		return nil, nil
-	}
-	if roundValue != nil && roundValue.Context != nil {
-		for index := range roundValue.Context.MemberAgents {
-			item := roundValue.Context.MemberAgents[index]
-			if strings.TrimSpace(item.AgentID) == normalizedAgentID {
-				return &item, nil
-			}
-		}
-	}
-	if s.agents == nil {
-		return nil, nil
-	}
-	return s.agents.GetAgent(ctx, normalizedAgentID)
-}
-
 func (s *RealtimeService) resolveRuntimeAttachmentPath(
 	ctx context.Context,
 	attachment protocol.ChatAttachment,

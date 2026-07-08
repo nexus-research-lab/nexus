@@ -20,7 +20,7 @@ export interface LandingCapabilityItem {
   title: string;
 }
 
-export const capability_items: LandingCapabilityItem[] = [
+export const capabilityItems: LandingCapabilityItem[] = [
   {
     title: "Rooms",
     copy: "Shared context for multi-agent work.",
@@ -59,36 +59,36 @@ export const capability_items: LandingCapabilityItem[] = [
   },
 ];
 
-export const flow_items = [
+export const flowItems = [
   ["01", "Launch", "Start from the launcher. Mention an agent, target a room, or hand the task to Nexus."],
   ["02", "Route", "Nexus opens the right DM or room and keeps the session boundary explicit."],
   ["03", "Run", "Agents use skills, connectors, workspace files, and scheduled runs without leaving the task."],
   ["04", "Review", "Files, history, permissions, and task status stay visible for human review."],
 ] as const;
 
-export const ledger_items = [
+export const ledgerItems = [
   ["09:42", "Launcher", "Route landing page request"],
   ["09:44", "Workspace", "Read product routes"],
   ["09:51", "Agent", "Update landing-page.tsx"],
   ["10:03", "Control", "Run typecheck, lint, visual QA"],
 ] as const;
 
-export const hero_route_nodes = [
+export const heroRouteNodes = [
   ["Launch", "Task enters Nexus"],
   ["Route", "DM or room context"],
   ["Run", "Skills and connectors"],
   ["Review", "Files, history, approval"],
 ] as const;
 
-export const hero_activity_items = [
+export const heroActivityItems = [
   ["10:03", "Nexus", "Split public landing from authenticated app."],
   ["10:05", "Amy", "Reads workspace files and prepares the UI pass."],
   ["10:07", "Control", "Keeps route, history, and validation visible."],
 ] as const;
 
-export const hero_context_items = ["Rooms", "DMs", "Skills", "Connectors", "Memory", "Schedules", "Files"] as const;
+export const heroContextItems = ["Rooms", "DMs", "Skills", "Connectors", "Memory", "Schedules", "Files"] as const;
 
-export const demo_conversations: RoomConversationView[] = [
+export const demoConversations: RoomConversationView[] = [
   {
     session_key: "landing-session",
     agent_id: "agent-amy",
@@ -121,13 +121,13 @@ export const demo_conversations: RoomConversationView[] = [
   },
 ];
 
-export const demo_todos: TodoItem[] = [
+export const demoTodos: TodoItem[] = [
   { content: "Read real workspace source", status: "completed" },
   { content: "Remove decorative SVG motion", status: "completed" },
   { content: "Verify route and visual layout", status: "in_progress" },
 ];
 
-export const demo_workspace_entries: WorkspaceFileEntry[] = [
+export const demoWorkspaceEntries: WorkspaceFileEntry[] = [
   { path: "web", name: "web", is_dir: true, modified_at: "2026-06-01T09:42:00Z", depth: 0 },
   { path: "web/src", name: "src", is_dir: true, modified_at: "2026-06-01T09:44:00Z", depth: 1 },
   { path: "web/src/pages", name: "pages", is_dir: true, modified_at: "2026-06-01T09:45:00Z", depth: 2 },
@@ -167,7 +167,7 @@ export const demo_workspace_entries: WorkspaceFileEntry[] = [
   },
 ];
 
-export const demo_rounds: Array<{ round_id: string; messages: Message[] }> = [
+export const demoRounds: Array<{ round_id: string; messages: Message[] }> = [
   {
     round_id: "landing-round-1",
     messages: [
@@ -263,7 +263,7 @@ export const demo_rounds: Array<{ round_id: string; messages: Message[] }> = [
             display_path: "web/src/pages/landing/landing-page.tsx",
             artifact_kind: "code",
             operation: "updated",
-            scope: "agent_workspace",
+            scope: "agentWorkspace",
             workspace_agent_id: "agent-amy",
           },
         ],

@@ -15,7 +15,7 @@ import {
 import { cn } from "@/lib/utils";
 
 import {
-  get_workspace_file_preview_url,
+  getWorkspaceFilePreviewUrl,
 } from "@/lib/api/agent-manage-api";
 import {
   basename,
@@ -224,7 +224,7 @@ function resolve_document_image_src(
   if (/^(https?:|data:|blob:)/i.test(target)) {
     return target;
   }
-  return event?.agent_id ? get_workspace_file_preview_url(event.agent_id, target) : null;
+  return event?.agent_id ? getWorkspaceFilePreviewUrl(event.agent_id, target) : null;
 }
 
 function EditorSurface({

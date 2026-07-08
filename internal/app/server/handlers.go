@@ -18,28 +18,30 @@ import (
 	roomhandler "github.com/nexus-research-lab/nexus/internal/handler/room"
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	skillhandler "github.com/nexus-research-lab/nexus/internal/handler/skill"
+	subscriptionhandler "github.com/nexus-research-lab/nexus/internal/handler/subscription"
 	handlerwebsocket "github.com/nexus-research-lab/nexus/internal/handler/websocket"
 	workspacehandler "github.com/nexus-research-lab/nexus/internal/handler/workspace"
 )
 
 type handlerSet struct {
-	auth       *authhandler.Handlers
-	core       *corehandler.Handlers
-	agent      *agenthandler.Handlers
-	room       *roomhandler.Handlers
-	capability *capabilityhandler.Handlers
-	skill      *skillhandler.Handlers
-	connector  *connectorhandler.Handlers
-	channel    *channelhandler.Handlers
-	automation *automationhandler.Handlers
-	provider   *providerhandler.Handlers
-	goal       *goalhandler.Handlers
-	launcher   *launcherhandler.Handlers
-	loop       *loophandler.Handlers
-	memory     *memoryhandler.Handlers
-	operation  *operationhandler.Handlers
-	workspace  *workspacehandler.Handlers
-	websocket  *handlerwebsocket.Handler
+	auth         *authhandler.Handlers
+	core         *corehandler.Handlers
+	agent        *agenthandler.Handlers
+	room         *roomhandler.Handlers
+	capability   *capabilityhandler.Handlers
+	skill        *skillhandler.Handlers
+	connector    *connectorhandler.Handlers
+	channel      *channelhandler.Handlers
+	automation   *automationhandler.Handlers
+	provider     *providerhandler.Handlers
+	subscription *subscriptionhandler.Handlers
+	goal         *goalhandler.Handlers
+	launcher     *launcherhandler.Handlers
+	loop         *loophandler.Handlers
+	memory       *memoryhandler.Handlers
+	operation    *operationhandler.Handlers
+	workspace    *workspacehandler.Handlers
+	websocket    *handlerwebsocket.Handler
 }
 
 func newHandlerSet(
@@ -49,8 +51,9 @@ func newHandlerSet(
 	cfg config.Config,
 ) handlerSet {
 	return handlerSet{
-		auth: authhandler.New(api, services.Auth, services.Usage),
+		auth: authhandler.New(api, services.Auth, services.Usage, services.Subscription),
 		core: corehandler.New(
+			cfg,
 			api,
 			services.Core.Agent,
 			services.Provider,
@@ -75,18 +78,19 @@ func newHandlerSet(
 			websocketHandler.RemoveRoom,
 			websocketHandler.BroadcastDirectoryChanged,
 		),
-		capability: capabilityhandler.New(api, services.Skills, services.Connectors, services.Automation, services.ChannelControl),
-		skill:      skillhandler.New(api, services.Skills),
-		connector:  connectorhandler.New(api, services.Connectors),
-		channel:    channelhandler.New(api, services.Ingress, services.ChannelControl),
-		automation: automationhandler.New(api, services.Automation),
-		provider:   providerhandler.New(api, services.Provider, services.Preferences),
-		goal:       goalhandler.New(api, services.Goal),
-		launcher:   launcherhandler.New(api, services.Launcher),
-		loop:       loophandler.New(api, services.Loops),
-		memory:     memoryhandler.New(api, cfg, services.Core.Agent),
-		operation:  operationhandler.New(api, services.Operation),
-		workspace:  workspacehandler.New(api, services.Workspace),
-		websocket:  websocketHandler,
+		capability:   capabilityhandler.New(api, services.Skills, services.Connectors, services.Automation, services.ChannelControl),
+		skill:        skillhandler.New(api, services.Skills),
+		connector:    connectorhandler.New(api, services.Connectors),
+		channel:      channelhandler.New(api, services.Ingress, services.ChannelControl),
+		automation:   automationhandler.New(api, services.Automation),
+		provider:     providerhandler.New(api, services.Provider, services.Preferences),
+		subscription: subscriptionhandler.New(api, services.Subscription),
+		goal:         goalhandler.New(api, services.Goal),
+		launcher:     launcherhandler.New(api, services.Launcher),
+		loop:         loophandler.New(api, services.Loops),
+		memory:       memoryhandler.New(api, cfg, services.Core.Agent),
+		operation:    operationhandler.New(api, services.Operation),
+		workspace:    workspacehandler.New(api, services.Workspace),
+		websocket:    websocketHandler,
 	}
 }

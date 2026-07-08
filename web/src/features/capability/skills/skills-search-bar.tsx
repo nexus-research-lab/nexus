@@ -15,28 +15,28 @@ interface SkillsSearchBarProps {
 
 export function SkillsSearchBar({ ctrl }: SkillsSearchBarProps) {
   const { t } = useI18n();
-  const composing_ref = useRef(false);
-  const search_label = t("capability.skills_tour_search_title");
+  const composingRef = useRef(false);
+  const searchLabel = t("capability.skills_tour_search_title");
 
-  const handle_key_down = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (ctrl.discovery_mode !== "external") return;
+  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (ctrl.discoveryMode !== "external") return;
     if (event.key !== "Enter") return;
-    if (composing_ref.current || event.nativeEvent.isComposing) return;
+    if (composingRef.current || event.nativeEvent.isComposing) return;
     event.preventDefault();
-    ctrl.submit_external_search();
+    ctrl.submitExternalSearch();
   };
 
-  const external_search_action = ctrl.discovery_mode === "external" ? (
+  const externalSearchAction = ctrl.discoveryMode === "external" ? (
     <button
-      aria-label={search_label}
+      aria-label={searchLabel}
       className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] border border-(--divider-subtle-color) text-(--text-muted) transition hover:border-(--primary) hover:text-(--primary) disabled:pointer-events-none disabled:opacity-45"
-      disabled={!ctrl.external_query.trim() || ctrl.external_loading}
+      disabled={!ctrl.externalQuery.trim() || ctrl.externalLoading}
       onClick={(event) => {
         event.preventDefault();
-        ctrl.submit_external_search();
+        ctrl.submitExternalSearch();
       }}
       onMouseDown={(event) => event.preventDefault()}
-      title={search_label}
+      title={searchLabel}
       type="button"
     >
       <Search className="h-3.5 w-3.5" />
@@ -46,42 +46,42 @@ export function SkillsSearchBar({ ctrl }: SkillsSearchBarProps) {
   return (
     <div className="mb-5 flex w-full flex-col gap-2.5 sm:flex-row sm:items-center">
       <CapabilityFilterSearchInput
-        action={external_search_action}
-        on_change={(value) => {
-          if (ctrl.discovery_mode === "catalog") {
-            ctrl.set_search_query(value);
+        action={externalSearchAction}
+        onChange={(value) => {
+          if (ctrl.discoveryMode === "catalog") {
+            ctrl.setSearchQuery(value);
             return;
           }
-          ctrl.set_external_query(value);
+          ctrl.setExternalQuery(value);
         }}
-        on_composition_end={() => {
-          composing_ref.current = false;
+        onCompositionEnd={() => {
+          composingRef.current = false;
         }}
-        on_composition_start={() => {
-          composing_ref.current = true;
+        onCompositionStart={() => {
+          composingRef.current = true;
         }}
-        on_key_down={handle_key_down}
+        onKeyDown={handleKeyDown}
         placeholder={
-          ctrl.discovery_mode === "catalog"
+          ctrl.discoveryMode === "catalog"
             ? t("capability.skills_search_catalog")
             : t("capability.skills_search_external")
         }
-        value={ctrl.discovery_mode === "catalog" ? ctrl.search_query : ctrl.external_query}
+        value={ctrl.discoveryMode === "catalog" ? ctrl.searchQuery : ctrl.externalQuery}
       />
 
-      {ctrl.discovery_mode === "catalog" ? (
+      {ctrl.discoveryMode === "catalog" ? (
         <CapabilityFilterSelect
-          aria_label={t("capability.skills_filter_aria")}
+          ariaLabel={t("capability.skills_filter_aria")}
           label={t("capability.category_label")}
           leading={<SlidersHorizontal className="h-3.5 w-3.5" />}
-          on_change={ctrl.set_active_category}
+          onChange={ctrl.setActiveCategory}
           options={ctrl.categories.map((category) => ({
             label: category.label,
             value: category.key,
           }))}
           placeholder={t("capability.category_all")}
-          tour_anchor={SKILLS_TOUR_ANCHORS.categories}
-          value={ctrl.active_category}
+          tourAnchor={SKILLS_TOUR_ANCHORS.categories}
+          value={ctrl.activeCategory}
         />
       ) : null}
     </div>

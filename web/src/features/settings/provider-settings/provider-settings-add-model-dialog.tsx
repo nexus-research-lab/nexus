@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { ListPlus, Loader2 } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -14,82 +15,90 @@ import { UiField, UiInput } from "@/shared/ui/form-control";
 import { GlassSwitch } from "@/shared/ui/liquid-glass";
 
 interface ProviderAddModelDialogProps {
-  is_open: boolean;
-  manual_model_enabled: boolean;
-  manual_model_id: string;
-  manual_model_placeholder: string;
-  on_add: () => void;
-  on_close: () => void;
-  pending_action: string | null;
-  selected_can_manage: boolean;
-  set_manual_model_enabled: (enabled: boolean) => void;
-  set_manual_model_id: (model_id: string) => void;
+  isOpen: boolean;
+  manualModelEnabled: boolean;
+  manualModelId: string;
+  manualModelPlaceholder: string;
+  onAdd: () => void;
+  onClose: () => void;
+  pendingAction: string | null;
+  selectedCanManage: boolean;
+  setManualModelEnabled: (enabled: boolean) => void;
+  setManualModelId: (modelId: string) => void;
 }
 
 export function ProviderAddModelDialog({
-  is_open,
-  manual_model_enabled,
-  manual_model_id,
-  manual_model_placeholder,
-  on_add,
-  on_close,
-  pending_action,
-  selected_can_manage,
-  set_manual_model_enabled,
-  set_manual_model_id,
+  isOpen: isOpen,
+  manualModelEnabled: manualModelEnabled,
+  manualModelId: manualModelId,
+  manualModelPlaceholder: manualModelPlaceholder,
+  onAdd: onAdd,
+  onClose: onClose,
+  pendingAction: pendingAction,
+  selectedCanManage: selectedCanManage,
+  setManualModelEnabled: setManualModelEnabled,
+  setManualModelId: setManualModelId,
 }: ProviderAddModelDialogProps) {
   const { t } = useI18n();
+  const modelInputRef = useRef<HTMLInputElement>(null);
 
-  if (!is_open) {
+  useEffect(() => {
+    if (isOpen) {
+      modelInputRef.current?.focus();
+    }
+  }, [isOpen]);
+
+  if (!isOpen) {
     return null;
   }
 
-  const is_adding = pending_action?.startsWith("add-model:") ?? false;
+  const isAdding = pendingAction?.startsWith("add-model:") ?? false;
 
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
-        class_name="z-[9999]"
-        labelled_by="provider-add-model-title"
-        on_close={on_close}
+        className="z-[9999]"
+        labelledBy="provider-add-model-title"
+        onClose={onClose}
       >
         <UiDialogFormShell
-          class_name="max-w-[520px]"
+          className="max-w-[520px]"
           onSubmit={(event) => {
             event.preventDefault();
-            on_add();
+            onAdd();
           }}
           size="md"
         >
           <UiDialogHeader
             icon={<ListPlus className="h-4.5 w-4.5" />}
-            on_close={on_close}
+            onClose={onClose}
             subtitle={t("settings.providers.add_model_subtitle")}
             title={t("settings.providers.add_model_title")}
-            title_id="provider-add-model-title"
+            titleId="provider-add-model-title"
           />
-          <UiDialogBody class_name="space-y-4">
+          <UiDialogBody className="space-y-4">
             <UiField
               description={t("settings.providers.add_model_description")}
               label={t("settings.providers.model_id")}
             >
               <UiInput
+                aria-label={t("settings.providers.model_id")}
                 autoCapitalize="off"
                 autoCorrect="off"
-                autoFocus
-                control_size="lg"
-                class_name="font-mono"
-                onChange={(event) => set_manual_model_id(event.target.value)}
+                controlSize="lg"
+                className="font-mono"
+                ref={modelInputRef}
+                onChange={(event) => setManualModelId(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter") {
                     event.preventDefault();
-                    on_add();
+                    onAdd();
                   }
                 }}
-                placeholder={manual_model_placeholder}
+                placeholder={manualModelPlaceholder}
                 spellCheck={false}
                 type="text"
-                value={manual_model_id}
+                value={manualModelId}
               />
             </UiField>
             <div className="flex items-center justify-between gap-3 rounded-[14px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_76%,transparent)] px-3.5 py-3">
@@ -102,29 +111,29 @@ export function ProviderAddModelDialog({
                 </div>
               </div>
               <GlassSwitch
-                checked={manual_model_enabled}
+                checked={manualModelEnabled}
                 size="xs"
-                on_change={set_manual_model_enabled}
+                onChange={setManualModelEnabled}
               />
             </div>
           </UiDialogBody>
           <UiDialogFooter>
             <UiButton
-              onClick={on_close}
+              onClick={onClose}
               type="button"
               variant="surface"
             >
               {t("common.cancel")}
             </UiButton>
             <UiButton
-              disabled={!manual_model_id.trim() || is_adding || !selected_can_manage}
-              onClick={on_add}
+              disabled={!manualModelId.trim() || isAdding || !selectedCanManage}
+              onClick={onAdd}
               tone="primary"
               type="button"
               variant="solid"
             >
-              {is_adding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ListPlus className="h-3.5 w-3.5" />}
-              {manual_model_enabled
+              {isAdding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ListPlus className="h-3.5 w-3.5" />}
+              {manualModelEnabled
                 ? t("settings.providers.add_and_enable")
                 : t("settings.providers.add")}
             </UiButton>

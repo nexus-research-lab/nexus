@@ -323,24 +323,16 @@ internal sealed class DesktopUpdateChecker
             ["can_download_installer"] = latest.CanDownloadInstaller.ToString(),
         });
 
-        MessageBoxResult result = System.Windows.MessageBox.Show(
-            owner,
-            UpdateAvailableMessage(latest),
-            "发现 Nexus 新版本",
-            latest.CanDownloadInstaller ? MessageBoxButton.YesNoCancel : MessageBoxButton.YesNo,
-            MessageBoxImage.Information);
-
-        if (!latest.CanDownloadInstaller)
+        string? releaseNotes = FormatReleaseNotes(latest.ReleaseNotes);
+        var prompt = new DesktopUpdatePromptWindow(
+            UpdateAvailableMessage(latest, releaseNotes),
+            releaseNotes,
+            latest.CanDownloadInstaller)
         {
-            return result == MessageBoxResult.Yes ? UpdatePromptAction.OpenReleasePage : UpdatePromptAction.Later;
-        }
-
-        return result switch
-        {
-            MessageBoxResult.Yes => UpdatePromptAction.DownloadAndInstall,
-            MessageBoxResult.No => UpdatePromptAction.OpenReleasePage,
-            _ => UpdatePromptAction.Later,
+            Owner = owner,
         };
+        prompt.ShowDialog();
+        return prompt.PromptAction;
     }
 
     private async Task DownloadAndOfferInstallAsync(System.Windows.Window owner, DesktopReleaseInfo latest)
@@ -552,7 +544,7 @@ internal sealed class DesktopUpdateChecker
         });
     }
 
-    private string UpdateAvailableMessage(DesktopReleaseInfo latest)
+    private string UpdateAvailableMessage(DesktopReleaseInfo latest, string? releaseNotes)
     {
         var lines = new List<string>
         {
@@ -567,24 +559,20 @@ internal sealed class DesktopUpdateChecker
         {
             lines.Add("这是一个预发布版本。");
         }
-
-        lines.Add(string.Empty);
-        string? releaseNotes = FormatReleaseNotes(latest.ReleaseNotes);
         if (!string.IsNullOrWhiteSpace(releaseNotes))
         {
-            lines.Add("更新内容：");
-            lines.Add(releaseNotes);
-            lines.Add(string.Empty);
+            lines.Add("更新内容请在下方查看，完整内容可打开 Release 页面。");
         }
 
+        lines.Add(string.Empty);
         if (latest.CanDownloadInstaller)
         {
-            lines.Add("选择“是”将下载安装器和 sha256 文件，校验通过后再询问是否启动安装。");
-            lines.Add("选择“否”将打开 Release 页面；选择“取消”稍后再说。");
+            lines.Add("选择“下载并更新”将下载安装器和 sha256 文件，校验通过后再询问是否启动安装。");
+            lines.Add("选择“打开下载页”将打开 Release 页面；选择“稍后”暂不处理。");
         }
         else
         {
-            lines.Add("当前 Release 缺少 Windows 安装器或 sha256 文件。选择“是”打开下载页手动处理。");
+            lines.Add("当前 Release 缺少 Windows 安装器或 sha256 文件。选择“打开下载页”手动处理。");
         }
         return string.Join(Environment.NewLine, lines);
     }

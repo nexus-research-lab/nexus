@@ -122,9 +122,7 @@ func (s *Service) autoDefaultDiscoveredModel(
 	if model != nil {
 		modelID = strings.TrimSpace(model.ModelID)
 	}
-	if modelID == "" {
-		modelID = firstRemoteModelID(remoteModels)
-	}
+	modelID = firstNonEmpty(modelID, firstRemoteModelID(remoteModels))
 	if modelID == "" {
 		return nil
 	}

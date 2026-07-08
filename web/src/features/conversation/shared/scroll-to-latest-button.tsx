@@ -1,32 +1,43 @@
 import { ArrowDown } from "lucide-react";
 
+import { cn } from "@/lib/utils";
+
 const FLOATING_ACTION_CHIP_CLASS_NAME =
-  "absolute bottom-24 z-20 inline-flex h-10 w-10 items-center justify-center rounded-full border border-(--chip-default-border) bg-(--chip-default-background) text-(--text-default) transition-[transform,color,border-color,background] duration-(--motion-duration-fast) hover:-translate-y-[0.5px] hover:border-(--surface-interactive-active-border) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)";
+  "absolute z-20 grid h-8 w-8 place-items-center rounded-full border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_82%,var(--foreground)_10%)] bg-[color:color-mix(in_srgb,var(--background)_94%,var(--foreground)_6%)] text-(--text-default) shadow-[0_8px_22px_color-mix(in_srgb,var(--foreground)_10%,transparent)] transition-[transform,color,border-color,background] duration-(--motion-duration-fast) hover:-translate-y-[0.5px] hover:border-(--surface-interactive-active-border) hover:bg-[color:color-mix(in_srgb,var(--background)_90%,var(--foreground)_10%)] hover:text-(--text-strong)";
 
 interface ScrollToLatestButtonProps {
-  is_loading: boolean;
-  is_mobile_layout: boolean;
-  on_click: () => void;
+  isLoading: boolean;
+  isMobileLayout: boolean;
+  onClick: () => void;
+  placement?: "composer" | "panel";
 }
 
 export function ScrollToLatestButton({
-  is_loading,
-  is_mobile_layout,
-  on_click,
+  isLoading: isLoading,
+  isMobileLayout: isMobileLayout,
+  onClick: onClick,
+  placement = "composer",
 }: ScrollToLatestButtonProps) {
+  const placementClassName =
+    placement === "panel"
+      ? "bottom-4 left-1/2 -translate-x-1/2"
+      : (isMobileLayout ? "bottom-24 left-1/2 -translate-x-1/2" : "bottom-24 left-1/2 -translate-x-1/2 sm:bottom-30");
+
   return (
     <button
       type="button"
       aria-label="回到底部"
-      onClick={on_click}
-      className={
-        is_mobile_layout
-          ? `${FLOATING_ACTION_CHIP_CLASS_NAME} right-2`
-          : `${FLOATING_ACTION_CHIP_CLASS_NAME} right-3 sm:bottom-30 sm:right-8`
-      }
+      onClick={onClick}
+      className={cn(FLOATING_ACTION_CHIP_CLASS_NAME, placementClassName)}
       title="回到底部"
     >
-      <ArrowDown className={is_loading ? "h-4 w-4 animate-bounce" : "h-4 w-4"} />
+      <ArrowDown
+        aria-hidden="true"
+        className={cn(
+          "block h-4 w-4 shrink-0",
+          isLoading ? "animate-bounce" : null,
+        )}
+      />
     </button>
   );
 }

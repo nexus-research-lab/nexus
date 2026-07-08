@@ -1,7 +1,7 @@
-import { get_agent_api_base_url } from "@/config/options";
-import { request_api } from "@/lib/api/http";
+import { getAgentApiBaseUrl } from "@/config/options";
+import { requestApi } from "@/lib/api/http";
 
-const AGENT_API_BASE_URL = get_agent_api_base_url();
+const AGENT_API_BASE_URL = getAgentApiBaseUrl();
 const CHANNEL_API_BASE_URL = `${AGENT_API_BASE_URL}/capability`;
 
 export type ImChannelType =
@@ -13,7 +13,7 @@ export type ImChannelType =
   | "discord";
 export type ImPairingStatus = "pending" | "active" | "disabled" | "rejected";
 export type ImChatType = "dm" | "group";
-export type ImChannelCapability =
+type ImChannelCapability =
   | "text"
   | "media"
   | "typing"
@@ -31,7 +31,7 @@ export interface ChannelCredentialField {
   placeholder?: string;
 }
 
-export interface ChannelCatalogItem {
+interface ChannelCatalogItem {
   channel_type: ImChannelType;
   title: string;
   bot_label: string;
@@ -46,7 +46,7 @@ export interface ChannelCatalogItem {
   credential_fields: ChannelCredentialField[];
 }
 
-export interface ChannelStats {
+interface ChannelStats {
   paired_user_count: number;
   paired_group_count: number;
   pending_count: number;
@@ -82,7 +82,7 @@ export interface UpsertChannelConfigPayload {
   credentials?: Record<string, string>;
 }
 
-export type ChannelLoginStatus = "running" | "verify_code_required" | "succeeded" | "error" | "expired" | "cancelled";
+type ChannelLoginStatus = "running" | "verify_code_required" | "succeeded" | "error" | "expired" | "cancelled";
 
 export interface ChannelLoginView {
   login_id: string;
@@ -143,29 +143,29 @@ export interface UpdatePairingPayload {
   external_name?: string;
 }
 
-function build_query(params?: Record<string, string | undefined>): string {
-  const search_params = new URLSearchParams();
+function buildQuery(params?: Record<string, string | undefined>): string {
+  const searchParams = new URLSearchParams();
   Object.entries(params ?? {}).forEach(([key, value]) => {
     if (value && value.trim()) {
-      search_params.set(key, value);
+      searchParams.set(key, value);
     }
   });
-  const query = search_params.toString();
+  const query = searchParams.toString();
   return query ? `?${query}` : "";
 }
 
-export async function list_channels_api(): Promise<ChannelConfigView[]> {
-  return request_api<ChannelConfigView[]>(`${CHANNEL_API_BASE_URL}/channels`, {
+export async function listChannelsApi(): Promise<ChannelConfigView[]> {
+  return requestApi<ChannelConfigView[]>(`${CHANNEL_API_BASE_URL}/channels`, {
     method: "GET",
   });
 }
 
-export async function upsert_channel_config_api(
-  channel_type: ImChannelType,
+export async function upsertChannelConfigApi(
+  channelType: ImChannelType,
   payload: UpsertChannelConfigPayload,
 ): Promise<ChannelConfigView> {
-  return request_api<ChannelConfigView>(
-    `${CHANNEL_API_BASE_URL}/channels/${encodeURIComponent(channel_type)}/config`,
+  return requestApi<ChannelConfigView>(
+    `${CHANNEL_API_BASE_URL}/channels/${encodeURIComponent(channelType)}/config`,
     {
       method: "PUT",
       body: JSON.stringify({
@@ -177,71 +177,71 @@ export async function upsert_channel_config_api(
   );
 }
 
-export async function delete_channel_config_api(
-  channel_type: ImChannelType,
+export async function deleteChannelConfigApi(
+  channelType: ImChannelType,
 ): Promise<{ configured: boolean }> {
-  return request_api<{ configured: boolean }>(
-    `${CHANNEL_API_BASE_URL}/channels/${encodeURIComponent(channel_type)}/config`,
+  return requestApi<{ configured: boolean }>(
+    `${CHANNEL_API_BASE_URL}/channels/${encodeURIComponent(channelType)}/config`,
     {
       method: "DELETE",
     },
   );
 }
 
-export async function delete_channel_account_api(
-  channel_type: ImChannelType,
-  account_id: string,
+export async function deleteChannelAccountApi(
+  channelType: ImChannelType,
+  accountId: string,
 ): Promise<ChannelConfigView> {
-  return request_api<ChannelConfigView>(
-    `${CHANNEL_API_BASE_URL}/channels/${encodeURIComponent(channel_type)}/accounts/${encodeURIComponent(account_id)}`,
+  return requestApi<ChannelConfigView>(
+    `${CHANNEL_API_BASE_URL}/channels/${encodeURIComponent(channelType)}/accounts/${encodeURIComponent(accountId)}`,
     {
       method: "DELETE",
     },
   );
 }
 
-export async function start_channel_login_api(
-  channel_type: ImChannelType,
+export async function startChannelLoginApi(
+  channelType: ImChannelType,
 ): Promise<ChannelLoginView> {
-  return request_api<ChannelLoginView>(
-    `${CHANNEL_API_BASE_URL}/channels/${encodeURIComponent(channel_type)}/login`,
+  return requestApi<ChannelLoginView>(
+    `${CHANNEL_API_BASE_URL}/channels/${encodeURIComponent(channelType)}/login`,
     {
       method: "POST",
     },
   );
 }
 
-export async function get_channel_login_api(
-  channel_type: ImChannelType,
-  login_id: string,
+export async function getChannelLoginApi(
+  channelType: ImChannelType,
+  loginId: string,
 ): Promise<ChannelLoginView> {
-  return request_api<ChannelLoginView>(
-    `${CHANNEL_API_BASE_URL}/channels/${encodeURIComponent(channel_type)}/login/${encodeURIComponent(login_id)}`,
+  return requestApi<ChannelLoginView>(
+    `${CHANNEL_API_BASE_URL}/channels/${encodeURIComponent(channelType)}/login/${encodeURIComponent(loginId)}`,
     {
       method: "GET",
     },
   );
 }
 
-export async function submit_channel_login_verify_code_api(
-  channel_type: ImChannelType,
-  login_id: string,
-  verify_code: string,
+export async function submitChannelLoginVerifyCodeApi(
+  channelType: ImChannelType,
+  loginId: string,
+  verifyCode: string,
 ): Promise<ChannelLoginView> {
-  return request_api<ChannelLoginView>(
-    `${CHANNEL_API_BASE_URL}/channels/${encodeURIComponent(channel_type)}/login/${encodeURIComponent(login_id)}/verify-code`,
+  return requestApi<ChannelLoginView>(
+    `${CHANNEL_API_BASE_URL}/channels/${encodeURIComponent(channelType)}/login/${encodeURIComponent(loginId)}/verify-code`,
     {
       method: "POST",
-      body: JSON.stringify({ verify_code }),
+      body: JSON.stringify({ verify_code: verifyCode }),
     },
   );
 }
 
-export async function list_pairings_api(
+export async function listPairingsApi(
   params: ListPairingsParams = {},
 ): Promise<PairingView[]> {
-  return request_api<PairingView[]>(
-    `${CHANNEL_API_BASE_URL}/pairings${build_query({
+  return requestApi<PairingView[]>(
+    `${CHANNEL_API_BASE_URL}/pairings${buildQuery({
       channel_type: params.channel_type || undefined,
       status: params.status || undefined,
       agent_id: params.agent_id,
@@ -252,21 +252,21 @@ export async function list_pairings_api(
   );
 }
 
-export async function create_pairing_api(
+export async function createPairingApi(
   payload: CreatePairingPayload,
 ): Promise<PairingView> {
-  return request_api<PairingView>(`${CHANNEL_API_BASE_URL}/pairings`, {
+  return requestApi<PairingView>(`${CHANNEL_API_BASE_URL}/pairings`, {
     method: "POST",
     body: JSON.stringify(payload),
   });
 }
 
-export async function update_pairing_api(
-  pairing_id: string,
+export async function updatePairingApi(
+  pairingId: string,
   payload: UpdatePairingPayload,
 ): Promise<PairingView> {
-  return request_api<PairingView>(
-    `${CHANNEL_API_BASE_URL}/pairings/${encodeURIComponent(pairing_id)}`,
+  return requestApi<PairingView>(
+    `${CHANNEL_API_BASE_URL}/pairings/${encodeURIComponent(pairingId)}`,
     {
       method: "PATCH",
       body: JSON.stringify(payload),
@@ -274,11 +274,11 @@ export async function update_pairing_api(
   );
 }
 
-export async function delete_pairing_api(
-  pairing_id: string,
+export async function deletePairingApi(
+  pairingId: string,
 ): Promise<{ success: boolean }> {
-  return request_api<{ success: boolean }>(
-    `${CHANNEL_API_BASE_URL}/pairings/${encodeURIComponent(pairing_id)}`,
+  return requestApi<{ success: boolean }>(
+    `${CHANNEL_API_BASE_URL}/pairings/${encodeURIComponent(pairingId)}`,
     {
       method: "DELETE",
     },

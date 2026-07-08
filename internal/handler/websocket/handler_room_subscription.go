@@ -105,10 +105,11 @@ func (h *Handler) restoreRoomPendingSlots(
 		return false
 	}
 
-	event := protocol.NewChatAckEvent(snapshot.SessionKey, snapshot.RoundID, snapshot.RoundID, snapshot.Pending)
+	// 重放给新订阅者，没有对应的前端请求，client 关联字段留空。
+	event := protocol.NewChatAckEvent(snapshot.SessionKey, "", "", snapshot.RoundID, "", snapshot.Pending)
 	event.RoomID = roomID
 	event.ConversationID = conversationID
-	event.CausedBy = snapshot.RoundID
+	event.RoundID = snapshot.RoundID
 	_ = sender.SendEvent(ctx, event)
 	return true
 }

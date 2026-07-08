@@ -192,6 +192,33 @@ func TestRealtimeServicePostRoundWorkPlansRoomGoalContinuation(t *testing.T) {
 	}
 }
 
+func TestRealtimeServiceReleasesSubagentWaitAndPlansRoomGoalContinuation(t *testing.T) {
+	goalProvider := &fakeRoomGoalContextProvider{}
+	service := &RealtimeService{
+		goals: goalProvider,
+	}
+	roundValue := &activeRoomRound{
+		SessionKey:     "room:group:conversation-1",
+		ConversationID: "conversation-1",
+		RoundID:        "round-1",
+		Slots: map[string]*activeRoomSlot{
+			"agent-1": {AgentID: "agent-1"},
+		},
+	}
+	roundValue.RunningSubagents.Store(true)
+
+	service.releaseRoundSubagentWait(roundValue)
+
+	goalProvider.mu.Lock()
+	defer goalProvider.mu.Unlock()
+	if roundValue.RunningSubagents.Load() {
+		t.Fatal("RunningSubagents = true, want released after all subagent tasks finish")
+	}
+	if goalProvider.planCalls != 1 {
+		t.Fatalf("planCalls = %d, want post-subagent room goal continuation planning", goalProvider.planCalls)
+	}
+}
+
 func TestRealtimeServicePostRoundWorkReleasesRoomGoalPlanWhenDispatchDefers(t *testing.T) {
 	runtimeManager := runtimectx.NewManager()
 	goalProvider := &fakeRoomGoalContextProvider{

@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 import { UiBadge } from "@/shared/ui/badge";
-import { memory_status_tone } from "@/features/memory/memory-utils";
+import { memoryStatusTone } from "@/features/memory/memory-utils";
 
 export function MemoryStatusBadge({
   status,
@@ -10,7 +10,7 @@ export function MemoryStatusBadge({
   status: string;
 }) {
   return (
-    <UiBadge size="xs" tone={memory_status_tone(status)}>
+    <UiBadge size="xs" tone={memoryStatusTone(status)}>
       {status || "未标记"}
     </UiBadge>
   );
@@ -36,10 +36,10 @@ export function MemoryMetaRow({
 
 export function MemoryMetaChip({
   children,
-  class_name,
+  className,
 }: {
   children?: ReactNode;
-  class_name?: string;
+  className?: string;
 }) {
   if (!children) {
     return null;
@@ -48,7 +48,7 @@ export function MemoryMetaChip({
     <span
       className={cn(
         "inline-flex min-w-0 max-w-full items-center gap-1 rounded-[9px] border border-(--divider-subtle-color) px-2 py-1 text-[11px] font-medium leading-none text-(--text-soft)",
-        class_name,
+        className,
       )}
     >
       {children}

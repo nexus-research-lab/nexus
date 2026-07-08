@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
@@ -108,7 +109,6 @@ func TestRealtimeServiceForwardsProviderModelOption(t *testing.T) {
 		ConversationID: dmContext.Conversation.ID,
 		Content:        "测试 room model 透传",
 		RoundID:        "room-round-no-model",
-		ReqID:          "room-round-no-model",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}
@@ -127,7 +127,7 @@ func TestRealtimeServiceForwardsProviderModelOption(t *testing.T) {
 	if options.Env["ANTHROPIC_DEFAULT_SONNET_MODEL"] != "glm-5.1" {
 		t.Fatalf("room runtime 未注入默认 sonnet model: %+v", options.Env)
 	}
-	if options.Env["CLAUDE_CODE_SUBAGENT_MODEL"] != "glm-5.1" {
+	if options.Env["NEXUS_SUBAGENT_MODEL"] != "glm-5.1" {
 		t.Fatalf("room runtime 未注入 subagent model: %+v", options.Env)
 	}
 	titleRequest := titleScheduler.LastRequest()
@@ -208,7 +208,6 @@ func TestRealtimeServiceBypassPermissionsKeepsQuestionChannel(t *testing.T) {
 		ConversationID: dmContext.Conversation.ID,
 		Content:        "测试 room bypass 权限处理器",
 		RoundID:        "room-round-bypass",
-		ReqID:          "room-round-bypass",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}
@@ -258,6 +257,51 @@ func TestRealtimeServiceGoalContinuationDefersInPlanMode(t *testing.T) {
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(dmContext.Conversation.ID)
 	if !service.ShouldDeferGoalContinuation(ctx, sharedSessionKey) {
 		t.Fatal("Room Goal continuation should defer while the target agent is in plan mode")
+	}
+}
+
+func TestRealtimeServiceRoomGoalTargetMissingUsesRoomOwnerForBackgroundContext(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	ownerCtx := authctx.WithPrincipal(context.Background(), &authctx.Principal{
+		UserID:     "owner-1",
+		Role:       authctx.RoleOwner,
+		AuthMethod: authctx.AuthMethodLocal,
+	})
+	amy := createTestAgent(t, agentService, ownerCtx, "Amy")
+	roomContext, err := roomService.CreateRoom(ownerCtx, protocol.CreateRoomRequest{
+		AgentIDs: []string{amy.AgentID},
+		Name:     "后台 Goal 房间",
+		Title:    "主对话",
+	})
+	if err != nil {
+		t.Fatalf("创建 room 失败: %v", err)
+	}
+
+	service := NewRealtimeServiceWithFactory(
+		cfg,
+		roomService,
+		agentService,
+		runtimectx.NewManager(),
+		permissionctx.NewContext(),
+		&fakeRoomFactory{},
+	)
+	missing, err := service.GoalContinuationTargetMissing(
+		context.Background(),
+		protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID),
+	)
+	if err != nil {
+		t.Fatalf("GoalContinuationTargetMissing error = %v", err)
+	}
+	if missing {
+		t.Fatal("后台 Room Goal 续跑不应因为缺少请求 owner 被误判为目标丢失")
 	}
 }
 
@@ -374,7 +418,6 @@ func TestRealtimeServiceChatRequestCanOverridePermissionHandler(t *testing.T) {
 		ConversationID:    dmContext.Conversation.ID,
 		Content:           "测试 room 请求级权限处理器",
 		RoundID:           "room-round-permission-handler",
-		ReqID:             "room-round-permission-handler",
 		PermissionHandler: requestHandler,
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)

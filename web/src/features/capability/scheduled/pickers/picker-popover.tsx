@@ -3,53 +3,53 @@
 import { type ReactNode, type RefObject, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 
-import { close_on_escape } from "@/shared/ui/dialog/dialog-keyboard";
+import { closeOnEscape } from "@/shared/ui/dialog/dialog-keyboard";
 
 import { PICKER_POPOVER_CLASS_NAME } from "./picker-styles";
 
 interface PickerPopoverProps {
-  anchor_ref: RefObject<HTMLElement | null>;
+  anchorRef: RefObject<HTMLElement | null>;
   children: ReactNode;
-  is_open: boolean;
-  on_close: () => void;
+  isOpen: boolean;
+  onClose: () => void;
 }
 
-export function PickerPopover({ anchor_ref, children, is_open, on_close }: PickerPopoverProps) {
-  const popover_ref = useRef<HTMLDivElement>(null);
+export function PickerPopover({ anchorRef: anchorRef, children, isOpen: isOpen, onClose: onClose }: PickerPopoverProps) {
+  const popoverRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!is_open) {
+    if (!isOpen) {
       return;
     }
 
-    const handle_pointer_down = (event: MouseEvent) => {
-      const anchor = anchor_ref.current;
-      const popover = popover_ref.current;
+    const handlePointerDown = (event: MouseEvent) => {
+      const anchor = anchorRef.current;
+      const popover = popoverRef.current;
       if (anchor?.contains(event.target as Node) || popover?.contains(event.target as Node)) {
         return;
       }
-      on_close();
+      onClose();
     };
 
-    const on_key_down = (event: KeyboardEvent) => close_on_escape(event, on_close);
+    const onKeyDown = (event: KeyboardEvent) => closeOnEscape(event, onClose);
 
-    document.addEventListener("mousedown", handle_pointer_down, true);
-    document.addEventListener("keydown", on_key_down, true);
+    document.addEventListener("mousedown", handlePointerDown, true);
+    document.addEventListener("keydown", onKeyDown, true);
     return () => {
-      document.removeEventListener("mousedown", handle_pointer_down, true);
-      document.removeEventListener("keydown", on_key_down, true);
+      document.removeEventListener("mousedown", handlePointerDown, true);
+      document.removeEventListener("keydown", onKeyDown, true);
     };
-  }, [anchor_ref, is_open, on_close]);
+  }, [anchorRef, isOpen, onClose]);
 
-  if (!is_open || !anchor_ref.current) {
+  if (!isOpen || !anchorRef.current) {
     return null;
   }
 
-  const rect = anchor_ref.current.getBoundingClientRect();
-  const modal_root = document.querySelector("[data-modal-root='true']");
+  const rect = anchorRef.current.getBoundingClientRect();
+  const modalRoot = document.querySelector("[data-modal-root='true']");
   return createPortal(
     <div
-      ref={popover_ref}
+      ref={popoverRef}
       className={PICKER_POPOVER_CLASS_NAME}
       style={{
         top: rect.bottom + 10,
@@ -62,6 +62,6 @@ export function PickerPopover({ anchor_ref, children, is_open, on_close }: Picke
     >
       {children}
     </div>,
-    modal_root ?? document.body,
+    modalRoot ?? document.body,
   );
 }

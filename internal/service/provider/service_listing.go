@@ -30,6 +30,26 @@ func (s *Service) List(ctx context.Context) ([]Record, error) {
 	return result, nil
 }
 
+// ListPublic 返回订阅运营页管理的公共 Provider 配置列表。
+func (s *Service) ListPublic(ctx context.Context) ([]Record, error) {
+	if err := requirePublicProviderManagement(ctx); err != nil {
+		return nil, err
+	}
+	items, err := s.listPublicAndNormalize(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]Record, 0, len(items))
+	for _, item := range items {
+		record, recordErr := s.recordForScopedItem(ctx, item)
+		if recordErr != nil {
+			return nil, recordErr
+		}
+		result = append(result, *record)
+	}
+	return result, nil
+}
+
 // ListOptions 返回启用状态的 Provider 下拉选项。
 func (s *Service) ListOptions(ctx context.Context) (*OptionsResponse, error) {
 	return s.ListOptionsForRuntime(ctx, "claude")
@@ -58,6 +78,7 @@ func (s *Service) ListOptionsForRuntime(ctx context.Context, runtimeKind string)
 		option := Option{
 			Provider:    item.Provider,
 			DisplayName: item.DisplayName,
+			Visibility:  item.Visibility,
 			Models:      models,
 		}
 		switch {
@@ -74,6 +95,7 @@ func (s *Service) ListOptionsForRuntime(ctx context.Context, runtimeKind string)
 				result.ImageItems = append(result.ImageItems, Option{
 					Provider:    item.Provider,
 					DisplayName: item.DisplayName,
+					Visibility:  item.Visibility,
 					Models:      imageModels,
 				})
 			}
@@ -85,6 +107,7 @@ func (s *Service) ListOptionsForRuntime(ctx context.Context, runtimeKind string)
 			result.ImageItems = append(result.ImageItems, Option{
 				Provider:    item.Provider,
 				DisplayName: item.DisplayName,
+				Visibility:  item.Visibility,
 				Models:      imageModels,
 			})
 		}

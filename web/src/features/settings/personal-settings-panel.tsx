@@ -25,10 +25,10 @@ import {
 } from "lucide-react";
 
 import {
-  change_password_api,
-  get_personal_profile_api,
+  changePasswordApi,
+  getPersonalProfileApi,
   type PersonalProfile,
-  update_personal_profile_api,
+  updatePersonalProfileApi,
 } from "@/lib/api/auth-api";
 import {
   AGENT_ICON_ID_END,
@@ -38,7 +38,7 @@ import {
 import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiAgentAvatar } from "@/shared/ui/avatar";
-import { get_ui_button_class_name } from "@/shared/ui/button-styles";
+import { getUiButtonClassName } from "@/shared/ui/button-styles";
 import { FeedbackBannerStack } from "@/shared/ui/feedback/feedback-banner-stack";
 import { IconPicker } from "@/shared/ui/icon-picker/icon-picker";
 import { WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
@@ -47,9 +47,9 @@ import { PersonalSettingsTokenUsageSection } from "./personal-settings-token-usa
 type FeedbackTone = "success" | "error";
 
 interface PasswordDraft {
-  current_password: string;
-  new_password: string;
-  confirm_password: string;
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
 }
 
 interface FeedbackState {
@@ -59,21 +59,21 @@ interface FeedbackState {
 }
 
 const EMPTY_PASSWORD_DRAFT: PasswordDraft = {
-  current_password: "",
-  new_password: "",
-  confirm_password: "",
+  currentPassword: "",
+  newPassword: "",
+  confirmPassword: "",
 };
 
-const PERSONAL_PRIMARY_BUTTON_CLASS_NAME = get_ui_button_class_name(
+const PERSONAL_PRIMARY_BUTTON_CLASS_NAME = getUiButtonClassName(
   { size: "md", tone: "primary", variant: "solid" },
   "gap-2 tracking-tight",
 );
-const PERSONAL_SECONDARY_BUTTON_CLASS_NAME = get_ui_button_class_name(
+const PERSONAL_SECONDARY_BUTTON_CLASS_NAME = getUiButtonClassName(
   { size: "md", variant: "surface" },
   "gap-2 tracking-tight",
 );
 
-function auth_method_label(value: string, t: ReturnType<typeof useI18n>["t"]): string {
+function authMethodLabel(value: string, t: ReturnType<typeof useI18n>["t"]): string {
   switch (value) {
     case "password":
       return t("settings.personal.auth_method_password");
@@ -84,7 +84,7 @@ function auth_method_label(value: string, t: ReturnType<typeof useI18n>["t"]): s
   }
 }
 
-function user_role_label(value: string, t: ReturnType<typeof useI18n>["t"]): string {
+function userRoleLabel(value: string, t: ReturnType<typeof useI18n>["t"]): string {
   switch (value) {
     case "owner":
       return t("settings.personal.role_owner");
@@ -99,125 +99,126 @@ function user_role_label(value: string, t: ReturnType<typeof useI18n>["t"]): str
 
 export function PersonalSettingsPanel() {
   const { t } = useI18n();
-  const { refresh_status } = useAuth();
-  const [profile, set_profile] = useState<PersonalProfile | null>(null);
-  const [loading, set_loading] = useState(true);
-  const [password_draft, set_password_draft] = useState<PasswordDraft>(EMPTY_PASSWORD_DRAFT);
-  const [submitting, set_submitting] = useState(false);
-  const [saving_avatar, set_saving_avatar] = useState(false);
-  const [feedback, set_feedback] = useState<FeedbackState | null>(null);
+  const { refreshStatus: refreshStatus } = useAuth();
+  const [profile, setProfile] = useState<PersonalProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [passwordDraft, setPasswordDraft] = useState<PasswordDraft>(EMPTY_PASSWORD_DRAFT);
+  const [submitting, setSubmitting] = useState(false);
+  const [savingAvatar, setSavingAvatar] = useState(false);
+  const [feedback, setFeedback] = useState<FeedbackState | null>(null);
 
-  const load_profile = useCallback(async () => {
+  const loadProfile = useCallback(async () => {
     try {
-      set_loading(true);
-      const result = await get_personal_profile_api();
-      set_profile(result);
-      set_feedback((current) => (current?.tone === "error" ? null : current));
+      setLoading(true);
+      const result = await getPersonalProfileApi();
+      setProfile(result);
+      setFeedback((current) => (current?.tone === "error" ? null : current));
     } catch (error) {
-      set_feedback({
+      setFeedback({
         tone: "error",
         title: t("settings.personal.load_failed_title"),
         message: error instanceof Error ? error.message : t("settings.personal.load_failed_message"),
       });
     } finally {
-      set_loading(false);
+      setLoading(false);
     }
   }, [t]);
 
   useEffect(() => {
-    void load_profile();
-  }, [load_profile]);
+    void loadProfile();
+  }, [loadProfile]);
 
-  const validation_error = useMemo(() => {
+  const validationError = useMemo(() => {
     if (!profile?.can_change_password) {
       return t("settings.personal.password_disabled");
     }
-    if (!password_draft.current_password.trim()) {
+    if (!passwordDraft.currentPassword.trim()) {
       return t("settings.personal.validation_current_required");
     }
-    if (!password_draft.new_password.trim()) {
+    if (!passwordDraft.newPassword.trim()) {
       return t("settings.personal.validation_new_required");
     }
-    if (password_draft.new_password.length < 8) {
+    if (passwordDraft.newPassword.length < 8) {
       return t("settings.personal.validation_new_length");
     }
-    if (password_draft.new_password !== password_draft.confirm_password) {
+    if (passwordDraft.newPassword !== passwordDraft.confirmPassword) {
       return t("settings.personal.validation_confirm_mismatch");
     }
     return null;
-  }, [password_draft, profile?.can_change_password, t]);
+  }, [passwordDraft, profile?.can_change_password, t]);
 
-  const has_password_input = Boolean(
-    password_draft.current_password ||
-    password_draft.new_password ||
-    password_draft.confirm_password,
+  const hasPasswordInput = Boolean(
+    passwordDraft.currentPassword ||
+    passwordDraft.newPassword ||
+    passwordDraft.confirmPassword,
   );
-  const can_submit_password = !validation_error && !submitting && !loading;
+  const canSubmitPassword = !validationError && !submitting && !loading;
   const usage = profile?.token_usage;
   const avatar = profile?.user.avatar ?? "";
-  const can_update_avatar = Boolean(profile?.can_update_profile) && !saving_avatar;
+  const subscription = profile?.subscription;
+  const canUpdateAvatar = Boolean(profile?.can_update_profile) && !savingAvatar;
 
-  const handle_change_password = useCallback(async (event: FormEvent<HTMLFormElement>) => {
+  const handleChangePassword = useCallback(async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (validation_error || submitting) {
-      if (validation_error) {
-        set_feedback({
+    if (validationError || submitting) {
+      if (validationError) {
+        setFeedback({
           tone: "error",
           title: t("settings.personal.save_failed_title"),
-          message: validation_error,
+          message: validationError,
         });
       }
       return;
     }
 
     try {
-      set_submitting(true);
-      await change_password_api({
-        current_password: password_draft.current_password,
-        new_password: password_draft.new_password,
+      setSubmitting(true);
+      await changePasswordApi({
+        current_password: passwordDraft.currentPassword,
+        new_password: passwordDraft.newPassword,
       });
-      await refresh_status();
-      set_password_draft(EMPTY_PASSWORD_DRAFT);
-      set_feedback({
+      await refreshStatus();
+      setPasswordDraft(EMPTY_PASSWORD_DRAFT);
+      setFeedback({
         tone: "success",
         title: t("settings.personal.save_success_title"),
         message: t("settings.personal.save_success_message"),
       });
     } catch (error) {
-      set_feedback({
+      setFeedback({
         tone: "error",
         title: t("settings.personal.save_failed_title"),
         message: error instanceof Error ? error.message : t("settings.personal.save_failed_message"),
       });
     } finally {
-      set_submitting(false);
+      setSubmitting(false);
     }
-  }, [password_draft, refresh_status, submitting, t, validation_error]);
+  }, [passwordDraft, refreshStatus, submitting, t, validationError]);
 
-  const handle_avatar_change = useCallback(async (next_avatar: string) => {
-    if (!profile?.can_update_profile || saving_avatar || next_avatar === (profile.user.avatar ?? "")) {
+  const handleAvatarChange = useCallback(async (nextAvatar: string) => {
+    if (!profile?.can_update_profile || savingAvatar || nextAvatar === (profile.user.avatar ?? "")) {
       return;
     }
     try {
-      set_saving_avatar(true);
-      const result = await update_personal_profile_api({ avatar: next_avatar });
-      set_profile(result);
-      await refresh_status();
-      set_feedback({
+      setSavingAvatar(true);
+      const result = await updatePersonalProfileApi({ avatar: nextAvatar });
+      setProfile(result);
+      await refreshStatus();
+      setFeedback({
         tone: "success",
         title: t("settings.personal.profile_save_success_title"),
         message: t("settings.personal.avatar_save_success_message"),
       });
     } catch (error) {
-      set_feedback({
+      setFeedback({
         tone: "error",
         title: t("settings.personal.profile_save_failed_title"),
         message: error instanceof Error ? error.message : t("settings.personal.avatar_save_failed_message"),
       });
     } finally {
-      set_saving_avatar(false);
+      setSavingAvatar(false);
     }
-  }, [profile, refresh_status, saving_avatar, t]);
+  }, [profile, refreshStatus, savingAvatar, t]);
 
   return (
     <>
@@ -240,7 +241,7 @@ export function PersonalSettingsPanel() {
                   <div className="flex min-w-0 items-center gap-3">
                     <UiAgentAvatar
                       avatar={avatar}
-                      class_name="h-12 w-12 rounded-[16px]"
+                      className="h-12 w-12 rounded-[16px]"
                       name={profile?.user.display_name || profile?.user.username || t("settings.personal.avatar_alt")}
                       shape="rounded"
                     />
@@ -248,17 +249,27 @@ export function PersonalSettingsPanel() {
                       <h3 className="truncate text-[15px] font-semibold tracking-tight text-(--text-strong)">
                         {profile?.user.display_name || profile?.user.username || "--"}
                       </h3>
-                      <p className="mt-1 truncate text-[12px] leading-5 text-(--text-soft)">
-                        {profile?.user.username || "--"}
+                      <p className="mt-1 flex min-w-0 items-center gap-1.5 text-[12px] leading-5 text-(--text-soft)">
+                        <span className="min-w-0 truncate">
+                          {profile?.user.username || "--"}
+                        </span>
+                        {subscription ? (
+                          <>
+                            <span className="shrink-0 text-(--text-muted)">·</span>
+                            <span className="shrink-0 rounded-full border border-(--divider-subtle-color) px-2 py-0.5 text-[11px] font-semibold text-(--text-muted)">
+                              {subscription.plan_name}
+                            </span>
+                          </>
+                        ) : null}
                       </p>
                     </div>
                   </div>
                   <div className="grid gap-2 text-[11px] text-(--text-soft) sm:grid-cols-2">
                     <span className="rounded-[10px] border border-(--divider-subtle-color) bg-transparent px-3 py-2">
-                      {t("settings.personal.role")}: {user_role_label(profile?.user.role ?? "", t)}
+                      {t("settings.personal.role")}: {userRoleLabel(profile?.user.role ?? "", t)}
                     </span>
                     <span className="rounded-[10px] border border-(--divider-subtle-color) bg-transparent px-3 py-2">
-                      {t("settings.personal.auth_method")}: {auth_method_label(profile?.user.auth_method ?? "", t)}
+                      {t("settings.personal.auth_method")}: {authMethodLabel(profile?.user.auth_method ?? "", t)}
                     </span>
                   </div>
                 </div>
@@ -268,7 +279,7 @@ export function PersonalSettingsPanel() {
                       <Image className="h-3.5 w-3.5" />
                       <span>{t("settings.personal.avatar_title")}</span>
                     </div>
-                    {saving_avatar ? (
+                    {savingAvatar ? (
                       <span className="inline-flex items-center gap-1 text-[11px] text-(--text-soft)">
                         <Loader2 className="h-3 w-3 animate-spin" />
                         {t("common.saving")}
@@ -276,15 +287,15 @@ export function PersonalSettingsPanel() {
                     ) : null}
                   </div>
                   <IconPicker
-                    class_name="min-w-0"
+                    className="min-w-0"
                     columns={8}
-                    disabled={!can_update_avatar}
-                    icon_size="sm"
+                    disabled={!canUpdateAvatar}
+                    iconSize="sm"
                     layout="row"
-                    max_icons={AGENT_ICON_ID_END - AGENT_ICON_ID_START + 1}
-                    on_select={handle_avatar_change}
-                    show_clear
-                    start_icon_id={AGENT_ICON_ID_START}
+                    maxIcons={AGENT_ICON_ID_END - AGENT_ICON_ID_START + 1}
+                    onSelect={handleAvatarChange}
+                    showClear
+                    startIconId={AGENT_ICON_ID_START}
                     value={avatar}
                   />
                   {!profile?.can_update_profile ? (
@@ -299,7 +310,7 @@ export function PersonalSettingsPanel() {
             <PersonalSettingsTokenUsageSection usage={usage} />
 
             <section className="overflow-hidden rounded-[12px] border border-(--divider-subtle-color) bg-transparent">
-              <form className="grid gap-3 px-3 py-3" onSubmit={handle_change_password}>
+              <form className="grid gap-3 px-3 py-3" onSubmit={handleChangePassword}>
                 <div className="flex items-center gap-3">
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[16px] bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-primary">
                     <LockKeyhole className="h-3.5 w-3.5" />
@@ -325,12 +336,12 @@ export function PersonalSettingsPanel() {
                       autoComplete="current-password"
                       className="dialog-input h-9 w-full rounded-xl px-3 text-sm text-(--text-strong) outline-none disabled:opacity-(--disabled-opacity)"
                       disabled={!profile?.can_change_password || submitting}
-                      onChange={(event) => set_password_draft((current) => ({
+                      onChange={(event) => setPasswordDraft((current) => ({
                         ...current,
-                        current_password: event.target.value,
+                        currentPassword: event.target.value,
                       }))}
                       type="password"
-                      value={password_draft.current_password}
+                      value={passwordDraft.currentPassword}
                     />
                   </label>
                   <label className="space-y-1.5">
@@ -341,12 +352,12 @@ export function PersonalSettingsPanel() {
                       autoComplete="new-password"
                       className="dialog-input h-9 w-full rounded-xl px-3 text-sm text-(--text-strong) outline-none disabled:opacity-(--disabled-opacity)"
                       disabled={!profile?.can_change_password || submitting}
-                      onChange={(event) => set_password_draft((current) => ({
+                      onChange={(event) => setPasswordDraft((current) => ({
                         ...current,
-                        new_password: event.target.value,
+                        newPassword: event.target.value,
                       }))}
                       type="password"
-                      value={password_draft.new_password}
+                      value={passwordDraft.newPassword}
                     />
                   </label>
                   <label className="space-y-1.5">
@@ -357,28 +368,28 @@ export function PersonalSettingsPanel() {
                       autoComplete="new-password"
                       className="dialog-input h-9 w-full rounded-xl px-3 text-sm text-(--text-strong) outline-none disabled:opacity-(--disabled-opacity)"
                       disabled={!profile?.can_change_password || submitting}
-                      onChange={(event) => set_password_draft((current) => ({
+                      onChange={(event) => setPasswordDraft((current) => ({
                         ...current,
-                        confirm_password: event.target.value,
+                        confirmPassword: event.target.value,
                       }))}
                       type="password"
-                      value={password_draft.confirm_password}
+                      value={passwordDraft.confirmPassword}
                     />
                   </label>
                 </div>
 
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <p className="min-w-0 text-[11px] text-(--text-soft)">
-                    {validation_error && profile?.can_change_password && has_password_input
-                      ? validation_error
+                    {validationError && profile?.can_change_password && hasPasswordInput
+                      ? validationError
                       : t("settings.personal.password_rule")}
                   </p>
                   <button
                     className={cn(
-                      can_submit_password ? PERSONAL_PRIMARY_BUTTON_CLASS_NAME : PERSONAL_SECONDARY_BUTTON_CLASS_NAME,
+                      canSubmitPassword ? PERSONAL_PRIMARY_BUTTON_CLASS_NAME : PERSONAL_SECONDARY_BUTTON_CLASS_NAME,
                       "min-w-28",
                     )}
-                    disabled={!can_submit_password}
+                    disabled={!canSubmitPassword}
                     type="submit"
                   >
                     {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
@@ -396,7 +407,7 @@ export function PersonalSettingsPanel() {
           {
             key: "personal-settings-feedback",
             message: feedback.message,
-            on_dismiss: () => set_feedback(null),
+            onDismiss: () => setFeedback(null),
             title: feedback.title,
             tone: feedback.tone,
           },

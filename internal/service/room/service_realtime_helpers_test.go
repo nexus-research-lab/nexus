@@ -81,6 +81,10 @@ func (c *fakeRoomClient) Interrupt(ctx context.Context) error {
 	return nil
 }
 
+func (c *fakeRoomClient) StopTask(context.Context, string) error { return nil }
+
+func (c *fakeRoomClient) SendTaskMessage(context.Context, string, string, string) error { return nil }
+
 func (c *fakeRoomClient) Disconnect(context.Context) error {
 	c.mu.Lock()
 	c.disconnects++
@@ -415,12 +419,12 @@ func hasChatAckPendingAgent(events []protocol.EventMessage, agentID string) bool
 		if event.EventType != protocol.EventTypeChatAck {
 			continue
 		}
-		pending, ok := event.Data["pending"].([]map[string]any)
+		pending, ok := event.Data["pending"].([]protocol.ChatAckPendingSlot)
 		if !ok {
 			continue
 		}
 		for _, item := range pending {
-			if item["agent_id"] == agentID {
+			if item.AgentID == agentID {
 				return true
 			}
 		}

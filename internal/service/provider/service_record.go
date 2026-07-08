@@ -7,6 +7,32 @@ import (
 	providerstore "github.com/nexus-research-lab/nexus/internal/storage/provider"
 )
 
+func (s *Service) recordForScopedItem(ctx context.Context, item providerstore.Entity) (*Record, error) {
+	normalizeBuiltinEndpoint(&item)
+	usageCount := 0
+	usageAgents := []providerstore.UsageAgentEntity(nil)
+	var err error
+	if item.ProviderKind == ProviderKindLLM {
+		if item.Visibility == providerstore.VisibilityPublic {
+			usageCount, err = s.repository.UsageCountForPublic(ctx, item.Provider)
+		} else {
+			usageCount, err = s.repository.UsageCountForOwner(ctx, item.OwnerUserID, item.Provider)
+			if err == nil {
+				usageAgents, err = s.repository.ListUsageAgentsByOwnerProvider(ctx, item.OwnerUserID, item.Provider)
+			}
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	models, err := s.modelsForRecord(ctx, item.ID)
+	if err != nil {
+		return nil, err
+	}
+	record := toRecord(ctx, item, usageCount, usageAgents, models)
+	return &record, nil
+}
+
 func toRecord(
 	ctx context.Context,
 	item providerstore.Entity,

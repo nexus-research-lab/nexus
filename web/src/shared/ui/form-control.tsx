@@ -11,54 +11,54 @@ import { Search } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import {
-  get_ui_form_control_class_name,
-  get_ui_search_input_shell_class_name,
+  getUiFormControlClassName,
+  getUiSearchInputShellClassName,
   type UiFormControlSize,
   type UiFormControlVariant,
 } from "@/shared/ui/form-control-styles";
 
 interface UiFieldProps {
   children: ReactNode;
-  class_name?: string;
+  className?: string;
   description?: ReactNode;
   error?: ReactNode;
-  html_for?: string;
+  htmlFor?: string;
   label?: ReactNode;
 }
 
 interface UiInputProps extends InputHTMLAttributes<HTMLInputElement> {
-  class_name?: string;
-  control_size?: UiFormControlSize;
+  className?: string;
+  controlSize?: UiFormControlSize;
   variant?: UiFormControlVariant;
 }
 
 interface UiTextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
-  class_name?: string;
-  control_size?: UiFormControlSize;
+  className?: string;
+  controlSize?: UiFormControlSize;
   variant?: UiFormControlVariant;
 }
 
 interface UiSearchInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "onChange" | "size"> {
   action?: ReactNode;
-  class_name?: string;
-  control_size?: UiFormControlSize;
-  input_class_name?: string;
-  on_change: (value: string) => void;
+  className?: string;
+  controlSize?: UiFormControlSize;
+  inputClassName?: string;
+  onChange: (value: string) => void;
   variant?: UiFormControlVariant;
 }
 
 export function UiField({
   children,
-  class_name,
+  className: className,
   description,
   error,
-  html_for,
+  htmlFor: htmlFor,
   label,
 }: UiFieldProps) {
   return (
-    <div className={cn("dialog-field", class_name)}>
+    <div className={cn("dialog-field", className)}>
       {label ? (
-        <label className="dialog-label" htmlFor={html_for}>
+        <label className="dialog-label" htmlFor={htmlFor}>
           {label}
         </label>
       ) : null}
@@ -78,9 +78,8 @@ export function UiField({
 
 export const UiInput = forwardRef<HTMLInputElement, UiInputProps>(function UiInput(
   {
-    class_name,
     className,
-    control_size,
+    controlSize: controlSize,
     type = "text",
     variant,
     ...props
@@ -90,9 +89,9 @@ export const UiInput = forwardRef<HTMLInputElement, UiInputProps>(function UiInp
   return (
     <input
       ref={ref}
-      className={get_ui_form_control_class_name(
-        { size: control_size, variant },
-        cn(className, class_name),
+      className={getUiFormControlClassName(
+        { size: controlSize, variant },
+        cn(className),
       )}
       type={type}
       {...props}
@@ -102,9 +101,8 @@ export const UiInput = forwardRef<HTMLInputElement, UiInputProps>(function UiInp
 
 export const UiTextarea = forwardRef<HTMLTextAreaElement, UiTextareaProps>(function UiTextarea(
   {
-    class_name,
     className,
-    control_size,
+    controlSize: controlSize,
     variant,
     ...props
   },
@@ -113,52 +111,52 @@ export const UiTextarea = forwardRef<HTMLTextAreaElement, UiTextareaProps>(funct
   return (
     <textarea
       ref={ref}
-      className={get_ui_form_control_class_name(
-        { multiline: true, size: control_size, variant },
-        cn("resize-y", className, class_name),
+      className={getUiFormControlClassName(
+        { multiline: true, size: controlSize, variant },
+        cn("resize-y", className),
       )}
       {...props}
     />
   );
 });
 
-export function UiSearchInput({
+export const UiSearchInput = forwardRef<HTMLInputElement, UiSearchInputProps>(function UiSearchInput({
   action,
-  class_name,
   className,
-  control_size,
-  input_class_name,
-  on_change,
+  controlSize: controlSize,
+  inputClassName: inputClassName,
+  onChange: onChange,
   placeholder = "搜索",
   type,
   value,
   variant,
   ...props
-}: UiSearchInputProps) {
-  const handle_change = (event: ChangeEvent<HTMLInputElement>) => {
-    on_change(event.target.value);
+}: UiSearchInputProps, ref) {
+  const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
+    onChange(event.target.value);
   };
 
   return (
     <label
-      className={get_ui_search_input_shell_class_name(
-        { size: control_size, variant },
-        cn(className, class_name),
+      className={getUiSearchInputShellClassName(
+        { size: controlSize, variant },
+        cn(className),
       )}
     >
       <Search className="h-4 w-4 shrink-0 text-(--icon-default)" />
       <input
         className={cn(
           "min-w-0 flex-1 bg-transparent text-(--text-strong) outline-none shadow-none ring-0 placeholder:text-(--text-soft) focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none",
-          input_class_name,
+          inputClassName,
         )}
-        onChange={handle_change}
+        onChange={handleChange}
         placeholder={placeholder}
         type={type ?? "search"}
         value={value}
+        ref={ref}
         {...props}
       />
       {action}
     </label>
   );
-}
+});

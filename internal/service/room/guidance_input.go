@@ -46,13 +46,8 @@ func (s *RealtimeService) roomSlotGuidanceHook(
 			if renderErr != nil {
 				return sdkhook.Output{}, renderErr
 			}
-			agentValue, agentErr := s.resolveRuntimeUserContextAgent(ctx, roundValue, slot.AgentID)
-			if agentErr != nil {
-				return sdkhook.Output{}, agentErr
-			}
-			if agentValue != nil {
-				runtimeContent = s.appendRuntimeUserContext(ctx, roundValue.ConversationID, agentValue, runtimeContent)
-			}
+			// 不在轮内每步注入 runtime context（情绪态随时间漂移，会逐步污染 prompt
+			// 前缀缓存）。情绪只在每轮 trigger 注入一次（见 execution.go 入口）。
 			item.Content = runtimeContent.PlainText()
 			runtimeQueueItems = append(runtimeQueueItems, item)
 		}

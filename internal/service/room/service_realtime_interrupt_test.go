@@ -101,7 +101,6 @@ func TestRealtimeServiceHandleInterruptCancelsAllSlots(t *testing.T) {
 		ConversationID: roomContext.Conversation.ID,
 		Content:        "@助手甲 @助手乙 处理一下",
 		RoundID:        "room-round-2",
-		ReqID:          "room-round-2",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}
@@ -238,7 +237,6 @@ func TestRealtimeServiceTreatsClosedStreamAfterInterruptAsInterrupted(t *testing
 		ConversationID: roomContext.Conversation.ID,
 		Content:        "@助手甲 处理一下",
 		RoundID:        "room-round-closed-stream",
-		ReqID:          "room-round-closed-stream",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}

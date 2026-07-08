@@ -92,6 +92,12 @@ func (s *AgentHistoryStore) AppendRoundMarkerWithOptions(
 		"content":        strings.TrimSpace(content),
 		"timestamp":      timestamp,
 	}
+	if userMessageID := strings.TrimSpace(options.UserMessageID); userMessageID != "" {
+		row["user_message_id"] = userMessageID
+	}
+	if agentRoundID := strings.TrimSpace(options.AgentRoundID); agentRoundID != "" {
+		row["agent_round_id"] = agentRoundID
+	}
 	if options.DeliveryPolicy != "" {
 		row["delivery_policy"] = string(protocol.NormalizeChatDeliveryPolicy(options.DeliveryPolicy))
 	}
@@ -117,6 +123,29 @@ func (s *AgentHistoryStore) AppendRoundMarkerWithOptions(
 		if len(metadata) > 0 {
 			row["metadata"] = metadata
 		}
+	}
+	return s.files.appendJSONL(s.paths.SessionOverlayPath(workspacePath, sessionKey), row)
+}
+
+// AppendHistoryRewrite 记录一次用户消息重写。
+func (s *AgentHistoryStore) AppendHistoryRewrite(
+	workspacePath string,
+	sessionKey string,
+	options HistoryRewriteOptions,
+) error {
+	timestamp := options.Timestamp
+	if timestamp <= 0 {
+		timestamp = time.Now().UnixMilli()
+	}
+	row := map[string]any{
+		overlayKindField:       overlayKindHistoryRewrite,
+		"target_round_id":      strings.TrimSpace(options.TargetRoundID),
+		"replacement_round_id": strings.TrimSpace(options.ReplacementRoundID),
+		"content":              strings.TrimSpace(options.Content),
+		"timestamp":            timestamp,
+	}
+	if normalizedAttachments := protocol.NormalizeChatAttachments(options.Attachments, ""); len(normalizedAttachments) > 0 {
+		row["attachments"] = normalizedAttachments
 	}
 	return s.files.appendJSONL(s.paths.SessionOverlayPath(workspacePath, sessionKey), row)
 }
@@ -193,20 +222,39 @@ func (s *AgentHistoryStore) readOverlayRowsAndMarkers(
 	workspacePath string,
 	sessionKey string,
 ) ([]protocol.Message, []transcriptRoundMarker, error) {
-	rows, err := s.files.readJSONL(s.paths.SessionOverlayPath(workspacePath, sessionKey))
-	if errors.Is(err, os.ErrNotExist) {
-		return []protocol.Message{}, []transcriptRoundMarker{}, nil
-	}
+	state, err := s.readOverlayHistoryState(workspacePath, sessionKey)
 	if err != nil {
 		return nil, nil, err
+	}
+	return state.MessageRows, state.RoundMarkers, nil
+}
+
+func (s *AgentHistoryStore) readOverlayHistoryState(
+	workspacePath string,
+	sessionKey string,
+) (overlayHistoryState, error) {
+	rows, err := s.files.readJSONL(s.paths.SessionOverlayPath(workspacePath, sessionKey))
+	if errors.Is(err, os.ErrNotExist) {
+		return overlayHistoryState{
+			MessageRows:  []protocol.Message{},
+			RoundMarkers: []transcriptRoundMarker{},
+			Rewrites:     []historyRewriteMarker{},
+		}, nil
+	}
+	if err != nil {
+		return overlayHistoryState{}, err
 	}
 
 	messageRows := make([]protocol.Message, 0, len(rows))
 	roundMarkers := make([]transcriptRoundMarker, 0)
+	rewrites := make([]historyRewriteMarker, 0)
 	for _, row := range rows {
-		if stringFromAny(row[overlayKindField]) == overlayKindRoundMarker {
+		switch stringFromAny(row[overlayKindField]) {
+		case overlayKindRoundMarker:
 			roundMarkers = append(roundMarkers, transcriptRoundMarker{
 				RoundID:        stringFromAny(row["round_id"]),
+				UserMessageID:  stringFromAny(row["user_message_id"]),
+				AgentRoundID:   stringFromAny(row["agent_round_id"]),
 				Content:        stringFromAny(row["content"]),
 				Attachments:    protocol.ChatAttachmentsFromAny(row["attachments"]),
 				Timestamp:      messageTimestamp(protocol.Message(row)),
@@ -217,18 +265,31 @@ func (s *AgentHistoryStore) readOverlayRowsAndMarkers(
 				Metadata:       stringMapFromAny(row["metadata"]),
 			})
 			continue
+		case overlayKindHistoryRewrite:
+			rewrites = append(rewrites, historyRewriteMarker{
+				TargetRoundID:      stringFromAny(row["target_round_id"]),
+				ReplacementRoundID: stringFromAny(row["replacement_round_id"]),
+				Content:            stringFromAny(row["content"]),
+				Attachments:        protocol.ChatAttachmentsFromAny(row["attachments"]),
+				Timestamp:          messageTimestamp(protocol.Message(row)),
+			})
+			continue
 		}
 		if isSessionOverlayControlRow(row) {
 			continue
 		}
 		messageRows = append(messageRows, protocol.Message(row))
 	}
-	return messageRows, roundMarkers, nil
+	return overlayHistoryState{
+		MessageRows:  messageRows,
+		RoundMarkers: roundMarkers,
+		Rewrites:     rewrites,
+	}, nil
 }
 
 func isSessionOverlayControlRow(row map[string]any) bool {
 	switch stringFromAny(row[overlayKindField]) {
-	case overlayKindRoomPublicCursor, "room_context_checkpoint":
+	case overlayKindHistoryRewrite, overlayKindRoomPublicCursor, "room_context_checkpoint":
 		return true
 	default:
 		return false

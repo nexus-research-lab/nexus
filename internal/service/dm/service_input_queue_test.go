@@ -49,7 +49,6 @@ func TestServiceHandleChatQueuesRunningRoundByDefault(t *testing.T) {
 		SessionKey: sessionKey,
 		Content:    "先做一个长任务",
 		RoundID:    "round-queue-1",
-		ReqID:      "round-queue-1",
 	}); err != nil {
 		t.Fatalf("第一轮 HandleChat 失败: %v", err)
 	}
@@ -59,7 +58,6 @@ func TestServiceHandleChatQueuesRunningRoundByDefault(t *testing.T) {
 		SessionKey: sessionKey,
 		Content:    "这是补充要求",
 		RoundID:    "round-queue-2",
-		ReqID:      "round-queue-2",
 	}); err != nil {
 		t.Fatalf("第二条排队消息 HandleChat 失败: %v", err)
 	}
@@ -74,9 +72,9 @@ func TestServiceHandleChatQueuesRunningRoundByDefault(t *testing.T) {
 	if interruptCalls != 0 {
 		t.Fatalf("默认排队不应中断运行中 DM round: interruptCalls=%d", interruptCalls)
 	}
+	// 轮内排队注入不再带 runtime context（情绪态），避免污染前缀缓存。
 	if len(sentContents) != 1 ||
-		!strings.Contains(sentContents[0], "这是补充要求") ||
-		!strings.Contains(sentContents[0], "<nexus_runtime_context>") {
+		!strings.Contains(sentContents[0], "这是补充要求") {
 		t.Fatalf("运行中 DM round 未收到排队输入: %+v", sentContents)
 	}
 	if len(factory.options) != 1 {
@@ -122,7 +120,6 @@ func TestServiceHandleChatGuidePolicyQueuesHookGuidance(t *testing.T) {
 		SessionKey: sessionKey,
 		Content:    "先查一下项目结构",
 		RoundID:    "round-guide-1",
-		ReqID:      "round-guide-1",
 	}); err != nil {
 		t.Fatalf("第一轮 HandleChat 失败: %v", err)
 	}
@@ -132,7 +129,6 @@ func TestServiceHandleChatGuidePolicyQueuesHookGuidance(t *testing.T) {
 		SessionKey:           sessionKey,
 		Content:              "等工具结果回来后优先看错误日志",
 		RoundID:              "round-guide-2",
-		ReqID:                "round-guide-2",
 		DeliveryPolicy:       protocol.ChatDeliveryPolicyGuide,
 		BroadcastUserMessage: true,
 	}); err != nil {
@@ -206,7 +202,6 @@ func TestServiceInputQueueGuideWaitsForPostToolUse(t *testing.T) {
 		SessionKey: sessionKey,
 		Content:    "先查项目",
 		RoundID:    "round-guide-input-queue-1",
-		ReqID:      "round-guide-input-queue-1",
 	}); err != nil {
 		t.Fatalf("启动运行中 DM round 失败: %v", err)
 	}

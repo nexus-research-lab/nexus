@@ -2,10 +2,12 @@
 
 import { useEffect, useState, type Key, type ReactNode } from "react";
 
+import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { cn } from "@/lib/utils";
 import {
   ContentBlock,
   SystemEventContent,
+  TaskProgressContent,
   ToolResultContent,
   ToolUseContent,
 } from "@/types/conversation/message";
@@ -20,17 +22,15 @@ import { WorkspaceFileArtifactBlock } from "../blocks/workspace-file-artifacts";
 import { MarkdownRenderer } from "../markdown/markdown-renderer";
 import { MessageActivityState, MessageActivityStatus } from "../ui/message-primitives";
 import {
-  MessageCallout,
-  MessageCalloutTitle,
   MessageRail,
   MessageRailBody,
   MessageRailLabel,
 } from "../ui/message-rail";
 import {
-  get_system_message_icon_class_name,
-  get_system_message_label_class_name,
+  getSystemMessageIconClassName,
+  getSystemMessageLabelClassName,
 } from "./message-item-support";
-import { resolve_activity_state } from "./content-renderer-activity";
+import { resolveActivityState } from "./content-renderer-activity";
 import { SystemEventIcon, TimelineBlock } from "./content-renderer-timeline";
 
 const API_RETRY_VISIBLE_ATTEMPT = 4;
@@ -38,55 +38,57 @@ const MAX_API_RETRY_ERROR_CHARS = 1000;
 
 interface ContentRendererProps {
   content: string | ContentBlock[];
-  is_streaming?: boolean;
-  streaming_block_indexes?: Set<number>;
-  fallback_activity_state?: MessageActivityState | null;
-  pending_permissions_by_tool_use_id?: ReadonlyMap<string, PendingPermission>;
-  on_permission_response?: (payload: PermissionDecisionPayload) => boolean;
-  can_respond_to_permissions?: boolean;
-  permission_read_only_reason?: string;
-  on_open_workspace_file?: (path: string) => void;
-  workspace_agent_id?: string | null;
-  hidden_tool_names?: string[];
-  class_name?: string;
-  show_timeline_dots?: boolean;
+  isStreaming?: boolean;
+  streamingBlockIndexes?: Set<number>;
+  fallbackActivityState?: MessageActivityState | null;
+  pendingPermissionsByToolUseId?: ReadonlyMap<string, PendingPermission>;
+  onPermissionResponse?: (payload: PermissionDecisionPayload) => boolean;
+  canRespondToPermissions?: boolean;
+  permissionReadOnlyReason?: string;
+  onOpenWorkspaceFile?: (path: string) => void;
+  workspaceAgentId?: string | null;
+  hiddenToolNames?: string[];
+  className?: string;
+  showTimelineDots?: boolean;
 }
 
-function is_hidden_api_retry_block(block: SystemEventContent): boolean {
+function isHiddenApiRetryBlock(block: SystemEventContent): boolean {
   return block.subtype === "api_retry" &&
     typeof block.attempt === "number" &&
     block.attempt < API_RETRY_VISIBLE_ATTEMPT;
 }
 
 function ApiRetrySystemEventBody({ block }: { block: SystemEventContent }) {
-  const retry_delay_ms =
+  const retryDelayMs =
     typeof block.retry_delay_ms === "number" && block.retry_delay_ms > 0
       ? block.retry_delay_ms
       : 0;
-  const [now_ms, set_now_ms] = useState(() => Date.now());
+  const [nowMs, setNowMs] = useResettableState(
+    Date.now(),
+    `${block.timestamp}\x1f${retryDelayMs}`,
+  );
 
   useEffect(() => {
-    if (retry_delay_ms <= 0) {
+    if (retryDelayMs <= 0) {
       return;
     }
-    set_now_ms(Date.now());
-    const interval_id = window.setInterval(() => set_now_ms(Date.now()), 1000);
-    return () => window.clearInterval(interval_id);
-  }, [block.timestamp, retry_delay_ms]);
+    const intervalId = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(intervalId);
+  }, [block.timestamp, retryDelayMs, setNowMs]);
 
-  const retry_due_at = block.timestamp + retry_delay_ms;
-  const retry_in_seconds = Math.max(
+  const retryDueAt = block.timestamp + retryDelayMs;
+  const retryInSeconds = Math.max(
     0,
-    Math.round((retry_due_at - now_ms) / 1000),
+    Math.round((retryDueAt - nowMs) / 1000),
   );
-  const retry_unit = retry_in_seconds === 1 ? "second" : "seconds";
-  const attempt_text =
+  const retryUnit = retryInSeconds === 1 ? "second" : "seconds";
+  const attemptText =
     typeof block.attempt === "number" && typeof block.max_retries === "number"
       ? `(attempt ${block.attempt}/${block.max_retries})`
       : null;
-  const retry_text = retry_delay_ms > 0
-    ? `Retrying in ${retry_in_seconds} ${retry_unit}...${attempt_text ? ` ${attempt_text}` : ""}`
-    : `Retrying...${attempt_text ? ` ${attempt_text}` : ""}`;
+  const retryText = retryDelayMs > 0
+    ? `Retrying in ${retryInSeconds} ${retryUnit}...${attemptText ? ` ${attemptText}` : ""}`
+    : `Retrying...${attemptText ? ` ${attemptText}` : ""}`;
   const content = block.content.length > MAX_API_RETRY_ERROR_CHARS
     ? `${block.content.slice(0, MAX_API_RETRY_ERROR_CHARS)}...`
     : block.content;
@@ -95,7 +97,7 @@ function ApiRetrySystemEventBody({ block }: { block: SystemEventContent }) {
     <>
       <div>{content}</div>
       <div className="mt-0.5 text-[13px] leading-5 text-(--text-muted)">
-        {retry_text}
+        {retryText}
       </div>
     </>
   );
@@ -104,38 +106,38 @@ function ApiRetrySystemEventBody({ block }: { block: SystemEventContent }) {
 export function ContentRenderer(
   {
     content,
-    is_streaming = false,
-    streaming_block_indexes,
-    fallback_activity_state,
-    pending_permissions_by_tool_use_id,
-    on_permission_response,
-    can_respond_to_permissions = true,
-    permission_read_only_reason,
-    on_open_workspace_file,
-    workspace_agent_id,
-    hidden_tool_names = [],
-    class_name,
-    show_timeline_dots = false,
+    isStreaming: isStreaming = false,
+    streamingBlockIndexes: streamingBlockIndexes,
+    fallbackActivityState: fallbackActivityState,
+    pendingPermissionsByToolUseId: pendingPermissionsByToolUseId,
+    onPermissionResponse: onPermissionResponse,
+    canRespondToPermissions: canRespondToPermissions = true,
+    permissionReadOnlyReason: permissionReadOnlyReason,
+    onOpenWorkspaceFile: onOpenWorkspaceFile,
+    workspaceAgentId: workspaceAgentId,
+    hiddenToolNames: hiddenToolNames = [],
+    className: className,
+    showTimelineDots: showTimelineDots = false,
   }: ContentRendererProps) {
   // Handle string content (Markdown)
   if (typeof content === 'string') {
     const markdown = (
       <MarkdownRenderer
         content={content}
-        is_streaming={is_streaming}
-        on_open_workspace_file={on_open_workspace_file}
-        workspace_agent_id={workspace_agent_id}
+        isStreaming={isStreaming}
+        onOpenWorkspaceFile={onOpenWorkspaceFile}
+        workspaceAgentId={workspaceAgentId}
       />
     );
 
-    if (!class_name) {
+    if (!className) {
       return markdown;
     }
 
     return (
-      <div className={cn(class_name, show_timeline_dots ? "relative before:absolute before:bottom-0 before:left-[5.5px] before:top-0 before:w-px before:bg-(--divider-subtle-color)" : null)}>
-        {show_timeline_dots ? (
-          <TimelineBlock active={is_streaming}>
+      <div className={cn(className, showTimelineDots ? "relative before:absolute before:bottom-0 before:left-[5.5px] before:top-0 before:w-px before:bg-(--divider-subtle-color)" : null)}>
+        {showTimelineDots ? (
+          <TimelineBlock active={isStreaming}>
             {markdown}
           </TimelineBlock>
         ) : (
@@ -146,7 +148,7 @@ export function ContentRenderer(
   }
 
   // Handle structured content (ContentBlock[])
-  // 首先构建 tool_use 到 tool_result 的映射
+  // 首先构建 toolUse 到 toolResult 的映射
   const toolUseMap = new Map<string, {
     use: ToolUseContent;
     result?: ToolResultContent;
@@ -154,14 +156,14 @@ export function ContentRenderer(
   }>();
   const renderedIndices = new Set<number>();
 
-  // 第一遍：收集所有 tool_use 和对应的 tool_result
+  // 第一遍：收集所有 toolUse 和对应的 toolResult
   content.forEach((block, index) => {
     if (block.type === 'tool_use') {
       toolUseMap.set(block.id, { use: block, index });
     }
   });
 
-  // 第二遍：匹配 tool_result 到 tool_use
+  // 第二遍：匹配 toolResult 到 toolUse
   content.forEach((block, index) => {
     if (block.type === 'tool_result') {
       const toolUseData = toolUseMap.get(block.tool_use_id);
@@ -172,35 +174,44 @@ export function ContentRenderer(
     }
   });
 
+  // 第三遍：把 taskProgress 按 toolUseId 折叠到对应工具块（子 Agent 实时进度）。
+  // 不再单独渲染 taskProgress 行，统一并入它所属的 Agent ToolBlock。
+  const taskProgressByToolUseId = new Map<string, TaskProgressContent>();
+  content.forEach((block) => {
+    if (block.type === 'task_progress' && block.tool_use_id) {
+      taskProgressByToolUseId.set(block.tool_use_id, block);
+    }
+  });
+
   // 只要当前轮次仍在进行，就持续在块尾渲染一个状态行；
   // 不再要求“没有 streaming block”才显示，否则纯文本回复阶段会出现状态空窗。
-  const activityState = is_streaming
-    ? resolve_activity_state({
+  const activityState = isStreaming
+    ? resolveActivityState({
       content,
-      streaming_block_indexes,
-      tool_use_map: toolUseMap,
-      rendered_indices: renderedIndices,
-      fallback_activity_state,
-      pending_permissions_by_tool_use_id,
-      hidden_tool_names,
+      streamingBlockIndexes,
+      toolUseMap,
+      renderedIndices,
+      fallbackActivityState,
+      pendingPermissionsByToolUseId,
+      hiddenToolNames,
     })
     : null;
 
   return (
-    <div className={cn("nexus-chat-block-stack min-w-0 space-y-2.5", class_name, show_timeline_dots ? "relative before:absolute before:bottom-0 before:left-[5.5px] before:top-0 before:w-px before:bg-(--divider-subtle-color)" : null)}>
+    <div className={cn("nexus-chat-block-stack min-w-0 space-y-2.5", className, showTimelineDots ? "relative before:absolute before:bottom-0 before:left-[5.5px] before:top-0 before:w-px before:bg-(--divider-subtle-color)" : null)}>
       {content.map((block, index) => {
-        const blockIsStreaming = streaming_block_indexes?.has(index) ?? false;
+        const blockIsStreaming = streamingBlockIndexes?.has(index) ?? false;
 
-        // 跳过已经被组合渲染的 tool_result
+        // 跳过已经被组合渲染的 toolResult
         if (renderedIndices.has(index)) {
           return null;
         }
 
-        const wrap_block = (
+        const wrapBlock = (
           key: Key,
           node: ReactNode,
         ) => {
-          if (!show_timeline_dots) {
+          if (!showTimelineDots) {
             return <div key={key}>{node}</div>;
           }
 
@@ -218,54 +229,54 @@ export function ContentRenderer(
           if (!block.text.trim()) {
             return null;
           }
-          return wrap_block(
+          return wrapBlock(
             index,
             <ContentRenderer
               content={block.text}
-              is_streaming={blockIsStreaming}
-              fallback_activity_state={blockIsStreaming ? "replying" : null}
-              on_open_workspace_file={on_open_workspace_file}
-              workspace_agent_id={workspace_agent_id}
+              isStreaming={blockIsStreaming}
+              fallbackActivityState={blockIsStreaming ? "replying" : null}
+              onOpenWorkspaceFile={onOpenWorkspaceFile}
+              workspaceAgentId={workspaceAgentId}
             />,
           );
         }
 
         if (block.type === 'tool_use_error') {
-          return wrap_block(index, <ToolUseErrorBlock content={block.content} />);
+          return wrapBlock(index, <ToolUseErrorBlock content={block.content} />);
         }
 
         if (block.type === 'thinking') {
           if (!block.thinking.trim()) {
             return null;
           }
-          return wrap_block(
+          return wrapBlock(
             index,
             <ThinkingBlock
               thinking={block.thinking || ''}
-              is_streaming={blockIsStreaming}
-              workspace_agent_id={workspace_agent_id}
+              isStreaming={blockIsStreaming}
+              workspaceAgentId={workspaceAgentId}
             />,
           );
         }
 
         if (block.type === 'image') {
-          return wrap_block(
+          return wrapBlock(
             index,
             <ImageBlock
               block={block}
-              on_open_workspace_file={on_open_workspace_file}
-              workspace_agent_id={workspace_agent_id}
+              onOpenWorkspaceFile={onOpenWorkspaceFile}
+              workspaceAgentId={workspaceAgentId}
             />,
           );
         }
 
         if (block.type === 'system_event') {
-          if (is_hidden_api_retry_block(block)) {
+          if (isHiddenApiRetryBlock(block)) {
             return null;
           }
-          return wrap_block(index, (
-            <MessageRail class_name="min-w-0">
-              <MessageRailLabel class_name={cn("flex-1", get_system_message_label_class_name(block.tone))}>
+          return wrapBlock(index, (
+            <MessageRail className="min-w-0">
+              <MessageRailLabel className={cn("flex-1", getSystemMessageLabelClassName(block.tone))}>
                 <span
                   data-timeline-anchor
                   data-timeline-anchor-mode="box"
@@ -273,12 +284,12 @@ export function ContentRenderer(
                 >
                   <SystemEventIcon
                     icon={block.icon}
-                    class_name={cn("h-3 w-3", get_system_message_icon_class_name(block.tone))}
+                    className={cn("h-3 w-3", getSystemMessageIconClassName(block.tone))}
                   />
                 </span>
                 <span>{block.label}</span>
               </MessageRailLabel>
-              <MessageRailBody class_name="pt-1 text-[14px] leading-6 text-(--text-default)">
+              <MessageRailBody className="pt-1 text-[14px] leading-6 text-(--text-default)">
                 {block.subtype === "api_retry" ? (
                   <ApiRetrySystemEventBody block={block} />
                 ) : (
@@ -289,26 +300,13 @@ export function ContentRenderer(
           ));
         }
 
-        if (block.type === 'task_progress') {
-          return wrap_block(index, (
-            <MessageRail>
-              <MessageCallout>
-                <MessageCalloutTitle data-timeline-anchor>
-                  {block.last_tool_name || '后台任务'} 正在执行
-                </MessageCalloutTitle>
-                <div className="mt-1 whitespace-pre-wrap break-words text-(--text-muted)">
-                  {block.description || '正在处理中…'}
-                </div>
-              </MessageCallout>
-            </MessageRail>
-          ));
-        }
+          // taskProgress 不再单独渲染：已按 toolUseId 折叠进对应 Agent ToolBlock。
 
         if (block.type === 'workspace_file_artifact') {
-          return wrap_block(index, (
+          return wrapBlock(index, (
             <WorkspaceFileArtifactBlock
               artifact={block}
-              on_open_workspace_file={on_open_workspace_file}
+              onOpenWorkspaceFile={onOpenWorkspaceFile}
             />
           ));
         }
@@ -319,23 +317,23 @@ export function ContentRenderer(
             const toolData = toolUseMap.get(block.id);
             const hasResult = !!toolData?.result;
             const toolResult = toolData?.result as ToolResultContent | undefined;
-            const pending_permission = pending_permissions_by_tool_use_id?.get(block.id);
-            const isThisToolPending = Boolean(pending_permission && !hasResult);
-            return wrap_block(index, (
+            const pendingPermission = pendingPermissionsByToolUseId?.get(block.id);
+            const isThisToolPending = Boolean(pendingPermission && !hasResult);
+            return wrapBlock(index, (
               <div>
                 <AskUserQuestionBlock
-                  tool_use={block}
-                  tool_result={toolResult}
-                  is_submitted={hasResult && !toolResult?.is_error}
-                  is_ready={Boolean(isThisToolPending)}
-                  interaction_disabled={!can_respond_to_permissions}
-                  interaction_disabled_reason={permission_read_only_reason}
-                  on_submit={(_, answers) => {
-                    if (!pending_permission) {
+                  toolUse={block}
+                  toolResult={toolResult}
+                  isSubmitted={hasResult && !toolResult?.is_error}
+                  isReady={Boolean(isThisToolPending)}
+                  interactionDisabled={!canRespondToPermissions}
+                  interactionDisabledReason={permissionReadOnlyReason}
+                  onSubmit={(_, answers) => {
+                    if (!pendingPermission) {
                       return false;
                     }
-                    return on_permission_response?.({
-                      request_id: pending_permission.request_id,
+                    return onPermissionResponse?.({
+                      request_id: pendingPermission.request_id,
                       decision: 'allow',
                       user_answers: answers,
                     }) ?? false;
@@ -346,13 +344,13 @@ export function ContentRenderer(
           }
 
           // 如果工具在隐藏列表中，则不渲染
-          if (hidden_tool_names.includes(block.name)) {
+          if (hiddenToolNames.includes(block.name)) {
             return null;
           }
 
           const toolData = toolUseMap.get(block.id);
-          const pending_permission = pending_permissions_by_tool_use_id?.get(block.id);
-          const isThisToolPendingPermission = Boolean(pending_permission && !toolData?.result);
+          const pendingPermission = pendingPermissionsByToolUseId?.get(block.id);
+          const isThisToolPendingPermission = Boolean(pendingPermission && !toolData?.result);
 
           // 确定状态
           let toolStatus: 'pending' | 'running' | 'success' | 'error' | 'waiting_permission' = 'running';
@@ -362,41 +360,42 @@ export function ContentRenderer(
             toolStatus = toolData.result.is_error ? 'error' : 'success';
           }
 
-          return wrap_block(index, (
+          return wrapBlock(index, (
             <div className="min-w-0">
               <ToolBlock
-                tool_use={block}
-                tool_result={toolData?.result}
+                toolUse={block}
+                toolResult={toolData?.result}
+                liveProgress={taskProgressByToolUseId.get(block.id) ?? null}
                 status={toolStatus}
-                permission_request={isThisToolPendingPermission ? {
-                  request_id: pending_permission!.request_id,
-                  tool_input: pending_permission!.tool_input,
-                  risk_level: pending_permission!.risk_level,
-                  risk_label: pending_permission!.risk_label,
-                  summary: pending_permission!.summary,
-                  suggestions: pending_permission!.suggestions,
-                  expires_at: pending_permission!.expires_at,
-                  on_allow: (updated_permissions) => on_permission_response?.({
-                    request_id: pending_permission!.request_id,
+                permissionRequest={isThisToolPendingPermission ? {
+                  request_id: pendingPermission!.request_id,
+                  tool_input: pendingPermission!.tool_input,
+                  risk_level: pendingPermission!.risk_level,
+                  risk_label: pendingPermission!.risk_label,
+                  summary: pendingPermission!.summary,
+                  suggestions: pendingPermission!.suggestions,
+                  expires_at: pendingPermission!.expires_at,
+                  on_allow: (updatedPermissions) => onPermissionResponse?.({
+                    request_id: pendingPermission!.request_id,
                     decision: 'allow',
-                    updated_permissions,
+                    updated_permissions: updatedPermissions,
                   }),
-                  on_deny: (updated_permissions) => on_permission_response?.({
-                    request_id: pending_permission!.request_id,
+                  on_deny: (updatedPermissions) => onPermissionResponse?.({
+                    request_id: pendingPermission!.request_id,
                     decision: 'deny',
-                    updated_permissions,
+                    updated_permissions: updatedPermissions,
                   }),
                 } : undefined}
-                interaction_disabled={!can_respond_to_permissions}
-                interaction_disabled_reason={permission_read_only_reason}
-                on_open_workspace_file={on_open_workspace_file}
-                workspace_agent_id={workspace_agent_id}
+                interactionDisabled={!canRespondToPermissions}
+                interactionDisabledReason={permissionReadOnlyReason}
+                onOpenWorkspaceFile={onOpenWorkspaceFile}
+                workspaceAgentId={workspaceAgentId}
               />
             </div>
           ));
         }
 
-        // 独立的 tool_result（没有对应的 tool_use）
+        // 独立的 toolResult（没有对应的 toolUse）
         if (block.type === 'tool_result') {
           return null;
         }
@@ -404,7 +403,7 @@ export function ContentRenderer(
         return null;
       })}
       {activityState ? (
-        <MessageActivityStatus class_name="pt-1" state={activityState} />
+        <MessageActivityStatus className="pt-1" state={activityState} />
       ) : null}
     </div>
   );

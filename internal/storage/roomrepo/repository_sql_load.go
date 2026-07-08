@@ -215,11 +215,12 @@ SELECT
         FROM messages m
         WHERE m.conversation_id = c.id
     ),
+    COALESCE(c.last_activity_at, c.updated_at, c.created_at),
     c.created_at,
     c.updated_at
 FROM conversations c
 WHERE room_id = `+r.dialect.Bind(1)+`
-ORDER BY created_at ASC`, roomID)
+ORDER BY COALESCE(c.last_activity_at, c.updated_at, c.created_at) DESC, c.created_at DESC`, roomID)
 	if err != nil {
 		return nil, err
 	}

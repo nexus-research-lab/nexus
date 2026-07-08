@@ -51,7 +51,7 @@ func withRoomRuntimeDiagnosticsLogger(options agentclient.Options, logger *slog.
 		if previousStderr != nil {
 			previousStderr(normalizedLine)
 		}
-		logger.Warn("Agent SDK stderr", "stderr", normalizedLine)
+		logger.Debug("Agent SDK stderr", "stderr", normalizedLine)
 	}
 	previousDiagnostics := options.Callbacks.Diagnostics
 	diagnosticsEnabled := runtimectx.AgentSDKDiagnosticsEnabled(options.Env)

@@ -48,18 +48,31 @@ func (h *Handlers) HandleListProviderOptions(writer http.ResponseWriter, request
 	if runtimeKind == "" {
 		runtimeKind = strings.TrimSpace(request.URL.Query().Get("runtime_kind"))
 	}
+	prefs, err := h.currentPreferences(request)
+	if err != nil {
+		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
 	if runtimeKind == "" {
-		prefs, err := h.currentPreferences(request)
-		if err != nil {
-			h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
-			return
-		}
 		runtimeKind = prefs.AgentRuntimeKind
 	}
 	item, err := h.providers.ListOptionsForRuntime(request.Context(), runtimeKind)
 	if err != nil {
 		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
 		return
+	}
+	// 覆盖默认值为用户偏好的 Provider/Model
+	providerValue := strings.TrimSpace(prefs.DefaultAgentOptions.Provider)
+	modelValue := strings.TrimSpace(prefs.DefaultAgentOptions.Model)
+	if providerValue != "" && modelValue != "" {
+		item.DefaultProvider = &providerValue
+		item.DefaultModel = &modelValue
+		item.DefaultSelection = &providercfg.ModelSelection{
+			Provider:            providerValue,
+			ProviderDisplayName: providerValue,
+			Model:               modelValue,
+			ModelDisplayName:    modelValue,
+		}
 	}
 	h.api.WriteSuccess(writer, item)
 }

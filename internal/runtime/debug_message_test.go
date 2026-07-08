@@ -52,6 +52,19 @@ func TestBuildSDKMessageLogSummaryForAssistantSnapshot(t *testing.T) {
 	}
 }
 
+func TestBuildSDKMessageLogFieldsSkipsThinkingTokens(t *testing.T) {
+	fields := BuildSDKMessageLogFields(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeSystem,
+		System: &sdkprotocol.SystemMessage{
+			Subtype: "thinking_tokens",
+		},
+	})
+
+	if len(fields) != 0 {
+		t.Fatalf("thinking_tokens system 日志应跳过: %+v", fields)
+	}
+}
+
 func TestBuildSDKMessageLogSummaryRedactsToolInputDelta(t *testing.T) {
 	summary := BuildSDKMessageLogSummary(sdkprotocol.ReceivedMessage{
 		Type: sdkprotocol.MessageTypeStreamEvent,
@@ -451,6 +464,62 @@ func TestBuildSDKMessageLogFieldsRedactsToolInputDelta(t *testing.T) {
 	}
 	if hasLogFieldKey(fields, "stream_text_delta") || hasLogFieldKey(fields, "stream_text") {
 		t.Fatalf("tool input delta 不应输出文本字段: %+v", fields)
+	}
+}
+
+func TestBuildSDKMessageLogFieldsIncludesPassiveMessageTypes(t *testing.T) {
+	tests := []struct {
+		name    string
+		message sdkprotocol.ReceivedMessage
+		summary string
+		field   string
+	}{
+		{
+			name: "tool use summary",
+			message: sdkprotocol.ReceivedMessage{
+				Type: sdkprotocol.MessageTypeToolUseSummary,
+				ToolUseSummary: &sdkprotocol.ToolUseSummaryMessage{
+					Summary:             "Read x2",
+					PrecedingToolUseIDs: []string{"tool-1", "tool-2"},
+				},
+			},
+			summary: "tool_use_summary",
+			field:   "tool_summary_count",
+		},
+		{
+			name: "prompt suggestion",
+			message: sdkprotocol.ReceivedMessage{
+				Type: sdkprotocol.MessageTypePromptSuggestion,
+				PromptSuggestion: &sdkprotocol.PromptSuggestionMessage{
+					Suggestion: "继续检查测试",
+				},
+			},
+			summary: "prompt_suggestion",
+			field:   "prompt_suggestion",
+		},
+		{
+			name: "auth status",
+			message: sdkprotocol.ReceivedMessage{
+				Type: sdkprotocol.MessageTypeAuthStatus,
+				AuthStatus: &sdkprotocol.AuthStatusMessage{
+					IsAuthenticating: true,
+					Output:           []string{"登录中"},
+				},
+			},
+			summary: "auth_status authenticating",
+			field:   "auth_is_authenticating",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := BuildSDKMessageLogSummary(tt.message); !strings.Contains(got, tt.summary) {
+				t.Fatalf("summary = %q, want contains %q", got, tt.summary)
+			}
+			fields := BuildSDKMessageLogFields(tt.message)
+			if !hasLogFieldKey(fields, tt.field) {
+				t.Fatalf("缺少字段 %q: %+v", tt.field, fields)
+			}
+		})
 	}
 }
 

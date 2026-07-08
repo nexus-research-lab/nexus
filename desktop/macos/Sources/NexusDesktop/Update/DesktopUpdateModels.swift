@@ -29,12 +29,41 @@ struct DesktopReleaseInfo {
   let publishedAt: String?
   let isPrerelease: Bool
   let source: String
+  let packageSigning: DesktopPackageSigning?
 
   var canDownloadPackage: Bool {
     guard let packageFileName, !packageFileName.isEmpty else {
       return false
     }
     return packageDownloadURL != nil && packageSHA256URL != nil
+  }
+
+  var canAutoInstallPackage: Bool {
+    canDownloadPackage && automaticInstallUnavailableReason == nil
+  }
+
+  var automaticInstallUnavailableReason: String? {
+    guard canDownloadPackage else {
+      return "当前 Release 缺少可自动校验的 macOS 安装包或 sha256 文件。"
+    }
+    guard let packageSigning else {
+      return nil
+    }
+
+    var missingRequirements: [String] = []
+    if !packageSigning.developerID {
+      missingRequirements.append("Developer ID 签名")
+    }
+    if !packageSigning.notarized {
+      missingRequirements.append("公证")
+    }
+    guard !missingRequirements.isEmpty else {
+      return nil
+    }
+
+    let signingKind = packageSigning.kind.isEmpty ? "未知" : packageSigning.kind
+    let missingText = missingRequirements.joined(separator: "和")
+    return "当前 Release 的 macOS 安装包为 \(signingKind) 签名，缺少 \(missingText)，无法通过 macOS Gatekeeper 自动安装。"
   }
 
   var displayText: String {
@@ -131,10 +160,31 @@ struct GitHubReleaseAsset: Decodable {
 struct DesktopPackageMetadata: Decodable {
   let version: String
   let buildNumber: String
+  let signing: DesktopPackageSigning?
 
   private enum CodingKeys: String, CodingKey {
     case version
     case buildNumber = "build_number"
+    case signing
+  }
+}
+
+struct DesktopPackageSigning: Decodable {
+  let kind: String
+  let developerID: Bool
+  let notarized: Bool
+
+  private enum CodingKeys: String, CodingKey {
+    case kind
+    case developerID = "developer_id"
+    case notarized
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    kind = try container.decodeIfPresent(String.self, forKey: .kind) ?? "unknown"
+    developerID = try container.decodeIfPresent(Bool.self, forKey: .developerID) ?? false
+    notarized = try container.decodeIfPresent(Bool.self, forKey: .notarized) ?? false
   }
 }
 

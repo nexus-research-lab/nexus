@@ -1,38 +1,39 @@
 export type DesktopRuntimeConfig = {
-  api_base_url?: string;
-  ws_url?: string;
-  auth_token?: string;
-  app_mode?: string;
-  app_version?: string;
-  build_number?: string;
+  apiBaseUrl?: string;
+  wsUrl?: string;
+  authToken?: string;
+  appMode?: string;
+  appVersion?: string;
+  buildNumber?: string;
   platform?: string;
-  oauth_redirect_uri?: string;
+  oauthRedirectUri?: string;
+  desktopWindowTopInset?: number;
 };
 
 type DesktopPerformanceMark = {
   name: string;
-  start_time_ms: number;
+  startTimeMs: number;
 };
 
 type DesktopWebReadyPerformance = {
-  ready_ms: number;
-  response_end_ms?: number;
-  dom_content_loaded_ms?: number;
-  load_event_end_ms?: number;
-  first_contentful_paint_ms?: number;
+  readyMs: number;
+  responseEndMs?: number;
+  domContentLoadedMs?: number;
+  loadEventEndMs?: number;
+  firstContentfulPaintMs?: number;
   marks: DesktopPerformanceMark[];
 };
 
 export type DesktopRenderSnapshot = {
   href: string;
   path: string;
-  ready_state: DocumentReadyState;
+  readyState: DocumentReadyState;
   title: string;
-  has_root: boolean;
-  root_children: number;
-  root_text_length: number;
-  body_children: number;
-  body_text_length: number;
+  hasRoot: boolean;
+  rootChildren: number;
+  rootTextLength: number;
+  bodyChildren: number;
+  bodyTextLength: number;
 };
 
 export type DesktopRenderHealthStatus = "ready" | "empty_root" | "blank_root";
@@ -42,7 +43,7 @@ type DesktopLifecycleMessage = DesktopWebReadyMessage | DesktopWebFatalMessage |
 type DesktopWebReadyMessage = {
   kind: "web.ready";
   location: string;
-  reduced_motion: boolean;
+  reducedMotion: boolean;
   source: string;
   performance: DesktopWebReadyPerformance;
 };
@@ -54,7 +55,7 @@ type DesktopWebFatalMessage = {
   message: string;
   name?: string;
   stack?: string;
-  component_stack?: string;
+  componentStack?: string;
   snapshot: DesktopRenderSnapshot;
   performance: DesktopWebReadyPerformance;
 };
@@ -68,58 +69,103 @@ type DesktopWebHealthMessage = {
   performance: DesktopWebReadyPerformance;
 };
 
-export const DESKTOP_SESSION_TOKEN_HEADER = "X-Nexus-Desktop-Token";
-export const DESKTOP_SESSION_TOKEN_INVALID_DETAIL = "桌面会话 token 无效";
+const DESKTOP_SESSION_TOKEN_HEADER = "X-Nexus-Desktop-Token";
+const DESKTOP_SESSION_TOKEN_INVALID_DETAIL = "桌面会话 token 无效";
 const DESKTOP_SESSION_TOKEN_PROTOCOL_PREFIX = "nexus.desktop.token.";
 const CONNECTOR_OAUTH_CALLBACK_PATH = "/capability/connectors/oauth/callback";
 const DESKTOP_LOOPBACK_OAUTH_PORT = "34343";
 const DESKTOP_CONNECTORS_RETURN_URI = "nexus://capability/connectors";
 const DESKTOP_DIAGNOSTIC_TEXT_LIMIT = 4_096;
 const DESKTOP_SESSION_TOKEN_RELOAD_KEY_PREFIX = "nexus:desktop-session-token-reload:";
+const DESKTOP_WINDOW_TOP_INSET_PROPERTY = "--desktop-window-top-inset";
 
 declare global {
   interface Window {
-    __NEXUS_DESKTOP_RUNTIME__?: DesktopRuntimeConfig;
+    __NEXUS_DESKTOP_RUNTIME__?: Record<string, unknown>;
     webkit?: {
       messageHandlers?: {
         nexusDesktopLifecycle?: {
-          postMessage: (message: DesktopLifecycleMessage) => void;
+          postMessage: (message: Record<string, unknown>) => void;
         };
       };
     };
   }
 }
 
-export function get_desktop_runtime_config(): DesktopRuntimeConfig | null {
+function readRuntimeString(runtimeConfig: Record<string, unknown>, key: string): string | undefined {
+  const value = runtimeConfig[key];
+  return typeof value === "string" ? value : undefined;
+}
+
+function readRuntimeNumber(runtimeConfig: Record<string, unknown>, key: string): number | undefined {
+  const value = runtimeConfig[key];
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return undefined;
+  }
+  return value;
+}
+
+function normalizeDesktopRuntimeConfig(runtimeConfig: Record<string, unknown>): DesktopRuntimeConfig {
+  return {
+    apiBaseUrl: readRuntimeString(runtimeConfig, "api_base_url"),
+    wsUrl: readRuntimeString(runtimeConfig, "ws_url"),
+    authToken: readRuntimeString(runtimeConfig, "auth_token"),
+    appMode: readRuntimeString(runtimeConfig, "app_mode"),
+    appVersion: readRuntimeString(runtimeConfig, "app_version"),
+    buildNumber: readRuntimeString(runtimeConfig, "build_number"),
+    platform: readRuntimeString(runtimeConfig, "platform"),
+    oauthRedirectUri: readRuntimeString(runtimeConfig, "oauth_redirect_uri"),
+    desktopWindowTopInset: readRuntimeNumber(runtimeConfig, "desktop_window_top_inset"),
+  };
+}
+
+export function getDesktopRuntimeConfig(): DesktopRuntimeConfig | null {
   if (typeof window === "undefined") {
     return null;
   }
-  const runtime_config = window.__NEXUS_DESKTOP_RUNTIME__;
-  if (!runtime_config || typeof runtime_config !== "object") {
+  const runtimeConfig = window.__NEXUS_DESKTOP_RUNTIME__;
+  if (!runtimeConfig || typeof runtimeConfig !== "object") {
     return null;
   }
-  return runtime_config;
+  return normalizeDesktopRuntimeConfig(runtimeConfig);
 }
 
-export function is_desktop_runtime(): boolean {
-  return get_desktop_runtime_config()?.app_mode === "desktop";
+export function isDesktopRuntime(): boolean {
+  return getDesktopRuntimeConfig()?.appMode === "desktop";
 }
 
-export function get_desktop_session_token(): string {
-  return get_desktop_runtime_config()?.auth_token?.trim() || "";
+export function applyDesktopRuntimeDocumentFlags(): void {
+  const runtimeConfig = getDesktopRuntimeConfig();
+  if (runtimeConfig?.appMode !== "desktop") {
+    return;
+  }
+  document.documentElement.dataset.desktopRuntime = "true";
+  if (runtimeConfig.platform) {
+    document.documentElement.dataset.desktopPlatform = runtimeConfig.platform;
+  }
+  if (typeof runtimeConfig.desktopWindowTopInset === "number" && runtimeConfig.desktopWindowTopInset >= 0) {
+    document.documentElement.style.setProperty(
+      DESKTOP_WINDOW_TOP_INSET_PROPERTY,
+      `${runtimeConfig.desktopWindowTopInset}px`,
+    );
+  }
 }
 
-export function get_desktop_websocket_protocols(): string[] {
-  const token = get_desktop_session_token();
+export function getDesktopSessionToken(): string {
+  return getDesktopRuntimeConfig()?.authToken?.trim() || "";
+}
+
+export function getDesktopWebsocketProtocols(): string[] {
+  const token = getDesktopSessionToken();
   if (!token) {
     return [];
   }
   return ["nexus.desktop.v1", `${DESKTOP_SESSION_TOKEN_PROTOCOL_PREFIX}${token}`];
 }
 
-export function apply_desktop_request_headers(input: string, headers: Headers): Headers {
-  const token = get_desktop_session_token();
-  if (!token || !should_attach_desktop_session_token(input)) {
+export function applyDesktopRequestHeaders(input: string, headers: Headers): Headers {
+  const token = getDesktopSessionToken();
+  if (!token || !shouldAttachDesktopSessionToken(input)) {
     return headers;
   }
   if (!headers.has(DESKTOP_SESSION_TOKEN_HEADER)) {
@@ -128,18 +174,18 @@ export function apply_desktop_request_headers(input: string, headers: Headers): 
   return headers;
 }
 
-export function recover_desktop_session_token_error(message: string, input: string): boolean {
-  if (!is_desktop_session_token_error(message)) {
+export function recoverDesktopSessionTokenError(message: string, input: string): boolean {
+  if (!isDesktopSessionTokenError(message)) {
     return false;
   }
 
-  const request_path = desktop_request_path(input);
-  notify_desktop_web_fatal(
+  const requestPath = desktopRequestPath(input);
+  notifyDesktopWebFatal(
     "desktop.session_token_invalid",
-    new Error(`${DESKTOP_SESSION_TOKEN_INVALID_DETAIL}: ${request_path}`),
+    new Error(`${DESKTOP_SESSION_TOKEN_INVALID_DETAIL}: ${requestPath}`),
   );
-  mark_desktop_performance("desktop.session_token_invalid");
-  if (!should_reload_for_desktop_session_token(input)) {
+  markDesktopPerformance("desktop.session_token_invalid");
+  if (!shouldReloadForDesktopSessionToken(input)) {
     return false;
   }
   window.setTimeout(() => {
@@ -148,12 +194,12 @@ export function recover_desktop_session_token_error(message: string, input: stri
   return true;
 }
 
-export function is_desktop_session_token_error(message: string): boolean {
-  return is_desktop_runtime() && message.includes(DESKTOP_SESSION_TOKEN_INVALID_DETAIL);
+function isDesktopSessionTokenError(message: string): boolean {
+  return isDesktopRuntime() && message.includes(DESKTOP_SESSION_TOKEN_INVALID_DETAIL);
 }
 
-export function mark_desktop_performance(name: string): void {
-  if (!get_desktop_runtime_config()) {
+export function markDesktopPerformance(name: string): void {
+  if (!getDesktopRuntimeConfig()) {
     return;
   }
   try {
@@ -163,86 +209,86 @@ export function mark_desktop_performance(name: string): void {
   }
 }
 
-export function notify_desktop_web_ready(source = "unknown"): void {
-  mark_desktop_performance("web.ready");
-  post_desktop_lifecycle_message({
+export function notifyDesktopWebReady(source = "unknown"): void {
+  markDesktopPerformance("web.ready");
+  postDesktopLifecycleMessage({
     kind: "web.ready",
     location: window.location.pathname || "/",
-    reduced_motion: prefers_reduced_motion(),
+    reducedMotion: prefersReducedMotion(),
     source,
-    performance: get_desktop_ready_performance(),
+    performance: getDesktopReadyPerformance(),
   });
 }
 
-export function notify_desktop_web_fatal(
+export function notifyDesktopWebFatal(
   source: string,
   error: unknown,
-  details: { component_stack?: string } = {},
+  details: { componentStack?: string } = {},
 ): void {
-  if (!is_desktop_runtime()) {
+  if (!isDesktopRuntime()) {
     return;
   }
 
-  mark_desktop_performance(`web.fatal.${source}`);
-  post_desktop_lifecycle_message({
+  markDesktopPerformance(`web.fatal.${source}`);
+  postDesktopLifecycleMessage({
     kind: "web.fatal",
-    location: current_location_path(),
+    location: currentLocationPath(),
     source,
-    message: diagnostic_message(error),
-    name: diagnostic_name(error),
-    stack: diagnostic_stack(error),
-    component_stack: trim_diagnostic_text(details.component_stack),
-    snapshot: get_desktop_render_snapshot(),
-    performance: get_desktop_ready_performance(),
+    message: diagnosticMessage(error),
+    name: diagnosticName(error),
+    stack: diagnosticStack(error),
+    componentStack: trimDiagnosticText(details.componentStack),
+    snapshot: getDesktopRenderSnapshot(),
+    performance: getDesktopReadyPerformance(),
   });
 }
 
-export function notify_desktop_render_health(
+export function notifyDesktopRenderHealth(
   source: string,
   status: DesktopRenderHealthStatus,
 ): void {
-  if (!is_desktop_runtime()) {
+  if (!isDesktopRuntime()) {
     return;
   }
 
-  mark_desktop_performance(`web.health.${status}`);
-  post_desktop_lifecycle_message({
+  markDesktopPerformance(`web.health.${status}`);
+  postDesktopLifecycleMessage({
     kind: "web.health",
-    location: current_location_path(),
+    location: currentLocationPath(),
     source,
     status,
-    snapshot: get_desktop_render_snapshot(),
-    performance: get_desktop_ready_performance(),
+    snapshot: getDesktopRenderSnapshot(),
+    performance: getDesktopReadyPerformance(),
   });
 }
 
-export function get_desktop_render_snapshot(): DesktopRenderSnapshot {
+export function getDesktopRenderSnapshot(): DesktopRenderSnapshot {
   const root = document.getElementById("root");
   const body = document.body;
   return {
     href: window.location.href,
-    path: current_location_path(),
-    ready_state: document.readyState,
+    path: currentLocationPath(),
+    readyState: document.readyState,
     title: document.title,
-    has_root: Boolean(root),
-    root_children: root?.childElementCount ?? -1,
-    root_text_length: root?.innerText?.trim().length ?? -1,
-    body_children: body?.childElementCount ?? -1,
-    body_text_length: body?.innerText?.length ?? -1,
+    hasRoot: Boolean(root),
+    rootChildren: root?.childElementCount ?? -1,
+    rootTextLength: root?.innerText?.trim().length ?? -1,
+    bodyChildren: body?.childElementCount ?? -1,
+    bodyTextLength: body?.innerText?.length ?? -1,
   };
 }
 
-export function get_connector_oauth_redirect_uri(): string {
-  const runtime_config = get_desktop_runtime_config();
-  if (runtime_config?.app_mode === "desktop") {
-    const configured_uri = runtime_config.oauth_redirect_uri?.trim();
-    if (configured_uri) {
-      return configured_uri;
+export function getConnectorOauthRedirectUri(): string {
+  const runtimeConfig = getDesktopRuntimeConfig();
+  if (runtimeConfig?.appMode === "desktop") {
+    const configuredUri = runtimeConfig.oauthRedirectUri?.trim();
+    if (configuredUri) {
+      return configuredUri;
     }
-    const api_base_url = runtime_config.api_base_url?.trim();
-    if (api_base_url) {
+    const apiBaseUrl = runtimeConfig.apiBaseUrl?.trim();
+    if (apiBaseUrl) {
       try {
-        return `${new URL(api_base_url).origin}${CONNECTOR_OAUTH_CALLBACK_PATH}`;
+        return `${new URL(apiBaseUrl).origin}${CONNECTOR_OAUTH_CALLBACK_PATH}`;
       } catch {
         return `${window.location.origin}${CONNECTOR_OAUTH_CALLBACK_PATH}`;
       }
@@ -251,54 +297,113 @@ export function get_connector_oauth_redirect_uri(): string {
   return `${window.location.origin}${CONNECTOR_OAUTH_CALLBACK_PATH}`;
 }
 
-export function is_desktop_loopback_oauth_callback(): boolean {
+export function isDesktopLoopbackOauthCallback(): boolean {
   if (typeof window === "undefined") {
     return false;
   }
   const host = window.location.hostname.trim().toLowerCase();
-  const is_loopback = host === "127.0.0.1" || host === "localhost" || host === "::1" || host === "[::1]";
+  const isLoopback = host === "127.0.0.1" || host === "localhost" || host === "::1" || host === "[::1]";
   return window.location.protocol === "http:" &&
     window.location.port === DESKTOP_LOOPBACK_OAUTH_PORT &&
-    is_loopback &&
+    isLoopback &&
     window.location.pathname === CONNECTOR_OAUTH_CALLBACK_PATH;
 }
 
-export function get_desktop_connectors_return_uri(): string {
+export function getDesktopConnectorsReturnUri(): string {
   return DESKTOP_CONNECTORS_RETURN_URI;
 }
 
-function post_desktop_lifecycle_message(message: DesktopLifecycleMessage): void {
-  const lifecycle_handler = window.webkit?.messageHandlers?.nexusDesktopLifecycle;
-  if (!lifecycle_handler) {
+function postDesktopLifecycleMessage(message: DesktopLifecycleMessage): void {
+  const lifecycleHandler = window.webkit?.messageHandlers?.nexusDesktopLifecycle;
+  if (!lifecycleHandler) {
     return;
   }
-  lifecycle_handler.postMessage(message);
+  lifecycleHandler.postMessage(toDesktopLifecyclePayload(message));
 }
 
-function should_attach_desktop_session_token(input: string): boolean {
+function toDesktopLifecyclePayload(message: DesktopLifecycleMessage): Record<string, unknown> {
+  const basePayload = {
+    kind: message.kind,
+    location: message.location,
+    source: message.source,
+    performance: toDesktopPerformancePayload(message.performance),
+  };
+
+  if (message.kind === "web.ready") {
+    return {
+      ...basePayload,
+      reduced_motion: message.reducedMotion,
+    };
+  }
+  if (message.kind === "web.fatal") {
+    return {
+      ...basePayload,
+      message: message.message,
+      name: message.name,
+      stack: message.stack,
+      component_stack: message.componentStack,
+      snapshot: toDesktopRenderSnapshotPayload(message.snapshot),
+    };
+  }
+  return {
+    ...basePayload,
+    status: message.status,
+    snapshot: toDesktopRenderSnapshotPayload(message.snapshot),
+  };
+}
+
+function toDesktopPerformancePayload(performancePayload: DesktopWebReadyPerformance): Record<string, unknown> {
+  return {
+    ready_ms: performancePayload.readyMs,
+    response_end_ms: performancePayload.responseEndMs,
+    dom_content_loaded_ms: performancePayload.domContentLoadedMs,
+    load_event_end_ms: performancePayload.loadEventEndMs,
+    first_contentful_paint_ms: performancePayload.firstContentfulPaintMs,
+    marks: performancePayload.marks.map((mark) => ({
+      name: mark.name,
+      start_time_ms: mark.startTimeMs,
+    })),
+  };
+}
+
+function toDesktopRenderSnapshotPayload(snapshot: DesktopRenderSnapshot): Record<string, unknown> {
+  return {
+    href: snapshot.href,
+    path: snapshot.path,
+    ready_state: snapshot.readyState,
+    title: snapshot.title,
+    has_root: snapshot.hasRoot,
+    root_children: snapshot.rootChildren,
+    root_text_length: snapshot.rootTextLength,
+    body_children: snapshot.bodyChildren,
+    body_text_length: snapshot.bodyTextLength,
+  };
+}
+
+function shouldAttachDesktopSessionToken(input: string): boolean {
   if (typeof window === "undefined") {
     return false;
   }
-  const runtime_config = get_desktop_runtime_config();
-  const api_base_url = runtime_config?.api_base_url?.trim();
-  if (!api_base_url) {
+  const runtimeConfig = getDesktopRuntimeConfig();
+  const apiBaseUrl = runtimeConfig?.apiBaseUrl?.trim();
+  if (!apiBaseUrl) {
     return false;
   }
   try {
-    const request_url = new URL(input, window.location.href);
-    const api_url = new URL(api_base_url, window.location.href);
-    const api_path = api_url.pathname.replace(/\/+$/, "");
-    return request_url.origin === api_url.origin
-      && (request_url.pathname === api_path || request_url.pathname.startsWith(`${api_path}/`));
+    const requestUrl = new URL(input, window.location.href);
+    const apiUrl = new URL(apiBaseUrl, window.location.href);
+    const apiPath = apiUrl.pathname.replace(/\/+$/, "");
+    return requestUrl.origin === apiUrl.origin
+      && (requestUrl.pathname === apiPath || requestUrl.pathname.startsWith(`${apiPath}/`));
   } catch {
     return false;
   }
 }
 
-function should_reload_for_desktop_session_token(input: string): boolean {
-  const runtime_config = get_desktop_runtime_config();
-  const api_base_url = runtime_config?.api_base_url?.trim() || "missing-api";
-  const key = `${DESKTOP_SESSION_TOKEN_RELOAD_KEY_PREFIX}${api_base_url}:${desktop_request_path(input)}:${current_location_path()}`;
+function shouldReloadForDesktopSessionToken(input: string): boolean {
+  const runtimeConfig = getDesktopRuntimeConfig();
+  const apiBaseUrl = runtimeConfig?.apiBaseUrl?.trim() || "missing-api";
+  const key = `${DESKTOP_SESSION_TOKEN_RELOAD_KEY_PREFIX}${apiBaseUrl}:${desktopRequestPath(input)}:${currentLocationPath()}`;
   try {
     if (window.sessionStorage.getItem(key) === "1") {
       return false;
@@ -311,44 +416,44 @@ function should_reload_for_desktop_session_token(input: string): boolean {
   }
 }
 
-function desktop_request_path(input: string): string {
+function desktopRequestPath(input: string): string {
   try {
-    const request_url = new URL(input, window.location.href);
-    return `${request_url.pathname}${request_url.search}${request_url.hash}`;
+    const requestUrl = new URL(input, window.location.href);
+    return `${requestUrl.pathname}${requestUrl.search}${requestUrl.hash}`;
   } catch {
     return input.trim() || "unknown";
   }
 }
 
-function current_location_path(): string {
+function currentLocationPath(): string {
   return `${window.location.pathname || "/"}${window.location.search}${window.location.hash}`;
 }
 
-function diagnostic_message(error: unknown): string {
+function diagnosticMessage(error: unknown): string {
   if (error instanceof Error) {
-    return trim_diagnostic_text(error.message) || error.name;
+    return trimDiagnosticText(error.message) || error.name;
   }
   if (typeof error === "string") {
-    return trim_diagnostic_text(error) || "Unknown error";
+    return trimDiagnosticText(error) || "Unknown error";
   }
-  return trim_diagnostic_text(String(error)) || "Unknown error";
+  return trimDiagnosticText(String(error)) || "Unknown error";
 }
 
-function diagnostic_name(error: unknown): string | undefined {
+function diagnosticName(error: unknown): string | undefined {
   if (error instanceof Error) {
-    return trim_diagnostic_text(error.name);
+    return trimDiagnosticText(error.name);
   }
   return undefined;
 }
 
-function diagnostic_stack(error: unknown): string | undefined {
+function diagnosticStack(error: unknown): string | undefined {
   if (error instanceof Error) {
-    return trim_diagnostic_text(error.stack);
+    return trimDiagnosticText(error.stack);
   }
   return undefined;
 }
 
-function trim_diagnostic_text(value?: string): string | undefined {
+function trimDiagnosticText(value?: string): string | undefined {
   const normalized = value?.trim();
   if (!normalized) {
     return undefined;
@@ -359,36 +464,36 @@ function trim_diagnostic_text(value?: string): string | undefined {
   return `${normalized.slice(0, DESKTOP_DIAGNOSTIC_TEXT_LIMIT)}...`;
 }
 
-function get_desktop_ready_performance(): DesktopWebReadyPerformance {
+function getDesktopReadyPerformance(): DesktopWebReadyPerformance {
   const navigation = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
-  const paint_entries = performance.getEntriesByType("paint");
-  const first_contentful_paint = paint_entries.find((entry) => entry.name === "first-contentful-paint");
+  const paintEntries = performance.getEntriesByType("paint");
+  const firstContentfulPaint = paintEntries.find((entry) => entry.name === "first-contentful-paint");
   const payload: DesktopWebReadyPerformance = {
-    ready_ms: rounded_milliseconds(performance.now()),
+    readyMs: roundedMilliseconds(performance.now()),
     marks: performance.getEntriesByType("mark")
       .filter((entry) => entry.name.startsWith("nexus."))
       .map((entry) => ({
         name: entry.name,
-        start_time_ms: rounded_milliseconds(entry.startTime),
+        startTimeMs: roundedMilliseconds(entry.startTime),
       })),
   };
 
   if (navigation) {
-    payload.response_end_ms = rounded_milliseconds(navigation.responseEnd);
-    payload.dom_content_loaded_ms = rounded_milliseconds(navigation.domContentLoadedEventEnd);
-    payload.load_event_end_ms = rounded_milliseconds(navigation.loadEventEnd);
+    payload.responseEndMs = roundedMilliseconds(navigation.responseEnd);
+    payload.domContentLoadedMs = roundedMilliseconds(navigation.domContentLoadedEventEnd);
+    payload.loadEventEndMs = roundedMilliseconds(navigation.loadEventEnd);
   }
-  if (first_contentful_paint) {
-    payload.first_contentful_paint_ms = rounded_milliseconds(first_contentful_paint.startTime);
+  if (firstContentfulPaint) {
+    payload.firstContentfulPaintMs = roundedMilliseconds(firstContentfulPaint.startTime);
   }
   return payload;
 }
 
-function rounded_milliseconds(value: number): number {
+function roundedMilliseconds(value: number): number {
   return Math.round(value * 10) / 10;
 }
 
-function prefers_reduced_motion(): boolean {
+function prefersReducedMotion(): boolean {
   if (typeof window.matchMedia !== "function") {
     return false;
   }

@@ -108,10 +108,10 @@ func TestBuildAgentClientOptionsUsesProviderRuntimeEnv(t *testing.T) {
 	if options.Model != "kimi-k2" {
 		t.Fatalf("运行时模型未写入 SDK options: %+v", options)
 	}
-	if options.Env["ENABLE_TOOL_SEARCH"] != "false" {
-		t.Fatalf("kimi 模型应关闭 tool search: %+v", options.Env)
+	if _, ok := options.Env[enableToolSearchEnvName]; ok {
+		t.Fatalf("宿主不应注入 tool search 开关，应交给 SDK 按 CC 规则判断: %+v", options.Env)
 	}
-	if options.Env[claudeAutoCompactPctOverrideEnvName] != defaultClaudeAutoCompactPctOverride {
+	if options.Env[nexusAutoCompactPctOverrideEnvName] != defaultClaudeAutoCompactPctOverride {
 		t.Fatalf("默认自动压缩阈值未注入: %+v", options.Env)
 	}
 	if options.Session.ResumeID != "sdk-session-1" {
@@ -211,22 +211,39 @@ func TestAnthropicRuntimeEnvClearsConflictingCredentialEnv(t *testing.T) {
 	}
 }
 
+func TestAnthropicRuntimeEnvLeavesToolSearchUnsetForCompatibleProviders(t *testing.T) {
+	tests := []RuntimeConfig{
+		{Provider: "glm-coding-plan", BaseURL: "https://open.bigmodel.cn/api/anthropic", Model: "glm-5.2"},
+		{Provider: "kimi", BaseURL: "https://api.moonshot.cn/anthropic", Model: "kimi-k2"},
+	}
+	for _, test := range tests {
+		env := anthropicRuntimeEnvFromConfig(&test)
+		if _, ok := env[enableToolSearchEnvName]; ok {
+			t.Fatalf("Anthropic-compatible runtime 不应注入 tool search 开关，应交给 SDK 按 CC 规则判断: %+v", env)
+		}
+	}
+}
+
 func TestBuildAgentClientOptionsAllowsExtraEnvOverride(t *testing.T) {
 	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
 		WorkspacePath: "/tmp/workspace",
 		ExtraEnv: map[string]string{
-			claudeAutoCompactPctOverrideEnvName:    "80",
+			nexusAutoCompactPctOverrideEnvName:     "80",
 			nexusDisableProjectInstructionsEnvName: "0",
+			enableToolSearchEnvName:                "true",
 		},
 	})
 	if err != nil {
 		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
 	}
-	if options.Env[claudeAutoCompactPctOverrideEnvName] != "80" {
+	if options.Env[nexusAutoCompactPctOverrideEnvName] != "80" {
 		t.Fatalf("ExtraEnv 应覆盖默认自动压缩阈值: %+v", options.Env)
 	}
 	if options.Env[nexusDisableProjectInstructionsEnvName] != "0" {
 		t.Fatalf("ExtraEnv 应允许覆盖项目指令加载开关: %+v", options.Env)
+	}
+	if options.Env[enableToolSearchEnvName] != "true" {
+		t.Fatalf("ExtraEnv 应允许显式覆盖 tool search 开关: %+v", options.Env)
 	}
 }
 
@@ -297,8 +314,10 @@ func TestBuildAgentClientOptionsInjectsReasoningCapabilities(t *testing.T) {
 }
 
 func TestBuildAgentClientOptionsUsesBridgeRuntimeKind(t *testing.T) {
+	clearAmbientNXSProcessRuntimeEnv(t)
 	t.Setenv(nexusNXSCommandPathEnvName, "")
 	t.Setenv(runtimectx.AgentSDKDiagnosticsEnvName, "stderr")
+	t.Setenv(runtimectx.AgentSDKDiagnosticsJSONLEnvName, "1")
 	t.Setenv(runtimectx.AgentSDKDebugEnvName, "1")
 	t.Setenv(runtimectx.AgentSDKProviderDebugBodyEnvName, "full")
 
@@ -314,6 +333,12 @@ func TestBuildAgentClientOptionsUsesBridgeRuntimeKind(t *testing.T) {
 	if strings.TrimSpace(options.CLIPath) != "" {
 		t.Fatalf("nxs 默认路径不应由 Nexus 解析: CLIPath=%q", options.CLIPath)
 	}
+	if options.Env[runtimectx.AgentSDKDiagnosticsJSONLEnvName] != "1" {
+		t.Fatalf("显式 JSONL diagnostics env 应透传给 nxs: %+v", options.Env)
+	}
+	if options.Env[runtimectx.AgentSDKProviderDebugBodyEnvName] != "full" {
+		t.Fatalf("显式 provider body env 应透传给 nxs: %+v", options.Env)
+	}
 	for _, key := range []string{
 		"NEXUS_CACHED_MICROCOMPACT",
 		"NEXUS_API_CLEAR_TOOL_RESULTS",
@@ -321,8 +346,8 @@ func TestBuildAgentClientOptionsUsesBridgeRuntimeKind(t *testing.T) {
 		"NEXUS_PROMPT_CACHE_1H_ELIGIBLE",
 		"NEXUS_PROMPT_CACHE_1H_ALLOWLIST",
 		runtimectx.AgentSDKDiagnosticsEnvName,
+		runtimectx.AgentSDKDiagnosticsStreamProgressEnvName,
 		runtimectx.AgentSDKDebugEnvName,
-		runtimectx.AgentSDKProviderDebugBodyEnvName,
 	} {
 		if _, ok := options.Env[key]; ok {
 			t.Fatalf("%s 应由 bridge 处理或显式输入，不应由 Nexus 默认注入: %+v", key, options.Env)
@@ -331,6 +356,7 @@ func TestBuildAgentClientOptionsUsesBridgeRuntimeKind(t *testing.T) {
 }
 
 func TestBuildAgentClientOptionsEnablesNXSAgentSDKDiagnostics(t *testing.T) {
+	clearAmbientNXSProcessRuntimeEnv(t)
 	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
 		RuntimeKind:                runtimeKindNXS,
 		AgentSDKDiagnosticsEnabled: true,
@@ -338,11 +364,51 @@ func TestBuildAgentClientOptionsEnablesNXSAgentSDKDiagnostics(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
 	}
-	if options.Env[runtimectx.AgentSDKDiagnosticsEnvName] != "stderr" {
-		t.Fatalf("%s = %q, want stderr; env=%+v", runtimectx.AgentSDKDiagnosticsEnvName, options.Env[runtimectx.AgentSDKDiagnosticsEnvName], options.Env)
+	if options.Env[runtimectx.AgentSDKDiagnosticsJSONLEnvName] != "1" {
+		t.Fatalf("%s = %q, want 1; env=%+v",
+			runtimectx.AgentSDKDiagnosticsJSONLEnvName,
+			options.Env[runtimectx.AgentSDKDiagnosticsJSONLEnvName],
+			options.Env)
+	}
+	if _, ok := options.Env[runtimectx.AgentSDKDiagnosticsEnvName]; ok {
+		t.Fatalf("宿主默认不应继续注入旧 stderr diagnostics env: %+v", options.Env)
+	}
+	if options.Env[runtimectx.AgentSDKDiagnosticsStreamProgressEnvName] != "0" {
+		t.Fatalf("%s = %q, want 0; env=%+v",
+			runtimectx.AgentSDKDiagnosticsStreamProgressEnvName,
+			options.Env[runtimectx.AgentSDKDiagnosticsStreamProgressEnvName],
+			options.Env)
 	}
 	if _, ok := options.Env[runtimectx.AgentSDKProviderDebugBodyEnvName]; ok {
 		t.Fatalf("开启 diagnostics 不应强制请求体 dump 范围: %+v", options.Env)
+	}
+	if !runtimectx.AgentSDKDiagnosticsEnabled(options.Env) {
+		t.Fatalf("JSONL diagnostics env 应被运行时摘要识别为已开启: %+v", options.Env)
+	}
+}
+
+func TestBuildAgentClientOptionsPassesExplicitNXSDebugEnv(t *testing.T) {
+	t.Setenv(runtimectx.AgentSDKDiagnosticsJSONLEnvName, "1")
+	t.Setenv(runtimectx.AgentSDKDiagnosticsStreamProgressEnvName, "0")
+	t.Setenv(runtimectx.AgentSDKProviderDebugBodyEnvName, "full")
+	t.Setenv(nexusCachedMicrocompactEnvName, "1")
+	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
+		RuntimeKind: runtimeKindNXS,
+	})
+	if err != nil {
+		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
+	}
+	if options.Env[runtimectx.AgentSDKDiagnosticsJSONLEnvName] != "1" {
+		t.Fatalf("diagnostics jsonl env 未透传: %+v", options.Env)
+	}
+	if options.Env[runtimectx.AgentSDKDiagnosticsStreamProgressEnvName] != "0" {
+		t.Fatalf("diagnostics stream progress env 未透传: %+v", options.Env)
+	}
+	if options.Env[runtimectx.AgentSDKProviderDebugBodyEnvName] != "full" {
+		t.Fatalf("provider debug body env 未透传: %+v", options.Env)
+	}
+	if options.Env[nexusCachedMicrocompactEnvName] != "1" {
+		t.Fatalf("cached microcompact env 未透传: %+v", options.Env)
 	}
 }
 
@@ -367,12 +433,12 @@ func TestBuildAgentClientOptionsDefaultsToNXSChatCompletionsProviderEnv(t *testi
 		t.Fatalf("未启用 nxs runtime: %+v", options.Runtime)
 	}
 	wantEnv := map[string]string{
-		"OPENAI_API_KEY":             "openai-token",
-		"OPENAI_BASE_URL":            "https://api.openai.com/v1",
-		"OPENAI_MODEL":               "gpt-4o",
-		"CLAUDE_CODE_SUBAGENT_MODEL": "gpt-4o",
-		NexusRuntimeProviderEnvName:  "openai",
-		nexusAPIProviderEnvName:      "openai",
+		"OPENAI_API_KEY":            "openai-token",
+		"OPENAI_BASE_URL":           "https://api.openai.com/v1",
+		"OPENAI_MODEL":              "gpt-4o",
+		"NEXUS_SUBAGENT_MODEL":      "gpt-4o",
+		NexusRuntimeProviderEnvName: "openai",
+		nexusAPIProviderEnvName:     "openai",
 	}
 	for key, want := range wantEnv {
 		if options.Env[key] != want {
@@ -626,4 +692,16 @@ func countTool(tools []string, expected string) int {
 		}
 	}
 	return count
+}
+
+func clearAmbientNXSProcessRuntimeEnv(t *testing.T) {
+	t.Helper()
+	for _, key := range []string{
+		runtimectx.AgentSDKDiagnosticsJSONLEnvName,
+		runtimectx.AgentSDKDiagnosticsStreamProgressEnvName,
+		runtimectx.AgentSDKProviderDebugBodyEnvName,
+		nexusCachedMicrocompactEnvName,
+	} {
+		t.Setenv(key, "")
+	}
 }

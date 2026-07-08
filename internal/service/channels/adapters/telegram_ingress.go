@@ -22,10 +22,7 @@ func (c *TelegramChannel) handleUpdate(ctx context.Context, update telegramUpdat
 		return
 	}
 
-	content := strings.TrimSpace(message.Text)
-	if content == "" {
-		content = strings.TrimSpace(message.Caption)
-	}
+	content := channelcontract.FirstNonEmpty(message.Text, message.Caption)
 	if content == "" {
 		return
 	}

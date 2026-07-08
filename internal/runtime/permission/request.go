@@ -21,7 +21,8 @@ type RouteContext struct {
 	ConversationID     string
 	AgentID            string
 	MessageID          string
-	CausedBy           string
+	RoundID            string
+	AgentRoundID       string
 }
 
 // PendingRequest 表示一个待确认权限请求。
@@ -31,6 +32,7 @@ type PendingRequest struct {
 	DispatchSessionKey string
 	ToolName           string
 	ToolInput          map[string]any
+	ToolUseID          string
 	Suggestions        []sdkpermission.Update
 	ExpiresAt          time.Time
 	Route              RouteContext
@@ -47,6 +49,7 @@ func (c *Context) newPendingRequest(sessionKey string, request sdkpermission.Req
 		DispatchSessionKey: firstNonEmpty(route.DispatchSessionKey, sessionKey),
 		ToolName:           strings.TrimSpace(request.ToolName),
 		ToolInput:          cloneMap(request.Input),
+		ToolUseID:          strings.TrimSpace(request.ToolUseID),
 		Suggestions:        slices.Clone(request.PermissionSuggestions),
 		ExpiresAt:          now.Add(c.requestTimeout),
 		Route:              route,
@@ -153,7 +156,8 @@ func buildPermissionEvent(pending *PendingRequest) protocol.EventMessage {
 	event.ConversationID = strings.TrimSpace(pending.Route.ConversationID)
 	event.AgentID = firstNonEmpty(pending.Route.AgentID, agentIDFromSessionKey(pending.SessionKey))
 	event.MessageID = strings.TrimSpace(pending.Route.MessageID)
-	event.CausedBy = strings.TrimSpace(pending.Route.CausedBy)
+	event.RoundID = strings.TrimSpace(pending.Route.RoundID)
+	event.AgentRoundID = strings.TrimSpace(pending.Route.AgentRoundID)
 	return event
 }
 
@@ -170,7 +174,8 @@ func (c *Context) dispatchPermissionResolution(pending *PendingRequest, status s
 	event.ConversationID = strings.TrimSpace(pending.Route.ConversationID)
 	event.AgentID = firstNonEmpty(pending.Route.AgentID, agentIDFromSessionKey(pending.SessionKey))
 	event.MessageID = strings.TrimSpace(pending.Route.MessageID)
-	event.CausedBy = strings.TrimSpace(pending.Route.CausedBy)
+	event.RoundID = strings.TrimSpace(pending.Route.RoundID)
+	event.AgentRoundID = strings.TrimSpace(pending.Route.AgentRoundID)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

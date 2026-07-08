@@ -265,30 +265,6 @@ func TestDecodeFeishuIngressCallbackReactionCreated(t *testing.T) {
 	}
 }
 
-func TestDecodeFeishuIngressCallbackIgnoresTypingReaction(t *testing.T) {
-	callback, err := DecodeFeishuIngressCallback([]byte(`{
-		"header": {
-			"event_type": "im.message.reaction.created_v1"
-		},
-		"event": {
-			"message_id": "om_1",
-			"reaction_type": {
-				"emoji_type": "Typing"
-			},
-			"operator_type": "user",
-			"user_id": {
-				"open_id": "ou_sender"
-			}
-		}
-	}`))
-	if err != nil {
-		t.Fatalf("解析飞书 typing reaction 失败: %v", err)
-	}
-	if callback.Request != nil || callback.IgnoredReason != "typing_reaction" {
-		t.Fatalf("Typing reaction 应被忽略: %+v", callback)
-	}
-}
-
 func TestDecryptFeishuCallback(t *testing.T) {
 	plain := []byte(`{
 		"schema": "2.0",
@@ -340,28 +316,63 @@ func TestVerifyFeishuCallbackSignature(t *testing.T) {
 	}
 }
 
-func TestDecodeFeishuIngressCallbackIgnoresBotSender(t *testing.T) {
-	callback, err := DecodeFeishuIngressCallback([]byte(`{
-		"header": {
-			"event_type": "im.message.receive_v1"
+func TestDecodeFeishuIngressCallbackIgnoresNoisyEvents(t *testing.T) {
+	tests := []struct {
+		name   string
+		body   string
+		reason string
+	}{
+		{
+			name: "typing reaction",
+			body: `{
+				"header": {
+					"event_type": "im.message.reaction.created_v1"
+				},
+				"event": {
+					"message_id": "om_1",
+					"reaction_type": {
+						"emoji_type": "Typing"
+					},
+					"operator_type": "user",
+					"user_id": {
+						"open_id": "ou_sender"
+					}
+				}
+			}`,
+			reason: "typing_reaction",
 		},
-		"event": {
-			"sender": {
-				"sender_type": "app"
-			},
-			"message": {
-				"message_id": "om_bot",
-				"chat_id": "oc_group_123",
-				"chat_type": "group",
-				"message_type": "text",
-				"content": "{\"text\":\"机器人自己发送的消息\"}"
-			}
-		}
-	}`))
-	if err != nil {
-		t.Fatalf("解析飞书机器人消息失败: %v", err)
+		{
+			name: "bot sender",
+			body: `{
+				"header": {
+					"event_type": "im.message.receive_v1"
+				},
+				"event": {
+					"sender": {
+						"sender_type": "app"
+					},
+					"message": {
+						"message_id": "om_bot",
+						"chat_id": "oc_group_123",
+						"chat_type": "group",
+						"message_type": "text",
+						"content": "{\"text\":\"机器人自己发送的消息\"}"
+					}
+				}
+			}`,
+			reason: "bot_message",
+		},
 	}
-	if callback.Request != nil || callback.IgnoredReason != "bot_message" {
-		t.Fatalf("机器人消息应被忽略: %+v", callback)
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			callback, err := DecodeFeishuIngressCallback([]byte(test.body))
+			if err != nil {
+				t.Fatalf("解析飞书忽略事件失败: %v", err)
+			}
+			if callback.Request != nil || callback.IgnoredReason != test.reason {
+				t.Fatalf("飞书噪声事件应被忽略: %+v", callback)
+			}
+		})
 	}
 }

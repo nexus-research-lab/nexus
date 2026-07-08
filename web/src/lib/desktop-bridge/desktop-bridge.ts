@@ -1,4 +1,4 @@
-export type DesktopBridgeKind =
+type DesktopBridgeKind =
   | "app.get_app_version"
   | "app.open_external_url"
   | "app.export_logs"
@@ -11,7 +11,7 @@ export type DesktopBridgeKind =
   | "app.set_global_shortcut_accelerator"
   | "app.reset_global_shortcut_accelerator";
 
-export interface DesktopBridgeRequest<TPayload = Record<string, unknown>> {
+interface DesktopBridgeRequest<TPayload = Record<string, unknown>> {
   schema_version: 1;
   request_id?: string;
   kind: DesktopBridgeKind;
@@ -35,15 +35,6 @@ export interface DesktopPersistentStateResult {
   value?: string | null;
 }
 
-export interface DesktopGlobalShortcutStatus {
-  accelerator: string;
-  default_accelerator: string;
-  enabled: boolean;
-  is_default: boolean;
-  registered: boolean;
-  error_message?: string;
-}
-
 interface NativeDesktopBridge {
   invoke<TPayload, TResult>(message: DesktopBridgeRequest<TPayload>): Promise<TResult>;
 }
@@ -54,80 +45,44 @@ declare global {
   }
 }
 
-export function is_desktop_bridge_available(): boolean {
+export function isDesktopBridgeAvailable(): boolean {
   return typeof window !== "undefined" && typeof window.__NEXUS_DESKTOP_BRIDGE__?.invoke === "function";
 }
 
-export async function get_desktop_app_version(): Promise<DesktopAppVersion> {
-  return invoke_desktop_bridge<Record<string, never>, DesktopAppVersion>("app.get_app_version", {});
+export async function getDesktopAppVersion(): Promise<DesktopAppVersion> {
+  return invokeDesktopBridge<Record<string, never>, DesktopAppVersion>("app.get_app_version", {});
 }
 
-export async function open_external_url(url: string): Promise<void> {
-  await invoke_desktop_bridge<{ url: string }, { opened: boolean }>("app.open_external_url", { url });
+export async function exportDesktopLogs(): Promise<DesktopExportLogsResult> {
+  return invokeDesktopBridge<Record<string, never>, DesktopExportLogsResult>("app.export_logs", {});
 }
 
-export async function export_desktop_logs(): Promise<DesktopExportLogsResult> {
-  return invoke_desktop_bridge<Record<string, never>, DesktopExportLogsResult>("app.export_logs", {});
+export async function openDesktopRoute(route: string): Promise<void> {
+  await invokeDesktopBridge<{ route: string }, { opened: boolean }>("app.open_route", { route });
 }
 
-export async function open_desktop_route(route: string): Promise<void> {
-  await invoke_desktop_bridge<{ route: string }, { opened: boolean }>("app.open_route", { route });
-}
-
-export async function get_desktop_persistent_state(key: string): Promise<DesktopPersistentStateResult> {
-  return invoke_desktop_bridge<{ key: string }, DesktopPersistentStateResult>(
+export async function getDesktopPersistentState(key: string): Promise<DesktopPersistentStateResult> {
+  return invokeDesktopBridge<{ key: string }, DesktopPersistentStateResult>(
     "app.get_persistent_state",
     { key },
   );
 }
 
-export async function set_desktop_persistent_state(key: string, value: string): Promise<void> {
-  await invoke_desktop_bridge<{ key: string; value: string }, { saved: boolean }>(
+export async function setDesktopPersistentState(key: string, value: string): Promise<void> {
+  await invokeDesktopBridge<{ key: string; value: string }, { saved: boolean }>(
     "app.set_persistent_state",
     { key, value },
   );
 }
 
-export async function remove_desktop_persistent_state(key: string): Promise<void> {
-  await invoke_desktop_bridge<{ key: string }, { removed: boolean }>(
+export async function removeDesktopPersistentState(key: string): Promise<void> {
+  await invokeDesktopBridge<{ key: string }, { removed: boolean }>(
     "app.remove_persistent_state",
     { key },
   );
 }
 
-export async function get_desktop_global_shortcut_status(): Promise<DesktopGlobalShortcutStatus> {
-  return invoke_desktop_bridge<Record<string, never>, DesktopGlobalShortcutStatus>(
-    "app.get_global_shortcut_status",
-    {},
-  );
-}
-
-export async function set_desktop_global_shortcut_enabled(
-  enabled: boolean,
-): Promise<DesktopGlobalShortcutStatus> {
-  return invoke_desktop_bridge<{ enabled: boolean }, DesktopGlobalShortcutStatus>(
-    "app.set_global_shortcut_enabled",
-    { enabled },
-  );
-}
-
-export async function set_desktop_global_shortcut_accelerator(
-  accelerator: string,
-): Promise<DesktopGlobalShortcutStatus> {
-  return invoke_desktop_bridge<{ accelerator: string }, DesktopGlobalShortcutStatus>(
-    "app.set_global_shortcut_accelerator",
-    { accelerator },
-  );
-}
-
-export async function reset_desktop_global_shortcut_accelerator(): Promise<DesktopGlobalShortcutStatus> {
-  return invoke_desktop_bridge<Record<string, never>, DesktopGlobalShortcutStatus>(
-    "app.reset_global_shortcut_accelerator",
-    {},
-  );
-}
-
-async function invoke_desktop_bridge<TPayload, TResult>(
+async function invokeDesktopBridge<TPayload, TResult>(
   kind: DesktopBridgeKind,
   payload: TPayload,
 ): Promise<TResult> {

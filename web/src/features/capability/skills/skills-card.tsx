@@ -1,6 +1,6 @@
 "use client";
 
-import { Lock, Puzzle, RefreshCw, Trash2 } from "lucide-react";
+import { Lock, Puzzle, Trash2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { UiBadge } from "@/shared/ui/badge";
@@ -12,20 +12,18 @@ import { SkillStatePill } from "./skill-state-pill";
 interface SkillsCardProps {
   skill: SkillInfo;
   busy?: boolean;
-  class_name?: string;
-  on_select: () => void;
-  on_update?: () => void;
-  on_delete?: () => void;
+  className?: string;
+  onSelect: () => void;
+  onDelete?: () => void;
 }
 
 /** Skill 行 —— 与连接器目录保持一致的轻量列表结构。 */
 export function SkillsCard({
   skill,
   busy = false,
-  class_name,
-  on_select,
-  on_update,
-  on_delete,
+  className,
+  onSelect,
+  onDelete,
 }: SkillsCardProps) {
   const {
     title,
@@ -37,18 +35,18 @@ export function SkillsCard({
     deletable,
   } = skill;
 
-  const source_label =
+  const sourceLabel =
     source_type === "system" ? "系统内置" : source_type === "builtin" ? "内置推荐" : "外部导入";
-  const visible_tags = tags.slice(0, 2);
-  const state_label = locked ? "系统托管" : source_type === "external" ? "已导入" : "可安装";
-  const state_tone = locked ? "warning" : source_type === "external" ? "success" : "neutral";
+  const visibleTags = tags.slice(0, 2);
+  const stateLabel = locked ? "系统托管" : source_type === "external" ? "已导入" : "可安装";
+  const stateTone = locked ? "warning" : source_type === "external" ? "success" : "neutral";
 
   return (
     <UiListRow
-      class_name={cn(
+      className={cn(
         "min-h-[72px] rounded-[14px] px-2 py-1.5",
         busy && "opacity-60",
-        class_name,
+        className,
       )}
       leading={(
         <span
@@ -61,27 +59,16 @@ export function SkillsCard({
           {locked ? <Lock className="h-4 w-4" /> : <Puzzle className="h-4 w-4" />}
         </span>
       )}
-      on_click={on_select}
+      onClick={onSelect}
       right={(
         <div className="flex shrink-0 items-center gap-1.5">
-          <SkillStatePill tone={state_tone}>{state_label}</SkillStatePill>
-          {has_update ? (
-            <UiListActionButton
-              disabled={busy}
-              onClick={on_update}
-              size="sm"
-              stop_propagation
-              title="更新"
-            >
-              <RefreshCw className="h-3 w-3" />
-            </UiListActionButton>
-          ) : null}
+          <SkillStatePill tone={stateTone}>{stateLabel}</SkillStatePill>
           {deletable ? (
             <UiListActionButton
               disabled={busy}
-              onClick={on_delete}
+              onClick={onDelete}
               size="sm"
-              stop_propagation
+              stopPropagation
               title="从技能库删除"
               tone="danger"
             >
@@ -102,8 +89,8 @@ export function SkillsCard({
           {description || "暂无描述"}
         </div>
         <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] leading-4 text-(--text-soft)">
-          <span className="shrink-0">{source_label}</span>
-          {visible_tags.map((tag) => (
+          <span className="shrink-0">{sourceLabel}</span>
+          {visibleTags.map((tag) => (
             <span key={tag} className="truncate">
               · {tag}
             </span>

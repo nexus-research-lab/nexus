@@ -29,12 +29,22 @@ func (s *AgentHistoryStore) ReadMessagesPage(
 	limit int,
 	beforeRoundID string,
 	beforeRoundTimestamp int64,
+	aroundRoundID string,
+	aroundLimit int,
 ) (protocol.MessagePage, error) {
 	rows, err := s.readHistoryRows(workspacePath, sessionValue)
 	if err != nil {
 		return protocol.MessagePage{}, err
 	}
 	normalizedRows := normalizeHistoryRows(rows, normalizeActiveRoundIDs(activeRoundIDs))
+	if strings.TrimSpace(aroundRoundID) != "" {
+		return paginateNormalizedHistoryRowsAround(
+			normalizedRows,
+			aroundRoundID,
+			aroundLimit,
+			false,
+		), nil
+	}
 	return paginateNormalizedHistoryRows(
 		normalizedRows,
 		limit,
@@ -49,17 +59,18 @@ func (s *AgentHistoryStore) readHistoryRows(
 	sessionValue protocol.Session,
 ) ([]protocol.Message, error) {
 	sessionID := strings.TrimSpace(stringPointerValue(sessionValue.SessionID))
-	overlayRows, roundMarkers, err := s.readOverlayRowsAndMarkers(workspacePath, sessionValue.SessionKey)
+	overlayState, err := s.readOverlayHistoryState(workspacePath, sessionValue.SessionKey)
 	if err != nil {
 		return nil, err
 	}
 	if sessionID == "" {
-		return buildOverlayOnlyHistoryRows(
+		rows := buildOverlayOnlyHistoryRows(
 			sessionValue.SessionKey,
 			sessionValue.AgentID,
-			overlayRows,
-			roundMarkers,
-		), nil
+			overlayState.MessageRows,
+			overlayState.RoundMarkers,
+		)
+		return applyHistoryRewrites(rows, overlayState.Rewrites), nil
 	}
 
 	transcriptRows, err := s.readTranscriptMessages(
@@ -67,22 +78,24 @@ func (s *AgentHistoryStore) readHistoryRows(
 		sessionValue.SessionKey,
 		sessionValue.AgentID,
 		sessionID,
-		roundMarkers,
+		overlayState.RoundMarkers,
 	)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			// transcript 文件尚未出现时，只返回当前 overlay/round marker。
-			return buildOverlayOnlyHistoryRows(
+			rows := buildOverlayOnlyHistoryRows(
 				sessionValue.SessionKey,
 				sessionValue.AgentID,
-				overlayRows,
-				roundMarkers,
-			), nil
+				overlayState.MessageRows,
+				overlayState.RoundMarkers,
+			)
+			return applyHistoryRewrites(rows, overlayState.Rewrites), nil
 		}
 		return nil, err
 	}
 
-	return mergeTranscriptAndOverlayRows(transcriptRows, overlayRows), nil
+	rows := mergeTranscriptAndOverlayRows(transcriptRows, overlayState.MessageRows)
+	return applyHistoryRewrites(rows, overlayState.Rewrites), nil
 }
 
 func buildOverlayOnlyHistoryRows(
@@ -123,14 +136,23 @@ func materializeRoundMarkerMessages(
 		if roundID == "" || marker.HiddenFromUser {
 			continue
 		}
+		// 旧 marker 没有独立 user_message_id（历史上 message_id == round_id），
+		// 读取时归一化为稳定派生 id，运行时不再出现两者相等的形状。
+		userMessageID := strings.TrimSpace(marker.UserMessageID)
+		if userMessageID == "" {
+			userMessageID = "msg_user_" + roundID
+		}
 		row := protocol.Message{
-			"message_id":  roundID,
+			"message_id":  userMessageID,
 			"session_key": sessionKey,
 			"agent_id":    strings.TrimSpace(agentID),
 			"round_id":    roundID,
 			"role":        "user",
 			"content":     strings.TrimSpace(marker.Content),
 			"timestamp":   marker.Timestamp,
+		}
+		if agentRoundID := strings.TrimSpace(marker.AgentRoundID); agentRoundID != "" {
+			row["agent_round_id"] = agentRoundID
 		}
 		if strings.TrimSpace(marker.DeliveryPolicy) != "" {
 			row["delivery_policy"] = string(protocol.NormalizeChatDeliveryPolicy(marker.DeliveryPolicy))
@@ -174,5 +196,33 @@ func (s *AgentHistoryStore) readTranscriptMessages(
 	chain := buildPrimaryTranscriptChain(entries)
 	projectedRows := projectTranscriptChain(workspacePath, sessionKey, agentID, chain, roundMarkers)
 	s.writeTranscriptCache(transcriptPath, fileInfo, roundMarkerFingerprint, projectedRows)
+	return projectedRows, nil
+}
+
+// ReadTranscriptPathMessages 读取指定 transcript 文件并投影为 Nexus 消息。
+func (s *AgentHistoryStore) ReadTranscriptPathMessages(
+	transcriptPath string,
+	workspacePath string,
+	sessionKey string,
+	agentID string,
+) ([]protocol.Message, error) {
+	transcriptPath = strings.TrimSpace(transcriptPath)
+	if transcriptPath == "" {
+		return []protocol.Message{}, nil
+	}
+	fileInfo, err := os.Stat(transcriptPath)
+	if err != nil {
+		return nil, err
+	}
+	if cachedRows, ok := s.readTranscriptCache(transcriptPath, fileInfo, ""); ok {
+		return cachedRows, nil
+	}
+	entries, err := s.readTranscriptEntries(transcriptPath)
+	if err != nil {
+		return nil, err
+	}
+	chain := buildPrimaryTranscriptChain(entries)
+	projectedRows := projectTranscriptChain(workspacePath, sessionKey, agentID, chain, nil)
+	s.writeTranscriptCache(transcriptPath, fileInfo, "", projectedRows)
 	return projectedRows, nil
 }

@@ -86,7 +86,6 @@ func TestServiceHandleChatSchedulesHiddenGoalContinuation(t *testing.T) {
 		SessionKey:           sessionKey,
 		Content:              "开始",
 		RoundID:              "round-1",
-		ReqID:                "round-1",
 		BroadcastUserMessage: true,
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)

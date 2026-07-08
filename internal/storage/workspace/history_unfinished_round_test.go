@@ -45,65 +45,47 @@ func TestNormalizeHistoryRowsTreatsCompletedAssistantWithoutResultAsSuccess(t *t
 	}
 }
 
-func TestNormalizeHistoryRowsTreatsAssistantStopReasonAsTerminalTruth(t *testing.T) {
-	rows := []protocol.Message{
-		{
-			"message_id":  "user-stop-1",
-			"session_key": "agent:nexus:ws:dm:test-stop-reason",
-			"agent_id":    "nexus",
-			"round_id":    "round-stop-1",
-			"role":        "user",
-			"content":     "继续",
-			"timestamp":   1000,
-		},
-		{
-			"message_id":  "assistant-stop-1",
-			"session_key": "agent:nexus:ws:dm:test-stop-reason",
-			"agent_id":    "nexus",
-			"round_id":    "round-stop-1",
-			"role":        "assistant",
-			"content": []map[string]any{
-				{"type": "text", "text": "已结束。"},
-			},
-			"stop_reason": "end_turn",
-			"timestamp":   2000,
-		},
+func TestNormalizeHistoryRowsKeepsAssistantTerminalStopReasons(t *testing.T) {
+	tests := []struct {
+		name       string
+		stopReason string
+		content    string
+	}{
+		{name: "end_turn", stopReason: "end_turn", content: "已结束。"},
+		{name: "cancelled", stopReason: "cancelled", content: "处理中"},
 	}
 
-	normalized := normalizeHistoryRows(rows, nil)
-	if len(normalized) != 2 {
-		t.Fatalf("stop_reason=end_turn 不应再物化 interrupted: got=%d want=2 rows=%+v", len(normalized), normalized)
-	}
-}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			rows := []protocol.Message{
+				{
+					"message_id":  "user-" + test.name,
+					"session_key": "agent:nexus:ws:dm:test-" + test.name,
+					"agent_id":    "nexus",
+					"round_id":    "round-" + test.name,
+					"role":        "user",
+					"content":     "继续",
+					"timestamp":   1000,
+				},
+				{
+					"message_id":  "assistant-" + test.name,
+					"session_key": "agent:nexus:ws:dm:test-" + test.name,
+					"agent_id":    "nexus",
+					"round_id":    "round-" + test.name,
+					"role":        "assistant",
+					"content": []map[string]any{
+						{"type": "text", "text": test.content},
+					},
+					"stop_reason": test.stopReason,
+					"timestamp":   2000,
+				},
+			}
 
-func TestNormalizeHistoryRowsTreatsCancelledAssistantAsInterrupted(t *testing.T) {
-	rows := []protocol.Message{
-		{
-			"message_id":  "user-cancelled-1",
-			"session_key": "agent:nexus:ws:dm:test-cancelled",
-			"agent_id":    "nexus",
-			"round_id":    "round-cancelled-1",
-			"role":        "user",
-			"content":     "停止",
-			"timestamp":   1000,
-		},
-		{
-			"message_id":  "assistant-cancelled-1",
-			"session_key": "agent:nexus:ws:dm:test-cancelled",
-			"agent_id":    "nexus",
-			"round_id":    "round-cancelled-1",
-			"role":        "assistant",
-			"content": []map[string]any{
-				{"type": "text", "text": "处理中"},
-			},
-			"stop_reason": "cancelled",
-			"timestamp":   2000,
-		},
-	}
-
-	normalized := normalizeHistoryRows(rows, nil)
-	if len(normalized) != 2 {
-		t.Fatalf("cancelled assistant 不应额外物化新消息: got=%d want=2 rows=%+v", len(normalized), normalized)
+			normalized := normalizeHistoryRows(rows, nil)
+			if len(normalized) != 2 {
+				t.Fatalf("terminal assistant 不应额外物化新消息: got=%d want=2 rows=%+v", len(normalized), normalized)
+			}
+		})
 	}
 }
 

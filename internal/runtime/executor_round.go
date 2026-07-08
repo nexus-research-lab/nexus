@@ -77,6 +77,9 @@ func ExecuteRound(
 				if assistantTerminalResult != nil {
 					return roundResultWithElapsed(*assistantTerminalResult, startedAt), nil
 				}
+				if clientStreamAbortError(request.Client) != nil {
+					return RoundExecutionResult{}, ErrRoundInterrupted
+				}
 				return RoundExecutionResult{}, buildRoundStreamClosedError(
 					request.Client,
 					messagesSeen,

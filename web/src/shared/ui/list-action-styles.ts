@@ -38,9 +38,9 @@ const LIST_ACTION_VISIBILITY_CLASS_MAP: Record<UiListActionVisibility, string> =
   visible: "opacity-100",
 };
 
-export function get_ui_list_action_class_name(
+export function getUiListActionClassName(
   options: UiListActionStyleOptions = {},
-  class_name?: string,
+  className?: string,
 ): string {
   const {
     shape = "rounded",
@@ -55,6 +55,6 @@ export function get_ui_list_action_class_name(
     LIST_ACTION_SHAPE_CLASS_MAP[shape],
     LIST_ACTION_TONE_CLASS_MAP[tone],
     LIST_ACTION_VISIBILITY_CLASS_MAP[visibility],
-    class_name,
+    className,
   );
 }

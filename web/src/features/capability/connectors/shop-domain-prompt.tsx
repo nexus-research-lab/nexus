@@ -9,7 +9,7 @@ import { PromptDialog } from "@/shared/ui/dialog/confirm-dialog";
 
 const SHOP_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 
-function normalize_shop_domain(value: string): string | null {
+function normalizeShopDomain(value: string): string | null {
   const normalized = value.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "").replace(/\.myshopify\.com$/, "");
   if (!SHOP_PATTERN.test(normalized)) {
     return null;
@@ -18,32 +18,32 @@ function normalize_shop_domain(value: string): string | null {
 }
 
 function ShopDomainPrompt({
-  on_finish,
+  onFinish: onFinish,
 }: {
-  on_finish: (value: string | null) => void;
+  onFinish: (value: string | null) => void;
 }) {
-  const [error, set_error] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const handle_confirm = useCallback(
+  const handleConfirm = useCallback(
     (value: string) => {
-      const shop = normalize_shop_domain(value);
+      const shop = normalizeShopDomain(value);
       if (!shop) {
-        set_error("请输入有效的 Shopify 店铺子域名");
+        setError("请输入有效的 Shopify 店铺子域名");
         return;
       }
-      on_finish(shop);
+      onFinish(shop);
     },
-    [on_finish],
+    [onFinish],
   );
 
   return (
     <>
       <PromptDialog
-        default_value=""
-        is_open
+        defaultValue=""
+        isOpen
         message={error || "输入 myshopify.com 前面的店铺子域名。"}
-        on_cancel={() => on_finish(null)}
-        on_confirm={handle_confirm}
+        onCancel={() => onFinish(null)}
+        onConfirm={handleConfirm}
         placeholder="nexus-dev"
         title="Shopify 店铺"
       />
@@ -52,7 +52,7 @@ function ShopDomainPrompt({
 }
 
 /** 打开 Shopify 店铺域名输入弹窗，返回规范化后的 shop 子域名。 */
-export function open_shop_prompt(): Promise<string | null> {
+export function openShopPrompt(): Promise<string | null> {
   if (typeof document === "undefined") {
     return Promise.resolve(null);
   }
@@ -68,6 +68,6 @@ export function open_shop_prompt(): Promise<string | null> {
       resolve(value);
     };
 
-    root.render(<ShopDomainPrompt on_finish={finish} />);
+    root.render(<ShopDomainPrompt onFinish={finish} />);
   });
 }

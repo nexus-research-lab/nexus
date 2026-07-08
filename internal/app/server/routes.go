@@ -6,6 +6,7 @@ import "strings"
 func (s *Server) mountRoutes() {
 	s.mountCoreRoutes()
 	s.mountProviderRoutes()
+	s.mountAdminRoutes()
 	s.mountAgentRoutes()
 	s.mountRoomRoutes()
 	s.mountCapabilityRoutes()
@@ -13,6 +14,22 @@ func (s *Server) mountRoutes() {
 	s.mountOperationRoutes()
 	s.mountPlaceholderRoutes()
 	s.mountWebAppRoutes()
+}
+
+// mountAdminRoutes 挂载管理员运营接口。
+func (s *Server) mountAdminRoutes() {
+	s.router.Get(s.prefixPath("/admin/subscription/overview"), s.handlers.subscription.HandleOverview)
+	s.router.Post(s.prefixPath("/admin/subscription/plans"), s.handlers.subscription.HandleUpsertPlan)
+	s.router.Put(s.prefixPath("/admin/subscription/plans/{plan_key}"), s.handlers.subscription.HandleUpsertPlan)
+	s.router.Put(s.prefixPath("/admin/subscription/users/{user_id}"), s.handlers.subscription.HandleUpdateUserSubscription)
+	s.router.Get(s.prefixPath("/admin/subscription/providers"), s.handlers.provider.HandleListSubscriptionProviderConfigs)
+	s.router.Post(s.prefixPath("/admin/subscription/providers"), s.handlers.provider.HandleCreateSubscriptionProviderConfig)
+	s.router.Post(s.prefixPath("/admin/subscription/providers/{provider}/models/fetch"), s.handlers.provider.HandleFetchSubscriptionProviderModels)
+	s.router.Put(s.prefixPath("/admin/subscription/providers/{provider}/models/{model_id}"), s.handlers.provider.HandleUpdateSubscriptionProviderModel)
+	s.router.Post(s.prefixPath("/admin/subscription/providers/{provider}/test"), s.handlers.provider.HandleTestSubscriptionProviderConfig)
+	s.router.Post(s.prefixPath("/admin/subscription/providers/{provider}/models/{model_id}/test"), s.handlers.provider.HandleTestSubscriptionProviderModel)
+	s.router.Put(s.prefixPath("/admin/subscription/providers/{provider}"), s.handlers.provider.HandleUpdateSubscriptionProviderConfig)
+	s.router.Delete(s.prefixPath("/admin/subscription/providers/{provider}"), s.handlers.provider.HandleDeleteSubscriptionProviderConfig)
 }
 
 // prefixPath 返回带 config.APIPrefix 前缀的完整路径。
@@ -33,6 +50,8 @@ func (s *Server) mountCoreRoutes() {
 	s.router.Post(s.prefixPath("/settings/profile/password"), s.handlers.auth.HandleChangePassword)
 	s.router.Get(s.prefixPath("/settings/preferences"), s.handlers.core.HandleGetPreferences)
 	s.router.Patch(s.prefixPath("/settings/preferences"), s.handlers.core.HandleUpdatePreferences)
+	s.router.Get(s.prefixPath("/settings/runtime"), s.handlers.core.HandleGetRuntimeSettings)
+	s.router.Patch(s.prefixPath("/settings/runtime"), s.handlers.core.HandleUpdateRuntimeSettings)
 	s.router.Get(s.prefixPath("/settings/runtime/nxs/status"), s.handlers.core.HandleNXSRuntimeStatus)
 	s.router.Get(s.prefixPath("/chat/ws"), s.handlers.websocket.HandleWebSocket)
 }
@@ -105,7 +124,15 @@ func (s *Server) mountAgentRoutes() {
 	s.router.Get(s.prefixPath("/sessions"), s.handlers.agent.HandleListSessions)
 	s.router.Post(s.prefixPath("/sessions"), s.handlers.agent.HandleCreateSession)
 	s.router.Get(s.prefixPath("/sessions/messages"), s.handlers.agent.HandleSessionMessagesByQuery)
+	s.router.Get(s.prefixPath("/sessions/rounds"), s.handlers.agent.HandleSessionRoundsByQuery)
+	s.router.Get(s.prefixPath("/sessions/turns"), s.handlers.agent.HandleSessionTurnsByQuery)
+	s.router.Get(s.prefixPath("/sessions/turn-index"), s.handlers.agent.HandleSessionTurnIndexByQuery)
 	s.router.Get(s.prefixPath("/sessions/{session_key}/messages"), s.handlers.agent.HandleSessionMessages)
+	s.router.Get(s.prefixPath("/sessions/{session_key}/turns"), s.handlers.agent.HandleSessionTurns)
+	s.router.Get(s.prefixPath("/sessions/{session_key}/tasks"), s.handlers.agent.HandleSessionSubagentTasks)
+	s.router.Get(s.prefixPath("/sessions/{session_key}/tasks/{task_id}/messages"), s.handlers.agent.HandleSessionSubagentTaskMessages)
+	s.router.Post(s.prefixPath("/sessions/{session_key}/tasks/{task_id}/messages"), s.handlers.agent.HandleSendSessionSubagentTaskMessage)
+	s.router.Post(s.prefixPath("/sessions/{session_key}/tasks/{task_id}/stop"), s.handlers.agent.HandleStopSessionSubagentTask)
 	s.router.Patch(s.prefixPath("/sessions/{session_key}"), s.handlers.agent.HandleUpdateSession)
 	s.router.Delete(s.prefixPath("/sessions/{session_key}"), s.handlers.agent.HandleDeleteSession)
 }
@@ -123,6 +150,11 @@ func (s *Server) mountRoomRoutes() {
 	s.router.Delete(s.prefixPath("/rooms/{room_id}/members/{agent_id}"), s.handlers.room.HandleRemoveRoomMember)
 	s.router.Post(s.prefixPath("/rooms/{room_id}/conversations"), s.handlers.room.HandleCreateConversation)
 	s.router.Get(s.prefixPath("/rooms/{room_id}/conversations/{conversation_id}/messages"), s.handlers.room.HandleConversationMessages)
+	s.router.Get(s.prefixPath("/rooms/{room_id}/conversations/{conversation_id}/turns"), s.handlers.room.HandleConversationTurns)
+	s.router.Get(s.prefixPath("/rooms/{room_id}/conversations/{conversation_id}/tasks"), s.handlers.room.HandleConversationSubagentTasks)
+	s.router.Get(s.prefixPath("/rooms/{room_id}/conversations/{conversation_id}/tasks/{task_id}/messages"), s.handlers.room.HandleConversationSubagentTaskMessages)
+	s.router.Post(s.prefixPath("/rooms/{room_id}/conversations/{conversation_id}/tasks/{task_id}/messages"), s.handlers.room.HandleSendConversationSubagentTaskMessage)
+	s.router.Post(s.prefixPath("/rooms/{room_id}/conversations/{conversation_id}/tasks/{task_id}/stop"), s.handlers.room.HandleStopConversationSubagentTask)
 	s.router.Post(s.prefixPath("/rooms/{room_id}/conversations/{conversation_id}/attachments/upload"), s.handlers.room.HandleUploadConversationAttachment)
 	s.router.Post(s.prefixPath("/rooms/{room_id}/conversations/{conversation_id}/close"), s.handlers.room.HandleCloseConversationRuntime)
 	s.router.Patch(s.prefixPath("/rooms/{room_id}/conversations/{conversation_id}"), s.handlers.room.HandleUpdateConversation)
@@ -148,6 +180,7 @@ func (s *Server) mountCapabilityRoutes() {
 	s.router.Post(s.prefixPath("/skills/import/skills-sh"), s.handlers.skill.HandleImportSkillsShSkill)
 	s.router.Get(s.prefixPath("/skills/sources"), s.handlers.skill.HandleListExternalSkillSources)
 	s.router.Patch(s.prefixPath("/skills/sources/{source_id}"), s.handlers.skill.HandleUpdateExternalSkillSource)
+	s.router.Post(s.prefixPath("/skills/check-updates"), s.handlers.skill.HandleCheckSkillUpdates)
 	s.router.Post(s.prefixPath("/skills/update-imported"), s.handlers.skill.HandleUpdateImportedSkills)
 	s.router.Post(s.prefixPath("/skills/{skill_name}/update"), s.handlers.skill.HandleUpdateSingleSkill)
 	s.router.Delete(s.prefixPath("/skills/{skill_name}"), s.handlers.skill.HandleDeleteSkill)

@@ -10,7 +10,7 @@ import (
 )
 
 func TestMessageMapperEmitsStreamLifecycleAndCumulativeBlocks(t *testing.T) {
-	mapper := NewMessageMapper("agent:nexus:ws:dm:test", "nexus", "round-stream")
+	mapper := NewMessageMapper("agent:nexus:ws:dm:test", "nexus", "round-stream", "agent-round-stream", "msg-user-stream")
 
 	events, _, _, _, err := mapper.Map(sdkprotocol.ReceivedMessage{
 		Type:      sdkprotocol.MessageTypeStreamEvent,
@@ -140,7 +140,7 @@ func TestMessageMapperEmitsStreamLifecycleAndCumulativeBlocks(t *testing.T) {
 }
 
 func TestMessageMapperMapsSystemTaskProgress(t *testing.T) {
-	mapper := NewMessageMapper("agent:nexus:ws:dm:test", "nexus", "round-system")
+	mapper := NewMessageMapper("agent:nexus:ws:dm:test", "nexus", "round-system", "agent-round-system", "msg-user-system")
 
 	events, _, _, _, err := mapper.Map(sdkprotocol.ReceivedMessage{
 		Type:      sdkprotocol.MessageTypeSystem,
@@ -172,8 +172,137 @@ func TestMessageMapperMapsSystemTaskProgress(t *testing.T) {
 	}
 }
 
+func TestMessageMapperMapsTaskStarted(t *testing.T) {
+	mapper := NewMessageMapper("agent:nexus:ws:dm:test", "nexus", "round-task-started", "agent-round-task-started", "msg-user-task-started")
+
+	events, _, _, _, err := mapper.Map(sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeTaskStarted,
+		SessionID: "sdk-session-task",
+		TaskStarted: &sdkprotocol.TaskStartedMessage{
+			TaskID:      "task-1",
+			Description: "子 Agent 开始排查",
+			TaskType:    "general-purpose",
+			ToolUseID:   "toolu-1",
+			Additional: map[string]any{
+				"agent_id":       "agent-1",
+				"agent_type":     "worker",
+				"output_file":    "/tmp/task.out",
+				"parent_task_id": "parent-1",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("task_started 映射失败: %v", err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("task_started 事件数量不正确: %+v", events)
+	}
+	if events[0].EventType != protocol.EventTypeMessage || events[0].DeliveryMode != "durable" {
+		t.Fatalf("task_started 事件类型不正确: %+v", events[0])
+	}
+	if events[0].Data["role"] != "system" || events[0].Data["content"] != "子 Agent 开始排查" {
+		t.Fatalf("task_started 内容不正确: %+v", events[0].Data)
+	}
+	metadata, _ := events[0].Data["metadata"].(map[string]any)
+	if metadata["subtype"] != "task_started" || metadata["task_id"] != "task-1" || metadata["task_type"] != "general-purpose" {
+		t.Fatalf("task_started metadata 不正确: %+v", metadata)
+	}
+	if metadata["agent_id"] != "agent-1" || metadata["agent_type"] != "worker" || metadata["output_file"] != "/tmp/task.out" {
+		t.Fatalf("task_started subagent metadata 不正确: %+v", metadata)
+	}
+}
+
+func TestMessageMapperMapsTaskNotification(t *testing.T) {
+	mapper := NewMessageMapper("agent:nexus:ws:dm:test", "nexus", "round-task", "agent-round-task", "msg-user-task")
+
+	events, _, _, _, err := mapper.Map(sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeTaskNotification,
+		SessionID: "sdk-session-task",
+		TaskNotification: &sdkprotocol.TaskNotificationMessage{
+			TaskID:     "task-1",
+			Status:     "completed",
+			Summary:    "子 Agent 已完成排查",
+			ToolUseID:  "toolu-1",
+			OutputFile: "/tmp/task.out",
+			Usage: sdkprotocol.TaskUsage{
+				TotalTokens: 1234,
+				ToolUses:    5,
+				DurationMS:  6789,
+			},
+			Additional: map[string]any{
+				"agent_id":        "agent-1",
+				"agent_type":      "worker",
+				"transcript_path": "/tmp/subagent.jsonl",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("task_notification 映射失败: %v", err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("task_notification 事件数量不正确: %+v", events)
+	}
+	if events[0].EventType != protocol.EventTypeMessage || events[0].DeliveryMode != "durable" {
+		t.Fatalf("task_notification 事件类型不正确: %+v", events[0])
+	}
+	if events[0].Data["role"] != "system" || events[0].Data["content"] != "子 Agent 已完成排查" {
+		t.Fatalf("task_notification 内容不正确: %+v", events[0].Data)
+	}
+	metadata, _ := events[0].Data["metadata"].(map[string]any)
+	if metadata["subtype"] != "task_notification" || metadata["task_id"] != "task-1" || metadata["status"] != "completed" {
+		t.Fatalf("task_notification metadata 不正确: %+v", metadata)
+	}
+	if metadata["agent_id"] != "agent-1" || metadata["transcript_path"] != "/tmp/subagent.jsonl" || metadata["output_file"] != "/tmp/task.out" {
+		t.Fatalf("task_notification subagent metadata 不正确: %+v", metadata)
+	}
+	usage, _ := metadata["usage"].(map[string]any)
+	if usage["total_tokens"] != 1234 || usage["tool_uses"] != 5 || usage["duration_ms"] != 6789 {
+		t.Fatalf("task_notification usage 不正确: %+v", usage)
+	}
+}
+
+func TestMessageMapperMapsTaskUpdated(t *testing.T) {
+	mapper := NewMessageMapper("agent:nexus:ws:dm:test", "nexus", "round-task-updated", "agent-round-task-updated", "msg-user-task-updated")
+
+	events, _, _, _, err := mapper.Map(sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeSystem,
+		SessionID: "sdk-session-task",
+		System: &sdkprotocol.SystemMessage{
+			Subtype: "task_updated",
+			Data: map[string]any{
+				"subtype":    "task_updated",
+				"task_id":    "task-1",
+				"agent_id":   "agent-1",
+				"agent_type": "worker",
+				"patch": map[string]any{
+					"status":          "completed",
+					"description":     "子 Agent 完成排查",
+					"is_backgrounded": false,
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("task_updated 映射失败: %v", err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("task_updated 事件数量不正确: %+v", events)
+	}
+	if events[0].EventType != protocol.EventTypeMessage || events[0].DeliveryMode != "durable" {
+		t.Fatalf("task_updated 事件类型不正确: %+v", events[0])
+	}
+	metadata, _ := events[0].Data["metadata"].(map[string]any)
+	if metadata["subtype"] != "task_updated" || metadata["task_id"] != "task-1" || metadata["status"] != "completed" {
+		t.Fatalf("task_updated metadata 不正确: %+v", metadata)
+	}
+	patch, _ := metadata["patch"].(map[string]any)
+	if patch["description"] != "子 Agent 完成排查" {
+		t.Fatalf("task_updated patch 不正确: %+v", patch)
+	}
+}
+
 func TestMessageMapperEmitsApiRetryAsEphemeralSystemMessage(t *testing.T) {
-	mapper := NewMessageMapper("agent:nexus:ws:dm:test", "nexus", "round-api-retry")
+	mapper := NewMessageMapper("agent:nexus:ws:dm:test", "nexus", "round-api-retry", "agent-round-api-retry", "msg-user-api-retry")
 
 	events, durableMessages, _, _, err := mapper.Map(sdkprotocol.ReceivedMessage{
 		Type:      sdkprotocol.MessageTypeSystem,
@@ -204,7 +333,7 @@ func TestMessageMapperEmitsApiRetryAsEphemeralSystemMessage(t *testing.T) {
 }
 
 func TestMessageMapperEmitsCumulativeIndexesWhenRawIndexIsReused(t *testing.T) {
-	mapper := NewMessageMapper("agent:nexus:ws:dm:test", "nexus", "round-reused-index")
+	mapper := NewMessageMapper("agent:nexus:ws:dm:test", "nexus", "round-reused-index", "agent-round-reused-index", "msg-user-reused-index")
 
 	if _, _, _, _, err := mapper.Map(sdkprotocol.ReceivedMessage{
 		Type:      sdkprotocol.MessageTypeStreamEvent,
@@ -269,7 +398,7 @@ func TestMessageMapperEmitsCumulativeIndexesWhenRawIndexIsReused(t *testing.T) {
 }
 
 func TestMessageMapperMapsToolResultMessage(t *testing.T) {
-	mapper := NewMessageMapper("agent:nexus:ws:dm:test", "nexus", "round-tool-result")
+	mapper := NewMessageMapper("agent:nexus:ws:dm:test", "nexus", "round-tool-result", "agent-round-tool-result", "msg-user-tool-result")
 
 	// 先注入 tool_use 使 segment 能查到工具名
 	if _, _, _, _, err := mapper.Map(sdkprotocol.ReceivedMessage{
@@ -321,7 +450,7 @@ func TestMessageMapperMapsToolResultMessage(t *testing.T) {
 }
 
 func TestMessageMapperProjectsResultOntoAssistant(t *testing.T) {
-	mapper := NewMessageMapper("agent:nexus:ws:dm:test", "nexus", "round-result")
+	mapper := NewMessageMapper("agent:nexus:ws:dm:test", "nexus", "round-result", "agent-round-result", "msg-user-result")
 
 	events, durableMessages, _, _, err := mapper.Map(sdkprotocol.ReceivedMessage{
 		Type: sdkprotocol.MessageTypeAssistant,
@@ -381,7 +510,7 @@ func TestMessageMapperProjectsResultOntoAssistant(t *testing.T) {
 }
 
 func TestMessageMapperProjectsAssistantAPIErrorAsErrorMessage(t *testing.T) {
-	mapper := NewMessageMapper("agent:nexus:ws:dm:test", "nexus", "round-api-error")
+	mapper := NewMessageMapper("agent:nexus:ws:dm:test", "nexus", "round-api-error", "agent-round-api-error", "msg-user-api-error")
 
 	events, durableMessages, terminalStatus, resultSubtype, err := mapper.Map(sdkprotocol.ReceivedMessage{
 		Type: sdkprotocol.MessageTypeAssistant,

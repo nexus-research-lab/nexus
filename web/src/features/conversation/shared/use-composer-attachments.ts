@@ -6,110 +6,110 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 
 import { PreparedComposerAttachment } from "./composer-attachments";
 import {
-  build_local_attachment,
-  build_pasted_text_file,
+  buildLocalAttachment,
+  buildPastedTextFile,
   ComposerLocalAttachment,
-  get_clipboard_files,
+  getClipboardFiles,
   MAX_COMPOSER_ATTACHMENTS,
   PASTED_TEXT_ATTACHMENT_THRESHOLD,
 } from "./composer-local-attachment-model";
 
 interface UseComposerAttachmentsOptions {
-  is_goal_mode: boolean;
-  on_goal_attachment_rejected: (message: string) => void;
-  on_prepare_attachments?: (files: File[]) => Promise<PreparedComposerAttachment[]>;
+  isGoalMode: boolean;
+  onGoalAttachmentRejected: (message: string) => void;
+  onPrepareAttachments?: (files: File[]) => Promise<PreparedComposerAttachment[]>;
 }
 
 export function useComposerAttachments({
-  is_goal_mode,
-  on_goal_attachment_rejected,
-  on_prepare_attachments,
+  isGoalMode,
+  onGoalAttachmentRejected,
+  onPrepareAttachments,
 }: UseComposerAttachmentsOptions) {
   const { t } = useI18n();
   const [attachments, setAttachments] = useState<ComposerLocalAttachment[]>([]);
-  const [attachment_error, setAttachmentError] = useState<string | null>(null);
-  const [is_preparing_attachments, setIsPreparingAttachments] = useState(false);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const [isPreparingAttachments, setIsPreparingAttachments] = useState(false);
 
-  const clear_attachment_error = useCallback(() => {
+  const clearAttachmentError = useCallback(() => {
     setAttachmentError(null);
   }, []);
 
-  const clear_attachments = useCallback(() => {
+  const clearAttachments = useCallback(() => {
     setAttachments([]);
   }, []);
 
-  const append_attachment_files = useCallback((files: File[]) => {
+  const appendAttachmentFiles = useCallback((files: File[]) => {
     if (files.length === 0) {
       return;
     }
 
-    const next_attachments: ComposerLocalAttachment[] = [];
-    const rejected_files: string[] = [];
+    const nextAttachments: ComposerLocalAttachment[] = [];
+    const rejectedFiles: string[] = [];
 
     files.forEach((file) => {
-      const { attachment, rejection_reason } = build_local_attachment(
+      const { attachment, rejection_reason: rejectionReason } = buildLocalAttachment(
         file,
         t("composer.attachment_format_unsupported"),
       );
-      if (rejection_reason) {
-        rejected_files.push(rejection_reason);
+      if (rejectionReason) {
+        rejectedFiles.push(rejectionReason);
         return;
       }
       if (attachment) {
-        next_attachments.push(attachment);
+        nextAttachments.push(attachment);
       }
     });
 
-    if (rejected_files.length > 0) {
-      setAttachmentError(rejected_files[0] ?? t("composer.attachment_format_unsupported"));
+    if (rejectedFiles.length > 0) {
+      setAttachmentError(rejectedFiles[0] ?? t("composer.attachment_format_unsupported"));
     } else {
       setAttachmentError(null);
     }
 
-    if (next_attachments.length > 0) {
-      setAttachments((prev) => [...prev, ...next_attachments].slice(0, MAX_COMPOSER_ATTACHMENTS));
+    if (nextAttachments.length > 0) {
+      setAttachments((prev) => [...prev, ...nextAttachments].slice(0, MAX_COMPOSER_ATTACHMENTS));
     }
   }, [t]);
 
-  const handle_file_select = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = useCallback((event: ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files) {
       return;
     }
 
-    append_attachment_files(Array.from(files));
+    appendAttachmentFiles(Array.from(files));
     event.currentTarget.value = "";
-  }, [append_attachment_files]);
+  }, [appendAttachmentFiles]);
 
-  const handle_paste = useCallback((event: ClipboardEvent<HTMLTextAreaElement>) => {
-    const pasted_files = get_clipboard_files(event.clipboardData);
-    if (pasted_files.length === 0) {
-      const pasted_text = event.clipboardData.getData("text/plain");
-      if (!is_goal_mode && pasted_text.length > PASTED_TEXT_ATTACHMENT_THRESHOLD) {
+  const handlePaste = useCallback((event: ClipboardEvent<HTMLTextAreaElement>) => {
+    const pastedFiles = getClipboardFiles(event.clipboardData);
+    if (pastedFiles.length === 0) {
+      const pastedText = event.clipboardData.getData("text/plain");
+      if (!isGoalMode && pastedText.length > PASTED_TEXT_ATTACHMENT_THRESHOLD) {
         event.preventDefault();
-        append_attachment_files([build_pasted_text_file(pasted_text)]);
+        appendAttachmentFiles([buildPastedTextFile(pastedText)]);
       }
       return;
     }
 
     event.preventDefault();
-    if (is_goal_mode) {
-      on_goal_attachment_rejected(t("composer.goal_attachment_unsupported"));
+    if (isGoalMode) {
+      onGoalAttachmentRejected(t("composer.goal_attachment_unsupported"));
       return;
     }
-    append_attachment_files(pasted_files);
+    appendAttachmentFiles(pastedFiles);
   }, [
-    append_attachment_files,
-    is_goal_mode,
-    on_goal_attachment_rejected,
+    appendAttachmentFiles,
+    isGoalMode,
+    onGoalAttachmentRejected,
     t,
   ]);
 
-  const prepare_attachments = useCallback(async () => {
+  const prepareAttachments = useCallback(async () => {
     if (attachments.length === 0) {
       return [] as PreparedComposerAttachment[];
     }
-    if (!on_prepare_attachments) {
+    if (!onPrepareAttachments) {
       setAttachmentError(t("composer.unsupported_attachment"));
       return null;
     }
@@ -117,7 +117,7 @@ export function useComposerAttachments({
     setIsPreparingAttachments(true);
     setAttachmentError(null);
     try {
-      return await on_prepare_attachments(attachments.map((attachment) => attachment.file));
+      return await onPrepareAttachments(attachments.map((attachment) => attachment.file));
     } catch (error) {
       setAttachmentError(error instanceof Error ? error.message : t("composer.attachment_failed"));
       return null;
@@ -126,23 +126,23 @@ export function useComposerAttachments({
     }
   }, [
     attachments,
-    on_prepare_attachments,
+    onPrepareAttachments,
     t,
   ]);
 
-  const remove_attachment = useCallback((id: string) => {
+  const removeAttachment = useCallback((id: string) => {
     setAttachments((prev) => prev.filter((item) => item.id !== id));
   }, []);
 
   return {
-    attachment_error,
+    attachmentError,
     attachments,
-    clear_attachment_error,
-    clear_attachments,
-    handle_file_select,
-    handle_paste,
-    is_preparing_attachments,
-    prepare_attachments,
-    remove_attachment,
+    clearAttachmentError,
+    clearAttachments,
+    handleFileSelect,
+    handlePaste,
+    isPreparingAttachments,
+    prepareAttachments,
+    removeAttachment,
   };
 }

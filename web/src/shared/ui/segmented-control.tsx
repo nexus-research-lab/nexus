@@ -10,11 +10,11 @@ interface UiSegmentedControlOption<T extends string> {
 }
 
 interface UiSegmentedControlProps<T extends string> {
-  class_name?: string;
+  className?: string;
   density?: "default" | "compact";
   disabled?: boolean;
   icon?: LucideIcon;
-  on_change: (value: T) => void;
+  onChange: (value: T) => void;
   options: UiSegmentedControlOption<T>[];
   stretch?: boolean;
   title: string;
@@ -22,11 +22,11 @@ interface UiSegmentedControlProps<T extends string> {
 }
 
 export function UiSegmentedControl<T extends string>({
-  class_name,
+  className: className,
   density = "default",
   disabled = false,
   icon: Icon,
-  on_change,
+  onChange: onChange,
   options,
   stretch = false,
   title,
@@ -40,7 +40,7 @@ export function UiSegmentedControl<T extends string>({
         stretch ? "flex w-full" : "inline-flex",
         density === "compact" ? "p-[1.5px]" : "p-[3px]",
         !Icon && "gap-0",
-        class_name,
+        className,
       )}
       role="group"
       title={title}
@@ -66,7 +66,7 @@ export function UiSegmentedControl<T extends string>({
           )}
           data-active={value === option.value}
           disabled={disabled}
-          onClick={() => on_change(option.value)}
+          onClick={() => onChange(option.value)}
           type="button"
         >
           {option.label}

@@ -2,6 +2,7 @@
 
 import { type ReactNode, useCallback } from "react";
 import {
+  AlertTriangle,
   Bot,
   ChevronDown,
   ChevronRight,
@@ -10,6 +11,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import type {
   PendingPermission,
   PermissionDecisionPayload,
@@ -24,7 +26,7 @@ import {
   MessageAvatar,
 } from "../ui/message-primitives";
 import { ContentRenderer } from "./content-renderer";
-import { format_message_time } from "./message-item-support";
+import { formatMessageTime } from "./message-item-support";
 import type { MessageItemState } from "./message-item-types";
 import type { ContentBlock } from "@/types/conversation/message";
 
@@ -32,20 +34,20 @@ const EMPTY_CONTENT_BLOCKS: ContentBlock[] = [];
 
 interface PendingPermissionListProps {
   permissions: PendingPermission[];
-  is_room_thread_mode: boolean;
-  can_respond_to_permissions: boolean;
-  permission_read_only_reason?: string;
-  on_permission_response?: (payload: PermissionDecisionPayload) => boolean;
-  workspace_agent_id?: string | null;
+  isRoomThreadMode: boolean;
+  canRespondToPermissions: boolean;
+  permissionReadOnlyReason?: string;
+  onPermissionResponse?: (payload: PermissionDecisionPayload) => boolean;
+  workspaceAgentId?: string | null;
 }
 
 function PendingPermissionList({
   permissions,
-  is_room_thread_mode,
-  can_respond_to_permissions,
-  permission_read_only_reason,
-  on_permission_response,
-  workspace_agent_id,
+  isRoomThreadMode: isRoomThreadMode,
+  canRespondToPermissions: canRespondToPermissions,
+  permissionReadOnlyReason: permissionReadOnlyReason,
+  onPermissionResponse: onPermissionResponse,
+  workspaceAgentId: workspaceAgentId,
 }: PendingPermissionListProps) {
   if (permissions.length === 0) {
     return null;
@@ -55,7 +57,7 @@ function PendingPermissionList({
     <div
       className={cn(
         "mt-3 flex flex-col gap-3",
-        is_room_thread_mode
+        isRoomThreadMode
           ? "border-t border-(--divider-subtle-color) pt-3"
           : "rounded-2xl bg-transparent p-3",
       )}
@@ -63,14 +65,14 @@ function PendingPermissionList({
       {permissions.map((permission) => (
         <ToolBlock
           key={permission.request_id}
-          tool_use={{
+          toolUse={{
             type: "tool_use",
             id: `pending_${permission.request_id}`,
             name: permission.tool_name,
             input: permission.tool_input,
           }}
           status="waiting_permission"
-          permission_request={{
+          permissionRequest={{
             request_id: permission.request_id,
             tool_input: permission.tool_input,
             risk_level: permission.risk_level,
@@ -78,22 +80,22 @@ function PendingPermissionList({
             summary: permission.summary,
             suggestions: permission.suggestions,
             expires_at: permission.expires_at,
-            on_allow: (updated_permissions) =>
-              on_permission_response?.({
+            on_allow: (updatedPermissions) =>
+              onPermissionResponse?.({
                 request_id: permission.request_id,
                 decision: "allow",
-                updated_permissions,
+                updated_permissions: updatedPermissions,
               }),
-            on_deny: (updated_permissions) =>
-              on_permission_response?.({
+            on_deny: (updatedPermissions) =>
+              onPermissionResponse?.({
                 request_id: permission.request_id,
                 decision: "deny",
-                updated_permissions,
+                updated_permissions: updatedPermissions,
               }),
           }}
-          interaction_disabled={!can_respond_to_permissions}
-          interaction_disabled_reason={permission_read_only_reason}
-          workspace_agent_id={workspace_agent_id}
+          interactionDisabled={!canRespondToPermissions}
+          interactionDisabledReason={permissionReadOnlyReason}
+          workspaceAgentId={workspaceAgentId}
         />
       ))}
     </div>
@@ -102,17 +104,17 @@ function PendingPermissionList({
 
 interface MessageAssistantSectionProps {
   compact: boolean;
-  current_agent_name?: string | null;
-  current_agent_avatar?: string | null;
-  can_respond_to_permissions: boolean;
-  permission_read_only_reason?: string;
-  on_permission_response?: (payload: PermissionDecisionPayload) => boolean;
-  on_open_agent_contact?: (agent_id: string) => void;
-  on_open_workspace_file?: (path: string) => void;
-  workspace_agent_id?: string | null;
-  hidden_tool_names?: string[];
-  assistant_header_action?: ReactNode;
-  assistant_content_mode:
+  currentAgentName?: string | null;
+  currentAgentAvatar?: string | null;
+  canRespondToPermissions: boolean;
+  permissionReadOnlyReason?: string;
+  onPermissionResponse?: (payload: PermissionDecisionPayload) => boolean;
+  onOpenAgentContact?: (agentId: string) => void;
+  onOpenWorkspaceFile?: (path: string) => void;
+  workspaceAgentId?: string | null;
+  hiddenToolNames?: string[];
+  assistantHeaderAction?: ReactNode;
+  assistantContentMode:
     | "dm_live"
     | "dm_archived"
     | "room_thread"
@@ -122,46 +124,47 @@ interface MessageAssistantSectionProps {
 
 export function MessageAssistantSection({
   compact,
-  current_agent_name,
-  current_agent_avatar,
-  can_respond_to_permissions,
-  permission_read_only_reason,
-  on_permission_response,
-  on_open_agent_contact,
-  on_open_workspace_file,
-  workspace_agent_id,
-  hidden_tool_names = ["TodoWrite"],
-  assistant_header_action,
-  assistant_content_mode,
+  currentAgentName: currentAgentName,
+  currentAgentAvatar: currentAgentAvatar,
+  canRespondToPermissions: canRespondToPermissions,
+  permissionReadOnlyReason: permissionReadOnlyReason,
+  onPermissionResponse: onPermissionResponse,
+  onOpenAgentContact: onOpenAgentContact,
+  onOpenWorkspaceFile: onOpenWorkspaceFile,
+  workspaceAgentId: workspaceAgentId,
+  hiddenToolNames: hiddenToolNames = ["TodoWrite"],
+  assistantHeaderAction: assistantHeaderAction,
+  assistantContentMode: assistantContentMode,
   state,
 }: MessageAssistantSectionProps) {
-  const is_room_thread_mode = assistant_content_mode === "room_thread";
-  const content_workspace_agent_id = state.assistant_agent_id ?? workspace_agent_id;
-  const avatar_agent_id = state.assistant_agent_id ?? workspace_agent_id ?? null;
-  const collapsed_process_file_artifacts = useWorkspaceFileArtifactsFromContent(
-    state.should_render_process_callchain && !state.is_process_expanded
-      ? state.process_projection.content
+  const { t } = useI18n();
+  const isRoomThreadMode = assistantContentMode === "room_thread";
+  const contentWorkspaceAgentId = state.assistantAgentId ?? workspaceAgentId;
+  const avatarAgentId = state.assistantAgentId ?? workspaceAgentId ?? null;
+  const collapsedProcessFileArtifacts = useWorkspaceFileArtifactsFromContent(
+    state.shouldRenderProcessCallchain && !state.isProcessExpanded
+      ? state.processProjection.content
       : EMPTY_CONTENT_BLOCKS,
   );
-  const handle_open_agent_contact = useCallback(() => {
-    if (!avatar_agent_id) {
+  const handleOpenAgentContact = useCallback(() => {
+    if (!avatarAgentId) {
       return;
     }
-    on_open_agent_contact?.(avatar_agent_id);
-  }, [avatar_agent_id, on_open_agent_contact]);
+    onOpenAgentContact?.(avatarAgentId);
+  }, [avatarAgentId, onOpenAgentContact]);
 
-  if (state.should_hide_assistant_content) {
+  if (state.shouldHideAssistantContent) {
     return null;
   }
 
-  const pending_permission_block = (
+  const pendingPermissionBlock = (
     <PendingPermissionList
-      permissions={state.unmatched_pending_permissions}
-      is_room_thread_mode={is_room_thread_mode}
-      can_respond_to_permissions={can_respond_to_permissions}
-      permission_read_only_reason={permission_read_only_reason}
-      on_permission_response={on_permission_response}
-      workspace_agent_id={content_workspace_agent_id}
+      permissions={state.unmatchedPendingPermissions}
+      isRoomThreadMode={isRoomThreadMode}
+      canRespondToPermissions={canRespondToPermissions}
+      permissionReadOnlyReason={permissionReadOnlyReason}
+      onPermissionResponse={onPermissionResponse}
+      workspaceAgentId={contentWorkspaceAgentId}
     />
   );
 
@@ -178,17 +181,17 @@ export function MessageAssistantSection({
         >
           {!compact ? (
             <MessageAvatar
-              aria_label={`打开 ${current_agent_name || "协作成员"} 的联络`}
-              class_name="nexus-chat-avatar"
-              avatar_url={current_agent_avatar}
-              on_click={
-                avatar_agent_id && on_open_agent_contact
-                  ? handle_open_agent_contact
+              ariaLabel={`打开 ${currentAgentName || "协作成员"} 的联络`}
+              className="nexus-chat-avatar"
+              avatarUrl={currentAgentAvatar}
+              onClick={
+                avatarAgentId && onOpenAgentContact
+                  ? handleOpenAgentContact
                   : undefined
               }
-              title={`打开 ${current_agent_name || "协作成员"} 的联络`}
+              title={`打开 ${currentAgentName || "协作成员"} 的联络`}
             >
-              {!current_agent_avatar && <Bot className="h-4 w-4" />}
+              {!currentAgentAvatar && <Bot className="h-4 w-4" />}
             </MessageAvatar>
           ) : null}
 
@@ -201,27 +204,27 @@ export function MessageAssistantSection({
             >
               {compact ? (
                 <MessageAvatar
-                  aria_label={`打开 ${current_agent_name || "协作成员"} 的联络`}
-                  class_name="nexus-chat-avatar shrink-0"
+                  ariaLabel={`打开 ${currentAgentName || "协作成员"} 的联络`}
+                  className="nexus-chat-avatar shrink-0"
                   size="compact"
-                  avatar_url={current_agent_avatar}
-                  on_click={
-                    avatar_agent_id && on_open_agent_contact
-                      ? handle_open_agent_contact
+                  avatarUrl={currentAgentAvatar}
+                  onClick={
+                    avatarAgentId && onOpenAgentContact
+                      ? handleOpenAgentContact
                       : undefined
                   }
-                  title={`打开 ${current_agent_name || "协作成员"} 的联络`}
+                  title={`打开 ${currentAgentName || "协作成员"} 的联络`}
                 >
-                  {!current_agent_avatar && <Bot className="h-3 w-3" />}
+                  {!currentAgentAvatar && <Bot className="h-3 w-3" />}
                 </MessageAvatar>
               ) : null}
               <span className="nexus-chat-author shrink-0 text-sm font-bold text-(--text-strong)">
-                {current_agent_name || "协作成员"}
+                {currentAgentName || "协作成员"}
               </span>
 
               {state.timestamp ? (
                 <span className="nexus-chat-meta hidden shrink-0 text-xs text-(--text-muted) sm:inline">
-                  {format_message_time(state.timestamp)}
+                  {formatMessageTime(state.timestamp)}
                 </span>
               ) : null}
 
@@ -233,16 +236,16 @@ export function MessageAssistantSection({
 
               <div className="flex-1" />
 
-              {assistant_header_action ? (
-                <div className="shrink-0">{assistant_header_action}</div>
+              {assistantHeaderAction ? (
+                <div className="shrink-0">{assistantHeaderAction}</div>
               ) : null}
 
-              {state.can_stop_message ? (
+              {state.canStopMessage ? (
                 <MessageActionButton
                   type="button"
                   aria-label="停止生成"
-                  onClick={state.handle_stop_message}
-                  class_name="flex items-center gap-1 px-1.5 py-0.5 text-xs"
+                  onClick={state.handleStopMessage}
+                  className="flex items-center gap-1 px-1.5 py-0.5 text-xs"
                   tone="default"
                 >
                   <Square className="h-3 w-3 fill-current" />
@@ -252,73 +255,73 @@ export function MessageAssistantSection({
             </div>
 
             <div
-              ref={state.content_area_ref}
+              ref={state.contentAreaRef}
               className={cn(
                 "nexus-chat-message-content min-w-0 max-w-full overflow-x-hidden pb-2 pt-1 text-left",
                 compact ? "text-[15px] leading-6" : "text-[16px] leading-7",
               )}
-              style={state.content_area_style}
+              style={state.contentAreaStyle}
             >
-              {state.should_render_standalone_activity_status ? (
+              {state.shouldRenderStandaloneActivityStatus ? (
                 <MessageActivityStatus
-                  class_name="py-1"
-                  state={state.live_activity_state!}
+                  className="py-1"
+                  state={state.liveActivityState!}
                 />
               ) : null}
 
-              {state.stream_status === "cancelled" &&
-              state.merged_content_length === 0 ? (
+              {state.streamStatus === "cancelled" &&
+              state.mergedContentLength === 0 ? (
                 <span className="text-xs italic text-(--text-soft)">
                   已停止
                 </span>
               ) : null}
 
-              {state.stream_status === "error" &&
-              state.merged_content_length === 0 ? (
+              {state.streamStatus === "error" &&
+              state.mergedContentLength === 0 ? (
                 <span className="text-xs italic text-rose-500">执行失败</span>
               ) : null}
 
-              {state.should_render_direct_assistant_content ? (
+              {state.shouldRenderDirectAssistantContent ? (
                 <div>
                   <ContentRenderer
-                    content={state.direct_ordered_projection.content}
-                    is_streaming={state.show_cursor}
-                    streaming_block_indexes={
-                      state.direct_ordered_projection.streaming_indexes
+                    content={state.directOrderedProjection.content}
+                    isStreaming={state.showCursor}
+                    streamingBlockIndexes={
+                      state.directOrderedProjection.streamingIndexes
                     }
-                    fallback_activity_state={state.live_activity_state}
-                    pending_permissions_by_tool_use_id={
-                      state.matched_pending_permissions_by_tool_use_id
+                    fallbackActivityState={state.liveActivityState}
+                    pendingPermissionsByToolUseId={
+                      state.matchedPendingPermissionsByToolUseId
                     }
-                    on_permission_response={on_permission_response}
-                    can_respond_to_permissions={can_respond_to_permissions}
-                    permission_read_only_reason={permission_read_only_reason}
-                    on_open_workspace_file={on_open_workspace_file}
-                    workspace_agent_id={content_workspace_agent_id}
-                    hidden_tool_names={hidden_tool_names}
-                    show_timeline_dots
+                    onPermissionResponse={onPermissionResponse}
+                    canRespondToPermissions={canRespondToPermissions}
+                    permissionReadOnlyReason={permissionReadOnlyReason}
+                    onOpenWorkspaceFile={onOpenWorkspaceFile}
+                    workspaceAgentId={contentWorkspaceAgentId}
+                    hiddenToolNames={hiddenToolNames}
+                    showTimelineDots
                   />
-                  {pending_permission_block}
+                  {pendingPermissionBlock}
                 </div>
               ) : null}
 
-              {state.should_render_process_callchain ? (
+              {state.shouldRenderProcessCallchain ? (
                 <div
                   ref={
-                    state.process_anchor_ref as React.RefObject<HTMLDivElement>
+                    state.processAnchorRef as React.RefObject<HTMLDivElement>
                   }
                 >
                   <button
                     className="flex w-full items-center gap-2 py-1.5 text-left text-(--text-muted) transition-colors duration-(--motion-duration-fast) hover:text-(--text-strong)"
-                    onClick={state.toggle_process_expanded}
+                    onClick={state.toggleProcessExpanded}
                     type="button"
                   >
                     <Wrench className="h-3 w-3 shrink-0 text-(--icon-muted)" />
                     <div className="min-w-0 flex-1 truncate text-[12px] font-medium text-(--text-muted)">
-                      {state.process_summary}
+                      {state.processSummary}
                     </div>
                     <div className="text-(--icon-muted)">
-                      {state.is_process_expanded ? (
+                      {state.isProcessExpanded ? (
                         <ChevronDown className="h-3.5 w-3.5" />
                       ) : (
                         <ChevronRight className="h-3.5 w-3.5" />
@@ -326,75 +329,82 @@ export function MessageAssistantSection({
                     </div>
                   </button>
 
-                  {!state.is_process_expanded ? (
+                  {!state.isProcessExpanded ? (
                     <WorkspaceFileArtifactList
-                      artifacts={collapsed_process_file_artifacts}
-                      class_name="ml-5 pb-1"
+                      artifacts={collapsedProcessFileArtifacts}
+                      className="ml-5 pb-1"
                       label="生成文件"
-                      on_open_workspace_file={on_open_workspace_file}
+                      onOpenWorkspaceFile={onOpenWorkspaceFile}
                     />
                   ) : null}
 
-                  {state.is_process_expanded ? (
+                  {state.isProcessExpanded ? (
                     <div className="pt-1">
                       <ContentRenderer
-                        content={state.process_projection.content}
-                        is_streaming={state.show_cursor}
-                        streaming_block_indexes={
-                          state.process_projection.streaming_indexes
+                        content={state.processProjection.content}
+                        isStreaming={state.showCursor}
+                        streamingBlockIndexes={
+                          state.processProjection.streamingIndexes
                         }
-                        fallback_activity_state={state.live_activity_state}
-                        pending_permissions_by_tool_use_id={
-                          state.matched_pending_permissions_by_tool_use_id
+                        fallbackActivityState={state.liveActivityState}
+                        pendingPermissionsByToolUseId={
+                          state.matchedPendingPermissionsByToolUseId
                         }
-                        on_permission_response={on_permission_response}
-                        can_respond_to_permissions={can_respond_to_permissions}
-                        permission_read_only_reason={
-                          permission_read_only_reason
+                        onPermissionResponse={onPermissionResponse}
+                        canRespondToPermissions={canRespondToPermissions}
+                        permissionReadOnlyReason={
+                          permissionReadOnlyReason
                         }
-                        on_open_workspace_file={on_open_workspace_file}
-                        workspace_agent_id={content_workspace_agent_id}
-                        hidden_tool_names={hidden_tool_names}
-                        class_name="ml-1"
-                        show_timeline_dots
+                        onOpenWorkspaceFile={onOpenWorkspaceFile}
+                        workspaceAgentId={contentWorkspaceAgentId}
+                        hiddenToolNames={hiddenToolNames}
+                        className="ml-1"
+                        showTimelineDots
                       />
 
-                      {pending_permission_block}
+                      {pendingPermissionBlock}
                     </div>
                   ) : null}
                 </div>
               ) : null}
 
-              {state.should_render_assistant_text ? (
-                <div className={cn(state.should_render_process_callchain)}>
+              {state.shouldRenderAssistantText ? (
+                <div className={cn(state.shouldRenderProcessCallchain)}>
                   <ContentRenderer
-                    content={state.final_assistant_content ?? []}
-                    is_streaming={state.final_assistant_is_streaming}
-                    streaming_block_indexes={
-                      state.final_assistant_streaming_indexes
+                    content={state.finalAssistantContent ?? []}
+                    isStreaming={state.finalAssistantIsStreaming}
+                    streamingBlockIndexes={
+                      state.finalAssistantStreamingIndexes
                     }
-                    fallback_activity_state={state.live_activity_state}
-                    on_open_workspace_file={on_open_workspace_file}
-                    workspace_agent_id={content_workspace_agent_id}
+                    fallbackActivityState={state.liveActivityState}
+                    onOpenWorkspaceFile={onOpenWorkspaceFile}
+                    workspaceAgentId={contentWorkspaceAgentId}
                   />
                 </div>
               ) : null}
 
-              {!state.should_render_direct_assistant_content &&
-              !state.should_render_process_callchain ? (
-                <div className="pt-2">{pending_permission_block}</div>
+              {state.stopReason === "max_tokens" ? (
+                <div className="mt-2 flex items-center gap-1.5 rounded-[8px] border border-[color:color-mix(in_srgb,var(--warning)_18%,transparent)] px-3 py-2 text-xs leading-5 text-(--warning)">
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                  <span>{t("message.max_tokens_warning")}</span>
+                </div>
+              ) : null}
+
+              {!state.shouldRenderDirectAssistantContent &&
+              !state.shouldRenderProcessCallchain ? (
+                <div className="pt-2">{pendingPermissionBlock}</div>
               ) : null}
             </div>
 
-            {state.should_show_assistant_footer ? (
+            {state.shouldShowAssistantFooter ? (
               <MessageStats
                 stats={state.stats || undefined}
-                show_cursor={state.show_cursor}
+                showCursor={state.showCursor}
                 compact={compact}
-                copied_assistant={state.copied_assistant}
-                on_copy_assistant={
-                  state.can_copy_assistant
-                    ? state.handle_copy_assistant
+                copiedAssistant={state.copiedAssistant}
+                onCopyAssistant={
+                  state.canCopyAssistant
+                    ? state.handleCopyAssistant
                     : undefined
                 }
               />

@@ -11,9 +11,9 @@ import {
 } from "lucide-react";
 
 import {
-  get_workspace_file_preview_url,
+  getWorkspaceFilePreviewUrl,
 } from "@/lib/api/agent-manage-api";
-import { get_workspace_file_external_action_copy } from "@/lib/workspace-file-action";
+import { getWorkspaceFileExternalActionCopy } from "@/lib/workspace-file-action";
 import { ConversationResizeHandle } from "./conversation-resize-handle";
 import {
   WorkspaceFileDownloadButton,
@@ -22,53 +22,53 @@ import {
 } from "./workspace-file-preview-chrome";
 
 interface PreviewFrameProps {
-  agent_id: string;
+  agentId: string;
   embedded?: boolean;
-  file_name: string;
-  is_preview_focused?: boolean;
-  on_resize_start: () => void;
-  on_toggle_preview_focus?: () => void;
+  fileName: string;
+  isPreviewFocused?: boolean;
+  onResizeStart: () => void;
+  onTogglePreviewFocus?: () => void;
   path: string;
 }
 
 interface BinaryFilePlaceholderProps {
-  agent_id: string;
+  agentId: string;
   embedded?: boolean;
-  file_name: string;
-  is_preview_focused?: boolean;
-  on_toggle_preview_focus?: () => void;
+  fileName: string;
+  isPreviewFocused?: boolean;
+  onTogglePreviewFocus?: () => void;
   path: string;
 }
 
 export function PdfPreview({
-  agent_id,
+  agentId: agentId,
   path,
-  file_name,
-  is_preview_focused,
-  on_toggle_preview_focus,
-  on_resize_start,
+  fileName: fileName,
+  isPreviewFocused: isPreviewFocused,
+  onTogglePreviewFocus: onTogglePreviewFocus,
+  onResizeStart: onResizeStart,
   embedded,
 }: PreviewFrameProps) {
-  const [is_loaded, setIsLoaded] = useState(false);
-  const preview_url = get_workspace_file_preview_url(agent_id, path);
+  const [isLoaded, setIsLoaded] = useState(false);
+  const previewUrl = getWorkspaceFilePreviewUrl(agentId, path);
 
   return (
     <>
       {!embedded ? (
         <ConversationResizeHandle
-          aria_label="调整编辑器宽度"
-          class_name="flex"
-          on_mouse_down={on_resize_start}
+          ariaLabel="调整编辑器宽度"
+          className="flex"
+          onMouseDown={onResizeStart}
         />
       ) : null}
 
       <WorkspaceFilePreviewHeader
         actions={(
           <>
-            <WorkspaceFileDownloadButton agent_id={agent_id} file_name={file_name} path={path} />
+            <WorkspaceFileDownloadButton agentId={agentId} fileName={fileName} path={path} />
             <WorkspaceFilePreviewFocusButton
-              is_preview_focused={is_preview_focused}
-              on_toggle_preview_focus={on_toggle_preview_focus}
+              isPreviewFocused={isPreviewFocused}
+              onTogglePreviewFocus={onTogglePreviewFocus}
             />
           </>
         )}
@@ -79,7 +79,7 @@ export function PdfPreview({
               <FileText className="h-3 w-3" />
               PDF 预览
             </span>
-            {is_loaded ? (
+            {isLoaded ? (
               <span className="flex items-center gap-1 text-(--success)">
                 <Eye className="h-3 w-3" />
                 已加载
@@ -92,14 +92,15 @@ export function PdfPreview({
             )}
           </>
         )}
-        title={file_name}
+        title={fileName}
       />
 
       <div className="min-h-0 flex-1 overflow-hidden bg-[var(--surface-panel-subtle-background)]">
         <iframe
           className="h-full w-full"
-          src={preview_url}
-          title={file_name}
+          sandbox="allow-downloads allow-same-origin"
+          src={previewUrl}
+          title={fileName}
           onLoad={() => setIsLoaded(true)}
         />
       </div>
@@ -108,36 +109,36 @@ export function PdfPreview({
 }
 
 export function ImagePreview({
-  agent_id,
+  agentId: agentId,
   path,
-  file_name,
-  is_preview_focused,
-  on_toggle_preview_focus,
-  on_resize_start,
+  fileName: fileName,
+  isPreviewFocused: isPreviewFocused,
+  onTogglePreviewFocus: onTogglePreviewFocus,
+  onResizeStart: onResizeStart,
   embedded,
 }: PreviewFrameProps) {
-  const [is_loaded, setIsLoaded] = useState(false);
-  const [has_error, setHasError] = useState(false);
-  const file_action_copy = get_workspace_file_external_action_copy(file_name);
-  const preview_url = get_workspace_file_preview_url(agent_id, path);
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [hasError, setHasError] = useState(false);
+  const fileActionCopy = getWorkspaceFileExternalActionCopy(fileName);
+  const previewUrl = getWorkspaceFilePreviewUrl(agentId, path);
 
   return (
     <>
       {!embedded ? (
         <ConversationResizeHandle
-          aria_label="调整编辑器宽度"
-          class_name="flex"
-          on_mouse_down={on_resize_start}
+          ariaLabel="调整编辑器宽度"
+          className="flex"
+          onMouseDown={onResizeStart}
         />
       ) : null}
 
       <WorkspaceFilePreviewHeader
         actions={(
           <>
-            <WorkspaceFileDownloadButton agent_id={agent_id} file_name={file_name} path={path} />
+            <WorkspaceFileDownloadButton agentId={agentId} fileName={fileName} path={path} />
             <WorkspaceFilePreviewFocusButton
-              is_preview_focused={is_preview_focused}
-              on_toggle_preview_focus={on_toggle_preview_focus}
+              isPreviewFocused={isPreviewFocused}
+              onTogglePreviewFocus={onTogglePreviewFocus}
             />
           </>
         )}
@@ -148,12 +149,12 @@ export function ImagePreview({
               <FileImage className="h-3 w-3" />
               图片预览
             </span>
-            {has_error ? (
+            {hasError ? (
               <span className="flex items-center gap-1 text-destructive">
                 <EyeOff className="h-3 w-3" />
                 加载失败
               </span>
-            ) : is_loaded ? (
+            ) : isLoaded ? (
               <span className="flex items-center gap-1 text-(--success)">
                 <Eye className="h-3 w-3" />
                 已加载
@@ -166,23 +167,23 @@ export function ImagePreview({
             )}
           </>
         )}
-        title={file_name}
+        title={fileName}
       />
 
       <div className="min-h-0 flex-1 overflow-hidden bg-[var(--surface-panel-subtle-background)] p-6">
-        {has_error ? (
+        {hasError ? (
           <div className="m-auto text-center">
             <FileWarning className="mx-auto h-12 w-12 text-(--icon-muted)" />
             <p className="mt-4 text-sm font-medium text-(--text-strong)">图片加载失败</p>
             <p className="mt-2 text-xs text-(--text-soft)">
-              请尝试{file_action_copy.label}文件
+              请尝试{fileActionCopy.label}文件
             </p>
           </div>
         ) : (
           <img
             className="max-h-full max-w-full rounded-lg object-contain"
-            src={preview_url}
-            alt={file_name}
+            src={previewUrl}
+            alt={fileName}
             onLoad={() => setIsLoaded(true)}
             onError={() => {
               setIsLoaded(true);
@@ -196,15 +197,15 @@ export function ImagePreview({
 }
 
 export function BinaryFilePlaceholder({
-  agent_id,
+  agentId: agentId,
   path,
-  file_name,
-  is_preview_focused,
-  on_toggle_preview_focus,
+  fileName: fileName,
+  isPreviewFocused: isPreviewFocused,
+  onTogglePreviewFocus: onTogglePreviewFocus,
   embedded,
 }: BinaryFilePlaceholderProps) {
-  const file_action_copy = get_workspace_file_external_action_copy(file_name);
-  const action_description = file_action_copy.mode === "reveal"
+  const fileActionCopy = getWorkspaceFileExternalActionCopy(fileName);
+  const actionDescription = fileActionCopy.mode === "reveal"
     ? "在文件夹中显示此文件"
     : "获取此文件";
   return (
@@ -212,10 +213,10 @@ export function BinaryFilePlaceholder({
       <WorkspaceFilePreviewHeader
         actions={(
           <>
-            <WorkspaceFileDownloadButton agent_id={agent_id} file_name={file_name} path={path} />
+            <WorkspaceFileDownloadButton agentId={agentId} fileName={fileName} path={path} />
             <WorkspaceFilePreviewFocusButton
-              is_preview_focused={is_preview_focused}
-              on_toggle_preview_focus={on_toggle_preview_focus}
+              isPreviewFocused={isPreviewFocused}
+              onTogglePreviewFocus={onTogglePreviewFocus}
             />
           </>
         )}
@@ -226,7 +227,7 @@ export function BinaryFilePlaceholder({
             此文件类型不支持预览
           </span>
         )}
-        title={file_name}
+        title={fileName}
       />
 
       <div className="min-h-0 flex-1 overflow-hidden bg-[var(--surface-panel-subtle-background)] p-8">
@@ -236,7 +237,7 @@ export function BinaryFilePlaceholder({
           </div>
           <p className="text-sm font-medium text-(--text-strong)">不支持预览此文件</p>
           <p className="mt-2 text-xs leading-5 text-(--text-soft)">
-            当前预览仅支持文本、PDF、图片、xlsx、docx 和 pptx 文件。您可以点击上方"{file_action_copy.label}"按钮{action_description}。
+            当前预览仅支持文本、PDF、图片、xlsx、docx 和 pptx 文件。您可以点击上方"{fileActionCopy.label}"按钮{actionDescription}。
           </p>
         </div>
       </div>

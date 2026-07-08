@@ -98,14 +98,14 @@ export function OperationStagePanel({
   return (
     <WorkspaceSurfaceView
       action={header_action}
-      body_class_name="px-2 py-2 sm:px-3 xl:px-4"
-      body_scrollable={false}
-      content_class_name="flex h-full min-h-0 max-w-none"
+      bodyClassName="px-2 py-2 sm:px-3 xl:px-4"
+      bodyScrollable={false}
+      contentClassName="flex h-full min-h-0 max-w-none"
       eyebrow="操作"
-      max_width_class_name="max-w-none"
-      show_eyebrow={false}
+      maxWidthClassName="max-w-none"
+      showEyebrow={false}
       title="操作舞台"
-      title_trailing={phase_meta && PhaseIcon ? (
+      titleTrailing={phase_meta && PhaseIcon ? (
         <span className={cn(
           "inline-flex h-6 items-center gap-1.5 rounded-full border px-2 text-[10px] font-semibold",
           phase_meta.class_name,

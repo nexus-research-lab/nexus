@@ -86,7 +86,16 @@ func decodeRawJSON(raw json.RawMessage) any {
 	}
 	var result any
 	if err := json.Unmarshal(raw, &result); err != nil {
-		return strings.TrimSpace(string(raw))
+		// 保留原始 JSON 解析错误，供管道下游（如 PermissionHandler）
+		// 检测并拒绝执行，把错误原因反馈给大模型。
+		rawStr := strings.TrimSpace(string(raw))
+		input := map[string]any{
+			"_nexus_parse_error": err.Error(),
+		}
+		if rawStr != "" {
+			input["_nexus_raw_input"] = rawStr
+		}
+		return input
 	}
 	return result
 }

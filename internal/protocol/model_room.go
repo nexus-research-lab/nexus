@@ -60,6 +60,7 @@ type ConversationRecord struct {
 	ConversationType string    `json:"conversation_type"`
 	Title            string    `json:"title,omitempty"`
 	MessageCount     int       `json:"message_count"`
+	LastActivityAt   time.Time `json:"last_activity_at,omitempty"`
 	CreatedAt        time.Time `json:"created_at,omitempty"`
 	UpdatedAt        time.Time `json:"updated_at,omitempty"`
 }

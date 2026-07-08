@@ -19,6 +19,17 @@ func TestAgentSDKDiagnosticsEnabledIgnoresProcessEnv(t *testing.T) {
 	}
 }
 
+func TestAgentSDKDiagnosticsEnabledUsesJSONLEnv(t *testing.T) {
+	env := map[string]string{AgentSDKDiagnosticsJSONLEnvName: "1"}
+
+	if !AgentSDKDiagnosticsEnabled(env) {
+		t.Fatalf("JSONL runtime env 应开启诊断")
+	}
+	if got := AgentSDKDiagnosticsValue(env); got != "jsonl" {
+		t.Fatalf("AgentSDKDiagnosticsValue() = %q, want jsonl", got)
+	}
+}
+
 func TestAgentSDKProviderDebugBodyValueUsesRuntimeEnv(t *testing.T) {
 	t.Setenv(AgentSDKProviderDebugBodyEnvName, "full")
 	env := map[string]string{AgentSDKProviderDebugBodyEnvName: "16384"}

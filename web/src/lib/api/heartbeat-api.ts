@@ -2,9 +2,9 @@
  * Heartbeat 自动化 API 封装
  */
 
-import { get_agent_api_base_url } from "@/config/options";
-import { request_api } from "@/lib/api/http";
-import { to_timestamp_or_null } from "@/lib/api/timestamp-utils";
+import { getAgentApiBaseUrl } from "@/config/options";
+import { requestApi } from "@/lib/api/http";
+import { toTimestampOrNull } from "@/lib/api/timestamp-utils";
 import type {
   ApiHeartbeatStatus,
   ApiHeartbeatWakeResult,
@@ -14,54 +14,54 @@ import type {
   WakeHeartbeatRequest,
 } from "@/types/capability/heartbeat";
 
-const AGENT_API_BASE_URL = get_agent_api_base_url();
+const AGENT_API_BASE_URL = getAgentApiBaseUrl();
 const HEARTBEAT_API_BASE_URL = `${AGENT_API_BASE_URL}/automation/heartbeat`;
 
-function transform_heartbeat_config(
-  api_config: ApiHeartbeatStatus,
+function transformHeartbeatConfig(
+  apiConfig: ApiHeartbeatStatus,
 ): HeartbeatConfig {
   return {
-    ...api_config,
-    next_run_at: to_timestamp_or_null(api_config.next_run_at),
-    last_heartbeat_at: to_timestamp_or_null(api_config.last_heartbeat_at),
-    last_ack_at: to_timestamp_or_null(api_config.last_ack_at),
+    ...apiConfig,
+    next_run_at: toTimestampOrNull(apiConfig.next_run_at),
+    last_heartbeat_at: toTimestampOrNull(apiConfig.last_heartbeat_at),
+    last_ack_at: toTimestampOrNull(apiConfig.last_ack_at),
   };
 }
 
-export async function get_heartbeat_config_api(
-  agent_id: string,
+export async function getHeartbeatConfigApi(
+  agentId: string,
 ): Promise<HeartbeatConfig> {
-  const result = await request_api<ApiHeartbeatStatus>(
-    `${HEARTBEAT_API_BASE_URL}/${encodeURIComponent(agent_id)}`,
+  const result = await requestApi<ApiHeartbeatStatus>(
+    `${HEARTBEAT_API_BASE_URL}/${encodeURIComponent(agentId)}`,
     {
       method: "GET",
     },
   );
 
-  return transform_heartbeat_config(result);
+  return transformHeartbeatConfig(result);
 }
 
-export async function update_heartbeat_api(
-  agent_id: string,
+export async function updateHeartbeatApi(
+  agentId: string,
   payload: HeartbeatUpdateInput,
 ): Promise<HeartbeatConfig> {
-  const result = await request_api<ApiHeartbeatStatus>(
-    `${HEARTBEAT_API_BASE_URL}/${encodeURIComponent(agent_id)}`,
+  const result = await requestApi<ApiHeartbeatStatus>(
+    `${HEARTBEAT_API_BASE_URL}/${encodeURIComponent(agentId)}`,
     {
       method: "PUT",
       body: JSON.stringify(payload),
     },
   );
 
-  return transform_heartbeat_config(result);
+  return transformHeartbeatConfig(result);
 }
 
-export async function wake_heartbeat_api(
-  agent_id: string,
+export async function wakeHeartbeatApi(
+  agentId: string,
   params: WakeHeartbeatRequest = {},
 ): Promise<HeartbeatWakeResult> {
-  const result = await request_api<ApiHeartbeatWakeResult>(
-    `${HEARTBEAT_API_BASE_URL}/${encodeURIComponent(agent_id)}/wake`,
+  const result = await requestApi<ApiHeartbeatWakeResult>(
+    `${HEARTBEAT_API_BASE_URL}/${encodeURIComponent(agentId)}/wake`,
     {
       method: "POST",
       body: JSON.stringify({

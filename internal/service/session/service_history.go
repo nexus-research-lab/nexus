@@ -7,6 +7,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
 // GetSessionMessages 读取 session 历史消息。
@@ -50,6 +51,8 @@ func (s *Service) GetSessionMessagesPage(
 			request.Limit,
 			request.BeforeRoundID,
 			request.BeforeRoundTimestamp,
+			request.AroundRoundID,
+			request.AroundLimit,
 		)
 		if err != nil {
 			return nil, err
@@ -75,11 +78,107 @@ func (s *Service) GetSessionMessagesPage(
 		request.Limit,
 		request.BeforeRoundID,
 		request.BeforeRoundTimestamp,
+		request.AroundRoundID,
+		request.AroundLimit,
 	)
 	if err != nil {
 		return nil, err
 	}
 	return &page, nil
+}
+
+// GetSessionTurnsPage 读取 session 历史并投影为 ConversationTurn 分页。
+func (s *Service) GetSessionTurnsPage(
+	ctx context.Context,
+	rawSessionKey string,
+	request TurnPageRequest,
+) (*protocol.TurnPage, error) {
+	sessionKey, parsed, err := s.requireSessionKey(rawSessionKey)
+	if err != nil {
+		return nil, err
+	}
+	isRoom := parsed.Kind == protocol.SessionKeyKindRoom
+	rows, err := s.GetSessionMessages(ctx, sessionKey)
+	if err != nil {
+		return nil, err
+	}
+	turns := workspacestore.ProjectConversationTurns(rows, isRoom, s.activeRoundIDs(sessionKey))
+	page := workspacestore.PaginateConversationTurns(
+		turns,
+		request.Limit,
+		request.BeforeRoundID,
+		request.AroundRoundID,
+		strings.EqualFold(strings.TrimSpace(request.Sort), "desc"),
+	)
+	if strings.EqualFold(strings.TrimSpace(request.View), "summary") {
+		for index := range page.Turns {
+			page.Turns[index] = summarizeConversationTurn(page.Turns[index])
+		}
+	}
+	return &page, nil
+}
+
+// summarizeConversationTurn 只保留导航和占位需要的骨架。
+func summarizeConversationTurn(turn protocol.ConversationTurn) protocol.ConversationTurn {
+	turn.SystemEvents = []protocol.ConversationMessage{}
+	turn.IsLoaded = false
+	for index := range turn.AgentSlots {
+		turn.AgentSlots[index].AssistantMessages = []protocol.ConversationMessage{}
+	}
+	return turn
+}
+
+// GetSessionTurnIndex 读取 session 的 turn 导航索引。
+func (s *Service) GetSessionTurnIndex(ctx context.Context, rawSessionKey string) ([]protocol.ConversationTurnIndexItem, error) {
+	sessionKey, parsed, err := s.requireSessionKey(rawSessionKey)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := s.GetSessionMessages(ctx, sessionKey)
+	if err != nil {
+		return nil, err
+	}
+	turns := workspacestore.ProjectConversationTurns(rows, parsed.Kind == protocol.SessionKeyKindRoom, s.activeRoundIDs(sessionKey))
+	return workspacestore.BuildConversationTurnIndex(turns), nil
+}
+
+// GetSessionRoundIndex 读取 session 的轻量 round 导航索引。
+func (s *Service) GetSessionRoundIndex(ctx context.Context, rawSessionKey string) (*protocol.SessionRoundIndex, error) {
+	sessionKey, parsed, err := s.requireSessionKey(rawSessionKey)
+	if err != nil {
+		return nil, err
+	}
+	if parsed.Kind == protocol.SessionKeyKindRoom {
+		index, err := s.roomHistory.ReadRoundIndex(
+			parsed.ConversationID,
+			s.activeRoundIDs(sessionKey),
+		)
+		if err != nil {
+			return nil, err
+		}
+		return &index, nil
+	}
+
+	workspacePaths, err := s.resolveWorkspacePaths(ctx, parsed.AgentID)
+	if err != nil {
+		return nil, err
+	}
+	sessionValue, workspacePath, err := s.loadHistorySession(ctx, workspacePaths, parsed, sessionKey)
+	if err != nil {
+		return nil, err
+	}
+	if sessionValue == nil {
+		return nil, ErrSessionNotFound
+	}
+	index, err := s.history.ReadRoundIndex(
+		workspacePath,
+		*sessionValue,
+		s.activeRoundIDs(sessionKey),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &index, nil
 }
 
 func (s *Service) loadHistorySession(

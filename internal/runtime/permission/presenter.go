@@ -25,6 +25,11 @@ func buildPermissionPayload(pending *PendingRequest) map[string]any {
 	riskLevel, riskLabel := resolveRisk(pending.ToolName)
 	return map[string]any{
 		"request_id":       pending.RequestID,
+		"round_id":         strings.TrimSpace(pending.Route.RoundID),
+		"agent_round_id":   strings.TrimSpace(pending.Route.AgentRoundID),
+		"agent_id":         strings.TrimSpace(pending.Route.AgentID),
+		"message_id":       strings.TrimSpace(pending.Route.MessageID),
+		"tool_use_id":      strings.TrimSpace(pending.ToolUseID),
 		"tool_name":        pending.ToolName,
 		"tool_input":       pending.ToolInput,
 		"interaction_mode": resolveInteractionMode(pending.ToolName),

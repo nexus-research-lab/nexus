@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { delete_skill_api, get_skill_detail_api, update_single_skill_api } from "@/lib/api/skill-api";
+import { deleteSkillApi, getSkillDetailApi, updateSingleSkillApi } from "@/lib/api/skill-api";
 import { UiBadge } from "@/shared/ui/badge";
 import { UiButton } from "@/shared/ui/button";
 import { WORKSPACE_DETAIL_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
@@ -21,16 +21,17 @@ import { UiPanel } from "@/shared/ui/panel";
 import { UiStateBlock } from "@/shared/ui/state-block";
 import type { SkillDetail } from "@/types/capability/skill";
 
+import { formatDeployFailureMessage } from "./skill-deploy-failures";
 import { SkillMarkdown } from "./skill-markdown";
 
 interface SkillDetailViewProps {
-  skill_name: string;
-  on_back: () => void;
-  on_deleted: () => Promise<void> | void;
-  on_refreshed: () => Promise<void> | void;
+  skillName: string;
+  onBack: () => void;
+  onDeleted: () => Promise<void> | void;
+  onRefreshed: () => Promise<void> | void;
 }
 
-function get_skill_source_label(skill: SkillDetail): string {
+function getSkillSourceLabel(skill: SkillDetail): string {
   if (skill.source_type === "system") return "系统内置";
   if (skill.source_type === "builtin") return "内置推荐";
   if (skill.source_type === "external") return "用户导入";
@@ -39,69 +40,74 @@ function get_skill_source_label(skill: SkillDetail): string {
 
 /** Skill 详情页 —— 与连接器详情同样使用路由承载主体内容。 */
 export function SkillDetailView({
-  skill_name,
-  on_back,
-  on_deleted,
-  on_refreshed,
+  skillName,
+  onBack,
+  onDeleted,
+  onRefreshed,
 }: SkillDetailViewProps) {
-  const [skill, set_skill] = useState<SkillDetail | null>(null);
-  const [loading, set_loading] = useState(true);
-  const [acting, set_acting] = useState(false);
-  const [error, set_error] = useState<string | null>(null);
-  const source_url = skill?.source_ref && /^https?:\/\//.test(skill.source_ref) ? skill.source_ref : null;
+  const [skill, setSkill] = useState<SkillDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [activeAction, setActiveAction] = useState<"delete" | "update" | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
+  const sourceUrl = skill?.source_ref && /^https?:\/\//.test(skill.source_ref) ? skill.source_ref : null;
 
-  const load_detail = useCallback(async () => {
+  const loadDetail = useCallback(async () => {
     try {
-      set_loading(true);
-      set_error(null);
-      set_skill(await get_skill_detail_api(skill_name));
+      setLoading(true);
+      setError(null);
+      setWarning(null);
+      setSkill(await getSkillDetailApi(skillName));
     } catch (err) {
-      set_error(err instanceof Error ? err.message : "加载 skill 详情失败");
-      set_skill(null);
+      setError(err instanceof Error ? err.message : "加载 skill 详情失败");
+      setSkill(null);
     } finally {
-      set_loading(false);
+      setLoading(false);
     }
-  }, [skill_name]);
+  }, [skillName]);
 
   useEffect(() => {
-    void load_detail();
-  }, [load_detail]);
+    void loadDetail();
+  }, [loadDetail]);
 
-  const handle_update = useCallback(async () => {
+  const handleUpdate = useCallback(async () => {
     if (!skill) return;
     try {
-      set_acting(true);
-      set_error(null);
-      await update_single_skill_api(skill.name);
-      await Promise.resolve(on_refreshed());
-      await load_detail();
+      setActiveAction("update");
+      setError(null);
+      setWarning(null);
+      const detail = await updateSingleSkillApi(skill.name);
+      await Promise.resolve(onRefreshed());
+      await loadDetail();
+      setWarning(formatDeployFailureMessage(skill.name, detail.deploy_failures));
     } catch (err) {
-      set_error(err instanceof Error ? err.message : "更新 skill 失败");
+      setError(err instanceof Error ? err.message : "更新 skill 失败");
     } finally {
-      set_acting(false);
+      setActiveAction(null);
     }
-  }, [load_detail, on_refreshed, skill]);
+  }, [loadDetail, onRefreshed, skill]);
 
-  const handle_delete = useCallback(async () => {
+  const handleDelete = useCallback(async () => {
     if (!skill || !skill.deletable) return;
     try {
-      set_acting(true);
-      set_error(null);
-      await delete_skill_api(skill.name);
-      await Promise.resolve(on_deleted());
+      setActiveAction("delete");
+      setError(null);
+      setWarning(null);
+      await deleteSkillApi(skill.name);
+      await Promise.resolve(onDeleted());
     } catch (err) {
-      set_error(err instanceof Error ? err.message : "删除 skill 失败");
+      setError(err instanceof Error ? err.message : "删除 skill 失败");
     } finally {
-      set_acting(false);
+      setActiveAction(null);
     }
-  }, [on_deleted, skill]);
+  }, [onDeleted, skill]);
 
   return (
     <div className={WORKSPACE_DETAIL_PAGE_CLASS_NAME}>
       <div className="flex items-center gap-2 text-[14px] text-(--text-muted)">
         <button
           className="inline-flex items-center gap-1 rounded-full px-2 py-1 font-medium transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_28%,transparent)]"
-          onClick={on_back}
+          onClick={onBack}
           type="button"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
@@ -117,7 +123,7 @@ export function SkillDetailView({
 
       {loading ? (
         <UiStateBlock
-          class_name="min-h-[420px]"
+          className="min-h-[420px]"
           icon={<Loader2 className="h-6 w-6 animate-spin" />}
           size="md"
           title="加载技能详情中..."
@@ -126,11 +132,11 @@ export function SkillDetailView({
       ) : !skill ? (
         <UiStateBlock
           actions={(
-            <UiButton onClick={on_back} size="sm" type="button">
+            <UiButton onClick={onBack} size="sm" type="button">
               返回技能
             </UiButton>
           )}
-          class_name="min-h-[420px]"
+          className="min-h-[420px]"
           description={error}
           size="md"
           title="技能不存在"
@@ -163,28 +169,28 @@ export function SkillDetailView({
             <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
               {skill.source_type === "external" && skill.has_update ? (
                 <UiButton
-                  disabled={acting}
-                  onClick={() => void handle_update()}
+                  disabled={activeAction !== null}
+                  onClick={() => void handleUpdate()}
                   size="sm"
                   tone="primary"
                   type="button"
                   variant="solid"
                 >
-                  {acting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                  {activeAction === "update" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
                   更新技能
                 </UiButton>
               ) : null}
               {skill.deletable ? (
                 <UiButton
-                  disabled={acting}
-                  onClick={() => void handle_delete()}
+                  disabled={activeAction !== null}
+                  onClick={() => void handleDelete()}
                   size="sm"
                   tone="danger"
                   type="button"
                   variant="surface"
                 >
-                  {acting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                  删除
+                  <Trash2 className="h-3.5 w-3.5" />
+                  {activeAction === "delete" ? "删除中" : "删除"}
                 </UiButton>
               ) : null}
             </div>
@@ -193,8 +199,9 @@ export function SkillDetailView({
           <div className="mt-8 space-y-6">
             <div className="flex flex-wrap gap-2">
               <UiBadge>{skill.category_name}</UiBadge>
-              <UiBadge>{get_skill_source_label(skill)}</UiBadge>
+              <UiBadge>{getSkillSourceLabel(skill)}</UiBadge>
               <UiBadge>版本 {skill.version || "unknown"}</UiBadge>
+              {skill.source_type === "external" && skill.has_update ? <UiBadge tone="warning">有更新</UiBadge> : null}
               {skill.locked ? <UiBadge tone="warning">系统锁定</UiBadge> : null}
               {skill.tags.map((tag) => (
                 <UiBadge key={tag}>{tag}</UiBadge>
@@ -203,6 +210,9 @@ export function SkillDetailView({
 
             {error ? (
               <UiStateBlock description={error} size="sm" title="操作失败" tone="danger" />
+            ) : null}
+            {warning ? (
+              <UiStateBlock description={warning} size="sm" title="部分完成" />
             ) : null}
 
             <section>
@@ -218,10 +228,10 @@ export function SkillDetailView({
               </UiPanel>
             </section>
 
-            {source_url ? (
+            {sourceUrl ? (
               <a
                 className="inline-flex items-center gap-2 text-[13px] font-semibold text-(--primary) underline decoration-[color:color-mix(in_srgb,var(--primary)_28%,transparent)] underline-offset-4"
-                href={source_url}
+                href={sourceUrl}
                 rel="noopener noreferrer"
                 target="_blank"
               >

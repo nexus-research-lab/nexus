@@ -15,22 +15,22 @@ interface CodeBlockContentProps {
   value: string;
 }
 
-const MESSAGE_CODE_FONT_FAMILY = "\"KingHwa_OldSong\", var(--font-mono), monospace";
+const MESSAGE_CODE_FONT_FAMILY = "\"KingHwaOldSong\", var(--font-mono), monospace";
 
 export function CodeBlockContent({ language, value }: CodeBlockContentProps) {
   const { theme } = useTheme();
   const { copied, copy } = useCopyToClipboard();
-  const is_dark_theme = theme === "dark" || theme === "rain";
+  const isDarkTheme = theme === "dark" || theme === "rain";
 
-  const handle_copy = () => {
+  const handleCopy = () => {
     void copy(value);
   };
 
   return (
     <CodeShell
       language={language}
-      class_name="group"
-      right_slot={(
+      className="group"
+      rightSlot={(
         <button
           className={cn(
             "inline-flex h-3 w-3 items-center justify-center rounded-[6px] border border-transparent transition-colors duration-(--motion-duration-fast)",
@@ -39,7 +39,7 @@ export function CodeBlockContent({ language, value }: CodeBlockContentProps) {
           style={copied ? undefined : {
             color: "var(--text-muted)",
           }}
-          onClick={handle_copy}
+          onClick={handleCopy}
           title={copied ? "已复制" : `复制 ${language || "text"} 代码`}
           type="button"
         >
@@ -50,12 +50,12 @@ export function CodeBlockContent({ language, value }: CodeBlockContentProps) {
           )}
         </button>
       )}
-      content_class_name="relative min-w-0 overflow-x-auto overflow-y-hidden"
+      contentClassName="relative min-w-0 overflow-x-auto overflow-y-hidden"
     >
       <div className="relative min-w-0">
         <SyntaxHighlighter
           language={language || "text"}
-          style={is_dark_theme ? vscDarkPlus : oneLight}
+          style={isDarkTheme ? vscDarkPlus : oneLight}
           codeTagProps={{
             className: "message-cjk-code-font",
             style: {

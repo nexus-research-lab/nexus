@@ -18,6 +18,8 @@ type Client interface {
 	Query(context.Context, string) error
 	ReceiveMessages(context.Context) <-chan sdkprotocol.ReceivedMessage
 	Interrupt(context.Context) error
+	StopTask(context.Context, string) error
+	SendTaskMessage(context.Context, string, string, string) error
 	Disconnect(context.Context) error
 	Reconfigure(context.Context, agentclient.Options) error
 	SessionID() string
@@ -133,6 +135,30 @@ func (c *sdkClientAdapter) Interrupt(ctx context.Context) error {
 		return err
 	}
 	return session.Interrupt(ctx)
+}
+
+func (c *sdkClientAdapter) InterruptWithReason(ctx context.Context, reason string) error {
+	session, err := c.currentSession()
+	if err != nil {
+		return err
+	}
+	return session.InterruptWithReason(ctx, reason)
+}
+
+func (c *sdkClientAdapter) StopTask(ctx context.Context, taskID string) error {
+	session, err := c.currentSession()
+	if err != nil {
+		return err
+	}
+	return session.Control().StopTask(ctx, taskID)
+}
+
+func (c *sdkClientAdapter) SendTaskMessage(ctx context.Context, taskID string, message string, summary string) error {
+	session, err := c.currentSession()
+	if err != nil {
+		return err
+	}
+	return session.Control().SendTaskMessage(ctx, taskID, message, summary)
 }
 
 func (c *sdkClientAdapter) Disconnect(ctx context.Context) error {
@@ -256,9 +282,10 @@ func (c *sdkClientAdapter) pumpMessages(
 	for {
 		message, err := session.Recv(ctx)
 		if err != nil {
-			if errors.Is(err, context.Canceled) || errors.Is(err, agentclient.ErrAborted) || errors.Is(err, io.EOF) {
+			if errors.Is(err, io.EOF) {
 				return
 			}
+			// 中文注释：SDK abort 是有效的 round 中断信号，不能当作普通 EOF 吞掉。
 			readErr = err
 			return
 		}

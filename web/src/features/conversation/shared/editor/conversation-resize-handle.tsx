@@ -5,24 +5,24 @@ import { MouseEventHandler } from "react";
 import { cn } from "@/lib/utils";
 
 interface ConversationResizeHandleProps {
-  aria_label: string;
-  class_name?: string;
-  on_mouse_down: MouseEventHandler<HTMLButtonElement>;
+  ariaLabel: string;
+  className?: string;
+  onMouseDown: MouseEventHandler<HTMLButtonElement>;
 }
 
 export function ConversationResizeHandle({
-  aria_label,
-  class_name,
-  on_mouse_down,
+  ariaLabel: ariaLabel,
+  className: className,
+  onMouseDown: onMouseDown,
 }: ConversationResizeHandleProps) {
   return (
     <button
-      aria-label={aria_label}
+      aria-label={ariaLabel}
       className={cn(
         "group absolute left-0 top-0 z-20 hidden h-full w-3 cursor-col-resize items-center justify-start lg:flex",
-        class_name,
+        className,
       )}
-      onMouseDown={on_mouse_down}
+      onMouseDown={onMouseDown}
       type="button"
     >
       <span

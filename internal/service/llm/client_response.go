@@ -24,13 +24,19 @@ func parseTextResponse(apiFormat string, body []byte) (string, error) {
 		if err := json.Unmarshal(body, &payload); err != nil {
 			return "", err
 		}
-		return payload.firstText(), nil
+		if text := payload.firstText(); text != "" {
+			return text, nil
+		}
+		return "", errors.New("llm chat_completions response missing text")
 	default:
 		var payload anthropicMessagesResponse
 		if err := json.Unmarshal(body, &payload); err != nil {
 			return "", err
 		}
-		return payload.firstText(), nil
+		if text := payload.firstText(); text != "" {
+			return text, nil
+		}
+		return "", errors.New("llm anthropic_messages response missing text")
 	}
 }
 

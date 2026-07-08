@@ -24,11 +24,13 @@ go.work.sum
 
 # env file
 .env
+.env.*
 
 # project
 cache
 .idea
 .vscode
+.trae
 .DS_Store
 .claude
 .agents

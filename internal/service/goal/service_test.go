@@ -217,7 +217,8 @@ func (b *fakeGoalBroadcaster) BroadcastEvent(_ context.Context, _ string, event 
 }
 
 type fakePreviewFiller struct {
-	items []fakePreviewItem
+	items          []fakePreviewItem
+	titleSchedules []fakePreviewTitleSchedule
 }
 
 type fakePreviewItem struct {
@@ -225,9 +226,23 @@ type fakePreviewItem struct {
 	title      string
 }
 
+type fakePreviewTitleSchedule struct {
+	goal          protocol.Goal
+	ownerUserID   string
+	fallbackTitle string
+}
+
 func (f *fakePreviewFiller) FillEmptyPreviewFromGoal(_ context.Context, sessionKey string, title string) error {
 	f.items = append(f.items, fakePreviewItem{sessionKey: sessionKey, title: title})
 	return nil
+}
+
+func (f *fakePreviewFiller) ScheduleGoalTitleFromGoal(_ context.Context, goal protocol.Goal, ownerUserID string, fallbackTitle string) {
+	f.titleSchedules = append(f.titleSchedules, fakePreviewTitleSchedule{
+		goal:          goal,
+		ownerUserID:   ownerUserID,
+		fallbackTitle: fallbackTitle,
+	})
 }
 
 type fakeGuidanceDispatcher struct {

@@ -111,7 +111,7 @@
 
   .message-cjk-font {
     font-family:
-      "KingHwa_OldSong",
+      "KingHwaOldSong",
       "PingFang SC",
       "Hiragino Sans GB",
       "Source Han Serif SC",
@@ -121,7 +121,7 @@
 
   .message-cjk-code-font {
     font-family:
-      "KingHwa_OldSong",
+      "KingHwaOldSong",
       var(--font-mono),
       "PingFang SC",
       "Hiragino Sans GB",

@@ -44,7 +44,9 @@ export interface PendingPermission {
   session_key?: string | null;
   agent_id?: string | null;
   message_id?: string | null;
-  caused_by?: string | null;
+  round_id?: string | null;
+  agent_round_id?: string | null;
+  tool_use_id?: string | null;
   interaction_mode?: PermissionInteractionMode;
   risk_level?: PermissionRiskLevel;
   risk_label?: string;
@@ -77,18 +79,18 @@ export interface PendingPermissionMatchResult {
 }
 
 /**
- * 从消息快照中提取仍未完成的 tool_use。
+ * 从消息快照中提取仍未完成的 toolUse。
  *
- * 中文注释：权限请求的唯一上游来源是后端事件里的 `message_id / caused_by`。
- * 这里先把当前 assistant 消息里仍未被 tool_result 收口的 tool_use 全部抽出来，
+ * 中文注释：权限请求的唯一上游来源是后端事件里的 `messageId / causedBy`。
+ * 这里先把当前 assistant 消息里仍未被 toolResult 收口的 toolUse 全部抽出来，
  * 后续所有权限绑定都只允许在这批候选里做精确匹配，不再跨消息猜测。
  */
-export function collect_unresolved_tool_use_candidates(
+export function collectUnresolvedToolUseCandidates(
   messages: Message[],
 ): PendingPermissionToolUseCandidate[] {
-  const ordered_candidates: PendingPermissionToolUseCandidate[] = [];
-  const candidate_index_by_tool_use_id = new Map<string, number>();
-  const resolved_tool_use_ids = new Set<string>();
+  const orderedCandidates: PendingPermissionToolUseCandidate[] = [];
+  const candidateIndexByToolUseId = new Map<string, number>();
+  const resolvedToolUseIds = new Set<string>();
 
   for (const message of messages) {
     if (message.role !== 'assistant') {
@@ -97,98 +99,115 @@ export function collect_unresolved_tool_use_candidates(
 
     for (const block of message.content) {
       if (block.type === 'tool_use') {
-        const next_candidate: PendingPermissionToolUseCandidate = {
+        const nextCandidate: PendingPermissionToolUseCandidate = {
           tool_use_id: block.id,
           tool_name: block.name,
           tool_input: (block.input ?? {}) as Record<string, unknown>,
           message_id: message.message_id,
           round_id: message.round_id,
         };
-        const existing_index = candidate_index_by_tool_use_id.get(block.id);
-        if (existing_index == null) {
-          candidate_index_by_tool_use_id.set(block.id, ordered_candidates.length);
-          ordered_candidates.push(next_candidate);
+        const existingIndex = candidateIndexByToolUseId.get(block.id);
+        if (existingIndex == null) {
+          candidateIndexByToolUseId.set(block.id, orderedCandidates.length);
+          orderedCandidates.push(nextCandidate);
         } else {
-          ordered_candidates[existing_index] = next_candidate;
+          orderedCandidates[existingIndex] = nextCandidate;
         }
         continue;
       }
 
       if (block.type === 'tool_result') {
-        resolved_tool_use_ids.add(block.tool_use_id);
+        resolvedToolUseIds.add(block.tool_use_id);
       }
     }
   }
 
-  return ordered_candidates.filter((candidate) => !resolved_tool_use_ids.has(candidate.tool_use_id));
+  return orderedCandidates.filter((candidate) => !resolvedToolUseIds.has(candidate.tool_use_id));
 }
 
 /**
- * 将 pending permission 精确绑定到唯一的 tool_use。
+ * 将 pending permission 精确绑定到唯一的 toolUse。
  *
- * 中文注释：绑定主键只认 `permission.message_id`。
- * 同一条 assistant message 内如果有多个 tool_use，再用后端原样携带的工具载荷做精确定位；
- * 一旦缺少 `message_id` 或载荷不一致，就保留成未匹配卡片，不走跨消息签名兜底。
+ * 绑定主键是 `tool_use_id`；旧事件缺 tool_use_id 时退回 message_id + 工具载荷精确匹配。
+ * 不做跨消息或单候选猜测。
  */
-export function match_pending_permissions_to_tool_uses(
-  pending_permissions: PendingPermission[],
+export function matchPendingPermissionsToToolUses(
+  pendingPermissions: PendingPermission[],
   candidates: PendingPermissionToolUseCandidate[],
 ): PendingPermissionMatchResult {
-  const matched_permissions_by_tool_use_id = new Map<string, PendingPermission>();
-  const matched_request_ids = new Set<string>();
-  const candidate_queue_by_message_id = new Map<string, PendingPermissionToolUseCandidate[]>();
+  const matchedPermissionsByToolUseId = new Map<string, PendingPermission>();
+  const matchedRequestIds = new Set<string>();
+  const candidateByToolUseId = new Map<string, PendingPermissionToolUseCandidate>();
+  const candidateQueueByMessageId = new Map<string, PendingPermissionToolUseCandidate[]>();
 
   for (const candidate of candidates) {
-    const queue = candidate_queue_by_message_id.get(candidate.message_id) ?? [];
+    candidateByToolUseId.set(candidate.tool_use_id, candidate);
+    const queue = candidateQueueByMessageId.get(candidate.message_id) ?? [];
     queue.push(candidate);
-    candidate_queue_by_message_id.set(candidate.message_id, queue);
+    candidateQueueByMessageId.set(candidate.message_id, queue);
   }
 
-  for (const permission of pending_permissions) {
-    const message_id = permission.message_id?.trim();
-    if (!message_id) {
+  const consumeCandidate = (candidate: PendingPermissionToolUseCandidate) => {
+    candidateByToolUseId.delete(candidate.tool_use_id);
+    const queue = candidateQueueByMessageId.get(candidate.message_id);
+    if (queue) {
+      const index = queue.indexOf(candidate);
+      if (index >= 0) {
+        queue.splice(index, 1);
+      }
+    }
+  };
+
+  for (const permission of pendingPermissions) {
+    const toolUseId = permission.tool_use_id?.trim();
+    if (toolUseId) {
+      const candidate = candidateByToolUseId.get(toolUseId);
+      if (candidate) {
+        consumeCandidate(candidate);
+        matchedPermissionsByToolUseId.set(candidate.tool_use_id, permission);
+        matchedRequestIds.add(permission.request_id);
+      }
       continue;
     }
 
-    const queue = candidate_queue_by_message_id.get(message_id);
+    const messageId = permission.message_id?.trim();
+    if (!messageId) {
+      continue;
+    }
+    const queue = candidateQueueByMessageId.get(messageId);
     if (!queue?.length) {
       continue;
     }
-
-    const matched_index = queue.findIndex((candidate) => is_same_tool_invocation(permission, candidate));
-    if (matched_index < 0) {
+    const matchedIndex = queue.findIndex((candidate) => isSameToolInvocation(permission, candidate));
+    if (matchedIndex < 0) {
       continue;
     }
-
-    const [candidate] = queue.splice(matched_index, 1);
-    if (!candidate) {
-      continue;
-    }
-
-    matched_permissions_by_tool_use_id.set(candidate.tool_use_id, permission);
-    matched_request_ids.add(permission.request_id);
+    const candidate = queue[matchedIndex];
+    consumeCandidate(candidate);
+    matchedPermissionsByToolUseId.set(candidate.tool_use_id, permission);
+    matchedRequestIds.add(permission.request_id);
   }
 
   return {
-    matched_permissions_by_tool_use_id,
-    matched_request_ids,
-    unmatched_permissions: pending_permissions.filter(
-      (permission) => !matched_request_ids.has(permission.request_id),
+    matched_permissions_by_tool_use_id: matchedPermissionsByToolUseId,
+    matched_request_ids: matchedRequestIds,
+    unmatched_permissions: pendingPermissions.filter(
+      (permission) => !matchedRequestIds.has(permission.request_id),
     ),
   };
 }
 
-function is_same_tool_invocation(
+function isSameToolInvocation(
   permission: PendingPermission,
   candidate: PendingPermissionToolUseCandidate,
 ): boolean {
   return (
     permission.tool_name === candidate.tool_name
-    && stable_stringify(permission.tool_input) === stable_stringify(candidate.tool_input)
+    && stableStringify(permission.tool_input) === stableStringify(candidate.tool_input)
   );
 }
 
-function stable_stringify(value: unknown): string {
+function stableStringify(value: unknown): string {
   if (value == null) {
     return 'null';
   }
@@ -199,12 +218,12 @@ function stable_stringify(value: unknown): string {
     return String(value);
   }
   if (Array.isArray(value)) {
-    return `[${value.map((item) => stable_stringify(item)).join(',')}]`;
+    return `[${value.map((item) => stableStringify(item)).join(',')}]`;
   }
   if (typeof value === 'object') {
     return `{${Object.keys(value as Record<string, unknown>)
       .sort()
-      .map((key) => `${JSON.stringify(key)}:${stable_stringify((value as Record<string, unknown>)[key])}`)
+      .map((key) => `${JSON.stringify(key)}:${stableStringify((value as Record<string, unknown>)[key])}`)
       .join(',')}}`;
   }
   return JSON.stringify(String(value));

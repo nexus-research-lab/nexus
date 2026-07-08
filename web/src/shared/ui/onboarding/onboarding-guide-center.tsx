@@ -8,7 +8,7 @@ import { cn } from "@/shared/ui/class-name";
 import {
   DIALOG_BACKDROP_CLASS_NAME,
   DIALOG_ICON_BUTTON_CLASS_NAME,
-  get_dialog_action_class_name,
+  getDialogActionClassName,
 } from "@/shared/ui/dialog/dialog-styles";
 
 export interface OnboardingGuideCenterItem {
@@ -16,58 +16,66 @@ export interface OnboardingGuideCenterItem {
   icon: LucideIcon;
   title: string;
   description: string;
-  action_label: string;
+  actionLabel: string;
   completed?: boolean;
-  on_action: () => void;
+  onAction: () => void;
 }
 
 interface OnboardingGuideCenterProps {
-  is_open: boolean;
+  isOpen: boolean;
   title: string;
   description: string;
   items: OnboardingGuideCenterItem[];
-  reset_label: string;
-  close_label: string;
-  reviewed_label: string;
-  on_close: () => void;
-  on_reset: () => void;
+  resetLabel: string;
+  closeLabel: string;
+  reviewedLabel: string;
+  onClose: () => void;
+  onReset: () => void;
 }
 
 export function OnboardingGuideCenter({
-  is_open,
+  isOpen: isOpen,
   title,
   description,
   items,
-  reset_label,
-  close_label,
-  reviewed_label,
-  on_close,
-  on_reset,
+  resetLabel: resetLabel,
+  closeLabel: closeLabel,
+  reviewedLabel: reviewedLabel,
+  onClose: onClose,
+  onReset: onReset,
 }: OnboardingGuideCenterProps) {
-  if (!is_open || typeof document === "undefined") {
+  if (!isOpen || typeof document === "undefined") {
     return null;
   }
 
-  const handle_close_click = (event: MouseEvent<HTMLButtonElement>) => {
+  const handleCloseClick = (event: MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     event.stopPropagation();
-    on_close();
+    onClose();
   };
 
   const dialog = (
+    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- backdrop click-to-close + Escape is a standard modal dialog pattern
     <div
       aria-describedby="onboarding-guide-center-description"
       aria-labelledby="onboarding-guide-center-title"
       aria-modal="true"
       className={`${DIALOG_BACKDROP_CLASS_NAME} z-[11050]`}
       data-modal-root="true"
-      onClick={on_close}
+      onClick={onClose}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          onClose();
+        }
+      }}
       role="dialog"
     >
       <div
         className="relative w-full max-w-lg"
         onClick={(event) => event.stopPropagation()}
+        onKeyDown={(event) => event.stopPropagation()}
         onPointerDown={(event) => event.stopPropagation()}
+        role="presentation"
       >
         <img
           alt=""
@@ -100,9 +108,9 @@ export function OnboardingGuideCenter({
             </div>
 
             <button
-              aria-label={close_label}
+              aria-label={closeLabel}
               className={cn(DIALOG_ICON_BUTTON_CLASS_NAME, "relative z-30 shrink-0")}
-              onClick={handle_close_click}
+              onClick={handleCloseClick}
               onPointerDown={(event) => event.stopPropagation()}
               type="button"
             >
@@ -130,7 +138,7 @@ export function OnboardingGuideCenter({
                         </h4>
                         {item.completed ? (
                           <span className="rounded-[6px] border border-[color:color-mix(in_srgb,var(--primary)_14%,transparent)] bg-transparent px-1.5 py-0 text-[10px] font-medium text-(--primary)">
-                            {reviewed_label}
+                            {reviewedLabel}
                           </span>
                         ) : null}
                       </div>
@@ -140,11 +148,11 @@ export function OnboardingGuideCenter({
                     </div>
 
                     <button
-                      className={get_dialog_action_class_name("primary", "compact", "shrink-0")}
-                      onClick={item.on_action}
+                      className={getDialogActionClassName("primary", "compact", "shrink-0")}
+                      onClick={item.onAction}
                       type="button"
                     >
-                      {item.action_label}
+                      {item.actionLabel}
                     </button>
                   </div>
                 </section>
@@ -154,22 +162,22 @@ export function OnboardingGuideCenter({
 
           <div className="dialog-footer !px-4 !py-2.5 border-t border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--modal-card-background)_84%,transparent)]">
             <button
-              className={get_dialog_action_class_name("default", "compact")}
-              onClick={handle_close_click}
+              className={getDialogActionClassName("default", "compact")}
+              onClick={handleCloseClick}
               type="button"
             >
-              {close_label}
+              {closeLabel}
             </button>
             <button
-              className={get_dialog_action_class_name(
+              className={getDialogActionClassName(
                 "default",
                 "inline-flex items-center gap-1.5 text-[11px]",
               )}
-              onClick={on_reset}
+              onClick={onReset}
               type="button"
             >
               <RotateCcw className="h-3 w-3" />
-              {reset_label}
+              {resetLabel}
             </button>
           </div>
         </section>

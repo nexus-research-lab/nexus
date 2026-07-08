@@ -15,9 +15,10 @@ type authLoginPayload struct {
 
 // Handlers 封装认证域 HTTP handlers。
 type Handlers struct {
-	api   *handlershared.API
-	auth  *authsvc.Service
-	usage tokenUsageStore
+	api          *handlershared.API
+	auth         *authsvc.Service
+	usage        tokenUsageStore
+	subscription subscriptionStore
 }
 
 // New 创建认证域 handlers。
@@ -25,11 +26,13 @@ func New(
 	api *handlershared.API,
 	auth *authsvc.Service,
 	usage tokenUsageStore,
+	subscription subscriptionStore,
 ) *Handlers {
 	return &Handlers{
-		api:   api,
-		auth:  auth,
-		usage: usage,
+		api:          api,
+		auth:         auth,
+		usage:        usage,
+		subscription: subscription,
 	}
 }
 
@@ -59,11 +62,6 @@ func (h *Handlers) HandleAuthLogin(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
-	if err := h.auth.Logout(request.Context(), h.auth.ExtractSessionToken(request)); err != nil {
-		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
-		return
-	}
-
 	result, err := h.auth.Login(request.Context(), authsvc.LoginInput{
 		Username:  payload.Username,
 		Password:  payload.Password,
@@ -84,6 +82,11 @@ func (h *Handlers) HandleAuthLogin(writer http.ResponseWriter, request *http.Req
 			h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
 		}
 		return
+	}
+
+	// Best-effort cleanup of the previous session; failures must not block login.
+	if logoutErr := h.auth.Logout(request.Context(), h.auth.ExtractSessionToken(request)); logoutErr != nil {
+		h.api.BaseLogger().Warn("failed to clear previous session during login", "error", logoutErr.Error())
 	}
 
 	http.SetCookie(writer, &http.Cookie{

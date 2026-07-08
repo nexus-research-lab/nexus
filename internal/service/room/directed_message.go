@@ -36,6 +36,7 @@ func (s *RealtimeService) HandleDirectedMessage(
 	if err = s.directedMessages.AppendMessage(*message); err != nil {
 		return nil, err
 	}
+	s.touchSharedConversationActivity(ctx, message.ConversationID, time.UnixMilli(message.Timestamp).UTC())
 
 	event := newRoomDirectedMessageEvent(*message)
 	s.broadcastSharedEventWithTimeout(ctx, protocol.BuildRoomSharedSessionKey(message.ConversationID), message.RoomID, event)
@@ -313,7 +314,6 @@ func newRoomDirectedMessageWakeEvent(
 	event.ConversationID = roundValue.ConversationID
 	event.AgentID = strings.TrimSpace(wake.SourceAgentID)
 	event.MessageID = strings.TrimSpace(wake.MessageID)
-	event.CausedBy = strings.TrimSpace(wake.MessageID)
 	return event
 }
 
@@ -335,6 +335,5 @@ func newRoomDirectedMessageScheduledWakeEvent(message protocol.RoomDirectedMessa
 	event.ConversationID = message.ConversationID
 	event.AgentID = message.SourceAgentID
 	event.MessageID = message.MessageID
-	event.CausedBy = strings.TrimSpace(message.MessageID)
 	return event
 }

@@ -9,7 +9,7 @@ import type {
   NexusOperationSnapshot,
 } from "@/features/conversation/operation/operation-types";
 import type { OperationRuntimeEvent } from "@/features/conversation/operation/operation-runtime-types";
-import { apply_theme, detect_initial_theme } from "@/shared/theme/theme-context";
+import { applyTheme, detectInitialTheme } from "@/shared/theme/theme-context";
 import type { WorkspaceActivityItem } from "@/types/app/workspace-live";
 import type { PermissionDecisionPayload } from "@/types/conversation/permission";
 
@@ -784,7 +784,7 @@ function read_preview_step_id(): PreviewStepId {
     : "idle";
 }
 
-apply_theme(detect_initial_theme());
+applyTheme(detectInitialTheme());
 
 const root = document.getElementById("root");
 if (!root) {

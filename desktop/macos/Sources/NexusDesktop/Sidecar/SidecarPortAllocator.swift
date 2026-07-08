@@ -3,11 +3,32 @@ import Foundation
 
 enum SidecarPortAllocator {
   private static let desktopLoopbackPort = 34343
+  private static let portRetryCount = 100
+  private static let portRetryIntervalMicroseconds: useconds_t = 200_000
 
-  static func allocate() throws -> Int {
+  static func allocate(startupTimeline: DesktopStartupTimeline? = nil) throws -> Int {
     if isAvailable(desktopLoopbackPort) {
       return desktopLoopbackPort
     }
+
+    startupTimeline?.mark("sidecar.port_wait_begin", metadata: [
+      "port": "\(desktopLoopbackPort)",
+    ])
+    // 旧 sidecar 正在响应退出信号时，给固定本地端口一个短暂释放窗口。
+    for attempt in 1...portRetryCount {
+      usleep(portRetryIntervalMicroseconds)
+      if isAvailable(desktopLoopbackPort) {
+        startupTimeline?.mark("sidecar.port_wait_ready", metadata: [
+          "attempt": "\(attempt)",
+          "port": "\(desktopLoopbackPort)",
+        ])
+        return desktopLoopbackPort
+      }
+    }
+
+    startupTimeline?.mark("sidecar.port_unavailable", metadata: [
+      "port": "\(desktopLoopbackPort)",
+    ])
     throw DesktopShellError.portUnavailable(desktopLoopbackPort)
   }
 
@@ -19,6 +40,16 @@ enum SidecarPortAllocator {
     defer {
       close(socketFD)
     }
+
+    // macOS 刚关闭的 HTTP 连接可能让不带 SO_REUSEADDR 的探测 socket 误判端口仍被占用。
+    var reuseAddress: Int32 = 1
+    _ = setsockopt(
+      socketFD,
+      SOL_SOCKET,
+      SO_REUSEADDR,
+      &reuseAddress,
+      socklen_t(MemoryLayout<Int32>.size)
+    )
 
     var address = sockaddr_in()
     address.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)

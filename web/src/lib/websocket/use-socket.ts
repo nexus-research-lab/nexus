@@ -14,19 +14,19 @@ import {
 } from "@/types/system/websocket";
 
 export interface UseWebSocketOptions extends WebSocketConfig {
-  on_message?: (message: any) => void;
-  on_error?: (error: Event) => void;
-  on_state_change?: (state: WebSocketState) => void;
-  auto_connect?: boolean;
+  onMessage?: (message: any) => void;
+  onError?: (error: Event) => void;
+  onStateChange?: (state: WebSocketState) => void;
+  autoConnect?: boolean;
 }
 
 interface SharedWebSocketSubscriber {
   id: number;
-  on_message?: (message: any) => void;
-  on_error?: (error: Event) => void;
-  on_state_change?: (state: WebSocketState) => void;
-  set_error: (error: Event | null) => void;
-  set_state: (state: WebSocketState) => void;
+  onMessage?: (message: any) => void;
+  onError?: (error: Event) => void;
+  onStateChange?: (state: WebSocketState) => void;
+  setError: (error: Event | null) => void;
+  setState: (state: WebSocketState) => void;
 }
 
 class SharedWebSocketChannel {
@@ -37,29 +37,29 @@ class SharedWebSocketChannel {
 
   constructor(config: WebSocketConfig) {
     this.client = new WebSocketClient(config, {
-      on_message: (message) => {
+      onMessage: (message) => {
         for (const subscriber of this.subscribers.values()) {
-          subscriber.on_message?.(message);
+          subscriber.onMessage?.(message);
         }
       },
-      on_error: (error) => {
-        this.error = error;
+      onError: (error) => {
+          this.error = error;
         for (const subscriber of this.subscribers.values()) {
-          subscriber.set_error(error);
-          subscriber.on_error?.(error);
+          subscriber.setError(error);
+          subscriber.onError?.(error);
         }
       },
-      on_state_change: (state) => {
+      onStateChange: (state) => {
         this.state = state;
         if (state === "connected") {
           this.error = null;
         }
         for (const subscriber of this.subscribers.values()) {
-          subscriber.set_state(state);
+          subscriber.setState(state);
           if (state === "connected") {
-            subscriber.set_error(null);
+            subscriber.setError(null);
           }
-          subscriber.on_state_change?.(state);
+          subscriber.onStateChange?.(state);
         }
       },
     });
@@ -67,15 +67,15 @@ class SharedWebSocketChannel {
 
   public subscribe(subscriber: SharedWebSocketSubscriber): void {
     this.subscribers.set(subscriber.id, subscriber);
-    subscriber.set_state(this.state);
-    subscriber.set_error(this.error);
+    subscriber.setState(this.state);
+    subscriber.setError(this.error);
   }
 
-  public unsubscribe(subscriber_id: number): void {
-    this.subscribers.delete(subscriber_id);
+  public unsubscribe(subscriberId: number): void {
+    this.subscribers.delete(subscriberId);
   }
 
-  public has_subscribers(): boolean {
+  public hasSubscribers(): boolean {
     return this.subscribers.size > 0;
   }
 
@@ -95,7 +95,7 @@ class SharedWebSocketChannel {
     return this.client.send(data);
   }
 
-  public get_snapshot(): { error: Event | null; state: WebSocketState } {
+  public getSnapshot(): { error: Event | null; state: WebSocketState } {
     return {
       state: this.state,
       error: this.error,
@@ -103,43 +103,43 @@ class SharedWebSocketChannel {
   }
 }
 
-const shared_channels = new Map<string, SharedWebSocketChannel>();
-const shared_channel_cleanup_timers = new Map<string, number>();
-let next_subscriber_id = 1;
+const sharedChannels = new Map<string, SharedWebSocketChannel>();
+const sharedChannelCleanupTimers = new Map<string, number>();
+let nextSubscriberId = 1;
 const SHARED_SOCKET_RELEASE_DELAY_MS = 300;
 
-function build_shared_channel_config(
+function buildSharedChannelConfig(
   options: UseWebSocketOptions,
 ): WebSocketConfig {
   return {
     url: options.url,
     protocols: options.protocols ?? [],
     reconnect: options.reconnect ?? true,
-    max_reconnect_attempts: options.max_reconnect_attempts ?? 5,
-    reconnect_delay: options.reconnect_delay ?? 1000,
-    max_reconnect_delay: options.max_reconnect_delay ?? 30000,
-    heartbeat_interval: options.heartbeat_interval ?? 30000,
-    heartbeat_timeout: options.heartbeat_timeout ?? 10000,
+    maxReconnectAttempts: options.maxReconnectAttempts ?? 5,
+    reconnectDelay: options.reconnectDelay ?? 1000,
+    maxReconnectDelay: options.maxReconnectDelay ?? 30000,
+    heartbeatInterval: options.heartbeatInterval ?? 30000,
+    heartbeatTimeout: options.heartbeatTimeout ?? 10000,
   };
 }
 
-function get_or_create_shared_channel(
+function getOrCreateSharedChannel(
   options: UseWebSocketOptions,
 ): SharedWebSocketChannel {
-  const channel_key = build_shared_channel_key(options);
-  const existing_channel = shared_channels.get(channel_key);
-  if (existing_channel) {
-    return existing_channel;
+  const channelKey = buildSharedChannelKey(options);
+  const existingChannel = sharedChannels.get(channelKey);
+  if (existingChannel) {
+    return existingChannel;
   }
 
-  const next_channel = new SharedWebSocketChannel(
-    build_shared_channel_config(options),
+  const nextChannel = new SharedWebSocketChannel(
+    buildSharedChannelConfig(options),
   );
-  shared_channels.set(channel_key, next_channel);
-  return next_channel;
+  sharedChannels.set(channelKey, nextChannel);
+  return nextChannel;
 }
 
-function build_shared_channel_key(options: UseWebSocketOptions): string {
+function buildSharedChannelKey(options: UseWebSocketOptions): string {
   const protocols = Array.isArray(options.protocols)
     ? options.protocols.join(",")
     : options.protocols ?? "";
@@ -147,104 +147,134 @@ function build_shared_channel_key(options: UseWebSocketOptions): string {
 }
 
 export function useWebSocket(options: UseWebSocketOptions) {
-  const channel_key = build_shared_channel_key(options);
+  const channelKey = buildSharedChannelKey(options);
   const [state, setState] = useState<WebSocketState>(
     () =>
-      shared_channels.get(channel_key)?.get_snapshot().state ?? "disconnected",
+      sharedChannels.get(channelKey)?.getSnapshot().state ?? "disconnected",
   );
   const [error, setError] = useState<Event | null>(
-    () => shared_channels.get(channel_key)?.get_snapshot().error ?? null,
+    () => sharedChannels.get(channelKey)?.getSnapshot().error ?? null,
   );
-  const channel_ref = useRef<SharedWebSocketChannel | null>(null);
-  const on_message_ref = useRef(options.on_message);
-  const on_error_ref = useRef(options.on_error);
-  const on_state_change_ref = useRef(options.on_state_change);
+  const channelRef = useRef<SharedWebSocketChannel | null>(null);
+  const onMessageRef = useRef(options.onMessage);
+  const onErrorRef = useRef(options.onError);
+  const onStateChangeRef = useRef(options.onStateChange);
 
   useEffect(() => {
-    on_message_ref.current = options.on_message;
-    on_error_ref.current = options.on_error;
-    on_state_change_ref.current = options.on_state_change;
-  }, [options.on_error, options.on_message, options.on_state_change]);
+    onMessageRef.current = options.onMessage;
+    onErrorRef.current = options.onError;
+    onStateChangeRef.current = options.onStateChange;
+  }, [options.onError, options.onMessage, options.onStateChange]);
 
   // 使用useCallback稳定化回调函数
-  const on_message_callback = useCallback((msg: any) => {
-    on_message_ref.current?.(msg);
+  const onMessageCallback = useCallback((msg: any) => {
+    onMessageRef.current?.(msg);
   }, []);
 
-  const on_error_callback = useCallback((err: Event) => {
-    on_error_ref.current?.(err);
+  const onErrorCallback = useCallback((err: Event) => {
+    onErrorRef.current?.(err);
   }, []);
 
-  const on_state_change_callback = useCallback((new_state: WebSocketState) => {
-    on_state_change_ref.current?.(new_state);
+  const onStateChangeCallback = useCallback((newState: WebSocketState) => {
+    onStateChangeRef.current?.(newState);
   }, []);
 
   useEffect(() => {
-    const cleanup_timer = shared_channel_cleanup_timers.get(channel_key);
-    if (cleanup_timer) {
-      window.clearTimeout(cleanup_timer);
-      shared_channel_cleanup_timers.delete(channel_key);
+    const cleanupTimer = sharedChannelCleanupTimers.get(channelKey);
+    if (cleanupTimer) {
+      window.clearTimeout(cleanupTimer);
+      sharedChannelCleanupTimers.delete(channelKey);
     }
 
-    const channel = get_or_create_shared_channel(options);
-    const subscriber_id = next_subscriber_id++;
+    const channel = getOrCreateSharedChannel(options);
+    const subscriberId = nextSubscriberId++;
 
-    channel_ref.current = channel;
+    channelRef.current = channel;
     channel.subscribe({
-      id: subscriber_id,
-      on_message: on_message_callback,
-      on_error: on_error_callback,
-      on_state_change: on_state_change_callback,
-      set_error: setError,
-      set_state: setState,
+      id: subscriberId,
+      onMessage: onMessageCallback,
+      onError: onErrorCallback,
+      onStateChange: onStateChangeCallback,
+      setError: setError,
+      setState: setState,
     });
 
     // 已登录应用内的多个页面共享同一条 WebSocket。
     // 这里仅在首次订阅时建立连接，后续页面切换复用现有客户端。
-    if (options.auto_connect !== false) {
+    if (options.autoConnect !== false) {
       channel.connect();
     }
 
     return () => {
-      channel.unsubscribe(subscriber_id);
-      if (!channel.has_subscribers()) {
-        const next_timer = window.setTimeout(() => {
-          if (channel.has_subscribers()) {
+      channel.unsubscribe(subscriberId);
+      if (!channel.hasSubscribers()) {
+        const nextTimer = window.setTimeout(() => {
+          if (channel.hasSubscribers()) {
             return;
           }
           console.debug("[useWebSocket] Cleaning up shared WebSocket client");
           channel.disconnect();
-          if (shared_channels.get(channel_key) === channel) {
-            shared_channels.delete(channel_key);
+          if (sharedChannels.get(channelKey) === channel) {
+            sharedChannels.delete(channelKey);
           }
-          shared_channel_cleanup_timers.delete(channel_key);
+          sharedChannelCleanupTimers.delete(channelKey);
         }, SHARED_SOCKET_RELEASE_DELAY_MS);
-        shared_channel_cleanup_timers.set(channel_key, next_timer);
+        sharedChannelCleanupTimers.set(channelKey, nextTimer);
       }
-      if (channel_ref.current === channel) {
-        channel_ref.current = null;
+      if (channelRef.current === channel) {
+        channelRef.current = null;
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 回调已通过 ref 稳定化；共享连接按 url 和 protocol 维度创建，配置由首个订阅者固定。
-  }, [channel_key, options.url]);
+  }, [channelKey, options.url]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof document === "undefined") {
+      return;
+    }
+
+    const reconnectWhenRecoverable = () => {
+      const snapshot = channelRef.current?.getSnapshot();
+      if (!snapshot) {
+        return;
+      }
+      if (snapshot.state !== "failed") {
+        return;
+      }
+      channelRef.current?.reconnect();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        reconnectWhenRecoverable();
+      }
+    };
+
+    window.addEventListener("online", reconnectWhenRecoverable);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      window.removeEventListener("online", reconnectWhenRecoverable);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [channelKey]);
 
   const send = useCallback((data: WebSocketMessage): WebSocketSendResult => {
-    if (!channel_ref.current) {
+    if (!channelRef.current) {
       return { disposition: "dropped" };
     }
-    return channel_ref.current.send(data);
+    return channelRef.current.send(data);
   }, []);
 
   const connect = useCallback(() => {
-    channel_ref.current?.connect();
+    channelRef.current?.connect();
   }, []);
 
   const disconnect = useCallback(() => {
-    channel_ref.current?.disconnect();
+    channelRef.current?.disconnect();
   }, []);
 
   const reconnect = () => {
-    channel_ref.current?.reconnect();
+    channelRef.current?.reconnect();
   };
 
   return {

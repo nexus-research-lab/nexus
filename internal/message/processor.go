@@ -22,6 +22,7 @@ type MessageContext struct {
 	AgentID        string
 	WorkspacePath  string
 	RoundID        string
+	AgentRoundID   string
 	ParentID       string
 }
 
@@ -110,8 +111,20 @@ func (p *Processor) Process(message sdkprotocol.ReceivedMessage) Output {
 		output.DurableMessages = append(output.DurableMessages, p.buildResultMessage(message, subtype))
 		output.ResultSubtype = subtype
 		output.TerminalStatus = statusFromResultSubtype(subtype)
+	case sdkprotocol.MessageTypeTaskStarted:
+		if messageValue := p.processTaskStartedMessage(message); messageValue != nil {
+			output.DurableMessages = append(output.DurableMessages, *messageValue)
+		}
 	case sdkprotocol.MessageTypeTaskProgress:
 		if messageValue := p.processTaskProgressMessage(message); messageValue != nil {
+			output.DurableMessages = append(output.DurableMessages, *messageValue)
+		}
+	case sdkprotocol.MessageTypeToolProgress:
+		if messageValue := p.processToolProgressMessage(message); messageValue != nil {
+			output.DurableMessages = append(output.DurableMessages, *messageValue)
+		}
+	case sdkprotocol.MessageTypeTaskNotification:
+		if messageValue := p.processTaskNotificationMessage(message); messageValue != nil {
 			output.DurableMessages = append(output.DurableMessages, *messageValue)
 		}
 	case sdkprotocol.MessageTypeUser:
@@ -119,6 +132,12 @@ func (p *Processor) Process(message sdkprotocol.ReceivedMessage) Output {
 			output.DurableMessages = append(output.DurableMessages, *durable)
 			output.AssistantCompleted = true
 		}
+	case sdkprotocol.MessageTypeStreamRequestStart,
+		sdkprotocol.MessageTypeToolUseSummary,
+		sdkprotocol.MessageTypeRateLimitEvent,
+		sdkprotocol.MessageTypePromptSuggestion,
+		sdkprotocol.MessageTypeAuthStatus:
+		return output
 	}
 	return output
 }
@@ -210,7 +229,12 @@ func (p *Processor) processStreamEvent(message sdkprotocol.ReceivedMessage, outp
 }
 
 func (p *Processor) processAssistantMessage(message sdkprotocol.ReceivedMessage) *protocol.Message {
-	if !p.segment.IsStarted() {
+	// 同一轮内 assistant 会分多段（不同 message id）。直播时靠 stream 的
+	// message_start 轮转段；历史投影没有 stream 事件，必须在快照 id 变化时
+	// 主动轮转，否则整轮坍缩进第一个 id、内容相互覆盖。
+	incomingID := strings.TrimSpace(message.Assistant.Message.ID)
+	if !p.segment.IsStarted() ||
+		(incomingID != "" && incomingID != p.segment.MessageID()) {
 		p.segment.Start(
 			message.Assistant.Message.ID,
 			message.Assistant.Message.Model,
@@ -255,6 +279,7 @@ func (p *Processor) buildStreamPayload(streamType string) StreamPayload {
 			"conversation_id": emptyToNil(p.ctx.ConversationID),
 			"agent_id":        p.ctx.AgentID,
 			"round_id":        p.ctx.RoundID,
+			"agent_round_id":  emptyToNil(p.ctx.AgentRoundID),
 			"session_id":      emptyToNil(p.sessionID),
 			"type":            streamType,
 			"timestamp":       time.Now().UnixMilli(),
@@ -301,6 +326,9 @@ func baseMessageEnvelope(ctx MessageContext, sessionID string, messageID string,
 		"round_id":    ctx.RoundID,
 		"role":        role,
 		"timestamp":   time.Now().UnixMilli(),
+	}
+	if agentRoundID := strings.TrimSpace(ctx.AgentRoundID); agentRoundID != "" {
+		payload["agent_round_id"] = agentRoundID
 	}
 	if sessionID != "" {
 		payload["session_id"] = sessionID

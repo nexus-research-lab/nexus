@@ -9,80 +9,102 @@
 
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, type Dispatch, type SetStateAction } from "react";
 
-import { get_room_contexts } from "@/lib/api/room-api";
+import { useResettableState } from "@/hooks/ui/use-resettable-state";
+import { getRoomContexts } from "@/lib/api/room-api";
 import { RoomContextAggregate } from "@/types/conversation/room";
 
 interface UseRoomPageDataOptions {
-  room_id?: string | null;
+  roomId?: string | null;
+}
+
+interface RoomPageDataState {
+  isRoomLoading: boolean;
+  roomContexts: RoomContextAggregate[];
+  roomError: string | null;
 }
 
 export function useRoomPageData({
-  room_id,
+  roomId: roomId,
 }: UseRoomPageDataOptions) {
-  const [room_contexts, set_room_contexts] = useState<RoomContextAggregate[]>([]);
-  const [is_room_loading, set_is_room_loading] = useState(false);
-  const [room_error, set_room_error] = useState<string | null>(null);
+  const [state, setState] = useResettableState<RoomPageDataState>(
+    {
+      isRoomLoading: Boolean(roomId),
+      roomContexts: [],
+      roomError: null,
+    },
+    roomId ?? "",
+  );
+  const { isRoomLoading: isRoomLoading, roomContexts: roomContexts, roomError: roomError } = state;
+  const setRoomContexts: Dispatch<SetStateAction<RoomContextAggregate[]>> = useCallback(
+    (nextContexts) => {
+      setState((current) => ({
+        ...current,
+        roomContexts: typeof nextContexts === "function"
+          ? nextContexts(current.roomContexts)
+          : nextContexts,
+      }));
+    },
+    [setState],
+  );
 
-  const load_room_contexts = useCallback(async (next_room_id: string): Promise<RoomContextAggregate[]> => {
-    return get_room_contexts(next_room_id);
+  const loadRoomContexts = useCallback(async (nextRoomId: string): Promise<RoomContextAggregate[]> => {
+    return getRoomContexts(nextRoomId);
   }, []);
 
-  const refresh_room_contexts = useCallback(async (next_room_id: string) => {
-    const contexts = await load_room_contexts(next_room_id);
-    set_room_contexts(contexts);
+  const refreshRoomContexts = useCallback(async (nextRoomId: string) => {
+    const contexts = await loadRoomContexts(nextRoomId);
+    setState((current) => ({ ...current, roomContexts: contexts }));
     return contexts;
-  }, [load_room_contexts]);
+  }, [loadRoomContexts, setState]);
 
   useEffect(() => {
-    if (!room_id) {
-      set_room_contexts([]);
-      set_room_error(null);
-      set_is_room_loading(false);
+    if (!roomId) {
       return;
     }
 
     let cancelled = false;
-    set_is_room_loading(true);
-    set_room_error(null);
 
-    const load_room_context = async () => {
+    const loadRoomContext = async () => {
       try {
-        const contexts = await load_room_contexts(room_id);
+        const contexts = await loadRoomContexts(roomId);
 
         if (cancelled) {
           return;
         }
 
-        set_room_contexts(contexts);
+        setState((current) => ({ ...current, roomContexts: contexts }));
       } catch (error) {
         if (cancelled) {
           return;
         }
 
-        set_room_contexts([]);
-        set_room_error(error instanceof Error ? error.message : "加载 room 失败");
+        setState((current) => ({
+          ...current,
+          roomContexts: [],
+          roomError: error instanceof Error ? error.message : "加载 room 失败",
+        }));
       } finally {
         if (!cancelled) {
-          set_is_room_loading(false);
+          setState((current) => ({ ...current, isRoomLoading: false }));
         }
       }
     };
 
-    void load_room_context();
+    void loadRoomContext();
 
     return () => {
       cancelled = true;
     };
-  }, [load_room_contexts, room_id]);
+  }, [loadRoomContexts, roomId, setState]);
 
   return {
-    is_bootstrapped: true,
-    room_contexts,
-    set_room_contexts,
-    room_error,
-    is_room_loading,
-    refresh_room_contexts,
+    isBootstrapped: true,
+    roomContexts: roomContexts,
+    setRoomContexts: setRoomContexts,
+    roomError: roomError,
+    isRoomLoading: isRoomLoading,
+    refreshRoomContexts: refreshRoomContexts,
   };
 }

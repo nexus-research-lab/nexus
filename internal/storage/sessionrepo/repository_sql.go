@@ -151,13 +151,7 @@ func scanRoomSession(scanner interface{ Scan(...any) error }) (protocol.Session,
 	); err != nil {
 		return protocol.Session{}, err
 	}
-	resolvedTitle := title
-	if resolvedTitle == "" {
-		resolvedTitle = roomName
-	}
-	if resolvedTitle == "" {
-		resolvedTitle = "New Chat"
-	}
+	resolvedTitle := firstNonEmptyString(title, roomName, "New Chat")
 	return protocol.Session{
 		SessionKey:     protocol.BuildRoomAgentSessionKey(conversationID, agentID, roomType),
 		AgentID:        agentID,
@@ -197,4 +191,13 @@ func nullableStringValue(value string) any {
 		return nil
 	}
 	return value
+}
+
+func firstNonEmptyString(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }

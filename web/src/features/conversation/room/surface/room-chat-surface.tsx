@@ -12,89 +12,82 @@ import type { ConversationSnapshotPayload } from "@/types/conversation/conversat
 import type { TodoItem } from "@/types/conversation/todo";
 
 interface RoomChatSurfaceProps {
-  current_agent: Agent;
-  current_room_type: string;
-  current_agent_session_identity: AgentConversationIdentity | null;
-  group_session_identity?: AgentConversationIdentity | null;
-  conversation_id: string | null;
-  initial_draft?: string | null;
-  layout?: "desktop" | "mobile";
-  on_initial_draft_consumed?: () => void;
-  on_conversation_snapshot_change: (snapshot: ConversationSnapshotPayload) => void;
-  on_create_conversation: (title?: string) => Promise<string | null>;
-  on_loading_change: (is_loading: boolean) => void;
-  on_open_agent_contact: (agent_id: string) => void;
-  on_open_workspace_file: (path: string) => void;
-  on_room_event?: (event_type: string, data: RoomEventPayload) => void;
-  on_todos_change: (todos: TodoItem[]) => void;
-  room_host_agent_id?: string | null;
-  room_host_auto_reply_enabled: boolean;
-  room_id: string | null;
-  room_members: Agent[];
+  currentAgent: Agent;
+  currentRoomType: string;
+  currentAgentSessionIdentity: AgentConversationIdentity | null;
+  conversationId: string | null;
+  initialDraft?: string | null;
+  onInitialDraftConsumed?: () => void;
+  onConversationSnapshotChange: (snapshot: ConversationSnapshotPayload) => void;
+  onCreateConversation: (title?: string) => Promise<string | null>;
+  onLoadingChange: (isLoading: boolean) => void;
+  onOpenAgentContact: (agentId: string) => void;
+  onOpenWorkspaceFile: (path: string) => void;
+  onRoomEvent?: (eventType: string, data: RoomEventPayload) => void;
+  onTodosChange: (todos: TodoItem[]) => void;
+  roomHostAgentId?: string | null;
+  roomHostAutoReplyEnabled: boolean;
+  roomId: string | null;
+  roomMembers: Agent[];
 }
 
 export function RoomChatSurface({
-  current_agent,
-  current_room_type,
-  current_agent_session_identity,
-  group_session_identity = null,
-  conversation_id,
-  initial_draft,
-  layout = "desktop",
-  on_initial_draft_consumed,
-  on_conversation_snapshot_change,
-  on_create_conversation,
-  on_loading_change,
-  on_open_agent_contact,
-  on_open_workspace_file,
-  on_room_event,
-  on_todos_change,
-  room_host_agent_id,
-  room_host_auto_reply_enabled,
-  room_id,
-  room_members,
+  currentAgent: currentAgent,
+  currentRoomType: currentRoomType,
+  currentAgentSessionIdentity: currentAgentSessionIdentity,
+  conversationId: conversationId,
+  initialDraft: initialDraft,
+  onInitialDraftConsumed: onInitialDraftConsumed,
+  onConversationSnapshotChange: onConversationSnapshotChange,
+  onCreateConversation: onCreateConversation,
+  onLoadingChange: onLoadingChange,
+  onOpenAgentContact: onOpenAgentContact,
+  onOpenWorkspaceFile: onOpenWorkspaceFile,
+  onRoomEvent: onRoomEvent,
+  onTodosChange: onTodosChange,
+  roomHostAgentId: roomHostAgentId,
+  roomHostAutoReplyEnabled: roomHostAutoReplyEnabled,
+  roomId: roomId,
+  roomMembers: roomMembers,
 }: RoomChatSurfaceProps) {
-  const is_dm = current_room_type === "dm";
+  const isDm = currentRoomType === "dm";
 
   return (
     <GroupChatErrorBoundary>
-      {is_dm ? (
+      {isDm ? (
         <DmChatPanel
-          current_agent_name={current_agent.name}
-          current_agent_avatar={current_agent.avatar ?? null}
-          current_agent_permission_mode={current_agent.options.permission_mode ?? null}
-          initial_draft={initial_draft}
-          layout={layout}
-          on_initial_draft_consumed={on_initial_draft_consumed}
-          on_conversation_snapshot_change={on_conversation_snapshot_change}
-          on_loading_change={on_loading_change}
-          on_open_agent_contact={on_open_agent_contact}
-          on_open_workspace_file={on_open_workspace_file}
-          on_room_event={on_room_event}
-          on_todos_change={on_todos_change}
-          session_identity={current_agent_session_identity}
+          currentAgentName={currentAgent.name}
+          currentAgentAvatar={currentAgent.avatar ?? null}
+          currentAgentPermissionMode={currentAgent.options.permission_mode ?? null}
+          initialDraft={initialDraft}
+          onInitialDraftConsumed={onInitialDraftConsumed}
+          onConversationSnapshotChange={onConversationSnapshotChange}
+          onLoadingChange={onLoadingChange}
+          onOpenAgentContact={onOpenAgentContact}
+          onOpenWorkspaceFile={onOpenWorkspaceFile}
+          onRoomEvent={onRoomEvent}
+          onTodosChange={onTodosChange}
+          sessionIdentity={currentAgentSessionIdentity}
         />
       ) : (
         <GroupChatPanel
-          agent_id={current_agent.agent_id}
-          conversation_id={conversation_id}
-          current_agent_name={current_agent.name}
-          current_agent_avatar={current_agent.avatar ?? null}
-          initial_draft={initial_draft}
-          layout={layout}
-          on_initial_draft_consumed={on_initial_draft_consumed}
-          on_conversation_snapshot_change={on_conversation_snapshot_change}
-          on_create_conversation={on_create_conversation}
-          on_loading_change={on_loading_change}
-          on_open_agent_contact={on_open_agent_contact}
-          on_open_workspace_file={on_open_workspace_file}
-          on_room_event={on_room_event}
-          on_todos_change={on_todos_change}
-          room_host_agent_id={room_host_agent_id}
-          room_host_auto_reply_enabled={room_host_auto_reply_enabled}
-          room_id={room_id}
-          room_members={room_members}
-          session_identity={group_session_identity}
+          agentId={currentAgent.agent_id}
+          conversationId={conversationId}
+          currentAgentName={currentAgent.name}
+          currentAgentAvatar={currentAgent.avatar ?? null}
+          initialDraft={initialDraft}
+          onInitialDraftConsumed={onInitialDraftConsumed}
+          onConversationSnapshotChange={onConversationSnapshotChange}
+          onCreateConversation={onCreateConversation}
+          onLoadingChange={onLoadingChange}
+          onOpenAgentContact={onOpenAgentContact}
+          onOpenWorkspaceFile={onOpenWorkspaceFile}
+          onRoomEvent={onRoomEvent}
+          onTodosChange={onTodosChange}
+          roomHostAgentId={roomHostAgentId}
+          roomHostAutoReplyEnabled={roomHostAutoReplyEnabled}
+          roomId={roomId}
+          roomMembers={roomMembers}
         />
       )}
     </GroupChatErrorBoundary>

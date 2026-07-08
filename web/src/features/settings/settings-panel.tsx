@@ -1,13 +1,18 @@
 "use client";
 
-import { ArrowLeft, Cable, Palette, UserRound } from "lucide-react";
+import {
+  ArrowLeft,
+  Cable,
+  Palette,
+  UserRound,
+} from "lucide-react";
 import { useCallback, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { APP_ROUTE_PATHS } from "@/app/router/route-paths";
 import {
-  is_desktop_bridge_available,
-  open_desktop_route,
+  isDesktopBridgeAvailable,
+  openDesktopRoute,
 } from "@/lib/desktop-bridge";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import {
@@ -20,31 +25,35 @@ import { PersonalSettingsPanel } from "./personal-settings-panel";
 import { ProviderSettingsPanel } from "./provider-settings-panel";
 import { SettingsGeneralSection } from "./settings-general-section";
 
-type SettingsTabKey = "general" | "personal" | "providers";
+type SettingsTabKey =
+  | "general"
+  | "personal"
+  | "providers";
 
 const SETTINGS_TABS: {
   key: SettingsTabKey;
-  label_key:
+  labelKey:
     | "settings.tabs.general"
     | "settings.tabs.personal"
     | "settings.tabs.providers";
   icon: typeof Palette;
 }[] = [
-  { key: "general", label_key: "settings.tabs.general", icon: Palette },
-  { key: "personal", label_key: "settings.tabs.personal", icon: UserRound },
-  { key: "providers", label_key: "settings.tabs.providers", icon: Cable },
+  { key: "general", labelKey: "settings.tabs.general", icon: Palette },
+  { key: "personal", labelKey: "settings.tabs.personal", icon: UserRound },
+  { key: "providers", labelKey: "settings.tabs.providers", icon: Cable },
 ];
 
 export function SettingsPanel() {
   const { t } = useI18n();
   const navigate = useNavigate();
-  const [active_tab, set_active_tab] = useState<SettingsTabKey>("general");
-  const active_tab_config =
-    SETTINGS_TABS.find((item) => item.key === active_tab) ?? SETTINGS_TABS[0];
-  const ActiveIcon = active_tab_config.icon;
-  const handle_back_to_workspace = useCallback(() => {
-    if (is_desktop_bridge_available()) {
-      void open_desktop_route(APP_ROUTE_PATHS.home).catch((error) => {
+  const [activeTab, setActiveTab] = useState<SettingsTabKey>("general");
+  const activeTabConfig =
+    SETTINGS_TABS.find((item) => item.key === activeTab) ?? SETTINGS_TABS[0];
+  const ActiveIcon = activeTabConfig.icon;
+
+  const handleBackToWorkspace = useCallback(() => {
+    if (isDesktopBridgeAvailable()) {
+      void openDesktopRoute(APP_ROUTE_PATHS.home).catch((error) => {
         console.error("[SettingsPanel] 桌面返回工作台失败:", error);
         navigate(APP_ROUTE_PATHS.home);
       });
@@ -55,22 +64,22 @@ export function SettingsPanel() {
 
   return (
     <WorkspaceSurfaceScaffold
-      body_scrollable
-      stable_gutter
+      bodyScrollable
+      stableGutter
       header={(
         <WorkspaceSurfaceHeader
-          active_tab={active_tab}
+          activeTab={activeTab}
           density="compact"
           leading={<ActiveIcon className="h-4 w-4" />}
-          on_change_tab={set_active_tab}
+          onChangeTab={setActiveTab}
           tabs={SETTINGS_TABS.map((item) => ({
             key: item.key,
-            label: t(item.label_key),
+            label: t(item.labelKey),
             icon: item.icon,
           }))}
           title={t("settings.title")}
           trailing={(
-            <WorkspaceSurfaceToolbarAction onClick={handle_back_to_workspace}>
+            <WorkspaceSurfaceToolbarAction onClick={handleBackToWorkspace}>
               <ArrowLeft className="h-3.5 w-3.5" />
               {t("settings.back_to_workspace")}
             </WorkspaceSurfaceToolbarAction>
@@ -78,9 +87,9 @@ export function SettingsPanel() {
         />
       )}
     >
-      {active_tab === "general" ? <SettingsGeneralSection /> : null}
-      {active_tab === "personal" ? <PersonalSettingsPanel /> : null}
-      {active_tab === "providers" ? <ProviderSettingsPanel embedded /> : null}
+      {activeTab === "general" ? <SettingsGeneralSection /> : null}
+      {activeTab === "personal" ? <PersonalSettingsPanel /> : null}
+      {activeTab === "providers" ? <ProviderSettingsPanel embedded /> : null}
     </WorkspaceSurfaceScaffold>
   );
 }

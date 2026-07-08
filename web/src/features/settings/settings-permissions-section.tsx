@@ -22,20 +22,20 @@ import {
 } from "./settings-panel-ui";
 
 interface SettingsPermissionsSectionProps {
-  feedback_message?: string | null;
-  on_permission_mode_change: (value: string) => void;
-  permission_mode: string;
-  preferences_loading: boolean;
+  feedbackMessage?: string | null;
+  onPermissionModeChange: (value: string) => void;
+  permissionMode: string;
+  preferencesLoading: boolean;
 }
 
 export function SettingsPermissionsSection({
-  feedback_message,
-  on_permission_mode_change,
-  permission_mode,
-  preferences_loading,
+  feedbackMessage: feedbackMessage,
+  onPermissionModeChange: onPermissionModeChange,
+  permissionMode: permissionMode,
+  preferencesLoading: preferencesLoading,
 }: SettingsPermissionsSectionProps) {
   const { t } = useI18n();
-  const selected_permission_mode = AGENT_PERMISSION_MODES.find((mode) => mode.value === permission_mode) ?? AGENT_PERMISSION_MODES[0];
+  const selectedPermissionMode = AGENT_PERMISSION_MODES.find((mode) => mode.value === permissionMode) ?? AGENT_PERMISSION_MODES[0];
 
   return (
     <section className="space-y-2.5">
@@ -43,9 +43,9 @@ export function SettingsPermissionsSection({
         <h2 className={SETTINGS_SECTION_TITLE_CLASS_NAME}>
           {t("settings.general.section_permissions")}
         </h2>
-        {feedback_message ? (
+        {feedbackMessage ? (
           <span className="inline-flex items-center gap-1.5 text-[11px] text-(--destructive)">
-            {feedback_message}
+            {feedbackMessage}
           </span>
         ) : null}
       </div>
@@ -69,23 +69,23 @@ export function SettingsPermissionsSection({
               {t("settings.general.default_permission_mode")}
             </label>
             <UiSelectMenu
-              aria_label={t("settings.general.default_permission_mode")}
-              button_class_name={SETTINGS_SELECT_BUTTON_CLASS_NAME}
-              class_name={SETTINGS_CONTROL_HEIGHT_CLASS_NAME}
-              disabled={preferences_loading}
+              ariaLabel={t("settings.general.default_permission_mode")}
+              buttonClassName={SETTINGS_SELECT_BUTTON_CLASS_NAME}
+              className={SETTINGS_CONTROL_HEIGHT_CLASS_NAME}
+              disabled={preferencesLoading}
               id="default-permission-mode"
-              menu_class_name="rounded-[12px]"
-              on_change={on_permission_mode_change}
+              menuClassName="rounded-[12px]"
+              onChange={onPermissionModeChange}
               options={AGENT_PERMISSION_MODES.map((mode) => ({
                 value: mode.value,
-                label: t(mode.label_key),
+                label: t(mode.labelKey),
               }))}
               placement="top"
               size="xs"
-              value={permission_mode}
+              value={permissionMode}
             />
             <p className="text-[11px] leading-4 text-(--text-soft)">
-              {t(selected_permission_mode.description_key)}
+              {t(selectedPermissionMode.descriptionKey)}
             </p>
           </div>
         </div>

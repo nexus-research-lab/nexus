@@ -76,11 +76,11 @@ func ChannelCatalog() []ChannelCatalogItem {
 			CredentialFields: []ChannelCredentialField{
 				{Key: "app_id", Label: "App ID", Kind: "text", Required: true, Placeholder: "例如 cli_xxxxxxxxx"},
 				{Key: "app_secret", Label: "App Secret", Kind: "password", Required: true, Secret: true, Placeholder: "填写应用 App Secret"},
-				{Key: "connection_mode", Label: "Connection Mode", Kind: "text", Placeholder: "websocket 或 webhook，默认 websocket"},
+				{Key: "connection_mode", Label: "事件配置方式", Kind: "text", Placeholder: "websocket 或 webhook，默认 websocket"},
 				{Key: "base_url", Label: "OpenAPI Base URL", Kind: "text", Placeholder: "https://open.feishu.cn"},
-				{Key: "reply_in_thread", Label: "Reply In Thread", Kind: "text", Placeholder: "true/false，默认 false"},
-				{Key: "verification_token", Label: "Verification Token", Kind: "password", Secret: true, Placeholder: "可选：填写事件订阅 Verification Token"},
-				{Key: "encrypt_key", Label: "Encrypt Key", Kind: "password", Secret: true, Placeholder: "可选：填写事件订阅 Encrypt Key"},
+				{Key: "reply_in_thread", Label: "是否在话题中回复", Kind: "text", Placeholder: "true/false，默认 false，若开启则在每个新话题都需要在Nexus中重新配对"},
+				{Key: "verification_token", Label: "加密策略-Verification Token", Kind: "password", Secret: true, Placeholder: "可选：填写事件订阅 Verification Token"},
+				{Key: "encrypt_key", Label: "加密策略-Encrypt Key", Kind: "password", Secret: true, Placeholder: "可选：填写事件订阅 Encrypt Key"},
 			},
 		},
 		{

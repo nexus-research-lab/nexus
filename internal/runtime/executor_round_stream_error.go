@@ -89,6 +89,15 @@ func appendRoundStreamStopErrorDetail(detail string, diagnostics RoundStreamStop
 		diagnostics.StopReason,
 		diagnostics.MessagesAfter,
 	)
+	if diagnostics.MessagesAfter > 0 {
+		detail += fmt.Sprintf(
+			" conversation_after_last_stream_stop=%d progress_after_last_stream_stop=%d passive_after_last_stream_stop=%d unknown_after_last_stream_stop=%d",
+			diagnostics.ConversationMessagesAfter,
+			diagnostics.ProgressMessagesAfter,
+			diagnostics.PassiveMessagesAfter,
+			diagnostics.UnknownMessagesAfter,
+		)
+	}
 	if diagnostics.Age > 0 {
 		detail += " last_stream_stop_age=" + diagnostics.Age.String()
 	}
@@ -145,4 +154,18 @@ func buildRoundStreamClosedError(
 		}
 	}
 	return result
+}
+
+func clientStreamAbortError(client Client) error {
+	if streamErrorer, ok := client.(clientStreamErrorer); ok {
+		if err := streamErrorer.StreamError(); isRoundAbortError(nil, err) {
+			return err
+		}
+	}
+	if waiter, ok := client.(clientWaiter); ok {
+		if err := waiter.Wait(); isRoundAbortError(nil, err) {
+			return err
+		}
+	}
+	return nil
 }

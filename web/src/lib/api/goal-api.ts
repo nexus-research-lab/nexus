@@ -1,5 +1,5 @@
-import { get_agent_api_base_url } from "@/config/options";
-import { request_api } from "@/lib/api/http";
+import { getAgentApiBaseUrl } from "@/config/options";
+import { requestApi } from "@/lib/api/http";
 import type {
   ClearGoalResult,
   CreateGoalInput,
@@ -7,11 +7,11 @@ import type {
   UpdateGoalInput,
 } from "@/types/conversation/goal";
 
-const AGENT_API_BASE_URL = get_agent_api_base_url();
+const AGENT_API_BASE_URL = getAgentApiBaseUrl();
 
-export async function get_current_goal_api(session_key: string): Promise<Goal | null> {
-  const query = new URLSearchParams({ session_key });
-  return request_api<Goal | null>(
+export async function getCurrentGoalApi(sessionKey: string): Promise<Goal | null> {
+  const query = new URLSearchParams({ session_key: sessionKey });
+  return requestApi<Goal | null>(
     `${AGENT_API_BASE_URL}/goals/current?${query.toString()}`,
     {
       method: "GET",
@@ -19,8 +19,8 @@ export async function get_current_goal_api(session_key: string): Promise<Goal | 
   );
 }
 
-export async function create_goal_api(input: CreateGoalInput): Promise<Goal> {
-  return request_api<Goal>(`${AGENT_API_BASE_URL}/goals`, {
+export async function createGoalApi(input: CreateGoalInput): Promise<Goal> {
+  return requestApi<Goal>(`${AGENT_API_BASE_URL}/goals`, {
     method: "POST",
     body: {
       session_key: input.session_key,
@@ -31,12 +31,12 @@ export async function create_goal_api(input: CreateGoalInput): Promise<Goal> {
   });
 }
 
-export async function update_goal_api(
-  goal_id: string,
+export async function updateGoalApi(
+  goalId: string,
   input: UpdateGoalInput,
 ): Promise<Goal> {
-  return request_api<Goal>(
-    `${AGENT_API_BASE_URL}/goals/${encodeURIComponent(goal_id)}`,
+  return requestApi<Goal>(
+    `${AGENT_API_BASE_URL}/goals/${encodeURIComponent(goalId)}`,
     {
       method: "PATCH",
       body: {
@@ -48,27 +48,27 @@ export async function update_goal_api(
   );
 }
 
-export async function pause_goal_api(goal_id: string): Promise<Goal> {
-  return request_api<Goal>(
-    `${AGENT_API_BASE_URL}/goals/${encodeURIComponent(goal_id)}/pause`,
+export async function pauseGoalApi(goalId: string): Promise<Goal> {
+  return requestApi<Goal>(
+    `${AGENT_API_BASE_URL}/goals/${encodeURIComponent(goalId)}/pause`,
     {
       method: "POST",
     },
   );
 }
 
-export async function resume_goal_api(goal_id: string): Promise<Goal> {
-  return request_api<Goal>(
-    `${AGENT_API_BASE_URL}/goals/${encodeURIComponent(goal_id)}/resume`,
+export async function resumeGoalApi(goalId: string): Promise<Goal> {
+  return requestApi<Goal>(
+    `${AGENT_API_BASE_URL}/goals/${encodeURIComponent(goalId)}/resume`,
     {
       method: "POST",
     },
   );
 }
 
-export async function clear_goal_api(goal_id: string): Promise<ClearGoalResult> {
-  return request_api<ClearGoalResult>(
-    `${AGENT_API_BASE_URL}/goals/${encodeURIComponent(goal_id)}/clear`,
+export async function clearGoalApi(goalId: string): Promise<ClearGoalResult> {
+  return requestApi<ClearGoalResult>(
+    `${AGENT_API_BASE_URL}/goals/${encodeURIComponent(goalId)}/clear`,
     {
       method: "POST",
     },

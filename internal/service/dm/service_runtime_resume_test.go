@@ -100,7 +100,6 @@ func TestServiceHandleChatRetriesWithoutStaleSDKSessionWhenResumeConnectFails(t 
 		SessionKey: sessionKey,
 		Content:    "测试 stale resume 自动恢复",
 		RoundID:    "round-stale-resume-retry",
-		ReqID:      "round-stale-resume-retry",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}
@@ -221,7 +220,6 @@ func TestServiceHandleChatKeepsSDKSessionResumeWhenRuntimeFingerprintMissingAndT
 		SessionKey: sessionKey,
 		Content:    "测试 legacy resume",
 		RoundID:    "round-legacy-resume",
-		ReqID:      "round-legacy-resume",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}
@@ -328,7 +326,6 @@ func TestServiceHandleChatReusesSDKSessionWhenRuntimeModelFingerprintDiffersWith
 		SessionKey: sessionKey,
 		Content:    "测试模型变更仍 resume",
 		RoundID:    "round-stale-model",
-		ReqID:      "round-stale-model",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}
@@ -424,7 +421,6 @@ func TestServiceHandleChatSkipsStaleSDKSessionWhenRuntimeKindFingerprintDiffersW
 		SessionKey: sessionKey,
 		Content:    "测试 runtime kind 变更不 resume",
 		RoundID:    "round-stale-runtime-kind",
-		ReqID:      "round-stale-runtime-kind",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}
@@ -556,7 +552,6 @@ func TestServiceHandleChatReusesSDKSessionWhenRuntimeKindSwitchHasSharedTranscri
 		SessionKey: sessionKey,
 		Content:    "测试 runtime 切换共享 resume",
 		RoundID:    "round-shared-runtime-resume",
-		ReqID:      "round-shared-runtime-resume",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}

@@ -315,7 +315,7 @@ function build_permission_runtime_event({
     id: `runtime:permission:${permission.request_id}`,
     event_type: "permission_request",
     session_key: session_key ?? permission.session_key ?? null,
-    round_id: round_id ?? permission.caused_by ?? permission.request_id,
+    round_id: round_id ?? permission.round_id ?? permission.agent_round_id ?? permission.request_id,
     agent_id: permission.agent_id ?? agent_id ?? "",
     message_id: permission.message_id ?? null,
     tool_use_id: tool_use_id ?? null,

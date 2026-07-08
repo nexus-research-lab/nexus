@@ -25,6 +25,7 @@ import (
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
 	skillsvc "github.com/nexus-research-lab/nexus/internal/service/skills"
+	subscriptionsvc "github.com/nexus-research-lab/nexus/internal/service/subscription"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 	goalstore "github.com/nexus-research-lab/nexus/internal/storage/goal"
@@ -36,6 +37,7 @@ type AppServices struct {
 	Core           *CoreServices
 	Auth           *authsvc.Service
 	Provider       *providercfg.Service
+	Subscription   *subscriptionsvc.Service
 	Workspace      *workspacepkg.Service
 	Skills         *skillsvc.Service
 	Connectors     *connectorsvc.Service
@@ -76,6 +78,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	usageService := usagesvc.NewServiceWithDB(cfg, db)
 	providerService := providercfg.NewServiceWithDB(cfg, db)
 	providerService.SetLogger(logger.With("component", "provider"))
+	subscriptionService := subscriptionsvc.NewServiceWithDB(cfg, db)
 	goalService := goalsvc.NewService(cfg, goalstore.NewRepository(cfg, db))
 	preferencesService := preferencessvc.NewService(cfg)
 	operationService := operationsvc.NewService(cfg)
@@ -110,6 +113,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	dmService.SetProviderResolver(providerService)
 	dmService.SetPreferences(preferencesService)
 	dmService.SetUsageRecorder(usageService)
+	dmService.SetQuotaChecker(subscriptionService)
 	dmService.SetGoalContextProvider(goalService)
 	dmService.SetRoomSessionStore(newSessionRepository(cfg, db))
 	dmService.SetTitleGenerator(titleService)
@@ -123,6 +127,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	roomRealtime.SetProviderResolver(providerService)
 	roomRealtime.SetPreferences(preferencesService)
 	roomRealtime.SetUsageRecorder(usageService)
+	roomRealtime.SetQuotaChecker(subscriptionService)
 	roomRealtime.SetGoalContextProvider(goalService)
 	roomRealtime.SetTitleGenerator(titleService)
 	goalService.SetRuntimeInterrupter(newGoalInterruptDispatcher(dmService, roomRealtime))
@@ -163,6 +168,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		Core:           core,
 		Auth:           authService,
 		Provider:       providerService,
+		Subscription:   subscriptionService,
 		Preferences:    preferencesService,
 		Workspace:      workspaceService,
 		Skills:         skillService,

@@ -20,30 +20,30 @@ import {
 } from "./settings-panel-ui";
 
 interface SettingsDefaultModelRowProps {
-  description_key: TranslationKey;
-  empty_placeholder_key: TranslationKey;
-  feedback_message?: string | null;
+  descriptionKey: TranslationKey;
+  emptyPlaceholderKey: TranslationKey;
+  feedbackMessage?: string | null;
   icon: ReactNode;
-  on_change: (value: string, role: DefaultModelPreferenceRole) => void;
+  onChange: (value: string, role: DefaultModelPreferenceRole) => void;
   options: UiSelectMenuOption[];
-  provider_options_loading: boolean;
-  role: DefaultModelPreferenceRole;
-  saving_role: DefaultModelPreferenceRole | null;
-  title_key: TranslationKey;
+  providerOptionsLoading: boolean;
+  modelCategory: DefaultModelPreferenceRole;
+  savingRole: DefaultModelPreferenceRole | null;
+  titleKey: TranslationKey;
   value: string;
 }
 
 export function SettingsDefaultModelRow({
-  description_key,
-  empty_placeholder_key,
-  feedback_message,
+  descriptionKey: descriptionKey,
+  emptyPlaceholderKey: emptyPlaceholderKey,
+  feedbackMessage: feedbackMessage,
   icon,
-  on_change,
+  onChange: onChange,
   options,
-  provider_options_loading,
-  role,
-  saving_role,
-  title_key,
+  providerOptionsLoading: providerOptionsLoading,
+  modelCategory: modelCategory,
+  savingRole: savingRole,
+  titleKey: titleKey,
   value,
 }: SettingsDefaultModelRowProps) {
   const { t } = useI18n();
@@ -56,10 +56,10 @@ export function SettingsDefaultModelRow({
         </div>
         <div className="min-w-0">
           <h3 className={SETTINGS_ITEM_TITLE_CLASS_NAME}>
-            {t(title_key)}
+            {t(titleKey)}
           </h3>
           <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
-            {t(description_key)}
+            {t(descriptionKey)}
           </p>
         </div>
       </div>
@@ -68,23 +68,23 @@ export function SettingsDefaultModelRow({
           {t("settings.general.default_model_label")}
         </span>
         <UiSelectMenu
-          aria_label={t(title_key)}
-          button_class_name={SETTINGS_SELECT_BUTTON_CLASS_NAME}
-          class_name={SETTINGS_CONTROL_HEIGHT_CLASS_NAME}
-          disabled={provider_options_loading || !!saving_role || options.length === 0}
-          leading={saving_role === role ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-          menu_class_name="min-w-[260px]"
-          on_change={(next_value) => on_change(next_value, role)}
+          ariaLabel={t(titleKey)}
+          buttonClassName={SETTINGS_SELECT_BUTTON_CLASS_NAME}
+          className={SETTINGS_CONTROL_HEIGHT_CLASS_NAME}
+          disabled={providerOptionsLoading || !!savingRole || options.length === 0}
+          leading={savingRole === modelCategory ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+          menuClassName="min-w-[260px]"
+          onChange={(nextValue) => onChange(nextValue, modelCategory)}
           options={options}
-          placeholder={provider_options_loading
+          placeholder={providerOptionsLoading
             ? t("settings.general.default_model_loading")
-            : t(empty_placeholder_key)}
+            : t(emptyPlaceholderKey)}
           size="xs"
           value={value}
         />
-        {feedback_message ? (
+        {feedbackMessage ? (
           <span className="truncate text-[11px] text-(--text-soft)">
-            {feedback_message}
+            {feedbackMessage}
           </span>
         ) : null}
       </div>

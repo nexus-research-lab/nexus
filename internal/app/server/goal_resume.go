@@ -114,7 +114,6 @@ func (d *goalContinuationDispatcher) DispatchGoalContinuation(ctx context.Contex
 			AgentID:              parsed.AgentID,
 			GoalContext:          plan.Prompt,
 			RoundID:              plan.RoundID,
-			ReqID:                plan.RoundID,
 			DeliveryPolicy:       protocol.ChatDeliveryPolicyQueue,
 			BroadcastUserMessage: false,
 			Internal:             true,

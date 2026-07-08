@@ -20,7 +20,7 @@ const nexusctlWorkspacePathEnvName = "NEXUSCTL_WORKSPACE_PATH"
 const nexusctlCommandPathEnvName = "NEXUSCTL_COMMAND_PATH"
 const apiFormatAnthropicMessages = runtimeprovider.APIFormatAnthropicMessages
 const apiFormatChatCompletions = runtimeprovider.APIFormatChatCompletions
-const claudeAutoCompactPctOverrideEnvName = "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE"
+const nexusAutoCompactPctOverrideEnvName = "NEXUS_AUTOCOMPACT_PCT_OVERRIDE"
 const defaultClaudeAutoCompactPctOverride = "70"
 const thinkingCapabilityName = "thinking"
 const nexusAPIProviderEnvName = "NEXUS_API_PROVIDER"
@@ -28,8 +28,10 @@ const anthropicBaseURLEnvName = "ANTHROPIC_BASE_URL"
 const anthropicAPIKeyEnvName = "ANTHROPIC_API_KEY"
 const anthropicAuthTokenEnvName = "ANTHROPIC_AUTH_TOKEN"
 const anthropicModelEnvName = "ANTHROPIC_MODEL"
+const enableToolSearchEnvName = "ENABLE_TOOL_SEARCH"
 const firstPartyAnthropicAPIHost = "api.anthropic.com"
 const nexusDisableProjectInstructionsEnvName = "NEXUS_DISABLE_PROJECT_INSTRUCTIONS"
+const nexusCachedMicrocompactEnvName = "NEXUS_CACHED_MICROCOMPACT"
 
 // NexusRuntimeProviderEnvName 表示当前 SDK runtime 实际解析出的 provider key。
 const NexusRuntimeProviderEnvName = "NEXUS_RUNTIME_PROVIDER"
@@ -59,16 +61,13 @@ func anthropicRuntimeEnvFromConfig(runtimeConfig *RuntimeConfig) map[string]stri
 		"ANTHROPIC_DEFAULT_OPUS_MODEL":   runtimeConfig.Model,
 		"ANTHROPIC_DEFAULT_SONNET_MODEL": runtimeConfig.Model,
 		"ANTHROPIC_DEFAULT_HAIKU_MODEL":  runtimeConfig.Model,
-		"CLAUDE_CODE_SUBAGENT_MODEL":     runtimeConfig.Model,
+		"NEXUS_SUBAGENT_MODEL":           runtimeConfig.Model,
 		NexusRuntimeProviderEnvName:      runtimeConfig.Provider,
 		nexusAPIProviderEnvName:          "anthropic-compatible",
 	}
 	applyAnthropicCredentialsEnv(env, runtimeConfig)
 	if runtimeConfig.Reasoning {
 		applyDefaultModelCapabilitiesEnv(env, thinkingCapabilityName)
-	}
-	if strings.Contains(strings.ToLower(runtimeConfig.Model), "kimi") {
-		env["ENABLE_TOOL_SEARCH"] = "false"
 	}
 	return env
 }
@@ -105,12 +104,12 @@ func isFirstPartyAnthropicBaseURL(baseURL string) bool {
 
 func openAIRuntimeEnvFromConfig(runtimeConfig *RuntimeConfig) map[string]string {
 	return map[string]string{
-		"OPENAI_API_KEY":             runtimeConfig.AuthToken,
-		"OPENAI_BASE_URL":            runtimeConfig.BaseURL,
-		"OPENAI_MODEL":               runtimeConfig.Model,
-		"CLAUDE_CODE_SUBAGENT_MODEL": runtimeConfig.Model,
-		NexusRuntimeProviderEnvName:  runtimeConfig.Provider,
-		nexusAPIProviderEnvName:      "openai",
+		"OPENAI_API_KEY":            runtimeConfig.AuthToken,
+		"OPENAI_BASE_URL":           runtimeConfig.BaseURL,
+		"OPENAI_MODEL":              runtimeConfig.Model,
+		"NEXUS_SUBAGENT_MODEL":      runtimeConfig.Model,
+		NexusRuntimeProviderEnvName: runtimeConfig.Provider,
+		nexusAPIProviderEnvName:     "openai",
 	}
 }
 
@@ -127,7 +126,7 @@ func applyDefaultModelCapabilitiesEnv(env map[string]string, capabilities ...str
 
 func defaultRuntimeEnv() map[string]string {
 	return map[string]string{
-		claudeAutoCompactPctOverrideEnvName:    defaultClaudeAutoCompactPctOverride,
+		nexusAutoCompactPctOverrideEnvName:     defaultClaudeAutoCompactPctOverride,
 		nexusDisableProjectInstructionsEnvName: "1",
 	}
 }
@@ -136,9 +135,35 @@ func nxsDiagnosticsRuntimeEnv(runtimeKind string, enabled bool) map[string]strin
 	if !enabled || !runtimeProfileForKind(runtimeKind).isNXS() {
 		return nil
 	}
-	return map[string]string{
-		runtimectx.AgentSDKDiagnosticsEnvName: "stderr",
+	env := map[string]string{
+		runtimectx.AgentSDKDiagnosticsJSONLEnvName:          "1",
+		runtimectx.AgentSDKDiagnosticsStreamProgressEnvName: "0",
 	}
+	if value := strings.TrimSpace(os.Getenv(runtimectx.AgentSDKProviderDebugBodyEnvName)); value != "" {
+		env[runtimectx.AgentSDKProviderDebugBodyEnvName] = value
+	}
+	return env
+}
+
+func explicitNXSProcessRuntimeEnv(runtimeKind string) map[string]string {
+	if !runtimeProfileForKind(runtimeKind).isNXS() {
+		return nil
+	}
+	env := map[string]string{}
+	for _, key := range []string{
+		runtimectx.AgentSDKDiagnosticsJSONLEnvName,
+		runtimectx.AgentSDKDiagnosticsStreamProgressEnvName,
+		runtimectx.AgentSDKProviderDebugBodyEnvName,
+		nexusCachedMicrocompactEnvName,
+	} {
+		if value := strings.TrimSpace(os.Getenv(key)); value != "" {
+			env[key] = value
+		}
+	}
+	if len(env) == 0 {
+		return nil
+	}
+	return env
 }
 
 func buildScopedRuntimeEnv(ctx context.Context) map[string]string {

@@ -12,6 +12,7 @@ export type EventType =
   | 'chat_ack'
   | 'input_queue'
   | 'round_status'
+  | 'agent_round_status'
   | 'session_status'
   | 'goal_created'
   | 'goal_updated'
@@ -51,7 +52,8 @@ export interface EventMessage {
   agent_id?: string;
   message_id?: string;
   session_id?: string;
-  caused_by?: string;
+  round_id?: string;
+  agent_round_id?: string;
   data: Record<string, unknown>;
   timestamp: number;
 }
@@ -63,9 +65,102 @@ export interface RoundStatusData {
   result_subtype?: string;
 }
 
+export interface AgentRoundStatusData {
+  round_id: string;
+  agent_round_id: string;
+  agent_id: string;
+  status: string;
+  is_terminal: boolean;
+}
+
 export interface SessionStatusData {
   is_generating: boolean;
   running_round_ids?: string[];
+}
+
+export interface ChatAckPendingSlot {
+  agent_id: string;
+  agent_round_id: string;
+  msg_id: string;
+  status: string;
+  timestamp: number;
+  index: number;
+}
+
+export interface ChatAckData {
+  client_request_id: string;
+  client_message_id: string;
+  round_id: string;
+  user_message_id: string;
+  pending: ChatAckPendingSlot[];
+  ack_timeout_ms: number;
+}
+
+export type ConversationTurnStatus =
+  | 'pending'
+  | 'running'
+  | 'finished'
+  | 'interrupted'
+  | 'error';
+
+export interface ConversationMessage {
+  message_id: string;
+  session_key?: string;
+  role: 'user' | 'assistant' | 'system';
+  round_id: string;
+  agent_round_id?: string;
+  agent_id?: string;
+  parent_id?: string;
+  content: unknown;
+  timestamp: number;
+  stream_status?: 'pending' | 'streaming' | 'done' | 'cancelled' | 'error';
+  result_summary?: Record<string, unknown>;
+}
+
+export interface TurnPendingPermission {
+  request_id: string;
+  message_id?: string;
+  tool_use_id?: string;
+  tool_name?: string;
+}
+
+export interface AgentTurnSlot {
+  agent_id: string;
+  agent_round_id: string;
+  msg_id?: string;
+  status: ConversationTurnStatus;
+  assistant_messages: ConversationMessage[];
+  pending_permissions: TurnPendingPermission[];
+  result_summary?: Record<string, unknown>;
+  started_at?: number;
+  finished_at?: number;
+}
+
+export interface ConversationTurn {
+  round_id: string;
+  status: ConversationTurnStatus;
+  created_at: number;
+  updated_at: number;
+  user_message: ConversationMessage | null;
+  agent_slots: AgentTurnSlot[];
+  system_events: ConversationMessage[];
+  is_loaded: boolean;
+}
+
+export interface ConversationTurnIndexItem {
+  round_id: string;
+  created_at: number;
+  updated_at: number;
+  status: ConversationTurnStatus;
+  user_preview: string;
+  agent_ids: string[];
+  loaded: boolean;
+}
+
+export interface TurnPage {
+  turns: ConversationTurn[];
+  next_before_round_id?: string;
+  backwards_after_round_id?: string;
 }
 `
 	return definitions

@@ -9,6 +9,8 @@ import (
 const (
 	defaultMessageHistoryRoundPageSize = 3
 	maxMessageHistoryRoundPageSize     = 10
+	defaultMessageHistoryAroundLimit   = 2
+	maxMessageHistoryAroundLimit       = 3
 )
 
 type historyPageGroup struct {
@@ -22,6 +24,13 @@ func normalizeRoundPageLimit(limit int) int {
 		return defaultMessageHistoryRoundPageSize
 	}
 	return min(limit, maxMessageHistoryRoundPageSize)
+}
+
+func normalizeRoundAroundLimit(limit int) int {
+	if limit <= 0 {
+		return defaultMessageHistoryAroundLimit
+	}
+	return min(limit, maxMessageHistoryAroundLimit)
 }
 
 func paginateNormalizedHistoryRows(
@@ -77,6 +86,71 @@ func paginateNormalizedHistoryRows(
 	return page
 }
 
+func paginateNormalizedHistoryRowsAround(
+	rows []protocol.Message,
+	aroundRoundID string,
+	aroundLimit int,
+	collapseRoomAgentRounds bool,
+) protocol.MessagePage {
+	if len(rows) == 0 {
+		return protocol.MessagePage{
+			Items:   []protocol.Message{},
+			HasMore: false,
+		}
+	}
+
+	aroundRoundID = strings.TrimSpace(aroundRoundID)
+	if aroundRoundID == "" {
+		return protocol.MessagePage{
+			Items:   []protocol.Message{},
+			HasMore: false,
+		}
+	}
+
+	groups := buildHistoryPageGroups(rows, collapseRoomAgentRounds)
+	targetIndex := -1
+	for index, group := range groups {
+		if group.CursorRoundID == aroundRoundID {
+			targetIndex = index
+			break
+		}
+	}
+	if targetIndex < 0 {
+		return protocol.MessagePage{
+			Items:   []protocol.Message{},
+			HasMore: len(groups) > 0,
+		}
+	}
+
+	radius := normalizeRoundAroundLimit(aroundLimit)
+	startIndex := targetIndex - radius
+	if startIndex < 0 {
+		startIndex = 0
+	}
+	endIndex := targetIndex + radius + 1
+	if endIndex > len(groups) {
+		endIndex = len(groups)
+	}
+
+	pageItems := make([]protocol.Message, 0)
+	for _, group := range groups[startIndex:endIndex] {
+		pageItems = append(pageItems, group.Items...)
+	}
+	page := protocol.MessagePage{
+		Items:   pageItems,
+		HasMore: startIndex > 0 || endIndex < len(groups),
+	}
+	if startIndex > 0 {
+		oldestGroup := groups[startIndex]
+		if strings.TrimSpace(oldestGroup.CursorRoundID) != "" {
+			page.NextBeforeRoundID = stringPointer(oldestGroup.CursorRoundID)
+		}
+		timestamp := oldestGroup.CursorRoundTimestamp
+		page.NextBeforeRoundTimestamp = &timestamp
+	}
+	return page
+}
+
 func buildHistoryPageGroups(
 	rows []protocol.Message,
 	collapseRoomAgentRounds bool,
@@ -111,10 +185,30 @@ func buildHistoryPageGroups(
 				Items:                make([]protocol.Message, 0, 1),
 			}
 		}
-		currentGroup.Items = append(currentGroup.Items, row)
+		currentGroup.Items = append(
+			currentGroup.Items,
+			normalizeHistoryPageRow(row, collapseRoomAgentRounds),
+		)
 	}
 	flushCurrentGroup()
 	return groups
+}
+
+func normalizeHistoryPageRow(row protocol.Message, collapseRoomAgentRounds bool) protocol.Message {
+	if !collapseRoomAgentRounds {
+		return row
+	}
+	roundID := stringFromAny(row["round_id"])
+	if roundID == "" {
+		return row
+	}
+	normalizedRoundID := normalizeRoomHistoryRoundID(roundID, stringFromAny(row["agent_id"]))
+	if normalizedRoundID == "" || normalizedRoundID == roundID {
+		return row
+	}
+	normalized := protocol.Clone(row)
+	normalized["round_id"] = normalizedRoundID
+	return normalized
 }
 
 func historyPageCursorRoundID(row protocol.Message, collapseRoomAgentRounds bool) string {
@@ -147,12 +241,20 @@ func historyPageGroupKey(row protocol.Message, collapseRoomAgentRounds bool) str
 func normalizeRoomHistoryRoundID(roundID string, agentID string) string {
 	trimmedRoundID := strings.TrimSpace(roundID)
 	trimmedAgentID := strings.TrimSpace(agentID)
-	if trimmedRoundID == "" || trimmedAgentID == "" {
+	if trimmedRoundID == "" {
 		return trimmedRoundID
 	}
-	suffix := ":" + trimmedAgentID
-	if strings.HasSuffix(trimmedRoundID, suffix) {
-		return strings.TrimSuffix(trimmedRoundID, suffix)
+	if trimmedAgentID != "" {
+		suffix := ":" + trimmedAgentID
+		if strings.HasSuffix(trimmedRoundID, suffix) {
+			return strings.TrimSuffix(trimmedRoundID, suffix)
+		}
+	}
+	if strings.HasPrefix(trimmedRoundID, "room_mention_") ||
+		strings.HasPrefix(trimmedRoundID, "room_directed_message_") {
+		if index := strings.LastIndex(trimmedRoundID, ":"); index > 0 {
+			return trimmedRoundID[:index]
+		}
 	}
 	return trimmedRoundID
 }

@@ -7,11 +7,11 @@ import { CSSProperties } from "react";
 
 interface LottiePlayerProps {
   src: string;
-  class_name?: string;
-  inline_style?: CSSProperties;
+  className?: string;
+  inlineStyle?: CSSProperties;
 }
 
-export function LottiePlayer({ src, class_name, inline_style }: LottiePlayerProps) {
+export function LottiePlayer({ src, className: className, inlineStyle: inlineStyle }: LottiePlayerProps) {
   const [dotLottieInstance, setDotLottieInstance] = useState<DotLottie | null>(null);
 
   useEffect(() => {
@@ -22,8 +22,8 @@ export function LottiePlayer({ src, class_name, inline_style }: LottiePlayerProp
 
   return (
     <div
-      className={class_name}
-      style={inline_style}
+      className={className}
+      style={inlineStyle}
     >
       <DotLottieReact
         autoplay

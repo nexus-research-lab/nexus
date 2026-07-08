@@ -7,6 +7,6 @@
  * =====================================================
  */
 
-export function format_installs(n: number) {
+export function formatInstalls(n: number) {
   return n >= 1000 ? `${(n / 1000).toFixed(n >= 100000 ? 0 : 1)}K` : `${n}`;
 }

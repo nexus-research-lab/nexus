@@ -3,7 +3,7 @@ import type { AgentOptions } from "@/types/agent/agent";
 
 export type AgentRuntimeKind = "claude" | "nxs";
 
-export function normalize_agent_runtime_kind(value?: string | null): AgentRuntimeKind {
+export function normalizeAgentRuntimeKind(value?: string | null): AgentRuntimeKind {
   switch (value?.trim().toLowerCase()) {
     case "nxs":
     case "go":

@@ -5,7 +5,7 @@ import { WorkspacePageFrame } from "@/shared/ui/workspace/frame/workspace-page-f
 
 export function MemoryPage() {
   return (
-    <WorkspacePageFrame content_padding_class_name="p-0">
+    <WorkspacePageFrame contentPaddingClassName="p-0">
       <MemoryPanel />
     </WorkspacePageFrame>
   );

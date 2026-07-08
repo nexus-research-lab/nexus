@@ -3,11 +3,11 @@
 import { type ReactNode } from "react";
 import { Download, FolderOpen, Maximize2, Minimize2 } from "lucide-react";
 
-import { download_workspace_file_api } from "@/lib/api/agent-manage-api";
-import { get_workspace_file_external_action_copy } from "@/lib/workspace-file-action";
+import { downloadWorkspaceFileApi } from "@/lib/api/agent-manage-api";
+import { getWorkspaceFileExternalActionCopy } from "@/lib/workspace-file-action";
 import { cn } from "@/lib/utils";
 
-export const WORKSPACE_FILE_TOOLBAR_BUTTON_CLASS_NAME = cn(
+const WORKSPACE_FILE_TOOLBAR_BUTTON_CLASS_NAME = cn(
   "inline-flex h-8 items-center justify-center gap-1.5 rounded-[10px] border px-2.5 text-[11px] font-semibold leading-none transition-colors",
   "border-(--divider-subtle-color) bg-(--surface-panel-background) text-(--text-default)",
   "hover:border-primary/30 hover:bg-primary/8 hover:text-primary",
@@ -72,38 +72,38 @@ export function WorkspaceFilePreviewHeader({
 }
 
 export function WorkspaceFileDownloadButton({
-  agent_id,
+  agentId: agentId,
   path,
-  file_name,
+  fileName: fileName,
   label,
 }: {
-  agent_id: string;
+  agentId: string;
   path: string;
-  file_name: string;
+  fileName: string;
   label?: string;
 }) {
-  const file_action_copy = get_workspace_file_external_action_copy(file_name);
-  const visible_label = label ?? file_action_copy.label;
-  const handle_external_action = () => {
-    void download_workspace_file_api(agent_id, path, file_name).catch((error) => {
-      console.error(`[WorkspaceFileDownloadButton] ${file_action_copy.label} workspace 文件失败:`, error);
+  const fileActionCopy = getWorkspaceFileExternalActionCopy(fileName);
+  const visibleLabel = label ?? fileActionCopy.label;
+  const handleExternalAction = () => {
+    void downloadWorkspaceFileApi(agentId, path, fileName).catch((error) => {
+      console.error(`[WorkspaceFileDownloadButton] ${fileActionCopy.label} workspace 文件失败:`, error);
     });
   };
 
   return (
     <button
-      aria-label={file_action_copy.aria_label}
+      aria-label={fileActionCopy.ariaLabel}
       className={WORKSPACE_FILE_TOOLBAR_BUTTON_CLASS_NAME}
-      onClick={handle_external_action}
-      title={file_action_copy.title}
+      onClick={handleExternalAction}
+      title={fileActionCopy.title}
       type="button"
     >
-      {file_action_copy.mode === "reveal" ? (
+      {fileActionCopy.mode === "reveal" ? (
         <FolderOpen className="h-3.5 w-3.5" />
       ) : (
         <Download className="h-3.5 w-3.5" />
       )}
-      <span className="max-xl:hidden">{visible_label}</span>
+      <span className="max-xl:hidden">{visibleLabel}</span>
     </button>
   );
 }
@@ -111,12 +111,12 @@ export function WorkspaceFileDownloadButton({
 export function WorkspaceFileToolbarButton({
   children,
   disabled = false,
-  on_click,
+  onClick: onClick,
   title,
 }: {
   children: ReactNode;
   disabled?: boolean;
-  on_click: () => void;
+  onClick: () => void;
   title?: string;
 }) {
   return (
@@ -124,7 +124,7 @@ export function WorkspaceFileToolbarButton({
       className={WORKSPACE_FILE_TOOLBAR_BUTTON_CLASS_NAME}
       disabled={disabled}
       onMouseDown={(event) => event.preventDefault()}
-      onClick={on_click}
+      onClick={onClick}
       title={title}
       type="button"
     >
@@ -134,23 +134,23 @@ export function WorkspaceFileToolbarButton({
 }
 
 export function WorkspaceFilePreviewFocusButton({
-  is_preview_focused = false,
-  on_toggle_preview_focus,
+  isPreviewFocused: isPreviewFocused = false,
+  onTogglePreviewFocus: onTogglePreviewFocus,
 }: {
-  is_preview_focused?: boolean;
-  on_toggle_preview_focus?: () => void;
+  isPreviewFocused?: boolean;
+  onTogglePreviewFocus?: () => void;
 }) {
-  if (!on_toggle_preview_focus) {
+  if (!onTogglePreviewFocus) {
     return null;
   }
 
   return (
     <WorkspaceFileToolbarButton
-      on_click={on_toggle_preview_focus}
-      title={is_preview_focused ? "还原文件树" : "聚焦预览"}
+      onClick={onTogglePreviewFocus}
+      title={isPreviewFocused ? "还原文件树" : "聚焦预览"}
     >
-      {is_preview_focused ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
-      <span className="max-xl:hidden">{is_preview_focused ? "还原" : "放大"}</span>
+      {isPreviewFocused ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+      <span className="max-xl:hidden">{isPreviewFocused ? "还原" : "放大"}</span>
     </WorkspaceFileToolbarButton>
   );
 }

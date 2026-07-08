@@ -12,12 +12,12 @@ import { APP_ROUTE_PATHS } from "@/app/router/route-paths";
 
 import "./landing-page.css";
 import {
-  capability_items,
-  flow_items,
-  hero_activity_items,
-  hero_context_items,
-  hero_route_nodes,
-  ledger_items,
+  capabilityItems,
+  flowItems,
+  heroActivityItems,
+  heroContextItems,
+  heroRouteNodes,
+  ledgerItems,
 } from "./landing-demo-data";
 import { WorkbenchSection } from "./landing-workbench";
 
@@ -52,7 +52,7 @@ function HeroSignal() {
   return (
     <aside className="landing-hero-signal" aria-label="Nexus routing overview">
       <div className="landing-hero-route" aria-label="Nexus execution route">
-        {hero_route_nodes.map(([title, copy]) => (
+        {heroRouteNodes.map(([title, copy]) => (
           <div className="landing-hero-route-node" key={title}>
             <span aria-hidden="true" />
             <strong>{title}</strong>
@@ -66,7 +66,7 @@ function HeroSignal() {
           <span>Active task</span>
           <strong>Landing review</strong>
         </div>
-        {hero_activity_items.map(([time, actor, copy]) => (
+        {heroActivityItems.map(([time, actor, copy]) => (
           <div className="landing-hero-activity-row" key={`${time}-${actor}`}>
             <span>{time}</span>
             <strong>{actor}</strong>
@@ -76,7 +76,7 @@ function HeroSignal() {
       </div>
 
       <div className="landing-hero-context" aria-label="Nexus shared context">
-        {hero_context_items.map((item) => (
+        {heroContextItems.map((item) => (
           <span key={item}>{item}</span>
         ))}
       </div>
@@ -113,7 +113,7 @@ function FlowSection() {
       </div>
 
       <div className="landing-flow-grid">
-        {flow_items.map(([step, title, copy]) => (
+        {flowItems.map(([step, title, copy]) => (
           <article className="landing-flow-item" key={step}>
             <span>{step}</span>
             <h3>{title}</h3>
@@ -134,7 +134,7 @@ function CapabilitiesSection() {
       </div>
 
       <div className="landing-capability-list">
-        {capability_items.map(({ title, copy, meta, Icon }) => (
+        {capabilityItems.map(({ title, copy, meta, Icon }) => (
           <article className="landing-capability-row" key={title}>
             <Icon size={18} />
             <strong>{title}</strong>
@@ -177,10 +177,10 @@ function ControlSection() {
           <strong>Run ledger</strong>
           <span>active</span>
         </div>
-        {ledger_items.map(([time, actor, action], index) => (
+        {ledgerItems.map(([time, actor, action], index) => (
           <div className="landing-ledger-row" key={`${time}-${actor}`}>
             <span>{time}</span>
-            {index === ledger_items.length - 1 ? <CircleDot size={14} /> : <Clock3 size={14} />}
+            {index === ledgerItems.length - 1 ? <CircleDot size={14} /> : <Clock3 size={14} />}
             <strong>{actor}</strong>
             <p>{action}</p>
           </div>

@@ -2,41 +2,42 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { get_agent_sessions_api } from "@/lib/api/agent-api";
-import { subscribe_room_directory_updates } from "@/lib/api/room-api";
+import { useResettableState } from "@/hooks/ui/use-resettable-state";
+import { getAgentSessionsApi } from "@/lib/api/agent-api";
+import { subscribeRoomDirectoryUpdates } from "@/lib/api/room-api";
 import {
-  build_external_session_conversation_id,
-  format_external_session_title,
-  is_external_session_channel,
+  buildExternalSessionConversationId,
+  formatExternalSessionTitle,
+  isExternalSessionChannel,
 } from "@/features/conversation/external-session-labels";
 import { AgentSession } from "@/types/agent/agent";
 import { RoomConversationView } from "@/types/conversation/conversation";
 
 const EXTERNAL_AGENT_SESSION_FALLBACK_REFRESH_INTERVAL_MS = 60000;
 
-function build_external_room_conversation_views({
-  room_id,
+function buildExternalRoomConversationViews({
+  roomId: roomId,
   sessions,
 }: {
-  room_id: string | null;
+  roomId: string | null;
   sessions: AgentSession[];
 }): RoomConversationView[] {
-  if (!room_id) {
+  if (!roomId) {
     return [];
   }
   return sessions
     .filter((session) => (
       !session.room_id &&
-      is_external_session_channel(session.channel_type, session.session_key)
+      isExternalSessionChannel(session.channel_type, session.session_key)
     ))
     .map((session) => ({
       session_key: session.session_key,
-      room_id,
-      conversation_id: build_external_session_conversation_id(session.session_key),
+      room_id: roomId,
+      conversation_id: buildExternalSessionConversationId(session.session_key),
       conversation_type: "external",
       session_id: session.session_id,
       agent_id: session.agent_id,
-      title: format_external_session_title({
+      title: formatExternalSessionTitle({
         title: session.title,
       }),
       options: {
@@ -52,7 +53,7 @@ function build_external_room_conversation_views({
     .sort((left, right) => right.last_activity_at - left.last_activity_at);
 }
 
-function are_external_agent_sessions_equal(left: AgentSession[], right: AgentSession[]): boolean {
+function areExternalAgentSessionsEqual(left: AgentSession[], right: AgentSession[]): boolean {
   if (left.length !== right.length) {
     return false;
   }
@@ -69,94 +70,102 @@ function are_external_agent_sessions_equal(left: AgentSession[], right: AgentSes
   });
 }
 
-function filter_external_agent_sessions(sessions: AgentSession[]): AgentSession[] {
+function filterExternalAgentSessions(sessions: AgentSession[]): AgentSession[] {
   return sessions
     .filter((item) => (
       !item.room_id &&
-      is_external_session_channel(item.channel_type, item.session_key)
+      isExternalSessionChannel(item.channel_type, item.session_key)
     ))
     .sort((left, right) => right.last_activity_at - left.last_activity_at);
 }
 
 export function useRoomExternalSessions({
-  agent_id,
-  room_id,
-  room_type,
+  agentId: agentId,
+  roomId: roomId,
+  roomType: roomType,
 }: {
-  agent_id: string | null;
-  room_id: string | null;
-  room_type: string | null;
+  agentId: string | null;
+  roomId: string | null;
+  roomType: string | null;
 }) {
-  const [external_agent_sessions, set_external_agent_sessions] = useState<AgentSession[]>([]);
-  const [external_session_refresh_version, set_external_session_refresh_version] = useState(0);
+  const externalSessionsResetKey = roomType === "dm" && agentId ? agentId : "inactive";
+  const [externalAgentSessions, setExternalAgentSessions] = useResettableState<AgentSession[]>(
+    [],
+    externalSessionsResetKey,
+  );
+  const [externalSessionRefreshVersion, setExternalSessionRefreshVersion] = useState(0);
 
   useEffect(
-    () => subscribe_room_directory_updates(() => {
-      set_external_session_refresh_version((version) => version + 1);
+    () => subscribeRoomDirectoryUpdates(() => {
+      setExternalSessionRefreshVersion((version) => version + 1);
     }),
     [],
   );
 
   useEffect(() => {
-    if (room_type !== "dm" || !agent_id) {
-      set_external_agent_sessions([]);
+    if (roomType !== "dm" || !agentId) {
       return undefined;
     }
 
     let cancelled = false;
-    const refresh_external_sessions = () => {
-      void get_agent_sessions_api(agent_id)
+    const refreshExternalSessions = () => {
+      void getAgentSessionsApi(agentId)
         .then((sessions) => {
           if (cancelled) {
             return;
           }
-          const next_sessions = filter_external_agent_sessions(sessions);
-          set_external_agent_sessions((current_sessions) => (
-            are_external_agent_sessions_equal(current_sessions, next_sessions)
-              ? current_sessions
-              : next_sessions
+          const nextSessions = filterExternalAgentSessions(sessions);
+          setExternalAgentSessions((currentSessions) => (
+            areExternalAgentSessionsEqual(currentSessions, nextSessions)
+              ? currentSessions
+              : nextSessions
           ));
         })
         .catch((error) => {
           console.error("[RoomPage] 加载 Agent 外部 IM 会话失败:", error);
           if (!cancelled) {
-            set_external_agent_sessions([]);
+            setExternalAgentSessions([]);
           }
         });
     };
-    const refresh_if_visible = () => {
+    const refreshIfVisible = () => {
       if (cancelled) {
         return;
       }
       if (typeof document !== "undefined" && document.visibilityState === "hidden") {
         return;
       }
-      refresh_external_sessions();
+      refreshExternalSessions();
     };
 
-    refresh_external_sessions();
-    const interval_id = window.setInterval(refresh_if_visible, EXTERNAL_AGENT_SESSION_FALLBACK_REFRESH_INTERVAL_MS);
-    window.addEventListener("focus", refresh_if_visible);
-    document.addEventListener("visibilitychange", refresh_if_visible);
+    refreshExternalSessions();
+    const intervalId = window.setInterval(refreshIfVisible, EXTERNAL_AGENT_SESSION_FALLBACK_REFRESH_INTERVAL_MS);
+    window.addEventListener("focus", refreshIfVisible);
+    document.addEventListener("visibilitychange", refreshIfVisible);
 
     return () => {
       cancelled = true;
-      window.clearInterval(interval_id);
-      window.removeEventListener("focus", refresh_if_visible);
-      document.removeEventListener("visibilitychange", refresh_if_visible);
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", refreshIfVisible);
+      document.removeEventListener("visibilitychange", refreshIfVisible);
     };
-  }, [agent_id, external_session_refresh_version, room_type]);
+  }, [
+    agentId,
+    externalSessionRefreshVersion,
+    roomType,
+    setExternalAgentSessions,
+  ]);
 
-  const external_room_conversations = useMemo(
-    () => build_external_room_conversation_views({
-      room_id,
-      sessions: external_agent_sessions,
+  const externalRoomConversations = useMemo(
+    () => buildExternalRoomConversationViews({
+      roomId: roomId,
+      sessions: externalAgentSessions,
     }),
-    [external_agent_sessions, room_id],
+    [externalAgentSessions, roomId],
   );
 
   return {
-    external_agent_sessions,
-    external_room_conversations,
+    externalAgentSessions: externalAgentSessions,
+    externalRoomConversations: externalRoomConversations,
   };
 }

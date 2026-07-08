@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import type { RefObject } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
@@ -6,174 +6,261 @@ import { MessageItem } from "@/features/conversation/shared/message";
 import { AgentConversationRuntimePhase } from "@/types/agent/agent-conversation";
 import { Message } from "@/types/conversation/message";
 import { PendingPermission, PermissionDecisionPayload } from "@/types/conversation/permission";
-import { estimate_round_heights } from "@/hooks/conversation/use-message-height";
+import type { SessionRoundIndexItem } from "@/types/conversation/room";
+import { estimateRoundHeights } from "@/hooks/conversation/use-message-height";
+import type {
+  ConversationRoundScrollHandleRef,
+  ConversationRoundScrollOptions,
+} from "./conversation-round-scroll";
+import {
+  findConversationRoundElement,
+  getConversationRoundFocusOffset,
+  scrollToConversationRoundElement,
+} from "./conversation-round-scroll";
+import { ConversationRoundPlaceholder } from "./conversation-round-placeholder";
 
 interface ConversationFeedProps {
-  bottom_anchor_ref: React.RefObject<HTMLDivElement | null>;
-  feed_ref?: RefObject<HTMLDivElement | null>;
+  bottomAnchorRef: React.RefObject<HTMLDivElement | null>;
+  feedRef?: RefObject<HTMLDivElement | null>;
   /** The scrollable container — needed by the virtualizer */
-  scroll_ref?: RefObject<HTMLDivElement | null>;
+  scrollRef?: RefObject<HTMLDivElement | null>;
   compact?: boolean;
-  current_agent_name: string | null;
-  current_agent_avatar?: string | null;
-  workspace_agent_id?: string | null;
-  current_user_avatar?: string | null;
-  /** Room 模式下的 agent_id → name 映射（用于多 Agent 显示） */
-  agent_name_map?: Record<string, string>;
-  /** Room 模式下的 agent_id → avatar 映射 */
-  agent_avatar_map?: Record<string, string | null>;
-  is_last_round_pending_permissions: PendingPermission[];
-  is_loading: boolean;
-  runtime_phase?: AgentConversationRuntimePhase | null;
-  live_round_ids: string[];
-  is_mobile_layout: boolean;
-  message_groups: Map<string, Message[]>;
-  on_open_agent_contact?: (agent_id: string) => void;
-  on_open_workspace_file?: (path: string) => void;
-  on_permission_response: (payload: PermissionDecisionPayload) => boolean;
-  can_respond_to_permissions?: boolean;
-  permission_read_only_reason?: string;
+  currentAgentName: string | null;
+  currentAgentAvatar?: string | null;
+  workspaceAgentId?: string | null;
+  currentUserAvatar?: string | null;
+  /** Room 模式下的 agentId → name 映射（用于多 Agent 显示） */
+  agentNameMap?: Record<string, string>;
+  /** Room 模式下的 agentId → avatar 映射 */
+  agentAvatarMap?: Record<string, string | null>;
+  isLastRoundPendingPermissions: PendingPermission[];
+  isLoading: boolean;
+  runtimePhase?: AgentConversationRuntimePhase | null;
+  liveRoundIds: string[];
+  isMobileLayout: boolean;
+  messageGroups: Map<string, Message[]>;
+  onOpenAgentContact?: (agentId: string) => void;
+  onOpenWorkspaceFile?: (path: string) => void;
+  onEditLastUserMessage?: (messageId: string, newContent: string) => void;
+  onPermissionResponse: (payload: PermissionDecisionPayload) => boolean;
+  canRespondToPermissions?: boolean;
+  permissionReadOnlyReason?: string;
   /** Room 并发模式：停止单条消息生成 */
-  on_stop_message?: (msg_id: string) => void;
-  round_ids: string[];
+  onStopMessage?: (msgId: string) => void;
+  roundScrollRef?: ConversationRoundScrollHandleRef;
+  roundIndexItems?: SessionRoundIndexItem[];
+  roundIds: string[];
 }
 
 // Minimum rounds before we enable virtualization — below this threshold the
 // overhead is not worth it and scroll behaviour is simpler without it.
 const VIRTUAL_THRESHOLD = 20;
 
-/** Room 模式下从 round 的 assistant 消息中提取 agent_id，查找对应名字 */
-function resolve_round_agent_name(
+/** Room 模式下从 round 的 assistant 消息中提取 agentId，查找对应名字 */
+function resolveRoundAgentName(
   messages: Message[],
-  agent_name_map?: Record<string, string>,
+  agentNameMap?: Record<string, string>,
 ): string | undefined {
-  if (!agent_name_map) {
+  if (!agentNameMap) {
     return undefined;
   }
-  const assistant_msg = messages.find((m) => m.role === "assistant");
-  if (assistant_msg && "agent_id" in assistant_msg && assistant_msg.agent_id) {
-    return agent_name_map[assistant_msg.agent_id];
+  const assistantMsg = messages.find((m) => m.role === "assistant");
+  if (assistantMsg && "agent_id" in assistantMsg && assistantMsg.agent_id) {
+    return agentNameMap[assistantMsg.agent_id];
   }
   return undefined;
 }
 
-/** Room 模式下从 round 的 assistant 消息中提取 agent_id，查找对应头像 */
-function resolve_round_agent_avatar(
+/** Room 模式下从 round 的 assistant 消息中提取 agentId，查找对应头像 */
+function resolveRoundAgentAvatar(
   messages: Message[],
-  agent_avatar_map?: Record<string, string | null>,
+  agentAvatarMap?: Record<string, string | null>,
 ): string | null | undefined {
-  if (!agent_avatar_map) {
+  if (!agentAvatarMap) {
     return undefined;
   }
-  const assistant_msg = messages.find((m) => m.role === "assistant");
-  if (assistant_msg && "agent_id" in assistant_msg && assistant_msg.agent_id) {
-    return agent_avatar_map[assistant_msg.agent_id];
+  const assistantMsg = messages.find((m) => m.role === "assistant");
+  if (assistantMsg && "agent_id" in assistantMsg && assistantMsg.agent_id) {
+    return agentAvatarMap[assistantMsg.agent_id];
   }
   return undefined;
 }
 
 /** Markdown 中的 workspace 图片必须使用产出该消息的 Agent workspace。 */
-function resolve_round_agent_id(messages: Message[]): string | null {
-  const assistant_msg = messages.find((message) => message.role === "assistant");
-  if (assistant_msg && "agent_id" in assistant_msg && assistant_msg.agent_id) {
-    return assistant_msg.agent_id;
+function resolveRoundAgentId(messages: Message[]): string | null {
+  const assistantMsg = messages.find((message) => message.role === "assistant");
+  if (assistantMsg && "agent_id" in assistantMsg && assistantMsg.agent_id) {
+    return assistantMsg.agent_id;
   }
   return null;
 }
 
-export const ConversationFeed = memo(function ConversationFeed({
-  bottom_anchor_ref,
-  feed_ref,
-  scroll_ref,
-  compact = false,
-  current_agent_name,
-  current_agent_avatar,
-  workspace_agent_id,
-  current_user_avatar,
-  agent_name_map,
-  agent_avatar_map,
-  is_last_round_pending_permissions,
-  runtime_phase,
-  live_round_ids,
-  is_mobile_layout,
-  message_groups,
-  on_open_agent_contact,
-  on_open_workspace_file,
-  on_permission_response,
-  can_respond_to_permissions = true,
-  permission_read_only_reason,
-  on_stop_message,
-  round_ids,
-}: ConversationFeedProps) {
-  const use_virtual = round_ids.length >= VIRTUAL_THRESHOLD;
+function buildRoundIndexItemMap(
+  items: SessionRoundIndexItem[] | undefined,
+): Map<string, SessionRoundIndexItem> {
+  const map = new Map<string, SessionRoundIndexItem>();
+  for (const item of items ?? []) {
+    if (item.roundId.trim()) {
+      map.set(item.roundId, item);
+    }
+  }
+  return map;
+}
 
-  if (use_virtual && scroll_ref) {
+export const ConversationFeed = memo(function ConversationFeed({
+  bottomAnchorRef: bottomAnchorRef,
+  feedRef: feedRef,
+  scrollRef: scrollRef,
+  compact = false,
+  currentAgentName: currentAgentName,
+  currentAgentAvatar: currentAgentAvatar,
+  workspaceAgentId: workspaceAgentId,
+  currentUserAvatar: currentUserAvatar,
+  agentNameMap: agentNameMap,
+  agentAvatarMap: agentAvatarMap,
+  isLastRoundPendingPermissions: isLastRoundPendingPermissions,
+  runtimePhase: runtimePhase,
+  liveRoundIds: liveRoundIds,
+  isMobileLayout: isMobileLayout,
+  messageGroups: messageGroups,
+  onOpenAgentContact: onOpenAgentContact,
+  onOpenWorkspaceFile: onOpenWorkspaceFile,
+  onEditLastUserMessage: onEditLastUserMessage,
+  onPermissionResponse: onPermissionResponse,
+  canRespondToPermissions: canRespondToPermissions = true,
+  permissionReadOnlyReason: permissionReadOnlyReason,
+  onStopMessage: onStopMessage,
+  roundScrollRef: roundScrollRef,
+  roundIndexItems: roundIndexItems,
+  roundIds: roundIds,
+}: ConversationFeedProps) {
+  const useVirtual = roundIds.length >= VIRTUAL_THRESHOLD;
+  const roundIndexItemById = useMemo(
+    () => buildRoundIndexItemMap(roundIndexItems),
+    [roundIndexItems],
+  );
+
+  useEffect(() => {
+    if (!roundScrollRef || useVirtual) {
+      return;
+    }
+    const handle = {
+      scrollToRoundId: (
+        roundId: string,
+        options?: ConversationRoundScrollOptions,
+      ) => {
+        const scrollElement = scrollRef?.current;
+        if (!scrollElement) {
+          return false;
+        }
+        const target = findConversationRoundElement(scrollElement, roundId);
+        if (!target) {
+          return false;
+        }
+        scrollToConversationRoundElement(scrollElement, target, options);
+        return true;
+      },
+    };
+    roundScrollRef.current = handle;
+    return () => {
+      if (roundScrollRef.current === handle) {
+        roundScrollRef.current = null;
+      }
+    };
+  }, [roundScrollRef, scrollRef, useVirtual]);
+
+  if (useVirtual && scrollRef) {
     return (
       <VirtualFeed
-        bottom_anchor_ref={bottom_anchor_ref}
-        feed_ref={feed_ref}
-        scroll_ref={scroll_ref}
+        bottomAnchorRef={bottomAnchorRef}
+        feedRef={feedRef}
+        scrollRef={scrollRef}
         compact={compact}
-        current_agent_name={current_agent_name}
-        current_agent_avatar={current_agent_avatar}
-        workspace_agent_id={workspace_agent_id}
-        current_user_avatar={current_user_avatar}
-        agent_name_map={agent_name_map}
-        agent_avatar_map={agent_avatar_map}
-        is_last_round_pending_permissions={is_last_round_pending_permissions}
-        runtime_phase={runtime_phase}
-        live_round_ids={live_round_ids}
-        is_mobile_layout={is_mobile_layout}
-        message_groups={message_groups}
-        on_open_agent_contact={on_open_agent_contact}
-        on_open_workspace_file={on_open_workspace_file}
-        on_permission_response={on_permission_response}
-        can_respond_to_permissions={can_respond_to_permissions}
-        permission_read_only_reason={permission_read_only_reason}
-        on_stop_message={on_stop_message}
-        round_ids={round_ids}
+        currentAgentName={currentAgentName}
+        currentAgentAvatar={currentAgentAvatar}
+        workspaceAgentId={workspaceAgentId}
+        currentUserAvatar={currentUserAvatar}
+        agentNameMap={agentNameMap}
+        agentAvatarMap={agentAvatarMap}
+        isLastRoundPendingPermissions={isLastRoundPendingPermissions}
+        runtimePhase={runtimePhase}
+        liveRoundIds={liveRoundIds}
+        isMobileLayout={isMobileLayout}
+        messageGroups={messageGroups}
+        onOpenAgentContact={onOpenAgentContact}
+        onOpenWorkspaceFile={onOpenWorkspaceFile}
+        onPermissionResponse={onPermissionResponse}
+        canRespondToPermissions={canRespondToPermissions}
+        permissionReadOnlyReason={permissionReadOnlyReason}
+        onStopMessage={onStopMessage}
+        roundScrollRef={roundScrollRef}
+        roundIndexItems={roundIndexItems}
+        roundIds={roundIds}
       />
     );
   }
 
   return (
     <div
-      ref={feed_ref}
-      className={is_mobile_layout ? "nexus-chat-feed space-y-4" : "nexus-chat-feed mx-auto flex w-full max-w-[980px] flex-col gap-1"}
+      ref={feedRef}
+      className={isMobileLayout ? "nexus-chat-feed space-y-4" : "nexus-chat-feed mx-auto flex w-full max-w-[980px] flex-col gap-1"}
     >
-      {round_ids.map((roundId, idx) => {
-        const roundMessages = message_groups.get(roundId) || [];
-        const isLastRound = idx === round_ids.length - 1;
-        const is_last_round_live = isLastRound && live_round_ids.includes(roundId);
-        const round_agent_name = resolve_round_agent_name(roundMessages, agent_name_map) ?? current_agent_name;
-        const round_agent_avatar = resolve_round_agent_avatar(roundMessages, agent_avatar_map) ?? current_agent_avatar;
-        const round_workspace_agent_id = resolve_round_agent_id(roundMessages) ?? workspace_agent_id ?? null;
+      {roundIds.map((roundId, idx) => {
+        const roundMessages = messageGroups.get(roundId) || [];
+        const isLastRound = idx === roundIds.length - 1;
+        const isLastRoundLive = isLastRound && liveRoundIds.includes(roundId);
+        const isRoundLoaded = roundMessages.length > 0 || isLastRoundLive;
+        if (!isRoundLoaded) {
+          return (
+            <div
+              key={roundId}
+              data-conversation-round-id={roundId}
+              data-conversation-round-index={idx}
+              data-conversation-round-loaded="false"
+            >
+              <ConversationRoundPlaceholder
+                indexItem={roundIndexItemById.get(roundId)}
+                roundId={roundId}
+              />
+            </div>
+          );
+        }
+        const roundAgentName = resolveRoundAgentName(roundMessages, agentNameMap) ?? currentAgentName;
+        const roundAgentAvatar = resolveRoundAgentAvatar(roundMessages, agentAvatarMap) ?? currentAgentAvatar;
+        const roundWorkspaceAgentId = resolveRoundAgentId(roundMessages) ?? workspaceAgentId ?? null;
 
         return (
-          <MessageItem
+          <div
             key={roundId}
-            compact={compact}
-            current_agent_name={round_agent_name}
-            current_agent_avatar={round_agent_avatar}
-            workspace_agent_id={round_workspace_agent_id}
-            current_user_avatar={current_user_avatar}
-            round_id={roundId}
-            messages={roundMessages}
-            assistant_content_mode={is_last_round_live ? "dm_live" : "dm_archived"}
-            is_last_round={isLastRound}
-            is_loading={is_last_round_live}
-            runtime_phase={is_last_round_live ? runtime_phase : null}
-            pending_permissions={is_last_round_live ? is_last_round_pending_permissions : []}
-            on_permission_response={on_permission_response}
-            can_respond_to_permissions={can_respond_to_permissions}
-            permission_read_only_reason={permission_read_only_reason}
-            on_open_agent_contact={on_open_agent_contact}
-            on_open_workspace_file={on_open_workspace_file}
-            on_stop_message={on_stop_message}
-          />
+            data-conversation-round-id={roundId}
+            data-conversation-round-index={idx}
+            data-conversation-round-loaded="true"
+          >
+            <MessageItem
+              compact={compact}
+              currentAgentName={roundAgentName}
+              currentAgentAvatar={roundAgentAvatar}
+              workspaceAgentId={roundWorkspaceAgentId}
+              currentUserAvatar={currentUserAvatar}
+              roundId={roundId}
+              messages={roundMessages}
+              assistantContentMode={isLastRoundLive ? "dm_live" : "dm_archived"}
+              isLastRound={isLastRound}
+              isLoading={isLastRoundLive}
+              runtimePhase={isLastRoundLive ? runtimePhase : null}
+              pendingPermissions={isLastRoundLive ? isLastRoundPendingPermissions : []}
+              onPermissionResponse={onPermissionResponse}
+              canRespondToPermissions={canRespondToPermissions}
+              permissionReadOnlyReason={permissionReadOnlyReason}
+              onOpenAgentContact={onOpenAgentContact}
+              onOpenWorkspaceFile={onOpenWorkspaceFile}
+              onEditUserMessage={isLastRound && !isLastRoundLive ? onEditLastUserMessage : undefined}
+              onStopMessage={onStopMessage}
+            />
+          </div>
         );
       })}
-      <div ref={bottom_anchor_ref} className="h-px w-full" />
+      <div ref={bottomAnchorRef} className="h-px w-full" />
     </div>
   );
 });
@@ -181,72 +268,129 @@ export const ConversationFeed = memo(function ConversationFeed({
 // ─── VirtualFeed ──────────────────────────────────────────────────────────────
 
 function VirtualFeed({
-  bottom_anchor_ref,
-  feed_ref,
-  scroll_ref,
+  bottomAnchorRef: bottomAnchorRef,
+  feedRef: feedRef,
+  scrollRef: scrollRef,
   compact,
-  current_agent_name,
-  current_agent_avatar,
-  workspace_agent_id,
-  current_user_avatar,
-  agent_name_map,
-  agent_avatar_map,
-  is_last_round_pending_permissions,
-  runtime_phase,
-  live_round_ids,
-  is_mobile_layout,
-  message_groups,
-  on_open_agent_contact,
-  on_open_workspace_file,
-  on_permission_response,
-  can_respond_to_permissions = true,
-  permission_read_only_reason,
-  on_stop_message,
-  round_ids,
-}: Omit<ConversationFeedProps, "is_loading" | "scroll_ref"> & { scroll_ref: RefObject<HTMLDivElement | null> }) {
-  const container_ref = useRef<HTMLDivElement>(null);
+  currentAgentName: currentAgentName,
+  currentAgentAvatar: currentAgentAvatar,
+  workspaceAgentId: workspaceAgentId,
+  currentUserAvatar: currentUserAvatar,
+  agentNameMap: agentNameMap,
+  agentAvatarMap: agentAvatarMap,
+  isLastRoundPendingPermissions: isLastRoundPendingPermissions,
+  runtimePhase: runtimePhase,
+  liveRoundIds: liveRoundIds,
+  isMobileLayout: isMobileLayout,
+  messageGroups: messageGroups,
+  onOpenAgentContact: onOpenAgentContact,
+  onOpenWorkspaceFile: onOpenWorkspaceFile,
+  onEditLastUserMessage: onEditLastUserMessage,
+  onPermissionResponse: onPermissionResponse,
+  canRespondToPermissions: canRespondToPermissions = true,
+  permissionReadOnlyReason: permissionReadOnlyReason,
+  onStopMessage: onStopMessage,
+  roundScrollRef: roundScrollRef,
+  roundIndexItems: roundIndexItems,
+  roundIds: roundIds,
+}: Omit<ConversationFeedProps, "isLoading" | "scrollRef"> & { scrollRef: RefObject<HTMLDivElement | null> }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const roundIndexItemById = useMemo(
+    () => buildRoundIndexItemMap(roundIndexItems),
+    [roundIndexItems],
+  );
 
   // Measure scroll container width for pretext height estimation
-  const container_width_ref = useRef(680);
+  const containerWidthRef = useRef(680);
+  const [scrollPaddingStart, setScrollPaddingStart] = useState(180);
   useEffect(() => {
-    const el = scroll_ref.current;
+    const el = scrollRef.current;
     if (!el) return;
-    container_width_ref.current = el.clientWidth || 680;
-    const observer = new ResizeObserver(() => {
-      container_width_ref.current = el.clientWidth || 680;
-    });
+    const syncScrollMetrics = () => {
+      containerWidthRef.current = el.clientWidth || 680;
+      const nextPaddingStart = getConversationRoundFocusOffset(el);
+      setScrollPaddingStart((current) =>
+        current === nextPaddingStart ? current : nextPaddingStart,
+      );
+    };
+    syncScrollMetrics();
+    const observer = new ResizeObserver(syncScrollMetrics);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [scroll_ref]);
+  }, [scrollRef]);
 
   // Pretext-based height estimates (recomputed when round count changes)
-  const height_map = useMemo(
-    () => estimate_round_heights(round_ids, message_groups, container_width_ref.current),
+  const heightMap = useMemo(
+    () => estimateRoundHeights(roundIds, messageGroups, containerWidthRef.current),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [round_ids.length, message_groups],
+    [roundIds.length, messageGroups],
   );
 
   const virtualizer = useVirtualizer({
-    count: round_ids.length,
-    getScrollElement: () => scroll_ref.current,
-    estimateSize: (i) => height_map.get(round_ids[i]) ?? 200,
+    count: roundIds.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: (i) => heightMap.get(roundIds[i]) ?? 200,
     overscan: 5,
+    scrollPaddingStart,
     // Allow measured sizes to override estimates as items render
     measureElement: (el) => el.getBoundingClientRect().height,
   });
 
-  const virtual_items = virtualizer.getVirtualItems();
-  const total_size = virtualizer.getTotalSize();
+  const virtualItems = virtualizer.getVirtualItems();
+  const totalSize = virtualizer.getTotalSize();
+
+  useEffect(() => {
+    if (!roundScrollRef) {
+      return;
+    }
+    const handle = {
+      scrollToRoundId: (
+        roundId: string,
+        options?: ConversationRoundScrollOptions,
+      ) => {
+        const scrollElement = scrollRef.current;
+        const target = scrollElement
+          ? findConversationRoundElement(scrollElement, roundId)
+          : null;
+        if (scrollElement && target) {
+          scrollToConversationRoundElement(scrollElement, target, options);
+          return true;
+        }
+        const targetIndex = roundIds.indexOf(roundId);
+        if (targetIndex < 0) {
+          return false;
+        }
+        if (targetIndex === 0) {
+          scrollElement?.scrollTo({
+            behavior: options?.behavior ?? "smooth",
+            top: 0,
+          });
+          return true;
+        }
+        virtualizer.scrollToIndex(targetIndex, {
+          align: "start",
+          behavior: options?.behavior ?? "smooth",
+        });
+        return true;
+      },
+    };
+    roundScrollRef.current = handle;
+    return () => {
+      if (roundScrollRef.current === handle) {
+        roundScrollRef.current = null;
+      }
+    };
+  }, [roundScrollRef, roundIds, scrollRef, virtualizer]);
 
   return (
     <div
       ref={(el) => {
-        // Merge feed_ref with container_ref
-        container_ref.current = el;
-        if (feed_ref) (feed_ref as React.MutableRefObject<HTMLDivElement | null>).current = el;
+        // Merge feedRef with containerRef
+        containerRef.current = el;
+        if (feedRef) (feedRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
       }}
-      className={is_mobile_layout ? "nexus-chat-feed relative" : "nexus-chat-feed relative mx-auto w-full max-w-[980px]"}
-      style={{ height: total_size }}
+      className={isMobileLayout ? "nexus-chat-feed relative" : "nexus-chat-feed relative mx-auto w-full max-w-[980px]"}
+      style={{ height: totalSize }}
     >
       <div
         style={{
@@ -254,49 +398,71 @@ function VirtualFeed({
           top: 0,
           left: 0,
           width: "100%",
-          transform: `translateY(${virtual_items[0]?.start ?? 0}px)`,
+          transform: `translateY(${virtualItems[0]?.start ?? 0}px)`,
         }}
       >
-        {virtual_items.map((virtual_item) => {
-          const roundId = round_ids[virtual_item.index];
-          const roundMessages = message_groups.get(roundId) || [];
-          const isLastRound = virtual_item.index === round_ids.length - 1;
-          const is_last_round_live = isLastRound && live_round_ids.includes(roundId);
-          const round_agent_name = resolve_round_agent_name(roundMessages, agent_name_map) ?? current_agent_name;
-          const round_agent_avatar = resolve_round_agent_avatar(roundMessages, agent_avatar_map) ?? current_agent_avatar;
-          const round_workspace_agent_id = resolve_round_agent_id(roundMessages) ?? workspace_agent_id ?? null;
+        {virtualItems.map((virtualItem) => {
+          const roundId = roundIds[virtualItem.index];
+          const roundMessages = messageGroups.get(roundId) || [];
+          const isLastRound = virtualItem.index === roundIds.length - 1;
+          const isLastRoundLive = isLastRound && liveRoundIds.includes(roundId);
+          const isRoundLoaded = roundMessages.length > 0 || isLastRoundLive;
+          if (!isRoundLoaded) {
+            return (
+              <div
+                key={roundId}
+                data-index={virtualItem.index}
+                data-conversation-round-id={roundId}
+                data-conversation-round-index={virtualItem.index}
+                data-conversation-round-loaded="false"
+                ref={virtualizer.measureElement}
+              >
+                <ConversationRoundPlaceholder
+                  indexItem={roundIndexItemById.get(roundId)}
+                  roundId={roundId}
+                />
+              </div>
+            );
+          }
+          const roundAgentName = resolveRoundAgentName(roundMessages, agentNameMap) ?? currentAgentName;
+          const roundAgentAvatar = resolveRoundAgentAvatar(roundMessages, agentAvatarMap) ?? currentAgentAvatar;
+          const roundWorkspaceAgentId = resolveRoundAgentId(roundMessages) ?? workspaceAgentId ?? null;
 
           return (
             <div
               key={roundId}
-              data-index={virtual_item.index}
+              data-index={virtualItem.index}
+              data-conversation-round-id={roundId}
+              data-conversation-round-index={virtualItem.index}
+              data-conversation-round-loaded="true"
               ref={virtualizer.measureElement}
             >
               <MessageItem
                 compact={compact}
-                current_agent_name={round_agent_name}
-                current_agent_avatar={round_agent_avatar}
-                workspace_agent_id={round_workspace_agent_id}
-                current_user_avatar={current_user_avatar}
-                round_id={roundId}
+                currentAgentName={roundAgentName}
+                currentAgentAvatar={roundAgentAvatar}
+                workspaceAgentId={roundWorkspaceAgentId}
+                currentUserAvatar={currentUserAvatar}
+                roundId={roundId}
                 messages={roundMessages}
-                assistant_content_mode={is_last_round_live ? "dm_live" : "dm_archived"}
-                is_last_round={isLastRound}
-                is_loading={is_last_round_live}
-                runtime_phase={is_last_round_live ? runtime_phase : null}
-                pending_permissions={is_last_round_live ? is_last_round_pending_permissions : []}
-                on_permission_response={on_permission_response}
-                can_respond_to_permissions={can_respond_to_permissions}
-                permission_read_only_reason={permission_read_only_reason}
-                on_open_agent_contact={on_open_agent_contact}
-                on_open_workspace_file={on_open_workspace_file}
-                on_stop_message={on_stop_message}
+                assistantContentMode={isLastRoundLive ? "dm_live" : "dm_archived"}
+                isLastRound={isLastRound}
+                isLoading={isLastRoundLive}
+                runtimePhase={isLastRoundLive ? runtimePhase : null}
+                pendingPermissions={isLastRoundLive ? isLastRoundPendingPermissions : []}
+                onPermissionResponse={onPermissionResponse}
+                canRespondToPermissions={canRespondToPermissions}
+                permissionReadOnlyReason={permissionReadOnlyReason}
+                onOpenAgentContact={onOpenAgentContact}
+                onOpenWorkspaceFile={onOpenWorkspaceFile}
+                onEditUserMessage={isLastRound && !isLastRoundLive ? onEditLastUserMessage : undefined}
+                onStopMessage={onStopMessage}
               />
             </div>
           );
         })}
       </div>
-      <div ref={bottom_anchor_ref} className="absolute bottom-0 h-px w-full" />
+      <div ref={bottomAnchorRef} className="absolute bottom-0 h-px w-full" />
     </div>
   );
 }

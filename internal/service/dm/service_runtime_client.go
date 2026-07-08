@@ -30,13 +30,7 @@ func (s *Service) ensureClient(
 	sessionItem protocol.Session,
 	request Request,
 ) (runtimectx.Client, string, string, string, string, string, sdkpermission.Mode, error) {
-	permissionMode := request.PermissionMode
-	if permissionMode == "" {
-		permissionMode = sdkpermission.Mode(agentValue.Options.PermissionMode)
-	}
-	if permissionMode == "" {
-		permissionMode = sdkpermission.ModeDefault
-	}
+	permissionMode := resolvePermissionMode(request.PermissionMode, agentValue.Options.PermissionMode)
 	permissionHandler := request.PermissionHandler
 	if permissionHandler == nil {
 		permissionHandler = func(permissionCtx context.Context, permissionRequest sdkpermission.Request) (sdkpermission.Decision, error) {
@@ -44,6 +38,7 @@ func (s *Service) ensureClient(
 		}
 	}
 	permissionHandler = toolpolicy.WithManagedGoalAutoApproval(permissionHandler)
+	permissionHandler = toolpolicy.WithMalformedInputDeny(permissionHandler)
 	if err := workspacepkg.EnsureInitialized(
 		agentValue.AgentID,
 		agentValue.Name,
@@ -132,6 +127,16 @@ func (s *Service) ensureClient(
 		}
 	}
 	return client, strings.TrimSpace(string(options.Runtime.Kind)), runtimeProvider, strings.TrimSpace(options.Model), goalIDForUsage, goalContext, permissionMode, nil
+}
+
+func resolvePermissionMode(requestMode sdkpermission.Mode, agentMode string) sdkpermission.Mode {
+	if requestMode != "" {
+		return requestMode
+	}
+	if agentMode != "" {
+		return sdkpermission.Mode(agentMode)
+	}
+	return sdkpermission.ModeDefault
 }
 
 func (s *Service) goalRuntimeContext(ctx context.Context, sessionKey string) (string, string) {
@@ -297,11 +302,9 @@ func (s *Service) acquireRuntimeClient(
 		s.logRuntimeStartupFailure(ctx, sessionKey, "connect", options, err)
 		return nil, err
 	}
-	s.loggerFor(ctx).Info("DM runtime 启动成功",
-		append(clientopts.RuntimeStartupLogFields(options),
-			"session_key", sessionKey,
-			"sdk_session_id", strings.TrimSpace(client.SessionID()),
-		)...,
+	s.loggerFor(ctx).Info("runtime client connected",
+		"session_key", sessionKey,
+		"sdk_session_id", strings.TrimSpace(client.SessionID()),
 	)
 	return client, nil
 }
@@ -339,7 +342,7 @@ func (s *Service) withRuntimeDiagnosticsLogger(
 		if previousStderr != nil {
 			previousStderr(normalizedLine)
 		}
-		logger.Warn("Agent SDK stderr", "stderr", normalizedLine)
+		logger.Debug("Agent SDK stderr", "stderr", normalizedLine)
 	}
 	previousDiagnostics := options.Callbacks.Diagnostics
 	diagnosticsEnabled := runtimectx.AgentSDKDiagnosticsEnabled(options.Env)

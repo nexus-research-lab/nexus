@@ -400,7 +400,7 @@ function project_unmatched_permission(
   return {
     id: `permission:${permission.request_id}`,
     session_key: session_key ?? permission.session_key ?? "",
-    round_id: permission.caused_by ?? permission.request_id,
+    round_id: permission.round_id ?? permission.agent_round_id ?? permission.request_id,
     agent_id: permission.agent_id ?? agent_id ?? "",
     message_id: permission.message_id ?? null,
     tool_name: permission.tool_name,

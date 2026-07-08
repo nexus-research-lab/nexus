@@ -10,7 +10,6 @@
 import {
   ApiConversation,
   Conversation,
-  UpdateConversationParams,
 } from "@/types/conversation/conversation";
 import {
   ApiAgentSession as ApiAgentSessionRecord,
@@ -18,19 +17,21 @@ import {
 } from "@/types/agent/agent";
 import type {
   ApiRoomConversationMessagePage,
+  ApiSessionRoundIndex,
   RoomConversationMessagePage,
+  SessionRoundIndexItem,
 } from "@/types/conversation/room";
-import { get_agent_api_base_url } from "@/config/options";
-import { request_api } from "@/lib/api/http";
-import { to_timestamp } from "@/lib/api/timestamp-utils";
-import { assert_structured_session_key } from "@/lib/conversation/session-key";
+import { getAgentApiBaseUrl } from "@/config/options";
+import { requestApi } from "@/lib/api/http";
+import { toTimestamp } from "@/lib/api/timestamp-utils";
+import { assertStructuredSessionKey } from "@/lib/conversation/session-key";
 
-const AGENT_API_BASE_URL = get_agent_api_base_url();
+const AGENT_API_BASE_URL = getAgentApiBaseUrl();
 
 // ==================== 类型转换 ====================
 
 /** 将 API 响应转换为前端标准格式 */
-export function transform_api_conversation(api: ApiConversation): Conversation {
+function transformApiConversation(api: ApiConversation): Conversation {
   return {
     session_key: api.session_key,
     agent_id: api.agent_id,
@@ -47,7 +48,7 @@ export function transform_api_conversation(api: ApiConversation): Conversation {
   };
 }
 
-export function transform_api_agent_session(
+function transformApiAgentSession(
   api: ApiAgentSessionRecord,
 ): AgentSessionRecord {
   return {
@@ -60,8 +61,8 @@ export function transform_api_agent_session(
     channel_type: api.channel_type,
     chat_type: api.chat_type,
     status: api.status,
-    created_at: to_timestamp(api.created_at),
-    last_activity_at: to_timestamp(api.last_activity),
+    created_at: toTimestamp(api.created_at),
+    last_activity_at: toTimestamp(api.last_activity),
     title: api.title || "未命名会话",
     message_count: api.message_count,
     options: api.options || {},
@@ -70,39 +71,41 @@ export function transform_api_agent_session(
 
 // ==================== 对话 API ====================
 
-export const get_conversations = async (): Promise<Conversation[]> => {
-  const result = await request_api<ApiConversation[]>(
+export const getConversations = async (): Promise<Conversation[]> => {
+  const result = await requestApi<ApiConversation[]>(
     `${AGENT_API_BASE_URL}/sessions`,
     {
       method: "GET",
     },
   );
-  return result.map(transform_api_conversation);
+  return result.map(transformApiConversation);
 };
 
-export const get_agent_sessions_api = async (
-  agent_id: string,
+export const getAgentSessionsApi = async (
+  agentId: string,
 ): Promise<AgentSessionRecord[]> => {
-  const result = await request_api<ApiAgentSessionRecord[]>(
-    `${AGENT_API_BASE_URL}/agents/${encodeURIComponent(agent_id)}/sessions`,
+  const result = await requestApi<ApiAgentSessionRecord[]>(
+    `${AGENT_API_BASE_URL}/agents/${encodeURIComponent(agentId)}/sessions`,
     {
       method: "GET",
     },
   );
-  return result.map(transform_api_agent_session);
+  return result.map(transformApiAgentSession);
 };
 
-export async function get_session_messages_api(
-  session_key: string,
+export async function getSessionMessagesApi(
+  sessionKey: string,
   options: {
     limit?: number;
     before_round_id?: string | null;
     before_round_timestamp?: number | null;
+    around_round_id?: string | null;
+    around_limit?: number | null;
   } = {},
 ): Promise<RoomConversationMessagePage> {
-  const normalized_session_key = assert_structured_session_key(session_key);
+  const normalizedSessionKey = assertStructuredSessionKey(sessionKey);
   const params = new URLSearchParams();
-  params.set("session_key", normalized_session_key);
+  params.set("session_key", normalizedSessionKey);
   if (options.limit && options.limit > 0) {
     params.set("limit", String(options.limit));
   }
@@ -112,8 +115,14 @@ export async function get_session_messages_api(
   if (options.before_round_timestamp && options.before_round_timestamp > 0) {
     params.set("before_round_timestamp", String(options.before_round_timestamp));
   }
+  if (options.around_round_id) {
+    params.set("around_round_id", options.around_round_id);
+  }
+  if (options.around_limit && options.around_limit > 0) {
+    params.set("around_limit", String(options.around_limit));
+  }
   const query = params.toString();
-  const result = await request_api<ApiRoomConversationMessagePage>(
+  const result = await requestApi<ApiRoomConversationMessagePage>(
     `${AGENT_API_BASE_URL}/sessions/messages?${query}`,
     {
       method: "GET",
@@ -127,31 +136,30 @@ export async function get_session_messages_api(
   };
 }
 
-export const delete_conversation = async (
-  session_key: string,
-): Promise<{ success: boolean }> => {
-  const normalized_session_key = assert_structured_session_key(session_key);
-  return request_api<{ success: boolean }>(
-    `${AGENT_API_BASE_URL}/sessions/${normalized_session_key}`,
+export async function getSessionRoundIndexApi(
+  sessionKey: string,
+): Promise<SessionRoundIndexItem[]> {
+  const normalizedSessionKey = assertStructuredSessionKey(sessionKey);
+  const params = new URLSearchParams();
+  params.set("session_key", normalizedSessionKey);
+  const result = await requestApi<ApiSessionRoundIndex>(
+    `${AGENT_API_BASE_URL}/sessions/rounds?${params.toString()}`,
     {
-      method: "DELETE",
+      method: "GET",
     },
   );
-};
-
-export const update_conversation = async (
-  session_key: string,
-  params: UpdateConversationParams,
-): Promise<Conversation> => {
-  const normalized_session_key = assert_structured_session_key(session_key);
-  const result = await request_api<ApiConversation>(
-    `${AGENT_API_BASE_URL}/sessions/${normalized_session_key}`,
-    {
-      method: "PATCH",
-      body: JSON.stringify({
-        title: params.title,
-      }),
-    },
-  );
-  return transform_api_conversation(result);
-};
+  return (result.items ?? [])
+    .filter((item) => item.round_id.trim() !== "")
+    .map((item) => ({
+      roundId: item.round_id,
+      title: item.title?.trim() || "",
+      timestamp: item.timestamp && item.timestamp > 0 ? item.timestamp : null,
+      status: item.status?.trim() || null,
+      durationMs: item.duration_ms && item.duration_ms > 0 ? item.duration_ms : null,
+      isLive: item.is_live ?? false,
+      hasUserMessage: item.has_user_message ?? false,
+      agentIds: (item.agent_ids ?? [])
+        .map((agentId) => agentId.trim())
+        .filter(Boolean),
+    }));
+}

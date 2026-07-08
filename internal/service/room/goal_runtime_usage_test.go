@@ -64,62 +64,37 @@ func TestRecordGoalUsageForRoomSlotUsesAssistantSnapshotOnAbort(t *testing.T) {
 }
 
 func TestRoomSlotRecordsUsageToSharedGoalAfterCreateGoalTool(t *testing.T) {
-	sharedSessionKey := "room:group:conversation-1"
-	goalProvider := &fakeRoomGoalContextProvider{}
-	service := &RealtimeService{goals: goalProvider}
-	slot := &activeRoomSlot{
-		RuntimeSessionKey: "agent:nexus:ws:group:conversation-1",
-		GoalSessionKey:    sharedSessionKey,
-		AgentRoundID:      "round-1:agent-1",
-		GoalUsage:         goalsvc.NewRuntimeUsageAccumulator(false),
-	}
+	for _, toolName := range []string{"create_goal", "mcp__nexus_goal__create_goal"} {
+		t.Run(toolName, func(t *testing.T) {
+			sharedSessionKey := "room:group:conversation-1"
+			goalProvider := &fakeRoomGoalContextProvider{}
+			service := &RealtimeService{goals: goalProvider}
+			slot := &activeRoomSlot{
+				RuntimeSessionKey: "agent:nexus:ws:group:conversation-1",
+				GoalSessionKey:    sharedSessionKey,
+				AgentRoundID:      "round-1:agent-1",
+				GoalUsage:         goalsvc.NewRuntimeUsageAccumulator(false),
+			}
 
-	service.recordGoalUsageFromSlotAssistantMessage(context.Background(), slot, roomGoalToolResultAssistantMessage("tool-1", "create_goal", 4, 1))
-	service.recordGoalUsageForSlot(context.Background(), slot, runtimectx.RoundExecutionResult{
-		Usage: sdkprotocol.TokenUsage{
-			InputTokens:  9,
-			OutputTokens: 3,
-			TotalTokens:  12,
-		},
-	}, nil)
+			service.recordGoalUsageFromSlotAssistantMessage(context.Background(), slot, roomGoalToolResultAssistantMessage("tool-1", toolName, 4, 1))
+			service.recordGoalUsageForSlot(context.Background(), slot, runtimectx.RoundExecutionResult{
+				Usage: sdkprotocol.TokenUsage{
+					InputTokens:  9,
+					OutputTokens: 3,
+					TotalTokens:  12,
+				},
+			}, nil)
 
-	usages := goalProvider.recordedUsage()
-	if len(usages) != 1 {
-		t.Fatalf("len(usages) = %d, want post-create delta", len(usages))
-	}
-	if usages[0].InputTokens != 5 || usages[0].OutputTokens != 2 || usages[0].Total() != 7 {
-		t.Fatalf("usage = %#v, want 5/2 delta after create_goal baseline", usages[0])
-	}
-	if len(goalProvider.usageSessionKeys) != 1 || goalProvider.usageSessionKeys[0] != sharedSessionKey {
-		t.Fatalf("usageSessionKeys = %#v, want shared room goal session", goalProvider.usageSessionKeys)
-	}
-}
-
-func TestRoomSlotRecordsUsageToSharedGoalAfterMCPCreateGoalTool(t *testing.T) {
-	sharedSessionKey := "room:group:conversation-1"
-	goalProvider := &fakeRoomGoalContextProvider{}
-	service := &RealtimeService{goals: goalProvider}
-	slot := &activeRoomSlot{
-		RuntimeSessionKey: "agent:nexus:ws:group:conversation-1",
-		GoalSessionKey:    sharedSessionKey,
-		AgentRoundID:      "round-1:agent-1",
-		GoalUsage:         goalsvc.NewRuntimeUsageAccumulator(false),
-	}
-
-	service.recordGoalUsageFromSlotAssistantMessage(context.Background(), slot, roomGoalToolResultAssistantMessage("tool-1", "mcp__nexus_goal__create_goal", 4, 1))
-	service.recordGoalUsageForSlot(context.Background(), slot, runtimectx.RoundExecutionResult{
-		Usage: sdkprotocol.TokenUsage{
-			InputTokens:  9,
-			OutputTokens: 3,
-			TotalTokens:  12,
-		},
-	}, nil)
-
-	usages := goalProvider.recordedUsage()
-	if len(usages) != 1 {
-		t.Fatalf("len(usages) = %d, want post-create delta", len(usages))
-	}
-	if usages[0].InputTokens != 5 || usages[0].OutputTokens != 2 || usages[0].Total() != 7 {
-		t.Fatalf("usage = %#v, want 5/2 delta after MCP create_goal baseline", usages[0])
+			usages := goalProvider.recordedUsage()
+			if len(usages) != 1 {
+				t.Fatalf("len(usages) = %d, want post-create delta", len(usages))
+			}
+			if usages[0].InputTokens != 5 || usages[0].OutputTokens != 2 || usages[0].Total() != 7 {
+				t.Fatalf("usage = %#v, want 5/2 delta after create_goal baseline", usages[0])
+			}
+			if len(goalProvider.usageSessionKeys) != 1 || goalProvider.usageSessionKeys[0] != sharedSessionKey {
+				t.Fatalf("usageSessionKeys = %#v, want shared room goal session", goalProvider.usageSessionKeys)
+			}
+		})
 	}
 }

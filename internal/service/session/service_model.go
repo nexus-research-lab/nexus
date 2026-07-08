@@ -39,4 +39,15 @@ type MessagePageRequest struct {
 	Limit                int
 	BeforeRoundID        string
 	BeforeRoundTimestamp int64
+	AroundRoundID        string
+	AroundLimit          int
+}
+
+// TurnPageRequest 表示 turn 投影分页读取请求。
+type TurnPageRequest struct {
+	Limit         int
+	BeforeRoundID string
+	AroundRoundID string
+	Sort          string // asc | desc
+	View          string // summary | full
 }

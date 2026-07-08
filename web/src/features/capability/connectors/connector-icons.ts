@@ -40,6 +40,6 @@ const CONNECTOR_ICON_LETTERS: Record<string, string> = {
 };
 
 /** 获取图标首字母 */
-export function get_connector_letter(icon: string, title: string): string {
+export function getConnectorLetter(icon: string, title: string): string {
   return CONNECTOR_ICON_LETTERS[icon] ?? title.charAt(0).toUpperCase();
 }

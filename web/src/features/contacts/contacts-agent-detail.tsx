@@ -16,6 +16,7 @@ import { AgentPrivateDomainView } from "@/features/agents/private-domain/agent-p
 import { AgentOptionsEditor } from "@/features/agents/options/agent-options-editor";
 import type { TabKey } from "@/features/agents/options/components/agent-options-nav";
 import { ContactsAgentMemoryTab } from "@/features/contacts/contacts-agent-memory-tab";
+import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiAgentAvatar } from "@/shared/ui/avatar";
 import { WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
@@ -32,19 +33,19 @@ import type {
 
 interface ContactsAgentDetailProps {
   agent: Agent;
-  on_back: () => void;
-  on_create_team: (agent_id: string) => void;
-  on_delete_agent: (agent_id: string) => void;
-  on_open_direct_room: (agent_id: string) => void;
-  on_save_agent_options: (
-    agent_id: string,
+  onBack: () => void;
+  onCreateTeam: (agentId: string) => void;
+  onDeleteAgent: (agentId: string) => void;
+  onOpenDirectRoom: (agentId: string) => void;
+  onSaveAgentOptions: (
+    agentId: string,
     title: string,
     options: AgentOptions,
     identity: AgentIdentityDraft,
   ) => Promise<void>;
-  on_validate_agent_name: (
+  onValidateAgentName: (
     name: string,
-    agent_id?: string,
+    agentId?: string,
   ) => Promise<AgentNameValidationResult>;
 }
 
@@ -53,17 +54,20 @@ type ContactDetailTabKey = TabKey | "private_domain" | "memory";
 /** 侧边栏联系人进入的内嵌 Agent 页面。 */
 export function ContactsAgentDetail({
   agent,
-  on_back,
-  on_create_team,
-  on_delete_agent,
-  on_open_direct_room,
-  on_save_agent_options,
-  on_validate_agent_name,
+  onBack: onBack,
+  onCreateTeam: onCreateTeam,
+  onDeleteAgent: onDeleteAgent,
+  onOpenDirectRoom: onOpenDirectRoom,
+  onSaveAgentOptions: onSaveAgentOptions,
+  onValidateAgentName: onValidateAgentName,
 }: ContactsAgentDetailProps) {
   const { t } = useI18n();
-  const [active_tab, set_active_tab] = useState<ContactDetailTabKey>("private_domain");
+  const [activeTab, setActiveTab] = useResettableState<ContactDetailTabKey>(
+    "private_domain",
+    agent.agent_id,
+  );
 
-  const config_tabs = useMemo(
+  const configTabs = useMemo(
     () => [
       { key: "private_domain" as ContactDetailTabKey, label: "联络", icon: Handshake },
       { key: "memory" as ContactDetailTabKey, label: "记忆", icon: Brain },
@@ -74,17 +78,13 @@ export function ContactsAgentDetail({
     [t],
   );
 
-  const tag_labels = useMemo(() => {
+  const tagLabels = useMemo(() => {
     return (agent.vibe_tags ?? [])
       .map((tag) => tag.trim())
       .filter(Boolean);
   }, [agent.vibe_tags]);
 
-  useEffect(() => {
-    set_active_tab("private_domain");
-  }, [agent.agent_id]);
-
-  const initial_options = useMemo(
+  const initialOptions = useMemo(
     () => ({
       provider: agent.options.provider,
       model: agent.options.model,
@@ -109,37 +109,37 @@ export function ContactsAgentDetail({
     ],
   );
 
-  const handle_save = useCallback(
+  const handleSave = useCallback(
     async (
       title: string,
       options: AgentOptions,
       identity: AgentIdentityDraft,
     ) => {
-      await on_save_agent_options(agent.agent_id, title, options, identity);
+      await onSaveAgentOptions(agent.agent_id, title, options, identity);
     },
-    [agent.agent_id, on_save_agent_options],
+    [agent.agent_id, onSaveAgentOptions],
   );
 
-  const handle_validate_name = useCallback(
-    async (name: string) => on_validate_agent_name(name, agent.agent_id),
-    [agent.agent_id, on_validate_agent_name],
+  const handleValidateName = useCallback(
+    async (name: string) => onValidateAgentName(name, agent.agent_id),
+    [agent.agent_id, onValidateAgentName],
   );
 
   const trailing = (
     <div className="flex flex-wrap items-center justify-end gap-2">
-      <WorkspaceSurfaceToolbarAction onClick={on_back}>
+      <WorkspaceSurfaceToolbarAction onClick={onBack}>
         <ArrowLeft className="h-3.5 w-3.5" />
         {t("contacts.back_to_agents")}
       </WorkspaceSurfaceToolbarAction>
       <WorkspaceSurfaceToolbarAction
-        onClick={() => on_open_direct_room(agent.agent_id)}
+        onClick={() => onOpenDirectRoom(agent.agent_id)}
         tone="primary"
       >
         <MessageSquareText className="h-3.5 w-3.5" />
         {t("contacts.chat")}
       </WorkspaceSurfaceToolbarAction>
       <WorkspaceSurfaceToolbarAction
-        onClick={() => on_create_team(agent.agent_id)}
+        onClick={() => onCreateTeam(agent.agent_id)}
       >
         <Users className="h-3.5 w-3.5" />
         {t("contacts.create_team")}
@@ -147,9 +147,9 @@ export function ContactsAgentDetail({
     </div>
   );
 
-  const title_trailing = tag_labels.length ? (
+  const titleTrailing = tagLabels.length ? (
     <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-      {tag_labels.map((tag) => (
+      {tagLabels.map((tag) => (
         <span
           className="max-w-[120px] truncate rounded-[6px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_72%,transparent)] bg-transparent px-2 py-0.5 text-[10.5px] font-medium text-(--text-muted)"
           key={tag}
@@ -164,39 +164,39 @@ export function ContactsAgentDetail({
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <WorkspaceSurfaceHeader
-        active_tab={active_tab}
+        activeTab={activeTab}
         density="compact"
-        leading={<UiAgentAvatar avatar={agent.avatar} class_name="h-full w-full border-0 shadow-none" name={agent.name} size="sm" />}
-        on_change_tab={set_active_tab}
-        tabs={config_tabs}
+        leading={<UiAgentAvatar avatar={agent.avatar} className="h-full w-full border-0 shadow-none" name={agent.name} size="sm" />}
+        onChangeTab={setActiveTab}
+        tabs={configTabs}
         title={agent.name}
-        title_trailing={title_trailing}
+        titleTrailing={titleTrailing}
         trailing={trailing}
       />
 
-      {active_tab === "private_domain" ? (
+      {activeTab === "private_domain" ? (
         <AgentPrivateDomainView agent={agent} />
-      ) : active_tab === "memory" ? (
+      ) : activeTab === "memory" ? (
         <ContactsAgentMemoryTab agent={agent} />
       ) : (
         <AgentOptionsEditor
-          active_tab={active_tab}
-          agent_id={agent.agent_id}
-          content_max_width_class_name={WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME}
-          hide_inline_nav
-          initial_avatar={agent.avatar ?? ""}
-          initial_description={agent.description ?? ""}
-          initial_options={initial_options}
-          initial_title={agent.name}
-          initial_vibe_tags={agent.vibe_tags ?? []}
-          is_active
+          activeTab={activeTab}
+          agentId={agent.agent_id}
+          contentMaxWidthClassName={WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME}
+          hideInlineNav
+          initialAvatar={agent.avatar ?? ""}
+          initialDescription={agent.description ?? ""}
+          initialOptions={initialOptions}
+          initialTitle={agent.name}
+          initialVibeTags={agent.vibe_tags ?? []}
+          isActive
           mode="edit"
-          on_delete={on_delete_agent}
-          on_save={handle_save}
-          on_tab_change={set_active_tab}
-          on_validate_name={handle_validate_name}
-          show_cancel_button={false}
-          show_delete_button
+          onDelete={onDeleteAgent}
+          onSave={handleSave}
+          onTabChange={setActiveTab}
+          onValidateName={handleValidateName}
+          showCancelButton={false}
+          showDeleteButton
           variant="inline"
         />
       )}

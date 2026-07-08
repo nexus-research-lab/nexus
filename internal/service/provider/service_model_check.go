@@ -21,24 +21,38 @@ func (s *Service) TestProvider(ctx context.Context, provider string) (*TestResul
 	if err = s.requireProviderManagement(ctx, *item); err != nil {
 		return nil, err
 	}
+	return s.testProviderForItem(ctx, *item)
+}
+
+// TestPublicProvider 测试公共 Provider 的模型列表端点和最小生成请求。
+func (s *Service) TestPublicProvider(ctx context.Context, provider string) (*TestResult, error) {
+	item, err := s.requirePublicProvider(ctx, provider)
+	if err != nil {
+		return nil, err
+	}
+	return s.testProviderForItem(ctx, *item)
+}
+
+func (s *Service) testProviderForItem(ctx context.Context, item providerstore.Entity) (*TestResult, error) {
 	var models []remoteModel
 	if strings.TrimSpace(item.ModelsPath) != "" {
-		models, err = s.fetchRemoteModels(ctx, *item)
+		var err error
+		models, err = s.fetchRemoteModels(ctx, item)
 		if err != nil {
-			return s.persistTestResult(ctx, *item, "", err)
+			return s.persistTestResult(ctx, item, "", err)
 		}
 	}
-	modelID := s.pickTestModel(ctx, *item, models)
+	modelID := s.pickTestModel(ctx, item, models)
 	if modelID == "" {
-		return s.persistTestResult(ctx, *item, "", errors.New("未找到可测试模型"))
+		return s.persistTestResult(ctx, item, "", errors.New("未找到可测试模型"))
 	}
-	testErr := s.sendMinimalModelRequest(ctx, *item, modelID)
+	testErr := s.sendMinimalModelRequest(ctx, item, modelID)
 	if testErr == nil {
-		if readyErr := s.ensureTestedModelReady(ctx, *item, modelID); readyErr != nil {
+		if readyErr := s.ensureTestedModelReady(ctx, item, modelID); readyErr != nil {
 			return nil, readyErr
 		}
 	}
-	return s.persistTestResult(ctx, *item, modelID, testErr)
+	return s.persistTestResult(ctx, item, modelID, testErr)
 }
 
 // TestModel 测试指定模型的最小生成请求。
@@ -50,17 +64,30 @@ func (s *Service) TestModel(ctx context.Context, provider string, modelID string
 	if err = s.requireProviderManagement(ctx, *item); err != nil {
 		return nil, err
 	}
+	return s.testModelForItem(ctx, *item, modelID)
+}
+
+// TestPublicModel 测试公共 Provider 指定模型的最小生成请求。
+func (s *Service) TestPublicModel(ctx context.Context, provider string, modelID string) (*TestResult, error) {
+	item, err := s.requirePublicProvider(ctx, provider)
+	if err != nil {
+		return nil, err
+	}
+	return s.testModelForItem(ctx, *item, modelID)
+}
+
+func (s *Service) testModelForItem(ctx context.Context, item providerstore.Entity, modelID string) (*TestResult, error) {
 	modelID = normalizeModelID(modelID)
 	if modelID == "" {
 		return nil, errors.New("model_id 不能为空")
 	}
-	testErr := s.sendMinimalModelRequest(ctx, *item, modelID)
+	testErr := s.sendMinimalModelRequest(ctx, item, modelID)
 	if testErr == nil {
-		if readyErr := s.ensureTestedModelReady(ctx, *item, modelID); readyErr != nil {
+		if readyErr := s.ensureTestedModelReady(ctx, item, modelID); readyErr != nil {
 			return nil, readyErr
 		}
 	}
-	return s.persistTestResult(ctx, *item, modelID, testErr)
+	return s.persistTestResult(ctx, item, modelID, testErr)
 }
 
 func (s *Service) ensureTestedModelReady(

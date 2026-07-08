@@ -8,9 +8,9 @@
   Height="820"
   MinWidth="1120"
   MinHeight="640"
-  Background="#F7F8FA"
+  Background="#F0F1EF"
   WindowStartupLocation="CenterScreen">
-  <Grid x:Name="WebViewContainer">
+  <Grid x:Name="WebViewContainer" Background="Transparent">
     <webview:WebView2 x:Name="MainWebView" />
   </Grid>
 </Window>

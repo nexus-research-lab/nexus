@@ -7,7 +7,7 @@ const DEFAULT_FRAMES = ["✽", "✻", "✶", "✢", "·"];
 const FRAME_DURATION_MS = 120;
 
 let injected = false;
-function ensure_style(count: number, duration: number) {
+function ensureStyle(count: number, duration: number) {
   if (injected || typeof document === "undefined") return;
   injected = true;
   // step(1, end) keyframe: visible 1/count of the total cycle, then hidden.
@@ -24,18 +24,44 @@ function ensure_style(count: number, duration: number) {
   document.head.appendChild(style);
 }
 
+interface KeyedFrame {
+  char: string;
+  key: string;
+  position: number;
+}
+
+function getKeyedFrames(frames: string[]): KeyedFrame[] {
+  const seenCounts = new Map<string, number>();
+  const keyedFrames: KeyedFrame[] = [];
+  let position = 0;
+
+  for (const char of frames) {
+    const occurrence = seenCounts.get(char) ?? 0;
+    seenCounts.set(char, occurrence + 1);
+    keyedFrames.push({
+      char,
+      key: `${char}-${occurrence}`,
+      position,
+    });
+    position += 1;
+  }
+
+  return keyedFrames;
+}
+
 export function LoadingOrb({ frames = DEFAULT_FRAMES }: { frames?: string[] }) {
-  ensure_style(frames.length, FRAME_DURATION_MS);
+  ensureStyle(frames.length, FRAME_DURATION_MS);
   const total = frames.length * FRAME_DURATION_MS;
+  const keyedFrames = getKeyedFrames(frames);
 
   return (
     <span className="relative inline-block w-3 select-none text-center leading-none text-primary" aria-hidden>
-      {frames.map((char, i) => (
+      {keyedFrames.map(({ char, key, position }) => (
         <span
-          key={i}
-          className={i === 0 ? "nexus-orb-frame" : "nexus-orb-frame absolute inset-0"}
+          key={key}
+          className={position === 0 ? "nexus-orb-frame" : "nexus-orb-frame absolute inset-0"}
           style={{
-            animationDelay: `${i * FRAME_DURATION_MS}ms`,
+            animationDelay: `${position * FRAME_DURATION_MS}ms`,
             animationDuration: `${total}ms`,
             opacity: 0,
           }}

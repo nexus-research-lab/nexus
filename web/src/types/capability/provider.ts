@@ -97,6 +97,7 @@ export interface ProviderPreset {
 export interface ProviderOption {
   provider: string;
   display_name: string;
+  visibility?: "public" | "private";
   models: ProviderModelOption[];
 }
 
@@ -173,20 +174,31 @@ export interface ProviderTestResult {
   tested_at?: string | null;
 }
 
-export function format_provider_label(provider?: string | null, display_name?: string | null): string {
-  const normalized_display_name = display_name?.trim();
-  if (normalized_display_name) {
-    return normalized_display_name;
+export function formatProviderLabel(provider?: string | null, displayName?: string | null): string {
+  const normalizedDisplayName = displayName?.trim();
+  if (normalizedDisplayName) {
+    return normalizedDisplayName;
   }
 
-  const normalized_provider = provider?.trim();
-  if (!normalized_provider) {
+  const normalizedProvider = provider?.trim();
+  if (!normalizedProvider) {
     return "Provider";
   }
 
-  return normalized_provider
+  return normalizedProvider
     .split(/[-_\s]+/)
     .filter(Boolean)
     .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
     .join(" ");
+}
+
+export function formatProviderOptionLabel(
+  option: Pick<ProviderOption, "display_name" | "provider" | "visibility">,
+  subscriptionLabel: string,
+): string {
+  const providerLabel = option.display_name || formatProviderLabel(option.provider);
+  if (option.visibility !== "public") {
+    return providerLabel;
+  }
+  return `${subscriptionLabel} · ${providerLabel}`;
 }

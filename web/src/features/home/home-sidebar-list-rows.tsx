@@ -17,21 +17,21 @@ import type { SidebarConversationItem } from "./home-sidebar-conversation-model"
 
 export function SidebarSearchField({
   action,
-  on_change,
+  onChange: onChange,
   placeholder,
   value,
 }: {
   action?: ReactNode;
-  on_change: (value: string) => void;
+  onChange: (value: string) => void;
   placeholder: string;
   value: string;
 }) {
   return (
-    <div className="flex items-center gap-2 px-2.5 pb-2">
+    <div className="flex items-center gap-2 px-2.5 pb-1.5">
       <UiSearchInput
-        class_name="flex-1"
-        input_class_name="text-[13px]"
-        on_change={on_change}
+        className="flex-1"
+        inputClassName="text-[13px]"
+        onChange={onChange}
         placeholder={placeholder}
         value={value}
       />
@@ -42,13 +42,13 @@ export function SidebarSearchField({
 
 export function SidebarListLoadingRows({ count = 4 }: { count?: number }) {
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-1 px-2 pb-2">
+    <div className="flex min-h-0 flex-1 flex-col gap-0.5 px-2 pb-2">
       {Array.from({ length: count }, (_, index) => (
         <div
-          className="flex min-h-[68px] w-full items-center gap-3 rounded-[14px] px-3 py-2.5"
+          className="flex min-h-[58px] w-full items-center gap-2.5 rounded-[13px] px-2.5 py-2"
           key={index}
         >
-          <span className="h-10 w-10 shrink-0 animate-pulse rounded-[10px] bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_74%,transparent)]" />
+          <span className="h-8 w-8 shrink-0 animate-pulse rounded-[9px] bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_74%,transparent)]" />
           <span className="min-w-0 flex-1 space-y-2">
             <span className="block h-3.5 w-24 animate-pulse rounded-full bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_76%,transparent)]" />
             <span className="block h-3 w-36 animate-pulse rounded-full bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_58%,transparent)]" />
@@ -61,44 +61,45 @@ export function SidebarListLoadingRows({ count = 4 }: { count?: number }) {
 
 export function ConversationRow({
   item,
-  is_active,
-  on_click,
-  on_delete,
+  isActive: isActive,
+  onClick: onClick,
+  onDelete: onDelete,
 }: {
   item: SidebarConversationItem;
-  is_active: boolean;
-  on_click: () => void;
-  on_delete?: () => void;
+  isActive: boolean;
+  onClick: () => void;
+  onDelete?: () => void;
 }) {
   const { t } = useI18n();
-  const is_working = item.running_task_count > 0;
+  const isWorking = item.runningTaskCount > 0;
   const leading = item.kind === "room" ? (
-    <UiRoomAvatar avatar={item.avatar} members={item.members} room_id={item.room_id} title={item.title} />
+    <UiRoomAvatar avatar={item.avatar} members={item.members} roomId={item.roomId} size="sm" title={item.title} />
   ) : (
     <UiAgentAvatar
       avatar={(item.members[0]?.avatar ?? item.avatar) ?? undefined}
-      is_working={is_working}
+      isWorking={isWorking}
       name={item.members[0]?.name ?? item.title}
+      size="sm"
     />
   );
-  const meta = item.time_label || on_delete ? (
+  const meta = item.timeLabel || onDelete ? (
     <span className="relative flex h-7 w-10 shrink-0 items-center justify-end">
-      {item.time_label ? (
+      {item.timeLabel ? (
         <span
           className={cn(
             "text-[11px] tabular-nums text-(--text-soft) transition-opacity duration-(--motion-duration-fast)",
-            on_delete && "group-hover/item:opacity-0",
+            onDelete && "group-hover/item:opacity-0",
           )}
         >
-          {item.time_label}
+          {item.timeLabel}
         </span>
       ) : null}
-      {on_delete ? (
+      {onDelete ? (
         <UiIconButton
-          class_name="absolute right-0 top-1/2 -translate-y-1/2 opacity-0 group-hover/item:opacity-100"
+          className="absolute right-0 top-1/2 -translate-y-1/2 opacity-0 group-hover/item:opacity-100"
           onClick={(event) => {
             event.stopPropagation();
-            on_delete();
+            onDelete();
           }}
           size="sm"
           title={t("common.delete")}
@@ -113,23 +114,24 @@ export function ConversationRow({
   ) : null;
   const status = (
     <>
-      {is_working ? (
+      {isWorking ? (
         <UiBadge size="xs" tone="primary">
           {t("status.working")}
         </UiBadge>
       ) : null}
-      <UiCounterBadge count={item.unread_count ?? 0} />
+      <UiCounterBadge count={item.unreadCount ?? 0} />
     </>
   );
 
   return (
     <UiListRow
-      active={is_active}
+      active={isActive}
+      className="min-h-[58px] gap-2.5 rounded-[13px] px-2.5 py-2"
       description={item.summary}
       leading={leading}
       meta={meta}
-      on_click={on_click}
-      subtitle_trailing={status}
+      onClick={onClick}
+      subtitleTrailing={status}
       title={item.title}
     />
   );
@@ -137,25 +139,25 @@ export function ConversationRow({
 
 export function ContactRow({
   agent,
-  is_active,
-  is_working,
-  on_chat,
-  on_open_directory,
-  running_task_count,
+  isActive: isActive,
+  isWorking: isWorking,
+  onChat: onChat,
+  onOpenDirectory: onOpenDirectory,
+  runningTaskCount: runningTaskCount,
 }: {
   agent: LauncherAgentSummary;
-  is_active: boolean;
-  is_working: boolean;
-  on_chat: () => void;
-  on_open_directory: () => void;
-  running_task_count: number;
+  isActive: boolean;
+  isWorking: boolean;
+  onChat: () => void;
+  onOpenDirectory: () => void;
+  runningTaskCount: number;
 }) {
   const { t } = useI18n();
   const description = agent.description?.trim();
-  const subtitle = is_working
-    ? t("sidebar.running_tasks_short", { count: running_task_count })
+  const subtitle = isWorking
+    ? t("sidebar.running_tasks_short", { count: runningTaskCount })
     : (description || t("sidebar.contact_no_description"));
-  const status = is_working ? (
+  const status = isWorking ? (
     <UiBadge size="xs" tone="primary">
       {t("status.working")}
     </UiBadge>
@@ -163,17 +165,18 @@ export function ContactRow({
 
   return (
     <UiListRow
-      active={is_active}
+      active={isActive}
+      className="min-h-[58px] gap-2.5 rounded-[13px] px-2.5 py-2"
       description={subtitle}
-      leading={<UiAgentAvatar avatar={agent.avatar} is_working={is_working} name={agent.name} />}
+      leading={<UiAgentAvatar avatar={agent.avatar} isWorking={isWorking} name={agent.name} size="sm" />}
       meta={status}
-      on_click={on_open_directory}
+      onClick={onOpenDirectory}
       right={(
         <UiIconButton
-          class_name="opacity-0 group-hover/item:opacity-100"
+          className="opacity-0 group-hover/item:opacity-100"
           onClick={(event) => {
             event.stopPropagation();
-            on_chat();
+            onChat();
           }}
           title={t("sidebar.start_chat")}
           type="button"

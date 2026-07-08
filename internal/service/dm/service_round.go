@@ -52,7 +52,9 @@ type roundRunner struct {
 	agent               *protocol.Agent
 	sessionKey          string
 	roundID             string
-	reqID               string
+	agentRoundID        string
+	userMessageID       string
+	clientRequestID     string
 	content             string
 	runtimeContent      conversationsvc.RuntimeContent
 	client              runtimectx.Client
@@ -71,6 +73,7 @@ type roundRunner struct {
 	goalUsageMu         sync.Mutex
 	goalLastAssistant   protocol.Message
 	goalToolProgress    bool
+	subagentTasks       map[string]struct{}
 	permissionMode      sdkpermission.Mode
 	permissionHandler   sdkpermission.Handler
 	resultUsageWritten  bool
@@ -123,6 +126,10 @@ func (r *roundRunner) run(ctx context.Context) {
 		protocol.NewRoundStatusEvent(r.sessionKey, r.roundID, result.TerminalStatus, result.ResultSubtype),
 	)
 	r.service.broadcastSessionStatus(context.Background(), r.sessionKey)
+	if r.hasRunningSubagentTask() {
+		r.startIdleSubagentNotificationDrain()
+		return
+	}
 	r.dispatchPostRoundWork()
 }
 
@@ -144,16 +151,17 @@ func (r *roundRunner) executeRound(
 			if incoming.Type == sdkprotocol.MessageTypeStreamEvent && !r.service.config.MessageDebugStreamEvent {
 				return
 			}
-			logger.Debug(
-				"Agent ",
-				runtimectx.BuildSDKMessageLogFieldsWithOptions(
-					incoming,
-					runtimectx.SDKMessageLogOptions{
-						IncludeStreamEvent:  r.service.config.MessageDebugStreamEvent,
-						IncludeSnapshotData: true,
-					},
-				)...,
+			fields := runtimectx.BuildSDKMessageLogFieldsWithOptions(
+				incoming,
+				runtimectx.SDKMessageLogOptions{
+					IncludeStreamEvent:  r.service.config.MessageDebugStreamEvent,
+					IncludeSnapshotData: true,
+				},
 			)
+			if len(fields) == 0 {
+				return
+			}
+			logger.Debug("Agent ", fields...)
 		},
 		SyncSessionID: func(sessionID string) error {
 			updatedSession, syncErr := r.service.syncSDKSessionID(
@@ -172,26 +180,32 @@ func (r *roundRunner) executeRound(
 			return nil
 		},
 		HandleDurableMessage: func(message protocol.Message) error {
-			if err := r.persistMessage(message); err != nil {
-				return err
-			}
-			r.rememberGoalAssistantMessage(message)
-			r.recordGoalUsageFromAssistantMessage(message)
-			if message["role"] == "assistant" {
-				r.service.permission.BindSessionRoute(r.sessionKey, permissionctx.RouteContext{
-					DispatchSessionKey: r.sessionKey,
-					AgentID:            r.agent.AgentID,
-					MessageID:          dmdomain.NormalizeString(message["message_id"]),
-					CausedBy:           r.roundID,
-				})
-			}
-			return nil
+			return r.handleDurableMessage(message)
 		},
 		EmitEvent: func(event protocol.EventMessage) error {
 			r.service.broadcastEventWithTimeout(context.Background(), r.sessionKey, event)
 			return nil
 		},
 	})
+}
+
+func (r *roundRunner) handleDurableMessage(message protocol.Message) error {
+	if err := r.persistMessage(message); err != nil {
+		return err
+	}
+	r.rememberSubagentTaskMessage(message)
+	r.rememberGoalAssistantMessage(message)
+	r.recordGoalUsageFromAssistantMessage(message)
+	if message["role"] == "assistant" {
+		r.service.permission.BindSessionRoute(r.sessionKey, permissionctx.RouteContext{
+			DispatchSessionKey: r.sessionKey,
+			AgentID:            r.agent.AgentID,
+			MessageID:          dmdomain.NormalizeString(message["message_id"]),
+			RoundID:            r.roundID,
+			AgentRoundID:       r.agentRoundID,
+		})
+	}
+	return nil
 }
 
 func (r *roundRunner) dispatchNextInputQueueItem() {

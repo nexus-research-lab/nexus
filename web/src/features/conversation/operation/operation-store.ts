@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-import { create_browser_json_storage } from "@/lib/storage/browser-storage";
+import { createBrowserJsonStorage } from "@/lib/storage/browser-storage";
 import type { PermissionDecisionPayload } from "@/types/conversation/permission";
 
 export { build_operation_stage_key } from "./operation-stage-key";
@@ -82,7 +82,7 @@ export const useOperationStageStore = create<OperationStageStoreState>()(
     }),
     {
       name: "nexus-operation-stage",
-      storage: create_browser_json_storage(),
+      storage: createBrowserJsonStorage(),
       version: 1,
       partialize: (state) => ({
         snapshots: prune_snapshot_record(state.snapshots),

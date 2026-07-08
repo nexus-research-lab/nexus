@@ -9,9 +9,9 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 /** 宽面板宽度约束 */
-export const WIDE_PANEL_MIN_WIDTH = 264;
-export const WIDE_PANEL_MAX_WIDTH = 400;
-export const WIDE_PANEL_DEFAULT_WIDTH = 264;
+const WIDE_PANEL_MIN_WIDTH = 264;
+const WIDE_PANEL_MAX_WIDTH = 400;
+const WIDE_PANEL_DEFAULT_WIDTH = 264;
 type WidePanelCollapseSource = "manual" | "right_panel_auto";
 export const SIDEBAR_SYSTEM_ITEM_IDS = {
   nexus: "system:nexus",
@@ -20,32 +20,32 @@ export const SIDEBAR_CAPABILITY_ITEM_IDS = {
   skills: "capability:skills",
   loops: "capability:loops",
   connectors: "capability:connectors",
-  scheduled_tasks: "capability:scheduled-tasks",
+  scheduledTasks: "capability:scheduled-tasks",
   channels: "capability:channels",
   pairings: "capability:pairings",
   memory: "capability:memory",
 } as const;
 
 /** 根据当前路由派生侧栏高亮条目，保证整套导航只走一个状态源。 */
-export function derive_sidebar_item_id_from_path(pathname: string): string | null {
+export function deriveSidebarItemIdFromPath(pathname: string): string | null {
   if (pathname.startsWith("/capability/skills")) return SIDEBAR_CAPABILITY_ITEM_IDS.skills;
   if (pathname.startsWith("/capability/loops")) return SIDEBAR_CAPABILITY_ITEM_IDS.loops;
   if (pathname.startsWith("/capability/connectors")) return SIDEBAR_CAPABILITY_ITEM_IDS.connectors;
-  if (pathname.startsWith("/capability/scheduled-tasks")) return SIDEBAR_CAPABILITY_ITEM_IDS.scheduled_tasks;
+  if (pathname.startsWith("/capability/scheduled-tasks")) return SIDEBAR_CAPABILITY_ITEM_IDS.scheduledTasks;
   if (pathname.startsWith("/capability/channels")) return SIDEBAR_CAPABILITY_ITEM_IDS.channels;
   if (pathname.startsWith("/capability/pairings")) return SIDEBAR_CAPABILITY_ITEM_IDS.pairings;
   if (pathname.startsWith("/memory")) return SIDEBAR_CAPABILITY_ITEM_IDS.memory;
 
   if (pathname.startsWith("/rooms/")) {
-    const room_id = pathname.split("/")[2];
-    return room_id ? decodeURIComponent(room_id) : null;
+    const roomId = pathname.split("/")[2];
+    return roomId ? decodeURIComponent(roomId) : null;
   }
 
   return null;
 }
 
 /** 将宽度限制在合法范围内 */
-function clamp_panel_width(width: number): number {
+function clampPanelWidth(width: number): number {
   return Math.round(Math.min(WIDE_PANEL_MAX_WIDTH, Math.max(WIDE_PANEL_MIN_WIDTH, width)));
 }
 
@@ -59,10 +59,8 @@ export interface ChatNotificationTargetState {
 interface SidebarState {
   /** 宽面板中当前高亮的条目 ID（Room/DM/Agent/Skill） */
   active_panel_item_id: string | null;
-  /** 主智能体 DM 的真实 room_id，用于 header 入口和真实 room 路由共用同一激活语义。 */
+  /** 主智能体 DM 的真实 roomId，用于 header 入口和真实 room 路由共用同一激活语义。 */
   nexus_room_id: string | null;
-  /** 临时隐藏全局宽侧栏，用于舞台等沉浸模式；不持久化，不影响用户宽度偏好。 */
-  is_wide_panel_suppressed: boolean;
   /** 宽面板宽度（px），支持拖拽调整 */
   wide_panel_width: number;
   /** 宽面板是否处于收起状态。 */
@@ -85,33 +83,32 @@ interface SidebarState {
 
 interface SidebarActions {
   set_active_panel_item: (id: string | null) => void;
-  set_nexus_room_id: (room_id: string | null) => void;
-  set_wide_panel_suppressed: (is_suppressed: boolean) => void;
+  set_nexus_room_id: (roomId: string | null) => void;
   set_chat_badge_count: (count: number) => void;
-  record_chat_notification: (target: ChatNotificationTargetState, message_id: string) => boolean;
-  clear_chat_notifications_for_target: (target_key: string | null | undefined) => void;
-  clear_chat_notifications_for_room: (room_id: string | null | undefined) => void;
+  record_chat_notification: (target: ChatNotificationTargetState, messageId: string) => boolean;
+  clear_chat_notifications_for_target: (targetKey: string | null | undefined) => void;
+  clear_chat_notifications_for_room: (roomId: string | null | undefined) => void;
   /** 设置宽面板宽度，自动 clamp 到 [180, 400] */
   set_wide_panel_width: (width: number) => void;
   set_wide_panel_collapsed: (collapsed: boolean) => void;
   toggle_wide_panel_collapsed: () => void;
   collapse_wide_panel_for_right_panel: () => void;
   expand_wide_panel_after_right_panel: () => void;
-  toggle_section: (section_id: string) => void;
+  toggle_section: (sectionId: string) => void;
 }
 
 const MAX_NOTIFIED_CHAT_MESSAGE_IDS = 300;
 
-function count_chat_unread_total(counts: Record<string, number>): number {
+function countChatUnreadTotal(counts: Record<string, number>): number {
   return Object.values(counts).reduce((total, count) => total + Math.max(0, count), 0);
 }
 
-function clear_chat_unread_keys(
+function clearChatUnreadKeys(
   state: SidebarState,
   keys: string[],
 ): Pick<SidebarState, "chat_badge_count" | "chat_unread_counts" | "chat_unread_targets" | "chat_unread_timestamps"> {
-  const unique_keys = Array.from(new Set(keys.filter(Boolean)));
-  if (unique_keys.length === 0) {
+  const uniqueKeys = Array.from(new Set(keys.filter(Boolean)));
+  if (uniqueKeys.length === 0) {
     return {
       chat_badge_count: state.chat_badge_count,
       chat_unread_counts: state.chat_unread_counts,
@@ -120,19 +117,19 @@ function clear_chat_unread_keys(
     };
   }
 
-  const next_counts = { ...state.chat_unread_counts };
-  const next_targets = { ...state.chat_unread_targets };
-  const next_timestamps = { ...state.chat_unread_timestamps };
-  for (const key of unique_keys) {
-    delete next_counts[key];
-    delete next_targets[key];
-    delete next_timestamps[key];
+  const nextCounts = { ...state.chat_unread_counts };
+  const nextTargets = { ...state.chat_unread_targets };
+  const nextTimestamps = { ...state.chat_unread_timestamps };
+  for (const key of uniqueKeys) {
+    delete nextCounts[key];
+    delete nextTargets[key];
+    delete nextTimestamps[key];
   }
   return {
-    chat_badge_count: count_chat_unread_total(next_counts),
-    chat_unread_counts: next_counts,
-    chat_unread_targets: next_targets,
-    chat_unread_timestamps: next_timestamps,
+    chat_badge_count: countChatUnreadTotal(nextCounts),
+    chat_unread_counts: nextCounts,
+    chat_unread_targets: nextTargets,
+    chat_unread_timestamps: nextTimestamps,
   };
 }
 
@@ -141,7 +138,6 @@ export const useSidebarStore = create<SidebarState & SidebarActions>()(
     (set) => ({
       active_panel_item_id: null,
       nexus_room_id: null,
-      is_wide_panel_suppressed: false,
       wide_panel_width: WIDE_PANEL_DEFAULT_WIDTH,
       wide_panel_collapsed: false,
       wide_panel_collapse_source: null,
@@ -153,81 +149,80 @@ export const useSidebarStore = create<SidebarState & SidebarActions>()(
       collapsed_sections: {},
 
       set_active_panel_item: (id) => set({ active_panel_item_id: id }),
-      set_nexus_room_id: (room_id) => set({ nexus_room_id: room_id }),
-      set_wide_panel_suppressed: (is_suppressed) => set({ is_wide_panel_suppressed: is_suppressed }),
+      set_nexus_room_id: (roomId) => set({ nexus_room_id: roomId }),
       set_chat_badge_count: (count) => set({ chat_badge_count: Math.max(0, Math.floor(count)) }),
-      record_chat_notification: (target, message_id) => {
-        let did_record = false;
+      record_chat_notification: (target, messageId) => {
+        let didRecord = false;
         set((state) => {
-          const normalized_target_key = target.key.trim();
-          const normalized_message_id = message_id.trim();
-          if (!normalized_target_key || !normalized_message_id) {
+          const normalizedTargetKey = target.key.trim();
+          const normalizedMessageId = messageId.trim();
+          if (!normalizedTargetKey || !normalizedMessageId) {
             return state;
           }
-          if (state.notified_chat_message_ids.includes(normalized_message_id)) {
+          if (state.notified_chat_message_ids.includes(normalizedMessageId)) {
             return state;
           }
 
-          did_record = true;
-          const next_counts = {
+          didRecord = true;
+          const nextCounts = {
             ...state.chat_unread_counts,
-            [normalized_target_key]: (state.chat_unread_counts[normalized_target_key] ?? 0) + 1,
+            [normalizedTargetKey]: (state.chat_unread_counts[normalizedTargetKey] ?? 0) + 1,
           };
-          const next_targets = {
+          const nextTargets = {
             ...state.chat_unread_targets,
-            [normalized_target_key]: {
+            [normalizedTargetKey]: {
               ...target,
-              key: normalized_target_key,
+              key: normalizedTargetKey,
             },
           };
-          const next_timestamps = {
+          const nextTimestamps = {
             ...state.chat_unread_timestamps,
-            [normalized_target_key]: Date.now(),
+            [normalizedTargetKey]: Date.now(),
           };
-          const next_message_ids = [
-            normalized_message_id,
+          const nextMessageIds = [
+            normalizedMessageId,
             ...state.notified_chat_message_ids,
           ].slice(0, MAX_NOTIFIED_CHAT_MESSAGE_IDS);
           return {
-            chat_badge_count: count_chat_unread_total(next_counts),
-            chat_unread_counts: next_counts,
-            chat_unread_targets: next_targets,
-            chat_unread_timestamps: next_timestamps,
-            notified_chat_message_ids: next_message_ids,
+            chat_badge_count: countChatUnreadTotal(nextCounts),
+            chat_unread_counts: nextCounts,
+            chat_unread_targets: nextTargets,
+            chat_unread_timestamps: nextTimestamps,
+            notified_chat_message_ids: nextMessageIds,
           };
         });
-        return did_record;
+        return didRecord;
       },
-      clear_chat_notifications_for_target: (target_key) => set((state) => {
-        const normalized_target_key = target_key?.trim();
-        if (!normalized_target_key || !state.chat_unread_counts[normalized_target_key]) {
+      clear_chat_notifications_for_target: (targetKey) => set((state) => {
+        const normalizedTargetKey = targetKey?.trim();
+        if (!normalizedTargetKey || !state.chat_unread_counts[normalizedTargetKey]) {
           return state;
         }
-        return clear_chat_unread_keys(state, [normalized_target_key]);
+        return clearChatUnreadKeys(state, [normalizedTargetKey]);
       }),
-      clear_chat_notifications_for_room: (room_id) => set((state) => {
-        const normalized_room_id = room_id?.trim();
-        if (!normalized_room_id) {
+      clear_chat_notifications_for_room: (roomId) => set((state) => {
+        const normalizedRoomId = roomId?.trim();
+        if (!normalizedRoomId) {
           return state;
         }
-        const room_key = `room:${normalized_room_id}`;
-        const room_conversation_key_prefix = `${room_key}:conversation:`;
+        const roomKey = `room:${normalizedRoomId}`;
+        const roomConversationKeyPrefix = `${roomKey}:conversation:`;
         const keys = Object.entries(state.chat_unread_targets)
-          .filter(([, target]) => target.room_id === normalized_room_id)
+          .filter(([, target]) => target.room_id === normalizedRoomId)
           .map(([key]) => key);
         for (const key of Object.keys(state.chat_unread_counts)) {
-          if (key === room_key || key.startsWith(room_conversation_key_prefix)) {
+          if (key === roomKey || key.startsWith(roomConversationKeyPrefix)) {
             keys.push(key);
           }
         }
         if (keys.length === 0) {
           return state;
         }
-        return clear_chat_unread_keys(state, keys);
+        return clearChatUnreadKeys(state, keys);
       }),
 
       set_wide_panel_width: (width) =>
-        set({ wide_panel_width: clamp_panel_width(width) }),
+        set({ wide_panel_width: clampPanelWidth(width) }),
       set_wide_panel_collapsed: (collapsed) =>
         set({
           wide_panel_collapsed: collapsed,
@@ -259,11 +254,11 @@ export const useSidebarStore = create<SidebarState & SidebarActions>()(
           };
         }),
 
-      toggle_section: (section_id) =>
+      toggle_section: (sectionId) =>
         set((state) => ({
           collapsed_sections: {
             ...state.collapsed_sections,
-            [section_id]: !state.collapsed_sections[section_id],
+            [sectionId]: !state.collapsed_sections[sectionId],
           },
         })),
     }),

@@ -1,17 +1,17 @@
 import { App } from "@/App";
 import { AppProviders } from "@/app/app-providers";
 import { DesktopSettingsRouter } from "@/app/router/desktop-settings-router";
-import { apply_desktop_entry_route } from "@/bootstrap/desktop-entry-route";
-import { bootstrap_react_app } from "@/bootstrap/root-bootstrap";
-import { is_desktop_runtime } from "@/config/desktop-runtime";
+import { applyDesktopEntryRoute } from "@/bootstrap/desktop-entry-route";
+import { bootstrapReactApp } from "@/bootstrap/root-bootstrap";
+import { isDesktopRuntime } from "@/config/desktop-runtime";
 
-if (is_desktop_runtime()) {
-  apply_desktop_entry_route("/settings");
-  bootstrap_react_app(() => (
+if (isDesktopRuntime()) {
+  applyDesktopEntryRoute("/settings");
+  bootstrapReactApp(() => (
     <AppProviders>
       <DesktopSettingsRouter />
     </AppProviders>
   ));
 } else {
-  bootstrap_react_app(() => <App />);
+  bootstrapReactApp(() => <App />);
 }

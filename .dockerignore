@@ -92,6 +92,7 @@ cache/
 
 # 数据文件
 data/
+deploy/data/
 *.db
 *.sqlite
 

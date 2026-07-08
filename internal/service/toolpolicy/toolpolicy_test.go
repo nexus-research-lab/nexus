@@ -7,61 +7,54 @@ import (
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
 
-func TestContainsMatchesCommonWebSearchAliases(t *testing.T) {
-	approved := NormalizeSet([]string{"WebSearch"})
-
-	for _, toolName := range []string{
-		"WebSearch",
-		"web_search",
-		"mcp__brave_search__brave_web_search",
-		"brave.web-search",
-		"search",
-	} {
-		if !Contains(approved, toolName) {
-			t.Fatalf("expected WebSearch approval to match %q", toolName)
-		}
+func TestContainsMatchesAliases(t *testing.T) {
+	tests := []struct {
+		approved []string
+		tools    []string
+	}{
+		{
+			approved: []string{"WebSearch"},
+			tools: []string{
+				"WebSearch",
+				"web_search",
+				"mcp__brave_search__brave_web_search",
+				"brave.web-search",
+				"search",
+			},
+		},
+		{
+			approved: []string{"WebFetch"},
+			tools: []string{
+				"WebFetch",
+				"web_fetch",
+				"mcp__fetch__fetch",
+				"browser.web-fetch",
+			},
+		},
+		{
+			approved: []string{"nexus_room"},
+			tools: []string{
+				"mcp__nexus_room__send_directed_message",
+				"nexus_room__publish_public_message",
+				"nexus_room.send_directed_message",
+			},
+		},
+		{
+			approved: []string{"nexus_imagegen"},
+			tools: []string{
+				"mcp__nexus_imagegen__generate_image",
+				"nexus_imagegen__edit_image",
+				"nexus_imagegen.generate_image",
+			},
+		},
 	}
-}
 
-func TestContainsMatchesCommonWebFetchAliases(t *testing.T) {
-	approved := NormalizeSet([]string{"WebFetch"})
-
-	for _, toolName := range []string{
-		"WebFetch",
-		"web_fetch",
-		"mcp__fetch__fetch",
-		"browser.web-fetch",
-	} {
-		if !Contains(approved, toolName) {
-			t.Fatalf("expected WebFetch approval to match %q", toolName)
-		}
-	}
-}
-
-func TestContainsMatchesNexusRoomServerTools(t *testing.T) {
-	approved := NormalizeSet([]string{"nexus_room"})
-
-	for _, toolName := range []string{
-		"mcp__nexus_room__send_directed_message",
-		"nexus_room__publish_public_message",
-		"nexus_room.send_directed_message",
-	} {
-		if !Contains(approved, toolName) {
-			t.Fatalf("expected nexus_room approval to match %q", toolName)
-		}
-	}
-}
-
-func TestContainsMatchesNexusImagegenServerTools(t *testing.T) {
-	approved := NormalizeSet([]string{"nexus_imagegen"})
-
-	for _, toolName := range []string{
-		"mcp__nexus_imagegen__generate_image",
-		"nexus_imagegen__edit_image",
-		"nexus_imagegen.generate_image",
-	} {
-		if !Contains(approved, toolName) {
-			t.Fatalf("expected nexus_imagegen approval to match %q", toolName)
+	for _, test := range tests {
+		approved := NormalizeSet(test.approved)
+		for _, toolName := range test.tools {
+			if !Contains(approved, toolName) {
+				t.Fatalf("expected %v approval to match %q", test.approved, toolName)
+			}
 		}
 	}
 }
@@ -169,6 +162,7 @@ func TestWithManagedRuntimeAllowedToolsIncludesGoalAndSelectedImagegen(t *testin
 	approved := NormalizeSet(tools)
 	for _, toolName := range []string{
 		"Read",
+		"Agent",
 		"nexus_imagegen",
 		"mcp__nexus_goal__get_goal",
 		"mcp__nexus_imagegen__generate_image",
@@ -177,6 +171,14 @@ func TestWithManagedRuntimeAllowedToolsIncludesGoalAndSelectedImagegen(t *testin
 		if !Contains(approved, toolName) {
 			t.Fatalf("expected runtime allowed tools to include %q: %+v", toolName, tools)
 		}
+	}
+}
+
+func TestWithManagedRuntimeAllowedToolsKeepsMainThreadAgent(t *testing.T) {
+	tools := WithManagedRuntimeAllowedTools([]string{"Read"}, false)
+	approved := NormalizeSet(tools)
+	if !Contains(approved, "Agent") {
+		t.Fatalf("显式白名单应保留主线程 Agent 工具: %+v", tools)
 	}
 }
 

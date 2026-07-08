@@ -96,7 +96,6 @@ func TestServiceHandleChatPersistsMessages(t *testing.T) {
 		SessionKey: sessionKey,
 		Content:    "你好",
 		RoundID:    "round-1",
-		ReqID:      "round-1",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}
@@ -121,7 +120,6 @@ func TestServiceHandleChatPersistsMessages(t *testing.T) {
 	for _, expected := range []string{
 		"你好",
 		"<nexus_runtime_context>",
-		"## Date Awareness",
 		"## Emotion State",
 		"Context ID: dm:" + sessionKey,
 		"Base: focused",
@@ -285,7 +283,6 @@ func TestServiceHandleChatBroadcastsMergedParallelToolResults(t *testing.T) {
 		SessionKey: sessionKey,
 		Content:    "再试一下两个工具",
 		RoundID:    "round-parallel-tools",
-		ReqID:      "round-parallel-tools",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}
@@ -293,15 +290,21 @@ func TestServiceHandleChatBroadcastsMergedParallelToolResults(t *testing.T) {
 	events := collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
 		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
 	})
-	assistantPayload := findLatestAssistantMessagePayload(t, events, "assistant-parallel-tools")
-	blocks := contentBlocksFromPayload(t, assistantPayload)
-	assertContentBlockTypes(t, blocks, []string{"tool_use", "tool_use", "tool_result", "tool_result", "text"})
-	assertToolResultIDs(t, blocks, []string{"tool-connectors", "tool-automation"})
-	if assistantPayload["is_complete"] != true || assistantPayload["stop_reason"] != "end_turn" {
-		t.Fatalf("最终实时 assistant 应标记完成: %+v", assistantPayload)
+	// 工具段与最终文本段是两条独立 assistant 消息（按快照 id 分段），
+	// 与直播 stream 的 message_start 分段语义一致。
+	toolsPayload := findLatestAssistantMessagePayload(t, events, "assistant-parallel-tools")
+	toolBlocks := contentBlocksFromPayload(t, toolsPayload)
+	assertContentBlockTypes(t, toolBlocks, []string{"tool_use", "tool_use", "tool_result", "tool_result"})
+	assertToolResultIDs(t, toolBlocks, []string{"tool-connectors", "tool-automation"})
+
+	finalPayload := findLatestAssistantMessagePayload(t, events, "assistant-parallel-final")
+	finalBlocks := contentBlocksFromPayload(t, finalPayload)
+	assertContentBlockTypes(t, finalBlocks, []string{"text"})
+	if finalPayload["is_complete"] != true || finalPayload["stop_reason"] != "end_turn" {
+		t.Fatalf("最终实时 assistant 应标记完成: %+v", finalPayload)
 	}
-	if _, exists := assistantPayload["stream_status"]; exists {
-		t.Fatalf("durable assistant 不应补写 stream_status: %+v", assistantPayload)
+	if _, exists := finalPayload["stream_status"]; exists {
+		t.Fatalf("durable assistant 不应补写 stream_status: %+v", finalPayload)
 	}
 }
 
@@ -422,7 +425,6 @@ func TestServiceHandleChatKeepsThinkingDuringStreamingAndHistoryReplay(t *testin
 		SessionKey: sessionKey,
 		Content:    "今天天气怎么样呀",
 		RoundID:    "round-think-stream",
-		ReqID:      "round-think-stream",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}
@@ -524,7 +526,6 @@ func TestServiceHandleChatPersistsStructuredChannelMetadata(t *testing.T) {
 		SessionKey: sessionKey,
 		Content:    "结构化入口",
 		RoundID:    "round-structured",
-		ReqID:      "round-structured",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}
@@ -610,7 +611,6 @@ func TestServiceHandleChatFailsRoundWhenStreamEndsWithoutTerminalResult(t *testi
 		SessionKey: sessionKey,
 		Content:    "测试提前结束",
 		RoundID:    "round-premature",
-		ReqID:      "round-premature",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}

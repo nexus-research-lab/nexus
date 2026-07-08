@@ -19,7 +19,7 @@ export { cn };
 /**
  * 格式化相对时间
  */
-export function format_relative_time(timestamp: number): string {
+export function formatRelativeTime(timestamp: number): string {
   if (!Number.isFinite(timestamp) || timestamp <= 0) {
     return '刚刚';
   }
@@ -43,51 +43,20 @@ export function format_relative_time(timestamp: number): string {
 /**
  * 格式化Token数量
  */
-export function format_tokens(tokens: number): string {
+export function formatTokens(tokens: number): string {
   if (tokens < 1000) return tokens.toString();
   if (tokens < 1000000) return `${(tokens / 1000).toFixed(1)}K`;
   return `${(tokens / 1000000).toFixed(1)}M`;
 }
 
-/**
- * 格式化成本
- */
-export function format_cost(usd: number): string {
-  if (usd < 0.01) return `$${usd.toFixed(4)}`;
-  if (usd < 1) return `$${usd.toFixed(3)}`;
-  return `$${usd.toFixed(2)}`;
-}
-
 // ==================== 文本工具 ====================
-
-/**
- * 截断文本（grapheme-aware，正确处理 CJK、emoji、ZWJ 序列）
- *
- * text.substring(0, N) 按 UTF-16 code unit 截，会把 emoji（surrogate pair）
- * 或 ZWJ 序列切成乱码。pretext prepareWithSegments 返回 grapheme cluster 数组，
- * 按 grapheme 数截断才是语言学上正确的做法。
- */
-export function truncate(text: string, maxLength: number): string {
-  // Fast path: ASCII-only，code unit 数 == grapheme 数，直接跳过 pretext
-  if (text.length <= maxLength && !/[\uD800-\uDFFF\u0300-\u036F]/.test(text)) return text;
-  try {
-    const prepared = prepareWithSegments(text, '');
-    const graphemes = prepared.segments;
-    if (graphemes.length <= maxLength) return text;
-    return graphemes.slice(0, maxLength).join('') + '…';
-  } catch {
-    // fallback to substring if pretext fails
-    if (text.length <= maxLength) return text;
-    return text.substring(0, maxLength) + '…';
-  }
-}
 
 // ==================== 头像工具 ====================
 
 /**
  * 获取名称缩写
  */
-export function get_initials(
+export function getInitials(
   name: string | null | undefined,
   fallback = 'AG',
   maxLength = 2,
@@ -126,9 +95,9 @@ export const AGENT_ICON_ID_END = 53;
 export const ROOM_ICON_ID_START = 1;
 export const ROOM_ICON_ID_END = 36;
 
-export function get_icon_avatar_src(
+export function getIconAvatarSrc(
   avatar: string | null | undefined,
-  icon_family: AvatarIconFamily = "agent",
+  iconFamily: AvatarIconFamily = "agent",
 ): string | null {
   const normalizedAvatar = avatar?.trim();
   if (!normalizedAvatar) {
@@ -145,13 +114,13 @@ export function get_icon_avatar_src(
     return normalizedAvatar;
   }
 
-  return `/icon/${icon_family}/${normalizedAvatar}.png`;
+  return `/icon/${iconFamily}/${normalizedAvatar}.png`;
 }
 
 /**
  * 根据字符串稳定生成区间内的图标编号。
  */
-export function get_stable_icon_id(
+function getStableIconId(
   seed: string | null | undefined,
   startInclusive: number,
   endInclusive: number,
@@ -170,10 +139,10 @@ export function get_stable_icon_id(
 /**
  * 房间头像默认使用 room 图标全集里的稳定编号，保证未设置时也有稳定的视觉锚点。
  */
-export function get_room_avatar_icon_id(
+export function getRoomAvatarIconId(
   roomId: string | null | undefined,
   roomName: string | null | undefined,
   explicitAvatar?: string | null,
 ): string {
-  return explicitAvatar?.trim() || get_stable_icon_id(roomId || roomName, ROOM_ICON_ID_START, ROOM_ICON_ID_END);
+  return explicitAvatar?.trim() || getStableIconId(roomId || roomName, ROOM_ICON_ID_START, ROOM_ICON_ID_END);
 }

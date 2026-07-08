@@ -2,8 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { cn } from "@/lib/utils";
-
 const HTML_PREVIEW_WIDTH = 1920;
 const HTML_PREVIEW_HEIGHT = 1080;
 const HTML_PREVIEW_PADDING = 32;
@@ -40,7 +38,7 @@ const HTML_PREVIEW_STORAGE_SHIM = `<script>
 })();
 </script>`;
 
-function build_html_preview_document(content: string): string {
+function buildHtmlPreviewDocument(content: string): string {
   if (/<head(\s[^>]*)?>/i.test(content)) {
     return content.replace(
       /<head(\s[^>]*)?>/i,
@@ -56,7 +54,7 @@ function build_html_preview_document(content: string): string {
   return `${HTML_PREVIEW_STORAGE_SHIM}${content}`;
 }
 
-function is_html_preview_head_ready(content: string): boolean {
+function isHtmlPreviewHeadReady(content: string): boolean {
   const normalized = content.trim().toLowerCase();
   if (!/<(?:head|style)(?:\s|>)/i.test(normalized)) {
     return true;
@@ -71,147 +69,139 @@ function is_html_preview_head_ready(content: string): boolean {
   );
 }
 
-function should_defer_html_preview_commit(content: string): boolean {
-  return content.trim().length > 0 && !is_html_preview_head_ready(content);
+function shouldDeferHtmlPreviewCommit(content: string): boolean {
+  return content.trim().length > 0 && !isHtmlPreviewHeadReady(content);
 }
 
-function useHtmlPreviewDocument(content: string, is_streaming: boolean) {
-  const [committed_content, setCommittedContent] = useState<string | null>(
-    () => (is_streaming && should_defer_html_preview_commit(content)
+function useHtmlPreviewDocument(content: string, isStreaming: boolean) {
+  const [committedContent, setCommittedContent] = useState<string | null>(
+    () => (isStreaming && shouldDeferHtmlPreviewCommit(content)
       ? null
       : content),
   );
-  const latest_content_ref = useRef(content);
-  const last_commit_ts_ref = useRef(0);
-  const pending_timer_ref = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const latestContentRef = useRef(content);
+  const lastCommitTsRef = useRef(0);
+  const pendingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const clear_pending_timer = useCallback(() => {
-    if (pending_timer_ref.current) {
-      clearTimeout(pending_timer_ref.current);
-      pending_timer_ref.current = null;
+  const clearPendingTimer = useCallback(() => {
+    if (pendingTimerRef.current) {
+      clearTimeout(pendingTimerRef.current);
+      pendingTimerRef.current = null;
     }
   }, []);
 
-  const commit_content = useCallback((next_content: string) => {
-    clear_pending_timer();
-    last_commit_ts_ref.current = Date.now();
-    setCommittedContent(next_content);
-  }, [clear_pending_timer]);
+  const commitContent = useCallback((nextContent: string) => {
+    clearPendingTimer();
+    lastCommitTsRef.current = Date.now();
+    setCommittedContent(nextContent);
+  }, [clearPendingTimer]);
 
   useEffect(() => {
-    latest_content_ref.current = content;
+    latestContentRef.current = content;
   }, [content]);
 
   useEffect(() => {
-    if (!is_streaming) {
-      commit_content(content);
+    if (!isStreaming) {
+      commitContent(content);
       return;
     }
 
-    if (should_defer_html_preview_commit(content)) {
+    if (shouldDeferHtmlPreviewCommit(content)) {
       return;
     }
 
-    const elapsed = Date.now() - last_commit_ts_ref.current;
+    const elapsed = Date.now() - lastCommitTsRef.current;
     if (elapsed >= HTML_PREVIEW_COMMIT_INTERVAL_MS) {
-      commit_content(content);
+      commitContent(content);
       return;
     }
 
-    if (pending_timer_ref.current) {
+    if (pendingTimerRef.current) {
       return;
     }
 
-    pending_timer_ref.current = setTimeout(() => {
-      pending_timer_ref.current = null;
-      const latest_content = latest_content_ref.current;
-      if (!should_defer_html_preview_commit(latest_content)) {
-        commit_content(latest_content);
+    pendingTimerRef.current = setTimeout(() => {
+      pendingTimerRef.current = null;
+      const latestContent = latestContentRef.current;
+      if (!shouldDeferHtmlPreviewCommit(latestContent)) {
+        commitContent(latestContent);
       }
     }, HTML_PREVIEW_COMMIT_INTERVAL_MS - elapsed);
-  }, [commit_content, content, is_streaming]);
 
-  useEffect(() => () => clear_pending_timer(), [clear_pending_timer]);
+    return () => clearPendingTimer();
+  }, [clearPendingTimer, commitContent, content, isStreaming]);
 
-  const preview_document = useMemo(
-    () => committed_content === null
+  useEffect(() => () => clearPendingTimer(), [clearPendingTimer]);
+
+  const previewDocument = useMemo(
+    () => committedContent === null
       ? ""
-      : build_html_preview_document(committed_content),
-    [committed_content],
+      : buildHtmlPreviewDocument(committedContent),
+    [committedContent],
   );
 
   return {
-    has_committed_content: committed_content !== null,
+    has_committedContent: committedContent !== null,
     is_waiting_for_head:
-      is_streaming &&
-      committed_content === null &&
-      should_defer_html_preview_commit(content),
-    preview_document,
+      isStreaming &&
+      committedContent === null &&
+      shouldDeferHtmlPreviewCommit(content),
+    preview_document: previewDocument,
   };
 }
 
-export function HtmlPreviewViewport({
-  class_name,
+export function HtmlFilePreview({
   content,
-  is_streaming = false,
-  source_url,
+  isStreaming: isStreaming = false,
   title,
 }: {
-  class_name?: string;
-  content?: string | null;
-  is_streaming?: boolean;
-  source_url?: string | null;
+  content: string;
+  isStreaming?: boolean;
   title: string;
 }) {
-  const container_ref = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
-  const has_document_source = typeof content === "string";
-  const { has_committed_content, is_waiting_for_head, preview_document } =
-    useHtmlPreviewDocument(content ?? "", has_document_source && is_streaming);
+  const { has_committedContent, is_waiting_for_head: isWaitingForHead, preview_document: previewDocument } =
+    useHtmlPreviewDocument(content, isStreaming);
 
   useEffect(() => {
-    const el = container_ref.current;
+    const el = containerRef.current;
     if (!el) {
       return;
     }
 
-    const update_scale = (width: number, height: number) => {
-      const available_width = Math.max(width - HTML_PREVIEW_PADDING, 1);
-      const available_height = Math.max(height - HTML_PREVIEW_PADDING, 1);
+    const updateScale = (width: number, height: number) => {
+      const availableWidth = Math.max(width - HTML_PREVIEW_PADDING, 1);
+      const availableHeight = Math.max(height - HTML_PREVIEW_PADDING, 1);
       setScale(
         Math.min(
-          available_width / HTML_PREVIEW_WIDTH,
-          available_height / HTML_PREVIEW_HEIGHT,
+          availableWidth / HTML_PREVIEW_WIDTH,
+          availableHeight / HTML_PREVIEW_HEIGHT,
           1,
         ),
       );
     };
 
     const bounds = el.getBoundingClientRect();
-    update_scale(bounds.width, bounds.height);
+    updateScale(bounds.width, bounds.height);
 
     const observer = new ResizeObserver((entries) => {
       const entry = entries[0];
       if (!entry) {
         return;
       }
-      update_scale(entry.contentRect.width, entry.contentRect.height);
+      updateScale(entry.contentRect.width, entry.contentRect.height);
     });
 
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
 
-  if (has_document_source && !has_committed_content && is_waiting_for_head) {
+  if (!has_committedContent && isWaitingForHead) {
     return (
-      <div
-        className={cn(
-          "soft-scrollbar h-full min-h-0 w-full overflow-auto bg-(--surface-panel-subtle-background) p-4",
-          class_name,
-        )}
-      >
+      <div className="soft-scrollbar h-full min-h-0 w-full overflow-auto bg-(--surface-panel-subtle-background) p-4">
         <pre className="message-cjk-code-font whitespace-pre-wrap break-words text-sm leading-6 text-(--text-muted)">
-          {content ?? ""}
+          {content}
         </pre>
       </div>
     );
@@ -219,11 +209,8 @@ export function HtmlPreviewViewport({
 
   return (
     <div
-      ref={container_ref}
-      className={cn(
-        "soft-scrollbar flex h-full min-h-0 w-full items-start justify-center overflow-auto bg-(--surface-panel-subtle-background) p-4",
-        class_name,
-      )}
+      ref={containerRef}
+      className="soft-scrollbar flex h-full min-h-0 w-full items-start justify-center overflow-auto bg-(--surface-panel-subtle-background) p-4"
     >
       <div
         className="shrink-0 overflow-hidden rounded-[10px] border border-(--surface-paper-border) bg-(--surface-paper-background) shadow-(--surface-paper-shadow)"
@@ -242,31 +229,12 @@ export function HtmlPreviewViewport({
         >
           <iframe
             className="h-full w-full bg-(--surface-paper-background)"
-            sandbox="allow-downloads allow-forms allow-modals allow-pointer-lock allow-popups allow-scripts"
-            src={source_url ?? undefined}
-            srcDoc={has_document_source ? preview_document : undefined}
+            sandbox="allow-downloads allow-forms allow-modals allow-popups allow-scripts"
+            srcDoc={previewDocument}
             title={title}
           />
         </div>
       </div>
     </div>
-  );
-}
-
-export function HtmlFilePreview({
-  content,
-  is_streaming = false,
-  title,
-}: {
-  content: string;
-  is_streaming?: boolean;
-  title: string;
-}) {
-  return (
-    <HtmlPreviewViewport
-      content={content}
-      is_streaming={is_streaming}
-      title={title}
-    />
   );
 }

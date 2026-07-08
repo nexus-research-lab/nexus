@@ -7,19 +7,19 @@ import { FileArtifactBlock } from "./file-artifact-block";
 
 interface WorkspaceFileArtifactListProps {
   artifacts: WorkspaceFileArtifactContent[];
-  on_open_workspace_file?: (path: string) => void;
+  onOpenWorkspaceFile?: (path: string) => void;
   label?: string;
-  class_name?: string;
+  className?: string;
 }
 
 interface WorkspaceFileArtifactBlockProps {
   artifact: WorkspaceFileArtifactContent;
-  on_open_workspace_file?: (path: string) => void;
+  onOpenWorkspaceFile?: (path: string) => void;
   compact?: boolean;
-  class_name?: string;
+  className?: string;
 }
 
-function artifact_key(artifact: WorkspaceFileArtifactContent): string {
+function artifactKey(artifact: WorkspaceFileArtifactContent): string {
   return (
     artifact.id ||
     `${artifact.source_tool_use_id ?? "workspace_file"}:${artifact.path}`
@@ -28,35 +28,35 @@ function artifact_key(artifact: WorkspaceFileArtifactContent): string {
 
 export function WorkspaceFileArtifactBlock({
   artifact,
-  on_open_workspace_file,
+  onOpenWorkspaceFile: onOpenWorkspaceFile,
   compact = false,
-  class_name,
+  className: className,
 }: WorkspaceFileArtifactBlockProps) {
   return (
     <FileArtifactBlock
       compact={compact}
-      class_name={class_name}
+      className={className}
       label={artifact.label ?? "文件"}
       path={artifact.path}
-      display_path={artifact.display_path ?? artifact.path}
-      workspace_agent_id={artifact.workspace_agent_id}
-      on_open_workspace_file={on_open_workspace_file}
+      displayPath={artifact.display_path ?? artifact.path}
+      workspaceAgentId={artifact.workspace_agent_id}
+      onOpenWorkspaceFile={onOpenWorkspaceFile}
     />
   );
 }
 
 export function WorkspaceFileArtifactList({
   artifacts,
-  on_open_workspace_file,
+  onOpenWorkspaceFile: onOpenWorkspaceFile,
   label = "生成文件",
-  class_name,
+  className: className,
 }: WorkspaceFileArtifactListProps) {
-  if (!on_open_workspace_file || artifacts.length === 0) {
+  if (!onOpenWorkspaceFile || artifacts.length === 0) {
     return null;
   }
 
   return (
-    <div className={cn("min-w-0 space-y-1.5", class_name)}>
+    <div className={cn("min-w-0 space-y-1.5", className)}>
       {label ? (
         <div className="text-[11px] font-medium leading-4 text-(--text-muted)">
           {label}
@@ -65,10 +65,10 @@ export function WorkspaceFileArtifactList({
       <div className="min-w-0 space-y-1.5">
         {artifacts.map((artifact) => (
           <WorkspaceFileArtifactBlock
-            key={artifact_key(artifact)}
+            key={artifactKey(artifact)}
             compact
             artifact={{ ...artifact, label: "" }}
-            on_open_workspace_file={on_open_workspace_file}
+            onOpenWorkspaceFile={onOpenWorkspaceFile}
           />
         ))}
       </div>

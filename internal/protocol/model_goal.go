@@ -33,6 +33,8 @@ const (
 	GoalMetadataRoomGoalScope                         = "room_goal_scope"
 	GoalMetadataRoomGoalLeadAgentID                   = "room_goal_lead_agent_id"
 	GoalMetadataRoomGoalLeadAgentName                 = "room_goal_lead_agent_name"
+	GoalMetadataRoomGoalLoopSlug                      = "room_goal_loop_slug"
+	GoalMetadataRoomGoalLoopTitle                     = "room_goal_loop_title"
 	GoalMetadataRoomGoalCollaborationRequired         = "room_goal_collaboration_required"
 	GoalMetadataRoomGoalCollaborationObserved         = "room_goal_collaboration_observed"
 	GoalMetadataRoomGoalCollaborationAgentID          = "room_goal_collaboration_agent_id"

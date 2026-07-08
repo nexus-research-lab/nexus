@@ -4,7 +4,7 @@ import { Loader2, Plus, ShieldCheck } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
 
 import {
-  create_pairing_api,
+  createPairingApi,
   ImChatType,
   ImChannelType,
   ImPairingStatus,
@@ -31,89 +31,89 @@ import {
 
 export function CreatePairingDialog({
   agents,
-  on_close,
-  on_created,
-  on_error,
+  onClose: onClose,
+  onCreated: onCreated,
+  onError: onError,
 }: {
   agents: Agent[];
-  on_close: () => void;
-  on_created: (item: PairingView) => void;
-  on_error: (message: string) => void;
+  onClose: () => void;
+  onCreated: (item: PairingView) => void;
+  onError: (message: string) => void;
 }) {
-  const [channel_type, set_channel_type] = useState<ImChannelType>("feishu");
-  const [account_id, set_account_id] = useState("");
-  const [chat_type, set_chat_type] = useState<ImChatType>("dm");
-  const [external_ref, set_external_ref] = useState("");
-  const [thread_id, set_thread_id] = useState("");
-  const [external_name, set_external_name] = useState("");
-  const [agent_id, set_agent_id] = useState(agents[0]?.agent_id || "");
-  const [status, set_status] = useState<ImPairingStatus>("active");
-  const [saving, set_saving] = useState(false);
+  const [channelType, setChannelType] = useState<ImChannelType>("feishu");
+  const [accountId, setAccountId] = useState("");
+  const [chatType, setChatType] = useState<ImChatType>("dm");
+  const [externalRef, setExternalRef] = useState("");
+  const [threadId, setThreadId] = useState("");
+  const [externalName, setExternalName] = useState("");
+  const [agentId, setAgentId] = useState(agents[0]?.agent_id || "");
+  const [status, setStatus] = useState<ImPairingStatus>("active");
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (agent_id && agents.some((agent) => agent.agent_id === agent_id)) {
+    if (agentId && agents.some((agent) => agent.agent_id === agentId)) {
       return;
     }
-    set_agent_id(agents[0]?.agent_id || "");
-  }, [agent_id, agents]);
+    setAgentId(agents[0]?.agent_id || "");
+  }, [agentId, agents]);
 
-  const handle_submit = async (event: FormEvent) => {
+  const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    const normalized_ref = external_ref.trim();
-    if (!normalized_ref || !agent_id || saving) {
+    const normalizedRef = externalRef.trim();
+    if (!normalizedRef || !agentId || saving) {
       return;
     }
-    set_saving(true);
+    setSaving(true);
     try {
-      const created = await create_pairing_api({
-        channel_type,
-        account_id: account_id.trim() || undefined,
-        chat_type,
-        external_ref: normalized_ref,
-        thread_id: thread_id.trim() || undefined,
-        external_name: external_name.trim() || undefined,
-        agent_id,
+      const created = await createPairingApi({
+        channel_type: channelType,
+        account_id: accountId.trim() || undefined,
+        chat_type: chatType,
+        external_ref: normalizedRef,
+        thread_id: threadId.trim() || undefined,
+        external_name: externalName.trim() || undefined,
+        agent_id: agentId,
         status,
       });
-      on_created(created);
-      on_close();
+      onCreated(created);
+      onClose();
     } catch (error) {
-      on_error(error instanceof Error ? error.message : "新增配对失败");
+      onError(error instanceof Error ? error.message : "新增配对失败");
     } finally {
-      set_saving(false);
+      setSaving(false);
     }
   };
 
   return (
     <UiDialogPortal>
-      <UiDialogBackdrop class_name="z-[9999]" labelled_by="create-pairing-dialog-title" on_close={on_close}>
-        <UiDialogFormShell class_name="max-h-[86vh]" onSubmit={handle_submit} size="lg">
+      <UiDialogBackdrop className="z-[9999]" labelledBy="create-pairing-dialog-title" onClose={onClose}>
+        <UiDialogFormShell className="max-h-[86vh]" onSubmit={handleSubmit} size="lg">
           <UiDialogHeader
             icon={<ShieldCheck className="h-5 w-5" />}
-            on_close={on_close}
+            onClose={onClose}
             subtitle="为已知外部用户、群或话题预先建立 IM 授权关系；只有渠道、会话类型、外部 ID 和 Thread 都相同时才会更新已有配对。"
             title="新增 IM 配对"
-            title_id="create-pairing-dialog-title"
+            titleId="create-pairing-dialog-title"
           />
 
-          <UiDialogBody class_name="space-y-4" scrollable>
+          <UiDialogBody className="space-y-4" scrollable>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <UiField label="渠道">
                 <UiSelectMenu
-                  aria_label="选择 IM 渠道"
-                  on_change={(value) => set_channel_type(value as ImChannelType)}
+                  ariaLabel="选择 IM 渠道"
+                  onChange={(value) => setChannelType(value as ImChannelType)}
                   options={CHANNEL_OPTIONS}
                   size="sm"
-                  value={channel_type}
+                  value={channelType}
                 />
               </UiField>
               <UiField label="会话类型">
                 <UiSelectMenu
-                  aria_label="选择会话类型"
-                  on_change={(value) => set_chat_type(value as ImChatType)}
+                  ariaLabel="选择会话类型"
+                  onChange={(value) => setChatType(value as ImChatType)}
                   options={CHAT_TYPE_OPTIONS}
                   size="sm"
-                  value={chat_type}
+                  value={chatType}
                 />
               </UiField>
             </div>
@@ -123,10 +123,10 @@ export function CreatePairingDialog({
               label={<>外部对象 ID <span className="text-(--destructive)">*</span></>}
             >
               <UiInput
-                onChange={(event) => set_external_ref(event.target.value)}
-                placeholder={chat_type === "group" ? "群 ID / chat_id / channel_id" : "用户 ID / open_id / chat_id"}
+                onChange={(event) => setExternalRef(event.target.value)}
+                placeholder={chatType === "group" ? "群 ID / chat_id / channel_id" : "用户 ID / open_id / chat_id"}
                 required
-                value={external_ref}
+                value={externalRef}
                 variant="dialog"
               />
             </UiField>
@@ -136,9 +136,9 @@ export function CreatePairingDialog({
               label="通道账号 ID"
             >
               <UiInput
-                onChange={(event) => set_account_id(event.target.value)}
+                onChange={(event) => setAccountId(event.target.value)}
                 placeholder="可选，例如扫码账号 ID / bot id"
-                value={account_id}
+                value={accountId}
                 variant="dialog"
               />
             </UiField>
@@ -146,17 +146,17 @@ export function CreatePairingDialog({
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <UiField label="Thread / 话题 ID">
                 <UiInput
-                  onChange={(event) => set_thread_id(event.target.value)}
+                  onChange={(event) => setThreadId(event.target.value)}
                   placeholder="可选，例如 Telegram topic 或 Discord thread"
-                  value={thread_id}
+                  value={threadId}
                   variant="dialog"
                 />
               </UiField>
               <UiField label="显示名称">
                 <UiInput
-                  onChange={(event) => set_external_name(event.target.value)}
+                  onChange={(event) => setExternalName(event.target.value)}
                   placeholder="可选，用于配对列表识别"
-                  value={external_name}
+                  value={externalName}
                   variant="dialog"
                 />
               </UiField>
@@ -165,21 +165,21 @@ export function CreatePairingDialog({
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <UiField label={<>处理智能体 <span className="text-(--destructive)">*</span></>}>
                 <UiSelectMenu
-                  aria_label="选择处理智能体"
+                  ariaLabel="选择处理智能体"
                   disabled={agents.length === 0}
-                  on_change={set_agent_id}
+                  onChange={setAgentId}
                   options={agents.map((agent) => ({
                     value: agent.agent_id,
                     label: agent.name,
                   }))}
                   size="sm"
-                  value={agent_id}
+                  value={agentId}
                 />
               </UiField>
               <UiField label="初始状态">
                 <UiSelectMenu
-                  aria_label="选择初始配对状态"
-                  on_change={(value) => set_status(value as ImPairingStatus)}
+                  ariaLabel="选择初始配对状态"
+                  onChange={(value) => setStatus(value as ImPairingStatus)}
                   options={CREATE_PAIRING_STATUS_OPTIONS}
                   size="sm"
                   value={status}
@@ -193,12 +193,12 @@ export function CreatePairingDialog({
           </UiDialogBody>
 
           <UiDialogFooter>
-            <UiButton class_name="min-w-[104px]" disabled={saving} onClick={on_close} size="lg" type="button">
+            <UiButton className="min-w-[104px]" disabled={saving} onClick={onClose} size="lg" type="button">
               取消
             </UiButton>
             <UiButton
-              class_name="min-w-[124px]"
-              disabled={saving || !external_ref.trim() || !agent_id}
+              className="min-w-[124px]"
+              disabled={saving || !externalRef.trim() || !agentId}
               size="lg"
               tone="primary"
               type="submit"

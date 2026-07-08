@@ -28,9 +28,26 @@ fail() {
   exit 1
 }
 
+request_app_exit() {
+  if [[ -z "${APP_PID}" ]] || ! kill -0 "${APP_PID}" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  "${APP_EXECUTABLE}" --nexus-desktop-exit >/dev/null 2>&1 || kill "${APP_PID}" >/dev/null 2>&1 || true
+  local started_at
+  started_at="$(date +%s)"
+  while kill -0 "${APP_PID}" >/dev/null 2>&1; do
+    if (( "$(date +%s)" - started_at >= 20 )); then
+      return 1
+    fi
+    sleep 0.2
+  done
+  return 0
+}
+
 cleanup() {
   if [[ -n "${APP_PID}" ]] && kill -0 "${APP_PID}" >/dev/null 2>&1; then
-    kill "${APP_PID}" >/dev/null 2>&1 || true
+    request_app_exit || kill "${APP_PID}" >/dev/null 2>&1 || true
     wait "${APP_PID}" >/dev/null 2>&1 || true
   fi
 }
@@ -154,7 +171,11 @@ if grep -Eq "${unexpected_pattern}" "${LOG_FILE}"; then
   fail "unexpected WebContent termination, startup failure, or disallowed fallback reveal"
 fi
 
-cleanup
+if ! request_app_exit; then
+  fail "app did not exit after --nexus-desktop-exit"
+fi
+wait "${APP_PID}" >/dev/null 2>&1 || true
+APP_PID=""
 trap - EXIT
 
 sleep 0.5

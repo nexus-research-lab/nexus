@@ -262,9 +262,10 @@ func (b *promptBuilder) BuildUserMessageSuffix(ctx context.Context, agentValue *
 		scope := b.newBuildScope(agentValue)
 		workspacePath = scope.workspacePath
 	}
+	// 时间不再由本层注入：runtime（nexus-agent-sdk-go）的基础提示已含权威时间，
+	// 且秒级时间戳会污染 prompt 前缀缓存。此处只保留情绪态。
 	emotionView := LoadRuntimeEmotionView(workspacePath, emotionContextID, time.Now())
-	sections := make([]string, 0, 2)
-	sections = appendPromptSection(sections, b.buildRuntimeDateSection())
+	sections := make([]string, 0, 1)
 	sections = appendPromptSection(sections, buildRuntimeEmotionSection(agentValue, emotionView))
 	if len(sections) == 0 {
 		return ""
@@ -273,28 +274,6 @@ func (b *promptBuilder) BuildUserMessageSuffix(ctx context.Context, agentValue *
 		"<nexus_runtime_context>",
 		strings.Join(sections, "\n\n"),
 		"</nexus_runtime_context>",
-	}, "\n")
-}
-
-func (b *promptBuilder) buildRuntimeDateSection() string {
-	timezoneName := strings.TrimSpace(b.config.DefaultTimezone)
-	if timezoneName == "" {
-		timezoneName = "Asia/Shanghai"
-	}
-	location, err := time.LoadLocation(timezoneName)
-	if err != nil {
-		location = time.Local
-		timezoneName = location.String()
-		if strings.TrimSpace(timezoneName) == "" {
-			timezoneName = "Local"
-		}
-	}
-	now := time.Now().In(location)
-	_, offsetSeconds := now.Zone()
-	return strings.Join([]string{
-		"## Date Awareness",
-		fmt.Sprintf("Authoritative local time: %s (%s, %s, %s)", now.Format("2006-01-02 15:04:05"), now.Format("Monday"), timezoneName, formatUTCOffset(offsetSeconds)),
-		"Relative date rule: interpret today, yesterday, tomorrow, this year, latest, recent, and equivalent phrases in the user's language from the time above. Do not guess or hardcode old years.",
 	}, "\n")
 }
 
@@ -328,13 +307,3 @@ func agentValueName(agentValue *protocol.Agent) string {
 	return strings.TrimSpace(agentValue.AgentID)
 }
 
-func formatUTCOffset(offsetSeconds int) string {
-	sign := "+"
-	if offsetSeconds < 0 {
-		sign = "-"
-		offsetSeconds = -offsetSeconds
-	}
-	hours := offsetSeconds / 3600
-	minutes := (offsetSeconds % 3600) / 60
-	return fmt.Sprintf("UTC%s%02d:%02d", sign, hours, minutes)
-}

@@ -15,8 +15,8 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { HtmlFilePreview, HtmlPreviewViewport } from "@/features/conversation/shared/editor/html-file-preview";
-import { get_workspace_file_raw_url } from "@/lib/api/agent-manage-api";
+import { HtmlFilePreview } from "@/features/conversation/shared/editor/html-file-preview";
+import { getWorkspaceFilePreviewUrl } from "@/lib/api/agent-manage-api";
 import { cn } from "@/lib/utils";
 
 import type {
@@ -52,7 +52,7 @@ export function BrowserSurface({
     event,
     preview,
     query,
-    raw_url_builder: get_workspace_file_raw_url,
+    raw_url_builder: getWorkspaceFilePreviewUrl,
     target,
   });
 
@@ -198,7 +198,7 @@ function BrowserViewport({
     return (
       <HtmlFilePreview
         content={srcdoc}
-        is_streaming={event.phase === "running"}
+        isStreaming={event.phase === "running"}
         title={target ?? query}
       />
     );
@@ -206,9 +206,8 @@ function BrowserViewport({
 
   if (iframe_url) {
     return (
-      <HtmlPreviewViewport
-        class_name="flex-1 bg-white"
-        source_url={iframe_url}
+      <BrowserIframeViewport
+        sourceUrl={iframe_url}
         title={target ?? query}
       />
     );
@@ -219,6 +218,23 @@ function BrowserViewport({
   }
 
   return <BrowserSearchResults event={event} lines={lines} query={query} />;
+}
+
+function BrowserIframeViewport({
+  sourceUrl,
+  title,
+}: {
+  sourceUrl: string;
+  title: string;
+}) {
+  return (
+    <iframe
+      className="min-h-0 flex-1 bg-white"
+      sandbox="allow-downloads allow-forms allow-modals allow-popups allow-scripts"
+      src={sourceUrl}
+      title={title}
+    />
+  );
 }
 
 function SafariStartPage({

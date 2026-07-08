@@ -15,96 +15,96 @@ interface UseSidebarPanelResizeOptions {
 }
 
 export function useSidebarPanelResize({
-  set_wide_panel_width,
-  wide_panel_width,
+  set_wide_panel_width: setWidePanelWidth,
+  wide_panel_width: widePanelWidth,
 }: UseSidebarPanelResizeOptions) {
-  const root_ref = useRef<HTMLDivElement | null>(null);
-  const [is_resize_hotzone_active, set_is_resize_hotzone_active] = useState(false);
-  const is_dragging_ref = useRef(false);
-  const start_x_ref = useRef(0);
-  const start_width_ref = useRef(0);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const [isResizeHotzoneActive, setIsResizeHotzoneActive] = useState(false);
+  const isDraggingRef = useRef(false);
+  const startXRef = useRef(0);
+  const startWidthRef = useRef(0);
 
-  const handle_pointer_down = useCallback(
+  const handlePointerDown = useCallback(
     (event: ReactPointerEvent) => {
       if (event.target instanceof HTMLElement && event.target.closest(MODAL_ROOT_SELECTOR)) {
         return;
       }
-      const root_element = root_ref.current;
-      if (!root_element) {
+      const rootElement = rootRef.current;
+      if (!rootElement) {
         return;
       }
 
-      const rect = root_element.getBoundingClientRect();
-      const distance_to_right_edge = rect.right - event.clientX;
-      if (distance_to_right_edge > SIDEBAR_RESIZE_HOTZONE_WIDTH) {
+      const rect = rootElement.getBoundingClientRect();
+      const distanceToRightEdge = rect.right - event.clientX;
+      if (distanceToRightEdge > SIDEBAR_RESIZE_HOTZONE_WIDTH) {
         return;
       }
 
       event.preventDefault();
-      is_dragging_ref.current = true;
-      start_x_ref.current = event.clientX;
-      start_width_ref.current = wide_panel_width;
-      set_is_resize_hotzone_active(true);
+      isDraggingRef.current = true;
+      startXRef.current = event.clientX;
+      startWidthRef.current = widePanelWidth;
+      setIsResizeHotzoneActive(true);
       event.currentTarget.setPointerCapture(event.pointerId);
     },
-    [wide_panel_width],
+    [widePanelWidth],
   );
 
-  const handle_pointer_move = useCallback(
+  const handlePointerMove = useCallback(
     (event: ReactPointerEvent) => {
       if (event.target instanceof HTMLElement && event.target.closest(MODAL_ROOT_SELECTOR)) {
-        if (!is_dragging_ref.current) {
-          set_is_resize_hotzone_active(false);
+        if (!isDraggingRef.current) {
+          setIsResizeHotzoneActive(false);
         }
         return;
       }
-      const root_element = root_ref.current;
-      if (!root_element) {
+      const rootElement = rootRef.current;
+      if (!rootElement) {
         return;
       }
 
-      if (!is_dragging_ref.current) {
-        const rect = root_element.getBoundingClientRect();
-        const distance_to_right_edge = rect.right - event.clientX;
-        set_is_resize_hotzone_active(distance_to_right_edge <= SIDEBAR_RESIZE_HOTZONE_WIDTH);
+      if (!isDraggingRef.current) {
+        const rect = rootElement.getBoundingClientRect();
+        const distanceToRightEdge = rect.right - event.clientX;
+        setIsResizeHotzoneActive(distanceToRightEdge <= SIDEBAR_RESIZE_HOTZONE_WIDTH);
         return;
       }
 
-      const delta = event.clientX - start_x_ref.current;
-      const next_width = start_width_ref.current + delta;
-      set_wide_panel_width(next_width);
+      const delta = event.clientX - startXRef.current;
+      const nextWidth = startWidthRef.current + delta;
+      setWidePanelWidth(nextWidth);
     },
-    [set_wide_panel_width],
+    [setWidePanelWidth],
   );
 
-  const handle_pointer_up = useCallback(() => {
-    is_dragging_ref.current = false;
-    set_is_resize_hotzone_active(false);
+  const handlePointerUp = useCallback(() => {
+    isDraggingRef.current = false;
+    setIsResizeHotzoneActive(false);
   }, []);
 
-  const handle_pointer_leave = useCallback(() => {
-    if (is_dragging_ref.current) {
+  const handlePointerLeave = useCallback(() => {
+    if (isDraggingRef.current) {
       return;
     }
-    set_is_resize_hotzone_active(false);
+    setIsResizeHotzoneActive(false);
   }, []);
 
   useEffect(() => {
-    const handle_select_start = (event: Event) => {
-      if (is_dragging_ref.current) {
+    const handleSelectStart = (event: Event) => {
+      if (isDraggingRef.current) {
         event.preventDefault();
       }
     };
-    document.addEventListener("selectstart", handle_select_start);
-    return () => document.removeEventListener("selectstart", handle_select_start);
+    document.addEventListener("selectstart", handleSelectStart);
+    return () => document.removeEventListener("selectstart", handleSelectStart);
   }, []);
 
   return {
-    handle_pointer_down,
-    handle_pointer_leave,
-    handle_pointer_move,
-    handle_pointer_up,
-    is_resize_hotzone_active,
-    root_ref,
+    handle_pointer_down: handlePointerDown,
+    handle_pointer_leave: handlePointerLeave,
+    handle_pointer_move: handlePointerMove,
+    handle_pointer_up: handlePointerUp,
+    is_resize_hotzone_active: isResizeHotzoneActive,
+    root_ref: rootRef,
   };
 }

@@ -62,3 +62,34 @@ func (s *Service) FillEmptyPreviewFromGoal(ctx context.Context, sessionKey strin
 	}
 	return nil
 }
+
+// ScheduleGoalTitleFromGoal 复用首条消息标题生成器，为 Goal 启动的新会话补标题总结。
+func (s *Service) ScheduleGoalTitleFromGoal(ctx context.Context, item protocol.Goal, ownerUserID string, fallbackTitle string) {
+	if s == nil {
+		return
+	}
+	sessionKey := strings.TrimSpace(item.SessionKey)
+	objective := strings.TrimSpace(item.Objective)
+	if sessionKey == "" || objective == "" {
+		return
+	}
+	request := Request{
+		OwnerUserID:   strings.TrimSpace(ownerUserID),
+		SessionKey:    sessionKey,
+		Content:       objective,
+		FallbackTitle: strings.TrimSpace(fallbackTitle),
+	}
+	parsed := protocol.ParseSessionKey(sessionKey)
+	if parsed.Kind == protocol.SessionKeyKindRoom {
+		if strings.TrimSpace(parsed.ConversationID) == "" {
+			return
+		}
+		request.SessionMessageCount = -1
+		request.ConversationID = parsed.ConversationID
+		request.ConversationMessageCount = 0
+	} else {
+		request.SessionMessageCount = 0
+		request.ConversationMessageCount = -1
+	}
+	s.Schedule(ctx, request)
+}

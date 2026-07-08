@@ -8,88 +8,88 @@ import type {
 import type { PreparedComposerAttachment } from "./composer-attachments";
 
 interface UseConversationComposerHandlersOptions {
-  can_send_initial_draft?: boolean;
-  initial_draft?: string | null;
-  initial_draft_log_label: string;
-  is_loading: boolean;
-  on_initial_draft_consumed?: () => void;
-  prepare_attachments: (files: File[]) => Promise<PreparedComposerAttachment[]>;
-  scroll_to_bottom: (behavior?: ScrollBehavior) => void;
-  send_message: (
+  canSendInitialDraft?: boolean;
+  initialDraft?: string | null;
+  initialDraftLogLabel: string;
+  isLoading: boolean;
+  onInitialDraftConsumed?: () => void;
+  prepareAttachments: (files: File[]) => Promise<PreparedComposerAttachment[]>;
+  scrollToBottom: (behavior?: ScrollBehavior) => void;
+  sendMessage: (
     content: string,
     options?: AgentConversationSendOptions,
   ) => Promise<void>;
-  session_key: string | null;
+  sessionKey: string | null;
 }
 
 export function useConversationComposerHandlers({
-  can_send_initial_draft = true,
-  initial_draft = null,
-  initial_draft_log_label,
-  is_loading,
-  on_initial_draft_consumed,
-  prepare_attachments,
-  scroll_to_bottom,
-  send_message,
-  session_key,
+  canSendInitialDraft = true,
+  initialDraft = null,
+  initialDraftLogLabel,
+  isLoading,
+  onInitialDraftConsumed,
+  prepareAttachments,
+  scrollToBottom,
+  sendMessage,
+  sessionKey,
 }: UseConversationComposerHandlersOptions) {
-  const consumed_initial_draft_ref = useRef<string | null>(null);
+  const consumedInitialDraftRef = useRef<string | null>(null);
 
-  const handle_send_message = useCallback(
+  const handleSendMessage = useCallback(
     async (
       content: string,
-      delivery_policy: AgentConversationDeliveryPolicy,
+      deliveryPolicy: AgentConversationDeliveryPolicy,
       attachments: PreparedComposerAttachment[] = [],
     ) => {
       if (!content.trim() && attachments.length === 0) return;
-      scroll_to_bottom("auto");
-      await send_message(content, { delivery_policy, attachments });
+      scrollToBottom("auto");
+      await sendMessage(content, { delivery_policy: deliveryPolicy, attachments });
     },
-    [scroll_to_bottom, send_message],
+    [scrollToBottom, sendMessage],
   );
 
   useEffect(() => {
-    const normalized_draft = initial_draft?.trim() ?? "";
+    const normalizedDraft = initialDraft?.trim() ?? "";
     if (
-      !session_key ||
-      !normalized_draft ||
-      is_loading ||
-      !can_send_initial_draft
+      !sessionKey ||
+      !normalizedDraft ||
+      isLoading ||
+      !canSendInitialDraft
     ) {
       return;
     }
 
-    const initial_draft_signature = `${session_key}:${normalized_draft}`;
-    if (consumed_initial_draft_ref.current === initial_draft_signature) {
+    const initialDraftKey = `${sessionKey}:${normalizedDraft}`;
+    if (consumedInitialDraftRef.current === initialDraftKey) {
       return;
     }
 
-    consumed_initial_draft_ref.current = initial_draft_signature;
-    scroll_to_bottom("auto");
-    void send_message(normalized_draft)
+    consumedInitialDraftRef.current = initialDraftKey;
+    scrollToBottom("auto");
+    void sendMessage(normalizedDraft)
       .then(() => {
-        on_initial_draft_consumed?.();
+        onInitialDraftConsumed?.();
       })
       .catch((error) => {
-        consumed_initial_draft_ref.current = null;
+        consumedInitialDraftRef.current = null;
         console.error(
-          `Failed to auto send initial ${initial_draft_log_label} prompt:`,
+          `Failed to auto send initial ${initialDraftLogLabel} prompt:`,
           error,
         );
       });
   }, [
-    can_send_initial_draft,
-    initial_draft,
-    initial_draft_log_label,
-    is_loading,
-    on_initial_draft_consumed,
-    scroll_to_bottom,
-    send_message,
-    session_key,
+    canSendInitialDraft,
+    initialDraft,
+    initialDraftLogLabel,
+    isLoading,
+    onInitialDraftConsumed,
+    scrollToBottom,
+    sendMessage,
+    sessionKey,
   ]);
 
   return {
-    handle_prepare_attachments: prepare_attachments,
-    handle_send_message,
+    handlePrepareAttachments: prepareAttachments,
+    handleSendMessage,
   };
 }

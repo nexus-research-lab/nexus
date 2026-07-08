@@ -28,59 +28,65 @@ import type {
 } from "@/types/agent/agent";
 
 export interface AgentOptionsProps {
-  agent_id?: string;
+  agentId?: string;
   mode: "create" | "edit";
-  is_open: boolean;
-  on_close: () => void;
-  on_delete?: (agent_id: string) => void;
-  on_save: (title: string, options: AgentConfigOptions, identity: AgentIdentityDraft) => void | Promise<void>;
-  on_validate_name?: (name: string) => Promise<AgentNameValidationResult>;
-  initial_title?: string;
-  initial_options?: Partial<AgentConfigOptions>;
-  initial_avatar?: string;
-  initial_description?: string;
-  initial_vibe_tags?: string[];
+  isOpen: boolean;
+  onClose: () => void;
+  onDelete?: (agentId: string) => void;
+  onSave: (title: string, options: AgentConfigOptions, identity: AgentIdentityDraft) => void | Promise<void>;
+  onValidateName?: (name: string) => Promise<AgentNameValidationResult>;
+  initialTitle?: string;
+  initialOptions?: Partial<AgentConfigOptions>;
+  initialAvatar?: string;
+  initialDescription?: string;
+  initialVibeTags?: string[];
 }
 
 /** 中文注释：共享层只保留对话框骨架，真实编辑器和业务状态迁回 feature。 */
 export function AgentOptions({
-  agent_id,
+  agentId: agentId,
   mode,
-  is_open,
-  on_close,
-  on_delete,
-  on_save,
-  on_validate_name,
-  initial_title = "",
-  initial_options = {},
-  initial_avatar = "",
-  initial_description = "",
-  initial_vibe_tags = [],
+  isOpen: isOpen,
+  onClose: onClose,
+  onDelete: onDelete,
+  onSave: onSave,
+  onValidateName: onValidateName,
+  initialTitle: initialTitle = "",
+  initialOptions: initialOptions = {},
+  initialAvatar: initialAvatar = "",
+  initialDescription: initialDescription = "",
+  initialVibeTags: initialVibeTags = [],
 }: AgentOptionsProps) {
   const { t } = useI18n();
 
   useEffect(() => {
-    if (!is_open) {
+    if (!isOpen) {
       return;
     }
 
-    const handle_key_down = (event: KeyboardEvent) => {
+    const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
-        on_close();
+        onClose();
       }
     };
 
-    window.addEventListener("keydown", handle_key_down);
-    return () => window.removeEventListener("keydown", handle_key_down);
-  }, [is_open, on_close]);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
 
-  if (!is_open || typeof document === "undefined") {
+  if (!isOpen || typeof document === "undefined") {
     return null;
   }
 
   return createPortal(
-    <div className="dialog-backdrop z-[9999]" data-modal-root="true" role="dialog" aria-modal="true">
+    <div
+      aria-labelledby="agent-options-dialog-title"
+      aria-modal="true"
+      className="dialog-backdrop z-[9999]"
+      data-modal-root="true"
+      role="dialog"
+    >
       <div className="dialog-shell surface-radius-md flex h-[80vh] w-full max-w-[920px] flex-col overflow-hidden">
         <div className="dialog-header px-5 py-4">
           <div className={cn(DIALOG_HEADER_LEADING_CLASS_NAME, "min-w-0 flex-1 items-center")}>
@@ -88,11 +94,14 @@ export function AgentOptions({
               <Settings className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <h2 className="dialog-title truncate text-[22px] font-black tracking-[-0.04em]">
-                {mode === "create" ? t("agent_options.title_create") : initial_title}
+              <h2
+                className="dialog-title truncate text-[22px] font-black tracking-[-0.04em]"
+                id="agent-options-dialog-title"
+              >
+                {mode === "create" ? t("agent_options.title_create") : initialTitle}
               </h2>
-              {mode === "edit" && agent_id ? (
-                <p className="dialog-subtitle">{t("agent_options.id_prefix")}: {agent_id}</p>
+              {mode === "edit" && agentId ? (
+                <p className="dialog-subtitle">{t("agent_options.id_prefix")}: {agentId}</p>
               ) : (
                 <p className="dialog-subtitle">{t("agent_options.subtitle_create")}</p>
               )}
@@ -101,7 +110,7 @@ export function AgentOptions({
           <button
             className={DIALOG_ICON_BUTTON_CLASS_NAME}
             aria-label={t("agent_options.close_dialog")}
-            onClick={on_close}
+            onClick={onClose}
             type="button"
           >
             <X className="h-5 w-5" />
@@ -109,25 +118,23 @@ export function AgentOptions({
         </div>
 
         <AgentOptionsEditor
-          agent_id={agent_id}
+          agentId={agentId}
           mode={mode}
-          is_active={is_open}
-          on_cancel={on_close}
-          on_delete={on_delete}
-          on_save={on_save}
-          on_validate_name={on_validate_name}
-          initial_title={initial_title}
-          initial_options={initial_options}
-          initial_avatar={initial_avatar}
-          initial_description={initial_description}
-          initial_vibe_tags={initial_vibe_tags}
-          close_after_save
-          show_cancel_button
+          isActive={isOpen}
+          onCancel={onClose}
+          onDelete={onDelete}
+          onSave={onSave}
+          onValidateName={onValidateName}
+          initialTitle={initialTitle}
+          initialOptions={initialOptions}
+          initialAvatar={initialAvatar}
+          initialDescription={initialDescription}
+          initialVibeTags={initialVibeTags}
+          closeAfterSave
+          showCancelButton
         />
       </div>
     </div>,
     document.body,
   );
 }
-
-export { AgentOptionsEditor } from "@/features/agents/options/agent-options-editor";

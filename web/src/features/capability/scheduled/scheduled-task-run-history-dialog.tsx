@@ -3,176 +3,204 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { History, RefreshCw, X } from "lucide-react";
 
-import { write_text_to_clipboard } from "@/hooks/ui/clipboard";
-import { list_scheduled_task_runs_api } from "@/lib/api/scheduled-task-api";
+import { writeTextToClipboard } from "@/hooks/ui/clipboard";
+import { useResettableState } from "@/hooks/ui/use-resettable-state";
+import { listScheduledTaskRunsApi } from "@/lib/api/scheduled-task-api";
 import { UiButton, UiIconButton } from "@/shared/ui/button";
-import { close_on_escape } from "@/shared/ui/dialog/dialog-keyboard";
+import { closeOnEscape } from "@/shared/ui/dialog/dialog-keyboard";
 import { UiSkeletonCardList } from "@/shared/ui/skeleton";
 import { UiStateBlock } from "@/shared/ui/state-block";
 import { WorkspaceStatusBadge } from "@/shared/ui/workspace/controls/workspace-status-badge";
 import type { ScheduledTaskItem, ScheduledTaskRunItem } from "@/types/capability/scheduled-task";
 import { ScheduledTaskRunHistoryItem } from "./scheduled-task-run-history-item";
-import { build_run_diagnostic } from "./scheduled-task-run-history-model";
+import { buildRunDiagnostic } from "./scheduled-task-run-history-model";
 
 interface ScheduledTaskRunHistoryDialogProps {
   task: ScheduledTaskItem | null;
-  is_open: boolean;
-  on_close: () => void;
-  on_retry_task?: (task: ScheduledTaskItem) => void | Promise<void>;
-  on_retry_delivery?: (task: ScheduledTaskItem, run: ScheduledTaskRunItem) => void | Promise<void>;
-  on_recover_task_run?: (task: ScheduledTaskItem, run: ScheduledTaskRunItem) => void | Promise<void>;
+  isOpen: boolean;
+  onClose: () => void;
+  onRetryTask?: (task: ScheduledTaskItem) => void | Promise<void>;
+  onRetryDelivery?: (task: ScheduledTaskItem, run: ScheduledTaskRunItem) => void | Promise<void>;
+  onRecoverTaskRun?: (task: ScheduledTaskItem, run: ScheduledTaskRunItem) => void | Promise<void>;
+}
+
+interface RunHistoryDialogState {
+  actionMessage: string | null;
+  copiedRunId: string | null;
+  errorMessage: string | null;
+  isLoading: boolean;
+  recoveringRunId: string | null;
+  retryingDeliveryRunId: string | null;
+  retryingRunId: string | null;
+  runs: ScheduledTaskRunItem[];
 }
 
 export function ScheduledTaskRunHistoryDialog({
   task,
-  is_open,
-  on_close,
-  on_retry_task,
-  on_retry_delivery,
-  on_recover_task_run,
+  isOpen: isOpen,
+  onClose: onClose,
+  onRetryTask: onRetryTask,
+  onRetryDelivery: onRetryDelivery,
+  onRecoverTaskRun: onRecoverTaskRun,
 }: ScheduledTaskRunHistoryDialogProps) {
-  const [runs, set_runs] = useState<ScheduledTaskRunItem[]>([]);
-  const [is_loading, set_is_loading] = useState(false);
-  const [error_message, set_error_message] = useState<string | null>(null);
-  const [action_message, set_action_message] = useState<string | null>(null);
-  const [copied_run_id, set_copied_run_id] = useState<string | null>(null);
-  const [retrying_run_id, set_retrying_run_id] = useState<string | null>(null);
-  const [retrying_delivery_run_id, set_retrying_delivery_run_id] = useState<string | null>(null);
-  const [recovering_run_id, set_recovering_run_id] = useState<string | null>(null);
-  const active_task_job_id_ref = useRef<string | null>(null);
-  const runs_request_token_ref = useRef(0);
-  const task_job_id = task?.job_id ?? null;
+  const activeTaskJobIdRef = useRef<string | null>(null);
+  const runsRequestTokenRef = useRef(0);
+  const taskJobId = task?.job_id ?? null;
+  const [state, setState] = useResettableState<RunHistoryDialogState>(
+    {
+      actionMessage: null,
+      copiedRunId: null,
+      errorMessage: null,
+      isLoading: Boolean(isOpen && taskJobId),
+      recoveringRunId: null,
+      retryingDeliveryRunId: null,
+      retryingRunId: null,
+      runs: [],
+    },
+    isOpen && taskJobId ? taskJobId : "closed",
+  );
+  const {
+    actionMessage,
+    copiedRunId,
+    errorMessage,
+    isLoading,
+    recoveringRunId,
+    retryingDeliveryRunId,
+    retryingRunId,
+    runs,
+  } = state;
 
-  const load_runs = useCallback(async (job_id: string) => {
-    const request_token = runs_request_token_ref.current + 1;
-    runs_request_token_ref.current = request_token;
-    set_is_loading(true);
-    set_error_message(null);
+  const loadRuns = useCallback(async (jobId: string) => {
+    const requestToken = runsRequestTokenRef.current + 1;
+    runsRequestTokenRef.current = requestToken;
+    setState((current) => ({ ...current, errorMessage: null, isLoading: true }));
     try {
-      const result = await list_scheduled_task_runs_api(job_id);
-      if (active_task_job_id_ref.current !== job_id || runs_request_token_ref.current !== request_token) {
+      const result = await listScheduledTaskRunsApi(jobId);
+      if (activeTaskJobIdRef.current !== jobId || runsRequestTokenRef.current !== requestToken) {
         return;
       }
-      set_runs(result);
+      setState((current) => ({ ...current, runs: result }));
     } catch (error) {
-      if (active_task_job_id_ref.current !== job_id || runs_request_token_ref.current !== request_token) {
+      if (activeTaskJobIdRef.current !== jobId || runsRequestTokenRef.current !== requestToken) {
         return;
       }
-      set_error_message(error instanceof Error ? error.message : "加载运行历史失败");
-      set_runs([]);
+      setState((current) => ({
+        ...current,
+        errorMessage: error instanceof Error ? error.message : "加载运行历史失败",
+        runs: [],
+      }));
     } finally {
-      if (active_task_job_id_ref.current !== job_id || runs_request_token_ref.current !== request_token) {
+      if (activeTaskJobIdRef.current !== jobId || runsRequestTokenRef.current !== requestToken) {
         return;
       }
-      set_is_loading(false);
+      setState((current) => ({ ...current, isLoading: false }));
     }
-  }, []);
+  }, [setState]);
 
   useEffect(() => {
-    if (!is_open) {
-      active_task_job_id_ref.current = null;
-      runs_request_token_ref.current += 1;
-      set_runs([]);
-      set_error_message(null);
-      set_action_message(null);
-      set_copied_run_id(null);
-      set_retrying_run_id(null);
-      set_retrying_delivery_run_id(null);
-      set_recovering_run_id(null);
-      set_is_loading(false);
+    if (!isOpen) {
+      activeTaskJobIdRef.current = null;
+      runsRequestTokenRef.current += 1;
       return;
     }
-    const on_key_down = (event: KeyboardEvent) => close_on_escape(event, on_close);
-    window.addEventListener("keydown", on_key_down);
+    const onKeyDown = (event: KeyboardEvent) => closeOnEscape(event, onClose);
+    window.addEventListener("keydown", onKeyDown);
     return () => {
-      window.removeEventListener("keydown", on_key_down);
+      window.removeEventListener("keydown", onKeyDown);
     };
-  }, [is_open, on_close]);
+  }, [isOpen, onClose]);
 
   useEffect(() => {
-    if (!is_open || !task_job_id) {
-      active_task_job_id_ref.current = null;
-      runs_request_token_ref.current += 1;
-      set_runs([]);
-      set_error_message(null);
-      set_action_message(null);
-      set_is_loading(false);
+    if (!isOpen || !taskJobId) {
+      activeTaskJobIdRef.current = null;
+      runsRequestTokenRef.current += 1;
       return;
     }
-    active_task_job_id_ref.current = task_job_id;
-    set_runs([]);
-    void load_runs(task_job_id);
-  }, [is_open, load_runs, task_job_id]);
+    activeTaskJobIdRef.current = taskJobId;
+    void loadRuns(taskJobId);
+  }, [isOpen, loadRuns, taskJobId]);
 
-  if (!is_open || !task) {
+  if (!isOpen || !task) {
     return null;
   }
 
-  const handle_refresh = () => {
-    void load_runs(task_job_id ?? "");
+  const handleRefresh = () => {
+    void loadRuns(taskJobId ?? "");
   };
 
-  const handle_copy_diagnostic = async (run: ScheduledTaskRunItem) => {
-    const diagnostic = build_run_diagnostic(task, run);
-    if (await write_text_to_clipboard(diagnostic)) {
-      set_copied_run_id(run.run_id);
-      set_action_message("诊断信息已复制");
+  const handleCopyDiagnostic = async (run: ScheduledTaskRunItem) => {
+    const diagnostic = buildRunDiagnostic(task, run);
+    if (await writeTextToClipboard(diagnostic)) {
+      setState((current) => ({
+        ...current,
+        actionMessage: "诊断信息已复制",
+        copiedRunId: run.run_id,
+      }));
       return;
     }
-    set_action_message("浏览器未允许写入剪贴板，请使用运行产物查看完整诊断");
+    setState((current) => ({
+      ...current,
+      actionMessage: "浏览器未允许写入剪贴板，请使用运行产物查看完整诊断",
+    }));
   };
 
-  const handle_retry = async (run: ScheduledTaskRunItem) => {
-    if (!on_retry_task || !task_job_id) {
+  const handleRetry = async (run: ScheduledTaskRunItem) => {
+    if (!onRetryTask || !taskJobId) {
       return;
     }
-    set_retrying_run_id(run.run_id);
-    set_action_message(null);
+    setState((current) => ({ ...current, actionMessage: null, retryingRunId: run.run_id }));
     try {
-      await on_retry_task(task);
-      await load_runs(task_job_id);
-      set_action_message("已触发重新运行");
+      await onRetryTask(task);
+      await loadRuns(taskJobId);
+      setState((current) => ({ ...current, actionMessage: "已触发重新运行" }));
     } catch (error) {
-      set_action_message(error instanceof Error ? error.message : "重新运行失败");
+      setState((current) => ({
+        ...current,
+        actionMessage: error instanceof Error ? error.message : "重新运行失败",
+      }));
     } finally {
-      set_retrying_run_id(null);
+      setState((current) => ({ ...current, retryingRunId: null }));
     }
   };
 
-  const handle_retry_delivery = async (run: ScheduledTaskRunItem) => {
-    if (!on_retry_delivery || !task_job_id) {
+  const handleRetryDelivery = async (run: ScheduledTaskRunItem) => {
+    if (!onRetryDelivery || !taskJobId) {
       return;
     }
-    set_retrying_delivery_run_id(run.run_id);
-    set_action_message(null);
+    setState((current) => ({ ...current, actionMessage: null, retryingDeliveryRunId: run.run_id }));
     try {
-      await on_retry_delivery(task, run);
-      await load_runs(task_job_id);
-      set_action_message("已重试投递");
+      await onRetryDelivery(task, run);
+      await loadRuns(taskJobId);
+      setState((current) => ({ ...current, actionMessage: "已重试投递" }));
     } catch (error) {
-      set_action_message(error instanceof Error ? error.message : "重试投递失败");
+      setState((current) => ({
+        ...current,
+        actionMessage: error instanceof Error ? error.message : "重试投递失败",
+      }));
     } finally {
-      set_retrying_delivery_run_id(null);
+      setState((current) => ({ ...current, retryingDeliveryRunId: null }));
     }
   };
 
-  const handle_recover = async (run: ScheduledTaskRunItem) => {
-    if (!on_recover_task_run || !task_job_id) {
+  const handleRecover = async (run: ScheduledTaskRunItem) => {
+    if (!onRecoverTaskRun || !taskJobId) {
       return;
     }
     if (!window.confirm(`确认释放 run ${run.run_id} 的运行占用吗？该 run 会被标记为 cancelled。`)) {
       return;
     }
-    set_recovering_run_id(run.run_id);
-    set_action_message(null);
+    setState((current) => ({ ...current, actionMessage: null, recoveringRunId: run.run_id }));
     try {
-      await on_recover_task_run(task, run);
-      await load_runs(task_job_id);
-      set_action_message("已释放运行占用");
+      await onRecoverTaskRun(task, run);
+      await loadRuns(taskJobId);
+      setState((current) => ({ ...current, actionMessage: "已释放运行占用" }));
     } catch (error) {
-      set_action_message(error instanceof Error ? error.message : "释放运行占用失败");
+      setState((current) => ({
+        ...current,
+        actionMessage: error instanceof Error ? error.message : "释放运行占用失败",
+      }));
     } finally {
-      set_recovering_run_id(null);
+      setState((current) => ({ ...current, recoveringRunId: null }));
     }
   };
 
@@ -200,15 +228,15 @@ export function ScheduledTaskRunHistoryDialog({
             <p className="dialog-subtitle mt-1">
               Job ID: {task.job_id}
             </p>
-            {action_message ? (
+            {actionMessage ? (
               <p className="mt-2 text-xs font-medium text-(--text-default)">
-                {action_message}
+                {actionMessage}
               </p>
             ) : null}
           </div>
           <div className="flex items-center gap-2">
             <UiButton
-              onClick={() => void handle_refresh()}
+              onClick={() => void handleRefresh()}
               size="xs"
               type="button"
               variant="text"
@@ -218,7 +246,7 @@ export function ScheduledTaskRunHistoryDialog({
             </UiButton>
             <UiIconButton
               aria-label="关闭"
-              onClick={on_close}
+              onClick={onClose}
               size="md"
               type="button"
             >
@@ -228,10 +256,10 @@ export function ScheduledTaskRunHistoryDialog({
         </div>
 
         <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto px-6 py-5">
-          {is_loading ? (
-            <UiSkeletonCardList card_class_name="min-h-[108px]" count={4} />
-          ) : error_message ? (
-            <UiStateBlock description={error_message} title="运行历史加载失败" tone="danger" />
+          {isLoading ? (
+            <UiSkeletonCardList cardClassName="min-h-[108px]" count={4} />
+          ) : errorMessage ? (
+            <UiStateBlock description={errorMessage} title="运行历史加载失败" tone="danger" />
           ) : runs.length === 0 ? (
             <UiStateBlock
               description="手动执行或等调度器首次触发后，这里会显示每次运行的状态、耗时和错误信息。"
@@ -242,18 +270,18 @@ export function ScheduledTaskRunHistoryDialog({
             <div className="divide-y divide-(--divider-subtle-color)">
               {runs.map((run) => (
                 <ScheduledTaskRunHistoryItem
-                  can_recover_task_run={Boolean(on_recover_task_run)}
-                  can_retry_delivery={Boolean(on_retry_delivery)}
-                  can_retry_task={Boolean(on_retry_task)}
-                  copied_run_id={copied_run_id}
+                  canRecoverTaskRun={Boolean(onRecoverTaskRun)}
+                  canRetryDelivery={Boolean(onRetryDelivery)}
+                  canRetryTask={Boolean(onRetryTask)}
+                  copiedRunId={copiedRunId}
                   key={run.run_id}
-                  on_copy_diagnostic={handle_copy_diagnostic}
-                  on_recover={handle_recover}
-                  on_retry={handle_retry}
-                  on_retry_delivery={handle_retry_delivery}
-                  recovering_run_id={recovering_run_id}
-                  retrying_delivery_run_id={retrying_delivery_run_id}
-                  retrying_run_id={retrying_run_id}
+                  onCopyDiagnostic={handleCopyDiagnostic}
+                  onRecover={handleRecover}
+                  onRetry={handleRetry}
+                  onRetryDelivery={handleRetryDelivery}
+                  recoveringRunId={recoveringRunId}
+                  retryingDeliveryRunId={retryingDeliveryRunId}
+                  retryingRunId={retryingRunId}
                   run={run}
                   task={task}
                 />

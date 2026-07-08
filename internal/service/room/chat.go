@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"context"
 	"errors"
-	"fmt"
 	"slices"
 	"strings"
 	"time"
@@ -23,8 +22,15 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 	if err != nil {
 		return err
 	}
+	// round_id / user_message_id 一律由后端 mint；RoundID 允许后端内部调用方预置。
+	if strings.TrimSpace(request.RoundID) == "" {
+		request.RoundID = protocol.NewRoundID()
+	}
+	if strings.TrimSpace(request.UserMessageID) == "" {
+		request.UserMessageID = protocol.NewUserMessageID()
+	}
 
-	contextValue, err := s.rooms.GetConversationContext(ctx, conversationID)
+	ctx, contextValue, err := s.internalConversationContext(ctx, conversationID, request.Internal)
 	if err != nil {
 		return err
 	}
@@ -58,6 +64,11 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 			targetResolution = "room_host_default"
 		}
 	}
+	if len(targetAgentIDs) > 0 {
+		if err = s.ensureQuotaAvailable(ctx); err != nil {
+			return err
+		}
+	}
 	s.loggerFor(ctx).Info("受理 Room 会话消息",
 		"session_key", sessionKey,
 		"room_id", roomID,
@@ -77,7 +88,7 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 	}
 
 	userMessage := protocol.Message{
-		"message_id":      request.RoundID,
+		"message_id":      request.UserMessageID,
 		"session_key":     sessionKey,
 		"room_id":         roomID,
 		"conversation_id": conversationID,
@@ -117,9 +128,11 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 			sessionKey,
 			roomID,
 			conversationID,
-			cmp.Or(request.ReqID, request.RoundID),
+			request.ClientRequestID,
+			request.ClientMessageID,
 			request.RoundID,
-			[]map[string]any{},
+			request.UserMessageID,
+			nil,
 		))
 		hintMessage := protocol.Message{
 			"message_id":      "result_" + request.RoundID,
@@ -180,9 +193,11 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 				sessionKey,
 				roomID,
 				conversationID,
-				cmp.Or(request.ReqID, request.RoundID),
+				request.ClientRequestID,
+				request.ClientMessageID,
 				request.RoundID,
-				[]map[string]any{},
+				request.UserMessageID,
+				nil,
 			))
 			s.broadcastSessionStatus(ctx, sessionKey)
 			return nil
@@ -209,9 +224,11 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 				sessionKey,
 				roomID,
 				conversationID,
-				cmp.Or(request.ReqID, request.RoundID),
+				request.ClientRequestID,
+				request.ClientMessageID,
 				request.RoundID,
-				[]map[string]any{},
+				request.UserMessageID,
+				nil,
 			))
 			s.broadcastSessionStatus(ctx, sessionKey)
 			return nil
@@ -234,7 +251,7 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 	initialTrigger := roomTrigger{
 		TriggerType: initialTriggerType,
 		Content:     strings.TrimSpace(request.Content),
-		MessageID:   request.RoundID,
+		MessageID:   request.UserMessageID,
 	}
 	activeRound := &activeRoomRound{
 		SessionKey:        sessionKey,
@@ -255,7 +272,7 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 		Done:              make(chan struct{}),
 	}
 
-	pending := make([]map[string]any, 0, len(targetAgentIDs))
+	pending := make([]protocol.ChatAckPendingSlot, 0, len(targetAgentIDs))
 	for index, agentID := range targetAgentIDs {
 		sessionRecord, ok := sessionsByAgent[agentID]
 		if !ok {
@@ -266,10 +283,7 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 			continue
 		}
 		msgID := newRealtimeID()
-		agentRoundID := request.RoundID
-		if len(targetAgentIDs) > 1 {
-			agentRoundID = fmt.Sprintf("%s:%s", request.RoundID, agentID)
-		}
+		agentRoundID := protocol.NewAgentRoundID()
 		slotTrigger := initialTrigger
 		slotTrigger.TargetAgentID = agentID
 		activeRound.Slots[msgID] = &activeRoomSlot{
@@ -287,13 +301,13 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 			TriggerAttachments: attachments,
 			Done:               make(chan struct{}),
 		}
-		pending = append(pending, map[string]any{
-			"agent_id":  agentID,
-			"msg_id":    msgID,
-			"round_id":  agentRoundID,
-			"status":    "pending",
-			"timestamp": userMessage["timestamp"],
-			"index":     index,
+		pending = append(pending, protocol.ChatAckPendingSlot{
+			AgentID:      agentID,
+			AgentRoundID: agentRoundID,
+			MsgID:        msgID,
+			Status:       "pending",
+			Timestamp:    normalizeInt64(userMessage["timestamp"]),
+			Index:        index,
 		})
 	}
 	if len(activeRound.Slots) == 0 {
@@ -307,9 +321,11 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 			sessionKey,
 			roomID,
 			conversationID,
-			cmp.Or(request.ReqID, request.RoundID),
+			request.ClientRequestID,
+			request.ClientMessageID,
 			request.RoundID,
-			[]map[string]any{},
+			request.UserMessageID,
+			nil,
 		))
 		s.broadcastSharedEvent(ctx, sessionKey, roomID, roomdomain.NewErrorEvent(sessionKey, roomID, conversationID, "room_error", "Room 中没有可用成员会话", request.RoundID))
 		s.broadcastSharedEvent(ctx, sessionKey, roomID, roomdomain.WrapRoundStatusEvent(sessionKey, roomID, conversationID, request.RoundID, "error", "error"))
@@ -327,8 +343,10 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 			sessionKey,
 			roomID,
 			conversationID,
-			cmp.Or(request.ReqID, request.RoundID),
+			request.ClientRequestID,
+			request.ClientMessageID,
 			request.RoundID,
+			request.UserMessageID,
 			pending,
 		))
 	}

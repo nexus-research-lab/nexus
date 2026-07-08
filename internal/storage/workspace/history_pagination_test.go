@@ -138,6 +138,61 @@ func TestPaginateNormalizedHistoryRowsCollapsesRoomAgentSubRounds(t *testing.T) 
 	}
 }
 
+func TestPaginateNormalizedHistoryRowsCollapsesSuffixedRoomMarker(t *testing.T) {
+	rows := []protocol.Message{
+		{
+			"message_id": "room_mention_abc:agent-a",
+			"round_id":   "room_mention_abc:agent-a",
+			"role":       "user",
+			"timestamp":  1000,
+		},
+		{
+			"message_id": "result-agent-a",
+			"round_id":   "room_mention_abc:agent-a",
+			"agent_id":   "agent-a",
+			"role":       "result",
+			"timestamp":  2000,
+		},
+	}
+
+	page := paginateNormalizedHistoryRows(rows, 1, "", 0, true)
+	if page.HasMore {
+		t.Fatalf("只有一个归一后的 room round，不应还有更多历史: %+v", page)
+	}
+	if len(page.Items) != 2 {
+		t.Fatalf("带 agent 后缀的 marker/result 应同页返回: got=%d", len(page.Items))
+	}
+	for _, item := range page.Items {
+		if item["round_id"] != "room_mention_abc" {
+			t.Fatalf("返回给前端的 round_id 应已归一: %+v", page.Items)
+		}
+	}
+}
+
+func TestPaginateNormalizedHistoryRowsAroundRound(t *testing.T) {
+	rows := []protocol.Message{
+		{"message_id": "user-1", "round_id": "round-1", "role": "user", "timestamp": 1000},
+		{"message_id": "assistant-1", "round_id": "round-1", "role": "assistant", "timestamp": 1100},
+		{"message_id": "user-2", "round_id": "round-2", "role": "user", "timestamp": 2000},
+		{"message_id": "assistant-2", "round_id": "round-2", "role": "assistant", "timestamp": 2100},
+		{"message_id": "user-3", "round_id": "round-3", "role": "user", "timestamp": 3000},
+		{"message_id": "assistant-3", "round_id": "round-3", "role": "assistant", "timestamp": 3100},
+		{"message_id": "user-4", "round_id": "round-4", "role": "user", "timestamp": 4000},
+		{"message_id": "assistant-4", "round_id": "round-4", "role": "assistant", "timestamp": 4100},
+	}
+
+	page := paginateNormalizedHistoryRowsAround(rows, "round-3", 1, false)
+	if !page.HasMore {
+		t.Fatalf("目标窗口外仍有历史，应标记 has_more: %+v", page)
+	}
+	if len(page.Items) != 6 {
+		t.Fatalf("目标窗口应只返回目标前后各一轮: got=%d", len(page.Items))
+	}
+	if page.Items[0]["round_id"] != "round-2" || page.Items[5]["round_id"] != "round-4" {
+		t.Fatalf("目标窗口边界不正确: %+v", page.Items)
+	}
+}
+
 func derefString(value *string) string {
 	if value == nil {
 		return ""

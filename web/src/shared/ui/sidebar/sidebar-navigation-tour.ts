@@ -17,7 +17,7 @@ export const SIDEBAR_TOUR_ANCHORS = {
   restart: "sidebar-restart-button",
 } as const;
 
-export function build_sidebar_navigation_tour(
+export function buildSidebarNavigationTour(
   t: I18nContextValue["t"],
 ): OnboardingTourDefinition {
   return {

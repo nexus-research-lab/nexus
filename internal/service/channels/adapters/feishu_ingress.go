@@ -132,11 +132,7 @@ func decodeFeishuMessageIngress(payload feishuEventCallbackPayload, callback *Fe
 		return nil
 	}
 
-	ref := chatID
-	accountID := "chat_id"
-	if ref == "" {
-		ref, accountID = feishuSenderRef(payload.Event.Sender.SenderID)
-	}
+	ref, accountID := feishuMessageRef(chatID, payload.Event.Sender.SenderID)
 	if ref == "" {
 		callback.IgnoredReason = "empty_ref"
 		return nil
@@ -197,12 +193,7 @@ func decodeFeishuReactionIngress(payload feishuEventCallbackPayload, callback *F
 	appID := strings.TrimSpace(callback.AppID)
 	chatType := normalizeFeishuChatType(payload.Event.ChatType)
 	reactionText := fmt.Sprintf("[reacted with %s to message %s]", emoji, messageID)
-	ref := chatID
-	accountID := "chat_id"
-	if ref == "" {
-		ref = senderID
-		accountID = "open_id"
-	}
+	ref, accountID := feishuReactionRef(chatID, senderID)
 	if ref == "" {
 		callback.IgnoredReason = "empty_ref"
 		return nil
@@ -278,6 +269,23 @@ func feishuSenderRef(senderID feishuEventSenderID) (string, string) {
 	}
 	if value := strings.TrimSpace(senderID.UnionID); value != "" {
 		return value, "union_id"
+	}
+	return "", ""
+}
+
+func feishuMessageRef(chatID string, senderID feishuEventSenderID) (string, string) {
+	if ref := strings.TrimSpace(chatID); ref != "" {
+		return ref, "chat_id"
+	}
+	return feishuSenderRef(senderID)
+}
+
+func feishuReactionRef(chatID string, senderID string) (string, string) {
+	if ref := strings.TrimSpace(chatID); ref != "" {
+		return ref, "chat_id"
+	}
+	if senderID != "" {
+		return senderID, "open_id"
 	}
 	return "", ""
 }

@@ -19,7 +19,7 @@ interface TranslateParams {
 
 export interface I18nContextValue {
   locale: Locale;
-  set_locale: (locale: Locale) => void;
+  setLocale: (locale: Locale) => void;
   t: (key: TranslationKey, params?: TranslateParams) => string;
 }
 

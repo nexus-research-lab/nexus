@@ -35,54 +35,54 @@ import type { DefaultModelPreferenceRole } from "./settings-preferences-model";
 import { SettingsOnboardingRow } from "./settings-onboarding-row";
 
 interface SettingsGeneralBehaviorSectionProps {
-  agent_runtime_kind: AgentRuntimeKind;
-  agent_sdk_diagnostics_enabled: boolean;
-  chat_default_delivery_policy: AgentConversationDefaultDeliveryPolicy;
-  default_background_model_options: UiSelectMenuOption[];
-  default_background_model_value: string;
-  default_image_model_options: UiSelectMenuOption[];
-  default_image_model_value: string;
-  default_model_feedback_message?: string | null;
-  default_model_options: UiSelectMenuOption[];
-  default_model_saving_role: DefaultModelPreferenceRole | null;
-  default_model_value: string;
-  nxs_runtime_checking: boolean;
-  on_agent_runtime_kind_change: (value: AgentRuntimeKind) => void;
-  on_agent_sdk_diagnostics_change: (checked: boolean) => void;
-  on_default_delivery_policy_change: (
+  agentRuntimeKind: AgentRuntimeKind;
+  agentSdkDiagnosticsEnabled: boolean;
+  chatDefaultDeliveryPolicy: AgentConversationDefaultDeliveryPolicy;
+  defaultBackgroundModelOptions: UiSelectMenuOption[];
+  defaultBackgroundModelValue: string;
+  defaultImageModelOptions: UiSelectMenuOption[];
+  defaultImageModelValue: string;
+  defaultModelFeedbackMessage?: string | null;
+  defaultModelOptions: UiSelectMenuOption[];
+  defaultModelSavingRole: DefaultModelPreferenceRole | null;
+  defaultModelValue: string;
+  nxsRuntimeChecking: boolean;
+  onAgentRuntimeKindChange: (value: AgentRuntimeKind) => void;
+  onAgentSdkDiagnosticsChange: (checked: boolean) => void;
+  onDefaultDeliveryPolicyChange: (
     value: AgentConversationDefaultDeliveryPolicy,
   ) => void;
-  on_default_model_change: (
+  onDefaultModelChange: (
     value: string,
     role: DefaultModelPreferenceRole,
   ) => void;
-  on_reset_tours: () => void;
-  preferences_loading: boolean;
-  preferences_saving: boolean;
-  provider_options_loading: boolean;
+  onResetTours: () => void;
+  preferencesLoading: boolean;
+  preferencesSaving: boolean;
+  providerOptionsLoading: boolean;
 }
 
 export function SettingsGeneralBehaviorSection({
-  agent_runtime_kind,
-  agent_sdk_diagnostics_enabled,
-  chat_default_delivery_policy,
-  default_background_model_options,
-  default_background_model_value,
-  default_image_model_options,
-  default_image_model_value,
-  default_model_feedback_message,
-  default_model_options,
-  default_model_saving_role,
-  default_model_value,
-  nxs_runtime_checking,
-  on_agent_runtime_kind_change,
-  on_agent_sdk_diagnostics_change,
-  on_default_delivery_policy_change,
-  on_default_model_change,
-  on_reset_tours,
-  preferences_loading,
-  preferences_saving,
-  provider_options_loading,
+  agentRuntimeKind: agentRuntimeKind,
+  agentSdkDiagnosticsEnabled: agentSdkDiagnosticsEnabled,
+  chatDefaultDeliveryPolicy: chatDefaultDeliveryPolicy,
+  defaultBackgroundModelOptions: defaultBackgroundModelOptions,
+  defaultBackgroundModelValue: defaultBackgroundModelValue,
+  defaultImageModelOptions: defaultImageModelOptions,
+  defaultImageModelValue: defaultImageModelValue,
+  defaultModelFeedbackMessage: defaultModelFeedbackMessage,
+  defaultModelOptions: defaultModelOptions,
+  defaultModelSavingRole: defaultModelSavingRole,
+  defaultModelValue: defaultModelValue,
+  nxsRuntimeChecking: nxsRuntimeChecking,
+  onAgentRuntimeKindChange: onAgentRuntimeKindChange,
+  onAgentSdkDiagnosticsChange: onAgentSdkDiagnosticsChange,
+  onDefaultDeliveryPolicyChange: onDefaultDeliveryPolicyChange,
+  onDefaultModelChange: onDefaultModelChange,
+  onResetTours: onResetTours,
+  preferencesLoading: preferencesLoading,
+  preferencesSaving: preferencesSaving,
+  providerOptionsLoading: providerOptionsLoading,
 }: SettingsGeneralBehaviorSectionProps) {
   const { t } = useI18n();
 
@@ -111,18 +111,18 @@ export function SettingsGeneralBehaviorSection({
               {t("settings.general.agent_runtime_label")}
             </span>
             <SettingsSegmentedControl
-              aria_label={t("settings.general.agent_runtime_label")}
+              ariaLabel={t("settings.general.agent_runtime_label")}
               disabled={
-                preferences_loading ||
-                preferences_saving ||
-                nxs_runtime_checking
+                preferencesLoading ||
+                preferencesSaving ||
+                nxsRuntimeChecking
               }
-              on_change={on_agent_runtime_kind_change}
+              onChange={onAgentRuntimeKindChange}
               options={AGENT_RUNTIME_KIND_OPTIONS.map((option) => ({
                 value: option.value,
-                label: t(option.label_key),
+                label: t(option.labelKey),
               }))}
-              value={agent_runtime_kind}
+              value={agentRuntimeKind}
             />
           </div>
         </div>
@@ -148,9 +148,9 @@ export function SettingsGeneralBehaviorSection({
               {t("settings.general.agent_sdk_diagnostics_label")}
             </span>
             <GlassSwitch
-              checked={agent_sdk_diagnostics_enabled}
-              disabled={preferences_loading || preferences_saving}
-              on_change={on_agent_sdk_diagnostics_change}
+              checked={agentSdkDiagnosticsEnabled}
+              disabled={preferencesLoading || preferencesSaving}
+              onChange={onAgentSdkDiagnosticsChange}
               size="sm"
             />
           </div>
@@ -159,47 +159,47 @@ export function SettingsGeneralBehaviorSection({
         <div className="border-t border-(--divider-subtle-color)" />
 
         <SettingsDefaultModelRow
-          description_key="settings.general.default_model_description"
-          empty_placeholder_key="settings.general.default_model_empty"
+          descriptionKey="settings.general.default_model_description"
+          emptyPlaceholderKey="settings.general.default_model_empty"
           icon={<MonitorCog className="h-3.5 w-3.5" />}
-          on_change={on_default_model_change}
-          options={default_model_options}
-          provider_options_loading={provider_options_loading}
-          role="agent_runtime"
-          saving_role={default_model_saving_role}
-          title_key="settings.general.default_model_title"
-          value={default_model_value}
+          onChange={onDefaultModelChange}
+          options={defaultModelOptions}
+          providerOptionsLoading={providerOptionsLoading}
+          modelCategory="agent_runtime"
+          savingRole={defaultModelSavingRole}
+          titleKey="settings.general.default_model_title"
+          value={defaultModelValue}
         />
 
         <div className="border-t border-(--divider-subtle-color)" />
 
         <SettingsDefaultModelRow
-          description_key="settings.general.default_image_model_description"
-          empty_placeholder_key="settings.general.default_image_model_empty"
+          descriptionKey="settings.general.default_image_model_description"
+          emptyPlaceholderKey="settings.general.default_image_model_empty"
           icon={<Image className="h-3.5 w-3.5" />}
-          on_change={on_default_model_change}
-          options={default_image_model_options}
-          provider_options_loading={provider_options_loading}
-          role="image_generation"
-          saving_role={default_model_saving_role}
-          title_key="settings.general.default_image_model_title"
-          value={default_image_model_value}
+          onChange={onDefaultModelChange}
+          options={defaultImageModelOptions}
+          providerOptionsLoading={providerOptionsLoading}
+          modelCategory="image_generation"
+          savingRole={defaultModelSavingRole}
+          titleKey="settings.general.default_image_model_title"
+          value={defaultImageModelValue}
         />
 
         <div className="border-t border-(--divider-subtle-color)" />
 
         <SettingsDefaultModelRow
-          description_key="settings.general.default_background_model_description"
-          empty_placeholder_key="settings.general.default_background_model_empty"
-          feedback_message={default_model_feedback_message}
+          descriptionKey="settings.general.default_background_model_description"
+          emptyPlaceholderKey="settings.general.default_background_model_empty"
+          feedbackMessage={defaultModelFeedbackMessage}
           icon={<Sparkles className="h-3.5 w-3.5" />}
-          on_change={on_default_model_change}
-          options={default_background_model_options}
-          provider_options_loading={provider_options_loading}
-          role="background_task"
-          saving_role={default_model_saving_role}
-          title_key="settings.general.default_background_model_title"
-          value={default_background_model_value}
+          onChange={onDefaultModelChange}
+          options={defaultBackgroundModelOptions}
+          providerOptionsLoading={providerOptionsLoading}
+          modelCategory="background_task"
+          savingRole={defaultModelSavingRole}
+          titleKey="settings.general.default_background_model_title"
+          value={defaultBackgroundModelValue}
         />
 
         <div className="border-t border-(--divider-subtle-color)" />
@@ -223,19 +223,19 @@ export function SettingsGeneralBehaviorSection({
               {t("settings.general.default_delivery")}
             </span>
             <SettingsSegmentedControl
-              aria_label={t("settings.general.default_delivery")}
-              disabled={preferences_loading}
-              on_change={on_default_delivery_policy_change}
+              ariaLabel={t("settings.general.default_delivery")}
+              disabled={preferencesLoading}
+              onChange={onDefaultDeliveryPolicyChange}
               options={DELIVERY_POLICY_OPTIONS.map((option) => ({
                 value: option.value,
-                label: t(option.label_key),
+                label: t(option.labelKey),
               }))}
-              value={chat_default_delivery_policy}
+              value={chatDefaultDeliveryPolicy}
             />
           </div>
         </div>
 
-        <SettingsOnboardingRow on_reset={on_reset_tours} />
+        <SettingsOnboardingRow onReset={onResetTours} />
       </div>
     </section>
   );

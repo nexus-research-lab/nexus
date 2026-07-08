@@ -6,19 +6,18 @@ import { cn } from "@/lib/utils";
 
 interface UiCheckboxRowProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "onChange" | "type"> {
   checked: boolean;
-  class_name?: string;
+  className?: string;
   description?: ReactNode;
   label: ReactNode;
-  on_change: (checked: boolean) => void;
+  onChange: (checked: boolean) => void;
 }
 
 export function UiCheckboxRow({
   checked,
-  class_name,
   className,
   description,
   label,
-  on_change,
+  onChange: onChange,
   ...props
 }: UiCheckboxRowProps) {
   return (
@@ -27,13 +26,12 @@ export function UiCheckboxRow({
         "flex items-center gap-3 rounded-[12px] border border-(--divider-subtle-color) bg-transparent px-4 py-3 text-sm text-(--text-default)",
         "transition-[background,border-color] duration-(--motion-duration-fast) hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background)",
         className,
-        class_name,
       )}
     >
       <input
         checked={checked}
         className="h-4 w-4 shrink-0 accent-(--primary)"
-        onChange={(event) => on_change(event.target.checked)}
+        onChange={(event) => onChange(event.target.checked)}
         type="checkbox"
         {...props}
       />

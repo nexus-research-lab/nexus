@@ -35,6 +35,7 @@ export interface RoomConversationRecord {
   conversation_type: string;
   title?: string | null;
   message_count?: number | null;
+  last_activity_at?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
 }
@@ -125,4 +126,30 @@ export interface RoomConversationMessagePage {
   has_more: boolean;
   next_before_round_id: string | null;
   next_before_round_timestamp: number | null;
+}
+
+export interface ApiSessionRoundIndexItem {
+  round_id: string;
+  title?: string;
+  timestamp?: number;
+  status?: string;
+  duration_ms?: number | null;
+  is_live?: boolean;
+  has_user_message?: boolean;
+  agent_ids?: string[] | null;
+}
+
+export interface ApiSessionRoundIndex {
+  items?: ApiSessionRoundIndexItem[];
+}
+
+export interface SessionRoundIndexItem {
+  roundId: string;
+  title: string;
+  timestamp: number | null;
+  status: string | null;
+  durationMs: number | null;
+  isLive: boolean;
+  hasUserMessage: boolean;
+  agentIds: string[];
 }

@@ -5,156 +5,156 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { OnboardingTourDefinition } from "@/shared/ui/onboarding/tour-provider";
 import { useOnboardingTour } from "@/shared/ui/onboarding/use-onboarding-tour";
 import {
-  clear_requested_tour_id,
-  is_tour_dismissed,
-  read_requested_tour_id,
-  set_tour_dismissed,
+  clearRequestedTourId,
+  isTourDismissed,
+  readRequestedTourId,
+  setTourDismissed,
 } from "@/shared/ui/onboarding/tour-state";
 
 interface UsePageOnboardingTourOptions {
   tour: OnboardingTourDefinition | null;
   enabled?: boolean;
-  auto_start_delay_ms?: number;
+  autoStartDelayMs?: number;
 }
 
 export function usePageOnboardingTour({
   tour,
   enabled = true,
-  auto_start_delay_ms = 220,
+  autoStartDelayMs: autoStartDelayMs = 220,
 }: UsePageOnboardingTourOptions) {
   const {
-    active_tour_id,
-    close_tour,
-    has_completed_tour,
-    is_tour_state_ready,
-    register_tour,
-    reset_version,
-    start_tour,
-    unregister_tour,
+    activeTourId: activeTourId,
+    closeTour: closeTour,
+    hasCompletedTour: hasCompletedTour,
+    isTourStateReady: isTourStateReady,
+    registerTour: registerTour,
+    resetVersion: resetVersion,
+    startTour: startTour,
+    unregisterTour: unregisterTour,
   } = useOnboardingTour();
-  const auto_started_tour_ids_ref = useRef<Set<string>>(new Set());
-  const previous_active_tour_id_ref = useRef<string | null>(null);
+  const autoStartedTourIdsRef = useRef<Set<string>>(new Set());
+  const previousActiveTourIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    auto_started_tour_ids_ref.current.clear();
-  }, [reset_version]);
+    autoStartedTourIdsRef.current.clear();
+  }, [resetVersion]);
 
   useEffect(() => {
-    if (!tour || !enabled || !is_tour_state_ready) {
+    if (!tour || !enabled || !isTourStateReady) {
       return undefined;
     }
 
-    register_tour(tour);
+    registerTour(tour);
     return () => {
-      unregister_tour(tour.id);
+      unregisterTour(tour.id);
     };
-  }, [enabled, is_tour_state_ready, register_tour, tour, unregister_tour]);
+  }, [enabled, isTourStateReady, registerTour, tour, unregisterTour]);
 
   useEffect(() => {
-    const previous_active_tour_id = previous_active_tour_id_ref.current;
-    const current_tour_id = tour?.id ?? null;
+    const previousActiveTourId = previousActiveTourIdRef.current;
+    const currentTourId = tour?.id ?? null;
 
     if (
-      previous_active_tour_id &&
-      previous_active_tour_id === current_tour_id &&
-      active_tour_id !== current_tour_id &&
-      current_tour_id &&
-      !has_completed_tour(current_tour_id)
+      previousActiveTourId &&
+      previousActiveTourId === currentTourId &&
+      activeTourId !== currentTourId &&
+      currentTourId &&
+      !hasCompletedTour(currentTourId)
     ) {
-      set_tour_dismissed(current_tour_id, true);
+      setTourDismissed(currentTourId, true);
     }
 
-    previous_active_tour_id_ref.current = active_tour_id;
-  }, [active_tour_id, has_completed_tour, tour]);
+    previousActiveTourIdRef.current = activeTourId;
+  }, [activeTourId, hasCompletedTour, tour]);
 
   useEffect(() => {
-    if (!tour || !enabled || !is_tour_state_ready) {
+    if (!tour || !enabled || !isTourStateReady) {
       return undefined;
     }
-    if (active_tour_id) {
-      return undefined;
-    }
-
-    const requested_tour_id = read_requested_tour_id();
-    if (requested_tour_id !== tour.id) {
+    if (activeTourId) {
       return undefined;
     }
 
-    const timeout_id = window.setTimeout(() => {
-      clear_requested_tour_id(tour.id);
-      set_tour_dismissed(tour.id, false);
-      start_tour(tour.id);
+    const requestedTourId = readRequestedTourId();
+    if (requestedTourId !== tour.id) {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      clearRequestedTourId(tour.id);
+      setTourDismissed(tour.id, false);
+      startTour(tour.id);
     }, 120);
 
     return () => {
-      window.clearTimeout(timeout_id);
+      window.clearTimeout(timeoutId);
     };
-  }, [active_tour_id, enabled, is_tour_state_ready, start_tour, tour]);
+  }, [activeTourId, enabled, isTourStateReady, startTour, tour]);
 
   useEffect(() => {
-    if (!tour || !enabled || !is_tour_state_ready) {
+    if (!tour || !enabled || !isTourStateReady) {
       return undefined;
     }
-    if (active_tour_id) {
+    if (activeTourId) {
       return undefined;
     }
-    if (has_completed_tour(tour.id)) {
+    if (hasCompletedTour(tour.id)) {
       return undefined;
     }
-    if (is_tour_dismissed(tour.id)) {
+    if (isTourDismissed(tour.id)) {
       return undefined;
     }
-    if (auto_started_tour_ids_ref.current.has(tour.id)) {
+    if (autoStartedTourIdsRef.current.has(tour.id)) {
       return undefined;
     }
 
-    auto_started_tour_ids_ref.current.add(tour.id);
-    const timeout_id = window.setTimeout(() => {
-      start_tour(tour.id);
-    }, auto_start_delay_ms);
+    autoStartedTourIdsRef.current.add(tour.id);
+    const timeoutId = window.setTimeout(() => {
+      startTour(tour.id);
+    }, autoStartDelayMs);
 
     return () => {
-      window.clearTimeout(timeout_id);
+      window.clearTimeout(timeoutId);
     };
   }, [
-    active_tour_id,
-    auto_start_delay_ms,
+    activeTourId,
+    autoStartDelayMs,
     enabled,
-    has_completed_tour,
-    is_tour_state_ready,
-    start_tour,
+    hasCompletedTour,
+    isTourStateReady,
+    startTour,
     tour,
   ]);
 
-  const start_current_tour = useCallback(() => {
+  const startCurrentTour = useCallback(() => {
     if (!tour) {
       return;
     }
-    set_tour_dismissed(tour.id, false);
-    start_tour(tour.id);
-  }, [start_tour, tour]);
+    setTourDismissed(tour.id, false);
+    startTour(tour.id);
+  }, [startTour, tour]);
 
-  const close_current_tour = useCallback(() => {
+  const closeCurrentTour = useCallback(() => {
     if (!tour) {
       return;
     }
-    set_tour_dismissed(tour.id, true);
-    close_tour();
-  }, [close_tour, tour]);
+    setTourDismissed(tour.id, true);
+    closeTour();
+  }, [closeTour, tour]);
 
   return useMemo(
     () => ({
-      active_tour_id,
-      close_current_tour,
-      has_completed_current_tour: tour ? has_completed_tour(tour.id) : false,
-      is_current_tour_running: tour ? active_tour_id === tour.id : false,
-      start_current_tour,
+      activeTourId: activeTourId,
+      closeCurrentTour: closeCurrentTour,
+      hasCompletedCurrentTour: tour ? hasCompletedTour(tour.id) : false,
+      isCurrentTourRunning: tour ? activeTourId === tour.id : false,
+      startCurrentTour: startCurrentTour,
     }),
     [
-      active_tour_id,
-      close_current_tour,
-      has_completed_tour,
-      start_current_tour,
+      activeTourId,
+      closeCurrentTour,
+      hasCompletedTour,
+      startCurrentTour,
       tour,
     ],
   );

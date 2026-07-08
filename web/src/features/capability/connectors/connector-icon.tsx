@@ -2,7 +2,7 @@
 
 import { cn } from "@/lib/utils";
 
-import { get_connector_letter } from "./connector-icons";
+import { getConnectorLetter } from "./connector-icons";
 
 type ConnectorIconSize = "md" | "lg";
 
@@ -10,7 +10,7 @@ interface ConnectorIconProps {
   icon: string;
   title: string;
   size?: ConnectorIconSize;
-  class_name?: string;
+  className?: string;
 }
 
 const ICON_SIZE_CLASS: Record<ConnectorIconSize, string> = {
@@ -59,7 +59,7 @@ const CONNECTOR_ICON_SRC: Record<string, string> = {
   zapier: "/icon/connector/zapier.svg",
 };
 
-function get_static_connector_icon_src(icon: string): string {
+function getStaticConnectorIconSrc(icon: string): string {
   return CONNECTOR_ICON_SRC[icon] ?? "";
 }
 
@@ -67,10 +67,10 @@ export function ConnectorIcon({
   icon,
   title,
   size = "md",
-  class_name,
+  className: className,
 }: ConnectorIconProps) {
-  const static_icon_src = get_static_connector_icon_src(icon);
-  const letter = get_connector_letter(icon, title);
+  const staticIconSrc = getStaticConnectorIconSrc(icon);
+  const letter = getConnectorLetter(icon, title);
 
   return (
     <span
@@ -78,20 +78,20 @@ export function ConnectorIcon({
       className={cn(
         "flex shrink-0 items-center justify-center overflow-hidden border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_70%,transparent)] bg-[color:color-mix(in_srgb,var(--background)_82%,white)] font-semibold text-(--text-strong) shadow-[0_1px_2px_rgba(15,23,42,0.04)]",
         ICON_SIZE_CLASS[size],
-        class_name,
+        className,
       )}
     >
-      {static_icon_src ? (
+      {staticIconSrc ? (
         <span
           aria-hidden="true"
           className={ICON_MASK_SIZE_CLASS[size]}
           style={{
             backgroundColor: "var(--text-strong)",
-            maskImage: `url(${static_icon_src})`,
+            maskImage: `url(${staticIconSrc})`,
             maskPosition: "center",
             maskRepeat: "no-repeat",
             maskSize: "contain",
-            WebkitMaskImage: `url(${static_icon_src})`,
+            WebkitMaskImage: `url(${staticIconSrc})`,
             WebkitMaskPosition: "center",
             WebkitMaskRepeat: "no-repeat",
             WebkitMaskSize: "contain",

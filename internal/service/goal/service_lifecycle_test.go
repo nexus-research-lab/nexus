@@ -99,6 +99,39 @@ func TestServiceCreateFillsEmptyPreviewFromGoal(t *testing.T) {
 	if len(preview.items) != 1 || preview.items[0].sessionKey != created.SessionKey || preview.items[0].title != created.Objective {
 		t.Fatalf("preview items = %#v, want created goal objective", preview.items)
 	}
+	if len(preview.titleSchedules) != 1 || preview.titleSchedules[0].fallbackTitle != created.Objective {
+		t.Fatalf("title schedules = %#v, want goal title generation", preview.titleSchedules)
+	}
+}
+
+func TestServiceCreateUsesLoopTitleAsPreviewFallback(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	preview := &fakePreviewFiller{}
+	service.SetPreviewFiller(preview)
+
+	created, err := service.Create(context.Background(), protocol.CreateGoalRequest{
+		SessionKey:  "room:group:conversation_1",
+		Objective:   "按 Loop「Knip Until Clean」推进这个 Room Goal。\n\n目标\n执行 knip 清理。",
+		OwnerUserID: "owner-1",
+		Metadata: map[string]any{
+			protocol.GoalMetadataRoomGoalLoopTitle: "Knip Until Clean",
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(preview.items) != 1 || preview.items[0].title != "Knip Until Clean" {
+		t.Fatalf("preview items = %#v, want loop title fallback", preview.items)
+	}
+	if len(preview.titleSchedules) != 1 ||
+		preview.titleSchedules[0].goal.ID != created.ID ||
+		preview.titleSchedules[0].ownerUserID != "owner-1" ||
+		preview.titleSchedules[0].fallbackTitle != "Knip Until Clean" {
+		t.Fatalf("title schedules = %#v, want loop title generation", preview.titleSchedules)
+	}
 }
 
 func TestServiceCurrentOptionalAllowsMissingGoal(t *testing.T) {

@@ -32,33 +32,33 @@ export interface ScheduledTaskDialogLabelOption {
 
 export interface ScheduledTaskDialogSessionOption {
   value: string;
-  session_key: string;
-  agent_id: string;
+  sessionKey: string;
+  agentId: string;
   label: string;
 }
 
 export interface ScheduledTaskDialogScheduleSnapshot {
-  schedule_kind: ScheduleKind;
-  every_value?: string;
-  every_unit?: EveryUnit;
-  daily_time?: string;
-  selected_weekdays?: Weekday[];
-  run_at?: string;
+  scheduleKind: ScheduleKind;
+  everyValue?: string;
+  everyUnit?: EveryUnit;
+  dailyTime?: string;
+  selectedWeekdays?: Weekday[];
+  runAt?: string;
 }
 
 export interface ScheduledTaskDialogInitialState {
-  task_name: string;
-  target_type: TargetType;
-  execution_kind: ExecutionKind;
-  selected_agent_id: string;
-  selected_room_id: string;
-  execution_mode: ExecutionMode;
-  selected_session_key: string;
-  reply_mode: ReplyMode;
-  selected_reply_session_key: string;
-  dedicated_session_key: string;
+  taskName: string;
+  targetType: TargetType;
+  executionKind: ExecutionKind;
+  selectedAgentId: string;
+  selectedRoomId: string;
+  executionMode: ExecutionMode;
+  selectedSessionKey: string;
+  replyMode: ReplyMode;
+  selectedReplySessionKey: string;
+  dedicatedSessionKey: string;
   timezone: string;
   enabled: boolean;
   instruction: string;
-  schedule_snapshot: ScheduledTaskDialogScheduleSnapshot | null;
+  scheduleSnapshot: ScheduledTaskDialogScheduleSnapshot | null;
 }

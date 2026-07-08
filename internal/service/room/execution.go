@@ -73,10 +73,12 @@ func (s *RealtimeService) runSlot(
 		roundValue.ConversationID,
 		slot.AgentID,
 		slot.MsgID,
+		roundValue.RootRoundID,
 		slot.AgentRoundID,
 		agentValue.WorkspacePath,
 	)
 	slot.setStatus("running")
+	s.broadcastAgentRoundStatus(slotCtx, roundValue, slot, "running")
 	logger.Info("开始执行 Room slot")
 	defer s.finishSlot(slot)
 
@@ -86,7 +88,8 @@ func (s *RealtimeService) runSlot(
 		ConversationID:     roundValue.ConversationID,
 		AgentID:            slot.AgentID,
 		MessageID:          slot.MsgID,
-		CausedBy:           slot.AgentRoundID,
+		RoundID:            roundValue.RootRoundID,
+		AgentRoundID:       slot.AgentRoundID,
 	})
 	defer s.permission.UnbindSessionRoute(slot.RuntimeSessionKey)
 
@@ -136,7 +139,7 @@ func (s *RealtimeService) runSlot(
 		mcpServers = s.mcpServers(
 			agentValue.AgentID,
 			roundValue.SessionKey,
-			slot.AgentRoundID,
+			roundValue.RootRoundID,
 			"room",
 			roundValue.RoomID,
 			roomSourceContextLabel(roundValue),
@@ -150,6 +153,7 @@ func (s *RealtimeService) runSlot(
 	}
 	permissionHandler = runtimepolicy.PermissionHandler(permissionHandler, roundValue.Context.Room.PrivateMessagesEnabled)
 	permissionHandler = toolpolicy.WithManagedGoalAutoApproval(permissionHandler)
+	permissionHandler = toolpolicy.WithMalformedInputDeny(permissionHandler)
 	runtimeSelection, err := s.resolveAgentRuntimeSelection(slotCtx, roundValue, agentValue)
 	if err != nil {
 		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
@@ -254,6 +258,7 @@ func (s *RealtimeService) runSlot(
 		roundValue.ConversationID,
 		slot.AgentID,
 		slot.MsgID,
+		roundValue.RootRoundID,
 		slot.AgentRoundID,
 	))
 
@@ -301,16 +306,17 @@ func (s *RealtimeService) runSlot(
 				if incoming.Type == sdkprotocol.MessageTypeStreamEvent && !s.config.MessageDebugStreamEvent {
 					return
 				}
-				streamLogger.Debug(
-					"Room slot 收到 SDK 消息",
-					runtimectx.BuildSDKMessageLogFieldsWithOptions(
-						incoming,
-						runtimectx.SDKMessageLogOptions{
-							IncludeStreamEvent:  s.config.MessageDebugStreamEvent,
-							IncludeSnapshotData: true,
-						},
-					)...,
+				fields := runtimectx.BuildSDKMessageLogFieldsWithOptions(
+					incoming,
+					runtimectx.SDKMessageLogOptions{
+						IncludeStreamEvent:  s.config.MessageDebugStreamEvent,
+						IncludeSnapshotData: true,
+					},
 				)
+				if len(fields) == 0 {
+					return
+				}
+				streamLogger.Debug("Room slot 收到 SDK 消息", fields...)
 			}
 		},
 		SyncSessionID: func(sessionID string) error {
@@ -318,6 +324,7 @@ func (s *RealtimeService) runSlot(
 		},
 		HandleDurableMessage: func(messageValue protocol.Message) error {
 			messageRole := protocol.MessageRole(messageValue)
+			slot.rememberSubagentTaskMessage(messageValue)
 			if messageRole == "result" {
 				slot.setStatus(resultStatus(messageValue["subtype"]))
 				s.recordUsage(roundValue, slot, messageValue)
@@ -332,6 +339,8 @@ func (s *RealtimeService) runSlot(
 			if slot.shouldSuppressOutput() {
 				return nil
 			}
+			// 剥离混合内容里的无回复标记，确保它不进入存储与公区。
+			messageValue = roomdomain.StripNoReplyMarker(messageValue)
 			if !roomSlotPublishesPublicOutput(slot) {
 				if !protocol.IsTranscriptNativeMessage(protocol.Message(messageValue)) {
 					if err := s.persistPrivateOverlayMessage(slot, cloneMessageWithSessionKey(messageValue, slot.RuntimeSessionKey)); err != nil {
@@ -380,6 +389,7 @@ func (s *RealtimeService) runSlot(
 	if slot.getStatus() == "running" {
 		slot.setStatus(resultStatus(result.ResultSubtype))
 	}
+	s.broadcastAgentRoundStatus(slotCtx, roundValue, slot, slot.getStatus())
 	if !slot.shouldSuppressOutput() {
 		if err := s.recordRoomDirectedMessageReply(slotCtx, roundValue, slot, mapper.LastAssistantMessage()); err != nil {
 			s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
@@ -421,6 +431,7 @@ func (s *RealtimeService) runSlot(
 		roundValue.ConversationID,
 		slot.AgentID,
 		slot.MsgID,
+		roundValue.RootRoundID,
 		slot.AgentRoundID,
 	))
 	logger.Info("Room slot 结束",

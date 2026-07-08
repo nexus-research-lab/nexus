@@ -9,13 +9,27 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
-// HandleInterrupt 处理中断请求。
+// HandleInterrupt 处理中断请求。带 agent_round_id 时只停对应 slot，否则停整个 round。
 func (s *RealtimeService) HandleInterrupt(ctx context.Context, request InterruptRequest) error {
 	sessionKey, err := protocol.RequireStructuredSessionKey(request.SessionKey)
 	if err != nil {
 		return err
 	}
-	return s.interruptRound(ctx, sessionKey, strings.TrimSpace(request.MsgID), "", false)
+	if agentRoundID := strings.TrimSpace(request.AgentRoundID); agentRoundID != "" {
+		roundValue, slot := s.findActiveSlotByAgentRoundID(sessionKey, agentRoundID)
+		if slot == nil {
+			return errors.New("target room slot not found")
+		}
+		return s.interruptActiveSlot(ctx, roundValue, slot, "", false)
+	}
+	if roundID := strings.TrimSpace(request.RoundID); roundID != "" {
+		roundValue := s.findActiveRoundByRoundID(sessionKey, roundID)
+		if roundValue == nil {
+			return errors.New("target room round not found")
+		}
+		return s.interruptActiveRound(ctx, roundValue, "", false)
+	}
+	return s.interruptRound(ctx, sessionKey, "", "", false)
 }
 
 // InterruptConversation 中断指定 conversation 的全部活跃轮次。
@@ -188,6 +202,40 @@ func (s *RealtimeService) activeRoundsForSession(sessionKey string) []*activeRoo
 		rounds = append(rounds, roundValue)
 	}
 	return rounds
+}
+
+func (s *RealtimeService) findActiveSlotByAgentRoundID(sessionKey string, agentRoundID string) (*activeRoomRound, *activeRoomSlot) {
+	agentRoundID = strings.TrimSpace(agentRoundID)
+	if agentRoundID == "" {
+		return nil, nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, roundValue := range s.activeRounds {
+		if roundValue == nil || roundValue.SessionKey != sessionKey {
+			continue
+		}
+		for _, slot := range roundValue.Slots {
+			if slot != nil && strings.TrimSpace(slot.AgentRoundID) == agentRoundID {
+				return roundValue, slot
+			}
+		}
+	}
+	return nil, nil
+}
+
+func (s *RealtimeService) findActiveRoundByRoundID(sessionKey string, roundID string) *activeRoomRound {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, roundValue := range s.activeRounds {
+		if roundValue == nil || roundValue.SessionKey != sessionKey {
+			continue
+		}
+		if strings.TrimSpace(roundValue.RootRoundID) == roundID || strings.TrimSpace(roundValue.RoundID) == roundID {
+			return roundValue
+		}
+	}
+	return nil
 }
 
 func (s *RealtimeService) findActiveSlot(sessionKey string, msgID string) (*activeRoomRound, *activeRoomSlot) {

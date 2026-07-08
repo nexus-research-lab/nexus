@@ -85,6 +85,6 @@ func (c *sessionDeliveryChannel) broadcastRoomMessage(
 	event.ConversationID = conversationID
 	event.AgentID = agentID
 	event.MessageID = strings.TrimSpace(stringValue(message["message_id"]))
-	event.CausedBy = roundID
+	event.RoundID = roundID
 	c.permission.BroadcastEvent(ctx, sessionKey, event)
 }

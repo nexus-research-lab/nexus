@@ -1,8 +1,9 @@
 import type { AssistantMessage } from "@/types/conversation/message";
 
+import { stripRoomControlMarkers } from "./message-item-support";
 import type { MessageStatsData } from "./message-item-types";
 
-function format_compact_count(value: number): string {
+function formatCompactCount(value: number): string {
   if (!Number.isFinite(value)) {
     return "0";
   }
@@ -15,44 +16,44 @@ function format_compact_count(value: number): string {
   return `${value}`;
 }
 
-export function get_result_summary_display_text(
-  result_summary: AssistantMessage["result_summary"] | undefined,
+export function getResultSummaryDisplayText(
+  resultSummary: AssistantMessage["result_summary"] | undefined,
 ): string | null {
-  const result_text = result_summary?.result?.trim();
-  if (result_text) {
-    return result_text;
+  const resultText = stripRoomControlMarkers(resultSummary?.result ?? "");
+  if (resultText) {
+    return resultText;
   }
-  if (!result_summary) {
+  if (!resultSummary) {
     return null;
   }
-  if (result_summary.subtype === "interrupted") {
+  if (resultSummary.subtype === "interrupted") {
     return null;
   }
-  if (result_summary.subtype === "error" || result_summary.is_error) {
+  if (resultSummary.subtype === "error" || resultSummary.is_error) {
     return "执行失败";
   }
   return null;
 }
 
-export function build_message_stats(
-  result_summary: AssistantMessage["result_summary"] | undefined,
+export function buildMessageStats(
+  resultSummary: AssistantMessage["result_summary"] | undefined,
 ): MessageStatsData | null {
-  const usage = result_summary?.usage;
-  const duration = result_summary
-    ? result_summary.duration_ms > 0
-      ? `${(result_summary.duration_ms / 1000).toFixed(1)}s`
+  const usage = resultSummary?.usage;
+  const duration = resultSummary
+    ? resultSummary.duration_ms > 0
+      ? `${(resultSummary.duration_ms / 1000).toFixed(1)}s`
       : "0s"
     : null;
   const cost =
-    result_summary?.total_cost_usd !== undefined
-      ? `$${result_summary.total_cost_usd.toFixed(4)}`
+    resultSummary?.total_cost_usd !== undefined
+      ? `$${resultSummary.total_cost_usd.toFixed(4)}`
       : null;
-  const cache_hit = usage?.cache_read_input_tokens;
+  const cacheHit = usage?.cache_read_input_tokens;
   const tokens = usage
-    ? `${format_compact_count(usage.input_tokens)}↑ ${format_compact_count(usage.output_tokens)}↓`
+    ? `${formatCompactCount(usage.input_tokens)}↑ ${formatCompactCount(usage.output_tokens)}↓`
     : null;
 
-  if (!duration && !tokens && !cost && !cache_hit) {
+  if (!duration && !tokens && !cost && !cacheHit) {
     return null;
   }
 
@@ -60,9 +61,9 @@ export function build_message_stats(
     duration,
     tokens,
     cost,
-    cache_hit:
-      cache_hit && cache_hit > 0
-        ? `缓存 ${format_compact_count(cache_hit)}`
+    cacheHit:
+      cacheHit && cacheHit > 0
+        ? `缓存 ${formatCompactCount(cacheHit)}`
         : null,
   };
 }

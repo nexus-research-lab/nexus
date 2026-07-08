@@ -118,6 +118,68 @@ func TestScheduleUpdatesSessionAndConversationTitle(t *testing.T) {
 	}
 }
 
+func TestScheduleReplacesGoalFallbackTitle(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(map[string]any{
+			"content": []map[string]any{
+				{
+					"type": "text",
+					"text": "Knip 清理",
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	roomStore := &fakeRoomService{
+		contexts: map[string]*protocol.ConversationContextAggregate{
+			"conv_1": {
+				Room: protocol.RoomRecord{
+					ID:   "room_1",
+					Name: "协作房间",
+				},
+				Conversation: protocol.ConversationRecord{
+					ID:    "conv_1",
+					Title: "Knip Until Clean",
+				},
+			},
+		},
+	}
+	service := NewService(
+		&fakeProviderResolver{
+			config: &clientopts.RuntimeConfig{
+				Provider:  "kimi",
+				AuthToken: "token-1",
+				BaseURL:   server.URL,
+				Model:     "kimi-k2.5",
+			},
+		},
+		nil,
+		roomStore,
+		&fakeEventBroadcaster{},
+	)
+	service.runAsync = func(job func()) {
+		job()
+	}
+
+	service.Schedule(context.Background(), Request{
+		SessionKey:               "room:group:conv_1",
+		Content:                  "按 Loop「Knip Until Clean」推进这个 Room Goal。",
+		FallbackTitle:            "Knip Until Clean",
+		SessionMessageCount:      -1,
+		ConversationID:           "conv_1",
+		ConversationRoomID:       "room_1",
+		ConversationMessageCount: 0,
+	})
+
+	if got := roomStore.contexts["conv_1"].Conversation.Title; got != "Knip 清理" {
+		t.Fatalf("conversation title = %q, want generated title", got)
+	}
+}
+
 func TestScheduleSkipsNonDefaultTitles(t *testing.T) {
 	t.Parallel()
 
@@ -197,6 +259,94 @@ func TestScheduleSkipsNonDefaultTitles(t *testing.T) {
 	}
 }
 
+func TestRequestSkipsSessionTitleWhenMessageCountNegative(t *testing.T) {
+	t.Parallel()
+
+	request := Request{
+		SessionKey:          "room:group:conv_1",
+		SessionTitle:        "",
+		SessionMessageCount: -1,
+	}
+	if request.shouldCheckSessionTitle() {
+		t.Fatal("负消息数应禁用 session 标题检查")
+	}
+}
+
+func TestScheduleUpdatesSessionWhenConversationTitleIsCustom(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(map[string]any{
+			"content": []map[string]any{
+				{
+					"type": "text",
+					"text": "会议纪要",
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	sessionStore := &fakeSessionService{
+		sessions: map[string]*protocol.Session{
+			"agent:a:ws:dm:conv_1": {
+				SessionKey: "agent:a:ws:dm:conv_1",
+				Title:      "New Chat",
+			},
+		},
+	}
+	roomStore := &fakeRoomService{
+		contexts: map[string]*protocol.ConversationContextAggregate{
+			"conv_1": {
+				Room: protocol.RoomRecord{
+					ID:   "room_1",
+					Name: "协作房间",
+				},
+				Conversation: protocol.ConversationRecord{
+					ID:    "conv_1",
+					Title: "用户自定义话题",
+				},
+			},
+		},
+	}
+	service := NewService(
+		&fakeProviderResolver{
+			config: &clientopts.RuntimeConfig{
+				Provider:  "kimi",
+				AuthToken: "token-1",
+				BaseURL:   server.URL,
+				Model:     "kimi-k2.5",
+			},
+		},
+		sessionStore,
+		roomStore,
+		&fakeEventBroadcaster{},
+	)
+	service.runAsync = func(job func()) {
+		job()
+	}
+
+	service.Schedule(context.Background(), Request{
+		SessionKey:               "agent:a:ws:dm:conv_1",
+		Content:                  "帮我整理这次产品会议的纪要",
+		SessionTitle:             "New Chat",
+		SessionMessageCount:      0,
+		ConversationID:           "conv_1",
+		ConversationRoomID:       "room_1",
+		ConversationTitle:        "用户自定义话题",
+		ConversationRoomName:     "协作房间",
+		ConversationMessageCount: 0,
+	})
+
+	if got := sessionStore.sessions["agent:a:ws:dm:conv_1"].Title; got != "会议纪要" {
+		t.Fatalf("session title = %q, want generated title", got)
+	}
+	if got := roomStore.contexts["conv_1"].Conversation.Title; got != "用户自定义话题" {
+		t.Fatalf("conversation title should keep custom value: %q", got)
+	}
+}
+
 func TestScheduleUpdatesDefaultSessionTitleAfterInitialMessage(t *testing.T) {
 	t.Parallel()
 
@@ -248,6 +398,73 @@ func TestScheduleUpdatesDefaultSessionTitleAfterInitialMessage(t *testing.T) {
 
 	if got := sessionStore.sessions["agent:a:weixin-personal:dm:wx-user-1"].Title; got != "微信问候" {
 		t.Fatalf("默认标题的历史 session 应继续补生成标题: %s", got)
+	}
+	if len(events.events) == 0 {
+		t.Fatal("标题更新后应广播 resync")
+	}
+}
+
+func TestScheduleUpdatesDefaultConversationTitleAfterInitialMessage(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(map[string]any{
+			"content": []map[string]any{
+				{
+					"type": "text",
+					"text": "需求评审",
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	roomStore := &fakeRoomService{
+		contexts: map[string]*protocol.ConversationContextAggregate{
+			"conv_1": {
+				Room: protocol.RoomRecord{
+					ID:   "room_1",
+					Name: "协作房间",
+				},
+				Conversation: protocol.ConversationRecord{
+					ID:    "conv_1",
+					Title: "协作房间",
+				},
+			},
+		},
+	}
+	events := &fakeEventBroadcaster{}
+	service := NewService(
+		&fakeProviderResolver{
+			config: &clientopts.RuntimeConfig{
+				Provider:  "glm",
+				AuthToken: "token-2",
+				BaseURL:   server.URL,
+				Model:     "glm-5.1",
+			},
+		},
+		nil,
+		roomStore,
+		events,
+	)
+	service.runAsync = func(job func()) {
+		job()
+	}
+
+	service.Schedule(context.Background(), Request{
+		SessionKey:               "room:group:conv_1",
+		Content:                  "我们评审一下新版本需求",
+		SessionMessageCount:      -1,
+		ConversationID:           "conv_1",
+		ConversationRoomID:       "room_1",
+		ConversationTitle:        "协作房间",
+		ConversationRoomName:     "协作房间",
+		ConversationMessageCount: 8,
+	})
+
+	if got := roomStore.contexts["conv_1"].Conversation.Title; got != "需求评审" {
+		t.Fatalf("默认 room conversation 标题应补生成: %s", got)
 	}
 	if len(events.events) == 0 {
 		t.Fatal("标题更新后应广播 resync")

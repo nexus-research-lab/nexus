@@ -17,7 +17,20 @@ func (s *Service) FetchModels(ctx context.Context, provider string) (*FetchModel
 	if err = s.requireProviderManagement(ctx, *item); err != nil {
 		return nil, err
 	}
-	models, err := s.fetchRemoteModels(ctx, *item)
+	return s.fetchModelsForItem(ctx, *item)
+}
+
+// FetchPublicModels 从公共 Provider 拉取模型列表。
+func (s *Service) FetchPublicModels(ctx context.Context, provider string) (*FetchModelsResult, error) {
+	item, err := s.requirePublicProvider(ctx, provider)
+	if err != nil {
+		return nil, err
+	}
+	return s.fetchModelsForItem(ctx, *item)
+}
+
+func (s *Service) fetchModelsForItem(ctx context.Context, item providerstore.Entity) (*FetchModelsResult, error) {
+	models, err := s.fetchRemoteModels(ctx, item)
 	if err != nil {
 		return nil, err
 	}
@@ -53,7 +66,7 @@ func (s *Service) FetchModels(ctx context.Context, provider string) (*FetchModel
 	if err = s.repository.UpsertModels(ctx, entities); err != nil {
 		return nil, err
 	}
-	if err = s.autoDefaultDiscoveredModel(ctx, *item, models); err != nil {
+	if err = s.autoDefaultDiscoveredModel(ctx, item, models); err != nil {
 		return nil, err
 	}
 	saved, err := s.modelsForRecord(ctx, item.ID)
@@ -76,6 +89,29 @@ func (s *Service) UpdateModel(ctx context.Context, provider string, modelID stri
 	if err = s.requireProviderManagement(ctx, *item); err != nil {
 		return nil, err
 	}
+	return s.updateModelForItem(ctx, *item, modelID, input)
+}
+
+// UpdatePublicModel 更新公共 Provider 的模型卡。
+func (s *Service) UpdatePublicModel(
+	ctx context.Context,
+	provider string,
+	modelID string,
+	input UpdateModelInput,
+) (*ModelRecord, error) {
+	item, err := s.requirePublicProvider(ctx, provider)
+	if err != nil {
+		return nil, err
+	}
+	return s.updateModelForItem(ctx, *item, modelID, input)
+}
+
+func (s *Service) updateModelForItem(
+	ctx context.Context,
+	item providerstore.Entity,
+	modelID string,
+	input UpdateModelInput,
+) (*ModelRecord, error) {
 	modelID = normalizeModelID(modelID)
 	if modelID == "" {
 		return nil, errors.New("model_id 不能为空")
@@ -96,7 +132,7 @@ func (s *Service) UpdateModel(ctx context.Context, provider string, modelID stri
 			normalizeModelEntityIdentity(&candidate, modelID)
 			candidate.CapabilitiesOverrideJSON = encodeModelCapabilities(input.CapabilitiesOverride)
 		}
-		if !canSetDefaultModel(*item, candidate) {
+		if !canSetDefaultModel(item, candidate) {
 			return nil, fmt.Errorf("provider=%s 暂不可设置默认模型", item.Provider)
 		}
 	}

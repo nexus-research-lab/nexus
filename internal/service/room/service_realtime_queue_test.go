@@ -74,7 +74,6 @@ func TestRealtimeServiceDispatchesRoomUserQueueForIdleTargetWhileAnotherAgentRun
 		ConversationID: roomContext.Conversation.ID,
 		Content:        "@Amy 先处理一个长任务",
 		RoundID:        "room-round-amy-busy",
-		ReqID:          "room-round-amy-busy",
 	}); err != nil {
 		t.Fatalf("启动 Amy 长任务失败: %v", err)
 	}
@@ -184,7 +183,6 @@ func TestRealtimeServiceNewMessageKeepsOtherAgentRoundRunning(t *testing.T) {
 		ConversationID: roomContext.Conversation.ID,
 		Content:        "@助手甲 先处理",
 		RoundID:        "room-round-agent-a",
-		ReqID:          "room-round-agent-a",
 	}); err != nil {
 		t.Fatalf("HandleChat A 失败: %v", err)
 	}
@@ -198,7 +196,6 @@ func TestRealtimeServiceNewMessageKeepsOtherAgentRoundRunning(t *testing.T) {
 		ConversationID: roomContext.Conversation.ID,
 		Content:        "@助手乙 你也处理",
 		RoundID:        "room-round-agent-b",
-		ReqID:          "room-round-agent-b",
 	}); err != nil {
 		t.Fatalf("HandleChat B 失败: %v", err)
 	}
@@ -287,7 +284,6 @@ func TestRealtimeServiceAppendsRunningTargetByDefault(t *testing.T) {
 		ConversationID: roomContext.Conversation.ID,
 		Content:        "@助手甲 先处理",
 		RoundID:        "room-round-queue-1",
-		ReqID:          "room-round-queue-1",
 	}); err != nil {
 		t.Fatalf("第一条 Room 消息失败: %v", err)
 	}
@@ -301,7 +297,6 @@ func TestRealtimeServiceAppendsRunningTargetByDefault(t *testing.T) {
 		ConversationID: roomContext.Conversation.ID,
 		Content:        "@助手甲 这是补充要求",
 		RoundID:        "room-round-queue-2",
-		ReqID:          "room-round-queue-2",
 	}); err != nil {
 		t.Fatalf("第二条 Room 排队消息失败: %v", err)
 	}
@@ -408,7 +403,6 @@ func TestRealtimeServiceGuidesRunningRoomSlotAsLiveSystemContext(t *testing.T) {
 		ConversationID: roomContext.Conversation.ID,
 		Content:        "@助手甲 先处理",
 		RoundID:        "room-round-guide-1",
-		ReqID:          "room-round-guide-1",
 	}); err != nil {
 		t.Fatalf("第一条 Room 消息失败: %v", err)
 	}
@@ -422,7 +416,6 @@ func TestRealtimeServiceGuidesRunningRoomSlotAsLiveSystemContext(t *testing.T) {
 		ConversationID: roomContext.Conversation.ID,
 		Content:        "@助手甲 等工具结果回来后优先看错误日志",
 		RoundID:        "room-round-guide-2",
-		ReqID:          "room-round-guide-2",
 		DeliveryPolicy: protocol.ChatDeliveryPolicyGuide,
 	}); err != nil {
 		t.Fatalf("Room 引导消息失败: %v", err)
@@ -462,7 +455,7 @@ func TestRealtimeServiceGuidesRunningRoomSlotAsLiveSystemContext(t *testing.T) {
 	}
 	foundGuidedPublicMessage := false
 	for _, message := range sharedMessages {
-		if message["message_id"] != "room-round-guide-2" {
+		if message["round_id"] != "room-round-guide-2" || message["role"] != "user" {
 			continue
 		}
 		if message["role"] != "user" ||

@@ -20,23 +20,23 @@ interface SettingsSegmentedControlOption<T extends string> {
 }
 
 interface SettingsSegmentedControlProps<T extends string> {
-  aria_label: string;
+  ariaLabel: string;
   disabled?: boolean;
-  on_change: (value: T) => void;
+  onChange: (value: T) => void;
   options: ReadonlyArray<SettingsSegmentedControlOption<T>>;
   value: T;
 }
 
 export function SettingsSegmentedControl<T extends string>({
-  aria_label,
+  ariaLabel: ariaLabel,
   disabled,
-  on_change,
+  onChange: onChange,
   options,
   value,
 }: SettingsSegmentedControlProps<T>) {
   return (
     <div
-      aria-label={aria_label}
+      aria-label={ariaLabel}
       className={`${SETTINGS_CONTROL_HEIGHT_CLASS_NAME} inline-flex w-full items-center rounded-xl border border-(--divider-subtle-color) bg-transparent p-0.5`}
       role="group"
     >
@@ -53,7 +53,7 @@ export function SettingsSegmentedControl<T extends string>({
                 : "text-(--text-soft) hover:text-(--text-default)",
             )}
             disabled={disabled}
-            onClick={() => on_change(option.value)}
+            onClick={() => onChange(option.value)}
             type="button"
           >
             {option.label}

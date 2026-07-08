@@ -6,89 +6,89 @@ import { UserRound } from "lucide-react";
 import type { Agent } from "@/types/agent/agent";
 import type { Goal } from "@/types/conversation/goal";
 import {
-  goal_continuation_hold_for_room_target,
+  goalContinuationHoldForRoomTarget,
   ROOM_GOAL_SCOPE_LABEL,
 } from "@/features/conversation/shared/goal-continuation-hold";
 import { GoalPanel } from "@/features/conversation/shared/goal-panel";
 import {
-  resolve_default_room_goal_lead,
-  resolve_room_goal_lead_agent_id,
+  resolveDefaultRoomGoalLead,
+  resolveRoomGoalLeadAgentId,
 } from "./room-goal-model";
 
 interface RoomGoalPanelProps {
-  activity_key: string | number | null;
-  can_control_session: boolean;
-  is_loading: boolean;
-  is_mobile_layout: boolean;
-  room_host_agent_id?: string | null;
-  room_host_auto_reply_enabled: boolean;
-  room_members: Agent[];
-  session_key: string | null;
+  activityKey: string | number | null;
+  canControlSession: boolean;
+  isLoading: boolean;
+  isMobileLayout: boolean;
+  roomHostAgentId?: string | null;
+  roomHostAutoReplyEnabled: boolean;
+  roomMembers: Agent[];
+  sessionKey: string | null;
 }
 
 export function RoomGoalPanel({
-  activity_key,
-  can_control_session,
-  is_loading,
-  is_mobile_layout,
-  room_host_agent_id,
-  room_host_auto_reply_enabled,
-  room_members,
-  session_key,
+  activityKey: activityKey,
+  canControlSession: canControlSession,
+  isLoading: isLoading,
+  isMobileLayout: isMobileLayout,
+  roomHostAgentId: roomHostAgentId,
+  roomHostAutoReplyEnabled: roomHostAutoReplyEnabled,
+  roomMembers: roomMembers,
+  sessionKey: sessionKey,
 }: RoomGoalPanelProps) {
-  const [current_goal, set_current_goal] = useState<Goal | null>(null);
-  const default_lead_agent_id = useMemo(
-    () => resolve_default_room_goal_lead(room_members, room_host_agent_id),
-    [room_host_agent_id, room_members],
+  const [currentGoal, setCurrentGoal] = useState<Goal | null>(null);
+  const defaultLeadAgentId = useMemo(
+    () => resolveDefaultRoomGoalLead(roomMembers, roomHostAgentId),
+    [roomHostAgentId, roomMembers],
   );
-  const effective_lead_agent_id = useMemo(
+  const effectiveLeadAgentId = useMemo(
     () =>
-      resolve_room_goal_lead_agent_id(
-        current_goal,
-        room_members,
-        default_lead_agent_id,
+      resolveRoomGoalLeadAgentId(
+        currentGoal,
+        roomMembers,
+        defaultLeadAgentId,
       ),
-    [current_goal, default_lead_agent_id, room_members],
+    [currentGoal, defaultLeadAgentId, roomMembers],
   );
-  const lead_agent = useMemo(
+  const leadAgent = useMemo(
     () =>
-      room_members.find((agent) => agent.agent_id === effective_lead_agent_id) ??
+      roomMembers.find((agent) => agent.agent_id === effectiveLeadAgentId) ??
       null,
-    [effective_lead_agent_id, room_members],
+    [effectiveLeadAgentId, roomMembers],
   );
-  const continuation_hold = useMemo(
+  const continuationHold = useMemo(
     () =>
-      goal_continuation_hold_for_room_target(
-        room_members,
-        effective_lead_agent_id,
-        room_host_auto_reply_enabled,
+      goalContinuationHoldForRoomTarget(
+        roomMembers,
+        effectiveLeadAgentId,
+        roomHostAutoReplyEnabled,
       ),
-    [effective_lead_agent_id, room_host_auto_reply_enabled, room_members],
+    [effectiveLeadAgentId, roomHostAutoReplyEnabled, roomMembers],
   );
-  const handle_goal_change = useCallback((goal: Goal | null) => {
-    set_current_goal(goal);
+  const handleGoalChange = useCallback((goal: Goal | null) => {
+    setCurrentGoal(goal);
   }, []);
-  const status_extra = lead_agent ? (
+  const statusExtra = leadAgent ? (
     <span
       className="inline-flex min-w-0 items-center gap-1 truncate text-(--text-muted)"
-      title={`Room Goal 负责人：${lead_agent.name}`}
+      title={`Room Goal 负责人：${leadAgent.name}`}
     >
       <UserRound className="h-3 w-3 shrink-0" />
-      <span className="truncate">负责人 {lead_agent.name}</span>
+      <span className="truncate">负责人 {leadAgent.name}</span>
     </span>
   ) : null;
 
   return (
     <GoalPanel
-      activity_key={activity_key}
-      compact={is_mobile_layout}
-      continuation_hold={continuation_hold}
-      disabled={!can_control_session}
-      is_generating={is_loading}
-      session_key={session_key}
-      scope_label={ROOM_GOAL_SCOPE_LABEL}
-      status_extra={status_extra}
-      on_goal_change={handle_goal_change}
+      activityKey={activityKey}
+      compact={isMobileLayout}
+      continuationHold={continuationHold}
+      disabled={!canControlSession}
+      isGenerating={isLoading}
+      sessionKey={sessionKey}
+      scopeLabel={ROOM_GOAL_SCOPE_LABEL}
+      statusExtra={statusExtra}
+      onGoalChange={handleGoalChange}
     />
   );
 }

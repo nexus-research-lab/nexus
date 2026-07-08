@@ -8,16 +8,16 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { LottiePlayer } from "@/shared/ui/feedback/lottie-player";
 import { cn } from "@/lib/utils";
 import { useSidebarStore } from "@/store/sidebar";
-import { query_launcher } from "@/lib/api/launcher-api";
-import { ensure_direct_room, get_room_contexts } from "@/lib/api/room-api";
+import { queryLauncher } from "@/lib/api/launcher-api";
+import { ensureDirectRoom, getRoomContexts } from "@/lib/api/room-api";
 import {
-  build_launcher_tour,
+  buildLauncherTour,
 } from "@/features/launcher/launcher-tour";
 import { usePageOnboardingTour } from "@/shared/ui/onboarding/use-page-onboarding-tour";
 import {
-  build_decorative_tokens,
-  build_launcher_mention_targets,
-  build_recent_launcher_entries,
+  buildDecorativeTokens,
+  buildLauncherMentionTargets,
+  buildRecentLauncherEntries,
 } from "./launcher-console-helpers";
 import {
   LauncherConsoleProps,
@@ -29,37 +29,37 @@ export function LauncherConsole({
   agents,
   rooms,
   conversations,
-  current_agent_id,
-  on_open_main_agent_dm,
-  on_open_route,
-  on_select_agent,
+  currentAgentId: currentAgentId,
+  onOpenMainAgentDm: onOpenMainAgentDm,
+  onOpenRoute: onOpenRoute,
+  onSelectAgent: onSelectAgent,
 }: LauncherConsoleProps) {
   const { t } = useI18n();
   const [query, setQuery] = useState("");
   const [isQueryLoading, setIsQueryLoading] = useState(false);
-  const set_active_panel_item = useSidebarStore((s) => s.set_active_panel_item);
-  const launcher_tour = useMemo(() => build_launcher_tour(t), [t]);
+  const setActivePanelItem = useSidebarStore((s) => s.set_active_panel_item);
+  const launcherTour = useMemo(() => buildLauncherTour(t), [t]);
   usePageOnboardingTour({
-    tour: launcher_tour,
+    tour: launcherTour,
     enabled: true,
-    auto_start_delay_ms: 260,
+    autoStartDelayMs: 260,
   });
-  const decorative_tokens = useMemo(
-    () => build_decorative_tokens(agents, rooms),
+  const decorativeTokens = useMemo(
+    () => buildDecorativeTokens(agents, rooms),
     [agents, rooms],
   );
 
-  const mention_targets = useMemo(
-    () => build_launcher_mention_targets(agents, rooms),
+  const mentionTargets = useMemo(
+    () => buildLauncherMentionTargets(agents, rooms),
     [agents, rooms],
   );
 
-  const recent_entries = useMemo(
-    () => build_recent_launcher_entries(conversations),
+  const recentEntries = useMemo(
+    () => buildRecentLauncherEntries(conversations),
     [conversations],
   );
 
-  const handle_open_recent_entry = useCallback(
+  const handleOpenRecentEntry = useCallback(
     (entry: RecentLauncherEntry) => {
       void (async () => {
         try {
@@ -67,19 +67,19 @@ export function LauncherConsole({
             if (!entry.room_id) {
               return;
             }
-            set_active_panel_item(entry.room_id);
-            on_open_route(
-              AppRouteBuilders.room_conversation(entry.room_id, entry.conversation_id),
+            setActivePanelItem(entry.room_id);
+            onOpenRoute(
+              AppRouteBuilders.roomConversation(entry.room_id, entry.conversation_id),
             );
             return;
           }
 
           if (entry.type === "dm" && entry.agent_id) {
-            on_select_agent(entry.agent_id);
-            const context = await ensure_direct_room(entry.agent_id);
-            set_active_panel_item(context.room.id);
-            on_open_route(
-              AppRouteBuilders.room_conversation(context.room.id, context.conversation.id),
+            onSelectAgent(entry.agent_id);
+            const context = await ensureDirectRoom(entry.agent_id);
+            setActivePanelItem(context.room.id);
+            onOpenRoute(
+              AppRouteBuilders.roomConversation(context.room.id, context.conversation.id),
             );
             return;
           }
@@ -88,11 +88,11 @@ export function LauncherConsole({
             return;
           }
 
-          const contexts = await get_room_contexts(entry.room_id);
+          const contexts = await getRoomContexts(entry.room_id);
           if (contexts.length > 0) {
-            set_active_panel_item(entry.room_id);
-            on_open_route(
-              AppRouteBuilders.room_conversation(entry.room_id, contexts[0].conversation.id),
+            setActivePanelItem(entry.room_id);
+            onOpenRoute(
+              AppRouteBuilders.roomConversation(entry.room_id, contexts[0].conversation.id),
             );
           }
         } catch (error) {
@@ -100,53 +100,53 @@ export function LauncherConsole({
         }
       })();
     },
-    [on_open_route, on_select_agent, set_active_panel_item],
+    [onOpenRoute, onSelectAgent, setActivePanelItem],
   );
 
-  const handle_submit = useCallback(
-    async (next_query?: string) => {
-      const trimmed = (next_query ?? query).trim();
+  const handleSubmit = useCallback(
+    async (nextQuery?: string) => {
+      const trimmed = (nextQuery ?? query).trim();
       if (!trimmed || isQueryLoading) {
         return;
       }
 
       setIsQueryLoading(true);
       try {
-        const action = await query_launcher({ query: trimmed });
+        const action = await queryLauncher({ query: trimmed });
 
         switch (action.action_type) {
           case "open_agent_dm": {
-            on_select_agent(action.target_id);
-            const context = await ensure_direct_room(action.target_id);
+            onSelectAgent(action.target_id);
+            const context = await ensureDirectRoom(action.target_id);
             if (context) {
-              set_active_panel_item(context.room.id);
-              const route = AppRouteBuilders.room_conversation(
+              setActivePanelItem(context.room.id);
+              const route = AppRouteBuilders.roomConversation(
                 context.room.id,
                 context.conversation.id,
               );
-              const final_route = action.initial_message
+              const finalRoute = action.initial_message
                 ? `${route}?initial=${encodeURIComponent(action.initial_message)}`
                 : route;
-              on_open_route(final_route);
+              onOpenRoute(finalRoute);
             }
             break;
           }
           case "open_app": {
-            on_open_main_agent_dm(action.initial_message || trimmed);
+            onOpenMainAgentDm(action.initial_message || trimmed);
             break;
           }
           case "open_room": {
-            const contexts = await get_room_contexts(action.target_id);
+            const contexts = await getRoomContexts(action.target_id);
             if (contexts.length > 0) {
-              set_active_panel_item(action.target_id);
-              const route = AppRouteBuilders.room_conversation(
+              setActivePanelItem(action.target_id);
+              const route = AppRouteBuilders.roomConversation(
                 action.target_id,
                 contexts[0].conversation.id,
               );
-              const final_route = action.initial_message
+              const finalRoute = action.initial_message
                 ? `${route}?initial=${encodeURIComponent(action.initial_message)}`
                 : route;
-              on_open_route(final_route);
+              onOpenRoute(finalRoute);
             }
             break;
           }
@@ -160,33 +160,33 @@ export function LauncherConsole({
     [
       query,
       isQueryLoading,
-      on_open_main_agent_dm,
-      on_open_route,
-      on_select_agent,
-      set_active_panel_item,
+      onOpenMainAgentDm,
+      onOpenRoute,
+      onSelectAgent,
+      setActivePanelItem,
     ],
   );
 
-  const handle_enter_home = useCallback(() => {
-    on_open_route(AppRouteBuilders.home());
-  }, [on_open_route]);
+  const handleEnterHome = useCallback(() => {
+    onOpenRoute(AppRouteBuilders.home());
+  }, [onOpenRoute]);
 
-  const handle_input_change = useCallback((value: string) => {
+  const handleInputChange = useCallback((value: string) => {
     setQuery(value);
   }, []);
 
-  const handle_primary_action = useCallback(
-    (submitted_input: string) => {
-      const trimmed_query = submitted_input.trim();
-      if (!trimmed_query || isQueryLoading) {
+  const handlePrimaryAction = useCallback(
+    (submittedInput: string) => {
+      const trimmedQuery = submittedInput.trim();
+      if (!trimmedQuery || isQueryLoading) {
         return false;
       }
 
       setQuery("");
-      void handle_submit(trimmed_query);
+      void handleSubmit(trimmedQuery);
       return true;
     },
-    [handle_submit, isQueryLoading],
+    [handleSubmit, isQueryLoading],
   );
 
   return (
@@ -194,8 +194,8 @@ export function LauncherConsole({
       <div className="pointer-events-none absolute left-3 top-3 z-20 sm:left-5 sm:top-4">
         <div className="relative flex items-center gap-1 px-1 py-1">
           <LottiePlayer
-            class_name="pointer-events-none absolute left-10 -top-4 h-12 w-12 opacity-[0.72] sm:left-3 sm:-top-15 sm:h-30 sm:w-30"
-            inline_style={undefined}
+            className="pointer-events-none absolute left-10 -top-4 h-12 w-12 opacity-[0.72] sm:left-3 sm:-top-15 sm:h-30 sm:w-30"
+            inlineStyle={undefined}
             src={ANIMATIONS.BOM}
           />
           <img alt="" className="h-9 w-9 sm:h-10 sm:w-10" src="/logo.webp" />
@@ -217,18 +217,18 @@ export function LauncherConsole({
         )}
       >
         <LauncherHeroStage
-          current_agent_id={current_agent_id}
-          decorative_tokens={decorative_tokens}
-          mention_targets={mention_targets}
-          on_enter_home={handle_enter_home}
-          on_open_main_agent_dm={on_open_main_agent_dm}
-          on_query_change={handle_input_change}
-          on_select_agent={on_select_agent}
-          on_open_recent_entry={handle_open_recent_entry}
-          on_submit={handle_primary_action}
+          currentAgentId={currentAgentId}
+          decorativeTokens={decorativeTokens}
+          mentionTargets={mentionTargets}
+          onEnterHome={handleEnterHome}
+          onOpenMainAgentDm={onOpenMainAgentDm}
+          onQueryChange={handleInputChange}
+          onSelectAgent={onSelectAgent}
+          onOpenRecentEntry={handleOpenRecentEntry}
+          onSubmit={handlePrimaryAction}
           query={query}
-          recent_entries={recent_entries}
-          is_query_loading={isQueryLoading}
+          recentEntries={recentEntries}
+          isQueryLoading={isQueryLoading}
         />
       </div>
     </section>
