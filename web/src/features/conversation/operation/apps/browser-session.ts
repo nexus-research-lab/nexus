@@ -36,7 +36,7 @@ export function build_browser_session_view({
   const srcdoc = typeof preview === "string" && looks_like_html(preview) ? preview : null;
   const raw_url = build_workspace_raw_url(event.agent_id, target ?? event.target, raw_url_builder);
   const url = looks_like_url(query) ? query : null;
-  const iframe_url = srcdoc ? null : raw_url ?? url;
+  const iframe_url = srcdoc ? null : raw_url;
   const has_live_view = Boolean(srcdoc || iframe_url);
   const display_url = browser_display_url({ iframe_url, query, srcdoc, target });
   const page_kind = browser_page_kind({ display_url, iframe_url, srcdoc });

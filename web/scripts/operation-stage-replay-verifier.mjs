@@ -82,12 +82,12 @@ export function verify_completed_round_replay_uses_event_slice({
     event: snapshot.active_event,
     snapshot,
   });
-  assert(final_desktop.active_window_id?.includes(":handoff"), `completed desktop should focus handoff app, got ${final_desktop.active_window_id}`);
-  assert(final_desktop.windows.some((window) => window.kind === "handoff"), "completed desktop should include delivery handoff");
+  assert(final_desktop.active_window_id?.includes(":browser"), `completed desktop should keep artifact browser focused, got ${final_desktop.active_window_id}`);
+  assert(!final_desktop.windows.some((window) => window.kind === "handoff"), "completed desktop with app windows should not include delivery handoff");
   const completed_terminal_window = final_desktop.windows.find((window) => window.kind === "terminal");
   assert(completed_terminal_window?.phase === "minimized", `completed desktop should return terminal to Dock, got ${completed_terminal_window?.phase}`);
   const completed_browser_window = final_desktop.windows.find((window) => window.kind === "browser");
-  assert(completed_browser_window?.phase === "background", `completed desktop should leave browser artifact open, got ${completed_browser_window?.phase}`);
+  assert(completed_browser_window?.phase === "focused", `completed desktop should keep browser artifact focused, got ${completed_browser_window?.phase}`);
 
   const bash_event = snapshot.events.find((event) => event.tool_use_id === "tool-bash");
   assert(bash_event, "replay fixture should project Bash event");

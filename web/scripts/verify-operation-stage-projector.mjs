@@ -1725,19 +1725,14 @@ function verify_workspace_live_stays_in_tool_round(now) {
     event: snapshot.active_event,
     snapshot,
   });
-  assert(desktop.active_window_id?.includes(":handoff"), `completed stage should focus handoff app, got ${desktop.active_window_id}`);
-  const handoff_window = desktop.windows.find((window) => window.kind === "handoff");
-  assert(handoff_window, "completed stage should render a handoff app window");
-  assert(handoff_window.title === "Nexus 交付台", `completed handoff should use delivery window title, got ${handoff_window.title}`);
-  assert(handoff_window.payload.handoff_summary?.status_label === "可继续", `completed handoff should expose handoff summary, got ${handoff_window.payload.handoff_summary?.status_label}`);
-  assert(handoff_window.payload.handoff_summary?.resume_prompt.includes("gomoku.html"), "handoff resume prompt should point to current artifact");
-  assert(!handoff_window.payload.handoff_summary?.resume_prompt.includes("stale-session.md"), "handoff resume prompt should not reference stale workspace artifact");
+  assert(desktop.active_window_id?.includes(":browser"), `completed stage should keep the artifact browser focused, got ${desktop.active_window_id}`);
+  assert(!desktop.windows.some((window) => window.kind === "handoff"), "completed stage with real app windows should not render a handoff app window");
   const continuation_brief = build_operation_continuation_brief(snapshot.active_event, snapshot.events, snapshot);
   assert(continuation_brief.status_label === "可继续", `completed stage continuation brief should be ready, got ${continuation_brief.status_label}`);
   assert(continuation_brief.primary_artifact === "gomoku.html", `completed stage continuation brief should point to current artifact, got ${continuation_brief.primary_artifact}`);
   assert(continuation_brief.resume_prompt.includes("gomoku.html"), "completed stage continuation prompt should point to current artifact");
   const browser_window = desktop.windows.find((window) => window.kind === "browser");
-  assert(browser_window?.phase === "background", `html artifact should remain open beside the run manifest, got ${browser_window?.phase}`);
+  assert(browser_window?.phase === "focused", `html artifact should stay focused after handoff, got ${browser_window?.phase}`);
   const terminal_window = desktop.windows.find((window) => window.kind === "terminal");
   if (terminal_window) {
     assert(terminal_window.phase === "minimized", `completed terminal should return to Dock, got ${terminal_window.phase}`);
@@ -1750,7 +1745,7 @@ function verify_workspace_live_stays_in_tool_round(now) {
   const write_window_id = resolve_operation_event_window_id(write_event, desktop.windows);
   assert(write_window_id?.includes(":document:gomoku.html"), `write event should focus gomoku document window, got ${write_window_id}`);
   const summary_window_id = resolve_operation_event_window_id(snapshot.active_event, desktop.windows);
-  assert(summary_window_id?.includes(":handoff"), `summary event should focus handoff app window, got ${summary_window_id}`);
+  assert(summary_window_id?.includes(":browser"), `summary event should resolve to the focused app window, got ${summary_window_id}`);
 }
 
 function verify_multi_file_windows_keep_event_identity(now) {
@@ -2240,10 +2235,10 @@ function verify_browser_session_view(now) {
     preview: null,
     query: "https://example.com",
   });
-  assert(remote_view.iframe_url === "https://example.com", `Remote URL should be iframe URL, got ${remote_view.iframe_url}`);
+  assert(remote_view.iframe_url === null, `Remote URL should not be embedded as an iframe, got ${remote_view.iframe_url}`);
   assert(remote_view.page_kind === "web", `Remote URL should be web page kind, got ${remote_view.page_kind}`);
   assert(remote_view.source_label === "网页", `Remote URL source should be web, got ${remote_view.source_label}`);
-  assert(remote_view.status.label === "页面运行中", `Running URL should report loading live page, got ${remote_view.status.label}`);
+  assert(remote_view.status.label === "正在加载", `Running URL should report tool loading, got ${remote_view.status.label}`);
   assert(remote_view.tab_title === "example.com", `Remote URL tab should use hostname, got ${remote_view.tab_title}`);
 
   const search_view = build_browser_session_view({

@@ -117,6 +117,17 @@ export function resolve_operation_event_window_id(
     return related_non_inspector.id;
   }
 
+  if (event.kind === "round_summary" || event.surface === "summary") {
+    return windows.find((window) => (
+      window.phase === "focused" &&
+      window.kind !== "handoff" &&
+      window.kind !== "run_manifest"
+    ))?.id ?? windows.find((window) => (
+      window.kind !== "handoff" &&
+      window.kind !== "run_manifest"
+    ))?.id ?? null;
+  }
+
   return related_windows[0]?.id ?? null;
 }
 
@@ -355,7 +366,12 @@ function build_windows(
       },
     }));
   } else if (event.surface === "summary" || event.surface === "conversation" || (event.surface === "fallback" && windows.length === 0)) {
-    if (event.kind === "round_summary" || event.phase === "done" || event.phase === "error" || event.phase === "cancelled") {
+    if (windows.length === 0 && (
+      event.kind === "round_summary" ||
+      event.phase === "done" ||
+      event.phase === "error" ||
+      event.phase === "cancelled"
+    )) {
       const is_successful_handoff = event.kind === "round_summary" && event.phase === "done";
       windows.push(window_state(event, snapshot, {
         id: is_successful_handoff ? "handoff" : "run-manifest",
@@ -473,6 +489,18 @@ function resolve_focus_target(
     event.surface === "summary" &&
     (event.phase === "done" || event.phase === "error" || event.phase === "cancelled")
   )) {
+    if (context.has_html_artifact || context.has_web) {
+      return "browser";
+    }
+    if (context.has_file) {
+      return "document";
+    }
+    if (context.has_terminal) {
+      return "terminal";
+    }
+    if (context.has_task) {
+      return "task";
+    }
     return "manifest";
   }
   if (event.surface === "task" && context.has_task) {
