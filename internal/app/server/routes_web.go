@@ -56,6 +56,12 @@ func (s *Server) mountWebAppRoutes() {
 			logWebStaticRequest(s.api.BaseLogger(), request, relativePath, targetPath, false, recorder, time.Since(start))
 			return
 		}
+		if !shouldServeWebFallback(relativePath) {
+			setWebStaticMissingAssetHeaders(writer)
+			http.NotFound(recorder, request)
+			logWebStaticRequest(s.api.BaseLogger(), request, relativePath, targetPath, false, recorder, time.Since(start))
+			return
+		}
 		targetPath = webFallbackPath(root, relativePath, indexPath)
 		setWebStaticCacheHeaders(writer, relativePath, true)
 		http.ServeFile(recorder, request, targetPath)
@@ -103,11 +109,13 @@ func webFallbackFileName(relativePath string) string {
 		return "settings.html"
 	case relativePath == "capability/connectors/oauth/callback":
 		return "oauth-callback.html"
-	case strings.HasPrefix(relativePath, "assets/"):
-		return "index.html"
 	default:
 		return "app.html"
 	}
+}
+
+func shouldServeWebFallback(relativePath string) bool {
+	return relativePath == "" || !strings.HasPrefix(relativePath, "assets/")
 }
 
 func isAPIRequestPath(rawPath string, apiPrefix string) bool {
@@ -215,6 +223,10 @@ func setWebStaticCacheHeaders(writer http.ResponseWriter, relativePath string, u
 	if cacheControl := webStaticCacheControl(relativePath, usedFallback); cacheControl != "" {
 		writer.Header().Set("Cache-Control", cacheControl)
 	}
+}
+
+func setWebStaticMissingAssetHeaders(writer http.ResponseWriter) {
+	writer.Header().Set("Cache-Control", "no-store")
 }
 
 func webStaticCacheControl(relativePath string, usedFallback bool) string {

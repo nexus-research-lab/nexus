@@ -38,6 +38,7 @@ public partial class MainWindow : System.Windows.Window
             startupTimeline,
             RestoreFromTray,
             ReloadFromTray,
+            ClearWebCacheFromTray,
             CheckForUpdatesFromTray,
             ExitFromTray);
         webViewHealthProbeTimer = new System.Windows.Threading.DispatcherTimer
@@ -291,6 +292,22 @@ public partial class MainWindow : System.Windows.Window
 
         ShowMainWindow();
         _ = webViewHost?.ReloadAsync("tray_reload");
+    }
+
+    private void ClearWebCacheFromTray()
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.Invoke(ClearWebCacheFromTray);
+            return;
+        }
+        if (closed)
+        {
+            return;
+        }
+
+        ShowMainWindow();
+        _ = webViewHost?.ClearCacheAndReloadAsync("tray_clear_cache");
     }
 
     private void ShowMainWindow()
