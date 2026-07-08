@@ -7,6 +7,9 @@ import (
 	"strings"
 	"time"
 
+	// 嵌入 IANA 时区数据库，避免轻量运行环境缺少 zoneinfo 时无法加载 Asia/Shanghai。
+	_ "time/tzdata"
+
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 

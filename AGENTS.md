@@ -1,7 +1,5 @@
 # AGENTS.md
 
-本仓库已经切换到 Go 后端实现，协作时不要再引入旧 Python 运行链路。
-
 ## Build & Validation Commands
 - `make dev`：同时启动 Go 后端（8010）和前端（3000）
 - `make check`：运行 `go test ./...`、前端 lint、前端 typecheck
