@@ -17,6 +17,7 @@ import (
 	sessionpkg "github.com/nexus-research-lab/nexus/internal/service/session"
 
 	"github.com/go-chi/chi/v5"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
 
 type directoryBroadcaster func(context.Context, string, map[string]any)
@@ -175,10 +176,32 @@ func (h *Handlers) HandleUpdateAgent(writer http.ResponseWriter, request *http.R
 		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
 		return
 	}
+	if err := h.applyUpdatedPermissionMode(request.Context(), item, payload); err != nil {
+		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
 	h.broadcastDirectoryChanged(request.Context(), "agent_updated", map[string]any{
 		"agent_id": item.AgentID,
 	})
 	h.api.WriteSuccess(writer, item)
+}
+
+func (h *Handlers) applyUpdatedPermissionMode(ctx context.Context, item *protocol.Agent, payload protocol.UpdateRequest) error {
+	if h == nil || item == nil || payload.Options == nil || strings.TrimSpace(payload.Options.PermissionMode) == "" {
+		return nil
+	}
+	mode := sdkpermission.Mode(strings.TrimSpace(item.Options.PermissionMode))
+	if h.runtime != nil {
+		if err := h.runtime.SetPermissionModeForAgent(ctx, item.AgentID, mode); err != nil {
+			return err
+		}
+	}
+	if h.roomRealtime != nil {
+		if err := h.roomRealtime.SetPermissionModeForAgent(ctx, item.AgentID, mode); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // HandleDeleteAgent 删除 agent。

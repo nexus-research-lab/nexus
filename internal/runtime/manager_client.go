@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
@@ -20,6 +21,7 @@ type Client interface {
 	Interrupt(context.Context) error
 	StopTask(context.Context, string) error
 	SendTaskMessage(context.Context, string, string, string) error
+	SetPermissionMode(context.Context, sdkpermission.Mode) error
 	Disconnect(context.Context) error
 	Reconfigure(context.Context, agentclient.Options) error
 	SessionID() string
@@ -159,6 +161,33 @@ func (c *sdkClientAdapter) SendTaskMessage(ctx context.Context, taskID string, m
 		return err
 	}
 	return session.Control().SendTaskMessage(ctx, taskID, message, summary)
+}
+
+func (c *sdkClientAdapter) SetPermissionMode(ctx context.Context, mode sdkpermission.Mode) error {
+	normalized := normalizePermissionMode(mode)
+	c.mu.Lock()
+	options := c.options
+	options.Runtime.PermissionMode = normalized
+	c.options = options
+	session := c.session
+	c.mu.Unlock()
+	if session == nil {
+		return nil
+	}
+	if err := session.Control().SetPermissionMode(ctx, normalized); err != nil {
+		if IsRuntimeTransportClosedError(err) && c.markDisconnected(session, err) {
+			closeSDKSession(session)
+		}
+		return err
+	}
+	return nil
+}
+
+func normalizePermissionMode(mode sdkpermission.Mode) sdkpermission.Mode {
+	if strings.TrimSpace(string(mode)) == "" {
+		return sdkpermission.ModeDefault
+	}
+	return mode
 }
 
 func (c *sdkClientAdapter) Disconnect(ctx context.Context) error {

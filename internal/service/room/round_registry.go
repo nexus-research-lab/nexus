@@ -1,10 +1,14 @@
 package room
 
 import (
+	"context"
 	"sort"
 	"strings"
 
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
+
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 )
 
 // ActiveRoundSnapshot 表示 Room 当前仍在执行的主轮次快照。
@@ -30,6 +34,34 @@ func (s *RealtimeService) CountRunningTasks(agentID string) int {
 		}
 	}
 	return count
+}
+
+// SetPermissionModeForAgent 将权限模式热同步到指定 agent 已存在的 Room runtime。
+func (s *RealtimeService) SetPermissionModeForAgent(ctx context.Context, agentID string, mode sdkpermission.Mode) error {
+	agentID = strings.TrimSpace(agentID)
+	if agentID == "" {
+		return nil
+	}
+	clients := make([]runtimectx.Client, 0)
+	s.mu.Lock()
+	for _, roundValue := range s.activeRounds {
+		if roundValue == nil {
+			continue
+		}
+		for _, slot := range roundValue.Slots {
+			if slot == nil || slot.AgentID != agentID || slot.isTerminal() || slot.Client == nil {
+				continue
+			}
+			clients = append(clients, slot.Client)
+		}
+	}
+	s.mu.Unlock()
+	for _, client := range clients {
+		if err := client.SetPermissionMode(ctx, mode); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // GetActiveRoundSnapshot 返回指定 conversation 的活跃 slot 快照。

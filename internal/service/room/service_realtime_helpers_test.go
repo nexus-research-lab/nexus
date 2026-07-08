@@ -19,6 +19,7 @@ import (
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 	_ "modernc.org/sqlite"
 )
@@ -84,6 +85,8 @@ func (c *fakeRoomClient) Interrupt(ctx context.Context) error {
 func (c *fakeRoomClient) StopTask(context.Context, string) error { return nil }
 
 func (c *fakeRoomClient) SendTaskMessage(context.Context, string, string, string) error { return nil }
+
+func (c *fakeRoomClient) SetPermissionMode(context.Context, sdkpermission.Mode) error { return nil }
 
 func (c *fakeRoomClient) Disconnect(context.Context) error {
 	c.mu.Lock()

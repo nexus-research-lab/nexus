@@ -10,6 +10,7 @@ import (
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
@@ -184,6 +185,8 @@ func (c *fakeDMClient) interrupt(ctx context.Context, reason string) error {
 func (c *fakeDMClient) StopTask(context.Context, string) error { return nil }
 
 func (c *fakeDMClient) SendTaskMessage(context.Context, string, string, string) error { return nil }
+
+func (c *fakeDMClient) SetPermissionMode(context.Context, sdkpermission.Mode) error { return nil }
 
 func (c *fakeDMClient) Disconnect(context.Context) error {
 	c.mu.Lock()

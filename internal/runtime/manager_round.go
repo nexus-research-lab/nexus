@@ -5,6 +5,8 @@ import (
 	"maps"
 	"slices"
 	"strings"
+
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
 
 // StartRound 注册运行中的 round，并记录其取消函数。
@@ -87,4 +89,28 @@ func (m *Manager) CountRunningRounds(agentID string) int {
 		total += len(state.RunningRounds)
 	}
 	return total
+}
+
+// SetPermissionModeForAgent 将权限模式热同步到指定 agent 已存在的 DM runtime。
+func (m *Manager) SetPermissionModeForAgent(ctx context.Context, agentID string, mode sdkpermission.Mode) error {
+	agentID = strings.TrimSpace(agentID)
+	if agentID == "" {
+		return nil
+	}
+	prefix := "agent:" + agentID + ":"
+	clients := make([]Client, 0)
+	m.mu.RLock()
+	for sessionKey, state := range m.sessions {
+		if state == nil || state.Client == nil || !strings.HasPrefix(sessionKey, prefix) {
+			continue
+		}
+		clients = append(clients, state.Client)
+	}
+	m.mu.RUnlock()
+	for _, client := range clients {
+		if err := client.SetPermissionMode(ctx, mode); err != nil {
+			return err
+		}
+	}
+	return nil
 }

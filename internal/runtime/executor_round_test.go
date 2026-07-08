@@ -7,6 +7,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
@@ -53,6 +54,10 @@ func (c *fakeRoundExecutionClient) Interrupt(context.Context) error {
 func (c *fakeRoundExecutionClient) StopTask(context.Context, string) error { return nil }
 
 func (c *fakeRoundExecutionClient) SendTaskMessage(context.Context, string, string, string) error {
+	return nil
+}
+
+func (c *fakeRoundExecutionClient) SetPermissionMode(context.Context, sdkpermission.Mode) error {
 	return nil
 }
 
