@@ -30,6 +30,7 @@ import {
 import type { StageTransitionIntent } from "./operation-stage-transition";
 import { OperationStageMotionStyles } from "./operation-stage-motion-styles";
 import { OperationStageDesktop } from "./stage/operation-stage-desktop";
+import { OperationStageIdleDesktop } from "./stage/operation-stage-idle-desktop";
 import type {
   NexusOperationEvent,
   NexusOperationSnapshot,
@@ -140,7 +141,12 @@ function StageSurface({
   const transition_style = build_stage_transition_style(stage_transition.intent);
 
   if (!active_event) {
-    return null;
+    return (
+      <OperationStageIdleDesktop
+        header_action={header_action}
+        presentation={presentation}
+      />
+    );
   }
 
   return (
