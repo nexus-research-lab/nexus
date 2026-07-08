@@ -156,26 +156,6 @@ func GoalMetadataBool(metadata map[string]any, key string) bool {
 	}
 }
 
-// GoalRoomLeadAgentID 返回 Room Goal 的负责人 Agent。
-func GoalRoomLeadAgentID(goal Goal) string {
-	return GoalMetadataString(goal.Metadata, GoalMetadataRoomGoalLeadAgentID)
-}
-
-// GoalRoomLeadAgentName 返回 Room Goal 的负责人展示名。
-func GoalRoomLeadAgentName(goal Goal) string {
-	return GoalMetadataString(goal.Metadata, GoalMetadataRoomGoalLeadAgentName)
-}
-
-// GoalRoomCollaborationRequired 判断 Room Goal 是否要求非负责人可见协作。
-func GoalRoomCollaborationRequired(goal Goal) bool {
-	return GoalMetadataBool(goal.Metadata, GoalMetadataRoomGoalCollaborationRequired)
-}
-
-// GoalRoomCollaborationObserved 判断 Room Goal 是否已有非负责人可见协作证据。
-func GoalRoomCollaborationObserved(goal Goal) bool {
-	return GoalMetadataBool(goal.Metadata, GoalMetadataRoomGoalCollaborationObserved)
-}
-
 // RemainingTokens 返回剩余 token 预算；没有预算时返回 nil。
 func (g Goal) RemainingTokens() *int64 {
 	if g.TokenBudget == nil || *g.TokenBudget <= 0 {

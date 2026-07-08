@@ -118,7 +118,7 @@ func goalContinuationTargetAgentID(
 	goal *protocol.Goal,
 ) string {
 	if goal != nil {
-		leadAgentID := protocol.GoalRoomLeadAgentID(*goal)
+		leadAgentID := goalsvc.RoomLeadAgentID(*goal)
 		if leadAgentID != "" {
 			if _, ok := agentNameByID[leadAgentID]; ok {
 				return leadAgentID

@@ -56,7 +56,7 @@ func (s *Service) recordRoomGoalCollaborationRequiredForLoadedGoal(ctx context.C
 	if protocol.NormalizeGoalStatus(item.Status) != protocol.GoalStatusActive || !protocol.IsRoomSharedSessionKey(item.SessionKey) {
 		return item, nil
 	}
-	if protocol.GoalRoomCollaborationRequired(*item) {
+	if RoomCollaborationRequired(*item) {
 		return item, nil
 	}
 	expectedVersion := item.Version
@@ -89,10 +89,10 @@ func (s *Service) recordRoomGoalCollaborationEvidenceForLoadedGoal(ctx context.C
 	if protocol.NormalizeGoalStatus(item.Status) != protocol.GoalStatusActive ||
 		!protocol.IsRoomSharedSessionKey(item.SessionKey) ||
 		agentID == "" ||
-		agentID == protocol.GoalRoomLeadAgentID(*item) {
+		agentID == RoomLeadAgentID(*item) {
 		return item, nil
 	}
-	if protocol.GoalRoomCollaborationObserved(*item) {
+	if RoomCollaborationObserved(*item) {
 		return item, nil
 	}
 	expectedVersion := item.Version
@@ -126,6 +126,6 @@ func (s *Service) recordRoomGoalCollaborationEvidenceForLoadedGoal(ctx context.C
 
 func roomGoalCompletionRequiresCollaboration(item protocol.Goal) bool {
 	return protocol.IsRoomSharedSessionKey(item.SessionKey) &&
-		protocol.GoalRoomCollaborationRequired(item) &&
-		!protocol.GoalRoomCollaborationObserved(item)
+		RoomCollaborationRequired(item) &&
+		!RoomCollaborationObserved(item)
 }

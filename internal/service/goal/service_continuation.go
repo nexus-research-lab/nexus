@@ -240,11 +240,11 @@ func buildRoomGoalLeadNote(item protocol.Goal) string {
 	if !protocol.IsRoomSharedSessionKey(item.SessionKey) {
 		return ""
 	}
-	leadAgentID := protocol.GoalRoomLeadAgentID(item)
+	leadAgentID := RoomLeadAgentID(item)
 	if leadAgentID == "" {
 		return ""
 	}
-	leadName := protocol.GoalRoomLeadAgentName(item)
+	leadName := RoomLeadAgentName(item)
 	leadLabel := leadAgentID
 	if leadName != "" {
 		leadLabel = fmt.Sprintf("%s (%s)", leadName, leadAgentID)
