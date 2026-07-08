@@ -52,10 +52,7 @@ import {
   normalize_stage_window_resize_size,
 } from "./operation-stage-window-drag";
 import { build_stage_window_launch_state } from "./operation-stage-window-launch";
-import {
-  build_stage_dock_launch_window,
-  stage_dock_launch_window_id,
-} from "./operation-stage-dock-launch";
+import { OperationStageIdleDesktop } from "./operation-stage-idle-desktop";
 
 export function OperationStageDesktop({
   event,
@@ -69,10 +66,6 @@ export function OperationStageDesktop({
   snapshot: NexusOperationSnapshot | null;
 }) {
   const [focused_window_id, set_focused_window_id] = useState<string | null>(null);
-  const [launched_dock_apps, set_launched_dock_apps] = useState<Record<string, {
-    app_label: string;
-    kind: StageWindowKind;
-  }>>({});
   const [replay_event_id, set_replay_event_id] = useState<string | null>(null);
   const [window_overrides, set_window_overrides] = useState<Record<string, StageWindowOverride>>({});
   const narrative = useMemo(() => build_stage_narrative(event, snapshot), [event, snapshot]);
@@ -91,22 +84,9 @@ export function OperationStageDesktop({
   const desktop_windows = useMemo(() => (
     desktop.windows.filter((window) => is_stage_desktop_window_kind(window.kind))
   ), [desktop.windows]);
-  const desktop_app_labels = useMemo(() => (
-    new Set(desktop_windows.map((window) => stage_app_label_for_window_kind(window.kind)))
-  ), [desktop_windows]);
-  const launched_windows = useMemo(() => (
-    Object.values(launched_dock_apps)
-      .filter((app) => !desktop_app_labels.has(app.app_label))
-      .map((app) => build_stage_dock_launch_window({
-        app_label: app.app_label,
-        event: active_narrative_event,
-        kind: app.kind,
-        snapshot,
-      }))
-  ), [active_narrative_event, desktop_app_labels, launched_dock_apps, snapshot]);
   const stage_windows = useMemo(() => (
-    [...desktop_windows, ...launched_windows]
-  ), [desktop_windows, launched_windows]);
+    desktop_windows
+  ), [desktop_windows]);
   const planned_active_window_id = useMemo(() => (
     desktop_windows.some((window) => window.id === desktop.active_window_id)
       ? desktop.active_window_id
@@ -138,7 +118,6 @@ export function OperationStageDesktop({
 
   useEffect(() => {
     set_focused_window_id(null);
-    set_launched_dock_apps({});
     set_replay_event_id(null);
     set_window_overrides({});
   }, [event.round_id]);
@@ -358,24 +337,6 @@ export function OperationStageDesktop({
     ));
   };
 
-  const launch_dock_app = ({ app_label, kind }: { app_label: string; kind: StageWindowKind }) => {
-    const window_id = stage_dock_launch_window_id(active_narrative_event.round_id, kind);
-    set_launched_dock_apps((current) => ({
-      ...current,
-      [window_id]: { app_label, kind },
-    }));
-    set_focused_window_id(window_id);
-    set_window_overrides((current) => ({
-      ...current,
-      [window_id]: {
-        ...current[window_id],
-        closed: false,
-        minimized: false,
-        restore_token: Date.now(),
-      },
-    }));
-  };
-
   const focus_event_window = (target_event: NexusOperationEvent) => {
     const target_window_id = resolve_operation_event_window_id(target_event, desktop_windows)
       ?? desktop_active_window_id
@@ -389,7 +350,12 @@ export function OperationStageDesktop({
   };
 
   if (!stage_windows.length) {
-    return null;
+    return (
+      <OperationStageIdleDesktop
+        header_action={header_action}
+        presentation="stage"
+      />
+    );
   }
 
   return (
@@ -464,7 +430,6 @@ export function OperationStageDesktop({
       {has_maximized_window ? null : (
         <StageWindowDock
           active_window_id={active_window_id}
-          on_launch_app={launch_dock_app}
           on_restore_all={restore_all_windows}
           windows={window_states}
           on_restore={restore_window}

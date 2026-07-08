@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 
-import type { StageWindowKind, StageWindowState } from "../operation-desktop-types";
+import type { StageWindowState } from "../operation-desktop-types";
 import {
   display_stage_event_title,
 } from "../operation-stage-labels";
@@ -17,25 +17,13 @@ import {
 } from "./operation-stage-dock-model";
 import { dock_icon_skin_for_kind } from "./operation-stage-app-identity";
 
-const PINNED_DOCK_APPS: Array<{ app_label: string; kind: StageWindowKind }> = [
-  { app_label: "访达", kind: "finder" },
-  { app_label: "Safari", kind: "browser" },
-  { app_label: "终端", kind: "terminal" },
-  { app_label: "Code", kind: "code_editor" },
-  { app_label: "交付台", kind: "handoff" },
-  { app_label: "控制台", kind: "run_manifest" },
-  { app_label: "预览", kind: "image_viewer" },
-];
-
 export function StageWindowDock({
   active_window_id,
-  on_launch_app,
   on_restore_all,
   windows,
   on_restore,
 }: {
   active_window_id: string | null;
-  on_launch_app: (app: { app_label: string; kind: StageWindowKind }) => void;
   on_restore_all: () => void;
   windows: StageWindowState[];
   on_restore: (window_id: string) => void;
@@ -50,7 +38,6 @@ export function StageWindowDock({
   const minimized_windows = windows.filter((window) => window.phase === "minimized");
   const dock_apps = build_dock_app_slots(
     group_dock_windows_by_app(windows, active_window_id, stage_app_label_for_window_kind),
-    PINNED_DOCK_APPS,
   );
   const active_window = running_windows.find((window) => window.id === active_window_id)
     ?? running_windows[0]
@@ -95,13 +82,11 @@ export function StageWindowDock({
 	                    : "h-9 w-9 border-transparent bg-white/22 text-(--icon-muted) opacity-58 hover:bg-white/46 hover:opacity-84",
               )}
               key={app_label}
-              disabled={presentation.is_disabled && !on_launch_app}
+              disabled={!window || presentation.is_disabled}
               onClick={() => {
                 if (window) {
                   on_restore(window.id);
-                  return;
                 }
-                on_launch_app({ app_label, kind });
               }}
               title={presentation.title}
               type="button"

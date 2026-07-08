@@ -1,10 +1,5 @@
 import type { StageWindowKind, StageWindowState } from "../operation-desktop-types";
 
-export interface DockPinnedApp {
-  app_label: string;
-  kind: StageWindowKind;
-}
-
 export interface DockAppGroup {
   app_label: string;
   count: number;
@@ -33,43 +28,17 @@ export interface DockSlotPresentation {
 
 export function build_dock_app_slots(
   app_groups: DockAppGroup[],
-  pinned_apps: DockPinnedApp[],
 ): DockAppSlot[] {
-  const groups_by_label = new Map(app_groups.map((app) => [app.app_label, app]));
-  const pinned_labels = new Set(pinned_apps.map((app) => app.app_label));
-  const pinned_slots = pinned_apps.map((app): DockAppSlot => {
-    const group = groups_by_label.get(app.app_label);
-    if (!group) {
-      return {
-        app_label: app.app_label,
-        count: 0,
-        is_active: false,
-        is_running: false,
-        kind: app.kind,
-        window: null,
-      };
-    }
-    return {
-      app_label: app.app_label,
+  return app_groups.map((group): DockAppSlot => (
+    {
+      app_label: group.app_label,
       count: group.count,
       is_active: group.is_active,
       is_running: group.is_running,
-      kind: group.window.kind ?? app.kind,
+      kind: group.window.kind,
       window: group.window,
-    };
-  });
-  const extra_slots = app_groups
-    .filter((app) => !pinned_labels.has(app.app_label))
-    .map((app): DockAppSlot => ({
-      app_label: app.app_label,
-      count: app.count,
-      is_active: app.is_active,
-      is_running: app.is_running,
-      kind: app.window.kind,
-      window: app.window,
-    }));
-
-  return [...pinned_slots, ...extra_slots];
+    }
+  ));
 }
 
 export function resolve_dock_slot_presentation(

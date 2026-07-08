@@ -105,7 +105,7 @@ export function RoomSurfaceShell({
   onRoomEvent: onRoomEvent,
 }: RoomSurfaceShellProps) {
   const isMobile = useMediaQuery("(max-width: 767px)");
-  const [activeSurfaceTab, setActiveSurfaceTab] = useState<RoomSurfaceTabKey>("chat");
+  const [activeSurfaceTab, setActiveSurfaceTab] = useState<RoomSurfaceTabKey>(() => readInitialSurfaceTab());
 
   const handleSelectConversationInShell = useCallback((conversationId: string) => {
     onSelectConversation(conversationId);
@@ -201,4 +201,17 @@ export function RoomSurfaceShell({
       onRoomEvent={onRoomEvent}
     />
   );
+}
+
+function readInitialSurfaceTab(): RoomSurfaceTabKey {
+  if (typeof window === "undefined") {
+    return "chat";
+  }
+  const requested = new URLSearchParams(window.location.search).get("surface");
+  return requested === "history" ||
+    requested === "workspace" ||
+    requested === "operation" ||
+    requested === "about"
+    ? requested
+    : "chat";
 }

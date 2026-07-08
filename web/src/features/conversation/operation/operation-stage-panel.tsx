@@ -30,7 +30,6 @@ import {
 import type { StageTransitionIntent } from "./operation-stage-transition";
 import { OperationStageMotionStyles } from "./operation-stage-motion-styles";
 import { OperationStageDesktop } from "./stage/operation-stage-desktop";
-import { OperationStageIdleDesktop } from "./stage/operation-stage-idle-desktop";
 import type {
   NexusOperationEvent,
   NexusOperationSnapshot,
@@ -140,15 +139,6 @@ function StageSurface({
   const experience_phase = derive_operation_stage_experience_phase(active_event, snapshot);
   const transition_style = build_stage_transition_style(stage_transition.intent);
 
-  if (!active_event) {
-    return (
-      <OperationStageIdleDesktop
-        header_action={header_action}
-        presentation={presentation}
-      />
-    );
-  }
-
   return (
     <section className={cn(
       "relative flex h-full min-h-[420px] w-full max-w-full min-w-0 flex-1 overflow-hidden text-(--text-strong)",
@@ -182,12 +172,36 @@ function StageSurface({
                   />
                 </div>
               </>
-            ) : null}
+            ) : (
+              <div className="h-full min-h-0">
+                <OperationStageDesktop
+                  event={build_idle_stage_event(snapshot)}
+                  header_action={header_action}
+                  on_permission_response={on_permission_response}
+                  snapshot={snapshot}
+                />
+              </div>
+            )}
           </div>
         </div>
       </div>
     </section>
   );
+}
+
+function build_idle_stage_event(snapshot: NexusOperationSnapshot | null): NexusOperationEvent {
+  const now = Date.now();
+  return {
+    agent_id: "",
+    id: "operation-stage-idle",
+    kind: "plan_update",
+    phase: "queued",
+    round_id: "operation-stage-idle",
+    session_key: snapshot?.session_key ?? "",
+    surface: "conversation",
+    title: "Nexus 桌面",
+    updated_at: now,
+  };
 }
 
 function StageScene({

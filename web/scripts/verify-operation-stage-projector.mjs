@@ -80,7 +80,6 @@ copyFileSync(join(operation_dir, "stage/operation-stage-window-drag.js"), join(o
 copyFileSync(join(operation_dir, "stage/operation-stage-window-launch.js"), join(operation_dir, "stage/operation-stage-window-launch"));
 copyFileSync(join(operation_dir, "stage/operation-stage-window-position.js"), join(operation_dir, "stage/operation-stage-window-position"));
 copyFileSync(join(operation_dir, "stage/operation-stage-live-strip.js"), join(operation_dir, "stage/operation-stage-live-strip"));
-copyFileSync(join(operation_dir, "stage/operation-stage-dock-launch.js"), join(operation_dir, "stage/operation-stage-dock-launch"));
 mkdirSync(join(operation_dir, "apps"), { recursive: true });
 copyFileSync(join(operation_dir, "apps/terminal-session-model.js"), join(operation_dir, "apps/terminal-session-model"));
 copyFileSync(join(operation_dir, "apps/operation-app-surface-policy.js"), join(operation_dir, "apps/operation-app-surface-policy"));
@@ -181,10 +180,6 @@ const {
   build_stage_live_strip_state,
 } = await import(pathToFileURL(join(operation_dir, "stage/operation-stage-live-strip.js")));
 const {
-  build_stage_dock_launch_window,
-  stage_dock_launch_window_id,
-} = await import(pathToFileURL(join(operation_dir, "stage/operation-stage-dock-launch.js")));
-const {
   build_terminal_entries,
 } = await import(pathToFileURL(join(operation_dir, "apps/terminal-session-model.js")));
 const {
@@ -248,7 +243,6 @@ verify_stage_window_drag_model();
 verify_stage_window_launch_model();
 verify_stage_window_position_model();
 verify_stage_live_strip_tracks_current_tool();
-verify_stage_dock_launch_window_model(now);
 verify_operation_stage_key_is_session_scoped();
 verify_stage_experience_state_machine(now);
 verify_live_episode_narrates_running_round(now);
@@ -339,23 +333,16 @@ function verify_dock_model_groups_windows_by_mac_app() {
   assert(code_group?.count === 0, `Dock should not count closed Code windows as running, got ${code_group?.count}`);
   assert(!code_group?.is_running, "Dock should mark closed Code window as not running");
 
-  const slots = build_dock_app_slots(groups, [
-    { app_label: "访达", kind: "finder" },
-    { app_label: "Safari", kind: "browser" },
-    { app_label: "Code", kind: "code_editor" },
-  ]);
-  assert(slots[0].app_label === "访达" && slots[0].window === null, "Desktop Dock should keep idle pinned apps visible before a window opens");
-  assert(slots[1].app_label === "Safari" && slots[1].count === 2, "Dock Safari slot should reflect grouped running windows");
-  assert(slots[2].app_label === "Code" && slots[2].window?.id === "code:a", "Dock Code slot should keep recoverable closed window");
+  const slots = build_dock_app_slots(groups);
+  assert(!slots.some((slot) => slot.window === null), "Dock should only show apps backed by real tool windows");
+  assert(slots[0].app_label === "Safari" && slots[0].count === 2, "Dock Safari slot should reflect grouped running windows");
+  assert(slots[1].app_label === "Code" && slots[1].window?.id === "code:a", "Dock Code slot should keep recoverable closed window");
   assert(slots.at(-1)?.app_label === "预览", `Dock should append unpinned running apps, got ${slots.at(-1)?.app_label}`);
 
-  const finder_presentation = resolve_dock_slot_presentation(slots[0], "Finder");
-  assert(finder_presentation.state === "idle", `Dock idle Finder slot should present as idle, got ${finder_presentation.state}`);
-  assert(finder_presentation.is_disabled, "Dock idle pinned apps should be visual anchors until a window exists");
-  const safari_presentation = resolve_dock_slot_presentation(slots[1], "Search");
+  const safari_presentation = resolve_dock_slot_presentation(slots[0], "Search");
   assert(safari_presentation.state === "active", `Dock active Safari slot should present as active, got ${safari_presentation.state}`);
   assert(safari_presentation.title === "Safari · 2 个窗口 · 当前", `Dock active Safari title should summarize grouped windows, got ${safari_presentation.title}`);
-  const code_presentation = resolve_dock_slot_presentation(slots[2], "app.ts");
+  const code_presentation = resolve_dock_slot_presentation(slots[1], "app.ts");
   assert(code_presentation.state === "recoverable", `Dock closed Code slot should be recoverable, got ${code_presentation.state}`);
   assert(!code_presentation.is_disabled, "Dock closed Code slot should remain clickable for restore");
   const preview_slot = slots.at(-1);
@@ -1260,68 +1247,6 @@ function verify_stage_live_strip_tracks_current_tool() {
     events: [read_event, bash_event],
   });
   assert(done_strip.tone === "done", `Done live strip should settle, got ${done_strip.tone}`);
-}
-
-function verify_stage_dock_launch_window_model(now) {
-  const event = {
-    id: "event-dock",
-    session_key: "session:stage",
-    round_id: "round-dock",
-    agent_id: "agent-stage",
-    kind: "plan_update",
-    surface: "conversation",
-    phase: "running",
-    title: "Nexus 桌面",
-    updated_at: now,
-  };
-  const window_id = stage_dock_launch_window_id("round-dock", "browser");
-  assert(window_id === "dock-launch:round-dock:browser", `Dock launch id should be stable, got ${window_id}`);
-
-  const browser_window = build_stage_dock_launch_window({
-    app_label: "Safari",
-    event,
-    kind: "browser",
-    snapshot: null,
-  });
-  assert(browser_window.id === window_id, `Dock-launched browser should use stable window id, got ${browser_window.id}`);
-  assert(browser_window.phase === "focused", `Dock-launched app should open focused, got ${browser_window.phase}`);
-  assert(browser_window.kind === "browser", `Dock-launched Safari should open a browser window, got ${browser_window.kind}`);
-  assert(browser_window.payload.query === "about:blank", `Dock-launched Safari should open a blank start page, got ${browser_window.payload.query}`);
-  const safari_start = build_browser_session_view({
-    event: browser_window.payload.event,
-    preview: browser_window.payload.preview,
-    query: browser_window.payload.query,
-    target: browser_window.payload.target,
-  });
-  assert(safari_start.page_kind === "start", `Dock-launched Safari should render a start page, got ${safari_start.page_kind}`);
-  assert(safari_start.tab_title === "起始页", `Dock-launched Safari should use start page tab title, got ${safari_start.tab_title}`);
-
-  const terminal_window = build_stage_dock_launch_window({
-    app_label: "终端",
-    event,
-    kind: "terminal",
-    snapshot: null,
-  });
-  assert(terminal_window.layout === "terminal", `Dock-launched Terminal should use terminal layout, got ${terminal_window.layout}`);
-  assert(terminal_window.payload.lines?.some((line) => line.includes("workspace mounted")), "Dock-launched Terminal should show a ready shell transcript");
-
-  const code_window = build_stage_dock_launch_window({
-    app_label: "Code",
-    event,
-    kind: "code_editor",
-    snapshot: null,
-  });
-  assert(code_window.target === "Welcome.tsx", `Dock-launched Code should open a welcome editor tab, got ${code_window.target}`);
-  assert(String(code_window.payload.preview).includes("Code is ready"), "Dock-launched Code should render a real welcome editor buffer");
-
-  const preview_window = build_stage_dock_launch_window({
-    app_label: "预览",
-    event,
-    kind: "image_viewer",
-    snapshot: null,
-  });
-  assert(preview_window.target === "No Selection.png", `Dock-launched Preview should use an image-viewer empty state, got ${preview_window.target}`);
-  assert(String(preview_window.payload.preview).includes("没有选中的图像"), "Dock-launched Preview should explain the empty selection state");
 }
 
 function verify_operation_stage_key_is_session_scoped() {
