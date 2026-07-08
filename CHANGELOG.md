@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Restored chat feed auto-follow when switching between conversations or thread panels with the same message count, and moved the smaller, less transparent floating scroll-to-latest button to the center of the chat feed.
+- Made the conversation navigator's active-round status hide based on the chat container width instead of viewport width, preventing overlap when the workspace panel is open.
 
 ## [0.1.26] - 2026-07-08
 

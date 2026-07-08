@@ -63,6 +63,7 @@ interface SessionNavigationItem {
 }
 
 const PENDING_SCROLL_MAX_FRAMES = 30;
+const ACTIVE_STATUS_MIN_CONTAINER_WIDTH_PX = 920;
 const RULER_TICK_SPACING_PX = 14;
 const SCROLL_BOUNDARY_EPSILON_PX = 2;
 const WAVE_RADIUS_TICKS = 4;
@@ -414,6 +415,7 @@ export function ConversationSessionNavigator({
   const previewClickItemRef = useRef<SessionNavigationItem | null>(null);
   const queuedLoadRoundIdRef = useRef<string | null>(null);
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+  const [showActiveStatusMeta, setShowActiveStatusMeta] = useState(false);
 
   const items = useMemo(() => {
     const live = new Set(liveRoundIds);
@@ -512,6 +514,50 @@ export function ConversationSessionNavigator({
       window.removeEventListener("resize", scheduleSync);
     };
   }, [navigationRoundIds, scrollRef]);
+
+  useEffect(() => {
+    const scrollElement = scrollRef.current;
+    if (!scrollElement) {
+      setShowActiveStatusMeta(false);
+      return;
+    }
+
+    let frame = 0;
+    const syncContainerWidth = () => {
+      frame = 0;
+      const shouldShow =
+        scrollElement.clientWidth >= ACTIVE_STATUS_MIN_CONTAINER_WIDTH_PX;
+      setShowActiveStatusMeta((current) =>
+        current === shouldShow ? current : shouldShow,
+      );
+    };
+    const scheduleSync = () => {
+      if (frame) {
+        return;
+      }
+      frame = window.requestAnimationFrame(syncContainerWidth);
+    };
+
+    syncContainerWidth();
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", scheduleSync);
+      return () => {
+        if (frame) {
+          window.cancelAnimationFrame(frame);
+        }
+        window.removeEventListener("resize", scheduleSync);
+      };
+    }
+
+    const observer = new ResizeObserver(scheduleSync);
+    observer.observe(scrollElement);
+    return () => {
+      if (frame) {
+        window.cancelAnimationFrame(frame);
+      }
+      observer.disconnect();
+    };
+  }, [scrollRef]);
 
   useEffect(() => {
     const scrollElement = scrollRef.current;
@@ -775,7 +821,10 @@ export function ConversationSessionNavigator({
           })}
 
           <div
-            className="pointer-events-none absolute left-0 top-[calc(100%+12px)] hidden w-32 items-center gap-1 text-[12px] font-medium text-(--text-muted) 2xl:flex"
+            className={cn(
+              "pointer-events-none absolute left-0 top-[calc(100%+12px)] w-28 items-center gap-1 text-[12px] font-medium text-(--text-muted)",
+              showActiveStatusMeta ? "flex" : "hidden",
+            )}
             aria-hidden
           >
             <span className="truncate">
