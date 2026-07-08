@@ -1,5 +1,9 @@
 // Package builder 把 MCP 工具入参里的对象翻译成 automation 底层结构，
 // 并复用底层的 Normalize + Validate。
+//
+// L2 | 父级: internal/mcp（L1 见 AGENTS.md）
+//
+// [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package builder
 
 import (

@@ -1,6 +1,10 @@
 // Package contract 定义 nexus_automation MCP 子包之间共享的契约：
 // Service 接口、ServerContext 上下文、ServerName 常量。
 // 放在独立叶子包里避免 tool / internal 子包反向依赖 mcp 顶层。
+//
+// L2 | 父级: internal/mcp（L1 见 AGENTS.md）
+//
+// [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package contract
 
 import (

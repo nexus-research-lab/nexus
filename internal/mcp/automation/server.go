@@ -7,6 +7,10 @@
 //   - internal/render/    返回值序列化 + 时间字段本地化
 //   - internal/builder/   schedule/session/delivery/source 对象构造
 //   - internal/semantic/  页面语义 → 底层结构的翻译、校验与默认值守卫
+//
+// L2 | 父级: internal/mcp（L1 见 AGENTS.md）
+//
+// [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package automationmcp
 
 import (

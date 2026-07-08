@@ -1,4 +1,8 @@
 // Package argx 提供 MCP 工具入参的基础类型转换与访问器。
+//
+// L2 | 父级: internal/mcp（L1 见 AGENTS.md）
+//
+// [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package argx
 
 import (

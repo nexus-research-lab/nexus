@@ -4,6 +4,10 @@
 // 工具层只接受页面语义字段（execution_mode / reply_mode 等），
 // 不再允许直接塞底层 session_target / delivery / source 对象——
 // 这样 Agent 看到的入参永远和 UI「新建任务」对话框一一对应。
+//
+// L2 | 父级: internal/mcp（L1 见 AGENTS.md）
+//
+// [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package semantic
 
 import (
