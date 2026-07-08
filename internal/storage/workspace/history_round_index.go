@@ -222,10 +222,7 @@ func addRoundIndexAgentID(
 	agentID string,
 	defaultAgentID string,
 ) {
-	normalizedAgentID := strings.TrimSpace(agentID)
-	if normalizedAgentID == "" {
-		normalizedAgentID = strings.TrimSpace(defaultAgentID)
-	}
+	normalizedAgentID := firstNonEmpty(agentID, defaultAgentID)
 	if normalizedAgentID == "" {
 		return
 	}

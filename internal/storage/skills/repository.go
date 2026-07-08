@@ -30,14 +30,14 @@ func (r *Repository) bind(index int) string {
 }
 
 func (r *Repository) boolLiteral(value bool) string {
-	if r.isPostgres {
-		if value {
+	if value {
+		if r.isPostgres {
 			return "TRUE"
 		}
-		return "FALSE"
-	}
-	if value {
 		return "1"
+	}
+	if r.isPostgres {
+		return "FALSE"
 	}
 	return "0"
 }

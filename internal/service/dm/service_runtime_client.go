@@ -30,13 +30,7 @@ func (s *Service) ensureClient(
 	sessionItem protocol.Session,
 	request Request,
 ) (runtimectx.Client, string, string, string, string, string, sdkpermission.Mode, error) {
-	permissionMode := request.PermissionMode
-	if permissionMode == "" {
-		permissionMode = sdkpermission.Mode(agentValue.Options.PermissionMode)
-	}
-	if permissionMode == "" {
-		permissionMode = sdkpermission.ModeDefault
-	}
+	permissionMode := resolvePermissionMode(request.PermissionMode, agentValue.Options.PermissionMode)
 	permissionHandler := request.PermissionHandler
 	if permissionHandler == nil {
 		permissionHandler = func(permissionCtx context.Context, permissionRequest sdkpermission.Request) (sdkpermission.Decision, error) {
@@ -133,6 +127,16 @@ func (s *Service) ensureClient(
 		}
 	}
 	return client, strings.TrimSpace(string(options.Runtime.Kind)), runtimeProvider, strings.TrimSpace(options.Model), goalIDForUsage, goalContext, permissionMode, nil
+}
+
+func resolvePermissionMode(requestMode sdkpermission.Mode, agentMode string) sdkpermission.Mode {
+	if requestMode != "" {
+		return requestMode
+	}
+	if agentMode != "" {
+		return sdkpermission.Mode(agentMode)
+	}
+	return sdkpermission.ModeDefault
 }
 
 func (s *Service) goalRuntimeContext(ctx context.Context, sessionKey string) (string, string) {

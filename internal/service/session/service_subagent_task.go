@@ -176,12 +176,7 @@ func (s *Service) getSubagentTask(ctx context.Context, rawSessionKey string, tas
 }
 
 func (s *Service) subagentTaskWorkspacePath(ctx context.Context, task SubagentTask) string {
-	agentID := strings.TrimSpace(task.AgentID)
-	if agentID == "" {
-		if parsed := protocol.ParseSessionKey(task.SessionKey); parsed.AgentID != "" {
-			agentID = parsed.AgentID
-		}
-	}
+	agentID := subagentTaskAgentID(task)
 	if agentID == "" {
 		return ""
 	}
@@ -190,6 +185,13 @@ func (s *Service) subagentTaskWorkspacePath(ctx context.Context, task SubagentTa
 		return ""
 	}
 	return workspacePaths[0]
+}
+
+func subagentTaskAgentID(task SubagentTask) string {
+	if agentID := strings.TrimSpace(task.AgentID); agentID != "" {
+		return agentID
+	}
+	return strings.TrimSpace(protocol.ParseSessionKey(task.SessionKey).AgentID)
 }
 
 func buildSubagentTasks(sessionKey string, messages []protocol.Message) []SubagentTask {

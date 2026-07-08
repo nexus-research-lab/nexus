@@ -38,13 +38,7 @@ func Schedule(raw any, defaultTimezone string) (protocol.Schedule, error) {
 		return protocol.Schedule{}, errors.New("schedule must be an object")
 	}
 	kind := strings.TrimSpace(argx.String(m, "kind"))
-	timezone := strings.TrimSpace(argx.String(m, "timezone"))
-	if timezone == "" {
-		timezone = strings.TrimSpace(defaultTimezone)
-	}
-	if timezone == "" {
-		timezone = "Asia/Shanghai"
-	}
+	timezone := argx.FirstNonEmpty(argx.String(m, "timezone"), defaultTimezone, "Asia/Shanghai")
 
 	// 允许用户直接传 cron 字符串到 schedule.expr / schedule.cron，自动推导 kind=cron。
 	exprAlias := strings.TrimSpace(argx.FirstNonEmpty(argx.String(m, "expr"), argx.String(m, "cron"), argx.String(m, "cron_expression")))

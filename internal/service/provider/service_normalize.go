@@ -54,11 +54,9 @@ func normalizeCreateInput(input CreateInput) (CreateInput, error) {
 	}
 	format := preset.Format(apiFormat)
 	providerKind := providerKindForFormat(preset, format, input.ProviderKind)
-	baseURL := strings.TrimSpace(input.BaseURL)
-	if preset.PresetKey != presetCustom {
-		baseURL = format.BaseURL
-	} else if baseURL == "" {
-		baseURL = format.BaseURL
+	baseURL := format.BaseURL
+	if preset.PresetKey == presetCustom {
+		baseURL = firstNonEmpty(input.BaseURL, format.BaseURL)
 	}
 	modelsPath := strings.TrimSpace(input.ModelsPath)
 	if preset.PresetKey != presetCustom {
@@ -72,17 +70,11 @@ func normalizeCreateInput(input CreateInput) (CreateInput, error) {
 		Visibility:   strings.TrimSpace(input.Visibility),
 		PresetKey:    preset.PresetKey,
 		APIFormat:    apiFormat,
-		DisplayName:  strings.TrimSpace(input.DisplayName),
+		DisplayName:  firstNonEmpty(input.DisplayName, preset.DisplayName, provider),
 		AuthToken:    strings.TrimSpace(input.AuthToken),
 		BaseURL:      baseURL,
 		ModelsPath:   modelsPath,
 		Enabled:      input.Enabled,
-	}
-	if result.DisplayName == "" {
-		result.DisplayName = preset.DisplayName
-	}
-	if result.DisplayName == "" {
-		result.DisplayName = result.Provider
 	}
 	if result.AuthToken == "" {
 		return CreateInput{}, errors.New("auth_token 不能为空")
@@ -101,18 +93,10 @@ func normalizeUpdateInput(current providerstore.Entity, input UpdateInput) (prov
 	}
 	format := preset.Format(apiFormat)
 	providerKind := providerKindForFormat(preset, format, firstNonEmpty(input.ProviderKind, current.ProviderKind))
-	displayName := strings.TrimSpace(input.DisplayName)
-	if displayName == "" {
-		displayName = preset.DisplayName
-	}
-	if displayName == "" {
-		displayName = current.Provider
-	}
-	baseURL := strings.TrimSpace(input.BaseURL)
-	if preset.PresetKey != presetCustom {
-		baseURL = format.BaseURL
-	} else if baseURL == "" {
-		baseURL = format.BaseURL
+	displayName := firstNonEmpty(input.DisplayName, preset.DisplayName, current.Provider)
+	baseURL := format.BaseURL
+	if preset.PresetKey == presetCustom {
+		baseURL = firstNonEmpty(input.BaseURL, format.BaseURL)
 	}
 	if baseURL == "" {
 		return providerstore.Entity{}, errors.New("base_url 不能为空")

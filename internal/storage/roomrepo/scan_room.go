@@ -250,25 +250,30 @@ func PickLatestConversationContext(contexts []protocol.ConversationContextAggreg
 }
 
 func conversationContextLastActivityAt(contextValue protocol.ConversationContextAggregate) time.Time {
-	latestAt := contextValue.Conversation.LastActivityAt
-	if latestAt.IsZero() {
-		latestAt = contextValue.Conversation.UpdatedAt
-	}
-	if latestAt.IsZero() {
-		latestAt = contextValue.Conversation.CreatedAt
-	}
+	latestAt := firstNonZeroTime(
+		contextValue.Conversation.LastActivityAt,
+		contextValue.Conversation.UpdatedAt,
+		contextValue.Conversation.CreatedAt,
+	)
 
 	for _, sessionValue := range contextValue.Sessions {
-		sessionAt := sessionValue.LastActivityAt
-		if sessionAt.IsZero() {
-			sessionAt = sessionValue.UpdatedAt
-		}
-		if sessionAt.IsZero() {
-			sessionAt = sessionValue.CreatedAt
-		}
+		sessionAt := firstNonZeroTime(
+			sessionValue.LastActivityAt,
+			sessionValue.UpdatedAt,
+			sessionValue.CreatedAt,
+		)
 		if sessionAt.After(latestAt) {
 			latestAt = sessionAt
 		}
 	}
 	return latestAt
+}
+
+func firstNonZeroTime(values ...time.Time) time.Time {
+	for _, value := range values {
+		if !value.IsZero() {
+			return value
+		}
+	}
+	return time.Time{}
 }

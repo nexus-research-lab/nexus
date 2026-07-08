@@ -35,9 +35,7 @@ func ProjectConversationTurns(
 		if collapseRoomAgentRounds {
 			rootRoundID = normalizeRoomHistoryRoundID(rawRoundID, agentID)
 		}
-		if rootRoundID == "" {
-			rootRoundID = strings.TrimSpace(stringFromAny(row["message_id"]))
-		}
+		rootRoundID = firstNonEmpty(rootRoundID, stringFromAny(row["message_id"]))
 		if rootRoundID == "" {
 			continue
 		}

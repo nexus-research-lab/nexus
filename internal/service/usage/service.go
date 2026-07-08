@@ -69,10 +69,10 @@ func (s *Service) buildRecord(input RecordInput) (usagestore.Record, bool) {
 	outputTokens := int64FromAny(input.Usage["output_tokens"])
 	cacheCreationTokens := int64FromAny(input.Usage["cache_creation_input_tokens"])
 	cacheReadTokens := int64FromAny(input.Usage["cache_read_input_tokens"])
-	totalTokens := int64FromAny(input.Usage["total_tokens"])
-	if totalTokens <= 0 {
-		totalTokens = inputTokens + outputTokens + cacheCreationTokens + cacheReadTokens
-	}
+	totalTokens := firstPositiveInt64(
+		int64FromAny(input.Usage["total_tokens"]),
+		inputTokens+outputTokens+cacheCreationTokens+cacheReadTokens,
+	)
 	if totalTokens <= 0 {
 		return usagestore.Record{}, false
 	}
@@ -103,6 +103,15 @@ func (s *Service) buildRecord(input RecordInput) (usagestore.Record, bool) {
 		TotalTokens:              totalTokens,
 		OccurredAt:               occurredAt,
 	}, true
+}
+
+func firstPositiveInt64(values ...int64) int64 {
+	for _, value := range values {
+		if value > 0 {
+			return value
+		}
+	}
+	return 0
 }
 
 func normalizeOwnerUserID(ownerUserID string) string {

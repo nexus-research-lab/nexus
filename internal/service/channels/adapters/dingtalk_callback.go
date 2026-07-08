@@ -30,10 +30,7 @@ func DecodeDingTalkIngressCallback(raw []byte) (*channelcontract.IngressRequest,
 	if err := json.Unmarshal(raw, &payload); err != nil {
 		return nil, "", err
 	}
-	content := strings.TrimSpace(payload.Text.Content)
-	if content == "" {
-		content = dingTalkContentText(payload.Content)
-	}
+	content := channelcontract.FirstNonEmpty(payload.Text.Content, dingTalkContentText(payload.Content))
 	if content == "" {
 		return nil, "empty_text", nil
 	}

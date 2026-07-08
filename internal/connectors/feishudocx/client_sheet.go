@@ -83,10 +83,7 @@ func (c *Client) ReadSheetValues(ctx context.Context, raw string, rangeValue str
 	if err := c.doJSON(ctx, http.MethodGet, apiPath, nil, &data); err != nil {
 		return nil, err
 	}
-	valueRange, _ := data["valueRange"].(map[string]any)
-	if valueRange == nil {
-		valueRange, _ = data["value_range"].(map[string]any)
-	}
+	valueRange := firstMapValue(data, "valueRange", "value_range")
 	if valueRange == nil {
 		return &SheetValuesResult{
 			SpreadsheetToken: target.SpreadsheetToken,
@@ -186,4 +183,13 @@ func matrixValue(value any) [][]any {
 		}
 	}
 	return rows
+}
+
+func firstMapValue(source map[string]any, keys ...string) map[string]any {
+	for _, key := range keys {
+		if value, ok := source[key].(map[string]any); ok {
+			return value
+		}
+	}
+	return nil
 }
