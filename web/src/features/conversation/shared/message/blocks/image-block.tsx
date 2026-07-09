@@ -18,7 +18,7 @@ import {
 
 interface ImageBlockProps {
   block: ImageContent;
-  onOpenWorkspaceFile?: (path: string) => void;
+  onOpenWorkspaceFile?: (path: string, workspaceAgentId?: string | null) => void;
   workspaceAgentId?: string | null;
 }
 
@@ -114,7 +114,7 @@ export function ImageBlock({ block, onOpenWorkspaceFile: onOpenWorkspaceFile, wo
           canOpen ? "cursor-pointer transition-colors hover:border-primary/30 hover:bg-primary/5" : "cursor-default",
         )}
         disabled={!canOpen}
-        onClick={() => workspacePath && onOpenWorkspaceFile?.(workspacePath)}
+        onClick={() => workspacePath && onOpenWorkspaceFile?.(workspacePath, currentAgentId)}
         title={workspacePath || block.alt || "generated image"}
         type="button"
       >

@@ -30,7 +30,7 @@ interface MessageUserSectionProps {
   copiedUser: boolean;
   onCopyUser: () => Promise<void>;
   onEditUserMessage?: (messageId: string, newContent: string) => void;
-  onOpenWorkspaceFile?: (path: string) => void;
+  onOpenWorkspaceFile?: (path: string, workspaceAgentId?: string | null) => void;
   workspaceAgentId?: string | null;
 }
 
@@ -60,7 +60,7 @@ function MessageAttachmentList({
   workspaceAgentId: workspaceAgentId,
 }: {
   attachments: MessageAttachment[];
-  onOpenWorkspaceFile?: (path: string) => void;
+  onOpenWorkspaceFile?: (path: string, workspaceAgentId?: string | null) => void;
   workspaceAgentId?: string | null;
 }) {
   if (attachments.length === 0) {
@@ -114,7 +114,7 @@ function MessageAttachmentList({
             type="button"
             className={className}
             title={title}
-            onClick={() => onOpenWorkspaceFile?.(attachment.workspace_path)}
+            onClick={() => onOpenWorkspaceFile?.(attachment.workspace_path, attachment.workspace_agent_id ?? workspaceAgentId)}
           >
             {content}
           </button>

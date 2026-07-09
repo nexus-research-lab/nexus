@@ -51,7 +51,7 @@ interface RoomSurfaceShellProps {
   onValidateAgentName: (name: string, agentId?: string) => Promise<AgentNameValidationResult>;
   onUpdateRoom: (roomId: string, params: UpdateRoomParams) => Promise<void>;
   onUpdateConversationTitle: (conversationId: string, title: string) => Promise<void>;
-  onOpenWorkspaceFile: (path: string | null) => void;
+  onOpenWorkspaceFile: (path: string | null, workspaceAgentId?: string | null) => void;
   onStartEditorResize: () => void;
   onLoadingChange: (isLoading: boolean) => void;
   onTodosChange: (todos: TodoItem[]) => void;
@@ -121,8 +121,8 @@ export function RoomSurfaceShell({
     return nextConversationId;
   }, [onCreateConversation]);
 
-  const handleOpenWorkspaceFileInShell = useCallback((path: string | null) => {
-    onOpenWorkspaceFile(path);
+  const handleOpenWorkspaceFileInShell = useCallback((path: string | null, workspaceAgentId?: string | null) => {
+    onOpenWorkspaceFile(path, workspaceAgentId);
     if (path) {
       setActiveSurfaceTab("workspace");
     }

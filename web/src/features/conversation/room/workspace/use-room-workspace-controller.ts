@@ -115,18 +115,45 @@ export function useRoomWorkspaceController(
   const filesByAgent = useWorkspaceFilesStore((state) => state.files_by_agent);
   const refreshFiles = useWorkspaceFilesStore((state) => state.refresh_files);
   const clearWorkspaceAgent = useWorkspaceFilesStore((state) => state.clear_agent);
+  const requestedOpenAgentId = useWorkspaceFilesStore((state) => state.requested_open_agent_id);
+  const requestOpenAgent = useWorkspaceFilesStore((state) => state.request_open_agent);
 
   const previousViewAgentIdRef = useRef<string>(isDm ? agentId : selectedAgentId);
-  const viewAgentId = isDm ? agentId : selectedAgentId;
+  // 标记「下一次 viewAgentId 变化是由『带 Agent 打开文件』驱动的」，别清空刚打开的路径。
+  const skipNextClearRef = useRef(false);
+  const selectedAgentIdRef = useRef(selectedAgentId);
+  selectedAgentIdRef.current = selectedAgentId;
+  // 请求切换尚未落到 selectedAgentId 前，先按请求的归属 Agent 取值，避免编辑器在旧 Agent
+  // 名下抢跑一次取文件（会闪一下“资源不存在”）。切换 effect 落地后 selectedAgentId 追上。
+  const pendingOpenAgentId = !isDm && requestedOpenAgentId?.trim() ? requestedOpenAgentId.trim() : null;
+  const viewAgentId = isDm ? agentId : (pendingOpenAgentId ?? selectedAgentId);
   const [focusedDirectoryPath, setFocusedDirectoryPath] = useResettableState<string | null>(null, viewAgentId);
   const files = useMemo(() => filesByAgent[viewAgentId] || [], [filesByAgent, viewAgentId]);
+
+  // 消费「打开文件请求切到的归属 Agent」：一次性，切完即清，避免与用户手动切换互相打架。
+  useEffect(() => {
+    const requested = requestedOpenAgentId?.trim();
+    if (!requested) {
+      return;
+    }
+    requestOpenAgent(null);
+    if (!isDm && requested !== selectedAgentIdRef.current) {
+      skipNextClearRef.current = true;
+      setSelectedAgentId(requested);
+    }
+  }, [requestedOpenAgentId, isDm, requestOpenAgent, setSelectedAgentId]);
 
   useEffect(() => {
     const previousViewAgentId = previousViewAgentIdRef.current;
     previousViewAgentIdRef.current = viewAgentId;
 
     if (previousViewAgentId !== viewAgentId) {
-      onOpenWorkspaceFile(null);
+      // 用户手动切 Agent 才清空打开的文件；若这次切换是「带 Agent 打开文件」驱动的，保留刚打开的路径。
+      if (skipNextClearRef.current) {
+        skipNextClearRef.current = false;
+      } else {
+        onOpenWorkspaceFile(null);
+      }
     }
 
     let ignore = false;

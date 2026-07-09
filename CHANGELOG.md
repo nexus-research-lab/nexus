@@ -16,8 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Preserved SDK process wait errors when a DM runtime message stream closes before a terminal result, so round failure logs include the underlying runtime exit reason.
 - Cleared stale macOS and Windows desktop WebView caches after app version/build changes and stopped serving HTML fallbacks for missing asset chunks, preventing updated desktop apps from rendering the error screen with stale web resources.
 - Added a manual desktop menu action to clear WebView caches and reload the current interface when troubleshooting stale web assets.
+- Sized macOS and Windows desktop launch windows against the current screen work area so packaged apps fit smaller displays instead of opening at a fixed resolution.
 - Restored chat feed auto-follow when switching between conversations or thread panels with the same message count, and moved the smaller, less transparent floating scroll-to-latest button to the center of the chat feed.
 - Made the conversation navigator's active-round status hide based on the chat container width instead of viewport width, preventing overlap when the workspace panel is open.
+- Lowered the conversation navigator ruler's top anchor inside the chat container, preventing the first tick and preview from sitting under the header on shorter MacBook screens.
+- Stopped generic markdown document paths from being treated as Agent workspace artifacts unless they resolve in the workspace file tree, preventing non-workspace links from opening a 404 workspace preview.
 
 ## [0.1.26] - 2026-07-08
 

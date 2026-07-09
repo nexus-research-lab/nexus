@@ -14,13 +14,22 @@ import { WorkspaceFileEntry } from '@/types/agent/agent';
 
 interface WorkspaceFilesStoreState {
   files_by_agent: Record<string, WorkspaceFileEntry[]>;
+  // 一次性「打开文件时请求切到的归属 Agent」：消息区点资产带上 workspace_agent_id，
+  // workspace 面板消费后切换 selectedAgentId 并清空，避免污染用户的手动切换。
+  requested_open_agent_id: string | null;
   set_files: (agentId: string, files: WorkspaceFileEntry[]) => void;
   clear_agent: (agentId: string) => void;
   refresh_files: (agentId: string) => Promise<WorkspaceFileEntry[]>;
+  request_open_agent: (agentId: string | null) => void;
 }
 
 export const useWorkspaceFilesStore = create<WorkspaceFilesStoreState>()((set) => ({
   files_by_agent: {},
+  requested_open_agent_id: null,
+
+  request_open_agent: (agentId) => {
+    set({ requested_open_agent_id: agentId ? agentId.trim() || null : null });
+  },
 
   set_files: (agentId, files) => {
     set((state) => ({

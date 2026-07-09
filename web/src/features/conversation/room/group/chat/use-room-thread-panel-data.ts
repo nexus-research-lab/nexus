@@ -30,7 +30,7 @@ interface UseRoomThreadSourceOptions {
   currentUserAvatar?: string | null;
   messageGroups: Map<string, Message[]>;
   observerReadOnlyReason: string;
-  onOpenWorkspaceFile?: (path: string) => void;
+  onOpenWorkspaceFile?: (path: string, workspaceAgentId?: string | null) => void;
   onStopMessage: (msgId: string) => void;
   pendingPermissionGroups: Map<string, PendingPermission[]>;
   pendingSlotGroups: Map<string, RoomPendingAgentSlotState[]>;
@@ -146,8 +146,8 @@ export function useRoomThreadSource({
     callbacksRef.current.onStopMessage(msgId);
   }, []);
   const canOpenWorkspaceFile = Boolean(onOpenWorkspaceFile);
-  const handleOpenWorkspaceFile = useCallback((path: string) => {
-    callbacksRef.current.onOpenWorkspaceFile?.(path);
+  const handleOpenWorkspaceFile = useCallback((path: string, workspaceAgentId?: string | null) => {
+    callbacksRef.current.onOpenWorkspaceFile?.(path, workspaceAgentId);
   }, []);
 
   // 会话切换时收起 Thread。

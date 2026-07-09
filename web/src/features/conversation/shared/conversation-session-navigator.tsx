@@ -64,6 +64,8 @@ interface SessionNavigationItem {
 
 const PENDING_SCROLL_MAX_FRAMES = 30;
 const ACTIVE_STATUS_MIN_CONTAINER_WIDTH_PX = 920;
+const RULER_TRACK_TOP_SAFE_INSET_PX = 56;
+const RULER_TRACK_BOTTOM_SAFE_INSET_PX = 24;
 const RULER_TICK_SPACING_PX = 14;
 const SCROLL_BOUNDARY_EPSILON_PX = 2;
 const WAVE_RADIUS_TICKS = 4;
@@ -767,138 +769,146 @@ export function ConversationSessionNavigator({
     >
       <div className="relative h-full min-h-[220px] w-full">
         <div
-          className="pointer-events-auto absolute left-0 top-1/2 flex w-12 -translate-y-1/2 flex-col overflow-visible"
-          style={{ height: `min(100%, ${trackHeight}px)` }}
+          className="pointer-events-auto absolute left-0 flex w-12 flex-col justify-center overflow-visible"
+          style={{
+            bottom: `${RULER_TRACK_BOTTOM_SAFE_INSET_PX}px`,
+            top: `${RULER_TRACK_TOP_SAFE_INSET_PX}px`,
+          }}
           onPointerLeave={() => {
             setPreviewIndex(null);
           }}
         >
-          {items.map((item) => {
-            const isActive = item.roundId === activeItem?.roundId;
-            const isPreviewed = previewItem?.roundId === item.roundId;
-            const wave = previewIndex === null
-              ? 0
-              : smoothWave(Math.abs(item.index - previewIndex));
-            const opacity = previewIndex === null
-              ? isActive ? 0.9 : 0.58
-              : tickOpacity(wave);
-            const width = previewIndex === null ? 5 : tickWidth(wave);
-            const tickBackground = isPreviewed
-              ? buildTickBackground(item)
-              : previewIndex === null && isActive
-                ? ACTIVE_NEUTRAL_TICK_COLOR
-                : NEUTRAL_TICK_COLOR;
-            return (
-              <button
-                key={item.roundId}
-                type="button"
-                aria-current={isActive ? "true" : undefined}
-                aria-label={`跳转到${item.title}`}
-                className="flex min-h-0 w-12 flex-1 items-center justify-start rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-primary/35"
-                onClick={() => {
-                  void jumpToRound(item);
-                }}
-                onFocus={() => {
-                  previewClickItemRef.current = item;
-                  setPreviewIndex(item.index);
-                }}
-                onPointerEnter={() => {
-                  previewClickItemRef.current = item;
-                  setPreviewIndex(item.index);
-                }}
-              >
-                <span
-                  className="block h-[2px] rounded-full transition-[width,opacity,filter] duration-[90ms] ease-out"
-                  style={{
-                    background: tickBackground,
-                    filter: isPreviewed ? "saturate(1.18)" : undefined,
-                    opacity,
-                    width,
-                  }}
-                />
-              </button>
-            );
-          })}
-
           <div
-            className={cn(
-              "pointer-events-none absolute left-0 top-[calc(100%+12px)] w-28 items-center gap-1 text-[12px] font-medium text-(--text-muted)",
-              showActiveStatusMeta ? "flex" : "hidden",
-            )}
-            aria-hidden
+            className="relative flex w-12 flex-col overflow-visible"
+            style={{ height: `min(100%, ${trackHeight}px)` }}
           >
-            <span className="truncate">
-              {activeItem?.duration ? `已处理 ${activeItem.duration}` : activeItem?.status}
-            </span>
-            <span className="text-(--icon-muted)">›</span>
-          </div>
-
-          {previewItem ? (
-            <UiDialogShell
-              className="pointer-events-auto absolute left-12 z-[60] w-[min(332px,calc(100vw-96px))] max-w-none -translate-y-1/2 outline-none"
-              data-session-navigator-preview="true"
-              size="sm"
-              style={{ top: `${getTickDisplayPercent(previewItem.index, items.length)}%` }}
-              onPointerDown={(event) => {
-                event.stopPropagation();
-              }}
-              onPointerEnter={(event) => {
-                event.stopPropagation();
-              }}
-              onPointerMove={(event) => {
-                event.stopPropagation();
-              }}
-            >
-              <UiDialogHeader
-                className="cursor-pointer gap-2 px-3 py-2.5"
-                onClick={() => {
-                  jumpToPreviewClickTarget(previewItem);
-                }}
-              >
-                <div className={cn(DIALOG_HEADER_LEADING_CLASS_NAME, "min-w-0 flex-1 items-center")}>
-                  <div
-                    className={cn(
-                      DIALOG_HEADER_ICON_CLASS_NAME,
-                      "h-7 w-7 rounded-[10px] bg-primary/10 text-primary",
-                    )}
-                  >
-                    <MessageSquareText className="h-3.5 w-3.5" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <h3 className="truncate text-[13px] font-semibold leading-[18px] text-(--text-strong)">
-                      {previewItem.title}
-                    </h3>
-                    <p className="mt-0.5 truncate text-[11px] leading-4 text-(--text-muted)">
-                      {previewItem.time}
-                    </p>
-                  </div>
-                  <ChevronRight className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)" />
-                </div>
-              </UiDialogHeader>
-              <UiDialogBody
-                className="cursor-pointer px-3 py-2.5"
-                onClick={() => {
-                  jumpToPreviewClickTarget(previewItem);
-                }}
-              >
-                <p className="line-clamp-2 text-[11px] leading-[18px] text-(--text-default)">
-                  {previewItem.summary}
-                </p>
-                <div className="mt-2 flex min-w-0 items-center gap-1.5 text-[10px] font-medium leading-4 text-(--text-soft)">
+            {items.map((item) => {
+              const isActive = item.roundId === activeItem?.roundId;
+              const isPreviewed = previewItem?.roundId === item.roundId;
+              const wave = previewIndex === null
+                ? 0
+                : smoothWave(Math.abs(item.index - previewIndex));
+              const opacity = previewIndex === null
+                ? isActive ? 0.9 : 0.58
+                : tickOpacity(wave);
+              const width = previewIndex === null ? 5 : tickWidth(wave);
+              const tickBackground = isPreviewed
+                ? buildTickBackground(item)
+                : previewIndex === null && isActive
+                  ? ACTIVE_NEUTRAL_TICK_COLOR
+                  : NEUTRAL_TICK_COLOR;
+              return (
+                <button
+                  key={item.roundId}
+                  type="button"
+                  aria-current={isActive ? "true" : undefined}
+                  aria-label={`跳转到${item.title}`}
+                  className="flex min-h-0 w-12 flex-1 items-center justify-start rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-primary/35"
+                  onClick={() => {
+                    void jumpToRound(item);
+                  }}
+                  onFocus={() => {
+                    previewClickItemRef.current = item;
+                    setPreviewIndex(item.index);
+                  }}
+                  onPointerEnter={() => {
+                    previewClickItemRef.current = item;
+                    setPreviewIndex(item.index);
+                  }}
+                >
                   <span
-                    className={cn(
-                      "h-1.5 w-1.5 shrink-0 rounded-full",
-                      previewItem.isLive ? "bg-primary" : "bg-(--icon-muted)",
-                    )}
-                    style={{ background: buildTickBackground(previewItem) }}
+                    className="block h-[2px] rounded-full transition-[width,opacity,filter] duration-[90ms] ease-out"
+                    style={{
+                      background: tickBackground,
+                      filter: isPreviewed ? "saturate(1.18)" : undefined,
+                      opacity,
+                      width,
+                    }}
                   />
-                  <span className="truncate">{formatSpeakerSummary(previewItem, agentNameMap)}</span>
-                  <span className="text-(--text-soft)">·</span>
-                  <span className="truncate">{previewItem.meta}</span>
-                </div>
-              </UiDialogBody>
-            </UiDialogShell>
-          ) : null}
+                </button>
+              );
+            })}
+
+            <div
+              className={cn(
+                "pointer-events-none absolute left-0 top-[calc(100%+12px)] w-28 items-center gap-1 text-[12px] font-medium text-(--text-muted)",
+                showActiveStatusMeta ? "flex" : "hidden",
+              )}
+              aria-hidden
+            >
+              <span className="truncate">
+                {activeItem?.duration ? `已处理 ${activeItem.duration}` : activeItem?.status}
+              </span>
+              <span className="text-(--icon-muted)">›</span>
+            </div>
+
+            {previewItem ? (
+              <UiDialogShell
+                className="pointer-events-auto absolute left-12 z-[60] w-[min(332px,calc(100vw-96px))] max-w-none -translate-y-1/2 outline-none"
+                data-session-navigator-preview="true"
+                size="sm"
+                style={{ top: `${getTickDisplayPercent(previewItem.index, items.length)}%` }}
+                onPointerDown={(event) => {
+                  event.stopPropagation();
+                }}
+                onPointerEnter={(event) => {
+                  event.stopPropagation();
+                }}
+                onPointerMove={(event) => {
+                  event.stopPropagation();
+                }}
+              >
+                <UiDialogHeader
+                  className="cursor-pointer gap-2 px-3 py-2.5"
+                  onClick={() => {
+                    jumpToPreviewClickTarget(previewItem);
+                  }}
+                >
+                  <div className={cn(DIALOG_HEADER_LEADING_CLASS_NAME, "min-w-0 flex-1 items-center")}>
+                    <div
+                      className={cn(
+                        DIALOG_HEADER_ICON_CLASS_NAME,
+                        "h-7 w-7 rounded-[10px] bg-primary/10 text-primary",
+                      )}
+                    >
+                      <MessageSquareText className="h-3.5 w-3.5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="truncate text-[13px] font-semibold leading-[18px] text-(--text-strong)">
+                        {previewItem.title}
+                      </h3>
+                      <p className="mt-0.5 truncate text-[11px] leading-4 text-(--text-muted)">
+                        {previewItem.time}
+                      </p>
+                    </div>
+                    <ChevronRight className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)" />
+                  </div>
+                </UiDialogHeader>
+                <UiDialogBody
+                  className="cursor-pointer px-3 py-2.5"
+                  onClick={() => {
+                    jumpToPreviewClickTarget(previewItem);
+                  }}
+                >
+                  <p className="line-clamp-2 text-[11px] leading-[18px] text-(--text-default)">
+                    {previewItem.summary}
+                  </p>
+                  <div className="mt-2 flex min-w-0 items-center gap-1.5 text-[10px] font-medium leading-4 text-(--text-soft)">
+                    <span
+                      className={cn(
+                        "h-1.5 w-1.5 shrink-0 rounded-full",
+                        previewItem.isLive ? "bg-primary" : "bg-(--icon-muted)",
+                      )}
+                      style={{ background: buildTickBackground(previewItem) }}
+                    />
+                    <span className="truncate">{formatSpeakerSummary(previewItem, agentNameMap)}</span>
+                    <span className="text-(--text-soft)">·</span>
+                    <span className="truncate">{previewItem.meta}</span>
+                  </div>
+                </UiDialogBody>
+              </UiDialogShell>
+            ) : null}
+          </div>
         </div>
       </div>
     </nav>

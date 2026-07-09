@@ -25,6 +25,7 @@ export function useHomeWorkspaceController({
   const workspaceSplitRef = useRef<HTMLElement | null>(null);
   const filesByAgent = useWorkspaceFilesStore((state) => state.files_by_agent);
   const refreshFiles = useWorkspaceFilesStore((state) => state.refresh_files);
+  const requestOpenAgent = useWorkspaceFilesStore((state) => state.request_open_agent);
 
   const preloadWorkspaceAgentIds = useMemo(() => {
     const agentIds = new Set<string>();
@@ -61,12 +62,17 @@ export function useHomeWorkspaceController({
     void loadWorkspaceFiles();
   }, [filesByAgent, preloadWorkspaceAgentIds, refreshFiles]);
 
-  const handleOpenWorkspaceFile = useCallback((path: string | null) => {
+  const handleOpenWorkspaceFile = useCallback((path: string | null, workspaceAgentId?: string | null) => {
     // 对话区点击文件引用的语义应当始终是“打开这个文件”，
     // 不能因为重复点击同一路径就把编辑器反向关掉。
     setActiveWorkspacePath(path);
     setIsEditorOpen(Boolean(path));
-  }, [setActiveWorkspacePath, setIsEditorOpen]);
+    // 资产带上归属 Agent 时（群聊里文件可能属于别的 Agent），请求 workspace 面板切到它，
+    // 否则会在当前选中 Agent 名下取不到文件 → “资源不存在”。
+    if (path && workspaceAgentId?.trim()) {
+      requestOpenAgent(workspaceAgentId);
+    }
+  }, [requestOpenAgent, setActiveWorkspacePath, setIsEditorOpen]);
 
   const handleStartEditorResize = useCallback(() => {
     setIsResizingEditor(true);

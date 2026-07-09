@@ -8,6 +8,10 @@ import { type WorkspaceFileEntry } from "@/types/agent/agent";
 
 export type ResolveWorkspaceFilePath = (value: string) => string | null;
 
+interface ResolveWorkspaceArtifactPathOptions {
+  allowUnlistedRelativePath?: boolean;
+}
+
 interface MarkdownTextSegment {
   type: "text";
   text: string;
@@ -78,6 +82,7 @@ function clickableWorkspaceArtifactPath(path: string): string {
 export function resolveWorkspaceArtifactPath(
   path: string,
   resolveFilePath: ResolveWorkspaceFilePath,
+  options: ResolveWorkspaceArtifactPathOptions = {},
 ): string | null {
   const normalized = normalizeWorkspaceReference(path).replace(/\\/g, "/");
   if (WORKSPACE_ABSOLUTE_FILE_PATTERN.test(normalized)) {
@@ -87,10 +92,11 @@ export function resolveWorkspaceArtifactPath(
   if (resolvedPath) {
     return resolvedPath;
   }
-  if (isWorkspaceRelativeArtifactPath(normalized)) {
-    return normalized.replace(/^\.\//, "");
-  }
-  if (isWorkspaceImagePath(normalized) && looksLikeWorkspaceFileReference(normalized)) {
+  if (
+    options.allowUnlistedRelativePath &&
+    (isWorkspaceRelativeArtifactPath(normalized) ||
+      (isWorkspaceImagePath(normalized) && looksLikeWorkspaceFileReference(normalized)))
+  ) {
     return normalized.replace(/^\.\//, "");
   }
   return null;
@@ -138,7 +144,9 @@ export function splitMarkdownFileArtifacts(
       continue;
     }
 
-    const resolvedPath = resolveWorkspaceArtifactPath(path, resolveFilePath);
+    const resolvedPath = resolveWorkspaceArtifactPath(path, resolveFilePath, {
+      allowUnlistedRelativePath: true,
+    });
     if (!resolvedPath) {
       pendingText.push(line);
       continue;

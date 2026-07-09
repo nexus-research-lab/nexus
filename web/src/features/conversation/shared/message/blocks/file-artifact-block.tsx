@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { Download, FileText, FolderOpen } from "lucide-react";
 
 import {
@@ -13,7 +14,7 @@ interface FileArtifactBlockProps {
   label?: string;
   path: string;
   displayPath?: string;
-  onOpenWorkspaceFile?: (path: string) => void;
+  onOpenWorkspaceFile?: (path: string, workspaceAgentId?: string | null) => void;
   workspaceAgentId?: string | null;
   compact?: boolean;
   className?: string;
@@ -33,7 +34,7 @@ function fileParentFromPath(path: string): string {
   return parts.slice(0, -1).join("/");
 }
 
-export function FileArtifactBlock({
+function FileArtifactBlockComponent({
   label = "已保存到",
   path,
   displayPath: displayPath,
@@ -78,7 +79,7 @@ export function FileArtifactBlock({
         <button
           className="flex min-w-0 flex-1 items-center gap-2 text-left disabled:cursor-default"
           disabled={!canOpen}
-          onClick={() => onOpenWorkspaceFile?.(path)}
+          onClick={() => onOpenWorkspaceFile?.(path, downloadAgentId)}
           title={path}
           type="button"
         >
@@ -128,3 +129,5 @@ export function FileArtifactBlock({
     </div>
   );
 }
+
+export const FileArtifactBlock = memo(FileArtifactBlockComponent);

@@ -146,7 +146,7 @@ function compactExternalUrlLabel(href: string): string {
 
 export function createMarkdownComponents(
   resolveFilePath: ResolveWorkspaceFilePath,
-  onOpenWorkspaceFile?: (path: string) => void,
+  onOpenWorkspaceFile?: (path: string, workspaceAgentId?: string | null) => void,
   currentAgentId?: string | null,
   options: CreateMarkdownComponentsOptions = {},
 ): Components {
@@ -178,6 +178,7 @@ export function createMarkdownComponents(
             label={value}
             path={resolvedPath}
             onOpenWorkspaceFile={onOpenWorkspaceFile}
+            workspaceAgentId={currentAgentId}
           />
         );
       }
@@ -224,6 +225,7 @@ export function createMarkdownComponents(
             label={children}
             path={resolvedPath}
             onOpenWorkspaceFile={onOpenWorkspaceFile}
+            workspaceAgentId={currentAgentId}
           />
         );
       }
@@ -292,7 +294,7 @@ export function createMarkdownComponents(
         return (
           <button
             className="block w-fit max-w-full text-left"
-            onClick={() => onOpenWorkspaceFile(resolvedPath)}
+            onClick={() => onOpenWorkspaceFile(resolvedPath, currentAgentId)}
             title={resolvedPath}
             type="button"
           >
@@ -347,7 +349,7 @@ export function createMarkdownComponents(
 
 export function createMarkdownSummaryComponents(
   resolveFilePath: ResolveWorkspaceFilePath,
-  onOpenWorkspaceFile?: (path: string) => void,
+  onOpenWorkspaceFile?: (path: string, workspaceAgentId?: string | null) => void,
   currentAgentId?: string | null,
 ): Components {
   const baseComponents = createMarkdownComponents(resolveFilePath, onOpenWorkspaceFile, currentAgentId);
