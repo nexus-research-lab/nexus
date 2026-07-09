@@ -6,7 +6,8 @@ import (
 	"strings"
 	"time"
 
-	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
+	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/protocol"
 	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"
 )
 
@@ -36,7 +37,7 @@ func (s *Service) recoverJobRuntimeAsCancelled(ctx context.Context, job automati
 	job.FailureStreak++
 	nextRunAt := s.computeJobNext(job, finishedAt)
 	job.NextRunAt = nextRunAt
-	if backoff, ok := automationdomain.RetryBackoffFor(job.FailureStreak); ok {
+	if backoff, ok := automationexec.RetryBackoffFor(job.FailureStreak); ok {
 		retryAt := finishedAt.UTC().Add(backoff)
 		if nextRunAt == nil || retryAt.Before(*nextRunAt) {
 			retryCopy := retryAt

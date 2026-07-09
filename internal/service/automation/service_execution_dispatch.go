@@ -5,7 +5,8 @@ import (
 	"errors"
 	"strings"
 
-	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
+	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/protocol"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
@@ -13,7 +14,7 @@ import (
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
 
-func roomEventObserverForSink(sink *automationdomain.ExecutionSink) roomsvc.RoomEventObserver {
+func roomEventObserverForSink(sink *automationexec.ExecutionSink) roomsvc.RoomEventObserver {
 	if sink == nil {
 		return nil
 	}
@@ -22,7 +23,7 @@ func roomEventObserverForSink(sink *automationdomain.ExecutionSink) roomsvc.Room
 	}
 }
 
-func (s *Service) bindSink(sessionKey string, sink *automationdomain.ExecutionSink) func() {
+func (s *Service) bindSink(sessionKey string, sink *automationexec.ExecutionSink) func() {
 	if s.permission == nil {
 		return func() {}
 	}

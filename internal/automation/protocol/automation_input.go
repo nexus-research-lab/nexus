@@ -1,4 +1,4 @@
-package automation
+package protocol
 
 import (
 	"errors"

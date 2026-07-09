@@ -3,7 +3,7 @@ package automation
 import (
 	"strings"
 
-	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/protocol"
 )
 
 func (s *Service) buildCronTaskHealth(job automationdomain.CronJob, runs []automationdomain.CronRun) automationdomain.CronTaskHealth {

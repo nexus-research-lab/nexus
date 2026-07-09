@@ -7,7 +7,8 @@ import (
 	"testing"
 	"time"
 
-	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
+	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/protocol"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
@@ -77,7 +78,7 @@ func TestHeartbeatWakeDispatchesMainSession(t *testing.T) {
 	if len(requests) != 1 {
 		t.Fatalf("期望主会话收到 1 次 heartbeat 请求，实际 %d", len(requests))
 	}
-	if requests[0].SessionKey != automationdomain.BuildMainSessionKey("agent-1") {
+	if requests[0].SessionKey != automationexec.BuildMainSessionKey("agent-1") {
 		t.Fatalf("heartbeat 主会话键错误: %s", requests[0].SessionKey)
 	}
 	if !strings.Contains(requests[0].Content, "检查今日待办并汇总异常") || !strings.Contains(requests[0].Content, text) {
@@ -199,18 +200,18 @@ func TestBuildHeartbeatInstructionUsesTasksAndDeduplicatesWakeText(t *testing.T)
 				Payload:    string(payload),
 			},
 		},
-		[]automationdomain.HeartbeatWakeRequest{
+		[]automationexec.HeartbeatWakeRequest{
 			{
 				AgentID:    "agent-1",
-				SessionKey: automationdomain.BuildMainSessionKey("agent-1"),
+				SessionKey: automationexec.BuildMainSessionKey("agent-1"),
 				WakeMode:   automationdomain.WakeModeNow,
 				Text:       "urgent ping",
 			},
 		},
-		[]automationdomain.HeartbeatWakeRequest{
+		[]automationexec.HeartbeatWakeRequest{
 			{
 				AgentID:    "agent-1",
-				SessionKey: automationdomain.BuildMainSessionKey("agent-1"),
+				SessionKey: automationexec.BuildMainSessionKey("agent-1"),
 				WakeMode:   automationdomain.WakeModeNextHeartbeat,
 				Text:       "follow up soon",
 			},
@@ -418,7 +419,7 @@ func TestWakeHeartbeatNowWhileRunningKeepsPendingWakeAndQueuedRequest(t *testing
 	if !status.PendingWake {
 		t.Fatalf("running 状态下 wake-now 应保留 pending_wake=true")
 	}
-	items := service.wakeRequests[automationdomain.BuildMainSessionKey("agent-1")]
+	items := service.wakeRequests[automationexec.BuildMainSessionKey("agent-1")]
 	if len(items) != 1 || items[0].WakeMode != automationdomain.WakeModeNow {
 		t.Fatalf("running 状态下 wake-now 应继续排队等待下一轮消费: %+v", items)
 	}
@@ -497,7 +498,7 @@ func TestWakeRequestBookkeepingPreservesQueuedRequests(t *testing.T) {
 		&fakeWorkspaceReader{},
 		nil,
 	)
-	sessionKey := automationdomain.BuildMainSessionKey("agent-1")
+	sessionKey := automationexec.BuildMainSessionKey("agent-1")
 	first := "first"
 	second := "second"
 	service.recordWakeRequest("agent-1", sessionKey, automationdomain.WakeModeNow, &first)
@@ -524,7 +525,7 @@ func TestTakeWakeRequestsKeepsRequestsArrivingAfterDispatchStarts(t *testing.T) 
 		&fakeWorkspaceReader{},
 		nil,
 	)
-	sessionKey := automationdomain.BuildMainSessionKey("agent-1")
+	sessionKey := automationexec.BuildMainSessionKey("agent-1")
 	first := "first"
 	service.recordWakeRequest("agent-1", sessionKey, automationdomain.WakeModeNow, &first)
 

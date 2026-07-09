@@ -6,7 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
+	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/protocol"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/mcp/automation/contract"
 	"github.com/nexus-research-lab/nexus/internal/mcp/automation/internal/argx"
@@ -262,7 +263,7 @@ func describeTaskCandidate(jobID string, name string, agentID string, enabled bo
 }
 
 func scopedToolContext(ctx context.Context, sctx contract.ServerContext) context.Context {
-	ctx = automationdomain.WithActorAgentID(ctx, sctx.CurrentAgentID)
+	ctx = automationexec.WithActorAgentID(ctx, sctx.CurrentAgentID)
 	ownerUserID := strings.TrimSpace(sctx.OwnerUserID)
 	if ownerUserID == "" {
 		return ctx

@@ -5,7 +5,7 @@ import (
 
 	automationsvc "github.com/nexus-research-lab/nexus/internal/service/automation"
 
-	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/protocol"
 
 	"github.com/spf13/cobra"
 )

@@ -5,7 +5,8 @@ import (
 	"strings"
 	"time"
 
-	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
+	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/protocol"
 
 	"github.com/nexus-research-lab/nexus/internal/service/channels"
 	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
@@ -44,7 +45,7 @@ func (s *Service) deliverJobObservation(
 	ctx context.Context,
 	job automationdomain.CronJob,
 	executionSessionKey string,
-	observation automationdomain.ExecutionObservation,
+	observation automationexec.ExecutionObservation,
 ) jobDeliveryResult {
 	deliveryMode := strings.TrimSpace(job.Delivery.Mode)
 	deliveryChannel := strings.TrimSpace(job.Delivery.Channel)
@@ -165,7 +166,7 @@ func deliveryRetrySchedule(status string, attemptsAfter int, now time.Time) (*ti
 func (s *Service) deliverHeartbeatObservation(
 	agentID string,
 	configValue automationdomain.HeartbeatConfig,
-	observation automationdomain.ExecutionObservation,
+	observation automationexec.ExecutionObservation,
 ) *string {
 	targetMode := strings.TrimSpace(configValue.TargetMode)
 	if targetMode == "" || targetMode == automationdomain.HeartbeatTargetNone {
@@ -174,7 +175,7 @@ func (s *Service) deliverHeartbeatObservation(
 	if s.delivery == nil {
 		return stringPointer("delivery router is not configured")
 	}
-	filtered := automationdomain.FilterHeartbeatResponse(
+	filtered := automationexec.FilterHeartbeatResponse(
 		firstNonEmpty(observation.ResultText, observation.AssistantText),
 		configValue.AckMaxChars,
 	)

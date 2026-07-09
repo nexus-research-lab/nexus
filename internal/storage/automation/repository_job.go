@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"strings"
 
-	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/protocol"
 )
 
 // ListCronJobs 列出定时任务。ownerUserID 为空时表示全局作用域。

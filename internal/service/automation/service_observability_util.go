@@ -4,7 +4,7 @@ import (
 	"slices"
 	"strings"
 
-	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/protocol"
 )
 
 func deriveCronRunDeliveryStatus(run automationdomain.CronRun) string {

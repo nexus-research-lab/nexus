@@ -9,7 +9,8 @@ import (
 	"sync"
 	"time"
 
-	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
+	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/protocol"
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
@@ -91,9 +92,9 @@ type Service struct {
 	idFactory func(string) string
 
 	mu                   sync.Mutex
-	jobStates            map[string]*automationdomain.JobRuntimeState
-	heartbeatState       map[string]*automationdomain.HeartbeatRuntimeState
-	wakeRequests         map[string][]automationdomain.HeartbeatWakeRequest
+	jobStates            map[string]*automationexec.JobRuntimeState
+	heartbeatState       map[string]*automationexec.HeartbeatRuntimeState
+	wakeRequests         map[string][]automationexec.HeartbeatWakeRequest
 	deliveryRetryRunning bool
 	started              bool
 	cancel               context.CancelFunc
@@ -122,10 +123,10 @@ func NewService(
 		delivery:       delivery,
 		logger:         logx.NewDiscardLogger(),
 		nowFn:          func() time.Time { return time.Now().UTC() },
-		idFactory:      automationdomain.NewID,
-		jobStates:      make(map[string]*automationdomain.JobRuntimeState),
-		heartbeatState: make(map[string]*automationdomain.HeartbeatRuntimeState),
-		wakeRequests:   make(map[string][]automationdomain.HeartbeatWakeRequest),
+		idFactory:      automationexec.NewID,
+		jobStates:      make(map[string]*automationexec.JobRuntimeState),
+		heartbeatState: make(map[string]*automationexec.HeartbeatRuntimeState),
+		wakeRequests:   make(map[string][]automationexec.HeartbeatWakeRequest),
 	}
 }
 
@@ -259,7 +260,7 @@ func (s *Service) ensureDirectTargetSupported(target automationdomain.SessionTar
 	if strings.TrimSpace(target.Kind) == automationdomain.SessionTargetMain {
 		return nil
 	}
-	_, err := automationdomain.ResolveSessionKey(automationdomain.CronJob{
+	_, err := automationexec.ResolveSessionKey(automationdomain.CronJob{
 		AgentID:       "noop",
 		SessionTarget: target,
 	}, stringPointer("noop"))

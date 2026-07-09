@@ -11,7 +11,8 @@ import (
 	"strings"
 	"time"
 
-	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
+	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/protocol"
 	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"
 )
 
@@ -60,7 +61,7 @@ func (s *Service) startScriptJobExecution(ctx context.Context, job automationdom
 	s.mu.Lock()
 	state = s.jobStates[job.JobID]
 	if state == nil {
-		state = &automationdomain.JobRuntimeState{Job: job}
+		state = &automationexec.JobRuntimeState{Job: job}
 		s.jobStates[job.JobID] = state
 	}
 	state.RunningCount++
@@ -167,18 +168,18 @@ func (s *Service) observeScriptJob(job automationdomain.CronJob, runID string, s
 	logger.Info("脚本自动化任务执行结束", "status", status, "delivery_status", deliveryStatus, "scheduled_for", scheduledFor)
 }
 
-func (s *Service) runScriptJob(ctx context.Context, job automationdomain.CronJob, runID string) automationdomain.ExecutionObservation {
+func (s *Service) runScriptJob(ctx context.Context, job automationdomain.CronJob, runID string) automationexec.ExecutionObservation {
 	workspacePath, err := s.resolveAutomationWorkspacePath(ctx, job.AgentID)
 	if err != nil {
 		message := err.Error()
-		return automationdomain.ExecutionObservation{Status: automationdomain.RunStatusFailed, ErrorMessage: &message}
+		return automationexec.ExecutionObservation{Status: automationdomain.RunStatusFailed, ErrorMessage: &message}
 	}
 	if strings.TrimSpace(workspacePath) == "" {
 		message := "automation script workspace is not configured"
-		return automationdomain.ExecutionObservation{Status: automationdomain.RunStatusFailed, ErrorMessage: &message}
+		return automationexec.ExecutionObservation{Status: automationdomain.RunStatusFailed, ErrorMessage: &message}
 	}
 
-	waitCtx, cancel := context.WithTimeout(context.Background(), automationdomain.WaitTimeout(0))
+	waitCtx, cancel := context.WithTimeout(context.Background(), automationexec.WaitTimeout(0))
 	defer cancel()
 
 	stdout := &boundedOutputBuffer{limit: maxScriptOutputBytes}
@@ -208,7 +209,7 @@ func (s *Service) runScriptJob(ctx context.Context, job automationdomain.CronJob
 	if resultText == "" && errorMessage != nil {
 		resultText = *errorMessage
 	}
-	return automationdomain.ExecutionObservation{
+	return automationexec.ExecutionObservation{
 		Status:       status,
 		MessageCount: 1,
 		ErrorMessage: errorMessage,

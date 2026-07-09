@@ -3,7 +3,7 @@ package automation
 import (
 	"database/sql"
 
-	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/protocol"
 )
 
 func scanCronJob(scanner interface {

@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	apb "github.com/nexus-research-lab/nexus/internal/automation/protocol"
 	"github.com/robfig/cron/v3"
 )
 
@@ -13,7 +14,7 @@ var standardCronParser = cron.NewParser(
 )
 
 // ComputeNextRunAt 计算下次触发时间。
-func ComputeNextRunAt(schedule Schedule, now time.Time) (*time.Time, error) {
+func ComputeNextRunAt(schedule apb.Schedule, now time.Time) (*time.Time, error) {
 	normalized := schedule.Normalized()
 	if err := normalized.Validate(); err != nil {
 		return nil, err
@@ -21,10 +22,10 @@ func ComputeNextRunAt(schedule Schedule, now time.Time) (*time.Time, error) {
 
 	utcNow := now.UTC()
 	switch normalized.Kind {
-	case ScheduleKindEvery:
+	case apb.ScheduleKindEvery:
 		next := utcNow.Add(time.Duration(*normalized.IntervalSeconds) * time.Second)
 		return &next, nil
-	case ScheduleKindAt:
+	case apb.ScheduleKindAt:
 		next, err := parseRunAt(*normalized.RunAt, normalized.Timezone)
 		if err != nil {
 			return nil, err
@@ -33,7 +34,7 @@ func ComputeNextRunAt(schedule Schedule, now time.Time) (*time.Time, error) {
 			return nil, nil
 		}
 		return &next, nil
-	case ScheduleKindCron:
+	case apb.ScheduleKindCron:
 		scheduled, err := parseCronExpression(*normalized.CronExpression, normalized.Timezone)
 		if err != nil {
 			return nil, err

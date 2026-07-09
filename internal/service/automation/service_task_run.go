@@ -7,7 +7,8 @@ import (
 	"fmt"
 	"strings"
 
-	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
+	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/protocol"
 	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"
 )
 
@@ -103,7 +104,7 @@ func (s *Service) retryRunDelivery(ctx context.Context, jobID string, runID stri
 		return nil, fmt.Errorf("run delivery_status must be failed before retrying delivery, got %q", deliveryStatusBeforeRetry)
 	}
 
-	observation := automationdomain.ExecutionObservation{
+	observation := automationexec.ExecutionObservation{
 		Status:        automationdomain.RunStatusSucceeded,
 		SessionID:     run.SessionID,
 		MessageCount:  run.MessageCount,

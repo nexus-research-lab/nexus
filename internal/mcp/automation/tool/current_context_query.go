@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
+	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/protocol"
 	"github.com/nexus-research-lab/nexus/internal/mcp/automation/contract"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
@@ -38,16 +39,16 @@ func bestMatchingCronJobsForToolQuery(
 			return matches
 		}
 	}
-	return automationdomain.BestMatchingCronJobs(jobs, query)
+	return automationexec.BestMatchingCronJobs(jobs, query)
 }
 
 func cronJobMatchesToolQuery(job automationdomain.CronJob, query string, sctx contract.ServerContext) bool {
 	if !queryMentionsCurrentConversation(query) {
-		return automationdomain.CronJobMatchesQuery(job, query)
+		return automationexec.CronJobMatchesQuery(job, query)
 	}
 	current, ok := currentTaskContextFromServerContext(sctx)
 	if !ok {
-		return automationdomain.CronJobMatchesQuery(job, query)
+		return automationexec.CronJobMatchesQuery(job, query)
 	}
 	if !cronJobMatchesCurrentContext(job, current) {
 		return false
@@ -56,7 +57,7 @@ func cronJobMatchesToolQuery(job automationdomain.CronJob, query string, sctx co
 	if strings.TrimSpace(remainder) == "" {
 		return true
 	}
-	return automationdomain.CronJobMatchesQuery(job, remainder)
+	return automationexec.CronJobMatchesQuery(job, remainder)
 }
 
 func filterCronJobsByToolQuery(
@@ -104,19 +105,19 @@ func bestMatchingCurrentCronJobsForToolQuery(
 	}
 	scoped := filterCronJobsByCurrentContext(jobs, current)
 	if !queryMentionsCurrentConversation(query) {
-		return automationdomain.BestMatchingCronJobs(scoped, query), true
+		return automationexec.BestMatchingCronJobs(scoped, query), true
 	}
 	remainder := stripCurrentConversationTerms(query)
 	if strings.TrimSpace(remainder) == "" {
 		return scoped, true
 	}
-	return automationdomain.BestMatchingCronJobs(scoped, remainder), true
+	return automationexec.BestMatchingCronJobs(scoped, remainder), true
 }
 
 func filterCronJobsByPlainQuery(jobs []automationdomain.CronJob, query string) []automationdomain.CronJob {
 	matches := make([]automationdomain.CronJob, 0, len(jobs))
 	for _, job := range jobs {
-		if automationdomain.CronJobMatchesQuery(job, query) {
+		if automationexec.CronJobMatchesQuery(job, query) {
 			matches = append(matches, job)
 		}
 	}

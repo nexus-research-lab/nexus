@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/protocol"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 )
 

@@ -1,6 +1,7 @@
 package automation
 
 import (
+	apb "github.com/nexus-research-lab/nexus/internal/automation/protocol"
 	"testing"
 	"time"
 )
@@ -8,8 +9,8 @@ import (
 func TestComputeNextRunAt(t *testing.T) {
 	now := time.Date(2026, 4, 11, 8, 0, 0, 0, time.UTC)
 
-	every := Schedule{
-		Kind:            ScheduleKindEvery,
+	every := apb.Schedule{
+		Kind:            apb.ScheduleKindEvery,
 		IntervalSeconds: intRef(1800),
 		Timezone:        "Asia/Shanghai",
 	}
@@ -21,8 +22,8 @@ func TestComputeNextRunAt(t *testing.T) {
 		t.Fatalf("every 下次触发时间错误: %v", nextEvery)
 	}
 
-	at := Schedule{
-		Kind:     ScheduleKindAt,
+	at := apb.Schedule{
+		Kind:     apb.ScheduleKindAt,
 		RunAt:    stringRef("2026-04-11T18:30"),
 		Timezone: "Asia/Shanghai",
 	}
@@ -36,8 +37,8 @@ func TestComputeNextRunAt(t *testing.T) {
 	}
 
 	cronExpr := "0 9 * * *"
-	cronSchedule := Schedule{
-		Kind:           ScheduleKindCron,
+	cronSchedule := apb.Schedule{
+		Kind:           apb.ScheduleKindCron,
 		CronExpression: &cronExpr,
 		Timezone:       "Asia/Shanghai",
 	}

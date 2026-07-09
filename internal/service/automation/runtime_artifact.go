@@ -9,7 +9,8 @@ import (
 	"strings"
 	"time"
 
-	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
+	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/protocol"
 )
 
 func (s *Service) writeRunArtifact(
@@ -20,7 +21,7 @@ func (s *Service) writeRunArtifact(
 	sessionKey string,
 	finishedAt time.Time,
 	status string,
-	observation automationdomain.ExecutionObservation,
+	observation automationexec.ExecutionObservation,
 	errorMessage *string,
 	deliveryStatus string,
 	deliveryError *string,
@@ -81,7 +82,7 @@ func renderRunArtifact(
 	sessionKey string,
 	finishedAt time.Time,
 	status string,
-	observation automationdomain.ExecutionObservation,
+	observation automationexec.ExecutionObservation,
 	errorMessage *string,
 	deliveryStatus string,
 	deliveryError *string,

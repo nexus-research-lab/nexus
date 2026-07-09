@@ -4,7 +4,8 @@ import (
 	"context"
 	"testing"
 
-	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
+	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/protocol"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/service/channels"
@@ -36,7 +37,7 @@ func TestDeliverJobObservationUsesTaskOwnerContext(t *testing.T) {
 		},
 	}
 
-	deliveryResult := service.deliverJobObservation(context.Background(), job, "", automationdomain.ExecutionObservation{
+	deliveryResult := service.deliverJobObservation(context.Background(), job, "", automationexec.ExecutionObservation{
 		Status:     automationdomain.RunStatusSucceeded,
 		ResultText: "今日新闻摘要",
 	})
@@ -82,7 +83,7 @@ func TestDeliverJobObservationRecordsDeliveryReceipt(t *testing.T) {
 		},
 	}
 
-	deliveryResult := service.deliverJobObservation(context.Background(), job, "", automationdomain.ExecutionObservation{
+	deliveryResult := service.deliverJobObservation(context.Background(), job, "", automationexec.ExecutionObservation{
 		Status:     automationdomain.RunStatusSucceeded,
 		ResultText: "今日新闻摘要",
 	})
@@ -118,7 +119,7 @@ func TestDeliverJobObservationPassesSourceSessionForLastDelivery(t *testing.T) {
 		},
 	}
 
-	deliveryResult := service.deliverJobObservation(context.Background(), job, "", automationdomain.ExecutionObservation{
+	deliveryResult := service.deliverJobObservation(context.Background(), job, "", automationexec.ExecutionObservation{
 		Status:     automationdomain.RunStatusSucceeded,
 		ResultText: "定时提醒",
 	})

@@ -1,8 +1,8 @@
-package automation
+package protocol
 
 import (
 	"errors"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
+	coreprotocol "github.com/nexus-research-lab/nexus/internal/protocol"
 	"strings"
 )
 
@@ -38,7 +38,7 @@ func (t SessionTarget) Validate() error {
 		if boundSessionKey == "" {
 			return errors.New("bound_session_key is required when session_target.kind is bound")
 		}
-		if _, err := protocol.RequireStructuredSessionKey(boundSessionKey); err != nil {
+		if _, err := coreprotocol.RequireStructuredSessionKey(boundSessionKey); err != nil {
 			return err
 		}
 	case SessionTargetNamed:
@@ -137,7 +137,7 @@ func (s Source) Validate() error {
 		return errors.New("context_id is required when context_type is provided")
 	}
 	if strings.TrimSpace(s.SessionKey) != "" {
-		if _, err := protocol.RequireStructuredSessionKey(s.SessionKey); err != nil {
+		if _, err := coreprotocol.RequireStructuredSessionKey(s.SessionKey); err != nil {
 			return err
 		}
 	}

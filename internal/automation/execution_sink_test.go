@@ -2,6 +2,7 @@ package automation
 
 import (
 	"context"
+	apb "github.com/nexus-research-lab/nexus/internal/automation/protocol"
 	"strings"
 	"testing"
 
@@ -43,7 +44,7 @@ func TestExecutionSinkMarksPermissionDenialSummaryAsFailed(t *testing.T) {
 	}
 
 	observation := sink.WaitForRound(context.Background(), roundID)
-	if observation.Status != RunStatusFailed {
+	if observation.Status != apb.RunStatusFailed {
 		t.Fatalf("权限拒绝的后台运行应标记为 failed，实际: %+v", observation)
 	}
 	if observation.ErrorMessage == nil || !strings.Contains(*observation.ErrorMessage, "WebSearch") {

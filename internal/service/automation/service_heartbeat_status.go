@@ -5,7 +5,8 @@ import (
 	"errors"
 	"strings"
 
-	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
+	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/protocol"
 )
 
 // GetHeartbeatStatus 返回 heartbeat 状态。
@@ -123,7 +124,7 @@ func (s *Service) WakeHeartbeat(ctx context.Context, agentID string, request aut
 			return nil, err
 		}
 	}
-	sessionKey := automationdomain.BuildMainSessionKey(state.Config.AgentID)
+	sessionKey := automationexec.BuildMainSessionKey(state.Config.AgentID)
 	s.recordWakeRequest(state.Config.AgentID, sessionKey, mode, request.Text)
 
 	s.mu.Lock()

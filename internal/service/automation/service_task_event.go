@@ -4,7 +4,8 @@ import (
 	"context"
 	"strings"
 
-	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
+	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/protocol"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"
 )
@@ -43,7 +44,7 @@ func (s *Service) recordTaskEvent(ctx context.Context, action string, job automa
 	}
 	actorUserID := authctx.OwnerUserID(ctx)
 	actorAgentID := strings.TrimSpace(job.Source.CreatorAgentID)
-	if contextActorAgentID, ok := automationdomain.ActorAgentID(ctx); ok {
+	if contextActorAgentID, ok := automationexec.ActorAgentID(ctx); ok {
 		actorAgentID = contextActorAgentID
 	}
 	event := automationdomain.CronTaskEvent{

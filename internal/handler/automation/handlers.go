@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/protocol"
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	automationsvc "github.com/nexus-research-lab/nexus/internal/service/automation"
 

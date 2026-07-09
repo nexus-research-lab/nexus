@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/protocol"
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 
 	"github.com/go-chi/chi/v5"

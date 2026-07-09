@@ -5,7 +5,8 @@ import (
 	"strings"
 	"time"
 
-	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
+	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/protocol"
 )
 
 // SearchTaskHistory 按名称、job_id、动作或审计 detail 搜索当前与历史任务候选。
@@ -62,7 +63,7 @@ func (s *Service) searchActiveTaskHistory(ctx context.Context, input automationd
 	}
 	items := make([]automationdomain.CronTaskHistoryItem, 0, len(jobs))
 	for _, job := range jobs {
-		if input.Query != "" && !automationdomain.CronJobMatchesQuery(job, input.Query) {
+		if input.Query != "" && !automationexec.CronJobMatchesQuery(job, input.Query) {
 			continue
 		}
 		enabled := job.Enabled
@@ -140,7 +141,7 @@ func (s *Service) searchTaskHistoryEvents(
 	ownerUserID string,
 	input automationdomain.CronTaskHistorySearchInput,
 ) ([]automationdomain.CronTaskEvent, error) {
-	queries := automationdomain.QueryVariants(input.Query)
+	queries := automationexec.QueryVariants(input.Query)
 	events := make([]automationdomain.CronTaskEvent, 0)
 	seen := map[string]bool{}
 	limit := input.Limit * 5

@@ -7,12 +7,13 @@ import (
 	"strings"
 	"time"
 
-	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
+	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/protocol"
 )
 
 const heartbeatExplicitTargetUnsupportedMessage = "heartbeat target_mode=explicit is not supported in Task 6 runtime"
 
-func (s *Service) ensureHeartbeatState(ctx context.Context, agentID string) (*automationdomain.HeartbeatRuntimeState, error) {
+func (s *Service) ensureHeartbeatState(ctx context.Context, agentID string) (*automationexec.HeartbeatRuntimeState, error) {
 	s.mu.Lock()
 	state := s.heartbeatState[strings.TrimSpace(agentID)]
 	s.mu.Unlock()
@@ -27,7 +28,7 @@ func (s *Service) ensureHeartbeatState(ctx context.Context, agentID string) (*au
 	if configValue == nil {
 		defaultValue := automationdomain.DefaultHeartbeatConfig(agentID)
 		sanitizedConfig, deliveryError := sanitizeHeartbeatConfig(defaultValue)
-		state = &automationdomain.HeartbeatRuntimeState{
+		state = &automationexec.HeartbeatRuntimeState{
 			Config:          sanitizedConfig,
 			NextRunAt:       s.computeHeartbeatNext(sanitizedConfig, s.nowFn()),
 			LastHeartbeatAt: cloneTimePointer(lastHeartbeatAt),
@@ -36,7 +37,7 @@ func (s *Service) ensureHeartbeatState(ctx context.Context, agentID string) (*au
 		}
 	} else {
 		normalized, deliveryError := sanitizeHeartbeatConfig(configValue.Normalized())
-		state = &automationdomain.HeartbeatRuntimeState{
+		state = &automationexec.HeartbeatRuntimeState{
 			Config:          normalized,
 			NextRunAt:       s.computeHeartbeatNext(normalized, s.nowFn()),
 			LastHeartbeatAt: cloneTimePointer(lastHeartbeatAt),
@@ -88,15 +89,15 @@ func (s *Service) finishHeartbeatRuntime(agentID string, startedAt *time.Time, a
 	}
 }
 
-func (s *Service) snapshotHeartbeatState(agentID string) (automationdomain.HeartbeatRuntimeState, bool) {
+func (s *Service) snapshotHeartbeatState(agentID string) (automationexec.HeartbeatRuntimeState, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	state := s.heartbeatState[strings.TrimSpace(agentID)]
 	if state == nil {
-		return automationdomain.HeartbeatRuntimeState{}, false
+		return automationexec.HeartbeatRuntimeState{}, false
 	}
-	return automationdomain.HeartbeatRuntimeState{
+	return automationexec.HeartbeatRuntimeState{
 		Config:          state.Config,
 		Running:         state.Running,
 		PendingWake:     state.PendingWake,
@@ -122,7 +123,7 @@ func (s *Service) recordWakeRequest(agentID string, sessionKey string, wakeMode 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	sessionKey = strings.TrimSpace(sessionKey)
-	request := automationdomain.HeartbeatWakeRequest{
+	request := automationexec.HeartbeatWakeRequest{
 		AgentID:    strings.TrimSpace(agentID),
 		SessionKey: sessionKey,
 		WakeMode:   strings.TrimSpace(wakeMode),
@@ -135,7 +136,7 @@ func (s *Service) recordWakeRequest(agentID string, sessionKey string, wakeMode 
 }
 
 func (s *Service) hasImmediateWakeRequestLocked(agentID string) bool {
-	sessionKey := automationdomain.BuildMainSessionKey(agentID)
+	sessionKey := automationexec.BuildMainSessionKey(agentID)
 	for _, item := range s.wakeRequests[sessionKey] {
 		if strings.TrimSpace(item.AgentID) == strings.TrimSpace(agentID) && item.WakeMode == automationdomain.WakeModeNow {
 			return true
@@ -144,7 +145,7 @@ func (s *Service) hasImmediateWakeRequestLocked(agentID string) bool {
 	return false
 }
 
-func (s *Service) takeWakeRequests(agentID string, sessionKey string) ([]automationdomain.HeartbeatWakeRequest, []automationdomain.HeartbeatWakeRequest) {
+func (s *Service) takeWakeRequests(agentID string, sessionKey string) ([]automationexec.HeartbeatWakeRequest, []automationexec.HeartbeatWakeRequest) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -152,8 +153,8 @@ func (s *Service) takeWakeRequests(agentID string, sessionKey string) ([]automat
 	items := slices.Clone(s.wakeRequests[sessionKey])
 	delete(s.wakeRequests, sessionKey)
 
-	immediate := make([]automationdomain.HeartbeatWakeRequest, 0, len(items))
-	deferred := make([]automationdomain.HeartbeatWakeRequest, 0, len(items))
+	immediate := make([]automationexec.HeartbeatWakeRequest, 0, len(items))
+	deferred := make([]automationexec.HeartbeatWakeRequest, 0, len(items))
 	for _, item := range items {
 		if strings.TrimSpace(item.AgentID) != strings.TrimSpace(agentID) {
 			continue

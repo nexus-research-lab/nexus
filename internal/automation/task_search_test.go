@@ -1,6 +1,7 @@
 package automation
 
 import (
+	apb "github.com/nexus-research-lab/nexus/internal/automation/protocol"
 	"slices"
 	"testing"
 
@@ -8,11 +9,11 @@ import (
 )
 
 func TestCronJobMatchesQueryUsesDeliveryAndStatusAliases(t *testing.T) {
-	job := CronJob{
+	job := apb.CronJob{
 		JobID:   "job-1",
 		Enabled: true,
 		Running: true,
-		Delivery: DeliveryTarget{
+		Delivery: apb.DeliveryTarget{
 			Channel: protocol.SessionChannelFeishu,
 		},
 	}
@@ -38,14 +39,14 @@ func TestQueryVariantsExpandsChannelAliases(t *testing.T) {
 }
 
 func TestBestMatchingCronJobsPrefersSpecificNaturalLanguageTarget(t *testing.T) {
-	jobs := []CronJob{
+	jobs := []apb.CronJob{
 		{
 			JobID:       "job-feishu-weather",
 			Name:        "飞书群天气",
 			AgentID:     "agent-1",
 			Instruction: "发送天气",
 			Enabled:     true,
-			Delivery: DeliveryTarget{
+			Delivery: apb.DeliveryTarget{
 				Channel: protocol.SessionChannelFeishu,
 			},
 		},
@@ -62,7 +63,7 @@ func TestBestMatchingCronJobsPrefersSpecificNaturalLanguageTarget(t *testing.T) 
 			AgentID:     "agent-1",
 			Instruction: "搜索新闻并投递",
 			Enabled:     false,
-			Delivery: DeliveryTarget{
+			Delivery: apb.DeliveryTarget{
 				Channel: protocol.SessionChannelFeishu,
 			},
 		},
@@ -76,7 +77,7 @@ func TestBestMatchingCronJobsPrefersSpecificNaturalLanguageTarget(t *testing.T) 
 }
 
 func TestBestMatchingCronJobsKeepsEqualTopCandidatesAmbiguous(t *testing.T) {
-	jobs := []CronJob{
+	jobs := []apb.CronJob{
 		{JobID: "job-news-a", Name: "早间新闻", AgentID: "agent-1", Enabled: true},
 		{JobID: "job-news-b", Name: "晚间新闻", AgentID: "agent-1", Enabled: true},
 		{JobID: "job-water", Name: "喝水提醒", AgentID: "agent-1", Enabled: true},

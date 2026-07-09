@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/protocol"
 )
 
 func TestSchedule_CronNormalizesToDaily(t *testing.T) {

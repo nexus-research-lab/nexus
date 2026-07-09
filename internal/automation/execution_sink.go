@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	apb "github.com/nexus-research-lab/nexus/internal/automation/protocol"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -79,12 +80,12 @@ func (s *ExecutionSink) SendEvent(_ context.Context, event protocol.EventMessage
 
 func (s *ExecutionSink) WaitForRound(ctx context.Context, roundID string) ExecutionObservation {
 	normalizedRoundID := strings.TrimSpace(roundID)
-	observation := ExecutionObservation{Status: RunStatusRunning}
+	observation := ExecutionObservation{Status: apb.RunStatusRunning}
 	for {
 		select {
 		case <-ctx.Done():
 			message := ctx.Err().Error()
-			observation.Status = RunStatusCancelled
+			observation.Status = apb.RunStatusCancelled
 			observation.ErrorMessage = &message
 			return observation
 		case event := <-s.events:
@@ -114,7 +115,7 @@ func (s *ExecutionSink) WaitForRound(ctx context.Context, roundID string) Execut
 				if message != "" {
 					observation.ErrorMessage = &message
 				}
-				observation.Status = RunStatusFailed
+				observation.Status = apb.RunStatusFailed
 				return observation
 			case protocol.EventTypeRoundStatus:
 				payload := event.Data
@@ -127,13 +128,13 @@ func (s *ExecutionSink) WaitForRound(ctx context.Context, roundID string) Execut
 				status := strings.TrimSpace(anyString(payload["status"]))
 				switch status {
 				case "finished":
-					if observation.Status == RunStatusRunning {
-						observation.Status = RunStatusSucceeded
+					if observation.Status == apb.RunStatusRunning {
+						observation.Status = apb.RunStatusSucceeded
 					}
 				case "interrupted":
-					observation.Status = RunStatusCancelled
+					observation.Status = apb.RunStatusCancelled
 				default:
-					observation.Status = RunStatusFailed
+					observation.Status = apb.RunStatusFailed
 					if observation.ErrorMessage == nil {
 						message := strings.TrimSpace(anyString(payload["result_subtype"]))
 						if message != "" {
@@ -152,22 +153,22 @@ func applyResultPayload(observation *ExecutionObservation, payload map[string]an
 		observation.ResultText = resultText
 	}
 	if message := permissionDenialErrorMessage(payload, observation.ResultText); message != "" {
-		observation.Status = RunStatusFailed
+		observation.Status = apb.RunStatusFailed
 		observation.ErrorMessage = &message
 		return
 	}
 	if message := resultErrorsMessage(payload, observation.ResultText); message != "" {
-		observation.Status = RunStatusFailed
+		observation.Status = apb.RunStatusFailed
 		observation.ErrorMessage = &message
 		return
 	}
 	switch strings.TrimSpace(anyString(payload["subtype"])) {
 	case "success", "":
-		observation.Status = RunStatusSucceeded
+		observation.Status = apb.RunStatusSucceeded
 	case "interrupted":
-		observation.Status = RunStatusCancelled
+		observation.Status = apb.RunStatusCancelled
 	default:
-		observation.Status = RunStatusFailed
+		observation.Status = apb.RunStatusFailed
 		message := strings.TrimSpace(anyString(payload["result"]))
 		if message != "" {
 			observation.ErrorMessage = &message

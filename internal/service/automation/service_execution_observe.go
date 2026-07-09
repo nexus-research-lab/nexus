@@ -3,7 +3,8 @@ package automation
 import (
 	"context"
 
-	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
+	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/protocol"
 	"github.com/nexus-research-lab/nexus/internal/storage/automation"
 )
 
@@ -12,14 +13,14 @@ func (s *Service) observeJobRun(
 	runID string,
 	roundID string,
 	sessionKey string,
-	sink *automationdomain.ExecutionSink,
+	sink *automationexec.ExecutionSink,
 	cleanup func(),
 ) {
 	defer cleanup()
 	defer sink.Close()
 
 	jobCtx := backgroundContextForJobOwner(job)
-	waitCtx, cancel := context.WithTimeout(context.Background(), automationdomain.WaitTimeout(0))
+	waitCtx, cancel := context.WithTimeout(context.Background(), automationexec.WaitTimeout(0))
 	defer cancel()
 	observation := sink.WaitForRound(waitCtx, roundID)
 

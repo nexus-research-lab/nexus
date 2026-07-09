@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/protocol"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"

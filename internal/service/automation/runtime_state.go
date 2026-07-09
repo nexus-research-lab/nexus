@@ -5,16 +5,17 @@ import (
 	"strings"
 	"time"
 
-	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
+	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/protocol"
 	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"
 )
 
-func (s *Service) ensureJobState(job automationdomain.CronJob) *automationdomain.JobRuntimeState {
+func (s *Service) ensureJobState(job automationdomain.CronJob) *automationexec.JobRuntimeState {
 	s.mu.Lock()
 	state := s.jobStates[job.JobID]
 	created := state == nil
 	if state == nil {
-		state = &automationdomain.JobRuntimeState{}
+		state = &automationexec.JobRuntimeState{}
 		s.jobStates[job.JobID] = state
 	}
 	definitionChanged := !created &&
@@ -57,7 +58,7 @@ func (s *Service) computeJobNext(job automationdomain.CronJob, now time.Time) *t
 	if !job.Enabled {
 		return nil
 	}
-	next, err := automationdomain.ComputeNextRunAt(job.Schedule, now)
+	next, err := automationexec.ComputeNextRunAt(job.Schedule, now)
 	if err != nil {
 		return nil
 	}
@@ -103,7 +104,7 @@ func (s *Service) finishJobRuntime(jobID string, finishedAt *time.Time, status s
 	} else {
 		state.FailureStreak++
 		state.NextRunAt = naturalNext
-		if backoff, ok := automationdomain.RetryBackoffFor(state.FailureStreak); ok {
+		if backoff, ok := automationexec.RetryBackoffFor(state.FailureStreak); ok {
 			retryAt := now.UTC().Add(backoff)
 			if naturalNext == nil || retryAt.Before(*naturalNext) {
 				retryCopy := retryAt
@@ -173,11 +174,11 @@ func (s *Service) advanceJobRuntimeAfterTriggerWithPersistence(jobID string, sch
 	}
 }
 
-func (s *Service) replaceJobRuntimeState(job automationdomain.CronJob) *automationdomain.JobRuntimeState {
+func (s *Service) replaceJobRuntimeState(job automationdomain.CronJob) *automationexec.JobRuntimeState {
 	s.mu.Lock()
 	state := s.jobStates[job.JobID]
 	if state == nil {
-		state = &automationdomain.JobRuntimeState{}
+		state = &automationexec.JobRuntimeState{}
 		s.jobStates[job.JobID] = state
 	}
 	state.Job = job
@@ -216,7 +217,7 @@ func (s *Service) persistJobRuntime(ctx context.Context, input automationstore.J
 	}
 }
 
-func jobRuntimeUpdateFromState(jobID string, state *automationdomain.JobRuntimeState) automationstore.JobRuntimeUpdateInput {
+func jobRuntimeUpdateFromState(jobID string, state *automationexec.JobRuntimeState) automationstore.JobRuntimeUpdateInput {
 	return automationstore.JobRuntimeUpdateInput{
 		JobID:              jobID,
 		NextRunAt:          cloneTimePointer(state.NextRunAt),

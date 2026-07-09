@@ -10,7 +10,7 @@ package contract
 import (
 	"context"
 
-	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/protocol"
 )
 
 // ServerName 是 MCP server 的注册名。

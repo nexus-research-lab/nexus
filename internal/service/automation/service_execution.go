@@ -5,7 +5,8 @@ import (
 	"strings"
 	"time"
 
-	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
+	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/protocol"
 	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"
 )
 
@@ -27,7 +28,7 @@ func (s *Service) startJobExecution(ctx context.Context, job automationdomain.Cr
 
 	if strings.TrimSpace(job.SessionTarget.Kind) == automationdomain.SessionTargetMain {
 		runID := s.idFactory("run")
-		sessionKey, err := automationdomain.ResolveSessionKey(job, nil)
+		sessionKey, err := automationexec.ResolveSessionKey(job, nil)
 		if err != nil {
 			finishedAt := s.nowFn()
 			s.finishJobRuntime(job.JobID, &finishedAt, automationdomain.RunStatusFailed, errorPointer(err))
@@ -100,7 +101,7 @@ func (s *Service) startJobExecution(ctx context.Context, job automationdomain.Cr
 	}
 
 	runID := s.idFactory("run")
-	sessionKey, err := automationdomain.ResolveSessionKey(job, &runID)
+	sessionKey, err := automationexec.ResolveSessionKey(job, &runID)
 	if err != nil {
 		finishedAt := s.nowFn()
 		s.finishJobRuntime(job.JobID, &finishedAt, automationdomain.RunStatusFailed, errorPointer(err))
@@ -144,7 +145,7 @@ func (s *Service) startJobExecution(ctx context.Context, job automationdomain.Cr
 	s.mu.Lock()
 	state = s.jobStates[job.JobID]
 	if state == nil {
-		state = &automationdomain.JobRuntimeState{Job: job}
+		state = &automationexec.JobRuntimeState{Job: job}
 		s.jobStates[job.JobID] = state
 	}
 	state.RunningCount++
@@ -178,7 +179,7 @@ func (s *Service) startJobExecution(ctx context.Context, job automationdomain.Cr
 		"round_id", roundID,
 		"session_key", sessionKey,
 	)
-	sink := automationdomain.NewExecutionSink("automation:" + runID)
+	sink := automationexec.NewExecutionSink("automation:" + runID)
 	cleanup := s.bindSink(sessionKey, sink)
 	roomObserver := roomEventObserverForSink(sink)
 	dispatchJob := job
