@@ -10,10 +10,10 @@
 //
 // 成员清单：
 //   - automation.go：调度/目标/唤醒/投递/执行/来源/运行状态等枚举常量。
-//   - automation_job.go / automation_report.go：CronJob、CronRun、日报等对外视图。
-//   - automation_input.go：CreateJobInput / UpdateJobInput 及校验、归一。
-//   - automation_schedule.go / automation_target.go：Schedule / SessionTarget / DeliveryTarget / Source 及 Validate/Normalized。
-//   - automation_heartbeat.go：HeartbeatConfig / HeartbeatWakeInput 等 heartbeat 协议。
+//   - job.go / report.go：CronJob、CronRun、日报等对外视图。
+//   - input.go：CreateJobInput / UpdateJobInput 及校验、归一。
+//   - schedule.go / target.go：Schedule / SessionTarget / DeliveryTarget / Source 及 Validate/Normalized。
+//   - heartbeat.go：HeartbeatConfig / HeartbeatWakeInput 等 heartbeat 协议。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package types

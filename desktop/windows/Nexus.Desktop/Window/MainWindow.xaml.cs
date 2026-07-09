@@ -14,6 +14,14 @@ namespace Nexus.Desktop.Window;
 
 public partial class MainWindow : System.Windows.Window
 {
+    private const double PreferredWindowWidth = 1280;
+    private const double PreferredWindowHeight = 820;
+    private const double PreferredMinimumWindowWidth = 1120;
+    private const double PreferredMinimumWindowHeight = 640;
+    private const double CompactMinimumWindowWidth = 720;
+    private const double CompactMinimumWindowHeight = 520;
+    private const double ScreenPadding = 48;
+
     private readonly SidecarRuntimeConfig runtime;
     private readonly DesktopStartupTimeline startupTimeline;
     private readonly DesktopUpdateChecker updateChecker;
@@ -33,6 +41,7 @@ public partial class MainWindow : System.Windows.Window
         this.startupTimeline = startupTimeline;
         this.updateChecker = updateChecker;
         InitializeComponent();
+        ConfigureInitialWindowBounds();
         ConfigureWebViewSurface(MainWebView);
         trayController = new DesktopTrayController(
             startupTimeline,
@@ -340,6 +349,37 @@ public partial class MainWindow : System.Windows.Window
         }
         return normalized[..maxLength] + "...";
     }
+
+    private void ConfigureInitialWindowBounds()
+    {
+        Rect workArea = SystemParameters.WorkArea;
+        double width = Math.Min(PreferredWindowWidth, Math.Max(320, workArea.Width - ScreenPadding));
+        double height = Math.Min(PreferredWindowHeight, Math.Max(320, workArea.Height - ScreenPadding));
+        MinWidth = AdaptiveMinimum(PreferredMinimumWindowWidth, CompactMinimumWindowWidth, width);
+        MinHeight = AdaptiveMinimum(PreferredMinimumWindowHeight, CompactMinimumWindowHeight, height);
+        Width = width;
+        Height = height;
+        startupTimeline.Mark("main_window.initial_bounds", new Dictionary<string, string>
+        {
+            ["height"] = MetadataDimension(height),
+            ["min_height"] = MetadataDimension(MinHeight),
+            ["min_width"] = MetadataDimension(MinWidth),
+            ["width"] = MetadataDimension(width),
+            ["work_area_height"] = MetadataDimension(workArea.Height),
+            ["work_area_width"] = MetadataDimension(workArea.Width),
+        });
+    }
+
+    private static double AdaptiveMinimum(double preferred, double compact, double current)
+    {
+        if (current >= preferred)
+        {
+            return preferred;
+        }
+        return Math.Min(current, compact);
+    }
+
+    private static string MetadataDimension(double value) => ((int)Math.Round(value)).ToString();
 
     private static void ConfigureWebViewSurface(WebView2 webView)
     {
