@@ -67,8 +67,15 @@ func (a *API) WriteSuccess(writer http.ResponseWriter, data any) {
 // WriteFailure 写入失败响应。
 func (a *API) WriteFailure(writer http.ResponseWriter, status int, detail string) {
 	clientDetail := strings.TrimSpace(detail)
+	if status >= http.StatusInternalServerError && isClientCanceledDetail(clientDetail) {
+		status = 499
+	}
 	if clientDetail != "" {
-		a.BaseLogger().Warn("HTTP 请求失败", "status", status, "detail", clientDetail)
+		if isClientCanceledDetail(clientDetail) {
+			a.BaseLogger().Debug("HTTP 请求已取消", "status", status, "detail", clientDetail)
+		} else {
+			a.BaseLogger().Warn("HTTP 请求失败", "status", status, "detail", clientDetail)
+		}
 	}
 	clientDetail = GatewayClientErrorDetail(status, clientDetail)
 	a.WriteJSON(writer, status, map[string]any{
@@ -128,6 +135,8 @@ func DecodeJSONBody(body io.Reader, target any, allowEmpty bool) error {
 // GatewayClientErrorDetail 规范化客户端可见错误文案。
 func GatewayClientErrorDetail(status int, detail string) string {
 	switch status {
+	case 499:
+		return "请求已取消"
 	case http.StatusBadRequest:
 		if IsClientMessageText(detail) {
 			return detail
@@ -155,6 +164,14 @@ func GatewayClientErrorDetail(status int, detail string) string {
 		}
 		return "请求失败"
 	}
+}
+
+func isClientCanceledDetail(detail string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(detail))
+	return normalized == "context canceled" ||
+		normalized == "context deadline exceeded" ||
+		strings.Contains(normalized, "client disconnected") ||
+		strings.Contains(normalized, "request canceled")
 }
 
 // IsClientMessageError 判断错误是否适合直接返回给客户端。

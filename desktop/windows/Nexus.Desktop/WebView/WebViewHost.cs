@@ -59,6 +59,7 @@ internal sealed class WebViewHost : IDisposable
         await webView.EnsureCoreWebView2Async(environment);
 
         CoreWebView2 core = webView.CoreWebView2;
+        await DesktopWebCacheInvalidator.ClearCachesIfNeededAsync(core, runtime, startupTimeline);
         core.Settings.AreDefaultContextMenusEnabled = false;
         core.Settings.AreDevToolsEnabled = true;
         core.Settings.IsStatusBarEnabled = false;
@@ -105,13 +106,12 @@ internal sealed class WebViewHost : IDisposable
     public Task LoadRouteAsync(DesktopWebRoute route)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
-        Uri url = route.ToUri(runtime);
         lastRoute = route;
         startupTimeline.Mark("main_window.route_load", new Dictionary<string, string>
         {
             ["path"] = route.Path,
         });
-        webView.Source = url;
+        NavigateToRoute(route);
         return Task.CompletedTask;
     }
 
@@ -137,12 +137,41 @@ internal sealed class WebViewHost : IDisposable
                 ["path"] = route.Path,
                 ["reason"] = reason,
             });
-            InstallDesktopSessionCookie(webView.CoreWebView2);
-            webView.CoreWebView2.Navigate(route.ToUri(runtime).ToString());
+            NavigateToRoute(route);
         }
         catch (Exception exception) when (exception is InvalidOperationException or ObjectDisposedException)
         {
             await recreateWebViewAsync(lastRoute, "manual_reload", exception.GetType().Name);
+        }
+    }
+
+    public async Task ClearCacheAndReloadAsync(string reason)
+    {
+        if (disposed)
+        {
+            return;
+        }
+        if (webView.CoreWebView2 is null)
+        {
+            await recreateWebViewAsync(lastRoute, "manual_cache_clear", reason);
+            return;
+        }
+
+        try
+        {
+            ResumeProbeResult probe = await CaptureResumeProbeAsync();
+            UpdateLastRouteFromProbe(probe);
+            DesktopWebRoute route = probe.CurrentRoute ?? lastRoute;
+            await DesktopWebCacheInvalidator.ClearCachesManuallyAsync(
+                webView.CoreWebView2,
+                runtime,
+                startupTimeline,
+                reason);
+            NavigateToRoute(route);
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or ObjectDisposedException)
+        {
+            await recreateWebViewAsync(lastRoute, "manual_cache_clear", exception.GetType().Name);
         }
     }
 
@@ -252,7 +281,7 @@ internal sealed class WebViewHost : IDisposable
         if (consecutiveResumeProbeFailures < ResumeProbeRecreateThreshold)
         {
             startupTimeline.Mark("webview.resume_reload", metadata);
-            webView.CoreWebView2.Reload();
+            NavigateToRoute(recoveryRoute);
             return;
         }
 
@@ -589,7 +618,7 @@ internal sealed class WebViewHost : IDisposable
     {
         DesktopWebRoute nextRoute = DesktopWebRoute.FromPath(route);
         lastRoute = nextRoute;
-        webView.Source = nextRoute.ToUri(runtime);
+        NavigateToRoute(nextRoute);
         return Task.CompletedTask;
     }
 
@@ -680,7 +709,7 @@ internal sealed class WebViewHost : IDisposable
         {
             DesktopWebRoute nextRoute = DesktopProtocolRouter.RouteFromActivationMessage(rawUrl);
             lastRoute = nextRoute;
-            webView.Source = nextRoute.ToUri(runtime);
+            NavigateToRoute(nextRoute);
             startupTimeline.Mark("webview.navigation_protocol_route", new Dictionary<string, string>
             {
                 ["scheme"] = "nexus",
@@ -706,5 +735,18 @@ internal sealed class WebViewHost : IDisposable
         {
             ["scheme"] = uri.Scheme,
         });
+    }
+
+    private void NavigateToRoute(DesktopWebRoute route)
+    {
+        Uri url = route.ToUri(runtime);
+        if (webView.CoreWebView2 is not CoreWebView2 core)
+        {
+            webView.Source = url;
+            return;
+        }
+
+        InstallDesktopSessionCookie(core);
+        core.Navigate(url.ToString());
     }
 }

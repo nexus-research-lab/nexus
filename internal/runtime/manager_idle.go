@@ -58,7 +58,7 @@ func (m *Manager) CloseIdleSessions(ctx context.Context, idleFor time.Duration) 
 				cancel()
 			}
 		}
-		disconnectCtx, cancel := context.WithTimeout(ctx, roundIdleAbortTimeout)
+		disconnectCtx, cancel := context.WithTimeout(ctx, RoundIdleAbortTimeout)
 		err := target.client.Disconnect(disconnectCtx)
 		cancel()
 		if err != nil && !IsRuntimeTransportClosedError(err) {

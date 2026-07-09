@@ -113,6 +113,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   @objc
+  func clearWebCache(_ sender: Any?) {
+    Task { @MainActor [weak self] in
+      guard let self else {
+        return
+      }
+      await DesktopWebCacheInvalidator.clearCachesManually(startupTimeline: startupTimeline)
+      windowManager?.reloadMainWindow()
+    }
+  }
+
+  @objc
   func checkForUpdates(_ sender: Any?) {
     updateChecker.checkNowFromMenu()
   }
@@ -127,6 +138,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         supervisor.stop()
         return
       }
+      await DesktopWebCacheInvalidator.clearCachesIfNeeded(
+        runtime: runtime,
+        startupTimeline: startupTimeline
+      )
       let manager = WindowManager(
         runtime: runtime,
         startupTimeline: startupTimeline,

@@ -10,7 +10,7 @@ import (
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	sessionresumesvc "github.com/nexus-research-lab/nexus/internal/service/sessionresume"
 )
 
@@ -132,7 +132,7 @@ func (s *RealtimeService) handleSlotFailure(ctx context.Context, roundValue *act
 	}
 	fields = append(fields, roomSlotFailureDiagnostics(err, slot, mapper)...)
 	s.loggerFor(ctx).Error("Room slot 执行失败", fields...)
-	s.recordGoalContinuationProgressForSlot(ctx, slot, roundValue, runtimectx.RoundExecutionResult{
+	s.recordGoalContinuationProgressForSlot(ctx, slot, roundValue, exec.RoundExecutionResult{
 		TerminalStatus: "error",
 		ErrorMessage:   err.Error(),
 	}, slot.lastGoalAssistantMessage())
@@ -190,7 +190,7 @@ func (s *RealtimeService) handleSlotFailure(ctx context.Context, roundValue *act
 
 func roomSlotFailureDiagnostics(err error, slot *activeRoomSlot, mapper *roomdomain.SlotMessageMapper) []any {
 	fields := make([]any, 0, 16)
-	var streamClosed *runtimectx.RoundStreamClosedError
+	var streamClosed *exec.RoundStreamClosedError
 	if errors.As(err, &streamClosed) {
 		fields = append(fields,
 			"stream_messages_seen", streamClosed.MessagesSeen,
@@ -200,9 +200,9 @@ func roomSlotFailureDiagnostics(err error, slot *activeRoomSlot, mapper *roomdom
 			"stream_read_error", streamClosed.ReadError,
 			"stream_wait_error", streamClosed.WaitError,
 		)
-		fields = append(fields, runtimectx.RoundStreamStopDiagnosticLogFields(streamClosed.LastStreamStop)...)
+		fields = append(fields, exec.RoundStreamStopDiagnosticLogFields(streamClosed.LastStreamStop)...)
 	}
-	var streamIdle *runtimectx.RoundStreamIdleTimeoutError
+	var streamIdle *exec.RoundStreamIdleTimeoutError
 	if errors.As(err, &streamIdle) {
 		fields = append(fields,
 			"stream_idle_timeout", streamIdle.IdleTimeout.String(),
@@ -212,7 +212,7 @@ func roomSlotFailureDiagnostics(err error, slot *activeRoomSlot, mapper *roomdom
 			"stream_last_session_id", streamIdle.LastSessionID,
 			"stream_last_message_id", streamIdle.LastMessageID,
 		)
-		fields = append(fields, runtimectx.RoundStreamStopDiagnosticLogFields(streamIdle.LastStreamStop)...)
+		fields = append(fields, exec.RoundStreamStopDiagnosticLogFields(streamIdle.LastStreamStop)...)
 	}
 	if mapper != nil {
 		lastAssistant := mapper.LastAssistantMessage()
@@ -244,7 +244,7 @@ func (s *RealtimeService) handleSlotCancelled(ctx context.Context, roundValue *a
 		"reason", roomSlotInterruptReason(slot),
 	)
 	if mapper != nil {
-		s.recordGoalUsageForSlot(ctx, slot, runtimectx.RoundExecutionResult{}, slot.lastGoalAssistantMessage())
+		s.recordGoalUsageForSlot(ctx, slot, exec.RoundExecutionResult{}, slot.lastGoalAssistantMessage())
 	}
 	s.emitInterruptedSlotResult(roundValue, slot, mapper, "")
 	s.broadcastSlotCancelled(ctx, roundValue, slot)

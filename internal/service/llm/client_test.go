@@ -298,6 +298,107 @@ func TestGenerateTextSkipsKimiAlwaysThinkingModelDisable(t *testing.T) {
 	}
 }
 
+func TestGenerateTextDisablesKimiThinkingForAnthropicMessages(t *testing.T) {
+	t.Parallel()
+
+	// 复现事故：kimi-k2.6 走 anthropic_messages 时 thinking 从未关闭，
+	// 128 token 全被推理吃光、正文为空触发 max_tokens 截断。
+	var receivedThinking map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		defer request.Body.Close()
+		var payload map[string]any
+		if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+			t.Fatalf("解析请求失败: %v", err)
+		}
+		if thinking, ok := payload["thinking"].(map[string]any); ok {
+			receivedThinking = thinking
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(map[string]any{
+			"content": []map[string]any{
+				{"type": "text", "text": "问候"},
+			},
+		})
+	}))
+	defer server.Close()
+
+	client := NewClient(server.Client())
+	text, err := client.GenerateText(context.Background(), GenerateTextRequest{
+		Config: &clientopts.RuntimeConfig{
+			Provider:  "kimi-k2-6",
+			AuthToken: "kimi-key",
+			BaseURL:   server.URL,
+			Model:     "kimi-k2.6",
+			APIFormat: provider.APIFormatAnthropicMessages,
+			Reasoning: true,
+		},
+		Messages:         []Message{{Role: "user", Content: "hey"}},
+		MaxTokens:        1024,
+		DisableReasoning: true,
+	})
+	if err != nil {
+		t.Fatalf("生成文本失败: %v", err)
+	}
+	if text != "问候" {
+		t.Fatalf("文本不正确: %s", text)
+	}
+	if receivedThinking["type"] != "disabled" {
+		t.Fatalf("Kimi anthropic_messages 可关闭模型应关闭 thinking: %+v", receivedThinking)
+	}
+}
+
+func TestGenerateTextDisablesQwenThinkingForAnthropicMessages(t *testing.T) {
+	t.Parallel()
+
+	// Qwen/DashScope 系即便走 anthropic_messages 兼容端点，也用 enable_thinking=false
+	// 而非 thinking.type=disabled；关闭方式必须按 provider 家族分派。
+	var receivedEnableThinking any
+	var hasThinking bool
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		defer request.Body.Close()
+		var payload map[string]any
+		if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+			t.Fatalf("解析请求失败: %v", err)
+		}
+		receivedEnableThinking = payload["enable_thinking"]
+		_, hasThinking = payload["thinking"]
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(map[string]any{
+			"content": []map[string]any{
+				{"type": "text", "text": "问候"},
+			},
+		})
+	}))
+	defer server.Close()
+
+	client := NewClient(server.Client())
+	text, err := client.GenerateText(context.Background(), GenerateTextRequest{
+		Config: &clientopts.RuntimeConfig{
+			Provider:  "qwen-token-plan",
+			AuthToken: "qwen-key",
+			BaseURL:   server.URL + "/apps/anthropic",
+			Model:     "qwen3-coder-plus",
+			APIFormat: provider.APIFormatAnthropicMessages,
+			Reasoning: true,
+		},
+		Messages:         []Message{{Role: "user", Content: "hey"}},
+		MaxTokens:        1024,
+		DisableReasoning: true,
+	})
+	if err != nil {
+		t.Fatalf("生成文本失败: %v", err)
+	}
+	if text != "问候" {
+		t.Fatalf("文本不正确: %s", text)
+	}
+	if enable, ok := receivedEnableThinking.(bool); !ok || enable {
+		t.Fatalf("Qwen anthropic_messages 应发送 enable_thinking=false: %v", receivedEnableThinking)
+	}
+	if hasThinking {
+		t.Fatal("Qwen anthropic_messages 不应发送 thinking.type=disabled")
+	}
+}
+
 func TestGenerateTextDisablesDashScopeThinkingForChatCompletions(t *testing.T) {
 	t.Parallel()
 

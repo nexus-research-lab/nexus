@@ -116,13 +116,15 @@ func requestPayload(request GenerateTextRequest) any {
 		applyChatCompletionsReasoningDisableOptions(&payload, config, request)
 		return payload
 	default:
-		return anthropicMessagesRequest{
+		payload := anthropicMessagesRequest{
 			Model:       model,
 			MaxTokens:   maxTokens,
 			Temperature: request.Temperature,
 			System:      systemPrompt,
 			Messages:    messages,
 		}
+		applyAnthropicMessagesReasoningDisableOptions(&payload, config, request)
+		return payload
 	}
 }
 
@@ -186,6 +188,31 @@ func applyResponsesReasoningDisableOptions(
 	default:
 		if config.Reasoning {
 			payload.Reasoning = &responsesReasoning{Effort: "none"}
+		}
+	}
+}
+
+func applyAnthropicMessagesReasoningDisableOptions(
+	payload *anthropicMessagesRequest,
+	config *clientopts.RuntimeConfig,
+	request GenerateTextRequest,
+) {
+	if !shouldDisableReasoning(config, request) {
+		return
+	}
+	// anthropic_messages 协议下按 provider 家族分派关闭方式：
+	// 标准是 thinking.type=disabled；Qwen/DashScope 系即便走 anthropic 兼容端点仍用
+	// 非标的 enable_thinking=false；Kimi 始终推理模型无法关闭，仅靠 max_tokens 兜底。
+	switch {
+	case shouldUseEnableThinkingDisable(config):
+		payload.EnableThinking = boolPointer(false)
+	case isKimiAlwaysThinkingModel(config):
+		return
+	case shouldUseThinkingDisable(config):
+		payload.Thinking = map[string]string{"type": "disabled"}
+	default:
+		if config.Reasoning {
+			payload.Thinking = map[string]string{"type": "disabled"}
 		}
 	}
 }
@@ -427,11 +454,13 @@ func trimResponseBody(body []byte) string {
 }
 
 type anthropicMessagesRequest struct {
-	Model       string    `json:"model"`
-	MaxTokens   int       `json:"max_tokens"`
-	Temperature float64   `json:"temperature,omitempty"`
-	System      string    `json:"system,omitempty"`
-	Messages    []Message `json:"messages"`
+	Model          string            `json:"model"`
+	MaxTokens      int               `json:"max_tokens"`
+	Temperature    float64           `json:"temperature,omitempty"`
+	System         string            `json:"system,omitempty"`
+	Messages       []Message         `json:"messages"`
+	Thinking       map[string]string `json:"thinking,omitempty"`
+	EnableThinking *bool             `json:"enable_thinking,omitempty"`
 }
 
 type chatCompletionsRequest struct {

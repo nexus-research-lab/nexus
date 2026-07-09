@@ -30,6 +30,49 @@ func (s *SessionFileStore) appendJSONL(path string, row map[string]any) error {
 	return nil
 }
 
+func (s *SessionFileStore) replaceJSONL(path string, rows []map[string]any) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+
+	file, err := os.CreateTemp(filepath.Dir(path), ".overlay-rewrite-*.jsonl")
+	if err != nil {
+		return err
+	}
+	tempPath := file.Name()
+	committed := false
+	defer func() {
+		if !committed {
+			_ = os.Remove(tempPath)
+		}
+	}()
+
+	writer := bufio.NewWriter(file)
+	for _, row := range rows {
+		payload, err := json.Marshal(row)
+		if err != nil {
+			_ = file.Close()
+			return err
+		}
+		if _, err = fmt.Fprintf(writer, "%s\n", payload); err != nil {
+			_ = file.Close()
+			return err
+		}
+	}
+	if err = writer.Flush(); err != nil {
+		_ = file.Close()
+		return err
+	}
+	if err = file.Close(); err != nil {
+		return err
+	}
+	if err = os.Rename(tempPath, path); err != nil {
+		return err
+	}
+	committed = true
+	return nil
+}
+
 func (s *SessionFileStore) readJSONL(path string) ([]map[string]any, error) {
 	file, err := os.Open(path)
 	if err != nil {

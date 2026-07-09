@@ -29,6 +29,8 @@ const CHUNK_ERROR_PATTERNS = [
   /Importing a module script failed/i,
   /error loading dynamically imported module/i,
   /Unable to preload CSS/i,
+  /not a valid JavaScript MIME type/i,
+  /Expected a JavaScript module script but the server responded with a MIME type/i,
 ];
 
 const rootContainer = document.getElementById("root");

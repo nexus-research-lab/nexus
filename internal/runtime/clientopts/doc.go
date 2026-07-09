@@ -1,0 +1,11 @@
+// Package clientopts 组装 SDK runtime client 的启动选项、provider 解析与环境。
+//
+// L2 | 父级: internal/runtime（L1 见 AGENTS.md）
+//
+// 成员清单：
+//   - options_agent_client.go / options_runtime_env.go / options_runtime_profile.go：client 选项、环境、profile。
+//   - model_provider.go：ResolvedRuntimeProvider 等 provider 解析。
+//   - log_runtime.go：runtime 日志选项。
+//
+// [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
+package clientopts

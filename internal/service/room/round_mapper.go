@@ -4,7 +4,7 @@ import (
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
-	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 )
 
 type roomRoundMapperAdapter struct {
@@ -14,12 +14,12 @@ type roomRoundMapperAdapter struct {
 func (a roomRoundMapperAdapter) Map(
 	incoming sdkprotocol.ReceivedMessage,
 	interruptReason ...string,
-) (runtimectx.RoundMapResult, error) {
+) (exec.RoundMapResult, error) {
 	events, messages, terminalStatus, err := a.mapper.Map(incoming, interruptReason...)
 	if err != nil {
-		return runtimectx.RoundMapResult{}, err
+		return exec.RoundMapResult{}, err
 	}
-	return runtimectx.RoundMapResult{
+	return exec.RoundMapResult{
 		Events:          events,
 		DurableMessages: messages,
 		TerminalStatus:  terminalStatus,

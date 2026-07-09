@@ -74,6 +74,7 @@ import {
   mergeChatAckPendingSlots,
   reconcileStoppedSessionMessages,
   removeFailedOutboundUserMessage,
+  removeRoundMessages,
   replaceOptimisticUserMessage,
   updateAssistantMessageStatus,
   updatePendingAgentSlotStatus,
@@ -349,6 +350,25 @@ export function useAgentConversation(
     [
       applyRuntimeTransition,
       rejectPendingChatAck,
+      setMessages,
+    ],
+  );
+
+  const settleChatAckWaitFailure = useCallback(
+    (clientRequestId: string, clientMessageId: string, error: unknown) => {
+      const message =
+        error instanceof Error ? error.message : "消息未送达后端，请重试";
+      applyRuntimeTransition((machine) => {
+        machine.clearOutboundRequest(clientRequestId);
+      });
+      setMessages((prev) =>
+        removeFailedOutboundUserMessage(prev, clientMessageId),
+      );
+      setError(message);
+    },
+    [
+      applyRuntimeTransition,
+      setError,
       setMessages,
     ],
   );
@@ -648,6 +668,19 @@ export function useAgentConversation(
     [applyRuntimeTransition],
   );
 
+  const removeRewrittenRound = useCallback(
+    (roundId: string) => {
+      setMessages((prev) => removeRoundMessages(prev, roundId));
+      setPendingPermissions((prev) =>
+        filterRoundPendingPermissions(prev, roundId),
+      );
+      setPendingAgentSlots((prev) =>
+        filterRoundPendingAgentSlots(prev, roundId),
+      );
+    },
+    [setMessages, setPendingAgentSlots, setPendingPermissions],
+  );
+
   const applyRoundStatus = useCallback(
     (roundId: string, status: RoundLifecycleStatus) => {
       applyRuntimeTransition((machine) => {
@@ -735,7 +768,9 @@ export function useAgentConversation(
         apply_round_status: applyRoundStatus,
         apply_agent_round_status: applyAgentRoundStatus,
         track_chat_ack: trackChatAck,
+        reject_chat_ack: rejectPendingChatAck,
         track_assistant_message: trackAssistantMessage,
+        remove_rewritten_round: removeRewrittenRound,
         reload_current_session: reloadCurrentSession,
         settleAgentWorkspaceWrites: settleAgentWorkspaceWrites,
       });
@@ -760,6 +795,8 @@ export function useAgentConversation(
       setMessages,
       setPendingPermissions,
       syncSessionStatus,
+      rejectPendingChatAck,
+      removeRewrittenRound,
       trackAssistantMessage,
       trackChatAck,
       updateMessageStatus,
@@ -874,18 +911,31 @@ export function useAgentConversation(
         machine.trackOutboundRequest(request.client_request_id);
       });
 
-      await waitForChatAck(request.client_request_id, () => {
-        failPendingChatAck(
+      try {
+        await waitForChatAck(request.client_request_id, () => {
+          failPendingChatAck(
+            request.client_request_id,
+            request.client_message_id,
+            "消息未送达后端，请重试",
+          );
+        });
+      } catch (error) {
+        settleChatAckWaitFailure(
           request.client_request_id,
           request.client_message_id,
-          "消息未送达后端，请重试",
+          error,
         );
+        return;
+      }
+      applyRuntimeTransition((machine) => {
+        machine.clearOutboundRequest(request.client_request_id);
       });
     },
     [
       actionContext,
       applyRuntimeTransition,
       failPendingChatAck,
+      settleChatAckWaitFailure,
       waitForChatAck,
     ],
   );
@@ -901,18 +951,31 @@ export function useAgentConversation(
         machine.trackOutboundRequest(request.client_request_id);
       });
 
-      await waitForChatAck(request.client_request_id, () => {
-        failPendingChatAck(
+      try {
+        await waitForChatAck(request.client_request_id, () => {
+          failPendingChatAck(
+            request.client_request_id,
+            request.client_message_id,
+            "消息未送达后端，请重试",
+          );
+        });
+      } catch (error) {
+        settleChatAckWaitFailure(
           request.client_request_id,
           request.client_message_id,
-          "消息未送达后端，请重试",
+          error,
         );
+        return;
+      }
+      applyRuntimeTransition((machine) => {
+        machine.clearOutboundRequest(request.client_request_id);
       });
     },
     [
       actionContext,
       applyRuntimeTransition,
       failPendingChatAck,
+      settleChatAckWaitFailure,
       waitForChatAck,
     ],
   );

@@ -117,7 +117,6 @@ func TestWebFallbackFileName(t *testing.T) {
 			relativePath: "capability/connectors/oauth/callback",
 			want:         "oauth-callback.html",
 		},
-		{name: "asset miss keeps index", relativePath: "assets/missing.js", want: "index.html"},
 		{name: "app route", relativePath: "app", want: "app.html"},
 		{name: "room route", relativePath: "rooms/r1", want: "app.html"},
 	}
@@ -127,6 +126,30 @@ func TestWebFallbackFileName(t *testing.T) {
 			t.Parallel()
 			if got := webFallbackFileName(tt.relativePath); got != tt.want {
 				t.Fatalf("webFallbackFileName(%q) = %q, want %q", tt.relativePath, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestShouldServeWebFallback(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		relativePath string
+		want         bool
+	}{
+		{name: "root entry", relativePath: "", want: true},
+		{name: "app route", relativePath: "capability/skills", want: true},
+		{name: "missing asset", relativePath: "assets/missing.js", want: false},
+		{name: "asset subpath", relativePath: "assets/chunks/missing.js", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := shouldServeWebFallback(tt.relativePath); got != tt.want {
+				t.Fatalf("shouldServeWebFallback(%q) = %v, want %v", tt.relativePath, got, tt.want)
 			}
 		})
 	}

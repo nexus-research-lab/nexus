@@ -4,7 +4,8 @@ import (
 	"context"
 	"testing"
 
-	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
+	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/service/channels"
@@ -25,22 +26,22 @@ func TestDeliverJobObservationUsesTaskOwnerContext(t *testing.T) {
 		&fakeWorkspaceReader{},
 		delivery,
 	)
-	job := protocol.CronJob{
+	job := automationdomain.CronJob{
 		JobID:       "job-owner",
 		AgentID:     "agent-1",
 		OwnerUserID: "user-1",
-		Delivery: protocol.DeliveryTarget{
-			Mode:    protocol.DeliveryModeExplicit,
+		Delivery: automationdomain.DeliveryTarget{
+			Mode:    automationdomain.DeliveryModeExplicit,
 			Channel: "feishu",
 			To:      "oc_group",
 		},
 	}
 
-	deliveryResult := service.deliverJobObservation(context.Background(), job, "", automationdomain.ExecutionObservation{
-		Status:     protocol.RunStatusSucceeded,
+	deliveryResult := service.deliverJobObservation(context.Background(), job, "", automationexec.ExecutionObservation{
+		Status:     automationdomain.RunStatusSucceeded,
 		ResultText: "今日新闻摘要",
 	})
-	if deliveryResult.Status != protocol.DeliveryStatusSucceeded || deliveryResult.Error != nil {
+	if deliveryResult.Status != automationdomain.DeliveryStatusSucceeded || deliveryResult.Error != nil {
 		t.Fatalf("投递状态异常: status=%s err=%v", deliveryResult.Status, deliveryResult.Error)
 	}
 	if deliveryResult.deliveryTo(job.Delivery) != "explicit:feishu:oc_group" {
@@ -71,19 +72,19 @@ func TestDeliverJobObservationRecordsDeliveryReceipt(t *testing.T) {
 		&fakeWorkspaceReader{},
 		delivery,
 	)
-	job := protocol.CronJob{
+	job := automationdomain.CronJob{
 		JobID:   "job-receipt",
 		AgentID: "agent-1",
-		Delivery: protocol.DeliveryTarget{
-			Mode:     protocol.DeliveryModeExplicit,
+		Delivery: automationdomain.DeliveryTarget{
+			Mode:     automationdomain.DeliveryModeExplicit,
 			Channel:  channels.ChannelTypeTelegram,
 			To:       "-1001",
 			ThreadID: "12",
 		},
 	}
 
-	deliveryResult := service.deliverJobObservation(context.Background(), job, "", automationdomain.ExecutionObservation{
-		Status:     protocol.RunStatusSucceeded,
+	deliveryResult := service.deliverJobObservation(context.Background(), job, "", automationexec.ExecutionObservation{
+		Status:     automationdomain.RunStatusSucceeded,
 		ResultText: "今日新闻摘要",
 	})
 	if deliveryResult.Receipt == nil || deliveryResult.Receipt.PrimaryPlatformMessageID != "42" {
@@ -107,22 +108,22 @@ func TestDeliverJobObservationPassesSourceSessionForLastDelivery(t *testing.T) {
 		delivery,
 	)
 	sourceSessionKey := protocol.BuildAgentSessionKey("agent-1", channels.ChannelTypeWeixinPersonal, "dm", "wx-user-1", "")
-	job := protocol.CronJob{
+	job := automationdomain.CronJob{
 		JobID:   "job-session-last",
 		AgentID: "agent-1",
-		Delivery: protocol.DeliveryTarget{
-			Mode: protocol.DeliveryModeLast,
+		Delivery: automationdomain.DeliveryTarget{
+			Mode: automationdomain.DeliveryModeLast,
 		},
-		Source: protocol.Source{
+		Source: automationdomain.Source{
 			SessionKey: sourceSessionKey,
 		},
 	}
 
-	deliveryResult := service.deliverJobObservation(context.Background(), job, "", automationdomain.ExecutionObservation{
-		Status:     protocol.RunStatusSucceeded,
+	deliveryResult := service.deliverJobObservation(context.Background(), job, "", automationexec.ExecutionObservation{
+		Status:     automationdomain.RunStatusSucceeded,
 		ResultText: "定时提醒",
 	})
-	if deliveryResult.Status != protocol.DeliveryStatusSucceeded || deliveryResult.Error != nil {
+	if deliveryResult.Status != automationdomain.DeliveryStatusSucceeded || deliveryResult.Error != nil {
 		t.Fatalf("投递状态异常: status=%s err=%v", deliveryResult.Status, deliveryResult.Error)
 	}
 	calls := delivery.Calls()

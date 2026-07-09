@@ -75,7 +75,7 @@ func (m *Manager) replaceRuntimeClient(
 	m.touchStateLocked(state)
 	m.mu.Unlock()
 
-	disconnectCtx, cancel := context.WithTimeout(context.Background(), roundIdleAbortTimeout)
+	disconnectCtx, cancel := context.WithTimeout(context.Background(), RoundIdleAbortTimeout)
 	defer cancel()
 	if err := stale.Disconnect(disconnectCtx); err != nil && !IsRuntimeTransportClosedError(err) {
 		return nil, err

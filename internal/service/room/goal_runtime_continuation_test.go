@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
@@ -25,7 +25,7 @@ func TestRecordGoalContinuationProgressForRoomSlotSuppressesEmptyContinuation(t 
 		},
 	}
 
-	service.recordGoalContinuationProgressForSlot(context.Background(), slot, roundValue, runtimectx.RoundExecutionResult{}, nil)
+	service.recordGoalContinuationProgressForSlot(context.Background(), slot, roundValue, exec.RoundExecutionResult{}, nil)
 
 	progress := goalProvider.recordedProgress()
 	if len(progress) != 1 || progress[0] {
@@ -48,7 +48,7 @@ func TestRecordGoalContinuationProgressForRoomSlotDefersWhileSubagentRuns(t *tes
 		},
 	}
 
-	service.recordGoalContinuationProgressForSlot(context.Background(), slot, roundValue, runtimectx.RoundExecutionResult{}, nil)
+	service.recordGoalContinuationProgressForSlot(context.Background(), slot, roundValue, exec.RoundExecutionResult{}, nil)
 
 	if progress := goalProvider.recordedProgress(); len(progress) != 0 {
 		t.Fatalf("progress = %#v, want running subagent to defer empty continuation progress", progress)
@@ -73,7 +73,7 @@ func TestRecordGoalContinuationProgressForRoomSlotRecordsFailure(t *testing.T) {
 		context.Background(),
 		slot,
 		roundValue,
-		runtimectx.RoundExecutionResult{
+		exec.RoundExecutionResult{
 			TerminalStatus: "error",
 			ResultSubtype:  "error",
 			ErrorMessage:   "Failed to authenticate. API Error: 401",
@@ -106,7 +106,7 @@ func TestRecordGoalContinuationProgressForRoomSlotCountsToolProgress(t *testing.
 	}
 
 	service.recordGoalUsageFromSlotAssistantMessage(context.Background(), slot, roomGoalToolResultAssistantMessage("tool-1", "read_file", 4, 1))
-	service.recordGoalContinuationProgressForSlot(context.Background(), slot, roundValue, runtimectx.RoundExecutionResult{}, nil)
+	service.recordGoalContinuationProgressForSlot(context.Background(), slot, roundValue, exec.RoundExecutionResult{}, nil)
 
 	progress := goalProvider.recordedProgress()
 	if len(progress) != 1 || !progress[0] {
@@ -132,7 +132,7 @@ func TestRecordGoalContinuationProgressForRoomSlotRecordsCompletionToolMiss(t *t
 		context.Background(),
 		slot,
 		roundValue,
-		runtimectx.RoundExecutionResult{},
+		exec.RoundExecutionResult{},
 		roomGoalCompletionToolMissAssistantMessage(),
 	)
 
@@ -155,7 +155,7 @@ func TestRecordGoalContinuationProgressForRoomSlotRecordsUserActivity(t *testing
 	}
 	roundValue := &activeRoomRound{}
 
-	service.recordGoalContinuationProgressForSlot(context.Background(), slot, roundValue, runtimectx.RoundExecutionResult{}, nil)
+	service.recordGoalContinuationProgressForSlot(context.Background(), slot, roundValue, exec.RoundExecutionResult{}, nil)
 
 	goalProvider.mu.Lock()
 	defer goalProvider.mu.Unlock()
@@ -181,7 +181,7 @@ func TestRecordGoalContinuationProgressForRoomSlotRecordsCollaborationEvidence(t
 		context.Background(),
 		slot,
 		&activeRoomRound{},
-		runtimectx.RoundExecutionResult{},
+		exec.RoundExecutionResult{},
 		roomGoalTextAssistantMessage("peer-reply", "我完成了调研。"),
 	)
 
@@ -206,7 +206,7 @@ func TestRecordGoalContinuationProgressForRoomSlotSkipsNoReplyCollaborationEvide
 		context.Background(),
 		slot,
 		&activeRoomRound{},
-		runtimectx.RoundExecutionResult{},
+		exec.RoundExecutionResult{},
 		roomGoalTextAssistantMessage("peer-no-reply", "<nexus_room_no_reply/>"),
 	)
 

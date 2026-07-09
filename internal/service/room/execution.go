@@ -17,7 +17,9 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
+	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
+	"github.com/nexus-research-lab/nexus/internal/runtime/trace"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	"github.com/nexus-research-lab/nexus/internal/service/room/runtimepolicy"
 	"github.com/nexus-research-lab/nexus/internal/service/toolpolicy"
@@ -278,7 +280,7 @@ func (s *RealtimeService) runSlot(
 	}
 	dispatchRuntimeContent = s.appendRuntimeUserContext(slotCtx, roundValue.ConversationID, agentValue, dispatchRuntimeContent)
 	slot.beginNoReplyCandidate()
-	result, err := runtimectx.ExecuteRound(slotCtx, runtimectx.RoundExecutionRequest{
+	result, err := exec.ExecuteRound(slotCtx, exec.RoundExecutionRequest{
 		Content:          dispatchRuntimeContent.Payload(),
 		ContextualInputs: goalContextualInputs(slot.GoalContext, slot.GoalIDForUsage, goalSessionKeyForSlot(slot)),
 		InputOptions:     runtimectx.RuntimeInputOptionsForPurpose(roomRoundInputOptions(roundValue), "goal_continuation"),
@@ -306,9 +308,9 @@ func (s *RealtimeService) runSlot(
 				if incoming.Type == sdkprotocol.MessageTypeStreamEvent && !s.config.MessageDebugStreamEvent {
 					return
 				}
-				fields := runtimectx.BuildSDKMessageLogFieldsWithOptions(
+				fields := trace.BuildSDKMessageLogFieldsWithOptions(
 					incoming,
-					runtimectx.SDKMessageLogOptions{
+					trace.SDKMessageLogOptions{
 						IncludeStreamEvent:  s.config.MessageDebugStreamEvent,
 						IncludeSnapshotData: true,
 					},
@@ -372,7 +374,7 @@ func (s *RealtimeService) runSlot(
 		},
 	})
 	if err != nil {
-		if errors.Is(err, runtimectx.ErrRoundInterrupted) {
+		if errors.Is(err, exec.ErrRoundInterrupted) {
 			s.handleSlotCancelled(slotCtx, roundValue, slot, mapper)
 			return
 		}

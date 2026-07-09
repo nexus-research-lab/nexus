@@ -1,5 +1,9 @@
 // Package tool 定义 nexus_automation MCP 暴露的定时任务工具。
 // 每个文件负责一个工具的 schema+handler 装配；registry.go 统一汇总。
+//
+// L2 | 父级: internal/mcp（L1 见 AGENTS.md）
+//
+// [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package tool
 
 import (

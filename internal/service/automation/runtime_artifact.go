@@ -9,19 +9,19 @@ import (
 	"strings"
 	"time"
 
-	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
+	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 )
 
 func (s *Service) writeRunArtifact(
 	ctx context.Context,
-	job protocol.CronJob,
+	job automationdomain.CronJob,
 	runID string,
 	roundID string,
 	sessionKey string,
 	finishedAt time.Time,
 	status string,
-	observation automationdomain.ExecutionObservation,
+	observation automationexec.ExecutionObservation,
 	errorMessage *string,
 	deliveryStatus string,
 	deliveryError *string,
@@ -76,13 +76,13 @@ func safeArtifactSegment(value string, fallback string) string {
 }
 
 func renderRunArtifact(
-	job protocol.CronJob,
+	job automationdomain.CronJob,
 	runID string,
 	roundID string,
 	sessionKey string,
 	finishedAt time.Time,
 	status string,
-	observation automationdomain.ExecutionObservation,
+	observation automationexec.ExecutionObservation,
 	errorMessage *string,
 	deliveryStatus string,
 	deliveryError *string,

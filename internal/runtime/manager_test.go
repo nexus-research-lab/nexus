@@ -23,6 +23,7 @@ type fakeRuntimeClient struct {
 	disconnectCalls  int
 	stoppedTasks     []string
 	stopTaskErr      error
+	permissionModes  []sdkpermission.Mode
 	messages         <-chan sdkprotocol.ReceivedMessage
 }
 
@@ -76,6 +77,13 @@ func (c *fakeRuntimeClient) SendTaskMessage(context.Context, string, string, str
 	return nil
 }
 
+func (c *fakeRuntimeClient) RemoveMessages(context.Context, []string) error { return nil }
+
+func (c *fakeRuntimeClient) SetPermissionMode(_ context.Context, mode sdkpermission.Mode) error {
+	c.permissionModes = append(c.permissionModes, mode)
+	return nil
+}
+
 func (c *fakeRuntimeClient) Disconnect(context.Context) error {
 	c.disconnectCalls++
 	return nil
@@ -91,6 +99,15 @@ func (c *fakeRuntimeClient) Reconfigure(_ context.Context, options agentclient.O
 }
 
 func (c *fakeRuntimeClient) SessionID() string { return "" }
+
+func TestSDKClientAdapterWaitReturnsStreamError(t *testing.T) {
+	processErr := errors.New("process: command exited with error: exit status 2")
+	client := &sdkClientAdapter{streamErr: processErr}
+
+	if err := client.Wait(); !errors.Is(err, processErr) {
+		t.Fatalf("Wait() error = %v，期望返回 stream error", err)
+	}
+}
 
 type fakeSDKMCPServer struct{}
 
@@ -111,6 +128,24 @@ func (f *fakeRuntimeFactory) New(agentclient.Options) Client {
 		return client
 	}
 	return f.client
+}
+
+func TestManagerSetPermissionModeForAgentUpdatesMatchingClients(t *testing.T) {
+	manager := NewManager()
+	matching := &fakeRuntimeClient{}
+	other := &fakeRuntimeClient{}
+	manager.sessions["agent:agent-a:conversation:1"] = &sessionState{Client: matching}
+	manager.sessions["agent:agent-b:conversation:1"] = &sessionState{Client: other}
+
+	if err := manager.SetPermissionModeForAgent(context.Background(), "agent-a", sdkpermission.ModePlan); err != nil {
+		t.Fatalf("SetPermissionModeForAgent() error = %v", err)
+	}
+	if len(matching.permissionModes) != 1 || matching.permissionModes[0] != sdkpermission.ModePlan {
+		t.Fatalf("matching permission modes = %#v，期望 [plan]", matching.permissionModes)
+	}
+	if len(other.permissionModes) != 0 {
+		t.Fatalf("other permission modes = %#v，期望空", other.permissionModes)
+	}
 }
 
 func TestManagerGetOrCreateReconfiguresExistingClient(t *testing.T) {

@@ -1,5 +1,9 @@
 // Package render 负责把 MCP 工具返回值序列化为 MCPToolResult，
 // 并为时间字段追加本地化 *_display 展示。
+//
+// L2 | 父级: internal/mcp（L1 见 AGENTS.md）
+//
+// [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package render
 
 import (

@@ -60,6 +60,55 @@ func TestWebSocketSessionBinding(t *testing.T) {
 	}
 }
 
+func TestWebSocketDispatchesRewriteLastToControlHandler(t *testing.T) {
+	cfg := handlertest.NewConfig(t)
+	handlertest.MigrateSQLite(t, cfg.DatabaseURL)
+
+	server, err := serverapp.New(cfg)
+	if err != nil {
+		t.Fatalf("创建 HTTP 服务失败: %v", err)
+	}
+
+	httpServer := httptest.NewServer(server.Router())
+	defer httpServer.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(httpServer.URL, "http") + "/nexus/v1/chat/ws"
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	conn, _, err := websocket.Dial(ctx, wsURL, nil)
+	if err != nil {
+		t.Fatalf("连接 websocket 失败: %v", err)
+	}
+	defer func() { _ = conn.Close(websocket.StatusNormalClosure, "test done") }()
+
+	if err = wsjson.Write(ctx, conn, map[string]any{
+		"type":              "chat_rewrite_last",
+		"session_key":       "agent:nexus:ws:dm:rewrite-dispatch",
+		"target_round_id":   "round-missing",
+		"content":           "新问题",
+		"client_request_id": "req-rewrite-dispatch",
+		"client_message_id": "local-msg-rewrite-dispatch",
+	}); err != nil {
+		t.Fatalf("发送 chat_rewrite_last 失败: %v", err)
+	}
+
+	for range 5 {
+		event := readEventMessage(t, conn)
+		if event.EventType != protocol.EventTypeError {
+			continue
+		}
+		if event.Data["type"] != "chat_rewrite_last" {
+			t.Fatalf("error data.type = %#v, want chat_rewrite_last", event.Data["type"])
+		}
+		if event.Data["error_type"] == "unknown_message_type" {
+			t.Fatalf("chat_rewrite_last 被顶层 dispatch 当作未知消息: %+v", event)
+		}
+		return
+	}
+	t.Fatal("未收到 chat_rewrite_last 的业务错误事件")
+}
+
 func TestWebSocketDesktopSessionToken(t *testing.T) {
 	cfg := handlertest.NewConfig(t)
 	cfg.DesktopSessionToken = "desktop-token"

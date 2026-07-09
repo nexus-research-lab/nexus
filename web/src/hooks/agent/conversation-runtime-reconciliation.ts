@@ -47,6 +47,20 @@ export function removeFailedOutboundUserMessage(
   );
 }
 
+export function removeRoundMessages(
+  messages: Message[],
+  roundId: string,
+): Message[] {
+  const normalizedRoundId = roundId.trim();
+  if (!normalizedRoundId) {
+    return messages;
+  }
+  const next = messages.filter(
+    (message) => message.round_id !== normalizedRoundId,
+  );
+  return next.length === messages.length ? messages : next;
+}
+
 /** ack 后把 optimistic user message 替换成 canonical id。 */
 export function replaceOptimisticUserMessage(
   messages: Message[],

@@ -7,23 +7,24 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/nexus-research-lab/nexus/internal/automation/types"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 // CronJobMatchesQuery 判断定时任务是否匹配用户口头描述。
-func CronJobMatchesQuery(job protocol.CronJob, query string) bool {
+func CronJobMatchesQuery(job types.CronJob, query string) bool {
 	return CronJobMatchScore(job, query) > 0
 }
 
 // BestMatchingCronJobs 返回分数最高的一组候选。
 // list/search 场景可以继续宽松召回；启停、删除、修改这类直接执行工具应使用最高分候选，
 // 避免“飞书群暂停新闻”被宽泛别名同时匹配到所有飞书任务和所有暂停任务。
-func BestMatchingCronJobs(jobs []protocol.CronJob, query string) []protocol.CronJob {
+func BestMatchingCronJobs(jobs []types.CronJob, query string) []types.CronJob {
 	if strings.TrimSpace(query) == "" {
 		return jobs
 	}
 	bestScore := 0
-	matches := make([]protocol.CronJob, 0, len(jobs))
+	matches := make([]types.CronJob, 0, len(jobs))
 	for _, job := range jobs {
 		score := CronJobMatchScore(job, query)
 		if score <= 0 {
@@ -41,7 +42,7 @@ func BestMatchingCronJobs(jobs []protocol.CronJob, query string) []protocol.Cron
 }
 
 // CronJobMatchScore 计算任务与自然语言 query 的匹配强度。
-func CronJobMatchScore(job protocol.CronJob, query string) int {
+func CronJobMatchScore(job types.CronJob, query string) int {
 	variants := QueryVariants(query)
 	if len(variants) == 0 || (len(variants) == 1 && variants[0] == "") {
 		return 1
@@ -66,7 +67,7 @@ func CronJobMatchScore(job protocol.CronJob, query string) int {
 }
 
 // CronJobSearchTerms 返回一个定时任务可被自然语言定位的稳定字段集合。
-func CronJobSearchTerms(job protocol.CronJob) []string {
+func CronJobSearchTerms(job types.CronJob) []string {
 	terms := []string{
 		job.JobID,
 		job.Name,
@@ -227,7 +228,7 @@ func containsCJK(runes []rune) bool {
 	return false
 }
 
-func scheduleSearchTerms(schedule protocol.Schedule) []string {
+func scheduleSearchTerms(schedule types.Schedule) []string {
 	terms := []string{
 		schedule.Kind,
 		schedule.Timezone,

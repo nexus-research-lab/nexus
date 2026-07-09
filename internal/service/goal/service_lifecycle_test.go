@@ -410,7 +410,7 @@ func TestServiceCompleteByModelRequiresRoomGoalCollaborationEvidence(t *testing.
 	if completed.Status != protocol.GoalStatusComplete {
 		t.Fatalf("status = %q, want complete after collaborator evidence", completed.Status)
 	}
-	if !protocol.GoalRoomCollaborationObserved(*completed) {
+	if !RoomCollaborationObserved(*completed) {
 		t.Fatalf("metadata = %#v, want collaboration observed", completed.Metadata)
 	}
 }

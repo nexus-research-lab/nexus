@@ -8,7 +8,7 @@ import (
 
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 )
 
 func (r *roundRunner) failRound(err error) {
@@ -24,7 +24,7 @@ func (r *roundRunner) failRound(err error) {
 	}
 	fields = append(fields, dmRoundFailureDiagnostics(err, r)...)
 	r.service.loggerFor(context.Background()).Error("DM round 执行失败", fields...)
-	r.recordGoalContinuationProgress(runtimectx.RoundExecutionResult{
+	r.recordGoalContinuationProgress(exec.RoundExecutionResult{
 		TerminalStatus: "error",
 		ErrorMessage:   err.Error(),
 	})
@@ -98,7 +98,7 @@ func (r *roundRunner) failRound(err error) {
 
 func dmRoundFailureDiagnostics(err error, runner *roundRunner) []any {
 	fields := make([]any, 0, 16)
-	var streamClosed *runtimectx.RoundStreamClosedError
+	var streamClosed *exec.RoundStreamClosedError
 	if errors.As(err, &streamClosed) {
 		fields = append(fields,
 			"stream_messages_seen", streamClosed.MessagesSeen,
@@ -108,9 +108,9 @@ func dmRoundFailureDiagnostics(err error, runner *roundRunner) []any {
 			"stream_last_message_id", streamClosed.LastMessageID,
 			"stream_wait_error", streamClosed.WaitError,
 		)
-		fields = append(fields, runtimectx.RoundStreamStopDiagnosticLogFields(streamClosed.LastStreamStop)...)
+		fields = append(fields, exec.RoundStreamStopDiagnosticLogFields(streamClosed.LastStreamStop)...)
 	}
-	var streamIdle *runtimectx.RoundStreamIdleTimeoutError
+	var streamIdle *exec.RoundStreamIdleTimeoutError
 	if errors.As(err, &streamIdle) {
 		fields = append(fields,
 			"stream_idle_timeout", streamIdle.IdleTimeout.String(),
@@ -120,7 +120,7 @@ func dmRoundFailureDiagnostics(err error, runner *roundRunner) []any {
 			"stream_last_session_id", streamIdle.LastSessionID,
 			"stream_last_message_id", streamIdle.LastMessageID,
 		)
-		fields = append(fields, runtimectx.RoundStreamStopDiagnosticLogFields(streamIdle.LastStreamStop)...)
+		fields = append(fields, exec.RoundStreamStopDiagnosticLogFields(streamIdle.LastStreamStop)...)
 	}
 	if runner != nil && runner.client != nil {
 		fields = append(fields, "client_session_id", runner.client.SessionID())
@@ -135,7 +135,7 @@ func (r *roundRunner) finishInterrupted(resultText string) {
 		"round_id", r.roundID,
 		"reason", resultText,
 	)
-	r.recordGoalUsage(context.Background(), runtimectx.RoundExecutionResult{}, r.lastGoalAssistantMessage())
+	r.recordGoalUsage(context.Background(), exec.RoundExecutionResult{}, r.lastGoalAssistantMessage())
 	r.service.runtime.MarkRoundFinished(r.sessionKey, r.roundID)
 	persistedSessionID := ""
 	if r.session.SessionID != nil {

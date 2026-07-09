@@ -1,4 +1,8 @@
 // Package imagegenmcp 提供 nexus_imagegen MCP server 入口。
+//
+// L2 | 父级: internal/mcp（L1 见 AGENTS.md）
+//
+// [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package imagegenmcp
 
 import (

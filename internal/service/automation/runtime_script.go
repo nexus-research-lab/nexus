@@ -11,25 +11,25 @@ import (
 	"strings"
 	"time"
 
-	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
+	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"
 )
 
 const maxScriptOutputBytes = 128 * 1024
 
-func (s *Service) startScriptJobExecution(ctx context.Context, job protocol.CronJob, triggerKind string, scheduledFor time.Time) (*protocol.ExecutionResult, error) {
+func (s *Service) startScriptJobExecution(ctx context.Context, job automationdomain.CronJob, triggerKind string, scheduledFor time.Time) (*automationdomain.ExecutionResult, error) {
 	logger := s.loggerFor(ctx).With(
 		"job_id", job.JobID,
 		"agent_id", job.AgentID,
 		"trigger_kind", triggerKind,
-		"execution_kind", protocol.ExecutionKindScript,
+		"execution_kind", automationdomain.ExecutionKindScript,
 	)
 	runID := s.idFactory("run")
 	state := s.ensureJobState(job)
 	s.mu.Lock()
-	overlapPolicy := protocol.NormalizeOverlapPolicy(job.OverlapPolicy)
-	if state.Running && overlapPolicy == protocol.OverlapPolicySkip {
+	overlapPolicy := automationdomain.NormalizeOverlapPolicy(job.OverlapPolicy)
+	if state.Running && overlapPolicy == automationdomain.OverlapPolicySkip {
 		s.mu.Unlock()
 		logger.Warn("脚本自动化任务已在运行中")
 		return s.recordSkippedOverlap(ctx, job, triggerKind, scheduledFor, true)
@@ -61,7 +61,7 @@ func (s *Service) startScriptJobExecution(ctx context.Context, job protocol.Cron
 	s.mu.Lock()
 	state = s.jobStates[job.JobID]
 	if state == nil {
-		state = &automationdomain.JobRuntimeState{Job: job}
+		state = &automationexec.JobRuntimeState{Job: job}
 		s.jobStates[job.JobID] = state
 	}
 	state.RunningCount++
@@ -80,40 +80,40 @@ func (s *Service) startScriptJobExecution(ctx context.Context, job protocol.Cron
 		DeliveryMode: strings.TrimSpace(job.Delivery.Mode),
 		DeliveryTo:   deliveryTargetSummary(job.Delivery),
 	}); err != nil {
-		s.finishJobRuntime(job.JobID, nil, protocol.RunStatusFailed, errorPointer(err))
+		s.finishJobRuntime(job.JobID, nil, automationdomain.RunStatusFailed, errorPointer(err))
 		return nil, err
 	}
 	if err := s.repository.MarkRunRunning(ctx, runID, startedAt); err != nil {
-		s.finishJobRuntime(job.JobID, nil, protocol.RunStatusFailed, errorPointer(err))
+		s.finishJobRuntime(job.JobID, nil, automationdomain.RunStatusFailed, errorPointer(err))
 		return nil, err
 	}
 
 	go s.observeScriptJob(job, runID, scheduledFor)
-	return &protocol.ExecutionResult{
+	return &automationdomain.ExecutionResult{
 		JobID:        job.JobID,
 		RunID:        &runID,
-		Status:       protocol.RunStatusRunning,
+		Status:       automationdomain.RunStatusRunning,
 		ScheduledFor: cloneTimePointer(&scheduledFor),
 		MessageCount: 0,
 	}, nil
 }
 
-func (s *Service) observeScriptJob(job protocol.CronJob, runID string, scheduledFor time.Time) {
+func (s *Service) observeScriptJob(job automationdomain.CronJob, runID string, scheduledFor time.Time) {
 	jobCtx := backgroundContextForJobOwner(job)
 	logger := s.loggerFor(jobCtx).With(
 		"job_id", job.JobID,
 		"agent_id", job.AgentID,
 		"run_id", runID,
-		"execution_kind", protocol.ExecutionKindScript,
+		"execution_kind", automationdomain.ExecutionKindScript,
 	)
 	observation := s.runScriptJob(jobCtx, job, runID)
 	status := observation.Status
 	if status == "" {
-		status = protocol.RunStatusFailed
+		status = automationdomain.RunStatusFailed
 	}
 	errorMessage := cloneStringPointer(observation.ErrorMessage)
-	deliveryResult := jobDeliveryResult{Status: protocol.DeliveryStatusNotRequired}
-	if status == protocol.RunStatusSucceeded {
+	deliveryResult := jobDeliveryResult{Status: automationdomain.DeliveryStatusNotRequired}
+	if status == automationdomain.RunStatusSucceeded {
 		deliveryResult = s.deliverJobObservation(jobCtx, job, "", observation)
 	}
 	deliveryStatus := deliveryResult.Status
@@ -168,18 +168,18 @@ func (s *Service) observeScriptJob(job protocol.CronJob, runID string, scheduled
 	logger.Info("脚本自动化任务执行结束", "status", status, "delivery_status", deliveryStatus, "scheduled_for", scheduledFor)
 }
 
-func (s *Service) runScriptJob(ctx context.Context, job protocol.CronJob, runID string) automationdomain.ExecutionObservation {
+func (s *Service) runScriptJob(ctx context.Context, job automationdomain.CronJob, runID string) automationexec.ExecutionObservation {
 	workspacePath, err := s.resolveAutomationWorkspacePath(ctx, job.AgentID)
 	if err != nil {
 		message := err.Error()
-		return automationdomain.ExecutionObservation{Status: protocol.RunStatusFailed, ErrorMessage: &message}
+		return automationexec.ExecutionObservation{Status: automationdomain.RunStatusFailed, ErrorMessage: &message}
 	}
 	if strings.TrimSpace(workspacePath) == "" {
 		message := "automation script workspace is not configured"
-		return automationdomain.ExecutionObservation{Status: protocol.RunStatusFailed, ErrorMessage: &message}
+		return automationexec.ExecutionObservation{Status: automationdomain.RunStatusFailed, ErrorMessage: &message}
 	}
 
-	waitCtx, cancel := context.WithTimeout(context.Background(), automationdomain.WaitTimeout(0))
+	waitCtx, cancel := context.WithTimeout(context.Background(), automationexec.WaitTimeout(0))
 	defer cancel()
 
 	stdout := &boundedOutputBuffer{limit: maxScriptOutputBytes}
@@ -194,12 +194,12 @@ func (s *Service) runScriptJob(ctx context.Context, job protocol.CronJob, runID 
 	command.Stdout = stdout
 	command.Stderr = stderr
 
-	status := protocol.RunStatusSucceeded
+	status := automationdomain.RunStatusSucceeded
 	var errorMessage *string
 	if err = command.Run(); err != nil {
-		status = protocol.RunStatusFailed
+		status = automationdomain.RunStatusFailed
 		if errors.Is(waitCtx.Err(), context.DeadlineExceeded) {
-			status = protocol.RunStatusCancelled
+			status = automationdomain.RunStatusCancelled
 			errorMessage = stringPointer("script timed out")
 		} else {
 			errorMessage = stringPointer(err.Error())
@@ -209,7 +209,7 @@ func (s *Service) runScriptJob(ctx context.Context, job protocol.CronJob, runID 
 	if resultText == "" && errorMessage != nil {
 		resultText = *errorMessage
 	}
-	return automationdomain.ExecutionObservation{
+	return automationexec.ExecutionObservation{
 		Status:       status,
 		MessageCount: 1,
 		ErrorMessage: errorMessage,

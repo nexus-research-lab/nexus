@@ -272,8 +272,12 @@ export interface HandleAgentConversationWebSocketMessageParams {
   ) => void;
   /** 记录本轮 chatAck 预分配的活跃消息槽位 */
   track_chat_ack?: (ack: ChatAckData, sessionKey: string | null) => void;
+  /** 后端拒绝 chat 请求时按 client_request_id 收口等待态 */
+  reject_chat_ack?: (clientRequestId: string, reason: string) => boolean;
   /** 同步 assistant 完整消息的终态 */
   track_assistant_message?: (message: AssistantMessage) => void;
+  /** rewrite 已被后端接受后，先从本地列表移除旧 round。 */
+  remove_rewritten_round?: (targetRoundId: string) => void;
   /** Resync 当前 session/room 快照后重新绑定 WebSocket cursor */
   reload_current_session?: () => Promise<void>;
   /** 当前 agent 后台任务归零后结算 workspace 写入 */

@@ -7,13 +7,13 @@ import (
 	"strings"
 	"time"
 
-	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
+	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 )
 
 const heartbeatExplicitTargetUnsupportedMessage = "heartbeat target_mode=explicit is not supported in Task 6 runtime"
 
-func (s *Service) ensureHeartbeatState(ctx context.Context, agentID string) (*automationdomain.HeartbeatRuntimeState, error) {
+func (s *Service) ensureHeartbeatState(ctx context.Context, agentID string) (*automationexec.HeartbeatRuntimeState, error) {
 	s.mu.Lock()
 	state := s.heartbeatState[strings.TrimSpace(agentID)]
 	s.mu.Unlock()
@@ -26,9 +26,9 @@ func (s *Service) ensureHeartbeatState(ctx context.Context, agentID string) (*au
 		return nil, err
 	}
 	if configValue == nil {
-		defaultValue := protocol.DefaultHeartbeatConfig(agentID)
+		defaultValue := automationdomain.DefaultHeartbeatConfig(agentID)
 		sanitizedConfig, deliveryError := sanitizeHeartbeatConfig(defaultValue)
-		state = &automationdomain.HeartbeatRuntimeState{
+		state = &automationexec.HeartbeatRuntimeState{
 			Config:          sanitizedConfig,
 			NextRunAt:       s.computeHeartbeatNext(sanitizedConfig, s.nowFn()),
 			LastHeartbeatAt: cloneTimePointer(lastHeartbeatAt),
@@ -37,7 +37,7 @@ func (s *Service) ensureHeartbeatState(ctx context.Context, agentID string) (*au
 		}
 	} else {
 		normalized, deliveryError := sanitizeHeartbeatConfig(configValue.Normalized())
-		state = &automationdomain.HeartbeatRuntimeState{
+		state = &automationexec.HeartbeatRuntimeState{
 			Config:          normalized,
 			NextRunAt:       s.computeHeartbeatNext(normalized, s.nowFn()),
 			LastHeartbeatAt: cloneTimePointer(lastHeartbeatAt),
@@ -52,7 +52,7 @@ func (s *Service) ensureHeartbeatState(ctx context.Context, agentID string) (*au
 	return state, nil
 }
 
-func (s *Service) computeHeartbeatNext(configValue protocol.HeartbeatConfig, now time.Time) *time.Time {
+func (s *Service) computeHeartbeatNext(configValue automationdomain.HeartbeatConfig, now time.Time) *time.Time {
 	if !configValue.Enabled {
 		return nil
 	}
@@ -74,7 +74,7 @@ func (s *Service) finishHeartbeatRuntime(agentID string, startedAt *time.Time, a
 		}
 		state.DeliveryError = cloneStringPointer(deliveryError)
 	}
-	configValue := protocol.HeartbeatConfig{}
+	configValue := automationdomain.HeartbeatConfig{}
 	lastHeartbeatAt := (*time.Time)(nil)
 	lastAckAt := (*time.Time)(nil)
 	if state != nil {
@@ -89,15 +89,15 @@ func (s *Service) finishHeartbeatRuntime(agentID string, startedAt *time.Time, a
 	}
 }
 
-func (s *Service) snapshotHeartbeatState(agentID string) (automationdomain.HeartbeatRuntimeState, bool) {
+func (s *Service) snapshotHeartbeatState(agentID string) (automationexec.HeartbeatRuntimeState, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	state := s.heartbeatState[strings.TrimSpace(agentID)]
 	if state == nil {
-		return automationdomain.HeartbeatRuntimeState{}, false
+		return automationexec.HeartbeatRuntimeState{}, false
 	}
-	return automationdomain.HeartbeatRuntimeState{
+	return automationexec.HeartbeatRuntimeState{
 		Config:          state.Config,
 		Running:         state.Running,
 		PendingWake:     state.PendingWake,
@@ -123,7 +123,7 @@ func (s *Service) recordWakeRequest(agentID string, sessionKey string, wakeMode 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	sessionKey = strings.TrimSpace(sessionKey)
-	request := automationdomain.HeartbeatWakeRequest{
+	request := automationexec.HeartbeatWakeRequest{
 		AgentID:    strings.TrimSpace(agentID),
 		SessionKey: sessionKey,
 		WakeMode:   strings.TrimSpace(wakeMode),
@@ -136,16 +136,16 @@ func (s *Service) recordWakeRequest(agentID string, sessionKey string, wakeMode 
 }
 
 func (s *Service) hasImmediateWakeRequestLocked(agentID string) bool {
-	sessionKey := automationdomain.BuildMainSessionKey(agentID)
+	sessionKey := automationexec.BuildMainSessionKey(agentID)
 	for _, item := range s.wakeRequests[sessionKey] {
-		if strings.TrimSpace(item.AgentID) == strings.TrimSpace(agentID) && item.WakeMode == protocol.WakeModeNow {
+		if strings.TrimSpace(item.AgentID) == strings.TrimSpace(agentID) && item.WakeMode == automationdomain.WakeModeNow {
 			return true
 		}
 	}
 	return false
 }
 
-func (s *Service) takeWakeRequests(agentID string, sessionKey string) ([]automationdomain.HeartbeatWakeRequest, []automationdomain.HeartbeatWakeRequest) {
+func (s *Service) takeWakeRequests(agentID string, sessionKey string) ([]automationexec.HeartbeatWakeRequest, []automationexec.HeartbeatWakeRequest) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -153,27 +153,27 @@ func (s *Service) takeWakeRequests(agentID string, sessionKey string) ([]automat
 	items := slices.Clone(s.wakeRequests[sessionKey])
 	delete(s.wakeRequests, sessionKey)
 
-	immediate := make([]automationdomain.HeartbeatWakeRequest, 0, len(items))
-	deferred := make([]automationdomain.HeartbeatWakeRequest, 0, len(items))
+	immediate := make([]automationexec.HeartbeatWakeRequest, 0, len(items))
+	deferred := make([]automationexec.HeartbeatWakeRequest, 0, len(items))
 	for _, item := range items {
 		if strings.TrimSpace(item.AgentID) != strings.TrimSpace(agentID) {
 			continue
 		}
 		switch item.WakeMode {
-		case protocol.WakeModeNow:
+		case automationdomain.WakeModeNow:
 			immediate = append(immediate, item)
-		case protocol.WakeModeNextHeartbeat:
+		case automationdomain.WakeModeNextHeartbeat:
 			deferred = append(deferred, item)
 		}
 	}
 	return immediate, deferred
 }
 
-func sanitizeHeartbeatConfig(configValue protocol.HeartbeatConfig) (protocol.HeartbeatConfig, *string) {
+func sanitizeHeartbeatConfig(configValue automationdomain.HeartbeatConfig) (automationdomain.HeartbeatConfig, *string) {
 	result := configValue
-	if strings.TrimSpace(result.TargetMode) != protocol.HeartbeatTargetExplicit {
+	if strings.TrimSpace(result.TargetMode) != automationdomain.HeartbeatTargetExplicit {
 		return result, nil
 	}
-	result.TargetMode = protocol.HeartbeatTargetNone
+	result.TargetMode = automationdomain.HeartbeatTargetNone
 	return result, stringPointer(heartbeatExplicitTargetUnsupportedMessage)
 }

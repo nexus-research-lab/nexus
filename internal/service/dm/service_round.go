@@ -11,7 +11,9 @@ import (
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
+	"github.com/nexus-research-lab/nexus/internal/runtime/trace"
 	conversationsvc "github.com/nexus-research-lab/nexus/internal/service/conversation"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
@@ -28,12 +30,12 @@ type dmRoundMapperAdapter struct {
 func (a dmRoundMapperAdapter) Map(
 	incoming sdkprotocol.ReceivedMessage,
 	interruptReason ...string,
-) (runtimectx.RoundMapResult, error) {
+) (exec.RoundMapResult, error) {
 	events, durableMessages, terminalStatus, resultSubtype, err := a.mapper.Map(incoming, interruptReason...)
 	if err != nil {
-		return runtimectx.RoundMapResult{}, err
+		return exec.RoundMapResult{}, err
 	}
-	return runtimectx.RoundMapResult{
+	return exec.RoundMapResult{
 		Events:          events,
 		DurableMessages: durableMessages,
 		TerminalStatus:  terminalStatus,
@@ -90,7 +92,7 @@ func (r *roundRunner) run(ctx context.Context) {
 	defer stopTyping()
 	result, err := r.executeRound(ctx, logger)
 	if err != nil {
-		if errors.Is(err, runtimectx.ErrRoundInterrupted) {
+		if errors.Is(err, exec.ErrRoundInterrupted) {
 			r.finishInterrupted(r.service.runtime.GetInterruptReason(r.sessionKey, r.roundID))
 			return
 		}
@@ -136,8 +138,8 @@ func (r *roundRunner) run(ctx context.Context) {
 func (r *roundRunner) executeRound(
 	ctx context.Context,
 	logger *slog.Logger,
-) (runtimectx.RoundExecutionResult, error) {
-	return runtimectx.ExecuteRound(ctx, runtimectx.RoundExecutionRequest{
+) (exec.RoundExecutionResult, error) {
+	return exec.ExecuteRound(ctx, exec.RoundExecutionRequest{
 		Content:          r.runtimeContent.Payload(),
 		ContextualInputs: goalContextualInputs(r.goalContext, r.goalIDForUsage, r.sessionKey),
 		InputOptions:     runtimectx.RuntimeInputOptionsForPurpose(r.inputOptions, "goal_continuation"),
@@ -151,9 +153,9 @@ func (r *roundRunner) executeRound(
 			if incoming.Type == sdkprotocol.MessageTypeStreamEvent && !r.service.config.MessageDebugStreamEvent {
 				return
 			}
-			fields := runtimectx.BuildSDKMessageLogFieldsWithOptions(
+			fields := trace.BuildSDKMessageLogFieldsWithOptions(
 				incoming,
-				runtimectx.SDKMessageLogOptions{
+				trace.SDKMessageLogOptions{
 					IncludeStreamEvent:  r.service.config.MessageDebugStreamEvent,
 					IncludeSnapshotData: true,
 				},

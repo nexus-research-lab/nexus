@@ -14,7 +14,6 @@ const (
 	transcriptSessionSearchTimout = 5 * time.Second
 	overlayKindField              = "nexus_overlay_kind"
 	overlayKindRoundMarker        = "round_marker"
-	overlayKindHistoryRewrite     = "history_rewrite"
 	overlayKindRoomPublicCursor   = "room_public_cursor"
 	overlayKindExternalDelivery   = "external_delivery_receipt"
 )
@@ -38,18 +37,9 @@ type transcriptRoundMarker struct {
 	Metadata       map[string]string
 }
 
-type historyRewriteMarker struct {
-	TargetRoundID      string
-	ReplacementRoundID string
-	Content            string
-	Attachments        []protocol.ChatAttachment
-	Timestamp          int64
-}
-
 type overlayHistoryState struct {
 	MessageRows  []protocol.Message
 	RoundMarkers []transcriptRoundMarker
-	Rewrites     []historyRewriteMarker
 }
 
 // RoundMarkerOptions 描述 Nexus overlay round marker 的展示和调度语义。
@@ -62,15 +52,6 @@ type RoundMarkerOptions struct {
 	Synthetic      bool
 	Purpose        string
 	Metadata       map[string]string
-}
-
-// HistoryRewriteOptions 描述一次用户消息重写。
-type HistoryRewriteOptions struct {
-	TargetRoundID      string
-	ReplacementRoundID string
-	Content            string
-	Attachments        []protocol.ChatAttachment
-	Timestamp          int64
 }
 
 // RoomPublicCursor 记录某个 Room agent 已消费到的公区消息位置。

@@ -6,19 +6,19 @@ import (
 	"strings"
 	"time"
 
-	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
+	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"
 )
 
-func (s *Service) recoverJobRuntimeAsCancelled(ctx context.Context, job protocol.CronJob, message string) protocol.CronJob {
+func (s *Service) recoverJobRuntimeAsCancelled(ctx context.Context, job automationdomain.CronJob, message string) automationdomain.CronJob {
 	if strings.TrimSpace(job.RunningRunID) == "" {
 		return job
 	}
 	finishedAt := s.nowFn()
 	if _, err := s.repository.MarkRunFinishedIfActive(ctx, automationstore.RunFinishInput{
 		RunID:        strings.TrimSpace(job.RunningRunID),
-		Status:       protocol.RunStatusCancelled,
+		Status:       automationdomain.RunStatusCancelled,
 		FinishedAt:   finishedAt,
 		ErrorMessage: &message,
 	}); err != nil {
@@ -32,12 +32,12 @@ func (s *Service) recoverJobRuntimeAsCancelled(ctx context.Context, job protocol
 	job.RunningRunID = ""
 	job.RunningStartedAt = nil
 	job.LastRunAt = cloneTimePointer(&finishedAt)
-	job.LastRunStatus = protocol.RunStatusCancelled
+	job.LastRunStatus = automationdomain.RunStatusCancelled
 	job.LastError = &message
 	job.FailureStreak++
 	nextRunAt := s.computeJobNext(job, finishedAt)
 	job.NextRunAt = nextRunAt
-	if backoff, ok := automationdomain.RetryBackoffFor(job.FailureStreak); ok {
+	if backoff, ok := automationexec.RetryBackoffFor(job.FailureStreak); ok {
 		retryAt := finishedAt.UTC().Add(backoff)
 		if nextRunAt == nil || retryAt.Before(*nextRunAt) {
 			retryCopy := retryAt
@@ -57,7 +57,7 @@ func (s *Service) recoverStaleRunningJobs(ctx context.Context, now time.Time) {
 	if timeout <= 0 {
 		return
 	}
-	staleJobs := make([]protocol.CronJob, 0)
+	staleJobs := make([]automationdomain.CronJob, 0)
 	s.mu.Lock()
 	for _, state := range s.jobStates {
 		if state == nil || !state.Running || strings.TrimSpace(state.RunningRunID) == "" || state.RunningStartedAt == nil {
@@ -84,7 +84,7 @@ func (s *Service) recoverStaleRunningJobs(ctx context.Context, now time.Time) {
 	}
 }
 
-func (s *Service) recoverStaleRunningJob(ctx context.Context, job protocol.CronJob, timeout time.Duration) {
+func (s *Service) recoverStaleRunningJob(ctx context.Context, job automationdomain.CronJob, timeout time.Duration) {
 	runID := strings.TrimSpace(job.RunningRunID)
 	if runID == "" {
 		return
@@ -102,7 +102,7 @@ func (s *Service) recoverStaleRunningJob(ctx context.Context, job protocol.CronJ
 	result.FailureStreak = state.FailureStreak
 	result.LastError = cloneStringPointer(state.LastError)
 	result.LastDeliveryStatus = strings.TrimSpace(state.LastDeliveryStatus)
-	s.recordTaskEvent(ctx, protocol.TaskEventActionRecover, result, runID, map[string]any{
+	s.recordTaskEvent(ctx, automationdomain.TaskEventActionRecover, result, runID, map[string]any{
 		"recovered_run_id": runID,
 		"reason":           "timeout",
 		"timeout_seconds":  int(timeout.Seconds()),
