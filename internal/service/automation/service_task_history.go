@@ -6,7 +6,7 @@ import (
 	"time"
 
 	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
-	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/protocol"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 )
 
 // SearchTaskHistory 按名称、job_id、动作或审计 detail 搜索当前与历史任务候选。

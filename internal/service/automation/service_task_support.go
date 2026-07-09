@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/protocol"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"

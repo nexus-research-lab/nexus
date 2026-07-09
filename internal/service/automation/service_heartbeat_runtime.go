@@ -8,7 +8,7 @@ import (
 	"time"
 
 	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
-	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/protocol"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 )
 
 const heartbeatExplicitTargetUnsupportedMessage = "heartbeat target_mode=explicit is not supported in Task 6 runtime"

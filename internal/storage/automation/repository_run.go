@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/protocol"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 )
 
 // RunPendingInput 表示创建 run ledger 的输入。

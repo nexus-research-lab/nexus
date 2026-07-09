@@ -10,7 +10,7 @@ import (
 	"time"
 
 	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
-	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/protocol"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 )
 
 func (s *Service) writeRunArtifact(

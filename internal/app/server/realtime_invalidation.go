@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/protocol"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	"github.com/nexus-research-lab/nexus/internal/handler/websocket"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	automationsvc "github.com/nexus-research-lab/nexus/internal/service/automation"

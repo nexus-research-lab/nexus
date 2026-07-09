@@ -1,5 +1,6 @@
-// Package protocol 是 automation 特性域内共享的类型词汇：定时任务/heartbeat 的
+// Package types 是 automation 特性域内共享的类型词汇：定时任务/heartbeat 的
 // 模型、枚举、输入与其 Validate/Normalized（消息是否良构）。
+// 不叫 protocol 是为避免与顶层 internal/protocol 基名撞车、逼所有双引用文件起别名。
 //
 // L2 | 父级: internal/automation（L1 见 AGENTS.md）
 //
@@ -15,4 +16,4 @@
 //   - automation_heartbeat.go：HeartbeatConfig / HeartbeatWakeInput 等 heartbeat 协议。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
-package protocol
+package types

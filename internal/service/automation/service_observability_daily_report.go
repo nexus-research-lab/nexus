@@ -10,7 +10,7 @@ import (
 	// 嵌入 IANA 时区数据库，避免轻量运行环境缺少 zoneinfo 时无法加载 Asia/Shanghai。
 	_ "time/tzdata"
 
-	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/protocol"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 )
 
 // GetDailyReport 按日期聚合任务运行和投递状态。

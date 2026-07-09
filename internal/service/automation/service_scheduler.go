@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/protocol"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 )
 
 func (s *Service) bootstrapRuntime(ctx context.Context) error {

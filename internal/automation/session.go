@@ -8,18 +8,18 @@ import (
 	"strings"
 	"time"
 
-	apb "github.com/nexus-research-lab/nexus/internal/automation/protocol"
+	"github.com/nexus-research-lab/nexus/internal/automation/types"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 // ResolveSessionKey 解析自动化任务的真实执行会话。
-func ResolveSessionKey(job apb.CronJob, runID *string) (string, error) {
+func ResolveSessionKey(job types.CronJob, runID *string) (string, error) {
 	switch strings.TrimSpace(job.SessionTarget.Kind) {
-	case apb.SessionTargetMain:
+	case types.SessionTargetMain:
 		return BuildMainSessionKey(job.AgentID), nil
-	case apb.SessionTargetBound:
+	case types.SessionTargetBound:
 		return strings.TrimSpace(job.SessionTarget.BoundSessionKey), nil
-	case apb.SessionTargetNamed:
+	case types.SessionTargetNamed:
 		return protocol.BuildAgentSessionKey(job.AgentID, "automation", "dm", strings.TrimSpace(job.SessionTarget.NamedSessionKey), ""), nil
 	default:
 		if runID == nil || strings.TrimSpace(*runID) == "" {

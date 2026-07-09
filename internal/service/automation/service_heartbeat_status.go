@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
-	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/protocol"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 )
 
 // GetHeartbeatStatus 返回 heartbeat 状态。

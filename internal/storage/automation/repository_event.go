@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/protocol"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 )
 
 // InsertSystemEvent 写入系统事件。

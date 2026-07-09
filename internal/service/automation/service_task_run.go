@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
-	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/protocol"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"
 )
 

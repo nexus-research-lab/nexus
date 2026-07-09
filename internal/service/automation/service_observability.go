@@ -3,7 +3,7 @@ package automation
 import (
 	"context"
 
-	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/protocol"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 )
 
 // GetTaskStatus 返回单个任务的当前状态、健康摘要和最近观测记录。

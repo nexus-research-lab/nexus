@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/protocol"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 )
 
 // TaskEventInput 表示一条定时任务管理动作审计输入。

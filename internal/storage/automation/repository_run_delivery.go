@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/protocol"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 )
 
 // RunDeliveryUpdateInput 表示单独刷新 run 投递状态的输入。

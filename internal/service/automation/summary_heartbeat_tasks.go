@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/protocol"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 )
 
 // scheduledTaskSummaryLimit 限制注入到 heartbeat prompt 的任务行数，

@@ -3,12 +3,12 @@ package automation
 import (
 	"time"
 
-	apb "github.com/nexus-research-lab/nexus/internal/automation/protocol"
+	"github.com/nexus-research-lab/nexus/internal/automation/types"
 )
 
 // JobRuntimeState 是进程内的自动化任务运行态。
 type JobRuntimeState struct {
-	Job                apb.CronJob
+	Job                types.CronJob
 	Running            bool
 	RunningCount       int
 	NextRunAt          *time.Time
@@ -23,7 +23,7 @@ type JobRuntimeState struct {
 
 // HeartbeatRuntimeState 是进程内的 heartbeat 运行态。
 type HeartbeatRuntimeState struct {
-	Config          apb.HeartbeatConfig
+	Config          types.HeartbeatConfig
 	Running         bool
 	PendingWake     bool
 	NextRunAt       *time.Time

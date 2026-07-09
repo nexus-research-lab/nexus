@@ -1,7 +1,7 @@
 package cli
 
 import (
-	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/protocol"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 
 	"github.com/spf13/cobra"
 )
