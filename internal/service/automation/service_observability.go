@@ -3,11 +3,11 @@ package automation
 import (
 	"context"
 
-	"github.com/nexus-research-lab/nexus/internal/protocol"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 )
 
 // GetTaskStatus 返回单个任务的当前状态、健康摘要和最近观测记录。
-func (s *Service) GetTaskStatus(ctx context.Context, jobID string, runLimit int, eventLimit int) (*protocol.CronTaskStatus, error) {
+func (s *Service) GetTaskStatus(ctx context.Context, jobID string, runLimit int, eventLimit int) (*automationdomain.CronTaskStatus, error) {
 	if err := s.ensureReady(ctx); err != nil {
 		return nil, err
 	}
@@ -16,7 +16,7 @@ func (s *Service) GetTaskStatus(ctx context.Context, jobID string, runLimit int,
 		return nil, err
 	}
 	if job == nil {
-		return nil, protocol.ErrJobNotFound
+		return nil, automationdomain.ErrJobNotFound
 	}
 	runs, err := s.ListTaskRuns(ctx, job.JobID)
 	if err != nil {
@@ -27,7 +27,7 @@ func (s *Service) GetTaskStatus(ctx context.Context, jobID string, runLimit int,
 		return nil, err
 	}
 	runs = limitObservabilityRuns(runs, boundedObservabilityLimit(runLimit, 10, 50))
-	return &protocol.CronTaskStatus{
+	return &automationdomain.CronTaskStatus{
 		Job:          *job,
 		Health:       s.buildCronTaskHealth(*job, runs),
 		RecentRuns:   runs,

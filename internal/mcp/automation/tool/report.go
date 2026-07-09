@@ -5,10 +5,10 @@ import (
 
 	sdktool "github.com/nexus-research-lab/nexus/internal/mcp/sdktool"
 
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 	"github.com/nexus-research-lab/nexus/internal/mcp/automation/contract"
 	"github.com/nexus-research-lab/nexus/internal/mcp/automation/internal/argx"
 	"github.com/nexus-research-lab/nexus/internal/mcp/automation/internal/render"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 func dailyReport(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
@@ -42,7 +42,7 @@ func dailyReport(svc contract.Service, sctx contract.ServerContext) sdktool.Tool
 					return render.Error(err), nil
 				}
 			}
-			payload, err := svc.GetDailyReport(scopedCtx, protocol.CronDailyReportInput{
+			payload, err := svc.GetDailyReport(scopedCtx, automationdomain.CronDailyReportInput{
 				Date:     argx.String(args, "date"),
 				Timezone: argx.FirstNonEmpty(argx.String(args, "timezone"), sctx.DefaultTimezone),
 				AgentID:  agentID,
@@ -52,7 +52,7 @@ func dailyReport(svc contract.Service, sctx contract.ServerContext) sdktool.Tool
 				return render.Error(err), nil
 			}
 			if payload == nil {
-				return render.Error(protocol.ErrJobNotFound), nil
+				return render.Error(automationdomain.ErrJobNotFound), nil
 			}
 			return render.JSON(render.DecorateTimes(payload, payload.Timezone)), nil
 		},

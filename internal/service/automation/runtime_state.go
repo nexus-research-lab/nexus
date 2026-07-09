@@ -6,11 +6,10 @@ import (
 	"time"
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"
 )
 
-func (s *Service) ensureJobState(job protocol.CronJob) *automationdomain.JobRuntimeState {
+func (s *Service) ensureJobState(job automationdomain.CronJob) *automationdomain.JobRuntimeState {
 	s.mu.Lock()
 	state := s.jobStates[job.JobID]
 	created := state == nil
@@ -43,7 +42,7 @@ func (s *Service) ensureJobState(job protocol.CronJob) *automationdomain.JobRunt
 	}
 	// 启动期发现 at-kind 已过期且仍处于启用态时，主动落库为停用，避免反复检查空 NextRunAt 浪费循环。
 	shouldDisable := job.Enabled &&
-		strings.EqualFold(job.Schedule.Kind, protocol.ScheduleKindAt) &&
+		strings.EqualFold(job.Schedule.Kind, automationdomain.ScheduleKindAt) &&
 		state.NextRunAt == nil
 	jobSnapshot := state.Job
 	s.mu.Unlock()
@@ -54,7 +53,7 @@ func (s *Service) ensureJobState(job protocol.CronJob) *automationdomain.JobRunt
 	return state
 }
 
-func (s *Service) computeJobNext(job protocol.CronJob, now time.Time) *time.Time {
+func (s *Service) computeJobNext(job automationdomain.CronJob, now time.Time) *time.Time {
 	if !job.Enabled {
 		return nil
 	}
@@ -84,14 +83,14 @@ func (s *Service) finishJobRuntime(jobID string, finishedAt *time.Time, status s
 		state.LastRunAt = cloneTimePointer(finishedAt)
 	}
 	if strings.TrimSpace(status) == "" {
-		status = protocol.RunStatusFailed
+		status = automationdomain.RunStatusFailed
 	}
 	state.LastRunStatus = strings.TrimSpace(status)
 	state.LastError = cloneStringPointer(errorMessage)
 	if len(deliveryStatuses) > 0 {
 		state.LastDeliveryStatus = strings.TrimSpace(deliveryStatuses[0])
 	} else if !isSuccessfulRuntimeStatus(status) {
-		state.LastDeliveryStatus = protocol.DeliveryStatusNotAttempted
+		state.LastDeliveryStatus = automationdomain.DeliveryStatusNotAttempted
 	}
 
 	now := s.nowFn()
@@ -115,7 +114,7 @@ func (s *Service) finishJobRuntime(jobID string, finishedAt *time.Time, status s
 
 	// at-kind 是一次性任务：成功或重试耗尽后没有下一次自然触发，主动停用以避免数据库残留启用态。
 	shouldDisable := state.Job.Enabled &&
-		strings.EqualFold(state.Job.Schedule.Kind, protocol.ScheduleKindAt) &&
+		strings.EqualFold(state.Job.Schedule.Kind, automationdomain.ScheduleKindAt) &&
 		state.NextRunAt == nil
 	jobSnapshot := state.Job
 	runtimeSnapshot := jobRuntimeUpdateFromState(jobID, state)
@@ -127,7 +126,7 @@ func (s *Service) finishJobRuntime(jobID string, finishedAt *time.Time, status s
 	}
 }
 
-func (s *Service) updateJobLastDeliveryStatus(job protocol.CronJob, deliveryStatus string) {
+func (s *Service) updateJobLastDeliveryStatus(job automationdomain.CronJob, deliveryStatus string) {
 	status := strings.TrimSpace(deliveryStatus)
 	if status == "" {
 		return
@@ -156,11 +155,11 @@ func (s *Service) advanceJobRuntimeAfterTriggerWithPersistence(jobID string, sch
 		return
 	}
 	state.LastRunAt = cloneTimePointer(&scheduledFor)
-	state.LastRunStatus = protocol.RunStatusSkipped
+	state.LastRunStatus = automationdomain.RunStatusSkipped
 	// 避免允许并发或跳过重叠时，同一个 due tick 被下一秒反复触发。
 	state.NextRunAt = s.computeJobNext(state.Job, scheduledFor.UTC().Add(time.Second))
 	shouldDisable := state.Job.Enabled &&
-		strings.EqualFold(state.Job.Schedule.Kind, protocol.ScheduleKindAt) &&
+		strings.EqualFold(state.Job.Schedule.Kind, automationdomain.ScheduleKindAt) &&
 		state.NextRunAt == nil
 	jobSnapshot := state.Job
 	runtimeSnapshot := jobRuntimeUpdateFromState(jobID, state)
@@ -174,7 +173,7 @@ func (s *Service) advanceJobRuntimeAfterTriggerWithPersistence(jobID string, sch
 	}
 }
 
-func (s *Service) replaceJobRuntimeState(job protocol.CronJob) *automationdomain.JobRuntimeState {
+func (s *Service) replaceJobRuntimeState(job automationdomain.CronJob) *automationdomain.JobRuntimeState {
 	s.mu.Lock()
 	state := s.jobStates[job.JobID]
 	if state == nil {
@@ -233,14 +232,14 @@ func jobRuntimeUpdateFromState(jobID string, state *automationdomain.JobRuntimeS
 
 func isSuccessfulRuntimeStatus(status string) bool {
 	switch strings.TrimSpace(status) {
-	case protocol.RunStatusSucceeded, protocol.RunStatusQueuedToMain:
+	case automationdomain.RunStatusSucceeded, automationdomain.RunStatusQueuedToMain:
 		return true
 	default:
 		return false
 	}
 }
 
-func sameSchedule(left protocol.Schedule, right protocol.Schedule) bool {
+func sameSchedule(left automationdomain.Schedule, right automationdomain.Schedule) bool {
 	left = left.Normalized()
 	right = right.Normalized()
 	return strings.TrimSpace(left.Kind) == strings.TrimSpace(right.Kind) &&
@@ -257,7 +256,7 @@ func anyIntPointer(value *int) int {
 	return *value
 }
 
-func (s *Service) disableExpiredJobAsync(job protocol.CronJob) {
+func (s *Service) disableExpiredJobAsync(job automationdomain.CronJob) {
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()

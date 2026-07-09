@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 	"github.com/nexus-research-lab/nexus/internal/config"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"
 )
 
@@ -22,33 +22,33 @@ func TestServiceSearchTaskHistoryIncludesDeletedTaskCandidates(t *testing.T) {
 		&fakeWorkspaceReader{},
 		nil,
 	)
-	activeTask, err := service.CreateTask(context.Background(), protocol.CreateJobInput{
+	activeTask, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
 		Name:        "当前新闻日报",
 		AgentID:     "agent-1",
 		Instruction: "搜索新闻",
-		Schedule: protocol.Schedule{
-			Kind:            protocol.ScheduleKindEvery,
+		Schedule: automationdomain.Schedule{
+			Kind:            automationdomain.ScheduleKindEvery,
 			IntervalSeconds: intRef(3600),
 			Timezone:        "Asia/Shanghai",
 		},
-		SessionTarget: protocol.SessionTarget{Kind: protocol.SessionTargetIsolated},
-		Delivery:      protocol.DeliveryTarget{Mode: protocol.DeliveryModeNone},
+		SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetIsolated},
+		Delivery:      automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
 		Enabled:       true,
 	})
 	if err != nil {
 		t.Fatalf("创建 active task 失败: %v", err)
 	}
-	deletedTask, err := service.CreateTask(context.Background(), protocol.CreateJobInput{
+	deletedTask, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
 		Name:        "旧新闻日报",
 		AgentID:     "agent-1",
 		Instruction: "发送旧新闻摘要",
-		Schedule: protocol.Schedule{
-			Kind:            protocol.ScheduleKindEvery,
+		Schedule: automationdomain.Schedule{
+			Kind:            automationdomain.ScheduleKindEvery,
 			IntervalSeconds: intRef(3600),
 			Timezone:        "Asia/Shanghai",
 		},
-		SessionTarget: protocol.SessionTarget{Kind: protocol.SessionTargetIsolated},
-		Delivery:      protocol.DeliveryTarget{Mode: protocol.DeliveryModeExplicit, Channel: "feishu", To: "oc_group"},
+		SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetIsolated},
+		Delivery:      automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeExplicit, Channel: "feishu", To: "oc_group"},
 		Enabled:       true,
 	})
 	if err != nil {
@@ -61,16 +61,16 @@ func TestServiceSearchTaskHistoryIncludesDeletedTaskCandidates(t *testing.T) {
 		OwnerUserID:  deletedTask.OwnerUserID,
 		ScheduledFor: &scheduledFor,
 		TriggerKind:  "cron",
-		DeliveryMode: protocol.DeliveryModeExplicit,
+		DeliveryMode: automationdomain.DeliveryModeExplicit,
 		DeliveryTo:   "feishu:oc_group",
 	}); err != nil {
 		t.Fatalf("插入 deleted task run 失败: %v", err)
 	}
 	if err = service.repository.MarkRunFinished(context.Background(), automationstore.RunFinishInput{
 		RunID:             "run-old-news",
-		Status:            protocol.RunStatusSucceeded,
+		Status:            automationdomain.RunStatusSucceeded,
 		FinishedAt:        scheduledFor.Add(time.Minute),
-		DeliveryStatus:    protocol.DeliveryStatusSucceeded,
+		DeliveryStatus:    automationdomain.DeliveryStatusSucceeded,
 		DeliveryAttempted: true,
 	}); err != nil {
 		t.Fatalf("结束 deleted task run 失败: %v", err)
@@ -79,7 +79,7 @@ func TestServiceSearchTaskHistoryIncludesDeletedTaskCandidates(t *testing.T) {
 		t.Fatalf("删除 task 失败: %v", err)
 	}
 
-	items, err := service.SearchTaskHistory(context.Background(), protocol.CronTaskHistorySearchInput{
+	items, err := service.SearchTaskHistory(context.Background(), automationdomain.CronTaskHistorySearchInput{
 		Query:          "新闻",
 		IncludeActive:  true,
 		IncludeDeleted: true,
@@ -88,7 +88,7 @@ func TestServiceSearchTaskHistoryIncludesDeletedTaskCandidates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SearchTaskHistory 失败: %v", err)
 	}
-	var activeFound, deletedFound *protocol.CronTaskHistoryItem
+	var activeFound, deletedFound *automationdomain.CronTaskHistoryItem
 	for index := range items {
 		switch items[index].JobID {
 		case activeTask.JobID:
@@ -103,12 +103,12 @@ func TestServiceSearchTaskHistoryIncludesDeletedTaskCandidates(t *testing.T) {
 	if deletedFound == nil || !deletedFound.Deleted || deletedFound.Name != "旧新闻日报" {
 		t.Fatalf("deleted candidate 不正确: %+v", items)
 	}
-	if deletedFound.RunCount != 1 || deletedFound.LastRunStatus != protocol.RunStatusSucceeded ||
-		deletedFound.LastDeliveryStatus != protocol.DeliveryStatusSucceeded {
+	if deletedFound.RunCount != 1 || deletedFound.LastRunStatus != automationdomain.RunStatusSucceeded ||
+		deletedFound.LastDeliveryStatus != automationdomain.DeliveryStatusSucceeded {
 		t.Fatalf("deleted candidate run 摘要不正确: %+v", deletedFound)
 	}
 
-	instructionMatches, err := service.SearchTaskHistory(context.Background(), protocol.CronTaskHistorySearchInput{
+	instructionMatches, err := service.SearchTaskHistory(context.Background(), automationdomain.CronTaskHistorySearchInput{
 		Query:          "旧新闻摘要",
 		IncludeActive:  false,
 		IncludeDeleted: true,
@@ -121,7 +121,7 @@ func TestServiceSearchTaskHistoryIncludesDeletedTaskCandidates(t *testing.T) {
 		t.Fatalf("应能按已删除任务指令定位历史候选: %+v", instructionMatches)
 	}
 
-	deliveryMatches, err := service.SearchTaskHistory(context.Background(), protocol.CronTaskHistorySearchInput{
+	deliveryMatches, err := service.SearchTaskHistory(context.Background(), automationdomain.CronTaskHistorySearchInput{
 		Query:          "oc_group",
 		IncludeActive:  false,
 		IncludeDeleted: true,
@@ -134,7 +134,7 @@ func TestServiceSearchTaskHistoryIncludesDeletedTaskCandidates(t *testing.T) {
 		t.Fatalf("应能按已删除任务投递目标定位历史候选: %+v", deliveryMatches)
 	}
 
-	deliveryAliasMatches, err := service.SearchTaskHistory(context.Background(), protocol.CronTaskHistorySearchInput{
+	deliveryAliasMatches, err := service.SearchTaskHistory(context.Background(), automationdomain.CronTaskHistorySearchInput{
 		Query:          "飞书群",
 		IncludeActive:  false,
 		IncludeDeleted: true,

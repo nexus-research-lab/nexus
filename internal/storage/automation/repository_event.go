@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/nexus-research-lab/nexus/internal/protocol"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 )
 
 // InsertSystemEvent 写入系统事件。
@@ -19,7 +19,7 @@ func (r *Repository) InsertSystemEvent(ctx context.Context, eventID string, even
 }
 
 // ListNewSystemEventsByAgent 列出指定 agent 尚未消费的系统事件。
-func (r *Repository) ListNewSystemEventsByAgent(ctx context.Context, agentID string) ([]protocol.SystemEvent, error) {
+func (r *Repository) ListNewSystemEventsByAgent(ctx context.Context, agentID string) ([]automationdomain.SystemEvent, error) {
 	query := `
 SELECT
     event_id,
@@ -44,9 +44,9 @@ ORDER BY created_at ASC, event_id ASC`
 	}
 	defer rows.Close()
 
-	items := make([]protocol.SystemEvent, 0)
+	items := make([]automationdomain.SystemEvent, 0)
 	for rows.Next() {
-		var item protocol.SystemEvent
+		var item automationdomain.SystemEvent
 		if scanErr := rows.Scan(
 			&item.EventID,
 			&item.EventType,

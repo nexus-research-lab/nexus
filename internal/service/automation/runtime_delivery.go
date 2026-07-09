@@ -6,7 +6,6 @@ import (
 	"time"
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 
 	"github.com/nexus-research-lab/nexus/internal/service/channels"
 	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
@@ -24,7 +23,7 @@ type jobDeliveryResult struct {
 	Receipt *channelmessage.Receipt
 }
 
-func toChannelDeliveryTarget(target protocol.DeliveryTarget) channels.DeliveryTarget {
+func toChannelDeliveryTarget(target automationdomain.DeliveryTarget) channels.DeliveryTarget {
 	return channels.DeliveryTarget{
 		Mode:      strings.TrimSpace(target.Mode),
 		Channel:   strings.TrimSpace(target.Channel),
@@ -43,7 +42,7 @@ var deliveryRetryBackoffs = []time.Duration{
 
 func (s *Service) deliverJobObservation(
 	ctx context.Context,
-	job protocol.CronJob,
+	job automationdomain.CronJob,
 	executionSessionKey string,
 	observation automationdomain.ExecutionObservation,
 ) jobDeliveryResult {
@@ -51,21 +50,21 @@ func (s *Service) deliverJobObservation(
 	deliveryChannel := strings.TrimSpace(job.Delivery.Channel)
 	deliveryTo := strings.TrimSpace(job.Delivery.To)
 	executionSessionKey = strings.TrimSpace(executionSessionKey)
-	if deliveryMode == "" || deliveryMode == protocol.DeliveryModeNone {
-		return jobDeliveryResult{Status: protocol.DeliveryStatusNotRequired}
+	if deliveryMode == "" || deliveryMode == automationdomain.DeliveryModeNone {
+		return jobDeliveryResult{Status: automationdomain.DeliveryStatusNotRequired}
 	}
-	if deliveryMode == protocol.DeliveryModeExplicit &&
+	if deliveryMode == automationdomain.DeliveryModeExplicit &&
 		deliveryChannel == "websocket" &&
 		deliveryTo != "" &&
 		deliveryTo == executionSessionKey {
-		return jobDeliveryResult{Status: protocol.DeliveryStatusSkipped}
+		return jobDeliveryResult{Status: automationdomain.DeliveryStatusSkipped}
 	}
 	if s.delivery == nil {
-		return jobDeliveryResult{Status: protocol.DeliveryStatusFailed, Error: stringPointer("delivery router is not configured")}
+		return jobDeliveryResult{Status: automationdomain.DeliveryStatusFailed, Error: stringPointer("delivery router is not configured")}
 	}
 	text := firstNonEmpty(observation.ResultText, observation.AssistantText)
 	if text == "" {
-		return jobDeliveryResult{Status: protocol.DeliveryStatusSkipped}
+		return jobDeliveryResult{Status: automationdomain.DeliveryStatusSkipped}
 	}
 	target := toChannelDeliveryTarget(job.Delivery)
 	if strings.TrimSpace(target.Mode) == channels.DeliveryModeLast {
@@ -79,12 +78,12 @@ func (s *Service) deliverJobObservation(
 		target,
 	)
 	if err != nil {
-		return jobDeliveryResult{Status: protocol.DeliveryStatusFailed, Error: errorPointer(err)}
+		return jobDeliveryResult{Status: automationdomain.DeliveryStatusFailed, Error: errorPointer(err)}
 	}
-	return jobDeliveryResult{Status: protocol.DeliveryStatusSucceeded, Target: &delivered.Target, Receipt: delivered.Receipt}
+	return jobDeliveryResult{Status: automationdomain.DeliveryStatusSucceeded, Target: &delivered.Target, Receipt: delivered.Receipt}
 }
 
-func (r jobDeliveryResult) deliveryTo(fallback protocol.DeliveryTarget) string {
+func (r jobDeliveryResult) deliveryTo(fallback automationdomain.DeliveryTarget) string {
 	var summary string
 	if r.Target != nil {
 		summary = channelDeliveryTargetSummary(*r.Target)
@@ -131,7 +130,7 @@ func channelDeliveryTargetSummary(target channels.DeliveryTarget) string {
 
 func deliveryAttempted(status string) bool {
 	switch strings.TrimSpace(status) {
-	case protocol.DeliveryStatusSucceeded, protocol.DeliveryStatusFailed:
+	case automationdomain.DeliveryStatusSucceeded, automationdomain.DeliveryStatusFailed:
 		return true
 	default:
 		return false
@@ -139,7 +138,7 @@ func deliveryAttempted(status string) bool {
 }
 
 func deliveredAtForStatus(status string, at time.Time) *time.Time {
-	if strings.TrimSpace(status) != protocol.DeliveryStatusSucceeded {
+	if strings.TrimSpace(status) != automationdomain.DeliveryStatusSucceeded {
 		return nil
 	}
 	result := at.UTC()
@@ -147,7 +146,7 @@ func deliveredAtForStatus(status string, at time.Time) *time.Time {
 }
 
 func deliveryRetrySchedule(status string, attemptsAfter int, now time.Time) (*time.Time, *time.Time) {
-	if strings.TrimSpace(status) != protocol.DeliveryStatusFailed {
+	if strings.TrimSpace(status) != automationdomain.DeliveryStatusFailed {
 		return nil, nil
 	}
 	if attemptsAfter >= maxAutoDeliveryAttempts {
@@ -165,11 +164,11 @@ func deliveryRetrySchedule(status string, attemptsAfter int, now time.Time) (*ti
 
 func (s *Service) deliverHeartbeatObservation(
 	agentID string,
-	configValue protocol.HeartbeatConfig,
+	configValue automationdomain.HeartbeatConfig,
 	observation automationdomain.ExecutionObservation,
 ) *string {
 	targetMode := strings.TrimSpace(configValue.TargetMode)
-	if targetMode == "" || targetMode == protocol.HeartbeatTargetNone {
+	if targetMode == "" || targetMode == automationdomain.HeartbeatTargetNone {
 		return nil
 	}
 	if s.delivery == nil {

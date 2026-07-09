@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/mcp/automation/contract"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -64,20 +65,20 @@ func TestServiceRunTaskNowDeliversToRememberedWebSocketRoute(t *testing.T) {
 		router,
 	)
 
-	task, err := service.CreateTask(context.Background(), protocol.CreateJobInput{
+	task, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
 		Name:        "主动巡检播报",
 		AgentID:     "agent-1",
 		Instruction: "执行巡检并输出结果",
-		Schedule: protocol.Schedule{
-			Kind:            protocol.ScheduleKindEvery,
+		Schedule: automationdomain.Schedule{
+			Kind:            automationdomain.ScheduleKindEvery,
 			IntervalSeconds: intRef(3600),
 			Timezone:        "Asia/Shanghai",
 		},
-		SessionTarget: protocol.SessionTarget{
-			Kind:            protocol.SessionTargetNamed,
+		SessionTarget: automationdomain.SessionTarget{
+			Kind:            automationdomain.SessionTargetNamed,
 			NamedSessionKey: "ops-bot",
 		},
-		Delivery: protocol.DeliveryTarget{Mode: protocol.DeliveryModeLast},
+		Delivery: automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeLast},
 		Enabled:  true,
 	})
 	if err != nil {
@@ -92,7 +93,7 @@ func TestServiceRunTaskNowDeliversToRememberedWebSocketRoute(t *testing.T) {
 		if listErr != nil || len(items) == 0 {
 			return false
 		}
-		return items[0].Status == protocol.RunStatusSucceeded
+		return items[0].Status == automationdomain.RunStatusSucceeded
 	})
 
 	sessionValue, _, err := store.FindSession([]string{workspacePath}, sessionKey)
@@ -107,7 +108,7 @@ func TestServiceRunTaskNowDeliversToRememberedWebSocketRoute(t *testing.T) {
 	if err != nil {
 		t.Fatalf("读取任务运行态失败: %v", err)
 	}
-	if updatedTask == nil || updatedTask.LastDeliveryStatus != protocol.DeliveryStatusSucceeded {
+	if updatedTask == nil || updatedTask.LastDeliveryStatus != automationdomain.DeliveryStatusSucceeded {
 		t.Fatalf("last_delivery_status 未记录投递成功: %+v", updatedTask)
 	}
 	deliveredRun := assertRunDeliveredTo(t, service, task.JobID, "explicit:websocket:"+sessionKey)
@@ -155,21 +156,21 @@ func TestServiceRunTaskNowDeliversToAgentAutomationInbox(t *testing.T) {
 		protocol.AutomationInboxSessionRef,
 		"",
 	)
-	task, err := service.CreateTask(context.Background(), protocol.CreateJobInput{
+	task, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
 		Name:        "新闻投递到智能体",
 		AgentID:     "agent-1",
 		Instruction: "搜索新闻并输出摘要",
-		Schedule: protocol.Schedule{
-			Kind:            protocol.ScheduleKindEvery,
+		Schedule: automationdomain.Schedule{
+			Kind:            automationdomain.ScheduleKindEvery,
 			IntervalSeconds: intRef(3600),
 			Timezone:        "Asia/Shanghai",
 		},
-		SessionTarget: protocol.SessionTarget{
-			Kind:            protocol.SessionTargetNamed,
+		SessionTarget: automationdomain.SessionTarget{
+			Kind:            automationdomain.SessionTargetNamed,
 			NamedSessionKey: "news",
 		},
-		Delivery: protocol.DeliveryTarget{
-			Mode:    protocol.DeliveryModeExplicit,
+		Delivery: automationdomain.DeliveryTarget{
+			Mode:    automationdomain.DeliveryModeExplicit,
 			Channel: protocol.SessionChannelInternalSegment,
 			To:      inboxKey,
 		},
@@ -187,7 +188,7 @@ func TestServiceRunTaskNowDeliversToAgentAutomationInbox(t *testing.T) {
 		if listErr != nil || len(items) == 0 {
 			return false
 		}
-		return items[0].DeliveryStatus == protocol.DeliveryStatusSucceeded
+		return items[0].DeliveryStatus == automationdomain.DeliveryStatusSucceeded
 	})
 
 	store := workspacestore.NewSessionFileStore(workspacePath)
@@ -268,16 +269,16 @@ func TestAutomationMCPCreateRunAndInspectDeliversToAgentInbox(t *testing.T) {
 	if isError {
 		t.Fatalf("create_scheduled_task 不应失败: %s", automationMCPToolText(t, createResult))
 	}
-	created := decodeAutomationMCPJSON[protocol.CronJob](t, createResult)
+	created := decodeAutomationMCPJSON[automationdomain.CronJob](t, createResult)
 	if created.AgentID != "agent-1" {
 		t.Fatalf("MCP 创建任务应归属调用智能体，实际 %+v", created)
 	}
-	if created.Delivery.Mode != protocol.DeliveryModeExplicit ||
+	if created.Delivery.Mode != automationdomain.DeliveryModeExplicit ||
 		created.Delivery.Channel != protocol.SessionChannelInternalSegment ||
 		created.Delivery.To != inboxKey {
 		t.Fatalf("MCP reply_mode=agent 应解析为目标智能体收件箱，实际 %+v", created.Delivery)
 	}
-	if created.Source.Kind != protocol.SourceKindAgent || created.Source.CreatorAgentID != "agent-1" {
+	if created.Source.Kind != automationdomain.SourceKindAgent || created.Source.CreatorAgentID != "agent-1" {
 		t.Fatalf("MCP 创建任务应记录 Agent 来源，实际 %+v", created.Source)
 	}
 
@@ -287,7 +288,7 @@ func TestAutomationMCPCreateRunAndInspectDeliversToAgentInbox(t *testing.T) {
 	if isError {
 		t.Fatalf("run_scheduled_task by query 不应失败: %s", automationMCPToolText(t, runResult))
 	}
-	runNow := decodeAutomationMCPJSON[protocol.ExecutionResult](t, runResult)
+	runNow := decodeAutomationMCPJSON[automationdomain.ExecutionResult](t, runResult)
 	if runNow.JobID != created.JobID {
 		t.Fatalf("query 应定位到刚创建的任务，run=%+v created=%+v", runNow, created)
 	}
@@ -298,7 +299,7 @@ func TestAutomationMCPCreateRunAndInspectDeliversToAgentInbox(t *testing.T) {
 		if listErr != nil || len(items) == 0 {
 			return false
 		}
-		return items[0].DeliveryStatus == protocol.DeliveryStatusSucceeded
+		return items[0].DeliveryStatus == automationdomain.DeliveryStatusSucceeded
 	})
 
 	store := workspacestore.NewSessionFileStore(workspacePath)
@@ -323,8 +324,8 @@ func TestAutomationMCPCreateRunAndInspectDeliversToAgentInbox(t *testing.T) {
 	if isError {
 		t.Fatalf("get_scheduled_task_status by query 不应失败: %s", automationMCPToolText(t, statusResult))
 	}
-	status := decodeAutomationMCPJSON[protocol.CronTaskStatus](t, statusResult)
-	if status.Job.JobID != created.JobID || status.Job.LastDeliveryStatus != protocol.DeliveryStatusSucceeded {
+	status := decodeAutomationMCPJSON[automationdomain.CronTaskStatus](t, statusResult)
+	if status.Job.JobID != created.JobID || status.Job.LastDeliveryStatus != automationdomain.DeliveryStatusSucceeded {
 		t.Fatalf("MCP 状态应能看到任务最新投递成功，实际 %+v", status.Job)
 	}
 	if len(status.RecentRuns) == 0 || status.RecentRuns[0].DeliveryTo != "explicit:internal:"+inboxKey {
@@ -347,21 +348,21 @@ func TestRunTaskNowSkipsDuplicateExplicitDeliveryWhenTargetMatchesExecutionSessi
 		delivery,
 	)
 	sessionKey := protocol.BuildAgentSessionKey("agent-1", "ws", "dm", "existing-chat", "")
-	task, err := service.CreateTask(context.Background(), protocol.CreateJobInput{
+	task, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
 		Name:        "dup-delivery",
 		AgentID:     "agent-1",
 		Instruction: "run once",
-		Schedule: protocol.Schedule{
-			Kind:            protocol.ScheduleKindEvery,
+		Schedule: automationdomain.Schedule{
+			Kind:            automationdomain.ScheduleKindEvery,
 			IntervalSeconds: intRef(60),
 			Timezone:        "Asia/Shanghai",
 		},
-		SessionTarget: protocol.SessionTarget{
-			Kind:            protocol.SessionTargetBound,
+		SessionTarget: automationdomain.SessionTarget{
+			Kind:            automationdomain.SessionTargetBound,
 			BoundSessionKey: sessionKey,
 		},
-		Delivery: protocol.DeliveryTarget{
-			Mode:    protocol.DeliveryModeExplicit,
+		Delivery: automationdomain.DeliveryTarget{
+			Mode:    automationdomain.DeliveryModeExplicit,
 			Channel: "websocket",
 			To:      sessionKey,
 		},
@@ -376,7 +377,7 @@ func TestRunTaskNowSkipsDuplicateExplicitDeliveryWhenTargetMatchesExecutionSessi
 	}
 	waitFor(t, 2*time.Second, func() bool {
 		items, listErr := service.ListTaskRuns(context.Background(), task.JobID)
-		return listErr == nil && len(items) > 0 && items[0].Status == protocol.RunStatusSucceeded
+		return listErr == nil && len(items) > 0 && items[0].Status == automationdomain.RunStatusSucceeded
 	})
 
 	if len(delivery.Calls()) != 0 {

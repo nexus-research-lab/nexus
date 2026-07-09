@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
@@ -27,19 +28,19 @@ func TestServiceBootstrapRecoversInterruptedTaskRuntime(t *testing.T) {
 		&fakeWorkspaceReader{},
 		nil,
 	)
-	task, err := service.CreateTask(context.Background(), protocol.CreateJobInput{
+	task, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
 		Name:        "中断恢复",
 		AgentID:     "agent-1",
 		Instruction: "恢复上次运行",
-		Schedule: protocol.Schedule{
-			Kind:            protocol.ScheduleKindEvery,
+		Schedule: automationdomain.Schedule{
+			Kind:            automationdomain.ScheduleKindEvery,
 			IntervalSeconds: intRef(3600),
 			Timezone:        "Asia/Shanghai",
 		},
-		SessionTarget: protocol.SessionTarget{
-			Kind: protocol.SessionTargetIsolated,
+		SessionTarget: automationdomain.SessionTarget{
+			Kind: automationdomain.SessionTargetIsolated,
 		},
-		Delivery: protocol.DeliveryTarget{Mode: protocol.DeliveryModeNone},
+		Delivery: automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
 		Enabled:  true,
 	})
 	if err != nil {
@@ -54,7 +55,7 @@ VALUES (?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
 		runID,
 		task.JobID,
 		task.OwnerUserID,
-		protocol.RunStatusRunning,
+		automationdomain.RunStatusRunning,
 		"cron",
 	); err != nil {
 		t.Fatalf("预置 running run 失败: %v", err)
@@ -65,7 +66,7 @@ SET running_run_id = ?, running_started_at = ?, last_run_status = ?, failure_str
 WHERE job_id = ?`,
 		runID,
 		startedAt,
-		protocol.RunStatusRunning,
+		automationdomain.RunStatusRunning,
 		task.JobID,
 	); err != nil {
 		t.Fatalf("预置 running job 失败: %v", err)
@@ -95,8 +96,8 @@ WHERE job_id = ?`,
 	if err = db.QueryRow(`SELECT status, error_message, finished_at FROM automation_cron_runs WHERE run_id = ?`, runID).Scan(&runStatus, &runError, &finishedAt); err != nil {
 		t.Fatalf("读取恢复后的 run 失败: %v", err)
 	}
-	if runStatus != protocol.RunStatusCancelled {
-		t.Fatalf("run status = %s, 期望 %s", runStatus, protocol.RunStatusCancelled)
+	if runStatus != automationdomain.RunStatusCancelled {
+		t.Fatalf("run status = %s, 期望 %s", runStatus, automationdomain.RunStatusCancelled)
 	}
 	if !runError.Valid || !strings.Contains(runError.String, "scheduler restarted") {
 		t.Fatalf("run error 未记录重启原因: %+v", runError)
@@ -123,7 +124,7 @@ FROM automation_cron_jobs WHERE job_id = ?`,
 	if !nextRunAt.Valid || !nextRunAt.Time.UTC().Equal(recoveredAt.Add(30*time.Second)) {
 		t.Fatalf("next_run_at = %+v, 期望 %s", nextRunAt, recoveredAt.Add(30*time.Second))
 	}
-	if !lastRunStatus.Valid || lastRunStatus.String != protocol.RunStatusCancelled {
+	if !lastRunStatus.Valid || lastRunStatus.String != automationdomain.RunStatusCancelled {
 		t.Fatalf("last_run_status = %+v, 期望 cancelled", lastRunStatus)
 	}
 	if failureStreak != 1 {
@@ -148,19 +149,19 @@ func TestServiceRecoverTaskRunningRunReleasesStuckRuntime(t *testing.T) {
 		&fakeWorkspaceReader{},
 		nil,
 	)
-	task, err := service.CreateTask(context.Background(), protocol.CreateJobInput{
+	task, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
 		Name:        "手动释放",
 		AgentID:     "agent-1",
 		Instruction: "恢复卡住运行",
-		Schedule: protocol.Schedule{
-			Kind:            protocol.ScheduleKindEvery,
+		Schedule: automationdomain.Schedule{
+			Kind:            automationdomain.ScheduleKindEvery,
 			IntervalSeconds: intRef(3600),
 			Timezone:        "Asia/Shanghai",
 		},
-		SessionTarget: protocol.SessionTarget{
-			Kind: protocol.SessionTargetIsolated,
+		SessionTarget: automationdomain.SessionTarget{
+			Kind: automationdomain.SessionTargetIsolated,
 		},
-		Delivery: protocol.DeliveryTarget{Mode: protocol.DeliveryModeNone},
+		Delivery: automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
 		Enabled:  true,
 	})
 	if err != nil {
@@ -176,7 +177,7 @@ func TestServiceRecoverTaskRunningRunReleasesStuckRuntime(t *testing.T) {
 		JobID:       task.JobID,
 		OwnerUserID: task.OwnerUserID,
 		TriggerKind: "manual",
-		Status:      protocol.RunStatusPending,
+		Status:      automationdomain.RunStatusPending,
 		SessionKey:  sessionKey,
 		RoundID:     roundID,
 	}); err != nil {
@@ -189,7 +190,7 @@ func TestServiceRecoverTaskRunningRunReleasesStuckRuntime(t *testing.T) {
 	runningJob.Running = true
 	runningJob.RunningRunID = runID
 	runningJob.RunningStartedAt = &startedAt
-	runningJob.LastRunStatus = protocol.RunStatusRunning
+	runningJob.LastRunStatus = automationdomain.RunStatusRunning
 	service.replaceJobRuntimeState(runningJob)
 
 	recoveredAt := time.Date(2026, 5, 21, 9, 0, 0, 0, time.UTC)
@@ -203,7 +204,7 @@ func TestServiceRecoverTaskRunningRunReleasesStuckRuntime(t *testing.T) {
 	if recovered.Running || recovered.RunningRunID != "" || recovered.RunningStartedAt != nil {
 		t.Fatalf("运行占用未释放: %+v", recovered)
 	}
-	if recovered.LastRunStatus != protocol.RunStatusCancelled {
+	if recovered.LastRunStatus != automationdomain.RunStatusCancelled {
 		t.Fatalf("last_run_status = %s, 期望 cancelled", recovered.LastRunStatus)
 	}
 	if recovered.FailureStreak != 1 {
@@ -225,7 +226,7 @@ func TestServiceRecoverTaskRunningRunReleasesStuckRuntime(t *testing.T) {
 	if err = db.QueryRow(`SELECT status, error_message FROM automation_cron_runs WHERE run_id = ?`, runID).Scan(&runStatus, &runError); err != nil {
 		t.Fatalf("读取恢复后的 run 失败: %v", err)
 	}
-	if runStatus != protocol.RunStatusCancelled {
+	if runStatus != automationdomain.RunStatusCancelled {
 		t.Fatalf("run status = %s, 期望 cancelled", runStatus)
 	}
 	if !runError.Valid || !strings.Contains(runError.String, "手动释放") {
@@ -234,7 +235,7 @@ func TestServiceRecoverTaskRunningRunReleasesStuckRuntime(t *testing.T) {
 
 	lateFinished, err := service.repository.MarkRunFinishedIfActive(context.Background(), automationstore.RunFinishInput{
 		RunID:      runID,
-		Status:     protocol.RunStatusSucceeded,
+		Status:     automationdomain.RunStatusSucceeded,
 		FinishedAt: recoveredAt.Add(time.Minute),
 	})
 	if err != nil {
@@ -246,7 +247,7 @@ func TestServiceRecoverTaskRunningRunReleasesStuckRuntime(t *testing.T) {
 	if err = db.QueryRow(`SELECT status FROM automation_cron_runs WHERE run_id = ?`, runID).Scan(&runStatus); err != nil {
 		t.Fatalf("再次读取 run 状态失败: %v", err)
 	}
-	if runStatus != protocol.RunStatusCancelled {
+	if runStatus != automationdomain.RunStatusCancelled {
 		t.Fatalf("迟到完成覆盖了 run 状态: %s", runStatus)
 	}
 }
@@ -266,20 +267,20 @@ func TestServiceRecoverTaskRunningRunInterruptsRoomRuntime(t *testing.T) {
 		nil,
 	)
 	sessionKey := protocol.BuildRoomSharedSessionKey("conversation-1")
-	task, err := service.CreateTask(context.Background(), protocol.CreateJobInput{
+	task, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
 		Name:        "释放 Room 卡住运行",
 		AgentID:     "agent-1",
 		Instruction: "恢复 Room 卡住运行",
-		Schedule: protocol.Schedule{
-			Kind:            protocol.ScheduleKindEvery,
+		Schedule: automationdomain.Schedule{
+			Kind:            automationdomain.ScheduleKindEvery,
 			IntervalSeconds: intRef(3600),
 			Timezone:        "Asia/Shanghai",
 		},
-		SessionTarget: protocol.SessionTarget{
-			Kind:            protocol.SessionTargetBound,
+		SessionTarget: automationdomain.SessionTarget{
+			Kind:            automationdomain.SessionTargetBound,
 			BoundSessionKey: sessionKey,
 		},
-		Delivery: protocol.DeliveryTarget{Mode: protocol.DeliveryModeNone},
+		Delivery: automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
 		Enabled:  true,
 	})
 	if err != nil {
@@ -293,7 +294,7 @@ func TestServiceRecoverTaskRunningRunInterruptsRoomRuntime(t *testing.T) {
 		JobID:       task.JobID,
 		OwnerUserID: task.OwnerUserID,
 		TriggerKind: "manual",
-		Status:      protocol.RunStatusPending,
+		Status:      automationdomain.RunStatusPending,
 		SessionKey:  sessionKey,
 		RoundID:     "round-room-stuck",
 	}); err != nil {
@@ -306,14 +307,14 @@ func TestServiceRecoverTaskRunningRunInterruptsRoomRuntime(t *testing.T) {
 	runningJob.Running = true
 	runningJob.RunningRunID = runID
 	runningJob.RunningStartedAt = &startedAt
-	runningJob.LastRunStatus = protocol.RunStatusRunning
+	runningJob.LastRunStatus = automationdomain.RunStatusRunning
 	service.replaceJobRuntimeState(runningJob)
 
 	recovered, err := service.RecoverTaskRunningRun(context.Background(), task.JobID, runID)
 	if err != nil {
 		t.Fatalf("RecoverTaskRunningRun 失败: %v", err)
 	}
-	if recovered.Running || recovered.RunningRunID != "" || recovered.LastRunStatus != protocol.RunStatusCancelled {
+	if recovered.Running || recovered.RunningRunID != "" || recovered.LastRunStatus != automationdomain.RunStatusCancelled {
 		t.Fatalf("Room 运行占用未释放: %+v", recovered)
 	}
 	interrupts := room.Interrupts()
@@ -334,20 +335,20 @@ func TestServiceWatchdogRecoversTimedOutRunningRun(t *testing.T) {
 		&fakeWorkspaceReader{},
 		nil,
 	)
-	task, err := service.CreateTask(context.Background(), protocol.CreateJobInput{
+	task, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
 		Name:        "自动释放",
 		AgentID:     "agent-1",
 		Instruction: "恢复超时运行",
-		Schedule: protocol.Schedule{
-			Kind:            protocol.ScheduleKindEvery,
+		Schedule: automationdomain.Schedule{
+			Kind:            automationdomain.ScheduleKindEvery,
 			IntervalSeconds: intRef(3600),
 			Timezone:        "Asia/Shanghai",
 		},
-		SessionTarget: protocol.SessionTarget{
-			Kind: protocol.SessionTargetIsolated,
+		SessionTarget: automationdomain.SessionTarget{
+			Kind: automationdomain.SessionTargetIsolated,
 		},
-		Delivery: protocol.DeliveryTarget{Mode: protocol.DeliveryModeNone},
-		Source:   protocol.Source{Kind: protocol.SourceKindAgent, CreatorAgentID: "agent-1", ContextType: "agent", ContextID: "agent-1"},
+		Delivery: automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
+		Source:   automationdomain.Source{Kind: automationdomain.SourceKindAgent, CreatorAgentID: "agent-1", ContextType: "agent", ContextID: "agent-1"},
 		Enabled:  true,
 	})
 	if err != nil {
@@ -362,7 +363,7 @@ func TestServiceWatchdogRecoversTimedOutRunningRun(t *testing.T) {
 		JobID:       task.JobID,
 		OwnerUserID: task.OwnerUserID,
 		TriggerKind: "cron",
-		Status:      protocol.RunStatusPending,
+		Status:      automationdomain.RunStatusPending,
 	}); err != nil {
 		t.Fatalf("预置 pending run 失败: %v", err)
 	}
@@ -373,7 +374,7 @@ func TestServiceWatchdogRecoversTimedOutRunningRun(t *testing.T) {
 	runningJob.Running = true
 	runningJob.RunningRunID = runID
 	runningJob.RunningStartedAt = &startedAt
-	runningJob.LastRunStatus = protocol.RunStatusRunning
+	runningJob.LastRunStatus = automationdomain.RunStatusRunning
 	service.replaceJobRuntimeState(runningJob)
 	service.nowFn = func() time.Time {
 		return recoveredAt
@@ -391,7 +392,7 @@ func TestServiceWatchdogRecoversTimedOutRunningRun(t *testing.T) {
 	if recovered.Running || recovered.RunningRunID != "" || recovered.RunningStartedAt != nil {
 		t.Fatalf("超时运行占用未释放: %+v", recovered)
 	}
-	if recovered.LastRunStatus != protocol.RunStatusCancelled {
+	if recovered.LastRunStatus != automationdomain.RunStatusCancelled {
 		t.Fatalf("last_run_status = %s, 期望 cancelled", recovered.LastRunStatus)
 	}
 	if recovered.LastError == nil || !strings.Contains(*recovered.LastError, "自动释放运行占用") {
@@ -403,7 +404,7 @@ func TestServiceWatchdogRecoversTimedOutRunningRun(t *testing.T) {
 	if err = db.QueryRow(`SELECT status, error_message FROM automation_cron_runs WHERE run_id = ?`, runID).Scan(&runStatus, &runError); err != nil {
 		t.Fatalf("读取恢复后的 run 失败: %v", err)
 	}
-	if runStatus != protocol.RunStatusCancelled {
+	if runStatus != automationdomain.RunStatusCancelled {
 		t.Fatalf("run status = %s, 期望 cancelled", runStatus)
 	}
 	if !runError.Valid || !strings.Contains(runError.String, "自动释放运行占用") {
@@ -414,9 +415,9 @@ func TestServiceWatchdogRecoversTimedOutRunningRun(t *testing.T) {
 	if err != nil {
 		t.Fatalf("读取自动恢复事件失败: %v", err)
 	}
-	var recoverEvent *protocol.CronTaskEvent
+	var recoverEvent *automationdomain.CronTaskEvent
 	for index := range events {
-		if events[index].Action == protocol.TaskEventActionRecover {
+		if events[index].Action == automationdomain.TaskEventActionRecover {
 			recoverEvent = &events[index]
 			break
 		}

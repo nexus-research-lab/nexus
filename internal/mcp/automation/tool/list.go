@@ -6,10 +6,10 @@ import (
 
 	sdktool "github.com/nexus-research-lab/nexus/internal/mcp/sdktool"
 
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 	"github.com/nexus-research-lab/nexus/internal/mcp/automation/contract"
 	"github.com/nexus-research-lab/nexus/internal/mcp/automation/internal/argx"
 	"github.com/nexus-research-lab/nexus/internal/mcp/automation/internal/render"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 func list(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
@@ -41,7 +41,7 @@ func list(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 	}
 }
 
-func filterListedTasks(jobs []protocol.CronJob, args map[string]any, sctx contract.ServerContext) []protocol.CronJob {
+func filterListedTasks(jobs []automationdomain.CronJob, args map[string]any, sctx contract.ServerContext) []automationdomain.CronJob {
 	query := strings.TrimSpace(argx.String(args, "query"))
 	var enabledFilter *bool
 	if args != nil {
@@ -60,7 +60,7 @@ func filterListedTasks(jobs []protocol.CronJob, args map[string]any, sctx contra
 	if enabledFilter == nil {
 		return jobs
 	}
-	result := make([]protocol.CronJob, 0, len(jobs))
+	result := make([]automationdomain.CronJob, 0, len(jobs))
 	for _, job := range jobs {
 		if enabledFilter != nil && job.Enabled != *enabledFilter {
 			continue

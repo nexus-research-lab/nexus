@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 	"github.com/nexus-research-lab/nexus/internal/handler/websocket"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	automationsvc "github.com/nexus-research-lab/nexus/internal/service/automation"
@@ -29,7 +30,7 @@ func configureRealtimeInvalidation(
 	}
 	if services.Automation != nil {
 		services.Automation.SetTaskEventNotifier(automationsvc.TaskEventNotifierFunc(
-			func(ctx context.Context, event protocol.CronTaskEvent) {
+			func(ctx context.Context, event automationdomain.CronTaskEvent) {
 				broadcaster.BroadcastScheduledTaskChanged(ctx, event)
 			},
 		))

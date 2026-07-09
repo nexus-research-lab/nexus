@@ -36,18 +36,18 @@ func TestHeartbeatWakeDispatchesMainSession(t *testing.T) {
 		nil,
 	)
 
-	if _, err := service.UpdateHeartbeat(context.Background(), "agent-1", protocol.HeartbeatUpdateInput{
+	if _, err := service.UpdateHeartbeat(context.Background(), "agent-1", automationdomain.HeartbeatUpdateInput{
 		Enabled:      true,
 		EverySeconds: 1800,
-		TargetMode:   protocol.HeartbeatTargetNone,
+		TargetMode:   automationdomain.HeartbeatTargetNone,
 		AckMaxChars:  300,
 	}); err != nil {
 		t.Fatalf("UpdateHeartbeat 失败: %v", err)
 	}
 
 	text := "请额外检查告警列表"
-	result, err := service.WakeHeartbeat(context.Background(), "agent-1", protocol.HeartbeatWakeRequest{
-		Mode: protocol.WakeModeNow,
+	result, err := service.WakeHeartbeat(context.Background(), "agent-1", automationdomain.HeartbeatWakeInput{
+		Mode: automationdomain.WakeModeNow,
 		Text: &text,
 	})
 	if err != nil {
@@ -135,15 +135,15 @@ func TestHeartbeatWakeSuppressesHeartbeatOKDelivery(t *testing.T) {
 		router,
 	)
 
-	if _, err := service.UpdateHeartbeat(context.Background(), "agent-1", protocol.HeartbeatUpdateInput{
+	if _, err := service.UpdateHeartbeat(context.Background(), "agent-1", automationdomain.HeartbeatUpdateInput{
 		Enabled:      true,
 		EverySeconds: 1800,
-		TargetMode:   protocol.HeartbeatTargetLast,
+		TargetMode:   automationdomain.HeartbeatTargetLast,
 		AckMaxChars:  300,
 	}); err != nil {
 		t.Fatalf("UpdateHeartbeat 失败: %v", err)
 	}
-	if _, err := service.WakeHeartbeat(context.Background(), "agent-1", protocol.HeartbeatWakeRequest{Mode: protocol.WakeModeNow}); err != nil {
+	if _, err := service.WakeHeartbeat(context.Background(), "agent-1", automationdomain.HeartbeatWakeInput{Mode: automationdomain.WakeModeNow}); err != nil {
 		t.Fatalf("WakeHeartbeat 失败: %v", err)
 	}
 	waitFor(t, 2*time.Second, func() bool {
@@ -190,7 +190,7 @@ func TestBuildHeartbeatInstructionUsesTasksAndDeduplicatesWakeText(t *testing.T)
 	instruction, err := service.buildHeartbeatInstruction(
 		context.Background(),
 		"agent-1",
-		[]protocol.SystemEvent{
+		[]automationdomain.SystemEvent{
 			{
 				EventID:    "evt-1",
 				EventType:  "heartbeat.wake",
@@ -203,7 +203,7 @@ func TestBuildHeartbeatInstructionUsesTasksAndDeduplicatesWakeText(t *testing.T)
 			{
 				AgentID:    "agent-1",
 				SessionKey: automationdomain.BuildMainSessionKey("agent-1"),
-				WakeMode:   protocol.WakeModeNow,
+				WakeMode:   automationdomain.WakeModeNow,
 				Text:       "urgent ping",
 			},
 		},
@@ -211,7 +211,7 @@ func TestBuildHeartbeatInstructionUsesTasksAndDeduplicatesWakeText(t *testing.T)
 			{
 				AgentID:    "agent-1",
 				SessionKey: automationdomain.BuildMainSessionKey("agent-1"),
-				WakeMode:   protocol.WakeModeNextHeartbeat,
+				WakeMode:   automationdomain.WakeModeNextHeartbeat,
 				Text:       "follow up soon",
 			},
 		},
@@ -251,7 +251,7 @@ func TestBuildHeartbeatInstructionFallsBackToEventTypeWhenTextMissing(t *testing
 	instruction, err := service.buildHeartbeatInstruction(
 		context.Background(),
 		"agent-1",
-		[]protocol.SystemEvent{
+		[]automationdomain.SystemEvent{
 			{
 				EventID:    "evt-1",
 				EventType:  "cron.trigger",
@@ -289,11 +289,11 @@ func TestGetHeartbeatStatusDegradesPersistedExplicitTargetMode(t *testing.T) {
 	err := service.repository.UpsertHeartbeatState(
 		context.Background(),
 		"hb_1",
-		protocol.HeartbeatConfig{
+		automationdomain.HeartbeatConfig{
 			AgentID:      "agent-1",
 			Enabled:      true,
 			EverySeconds: 120,
-			TargetMode:   protocol.HeartbeatTargetExplicit,
+			TargetMode:   automationdomain.HeartbeatTargetExplicit,
 			AckMaxChars:  80,
 		},
 		nil,
@@ -307,7 +307,7 @@ func TestGetHeartbeatStatusDegradesPersistedExplicitTargetMode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetHeartbeatStatus 失败: %v", err)
 	}
-	if status.TargetMode != protocol.HeartbeatTargetNone {
+	if status.TargetMode != automationdomain.HeartbeatTargetNone {
 		t.Fatalf("explicit 应降级为 none，实际 %s", status.TargetMode)
 	}
 	if status.DeliveryError == nil || *status.DeliveryError != heartbeatExplicitTargetUnsupportedMessage {
@@ -341,17 +341,17 @@ func TestWakeHeartbeatNextHeartbeatDoesNotDispatchBeforeDueTime(t *testing.T) {
 	}
 	defer service.Stop()
 
-	if _, err := service.UpdateHeartbeat(context.Background(), "agent-1", protocol.HeartbeatUpdateInput{
+	if _, err := service.UpdateHeartbeat(context.Background(), "agent-1", automationdomain.HeartbeatUpdateInput{
 		Enabled:      true,
 		EverySeconds: 120,
-		TargetMode:   protocol.HeartbeatTargetNone,
+		TargetMode:   automationdomain.HeartbeatTargetNone,
 		AckMaxChars:  300,
 	}); err != nil {
 		t.Fatalf("UpdateHeartbeat 失败: %v", err)
 	}
 
-	if _, err := service.WakeHeartbeat(context.Background(), "agent-1", protocol.HeartbeatWakeRequest{
-		Mode: protocol.WakeModeNextHeartbeat,
+	if _, err := service.WakeHeartbeat(context.Background(), "agent-1", automationdomain.HeartbeatWakeInput{
+		Mode: automationdomain.WakeModeNextHeartbeat,
 		Text: stringRef("follow up later"),
 	}); err != nil {
 		t.Fatalf("WakeHeartbeat 失败: %v", err)
@@ -382,10 +382,10 @@ func TestWakeHeartbeatNowWhileRunningKeepsPendingWakeAndQueuedRequest(t *testing
 		&fakeWorkspaceReader{},
 		nil,
 	)
-	if _, err := service.UpdateHeartbeat(context.Background(), "agent-1", protocol.HeartbeatUpdateInput{
+	if _, err := service.UpdateHeartbeat(context.Background(), "agent-1", automationdomain.HeartbeatUpdateInput{
 		Enabled:      true,
 		EverySeconds: 60,
-		TargetMode:   protocol.HeartbeatTargetNone,
+		TargetMode:   automationdomain.HeartbeatTargetNone,
 		AckMaxChars:  300,
 	}); err != nil {
 		t.Fatalf("UpdateHeartbeat 失败: %v", err)
@@ -401,8 +401,8 @@ func TestWakeHeartbeatNowWhileRunningKeepsPendingWakeAndQueuedRequest(t *testing
 	state.PendingWake = false
 	service.mu.Unlock()
 
-	result, err := service.WakeHeartbeat(context.Background(), "agent-1", protocol.HeartbeatWakeRequest{
-		Mode: protocol.WakeModeNow,
+	result, err := service.WakeHeartbeat(context.Background(), "agent-1", automationdomain.HeartbeatWakeInput{
+		Mode: automationdomain.WakeModeNow,
 	})
 	if err != nil {
 		t.Fatalf("WakeHeartbeat 失败: %v", err)
@@ -419,7 +419,7 @@ func TestWakeHeartbeatNowWhileRunningKeepsPendingWakeAndQueuedRequest(t *testing
 		t.Fatalf("running 状态下 wake-now 应保留 pending_wake=true")
 	}
 	items := service.wakeRequests[automationdomain.BuildMainSessionKey("agent-1")]
-	if len(items) != 1 || items[0].WakeMode != protocol.WakeModeNow {
+	if len(items) != 1 || items[0].WakeMode != automationdomain.WakeModeNow {
 		t.Fatalf("running 状态下 wake-now 应继续排队等待下一轮消费: %+v", items)
 	}
 }
@@ -438,10 +438,10 @@ func TestHeartbeatStatusRunningReflectsHeartbeatExecutionState(t *testing.T) {
 		nil,
 	)
 
-	if _, err := service.UpdateHeartbeat(context.Background(), "agent-1", protocol.HeartbeatUpdateInput{
+	if _, err := service.UpdateHeartbeat(context.Background(), "agent-1", automationdomain.HeartbeatUpdateInput{
 		Enabled:      true,
 		EverySeconds: 60,
-		TargetMode:   protocol.HeartbeatTargetNone,
+		TargetMode:   automationdomain.HeartbeatTargetNone,
 		AckMaxChars:  300,
 	}); err != nil {
 		t.Fatalf("UpdateHeartbeat 失败: %v", err)
@@ -500,15 +500,15 @@ func TestWakeRequestBookkeepingPreservesQueuedRequests(t *testing.T) {
 	sessionKey := automationdomain.BuildMainSessionKey("agent-1")
 	first := "first"
 	second := "second"
-	service.recordWakeRequest("agent-1", sessionKey, protocol.WakeModeNow, &first)
-	service.recordWakeRequest("agent-1", sessionKey, protocol.WakeModeNow, &second)
-	service.recordWakeRequest("agent-1", sessionKey, protocol.WakeModeNextHeartbeat, nil)
+	service.recordWakeRequest("agent-1", sessionKey, automationdomain.WakeModeNow, &first)
+	service.recordWakeRequest("agent-1", sessionKey, automationdomain.WakeModeNow, &second)
+	service.recordWakeRequest("agent-1", sessionKey, automationdomain.WakeModeNextHeartbeat, nil)
 
 	items := service.wakeRequests[sessionKey]
 	if len(items) != 3 {
 		t.Fatalf("同 session 的 wake request 不应被覆盖，实际条目 %d", len(items))
 	}
-	if items[0].Text != "first" || items[1].Text != "second" || items[2].WakeMode != protocol.WakeModeNextHeartbeat {
+	if items[0].Text != "first" || items[1].Text != "second" || items[2].WakeMode != automationdomain.WakeModeNextHeartbeat {
 		t.Fatalf("wake request 应按到达顺序保留: %+v", items)
 	}
 }
@@ -526,7 +526,7 @@ func TestTakeWakeRequestsKeepsRequestsArrivingAfterDispatchStarts(t *testing.T) 
 	)
 	sessionKey := automationdomain.BuildMainSessionKey("agent-1")
 	first := "first"
-	service.recordWakeRequest("agent-1", sessionKey, protocol.WakeModeNow, &first)
+	service.recordWakeRequest("agent-1", sessionKey, automationdomain.WakeModeNow, &first)
 
 	immediate, deferred := service.takeWakeRequests("agent-1", sessionKey)
 	if len(immediate) != 1 || len(deferred) != 0 {
@@ -534,7 +534,7 @@ func TestTakeWakeRequestsKeepsRequestsArrivingAfterDispatchStarts(t *testing.T) 
 	}
 
 	second := "second"
-	service.recordWakeRequest("agent-1", sessionKey, protocol.WakeModeNow, &second)
+	service.recordWakeRequest("agent-1", sessionKey, automationdomain.WakeModeNow, &second)
 	remaining := service.wakeRequests[sessionKey]
 	if len(remaining) != 1 || remaining[0].Text != "second" {
 		t.Fatalf("dispatch 开始后新增的 wake request 应保留到下一轮: %+v", remaining)
@@ -559,10 +559,10 @@ func TestHeartbeatDispatchClaimsEventsByPayloadAgentID(t *testing.T) {
 		},
 		nil,
 	)
-	if _, err := service.UpdateHeartbeat(context.Background(), "agent-1", protocol.HeartbeatUpdateInput{
+	if _, err := service.UpdateHeartbeat(context.Background(), "agent-1", automationdomain.HeartbeatUpdateInput{
 		Enabled:      true,
 		EverySeconds: 60,
-		TargetMode:   protocol.HeartbeatTargetNone,
+		TargetMode:   automationdomain.HeartbeatTargetNone,
 		AckMaxChars:  300,
 	}); err != nil {
 		t.Fatalf("UpdateHeartbeat 失败: %v", err)
@@ -580,8 +580,8 @@ func TestHeartbeatDispatchClaimsEventsByPayloadAgentID(t *testing.T) {
 	); err != nil {
 		t.Fatalf("预置 system event 失败: %v", err)
 	}
-	if _, err := service.WakeHeartbeat(context.Background(), "agent-1", protocol.HeartbeatWakeRequest{
-		Mode: protocol.WakeModeNow,
+	if _, err := service.WakeHeartbeat(context.Background(), "agent-1", automationdomain.HeartbeatWakeInput{
+		Mode: automationdomain.WakeModeNow,
 	}); err != nil {
 		t.Fatalf("WakeHeartbeat 失败: %v", err)
 	}

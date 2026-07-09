@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
@@ -28,17 +29,17 @@ func TestDisableTaskPreservesActiveRunForRecovery(t *testing.T) {
 		&fakeWorkspaceReader{},
 		nil,
 	)
-	task, err := service.CreateTask(context.Background(), protocol.CreateJobInput{
+	task, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
 		Name:        "停用运行中任务",
 		AgentID:     "agent-1",
 		Instruction: "正在运行时被停用",
-		Schedule: protocol.Schedule{
-			Kind:            protocol.ScheduleKindEvery,
+		Schedule: automationdomain.Schedule{
+			Kind:            automationdomain.ScheduleKindEvery,
 			IntervalSeconds: intRef(3600),
 			Timezone:        "Asia/Shanghai",
 		},
-		SessionTarget: protocol.SessionTarget{Kind: protocol.SessionTargetIsolated},
-		Delivery:      protocol.DeliveryTarget{Mode: protocol.DeliveryModeNone},
+		SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetIsolated},
+		Delivery:      automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
 		Enabled:       true,
 	})
 	if err != nil {
@@ -52,7 +53,7 @@ func TestDisableTaskPreservesActiveRunForRecovery(t *testing.T) {
 		JobID:       task.JobID,
 		OwnerUserID: task.OwnerUserID,
 		TriggerKind: "manual",
-		Status:      protocol.RunStatusPending,
+		Status:      automationdomain.RunStatusPending,
 	}); err != nil {
 		t.Fatalf("预置 pending run 失败: %v", err)
 	}
@@ -63,7 +64,7 @@ func TestDisableTaskPreservesActiveRunForRecovery(t *testing.T) {
 	runningJob.Running = true
 	runningJob.RunningRunID = runID
 	runningJob.RunningStartedAt = &startedAt
-	runningJob.LastRunStatus = protocol.RunStatusRunning
+	runningJob.LastRunStatus = automationdomain.RunStatusRunning
 	service.replaceJobRuntimeState(runningJob)
 
 	disabled, err := service.UpdateTaskStatus(context.Background(), task.JobID, false)
@@ -96,9 +97,9 @@ func TestDisableTaskPreservesActiveRunForRecovery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListTaskEvents 失败: %v", err)
 	}
-	var disableEvent *protocol.CronTaskEvent
+	var disableEvent *automationdomain.CronTaskEvent
 	for index := range events {
-		if events[index].Action == protocol.TaskEventActionDisable {
+		if events[index].Action == automationdomain.TaskEventActionDisable {
 			disableEvent = &events[index]
 			break
 		}
@@ -121,7 +122,7 @@ func TestDisableTaskPreservesActiveRunForRecovery(t *testing.T) {
 	if err = db.QueryRow(`SELECT status FROM automation_cron_runs WHERE run_id = ?`, runID).Scan(&runStatus); err != nil {
 		t.Fatalf("读取恢复后的 run 失败: %v", err)
 	}
-	if runStatus != protocol.RunStatusCancelled {
+	if runStatus != automationdomain.RunStatusCancelled {
 		t.Fatalf("run status = %s, 期望 cancelled", runStatus)
 	}
 }
@@ -140,17 +141,17 @@ func TestDeleteTaskCancelsActiveRun(t *testing.T) {
 		&fakeWorkspaceReader{},
 		nil,
 	)
-	task, err := service.CreateTask(context.Background(), protocol.CreateJobInput{
+	task, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
 		Name:        "删除运行中任务",
 		AgentID:     "agent-1",
 		Instruction: "正在运行时被删除",
-		Schedule: protocol.Schedule{
-			Kind:            protocol.ScheduleKindEvery,
+		Schedule: automationdomain.Schedule{
+			Kind:            automationdomain.ScheduleKindEvery,
 			IntervalSeconds: intRef(3600),
 			Timezone:        "Asia/Shanghai",
 		},
-		SessionTarget: protocol.SessionTarget{Kind: protocol.SessionTargetIsolated},
-		Delivery:      protocol.DeliveryTarget{Mode: protocol.DeliveryModeNone},
+		SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetIsolated},
+		Delivery:      automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
 		Enabled:       true,
 	})
 	if err != nil {
@@ -166,7 +167,7 @@ func TestDeleteTaskCancelsActiveRun(t *testing.T) {
 		JobID:       task.JobID,
 		OwnerUserID: task.OwnerUserID,
 		TriggerKind: "manual",
-		Status:      protocol.RunStatusPending,
+		Status:      automationdomain.RunStatusPending,
 		SessionKey:  sessionKey,
 		RoundID:     roundID,
 	}); err != nil {
@@ -179,7 +180,7 @@ func TestDeleteTaskCancelsActiveRun(t *testing.T) {
 	runningJob.Running = true
 	runningJob.RunningRunID = runID
 	runningJob.RunningStartedAt = &startedAt
-	runningJob.LastRunStatus = protocol.RunStatusRunning
+	runningJob.LastRunStatus = automationdomain.RunStatusRunning
 	service.replaceJobRuntimeState(runningJob)
 
 	deletedAt := time.Date(2026, 5, 21, 9, 0, 0, 0, time.UTC)
@@ -208,7 +209,7 @@ func TestDeleteTaskCancelsActiveRun(t *testing.T) {
 	if err = db.QueryRow(`SELECT status, error_message, finished_at FROM automation_cron_runs WHERE run_id = ?`, runID).Scan(&runStatus, &runError, &finishedAt); err != nil {
 		t.Fatalf("读取删除后的 run 失败: %v", err)
 	}
-	if runStatus != protocol.RunStatusCancelled {
+	if runStatus != automationdomain.RunStatusCancelled {
 		t.Fatalf("run status = %s, 期望 cancelled", runStatus)
 	}
 	if !runError.Valid || !strings.Contains(runError.String, "deleted") {
@@ -227,7 +228,7 @@ func TestDeleteTaskCancelsActiveRun(t *testing.T) {
 
 	lateFinished, err := service.repository.MarkRunFinishedIfActive(context.Background(), automationstore.RunFinishInput{
 		RunID:      runID,
-		Status:     protocol.RunStatusSucceeded,
+		Status:     automationdomain.RunStatusSucceeded,
 		FinishedAt: deletedAt.Add(time.Minute),
 	})
 	if err != nil {
@@ -239,7 +240,7 @@ func TestDeleteTaskCancelsActiveRun(t *testing.T) {
 	if err = db.QueryRow(`SELECT status FROM automation_cron_runs WHERE run_id = ?`, runID).Scan(&runStatus); err != nil {
 		t.Fatalf("再次读取 run 状态失败: %v", err)
 	}
-	if runStatus != protocol.RunStatusCancelled {
+	if runStatus != automationdomain.RunStatusCancelled {
 		t.Fatalf("迟到完成覆盖了 run status: %s", runStatus)
 	}
 
@@ -247,9 +248,9 @@ func TestDeleteTaskCancelsActiveRun(t *testing.T) {
 	if err != nil {
 		t.Fatalf("删除后 ListTaskEvents 失败: %v", err)
 	}
-	var deleteEvent *protocol.CronTaskEvent
+	var deleteEvent *automationdomain.CronTaskEvent
 	for index := range events {
-		if events[index].Action == protocol.TaskEventActionDelete {
+		if events[index].Action == automationdomain.TaskEventActionDelete {
 			deleteEvent = &events[index]
 			break
 		}
@@ -280,20 +281,20 @@ func TestDeleteTaskInterruptsActiveRoomRun(t *testing.T) {
 		nil,
 	)
 	sessionKey := protocol.BuildRoomSharedSessionKey("conversation-1")
-	task, err := service.CreateTask(context.Background(), protocol.CreateJobInput{
+	task, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
 		Name:        "删除运行中的 Room 任务",
 		AgentID:     "agent-1",
 		Instruction: "在 Room 中执行后删除",
-		Schedule: protocol.Schedule{
-			Kind:            protocol.ScheduleKindEvery,
+		Schedule: automationdomain.Schedule{
+			Kind:            automationdomain.ScheduleKindEvery,
 			IntervalSeconds: intRef(3600),
 			Timezone:        "Asia/Shanghai",
 		},
-		SessionTarget: protocol.SessionTarget{
-			Kind:            protocol.SessionTargetBound,
+		SessionTarget: automationdomain.SessionTarget{
+			Kind:            automationdomain.SessionTargetBound,
 			BoundSessionKey: sessionKey,
 		},
-		Delivery: protocol.DeliveryTarget{Mode: protocol.DeliveryModeNone},
+		Delivery: automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
 		Enabled:  true,
 	})
 	if err != nil {
@@ -307,7 +308,7 @@ func TestDeleteTaskInterruptsActiveRoomRun(t *testing.T) {
 		JobID:       task.JobID,
 		OwnerUserID: task.OwnerUserID,
 		TriggerKind: "manual",
-		Status:      protocol.RunStatusPending,
+		Status:      automationdomain.RunStatusPending,
 		SessionKey:  sessionKey,
 		RoundID:     "round-delete-room-active",
 	}); err != nil {
@@ -320,7 +321,7 @@ func TestDeleteTaskInterruptsActiveRoomRun(t *testing.T) {
 	runningJob.Running = true
 	runningJob.RunningRunID = runID
 	runningJob.RunningStartedAt = &startedAt
-	runningJob.LastRunStatus = protocol.RunStatusRunning
+	runningJob.LastRunStatus = automationdomain.RunStatusRunning
 	service.replaceJobRuntimeState(runningJob)
 
 	result, err := service.DeleteTask(context.Background(), task.JobID)
@@ -352,17 +353,17 @@ func TestDeleteTaskCleansIsolatedAutomationSessions(t *testing.T) {
 	)
 	runtimeCloser := &fakeRuntimeSessionCloser{}
 	service.SetRuntimeSessionCloser(runtimeCloser)
-	task, err := service.CreateTask(context.Background(), protocol.CreateJobInput{
+	task, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
 		Name:        "cleanup-target",
 		AgentID:     "agent-1",
 		Instruction: "cleanup",
-		Schedule: protocol.Schedule{
-			Kind:            protocol.ScheduleKindEvery,
+		Schedule: automationdomain.Schedule{
+			Kind:            automationdomain.ScheduleKindEvery,
 			IntervalSeconds: intRef(60),
 			Timezone:        "Asia/Shanghai",
 		},
-		SessionTarget: protocol.SessionTarget{Kind: protocol.SessionTargetIsolated},
-		Delivery:      protocol.DeliveryTarget{Mode: protocol.DeliveryModeNone},
+		SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetIsolated},
+		Delivery:      automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
 		Enabled:       true,
 	})
 	if err != nil {

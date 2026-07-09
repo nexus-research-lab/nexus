@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -27,7 +28,7 @@ func TestAutomationMCPManageTaskLifecycleByQuery(t *testing.T) {
 	if isError {
 		t.Fatalf("create_scheduled_task 不应失败: %s", automationMCPToolText(t, createResult))
 	}
-	created := decodeAutomationMCPJSON[protocol.CronJob](t, createResult)
+	created := decodeAutomationMCPJSON[automationdomain.CronJob](t, createResult)
 
 	agent3InboxKey := protocol.BuildAgentSessionKey(
 		"agent-3",
@@ -50,7 +51,7 @@ func TestAutomationMCPManageTaskLifecycleByQuery(t *testing.T) {
 	if isError {
 		t.Fatalf("update_scheduled_task by query 不应失败: %s", automationMCPToolText(t, updateResult))
 	}
-	updated := decodeAutomationMCPJSON[protocol.CronJob](t, updateResult)
+	updated := decodeAutomationMCPJSON[automationdomain.CronJob](t, updateResult)
 	if updated.JobID != created.JobID {
 		t.Fatalf("update query 应定位原任务，updated=%+v created=%+v", updated, created)
 	}
@@ -70,7 +71,7 @@ func TestAutomationMCPManageTaskLifecycleByQuery(t *testing.T) {
 	if isError {
 		t.Fatalf("disable_scheduled_task by query 不应失败: %s", automationMCPToolText(t, disableResult))
 	}
-	disabled := decodeAutomationMCPJSON[protocol.CronJob](t, disableResult)
+	disabled := decodeAutomationMCPJSON[automationdomain.CronJob](t, disableResult)
 	if disabled.JobID != created.JobID || disabled.Enabled {
 		t.Fatalf("disable query 应停用原任务，实际 %+v", disabled)
 	}
@@ -81,7 +82,7 @@ func TestAutomationMCPManageTaskLifecycleByQuery(t *testing.T) {
 	if isError {
 		t.Fatalf("enable_scheduled_task by query 不应失败: %s", automationMCPToolText(t, enableResult))
 	}
-	enabled := decodeAutomationMCPJSON[protocol.CronJob](t, enableResult)
+	enabled := decodeAutomationMCPJSON[automationdomain.CronJob](t, enableResult)
 	if enabled.JobID != created.JobID || !enabled.Enabled {
 		t.Fatalf("enable query 应重新启用原任务，实际 %+v", enabled)
 	}
@@ -93,7 +94,7 @@ func TestAutomationMCPManageTaskLifecycleByQuery(t *testing.T) {
 	if isError {
 		t.Fatalf("get_scheduled_task_status by query 不应失败: %s", automationMCPToolText(t, statusResult))
 	}
-	status := decodeAutomationMCPJSON[protocol.CronTaskStatus](t, statusResult)
+	status := decodeAutomationMCPJSON[automationdomain.CronTaskStatus](t, statusResult)
 	if status.Job.JobID != created.JobID || !status.Job.Enabled {
 		t.Fatalf("status query 应看到重新启用后的任务状态，实际 %+v", status.Job)
 	}
@@ -104,7 +105,7 @@ func TestAutomationMCPManageTaskLifecycleByQuery(t *testing.T) {
 	if isError {
 		t.Fatalf("delete_scheduled_task by query 不应失败: %s", automationMCPToolText(t, deleteResult))
 	}
-	deleted := decodeAutomationMCPJSON[protocol.DeleteJobResult](t, deleteResult)
+	deleted := decodeAutomationMCPJSON[automationdomain.DeleteJobResult](t, deleteResult)
 	if deleted.JobID != created.JobID || !deleted.Deleted {
 		t.Fatalf("delete query 应删除原任务，实际 %+v", deleted)
 	}
@@ -144,7 +145,7 @@ func TestAutomationMCPDisableCanStopActiveRunByQuery(t *testing.T) {
 	if isError {
 		t.Fatalf("create_scheduled_task 不应失败: %s", automationMCPToolText(t, createResult))
 	}
-	created := decodeAutomationMCPJSON[protocol.CronJob](t, createResult)
+	created := decodeAutomationMCPJSON[automationdomain.CronJob](t, createResult)
 
 	runResult, isError := callAutomationMCPTool(t, fixture.Service, fixture.ServerContext, "run_scheduled_task", map[string]any{
 		"query": "正在运行的新闻任务",
@@ -152,7 +153,7 @@ func TestAutomationMCPDisableCanStopActiveRunByQuery(t *testing.T) {
 	if isError {
 		t.Fatalf("run_scheduled_task by query 不应失败: %s", automationMCPToolText(t, runResult))
 	}
-	runNow := decodeAutomationMCPJSON[protocol.ExecutionResult](t, runResult)
+	runNow := decodeAutomationMCPJSON[automationdomain.ExecutionResult](t, runResult)
 	if runNow.RunID == nil || *runNow.RunID == "" {
 		t.Fatalf("run_scheduled_task 应返回 active run_id: %+v", runNow)
 	}
@@ -170,11 +171,11 @@ func TestAutomationMCPDisableCanStopActiveRunByQuery(t *testing.T) {
 	if isError {
 		t.Fatalf("disable_scheduled_task cancel_active_run 不应失败: %s", automationMCPToolText(t, disableResult))
 	}
-	stopped := decodeAutomationMCPJSON[protocol.CronJob](t, disableResult)
+	stopped := decodeAutomationMCPJSON[automationdomain.CronJob](t, disableResult)
 	if stopped.Enabled || stopped.Running || stopped.RunningRunID != "" {
 		t.Fatalf("停止当前 run 后任务应停用且清空 running: %+v", stopped)
 	}
-	if stopped.LastRunStatus != protocol.RunStatusCancelled {
+	if stopped.LastRunStatus != automationdomain.RunStatusCancelled {
 		t.Fatalf("停止当前 run 后 last_run_status 应为 cancelled: %+v", stopped)
 	}
 	interrupts := fixture.DM.Interrupts()
@@ -184,14 +185,14 @@ func TestAutomationMCPDisableCanStopActiveRunByQuery(t *testing.T) {
 
 	waitFor(t, 2*time.Second, func() bool {
 		runs, err := fixture.Service.ListTaskRuns(ownerCtx, created.JobID)
-		return err == nil && len(runs) > 0 && runs[0].RunID == runID && runs[0].Status == protocol.RunStatusCancelled
+		return err == nil && len(runs) > 0 && runs[0].RunID == runID && runs[0].Status == automationdomain.RunStatusCancelled
 	})
 	time.Sleep(350 * time.Millisecond)
 	runs, err := fixture.Service.ListTaskRuns(ownerCtx, created.JobID)
 	if err != nil || len(runs) == 0 {
 		t.Fatalf("读取停止后的 run 失败: runs=%+v err=%v", runs, err)
 	}
-	if runs[0].RunID != runID || runs[0].Status != protocol.RunStatusCancelled {
+	if runs[0].RunID != runID || runs[0].Status != automationdomain.RunStatusCancelled {
 		t.Fatalf("迟到执行结果不应覆盖 cancelled run: %+v", runs)
 	}
 
@@ -200,10 +201,10 @@ func TestAutomationMCPDisableCanStopActiveRunByQuery(t *testing.T) {
 		t.Fatalf("停止后应能读取管理审计: %v", err)
 	}
 	assertTaskEventsInclude(t, events, created.JobID,
-		protocol.TaskEventActionCreate,
-		protocol.TaskEventActionRunNow,
-		protocol.TaskEventActionDisable,
-		protocol.TaskEventActionRecover,
+		automationdomain.TaskEventActionCreate,
+		automationdomain.TaskEventActionRunNow,
+		automationdomain.TaskEventActionDisable,
+		automationdomain.TaskEventActionRecover,
 	)
 }
 
@@ -231,7 +232,7 @@ func TestAutomationMCPTaskEventsRecordCurrentActorAgent(t *testing.T) {
 	if isError {
 		t.Fatalf("create_scheduled_task 不应失败: %s", automationMCPToolText(t, createResult))
 	}
-	created := decodeAutomationMCPJSON[protocol.CronJob](t, createResult)
+	created := decodeAutomationMCPJSON[automationdomain.CronJob](t, createResult)
 	if created.AgentID != "agent-2" || created.Source.CreatorAgentID != "agent-2" {
 		t.Fatalf("测试前置任务归属不正确: %+v", created)
 	}
@@ -257,25 +258,25 @@ func TestAutomationMCPTaskEventsRecordCurrentActorAgent(t *testing.T) {
 	for _, event := range events {
 		actorsByAction[event.Action] = event.ActorAgentID
 	}
-	if actorsByAction[protocol.TaskEventActionCreate] != "agent-2" {
+	if actorsByAction[automationdomain.TaskEventActionCreate] != "agent-2" {
 		t.Fatalf("创建事件应记录创建 Agent，events=%+v", events)
 	}
-	if actorsByAction[protocol.TaskEventActionDisable] != "nexus" {
+	if actorsByAction[automationdomain.TaskEventActionDisable] != "nexus" {
 		t.Fatalf("停用事件应记录本次调用的主智能体，而不是原创建者: %+v", events)
 	}
 }
 
-func assertTaskLifecycleEvents(t *testing.T, events []protocol.CronTaskEvent, jobID string) {
+func assertTaskLifecycleEvents(t *testing.T, events []automationdomain.CronTaskEvent, jobID string) {
 	t.Helper()
 	assertTaskEventsInclude(t, events, jobID,
-		protocol.TaskEventActionCreate,
-		protocol.TaskEventActionUpdate,
-		protocol.TaskEventActionDisable,
-		protocol.TaskEventActionDelete,
+		automationdomain.TaskEventActionCreate,
+		automationdomain.TaskEventActionUpdate,
+		automationdomain.TaskEventActionDisable,
+		automationdomain.TaskEventActionDelete,
 	)
 }
 
-func assertTaskEventsInclude(t *testing.T, events []protocol.CronTaskEvent, jobID string, expectedActions ...string) {
+func assertTaskEventsInclude(t *testing.T, events []automationdomain.CronTaskEvent, jobID string, expectedActions ...string) {
 	t.Helper()
 	actions := map[string]bool{}
 	for _, event := range events {

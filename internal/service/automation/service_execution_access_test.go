@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -97,33 +98,33 @@ func TestServiceListTasksScopesByOwnerUserID(t *testing.T) {
 	ctxUser1 := authctx.WithPrincipal(context.Background(), &authctx.Principal{UserID: "user-1", Username: "user-1"})
 	ctxUser2 := authctx.WithPrincipal(context.Background(), &authctx.Principal{UserID: "user-2", Username: "user-2"})
 
-	taskUser1, err := service.CreateTask(ctxUser1, protocol.CreateJobInput{
+	taskUser1, err := service.CreateTask(ctxUser1, automationdomain.CreateJobInput{
 		Name:        "用户 1 任务",
 		AgentID:     "agent-1",
 		Instruction: "user 1",
-		Schedule: protocol.Schedule{
-			Kind:            protocol.ScheduleKindEvery,
+		Schedule: automationdomain.Schedule{
+			Kind:            automationdomain.ScheduleKindEvery,
 			IntervalSeconds: intRef(3600),
 			Timezone:        "Asia/Shanghai",
 		},
-		SessionTarget: protocol.SessionTarget{Kind: protocol.SessionTargetIsolated},
-		Delivery:      protocol.DeliveryTarget{Mode: protocol.DeliveryModeNone},
+		SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetIsolated},
+		Delivery:      automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
 		Enabled:       true,
 	})
 	if err != nil {
 		t.Fatalf("创建 user-1 任务失败: %v", err)
 	}
-	if _, err = service.CreateTask(ctxUser2, protocol.CreateJobInput{
+	if _, err = service.CreateTask(ctxUser2, automationdomain.CreateJobInput{
 		Name:        "用户 2 任务",
 		AgentID:     "agent-1",
 		Instruction: "user 2",
-		Schedule: protocol.Schedule{
-			Kind:            protocol.ScheduleKindEvery,
+		Schedule: automationdomain.Schedule{
+			Kind:            automationdomain.ScheduleKindEvery,
 			IntervalSeconds: intRef(3600),
 			Timezone:        "Asia/Shanghai",
 		},
-		SessionTarget: protocol.SessionTarget{Kind: protocol.SessionTargetIsolated},
-		Delivery:      protocol.DeliveryTarget{Mode: protocol.DeliveryModeNone},
+		SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetIsolated},
+		Delivery:      automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
 		Enabled:       true,
 	}); err != nil {
 		t.Fatalf("创建 user-2 任务失败: %v", err)

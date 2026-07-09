@@ -4,8 +4,8 @@ import (
 	"context"
 	"strings"
 
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 func scopedOwnerUserID(ctx context.Context) (string, bool) {
@@ -13,7 +13,7 @@ func scopedOwnerUserID(ctx context.Context) (string, bool) {
 }
 
 // ListTasks 列出任务。
-func (s *Service) ListTasks(ctx context.Context, agentID string) ([]protocol.CronJob, error) {
+func (s *Service) ListTasks(ctx context.Context, agentID string) ([]automationdomain.CronJob, error) {
 	if err := s.ensureReady(ctx); err != nil {
 		return nil, err
 	}
@@ -22,7 +22,7 @@ func (s *Service) ListTasks(ctx context.Context, agentID string) ([]protocol.Cro
 	if err != nil {
 		return nil, err
 	}
-	result := make([]protocol.CronJob, 0, len(items))
+	result := make([]automationdomain.CronJob, 0, len(items))
 	for _, item := range items {
 		state := s.ensureJobState(item)
 		enriched := item
@@ -50,7 +50,7 @@ func (s *Service) CountEnabledTasks(ctx context.Context, agentID string) (int, e
 }
 
 // GetTask 按 job_id 读取任务。返回 nil 表示未找到。
-func (s *Service) GetTask(ctx context.Context, jobID string) (*protocol.CronJob, error) {
+func (s *Service) GetTask(ctx context.Context, jobID string) (*automationdomain.CronJob, error) {
 	if err := s.ensureReady(ctx); err != nil {
 		return nil, err
 	}

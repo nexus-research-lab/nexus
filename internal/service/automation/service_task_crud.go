@@ -6,6 +6,7 @@ import (
 	"errors"
 	"strings"
 
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
@@ -13,7 +14,7 @@ import (
 )
 
 // CreateTask 创建任务。
-func (s *Service) CreateTask(ctx context.Context, input protocol.CreateJobInput) (*protocol.CronJob, error) {
+func (s *Service) CreateTask(ctx context.Context, input automationdomain.CreateJobInput) (*automationdomain.CronJob, error) {
 	if err := s.ensureReady(ctx); err != nil {
 		return nil, err
 	}
@@ -29,7 +30,7 @@ func (s *Service) CreateTask(ctx context.Context, input protocol.CreateJobInput)
 		return nil, err
 	}
 
-	job := protocol.CronJob{
+	job := automationdomain.CronJob{
 		JobID:         s.idFactory("cron"),
 		OwnerUserID:   ownerUserID,
 		Name:          normalized.Name,
@@ -49,7 +50,7 @@ func (s *Service) CreateTask(ctx context.Context, input protocol.CreateJobInput)
 	}
 	state := s.ensureJobState(*created)
 	s.persistJobRuntime(ctx, jobRuntimeUpdateFromState(created.JobID, state))
-	s.recordTaskEvent(ctx, protocol.TaskEventActionCreate, *created, "", taskEventJobSnapshot(*created))
+	s.recordTaskEvent(ctx, automationdomain.TaskEventActionCreate, *created, "", taskEventJobSnapshot(*created))
 	result := *created
 	result.NextRunAt = cloneTimePointer(state.NextRunAt)
 	result.LastRunAt = cloneTimePointer(state.LastRunAt)
@@ -64,7 +65,7 @@ func (s *Service) CreateTask(ctx context.Context, input protocol.CreateJobInput)
 }
 
 // UpdateTask 更新任务。
-func (s *Service) UpdateTask(ctx context.Context, jobID string, input protocol.UpdateJobInput) (*protocol.CronJob, error) {
+func (s *Service) UpdateTask(ctx context.Context, jobID string, input automationdomain.UpdateJobInput) (*automationdomain.CronJob, error) {
 	if err := s.ensureReady(ctx); err != nil {
 		return nil, err
 	}
@@ -74,7 +75,7 @@ func (s *Service) UpdateTask(ctx context.Context, jobID string, input protocol.U
 		return nil, err
 	}
 	if current == nil {
-		return nil, protocol.ErrJobNotFound
+		return nil, automationdomain.ErrJobNotFound
 	}
 
 	next := *current
@@ -88,7 +89,7 @@ func (s *Service) UpdateTask(ctx context.Context, jobID string, input protocol.U
 		next.Instruction = strings.TrimSpace(*input.Instruction)
 	}
 	if input.ExecutionKind != nil {
-		next.ExecutionKind = protocol.NormalizeExecutionKind(*input.ExecutionKind)
+		next.ExecutionKind = automationdomain.NormalizeExecutionKind(*input.ExecutionKind)
 	}
 	if input.SessionTarget != nil {
 		next.SessionTarget = input.SessionTarget.Normalized()
@@ -100,13 +101,13 @@ func (s *Service) UpdateTask(ctx context.Context, jobID string, input protocol.U
 		next.Source = input.Source.Normalized()
 	}
 	if input.OverlapPolicy != nil {
-		next.OverlapPolicy = protocol.NormalizeOverlapPolicy(*input.OverlapPolicy)
+		next.OverlapPolicy = automationdomain.NormalizeOverlapPolicy(*input.OverlapPolicy)
 	}
 	if input.Enabled != nil {
 		next.Enabled = *input.Enabled
 	}
 
-	createLike := protocol.CreateJobInput{
+	createLike := automationdomain.CreateJobInput{
 		Name:          next.Name,
 		AgentID:       next.AgentID,
 		Schedule:      next.Schedule,
@@ -147,12 +148,12 @@ func (s *Service) UpdateTask(ctx context.Context, jobID string, input protocol.U
 }
 
 // UpdateTaskStatus 切换任务启停。
-func (s *Service) UpdateTaskStatus(ctx context.Context, jobID string, enabled bool) (*protocol.CronJob, error) {
-	return s.UpdateTask(ctx, jobID, protocol.UpdateJobInput{Enabled: &enabled})
+func (s *Service) UpdateTaskStatus(ctx context.Context, jobID string, enabled bool) (*automationdomain.CronJob, error) {
+	return s.UpdateTask(ctx, jobID, automationdomain.UpdateJobInput{Enabled: &enabled})
 }
 
 // DeleteTask 删除任务，并返回是否取消了删除时仍活跃的 run。
-func (s *Service) DeleteTask(ctx context.Context, jobID string) (*protocol.DeleteJobResult, error) {
+func (s *Service) DeleteTask(ctx context.Context, jobID string) (*automationdomain.DeleteJobResult, error) {
 	if err := s.ensureReady(ctx); err != nil {
 		return nil, err
 	}
@@ -162,7 +163,7 @@ func (s *Service) DeleteTask(ctx context.Context, jobID string) (*protocol.Delet
 		return nil, err
 	}
 	if current == nil {
-		return nil, protocol.ErrJobNotFound
+		return nil, automationdomain.ErrJobNotFound
 	}
 	cancelledRunID, cancelledRun, err := s.cancelDeletedTaskActiveRun(ctx, *current)
 	if err != nil {
@@ -181,8 +182,8 @@ func (s *Service) DeleteTask(ctx context.Context, jobID string) (*protocol.Delet
 	s.mu.Lock()
 	delete(s.jobStates, current.JobID)
 	s.mu.Unlock()
-	s.recordTaskEvent(ctx, protocol.TaskEventActionDelete, *current, cancelledRunID, deleteTaskEventDetail(*current, cancelledRunID, cancelledRun, deadLetteredDeliveryRunIDs))
-	result := &protocol.DeleteJobResult{
+	s.recordTaskEvent(ctx, automationdomain.TaskEventActionDelete, *current, cancelledRunID, deleteTaskEventDetail(*current, cancelledRunID, cancelledRun, deadLetteredDeliveryRunIDs))
+	result := &automationdomain.DeleteJobResult{
 		JobID:              current.JobID,
 		AgentID:            current.AgentID,
 		Deleted:            true,
@@ -195,7 +196,7 @@ func (s *Service) DeleteTask(ctx context.Context, jobID string) (*protocol.Delet
 	return result, nil
 }
 
-func (s *Service) deadLetterDeletedTaskPendingDeliveries(ctx context.Context, job protocol.CronJob) ([]string, error) {
+func (s *Service) deadLetterDeletedTaskPendingDeliveries(ctx context.Context, job automationdomain.CronJob) ([]string, error) {
 	runs, err := s.repository.ListRunsByJob(ctx, strings.TrimSpace(job.OwnerUserID), strings.TrimSpace(job.JobID))
 	if err != nil {
 		return nil, err
@@ -209,7 +210,7 @@ func (s *Service) deadLetterDeletedTaskPendingDeliveries(ctx context.Context, jo
 		}
 		if err = s.repository.MarkRunDelivery(ctx, automationstore.RunDeliveryUpdateInput{
 			RunID:                run.RunID,
-			DeliveryStatus:       protocol.DeliveryStatusFailed,
+			DeliveryStatus:       automationdomain.DeliveryStatusFailed,
 			DeliveryError:        &message,
 			DeliveryDeadLetterAt: &now,
 		}); err != nil {
@@ -220,18 +221,18 @@ func (s *Service) deadLetterDeletedTaskPendingDeliveries(ctx context.Context, jo
 	return deadLettered, nil
 }
 
-func shouldDeadLetterDeletedTaskDelivery(run protocol.CronRun) bool {
+func shouldDeadLetterDeletedTaskDelivery(run automationdomain.CronRun) bool {
 	if strings.TrimSpace(run.RunID) == "" || run.DeliveryDeadLetterAt != nil {
 		return false
 	}
-	if strings.TrimSpace(run.Status) == protocol.RunStatusPending ||
-		strings.TrimSpace(run.Status) == protocol.RunStatusRunning {
+	if strings.TrimSpace(run.Status) == automationdomain.RunStatusPending ||
+		strings.TrimSpace(run.Status) == automationdomain.RunStatusRunning {
 		return false
 	}
-	return deriveCronRunDeliveryStatus(run) == protocol.DeliveryStatusFailed
+	return deriveCronRunDeliveryStatus(run) == automationdomain.DeliveryStatusFailed
 }
 
-func (s *Service) cancelDeletedTaskActiveRun(ctx context.Context, job protocol.CronJob) (string, bool, error) {
+func (s *Service) cancelDeletedTaskActiveRun(ctx context.Context, job automationdomain.CronJob) (string, bool, error) {
 	runID := strings.TrimSpace(job.RunningRunID)
 	if runID == "" {
 		return "", false, nil
@@ -243,7 +244,7 @@ func (s *Service) cancelDeletedTaskActiveRun(ctx context.Context, job protocol.C
 	finishedAt := s.nowFn()
 	cancelled, err := s.repository.MarkRunFinishedIfActive(ctx, automationstore.RunFinishInput{
 		RunID:        runID,
-		Status:       protocol.RunStatusCancelled,
+		Status:       automationdomain.RunStatusCancelled,
 		FinishedAt:   finishedAt,
 		ErrorMessage: &message,
 	})
@@ -253,7 +254,7 @@ func (s *Service) cancelDeletedTaskActiveRun(ctx context.Context, job protocol.C
 	return runID, cancelled, nil
 }
 
-func (s *Service) interruptActiveRunExecution(ctx context.Context, job protocol.CronJob, runID string, message string) error {
+func (s *Service) interruptActiveRunExecution(ctx context.Context, job automationdomain.CronJob, runID string, message string) error {
 	runID = strings.TrimSpace(runID)
 	if runID == "" {
 		return nil

@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/nexus-research-lab/nexus/internal/protocol"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 )
 
 // TaskEventInput 表示一条定时任务管理动作审计输入。
@@ -61,7 +61,7 @@ func (r *Repository) InsertTaskEvent(ctx context.Context, input TaskEventInput) 
 }
 
 // ListTaskEventsByJob 返回指定任务的最近管理动作。
-func (r *Repository) ListTaskEventsByJob(ctx context.Context, ownerUserID string, jobID string, limit int) ([]protocol.CronTaskEvent, error) {
+func (r *Repository) ListTaskEventsByJob(ctx context.Context, ownerUserID string, jobID string, limit int) ([]automationdomain.CronTaskEvent, error) {
 	if limit <= 0 || limit > 100 {
 		limit = 50
 	}
@@ -93,7 +93,7 @@ WHERE job_id = ` + r.bind(1)
 	}
 	defer rows.Close()
 
-	items := make([]protocol.CronTaskEvent, 0)
+	items := make([]automationdomain.CronTaskEvent, 0)
 	for rows.Next() {
 		item, scanErr := scanTaskEvent(rows)
 		if scanErr != nil {
@@ -105,7 +105,7 @@ WHERE job_id = ` + r.bind(1)
 }
 
 // SearchTaskEvents 返回最近的任务管理事件，用于按名称/关键词定位历史任务。
-func (r *Repository) SearchTaskEvents(ctx context.Context, ownerUserID string, agentID string, queryText string, limit int) ([]protocol.CronTaskEvent, error) {
+func (r *Repository) SearchTaskEvents(ctx context.Context, ownerUserID string, agentID string, queryText string, limit int) ([]automationdomain.CronTaskEvent, error) {
 	if limit <= 0 || limit > 200 {
 		limit = 100
 	}
@@ -153,7 +153,7 @@ FROM automation_task_events`
 	}
 	defer rows.Close()
 
-	items := make([]protocol.CronTaskEvent, 0)
+	items := make([]automationdomain.CronTaskEvent, 0)
 	for rows.Next() {
 		item, scanErr := scanTaskEvent(rows)
 		if scanErr != nil {
@@ -166,8 +166,8 @@ FROM automation_task_events`
 
 func scanTaskEvent(scanner interface {
 	Scan(dest ...any) error
-}) (protocol.CronTaskEvent, error) {
-	var item protocol.CronTaskEvent
+}) (automationdomain.CronTaskEvent, error) {
+	var item automationdomain.CronTaskEvent
 	var actorUserID sql.NullString
 	var actorAgentID sql.NullString
 	var runID sql.NullString
@@ -184,7 +184,7 @@ func scanTaskEvent(scanner interface {
 		&detailJSON,
 		&item.CreatedAt,
 	); err != nil {
-		return protocol.CronTaskEvent{}, err
+		return automationdomain.CronTaskEvent{}, err
 	}
 	item.ActorUserID = nullStringValue(actorUserID)
 	item.ActorAgentID = nullStringValue(actorAgentID)
@@ -192,7 +192,7 @@ func scanTaskEvent(scanner interface {
 	if strings.TrimSpace(detailJSON) != "" {
 		var detail map[string]any
 		if err := json.Unmarshal([]byte(detailJSON), &detail); err != nil {
-			return protocol.CronTaskEvent{}, err
+			return automationdomain.CronTaskEvent{}, err
 		}
 		item.Detail = detail
 	}

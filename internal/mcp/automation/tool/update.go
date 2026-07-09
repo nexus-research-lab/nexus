@@ -7,12 +7,12 @@ import (
 
 	sdktool "github.com/nexus-research-lab/nexus/internal/mcp/sdktool"
 
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 	"github.com/nexus-research-lab/nexus/internal/mcp/automation/contract"
 	"github.com/nexus-research-lab/nexus/internal/mcp/automation/internal/argx"
 	"github.com/nexus-research-lab/nexus/internal/mcp/automation/internal/builder"
 	"github.com/nexus-research-lab/nexus/internal/mcp/automation/internal/render"
 	"github.com/nexus-research-lab/nexus/internal/mcp/automation/internal/semantic"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 const updateDescription = "按 job_id 或 query 局部更新定时任务字段。query 只在当前权限范围内唯一命中当前未删除任务时才会执行，多候选会要求用户确认。字段语义与 UI「编辑任务」对话框一致：" +
@@ -56,21 +56,21 @@ func update(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 
 // buildUpdateInput 把工具入参映射成底层 UpdateJobInput（仅设置出现的字段）。
 // 只接受 UI 对齐字段，不再允许直接传 session_target / delivery / source。
-func buildUpdateInput(args map[string]any, sctx contract.ServerContext, currentJob protocol.CronJob) (protocol.UpdateJobInput, error) {
-	input := protocol.UpdateJobInput{}
+func buildUpdateInput(args map[string]any, sctx contract.ServerContext, currentJob automationdomain.CronJob) (automationdomain.UpdateJobInput, error) {
+	input := automationdomain.UpdateJobInput{}
 	if name, ok := args["name"]; ok {
 		s := strings.TrimSpace(argx.StringOf(name))
 		input.Name = &s
 	}
 	instruction, err := updateInstruction(args, currentJob.Instruction)
 	if err != nil {
-		return protocol.UpdateJobInput{}, err
+		return automationdomain.UpdateJobInput{}, err
 	}
 	if instruction != nil {
 		input.Instruction = instruction
 	}
 	if executionKind, ok := args["execution_kind"]; ok {
-		s := protocol.NormalizeExecutionKind(argx.StringOf(executionKind))
+		s := automationdomain.NormalizeExecutionKind(argx.StringOf(executionKind))
 		input.ExecutionKind = &s
 	}
 	if enabled, ok := args["enabled"]; ok {
@@ -84,7 +84,7 @@ func buildUpdateInput(args map[string]any, sctx contract.ServerContext, currentJ
 	if raw, ok := args["schedule"]; ok {
 		schedule, err := builder.Schedule(raw, sctx.DefaultTimezone)
 		if err != nil {
-			return protocol.UpdateJobInput{}, err
+			return automationdomain.UpdateJobInput{}, err
 		}
 		input.Schedule = &schedule
 	}
@@ -92,32 +92,32 @@ func buildUpdateInput(args map[string]any, sctx contract.ServerContext, currentJ
 	replyMode := strings.TrimSpace(argx.String(args, "reply_mode"))
 	if executionMode != "" {
 		if err := semantic.ValidatePage(executionMode, replyMode); err != nil {
-			return protocol.UpdateJobInput{}, err
+			return automationdomain.UpdateJobInput{}, err
 		}
 		target, err := semantic.SessionTarget(args, sctx, executionMode)
 		if err != nil {
-			return protocol.UpdateJobInput{}, err
+			return automationdomain.UpdateJobInput{}, err
 		}
 		input.SessionTarget = &target
 		if replyMode != "" {
 			delivery, err := semantic.Delivery(args, sctx, currentJob.AgentID, executionMode, replyMode, target)
 			if err != nil {
-				return protocol.UpdateJobInput{}, err
+				return automationdomain.UpdateJobInput{}, err
 			}
 			input.Delivery = &delivery
 		}
 	} else if replyMode != "" {
 		if replyMode == "execution" {
-			return protocol.UpdateJobInput{}, errors.New("reply_mode=execution update requires execution_mode in the same call so the execution session can be resolved safely")
+			return automationdomain.UpdateJobInput{}, errors.New("reply_mode=execution update requires execution_mode in the same call so the execution session can be resolved safely")
 		}
-		delivery, err := semantic.Delivery(args, sctx, currentJob.AgentID, executionMode, replyMode, protocol.SessionTarget{})
+		delivery, err := semantic.Delivery(args, sctx, currentJob.AgentID, executionMode, replyMode, automationdomain.SessionTarget{})
 		if err != nil {
-			return protocol.UpdateJobInput{}, err
+			return automationdomain.UpdateJobInput{}, err
 		}
 		input.Delivery = &delivery
 	}
 	if !hasUpdateFields(input) {
-		return protocol.UpdateJobInput{}, errors.New("update_scheduled_task requires at least one field to update besides job_id")
+		return automationdomain.UpdateJobInput{}, errors.New("update_scheduled_task requires at least one field to update besides job_id")
 	}
 	return input, nil
 }
@@ -151,7 +151,7 @@ func appendInstruction(currentInstruction, appendix string) string {
 	return current + "\n\n" + appendix
 }
 
-func hasUpdateFields(input protocol.UpdateJobInput) bool {
+func hasUpdateFields(input automationdomain.UpdateJobInput) bool {
 	return input.Name != nil ||
 		input.Schedule != nil ||
 		input.Instruction != nil ||

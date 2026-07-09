@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 func cloneTimePointer(value *time.Time) *time.Time {
@@ -58,7 +58,7 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
-func contextForJobOwner(ctx context.Context, job protocol.CronJob) context.Context {
+func contextForJobOwner(ctx context.Context, job automationdomain.CronJob) context.Context {
 	ownerUserID := strings.TrimSpace(job.OwnerUserID)
 	if ownerUserID == "" {
 		return ctx
@@ -71,7 +71,7 @@ func contextForJobOwner(ctx context.Context, job protocol.CronJob) context.Conte
 	})
 }
 
-func backgroundContextForJobOwner(job protocol.CronJob) context.Context {
+func backgroundContextForJobOwner(job automationdomain.CronJob) context.Context {
 	return contextForJobOwner(context.Background(), job)
 }
 
@@ -83,15 +83,15 @@ func stringPointer(value string) *string {
 	return &normalized
 }
 
-func deliveryTargetSummary(target protocol.DeliveryTarget) string {
+func deliveryTargetSummary(target automationdomain.DeliveryTarget) string {
 	mode := strings.TrimSpace(target.Mode)
 	switch mode {
-	case "", protocol.DeliveryModeNone:
+	case "", automationdomain.DeliveryModeNone:
 		return ""
-	case protocol.DeliveryModeLast:
-		return protocol.DeliveryModeLast
-	case protocol.DeliveryModeExplicit:
-		parts := []string{protocol.DeliveryModeExplicit}
+	case automationdomain.DeliveryModeLast:
+		return automationdomain.DeliveryModeLast
+	case automationdomain.DeliveryModeExplicit:
+		parts := []string{automationdomain.DeliveryModeExplicit}
 		if channel := strings.TrimSpace(target.Channel); channel != "" {
 			parts = append(parts, channel)
 		}

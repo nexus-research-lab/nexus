@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 	"github.com/nexus-research-lab/nexus/internal/config"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"
 
@@ -26,18 +26,18 @@ func TestServiceRecordsTaskManagementEvents(t *testing.T) {
 		nil,
 	)
 
-	task, err := service.CreateTask(context.Background(), protocol.CreateJobInput{
+	task, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
 		Name:        "新闻日报",
 		AgentID:     "agent-1",
 		Instruction: "搜索今天的重要新闻",
-		Schedule: protocol.Schedule{
-			Kind:            protocol.ScheduleKindEvery,
+		Schedule: automationdomain.Schedule{
+			Kind:            automationdomain.ScheduleKindEvery,
 			IntervalSeconds: intRef(3600),
 			Timezone:        "Asia/Shanghai",
 		},
-		SessionTarget: protocol.SessionTarget{Kind: protocol.SessionTargetIsolated},
-		Delivery:      protocol.DeliveryTarget{Mode: protocol.DeliveryModeNone},
-		Source:        protocol.Source{Kind: protocol.SourceKindAgent, CreatorAgentID: "agent-1", ContextType: "agent", ContextID: "agent-1"},
+		SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetIsolated},
+		Delivery:      automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
+		Source:        automationdomain.Source{Kind: automationdomain.SourceKindAgent, CreatorAgentID: "agent-1", ContextType: "agent", ContextID: "agent-1"},
 		Enabled:       true,
 	})
 	if err != nil {
@@ -51,7 +51,7 @@ func TestServiceRecordsTaskManagementEvents(t *testing.T) {
 		t.Fatal("任务应已停用")
 	}
 	name := "新闻晚报"
-	if _, err = service.UpdateTask(context.Background(), task.JobID, protocol.UpdateJobInput{Name: &name}); err != nil {
+	if _, err = service.UpdateTask(context.Background(), task.JobID, automationdomain.UpdateJobInput{Name: &name}); err != nil {
 		t.Fatalf("UpdateTask 失败: %v", err)
 	}
 
@@ -69,14 +69,14 @@ func TestServiceRecordsTaskManagementEvents(t *testing.T) {
 			t.Fatalf("任务事件归属不正确: %+v", event)
 		}
 	}
-	for _, action := range []string{protocol.TaskEventActionCreate, protocol.TaskEventActionDisable, protocol.TaskEventActionUpdate} {
+	for _, action := range []string{automationdomain.TaskEventActionCreate, automationdomain.TaskEventActionDisable, automationdomain.TaskEventActionUpdate} {
 		if !actions[action] {
 			t.Fatalf("缺少任务事件 action=%s: %+v", action, events)
 		}
 	}
-	var updateEvent *protocol.CronTaskEvent
+	var updateEvent *automationdomain.CronTaskEvent
 	for index := range events {
-		if events[index].Action == protocol.TaskEventActionUpdate {
+		if events[index].Action == automationdomain.TaskEventActionUpdate {
 			updateEvent = &events[index]
 			break
 		}
@@ -100,7 +100,7 @@ func TestServiceRecordsTaskManagementEvents(t *testing.T) {
 	}
 	hasDelete := false
 	for _, event := range deletedEvents {
-		if event.Action == protocol.TaskEventActionDelete {
+		if event.Action == automationdomain.TaskEventActionDelete {
 			hasDelete = true
 			break
 		}
@@ -122,18 +122,18 @@ func TestServiceTaskStatusSummarizesHealthRunsAndEvents(t *testing.T) {
 		&fakeWorkspaceReader{},
 		nil,
 	)
-	task, err := service.CreateTask(context.Background(), protocol.CreateJobInput{
+	task, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
 		Name:        "新闻日报",
 		AgentID:     "agent-1",
 		Instruction: "搜索今天的重要新闻",
-		Schedule: protocol.Schedule{
-			Kind:            protocol.ScheduleKindEvery,
+		Schedule: automationdomain.Schedule{
+			Kind:            automationdomain.ScheduleKindEvery,
 			IntervalSeconds: intRef(3600),
 			Timezone:        "Asia/Shanghai",
 		},
-		SessionTarget: protocol.SessionTarget{Kind: protocol.SessionTargetIsolated},
-		Delivery:      protocol.DeliveryTarget{Mode: protocol.DeliveryModeExplicit, Channel: "feishu", To: "oc_group"},
-		Source:        protocol.Source{Kind: protocol.SourceKindAgent, CreatorAgentID: "agent-1", ContextType: "agent", ContextID: "agent-1"},
+		SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetIsolated},
+		Delivery:      automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeExplicit, Channel: "feishu", To: "oc_group"},
+		Source:        automationdomain.Source{Kind: automationdomain.SourceKindAgent, CreatorAgentID: "agent-1", ContextType: "agent", ContextID: "agent-1"},
 		Enabled:       true,
 	})
 	if err != nil {
@@ -148,16 +148,16 @@ func TestServiceTaskStatusSummarizesHealthRunsAndEvents(t *testing.T) {
 		OwnerUserID:  task.OwnerUserID,
 		ScheduledFor: &scheduledFor,
 		TriggerKind:  "cron",
-		DeliveryMode: protocol.DeliveryModeExplicit,
+		DeliveryMode: automationdomain.DeliveryModeExplicit,
 		DeliveryTo:   "feishu:oc_group",
 	}); err != nil {
 		t.Fatalf("插入 run 失败: %v", err)
 	}
 	if err = service.repository.MarkRunFinished(context.Background(), automationstore.RunFinishInput{
 		RunID:                "run-delivery-failed",
-		Status:               protocol.RunStatusSucceeded,
+		Status:               automationdomain.RunStatusSucceeded,
 		FinishedAt:           scheduledFor.Add(time.Minute),
-		DeliveryStatus:       protocol.DeliveryStatusFailed,
+		DeliveryStatus:       automationdomain.DeliveryStatusFailed,
 		DeliveryError:        &deliveryError,
 		DeliveryAttempted:    true,
 		DeliveryDeadLetterAt: &deadLetterAt,
@@ -207,17 +207,17 @@ func TestServiceTaskStatusIncludesRecoveryRunID(t *testing.T) {
 		&fakeWorkspaceReader{},
 		nil,
 	)
-	task, err := service.CreateTask(context.Background(), protocol.CreateJobInput{
+	task, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
 		Name:        "运行中任务",
 		AgentID:     "agent-1",
 		Instruction: "检查运行态",
-		Schedule: protocol.Schedule{
-			Kind:            protocol.ScheduleKindEvery,
+		Schedule: automationdomain.Schedule{
+			Kind:            automationdomain.ScheduleKindEvery,
 			IntervalSeconds: intRef(3600),
 			Timezone:        "Asia/Shanghai",
 		},
-		SessionTarget: protocol.SessionTarget{Kind: protocol.SessionTargetIsolated},
-		Delivery:      protocol.DeliveryTarget{Mode: protocol.DeliveryModeNone},
+		SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetIsolated},
+		Delivery:      automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
 		Enabled:       true,
 	})
 	if err != nil {
@@ -231,7 +231,7 @@ func TestServiceTaskStatusIncludesRecoveryRunID(t *testing.T) {
 		JobID:       task.JobID,
 		OwnerUserID: task.OwnerUserID,
 		TriggerKind: "manual",
-		Status:      protocol.RunStatusPending,
+		Status:      automationdomain.RunStatusPending,
 	}); err != nil {
 		t.Fatalf("预置 pending run 失败: %v", err)
 	}
@@ -242,7 +242,7 @@ func TestServiceTaskStatusIncludesRecoveryRunID(t *testing.T) {
 	runningJob.Running = true
 	runningJob.RunningRunID = runID
 	runningJob.RunningStartedAt = &startedAt
-	runningJob.LastRunStatus = protocol.RunStatusRunning
+	runningJob.LastRunStatus = automationdomain.RunStatusRunning
 	service.replaceJobRuntimeState(runningJob)
 
 	status, err := service.GetTaskStatus(context.Background(), task.JobID, 10, 10)

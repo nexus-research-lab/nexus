@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 	"github.com/nexus-research-lab/nexus/internal/mcp/automation/contract"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
@@ -27,12 +28,12 @@ func TestRunNowReturnsStatus(t *testing.T) {
 
 func TestRunNowQueryNoMatchDoesNotRun(t *testing.T) {
 	svc := &stubService{
-		jobs: []protocol.CronJob{{
+		jobs: []automationdomain.CronJob{{
 			JobID:       "job-water",
 			Name:        "喝水提醒",
 			AgentID:     "agent-1",
 			Instruction: "提醒我喝水",
-			Schedule:    protocol.Schedule{Timezone: "Asia/Shanghai"},
+			Schedule:    automationdomain.Schedule{Timezone: "Asia/Shanghai"},
 		}},
 	}
 	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "run_scheduled_task", map[string]any{
@@ -52,18 +53,18 @@ func TestRunNowQueryNoMatchDoesNotRun(t *testing.T) {
 func TestGetScheduledTaskRunsAllowsDeletedOwnedTaskHistory(t *testing.T) {
 	svc := &stubService{
 		missingJobs: map[string]bool{"job-deleted": true},
-		eventsByJob: map[string][]protocol.CronTaskEvent{
+		eventsByJob: map[string][]automationdomain.CronTaskEvent{
 			"job-deleted": {
 				{
 					EventID: "evt-delete",
 					JobID:   "job-deleted",
 					AgentID: "agent-1",
-					Action:  protocol.TaskEventActionDelete,
+					Action:  automationdomain.TaskEventActionDelete,
 				},
 			},
 		},
-		runsByJob: map[string][]protocol.CronRun{
-			"job-deleted": {{RunID: "run-before-delete", JobID: "job-deleted", Status: protocol.RunStatusSucceeded}},
+		runsByJob: map[string][]automationdomain.CronRun{
+			"job-deleted": {{RunID: "run-before-delete", JobID: "job-deleted", Status: automationdomain.RunStatusSucceeded}},
 		},
 	}
 	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "get_scheduled_task_runs", map[string]any{
@@ -79,15 +80,15 @@ func TestGetScheduledTaskRunsAllowsDeletedOwnedTaskHistory(t *testing.T) {
 
 func TestGetScheduledTaskRunsCanResolveCurrentExternalGroupQuery(t *testing.T) {
 	svc := &stubService{
-		jobs: []protocol.CronJob{
+		jobs: []automationdomain.CronJob{
 			{
 				JobID:       "job-current-group-news",
 				Name:        "本群每日新闻",
 				AgentID:     "agent-1",
 				Instruction: "搜索新闻并投递",
-				Schedule:    protocol.Schedule{Timezone: "Asia/Shanghai"},
-				Delivery: protocol.DeliveryTarget{
-					Mode:    protocol.DeliveryModeExplicit,
+				Schedule:    automationdomain.Schedule{Timezone: "Asia/Shanghai"},
+				Delivery: automationdomain.DeliveryTarget{
+					Mode:    automationdomain.DeliveryModeExplicit,
 					Channel: protocol.SessionChannelFeishu,
 					To:      "oc_group_123",
 				},
@@ -97,17 +98,17 @@ func TestGetScheduledTaskRunsCanResolveCurrentExternalGroupQuery(t *testing.T) {
 				Name:        "其他群每日新闻",
 				AgentID:     "agent-1",
 				Instruction: "搜索新闻并投递",
-				Schedule:    protocol.Schedule{Timezone: "Asia/Shanghai"},
-				Delivery: protocol.DeliveryTarget{
-					Mode:    protocol.DeliveryModeExplicit,
+				Schedule:    automationdomain.Schedule{Timezone: "Asia/Shanghai"},
+				Delivery: automationdomain.DeliveryTarget{
+					Mode:    automationdomain.DeliveryModeExplicit,
 					Channel: protocol.SessionChannelFeishu,
 					To:      "oc_group_other",
 				},
 			},
 		},
-		runsByJob: map[string][]protocol.CronRun{
-			"job-current-group-news": {{RunID: "run-current-group", JobID: "job-current-group-news", Status: protocol.RunStatusSucceeded}},
-			"job-other-group-news":   {{RunID: "run-other-group", JobID: "job-other-group-news", Status: protocol.RunStatusSucceeded}},
+		runsByJob: map[string][]automationdomain.CronRun{
+			"job-current-group-news": {{RunID: "run-current-group", JobID: "job-current-group-news", Status: automationdomain.RunStatusSucceeded}},
+			"job-other-group-news":   {{RunID: "run-other-group", JobID: "job-other-group-news", Status: automationdomain.RunStatusSucceeded}},
 		},
 	}
 	result, isError := callTool(t, svc, contract.ServerContext{
@@ -131,18 +132,18 @@ func TestGetScheduledTaskRunsCanResolveCurrentExternalGroupQuery(t *testing.T) {
 func TestGetScheduledTaskRunsRejectsDeletedOtherAgentTask(t *testing.T) {
 	svc := &stubService{
 		missingJobs: map[string]bool{"job-deleted": true},
-		eventsByJob: map[string][]protocol.CronTaskEvent{
+		eventsByJob: map[string][]automationdomain.CronTaskEvent{
 			"job-deleted": {
 				{
 					EventID: "evt-delete",
 					JobID:   "job-deleted",
 					AgentID: "agent-2",
-					Action:  protocol.TaskEventActionDelete,
+					Action:  automationdomain.TaskEventActionDelete,
 				},
 			},
 		},
-		runsByJob: map[string][]protocol.CronRun{
-			"job-deleted": {{RunID: "run-before-delete", JobID: "job-deleted", Status: protocol.RunStatusSucceeded}},
+		runsByJob: map[string][]automationdomain.CronRun{
+			"job-deleted": {{RunID: "run-before-delete", JobID: "job-deleted", Status: automationdomain.RunStatusSucceeded}},
 		},
 	}
 	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "get_scheduled_task_runs", map[string]any{
@@ -158,11 +159,11 @@ func TestGetScheduledTaskRunsRejectsDeletedOtherAgentTask(t *testing.T) {
 
 func TestRecoverScheduledTaskPassesRunID(t *testing.T) {
 	svc := &stubService{
-		jobs: []protocol.CronJob{{
+		jobs: []automationdomain.CronJob{{
 			JobID:        "job-1",
 			AgentID:      "agent-1",
 			RunningRunID: "run-1",
-			Schedule:     protocol.Schedule{Timezone: "Asia/Shanghai"},
+			Schedule:     automationdomain.Schedule{Timezone: "Asia/Shanghai"},
 		}},
 	}
 	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "recover_scheduled_task", map[string]any{
@@ -179,10 +180,10 @@ func TestRecoverScheduledTaskPassesRunID(t *testing.T) {
 
 func TestRetryScheduledTaskDeliveryPassesRunID(t *testing.T) {
 	svc := &stubService{
-		jobs: []protocol.CronJob{{
+		jobs: []automationdomain.CronJob{{
 			JobID:    "job-1",
 			AgentID:  "agent-1",
-			Schedule: protocol.Schedule{Timezone: "Asia/Shanghai"},
+			Schedule: automationdomain.Schedule{Timezone: "Asia/Shanghai"},
 		}},
 	}
 	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "retry_scheduled_task_delivery", map[string]any{
@@ -199,18 +200,18 @@ func TestRetryScheduledTaskDeliveryPassesRunID(t *testing.T) {
 
 func TestRetryScheduledTaskDeliveryCanInferUniqueFailedRunID(t *testing.T) {
 	svc := &stubService{
-		jobs: []protocol.CronJob{{
+		jobs: []automationdomain.CronJob{{
 			JobID:    "job-1",
 			AgentID:  "agent-1",
-			Schedule: protocol.Schedule{Timezone: "Asia/Shanghai"},
+			Schedule: automationdomain.Schedule{Timezone: "Asia/Shanghai"},
 		}},
-		taskStatus: &protocol.CronTaskStatus{
-			Job: protocol.CronJob{
+		taskStatus: &automationdomain.CronTaskStatus{
+			Job: automationdomain.CronJob{
 				JobID:    "job-1",
 				AgentID:  "agent-1",
-				Schedule: protocol.Schedule{Timezone: "Asia/Shanghai"},
+				Schedule: automationdomain.Schedule{Timezone: "Asia/Shanghai"},
 			},
-			Health: protocol.CronTaskHealth{
+			Health: automationdomain.CronTaskHealth{
 				ManualRedeliveryAvailable: true,
 				ManualRedeliveryRunIDs:    []string{"run-delivery-failed"},
 			},
@@ -229,18 +230,18 @@ func TestRetryScheduledTaskDeliveryCanInferUniqueFailedRunID(t *testing.T) {
 
 func TestRetryScheduledTaskDeliveryRequiresRunIDWhenMultipleFailedRuns(t *testing.T) {
 	svc := &stubService{
-		jobs: []protocol.CronJob{{
+		jobs: []automationdomain.CronJob{{
 			JobID:    "job-1",
 			AgentID:  "agent-1",
-			Schedule: protocol.Schedule{Timezone: "Asia/Shanghai"},
+			Schedule: automationdomain.Schedule{Timezone: "Asia/Shanghai"},
 		}},
-		taskStatus: &protocol.CronTaskStatus{
-			Job: protocol.CronJob{
+		taskStatus: &automationdomain.CronTaskStatus{
+			Job: automationdomain.CronJob{
 				JobID:    "job-1",
 				AgentID:  "agent-1",
-				Schedule: protocol.Schedule{Timezone: "Asia/Shanghai"},
+				Schedule: automationdomain.Schedule{Timezone: "Asia/Shanghai"},
 			},
-			Health: protocol.CronTaskHealth{
+			Health: automationdomain.CronTaskHealth{
 				ManualRedeliveryAvailable: true,
 				ManualRedeliveryRunIDs:    []string{"run-failed-1", "run-failed-2"},
 			},

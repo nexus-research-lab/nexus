@@ -5,13 +5,14 @@ import (
 	"fmt"
 	"strings"
 
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/service/toolpolicy"
 
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
 
-func (s *Service) scheduledTaskPermissionHandler(ctx context.Context, job protocol.CronJob) sdkpermission.Handler {
+func (s *Service) scheduledTaskPermissionHandler(ctx context.Context, job automationdomain.CronJob) sdkpermission.Handler {
 	options := protocol.Options{}
 	if s.agents != nil && strings.TrimSpace(job.AgentID) != "" {
 		if agentValue, err := s.requireAgent(ctx, job.AgentID); err == nil && agentValue != nil {

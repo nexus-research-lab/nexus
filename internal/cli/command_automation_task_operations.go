@@ -5,7 +5,7 @@ import (
 
 	automationsvc "github.com/nexus-research-lab/nexus/internal/service/automation"
 
-	"github.com/nexus-research-lab/nexus/internal/protocol"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 
 	"github.com/spf13/cobra"
 )
@@ -83,7 +83,7 @@ func newScheduledTaskEventsCommand(services *cliServiceProvider) *cobra.Command 
 }
 
 func newScheduledTaskReportCommand(services *cliServiceProvider) *cobra.Command {
-	var input protocol.CronDailyReportInput
+	var input automationdomain.CronDailyReportInput
 	command := &cobra.Command{
 		Use:   "report",
 		Short: "按日期汇总定时任务执行和投递状态",

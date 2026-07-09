@@ -5,11 +5,11 @@ import (
 	"database/sql"
 	"strings"
 
-	"github.com/nexus-research-lab/nexus/internal/protocol"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 )
 
 // ListCronJobs 列出定时任务。ownerUserID 为空时表示全局作用域。
-func (r *Repository) ListCronJobs(ctx context.Context, ownerUserID string, agentID string) ([]protocol.CronJob, error) {
+func (r *Repository) ListCronJobs(ctx context.Context, ownerUserID string, agentID string) ([]automationdomain.CronJob, error) {
 	query := `
 SELECT
     job_id,
@@ -71,7 +71,7 @@ FROM automation_cron_jobs`
 	}
 	defer rows.Close()
 
-	items := make([]protocol.CronJob, 0)
+	items := make([]automationdomain.CronJob, 0)
 	for rows.Next() {
 		item, scanErr := scanCronJob(rows)
 		if scanErr != nil {
@@ -102,7 +102,7 @@ func (r *Repository) CountEnabledCronJobs(ctx context.Context, ownerUserID strin
 }
 
 // GetCronJob 读取单个任务。ownerUserID 为空时表示全局作用域。
-func (r *Repository) GetCronJob(ctx context.Context, ownerUserID string, jobID string) (*protocol.CronJob, error) {
+func (r *Repository) GetCronJob(ctx context.Context, ownerUserID string, jobID string) (*automationdomain.CronJob, error) {
 	query := `
 SELECT
     job_id,
@@ -163,7 +163,7 @@ WHERE job_id = ` + r.bind(1)
 }
 
 // UpsertCronJob 创建或更新任务。
-func (r *Repository) UpsertCronJob(ctx context.Context, job protocol.CronJob) (*protocol.CronJob, error) {
+func (r *Repository) UpsertCronJob(ctx context.Context, job automationdomain.CronJob) (*automationdomain.CronJob, error) {
 	_, err := r.execWithRetry(
 		ctx,
 		r.upsertCronJobQuery,
@@ -177,7 +177,7 @@ func (r *Repository) UpsertCronJob(ctx context.Context, job protocol.CronJob) (*
 		nullStringPointer(job.Schedule.CronExpression),
 		job.Schedule.Timezone,
 		job.Instruction,
-		protocol.NormalizeExecutionKind(job.ExecutionKind),
+		automationdomain.NormalizeExecutionKind(job.ExecutionKind),
 		job.SessionTarget.Kind,
 		nullString(job.SessionTarget.BoundSessionKey),
 		nullString(job.SessionTarget.NamedSessionKey),
@@ -194,7 +194,7 @@ func (r *Repository) UpsertCronJob(ctx context.Context, job protocol.CronJob) (*
 		nullString(job.Source.ContextLabel),
 		nullString(job.Source.SessionKey),
 		nullString(job.Source.SessionLabel),
-		protocol.NormalizeOverlapPolicy(job.OverlapPolicy),
+		automationdomain.NormalizeOverlapPolicy(job.OverlapPolicy),
 		job.Enabled,
 	)
 	if err != nil {

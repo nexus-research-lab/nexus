@@ -6,12 +6,12 @@ import (
 
 	sdktool "github.com/nexus-research-lab/nexus/internal/mcp/sdktool"
 
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 	"github.com/nexus-research-lab/nexus/internal/mcp/automation/contract"
 	"github.com/nexus-research-lab/nexus/internal/mcp/automation/internal/argx"
 	"github.com/nexus-research-lab/nexus/internal/mcp/automation/internal/builder"
 	"github.com/nexus-research-lab/nexus/internal/mcp/automation/internal/render"
 	"github.com/nexus-research-lab/nexus/internal/mcp/automation/internal/semantic"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 const createDescription = "创建定时任务（== UI「新建任务」对话框的命令版本）。" +
@@ -59,25 +59,25 @@ func create(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 
 // buildCreateInput 把工具入参翻译成底层 CreateJobInput。
 // 只接受 UI 对齐字段，不再允许直接传 session_target / delivery / source。
-func buildCreateInput(args map[string]any, sctx contract.ServerContext) (protocol.CreateJobInput, error) {
+func buildCreateInput(args map[string]any, sctx contract.ServerContext) (automationdomain.CreateJobInput, error) {
 	schedule, err := builder.Schedule(args["schedule"], sctx.DefaultTimezone)
 	if err != nil {
-		return protocol.CreateJobInput{}, err
+		return automationdomain.CreateJobInput{}, err
 	}
 	agentID, err := resolveCreateAgentID(sctx, argx.String(args, "agent_id"))
 	if err != nil {
-		return protocol.CreateJobInput{}, err
+		return automationdomain.CreateJobInput{}, err
 	}
-	executionKind := protocol.NormalizeExecutionKind(argx.String(args, "execution_kind"))
-	if executionKind == protocol.ExecutionKindScript {
-		return protocol.CreateJobInput{
+	executionKind := automationdomain.NormalizeExecutionKind(argx.String(args, "execution_kind"))
+	if executionKind == automationdomain.ExecutionKindScript {
+		return automationdomain.CreateJobInput{
 			Name:          argx.String(args, "name"),
 			AgentID:       agentID,
 			Schedule:      schedule,
 			Instruction:   argx.String(args, "instruction"),
-			ExecutionKind: protocol.ExecutionKindScript,
-			SessionTarget: protocol.SessionTarget{Kind: protocol.SessionTargetIsolated},
-			Delivery:      protocol.DeliveryTarget{Mode: protocol.DeliveryModeNone},
+			ExecutionKind: automationdomain.ExecutionKindScript,
+			SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetIsolated},
+			Delivery:      automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
 			Source:        semantic.Source(sctx, agentID),
 			OverlapPolicy: argx.String(args, "overlap_policy"),
 			Enabled:       argx.Bool(args, "enabled", true),
@@ -87,18 +87,18 @@ func buildCreateInput(args map[string]any, sctx contract.ServerContext) (protoco
 	replyMode := strings.TrimSpace(argx.String(args, "reply_mode"))
 
 	if err := semantic.ValidatePage(executionMode, replyMode); err != nil {
-		return protocol.CreateJobInput{}, err
+		return automationdomain.CreateJobInput{}, err
 	}
 
 	sessionTarget, err := semantic.SessionTarget(args, sctx, executionMode)
 	if err != nil {
-		return protocol.CreateJobInput{}, err
+		return automationdomain.CreateJobInput{}, err
 	}
 	delivery, err := semantic.Delivery(args, sctx, agentID, executionMode, replyMode, sessionTarget)
 	if err != nil {
-		return protocol.CreateJobInput{}, err
+		return automationdomain.CreateJobInput{}, err
 	}
-	return protocol.CreateJobInput{
+	return automationdomain.CreateJobInput{
 		Name:          argx.String(args, "name"),
 		AgentID:       agentID,
 		Schedule:      schedule,

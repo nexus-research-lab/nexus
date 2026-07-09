@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 	"github.com/nexus-research-lab/nexus/internal/mcp/automation/contract"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
@@ -44,7 +45,7 @@ func TestCreateResolvesDeliveryFromReplyModeSelected(t *testing.T) {
 	if isError {
 		t.Fatalf("unexpected error: %s", extractText(t, result))
 	}
-	if svc.createInput.Delivery.Mode != protocol.DeliveryModeExplicit {
+	if svc.createInput.Delivery.Mode != automationdomain.DeliveryModeExplicit {
 		t.Fatalf("expected explicit delivery, got %q", svc.createInput.Delivery.Mode)
 	}
 	if svc.createInput.Delivery.To != sctx.CurrentSessionKey {
@@ -97,7 +98,7 @@ func TestCreateCanDeliverToChannel(t *testing.T) {
 			if isError {
 				t.Fatalf("unexpected error: %s", extractText(t, result))
 			}
-			if svc.createInput.Delivery.Mode != protocol.DeliveryModeExplicit ||
+			if svc.createInput.Delivery.Mode != automationdomain.DeliveryModeExplicit ||
 				svc.createInput.Delivery.Channel != protocol.SessionChannelFeishu ||
 				svc.createInput.Delivery.To != "oc_group_123" {
 				t.Fatalf("expected explicit feishu delivery, got %+v", svc.createInput.Delivery)
@@ -155,7 +156,7 @@ func TestCreateCanDeliverToAgentInbox(t *testing.T) {
 				protocol.AutomationInboxSessionRef,
 				"",
 			)
-			if svc.createInput.Delivery.Mode != protocol.DeliveryModeExplicit ||
+			if svc.createInput.Delivery.Mode != automationdomain.DeliveryModeExplicit ||
 				svc.createInput.Delivery.Channel != protocol.SessionChannelInternalSegment ||
 				svc.createInput.Delivery.To != expectedSessionKey {
 				t.Fatalf("expected internal agent delivery, got %+v", svc.createInput.Delivery)
@@ -222,7 +223,7 @@ func TestCreateChannelReplyDefaultsMissingExecutionModeToTemporary(t *testing.T)
 	if isError {
 		t.Fatalf("unexpected error: %s", extractText(t, result))
 	}
-	if svc.createInput.SessionTarget.Kind != protocol.SessionTargetIsolated {
+	if svc.createInput.SessionTarget.Kind != automationdomain.SessionTargetIsolated {
 		t.Fatalf("expected temporary execution session from channel reply default, got %+v", svc.createInput.SessionTarget)
 	}
 	if svc.createInput.Delivery.Channel != protocol.SessionChannelFeishu ||
@@ -248,7 +249,7 @@ func TestCreateChannelReplyFillsMissingTargetFromCurrentExternalSession(t *testi
 	if isError {
 		t.Fatalf("unexpected error: %s", extractText(t, result))
 	}
-	if svc.createInput.SessionTarget.Kind != protocol.SessionTargetIsolated {
+	if svc.createInput.SessionTarget.Kind != automationdomain.SessionTargetIsolated {
 		t.Fatalf("expected temporary execution session from channel reply default, got %+v", svc.createInput.SessionTarget)
 	}
 	if svc.createInput.Delivery.Channel != protocol.SessionChannelFeishu ||
@@ -326,7 +327,7 @@ func TestCreateExecutionReplyTemporaryFromAgentContextFallsBackToNone(t *testing
 	if isError {
 		t.Fatalf("unexpected error: %s", extractText(t, result))
 	}
-	if svc.createInput.Delivery.Mode != protocol.DeliveryModeNone {
+	if svc.createInput.Delivery.Mode != automationdomain.DeliveryModeNone {
 		t.Fatalf("expected delivery.mode=none for temporary+execution in agent context, got %q", svc.createInput.Delivery.Mode)
 	}
 }
@@ -350,7 +351,7 @@ func TestCreateExecutionReplyTemporaryFromRoomContextTargetsCurrentSession(t *te
 	if isError {
 		t.Fatalf("unexpected error: %s", extractText(t, result))
 	}
-	if svc.createInput.Delivery.Mode != protocol.DeliveryModeExplicit {
+	if svc.createInput.Delivery.Mode != automationdomain.DeliveryModeExplicit {
 		t.Fatalf("expected delivery.mode=explicit for temporary+execution in room context, got %q", svc.createInput.Delivery.Mode)
 	}
 	if svc.createInput.Delivery.To != sessionKey {

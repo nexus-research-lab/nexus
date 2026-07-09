@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nexus-research-lab/nexus/internal/protocol"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"
 )
 
@@ -43,7 +43,7 @@ func (s *Service) retryDueDeliveries(ctx context.Context, now time.Time) {
 	}
 }
 
-func (s *Service) retryDueRunDelivery(ctx context.Context, run protocol.CronRun) error {
+func (s *Service) retryDueRunDelivery(ctx context.Context, run automationdomain.CronRun) error {
 	job, err := s.repository.GetCronJob(ctx, "", strings.TrimSpace(run.JobID))
 	if err != nil {
 		return err
@@ -53,7 +53,7 @@ func (s *Service) retryDueRunDelivery(ctx context.Context, run protocol.CronRun)
 		deadLetterAt := s.nowFn()
 		return s.repository.MarkRunDelivery(ctx, automationstore.RunDeliveryUpdateInput{
 			RunID:                run.RunID,
-			DeliveryStatus:       protocol.DeliveryStatusFailed,
+			DeliveryStatus:       automationdomain.DeliveryStatusFailed,
 			DeliveryError:        &message,
 			DeliveryDeadLetterAt: &deadLetterAt,
 		})
@@ -62,22 +62,22 @@ func (s *Service) retryDueRunDelivery(ctx context.Context, run protocol.CronRun)
 		deadLetterAt := s.nowFn()
 		if err = s.repository.MarkRunDelivery(ctx, automationstore.RunDeliveryUpdateInput{
 			RunID:                run.RunID,
-			DeliveryStatus:       protocol.DeliveryStatusFailed,
+			DeliveryStatus:       automationdomain.DeliveryStatusFailed,
 			DeliveryError:        run.DeliveryError,
 			DeliveryDeadLetterAt: &deadLetterAt,
 		}); err != nil {
 			return err
 		}
-		run.DeliveryStatus = protocol.DeliveryStatusFailed
+		run.DeliveryStatus = automationdomain.DeliveryStatusFailed
 		run.DeliveryDeadLetterAt = &deadLetterAt
 		detail := deliveryRetryTaskEventDetail(run)
 		detail["auto_retry_skipped_reason"] = "task_disabled"
-		s.recordTaskEvent(ctx, protocol.TaskEventActionAutoRetryDelivery, *job, run.RunID, detail)
+		s.recordTaskEvent(ctx, automationdomain.TaskEventActionAutoRetryDelivery, *job, run.RunID, detail)
 		return nil
 	}
 	updated, err := s.retryRunDelivery(contextForJobOwner(ctx, *job), job.JobID, run.RunID, false)
 	if err == nil && updated != nil {
-		s.recordTaskEvent(ctx, protocol.TaskEventActionAutoRetryDelivery, *job, run.RunID, deliveryRetryTaskEventDetail(*updated))
+		s.recordTaskEvent(ctx, automationdomain.TaskEventActionAutoRetryDelivery, *job, run.RunID, deliveryRetryTaskEventDetail(*updated))
 	}
 	return err
 }

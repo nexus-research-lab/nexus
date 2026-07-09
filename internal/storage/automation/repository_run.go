@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nexus-research-lab/nexus/internal/protocol"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 )
 
 // RunPendingInput 表示创建 run ledger 的输入。
@@ -46,7 +46,7 @@ type RunFinishInput struct {
 }
 
 // ListRunsByJob 列出任务运行历史。ownerUserID 为空时表示全局作用域。
-func (r *Repository) ListRunsByJob(ctx context.Context, ownerUserID string, jobID string) ([]protocol.CronRun, error) {
+func (r *Repository) ListRunsByJob(ctx context.Context, ownerUserID string, jobID string) ([]automationdomain.CronRun, error) {
 	query := `
 SELECT
     run_id,
@@ -92,7 +92,7 @@ ORDER BY created_at DESC, run_id DESC`
 	}
 	defer rows.Close()
 
-	items := make([]protocol.CronRun, 0)
+	items := make([]automationdomain.CronRun, 0)
 	for rows.Next() {
 		item, scanErr := scanCronRun(rows)
 		if scanErr != nil {
@@ -104,7 +104,7 @@ ORDER BY created_at DESC, run_id DESC`
 }
 
 // GetRun 读取一条任务运行历史。ownerUserID 为空时表示全局作用域。
-func (r *Repository) GetRun(ctx context.Context, ownerUserID string, jobID string, runID string) (*protocol.CronRun, error) {
+func (r *Repository) GetRun(ctx context.Context, ownerUserID string, jobID string, runID string) (*automationdomain.CronRun, error) {
 	query := `
 SELECT
     run_id,
@@ -154,7 +154,7 @@ WHERE job_id = ` + r.bind(1) + `
 func (r *Repository) InsertRunPending(ctx context.Context, input RunPendingInput) error {
 	status := strings.TrimSpace(input.Status)
 	if status == "" {
-		status = protocol.RunStatusPending
+		status = automationdomain.RunStatusPending
 	}
 	_, err := r.execWithRetry(
 		ctx,
@@ -177,7 +177,7 @@ func (r *Repository) InsertRunPending(ctx context.Context, input RunPendingInput
 
 // MarkRunRunning 标记 run 开始执行。
 func (r *Repository) MarkRunRunning(ctx context.Context, runID string, startedAt time.Time) error {
-	_, err := r.execWithRetry(ctx, r.markRunRunningQuery, protocol.RunStatusRunning, startedAt.UTC(), runID)
+	_, err := r.execWithRetry(ctx, r.markRunRunningQuery, automationdomain.RunStatusRunning, startedAt.UTC(), runID)
 	return err
 }
 
@@ -270,8 +270,8 @@ WHERE run_id = %s
 		nullableTime(input.DeliveryNextAttemptAt),
 		nullableTime(input.DeliveryDeadLetterAt),
 		strings.TrimSpace(input.RunID),
-		protocol.RunStatusPending,
-		protocol.RunStatusRunning,
+		automationdomain.RunStatusPending,
+		automationdomain.RunStatusRunning,
 	)
 	if err != nil {
 		return false, err

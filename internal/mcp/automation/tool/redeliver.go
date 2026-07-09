@@ -8,10 +8,10 @@ import (
 
 	sdktool "github.com/nexus-research-lab/nexus/internal/mcp/sdktool"
 
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 	"github.com/nexus-research-lab/nexus/internal/mcp/automation/contract"
 	"github.com/nexus-research-lab/nexus/internal/mcp/automation/internal/argx"
 	"github.com/nexus-research-lab/nexus/internal/mcp/automation/internal/render"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 func redeliver(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
@@ -63,7 +63,7 @@ func resolveRetryDeliveryRunID(
 	}
 }
 
-func retryableDeliveryRunIDs(status *protocol.CronTaskStatus) []string {
+func retryableDeliveryRunIDs(status *automationdomain.CronTaskStatus) []string {
 	if status == nil {
 		return nil
 	}
@@ -72,7 +72,7 @@ func retryableDeliveryRunIDs(status *protocol.CronTaskStatus) []string {
 	appendUniqueRunIDs(&runIDs, seen, status.Health.ManualRedeliveryRunIDs)
 	appendUniqueRunIDs(&runIDs, seen, status.Health.DeliveryDeadLetterRunIDs)
 	for _, run := range status.RecentRuns {
-		if strings.TrimSpace(run.DeliveryStatus) != protocol.DeliveryStatusFailed {
+		if strings.TrimSpace(run.DeliveryStatus) != automationdomain.DeliveryStatusFailed {
 			continue
 		}
 		appendUniqueRunIDs(&runIDs, seen, []string{run.RunID})

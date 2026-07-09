@@ -5,10 +5,10 @@ import (
 
 	sdktool "github.com/nexus-research-lab/nexus/internal/mcp/sdktool"
 
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 	"github.com/nexus-research-lab/nexus/internal/mcp/automation/contract"
 	"github.com/nexus-research-lab/nexus/internal/mcp/automation/internal/argx"
 	"github.com/nexus-research-lab/nexus/internal/mcp/automation/internal/render"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 func searchHistory(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
@@ -32,7 +32,7 @@ func searchHistory(svc contract.Service, sctx contract.ServerContext) sdktool.To
 			if err != nil {
 				return render.Error(err), nil
 			}
-			input := protocol.CronTaskHistorySearchInput{
+			input := automationdomain.CronTaskHistorySearchInput{
 				Query:          argx.String(args, "query"),
 				AgentID:        agentID,
 				IncludeActive:  optionalBoolDefault(args, "include_active", true),

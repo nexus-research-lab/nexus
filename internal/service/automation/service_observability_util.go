@@ -4,31 +4,31 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/nexus-research-lab/nexus/internal/protocol"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 )
 
-func deriveCronRunDeliveryStatus(run protocol.CronRun) string {
+func deriveCronRunDeliveryStatus(run automationdomain.CronRun) string {
 	if deliveryStatus := strings.TrimSpace(run.DeliveryStatus); deliveryStatus != "" {
 		return deliveryStatus
 	}
 	mode := strings.TrimSpace(run.DeliveryMode)
-	if mode == "" || mode == protocol.DeliveryModeNone {
-		return protocol.DeliveryStatusNotRequired
+	if mode == "" || mode == automationdomain.DeliveryModeNone {
+		return automationdomain.DeliveryStatusNotRequired
 	}
 	switch strings.TrimSpace(run.Status) {
-	case protocol.RunStatusPending, protocol.RunStatusRunning:
-		return protocol.DeliveryStatusPending
-	case protocol.RunStatusSucceeded, protocol.RunStatusQueuedToMain:
-		return protocol.DeliveryStatusSucceeded
-	case protocol.RunStatusFailed:
+	case automationdomain.RunStatusPending, automationdomain.RunStatusRunning:
+		return automationdomain.DeliveryStatusPending
+	case automationdomain.RunStatusSucceeded, automationdomain.RunStatusQueuedToMain:
+		return automationdomain.DeliveryStatusSucceeded
+	case automationdomain.RunStatusFailed:
 		if looksLikeDeliveryRuntimeError(run.ErrorMessage) {
-			return protocol.DeliveryStatusFailed
+			return automationdomain.DeliveryStatusFailed
 		}
-		return protocol.DeliveryStatusNotAttempted
-	case protocol.RunStatusCancelled, protocol.RunStatusSkipped:
-		return protocol.DeliveryStatusNotAttempted
+		return automationdomain.DeliveryStatusNotAttempted
+	case automationdomain.RunStatusCancelled, automationdomain.RunStatusSkipped:
+		return automationdomain.DeliveryStatusNotAttempted
 	default:
-		return protocol.DeliveryStatusPending
+		return automationdomain.DeliveryStatusPending
 	}
 }
 
@@ -48,11 +48,11 @@ func looksLikeDeliveryRuntimeError(message *string) bool {
 	return false
 }
 
-func addTaskHealthSignal(health *protocol.CronTaskHealth, signal string) {
+func addTaskHealthSignal(health *automationdomain.CronTaskHealth, signal string) {
 	addUniqueString(&health.Signals, signal)
 }
 
-func addTaskHealthSuggestedTool(health *protocol.CronTaskHealth, name string) {
+func addTaskHealthSuggestedTool(health *automationdomain.CronTaskHealth, name string) {
 	addUniqueString(&health.SuggestedTools, name)
 }
 
@@ -61,11 +61,11 @@ func addExecutionRepairSuggestedTools(items *[]string) {
 	addUniqueString(items, "run_scheduled_task")
 }
 
-func addDailyReportTaskRunSignals(task *protocol.CronDailyReportTask, run protocol.CronRun) {
+func addDailyReportTaskRunSignals(task *automationdomain.CronDailyReportTask, run automationdomain.CronRun) {
 	if isFailedRunStatus(run.Status) {
 		addDailyReportTaskSignal(task, "recent_execution_failed")
 	}
-	if strings.TrimSpace(run.Status) == protocol.RunStatusFailed {
+	if strings.TrimSpace(run.Status) == automationdomain.RunStatusFailed {
 		if !task.Deleted {
 			addDailyReportExecutionRepairSuggestedTools(task)
 		}
@@ -73,17 +73,17 @@ func addDailyReportTaskRunSignals(task *protocol.CronDailyReportTask, run protoc
 		setFirstStringPointer(&task.LatestExecutionError, run.ErrorMessage)
 	}
 	switch deriveCronRunDeliveryStatus(run) {
-	case protocol.DeliveryStatusFailed:
+	case automationdomain.DeliveryStatusFailed:
 		addDailyReportTaskSignal(task, "delivery_attention")
 		if !task.Deleted {
 			addDailyReportTaskSuggestedTool(task, "retry_scheduled_task_delivery")
 			addUniqueString(&task.ManualRedeliveryRunIDs, run.RunID)
 		}
 		setFirstStringPointer(&task.LatestDeliveryError, preferredDeliveryError(run))
-	case protocol.DeliveryStatusPending:
+	case automationdomain.DeliveryStatusPending:
 		addDailyReportTaskSignal(task, "delivery_pending")
 		addUniqueString(&task.DeliveryPendingRunIDs, run.RunID)
-	case protocol.DeliveryStatusSkipped:
+	case automationdomain.DeliveryStatusSkipped:
 		addDailyReportTaskSignal(task, "delivery_skipped")
 		addUniqueString(&task.DeliverySkippedRunIDs, run.RunID)
 	}
@@ -97,15 +97,15 @@ func addDailyReportTaskRunSignals(task *protocol.CronDailyReportTask, run protoc
 	}
 }
 
-func addDailyReportTaskSignal(task *protocol.CronDailyReportTask, signal string) {
+func addDailyReportTaskSignal(task *automationdomain.CronDailyReportTask, signal string) {
 	addUniqueString(&task.Signals, signal)
 }
 
-func addDailyReportTaskSuggestedTool(task *protocol.CronDailyReportTask, name string) {
+func addDailyReportTaskSuggestedTool(task *automationdomain.CronDailyReportTask, name string) {
 	addUniqueString(&task.SuggestedTools, name)
 }
 
-func addDailyReportExecutionRepairSuggestedTools(task *protocol.CronDailyReportTask) {
+func addDailyReportExecutionRepairSuggestedTools(task *automationdomain.CronDailyReportTask) {
 	addDailyReportTaskSuggestedTool(task, "update_scheduled_task")
 	addDailyReportTaskSuggestedTool(task, "run_scheduled_task")
 }
@@ -129,7 +129,7 @@ func setFirstStringPointer(target **string, value *string) {
 	*target = &text
 }
 
-func preferredDeliveryError(run protocol.CronRun) *string {
+func preferredDeliveryError(run automationdomain.CronRun) *string {
 	if stringPointerHasText(run.DeliveryError) {
 		return run.DeliveryError
 	}
@@ -141,7 +141,7 @@ func preferredDeliveryError(run protocol.CronRun) *string {
 
 func isFailedRunStatus(status string) bool {
 	switch strings.TrimSpace(status) {
-	case protocol.RunStatusFailed, protocol.RunStatusCancelled:
+	case automationdomain.RunStatusFailed, automationdomain.RunStatusCancelled:
 		return true
 	default:
 		return false
@@ -159,7 +159,7 @@ func boundedObservabilityLimit(value int, defaultValue int, maxValue int) int {
 	return min(value, maxValue)
 }
 
-func limitObservabilityRuns(runs []protocol.CronRun, limit int) []protocol.CronRun {
+func limitObservabilityRuns(runs []automationdomain.CronRun, limit int) []automationdomain.CronRun {
 	if limit <= 0 || len(runs) <= limit {
 		return runs
 	}

@@ -7,13 +7,14 @@ import (
 	"testing"
 	"time"
 
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 	"github.com/nexus-research-lab/nexus/internal/mcp/automation/contract"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 func TestListPassesAgentID(t *testing.T) {
 	svc := &stubService{
-		jobs: []protocol.CronJob{{JobID: "job-1", Schedule: protocol.Schedule{
+		jobs: []automationdomain.CronJob{{JobID: "job-1", Schedule: automationdomain.Schedule{
 			Kind: "every", IntervalSeconds: newInterval(300), Timezone: "Asia/Shanghai",
 		}}},
 	}
@@ -25,14 +26,14 @@ func TestListPassesAgentID(t *testing.T) {
 
 func TestListCanFilterCandidatesByQueryAndEnabled(t *testing.T) {
 	svc := &stubService{
-		jobs: []protocol.CronJob{
+		jobs: []automationdomain.CronJob{
 			{
 				JobID:       "job-news",
 				Name:        "每日新闻摘要",
 				AgentID:     "agent-1",
 				Instruction: "搜索今天的重要新闻并整理摘要",
 				Enabled:     true,
-				Schedule:    protocol.Schedule{Timezone: "Asia/Shanghai"},
+				Schedule:    automationdomain.Schedule{Timezone: "Asia/Shanghai"},
 			},
 			{
 				JobID:       "job-old-news",
@@ -40,7 +41,7 @@ func TestListCanFilterCandidatesByQueryAndEnabled(t *testing.T) {
 				AgentID:     "agent-1",
 				Instruction: "搜索旧闻",
 				Enabled:     false,
-				Schedule:    protocol.Schedule{Timezone: "Asia/Shanghai"},
+				Schedule:    automationdomain.Schedule{Timezone: "Asia/Shanghai"},
 			},
 			{
 				JobID:       "job-water",
@@ -48,7 +49,7 @@ func TestListCanFilterCandidatesByQueryAndEnabled(t *testing.T) {
 				AgentID:     "agent-1",
 				Instruction: "提醒我喝水",
 				Enabled:     true,
-				Schedule:    protocol.Schedule{Timezone: "Asia/Shanghai"},
+				Schedule:    automationdomain.Schedule{Timezone: "Asia/Shanghai"},
 			},
 		},
 	}
@@ -73,7 +74,7 @@ func TestListCanFilterCandidatesByQueryAndEnabled(t *testing.T) {
 
 func TestListCanFilterCandidatesByDeliveryChannelAndState(t *testing.T) {
 	svc := &stubService{
-		jobs: []protocol.CronJob{
+		jobs: []automationdomain.CronJob{
 			{
 				JobID:       "job-feishu",
 				Name:        "每日播报",
@@ -81,14 +82,14 @@ func TestListCanFilterCandidatesByDeliveryChannelAndState(t *testing.T) {
 				Instruction: "整理摘要并发送",
 				Enabled:     true,
 				Running:     true,
-				Schedule:    protocol.Schedule{Timezone: "Asia/Shanghai"},
-				Delivery: protocol.DeliveryTarget{
-					Mode:    protocol.DeliveryModeExplicit,
+				Schedule:    automationdomain.Schedule{Timezone: "Asia/Shanghai"},
+				Delivery: automationdomain.DeliveryTarget{
+					Mode:    automationdomain.DeliveryModeExplicit,
 					Channel: protocol.SessionChannelFeishu,
 					To:      "oc_group_123",
 				},
-				SessionTarget: protocol.SessionTarget{
-					Kind:            protocol.SessionTargetNamed,
+				SessionTarget: automationdomain.SessionTarget{
+					Kind:            automationdomain.SessionTargetNamed,
 					NamedSessionKey: "daily-news",
 				},
 			},
@@ -98,9 +99,9 @@ func TestListCanFilterCandidatesByDeliveryChannelAndState(t *testing.T) {
 				AgentID:     "agent-1",
 				Instruction: "整理摘要",
 				Enabled:     true,
-				Schedule:    protocol.Schedule{Timezone: "Asia/Shanghai"},
-				Delivery: protocol.DeliveryTarget{
-					Mode:    protocol.DeliveryModeExplicit,
+				Schedule:    automationdomain.Schedule{Timezone: "Asia/Shanghai"},
+				Delivery: automationdomain.DeliveryTarget{
+					Mode:    automationdomain.DeliveryModeExplicit,
 					Channel: protocol.SessionChannelInternalSegment,
 					To:      protocol.BuildAgentSessionKey("agent-1", protocol.SessionChannelInternalSegment, "dm", protocol.AutomationInboxSessionRef, ""),
 				},
@@ -138,16 +139,16 @@ func TestListCanFilterCandidatesByDeliveryChannelAndState(t *testing.T) {
 
 func TestListCanFilterCandidatesByCurrentExternalGroupQuery(t *testing.T) {
 	svc := &stubService{
-		jobs: []protocol.CronJob{
+		jobs: []automationdomain.CronJob{
 			{
 				JobID:       "job-current-news",
 				Name:        "本群新闻",
 				AgentID:     "agent-1",
 				Instruction: "搜索新闻并发送",
 				Enabled:     true,
-				Schedule:    protocol.Schedule{Timezone: "Asia/Shanghai"},
-				Delivery: protocol.DeliveryTarget{
-					Mode:    protocol.DeliveryModeExplicit,
+				Schedule:    automationdomain.Schedule{Timezone: "Asia/Shanghai"},
+				Delivery: automationdomain.DeliveryTarget{
+					Mode:    automationdomain.DeliveryModeExplicit,
 					Channel: protocol.SessionChannelFeishu,
 					To:      "oc_group_123",
 				},
@@ -158,9 +159,9 @@ func TestListCanFilterCandidatesByCurrentExternalGroupQuery(t *testing.T) {
 				AgentID:     "agent-1",
 				Instruction: "搜索新闻并发送",
 				Enabled:     true,
-				Schedule:    protocol.Schedule{Timezone: "Asia/Shanghai"},
-				Delivery: protocol.DeliveryTarget{
-					Mode:    protocol.DeliveryModeExplicit,
+				Schedule:    automationdomain.Schedule{Timezone: "Asia/Shanghai"},
+				Delivery: automationdomain.DeliveryTarget{
+					Mode:    automationdomain.DeliveryModeExplicit,
 					Channel: protocol.SessionChannelFeishu,
 					To:      "oc_group_other",
 				},
@@ -171,8 +172,8 @@ func TestListCanFilterCandidatesByCurrentExternalGroupQuery(t *testing.T) {
 				AgentID:     "agent-1",
 				Instruction: "发送天气",
 				Enabled:     true,
-				Schedule:    protocol.Schedule{Timezone: "Asia/Shanghai"},
-				Source: protocol.Source{
+				Schedule:    automationdomain.Schedule{Timezone: "Asia/Shanghai"},
+				Source: automationdomain.Source{
 					SessionKey: "agent:agent-1:fs:group:oc_group_123",
 				},
 			},
@@ -222,16 +223,16 @@ func TestListCanFilterCandidatesByCurrentExternalGroupQuery(t *testing.T) {
 
 func TestListDefaultsToCurrentExternalGroupWithoutQuery(t *testing.T) {
 	svc := &stubService{
-		jobs: []protocol.CronJob{
+		jobs: []automationdomain.CronJob{
 			{
 				JobID:       "job-current-news",
 				Name:        "本群新闻",
 				AgentID:     "agent-1",
 				Instruction: "发送新闻",
 				Enabled:     true,
-				Schedule:    protocol.Schedule{Timezone: "Asia/Shanghai"},
-				Delivery: protocol.DeliveryTarget{
-					Mode:    protocol.DeliveryModeExplicit,
+				Schedule:    automationdomain.Schedule{Timezone: "Asia/Shanghai"},
+				Delivery: automationdomain.DeliveryTarget{
+					Mode:    automationdomain.DeliveryModeExplicit,
 					Channel: protocol.SessionChannelFeishu,
 					To:      "oc_group_123",
 				},
@@ -242,8 +243,8 @@ func TestListDefaultsToCurrentExternalGroupWithoutQuery(t *testing.T) {
 				AgentID:     "agent-1",
 				Instruction: "发送状态",
 				Enabled:     false,
-				Schedule:    protocol.Schedule{Timezone: "Asia/Shanghai"},
-				Source: protocol.Source{
+				Schedule:    automationdomain.Schedule{Timezone: "Asia/Shanghai"},
+				Source: automationdomain.Source{
 					SessionKey: "agent:agent-1:fs:group:oc_group_123",
 				},
 			},
@@ -253,9 +254,9 @@ func TestListDefaultsToCurrentExternalGroupWithoutQuery(t *testing.T) {
 				AgentID:     "agent-1",
 				Instruction: "发送新闻",
 				Enabled:     true,
-				Schedule:    protocol.Schedule{Timezone: "Asia/Shanghai"},
-				Delivery: protocol.DeliveryTarget{
-					Mode:    protocol.DeliveryModeExplicit,
+				Schedule:    automationdomain.Schedule{Timezone: "Asia/Shanghai"},
+				Delivery: automationdomain.DeliveryTarget{
+					Mode:    automationdomain.DeliveryModeExplicit,
 					Channel: protocol.SessionChannelFeishu,
 					To:      "oc_group_other",
 				},
@@ -314,13 +315,13 @@ func TestListPropagatesError(t *testing.T) {
 func TestSearchScheduledTaskHistoryReturnsDeletedCandidates(t *testing.T) {
 	deletedAt := time.Date(2026, 5, 21, 9, 0, 0, 0, time.UTC)
 	svc := &stubService{
-		historyItems: []protocol.CronTaskHistoryItem{
+		historyItems: []automationdomain.CronTaskHistoryItem{
 			{
 				JobID:         "job-deleted",
 				Name:          "旧新闻日报",
 				AgentID:       "agent-1",
 				Deleted:       true,
-				LatestAction:  protocol.TaskEventActionDelete,
+				LatestAction:  automationdomain.TaskEventActionDelete,
 				LatestEventAt: &deletedAt,
 				DeletedAt:     &deletedAt,
 				RunCount:      1,
@@ -349,16 +350,16 @@ func TestSearchScheduledTaskHistoryReturnsDeletedCandidates(t *testing.T) {
 
 func TestSearchScheduledTaskHistoryCanFilterCurrentExternalGroupQuery(t *testing.T) {
 	svc := &stubService{
-		jobs: []protocol.CronJob{
+		jobs: []automationdomain.CronJob{
 			{
 				JobID:       "job-current-news",
 				Name:        "本群每日新闻",
 				AgentID:     "agent-1",
 				Instruction: "搜索新闻并投递",
 				Enabled:     true,
-				Schedule:    protocol.Schedule{Timezone: "Asia/Shanghai"},
-				Delivery: protocol.DeliveryTarget{
-					Mode:    protocol.DeliveryModeExplicit,
+				Schedule:    automationdomain.Schedule{Timezone: "Asia/Shanghai"},
+				Delivery: automationdomain.DeliveryTarget{
+					Mode:    automationdomain.DeliveryModeExplicit,
 					Channel: protocol.SessionChannelFeishu,
 					To:      "oc_group_123",
 				},
@@ -369,15 +370,15 @@ func TestSearchScheduledTaskHistoryCanFilterCurrentExternalGroupQuery(t *testing
 				AgentID:     "agent-1",
 				Instruction: "搜索新闻并投递",
 				Enabled:     true,
-				Schedule:    protocol.Schedule{Timezone: "Asia/Shanghai"},
-				Delivery: protocol.DeliveryTarget{
-					Mode:    protocol.DeliveryModeExplicit,
+				Schedule:    automationdomain.Schedule{Timezone: "Asia/Shanghai"},
+				Delivery: automationdomain.DeliveryTarget{
+					Mode:    automationdomain.DeliveryModeExplicit,
 					Channel: protocol.SessionChannelFeishu,
 					To:      "oc_group_other",
 				},
 			},
 		},
-		historyItems: []protocol.CronTaskHistoryItem{
+		historyItems: []automationdomain.CronTaskHistoryItem{
 			{
 				JobID:   "job-current-deleted",
 				Name:    "本群旧新闻",
@@ -391,13 +392,13 @@ func TestSearchScheduledTaskHistoryCanFilterCurrentExternalGroupQuery(t *testing
 				Deleted: true,
 			},
 		},
-		eventsByJob: map[string][]protocol.CronTaskEvent{
+		eventsByJob: map[string][]automationdomain.CronTaskEvent{
 			"job-current-deleted": {
 				{
 					EventID: "evt-current-delete",
 					JobID:   "job-current-deleted",
 					AgentID: "agent-1",
-					Action:  protocol.TaskEventActionDelete,
+					Action:  automationdomain.TaskEventActionDelete,
 					Detail: map[string]any{
 						"name":             "本群旧新闻",
 						"delivery_channel": protocol.SessionChannelFeishu,
@@ -410,7 +411,7 @@ func TestSearchScheduledTaskHistoryCanFilterCurrentExternalGroupQuery(t *testing
 					EventID: "evt-other-delete",
 					JobID:   "job-other-deleted",
 					AgentID: "agent-1",
-					Action:  protocol.TaskEventActionDelete,
+					Action:  automationdomain.TaskEventActionDelete,
 					Detail: map[string]any{
 						"name":             "其他群旧新闻",
 						"delivery_channel": protocol.SessionChannelFeishu,
@@ -472,15 +473,15 @@ func TestSearchScheduledTaskHistoryCanFilterCurrentInternalConversationQuery(t *
 	currentSessionKey := protocol.BuildAgentSessionKey("agent-1", protocol.SessionChannelInternalSegment, "dm", "operator", "")
 	otherSessionKey := protocol.BuildAgentSessionKey("agent-1", protocol.SessionChannelInternalSegment, "dm", "other", "")
 	svc := &stubService{
-		jobs: []protocol.CronJob{
+		jobs: []automationdomain.CronJob{
 			{
 				JobID:       "job-current-news",
 				Name:        "当前会话每日新闻",
 				AgentID:     "agent-1",
 				Instruction: "搜索新闻并发给我",
 				Enabled:     true,
-				Schedule:    protocol.Schedule{Timezone: "Asia/Shanghai"},
-				Source: protocol.Source{
+				Schedule:    automationdomain.Schedule{Timezone: "Asia/Shanghai"},
+				Source: automationdomain.Source{
 					SessionKey: currentSessionKey,
 				},
 			},
@@ -490,13 +491,13 @@ func TestSearchScheduledTaskHistoryCanFilterCurrentInternalConversationQuery(t *
 				AgentID:     "agent-1",
 				Instruction: "搜索新闻并发给我",
 				Enabled:     true,
-				Schedule:    protocol.Schedule{Timezone: "Asia/Shanghai"},
-				Source: protocol.Source{
+				Schedule:    automationdomain.Schedule{Timezone: "Asia/Shanghai"},
+				Source: automationdomain.Source{
 					SessionKey: otherSessionKey,
 				},
 			},
 		},
-		historyItems: []protocol.CronTaskHistoryItem{
+		historyItems: []automationdomain.CronTaskHistoryItem{
 			{
 				JobID:   "job-current-deleted",
 				Name:    "当前会话旧新闻",
@@ -510,13 +511,13 @@ func TestSearchScheduledTaskHistoryCanFilterCurrentInternalConversationQuery(t *
 				Deleted: true,
 			},
 		},
-		eventsByJob: map[string][]protocol.CronTaskEvent{
+		eventsByJob: map[string][]automationdomain.CronTaskEvent{
 			"job-current-deleted": {
 				{
 					EventID: "evt-current-delete",
 					JobID:   "job-current-deleted",
 					AgentID: "agent-1",
-					Action:  protocol.TaskEventActionDelete,
+					Action:  automationdomain.TaskEventActionDelete,
 					Detail: map[string]any{
 						"name":               "当前会话旧新闻",
 						"source_session_key": currentSessionKey,
@@ -528,7 +529,7 @@ func TestSearchScheduledTaskHistoryCanFilterCurrentInternalConversationQuery(t *
 					EventID: "evt-other-delete",
 					JobID:   "job-other-deleted",
 					AgentID: "agent-1",
-					Action:  protocol.TaskEventActionDelete,
+					Action:  automationdomain.TaskEventActionDelete,
 					Detail: map[string]any{
 						"name":               "其他会话旧新闻",
 						"source_session_key": otherSessionKey,

@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 
 	_ "modernc.org/sqlite"
@@ -29,18 +29,18 @@ func TestServiceDeliveryFailureDoesNotFailExecutionAndCanRetry(t *testing.T) {
 		&fakeWorkspaceReader{},
 		delivery,
 	)
-	task, err := service.CreateTask(context.Background(), protocol.CreateJobInput{
+	task, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
 		Name:        "news",
 		AgentID:     "agent-1",
 		Instruction: "search news",
-		Schedule: protocol.Schedule{
-			Kind:            protocol.ScheduleKindEvery,
+		Schedule: automationdomain.Schedule{
+			Kind:            automationdomain.ScheduleKindEvery,
 			IntervalSeconds: intRef(3600),
 			Timezone:        "Asia/Shanghai",
 		},
-		SessionTarget: protocol.SessionTarget{Kind: protocol.SessionTargetNamed, NamedSessionKey: "news"},
-		Delivery: protocol.DeliveryTarget{
-			Mode:    protocol.DeliveryModeExplicit,
+		SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetNamed, NamedSessionKey: "news"},
+		Delivery: automationdomain.DeliveryTarget{
+			Mode:    automationdomain.DeliveryModeExplicit,
 			Channel: "feishu",
 			To:      "oc_bad",
 		},
@@ -55,14 +55,14 @@ func TestServiceDeliveryFailureDoesNotFailExecutionAndCanRetry(t *testing.T) {
 	}
 	waitFor(t, 2*time.Second, func() bool {
 		items, listErr := service.ListTaskRuns(context.Background(), task.JobID)
-		return listErr == nil && len(items) > 0 && items[0].DeliveryStatus == protocol.DeliveryStatusFailed
+		return listErr == nil && len(items) > 0 && items[0].DeliveryStatus == automationdomain.DeliveryStatusFailed
 	})
 
 	runs, err := service.ListTaskRuns(context.Background(), task.JobID)
 	if err != nil || len(runs) == 0 {
 		t.Fatalf("读取 run 失败: runs=%+v err=%v", runs, err)
 	}
-	if runs[0].Status != protocol.RunStatusSucceeded {
+	if runs[0].Status != automationdomain.RunStatusSucceeded {
 		t.Fatalf("投递失败不应把执行状态改成 failed: %+v", runs[0])
 	}
 	if runs[0].DeliveryError == nil || !strings.Contains(*runs[0].DeliveryError, "bad chat_id") {
@@ -78,19 +78,19 @@ func TestServiceDeliveryFailureDoesNotFailExecutionAndCanRetry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("读取任务失败: %v", err)
 	}
-	if updatedTask.LastRunStatus != protocol.RunStatusSucceeded || updatedTask.FailureStreak != 0 {
+	if updatedTask.LastRunStatus != automationdomain.RunStatusSucceeded || updatedTask.FailureStreak != 0 {
 		t.Fatalf("投递失败不应触发任务级执行失败退避: %+v", updatedTask)
 	}
-	if updatedTask.LastDeliveryStatus != protocol.DeliveryStatusFailed {
+	if updatedTask.LastDeliveryStatus != automationdomain.DeliveryStatusFailed {
 		t.Fatalf("last_delivery_status 未记录失败: %+v", updatedTask)
 	}
 
-	updatedDelivery := protocol.DeliveryTarget{
-		Mode:    protocol.DeliveryModeExplicit,
+	updatedDelivery := automationdomain.DeliveryTarget{
+		Mode:    automationdomain.DeliveryModeExplicit,
 		Channel: "feishu",
 		To:      "oc_good",
 	}
-	if _, err = service.UpdateTask(context.Background(), task.JobID, protocol.UpdateJobInput{Delivery: &updatedDelivery}); err != nil {
+	if _, err = service.UpdateTask(context.Background(), task.JobID, automationdomain.UpdateJobInput{Delivery: &updatedDelivery}); err != nil {
 		t.Fatalf("修正投递目标失败: %v", err)
 	}
 	delivery.err = nil
@@ -102,7 +102,7 @@ func TestServiceDeliveryFailureDoesNotFailExecutionAndCanRetry(t *testing.T) {
 		t.Fatalf("读取自动重试后的 run 失败: %v", err)
 	}
 	redelivered := redeliveredRuns[0]
-	if redelivered.DeliveryStatus != protocol.DeliveryStatusSucceeded || redelivered.DeliveryError != nil || redelivered.DeliveredAt == nil {
+	if redelivered.DeliveryStatus != automationdomain.DeliveryStatusSucceeded || redelivered.DeliveryError != nil || redelivered.DeliveredAt == nil {
 		t.Fatalf("重试投递后状态不正确: %+v", redelivered)
 	}
 	if redelivered.DeliveryTo != "explicit:feishu:oc_good" {
@@ -122,9 +122,9 @@ func TestServiceDeliveryFailureDoesNotFailExecutionAndCanRetry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("读取自动重试审计失败: %v", err)
 	}
-	var autoRetryEvent *protocol.CronTaskEvent
+	var autoRetryEvent *automationdomain.CronTaskEvent
 	for index := range events {
-		if events[index].Action == protocol.TaskEventActionAutoRetryDelivery {
+		if events[index].Action == automationdomain.TaskEventActionAutoRetryDelivery {
 			autoRetryEvent = &events[index]
 			break
 		}
@@ -135,7 +135,7 @@ func TestServiceDeliveryFailureDoesNotFailExecutionAndCanRetry(t *testing.T) {
 	if autoRetryEvent.RunID != runs[0].RunID || autoRetryEvent.ActorUserID != authctx.SystemUserID {
 		t.Fatalf("自动重试事件应关联 run 且 actor 为系统: %+v", autoRetryEvent)
 	}
-	if autoRetryEvent.Detail["delivery_status"] != protocol.DeliveryStatusSucceeded ||
+	if autoRetryEvent.Detail["delivery_status"] != automationdomain.DeliveryStatusSucceeded ||
 		autoRetryEvent.Detail["delivery_to"] != "explicit:feishu:oc_good" {
 		t.Fatalf("自动重试事件应记录投递结果和实际目标: %+v", autoRetryEvent.Detail)
 	}
@@ -159,18 +159,18 @@ func TestServiceRunDueOnceRetriesDueDelivery(t *testing.T) {
 	)
 	base := time.Date(2026, 5, 21, 9, 0, 0, 0, time.UTC)
 	service.nowFn = func() time.Time { return base }
-	task, err := service.CreateTask(context.Background(), protocol.CreateJobInput{
+	task, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
 		Name:        "auto-redelivery",
 		AgentID:     "agent-1",
 		Instruction: "send report",
-		Schedule: protocol.Schedule{
-			Kind:            protocol.ScheduleKindEvery,
+		Schedule: automationdomain.Schedule{
+			Kind:            automationdomain.ScheduleKindEvery,
 			IntervalSeconds: intRef(3600),
 			Timezone:        "UTC",
 		},
-		SessionTarget: protocol.SessionTarget{Kind: protocol.SessionTargetNamed, NamedSessionKey: "reports"},
-		Delivery: protocol.DeliveryTarget{
-			Mode:    protocol.DeliveryModeExplicit,
+		SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetNamed, NamedSessionKey: "reports"},
+		Delivery: automationdomain.DeliveryTarget{
+			Mode:    automationdomain.DeliveryModeExplicit,
 			Channel: "feishu",
 			To:      "oc_group",
 		},
@@ -194,11 +194,11 @@ INSERT INTO automation_cron_runs (
 		runID,
 		task.JobID,
 		task.OwnerUserID,
-		protocol.RunStatusSucceeded,
+		automationdomain.RunStatusSucceeded,
 		"cron",
-		protocol.DeliveryModeExplicit,
+		automationdomain.DeliveryModeExplicit,
 		"explicit:feishu:oc_old",
-		protocol.DeliveryStatusFailed,
+		automationdomain.DeliveryStatusFailed,
 		deliveryError,
 		1,
 		dueAt,
@@ -218,7 +218,7 @@ INSERT INTO automation_cron_runs (
 		return listErr == nil &&
 			len(runs) > 0 &&
 			runs[0].RunID == runID &&
-			runs[0].DeliveryStatus == protocol.DeliveryStatusSucceeded
+			runs[0].DeliveryStatus == automationdomain.DeliveryStatusSucceeded
 	})
 	runs, err := service.ListTaskRuns(context.Background(), task.JobID)
 	if err != nil || len(runs) == 0 {
@@ -240,7 +240,7 @@ INSERT INTO automation_cron_runs (
 		t.Fatalf("读取自动重试事件失败: %v", err)
 	}
 	for _, event := range events {
-		if event.Action == protocol.TaskEventActionAutoRetryDelivery && event.RunID == runID {
+		if event.Action == automationdomain.TaskEventActionAutoRetryDelivery && event.RunID == runID {
 			return
 		}
 	}

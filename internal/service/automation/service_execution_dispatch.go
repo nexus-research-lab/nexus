@@ -32,7 +32,7 @@ func (s *Service) bindSink(sessionKey string, sink *automationdomain.ExecutionSi
 	}
 }
 
-func buildCronInstruction(job protocol.CronJob) string {
+func buildCronInstruction(job automationdomain.CronJob) string {
 	marker := buildCronMarker(job)
 	instruction := strings.TrimSpace(job.Instruction)
 	if instruction == "" {
@@ -41,7 +41,7 @@ func buildCronInstruction(job protocol.CronJob) string {
 	return marker + " " + instruction
 }
 
-func buildCronMarker(job protocol.CronJob) string {
+func buildCronMarker(job automationdomain.CronJob) string {
 	jobID := strings.TrimSpace(job.JobID)
 	if jobID == "" {
 		jobID = "unknown"
@@ -65,7 +65,7 @@ func normalizeCronMarkerLabel(value string) string {
 }
 
 func (s *Service) dispatchToSession(ctx context.Context, sessionKey string, roundID string, agentID string, instruction string) error {
-	return s.dispatchJobToSession(ctx, protocol.CronJob{
+	return s.dispatchJobToSession(ctx, automationdomain.CronJob{
 		AgentID:     agentID,
 		Instruction: instruction,
 	}, sessionKey, roundID, nil)
@@ -73,7 +73,7 @@ func (s *Service) dispatchToSession(ctx context.Context, sessionKey string, roun
 
 func (s *Service) dispatchJobToSession(
 	ctx context.Context,
-	job protocol.CronJob,
+	job automationdomain.CronJob,
 	sessionKey string,
 	roundID string,
 	eventObserver roomsvc.RoomEventObserver,
@@ -109,7 +109,7 @@ func (s *Service) dispatchJobToSession(
 	})
 }
 
-func (s *Service) enqueueMainSessionEvent(ctx context.Context, job protocol.CronJob, triggerKind string) (string, error) {
+func (s *Service) enqueueMainSessionEvent(ctx context.Context, job automationdomain.CronJob, triggerKind string) (string, error) {
 	eventID := s.idFactory("evt")
 	if err := s.repository.InsertSystemEvent(
 		ctx,

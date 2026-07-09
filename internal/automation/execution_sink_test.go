@@ -43,7 +43,7 @@ func TestExecutionSinkMarksPermissionDenialSummaryAsFailed(t *testing.T) {
 	}
 
 	observation := sink.WaitForRound(context.Background(), roundID)
-	if observation.Status != protocol.RunStatusFailed {
+	if observation.Status != RunStatusFailed {
 		t.Fatalf("权限拒绝的后台运行应标记为 failed，实际: %+v", observation)
 	}
 	if observation.ErrorMessage == nil || !strings.Contains(*observation.ErrorMessage, "WebSearch") {

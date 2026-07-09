@@ -10,7 +10,7 @@ package contract
 import (
 	"context"
 
-	"github.com/nexus-research-lab/nexus/internal/protocol"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 )
 
 // ServerName 是 MCP server 的注册名。
@@ -38,18 +38,18 @@ type ServerContext struct {
 
 // Service 是 MCP server 依赖的 automation 服务子集。
 type Service interface {
-	ListTasks(ctx context.Context, agentID string) ([]protocol.CronJob, error)
-	GetTask(ctx context.Context, jobID string) (*protocol.CronJob, error)
-	CreateTask(ctx context.Context, input protocol.CreateJobInput) (*protocol.CronJob, error)
-	UpdateTask(ctx context.Context, jobID string, input protocol.UpdateJobInput) (*protocol.CronJob, error)
-	UpdateTaskStatus(ctx context.Context, jobID string, enabled bool) (*protocol.CronJob, error)
-	DeleteTask(ctx context.Context, jobID string) (*protocol.DeleteJobResult, error)
-	RunTaskNow(ctx context.Context, jobID string) (*protocol.ExecutionResult, error)
-	ListTaskRuns(ctx context.Context, jobID string) ([]protocol.CronRun, error)
-	ListTaskEvents(ctx context.Context, jobID string, limit int) ([]protocol.CronTaskEvent, error)
-	SearchTaskHistory(ctx context.Context, input protocol.CronTaskHistorySearchInput) ([]protocol.CronTaskHistoryItem, error)
-	GetTaskStatus(ctx context.Context, jobID string, runLimit int, eventLimit int) (*protocol.CronTaskStatus, error)
-	GetDailyReport(ctx context.Context, input protocol.CronDailyReportInput) (*protocol.CronDailyReport, error)
-	RetryRunDelivery(ctx context.Context, jobID string, runID string) (*protocol.CronRun, error)
-	RecoverTaskRunningRun(ctx context.Context, jobID string, runID string) (*protocol.CronJob, error)
+	ListTasks(ctx context.Context, agentID string) ([]automationdomain.CronJob, error)
+	GetTask(ctx context.Context, jobID string) (*automationdomain.CronJob, error)
+	CreateTask(ctx context.Context, input automationdomain.CreateJobInput) (*automationdomain.CronJob, error)
+	UpdateTask(ctx context.Context, jobID string, input automationdomain.UpdateJobInput) (*automationdomain.CronJob, error)
+	UpdateTaskStatus(ctx context.Context, jobID string, enabled bool) (*automationdomain.CronJob, error)
+	DeleteTask(ctx context.Context, jobID string) (*automationdomain.DeleteJobResult, error)
+	RunTaskNow(ctx context.Context, jobID string) (*automationdomain.ExecutionResult, error)
+	ListTaskRuns(ctx context.Context, jobID string) ([]automationdomain.CronRun, error)
+	ListTaskEvents(ctx context.Context, jobID string, limit int) ([]automationdomain.CronTaskEvent, error)
+	SearchTaskHistory(ctx context.Context, input automationdomain.CronTaskHistorySearchInput) ([]automationdomain.CronTaskHistoryItem, error)
+	GetTaskStatus(ctx context.Context, jobID string, runLimit int, eventLimit int) (*automationdomain.CronTaskStatus, error)
+	GetDailyReport(ctx context.Context, input automationdomain.CronDailyReportInput) (*automationdomain.CronDailyReport, error)
+	RetryRunDelivery(ctx context.Context, jobID string, runID string) (*automationdomain.CronRun, error)
+	RecoverTaskRunningRun(ctx context.Context, jobID string, runID string) (*automationdomain.CronJob, error)
 }

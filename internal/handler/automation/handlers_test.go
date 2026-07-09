@@ -12,6 +12,7 @@ import (
 	"time"
 
 	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 	"github.com/nexus-research-lab/nexus/internal/handler/handlertest"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -242,7 +243,7 @@ func TestScheduledTaskDeliveryRecoveryHTTP(t *testing.T) {
 		t.Fatalf("解析重试响应失败: %v", err)
 	}
 	if retry.Data.RunID != runID ||
-		retry.Data.DeliveryStatus != protocol.DeliveryStatusSucceeded ||
+		retry.Data.DeliveryStatus != automationdomain.DeliveryStatusSucceeded ||
 		retry.Data.DeliveryTo != "explicit:internal:"+inboxKey ||
 		retry.Data.DeliveryError != nil ||
 		retry.Data.DeliveryAttempts != 2 ||
@@ -292,14 +293,14 @@ INSERT INTO automation_cron_runs (
 		runID,
 		jobID,
 		ownerUserID,
-		protocol.RunStatusSucceeded,
+		automationdomain.RunStatusSucceeded,
 		"cron",
 		protocol.BuildAgentSessionKey("nexus", "automation", "dm", "cron:"+jobID+":"+runID, ""),
 		"round-"+runID,
 		1,
-		protocol.DeliveryModeExplicit,
+		automationdomain.DeliveryModeExplicit,
 		"explicit:feishu:oc_missing_group",
-		protocol.DeliveryStatusFailed,
+		automationdomain.DeliveryStatusFailed,
 		"feishu send message failed: bad chat_id",
 		1,
 		deliveryNextAttemptAt.Format(time.RFC3339Nano),

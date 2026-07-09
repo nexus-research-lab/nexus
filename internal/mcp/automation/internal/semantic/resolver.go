@@ -15,61 +15,62 @@ import (
 	"fmt"
 	"strings"
 
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 	"github.com/nexus-research-lab/nexus/internal/mcp/automation/contract"
 	"github.com/nexus-research-lab/nexus/internal/mcp/automation/internal/argx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 // SessionTarget 按 execution_mode 推导出底层 SessionTarget。
-func SessionTarget(args map[string]any, sctx contract.ServerContext, executionMode string) (protocol.SessionTarget, error) {
+func SessionTarget(args map[string]any, sctx contract.ServerContext, executionMode string) (automationdomain.SessionTarget, error) {
 	switch executionMode {
 	case "":
-		return protocol.SessionTarget{}, errors.New("execution_mode is required (main / existing / temporary / dedicated)")
+		return automationdomain.SessionTarget{}, errors.New("execution_mode is required (main / existing / temporary / dedicated)")
 	case "main":
 		if !sctx.IsMainAgent {
-			return protocol.SessionTarget{}, errors.New("execution_mode=main is reserved for the main agent; regular agents must use existing / temporary / dedicated")
+			return automationdomain.SessionTarget{}, errors.New("execution_mode=main is reserved for the main agent; regular agents must use existing / temporary / dedicated")
 		}
-		return protocol.SessionTarget{Kind: protocol.SessionTargetMain, WakeMode: protocol.WakeModeNextHeartbeat}.Normalized(), nil
+		return automationdomain.SessionTarget{Kind: automationdomain.SessionTargetMain, WakeMode: automationdomain.WakeModeNextHeartbeat}.Normalized(), nil
 	case "existing":
 		bound := argx.FirstNonEmpty(argx.String(args, "selected_session_key"), sctx.CurrentSessionKey)
 		if bound == "" {
-			return protocol.SessionTarget{}, errors.New("execution_mode=existing requires selected_session_key (or an active current session). Ask the user in the current conversation to confirm the target session, then retry")
+			return automationdomain.SessionTarget{}, errors.New("execution_mode=existing requires selected_session_key (or an active current session). Ask the user in the current conversation to confirm the target session, then retry")
 		}
-		target := protocol.SessionTarget{Kind: protocol.SessionTargetBound, BoundSessionKey: bound}.Normalized()
+		target := automationdomain.SessionTarget{Kind: automationdomain.SessionTargetBound, BoundSessionKey: bound}.Normalized()
 		if err := target.Validate(); err != nil {
-			return protocol.SessionTarget{}, err
+			return automationdomain.SessionTarget{}, err
 		}
 		return target, nil
 	case "temporary":
-		return protocol.SessionTarget{Kind: protocol.SessionTargetIsolated, WakeMode: protocol.WakeModeNextHeartbeat}.Normalized(), nil
+		return automationdomain.SessionTarget{Kind: automationdomain.SessionTargetIsolated, WakeMode: automationdomain.WakeModeNextHeartbeat}.Normalized(), nil
 	case "dedicated":
 		name := argx.String(args, "named_session_key")
 		if name == "" {
-			return protocol.SessionTarget{}, errors.New("execution_mode=dedicated requires named_session_key. Ask the user in the current conversation to confirm a dedicated session name first")
+			return automationdomain.SessionTarget{}, errors.New("execution_mode=dedicated requires named_session_key. Ask the user in the current conversation to confirm a dedicated session name first")
 		}
-		target := protocol.SessionTarget{Kind: protocol.SessionTargetNamed, NamedSessionKey: name}.Normalized()
+		target := automationdomain.SessionTarget{Kind: automationdomain.SessionTargetNamed, NamedSessionKey: name}.Normalized()
 		if err := target.Validate(); err != nil {
-			return protocol.SessionTarget{}, err
+			return automationdomain.SessionTarget{}, err
 		}
 		return target, nil
 	default:
-		return protocol.SessionTarget{}, fmt.Errorf("unsupported execution_mode: %s (allowed: main / existing / temporary / dedicated)", executionMode)
+		return automationdomain.SessionTarget{}, fmt.Errorf("unsupported execution_mode: %s (allowed: main / existing / temporary / dedicated)", executionMode)
 	}
 }
 
 // Delivery 按 reply_mode 推导出底层 DeliveryTarget。
-func Delivery(args map[string]any, sctx contract.ServerContext, targetAgentID, executionMode, replyMode string, sessionTarget protocol.SessionTarget) (protocol.DeliveryTarget, error) {
+func Delivery(args map[string]any, sctx contract.ServerContext, targetAgentID, executionMode, replyMode string, sessionTarget automationdomain.SessionTarget) (automationdomain.DeliveryTarget, error) {
 	switch replyMode {
 	case "":
-		return protocol.DeliveryTarget{}, errors.New("reply_mode is required (none / execution / selected / agent / channel)")
+		return automationdomain.DeliveryTarget{}, errors.New("reply_mode is required (none / execution / selected / agent / channel)")
 	case "none":
-		return protocol.DeliveryTarget{Mode: protocol.DeliveryModeNone}.Normalized(), nil
+		return automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone}.Normalized(), nil
 	case "execution":
 		return executionReply(executionMode, args, sctx, sessionTarget)
 	case "selected":
 		to := argx.String(args, "selected_reply_session_key")
 		if to == "" {
-			return protocol.DeliveryTarget{}, errors.New("reply_mode=selected requires selected_reply_session_key. Ask the user in the current conversation to confirm which existing session should receive the result")
+			return automationdomain.DeliveryTarget{}, errors.New("reply_mode=selected requires selected_reply_session_key. Ask the user in the current conversation to confirm which existing session should receive the result")
 		}
 		return deliveryFromSessionKey(to), nil
 	case "agent":
@@ -77,14 +78,14 @@ func Delivery(args map[string]any, sctx contract.ServerContext, targetAgentID, e
 	case "channel":
 		return channelReply(args, sctx)
 	default:
-		return protocol.DeliveryTarget{}, fmt.Errorf("unsupported reply_mode: %s (allowed: none / execution / selected / agent / channel)", replyMode)
+		return automationdomain.DeliveryTarget{}, fmt.Errorf("unsupported reply_mode: %s (allowed: none / execution / selected / agent / channel)", replyMode)
 	}
 }
 
-func agentReply(args map[string]any, sctx contract.ServerContext, targetAgentID string) (protocol.DeliveryTarget, error) {
+func agentReply(args map[string]any, sctx contract.ServerContext, targetAgentID string) (automationdomain.DeliveryTarget, error) {
 	agentID := argx.FirstNonEmpty(argx.String(args, "reply_agent_id"), targetAgentID, sctx.CurrentAgentID)
 	if strings.TrimSpace(agentID) == "" {
-		return protocol.DeliveryTarget{}, errors.New("reply_mode=agent requires reply_agent_id or an active target agent")
+		return automationdomain.DeliveryTarget{}, errors.New("reply_mode=agent requires reply_agent_id or an active target agent")
 	}
 	sessionKey := protocol.BuildAgentSessionKey(
 		strings.TrimSpace(agentID),
@@ -93,14 +94,14 @@ func agentReply(args map[string]any, sctx contract.ServerContext, targetAgentID 
 		protocol.AutomationInboxSessionRef,
 		"",
 	)
-	return protocol.DeliveryTarget{
-		Mode:    protocol.DeliveryModeExplicit,
+	return automationdomain.DeliveryTarget{
+		Mode:    automationdomain.DeliveryModeExplicit,
 		Channel: protocol.SessionChannelInternalSegment,
 		To:      sessionKey,
 	}.Normalized(), nil
 }
 
-func channelReply(args map[string]any, sctx contract.ServerContext) (protocol.DeliveryTarget, error) {
+func channelReply(args map[string]any, sctx contract.ServerContext) (automationdomain.DeliveryTarget, error) {
 	sessionKey := argx.FirstNonEmpty(argx.String(args, "reply_session_key"), argx.String(args, "selected_reply_session_key"))
 	if sessionKey != "" {
 		return deliveryFromSessionKey(sessionKey), nil
@@ -108,8 +109,8 @@ func channelReply(args map[string]any, sctx contract.ServerContext) (protocol.De
 	if !hasExplicitChannelReplyTarget(args) && currentSessionKeyCanDeliverToExternalChannel(sctx.CurrentSessionKey) {
 		return deliveryFromSessionKey(sctx.CurrentSessionKey), nil
 	}
-	delivery := protocol.DeliveryTarget{
-		Mode:      protocol.DeliveryModeExplicit,
+	delivery := automationdomain.DeliveryTarget{
+		Mode:      automationdomain.DeliveryModeExplicit,
 		Channel:   argx.FirstNonEmpty(argx.String(args, "reply_channel"), argx.String(args, "delivery_channel")),
 		To:        argx.FirstNonEmpty(argx.String(args, "reply_to"), argx.String(args, "delivery_to")),
 		AccountID: argx.FirstNonEmpty(argx.String(args, "reply_account_id"), argx.String(args, "delivery_account_id")),
@@ -121,10 +122,10 @@ func channelReply(args map[string]any, sctx contract.ServerContext) (protocol.De
 		}
 	}
 	if strings.TrimSpace(delivery.Channel) == "" {
-		return protocol.DeliveryTarget{}, errors.New("reply_mode=channel requires reply_channel or reply_session_key")
+		return automationdomain.DeliveryTarget{}, errors.New("reply_mode=channel requires reply_channel or reply_session_key")
 	}
 	if strings.TrimSpace(delivery.To) == "" {
-		return protocol.DeliveryTarget{}, errors.New("reply_mode=channel requires reply_to or reply_session_key")
+		return automationdomain.DeliveryTarget{}, errors.New("reply_mode=channel requires reply_to or reply_session_key")
 	}
 	return delivery.Normalized(), nil
 }
@@ -144,20 +145,20 @@ func hasExplicitChannelReplyTarget(args map[string]any) bool {
 }
 
 func fillChannelReplyTargetFromCurrentSession(
-	delivery protocol.DeliveryTarget,
+	delivery automationdomain.DeliveryTarget,
 	currentSessionKey string,
-) (protocol.DeliveryTarget, bool) {
+) (automationdomain.DeliveryTarget, bool) {
 	if !currentSessionKeyCanDeliverToExternalChannel(currentSessionKey) {
-		return protocol.DeliveryTarget{}, false
+		return automationdomain.DeliveryTarget{}, false
 	}
 	current := deliveryFromSessionKey(currentSessionKey)
 	currentChannel := protocol.NormalizeStoredChannelType(current.Channel)
 	requestedChannel := protocol.NormalizeStoredChannelType(delivery.Channel)
 	if requestedChannel != "" && requestedChannel != currentChannel {
-		return protocol.DeliveryTarget{}, false
+		return automationdomain.DeliveryTarget{}, false
 	}
 	result := delivery
-	result.Mode = protocol.DeliveryModeExplicit
+	result.Mode = automationdomain.DeliveryModeExplicit
 	if strings.TrimSpace(result.Channel) == "" {
 		result.Channel = currentChannel
 	}
@@ -191,15 +192,15 @@ func currentSessionKeyCanDeliverToExternalChannel(sessionKey string) bool {
 	}
 }
 
-func deliveryFromSessionKey(sessionKey string) protocol.DeliveryTarget {
+func deliveryFromSessionKey(sessionKey string) automationdomain.DeliveryTarget {
 	normalized := strings.TrimSpace(sessionKey)
 	parsed := protocol.ParseSessionKey(normalized)
 	channel := protocol.NormalizeStoredChannelType(parsed.Channel)
 	if !parsed.IsStructured || parsed.Kind != protocol.SessionKeyKindAgent || channel == "" {
-		return protocol.DeliveryTarget{Mode: protocol.DeliveryModeExplicit, Channel: "websocket", To: normalized}.Normalized()
+		return automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeExplicit, Channel: "websocket", To: normalized}.Normalized()
 	}
 	if channel == protocol.SessionChannelWebSocket || channel == protocol.SessionChannelInternalSegment {
-		return protocol.DeliveryTarget{Mode: protocol.DeliveryModeExplicit, Channel: channel, To: normalized}.Normalized()
+		return automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeExplicit, Channel: channel, To: normalized}.Normalized()
 	}
 	switch channel {
 	case protocol.SessionChannelDiscord,
@@ -209,10 +210,10 @@ func deliveryFromSessionKey(sessionKey string) protocol.DeliveryTarget {
 		protocol.SessionChannelWeixinPersonal,
 		protocol.SessionChannelFeishu:
 	default:
-		return protocol.DeliveryTarget{Mode: protocol.DeliveryModeExplicit, Channel: "websocket", To: normalized}.Normalized()
+		return automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeExplicit, Channel: "websocket", To: normalized}.Normalized()
 	}
-	return protocol.DeliveryTarget{
-		Mode:     protocol.DeliveryModeExplicit,
+	return automationdomain.DeliveryTarget{
+		Mode:     automationdomain.DeliveryModeExplicit,
 		Channel:  channel,
 		To:       parsed.Ref,
 		ThreadID: parsed.ThreadID,
@@ -221,33 +222,33 @@ func deliveryFromSessionKey(sessionKey string) protocol.DeliveryTarget {
 
 // executionReply 处理 reply_mode=execution 的复杂分支：
 // 主会话/agent 上下文下的 temporary、dedicated 默认不投递，避免重复轰炸。
-func executionReply(executionMode string, args map[string]any, sctx contract.ServerContext, sessionTarget protocol.SessionTarget) (protocol.DeliveryTarget, error) {
-	if sessionTarget.Kind == protocol.SessionTargetMain {
-		return protocol.DeliveryTarget{Mode: protocol.DeliveryModeNone}.Normalized(), nil
+func executionReply(executionMode string, args map[string]any, sctx contract.ServerContext, sessionTarget automationdomain.SessionTarget) (automationdomain.DeliveryTarget, error) {
+	if sessionTarget.Kind == automationdomain.SessionTargetMain {
+		return automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone}.Normalized(), nil
 	}
 	resolved := executionMode
 	if resolved == "" {
 		resolved = executionModeFromTarget(sessionTarget)
 	}
 	if (resolved == "temporary" || resolved == "dedicated") && strings.TrimSpace(sctx.SourceContextType) != "room" {
-		return protocol.DeliveryTarget{Mode: protocol.DeliveryModeNone}.Normalized(), nil
+		return automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone}.Normalized(), nil
 	}
 	to := argx.FirstNonEmpty(argx.String(args, "selected_session_key"), sctx.CurrentSessionKey)
 	if to == "" {
-		return protocol.DeliveryTarget{}, errors.New("reply_mode=execution requires selected_session_key or an active current session. Ask the user in the current conversation to confirm which execution session should receive the result")
+		return automationdomain.DeliveryTarget{}, errors.New("reply_mode=execution requires selected_session_key or an active current session. Ask the user in the current conversation to confirm which execution session should receive the result")
 	}
 	return deliveryFromSessionKey(to), nil
 }
 
-func executionModeFromTarget(target protocol.SessionTarget) string {
+func executionModeFromTarget(target automationdomain.SessionTarget) string {
 	switch target.Kind {
-	case protocol.SessionTargetBound:
+	case automationdomain.SessionTargetBound:
 		return "existing"
-	case protocol.SessionTargetIsolated:
+	case automationdomain.SessionTargetIsolated:
 		return "temporary"
-	case protocol.SessionTargetNamed:
+	case automationdomain.SessionTargetNamed:
 		return "dedicated"
-	case protocol.SessionTargetMain:
+	case automationdomain.SessionTargetMain:
 		return "main"
 	}
 	return ""
@@ -265,7 +266,7 @@ func ValidatePage(executionMode, replyMode string) error {
 
 // Source 基于当前 ServerContext 组装 Source 元数据。
 // 工具层不再接受外部传入的 source 对象，统一使用当前上下文，避免 Agent 伪造来源。
-func Source(sctx contract.ServerContext, agentID string) protocol.Source {
+func Source(sctx contract.ServerContext, agentID string) automationdomain.Source {
 	contextType := "agent"
 	if strings.TrimSpace(sctx.SourceContextType) == "room" {
 		contextType = "room"
@@ -288,8 +289,8 @@ func Source(sctx contract.ServerContext, agentID string) protocol.Source {
 	if sessionLabel == "" && sctx.CurrentSessionKey != "" {
 		sessionLabel = "当前对话"
 	}
-	source := protocol.Source{
-		Kind:           protocol.SourceKindAgent,
+	source := automationdomain.Source{
+		Kind:           automationdomain.SourceKindAgent,
 		CreatorAgentID: sctx.CurrentAgentID,
 		ContextType:    contextType,
 		ContextID:      contextID,

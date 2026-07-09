@@ -3,14 +3,14 @@ package automation
 import (
 	"database/sql"
 
-	"github.com/nexus-research-lab/nexus/internal/protocol"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 )
 
 func scanCronJob(scanner interface {
 	Scan(dest ...any) error
-}) (protocol.CronJob, error) {
+}) (automationdomain.CronJob, error) {
 	var (
-		item               protocol.CronJob
+		item               automationdomain.CronJob
 		runAt              sql.NullString
 		intervalSeconds    sql.NullInt64
 		cronExpression     sql.NullString
@@ -76,12 +76,12 @@ func scanCronJob(scanner interface {
 		&lastDeliveryStatus,
 	)
 	if err != nil {
-		return protocol.CronJob{}, err
+		return automationdomain.CronJob{}, err
 	}
 	item.Schedule.RunAt = nullStringToPointer(runAt)
 	item.Schedule.IntervalSeconds = nullIntToPointer(intervalSeconds)
 	item.Schedule.CronExpression = nullStringToPointer(cronExpression)
-	item.ExecutionKind = protocol.NormalizeExecutionKind(item.ExecutionKind)
+	item.ExecutionKind = automationdomain.NormalizeExecutionKind(item.ExecutionKind)
 	item.SessionTarget.BoundSessionKey = nullStringValue(boundSessionKey)
 	item.SessionTarget.NamedSessionKey = nullStringValue(namedSessionKey)
 	item.Delivery.Channel = nullStringValue(deliveryChannel)
@@ -96,7 +96,7 @@ func scanCronJob(scanner interface {
 	item.Source.SessionKey = nullStringValue(sourceSessionKey)
 	item.Source.SessionLabel = nullStringValue(sourceSessionLabel)
 	item.Source = item.Source.Normalized()
-	item.OverlapPolicy = protocol.NormalizeOverlapPolicy(item.OverlapPolicy)
+	item.OverlapPolicy = automationdomain.NormalizeOverlapPolicy(item.OverlapPolicy)
 	item.NextRunAt = nullTimePointer(nextRunAt)
 	item.RunningRunID = nullStringValue(runningRunID)
 	item.RunningStartedAt = nullTimePointer(runningStartedAt)
@@ -111,7 +111,7 @@ func scanCronJob(scanner interface {
 	return item, nil
 }
 
-func scanCronJobRow(row *sql.Row) (*protocol.CronJob, error) {
+func scanCronJobRow(row *sql.Row) (*automationdomain.CronJob, error) {
 	item, err := scanCronJob(row)
 	if err != nil {
 		return nil, err
@@ -121,9 +121,9 @@ func scanCronJobRow(row *sql.Row) (*protocol.CronJob, error) {
 
 func scanCronRun(scanner interface {
 	Scan(dest ...any) error
-}) (protocol.CronRun, error) {
+}) (automationdomain.CronRun, error) {
 	var (
-		item                  protocol.CronRun
+		item                  automationdomain.CronRun
 		sessionKey            sql.NullString
 		roundID               sql.NullString
 		sessionID             sql.NullString
@@ -174,7 +174,7 @@ func scanCronRun(scanner interface {
 		&item.UpdatedAt,
 	)
 	if err != nil {
-		return protocol.CronRun{}, err
+		return automationdomain.CronRun{}, err
 	}
 	item.ScheduledFor = nullTimePointer(scheduledFor)
 	item.StartedAt = nullTimePointer(startedAt)

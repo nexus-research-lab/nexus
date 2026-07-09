@@ -8,8 +8,8 @@ import (
 	"sort"
 	"strings"
 
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 	"github.com/nexus-research-lab/nexus/internal/mcp/automation/internal/argx"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 // weekdayCronValue 把 UI 三字母简写映射到 cron 的 day-of-week 数值。
@@ -32,10 +32,10 @@ var weekdayAliases = map[string]string{
 // Schedule 把 UI 对齐的 schedule 对象翻译成底层 Schedule。
 // 支持 kind=single/daily/interval/cron，其中 cron 允许直接传 raw cron 表达式（对齐 OpenClaw 的易用写法）。
 // 入参里若 timezone 为空，使用 defaultTimezone 回退（通常来自 cfg.DefaultTimezone=Asia/Shanghai）。
-func Schedule(raw any, defaultTimezone string) (protocol.Schedule, error) {
+func Schedule(raw any, defaultTimezone string) (automationdomain.Schedule, error) {
 	m, ok := raw.(map[string]any)
 	if !ok {
-		return protocol.Schedule{}, errors.New("schedule must be an object")
+		return automationdomain.Schedule{}, errors.New("schedule must be an object")
 	}
 	kind := strings.TrimSpace(argx.String(m, "kind"))
 	timezone := argx.FirstNonEmpty(argx.String(m, "timezone"), defaultTimezone, "Asia/Shanghai")
@@ -50,56 +50,56 @@ func Schedule(raw any, defaultTimezone string) (protocol.Schedule, error) {
 	case "single":
 		runAt := strings.TrimSpace(argx.String(m, "run_at"))
 		if runAt == "" {
-			return protocol.Schedule{}, errors.New("schedule.run_at is required when kind=single")
+			return automationdomain.Schedule{}, errors.New("schedule.run_at is required when kind=single")
 		}
-		schedule := protocol.Schedule{Kind: protocol.ScheduleKindAt, RunAt: &runAt, Timezone: timezone}
+		schedule := automationdomain.Schedule{Kind: automationdomain.ScheduleKindAt, RunAt: &runAt, Timezone: timezone}
 		return validateAndNormalize(schedule)
 	case "daily":
 		dailyTime := strings.TrimSpace(argx.String(m, "daily_time"))
 		weekdays, err := normalizeWeekdays(m["weekdays"])
 		if err != nil {
-			return protocol.Schedule{}, err
+			return automationdomain.Schedule{}, err
 		}
 		cronExpr, err := buildDailyCron(dailyTime, weekdays)
 		if err != nil {
-			return protocol.Schedule{}, err
+			return automationdomain.Schedule{}, err
 		}
-		schedule := protocol.Schedule{Kind: protocol.ScheduleKindCron, CronExpression: &cronExpr, Timezone: timezone}
+		schedule := automationdomain.Schedule{Kind: automationdomain.ScheduleKindCron, CronExpression: &cronExpr, Timezone: timezone}
 		return validateAndNormalize(schedule)
 	case "interval":
 		value := argx.Int(m["interval_value"])
 		if value <= 0 {
-			return protocol.Schedule{}, errors.New("schedule.interval_value must be a positive integer when kind=interval")
+			return automationdomain.Schedule{}, errors.New("schedule.interval_value must be a positive integer when kind=interval")
 		}
 		unit := strings.TrimSpace(argx.String(m, "interval_unit"))
 		seconds, err := intervalSeconds(value, unit)
 		if err != nil {
-			return protocol.Schedule{}, err
+			return automationdomain.Schedule{}, err
 		}
-		schedule := protocol.Schedule{Kind: protocol.ScheduleKindEvery, IntervalSeconds: &seconds, Timezone: timezone}
+		schedule := automationdomain.Schedule{Kind: automationdomain.ScheduleKindEvery, IntervalSeconds: &seconds, Timezone: timezone}
 		return validateAndNormalize(schedule)
 	case "cron":
 		if exprAlias == "" {
-			return protocol.Schedule{}, errors.New("schedule.expr is required when kind=cron (standard 5-field cron expression, e.g. \"0 9 * * 1-5\")")
+			return automationdomain.Schedule{}, errors.New("schedule.expr is required when kind=cron (standard 5-field cron expression, e.g. \"0 9 * * 1-5\")")
 		}
 		// 尝试把 cron 翻译回 UI 能表达的 daily 形态，让 agent 创建的任务也能在「新建任务」对话框里编辑。
 		// 翻译不出来直接拒绝，避免产生 UI 无法编辑的"幽灵任务"。
 		normalized, err := normalizeCronToDaily(exprAlias, timezone)
 		if err != nil {
-			return protocol.Schedule{}, err
+			return automationdomain.Schedule{}, err
 		}
 		return normalized, nil
 	case "":
-		return protocol.Schedule{}, errors.New("schedule.kind is required (single / daily / interval / cron)")
+		return automationdomain.Schedule{}, errors.New("schedule.kind is required (single / daily / interval / cron)")
 	default:
-		return protocol.Schedule{}, fmt.Errorf("schedule.kind must be one of single, daily, interval, cron (got %q)", kind)
+		return automationdomain.Schedule{}, fmt.Errorf("schedule.kind must be one of single, daily, interval, cron (got %q)", kind)
 	}
 }
 
-func validateAndNormalize(schedule protocol.Schedule) (protocol.Schedule, error) {
+func validateAndNormalize(schedule automationdomain.Schedule) (automationdomain.Schedule, error) {
 	normalized := schedule.Normalized()
 	if err := normalized.Validate(); err != nil {
-		return protocol.Schedule{}, err
+		return automationdomain.Schedule{}, err
 	}
 	return normalized, nil
 }
@@ -203,32 +203,32 @@ func intervalSeconds(value int, unit string) (int, error) {
 //   - "M H * * dow"        → 每周指定几天 HH:MM（dow 支持 *、单数字、逗号列表、a-b 区间）
 //
 // 翻译不出来直接拒绝并返回引导信息——避免产生 UI 无法编辑的「幽灵任务」。
-func normalizeCronToDaily(expr, timezone string) (protocol.Schedule, error) {
+func normalizeCronToDaily(expr, timezone string) (automationdomain.Schedule, error) {
 	fields := strings.Fields(strings.TrimSpace(expr))
 	if len(fields) != 5 {
-		return protocol.Schedule{}, cronUnsupportedError(expr, "expected standard 5-field cron expression (minute hour day-of-month month day-of-week)")
+		return automationdomain.Schedule{}, cronUnsupportedError(expr, "expected standard 5-field cron expression (minute hour day-of-month month day-of-week)")
 	}
 	minute, hour, dom, month, dow := fields[0], fields[1], fields[2], fields[3], fields[4]
 	if dom != "*" || month != "*" {
-		return protocol.Schedule{}, cronUnsupportedError(expr, "day-of-month and month must both be '*' (Nexus UI only edits daily/weekly schedules; for monthly cadence use kind=interval or split into multiple daily tasks)")
+		return automationdomain.Schedule{}, cronUnsupportedError(expr, "day-of-month and month must both be '*' (Nexus UI only edits daily/weekly schedules; for monthly cadence use kind=interval or split into multiple daily tasks)")
 	}
 	min, err := parseCronSingleInt(minute, 0, 59)
 	if err != nil {
-		return protocol.Schedule{}, cronUnsupportedError(expr, "minute field must be a single integer 0-59 (ranges/lists/steps not supported by UI)")
+		return automationdomain.Schedule{}, cronUnsupportedError(expr, "minute field must be a single integer 0-59 (ranges/lists/steps not supported by UI)")
 	}
 	hr, err := parseCronSingleInt(hour, 0, 23)
 	if err != nil {
-		return protocol.Schedule{}, cronUnsupportedError(expr, "hour field must be a single integer 0-23 (ranges/lists/steps not supported by UI)")
+		return automationdomain.Schedule{}, cronUnsupportedError(expr, "hour field must be a single integer 0-23 (ranges/lists/steps not supported by UI)")
 	}
 	weekdays, err := parseCronDayOfWeek(dow)
 	if err != nil {
-		return protocol.Schedule{}, cronUnsupportedError(expr, err.Error())
+		return automationdomain.Schedule{}, cronUnsupportedError(expr, err.Error())
 	}
 	cronExpr, err := buildDailyCron(fmt.Sprintf("%02d:%02d", hr, min), weekdays)
 	if err != nil {
-		return protocol.Schedule{}, cronUnsupportedError(expr, err.Error())
+		return automationdomain.Schedule{}, cronUnsupportedError(expr, err.Error())
 	}
-	schedule := protocol.Schedule{Kind: protocol.ScheduleKindCron, CronExpression: &cronExpr, Timezone: timezone}
+	schedule := automationdomain.Schedule{Kind: automationdomain.ScheduleKindCron, CronExpression: &cronExpr, Timezone: timezone}
 	return validateAndNormalize(schedule)
 }
 

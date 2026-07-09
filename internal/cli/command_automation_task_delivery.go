@@ -1,7 +1,7 @@
 package cli
 
 import (
-	"github.com/nexus-research-lab/nexus/internal/protocol"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 
 	"github.com/spf13/cobra"
 )
@@ -22,8 +22,8 @@ func bindScheduledTaskDeliveryFlags(command *cobra.Command, flags *scheduledTask
 	command.Flags().StringVar(&flags.threadID, "delivery-thread-id", "", "delivery thread id")
 }
 
-func (f scheduledTaskDeliveryFlags) target() protocol.DeliveryTarget {
-	return protocol.DeliveryTarget{
+func (f scheduledTaskDeliveryFlags) target() automationdomain.DeliveryTarget {
+	return automationdomain.DeliveryTarget{
 		Mode:      f.mode,
 		Channel:   f.channel,
 		To:        f.to,
@@ -40,7 +40,7 @@ func (f scheduledTaskDeliveryFlags) changed(command *cobra.Command) bool {
 		command.Flags().Changed("delivery-thread-id")
 }
 
-func (f scheduledTaskDeliveryFlags) apply(command *cobra.Command, target *protocol.DeliveryTarget) {
+func (f scheduledTaskDeliveryFlags) apply(command *cobra.Command, target *automationdomain.DeliveryTarget) {
 	if command.Flags().Changed("delivery-mode") {
 		target.Mode = f.mode
 	}

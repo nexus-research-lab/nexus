@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
@@ -36,20 +37,20 @@ func TestServiceRunTaskNowUpdatesRunLedger(t *testing.T) {
 		nil,
 	)
 
-	task, err := service.CreateTask(context.Background(), protocol.CreateJobInput{
+	task, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
 		Name:        "日报同步",
 		AgentID:     "agent-1",
 		Instruction: "整理今天的进展",
-		Schedule: protocol.Schedule{
-			Kind:            protocol.ScheduleKindEvery,
+		Schedule: automationdomain.Schedule{
+			Kind:            automationdomain.ScheduleKindEvery,
 			IntervalSeconds: intRef(3600),
 			Timezone:        "Asia/Shanghai",
 		},
-		SessionTarget: protocol.SessionTarget{
-			Kind:            protocol.SessionTargetBound,
+		SessionTarget: automationdomain.SessionTarget{
+			Kind:            automationdomain.SessionTargetBound,
 			BoundSessionKey: protocol.BuildAgentSessionKey("agent-1", "ws", "dm", "manual", ""),
 		},
-		Delivery: protocol.DeliveryTarget{Mode: protocol.DeliveryModeNone},
+		Delivery: automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
 		Enabled:  true,
 	})
 	if err != nil {
@@ -60,7 +61,7 @@ func TestServiceRunTaskNowUpdatesRunLedger(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RunTaskNow 失败: %v", err)
 	}
-	if result.Status != protocol.RunStatusRunning {
+	if result.Status != automationdomain.RunStatusRunning {
 		t.Fatalf("期望立即返回 running，实际为 %s", result.Status)
 	}
 
@@ -69,7 +70,7 @@ func TestServiceRunTaskNowUpdatesRunLedger(t *testing.T) {
 		if listErr != nil || len(items) == 0 {
 			return false
 		}
-		return items[0].Status == protocol.RunStatusSucceeded
+		return items[0].Status == automationdomain.RunStatusSucceeded
 	})
 
 	runs, err := service.ListTaskRuns(context.Background(), task.JobID)
@@ -79,7 +80,7 @@ func TestServiceRunTaskNowUpdatesRunLedger(t *testing.T) {
 	if len(runs) != 1 {
 		t.Fatalf("期望 1 条 run 记录，实际 %d", len(runs))
 	}
-	if runs[0].Status != protocol.RunStatusSucceeded {
+	if runs[0].Status != automationdomain.RunStatusSucceeded {
 		t.Fatalf("期望 run 成功，实际 %s", runs[0].Status)
 	}
 	if runs[0].AssistantText == nil || *runs[0].AssistantText != "assistant answer" {
@@ -91,7 +92,7 @@ func TestServiceRunTaskNowUpdatesRunLedger(t *testing.T) {
 	if runs[0].ResultSummary == nil || *runs[0].ResultSummary != "runtime result" {
 		t.Fatalf("result_summary 未优先使用 runtime result: %+v", runs[0].ResultSummary)
 	}
-	if runs[0].DeliveryStatus != protocol.DeliveryStatusNotRequired {
+	if runs[0].DeliveryStatus != automationdomain.DeliveryStatusNotRequired {
 		t.Fatalf("delivery_status 未记录无需投递: %s", runs[0].DeliveryStatus)
 	}
 	if runs[0].ArtifactPath == nil || !strings.HasPrefix(*runs[0].ArtifactPath, ".nexus/automation/runs/") {
@@ -155,20 +156,20 @@ func TestServiceRunTaskNowCanRunDisabledTaskWithoutReenabling(t *testing.T) {
 		nil,
 	)
 
-	task, err := service.CreateTask(context.Background(), protocol.CreateJobInput{
+	task, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
 		Name:        "暂停新闻日报",
 		AgentID:     "agent-1",
 		Instruction: "手动补跑今天新闻",
-		Schedule: protocol.Schedule{
-			Kind:            protocol.ScheduleKindEvery,
+		Schedule: automationdomain.Schedule{
+			Kind:            automationdomain.ScheduleKindEvery,
 			IntervalSeconds: intRef(3600),
 			Timezone:        "Asia/Shanghai",
 		},
-		SessionTarget: protocol.SessionTarget{
-			Kind:            protocol.SessionTargetBound,
+		SessionTarget: automationdomain.SessionTarget{
+			Kind:            automationdomain.SessionTargetBound,
 			BoundSessionKey: protocol.BuildAgentSessionKey("agent-1", "ws", "dm", "manual", ""),
 		},
-		Delivery: protocol.DeliveryTarget{Mode: protocol.DeliveryModeNone},
+		Delivery: automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
 		Enabled:  false,
 	})
 	if err != nil {
@@ -179,12 +180,12 @@ func TestServiceRunTaskNowCanRunDisabledTaskWithoutReenabling(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RunTaskNow disabled task 失败: %v", err)
 	}
-	if result.Status != protocol.RunStatusRunning || result.RunID == nil {
+	if result.Status != automationdomain.RunStatusRunning || result.RunID == nil {
 		t.Fatalf("disabled task manual run should start once: %+v", result)
 	}
 	waitFor(t, 2*time.Second, func() bool {
 		items, listErr := service.ListTaskRuns(context.Background(), task.JobID)
-		return listErr == nil && len(items) == 1 && items[0].Status == protocol.RunStatusSucceeded
+		return listErr == nil && len(items) == 1 && items[0].Status == automationdomain.RunStatusSucceeded
 	})
 
 	jobs, err := service.ListTasks(context.Background(), "agent-1")
@@ -221,20 +222,20 @@ func TestServiceRunTaskNowRecordsPermissionDeniedToolAsFailedRun(t *testing.T) {
 		nil,
 	)
 
-	task, err := service.CreateTask(context.Background(), protocol.CreateJobInput{
+	task, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
 		Name:        "新闻搜索",
 		AgentID:     "agent-1",
 		Instruction: "搜索今天的 AI 新闻并总结",
-		Schedule: protocol.Schedule{
-			Kind:            protocol.ScheduleKindEvery,
+		Schedule: automationdomain.Schedule{
+			Kind:            automationdomain.ScheduleKindEvery,
 			IntervalSeconds: intRef(3600),
 			Timezone:        "Asia/Shanghai",
 		},
-		SessionTarget: protocol.SessionTarget{
-			Kind:            protocol.SessionTargetBound,
+		SessionTarget: automationdomain.SessionTarget{
+			Kind:            automationdomain.SessionTargetBound,
 			BoundSessionKey: protocol.BuildAgentSessionKey("agent-1", "ws", "dm", "permission-denied", ""),
 		},
-		Delivery: protocol.DeliveryTarget{Mode: protocol.DeliveryModeNone},
+		Delivery: automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
 		Enabled:  true,
 	})
 	if err != nil {
@@ -245,13 +246,13 @@ func TestServiceRunTaskNowRecordsPermissionDeniedToolAsFailedRun(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RunTaskNow 下发失败: %v", err)
 	}
-	if result.Status != protocol.RunStatusRunning {
+	if result.Status != automationdomain.RunStatusRunning {
 		t.Fatalf("期望立即返回 running，实际为 %s", result.Status)
 	}
 
 	waitFor(t, 2*time.Second, func() bool {
 		runs, listErr := service.ListTaskRuns(context.Background(), task.JobID)
-		return listErr == nil && len(runs) == 1 && runs[0].Status == protocol.RunStatusFailed
+		return listErr == nil && len(runs) == 1 && runs[0].Status == automationdomain.RunStatusFailed
 	})
 	runs, err := service.ListTaskRuns(context.Background(), task.JobID)
 	if err != nil {
@@ -272,7 +273,7 @@ func TestServiceRunTaskNowRecordsPermissionDeniedToolAsFailedRun(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetTask 失败: %v", err)
 	}
-	if updatedTask == nil || updatedTask.LastRunStatus != protocol.RunStatusFailed || updatedTask.FailureStreak != 1 {
+	if updatedTask == nil || updatedTask.LastRunStatus != automationdomain.RunStatusFailed || updatedTask.FailureStreak != 1 {
 		t.Fatalf("任务运行态未记录权限失败: %+v", updatedTask)
 	}
 	if updatedTask.LastError == nil || !strings.Contains(*updatedTask.LastError, "WebSearch") {
@@ -296,7 +297,7 @@ func TestServiceRunTaskNowRecordsPermissionDeniedToolAsFailedRun(t *testing.T) {
 		t.Fatalf("任务健康摘要缺少执行失败补救工具: %+v", status.Health)
 	}
 
-	report, err := service.GetDailyReport(context.Background(), protocol.CronDailyReportInput{
+	report, err := service.GetDailyReport(context.Background(), automationdomain.CronDailyReportInput{
 		Date:     "today",
 		Timezone: "Asia/Shanghai",
 		JobID:    task.JobID,
@@ -330,21 +331,21 @@ func TestServiceRunTaskNowRecordsOverlapSkippedRun(t *testing.T) {
 		nil,
 	)
 
-	task, err := service.CreateTask(context.Background(), protocol.CreateJobInput{
+	task, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
 		Name:        "重叠保护",
 		AgentID:     "agent-1",
 		Instruction: "慢任务",
-		Schedule: protocol.Schedule{
-			Kind:            protocol.ScheduleKindEvery,
+		Schedule: automationdomain.Schedule{
+			Kind:            automationdomain.ScheduleKindEvery,
 			IntervalSeconds: intRef(3600),
 			Timezone:        "Asia/Shanghai",
 		},
-		SessionTarget: protocol.SessionTarget{
-			Kind:            protocol.SessionTargetBound,
+		SessionTarget: automationdomain.SessionTarget{
+			Kind:            automationdomain.SessionTargetBound,
 			BoundSessionKey: protocol.BuildAgentSessionKey("agent-1", "ws", "dm", "overlap", ""),
 		},
-		Delivery:      protocol.DeliveryTarget{Mode: protocol.DeliveryModeNone},
-		OverlapPolicy: protocol.OverlapPolicySkip,
+		Delivery:      automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
+		OverlapPolicy: automationdomain.OverlapPolicySkip,
 		Enabled:       true,
 	})
 	if err != nil {
@@ -355,14 +356,14 @@ func TestServiceRunTaskNowRecordsOverlapSkippedRun(t *testing.T) {
 	if err != nil {
 		t.Fatalf("第一次 RunTaskNow 失败: %v", err)
 	}
-	if first.Status != protocol.RunStatusRunning {
+	if first.Status != automationdomain.RunStatusRunning {
 		t.Fatalf("第一次应返回 running，实际 %s", first.Status)
 	}
 	second, err := service.RunTaskNow(context.Background(), task.JobID)
 	if err != nil {
 		t.Fatalf("第二次 RunTaskNow 不应报错，应记录 skipped: %v", err)
 	}
-	if second.Status != protocol.RunStatusSkipped {
+	if second.Status != automationdomain.RunStatusSkipped {
 		t.Fatalf("第二次应返回 skipped，实际 %s", second.Status)
 	}
 
@@ -374,8 +375,8 @@ func TestServiceRunTaskNowRecordsOverlapSkippedRun(t *testing.T) {
 		hasSuccess := false
 		hasSkipped := false
 		for _, item := range items {
-			hasSuccess = hasSuccess || item.Status == protocol.RunStatusSucceeded
-			hasSkipped = hasSkipped || item.Status == protocol.RunStatusSkipped
+			hasSuccess = hasSuccess || item.Status == automationdomain.RunStatusSucceeded
+			hasSkipped = hasSkipped || item.Status == automationdomain.RunStatusSkipped
 		}
 		return hasSuccess && hasSkipped
 	})
@@ -384,12 +385,12 @@ func TestServiceRunTaskNowRecordsOverlapSkippedRun(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListTaskRuns 失败: %v", err)
 	}
-	var skipped, succeeded *protocol.CronRun
+	var skipped, succeeded *automationdomain.CronRun
 	for i := range runs {
 		switch runs[i].Status {
-		case protocol.RunStatusSkipped:
+		case automationdomain.RunStatusSkipped:
 			skipped = &runs[i]
-		case protocol.RunStatusSucceeded:
+		case automationdomain.RunStatusSucceeded:
 			succeeded = &runs[i]
 		}
 	}
@@ -425,20 +426,20 @@ func TestServiceStartRunsDueTask(t *testing.T) {
 		return time.Now().UTC()
 	}
 
-	_, err := service.CreateTask(context.Background(), protocol.CreateJobInput{
+	_, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
 		Name:        "定时巡检",
 		AgentID:     "agent-1",
 		Instruction: "执行自动巡检",
-		Schedule: protocol.Schedule{
-			Kind:            protocol.ScheduleKindEvery,
+		Schedule: automationdomain.Schedule{
+			Kind:            automationdomain.ScheduleKindEvery,
 			IntervalSeconds: intRef(1),
 			Timezone:        "Asia/Shanghai",
 		},
-		SessionTarget: protocol.SessionTarget{
-			Kind:            protocol.SessionTargetBound,
+		SessionTarget: automationdomain.SessionTarget{
+			Kind:            automationdomain.SessionTargetBound,
 			BoundSessionKey: protocol.BuildAgentSessionKey("agent-1", "ws", "dm", "scheduler", ""),
 		},
-		Delivery: protocol.DeliveryTarget{Mode: protocol.DeliveryModeNone},
+		Delivery: automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
 		Enabled:  true,
 	})
 	if err != nil {

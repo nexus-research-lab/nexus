@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 	"github.com/nexus-research-lab/nexus/internal/mcp/automation/contract"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
@@ -56,11 +57,11 @@ func TestCreateAllowsSimpleDefaults(t *testing.T) {
 	if isError {
 		t.Fatalf("unexpected error: %s", extractText(t, result))
 	}
-	if svc.createInput.SessionTarget.Kind != protocol.SessionTargetBound ||
+	if svc.createInput.SessionTarget.Kind != automationdomain.SessionTargetBound ||
 		svc.createInput.SessionTarget.BoundSessionKey != sctx.CurrentSessionKey {
 		t.Fatalf("expected current bound target from default, got %+v", svc.createInput.SessionTarget)
 	}
-	if svc.createInput.Delivery.Mode != protocol.DeliveryModeExplicit ||
+	if svc.createInput.Delivery.Mode != automationdomain.DeliveryModeExplicit ||
 		svc.createInput.Delivery.To != sctx.CurrentSessionKey {
 		t.Fatalf("expected visible current-session delivery from default, got %+v", svc.createInput.Delivery)
 	}
@@ -94,7 +95,7 @@ func TestCreateDefaultsCurrentExternalChannel(t *testing.T) {
 			if isError {
 				t.Fatalf("unexpected error: %s", extractText(t, result))
 			}
-			if svc.createInput.SessionTarget.Kind != protocol.SessionTargetIsolated {
+			if svc.createInput.SessionTarget.Kind != automationdomain.SessionTargetIsolated {
 				t.Fatalf("expected temporary execution session from channel default, got %+v", svc.createInput.SessionTarget)
 			}
 			if svc.createInput.Delivery.Channel != protocol.SessionChannelFeishu ||
@@ -175,10 +176,10 @@ func TestCreateDefaultsVisibleComplexTaskToCurrentConversation(t *testing.T) {
 	if isError {
 		t.Fatalf("unexpected error: %s", extractText(t, result))
 	}
-	if svc.createInput.SessionTarget.Kind != protocol.SessionTargetIsolated {
+	if svc.createInput.SessionTarget.Kind != automationdomain.SessionTargetIsolated {
 		t.Fatalf("expected isolated target for visible complex default, got %+v", svc.createInput.SessionTarget)
 	}
-	if svc.createInput.Delivery.Mode != protocol.DeliveryModeExplicit ||
+	if svc.createInput.Delivery.Mode != automationdomain.DeliveryModeExplicit ||
 		svc.createInput.Delivery.To != sctx.CurrentSessionKey {
 		t.Fatalf("expected current conversation delivery for visible complex default, got %+v", svc.createInput.Delivery)
 	}
@@ -197,11 +198,11 @@ func TestCreateAllowsSimpleDefaultsWithJSONNumberAndDottedSchedule(t *testing.T)
 	if isError {
 		t.Fatalf("unexpected error: %s", extractText(t, result))
 	}
-	if svc.createInput.SessionTarget.Kind != protocol.SessionTargetBound ||
+	if svc.createInput.SessionTarget.Kind != automationdomain.SessionTargetBound ||
 		svc.createInput.SessionTarget.BoundSessionKey != sctx.CurrentSessionKey {
 		t.Fatalf("expected current bound target from default, got %+v", svc.createInput.SessionTarget)
 	}
-	if svc.createInput.Delivery.Mode != protocol.DeliveryModeExplicit ||
+	if svc.createInput.Delivery.Mode != automationdomain.DeliveryModeExplicit ||
 		svc.createInput.Delivery.To != sctx.CurrentSessionKey {
 		t.Fatalf("expected visible current-session delivery from default, got %+v", svc.createInput.Delivery)
 	}
@@ -249,20 +250,20 @@ func TestCreateExistingExecutionMatchesUIPayloadShape(t *testing.T) {
 		t.Fatalf("unexpected error: %s", extractText(t, result))
 	}
 	input := svc.createInput
-	if input.Schedule.Kind != protocol.ScheduleKindEvery ||
+	if input.Schedule.Kind != automationdomain.ScheduleKindEvery ||
 		input.Schedule.IntervalSeconds == nil ||
 		*input.Schedule.IntervalSeconds != 1800 {
 		t.Fatalf("schedule should match UI every payload, got %+v", input.Schedule)
 	}
-	if input.SessionTarget.Kind != protocol.SessionTargetBound || input.SessionTarget.BoundSessionKey != sessionKey {
+	if input.SessionTarget.Kind != automationdomain.SessionTargetBound || input.SessionTarget.BoundSessionKey != sessionKey {
 		t.Fatalf("session target should match UI existing payload, got %+v", input.SessionTarget)
 	}
-	if input.Delivery.Mode != protocol.DeliveryModeExplicit ||
+	if input.Delivery.Mode != automationdomain.DeliveryModeExplicit ||
 		input.Delivery.Channel != "websocket" ||
 		input.Delivery.To != sessionKey {
 		t.Fatalf("delivery should match UI execution payload, got %+v", input.Delivery)
 	}
-	if input.Source.Kind != protocol.SourceKindAgent || input.Source.ContextType != "agent" || input.Source.ContextID != "agent-1" {
+	if input.Source.Kind != automationdomain.SourceKindAgent || input.Source.ContextType != "agent" || input.Source.ContextID != "agent-1" {
 		t.Fatalf("source should preserve agent snapshot, got %+v", input.Source)
 	}
 }

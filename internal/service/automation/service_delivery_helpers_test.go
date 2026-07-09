@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
@@ -32,18 +33,18 @@ func assertDeliveredAgentMessage(t *testing.T, workspacePath string, session pro
 	}
 }
 
-func assertRunDeliveredTo(t *testing.T, service *Service, jobID string, expectedDeliveryTo string) protocol.CronRun {
+func assertRunDeliveredTo(t *testing.T, service *Service, jobID string, expectedDeliveryTo string) automationdomain.CronRun {
 	t.Helper()
 	return assertRunDeliveredToContext(t, context.Background(), service, jobID, expectedDeliveryTo)
 }
 
-func assertRunDeliveredToContext(t *testing.T, ctx context.Context, service *Service, jobID string, expectedDeliveryTo string) protocol.CronRun {
+func assertRunDeliveredToContext(t *testing.T, ctx context.Context, service *Service, jobID string, expectedDeliveryTo string) automationdomain.CronRun {
 	t.Helper()
 	deliveredRuns, err := service.ListTaskRuns(ctx, jobID)
 	if err != nil || len(deliveredRuns) == 0 {
 		t.Fatalf("读取投递 run 失败: runs=%+v err=%v", deliveredRuns, err)
 	}
-	if deliveredRuns[0].DeliveryStatus != protocol.DeliveryStatusSucceeded {
+	if deliveredRuns[0].DeliveryStatus != automationdomain.DeliveryStatusSucceeded {
 		t.Fatalf("run delivery_status 未记录投递成功: %+v", deliveredRuns[0])
 	}
 	if deliveredRuns[0].DeliveryTo != expectedDeliveryTo {

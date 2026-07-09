@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nexus-research-lab/nexus/internal/protocol"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 )
 
 // RunDeliveryUpdateInput 表示单独刷新 run 投递状态的输入。
@@ -63,7 +63,7 @@ WHERE run_id = %s`,
 }
 
 // ListDueDeliveryRetries 列出到期的失败投递 run。
-func (r *Repository) ListDueDeliveryRetries(ctx context.Context, now time.Time, maxAttempts int, limit int) ([]protocol.CronRun, error) {
+func (r *Repository) ListDueDeliveryRetries(ctx context.Context, now time.Time, maxAttempts int, limit int) ([]automationdomain.CronRun, error) {
 	if maxAttempts <= 0 {
 		maxAttempts = 1
 	}
@@ -107,12 +107,12 @@ WHERE delivery_status = ` + r.bind(1) + `
   AND (delivery_next_attempt_at IS NULL OR delivery_next_attempt_at <= ` + r.bind(3) + `)
 ORDER BY COALESCE(delivery_next_attempt_at, updated_at), updated_at, run_id
 LIMIT ` + r.bind(4)
-	rows, err := r.db.QueryContext(ctx, query, protocol.DeliveryStatusFailed, maxAttempts, now.UTC(), limit)
+	rows, err := r.db.QueryContext(ctx, query, automationdomain.DeliveryStatusFailed, maxAttempts, now.UTC(), limit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := make([]protocol.CronRun, 0)
+	items := make([]automationdomain.CronRun, 0)
 	for rows.Next() {
 		item, scanErr := scanCronRun(rows)
 		if scanErr != nil {
@@ -128,10 +128,10 @@ func initialRunDeliveryStatus(input RunPendingInput) string {
 		return deliveryStatus
 	}
 	switch strings.TrimSpace(input.DeliveryMode) {
-	case "", protocol.DeliveryModeNone:
-		return protocol.DeliveryStatusNotRequired
+	case "", automationdomain.DeliveryModeNone:
+		return automationdomain.DeliveryStatusNotRequired
 	default:
-		return protocol.DeliveryStatusPending
+		return automationdomain.DeliveryStatusPending
 	}
 }
 
@@ -140,13 +140,13 @@ func finishedRunDeliveryStatus(input RunFinishInput) string {
 		return deliveryStatus
 	}
 	switch strings.TrimSpace(input.Status) {
-	case protocol.RunStatusPending, protocol.RunStatusRunning:
-		return protocol.DeliveryStatusPending
-	case protocol.RunStatusSucceeded, protocol.RunStatusQueuedToMain:
-		return protocol.DeliveryStatusNotRequired
-	case protocol.RunStatusFailed, protocol.RunStatusCancelled, protocol.RunStatusSkipped:
-		return protocol.DeliveryStatusNotAttempted
+	case automationdomain.RunStatusPending, automationdomain.RunStatusRunning:
+		return automationdomain.DeliveryStatusPending
+	case automationdomain.RunStatusSucceeded, automationdomain.RunStatusQueuedToMain:
+		return automationdomain.DeliveryStatusNotRequired
+	case automationdomain.RunStatusFailed, automationdomain.RunStatusCancelled, automationdomain.RunStatusSkipped:
+		return automationdomain.DeliveryStatusNotAttempted
 	default:
-		return protocol.DeliveryStatusNotAttempted
+		return automationdomain.DeliveryStatusNotAttempted
 	}
 }

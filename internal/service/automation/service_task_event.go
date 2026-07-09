@@ -6,17 +6,16 @@ import (
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"
 )
 
-func (s *Service) ListTaskEvents(ctx context.Context, jobID string, limit int) ([]protocol.CronTaskEvent, error) {
+func (s *Service) ListTaskEvents(ctx context.Context, jobID string, limit int) ([]automationdomain.CronTaskEvent, error) {
 	if err := s.ensureReady(ctx); err != nil {
 		return nil, err
 	}
 	jobID = strings.TrimSpace(jobID)
 	if jobID == "" {
-		return nil, protocol.ErrJobNotFound
+		return nil, automationdomain.ErrJobNotFound
 	}
 	ownerUserID, _ := scopedOwnerUserID(ctx)
 	job, err := s.repository.GetCronJob(ctx, ownerUserID, jobID)
@@ -28,12 +27,12 @@ func (s *Service) ListTaskEvents(ctx context.Context, jobID string, limit int) (
 		return nil, err
 	}
 	if job == nil && len(events) == 0 {
-		return nil, protocol.ErrJobNotFound
+		return nil, automationdomain.ErrJobNotFound
 	}
 	return events, nil
 }
 
-func (s *Service) recordTaskEvent(ctx context.Context, action string, job protocol.CronJob, runID string, detail map[string]any) {
+func (s *Service) recordTaskEvent(ctx context.Context, action string, job automationdomain.CronJob, runID string, detail map[string]any) {
 	jobID := strings.TrimSpace(job.JobID)
 	action = strings.TrimSpace(action)
 	if jobID == "" || action == "" {
@@ -47,7 +46,7 @@ func (s *Service) recordTaskEvent(ctx context.Context, action string, job protoc
 	if contextActorAgentID, ok := automationdomain.ActorAgentID(ctx); ok {
 		actorAgentID = contextActorAgentID
 	}
-	event := protocol.CronTaskEvent{
+	event := automationdomain.CronTaskEvent{
 		EventID:      s.idFactory("task_evt"),
 		JobID:        jobID,
 		OwnerUserID:  job.OwnerUserID,
@@ -82,17 +81,17 @@ func (s *Service) recordTaskEvent(ctx context.Context, action string, job protoc
 	}
 }
 
-func updateTaskEventAction(input protocol.UpdateJobInput, next protocol.CronJob) string {
+func updateTaskEventAction(input automationdomain.UpdateJobInput, next automationdomain.CronJob) string {
 	if input.Enabled != nil && onlyEnabledChanged(input) {
 		if next.Enabled {
-			return protocol.TaskEventActionEnable
+			return automationdomain.TaskEventActionEnable
 		}
-		return protocol.TaskEventActionDisable
+		return automationdomain.TaskEventActionDisable
 	}
-	return protocol.TaskEventActionUpdate
+	return automationdomain.TaskEventActionUpdate
 }
 
-func updateTaskEventDetail(input protocol.UpdateJobInput, before protocol.CronJob, after protocol.CronJob) map[string]any {
+func updateTaskEventDetail(input automationdomain.UpdateJobInput, before automationdomain.CronJob, after automationdomain.CronJob) map[string]any {
 	fields := changedTaskFields(input)
 	detail := taskEventJobSnapshot(after)
 	detail["changed_fields"] = fields
@@ -106,14 +105,14 @@ func updateTaskEventDetail(input protocol.UpdateJobInput, before protocol.CronJo
 	return detail
 }
 
-func updateTaskEventRunID(input protocol.UpdateJobInput, before protocol.CronJob) string {
+func updateTaskEventRunID(input automationdomain.UpdateJobInput, before automationdomain.CronJob) string {
 	if input.Enabled == nil || *input.Enabled {
 		return ""
 	}
 	return strings.TrimSpace(before.RunningRunID)
 }
 
-func deleteTaskEventDetail(job protocol.CronJob, cancelledRunID string, cancelledRun bool, deadLetteredDeliveryRunIDs []string) map[string]any {
+func deleteTaskEventDetail(job automationdomain.CronJob, cancelledRunID string, cancelledRun bool, deadLetteredDeliveryRunIDs []string) map[string]any {
 	detail := taskEventJobSnapshot(job)
 	if strings.TrimSpace(cancelledRunID) != "" {
 		detail["cancelled_run_id"] = strings.TrimSpace(cancelledRunID)
@@ -125,7 +124,7 @@ func deleteTaskEventDetail(job protocol.CronJob, cancelledRunID string, cancelle
 	return detail
 }
 
-func deliveryRetryTaskEventDetail(run protocol.CronRun) map[string]any {
+func deliveryRetryTaskEventDetail(run automationdomain.CronRun) map[string]any {
 	detail := map[string]any{
 		"delivery_status":   strings.TrimSpace(run.DeliveryStatus),
 		"delivery_attempts": run.DeliveryAttempts,
@@ -147,14 +146,14 @@ func deliveryRetryTaskEventDetail(run protocol.CronRun) map[string]any {
 	return detail
 }
 
-func taskEventJobSnapshot(job protocol.CronJob) map[string]any {
+func taskEventJobSnapshot(job automationdomain.CronJob) map[string]any {
 	detail := map[string]any{
 		"name":                 job.Name,
 		"instruction":          job.Instruction,
 		"enabled":              job.Enabled,
 		"schedule_kind":        job.Schedule.Kind,
 		"schedule_timezone":    job.Schedule.Timezone,
-		"execution_kind":       protocol.NormalizeExecutionKind(job.ExecutionKind),
+		"execution_kind":       automationdomain.NormalizeExecutionKind(job.ExecutionKind),
 		"session_target_kind":  job.SessionTarget.Kind,
 		"delivery_mode":        job.Delivery.Mode,
 		"delivery_channel":     job.Delivery.Channel,
@@ -167,7 +166,7 @@ func taskEventJobSnapshot(job protocol.CronJob) map[string]any {
 		"source_context_label": job.Source.ContextLabel,
 		"source_session_key":   job.Source.SessionKey,
 		"source_session_label": job.Source.SessionLabel,
-		"overlap_policy":       protocol.NormalizeOverlapPolicy(job.OverlapPolicy),
+		"overlap_policy":       automationdomain.NormalizeOverlapPolicy(job.OverlapPolicy),
 	}
 	if job.Schedule.RunAt != nil {
 		detail["schedule_run_at"] = strings.TrimSpace(*job.Schedule.RunAt)
@@ -187,7 +186,7 @@ func taskEventJobSnapshot(job protocol.CronJob) map[string]any {
 	return detail
 }
 
-func changedTaskFields(input protocol.UpdateJobInput) []string {
+func changedTaskFields(input automationdomain.UpdateJobInput) []string {
 	fields := []string{}
 	if input.Name != nil {
 		fields = append(fields, "name")
@@ -219,7 +218,7 @@ func changedTaskFields(input protocol.UpdateJobInput) []string {
 	return fields
 }
 
-func onlyEnabledChanged(input protocol.UpdateJobInput) bool {
+func onlyEnabledChanged(input automationdomain.UpdateJobInput) bool {
 	return input.Name == nil &&
 		input.Schedule == nil &&
 		input.Instruction == nil &&

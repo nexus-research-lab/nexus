@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 	"github.com/nexus-research-lab/nexus/internal/mcp/automation/contract"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
@@ -13,16 +14,16 @@ func TestDailyReportUsesServiceObservability(t *testing.T) {
 	deliveryError := "feishu send failed"
 	executionError := "WebSearch permission denied"
 	svc := &stubService{
-		jobs: []protocol.CronJob{{
+		jobs: []automationdomain.CronJob{{
 			JobID:    "job-1",
 			AgentID:  "agent-1",
-			Schedule: protocol.Schedule{Timezone: "Asia/Shanghai"},
+			Schedule: automationdomain.Schedule{Timezone: "Asia/Shanghai"},
 		}},
-		dailyReport: &protocol.CronDailyReport{
+		dailyReport: &automationdomain.CronDailyReport{
 			Date:     "2026-05-21",
 			Timezone: "Asia/Shanghai",
 			AgentID:  "agent-1",
-			Totals: protocol.CronDailyReportTotals{
+			Totals: automationdomain.CronDailyReportTotals{
 				RunCount:                  3,
 				DeliveredRunCount:         1,
 				DeliveryFailedRunCount:    1,
@@ -30,7 +31,7 @@ func TestDailyReportUsesServiceObservability(t *testing.T) {
 				DeliveryNotNeededCount:    0,
 				DeliveryNotAttemptedCount: 0,
 			},
-			Tasks: []protocol.CronDailyReportTask{
+			Tasks: []automationdomain.CronDailyReportTask{
 				{
 					JobID:                    "job-1",
 					Name:                     "新闻日报",
@@ -102,31 +103,31 @@ func TestDailyReportUsesServiceObservability(t *testing.T) {
 func TestDailyReportAllowsDeletedOwnedTaskHistory(t *testing.T) {
 	svc := &stubService{
 		missingJobs: map[string]bool{"job-deleted": true},
-		eventsByJob: map[string][]protocol.CronTaskEvent{
+		eventsByJob: map[string][]automationdomain.CronTaskEvent{
 			"job-deleted": {
 				{
 					EventID: "evt-delete",
 					JobID:   "job-deleted",
 					AgentID: "agent-1",
-					Action:  protocol.TaskEventActionDelete,
+					Action:  automationdomain.TaskEventActionDelete,
 				},
 			},
 		},
-		runsByJob: map[string][]protocol.CronRun{
-			"job-deleted": {{RunID: "run-before-delete", JobID: "job-deleted", Status: protocol.RunStatusSucceeded}},
+		runsByJob: map[string][]automationdomain.CronRun{
+			"job-deleted": {{RunID: "run-before-delete", JobID: "job-deleted", Status: automationdomain.RunStatusSucceeded}},
 		},
-		dailyReport: &protocol.CronDailyReport{
+		dailyReport: &automationdomain.CronDailyReport{
 			Date:     "2026-05-21",
 			Timezone: "Asia/Shanghai",
 			AgentID:  "agent-1",
 			JobID:    "job-deleted",
-			Totals:   protocol.CronDailyReportTotals{TaskCount: 1, RunCount: 1},
-			Tasks: []protocol.CronDailyReportTask{{
+			Totals:   automationdomain.CronDailyReportTotals{TaskCount: 1, RunCount: 1},
+			Tasks: []automationdomain.CronDailyReportTask{{
 				JobID:   "job-deleted",
 				Name:    "已删日报",
 				AgentID: "agent-1",
 				Deleted: true,
-				Runs:    []protocol.CronRun{{RunID: "run-before-delete", JobID: "job-deleted", Status: protocol.RunStatusSucceeded}},
+				Runs:    []automationdomain.CronRun{{RunID: "run-before-delete", JobID: "job-deleted", Status: automationdomain.RunStatusSucceeded}},
 			}},
 		},
 	}
@@ -156,7 +157,7 @@ func TestDailyReportAllowsDeletedOwnedTaskHistory(t *testing.T) {
 func TestDailyReportCanResolveDeletedTaskByQuery(t *testing.T) {
 	svc := &stubService{
 		missingJobs: map[string]bool{"job-deleted": true},
-		historyItems: []protocol.CronTaskHistoryItem{
+		historyItems: []automationdomain.CronTaskHistoryItem{
 			{
 				JobID:   "job-deleted",
 				Name:    "旧新闻日报",
@@ -164,23 +165,23 @@ func TestDailyReportCanResolveDeletedTaskByQuery(t *testing.T) {
 				Deleted: true,
 			},
 		},
-		eventsByJob: map[string][]protocol.CronTaskEvent{
+		eventsByJob: map[string][]automationdomain.CronTaskEvent{
 			"job-deleted": {
 				{
 					EventID: "evt-delete",
 					JobID:   "job-deleted",
 					AgentID: "agent-1",
-					Action:  protocol.TaskEventActionDelete,
+					Action:  automationdomain.TaskEventActionDelete,
 				},
 			},
 		},
-		dailyReport: &protocol.CronDailyReport{
+		dailyReport: &automationdomain.CronDailyReport{
 			Date:     "2026-05-21",
 			Timezone: "Asia/Shanghai",
 			AgentID:  "agent-1",
 			JobID:    "job-deleted",
-			Totals:   protocol.CronDailyReportTotals{TaskCount: 1},
-			Tasks: []protocol.CronDailyReportTask{{
+			Totals:   automationdomain.CronDailyReportTotals{TaskCount: 1},
+			Tasks: []automationdomain.CronDailyReportTask{{
 				JobID:   "job-deleted",
 				Name:    "旧新闻日报",
 				AgentID: "agent-1",
@@ -204,16 +205,16 @@ func TestDailyReportCanResolveDeletedTaskByQuery(t *testing.T) {
 
 func TestDailyReportCanResolveCurrentExternalGroupQuery(t *testing.T) {
 	svc := &stubService{
-		jobs: []protocol.CronJob{
+		jobs: []automationdomain.CronJob{
 			{
 				JobID:       "job-current-group-news",
 				Name:        "本群每日新闻",
 				AgentID:     "agent-1",
 				Instruction: "搜索新闻并投递",
 				Enabled:     true,
-				Schedule:    protocol.Schedule{Timezone: "Asia/Shanghai"},
-				Delivery: protocol.DeliveryTarget{
-					Mode:    protocol.DeliveryModeExplicit,
+				Schedule:    automationdomain.Schedule{Timezone: "Asia/Shanghai"},
+				Delivery: automationdomain.DeliveryTarget{
+					Mode:    automationdomain.DeliveryModeExplicit,
 					Channel: protocol.SessionChannelFeishu,
 					To:      "oc_group_123",
 				},
@@ -224,21 +225,21 @@ func TestDailyReportCanResolveCurrentExternalGroupQuery(t *testing.T) {
 				AgentID:     "agent-1",
 				Instruction: "搜索新闻并投递",
 				Enabled:     true,
-				Schedule:    protocol.Schedule{Timezone: "Asia/Shanghai"},
-				Delivery: protocol.DeliveryTarget{
-					Mode:    protocol.DeliveryModeExplicit,
+				Schedule:    automationdomain.Schedule{Timezone: "Asia/Shanghai"},
+				Delivery: automationdomain.DeliveryTarget{
+					Mode:    automationdomain.DeliveryModeExplicit,
 					Channel: protocol.SessionChannelFeishu,
 					To:      "oc_group_other",
 				},
 			},
 		},
-		dailyReport: &protocol.CronDailyReport{
+		dailyReport: &automationdomain.CronDailyReport{
 			Date:     "2026-05-22",
 			Timezone: "Asia/Shanghai",
 			AgentID:  "agent-1",
 			JobID:    "job-current-group-news",
-			Totals:   protocol.CronDailyReportTotals{TaskCount: 1},
-			Tasks: []protocol.CronDailyReportTask{{
+			Totals:   automationdomain.CronDailyReportTotals{TaskCount: 1},
+			Tasks: []automationdomain.CronDailyReportTask{{
 				JobID:   "job-current-group-news",
 				Name:    "本群每日新闻",
 				AgentID: "agent-1",
@@ -269,16 +270,16 @@ func TestDailyReportCanResolveCurrentExternalGroupQuery(t *testing.T) {
 
 func TestDailyReportDefaultsToCurrentExternalGroupWithoutQuery(t *testing.T) {
 	svc := &stubService{
-		jobs: []protocol.CronJob{
+		jobs: []automationdomain.CronJob{
 			{
 				JobID:       "job-current-group-news",
 				Name:        "本群每日新闻",
 				AgentID:     "agent-1",
 				Instruction: "搜索新闻并投递",
 				Enabled:     true,
-				Schedule:    protocol.Schedule{Timezone: "Asia/Shanghai"},
-				Delivery: protocol.DeliveryTarget{
-					Mode:    protocol.DeliveryModeExplicit,
+				Schedule:    automationdomain.Schedule{Timezone: "Asia/Shanghai"},
+				Delivery: automationdomain.DeliveryTarget{
+					Mode:    automationdomain.DeliveryModeExplicit,
 					Channel: protocol.SessionChannelFeishu,
 					To:      "oc_group_123",
 				},
@@ -289,22 +290,22 @@ func TestDailyReportDefaultsToCurrentExternalGroupWithoutQuery(t *testing.T) {
 				AgentID:     "agent-1",
 				Instruction: "搜索新闻并投递",
 				Enabled:     true,
-				Schedule:    protocol.Schedule{Timezone: "Asia/Shanghai"},
-				Delivery: protocol.DeliveryTarget{
-					Mode:    protocol.DeliveryModeExplicit,
+				Schedule:    automationdomain.Schedule{Timezone: "Asia/Shanghai"},
+				Delivery: automationdomain.DeliveryTarget{
+					Mode:    automationdomain.DeliveryModeExplicit,
 					Channel: protocol.SessionChannelFeishu,
 					To:      "oc_group_other",
 				},
 			},
 		},
-		dailyReportsByJob: map[string]*protocol.CronDailyReport{
+		dailyReportsByJob: map[string]*automationdomain.CronDailyReport{
 			"job-current-group-news": {
 				Date:     "2026-05-22",
 				Timezone: "Asia/Shanghai",
 				AgentID:  "agent-1",
 				JobID:    "job-current-group-news",
-				Totals:   protocol.CronDailyReportTotals{TaskCount: 1, RunCount: 1, DeliveredRunCount: 1},
-				Tasks: []protocol.CronDailyReportTask{{
+				Totals:   automationdomain.CronDailyReportTotals{TaskCount: 1, RunCount: 1, DeliveredRunCount: 1},
+				Tasks: []automationdomain.CronDailyReportTask{{
 					JobID:   "job-current-group-news",
 					Name:    "本群每日新闻",
 					AgentID: "agent-1",
@@ -333,27 +334,27 @@ func TestDailyReportDefaultsToCurrentExternalGroupWithoutQuery(t *testing.T) {
 
 func TestDailyReportDefaultsToEmptyCurrentExternalGroup(t *testing.T) {
 	svc := &stubService{
-		jobs: []protocol.CronJob{
+		jobs: []automationdomain.CronJob{
 			{
 				JobID:       "job-other-group-news",
 				Name:        "其他群每日新闻",
 				AgentID:     "agent-1",
 				Instruction: "搜索新闻并投递",
 				Enabled:     true,
-				Schedule:    protocol.Schedule{Timezone: "Asia/Shanghai"},
-				Delivery: protocol.DeliveryTarget{
-					Mode:    protocol.DeliveryModeExplicit,
+				Schedule:    automationdomain.Schedule{Timezone: "Asia/Shanghai"},
+				Delivery: automationdomain.DeliveryTarget{
+					Mode:    automationdomain.DeliveryModeExplicit,
 					Channel: protocol.SessionChannelFeishu,
 					To:      "oc_group_other",
 				},
 			},
 		},
-		dailyReport: &protocol.CronDailyReport{
+		dailyReport: &automationdomain.CronDailyReport{
 			Date:     "2026-05-22",
 			Timezone: "Asia/Shanghai",
 			AgentID:  "agent-1",
-			Totals:   protocol.CronDailyReportTotals{TaskCount: 1, RunCount: 3},
-			Tasks: []protocol.CronDailyReportTask{{
+			Totals:   automationdomain.CronDailyReportTotals{TaskCount: 1, RunCount: 3},
+			Tasks: []automationdomain.CronDailyReportTask{{
 				JobID:   "job-other-group-news",
 				Name:    "其他群每日新闻",
 				AgentID: "agent-1",
@@ -393,16 +394,16 @@ func TestDailyReportDefaultsToEmptyCurrentExternalGroup(t *testing.T) {
 func TestDailyReportAggregatesCurrentExternalGroupGenericQuery(t *testing.T) {
 	sessionKey := "agent:agent-1:fs:group:oc_group_123"
 	svc := &stubService{
-		jobs: []protocol.CronJob{
+		jobs: []automationdomain.CronJob{
 			{
 				JobID:       "job-current-delivery",
 				Name:        "本群新闻推送",
 				AgentID:     "agent-1",
 				Instruction: "搜索新闻并投递",
 				Enabled:     true,
-				Schedule:    protocol.Schedule{Timezone: "Asia/Shanghai"},
-				Delivery: protocol.DeliveryTarget{
-					Mode:    protocol.DeliveryModeExplicit,
+				Schedule:    automationdomain.Schedule{Timezone: "Asia/Shanghai"},
+				Delivery: automationdomain.DeliveryTarget{
+					Mode:    automationdomain.DeliveryModeExplicit,
 					Channel: protocol.SessionChannelFeishu,
 					To:      "oc_group_123",
 				},
@@ -413,8 +414,8 @@ func TestDailyReportAggregatesCurrentExternalGroupGenericQuery(t *testing.T) {
 				AgentID:     "agent-1",
 				Instruction: "检查状态",
 				Enabled:     true,
-				Schedule:    protocol.Schedule{Timezone: "Asia/Shanghai"},
-				Source:      protocol.Source{SessionKey: sessionKey},
+				Schedule:    automationdomain.Schedule{Timezone: "Asia/Shanghai"},
+				Source:      automationdomain.Source{SessionKey: sessionKey},
 			},
 			{
 				JobID:       "job-other-group",
@@ -422,22 +423,22 @@ func TestDailyReportAggregatesCurrentExternalGroupGenericQuery(t *testing.T) {
 				AgentID:     "agent-1",
 				Instruction: "搜索新闻并投递",
 				Enabled:     true,
-				Schedule:    protocol.Schedule{Timezone: "Asia/Shanghai"},
-				Delivery: protocol.DeliveryTarget{
-					Mode:    protocol.DeliveryModeExplicit,
+				Schedule:    automationdomain.Schedule{Timezone: "Asia/Shanghai"},
+				Delivery: automationdomain.DeliveryTarget{
+					Mode:    automationdomain.DeliveryModeExplicit,
 					Channel: protocol.SessionChannelFeishu,
 					To:      "oc_group_other",
 				},
 			},
 		},
-		dailyReportsByJob: map[string]*protocol.CronDailyReport{
+		dailyReportsByJob: map[string]*automationdomain.CronDailyReport{
 			"job-current-delivery": {
 				Date:     "2026-05-22",
 				Timezone: "Asia/Shanghai",
 				AgentID:  "agent-1",
 				JobID:    "job-current-delivery",
-				Totals:   protocol.CronDailyReportTotals{TaskCount: 1, RunCount: 2, DeliveredRunCount: 2},
-				Tasks: []protocol.CronDailyReportTask{{
+				Totals:   automationdomain.CronDailyReportTotals{TaskCount: 1, RunCount: 2, DeliveredRunCount: 2},
+				Tasks: []automationdomain.CronDailyReportTask{{
 					JobID:   "job-current-delivery",
 					Name:    "本群新闻推送",
 					AgentID: "agent-1",
@@ -448,8 +449,8 @@ func TestDailyReportAggregatesCurrentExternalGroupGenericQuery(t *testing.T) {
 				Timezone: "Asia/Shanghai",
 				AgentID:  "agent-1",
 				JobID:    "job-current-source",
-				Totals:   protocol.CronDailyReportTotals{TaskCount: 1, RunCount: 1, DeliveryFailedRunCount: 1},
-				Tasks: []protocol.CronDailyReportTask{{
+				Totals:   automationdomain.CronDailyReportTotals{TaskCount: 1, RunCount: 1, DeliveryFailedRunCount: 1},
+				Tasks: []automationdomain.CronDailyReportTask{{
 					JobID:   "job-current-source",
 					Name:    "本群状态检查",
 					AgentID: "agent-1",
@@ -498,15 +499,15 @@ func TestDailyReportAggregatesCurrentInternalConversationGenericQuery(t *testing
 	currentSessionKey := protocol.BuildAgentSessionKey("agent-1", protocol.SessionChannelInternalSegment, "dm", "operator", "")
 	otherSessionKey := protocol.BuildAgentSessionKey("agent-1", protocol.SessionChannelInternalSegment, "dm", "other", "")
 	svc := &stubService{
-		jobs: []protocol.CronJob{
+		jobs: []automationdomain.CronJob{
 			{
 				JobID:       "job-current-source",
 				Name:        "当前会话新闻",
 				AgentID:     "agent-1",
 				Instruction: "搜索新闻并发给我",
 				Enabled:     true,
-				Schedule:    protocol.Schedule{Timezone: "Asia/Shanghai"},
-				Source:      protocol.Source{SessionKey: currentSessionKey},
+				Schedule:    automationdomain.Schedule{Timezone: "Asia/Shanghai"},
+				Source:      automationdomain.Source{SessionKey: currentSessionKey},
 			},
 			{
 				JobID:       "job-current-delivery",
@@ -514,9 +515,9 @@ func TestDailyReportAggregatesCurrentInternalConversationGenericQuery(t *testing
 				AgentID:     "agent-1",
 				Instruction: "检查状态并通知我",
 				Enabled:     true,
-				Schedule:    protocol.Schedule{Timezone: "Asia/Shanghai"},
-				Delivery: protocol.DeliveryTarget{
-					Mode:    protocol.DeliveryModeExplicit,
+				Schedule:    automationdomain.Schedule{Timezone: "Asia/Shanghai"},
+				Delivery: automationdomain.DeliveryTarget{
+					Mode:    automationdomain.DeliveryModeExplicit,
 					Channel: protocol.SessionChannelInternalSegment,
 					To:      currentSessionKey,
 				},
@@ -527,18 +528,18 @@ func TestDailyReportAggregatesCurrentInternalConversationGenericQuery(t *testing
 				AgentID:     "agent-1",
 				Instruction: "搜索新闻并发给我",
 				Enabled:     true,
-				Schedule:    protocol.Schedule{Timezone: "Asia/Shanghai"},
-				Source:      protocol.Source{SessionKey: otherSessionKey},
+				Schedule:    automationdomain.Schedule{Timezone: "Asia/Shanghai"},
+				Source:      automationdomain.Source{SessionKey: otherSessionKey},
 			},
 		},
-		dailyReportsByJob: map[string]*protocol.CronDailyReport{
+		dailyReportsByJob: map[string]*automationdomain.CronDailyReport{
 			"job-current-source": {
 				Date:     "2026-05-22",
 				Timezone: "Asia/Shanghai",
 				AgentID:  "agent-1",
 				JobID:    "job-current-source",
-				Totals:   protocol.CronDailyReportTotals{TaskCount: 1, RunCount: 1, DeliveredRunCount: 1},
-				Tasks: []protocol.CronDailyReportTask{{
+				Totals:   automationdomain.CronDailyReportTotals{TaskCount: 1, RunCount: 1, DeliveredRunCount: 1},
+				Tasks: []automationdomain.CronDailyReportTask{{
 					JobID:   "job-current-source",
 					Name:    "当前会话新闻",
 					AgentID: "agent-1",
@@ -549,8 +550,8 @@ func TestDailyReportAggregatesCurrentInternalConversationGenericQuery(t *testing
 				Timezone: "Asia/Shanghai",
 				AgentID:  "agent-1",
 				JobID:    "job-current-delivery",
-				Totals:   protocol.CronDailyReportTotals{TaskCount: 1, RunCount: 2, DeliveryFailedRunCount: 1},
-				Tasks: []protocol.CronDailyReportTask{{
+				Totals:   automationdomain.CronDailyReportTotals{TaskCount: 1, RunCount: 2, DeliveryFailedRunCount: 1},
+				Tasks: []automationdomain.CronDailyReportTask{{
 					JobID:   "job-current-delivery",
 					Name:    "当前会话告警",
 					AgentID: "agent-1",
@@ -595,23 +596,23 @@ func TestDailyReportCurrentInternalConversationGenericQueryCanReturnEmptyReport(
 	currentSessionKey := protocol.BuildAgentSessionKey("agent-1", protocol.SessionChannelInternalSegment, "dm", "operator", "")
 	otherSessionKey := protocol.BuildAgentSessionKey("agent-1", protocol.SessionChannelInternalSegment, "dm", "other", "")
 	svc := &stubService{
-		jobs: []protocol.CronJob{
+		jobs: []automationdomain.CronJob{
 			{
 				JobID:       "job-other-conversation",
 				Name:        "其他会话新闻",
 				AgentID:     "agent-1",
 				Instruction: "搜索新闻并发给我",
 				Enabled:     true,
-				Schedule:    protocol.Schedule{Timezone: "Asia/Shanghai"},
-				Source:      protocol.Source{SessionKey: otherSessionKey},
+				Schedule:    automationdomain.Schedule{Timezone: "Asia/Shanghai"},
+				Source:      automationdomain.Source{SessionKey: otherSessionKey},
 			},
 		},
-		dailyReport: &protocol.CronDailyReport{
+		dailyReport: &automationdomain.CronDailyReport{
 			Date:     "2026-05-22",
 			Timezone: "Asia/Shanghai",
 			AgentID:  "agent-1",
-			Totals:   protocol.CronDailyReportTotals{TaskCount: 1, RunCount: 3},
-			Tasks: []protocol.CronDailyReportTask{{
+			Totals:   automationdomain.CronDailyReportTotals{TaskCount: 1, RunCount: 3},
+			Tasks: []automationdomain.CronDailyReportTask{{
 				JobID:   "job-other-conversation",
 				Name:    "其他会话新闻",
 				AgentID: "agent-1",
@@ -655,7 +656,7 @@ func TestDailyReportCanResolveDeletedCurrentExternalGroupQuery(t *testing.T) {
 			"job-current-deleted": true,
 			"job-other-deleted":   true,
 		},
-		historyItems: []protocol.CronTaskHistoryItem{
+		historyItems: []automationdomain.CronTaskHistoryItem{
 			{
 				JobID:   "job-current-deleted",
 				Name:    "旧新闻日报",
@@ -669,13 +670,13 @@ func TestDailyReportCanResolveDeletedCurrentExternalGroupQuery(t *testing.T) {
 				Deleted: true,
 			},
 		},
-		eventsByJob: map[string][]protocol.CronTaskEvent{
+		eventsByJob: map[string][]automationdomain.CronTaskEvent{
 			"job-current-deleted": {
 				{
 					EventID: "evt-current-delete",
 					JobID:   "job-current-deleted",
 					AgentID: "agent-1",
-					Action:  protocol.TaskEventActionDelete,
+					Action:  automationdomain.TaskEventActionDelete,
 					Detail: map[string]any{
 						"name":             "旧新闻日报",
 						"delivery_channel": protocol.SessionChannelFeishu,
@@ -688,7 +689,7 @@ func TestDailyReportCanResolveDeletedCurrentExternalGroupQuery(t *testing.T) {
 					EventID: "evt-other-delete",
 					JobID:   "job-other-deleted",
 					AgentID: "agent-1",
-					Action:  protocol.TaskEventActionDelete,
+					Action:  automationdomain.TaskEventActionDelete,
 					Detail: map[string]any{
 						"name":             "旧新闻日报",
 						"delivery_channel": protocol.SessionChannelFeishu,
@@ -697,13 +698,13 @@ func TestDailyReportCanResolveDeletedCurrentExternalGroupQuery(t *testing.T) {
 				},
 			},
 		},
-		dailyReport: &protocol.CronDailyReport{
+		dailyReport: &automationdomain.CronDailyReport{
 			Date:     "2026-05-22",
 			Timezone: "Asia/Shanghai",
 			AgentID:  "agent-1",
 			JobID:    "job-current-deleted",
-			Totals:   protocol.CronDailyReportTotals{TaskCount: 1},
-			Tasks: []protocol.CronDailyReportTask{{
+			Totals:   automationdomain.CronDailyReportTotals{TaskCount: 1},
+			Tasks: []automationdomain.CronDailyReportTask{{
 				JobID:   "job-current-deleted",
 				Name:    "旧新闻日报",
 				AgentID: "agent-1",

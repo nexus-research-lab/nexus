@@ -5,22 +5,23 @@ import (
 	"strings"
 	"testing"
 
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 	"github.com/nexus-research-lab/nexus/internal/mcp/automation/contract"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 func TestEnableScheduledTaskCanResumeDisabledTaskByQuery(t *testing.T) {
 	svc := &stubService{
-		jobs: []protocol.CronJob{
+		jobs: []automationdomain.CronJob{
 			{
 				JobID:       "job-news",
 				Name:        "暂停的每日新闻摘要",
 				AgentID:     "agent-1",
 				Instruction: "搜索新闻并投递",
 				Enabled:     false,
-				Schedule:    protocol.Schedule{Timezone: "Asia/Shanghai"},
-				Delivery: protocol.DeliveryTarget{
-					Mode:    protocol.DeliveryModeExplicit,
+				Schedule:    automationdomain.Schedule{Timezone: "Asia/Shanghai"},
+				Delivery: automationdomain.DeliveryTarget{
+					Mode:    automationdomain.DeliveryModeExplicit,
 					Channel: protocol.SessionChannelFeishu,
 					To:      "oc_group",
 				},
@@ -31,9 +32,9 @@ func TestEnableScheduledTaskCanResumeDisabledTaskByQuery(t *testing.T) {
 				AgentID:     "agent-1",
 				Instruction: "发送天气",
 				Enabled:     true,
-				Schedule:    protocol.Schedule{Timezone: "Asia/Shanghai"},
-				Delivery: protocol.DeliveryTarget{
-					Mode:    protocol.DeliveryModeExplicit,
+				Schedule:    automationdomain.Schedule{Timezone: "Asia/Shanghai"},
+				Delivery: automationdomain.DeliveryTarget{
+					Mode:    automationdomain.DeliveryModeExplicit,
 					Channel: protocol.SessionChannelFeishu,
 					To:      "oc_group",
 				},
@@ -44,7 +45,7 @@ func TestEnableScheduledTaskCanResumeDisabledTaskByQuery(t *testing.T) {
 				AgentID:     "agent-1",
 				Instruction: "提醒我喝水",
 				Enabled:     false,
-				Schedule:    protocol.Schedule{Timezone: "Asia/Shanghai"},
+				Schedule:    automationdomain.Schedule{Timezone: "Asia/Shanghai"},
 			},
 			{
 				JobID:       "job-water",
@@ -52,7 +53,7 @@ func TestEnableScheduledTaskCanResumeDisabledTaskByQuery(t *testing.T) {
 				AgentID:     "agent-1",
 				Instruction: "提醒我喝水",
 				Enabled:     true,
-				Schedule:    protocol.Schedule{Timezone: "Asia/Shanghai"},
+				Schedule:    automationdomain.Schedule{Timezone: "Asia/Shanghai"},
 			},
 		},
 	}
@@ -72,11 +73,11 @@ func TestEnableScheduledTaskCanResumeDisabledTaskByQuery(t *testing.T) {
 
 func TestRegularAgentCannotEnableAnotherAgentsTask(t *testing.T) {
 	svc := &stubService{
-		jobs: []protocol.CronJob{{
+		jobs: []automationdomain.CronJob{{
 			JobID:    "job-1",
 			AgentID:  "agent-2",
 			Enabled:  false,
-			Schedule: protocol.Schedule{Timezone: "Asia/Shanghai"},
+			Schedule: automationdomain.Schedule{Timezone: "Asia/Shanghai"},
 		}},
 	}
 	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "enable_scheduled_task", map[string]any{
@@ -103,10 +104,10 @@ func TestDeleteRequiresJobID(t *testing.T) {
 
 func TestDeleteScheduledTaskPassesJobID(t *testing.T) {
 	svc := &stubService{
-		jobs: []protocol.CronJob{{
+		jobs: []automationdomain.CronJob{{
 			JobID:    "job-1",
 			AgentID:  "agent-1",
-			Schedule: protocol.Schedule{Timezone: "Asia/Shanghai"},
+			Schedule: automationdomain.Schedule{Timezone: "Asia/Shanghai"},
 		}},
 	}
 	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "delete_scheduled_task", map[string]any{
@@ -129,11 +130,11 @@ func TestDeleteScheduledTaskPassesJobID(t *testing.T) {
 
 func TestDeleteScheduledTaskReportsCancelledActiveRun(t *testing.T) {
 	svc := &stubService{
-		jobs: []protocol.CronJob{{
+		jobs: []automationdomain.CronJob{{
 			JobID:        "job-1",
 			AgentID:      "agent-1",
 			RunningRunID: "run-active",
-			Schedule:     protocol.Schedule{Timezone: "Asia/Shanghai"},
+			Schedule:     automationdomain.Schedule{Timezone: "Asia/Shanghai"},
 		}},
 	}
 	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "delete_scheduled_task", map[string]any{
@@ -155,20 +156,20 @@ func TestDeleteScheduledTaskReportsCancelledActiveRun(t *testing.T) {
 
 func TestDeleteScheduledTaskQueryRequiresUniqueMatch(t *testing.T) {
 	svc := &stubService{
-		jobs: []protocol.CronJob{
+		jobs: []automationdomain.CronJob{
 			{
 				JobID:       "job-news-a",
 				Name:        "早间新闻",
 				AgentID:     "agent-1",
 				Instruction: "搜索新闻",
-				Schedule:    protocol.Schedule{Timezone: "Asia/Shanghai"},
+				Schedule:    automationdomain.Schedule{Timezone: "Asia/Shanghai"},
 			},
 			{
 				JobID:       "job-news-b",
 				Name:        "晚间新闻",
 				AgentID:     "agent-1",
 				Instruction: "整理新闻",
-				Schedule:    protocol.Schedule{Timezone: "Asia/Shanghai"},
+				Schedule:    automationdomain.Schedule{Timezone: "Asia/Shanghai"},
 			},
 		},
 	}

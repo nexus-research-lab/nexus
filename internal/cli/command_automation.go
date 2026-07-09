@@ -1,7 +1,7 @@
 package cli
 
 import (
-	"github.com/nexus-research-lab/nexus/internal/protocol"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 
 	"github.com/spf13/cobra"
 )
@@ -75,22 +75,22 @@ func newScheduledTaskCommand(services *cliServiceProvider) *cobra.Command {
 					return err
 				}
 				service := appServices.Automation
-				payload := protocol.CreateJobInput{
+				payload := automationdomain.CreateJobInput{
 					Name:        name,
 					AgentID:     agentID,
 					Instruction: instruction,
-					Schedule: protocol.Schedule{
+					Schedule: automationdomain.Schedule{
 						Kind:     scheduleKind,
 						Timezone: timezone,
 					},
-					SessionTarget: protocol.SessionTarget{
+					SessionTarget: automationdomain.SessionTarget{
 						Kind:            targetKind,
 						BoundSessionKey: boundSessionKey,
 						NamedSessionKey: namedSessionKey,
 						WakeMode:        wakeMode,
 					},
 					Delivery:      deliveryFlags.target(),
-					Source:        protocol.Source{Kind: protocol.SourceKindCLI},
+					Source:        automationdomain.Source{Kind: automationdomain.SourceKindCLI},
 					OverlapPolicy: overlapPolicy,
 					Enabled:       enabled,
 				}
@@ -117,17 +117,17 @@ func newScheduledTaskCommand(services *cliServiceProvider) *cobra.Command {
 		createCommand.Flags().StringVar(&name, "name", "", "task name")
 		createCommand.Flags().StringVar(&agentID, "agent-id", "", "agent id")
 		createCommand.Flags().StringVar(&instruction, "instruction", "", "task instruction")
-		createCommand.Flags().StringVar(&scheduleKind, "schedule-kind", protocol.ScheduleKindEvery, "every|cron|at")
+		createCommand.Flags().StringVar(&scheduleKind, "schedule-kind", automationdomain.ScheduleKindEvery, "every|cron|at")
 		createCommand.Flags().StringVar(&runAt, "run-at", "", "run at")
 		createCommand.Flags().IntVar(&intervalSeconds, "interval-seconds", 0, "interval seconds")
 		createCommand.Flags().StringVar(&cronExpression, "cron-expression", "", "cron expression")
 		createCommand.Flags().StringVar(&timezone, "timezone", "Asia/Shanghai", "timezone")
-		createCommand.Flags().StringVar(&targetKind, "target-kind", protocol.SessionTargetIsolated, "isolated|main|bound|named")
+		createCommand.Flags().StringVar(&targetKind, "target-kind", automationdomain.SessionTargetIsolated, "isolated|main|bound|named")
 		createCommand.Flags().StringVar(&boundSessionKey, "bound-session-key", "", "bound session key")
 		createCommand.Flags().StringVar(&namedSessionKey, "named-session-key", "", "named session key")
-		createCommand.Flags().StringVar(&wakeMode, "wake-mode", protocol.WakeModeNextHeartbeat, "now|next-heartbeat")
-		bindScheduledTaskDeliveryFlags(createCommand, &deliveryFlags, protocol.DeliveryModeNone)
-		createCommand.Flags().StringVar(&overlapPolicy, "overlap-policy", protocol.OverlapPolicySkip, "skip|allow")
+		createCommand.Flags().StringVar(&wakeMode, "wake-mode", automationdomain.WakeModeNextHeartbeat, "now|next-heartbeat")
+		bindScheduledTaskDeliveryFlags(createCommand, &deliveryFlags, automationdomain.DeliveryModeNone)
+		createCommand.Flags().StringVar(&overlapPolicy, "overlap-policy", automationdomain.OverlapPolicySkip, "skip|allow")
 		createCommand.Flags().BoolVar(&enabled, "enabled", true, "enabled")
 		_ = createCommand.MarkFlagRequired("name")
 		_ = createCommand.MarkFlagRequired("agent-id")
@@ -161,7 +161,7 @@ func newScheduledTaskCommand(services *cliServiceProvider) *cobra.Command {
 					return err
 				}
 				service := appServices.Automation
-				payload := protocol.UpdateJobInput{}
+				payload := automationdomain.UpdateJobInput{}
 				if name != "" {
 					payload.Name = stringRef(name)
 				}
@@ -169,7 +169,7 @@ func newScheduledTaskCommand(services *cliServiceProvider) *cobra.Command {
 					payload.Instruction = stringRef(instruction)
 				}
 				if scheduleKind != "" {
-					schedule := protocol.Schedule{
+					schedule := automationdomain.Schedule{
 						Kind:     scheduleKind,
 						Timezone: timezone,
 					}
@@ -185,7 +185,7 @@ func newScheduledTaskCommand(services *cliServiceProvider) *cobra.Command {
 					payload.Schedule = &schedule
 				}
 				if targetKind != "" {
-					target := protocol.SessionTarget{
+					target := automationdomain.SessionTarget{
 						Kind:            targetKind,
 						BoundSessionKey: boundSessionKey,
 						NamedSessionKey: namedSessionKey,
@@ -199,7 +199,7 @@ func newScheduledTaskCommand(services *cliServiceProvider) *cobra.Command {
 						return getErr
 					}
 					if current == nil {
-						return protocol.ErrJobNotFound
+						return automationdomain.ErrJobNotFound
 					}
 					delivery := current.Delivery
 					deliveryFlags.apply(cmd, &delivery)
@@ -232,7 +232,7 @@ func newScheduledTaskCommand(services *cliServiceProvider) *cobra.Command {
 		updateCommand.Flags().StringVar(&targetKind, "target-kind", "", "isolated|main|bound|named")
 		updateCommand.Flags().StringVar(&boundSessionKey, "bound-session-key", "", "bound session key")
 		updateCommand.Flags().StringVar(&namedSessionKey, "named-session-key", "", "named session key")
-		updateCommand.Flags().StringVar(&wakeMode, "wake-mode", protocol.WakeModeNextHeartbeat, "now|next-heartbeat")
+		updateCommand.Flags().StringVar(&wakeMode, "wake-mode", automationdomain.WakeModeNextHeartbeat, "now|next-heartbeat")
 		bindScheduledTaskDeliveryFlags(updateCommand, &deliveryFlags, "")
 		updateCommand.Flags().StringVar(&overlapPolicy, "overlap-policy", "", "skip|allow")
 		updateCommand.Flags().BoolVar(&enabled, "enabled", false, "enabled")

@@ -1,7 +1,7 @@
 package cli
 
 import (
-	"github.com/nexus-research-lab/nexus/internal/protocol"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 
 	"github.com/spf13/cobra"
 )
@@ -49,7 +49,7 @@ func newHeartbeatCommand(services *cliServiceProvider) *cobra.Command {
 					return err
 				}
 				service := appServices.Automation
-				item, err := service.UpdateHeartbeat(commandContext(cmd), args[0], protocol.HeartbeatUpdateInput{
+				item, err := service.UpdateHeartbeat(commandContext(cmd), args[0], automationdomain.HeartbeatUpdateInput{
 					Enabled:      enabled,
 					EverySeconds: everySeconds,
 					TargetMode:   targetMode,
@@ -67,7 +67,7 @@ func newHeartbeatCommand(services *cliServiceProvider) *cobra.Command {
 		}
 		setCommand.Flags().BoolVar(&enabled, "enabled", false, "enabled")
 		setCommand.Flags().IntVar(&everySeconds, "every-seconds", 1800, "every seconds")
-		setCommand.Flags().StringVar(&targetMode, "target-mode", protocol.HeartbeatTargetNone, "none|last")
+		setCommand.Flags().StringVar(&targetMode, "target-mode", automationdomain.HeartbeatTargetNone, "none|last")
 		setCommand.Flags().IntVar(&ackMaxChars, "ack-max-chars", 300, "ack max chars")
 		return setCommand
 	}())
@@ -85,7 +85,7 @@ func newHeartbeatCommand(services *cliServiceProvider) *cobra.Command {
 					return err
 				}
 				service := appServices.Automation
-				request := protocol.HeartbeatWakeRequest{Mode: mode}
+				request := automationdomain.HeartbeatWakeInput{Mode: mode}
 				if text != "" {
 					request.Text = stringRef(text)
 				}
@@ -100,7 +100,7 @@ func newHeartbeatCommand(services *cliServiceProvider) *cobra.Command {
 				})
 			},
 		}
-		wakeCommand.Flags().StringVar(&mode, "mode", protocol.WakeModeNow, "now|next-heartbeat")
+		wakeCommand.Flags().StringVar(&mode, "mode", automationdomain.WakeModeNow, "now|next-heartbeat")
 		wakeCommand.Flags().StringVar(&text, "text", "", "wake text")
 		return wakeCommand
 	}())

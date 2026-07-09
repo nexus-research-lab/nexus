@@ -9,48 +9,48 @@ package builder
 import (
 	"errors"
 
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 	"github.com/nexus-research-lab/nexus/internal/mcp/automation/internal/argx"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 // SessionTarget 把 session_target 对象翻译成底层 SessionTarget。
 // 当 kind=bound 且未填 bound_session_key 时，使用当前会话 fallback。
-func SessionTarget(raw any, currentSessionKey string) (protocol.SessionTarget, error) {
+func SessionTarget(raw any, currentSessionKey string) (automationdomain.SessionTarget, error) {
 	m, ok := raw.(map[string]any)
 	if !ok {
-		return protocol.SessionTarget{}, errors.New("session_target must be an object")
+		return automationdomain.SessionTarget{}, errors.New("session_target must be an object")
 	}
-	target := protocol.SessionTarget{
+	target := automationdomain.SessionTarget{
 		Kind:            argx.String(m, "kind"),
 		BoundSessionKey: argx.String(m, "bound_session_key"),
 		NamedSessionKey: argx.String(m, "named_session_key"),
 		WakeMode:        argx.String(m, "wake_mode"),
 	}
-	if target.Kind == protocol.SessionTargetBound && target.BoundSessionKey == "" && currentSessionKey != "" {
+	if target.Kind == automationdomain.SessionTargetBound && target.BoundSessionKey == "" && currentSessionKey != "" {
 		target.BoundSessionKey = currentSessionKey
 	}
 	normalized := target.Normalized()
 	if err := normalized.Validate(); err != nil {
-		return protocol.SessionTarget{}, err
+		return automationdomain.SessionTarget{}, err
 	}
 	return normalized, nil
 }
 
 // Delivery 把 delivery 对象翻译成底层 DeliveryTarget。
 // 当 mode=explicit 且未填 to 时，使用当前会话 fallback 并补默认 channel=websocket。
-func Delivery(raw any, currentSessionKey string) (protocol.DeliveryTarget, error) {
+func Delivery(raw any, currentSessionKey string) (automationdomain.DeliveryTarget, error) {
 	m, ok := raw.(map[string]any)
 	if !ok {
-		return protocol.DeliveryTarget{}, errors.New("delivery must be an object")
+		return automationdomain.DeliveryTarget{}, errors.New("delivery must be an object")
 	}
-	delivery := protocol.DeliveryTarget{
+	delivery := automationdomain.DeliveryTarget{
 		Mode:      argx.String(m, "mode"),
 		Channel:   argx.String(m, "channel"),
 		To:        argx.String(m, "to"),
 		AccountID: argx.String(m, "account_id"),
 		ThreadID:  argx.String(m, "thread_id"),
 	}
-	if delivery.Mode == protocol.DeliveryModeExplicit && delivery.To == "" && currentSessionKey != "" {
+	if delivery.Mode == automationdomain.DeliveryModeExplicit && delivery.To == "" && currentSessionKey != "" {
 		if delivery.Channel == "" {
 			delivery.Channel = "websocket"
 		}
@@ -58,18 +58,18 @@ func Delivery(raw any, currentSessionKey string) (protocol.DeliveryTarget, error
 	}
 	normalized := delivery.Normalized()
 	if err := normalized.Validate(); err != nil {
-		return protocol.DeliveryTarget{}, err
+		return automationdomain.DeliveryTarget{}, err
 	}
 	return normalized, nil
 }
 
 // Source 把 source 对象翻译成底层 Source。
-func Source(raw any) (protocol.Source, error) {
+func Source(raw any) (automationdomain.Source, error) {
 	m, ok := raw.(map[string]any)
 	if !ok {
-		return protocol.Source{}, errors.New("source must be an object")
+		return automationdomain.Source{}, errors.New("source must be an object")
 	}
-	source := protocol.Source{
+	source := automationdomain.Source{
 		Kind:           argx.String(m, "kind"),
 		CreatorAgentID: argx.String(m, "creator_agent_id"),
 		ContextType:    argx.String(m, "context_type"),
@@ -80,7 +80,7 @@ func Source(raw any) (protocol.Source, error) {
 	}
 	normalized := source.Normalized()
 	if err := normalized.Validate(); err != nil {
-		return protocol.Source{}, err
+		return automationdomain.Source{}, err
 	}
 	return normalized, nil
 }

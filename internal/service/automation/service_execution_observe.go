@@ -4,12 +4,11 @@ import (
 	"context"
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/storage/automation"
 )
 
 func (s *Service) observeJobRun(
-	job protocol.CronJob,
+	job automationdomain.CronJob,
 	runID string,
 	roundID string,
 	sessionKey string,
@@ -26,11 +25,11 @@ func (s *Service) observeJobRun(
 
 	status := observation.Status
 	if status == "" {
-		status = protocol.RunStatusFailed
+		status = automationdomain.RunStatusFailed
 	}
 	errorMessage := cloneStringPointer(observation.ErrorMessage)
-	deliveryResult := jobDeliveryResult{Status: protocol.DeliveryStatusNotRequired}
-	if status == protocol.RunStatusSucceeded {
+	deliveryResult := jobDeliveryResult{Status: automationdomain.DeliveryStatusNotRequired}
+	if status == automationdomain.RunStatusSucceeded {
 		deliveryResult = s.deliverJobObservation(jobCtx, job, sessionKey, observation)
 	}
 	deliveryStatus := deliveryResult.Status

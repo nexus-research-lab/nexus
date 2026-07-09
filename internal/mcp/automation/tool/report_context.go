@@ -4,9 +4,9 @@ import (
 	"context"
 	"strings"
 
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 	"github.com/nexus-research-lab/nexus/internal/mcp/automation/contract"
 	"github.com/nexus-research-lab/nexus/internal/mcp/automation/internal/argx"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 func currentConversationDailyReport(
@@ -14,7 +14,7 @@ func currentConversationDailyReport(
 	svc contract.Service,
 	sctx contract.ServerContext,
 	args map[string]any,
-) (*protocol.CronDailyReport, bool, error) {
+) (*automationdomain.CronDailyReport, bool, error) {
 	if !shouldUseCurrentConversationDailyReport(sctx, args) {
 		return nil, false, nil
 	}
@@ -49,8 +49,8 @@ func emptyCurrentConversationDailyReport(
 	sctx contract.ServerContext,
 	args map[string]any,
 	agentID string,
-) (*protocol.CronDailyReport, error) {
-	report, err := svc.GetDailyReport(ctx, protocol.CronDailyReportInput{
+) (*automationdomain.CronDailyReport, error) {
+	report, err := svc.GetDailyReport(ctx, automationdomain.CronDailyReportInput{
 		Date:     argx.String(args, "date"),
 		Timezone: argx.FirstNonEmpty(argx.String(args, "timezone"), sctx.DefaultTimezone),
 		AgentID:  agentID,
@@ -59,15 +59,15 @@ func emptyCurrentConversationDailyReport(
 		return nil, err
 	}
 	if report == nil {
-		return &protocol.CronDailyReport{
+		return &automationdomain.CronDailyReport{
 			Timezone: argx.FirstNonEmpty(argx.String(args, "timezone"), sctx.DefaultTimezone, "Asia/Shanghai"),
 			AgentID:  agentID,
-			Tasks:    []protocol.CronDailyReportTask{},
+			Tasks:    []automationdomain.CronDailyReportTask{},
 		}, nil
 	}
 	report.JobID = ""
-	report.Totals = protocol.CronDailyReportTotals{}
-	report.Tasks = []protocol.CronDailyReportTask{}
+	report.Totals = automationdomain.CronDailyReportTotals{}
+	report.Tasks = []automationdomain.CronDailyReportTask{}
 	return report, nil
 }
 
@@ -118,14 +118,14 @@ func buildCurrentConversationDailyReport(
 	svc contract.Service,
 	sctx contract.ServerContext,
 	args map[string]any,
-	jobs []protocol.CronJob,
-) (*protocol.CronDailyReport, error) {
-	result := &protocol.CronDailyReport{
+	jobs []automationdomain.CronJob,
+) (*automationdomain.CronDailyReport, error) {
+	result := &automationdomain.CronDailyReport{
 		Timezone: argx.FirstNonEmpty(argx.String(args, "timezone"), sctx.DefaultTimezone),
-		Tasks:    []protocol.CronDailyReportTask{},
+		Tasks:    []automationdomain.CronDailyReportTask{},
 	}
 	for _, job := range jobs {
-		report, err := svc.GetDailyReport(ctx, protocol.CronDailyReportInput{
+		report, err := svc.GetDailyReport(ctx, automationdomain.CronDailyReportInput{
 			Date:     argx.String(args, "date"),
 			Timezone: result.Timezone,
 			JobID:    job.JobID,
@@ -144,7 +144,7 @@ func buildCurrentConversationDailyReport(
 	return result, nil
 }
 
-func mergeCurrentConversationDailyReport(target *protocol.CronDailyReport, source *protocol.CronDailyReport) {
+func mergeCurrentConversationDailyReport(target *automationdomain.CronDailyReport, source *automationdomain.CronDailyReport) {
 	if target.Date == "" {
 		target.Date = source.Date
 	}

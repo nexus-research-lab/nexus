@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
@@ -74,20 +75,20 @@ func TestServiceRunTaskNowSupportsBoundRoomSessionTarget(t *testing.T) {
 		nil,
 	)
 	sessionKey := protocol.BuildRoomSharedSessionKey("conversation-1")
-	task, err := service.CreateTask(context.Background(), protocol.CreateJobInput{
+	task, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
 		Name:        "room-summary",
 		AgentID:     "agent-1",
 		Instruction: "整理 Room 今日进展",
-		Schedule: protocol.Schedule{
-			Kind:            protocol.ScheduleKindEvery,
+		Schedule: automationdomain.Schedule{
+			Kind:            automationdomain.ScheduleKindEvery,
 			IntervalSeconds: intRef(3600),
 			Timezone:        "Asia/Shanghai",
 		},
-		SessionTarget: protocol.SessionTarget{
-			Kind:            protocol.SessionTargetBound,
+		SessionTarget: automationdomain.SessionTarget{
+			Kind:            automationdomain.SessionTargetBound,
 			BoundSessionKey: sessionKey,
 		},
-		Delivery: protocol.DeliveryTarget{Mode: protocol.DeliveryModeNone},
+		Delivery: automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
 		Enabled:  true,
 	})
 	if err != nil {
@@ -98,7 +99,7 @@ func TestServiceRunTaskNowSupportsBoundRoomSessionTarget(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RunTaskNow 不应拒绝 Room 执行会话: %v", err)
 	}
-	if result.SessionKey != sessionKey || result.Status != protocol.RunStatusRunning {
+	if result.SessionKey != sessionKey || result.Status != automationdomain.RunStatusRunning {
 		t.Fatalf("Room 定时任务下发结果不正确: %+v", result)
 	}
 	requests := roomRunner.Requests()
@@ -111,7 +112,7 @@ func TestServiceRunTaskNowSupportsBoundRoomSessionTarget(t *testing.T) {
 
 	waitFor(t, 2*time.Second, func() bool {
 		runs, listErr := service.ListTaskRuns(context.Background(), task.JobID)
-		return listErr == nil && len(runs) == 1 && runs[0].Status == protocol.RunStatusSucceeded
+		return listErr == nil && len(runs) == 1 && runs[0].Status == automationdomain.RunStatusSucceeded
 	})
 	runs, err := service.ListTaskRuns(context.Background(), task.JobID)
 	if err != nil || len(runs) != 1 {
@@ -145,20 +146,20 @@ func TestServiceCreateTaskRejectsRoomTargetAgentOutsideMembers(t *testing.T) {
 		&fakeWorkspaceReader{},
 		nil,
 	)
-	_, err := service.CreateTask(context.Background(), protocol.CreateJobInput{
+	_, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
 		Name:        "room-summary",
 		AgentID:     "agent-1",
 		Instruction: "整理 Room 今日进展",
-		Schedule: protocol.Schedule{
-			Kind:            protocol.ScheduleKindEvery,
+		Schedule: automationdomain.Schedule{
+			Kind:            automationdomain.ScheduleKindEvery,
 			IntervalSeconds: intRef(3600),
 			Timezone:        "Asia/Shanghai",
 		},
-		SessionTarget: protocol.SessionTarget{
-			Kind:            protocol.SessionTargetBound,
+		SessionTarget: automationdomain.SessionTarget{
+			Kind:            automationdomain.SessionTargetBound,
 			BoundSessionKey: protocol.BuildRoomSharedSessionKey("conversation-1"),
 		},
-		Delivery: protocol.DeliveryTarget{Mode: protocol.DeliveryModeNone},
+		Delivery: automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
 		Enabled:  true,
 	})
 	if err == nil || !strings.Contains(err.Error(), "不是目标 Room 的成员") {
@@ -180,24 +181,24 @@ func TestServiceRunTaskNowExecutesScriptTaskWithoutAgentRunner(t *testing.T) {
 		nil,
 	)
 
-	task, err := service.CreateTask(context.Background(), protocol.CreateJobInput{
+	task, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
 		Name:          "脚本巡检",
 		AgentID:       "agent-1",
 		Instruction:   "echo automation-script-output",
-		ExecutionKind: protocol.ExecutionKindScript,
-		Schedule: protocol.Schedule{
-			Kind:            protocol.ScheduleKindEvery,
+		ExecutionKind: automationdomain.ExecutionKindScript,
+		Schedule: automationdomain.Schedule{
+			Kind:            automationdomain.ScheduleKindEvery,
 			IntervalSeconds: intRef(3600),
 			Timezone:        "Asia/Shanghai",
 		},
-		SessionTarget: protocol.SessionTarget{Kind: protocol.SessionTargetIsolated},
-		Delivery:      protocol.DeliveryTarget{Mode: protocol.DeliveryModeNone},
+		SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetIsolated},
+		Delivery:      automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
 		Enabled:       true,
 	})
 	if err != nil {
 		t.Fatalf("CreateTask 失败: %v", err)
 	}
-	if task.ExecutionKind != protocol.ExecutionKindScript {
+	if task.ExecutionKind != automationdomain.ExecutionKindScript {
 		t.Fatalf("execution_kind = %q, 期望 script", task.ExecutionKind)
 	}
 
@@ -205,7 +206,7 @@ func TestServiceRunTaskNowExecutesScriptTaskWithoutAgentRunner(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RunTaskNow 失败: %v", err)
 	}
-	if result.Status != protocol.RunStatusRunning {
+	if result.Status != automationdomain.RunStatusRunning {
 		t.Fatalf("期望脚本任务立即返回 running，实际 %s", result.Status)
 	}
 
@@ -214,7 +215,7 @@ func TestServiceRunTaskNowExecutesScriptTaskWithoutAgentRunner(t *testing.T) {
 		if listErr != nil || len(items) == 0 {
 			return false
 		}
-		return items[0].Status == protocol.RunStatusSucceeded
+		return items[0].Status == automationdomain.RunStatusSucceeded
 	})
 	runs, err := service.ListTaskRuns(context.Background(), task.JobID)
 	if err != nil {
@@ -256,29 +257,29 @@ func TestRunTaskNowForMainTargetEnqueuesCronTextPayload(t *testing.T) {
 		&fakeWorkspaceReader{},
 		nil,
 	)
-	if _, err := service.UpdateHeartbeat(context.Background(), "agent-1", protocol.HeartbeatUpdateInput{
+	if _, err := service.UpdateHeartbeat(context.Background(), "agent-1", automationdomain.HeartbeatUpdateInput{
 		Enabled:      true,
 		EverySeconds: 3600,
-		TargetMode:   protocol.HeartbeatTargetNone,
+		TargetMode:   automationdomain.HeartbeatTargetNone,
 		AckMaxChars:  300,
 	}); err != nil {
 		t.Fatalf("UpdateHeartbeat 失败: %v", err)
 	}
 
-	task, err := service.CreateTask(context.Background(), protocol.CreateJobInput{
+	task, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
 		Name:        "Main payload",
 		AgentID:     "agent-1",
 		Instruction: "follow up in main session",
-		Schedule: protocol.Schedule{
-			Kind:            protocol.ScheduleKindEvery,
+		Schedule: automationdomain.Schedule{
+			Kind:            automationdomain.ScheduleKindEvery,
 			IntervalSeconds: intRef(60),
 			Timezone:        "Asia/Shanghai",
 		},
-		SessionTarget: protocol.SessionTarget{
-			Kind:     protocol.SessionTargetMain,
-			WakeMode: protocol.WakeModeNow,
+		SessionTarget: automationdomain.SessionTarget{
+			Kind:     automationdomain.SessionTargetMain,
+			WakeMode: automationdomain.WakeModeNow,
 		},
-		Delivery: protocol.DeliveryTarget{Mode: protocol.DeliveryModeNone},
+		Delivery: automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
 		Enabled:  true,
 	})
 	if err != nil {
@@ -288,7 +289,7 @@ func TestRunTaskNowForMainTargetEnqueuesCronTextPayload(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RunTaskNow 失败: %v", err)
 	}
-	if result.RunID == nil || result.Status != protocol.RunStatusQueuedToMain {
+	if result.RunID == nil || result.Status != automationdomain.RunStatusQueuedToMain {
 		t.Fatalf("main target 应返回 queued run: %+v", result)
 	}
 
@@ -312,7 +313,7 @@ func TestRunTaskNowForMainTargetEnqueuesCronTextPayload(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListTaskRuns 失败: %v", err)
 	}
-	if len(runs) != 1 || runs[0].Status != protocol.RunStatusQueuedToMain || runs[0].SessionKey == "" {
+	if len(runs) != 1 || runs[0].Status != automationdomain.RunStatusQueuedToMain || runs[0].SessionKey == "" {
 		t.Fatalf("main target run ledger 不正确: %+v", runs)
 	}
 }
@@ -330,17 +331,17 @@ func TestRunTaskNowMarksMainEventFailedWhenWakeValidationFails(t *testing.T) {
 		&fakeWorkspaceReader{},
 		nil,
 	)
-	task, err := service.CreateTask(context.Background(), protocol.CreateJobInput{
+	task, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
 		Name:        "main-wake-fail",
 		AgentID:     "agent-1",
 		Instruction: "wake failed",
-		Schedule: protocol.Schedule{
-			Kind:            protocol.ScheduleKindEvery,
+		Schedule: automationdomain.Schedule{
+			Kind:            automationdomain.ScheduleKindEvery,
 			IntervalSeconds: intRef(60),
 			Timezone:        "Asia/Shanghai",
 		},
-		SessionTarget: protocol.SessionTarget{Kind: protocol.SessionTargetMain, WakeMode: protocol.WakeModeNow},
-		Delivery:      protocol.DeliveryTarget{Mode: protocol.DeliveryModeNone},
+		SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetMain, WakeMode: automationdomain.WakeModeNow},
+		Delivery:      automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
 		Enabled:       true,
 	})
 	if err != nil {

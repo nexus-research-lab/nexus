@@ -10,11 +10,11 @@ import (
 	// 嵌入 IANA 时区数据库，避免轻量运行环境缺少 zoneinfo 时无法加载 Asia/Shanghai。
 	_ "time/tzdata"
 
-	"github.com/nexus-research-lab/nexus/internal/protocol"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 )
 
 // GetDailyReport 按日期聚合任务运行和投递状态。
-func (s *Service) GetDailyReport(ctx context.Context, input protocol.CronDailyReportInput) (*protocol.CronDailyReport, error) {
+func (s *Service) GetDailyReport(ctx context.Context, input automationdomain.CronDailyReportInput) (*automationdomain.CronDailyReport, error) {
 	if err := s.ensureReady(ctx); err != nil {
 		return nil, err
 	}
@@ -30,7 +30,7 @@ func (s *Service) GetDailyReport(ctx context.Context, input protocol.CronDailyRe
 
 	jobID := strings.TrimSpace(input.JobID)
 	agentID := strings.TrimSpace(input.AgentID)
-	var jobs []protocol.CronJob
+	var jobs []automationdomain.CronJob
 	if jobID != "" {
 		job, getErr := s.GetTask(ctx, jobID)
 		if getErr != nil {
@@ -41,20 +41,20 @@ func (s *Service) GetDailyReport(ctx context.Context, input protocol.CronDailyRe
 			if taskErr != nil {
 				return nil, taskErr
 			}
-			report := &protocol.CronDailyReport{
+			report := &automationdomain.CronDailyReport{
 				Date:     date,
 				Timezone: timezone,
 				AgentID:  task.AgentID,
 				JobID:    jobID,
 				StartAt:  startAt,
 				EndAt:    endAt,
-				Tasks:    []protocol.CronDailyReportTask{task},
+				Tasks:    []automationdomain.CronDailyReportTask{task},
 			}
 			addDailyReportTotals(&report.Totals, task.Totals)
 			report.Totals.TaskCount = 1
 			return report, nil
 		}
-		jobs = []protocol.CronJob{*job}
+		jobs = []automationdomain.CronJob{*job}
 		agentID = strings.TrimSpace(job.AgentID)
 	} else {
 		jobs, err = s.ListTasks(ctx, agentID)
@@ -63,14 +63,14 @@ func (s *Service) GetDailyReport(ctx context.Context, input protocol.CronDailyRe
 		}
 	}
 
-	report := &protocol.CronDailyReport{
+	report := &automationdomain.CronDailyReport{
 		Date:     date,
 		Timezone: timezone,
 		AgentID:  agentID,
 		JobID:    jobID,
 		StartAt:  startAt,
 		EndAt:    endAt,
-		Tasks:    make([]protocol.CronDailyReportTask, 0, len(jobs)),
+		Tasks:    make([]automationdomain.CronDailyReportTask, 0, len(jobs)),
 	}
 	for _, job := range jobs {
 		task, taskErr := s.buildDailyReportTask(ctx, job, startAt, endAt)
@@ -95,19 +95,19 @@ func (s *Service) buildDeletedDailyReportTask(
 	jobID string,
 	startAt time.Time,
 	endAt time.Time,
-) (protocol.CronDailyReportTask, error) {
+) (automationdomain.CronDailyReportTask, error) {
 	ownerUserID, _ := scopedOwnerUserID(ctx)
 	normalizedJobID := strings.TrimSpace(jobID)
 	runs, err := s.repository.ListRunsByJob(ctx, ownerUserID, normalizedJobID)
 	if err != nil {
-		return protocol.CronDailyReportTask{}, err
+		return automationdomain.CronDailyReportTask{}, err
 	}
 	events, err := s.repository.ListTaskEventsByJob(ctx, ownerUserID, normalizedJobID, 50)
 	if err != nil {
-		return protocol.CronDailyReportTask{}, err
+		return automationdomain.CronDailyReportTask{}, err
 	}
 	if len(runs) == 0 && len(events) == 0 {
-		return protocol.CronDailyReportTask{}, protocol.ErrJobNotFound
+		return automationdomain.CronDailyReportTask{}, automationdomain.ErrJobNotFound
 	}
 	task := deletedDailyReportTaskFromEvents(normalizedJobID, events)
 	for _, run := range runs {
@@ -122,13 +122,13 @@ func (s *Service) buildDeletedDailyReportTask(
 	return task, nil
 }
 
-func deletedDailyReportTaskFromEvents(jobID string, events []protocol.CronTaskEvent) protocol.CronDailyReportTask {
-	task := protocol.CronDailyReportTask{
+func deletedDailyReportTaskFromEvents(jobID string, events []automationdomain.CronTaskEvent) automationdomain.CronDailyReportTask {
+	task := automationdomain.CronDailyReportTask{
 		JobID:   jobID,
 		Name:    jobID,
 		Deleted: true,
 		Enabled: false,
-		Runs:    []protocol.CronRun{},
+		Runs:    []automationdomain.CronRun{},
 	}
 	addDailyReportTaskSignal(&task, "deleted")
 	addDailyReportTaskSuggestedTool(&task, "get_scheduled_task_events")
@@ -154,16 +154,16 @@ func stringFromTaskEventDetail(detail map[string]any, key string) string {
 
 func (s *Service) buildDailyReportTask(
 	ctx context.Context,
-	job protocol.CronJob,
+	job automationdomain.CronJob,
 	startAt time.Time,
 	endAt time.Time,
-) (protocol.CronDailyReportTask, error) {
+) (automationdomain.CronDailyReportTask, error) {
 	runs, err := s.ListTaskRuns(ctx, job.JobID)
 	if err != nil {
-		return protocol.CronDailyReportTask{}, err
+		return automationdomain.CronDailyReportTask{}, err
 	}
 	runningRunID := strings.TrimSpace(job.RunningRunID)
-	task := protocol.CronDailyReportTask{
+	task := automationdomain.CronDailyReportTask{
 		JobID:              job.JobID,
 		Name:               job.Name,
 		AgentID:            job.AgentID,
@@ -177,7 +177,7 @@ func (s *Service) buildDailyReportTask(
 		LastDeliveryStatus: job.LastDeliveryStatus,
 		FailureStreak:      job.FailureStreak,
 		LastError:          job.LastError,
-		Runs:               []protocol.CronRun{},
+		Runs:               []automationdomain.CronRun{},
 	}
 	if task.Running {
 		addDailyReportTaskSignal(&task, "running")
@@ -212,7 +212,7 @@ func resolveDailyReportDate(raw string, loc *time.Location, now time.Time) (stri
 	return normalized, startAt, startAt.AddDate(0, 0, 1), nil
 }
 
-func cronRunFallsInRange(run protocol.CronRun, startAt time.Time, endAt time.Time) bool {
+func cronRunFallsInRange(run automationdomain.CronRun, startAt time.Time, endAt time.Time) bool {
 	when := cronRunReportTime(run)
 	if when.IsZero() {
 		return false
@@ -221,7 +221,7 @@ func cronRunFallsInRange(run protocol.CronRun, startAt time.Time, endAt time.Tim
 	return !local.Before(startAt) && local.Before(endAt)
 }
 
-func cronRunReportTime(run protocol.CronRun) time.Time {
+func cronRunReportTime(run automationdomain.CronRun) time.Time {
 	if run.ScheduledFor != nil && !run.ScheduledFor.IsZero() {
 		return *run.ScheduledFor
 	}
@@ -237,38 +237,38 @@ func cronRunReportTime(run protocol.CronRun) time.Time {
 	return time.Time{}
 }
 
-func addDailyReportRun(totals *protocol.CronDailyReportTotals, run protocol.CronRun) {
+func addDailyReportRun(totals *automationdomain.CronDailyReportTotals, run automationdomain.CronRun) {
 	totals.RunCount++
 	switch strings.TrimSpace(run.Status) {
-	case protocol.RunStatusSucceeded, protocol.RunStatusQueuedToMain:
+	case automationdomain.RunStatusSucceeded, automationdomain.RunStatusQueuedToMain:
 		totals.SucceededRunCount++
-	case protocol.RunStatusFailed:
+	case automationdomain.RunStatusFailed:
 		totals.FailedRunCount++
-	case protocol.RunStatusCancelled:
+	case automationdomain.RunStatusCancelled:
 		totals.CancelledRunCount++
-	case protocol.RunStatusSkipped:
+	case automationdomain.RunStatusSkipped:
 		totals.SkippedRunCount++
 	}
 	switch strings.TrimSpace(run.DeliveryStatus) {
-	case protocol.DeliveryStatusSucceeded:
+	case automationdomain.DeliveryStatusSucceeded:
 		totals.DeliveredRunCount++
-	case protocol.DeliveryStatusFailed:
+	case automationdomain.DeliveryStatusFailed:
 		totals.DeliveryFailedRunCount++
 		if run.DeliveryDeadLetterAt != nil {
 			totals.DeliveryDeadLetterRunCount++
 		}
-	case protocol.DeliveryStatusPending:
+	case automationdomain.DeliveryStatusPending:
 		totals.DeliveryPendingRunCount++
-	case protocol.DeliveryStatusSkipped:
+	case automationdomain.DeliveryStatusSkipped:
 		totals.DeliverySkippedRunCount++
-	case protocol.DeliveryStatusNotRequired:
+	case automationdomain.DeliveryStatusNotRequired:
 		totals.DeliveryNotNeededCount++
-	case protocol.DeliveryStatusNotAttempted:
+	case automationdomain.DeliveryStatusNotAttempted:
 		totals.DeliveryNotAttemptedCount++
 	}
 }
 
-func addDailyReportTotals(target *protocol.CronDailyReportTotals, source protocol.CronDailyReportTotals) {
+func addDailyReportTotals(target *automationdomain.CronDailyReportTotals, source automationdomain.CronDailyReportTotals) {
 	target.RunCount += source.RunCount
 	target.SucceededRunCount += source.SucceededRunCount
 	target.FailedRunCount += source.FailedRunCount

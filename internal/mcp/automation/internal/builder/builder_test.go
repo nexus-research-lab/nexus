@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/nexus-research-lab/nexus/internal/protocol"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 )
 
 func TestSchedule_CronNormalizesToDaily(t *testing.T) {
@@ -25,7 +25,7 @@ func TestSchedule_CronNormalizesToDaily(t *testing.T) {
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			if got.Kind != protocol.ScheduleKindCron {
+			if got.Kind != automationdomain.ScheduleKindCron {
 				t.Fatalf("kind = %q, want cron", got.Kind)
 			}
 			if got.CronExpression == nil || *got.CronExpression != tc.wantCron {

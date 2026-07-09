@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"strings"
 
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -40,7 +40,7 @@ func (h *Handlers) HandleUpdateHeartbeat(writer http.ResponseWriter, request *ht
 	if !h.api.BindJSON(writer, request, &payload) {
 		return
 	}
-	item, err := h.automation.UpdateHeartbeat(request.Context(), chi.URLParam(request, "agent_id"), protocol.HeartbeatUpdateInput{
+	item, err := h.automation.UpdateHeartbeat(request.Context(), chi.URLParam(request, "agent_id"), automationdomain.HeartbeatUpdateInput{
 		Enabled:      payload.Enabled,
 		EverySeconds: payload.EverySeconds,
 		TargetMode:   payload.TargetMode,
@@ -66,7 +66,7 @@ func (h *Handlers) HandleWakeHeartbeat(writer http.ResponseWriter, request *http
 	if !h.api.BindJSONAllowEmpty(writer, request, &payload) {
 		return
 	}
-	item, err := h.automation.WakeHeartbeat(request.Context(), chi.URLParam(request, "agent_id"), protocol.HeartbeatWakeRequest{
+	item, err := h.automation.WakeHeartbeat(request.Context(), chi.URLParam(request, "agent_id"), automationdomain.HeartbeatWakeInput{
 		Mode: payload.Mode,
 		Text: payload.Text,
 	})

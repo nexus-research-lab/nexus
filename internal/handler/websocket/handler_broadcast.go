@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -60,7 +61,7 @@ func (h *Handler) BroadcastDirectoryChanged(ctx context.Context, reason string, 
 }
 
 // BroadcastScheduledTaskChanged 广播定时任务失效事件，避免前端高频轮询。
-func (h *Handler) BroadcastScheduledTaskChanged(ctx context.Context, event protocol.CronTaskEvent) {
+func (h *Handler) BroadcastScheduledTaskChanged(ctx context.Context, event automationdomain.CronTaskEvent) {
 	if h.appEventSubs == nil {
 		return
 	}

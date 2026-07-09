@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 	"github.com/nexus-research-lab/nexus/internal/config"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"
 
 	_ "modernc.org/sqlite"
@@ -25,17 +25,17 @@ func TestServiceDailyReportAggregatesExecutionAndDelivery(t *testing.T) {
 		&fakeWorkspaceReader{},
 		nil,
 	)
-	task, err := service.CreateTask(context.Background(), protocol.CreateJobInput{
+	task, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
 		Name:        "新闻日报",
 		AgentID:     "agent-1",
 		Instruction: "搜索今天的重要新闻",
-		Schedule: protocol.Schedule{
-			Kind:            protocol.ScheduleKindEvery,
+		Schedule: automationdomain.Schedule{
+			Kind:            automationdomain.ScheduleKindEvery,
 			IntervalSeconds: intRef(3600),
 			Timezone:        "UTC",
 		},
-		SessionTarget: protocol.SessionTarget{Kind: protocol.SessionTargetIsolated},
-		Delivery:      protocol.DeliveryTarget{Mode: protocol.DeliveryModeExplicit, Channel: "feishu", To: "oc_group"},
+		SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetIsolated},
+		Delivery:      automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeExplicit, Channel: "feishu", To: "oc_group"},
 		Enabled:       true,
 	})
 	if err != nil {
@@ -59,11 +59,11 @@ func TestServiceDailyReportAggregatesExecutionAndDelivery(t *testing.T) {
 		deliveryError        *string
 		deliveryDeadLetterAt *time.Time
 	}{
-		{runID: "run-ok", scheduledFor: okAt, status: protocol.RunStatusSucceeded, deliveryStatus: protocol.DeliveryStatusSucceeded},
-		{runID: "run-delivery-failed", scheduledFor: failedAt, status: protocol.RunStatusSucceeded, deliveryStatus: protocol.DeliveryStatusFailed, deliveryError: &deliveryError, deliveryDeadLetterAt: &deadLetterAt},
-		{runID: "run-execution-failed", scheduledFor: executionFailedAt, status: protocol.RunStatusFailed, errorMessage: &executionError, deliveryStatus: protocol.DeliveryStatusNotAttempted},
-		{runID: "run-delivery-skipped", scheduledFor: skippedAt, status: protocol.RunStatusSucceeded, deliveryStatus: protocol.DeliveryStatusSkipped},
-		{runID: "run-old", scheduledFor: oldAt, status: protocol.RunStatusSucceeded, deliveryStatus: protocol.DeliveryStatusSucceeded},
+		{runID: "run-ok", scheduledFor: okAt, status: automationdomain.RunStatusSucceeded, deliveryStatus: automationdomain.DeliveryStatusSucceeded},
+		{runID: "run-delivery-failed", scheduledFor: failedAt, status: automationdomain.RunStatusSucceeded, deliveryStatus: automationdomain.DeliveryStatusFailed, deliveryError: &deliveryError, deliveryDeadLetterAt: &deadLetterAt},
+		{runID: "run-execution-failed", scheduledFor: executionFailedAt, status: automationdomain.RunStatusFailed, errorMessage: &executionError, deliveryStatus: automationdomain.DeliveryStatusNotAttempted},
+		{runID: "run-delivery-skipped", scheduledFor: skippedAt, status: automationdomain.RunStatusSucceeded, deliveryStatus: automationdomain.DeliveryStatusSkipped},
+		{runID: "run-old", scheduledFor: oldAt, status: automationdomain.RunStatusSucceeded, deliveryStatus: automationdomain.DeliveryStatusSucceeded},
 	} {
 		if err = service.repository.InsertRunPending(context.Background(), automationstore.RunPendingInput{
 			RunID:        run.runID,
@@ -71,7 +71,7 @@ func TestServiceDailyReportAggregatesExecutionAndDelivery(t *testing.T) {
 			OwnerUserID:  task.OwnerUserID,
 			ScheduledFor: &run.scheduledFor,
 			TriggerKind:  "cron",
-			DeliveryMode: protocol.DeliveryModeExplicit,
+			DeliveryMode: automationdomain.DeliveryModeExplicit,
 			DeliveryTo:   "feishu:oc_group",
 		}); err != nil {
 			t.Fatalf("插入 run %s 失败: %v", run.runID, err)
@@ -95,14 +95,14 @@ func TestServiceDailyReportAggregatesExecutionAndDelivery(t *testing.T) {
 		OwnerUserID:  task.OwnerUserID,
 		ScheduledFor: &pendingAt,
 		TriggerKind:  "cron",
-		DeliveryMode: protocol.DeliveryModeExplicit,
+		DeliveryMode: automationdomain.DeliveryModeExplicit,
 		DeliveryTo:   "feishu:oc_group",
-		Status:       protocol.RunStatusPending,
+		Status:       automationdomain.RunStatusPending,
 	}); err != nil {
 		t.Fatalf("插入 pending run 失败: %v", err)
 	}
 
-	report, err := service.GetDailyReport(context.Background(), protocol.CronDailyReportInput{
+	report, err := service.GetDailyReport(context.Background(), automationdomain.CronDailyReportInput{
 		Date:     "2026-05-21",
 		Timezone: "UTC",
 	})
@@ -162,17 +162,17 @@ func TestServiceDailyReportAndRunsSurviveDeletedTask(t *testing.T) {
 		&fakeWorkspaceReader{},
 		nil,
 	)
-	task, err := service.CreateTask(context.Background(), protocol.CreateJobInput{
+	task, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
 		Name:        "删除前日报",
 		AgentID:     "agent-1",
 		Instruction: "搜索新闻并发送",
-		Schedule: protocol.Schedule{
-			Kind:            protocol.ScheduleKindEvery,
+		Schedule: automationdomain.Schedule{
+			Kind:            automationdomain.ScheduleKindEvery,
 			IntervalSeconds: intRef(3600),
 			Timezone:        "UTC",
 		},
-		SessionTarget: protocol.SessionTarget{Kind: protocol.SessionTargetIsolated},
-		Delivery:      protocol.DeliveryTarget{Mode: protocol.DeliveryModeExplicit, Channel: "feishu", To: "oc_group"},
+		SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetIsolated},
+		Delivery:      automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeExplicit, Channel: "feishu", To: "oc_group"},
 		Enabled:       true,
 	})
 	if err != nil {
@@ -185,16 +185,16 @@ func TestServiceDailyReportAndRunsSurviveDeletedTask(t *testing.T) {
 		OwnerUserID:  task.OwnerUserID,
 		ScheduledFor: &scheduledFor,
 		TriggerKind:  "cron",
-		DeliveryMode: protocol.DeliveryModeExplicit,
+		DeliveryMode: automationdomain.DeliveryModeExplicit,
 		DeliveryTo:   "feishu:oc_group",
 	}); err != nil {
 		t.Fatalf("插入删除前 run 失败: %v", err)
 	}
 	if err = service.repository.MarkRunFinished(context.Background(), automationstore.RunFinishInput{
 		RunID:             "run-before-delete",
-		Status:            protocol.RunStatusSucceeded,
+		Status:            automationdomain.RunStatusSucceeded,
 		FinishedAt:        scheduledFor.Add(time.Minute),
-		DeliveryStatus:    protocol.DeliveryStatusSucceeded,
+		DeliveryStatus:    automationdomain.DeliveryStatusSucceeded,
 		DeliveryAttempted: true,
 	}); err != nil {
 		t.Fatalf("结束删除前 run 失败: %v", err)
@@ -210,7 +210,7 @@ func TestServiceDailyReportAndRunsSurviveDeletedTask(t *testing.T) {
 	if len(runs) != 1 || runs[0].RunID != "run-before-delete" {
 		t.Fatalf("删除任务后 run ledger 不正确: %+v", runs)
 	}
-	report, err := service.GetDailyReport(context.Background(), protocol.CronDailyReportInput{
+	report, err := service.GetDailyReport(context.Background(), automationdomain.CronDailyReportInput{
 		Date:     "2026-05-21",
 		Timezone: "UTC",
 		JobID:    task.JobID,
@@ -249,17 +249,17 @@ func TestServiceDailyReportIncludesRecoveryRunID(t *testing.T) {
 		&fakeWorkspaceReader{},
 		nil,
 	)
-	task, err := service.CreateTask(context.Background(), protocol.CreateJobInput{
+	task, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
 		Name:        "运行中日报任务",
 		AgentID:     "agent-1",
 		Instruction: "检查运行态",
-		Schedule: protocol.Schedule{
-			Kind:            protocol.ScheduleKindEvery,
+		Schedule: automationdomain.Schedule{
+			Kind:            automationdomain.ScheduleKindEvery,
 			IntervalSeconds: intRef(3600),
 			Timezone:        "UTC",
 		},
-		SessionTarget: protocol.SessionTarget{Kind: protocol.SessionTargetIsolated},
-		Delivery:      protocol.DeliveryTarget{Mode: protocol.DeliveryModeNone},
+		SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetIsolated},
+		Delivery:      automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
 		Enabled:       true,
 	})
 	if err != nil {
@@ -274,7 +274,7 @@ func TestServiceDailyReportIncludesRecoveryRunID(t *testing.T) {
 		OwnerUserID:  task.OwnerUserID,
 		ScheduledFor: &startedAt,
 		TriggerKind:  "cron",
-		Status:       protocol.RunStatusPending,
+		Status:       automationdomain.RunStatusPending,
 	}); err != nil {
 		t.Fatalf("预置 pending run 失败: %v", err)
 	}
@@ -285,10 +285,10 @@ func TestServiceDailyReportIncludesRecoveryRunID(t *testing.T) {
 	runningJob.Running = true
 	runningJob.RunningRunID = runID
 	runningJob.RunningStartedAt = &startedAt
-	runningJob.LastRunStatus = protocol.RunStatusRunning
+	runningJob.LastRunStatus = automationdomain.RunStatusRunning
 	service.replaceJobRuntimeState(runningJob)
 
-	report, err := service.GetDailyReport(context.Background(), protocol.CronDailyReportInput{
+	report, err := service.GetDailyReport(context.Background(), automationdomain.CronDailyReportInput{
 		Date:     "2026-05-21",
 		Timezone: "UTC",
 	})

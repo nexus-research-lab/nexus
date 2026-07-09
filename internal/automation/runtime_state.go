@@ -2,13 +2,11 @@ package automation
 
 import (
 	"time"
-
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 // JobRuntimeState 是进程内的自动化任务运行态。
 type JobRuntimeState struct {
-	Job                protocol.CronJob
+	Job                CronJob
 	Running            bool
 	RunningCount       int
 	NextRunAt          *time.Time
@@ -23,7 +21,7 @@ type JobRuntimeState struct {
 
 // HeartbeatRuntimeState 是进程内的 heartbeat 运行态。
 type HeartbeatRuntimeState struct {
-	Config          protocol.HeartbeatConfig
+	Config          HeartbeatConfig
 	Running         bool
 	PendingWake     bool
 	NextRunAt       *time.Time

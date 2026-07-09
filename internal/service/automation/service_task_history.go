@@ -6,16 +6,15 @@ import (
 	"time"
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 // SearchTaskHistory 按名称、job_id、动作或审计 detail 搜索当前与历史任务候选。
-func (s *Service) SearchTaskHistory(ctx context.Context, input protocol.CronTaskHistorySearchInput) ([]protocol.CronTaskHistoryItem, error) {
+func (s *Service) SearchTaskHistory(ctx context.Context, input automationdomain.CronTaskHistorySearchInput) ([]automationdomain.CronTaskHistoryItem, error) {
 	if err := s.ensureReady(ctx); err != nil {
 		return nil, err
 	}
 	normalized := normalizeTaskHistorySearchInput(input)
-	items := make([]protocol.CronTaskHistoryItem, 0, normalized.Limit)
+	items := make([]automationdomain.CronTaskHistoryItem, 0, normalized.Limit)
 	seen := map[string]bool{}
 	if normalized.IncludeActive {
 		active, err := s.searchActiveTaskHistory(ctx, normalized)
@@ -42,7 +41,7 @@ func (s *Service) SearchTaskHistory(ctx context.Context, input protocol.CronTask
 	return items, nil
 }
 
-func normalizeTaskHistorySearchInput(input protocol.CronTaskHistorySearchInput) protocol.CronTaskHistorySearchInput {
+func normalizeTaskHistorySearchInput(input automationdomain.CronTaskHistorySearchInput) automationdomain.CronTaskHistorySearchInput {
 	result := input
 	result.Query = strings.TrimSpace(result.Query)
 	result.AgentID = strings.TrimSpace(result.AgentID)
@@ -56,18 +55,18 @@ func normalizeTaskHistorySearchInput(input protocol.CronTaskHistorySearchInput) 
 	return result
 }
 
-func (s *Service) searchActiveTaskHistory(ctx context.Context, input protocol.CronTaskHistorySearchInput) ([]protocol.CronTaskHistoryItem, error) {
+func (s *Service) searchActiveTaskHistory(ctx context.Context, input automationdomain.CronTaskHistorySearchInput) ([]automationdomain.CronTaskHistoryItem, error) {
 	jobs, err := s.ListTasks(ctx, input.AgentID)
 	if err != nil {
 		return nil, err
 	}
-	items := make([]protocol.CronTaskHistoryItem, 0, len(jobs))
+	items := make([]automationdomain.CronTaskHistoryItem, 0, len(jobs))
 	for _, job := range jobs {
 		if input.Query != "" && !automationdomain.CronJobMatchesQuery(job, input.Query) {
 			continue
 		}
 		enabled := job.Enabled
-		items = append(items, protocol.CronTaskHistoryItem{
+		items = append(items, automationdomain.CronTaskHistoryItem{
 			JobID:              job.JobID,
 			Name:               job.Name,
 			AgentID:            job.AgentID,
@@ -85,15 +84,15 @@ func (s *Service) searchActiveTaskHistory(ctx context.Context, input protocol.Cr
 
 func (s *Service) searchDeletedTaskHistory(
 	ctx context.Context,
-	input protocol.CronTaskHistorySearchInput,
+	input automationdomain.CronTaskHistorySearchInput,
 	seen map[string]bool,
-) ([]protocol.CronTaskHistoryItem, error) {
+) ([]automationdomain.CronTaskHistoryItem, error) {
 	ownerUserID, _ := scopedOwnerUserID(ctx)
 	events, err := s.searchTaskHistoryEvents(ctx, ownerUserID, input)
 	if err != nil {
 		return nil, err
 	}
-	itemsByJob := map[string]*protocol.CronTaskHistoryItem{}
+	itemsByJob := map[string]*automationdomain.CronTaskHistoryItem{}
 	order := make([]string, 0)
 	for _, event := range events {
 		jobID := strings.TrimSpace(event.JobID)
@@ -102,7 +101,7 @@ func (s *Service) searchDeletedTaskHistory(
 		}
 		item := itemsByJob[jobID]
 		if item == nil {
-			item = &protocol.CronTaskHistoryItem{
+			item = &automationdomain.CronTaskHistoryItem{
 				JobID:         jobID,
 				Name:          firstNonEmpty(stringFromTaskEventDetail(event.Detail, "name"), jobID),
 				AgentID:       strings.TrimSpace(event.AgentID),
@@ -119,11 +118,11 @@ func (s *Service) searchDeletedTaskHistory(
 		if strings.TrimSpace(item.AgentID) == "" {
 			item.AgentID = strings.TrimSpace(event.AgentID)
 		}
-		if event.Action == protocol.TaskEventActionDelete && item.DeletedAt == nil {
+		if event.Action == automationdomain.TaskEventActionDelete && item.DeletedAt == nil {
 			item.DeletedAt = cloneTimePointer(&event.CreatedAt)
 		}
 	}
-	items := make([]protocol.CronTaskHistoryItem, 0, len(order))
+	items := make([]automationdomain.CronTaskHistoryItem, 0, len(order))
 	for _, jobID := range order {
 		item := itemsByJob[jobID]
 		runs, err := s.repository.ListRunsByJob(ctx, ownerUserID, jobID)
@@ -139,10 +138,10 @@ func (s *Service) searchDeletedTaskHistory(
 func (s *Service) searchTaskHistoryEvents(
 	ctx context.Context,
 	ownerUserID string,
-	input protocol.CronTaskHistorySearchInput,
-) ([]protocol.CronTaskEvent, error) {
+	input automationdomain.CronTaskHistorySearchInput,
+) ([]automationdomain.CronTaskEvent, error) {
 	queries := automationdomain.QueryVariants(input.Query)
-	events := make([]protocol.CronTaskEvent, 0)
+	events := make([]automationdomain.CronTaskEvent, 0)
 	seen := map[string]bool{}
 	limit := input.Limit * 5
 	for _, query := range queries {
@@ -162,7 +161,7 @@ func (s *Service) searchTaskHistoryEvents(
 	return events, nil
 }
 
-func applyTaskHistoryRunSummary(item *protocol.CronTaskHistoryItem, runs []protocol.CronRun) {
+func applyTaskHistoryRunSummary(item *automationdomain.CronTaskHistoryItem, runs []automationdomain.CronRun) {
 	if item == nil {
 		return
 	}
@@ -176,7 +175,7 @@ func applyTaskHistoryRunSummary(item *protocol.CronTaskHistoryItem, runs []proto
 	item.LastDeliveryStatus = deriveCronRunDeliveryStatus(latest)
 }
 
-func cronRunReportTimePointer(run protocol.CronRun) *time.Time {
+func cronRunReportTimePointer(run automationdomain.CronRun) *time.Time {
 	when := cronRunReportTime(run)
 	if when.IsZero() {
 		return nil
@@ -184,7 +183,7 @@ func cronRunReportTimePointer(run protocol.CronRun) *time.Time {
 	return &when
 }
 
-func appendTaskHistoryItem(items *[]protocol.CronTaskHistoryItem, seen map[string]bool, item protocol.CronTaskHistoryItem, limit int) bool {
+func appendTaskHistoryItem(items *[]automationdomain.CronTaskHistoryItem, seen map[string]bool, item automationdomain.CronTaskHistoryItem, limit int) bool {
 	jobID := strings.TrimSpace(item.JobID)
 	if jobID == "" || seen[jobID] {
 		return false

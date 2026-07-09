@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nexus-research-lab/nexus/internal/protocol"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 )
 
 // scheduledTaskSummaryLimit 限制注入到 heartbeat prompt 的任务行数，
@@ -25,7 +25,7 @@ func (s *Service) describeScheduledTasksSection(ctx context.Context, agentID str
 		return ""
 	}
 
-	slices.SortStableFunc(jobs, func(left protocol.CronJob, right protocol.CronJob) int {
+	slices.SortStableFunc(jobs, func(left automationdomain.CronJob, right automationdomain.CronJob) int {
 		return scheduledTaskSortKey(left).Compare(scheduledTaskSortKey(right))
 	})
 
@@ -46,10 +46,10 @@ func (s *Service) describeScheduledTasksSection(ctx context.Context, agentID str
 
 // snapshotJobsForAgent 从 in-memory jobStates 拷贝当前 agent 的任务视图。
 // Start() 会在启动时把 DB 状态同步到 jobStates，因此这里读 in-memory 是与运行态一致的真相源。
-func (s *Service) snapshotJobsForAgent(agentID string) []protocol.CronJob {
+func (s *Service) snapshotJobsForAgent(agentID string) []automationdomain.CronJob {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	jobs := make([]protocol.CronJob, 0, len(s.jobStates))
+	jobs := make([]automationdomain.CronJob, 0, len(s.jobStates))
 	for _, state := range s.jobStates {
 		if state == nil {
 			continue
@@ -67,7 +67,7 @@ func (s *Service) snapshotJobsForAgent(agentID string) []protocol.CronJob {
 }
 
 // scheduledTaskSortKey 用最近一次触发时间作为排序键，没有则用未来很远的时间排到末尾。
-func scheduledTaskSortKey(job protocol.CronJob) time.Time {
+func scheduledTaskSortKey(job automationdomain.CronJob) time.Time {
 	if job.NextRunAt != nil {
 		return *job.NextRunAt
 	}
@@ -75,7 +75,7 @@ func scheduledTaskSortKey(job protocol.CronJob) time.Time {
 }
 
 // formatScheduledTaskLine 把单个任务摘要成一行简洁文本。
-func formatScheduledTaskLine(job protocol.CronJob) string {
+func formatScheduledTaskLine(job automationdomain.CronJob) string {
 	state := "enabled"
 	if !job.Enabled {
 		state = "paused"
@@ -98,20 +98,20 @@ func formatScheduledTaskLine(job protocol.CronJob) string {
 	return strings.Join(parts, " | ")
 }
 
-// scheduleSummary 把 protocol.Schedule 压缩成一段紧凑文字，便于嵌入提示。
-func scheduleSummary(schedule protocol.Schedule) string {
+// scheduleSummary 把 automationdomain.Schedule 压缩成一段紧凑文字，便于嵌入提示。
+func scheduleSummary(schedule automationdomain.Schedule) string {
 	switch schedule.Kind {
-	case protocol.ScheduleKindEvery:
+	case automationdomain.ScheduleKindEvery:
 		if schedule.IntervalSeconds != nil {
 			return fmt.Sprintf("every %ds", *schedule.IntervalSeconds)
 		}
 		return "every"
-	case protocol.ScheduleKindCron:
+	case automationdomain.ScheduleKindCron:
 		if schedule.CronExpression != nil {
 			return "cron " + *schedule.CronExpression
 		}
 		return "cron"
-	case protocol.ScheduleKindAt:
+	case automationdomain.ScheduleKindAt:
 		if schedule.RunAt != nil {
 			return "at " + *schedule.RunAt
 		}

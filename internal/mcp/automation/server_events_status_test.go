@@ -6,24 +6,25 @@ import (
 	"testing"
 	"time"
 
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 	"github.com/nexus-research-lab/nexus/internal/mcp/automation/contract"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 func TestGetScheduledTaskEventsReturnsAuditTrail(t *testing.T) {
 	svc := &stubService{
-		jobs: []protocol.CronJob{{
+		jobs: []automationdomain.CronJob{{
 			JobID:    "job-1",
 			AgentID:  "agent-1",
-			Schedule: protocol.Schedule{Timezone: "Asia/Shanghai"},
+			Schedule: automationdomain.Schedule{Timezone: "Asia/Shanghai"},
 		}},
-		eventsByJob: map[string][]protocol.CronTaskEvent{
+		eventsByJob: map[string][]automationdomain.CronTaskEvent{
 			"job-1": {
 				{
 					EventID: "evt-1",
 					JobID:   "job-1",
 					AgentID: "agent-1",
-					Action:  protocol.TaskEventActionDisable,
+					Action:  automationdomain.TaskEventActionDisable,
 					Detail:  map[string]any{"enabled": false},
 				},
 			},
@@ -35,7 +36,7 @@ func TestGetScheduledTaskEventsReturnsAuditTrail(t *testing.T) {
 	if isError {
 		t.Fatalf("unexpected error: %s", extractText(t, result))
 	}
-	if !strings.Contains(extractText(t, result), protocol.TaskEventActionDisable) {
+	if !strings.Contains(extractText(t, result), automationdomain.TaskEventActionDisable) {
 		t.Fatalf("events response missing disable action: %s", extractText(t, result))
 	}
 }
@@ -46,7 +47,7 @@ func TestGetScheduledTaskEventsCanResolveDeletedCurrentExternalGroupQuery(t *tes
 			"job-current-deleted": true,
 			"job-other-deleted":   true,
 		},
-		historyItems: []protocol.CronTaskHistoryItem{
+		historyItems: []automationdomain.CronTaskHistoryItem{
 			{
 				JobID:   "job-current-deleted",
 				Name:    "本群旧新闻",
@@ -60,13 +61,13 @@ func TestGetScheduledTaskEventsCanResolveDeletedCurrentExternalGroupQuery(t *tes
 				Deleted: true,
 			},
 		},
-		eventsByJob: map[string][]protocol.CronTaskEvent{
+		eventsByJob: map[string][]automationdomain.CronTaskEvent{
 			"job-current-deleted": {
 				{
 					EventID: "evt-current-delete",
 					JobID:   "job-current-deleted",
 					AgentID: "agent-1",
-					Action:  protocol.TaskEventActionDelete,
+					Action:  automationdomain.TaskEventActionDelete,
 					Detail: map[string]any{
 						"name":             "本群旧新闻",
 						"delivery_channel": protocol.SessionChannelFeishu,
@@ -79,7 +80,7 @@ func TestGetScheduledTaskEventsCanResolveDeletedCurrentExternalGroupQuery(t *tes
 					EventID: "evt-other-delete",
 					JobID:   "job-other-deleted",
 					AgentID: "agent-1",
-					Action:  protocol.TaskEventActionDelete,
+					Action:  automationdomain.TaskEventActionDelete,
 					Detail: map[string]any{
 						"name":             "其他群旧新闻",
 						"delivery_channel": protocol.SessionChannelFeishu,
@@ -110,13 +111,13 @@ func TestGetScheduledTaskEventsCanResolveDeletedCurrentExternalGroupQuery(t *tes
 func TestGetScheduledTaskEventsAllowsDeletedOwnedTask(t *testing.T) {
 	svc := &stubService{
 		missingJobs: map[string]bool{"job-deleted": true},
-		eventsByJob: map[string][]protocol.CronTaskEvent{
+		eventsByJob: map[string][]automationdomain.CronTaskEvent{
 			"job-deleted": {
 				{
 					EventID: "evt-delete",
 					JobID:   "job-deleted",
 					AgentID: "agent-1",
-					Action:  protocol.TaskEventActionDelete,
+					Action:  automationdomain.TaskEventActionDelete,
 				},
 			},
 		},
@@ -127,7 +128,7 @@ func TestGetScheduledTaskEventsAllowsDeletedOwnedTask(t *testing.T) {
 	if isError {
 		t.Fatalf("unexpected error: %s", extractText(t, result))
 	}
-	if !strings.Contains(extractText(t, result), protocol.TaskEventActionDelete) {
+	if !strings.Contains(extractText(t, result), automationdomain.TaskEventActionDelete) {
 		t.Fatalf("events response missing delete action: %s", extractText(t, result))
 	}
 }
@@ -135,13 +136,13 @@ func TestGetScheduledTaskEventsAllowsDeletedOwnedTask(t *testing.T) {
 func TestGetScheduledTaskEventsRejectsDeletedOtherAgentTask(t *testing.T) {
 	svc := &stubService{
 		missingJobs: map[string]bool{"job-deleted": true},
-		eventsByJob: map[string][]protocol.CronTaskEvent{
+		eventsByJob: map[string][]automationdomain.CronTaskEvent{
 			"job-deleted": {
 				{
 					EventID: "evt-delete",
 					JobID:   "job-deleted",
 					AgentID: "agent-2",
-					Action:  protocol.TaskEventActionDelete,
+					Action:  automationdomain.TaskEventActionDelete,
 				},
 			},
 		},
@@ -162,26 +163,26 @@ func TestGetScheduledTaskStatusReturnsHealthRunsAndEvents(t *testing.T) {
 	deadLetterAt := time.Date(2026, 5, 25, 13, 30, 0, 0, time.UTC)
 	eventAt := time.Date(2026, 5, 25, 14, 0, 0, 0, time.UTC)
 	svc := &stubService{
-		jobs: []protocol.CronJob{{
+		jobs: []automationdomain.CronJob{{
 			JobID:              "job-1",
 			Name:               "新闻日报",
 			AgentID:            "agent-1",
-			Schedule:           protocol.Schedule{Timezone: "Asia/Shanghai"},
+			Schedule:           automationdomain.Schedule{Timezone: "Asia/Shanghai"},
 			Enabled:            true,
-			LastRunStatus:      protocol.RunStatusSucceeded,
-			LastDeliveryStatus: protocol.DeliveryStatusFailed,
+			LastRunStatus:      automationdomain.RunStatusSucceeded,
+			LastDeliveryStatus: automationdomain.DeliveryStatusFailed,
 		}},
-		taskStatus: &protocol.CronTaskStatus{
-			Job: protocol.CronJob{
+		taskStatus: &automationdomain.CronTaskStatus{
+			Job: automationdomain.CronJob{
 				JobID:              "job-1",
 				Name:               "新闻日报",
 				AgentID:            "agent-1",
-				Schedule:           protocol.Schedule{Timezone: "Asia/Shanghai"},
+				Schedule:           automationdomain.Schedule{Timezone: "Asia/Shanghai"},
 				Enabled:            true,
-				LastRunStatus:      protocol.RunStatusSucceeded,
-				LastDeliveryStatus: protocol.DeliveryStatusFailed,
+				LastRunStatus:      automationdomain.RunStatusSucceeded,
+				LastDeliveryStatus: automationdomain.DeliveryStatusFailed,
 			},
-			Health: protocol.CronTaskHealth{
+			Health: automationdomain.CronTaskHealth{
 				State:                     "attention",
 				Signals:                   []string{"delivery_attention"},
 				SuggestedTools:            []string{"retry_scheduled_task_delivery"},
@@ -192,22 +193,22 @@ func TestGetScheduledTaskStatusReturnsHealthRunsAndEvents(t *testing.T) {
 				DeliveryDeadLetterRunIDs:  []string{"run-delivery-failed"},
 				LatestDeliveryError:       &deliveryError,
 			},
-			RecentRuns: []protocol.CronRun{
+			RecentRuns: []automationdomain.CronRun{
 				{
 					RunID:                "run-delivery-failed",
 					JobID:                "job-1",
-					Status:               protocol.RunStatusSucceeded,
-					DeliveryStatus:       protocol.DeliveryStatusFailed,
+					Status:               automationdomain.RunStatusSucceeded,
+					DeliveryStatus:       automationdomain.DeliveryStatusFailed,
 					DeliveryError:        &deliveryError,
 					DeliveryDeadLetterAt: &deadLetterAt,
 				},
 			},
-			RecentEvents: []protocol.CronTaskEvent{
+			RecentEvents: []automationdomain.CronTaskEvent{
 				{
 					EventID:   "evt-update",
 					JobID:     "job-1",
 					AgentID:   "agent-1",
-					Action:    protocol.TaskEventActionUpdate,
+					Action:    automationdomain.TaskEventActionUpdate,
 					CreatedAt: eventAt,
 					Detail: map[string]any{
 						"delivery_dead_letter_at": deadLetterAt,
@@ -223,7 +224,7 @@ func TestGetScheduledTaskStatusReturnsHealthRunsAndEvents(t *testing.T) {
 		t.Fatalf("unexpected error: %s", extractText(t, result))
 	}
 	text := extractText(t, result)
-	for _, want := range []string{"delivery_attention", "retry_scheduled_task_delivery", "run-delivery-failed", deliveryError, protocol.TaskEventActionUpdate} {
+	for _, want := range []string{"delivery_attention", "retry_scheduled_task_delivery", "run-delivery-failed", deliveryError, automationdomain.TaskEventActionUpdate} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("status response missing %q: %s", want, text)
 		}

@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -38,11 +39,11 @@ func TestScheduledTaskCLIManagementCommands(t *testing.T) {
 		"--interval-seconds",
 		"3600",
 		"--target-kind",
-		protocol.SessionTargetNamed,
+		automationdomain.SessionTargetNamed,
 		"--named-session-key",
 		"news",
 		"--delivery-mode",
-		protocol.DeliveryModeExplicit,
+		automationdomain.DeliveryModeExplicit,
 		"--delivery-channel",
 		protocol.SessionChannelInternalSegment,
 		"--delivery-to",
@@ -50,8 +51,8 @@ func TestScheduledTaskCLIManagementCommands(t *testing.T) {
 	)
 	task := asMap(t, createPayload["item"])
 	jobID := asString(t, task["job_id"])
-	assertNestedString(t, task, "source", "kind", protocol.SourceKindCLI)
-	assertNestedString(t, task, "delivery", "mode", protocol.DeliveryModeExplicit)
+	assertNestedString(t, task, "source", "kind", automationdomain.SourceKindCLI)
+	assertNestedString(t, task, "delivery", "mode", automationdomain.DeliveryModeExplicit)
 	assertNestedString(t, task, "delivery", "channel", protocol.SessionChannelInternalSegment)
 	assertNestedString(t, task, "delivery", "to", inboxKey)
 
@@ -64,7 +65,7 @@ func TestScheduledTaskCLIManagementCommands(t *testing.T) {
 	)
 	updatePayload := runCLICommand(t, cfg, "automation", "task", "update", jobID, "--delivery-to", nextInboxKey)
 	updated := asMap(t, updatePayload["item"])
-	assertNestedString(t, updated, "delivery", "mode", protocol.DeliveryModeExplicit)
+	assertNestedString(t, updated, "delivery", "mode", automationdomain.DeliveryModeExplicit)
 	assertNestedString(t, updated, "delivery", "channel", protocol.SessionChannelInternalSegment)
 	assertNestedString(t, updated, "delivery", "to", nextInboxKey)
 
@@ -115,11 +116,11 @@ func TestScheduledTaskCLIRetryDeliveryCommand(t *testing.T) {
 		"--interval-seconds",
 		"3600",
 		"--target-kind",
-		protocol.SessionTargetNamed,
+		automationdomain.SessionTargetNamed,
 		"--named-session-key",
 		"news",
 		"--delivery-mode",
-		protocol.DeliveryModeExplicit,
+		automationdomain.DeliveryModeExplicit,
 		"--delivery-channel",
 		"feishu",
 		"--delivery-to",
@@ -161,7 +162,7 @@ func TestScheduledTaskCLIRetryDeliveryCommand(t *testing.T) {
 	)
 	retryPayload := runCLICommand(t, cfg, "automation", "task", "retry-delivery", jobID, "run-delivery-failed")
 	retried := asMap(t, retryPayload["item"])
-	if status := asString(t, retried["delivery_status"]); status != protocol.DeliveryStatusSucceeded {
+	if status := asString(t, retried["delivery_status"]); status != automationdomain.DeliveryStatusSucceeded {
 		t.Fatalf("retry-delivery 应投递成功，实际 %s: %+v", status, retried)
 	}
 	if to := asString(t, retried["delivery_to"]); !strings.Contains(to, "explicit:internal:") {
@@ -196,13 +197,13 @@ INSERT INTO automation_cron_runs (
 		"run-delivery-failed",
 		jobID,
 		authctx.SystemUserID,
-		protocol.RunStatusSucceeded,
+		automationdomain.RunStatusSucceeded,
 		"schedule",
 		"agent:cli-reporter:automation:dm:cron:run-delivery-failed",
 		1,
-		protocol.DeliveryModeExplicit,
+		automationdomain.DeliveryModeExplicit,
 		"explicit:feishu:bad-chat-id",
-		protocol.DeliveryStatusFailed,
+		automationdomain.DeliveryStatusFailed,
 		"bad chat_id",
 		1,
 		scheduledFor,

@@ -10,13 +10,12 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/mcp/automation/contract"
 	"github.com/nexus-research-lab/nexus/internal/mcp/automation/internal/argx"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 type ownedTaskScope struct {
 	Context context.Context
 	JobID   string
-	Job     protocol.CronJob
+	Job     automationdomain.CronJob
 }
 
 type taskHistoryScope struct {
@@ -104,14 +103,14 @@ func requireOwnedTaskHistoryScopeForJob(ctx context.Context, svc contract.Servic
 	}
 	events, eventErr := svc.ListTaskEvents(scopedCtx, normalizedJobID, 50)
 	runs, runErr := svc.ListTaskRuns(scopedCtx, normalizedJobID)
-	if eventErr != nil && !errors.Is(eventErr, protocol.ErrJobNotFound) {
+	if eventErr != nil && !errors.Is(eventErr, automationdomain.ErrJobNotFound) {
 		return taskHistoryScope{}, eventErr
 	}
-	if runErr != nil && !errors.Is(runErr, protocol.ErrJobNotFound) {
+	if runErr != nil && !errors.Is(runErr, automationdomain.ErrJobNotFound) {
 		return taskHistoryScope{}, runErr
 	}
 	if len(events) == 0 && len(runs) == 0 {
-		return taskHistoryScope{}, protocol.ErrJobNotFound
+		return taskHistoryScope{}, automationdomain.ErrJobNotFound
 	}
 	if !sctx.IsMainAgent {
 		caller, err := callerAgentID(sctx)
@@ -145,7 +144,7 @@ func requireOwnedTaskHistoryScopeForQuery(
 	if scope, handled, err := requireCurrentConversationTaskHistoryScopeForQuery(scopedCtx, svc, sctx, agentID, query); handled {
 		return scope, err
 	}
-	items, err := svc.SearchTaskHistory(scopedCtx, protocol.CronTaskHistorySearchInput{
+	items, err := svc.SearchTaskHistory(scopedCtx, automationdomain.CronTaskHistorySearchInput{
 		Query:          query,
 		AgentID:        agentID,
 		IncludeActive:  true,
@@ -176,7 +175,7 @@ func ensureJobOwnedByCallerInScope(ctx context.Context, svc contract.Service, sc
 	return err
 }
 
-func ownedTaskInScope(ctx context.Context, svc contract.Service, sctx contract.ServerContext, jobID string) (*protocol.CronJob, error) {
+func ownedTaskInScope(ctx context.Context, svc contract.Service, sctx contract.ServerContext, jobID string) (*automationdomain.CronJob, error) {
 	job, err := svc.GetTask(ctx, jobID)
 	if err != nil {
 		return nil, err
@@ -216,7 +215,7 @@ func taskOwnershipError(jobID string) error {
 	return fmt.Errorf("scheduled task %s belongs to another agent; only its owner or main agent can manage it", jobID)
 }
 
-func describeCronJobCandidates(jobs []protocol.CronJob, limit int) string {
+func describeCronJobCandidates(jobs []automationdomain.CronJob, limit int) string {
 	parts := make([]string, 0, len(jobs))
 	for index, job := range jobs {
 		if limit > 0 && index >= limit {
@@ -228,7 +227,7 @@ func describeCronJobCandidates(jobs []protocol.CronJob, limit int) string {
 	return strings.Join(parts, "; ")
 }
 
-func describeTaskHistoryCandidates(items []protocol.CronTaskHistoryItem, limit int) string {
+func describeTaskHistoryCandidates(items []automationdomain.CronTaskHistoryItem, limit int) string {
 	parts := make([]string, 0, len(items))
 	for index, item := range items {
 		if limit > 0 && index >= limit {

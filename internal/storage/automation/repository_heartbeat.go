@@ -6,11 +6,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nexus-research-lab/nexus/internal/protocol"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 )
 
 // GetHeartbeatState 读取 heartbeat 配置。
-func (r *Repository) GetHeartbeatState(ctx context.Context, agentID string) (*protocol.HeartbeatConfig, *time.Time, *time.Time, error) {
+func (r *Repository) GetHeartbeatState(ctx context.Context, agentID string) (*automationdomain.HeartbeatConfig, *time.Time, *time.Time, error) {
 	query := `
 SELECT
     agent_id,
@@ -24,7 +24,7 @@ FROM automation_heartbeat_states
 WHERE agent_id = ` + r.bind(1)
 	row := r.db.QueryRowContext(ctx, query, strings.TrimSpace(agentID))
 	var (
-		item          protocol.HeartbeatConfig
+		item          automationdomain.HeartbeatConfig
 		lastHeartbeat sql.NullTime
 		lastAck       sql.NullTime
 	)
@@ -47,7 +47,7 @@ WHERE agent_id = ` + r.bind(1)
 }
 
 // ListEnabledHeartbeatStates 列出已启用 heartbeat。
-func (r *Repository) ListEnabledHeartbeatStates(ctx context.Context) ([]protocol.HeartbeatConfig, error) {
+func (r *Repository) ListEnabledHeartbeatStates(ctx context.Context) ([]automationdomain.HeartbeatConfig, error) {
 	rows, err := r.db.QueryContext(ctx, `
 SELECT
     agent_id,
@@ -63,9 +63,9 @@ ORDER BY agent_id ASC`)
 	}
 	defer rows.Close()
 
-	items := make([]protocol.HeartbeatConfig, 0)
+	items := make([]automationdomain.HeartbeatConfig, 0)
 	for rows.Next() {
-		var item protocol.HeartbeatConfig
+		var item automationdomain.HeartbeatConfig
 		if scanErr := rows.Scan(
 			&item.AgentID,
 			&item.Enabled,
@@ -81,7 +81,7 @@ ORDER BY agent_id ASC`)
 }
 
 // UpsertHeartbeatState 创建或更新 heartbeat 配置。
-func (r *Repository) UpsertHeartbeatState(ctx context.Context, stateID string, config protocol.HeartbeatConfig, lastHeartbeatAt *time.Time, lastAckAt *time.Time) error {
+func (r *Repository) UpsertHeartbeatState(ctx context.Context, stateID string, config automationdomain.HeartbeatConfig, lastHeartbeatAt *time.Time, lastAckAt *time.Time) error {
 	_, err := r.execWithRetry(
 		ctx,
 		r.upsertHeartbeatStateQuery,

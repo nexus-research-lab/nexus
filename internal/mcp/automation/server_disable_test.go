@@ -5,17 +5,18 @@ import (
 	"strings"
 	"testing"
 
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 	"github.com/nexus-research-lab/nexus/internal/mcp/automation/contract"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 func TestDisableScheduledTaskKeepsTaskAndPassesStatus(t *testing.T) {
 	svc := &stubService{
-		jobs: []protocol.CronJob{{
+		jobs: []automationdomain.CronJob{{
 			JobID:    "job-1",
 			AgentID:  "agent-1",
 			Enabled:  true,
-			Schedule: protocol.Schedule{Timezone: "Asia/Shanghai"},
+			Schedule: automationdomain.Schedule{Timezone: "Asia/Shanghai"},
 		}},
 	}
 	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "disable_scheduled_task", map[string]any{
@@ -34,13 +35,13 @@ func TestDisableScheduledTaskKeepsTaskAndPassesStatus(t *testing.T) {
 
 func TestDisableScheduledTaskReportsPreservedActiveRun(t *testing.T) {
 	svc := &stubService{
-		jobs: []protocol.CronJob{{
+		jobs: []automationdomain.CronJob{{
 			JobID:        "job-1",
 			AgentID:      "agent-1",
 			Enabled:      true,
 			Running:      true,
 			RunningRunID: "run-active",
-			Schedule:     protocol.Schedule{Timezone: "Asia/Shanghai"},
+			Schedule:     automationdomain.Schedule{Timezone: "Asia/Shanghai"},
 		}},
 	}
 	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "disable_scheduled_task", map[string]any{
@@ -60,13 +61,13 @@ func TestDisableScheduledTaskReportsPreservedActiveRun(t *testing.T) {
 
 func TestDisableScheduledTaskCanCancelActiveRun(t *testing.T) {
 	svc := &stubService{
-		jobs: []protocol.CronJob{{
+		jobs: []automationdomain.CronJob{{
 			JobID:        "job-1",
 			AgentID:      "agent-1",
 			Enabled:      true,
 			Running:      true,
 			RunningRunID: "run-active",
-			Schedule:     protocol.Schedule{Timezone: "Asia/Shanghai"},
+			Schedule:     automationdomain.Schedule{Timezone: "Asia/Shanghai"},
 		}},
 	}
 	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "disable_scheduled_task", map[string]any{
@@ -86,16 +87,16 @@ func TestDisableScheduledTaskCanCancelActiveRun(t *testing.T) {
 
 func TestDisableScheduledTaskCanResolveUniqueQuery(t *testing.T) {
 	svc := &stubService{
-		jobs: []protocol.CronJob{
+		jobs: []automationdomain.CronJob{
 			{
 				JobID:       "job-feishu",
 				Name:        "每日新闻摘要",
 				AgentID:     "agent-1",
 				Instruction: "搜索新闻并投递",
 				Enabled:     true,
-				Schedule:    protocol.Schedule{Timezone: "Asia/Shanghai"},
-				Delivery: protocol.DeliveryTarget{
-					Mode:    protocol.DeliveryModeExplicit,
+				Schedule:    automationdomain.Schedule{Timezone: "Asia/Shanghai"},
+				Delivery: automationdomain.DeliveryTarget{
+					Mode:    automationdomain.DeliveryModeExplicit,
 					Channel: protocol.SessionChannelFeishu,
 					To:      "oc_group",
 				},
@@ -106,7 +107,7 @@ func TestDisableScheduledTaskCanResolveUniqueQuery(t *testing.T) {
 				AgentID:     "agent-1",
 				Instruction: "提醒我喝水",
 				Enabled:     true,
-				Schedule:    protocol.Schedule{Timezone: "Asia/Shanghai"},
+				Schedule:    automationdomain.Schedule{Timezone: "Asia/Shanghai"},
 			},
 		},
 	}
@@ -123,16 +124,16 @@ func TestDisableScheduledTaskCanResolveUniqueQuery(t *testing.T) {
 
 func TestDisableScheduledTaskCanResolveCurrentExternalGroupQuery(t *testing.T) {
 	svc := &stubService{
-		jobs: []protocol.CronJob{
+		jobs: []automationdomain.CronJob{
 			{
 				JobID:       "job-current-group-news",
 				Name:        "本群每日新闻",
 				AgentID:     "agent-1",
 				Instruction: "搜索新闻并投递",
 				Enabled:     true,
-				Schedule:    protocol.Schedule{Timezone: "Asia/Shanghai"},
-				Delivery: protocol.DeliveryTarget{
-					Mode:    protocol.DeliveryModeExplicit,
+				Schedule:    automationdomain.Schedule{Timezone: "Asia/Shanghai"},
+				Delivery: automationdomain.DeliveryTarget{
+					Mode:    automationdomain.DeliveryModeExplicit,
 					Channel: protocol.SessionChannelFeishu,
 					To:      "oc_group_123",
 				},
@@ -143,9 +144,9 @@ func TestDisableScheduledTaskCanResolveCurrentExternalGroupQuery(t *testing.T) {
 				AgentID:     "agent-1",
 				Instruction: "搜索新闻并投递",
 				Enabled:     true,
-				Schedule:    protocol.Schedule{Timezone: "Asia/Shanghai"},
-				Delivery: protocol.DeliveryTarget{
-					Mode:    protocol.DeliveryModeExplicit,
+				Schedule:    automationdomain.Schedule{Timezone: "Asia/Shanghai"},
+				Delivery: automationdomain.DeliveryTarget{
+					Mode:    automationdomain.DeliveryModeExplicit,
 					Channel: protocol.SessionChannelFeishu,
 					To:      "oc_group_other",
 				},
@@ -184,19 +185,19 @@ func TestDisableScheduledTaskCanResolveCurrentInternalConversationQuery(t *testi
 	currentSessionKey := protocol.BuildAgentSessionKey("agent-1", protocol.SessionChannelInternalSegment, "dm", "operator", "")
 	otherSessionKey := protocol.BuildAgentSessionKey("agent-1", protocol.SessionChannelInternalSegment, "dm", "other", "")
 	svc := &stubService{
-		jobs: []protocol.CronJob{
+		jobs: []automationdomain.CronJob{
 			{
 				JobID:       "job-current-dm-news",
 				Name:        "每日新闻",
 				AgentID:     "agent-1",
 				Instruction: "搜索新闻并发给我",
 				Enabled:     true,
-				Schedule:    protocol.Schedule{Timezone: "Asia/Shanghai"},
-				Source: protocol.Source{
+				Schedule:    automationdomain.Schedule{Timezone: "Asia/Shanghai"},
+				Source: automationdomain.Source{
 					SessionKey: currentSessionKey,
 				},
-				Delivery: protocol.DeliveryTarget{
-					Mode:    protocol.DeliveryModeExplicit,
+				Delivery: automationdomain.DeliveryTarget{
+					Mode:    automationdomain.DeliveryModeExplicit,
 					Channel: protocol.SessionChannelInternalSegment,
 					To:      currentSessionKey,
 				},
@@ -207,12 +208,12 @@ func TestDisableScheduledTaskCanResolveCurrentInternalConversationQuery(t *testi
 				AgentID:     "agent-1",
 				Instruction: "搜索新闻并发给我",
 				Enabled:     true,
-				Schedule:    protocol.Schedule{Timezone: "Asia/Shanghai"},
-				Source: protocol.Source{
+				Schedule:    automationdomain.Schedule{Timezone: "Asia/Shanghai"},
+				Source: automationdomain.Source{
 					SessionKey: otherSessionKey,
 				},
-				Delivery: protocol.DeliveryTarget{
-					Mode:    protocol.DeliveryModeExplicit,
+				Delivery: automationdomain.DeliveryTarget{
+					Mode:    automationdomain.DeliveryModeExplicit,
 					Channel: protocol.SessionChannelInternalSegment,
 					To:      otherSessionKey,
 				},
@@ -263,11 +264,11 @@ func TestDisableScheduledTaskCanResolveCurrentInternalConversationQuery(t *testi
 
 func TestRegularAgentCannotDisableAnotherAgentsTask(t *testing.T) {
 	svc := &stubService{
-		jobs: []protocol.CronJob{{
+		jobs: []automationdomain.CronJob{{
 			JobID:    "job-1",
 			AgentID:  "agent-2",
 			Enabled:  true,
-			Schedule: protocol.Schedule{Timezone: "Asia/Shanghai"},
+			Schedule: automationdomain.Schedule{Timezone: "Asia/Shanghai"},
 		}},
 	}
 	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "disable_scheduled_task", map[string]any{

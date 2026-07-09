@@ -5,48 +5,48 @@ import (
 	"strings"
 	"testing"
 
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 	"github.com/nexus-research-lab/nexus/internal/mcp/automation/contract"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 type stubService struct {
-	createInput       protocol.CreateJobInput
-	updateInput       protocol.UpdateJobInput
+	createInput       automationdomain.CreateJobInput
+	updateInput       automationdomain.UpdateJobInput
 	updateJobID       string
 	statusJobID       string
 	statusEnabled     bool
 	deletedJobID      string
 	runNowJobID       string
-	created           *protocol.CronJob
+	created           *automationdomain.CronJob
 	recoverJobID      string
 	recoverRunID      string
 	redeliverJobID    string
 	redeliverRunID    string
 	listErr           error
 	updateErr         error
-	jobs              []protocol.CronJob
+	jobs              []automationdomain.CronJob
 	missingJobs       map[string]bool
 	listAgentID       string
-	runsByJob         map[string][]protocol.CronRun
-	eventsByJob       map[string][]protocol.CronTaskEvent
-	historyItems      []protocol.CronTaskHistoryItem
-	historyInput      protocol.CronTaskHistorySearchInput
-	taskStatus        *protocol.CronTaskStatus
-	dailyReport       *protocol.CronDailyReport
-	dailyReportsByJob map[string]*protocol.CronDailyReport
-	dailyInput        protocol.CronDailyReportInput
-	dailyInputs       []protocol.CronDailyReportInput
+	runsByJob         map[string][]automationdomain.CronRun
+	eventsByJob       map[string][]automationdomain.CronTaskEvent
+	historyItems      []automationdomain.CronTaskHistoryItem
+	historyInput      automationdomain.CronTaskHistorySearchInput
+	taskStatus        *automationdomain.CronTaskStatus
+	dailyReport       *automationdomain.CronDailyReport
+	dailyReportsByJob map[string]*automationdomain.CronDailyReport
+	dailyInput        automationdomain.CronDailyReportInput
+	dailyInputs       []automationdomain.CronDailyReportInput
 }
 
-func (s *stubService) ListTasks(_ context.Context, agentID string) ([]protocol.CronJob, error) {
+func (s *stubService) ListTasks(_ context.Context, agentID string) ([]automationdomain.CronJob, error) {
 	s.listAgentID = agentID
 	return s.jobs, s.listErr
 }
 
-func (s *stubService) CreateTask(_ context.Context, input protocol.CreateJobInput) (*protocol.CronJob, error) {
+func (s *stubService) CreateTask(_ context.Context, input automationdomain.CreateJobInput) (*automationdomain.CronJob, error) {
 	s.createInput = input
 	if s.created == nil {
-		s.created = &protocol.CronJob{
+		s.created = &automationdomain.CronJob{
 			JobID:         "job-1",
 			Name:          input.Name,
 			AgentID:       input.AgentID,
@@ -61,16 +61,16 @@ func (s *stubService) CreateTask(_ context.Context, input protocol.CreateJobInpu
 	return s.created, nil
 }
 
-func (s *stubService) UpdateTask(_ context.Context, jobID string, input protocol.UpdateJobInput) (*protocol.CronJob, error) {
+func (s *stubService) UpdateTask(_ context.Context, jobID string, input automationdomain.UpdateJobInput) (*automationdomain.CronJob, error) {
 	s.updateJobID = jobID
 	s.updateInput = input
 	if s.updateErr != nil {
 		return nil, s.updateErr
 	}
-	job := protocol.CronJob{
+	job := automationdomain.CronJob{
 		JobID:    jobID,
 		AgentID:  "agent-1",
-		Schedule: protocol.Schedule{Timezone: "Asia/Shanghai"},
+		Schedule: automationdomain.Schedule{Timezone: "Asia/Shanghai"},
 	}
 	if input.Delivery != nil {
 		job.Delivery = *input.Delivery
@@ -78,7 +78,7 @@ func (s *stubService) UpdateTask(_ context.Context, jobID string, input protocol
 	return &job, nil
 }
 
-func (s *stubService) UpdateTaskStatus(_ context.Context, jobID string, enabled bool) (*protocol.CronJob, error) {
+func (s *stubService) UpdateTaskStatus(_ context.Context, jobID string, enabled bool) (*automationdomain.CronJob, error) {
 	s.statusJobID = jobID
 	s.statusEnabled = enabled
 	for _, job := range s.jobs {
@@ -87,12 +87,12 @@ func (s *stubService) UpdateTaskStatus(_ context.Context, jobID string, enabled 
 			return &job, nil
 		}
 	}
-	return &protocol.CronJob{JobID: jobID, Enabled: enabled, Schedule: protocol.Schedule{Timezone: "Asia/Shanghai"}}, nil
+	return &automationdomain.CronJob{JobID: jobID, Enabled: enabled, Schedule: automationdomain.Schedule{Timezone: "Asia/Shanghai"}}, nil
 }
 
-func (s *stubService) DeleteTask(_ context.Context, jobID string) (*protocol.DeleteJobResult, error) {
+func (s *stubService) DeleteTask(_ context.Context, jobID string) (*automationdomain.DeleteJobResult, error) {
 	s.deletedJobID = jobID
-	result := &protocol.DeleteJobResult{JobID: jobID, Deleted: true}
+	result := &automationdomain.DeleteJobResult{JobID: jobID, Deleted: true}
 	for _, job := range s.jobs {
 		if job.JobID != jobID {
 			continue
@@ -108,31 +108,31 @@ func (s *stubService) DeleteTask(_ context.Context, jobID string) (*protocol.Del
 	return result, nil
 }
 
-func (s *stubService) RunTaskNow(_ context.Context, jobID string) (*protocol.ExecutionResult, error) {
+func (s *stubService) RunTaskNow(_ context.Context, jobID string) (*automationdomain.ExecutionResult, error) {
 	s.runNowJobID = jobID
-	return &protocol.ExecutionResult{JobID: jobID, Status: "succeeded"}, nil
+	return &automationdomain.ExecutionResult{JobID: jobID, Status: "succeeded"}, nil
 }
 
-func (s *stubService) ListTaskRuns(_ context.Context, jobID string) ([]protocol.CronRun, error) {
+func (s *stubService) ListTaskRuns(_ context.Context, jobID string) ([]automationdomain.CronRun, error) {
 	if s.runsByJob == nil {
 		return nil, nil
 	}
 	return s.runsByJob[jobID], nil
 }
 
-func (s *stubService) ListTaskEvents(_ context.Context, jobID string, _ int) ([]protocol.CronTaskEvent, error) {
+func (s *stubService) ListTaskEvents(_ context.Context, jobID string, _ int) ([]automationdomain.CronTaskEvent, error) {
 	if s.eventsByJob == nil {
 		return nil, nil
 	}
 	return s.eventsByJob[jobID], nil
 }
 
-func (s *stubService) SearchTaskHistory(_ context.Context, input protocol.CronTaskHistorySearchInput) ([]protocol.CronTaskHistoryItem, error) {
+func (s *stubService) SearchTaskHistory(_ context.Context, input automationdomain.CronTaskHistorySearchInput) ([]automationdomain.CronTaskHistoryItem, error) {
 	s.historyInput = input
 	return s.historyItems, nil
 }
 
-func (s *stubService) GetTaskStatus(_ context.Context, jobID string, _ int, _ int) (*protocol.CronTaskStatus, error) {
+func (s *stubService) GetTaskStatus(_ context.Context, jobID string, _ int, _ int) (*automationdomain.CronTaskStatus, error) {
 	if s.taskStatus != nil {
 		return s.taskStatus, nil
 	}
@@ -143,15 +143,15 @@ func (s *stubService) GetTaskStatus(_ context.Context, jobID string, _ int, _ in
 	if job == nil {
 		return nil, nil
 	}
-	return &protocol.CronTaskStatus{
+	return &automationdomain.CronTaskStatus{
 		Job:          *job,
-		Health:       protocol.CronTaskHealth{State: "scheduled"},
+		Health:       automationdomain.CronTaskHealth{State: "scheduled"},
 		RecentRuns:   s.runsByJob[jobID],
 		RecentEvents: s.eventsByJob[jobID],
 	}, nil
 }
 
-func (s *stubService) GetDailyReport(_ context.Context, input protocol.CronDailyReportInput) (*protocol.CronDailyReport, error) {
+func (s *stubService) GetDailyReport(_ context.Context, input automationdomain.CronDailyReportInput) (*automationdomain.CronDailyReport, error) {
 	s.dailyInput = input
 	s.dailyInputs = append(s.dailyInputs, input)
 	s.listAgentID = input.AgentID
@@ -163,7 +163,7 @@ func (s *stubService) GetDailyReport(_ context.Context, input protocol.CronDaily
 	if s.dailyReport != nil {
 		return s.dailyReport, nil
 	}
-	return &protocol.CronDailyReport{
+	return &automationdomain.CronDailyReport{
 		Date:     input.Date,
 		Timezone: input.Timezone,
 		AgentID:  input.AgentID,
@@ -171,24 +171,24 @@ func (s *stubService) GetDailyReport(_ context.Context, input protocol.CronDaily
 	}, nil
 }
 
-func (s *stubService) RetryRunDelivery(_ context.Context, jobID string, runID string) (*protocol.CronRun, error) {
+func (s *stubService) RetryRunDelivery(_ context.Context, jobID string, runID string) (*automationdomain.CronRun, error) {
 	s.redeliverJobID = jobID
 	s.redeliverRunID = runID
-	return &protocol.CronRun{
+	return &automationdomain.CronRun{
 		JobID:          jobID,
 		RunID:          runID,
-		Status:         protocol.RunStatusSucceeded,
-		DeliveryStatus: protocol.DeliveryStatusSucceeded,
+		Status:         automationdomain.RunStatusSucceeded,
+		DeliveryStatus: automationdomain.DeliveryStatusSucceeded,
 	}, nil
 }
 
-func (s *stubService) RecoverTaskRunningRun(_ context.Context, jobID string, runID string) (*protocol.CronJob, error) {
+func (s *stubService) RecoverTaskRunningRun(_ context.Context, jobID string, runID string) (*automationdomain.CronJob, error) {
 	s.recoverJobID = jobID
 	s.recoverRunID = runID
-	return &protocol.CronJob{JobID: jobID, AgentID: "agent-1", Schedule: protocol.Schedule{Timezone: "Asia/Shanghai"}}, nil
+	return &automationdomain.CronJob{JobID: jobID, AgentID: "agent-1", Schedule: automationdomain.Schedule{Timezone: "Asia/Shanghai"}}, nil
 }
 
-func (s *stubService) GetTask(_ context.Context, jobID string) (*protocol.CronJob, error) {
+func (s *stubService) GetTask(_ context.Context, jobID string) (*automationdomain.CronJob, error) {
 	if s.missingJobs[jobID] {
 		return nil, nil
 	}
@@ -200,7 +200,7 @@ func (s *stubService) GetTask(_ context.Context, jobID string) (*protocol.CronJo
 	if s.created != nil && s.created.JobID == jobID {
 		return s.created, nil
 	}
-	return &protocol.CronJob{JobID: jobID}, nil
+	return &automationdomain.CronJob{JobID: jobID}, nil
 }
 
 func newInterval(v int) *int { return &v }

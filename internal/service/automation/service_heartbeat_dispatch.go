@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 )
 
@@ -95,7 +94,7 @@ func (s *Service) dispatchHeartbeat(agentID string, reason string) {
 		waitCtx, cancel := context.WithTimeout(context.Background(), automationdomain.WaitTimeout(0))
 		defer cancel()
 		observation := sink.WaitForRound(waitCtx, roundID)
-		if observation.Status == protocol.RunStatusSucceeded {
+		if observation.Status == automationdomain.RunStatusSucceeded {
 			finishedAt := s.nowFn()
 			s.markEventsProcessed(events)
 			deliveryError := s.deliverHeartbeatObservation(agentID, state.Config, observation)
@@ -136,7 +135,7 @@ func (s *Service) dispatchHeartbeat(agentID string, reason string) {
 func (s *Service) buildHeartbeatInstruction(
 	ctx context.Context,
 	agentID string,
-	events []protocol.SystemEvent,
+	events []automationdomain.SystemEvent,
 	immediateWakeRequests []automationdomain.HeartbeatWakeRequest,
 	deferredWakeRequests []automationdomain.HeartbeatWakeRequest,
 ) (string, error) {
@@ -224,7 +223,7 @@ func (s *Service) buildHeartbeatInstruction(
 	return strings.TrimSpace(strings.Join(sections, "\n\n")), nil
 }
 
-func (s *Service) claimSystemEvents(ctx context.Context, agentID string) ([]protocol.SystemEvent, error) {
+func (s *Service) claimSystemEvents(ctx context.Context, agentID string) ([]automationdomain.SystemEvent, error) {
 	items, err := s.repository.ListNewSystemEventsByAgent(ctx, agentID)
 	if err != nil {
 		return nil, err
@@ -237,13 +236,13 @@ func (s *Service) claimSystemEvents(ctx context.Context, agentID string) ([]prot
 	return items, nil
 }
 
-func (s *Service) markEventsProcessed(items []protocol.SystemEvent) {
+func (s *Service) markEventsProcessed(items []automationdomain.SystemEvent) {
 	for _, item := range items {
 		_ = s.repository.MarkSystemEventStatus(context.Background(), item.EventID, "processed")
 	}
 }
 
-func (s *Service) failEvents(items []protocol.SystemEvent) {
+func (s *Service) failEvents(items []automationdomain.SystemEvent) {
 	for _, item := range items {
 		_ = s.repository.MarkSystemEventStatus(context.Background(), item.EventID, "failed")
 	}

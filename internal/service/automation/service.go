@@ -59,14 +59,14 @@ type imagegenDefaultResolver interface {
 
 // TaskEventNotifier 接收定时任务变更事件。
 type TaskEventNotifier interface {
-	NotifyTaskEvent(context.Context, protocol.CronTaskEvent)
+	NotifyTaskEvent(context.Context, automationdomain.CronTaskEvent)
 }
 
 // TaskEventNotifierFunc 适配函数式定时任务事件通知器。
-type TaskEventNotifierFunc func(context.Context, protocol.CronTaskEvent)
+type TaskEventNotifierFunc func(context.Context, automationdomain.CronTaskEvent)
 
 // NotifyTaskEvent 实现 TaskEventNotifier。
-func (fn TaskEventNotifierFunc) NotifyTaskEvent(ctx context.Context, event protocol.CronTaskEvent) {
+func (fn TaskEventNotifierFunc) NotifyTaskEvent(ctx context.Context, event automationdomain.CronTaskEvent) {
 	if fn != nil {
 		fn(ctx, event)
 	}
@@ -224,11 +224,11 @@ func (s *Service) requireAgent(ctx context.Context, agentID string) (*protocol.A
 	return s.agents.GetAgent(ctx, strings.TrimSpace(agentID))
 }
 
-func (s *Service) validateAgentAndTarget(ctx context.Context, agentID string, target protocol.SessionTarget) error {
+func (s *Service) validateAgentAndTarget(ctx context.Context, agentID string, target automationdomain.SessionTarget) error {
 	if _, err := s.requireAgent(ctx, agentID); err != nil {
 		return err
 	}
-	if strings.TrimSpace(target.Kind) != protocol.SessionTargetBound {
+	if strings.TrimSpace(target.Kind) != automationdomain.SessionTargetBound {
 		return nil
 	}
 	parsed := protocol.ParseSessionKey(target.BoundSessionKey)
@@ -255,11 +255,11 @@ func (s *Service) validateRoomTargetAgent(ctx context.Context, conversationID st
 	return nil
 }
 
-func (s *Service) ensureDirectTargetSupported(target protocol.SessionTarget) error {
-	if strings.TrimSpace(target.Kind) == protocol.SessionTargetMain {
+func (s *Service) ensureDirectTargetSupported(target automationdomain.SessionTarget) error {
+	if strings.TrimSpace(target.Kind) == automationdomain.SessionTargetMain {
 		return nil
 	}
-	_, err := automationdomain.ResolveSessionKey(protocol.CronJob{
+	_, err := automationdomain.ResolveSessionKey(automationdomain.CronJob{
 		AgentID:       "noop",
 		SessionTarget: target,
 	}, stringPointer("noop"))

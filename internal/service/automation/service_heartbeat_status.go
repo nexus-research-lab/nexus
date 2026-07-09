@@ -6,11 +6,10 @@ import (
 	"strings"
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 // GetHeartbeatStatus 返回 heartbeat 状态。
-func (s *Service) GetHeartbeatStatus(ctx context.Context, agentID string) (*protocol.HeartbeatStatus, error) {
+func (s *Service) GetHeartbeatStatus(ctx context.Context, agentID string) (*automationdomain.HeartbeatStatus, error) {
 	if err := s.ensureReady(ctx); err != nil {
 		return nil, err
 	}
@@ -24,7 +23,7 @@ func (s *Service) GetHeartbeatStatus(ctx context.Context, agentID string) (*prot
 	if !ok {
 		return nil, errors.New("heartbeat state not found")
 	}
-	return &protocol.HeartbeatStatus{
+	return &automationdomain.HeartbeatStatus{
 		AgentID:         snapshot.Config.AgentID,
 		Enabled:         snapshot.Config.Enabled,
 		EverySeconds:    snapshot.Config.EverySeconds,
@@ -40,22 +39,22 @@ func (s *Service) GetHeartbeatStatus(ctx context.Context, agentID string) (*prot
 }
 
 // UpdateHeartbeat 更新 heartbeat 配置。
-func (s *Service) UpdateHeartbeat(ctx context.Context, agentID string, input protocol.HeartbeatUpdateInput) (*protocol.HeartbeatStatus, error) {
+func (s *Service) UpdateHeartbeat(ctx context.Context, agentID string, input automationdomain.HeartbeatUpdateInput) (*automationdomain.HeartbeatStatus, error) {
 	if err := s.ensureReady(ctx); err != nil {
 		return nil, err
 	}
 	if _, err := s.requireAgent(ctx, agentID); err != nil {
 		return nil, err
 	}
-	configValue := protocol.HeartbeatConfig{
+	configValue := automationdomain.HeartbeatConfig{
 		AgentID:      strings.TrimSpace(agentID),
 		Enabled:      input.Enabled,
 		EverySeconds: input.EverySeconds,
 		TargetMode:   strings.TrimSpace(input.TargetMode),
 		AckMaxChars:  input.AckMaxChars,
 	}.Normalized()
-	if configValue.TargetMode == protocol.HeartbeatTargetExplicit {
-		return nil, protocol.ErrHeartbeatConfigInvalid
+	if configValue.TargetMode == automationdomain.HeartbeatTargetExplicit {
+		return nil, automationdomain.ErrHeartbeatConfigInvalid
 	}
 	if err := configValue.Validate(); err != nil {
 		return nil, err
@@ -89,7 +88,7 @@ func (s *Service) UpdateHeartbeat(ctx context.Context, agentID string, input pro
 }
 
 // WakeHeartbeat 手动登记一次 heartbeat 唤醒。
-func (s *Service) WakeHeartbeat(ctx context.Context, agentID string, request protocol.HeartbeatWakeRequest) (*protocol.HeartbeatWakeResult, error) {
+func (s *Service) WakeHeartbeat(ctx context.Context, agentID string, request automationdomain.HeartbeatWakeInput) (*automationdomain.HeartbeatWakeResult, error) {
 	if err := s.ensureReady(ctx); err != nil {
 		return nil, err
 	}
@@ -98,9 +97,9 @@ func (s *Service) WakeHeartbeat(ctx context.Context, agentID string, request pro
 	}
 	mode := strings.TrimSpace(request.Mode)
 	if mode == "" {
-		mode = protocol.WakeModeNow
+		mode = automationdomain.WakeModeNow
 	}
-	if mode != protocol.WakeModeNow && mode != protocol.WakeModeNextHeartbeat {
+	if mode != automationdomain.WakeModeNow && mode != automationdomain.WakeModeNextHeartbeat {
 		return nil, errors.New("mode must be one of now, next-heartbeat")
 	}
 
@@ -129,19 +128,19 @@ func (s *Service) WakeHeartbeat(ctx context.Context, agentID string, request pro
 
 	s.mu.Lock()
 	switch mode {
-	case protocol.WakeModeNow:
+	case automationdomain.WakeModeNow:
 		if state.Running {
 			state.PendingWake = true
 			s.mu.Unlock()
-			return &protocol.HeartbeatWakeResult{AgentID: state.Config.AgentID, Mode: mode, Scheduled: true}, nil
+			return &automationdomain.HeartbeatWakeResult{AgentID: state.Config.AgentID, Mode: mode, Scheduled: true}, nil
 		}
 		state.PendingWake = true
 		s.mu.Unlock()
 		s.dispatchHeartbeat(state.Config.AgentID, "wake-now")
-		return &protocol.HeartbeatWakeResult{AgentID: state.Config.AgentID, Mode: mode, Scheduled: true}, nil
+		return &automationdomain.HeartbeatWakeResult{AgentID: state.Config.AgentID, Mode: mode, Scheduled: true}, nil
 	default:
 		state.PendingWake = true
 		s.mu.Unlock()
-		return &protocol.HeartbeatWakeResult{AgentID: state.Config.AgentID, Mode: mode, Scheduled: false}, nil
+		return &automationdomain.HeartbeatWakeResult{AgentID: state.Config.AgentID, Mode: mode, Scheduled: false}, nil
 	}
 }

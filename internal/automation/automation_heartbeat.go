@@ -1,4 +1,4 @@
-package protocol
+package automation
 
 import (
 	"errors"
@@ -92,8 +92,8 @@ type HeartbeatUpdateInput struct {
 	AckMaxChars  int    `json:"ack_max_chars"`
 }
 
-// HeartbeatWakeRequest 表示唤醒请求。
-type HeartbeatWakeRequest struct {
+// HeartbeatWakeInput 表示唤醒请求。
+type HeartbeatWakeInput struct {
 	Mode string  `json:"mode"`
 	Text *string `json:"text,omitempty"`
 }

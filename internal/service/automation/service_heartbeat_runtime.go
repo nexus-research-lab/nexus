@@ -8,7 +8,6 @@ import (
 	"time"
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 const heartbeatExplicitTargetUnsupportedMessage = "heartbeat target_mode=explicit is not supported in Task 6 runtime"
@@ -26,7 +25,7 @@ func (s *Service) ensureHeartbeatState(ctx context.Context, agentID string) (*au
 		return nil, err
 	}
 	if configValue == nil {
-		defaultValue := protocol.DefaultHeartbeatConfig(agentID)
+		defaultValue := automationdomain.DefaultHeartbeatConfig(agentID)
 		sanitizedConfig, deliveryError := sanitizeHeartbeatConfig(defaultValue)
 		state = &automationdomain.HeartbeatRuntimeState{
 			Config:          sanitizedConfig,
@@ -52,7 +51,7 @@ func (s *Service) ensureHeartbeatState(ctx context.Context, agentID string) (*au
 	return state, nil
 }
 
-func (s *Service) computeHeartbeatNext(configValue protocol.HeartbeatConfig, now time.Time) *time.Time {
+func (s *Service) computeHeartbeatNext(configValue automationdomain.HeartbeatConfig, now time.Time) *time.Time {
 	if !configValue.Enabled {
 		return nil
 	}
@@ -74,7 +73,7 @@ func (s *Service) finishHeartbeatRuntime(agentID string, startedAt *time.Time, a
 		}
 		state.DeliveryError = cloneStringPointer(deliveryError)
 	}
-	configValue := protocol.HeartbeatConfig{}
+	configValue := automationdomain.HeartbeatConfig{}
 	lastHeartbeatAt := (*time.Time)(nil)
 	lastAckAt := (*time.Time)(nil)
 	if state != nil {
@@ -138,7 +137,7 @@ func (s *Service) recordWakeRequest(agentID string, sessionKey string, wakeMode 
 func (s *Service) hasImmediateWakeRequestLocked(agentID string) bool {
 	sessionKey := automationdomain.BuildMainSessionKey(agentID)
 	for _, item := range s.wakeRequests[sessionKey] {
-		if strings.TrimSpace(item.AgentID) == strings.TrimSpace(agentID) && item.WakeMode == protocol.WakeModeNow {
+		if strings.TrimSpace(item.AgentID) == strings.TrimSpace(agentID) && item.WakeMode == automationdomain.WakeModeNow {
 			return true
 		}
 	}
@@ -160,20 +159,20 @@ func (s *Service) takeWakeRequests(agentID string, sessionKey string) ([]automat
 			continue
 		}
 		switch item.WakeMode {
-		case protocol.WakeModeNow:
+		case automationdomain.WakeModeNow:
 			immediate = append(immediate, item)
-		case protocol.WakeModeNextHeartbeat:
+		case automationdomain.WakeModeNextHeartbeat:
 			deferred = append(deferred, item)
 		}
 	}
 	return immediate, deferred
 }
 
-func sanitizeHeartbeatConfig(configValue protocol.HeartbeatConfig) (protocol.HeartbeatConfig, *string) {
+func sanitizeHeartbeatConfig(configValue automationdomain.HeartbeatConfig) (automationdomain.HeartbeatConfig, *string) {
 	result := configValue
-	if strings.TrimSpace(result.TargetMode) != protocol.HeartbeatTargetExplicit {
+	if strings.TrimSpace(result.TargetMode) != automationdomain.HeartbeatTargetExplicit {
 		return result, nil
 	}
-	result.TargetMode = protocol.HeartbeatTargetNone
+	result.TargetMode = automationdomain.HeartbeatTargetNone
 	return result, stringPointer(heartbeatExplicitTargetUnsupportedMessage)
 }

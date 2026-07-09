@@ -3,12 +3,12 @@ package automation
 import (
 	"strings"
 
-	"github.com/nexus-research-lab/nexus/internal/protocol"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 )
 
-func (s *Service) buildCronTaskHealth(job protocol.CronJob, runs []protocol.CronRun) protocol.CronTaskHealth {
+func (s *Service) buildCronTaskHealth(job automationdomain.CronJob, runs []automationdomain.CronRun) automationdomain.CronTaskHealth {
 	runningRunID := strings.TrimSpace(job.RunningRunID)
-	health := protocol.CronTaskHealth{
+	health := automationdomain.CronTaskHealth{
 		State:             "scheduled",
 		RecoveryAvailable: runningRunID != "",
 		RecoveryRunID:     runningRunID,
@@ -36,21 +36,21 @@ func (s *Service) buildCronTaskHealth(job protocol.CronJob, runs []protocol.Cron
 		if isFailedRunStatus(run.Status) {
 			health.FailedRunCount++
 		}
-		if strings.TrimSpace(run.Status) == protocol.RunStatusFailed {
+		if strings.TrimSpace(run.Status) == automationdomain.RunStatusFailed {
 			addUniqueString(&health.ExecutionFailedRunIDs, run.RunID)
 			setFirstStringPointer(&health.LatestExecutionError, run.ErrorMessage)
 		}
 		deliveryStatus := deriveCronRunDeliveryStatus(run)
 		switch deliveryStatus {
-		case protocol.DeliveryStatusFailed:
+		case automationdomain.DeliveryStatusFailed:
 			health.DeliveryFailedRunCount++
 			health.ManualRedeliveryAvailable = true
 			addUniqueString(&health.ManualRedeliveryRunIDs, run.RunID)
 			setFirstStringPointer(&health.LatestDeliveryError, preferredDeliveryError(run))
-		case protocol.DeliveryStatusPending:
+		case automationdomain.DeliveryStatusPending:
 			health.DeliveryPendingRunCount++
 			addUniqueString(&health.DeliveryPendingRunIDs, run.RunID)
-		case protocol.DeliveryStatusSkipped:
+		case automationdomain.DeliveryStatusSkipped:
 			health.DeliverySkippedRunCount++
 			addUniqueString(&health.DeliverySkippedRunIDs, run.RunID)
 		}

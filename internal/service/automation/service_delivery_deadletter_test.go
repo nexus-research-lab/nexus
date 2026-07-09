@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 	"github.com/nexus-research-lab/nexus/internal/config"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 
 	_ "modernc.org/sqlite"
 )
@@ -27,18 +27,18 @@ func TestServiceAutoRetryDeliveryDeadLettersDisabledTask(t *testing.T) {
 		delivery,
 	)
 	base := time.Date(2026, 5, 21, 9, 0, 0, 0, time.UTC)
-	task, err := service.CreateTask(context.Background(), protocol.CreateJobInput{
+	task, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
 		Name:        "paused-delivery",
 		AgentID:     "agent-1",
 		Instruction: "send report",
-		Schedule: protocol.Schedule{
-			Kind:            protocol.ScheduleKindEvery,
+		Schedule: automationdomain.Schedule{
+			Kind:            automationdomain.ScheduleKindEvery,
 			IntervalSeconds: intRef(3600),
 			Timezone:        "UTC",
 		},
-		SessionTarget: protocol.SessionTarget{Kind: protocol.SessionTargetNamed, NamedSessionKey: "reports"},
-		Delivery: protocol.DeliveryTarget{
-			Mode:    protocol.DeliveryModeExplicit,
+		SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetNamed, NamedSessionKey: "reports"},
+		Delivery: automationdomain.DeliveryTarget{
+			Mode:    automationdomain.DeliveryModeExplicit,
 			Channel: "feishu",
 			To:      "oc_group",
 		},
@@ -64,11 +64,11 @@ INSERT INTO automation_cron_runs (
 		runID,
 		task.JobID,
 		task.OwnerUserID,
-		protocol.RunStatusSucceeded,
+		automationdomain.RunStatusSucceeded,
 		"cron",
-		protocol.DeliveryModeExplicit,
+		automationdomain.DeliveryModeExplicit,
 		"explicit:feishu:oc_group",
-		protocol.DeliveryStatusFailed,
+		automationdomain.DeliveryStatusFailed,
 		deliveryError,
 		1,
 		dueAt,
@@ -89,7 +89,7 @@ INSERT INTO automation_cron_runs (
 	}
 	updated := runs[0]
 	if updated.RunID != runID ||
-		updated.DeliveryStatus != protocol.DeliveryStatusFailed ||
+		updated.DeliveryStatus != automationdomain.DeliveryStatusFailed ||
 		updated.DeliveryDeadLetterAt == nil ||
 		updated.DeliveryNextAttemptAt != nil {
 		t.Fatalf("停用任务的 due delivery 应进入死信并清理下一次重试: %+v", updated)
@@ -115,7 +115,7 @@ INSERT INTO automation_cron_runs (
 		t.Fatalf("读取自动重试跳过事件失败: %v", err)
 	}
 	for _, event := range events {
-		if event.Action == protocol.TaskEventActionAutoRetryDelivery &&
+		if event.Action == automationdomain.TaskEventActionAutoRetryDelivery &&
 			event.RunID == runID &&
 			event.Detail["auto_retry_skipped_reason"] == "task_disabled" {
 			return
@@ -139,18 +139,18 @@ func TestDeleteTaskDeadLettersPendingDeliveryRetries(t *testing.T) {
 	)
 	base := time.Date(2026, 5, 21, 9, 0, 0, 0, time.UTC)
 	service.nowFn = func() time.Time { return base }
-	task, err := service.CreateTask(context.Background(), protocol.CreateJobInput{
+	task, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
 		Name:        "delete-with-failed-delivery",
 		AgentID:     "agent-1",
 		Instruction: "send report",
-		Schedule: protocol.Schedule{
-			Kind:            protocol.ScheduleKindEvery,
+		Schedule: automationdomain.Schedule{
+			Kind:            automationdomain.ScheduleKindEvery,
 			IntervalSeconds: intRef(3600),
 			Timezone:        "UTC",
 		},
-		SessionTarget: protocol.SessionTarget{Kind: protocol.SessionTargetNamed, NamedSessionKey: "reports"},
-		Delivery: protocol.DeliveryTarget{
-			Mode:    protocol.DeliveryModeExplicit,
+		SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetNamed, NamedSessionKey: "reports"},
+		Delivery: automationdomain.DeliveryTarget{
+			Mode:    automationdomain.DeliveryModeExplicit,
 			Channel: "feishu",
 			To:      "oc_group",
 		},
@@ -173,11 +173,11 @@ INSERT INTO automation_cron_runs (
 		runID,
 		task.JobID,
 		task.OwnerUserID,
-		protocol.RunStatusSucceeded,
+		automationdomain.RunStatusSucceeded,
 		"cron",
-		protocol.DeliveryModeExplicit,
+		automationdomain.DeliveryModeExplicit,
 		"explicit:feishu:oc_group",
-		protocol.DeliveryStatusFailed,
+		automationdomain.DeliveryStatusFailed,
 		deliveryError,
 		1,
 		nextAttemptAt,
@@ -201,7 +201,7 @@ INSERT INTO automation_cron_runs (
 	}
 	updated := runs[0]
 	if updated.RunID != runID ||
-		updated.DeliveryStatus != protocol.DeliveryStatusFailed ||
+		updated.DeliveryStatus != automationdomain.DeliveryStatusFailed ||
 		updated.DeliveryDeadLetterAt == nil ||
 		updated.DeliveryNextAttemptAt != nil ||
 		updated.DeliveryError == nil ||
@@ -223,7 +223,7 @@ INSERT INTO automation_cron_runs (
 	if len(delivery.Calls()) != 0 {
 		t.Fatalf("删除任务不应触发投递，calls=%+v", delivery.Calls())
 	}
-	report, err := service.GetDailyReport(context.Background(), protocol.CronDailyReportInput{
+	report, err := service.GetDailyReport(context.Background(), automationdomain.CronDailyReportInput{
 		Date:     "2026-05-21",
 		Timezone: "UTC",
 		JobID:    task.JobID,
@@ -250,7 +250,7 @@ INSERT INTO automation_cron_runs (
 		t.Fatalf("删除后读取事件失败: %v", err)
 	}
 	for _, event := range events {
-		if event.Action != protocol.TaskEventActionDelete {
+		if event.Action != automationdomain.TaskEventActionDelete {
 			continue
 		}
 		values, ok := event.Detail["dead_lettered_delivery_run_ids"].([]any)
@@ -275,18 +275,18 @@ func TestServiceRetryRunDeliveryMarksDeadLetterAfterMaxAttempts(t *testing.T) {
 		&fakeWorkspaceReader{},
 		delivery,
 	)
-	task, err := service.CreateTask(context.Background(), protocol.CreateJobInput{
+	task, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
 		Name:        "dead-letter",
 		AgentID:     "agent-1",
 		Instruction: "send report",
-		Schedule: protocol.Schedule{
-			Kind:            protocol.ScheduleKindEvery,
+		Schedule: automationdomain.Schedule{
+			Kind:            automationdomain.ScheduleKindEvery,
 			IntervalSeconds: intRef(3600),
 			Timezone:        "Asia/Shanghai",
 		},
-		SessionTarget: protocol.SessionTarget{Kind: protocol.SessionTargetNamed, NamedSessionKey: "reports"},
-		Delivery: protocol.DeliveryTarget{
-			Mode:    protocol.DeliveryModeExplicit,
+		SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetNamed, NamedSessionKey: "reports"},
+		Delivery: automationdomain.DeliveryTarget{
+			Mode:    automationdomain.DeliveryModeExplicit,
 			Channel: "feishu",
 			To:      "oc_group",
 		},
@@ -304,11 +304,11 @@ INSERT INTO automation_cron_runs (
 		"run-dead",
 		task.JobID,
 		task.OwnerUserID,
-		protocol.RunStatusSucceeded,
+		automationdomain.RunStatusSucceeded,
 		"cron",
-		protocol.DeliveryModeExplicit,
+		automationdomain.DeliveryModeExplicit,
 		"feishu:oc_group",
-		protocol.DeliveryStatusFailed,
+		automationdomain.DeliveryStatusFailed,
 		maxAutoDeliveryAttempts-1,
 		"日报正文",
 		1,
@@ -320,7 +320,7 @@ INSERT INTO automation_cron_runs (
 	if err != nil {
 		t.Fatalf("RetryRunDelivery 失败: %v", err)
 	}
-	if run.DeliveryStatus != protocol.DeliveryStatusFailed || run.DeliveryDeadLetterAt == nil || run.DeliveryNextAttemptAt != nil {
+	if run.DeliveryStatus != automationdomain.DeliveryStatusFailed || run.DeliveryDeadLetterAt == nil || run.DeliveryNextAttemptAt != nil {
 		t.Fatalf("达到最大重试后应进入死信且不再安排自动重试: %+v", run)
 	}
 	if run.DeliveryAttempts != maxAutoDeliveryAttempts {
@@ -341,18 +341,18 @@ func TestServiceRetryRunDeliveryRejectsAlreadyDeliveredRun(t *testing.T) {
 		&fakeWorkspaceReader{},
 		delivery,
 	)
-	task, err := service.CreateTask(context.Background(), protocol.CreateJobInput{
+	task, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
 		Name:        "delivered",
 		AgentID:     "agent-1",
 		Instruction: "send report",
-		Schedule: protocol.Schedule{
-			Kind:            protocol.ScheduleKindEvery,
+		Schedule: automationdomain.Schedule{
+			Kind:            automationdomain.ScheduleKindEvery,
 			IntervalSeconds: intRef(3600),
 			Timezone:        "Asia/Shanghai",
 		},
-		SessionTarget: protocol.SessionTarget{Kind: protocol.SessionTargetNamed, NamedSessionKey: "reports"},
-		Delivery: protocol.DeliveryTarget{
-			Mode:    protocol.DeliveryModeExplicit,
+		SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetNamed, NamedSessionKey: "reports"},
+		Delivery: automationdomain.DeliveryTarget{
+			Mode:    automationdomain.DeliveryModeExplicit,
 			Channel: "feishu",
 			To:      "oc_group",
 		},
@@ -370,11 +370,11 @@ INSERT INTO automation_cron_runs (
 		"run-delivered",
 		task.JobID,
 		task.OwnerUserID,
-		protocol.RunStatusSucceeded,
+		automationdomain.RunStatusSucceeded,
 		"cron",
-		protocol.DeliveryModeExplicit,
+		automationdomain.DeliveryModeExplicit,
 		"feishu:oc_group",
-		protocol.DeliveryStatusSucceeded,
+		automationdomain.DeliveryStatusSucceeded,
 		1,
 		"日报正文",
 		1,

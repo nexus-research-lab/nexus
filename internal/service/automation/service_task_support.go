@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
@@ -25,8 +26,8 @@ func (s *Service) resolveTaskOwnerUserID(ctx context.Context, agentID string) (s
 	return authctx.OwnerUserID(ctx), nil
 }
 
-func (s *Service) cleanupIsolatedAutomationSessions(ctx context.Context, job protocol.CronJob) error {
-	if strings.TrimSpace(job.SessionTarget.Kind) != protocol.SessionTargetIsolated {
+func (s *Service) cleanupIsolatedAutomationSessions(ctx context.Context, job automationdomain.CronJob) error {
+	if strings.TrimSpace(job.SessionTarget.Kind) != automationdomain.SessionTargetIsolated {
 		return nil
 	}
 	workspacePath, err := s.resolveAutomationWorkspacePath(ctx, job.AgentID)

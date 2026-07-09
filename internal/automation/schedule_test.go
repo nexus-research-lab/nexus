@@ -3,15 +3,13 @@ package automation
 import (
 	"testing"
 	"time"
-
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 func TestComputeNextRunAt(t *testing.T) {
 	now := time.Date(2026, 4, 11, 8, 0, 0, 0, time.UTC)
 
-	every := protocol.Schedule{
-		Kind:            protocol.ScheduleKindEvery,
+	every := Schedule{
+		Kind:            ScheduleKindEvery,
 		IntervalSeconds: intRef(1800),
 		Timezone:        "Asia/Shanghai",
 	}
@@ -23,8 +21,8 @@ func TestComputeNextRunAt(t *testing.T) {
 		t.Fatalf("every 下次触发时间错误: %v", nextEvery)
 	}
 
-	at := protocol.Schedule{
-		Kind:     protocol.ScheduleKindAt,
+	at := Schedule{
+		Kind:     ScheduleKindAt,
 		RunAt:    stringRef("2026-04-11T18:30"),
 		Timezone: "Asia/Shanghai",
 	}
@@ -38,8 +36,8 @@ func TestComputeNextRunAt(t *testing.T) {
 	}
 
 	cronExpr := "0 9 * * *"
-	cronSchedule := protocol.Schedule{
-		Kind:           protocol.ScheduleKindCron,
+	cronSchedule := Schedule{
+		Kind:           ScheduleKindCron,
 		CronExpression: &cronExpr,
 		Timezone:       "Asia/Shanghai",
 	}

@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/nexus-research-lab/nexus/internal/protocol"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 )
 
 func (s *Service) bootstrapRuntime(ctx context.Context) error {
@@ -49,7 +49,7 @@ func (s *Service) runDueOnce() {
 	now := s.nowFn()
 	s.recoverStaleRunningJobs(context.Background(), now)
 
-	dueJobs := make([]protocol.CronJob, 0)
+	dueJobs := make([]automationdomain.CronJob, 0)
 	dueHeartbeats := make([]string, 0)
 
 	s.mu.Lock()
@@ -57,7 +57,7 @@ func (s *Service) runDueOnce() {
 		if state == nil || !state.Job.Enabled || state.NextRunAt == nil {
 			continue
 		}
-		if state.Running && protocol.NormalizeOverlapPolicy(state.Job.OverlapPolicy) == protocol.OverlapPolicySkip {
+		if state.Running && automationdomain.NormalizeOverlapPolicy(state.Job.OverlapPolicy) == automationdomain.OverlapPolicySkip {
 			continue
 		}
 		if !state.NextRunAt.After(now) {

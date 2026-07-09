@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 	"github.com/nexus-research-lab/nexus/internal/mcp/automation/contract"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
@@ -23,7 +24,7 @@ func TestUpdateCanDisableDeliveryWithoutExecutionMode(t *testing.T) {
 	if svc.updateInput.SessionTarget != nil {
 		t.Fatalf("delivery-only update must not rewrite execution target, got %+v", svc.updateInput.SessionTarget)
 	}
-	if svc.updateInput.Delivery == nil || svc.updateInput.Delivery.Mode != protocol.DeliveryModeNone {
+	if svc.updateInput.Delivery == nil || svc.updateInput.Delivery.Mode != automationdomain.DeliveryModeNone {
 		t.Fatalf("expected delivery.mode=none, got %+v", svc.updateInput.Delivery)
 	}
 }
@@ -50,10 +51,10 @@ func TestUpdateCanRetargetDeliveryToChannel(t *testing.T) {
 			name: "inferred mode",
 			sctx: contract.ServerContext{CurrentAgentID: "agent-1"},
 			svc: &stubService{
-				jobs: []protocol.CronJob{{
+				jobs: []automationdomain.CronJob{{
 					JobID:    "job-1",
 					AgentID:  "agent-1",
-					Schedule: protocol.Schedule{Timezone: "Asia/Shanghai"},
+					Schedule: automationdomain.Schedule{Timezone: "Asia/Shanghai"},
 				}},
 			},
 			input: map[string]any{
@@ -84,10 +85,10 @@ func TestUpdateCanRetargetDeliveryToChannel(t *testing.T) {
 
 func TestUpdateInfersAgentReplyModeFromReplyAgentID(t *testing.T) {
 	svc := &stubService{
-		jobs: []protocol.CronJob{{
+		jobs: []automationdomain.CronJob{{
 			JobID:    "job-1",
 			AgentID:  "agent-1",
-			Schedule: protocol.Schedule{Timezone: "Asia/Shanghai"},
+			Schedule: automationdomain.Schedule{Timezone: "Asia/Shanghai"},
 		}},
 	}
 	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "update_scheduled_task", map[string]any{
@@ -113,10 +114,10 @@ func TestUpdateInfersAgentReplyModeFromReplyAgentID(t *testing.T) {
 
 func TestUpdateCanRetargetDeliveryToCurrentExternalSession(t *testing.T) {
 	svc := &stubService{
-		jobs: []protocol.CronJob{{
+		jobs: []automationdomain.CronJob{{
 			JobID:    "job-1",
 			AgentID:  "agent-1",
-			Schedule: protocol.Schedule{Timezone: "Asia/Shanghai"},
+			Schedule: automationdomain.Schedule{Timezone: "Asia/Shanghai"},
 		}},
 	}
 	result, isError := callTool(t, svc, contract.ServerContext{
@@ -141,10 +142,10 @@ func TestUpdateCanRetargetDeliveryToCurrentExternalSession(t *testing.T) {
 
 func TestUpdateCanFillPartialChannelTargetFromCurrentExternalSession(t *testing.T) {
 	svc := &stubService{
-		jobs: []protocol.CronJob{{
+		jobs: []automationdomain.CronJob{{
 			JobID:    "job-1",
 			AgentID:  "agent-1",
-			Schedule: protocol.Schedule{Timezone: "Asia/Shanghai"},
+			Schedule: automationdomain.Schedule{Timezone: "Asia/Shanghai"},
 		}},
 	}
 	result, isError := callTool(t, svc, contract.ServerContext{
@@ -171,10 +172,10 @@ func TestUpdateCanFillPartialChannelTargetFromCurrentExternalSession(t *testing.
 
 func TestUpdateRejectsPartialChannelTargetWhenCurrentExternalSessionDiffers(t *testing.T) {
 	svc := &stubService{
-		jobs: []protocol.CronJob{{
+		jobs: []automationdomain.CronJob{{
 			JobID:    "job-1",
 			AgentID:  "agent-1",
-			Schedule: protocol.Schedule{Timezone: "Asia/Shanghai"},
+			Schedule: automationdomain.Schedule{Timezone: "Asia/Shanghai"},
 		}},
 	}
 	result, isError := callTool(t, svc, contract.ServerContext{
@@ -204,10 +205,10 @@ func TestUpdateSelectedReplyDefaultsToCurrentConversation(t *testing.T) {
 		"",
 	)
 	svc := &stubService{
-		jobs: []protocol.CronJob{{
+		jobs: []automationdomain.CronJob{{
 			JobID:    "job-1",
 			AgentID:  "agent-1",
-			Schedule: protocol.Schedule{Timezone: "Asia/Shanghai"},
+			Schedule: automationdomain.Schedule{Timezone: "Asia/Shanghai"},
 		}},
 	}
 	result, isError := callTool(t, svc, contract.ServerContext{
@@ -239,10 +240,10 @@ func TestUpdateSelectedReplyRequiresConversationTarget(t *testing.T) {
 	for _, sctx := range tests {
 		t.Run(sctx.CurrentSessionKey, func(t *testing.T) {
 			svc := &stubService{
-				jobs: []protocol.CronJob{{
+				jobs: []automationdomain.CronJob{{
 					JobID:    "job-1",
 					AgentID:  "agent-1",
-					Schedule: protocol.Schedule{Timezone: "Asia/Shanghai"},
+					Schedule: automationdomain.Schedule{Timezone: "Asia/Shanghai"},
 				}},
 			}
 			result, isError := callTool(t, svc, sctx, "update_scheduled_task", map[string]any{
@@ -264,10 +265,10 @@ func TestUpdateSelectedReplyRequiresConversationTarget(t *testing.T) {
 
 func TestUpdateAgentDeliveryDefaultsToTaskAgent(t *testing.T) {
 	svc := &stubService{
-		jobs: []protocol.CronJob{{
+		jobs: []automationdomain.CronJob{{
 			JobID:    "job-1",
 			AgentID:  "agent-2",
-			Schedule: protocol.Schedule{Timezone: "Asia/Shanghai"},
+			Schedule: automationdomain.Schedule{Timezone: "Asia/Shanghai"},
 		}},
 	}
 	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "main", IsMainAgent: true}, "update_scheduled_task", map[string]any{
@@ -307,10 +308,10 @@ func TestUpdateExecutionReplyRequiresExecutionMode(t *testing.T) {
 
 func TestUpdateNameOnlyDoesNotRewriteExecutionOrDelivery(t *testing.T) {
 	svc := &stubService{
-		jobs: []protocol.CronJob{{
+		jobs: []automationdomain.CronJob{{
 			JobID:    "job-1",
 			AgentID:  "agent-1",
-			Schedule: protocol.Schedule{Timezone: "Asia/Shanghai"},
+			Schedule: automationdomain.Schedule{Timezone: "Asia/Shanghai"},
 		}},
 	}
 	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "update_scheduled_task", map[string]any{
@@ -333,11 +334,11 @@ func TestUpdateNameOnlyDoesNotRewriteExecutionOrDelivery(t *testing.T) {
 
 func TestUpdateCanAppendInstruction(t *testing.T) {
 	svc := &stubService{
-		jobs: []protocol.CronJob{{
+		jobs: []automationdomain.CronJob{{
 			JobID:       "job-1",
 			AgentID:     "agent-1",
 			Instruction: "搜索新闻并整理摘要",
-			Schedule:    protocol.Schedule{Timezone: "Asia/Shanghai"},
+			Schedule:    automationdomain.Schedule{Timezone: "Asia/Shanghai"},
 		}},
 	}
 	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "update_scheduled_task", map[string]any{
@@ -358,11 +359,11 @@ func TestUpdateCanAppendInstruction(t *testing.T) {
 
 func TestUpdateRejectsInstructionReplaceAndAppendTogether(t *testing.T) {
 	svc := &stubService{
-		jobs: []protocol.CronJob{{
+		jobs: []automationdomain.CronJob{{
 			JobID:       "job-1",
 			AgentID:     "agent-1",
 			Instruction: "搜索新闻并整理摘要",
-			Schedule:    protocol.Schedule{Timezone: "Asia/Shanghai"},
+			Schedule:    automationdomain.Schedule{Timezone: "Asia/Shanghai"},
 		}},
 	}
 	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "update_scheduled_task", map[string]any{
@@ -383,10 +384,10 @@ func TestUpdateRejectsInstructionReplaceAndAppendTogether(t *testing.T) {
 
 func TestUpdateScheduleOnlyDoesNotRewriteExecutionOrDelivery(t *testing.T) {
 	svc := &stubService{
-		jobs: []protocol.CronJob{{
+		jobs: []automationdomain.CronJob{{
 			JobID:    "job-1",
 			AgentID:  "agent-1",
-			Schedule: protocol.Schedule{Timezone: "Asia/Shanghai"},
+			Schedule: automationdomain.Schedule{Timezone: "Asia/Shanghai"},
 		}},
 	}
 	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1", DefaultTimezone: "Asia/Shanghai"}, "update_scheduled_task", map[string]any{
@@ -408,14 +409,14 @@ func TestUpdateScheduleOnlyDoesNotRewriteExecutionOrDelivery(t *testing.T) {
 
 func TestUpdateScheduledTaskCanResolveUniqueQuery(t *testing.T) {
 	svc := &stubService{
-		jobs: []protocol.CronJob{
+		jobs: []automationdomain.CronJob{
 			{
 				JobID:       "job-news",
 				Name:        "每日新闻摘要",
 				AgentID:     "agent-1",
 				Instruction: "搜索新闻并投递",
 				Enabled:     true,
-				Schedule:    protocol.Schedule{Timezone: "Asia/Shanghai"},
+				Schedule:    automationdomain.Schedule{Timezone: "Asia/Shanghai"},
 			},
 			{
 				JobID:       "job-water",
@@ -423,7 +424,7 @@ func TestUpdateScheduledTaskCanResolveUniqueQuery(t *testing.T) {
 				AgentID:     "agent-1",
 				Instruction: "提醒我喝水",
 				Enabled:     true,
-				Schedule:    protocol.Schedule{Timezone: "Asia/Shanghai"},
+				Schedule:    automationdomain.Schedule{Timezone: "Asia/Shanghai"},
 			},
 		},
 	}
@@ -444,10 +445,10 @@ func TestUpdateScheduledTaskCanResolveUniqueQuery(t *testing.T) {
 
 func TestUpdateRejectsEmptyPatch(t *testing.T) {
 	svc := &stubService{
-		jobs: []protocol.CronJob{{
+		jobs: []automationdomain.CronJob{{
 			JobID:    "job-1",
 			AgentID:  "agent-1",
-			Schedule: protocol.Schedule{Timezone: "Asia/Shanghai"},
+			Schedule: automationdomain.Schedule{Timezone: "Asia/Shanghai"},
 		}},
 	}
 	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "update_scheduled_task", map[string]any{
@@ -466,10 +467,10 @@ func TestUpdateRejectsEmptyPatch(t *testing.T) {
 
 func TestRegularAgentCannotUpdateAnotherAgentsTask(t *testing.T) {
 	svc := &stubService{
-		jobs: []protocol.CronJob{{
+		jobs: []automationdomain.CronJob{{
 			JobID:    "job-1",
 			AgentID:  "agent-2",
-			Schedule: protocol.Schedule{Timezone: "Asia/Shanghai"},
+			Schedule: automationdomain.Schedule{Timezone: "Asia/Shanghai"},
 		}},
 	}
 	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "update_scheduled_task", map[string]any{

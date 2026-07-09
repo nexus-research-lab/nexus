@@ -8,12 +8,11 @@ import (
 	"strings"
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"
 )
 
 // RunTaskNow 立即触发一次任务。
-func (s *Service) RunTaskNow(ctx context.Context, jobID string) (*protocol.ExecutionResult, error) {
+func (s *Service) RunTaskNow(ctx context.Context, jobID string) (*automationdomain.ExecutionResult, error) {
 	if err := s.ensureReady(ctx); err != nil {
 		return nil, err
 	}
@@ -23,7 +22,7 @@ func (s *Service) RunTaskNow(ctx context.Context, jobID string) (*protocol.Execu
 		return nil, err
 	}
 	if job == nil {
-		return nil, protocol.ErrJobNotFound
+		return nil, automationdomain.ErrJobNotFound
 	}
 	s.loggerFor(ctx).Info("手动触发自动化任务",
 		"job_id", job.JobID,
@@ -35,13 +34,13 @@ func (s *Service) RunTaskNow(ctx context.Context, jobID string) (*protocol.Execu
 		if result != nil && result.RunID != nil {
 			runID = *result.RunID
 		}
-		s.recordTaskEvent(ctx, protocol.TaskEventActionRunNow, *job, runID, map[string]any{"status": anyExecutionStatus(result)})
+		s.recordTaskEvent(ctx, automationdomain.TaskEventActionRunNow, *job, runID, map[string]any{"status": anyExecutionStatus(result)})
 	}
 	return result, err
 }
 
 // ListTaskRuns 返回任务运行历史。
-func (s *Service) ListTaskRuns(ctx context.Context, jobID string) ([]protocol.CronRun, error) {
+func (s *Service) ListTaskRuns(ctx context.Context, jobID string) ([]automationdomain.CronRun, error) {
 	if err := s.ensureReady(ctx); err != nil {
 		return nil, err
 	}
@@ -63,17 +62,17 @@ func (s *Service) ListTaskRuns(ctx context.Context, jobID string) ([]protocol.Cr
 		return nil, err
 	}
 	if len(runs) == 0 && len(events) == 0 {
-		return nil, protocol.ErrJobNotFound
+		return nil, automationdomain.ErrJobNotFound
 	}
 	return runs, nil
 }
 
 // RetryRunDelivery 只重试某次 run 的结果投递，不重新执行任务本身。
-func (s *Service) RetryRunDelivery(ctx context.Context, jobID string, runID string) (*protocol.CronRun, error) {
+func (s *Service) RetryRunDelivery(ctx context.Context, jobID string, runID string) (*automationdomain.CronRun, error) {
 	return s.retryRunDelivery(ctx, jobID, runID, true)
 }
 
-func (s *Service) retryRunDelivery(ctx context.Context, jobID string, runID string, recordEvent bool) (*protocol.CronRun, error) {
+func (s *Service) retryRunDelivery(ctx context.Context, jobID string, runID string, recordEvent bool) (*automationdomain.CronRun, error) {
 	if err := s.ensureReady(ctx); err != nil {
 		return nil, err
 	}
@@ -83,29 +82,29 @@ func (s *Service) retryRunDelivery(ctx context.Context, jobID string, runID stri
 		return nil, err
 	}
 	if job == nil {
-		return nil, protocol.ErrJobNotFound
+		return nil, automationdomain.ErrJobNotFound
 	}
 	run, err := s.repository.GetRun(ctx, ownerUserID, job.JobID, strings.TrimSpace(runID))
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, protocol.ErrRunNotFound
+		return nil, automationdomain.ErrRunNotFound
 	}
 	if err != nil {
 		return nil, err
 	}
 	if run == nil {
-		return nil, protocol.ErrRunNotFound
+		return nil, automationdomain.ErrRunNotFound
 	}
 	runStatus := strings.TrimSpace(run.Status)
-	if runStatus == protocol.RunStatusPending || runStatus == protocol.RunStatusRunning {
+	if runStatus == automationdomain.RunStatusPending || runStatus == automationdomain.RunStatusRunning {
 		return nil, errors.New("run is not finished")
 	}
 	deliveryStatusBeforeRetry := strings.TrimSpace(run.DeliveryStatus)
-	if deliveryStatusBeforeRetry != protocol.DeliveryStatusFailed {
+	if deliveryStatusBeforeRetry != automationdomain.DeliveryStatusFailed {
 		return nil, fmt.Errorf("run delivery_status must be failed before retrying delivery, got %q", deliveryStatusBeforeRetry)
 	}
 
 	observation := automationdomain.ExecutionObservation{
-		Status:        protocol.RunStatusSucceeded,
+		Status:        automationdomain.RunStatusSucceeded,
 		SessionID:     run.SessionID,
 		MessageCount:  run.MessageCount,
 		ResultText:    anyStringPointer(run.ResultText),
@@ -139,25 +138,25 @@ func (s *Service) retryRunDelivery(ctx context.Context, jobID string, runID stri
 
 	updated, err := s.repository.GetRun(ctx, ownerUserID, job.JobID, run.RunID)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, protocol.ErrRunNotFound
+		return nil, automationdomain.ErrRunNotFound
 	}
 	if err != nil {
 		return nil, err
 	}
 	if recordEvent && updated != nil {
-		s.recordTaskEvent(ctx, protocol.TaskEventActionRetryDelivery, *job, run.RunID, deliveryRetryTaskEventDetail(*updated))
+		s.recordTaskEvent(ctx, automationdomain.TaskEventActionRetryDelivery, *job, run.RunID, deliveryRetryTaskEventDetail(*updated))
 	}
 	return updated, nil
 }
 
 // RecoverTaskRunningRun 手动释放任务当前运行占用，并把未完成 run 标记为取消。
-func (s *Service) RecoverTaskRunningRun(ctx context.Context, jobID string, runID string) (*protocol.CronJob, error) {
+func (s *Service) RecoverTaskRunningRun(ctx context.Context, jobID string, runID string) (*automationdomain.CronJob, error) {
 	current, err := s.GetTask(ctx, jobID)
 	if err != nil {
 		return nil, err
 	}
 	if current == nil {
-		return nil, protocol.ErrJobNotFound
+		return nil, automationdomain.ErrJobNotFound
 	}
 	currentRunID := strings.TrimSpace(current.RunningRunID)
 	if currentRunID == "" {
@@ -183,11 +182,11 @@ func (s *Service) RecoverTaskRunningRun(ctx context.Context, jobID string, runID
 	result.FailureStreak = state.FailureStreak
 	result.LastError = cloneStringPointer(state.LastError)
 	result.LastDeliveryStatus = strings.TrimSpace(state.LastDeliveryStatus)
-	s.recordTaskEvent(ctx, protocol.TaskEventActionRecover, result, currentRunID, map[string]any{"recovered_run_id": currentRunID})
+	s.recordTaskEvent(ctx, automationdomain.TaskEventActionRecover, result, currentRunID, map[string]any{"recovered_run_id": currentRunID})
 	return &result, nil
 }
 
-func anyExecutionStatus(result *protocol.ExecutionResult) string {
+func anyExecutionStatus(result *automationdomain.ExecutionResult) string {
 	if result == nil {
 		return ""
 	}

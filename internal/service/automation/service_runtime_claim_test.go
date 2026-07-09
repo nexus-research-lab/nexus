@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
 	"github.com/nexus-research-lab/nexus/internal/config"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"
 
@@ -31,19 +31,19 @@ func TestServiceCreateTaskPersistsRuntimeState(t *testing.T) {
 		return now
 	}
 
-	task, err := service.CreateTask(context.Background(), protocol.CreateJobInput{
+	task, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
 		Name:        "持久运行态",
 		AgentID:     "agent-1",
 		Instruction: "记录下一次运行",
-		Schedule: protocol.Schedule{
-			Kind:            protocol.ScheduleKindEvery,
+		Schedule: automationdomain.Schedule{
+			Kind:            automationdomain.ScheduleKindEvery,
 			IntervalSeconds: intRef(90),
 			Timezone:        "Asia/Shanghai",
 		},
-		SessionTarget: protocol.SessionTarget{
-			Kind: protocol.SessionTargetIsolated,
+		SessionTarget: automationdomain.SessionTarget{
+			Kind: automationdomain.SessionTargetIsolated,
 		},
-		Delivery: protocol.DeliveryTarget{Mode: protocol.DeliveryModeNone},
+		Delivery: automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
 		Enabled:  true,
 	})
 	if err != nil {
@@ -81,20 +81,20 @@ func TestRepositoryClaimCronJobRuntimePreventsDuplicateExternalClaims(t *testing
 		&fakeWorkspaceReader{},
 		nil,
 	)
-	task, err := service.CreateTask(context.Background(), protocol.CreateJobInput{
+	task, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
 		Name:        "领取防重",
 		AgentID:     "agent-1",
 		Instruction: "只应领取一次",
-		Schedule: protocol.Schedule{
-			Kind:            protocol.ScheduleKindEvery,
+		Schedule: automationdomain.Schedule{
+			Kind:            automationdomain.ScheduleKindEvery,
 			IntervalSeconds: intRef(3600),
 			Timezone:        "Asia/Shanghai",
 		},
-		SessionTarget: protocol.SessionTarget{
-			Kind: protocol.SessionTargetIsolated,
+		SessionTarget: automationdomain.SessionTarget{
+			Kind: automationdomain.SessionTargetIsolated,
 		},
-		Delivery:      protocol.DeliveryTarget{Mode: protocol.DeliveryModeNone},
-		OverlapPolicy: protocol.OverlapPolicySkip,
+		Delivery:      automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
+		OverlapPolicy: automationdomain.OverlapPolicySkip,
 		Enabled:       true,
 	})
 	if err != nil {
@@ -108,7 +108,7 @@ func TestRepositoryClaimCronJobRuntimePreventsDuplicateExternalClaims(t *testing
 		RunID:         "run-1",
 		StartedAt:     startedAt,
 		NextRunAt:     &nextRunAt,
-		OverlapPolicy: protocol.OverlapPolicySkip,
+		OverlapPolicy: automationdomain.OverlapPolicySkip,
 	})
 	if err != nil {
 		t.Fatalf("第一次领取失败: %v", err)
@@ -121,7 +121,7 @@ func TestRepositoryClaimCronJobRuntimePreventsDuplicateExternalClaims(t *testing
 		RunID:         "run-2",
 		StartedAt:     startedAt.Add(time.Second),
 		NextRunAt:     &nextRunAt,
-		OverlapPolicy: protocol.OverlapPolicySkip,
+		OverlapPolicy: automationdomain.OverlapPolicySkip,
 	})
 	if err != nil {
 		t.Fatalf("第二次领取失败: %v", err)
@@ -142,7 +142,7 @@ func TestRepositoryClaimCronJobRuntimePreventsDuplicateExternalClaims(t *testing
 	if err != nil {
 		t.Fatalf("外部领取后本进程触发应返回当前运行态而不是报错: %v", err)
 	}
-	if result == nil || result.Status != protocol.RunStatusRunning || result.RunID == nil || *result.RunID != "run-1" {
+	if result == nil || result.Status != automationdomain.RunStatusRunning || result.RunID == nil || *result.RunID != "run-1" {
 		t.Fatalf("外部领取后的触发结果 = %+v, 期望 running/run-1", result)
 	}
 	if err = db.QueryRow(`SELECT running_run_id FROM automation_cron_jobs WHERE job_id = ?`, task.JobID).Scan(&runningRunID); err != nil {
@@ -172,19 +172,19 @@ func TestScriptJobExternalClaimDoesNotRecordSkippedRun(t *testing.T) {
 		&fakeWorkspaceReader{},
 		nil,
 	)
-	task, err := service.CreateTask(context.Background(), protocol.CreateJobInput{
+	task, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
 		Name:          "脚本领取防重",
 		AgentID:       "agent-1",
 		Instruction:   "echo should-not-run",
-		ExecutionKind: protocol.ExecutionKindScript,
-		Schedule: protocol.Schedule{
-			Kind:            protocol.ScheduleKindEvery,
+		ExecutionKind: automationdomain.ExecutionKindScript,
+		Schedule: automationdomain.Schedule{
+			Kind:            automationdomain.ScheduleKindEvery,
 			IntervalSeconds: intRef(3600),
 			Timezone:        "Asia/Shanghai",
 		},
-		SessionTarget: protocol.SessionTarget{Kind: protocol.SessionTargetIsolated},
-		Delivery:      protocol.DeliveryTarget{Mode: protocol.DeliveryModeNone},
-		OverlapPolicy: protocol.OverlapPolicySkip,
+		SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetIsolated},
+		Delivery:      automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
+		OverlapPolicy: automationdomain.OverlapPolicySkip,
 		Enabled:       true,
 	})
 	if err != nil {
@@ -198,7 +198,7 @@ func TestScriptJobExternalClaimDoesNotRecordSkippedRun(t *testing.T) {
 		RunID:         "run-script-1",
 		StartedAt:     startedAt,
 		NextRunAt:     &nextRunAt,
-		OverlapPolicy: protocol.OverlapPolicySkip,
+		OverlapPolicy: automationdomain.OverlapPolicySkip,
 	})
 	if err != nil {
 		t.Fatalf("脚本任务外部领取失败: %v", err)
@@ -210,7 +210,7 @@ func TestScriptJobExternalClaimDoesNotRecordSkippedRun(t *testing.T) {
 	if err != nil {
 		t.Fatalf("脚本任务外部领取后触发失败: %v", err)
 	}
-	if result == nil || result.Status != protocol.RunStatusRunning || result.RunID == nil || *result.RunID != "run-script-1" {
+	if result == nil || result.Status != automationdomain.RunStatusRunning || result.RunID == nil || *result.RunID != "run-script-1" {
 		t.Fatalf("脚本任务外部领取后的触发结果 = %+v, 期望 running/run-script-1", result)
 	}
 	var runCount int
