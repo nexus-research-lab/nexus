@@ -178,21 +178,6 @@ export function setTourDismissed(tourId: string, dismissed: boolean) {
   writeDismissedTours(nextValue);
 }
 
-function isSidebarOnboardingHintDismissed(): boolean {
-  if (typeof window === "undefined") {
-    return true;
-  }
-  return window.localStorage.getItem(SIDEBAR_HINT_DISMISSED_STORAGE_KEY) === "true";
-}
-
-function setSidebarOnboardingHintDismissed() {
-  if (typeof window === "undefined") {
-    return;
-  }
-  window.localStorage.setItem(SIDEBAR_HINT_DISMISSED_STORAGE_KEY, "true");
-  persistDesktopValue(DESKTOP_SIDEBAR_HINT_KEY, "true");
-}
-
 export function readRequestedTourId(): string | null {
   if (typeof window === "undefined") {
     return null;

@@ -7,7 +7,7 @@
 
 import { requestApi } from "@/lib/api/http";
 import { getDesktopRuntimeConfig } from "@/config/desktop-runtime";
-import type { AgentOptions, AgentProvider } from "@/types/agent/agent";
+import type { AgentOptions } from "@/types/agent/agent";
 import type { AgentConversationDefaultDeliveryPolicy } from "@/types/agent/agent-conversation";
 import { normalizeAgentRuntimeKind, type AgentRuntimeKind, type UserPreferences } from "@/types/settings/preferences";
 import {
@@ -17,8 +17,6 @@ import {
 
 let DEFAULT_AGENT_ID = "";
 let DEFAULT_AGENT_AVATAR = "";
-let DEFAULT_AGENT_PROVIDER: AgentProvider = "";
-let DEFAULT_AGENT_MODEL = "";
 export const USER_PREFERENCES_CHANGED_EVENT = "nexus:user-preferences-changed";
 let DEFAULT_CHAT_DELIVERY_POLICY: AgentConversationDefaultDeliveryPolicy = "queue";
 let DEFAULT_AGENT_RUNTIME_KIND: AgentRuntimeKind = "nxs";
@@ -105,16 +103,6 @@ function setDefaultAgentAvatar(avatar?: string | null): void {
   DEFAULT_AGENT_AVATAR = normalizedAvatar || "";
 }
 
-export function setDefaultAgentProvider(provider?: string | null): void {
-  const normalizedProvider = provider?.trim();
-  DEFAULT_AGENT_PROVIDER = normalizedProvider || "";
-}
-
-export function setDefaultAgentModel(model?: string | null): void {
-  const normalizedModel = model?.trim();
-  DEFAULT_AGENT_MODEL = normalizedModel || "";
-}
-
 export function getInitialAgentOptions(): Partial<AgentOptions> {
   return cloneAgentOptions(DEFAULT_AGENT_OPTIONS);
 }
@@ -167,8 +155,6 @@ export async function hydrateRuntimeOptions(): Promise<void> {
   const payload = await requestApi<{
     default_agent_id: string;
     default_agent_avatar?: string | null;
-    default_agent_provider?: string | null;
-    default_agent_model?: string | null;
     preferences?: UserPreferences | null;
   }>(
     `${getAgentApiBaseUrl()}/runtime/options`,
@@ -184,8 +170,6 @@ export async function hydrateRuntimeOptions(): Promise<void> {
 
   DEFAULT_AGENT_ID = nextDefaultAgentId;
   setDefaultAgentAvatar(payload?.default_agent_avatar);
-  setDefaultAgentProvider(payload?.default_agent_provider);
-  setDefaultAgentModel(payload?.default_agent_model);
   setUserPreferences(payload?.preferences);
 }
 

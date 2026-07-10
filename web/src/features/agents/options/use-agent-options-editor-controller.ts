@@ -10,11 +10,7 @@ import type {
 } from "@/types/agent/agent";
 import type { ProviderOption } from "@/types/capability/provider";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import {
-  getDefaultAgentRuntimeKind,
-  setDefaultAgentModel,
-  setDefaultAgentProvider,
-} from "@/config/options";
+import { getDefaultAgentRuntimeKind } from "@/config/options";
 import type { TabKey } from "@/features/agents/options/components/agent-options-nav";
 import {
   DEFAULT_AGENT_OPTION_MODEL,
@@ -142,8 +138,6 @@ export function useAgentOptionsEditorController({
         setProviderOptions(payload.items);
         setDefaultProvider(normalizeAgentOptionProvider(payload.default_provider));
         setDefaultModel(payload.default_model?.trim() || "");
-        setDefaultAgentProvider(payload.default_provider);
-        setDefaultAgentModel(payload.default_model);
         setProviderOptionsError(null);
       } catch (error) {
         if (!cancelled) {

@@ -64,18 +64,6 @@ export interface RoomAgentRoundEntry {
   timestamp: number;
 }
 
-/** 判断一个轮次是否包含多个 Agent 的 assistant 消息 */
-function isMultiAgentRound(messages: Message[]): boolean {
-  const agentIds = new Set<string>();
-  for (const msg of messages) {
-    if (msg.role === "assistant" && msg.agent_id) {
-      agentIds.add(msg.agent_id);
-      if (agentIds.size > 1) return true;
-    }
-  }
-  return false;
-}
-
 /** 判断一轮 Room 消息是否已经出现可归属到 Agent 的回复。 */
 export function hasRoomAgentRoundEntries(
   messages: Message[],

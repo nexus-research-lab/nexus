@@ -6,7 +6,7 @@
 
 "use client";
 
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import {
   Check,
   CheckCircle,

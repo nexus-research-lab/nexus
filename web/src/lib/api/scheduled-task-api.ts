@@ -9,22 +9,15 @@ import { requestApi } from "@/lib/api/http";
 import { toTimestampOrNull } from "@/lib/api/timestamp-utils";
 import type {
   ApiScheduledTask,
-  ApiScheduledTaskDailyReport,
-  ApiScheduledTaskEvent,
   ApiScheduledTaskExecutionResult,
   ApiScheduledTaskRun,
-  ApiScheduledTaskStatus,
   CreateScheduledTaskParams,
   DeleteScheduledTaskResponse,
   ListScheduledTasksParams,
   RecoverScheduledTaskRunParams,
-  ScheduledTaskDailyReport,
-  ScheduledTaskDailyReportTask,
-  ScheduledTaskEventItem,
   ScheduledTaskItem,
   ScheduledTaskRunItem,
   ScheduledTaskRunNowResponse,
-  ScheduledTaskStatusItem,
   UpdateScheduledTaskParams,
   UpdateScheduledTaskStatusParams,
 } from "@/types/capability/scheduled-task";
@@ -54,45 +47,6 @@ function transformRun(apiRun: ApiScheduledTaskRun): ScheduledTaskRunItem {
   };
 }
 
-function transformEvent(apiEvent: ApiScheduledTaskEvent): ScheduledTaskEventItem {
-  return {
-    ...apiEvent,
-    created_at: toTimestampOrNull(apiEvent.created_at),
-  };
-}
-
-function transformStatus(apiStatus: ApiScheduledTaskStatus): ScheduledTaskStatusItem {
-  return {
-    ...apiStatus,
-    job: transformTask(apiStatus.job),
-    recent_runs: apiStatus.recent_runs.map(transformRun),
-    recent_events: apiStatus.recent_events.map(transformEvent),
-  };
-}
-
-function transformDailyReportTask(
-  apiTask: ApiScheduledTaskDailyReport["tasks"][number],
-): ScheduledTaskDailyReportTask {
-  return {
-    ...apiTask,
-    next_run_at: toTimestampOrNull(apiTask.next_run_at),
-    last_run_at: toTimestampOrNull(apiTask.last_run_at),
-    failure_streak: apiTask.failure_streak ?? 0,
-    runs: apiTask.runs.map(transformRun),
-  };
-}
-
-function transformDailyReport(
-  apiReport: ApiScheduledTaskDailyReport,
-): ScheduledTaskDailyReport {
-  return {
-    ...apiReport,
-    start_at: toTimestampOrNull(apiReport.start_at),
-    end_at: toTimestampOrNull(apiReport.end_at),
-    tasks: apiReport.tasks.map(transformDailyReportTask),
-  };
-}
-
 function transformRunNowResult(
   apiResult: ApiScheduledTaskExecutionResult,
 ): ScheduledTaskRunNowResponse {
@@ -111,13 +65,6 @@ function buildQuery(params: Record<string, string | undefined>): string {
   });
   const queryString = searchParams.toString();
   return queryString ? `?${queryString}` : "";
-}
-
-function numberQueryValue(value: number | undefined): string | undefined {
-  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
-    return undefined;
-  }
-  return String(Math.floor(value));
 }
 
 export async function listScheduledTasksApi(

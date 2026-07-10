@@ -1,6 +1,6 @@
 "use client";
 
-import { type CSSProperties, useCallback, useEffect, useRef, useState } from "react";
+import { type CSSProperties, useCallback, useEffect, useRef } from "react";
 import { Eye, FileText, FileWarning, LoaderCircle } from "lucide-react";
 import type { Options as DocxPreviewOptions } from "docx-preview";
 

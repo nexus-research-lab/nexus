@@ -1,46 +1,14 @@
-/**
- * 通用可折叠分区
- *
- * 侧边栏面板中的统一 section 容器。
- * 布局：[▸ 标题 数量] ···· [操作按钮]
- * - count 紧跟标题右侧
- * - 操作按钮（+ / →）在最右边，固定宽度占位保证对齐
- */
+/** 侧边栏列表项，统一激活态与行内操作。 */
 
-import { ChevronDown, ChevronRight, Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiListActionButton } from "@/shared/ui/list-action";
-import { useSidebarStore } from "@/store/sidebar";
 
 const SIDEBAR_LIST_ITEM_CLASS_NAME =
   "flex min-w-0 flex-1 items-center gap-2.5 text-left text-[14px]";
-const SIDEBAR_SECTION_TRIGGER_CLASS_NAME =
-  "flex flex-1 items-center gap-1.5 text-[13px] font-semibold uppercase tracking-[0.12em] text-(--text-default) transition-colors duration-(--motion-duration-fast) hover:text-(--text-strong)";
-const SIDEBAR_SECTION_CHEVRON_SLOT_CLASS_NAME =
-  "flex h-6 w-6 shrink-0 items-center justify-center";
-
-interface CollapsibleSectionProps {
-  sectionId: string;
-  title: string;
-  count?: number;
-  /** 标题左侧图标 */
-  icon?: ReactNode;
-  children: React.ReactNode;
-  /** 标题点击行为，与折叠切换分离 */
-  onTitleClick?: () => void;
-  /** 标题是否处于激活态 */
-  isTitleActive?: boolean;
-  /** 标题栏右侧操作按钮（+ / → 等），固定宽度占位 */
-  onAction?: () => void;
-  /** 操作按钮的 title 属性 */
-  actionTitle?: string;
-  /** 操作按钮内容 */
-  actionIcon?: ReactNode;
-}
-
 interface SidebarListItemProps {
   icon: ReactNode;
   label: string;
@@ -184,103 +152,5 @@ export function SidebarListItem({
         </div>
       ) : null}
     </div>
-  );
-}
-
-function CollapsibleSection({
-  sectionId: sectionId,
-  title,
-  count,
-  icon,
-  children,
-  onTitleClick: onTitleClick,
-  isTitleActive: isTitleActive = false,
-  onAction: onAction,
-  actionTitle: actionTitle = "新建",
-  actionIcon: actionIcon,
-}: CollapsibleSectionProps) {
-  const isCollapsed = useSidebarStore(
-    (s) => s.collapsed_sections[sectionId] ?? false,
-  );
-  const toggle = useSidebarStore((s) => s.toggle_section);
-  const titleContent = (
-    <>
-      {icon ? <span className="flex items-center">{icon}</span> : null}
-      <span>{title}</span>
-      {typeof count === "number" ? (
-        <span className="text-[12px] font-medium tabular-nums text-(--text-muted)">{count}</span>
-      ) : null}
-    </>
-  );
-
-  return (
-    <section className="border-b divider-subtle pb-1.5 last:border-b-0">
-      <div className="group/section flex w-full items-center justify-between px-2.5 py-2">
-        {onTitleClick ? (
-          <div className="flex min-w-0 flex-1 items-center">
-            <button
-              className={cn(
-                SIDEBAR_SECTION_CHEVRON_SLOT_CLASS_NAME,
-                "rounded-full text-(--icon-muted) transition-colors duration-(--motion-duration-fast) hover:text-(--icon-default)",
-              )}
-              onClick={() => toggle(sectionId)}
-              type="button"
-            >
-              {isCollapsed ? (
-                <ChevronRight className="h-3.5 w-3.5" />
-              ) : (
-                <ChevronDown className="h-3.5 w-3.5" />
-              )}
-            </button>
-            <button
-              className={cn(
-                SIDEBAR_SECTION_TRIGGER_CLASS_NAME,
-                "min-w-0 flex-1",
-                isTitleActive && "text-(--text-strong)",
-              )}
-              onClick={onTitleClick}
-              type="button"
-            >
-              {titleContent}
-            </button>
-          </div>
-        ) : (
-          <button
-            className={SIDEBAR_SECTION_TRIGGER_CLASS_NAME}
-            onClick={() => toggle(sectionId)}
-            type="button"
-          >
-            <span className={SIDEBAR_SECTION_CHEVRON_SLOT_CLASS_NAME}>
-              {isCollapsed ? (
-                <ChevronRight className="h-3.5 w-3.5" />
-              ) : (
-                <ChevronDown className="h-3.5 w-3.5" />
-              )}
-            </span>
-            {titleContent}
-          </button>
-        )}
-
-        {/* 右侧操作按钮，固定宽度占位保证对齐 */}
-        {onAction ? (
-          <UiListActionButton
-            onClick={onAction}
-            shape="round"
-            size="md"
-            stopPropagation
-            title={actionTitle}
-            visibility="visible"
-          >
-            {actionIcon}
-          </UiListActionButton>
-        ) : (
-          <span className="flex h-5 w-5 shrink-0" />
-        )}
-      </div>
-
-      {!isCollapsed ? (
-        <div className="flex flex-col gap-0.5 pb-1">{children}</div>
-      ) : null}
-    </section>
   );
 }

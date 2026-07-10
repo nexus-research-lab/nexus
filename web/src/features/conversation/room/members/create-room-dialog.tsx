@@ -7,7 +7,7 @@
 
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { Check, Crown, Hash, Plus, Search } from "lucide-react";
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";

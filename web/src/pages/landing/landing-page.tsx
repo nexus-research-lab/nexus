@@ -3,7 +3,6 @@ import {
   CheckCircle2,
   CircleDot,
   Clock3,
-  Compass,
   ListTodo,
 } from "lucide-react";
 import { Link } from "react-router-dom";

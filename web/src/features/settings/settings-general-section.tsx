@@ -2,11 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import {
-  setDefaultAgentModel,
-  setDefaultAgentProvider,
-  setUserPreferences,
-} from "@/config/options";
+import { setUserPreferences } from "@/config/options";
 import {
   DEFAULT_AGENT_PERMISSION_MODE,
 } from "@/features/agents/options/agent-options-constants";
@@ -95,8 +91,6 @@ export function SettingsGeneralSection() {
       const agentModel =
         nextPreferences.default_agent_options.model?.trim() ||
         providerDefaultSelectionRef.current.model;
-      setDefaultAgentProvider(agentProvider);
-      setDefaultAgentModel(agentModel);
       setDefaultModelValue(
         encodeOptionalModelSelection(agentProvider, agentModel),
       );
@@ -409,22 +403,12 @@ export function SettingsGeneralSection() {
           lastSavedPreferencesRef.current = saved;
           setPreferences(saved);
           setUserPreferences(saved);
-          if (role === "agent_runtime") {
-            setDefaultAgentProvider(selection.provider);
-            setDefaultAgentModel(selection.model);
-          }
         } catch (error) {
           const fallback = lastSavedPreferencesRef.current;
           if (fallback) {
             preferencesRef.current = fallback;
             setPreferences(fallback);
             setUserPreferences(fallback);
-            if (role === "agent_runtime") {
-              setDefaultAgentProvider(
-                fallback.default_agent_options.provider,
-              );
-              setDefaultAgentModel(fallback.default_agent_options.model);
-            }
           }
           if (role === "image_generation") {
             setDefaultImageModelValue(previousValue);

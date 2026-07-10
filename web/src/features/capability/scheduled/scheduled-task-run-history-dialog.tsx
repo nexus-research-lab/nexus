@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { History, RefreshCw, X } from "lucide-react";
 
 import { writeTextToClipboard } from "@/hooks/ui/clipboard";

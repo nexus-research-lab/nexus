@@ -1,11 +1,13 @@
 # Liquid Glass 资产说明
 
-这个目录里的 `glass-switch`、`glass-magnifier` 和 `liquid-glass-engine` 共享同一套液态玻璃思路：
+这个目录里的 `glass-switch` 和 `glass-magnifier` 使用同一套液态玻璃资源；`liquid-glass-engine` 只负责浏览器能力检测：
 
 - 几何参数先定义玻璃曲面
 - 位移图负责折射方向
 - 高光图负责 specular / rim light
 - 最终通过 SVG filter 的 `feDisplacementMap + feBlend` 落到浏览器里
+
+位移图和高光图只由离线脚本生成。运行时不再创建 Canvas 贴图，避免重复计算和无界缓存。
 
 ## 1. 那两张 PNG 是干什么的
 

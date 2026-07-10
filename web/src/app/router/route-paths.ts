@@ -46,5 +46,3 @@ export const AppRouteBuilders = {
   operations: () => APP_ROUTE_PATHS.operations,
   settings: () => APP_ROUTE_PATHS.settings,
 } as const;
-
-type AppRoutePathKey = keyof typeof APP_ROUTE_PATHS;

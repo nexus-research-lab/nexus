@@ -80,11 +80,6 @@ import {
   updatePendingAgentSlotStatus,
 } from "./conversation-runtime-reconciliation";
 import {
-  AgentConversationHistoryCursor,
-  loadAgentConversationMessagesAroundRound,
-  loadOlderAgentConversationMessages,
-} from "./conversation-history";
-import {
   buildVolatileConversationSnapshot,
   filterPendingPermissionsFromSnapshot,
   filterPendingSlotsFromSnapshot,
@@ -98,6 +93,7 @@ import {
 } from "./conversation-volatile-snapshot";
 import { useConversationStreamBuffer } from "./use-conversation-stream-buffer";
 import { usePendingChatAcks } from "./use-pending-chat-acks";
+import { useAgentConversationHistory } from "./use-agent-conversation-history";
 import { useAgentConversationSocket } from "./use-agent-conversation-socket";
 
 export function useAgentConversation(
@@ -133,9 +129,6 @@ export function useAgentConversation(
   const [error, setError] = useState<string | null>(null);
   const [sessionKey, setSessionKey] = useResettableState<string | null>(identitySessionKey, identitySessionKey);
   const [isSessionLoading, setIsSessionLoading] = useState(false);
-  const [isHistoryLoading, setIsHistoryLoadingState] = useState(false);
-  const [hasMoreHistory, setHasMoreHistoryState] = useState(false);
-  const [historyPrependToken, setHistoryPrependToken] = useState(0);
   const [pendingAgentSlots, setPendingAgentSlotsState] = useState<
     RoomPendingAgentSlotState[]
   >([]);
@@ -153,13 +146,6 @@ export function useAgentConversation(
   const loadRequestIdRef = useRef(0);
   const sessionSeqCursorRef = useRef(0);
   const roomSeqCursorRef = useRef(0);
-  const isHistoryLoadingRef = useRef(false);
-  const isRoundWindowLoadingRef = useRef(false);
-  const hasMoreHistoryRef = useRef(false);
-  const historyCursorRef = useRef<AgentConversationHistoryCursor>({
-    before_round_id: null,
-    before_round_timestamp: null,
-  });
   const pendingAgentSlotsRef = useRef<RoomPendingAgentSlotState[]>([]);
   const pendingPermissionsRef = useRef<
     UseAgentConversationReturn["pending_permissions"]
@@ -188,33 +174,21 @@ export function useAgentConversation(
     });
   }, []);
 
-  const setHistoryLoading = useCallback((nextValue: boolean) => {
-    isHistoryLoadingRef.current = nextValue;
-    setIsHistoryLoadingState((currentValue) =>
-      currentValue === nextValue ? currentValue : nextValue,
-    );
-  }, []);
-
-  const setHasMoreHistory = useCallback((nextValue: boolean) => {
-    hasMoreHistoryRef.current = nextValue;
-    setHasMoreHistoryState((currentValue) =>
-      currentValue === nextValue ? currentValue : nextValue,
-    );
-  }, []);
-
-  const resetHistoryState = useCallback(() => {
-    historyCursorRef.current = {
-      before_round_id: null,
-      before_round_timestamp: null,
-    };
-    setHistoryLoading(false);
-    setHasMoreHistory(false);
-  }, [setHasMoreHistory, setHistoryLoading]);
-
-  const resetHistoryPagination = useCallback(() => {
-    resetHistoryState();
-    setHistoryPrependToken(0);
-  }, [resetHistoryState]);
+  const {
+    hasMoreHistory,
+    historyCursorRef,
+    historyPrependToken,
+    isHistoryLoading,
+    loadOlderMessages,
+    loadRoundWindow,
+    resetHistoryPagination,
+    setHasMoreHistory,
+  } = useAgentConversationHistory({
+    activeSessionKeyRef,
+    identity,
+    setError,
+    setMessages,
+  });
 
   const applyRuntimeTransition = useCallback(
     (transition: (machine: AgentConversationRuntimeMachine) => void) => {
@@ -474,6 +448,7 @@ export function useAgentConversation(
       setError,
       bgMessageCacheRef,
       reconcileRuntimeStateFromSnapshot,
+      historyCursorRef,
       setHasMoreHistory,
     ],
   );
@@ -531,45 +506,6 @@ export function useAgentConversation(
 
     await loadAgentSession(activeSessionKey, lifecycleContext, true);
   }, [lifecycleContext]);
-
-  const loadOlderMessages = useCallback(async (): Promise<boolean> => {
-    return loadOlderAgentConversationMessages({
-      active_session_key_ref: activeSessionKeyRef,
-      identity,
-      history_cursor_ref: historyCursorRef,
-      has_more_history_ref: hasMoreHistoryRef,
-      is_history_loading_ref: isHistoryLoadingRef,
-      set_history_loading: setHistoryLoading,
-      set_has_more_history: setHasMoreHistory,
-      set_history_prepend_token: setHistoryPrependToken,
-      set_messages: setMessages,
-      set_error: setError,
-    });
-  }, [
-    identity,
-    setError,
-    setHasMoreHistory,
-    setHistoryLoading,
-    setMessages,
-  ]);
-
-  const loadRoundWindow = useCallback(async (roundId: string): Promise<boolean> => {
-    return loadAgentConversationMessagesAroundRound({
-      active_session_key_ref: activeSessionKeyRef,
-      identity,
-      history_cursor_ref: historyCursorRef,
-      is_round_window_loading_ref: isRoundWindowLoadingRef,
-      round_id: roundId,
-      set_has_more_history: setHasMoreHistory,
-      set_messages: setMessages,
-      set_error: setError,
-    });
-  }, [
-    identity,
-    setError,
-    setHasMoreHistory,
-    setMessages,
-  ]);
 
   const enqueueStreamPayload = useConversationStreamBuffer(setMessages);
 

@@ -1,29 +1,20 @@
-import { useMemo } from "react";
 import { prepare, layout } from "@chenglou/pretext";
 import { isAutomationTriggerUserMessage } from "@/types/conversation/automation-message";
 import { ContentBlock, Message } from "@/types/conversation/message";
 
-// Base font matching MarkdownRenderer prose text (text-sm = 14px, leading-7 = 28px)
+// 与 Markdown 正文的字号和行高保持一致，避免虚拟列表初始估高跳动。
 const PROSE_FONT = "400 14px ui-sans-serif, system-ui, sans-serif";
 const PROSE_LINE_HEIGHT = 28;
 
-// Fixed structural overhead per round: user header + assistant header + padding + border
+// 每轮固定结构：用户头部、Agent 头部、内边距和分隔线。
 const ROUND_CHROME_HEIGHT = 96;
 
-// Fixed overhead per text block (paragraph spacing, container padding)
 const BLOCK_PADDING = 16;
 
-// Code block: fixed height estimate per line of code
 const CODE_LINE_HEIGHT = 22;
 const CODE_BLOCK_MIN_HEIGHT = 80;
 
-// Tool block fixed height
 const TOOL_BLOCK_HEIGHT = 60;
-
-type HeightEstimate = {
-  /** Estimated total height in px for this round */
-  height: number;
-};
 
 function estimateTextHeight(text: string, containerWidth: number): number {
   if (!text.trim()) return 0;
@@ -32,7 +23,7 @@ function estimateTextHeight(text: string, containerWidth: number): number {
     const result = layout(prepared, containerWidth, PROSE_LINE_HEIGHT);
     return result.height + BLOCK_PADDING;
   } catch {
-    // Fallback: rough estimate at ~60 chars/line
+    // 字体测量失败时按平均字符宽度估算，保证虚拟列表仍可工作。
     const charsPerLine = Math.max(1, Math.floor(containerWidth / 8.4));
     const lines = Math.ceil(text.length / charsPerLine);
     return lines * PROSE_LINE_HEIGHT + BLOCK_PADDING;
@@ -82,38 +73,7 @@ function estimateCodeBlockHeight(text: string): number {
 }
 
 /**
- * Estimates the rendered height of a message round using pretext for text
- * measurement. Avoids DOM reflow — safe to call on many items at once.
- */
-function useMessageHeight(
-  messages: Message[],
-  containerWidth: number,
-): HeightEstimate {
-  return useMemo(() => {
-    if (containerWidth <= 0) return { height: 200 };
-
-    const text = extractTextFromMessages(messages);
-    const toolCount = countToolBlocks(messages);
-    const codeBlockHeight = estimateCodeBlockHeight(text);
-
-    // Strip code blocks from text before measuring prose
-    const proseText = text.replace(/```[\s\S]*?```/g, "");
-    const proseHeight = estimateTextHeight(proseText, containerWidth);
-
-    const height =
-      ROUND_CHROME_HEIGHT +
-      proseHeight +
-      codeBlockHeight +
-      toolCount * TOOL_BLOCK_HEIGHT;
-
-    return { height: Math.max(80, height) };
-  }, [messages, containerWidth]);
-}
-
-/**
- * Batch height estimates for all rounds — call once, get all heights.
- * More efficient than calling useMessageHeight in a loop since we share
- * the prepare() cache across all messages.
+ * 批量估算轮次高度，共享 pretext 缓存并避免逐项触发 DOM 测量。
  */
 export function estimateRoundHeights(
   roundIds: string[],

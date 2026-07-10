@@ -41,22 +41,6 @@ export function formatExternalSessionTitle({
   return (title ?? "").trim() || "New Chat";
 }
 
-function formatExternalSessionSummary({
-  channel_type: channelType,
-  chat_type: chatType,
-  session_key: sessionKey,
-}: {
-  agent_name?: string | null;
-  channel_type?: string | null;
-  chat_type?: string | null;
-  session_key?: string | null;
-}): string {
-  const parsed = parseSessionKey(sessionKey);
-  const channelLabel = getSessionChannelLabel(channelType, sessionKey);
-  const chatLabel = (chatType || parsed.chat_type) === "group" ? "群聊" : "私聊";
-  return `${channelLabel}${chatLabel}`;
-}
-
 export function buildExternalSessionConversationId(sessionKey: string): string {
   return `${EXTERNAL_SESSION_CONVERSATION_PREFIX}${sessionKey.trim()}`;
 }

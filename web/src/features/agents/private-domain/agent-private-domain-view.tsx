@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { PrivateEventTimeline } from "@/features/agents/private-domain/agent-private-domain-timeline";

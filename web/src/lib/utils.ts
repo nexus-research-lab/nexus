@@ -7,7 +7,6 @@
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 
-import { prepareWithSegments } from '@chenglou/pretext';
 import { cn } from "@/shared/ui/class-name";
 
 // ==================== 样式工具 ====================

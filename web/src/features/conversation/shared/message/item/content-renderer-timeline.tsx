@@ -6,7 +6,6 @@ import type { SystemEventContent } from "@/types/conversation/message";
 
 import {
   DEFAULT_TIMELINE_DOT_TOP,
-  getSystemMessageIconClassName,
   getTimelineAnchorElement,
   getTimelineAnchorTop,
 } from "./message-item-support";

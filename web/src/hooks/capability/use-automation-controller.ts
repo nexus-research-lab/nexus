@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 import { resolveAgentId } from "@/config/options";
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
