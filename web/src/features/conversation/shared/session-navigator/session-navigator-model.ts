@@ -6,7 +6,7 @@ import type {
 } from "@/types/conversation/message";
 import type { SessionRoundIndexItem } from "@/types/conversation/room";
 
-import type { ConversationTimeline } from "../use-conversation-timeline";
+import type { ConversationTimeline } from "../timeline/timeline-model";
 import {
   extractTextFromContentBlocks,
   formatMessageTime,

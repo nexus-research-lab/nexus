@@ -18,8 +18,8 @@ import {
   setConversationRoundNavigationTarget,
   type ConversationRoundScrollHandleRef,
   type ConversationRoundScrollOptions,
-} from "../conversation-round-scroll";
-import type { ConversationTimeline } from "../use-conversation-timeline";
+} from "../timeline/round-scroll";
+import type { ConversationTimeline } from "../timeline/timeline-model";
 import {
   buildSessionNavigationItems,
   type SessionNavigationItem,

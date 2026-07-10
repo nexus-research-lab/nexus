@@ -1,7 +1,7 @@
 import { useCallback, useEffect } from "react";
 import type { RefObject } from "react";
 
-import { getConversationRoundNavigationTarget } from "./conversation-round-scroll";
+import { getConversationRoundNavigationTarget } from "./round-scroll";
 
 const HISTORY_LOAD_THRESHOLD_PX = 120;
 

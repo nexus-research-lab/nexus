@@ -1,10 +1,23 @@
 import type {
   AssistantMessage,
   Message,
+  RoomPendingAgentSlotState,
   UserMessage,
 } from "@/types/conversation/message";
+import type { PendingPermission } from "@/types/conversation/permission";
 import type { SessionRoundIndexItem } from "@/types/conversation/room";
-import { stripRoomControlMarkers } from "./message/item/message-item-support";
+import { stripRoomControlMarkers } from "../message/item/message-item-support";
+
+/** DM / Room 共用的唯一时间线投影。 */
+export interface ConversationTimeline {
+  message_groups: Map<string, Message[]>;
+  pending_slot_groups: Map<string, RoomPendingAgentSlotState[]>;
+  pending_permission_groups: Map<string, PendingPermission[]>;
+  loaded_round_ids: string[];
+  feed_round_ids: string[];
+  round_index_items: SessionRoundIndexItem[];
+  live_round_ids: string[];
+}
 
 // 终态轮次里 assistant 仅剩无回复标记（剥离后无文本、无工具/图片等块）时，
 // 视为纯 no-reply，不在时间线显示。保守判定：任何工具/非文本块都算可见输出。
@@ -60,20 +73,12 @@ export function buildTimelineRoundIds(
       !isBlankNoReplyRound(messageGroups.get(roundId) ?? []),
   );
   const seen = new Set(roundIds);
-  const append = (roundId: string | null | undefined) => {
-    const normalized = roundId?.trim();
-    if (!normalized || seen.has(normalized)) {
-      return;
-    }
-    seen.add(normalized);
-    roundIds.push(normalized);
-  };
 
   for (const roundId of extraRoundIds) {
-    append(roundId);
+    appendUniqueRoundId(roundIds, seen, roundId);
   }
   for (const roundId of liveRoundIds) {
-    append(roundId);
+    appendUniqueRoundId(roundIds, seen, roundId);
   }
   return roundIds;
 }

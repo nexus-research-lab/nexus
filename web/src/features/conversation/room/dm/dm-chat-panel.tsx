@@ -25,23 +25,23 @@ import { ConversationErrorBubble } from "@/features/conversation/shared/conversa
 import { ConversationFeed } from "@/features/conversation/shared/feed/conversation-feed";
 import {
   buildConversationScrollContentKey,
-} from "@/features/conversation/shared/conversation-scroll-content-key";
+} from "@/features/conversation/shared/timeline/scroll-content-key";
 import type {
   ConversationRoundScrollHandle,
-} from "@/features/conversation/shared/conversation-round-scroll";
+} from "@/features/conversation/shared/timeline/round-scroll";
 import { ConversationSessionNavigator } from "@/features/conversation/shared/session-navigator/conversation-session-navigator";
-import { goalContinuationHoldForPermission } from "@/features/conversation/shared/goal-continuation-hold";
-import { GoalPanel } from "@/features/conversation/shared/goal-panel";
+import { goalContinuationHoldForPermission } from "@/features/conversation/shared/goal/goal-continuation-hold";
+import { GoalPanel } from "@/features/conversation/shared/goal/goal-panel";
 import { ProviderUnavailableBanner } from "@/features/conversation/shared/provider-unavailable-banner";
 import { ScrollToLatestButton } from "@/features/conversation/shared/scroll-to-latest-button";
-import { useConversationTimeline } from "@/features/conversation/shared/use-conversation-timeline";
+import { useConversationTimeline } from "@/features/conversation/shared/timeline/use-conversation-timeline";
 import { useConversationComposerHandlers } from "@/features/conversation/shared/composer/use-conversation-composer-handlers";
-import { useConversationHistoryLoader } from "@/features/conversation/shared/use-conversation-history-loader";
+import { useConversationHistoryLoader } from "@/features/conversation/shared/timeline/use-history-loader";
 import {
   useConversationSnapshotReporter,
   type ConversationSnapshotBuildInput,
 } from "@/features/conversation/shared/use-conversation-snapshot-reporter";
-import { useVisibleRoundWindowLoader } from "@/features/conversation/shared/use-visible-round-window-loader";
+import { useVisibleRoundWindowLoader } from "@/features/conversation/shared/timeline/use-visible-window-loader";
 import { CONVERSATION_TOUR_ANCHORS } from "../room-tour";
 
 export interface DmChatPanelProps {

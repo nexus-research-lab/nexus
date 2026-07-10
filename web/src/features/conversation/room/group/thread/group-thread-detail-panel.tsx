@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import { MessageItem } from "@/features/conversation/shared/message";
 import {
   buildConversationScrollContentKey,
-} from "@/features/conversation/shared/conversation-scroll-content-key";
+} from "@/features/conversation/shared/timeline/scroll-content-key";
 import { ScrollToLatestButton } from "@/features/conversation/shared/scroll-to-latest-button";
 import { MessageAvatar } from "@/features/conversation/shared/message/ui/message-primitives";
 import { Message } from "@/types/conversation/message";

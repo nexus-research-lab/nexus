@@ -12,7 +12,7 @@ import type {
   PermissionDecisionPayload,
 } from "@/types/conversation/permission";
 import type { SessionRoundIndexItem } from "@/types/conversation/room";
-import type { ConversationRoundScrollHandleRef } from "@/features/conversation/shared/conversation-round-scroll";
+import type { ConversationRoundScrollHandleRef } from "@/features/conversation/shared/timeline/round-scroll";
 
 export interface GroupConversationFeedRefs {
   bottomAnchorRef: RefObject<HTMLDivElement | null>;

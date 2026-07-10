@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed visible conversation window loading to reject stale session completions, handle rejected requests, and retry transient failures without permanently suppressing a round.
+- Fixed Goal panels so stale refresh responses cannot replace a newer session or completed mutation, and serialized edit, pause, resume, and clear commands behind one controller.
 - Fixed scheduled-task editing to preserve future single-run times, load only the resources required by the active execution mode, and enforce Room member-bound execution consistently in the form and payload.
 - Fixed IM pairing Agent reassignment to send the backend `agent_id` field, serialized channel/pairing mutations, and rejected stale list responses so completed writes cannot be overwritten by older directory snapshots.
 - Hid redundant Agent/Room names and the DM badge from desktop chat headers while the sidebar is expanded, restored names when it is collapsed, and removed the persistent processed-duration label below the conversation navigator ruler.

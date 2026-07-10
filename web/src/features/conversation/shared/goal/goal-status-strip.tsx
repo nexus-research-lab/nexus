@@ -16,19 +16,17 @@ import { UiIconButton } from "@/shared/ui/button";
 import type { Goal, GoalStatus } from "@/types/conversation/goal";
 import type { GoalContinuationHold } from "./goal-continuation-hold";
 import {
-  GOAL_STATUS_LABEL,
-  goalBudgetPercent,
-  goalStatusTone,
-  goalUsageTotal,
-} from "./goal-panel-model";
-import {
   GOAL_PANEL_BADGE_CLASS_NAME,
   GOAL_PANEL_COMPACT_CLASS_NAME,
   GOAL_PANEL_LEADING_ICON_CLASS_NAME,
   GOAL_PANEL_ROW_CLASS_NAME,
   GOAL_PANEL_STRIP_CLASS_NAME,
   GOAL_PANEL_SURFACE_CLASS_NAME,
-} from "./goal-panel-styles";
+  GOAL_STATUS_LABEL,
+  goalBudgetPercent,
+  goalStatusTone,
+  goalUsageTotal,
+} from "./goal-model";
 
 interface GoalStatusStripProps {
   canResume: boolean;
@@ -49,13 +47,13 @@ interface GoalStatusStripProps {
 }
 
 function visibleGoalStatus({
-  continuation_hold: continuationHold,
+  continuationHold,
   goal,
-  is_generating: isGenerating,
+  isGenerating,
 }: {
-  continuation_hold: GoalContinuationHold | null;
+  continuationHold: GoalContinuationHold | null;
   goal: Goal;
-  is_generating: boolean;
+  isGenerating: boolean;
 }): { label: string; status: GoalStatus } {
   if (goal.status === "active" && !isGenerating && goal.last_error) {
     return { label: "需处理", status: "blocked" };
@@ -68,7 +66,7 @@ function visibleGoalStatus({
     return { label: "待继续", status: "paused" };
   }
   return {
-    label: GOAL_STATUS_LABEL[goal.status] ?? goal.status,
+    label: GOAL_STATUS_LABEL[goal.status],
     status: goal.status,
   };
 }
@@ -86,28 +84,28 @@ function goalBudgetLabel(goal: Goal): string | null {
 }
 
 export function GoalStatusStrip({
-  canResume: canResume,
+  canResume,
   compact,
-  continuationHold: continuationHold = null,
+  continuationHold = null,
   disabled,
   error,
   goal,
-  isGenerating: isGenerating,
-  isLoading: isLoading,
-  scopeLabel: scopeLabel,
-  statusExtra: statusExtra = null,
-  onClearRequest: onClearRequest,
-  onEdit: onEdit,
-  onPause: onPause,
-  onRefresh: onRefresh,
-  onResume: onResume,
+  isGenerating,
+  isLoading,
+  scopeLabel,
+  statusExtra = null,
+  onClearRequest,
+  onEdit,
+  onPause,
+  onRefresh,
+  onResume,
 }: GoalStatusStripProps) {
   const activeContinuationHold =
     goal.status === "active" ? continuationHold : null;
   const visibleStatus = visibleGoalStatus({
-    continuation_hold: activeContinuationHold,
+    continuationHold: activeContinuationHold,
     goal,
-    is_generating: isGenerating,
+    isGenerating,
   });
   const tone = goalStatusTone(visibleStatus.status);
   const budgetLabel = goalBudgetLabel(goal);

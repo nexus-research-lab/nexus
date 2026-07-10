@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { RefObject } from "react";
 
-import { getConversationRoundFocusOffset } from "../conversation-round-scroll";
+import { getConversationRoundFocusOffset } from "../timeline/round-scroll";
 
 interface ConversationVirtualMetrics {
   containerWidth: number;

@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useRef } from "react";
+import { type FormEvent, useRef } from "react";
 import { Loader2, Target } from "lucide-react";
 
 import {
@@ -31,13 +31,13 @@ export function GoalDraftForm({
   budget,
   disabled,
   error,
-  isLoading: isLoading,
-  loadingLabel: loadingLabel = null,
+  isLoading,
+  loadingLabel = null,
   objective,
-  onBudgetChange: onBudgetChange,
-  onCancel: onCancel,
-  onObjectiveChange: onObjectiveChange,
-  onSubmit: onSubmit,
+  onBudgetChange,
+  onCancel,
+  onObjectiveChange,
+  onSubmit,
 }: GoalDraftFormProps) {
   const objectiveRef = useRef<HTMLTextAreaElement | null>(null);
   const canClose = !disabled && !isLoading;

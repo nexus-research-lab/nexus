@@ -12,8 +12,8 @@ import {
   DIALOG_HEADER_LEADING_CLASS_NAME,
 } from "@/shared/ui/dialog/dialog-styles";
 
-import type { ConversationRoundScrollHandleRef } from "../conversation-round-scroll";
-import type { ConversationTimeline } from "../use-conversation-timeline";
+import type { ConversationRoundScrollHandleRef } from "../timeline/round-scroll";
+import type { ConversationTimeline } from "../timeline/timeline-model";
 import {
   buildTickBackground,
   buildTickVisual,

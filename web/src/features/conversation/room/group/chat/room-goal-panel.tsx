@@ -8,8 +8,8 @@ import type { Goal } from "@/types/conversation/goal";
 import {
   goalContinuationHoldForRoomTarget,
   ROOM_GOAL_SCOPE_LABEL,
-} from "@/features/conversation/shared/goal-continuation-hold";
-import { GoalPanel } from "@/features/conversation/shared/goal-panel";
+} from "@/features/conversation/shared/goal/goal-continuation-hold";
+import { GoalPanel } from "@/features/conversation/shared/goal/goal-panel";
 import {
   resolveDefaultRoomGoalLead,
   resolveRoomGoalLeadAgentId,

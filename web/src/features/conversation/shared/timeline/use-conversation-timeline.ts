@@ -12,32 +12,12 @@ import {
   groupMessagesByRound,
   groupRoomPendingPermissionsByRound,
   groupRoomPendingSlotsByRound,
-} from "./utils";
+} from "../utils";
 import {
   buildIndexedTimelineRoundIds,
   buildTimelineRoundIds,
-} from "./timeline-rounds";
-
-/**
- * 前端唯一的对话时间线投影。
- * DM / Room 共用：所有按 round 的分组、排序、占位推导只在这里发生，
- * feed / navigator / thread 都消费这一份投影，不再各自持有分组真相。
- */
-export interface ConversationTimeline {
-  /** root round -> 该轮全部消息 */
-  message_groups: Map<string, Message[]>;
-  /** root round -> Room 占位槽位 */
-  pending_slot_groups: Map<string, RoomPendingAgentSlotState[]>;
-  /** root round -> 待确认权限 */
-  pending_permission_groups: Map<string, PendingPermission[]>;
-  /** 已加载轮次（含 live 占位）的展示顺序 */
-  loaded_round_ids: string[];
-  /** 叠加导航索引后的完整时间线轮次（含未加载占位） */
-  feed_round_ids: string[];
-  /** turn 导航索引 */
-  round_index_items: SessionRoundIndexItem[];
-  live_round_ids: string[];
-}
+} from "./timeline-model";
+import type { ConversationTimeline } from "./timeline-model";
 
 export interface UseConversationTimelineOptions {
   chat_type: AgentConversationChatType;

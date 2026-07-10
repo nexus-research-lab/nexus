@@ -8,11 +8,11 @@ import type {
   AgentConversationIdentity,
   RoomEventPayload,
 } from "@/types/agent/agent-conversation";
-import type { ConversationRoundScrollHandle } from "@/features/conversation/shared/conversation-round-scroll";
-import { buildConversationScrollContentKey } from "@/features/conversation/shared/conversation-scroll-content-key";
-import { useConversationHistoryLoader } from "@/features/conversation/shared/use-conversation-history-loader";
-import { useConversationTimeline } from "@/features/conversation/shared/use-conversation-timeline";
-import { useVisibleRoundWindowLoader } from "@/features/conversation/shared/use-visible-round-window-loader";
+import type { ConversationRoundScrollHandle } from "@/features/conversation/shared/timeline/round-scroll";
+import { buildConversationScrollContentKey } from "@/features/conversation/shared/timeline/scroll-content-key";
+import { useConversationHistoryLoader } from "@/features/conversation/shared/timeline/use-history-loader";
+import { useConversationTimeline } from "@/features/conversation/shared/timeline/use-conversation-timeline";
+import { useVisibleRoundWindowLoader } from "@/features/conversation/shared/timeline/use-visible-window-loader";
 
 interface UseGroupChatSessionOptions {
   identity: AgentConversationIdentity | null;

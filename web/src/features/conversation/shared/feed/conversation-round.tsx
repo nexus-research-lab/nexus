@@ -3,7 +3,7 @@ import type { Ref } from "react";
 import { MessageItem } from "@/features/conversation/shared/message";
 import type { SessionRoundIndexItem } from "@/types/conversation/room";
 
-import { ConversationRoundPlaceholder } from "../conversation-round-placeholder";
+import { ConversationRoundPlaceholder } from "../timeline/round-placeholder";
 import {
   resolveRoundWorkspaceAgentId,
   type ConversationRoundRenderer,

@@ -1,6 +1,6 @@
 import type { Ref } from "react";
 
-import { ConversationRoundPlaceholder } from "@/features/conversation/shared/conversation-round-placeholder";
+import { ConversationRoundPlaceholder } from "@/features/conversation/shared/timeline/round-placeholder";
 import { MessageItem } from "@/features/conversation/shared/message";
 import { hasRoomAgentRoundEntries } from "@/features/conversation/shared/utils";
 import type { SessionRoundIndexItem } from "@/types/conversation/room";
