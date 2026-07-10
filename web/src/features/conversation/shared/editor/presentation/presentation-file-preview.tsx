@@ -6,7 +6,7 @@ import { ChevronLeft, ChevronRight, Eye, FileText, FileWarning, LoaderCircle } f
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { getWorkspaceFilePreviewUrl } from "@/lib/api/agent-manage-api";
 import { cn } from "@/lib/utils";
-import { ConversationResizeHandle } from "./conversation-resize-handle";
+import { ConversationResizeHandle } from "../conversation-resize-handle";
 import { parsePptx } from "./presentation-pptx-parser";
 import {
   MAX_PPTX_PREVIEW_BYTES,
@@ -19,17 +19,8 @@ import {
   WorkspaceFileDownloadButton,
   WorkspaceFilePreviewFocusButton,
   WorkspaceFilePreviewHeader,
-} from "./workspace-file-preview-chrome";
-
-interface PresentationFilePreviewProps {
-  agentId: string;
-  embedded?: boolean;
-  fileName: string;
-  isPreviewFocused?: boolean;
-  onResizeStart: () => void;
-  onTogglePreviewFocus?: () => void;
-  path: string;
-}
+} from "../workspace-file-preview-chrome";
+import type { WorkspaceFilePreviewProps } from "../workspace-file-preview-types";
 
 export function PresentationFilePreview({
   agentId: agentId,
@@ -39,7 +30,7 @@ export function PresentationFilePreview({
   onResizeStart: onResizeStart,
   onTogglePreviewFocus: onTogglePreviewFocus,
   path,
-}: PresentationFilePreviewProps) {
+}: WorkspaceFilePreviewProps) {
   const cleanupUrlsRef = useRef<() => void>(() => undefined);
   const previewKey = `${agentId}\x1f${path}`;
   const [slides, setSlides] = useResettableState<PresentationSlide[]>([], previewKey);

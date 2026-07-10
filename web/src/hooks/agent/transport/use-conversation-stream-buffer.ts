@@ -7,7 +7,7 @@ import {
   useRef,
 } from "react";
 import { Message, StreamMessage } from "@/types";
-import { applyStreamMessage } from "./message-helpers";
+import { applyStreamMessage } from "../message-helpers";
 
 export function useConversationStreamBuffer(
   setMessages: Dispatch<SetStateAction<Message[]>>,

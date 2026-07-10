@@ -11,7 +11,7 @@ src/
   components/  - UI 组件（按功能领域组织）
   features/    - 领域功能实现；`conversation/shared/composer/` 负责 DM/Room 共用输入区，`conversation/shared/subagent/` 负责子智能体任务，`conversation/shared/session-navigator/` 负责轮次导航，`operations/subscription-admin/` 负责订阅运营，`settings/provider-settings/` 负责 Provider 配置领域
   config/      - 运行时配置常量
-  hooks/       - 自定义 React Hooks
+  hooks/       - 自定义 React Hooks；`agent/` 按动作、会话、运行态和传输协议分层
   lib/         - API 客户端、WebSocket、工具函数
   store/       - Zustand 状态管理（agent + session 独立 store）
   types/       - TypeScript 类型定义
@@ -22,7 +22,7 @@ src/
 - 组件 `PascalCase`，hooks `useXxx`，工具函数 `camelCase`
 - 类型集中在 `types/` 下统一导出，API 层通过 `types/api.ts` 共享 `ApiResponse<T>`
 - Store 使用 Zustand persist middleware，数据持久化到 localStorage
-- WebSocket 消息处理纯函数独立于 `hooks/agent/message-reducers.ts`
+- Agent WebSocket 信封校验与事件路由位于 `hooks/agent/transport/`，业务处理器不得回流到组件层
 - 子智能体 UI 只依据服务端下发的 capabilities 开放停止、发送和恢复动作；runtime kind 仅用于呈现 nxs/Claude Code 差异
 - 环境变量统一使用 `VITE_*` 前缀，通过 `import.meta.env` 读取
 

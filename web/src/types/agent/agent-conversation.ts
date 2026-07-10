@@ -7,22 +7,15 @@
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 
-import { Dispatch, RefObject, SetStateAction } from 'react';
 import { getSessionKeyIdentity } from '@/lib/conversation/session-key';
 
 import {
-  AssistantMessage,
-  ChatAckData,
   MessageAttachment,
   Message,
-  RoundLifecycleStatus,
-  SessionStatusEventPayload,
   RoomPendingAgentSlotState,
-  StreamMessage,
 } from '@/types';
 import { PendingPermission, PermissionDecisionPayload } from '@/types/conversation/permission';
-import { WebSocketMessage, WebSocketSendResult, WebSocketState } from '@/types/system/websocket';
-import { WorkspaceEventPayload } from '@/types/app/workspace-live';
+import { WebSocketState } from '@/types/system/websocket';
 
 export type AgentConversationChatType = 'dm' | 'group';
 export type AgentConversationRuntimePhase =
@@ -185,56 +178,4 @@ export interface RoomEventPayload {
   last_seen_room_seq?: number;
   latest_room_seq?: number;
   buffer_start_room_seq?: number | null;
-}
-
-export interface HandleAgentConversationWebSocketMessageParams {
-  backend_message: unknown;
-  agent_id?: string | null;
-  room_id?: string | null;
-  conversation_id?: string | null;
-  session_key?: string | null;
-  session_seq_cursor_ref?: RefObject<number>;
-  room_seq_cursor_ref?: RefObject<number>;
-  ws_state_ref?: RefObject<WebSocketState>;
-  ws_send_ref?: RefObject<(message: WebSocketMessage) => WebSocketSendResult>;
-  apply_workspace_event: (payload: WorkspaceEventPayload) => void;
-  is_current_room_event?: (incomingRoomId?: string | null) => boolean;
-  is_current_session_event: (incomingSessionKey?: string | null) => boolean;
-  set_error: Dispatch<SetStateAction<string | null>>;
-  set_messages: Dispatch<SetStateAction<Message[]>>;
-  set_pending_agent_slots: Dispatch<SetStateAction<RoomPendingAgentSlotState[]>>;
-  set_input_queue_items: Dispatch<SetStateAction<InputQueueItem[]>>;
-  set_pending_permissions: Dispatch<SetStateAction<PendingPermission[]>>;
-  /** Enqueue a stream payload into the rAF batch buffer instead of calling setMessages directly. */
-  enqueue_stream_payload?: (payload: StreamMessage) => void;
-  /** Called when a complete message arrives for a non-active session (for background caching) */
-  on_background_message?: (sessionKey: string, message: Message) => void;
-  /** Room-level events from the server (member add/remove/room deleted) */
-  on_room_event?: (eventType: string, data: RoomEventPayload) => void;
-  /** Update a single message's streamStatus field. */
-  update_message_status?: (
-    msgId: string,
-    status: import('@/types/conversation/message').AssistantMessageStatus,
-    roundId?: string | null,
-  ) => void;
-  /** 后端同步当前 session 的权威运行态 */
-  sync_session_status?: (payload: SessionStatusEventPayload) => void;
-  /** 后端同步单个 round 的权威生命周期 */
-  apply_round_status?: (roundId: string, status: RoundLifecycleStatus) => void;
-  /** 后端同步 Room slot 的权威生命周期 */
-  apply_agent_round_status?: (
-    payload: import('@/types/conversation/message').AgentRoundStatusEventPayload,
-  ) => void;
-  /** 记录本轮 chatAck 预分配的活跃消息槽位 */
-  track_chat_ack?: (ack: ChatAckData, sessionKey: string | null) => void;
-  /** 后端拒绝 chat 请求时按 client_request_id 收口等待态 */
-  reject_chat_ack?: (clientRequestId: string, reason: string) => boolean;
-  /** 同步 assistant 完整消息的终态 */
-  track_assistant_message?: (message: AssistantMessage) => void;
-  /** rewrite 已被后端接受后，先从本地列表移除旧 round。 */
-  remove_rewritten_round?: (targetRoundId: string) => void;
-  /** Resync 当前 session/room 快照后重新绑定 WebSocket cursor */
-  reload_current_session?: () => Promise<void>;
-  /** 当前 agent 后台任务归零后结算 workspace 写入 */
-  settleAgentWorkspaceWrites?: (agentId: string) => void;
 }

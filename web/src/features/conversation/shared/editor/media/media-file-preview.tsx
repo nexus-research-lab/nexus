@@ -14,31 +14,13 @@ import {
   getWorkspaceFilePreviewUrl,
 } from "@/lib/api/agent-manage-api";
 import { getWorkspaceFileExternalActionCopy } from "@/lib/workspace-file-action";
-import { ConversationResizeHandle } from "./conversation-resize-handle";
+import { ConversationResizeHandle } from "../conversation-resize-handle";
 import {
   WorkspaceFileDownloadButton,
   WorkspaceFilePreviewFocusButton,
   WorkspaceFilePreviewHeader,
-} from "./workspace-file-preview-chrome";
-
-interface PreviewFrameProps {
-  agentId: string;
-  embedded?: boolean;
-  fileName: string;
-  isPreviewFocused?: boolean;
-  onResizeStart: () => void;
-  onTogglePreviewFocus?: () => void;
-  path: string;
-}
-
-interface BinaryFilePlaceholderProps {
-  agentId: string;
-  embedded?: boolean;
-  fileName: string;
-  isPreviewFocused?: boolean;
-  onTogglePreviewFocus?: () => void;
-  path: string;
-}
+} from "../workspace-file-preview-chrome";
+import type { WorkspaceFilePreviewProps } from "../workspace-file-preview-types";
 
 export function PdfPreview({
   agentId: agentId,
@@ -48,7 +30,7 @@ export function PdfPreview({
   onTogglePreviewFocus: onTogglePreviewFocus,
   onResizeStart: onResizeStart,
   embedded,
-}: PreviewFrameProps) {
+}: WorkspaceFilePreviewProps) {
   const [isLoaded, setIsLoaded] = useState(false);
   const previewUrl = getWorkspaceFilePreviewUrl(agentId, path);
 
@@ -116,7 +98,7 @@ export function ImagePreview({
   onTogglePreviewFocus: onTogglePreviewFocus,
   onResizeStart: onResizeStart,
   embedded,
-}: PreviewFrameProps) {
+}: WorkspaceFilePreviewProps) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
   const fileActionCopy = getWorkspaceFileExternalActionCopy(fileName);
@@ -203,7 +185,7 @@ export function BinaryFilePlaceholder({
   isPreviewFocused: isPreviewFocused,
   onTogglePreviewFocus: onTogglePreviewFocus,
   embedded,
-}: BinaryFilePlaceholderProps) {
+}: WorkspaceFilePreviewProps) {
   const fileActionCopy = getWorkspaceFileExternalActionCopy(fileName);
   const actionDescription = fileActionCopy.mode === "reveal"
     ? "在文件夹中显示此文件"

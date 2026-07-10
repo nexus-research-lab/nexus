@@ -4,7 +4,7 @@ import { getSessionMessagesApi } from "@/lib/api/agent-api";
 import { getRoomConversationMessages } from "@/lib/api/room-api";
 import { Message } from "@/types";
 import { AgentConversationIdentity } from "@/types/agent/agent-conversation";
-import { mergeLoadedMessages, sortMessages } from "./message-helpers";
+import { mergeLoadedMessages, sortMessages } from "../message-helpers";
 
 const TARGET_ROUND_WINDOW_RADIUS = 1;
 

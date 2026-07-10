@@ -1,3 +1,4 @@
+import type { ComponentType } from "react";
 import { FileSpreadsheet, FileText, LoaderCircle } from "lucide-react";
 
 import { ConversationResizeHandle } from "./conversation-resize-handle";
@@ -6,35 +7,52 @@ import {
   WorkspaceFilePreviewFocusButton,
   WorkspaceFilePreviewHeader,
 } from "./workspace-file-preview-chrome";
+import type { WorkspaceFilePreviewProps } from "./workspace-file-preview-types";
 
-interface OfficePreviewFallbackProps {
-  agentId: string;
-  embedded?: boolean;
-  fileName: string;
-  isPreviewFocused?: boolean;
-  onResizeStart: () => void;
-  onTogglePreviewFocus?: () => void;
-  path: string;
-}
+export type OfficePreviewKind =
+  | "document"
+  | "presentation"
+  | "spreadsheet";
 
-function OfficePreviewFallback({
-  agentId: agentId,
-  embedded,
-  fileName: fileName,
-  icon,
-  label,
-  loadingLabel: loadingLabel,
-  onResizeStart: onResizeStart,
-  onTogglePreviewFocus: onTogglePreviewFocus,
-  isPreviewFocused: isPreviewFocused,
-  path,
-}: OfficePreviewFallbackProps & {
-  icon: "spreadsheet" | "document";
+interface OfficePreviewDescriptor {
+  icon: ComponentType<{ className?: string }>;
   label: string;
   loadingLabel: string;
-}) {
-  const Icon = icon === "spreadsheet" ? FileSpreadsheet : FileText;
+}
 
+const OFFICE_PREVIEW_DESCRIPTORS: Record<
+  OfficePreviewKind,
+  OfficePreviewDescriptor
+> = {
+  document: {
+    icon: FileText,
+    label: "docx 预览",
+    loadingLabel: "正在加载 docx 预览组件",
+  },
+  presentation: {
+    icon: FileText,
+    label: "pptx 预览",
+    loadingLabel: "正在加载 pptx 预览组件",
+  },
+  spreadsheet: {
+    icon: FileSpreadsheet,
+    label: "xlsx 预览",
+    loadingLabel: "正在加载 xlsx 预览组件",
+  },
+};
+
+export function OfficePreviewFallback({
+  agentId,
+  embedded,
+  fileName,
+  isPreviewFocused,
+  kind,
+  onResizeStart,
+  onTogglePreviewFocus,
+  path,
+}: WorkspaceFilePreviewProps & { kind: OfficePreviewKind }) {
+  const descriptor = OFFICE_PREVIEW_DESCRIPTORS[kind];
+  const Icon = descriptor.icon;
   return (
     <>
       {!embedded ? (
@@ -44,11 +62,14 @@ function OfficePreviewFallback({
           onMouseDown={onResizeStart}
         />
       ) : null}
-
       <WorkspaceFilePreviewHeader
         actions={(
           <>
-            <WorkspaceFileDownloadButton agentId={agentId} fileName={fileName} path={path} />
+            <WorkspaceFileDownloadButton
+              agentId={agentId}
+              fileName={fileName}
+              path={path}
+            />
             <WorkspaceFilePreviewFocusButton
               isPreviewFocused={isPreviewFocused}
               onTogglePreviewFocus={onTogglePreviewFocus}
@@ -60,7 +81,7 @@ function OfficePreviewFallback({
           <>
             <span className="flex items-center gap-1">
               <Icon className="h-3 w-3" />
-              {label}
+              {descriptor.label}
             </span>
             <span className="flex items-center gap-1">
               <LoaderCircle className="h-3 w-3 animate-spin" />
@@ -70,46 +91,14 @@ function OfficePreviewFallback({
         )}
         title={fileName}
       />
-
       <div className="flex min-h-0 flex-1 items-center justify-center bg-[var(--surface-panel-subtle-background)] p-8 text-center">
         <div className="max-w-xs">
           <LoaderCircle className="mx-auto h-8 w-8 animate-spin text-primary" />
-          <p className="mt-3 text-sm font-medium text-(--text-strong)">{loadingLabel}</p>
+          <p className="mt-3 text-sm font-medium text-(--text-strong)">
+            {descriptor.loadingLabel}
+          </p>
         </div>
       </div>
     </>
-  );
-}
-
-export function SpreadsheetPreviewFallback(props: OfficePreviewFallbackProps) {
-  return (
-    <OfficePreviewFallback
-      {...props}
-      icon="spreadsheet"
-      label="xlsx 预览"
-      loadingLabel="正在加载 xlsx 预览组件"
-    />
-  );
-}
-
-export function DocumentPreviewFallback(props: OfficePreviewFallbackProps) {
-  return (
-    <OfficePreviewFallback
-      {...props}
-      icon="document"
-      label="docx 预览"
-      loadingLabel="正在加载 docx 预览组件"
-    />
-  );
-}
-
-export function PresentationPreviewFallback(props: OfficePreviewFallbackProps) {
-  return (
-    <OfficePreviewFallback
-      {...props}
-      icon="document"
-      label="pptx 预览"
-      loadingLabel="正在加载 pptx 预览组件"
-    />
   );
 }

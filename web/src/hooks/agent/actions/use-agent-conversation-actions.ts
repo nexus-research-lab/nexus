@@ -11,18 +11,22 @@ import type {
 } from "@/types/agent/agent-conversation";
 import type { PermissionDecisionPayload } from "@/types/conversation/permission";
 
+import type { AgentConversationActionContext } from "./conversation-action-context";
+import {
+  rewriteLastUserMessage,
+  sendSessionMessage,
+  type OutboundChatRequest,
+} from "./conversation-chat-actions";
+import {
+  sendSessionPermissionResponse,
+  stopSessionGeneration,
+} from "./conversation-control-actions";
 import {
   deleteInputQueueMessage,
   enqueueInputQueueMessage,
   guideInputQueueMessage,
   reorderInputQueueMessages,
-  rewriteLastUserMessage,
-  sendSessionMessage,
-  sendSessionPermissionResponse,
-  stopSessionGeneration,
-  type AgentConversationActionContext,
-  type OutboundChatRequest,
-} from "./conversation-actions";
+} from "./input-queue-actions";
 
 interface UseAgentConversationActionsParams {
   actionContext: AgentConversationActionContext;

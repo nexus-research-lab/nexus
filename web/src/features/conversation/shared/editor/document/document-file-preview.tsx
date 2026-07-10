@@ -7,12 +7,13 @@ import type { Options as DocxPreviewOptions } from "docx-preview";
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { getWorkspaceFilePreviewUrl } from "@/lib/api/agent-manage-api";
 import { cn } from "@/lib/utils";
-import { ConversationResizeHandle } from "./conversation-resize-handle";
+import { ConversationResizeHandle } from "../conversation-resize-handle";
 import {
   WorkspaceFileDownloadButton,
   WorkspaceFilePreviewFocusButton,
   WorkspaceFilePreviewHeader,
-} from "./workspace-file-preview-chrome";
+} from "../workspace-file-preview-chrome";
+import type { WorkspaceFilePreviewProps } from "../workspace-file-preview-types";
 
 const MAX_DOCX_PREVIEW_BYTES = 15 * 1024 * 1024;
 
@@ -20,16 +21,6 @@ type DocumentPreviewStatus =
   | { state: "loading"; message: string }
   | { state: "loaded" }
   | { state: "error"; message: string };
-
-interface DocumentFilePreviewProps {
-  agentId: string;
-  embedded?: boolean;
-  fileName: string;
-  isPreviewFocused?: boolean;
-  onResizeStart: () => void;
-  onTogglePreviewFocus?: () => void;
-  path: string;
-}
 
 const DOCX_RENDER_OPTIONS: Partial<DocxPreviewOptions> = {
   breakPages: true,
@@ -60,7 +51,7 @@ export function DocumentFilePreview({
   onResizeStart: onResizeStart,
   onTogglePreviewFocus: onTogglePreviewFocus,
   path,
-}: DocumentFilePreviewProps) {
+}: WorkspaceFilePreviewProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const styleContainerRef = useRef<HTMLDivElement>(null);

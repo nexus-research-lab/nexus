@@ -66,64 +66,44 @@ const imageExtensions = new Set([
   "avif",
 ]);
 
+const EXTENSION_PREVIEW_KINDS = new Map<string, WorkspaceFilePreviewKind>([
+  ["pdf", "pdf"],
+  ["xlsx", "spreadsheet"],
+  ["docx", "document"],
+  ["pptx", "presentation"],
+  ["md", "markdown"],
+  ["markdown", "markdown"],
+  ["html", "html"],
+  ["htm", "html"],
+  ["mmd", "mermaid"],
+  ["mermaid", "mermaid"],
+]);
+for (const extension of imageExtensions) {
+  EXTENSION_PREVIEW_KINDS.set(extension, "image");
+}
+for (const extension of textExtensions) {
+  EXTENSION_PREVIEW_KINDS.set(extension, "text");
+}
+
+const WORKSPACE_FILE_KIND_LABELS: Partial<Record<
+  WorkspaceFilePreviewKind,
+  string
+>> = {
+  html: "HTML 预览",
+  markdown: "Markdown 预览",
+  mermaid: "Mermaid 预览",
+  text: "文本预览",
+};
+
 export function getWorkspaceFilePreviewKind(
   path: string,
 ): WorkspaceFilePreviewKind {
   const ext = path.split(".").pop()?.toLowerCase() || "";
-  if (ext === "pdf") {
-    return "pdf";
-  }
-  if (imageExtensions.has(ext)) {
-    return "image";
-  }
-  if (ext === "xlsx") {
-    return "spreadsheet";
-  }
-  if (ext === "docx") {
-    return "document";
-  }
-  if (ext === "pptx") {
-    return "presentation";
-  }
-  if (ext === "md" || ext === "markdown") {
-    return "markdown";
-  }
-  if (ext === "html" || ext === "htm") {
-    return "html";
-  }
-  if (ext === "mmd" || ext === "mermaid") {
-    return "mermaid";
-  }
-  if (textExtensions.has(ext)) {
-    return "text";
-  }
-  return "binary";
-}
-
-export function isWorkspaceTextPreviewKind(
-  kind: WorkspaceFilePreviewKind,
-): boolean {
-  return (
-    kind === "text" ||
-    kind === "markdown" ||
-    kind === "html" ||
-    kind === "mermaid"
-  );
+  return EXTENSION_PREVIEW_KINDS.get(ext) ?? "binary";
 }
 
 export function workspaceFileKindLabel(
   fileType: WorkspaceFilePreviewKind,
 ): string {
-  switch (fileType) {
-    case "markdown":
-      return "Markdown 预览";
-    case "html":
-      return "HTML 预览";
-    case "mermaid":
-      return "Mermaid 预览";
-    case "text":
-      return "文本预览";
-    default:
-      return "文件预览";
-  }
+  return WORKSPACE_FILE_KIND_LABELS[fileType] ?? "文件预览";
 }

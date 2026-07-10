@@ -17,7 +17,7 @@ import {
 import {
   buildRoomSubscriptionMessage,
   buildSessionBindMessage,
-} from "./conversation-actions";
+} from "../actions/conversation-command-builders";
 
 type ConversationSocketSend = (payload: WebSocketMessage) => WebSocketSendResult;
 
