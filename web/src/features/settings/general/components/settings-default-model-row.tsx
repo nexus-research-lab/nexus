@@ -7,7 +7,7 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
 import { UiSelectMenu, type UiSelectMenuOption } from "@/shared/ui/select-menu";
 
-import type { DefaultModelPreferenceRole } from "./settings-preferences-model";
+import type { DefaultModelPreferenceRole } from "../settings-preferences-model";
 import {
   SETTINGS_CONTROL_HEIGHT_CLASS_NAME,
   SETTINGS_CONTROL_LABEL_CLASS_NAME,
@@ -17,9 +17,10 @@ import {
   SETTINGS_ROW_CLASS_NAME,
   SETTINGS_SELECT_BUTTON_CLASS_NAME,
   SETTINGS_TEXT_ROW_CLASS_NAME,
-} from "./settings-panel-ui";
+} from "../../settings-panel-ui";
 
 interface SettingsDefaultModelRowProps {
+  disabled: boolean;
   descriptionKey: TranslationKey;
   emptyPlaceholderKey: TranslationKey;
   feedbackMessage?: string | null;
@@ -34,16 +35,17 @@ interface SettingsDefaultModelRowProps {
 }
 
 export function SettingsDefaultModelRow({
-  descriptionKey: descriptionKey,
-  emptyPlaceholderKey: emptyPlaceholderKey,
-  feedbackMessage: feedbackMessage,
+  disabled,
+  descriptionKey,
+  emptyPlaceholderKey,
+  feedbackMessage,
   icon,
-  onChange: onChange,
+  onChange,
   options,
-  providerOptionsLoading: providerOptionsLoading,
-  modelCategory: modelCategory,
-  savingRole: savingRole,
-  titleKey: titleKey,
+  providerOptionsLoading,
+  modelCategory,
+  savingRole,
+  titleKey,
   value,
 }: SettingsDefaultModelRowProps) {
   const { t } = useI18n();
@@ -71,7 +73,12 @@ export function SettingsDefaultModelRow({
           ariaLabel={t(titleKey)}
           buttonClassName={SETTINGS_SELECT_BUTTON_CLASS_NAME}
           className={SETTINGS_CONTROL_HEIGHT_CLASS_NAME}
-          disabled={providerOptionsLoading || !!savingRole || options.length === 0}
+          disabled={
+            disabled
+            || providerOptionsLoading
+            || Boolean(savingRole)
+            || options.length === 0
+          }
           leading={savingRole === modelCategory ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
           menuClassName="min-w-[260px]"
           onChange={(nextValue) => onChange(nextValue, modelCategory)}

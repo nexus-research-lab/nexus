@@ -12,7 +12,7 @@ import {
 
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { InputQueueItem } from "@/types/agent/agent-conversation";
+import type { InputQueueItem } from "@/types/agent/agent-conversation";
 
 const PENDING_QUEUE_AUTO_SCROLL_ZONE_PX = 28;
 const PENDING_QUEUE_AUTO_SCROLL_MAX_DELTA_PX = 10;
@@ -35,14 +35,12 @@ function reorderPendingMessages(
 
 export function ComposerPendingQueue({
   compact,
-  disabled,
-  inputQueueItems: inputQueueItems,
-  onDeleteQueuedMessage: onDeleteQueuedMessage,
-  onGuideQueuedMessage: onGuideQueuedMessage,
-  onReorderQueueMessages: onReorderQueueMessages,
+  inputQueueItems,
+  onDeleteQueuedMessage,
+  onGuideQueuedMessage,
+  onReorderQueueMessages,
 }: {
   compact: boolean;
-  disabled: boolean;
   inputQueueItems: InputQueueItem[];
   onDeleteQueuedMessage?: (itemId: string) => void | Promise<void>;
   onGuideQueuedMessage?: (itemId: string) => void | Promise<void>;
@@ -115,7 +113,7 @@ export function ComposerPendingQueue({
   }, [onDeleteQueuedMessage]);
 
   const guidePendingMessage = useCallback(async (message: InputQueueItem) => {
-    if (disabled || isQueueActionRunning) {
+    if (isQueueActionRunning) {
       return;
     }
     try {
@@ -127,7 +125,6 @@ export function ComposerPendingQueue({
       setIsQueueActionRunning(false);
     }
   }, [
-    disabled,
     isQueueActionRunning,
     onGuideQueuedMessage,
   ]);
@@ -242,7 +239,7 @@ export function ComposerPendingQueue({
               <button
                 aria-label={isGuidanceWaiting ? t("composer.cancel_guidance") : t("composer.mark_guidance")}
                 className="inline-flex h-6 shrink-0 items-center justify-center gap-1 px-1 text-[11px] font-semibold text-(--text-soft) transition-colors hover:text-(--text-strong) disabled:pointer-events-none disabled:opacity-(--disabled-opacity)"
-                disabled={disabled || isQueueActionRunning}
+                disabled={isQueueActionRunning}
                 onClick={() => {
                   void guidePendingMessage(message);
                 }}

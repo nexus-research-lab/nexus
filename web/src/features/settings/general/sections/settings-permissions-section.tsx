@@ -19,20 +19,22 @@ import {
   SETTINGS_SECTION_TITLE_CLASS_NAME,
   SETTINGS_SELECT_BUTTON_CLASS_NAME,
   SETTINGS_TEXT_ROW_CLASS_NAME,
-} from "./settings-panel-ui";
+} from "../../settings-panel-ui";
 
 interface SettingsPermissionsSectionProps {
   feedbackMessage?: string | null;
   onPermissionModeChange: (value: string) => void;
   permissionMode: string;
   preferencesLoading: boolean;
+  preferencesSaving: boolean;
 }
 
 export function SettingsPermissionsSection({
-  feedbackMessage: feedbackMessage,
-  onPermissionModeChange: onPermissionModeChange,
-  permissionMode: permissionMode,
-  preferencesLoading: preferencesLoading,
+  feedbackMessage,
+  onPermissionModeChange,
+  permissionMode,
+  preferencesLoading,
+  preferencesSaving,
 }: SettingsPermissionsSectionProps) {
   const { t } = useI18n();
   const selectedPermissionMode = AGENT_PERMISSION_MODES.find((mode) => mode.value === permissionMode) ?? AGENT_PERMISSION_MODES[0];
@@ -72,7 +74,7 @@ export function SettingsPermissionsSection({
               ariaLabel={t("settings.general.default_permission_mode")}
               buttonClassName={SETTINGS_SELECT_BUTTON_CLASS_NAME}
               className={SETTINGS_CONTROL_HEIGHT_CLASS_NAME}
-              disabled={preferencesLoading}
+              disabled={preferencesLoading || preferencesSaving}
               id="default-permission-mode"
               menuClassName="rounded-[12px]"
               onChange={onPermissionModeChange}

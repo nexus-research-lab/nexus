@@ -20,7 +20,7 @@ import {
   SETTINGS_ITEM_TITLE_CLASS_NAME,
   SETTINGS_SECTION_TITLE_CLASS_NAME,
   SETTINGS_TEXT_ROW_CLASS_NAME,
-} from "./settings-panel-ui";
+} from "../../settings-panel-ui";
 
 export function SettingsWorkspaceSection() {
   const { t } = useI18n();

@@ -7,7 +7,6 @@
  * =====================================================
  */
 
-import { cn } from "@/lib/utils";
 import { getUiIconButtonClassName } from "@/shared/ui/button-styles";
 
 export const COMPOSER_ATTACHMENT_CLASS_NAME =
@@ -28,17 +27,8 @@ export const COMPOSER_PRIMARY_ACTION_BUTTON_CLASS_NAME =
 export const COMPOSER_DANGER_ACTION_BUTTON_CLASS_NAME =
   getUiIconButtonClassName({ size: "lg", tone: "danger", variant: "surface" }, "shrink-0");
 
-export function getComposerShellClassName(disabled: boolean) {
-  return cn(
-    "input-shell overflow-hidden rounded-[18px]",
-    disabled && "cursor-not-allowed opacity-(--disabled-opacity)",
-  );
-}
-
-export function getComposerShellStyle(compact: boolean) {
-  void compact;
-  return undefined;
-}
+export const COMPOSER_SHELL_CLASS_NAME =
+  "input-shell overflow-hidden rounded-[18px]";
 
 export const COMPOSER_FOOTER_CLASS_NAME =
   "flex items-center justify-between gap-3 border-t border-(--divider-subtle-color) px-2.5 py-1.5 text-(--text-soft)";

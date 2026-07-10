@@ -1,14 +1,14 @@
 import { useEffect } from "react";
+import type { RefObject } from "react";
 
 import {
   findConversationRoundElement,
   scrollToConversationRoundElement,
   type ConversationRoundScrollHandleRef,
   type ConversationRoundScrollOptions,
-} from "@/features/conversation/shared/conversation-round-scroll";
-import type { RefObject } from "react";
+} from "../conversation-round-scroll";
 
-interface UseGroupConversationRoundNavigationOptions {
+interface UseConversationRoundNavigationOptions {
   fallbackScrollToIndex?: (
     index: number,
     options?: ConversationRoundScrollOptions,
@@ -18,17 +18,16 @@ interface UseGroupConversationRoundNavigationOptions {
   scrollRef: RefObject<HTMLDivElement | null>;
 }
 
-export function useGroupConversationRoundNavigation({
+export function useConversationRoundNavigation({
   fallbackScrollToIndex,
   roundIds,
   roundScrollRef,
   scrollRef,
-}: UseGroupConversationRoundNavigationOptions): void {
+}: UseConversationRoundNavigationOptions): void {
   useEffect(() => {
     if (!roundScrollRef) {
       return;
     }
-
     const handle = {
       scrollToRoundId: (
         roundId: string,
@@ -42,7 +41,6 @@ export function useGroupConversationRoundNavigation({
           scrollToConversationRoundElement(scrollElement, target, options);
           return true;
         }
-
         const targetIndex = roundIds.indexOf(roundId);
         if (targetIndex < 0 || !fallbackScrollToIndex) {
           return false;
@@ -51,7 +49,6 @@ export function useGroupConversationRoundNavigation({
         return true;
       },
     };
-
     roundScrollRef.current = handle;
     return () => {
       if (roundScrollRef.current === handle) {

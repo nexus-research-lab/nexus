@@ -133,9 +133,7 @@ export function useGroupChatPanelModel({
 
   return {
     composer: {
-      allowSendWhileLoading: true,
       defaultDeliveryPolicy,
-      disabled: false,
       enableLoops: true,
       goalCreateDisabledReason: goal.createDisabledReason,
       goalScopeLabel: ROOM_GOAL_SCOPE_LABEL,

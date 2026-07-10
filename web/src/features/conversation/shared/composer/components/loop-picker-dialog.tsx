@@ -47,9 +47,9 @@ function matchesLoop(loop: LoopCatalogItem, query: string): boolean {
 }
 
 export function LoopPickerDialog({
-  isOpen: isOpen,
-  onClose: onClose,
-  onSelect: onSelect,
+  isOpen,
+  onClose,
+  onSelect,
 }: LoopPickerDialogProps) {
   const { locale, t } = useI18n();
   const [loopState, setLoopState] = useResettableState<LoopPickerState>(

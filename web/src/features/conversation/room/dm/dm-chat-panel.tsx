@@ -22,7 +22,7 @@ import {
   prepareWorkspaceAttachments,
 } from "@/features/conversation/shared/composer/attachments/composer-attachments";
 import { ConversationErrorBubble } from "@/features/conversation/shared/conversation-error-bubble";
-import { ConversationFeed } from "@/features/conversation/shared/conversation-feed";
+import { ConversationFeed } from "@/features/conversation/shared/feed/conversation-feed";
 import {
   buildConversationScrollContentKey,
 } from "@/features/conversation/shared/conversation-scroll-content-key";
@@ -321,26 +321,31 @@ export function DmChatPanel({
           </div>
         ) : null}
         <ConversationFeed
-          bottomAnchorRef={bottomAnchorRef}
-          feedRef={feedRef}
-          scrollRef={scrollRef}
-          currentAgentName={currentAgentName ?? null}
-          currentAgentAvatar={currentAgentAvatar ?? null}
-          workspaceAgentId={sessionIdentity?.agent_id ?? null}
-          currentUserAvatar={currentUserAvatar}
-          isLastRoundPendingPermissions={pendingPermissions}
-          isLoading={isLoading}
-          runtimePhase={runtimePhase}
-          liveRoundIds={liveRoundIds}
           isMobileLayout={isMobileLayout}
-          messageGroups={messageGroups}
-          onOpenAgentContact={onOpenAgentContact}
-          onOpenWorkspaceFile={onOpenWorkspaceFile}
-          onEditLastUserMessage={handleEditLastUserMessage}
-          onPermissionResponse={sendPermissionResponse}
-          roundScrollRef={roundScrollRef}
-          roundIndexItems={roundIndexItems}
-          roundIds={feedRoundIds}
+          refs={{
+            bottomAnchorRef,
+            feedRef,
+            roundScrollRef,
+            scrollRef,
+          }}
+          renderer={{
+            currentAgentAvatar: currentAgentAvatar ?? null,
+            currentAgentName: currentAgentName ?? null,
+            currentUserAvatar,
+            onEditLastUserMessage: handleEditLastUserMessage,
+            onOpenAgentContact,
+            onOpenWorkspaceFile,
+            onPermissionResponse: sendPermissionResponse,
+            workspaceAgentId: sessionIdentity?.agent_id ?? null,
+          }}
+          source={{
+            liveRoundIds,
+            messageGroups,
+            pendingPermissions,
+            roundIds: feedRoundIds,
+            roundIndexItems,
+            runtimePhase,
+          }}
         />
         {systemError ? (
           <div className={isMobileLayout ? "mt-4" : "mx-auto mt-2 w-full max-w-[980px]"}>
@@ -375,12 +380,10 @@ export function DmChatPanel({
       />
 
       <ComposerPanel
-        allowSendWhileLoading
         compact={isMobileLayout}
         defaultDeliveryPolicy={defaultDeliveryPolicy}
         inputQueueItems={inputQueueItems}
         isLoading={isLoading}
-        goalScopeLabel="会话 Goal"
         runtimePhase={runtimePhase}
         onDeleteQueuedMessage={deleteInputQueueMessage}
         onEnqueueMessage={enqueueInputQueueMessage}

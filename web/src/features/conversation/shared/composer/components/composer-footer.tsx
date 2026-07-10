@@ -23,7 +23,6 @@ interface ComposerFooterProps {
   isDispatching: boolean;
   isGoalCreating: boolean;
   isGoalMode: boolean;
-  isInputLocked: boolean;
   isNearLimit: boolean;
   isOverLimit: boolean;
   isPreparingAttachments: boolean;
@@ -37,31 +36,30 @@ interface ComposerFooterProps {
 }
 
 export function ComposerFooter({
-  actionButtonRef: actionButtonRef,
-  activeError: activeError,
-  canCreateGoal: canCreateGoal,
-  canUseLoop: canUseLoop,
-  canStopGeneration: canStopGeneration,
-  charCount: charCount,
-  goalModeExtra: goalModeExtra,
-  goalScopeLabel: goalScopeLabel,
-  historyIndex: historyIndex,
-  inputHistoryLength: inputHistoryLength,
-  isActionMenuOpen: isActionMenuOpen,
-  isDispatching: isDispatching,
-  isGoalCreating: isGoalCreating,
-  isGoalMode: isGoalMode,
-  isInputLocked: isInputLocked,
-  isNearLimit: isNearLimit,
-  isOverLimit: isOverLimit,
-  isPreparingAttachments: isPreparingAttachments,
-  maxLength: maxLength,
-  onActionMenuClose: onActionMenuClose,
-  onActionMenuToggle: onActionMenuToggle,
-  onAttachmentSelect: onAttachmentSelect,
-  onCancelGoal: onCancelGoal,
-  onGoalToggle: onGoalToggle,
-  onLoopSelect: onLoopSelect,
+  actionButtonRef,
+  activeError,
+  canCreateGoal,
+  canUseLoop,
+  canStopGeneration,
+  charCount,
+  goalModeExtra,
+  goalScopeLabel,
+  historyIndex,
+  inputHistoryLength,
+  isActionMenuOpen,
+  isDispatching,
+  isGoalCreating,
+  isGoalMode,
+  isNearLimit,
+  isOverLimit,
+  isPreparingAttachments,
+  maxLength,
+  onActionMenuClose,
+  onActionMenuToggle,
+  onAttachmentSelect,
+  onCancelGoal,
+  onGoalToggle,
+  onLoopSelect,
 }: ComposerFooterProps) {
   const { t } = useI18n();
 
@@ -75,7 +73,6 @@ export function ComposerFooter({
             aria-haspopup="menu"
             aria-label={t("composer.open_actions")}
             className="inline-flex h-6 w-6 items-center justify-center rounded-[8px] text-(--icon-default) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) disabled:pointer-events-none disabled:opacity-(--disabled-opacity)"
-            disabled={isInputLocked}
             onClick={onActionMenuToggle}
             type="button"
           >
@@ -90,14 +87,13 @@ export function ComposerFooter({
                 value: "attachment",
                 label: t("composer.add_attachment"),
                 icon: <Paperclip className="h-4 w-4 text-(--icon-muted)" />,
-                disabled: isInputLocked || isPreparingAttachments || isGoalMode,
+                disabled: isPreparingAttachments || isGoalMode,
               },
               ...(canUseLoop
                 ? [{
                     value: "loop",
                     label: t("composer.insert_loop"),
                     icon: <Repeat2 className="h-4 w-4 text-(--icon-muted)" />,
-                    disabled: isInputLocked,
                   }]
                 : []),
               {
@@ -112,14 +108,14 @@ export function ComposerFooter({
                   >
                     <GlassSwitch
                       checked={isGoalMode}
-                      disabled={!canCreateGoal || isInputLocked || isGoalCreating}
+                      disabled={!canCreateGoal || isGoalCreating}
                       onChange={onGoalToggle}
                       size="xs"
                     />
                   </span>
                 ),
                 active: isGoalMode,
-                disabled: !canCreateGoal || isInputLocked || isGoalCreating,
+                disabled: !canCreateGoal || isGoalCreating,
                 tone: "primary",
               },
             ]}

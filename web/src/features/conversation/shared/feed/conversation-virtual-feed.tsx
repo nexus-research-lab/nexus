@@ -1,42 +1,40 @@
 import { useCallback, useMemo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
-import { useConversationRoundNavigation } from "@/features/conversation/shared/feed/use-conversation-round-navigation";
-import { useConversationVirtualMetrics } from "@/features/conversation/shared/feed/use-conversation-virtual-metrics";
 import { estimateRoundHeights } from "@/hooks/conversation/use-message-height";
 
 import {
   buildRoundIndexItemMap,
-  resolveGroupConversationRound,
-  type GroupConversationFeedProps,
-} from "./group-conversation-feed-model";
-import { GroupConversationRound } from "./group-conversation-round";
+  resolveConversationRound,
+  type ConversationFeedProps,
+} from "./conversation-feed-model";
+import { ConversationRound } from "./conversation-round";
+import { useConversationRoundNavigation } from "./use-conversation-round-navigation";
+import { useConversationVirtualMetrics } from "./use-conversation-virtual-metrics";
 
-type GroupConversationVirtualFeedProps = GroupConversationFeedProps & {
-  refs: GroupConversationFeedProps["refs"] & {
-    scrollRef: NonNullable<GroupConversationFeedProps["refs"]["scrollRef"]>;
+type ConversationVirtualFeedProps = ConversationFeedProps & {
+  refs: ConversationFeedProps["refs"] & {
+    scrollRef: NonNullable<ConversationFeedProps["refs"]["scrollRef"]>;
   };
 };
 
-export function GroupConversationVirtualFeed({
+export function ConversationVirtualFeed({
   isMobileLayout,
   refs,
   renderer,
   source,
-}: GroupConversationVirtualFeedProps) {
+}: ConversationVirtualFeedProps) {
   const metrics = useConversationVirtualMetrics(refs.scrollRef);
   const roundIndexItemById = useMemo(
     () => buildRoundIndexItemMap(source.roundIndexItems),
     [source.roundIndexItems],
   );
-
   const heightMap = useMemo(
-    () =>
-      estimateRoundHeights(
-        source.roundIds,
-        source.messageGroups,
-        metrics.containerWidth,
-      ),
+    () => estimateRoundHeights(
+      source.roundIds,
+      source.messageGroups,
+      metrics.containerWidth,
+    ),
     [metrics.containerWidth, source.messageGroups, source.roundIds],
   );
   const virtualizer = useVirtualizer({
@@ -47,22 +45,22 @@ export function GroupConversationVirtualFeed({
     overscan: 5,
     scrollPaddingStart: metrics.scrollPaddingStart,
   });
-  const scrollToIndex = useCallback(
-    (index: number, options?: { behavior?: ScrollBehavior }) => {
-      if (index === 0) {
-        refs.scrollRef.current?.scrollTo({
-          behavior: options?.behavior ?? "smooth",
-          top: 0,
-        });
-        return;
-      }
-      virtualizer.scrollToIndex(index, {
-        align: "start",
+  const scrollToIndex = useCallback((
+    index: number,
+    options?: { behavior?: ScrollBehavior },
+  ) => {
+    if (index === 0) {
+      refs.scrollRef.current?.scrollTo({
         behavior: options?.behavior ?? "smooth",
+        top: 0,
       });
-    },
-    [refs.scrollRef, virtualizer],
-  );
+      return;
+    }
+    virtualizer.scrollToIndex(index, {
+      align: "start",
+      behavior: options?.behavior ?? "smooth",
+    });
+  }, [refs.scrollRef, virtualizer]);
   useConversationRoundNavigation({
     fallbackScrollToIndex: scrollToIndex,
     roundIds: source.roundIds,
@@ -86,13 +84,14 @@ export function GroupConversationVirtualFeed({
         style={{ transform: `translateY(${virtualItems[0]?.start ?? 0}px)` }}
       >
         {virtualItems.map((item) => {
-          const state = resolveGroupConversationRound(source, item.index);
+          const state = resolveConversationRound(source, item.index);
           return (
-            <GroupConversationRound
+            <ConversationRound
               key={state.roundId}
               indexItem={roundIndexItemById.get(state.roundId)}
               measureRef={virtualizer.measureElement}
               renderer={renderer}
+              source={source}
               state={state}
             />
           );

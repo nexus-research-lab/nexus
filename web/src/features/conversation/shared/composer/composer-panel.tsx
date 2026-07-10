@@ -14,15 +14,15 @@ import { ComposerPendingQueue } from "./components/composer-pending-queue";
 import { LoopPickerDialog } from "./components/loop-picker-dialog";
 import {
   COMPOSER_SHORTCUT_KEY_CLASS_NAME,
+  MAX_COMPOSER_INPUT_LENGTH,
   type ComposerPanelProps,
 } from "./composer-model";
 import {
   COMPOSER_DANGER_ACTION_BUTTON_CLASS_NAME,
   COMPOSER_PRIMARY_ACTION_BUTTON_CLASS_NAME,
-  getComposerShellClassName,
-  getComposerShellStyle,
+  COMPOSER_SHELL_CLASS_NAME,
 } from "./composer-styles";
-import { useComposerController } from "./use-composer-controller";
+import { useComposerController } from "./controller/use-composer-controller";
 import { MentionTargetPopover } from "../mention-popover";
 
 const ComposerPanelView = memo((props: ComposerPanelProps) => {
@@ -30,7 +30,6 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
   const { actions, attachments, mention, refs, state } =
     useComposerController(props);
   const inputQueueItems = props.inputQueueItems ?? [];
-  const maxLength = props.maxLength ?? 10000;
 
   return (
     <section
@@ -59,13 +58,9 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
         />
       ) : null}
 
-      <div
-        className={getComposerShellClassName(state.isInputLocked)}
-        style={getComposerShellStyle(props.compact)}
-      >
+      <div className={COMPOSER_SHELL_CLASS_NAME}>
         <ComposerPendingQueue
           compact={props.compact}
-          disabled={props.disabled ?? false}
           inputQueueItems={inputQueueItems}
           onDeleteQueuedMessage={props.onDeleteQueuedMessage}
           onGuideQueuedMessage={props.onGuideQueuedMessage}
@@ -191,11 +186,10 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
           isDispatching={state.isDispatching}
           isGoalCreating={state.isGoalCreating}
           isGoalMode={state.isGoalMode}
-          isInputLocked={state.isInputLocked}
           isNearLimit={state.isNearLimit}
           isOverLimit={state.isOverLimit}
           isPreparingAttachments={state.isPreparingAttachments}
-          maxLength={maxLength}
+          maxLength={MAX_COMPOSER_INPUT_LENGTH}
           onActionMenuClose={() => actions.setIsActionMenuOpen(false)}
           onActionMenuToggle={() => {
             actions.setIsActionMenuOpen((current) => !current);

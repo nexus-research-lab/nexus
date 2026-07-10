@@ -23,7 +23,7 @@ import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspac
 
 import { PersonalSettingsPanel } from "./personal-settings-panel";
 import { ProviderSettingsPanel } from "./provider-settings/provider-settings-panel";
-import { SettingsGeneralSection } from "./settings-general-section";
+import { SettingsGeneralSection } from "./general/settings-general-section";
 
 type SettingsTabKey =
   | "general"

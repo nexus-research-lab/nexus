@@ -12,13 +12,13 @@ import {
   SETTINGS_ITEM_TITLE_CLASS_NAME,
   SETTINGS_ROW_CLASS_NAME,
   SETTINGS_TEXT_ROW_CLASS_NAME,
-} from "./settings-panel-ui";
+} from "../../settings-panel-ui";
 
 interface SettingsOnboardingRowProps {
   onReset: () => void;
 }
 
-export function SettingsOnboardingRow({ onReset: onReset }: SettingsOnboardingRowProps) {
+export function SettingsOnboardingRow({ onReset }: SettingsOnboardingRowProps) {
   const { t } = useI18n();
 
   return (

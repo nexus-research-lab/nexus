@@ -1,22 +1,19 @@
 "use client";
 
 import {
-  Dispatch,
-  RefObject,
-  SetStateAction,
   useCallback,
   useMemo,
   useState,
 } from "react";
+import type { Dispatch, RefObject, SetStateAction } from "react";
 
-import { Agent } from "@/types/agent/agent";
+import type { Agent } from "@/types/agent/agent";
 
-import { MentionTargetItem } from "../mention-popover";
+import type { MentionTargetItem } from "../mention-popover";
 
 interface UseComposerMentionOptions {
   input: string;
   isGoalMode: boolean;
-  mentionUnavailableAgentIds: string[];
   roomMembers: Agent[];
   setInput: Dispatch<SetStateAction<string>>;
   textareaRef: RefObject<HTMLTextAreaElement | null>;
@@ -25,27 +22,19 @@ interface UseComposerMentionOptions {
 export function useComposerMention({
   input,
   isGoalMode,
-  mentionUnavailableAgentIds,
   roomMembers,
   setInput,
   textareaRef,
 }: UseComposerMentionOptions) {
-  const availableRoomMembers = useMemo(() => {
-    const unavailableIds = new Set(mentionUnavailableAgentIds);
-    return roomMembers.filter(
-      (member) => !unavailableIds.has(member.agent_id),
-    );
-  }, [mentionUnavailableAgentIds, roomMembers]);
-
   const mentionTargetItems = useMemo(
     () =>
-      availableRoomMembers.map<MentionTargetItem>((member) => ({
+      roomMembers.map<MentionTargetItem>((member) => ({
         id: member.agent_id,
         label: member.name,
         subtitle: null,
         kind: "agent",
       })),
-    [availableRoomMembers],
+    [roomMembers],
   );
 
   const [mentionActive, setMentionActive] = useState(false);
@@ -57,7 +46,7 @@ export function useComposerMention({
   }, []);
 
   const updateMentionForInput = useCallback((value: string) => {
-    if (isGoalMode || availableRoomMembers.length === 0) {
+    if (isGoalMode || roomMembers.length === 0) {
       setMentionActive(false);
       return;
     }
@@ -81,13 +70,13 @@ export function useComposerMention({
 
     setMentionActive(false);
   }, [
-    availableRoomMembers.length,
+    roomMembers.length,
     isGoalMode,
     textareaRef,
   ]);
 
   const selectMentionItem = useCallback((item: MentionTargetItem) => {
-    const selectedMember = availableRoomMembers.find((member) => member.agent_id === item.id);
+    const selectedMember = roomMembers.find((member) => member.agent_id === item.id);
     if (!selectedMember) {
       return;
     }
@@ -105,7 +94,7 @@ export function useComposerMention({
       textareaRef.current?.focus();
     });
   }, [
-    availableRoomMembers,
+    roomMembers,
     input,
     mentionStartPos,
     setInput,

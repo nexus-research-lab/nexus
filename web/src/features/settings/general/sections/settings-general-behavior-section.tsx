@@ -15,11 +15,11 @@ import { GlassSwitch } from "@/shared/ui/liquid-glass";
 import type { AgentConversationDefaultDeliveryPolicy } from "@/types/agent/agent-conversation";
 import type { AgentRuntimeKind } from "@/types/settings/preferences";
 
-import { SettingsDefaultModelRow } from "./settings-default-model-row";
+import { SettingsDefaultModelRow } from "../components/settings-default-model-row";
 import {
   AGENT_RUNTIME_KIND_OPTIONS,
   DELIVERY_POLICY_OPTIONS,
-} from "./settings-options";
+} from "../../settings-options";
 import {
   SETTINGS_CARD_CLASS_NAME,
   SETTINGS_CONTROL_LABEL_CLASS_NAME,
@@ -30,9 +30,9 @@ import {
   SETTINGS_SECTION_TITLE_CLASS_NAME,
   SETTINGS_TEXT_ROW_CLASS_NAME,
   SettingsSegmentedControl,
-} from "./settings-panel-ui";
-import type { DefaultModelPreferenceRole } from "./settings-preferences-model";
-import { SettingsOnboardingRow } from "./settings-onboarding-row";
+} from "../../settings-panel-ui";
+import type { DefaultModelPreferenceRole } from "../settings-preferences-model";
+import { SettingsOnboardingRow } from "../components/settings-onboarding-row";
 
 interface SettingsGeneralBehaviorSectionProps {
   agentRuntimeKind: AgentRuntimeKind;
@@ -63,26 +63,26 @@ interface SettingsGeneralBehaviorSectionProps {
 }
 
 export function SettingsGeneralBehaviorSection({
-  agentRuntimeKind: agentRuntimeKind,
-  agentSdkDiagnosticsEnabled: agentSdkDiagnosticsEnabled,
-  chatDefaultDeliveryPolicy: chatDefaultDeliveryPolicy,
-  defaultBackgroundModelOptions: defaultBackgroundModelOptions,
-  defaultBackgroundModelValue: defaultBackgroundModelValue,
-  defaultImageModelOptions: defaultImageModelOptions,
-  defaultImageModelValue: defaultImageModelValue,
-  defaultModelFeedbackMessage: defaultModelFeedbackMessage,
-  defaultModelOptions: defaultModelOptions,
-  defaultModelSavingRole: defaultModelSavingRole,
-  defaultModelValue: defaultModelValue,
-  nxsRuntimeChecking: nxsRuntimeChecking,
-  onAgentRuntimeKindChange: onAgentRuntimeKindChange,
-  onAgentSdkDiagnosticsChange: onAgentSdkDiagnosticsChange,
-  onDefaultDeliveryPolicyChange: onDefaultDeliveryPolicyChange,
-  onDefaultModelChange: onDefaultModelChange,
-  onResetTours: onResetTours,
-  preferencesLoading: preferencesLoading,
-  preferencesSaving: preferencesSaving,
-  providerOptionsLoading: providerOptionsLoading,
+  agentRuntimeKind,
+  agentSdkDiagnosticsEnabled,
+  chatDefaultDeliveryPolicy,
+  defaultBackgroundModelOptions,
+  defaultBackgroundModelValue,
+  defaultImageModelOptions,
+  defaultImageModelValue,
+  defaultModelFeedbackMessage,
+  defaultModelOptions,
+  defaultModelSavingRole,
+  defaultModelValue,
+  nxsRuntimeChecking,
+  onAgentRuntimeKindChange,
+  onAgentSdkDiagnosticsChange,
+  onDefaultDeliveryPolicyChange,
+  onDefaultModelChange,
+  onResetTours,
+  preferencesLoading,
+  preferencesSaving,
+  providerOptionsLoading,
 }: SettingsGeneralBehaviorSectionProps) {
   const { t } = useI18n();
 
@@ -159,6 +159,7 @@ export function SettingsGeneralBehaviorSection({
         <div className="border-t border-(--divider-subtle-color)" />
 
         <SettingsDefaultModelRow
+          disabled={preferencesSaving}
           descriptionKey="settings.general.default_model_description"
           emptyPlaceholderKey="settings.general.default_model_empty"
           icon={<MonitorCog className="h-3.5 w-3.5" />}
@@ -174,6 +175,7 @@ export function SettingsGeneralBehaviorSection({
         <div className="border-t border-(--divider-subtle-color)" />
 
         <SettingsDefaultModelRow
+          disabled={preferencesSaving}
           descriptionKey="settings.general.default_image_model_description"
           emptyPlaceholderKey="settings.general.default_image_model_empty"
           icon={<Image className="h-3.5 w-3.5" />}
@@ -189,6 +191,7 @@ export function SettingsGeneralBehaviorSection({
         <div className="border-t border-(--divider-subtle-color)" />
 
         <SettingsDefaultModelRow
+          disabled={preferencesSaving}
           descriptionKey="settings.general.default_background_model_description"
           emptyPlaceholderKey="settings.general.default_background_model_empty"
           feedbackMessage={defaultModelFeedbackMessage}
@@ -224,7 +227,7 @@ export function SettingsGeneralBehaviorSection({
             </span>
             <SettingsSegmentedControl
               ariaLabel={t("settings.general.default_delivery")}
-              disabled={preferencesLoading}
+              disabled={preferencesLoading || preferencesSaving}
               onChange={onDefaultDeliveryPolicyChange}
               options={DELIVERY_POLICY_OPTIONS.map((option) => ({
                 value: option.value,

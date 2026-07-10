@@ -2,47 +2,39 @@ import { memo, useMemo, useRef } from "react";
 
 import {
   buildRoundIndexItemMap,
-  resolveGroupConversationRound,
-  type GroupConversationFeedProps,
-} from "./group-conversation-feed-model";
-import { GroupConversationRound } from "./group-conversation-round";
-import { GroupConversationVirtualFeed } from "./group-conversation-virtual-feed";
-import { useConversationRoundNavigation } from "@/features/conversation/shared/feed/use-conversation-round-navigation";
+  resolveConversationRound,
+  type ConversationFeedProps,
+} from "./conversation-feed-model";
+import { ConversationRound } from "./conversation-round";
+import { ConversationVirtualFeed } from "./conversation-virtual-feed";
+import { useConversationRoundNavigation } from "./use-conversation-round-navigation";
 
 const VIRTUAL_ROUND_THRESHOLD = 20;
 
-export const GroupConversationFeed = memo(function GroupConversationFeed(
-  props: GroupConversationFeedProps,
+export const ConversationFeed = memo(function ConversationFeed(
+  props: ConversationFeedProps,
 ) {
-  const { isMobileLayout, refs, renderer, source } = props;
   const shouldVirtualize =
-    source.roundIds.length >= VIRTUAL_ROUND_THRESHOLD && Boolean(refs.scrollRef);
+    props.source.roundIds.length >= VIRTUAL_ROUND_THRESHOLD
+    && Boolean(props.refs.scrollRef);
 
-  if (shouldVirtualize && refs.scrollRef) {
+  if (shouldVirtualize && props.refs.scrollRef) {
     return (
-      <GroupConversationVirtualFeed
+      <ConversationVirtualFeed
         {...props}
-        refs={{ ...refs, scrollRef: refs.scrollRef }}
+        refs={{ ...props.refs, scrollRef: props.refs.scrollRef }}
       />
     );
   }
-
-  return (
-    <StaticGroupConversationFeed
-      isMobileLayout={isMobileLayout}
-      refs={refs}
-      renderer={renderer}
-      source={source}
-    />
-  );
+  return <StaticConversationFeed {...props} />;
 });
 
-function StaticGroupConversationFeed({
+function StaticConversationFeed({
   isMobileLayout,
   refs,
   renderer,
   source,
-}: GroupConversationFeedProps) {
+}: ConversationFeedProps) {
   const roundIndexItemById = useMemo(
     () => buildRoundIndexItemMap(source.roundIndexItems),
     [source.roundIndexItems],
@@ -64,12 +56,13 @@ function StaticGroupConversationFeed({
       }
     >
       {source.roundIds.map((roundId, index) => {
-        const state = resolveGroupConversationRound(source, index);
+        const state = resolveConversationRound(source, index);
         return (
-          <GroupConversationRound
+          <ConversationRound
             key={roundId}
             indexItem={roundIndexItemById.get(roundId)}
             renderer={renderer}
+            source={source}
             state={state}
           />
         );

@@ -31,14 +31,8 @@ export interface ComposerPanelProps {
   onReorderQueueMessages?: (orderedIds: string[]) => void | Promise<void>;
   onStop?: () => void;
   defaultDeliveryPolicy?: AgentConversationDefaultDeliveryPolicy;
-  initialDraft?: string | null;
-  disabled?: boolean;
-  allowSendWhileLoading?: boolean;
   queueWhenSessionBusy?: boolean;
-  placeholder?: string;
-  maxLength?: number;
   roomMembers?: Agent[];
-  mentionUnavailableAgentIds?: string[];
   onPrepareAttachments?: (
     files: File[],
   ) => Promise<PreparedComposerAttachment[]>;
@@ -81,6 +75,7 @@ const INPUT_ROW_PADDING: Record<
 
 export const COMPOSER_SHORTCUT_KEY_CLASS_NAME =
   "font-mono text-[11px] font-semibold leading-none text-(--text-muted)";
+export const MAX_COMPOSER_INPUT_LENGTH = 10_000;
 export const MENTION_NAVIGATION_KEYS = new Set([
   "ArrowDown",
   "ArrowUp",

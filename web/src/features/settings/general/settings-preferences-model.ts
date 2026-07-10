@@ -15,6 +15,11 @@ export interface PreferenceFeedback {
   message: string;
 }
 
+export interface DefaultModelSelection {
+  model: string;
+  provider: string;
+}
+
 export function buildPreferencesUpdatePayload(
   preferences: UserPreferences,
 ): UpdateUserPreferencesParams {
@@ -103,6 +108,36 @@ export function decodeDefaultModelValue(value: string): { provider: string; mode
   } catch {
     return null;
   }
+}
+
+const DEFAULT_MODEL_UPDATERS: Record<
+  DefaultModelPreferenceRole,
+  (preferences: UserPreferences, selection: DefaultModelSelection) => UserPreferences
+> = {
+  agent_runtime: (preferences, selection) => ({
+    ...preferences,
+    default_agent_options: {
+      ...preferences.default_agent_options,
+      model: selection.model,
+      provider: selection.provider,
+    },
+  }),
+  image_generation: (preferences, selection) => ({
+    ...preferences,
+    default_image_model_selection: selection,
+  }),
+  background_task: (preferences, selection) => ({
+    ...preferences,
+    default_background_model_selection: selection,
+  }),
+};
+
+export function applyDefaultModelSelection(
+  preferences: UserPreferences,
+  role: DefaultModelPreferenceRole,
+  selection: DefaultModelSelection,
+): UserPreferences {
+  return normalizePreferences(DEFAULT_MODEL_UPDATERS[role](preferences, selection));
 }
 
 export function encodeOptionalModelSelection(

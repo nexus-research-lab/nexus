@@ -24,7 +24,7 @@ import {
 import {
   COMPOSER_ACTION_BUTTON_CLASS_NAME,
   COMPOSER_PRIMARY_ACTION_BUTTON_CLASS_NAME,
-  getComposerShellClassName,
+  COMPOSER_SHELL_CLASS_NAME,
 } from "@/features/conversation/shared/composer/composer-styles";
 import { ConversationResizeHandle } from "@/features/conversation/shared/editor/conversation-resize-handle";
 import { MessageItem } from "@/features/conversation/shared/message";
@@ -203,7 +203,7 @@ function LandingWorkbenchChat() {
       </div>
 
       <div className="landing-real-composer">
-        <div className={cn(getComposerShellClassName(false), "landing-real-composer-shell")}>
+        <div className={cn(COMPOSER_SHELL_CLASS_NAME, "landing-real-composer-shell")}>
           <button className={COMPOSER_ACTION_BUTTON_CLASS_NAME} type="button">
             <Paperclip className="h-4 w-4" />
           </button>
