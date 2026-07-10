@@ -28,8 +28,6 @@ interface GroupAgentStatusCardProps {
   isThreadActive: boolean;
   onClickThread: () => void;
   onPermissionResponse?: (payload: PermissionDecisionPayload) => boolean;
-  canRespondToPermissions?: boolean;
-  permissionReadOnlyReason?: string;
   onOpenAgentContact?: (agentId: string) => void;
   onStopMessage?: () => void;
 }
@@ -47,8 +45,6 @@ function GroupAgentStatusCardInner({
   isThreadActive: isThreadActive,
   onClickThread: onClickThread,
   onPermissionResponse: onPermissionResponse,
-  canRespondToPermissions: canRespondToPermissions = true,
-  permissionReadOnlyReason: permissionReadOnlyReason,
   onOpenAgentContact: onOpenAgentContact,
   onStopMessage: onStopMessage,
 }: GroupAgentStatusCardProps) {
@@ -69,9 +65,7 @@ function GroupAgentStatusCardInner({
   const summaryText = useMemo(() => {
     const resultText = resultSummary?.result?.trim();
     if (isWaitingPermission) {
-      return canRespondToPermissions
-        ? (primaryPendingPermission?.summary || "等待权限确认")
-        : (permissionReadOnlyReason || "当前暂不可确认权限");
+      return primaryPendingPermission?.summary || "等待权限确认";
     }
     if (status === "cancelled") {
       return resultText || "已停止";
@@ -89,7 +83,7 @@ function GroupAgentStatusCardInner({
       return "正在回复...";
     }
     return "";
-  }, [canRespondToPermissions, isWaitingPermission, permissionReadOnlyReason, preview, primaryPendingPermission?.summary, resultSummary?.result, status]);
+  }, [isWaitingPermission, preview, primaryPendingPermission?.summary, resultSummary?.result, status]);
   const shouldRenderMarkdownSummary = Boolean(
     preview
     && !isWaitingPermission
@@ -195,28 +189,14 @@ function GroupAgentStatusCardInner({
               <button
                 type="button"
                 onClick={handleDeny}
-                disabled={!canRespondToPermissions}
-                title={!canRespondToPermissions ? permissionReadOnlyReason : undefined}
-                className={cn(
-                  "rounded-md border border-(--divider-subtle-color) bg-transparent px-2 py-1 text-[11px] font-medium text-(--text-default) transition-colors",
-                  canRespondToPermissions
-                    ? "hover:bg-(--interaction-hover-background)"
-                    : "cursor-not-allowed opacity-(--disabled-opacity)",
-                )}
+                className="rounded-md border border-(--divider-subtle-color) bg-transparent px-2 py-1 text-[11px] font-medium text-(--text-default) transition-colors hover:bg-(--interaction-hover-background)"
               >
                 拒绝
               </button>
               <button
                 type="button"
                 onClick={handleAllow}
-                disabled={!canRespondToPermissions}
-                title={!canRespondToPermissions ? permissionReadOnlyReason : undefined}
-                className={cn(
-                  "rounded-md px-2 py-1 text-[11px] font-medium text-white transition-colors",
-                  canRespondToPermissions
-                    ? "bg-primary hover:bg-primary/88"
-                    : "cursor-not-allowed bg-(--muted)",
-                )}
+                className="rounded-md bg-primary px-2 py-1 text-[11px] font-medium text-white transition-colors hover:bg-primary/88"
               >
                 {isQuestionPending ? "去回答" : "允许"}
               </button>

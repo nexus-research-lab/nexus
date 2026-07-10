@@ -235,9 +235,6 @@ const GroupConversationHeaderView = memo(({
 
       <CreateRoomDialog
         agents={allRoomAgents}
-        confirmLabel={t("common.save")}
-        dialogSubtitle={t("room.manage_dialog_subtitle")}
-        dialogTitle={t("room.manage_dialog_title")}
         initialAvatar={roomAvatar ?? ""}
         initialHostAgentId={roomHostAgentId ?? null}
         initialHostAutoReplyEnabled={roomHostAutoReplyEnabled}
@@ -248,7 +245,15 @@ const GroupConversationHeaderView = memo(({
         isOpen={isMemberListOpen}
         mode="manage"
         onCancel={() => setIsMemberListOpen(false)}
-        onConfirm={async (nextAgentIds, name, avatar, skillNames, hostAgentId, hostAutoReplyEnabled, privateMessagesEnabled) => {
+        onConfirm={async ({
+          agentIds: nextAgentIds,
+          avatar,
+          hostAgentId,
+          hostAutoReplyEnabled,
+          name,
+          privateMessagesEnabled,
+          skillNames,
+        }) => {
           if (!roomId) {
             return;
           }

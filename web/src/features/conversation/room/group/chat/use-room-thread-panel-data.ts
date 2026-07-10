@@ -25,11 +25,9 @@ import type {
 interface UseRoomThreadSourceOptions {
   agentAvatarMap?: Record<string, string | null>;
   agentNameMap?: Record<string, string>;
-  canControlSession: boolean;
   conversationId: string | null;
   currentUserAvatar?: string | null;
   messageGroups: Map<string, Message[]>;
-  observerReadOnlyReason: string;
   onOpenWorkspaceFile?: (path: string, workspaceAgentId?: string | null) => void;
   onStopMessage: (msgId: string) => void;
   pendingPermissionGroups: Map<string, PendingPermission[]>;
@@ -95,9 +93,7 @@ function deriveThreadPanelData(
     isLoading,
     pendingPermissions,
     onPermissionResponse: source.on_permission_response,
-    canRespondToPermissions: source.can_control_session,
-    permissionReadOnlyReason: source.observer_read_only_reason,
-    onStopMessage: source.can_control_session ? source.on_stop_message : undefined,
+    onStopMessage: source.on_stop_message,
     onOpenWorkspaceFile: source.on_open_workspace_file,
   };
 }
@@ -109,11 +105,9 @@ function deriveThreadPanelData(
 export function useRoomThreadSource({
   agentAvatarMap,
   agentNameMap,
-  canControlSession,
   conversationId,
   currentUserAvatar,
   messageGroups,
-  observerReadOnlyReason,
   onOpenWorkspaceFile,
   onStopMessage,
   pendingPermissionGroups,
@@ -164,8 +158,6 @@ export function useRoomThreadSource({
       agent_name_map: agentNameMap,
       agent_avatar_map: agentAvatarMap,
       current_user_avatar: currentUserAvatar,
-      can_control_session: canControlSession,
-      observer_read_only_reason: observerReadOnlyReason,
       on_permission_response: handlePermissionResponse,
       on_stop_message: handleStopMessage,
       on_open_workspace_file: canOpenWorkspaceFile
@@ -175,7 +167,6 @@ export function useRoomThreadSource({
     [
       agentAvatarMap,
       agentNameMap,
-      canControlSession,
       canOpenWorkspaceFile,
       conversationId,
       currentUserAvatar,
@@ -183,7 +174,6 @@ export function useRoomThreadSource({
       handlePermissionResponse,
       handleStopMessage,
       messageGroups,
-      observerReadOnlyReason,
       pendingPermissionGroups,
       pendingSlotGroups,
     ],

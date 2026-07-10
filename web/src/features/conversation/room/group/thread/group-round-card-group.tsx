@@ -25,8 +25,6 @@ interface GroupRoundCardGroupProps {
   isLastRound: boolean;
   isLoading: boolean;
   onPermissionResponse?: (payload: PermissionDecisionPayload) => boolean;
-  canRespondToPermissions?: boolean;
-  permissionReadOnlyReason?: string;
   onStopMessage?: (msgId: string) => void;
   onOpenAgentContact?: (agentId: string) => void;
   onOpenWorkspaceFile?: (path: string) => void;
@@ -116,8 +114,6 @@ function GroupRoundCardGroupInner(
     agentAvatarMap: agentAvatarMap,
     currentUserAvatar: currentUserAvatar,
     onPermissionResponse: onPermissionResponse,
-    canRespondToPermissions: canRespondToPermissions = true,
-    permissionReadOnlyReason: permissionReadOnlyReason,
     onStopMessage: onStopMessage,
     onOpenAgentContact: onOpenAgentContact,
     onOpenWorkspaceFile: onOpenWorkspaceFile,
@@ -219,8 +215,6 @@ function GroupRoundCardGroupInner(
                       isThreadActive={isThreadActive}
                       onClickThread={() => toggleThread(entry.agent_id)}
                       onPermissionResponse={onPermissionResponse}
-                      canRespondToPermissions={canRespondToPermissions}
-                      permissionReadOnlyReason={permissionReadOnlyReason}
                       onOpenAgentContact={onOpenAgentContact}
                       onStopMessage={
                         entry.pending_slot && onStopMessage && isAgentRoundActive(entry.status)

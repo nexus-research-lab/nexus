@@ -17,7 +17,10 @@ import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
-import { CreateRoomDialog } from "@/features/conversation/room/members/create-room-dialog";
+import {
+  CreateRoomDialog,
+  type RoomDialogSubmission,
+} from "@/features/conversation/room/members/create-room-dialog";
 import { createRoom, deleteRoom } from "@/lib/api/room-api";
 import { resolveDirectRoomNavigationTarget } from "@/lib/conversation/direct-room-navigation";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -184,15 +187,15 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
     setIsCreateRoomOpen(true);
   }, []);
 
-  const handleConfirmCreateRoom = useCallback(async (
-    agentIds: string[],
-    name: string,
-    avatar?: string,
-    skillNames?: string[],
-    hostAgentId?: string | null,
-    hostAutoReplyEnabled?: boolean,
-    privateMessagesEnabled?: boolean,
-  ) => {
+  const handleConfirmCreateRoom = useCallback(async ({
+    agentIds,
+    avatar,
+    hostAgentId,
+    hostAutoReplyEnabled,
+    name,
+    privateMessagesEnabled,
+    skillNames,
+  }: RoomDialogSubmission) => {
     setIsCreatingRoom(true);
     try {
       const context = await createRoom({
@@ -313,8 +316,7 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
         isCreating={isCreatingRoom}
         isOpen={isCreateRoomOpen}
         onCancel={() => setIsCreateRoomOpen(false)}
-        onConfirm={(ids, name, avatar, skillNames, hostAgentId, hostAutoReplyEnabled, privateMessagesEnabled) =>
-          void handleConfirmCreateRoom(ids, name, avatar, skillNames, hostAgentId, hostAutoReplyEnabled, privateMessagesEnabled)}
+        onConfirm={(submission) => void handleConfirmCreateRoom(submission)}
       />
     </div>
   );

@@ -28,8 +28,6 @@ export interface RoomThreadSource {
   agent_name_map?: Record<string, string>;
   agent_avatar_map?: Record<string, string | null>;
   current_user_avatar?: string | null;
-  can_control_session: boolean;
-  observer_read_only_reason: string;
   // 发布前已用 callbacksRef 稳定，引用恒定。
   on_permission_response: (payload: PermissionDecisionPayload) => boolean;
   on_stop_message: (msgId: string) => void;

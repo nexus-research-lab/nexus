@@ -465,8 +465,6 @@ function GroupThreadInlinePanel({
         messages={threadPanelData.messages}
         pendingPermissions={threadPanelData.pendingPermissions}
         onPermissionResponse={threadPanelData.onPermissionResponse}
-        canRespondToPermissions={threadPanelData.canRespondToPermissions}
-        permissionReadOnlyReason={threadPanelData.permissionReadOnlyReason}
         onClose={closeThread}
         onStopMessage={threadPanelData.onStopMessage}
         onOpenWorkspaceFile={threadPanelData.onOpenWorkspaceFile}

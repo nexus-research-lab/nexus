@@ -14,7 +14,7 @@ import type { TodoItem } from "@/types/conversation/todo";
 
 import { DmChatPanel } from "@/features/conversation/room/dm/dm-chat-panel";
 import { SubagentTaskSurface } from "@/features/conversation/shared/subagent/subagent-task-surface";
-import { GroupChatPanel } from "../group/chat/group-chat-panel";
+import { GroupChatPanel } from "../group/chat/panel/group-chat-panel";
 import { GroupThreadContextProvider } from "../group/thread/group-thread-context";
 import { GroupThreadDetailPanel } from "../group/thread/group-thread-detail-panel";
 import { useGroupThread } from "../group/thread/group-thread-state";
@@ -285,8 +285,6 @@ function MobileThreadOverlay() {
         messages={threadPanelData.messages}
         pendingPermissions={threadPanelData.pendingPermissions}
         onPermissionResponse={threadPanelData.onPermissionResponse}
-        canRespondToPermissions={threadPanelData.canRespondToPermissions}
-        permissionReadOnlyReason={threadPanelData.permissionReadOnlyReason}
         onClose={closeThread}
         onStopMessage={threadPanelData.onStopMessage}
         onOpenWorkspaceFile={threadPanelData.onOpenWorkspaceFile}

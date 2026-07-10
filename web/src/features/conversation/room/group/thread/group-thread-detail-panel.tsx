@@ -34,8 +34,6 @@ interface GroupThreadDetailPanelProps {
   rounds?: GroupThreadRound[];
   pendingPermissions?: PendingPermission[];
   onPermissionResponse?: (payload: PermissionDecisionPayload) => boolean;
-  canRespondToPermissions?: boolean;
-  permissionReadOnlyReason?: string;
   onClose: () => void;
   onStopMessage?: (msgId: string) => void;
   onOpenWorkspaceFile?: (path: string) => void;
@@ -70,8 +68,6 @@ export function GroupThreadDetailPanel({
   rounds,
   pendingPermissions = [],
   onPermissionResponse,
-  canRespondToPermissions = true,
-  permissionReadOnlyReason,
   onClose,
   onStopMessage,
   onOpenWorkspaceFile,
@@ -194,7 +190,6 @@ export function GroupThreadDetailPanel({
             return (
               <MessageItem
                 assistantContentMode="room_thread"
-                canRespondToPermissions={canRespondToPermissions}
                 className={cn(
                   "max-w-full overflow-x-hidden",
                   !isLastRound && "border-b border-(--divider-subtle-color)",
@@ -212,7 +207,6 @@ export function GroupThreadDetailPanel({
                 onPermissionResponse={onPermissionResponse}
                 onStopMessage={onStopMessage}
                 pendingPermissions={isLastRound ? pendingPermissions : []}
-                permissionReadOnlyReason={permissionReadOnlyReason}
                 roundId={round.roundId}
                 workspaceAgentId={workspaceAgentId ?? agentId}
               />

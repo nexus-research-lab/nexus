@@ -1,7 +1,7 @@
 "use client";
 
 import { DmChatPanel } from "@/features/conversation/room/dm/dm-chat-panel";
-import { GroupChatPanel } from "@/features/conversation/room/group/chat/group-chat-panel";
+import { GroupChatPanel } from "@/features/conversation/room/group/chat/panel/group-chat-panel";
 import { GroupChatErrorBoundary } from "@/features/conversation/room/group/chat/group-chat-error-boundary";
 import type { Agent } from "@/types/agent/agent";
 import type {
