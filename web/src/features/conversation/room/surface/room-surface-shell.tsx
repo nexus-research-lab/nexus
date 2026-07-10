@@ -11,7 +11,7 @@ import { TodoItem } from "@/types/conversation/todo";
 import { UpdateRoomParams } from "@/types/conversation/room";
 
 import { RoomMobileSurface } from "./room-mobile-surface";
-import { RoomSurfaceLayout } from "./room-surface-layout";
+import { RoomSurfaceLayout } from "./layout/room-surface-layout";
 
 interface RoomSurfaceShellProps {
   currentAgent: Agent;
@@ -35,7 +35,6 @@ interface RoomSurfaceShellProps {
   isEditorOpen: boolean;
   editorWidthPercent: number;
   isResizingEditor: boolean;
-  isConversationBusy: boolean;
   currentTodos: TodoItem[];
   workspaceSplitRef: React.RefObject<HTMLElement | null>;
   onReplayTour?: () => void;
@@ -53,7 +52,6 @@ interface RoomSurfaceShellProps {
   onUpdateConversationTitle: (conversationId: string, title: string) => Promise<void>;
   onOpenWorkspaceFile: (path: string | null, workspaceAgentId?: string | null) => void;
   onStartEditorResize: () => void;
-  onLoadingChange: (isLoading: boolean) => void;
   onTodosChange: (todos: TodoItem[]) => void;
   onConversationSnapshotChange: (snapshot: ConversationSnapshotPayload) => void;
   onRoomEvent?: (eventType: string, data: import("@/types/agent/agent-conversation").RoomEventPayload) => void;
@@ -81,7 +79,6 @@ export function RoomSurfaceShell({
   isEditorOpen: isEditorOpen,
   editorWidthPercent: editorWidthPercent,
   isResizingEditor: isResizingEditor,
-  isConversationBusy: isConversationBusy,
   currentTodos: currentTodos,
   workspaceSplitRef: workspaceSplitRef,
   onReplayTour: onReplayTour,
@@ -99,21 +96,12 @@ export function RoomSurfaceShell({
   onUpdateConversationTitle: onUpdateConversationTitle,
   onOpenWorkspaceFile: onOpenWorkspaceFile,
   onStartEditorResize: onStartEditorResize,
-  onLoadingChange: onLoadingChange,
   onTodosChange: onTodosChange,
   onConversationSnapshotChange: onConversationSnapshotChange,
   onRoomEvent: onRoomEvent,
 }: RoomSurfaceShellProps) {
   const isMobile = useMediaQuery("(max-width: 767px)");
   const [activeSurfaceTab, setActiveSurfaceTab] = useState<RoomSurfaceTabKey>("chat");
-
-  const handleSelectConversationInShell = useCallback((conversationId: string) => {
-    onSelectConversation(conversationId);
-  }, [onSelectConversation]);
-
-  const handleChangeSurfaceTab = useCallback((nextTab: RoomSurfaceTabKey) => {
-    setActiveSurfaceTab(nextTab);
-  }, []);
 
   const handleCreateConversationInShell = useCallback(async (title?: string) => {
     const nextConversationId = await onCreateConversation(title);
@@ -148,11 +136,10 @@ export function RoomSurfaceShell({
         onBackToDirectory={onBackToDirectory}
         onConversationSnapshotChange={onConversationSnapshotChange}
         onCreateConversation={handleCreateConversationInShell}
-        onLoadingChange={onLoadingChange}
         onOpenWorkspaceFile={(path, workspaceAgentId) =>
           onOpenWorkspaceFile(path, workspaceAgentId)}
         onRoomEvent={onRoomEvent}
-        onSelectConversation={handleSelectConversationInShell}
+        onSelectConversation={onSelectConversation}
         onTodosChange={onTodosChange}
       />
     );
@@ -182,23 +169,21 @@ export function RoomSurfaceShell({
       editorWidthPercent={editorWidthPercent}
       isEditorOpen={isEditorOpen}
       isResizingEditor={isResizingEditor}
-      isConversationBusy={isConversationBusy}
       onReplayTour={onReplayTour}
       onAddRoomMember={onAddRoomMember}
       onOpenMemberManager={onOpenMemberManager}
       onRemoveRoomMember={onRemoveRoomMember}
       onSaveAgentOptions={onSaveAgentOptions}
       onValidateAgentName={onValidateAgentName}
-      onChangeSurfaceTab={handleChangeSurfaceTab}
+      onChangeSurfaceTab={setActiveSurfaceTab}
       onConversationSnapshotChange={onConversationSnapshotChange}
       onCreateConversation={handleCreateConversationInShell}
       onCloseConversation={onCloseConversation}
       onDeleteConversation={onDeleteConversation}
-      onLoadingChange={onLoadingChange}
       onOpenWorkspaceFile={handleOpenWorkspaceFileInShell}
       onUpdateRoom={onUpdateRoom}
       onUpdateConversationTitle={onUpdateConversationTitle}
-      onSelectConversation={handleSelectConversationInShell}
+      onSelectConversation={onSelectConversation}
       onStartEditorResize={onStartEditorResize}
       onTodosChange={onTodosChange}
       workspaceSplitRef={workspaceSplitRef}

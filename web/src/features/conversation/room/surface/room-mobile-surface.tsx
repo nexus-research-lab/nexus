@@ -19,6 +19,7 @@ import { GroupThreadContextProvider } from "../group/thread/group-thread-context
 import { GroupThreadDetailPanel } from "../group/thread/group-thread-detail-panel";
 import { useGroupThread } from "../group/thread/group-thread-state";
 import { useRoomThreadPanel } from "../group/chat/use-room-thread-panel-data";
+import { resolveRoomSubagentTaskSource } from "./room-surface-model";
 
 interface RoomMobileSurfaceProps {
   currentAgent: Agent;
@@ -38,7 +39,6 @@ interface RoomMobileSurfaceProps {
   onBackToDirectory: () => void;
   onCreateConversation: (title?: string) => void | Promise<string | null>;
   onSelectConversation: (conversationId: string) => void;
-  onLoadingChange: (isLoading: boolean) => void;
   onOpenWorkspaceFile?: (path: string, workspaceAgentId?: string | null) => void;
   onConversationSnapshotChange: (snapshot: ConversationSnapshotPayload) => void;
   onRoomEvent?: (eventType: string, data: import("@/types/agent/agent-conversation").RoomEventPayload) => void;
@@ -63,7 +63,6 @@ export function RoomMobileSurface({
   onBackToDirectory: onBackToDirectory,
   onCreateConversation: onCreateConversation,
   onSelectConversation: onSelectConversation,
-  onLoadingChange: onLoadingChange,
   onOpenWorkspaceFile: onOpenWorkspaceFile,
   onConversationSnapshotChange: onConversationSnapshotChange,
   onRoomEvent: onRoomEvent,
@@ -74,20 +73,15 @@ export function RoomMobileSurface({
   const [openSubagentSource, setOpenSubagentSource] = useState<SubagentTaskSource | null>(null);
   const isDm = currentRoomType === "dm";
   const currentAgentAvatarSrc = getIconAvatarSrc(currentAgent.avatar);
-  const subagentTaskSource = useMemo<SubagentTaskSource | null>(() => {
-    if (isDm) {
-      const sessionKey = currentAgentSessionIdentity?.session_key?.trim();
-      return sessionKey ? { kind: "session", session_key: sessionKey } : null;
-    }
-    if (!roomId || !conversationId) {
-      return null;
-    }
-    return {
-      kind: "room",
-      room_id: roomId,
-      conversation_id: conversationId,
-    };
-  }, [conversationId, currentAgentSessionIdentity?.session_key, isDm, roomId]);
+  const subagentTaskSource = useMemo(
+    () => resolveRoomSubagentTaskSource({
+      conversationId,
+      isDm,
+      roomId,
+      sessionIdentity: currentAgentSessionIdentity,
+    }),
+    [conversationId, currentAgentSessionIdentity, isDm, roomId],
+  );
 
   const currentRoomConversationTitle = useMemo(() => {
     if (currentRoomConversation?.title?.trim()) {
@@ -158,7 +152,6 @@ export function RoomMobileSurface({
             layout="mobile"
             onConversationSnapshotChange={onConversationSnapshotChange}
             onInitialDraftConsumed={onInitialDraftConsumed}
-            onLoadingChange={onLoadingChange}
             onOpenWorkspaceFile={onOpenWorkspaceFile}
             onRoomEvent={onRoomEvent}
             onTodosChange={onTodosChange}
@@ -176,7 +169,6 @@ export function RoomMobileSurface({
               onConversationSnapshotChange={onConversationSnapshotChange}
               onCreateConversation={onCreateConversation}
               onInitialDraftConsumed={onInitialDraftConsumed}
-              onLoadingChange={onLoadingChange}
               onOpenWorkspaceFile={onOpenWorkspaceFile}
               onRoomEvent={onRoomEvent}
               onTodosChange={onTodosChange}

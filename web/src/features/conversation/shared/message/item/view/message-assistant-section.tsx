@@ -16,18 +16,18 @@ import type {
   PendingPermission,
   PermissionDecisionPayload,
 } from "@/types/conversation/permission";
-import { ToolBlock } from "../blocks/tool-block";
-import { useWorkspaceFileArtifactsFromContent } from "../blocks/workspace-file-artifact-utils";
-import { WorkspaceFileArtifactList } from "../blocks/workspace-file-artifacts";
-import { MessageStats } from "../ui/message-stats";
+import { ToolBlock } from "../../blocks/tool/tool-block";
+import { useWorkspaceFileArtifactsFromContent } from "../../blocks/artifact/workspace-file-artifact-utils";
+import { WorkspaceFileArtifactList } from "../../blocks/artifact/workspace-file-artifacts";
+import { MessageStats } from "../../ui/message-stats";
 import {
   MessageActionButton,
   MessageActivityStatus,
   MessageAvatar,
-} from "../ui/message-primitives";
+} from "../../ui/message-primitives";
 import { ContentRenderer } from "./content-renderer";
-import { formatMessageTime } from "./message-item-support";
-import type { MessageItemState } from "./message-item-types";
+import { formatMessageTime } from "../message-item-support";
+import type { MessageItemState } from "../message-item-types";
 import type { ContentBlock } from "@/types/conversation/message";
 
 const EMPTY_CONTENT_BLOCKS: ContentBlock[] = [];

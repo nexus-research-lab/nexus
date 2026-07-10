@@ -22,7 +22,7 @@ import {
   StreamingMarkdownText,
 } from "./markdown-streaming";
 import { useSmoothStreamingMarkdownContent } from "./use-smooth-streaming-markdown-content";
-import { FileArtifactBlock } from "../blocks/file-artifact-block";
+import { FileArtifactBlock } from "../blocks/artifact/file-artifact-block";
 
 interface MarkdownRendererProps {
   content: string;

@@ -7,7 +7,7 @@ import {
   splitTextBlockByToolUseError,
   type AssistantTurnEntry,
   type OrderedAssistantEntry,
-} from "./message-item-support";
+} from "../message-item-support";
 
 export function buildVisibleOrderedAssistantEntries({
   hiddenToolNames,
@@ -18,7 +18,7 @@ export function buildVisibleOrderedAssistantEntries({
   sourceMessageOrderById,
   systemEventBlocks,
 }: {
-  hiddenToolNames: string[];
+  hiddenToolNames: ReadonlySet<string>;
   hiddenToolUseIds: ReadonlySet<string>;
   isLoading?: boolean;
   mergedContent: ContentBlock[];
@@ -67,7 +67,7 @@ export function buildVisibleOrderedAssistantEntries({
     }
 
     if (block.type === "tool_use") {
-      if (!hiddenToolNames.includes(block.name)) {
+      if (!hiddenToolNames.has(block.name)) {
         assistantEntries.push({
           block,
           mergedIndex,

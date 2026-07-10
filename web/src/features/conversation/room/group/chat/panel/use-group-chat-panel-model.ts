@@ -38,7 +38,6 @@ export function useGroupChatPanelModel({
   onConversationSnapshotChange,
   onCreateConversation = () => {},
   onInitialDraftConsumed,
-  onLoadingChange,
   onOpenAgentContact,
   onOpenWorkspaceFile,
   onRoomEvent,
@@ -86,10 +85,8 @@ export function useGroupChatPanelModel({
 
   useGroupConversationObservers({
     conversationId,
-    isLoading: conversation.is_loading,
     messages: conversation.messages,
     onConversationSnapshotChange,
-    onLoadingChange,
     onTodosChange,
     sessionKey,
   });
@@ -273,29 +270,21 @@ function useRoomAgentDirectory(roomMembers: Agent[]): {
 
 function useGroupConversationObservers({
   conversationId,
-  isLoading,
   messages,
   onConversationSnapshotChange,
-  onLoadingChange,
   onTodosChange,
   sessionKey,
 }: {
   conversationId: string | null;
-  isLoading: boolean;
   messages: Message[];
   onConversationSnapshotChange?: (
     snapshot: RoomConversationSnapshotPayload,
   ) => void;
-  onLoadingChange?: (isLoading: boolean) => void;
   onTodosChange?: (todos: TodoItem[]) => void;
   sessionKey: string | null;
 }): void {
   const todos = useExtractTodos(messages, sessionKey);
   useEffect(() => onTodosChange?.(todos), [onTodosChange, todos]);
-  useEffect(
-    () => onLoadingChange?.(isLoading),
-    [isLoading, onLoadingChange],
-  );
   useConversationSnapshotReporter({
     build_snapshot: buildRoomSnapshot,
     messages,

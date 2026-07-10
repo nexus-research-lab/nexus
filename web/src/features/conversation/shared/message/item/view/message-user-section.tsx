@@ -15,10 +15,10 @@ import {
 import { useTextareaHeight } from "@/hooks/ui/use-textarea-height";
 import { cn } from "@/lib/utils";
 import { getUiButtonClassName } from "@/shared/ui/button-styles";
-import { MessageActionButton, MessageAvatar } from "../ui/message-primitives";
+import { MessageActionButton, MessageAvatar } from "../../ui/message-primitives";
 import { ContentRenderer } from "./content-renderer";
-import { formatMessageTime } from "./message-item-support";
-import type { MessageItemState } from "./message-item-types";
+import { formatMessageTime } from "../message-item-support";
+import type { MessageItemState } from "../message-item-types";
 import type { MessageAttachment } from "@/types/conversation/message";
 
 interface MessageUserSectionProps {

@@ -14,10 +14,12 @@ import { memo } from "react";
 import { cn } from "@/lib/utils";
 
 import { MessageShell } from "../ui/message-primitives";
-import { MessageAssistantSection } from "./message-assistant-section";
+import { useMessageItemController } from "./controller/use-message-item-controller";
 import type { MessageItemProps } from "./message-item-types";
-import { MessageUserSection } from "./message-user-section";
-import { useMessageItemState } from "./use-message-item-state";
+import { MessageAssistantSection } from "./view/message-assistant-section";
+import { MessageUserSection } from "./view/message-user-section";
+
+const DEFAULT_HIDDEN_TOOL_NAMES = ["TodoWrite"];
 
 function MessageItemInner({
   compact = false,
@@ -25,32 +27,36 @@ function MessageItemInner({
   currentAgentAvatar: currentAgentAvatar,
   workspaceAgentId: workspaceAgentId,
   currentUserAvatar: currentUserAvatar,
+  roundId: roundId,
+  messages: messages,
+  isLastRound: isLastRound,
+  isLoading: isLoading,
+  runtimePhase: runtimePhase,
+  pendingPermissions: pendingPermissions,
   onEditUserMessage: onEditUserMessage,
   onOpenAgentContact: onOpenAgentContact,
   onOpenWorkspaceFile: onOpenWorkspaceFile,
   onPermissionResponse: onPermissionResponse,
   canRespondToPermissions: canRespondToPermissions = true,
   permissionReadOnlyReason: permissionReadOnlyReason,
-  hiddenToolNames: hiddenToolNames = ["TodoWrite"],
+  hiddenToolNames: hiddenToolNames = DEFAULT_HIDDEN_TOOL_NAMES,
+  onStopMessage: onStopMessage,
+  defaultProcessExpanded: defaultProcessExpanded,
   assistantHeaderAction: assistantHeaderAction,
   assistantContentMode: assistantContentMode = "dm_archived",
   className: className,
-  ...restProps
 }: MessageItemProps) {
-  const state = useMessageItemState({
-    compact,
-    currentAgentName: currentAgentName,
-    currentAgentAvatar: currentAgentAvatar,
-    onEditUserMessage: onEditUserMessage,
-    onOpenWorkspaceFile: onOpenWorkspaceFile,
-    onPermissionResponse: onPermissionResponse,
-    canRespondToPermissions: canRespondToPermissions,
-    permissionReadOnlyReason: permissionReadOnlyReason,
+  const state = useMessageItemController({
+    roundId,
+    messages,
+    isLastRound,
+    isLoading,
+    runtimePhase,
+    pendingPermissions,
     hiddenToolNames: hiddenToolNames,
-    assistantHeaderAction: assistantHeaderAction,
+    onStopMessage,
+    defaultProcessExpanded,
     assistantContentMode: assistantContentMode,
-    className: className,
-    ...restProps,
   });
 
   return (

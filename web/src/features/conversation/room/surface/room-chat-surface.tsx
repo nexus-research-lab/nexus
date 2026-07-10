@@ -20,7 +20,6 @@ interface RoomChatSurfaceProps {
   onInitialDraftConsumed?: () => void;
   onConversationSnapshotChange: (snapshot: ConversationSnapshotPayload) => void;
   onCreateConversation: (title?: string) => Promise<string | null>;
-  onLoadingChange: (isLoading: boolean) => void;
   onOpenAgentContact: (agentId: string) => void;
   onOpenWorkspaceFile: (path: string) => void;
   onRoomEvent?: (eventType: string, data: RoomEventPayload) => void;
@@ -40,7 +39,6 @@ export function RoomChatSurface({
   onInitialDraftConsumed: onInitialDraftConsumed,
   onConversationSnapshotChange: onConversationSnapshotChange,
   onCreateConversation: onCreateConversation,
-  onLoadingChange: onLoadingChange,
   onOpenAgentContact: onOpenAgentContact,
   onOpenWorkspaceFile: onOpenWorkspaceFile,
   onRoomEvent: onRoomEvent,
@@ -62,7 +60,6 @@ export function RoomChatSurface({
           initialDraft={initialDraft}
           onInitialDraftConsumed={onInitialDraftConsumed}
           onConversationSnapshotChange={onConversationSnapshotChange}
-          onLoadingChange={onLoadingChange}
           onOpenAgentContact={onOpenAgentContact}
           onOpenWorkspaceFile={onOpenWorkspaceFile}
           onRoomEvent={onRoomEvent}
@@ -79,7 +76,6 @@ export function RoomChatSurface({
           onInitialDraftConsumed={onInitialDraftConsumed}
           onConversationSnapshotChange={onConversationSnapshotChange}
           onCreateConversation={onCreateConversation}
-          onLoadingChange={onLoadingChange}
           onOpenAgentContact={onOpenAgentContact}
           onOpenWorkspaceFile={onOpenWorkspaceFile}
           onRoomEvent={onRoomEvent}

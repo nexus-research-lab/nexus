@@ -6,7 +6,7 @@ import type {
 } from "@/types/conversation/message";
 import type { PendingPermission } from "@/types/conversation/permission";
 
-import type { MessageActivityState } from "../ui/message-primitives";
+import type { MessageActivityState } from "../../ui/message-primitives";
 
 export function resolveActivityState({
   content,

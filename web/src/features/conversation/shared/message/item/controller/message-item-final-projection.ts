@@ -12,7 +12,7 @@ import {
   type AssistantTurnEntry,
   type ContentProjection,
   type OrderedAssistantEntry,
-} from "./message-item-support";
+} from "../message-item-support";
 
 interface FinalProjectionInput {
   assistantContentMode: AssistantContentMode;

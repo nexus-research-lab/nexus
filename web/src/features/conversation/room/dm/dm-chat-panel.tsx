@@ -55,7 +55,6 @@ export interface DmChatPanelProps {
   onOpenAgentContact?: (agentId: string) => void;
   onOpenWorkspaceFile?: (path: string) => void;
   onTodosChange?: (todos: TodoItem[]) => void;
-  onLoadingChange?: (isLoading: boolean) => void;
   onConversationSnapshotChange?: (snapshot: SessionSnapshotPayload) => void;
   onRoomEvent?: (
     eventType: string,
@@ -74,7 +73,6 @@ export function DmChatPanel({
   onOpenAgentContact: onOpenAgentContact,
   onOpenWorkspaceFile: onOpenWorkspaceFile,
   onTodosChange: onTodosChange,
-  onLoadingChange: onLoadingChange,
   onConversationSnapshotChange: onConversationSnapshotChange,
   onRoomEvent: onRoomEvent,
 }: DmChatPanelProps) {
@@ -217,10 +215,6 @@ export function DmChatPanel({
   useEffect(() => {
     onTodosChange?.(todos);
   }, [onTodosChange, todos]);
-  useEffect(() => {
-    onLoadingChange?.(isLoading);
-  }, [isLoading, onLoadingChange]);
-
   useConversationSnapshotReporter({
     scope_key: sessionKey,
     messages,

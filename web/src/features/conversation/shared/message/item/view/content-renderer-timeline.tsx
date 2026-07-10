@@ -8,7 +8,7 @@ import {
   DEFAULT_TIMELINE_DOT_TOP,
   getTimelineAnchorElement,
   getTimelineAnchorTop,
-} from "./message-item-support";
+} from "../message-item-support";
 
 export function SystemEventIcon({
   icon,

@@ -5,12 +5,12 @@ import type { PendingPermission } from "@/types/conversation/permission";
 import {
   getInputSummary,
   getToolTitle,
-} from "../blocks/tool-block-model";
-import type { MessageActivityState } from "../ui/message-primitives";
+} from "../../blocks/tool/tool-block-model";
+import type { MessageActivityState } from "../../ui/message-primitives";
 import {
   findLatestStreamingBlock,
   mapRuntimePhaseToActivityState,
-} from "./message-item-support";
+} from "../message-item-support";
 
 const PROCESS_SUMMARY_DETAIL_LIMIT = 72;
 

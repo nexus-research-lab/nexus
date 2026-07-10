@@ -21,7 +21,6 @@ export function useHomeWorkspaceController({
   const [editorWidthPercent, setEditorWidthPercent] = useState(HOME_EDITOR_DEFAULT_WIDTH_PERCENT);
   const [isResizingEditor, setIsResizingEditor] = useState(false);
   const [currentTodos, setCurrentTodos] = useResettableState<TodoItem[]>([], agentResetKey);
-  const [isConversationBusy, setIsConversationBusy] = useResettableState(false, agentResetKey);
   const workspaceSplitRef = useRef<HTMLElement | null>(null);
   const filesByAgent = useWorkspaceFilesStore((state) => state.files_by_agent);
   const refreshFiles = useWorkspaceFilesStore((state) => state.refresh_files);
@@ -113,10 +112,8 @@ export function useHomeWorkspaceController({
     editorWidthPercent: editorWidthPercent,
     isResizingEditor: isResizingEditor,
     currentTodos: currentTodos,
-    isConversationBusy: isConversationBusy,
     workspaceSplitRef: workspaceSplitRef,
     setCurrentTodos: setCurrentTodos,
-    setIsConversationBusy: setIsConversationBusy,
     handleOpenWorkspaceFile: handleOpenWorkspaceFile,
     handleStartEditorResize: handleStartEditorResize,
   };

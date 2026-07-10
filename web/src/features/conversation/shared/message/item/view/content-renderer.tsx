@@ -13,23 +13,23 @@ import {
 } from "@/types/conversation/message";
 import { PendingPermission, PermissionDecisionPayload } from "@/types/conversation/permission";
 
-import { AskUserQuestionBlock } from "../blocks/ask-user-question-block";
-import { ImageBlock } from "../blocks/image-block";
-import { ThinkingBlock } from "../blocks/thinking-block";
-import { ToolBlock } from "../blocks/tool-block";
-import { ToolUseErrorBlock } from "../blocks/tool-use-error-block";
-import { WorkspaceFileArtifactBlock } from "../blocks/workspace-file-artifacts";
-import { MarkdownRenderer } from "../markdown/markdown-renderer";
-import { MessageActivityState, MessageActivityStatus } from "../ui/message-primitives";
+import { AskUserQuestionBlock } from "../../blocks/question/ask-user-question-block";
+import { ImageBlock } from "../../blocks/artifact/image-block";
+import { ThinkingBlock } from "../../blocks/thinking-block";
+import { ToolBlock } from "../../blocks/tool/tool-block";
+import { ToolUseErrorBlock } from "../../blocks/tool/tool-use-error-block";
+import { WorkspaceFileArtifactBlock } from "../../blocks/artifact/workspace-file-artifacts";
+import { MarkdownRenderer } from "../../markdown/markdown-renderer";
+import { MessageActivityState, MessageActivityStatus } from "../../ui/message-primitives";
 import {
   MessageRail,
   MessageRailBody,
   MessageRailLabel,
-} from "../ui/message-rail";
+} from "../../ui/message-rail";
 import {
   getSystemMessageIconClassName,
   getSystemMessageLabelClassName,
-} from "./message-item-support";
+} from "../message-item-support";
 import { resolveActivityState } from "./content-renderer-activity";
 import { SystemEventIcon, TimelineBlock } from "./content-renderer-timeline";
 

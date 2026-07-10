@@ -3,7 +3,7 @@ import { useEffect, useRef, type CSSProperties, type RefObject } from "react";
 
 import type { ContentBlock } from "@/types/conversation/message";
 
-import { extractTextFromContentBlocks } from "./message-item-support";
+import { extractTextFromContentBlocks } from "../message-item-support";
 
 const STREAMING_MIN_HEIGHT = 60;
 const STREAMING_LAYOUT_DELAY_MS = 150;

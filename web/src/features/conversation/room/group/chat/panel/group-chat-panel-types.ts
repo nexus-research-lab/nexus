@@ -15,7 +15,6 @@ export interface GroupChatPanelProps {
   ) => void;
   onCreateConversation?: (title?: string) => void | Promise<string | null>;
   onInitialDraftConsumed?: () => void;
-  onLoadingChange?: (isLoading: boolean) => void;
   onOpenAgentContact?: (agentId: string) => void;
   onOpenWorkspaceFile?: (path: string) => void;
   onRoomEvent?: (eventType: string, data: RoomEventPayload) => void;

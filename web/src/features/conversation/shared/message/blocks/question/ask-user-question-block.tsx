@@ -20,7 +20,7 @@ import {
     isAskUserQuestionTimedOutResult,
 } from '@/types/conversation/ask-user-question';
 import { ToolResultContent, ToolUseContent } from '@/types/conversation/message';
-import { MessageRail } from "../ui/message-rail";
+import { MessageRail } from "../../ui/message-rail";
 import { AskUserQuestionCard } from "./ask-user-question-card";
 import {
     buildSubmittedSelectionState,
