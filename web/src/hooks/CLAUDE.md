@@ -10,7 +10,10 @@ L2 | 父级: web/CLAUDE.md
 - `agent/websocket-event-handler.ts`: WebSocket 事件分发
 - `agent/conversation-actions.ts`: 对话动作层
 - `agent/conversation-lifecycle.ts`: 对话生命周期处理
+- `agent/use-agent-conversation-actions.ts`: 用户命令与发送 ACK 生命周期装配
 - `agent/use-agent-conversation-history.ts`: 会话历史分页状态、加载互斥与目标轮次窗口装配
+- `agent/use-agent-conversation-runtime.ts`: 运行状态机、待处理权限与 Room slot 的统一投影
+- `agent/use-agent-conversation-session.ts`: 会话键切换与瞬时状态清理
 - `use-extract-todos.ts`: 从消息中提取 TodoItem 的 Hook
 - `use-initialize-conversations.ts`: 初始化对话列表的 Hook（hydration 控制）
 - `use-conversation-loader.ts`: 响应式对话加载 Hook

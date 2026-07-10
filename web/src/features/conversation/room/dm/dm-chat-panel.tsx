@@ -29,7 +29,7 @@ import {
 import type {
   ConversationRoundScrollHandle,
 } from "@/features/conversation/shared/conversation-round-scroll";
-import { ConversationSessionNavigator } from "@/features/conversation/shared/conversation-session-navigator";
+import { ConversationSessionNavigator } from "@/features/conversation/shared/session-navigator/conversation-session-navigator";
 import { goalContinuationHoldForPermission } from "@/features/conversation/shared/goal-continuation-hold";
 import { GoalPanel } from "@/features/conversation/shared/goal-panel";
 import { ProviderUnavailableBanner } from "@/features/conversation/shared/provider-unavailable-banner";

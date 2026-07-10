@@ -26,7 +26,7 @@ import { ConversationErrorBubble } from "@/features/conversation/shared/conversa
 import type {
   ConversationRoundScrollHandle,
 } from "@/features/conversation/shared/conversation-round-scroll";
-import { ConversationSessionNavigator } from "@/features/conversation/shared/conversation-session-navigator";
+import { ConversationSessionNavigator } from "@/features/conversation/shared/session-navigator/conversation-session-navigator";
 import {
   buildConversationScrollContentKey,
 } from "@/features/conversation/shared/conversation-scroll-content-key";

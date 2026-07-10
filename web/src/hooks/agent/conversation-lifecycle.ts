@@ -1,11 +1,44 @@
+import type { Dispatch, RefObject, SetStateAction } from 'react';
+
 import { getMessageHistoryRoundPageSize } from "@/config/options";
 import { getSessionMessagesApi } from "@/lib/api/agent-api";
 import { getRoomConversationMessages } from '@/lib/api/room-api';
 import { buildRoomSharedSessionKey, buildSessionKey } from '@/lib/conversation/session-key';
 import { generateUuid } from '@/lib/uuid';
-import { AgentConversationLifecycleContext } from '@/types/agent/agent-conversation';
+import type { Message, RoomPendingAgentSlotState } from '@/types';
+import type {
+  AgentConversationIdentity,
+  InputQueueItem,
+} from '@/types/agent/agent-conversation';
+import type { PendingPermission } from '@/types/conversation/permission';
 
 import { mergeLoadedMessages, sortMessages } from './message-helpers';
+
+/** 生命周期层只接收加载和切换会话所需的状态能力。 */
+export interface AgentConversationLifecycleContext {
+  active_session_key_ref: RefObject<string | null>;
+  load_request_id_ref: RefObject<number>;
+  identity: AgentConversationIdentity | null;
+  set_session_key: Dispatch<SetStateAction<string | null>>;
+  set_is_session_loading: Dispatch<SetStateAction<boolean>>;
+  set_messages: Dispatch<SetStateAction<Message[]>>;
+  set_pending_agent_slots: Dispatch<SetStateAction<RoomPendingAgentSlotState[]>>;
+  set_input_queue_items: Dispatch<SetStateAction<InputQueueItem[]>>;
+  set_pending_permissions: Dispatch<SetStateAction<PendingPermission[]>>;
+  set_error: Dispatch<SetStateAction<string | null>>;
+  bg_message_cache_ref: RefObject<Map<string, Message[]>>;
+  restore_volatile_session_snapshot: (sessionKey: string) => boolean;
+  on_session_messages_loaded: (
+    messages: Message[],
+    meta: {
+      session_key: string;
+      is_reload: boolean;
+      has_more_history: boolean;
+      next_before_round_id: string | null;
+      next_before_round_timestamp: number | null;
+    },
+  ) => void;
+}
 
 /**
  * 重置当前会话视图状态。
@@ -17,7 +50,7 @@ function resetSessionView(
 ): void {
   context.set_messages([]);
   context.set_pending_agent_slots([]);
-  context.set_input_queue_items?.([]);
+  context.set_input_queue_items([]);
   context.set_pending_permissions([]);
   context.set_error(nextError);
 }
@@ -70,8 +103,8 @@ export async function loadAgentSession(
   if (isReload) {
     context.set_error(null);
   } else {
-    // Pre-fill with cached background messages before the API round-trip
-    const cached = context.bg_message_cache_ref?.current.get(sessionKey);
+    // API 返回前先展示后台收到的消息，避免会话切换时闪回空态。
+    const cached = context.bg_message_cache_ref.current.get(sessionKey);
     if (cached && cached.length > 0) {
       context.set_messages(sortMessages(cached));
       context.set_pending_permissions([]);
@@ -79,7 +112,7 @@ export async function loadAgentSession(
     } else {
       resetSessionView(context);
     }
-    context.restore_volatile_session_snapshot?.(sessionKey);
+    context.restore_volatile_session_snapshot(sessionKey);
   }
 
   try {
@@ -106,15 +139,15 @@ export async function loadAgentSession(
       mergedMessages = mergeLoadedMessages(sortedMessages, currentMessages);
       return mergedMessages;
     });
-    context.on_session_messages_loaded?.(mergedMessages, {
+    context.on_session_messages_loaded(mergedMessages, {
       session_key: sessionKey,
       is_reload: isReload,
       has_more_history: data.has_more ?? false,
       next_before_round_id: data.next_before_round_id ?? null,
       next_before_round_timestamp: data.next_before_round_timestamp ?? null,
     });
-    // Cache is now stale — clear it
-    context.bg_message_cache_ref?.current.delete(sessionKey);
+    // 服务端快照合并完成后，后台缓存已完成使命。
+    context.bg_message_cache_ref.current.delete(sessionKey);
   } catch (err) {
     if (
       context.load_request_id_ref.current !== requestId ||

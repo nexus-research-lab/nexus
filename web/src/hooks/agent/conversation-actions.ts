@@ -1,16 +1,39 @@
+import type { Dispatch, RefObject, SetStateAction } from 'react';
+
 import { resolveAgentId } from '@/config/options';
-import { WebSocketMessage } from '@/types/system/websocket';
 import { isStructuredSessionKey } from '@/lib/conversation/session-key';
 import { generateUuid } from '@/lib/uuid';
-import { Message } from '@/types';
+import type { Message } from '@/types';
 import {
-  AgentConversationActionContext,
   AgentConversationDeliveryPolicy,
+  AgentConversationIdentity,
   AgentConversationSendOptions,
 } from '@/types/agent/agent-conversation';
-import { PermissionDecisionPayload } from '@/types/conversation/permission';
+import type {
+  PendingPermission,
+  PermissionDecisionPayload,
+} from '@/types/conversation/permission';
+import {
+  WebSocketMessage,
+  type WebSocketSendResult,
+  type WebSocketState,
+} from '@/types/system/websocket';
 
 import { upsertMessage } from './message-helpers';
+
+/** 对话动作只依赖发送命令所需的当前投影，由实际消费者在此定义。 */
+export interface AgentConversationActionContext {
+  identity: AgentConversationIdentity | null;
+  session_key: string | null;
+  ws_state: WebSocketState;
+  ws_send: (message: WebSocketMessage) => WebSocketSendResult;
+  active_session_key_ref: RefObject<string | null>;
+  pending_permissions: PendingPermission[];
+  messages: Message[];
+  set_error: Dispatch<SetStateAction<string | null>>;
+  set_messages: Dispatch<SetStateAction<Message[]>>;
+  set_pending_permissions: Dispatch<SetStateAction<PendingPermission[]>>;
+}
 
 function failSend(setError: AgentConversationActionContext["set_error"], message: string): never {
   setError(message);

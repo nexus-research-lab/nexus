@@ -163,51 +163,6 @@ export interface ConversationSnapshot {
   session_id: string | null;
 }
 
-export interface AgentConversationActionContext {
-  identity: AgentConversationIdentity | null;
-  session_key: string | null;
-  ws_state: WebSocketState;
-  ws_send: (message: WebSocketMessage) => WebSocketSendResult;
-  active_session_key_ref: RefObject<string | null>;
-  pending_permissions: PendingPermission[];
-  pending_agent_slots: RoomPendingAgentSlotState[];
-  input_queue_items: InputQueueItem[];
-  messages: Message[];
-  set_error: Dispatch<SetStateAction<string | null>>;
-  set_messages: Dispatch<SetStateAction<Message[]>>;
-  set_pending_agent_slots: Dispatch<SetStateAction<RoomPendingAgentSlotState[]>>;
-  set_input_queue_items: Dispatch<SetStateAction<InputQueueItem[]>>;
-  set_pending_permissions: Dispatch<SetStateAction<PendingPermission[]>>;
-}
-
-export interface AgentConversationLifecycleContext {
-  active_session_key_ref: RefObject<string | null>;
-  load_request_id_ref: RefObject<number>;
-  identity: AgentConversationIdentity | null;
-  set_session_key: Dispatch<SetStateAction<string | null>>;
-  set_is_session_loading: Dispatch<SetStateAction<boolean>>;
-  set_messages: Dispatch<SetStateAction<Message[]>>;
-  set_pending_agent_slots: Dispatch<SetStateAction<RoomPendingAgentSlotState[]>>;
-  set_input_queue_items?: Dispatch<SetStateAction<InputQueueItem[]>>;
-  set_pending_permissions: Dispatch<SetStateAction<PendingPermission[]>>;
-  set_error: Dispatch<SetStateAction<string | null>>;
-  /** Cache of background messages received for non-active sessions */
-  bg_message_cache_ref?: RefObject<Map<string, Message[]>>;
-  /** 恢复当前 session 尚未落入历史快照的进行中轮次。 */
-  restore_volatile_session_snapshot?: (sessionKey: string) => boolean;
-  /** Session 快照完成加载后，允许 Hook 对运行时状态做对账 */
-  on_session_messages_loaded?: (
-    messages: Message[],
-    meta: {
-      session_key: string;
-      is_reload: boolean;
-      has_more_history: boolean;
-      next_before_round_id: string | null;
-      next_before_round_timestamp: number | null;
-    },
-  ) => void;
-}
-
 export interface RoomEventPayload {
   room_id?: string;
   conversation_id?: string;

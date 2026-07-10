@@ -5,7 +5,6 @@ import {
   useMemo,
   useRef,
   useState,
-  useSyncExternalStore,
 } from "react";
 import {
   getAgentWsUrl,
@@ -16,19 +15,10 @@ import { useAgentStore } from "@/store/agent";
 import { useWorkspaceLiveStore } from "@/store/workspace-live";
 import {
   Message,
-  RoundLifecycleStatus,
-  SessionStatusEventPayload,
   WebSocketMessage,
   WebSocketState,
 } from "@/types";
 import {
-  PermissionDecisionPayload,
-} from "@/types/conversation/permission";
-import {
-  AgentConversationActionContext,
-  AgentConversationDeliveryPolicy,
-  AgentConversationLifecycleContext,
-  AgentConversationSendOptions,
   InputQueueItem,
   RoomEventPayload,
   UseAgentConversationOptions,
@@ -36,15 +26,8 @@ import {
   getAgentConversationIdentityKey,
 } from "@/types/agent/agent-conversation";
 import {
-  AssistantMessage,
-  AssistantMessageStatus,
-  RoomPendingAgentSlotState,
-} from "@/types";
-import {
-  clearAgentSession,
   loadAgentSession,
-  resetAgentSession,
-  startAgentSession,
+  type AgentConversationLifecycleContext,
 } from "./conversation-lifecycle";
 import {
   dedupeMessagesById,
@@ -52,48 +35,22 @@ import {
   upsertMessage,
 } from "./message-helpers";
 import { handleAgentConversationWebSocketMessage } from "./websocket-event-handler";
-import {
-  deleteInputQueueMessage as send_delete_input_queue_message,
-  enqueueInputQueueMessage as send_enqueue_input_queue_message,
-  guideInputQueueMessage as send_guide_input_queue_message,
-  reorderInputQueueMessages as send_reorder_input_queue_messages,
-  rewriteLastUserMessage as send_rewrite_last_user_message,
-  sendSessionMessage,
-  sendSessionPermissionResponse,
-  stopSessionGeneration,
-} from "./conversation-actions";
-import {
-  AgentConversationRuntimeMachine,
-} from "./agent-conversation-runtime-machine";
-import {
-  applyTerminalRoundMessageStatus,
-  cancelRunningAgentSlots,
-  filterAgentRoundPendingAgentSlots,
-  filterRoundPendingAgentSlots,
-  filterRoundPendingPermissions,
-  mergeChatAckPendingSlots,
-  reconcileStoppedSessionMessages,
-  removeFailedOutboundUserMessage,
-  removeRoundMessages,
-  replaceOptimisticUserMessage,
-  updateAssistantMessageStatus,
-  updatePendingAgentSlotStatus,
-} from "./conversation-runtime-reconciliation";
+import type { AgentConversationActionContext } from "./conversation-actions";
+import { removeFailedOutboundUserMessage } from "./conversation-runtime-reconciliation";
 import {
   buildVolatileConversationSnapshot,
-  filterPendingPermissionsFromSnapshot,
-  filterPendingSlotsFromSnapshot,
-  getNextPendingPermissionTimeoutMs,
   isEphemeralMessage,
   mergePendingAgentSlots,
-  pruneExpiredPendingPermissions,
   readVolatileConversationSnapshot,
   removeVolatileConversationSnapshot,
   writeVolatileConversationSnapshot,
 } from "./conversation-volatile-snapshot";
 import { useConversationStreamBuffer } from "./use-conversation-stream-buffer";
 import { usePendingChatAcks } from "./use-pending-chat-acks";
+import { useAgentConversationActions } from "./use-agent-conversation-actions";
 import { useAgentConversationHistory } from "./use-agent-conversation-history";
+import { useAgentConversationRuntime } from "./use-agent-conversation-runtime";
+import { useAgentConversationSession } from "./use-agent-conversation-session";
 import { useAgentConversationSocket } from "./use-agent-conversation-socket";
 
 export function useAgentConversation(
@@ -116,27 +73,14 @@ export function useAgentConversation(
   const agentRuntimeStatus = useAgentStore((state) => (
     agentId ? state.agent_runtime_statuses[agentId] : undefined
   ));
-  const runtimeMachineRef = useRef(
-    new AgentConversationRuntimeMachine(chatType),
-  );
-  const runtimeSnapshot = useSyncExternalStore(
-    useCallback((cb) => runtimeMachineRef.current.subscribe(cb), []),
-    useCallback(() => runtimeMachineRef.current.snapshot(), []),
-  );
   const identitySessionKey = identity?.session_key?.trim() || null;
 
   const [messages, setMessagesState] = useState<Message[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [sessionKey, setSessionKey] = useResettableState<string | null>(identitySessionKey, identitySessionKey);
   const [isSessionLoading, setIsSessionLoading] = useState(false);
-  const [pendingAgentSlots, setPendingAgentSlotsState] = useState<
-    RoomPendingAgentSlotState[]
-  >([]);
   const [inputQueueItems, setInputQueueItemsState] = useState<
     InputQueueItem[]
-  >([]);
-  const [pendingPermissions, setPendingPermissionsState] = useState<
-    UseAgentConversationReturn["pending_permissions"]
   >([]);
 
   const activeSessionKeyRef = useRef<string | null>(identitySessionKey);
@@ -146,10 +90,6 @@ export function useAgentConversation(
   const loadRequestIdRef = useRef(0);
   const sessionSeqCursorRef = useRef(0);
   const roomSeqCursorRef = useRef(0);
-  const pendingAgentSlotsRef = useRef<RoomPendingAgentSlotState[]>([]);
-  const pendingPermissionsRef = useRef<
-    UseAgentConversationReturn["pending_permissions"]
-  >([]);
   const wsSendRef = useRef<
     (payload: WebSocketMessage) => {
       disposition: "sent" | "queued" | "dropped";
@@ -157,13 +97,8 @@ export function useAgentConversation(
   >(() => ({ disposition: "dropped" }));
   const wsReconnectRef = useRef<() => void>(() => {});
   const wsStateRef = useRef<WebSocketState>("disconnected");
-  // Per-session message cache: accumulates messages received for non-active sessions
-  // so they are not lost when the user switches conversations.
+  // 非当前会话的完整消息先按 session 缓存，切换回来时再与服务端快照合并。
   const bgMessageCacheRef = useRef<Map<string, Message[]>>(new Map());
-  const isLoading = runtimeSnapshot.isLoading;
-  const runtimePhase = runtimeSnapshot.phase;
-  const liveRoundIds = runtimeSnapshot.liveRoundIds;
-
   const setMessages = useCallback((nextState: SetStateAction<Message[]>) => {
     setMessagesState((currentMessages) => {
       const nextMessages =
@@ -173,6 +108,42 @@ export function useAgentConversation(
       return dedupeMessagesById(nextMessages);
     });
   }, []);
+
+  const {
+    cancel_pending_chat_acks: cancelPendingChatAcks,
+    clear_pending_chat_ack: clearPendingChatAck,
+    reject_pending_chat_ack: rejectPendingChatAck,
+    wait_for_chat_ack: waitForChatAck,
+  } = usePendingChatAcks();
+
+  const {
+    applyAgentRoundStatus,
+    applyRoundStatus,
+    clearLiveRuntimeState,
+    clearOutboundRequest,
+    pendingAgentSlots,
+    pendingPermissions,
+    reconcileRuntimeStateFromSnapshot,
+    removeRewrittenRound,
+    resetRuntimeMachine,
+    runtimeSnapshot,
+    setPendingAgentSlots,
+    setPendingPermissions,
+    syncSessionStatus,
+    trackAssistantMessage,
+    trackChatAck,
+    trackOutboundRequest,
+    updateMessageStatus,
+  } = useAgentConversationRuntime({
+    agentId,
+    chatType,
+    clearPendingChatAck,
+    setMessages,
+    settleAgentWorkspaceWrites,
+  });
+  const isLoading = runtimeSnapshot.isLoading;
+  const runtimePhase = runtimeSnapshot.phase;
+  const liveRoundIds = runtimeSnapshot.liveRoundIds;
 
   const {
     hasMoreHistory,
@@ -190,26 +161,6 @@ export function useAgentConversation(
     setMessages,
   });
 
-  const applyRuntimeTransition = useCallback(
-    (transition: (machine: AgentConversationRuntimeMachine) => void) => {
-      transition(runtimeMachineRef.current);
-      runtimeMachineRef.current.emit();
-    },
-    [],
-  );
-
-  const setPendingAgentSlots = useCallback(
-    (nextState: SetStateAction<RoomPendingAgentSlotState[]>) => {
-      const next =
-        typeof nextState === "function"
-          ? nextState(pendingAgentSlotsRef.current)
-          : nextState;
-      pendingAgentSlotsRef.current = next;
-      setPendingAgentSlotsState(next);
-    },
-    [],
-  );
-
   const setInputQueueItems = useCallback(
     (nextState: SetStateAction<InputQueueItem[]>) => {
       setInputQueueItemsState((currentItems) =>
@@ -221,39 +172,14 @@ export function useAgentConversation(
     [],
   );
 
-  const setPendingPermissions = useCallback(
-    (
-      nextState: SetStateAction<
-        UseAgentConversationReturn["pending_permissions"]
-      >,
-    ) => {
-      const next =
-        typeof nextState === "function"
-          ? nextState(pendingPermissionsRef.current)
-          : nextState;
-      pendingPermissionsRef.current = next;
-      applyRuntimeTransition((machine) => {
-        machine.setPendingPermissionCount(next.length);
-      });
-      setPendingPermissionsState(next);
-    },
-    [applyRuntimeTransition],
-  );
-
   const clearLiveSessionState = useCallback(() => {
-    setPendingAgentSlots((currentSlots) =>
-      currentSlots.length ? [] : currentSlots,
-    );
+    clearLiveRuntimeState();
     setInputQueueItems((currentItems) =>
       currentItems.length ? [] : currentItems,
     );
-    setPendingPermissions((currentPermissions) =>
-      currentPermissions.length ? [] : currentPermissions,
-    );
   }, [
+    clearLiveRuntimeState,
     setInputQueueItems,
-    setPendingAgentSlots,
-    setPendingPermissions,
   ]);
 
   const isCurrentSessionEvent = useCallback(
@@ -296,90 +222,33 @@ export function useAgentConversation(
     [onRoomEventCallback],
   );
 
-  const {
-    cancel_pending_chat_acks: cancelPendingChatAcks,
-    clear_pending_chat_ack: clearPendingChatAck,
-    reject_pending_chat_ack: rejectPendingChatAck,
-    wait_for_chat_ack: waitForChatAck,
-  } = usePendingChatAcks();
-
-  // ack 超时/失败：只按 client_request_id 拒绝、按 client_message_id 清理 optimistic 消息。
-  // 此时可能还没有 canonical round_id，不做按 round 清理。
-  const failPendingChatAck = useCallback(
-    (clientRequestId: string, clientMessageId: string, message: string) => {
+  // 超时只负责拒绝 ACK 等待并触发重连，失败状态统一由 Promise catch 收口。
+  const handleChatAckTimeout = useCallback(
+    (clientRequestId: string, message: string) => {
       if (!rejectPendingChatAck(clientRequestId, message)) {
         return;
       }
-      applyRuntimeTransition((machine) => {
-        machine.clearOutboundRequest(clientRequestId);
-      });
-      setMessages((prev) =>
-        removeFailedOutboundUserMessage(prev, clientMessageId),
-      );
-      setError(message);
       if (wsStateRef.current === "connected") {
         wsReconnectRef.current();
       }
     },
-    [
-      applyRuntimeTransition,
-      rejectPendingChatAck,
-      setMessages,
-    ],
+    [rejectPendingChatAck],
   );
 
   const settleChatAckWaitFailure = useCallback(
     (clientRequestId: string, clientMessageId: string, error: unknown) => {
       const message =
         error instanceof Error ? error.message : "消息未送达后端，请重试";
-      applyRuntimeTransition((machine) => {
-        machine.clearOutboundRequest(clientRequestId);
-      });
+      clearOutboundRequest(clientRequestId);
       setMessages((prev) =>
         removeFailedOutboundUserMessage(prev, clientMessageId),
       );
       setError(message);
     },
     [
-      applyRuntimeTransition,
+      clearOutboundRequest,
       setError,
       setMessages,
-    ],
-  );
-
-  const resetRuntimeMachine = useCallback(() => {
-    applyRuntimeTransition((machine) => {
-      machine.reset();
-    });
-  }, [applyRuntimeTransition]);
-
-  const reconcileRuntimeStateFromSnapshot = useCallback(
-    (snapshotMessages: Message[]) => {
-      applyRuntimeTransition((machine) => {
-        machine.reconcileFromSnapshot(snapshotMessages);
-      });
-      const isRoundTerminal = (roundId: string) =>
-        runtimeMachineRef.current.isRoundTerminal(roundId);
-
-      setPendingAgentSlots(
-        filterPendingSlotsFromSnapshot(
-          pendingAgentSlotsRef.current,
-          snapshotMessages,
-          isRoundTerminal,
-        ),
-      );
-      setPendingPermissions(
-        filterPendingPermissionsFromSnapshot(
-          pendingPermissionsRef.current,
-          snapshotMessages,
-          isRoundTerminal,
-        ),
-      );
-    },
-    [
-      applyRuntimeTransition,
-      setPendingAgentSlots,
-      setPendingPermissions,
     ],
   );
 
@@ -471,33 +340,6 @@ export function useAgentConversation(
     writeVolatileConversationSnapshot(sessionKey, snapshot);
   }, [messages, pendingAgentSlots, runtimeSnapshot, sessionKey]);
 
-  useEffect(() => {
-    const nextPermissions = pruneExpiredPendingPermissions(
-      pendingPermissionsRef.current,
-    );
-    if (nextPermissions !== pendingPermissionsRef.current) {
-      setPendingPermissions(nextPermissions);
-      return;
-    }
-
-    const nextTimeoutMs = getNextPendingPermissionTimeoutMs(
-      pendingPermissionsRef.current,
-    );
-    if (nextTimeoutMs == null) {
-      return;
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      setPendingPermissions((currentPermissions) =>
-        pruneExpiredPendingPermissions(currentPermissions),
-      );
-    }, nextTimeoutMs + 1);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [pendingPermissions, setPendingPermissions]);
-
   const reloadCurrentSession = useCallback(async () => {
     const activeSessionKey = activeSessionKeyRef.current;
     if (!activeSessionKey) {
@@ -508,173 +350,6 @@ export function useAgentConversation(
   }, [lifecycleContext]);
 
   const enqueueStreamPayload = useConversationStreamBuffer(setMessages);
-
-  const reconcileStoppedSession = useCallback(() => {
-    const runtimeSnapshotBeforeReset =
-      runtimeMachineRef.current.snapshot();
-    applyRuntimeTransition((machine) => {
-      machine.reset();
-    });
-    if (agentId) {
-      settleAgentWorkspaceWrites(agentId);
-    }
-    setPendingPermissions([]);
-    setPendingAgentSlots(cancelRunningAgentSlots);
-    setMessages((prev) =>
-      reconcileStoppedSessionMessages(
-        prev,
-        runtimeSnapshotBeforeReset.terminalRoundIds,
-        chatType,
-      ),
-    );
-  }, [
-    applyRuntimeTransition,
-    agentId,
-    chatType,
-    settleAgentWorkspaceWrites,
-    setMessages,
-    setPendingAgentSlots,
-    setPendingPermissions,
-  ]);
-
-  const syncSessionStatus = useCallback(
-    (payload: SessionStatusEventPayload) => {
-      const runningRoundIds = Array.isArray(payload.running_round_ids)
-        ? payload.running_round_ids.filter(
-            (roundId): roundId is string => typeof roundId === "string",
-          )
-        : [];
-      if (!payload.is_generating || runningRoundIds.length === 0) {
-        reconcileStoppedSession();
-        return;
-      }
-      applyRuntimeTransition((machine) => {
-        machine.syncRunningRounds(runningRoundIds);
-      });
-    },
-    [applyRuntimeTransition, reconcileStoppedSession],
-  );
-
-  const updateMessageStatus = useCallback(
-    (
-      msgId: string,
-      status: AssistantMessageStatus,
-      roundId?: string | null,
-    ) => {
-      setMessages((prev) =>
-        updateAssistantMessageStatus(prev, msgId, status),
-      );
-      setPendingAgentSlots((prev) =>
-        updatePendingAgentSlotStatus(prev, msgId, status, roundId),
-      );
-      applyRuntimeTransition((machine) => {
-        machine.updateMessageStatus(msgId, status, roundId);
-      });
-    },
-    [applyRuntimeTransition, setMessages, setPendingAgentSlots],
-  );
-
-  const trackChatAck = useCallback(
-    (ack: import("@/types").ChatAckData, _sessionKey?: string | null) => {
-      applyRuntimeTransition((machine) => {
-        machine.trackChatAck(ack);
-      });
-      clearPendingChatAck(ack.client_request_id);
-      if (ack.client_message_id && ack.user_message_id) {
-        setMessages((prev) =>
-          replaceOptimisticUserMessage(
-            prev,
-            ack.client_message_id,
-            ack.user_message_id,
-            ack.round_id,
-          ),
-        );
-      }
-      setPendingAgentSlots((prev) => mergeChatAckPendingSlots(prev, ack));
-    },
-    [applyRuntimeTransition, clearPendingChatAck, setMessages, setPendingAgentSlots],
-  );
-
-  const trackAssistantMessage = useCallback(
-    (message: AssistantMessage) => {
-      applyRuntimeTransition((machine) => {
-        machine.trackAssistantMessage(message);
-      });
-    },
-    [applyRuntimeTransition],
-  );
-
-  const removeRewrittenRound = useCallback(
-    (roundId: string) => {
-      setMessages((prev) => removeRoundMessages(prev, roundId));
-      setPendingPermissions((prev) =>
-        filterRoundPendingPermissions(prev, roundId),
-      );
-      setPendingAgentSlots((prev) =>
-        filterRoundPendingAgentSlots(prev, roundId),
-      );
-    },
-    [setMessages, setPendingAgentSlots, setPendingPermissions],
-  );
-
-  const applyRoundStatus = useCallback(
-    (roundId: string, status: RoundLifecycleStatus) => {
-      applyRuntimeTransition((machine) => {
-        machine.trackRoundStatus(roundId, status);
-      });
-
-      if (status === "running") {
-        return;
-      }
-      if (agentId && !runtimeMachineRef.current.snapshot().isLoading) {
-        settleAgentWorkspaceWrites(agentId);
-      }
-
-      setPendingPermissions((prev) =>
-        filterRoundPendingPermissions(prev, roundId),
-      );
-      setPendingAgentSlots((prev) =>
-        filterRoundPendingAgentSlots(prev, roundId),
-      );
-      setMessages((prev) =>
-        applyTerminalRoundMessageStatus(prev, roundId, status),
-      );
-    },
-    [
-      applyRuntimeTransition,
-      agentId,
-      settleAgentWorkspaceWrites,
-      setMessages,
-      setPendingAgentSlots,
-      setPendingPermissions,
-    ],
-  );
-
-  // Room slot 状态：只收口对应 agent slot，不结束 root turn。
-  const applyAgentRoundStatus = useCallback(
-    (payload: import("@/types").AgentRoundStatusEventPayload) => {
-      if (!payload.is_terminal) {
-        setPendingAgentSlots((prev) =>
-          prev.map((slot) =>
-            slot.agent_round_id === payload.agent_round_id
-              ? { ...slot, status: "streaming" }
-              : slot,
-          ),
-        );
-        return;
-      }
-      setPendingAgentSlots((prev) =>
-        filterAgentRoundPendingAgentSlots(prev, payload.agent_round_id),
-      );
-      setPendingPermissions((prev) =>
-        prev.filter(
-          (permission) =>
-            permission.agent_round_id !== payload.agent_round_id,
-        ),
-      );
-    },
-    [setPendingAgentSlots, setPendingPermissions],
-  );
 
   const handleWebsocketMessage = useCallback(
     (backendMessage: unknown) => {
@@ -738,11 +413,6 @@ export function useAgentConversation(
       updateMessageStatus,
     ],
   );
-
-  useEffect(() => {
-    runtimeMachineRef.current.setChatType(chatType);
-    runtimeMachineRef.current.emit();
-  }, [chatType]);
 
   const nextIdentityKey = getAgentConversationIdentityKey(identity);
   const shouldResetIdentityState = activeIdentityKeyRef.current !== nextIdentityKey;
@@ -810,13 +480,9 @@ export function useAgentConversation(
       ws_send: wsSend,
       active_session_key_ref: activeSessionKeyRef,
       pending_permissions: pendingPermissions,
-      pending_agent_slots: pendingAgentSlots,
-      input_queue_items: inputQueueItems,
       messages,
       set_error: setError,
       set_messages: setMessages,
-      set_pending_agent_slots: setPendingAgentSlots,
-      set_input_queue_items: setInputQueueItems,
       set_pending_permissions: setPendingPermissions,
     }),
     [
@@ -825,227 +491,48 @@ export function useAgentConversation(
       wsState,
       wsSend,
       pendingPermissions,
-      pendingAgentSlots,
-      inputQueueItems,
       messages,
       setError,
       setMessages,
-      setPendingAgentSlots,
-      setInputQueueItems,
       setPendingPermissions,
     ],
   );
 
-  const sendMessage = useCallback(
-    async (content: string, options: AgentConversationSendOptions = {}) => {
-      const request = await sendSessionMessage(content, actionContext, options);
-      if (!request) {
-        return;
-      }
+  const {
+    deleteQueueMessage: deleteInputQueueMessage,
+    enqueueQueueMessage: enqueueInputQueueMessage,
+    guideQueueMessage: guideInputQueueMessage,
+    reorderQueueMessages: reorderInputQueueMessages,
+    rewriteLastMessage,
+    sendMessage,
+    sendPermissionResponse,
+    stopGeneration,
+  } = useAgentConversationActions({
+    actionContext,
+    clearOutboundRequest,
+    handleChatAckTimeout,
+    setPendingAgentSlots,
+    settleChatAckWaitFailure,
+    trackOutboundRequest,
+    waitForChatAck,
+  });
 
-      applyRuntimeTransition((machine) => {
-        machine.trackOutboundRequest(request.client_request_id);
-      });
-
-      try {
-        await waitForChatAck(request.client_request_id, () => {
-          failPendingChatAck(
-            request.client_request_id,
-            request.client_message_id,
-            "消息未送达后端，请重试",
-          );
-        });
-      } catch (error) {
-        settleChatAckWaitFailure(
-          request.client_request_id,
-          request.client_message_id,
-          error,
-        );
-        return;
-      }
-      applyRuntimeTransition((machine) => {
-        machine.clearOutboundRequest(request.client_request_id);
-      });
-    },
-    [
-      actionContext,
-      applyRuntimeTransition,
-      failPendingChatAck,
-      settleChatAckWaitFailure,
-      waitForChatAck,
-    ],
-  );
-
-  const rewriteLastMessage = useCallback(
-    async (targetRoundId: string, content: string) => {
-      const request = await send_rewrite_last_user_message(targetRoundId, content, actionContext);
-      if (!request) {
-        return;
-      }
-
-      applyRuntimeTransition((machine) => {
-        machine.trackOutboundRequest(request.client_request_id);
-      });
-
-      try {
-        await waitForChatAck(request.client_request_id, () => {
-          failPendingChatAck(
-            request.client_request_id,
-            request.client_message_id,
-            "消息未送达后端，请重试",
-          );
-        });
-      } catch (error) {
-        settleChatAckWaitFailure(
-          request.client_request_id,
-          request.client_message_id,
-          error,
-        );
-        return;
-      }
-      applyRuntimeTransition((machine) => {
-        machine.clearOutboundRequest(request.client_request_id);
-      });
-    },
-    [
-      actionContext,
-      applyRuntimeTransition,
-      failPendingChatAck,
-      settleChatAckWaitFailure,
-      waitForChatAck,
-    ],
-  );
-
-  const enqueueInputQueueMessage = useCallback(
-    async (
-      content: string,
-      deliveryPolicy: AgentConversationDeliveryPolicy = "queue",
-      attachments: AgentConversationSendOptions["attachments"] = [],
-    ) => {
-      send_enqueue_input_queue_message(content, actionContext, deliveryPolicy, attachments);
-    },
-    [actionContext],
-  );
-
-  const deleteInputQueueMessage = useCallback(
-    async (itemId: string) => {
-      send_delete_input_queue_message(itemId, actionContext);
-    },
-    [actionContext],
-  );
-
-  const guideInputQueueMessage = useCallback(
-    async (itemId: string) => {
-      send_guide_input_queue_message(itemId, actionContext);
-    },
-    [actionContext],
-  );
-
-  const reorderInputQueueMessages = useCallback(
-    async (orderedIds: string[]) => {
-      send_reorder_input_queue_messages(orderedIds, actionContext);
-    },
-    [actionContext],
-  );
-
-  const stopGeneration = useCallback(
-    (agentRoundId?: string) => {
-      stopSessionGeneration(actionContext, agentRoundId);
-      if (agentRoundId) {
-        setPendingAgentSlots((prev) =>
-          prev.map((slot) =>
-            slot.agent_round_id === agentRoundId
-              ? {
-                  ...slot,
-                  status: "cancelled",
-                }
-              : slot,
-          ),
-        );
-        return;
-      }
-    },
-    [actionContext, setPendingAgentSlots],
-  );
-
-  const sendPermissionResponse = useCallback(
-    (payload: PermissionDecisionPayload) => {
-      return sendSessionPermissionResponse(payload, actionContext);
-    },
-    [actionContext],
-  );
-
-  const startSession = useCallback(() => {
-    cancelPendingChatAcks("会话已重建，未确认的消息发送已取消");
-    startAgentSession(lifecycleContext);
-    resetHistoryPagination();
-    resetRuntimeMachine();
-  }, [
+  const {
+    bindSessionKey,
+    clearSession,
+    loadSession,
+    resetSession,
+    startSession,
+  } = useAgentConversationSession({
+    activeSessionKeyRef,
     cancelPendingChatAcks,
+    clearLiveSessionState,
     lifecycleContext,
     resetHistoryPagination,
     resetRuntimeMachine,
-  ]);
-
-  const loadSession = useCallback(
-    async (id: string): Promise<void> => {
-      await loadAgentSession(id, lifecycleContext);
-    },
-    [lifecycleContext],
-  );
-
-  const clearSession = useCallback(() => {
-    cancelPendingChatAcks("会话已清空，未确认的消息发送已取消");
-    clearAgentSession(lifecycleContext);
-    resetHistoryPagination();
-    resetRuntimeMachine();
-  }, [
-    cancelPendingChatAcks,
-    lifecycleContext,
-    resetHistoryPagination,
-    resetRuntimeMachine,
-  ]);
-
-  const bindSessionKey = useCallback(
-    (key: string | null) => {
-      const normalizedKey = key?.trim() || null;
-      if (activeSessionKeyRef.current === normalizedKey) {
-        return;
-      }
-
-      activeSessionKeyRef.current = normalizedKey;
-      cancelPendingChatAcks("会话已切换，未确认的消息发送已取消");
-      resetHistoryPagination();
-      setSessionKey((currentKey) =>
-        currentKey === normalizedKey ? currentKey : normalizedKey,
-      );
-      if (!normalizedKey) {
-        setIsSessionLoading(false);
-        resetRuntimeMachine();
-        clearLiveSessionState();
-      }
-    },
-    [
-      cancelPendingChatAcks,
-      clearLiveSessionState,
-      resetHistoryPagination,
-      resetRuntimeMachine,
-      setIsSessionLoading,
-      setSessionKey,
-    ],
-  );
-
-  const resetSession = useCallback(() => {
-    cancelPendingChatAcks("会话已重置，未确认的消息发送已取消");
-    resetAgentSession(lifecycleContext);
-    resetHistoryPagination();
-    resetRuntimeMachine();
-  }, [
-    cancelPendingChatAcks,
-    lifecycleContext,
-    resetHistoryPagination,
-    resetRuntimeMachine,
-  ]);
+    setIsSessionLoading,
+    setSessionKey,
+  });
 
   return {
     error,

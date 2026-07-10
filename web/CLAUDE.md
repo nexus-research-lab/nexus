@@ -9,7 +9,7 @@ src/
   pages/       - 页面组件
   routes/      - React Router 路由定义
   components/  - UI 组件（按功能领域组织）
-  features/    - 领域功能实现；`conversation/shared/subagent/` 负责 DM/Room 共用的子智能体任务列表与管理动作，过程详情直接复用群聊 `GroupThreadDetailPanel`
+  features/    - 领域功能实现；`conversation/shared/subagent/` 负责 DM/Room 共用的子智能体任务，`conversation/shared/session-navigator/` 负责统一时间线的轮次导航
   config/      - 运行时配置常量
   hooks/       - 自定义 React Hooks
   lib/         - API 客户端、WebSocket、工具函数
