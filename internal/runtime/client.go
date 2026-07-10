@@ -164,12 +164,11 @@ func (c *sdkClientAdapter) SendTaskMessage(ctx context.Context, taskID string, m
 	return session.Control().SendTaskMessage(ctx, taskID, message, summary)
 }
 
-func (c *sdkClientAdapter) RemoveMessages(ctx context.Context, uuids []string) error {
-	session, err := c.currentSession()
-	if err != nil {
-		return err
-	}
-	return session.Control().RemoveMessages(ctx, uuids)
+func (c *sdkClientAdapter) RemoveMessages(_ context.Context, _ []string) error {
+	// TODO: session.Control().RemoveMessages is not available in nexus-agent-sdk-bridge v0.1.18.
+	// This is a temporary no-op until a newer SDK version is released.
+	// See: https://github.com/nexus-research-lab/nexus/issues/199
+	return nil
 }
 
 func (c *sdkClientAdapter) SetPermissionMode(ctx context.Context, mode sdkpermission.Mode) error {
