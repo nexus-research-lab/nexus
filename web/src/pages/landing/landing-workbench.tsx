@@ -38,9 +38,9 @@ import { WorkspaceConversationTabs } from "@/shared/ui/workspace/controls/worksp
 import {
   WorkspaceSurfaceHeader,
   WorkspaceSurfaceToolbarAction,
-  WorkspaceTaskStrip,
 } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
+import { WorkspaceTaskPanel } from "@/shared/ui/workspace/surface/workspace-task-strip";
 import { WorkspaceSurfaceView } from "@/shared/ui/workspace/surface/workspace-surface-view";
 import type { RoomSurfaceTabKey } from "@/types/conversation/room-surface";
 
@@ -215,6 +215,7 @@ function LandingWorkbenchChat() {
           </button>
         </div>
       </div>
+      <WorkspaceTaskPanel todos={demoTodos} />
     </section>
   );
 }
@@ -246,7 +247,6 @@ function LandingWorkbenchMain() {
                 onSelectConversation={() => undefined}
               />
             )}
-            tabsTrailing={<WorkspaceTaskStrip todos={demoTodos} />}
             title="Amy"
             trailing={(
               <WorkspaceSurfaceToolbarAction>

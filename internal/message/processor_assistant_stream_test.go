@@ -251,6 +251,99 @@ func TestProcessorMapsAgentToolProgressToTaskProgress(t *testing.T) {
 	}
 }
 
+func TestProcessorPreservesTypedSubagentThreadMetadata(t *testing.T) {
+	processor := NewProcessor(MessageContext{
+		SessionKey: "agent:host:ws:dm:thread-metadata",
+		AgentID:    "host",
+		RoundID:    "round-thread-metadata",
+		ParentID:   "round-thread-metadata",
+	}, "sdk-session-thread-metadata")
+
+	started := processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeTaskStarted,
+		TaskStarted: &sdkprotocol.TaskStartedMessage{
+			TaskID:       "task-1",
+			AgentID:      "subagent-1",
+			AgentType:    "worker",
+			Description:  "检查实现",
+			TaskType:     "local_agent",
+			OutputFile:   "/tmp/task-output",
+			ParentTaskID: "parent-1",
+			Prompt:       "检查实现",
+			Additional:   map[string]any{"child_session_id": "child-1", "name": "实现审计"},
+		},
+	})
+	if len(started.DurableMessages) != 1 {
+		t.Fatalf("task_started durable messages = %+v", started.DurableMessages)
+	}
+	startedMetadata, _ := started.DurableMessages[0]["metadata"].(map[string]any)
+	for key, want := range map[string]any{
+		"agent_id": "subagent-1", "agent_type": "worker", "child_session_id": "child-1",
+		"description": "检查实现", "task_type": "local_agent", "output_file": "/tmp/task-output",
+		"parent_task_id": "parent-1", "prompt": "检查实现", "name": "实现审计",
+	} {
+		if got := startedMetadata[key]; got != want {
+			t.Fatalf("task_started metadata[%q] = %#v, want %#v; all=%+v", key, got, want, startedMetadata)
+		}
+	}
+
+	progress := processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeTaskProgress,
+		TaskProgress: &sdkprotocol.TaskProgressMessage{
+			TaskID:       "task-1",
+			AgentID:      "subagent-1",
+			AgentType:    "worker",
+			Description:  "正在读取",
+			LastToolName: "Read",
+			ParentTaskID: "parent-1",
+			Summary:      "读取核心实现",
+			Additional:   map[string]any{"child_session_id": "child-1", "task_type": "local_agent"},
+		},
+	})
+	if len(progress.DurableMessages) != 1 {
+		t.Fatalf("task_progress durable messages = %+v", progress.DurableMessages)
+	}
+	progressBlocks, _ := progress.DurableMessages[0]["content"].([]map[string]any)
+	progressBlock := progressBlocks[len(progressBlocks)-1]
+	for key, want := range map[string]any{
+		"agent_id": "subagent-1", "agent_type": "worker", "child_session_id": "child-1",
+		"description": "正在读取", "last_tool_name": "Read", "parent_task_id": "parent-1",
+		"summary": "读取核心实现", "task_type": "local_agent",
+	} {
+		if got := progressBlock[key]; got != want {
+			t.Fatalf("task_progress block[%q] = %#v, want %#v; all=%+v", key, got, want, progressBlock)
+		}
+	}
+
+	notification := processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeTaskNotification,
+		TaskNotification: &sdkprotocol.TaskNotificationMessage{
+			TaskID:         "task-1",
+			AgentID:        "subagent-1",
+			AgentType:      "worker",
+			ParentTaskID:   "parent-1",
+			Status:         "completed",
+			OutputFile:     "/tmp/task-output",
+			Summary:        "检查完成",
+			TranscriptPath: "/tmp/child.jsonl",
+			Additional:     map[string]any{"child_session_id": "child-1"},
+		},
+	})
+	if len(notification.DurableMessages) != 1 {
+		t.Fatalf("task_notification durable messages = %+v", notification.DurableMessages)
+	}
+	notificationMetadata, _ := notification.DurableMessages[0]["metadata"].(map[string]any)
+	for key, want := range map[string]any{
+		"agent_id": "subagent-1", "agent_type": "worker", "child_session_id": "child-1",
+		"parent_task_id": "parent-1", "status": "completed", "output_file": "/tmp/task-output",
+		"summary": "检查完成", "transcript_path": "/tmp/child.jsonl",
+	} {
+		if got := notificationMetadata[key]; got != want {
+			t.Fatalf("task_notification metadata[%q] = %#v, want %#v; all=%+v", key, got, want, notificationMetadata)
+		}
+	}
+}
+
 func TestProcessorMergesSequentialAssistantToolUseSnapshots(t *testing.T) {
 	processor := NewProcessor(MessageContext{
 		SessionKey: "agent:nexus:ws:dm:test",

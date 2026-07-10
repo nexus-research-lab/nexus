@@ -169,7 +169,15 @@ func (c *sdkClientAdapter) RemoveMessages(ctx context.Context, uuids []string) e
 	if err != nil {
 		return err
 	}
-	return session.Control().RemoveMessages(ctx, uuids)
+	// v0.1.18 尚未暴露 remove_messages；用能力接口兼容已发布 bridge，
+	// 同时让 go.work 下的新 bridge 继续走原生控制面。
+	remover, ok := any(session.Control()).(interface {
+		RemoveMessages(context.Context, []string) error
+	})
+	if !ok {
+		return agentclient.ErrUnsupportedCapability
+	}
+	return remover.RemoveMessages(ctx, uuids)
 }
 
 func (c *sdkClientAdapter) SetPermissionMode(ctx context.Context, mode sdkpermission.Mode) error {

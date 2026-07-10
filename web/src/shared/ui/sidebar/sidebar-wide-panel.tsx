@@ -40,6 +40,7 @@ import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiCounterBadge } from "@/shared/ui/badge";
 import { OnboardingGuideCenter } from "@/shared/ui/onboarding/onboarding-guide-center";
+import { COMPACT_WORKSPACE_HEADER_SINGLE_ROW_HEIGHT_CLASS } from "@/shared/ui/workspace/surface/workspace-header-layout";
 import {
   SIDEBAR_TOUR_ANCHORS,
 } from "@/shared/ui/sidebar/sidebar-navigation-tour";
@@ -326,7 +327,8 @@ export function SidebarWidePanel() {
     >
       {/* 面板头部 */}
       <div className={cn(
-        "grid h-[64px] grid-cols-[46px_minmax(0,1fr)] items-center gap-1.5 border-b divider-subtle px-3",
+        "grid grid-cols-[46px_minmax(0,1fr)] items-center gap-1.5 border-b divider-subtle px-3",
+        COMPACT_WORKSPACE_HEADER_SINGLE_ROW_HEIGHT_CLASS,
       )}>
         <button
           className="group/nexus relative flex h-10 w-[46px] shrink-0 items-center justify-center"

@@ -15,13 +15,16 @@ func (m *Manager) StopTask(ctx context.Context, sessionKey string, taskID string
 		return agentclient.ErrNotConnected
 	}
 
-	m.mu.RLock()
+	m.mu.Lock()
 	state := m.sessions[sessionKey]
 	var client Client
 	if state != nil {
 		client = state.Client
+		if client != nil {
+			m.touchStateLocked(state)
+		}
 	}
-	m.mu.RUnlock()
+	m.mu.Unlock()
 	if client == nil {
 		return agentclient.ErrNotConnected
 	}
@@ -37,13 +40,16 @@ func (m *Manager) SendTaskMessage(ctx context.Context, sessionKey string, taskID
 		return agentclient.ErrNotConnected
 	}
 
-	m.mu.RLock()
+	m.mu.Lock()
 	state := m.sessions[sessionKey]
 	var client Client
 	if state != nil {
 		client = state.Client
+		if client != nil {
+			m.touchStateLocked(state)
+		}
 	}
-	m.mu.RUnlock()
+	m.mu.Unlock()
 	if client == nil {
 		return agentclient.ErrNotConnected
 	}

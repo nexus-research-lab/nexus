@@ -181,6 +181,17 @@
 | POST | `/sessions/{session_key}/tasks/{task_id}/messages` | 向任务发送消息 |
 | POST | `/sessions/{session_key}/tasks/{task_id}/stop` | 停止任务 |
 
+列表响应的 `data` 为 `{ runtime_kind, capabilities, items }`。每个 item 也携带自身的
+`runtime_kind` 与 `{ observe, transcript, stop, send_message, resume }`，历史记录与当前
+会话 runtime 不一致时以前者为准。`nxs` 支持观察、完整 thread、停止、续聊与同 task
+恢复；Claude Code 支持观察、完整 thread 与停止，不支持宿主侧续聊/恢复；未知 runtime
+只开放观察和 transcript。向不支持续聊的 runtime 发送消息会返回 HTTP 409，错误码为
+`subagent_operation_unsupported`。
+
+task 消息优先投影 `transcript_path`。Claude Code 的 `local_agent` 若只提供指向 child
+JSONL 的 `output_file`，服务端也会将它投影成与主会话一致的富消息 thread；普通文本
+`output_file` 则保留为 output 摘要。
+
 > Room 会话下的对应接口见 [Room 对话子任务](#对话-conversation)。
 
 ---
@@ -289,6 +300,9 @@
 | GET | `.../tasks/{task_id}/messages` | 任务消息 |
 | POST | `.../tasks/{task_id}/messages` | 发送任务消息 |
 | POST | `.../tasks/{task_id}/stop` | 停止任务 |
+
+响应结构、runtime capability 与 transcript 投影规则同 Session 子 Agent 接口。Room
+task 的控制请求由 task item 的 `host_agent_id` 路由到实际承载该 subagent 的 Agent slot。
 
 ---
 

@@ -52,9 +52,8 @@ func (s *RealtimeService) runRound(
 		mapTerminalSubtype(finalStatus),
 	))
 	s.broadcastSessionStatus(ctx, roundValue.SessionKey)
-	if roundValue.RunningSubagents.Load() {
-		s.startIdleSubagentNotificationDrains(contextWithQueueOwner(context.Background(), roundValue.OwnerUserID), roundValue)
-	}
+	// 只要 slot runtime 留有 subagent history 就继续接管消息；终态 task 也可能被 UI follow-up 唤醒。
+	s.startIdleSubagentNotificationDrains(contextWithQueueOwner(context.Background(), roundValue.OwnerUserID), roundValue)
 	if finalStatus == "finished" {
 		s.startQueuedPublicMentionWakes(context.Background(), roundValue)
 	}

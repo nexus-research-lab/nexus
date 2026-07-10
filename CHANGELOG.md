@@ -7,12 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added a capability-driven subagent inspector for DM and Room conversations, with active/completed task visibility, multi-round transcripts, stopping, follow-up messaging, same-task resume, and explicit `nxs`/Claude Code support boundaries.
+
 ### Changed
 
 - Moved long-term memory out of the product backend and into the SDK subprocess: removed the HTTP memory routes, the `nexusctl memory` command, the `memory-manager` skill, the agent Memory page and contact memory tab, and the workspace `MEMORY.md` template. Default memory config flags (`MEMORY_ENABLED`, `MEMORY_AUTO_RECALL`, `MEMORY_AUTO_EXTRACT`) now ship disabled. The DM/Room runtime no longer injects or commits memory context; recall and storage are owned by the runtime subprocess.
+- Unified Room and DM auxiliary panels on one shared width policy, removed per-surface headers, and moved panel dismissal onto the active surface tab beside its label.
 
 ### Fixed
 
+- Preserved subagent thread identity and progress metadata across SDK events, routed Room task controls to the owning Agent runtime, and projected Claude Code child transcript symlinks as full conversation threads instead of raw JSONL output.
+- Unified conversation, capability, settings, operations, and contact headers on the shared fixed 52px single-row layout, preserving core tabs in narrow containers and restoring aligned sidebar separators.
+- Moved conversation task progress out of the fixed header into a compact, low-radius process list that defaults to a minimal collapsed control and expands on demand.
 - Disabled reasoning on `anthropic_messages` title-generation requests and raised the title token budget to 1024, so always-thinking models (e.g. Kimi) no longer exhaust the output cap before emitting the title and leave conversations untitled.
 - Kept a round's user message visible in the conversation timeline even when the assistant reply is blank (failed or tool-only rounds), instead of hiding the whole round and swallowing the user's own message.
 - Removed old DM rewrite rounds from the SDK transcript, Nexus overlay history, and the active frontend timeline before regenerating the replacement answer.

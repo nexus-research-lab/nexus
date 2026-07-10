@@ -1,14 +1,19 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowLeft, Check, ChevronDown, MessageSquare, X } from "lucide-react";
+import { ArrowLeft, Bot, Check, ChevronDown, MessageSquare, X } from "lucide-react";
 
 import { formatRelativeTime, getIconAvatarSrc, getInitials } from "@/lib/utils";
 import { Agent } from "@/types/agent/agent";
 import { AgentConversationIdentity } from "@/types/agent/agent-conversation";
 import { ConversationSnapshotPayload, RoomConversationView } from "@/types/conversation/conversation";
+import type { SubagentTaskSource } from "@/types/conversation/subagent-task";
+import { useI18n } from "@/shared/i18n/i18n-context";
+import { WorkspaceTaskPanel } from "@/shared/ui/workspace/surface/workspace-task-strip";
+import type { TodoItem } from "@/types/conversation/todo";
 
 import { DmChatPanel } from "@/features/conversation/room/dm/dm-chat-panel";
+import { SubagentTaskSurface } from "@/features/conversation/shared/subagent/subagent-task-surface";
 import { GroupChatPanel } from "../group/chat/group-chat-panel";
 import { GroupThreadContextProvider } from "../group/thread/group-thread-context";
 import { GroupThreadDetailPanel } from "../group/thread/group-thread-detail-panel";
@@ -27,14 +32,17 @@ interface RoomMobileSurfaceProps {
   currentAgentSessionIdentity: AgentConversationIdentity | null;
   conversationId: string | null;
   currentRoomConversations: RoomConversationView[];
+  currentTodos: TodoItem[];
   initialDraft?: string | null;
   onInitialDraftConsumed?: () => void;
   onBackToDirectory: () => void;
   onCreateConversation: (title?: string) => void | Promise<string | null>;
   onSelectConversation: (conversationId: string) => void;
   onLoadingChange: (isLoading: boolean) => void;
+  onOpenWorkspaceFile?: (path: string, workspaceAgentId?: string | null) => void;
   onConversationSnapshotChange: (snapshot: ConversationSnapshotPayload) => void;
   onRoomEvent?: (eventType: string, data: import("@/types/agent/agent-conversation").RoomEventPayload) => void;
+  onTodosChange: (todos: TodoItem[]) => void;
 }
 
 export function RoomMobileSurface({
@@ -49,18 +57,37 @@ export function RoomMobileSurface({
   currentAgentSessionIdentity: currentAgentSessionIdentity,
   conversationId: conversationId,
   currentRoomConversations: currentRoomConversations,
+  currentTodos: currentTodos,
   initialDraft: initialDraft = null,
   onInitialDraftConsumed: onInitialDraftConsumed,
   onBackToDirectory: onBackToDirectory,
   onCreateConversation: onCreateConversation,
   onSelectConversation: onSelectConversation,
   onLoadingChange: onLoadingChange,
+  onOpenWorkspaceFile: onOpenWorkspaceFile,
   onConversationSnapshotChange: onConversationSnapshotChange,
   onRoomEvent: onRoomEvent,
+  onTodosChange: onTodosChange,
 }: RoomMobileSurfaceProps) {
+  const { t } = useI18n();
   const [isConversationSheetOpen, setIsConversationSheetOpen] = useState(false);
+  const [openSubagentSource, setOpenSubagentSource] = useState<SubagentTaskSource | null>(null);
   const isDm = currentRoomType === "dm";
   const currentAgentAvatarSrc = getIconAvatarSrc(currentAgent.avatar);
+  const subagentTaskSource = useMemo<SubagentTaskSource | null>(() => {
+    if (isDm) {
+      const sessionKey = currentAgentSessionIdentity?.session_key?.trim();
+      return sessionKey ? { kind: "session", session_key: sessionKey } : null;
+    }
+    if (!roomId || !conversationId) {
+      return null;
+    }
+    return {
+      kind: "room",
+      room_id: roomId,
+      conversation_id: conversationId,
+    };
+  }, [conversationId, currentAgentSessionIdentity?.session_key, isDm, roomId]);
 
   const currentRoomConversationTitle = useMemo(() => {
     if (currentRoomConversation?.title?.trim()) {
@@ -108,13 +135,20 @@ export function RoomMobileSurface({
             <ChevronDown className="h-4 w-4 shrink-0 text-(--text-muted)" />
           </button>
 
-          <div className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-(--divider-subtle-color) text-(--text-muted)">
-            <MessageSquare className="h-4 w-4" />
-          </div>
+          <button
+            aria-label={t("subagents.open_panel")}
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-(--divider-subtle-color) text-(--text-muted) transition hover:bg-(--interaction-hover-background) hover:text-(--text-strong) disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)"
+            disabled={!subagentTaskSource}
+            onClick={() => setOpenSubagentSource(subagentTaskSource)}
+            title={t("subagents.open_panel")}
+            type="button"
+          >
+            <Bot className="h-4 w-4" />
+          </button>
         </div>
       </div>
 
-      <div className="min-h-0 min-w-0 flex-1">
+      <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
         {isDm ? (
           <DmChatPanel
             currentAgentName={currentAgent.name}
@@ -125,7 +159,9 @@ export function RoomMobileSurface({
             onConversationSnapshotChange={onConversationSnapshotChange}
             onInitialDraftConsumed={onInitialDraftConsumed}
             onLoadingChange={onLoadingChange}
+            onOpenWorkspaceFile={onOpenWorkspaceFile}
             onRoomEvent={onRoomEvent}
+            onTodosChange={onTodosChange}
             sessionIdentity={currentAgentSessionIdentity}
           />
         ) : (
@@ -141,7 +177,9 @@ export function RoomMobileSurface({
               onCreateConversation={onCreateConversation}
               onInitialDraftConsumed={onInitialDraftConsumed}
               onLoadingChange={onLoadingChange}
+              onOpenWorkspaceFile={onOpenWorkspaceFile}
               onRoomEvent={onRoomEvent}
+              onTodosChange={onTodosChange}
               roomHostAgentId={roomHostAgentId}
               roomHostAutoReplyEnabled={roomHostAutoReplyEnabled}
               roomId={roomId}
@@ -150,6 +188,7 @@ export function RoomMobileSurface({
             <MobileThreadOverlay />
           </GroupThreadContextProvider>
         )}
+        <WorkspaceTaskPanel key={conversationId ?? "mobile-conversation-tasks"} todos={currentTodos} />
       </div>
 
       {isConversationSheetOpen ? (
@@ -212,6 +251,17 @@ export function RoomMobileSurface({
             </div>
           </div>
         </>
+      ) : null}
+
+      {openSubagentSource === subagentTaskSource && openSubagentSource ? (
+        <div className="fixed inset-0 z-50 bg-(--surface-panel-background)">
+          <SubagentTaskSurface
+            layout="mobile"
+            onClose={() => setOpenSubagentSource(null)}
+            onOpenWorkspaceFile={onOpenWorkspaceFile}
+            source={openSubagentSource}
+          />
+        </div>
       ) : null}
     </section>
   );

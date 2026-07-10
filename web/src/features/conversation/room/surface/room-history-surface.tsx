@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, Clock3, MessageSquarePlus, Pencil, Trash2, X } from "lucide-react";
 
 import { getSessionChannelLabel } from "@/features/conversation/external-session-labels";
@@ -11,7 +11,6 @@ import {
 } from "@/lib/conversation/room-conversation-delete";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
-import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import { WorkspaceSurfaceView } from "@/shared/ui/workspace/surface/workspace-surface-view";
 import { RoomConversationView } from "@/types/conversation/conversation";
 
@@ -20,7 +19,6 @@ interface RoomHistorySurfaceProps {
   conversations: RoomConversationView[];
   conversationId: string | null;
   currentRoomType: string;
-  headerAction?: ReactNode;
   onCreateConversation: (title?: string) => Promise<string | null>;
   onDeleteConversation: (conversationId: string) => Promise<string | null>;
   onSelectConversation: (conversationId: string) => void;
@@ -60,7 +58,6 @@ export function RoomHistorySurface({
   conversations,
   conversationId: conversationId,
   currentRoomType: currentRoomType,
-  headerAction: headerAction,
   onCreateConversation: onCreateConversation,
   onDeleteConversation: onDeleteConversation,
   onSelectConversation: onSelectConversation,
@@ -73,34 +70,15 @@ export function RoomHistorySurface({
     [conversations],
   );
 
-  const createAction = canManageConversations ? (
-    <WorkspaceSurfaceToolbarAction
-      onClick={() => {
-        void onCreateConversation();
-      }}
-      tone="primary"
-    >
-      <MessageSquarePlus className="h-3.5 w-3.5" />
-      {t("room.new_conversation")}
-    </WorkspaceSurfaceToolbarAction>
-  ) : null;
-
-  const action = createAction || headerAction ? (
-    <div className="flex items-center gap-3">
-      {createAction}
-      {headerAction}
-    </div>
-  ) : null;
-
   return (
     <>
       <WorkspaceSurfaceView
-        action={action}
         bodyClassName="px-4 py-3.5 sm:px-5 xl:px-6"
         contentClassName="space-y-1.5"
         eyebrow={t("room.history")}
         maxWidthClassName="max-w-none"
         showEyebrow={false}
+        showTitle={false}
         title={currentRoomType === "dm" ? t("room.history_view_title_dm") : t("room.history_view_title")}
       >
         {orderedConversations.length > 0 ? (

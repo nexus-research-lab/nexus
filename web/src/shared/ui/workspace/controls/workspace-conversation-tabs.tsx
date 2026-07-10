@@ -311,22 +311,6 @@ export function WorkspaceConversationTabs({
       data-tour-anchor={tourAnchor}
       ref={trackRef}
     >
-      {onCreateConversation ? (
-        <button
-          aria-label={t("room.new_conversation")}
-          className="relative mr-1 inline-flex h-6.5 w-[84px] shrink-0 items-center justify-start rounded-[13px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_70%,transparent)] bg-[color:color-mix(in_srgb,var(--surface-panel-background)_76%,transparent)] pl-[22px] pr-2 text-left text-[11px] font-semibold leading-none text-(--text-default) shadow-[inset_0_1px_0_color-mix(in_srgb,var(--foreground)_5%,transparent)] transition-[background-color,border-color,color,box-shadow] duration-(--motion-duration-fast) ease-out hover:border-[color:color-mix(in_srgb,var(--success)_24%,var(--divider-subtle-color)_76%)] hover:bg-(--surface-interactive-hover-background) hover:text-(--success) hover:shadow-[inset_0_1px_0_color-mix(in_srgb,var(--success)_8%,transparent)] disabled:opacity-60"
-          disabled={isCreating}
-          onClick={() => {
-            void handleCreateConversation();
-          }}
-          title={t("room.new_conversation")}
-          type="button"
-        >
-          <Plus className={cn("absolute left-[7px] top-1/2 h-3 w-3 -translate-y-1/2", isCreating && "animate-spin")} />
-          <span className="min-w-0 truncate">{t("room.new_conversation")}</span>
-        </button>
-      ) : null}
-
       {orderedConversations.map((conversation, conversationIndex) => {
         const isActive = conversation.conversation_id === activeConversationId;
         const isHovered = conversation.conversation_id === hoveredConversationId;
@@ -416,6 +400,22 @@ export function WorkspaceConversationTabs({
           </div>
         );
       })}
+
+      {onCreateConversation ? (
+        <button
+          aria-label={t("room.new_conversation")}
+          className="relative ml-1 inline-flex h-6.5 w-[84px] shrink-0 items-center justify-start rounded-[13px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_70%,transparent)] bg-[color:color-mix(in_srgb,var(--surface-panel-background)_76%,transparent)] pl-[22px] pr-2 text-left text-[11px] font-semibold leading-none text-(--text-default) shadow-[inset_0_1px_0_color-mix(in_srgb,var(--foreground)_5%,transparent)] transition-[background-color,border-color,color,box-shadow] duration-(--motion-duration-fast) ease-out hover:border-[color:color-mix(in_srgb,var(--success)_24%,var(--divider-subtle-color)_76%)] hover:bg-(--surface-interactive-hover-background) hover:text-(--success) hover:shadow-[inset_0_1px_0_color-mix(in_srgb,var(--success)_8%,transparent)] disabled:opacity-60"
+          disabled={isCreating}
+          onClick={() => {
+            void handleCreateConversation();
+          }}
+          title={t("room.new_conversation")}
+          type="button"
+        >
+          <Plus className={cn("absolute left-[7px] top-1/2 h-3 w-3 -translate-y-1/2", isCreating && "animate-spin")} />
+          <span className="min-w-0 truncate">{t("room.new_conversation")}</span>
+        </button>
+      ) : null}
     </nav>
   );
 }

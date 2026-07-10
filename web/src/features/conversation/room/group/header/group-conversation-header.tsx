@@ -1,27 +1,25 @@
 "use client";
 
-import { memo, useState } from "react";
+import { memo, useRef, useState } from "react";
 import {
+  Bot,
   Compass,
   FolderTree,
   History,
   Info,
   type LucideIcon,
+  MoreHorizontal,
 } from "lucide-react";
 
+import { UiActionMenu } from "@/shared/ui/action-menu";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiAgentAvatar, UiRoomAvatar } from "@/shared/ui/avatar";
-import {
-  WorkspaceSurfaceHeader,
-  WorkspaceSurfaceToolbarAction,
-  WorkspaceTaskStrip,
-} from "@/shared/ui/workspace/surface/workspace-surface-header";
+import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import { WorkspaceConversationTabs } from "@/shared/ui/workspace/controls/workspace-conversation-tabs";
 import { Agent } from "@/types/agent/agent";
 import { RoomConversationView } from "@/types/conversation/conversation";
 import { UpdateRoomParams } from "@/types/conversation/room";
 import { RoomSurfaceTabKey } from "@/types/conversation/room-surface";
-import { TodoItem } from "@/types/conversation/todo";
 
 import { CreateRoomDialog } from "@/features/conversation/room/members/create-room-dialog";
 import { CONVERSATION_TOUR_ANCHORS } from "../../room-tour";
@@ -38,10 +36,10 @@ interface GroupConversationHeaderProps {
   conversations: RoomConversationView[];
   roomMembers: Agent[];
   availableRoomAgents: Agent[];
-  todos: TodoItem[];
   activeTab: RoomSurfaceTabKey;
   onReplayTour?: () => void;
   onChangeTab: (tab: RoomSurfaceTabKey) => void;
+  onCloseActiveTab: () => void;
   onSelectConversation: (conversationId: string) => void;
   onCloseConversation: (conversationId: string) => Promise<void>;
   onCreateConversation?: (title?: string) => Promise<string | null>;
@@ -105,10 +103,10 @@ const GroupConversationHeaderView = memo(({
   conversations,
   roomMembers: roomMembers,
   availableRoomAgents: availableRoomAgents,
-  todos,
   activeTab: activeTab,
   onReplayTour: onReplayTour,
   onChangeTab: onChangeTab,
+  onCloseActiveTab: onCloseActiveTab,
   onSelectConversation: onSelectConversation,
   onCloseConversation: onCloseConversation,
   onCreateConversation: onCreateConversation,
@@ -119,6 +117,8 @@ const GroupConversationHeaderView = memo(({
 }: GroupConversationHeaderProps) => {
   const { t } = useI18n();
   const [isMemberListOpen, setIsMemberListOpen] = useState(false);
+  const moreButtonRef = useRef<HTMLButtonElement>(null);
+  const [isMoreOpen, setIsMoreOpen] = useState(false);
   const headerTitle = currentRoomTitle?.trim() || t("room.untitled_collaboration");
   const roomTabs: {
     key: RoomSurfaceTabKey;
@@ -128,6 +128,7 @@ const GroupConversationHeaderView = memo(({
   }[] = [
     { key: "history", label: t("room.history"), icon: History, anchor: CONVERSATION_TOUR_ANCHORS.tab_history },
     { key: "workspace", label: t("room.workspace"), icon: FolderTree, anchor: CONVERSATION_TOUR_ANCHORS.tab_workspace },
+    { key: "subagents", label: t("subagents.label"), icon: Bot },
     { key: "about", label: t("room.about"), icon: Info, anchor: CONVERSATION_TOUR_ANCHORS.tab_about },
   ];
 
@@ -167,10 +168,37 @@ const GroupConversationHeaderView = memo(({
         />
       </div>
       {onReplayTour ? (
-        <WorkspaceSurfaceToolbarAction onClick={onReplayTour}>
-          <Compass className="h-3.5 w-3.5" />
-          {t("common.view_guide")}
-        </WorkspaceSurfaceToolbarAction>
+        <>
+          <button
+            ref={moreButtonRef}
+            aria-haspopup="menu"
+            aria-label={t("common.more_actions")}
+            className="inline-flex h-7 w-7 items-center justify-center rounded-full text-(--icon-default) transition-[background,color] hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
+            onClick={() => setIsMoreOpen((prev) => !prev)}
+            title={t("common.more_actions")}
+            type="button"
+          >
+            <MoreHorizontal className="h-4 w-4" />
+          </button>
+          <UiActionMenu
+            anchorRef={moreButtonRef}
+            ariaLabel={t("common.more_actions")}
+            isOpen={isMoreOpen}
+            items={[
+              {
+                value: "guide",
+                label: t("common.view_guide"),
+                icon: <Compass className="h-4 w-4 text-(--icon-muted)" />,
+              },
+            ]}
+            onClose={() => setIsMoreOpen(false)}
+            onSelect={(value) => {
+              if (value === "guide") {
+                onReplayTour?.();
+              }
+            }}
+          />
+        </>
       ) : null}
     </div>
   );
@@ -195,9 +223,10 @@ const GroupConversationHeaderView = memo(({
           />
         )}
         onChangeTab={onChangeTab}
+        onDismissActiveTab={onCloseActiveTab}
+        dismissActiveTabLabel={t("common.close")}
         tabs={roomTabs}
         tabsLeading={conversationTabs}
-        tabsTrailing={<WorkspaceTaskStrip todos={todos} />}
         title={headerTitle}
         trailing={trailing}
       />

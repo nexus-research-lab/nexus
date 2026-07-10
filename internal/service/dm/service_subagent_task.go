@@ -10,7 +10,7 @@ import (
 )
 
 func (r *roundRunner) startIdleSubagentNotificationDrain() {
-	if r == nil || r.service == nil || r.service.runtime == nil || !r.hasRunningSubagentTask() {
+	if r == nil || r.service == nil || r.service.runtime == nil || !r.service.runtime.HasSubagentHistory(r.sessionKey) {
 		return
 	}
 	r.service.runtime.StartIdleMessageDrain(r.sessionKey, r.handleIdleSubagentMessage)
@@ -45,8 +45,25 @@ func (r *roundRunner) handleIdleSubagentMessage(ctx context.Context, incoming sd
 	if r.hasRunningSubagentTask() {
 		return true
 	}
-	r.dispatchPostRoundWork()
-	return false
+	r.dispatchPostRoundWorkAfterSubagents()
+	// nxs 支持用同 task ID 唤醒终态 task，因此 idle drain 不能在首次完成时退出。
+	return true
+}
+
+func (r *roundRunner) annotateSubagentTaskRuntimeKind(message protocol.Message) {
+	if r == nil || message == nil {
+		return
+	}
+	metadata, _ := message["metadata"].(map[string]any)
+	if strings.TrimSpace(dmAnyString(metadata["task_id"])) == "" {
+		return
+	}
+	switch strings.TrimSpace(dmAnyString(metadata["subtype"])) {
+	case "task_started", "task_progress", "task_updated", "task_notification":
+		if runtimeKind := strings.TrimSpace(r.runtimeKind); runtimeKind != "" {
+			metadata["runtime_kind"] = runtimeKind
+		}
+	}
 }
 
 func (r *roundRunner) rememberSubagentTaskMessage(message protocol.Message) {
@@ -60,22 +77,18 @@ func (r *roundRunner) rememberSubagentTaskMessage(message protocol.Message) {
 	}
 	subtype := strings.TrimSpace(dmAnyString(metadata["subtype"]))
 	status := strings.TrimSpace(dmAnyString(metadata["status"]))
-	if subtype == "task_started" && !dmMetadataLooksLikeSubagentTask(metadata) {
-		return
-	}
-	if subtype == "task_updated" && !dmIsTerminalSubagentTaskStatus(status) && !dmMetadataLooksLikeSubagentTask(metadata) {
+	if !dmMetadataLooksLikeSubagentTask(metadata) && !r.knowsSubagentTask(taskID) {
 		return
 	}
 	r.goalUsageMu.Lock()
-	defer r.goalUsageMu.Unlock()
 	if r.subagentTasks == nil {
 		r.subagentTasks = map[string]struct{}{}
 	}
 	switch subtype {
-	case "task_started", "task_updated":
+	case "task_started", "task_progress", "task_updated":
 		if dmIsTerminalSubagentTaskStatus(status) {
 			delete(r.subagentTasks, taskID)
-			return
+			break
 		}
 		r.subagentTasks[taskID] = struct{}{}
 	case "task_notification":
@@ -83,6 +96,20 @@ func (r *roundRunner) rememberSubagentTaskMessage(message protocol.Message) {
 			delete(r.subagentTasks, taskID)
 		}
 	}
+	r.goalUsageMu.Unlock()
+	if r.service != nil && r.service.runtime != nil {
+		r.service.runtime.MarkSubagentHistory(r.sessionKey)
+	}
+}
+
+func (r *roundRunner) knowsSubagentTask(taskID string) bool {
+	if r == nil || strings.TrimSpace(taskID) == "" {
+		return false
+	}
+	r.goalUsageMu.Lock()
+	defer r.goalUsageMu.Unlock()
+	_, ok := r.subagentTasks[strings.TrimSpace(taskID)]
+	return ok
 }
 
 func (r *roundRunner) hasRunningSubagentTask() bool {
@@ -94,13 +121,39 @@ func (r *roundRunner) hasRunningSubagentTask() bool {
 	return len(r.subagentTasks) > 0
 }
 
+func (r *roundRunner) dispatchPostRoundWorkAfterSubagents() {
+	if !r.claimSubagentPostRoundDispatch() {
+		return
+	}
+	r.dispatchPostRoundWork()
+}
+
+func (r *roundRunner) claimSubagentPostRoundDispatch() bool {
+	if r == nil {
+		return false
+	}
+	r.goalUsageMu.Lock()
+	defer r.goalUsageMu.Unlock()
+	if len(r.subagentTasks) > 0 || r.subagentPostRoundDispatched {
+		return false
+	}
+	r.subagentPostRoundDispatched = true
+	return true
+}
+
 func dmMetadataLooksLikeSubagentTask(metadata map[string]any) bool {
 	if len(metadata) == 0 {
 		return false
 	}
+	taskType := strings.ToLower(strings.TrimSpace(dmAnyString(metadata["task_type"])))
+	if taskType == "local_shell" {
+		return false
+	}
+	if taskType != "" {
+		return taskType == "local_agent"
+	}
 	return strings.TrimSpace(dmAnyString(metadata["agent_id"])) != "" ||
-		strings.TrimSpace(dmAnyString(metadata["agent_type"])) != "" ||
-		strings.TrimSpace(dmAnyString(metadata["task_type"])) == "local_agent"
+		strings.TrimSpace(dmAnyString(metadata["agent_type"])) != ""
 }
 
 func dmIsTerminalSubagentTaskStatus(status string) bool {

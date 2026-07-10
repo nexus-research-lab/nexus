@@ -103,6 +103,118 @@ func TestRealtimeServiceCompletesRoomRoundFromTerminalAssistantWithoutResult(t *
 	}
 }
 
+func TestRealtimeServiceKeepsSubagentRoomSlotInRuntimeManager(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+	agentService, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	ctx := context.Background()
+	memberAgent := createTestAgent(t, agentService, ctx, "子任务助手")
+	roomContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
+		AgentIDs: []string{memberAgent.AgentID},
+		Name:     "subagent runtime 房间",
+		Title:    "主对话",
+	})
+	if err != nil {
+		t.Fatalf("创建 room 失败: %v", err)
+	}
+
+	client := newFakeRoomClient()
+	client.onQuery = func(_ context.Context, _ string) error {
+		go func() {
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeTaskStarted,
+				SessionID: client.sessionID,
+				TaskStarted: &sdkprotocol.TaskStartedMessage{
+					TaskID:      "task-room-1",
+					AgentID:     "sdk-subagent-1",
+					AgentType:   "worker",
+					Description: "检查 Room runtime",
+					TaskType:    "local_agent",
+					Additional: map[string]any{
+						"child_session_id": "child-room-1",
+						"name":             "Room runtime audit",
+					},
+				},
+			}
+			sendFakeAssistantResult(client, "assistant-room-subagent", "子任务已在后台执行。")
+		}()
+		return nil
+	}
+
+	permission := permissionctx.NewContext()
+	runtimeManager := runtimectx.NewManager()
+	service := roomsvc.NewRealtimeServiceWithFactory(
+		cfg,
+		roomService,
+		agentService,
+		runtimeManager,
+		permission,
+		&fakeRoomFactory{clients: []*fakeRoomClient{client}},
+	)
+	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
+	sender := newRealtimeTestSender("room-sender-subagent-runtime")
+	permission.BindSession(sharedSessionKey, sender)
+	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
+		SessionKey:     sharedSessionKey,
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
+		Content:        "@子任务助手 启动后台检查",
+		RoundID:        "room-round-subagent-runtime",
+	}); err != nil {
+		t.Fatalf("HandleChat 失败: %v", err)
+	}
+	collectRoomEventsUntil(t, sender.events, func(_ []protocol.EventMessage, event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
+	})
+
+	runtimeSessionKey := protocol.BuildRoomAgentSessionKey(
+		roomContext.Conversation.ID,
+		memberAgent.AgentID,
+		roomContext.Room.RoomType,
+	)
+	if !runtimeManager.HasSubagentHistory(runtimeSessionKey) {
+		t.Fatal("Room slot 未在 runtime manager 保留 subagent history")
+	}
+	if rounds := runtimeManager.GetRunningRoundIDs(runtimeSessionKey); len(rounds) != 0 {
+		t.Fatalf("父 round 结束后仍残留 running round: %+v", rounds)
+	}
+	if err = runtimeManager.StopTask(ctx, runtimeSessionKey, "task-room-1"); err != nil {
+		t.Fatalf("Room task stop 未路由到 slot client: %v", err)
+	}
+	if err = runtimeManager.SendTaskMessage(ctx, runtimeSessionKey, "task-room-1", "继续检查", "继续检查"); err != nil {
+		t.Fatalf("Room task follow-up 未路由到 slot client: %v", err)
+	}
+	client.mu.Lock()
+	if client.disconnects != 0 || len(client.stoppedTasks) != 1 || len(client.taskMessages) != 1 {
+		t.Fatalf("Room slot client 生命周期/控制不正确: disconnects=%d stopped=%+v messages=%+v", client.disconnects, client.stoppedTasks, client.taskMessages)
+	}
+	client.mu.Unlock()
+
+	roomHistory := workspacestore.NewRoomHistoryStore(cfg.WorkspacePath)
+	messages, err := roomHistory.ReadMessages(roomContext.Conversation.ID, nil)
+	if err != nil {
+		t.Fatalf("读取 Room history 失败: %v", err)
+	}
+	var taskMetadata map[string]any
+	for _, message := range messages {
+		metadata, _ := message["metadata"].(map[string]any)
+		if metadata["task_id"] == "task-room-1" {
+			taskMetadata = metadata
+			break
+		}
+	}
+	if taskMetadata["runtime_kind"] != "nxs" || taskMetadata["child_session_id"] != "child-room-1" {
+		t.Fatalf("Room task metadata 未保留 runtime/thread 身份: %+v", taskMetadata)
+	}
+	if err = runtimeManager.CloseSession(ctx, runtimeSessionKey); err != nil {
+		t.Fatalf("清理 Room runtime 失败: %v", err)
+	}
+}
+
 func TestRealtimeServiceKeepsThinkingDuringStreamingAndHistoryReplay(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)

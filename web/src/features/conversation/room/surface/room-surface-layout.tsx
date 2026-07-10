@@ -1,14 +1,13 @@
 "use client";
 
-import { RefObject, useCallback, useEffect, useState } from "react";
-import { X } from "lucide-react";
+import { RefObject, useCallback, useEffect, useMemo, useState } from "react";
 
 import { DmConversationHeader } from "@/features/conversation/room/dm/dm-conversation-header";
 import { useMediaQuery } from "@/hooks/ui/use-media-query";
 import { cn } from "@/lib/utils";
 import { useSidebarStore } from "@/store/sidebar";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
-import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-header";
+import { WorkspaceTaskPanel } from "@/shared/ui/workspace/surface/workspace-task-strip";
 import { Agent, AgentIdentityDraft, AgentNameValidationResult, AgentOptions } from "@/types/agent/agent";
 import { AgentConversationIdentity } from "@/types/agent/agent-conversation";
 import { ConversationSnapshotPayload, RoomConversationView } from "@/types/conversation/conversation";
@@ -23,6 +22,8 @@ import { useGroupThread } from "../group/thread/group-thread-state";
 import { useRoomThreadPanel } from "../group/chat/use-room-thread-panel-data";
 import { RoomWorkspaceView } from "../workspace/room-workspace-view";
 import { ConversationResizeHandle } from "@/features/conversation/shared/editor/conversation-resize-handle";
+import { SubagentTaskSurface } from "@/features/conversation/shared/subagent/subagent-task-surface";
+import type { SubagentTaskSource } from "@/types/conversation/subagent-task";
 import { RoomAgentAboutSurface } from "./room-agent-about-surface";
 import { RoomChatSurface } from "./room-chat-surface";
 import { RoomHistorySurface } from "./room-history-surface";
@@ -31,13 +32,9 @@ import { CONVERSATION_TOUR_ANCHORS } from "../room-tour";
 type RoomAgentAboutRequestedTab = "identity" | "private_domain";
 
 const RIGHT_PANEL_AUTO_COLLAPSE_SIDEBAR_QUERY = "(max-width: 1440px)";
-const WIDE_AUXILIARY_PANEL_WIDTH_LIMITS = {
+const AUXILIARY_PANEL_WIDTH_LIMITS = {
   minWidth: "min(520px, 46vw)",
   maxWidth: "min(860px, 54vw)",
-};
-const AUXILIARY_PANEL_WIDTH_LIMITS = {
-  minWidth: "min(420px, 40vw)",
-  maxWidth: "min(600px, 48vw)",
 };
 
 interface RoomSurfaceLayoutProps {
@@ -177,10 +174,20 @@ function RoomSurfaceLayoutInner({
   const isDm = currentRoomType === "dm";
   const isAuxiliaryPanelOpen = activeSurfaceTab !== "chat";
   const isRightPanelOpen = isAuxiliaryPanelOpen || isThreadPanelOpen;
-  const isWideAuxiliaryPanel =
-    activeSurfaceTab === "history" ||
-    activeSurfaceTab === "workspace" ||
-    activeSurfaceTab === "about";
+  const subagentTaskSource = useMemo<SubagentTaskSource | null>(() => {
+    if (isDm) {
+      const sessionKey = currentAgentSessionIdentity?.session_key?.trim();
+      return sessionKey ? { kind: "session", session_key: sessionKey } : null;
+    }
+    if (!roomId || !conversationId) {
+      return null;
+    }
+    return {
+      kind: "room",
+      room_id: roomId,
+      conversation_id: conversationId,
+    };
+  }, [conversationId, currentAgentSessionIdentity?.session_key, isDm, roomId]);
   const [aboutRequest, setAboutRequest] = useState<{
     agent_id: string | null;
     tab: RoomAgentAboutRequestedTab;
@@ -221,12 +228,11 @@ function RoomSurfaceLayoutInner({
     onChangeSurfaceTab("chat");
   }, [onChangeSurfaceTab]);
 
-  const auxiliaryCloseAction = (
-    <WorkspaceSurfaceToolbarAction onClick={handleCloseAuxiliaryPanel}>
-      <X className="h-3.5 w-3.5" />
-      关闭
-    </WorkspaceSurfaceToolbarAction>
-  );
+  useEffect(() => {
+    if (activeSurfaceTab === "subagents" && !subagentTaskSource) {
+      onChangeSurfaceTab("chat");
+    }
+  }, [activeSurfaceTab, onChangeSurfaceTab, subagentTaskSource]);
 
   return (
     <section
@@ -249,11 +255,11 @@ function RoomSurfaceLayoutInner({
                   currentAgentName={currentAgent.name}
                   currentAgentAvatar={currentAgent.avatar ?? null}
                   onChangeTab={handleChangeSurfaceTab}
+                  onCloseActiveTab={handleCloseAuxiliaryPanel}
                   onCloseConversation={onCloseConversation}
                   onCreateConversation={onCreateConversation}
                   onReplayTour={onReplayTour}
                   onSelectConversation={onSelectConversation}
-                  todos={currentTodos}
                 />
               ) : (
                 <GroupConversationHeader
@@ -265,6 +271,7 @@ function RoomSurfaceLayoutInner({
                   onAddRoomMember={onAddRoomMember}
                   onOpenMemberManager={onOpenMemberManager}
                   onChangeTab={handleChangeSurfaceTab}
+                  onCloseActiveTab={handleCloseAuxiliaryPanel}
                   onCloseConversation={onCloseConversation}
                   onCreateConversation={onCreateConversation}
                   onReplayTour={onReplayTour}
@@ -278,14 +285,13 @@ function RoomSurfaceLayoutInner({
                   roomId={roomId}
                   roomMembers={roomMembers}
                   roomSkillNames={roomSkillNames}
-                  todos={currentTodos}
                 />
               )}
             </div>
           )}
         >
           <div className="flex h-full min-h-0 min-w-0">
-            <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
+            <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
               {/* 中文注释：聊天面板必须常驻挂载，避免切换 surface tab 时卸载组件，
                     进而触发 useWebSocket 清理并关闭连接。 */}
               <RoomChatSurface
@@ -307,6 +313,7 @@ function RoomSurfaceLayoutInner({
                 roomId={roomId}
                 roomMembers={roomMembers}
               />
+              <WorkspaceTaskPanel key={conversationId ?? "conversation-tasks"} todos={currentTodos} />
             </div>
 
             {isAuxiliaryPanelOpen ? (
@@ -314,9 +321,7 @@ function RoomSurfaceLayoutInner({
                 className="relative ml-2 flex min-h-0 min-w-0 shrink-0 flex-col overflow-hidden border-l divider-subtle bg-transparent shadow-none"
                 style={{
                   width: `${editorWidthPercent}%`,
-                  ...(isWideAuxiliaryPanel
-                    ? WIDE_AUXILIARY_PANEL_WIDTH_LIMITS
-                    : AUXILIARY_PANEL_WIDTH_LIMITS),
+                  ...AUXILIARY_PANEL_WIDTH_LIMITS,
                 }}
               >
                 <ConversationResizeHandle
@@ -330,7 +335,6 @@ function RoomSurfaceLayoutInner({
                     conversations={currentRoomConversations}
                     conversationId={conversationId}
                     currentRoomType={currentRoomType}
-                    headerAction={auxiliaryCloseAction}
                     onCreateConversation={onCreateConversation}
                     onDeleteConversation={onDeleteConversation}
                     onSelectConversation={onSelectConversation}
@@ -343,7 +347,6 @@ function RoomSurfaceLayoutInner({
                   <RoomWorkspaceView
                     activeWorkspacePath={activeWorkspacePath}
                     agentId={currentAgent.agent_id}
-                    headerAction={auxiliaryCloseAction}
                     isDm={isDm}
                     isEditorOpen={isEditorOpen}
                     roomMembers={roomMembers}
@@ -358,7 +361,6 @@ function RoomSurfaceLayoutInner({
                     conversationId={conversationId}
                     roomId={roomId}
                     roomMembers={roomMembers}
-                    headerAction={auxiliaryCloseAction}
                     isVisible={activeSurfaceTab === "about"}
                     requestedAgentId={aboutRequest.agent_id}
                     requestedTab={aboutRequest.tab}
@@ -367,6 +369,17 @@ function RoomSurfaceLayoutInner({
                     onValidateAgentName={onValidateAgentName}
                   />
                 </div>
+
+                {activeSurfaceTab === "subagents" && subagentTaskSource ? (
+                  <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
+                    <SubagentTaskSurface
+                      onClose={handleCloseAuxiliaryPanel}
+                      onOpenWorkspaceFile={(path, workspaceAgentId) =>
+                        handleOpenWorkspaceFile(path, workspaceAgentId)}
+                      source={subagentTaskSource}
+                    />
+                  </div>
+                ) : null}
               </section>
             ) : !isDm ? (
               <GroupThreadInlinePanel

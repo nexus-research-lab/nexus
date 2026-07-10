@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FilePlus, FolderOpen, FolderPlus, FolderTree, LoaderCircle, Upload, } from "lucide-react";
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
@@ -22,7 +22,6 @@ import { useMediaQuery } from "@/hooks/ui/use-media-query";
 interface RoomWorkspaceViewProps {
   activeWorkspacePath: string | null;
   agentId: string;
-  headerAction?: ReactNode;
   isDm: boolean;
   isEditorOpen: boolean;
   roomMembers: Agent[];
@@ -42,7 +41,6 @@ export function RoomWorkspaceView(
   {
     activeWorkspacePath: activeWorkspacePath,
     agentId: agentId,
-    headerAction: headerAction,
     isDm: isDm,
     isEditorOpen: isEditorOpen,
     roomMembers: roomMembers,
@@ -178,13 +176,13 @@ export function RoomWorkspaceView(
       />
 
       <WorkspaceSurfaceView
-        action={headerAction}
         bodyClassName="px-2 pt-1 pb-0 sm:px-2 xl:px-4"
         bodyScrollable={false}
         contentClassName="flex h-full min-h-0 min-w-0 gap-4"
         eyebrow={t("room.workspace")}
         maxWidthClassName="max-w-none"
         showEyebrow={false}
+        showTitle={false}
         title={t("room.workspace_title")}
         titleTrailing={titleTrailing}
       >

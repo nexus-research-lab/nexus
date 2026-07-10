@@ -62,6 +62,11 @@ func (m *Manager) runIdleMessageDrain(
 			if !ok {
 				return
 			}
+			m.mu.Lock()
+			if state := m.sessions[sessionKey]; state != nil && state.IdleMessageDrainID == drainID {
+				m.touchStateLocked(state)
+			}
+			m.mu.Unlock()
 			if !handler(ctx, message) {
 				return
 			}

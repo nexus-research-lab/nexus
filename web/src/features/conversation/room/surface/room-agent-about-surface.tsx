@@ -9,7 +9,7 @@
 
 "use client";
 
-import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Album,
   Handshake,
@@ -34,7 +34,6 @@ interface RoomAgentAboutSurfaceProps {
   roomId: string | null;
   conversationId: string | null;
   roomMembers: Agent[];
-  headerAction?: ReactNode;
   isVisible: boolean;
   requestedAgentId?: string | null;
   requestedTab?: RoomAgentPanelTabKey;
@@ -56,7 +55,6 @@ export function RoomAgentAboutSurface({
   roomId: roomId,
   conversationId: conversationId,
   roomMembers: roomMembers,
-  headerAction: headerAction,
   isVisible: isVisible,
   requestedAgentId: requestedAgentId,
   requestedTab: requestedTab,
@@ -121,13 +119,13 @@ export function RoomAgentAboutSurface({
 
   return (
     <WorkspaceSurfaceView
-      action={headerAction}
       bodyClassName="flex min-h-0 flex-1 flex-col px-0 py-0"
       bodyScrollable={false}
       contentClassName="flex h-full min-h-0 flex-1 flex-col"
       eyebrow={t("room.about")}
       maxWidthClassName="max-w-none"
       showEyebrow={false}
+      showTitle={false}
       title={t("room.about")}
       titleTrailing={titleTrailing}
     >

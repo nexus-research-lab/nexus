@@ -142,14 +142,18 @@ export function RoomSurfaceShell({
         conversationId={conversationId}
         currentRoomConversations={currentRoomConversations}
         currentRoomTitle={currentRoomTitle}
+        currentTodos={currentTodos}
         initialDraft={initialDraft}
         onInitialDraftConsumed={onInitialDraftConsumed}
         onBackToDirectory={onBackToDirectory}
         onConversationSnapshotChange={onConversationSnapshotChange}
         onCreateConversation={handleCreateConversationInShell}
         onLoadingChange={onLoadingChange}
+        onOpenWorkspaceFile={(path, workspaceAgentId) =>
+          onOpenWorkspaceFile(path, workspaceAgentId)}
         onRoomEvent={onRoomEvent}
         onSelectConversation={handleSelectConversationInShell}
+        onTodosChange={onTodosChange}
       />
     );
   }

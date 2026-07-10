@@ -33,6 +33,8 @@ type fakeRoomClient struct {
 	messages       chan sdkprotocol.ReceivedMessage
 	interruptCalls int
 	disconnects    int
+	stoppedTasks   []string
+	taskMessages   []string
 	queryPrompts   []string
 	sentContents   []string
 	onQuery        func(context.Context, string) error
@@ -82,9 +84,19 @@ func (c *fakeRoomClient) Interrupt(ctx context.Context) error {
 	return nil
 }
 
-func (c *fakeRoomClient) StopTask(context.Context, string) error { return nil }
+func (c *fakeRoomClient) StopTask(_ context.Context, taskID string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.stoppedTasks = append(c.stoppedTasks, taskID)
+	return nil
+}
 
-func (c *fakeRoomClient) SendTaskMessage(context.Context, string, string, string) error { return nil }
+func (c *fakeRoomClient) SendTaskMessage(_ context.Context, taskID string, _ string, _ string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.taskMessages = append(c.taskMessages, taskID)
+	return nil
+}
 
 func (c *fakeRoomClient) RemoveMessages(context.Context, []string) error { return nil }
 

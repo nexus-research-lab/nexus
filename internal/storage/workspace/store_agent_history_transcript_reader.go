@@ -63,6 +63,17 @@ func normalizeTranscriptEntryShape(entry map[string]any) {
 }
 
 func buildPrimaryTranscriptChain(entries []transcriptEntry) []transcriptEntry {
+	return buildTranscriptChain(entries, shouldSkipTranscriptEntry)
+}
+
+func buildExplicitTranscriptChain(entries []transcriptEntry) []transcriptEntry {
+	return buildTranscriptChain(entries, shouldSkipExplicitTranscriptEntry)
+}
+
+func buildTranscriptChain(
+	entries []transcriptEntry,
+	shouldSkip func(map[string]any) bool,
+) []transcriptEntry {
 	if len(entries) == 0 {
 		return nil
 	}
@@ -90,7 +101,7 @@ func buildPrimaryTranscriptChain(entries []transcriptEntry) []transcriptEntry {
 		if _, exists := parentUUIDs[uuid]; exists {
 			continue
 		}
-		if shouldSkipTranscriptEntry(entry.Data) {
+		if shouldSkip(entry.Data) {
 			continue
 		}
 		terminals = append(terminals, entry)
@@ -131,7 +142,7 @@ func buildPrimaryTranscriptChain(entries []transcriptEntry) []transcriptEntry {
 	for left, right := 0, len(chain)-1; left < right; left, right = left+1, right-1 {
 		chain[left], chain[right] = chain[right], chain[left]
 	}
-	return includeParallelTranscriptToolResults(entries, chain)
+	return includeParallelTranscriptToolResults(entries, chain, shouldSkip)
 }
 
 func shouldSkipTranscriptEntry(entry map[string]any) bool {
@@ -141,9 +152,14 @@ func shouldSkipTranscriptEntry(entry map[string]any) bool {
 	return stringFromAny(entry["teamName"]) != ""
 }
 
+func shouldSkipExplicitTranscriptEntry(entry map[string]any) bool {
+	return boolValueAny(entry["isMeta"]) || stringFromAny(entry["teamName"]) != ""
+}
+
 func includeParallelTranscriptToolResults(
 	entries []transcriptEntry,
 	chain []transcriptEntry,
+	shouldSkip func(map[string]any) bool,
 ) []transcriptEntry {
 	if len(chain) == 0 {
 		return chain
@@ -176,7 +192,7 @@ func includeParallelTranscriptToolResults(
 		if _, exists := chainUUIDs[uuid]; exists {
 			continue
 		}
-		if shouldSkipTranscriptEntry(entry.Data) {
+		if shouldSkip(entry.Data) {
 			continue
 		}
 		parentUUID := stringFromAny(entry.Data["parentUuid"])

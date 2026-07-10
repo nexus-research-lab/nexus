@@ -9,6 +9,7 @@ src/
   pages/       - 页面组件
   routes/      - React Router 路由定义
   components/  - UI 组件（按功能领域组织）
+  features/    - 领域功能实现；`conversation/shared/subagent/` 负责 DM/Room 共用的子智能体任务列表与管理动作，过程详情直接复用群聊 `GroupThreadDetailPanel`
   config/      - 运行时配置常量
   hooks/       - 自定义 React Hooks
   lib/         - API 客户端、WebSocket、工具函数
@@ -22,6 +23,7 @@ src/
 - 类型集中在 `types/` 下统一导出，API 层通过 `types/api.ts` 共享 `ApiResponse<T>`
 - Store 使用 Zustand persist middleware，数据持久化到 localStorage
 - WebSocket 消息处理纯函数独立于 `hooks/agent/message-reducers.ts`
+- 子智能体 UI 只依据服务端下发的 capabilities 开放停止、发送和恢复动作；runtime kind 仅用于呈现 nxs/Claude Code 差异
 - 环境变量统一使用 `VITE_*` 前缀，通过 `import.meta.env` 读取
 
 ## 配置文件

@@ -206,6 +206,8 @@ func (s *AgentHistoryStore) ReadTranscriptPathMessages(
 	sessionKey string,
 	agentID string,
 ) ([]protocol.Message, error) {
+	const explicitTranscriptCacheKey = "explicit-transcript"
+
 	transcriptPath = strings.TrimSpace(transcriptPath)
 	if transcriptPath == "" {
 		return []protocol.Message{}, nil
@@ -214,15 +216,16 @@ func (s *AgentHistoryStore) ReadTranscriptPathMessages(
 	if err != nil {
 		return nil, err
 	}
-	if cachedRows, ok := s.readTranscriptCache(transcriptPath, fileInfo, ""); ok {
+	if cachedRows, ok := s.readTranscriptCache(transcriptPath, fileInfo, explicitTranscriptCacheKey); ok {
 		return cachedRows, nil
 	}
 	entries, err := s.readTranscriptEntries(transcriptPath)
 	if err != nil {
 		return nil, err
 	}
-	chain := buildPrimaryTranscriptChain(entries)
-	projectedRows := projectTranscriptChain(workspacePath, sessionKey, agentID, chain, nil)
-	s.writeTranscriptCache(transcriptPath, fileInfo, "", projectedRows)
+	chain := buildExplicitTranscriptChain(entries)
+	projectedRows := projectExplicitTranscriptChain(workspacePath, sessionKey, agentID, chain)
+	projectedRows = normalizeHistoryRows(projectedRows, nil)
+	s.writeTranscriptCache(transcriptPath, fileInfo, explicitTranscriptCacheKey, projectedRows)
 	return projectedRows, nil
 }

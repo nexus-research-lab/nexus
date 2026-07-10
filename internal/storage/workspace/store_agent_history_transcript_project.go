@@ -17,6 +17,40 @@ func projectTranscriptChain(
 	chain []transcriptEntry,
 	roundMarkers []transcriptRoundMarker,
 ) []protocol.Message {
+	return projectTranscriptChainWithFilter(
+		workspacePath,
+		sessionKey,
+		agentID,
+		chain,
+		roundMarkers,
+		shouldSkipTranscriptEntry,
+	)
+}
+
+func projectExplicitTranscriptChain(
+	workspacePath string,
+	sessionKey string,
+	agentID string,
+	chain []transcriptEntry,
+) []protocol.Message {
+	return projectTranscriptChainWithFilter(
+		workspacePath,
+		sessionKey,
+		agentID,
+		chain,
+		nil,
+		shouldSkipExplicitTranscriptEntry,
+	)
+}
+
+func projectTranscriptChainWithFilter(
+	workspacePath string,
+	sessionKey string,
+	agentID string,
+	chain []transcriptEntry,
+	roundMarkers []transcriptRoundMarker,
+	shouldSkip func(map[string]any) bool,
+) []protocol.Message {
 	projected := make([]protocol.Message, 0, len(chain))
 	currentRoundID := ""
 	var processor *message.Processor
@@ -25,7 +59,7 @@ func projectTranscriptChain(
 	markerIndex := 0
 
 	for _, entry := range chain {
-		if shouldSkipTranscriptEntry(entry.Data) {
+		if shouldSkip(entry.Data) {
 			continue
 		}
 

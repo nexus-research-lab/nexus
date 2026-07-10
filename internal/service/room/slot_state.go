@@ -99,6 +99,24 @@ func (slot *activeRoomSlot) getClient() runtimectx.Client {
 	return slot.Client
 }
 
+func (slot *activeRoomSlot) setRuntimeKind(runtimeKind string) {
+	if slot == nil {
+		return
+	}
+	slot.stateMu.Lock()
+	slot.RuntimeKind = strings.TrimSpace(runtimeKind)
+	slot.stateMu.Unlock()
+}
+
+func (slot *activeRoomSlot) getRuntimeKind() string {
+	if slot == nil {
+		return ""
+	}
+	slot.stateMu.RLock()
+	defer slot.stateMu.RUnlock()
+	return strings.TrimSpace(slot.RuntimeKind)
+}
+
 func (slot *activeRoomSlot) setInterruptReason(reason string) {
 	if slot == nil {
 		return
@@ -237,19 +255,20 @@ func (slot *activeRoomSlot) rememberSubagentTaskMessage(message protocol.Message
 	}
 	subtype := strings.TrimSpace(anyString(metadata["subtype"]))
 	status := strings.TrimSpace(anyString(metadata["status"]))
-	if subtype == "task_started" && !metadataLooksLikeSubagentTask(metadata) {
-		return
-	}
-	if subtype == "task_updated" && !isTerminalSubagentTaskStatus(status) && !metadataLooksLikeSubagentTask(metadata) {
+	if !metadataLooksLikeSubagentTask(metadata) && !slot.knowsSubagentTask(taskID) {
 		return
 	}
 	slot.stateMu.Lock()
 	defer slot.stateMu.Unlock()
+	if runtimeKind := strings.TrimSpace(slot.RuntimeKind); runtimeKind != "" {
+		metadata["runtime_kind"] = runtimeKind
+	}
+	slot.SubagentHistory = true
 	if slot.SubagentTasks == nil {
 		slot.SubagentTasks = map[string]struct{}{}
 	}
 	switch subtype {
-	case "task_started", "task_updated":
+	case "task_started", "task_progress", "task_updated":
 		if isTerminalSubagentTaskStatus(status) {
 			delete(slot.SubagentTasks, taskID)
 			return
@@ -260,6 +279,25 @@ func (slot *activeRoomSlot) rememberSubagentTaskMessage(message protocol.Message
 			delete(slot.SubagentTasks, taskID)
 		}
 	}
+}
+
+func (slot *activeRoomSlot) knowsSubagentTask(taskID string) bool {
+	if slot == nil || strings.TrimSpace(taskID) == "" {
+		return false
+	}
+	slot.stateMu.RLock()
+	defer slot.stateMu.RUnlock()
+	_, ok := slot.SubagentTasks[strings.TrimSpace(taskID)]
+	return ok
+}
+
+func (slot *activeRoomSlot) hasSubagentHistory() bool {
+	if slot == nil {
+		return false
+	}
+	slot.stateMu.RLock()
+	defer slot.stateMu.RUnlock()
+	return slot.SubagentHistory
 }
 
 func (slot *activeRoomSlot) hasRunningSubagentTask() bool {
@@ -275,9 +313,15 @@ func metadataLooksLikeSubagentTask(metadata map[string]any) bool {
 	if len(metadata) == 0 {
 		return false
 	}
+	taskType := strings.ToLower(strings.TrimSpace(anyString(metadata["task_type"])))
+	if taskType == "local_shell" {
+		return false
+	}
+	if taskType != "" {
+		return taskType == "local_agent"
+	}
 	return strings.TrimSpace(anyString(metadata["agent_id"])) != "" ||
-		strings.TrimSpace(anyString(metadata["agent_type"])) != "" ||
-		strings.TrimSpace(anyString(metadata["task_type"])) == "local_agent"
+		strings.TrimSpace(anyString(metadata["agent_type"])) != ""
 }
 
 func isTerminalSubagentTaskStatus(status string) bool {

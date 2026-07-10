@@ -1,0 +1,33 @@
+.workspace-surface-header-single-row {
+  container-name: workspace-surface-header;
+  container-type: inline-size;
+}
+
+.workspace-surface-header-single-row-title {
+  max-width: 260px;
+}
+
+.workspace-surface-header-single-row-title-trailing > * {
+  flex-wrap: nowrap;
+}
+
+@container workspace-surface-header (max-width: 920px) {
+  .workspace-surface-header-with-session-tabs .workspace-surface-header-view-tabs {
+    display: none;
+  }
+
+  .workspace-surface-header-single-row-title {
+    max-width: 200px;
+  }
+}
+
+@container workspace-surface-header (max-width: 700px) {
+  .workspace-surface-header-single-row-title {
+    max-width: 160px;
+  }
+
+  .workspace-surface-header-badge,
+  .workspace-surface-header-subtitle {
+    display: none;
+  }
+}

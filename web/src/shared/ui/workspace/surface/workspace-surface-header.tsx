@@ -6,12 +6,10 @@ import { type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { UiUnderlineTabs } from "@/shared/ui/tabs";
 import {
-  COMPACT_WORKSPACE_HEADER_PRIMARY_HEIGHT_CLASS,
-  COMPACT_WORKSPACE_HEADER_SECONDARY_HEIGHT_CLASS,
-  COMPACT_WORKSPACE_HEADER_TOTAL_HEIGHT_CLASS,
+  COMPACT_WORKSPACE_HEADER_SINGLE_ROW_HEIGHT_CLASS,
+  WORKSPACE_HEADER_DEFAULT_HEIGHT_CLASS,
 } from "@/shared/ui/workspace/surface/workspace-header-layout";
-
-export { WorkspaceTaskStrip } from "./workspace-task-strip";
+import "./workspace-surface-header.css";
 
 const SURFACE_HEADER_CLASS_NAME =
   "border-b border-(--divider-subtle-color) bg-transparent";
@@ -37,6 +35,8 @@ interface WorkspaceSurfaceHeaderProps<TTabKey extends string> {
   tabsTrailing?: ReactNode;
   activeTab?: TTabKey;
   onChangeTab?: (tab: TTabKey) => void;
+  onDismissActiveTab?: (tab: TTabKey) => void;
+  dismissActiveTabLabel?: string;
 }
 
 interface WorkspaceSurfaceToolbarActionProps {
@@ -51,6 +51,7 @@ interface WorkspaceSurfaceToolbarActionProps {
 
 export function WorkspaceSurfaceHeader<TTabKey extends string>({
   title,
+  badge,
   density = "default",
   leading,
   titleTrailing: titleTrailing,
@@ -62,8 +63,11 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
   tabsTrailing: tabsTrailing,
   activeTab: activeTab,
   onChangeTab: onChangeTab,
+  onDismissActiveTab: onDismissActiveTab,
+  dismissActiveTabLabel: dismissActiveTabLabel,
 }: WorkspaceSurfaceHeaderProps<TTabKey>) {
-  const hasSecondaryRow = density === "compact" || tabs.length > 0 || Boolean(tabsLeading) || Boolean(tabsTrailing);
+  const usesSingleRow = density === "compact";
+  const hasSecondaryRow = !usesSingleRow && (tabs.length > 0 || Boolean(tabsLeading) || Boolean(tabsTrailing));
   const compactSubtitle = density === "compact" ? subtitle : null;
   const primarySubtitle = density === "compact" ? null : subtitle;
   const renderTabsNav = (className: string, ariaLabel: string) => (
@@ -74,6 +78,8 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
       density={density === "compact" ? "compact" : "default"}
       navAnchor={tabsNavAnchor}
       onChange={onChangeTab}
+      onDismissActive={onDismissActiveTab}
+      dismissActiveLabel={dismissActiveTabLabel}
       options={tabs.map((tab) => ({
         anchor: tab.anchor,
         icon: tab.icon,
@@ -84,12 +90,27 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
   );
 
   return (
-    <div className={SURFACE_HEADER_CLASS_NAME} data-density={density}>
+    <div
+      className={cn(
+        SURFACE_HEADER_CLASS_NAME,
+        usesSingleRow && "workspace-surface-header-single-row",
+        usesSingleRow && tabsLeading && "workspace-surface-header-with-session-tabs",
+        usesSingleRow && COMPACT_WORKSPACE_HEADER_SINGLE_ROW_HEIGHT_CLASS,
+      )}
+      data-density={density}
+      data-layout={usesSingleRow ? "single-row" : "stacked"}
+    >
       <div className={cn(
         "flex min-w-0 items-center justify-between px-5 xl:px-6",
-        density === "compact" ? cn(COMPACT_WORKSPACE_HEADER_PRIMARY_HEIGHT_CLASS, "gap-3") : cn(COMPACT_WORKSPACE_HEADER_TOTAL_HEIGHT_CLASS, "gap-3"),
+        usesSingleRow
+          ? "h-full gap-3"
+          : cn(WORKSPACE_HEADER_DEFAULT_HEIGHT_CLASS, "gap-3"),
       )}>
-        <div className={cn("flex min-w-0 flex-1 items-center", density === "compact" ? "gap-2.5" : "gap-3")}>
+        <div className={cn(
+          "flex min-w-0 items-center",
+          density === "compact" ? "gap-2.5" : "gap-3",
+          usesSingleRow ? "workspace-surface-header-single-row-title shrink" : "flex-1",
+        )}>
           {leading ? (
             <div
               className={cn(
@@ -102,15 +123,29 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
           ) : null}
 
           <div className="min-w-0 flex-1">
-            <div className={cn("flex min-w-0 flex-wrap items-center", density === "compact" ? "gap-x-1.5 gap-y-0.5" : "gap-x-2 gap-y-1")}>
+            <div className={cn(
+              "flex min-w-0 items-center",
+              usesSingleRow ? "flex-nowrap gap-x-1.5" : "flex-wrap",
+              !usesSingleRow && "gap-x-2 gap-y-1",
+            )}>
               <div className={cn(
-                "truncate font-black tracking-[-0.045em] text-(--text-strong)",
-                density === "compact" ? "text-[20px]" : "text-[21px]",
+                "truncate font-black tracking-normal text-(--text-strong)",
+                density === "compact" ? "text-[18px]" : "text-[21px]",
               )}>
                 {title}
               </div>
+              {badge ? (
+                <span className="workspace-surface-header-badge shrink-0 rounded-[5px] border border-(--divider-subtle-color) px-1.5 py-0.5 text-[9.5px] font-semibold leading-none text-(--text-soft)">
+                  {badge}
+                </span>
+              ) : null}
               {titleTrailing ? (
-                <div className="min-w-0 shrink text-(--text-default)">{titleTrailing}</div>
+                <div className={cn(
+                  "min-w-0 shrink text-(--text-default)",
+                  usesSingleRow && "workspace-surface-header-single-row-title-trailing max-h-6 overflow-hidden",
+                )}>
+                  {titleTrailing}
+                </div>
               ) : null}
             </div>
             {primarySubtitle ? (
@@ -121,8 +156,43 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
           </div>
         </div>
 
+        {usesSingleRow ? (
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            {tabsLeading ? (
+              <div className="min-w-[180px] flex-1">{tabsLeading}</div>
+            ) : compactSubtitle ? (
+              <div className="workspace-surface-header-subtitle min-w-0 flex-1 truncate text-[12px] leading-5 text-(--text-soft)">
+                {compactSubtitle}
+              </div>
+            ) : null}
+
+            {tabs.length > 0 ? (
+              <>
+                {tabsLeading ? (
+                  <div className="workspace-surface-header-view-tabs h-5 w-px shrink-0 bg-(--divider-subtle-color)" />
+                ) : null}
+                {renderTabsNav(
+                  cn(
+                    "workspace-surface-header-view-tabs min-w-0 overflow-x-auto",
+                    tabsLeading ? "shrink-0" : "flex-1",
+                  ),
+                  "视图切换",
+                )}
+              </>
+            ) : null}
+
+            {tabsTrailing ? (
+              <div className="shrink-0">{tabsTrailing}</div>
+            ) : null}
+          </div>
+        ) : null}
+
         {trailing ? (
-          <div className={cn("ml-3 flex shrink-0 flex-wrap items-center justify-end", density === "compact" ? "gap-1.5" : "gap-2")}>
+          <div className={cn(
+            "workspace-surface-header-trailing ml-3 flex shrink-0 items-center justify-end",
+            usesSingleRow ? "flex-nowrap" : "flex-wrap",
+            density === "compact" ? "gap-1.5" : "gap-2",
+          )}>
             {trailing}
           </div>
         ) : null}
@@ -132,17 +202,15 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
         <div className={cn(
           "flex min-w-0",
           tabsLeading ? "px-3 xl:px-4" : "px-5 xl:px-6",
-          density === "compact"
-            ? cn(COMPACT_WORKSPACE_HEADER_SECONDARY_HEIGHT_CLASS, "items-center gap-3")
-            : "items-end gap-4 pb-0.5",
+          "items-end gap-4 pb-0.5",
         )}>
           {tabsLeading ? (
-            <div className={cn("min-w-0 flex-1", density === "compact" && "self-start")}>{tabsLeading}</div>
+            <div className="min-w-0 flex-1">{tabsLeading}</div>
           ) : tabs.length > 0 ? (
             renderTabsNav(
               cn(
                 "soft-scrollbar scrollbar-hide -mx-0.5 flex min-w-0 flex-1 overflow-x-auto px-0.5",
-                density === "compact" ? "items-center gap-3" : "items-center gap-4",
+                "items-center gap-4",
               ),
               "视图切换",
             )
@@ -160,7 +228,7 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
               {renderTabsNav(
                 cn(
                   "soft-scrollbar scrollbar-hide hidden min-w-0 shrink-0 overflow-x-auto sm:flex",
-                  density === "compact" ? "items-center gap-3" : "items-center gap-4",
+                  "items-center gap-4",
                 ),
                 "固定视图切换",
               )}

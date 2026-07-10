@@ -48,37 +48,38 @@ func (a dmRoundMapperAdapter) SessionID() string {
 }
 
 type roundRunner struct {
-	service             *Service
-	workspacePath       string
-	session             protocol.Session
-	agent               *protocol.Agent
-	sessionKey          string
-	roundID             string
-	agentRoundID        string
-	userMessageID       string
-	clientRequestID     string
-	content             string
-	runtimeContent      conversationsvc.RuntimeContent
-	client              runtimectx.Client
-	runtimeKind         string
-	runtimeProvider     string
-	runtimeModel        string
-	ownerUserID         string
-	mapper              *dmdomain.MessageMapper
-	inputOptions        sdkprotocol.OutboundMessageOptions
-	internal            bool
-	externalReplyTarget *ExternalReplyTarget
-	goalContext         string
-	goalIDForUsage      string
-	goalUsage           *goalsvc.RuntimeUsageAccumulator
-	goalUsageStarted    time.Time
-	goalUsageMu         sync.Mutex
-	goalLastAssistant   protocol.Message
-	goalToolProgress    bool
-	subagentTasks       map[string]struct{}
-	permissionMode      sdkpermission.Mode
-	permissionHandler   sdkpermission.Handler
-	resultUsageWritten  bool
+	service                     *Service
+	workspacePath               string
+	session                     protocol.Session
+	agent                       *protocol.Agent
+	sessionKey                  string
+	roundID                     string
+	agentRoundID                string
+	userMessageID               string
+	clientRequestID             string
+	content                     string
+	runtimeContent              conversationsvc.RuntimeContent
+	client                      runtimectx.Client
+	runtimeKind                 string
+	runtimeProvider             string
+	runtimeModel                string
+	ownerUserID                 string
+	mapper                      *dmdomain.MessageMapper
+	inputOptions                sdkprotocol.OutboundMessageOptions
+	internal                    bool
+	externalReplyTarget         *ExternalReplyTarget
+	goalContext                 string
+	goalIDForUsage              string
+	goalUsage                   *goalsvc.RuntimeUsageAccumulator
+	goalUsageStarted            time.Time
+	goalUsageMu                 sync.Mutex
+	goalLastAssistant           protocol.Message
+	goalToolProgress            bool
+	subagentTasks               map[string]struct{}
+	subagentPostRoundDispatched bool
+	permissionMode              sdkpermission.Mode
+	permissionHandler           sdkpermission.Handler
+	resultUsageWritten          bool
 }
 
 func (r *roundRunner) run(ctx context.Context) {
@@ -126,11 +127,13 @@ func (r *roundRunner) run(ctx context.Context) {
 		protocol.NewRoundStatusEvent(r.sessionKey, r.roundID, result.TerminalStatus, result.ResultSubtype),
 	)
 	r.service.broadcastSessionStatus(context.Background(), r.sessionKey)
-	if r.hasRunningSubagentTask() {
+	if r.service.runtime.HasSubagentHistory(r.sessionKey) {
 		r.startIdleSubagentNotificationDrain()
+	}
+	if r.hasRunningSubagentTask() {
 		return
 	}
-	r.dispatchPostRoundWork()
+	r.dispatchPostRoundWorkAfterSubagents()
 }
 
 func (r *roundRunner) executeRound(
@@ -190,6 +193,7 @@ func (r *roundRunner) executeRound(
 }
 
 func (r *roundRunner) handleDurableMessage(message protocol.Message) error {
+	r.annotateSubagentTaskRuntimeKind(message)
 	if err := r.persistMessage(message); err != nil {
 		return err
 	}

@@ -40,3 +40,19 @@ func TestRoomRoundReportsRunningSubagentTasks(t *testing.T) {
 		t.Fatal("round 应能汇总 slot 中的 running subagent")
 	}
 }
+
+func TestRoomSlotIgnoresLocalShellTaskLifecycle(t *testing.T) {
+	slot := &activeRoomSlot{}
+	slot.rememberSubagentTaskMessage(protocol.Message{
+		"metadata": map[string]any{
+			"subtype":    "task_started",
+			"task_id":    "shell-task",
+			"agent_id":   "host-agent",
+			"agent_type": "shell",
+			"task_type":  "local_shell",
+		},
+	})
+	if slot.hasRunningSubagentTask() || slot.hasSubagentHistory() {
+		t.Fatal("local_shell 不应进入 Room subagent 生命周期")
+	}
+}

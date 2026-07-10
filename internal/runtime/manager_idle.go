@@ -8,9 +8,10 @@ import (
 )
 
 type idleSessionTarget struct {
-	sessionKey   string
-	client       Client
-	roundCancels []context.CancelFunc
+	sessionKey        string
+	client            Client
+	roundCancels      []context.CancelFunc
+	idleMessageCancel context.CancelFunc
 }
 
 // CloseIdleSessions 回收超过空闲阈值且没有运行中 round 的 SDK client。
@@ -43,9 +44,10 @@ func (m *Manager) CloseIdleSessions(ctx context.Context, idleFor time.Duration) 
 			continue
 		}
 		targets = append(targets, idleSessionTarget{
-			sessionKey:   sessionKey,
-			client:       state.Client,
-			roundCancels: copyRoundCancels(state.RoundCancels),
+			sessionKey:        sessionKey,
+			client:            state.Client,
+			roundCancels:      copyRoundCancels(state.RoundCancels),
+			idleMessageCancel: state.IdleMessageCancel,
 		})
 		delete(m.sessions, sessionKey)
 	}
@@ -53,6 +55,9 @@ func (m *Manager) CloseIdleSessions(ctx context.Context, idleFor time.Duration) 
 
 	errs := make([]error, 0, len(targets))
 	for _, target := range targets {
+		if target.idleMessageCancel != nil {
+			target.idleMessageCancel()
+		}
 		for _, cancel := range target.roundCancels {
 			if cancel != nil {
 				cancel()

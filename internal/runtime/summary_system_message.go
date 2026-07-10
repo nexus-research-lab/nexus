@@ -34,11 +34,20 @@ func SummarizeSystemMessage(message *sdkprotocol.SystemMessage) (SystemMessageSu
 			Subtype: "task_started",
 			Content: content,
 			Metadata: compactMetadata(map[string]any{
-				"subtype":       "task_started",
-				"task_id":       strings.TrimSpace(message.TaskStarted.TaskID),
-				"tool_use_id":   strings.TrimSpace(message.TaskStarted.ToolUseID),
-				"task_type":     strings.TrimSpace(message.TaskStarted.TaskType),
-				"workflow_name": strings.TrimSpace(message.TaskStarted.WorkflowName),
+				"subtype":          "task_started",
+				"task_id":          strings.TrimSpace(message.TaskStarted.TaskID),
+				"tool_use_id":      strings.TrimSpace(message.TaskStarted.ToolUseID),
+				"agent_id":         strings.TrimSpace(message.TaskStarted.AgentID),
+				"agent_type":       strings.TrimSpace(message.TaskStarted.AgentType),
+				"child_session_id": summaryMetadataString(message.TaskStarted.Additional, "child_session_id"),
+				"description":      strings.TrimSpace(message.TaskStarted.Description),
+				"model":            summaryMetadataString(message.TaskStarted.Additional, "model"),
+				"name":             summaryMetadataString(message.TaskStarted.Additional, "name"),
+				"task_type":        strings.TrimSpace(message.TaskStarted.TaskType),
+				"workflow_name":    strings.TrimSpace(message.TaskStarted.WorkflowName),
+				"output_file":      strings.TrimSpace(message.TaskStarted.OutputFile),
+				"parent_task_id":   strings.TrimSpace(message.TaskStarted.ParentTaskID),
+				"prompt":           strings.TrimSpace(message.TaskStarted.Prompt),
 			}),
 		}, true
 	case "task_progress":
@@ -55,11 +64,21 @@ func SummarizeSystemMessage(message *sdkprotocol.SystemMessage) (SystemMessageSu
 			Subtype: "task_progress",
 			Content: content,
 			Metadata: compactMetadata(map[string]any{
-				"subtype":        "task_progress",
-				"task_id":        strings.TrimSpace(message.TaskProgress.TaskID),
-				"tool_use_id":    strings.TrimSpace(message.TaskProgress.ToolUseID),
-				"last_tool_name": strings.TrimSpace(message.TaskProgress.LastToolName),
-				"usage":          summarizeTaskUsage(message.TaskProgress.Usage),
+				"subtype":          "task_progress",
+				"task_id":          strings.TrimSpace(message.TaskProgress.TaskID),
+				"tool_use_id":      strings.TrimSpace(message.TaskProgress.ToolUseID),
+				"agent_id":         strings.TrimSpace(message.TaskProgress.AgentID),
+				"agent_type":       strings.TrimSpace(message.TaskProgress.AgentType),
+				"child_session_id": summaryMetadataString(message.TaskProgress.Additional, "child_session_id"),
+				"description":      strings.TrimSpace(message.TaskProgress.Description),
+				"model":            summaryMetadataString(message.TaskProgress.Additional, "model"),
+				"name":             summaryMetadataString(message.TaskProgress.Additional, "name"),
+				"last_tool_name":   strings.TrimSpace(message.TaskProgress.LastToolName),
+				"parent_task_id":   strings.TrimSpace(message.TaskProgress.ParentTaskID),
+				"summary":          strings.TrimSpace(message.TaskProgress.Summary),
+				"task_type":        summaryMetadataString(message.TaskProgress.Additional, "task_type"),
+				"status":           summaryMetadataString(message.TaskProgress.Additional, "status"),
+				"usage":            summarizeTaskUsage(message.TaskProgress.Usage),
 			}),
 		}, true
 	case "task_notification":
@@ -75,12 +94,21 @@ func SummarizeSystemMessage(message *sdkprotocol.SystemMessage) (SystemMessageSu
 			Subtype: "task_notification",
 			Content: content,
 			Metadata: compactMetadata(map[string]any{
-				"subtype":     "task_notification",
-				"task_id":     strings.TrimSpace(message.TaskNotification.TaskID),
-				"tool_use_id": strings.TrimSpace(message.TaskNotification.ToolUseID),
-				"status":      strings.TrimSpace(message.TaskNotification.Status),
-				"output_file": strings.TrimSpace(message.TaskNotification.OutputFile),
-				"usage":       summarizeTaskUsage(message.TaskNotification.Usage),
+				"subtype":          "task_notification",
+				"task_id":          strings.TrimSpace(message.TaskNotification.TaskID),
+				"tool_use_id":      strings.TrimSpace(message.TaskNotification.ToolUseID),
+				"agent_id":         strings.TrimSpace(message.TaskNotification.AgentID),
+				"agent_type":       strings.TrimSpace(message.TaskNotification.AgentType),
+				"child_session_id": summaryMetadataString(message.TaskNotification.Additional, "child_session_id"),
+				"model":            summaryMetadataString(message.TaskNotification.Additional, "model"),
+				"name":             summaryMetadataString(message.TaskNotification.Additional, "name"),
+				"parent_task_id":   strings.TrimSpace(message.TaskNotification.ParentTaskID),
+				"status":           strings.TrimSpace(message.TaskNotification.Status),
+				"output_file":      strings.TrimSpace(message.TaskNotification.OutputFile),
+				"summary":          strings.TrimSpace(message.TaskNotification.Summary),
+				"transcript_path":  strings.TrimSpace(message.TaskNotification.TranscriptPath),
+				"task_type":        summaryMetadataString(message.TaskNotification.Additional, "task_type"),
+				"usage":            summarizeTaskUsage(message.TaskNotification.Usage),
 			}),
 		}, true
 	case "status":
@@ -103,6 +131,14 @@ func SummarizeSystemMessage(message *sdkprotocol.SystemMessage) (SystemMessageSu
 	default:
 		return SystemMessageSummary{}, false
 	}
+}
+
+func summaryMetadataString(metadata map[string]any, key string) string {
+	if len(metadata) == 0 {
+		return ""
+	}
+	value, _ := metadata[key].(string)
+	return strings.TrimSpace(value)
 }
 
 func formatTaskProgressContent(lastToolName string) string {

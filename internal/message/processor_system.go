@@ -37,6 +37,7 @@ func (p *Processor) processSystemMessage(message sdkprotocol.ReceivedMessage) ([
 				mapValue(message.System.Data["usage"]),
 				firstTaskProgressUsage(message.System),
 			),
+			message.System.Data,
 		)
 		if progressMessage == nil {
 			return nil, nil
@@ -69,6 +70,14 @@ func (p *Processor) processTaskProgressMessage(message sdkprotocol.ReceivedMessa
 		strings.TrimSpace(progress.ToolUseID),
 		toolName,
 		taskUsageMap(progress.Usage),
+		mergeTaskEventMetadata(progress.Additional, map[string]string{
+			"agent_id":       progress.AgentID,
+			"agent_type":     progress.AgentType,
+			"description":    progress.Description,
+			"last_tool_name": progress.LastToolName,
+			"parent_task_id": progress.ParentTaskID,
+			"summary":        progress.Summary,
+		}),
 	)
 }
 
@@ -97,6 +106,7 @@ func (p *Processor) processToolProgressMessage(message sdkprotocol.ReceivedMessa
 		firstNonEmpty(normalizePointerString(progress.ParentToolUseID), strings.TrimSpace(progress.ToolUseID)),
 		firstNonEmpty(agentProgressLastToolName(data), strings.TrimSpace(progress.ToolName)),
 		mapValue(data["usage"]),
+		data,
 	)
 }
 
@@ -110,7 +120,16 @@ func (p *Processor) processTaskStartedMessage(message sdkprotocol.ReceivedMessag
 		firstNonEmpty(started.Description, started.Prompt, "任务已开始"),
 		strings.TrimSpace(started.TaskType),
 		strings.TrimSpace(started.ToolUseID),
-		started.Additional,
+		mergeTaskEventMetadata(started.Additional, map[string]string{
+			"agent_id":       started.AgentID,
+			"agent_type":     started.AgentType,
+			"description":    started.Description,
+			"output_file":    started.OutputFile,
+			"parent_task_id": started.ParentTaskID,
+			"prompt":         started.Prompt,
+			"task_type":      started.TaskType,
+			"workflow_name":  started.WorkflowName,
+		}),
 	)
 }
 
@@ -126,7 +145,14 @@ func (p *Processor) processTaskNotificationMessage(message sdkprotocol.ReceivedM
 		strings.TrimSpace(notification.Status),
 		strings.TrimSpace(notification.OutputFile),
 		taskUsageMap(notification.Usage),
-		notification.Additional,
+		mergeTaskEventMetadata(notification.Additional, map[string]string{
+			"agent_id":        notification.AgentID,
+			"agent_type":      notification.AgentType,
+			"output_file":     notification.OutputFile,
+			"parent_task_id":  notification.ParentTaskID,
+			"summary":         notification.Summary,
+			"transcript_path": notification.TranscriptPath,
+		}),
 	)
 }
 
@@ -175,18 +201,27 @@ func (p *Processor) buildTaskStartedMessage(taskID string, content string, taskT
 	return &messageValue
 }
 
-func (p *Processor) buildTaskProgressMessage(taskID string, description string, toolUseID string, lastToolName string, usage map[string]any) *protocol.Message {
+func (p *Processor) buildTaskProgressMessage(
+	taskID string,
+	description string,
+	toolUseID string,
+	lastToolName string,
+	usage map[string]any,
+	additional map[string]any,
+) *protocol.Message {
 	if strings.TrimSpace(taskID) == "" {
 		return nil
 	}
-	p.segment.AppendTaskProgress(map[string]any{
+	progress := map[string]any{
 		"type":           "task_progress",
 		"task_id":        taskID,
 		"description":    description,
 		"tool_use_id":    emptyToNil(toolUseID),
 		"last_tool_name": emptyToNil(lastToolName),
 		"usage":          firstNonNilMap(usage, map[string]any{}),
-	})
+	}
+	copyTaskEventMetadata(progress, additional)
+	p.segment.AppendTaskProgress(progress)
 	return p.buildAssistantDurableMessage(false, false, "")
 }
 
@@ -215,11 +250,28 @@ func (p *Processor) buildTaskNotificationMessage(taskID string, content string, 
 }
 
 func copyTaskEventMetadata(metadata map[string]any, additional map[string]any) {
-	for _, key := range []string{"agent_id", "agent_type", "description", "model", "name", "output_file", "parent_task_id", "team_name", "transcript_path"} {
+	for _, key := range []string{
+		"agent_id", "agent_type", "child_session_id", "description", "last_tool_name", "model", "name",
+		"output_file", "parent_task_id", "prompt", "summary", "task_type", "team_name",
+		"transcript_path", "workflow_name",
+	} {
 		if value := normalizeString(additional[key]); value != "" {
 			metadata[key] = value
 		}
 	}
+}
+
+func mergeTaskEventMetadata(additional map[string]any, fields map[string]string) map[string]any {
+	metadata := cloneMap(additional)
+	if metadata == nil {
+		metadata = map[string]any{}
+	}
+	for key, value := range fields {
+		if normalized := strings.TrimSpace(value); normalized != "" {
+			metadata[key] = normalized
+		}
+	}
+	return metadata
 }
 
 func (p *Processor) buildVisibleSystemMessage(message *sdkprotocol.SystemMessage) (*protocol.Message, bool) {

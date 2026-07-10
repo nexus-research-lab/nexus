@@ -1,1 +1,1 @@
-export type RoomSurfaceTabKey = "chat" | "history" | "workspace" | "about";
+export type RoomSurfaceTabKey = "chat" | "history" | "workspace" | "about" | "subagents";

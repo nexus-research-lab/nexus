@@ -133,8 +133,6 @@ func (s *RealtimeService) runSlot(
 		slot.GoalContext = override
 	}
 	beginGoalUsageForSlot(slot)
-	cleanupGoalRuntime := s.registerSlotGoalRuntime(slot)
-	defer cleanupGoalRuntime()
 	mcpServers := map[string]sdkmcp.ServerConfig(nil)
 	if s.mcpServers != nil {
 		mcpServers = s.mcpServers(
@@ -182,6 +180,7 @@ func (s *RealtimeService) runSlot(
 		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
 		return
 	}
+	slot.setRuntimeKind(string(options.Runtime.Kind))
 	options = s.runtime.WithGuidanceHook(options, slot.RuntimeSessionKey)
 	if goalSessionKey := goalSessionKeyForSlot(slot); goalSessionKey != "" && goalSessionKey != slot.RuntimeSessionKey {
 		options = s.runtime.WithGuidanceHook(options, goalSessionKey)
@@ -211,7 +210,16 @@ func (s *RealtimeService) runSlot(
 		logger.Info("准备启动 Room runtime",
 			roomRuntimeStartupLogFields(currentOptions, runtimeSelection, runtimeProvider, slot)...,
 		)
-		currentClient := s.factory.New(currentOptions)
+		currentClient, createErr := s.runtime.GetOrCreateWithFactory(
+			slotCtx,
+			slot.RuntimeSessionKey,
+			currentOptions,
+			s.factory,
+		)
+		if createErr != nil {
+			return nil, createErr
+		}
+		slot.setRuntimeKind(string(s.runtime.RuntimeKind(slot.RuntimeSessionKey)))
 		slot.setClient(currentClient)
 		return currentClient, currentClient.Connect(slotCtx)
 	}
@@ -223,11 +231,9 @@ func (s *RealtimeService) runSlot(
 				"sdk_session_id", strings.TrimSpace(options.Session.ResumeID),
 			)...,
 		)
-		if client != nil {
-			if disconnectErr := client.Disconnect(context.Background()); disconnectErr != nil && !runtimectx.IsRuntimeTransportClosedError(disconnectErr) {
-				s.handleSlotFailure(slotCtx, roundValue, slot, mapper, disconnectErr)
-				return
-			}
+		if closeErr := s.runtime.CloseSession(context.Background(), slot.RuntimeSessionKey); closeErr != nil && !runtimectx.IsRuntimeTransportClosedError(closeErr) {
+			s.handleSlotFailure(slotCtx, roundValue, slot, mapper, closeErr)
+			return
 		}
 		if clearErr := s.clearSlotSDKSessionID(slotCtx, slot); clearErr != nil {
 			s.handleSlotFailure(slotCtx, roundValue, slot, mapper, clearErr)
@@ -237,6 +243,9 @@ func (s *RealtimeService) runSlot(
 		client, err = connectClient(options)
 	}
 	if err != nil {
+		if closeErr := s.runtime.CloseSession(context.Background(), slot.RuntimeSessionKey); closeErr != nil && !runtimectx.IsRuntimeTransportClosedError(closeErr) {
+			logger.Warn("清理启动失败的 Room runtime 返回错误", "err", closeErr)
+		}
 		logger.Error("Room runtime 启动失败", roomRuntimeConnectFailureLogFields(options, runtimeSelection, runtimeProvider, slot, err)...)
 		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
 		return
@@ -246,11 +255,17 @@ func (s *RealtimeService) runSlot(
 			"sdk_session_id", strings.TrimSpace(client.SessionID()),
 		)...,
 	)
+	s.runtime.StartRound(slot.RuntimeSessionKey, slot.AgentRoundID, cancel)
 	defer func() {
-		if err := client.Disconnect(context.Background()); err != nil {
-			logger.Warn("Agent SDK disconnect 返回错误", "err", err)
+		s.runtime.MarkRoundFinished(slot.RuntimeSessionKey, slot.AgentRoundID)
+		if !s.runtime.HasSubagentHistory(slot.RuntimeSessionKey) {
+			if closeErr := s.runtime.CloseSession(context.Background(), slot.RuntimeSessionKey); closeErr != nil && !runtimectx.IsRuntimeTransportClosedError(closeErr) {
+				logger.Warn("关闭无 subagent 历史的 Room runtime 返回错误", "err", closeErr)
+			}
 		}
 	}()
+	cleanupGoalRuntime := s.registerSlotGoalRuntime(slot)
+	defer cleanupGoalRuntime()
 
 	s.broadcastSharedEventWithTimeout(slotCtx, roundValue.SessionKey, roundValue.RoomID, roomdomain.WrapLifecycleEvent(
 		protocol.EventTypeStreamStart,
@@ -326,6 +341,9 @@ func (s *RealtimeService) runSlot(
 		HandleDurableMessage: func(messageValue protocol.Message) error {
 			messageRole := protocol.MessageRole(messageValue)
 			slot.rememberSubagentTaskMessage(messageValue)
+			if slot.hasSubagentHistory() {
+				s.runtime.MarkSubagentHistory(slot.RuntimeSessionKey)
+			}
 			if messageRole == "result" {
 				slot.setStatus(resultStatus(messageValue["subtype"]))
 				s.recordUsage(roundValue, slot, messageValue)

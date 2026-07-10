@@ -23,12 +23,12 @@ func (h *Handlers) HandleConversationSubagentTasks(writer http.ResponseWriter, r
 	if !ok {
 		return
 	}
-	items, err := h.sessions.ListSubagentTasks(request.Context(), sessionKey)
+	list, err := h.sessions.ListSubagentTasks(request.Context(), sessionKey)
 	if err != nil {
 		h.writeConversationSubagentTaskError(writer, err)
 		return
 	}
-	h.api.WriteSuccess(writer, map[string]any{"items": items})
+	h.api.WriteSuccess(writer, list)
 }
 
 // HandleConversationSubagentTaskMessages 返回 conversation 中 subagent task 的只读 transcript。
@@ -120,6 +120,17 @@ func (h *Handlers) writeConversationSubagentTaskError(writer http.ResponseWriter
 	}
 	if errors.Is(err, sessionpkg.ErrSessionNotFound) || errors.Is(err, sessionpkg.ErrSubagentTaskNotFound) {
 		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+		return
+	}
+	if errors.Is(err, sessionpkg.ErrSubagentOperationUnsupported) {
+		h.api.WriteJSON(writer, http.StatusConflict, map[string]any{
+			"code":    "subagent_operation_unsupported",
+			"message": "failed",
+			"success": false,
+			"data": map[string]any{
+				"detail": "当前运行时不支持该操作",
+			},
+		})
 		return
 	}
 	if errors.Is(err, sessionpkg.ErrSubagentRuntimeUnavailable) {
