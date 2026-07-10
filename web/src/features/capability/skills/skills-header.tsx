@@ -8,7 +8,10 @@ import {
 import type { TranslationKey } from "@/shared/i18n/messages";
 import { SKILLS_TOUR_ANCHORS } from "./skills-tour";
 
-import type { DiscoveryMode, SkillMarketplaceController } from "./skills-view-model";
+import type {
+  DiscoveryMode,
+  SkillImportDialogMode,
+} from "./controller/skill-marketplace-controller";
 
 const DISCOVERY_OPTIONS: { key: DiscoveryMode; labelKey: TranslationKey }[] = [
   { key: "catalog", labelKey: "capability.skills_tab_catalog" },
@@ -16,16 +19,33 @@ const DISCOVERY_OPTIONS: { key: DiscoveryMode; labelKey: TranslationKey }[] = [
 ];
 
 interface SkillsHeaderProps {
-  ctrl: SkillMarketplaceController;
+  catalogCount: number;
+  checkingUpdates: boolean;
+  discoveryMode: DiscoveryMode;
+  importing: boolean;
+  onChangeDiscoveryMode: (mode: DiscoveryMode) => void;
+  onCheckUpdates: () => void;
+  onOpenImport: (mode: SkillImportDialogMode) => void;
+  onOpenSources: () => void;
   onReplayTour?: () => void;
 }
 
-export function SkillsHeader({ ctrl, onReplayTour }: SkillsHeaderProps) {
+export function SkillsHeader({
+  catalogCount,
+  checkingUpdates,
+  discoveryMode,
+  importing,
+  onChangeDiscoveryMode,
+  onCheckUpdates,
+  onOpenImport,
+  onOpenSources,
+  onReplayTour,
+}: SkillsHeaderProps) {
   const { t } = useI18n();
 
   return (
     <WorkspaceSurfaceHeader
-      badge={t("capability.skills_badge", { count: ctrl.catalogCount })}
+      badge={t("capability.skills_badge", { count: catalogCount })}
       density="compact"
       leading={<Puzzle className="h-4 w-4" />}
       title={t("capability.skills")}
@@ -34,34 +54,34 @@ export function SkillsHeader({ ctrl, onReplayTour }: SkillsHeaderProps) {
         label: t(item.labelKey),
       }))}
       tabsNavAnchor={SKILLS_TOUR_ANCHORS.modes}
-      activeTab={ctrl.discoveryMode}
-      onChangeTab={ctrl.setDiscoveryMode}
+      activeTab={discoveryMode}
+      onChangeTab={onChangeDiscoveryMode}
       trailing={
         <div className="flex items-center gap-2">
           <div className="flex items-center" data-tour-anchor={SKILLS_TOUR_ANCHORS.import_skill}>
             <WorkspaceSurfaceToolbarAction
-              disabled={ctrl.importingSkill}
-              onClick={() => ctrl.setImportDialogMode("local")}
+              disabled={importing}
+              onClick={() => onOpenImport("local")}
             >
               <Download className="h-3.5 w-3.5" />
-              {ctrl.importingSkill ? "导入中" : t("capability.import_skill")}
+              {importing ? "导入中" : t("capability.import_skill")}
             </WorkspaceSurfaceToolbarAction>
           </div>
           <div className="flex items-center" data-tour-anchor={SKILLS_TOUR_ANCHORS.update_library}>
             <WorkspaceSurfaceToolbarAction
-              disabled={ctrl.checkingUpdates}
-              onClick={() => void ctrl.handleCheckUpdates()}
+              disabled={checkingUpdates}
+              onClick={onCheckUpdates}
             >
-              {ctrl.checkingUpdates ? (
+              {checkingUpdates ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
               ) : (
                 <RefreshCw className="h-3.5 w-3.5" />
               )}
-              {ctrl.checkingUpdates ? "检查中" : t("capability.update_library")}
+              {checkingUpdates ? "检查中" : t("capability.update_library")}
             </WorkspaceSurfaceToolbarAction>
           </div>
           <div className="flex items-center">
-            <WorkspaceSurfaceToolbarAction onClick={() => ctrl.setSourceManagerOpen(true)}>
+            <WorkspaceSurfaceToolbarAction onClick={onOpenSources}>
               <SlidersHorizontal className="h-3.5 w-3.5" />
               {t("capability.skill_sources")}
             </WorkspaceSurfaceToolbarAction>

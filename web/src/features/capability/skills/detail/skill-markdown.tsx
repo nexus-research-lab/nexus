@@ -60,7 +60,7 @@ function stripLeadingDuplicateContent(markdown: string, title?: string, descript
   return nextMarkdown;
 }
 
-export function SkillMarkdown({ markdown, title, description, className: className }: SkillMarkdownProps) {
+export function SkillMarkdown({ markdown, title, description, className }: SkillMarkdownProps) {
   const normalizedMarkdown = stripLeadingDuplicateContent(markdown, title, description);
 
   return (

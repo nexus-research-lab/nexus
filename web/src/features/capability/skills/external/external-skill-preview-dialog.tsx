@@ -15,7 +15,7 @@ import {
 } from "@/shared/ui/dialog/dialog";
 import type { ExternalSkillSearchItem } from "@/types/capability/skill";
 
-import { SkillMarkdown } from "./skill-markdown";
+import { SkillMarkdown } from "../detail/skill-markdown";
 
 interface ExternalSkillPreviewDialogProps {
   item: ExternalSkillSearchItem | null;
@@ -37,13 +37,13 @@ function formatInstalls(installs: number): string {
 
 export function ExternalSkillPreviewDialog({
   item,
-  isOpen: isOpen,
+  isOpen,
   busy,
-  previewLoading: previewLoading,
-  nameConflict: nameConflict = false,
-  alreadyImported: alreadyImported,
-  onClose: onClose,
-  onImportOnly: onImportOnly,
+  previewLoading,
+  nameConflict = false,
+  alreadyImported,
+  onClose,
+  onImportOnly,
 }: ExternalSkillPreviewDialogProps) {
   if (!isOpen || !item) return null;
   const isSkillsSh = item.source_kind === "skills_sh" || item.import_mode === "skills_sh";

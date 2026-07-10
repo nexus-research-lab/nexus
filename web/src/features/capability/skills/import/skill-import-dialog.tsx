@@ -1,6 +1,13 @@
 "use client";
 
-import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import {
+  type FormEvent,
+  type RefObject,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { Download, FileText, FolderUp, GitBranch, Info, Loader2, PackageCheck } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -15,11 +22,16 @@ import {
 } from "@/shared/ui/dialog/dialog";
 import { UiField, UiInput } from "@/shared/ui/form-control";
 
-import type { SkillImportDialogMode, SkillMarketplaceController } from "./skills-view-model";
-import roomCollaborationMechanismMarkdown from "../../../../../docs/specs/room-collaboration-mechanism.md?raw";
+import type { SkillImportDialogMode } from "../controller/skill-marketplace-controller";
+import roomCollaborationMechanismMarkdown from "../../../../../../docs/specs/room-collaboration-mechanism.md?raw";
 
 interface SkillImportDialogProps {
-  ctrl: SkillMarketplaceController;
+  fileInputRef: RefObject<HTMLInputElement | null>;
+  importing: boolean;
+  mode: SkillImportDialogMode | null;
+  onClose: () => void;
+  onImportGit: (url: string, branch?: string, path?: string) => void;
+  onSelectMode: (mode: SkillImportDialogMode) => void;
 }
 
 const SKILL_FRONTMATTER_EXAMPLE = `---
@@ -54,14 +66,18 @@ function downloadRoomCollaborationMechanism() {
   URL.revokeObjectURL(url);
 }
 
-export function SkillImportDialog({ ctrl }: SkillImportDialogProps) {
-  const mode = ctrl.importDialogMode;
-  const setImportDialogMode = ctrl.setImportDialogMode;
+export function SkillImportDialog({
+  fileInputRef,
+  importing,
+  mode,
+  onClose,
+  onImportGit,
+  onSelectMode,
+}: SkillImportDialogProps) {
   const [gitUrl, setGitUrl] = useState("");
   const [gitBranch, setGitBranch] = useState("");
   const [gitPath, setGitPath] = useState("");
   const gitUrlInputRef = useRef<HTMLInputElement>(null);
-  const importing = ctrl.importingSkill;
 
   useEffect(() => {
     if (!mode) {
@@ -74,9 +90,9 @@ export function SkillImportDialog({ ctrl }: SkillImportDialogProps) {
   }, [mode]);
 
   const handleClose = useCallback(() => {
-    if (ctrl.importingSkill) return;
-    setImportDialogMode(null);
-  }, [ctrl.importingSkill, setImportDialogMode]);
+    if (importing) return;
+    onClose();
+  }, [importing, onClose]);
 
   if (!mode) return null;
 
@@ -84,7 +100,7 @@ export function SkillImportDialog({ ctrl }: SkillImportDialogProps) {
     event.preventDefault();
     if (importing) return;
     if (mode !== "git") return;
-    void ctrl.handleGitImport(gitUrl, gitBranch, gitPath);
+    onImportGit(gitUrl, gitBranch, gitPath);
   };
 
   return (
@@ -111,7 +127,7 @@ export function SkillImportDialog({ ctrl }: SkillImportDialogProps) {
                         : "text-(--text-muted) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
                     )}
                     disabled={importing}
-                    onClick={() => ctrl.setImportDialogMode(item)}
+                    onClick={() => onSelectMode(item)}
                     type="button"
                   >
                     {item === "git" ? <GitBranch className="h-3.5 w-3.5" /> : <FolderUp className="h-3.5 w-3.5" />}
@@ -176,7 +192,7 @@ export function SkillImportDialog({ ctrl }: SkillImportDialogProps) {
                       <UiButton
                         className="mt-4"
                         disabled={importing}
-                        onClick={() => ctrl.fileInputRef.current?.click()}
+                        onClick={() => fileInputRef.current?.click()}
                         size="sm"
                         tone="primary"
                         variant="solid"

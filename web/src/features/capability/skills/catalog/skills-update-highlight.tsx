@@ -8,11 +8,15 @@ import { UiButton } from "@/shared/ui/button";
 import { UiListRow } from "@/shared/ui/list-row";
 import type { SkillInfo } from "@/types/capability/skill";
 
-import type { SkillMarketplaceController } from "./skills-view-model";
-
 interface SkillsUpdateHighlightProps {
-  ctrl: SkillMarketplaceController;
+  busySkillNames: ReadonlySet<string>;
+  checkUpdateMessage: string | null;
+  checkingUpdates: boolean;
+  lastUpdateCheckedAt: number | null;
+  onCheckUpdates: () => void;
   onOpenSkill: (skillName: string) => void;
+  onUpdateSkill: (skillName: string) => void;
+  updates: SkillInfo[];
 }
 
 function formatCheckedTime(value: number | null): string {
@@ -25,10 +29,14 @@ function formatCheckedTime(value: number | null): string {
   });
 }
 
-function statusLabel(ctrl: SkillMarketplaceController): string {
-  if (ctrl.checkingUpdates) return "正在检查远端版本...";
-  if (ctrl.checkUpdateMessage) return ctrl.checkUpdateMessage;
-  return `上次检查 ${formatCheckedTime(ctrl.lastUpdateCheckedAt)}`;
+function statusLabel(
+  checkingUpdates: boolean,
+  checkUpdateMessage: string | null,
+  lastUpdateCheckedAt: number | null,
+): string {
+  if (checkingUpdates) return "正在检查远端版本...";
+  if (checkUpdateMessage) return checkUpdateMessage;
+  return `上次检查 ${formatCheckedTime(lastUpdateCheckedAt)}`;
 }
 
 function UpdateSkillRow({
@@ -86,10 +94,18 @@ function UpdateSkillRow({
   );
 }
 
-export function SkillsUpdateHighlight({ ctrl, onOpenSkill }: SkillsUpdateHighlightProps) {
-  const updates = ctrl.updateAvailableSkills;
-  const hasFailure = ctrl.checkUpdateMessage?.includes("无法检查") ?? false;
-  const shouldShow = ctrl.checkingUpdates || Boolean(ctrl.checkUpdateMessage) || updates.length > 0;
+export function SkillsUpdateHighlight({
+  busySkillNames,
+  checkUpdateMessage,
+  checkingUpdates,
+  lastUpdateCheckedAt,
+  onCheckUpdates,
+  onOpenSkill,
+  onUpdateSkill,
+  updates,
+}: SkillsUpdateHighlightProps) {
+  const hasFailure = checkUpdateMessage?.includes("无法检查") ?? false;
+  const shouldShow = checkingUpdates || Boolean(checkUpdateMessage) || updates.length > 0;
 
   if (!shouldShow) return null;
 
@@ -104,7 +120,7 @@ export function SkillsUpdateHighlight({ ctrl, onOpenSkill }: SkillsUpdateHighlig
             {updates.length ? <UiBadge tone="warning">{updates.length} 个可更新</UiBadge> : null}
           </div>
           <div className="mt-1 flex items-center gap-1.5 text-xs text-(--text-muted)">
-            {ctrl.checkingUpdates ? (
+            {checkingUpdates ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
             ) : hasFailure ? (
               <AlertTriangle className="h-3.5 w-3.5 text-(--destructive)" />
@@ -113,19 +129,19 @@ export function SkillsUpdateHighlight({ ctrl, onOpenSkill }: SkillsUpdateHighlig
             ) : (
               <CheckCircle2 className="h-3.5 w-3.5 text-(--success)" />
             )}
-            <span>{statusLabel(ctrl)}</span>
+            <span>{statusLabel(checkingUpdates, checkUpdateMessage, lastUpdateCheckedAt)}</span>
           </div>
         </div>
         <UiButton
-          disabled={ctrl.checkingUpdates}
-          onClick={() => void ctrl.handleCheckUpdates()}
+          disabled={checkingUpdates}
+          onClick={onCheckUpdates}
           size="sm"
           tone="primary"
           type="button"
           variant="surface"
         >
-          {ctrl.checkingUpdates ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-          {ctrl.checkingUpdates ? "检查中" : "重新检查"}
+          {checkingUpdates ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+          {checkingUpdates ? "检查中" : "重新检查"}
         </UiButton>
       </div>
 
@@ -134,9 +150,9 @@ export function SkillsUpdateHighlight({ ctrl, onOpenSkill }: SkillsUpdateHighlig
           {updates.map((skill) => (
             <UpdateSkillRow
               key={skill.name}
-              busy={ctrl.busySkillName === skill.name}
+              busy={busySkillNames.has(skill.name)}
               onOpen={() => onOpenSkill(skill.name)}
-              onUpdate={() => void ctrl.handleUpdateSingle(skill.name)}
+              onUpdate={() => onUpdateSkill(skill.name)}
               skill={skill}
             />
           ))}

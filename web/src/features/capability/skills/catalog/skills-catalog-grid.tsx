@@ -3,15 +3,23 @@ import { Loader2, Puzzle } from "lucide-react";
 import type { SkillInfo } from "@/types/capability/skill";
 
 import { SkillsCard } from "./skills-card";
-import type { SkillMarketplaceController } from "./skills-view-model";
 
 interface SkillsCatalogGridProps {
-  ctrl: SkillMarketplaceController;
+  busySkillNames: ReadonlySet<string>;
+  groupedSkills: Array<[string, SkillInfo[]]>;
+  loading: boolean;
+  onDeleteSkill: (skill: SkillInfo) => void;
   onOpenSkill: (skillName: string) => void;
 }
 
-export function SkillsCatalogGrid({ ctrl, onOpenSkill }: SkillsCatalogGridProps) {
-  if (ctrl.loading) {
+export function SkillsCatalogGrid({
+  busySkillNames,
+  groupedSkills,
+  loading,
+  onDeleteSkill,
+  onOpenSkill,
+}: SkillsCatalogGridProps) {
+  if (loading) {
     return (
       <div className="flex min-h-80 items-center justify-center">
         <Loader2 className="h-5 w-5 animate-spin text-(--text-muted)" />
@@ -19,7 +27,7 @@ export function SkillsCatalogGrid({ ctrl, onOpenSkill }: SkillsCatalogGridProps)
     );
   }
 
-  if (!ctrl.groupedSkills.length) {
+  if (!groupedSkills.length) {
     return (
       <div className="flex min-h-80 flex-col items-center justify-center gap-3 text-center">
         <div className="flex h-14 w-14 items-center justify-center rounded-full border border-(--divider-subtle-color) bg-transparent">
@@ -37,7 +45,7 @@ export function SkillsCatalogGrid({ ctrl, onOpenSkill }: SkillsCatalogGridProps)
 
   return (
     <div className="space-y-9">
-      {ctrl.groupedSkills.map(([categoryName, items]: [string, SkillInfo[]]) => (
+      {groupedSkills.map(([categoryName, items]) => (
         <section key={categoryName}>
           <div className="mb-3 flex items-end justify-between border-b border-(--divider-subtle-color) pb-2">
             <h2 className="text-[18px] font-medium tracking-[-0.025em] text-(--text-strong)">
@@ -51,9 +59,9 @@ export function SkillsCatalogGrid({ ctrl, onOpenSkill }: SkillsCatalogGridProps)
             {items.map((skill: SkillInfo) => (
               <SkillsCard
                 key={skill.name}
-                busy={ctrl.busySkillName === skill.name}
+                busy={busySkillNames.has(skill.name)}
                 className="transition-opacity"
-                onDelete={() => void ctrl.handleDeleteSkill(skill)}
+                onDelete={() => onDeleteSkill(skill)}
                 onSelect={() => onOpenSkill(skill.name)}
                 skill={skill}
               />
