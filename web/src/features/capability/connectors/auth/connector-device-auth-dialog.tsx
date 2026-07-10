@@ -28,9 +28,9 @@ interface ConnectorDeviceAuthDialogProps {
 /** 桌面 GitHub Device Flow 授权弹窗。 */
 export function ConnectorDeviceAuthDialog({
   session,
-  onClose: onClose,
-  onConnected: onConnected,
-  onError: onError,
+  onClose,
+  onConnected,
+  onError,
 }: ConnectorDeviceAuthDialogProps) {
   const [copied, setCopied] = useState(false);
   const [pollingMessage, setPollingMessage] = useResettableState(

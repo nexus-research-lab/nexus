@@ -18,7 +18,7 @@ function normalizeShopDomain(value: string): string | null {
 }
 
 function ShopDomainPrompt({
-  onFinish: onFinish,
+  onFinish,
 }: {
   onFinish: (value: string | null) => void;
 }) {

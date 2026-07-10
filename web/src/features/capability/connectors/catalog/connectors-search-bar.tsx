@@ -9,33 +9,40 @@ import {
 } from "@/features/capability/shared/capability-page-layout";
 
 import { CONNECTOR_CATEGORY_OPTIONS, getConnectorCategoryLabel } from "./connectors-categories";
-import type { ConnectorDirectoryController } from "./connectors-view-model";
 
 interface ConnectorsSearchBarProps {
-  ctrl: ConnectorDirectoryController;
+  activeCategory: string;
+  onCategoryChange: (category: string) => void;
+  onQueryChange: (query: string) => void;
+  searchQuery: string;
 }
 
-export function ConnectorsSearchBar({ ctrl }: ConnectorsSearchBarProps) {
+export function ConnectorsSearchBar({
+  activeCategory,
+  onCategoryChange,
+  onQueryChange,
+  searchQuery,
+}: ConnectorsSearchBarProps) {
   const { t } = useI18n();
 
   return (
     <div className="mb-5 flex w-full flex-col gap-2.5 sm:flex-row sm:items-center">
       <CapabilityFilterSearchInput
-        onChange={ctrl.setSearchQuery}
+        onChange={onQueryChange}
         placeholder={t("capability.connectors_search_placeholder")}
-        value={ctrl.searchQuery}
+        value={searchQuery}
       />
       <CapabilityFilterSelect
         ariaLabel={t("capability.connectors_filter_aria")}
         label={t("capability.category_label")}
         leading={<SlidersHorizontal className="h-3.5 w-3.5" />}
-        onChange={ctrl.setActiveCategory}
+        onChange={onCategoryChange}
         options={CONNECTOR_CATEGORY_OPTIONS.map((item) => ({
           label: t(item.labelKey),
           value: item.key,
         }))}
         placeholder={getConnectorCategoryLabel("all", t)}
-        value={ctrl.activeCategory}
+        value={activeCategory}
       />
     </div>
   );

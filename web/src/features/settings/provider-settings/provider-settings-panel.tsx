@@ -18,7 +18,11 @@ import { ProviderSettingsSidebar } from "./components/provider-settings-sidebar"
 import { ProviderAddModelDialog } from "./dialogs/provider-settings-add-model-dialog";
 import { ProviderDeleteUsageDialog } from "./dialogs/provider-settings-delete-usage-dialog";
 import { ProviderModelOptionsDialog } from "./dialogs/provider-settings-model-options-dialog";
-import { SETTINGS_TABS, getProviderTitle, normalizeCustomProviderKey } from "./provider-settings-model";
+import {
+  getProviderTitle,
+  normalizeCustomProviderKey,
+} from "./model/provider-config-model";
+import { SETTINGS_TABS } from "./model/provider-settings-presentation";
 import { useProviderSettingsController } from "./use-provider-settings-controller";
 
 interface ProviderSettingsPanelProps {
@@ -53,7 +57,6 @@ export function ProviderSettingsPanel({
           pendingAction={state.pendingAction}
           presetSidebarItems={state.presetSidebarItems}
           selectedProvider={state.selectedProvider}
-          submitting={state.submitting}
         />
 
         <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
@@ -70,7 +73,6 @@ export function ProviderSettingsPanel({
                 pendingAction={state.pendingAction}
                 presetDescription={state.currentPreset?.description}
                 selectedCanManage={state.selectedCanManage}
-                submitting={state.submitting}
                 testModelOptions={modelActions.testModelOptions}
               />
 
@@ -118,13 +120,11 @@ export function ProviderSettingsPanel({
                       model.display_name || model.model_id,
                     );
                   }}
-                  onFetchModels={() => void modelActions.handleFetchModels()}
+                  onFetchModels={modelActions.handleFetchModels}
                   onModelOptions={modelActions.setModelOptionsFromRecord}
                   onModelQueryChange={modelActions.setModelQuery}
                   onOpenAddModel={modelActions.handleOpenAddModel}
-                  onToggleModel={(model, checked) => {
-                    void modelActions.handleToggleModel(model, checked);
-                  }}
+                  onToggleModel={modelActions.handleToggleModel}
                   pendingAction={state.pendingAction}
                   selectedCanManage={state.selectedCanManage}
                   selectedRecord={state.selectedRecord}
@@ -179,7 +179,7 @@ export function ProviderSettingsPanel({
             : "",
         })}
         onCancel={actions.closeDeleteDialog}
-        onConfirm={() => void actions.handleDelete()}
+        onConfirm={() => actions.handleDelete()}
         title={t("settings.providers.delete_provider")}
         variant="danger"
       />
@@ -188,8 +188,8 @@ export function ProviderSettingsPanel({
         deleteTargetRecord={state.deleteTargetRecord}
         isOpen={state.deleteUsageOpen}
         onCancel={actions.closeDeleteDialog}
-        onForceDelete={() => void actions.handleDelete(true)}
-        submitting={state.submitting}
+        onForceDelete={() => actions.handleDelete(true)}
+        pendingAction={state.pendingAction}
       />
 
       <ProviderAddModelDialog
@@ -197,7 +197,7 @@ export function ProviderSettingsPanel({
         manualModelEnabled={modelActions.manualModelEnabled}
         manualModelId={modelActions.manualModelId}
         manualModelPlaceholder={modelActions.manualModelPlaceholder}
-        onAdd={() => void modelActions.handleAddModel()}
+        onAdd={modelActions.handleAddModel}
         onClose={() => modelActions.setAddModelOpen(false)}
         pendingAction={state.pendingAction}
         selectedCanManage={state.selectedCanManage}
@@ -208,7 +208,7 @@ export function ProviderSettingsPanel({
       <ProviderModelOptionsDialog
         modelOptions={modelActions.modelOptions}
         onClose={() => modelActions.setModelOptions(null)}
-        onSave={() => void modelActions.handleSaveModelOptions()}
+        onSave={modelActions.handleSaveModelOptions}
         pendingAction={state.pendingAction}
         selectedCanManage={state.selectedCanManage}
         setModelOptions={modelActions.setModelOptions}

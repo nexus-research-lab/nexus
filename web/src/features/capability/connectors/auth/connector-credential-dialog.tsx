@@ -72,8 +72,8 @@ function getCredentialCopy(detail: ConnectorDetail): CredentialCopy {
 export function ConnectorCredentialDialog({
   detail,
   busy,
-  onClose: onClose,
-  onSave: onSave,
+  onClose,
+  onSave,
 }: ConnectorCredentialDialogProps) {
   const [credential, setCredential] = useResettableState("", detail?.connector_id ?? null);
 

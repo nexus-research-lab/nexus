@@ -7,7 +7,6 @@ export type ConnectorOAuthEvent = {
 };
 
 const CONNECTOR_OAUTH_CHANNEL = "nexus.connector-oauth";
-const handledOauthEventIds = new Set<string>();
 
 function createEventId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -49,11 +48,13 @@ export function publishConnectorOauthEvent(
 export function subscribeConnectorOauthEvent(
   handler: (event: ConnectorOAuthEvent) => void,
 ): () => void {
+  // 去重只服务当前订阅生命周期，避免模块级集合随 OAuth 次数永久增长。
+  const handledEventIds = new Set<string>();
   const handleEvent = (event: ConnectorOAuthEvent) => {
-    if (handledOauthEventIds.has(event.event_id)) {
+    if (handledEventIds.has(event.event_id)) {
       return;
     }
-    handledOauthEventIds.add(event.event_id);
+    handledEventIds.add(event.event_id);
     handler(event);
   };
 
@@ -80,5 +81,6 @@ export function subscribeConnectorOauthEvent(
     window.removeEventListener("message", handleWindowMessage);
     channel?.removeEventListener("message", handleChannelMessage);
     channel?.close();
+    handledEventIds.clear();
   };
 }

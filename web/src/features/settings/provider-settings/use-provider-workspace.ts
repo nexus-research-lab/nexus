@@ -11,15 +11,17 @@ import type {
 
 import type { ProviderSettingsApi } from "./provider-settings-api";
 import {
-  type FeedbackState,
-  type FormMode,
-  type ProviderDraft,
-  buildProviderDraft,
   firstBuiltinPresetKey,
   orderProviderRecords,
   providerForPreset,
-  toProviderDraft,
-} from "./provider-settings-model";
+} from "./model/provider-catalog-model";
+import { toProviderDraft } from "./model/provider-config-model";
+import { buildProviderDraft } from "./model/provider-preset-model";
+import {
+  type FeedbackState,
+  type FormMode,
+  type ProviderDraft,
+} from "./model/provider-settings-types";
 
 interface ProviderWorkspaceState {
   draft: ProviderDraft;

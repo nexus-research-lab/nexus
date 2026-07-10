@@ -14,9 +14,10 @@ import { ProviderIcon } from "./provider-settings-icon";
 import {
   getProviderTitle,
   isCustomProviderRecord,
-  presetIsConfigurable,
   providerHasActiveConfig,
-} from "../provider-settings-model";
+} from "../model/provider-config-model";
+import { presetIsConfigurable } from "../model/provider-preset-model";
+import type { ProviderPendingAction } from "../actions/use-provider-command";
 
 interface ProviderSettingsSidebarProps {
   configuredByPreset: Map<string, ProviderConfigRecord>;
@@ -28,26 +29,24 @@ interface ProviderSettingsSidebarProps {
   onCreateFromPreset: (presetKey: string) => void;
   onRequestDeleteProvider: (item: ProviderConfigRecord) => void;
   onSelectProvider: (provider: string) => void;
-  pendingAction: string | null;
+  pendingAction: ProviderPendingAction | null;
   presetSidebarItems: ProviderPreset[];
   selectedProvider: string | null;
-  submitting: boolean;
 }
 
 export function ProviderSettingsSidebar({
-  configuredByPreset: configuredByPreset,
-  customProviders: customProviders,
-  draftPresetKey: draftPresetKey,
-  isCreating: isCreating,
-  isEditing: isEditing,
+  configuredByPreset,
+  customProviders,
+  draftPresetKey,
+  isCreating,
+  isEditing,
   loading,
-  onCreateFromPreset: onCreateFromPreset,
-  onRequestDeleteProvider: onRequestDeleteProvider,
-  onSelectProvider: onSelectProvider,
-  pendingAction: pendingAction,
-  presetSidebarItems: presetSidebarItems,
-  selectedProvider: selectedProvider,
-  submitting,
+  onCreateFromPreset,
+  onRequestDeleteProvider,
+  onSelectProvider,
+  pendingAction,
+  presetSidebarItems,
+  selectedProvider,
 }: ProviderSettingsSidebarProps) {
   const { t } = useI18n();
 
@@ -156,7 +155,7 @@ export function ProviderSettingsSidebar({
                         "mr-1 h-7 w-7 transition-opacity group-hover:opacity-100 focus-visible:opacity-100",
                         isActive ? "opacity-100" : "opacity-0",
                       )}
-                      disabled={submitting || pendingAction !== null}
+                      disabled={pendingAction !== null}
                       onClick={() => onRequestDeleteProvider(item)}
                       size="xs"
                       title={item.usage_count > 0

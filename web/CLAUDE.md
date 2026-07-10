@@ -9,7 +9,7 @@ src/
   pages/       - 页面组件
   routes/      - React Router 路由定义
   components/  - UI 组件（按功能领域组织）
-  features/    - 领域功能实现；`capability/skills/` 负责技能市场及其状态域，`conversation/shared/composer/controller/` 负责 DM/Room 输入状态与动作协议，`conversation/shared/feed/` 负责 DM 轮次渲染及共享虚拟列表协议，`conversation/shared/message/item/` 按控制与视图分层，`conversation/room/surface/layout/` 负责桌面分栏与右栏编排，`conversation/room/group/chat/panel/` 负责 Room 会话编排，`conversation/room/group/chat/feed/` 负责 Room 轮次渲染，`conversation/room/members/` 负责 Room 成员与设置表单，`conversation/shared/subagent/` 负责子智能体任务，`conversation/shared/session-navigator/` 负责轮次导航，`operations/subscription-admin/` 负责订阅运营，`settings/general/` 负责通用偏好与默认模型，`settings/provider-settings/` 负责 Provider 配置领域
+  features/    - 领域功能实现；`capability/skills/` 负责技能市场及其状态域，`capability/connectors/` 按 catalog/detail/auth/controller 分离目录、详情、认证和命令，`conversation/shared/composer/controller/` 负责 DM/Room 输入状态与动作协议，`conversation/shared/feed/` 负责 DM 轮次渲染及共享虚拟列表协议，`conversation/shared/message/item/` 按控制与视图分层，`conversation/room/surface/layout/` 负责桌面分栏与右栏编排，`conversation/room/group/chat/panel/` 负责 Room 会话编排，`conversation/room/group/chat/feed/` 负责 Room 轮次渲染，`conversation/room/members/` 负责 Room 成员与设置表单，`conversation/shared/subagent/` 负责子智能体任务，`conversation/shared/session-navigator/` 负责轮次导航，`operations/subscription-admin/` 负责订阅运营，`settings/general/` 负责通用偏好与默认模型，`settings/provider-settings/` 按 `model/` 与 `actions/` 分离 Provider 纯模型和异步命令
   config/      - 运行时配置常量；`desktop-runtime/` 按宿主配置、鉴权、OAuth 和生命周期协议分层
   hooks/       - 自定义 React Hooks；`agent/` 按动作、会话、运行态和传输协议分层
   lib/         - API 客户端、WebSocket、工具函数

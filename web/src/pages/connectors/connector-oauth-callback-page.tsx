@@ -14,7 +14,7 @@ import { completeConnectorOAuthApi } from "@/lib/api/connector-api";
 import {
   publishConnectorOauthEvent,
   type ConnectorOAuthEventType,
-} from "@/features/capability/connectors/connector-oauth-events";
+} from "@/features/capability/connectors/auth/connector-oauth-events";
 
 /** OAuth 回调专用页面，位于弹窗内，负责把结果回传给 opener 并自行关闭。 */
 export function ConnectorOAuthCallbackPage() {

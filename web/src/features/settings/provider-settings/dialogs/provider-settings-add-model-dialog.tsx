@@ -14,6 +14,8 @@ import {
 import { UiField, UiInput } from "@/shared/ui/form-control";
 import { GlassSwitch } from "@/shared/ui/liquid-glass";
 
+import type { ProviderPendingAction } from "../actions/use-provider-command";
+
 interface ProviderAddModelDialogProps {
   isOpen: boolean;
   manualModelEnabled: boolean;
@@ -21,23 +23,23 @@ interface ProviderAddModelDialogProps {
   manualModelPlaceholder: string;
   onAdd: () => void;
   onClose: () => void;
-  pendingAction: string | null;
+  pendingAction: ProviderPendingAction | null;
   selectedCanManage: boolean;
   setManualModelEnabled: (enabled: boolean) => void;
   setManualModelId: (modelId: string) => void;
 }
 
 export function ProviderAddModelDialog({
-  isOpen: isOpen,
-  manualModelEnabled: manualModelEnabled,
-  manualModelId: manualModelId,
-  manualModelPlaceholder: manualModelPlaceholder,
-  onAdd: onAdd,
-  onClose: onClose,
-  pendingAction: pendingAction,
-  selectedCanManage: selectedCanManage,
-  setManualModelEnabled: setManualModelEnabled,
-  setManualModelId: setManualModelId,
+  isOpen,
+  manualModelEnabled,
+  manualModelId,
+  manualModelPlaceholder,
+  onAdd,
+  onClose,
+  pendingAction,
+  selectedCanManage,
+  setManualModelEnabled,
+  setManualModelId,
 }: ProviderAddModelDialogProps) {
   const { t } = useI18n();
   const modelInputRef = useRef<HTMLInputElement>(null);
@@ -52,7 +54,7 @@ export function ProviderAddModelDialog({
     return null;
   }
 
-  const isAdding = pendingAction?.startsWith("add-model:") ?? false;
+  const isAdding = pendingAction?.kind === "add-model";
 
   return (
     <UiDialogPortal>

@@ -5,6 +5,8 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { GlassSwitch } from "@/shared/ui/liquid-glass";
 import { UiSelectMenu } from "@/shared/ui/select-menu";
 
+import type { ProviderPendingAction } from "../actions/use-provider-command";
+
 interface ProviderSettingsDetailHeaderProps {
   detailTitle: string;
   enabled: boolean;
@@ -13,26 +15,24 @@ interface ProviderSettingsDetailHeaderProps {
   isEditing: boolean;
   onEnabledChange: (checked: boolean) => void;
   onTestSelection: (value: string) => void;
-  pendingAction: string | null;
+  pendingAction: ProviderPendingAction | null;
   presetDescription?: string | null;
   selectedCanManage: boolean;
-  submitting: boolean;
   testModelOptions: Array<{ label: string; value: string }>;
 }
 
 export function ProviderSettingsDetailHeader({
-  detailTitle: detailTitle,
+  detailTitle,
   enabled,
-  hasSelectedRecord: hasSelectedRecord,
-  isApiFormatConfigurable: isApiFormatConfigurable,
-  isEditing: isEditing,
-  onEnabledChange: onEnabledChange,
-  onTestSelection: onTestSelection,
-  pendingAction: pendingAction,
-  presetDescription: presetDescription,
-  selectedCanManage: selectedCanManage,
-  submitting,
-  testModelOptions: testModelOptions,
+  hasSelectedRecord,
+  isApiFormatConfigurable,
+  isEditing,
+  onEnabledChange,
+  onTestSelection,
+  pendingAction,
+  presetDescription,
+  selectedCanManage,
+  testModelOptions,
 }: ProviderSettingsDetailHeaderProps) {
   const { t } = useI18n();
 
@@ -71,8 +71,8 @@ export function ProviderSettingsDetailHeader({
             ariaLabel={t("settings.providers.test_provider")}
             buttonClassName="px-2"
             className="w-auto min-w-18"
-            disabled={pendingAction !== null || submitting || !isApiFormatConfigurable || !selectedCanManage}
-            leading={pendingAction?.startsWith("test") ? (
+            disabled={pendingAction !== null || !isApiFormatConfigurable || !selectedCanManage}
+            leading={pendingAction?.kind === "test-provider" || pendingAction?.kind === "test-model" ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
             ) : (
               <Play className="h-3.5 w-3.5" />
@@ -87,7 +87,7 @@ export function ProviderSettingsDetailHeader({
         ) : null}
         <GlassSwitch
           checked={enabled}
-          disabled={pendingAction !== null || submitting || !isApiFormatConfigurable || !selectedCanManage}
+          disabled={pendingAction !== null || !isApiFormatConfigurable || !selectedCanManage}
           size="sm"
           onChange={onEnabledChange}
         />

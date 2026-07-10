@@ -14,24 +14,25 @@ import {
 import { UiInput, UiTextarea } from "@/shared/ui/form-control";
 
 import { CapabilitySwitch } from "../components/provider-settings-capability-switch";
-import type { ModelOptionsState } from "../provider-settings-model";
+import type { ProviderPendingAction } from "../actions/use-provider-command";
+import type { ModelOptionsState } from "../model/provider-settings-types";
 
 interface ProviderModelOptionsDialogProps {
   modelOptions: ModelOptionsState | null;
   onClose: () => void;
   onSave: () => void;
-  pendingAction: string | null;
+  pendingAction: ProviderPendingAction | null;
   selectedCanManage: boolean;
   setModelOptions: Dispatch<SetStateAction<ModelOptionsState | null>>;
 }
 
 export function ProviderModelOptionsDialog({
-  modelOptions: modelOptions,
-  onClose: onClose,
-  onSave: onSave,
-  pendingAction: pendingAction,
-  selectedCanManage: selectedCanManage,
-  setModelOptions: setModelOptions,
+  modelOptions,
+  onClose,
+  onSave,
+  pendingAction,
+  selectedCanManage,
+  setModelOptions,
 }: ProviderModelOptionsDialogProps) {
   const { t } = useI18n();
 
@@ -171,14 +172,14 @@ export function ProviderModelOptionsDialog({
               {t("common.cancel")}
             </UiButton>
             <UiButton
-              disabled={pendingAction?.startsWith("options:") || !selectedCanManage}
+              disabled={pendingAction?.kind === "save-model-options" || !selectedCanManage}
               onClick={onSave}
               size="sm"
               tone="primary"
               type="button"
               variant="solid"
             >
-              {pendingAction?.startsWith("options:") ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : t("common.save")}
+              {pendingAction?.kind === "save-model-options" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : t("common.save")}
             </UiButton>
           </UiDialogFooter>
         </UiDialogShell>

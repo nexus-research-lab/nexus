@@ -1,29 +1,25 @@
 import { useCallback, useMemo, useState } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
-import type {
-  ProviderApiFormat,
-  ProviderConfigRecord,
-  ProviderKind,
-} from "@/types/capability/provider";
+import type { ProviderConfigRecord } from "@/types/capability/provider";
 
 import { getProviderSettingsApi } from "./provider-settings-api";
+import { useProviderCommand } from "./actions/use-provider-command";
+import { useProviderConfigActions } from "./actions/use-provider-config-actions";
+import { useProviderModelActions } from "./actions/use-provider-model-actions";
+import { buildProviderCatalog } from "./model/provider-catalog-model";
+import { getEffectiveModelsPath, getProviderTitle } from "./model/provider-config-model";
 import {
-  API_FORMAT_LABELS,
-  type FeedbackState,
-  SUPPORTED_AGENT_API_FORMATS,
   formatSupportsProviderKind,
-  getEffectiveModelsPath,
-  getProviderTitle,
   getPresetFormat,
-  presetProviderKinds,
+  orderedPresetProviderKinds,
   presetUsesBuiltinEndpoint,
-} from "./provider-settings-model";
-import { useProviderConfigActions } from "./use-provider-config-actions";
-import { useProviderModelActions } from "./use-provider-model-actions";
+  SUPPORTED_AGENT_API_FORMATS,
+  uniquePresetFormats,
+} from "./model/provider-preset-model";
+import { API_FORMAT_LABELS } from "./model/provider-settings-presentation";
+import type { FeedbackState } from "./model/provider-settings-types";
 import { useProviderWorkspace } from "./use-provider-workspace";
-
-const PROVIDER_KIND_ORDER: ProviderKind[] = ["llm", "image_generation"];
 
 export function useProviderSettingsController(
   visibilityScope: ProviderConfigRecord["visibility"],
@@ -31,7 +27,7 @@ export function useProviderSettingsController(
   const { t } = useI18n();
   const providerApi = getProviderSettingsApi(visibilityScope);
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
-  const [pendingAction, setPendingAction] = useState<string | null>(null);
+  const { pendingAction, runCommand } = useProviderCommand();
   const workspace = useProviderWorkspace({
     listConfigs: providerApi.listConfigs,
     setFeedback,
@@ -56,8 +52,8 @@ export function useProviderSettingsController(
       selectedRecord: workspace.selectedRecord,
       updateDraft: workspace.updateDraft,
     },
-    pendingAction,
     providerApi,
+    runCommand,
     setFeedback,
     t,
     visibilityScope,
@@ -65,13 +61,12 @@ export function useProviderSettingsController(
   const modelActions = useProviderModelActions({
     apiFormat: workspace.draft.api_format,
     modelApi: providerApi.model,
-    pendingAction,
     refreshAll: workspace.refreshAll,
-    saveProvider: configActions.saveProvider,
+    persistProvider: configActions.persistProvider,
+    runCommand,
     selectedCanManage,
     selectedRecord: workspace.selectedRecord,
     setFeedback,
-    setPendingAction,
     t,
   });
   const { resetModelControls } = modelActions;
@@ -88,33 +83,12 @@ export function useProviderSettingsController(
     resetModelControls();
   }, [createFromPreset, resetModelControls]);
 
-  const configuredByPreset = useMemo(() => {
-    const result = new Map<string, ProviderConfigRecord>();
-    for (const item of workspace.providers) {
-      if (
-        item.preset_key
-        && item.preset_key !== "custom"
-        && !result.has(item.preset_key)
-      ) {
-        result.set(item.preset_key, item);
-      }
-    }
-    return result;
-  }, [workspace.providers]);
-  const customProviders = useMemo(
-    () => workspace.providers.filter((item) => (
-      item.preset_key === "custom"
-      || !configuredByPreset.has(item.preset_key)
-    )),
-    [configuredByPreset, workspace.providers],
+  const providerCatalog = useMemo(
+    () => buildProviderCatalog(workspace.providers),
+    [workspace.providers],
   );
   const providerKindOptions = useMemo(() => {
-    const availableKinds = presetProviderKinds(workspace.currentPreset);
-    return PROVIDER_KIND_ORDER
-      .filter((kind) => (
-        availableKinds.length === 0 || availableKinds.includes(kind)
-      ))
-      .map((kind) => ({
+    return orderedPresetProviderKinds(workspace.currentPreset).map((kind) => ({
         value: kind,
         label: kind === "image_generation"
           ? t("settings.providers.kind_image_generation")
@@ -122,16 +96,7 @@ export function useProviderSettingsController(
       }));
   }, [t, workspace.currentPreset]);
   const formatOptions = useMemo(() => {
-    const seen = new Set<ProviderApiFormat>();
-    return (workspace.currentPreset?.formats ?? [])
-      .filter((item) => {
-        if (seen.has(item.api_format)) {
-          return false;
-        }
-        seen.add(item.api_format);
-        return true;
-      })
-      .map((item) => {
+    return uniquePresetFormats(workspace.currentPreset).map((item) => {
         const supported = formatSupportsProviderKind(
           item,
           workspace.draft.provider_kind,
@@ -180,10 +145,10 @@ export function useProviderSettingsController(
       builtinEndpointFormats: usesBuiltinEndpoint
         ? workspace.currentPreset?.formats ?? []
         : [],
-      configuredByPreset,
+      configuredByPreset: providerCatalog.configuredByPreset,
       currentFormat,
       currentPreset: workspace.currentPreset,
-      customProviders,
+      customProviders: providerCatalog.customProviders,
       deleteConfirmOpen: configActions.deleteConfirmOpen,
       deleteTargetRecord: configActions.deleteTargetRecord,
       deleteUsageOpen: configActions.deleteUsageOpen,
@@ -216,7 +181,6 @@ export function useProviderSettingsController(
       showRuntimeFormatBadge:
         workspace.draft.provider_kind === "llm"
         && !SUPPORTED_AGENT_API_FORMATS.has(workspace.draft.api_format),
-      submitting: configActions.submitting,
       usesBuiltinEndpoint,
     },
     actions: {

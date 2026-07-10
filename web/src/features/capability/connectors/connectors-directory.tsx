@@ -4,161 +4,130 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
-import { useConnectorController } from "@/hooks/capability/use-connector-controller";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { FeedbackBannerStack } from "@/shared/ui/feedback/feedback-banner-stack";
+import { WORKSPACE_DETAIL_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
+import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 import type { ConnectorsRouteParams } from "@/types/app/route";
 import type { ConnectorDetail } from "@/types/capability/connector";
 
-import {
-  FeedbackBannerStack,
-  type FeedbackBannerItem,
-} from "@/shared/ui/feedback/feedback-banner-stack";
-import { WORKSPACE_DETAIL_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
-import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
+import { ConnectorCredentialDialog } from "./auth/connector-credential-dialog";
+import { ConnectorDeviceAuthDialog } from "./auth/connector-device-auth-dialog";
+import { ConnectorOAuthClientDialog } from "./auth/connector-oauth-client-dialog";
+import { ConnectorsGrid } from "./catalog/connectors-grid";
+import { ConnectorsHeader } from "./catalog/connectors-header";
+import { ConnectorsSearchBar } from "./catalog/connectors-search-bar";
+import { useConnectorController } from "./controller/use-connector-controller";
+import { useConnectorOauthEvents } from "./controller/use-connector-oauth-events";
+import { ConnectorDetailView } from "./detail/connector-detail-view";
 
-import { ConnectorDetailView } from "./connector-detail-view";
-import { ConnectorCredentialDialog } from "./connector-credential-dialog";
-import { ConnectorDeviceAuthDialog } from "./connector-device-auth-dialog";
-import { ConnectorOAuthClientDialog } from "./connector-oauth-client-dialog";
-import { ConnectorsGrid } from "./connectors-grid";
-import { ConnectorsHeader } from "./connectors-header";
-import { ConnectorsSearchBar } from "./connectors-search-bar";
-import { subscribeConnectorOauthEvent } from "./connector-oauth-events";
-
-/* ── 连接器页面主编排组件 ────────────────────── */
+type ConnectorConfigDialog = {
+  detail: ConnectorDetail;
+  kind: "credential" | "oauth-client";
+} | null;
 
 export function ConnectorsDirectory() {
   const { t } = useI18n();
-  const ctrl = useConnectorController();
+  const controller = useConnectorController();
   const navigate = useNavigate();
   const { connectorId } = useParams<ConnectorsRouteParams>();
-  const [credentialDetail, setCredentialDetail] = useState<ConnectorDetail | null>(null);
-  const [oauthClientDetail, setOauthClientDetail] = useState<ConnectorDetail | null>(null);
+  const [configDialog, setConfigDialog] =
+    useState<ConnectorConfigDialog>(null);
   const {
+    clearFeedback,
     closeDetail,
-    setErrorMessage,
-    statusMessage,
-    errorMessage,
+    handleConnect,
+    handleConnectWithCredential,
+    handleDeleteOauthClient: deleteOauthClient,
+    handleDeviceConnected,
+    handleDisconnect,
+    handleSaveOauthClient: saveOauthClient,
     openDetail,
-    setStatusMessage,
-    refresh,
-  } = ctrl;
+    refreshCatalog,
+    reportFeedback,
+  } = controller;
 
   useEffect(() => {
     if (!connectorId) {
       closeDetail();
       return;
     }
-
     void openDetail(connectorId);
   }, [closeDetail, connectorId, openDetail]);
 
-  useEffect(() => {
-    return subscribeConnectorOauthEvent((event) => {
-      if (event.type === "connector-oauth:success") {
-        setStatusMessage(event.message || "连接成功");
-        void refresh();
-        if (connectorId) {
-          void openDetail(connectorId);
-        }
-      }
+  useConnectorOauthEvents({
+    connectorId,
+    openDetail,
+    refreshCatalog,
+    reportFeedback,
+  });
 
-      if (event.type === "connector-oauth:error") {
-        setErrorMessage(event.message || "OAuth 连接失败");
-        void refresh();
-        if (connectorId) {
-          void openDetail(connectorId);
-        }
-      }
-    });
-  }, [connectorId, openDetail, refresh, setErrorMessage, setStatusMessage]);
-
-  const closeOauthClientDialog = useCallback(() => {
-    setOauthClientDetail(null);
-  }, []);
-
-  const closeCredentialDialog = useCallback(() => {
-    setCredentialDetail(null);
-  }, []);
-
-  const handleSaveCredential = useCallback(
-    async (connectorId: string, credential: string) => {
-      const saved = await ctrl.handleConnectWithCredential(connectorId, credential);
-      if (saved) {
-        setCredentialDetail(null);
-      }
-    },
-    [ctrl],
-  );
-
-  const handleSaveOauthClient = useCallback(
-    async (connectorId: string, clientId: string, clientSecret: string) => {
-      const saved = await ctrl.handleSaveOauthClient(connectorId, clientId, clientSecret);
-      if (saved) {
-        setOauthClientDetail(null);
-      }
-    },
-    [ctrl],
-  );
-
-  const handleDeleteOauthClient = useCallback(
-    async (connectorId: string) => {
-      const deleted = await ctrl.handleDeleteOauthClient(connectorId);
-      if (deleted) {
-        setOauthClientDetail(null);
-      }
-    },
-    [ctrl],
-  );
-
-  const openConnectorPage = useCallback(
-    (id: string) => {
-      navigate(AppRouteBuilders.connectorDetail(id));
-    },
-    [navigate],
-  );
-
+  const openConnectorPage = useCallback((id: string) => {
+    navigate(AppRouteBuilders.connectorDetail(id));
+  }, [navigate]);
   const backToConnectors = useCallback(() => {
     navigate(AppRouteBuilders.connectors());
   }, [navigate]);
+  const closeConfigDialog = useCallback(() => setConfigDialog(null), []);
 
-  const feedbackItems: FeedbackBannerItem[] = [];
-  if (statusMessage) {
-    feedbackItems.push({
-      key: "status",
-      message: statusMessage,
-      onDismiss: () => setStatusMessage(null),
-      title: "操作完成",
-      tone: "success",
-    });
-  }
-  if (errorMessage) {
-    feedbackItems.push({
-      key: "error",
-      message: errorMessage,
-      onDismiss: () => setErrorMessage(null),
-      title: "操作失败",
-      tone: "error",
-    });
-  }
+  const handleSaveCredential = useCallback(async (
+    id: string,
+    credential: string,
+  ) => {
+    if (await handleConnectWithCredential(id, credential)) {
+      closeConfigDialog();
+    }
+  }, [closeConfigDialog, handleConnectWithCredential]);
+
+  const handleSaveOauthClient = useCallback(async (
+    id: string,
+    clientId: string,
+    clientSecret: string,
+  ) => {
+    if (await saveOauthClient(id, clientId, clientSecret)) {
+      closeConfigDialog();
+    }
+  }, [closeConfigDialog, saveOauthClient]);
+
+  const handleDeleteOauthClient = useCallback(async (id: string) => {
+    if (await deleteOauthClient(id)) {
+      closeConfigDialog();
+    }
+  }, [closeConfigDialog, deleteOauthClient]);
+
+  const busy = controller.pendingAction !== null;
+  const credentialDetail = configDialog?.kind === "credential"
+    ? configDialog.detail
+    : null;
+  const oauthClientDetail = configDialog?.kind === "oauth-client"
+    ? configDialog.detail
+    : null;
 
   return (
     <>
       <WorkspaceSurfaceScaffold
         bodyScrollable
-        header={<ConnectorsHeader ctrl={ctrl} />}
+        header={(
+          <ConnectorsHeader connectedCount={controller.connectedCount} />
+        )}
         stableGutter
       >
         {connectorId ? (
           <ConnectorDetailView
-            busy={ctrl.busyId !== null}
-            detail={ctrl.selectedDetail}
-            loading={ctrl.detailLoading}
+            busy={busy}
+            detail={controller.selectedDetail}
+            loading={controller.detailLoading}
             onBack={backToConnectors}
-            onConnect={(id) => void ctrl.handleConnect(id)}
-            onConfigureCredential={setCredentialDetail}
-            onConfigureOauthClient={setOauthClientDetail}
-            onDisconnect={(id) => void ctrl.handleDisconnect(id)}
+            onConfigureCredential={(detail) => setConfigDialog({
+              detail,
+              kind: "credential",
+            })}
+            onConfigureOauthClient={(detail) => setConfigDialog({
+              detail,
+              kind: "oauth-client",
+            })}
+            onConnect={(id) => void handleConnect(id)}
+            onDisconnect={(id) => void handleDisconnect(id)}
           />
         ) : (
           <div className={WORKSPACE_DETAIL_PAGE_CLASS_NAME}>
@@ -170,41 +139,65 @@ export function ConnectorsDirectory() {
                 {t("capability.connectors_intro_description")}
               </p>
             </div>
-            <ConnectorsSearchBar ctrl={ctrl} />
-            <ConnectorsGrid ctrl={ctrl} onOpenConnector={openConnectorPage} />
+            <ConnectorsSearchBar
+              activeCategory={controller.activeCategory}
+              onCategoryChange={controller.setActiveCategory}
+              onQueryChange={controller.setSearchQuery}
+              searchQuery={controller.searchQuery}
+            />
+            <ConnectorsGrid
+              activeCategory={controller.activeCategory}
+              connectors={controller.connectors}
+              loading={controller.loading}
+              onConnect={(id) => void handleConnect(id)}
+              onOpenConnector={openConnectorPage}
+              pendingAction={controller.pendingAction}
+              searchQuery={controller.searchQuery}
+            />
           </div>
         )}
       </WorkspaceSurfaceScaffold>
 
       <ConnectorOAuthClientDialog
-        busy={ctrl.busyId !== null}
+        busy={busy}
         detail={oauthClientDetail}
-        onClose={closeOauthClientDialog}
+        onClose={closeConfigDialog}
         onDelete={(id) => void handleDeleteOauthClient(id)}
-        onSave={(id, clientId, clientSecret) => void handleSaveOauthClient(id, clientId, clientSecret)}
-      />
-
-      <ConnectorCredentialDialog
-        busy={ctrl.busyId !== null}
-        detail={credentialDetail}
-        onClose={closeCredentialDialog}
-        onSave={(id, credential) => void handleSaveCredential(id, credential)}
-      />
-
-      <ConnectorDeviceAuthDialog
-        session={ctrl.deviceAuthSession}
-        onClose={ctrl.closeDeviceAuthSession}
-        onError={ctrl.setErrorMessage}
-        onConnected={async (id) => {
-          ctrl.setStatusMessage("GitHub 已连接");
-          await ctrl.refresh();
-          navigate(AppRouteBuilders.connectorDetail(id));
-          await ctrl.openDetail(id);
+        onSave={(id, clientId, clientSecret) => {
+          void handleSaveOauthClient(id, clientId, clientSecret);
         }}
       />
-
-      {/* 操作反馈 */}
-      <FeedbackBannerStack items={feedbackItems} />
+      <ConnectorCredentialDialog
+        busy={busy}
+        detail={credentialDetail}
+        onClose={closeConfigDialog}
+        onSave={(id, credential) => {
+          void handleSaveCredential(id, credential);
+        }}
+      />
+      <ConnectorDeviceAuthDialog
+        onClose={controller.closeDeviceAuthSession}
+        onConnected={async (id) => {
+          await handleDeviceConnected();
+          navigate(AppRouteBuilders.connectorDetail(id));
+          await openDetail(id);
+        }}
+        onError={(message) => reportFeedback({
+          tone: "error",
+          title: "操作失败",
+          message,
+        })}
+        session={controller.deviceAuthSession}
+      />
+      <FeedbackBannerStack
+        items={controller.feedback ? [{
+          key: "connector-feedback",
+          message: controller.feedback.message,
+          onDismiss: clearFeedback,
+          title: controller.feedback.title,
+          tone: controller.feedback.tone,
+        }] : []}
+      />
     </>
   );
 }

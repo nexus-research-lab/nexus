@@ -67,7 +67,7 @@ export function ConnectorIcon({
   icon,
   title,
   size = "md",
-  className: className,
+  className,
 }: ConnectorIconProps) {
   const staticIconSrc = getStaticConnectorIconSrc(icon);
   const letter = getConnectorLetter(icon, title);

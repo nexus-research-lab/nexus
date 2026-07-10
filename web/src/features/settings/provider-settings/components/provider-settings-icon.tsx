@@ -35,7 +35,7 @@ function getCustomProviderInitials(name: string): string {
 export function ProviderIcon({
   active = false,
   name,
-  presetKey: presetKey,
+  presetKey,
   size = "sm",
 }: {
   active?: boolean;

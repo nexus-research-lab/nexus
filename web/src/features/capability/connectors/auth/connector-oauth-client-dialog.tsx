@@ -30,9 +30,9 @@ interface ConnectorOAuthClientDialogProps {
 export function ConnectorOAuthClientDialog({
   detail,
   busy,
-  onClose: onClose,
-  onSave: onSave,
-  onDelete: onDelete,
+  onClose,
+  onSave,
+  onDelete,
 }: ConnectorOAuthClientDialogProps) {
   const detailResetKey = `${detail?.connector_id ?? ""}\x1f${detail?.oauth_client_id ?? ""}`;
   const [clientId, setClientId] = useResettableState(detail?.oauth_client_id ?? "", detailResetKey);

@@ -12,25 +12,26 @@ import {
 } from "@/shared/ui/dialog/dialog";
 import type { ProviderConfigRecord } from "@/types/capability/provider";
 
+import type { ProviderPendingAction } from "../actions/use-provider-command";
 import {
   getProviderTitle,
   getUsageAgentTitle,
-} from "../provider-settings-model";
+} from "../model/provider-config-model";
 
 interface ProviderDeleteUsageDialogProps {
   deleteTargetRecord: ProviderConfigRecord | null;
   isOpen: boolean;
   onCancel: () => void;
   onForceDelete: () => void;
-  submitting: boolean;
+  pendingAction: ProviderPendingAction | null;
 }
 
 export function ProviderDeleteUsageDialog({
-  deleteTargetRecord: deleteTargetRecord,
-  isOpen: isOpen,
-  onCancel: onCancel,
-  onForceDelete: onForceDelete,
-  submitting,
+  deleteTargetRecord,
+  isOpen,
+  onCancel,
+  onForceDelete,
+  pendingAction,
 }: ProviderDeleteUsageDialogProps) {
   const { t } = useI18n();
 
@@ -102,7 +103,7 @@ export function ProviderDeleteUsageDialog({
               {t("common.cancel")}
             </UiButton>
             <UiButton
-              disabled={submitting}
+              disabled={pendingAction !== null}
               onClick={onForceDelete}
               tone="danger"
               type="button"

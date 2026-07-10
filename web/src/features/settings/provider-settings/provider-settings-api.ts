@@ -16,16 +16,31 @@ import {
   updateSubscriptionProviderConfigApi,
   updateSubscriptionProviderModelApi,
 } from "@/lib/api/provider-config-api";
-import type { ProviderConfigRecord } from "@/types/capability/provider";
+import type {
+  FetchProviderModelsResponse,
+  ProviderConfigRecord,
+  ProviderModelRecord,
+  ProviderTestResult,
+  UpdateProviderModelPayload,
+} from "@/types/capability/provider";
 
-import type { ProviderModelActionsApi } from "./use-provider-model-actions";
+export interface ProviderModelApi {
+  fetchModels: (provider: string) => Promise<FetchProviderModelsResponse>;
+  updateModel: (
+    provider: string,
+    modelId: string,
+    payload: UpdateProviderModelPayload,
+  ) => Promise<ProviderModelRecord>;
+  testProvider: (provider: string) => Promise<ProviderTestResult>;
+  testModel: (provider: string, modelId: string) => Promise<ProviderTestResult>;
+}
 
 export interface ProviderSettingsApi {
   listConfigs: () => Promise<ProviderConfigRecord[]>;
   createConfig: typeof createProviderConfigApi;
   updateConfig: typeof updateProviderConfigApi;
   deleteConfig: typeof deleteProviderConfigApi;
-  model: ProviderModelActionsApi;
+  model: ProviderModelApi;
 }
 
 const PROVIDER_SETTINGS_APIS: Record<

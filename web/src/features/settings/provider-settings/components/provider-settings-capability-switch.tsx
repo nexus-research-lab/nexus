@@ -6,7 +6,7 @@ export function CapabilitySwitch({
   checked,
   label,
   icon,
-  onChange: onChange,
+  onChange,
 }: {
   checked: boolean;
   label: string;

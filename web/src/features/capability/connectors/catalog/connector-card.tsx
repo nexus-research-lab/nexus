@@ -7,10 +7,10 @@ import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiBadge } from "@/shared/ui/badge";
 import { UiIconButton } from "@/shared/ui/button";
-import { ConnectorInfo } from "@/types/capability/connector";
+import type { ConnectorInfo } from "@/types/capability/connector";
 
-import { isDirectCredentialAuth } from "./connector-auth";
-import { ConnectorIcon } from "./connector-icon";
+import { isDirectCredentialAuth } from "../auth/connector-auth";
+import { ConnectorIcon } from "../connector-icon";
 import { getConnectorCategoryLabel } from "./connectors-categories";
 
 interface ConnectorCardProps {
@@ -24,8 +24,8 @@ interface ConnectorCardProps {
 export function ConnectorCard({
   connector,
   busy = false,
-  onSelect: onSelect,
-  onConnect: onConnect,
+  onSelect,
+  onConnect,
 }: ConnectorCardProps) {
   const { t } = useI18n();
   const {

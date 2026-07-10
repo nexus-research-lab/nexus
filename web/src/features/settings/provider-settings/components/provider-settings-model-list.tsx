@@ -22,8 +22,9 @@ import type {
 
 import {
   formatCount,
-  getEffectiveCapabilities,
-} from "../provider-settings-model";
+} from "../model/provider-settings-presentation";
+import { getEffectiveCapabilities } from "../model/provider-model-model";
+import type { ProviderPendingAction } from "../actions/use-provider-command";
 
 interface ProviderSettingsModelListProps {
   displayedModels: ProviderModelRecord[];
@@ -37,26 +38,26 @@ interface ProviderSettingsModelListProps {
   onModelQueryChange: (query: string) => void;
   onOpenAddModel: () => void;
   onToggleModel: (model: ProviderModelRecord, enabled: boolean) => void;
-  pendingAction: string | null;
+  pendingAction: ProviderPendingAction | null;
   selectedCanManage: boolean;
   selectedRecord: ProviderConfigRecord | null;
 }
 
 export function ProviderSettingsModelList({
-  displayedModels: displayedModels,
-  hasModelsEndpoint: hasModelsEndpoint,
-  isApiFormatConfigurable: isApiFormatConfigurable,
-  isEditing: isEditing,
-  modelQuery: modelQuery,
-  onDefaultModelDisableAttempt: onDefaultModelDisableAttempt,
-  onFetchModels: onFetchModels,
-  onModelOptions: onModelOptions,
-  onModelQueryChange: onModelQueryChange,
-  onOpenAddModel: onOpenAddModel,
-  onToggleModel: onToggleModel,
-  pendingAction: pendingAction,
-  selectedCanManage: selectedCanManage,
-  selectedRecord: selectedRecord,
+  displayedModels,
+  hasModelsEndpoint,
+  isApiFormatConfigurable,
+  isEditing,
+  modelQuery,
+  onDefaultModelDisableAttempt,
+  onFetchModels,
+  onModelOptions,
+  onModelQueryChange,
+  onOpenAddModel,
+  onToggleModel,
+  pendingAction,
+  selectedCanManage,
+  selectedRecord,
 }: ProviderSettingsModelListProps) {
   const { t } = useI18n();
 
@@ -94,7 +95,7 @@ export function ProviderSettingsModelList({
                 type="button"
                 variant="surface"
               >
-                {pendingAction === "fetch" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                {pendingAction?.kind === "fetch-models" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
                 {t("settings.providers.sync_models")}
               </UiButton>
             </>
@@ -121,7 +122,8 @@ export function ProviderSettingsModelList({
         ) : (
           displayedModels.map((model) => {
             const capabilities = getEffectiveCapabilities(model);
-            const pendingModel = pendingAction?.endsWith(model.model_id) ?? false;
+            const pendingModel = pendingAction?.kind === "toggle-model"
+              && pendingAction.modelId === model.model_id;
             const displayName = model.display_name || model.model_id;
             const showModelId = model.model_id !== displayName;
             const disableModelToggle = pendingAction !== null || !selectedCanManage || model.is_default;

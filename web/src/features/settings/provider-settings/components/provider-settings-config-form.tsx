@@ -15,9 +15,9 @@ import {
   API_FORMAT_LABELS,
   API_FORMAT_SHORT_LABELS,
   PROVIDER_LABEL_CLASS_NAME,
-  ProviderDraft,
   formatTokenPreview,
-} from "../provider-settings-model";
+} from "../model/provider-settings-presentation";
+import type { ProviderDraft } from "../model/provider-settings-types";
 
 interface ProviderSettingsConfigFormProps {
   builtinEndpointFormats: ProviderPresetFormat[];
@@ -43,26 +43,26 @@ interface ProviderSettingsConfigFormProps {
 }
 
 export function ProviderSettingsConfigForm({
-  builtinEndpointFormats: builtinEndpointFormats,
-  currentFormat: currentFormat,
-  currentPreset: currentPreset,
-  detailTitle: detailTitle,
+  builtinEndpointFormats,
+  currentFormat,
+  currentPreset,
+  detailTitle,
   draft,
-  formatOptions: formatOptions,
-  isCustomProvider: isCustomProvider,
-  isEditing: isEditing,
-  onApiFormatChange: onApiFormatChange,
-  onAuthTokenChange: onAuthTokenChange,
-  onBaseUrlChange: onBaseUrlChange,
-  onFieldBlur: onFieldBlur,
-  onProviderDisplayNameChange: onProviderDisplayNameChange,
-  onProviderKindChange: onProviderKindChange,
-  providerKindOptions: providerKindOptions,
-  selectedCanManage: selectedCanManage,
-  selectedRecord: selectedRecord,
-  showProviderShapeControls: showProviderShapeControls,
-  showRuntimeFormatBadge: showRuntimeFormatBadge,
-  usesBuiltinEndpoint: usesBuiltinEndpoint,
+  formatOptions,
+  isCustomProvider,
+  isEditing,
+  onApiFormatChange,
+  onAuthTokenChange,
+  onBaseUrlChange,
+  onFieldBlur,
+  onProviderDisplayNameChange,
+  onProviderKindChange,
+  providerKindOptions,
+  selectedCanManage,
+  selectedRecord,
+  showProviderShapeControls,
+  showRuntimeFormatBadge,
+  usesBuiltinEndpoint,
 }: ProviderSettingsConfigFormProps) {
   const { t } = useI18n();
 
