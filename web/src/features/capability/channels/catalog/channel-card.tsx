@@ -12,8 +12,9 @@ import { cn } from "@/lib/utils";
 import { UiBadge } from "@/shared/ui/badge";
 import { UiListActionButton } from "@/shared/ui/list-action";
 import { UiListRow } from "@/shared/ui/list-row";
-import { isChannelPlanned } from "./channel-model";
-import { ChannelIcon } from "./channel-ui-model";
+import { ChannelIcon } from "../channel-icon";
+import { isChannelPlanned } from "../channel-model";
+import { describeChannel } from "./channel-catalog-model";
 
 function ChannelStatPill({
   icon: Icon,
@@ -44,19 +45,13 @@ function ChannelStatPill({
 
 export function ChannelCard({
   item,
-  onConfigure: onConfigure,
+  onConfigure,
 }: {
   item: ChannelConfigView;
   onConfigure: (item: ChannelConfigView) => void;
 }) {
   const planned = isChannelPlanned(item);
-  const description = planned
-    ? "该频道将在后续版本补充，目前仅保留入口和信息结构。"
-    : item.runtime_status === "external_adapter" && !item.configured
-        ? "选择处理智能体后，按通道说明完成外部连接。"
-        : item.configured
-          ? "消息会进入绑定的处理智能体。"
-          : "选择一个智能体并填写机器人凭证后，即可开始处理来自该渠道的消息。";
+  const description = describeChannel(item);
   const handlerLabel = item.configured ? item.agent_name || "已绑定" : "未绑定";
 
   return (

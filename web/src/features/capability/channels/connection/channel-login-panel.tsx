@@ -13,44 +13,17 @@ import { ChannelLoginView } from "@/lib/api/channel-api";
 import { UiBadge } from "@/shared/ui/badge";
 import { UiButton } from "@/shared/ui/button";
 import { UiInput } from "@/shared/ui/form-control";
-import { isChannelLoginRunning } from "./channel-model";
+import {
+  channelLoginStatusLabel,
+  channelLoginStatusTone,
+  isChannelLoginRunning,
+} from "./channel-connection-model";
 
-function channelLoginStatusLabel(status: string) {
-  switch (status) {
-  case "running":
-    return "等待扫码";
-  case "verify_code_required":
-    return "需要验证码";
-  case "succeeded":
-    return "登录完成";
-  case "expired":
-    return "已超时";
-  case "cancelled":
-    return "已取消";
-  case "error":
-    return "登录失败";
-  default:
-    return status || "未启动";
-  }
-}
-
-function channelLoginStatusTone(status: string): "default" | "success" | "warning" | "danger" | "info" {
-  switch (status) {
-  case "succeeded":
-    return "success";
-  case "running":
-    return "info";
-  case "verify_code_required":
-    return "warning";
-  case "expired":
-  case "cancelled":
-    return "warning";
-  case "error":
-    return "danger";
-  default:
-    return "default";
-  }
-}
+const LOGIN_STATUS_ICONS: Record<string, typeof Terminal> = {
+  error: TriangleAlert,
+  expired: TriangleAlert,
+  succeeded: CircleCheck,
+};
 
 function LoginQRCode({ payload }: { payload?: string }) {
   const value = payload?.trim() || "";
@@ -110,8 +83,8 @@ function LoginQRCode({ payload }: { payload?: string }) {
 
 export function ChannelLoginPanel({
   loading,
-  loginView: loginView,
-  onSubmitVerifyCode: onSubmitVerifyCode,
+  loginView,
+  onSubmitVerifyCode,
 }: {
   loading: boolean;
   loginView: ChannelLoginView | null;
@@ -122,7 +95,7 @@ export function ChannelLoginPanel({
   const output = loginView?.output?.trimEnd() || (running ? "等待 iLink 扫码状态..." : "");
   const status = loginView?.status || "";
   const statusTone = channelLoginStatusTone(status);
-  const StatusIcon = status === "succeeded" ? CircleCheck : status === "error" || status === "expired" ? TriangleAlert : Terminal;
+  const StatusIcon = LOGIN_STATUS_ICONS[status] ?? Terminal;
   const verifyRequired = status === "verify_code_required";
 
   return (

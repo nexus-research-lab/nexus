@@ -6,28 +6,12 @@ import {
 import { ChannelAccountView } from "@/lib/api/channel-api";
 import { UiBadge } from "@/shared/ui/badge";
 import { UiListActionButton } from "@/shared/ui/list-action";
-
-function channelAccountStatusLabel(status: string) {
-  switch (status) {
-  case "connected":
-    return "已连接";
-  case "configured":
-    return "已配置";
-  case "pending":
-    return "待确认";
-  case "error":
-    return "异常";
-  case "disabled":
-    return "已停用";
-  default:
-    return status || "未知";
-  }
-}
+import { channelAccountStatusLabel } from "./channel-connection-model";
 
 export function ChannelAccountsPanel({
   accounts,
-  deletingAccountId: deletingAccountId,
-  onDelete: onDelete,
+  deletingAccountId,
+  onDelete,
 }: {
   accounts: ChannelAccountView[];
   deletingAccountId: string;

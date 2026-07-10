@@ -1,19 +1,14 @@
-/**
- * =====================================================
- * @File   : scheduled-task-dialog-time.ts
- * @Date   : 2026-04-16 14:28
- * @Author : leemysw
- * 2026-04-16 14:28   Create
- * =====================================================
- */
-
-"use client";
-
 import { buildRoomSharedSessionKey } from "@/lib/conversation/session-key";
 import type { RoomContextAggregate, RoomSessionSelection } from "@/types/conversation/room";
 
-import { type Weekday, WEEKDAY_OPTIONS } from "../pickers/picker-types";
-import type { EveryUnit } from "./scheduled-task-dialog-types";
+import { type Weekday, WEEKDAY_OPTIONS } from "../../pickers/picker-types";
+import type { EveryUnit } from "../scheduled-task-dialog-types";
+
+const INTERVAL_MULTIPLIERS: Record<EveryUnit, number> = {
+  hours: 3600,
+  minutes: 60,
+  seconds: 1,
+};
 
 function formatZonedParts(date: Date, timezone: string): {
   year: string;
@@ -194,13 +189,7 @@ export function toIntervalSeconds(value: string, unit: EveryUnit): number | null
   if (!Number.isInteger(numericValue) || numericValue <= 0) {
     return null;
   }
-  if (unit === "hours") {
-    return numericValue * 3600;
-  }
-  if (unit === "minutes") {
-    return numericValue * 60;
-  }
-  return numericValue;
+  return numericValue * INTERVAL_MULTIPLIERS[unit];
 }
 
 export function formatSessionLabel(title: string, agentName: string): string {

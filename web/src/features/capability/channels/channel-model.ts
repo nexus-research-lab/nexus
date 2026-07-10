@@ -1,17 +1,11 @@
-import {
-  ChannelConfigView,
-  ChannelLoginView,
-  ImChannelType,
-} from "@/lib/api/channel-api";
+import type { ChannelConfigView } from "@/lib/api/channel-api";
 
-export function isChannelPlanned(item: ChannelConfigView) {
+export interface ChannelFeedback {
+  message: string;
+  title: string;
+  tone: "error" | "success";
+}
+
+export function isChannelPlanned(item: ChannelConfigView): boolean {
   return item.runtime_status === "planned";
-}
-
-export function isPersonalWeixinChannel(channelType: ImChannelType) {
-  return channelType === "weixin-personal";
-}
-
-export function isChannelLoginRunning(view: ChannelLoginView | null) {
-  return view?.status === "running";
 }

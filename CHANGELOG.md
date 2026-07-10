@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed scheduled-task editing to preserve future single-run times, load only the resources required by the active execution mode, and enforce Room member-bound execution consistently in the form and payload.
+- Fixed IM pairing Agent reassignment to send the backend `agent_id` field, serialized channel/pairing mutations, and rejected stale list responses so completed writes cannot be overwritten by older directory snapshots.
 - Hid redundant Agent/Room names and the DM badge from desktop chat headers while the sidebar is expanded, restored names when it is collapsed, and removed the persistent processed-duration label below the conversation navigator ruler.
 - Changed chat sidebar subtitles to show the latest visible reply from each Room's newest session, rendered as compact single-line Markdown instead of repeating the conversation title or exposing raw Markdown markers.
 - Preserved subagent thread identity and progress metadata across SDK events, routed Room task controls to the owning Agent runtime, and projected Claude Code child transcript symlinks as full conversation threads instead of raw JSONL output.

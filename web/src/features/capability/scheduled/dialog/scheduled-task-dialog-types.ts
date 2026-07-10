@@ -1,64 +1,66 @@
-/**
- * =====================================================
- * @File   : scheduled-task-dialog-types.ts
- * @Date   : 2026-04-16 13:44
- * @Author : leemysw
- * 2026-04-16 13:44   Create
- * =====================================================
- */
+import type { RefObject } from "react";
 
-"use client";
-
-import type { ScheduledTaskExecutionKind, ScheduledTaskSchedule } from "@/types/capability/scheduled-task";
+import type {
+  ScheduledTaskExecutionKind,
+  ScheduledTaskSchedule,
+} from "@/types/capability/scheduled-task";
 
 import type { Weekday } from "../pickers/picker-types";
 
 export type ScheduleKind = ScheduledTaskSchedule["kind"];
-export type EveryUnit = "seconds" | "minutes" | "hours";
+export type EveryUnit = "hours" | "minutes" | "seconds";
 export type TargetType = "agent" | "room";
 export type ExecutionKind = ScheduledTaskExecutionKind;
-export type ExecutionMode = "main" | "existing" | "temporary" | "dedicated";
-export type ReplyMode = "none" | "execution" | "selected";
+export type ExecutionMode = "dedicated" | "existing" | "main" | "temporary";
+export type ReplyMode = "execution" | "none" | "selected";
 
-export interface ChoiceDef<TValue extends string> {
-  key: TValue;
+export interface ChoiceDef<Value extends string> {
+  key: Value;
   label: string;
 }
 
-export interface ScheduledTaskDialogLabelOption {
-  value: string;
+export interface TaskDialogLabelOption {
   label: string;
+  value: string;
 }
 
-export interface ScheduledTaskDialogSessionOption {
-  value: string;
-  sessionKey: string;
+export interface TaskDialogSessionOption extends TaskDialogLabelOption {
   agentId: string;
-  label: string;
+  sessionKey: string;
 }
 
-export interface ScheduledTaskDialogScheduleSnapshot {
-  scheduleKind: ScheduleKind;
-  everyValue?: string;
-  everyUnit?: EveryUnit;
-  dailyTime?: string;
-  selectedWeekdays?: Weekday[];
-  runAt?: string;
-}
-
-export interface ScheduledTaskDialogInitialState {
-  taskName: string;
-  targetType: TargetType;
-  executionKind: ExecutionKind;
-  selectedAgentId: string;
-  selectedRoomId: string;
-  executionMode: ExecutionMode;
-  selectedSessionKey: string;
-  replyMode: ReplyMode;
-  selectedReplySessionKey: string;
+export interface TaskFormDraft {
   dedicatedSessionKey: string;
-  timezone: string;
   enabled: boolean;
+  executionKind: ExecutionKind;
+  executionMode: ExecutionMode;
   instruction: string;
-  scheduleSnapshot: ScheduledTaskDialogScheduleSnapshot | null;
+  replyMode: ReplyMode;
+  selectedAgentId: string;
+  selectedReplySessionKey: string;
+  selectedRoomId: string;
+  selectedSessionKey: string;
+  targetType: TargetType;
+  taskName: string;
+}
+
+export interface TaskScheduleDraft {
+  dailyTime: string;
+  everyUnit: EveryUnit;
+  everyValue: string;
+  kind: ScheduleKind;
+  runAt: string;
+  selectedWeekdays: Weekday[];
+  timezone: string;
+}
+
+export interface TaskDialogInitialState {
+  form: TaskFormDraft;
+  schedule: TaskScheduleDraft;
+}
+
+export interface TaskDialogRefs {
+  dailyPickerAnchorRef: RefObject<HTMLButtonElement | null>;
+  nameRef: RefObject<HTMLInputElement | null>;
+  singlePickerAnchorRef: RefObject<HTMLButtonElement | null>;
 }

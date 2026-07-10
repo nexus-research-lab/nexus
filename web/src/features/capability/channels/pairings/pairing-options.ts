@@ -16,15 +16,19 @@ export const STATUS_LABELS: Record<ImPairingStatus, string> = {
   rejected: "已拒绝",
 };
 
+export const CHAT_TYPE_LABELS: Record<ImChatType, string> = {
+  dm: "用户",
+  group: "群聊",
+};
+
 export const CHANNEL_OPTIONS = (Object.entries(CHANNEL_LABELS) as Array<[ImChannelType, string]>).map(([value, label]) => ({
   value,
   label,
 }));
 
-export const CHAT_TYPE_OPTIONS: Array<{ value: ImChatType; label: string }> = [
-  { value: "dm", label: "用户" },
-  { value: "group", label: "群聊" },
-];
+export const CHAT_TYPE_OPTIONS = (
+  Object.entries(CHAT_TYPE_LABELS) as Array<[ImChatType, string]>
+).map(([value, label]) => ({ value, label }));
 
 export const CREATE_PAIRING_STATUS_OPTIONS: Array<{ value: ImPairingStatus; label: string }> = [
   { value: "active", label: STATUS_LABELS.active },
