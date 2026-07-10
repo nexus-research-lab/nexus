@@ -16,14 +16,12 @@ import (
 var defaultWorkspacePromptFiles = []string{
 	"AGENTS.md",
 	"USER.md",
-	"MEMORY.md",
 	"SOUL.md",
 	"TOOLS.md",
 }
 
 var mainAgentWorkspacePromptFiles = []string{
 	"USER.md",
-	"MEMORY.md",
 }
 
 type promptBuilder struct {
@@ -306,4 +304,3 @@ func agentValueName(agentValue *protocol.Agent) string {
 	}
 	return strings.TrimSpace(agentValue.AgentID)
 }
-

@@ -114,7 +114,6 @@ func (s *RealtimeService) runSlot(
 	appendSystemPrompt = appendPromptSection(appendSystemPrompt, roomdomain.BuildSystemPrompt(
 		roundValue.Context.Room.PrivateMessagesEnabled,
 	))
-	appendSystemPrompt = appendPromptSection(appendSystemPrompt, s.buildRoomMemorySystemPrompt(slotCtx, roundValue))
 	roomSkillPrompt, err := s.rooms.BuildRoomSkillPrompt(slotCtx, roundValue.Context.Room.SkillNames)
 	if err != nil {
 		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
@@ -422,9 +421,6 @@ func (s *RealtimeService) runSlot(
 				newRoomDirectedMessageConsumedEvent(messageCursor),
 			)
 		}
-	}
-	if result.CompletedByAssistant && roomSlotCanCommitMemory(slot) {
-		go s.commitRoomMemoryTurn(roundValue, slot, mapper.LastAssistantMessage())
 	}
 	s.broadcastSharedEventWithTimeout(slotCtx, roundValue.SessionKey, roundValue.RoomID, roomdomain.WrapLifecycleEvent(
 		protocol.EventTypeStreamEnd,

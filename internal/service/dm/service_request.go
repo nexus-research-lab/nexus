@@ -91,8 +91,9 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 	if err != nil {
 		return err
 	}
-	runtimeContent = s.injectMemoryContext(ctx, agentValue, sessionItem, sessionKey, request.Content, runtimeContent)
-	runtimeContent = s.appendRuntimeUserContext(ctx, sessionKey, agentValue, runtimeContent)
+	if agentValue != nil && !runtimeContent.IsEmpty() {
+		runtimeContent = runtimeContent.AppendText(s.agents.BuildRuntimeUserMessageSuffixForContext(ctx, agentValue, "dm:"+strings.TrimSpace(sessionKey)))
+	}
 
 	client, runtimeKind, runtimeProvider, runtimeModel, goalIDForUsage, goalContext, permissionMode, err := s.ensureClient(ctx, sessionKey, agentValue, sessionItem, request)
 	if err != nil {

@@ -35,7 +35,7 @@ nexusctl --pretty agent list
 
 - **Agent（成员）**：具有独立工作空间的智能体，可被邀请加入 Room 协作。
 - **Room（群组空间）**：多个 Agent 共处的对话空间，支持创建后追加成员。
-- **Workspace（工作区）**：每个 Agent 独立拥有的文件空间，可读写业务文件与记忆文件。
+- **Workspace（工作区）**：每个 Agent 独立拥有的文件空间，可读写业务文件与运行资料。
 - **Skill（技能）**：部署到 Agent 工作区中的能力包，决定其可用专业动作。
 - **主智能体**：系统内置的保留 Agent，不能作为 Room 成员，所有 Room 操作由它发起。
 - 每个成员创建后自动获得独立工作空间（workspace），用于存放技能、工具配置和文件。
@@ -234,10 +234,8 @@ nexusctl skill uninstall --agent-id research --skill-name planner
 <workspace>/
   .agents/skills/    # 内部技能目录（不可直接操作）
   .claude/           # Claude 配置目录（不可直接操作）
-  memory/            # 按天日志、摘要、调研片段和记忆资产
   AGENTS.md          # Agent 身份与行为规则
   USER.md            # 用户偏好
-  MEMORY.md          # 跨会话持久记忆
   RUNBOOK.md         # 运维手册与任务清单
 ```
 
@@ -245,8 +243,7 @@ nexusctl skill uninstall --agent-id research --skill-name planner
 
 - **受保护目录**：`.agents/`、`.claude/` 禁止直接读写，属于内部运行时目录。
 - **路径安全**：不允许路径穿越（`../`），所有操作限定在工作空间根目录内。
-- **命名文件**：`AGENTS.md`、`USER.md`、`MEMORY.md`、`RUNBOOK.md` 可通过名称直接读写，也可通过相对路径操作。
-- **memory/ 目录**：统一用于按天日志、摘要和资产文件，通过 `nexusctl memory` 维护。
+- **命名文件**：`AGENTS.md`、`USER.md`、`RUNBOOK.md` 可通过名称直接读写，也可通过相对路径操作。
 - **文件大小限制**：实时快照推送上限 128KB，超出部分不推送。
 
 ### 模板初始化规则

@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	baseSkillNames        = []string{"imagegen", "memory-manager", "scheduled-task-manager", "goal-manager"}
+	baseSkillNames        = []string{"imagegen", "scheduled-task-manager", "goal-manager"}
 	retiredBaseSkillNames = []string{"room-collaboration"}
 	mainAgentSkillNames   = []string{"nexus-manager"}
 	createSymlink         = os.Symlink

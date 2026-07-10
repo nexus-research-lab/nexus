@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Moved long-term memory out of the product backend and into the SDK subprocess: removed the HTTP memory routes, the `nexusctl memory` command, the `memory-manager` skill, the agent Memory page and contact memory tab, and the workspace `MEMORY.md` template. Default memory config flags (`MEMORY_ENABLED`, `MEMORY_AUTO_RECALL`, `MEMORY_AUTO_EXTRACT`) now ship disabled. The DM/Room runtime no longer injects or commits memory context; recall and storage are owned by the runtime subprocess.
+
 ### Fixed
 
 - Disabled reasoning on `anthropic_messages` title-generation requests and raised the title token budget to 1024, so always-thinking models (e.g. Kimi) no longer exhaust the output cap before emitting the title and leave conversations untitled.

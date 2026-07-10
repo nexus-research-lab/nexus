@@ -48,10 +48,12 @@ func TestServiceBuildRuntimePromptIncludesWorkspaceFilesAndProfile(t *testing.T)
 	assertPromptContains(t, prompt, "WORKING DIRECTORY: "+workspacePath)
 	assertPromptContains(t, prompt, "执行规则：必须先读 AGENTS。")
 	assertPromptContains(t, prompt, "用户偏好：默认中文。")
-	assertPromptContains(t, prompt, "长期约束：不要改路径。")
 	assertPromptContains(t, prompt, "Description: 补充说明")
 	assertPromptContains(t, prompt, "Vibe Tags: 严谨, 任务拆解")
 	assertPromptContains(t, prompt, "## Agent Identity\nIdentity: planner (agent-1)\nWORKING DIRECTORY: "+workspacePath+"\n\n---\n\n## Agent Profile\nDescription: 补充说明")
+	if strings.Contains(prompt, "长期约束：不要改路径。") {
+		t.Fatalf("产品侧 prompt 不应直接加载 MEMORY.md: %s", prompt)
+	}
 	if strings.Contains(prompt, "规划助手") || strings.Contains(prompt, "擅长任务拆解") || strings.Contains(prompt, "偏好明确目标与验收标准") {
 		t.Fatalf("运行时 prompt 不应注入旧 profiles 表展示字段: %s", prompt)
 	}
@@ -90,9 +92,6 @@ func TestServiceBuildRuntimePromptIncludesHumanIdentityRules(t *testing.T) {
 	assertPromptContains(t, prompt, "Do not search for `cmd/nexusctl`")
 	assertPromptContains(t, prompt, "use `WebSearch` and `WebFetch` as a pair")
 	assertPromptContains(t, prompt, "Do not rely on search snippets alone")
-	assertPromptContains(t, prompt, "`USER.md`: durable user profile")
-	assertPromptContains(t, prompt, "`MEMORY.md`: stable facts")
-	assertPromptContains(t, prompt, "memory-manager")
 	assertPromptContains(t, prompt, "scheduled-task-manager")
 	assertPromptContains(t, prompt, "Do not narrate the user's input as an event")
 	assertPromptContains(t, prompt, `Never say phrases like "用户输入了一个..."`)
@@ -108,7 +107,7 @@ func TestServiceBuildRuntimePromptIncludesUserFile(t *testing.T) {
 	if err := os.MkdirAll(agentWorkspace, 0o755); err != nil {
 		t.Fatalf("创建 agent workspace 失败: %v", err)
 	}
-	writePromptFile(t, agentWorkspace, "USER.md", "# USER.md\n\nsetup_status: unconfigured\n\n## Setup Required\n\nThis file is the user's durable profile. It starts as a setup template.\n\nOn the first natural interaction, briefly introduce yourself and ask for the user's profile:\n\n- Name and preferred name\n- Preferred language\n- Contact / platform IDs they want remembered\n- Stable preferences worth remembering\n\nAfter the user provides enough details, replace this entire file with a configured profile. Set setup_status to configured. Do not keep this setup guide after configuration.\n\n## User Profile\n\n- Name:\n- Preferred name:\n- Preferred language:\n- Contact / platform IDs:\n\n## Preferences\n\n- Reply style:\n- Disliked phrases:\n- Current focus:\n\n## After Setup\n\nReplace this template instead of appending below it.\n")
+	writePromptFile(t, agentWorkspace, "USER.md", "# USER.md\n\nsetup_status: unconfigured\n\n## Setup Required\n\nThis file is the user's durable profile. It starts as a setup template.\n\nOn the first natural interaction, briefly introduce yourself and ask for the user's profile:\n\n- Name and preferred name\n- Preferred language\n- Contact / platform IDs\n- Stable collaboration preferences\n\nAfter the user provides enough details, replace this entire file with a configured profile. Set setup_status to configured. Do not keep this setup guide after configuration.\n\n## User Profile\n\n- Name:\n- Preferred name:\n- Preferred language:\n- Contact / platform IDs:\n\n## Preferences\n\n- Reply style:\n- Disliked phrases:\n- Current focus:\n\n## After Setup\n\nReplace this template instead of appending below it.\n")
 
 	service := agentsvc.NewService(config.Config{
 		DefaultAgentID: "nexus",
@@ -315,17 +314,17 @@ func TestServiceBuildRuntimePromptIncludesMainAgentDefaultPolicy(t *testing.T) {
 	assertPromptContains(t, prompt, "I do not need to be a person to help")
 	assertPromptContains(t, prompt, "You coordinate from the main chat, but you are not a Room member")
 	assertPromptContains(t, prompt, "call `AskUserQuestion` so Nexus can show the native interaction")
-	assertPromptContains(t, prompt, "Memory files: `USER.md`")
-	assertPromptContains(t, prompt, "Before creating durable structure, check for an existing Room, DM, member, skill, memory, or scheduled task")
+	assertPromptContains(t, prompt, "Before creating durable structure, check for an existing Room, DM, member, file, or scheduled task")
 	assertPromptContains(t, prompt, "use `WebSearch` and `WebFetch` as a pair")
 	assertPromptContains(t, prompt, "Do not rely on search snippets alone")
 	assertPromptContains(t, prompt, "Use `nexus-manager` for members, Rooms, DMs, workspaces, and skills")
-	assertPromptContains(t, prompt, "Use `memory-manager` for context retrieval")
 	assertPromptContains(t, prompt, "Use `scheduled-task-manager` and `nexus_automation` tools")
 	assertPromptContains(t, prompt, "Do not narrate the user's input as an event")
 	assertPromptContains(t, prompt, `Never say phrases like "用户输入了一个..."`)
 	assertPromptContains(t, prompt, "setup_status: configured")
-	assertPromptContains(t, prompt, "Prefer restoring existing Rooms before creating duplicates")
+	if strings.Contains(prompt, "Prefer restoring existing Rooms before creating duplicates") || strings.Contains(prompt, "Memory files:") || strings.Contains(prompt, "The runtime loads `MEMORY.md`") {
+		t.Fatalf("主智能体产品侧 prompt 不应注入 memory 文案或 MEMORY.md 内容: %s", prompt)
+	}
 	if strings.Contains(prompt, "main-agent") || strings.Contains(prompt, "This prompt is internal") || strings.Contains(prompt, "editable context") {
 		t.Fatalf("主智能体默认提示词不应保留解释性 main-agent 文案: %s", prompt)
 	}

@@ -16,7 +16,7 @@ var defaultWorkspaceTemplates = map[string]string{
 - Keep file and shell work inside WORKING DIRECTORY unless the user explicitly gives another safe path.
 - Inspect the real source of truth before making claims about files, logs, databases, APIs, tools, or prior work.
 - Use NEXUSCTL_COMMAND_PATH for Nexus CLI work when it is available. Do not search for cmd/nexusctl or construct go run ./cmd/nexusctl manually.
-- Do not invent facts, memories, tool results, files, links, or completed actions.
+- Do not invent facts, tool results, files, links, or completed actions.
 - If a request is ambiguous but inspectable, inspect first. Ask only when acting would be risky.
 `,
 	"user": `# USER.md
@@ -31,8 +31,8 @@ On the first natural interaction, briefly introduce yourself and ask for the use
 
 - Name and preferred name
 - Preferred language
-- Contact / platform IDs they want remembered
-- Stable preferences worth remembering
+- Contact / platform IDs
+- Stable collaboration preferences
 
 After the user provides enough details, replace this entire file with a configured profile. Set setup_status to configured. Do not keep this setup guide after configuration.
 
@@ -52,28 +52,6 @@ After the user provides enough details, replace this entire file with a configur
 ## After Setup
 
 Replace this template instead of appending below it.
-`,
-	"memory": `# MEMORY.md
-
-## Long-Term Memory
-
-Use this file for durable, high-signal memory about this agent's work. Keep it concise and reviewable. Leave it mostly empty until the user or agent has something stable to preserve.
-
-## User Preferences
-
--
-
-## Stable Constraints
-
--
-
-## Decisions
-
--
-
-## People And Projects
-
--
 `,
 	"soul": `# SOUL.md
 
@@ -107,27 +85,4 @@ Use this file for durable, high-signal memory about this agent's work. Keep it c
 
 var mainAgentWorkspaceTemplates = map[string]string{
 	"user": defaultWorkspaceTemplates["user"],
-	"memory": `# MEMORY.md
-
-## Long-Term Memory
-
-Use this file for durable, high-signal routing and collaboration memory only.
-
-## Stable Facts
-
-- The user expects Nexus on the home page to be the only system-level agent.
-- Nexus should organize collaboration, not replace Rooms as the execution container.
-
-## Routing Memory
-
--
-
-## User Preferences
-
--
-
-## Decisions
-
--
-`,
 }

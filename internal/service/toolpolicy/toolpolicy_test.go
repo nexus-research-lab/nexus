@@ -86,7 +86,7 @@ func TestManagedGoalPermissionOnlyApprovesGoalManagerSkill(t *testing.T) {
 	if !IsManagedGoalSkillRequest("Skill", map[string]any{"name": "goal-manager"}) {
 		t.Fatal("expected goal-manager Skill request to be managed")
 	}
-	if IsManagedGoalSkillRequest("Skill", map[string]any{"name": "memory-manager"}) {
+	if IsManagedGoalSkillRequest("Skill", map[string]any{"name": "imagegen"}) {
 		t.Fatal("did not expect unrelated Skill request to be managed")
 	}
 }

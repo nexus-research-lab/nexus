@@ -10,7 +10,6 @@ import (
 var workspaceFiles = map[string]string{
 	"agents": "AGENTS.md",
 	"user":   "USER.md",
-	"memory": "MEMORY.md",
 	"soul":   "SOUL.md",
 	"tools":  "TOOLS.md",
 }

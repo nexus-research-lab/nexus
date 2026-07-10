@@ -46,9 +46,6 @@ func TestServiceImportsAndInstallsSkill(t *testing.T) {
 	if err != nil {
 		t.Fatalf("读取 agent 技能失败: %v", err)
 	}
-	if !containsSkill(items, "memory-manager") {
-		t.Fatalf("系统托管 skill 未暴露: %+v", items)
-	}
 	if !containsSkill(items, "imagegen") {
 		t.Fatalf("图片生成系统 skill 未暴露: %+v", items)
 	}

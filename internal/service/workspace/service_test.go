@@ -38,12 +38,12 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	if !containsWorkspacePath(files, "AGENTS.md") {
 		t.Fatalf("初始化模板未生成 AGENTS.md: %+v", files)
 	}
-	for _, expectedPath := range []string{"USER.md", "MEMORY.md", "SOUL.md", "TOOLS.md"} {
+	for _, expectedPath := range []string{"USER.md", "SOUL.md", "TOOLS.md"} {
 		if !containsWorkspacePath(files, expectedPath) {
 			t.Fatalf("初始化模板未生成 %s: %+v", expectedPath, files)
 		}
 	}
-	for _, unexpectedPath := range []string{"RUNBOOK.md"} {
+	for _, unexpectedPath := range []string{"MEMORY.md", "RUNBOOK.md"} {
 		if containsWorkspacePath(files, unexpectedPath) {
 			t.Fatalf("普通 agent 不应默认生成 %s: %+v", unexpectedPath, files)
 		}

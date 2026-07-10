@@ -79,15 +79,6 @@ func EnsureInitialized(
 		}
 	}
 
-	memoryReadmePath := filepath.Join(root, "memory", "README.md")
-	if _, err := os.Stat(memoryReadmePath); os.IsNotExist(err) {
-		if err = os.WriteFile(memoryReadmePath, []byte("# memory/\n\nDaily notes, summaries, research fragments, temporary conclusions, and reusable memory assets live here.\n"), 0o644); err != nil {
-			return err
-		}
-	} else if err != nil {
-		return err
-	}
-
 	for _, skillName := range retiredBaseSkillNames {
 		if err := UndeploySkill(root, skillName); err != nil {
 			return err

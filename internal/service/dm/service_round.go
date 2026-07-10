@@ -117,8 +117,6 @@ func (r *roundRunner) run(ctx context.Context) {
 	r.recordGoalContinuationProgress(result)
 	if result.CompletedByAssistant {
 		r.recordTerminalAssistantUsage(finalAssistant)
-		sessionID := sessionIDString(r.session) // snapshot before goroutine to avoid data race
-		go r.commitMemoryTurn(sessionID)
 	}
 	r.service.runtime.MarkRoundFinished(r.sessionKey, r.roundID)
 	r.refreshSessionMetaAfterRoundFinished()

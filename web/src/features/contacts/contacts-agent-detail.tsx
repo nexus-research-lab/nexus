@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   Album,
-  Brain,
   Handshake,
   MessageSquareText,
   ToolCase,
@@ -15,7 +14,6 @@ import {
 import { AgentPrivateDomainView } from "@/features/agents/private-domain/agent-private-domain-view";
 import { AgentOptionsEditor } from "@/features/agents/options/agent-options-editor";
 import type { TabKey } from "@/features/agents/options/components/agent-options-nav";
-import { ContactsAgentMemoryTab } from "@/features/contacts/contacts-agent-memory-tab";
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiAgentAvatar } from "@/shared/ui/avatar";
@@ -49,7 +47,7 @@ interface ContactsAgentDetailProps {
   ) => Promise<AgentNameValidationResult>;
 }
 
-type ContactDetailTabKey = TabKey | "private_domain" | "memory";
+type ContactDetailTabKey = TabKey | "private_domain";
 
 /** 侧边栏联系人进入的内嵌 Agent 页面。 */
 export function ContactsAgentDetail({
@@ -70,7 +68,6 @@ export function ContactsAgentDetail({
   const configTabs = useMemo(
     () => [
       { key: "private_domain" as ContactDetailTabKey, label: "联络", icon: Handshake },
-      { key: "memory" as ContactDetailTabKey, label: "记忆", icon: Brain },
       { key: "identity" as TabKey, label: t("agent_options.nav.identity"), icon: UserPen },
       { key: "advanced" as TabKey, label: t("agent_options.nav.tools"), icon: ToolCase },
       { key: "skills" as TabKey, label: t("agent_options.nav.skills"), icon: Album },
@@ -176,8 +173,6 @@ export function ContactsAgentDetail({
 
       {activeTab === "private_domain" ? (
         <AgentPrivateDomainView agent={agent} />
-      ) : activeTab === "memory" ? (
-        <ContactsAgentMemoryTab agent={agent} />
       ) : (
         <AgentOptionsEditor
           activeTab={activeTab}
