@@ -18,6 +18,7 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { WorkspaceConversationTabs } from "@/shared/ui/workspace/controls/workspace-conversation-tabs";
 import { RoomSurfaceTabKey } from "@/types/conversation/room-surface";
 import { RoomConversationView } from "@/types/conversation/conversation";
+import { useSidebarStore } from "@/store/sidebar";
 import { CONVERSATION_TOUR_ANCHORS } from "../room-tour";
 
 interface DmConversationHeaderProps {
@@ -48,6 +49,7 @@ const DmConversationHeaderView = memo(({
   onCreateConversation: onCreateConversation,
 }: DmConversationHeaderProps) => {
   const { t } = useI18n();
+  const widePanelCollapsed = useSidebarStore((state) => state.wide_panel_collapsed);
   const moreButtonRef = useRef<HTMLButtonElement>(null);
   const [isMoreOpen, setIsMoreOpen] = useState(false);
   const headerTitle = currentAgentName?.trim() || t("room.untitled_dm");
@@ -77,7 +79,6 @@ const DmConversationHeaderView = memo(({
   return (
     <WorkspaceSurfaceHeader
       activeTab={activeTab}
-      badge="DM"
       density="compact"
       leading={<UiAgentAvatar avatar={currentAgentAvatar} className="h-full w-full border-0 shadow-none" name={headerTitle} size="sm" />}
       onChangeTab={onChangeTab}
@@ -85,7 +86,7 @@ const DmConversationHeaderView = memo(({
       dismissActiveTabLabel={t("common.close")}
       tabsLeading={conversationTabs}
       tabs={dmTabs}
-      title={headerTitle}
+      title={widePanelCollapsed ? headerTitle : undefined}
       trailing={onReplayTour ? (
         <div className="flex items-center">
           <button

@@ -53,8 +53,8 @@ export const capabilityItems: LandingCapabilityItem[] = [
   },
   {
     title: "Memory",
-    copy: "Long-term context that can be reviewed and curated.",
-    meta: "candidate · promoted · ignored",
+    copy: "Runtime-managed long-term context stored as workspace files.",
+    meta: "MEMORY.md · topics · auto recall",
     Icon: Brain,
   },
 ];

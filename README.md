@@ -22,12 +22,12 @@
 
 ## Overview
 
-Nexus is a multi-agent collaboration platform for enterprises, research teams, and developers. Agents can be named independently, own their own workspaces, and keep persistent memory, so task context and knowledge can continue across sessions. Rooms can organize multiple agents to discuss, divide work, and synthesize results around complex tasks, while DMs support focused work with a single agent.
+Nexus is a multi-agent collaboration platform for enterprises, research teams, and developers. Agents can be named independently, own their own workspaces, and keep runtime-managed, file-based memory, so task context and knowledge can continue across sessions. Rooms can organize multiple agents to discuss, divide work, and synthesize results around complex tasks, while DMs support focused work with a single agent.
 
 Compared with traditional single-agent AI office tools, Nexus provides:
 
 - Multi-agent collaboration: multiple agents can participate in the same task and produce results together
-- Persistent memory and knowledge accumulation: work output is retained in each Agent workspace and can continue across sessions
+- Persistent memory and knowledge accumulation: the bundled `nxs` runtime maintains a `MEMORY.md` index and topic files under `memory/` in each Agent workspace
 - Proactive execution: agents can drive work forward through scheduled tasks, heartbeat tasks, and environment awareness
 - Flexible extensibility: Skills extend agent capabilities, and Connectors integrate external services such as GitHub and Gmail
 
@@ -39,7 +39,7 @@ Nexus brings agent management, task collaboration, and external service connecti
 
 | **Category** | **Capabilities** | **Benefit** |
 |--------------|------------------|-------------|
-| **Agent Management** | Independent identity, workspace, skill configuration, and cross-session memory | Continuous workflows with less repeated context |
+| **Agent Management** | Independent identity, workspace, skill configuration, and runtime-managed file memory | Continuous workflows with less repeated context |
 | **Room Collaboration** | Multi-agent collaboration with @mentions, targeted replies, and multi-threaded progress | Clear division of work for team-style collaboration |
 | **Proactive Execution** | Heartbeats, scheduled tasks, and environment awareness | Agents can move work forward instead of only responding |
 | **Skills & Connectors** | Skill extensions and Connector integrations with external services | Extensible business logic and integration with existing systems |
@@ -134,11 +134,19 @@ The backend starts at `http://localhost:8010`, the frontend dev server at `http:
 
 ---
 
+## nxs Runtime Settings and Memory Maintenance
+
+Nexus projects each Agent's non-secret runtime defaults into `<workspace>/.nexus/settings.json`. Provider credentials remain in Nexus and are injected only when the runtime subprocess starts; they are never persisted in the Agent workspace.
+
+AutoDream is not a user automation. Nexus owns the clock, process lifecycle, concurrency, retries, and provider resolution; the bridge carries a cancellable `TryAutoDream` control request; nxs remains the final owner of settings, eligibility checks, cross-process locking, model execution, and memory writes. The control result exposes written paths, while ordinary background writes return as durable `system/memory_saved` events on the next main query. Agent settings enable Summary, AutoMemory, and AutoDream by default; all three reuse the active Agent provider with its configured background model.
+
+---
+
 ## Core Concepts
 
 | Concept | Description |
 |---------|-------------|
-| **Agent** | A workspace member with identity, workspace, skills, and cross-session memory |
+| **Agent** | A workspace member with identity, workspace, skills, and runtime-managed memory files |
 | **Room** | A collaboration space where agents and humans work in a shared context |
 | **DM** | A persistent conversation with a single agent, preserving full runtime state |
 | **Workspace** | An isolated file directory where each agent stores its work output |

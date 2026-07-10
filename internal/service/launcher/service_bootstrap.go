@@ -56,6 +56,9 @@ func (s *Service) Bootstrap(ctx context.Context) (BootstrapResponse, error) {
 			return BootstrapResponse{}, listErr
 		}
 		conversationItems = buildBootstrapConversations(sessions, roomTypeByID)
+		if previewErr := s.attachLatestReplyPreviews(ctx, conversationItems); previewErr != nil {
+			return BootstrapResponse{}, previewErr
+		}
 	}
 
 	return BootstrapResponse{
@@ -63,6 +66,30 @@ func (s *Service) Bootstrap(ctx context.Context) (BootstrapResponse, error) {
 		Rooms:         roomItems,
 		Conversations: conversationItems,
 	}, nil
+}
+
+func (s *Service) attachLatestReplyPreviews(
+	ctx context.Context,
+	items []BootstrapConversation,
+) error {
+	seenRoomIDs := make(map[string]struct{}, len(items))
+	for index := range items {
+		roomID := strings.TrimSpace(items[index].RoomID)
+		if roomID == "" {
+			continue
+		}
+		if _, exists := seenRoomIDs[roomID]; exists {
+			continue
+		}
+		seenRoomIDs[roomID] = struct{}{}
+
+		preview, err := s.session.GetSessionLatestReplyPreview(ctx, items[index].SessionKey)
+		if err != nil {
+			return err
+		}
+		items[index].LastReplyPreview = preview
+	}
+	return nil
 }
 
 func buildBootstrapRoomMembers(

@@ -38,6 +38,11 @@ const NexusRuntimeProviderEnvName = "NEXUS_RUNTIME_PROVIDER"
 const nexusRuntimeScopeModeEnvName = "NEXUS_RUNTIME_SCOPE_MODE"
 const nexusRuntimeUserIDEnvName = "NEXUS_RUNTIME_USER_ID"
 
+const (
+	nexusAutoDreamWakeModeEnvName     = "NEXUS_AUTO_DREAM_WAKE_MODE"
+	nexusProviderManagedByHostEnvName = "NEXUS_PROVIDER_MANAGED_BY_HOST"
+)
+
 func runtimeEnvFromConfig(runtimeConfig *RuntimeConfig, runtimeKind string) map[string]string {
 	if runtimeConfig == nil {
 		return nil
@@ -128,6 +133,17 @@ func defaultRuntimeEnv() map[string]string {
 	return map[string]string{
 		nexusAutoCompactPctOverrideEnvName:     defaultClaudeAutoCompactPctOverride,
 		nexusDisableProjectInstructionsEnvName: "1",
+	}
+}
+
+// nxsHostManagedRuntimeEnv 声明 Nexus 是 provider 路由和 AutoDream 唤醒的唯一宿主。
+func nxsHostManagedRuntimeEnv(runtimeKind string) map[string]string {
+	if !runtimeProfileForKind(runtimeKind).isNXS() {
+		return nil
+	}
+	return map[string]string{
+		nexusAutoDreamWakeModeEnvName:     "host",
+		nexusProviderManagedByHostEnvName: "1",
 	}
 }
 

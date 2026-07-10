@@ -95,7 +95,7 @@ function HeroSection() {
           </div>
           <p className="landing-hero-line">Agent work, in one calm workspace.</p>
           <p className="landing-hero-copy">
-            Rooms, DMs, skills, connectors, memory, schedules, and workspace files share one operating surface.
+            Rooms, DMs, skills, connectors, runtime-managed memory, schedules, and workspace files share one operating surface.
           </p>
         </div>
         <HeroSignal />
@@ -153,7 +153,7 @@ function ControlSection() {
       <div className="landing-control-copy">
         <h2>Fast agents. Visible boundaries.</h2>
         <p>
-          Runtime state, permissions, memory, and scheduled tasks stay close to the conversation so
+          Runtime state, permissions, memory files, and scheduled tasks stay close to the conversation so
           automation remains reviewable.
         </p>
         <div className="landing-control-checks">

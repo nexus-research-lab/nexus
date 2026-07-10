@@ -321,6 +321,19 @@ func (p *Processor) buildVisibleSystemMessage(message *sdkprotocol.SystemMessage
 			patch,
 			message.Data,
 		), false
+	case "memory_saved":
+		if message.MemorySaved == nil {
+			return nil, false
+		}
+		metadata = cloneMap(message.MemorySaved.Additional)
+		if metadata == nil {
+			metadata = map[string]any{}
+		}
+		metadata["subtype"] = "memory_saved"
+		metadata["verb"] = strings.TrimSpace(message.MemorySaved.Verb)
+		metadata["written_paths"] = append([]string(nil), message.MemorySaved.WrittenPaths...)
+		content = memorySavedContent(message.MemorySaved.Verb)
+		explicitMessageID = "system_memory_saved_" + p.ctx.RoundID
 	case "api_retry", "api_error":
 		metadata = normalizeAPIRetryMetadata(message.Data)
 		content = firstNonEmpty(normalizeString(metadata["message"]), apiRetryDefaultMessage(metadata))
@@ -343,6 +356,14 @@ func (p *Processor) buildVisibleSystemMessage(message *sdkprotocol.SystemMessage
 	payload["metadata"] = metadata
 	messageValue := protocol.Message(payload)
 	return &messageValue, ephemeral
+}
+
+// memorySavedContent 把 runtime 动词收口成稳定的产品文案。
+func memorySavedContent(verb string) string {
+	if strings.EqualFold(strings.TrimSpace(verb), "Improved") {
+		return "长期记忆已整理"
+	}
+	return "长期记忆已保存"
 }
 
 func taskUpdatedContent(status string) string {

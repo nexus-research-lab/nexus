@@ -88,6 +88,16 @@ func (s *Server) startBackgroundServices(ctx context.Context) (func(), error) {
 		stops = append(stops, s.services.Automation.Stop)
 	}
 
+	if s.services != nil && s.services.MemoryMaintenance != nil {
+		s.api.BaseLogger().Info("启动记忆维护协调器")
+		if err := s.services.MemoryMaintenance.Start(ctx); err != nil {
+			s.api.BaseLogger().Error("启动记忆维护协调器失败", "err", err)
+			stopAll()
+			return nil, err
+		}
+		stops = append(stops, s.services.MemoryMaintenance.Stop)
+	}
+
 	if s.services != nil && s.services.Goal != nil {
 		s.api.BaseLogger().Info("启动 Goal durable resume")
 		stopGoalResume, err := s.services.Goal.StartAutoResume(ctx, newGoalContinuationDispatcher(s.services.Runtime, s.services.DM, s.services.RoomRealtime))

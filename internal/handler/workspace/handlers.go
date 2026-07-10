@@ -46,6 +46,20 @@ func (h *Handlers) HandleWorkspaceFiles(writer http.ResponseWriter, request *htt
 	h.api.WriteSuccess(writer, items)
 }
 
+// HandleWorkspaceMemory 返回 SDK 文件式记忆的工作区投影。
+func (h *Handlers) HandleWorkspaceMemory(writer http.ResponseWriter, request *http.Request) {
+	item, err := h.workspace.GetMemorySnapshot(request.Context(), chi.URLParam(request, "agent_id"))
+	if errors.Is(err, agentpkg.ErrAgentNotFound) {
+		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+		return
+	}
+	if err != nil {
+		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
+	h.api.WriteSuccess(writer, item)
+}
+
 // HandleWorkspaceFile 返回单个工作区文件。
 func (h *Handlers) HandleWorkspaceFile(writer http.ResponseWriter, request *http.Request) {
 	item, err := h.workspace.GetFile(request.Context(), chi.URLParam(request, "agent_id"), request.URL.Query().Get("path"))

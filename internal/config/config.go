@@ -48,11 +48,7 @@ type Config struct {
 	AuthSessionTTLHours            int
 	BaseSystemPrompt               string
 	MainAgentSystemPrompt          string
-	MemoryEnabled                  bool
-	MemoryAutoRecall               bool
-	MemoryAutoExtract              bool
-	MemoryMaxResults               int
-	MemoryScoreThreshold           float64
+	MemoryMaintenance              MemoryMaintenanceConfig
 	DiscordEnabled                 bool
 	DiscordBotToken                string
 	TelegramEnabled                bool
@@ -83,6 +79,13 @@ type Config struct {
 	ConnectorShopifyClientSecret   string
 }
 
+// MemoryMaintenanceConfig 描述 Nexus 唤醒 nxs 记忆维护任务的宿主策略。
+type MemoryMaintenanceConfig struct {
+	MaxConcurrent int
+	RunTimeout    time.Duration
+	SweepInterval time.Duration
+}
+
 // Address 返回 http 服务监听地址。
 func (c Config) Address() string {
 	return fmt.Sprintf("%s:%d", c.Host, c.Port)
@@ -111,49 +114,49 @@ func Load() Config {
 	}
 	workspacePath := configuredWorkspacePath(getEnv("WORKSPACE_PATH", ""))
 	return Config{
-		Host:                           getEnv("HOST", "0.0.0.0"),
-		Port:                           parseIntEnv(getEnv("PORT", "8010"), 8010),
-		Debug:                          debug,
-		ProjectName:                    getEnv("PROJECT_NAME", "nexus"),
-		LogLevel:                       logLevel,
-		LogFormat:                      logFormat,
-		LogPath:                        getEnv("LOG_PATH", "~/.nexus/logs/logger.log"),
-		LogStdout:                      mustBool(getEnv("LOG_STDOUT", "true")),
-		LogNoColor:                     mustBool(getEnv("LOG_NO_COLOR", "false")),
-		LogFileEnabled:                 mustBool(getEnv("LOG_FILE_ENABLED", "true")),
-		LogRotateDaily:                 mustBool(getEnv("LOG_ROTATE_DAILY", "true")),
-		LogMaxSizeMB:                   parseIntEnv(getEnv("LOG_MAX_SIZE_MB", "10"), 10),
-		LogMaxAgeDays:                  parseIntEnv(getEnv("LOG_MAX_AGE_DAYS", "7"), 7),
-		LogMaxBackups:                  parseIntEnv(getEnv("LOG_MAX_BACKUPS", "7"), 7),
-		LogCompress:                    mustBool(getEnv("LOG_COMPRESS", "true")),
-		MessageDebugStreamEvent:        mustBool(getEnv("MESSAGE_DEBUG_STREAM_EVENT", "false")),
-		APIPrefix:                      getEnv("API_PREFIX", "/nexus/v1"),
-		WebSocketPath:                  getEnv("WEBSOCKET_PATH", "/nexus/v1/chat/ws"),
-		DefaultAgentID:                 getEnv("DEFAULT_AGENT_ID", "nexus"),
-		DefaultTimezone:                getEnv("DEFAULT_TIMEZONE", "Asia/Shanghai"),
-		WorkspacePath:                  workspacePath,
-		CacheFileDir:                   cacheDir,
-		WebDistDir:                     getEnv("WEB_DIST_DIR", ""),
-		AppMode:                        getEnv("NEXUS_APP_MODE", ""),
-		DesktopSessionToken:            getEnv("NEXUS_DESKTOP_SESSION_TOKEN", ""),
-		SkillsAPIURL:                   getEnv("SKILLS_API_URL", "https://skills.sh"),
-		SkillsSourceURLs:               getEnv("SKILLS_SOURCE_URLS", ""),
-		SkillsDefaultSourcesEnabled:    mustBool(getEnv("SKILLS_DEFAULT_SOURCES_ENABLED", "true")),
-		SkillsAPISearchLimit:           parseIntEnv(getEnv("SKILLS_API_SEARCH_LIMIT", "20"), 20),
-		DatabaseDriver:                 getEnv("DATABASE_DRIVER", "sqlite"),
-		DatabaseURL:                    getEnv("DATABASE_URL", "~/.nexus/data/nexus.db"),
-		AccessToken:                    getEnv("ACCESS_TOKEN", ""),
-		AuthSessionCookieName:          getEnv("AUTH_SESSION_COOKIE_NAME", "nexus_session"),
-		AuthCookieSameSite:             getEnv("AUTH_COOKIE_SAMESITE", "lax"),
-		AuthCookieSecure:               mustBool(getEnv("AUTH_COOKIE_SECURE", "false")),
-		AuthSessionTTLHours:            parseIntEnv(getEnv("AUTH_SESSION_TTL_HOURS", "24"), 24),
-		BaseSystemPrompt:               getEnv("BASE_SYSTEM_PROMPT", ""),
-		MainAgentSystemPrompt:          getEnv("MAIN_AGENT_SYSTEM_PROMPT", ""),
-		MemoryEnabled:                  mustBool(getEnv("MEMORY_ENABLED", "false")),
-		MemoryAutoRecall:               mustBool(getEnv("MEMORY_AUTO_RECALL", "false")),
-		MemoryAutoExtract:              mustBool(getEnv("MEMORY_AUTO_EXTRACT", "false")),
-		MemoryMaxResults:               parseIntEnv(getEnv("MEMORY_MAX_RESULTS", "5"), 5),
-		MemoryScoreThreshold:           mustFloat(getEnv("MEMORY_SCORE_THRESHOLD", "0.08")),
+		Host:                        getEnv("HOST", "0.0.0.0"),
+		Port:                        parseIntEnv(getEnv("PORT", "8010"), 8010),
+		Debug:                       debug,
+		ProjectName:                 getEnv("PROJECT_NAME", "nexus"),
+		LogLevel:                    logLevel,
+		LogFormat:                   logFormat,
+		LogPath:                     getEnv("LOG_PATH", "~/.nexus/logs/logger.log"),
+		LogStdout:                   mustBool(getEnv("LOG_STDOUT", "true")),
+		LogNoColor:                  mustBool(getEnv("LOG_NO_COLOR", "false")),
+		LogFileEnabled:              mustBool(getEnv("LOG_FILE_ENABLED", "true")),
+		LogRotateDaily:              mustBool(getEnv("LOG_ROTATE_DAILY", "true")),
+		LogMaxSizeMB:                parseIntEnv(getEnv("LOG_MAX_SIZE_MB", "10"), 10),
+		LogMaxAgeDays:               parseIntEnv(getEnv("LOG_MAX_AGE_DAYS", "7"), 7),
+		LogMaxBackups:               parseIntEnv(getEnv("LOG_MAX_BACKUPS", "7"), 7),
+		LogCompress:                 mustBool(getEnv("LOG_COMPRESS", "true")),
+		MessageDebugStreamEvent:     mustBool(getEnv("MESSAGE_DEBUG_STREAM_EVENT", "false")),
+		APIPrefix:                   getEnv("API_PREFIX", "/nexus/v1"),
+		WebSocketPath:               getEnv("WEBSOCKET_PATH", "/nexus/v1/chat/ws"),
+		DefaultAgentID:              getEnv("DEFAULT_AGENT_ID", "nexus"),
+		DefaultTimezone:             getEnv("DEFAULT_TIMEZONE", "Asia/Shanghai"),
+		WorkspacePath:               workspacePath,
+		CacheFileDir:                cacheDir,
+		WebDistDir:                  getEnv("WEB_DIST_DIR", ""),
+		AppMode:                     getEnv("NEXUS_APP_MODE", ""),
+		DesktopSessionToken:         getEnv("NEXUS_DESKTOP_SESSION_TOKEN", ""),
+		SkillsAPIURL:                getEnv("SKILLS_API_URL", "https://skills.sh"),
+		SkillsSourceURLs:            getEnv("SKILLS_SOURCE_URLS", ""),
+		SkillsDefaultSourcesEnabled: mustBool(getEnv("SKILLS_DEFAULT_SOURCES_ENABLED", "true")),
+		SkillsAPISearchLimit:        parseIntEnv(getEnv("SKILLS_API_SEARCH_LIMIT", "20"), 20),
+		DatabaseDriver:              getEnv("DATABASE_DRIVER", "sqlite"),
+		DatabaseURL:                 getEnv("DATABASE_URL", "~/.nexus/data/nexus.db"),
+		AccessToken:                 getEnv("ACCESS_TOKEN", ""),
+		AuthSessionCookieName:       getEnv("AUTH_SESSION_COOKIE_NAME", "nexus_session"),
+		AuthCookieSameSite:          getEnv("AUTH_COOKIE_SAMESITE", "lax"),
+		AuthCookieSecure:            mustBool(getEnv("AUTH_COOKIE_SECURE", "false")),
+		AuthSessionTTLHours:         parseIntEnv(getEnv("AUTH_SESSION_TTL_HOURS", "24"), 24),
+		BaseSystemPrompt:            getEnv("BASE_SYSTEM_PROMPT", ""),
+		MainAgentSystemPrompt:       getEnv("MAIN_AGENT_SYSTEM_PROMPT", ""),
+		MemoryMaintenance: MemoryMaintenanceConfig{
+			MaxConcurrent: parseIntEnv(getEnv("MEMORY_MAINTENANCE_MAX_CONCURRENT", "2"), 2),
+			RunTimeout:    time.Duration(parseIntEnv(getEnv("MEMORY_MAINTENANCE_RUN_TIMEOUT_SECONDS", "3600"), 3600)) * time.Second,
+			SweepInterval: time.Duration(parseIntEnv(getEnv("MEMORY_MAINTENANCE_SWEEP_SECONDS", "600"), 600)) * time.Second,
+		},
 		DiscordEnabled:                 mustBool(getEnv("DISCORD_ENABLED", "true")),
 		DiscordBotToken:                getEnv("DISCORD_BOT_TOKEN", ""),
 		TelegramEnabled:                mustBool(getEnv("TELEGRAM_ENABLED", "true")),

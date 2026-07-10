@@ -230,7 +230,6 @@ function LandingWorkbenchMain() {
         header={(
           <WorkspaceSurfaceHeader
             activeTab={activeTab}
-            badge="DM"
             density="compact"
             leading={<UiAgentAvatar avatar="/icon/agent/8.png" className="h-full w-full border-0 shadow-none" name="Amy" size="sm" />}
             onChangeTab={setActiveTab}
@@ -247,7 +246,6 @@ function LandingWorkbenchMain() {
                 onSelectConversation={() => undefined}
               />
             )}
-            title="Amy"
             trailing={(
               <WorkspaceSurfaceToolbarAction>
                 <Compass className="h-3.5 w-3.5" />

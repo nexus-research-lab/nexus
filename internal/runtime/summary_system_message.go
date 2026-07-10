@@ -111,6 +111,23 @@ func SummarizeSystemMessage(message *sdkprotocol.SystemMessage) (SystemMessageSu
 				"usage":            summarizeTaskUsage(message.TaskNotification.Usage),
 			}),
 		}, true
+	case "memory_saved":
+		if message.MemorySaved == nil {
+			return SystemMessageSummary{}, false
+		}
+		content := "长期记忆已保存"
+		if strings.EqualFold(strings.TrimSpace(message.MemorySaved.Verb), "Improved") {
+			content = "长期记忆已整理"
+		}
+		return SystemMessageSummary{
+			Subtype: "memory_saved",
+			Content: content,
+			Metadata: compactMetadata(map[string]any{
+				"subtype":       "memory_saved",
+				"verb":          strings.TrimSpace(message.MemorySaved.Verb),
+				"written_paths": append([]string(nil), message.MemorySaved.WrittenPaths...),
+			}),
+		}, true
 	case "status":
 		if message.Status == nil {
 			return SystemMessageSummary{}, false

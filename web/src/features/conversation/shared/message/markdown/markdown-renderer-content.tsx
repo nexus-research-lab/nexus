@@ -31,6 +31,8 @@ interface MarkdownRendererProps {
   isStreaming?: boolean;
   mermaidShowHeader?: boolean;
   onOpenWorkspaceFile?: (path: string) => void;
+  summaryMonochrome?: boolean;
+  summaryStrongAsText?: boolean;
   workspaceAgentId?: string | null;
   variant?: "body" | "summary";
 }
@@ -41,6 +43,8 @@ export function MarkdownRendererContent({
   isStreaming: isStreaming = false,
   mermaidShowHeader: mermaidShowHeader = true,
   onOpenWorkspaceFile: onOpenWorkspaceFile,
+  summaryMonochrome: summaryMonochrome = false,
+  summaryStrongAsText: summaryStrongAsText = false,
   workspaceAgentId: workspaceAgentId,
   variant = "body",
 }: MarkdownRendererProps) {
@@ -50,18 +54,28 @@ export function MarkdownRendererContent({
   const displayedContent = useSmoothStreamingMarkdownContent(content, shouldStream);
   const markdownComponents = useMemo(
     () => variant === "summary"
-      ? createMarkdownSummaryComponents(resolveFilePath, onOpenWorkspaceFile, currentAgentId)
+      ? createMarkdownSummaryComponents(
+        resolveFilePath,
+        onOpenWorkspaceFile,
+        currentAgentId,
+        { monochrome: summaryMonochrome, strongAsText: summaryStrongAsText },
+      )
       : createMarkdownComponents(
         resolveFilePath,
         onOpenWorkspaceFile,
         currentAgentId,
         { compactMermaid: false, showMermaidHeader: mermaidShowHeader },
       ),
-    [currentAgentId, mermaidShowHeader, onOpenWorkspaceFile, resolveFilePath, variant],
+    [currentAgentId, mermaidShowHeader, onOpenWorkspaceFile, resolveFilePath, summaryMonochrome, summaryStrongAsText, variant],
   );
   const streamingMarkdownComponents = useMemo(
     () => variant === "summary"
-      ? createMarkdownSummaryComponents(resolveFilePath, onOpenWorkspaceFile, currentAgentId)
+      ? createMarkdownSummaryComponents(
+        resolveFilePath,
+        onOpenWorkspaceFile,
+        currentAgentId,
+        { monochrome: summaryMonochrome, strongAsText: summaryStrongAsText },
+      )
       : createMarkdownComponents(
         resolveFilePath,
         onOpenWorkspaceFile,
@@ -73,7 +87,7 @@ export function MarkdownRendererContent({
           streamMermaid: true,
         },
       ),
-    [currentAgentId, mermaidShowHeader, onOpenWorkspaceFile, resolveFilePath, variant],
+    [currentAgentId, mermaidShowHeader, onOpenWorkspaceFile, resolveFilePath, summaryMonochrome, summaryStrongAsText, variant],
   );
   const normalizedContent = normalizeMarkdownContent(
     displayedContent,

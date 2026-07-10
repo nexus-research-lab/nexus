@@ -22,7 +22,7 @@ interface WorkspaceSurfaceHeaderTab<TTabKey extends string> {
 }
 
 interface WorkspaceSurfaceHeaderProps<TTabKey extends string> {
-  title: string;
+  title?: string;
   badge?: string;
   density?: "default" | "compact";
   leading?: ReactNode;
@@ -70,6 +70,7 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
   const hasSecondaryRow = !usesSingleRow && (tabs.length > 0 || Boolean(tabsLeading) || Boolean(tabsTrailing));
   const compactSubtitle = density === "compact" ? subtitle : null;
   const primarySubtitle = density === "compact" ? null : subtitle;
+  const hasPrimaryText = Boolean(title) || Boolean(badge) || Boolean(titleTrailing) || Boolean(primarySubtitle);
   const renderTabsNav = (className: string, ariaLabel: string) => (
     <UiUnderlineTabs
       activeValue={activeTab}
@@ -122,38 +123,42 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
             </div>
           ) : null}
 
-          <div className="min-w-0 flex-1">
-            <div className={cn(
-              "flex min-w-0 items-center",
-              usesSingleRow ? "flex-nowrap gap-x-1.5" : "flex-wrap",
-              !usesSingleRow && "gap-x-2 gap-y-1",
-            )}>
+          {hasPrimaryText ? (
+            <div className="min-w-0 flex-1">
               <div className={cn(
-                "truncate font-black tracking-normal text-(--text-strong)",
-                density === "compact" ? "text-[18px]" : "text-[21px]",
+                "flex min-w-0 items-center",
+                usesSingleRow ? "flex-nowrap gap-x-1.5" : "flex-wrap",
+                !usesSingleRow && "gap-x-2 gap-y-1",
               )}>
-                {title}
+                {title ? (
+                  <div className={cn(
+                    "truncate font-black tracking-normal text-(--text-strong)",
+                    density === "compact" ? "text-[18px]" : "text-[21px]",
+                  )}>
+                    {title}
+                  </div>
+                ) : null}
+                {badge ? (
+                  <span className="workspace-surface-header-badge shrink-0 rounded-[5px] border border-(--divider-subtle-color) px-1.5 py-0.5 text-[9.5px] font-semibold leading-none text-(--text-soft)">
+                    {badge}
+                  </span>
+                ) : null}
+                {titleTrailing ? (
+                  <div className={cn(
+                    "min-w-0 shrink text-(--text-default)",
+                    usesSingleRow && "workspace-surface-header-single-row-title-trailing max-h-6 overflow-hidden",
+                  )}>
+                    {titleTrailing}
+                  </div>
+                ) : null}
               </div>
-              {badge ? (
-                <span className="workspace-surface-header-badge shrink-0 rounded-[5px] border border-(--divider-subtle-color) px-1.5 py-0.5 text-[9.5px] font-semibold leading-none text-(--text-soft)">
-                  {badge}
-                </span>
-              ) : null}
-              {titleTrailing ? (
-                <div className={cn(
-                  "min-w-0 shrink text-(--text-default)",
-                  usesSingleRow && "workspace-surface-header-single-row-title-trailing max-h-6 overflow-hidden",
-                )}>
-                  {titleTrailing}
+              {primarySubtitle ? (
+                <div className="mt-1 text-[12px] text-(--text-soft)">
+                  {primarySubtitle}
                 </div>
               ) : null}
             </div>
-            {primarySubtitle ? (
-              <div className="mt-1 text-[12px] text-(--text-soft)">
-                {primarySubtitle}
-              </div>
-            ) : null}
-          </div>
+          ) : null}
         </div>
 
         {usesSingleRow ? (

@@ -20,6 +20,7 @@ import (
 	imagegensvc "github.com/nexus-research-lab/nexus/internal/service/imagegen"
 	"github.com/nexus-research-lab/nexus/internal/service/launcher"
 	loopsvc "github.com/nexus-research-lab/nexus/internal/service/loops"
+	memorymaintenancesvc "github.com/nexus-research-lab/nexus/internal/service/memorymaintenance"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
@@ -32,29 +33,30 @@ import (
 
 // AppServices 表示完整应用运行所需的核心依赖容器。
 type AppServices struct {
-	DB             *sql.DB
-	Core           *CoreServices
-	Auth           *authsvc.Service
-	Provider       *providercfg.Service
-	Subscription   *subscriptionsvc.Service
-	Workspace      *workspacepkg.Service
-	Skills         *skillsvc.Service
-	Connectors     *connectorsvc.Service
-	Launcher       *launcher.Service
-	Title          *titlegen.Service
-	Usage          *usagesvc.Service
-	Preferences    *preferencessvc.Service
-	Permission     *permissionctx.Context
-	Runtime        *runtimectx.Manager
-	Channels       *channels.Router
-	ChannelControl *channels.ControlService
-	DM             *dmsvc.Service
-	Ingress        *channels.IngressService
-	RoomRealtime   *roomsvc.RealtimeService
-	Automation     *automationsvc.Service
-	Imagegen       *imagegensvc.Service
-	Goal           *goalsvc.Service
-	Loops          *loopsvc.Service
+	DB                *sql.DB
+	Core              *CoreServices
+	Auth              *authsvc.Service
+	Provider          *providercfg.Service
+	Subscription      *subscriptionsvc.Service
+	Workspace         *workspacepkg.Service
+	Skills            *skillsvc.Service
+	Connectors        *connectorsvc.Service
+	Launcher          *launcher.Service
+	Title             *titlegen.Service
+	Usage             *usagesvc.Service
+	Preferences       *preferencessvc.Service
+	Permission        *permissionctx.Context
+	Runtime           *runtimectx.Manager
+	Channels          *channels.Router
+	ChannelControl    *channels.ControlService
+	DM                *dmsvc.Service
+	Ingress           *channels.IngressService
+	RoomRealtime      *roomsvc.RealtimeService
+	Automation        *automationsvc.Service
+	Imagegen          *imagegensvc.Service
+	Goal              *goalsvc.Service
+	Loops             *loopsvc.Service
+	MemoryMaintenance *memorymaintenancesvc.Coordinator
 }
 
 // NewAppServices 创建完整应用依赖容器。
@@ -141,6 +143,8 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	automationService.SetRuntimeSessionCloser(runtimeManager)
 	automationService.SetProviderResolver(providerService)
 	automationService.SetLogger(logger.With("component", "automation"))
+	memoryMaintenance := memorymaintenancesvc.NewCoordinator(cfg, core.Agent, providerService, preferencesService)
+	memoryMaintenance.SetLogger(logger.With("component", "memory.maintenance"))
 
 	// 把内置自动化、连接器、图片生成和 Room 通讯 MCP server 注入 DM/Room runtime。
 	automationBuilder := newAutomationMCPBuilder(automationService, core.Agent, cfg.DefaultTimezone)
@@ -161,29 +165,30 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	warnIfProviderMissing(providerService, logger)
 
 	return &AppServices{
-		DB:             db,
-		Core:           core,
-		Auth:           authService,
-		Provider:       providerService,
-		Subscription:   subscriptionService,
-		Preferences:    preferencesService,
-		Workspace:      workspaceService,
-		Skills:         skillService,
-		Connectors:     connectorService,
-		Launcher:       launcherService,
-		Title:          titleService,
-		Usage:          usageService,
-		Permission:     permission,
-		Runtime:        runtimeManager,
-		Channels:       channelRouter,
-		ChannelControl: channelControl,
-		DM:             dmService,
-		Ingress:        ingressService,
-		RoomRealtime:   roomRealtime,
-		Automation:     automationService,
-		Imagegen:       imagegenService,
-		Goal:           goalService,
-		Loops:          loopService,
+		DB:                db,
+		Core:              core,
+		Auth:              authService,
+		Provider:          providerService,
+		Subscription:      subscriptionService,
+		Preferences:       preferencesService,
+		Workspace:         workspaceService,
+		Skills:            skillService,
+		Connectors:        connectorService,
+		Launcher:          launcherService,
+		Title:             titleService,
+		Usage:             usageService,
+		Permission:        permission,
+		Runtime:           runtimeManager,
+		Channels:          channelRouter,
+		ChannelControl:    channelControl,
+		DM:                dmService,
+		Ingress:           ingressService,
+		RoomRealtime:      roomRealtime,
+		Automation:        automationService,
+		Imagegen:          imagegenService,
+		Goal:              goalService,
+		Loops:             loopService,
+		MemoryMaintenance: memoryMaintenance,
 	}
 }
 

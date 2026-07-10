@@ -9,15 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added per-Agent non-secret nxs settings projection, including enabled Summary/AutoMemory/AutoDream defaults, and a host memory-maintenance coordinator that resolves owner provider credentials and background models before waking AutoDream.
+- Preserved native `system/memory_saved` events and AutoDream written paths through the bridge and Nexus message projection.
+- Added a file-backed Memory view to Agent contact details, with `MEMORY.md` index navigation, typed topic memories, daily logs, index coverage, freshness warnings, search, and direct Markdown editing.
 - Added a capability-driven subagent inspector for DM and Room conversations, with active/completed task visibility, multi-round transcripts, stopping, follow-up messaging, same-task resume, and explicit `nxs`/Claude Code support boundaries.
 
 ### Changed
 
-- Moved long-term memory out of the product backend and into the SDK subprocess: removed the HTTP memory routes, the `nexusctl memory` command, the `memory-manager` skill, the agent Memory page and contact memory tab, and the workspace `MEMORY.md` template. Default memory config flags (`MEMORY_ENABLED`, `MEMORY_AUTO_RECALL`, `MEMORY_AUTO_EXTRACT`) now ship disabled. The DM/Room runtime no longer injects or commits memory context; recall and storage are owned by the runtime subprocess.
+- Moved long-term memory fully out of the product backend and into the SDK subprocess: removed the legacy memory engine, configuration, HTTP/CLI contracts, entry-management surfaces, and product-side DM/Room injection. The runtime now owns file-based recall and storage through each Agent workspace's `MEMORY.md` index and `memory/` topic directory, while Nexus only projects and edits the underlying workspace files.
 - Unified Room and DM auxiliary panels on one shared width policy, removed per-surface headers, and moved panel dismissal onto the active surface tab beside its label.
 
 ### Fixed
 
+- Hid redundant Agent/Room names and the DM badge from desktop chat headers while the sidebar is expanded, restored names when it is collapsed, and removed the persistent processed-duration label below the conversation navigator ruler.
+- Changed chat sidebar subtitles to show the latest visible reply from each Room's newest session, rendered as compact single-line Markdown instead of repeating the conversation title or exposing raw Markdown markers.
 - Preserved subagent thread identity and progress metadata across SDK events, routed Room task controls to the owning Agent runtime, and projected Claude Code child transcript symlinks as full conversation threads instead of raw JSONL output.
 - Unified conversation, capability, settings, operations, and contact headers on the shared fixed 52px single-row layout, preserving core tabs in narrow containers and restoring aligned sidebar separators.
 - Moved conversation task progress out of the fixed header into a compact, low-radius process list that defaults to a minimal collapsed control and expands on demand.

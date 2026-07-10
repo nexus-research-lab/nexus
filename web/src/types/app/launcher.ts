@@ -50,6 +50,7 @@ export interface LauncherConversationSummary {
   channel_type?: string;
   chat_type?: "dm" | "group" | string;
   title: string;
+  last_reply_preview?: string;
   status?: string;
   is_active?: boolean;
   last_activity: string;

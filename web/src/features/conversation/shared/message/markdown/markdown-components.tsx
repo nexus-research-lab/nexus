@@ -27,6 +27,11 @@ interface CreateMarkdownComponentsOptions {
   streamMermaid?: boolean;
 }
 
+interface CreateMarkdownSummaryComponentsOptions {
+  monochrome?: boolean;
+  strongAsText?: boolean;
+}
+
 const URL_TRAILING_PUNCTUATION_PATTERN = /[.,;:!?，。；：！？、]+$/u;
 const ALLOWED_MARKDOWN_LINK_PROTOCOLS = new Set(["http:", "https:", "mailto:"]);
 
@@ -351,13 +356,17 @@ export function createMarkdownSummaryComponents(
   resolveFilePath: ResolveWorkspaceFilePath,
   onOpenWorkspaceFile?: (path: string, workspaceAgentId?: string | null) => void,
   currentAgentId?: string | null,
+  options: CreateMarkdownSummaryComponentsOptions = {},
 ): Components {
   const baseComponents = createMarkdownComponents(resolveFilePath, onOpenWorkspaceFile, currentAgentId);
+  const headingClassName = options.monochrome
+    ? `inline ${options.strongAsText ? "font-normal" : "font-semibold"} text-inherit`
+    : "inline font-semibold text-foreground";
 
   return {
     ...baseComponents,
-    // 主时间线摘要需要保留 Markdown 的基础语义，但必须压成单行内联展示，
-    // 不能再沿用正文里的块级布局，否则会把占位卡撑高并造成跳动。
+    // 摘要需要保留 Markdown 的基础语义，但必须压成内联展示，
+    // 不能再沿用正文里的块级布局，否则会把列表或占位卡撑高。
     p({ children }) {
       return <span className="inline min-w-0 max-w-full wrap-anywhere">{children}</span>;
     },
@@ -371,16 +380,63 @@ export function createMarkdownSummaryComponents(
       return <span className="inline min-w-0 max-w-full wrap-anywhere [&_p]:inline [&_p]:m-0">• {children} </span>;
     },
     blockquote({ children }) {
-      return <span className="inline min-w-0 max-w-full italic text-(--text-muted) wrap-anywhere">{children}</span>;
+      return (
+        <span className={options.monochrome
+          ? "inline min-w-0 max-w-full italic text-inherit wrap-anywhere"
+          : "inline min-w-0 max-w-full italic text-(--text-muted) wrap-anywhere"}
+        >
+          {children}
+        </span>
+      );
     },
+    strong({ children }) {
+      return options.strongAsText ? <span>{children}</span> : <strong>{children}</strong>;
+    },
+    a({ children }) {
+      return <span className={options.monochrome ? "inline text-inherit" : "inline text-primary"}>{children}</span>;
+    },
+    code({ children }) {
+      const value = String(children).replace(/\s+/g, " ").trim();
+      return (
+        <span className={options.monochrome
+          ? "message-cjk-code-font inline text-[0.9em] text-inherit"
+          : "message-cjk-code-font mx-0.5 inline rounded-[4px] bg-primary/10 px-1 text-[0.9em] text-primary"}
+        >
+          {value}
+        </span>
+      );
+    },
+    img({ alt }) {
+      return alt ? <span className={options.monochrome ? "inline text-inherit" : "inline text-(--text-muted)"}>{alt}</span> : null;
+    },
+    ...(options.monochrome ? {
+      kbd({ children }) {
+        return <span className="inline text-inherit">{children}</span>;
+      },
+      mark({ children }) {
+        return <span className="inline text-inherit">{children}</span>;
+      },
+    } satisfies Components : {}),
     h1({ children }) {
-      return <span className="inline font-semibold text-foreground">{children}</span>;
+      return <span className={headingClassName}>{children}</span>;
     },
     h2({ children }) {
-      return <span className="inline font-semibold text-foreground">{children}</span>;
+      return <span className={headingClassName}>{children}</span>;
     },
     h3({ children }) {
-      return <span className="inline font-semibold text-foreground">{children}</span>;
+      return <span className={headingClassName}>{children}</span>;
+    },
+    h4({ children }) {
+      return <span className={headingClassName}>{children}</span>;
+    },
+    h5({ children }) {
+      return <span className={headingClassName}>{children}</span>;
+    },
+    h6({ children }) {
+      return <span className={headingClassName}>{children}</span>;
+    },
+    hr() {
+      return <span className={options.monochrome ? "inline text-inherit" : "inline text-(--text-soft)"}> · </span>;
     },
     table({ children }) {
       return <span className="inline min-w-0 max-w-full wrap-anywhere">{children}</span>;

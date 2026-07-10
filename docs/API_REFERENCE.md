@@ -11,18 +11,17 @@
 - [4. Agent 管理](#4-agent-管理)
 - [5. Session 会话与消息](#5-session-会话与消息)
 - [6. Workspace 工作区](#6-workspace-工作区)
-- [7. Memory 记忆](#7-memory-记忆)
-- [8. Skill 技能](#8-skill-技能)
-- [9. Room 房间与对话](#9-room-房间与对话)
-- [10. Launcher 启动器](#10-launcher-启动器)
-- [11. Capability 能力总览与 Loop](#11-capability-能力总览与-loop)
-- [12. Connector 连接器](#12-connector-连接器)
-- [13. Channel 通道与配对](#13-channel-通道与配对)
-- [14. Scheduled Tasks 定时任务](#14-scheduled-tasks-定时任务)
-- [15. Heartbeat 心跳自动化](#15-heartbeat-心跳自动化)
-- [16. Goal 目标](#16-goal-目标)
-- [17. Admin 订阅管理](#17-admin-订阅管理)
-- [18. WebSocket 实时通信](#18-websocket-实时通信)
+- [7. Skill 技能](#7-skill-技能)
+- [8. Room 房间与对话](#8-room-房间与对话)
+- [9. Launcher 启动器](#9-launcher-启动器)
+- [10. Capability 能力总览与 Loop](#10-capability-能力总览与-loop)
+- [11. Connector 连接器](#11-connector-连接器)
+- [12. Channel 通道与配对](#12-channel-通道与配对)
+- [13. Scheduled Tasks 定时任务](#13-scheduled-tasks-定时任务)
+- [14. Heartbeat 心跳自动化](#14-heartbeat-心跳自动化)
+- [15. Goal 目标](#15-goal-目标)
+- [16. Admin 订阅管理](#16-admin-订阅管理)
+- [17. WebSocket 实时通信](#17-websocket-实时通信)
 - [附：路径前缀与别名](#附路径前缀与别名)
 
 ---
@@ -203,6 +202,7 @@ JSONL 的 `output_file`，服务端也会将它投影成与主会话一致的富
 | 方法 | 路径 | 说明 | 请求体 / 参数 | 前端函数 |
 |------|------|------|---------------|---------|
 | GET | `/agents/{agent_id}/workspace/files` | 文件树 | — | `getWorkspaceFilesApi` |
+| GET | `/agents/{agent_id}/workspace/memory` | SDK 文件式记忆投影（索引、主题、日志及 frontmatter 元数据） | — | `getAgentMemorySnapshotApi` |
 | GET | `/agents/{agent_id}/workspace/file` | 读文件内容 | query: `path` | `getWorkspaceFileContentApi` |
 | PUT | `/agents/{agent_id}/workspace/file` | 写文件内容 | `{ path, content }` | `updateWorkspaceFileContentApi` |
 | POST | `/agents/{agent_id}/workspace/upload` | 上传文件 | FormData: `file`, `path?` | `uploadWorkspaceFileApi` |
@@ -214,29 +214,11 @@ JSONL 的 `output_file`，服务端也会将它投影成与主会话一致的富
 
 桌面端调用 `reveal`；浏览器端通过 `download` 接口下载文件。
 
----
-
-## 7. Memory 记忆
-
-记忆接口同时提供 **Agent 作用域**（`/agents/{agent_id}/memory/*`）与 **用户全局作用域**（`/memory/*`）两套等价路径。
-
-| 方法 | 路径（Agent / 全局） | 说明 | 前端函数 |
-|------|----------------------|------|---------|
-| GET | `.../memory/items` | 记忆条目列表（query: `limit`,`status`,`scope`） | `listMemoryItemsApi` / `listUserMemoryItemsApi` |
-| GET | `.../memory/search` | 搜索（query: `q`,`limit`） | `searchMemoryItemsApi` / `searchUserMemoryItemsApi` |
-| POST | `.../memory/recall` | 召回注入 | — |
-| POST | `.../memory/items` | 新增条目 | `addUserMemoryItemApi` |
-| PATCH | `.../memory/items/{entry_id}` | 更新条目 | `updateUserMemoryItemApi` |
-| DELETE | `.../memory/items/{entry_id}` | 删除条目 | `deleteMemoryItemApi` / `deleteUserMemoryItemApi` |
-| POST | `.../memory/items/{entry_id}/promote` | 提升为持久记忆（body: `{ target }`） | `promoteUserMemoryItemApi` |
-| POST | `.../memory/items/{entry_id}/ignore` | 忽略（body: `{ note }`） | `ignoreUserMemoryItemApi` |
-| GET | `.../memory/stats` | 统计 | `getMemoryStatsApi` / `getUserMemoryStatsApi` |
-| POST | `.../memory/cleanup` | 清理 | `cleanupMemoryApi` / `cleanupUserMemoryApi` |
-| GET | `.../memory/session-summary` | 会话摘要 | — |
+长期记忆由内置 `nxs` SDK 子进程维护为 Agent 工作区中的 `MEMORY.md` 索引与 `memory/` 主题文件。Nexus 不参与提取或召回；只提供只读工作区投影供 Web 展示，正文编辑仍使用通用工作区文件接口。
 
 ---
 
-## 8. Skill 技能
+## 7. Skill 技能
 
 ### 全局技能市场
 
@@ -260,7 +242,7 @@ JSONL 的 `output_file`，服务端也会将它投影成与主会话一致的富
 
 ---
 
-## 9. Room 房间与对话
+## 8. Room 房间与对话
 
 ### 房间管理
 
@@ -306,7 +288,7 @@ task 的控制请求由 task item 的 `host_agent_id` 路由到实际承载该 s
 
 ---
 
-## 10. Launcher 启动器
+## 9. Launcher 启动器
 
 | 方法 | 路径 | 说明 | 请求体 | 前端函数 |
 |------|------|------|--------|---------|
@@ -318,7 +300,7 @@ task 的控制请求由 task item 的 `host_agent_id` 路由到实际承载该 s
 
 ---
 
-## 11. Capability 能力总览与 Loop
+## 10. Capability 能力总览与 Loop
 
 | 方法 | 路径 | 说明 | 前端函数 |
 |------|------|------|---------|
@@ -328,7 +310,7 @@ task 的控制请求由 task item 的 `host_agent_id` 路由到实际承载该 s
 
 ---
 
-## 12. Connector 连接器
+## 11. Connector 连接器
 
 | 方法 | 路径 | 说明 | 请求体 / 参数 | 前端函数 |
 |------|------|------|---------------|---------|
@@ -347,7 +329,7 @@ task 的控制请求由 task item 的 `host_agent_id` 路由到实际承载该 s
 
 ---
 
-## 13. Channel 通道与配对
+## 12. Channel 通道与配对
 
 ### 通道配置（`/capability/channels`）
 
@@ -390,7 +372,7 @@ task 的控制请求由 task item 的 `host_agent_id` 路由到实际承载该 s
 
 ---
 
-## 14. Scheduled Tasks 定时任务
+## 13. Scheduled Tasks 定时任务
 
 定时任务同时提供 **结构化路径**（`/capability/scheduled/tasks`）与 **扁平别名**（`/scheduled/tasks`），接口等价。前端统一使用结构化路径。
 
@@ -411,7 +393,7 @@ task 的控制请求由 task item 的 `host_agent_id` 路由到实际承载该 s
 
 ---
 
-## 15. Heartbeat 心跳自动化
+## 14. Heartbeat 心跳自动化
 
 | 方法 | 路径 | 说明 | 请求体 | 前端函数 |
 |------|------|------|--------|---------|
@@ -423,7 +405,7 @@ task 的控制请求由 task item 的 `host_agent_id` 路由到实际承载该 s
 
 ---
 
-## 16. Goal 目标
+## 15. Goal 目标
 
 | 方法 | 路径 | 说明 | 请求体 | 前端函数 |
 |------|------|------|--------|---------|
@@ -445,7 +427,7 @@ task 的控制请求由 task item 的 `host_agent_id` 路由到实际承载该 s
 
 ---
 
-## 17. Admin 订阅管理
+## 16. Admin 订阅管理
 
 > 仅管理员可见。
 
@@ -475,7 +457,7 @@ task 的控制请求由 task item 的 `host_agent_id` 路由到实际承载该 s
 
 ---
 
-## 18. WebSocket 实时通信
+## 17. WebSocket 实时通信
 
 ### 连接
 
@@ -533,5 +515,4 @@ task 的控制请求由 task item 的 `host_agent_id` 路由到实际承载该 s
 
 - **API 前缀**：所有路径默认带 `/nexus/v1` 前缀。下表以外，后端还为部分能力提供等价的别名路径，前端优先使用结构化路径：
   - `/capability/scheduled/*` ↔ `/scheduled/*`（定时任务扁平别名）
-  - `/agents/{id}/memory/*` ↔ `/memory/*`（Agent 作用域 ↔ 用户全局作用域）
 - **静态资源**：`mountWebAppRoutes` 托管 Vite 构建产物，`/assets/*` 长缓存（immutable），HTML 文件 `no-cache`；非 API 路径回退到 `index.html` / `app.html` / `settings.html` / `oauth-callback.html`。

@@ -20,6 +20,7 @@ import { Agent } from "@/types/agent/agent";
 import { RoomConversationView } from "@/types/conversation/conversation";
 import { UpdateRoomParams } from "@/types/conversation/room";
 import { RoomSurfaceTabKey } from "@/types/conversation/room-surface";
+import { useSidebarStore } from "@/store/sidebar";
 
 import { CreateRoomDialog } from "@/features/conversation/room/members/create-room-dialog";
 import { CONVERSATION_TOUR_ANCHORS } from "../../room-tour";
@@ -116,6 +117,7 @@ const GroupConversationHeaderView = memo(({
   onUpdateRoom: onUpdateRoom,
 }: GroupConversationHeaderProps) => {
   const { t } = useI18n();
+  const widePanelCollapsed = useSidebarStore((state) => state.wide_panel_collapsed);
   const [isMemberListOpen, setIsMemberListOpen] = useState(false);
   const moreButtonRef = useRef<HTMLButtonElement>(null);
   const [isMoreOpen, setIsMoreOpen] = useState(false);
@@ -227,7 +229,7 @@ const GroupConversationHeaderView = memo(({
         dismissActiveTabLabel={t("common.close")}
         tabs={roomTabs}
         tabsLeading={conversationTabs}
-        title={headerTitle}
+        title={widePanelCollapsed ? headerTitle : undefined}
         trailing={trailing}
       />
 

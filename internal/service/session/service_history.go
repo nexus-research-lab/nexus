@@ -6,9 +6,12 @@ import (
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	messageutil "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
+
+const latestReplyPreviewRuneLimit = 160
 
 // GetSessionMessages 读取 session 历史消息。
 func (s *Service) GetSessionMessages(ctx context.Context, rawSessionKey string) ([]protocol.Message, error) {
@@ -32,6 +35,58 @@ func (s *Service) GetSessionMessages(ctx context.Context, rawSessionKey string) 
 		return nil, ErrSessionNotFound
 	}
 	return s.history.ReadMessages(workspacePath, *sessionValue, s.activeRoundIDs(sessionKey))
+}
+
+// GetSessionLatestReplyPreview 返回最近一条可见 assistant 回复的紧凑摘要。
+func (s *Service) GetSessionLatestReplyPreview(ctx context.Context, rawSessionKey string) (string, error) {
+	messages, err := s.GetSessionMessages(ctx, rawSessionKey)
+	if err != nil {
+		return "", err
+	}
+	return latestReplyPreview(messages), nil
+}
+
+func latestReplyPreview(messages []protocol.Message) string {
+	for index := len(messages) - 1; index >= 0; index-- {
+		item := messages[index]
+		if protocol.MessageRole(item) != "assistant" {
+			continue
+		}
+
+		resultSummary, _ := item["result_summary"].(map[string]any)
+		if replySummaryString(resultSummary["subtype"]) == "interrupted" {
+			continue
+		}
+
+		text := messageutil.ExtractAssistantDisplayText(item)
+		if text == "" {
+			text = replySummaryString(item["content"])
+		}
+		if text == "" {
+			text = replySummaryString(resultSummary["result"])
+		}
+		if preview := compactReplyPreview(text); preview != "" {
+			return preview
+		}
+	}
+	return ""
+}
+
+func compactReplyPreview(value string) string {
+	normalized := strings.Join(strings.Fields(value), " ")
+	if normalized == "" {
+		return ""
+	}
+	runes := []rune(normalized)
+	if len(runes) <= latestReplyPreviewRuneLimit {
+		return normalized
+	}
+	return string(runes[:latestReplyPreviewRuneLimit-1]) + "…"
+}
+
+func replySummaryString(value any) string {
+	text, _ := value.(string)
+	return strings.TrimSpace(text)
 }
 
 // GetSessionMessagesPage 分页读取 session 历史消息。

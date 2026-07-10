@@ -60,6 +60,9 @@ func (s *Service) listAgents(ctx context.Context, includeSkillsCount bool) ([]pr
 	if err = ensureAgentRuntimeEmotionStates(agents); err != nil {
 		return nil, err
 	}
+	if err = ensureAgentRuntimeSettings(agents); err != nil {
+		return nil, err
+	}
 	if includeSkillsCount {
 		err = enrichAgentsWithSkillsCount(agents)
 	}
@@ -85,6 +88,9 @@ func (s *Service) GetAgent(ctx context.Context, agentID string) (*protocol.Agent
 	if err = EnsureRuntimeEmotionState(agent.WorkspacePath); err != nil {
 		return nil, err
 	}
+	if err = EnsureRuntimeSettingsProjection(*agent); err != nil {
+		return nil, err
+	}
 	if err = enrichAgentWithSkillsCount(agent); err != nil {
 		return nil, err
 	}
@@ -102,6 +108,9 @@ func (s *Service) GetAgentsByIDs(ctx context.Context, agentIDs []string) ([]prot
 		return nil, err
 	}
 	if err = ensureAgentRuntimeEmotionStates(agents); err != nil {
+		return nil, err
+	}
+	if err = ensureAgentRuntimeSettings(agents); err != nil {
 		return nil, err
 	}
 	return agents, nil
@@ -123,6 +132,9 @@ func (s *Service) GetDefaultAgent(ctx context.Context) (*protocol.Agent, error) 
 	if err = EnsureRuntimeEmotionState(agent.WorkspacePath); err != nil {
 		return nil, err
 	}
+	if err = EnsureRuntimeSettingsProjection(*agent); err != nil {
+		return nil, err
+	}
 	if err = enrichAgentWithSkillsCount(agent); err != nil {
 		return nil, err
 	}
@@ -132,6 +144,15 @@ func (s *Service) GetDefaultAgent(ctx context.Context) (*protocol.Agent, error) 
 func ensureAgentRuntimeEmotionStates(agents []protocol.Agent) error {
 	for _, agentValue := range agents {
 		if err := EnsureRuntimeEmotionState(agentValue.WorkspacePath); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func ensureAgentRuntimeSettings(agents []protocol.Agent) error {
+	for _, agentValue := range agents {
+		if err := EnsureRuntimeSettingsProjection(agentValue); err != nil {
 			return err
 		}
 	}
@@ -196,6 +217,9 @@ func (s *Service) CreateAgent(ctx context.Context, request protocol.CreateReques
 	created, err := s.repository.CreateAgent(ctx, record)
 	if err != nil {
 		_ = os.RemoveAll(workspacePath)
+		return nil, err
+	}
+	if err = EnsureRuntimeSettingsProjection(*created); err != nil {
 		return nil, err
 	}
 	return created, nil
@@ -278,6 +302,9 @@ func (s *Service) UpdateAgent(ctx context.Context, agentID string, request proto
 		return nil, ErrAgentNotFound
 	}
 	if err = os.MkdirAll(updated.WorkspacePath, 0o755); err != nil {
+		return nil, err
+	}
+	if err = EnsureRuntimeSettingsProjection(*updated); err != nil {
 		return nil, err
 	}
 	if err = enrichAgentWithSkillsCount(updated); err != nil {

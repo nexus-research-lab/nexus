@@ -96,7 +96,6 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
       agents,
       agentRuntimeStatuses,
       conversations,
-      formatRunningTasksSummary: (count) => t("sidebar.running_tasks_summary", { count }),
       rooms,
       untitledRoomLabel,
     }).map((item) => {
@@ -123,7 +122,6 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
       chatUnreadTimestamps,
       conversations,
       rooms,
-      t,
       untitledRoomLabel,
     ],
   );

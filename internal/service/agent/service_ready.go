@@ -42,5 +42,8 @@ func (s *Service) ensureReady(ctx context.Context) error {
 	if err = os.MkdirAll(agent.WorkspacePath, 0o755); err != nil {
 		return err
 	}
-	return EnsureRuntimeEmotionState(agent.WorkspacePath)
+	if err = EnsureRuntimeEmotionState(agent.WorkspacePath); err != nil {
+		return err
+	}
+	return EnsureRuntimeSettingsProjection(*agent)
 }

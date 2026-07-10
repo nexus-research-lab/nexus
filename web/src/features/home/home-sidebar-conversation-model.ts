@@ -140,14 +140,12 @@ export function buildConversationItems({
   agents,
   agentRuntimeStatuses,
   conversations,
-  formatRunningTasksSummary,
   rooms,
   untitledRoomLabel,
 }: {
   agents: LauncherAgentSummary[];
   agentRuntimeStatuses: Record<string, AgentRuntimeStatus>;
   conversations: LauncherConversationSummary[];
-  formatRunningTasksSummary: (count: number) => string;
   rooms: LauncherRoomSummary[];
   untitledRoomLabel: string;
 }): SidebarConversationItem[] {
@@ -183,9 +181,7 @@ export function buildConversationItems({
       id: room.id,
       kind: isDm ? "dm" : "room",
       title,
-      summary: runningTaskCount > 0
-        ? formatRunningTasksSummary(runningTaskCount)
-        : latestRoom.title.trim(),
+      summary: latestRoom.last_reply_preview?.trim() ?? "",
       timeLabel: formatSidebarTime(lastActivityAt),
       members,
       avatar: room.avatar,

@@ -126,6 +126,37 @@ func TestProcessorAlignsAssistantSequenceWithPythonSemantics(t *testing.T) {
 	}
 }
 
+func TestProcessorPreservesMemorySavedSystemEvent(t *testing.T) {
+	processor := NewProcessor(MessageContext{
+		SessionKey: "agent:nexus:ws:dm:test",
+		AgentID:    "nexus",
+		RoundID:    "round-memory",
+	}, "sdk-session-memory")
+	output := processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeSystem,
+		System: &sdkprotocol.SystemMessage{
+			Subtype: "memory_saved",
+			MemorySaved: &sdkprotocol.MemorySavedMessage{
+				Verb:         "Saved",
+				WrittenPaths: []string{"/memory/user.md"},
+				Additional: map[string]any{
+					"subtype":       "memory_saved",
+					"verb":          "Saved",
+					"written_paths": []any{"/memory/user.md"},
+				},
+			},
+		},
+	})
+	if len(output.DurableMessages) != 1 || len(output.EphemeralMessages) != 0 {
+		t.Fatalf("output = %#v, want one durable memory event", output)
+	}
+	metadata, _ := output.DurableMessages[0]["metadata"].(map[string]any)
+	paths, ok := metadata["written_paths"].([]string)
+	if output.DurableMessages[0]["content"] != "长期记忆已保存" || !ok || len(paths) != 1 || paths[0] != "/memory/user.md" {
+		t.Fatalf("memory event = %#v", output.DurableMessages[0])
+	}
+}
+
 func TestProcessorMergesSequentialAssistantSnapshots(t *testing.T) {
 	processor := NewProcessor(MessageContext{
 		SessionKey: "agent:nexus:ws:dm:test",
