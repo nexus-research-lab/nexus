@@ -17,10 +17,10 @@ import {
 import { SessionSnapshotPayload } from "@/types/conversation/conversation";
 import { TodoItem } from "@/types/conversation/todo";
 
-import { ComposerPanel } from "@/features/conversation/shared/composer-panel";
+import { ComposerPanel } from "@/features/conversation/shared/composer/composer-panel";
 import {
   prepareWorkspaceAttachments,
-} from "@/features/conversation/shared/composer-attachments";
+} from "@/features/conversation/shared/composer/attachments/composer-attachments";
 import { ConversationErrorBubble } from "@/features/conversation/shared/conversation-error-bubble";
 import { ConversationFeed } from "@/features/conversation/shared/conversation-feed";
 import {
@@ -35,7 +35,7 @@ import { GoalPanel } from "@/features/conversation/shared/goal-panel";
 import { ProviderUnavailableBanner } from "@/features/conversation/shared/provider-unavailable-banner";
 import { ScrollToLatestButton } from "@/features/conversation/shared/scroll-to-latest-button";
 import { useConversationTimeline } from "@/features/conversation/shared/use-conversation-timeline";
-import { useConversationComposerHandlers } from "@/features/conversation/shared/use-conversation-composer-handlers";
+import { useConversationComposerHandlers } from "@/features/conversation/shared/composer/use-conversation-composer-handlers";
 import { useConversationHistoryLoader } from "@/features/conversation/shared/use-conversation-history-loader";
 import {
   useConversationSnapshotReporter,

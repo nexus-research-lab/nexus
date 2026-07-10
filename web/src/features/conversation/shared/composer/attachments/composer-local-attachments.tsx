@@ -11,7 +11,7 @@ import {
   COMPOSER_ATTACHMENT_CLASS_NAME,
   COMPOSER_ATTACHMENT_REMOVE_CLASS_NAME,
   COMPOSER_ATTACHMENT_ROW_CLASS_NAME,
-} from "./composer-styles";
+} from "../composer-styles";
 
 function getAttachmentKindLabel(kind: ComposerAttachmentKind) {
   if (kind === "image") {

@@ -16,7 +16,7 @@ import {
   isCustomProviderRecord,
   presetIsConfigurable,
   providerHasActiveConfig,
-} from "./provider-settings-model";
+} from "../provider-settings-model";
 
 interface ProviderSettingsSidebarProps {
   configuredByPreset: Map<string, ProviderConfigRecord>;

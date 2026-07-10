@@ -17,7 +17,7 @@ import {
   PROVIDER_LABEL_CLASS_NAME,
   ProviderDraft,
   formatTokenPreview,
-} from "./provider-settings-model";
+} from "../provider-settings-model";
 
 interface ProviderSettingsConfigFormProps {
   builtinEndpointFormats: ProviderPresetFormat[];

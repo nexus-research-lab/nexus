@@ -15,7 +15,7 @@ import type { ProviderConfigRecord } from "@/types/capability/provider";
 import {
   getProviderTitle,
   getUsageAgentTitle,
-} from "./provider-settings-model";
+} from "../provider-settings-model";
 
 interface ProviderDeleteUsageDialogProps {
   deleteTargetRecord: ProviderConfigRecord | null;

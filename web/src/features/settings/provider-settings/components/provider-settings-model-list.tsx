@@ -23,7 +23,7 @@ import type {
 import {
   formatCount,
   getEffectiveCapabilities,
-} from "./provider-settings-model";
+} from "../provider-settings-model";
 
 interface ProviderSettingsModelListProps {
   displayedModels: ProviderModelRecord[];

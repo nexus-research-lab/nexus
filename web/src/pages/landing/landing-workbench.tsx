@@ -25,7 +25,7 @@ import {
   COMPOSER_ACTION_BUTTON_CLASS_NAME,
   COMPOSER_PRIMARY_ACTION_BUTTON_CLASS_NAME,
   getComposerShellClassName,
-} from "@/features/conversation/shared/composer-styles";
+} from "@/features/conversation/shared/composer/composer-styles";
 import { ConversationResizeHandle } from "@/features/conversation/shared/editor/conversation-resize-handle";
 import { MessageItem } from "@/features/conversation/shared/message";
 import { WorkspaceFileTree } from "@/features/conversation/room/workspace/workspace-file-tree";

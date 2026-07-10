@@ -20,8 +20,8 @@ import { Agent } from "@/types/agent/agent";
 import type { LoopCatalogItem } from "@/types/capability/loop";
 
 import { ScrollToLatestButton } from "@/features/conversation/shared/scroll-to-latest-button";
-import { ComposerPanel } from "@/features/conversation/shared/composer-panel";
-import { prepareRoomConversationAttachments } from "@/features/conversation/shared/composer-attachments";
+import { ComposerPanel } from "@/features/conversation/shared/composer/composer-panel";
+import { prepareRoomConversationAttachments } from "@/features/conversation/shared/composer/attachments/composer-attachments";
 import { ConversationErrorBubble } from "@/features/conversation/shared/conversation-error-bubble";
 import type {
   ConversationRoundScrollHandle,
@@ -33,7 +33,7 @@ import {
 import { ProviderUnavailableBanner } from "@/features/conversation/shared/provider-unavailable-banner";
 import { ROOM_GOAL_SCOPE_LABEL } from "@/features/conversation/shared/goal-continuation-hold";
 import { useConversationTimeline } from "@/features/conversation/shared/use-conversation-timeline";
-import { useConversationComposerHandlers } from "@/features/conversation/shared/use-conversation-composer-handlers";
+import { useConversationComposerHandlers } from "@/features/conversation/shared/composer/use-conversation-composer-handlers";
 import { useConversationHistoryLoader } from "@/features/conversation/shared/use-conversation-history-loader";
 import {
   useConversationSnapshotReporter,

@@ -11,7 +11,7 @@ import {
 
 import { Agent } from "@/types/agent/agent";
 
-import { MentionTargetItem } from "./mention-popover";
+import { MentionTargetItem } from "../mention-popover";
 
 interface UseComposerMentionOptions {
   input: string;

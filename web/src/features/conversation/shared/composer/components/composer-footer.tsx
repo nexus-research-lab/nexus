@@ -6,7 +6,7 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiActionMenu } from "@/shared/ui/action-menu";
 import { LoadingOrb } from "@/shared/ui/feedback/loading-orb";
 import { GlassSwitch } from "@/shared/ui/liquid-glass";
-import { COMPOSER_FOOTER_CLASS_NAME } from "./composer-styles";
+import { COMPOSER_FOOTER_CLASS_NAME } from "../composer-styles";
 
 interface ComposerFooterProps {
   actionButtonRef: RefObject<HTMLButtonElement | null>;

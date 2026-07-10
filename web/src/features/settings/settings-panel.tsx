@@ -22,7 +22,7 @@ import {
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 
 import { PersonalSettingsPanel } from "./personal-settings-panel";
-import { ProviderSettingsPanel } from "./provider-settings-panel";
+import { ProviderSettingsPanel } from "./provider-settings/provider-settings-panel";
 import { SettingsGeneralSection } from "./settings-general-section";
 
 type SettingsTabKey =

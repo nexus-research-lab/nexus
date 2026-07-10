@@ -5,7 +5,7 @@ import type {
   AgentConversationSendOptions,
 } from "@/types/agent/agent-conversation";
 
-import type { PreparedComposerAttachment } from "./composer-attachments";
+import type { PreparedComposerAttachment } from "./attachments/composer-attachments";
 
 interface UseConversationComposerHandlersOptions {
   canSendInitialDraft?: boolean;

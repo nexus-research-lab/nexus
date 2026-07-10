@@ -13,8 +13,8 @@ import {
 } from "@/shared/ui/dialog/dialog";
 import { UiInput, UiTextarea } from "@/shared/ui/form-control";
 
-import { CapabilitySwitch } from "./provider-settings-capability-switch";
-import type { ModelOptionsState } from "./provider-settings-model";
+import { CapabilitySwitch } from "../components/provider-settings-capability-switch";
+import type { ModelOptionsState } from "../provider-settings-model";
 
 interface ProviderModelOptionsDialogProps {
   modelOptions: ModelOptionsState | null;
