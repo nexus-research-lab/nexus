@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
 
-import type { OnboardingTourDefinition } from "../tour-provider";
+import type { OnboardingTourDefinition } from "../tour-contract";
 import { TourOverlayCard } from "./tour-overlay-card";
 import {
   getPopoverPosition,

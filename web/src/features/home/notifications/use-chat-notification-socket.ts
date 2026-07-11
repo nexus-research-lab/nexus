@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 
 import { getDesktopWebsocketProtocols } from "@/config/desktop-runtime";
-import { getAgentWsUrl } from "@/config/options";
+import { getAgentWsUrl } from "@/config/runtime-endpoints";
 import { parseConversationMessage } from "@/lib/conversation/message-protocol";
 import { notifyRoomDirectoryUpdated } from "@/lib/conversation/room-directory-events";
 import { useAppEventSubscription, useWebSocket } from "@/lib/websocket";

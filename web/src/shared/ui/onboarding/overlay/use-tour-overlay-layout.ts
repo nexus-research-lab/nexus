@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import type { OnboardingTourStep } from "../tour-provider";
+import type { OnboardingTourStep } from "../tour-contract";
 import {
   estimateTourCardHeight,
   type PopoverSize,

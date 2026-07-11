@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 
 import { AgentPrivateDomainView } from "@/features/agents/private-domain/agent-private-domain-view";
-import { pickAgentEditableOptions } from "@/features/agents/options/agent-options-constants";
+import { pickAgentEditableOptions } from "@/lib/agent-options";
 import { AgentOptionsEditor } from "@/features/agents/options/agent-options-editor";
 import type { TabKey } from "@/features/agents/options/components/agent-options-nav";
 import { useI18n } from "@/shared/i18n/i18n-context";

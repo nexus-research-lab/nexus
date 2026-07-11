@@ -12,6 +12,10 @@ import {
 } from "react";
 
 import { ONBOARDING_TOUR_CONTEXT } from "@/shared/ui/onboarding/tour-context";
+import type {
+  OnboardingTourContextValue,
+  OnboardingTourDefinition,
+} from "@/shared/ui/onboarding/tour-contract";
 import {
   hydrateOnboardingStateFromDesktop,
   readCompletedTours,
@@ -19,46 +23,9 @@ import {
   writeCompletedTours,
 } from "@/shared/ui/onboarding/tour-state";
 
-export type TourPlacement = "top" | "right" | "bottom" | "left" | "center";
-
-export interface OnboardingTourStepItem {
-  icon: "bot" | "users" | "hash" | "puzzle";
-  text: string;
-}
-
-export interface OnboardingTourStep {
-  id: string;
-  title: string;
-  description: string;
-  target?: string;
-  placement?: TourPlacement;
-  items?: OnboardingTourStepItem[];
-  image?: string;
-}
-
-export interface OnboardingTourDefinition {
-  id: string;
-  steps: OnboardingTourStep[];
-}
-
 interface ActiveTourState {
   tourId: string;
   stepIndex: number;
-}
-
-export interface OnboardingTourContextValue {
-  registerTour: (tour: OnboardingTourDefinition) => void;
-  unregisterTour: (tourId: string) => void;
-  startTour: (tourId: string) => void;
-  closeTour: (options?: { completed?: boolean }) => void;
-  nextStep: () => void;
-  previousStep: () => void;
-  hasCompletedTour: (tourId: string) => boolean;
-  isTourRegistered: (tourId: string) => boolean;
-  resetAllTours: () => void;
-  activeTourId: string | null;
-  isTourStateReady: boolean;
-  resetVersion: number;
 }
 
 const OnboardingTourOverlay = lazy(() =>

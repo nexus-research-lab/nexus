@@ -4,7 +4,7 @@ import { ShieldCheck } from "lucide-react";
 
 import {
   AGENT_PERMISSION_MODES,
-} from "@/features/agents/options/agent-options-constants";
+} from "@/lib/agent-options";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 

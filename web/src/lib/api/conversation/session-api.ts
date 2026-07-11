@@ -14,7 +14,7 @@ import type {
   RoomConversationMessagePage,
   SessionRoundIndexItem,
 } from "@/types/conversation/room";
-import { getAgentApiBaseUrl } from "@/config/options";
+import { getAgentApiBaseUrl } from "@/config/runtime-endpoints";
 import { requestApi } from "@/lib/api/core/http";
 import { toTimestamp } from "@/lib/api/core/timestamp";
 import { assertStructuredSessionKey } from "@/lib/conversation/session-key";

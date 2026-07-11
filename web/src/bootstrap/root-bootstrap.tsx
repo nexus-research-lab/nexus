@@ -6,7 +6,8 @@ import {
   markDesktopPerformance,
   notifyDesktopWebFatal,
 } from "@/config/desktop-runtime";
-import { hydrateRuntimeOptions, isStrictModeEnabled } from "@/config/options";
+import { hydrateRuntimeOptions } from "@/app/runtime-options-resource";
+import { isStrictModeEnabled } from "@/config/conversation-policy";
 import { applyTheme, detectInitialTheme } from "@/shared/theme/theme-context";
 
 import {

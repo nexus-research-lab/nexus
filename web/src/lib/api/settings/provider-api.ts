@@ -1,6 +1,6 @@
 /** Provider 配置、模型目录和订阅 Provider 的 HTTP 边界。 */
 
-import { getAgentApiBaseUrl } from "@/config/options";
+import { getAgentApiBaseUrl } from "@/config/runtime-endpoints";
 import { requestApi } from "@/lib/api/core/http";
 import type {
   FetchProviderModelsResponse,

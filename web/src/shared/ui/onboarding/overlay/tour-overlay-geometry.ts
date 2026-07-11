@@ -1,6 +1,6 @@
-import type { OnboardingTourStep, TourPlacement } from "../tour-provider";
+import type { OnboardingTourStep, TourPlacement } from "../tour-contract";
 
-export type { TourPlacement } from "../tour-provider";
+export type { TourPlacement } from "../tour-contract";
 
 export interface PopoverPosition {
   left: number;

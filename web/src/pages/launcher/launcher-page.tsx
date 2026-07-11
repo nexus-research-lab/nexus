@@ -3,7 +3,7 @@
 import { useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { getDefaultAgentId, isMainAgent } from "@/config/options";
+import { getDefaultAgentId, isMainAgent } from "@/config/runtime-options";
 import { LauncherConsole } from "@/features/launcher/console/launcher-console";
 import { getLauncherSurfaceThemeStyle } from "@/features/launcher/hero/launcher-surface-theme";
 import { useLauncherPageController } from "@/hooks/launcher/use-launcher-page-controller";

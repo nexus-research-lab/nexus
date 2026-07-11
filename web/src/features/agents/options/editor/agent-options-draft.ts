@@ -10,7 +10,7 @@ import {
   DEFAULT_AGENT_PERMISSION_MODE,
   normalizeAgentAllowedToolsForEditor,
   normalizeAgentOptionProvider,
-} from "../agent-options-constants";
+} from "@/lib/agent-options";
 import type {
   AgentDialogInitialOptions,
   AgentOptionsEditorProps,

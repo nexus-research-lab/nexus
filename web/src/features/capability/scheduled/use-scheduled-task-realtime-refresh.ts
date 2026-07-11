@@ -3,7 +3,7 @@
 import { useCallback, useEffect } from "react";
 
 import { getDesktopWebsocketProtocols } from "@/config/desktop-runtime";
-import { getAgentWsUrl } from "@/config/options";
+import { getAgentWsUrl } from "@/config/runtime-endpoints";
 import { useAppEventSubscription, useWebSocket } from "@/lib/websocket";
 import { parseEventMessage } from "@/lib/websocket/protocol/event-message";
 

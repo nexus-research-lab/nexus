@@ -14,7 +14,7 @@ import {
 
 import { AgentPrivateDomainView } from "@/features/agents/private-domain/agent-private-domain-view";
 import { AgentOptionsEditor } from "@/features/agents/options/agent-options-editor";
-import { pickAgentEditableOptions } from "@/features/agents/options/agent-options-constants";
+import { pickAgentEditableOptions } from "@/lib/agent-options";
 import { AgentMemoryView } from "@/features/memory/agent-memory-view";
 import type { TabKey } from "@/features/agents/options/components/agent-options-nav";
 import { useResettableState } from "@/hooks/ui/use-resettable-state";

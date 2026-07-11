@@ -1,4 +1,4 @@
-import { getUserPreferences } from "@/config/options";
+import { getUserPreferences } from "@/config/runtime-options";
 import {
   formatProviderOptionLabel,
   type ProviderOption,

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
-import type { OnboardingTourDefinition } from "@/shared/ui/onboarding/tour-provider";
+import type { OnboardingTourDefinition } from "@/shared/ui/onboarding/tour-contract";
 import { useOnboardingTour } from "@/shared/ui/onboarding/use-onboarding-tour";
 import {
   clearRequestedTourId,

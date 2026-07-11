@@ -1,6 +1,6 @@
 import type { Dispatch, RefObject, SetStateAction } from "react";
 
-import { resolveAgentId } from "@/config/options";
+import { resolveAgentId } from "@/config/runtime-options";
 import { isStructuredSessionKey } from "@/lib/conversation/session-key";
 import type { Message } from "@/types/conversation/message/entity";
 import type { AgentConversationIdentity } from "@/types/agent/agent-conversation";

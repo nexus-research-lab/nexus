@@ -9,7 +9,7 @@ import {
   getDefaultAgentAvatar,
   getDefaultAgentId,
   isMainAgent,
-} from "@/config/options";
+} from "@/config/runtime-options";
 import { useChatCompletionNotifications } from "@/features/home/notifications/use-chat-completion-notifications";
 import { useGuideCenterController } from "@/features/onboarding/guide-center/use-guide-center-controller";
 import { usePrefersReducedMotion } from "@/hooks/ui/use-prefers-reduced-motion";

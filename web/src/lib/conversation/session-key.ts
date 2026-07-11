@@ -1,4 +1,4 @@
-import { resolveAgentId } from "@/config/options";
+import { resolveAgentId } from "@/config/runtime-options";
 
 const AGENT_SESSION_PREFIX = "agent";
 const ROOM_SESSION_PREFIX = "room";

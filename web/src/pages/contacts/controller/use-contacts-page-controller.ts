@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { isMainAgent } from "@/config/options";
+import { isMainAgent } from "@/config/runtime-options";
 import { useExistingAgentOptionsCommands } from "@/features/agents/options/use-existing-agent-options-commands";
 import { useAgentStore } from "@/store/agent";
 

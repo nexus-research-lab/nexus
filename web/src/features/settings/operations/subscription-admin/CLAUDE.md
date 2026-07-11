@@ -1,6 +1,6 @@
 # subscription-admin/
 
-L4 | 父级: web/src/features/operations
+L4 | 父级: web/src/features/settings/operations
 
 ## 职责
 

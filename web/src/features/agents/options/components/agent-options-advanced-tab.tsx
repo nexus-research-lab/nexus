@@ -14,7 +14,7 @@ import {
   AGENT_PERMISSION_MODES,
   AVAILABLE_AGENT_TOOLS,
   countVisibleAgentPreauthorizedTools,
-} from "../agent-options-constants";
+} from "@/lib/agent-options";
 
 interface AgentOptionsAdvancedTabProps {
   permissionMode: string;

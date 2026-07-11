@@ -2,6 +2,6 @@
 
 import { createContext } from "react";
 
-import type { OnboardingTourContextValue } from "@/shared/ui/onboarding/tour-provider";
+import type { OnboardingTourContextValue } from "@/shared/ui/onboarding/tour-contract";
 
 export const ONBOARDING_TOUR_CONTEXT = createContext<OnboardingTourContextValue | null>(null);

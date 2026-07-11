@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 
-import { getDefaultAgentRuntimeKind } from "@/config/options";
+import { getDefaultAgentRuntimeKind } from "@/config/runtime-options";
 import { listProviderOptionsApi } from "@/lib/api/settings/provider-api";
 import type { AgentProvider } from "@/types/agent/agent";
 import type { ProviderOption } from "@/types/capability/provider";
 
-import { normalizeAgentOptionProvider } from "../agent-options-constants";
+import { normalizeAgentOptionProvider } from "@/lib/agent-options";
 
 interface ProviderOptionsState {
   defaultModel: string;

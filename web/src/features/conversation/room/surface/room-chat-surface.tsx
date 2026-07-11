@@ -2,12 +2,12 @@
 
 import { DmChatPanel } from "@/features/conversation/room/dm/panel/dm-chat-panel";
 import { GroupChatPanel } from "@/features/conversation/room/group/chat/panel/group-chat-panel";
+import { getAgentConversationIdentityKey } from "@/lib/conversation/agent-conversation-identity";
 import type { Agent } from "@/types/agent/agent";
 import type {
   AgentConversationIdentity,
   RoomEventPayload,
 } from "@/types/agent/agent-conversation";
-import { getAgentConversationIdentityKey } from "@/types/agent/agent-conversation";
 import type { ConversationSnapshotPayload } from "@/types/conversation/conversation";
 import type { TodoItem } from "@/types/conversation/todo";
 

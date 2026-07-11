@@ -13,10 +13,10 @@ import {
 
 import { cn } from "@/shared/ui/class-name";
 import { isDesktopRuntime } from "@/config/desktop-runtime";
-import { canUseOperations } from "@/features/operations/operations-access";
 import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
 
+import { canUseOperations } from "./operations/operations-access";
 import {
   SETTINGS_NAVIGATION_GROUPS,
   type SettingsSectionKey,

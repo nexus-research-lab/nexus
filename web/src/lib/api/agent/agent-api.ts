@@ -15,7 +15,7 @@ import {
   applyDesktopRequestHeaders,
   isDesktopRuntime,
 } from "@/config/desktop-runtime";
-import { getAgentApiBaseUrl } from "@/config/options";
+import { getAgentApiBaseUrl } from "@/config/runtime-endpoints";
 import { transformApiAgent } from "@/lib/api/agent/agent-transform";
 import { requestApi } from "@/lib/api/core/http";
 

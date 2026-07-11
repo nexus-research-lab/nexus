@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { setUserPreferences } from "@/config/options";
+import { setUserPreferences } from "@/config/runtime-options";
 import {
   getUserPreferencesApi,
   updateUserPreferencesApi,

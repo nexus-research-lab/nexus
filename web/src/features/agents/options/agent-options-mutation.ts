@@ -4,7 +4,7 @@ import type {
   CreateAgentParams,
 } from "@/types/agent/agent";
 
-import { pickAgentEditableOptions } from "./agent-options-constants";
+import { pickAgentEditableOptions } from "@/lib/agent-options";
 
 export function buildAgentMutationParams(
   name: string,

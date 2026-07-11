@@ -1,6 +1,6 @@
 import { useCallback, useRef } from "react";
 
-import { getMessageSendAckTimeoutMs } from "@/config/options";
+import { getMessageSendAckTimeoutMs } from "@/config/conversation-policy";
 
 type PendingChatAck = {
   reject: (error: Error) => void;

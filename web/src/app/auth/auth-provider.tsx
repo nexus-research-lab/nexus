@@ -18,7 +18,7 @@ import {
   useState,
 } from "react";
 
-import { hydrateRuntimeOptions } from "@/config/options";
+import { hydrateRuntimeOptions } from "@/app/runtime-options-resource";
 import { AuthStatus, getAuthStatus, loginApi, logoutApi } from "@/lib/api/account/auth-api";
 import { AUTH_REQUIRED_EVENT } from "@/lib/api/core/http-auth";
 import { AUTH_CONTEXT } from "@/shared/auth/auth-context";

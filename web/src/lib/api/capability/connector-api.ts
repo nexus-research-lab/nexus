@@ -11,7 +11,7 @@ import {
   ConnectorDeviceAuthStart,
   ConnectorInfo,
 } from "@/types/capability/connector";
-import { getAgentApiBaseUrl } from "@/config/options";
+import { getAgentApiBaseUrl } from "@/config/runtime-endpoints";
 import { requestApi } from "@/lib/api/core/http";
 
 const BASE = getAgentApiBaseUrl();

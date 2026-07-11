@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Moved subscription operations under the Settings domain to remove the top-level Settings/Operations dependency cycle, consolidated tab metadata and content selection into one definition table, and promoted shared Agent Options rules out of the editor Feature so Config and sibling Features depend only on the base library.
+- Replaced the mixed runtime options entry with separate endpoint, conversation-policy, scoped-snapshot, and application-resource modules, and moved authentication transactions out of the shared Context layer.
+- Removed the remaining TypeScript import cycles by moving Agent conversation identity projection out of protocol types and separating Onboarding contracts from the Context and Provider implementation.
 - Organized frontend API clients by Agent, Account, Capability, Conversation, Settings, and Core ownership, renamed the ambiguous conversation `agent-api` to `session-api`, merged duplicate runtime settings clients, split Room queries, commands, projections, directory events, and navigation recovery to remove the API-to-Store dependency cycle, removed unused app-update declarations and the dead bulk Skill update client, and made file-private declarations stop leaking as public exports.
 - Split the core HTTP transport into request preparation, response projection, error types, authentication events, and fetch orchestration, removed forwarding imports, and guaranteed abort-listener cleanup when response parsing fails.
 - Organized shared UI primitives by button, form, display, list, and navigation ownership instead of keeping unrelated controls in one flat root.

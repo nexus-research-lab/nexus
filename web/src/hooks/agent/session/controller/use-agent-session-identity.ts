@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useRef } from "react";
 import type { RefObject } from "react";
 
+import { getAgentConversationIdentityKey } from "@/lib/conversation/agent-conversation-identity";
 import { areEquivalentSessionKeys } from "@/lib/conversation/session-key";
-import {
-  getAgentConversationIdentityKey,
-  type AgentConversationIdentity,
-} from "@/types/agent/agent-conversation";
+import type { AgentConversationIdentity } from "@/types/agent/agent-conversation";
 
 interface UseAgentSessionIdentityOptions {
   activeSessionKeyRef: RefObject<string | null>;

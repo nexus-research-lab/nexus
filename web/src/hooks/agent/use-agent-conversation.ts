@@ -5,7 +5,7 @@ import {
   useState,
 } from "react";
 
-import { getAgentWsUrl } from "@/config/options";
+import { getAgentWsUrl } from "@/config/runtime-endpoints";
 import { useAgentStore } from "@/store/agent";
 import { useWorkspaceLiveStore } from "@/store/workspace-live";
 import type {

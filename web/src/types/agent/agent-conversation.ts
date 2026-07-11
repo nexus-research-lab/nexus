@@ -7,8 +7,6 @@
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 
-import { getSessionKeyIdentity } from '@/lib/conversation/session-key';
-
 import type { MessageAttachment } from '@/types/conversation/message/attachment';
 import type {
   AssistantMessageStatus,
@@ -43,25 +41,6 @@ export interface AgentConversationIdentity {
   conversation_id?: string | null;
   room_session_id?: string | null;
   chat_type: AgentConversationChatType;
-}
-
-export function getAgentConversationIdentityKey(
-  identity: AgentConversationIdentity | null | undefined,
-): string | null {
-  if (!identity) {
-    return null;
-  }
-
-  if (identity.room_session_id) {
-    return `room-session:${identity.room_session_id}`;
-  }
-
-  if (identity.chat_type === 'group' && identity.conversation_id) {
-    return `room-conversation:${identity.conversation_id}`;
-  }
-
-  const sessionIdentity = getSessionKeyIdentity(identity.session_key);
-  return sessionIdentity ? `session:${sessionIdentity}` : null;
 }
 
 export interface UseAgentConversationOptions {

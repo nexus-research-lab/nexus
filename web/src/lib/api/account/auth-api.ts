@@ -1,6 +1,6 @@
 /** 认证、个人资料、密码与个人用量的 HTTP 边界。 */
 
-import { getAgentApiBaseUrl } from "@/config/options";
+import { getAgentApiBaseUrl } from "@/config/runtime-endpoints";
 import { requestApi } from "@/lib/api/core/http";
 
 const AUTH_API_BASE_URL = getAgentApiBaseUrl();

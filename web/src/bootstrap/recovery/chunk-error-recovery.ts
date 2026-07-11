@@ -3,7 +3,7 @@ import {
   notifyDesktopWebFatal,
   recoverDesktopSessionTokenError,
 } from "@/config/desktop-runtime";
-import { getAgentApiBaseUrl } from "@/config/options";
+import { getAgentApiBaseUrl } from "@/config/runtime-endpoints";
 
 import { shouldReloadOnce } from "./reload-guard";
 

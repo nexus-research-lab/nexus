@@ -4,7 +4,7 @@ import { Navigate } from "react-router-dom";
 
 import { APP_ROUTE_PATHS, AppRouteBuilders } from "@/app/router/route-paths";
 import { isDesktopRuntime } from "@/config/desktop-runtime";
-import { canUseOperations } from "@/features/operations/operations-access";
+import { canUseOperations } from "@/features/settings/operations/operations-access";
 import { useAuth } from "@/shared/auth/auth-context";
 
 export function OperationsPage() {

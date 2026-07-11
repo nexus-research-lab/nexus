@@ -1,4 +1,4 @@
-import { getAgentApiBaseUrl } from "@/config/options";
+import { getAgentApiBaseUrl } from "@/config/runtime-endpoints";
 import { requestApi } from "@/lib/api/core/http";
 import type {
   ClearGoalResult,

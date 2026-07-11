@@ -6,7 +6,7 @@
  * [POS]: lib 模块的 Skill API 层，被技能市场、Agent 配置与联系人页消费
  */
 
-import { getAgentApiBaseUrl } from "@/config/options";
+import { getAgentApiBaseUrl } from "@/config/runtime-endpoints";
 import { requestApi } from "@/lib/api/core/http";
 import type { RequestApiOptions } from "@/lib/api/core/http-request";
 import type {

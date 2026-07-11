@@ -1,6 +1,6 @@
 /** 能力侧栏摘要的 HTTP 边界。 */
 
-import { getAgentApiBaseUrl } from "@/config/options";
+import { getAgentApiBaseUrl } from "@/config/runtime-endpoints";
 import { requestApi } from "@/lib/api/core/http";
 
 const AGENT_API_BASE_URL = getAgentApiBaseUrl();

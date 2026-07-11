@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 
-import { getInitialAgentOptions } from "@/config/options";
-import { pickAgentEditableOptions } from "@/features/agents/options/agent-options-constants";
+import { getInitialAgentOptions } from "@/config/runtime-options";
+import { pickAgentEditableOptions } from "@/lib/agent-options";
 import { buildAgentMutationParams } from "@/features/agents/options/agent-options-mutation";
 import type {
   Agent,

@@ -1,19 +1,10 @@
-/**
- * AgentOptions Provider 常量与归一化工具
- */
-
-import type { TranslationKey } from "@/shared/i18n/messages";
 import type { AgentOptions } from "@/types/agent/agent";
 
 export const DEFAULT_AGENT_OPTION_PROVIDER = "";
 export const DEFAULT_AGENT_OPTION_MODEL = "";
 export const DEFAULT_AGENT_PERMISSION_MODE = "default";
 
-export const AGENT_PERMISSION_MODES: ReadonlyArray<{
-  value: string;
-  labelKey: TranslationKey;
-  descriptionKey: TranslationKey;
-}> = [
+export const AGENT_PERMISSION_MODES = [
   {
     value: "default",
     labelKey: "agent_options.advanced.permission.default.label",
@@ -36,10 +27,7 @@ export const AGENT_PERMISSION_MODES: ReadonlyArray<{
   },
 ] as const;
 
-export const AVAILABLE_AGENT_TOOLS: ReadonlyArray<{
-  name: string;
-  descriptionKey: TranslationKey;
-}> = [
+export const AVAILABLE_AGENT_TOOLS = [
   { name: "Agent", descriptionKey: "agent_options.advanced.tool.agent" },
   { name: "Bash", descriptionKey: "agent_options.advanced.tool.bash" },
   { name: "Edit", descriptionKey: "agent_options.advanced.tool.edit" },
@@ -49,10 +37,13 @@ export const AVAILABLE_AGENT_TOOLS: ReadonlyArray<{
   { name: "WebSearch", descriptionKey: "agent_options.advanced.tool.web_search" },
 ] as const;
 
-export const DEFAULT_AGENT_ALLOWED_TOOLS: string[] = [];
+export const DEFAULT_AGENT_ALLOWED_TOOLS: readonly string[] = [];
 
-const VISIBLE_AGENT_PREAUTHORIZED_TOOLS = new Set(AVAILABLE_AGENT_TOOLS.map((tool) => tool.name));
+const VISIBLE_AGENT_PREAUTHORIZED_TOOLS = new Set<string>(
+  AVAILABLE_AGENT_TOOLS.map((tool) => tool.name),
+);
 
+// 历史持久化值只在编辑入口清洗，内部草稿不继续传播已退休工具名。
 const RETIRED_AGENT_PREAUTH_TOOL_ALIASES: Record<string, string | null> = {
   Task: "Agent",
   TaskOutput: null,
@@ -73,26 +64,35 @@ const RETIRED_AGENT_PREAUTH_TOOL_ALIASES: Record<string, string | null> = {
   mcp__nexus_imagegen__edit_image: null,
 };
 
+const RETIRED_AGENT_PREAUTH_TOOL_PREFIXES = [
+  "Skill(",
+  "mcp__nexus_imagegen__",
+  "nexus_imagegen__",
+  "nexus_imagegen.",
+] as const;
+
 function normalizeAgentAllowedToolName(toolName: string): string | null {
   const normalizedToolName = toolName.trim();
   if (!normalizedToolName) {
     return null;
   }
-  if (
-    normalizedToolName.startsWith("Skill(") ||
-    normalizedToolName.startsWith("mcp__nexus_imagegen__") ||
-    normalizedToolName.startsWith("nexus_imagegen__") ||
-    normalizedToolName.startsWith("nexus_imagegen.")
-  ) {
+  if (RETIRED_AGENT_PREAUTH_TOOL_PREFIXES.some(
+    (prefix) => normalizedToolName.startsWith(prefix),
+  )) {
     return null;
   }
-  if (Object.prototype.hasOwnProperty.call(RETIRED_AGENT_PREAUTH_TOOL_ALIASES, normalizedToolName)) {
+  if (Object.prototype.hasOwnProperty.call(
+    RETIRED_AGENT_PREAUTH_TOOL_ALIASES,
+    normalizedToolName,
+  )) {
     return RETIRED_AGENT_PREAUTH_TOOL_ALIASES[normalizedToolName] ?? null;
   }
   return normalizedToolName;
 }
 
-export function normalizeAgentAllowedToolsForEditor(tools?: string[] | null): string[] {
+export function normalizeAgentAllowedToolsForEditor(
+  tools?: readonly string[] | null,
+): string[] {
   const result: string[] = [];
   const seenTools = new Set<string>();
   for (const toolName of tools ?? []) {
@@ -106,8 +106,12 @@ export function normalizeAgentAllowedToolsForEditor(tools?: string[] | null): st
   return result;
 }
 
-export function countVisibleAgentPreauthorizedTools(tools: string[]): number {
-  return tools.filter((toolName) => VISIBLE_AGENT_PREAUTHORIZED_TOOLS.has(toolName.trim())).length;
+export function countVisibleAgentPreauthorizedTools(
+  tools: readonly string[],
+): number {
+  return tools.filter((toolName) =>
+    VISIBLE_AGENT_PREAUTHORIZED_TOOLS.has(toolName.trim()),
+  ).length;
 }
 
 export function normalizeAgentOptionProvider(provider?: string | null): string {

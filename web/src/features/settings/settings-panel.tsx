@@ -4,12 +4,12 @@ import { Navigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { isDesktopRuntime } from "@/config/desktop-runtime";
-import { canUseOperations } from "@/features/operations/operations-access";
-import { OperationsPanel } from "@/features/operations/operations-panel";
 import { useAuth } from "@/shared/auth/auth-context";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 
 import { PersonalSettingsPanel } from "./personal/personal-settings-panel";
+import { canUseOperations } from "./operations/operations-access";
+import { OperationsPanel } from "./operations/operations-panel";
 import { ProviderSettingsPanel } from "./provider-settings/provider-settings-panel";
 import { SettingsGeneralSection } from "./general/settings-general-section";
 import type { SettingsSectionKey } from "./settings-navigation-model";

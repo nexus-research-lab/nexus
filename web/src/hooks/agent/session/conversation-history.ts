@@ -1,5 +1,5 @@
 import { Dispatch, MutableRefObject, RefObject, SetStateAction } from "react";
-import { getMessageHistoryRoundPageSize } from "@/config/options";
+import { getMessageHistoryRoundPageSize } from "@/config/conversation-policy";
 import { getSessionMessagesApi } from "@/lib/api/conversation/session-api";
 import { getRoomConversationMessages } from "@/lib/api/conversation/room-resource-api";
 import type { Message } from "@/types/conversation/message/entity";

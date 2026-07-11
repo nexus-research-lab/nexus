@@ -1,4 +1,4 @@
-import { isMainAgent } from "@/config/options";
+import { isMainAgent } from "@/config/runtime-options";
 import { isExternalSessionChannel } from "@/lib/conversation/external-session";
 import type { AgentRuntimeStatus } from "@/types/agent/agent";
 import type {

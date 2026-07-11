@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 
-import { DEFAULT_AGENT_PERMISSION_MODE } from "@/features/agents/options/agent-options-constants";
 import { getNxsRuntimeStatusApi } from "@/lib/api/settings/runtime-api";
+import { DEFAULT_AGENT_PERMISSION_MODE } from "@/lib/agent-options";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { useOnboardingTour } from "@/shared/ui/onboarding/use-onboarding-tour";
 import type { AgentConversationDefaultDeliveryPolicy } from "@/types/agent/agent-conversation";

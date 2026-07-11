@@ -12,7 +12,7 @@ import { cn } from "@/shared/ui/class-name";
 import type {
   OnboardingTourStep,
   OnboardingTourStepItem,
-} from "../tour-provider";
+} from "../tour-contract";
 import type { TourPlacement } from "./tour-overlay-geometry";
 
 const TOUR_ITEM_ICONS: Record<OnboardingTourStepItem["icon"], LucideIcon> = {

@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   getDefaultAgentRuntimeKind,
   USER_PREFERENCES_CHANGED_EVENT,
-} from "@/config/options";
+} from "@/config/runtime-options";
 import { listProviderOptionsApi } from "@/lib/api/settings/provider-api";
 import type { AgentRuntimeKind } from "@/types/settings/preferences";
 

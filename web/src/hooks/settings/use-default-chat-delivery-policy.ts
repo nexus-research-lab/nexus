@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import {
   getDefaultChatDeliveryPolicy,
   USER_PREFERENCES_CHANGED_EVENT,
-} from "@/config/options";
+} from "@/config/runtime-options";
 import type { AgentConversationDefaultDeliveryPolicy } from "@/types/agent/agent-conversation";
 import type { UserPreferences } from "@/types/settings/preferences";
 

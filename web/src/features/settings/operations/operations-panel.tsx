@@ -1,7 +1,13 @@
 "use client";
 
-import { ArrowLeft, Cable, ShieldCheck, UsersRound } from "lucide-react";
-import { useCallback, useState } from "react";
+import {
+  ArrowLeft,
+  Cable,
+  ShieldCheck,
+  UsersRound,
+  type LucideIcon,
+} from "lucide-react";
+import { useCallback, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { APP_ROUTE_PATHS } from "@/app/router/route-paths";
@@ -15,66 +21,64 @@ import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspac
 
 import { SubscriptionAdminPanel } from "./subscription-admin/subscription-admin-panel";
 
-type OperationsTabKey =
-  | "userSubscriptions"
-  | "subscriptionPlans"
-  | "subscriptionProviders";
+const OPERATIONS_TAB_KEYS = [
+  "userSubscriptions",
+  "subscriptionPlans",
+  "subscriptionProviders",
+] as const;
 
-const OPERATIONS_TABS: {
-  key: OperationsTabKey;
-  labelKey:
-    | "operations.tabs.user_subscriptions"
-    | "operations.tabs.subscription_plans"
-    | "operations.tabs.subscription_providers";
-  icon: typeof ShieldCheck;
-}[] = [
-  {
-    key: "userSubscriptions",
+type OperationsTabKey = (typeof OPERATIONS_TAB_KEYS)[number];
+type OperationsTabLabelKey =
+  | "operations.tabs.user_subscriptions"
+  | "operations.tabs.subscription_plans"
+  | "operations.tabs.subscription_providers";
+
+interface OperationsTabDefinition {
+  icon: LucideIcon;
+  labelKey: OperationsTabLabelKey;
+  renderContent: () => ReactNode;
+}
+
+const OPERATIONS_TAB_DEFINITIONS: Record<
+  OperationsTabKey,
+  OperationsTabDefinition
+> = {
+  userSubscriptions: {
     labelKey: "operations.tabs.user_subscriptions",
     icon: UsersRound,
+    renderContent: () => <SubscriptionAdminPanel view="users" />,
   },
-  {
-    key: "subscriptionPlans",
+  subscriptionPlans: {
     labelKey: "operations.tabs.subscription_plans",
     icon: ShieldCheck,
+    renderContent: () => <SubscriptionAdminPanel view="plans" />,
   },
-  {
-    key: "subscriptionProviders",
+  subscriptionProviders: {
     labelKey: "operations.tabs.subscription_providers",
     icon: Cable,
+    renderContent: () => (
+      <ProviderSettingsPanel embedded visibilityScope="public" />
+    ),
   },
-];
+};
 
 export function OperationsPanel({ embedded = false }: { embedded?: boolean }) {
   const { t } = useI18n();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<OperationsTabKey>("userSubscriptions");
-  const activeTabConfig =
-    OPERATIONS_TABS.find((item) => item.key === activeTab) ?? OPERATIONS_TABS[0];
+  const activeTabConfig = OPERATIONS_TAB_DEFINITIONS[activeTab];
   const ActiveIcon = activeTabConfig.icon;
 
   const handleBackToWorkspace = useCallback(() => {
     navigate(APP_ROUTE_PATHS.home);
   }, [navigate]);
 
-  const tabs = OPERATIONS_TABS.map((item) => ({
-    key: item.key,
-    label: t(item.labelKey),
-    icon: item.icon,
+  const tabs = OPERATIONS_TAB_KEYS.map((key) => ({
+    key,
+    label: t(OPERATIONS_TAB_DEFINITIONS[key].labelKey),
+    icon: OPERATIONS_TAB_DEFINITIONS[key].icon,
   }));
-  const content = (
-    <>
-      {activeTab === "userSubscriptions" ? (
-        <SubscriptionAdminPanel view="users" />
-      ) : null}
-      {activeTab === "subscriptionPlans" ? (
-        <SubscriptionAdminPanel view="plans" />
-      ) : null}
-      {activeTab === "subscriptionProviders" ? (
-        <ProviderSettingsPanel embedded visibilityScope="public" />
-      ) : null}
-    </>
-  );
+  const content = activeTabConfig.renderContent();
 
   if (embedded) {
     return (

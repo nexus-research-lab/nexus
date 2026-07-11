@@ -4,7 +4,7 @@
  * 对齐 capability/scheduled/tasks 的结构化自动化任务接口。
  */
 
-import { getAgentApiBaseUrl } from "@/config/options";
+import { getAgentApiBaseUrl } from "@/config/runtime-endpoints";
 import { requestApi } from "@/lib/api/core/http";
 import { toTimestampOrNull } from "@/lib/api/core/timestamp";
 import type {
