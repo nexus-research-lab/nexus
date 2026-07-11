@@ -8,6 +8,26 @@ import type { ModelOptionsState } from "./provider-settings-types";
 
 export const AUTO_TEST_MODEL_VALUE = "__auto__";
 
+export function buildNewModelPayload(
+  enabled: boolean,
+): UpdateProviderModelPayload {
+  return {
+    enabled,
+    is_default: false,
+    capabilities_override: {},
+    context_window: null,
+    max_output_tokens: null,
+    provider_options: {},
+  };
+}
+
+export function isDefaultModelDisable(
+  model: ProviderModelRecord,
+  enabled: boolean,
+): boolean {
+  return model.is_default && !enabled;
+}
+
 export function parseProviderOptions(
   raw: string,
   invalidObjectMessage: string,

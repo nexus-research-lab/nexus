@@ -12,8 +12,8 @@ import {
   filterProviderModels,
   modelOptionsFromRecord,
   sortModelsEnabledFirst,
-} from "../model/provider-model-model";
-import type { ModelOptionsState } from "../model/provider-settings-types";
+} from "../../model/provider-model-model";
+import type { ModelOptionsState } from "../../model/provider-settings-types";
 
 interface UseProviderModelControlsOptions {
   apiFormat: ProviderApiFormat;

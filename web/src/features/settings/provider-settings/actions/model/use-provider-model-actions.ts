@@ -6,12 +6,14 @@ import type {
   ProviderConfigRecord,
 } from "@/types/capability/provider";
 
-import type { ProviderModelApi } from "../provider-settings-api";
-import type { FeedbackState } from "../model/provider-settings-types";
-import type { PersistProvider } from "./config/use-provider-persistence";
-import type { RunProviderCommand } from "./use-provider-command";
+import type { ProviderModelApi } from "../../provider-settings-api";
+import type { FeedbackState } from "../../model/provider-settings-types";
+import type { PersistProvider } from "../config/use-provider-persistence";
+import type { RunProviderCommand } from "../use-provider-command";
+import { useProviderModelAdd } from "./use-provider-model-add";
 import { useProviderModelControls } from "./use-provider-model-controls";
-import { useProviderModelMutations } from "./use-provider-model-mutations";
+import { useProviderModelSync } from "./use-provider-model-sync";
+import { useProviderModelUpdate } from "./use-provider-model-update";
 import { useProviderTestActions } from "./use-provider-test-actions";
 
 interface UseProviderModelActionsOptions {
@@ -43,12 +45,20 @@ export function useProviderModelActions({
     selectedRecord,
     t,
   });
-  const mutations = useProviderModelMutations({
+  const sync = useProviderModelSync({
+    modelApi,
+    persistProvider,
+    refreshAll,
+    runCommand,
+    selectedCanManage,
+    selectedRecord,
+    setFeedback,
+    t,
+  });
+  const add = useProviderModelAdd({
     manualModelEnabled: controls.manualModelEnabled,
     manualModelId: controls.manualModelId,
     modelApi,
-    modelOptions: controls.modelOptions,
-    persistProvider,
     refreshAll,
     runCommand,
     selectedCanManage,
@@ -56,6 +66,16 @@ export function useProviderModelActions({
     setAddModelOpen: controls.setAddModelOpen,
     setFeedback,
     setManualModelId: controls.setManualModelId,
+    t,
+  });
+  const update = useProviderModelUpdate({
+    modelApi,
+    modelOptions: controls.modelOptions,
+    refreshAll,
+    runCommand,
+    selectedCanManage,
+    selectedRecord,
+    setFeedback,
     setModelOptions: controls.setModelOptions,
     t,
   });
@@ -70,5 +90,5 @@ export function useProviderModelActions({
     t,
   });
 
-  return { ...controls, ...mutations, ...tests };
+  return { ...add, ...controls, ...sync, ...tests, ...update };
 }

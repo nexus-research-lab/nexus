@@ -1,5 +1,6 @@
-import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import type { Dispatch, SetStateAction } from "react";
+
+import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import type {
   ProviderConfigRecord,
   ProviderPreset,
@@ -48,6 +49,7 @@ export function useProviderConfigActions({
   const fields = useProviderConfigFields({
     currentPreset: context.currentPreset,
     draft: context.draft,
+    isCreating: context.isCreating,
     setFeedback,
     t,
     updateDraft: context.updateDraft,

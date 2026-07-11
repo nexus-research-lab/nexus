@@ -1,5 +1,6 @@
 import {
   useCallback,
+  useRef,
   type Dispatch,
   type SetStateAction,
 } from "react";
@@ -63,6 +64,10 @@ export function useAgentConversationActions({
   trackOutboundRequest,
   waitForChatAck,
 }: UseAgentConversationActionsParams) {
+  // 对外命令保持稳定，执行时读取当前会话上下文，避免消息流更新重建整组回调。
+  const actionContextRef = useRef(actionContext);
+  actionContextRef.current = actionContext;
+
   const sendWithAck = useCallback(
     async (sendRequest: SendOutboundRequest): Promise<void> => {
       const request = await sendRequest();
@@ -98,16 +103,20 @@ export function useAgentConversationActions({
       content: string,
       options: AgentConversationSendOptions = {},
     ): Promise<void> => sendWithAck(
-      () => sendSessionMessage(content, actionContext, options),
+      () => sendSessionMessage(content, actionContextRef.current, options),
     ),
-    [actionContext, sendWithAck],
+    [sendWithAck],
   );
 
   const rewriteLastMessage = useCallback(
     (targetRoundId: string, content: string): Promise<void> => sendWithAck(
-      () => rewriteLastUserMessage(targetRoundId, content, actionContext),
+      () => rewriteLastUserMessage(
+        targetRoundId,
+        content,
+        actionContextRef.current,
+      ),
     ),
-    [actionContext, sendWithAck],
+    [sendWithAck],
   );
 
   const enqueueQueueMessage = useCallback(
@@ -118,38 +127,38 @@ export function useAgentConversationActions({
     ): Promise<void> => {
       enqueueInputQueueMessage(
         content,
-        actionContext,
+        actionContextRef.current,
         deliveryPolicy,
         attachments,
       );
     },
-    [actionContext],
+    [],
   );
 
   const deleteQueueMessage = useCallback(
     async (itemId: string): Promise<void> => {
-      deleteInputQueueMessage(itemId, actionContext);
+      deleteInputQueueMessage(itemId, actionContextRef.current);
     },
-    [actionContext],
+    [],
   );
 
   const guideQueueMessage = useCallback(
     async (itemId: string): Promise<void> => {
-      guideInputQueueMessage(itemId, actionContext);
+      guideInputQueueMessage(itemId, actionContextRef.current);
     },
-    [actionContext],
+    [],
   );
 
   const reorderQueueMessages = useCallback(
     async (orderedIds: string[]): Promise<void> => {
-      reorderInputQueueMessages(orderedIds, actionContext);
+      reorderInputQueueMessages(orderedIds, actionContextRef.current);
     },
-    [actionContext],
+    [],
   );
 
   const stopGeneration = useCallback(
     (agentRoundId?: string): void => {
-      stopSessionGeneration(actionContext, agentRoundId);
+      stopSessionGeneration(actionContextRef.current, agentRoundId);
       if (!agentRoundId) {
         return;
       }
@@ -159,14 +168,14 @@ export function useAgentConversationActions({
           : slot
       )));
     },
-    [actionContext, setPendingAgentSlots],
+    [setPendingAgentSlots],
   );
 
   const sendPermissionResponse = useCallback(
     (payload: PermissionDecisionPayload): boolean => (
-      sendSessionPermissionResponse(payload, actionContext)
+      sendSessionPermissionResponse(payload, actionContextRef.current)
     ),
-    [actionContext],
+    [],
   );
 
   return {

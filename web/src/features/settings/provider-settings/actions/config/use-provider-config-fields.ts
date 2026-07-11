@@ -9,6 +9,9 @@ import type {
 } from "@/types/capability/provider";
 
 import {
+  normalizeCustomProviderKey,
+} from "../../model/provider-config-model";
+import {
   DEFAULT_AGENT_API_FORMAT,
   formatSupportsProviderKind,
   getPresetFormat,
@@ -31,6 +34,7 @@ const DEFAULT_FORMAT_BY_PROVIDER_KIND: Record<
 interface UseProviderConfigFieldsOptions {
   currentPreset: ProviderPreset | null;
   draft: ProviderDraft;
+  isCreating: boolean;
   setFeedback: Dispatch<SetStateAction<FeedbackState | null>>;
   t: I18nContextValue["t"];
   updateDraft: (patch: Partial<ProviderDraft>) => void;
@@ -39,12 +43,22 @@ interface UseProviderConfigFieldsOptions {
 export function useProviderConfigFields({
   currentPreset,
   draft,
+  isCreating,
   setFeedback,
   t,
   updateDraft,
 }: UseProviderConfigFieldsOptions) {
   const canSelectNonRuntimeFormat = draft.provider_kind === "llm"
     && presetAllowsNonRuntimeConfig(currentPreset);
+
+  const handleProviderDisplayNameChange = useCallback((displayName: string) => {
+    updateDraft({
+      display_name: displayName,
+      provider: isCreating
+        ? normalizeCustomProviderKey(displayName)
+        : draft.provider,
+    });
+  }, [draft.provider, isCreating, updateDraft]);
 
   const handleProviderKindChange = useCallback((value: string) => {
     const providerKind = value as ProviderKind;
@@ -95,6 +109,7 @@ export function useProviderConfigFields({
   return {
     canSelectNonRuntimeFormat,
     handleApiFormatChange,
+    handleProviderDisplayNameChange,
     handleProviderKindChange,
   };
 }

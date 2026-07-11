@@ -4,24 +4,23 @@ import type {
   StreamMessage,
 } from "@/types";
 
-import { normalizeAssistantMessage } from "../message/assistant-message-model";
-import { upsertMessage } from "../message/message-collection-model";
+import { normalizeAssistantMessage } from "../../message/assistant-message-model";
+import { upsertMessage } from "../../message/message-collection-model";
 import type {
   AgentEventHandler,
   AgentEventHandlerMap,
-} from "./agent-event-context";
+} from "../agent-event-context";
 
 const handleStream: AgentEventHandler = (event, context) => {
   const payload = event.data as StreamMessage;
   const messageSessionKey = payload?.session_key || event.session_key || null;
   if (
-    !payload ||
-    !messageSessionKey ||
-    !context.scope.isCurrentSessionEvent(messageSessionKey)
+    !payload
+    || !messageSessionKey
+    || !context.scope.isCurrentSessionEvent(messageSessionKey)
   ) {
     return;
   }
-
   context.callbacks.enqueueStreamPayload(payload);
 };
 

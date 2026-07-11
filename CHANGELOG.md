@@ -37,6 +37,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Decomposed round jumping into scoped target, serialized window-loading, and DOM landing controllers, preventing stale requests from affecting newer navigation.
 - Split visible timeline window loading into candidate selection, retry runtime, and scheduling controllers while keeping its opportunistic strategy distinct from explicit round jumps.
 - Split Provider configuration actions into field linkage, persistence, enablement, and deletion controllers, exposing only a narrow persistence command to model and connectivity-test actions.
+- Split Provider model actions into scoped state, sync, add, update, and test commands, centralizing persisted-request orchestration and default-model protection.
+- Split Provider workspace state transitions from resource loading and added request-generation guards so stale refreshes cannot overwrite the active visibility scope or selection.
+- Moved Provider catalog, format, title, and capability presentation into a pure projection and returned custom-provider name/key linkage to the configuration field controller.
+- Moved Agent message collection, chat-ack failure, and event-dispatch lifecycles out of the public conversation hook, while keeping public actions stable against streaming state updates.
+- Split Agent session orchestration into identity migration, background/volatile snapshots, lifecycle context, and command composition, removing a redundant input-queue setter wrapper.
+- Split Agent WebSocket handlers by message, permission, resync, session, and scope event families, centralizing current-session guards and rejecting duplicate event ownership during router registration.
 - Unified sidebar and chat-notification bootstrap data behind one queued Home directory resource, and split notification projection, browser effects, and Room WebSocket protocol into dedicated modules.
 - Consolidated Home chat and contact sidebar code into one domain, separating Room/DM catalog projection, unread aggregation, directory subscriptions, Room commands, and presentation-only panels.
 - Split Personal settings into a scoped profile resource and command controller, data-driven password validation, and presentation-only profile, password, and token-usage sections.

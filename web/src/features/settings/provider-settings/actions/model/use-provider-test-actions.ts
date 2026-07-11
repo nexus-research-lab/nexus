@@ -7,18 +7,19 @@ import type {
   ProviderTestResult,
 } from "@/types/capability/provider";
 
-import type { ProviderModelApi } from "../provider-settings-api";
-import { getProviderErrorMessage } from "../model/provider-feedback-model";
-import { AUTO_TEST_MODEL_VALUE } from "../model/provider-model-model";
-import type { FeedbackState } from "../model/provider-settings-types";
-import type { PersistProvider } from "./config/use-provider-persistence";
+import type { ProviderModelApi } from "../../provider-settings-api";
+import { getProviderErrorMessage } from "../../model/provider-feedback-model";
+import { AUTO_TEST_MODEL_VALUE } from "../../model/provider-model-model";
+import type { FeedbackState } from "../../model/provider-settings-types";
+import type { PersistProvider } from "../config/use-provider-persistence";
 import type {
   ProviderPendingAction,
   RunProviderCommand,
-} from "./use-provider-command";
+} from "../use-provider-command";
+import { useProviderPersistedModelCommand } from "./use-provider-persisted-model-command";
 
 interface UseProviderTestActionsOptions {
-  modelApi: ProviderModelApi;
+  modelApi: Pick<ProviderModelApi, "testModel" | "testProvider">;
   persistProvider: PersistProvider;
   refreshAll: (preferredProvider?: string | null) => Promise<void>;
   runCommand: RunProviderCommand;
@@ -59,6 +60,13 @@ export function useProviderTestActions({
   setFeedback,
   t,
 }: UseProviderTestActionsOptions) {
+  const runPersistedModelCommand = useProviderPersistedModelCommand({
+    persistProvider,
+    refreshAll,
+    runCommand,
+    setFeedback,
+  });
+
   const runTest = useCallback((
     action: ProviderPendingAction,
     request: (provider: string) => Promise<ProviderTestResult>,
@@ -67,43 +75,23 @@ export function useProviderTestActions({
     if (!selectedRecord || !selectedCanManage) {
       return;
     }
-    void runCommand(action, async () => {
-      let targetProvider: string | null = null;
-      let outcome: FeedbackState | null = null;
-      try {
-        const persisted = await persistProvider({ showError: true });
-        if (!persisted) {
-          return;
-        }
-        targetProvider = persisted.record.provider;
-        const result = await request(targetProvider);
-        outcome = buildTestFeedback(
-          result,
-          messages,
-          (model) => t("settings.providers.test_model_message", { model }),
-        );
-      } catch (error) {
-        outcome = {
-          tone: "error",
-          title: messages.failureTitle,
-          message: getProviderErrorMessage(error, messages.failureFallback),
-        };
-      } finally {
-        if (targetProvider) {
-          await refreshAll(targetProvider);
-        }
-        if (outcome) {
-          setFeedback(outcome);
-        }
-      }
-    });
+    runPersistedModelCommand(
+      action,
+      async (provider) => buildTestFeedback(
+        await request(provider),
+        messages,
+        (model) => t("settings.providers.test_model_message", { model }),
+      ),
+      (error) => ({
+        tone: "error",
+        title: messages.failureTitle,
+        message: getProviderErrorMessage(error, messages.failureFallback),
+      }),
+    );
   }, [
-    persistProvider,
-    refreshAll,
-    runCommand,
+    runPersistedModelCommand,
     selectedCanManage,
     selectedRecord,
-    setFeedback,
     t,
   ]);
 

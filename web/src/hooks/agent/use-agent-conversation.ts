@@ -1,20 +1,14 @@
 import {
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
-  type SetStateAction,
 } from "react";
 
 import { getAgentWsUrl } from "@/config/options";
 import { useAgentStore } from "@/store/agent";
 import { useWorkspaceLiveStore } from "@/store/workspace-live";
-import type {
-  Message,
-  WebSocketMessage,
-  WebSocketState,
-} from "@/types";
+import type { WebSocketMessage, WebSocketState } from "@/types";
 import type {
   RoomEventPayload,
   UseAgentConversationOptions,
@@ -23,14 +17,13 @@ import type {
 
 import type { AgentConversationActionContext } from "./actions/conversation-action-context";
 import { useAgentConversationActions } from "./actions/use-agent-conversation-actions";
+import { useChatAckFailure } from "./actions/use-chat-ack-failure";
 import { usePendingChatAcks } from "./actions/use-pending-chat-acks";
-import { dedupeMessagesById } from "./message/message-collection-model";
-import { removeFailedOutboundUserMessage } from "./runtime/model/conversation-runtime-reconciliation";
+import { useAgentMessageCollection } from "./message/use-agent-message-collection";
 import { useAgentConversationRuntime } from "./runtime/use-agent-conversation-runtime";
-import { useAgentSessionController } from "./session/use-agent-session-controller";
-import type { AgentEventContext } from "./transport/agent-event-context";
-import { routeAgentConversationEvent } from "./transport/agent-event-router";
+import { useAgentSessionController } from "./session/controller/use-agent-session-controller";
 import { useAgentConversationSocket } from "./transport/use-agent-conversation-socket";
+import { useAgentEventDispatcher } from "./transport/use-agent-event-dispatcher";
 import { useConversationStreamBuffer } from "./transport/use-conversation-stream-buffer";
 
 export function useAgentConversation(
@@ -55,7 +48,7 @@ export function useAgentConversation(
     agentId ? state.agent_runtime_statuses[agentId] : undefined
   ));
 
-  const [messages, setMessagesState] = useState<Message[]>([]);
+  const { messages, setMessages } = useAgentMessageCollection();
   const [error, setError] = useState<string | null>(null);
   const sessionSeqCursorRef = useRef(0);
   const roomSeqCursorRef = useRef(0);
@@ -66,15 +59,6 @@ export function useAgentConversation(
   >(() => ({ disposition: "dropped" }));
   const wsReconnectRef = useRef<() => void>(() => {});
   const wsStateRef = useRef<WebSocketState>("disconnected");
-
-  const setMessages = useCallback((nextState: SetStateAction<Message[]>) => {
-    setMessagesState((currentMessages) => {
-      const nextMessages = typeof nextState === "function"
-        ? nextState(currentMessages)
-        : nextState;
-      return dedupeMessagesById(nextMessages);
-    });
-  }, []);
 
   const {
     cancel_pending_chat_acks: cancelPendingChatAcks,
@@ -144,34 +128,17 @@ export function useAgentConversation(
     [onRoomEventCallback],
   );
 
-  // 超时只拒绝 ACK 等待并触发重连，失败消息由 Promise catch 统一收口。
-  const handleChatAckTimeout = useCallback(
-    (clientRequestId: string, message: string): void => {
-      if (!rejectPendingChatAck(clientRequestId, message)) {
-        return;
-      }
-      if (wsStateRef.current === "connected") {
-        wsReconnectRef.current();
-      }
-    },
-    [rejectPendingChatAck],
-  );
-  const settleChatAckWaitFailure = useCallback(
-    (clientRequestId: string, clientMessageId: string, cause: unknown): void => {
-      const message = cause instanceof Error
-        ? cause.message
-        : "消息未送达后端，请重试";
-      clearOutboundRequest(clientRequestId);
-      setMessages((currentMessages) => (
-        removeFailedOutboundUserMessage(currentMessages, clientMessageId)
-      ));
-      setError(message);
-    },
-    [clearOutboundRequest, setMessages],
-  );
+  const { handleChatAckTimeout, settleChatAckWaitFailure } = useChatAckFailure({
+    clearOutboundRequest,
+    rejectPendingChatAck,
+    setError,
+    setMessages,
+    wsReconnectRef,
+    wsStateRef,
+  });
 
   const enqueueStreamPayload = useConversationStreamBuffer(setMessages);
-  const eventContext = useMemo<AgentEventContext>(() => ({
+  const handleWebsocketMessage = useAgentEventDispatcher({
     callbacks: {
       applyWorkspaceEvent,
       enqueueStreamPayload,
@@ -210,37 +177,7 @@ export function useAgentConversation(
       wsSendRef,
       wsStateRef,
     },
-  }), [
-    agentId,
-    applyWorkspaceEvent,
-    conversationId,
-    enqueueStreamPayload,
-    isCurrentRoomEvent,
-    onRoomEvent,
-    rejectPendingChatAck,
-    removeRewrittenRound,
-    roomId,
-    applyAgentRoundStatus,
-    applyRoundStatus,
-    setPendingPermissions,
-    syncSessionStatus,
-    trackAssistantMessage,
-    trackChatAck,
-    updateMessageStatus,
-    session.isCurrentSessionEvent,
-    session.onBackgroundMessage,
-    session.reloadCurrentSession,
-    session.sessionKey,
-    session.setInputQueueItems,
-    setMessages,
-    settleAgentWorkspaceWrites,
-  ]);
-  const handleWebsocketMessage = useCallback(
-    (backendMessage: unknown): void => {
-      routeAgentConversationEvent(backendMessage, eventContext);
-    },
-    [eventContext],
-  );
+  });
   const { wsState, wsSend } = useAgentConversationSocket({
     wsUrl,
     agentId,
@@ -267,7 +204,7 @@ export function useAgentConversation(
     }
   }, [agentId, agentRuntimeStatus, settleAgentWorkspaceWrites]);
 
-  const actionContext = useMemo<AgentConversationActionContext>(() => ({
+  const actionContext: AgentConversationActionContext = {
     activeSessionKeyRef: session.activeSessionKeyRef,
     identity,
     messages,
@@ -278,17 +215,7 @@ export function useAgentConversation(
     setPendingPermissions,
     wsSend,
     wsState,
-  }), [
-    identity,
-    messages,
-    pendingPermissions,
-    setPendingPermissions,
-    session.activeSessionKeyRef,
-    session.sessionKey,
-    setMessages,
-    wsSend,
-    wsState,
-  ]);
+  };
   const actions = useAgentConversationActions({
     actionContext,
     clearOutboundRequest,

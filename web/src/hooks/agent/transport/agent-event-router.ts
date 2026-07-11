@@ -2,17 +2,37 @@ import type { EventMessage } from "@/types";
 
 import type {
   AgentEventContext,
+  AgentEventHandler,
   AgentEventHandlerMap,
 } from "./agent-event-context";
-import { AGENT_STATE_EVENT_HANDLERS } from "./agent-event-handlers";
-import { AGENT_MESSAGE_EVENT_HANDLERS } from "./agent-message-event-handlers";
+import { AGENT_MESSAGE_EVENT_HANDLERS } from "./handlers/agent-message-event-handlers";
+import { AGENT_PERMISSION_EVENT_HANDLERS } from "./handlers/permission-event-handlers";
+import { AGENT_RESYNC_EVENT_HANDLERS } from "./handlers/resync-event-handlers";
+import { AGENT_SCOPE_EVENT_HANDLERS } from "./handlers/scope-event-handlers";
+import { AGENT_SESSION_EVENT_HANDLERS } from "./handlers/session-event-handlers";
 
-const AGENT_EVENT_HANDLERS = new Map(
-  Object.entries({
-    ...AGENT_STATE_EVENT_HANDLERS,
-    ...AGENT_MESSAGE_EVENT_HANDLERS,
-  } satisfies AgentEventHandlerMap),
-);
+function registerEventHandlers(
+  handlerMaps: AgentEventHandlerMap[],
+): Map<string, AgentEventHandler> {
+  const handlers = new Map<string, AgentEventHandler>();
+  for (const handlerMap of handlerMaps) {
+    for (const [eventType, handler] of Object.entries(handlerMap)) {
+      if (handlers.has(eventType)) {
+        throw new Error(`Agent event handler 重复注册: ${eventType}`);
+      }
+      handlers.set(eventType, handler);
+    }
+  }
+  return handlers;
+}
+
+const AGENT_EVENT_HANDLERS = registerEventHandlers([
+  AGENT_MESSAGE_EVENT_HANDLERS,
+  AGENT_PERMISSION_EVENT_HANDLERS,
+  AGENT_RESYNC_EVENT_HANDLERS,
+  AGENT_SCOPE_EVENT_HANDLERS,
+  AGENT_SESSION_EVENT_HANDLERS,
+]);
 
 function isEventMessage(data: unknown): data is EventMessage {
   if (typeof data !== "object" || data === null) {

@@ -23,6 +23,9 @@ src/
 - 类型集中在 `types/` 下统一导出，API 层通过 `types/api.ts` 共享 `ApiResponse<T>`
 - Store 使用 Zustand persist middleware，数据持久化到 localStorage
 - Agent WebSocket 信封校验与事件路由位于 `hooks/agent/transport/`，业务处理器不得回流到组件层
+- Agent WebSocket 业务事件按 `transport/handlers/` 的消息、权限、重同步、Session 和作用域映射分域；当前 Session 守卫与事件所有权不得重复实现
+- Agent conversation 公共 Hook 只做领域装配；消息去重、ACK 失败和稳定事件分发分别归属 `message/`、`actions/` 与 `transport/`
+- Agent Session 由 `hooks/agent/session/controller/` 分离身份迁移、后台/易失快照与加载上下文；总控制器不复制 React setter
 - Agent 运行态由 `hooks/agent/runtime/` 按纯模型、易失快照和 React 状态分层；状态机实例不得暴露给编排层，`model/` 不得反向依赖存储或 Hook
 - WebSocket 连接策略只由 `lib/websocket/socket-policy.ts` 定义；共享通道使用完整有效配置作为身份，业务消息不得进入离线队列
 - Workspace 会话标签由 `shared/ui/workspace/controls/conversation-tabs/` 分离纯模型、标签事务和单项视图；活动标签必须属于打开集合，视图不得直接修正集合状态
@@ -52,7 +55,7 @@ src/
 - General 设置由 `features/settings/general/` 统一编排；默认模型值直接派生自用户偏好和 Provider 默认值，不维护镜像选择状态
 - 设置目录由 `features/settings/settings-navigation-model.ts` 定义，主应用侧栏与独立设置窗口必须复用 `settings-sidebar-navigation.tsx`；当前分区只由 URL 查询参数派生，不维护第二份选中状态；运营分区只对非桌面端 owner/admin 暴露，旧 `/operations` 入口必须收敛到设置目录
 - Personal 设置只通过 `features/settings/personal/use-personal-settings-controller.ts` 读写资料；密码规则由纯模型的有序规则表定义，区块视图不得直接调用 Auth API
-- Provider 配置动作由 `features/settings/provider-settings/actions/config/` 分离字段联动、持久化和删除；模型与测试动作只能依赖 `PersistProvider` 窄命令契约
+- Provider 由 `features/settings/provider-settings/workspace/` 管理原子状态与请求代次，`actions/config/` 和 `actions/model/` 分离配置及模型事务，目录、格式和能力标志只由纯展示模型投影
 - Agent 身份页由 `features/agents/options/components/identity/` 的单一布局结构组合；资料、标签和模型选择各自拥有窄接口，待添加标签草稿必须绑定编辑作用域
 - Markdown 根入口只编排渲染；正文/摘要语义、流式推进、工作区路径和 Mermaid 预览分别归属 `core/`、`streaming/`、`workspace/` 与 `mermaid/`
 - Message item 的结构化内容关联只由 `view/content/content-renderer-model.ts` 建立；Assistant/User 视图不得再次扫描整轮内容或手写不完整的 Props 比较器

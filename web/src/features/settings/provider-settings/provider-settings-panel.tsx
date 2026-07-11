@@ -18,10 +18,7 @@ import { ProviderSettingsSidebar } from "./components/provider-settings-sidebar"
 import { ProviderAddModelDialog } from "./dialogs/provider-settings-add-model-dialog";
 import { ProviderDeleteUsageDialog } from "./dialogs/provider-settings-delete-usage-dialog";
 import { ProviderModelOptionsDialog } from "./dialogs/provider-settings-model-options-dialog";
-import {
-  getProviderTitle,
-  normalizeCustomProviderKey,
-} from "./model/provider-config-model";
+import { getProviderTitle } from "./model/provider-config-model";
 import { SETTINGS_TABS } from "./model/provider-settings-presentation";
 import { useProviderSettingsController } from "./use-provider-settings-controller";
 
@@ -94,12 +91,9 @@ export function ProviderSettingsPanel({
                     base_url: value,
                   })}
                   onFieldBlur={actions.handleProviderFieldBlur}
-                  onProviderDisplayNameChange={(displayName) => actions.updateDraft({
-                    display_name: displayName,
-                    provider: state.isCreating
-                      ? normalizeCustomProviderKey(displayName)
-                      : state.draft.provider,
-                  })}
+                  onProviderDisplayNameChange={
+                    actions.handleProviderDisplayNameChange
+                  }
                   onProviderKindChange={actions.handleProviderKindChange}
                   providerKindOptions={state.providerKindOptions}
                   selectedCanManage={state.selectedCanManage}
@@ -115,11 +109,9 @@ export function ProviderSettingsPanel({
                   isApiFormatConfigurable={state.isApiFormatConfigurable}
                   isEditing={state.isEditing}
                   modelQuery={modelActions.modelQuery}
-                  onDefaultModelDisableAttempt={(model) => {
-                    actions.reportDefaultModelDisable(
-                      model.display_name || model.model_id,
-                    );
-                  }}
+                  onDefaultModelDisableAttempt={
+                    modelActions.handleDefaultModelDisableAttempt
+                  }
                   onFetchModels={modelActions.handleFetchModels}
                   onModelOptions={modelActions.setModelOptionsFromRecord}
                   onModelQueryChange={modelActions.setModelQuery}
