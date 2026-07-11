@@ -23,15 +23,19 @@ import {
   mergeLoadedMessages,
   upsertMessage,
 } from "../message/message-collection-model";
-import type { AgentConversationRuntimeSnapshot } from "../runtime/agent-conversation-runtime-machine";
+import {
+  isEphemeralMessage,
+  type AgentConversationRuntimeSnapshot,
+} from "../runtime/model/conversation-runtime-state";
 import {
   buildVolatileConversationSnapshot,
-  isEphemeralMessage,
   mergePendingAgentSlots,
+} from "../runtime/snapshot/conversation-volatile-model";
+import {
   readVolatileConversationSnapshot,
   removeVolatileConversationSnapshot,
   writeVolatileConversationSnapshot,
-} from "../runtime/conversation-volatile-snapshot";
+} from "../runtime/snapshot/conversation-volatile-storage";
 import {
   loadAgentSession,
   type AgentConversationLifecycleContext,

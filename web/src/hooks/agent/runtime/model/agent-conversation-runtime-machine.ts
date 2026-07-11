@@ -1,55 +1,33 @@
-/**
- * =====================================================
- * @File   ：agent-conversation-runtime-machine.ts
- * @Date   ：2026-04-09 20:53:00
- * @Author ：leemysw
- * 2026-04-09 20:53:00   Create
- * =====================================================
- */
-
-import {
+import type {
   AssistantMessage,
   AssistantMessageStatus,
   ChatAckData,
   Message,
   RoundLifecycleStatus,
-} from '@/types';
-import {
+} from "@/types";
+import type {
   AgentConversationChatType,
   AgentConversationRuntimePhase,
-} from '@/types/agent/agent-conversation';
-import { areRuntimeSnapshotsEqual } from './conversation-runtime-state';
+} from "@/types/agent/agent-conversation";
 
-export interface ActiveMessageTracker {
+import {
+  areRuntimeSnapshotsEqual,
+  type AgentConversationRuntimeSnapshot,
+} from "./conversation-runtime-state";
+
+interface ActiveMessageTracker {
   roundId: string;
   status: AssistantMessageStatus;
 }
 
-export interface AgentConversationRuntimeSnapshot {
-  phase: AgentConversationRuntimePhase;
-  sendingRoundIds: string[];
-  runningRoundIds: string[];
-  terminalRoundIds: string[];
-  liveRoundIds: string[];
-  activeMessages: Record<string, ActiveMessageTracker>;
-  pendingPermissionCount: number;
-  isLoading: boolean;
-}
-
 function isTerminalAssistantStatus(status?: AssistantMessageStatus): boolean {
-  return status === 'done' || status === 'cancelled' || status === 'error';
+  return status === "done" || status === "cancelled" || status === "error";
 }
 
 function hasTerminalAssistantProjection(message: AssistantMessage): boolean {
   return Boolean(message.result_summary)
     || Boolean(message.stop_reason)
     || isTerminalAssistantStatus(message.stream_status);
-}
-
-function buildActiveMessageRecord(
-  trackers: Map<string, ActiveMessageTracker>,
-): Record<string, ActiveMessageTracker> {
-  return Object.fromEntries(trackers.entries());
 }
 
 export class AgentConversationRuntimeMachine {
@@ -116,29 +94,13 @@ export class AgentConversationRuntimeMachine {
     }
   }
 
-  public clearRound(roundId?: string | null): void {
-    if (!roundId) {
-      return;
-    }
-
-    this.sendingRoundIds.delete(roundId);
-    this.runningRoundIds.delete(roundId);
-    this.terminalRoundIds.delete(roundId);
-
-    for (const [messageId, tracker] of this.activeMessageTrackers.entries()) {
-      if (tracker.roundId === roundId) {
-        this.activeMessageTrackers.delete(messageId);
-      }
-    }
-  }
-
   public updateMessageStatus(
     messageId: string,
     status: AssistantMessageStatus,
     roundId?: string | null,
   ): void {
     const currentTracker = this.activeMessageTrackers.get(messageId);
-    const resolvedRoundId = roundId ?? currentTracker?.roundId ?? '';
+    const resolvedRoundId = roundId ?? currentTracker?.roundId ?? "";
     if (resolvedRoundId && this.isRoundTerminal(resolvedRoundId)) {
       this.activeMessageTrackers.delete(messageId);
       return;
@@ -165,7 +127,7 @@ export class AgentConversationRuntimeMachine {
       }
       this.activeMessageTrackers.set(slot.msg_id, {
         roundId: ack.round_id,
-        status: slot.status ?? 'pending',
+        status: slot.status ?? "pending",
       });
     }
   }
@@ -183,7 +145,7 @@ export class AgentConversationRuntimeMachine {
 
     this.activeMessageTrackers.set(message.message_id, {
       roundId: message.round_id,
-      status: message.stream_status ?? 'streaming',
+      status: message.stream_status ?? "streaming",
     });
   }
 
@@ -191,7 +153,7 @@ export class AgentConversationRuntimeMachine {
     roundId: string,
     status: RoundLifecycleStatus,
   ): void {
-    if (status === 'running') {
+    if (status === "running") {
       this.sendingRoundIds.delete(roundId);
       this.terminalRoundIds.delete(roundId);
       this.runningRoundIds.add(roundId);
@@ -230,7 +192,7 @@ export class AgentConversationRuntimeMachine {
     const terminalMessageIds = new Set<string>();
 
     for (const message of messages) {
-      if (message.role !== 'assistant') {
+      if (message.role !== "assistant") {
         continue;
       }
 
@@ -247,9 +209,9 @@ export class AgentConversationRuntimeMachine {
       nextTrackers.set(messageId, tracker);
     }
 
-    if (this.chatType !== 'group') {
+    if (this.chatType !== "group") {
       for (const message of messages) {
-        if (message.role !== 'assistant') {
+        if (message.role !== "assistant") {
           continue;
         }
         if (
@@ -260,7 +222,7 @@ export class AgentConversationRuntimeMachine {
         }
         nextTrackers.set(message.message_id, {
           roundId: message.round_id,
-          status: message.stream_status ?? 'streaming',
+          status: message.stream_status ?? "streaming",
         });
       }
     }
@@ -286,13 +248,9 @@ export class AgentConversationRuntimeMachine {
     }
     return {
       phase,
-      sendingRoundIds: [...this.sendingRoundIds],
-      runningRoundIds: [...this.runningRoundIds],
       terminalRoundIds: [...this.terminalRoundIds],
       liveRoundIds: [...liveRoundIds],
-      activeMessages: buildActiveMessageRecord(this.activeMessageTrackers),
-      pendingPermissionCount: this.pendingPermissionCount,
-      isLoading: phase !== 'idle',
+      isLoading: phase !== "idle",
     };
   }
 
@@ -302,23 +260,23 @@ export class AgentConversationRuntimeMachine {
 
   private resolvePhase(): AgentConversationRuntimePhase {
     if (this.pendingPermissionCount > 0) {
-      return 'awaiting_permission';
+      return "awaiting_permission";
     }
 
     for (const tracker of this.activeMessageTrackers.values()) {
-      if (tracker.status === 'streaming') {
-        return 'streaming';
+      if (tracker.status === "streaming") {
+        return "streaming";
       }
     }
 
     if (this.sendingRoundIds.size > 0) {
-      return 'sending';
+      return "sending";
     }
 
     if (this.runningRoundIds.size > 0 || this.activeMessageTrackers.size > 0) {
-      return 'running';
+      return "running";
     }
 
-    return 'idle';
+    return "idle";
   }
 }

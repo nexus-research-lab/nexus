@@ -6,10 +6,11 @@ import type {
   RoomPendingAgentSlotState,
   RoundLifecycleStatus,
 } from "@/types";
-import type { AgentConversationChatType } from "@/types/agent/agent-conversation";
 import type { PendingPermission } from "@/types/conversation/permission";
-import { getTerminalMessageStatus } from "./conversation-runtime-state";
-import { isEphemeralMessage } from "./conversation-volatile-snapshot";
+import {
+  getTerminalMessageStatus,
+  isEphemeralMessage,
+} from "./conversation-runtime-state";
 
 export function filterRoundPendingAgentSlots(
   slots: RoomPendingAgentSlotState[],
@@ -18,11 +19,38 @@ export function filterRoundPendingAgentSlots(
   return slots.filter((slot) => slot.round_id !== roundId);
 }
 
-export function filterAgentRoundPendingAgentSlots(
+export function reconcileAgentRoundPendingSlots(
   slots: RoomPendingAgentSlotState[],
   agentRoundId: string,
+  isTerminal: boolean,
 ): RoomPendingAgentSlotState[] {
-  return slots.filter((slot) => slot.agent_round_id !== agentRoundId);
+  if (isTerminal) {
+    return slots.filter((slot) => slot.agent_round_id !== agentRoundId);
+  }
+  return slots.map((slot) => slot.agent_round_id === agentRoundId
+    ? { ...slot, status: "streaming" }
+    : slot);
+}
+
+export function filterPendingSlotsFromSnapshot(
+  currentSlots: RoomPendingAgentSlotState[],
+  messages: Message[],
+  isRoundTerminal: (roundId: string) => boolean,
+): RoomPendingAgentSlotState[] {
+  if (currentSlots.length === 0) {
+    return currentSlots;
+  }
+  const loadedMessageIds = new Set(
+    messages
+      .filter(
+        (message): message is AssistantMessage => message.role === "assistant",
+      )
+      .map((message) => message.message_id),
+  );
+  return currentSlots.filter(
+    (slot) => !isRoundTerminal(slot.round_id)
+      && !loadedMessageIds.has(slot.msg_id),
+  );
 }
 
 export function filterRoundPendingPermissions(
@@ -99,7 +127,6 @@ export function cancelRunningAgentSlots(
 export function reconcileStoppedSessionMessages(
   messages: Message[],
   terminalRoundIds: string[],
-  _chatType: AgentConversationChatType,
 ): Message[] {
   const terminalRoundSet = new Set(terminalRoundIds);
   const isTerminalRound = (roundId: string) => terminalRoundSet.has(roundId);

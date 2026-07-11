@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Split conversation Todo projection into round indexing, runtime-task merging, status inference, and a stable shared hook used by both DM and Room panels.
 - Consolidated conversation scrolling under the timeline domain, separating smooth animation, user interactions, history-prepend anchoring, local expansion anchoring, and round navigation protocols.
 - Split Agent message processing into Assistant content identity, message collection, and stream reducer models instead of sharing one cross-layer helper module.
+- Split Agent conversation runtime into pure models, volatile snapshot storage, and narrow React state controllers, removing the state type cycle and unused runtime surface.
 - Split WebSocket transport into connection policy, heartbeat, client, shared-channel registry, and React lifecycle modules, with shared identity derived from the complete effective configuration.
 - Split Workspace conversation tabs into pure ordering/layout models, a browser-style tab transaction controller, and a presentation-only tab item.
 - Split Agent memory browsing and document editing into scoped resource controllers, with a presentation-only catalog and explicit live SDK content precedence.
