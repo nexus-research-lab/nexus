@@ -5,7 +5,7 @@ import type {
   ScheduledTaskSource,
   ScheduledTaskSessionTarget,
 } from "@/types/capability/scheduled-task";
-import { formatScheduledDatetime } from "./scheduled-formatters";
+import { formatScheduledDatetime } from "../scheduled-formatters";
 
 function formatInterval(seconds: number): string {
   if (seconds % 86400 === 0) {

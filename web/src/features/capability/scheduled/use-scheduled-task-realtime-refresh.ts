@@ -12,6 +12,16 @@ import { notifyScheduledTasksMutated } from "../scheduled-task-events";
 const RUNNING_TASK_FALLBACK_POLL_INTERVAL_MS = 30000;
 const ENABLED_TASK_FALLBACK_POLL_INTERVAL_MS = 120000;
 
+function getFallbackPollInterval(enabledCount: number, runningCount: number): number {
+  if (runningCount > 0) {
+    return RUNNING_TASK_FALLBACK_POLL_INTERVAL_MS;
+  }
+  if (enabledCount > 0) {
+    return ENABLED_TASK_FALLBACK_POLL_INTERVAL_MS;
+  }
+  return 0;
+}
+
 interface ScheduledTaskRealtimeRefreshOptions {
   enabledCount: number;
   refreshTasks: (options?: { silent?: boolean }) => Promise<void>;
@@ -80,9 +90,7 @@ export function useScheduledTaskRealtimeRefresh({
     if (wsState === "connected") {
       return;
     }
-    const pollIntervalMs = runningCount > 0
-      ? RUNNING_TASK_FALLBACK_POLL_INTERVAL_MS
-      : enabledCount > 0 ? ENABLED_TASK_FALLBACK_POLL_INTERVAL_MS : 0;
+    const pollIntervalMs = getFallbackPollInterval(enabledCount, runningCount);
     if (!pollIntervalMs) {
       return;
     }

@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Split the scheduled-task directory and run history into scoped resources, mutation commands, overview, dialog shell, and narrow list/detail/action views, reusing the shared anchored action menu for task actions.
 - Consolidated action, select, and multi-select menus under shared menu ownership, and unified scheduled-task time columns and anchored overlay behavior across pickers.
 - Split the Home ASCII Hero into presentation, React lifecycle, Canvas scene, and particle-model modules.
 - Made Nexus the sole owner of scheduled-task state and timing, exposed automation to runtimes through the injected MCP server, and simplified task creation, list actions, and run diagnostics around progressive disclosure.
@@ -78,6 +79,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Removed unused Heartbeat requests and dead automation controller surfaces from the scheduled-task page, stopped task toggles from issuing duplicate list refreshes, routed mutation notifications through each task's owning Agent, and propagated failed history commands instead of reporting false success.
 - Prevented stale Home Hero font and resize rebuilds from starting duplicate animation loops, and kept scheduled-task picker overlays within the available viewport.
 - Prevented stale Room context refreshes, snapshot setters, and mutation results from crossing route Room boundaries.
 - Redirected immediately from rooms confirmed deleted by the server instead of racing a stale page snapshot against a second refresh.
