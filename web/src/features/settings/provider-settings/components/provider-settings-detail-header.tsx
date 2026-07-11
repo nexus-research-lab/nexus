@@ -2,7 +2,7 @@ import { Loader2, Play } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { GlassSwitch } from "@/shared/ui/liquid-glass";
+import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 
 import type { ProviderPendingAction } from "../actions/use-provider-command";

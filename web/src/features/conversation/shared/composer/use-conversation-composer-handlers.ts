@@ -4,8 +4,7 @@ import type {
   AgentConversationDeliveryPolicy,
   AgentConversationSendOptions,
 } from "@/types/agent/agent-conversation";
-
-import type { PreparedComposerAttachment } from "./attachments/composer-attachments";
+import type { MessageAttachment } from "@/types/conversation/message/attachment";
 
 interface UseConversationComposerHandlersOptions {
   canSendInitialDraft?: boolean;
@@ -13,7 +12,7 @@ interface UseConversationComposerHandlersOptions {
   initialDraftLogLabel: string;
   isLoading: boolean;
   onInitialDraftConsumed?: () => void;
-  prepareAttachments: (files: File[]) => Promise<PreparedComposerAttachment[]>;
+  prepareAttachments: (files: File[]) => Promise<MessageAttachment[]>;
   scrollToBottom: (behavior?: ScrollBehavior) => void;
   sendMessage: (
     content: string,
@@ -39,7 +38,7 @@ export function useConversationComposerHandlers({
     async (
       content: string,
       deliveryPolicy: AgentConversationDeliveryPolicy,
-      attachments: PreparedComposerAttachment[] = [],
+      attachments: MessageAttachment[] = [],
     ) => {
       if (!content.trim() && attachments.length === 0) return;
       scrollToBottom("auto");

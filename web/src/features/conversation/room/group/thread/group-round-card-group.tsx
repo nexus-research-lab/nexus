@@ -2,7 +2,7 @@
 
 import { memo, useCallback, useMemo } from "react";
 
-import { MessageItem } from "@/features/conversation/shared/message";
+import { MessageItem } from "@/features/conversation/shared/message/item/message-item";
 import type { Message } from "@/types/conversation/message/entity";
 import type { RoomPendingAgentSlotState } from "@/types/agent/agent-conversation";
 import type {

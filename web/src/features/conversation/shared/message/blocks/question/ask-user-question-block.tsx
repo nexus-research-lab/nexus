@@ -1,15 +1,12 @@
 import { useMemo } from "react";
 
-import type {
-  AskUserQuestionInput,
-  UserQuestionAnswer,
-} from "@/types/conversation/interaction/ask-user-question";
+import type { UserQuestionAnswer } from "@/types/conversation/interaction/ask-user-question";
 import type {
   ToolResultContent,
   ToolUseContent,
 } from "@/types/conversation/message/content";
 
-import { normalizeQuestion } from "./ask-user-question-model";
+import { parseAskUserQuestions } from "./ask-user-question-model";
 import { AskUserQuestionView } from "./ask-user-question-view";
 import { useAskUserQuestionController } from "./use-ask-user-question-controller";
 
@@ -33,10 +30,9 @@ export function AskUserQuestionBlock({
   toolResult,
   toolUse,
 }: AskUserQuestionBlockProps) {
-  const input = toolUse.input as AskUserQuestionInput;
   const questions = useMemo(
-    () => (input?.questions ?? []).map(normalizeQuestion),
-    [input?.questions],
+    () => parseAskUserQuestions(toolUse.input),
+    [toolUse.input],
   );
   const controller = useAskUserQuestionController({
     initialSubmitted,

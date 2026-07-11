@@ -14,7 +14,7 @@ import {
   UiDialogPortal,
   UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
-import { GlassSwitch } from "@/shared/ui/liquid-glass";
+import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 import type { ExternalSkillSourceInfo } from "@/types/capability/skill";
 
 interface SkillSourceManagerDialogProps {

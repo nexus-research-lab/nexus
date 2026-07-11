@@ -1,4 +1,4 @@
-import { MessageItem } from "@/features/conversation/shared/message";
+import { MessageItem } from "@/features/conversation/shared/message/item/message-item";
 
 import type { GroupRoundAgentCardModel } from "./group-round-card-model";
 import { ThreadActionButton } from "./thread-action-button";

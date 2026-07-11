@@ -2,9 +2,18 @@
 
 import { ChangeEvent, ClipboardEvent, useCallback, useState } from "react";
 
-import { useI18n } from "@/shared/i18n/i18n-context";
+import {
+  type I18nContextValue,
+  useI18n,
+} from "@/shared/i18n/i18n-context";
+import type { TranslationKey } from "@/shared/i18n/messages";
+import type { MessageAttachment } from "@/types/conversation/message/attachment";
 
-import { PreparedComposerAttachment } from "./composer-attachments";
+import {
+  type ComposerAttachmentRejection,
+  type ComposerAttachmentRejectionCode,
+  ComposerAttachmentRejectedError,
+} from "./composer-attachments";
 import {
   buildLocalAttachment,
   buildPastedTextFile,
@@ -17,7 +26,36 @@ import {
 interface UseComposerAttachmentsOptions {
   isGoalMode: boolean;
   onGoalAttachmentRejected: (message: string) => void;
-  onPrepareAttachments?: (files: File[]) => Promise<PreparedComposerAttachment[]>;
+  onPrepareAttachments?: (files: File[]) => Promise<MessageAttachment[]>;
+}
+
+const ATTACHMENT_REJECTION_MESSAGE_KEYS: Record<
+  ComposerAttachmentRejectionCode,
+  TranslationKey
+> = {
+  too_large: "composer.attachment_too_large",
+  unsupported_format: "composer.attachment_format_unsupported",
+};
+
+function formatAttachmentRejection(
+  rejection: ComposerAttachmentRejection,
+  translate: I18nContextValue["t"],
+): string {
+  return translate(ATTACHMENT_REJECTION_MESSAGE_KEYS[rejection.code], {
+    name: rejection.fileName,
+  });
+}
+
+function formatAttachmentPreparationError(
+  error: unknown,
+  translate: I18nContextValue["t"],
+): string {
+  if (error instanceof ComposerAttachmentRejectedError) {
+    return formatAttachmentRejection(error.rejection, translate);
+  }
+  return error instanceof Error
+    ? error.message
+    : translate("composer.attachment_failed");
 }
 
 export function useComposerAttachments({
@@ -44,15 +82,12 @@ export function useComposerAttachments({
     }
 
     const nextAttachments: ComposerLocalAttachment[] = [];
-    const rejectedFiles: string[] = [];
+    const rejections: ComposerAttachmentRejection[] = [];
 
     files.forEach((file) => {
-      const { attachment, rejection_reason: rejectionReason } = buildLocalAttachment(
-        file,
-        t("composer.attachment_format_unsupported"),
-      );
-      if (rejectionReason) {
-        rejectedFiles.push(rejectionReason);
+      const { attachment, rejection } = buildLocalAttachment(file);
+      if (rejection) {
+        rejections.push(rejection);
         return;
       }
       if (attachment) {
@@ -60,8 +95,9 @@ export function useComposerAttachments({
       }
     });
 
-    if (rejectedFiles.length > 0) {
-      setAttachmentError(rejectedFiles[0] ?? t("composer.attachment_format_unsupported"));
+    const firstRejection = rejections[0];
+    if (firstRejection) {
+      setAttachmentError(formatAttachmentRejection(firstRejection, t));
     } else {
       setAttachmentError(null);
     }
@@ -107,7 +143,7 @@ export function useComposerAttachments({
 
   const prepareAttachments = useCallback(async () => {
     if (attachments.length === 0) {
-      return [] as PreparedComposerAttachment[];
+      return [] as MessageAttachment[];
     }
     if (!onPrepareAttachments) {
       setAttachmentError(t("composer.unsupported_attachment"));
@@ -119,7 +155,7 @@ export function useComposerAttachments({
     try {
       return await onPrepareAttachments(attachments.map((attachment) => attachment.file));
     } catch (error) {
-      setAttachmentError(error instanceof Error ? error.message : t("composer.attachment_failed"));
+      setAttachmentError(formatAttachmentPreparationError(error, t));
       return null;
     } finally {
       setIsPreparingAttachments(false);

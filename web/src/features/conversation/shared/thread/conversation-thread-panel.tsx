@@ -3,7 +3,7 @@
 import { ArrowLeft, Bot, X } from "lucide-react";
 import { type ReactNode, useMemo } from "react";
 
-import { MessageItem } from "@/features/conversation/shared/message";
+import { MessageItem } from "@/features/conversation/shared/message/item/message-item";
 import { MessageAvatar } from "@/features/conversation/shared/message/ui/message-primitives";
 import { ScrollToLatestButton } from "@/features/conversation/shared/scroll-to-latest-button";
 import { useFollowScroll } from "@/features/conversation/shared/timeline/scroll/use-follow-scroll";

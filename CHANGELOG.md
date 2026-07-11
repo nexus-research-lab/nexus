@@ -25,6 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Split scheduled-task types into task and run contracts, removing unused status, event, health, and daily-report declarations instead of preserving speculative API mirrors.
 - Split conversation messages into attachment, content, entity, and event contracts, removed the root type barrel and unused message declarations, reused generated WebSocket envelopes, and added owner-specific decoding for previously unchecked event data.
 - Removed the frontend utility grab bag, routing class-name composition directly to its UI primitive while separating relative-time, token-count, and avatar rules into owned modules with data-driven projections.
+- Separated Liquid Glass capability, interaction, animation cleanup, and SVG filter ownership, removed render-phase state writes, and deleted message and shared-UI forwarding barrels in favor of direct responsibility imports.
+- Removed the remaining frontend protocol `any` escapes and dead SDK aliases, sharing unknown tool inputs across messages and permissions while validating AskUserQuestion payloads inside the owning feature.
+- Consolidated Composer attachment classification, accept filters, rejection localization, and Agent/Room upload preparation into one data-driven pipeline that validates whole batches before side effects.
 - Split the scheduled-task directory and run history into scoped resources, mutation commands, overview, dialog shell, and narrow list/detail/action views, reusing the shared anchored action menu for task actions.
 - Consolidated action, select, and multi-select menus under shared menu ownership, and unified scheduled-task time columns and anchored overlay behavior across pickers.
 - Split the Home ASCII Hero into presentation, React lifecycle, Canvas scene, and particle-model modules.

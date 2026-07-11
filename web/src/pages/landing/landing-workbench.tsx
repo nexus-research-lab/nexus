@@ -27,7 +27,7 @@ import {
   COMPOSER_SHELL_CLASS_NAME,
 } from "@/features/conversation/shared/composer/composer-styles";
 import { ConversationResizeHandle } from "@/features/conversation/shared/editor/conversation-resize-handle";
-import { MessageItem } from "@/features/conversation/shared/message";
+import { MessageItem } from "@/features/conversation/shared/message/item/message-item";
 import { cn } from "@/shared/ui/class-name";
 import { UiAgentAvatar, UiRoomAvatar } from "@/shared/ui/display/avatar";
 import { UiBadge, UiCounterBadge } from "@/shared/ui/display/badge";

@@ -2,7 +2,7 @@
  * 会话消息附件契约。
  */
 
-type MessageAttachmentKind = "text" | "image" | "file";
+export type MessageAttachmentKind = "text" | "image" | "file";
 
 export type MessageAttachmentScope = "agentWorkspace" | "roomConversation";
 

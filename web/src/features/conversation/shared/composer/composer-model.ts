@@ -8,8 +8,7 @@ import type {
   InputQueueItem,
 } from "@/types/agent/agent-conversation";
 import type { LoopCatalogItem } from "@/types/capability/loop";
-
-import type { PreparedComposerAttachment } from "./attachments/composer-attachments";
+import type { MessageAttachment } from "@/types/conversation/message/attachment";
 
 export interface ComposerPanelProps {
   compact: boolean;
@@ -18,13 +17,13 @@ export interface ComposerPanelProps {
   onSendMessage: (
     content: string,
     deliveryPolicy: AgentConversationDeliveryPolicy,
-    attachments?: PreparedComposerAttachment[],
+    attachments?: MessageAttachment[],
   ) => void | Promise<void>;
   inputQueueItems?: InputQueueItem[];
   onEnqueueMessage?: (
     content: string,
     deliveryPolicy: AgentConversationDeliveryPolicy,
-    attachments?: PreparedComposerAttachment[],
+    attachments?: MessageAttachment[],
   ) => void | Promise<void>;
   onDeleteQueuedMessage?: (itemId: string) => void | Promise<void>;
   onGuideQueuedMessage?: (itemId: string) => void | Promise<void>;
@@ -35,7 +34,7 @@ export interface ComposerPanelProps {
   roomMembers?: Agent[];
   onPrepareAttachments?: (
     files: File[],
-  ) => Promise<PreparedComposerAttachment[]>;
+  ) => Promise<MessageAttachment[]>;
   onCreateGoal?: (objective: string) => Promise<void>;
   enableLoops?: boolean;
   onCreateLoopGoal?: (loop: LoopCatalogItem) => Promise<void>;

@@ -5,7 +5,7 @@ import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiActionMenu } from "@/shared/ui/menu/action-menu";
 import { LoadingOrb } from "@/shared/ui/feedback/loading-orb";
-import { GlassSwitch } from "@/shared/ui/liquid-glass";
+import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 import { COMPOSER_FOOTER_CLASS_NAME } from "../composer-styles";
 
 interface ComposerFooterProps {

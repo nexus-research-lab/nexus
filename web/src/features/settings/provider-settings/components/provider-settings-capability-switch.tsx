@@ -1,6 +1,6 @@
 import { type ReactNode } from "react";
 
-import { GlassSwitch } from "@/shared/ui/liquid-glass";
+import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 
 export function CapabilitySwitch({
   checked,

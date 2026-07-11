@@ -21,7 +21,7 @@ export interface AgentOptions {
     cwd?: string;
     max_turns?: number;
     max_thinking_tokens?: number;
-    mcp_servers?: Record<string, any>;
+    mcp_servers?: Record<string, unknown>;
     setting_sources?: ('user' | 'project')[];
 }
 
@@ -58,7 +58,7 @@ export interface ApiAgent {
     display_name?: string | null;
     headline?: string | null;
     profile_markdown?: string | null;
-    options: Record<string, any> | null;
+    options: AgentOptions | null;
     created_at: string;
     status: string;
     avatar?: string | null;
@@ -82,7 +82,7 @@ export interface ApiAgentSession {
     last_activity: string;
     title: string | null;
     message_count: number;
-    options: Record<string, any> | null;
+    options: Record<string, unknown> | null;
 }
 
 /** 标准化的 Agent 会话数据结构 */

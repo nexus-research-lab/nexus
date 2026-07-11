@@ -1,5 +1,5 @@
 import { SIDEBAR_TOUR_ANCHORS } from "@/features/onboarding/tours/sidebar-navigation-tour";
-import { GlassMagnifierStatic } from "@/shared/ui/liquid-glass";
+import { GlassMagnifier } from "@/shared/ui/liquid-glass/glass-magnifier";
 import { cn } from "@/shared/ui/class-name";
 
 interface SidebarNexusButtonProps {
@@ -59,7 +59,7 @@ function PanelNexusButton({
       title="Nexus"
       type="button"
     >
-      <GlassMagnifierStatic
+      <GlassMagnifier
         className={cn(
           "relative z-10 transition-transform duration-(--motion-duration-normal)",
           !prefersReducedMotion && "group-hover/nexus:scale-[1.03]",
@@ -96,7 +96,7 @@ function PanelNexusButton({
             )}
           </span>
         </span>
-      </GlassMagnifierStatic>
+      </GlassMagnifier>
     </button>
   );
 }

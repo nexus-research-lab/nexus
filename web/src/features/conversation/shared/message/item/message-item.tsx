@@ -86,6 +86,4 @@ function MessageItemInner({
 }
 
 // 默认浅比较覆盖完整 Props 协议，避免手写白名单遗漏动作回调并保留旧闭包。
-const MessageItem = memo(MessageItemInner);
-
-export default MessageItem;
+export const MessageItem = memo(MessageItemInner);

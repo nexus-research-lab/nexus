@@ -5,38 +5,28 @@ import {
   X,
 } from "lucide-react";
 
-import { ComposerAttachmentKind } from "./composer-attachments";
-import { ComposerLocalAttachment } from "./composer-local-attachment-model";
+import type { MessageAttachmentKind } from "@/types/conversation/message/attachment";
+
+import type { ComposerLocalAttachment } from "./composer-local-attachment-model";
 import {
   COMPOSER_ATTACHMENT_CLASS_NAME,
   COMPOSER_ATTACHMENT_REMOVE_CLASS_NAME,
   COMPOSER_ATTACHMENT_ROW_CLASS_NAME,
 } from "../composer-styles";
 
-function getAttachmentKindLabel(kind: ComposerAttachmentKind) {
-  if (kind === "image") {
-    return "图片";
-  }
-  if (kind === "text") {
-    return "文本文件";
-  }
-  return "工作文件";
-}
-
-function getAttachmentIcon(kind: ComposerAttachmentKind) {
-  if (kind === "image") {
-    return ImageIcon;
-  }
-  if (kind === "text") {
-    return FileText;
-  }
-  return FileIcon;
-}
+const ATTACHMENT_PRESENTATION: Record<
+  MessageAttachmentKind,
+  { icon: typeof FileIcon; label: string }
+> = {
+  file: { icon: FileIcon, label: "工作文件" },
+  image: { icon: ImageIcon, label: "图片" },
+  text: { icon: FileText, label: "文本文件" },
+};
 
 export function ComposerAttachmentList({
   attachments,
-  onRemove: onRemove,
-  removeLabel: removeLabel,
+  onRemove,
+  removeLabel,
 }: {
   attachments: ComposerLocalAttachment[];
   onRemove: (id: string) => void;
@@ -49,12 +39,13 @@ export function ComposerAttachmentList({
   return (
     <div className={COMPOSER_ATTACHMENT_ROW_CLASS_NAME}>
       {attachments.map((attachment) => {
-        const AttachmentIcon = getAttachmentIcon(attachment.kind);
+        const presentation = ATTACHMENT_PRESENTATION[attachment.kind];
+        const AttachmentIcon = presentation.icon;
         return (
           <div
             key={attachment.id}
             className={COMPOSER_ATTACHMENT_CLASS_NAME}
-            title={`${getAttachmentKindLabel(attachment.kind)}：${attachment.file.name}`}
+            title={`${presentation.label}：${attachment.file.name}`}
           >
             <AttachmentIcon size={16} className="text-accent" />
             <span className="max-w-[120px] truncate text-xs text-foreground/70">

@@ -12,7 +12,7 @@ import {
   UiDialogPortal,
 } from "@/shared/ui/dialog/dialog";
 import { UiField, UiInput } from "@/shared/ui/form/form-control";
-import { GlassSwitch } from "@/shared/ui/liquid-glass";
+import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 
 import type { ProviderPendingAction } from "../actions/use-provider-command";
 

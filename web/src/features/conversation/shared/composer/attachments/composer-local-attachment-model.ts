@@ -1,13 +1,14 @@
+import type { MessageAttachmentKind } from "@/types/conversation/message/attachment";
+
 import {
-  ComposerAttachmentKind,
-  getAttachmentRejectionReason,
-  getComposerAttachmentKind,
+  type ComposerAttachmentRejection,
+  inspectComposerAttachment,
 } from "./composer-attachments";
 
 export interface ComposerLocalAttachment {
   id: string;
   file: File;
-  kind: ComposerAttachmentKind;
+  kind: MessageAttachmentKind;
 }
 
 export const MAX_COMPOSER_ATTACHMENTS = 6;
@@ -67,24 +68,21 @@ export function getClipboardFiles(clipboardData: DataTransfer): File[] {
 
 export function buildLocalAttachment(
   file: File,
-  unsupportedMessage: string,
-): { attachment: ComposerLocalAttachment | null; rejection_reason: string | null } {
-  const rejectionReason = getAttachmentRejectionReason(file);
-  if (rejectionReason) {
-    return { attachment: null, rejection_reason: rejectionReason };
-  }
-
-  const kind = getComposerAttachmentKind(file);
-  if (!kind) {
-    return { attachment: null, rejection_reason: unsupportedMessage };
+): {
+  attachment: ComposerLocalAttachment | null;
+  rejection: ComposerAttachmentRejection | null;
+} {
+  const inspection = inspectComposerAttachment(file);
+  if (!inspection.accepted) {
+    return { attachment: null, rejection: inspection };
   }
 
   return {
     attachment: {
       id: createAttachmentId(),
       file,
-      kind,
+      kind: inspection.kind,
     },
-    rejection_reason: null,
+    rejection: null,
   };
 }

@@ -1,10 +1,11 @@
-"use client";
-
-import { useEffect, useId, useRef, useState } from "react";
-
 import { cn } from "@/shared/ui/class-name";
 
-import { supportsTrueLiquidGlass } from "./liquid-glass-engine";
+import { GlassSwitchFilter } from "./glass-switch-filter";
+import { useGlassSwitchInteraction } from "./use-glass-switch-interaction";
+import {
+  useLiquidGlassFilterId,
+  useSupportsTrueLiquidGlass,
+} from "./use-liquid-glass-support";
 
 interface GlassSwitchProps {
   checked: boolean;
@@ -24,35 +25,23 @@ const SOURCE_STATIC_THUMB_TRAVEL_X = 57.9;
 const SOURCE_STATIC_THUMB_SCALE = 0.65;
 const SOURCE_THUMB_TRAVEL_X = 40.9;
 const SOURCE_THUMB_SCALE = 0.9;
-const SOURCE_FILTER_BLUR = 0.2;
-const SOURCE_FILTER_SATURATION = "6";
-const SOURCE_FILTER_SPECULAR_FADE = 0.5;
-const SOURCE_FILTER_DISPLACEMENT_SCALE = 22.26064761799501;
-const LOCAL_DISPLACEMENT_MAP_URL = "/liquid-glass/displacement-map.png";
-const LOCAL_SPECULAR_MAP_URL = "/liquid-glass/specular-map.png";
 const TARGET_TRACK_HEIGHT_BY_SIZE = {
   xs: 18,
   sm: 22,
   md: 28,
 } as const;
 
-/**
- * 中文注释：共享 glass 开关采用 switch 专用折射滤镜，
- * 不再复用通用 panel 材质，避免 thumb 的曲面和 specular 被抽象层抹平。
- */
+/** 开关保留专用折射几何，避免通用面板材质抹平 thumb 的曲面和高光。 */
 export function GlassSwitch({
   checked,
   disabled = false,
-  onChange: onChange,
-  className: className,
+  onChange,
+  className,
   size = "md",
 }: GlassSwitchProps) {
-  const rawFilterId = useId();
-  const filterId = `glass-switch-thumb-${rawFilterId.replace(/:/g, "")}`;
-  const [canUseTrueGlass, setCanUseTrueGlass] = useState(false);
-  const [isPressed, setIsPressed] = useState(false);
-  const [isTransitioning, setIsTransitioning] = useState(false);
-  const previousCheckedRef = useRef(checked);
+  const filterId = useLiquidGlassFilterId("glass-switch-thumb");
+  const canUseTrueGlass = useSupportsTrueLiquidGlass();
+  const interaction = useGlassSwitchInteraction({ checked, disabled });
   const targetTrackHeight = TARGET_TRACK_HEIGHT_BY_SIZE[size];
   const scaleRatio = targetTrackHeight / SOURCE_TRACK_HEIGHT;
   const trackWidth = Math.round(SOURCE_TRACK_WIDTH * scaleRatio);
@@ -64,26 +53,8 @@ export function GlassSwitch({
   const staticThumbTravelX = SOURCE_STATIC_THUMB_TRAVEL_X * scaleRatio;
   const thumbTravelX = SOURCE_THUMB_TRAVEL_X * scaleRatio;
 
-  useEffect(() => {
-    setCanUseTrueGlass(supportsTrueLiquidGlass());
-  }, []);
-
-  /**
-   * 中文注释：首屏渲染时 previous_checked_ref 与当前值一致，
-   * 不应把初始化当成一次开关动画，否则会错误显示 glass 覆盖层。
-   */
-  if (previousCheckedRef.current !== checked) {
-    previousCheckedRef.current = checked;
-    setIsTransitioning(true);
-  }
-
-  if (disabled && (isPressed || isTransitioning)) {
-    setIsPressed(false);
-    setIsTransitioning(false);
-  }
-
   const showInteractionFilter = canUseTrueGlass
-    && (isPressed || isTransitioning);
+    && (interaction.isPressed || interaction.isTransitioning);
 
   return (
     <button
@@ -99,7 +70,7 @@ export function GlassSwitch({
         }
       }}
       onBlur={() => {
-        setIsPressed(false);
+        interaction.release();
       }}
       onKeyDown={(event) => {
         if (disabled) {
@@ -107,16 +78,16 @@ export function GlassSwitch({
         }
 
         if (event.key === " " || event.key === "Enter") {
-          setIsPressed(true);
+          interaction.press();
         }
       }}
       onKeyUp={(event) => {
         if (event.key === " " || event.key === "Enter") {
-          setIsPressed(false);
+          interaction.release();
         }
       }}
       onPointerCancel={() => {
-        setIsPressed(false);
+        interaction.release();
       }}
       onPointerDown={(event) => {
         if (disabled) {
@@ -124,13 +95,13 @@ export function GlassSwitch({
         }
 
         event.currentTarget.setPointerCapture(event.pointerId);
-        setIsPressed(true);
+        interaction.press();
       }}
       onPointerUp={(event) => {
         if (event.currentTarget.hasPointerCapture(event.pointerId)) {
           event.currentTarget.releasePointerCapture(event.pointerId);
         }
-        setIsPressed(false);
+        interaction.release();
       }}
       role="switch"
       type="button"
@@ -141,75 +112,7 @@ export function GlassSwitch({
       }}
     >
       {canUseTrueGlass ? (
-        <svg
-          aria-hidden="true"
-          className="pointer-events-none absolute h-0 w-0 overflow-hidden"
-          colorInterpolationFilters="sRGB"
-          focusable="false"
-        >
-          <defs>
-            <filter id={filterId}>
-              <feGaussianBlur
-                in="SourceGraphic"
-                result="blurred_source"
-                stdDeviation={SOURCE_FILTER_BLUR}
-              />
-              <feImage
-                href={LOCAL_DISPLACEMENT_MAP_URL}
-                result="displacement_map"
-                x={0}
-                y={0}
-                width={thumbWidth}
-                height={thumbHeight}
-              />
-              <feDisplacementMap
-                in="blurred_source"
-                in2="displacement_map"
-                result="displaced"
-                scale={SOURCE_FILTER_DISPLACEMENT_SCALE}
-                xChannelSelector="R"
-                yChannelSelector="G"
-              />
-              <feColorMatrix
-                in="displaced"
-                result="displaced_saturated"
-                type="saturate"
-                values={SOURCE_FILTER_SATURATION}
-              />
-              <feImage
-                href={LOCAL_SPECULAR_MAP_URL}
-                result="specular_layer"
-                x={0}
-                y={0}
-                width={thumbWidth}
-                height={thumbHeight}
-              />
-              <feComposite
-                in="displaced_saturated"
-                in2="specular_layer"
-                operator="in"
-                result="specular_saturated"
-              />
-              <feComponentTransfer
-                in="specular_layer"
-                result="specular_faded"
-              >
-                <feFuncA type="linear" slope={SOURCE_FILTER_SPECULAR_FADE} />
-              </feComponentTransfer>
-              <feBlend
-                in="specular_saturated"
-                in2="displaced"
-                mode="normal"
-                result="with_saturation"
-              />
-              <feBlend
-                in="specular_faded"
-                in2="with_saturation"
-                mode="normal"
-              />
-            </filter>
-          </defs>
-        </svg>
+        <GlassSwitchFilter filterId={filterId} height={thumbHeight} width={thumbWidth} />
       ) : null}
       <div
         aria-hidden="true"
@@ -231,7 +134,7 @@ export function GlassSwitch({
         className="pointer-events-none absolute rounded-full transition-[transform,opacity] duration-(--motion-duration-fast) ease-out will-change-transform"
         onTransitionEnd={(event) => {
           if (event.propertyName === "transform") {
-            setIsTransitioning(false);
+            interaction.finishTransition();
           }
         }}
         style={{

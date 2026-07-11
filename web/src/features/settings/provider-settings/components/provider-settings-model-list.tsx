@@ -14,7 +14,7 @@ import {
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton, UiIconButton } from "@/shared/ui/button/button";
 import { UiSearchInput } from "@/shared/ui/form/form-control";
-import { GlassSwitch } from "@/shared/ui/liquid-glass";
+import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 import type {
   ProviderConfigRecord,
   ProviderModelRecord,

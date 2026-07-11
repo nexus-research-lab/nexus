@@ -9,7 +9,7 @@
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiChoiceButton } from "@/shared/ui/form/choice";
-import { GlassSwitch } from "@/shared/ui/liquid-glass";
+import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 import {
   AGENT_PERMISSION_MODES,
   AVAILABLE_AGENT_TOOLS,

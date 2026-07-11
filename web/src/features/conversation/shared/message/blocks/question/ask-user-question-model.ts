@@ -1,8 +1,14 @@
 import type {
+  QuestionOption,
   UserQuestion,
   UserQuestionAnswer,
 } from "@/types/conversation/interaction/ask-user-question";
 import type { ToolResultContent } from "@/types/conversation/message/content";
+import {
+  asUnknownRecord,
+  readBoolean,
+  readString,
+} from "@/lib/unknown-value";
 
 interface QuestionAnswerDraft {
   customAnswer: string;
@@ -31,12 +37,49 @@ interface QuestionStatusInput {
   timedOut: boolean;
 }
 
-export function normalizeQuestion(question: UserQuestion): UserQuestion {
+function parseQuestionOption(value: unknown): QuestionOption | null {
+  const record = asUnknownRecord(value);
+  const label = record ? readString(record, "label")?.trim() : null;
+  if (!record || !label) {
+    return null;
+  }
+  const description = readString(record, "description")?.trim();
   return {
-    ...question,
-    // SDK 可能直接透传 camelCase，视图内部只消费统一字段。
-    multi_select: question.multi_select ?? question.multiSelect ?? false,
+    label,
+    ...(description ? { description } : {}),
   };
+}
+
+function parseUserQuestion(value: unknown): UserQuestion | null {
+  const record = asUnknownRecord(value);
+  const question = record ? readString(record, "question")?.trim() : null;
+  if (!record || !question) {
+    return null;
+  }
+
+  const header = readString(record, "header")?.trim();
+  const rawOptions = Array.isArray(record.options) ? record.options : [];
+  return {
+    question,
+    ...(header ? { header } : {}),
+    // camelCase 只在协议入口兼容，内部统一使用 snake_case。
+    multi_select: readBoolean(record, "multi_select")
+      ?? readBoolean(record, "multiSelect")
+      ?? false,
+    options: rawOptions
+      .map(parseQuestionOption)
+      .filter((option): option is QuestionOption => option !== null),
+  };
+}
+
+export function parseAskUserQuestions(input: unknown): UserQuestion[] {
+  const record = asUnknownRecord(input);
+  if (!record || !Array.isArray(record.questions)) {
+    return [];
+  }
+  return record.questions
+    .map(parseUserQuestion)
+    .filter((question): question is UserQuestion => question !== null);
 }
 
 export function createEmptyQuestionDraft(questionCount: number): QuestionDraft {

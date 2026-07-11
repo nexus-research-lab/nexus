@@ -4,14 +4,14 @@ import type {
   AgentConversationDefaultDeliveryPolicy,
   AgentConversationDeliveryPolicy,
 } from "@/types/agent/agent-conversation";
+import type { MessageAttachment } from "@/types/conversation/message/attachment";
 
-import type { PreparedComposerAttachment } from "../attachments/composer-attachments";
 import { resolveComposerDelivery } from "../composer-model";
 
 type DeliverMessage = (
   content: string,
   deliveryPolicy: AgentConversationDeliveryPolicy,
-  attachments?: PreparedComposerAttachment[],
+  attachments?: MessageAttachment[],
 ) => void | Promise<void>;
 
 interface UseComposerMessageSubmitOptions {
@@ -24,7 +24,7 @@ interface UseComposerMessageSubmitOptions {
   isPreparingAttachments: boolean;
   onEnqueueMessage?: DeliverMessage;
   onSendMessage: DeliverMessage;
-  prepareAttachments: () => Promise<PreparedComposerAttachment[] | null>;
+  prepareAttachments: () => Promise<MessageAttachment[] | null>;
   queueItemCount: number;
   queueWhenSessionBusy: boolean;
   recordHistory: (value: string) => void;

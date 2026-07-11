@@ -1,4 +1,5 @@
 import type { UserQuestionAnswer } from "./ask-user-question";
+import type { ToolInput } from "../../system/sdk";
 
 export type PermissionRiskLevel = "low" | "medium" | "high";
 export type PermissionDecision = "allow" | "deny";
@@ -34,7 +35,7 @@ export interface PermissionUpdate {
 export interface PendingPermission {
   request_id: string;
   tool_name: string;
-  tool_input: Record<string, any>;
+  tool_input: ToolInput;
   session_key?: string | null;
   agent_id?: string | null;
   message_id?: string | null;
