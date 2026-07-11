@@ -8,6 +8,7 @@ import {
   type ConversationScrollToLatestModel,
   type ConversationViewportModel,
 } from "@/features/conversation/shared/conversation-panel-layout";
+import type { ConversationNavigatorModel } from "@/features/conversation/shared/conversation-panel-model";
 import { ConversationSessionNavigator } from "@/features/conversation/shared/session-navigator/conversation-session-navigator";
 
 import { GroupConversationFeed } from "../../feed/group-conversation-feed";
@@ -19,10 +20,6 @@ import {
   type RoomGoalLeadControlProps,
 } from "./room-goal-lead-control";
 
-type NavigatorModel = Omit<
-  ComponentProps<typeof ConversationSessionNavigator>,
-  "className"
->;
 export type GroupChatComposerModel = Omit<
   ComponentProps<typeof ComposerPanel>,
   "compact" | "goalModeExtra"
@@ -38,7 +35,7 @@ export interface GroupChatPanelViewModel {
   goalLead: RoomGoalLeadControlProps;
   goalPanel: GoalPanelModel;
   isMobileLayout: boolean;
-  navigator: NavigatorModel;
+  navigator: ConversationNavigatorModel;
   onCreateConversation: (title?: string) => void | Promise<string | null>;
   providerWarningVisible: boolean;
   scrollToLatest: ConversationScrollToLatestModel;

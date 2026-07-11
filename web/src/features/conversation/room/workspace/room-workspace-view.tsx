@@ -54,8 +54,8 @@ export function RoomWorkspaceView({
   const agentSwitcher = !isDm && roomMembers.length > 1 ? (
     <RoomAgentSwitcher
       members={roomMembers}
-      onSelect={controller.setSelectedAgentId}
-      selectedId={controller.selectedAgentId}
+      onSelect={controller.agent.onSelect}
+      selectedId={controller.agent.selectedId}
     />
   ) : null;
 
@@ -66,7 +66,7 @@ export function RoomWorkspaceView({
         aria-label="上传工作区文件"
         className="hidden"
         multiple
-        onChange={controller.handleFileSelect}
+        onChange={controller.fileInput.onChange}
         type="file"
       />
 
@@ -90,7 +90,7 @@ export function RoomWorkspaceView({
         >
           <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
             <EditorPanel
-              agentId={controller.viewAgentId}
+              agentId={controller.agent.viewAgentId}
               className="h-full w-full"
               embedded
               isOpen={isEditorOpen}
@@ -105,7 +105,7 @@ export function RoomWorkspaceView({
           {!isPreviewFocused ? (
             <WorkspaceFileBrowser
               activePath={activeWorkspacePath}
-              controller={controller}
+              controller={controller.browser}
               onResizeStart={fileListLayout.startResizing}
               width={fileListLayout.width}
             />
@@ -113,7 +113,7 @@ export function RoomWorkspaceView({
         </div>
       </WorkspaceSurfaceView>
 
-      <WorkspaceDialogs controller={controller} />
+      <WorkspaceDialogs controller={controller.dialogs} />
     </>
   );
 }

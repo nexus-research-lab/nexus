@@ -52,6 +52,12 @@ export function useWorkspaceFilesResource(agentId: string) {
     void reload();
   }, [reload]);
 
+  const clearError = useCallback(() => {
+    setState((current) => (
+      current.scopeKey === agentId ? {...current, errorMessage: null} : current
+    ));
+  }, [agentId]);
+
   const currentState = state.scopeKey === agentId
     ? state
     : {scopeKey: agentId, errorMessage: null, isLoading: true};
@@ -61,8 +67,6 @@ export function useWorkspaceFilesResource(agentId: string) {
     errorMessage: currentState.errorMessage,
     isLoading: currentState.isLoading,
     reload,
-    clearError: () => setState((current) => (
-      current.scopeKey === agentId ? {...current, errorMessage: null} : current
-    )),
+    clearError,
   };
 }

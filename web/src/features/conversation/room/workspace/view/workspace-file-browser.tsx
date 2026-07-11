@@ -4,9 +4,8 @@ import { FilePlus, FolderOpen, FolderPlus, FolderTree, LoaderCircle, Upload } fr
 import { ConversationResizeHandle } from "@/features/conversation/shared/editor/conversation-resize-handle";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-header";
+import { WorkspaceFileTree } from "@/shared/ui/workspace/tree/workspace-file-tree";
 import type { WorkspaceFileEntry } from "@/types/agent/agent";
-
-import { WorkspaceFileTree } from "../workspace-file-tree";
 
 interface WorkspaceFileBrowserController {
   files: WorkspaceFileEntry[];
@@ -20,8 +19,8 @@ interface WorkspaceFileBrowserController {
   handleClickDirectory: (path: string) => void;
   handleUploadClick: (directoryPath?: string | null) => void;
   openCreatePrompt: (entryType: "file" | "directory", parentPath?: string | null) => void;
+  openDeletePrompt: (entry: WorkspaceFileEntry) => void;
   openRenamePrompt: (entry: WorkspaceFileEntry) => void;
-  setDeleteTarget: (entry: WorkspaceFileEntry | null) => void;
   handleContextMenu: (event: MouseEvent, entry: WorkspaceFileEntry) => void;
   handleRootContextMenu: (event: MouseEvent) => void;
 }
@@ -95,7 +94,7 @@ function WorkspaceFileList({
           onClickDirectory={controller.handleClickDirectory}
           onClickFile={controller.handleClickFile}
           onContextMenu={controller.handleContextMenu}
-          onDeleteEntry={controller.setDeleteTarget}
+          onDeleteEntry={controller.openDeletePrompt}
           onRenameEntry={controller.openRenamePrompt}
         />
       </div>

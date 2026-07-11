@@ -1,4 +1,10 @@
 import type { useConversationSession } from "@/features/conversation/shared/session/use-conversation-session";
+import {
+  buildConversationNavigatorModel,
+  buildConversationScrollToLatestModel,
+  buildConversationViewportModel,
+} from "@/features/conversation/shared/conversation-panel-model";
+import { buildGoalActivityKey } from "@/features/conversation/shared/goal/goal-model";
 import type { Agent } from "@/types/agent/agent";
 
 import type {
@@ -70,12 +76,12 @@ export function buildGroupChatPanelViewModel({
       session,
     }),
     isMobileLayout,
-    navigator: buildNavigatorModel(session),
+    navigator: buildConversationNavigatorModel(session),
     onCreateConversation,
     providerWarningVisible,
-    scrollToLatest: buildScrollToLatestModel(session),
+    scrollToLatest: buildConversationScrollToLatestModel(session),
     sessionKey: session.sessionKey,
-    viewport: buildViewportModel(session),
+    viewport: buildConversationViewportModel(session),
   };
 }
 
@@ -165,51 +171,15 @@ function buildGoalPanelModel({
 >): GroupChatPanelViewModel["goalPanel"] {
   const { conversation, sessionKey } = session;
   return {
-    activityKey: `${conversation.messages.length}:${conversation.is_loading ? "loading" : "idle"}:${goal.refreshSequence}`,
+    activityKey: buildGoalActivityKey(
+      conversation.messages.length,
+      conversation.is_loading,
+      goal.refreshSequence,
+    ),
     isLoading: conversation.is_loading,
     roomHostAgentId,
     roomHostAutoReplyEnabled,
     roomMembers,
     sessionKey,
-  };
-}
-
-function buildNavigatorModel(
-  session: ReturnType<typeof useConversationSession>,
-): GroupChatPanelViewModel["navigator"] {
-  const { conversation, roundScrollRef, scroll, sessionKey, timeline } = session;
-  return {
-    onLoadRoundWindow: conversation.load_round_window,
-    onNavigateStart: scroll.pauseFollowLatest,
-    roundScrollRef,
-    scopeKey: sessionKey,
-    scrollRef: scroll.scrollRef,
-    timeline,
-  };
-}
-
-function buildScrollToLatestModel(
-  session: ReturnType<typeof useConversationSession>,
-): GroupChatPanelViewModel["scrollToLatest"] {
-  return {
-    isLoading: session.conversation.is_loading,
-    onClick: () => session.scroll.scrollToBottom("smooth"),
-    visible: session.scroll.showScrollToBottom,
-  };
-}
-
-function buildViewportModel(
-  session: ReturnType<typeof useConversationSession>,
-): GroupChatPanelViewModel["viewport"] {
-  const { conversation, history, scroll } = session;
-  return {
-    error: conversation.error,
-    isHistoryLoading: conversation.is_history_loading,
-    onScroll: history.handleScroll,
-    onTouchEnd: scroll.onTouchEnd,
-    onTouchMove: scroll.onTouchMove,
-    onTouchStart: scroll.onTouchStart,
-    onWheel: scroll.onWheel,
-    scrollRef: scroll.scrollRef,
   };
 }

@@ -155,6 +155,12 @@ export function useWorkspaceCommands({agentId, refreshFiles}: UseWorkspaceComman
     return true as const;
   }), [runCommand]);
 
+  const clearError = useCallback(() => {
+    setState((current) => (
+      current.scopeKey === agentId ? {...current, errorMessage: null} : current
+    ));
+  }, [agentId]);
+
   const currentState = state.scopeKey === agentId
     ? state
     : {scopeKey: agentId, activeCommand: null, errorMessage: null};
@@ -167,8 +173,6 @@ export function useWorkspaceCommands({agentId, refreshFiles}: UseWorkspaceComman
     renameEntry,
     deleteEntry,
     downloadEntry,
-    clearError: () => setState((current) => (
-      current.scopeKey === agentId ? {...current, errorMessage: null} : current
-    )),
+    clearError,
   };
 }

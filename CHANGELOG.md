@@ -29,6 +29,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Split Group Chat Panel orchestration into session, composer, Goal, projection, and view modules while removing its constant control flag and display-string duplication.
 - Moved the Room Thread live bridge out of Chat and the global store into a private Thread domain with separate source, projection, producer, and consumer modules.
 - Split Room round cards into one-pass projection and narrow reply/action views, removing dead feed props, repeated permission scans, and duplicated Thread controls.
+- Split the DM Chat Panel into Goal, session, Composer, projection, and view modules while sharing identical navigator, viewport, and scroll-control projection with Room.
+- Moved the Workspace file tree to its shared owner, split hierarchy and row projection, replaced extension branches with a visual lookup table, and rendered context-menu commands from action data.
+- Split Room Workspace interaction state, path navigation, and entry transactions from its orchestrator, replacing the flat controller surface and leaked state setters with consumer-owned controls.
 - Split Room Workspace orchestration into Agent scope, file resource, path model, command, layout, file-browser, and dialog modules.
 - Split conversation Todo projection into round indexing, runtime-task merging, status inference, and a stable shared hook used by both DM and Room panels.
 - Consolidated conversation scrolling under the timeline domain, separating smooth animation, user interactions, history-prepend anchoring, local expansion anchoring, and round navigation protocols.

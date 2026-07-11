@@ -8,26 +8,25 @@ import {
   type ConversationScrollToLatestModel,
   type ConversationViewportModel,
 } from "@/features/conversation/shared/conversation-panel-layout";
+import type { ConversationNavigatorModel } from "@/features/conversation/shared/conversation-panel-model";
 import { ConversationFeed } from "@/features/conversation/shared/feed/conversation-feed";
 import { GoalPanel } from "@/features/conversation/shared/goal/goal-panel";
 import { ConversationSessionNavigator } from "@/features/conversation/shared/session-navigator/conversation-session-navigator";
-
 import { CONVERSATION_TOUR_ANCHORS } from "@/features/onboarding/tours/conversation-tour";
 
-type NavigatorModel = Omit<
-  ComponentProps<typeof ConversationSessionNavigator>,
-  "className"
+export type DmChatComposerModel = Omit<
+  ComponentProps<typeof ComposerPanel>,
+  "compact"
 >;
-type ComposerModel = Omit<ComponentProps<typeof ComposerPanel>, "compact">;
 type FeedModel = ComponentProps<typeof ConversationFeed>;
 type GoalPanelModel = Omit<ComponentProps<typeof GoalPanel>, "compact">;
 
 export interface DmChatPanelViewModel {
-  composer: ComposerModel;
+  composer: DmChatComposerModel;
   feed: FeedModel;
   goalPanel: GoalPanelModel;
   isMobileLayout: boolean;
-  navigator: NavigatorModel;
+  navigator: ConversationNavigatorModel;
   providerWarningVisible: boolean;
   scrollToLatest: ConversationScrollToLatestModel;
   sessionKey: string | null;

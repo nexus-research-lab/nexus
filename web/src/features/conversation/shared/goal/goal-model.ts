@@ -85,3 +85,11 @@ export function goalBudgetPercent(goal: Goal | null): number | null {
 export function goalStatusTone(status: GoalStatus): GoalStatusTone {
   return GOAL_STATUS_TONE[status];
 }
+
+export function buildGoalActivityKey(
+  messageCount: number,
+  isLoading: boolean,
+  refreshSequence: number,
+): string {
+  return `${messageCount}:${isLoading ? "loading" : "idle"}:${refreshSequence}`;
+}

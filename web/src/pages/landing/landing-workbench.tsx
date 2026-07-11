@@ -28,13 +28,13 @@ import {
 } from "@/features/conversation/shared/composer/composer-styles";
 import { ConversationResizeHandle } from "@/features/conversation/shared/editor/conversation-resize-handle";
 import { MessageItem } from "@/features/conversation/shared/message";
-import { WorkspaceFileTree } from "@/features/conversation/room/workspace/workspace-file-tree";
 import { cn } from "@/lib/utils";
 import { UiAgentAvatar, UiRoomAvatar } from "@/shared/ui/avatar";
 import { UiBadge, UiCounterBadge } from "@/shared/ui/badge";
 import { UiSearchInput } from "@/shared/ui/form-control";
 import { UiListRow } from "@/shared/ui/list-row";
 import { WorkspaceConversationTabs } from "@/shared/ui/workspace/controls/workspace-conversation-tabs";
+import { WorkspaceFileTree } from "@/shared/ui/workspace/tree/workspace-file-tree";
 import {
   WorkspaceSurfaceHeader,
   WorkspaceSurfaceToolbarAction,

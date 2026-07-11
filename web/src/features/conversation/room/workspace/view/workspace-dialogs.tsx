@@ -5,22 +5,23 @@ import type { WorkspaceFileEntry } from "@/types/agent/agent";
 import type {
   WorkspaceContextMenuState,
   WorkspacePromptState,
-} from "../controller/workspace-interaction-model";
-import { WorkspaceContextMenu } from "../workspace-context-menu";
+} from "../controller/interaction/workspace-interaction-model";
+import { WorkspaceContextMenu } from "./workspace-context-menu";
 
 interface WorkspaceDialogsController {
+  closeContextMenu: () => void;
+  closeDeletePrompt: () => void;
+  closePrompt: () => void;
   contextMenu: WorkspaceContextMenuState;
-  promptState: WorkspacePromptState;
   deleteTarget: WorkspaceFileEntry | null;
+  promptState: WorkspacePromptState;
   handleUploadClick: (directoryPath?: string | null) => void;
   openCreatePrompt: (entryType: "file" | "directory", parentPath?: string | null) => void;
   openRenamePrompt: (entry: WorkspaceFileEntry) => void;
   handlePromptConfirm: (value: string) => Promise<void>;
   handleConfirmDelete: () => Promise<void>;
   handleDownloadContextEntry: () => Promise<void>;
-  closeContextMenu: () => void;
-  setDeleteTarget: (entry: WorkspaceFileEntry | null) => void;
-  setPromptState: (state: WorkspacePromptState) => void;
+  openDeletePrompt: (entry: WorkspaceFileEntry) => void;
 }
 
 const PROMPT_COPY_BY_MODE = {
@@ -52,7 +53,7 @@ export function WorkspaceDialogs({controller}: {controller: WorkspaceDialogsCont
         onClose={controller.closeContextMenu}
         onCreateFile={() => controller.openCreatePrompt("file", contextDirectory)}
         onCreateFolder={() => controller.openCreatePrompt("directory", contextDirectory)}
-        onDelete={() => contextEntry && controller.setDeleteTarget(contextEntry)}
+        onDelete={() => contextEntry && controller.openDeletePrompt(contextEntry)}
         onDownload={() => void controller.handleDownloadContextEntry()}
         onRename={() => contextEntry && controller.openRenamePrompt(contextEntry)}
         onUpload={() => controller.handleUploadClick(contextDirectory)}
@@ -62,7 +63,7 @@ export function WorkspaceDialogs({controller}: {controller: WorkspaceDialogsCont
       <PromptDialog
         defaultValue={controller.promptState?.defaultValue ?? ""}
         isOpen={controller.promptState !== null}
-        onCancel={() => controller.setPromptState(null)}
+        onCancel={controller.closePrompt}
         onConfirm={controller.handlePromptConfirm}
         placeholder={t(promptCopy.placeholder)}
         title={t(promptCopy.title)}
@@ -73,7 +74,7 @@ export function WorkspaceDialogs({controller}: {controller: WorkspaceDialogsCont
         confirmText={t("common.delete")}
         isOpen={controller.deleteTarget !== null}
         message={t("room.workspace_delete_message", {name: controller.deleteTarget?.name ?? ""})}
-        onCancel={() => controller.setDeleteTarget(null)}
+        onCancel={controller.closeDeletePrompt}
         onConfirm={controller.handleConfirmDelete}
         title={t("room.workspace_delete_title")}
         variant="danger"
