@@ -76,6 +76,7 @@ src/
 - Room 成员管理由页面命令层绑定作用域并按成员依赖顺序执行；Header 只提交完整表单对象，Surface 不传播成员增删和设置更新的散装回调
 - Contacts 页面使用互斥编辑状态，资源和 CRUD 归 `pages/contacts/controller/`，URL 选择与 Room 跳转归 `pages/contacts/orchestration/`
 - 宽侧栏由 `features/navigation/sidebar/` 管理；折叠栏与展开面板共用主 Tab、Nexus 入口和系统操作，路由/Store 同步只留在控制器
+- 能力侧栏归 `features/capability/sidebar/`；导航项由定义表投影，摘要刷新合并和窗口重验证只由专用资源 Hook 管理，业务行不得伪装成共享 UI
 - 技能市场由 `features/capability/skills/controller/` 按目录、外部搜索、来源和操作拆分状态；子视图只消费窄 Props，不得依赖完整控制器
 - 频道连接与 IM 配对分别持有命令互斥入口；`channels/connection/login/` 独占扫码会话和串行轮询但复用连接命令锁，`channels/connection/view/` 按字段区、Footer 和展示投影拆分并由消费者定义窄接口；写操作后必须刷新当前服务端快照，视图不得复制协议字段别名
 - 定时任务弹窗的表单和调度各自维护单一草稿对象，基础字段的目标/会话文案由纯模型投影，高级设置按字段职责组合；资源层按执行模式加载依赖并拒绝过期响应，Room 任务只允许绑定明确执行成员
@@ -101,6 +102,7 @@ src/
 - 通用 Markdown 只归 `shared/ui/markdown/`；Conversation 的 `message/markdown-renderer.tsx` 只解释消息文件产物协议，不得成为其他 Feature 的渲染入口
 - 通用 Mention 只归 `shared/ui/mention/`；目标分类和标记由消费者投影，共享视图不得解释 Agent 或 Room
 - 锚定浮层共用 `shared/ui/overlay/` 的定位、Portal 和关闭生命周期；Select/MultiSelect 在 `shared/ui/menu/` 复用内部开关、触发键盘协议和 listbox 框架，ActionMenu 保持外部受控，消费者直接导入具体组件
+- 全局反馈只通过 `shared/ui/feedback/feedback-banner-viewport.tsx` 展示当前单条状态；tone 视觉与时长归纯定义表，业务消费者不得恢复单元素 Stack 数组
 - Launcher 按 `console/` 与 `hero/` 分离 API/导航和视觉/输入；服务端动作使用完整分发表，Hero 不直接访问领域 API
 - Message item 的结构化内容关联只由 `view/content/content-renderer-model.ts` 建立；Assistant/User 视图不得再次扫描整轮内容或手写不完整的 Props 比较器
 - Office 预览下载与载荷上限只由 `conversation/shared/editor/office-preview-resource.ts` 管理；文档预览的加载生命周期、DOM 归一化与视图分别归属 `document/` 下的 Hook、DOM 模型和视图模块
@@ -109,7 +111,7 @@ src/
 - 对话滚动只通过 `features/conversation/shared/timeline/scroll/` 协调；面板不得复制底部阈值、RAF 动画、历史前插锚点或轮次 DOM 标记
 - DM/Room Todo 只从 `features/conversation/shared/todos/` 的单遍轮次投影派生；计划、运行时任务和状态别名不得在面板中重复推导
 - 会话导航由 `shared/session-navigator/` 分离时间线数据投影、刻度视觉模型、纯 DOM 定位和活动轮同步，`session-navigator/jump/` 分离目标、串行加载与落点确认；缺失窗口加载必须绑定会话键和请求代次，失效目标不得产生副作用
-- 消息项由 `features/conversation/shared/message/item/controller/` 统一完成顺序、权限、过程链和最终回复投影，`controller/display/` 分离纯显示状态与展开生命周期；Assistant 视图按模型、内容、头部、过程和权限适配分工，未匹配权限保持独立且唯一的内容段
+- 消息项由 `features/conversation/shared/message/item/controller/` 统一完成顺序、权限、过程链和最终回复投影，`controller/display/` 分离纯显示状态与展开生命周期；Assistant 视图按模型、内容、头部、过程和权限适配分工，User 视图按展示模型、头部、正文和编辑器分工，未匹配权限保持独立且唯一的内容段
 - `MessageItem` 直接从 `message/item/message-item.tsx` 导入；消息目录不提供只做转发的聚合出口
 - 消息内容块按 `blocks/{question,code,artifact,tool}/` 分域；Question 的卡片展示与草稿/提交控制分别归 `question/{card,controller}/`，跨消息项的工具名称与输入摘要归消息域 `tool-activity.ts`，Tool 的执行阶段与权限详情只由 `tool/tool-block-model.ts` 派生，头部交互由 `tool/header/` 的纯投影解释
 - Artifact 文件和图片分别归 `blocks/artifact/{file,image}/`，路径解析与浏览器下载/桌面 reveal 只由 Artifact 根域实现，消息渲染器不得直接调用文件动作 API

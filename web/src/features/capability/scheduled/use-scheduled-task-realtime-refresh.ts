@@ -7,7 +7,7 @@ import { getAgentWsUrl } from "@/config/runtime-endpoints";
 import { useAppEventSubscription, useWebSocket } from "@/lib/websocket";
 import { parseEventMessage } from "@/lib/websocket/protocol/event-message";
 
-import { notifyScheduledTasksMutated } from "../scheduled-task-events";
+import { notifyCapabilitySummaryMutated } from "../capability-summary-events";
 
 const RUNNING_TASK_FALLBACK_POLL_INTERVAL_MS = 30000;
 const ENABLED_TASK_FALLBACK_POLL_INTERVAL_MS = 120000;
@@ -40,7 +40,10 @@ export function useScheduledTaskRealtimeRefresh({
     if (!event || event.event_type !== "scheduled_task_changed") {
       return;
     }
-    notifyScheduledTasksMutated(event.agent_id ?? "");
+    notifyCapabilitySummaryMutated({
+      agent_id: event.agent_id ?? "",
+      source: "scheduled_tasks",
+    });
     if (typeof document !== "undefined" && document.visibilityState !== "visible") {
       return;
     }

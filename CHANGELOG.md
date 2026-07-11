@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Moved capability navigation into an owned sidebar domain with table-driven item projection and consolidated summary revalidation, removing an unused shared row API and the duplicate scheduled-task mutation event.
+- Split User message presentation into density projection, header actions, identity, content, and editing composition, while preserving concrete role types through assistant-content merging, separating deduplication phases, and removing unconsumed text projections.
+- Replaced the unused multi-banner Stack contract with a single feedback viewport and table-driven tone presentation, resetting auto-dismiss timing when feedback content changes.
 - Split message file and image artifacts into scoped source and presentation models, consolidating path parsing and browser-download or desktop-reveal behavior into one Artifact-owned action.
 - Split Composer input, submit, Footer, pending-queue, Loop-picker, and attachment-paste responsibilities into scoped models, controllers, and views; removed optional handlers unsupported by its real DM and Room consumers.
 - Split Composer state derivation into input, runtime, mode, and action projections; separated message submission phases and ordered IME, Safari, and Mention keyboard guards while keeping the panel contract flat.

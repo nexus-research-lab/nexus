@@ -5,7 +5,7 @@ import { useNavigate, useParams } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { FeedbackBannerStack } from "@/shared/ui/feedback/feedback-banner-stack";
+import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
 import { WORKSPACE_DETAIL_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 import type { ConnectorsRouteParams } from "@/types/app/route";
@@ -189,14 +189,13 @@ export function ConnectorsDirectory() {
         })}
         session={controller.deviceAuthSession}
       />
-      <FeedbackBannerStack
-        items={controller.feedback ? [{
-          key: "connector-feedback",
+      <FeedbackBannerViewport
+        item={controller.feedback ? {
           message: controller.feedback.message,
           onDismiss: clearFeedback,
           title: controller.feedback.title,
           tone: controller.feedback.tone,
-        }] : []}
+        } : null}
       />
     </>
   );

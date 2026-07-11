@@ -5,9 +5,9 @@ import { CalendarClock, Plus, RefreshCw } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import {
-  FeedbackBannerStack,
-  type FeedbackBannerItem,
-} from "@/shared/ui/feedback/feedback-banner-stack";
+  type FeedbackBannerProps,
+} from "@/shared/ui/feedback/feedback-banner";
+import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
 import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-toolbar-action";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
@@ -43,13 +43,12 @@ export function ScheduledTasksDirectory() {
     upsertTask: resource.upsertTask,
   });
   const metrics = getScheduledTaskMetrics(resource.items);
-  const feedbackItems: FeedbackBannerItem[] = commands.feedback
-    ? [{
+  const feedbackItem: FeedbackBannerProps | null = commands.feedback
+    ? {
         ...commands.feedback,
-        key: "scheduled-task-feedback",
         onDismiss: commands.dismissFeedback,
-      }]
-    : [];
+      }
+    : null;
   const editingTask = dialog.kind === "edit" ? dialog.task : null;
 
   useScheduledTaskRealtimeRefresh({
@@ -162,7 +161,7 @@ export function ScheduledTasksDirectory() {
         task={historyTask}
       />
 
-      <FeedbackBannerStack items={feedbackItems} />
+      <FeedbackBannerViewport item={feedbackItem} />
     </>
   );
 }

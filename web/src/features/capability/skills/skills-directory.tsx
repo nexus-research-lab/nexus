@@ -5,7 +5,8 @@ import { useNavigate, useParams } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { FeedbackBannerStack, type FeedbackBannerItem } from "@/shared/ui/feedback/feedback-banner-stack";
+import type { FeedbackBannerProps } from "@/shared/ui/feedback/feedback-banner";
+import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
 import { WORKSPACE_DETAIL_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 
@@ -62,7 +63,7 @@ export function SkillsDirectory({ onReplayTour }: SkillsDirectoryProps) {
         catalog.importedExternalSources,
       )
     : { alreadyImported: false, nameConflict: false };
-  const feedbackItems = buildFeedbackItems(feedback);
+  const feedbackItem = buildFeedbackItem(feedback);
 
   return (
     <>
@@ -174,7 +175,7 @@ export function SkillsDirectory({ onReplayTour }: SkillsDirectoryProps) {
         )}
       </WorkspaceSurfaceScaffold>
 
-      <FeedbackBannerStack items={feedbackItems} />
+      <FeedbackBannerViewport item={feedbackItem} />
 
       <SkillImportDialog
         fileInputRef={operations.fileInputRef}
@@ -212,20 +213,19 @@ export function SkillsDirectory({ onReplayTour }: SkillsDirectoryProps) {
   );
 }
 
-function buildFeedbackItems(
+function buildFeedbackItem(
   feedback: SkillMarketplaceFeedback | null,
-): FeedbackBannerItem[] {
-  if (!feedback) return [];
+): FeedbackBannerProps | null {
+  if (!feedback) return null;
   const titles = {
     error: "操作失败",
     success: "已完成",
     warning: feedback.pending ? "处理中" : "部分完成",
   } as const;
-  return [{
-    key: "skill-marketplace",
+  return {
     message: feedback.message,
     onDismiss: feedback.pending ? undefined : feedback.dismiss,
     title: titles[feedback.tone],
     tone: feedback.tone,
-  }];
+  };
 }

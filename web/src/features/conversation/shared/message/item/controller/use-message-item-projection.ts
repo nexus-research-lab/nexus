@@ -210,10 +210,7 @@ export function useMessageItemProjection({
   );
 
   const userMessage = contentMerge.userMessage;
-  const userContent =
-    userMessage?.role === "user" && typeof userMessage.content === "string"
-      ? userMessage.content
-      : "";
+  const userContent = userMessage?.content ?? "";
 
   return {
     assistantMessages: contentMerge.assistantMessages,
@@ -235,7 +232,7 @@ export function useMessageItemProjection({
       firstAssistant?.timestamp ??
       systemEventBlocks[0]?.timestamp ??
       contentMerge.resultSummary?.timestamp,
-    userAttachments: userMessage?.role === "user" ? userMessage.attachments ?? [] : [],
+    userAttachments: userMessage?.attachments ?? [],
     userContent,
   };
 }

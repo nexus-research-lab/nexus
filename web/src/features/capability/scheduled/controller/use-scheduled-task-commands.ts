@@ -16,7 +16,7 @@ import type {
   ScheduledTaskRunNowResponse,
 } from "@/types/capability/scheduled-task/run";
 
-import { notifyScheduledTasksMutated } from "../../scheduled-task-events";
+import { notifyCapabilitySummaryMutated } from "../../capability-summary-events";
 import {
   SCHEDULED_TASK_COMMAND_KINDS,
   type ScheduledTaskCommandKind,
@@ -91,7 +91,10 @@ export function useScheduledTaskCommands(resource: ScheduledTaskCommandResource)
     agentId: string,
     success: MutationFeedback,
   ): Promise<void> => {
-    notifyScheduledTasksMutated(agentId);
+    notifyCapabilitySummaryMutated({
+      agent_id: agentId,
+      source: "scheduled_tasks",
+    });
     try {
       await refresh({ silent: true });
       setFeedback({

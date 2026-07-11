@@ -16,9 +16,9 @@ import {
 } from "@/features/capability/shared/capability-page-layout";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import {
-  FeedbackBannerStack,
-  type FeedbackBannerItem,
-} from "@/shared/ui/feedback/feedback-banner-stack";
+  type FeedbackBannerProps,
+} from "@/shared/ui/feedback/feedback-banner";
+import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
 import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-toolbar-action";
@@ -43,15 +43,14 @@ function ChannelLoadingGrid() {
 export function ChannelsDirectory() {
   const { t } = useI18n();
   const controller = useChannelsController();
-  const feedbackItems: FeedbackBannerItem[] = controller.feedback
-    ? [{
-        key: "channels-feedback",
+  const feedbackItem: FeedbackBannerProps | null = controller.feedback
+    ? {
         message: controller.feedback.message,
         onDismiss: controller.clearFeedback,
         title: controller.feedback.title,
         tone: controller.feedback.tone,
-      }]
-    : [];
+      }
+    : null;
 
   return (
     <>
@@ -145,7 +144,7 @@ export function ChannelsDirectory() {
         />
       ) : null}
 
-      <FeedbackBannerStack items={feedbackItems} />
+      <FeedbackBannerViewport item={feedbackItem} />
     </>
   );
 }

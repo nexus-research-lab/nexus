@@ -7,7 +7,7 @@ import type {
 import { Link } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
-import { CapabilitiesPanelContent } from "@/features/capability/capabilities-sidebar-panel";
+import { CapabilitySidebarPanel } from "@/features/capability/sidebar/capability-sidebar-panel";
 import { ChatSidebarPanelContent } from "@/features/home/sidebar/chat-sidebar-panel";
 import { ContactsSidebarPanelContent } from "@/features/home/sidebar/contacts-sidebar-panel";
 import { SIDEBAR_TOUR_ANCHORS } from "@/features/onboarding/tours/sidebar-navigation-tour";
@@ -147,7 +147,7 @@ function CapabilityPanel() {
       className="flex min-h-0 flex-1 flex-col px-2"
       data-tour-anchor={SIDEBAR_TOUR_ANCHORS.capabilities_list}
     >
-      <CapabilitiesPanelContent />
+      <CapabilitySidebarPanel />
     </div>
   );
 }

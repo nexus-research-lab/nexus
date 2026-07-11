@@ -21,9 +21,9 @@ import type {
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
 import {
-  FeedbackBannerStack,
-  type FeedbackBannerItem,
-} from "@/shared/ui/feedback/feedback-banner-stack";
+  type FeedbackBannerProps,
+} from "@/shared/ui/feedback/feedback-banner";
+import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
 import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-toolbar-action";
@@ -40,15 +40,14 @@ import { usePairingsController } from "./pairings/use-pairings-controller";
 export function PairingsDirectory() {
   const { t } = useI18n();
   const controller = usePairingsController();
-  const feedbackItems: FeedbackBannerItem[] = controller.feedback
-    ? [{
-        key: "pairings-feedback",
+  const feedbackItem: FeedbackBannerProps | null = controller.feedback
+    ? {
         message: controller.feedback.message,
         onDismiss: controller.clearFeedback,
         title: controller.feedback.title,
         tone: controller.feedback.tone,
-      }]
-    : [];
+      }
+    : null;
 
   return (
     <>
@@ -179,7 +178,7 @@ export function PairingsDirectory() {
         />
       ) : null}
 
-      <FeedbackBannerStack items={feedbackItems} />
+      <FeedbackBannerViewport item={feedbackItem} />
       <ConfirmDialog
         confirmText="删除配对"
         isOpen={controller.deleteTarget !== null}

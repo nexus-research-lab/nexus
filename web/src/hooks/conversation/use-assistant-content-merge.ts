@@ -12,6 +12,7 @@ import type {
   AssistantMessage,
   Message,
   ResultSummary,
+  UserMessage,
 } from "@/types/conversation/message/entity";
 import type { ContentBlock } from "@/types/conversation/message/content";
 
@@ -23,25 +24,24 @@ interface UseAssistantContentMergeOptions {
 
 interface UseAssistantContentMergeReturn {
   /** 用户消息 */
-  userMessage: Message | undefined;
+  userMessage: UserMessage | undefined;
   /** 所有 assistant 消息 */
-  assistantMessages: Message[];
+  assistantMessages: AssistantMessage[];
   /** assistant 终态摘要 */
   resultSummary: ResultSummary | undefined;
-  /** 当前正在流式输出的 assistant 消息 ID */
-  streamingAssistantMessageId: string | null;
   /** 合并去重后的所有内容块 */
   mergedContent: ContentBlock[];
   /** mergedContent 每个块对应的来源 assistant 消息 ID */
   mergedContentSourceMessageIds: string[];
   /** 正在流式输出的 block 在 mergedContent 中的索引 */
   streamingBlockIndexes: Set<number>;
-  /** 可见的 assistant 文本内容块 */
-  visibleAssistantTextContent: ContentBlock[];
-  /** 正在流式输出的文本在 visibleAssistantTextContent 中的索引 */
-  assistantTextStreamingIndexes: Set<number>;
-  /** 纯文本内容（用于复制） */
-  assistantTextContent: string;
+}
+
+interface AssistantContentMergeAccumulator {
+  blocks: ContentBlock[];
+  seenToolIds: Set<string>;
+  sourceMessageIds: string[];
+  streamingBlockIndexes: Set<number>;
 }
 
 export function useAssistantContentMerge({
@@ -49,10 +49,9 @@ export function useAssistantContentMerge({
   isLastRound,
   isLoading,
 }: UseAssistantContentMergeOptions): UseAssistantContentMergeReturn {
-  // 分离消息
   const { userMessage, assistantMessages, resultSummary } = useMemo(() => {
-    const user = messages.find((m) => m.role === "user" && !isAutomationTriggerUserMessage(m));
-    const assistant = messages.filter((m) => m.role === "assistant") as AssistantMessage[];
+    const user = messages.find(isVisibleUserMessage);
+    const assistant = messages.filter(isAssistantMessage);
     const summary = getLatestResultSummary(assistant);
     return { userMessage: user, assistantMessages: assistant, resultSummary: summary };
   }, [messages]);
@@ -77,92 +76,110 @@ export function useAssistantContentMerge({
     return null;
   }, [assistantMessages, isLastRound, isLoading]);
 
-  // 合并并去重 assistant 内容
   const { mergedContent, mergedContentSourceMessageIds, streamingBlockIndexes } = useMemo(() => {
-    const allBlocks: ContentBlock[] = [];
-    const sourceMessageIds: string[] = [];
-    const nextStreamingBlockIndexes = new Set<number>();
-    const seenToolIds = new Set<string>();
-
-    for (const msg of assistantMessages) {
-      if (!Array.isArray(msg.content)) continue;
-      const isStreamingMessage = msg.message_id === streamingAssistantMessageId;
-      const streamingContentIndex = isStreamingMessage
-        ? findLastStreamableBlockIndex(msg.content)
-        : -1;
-
-      msg.content.forEach((block, blockIndex) => {
-        if (!block) {
-          return;
-        }
-        if (block.type === "tool_use" && block.id) {
-          if (seenToolIds.has(block.id)) return;
-          seenToolIds.add(block.id);
-        }
-        if (block.type === "tool_result" && block.tool_use_id) {
-          if (seenToolIds.has(`result_${block.tool_use_id}`)) return;
-          seenToolIds.add(`result_${block.tool_use_id}`);
-        }
-
-        const nextIndex = allBlocks.length;
-        allBlocks.push(block);
-        sourceMessageIds.push(msg.message_id);
-        if (isStreamingMessage && blockIndex === streamingContentIndex) {
-          nextStreamingBlockIndexes.add(nextIndex);
-        }
-      });
-    }
+    const accumulator = createAssistantContentMergeAccumulator();
+    assistantMessages.forEach((message) => appendAssistantMessageContent(
+      accumulator,
+      message,
+      streamingAssistantMessageId,
+    ));
     return {
-      mergedContent: allBlocks,
-      mergedContentSourceMessageIds: sourceMessageIds,
-      streamingBlockIndexes: nextStreamingBlockIndexes,
+      mergedContent: accumulator.blocks,
+      mergedContentSourceMessageIds: accumulator.sourceMessageIds,
+      streamingBlockIndexes: accumulator.streamingBlockIndexes,
     };
   }, [assistantMessages, streamingAssistantMessageId]);
 
-  const visibleAssistantTextContent = useMemo(() => {
-    return mergedContent.filter(
-      (block) => block.type === "text" && Boolean(block.text.trim()),
-    );
-  }, [mergedContent]);
-
-  const assistantTextStreamingIndexes = useMemo(() => {
-    const nextIndexes = new Set<number>();
-    let textIndex = 0;
-
-    mergedContent.forEach((block, index) => {
-      if (block.type === "text" && Boolean(block.text.trim())) {
-        if (streamingBlockIndexes.has(index)) {
-          nextIndexes.add(textIndex);
-        }
-        textIndex += 1;
-      }
-    });
-
-    return nextIndexes;
-  }, [mergedContent, streamingBlockIndexes]);
-
-  const assistantTextContent = useMemo(() => {
-    const texts: string[] = [];
-    for (const block of visibleAssistantTextContent) {
-      if (block.type === "text" && block.text) {
-        texts.push(block.text);
-      }
-    }
-    return texts.join("\n\n");
-  }, [visibleAssistantTextContent]);
-
   return {
-    userMessage: userMessage,
-    assistantMessages: assistantMessages,
-    resultSummary: resultSummary,
-    streamingAssistantMessageId: streamingAssistantMessageId,
-    mergedContent: mergedContent,
-    mergedContentSourceMessageIds: mergedContentSourceMessageIds,
-    streamingBlockIndexes: streamingBlockIndexes,
-    visibleAssistantTextContent: visibleAssistantTextContent,
-    assistantTextStreamingIndexes: assistantTextStreamingIndexes,
-    assistantTextContent: assistantTextContent,
+    assistantMessages,
+    mergedContent,
+    mergedContentSourceMessageIds,
+    resultSummary,
+    streamingBlockIndexes,
+    userMessage,
   };
+}
+
+function isVisibleUserMessage(message: Message): message is UserMessage {
+  return message.role === "user" && !isAutomationTriggerUserMessage(message);
+}
+
+function isAssistantMessage(message: Message): message is AssistantMessage {
+  return message.role === "assistant";
+}
+
+function createAssistantContentMergeAccumulator(): AssistantContentMergeAccumulator {
+  return {
+    blocks: [],
+    seenToolIds: new Set<string>(),
+    sourceMessageIds: [],
+    streamingBlockIndexes: new Set<number>(),
+  };
+}
+
+function appendAssistantMessageContent(
+  accumulator: AssistantContentMergeAccumulator,
+  message: AssistantMessage,
+  streamingAssistantMessageId: string | null,
+): void {
+  const isStreamingMessage = message.message_id === streamingAssistantMessageId;
+  const streamingContentIndex = isStreamingMessage
+    ? findLastStreamableBlockIndex(message.content)
+    : -1;
+  message.content.forEach((block, blockIndex) => appendAssistantContentBlock(
+    accumulator,
+    block,
+    blockIndex,
+    message.message_id,
+    streamingContentIndex,
+  ));
+}
+
+function appendAssistantContentBlock(
+  accumulator: AssistantContentMergeAccumulator,
+  block: ContentBlock,
+  blockIndex: number,
+  messageId: string,
+  streamingContentIndex: number,
+): void {
+  if (!claimAssistantContentBlock(accumulator.seenToolIds, block)) {
+    return;
+  }
+  const nextIndex = accumulator.blocks.length;
+  accumulator.blocks.push(block);
+  accumulator.sourceMessageIds.push(messageId);
+  if (blockIndex === streamingContentIndex) {
+    accumulator.streamingBlockIndexes.add(nextIndex);
+  }
+}
+
+function claimAssistantContentBlock(
+  seenToolIds: Set<string>,
+  block: ContentBlock,
+): boolean {
+  const dedupeKey = getAssistantContentBlockDedupeKey(block);
+  if (!dedupeKey) {
+    return true;
+  }
+  if (seenToolIds.has(dedupeKey)) {
+    return false;
+  }
+  seenToolIds.add(dedupeKey);
+  return true;
+}
+
+function getAssistantContentBlockDedupeKey(block: ContentBlock): string | null {
+  if (block.type === "tool_use") {
+    return block.id || null;
+  }
+  if (block.type === "tool_result") {
+    return buildToolResultDedupeKey(block.tool_use_id);
+  }
+  return null;
+}
+
+function buildToolResultDedupeKey(toolUseId: string): string | null {
+  return toolUseId ? `result_${toolUseId}` : null;
 }
 
 function getLatestResultSummary(
@@ -181,9 +198,6 @@ function getLatestResultSummary(
 function findLastStreamableBlockIndex(blocks: ContentBlock[]): number {
   for (let index = blocks.length - 1; index >= 0; index -= 1) {
     const block = blocks[index];
-    if (!block) {
-      continue;
-    }
     if (block.type === "text" || block.type === "thinking" || block.type === "image") {
       return index;
     }

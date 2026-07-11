@@ -3,7 +3,7 @@
 import { Loader2 } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
-import { FeedbackBannerStack } from "@/shared/ui/feedback/feedback-banner-stack";
+import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
 import { WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
 
 import { PersonalPasswordSection } from "./personal-password-section";
@@ -52,16 +52,13 @@ export function PersonalSettingsPanel() {
         )}
       </div>
 
-      <FeedbackBannerStack
-        items={controller.feedback.value ? [
-          {
-            key: "personal-settings-feedback",
-            message: controller.feedback.value.message,
-            onDismiss: controller.feedback.dismiss,
-            title: controller.feedback.value.title,
-            tone: controller.feedback.value.tone,
-          },
-        ] : []}
+      <FeedbackBannerViewport
+        item={controller.feedback.value ? {
+          message: controller.feedback.value.message,
+          onDismiss: controller.feedback.dismiss,
+          title: controller.feedback.value.title,
+          tone: controller.feedback.value.tone,
+        } : null}
       />
     </>
   );

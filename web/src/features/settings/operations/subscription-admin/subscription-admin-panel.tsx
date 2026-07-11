@@ -3,7 +3,7 @@
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
-import { FeedbackBannerStack } from "@/shared/ui/feedback/feedback-banner-stack";
+import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
 import { WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
 import {
   SETTINGS_ITEM_DESCRIPTION_CLASS_NAME,
@@ -69,14 +69,13 @@ export function SubscriptionAdminPanel({ view }: SubscriptionAdminPanelProps) {
         )}
       </div>
 
-      <FeedbackBannerStack
-        items={controller.feedback ? [{
-          key: "subscription-feedback",
+      <FeedbackBannerViewport
+        item={controller.feedback ? {
           message: controller.feedback.message,
           onDismiss: controller.dismissFeedback,
           title: controller.feedback.title,
           tone: controller.feedback.tone,
-        }] : []}
+        } : null}
       />
     </>
   );
