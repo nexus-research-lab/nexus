@@ -4,7 +4,6 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Settings,
-  ShieldCheck,
   type LucideIcon,
 } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -16,36 +15,29 @@ import { SIDEBAR_TOUR_ANCHORS } from "@/shared/ui/sidebar/sidebar-navigation-tou
 import type { SidebarUtilityLabels } from "./sidebar-wide-panel-types";
 
 interface SidebarUtilityActionsProps {
-  canViewOperations: boolean;
   guideOpen: boolean;
   labels: SidebarUtilityLabels;
   onCollapse: () => void;
   onExpand: () => void;
   onLogout: () => void;
   onOpenGuide: () => void;
-  operationsActive: boolean;
   settingsActive: boolean;
   showLogout: boolean;
+  showSettings: boolean;
   variant: "rail" | "panel";
 }
 
 export function SidebarUtilityActions(props: SidebarUtilityActionsProps) {
   const primaryActions = (
     <>
-      {props.canViewOperations ? (
+      {props.showSettings ? (
         <UtilityLink
-          active={props.operationsActive}
-          icon={ShieldCheck}
-          label={props.labels.operations}
-          to={AppRouteBuilders.operations()}
+          active={props.settingsActive}
+          icon={Settings}
+          label={props.labels.settings}
+          to={AppRouteBuilders.settings()}
         />
       ) : null}
-      <UtilityLink
-        active={props.settingsActive}
-        icon={Settings}
-        label={props.labels.settings}
-        to={AppRouteBuilders.settings()}
-      />
       <UtilityButton
         active={props.guideOpen}
         anchor={SIDEBAR_TOUR_ANCHORS.restart}

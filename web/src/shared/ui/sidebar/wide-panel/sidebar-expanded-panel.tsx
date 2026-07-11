@@ -1,4 +1,9 @@
-import type { ComponentType, PointerEventHandler, RefObject } from "react";
+import type {
+  ComponentType,
+  PointerEventHandler,
+  ReactNode,
+  RefObject,
+} from "react";
 import { Link } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
@@ -35,18 +40,18 @@ interface SidebarExpandedPanelProps {
   onSelectTab: (tab: SidebarPrimaryTab) => void;
   resizeHotzoneActive: boolean;
   rootRef: RefObject<HTMLDivElement | null>;
+  settingsNavigation?: ReactNode;
   tabs: SidebarPrimaryTabItem[];
   utility: {
-    canViewOperations: boolean;
     guideOpen: boolean;
     labels: SidebarUtilityLabels;
     onCollapse: () => void;
     onExpand: () => void;
     onLogout: () => void;
     onOpenGuide: () => void;
-    operationsActive: boolean;
     settingsActive: boolean;
     showLogout: boolean;
+    showSettings: boolean;
   };
   width: number;
 }
@@ -68,6 +73,7 @@ export function SidebarExpandedPanel({
   onSelectTab,
   resizeHotzoneActive,
   rootRef,
+  settingsNavigation,
   tabs,
   utility,
   width,
@@ -111,17 +117,25 @@ export function SidebarExpandedPanel({
           </p>
         </Link>
       </div>
-      <div className="border-b divider-subtle px-3 py-2">
-        <SidebarPrimaryTabs
-          activeTab={activeTab}
-          items={tabs}
-          onSelect={onSelectTab}
-          variant="panel"
-        />
-      </div>
-      <div className="soft-scrollbar scrollbar-stable-gutter flex min-h-0 flex-1 flex-col overflow-y-auto py-2.5">
-        <ActivePanelContent />
-      </div>
+      {settingsNavigation ? (
+        <div className="flex min-h-0 flex-1 flex-col">
+          {settingsNavigation}
+        </div>
+      ) : (
+        <>
+          <div className="border-b divider-subtle px-3 py-2">
+            <SidebarPrimaryTabs
+              activeTab={activeTab}
+              items={tabs}
+              onSelect={onSelectTab}
+              variant="panel"
+            />
+          </div>
+          <div className="soft-scrollbar scrollbar-stable-gutter flex min-h-0 flex-1 flex-col overflow-y-auto py-2.5">
+            <ActivePanelContent />
+          </div>
+        </>
+      )}
       <SidebarUtilityActions {...utility} variant="panel" />
     </div>
   );

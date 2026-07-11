@@ -22,7 +22,7 @@ export function DesktopSettingsRouter() {
             <Route element={<LoginPage />} path={APP_ROUTE_PATHS.login} />
             <Route element={<AuthGuard />}>
               <Route element={<DesktopEntryLayout />}>
-                <Route element={<SettingsPage />} path={APP_ROUTE_PATHS.settings} />
+                <Route element={<SettingsPage standalone />} path={APP_ROUTE_PATHS.settings} />
               </Route>
             </Route>
             <Route element={<Navigate replace to={APP_ROUTE_PATHS.settings} />} path="*" />

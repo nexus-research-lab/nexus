@@ -44,5 +44,8 @@ export const AppRouteBuilders = {
   channels: () => APP_ROUTE_PATHS.channels,
   pairings: () => APP_ROUTE_PATHS.pairings,
   operations: () => APP_ROUTE_PATHS.operations,
-  settings: () => APP_ROUTE_PATHS.settings,
+  settings: (section?: string) =>
+    section
+      ? `${APP_ROUTE_PATHS.settings}?section=${encodeURIComponent(section)}`
+      : APP_ROUTE_PATHS.settings,
 } as const;

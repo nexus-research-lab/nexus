@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import { HOME_SIDEBAR_PADDING_CLASS } from "@/lib/layout/home-layout";
 import { cn } from "@/lib/utils";
 
@@ -19,18 +21,18 @@ interface SidebarCollapsedRailProps {
     prefersReducedMotion: boolean;
   };
   onSelectTab: (tab: SidebarPrimaryTab) => void;
+  settingsNavigation?: ReactNode;
   tabs: SidebarPrimaryTabItem[];
   utility: {
-    canViewOperations: boolean;
     guideOpen: boolean;
     labels: SidebarUtilityLabels;
     onCollapse: () => void;
     onExpand: () => void;
     onLogout: () => void;
     onOpenGuide: () => void;
-    operationsActive: boolean;
     settingsActive: boolean;
     showLogout: boolean;
+    showSettings: boolean;
   };
 }
 
@@ -38,6 +40,7 @@ export function SidebarCollapsedRail({
   activeTab,
   nexus,
   onSelectTab,
+  settingsNavigation,
   tabs,
   utility,
 }: SidebarCollapsedRailProps) {
@@ -51,12 +54,14 @@ export function SidebarCollapsedRail({
     >
       <div className="flex min-h-0 flex-1 flex-col items-center gap-2 pb-3 pt-2">
         <SidebarNexusButton {...nexus} variant="rail" />
-        <SidebarPrimaryTabs
-          activeTab={activeTab}
-          items={tabs}
-          onSelect={onSelectTab}
-          variant="rail"
-        />
+        {settingsNavigation ?? (
+          <SidebarPrimaryTabs
+            activeTab={activeTab}
+            items={tabs}
+            onSelect={onSelectTab}
+            variant="rail"
+          />
+        )}
       </div>
       <SidebarUtilityActions {...utility} variant="rail" />
     </aside>

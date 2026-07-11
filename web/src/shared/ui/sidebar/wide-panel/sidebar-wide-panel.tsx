@@ -10,6 +10,7 @@ import {
   isMainAgent,
 } from "@/config/options";
 import { useChatCompletionNotifications } from "@/features/home/notifications/use-chat-completion-notifications";
+import { SettingsSidebarNavigation } from "@/features/settings/settings-sidebar-navigation";
 import { usePrefersReducedMotion } from "@/hooks/ui/use-prefers-reduced-motion";
 import { resolveDirectRoomNavigationTarget } from "@/lib/conversation/direct-room-navigation";
 import { getIconAvatarSrc } from "@/lib/utils";
@@ -37,7 +38,7 @@ import type {
 
 export function SidebarWidePanel() {
   const { t } = useI18n();
-  const { logout, status } = useAuth();
+  const { logout } = useAuth();
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const agents = useAgentStore((state) => state.agents);
@@ -60,6 +61,7 @@ export function SidebarWidePanel() {
     (state) => state.set_wide_panel_collapsed,
   );
   const desktopRuntime = isDesktopRuntime();
+  const settingsMode = pathname === AppRouteBuilders.settings();
   const activePrimaryTab = derivePrimaryTabFromPath(pathname);
   const defaultAgentId = getDefaultAgentId();
   const nexusAgent = agents.find((agent) => isMainAgent(agent.agent_id)) ?? null;
@@ -147,7 +149,6 @@ export function SidebarWidePanel() {
     expand: t("sidebar.expand_panel"),
     guide: t("common.guide_center"),
     logout: t("sidebar.logout"),
-    operations: t("sidebar.operations"),
     settings: t("sidebar.settings"),
   };
   const nexus = {
@@ -157,18 +158,15 @@ export function SidebarWidePanel() {
     prefersReducedMotion,
   };
   const utility = {
-    canViewOperations:
-      !desktopRuntime &&
-      (status?.role === "owner" || status?.role === "admin"),
     guideOpen: guide.is_guide_center_open,
     labels: utilityLabels,
     onCollapse: () => setWidePanelCollapsed(true),
     onExpand: () => setWidePanelCollapsed(false),
     onLogout: () => void logout(),
     onOpenGuide: guide.open_guide_center,
-    operationsActive: pathname.startsWith(AppRouteBuilders.operations()),
     settingsActive: pathname.startsWith(AppRouteBuilders.settings()),
     showLogout: !desktopRuntime,
+    showSettings: !settingsMode,
   };
   const sharedProps = {
     activeTab: activePrimaryTab,
@@ -181,7 +179,12 @@ export function SidebarWidePanel() {
   return (
     <>
       {widePanelCollapsed ? (
-        <SidebarCollapsedRail {...sharedProps} />
+        <SidebarCollapsedRail
+          {...sharedProps}
+          settingsNavigation={
+            settingsMode ? <SettingsSidebarNavigation variant="rail" /> : undefined
+          }
+        />
       ) : (
         <SidebarExpandedPanel
           {...sharedProps}
@@ -192,6 +195,9 @@ export function SidebarWidePanel() {
           onPointerUp={resize.handle_pointer_up}
           resizeHotzoneActive={resize.is_resize_hotzone_active}
           rootRef={resize.root_ref}
+          settingsNavigation={
+            settingsMode ? <SettingsSidebarNavigation variant="panel" /> : undefined
+          }
           width={widePanelWidth}
         />
       )}

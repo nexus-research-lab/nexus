@@ -45,7 +45,7 @@ const OPERATIONS_TABS: {
   },
 ];
 
-export function OperationsPanel() {
+export function OperationsPanel({ embedded = false }: { embedded?: boolean }) {
   const { t } = useI18n();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<OperationsTabKey>("userSubscriptions");
@@ -57,6 +57,39 @@ export function OperationsPanel() {
     navigate(APP_ROUTE_PATHS.home);
   }, [navigate]);
 
+  const tabs = OPERATIONS_TABS.map((item) => ({
+    key: item.key,
+    label: t(item.labelKey),
+    icon: item.icon,
+  }));
+  const content = (
+    <>
+      {activeTab === "userSubscriptions" ? (
+        <SubscriptionAdminPanel view="users" />
+      ) : null}
+      {activeTab === "subscriptionPlans" ? (
+        <SubscriptionAdminPanel view="plans" />
+      ) : null}
+      {activeTab === "subscriptionProviders" ? (
+        <ProviderSettingsPanel embedded visibilityScope="public" />
+      ) : null}
+    </>
+  );
+
+  if (embedded) {
+    return (
+      <>
+        <WorkspaceSurfaceHeader
+          activeTab={activeTab}
+          density="compact"
+          onChangeTab={setActiveTab}
+          tabs={tabs}
+        />
+        {content}
+      </>
+    );
+  }
+
   return (
     <WorkspaceSurfaceScaffold
       bodyScrollable
@@ -67,11 +100,7 @@ export function OperationsPanel() {
           density="compact"
           leading={<ActiveIcon className="h-4 w-4" />}
           onChangeTab={setActiveTab}
-          tabs={OPERATIONS_TABS.map((item) => ({
-            key: item.key,
-            label: t(item.labelKey),
-            icon: item.icon,
-          }))}
+          tabs={tabs}
           title={t("operations.title")}
           trailing={(
             <WorkspaceSurfaceToolbarAction onClick={handleBackToWorkspace}>
@@ -82,15 +111,7 @@ export function OperationsPanel() {
         />
       )}
     >
-      {activeTab === "userSubscriptions" ? (
-        <SubscriptionAdminPanel view="users" />
-      ) : null}
-      {activeTab === "subscriptionPlans" ? (
-        <SubscriptionAdminPanel view="plans" />
-      ) : null}
-      {activeTab === "subscriptionProviders" ? (
-        <ProviderSettingsPanel embedded visibilityScope="public" />
-      ) : null}
+      {content}
     </WorkspaceSurfaceScaffold>
   );
 }

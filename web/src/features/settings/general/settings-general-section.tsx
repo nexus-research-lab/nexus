@@ -11,9 +11,17 @@ import { SettingsPermissionsSection } from "./sections/settings-permissions-sect
 import { SettingsWorkspaceSection } from "./sections/settings-workspace-section";
 import { useGeneralSettingsController } from "./use-general-settings-controller";
 
-export function SettingsGeneralSection() {
-  const model = useGeneralSettingsController();
+type GeneralSettingsSectionKey =
+  | "general"
+  | "appearance"
+  | "workspace"
+  | "permissions";
 
+export function SettingsGeneralSection({
+  section,
+}: {
+  section: GeneralSettingsSectionKey;
+}) {
   return (
     <div
       className={cn(
@@ -21,12 +29,32 @@ export function SettingsGeneralSection() {
         WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME,
       )}
     >
-      <SettingsSystemSection />
-      <SettingsAppearanceSection />
-      <SettingsGeneralBehaviorSection {...model.behavior} />
-      <SettingsWorkspaceSection />
-      <SettingsDesktopSection />
-      <SettingsPermissionsSection {...model.permissions} />
+      {section === "general" ? (
+        <>
+          <SettingsSystemSection />
+          <SettingsGeneralBehaviorContent />
+        </>
+      ) : null}
+      {section === "appearance" ? <SettingsAppearanceSection /> : null}
+      {section === "workspace" ? (
+        <>
+          <SettingsWorkspaceSection />
+          <SettingsDesktopSection />
+        </>
+      ) : null}
+      {section === "permissions" ? (
+        <SettingsPermissionsContent />
+      ) : null}
     </div>
   );
+}
+
+function SettingsGeneralBehaviorContent() {
+  const { behavior } = useGeneralSettingsController();
+  return <SettingsGeneralBehaviorSection {...behavior} />;
+}
+
+function SettingsPermissionsContent() {
+  const { permissions } = useGeneralSettingsController();
+  return <SettingsPermissionsSection {...permissions} />;
 }

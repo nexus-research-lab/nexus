@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Consolidated Home chat and contact sidebar code into one domain, separating Room/DM catalog projection, unread aggregation, directory subscriptions, Room commands, and presentation-only panels.
 - Split Personal settings into a scoped profile resource and command controller, data-driven password validation, and presentation-only profile, password, and token-usage sections.
 - Moved General settings sections and pure option/preference models into their owning domain, while relocating settings-style UI shared with Operations to an explicit shared layer.
+- Replaced the global chat sidebar with a shared, grouped settings navigation while the settings route is active, removed the duplicate settings header tabs, reused the same navigation in the standalone desktop settings window, and moved role-gated operations into the settings management group.
 - Reorganized Markdown rendering into core, streaming, workspace, and Mermaid domains, separating link normalization, summary components, SVG rendering, and preview interaction state.
 - Split message item rendering into content, Assistant, and User domains, centralized structured tool/result projection, and removed an incomplete custom memo comparator that could retain stale action callbacks.
 - Split document preview loading, DOM normalization, and presentation into dedicated modules, while unifying Office preview downloads and payload-size validation behind one resource boundary.
