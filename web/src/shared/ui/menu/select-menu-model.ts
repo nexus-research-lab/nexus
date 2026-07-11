@@ -1,20 +1,14 @@
 import { cn } from "@/lib/utils";
 
-export type UiSelectMenuPlacement = "auto" | "bottom" | "top";
+import {
+  resolveAnchoredOverlayPosition,
+  type UiAnchoredOverlayPlacement,
+  type UiAnchoredOverlayPosition,
+} from "../overlay/anchored-overlay-model";
+
+export type UiSelectMenuPlacement = UiAnchoredOverlayPlacement;
 export type UiSelectMenuSize = "xs" | "sm" | "md";
 export type UiSelectMenuSurface = "surface" | "dialog";
-
-export interface UiSelectMenuPosition {
-  bottom?: number;
-  left: number;
-  maxHeight: number;
-  placement: "bottom" | "top";
-  top?: number;
-  width: number;
-}
-
-const SELECT_MENU_GAP = 6;
-const SELECT_MENU_VIEWPORT_MARGIN = 12;
 const SELECT_MENU_MAX_HEIGHT = 280;
 
 export const SELECT_MENU_SEARCH_ROW_HEIGHT = 44;
@@ -48,38 +42,15 @@ export function resolveSelectMenuPosition({
   estimatedOptionHeight: number;
   placement: UiSelectMenuPlacement;
   menuMinWidth?: number;
-}): UiSelectMenuPosition {
-  const rect = button.getBoundingClientRect();
-  const viewportWidth = window.innerWidth;
-  const viewportHeight = window.innerHeight;
-  const availableAbove = Math.max(0, rect.top - SELECT_MENU_VIEWPORT_MARGIN);
-  const availableBelow = Math.max(0, viewportHeight - rect.bottom - SELECT_MENU_VIEWPORT_MARGIN);
-  const shouldPlaceTop = placement === "top"
-    || (placement === "auto" && availableBelow < estimatedHeight && availableAbove > availableBelow);
-  const availableSpace = shouldPlaceTop ? availableAbove : availableBelow;
-  const maxHeight = Math.min(
-    SELECT_MENU_MAX_HEIGHT,
+}): UiAnchoredOverlayPosition {
+  return resolveAnchoredOverlayPosition({
+    anchor: button,
     estimatedHeight,
-    Math.max(estimatedOptionHeight + 8, availableSpace - SELECT_MENU_GAP),
-  );
-  const width = Math.min(
-    Math.max(rect.width, menuMinWidth ?? 0),
-    viewportWidth - SELECT_MENU_VIEWPORT_MARGIN * 2,
-  );
-  const left = Math.min(
-    Math.max(SELECT_MENU_VIEWPORT_MARGIN, rect.left),
-    Math.max(SELECT_MENU_VIEWPORT_MARGIN, viewportWidth - width - SELECT_MENU_VIEWPORT_MARGIN),
-  );
-
-  return {
-    left,
-    width,
-    maxHeight,
-    placement: shouldPlaceTop ? "top" : "bottom",
-    ...(shouldPlaceTop
-      ? { bottom: Math.max(SELECT_MENU_VIEWPORT_MARGIN, viewportHeight - rect.top + SELECT_MENU_GAP) }
-      : { top: Math.min(rect.bottom + SELECT_MENU_GAP, viewportHeight - SELECT_MENU_VIEWPORT_MARGIN - maxHeight) }),
-  };
+    maxHeight: SELECT_MENU_MAX_HEIGHT,
+    minHeight: estimatedOptionHeight + 8,
+    minWidth: menuMinWidth,
+    placement,
+  });
 }
 
 export function getSelectMenuButtonClassName({

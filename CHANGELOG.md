@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Consolidated action, select, and multi-select menus under shared menu ownership, and unified scheduled-task time columns and anchored overlay behavior across pickers.
+- Split the Home ASCII Hero into presentation, React lifecycle, Canvas scene, and particle-model modules.
 - Made Nexus the sole owner of scheduled-task state and timing, exposed automation to runtimes through the injected MCP server, and simplified task creation, list actions, and run diagnostics around progressive disclosure.
 - Renamed the product scheduling domain and storage from Cron jobs to scheduled tasks; Cron now denotes only the `schedule.kind=cron` expression mode.
 - Moved Room page state into page-owned scoped data, projection, command, snapshot, and existing-Agent option controllers, while separating URL navigation, one-shot drafts, server events, and Tours from the view entry.
@@ -76,6 +78,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Prevented stale Home Hero font and resize rebuilds from starting duplicate animation loops, and kept scheduled-task picker overlays within the available viewport.
 - Prevented stale Room context refreshes, snapshot setters, and mutation results from crossing route Room boundaries.
 - Redirected immediately from rooms confirmed deleted by the server instead of racing a stale page snapshot against a second refresh.
 - Refreshed authoritative Room context after failed mutations, while reducing multi-member management from one refresh per write to one refresh per submission.

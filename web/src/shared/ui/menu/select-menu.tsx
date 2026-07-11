@@ -5,11 +5,14 @@ import {
   type ReactNode,
   useCallback,
   useMemo,
+  useRef,
+  useState,
 } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronDown } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { useAnchoredOverlayLayer } from "../overlay/anchored-overlay-layer";
 import {
   estimateSelectMenuHeight,
   getSelectMenuButtonClassName,
@@ -21,8 +24,6 @@ import {
   type UiSelectMenuSize,
   type UiSelectMenuSurface,
 } from "./select-menu-model";
-import { useSelectMenuLayer } from "./select-menu-layer";
-export { UiMultiSelectMenu } from "./multi-select-menu";
 
 export interface UiSelectMenuOption {
   value: string;
@@ -75,6 +76,8 @@ export function UiSelectMenu({
     [options],
   );
   const activeOption = options.find((option) => option.value === value);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
   const {
     estimatedOptionHeight,
     heightClassName,
@@ -96,18 +99,21 @@ export function UiSelectMenu({
     });
   }, [allowLabelWrap, estimatedOptionHeight, menuMinWidth, options.length, placement]);
 
+  const closeMenu = useCallback(() => setIsOpen(false), []);
   const {
-    buttonRef,
-    isOpen,
-    menuId,
-    menuPosition,
-    menuRef,
-    menuStyle,
+    overlayId: menuId,
+    overlayPosition: menuPosition,
+    overlayRef: menuRef,
+    overlayStyle: menuStyle,
     portalContainer,
-    rootRef,
-    setIsOpen,
-    updateMenuPosition,
-  } = useSelectMenuLayer({ disabled, estimatePosition });
+    updateOverlayPosition: updateMenuPosition,
+  } = useAnchoredOverlayLayer({
+    anchorRef: buttonRef,
+    disabled,
+    estimatePosition,
+    isOpen,
+    onClose: closeMenu,
+  });
 
   const changeValue = (nextValue: string) => {
     if (disabled) {
@@ -211,7 +217,6 @@ export function UiSelectMenu({
 
   return (
     <div
-      ref={rootRef}
       className={cn("relative w-full", heightClassName, className)}
       data-ui-select-menu-open={isOpen ? "true" : undefined}
     >

@@ -9,7 +9,7 @@ import {
 import { cn } from "@/lib/utils";
 import { UiSearchInput } from "@/shared/ui/form-control";
 import { WORKSPACE_DETAIL_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
-import { UiSelectMenu, type UiSelectMenuOption } from "@/shared/ui/select-menu";
+import { UiSelectMenu, type UiSelectMenuOption } from "@/shared/ui/menu/select-menu";
 
 interface CapabilityPageLayoutProps {
   children: ReactNode;

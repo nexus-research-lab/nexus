@@ -1,5 +1,5 @@
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiMultiSelectMenu } from "@/shared/ui/select-menu";
+import { UiMultiSelectMenu } from "@/shared/ui/menu/multi-select-menu";
 
 interface RoomSkillsSelectorProps {
   disabled: boolean;

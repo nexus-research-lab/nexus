@@ -1,9 +1,10 @@
 "use client";
 
-import { type ReactNode, type RefObject, useEffect, useRef } from "react";
+import { type ReactNode, type RefObject, useCallback } from "react";
 import { createPortal } from "react-dom";
 
-import { closeOnEscape } from "@/shared/ui/dialog/dialog-keyboard";
+import { useAnchoredOverlayLayer } from "@/shared/ui/overlay/anchored-overlay-layer";
+import { resolveAnchoredOverlayPosition } from "@/shared/ui/overlay/anchored-overlay-model";
 
 import { PICKER_POPOVER_CLASS_NAME } from "./picker-styles";
 
@@ -14,46 +15,48 @@ interface PickerPopoverProps {
   onClose: () => void;
 }
 
-export function PickerPopover({ anchorRef: anchorRef, children, isOpen: isOpen, onClose: onClose }: PickerPopoverProps) {
-  const popoverRef = useRef<HTMLDivElement>(null);
+export function PickerPopover({
+  anchorRef,
+  children,
+  isOpen,
+  onClose,
+}: PickerPopoverProps) {
+  const estimatePosition = useCallback(
+    (anchor: HTMLElement) => resolveAnchoredOverlayPosition({
+      anchor,
+      estimatedHeight: 288,
+      gap: 10,
+      maxHeight: 320,
+      minHeight: 240,
+      minWidth: 480,
+      placement: "auto",
+      viewportMargin: 24,
+    }),
+    [],
+  );
+  const {
+    overlayPosition,
+    overlayRef,
+    overlayStyle,
+    portalContainer,
+  } = useAnchoredOverlayLayer({
+    anchorRef,
+    estimatePosition,
+    isOpen,
+    onClose,
+  });
 
-  useEffect(() => {
-    if (!isOpen) {
-      return;
-    }
-
-    const handlePointerDown = (event: MouseEvent) => {
-      const anchor = anchorRef.current;
-      const popover = popoverRef.current;
-      if (anchor?.contains(event.target as Node) || popover?.contains(event.target as Node)) {
-        return;
-      }
-      onClose();
-    };
-
-    const onKeyDown = (event: KeyboardEvent) => closeOnEscape(event, onClose);
-
-    document.addEventListener("mousedown", handlePointerDown, true);
-    document.addEventListener("keydown", onKeyDown, true);
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown, true);
-      document.removeEventListener("keydown", onKeyDown, true);
-    };
-  }, [anchorRef, isOpen, onClose]);
-
-  if (!isOpen || !anchorRef.current) {
+  if (!isOpen || !anchorRef.current || !portalContainer) {
     return null;
   }
 
-  const rect = anchorRef.current.getBoundingClientRect();
-  const modalRoot = document.querySelector("[data-modal-root='true']");
   return createPortal(
     <div
-      ref={popoverRef}
+      ref={overlayRef}
       className={PICKER_POPOVER_CLASS_NAME}
+      data-placement={overlayPosition?.placement ?? "bottom"}
       style={{
-        top: rect.bottom + 10,
-        left: Math.max(24, rect.left),
+        ...overlayStyle,
         background: "rgba(252, 253, 255, 0.98)",
         borderColor: "rgba(214, 224, 237, 0.96)",
         backdropFilter: "blur(18px)",
@@ -62,6 +65,6 @@ export function PickerPopover({ anchorRef: anchorRef, children, isOpen: isOpen, 
     >
       {children}
     </div>,
-    modalRoot ?? document.body,
+    portalContainer,
   );
 }

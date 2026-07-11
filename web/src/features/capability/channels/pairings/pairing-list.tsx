@@ -18,7 +18,7 @@ import type { UiBadgeTone } from "@/shared/ui/badge-styles";
 import { UiButton, UiIconButton } from "@/shared/ui/button";
 import { UiField } from "@/shared/ui/form-control";
 import { UiPanel } from "@/shared/ui/panel";
-import { UiSelectMenu } from "@/shared/ui/select-menu";
+import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import type { Agent } from "@/types/agent/agent";
 
 import {

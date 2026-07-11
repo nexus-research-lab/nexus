@@ -5,12 +5,14 @@ import {
   type ReactNode,
   useCallback,
   useMemo,
+  useRef,
+  useState,
 } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronDown, Loader2, Search, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { useSelectMenuLayer } from "./select-menu-layer";
+import { useAnchoredOverlayLayer } from "../overlay/anchored-overlay-layer";
 import {
   estimateSelectMenuHeight,
   getSelectMenuButtonClassName,
@@ -81,6 +83,8 @@ export function UiMultiSelectMenu({
   value,
 }: UiMultiSelectMenuProps) {
   const selectedValueSet = useMemo(() => new Set(value), [value]);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
   const selectedOptions = useMemo(
     () => value.map((item) => options.find((option) => option.value === item) ?? { value: item, label: item }),
     [options, value],
@@ -108,18 +112,21 @@ export function UiMultiSelectMenu({
     });
   }, [estimatedOptionHeight, hasOptionDescription, hasSearch, options.length, placement]);
 
+  const closeMenu = useCallback(() => setIsOpen(false), []);
   const {
-    buttonRef,
-    isOpen,
-    menuId,
-    menuPosition,
-    menuRef,
-    menuStyle,
+    overlayId: menuId,
+    overlayPosition: menuPosition,
+    overlayRef: menuRef,
+    overlayStyle: menuStyle,
     portalContainer,
-    rootRef,
-    setIsOpen,
-    updateMenuPosition,
-  } = useSelectMenuLayer({ disabled, estimatePosition });
+    updateOverlayPosition: updateMenuPosition,
+  } = useAnchoredOverlayLayer({
+    anchorRef: buttonRef,
+    disabled,
+    estimatePosition,
+    isOpen,
+    onClose: closeMenu,
+  });
 
   const toggleOpen = () => {
     if (disabled) {
@@ -246,7 +253,6 @@ export function UiMultiSelectMenu({
 
   return (
     <div
-      ref={rootRef}
       className={cn("relative w-full", value.length > 0 ? "min-h-10" : heightClassName, className)}
       data-ui-select-menu-open={isOpen ? "true" : undefined}
     >

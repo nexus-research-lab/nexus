@@ -5,7 +5,7 @@ import { Settings2 } from "lucide-react";
 
 import { UiChoiceButton } from "@/shared/ui/choice";
 import { UiField, UiInput } from "@/shared/ui/form-control";
-import { UiSelectMenu } from "@/shared/ui/select-menu";
+import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 
 import type {
   ExecutionKind,

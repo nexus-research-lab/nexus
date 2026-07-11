@@ -1,15 +1,11 @@
-/**
- * =====================================================
- * @File   : picker-types.ts
- * @Date   : 2026-04-16 14:28
- * @Author : leemysw
- * 2026-04-16 14:28   Create
- * =====================================================
- */
-
 export type Weekday = "mo" | "tu" | "we" | "th" | "fr" | "sa" | "su";
 export type Meridiem = "am" | "pm";
 
+export const MERIDIEM_OPTIONS: readonly Meridiem[] = ["am", "pm"];
+export const MERIDIEM_LABELS: Readonly<Record<Meridiem, string>> = {
+  am: "上午",
+  pm: "下午",
+};
 export const HOUR_12_OPTIONS = Array.from({ length: 12 }, (_, index) => `${index + 1}`.padStart(2, "0"));
 export const MINUTE_OPTIONS = Array.from({ length: 60 }, (_, index) => `${index}`.padStart(2, "0"));
 export const SECOND_OPTIONS = Array.from({ length: 60 }, (_, index) => `${index}`.padStart(2, "0"));

@@ -15,7 +15,7 @@ import {
 } from "@/shared/ui/dialog/dialog";
 import { UiButton } from "@/shared/ui/button";
 import { UiSearchInput } from "@/shared/ui/form-control";
-import { UiSelectMenu } from "@/shared/ui/select-menu";
+import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import type { LoopCatalogItem } from "@/types/capability/loop";
 
 const ALL_CATEGORIES = "__all__";

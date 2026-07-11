@@ -1,7 +1,7 @@
 import { Gauge, Loader2, RefreshCw, Save, ShieldCheck, UsersRound } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiSelectMenu } from "@/shared/ui/select-menu";
+import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import {
   SETTINGS_CARD_CLASS_NAME,
   SETTINGS_ICON_CLASS_NAME,

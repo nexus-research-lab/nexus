@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiSelectMenu } from "@/shared/ui/select-menu";
+import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import type { AgentProvider } from "@/types/agent/agent";
 import {
   formatProviderLabel,

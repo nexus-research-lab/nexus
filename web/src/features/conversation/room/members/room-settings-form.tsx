@@ -4,7 +4,7 @@ import { cn, ROOM_ICON_ID_END, ROOM_ICON_ID_START } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiRoomAvatar } from "@/shared/ui/avatar";
 import { IconPicker } from "@/shared/ui/icon-picker/icon-picker";
-import { UiSelectMenu } from "@/shared/ui/select-menu";
+import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 
 import type {
   RoomDialogFormState,

@@ -2,7 +2,7 @@ import { Compass, MoreHorizontal } from "lucide-react";
 import { useRef, useState } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiActionMenu } from "@/shared/ui/action-menu";
+import { UiActionMenu } from "@/shared/ui/menu/action-menu";
 
 interface RoomHeaderGuideMenuProps {
   onReplayTour: () => void;

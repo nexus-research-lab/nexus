@@ -5,7 +5,7 @@ import { UiChoiceButton } from "@/shared/ui/choice";
 import { UiInput, UiTextarea } from "@/shared/ui/form-control";
 import { UiPanel } from "@/shared/ui/panel";
 import { UiSegmentedControl } from "@/shared/ui/segmented-control";
-import { UiSelectMenu } from "@/shared/ui/select-menu";
+import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import { UiStateBlock } from "@/shared/ui/state-block";
 
 import { DailyTimePicker } from "../../pickers/daily-time-picker";

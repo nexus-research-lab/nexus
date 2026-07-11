@@ -2,7 +2,7 @@ import { Loader2, Plus, Save } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
-import { UiSelectMenu } from "@/shared/ui/select-menu";
+import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import {
   SETTINGS_CARD_CLASS_NAME,
 } from "@/features/settings/shared/settings-panel-ui";

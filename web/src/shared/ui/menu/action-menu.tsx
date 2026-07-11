@@ -1,18 +1,19 @@
 "use client";
 
 import {
-  type CSSProperties,
   type ReactNode,
   type RefObject,
   useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
 } from "react";
 import { createPortal } from "react-dom";
 
 import { cn } from "@/lib/utils";
+
+import { useAnchoredOverlayLayer } from "../overlay/anchored-overlay-layer";
+import {
+  resolveAnchoredOverlayPosition,
+  type UiAnchoredOverlayPlacement,
+} from "../overlay/anchored-overlay-model";
 
 export interface UiActionMenuItem {
   value: string;
@@ -25,7 +26,7 @@ export interface UiActionMenuItem {
   tone?: "default" | "primary" | "danger";
 }
 
-type UiActionMenuPlacement = "auto" | "bottom" | "top";
+type UiActionMenuPlacement = UiAnchoredOverlayPlacement;
 
 interface UiActionMenuProps {
   anchorRef: RefObject<HTMLElement | null>;
@@ -39,17 +40,6 @@ interface UiActionMenuProps {
   onSelect: (value: string) => void;
 }
 
-interface UiActionMenuPosition {
-  bottom?: number;
-  left: number;
-  maxHeight: number;
-  placement: "bottom" | "top";
-  top?: number;
-  width: number;
-}
-
-const ACTION_MENU_GAP = 6;
-const ACTION_MENU_VIEWPORT_MARGIN = 12;
 const ACTION_MENU_MAX_HEIGHT = 320;
 const ACTION_MENU_ITEM_HEIGHT = 44;
 
@@ -63,43 +53,19 @@ function resolveActionMenuPosition({
   itemCount: number;
   minWidth: number;
   placement: UiActionMenuPlacement;
-}): UiActionMenuPosition {
-  const rect = anchor.getBoundingClientRect();
-  const viewportWidth = window.innerWidth;
-  const viewportHeight = window.innerHeight;
+}) {
   const estimatedHeight = Math.min(
     ACTION_MENU_MAX_HEIGHT,
     Math.max(ACTION_MENU_ITEM_HEIGHT, itemCount * ACTION_MENU_ITEM_HEIGHT + 8),
   );
-  const availableAbove = Math.max(0, rect.top - ACTION_MENU_VIEWPORT_MARGIN);
-  const availableBelow = Math.max(0, viewportHeight - rect.bottom - ACTION_MENU_VIEWPORT_MARGIN);
-  const shouldPlaceTop =
-    placement === "top" ||
-    (placement === "auto" && availableBelow < estimatedHeight && availableAbove > availableBelow);
-  const availableSpace = shouldPlaceTop ? availableAbove : availableBelow;
-  const width = Math.min(
-    Math.max(rect.width, minWidth),
-    viewportWidth - ACTION_MENU_VIEWPORT_MARGIN * 2,
-  );
-  const left = Math.min(
-    Math.max(ACTION_MENU_VIEWPORT_MARGIN, rect.left),
-    Math.max(ACTION_MENU_VIEWPORT_MARGIN, viewportWidth - width - ACTION_MENU_VIEWPORT_MARGIN),
-  );
-  const maxHeight = Math.min(
-    ACTION_MENU_MAX_HEIGHT,
+  return resolveAnchoredOverlayPosition({
+    anchor,
     estimatedHeight,
-    Math.max(ACTION_MENU_ITEM_HEIGHT, availableSpace - ACTION_MENU_GAP),
-  );
-
-  return {
-    left,
-    maxHeight,
-    placement: shouldPlaceTop ? "top" : "bottom",
-    width,
-    ...(shouldPlaceTop
-      ? { bottom: Math.max(ACTION_MENU_VIEWPORT_MARGIN, viewportHeight - rect.top + ACTION_MENU_GAP) }
-      : { top: Math.min(rect.bottom + ACTION_MENU_GAP, viewportHeight - ACTION_MENU_VIEWPORT_MARGIN - maxHeight) }),
-  };
+    maxHeight: ACTION_MENU_MAX_HEIGHT,
+    minHeight: ACTION_MENU_ITEM_HEIGHT,
+    minWidth,
+    placement,
+  });
 }
 
 function getItemStateClassName(item: UiActionMenuItem) {
@@ -148,74 +114,30 @@ export function UiActionMenu({
   onClose: onClose,
   onSelect: onSelect,
 }: UiActionMenuProps) {
-  const menuRef = useRef<HTMLDivElement>(null);
-  const [menuPosition, setMenuPosition] = useState<UiActionMenuPosition | null>(null);
-
-  const updateMenuPosition = useCallback(() => {
-    const anchor = anchorRef.current;
-    if (!anchor) {
-      return;
-    }
-    setMenuPosition(resolveActionMenuPosition({
+  const estimatePosition = useCallback(
+    (anchor: HTMLElement) => resolveActionMenuPosition({
       anchor,
       itemCount: items.length,
       minWidth,
       placement,
-    }));
-  }, [anchorRef, items.length, minWidth, placement]);
-
-  useEffect(() => {
-    if (!isOpen) {
-      return;
-    }
-
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target as Node;
-      if (anchorRef.current?.contains(target) || menuRef.current?.contains(target)) {
-        return;
-      }
-      onClose();
-    };
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onClose();
-        anchorRef.current?.focus();
-      }
-    };
-
-    document.addEventListener("pointerdown", handlePointerDown, true);
-    document.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("resize", updateMenuPosition);
-    window.addEventListener("scroll", updateMenuPosition, true);
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown, true);
-      document.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("resize", updateMenuPosition);
-      window.removeEventListener("scroll", updateMenuPosition, true);
-    };
-  }, [anchorRef, isOpen, onClose, updateMenuPosition]);
-
-  useLayoutEffect(() => {
-    if (isOpen) {
-      updateMenuPosition();
-    }
-  }, [isOpen, updateMenuPosition]);
+    }),
+    [items.length, minWidth, placement],
+  );
+  const {
+    overlayPosition: menuPosition,
+    overlayRef: menuRef,
+    overlayStyle: menuStyle,
+    portalContainer,
+  } = useAnchoredOverlayLayer({
+    anchorRef,
+    estimatePosition,
+    isOpen,
+    onClose,
+  });
 
   if (!isOpen) {
     return null;
   }
-
-  const menuStyle: CSSProperties = {
-    bottom: menuPosition?.bottom,
-    left: menuPosition?.left,
-    maxHeight: menuPosition?.maxHeight,
-    top: menuPosition?.top,
-    visibility: menuPosition ? "visible" : "hidden",
-    width: menuPosition?.width,
-  };
-  const portalContainer = typeof document === "undefined"
-    ? null
-    : anchorRef.current?.closest("[data-modal-root='true']") ?? document.body;
   if (!portalContainer) {
     return null;
   }

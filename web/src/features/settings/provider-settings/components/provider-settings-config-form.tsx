@@ -4,7 +4,7 @@ import { ExternalLink } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiInput } from "@/shared/ui/form-control";
-import { UiSelectMenu, type UiSelectMenuOption } from "@/shared/ui/select-menu";
+import { UiSelectMenu, type UiSelectMenuOption } from "@/shared/ui/menu/select-menu";
 import type {
   ProviderConfigRecord,
   ProviderPreset,

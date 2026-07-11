@@ -25,7 +25,7 @@ import {
   UiDialogPortal,
 } from "@/shared/ui/dialog/dialog";
 import { UiField, UiInput } from "@/shared/ui/form-control";
-import { UiSelectMenu } from "@/shared/ui/select-menu";
+import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import type { Agent } from "@/types/agent/agent";
 
 import {
