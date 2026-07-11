@@ -1,28 +1,14 @@
-/**
- * =====================================================
- * @File   : agent-options-editor.tsx
- * @Date   : 2026-04-15 17:35
- * @Author : leemysw
- * 2026-04-15 17:35   Create
- * =====================================================
- */
-
-"use client";
-
 import { cn } from "@/lib/utils";
 import { UiButton } from "@/shared/ui/button";
 import { AgentOptionsNav } from "@/features/agents/options/components/agent-options-nav";
 import { AgentOptionsIdentityTab } from "@/features/agents/options/components/identity/agent-options-identity-tab";
-import { AgentOptionsSkillsTab } from "@/features/agents/options/components/agent-options-skills-tab";
+import { AgentOptionsSkillsTab } from "@/features/agents/options/components/skills/agent-options-skills-tab";
 import { AgentOptionsAdvancedTab } from "@/features/agents/options/components/agent-options-advanced-tab";
 import { useAgentOptionsEditorController } from "@/features/agents/options/editor/use-agent-options-editor-controller";
 import type { AgentOptionsEditorProps } from "@/features/agents/options/agent-options-editor-model";
 
 export type { AgentOptionsEditorProps } from "@/features/agents/options/agent-options-editor-model";
 
-// ==================== 主组件 ====================
-
-/** AgentOptions 表单主体 */
 export function AgentOptionsEditor(props: AgentOptionsEditorProps) {
   const controller = useAgentOptionsEditorController(props);
   const content = (

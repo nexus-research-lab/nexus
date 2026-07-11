@@ -38,7 +38,7 @@ export interface SkillDetail extends SkillInfo {
     deploy_failures?: RedeployAgentFailure[];
 }
 
-export interface AgentSkillEntry extends SkillInfo {}
+export type AgentSkillEntry = SkillInfo;
 
 export interface SkillActionFailure {
     skill_name: string;

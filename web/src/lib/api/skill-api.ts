@@ -251,11 +251,13 @@ export const deleteSkillApi = async (skillName: string): Promise<void> => {
 /** 获取 Agent 的 Skill 列表（含安装状态） */
 export const getAgentSkillsApi = async (
   agentId: string,
+  signal?: AbortSignal,
 ): Promise<AgentSkillEntry[]> => {
   return requestSkillApi<AgentSkillEntry[]>(
     `/agents/${encodeURIComponent(agentId)}/skills`,
     {
       method: "GET",
+      signal,
     },
   );
 };

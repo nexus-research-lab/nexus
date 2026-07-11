@@ -35,6 +35,7 @@ src/
 - Home 侧栏与聊天通知只消费 `home-directory-resource.ts` 的共享目录快照；bootstrap 请求、刷新排队和全局目录事件不得在消费者中重复实现
 - Home 侧栏只通过 `home/sidebar/` 组合聊天和联系人入口；Room/DM 基础投影与未读叠加必须独立缓存，视图不得直接调用 Room API 或拼通知键
 - Agent Options 以 `agents/options/editor/agent-options-draft.ts` 的单一草稿为编辑真相；名称校验与保存完成必须同时匹配 Agent 作用域和草稿版本
+- Agent 技能页由 `agents/options/components/skills/` 分离可取消列表资源、互斥安装命令、搜索投影和视图；异步结果必须匹配当前 Agent，状态机不得留在卡片组件
 - 记忆列表请求必须绑定 Agent，文档加载与保存必须绑定 `agentId:path`；SDK 实时内容优先于旧 HTTP 响应，保存完成不得覆盖更新的草稿
 - Workspace 文件快照与写命令按 Agent 作用域隔离；同 Agent 的后发刷新使先发请求失效，外部打开 Agent 信号只消费一次
 - Room 页面数据资源必须绑定当前 `roomId`；模型只做投影，命令只返回当前作用域结果，会话快照只通过专用协议写回

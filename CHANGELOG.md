@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Split Agent memory browsing and document editing into scoped resource controllers, with a presentation-only catalog and explicit live SDK content precedence.
 - Consolidated Agent Options identity, model, and permission fields into one scoped draft, with dedicated Provider, name-validation, and save-feedback controllers.
 - Split Agent identity presentation into profile, vibe-tag, model-selector, and layout modules, removed duplicate dialog/inline form trees, and reset pending tag input across editor scopes.
+- Split Agent skill configuration into scoped resource, command, search projection, and presentation modules, cancelling stale list requests and serializing writes per Agent.
 - Unified sidebar and chat-notification bootstrap data behind one queued Home directory resource, and split notification projection, browser effects, and Room WebSocket protocol into dedicated modules.
 - Consolidated Home chat and contact sidebar code into one domain, separating Room/DM catalog projection, unread aggregation, directory subscriptions, Room commands, and presentation-only panels.
 - Split Personal settings into a scoped profile resource and command controller, data-driven password validation, and presentation-only profile, password, and token-usage sections.
