@@ -1,6 +1,6 @@
 "use client";
 
-import { Clock3, History, Pencil, Play, Trash2 } from "lucide-react";
+import { Clock3, History, MoreHorizontal, Pencil, Play, Trash2 } from "lucide-react";
 
 import { UiButton } from "@/shared/ui/button";
 import { UiMetaGrid, UiMetaItem } from "@/shared/ui/meta-grid";
@@ -88,7 +88,7 @@ export function ScheduledTaskList({
               任务清单
             </h2>
             <p className="text-[12px] leading-5 text-(--text-muted)">
-              共 {items.length} 个任务，可查看任务落在哪个会话里执行，以及结果回到哪里。
+              共 {items.length} 个任务，按下次运行时间排序。
             </p>
           </div>
         </div>
@@ -116,7 +116,7 @@ export function ScheduledTaskList({
                 新建任务
               </WorkspaceCatalogTextAction>
             )}
-            description="新建第一个自动化任务后，这里会显示任务在哪个会话里执行、结果回到哪里，以及最近运行情况。"
+            description="创建任务后，这里会显示它的执行时间和最近结果。"
             size="sm"
             title="还没有定时任务"
             variant="plain"
@@ -148,21 +148,14 @@ export function ScheduledTaskList({
                           <WorkspaceStatusBadge label={`连续失败 ${task.failure_streak} 次`} size="compact" tone="default" />
                         ) : null}
                       </div>
-                      <UiMetaGrid>
-                        <UiMetaItem label="归属对象" value={getContextSummary(task)} />
-                        <UiMetaItem label="执行会话" value={getSessionSummary(task)} />
-                        <UiMetaItem label="结果回传" value={getDeliverySummary(task.delivery, task.source)} />
-                        <UiMetaItem label="调度规则" value={getScheduleSummary(task.schedule)} />
-                      </UiMetaGrid>
-                      <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs text-(--text-default)">
-                        <span>下次运行 {formatScheduledDatetime(task.next_run_at, { emptyLabel: "未安排" })}</span>
-                        {task.running_started_at ? (
-                          <span>本次开始 {formatScheduledDatetime(task.running_started_at, { includeSeconds: true })}</span>
-                        ) : null}
-                        <span>最近执行 {formatScheduledDatetime(task.last_run_at, { emptyLabel: "未安排" })}</span>
-                        <span>最近状态 {getRunStatusLabel(task.last_run_status)}</span>
-                        <span>Agent {task.agent_id}</span>
-                        <span>来源 {getSourceKindLabel(task.source)}</span>
+                      <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-sm text-(--text-default)">
+                        <span className="font-medium text-(--text-strong)">
+                          {getScheduleSummary(task.schedule)}
+                        </span>
+                        <span>下次 {formatScheduledDatetime(task.next_run_at, { emptyLabel: "未安排" })}</span>
+                        <span>
+                          最近 {getRunStatusLabel(task.last_run_status)} · {formatScheduledDatetime(task.last_run_at, { emptyLabel: "尚未执行" })}
+                        </span>
                       </div>
                       <p className="mt-3 text-sm leading-6 text-(--text-default)">
                         {getBehaviorSummary(task)}
@@ -172,6 +165,29 @@ export function ScheduledTaskList({
                           {task.last_error}
                         </p>
                       ) : null}
+                      <details className="group mt-3 text-xs text-(--text-muted)">
+                        <summary className="cursor-pointer list-none font-medium text-(--text-default) hover:text-(--text-strong)">
+                          查看执行与投递设置
+                        </summary>
+                        <div className="mt-3 rounded-[10px] border border-(--divider-subtle-color) px-3 py-3">
+                          <UiMetaGrid>
+                            <UiMetaItem label="归属对象" value={getContextSummary(task)} />
+                            <UiMetaItem label="执行会话" value={getSessionSummary(task)} />
+                            <UiMetaItem label="结果回传" value={getDeliverySummary(task.delivery, task.source)} />
+                            <UiMetaItem label="重叠策略" value={task.overlap_policy === "allow" ? "允许并行" : "跳过重叠"} />
+                          </UiMetaGrid>
+                          <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2">
+                            <span>Agent {task.agent_id}</span>
+                            <span>来源 {getSourceKindLabel(task.source)}</span>
+                            {task.running_started_at ? (
+                              <span>本次开始 {formatScheduledDatetime(task.running_started_at, { includeSeconds: true })}</span>
+                            ) : null}
+                            {task.expires_at ? (
+                              <span>有效期至 {formatScheduledDatetime(task.expires_at, { includeSeconds: true })}</span>
+                            ) : null}
+                          </div>
+                        </div>
+                      </details>
                     </div>
 
                     <div className="flex shrink-0 flex-wrap items-center gap-3 lg:justify-end">
@@ -194,33 +210,43 @@ export function ScheduledTaskList({
                         >
                           <Play className="h-3.5 w-3.5" />
                         </WorkspaceCatalogAction>
-                        <WorkspaceCatalogAction
-                          aria-label="运行历史"
-                          disabled={task.session_target.kind === "main"}
-                          onClick={() => onOpenHistory?.(task)}
-                          size="md"
-                          title={task.session_target.kind === "main" ? "主会话任务暂不提供独立运行历史" : "查看最近几次执行记录"}
-                        >
-                          <History className="h-3.5 w-3.5" />
-                        </WorkspaceCatalogAction>
-                        <WorkspaceCatalogAction
-                          aria-label="编辑任务"
-                          onClick={() => onEdit?.(task)}
-                          size="md"
-                          title="编辑任务"
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </WorkspaceCatalogAction>
-                        <WorkspaceCatalogAction
-                          aria-label="删除任务"
-                          disabled={deletePending}
-                          onClick={() => void onDelete?.(task)}
-                          size="md"
-                          title="删除后任务会从列表里移除"
-                          tone="danger"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </WorkspaceCatalogAction>
+                        <details className="group relative">
+                          <summary
+                            aria-label="更多操作"
+                            className="flex h-9 w-9 cursor-pointer list-none items-center justify-center rounded-[10px] border border-(--divider-subtle-color) text-(--icon-default) transition hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
+                            title="更多操作"
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </summary>
+                          <div className="absolute right-0 z-20 mt-2 min-w-[148px] rounded-[12px] border border-(--divider-subtle-color) bg-(--surface-raised-background) p-1.5 shadow-lg">
+                            <button
+                              className="flex w-full items-center gap-2 rounded-[8px] px-3 py-2 text-left text-sm text-(--text-default) hover:bg-(--surface-interactive-hover-background) disabled:opacity-50"
+                              disabled={task.session_target.kind === "main"}
+                              onClick={() => onOpenHistory?.(task)}
+                              type="button"
+                            >
+                              <History className="h-3.5 w-3.5" />
+                              运行历史
+                            </button>
+                            <button
+                              className="flex w-full items-center gap-2 rounded-[8px] px-3 py-2 text-left text-sm text-(--text-default) hover:bg-(--surface-interactive-hover-background)"
+                              onClick={() => onEdit?.(task)}
+                              type="button"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                              编辑任务
+                            </button>
+                            <button
+                              className="flex w-full items-center gap-2 rounded-[8px] px-3 py-2 text-left text-sm text-(--destructive) hover:bg-(--surface-interactive-hover-background) disabled:opacity-50"
+                              disabled={deletePending}
+                              onClick={() => void onDelete?.(task)}
+                              type="button"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                              删除任务
+                            </button>
+                          </div>
+                        </details>
                       </div>
                     </div>
                   </div>

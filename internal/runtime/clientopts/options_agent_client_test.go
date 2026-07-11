@@ -513,6 +513,47 @@ func TestBuildAgentClientOptionsDeniesClaudeSessionUnavailableTools(t *testing.T
 	}
 }
 
+func TestBuildAgentClientOptionsDisablesKernelSchedulers(t *testing.T) {
+	tests := []struct {
+		name        string
+		runtimeKind string
+		wantKey     string
+		otherKey    string
+	}{
+		{
+			name:        "nxs",
+			runtimeKind: runtimeKindNXS,
+			wantKey:     nexusDisableCronEnvName,
+			otherKey:    claudeDisableCronEnvName,
+		},
+		{
+			name:        "claude",
+			runtimeKind: runtimeKindClaude,
+			wantKey:     claudeDisableCronEnvName,
+			otherKey:    nexusDisableCronEnvName,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
+				RuntimeKind: test.runtimeKind,
+				ExtraEnv: map[string]string{
+					test.wantKey: "0",
+				},
+			})
+			if err != nil {
+				t.Fatalf("BuildAgentClientOptions 失败: %v", err)
+			}
+			if options.Env[test.wantKey] != "1" {
+				t.Fatalf("%s = %q, want 1; env=%+v", test.wantKey, options.Env[test.wantKey], options.Env)
+			}
+			if _, ok := options.Env[test.otherKey]; ok {
+				t.Fatalf("不应向 %s runtime 注入 %s: %+v", test.name, test.otherKey, options.Env)
+			}
+		})
+	}
+}
+
 func TestBuildAgentClientOptionsInjectsWorkspaceBinEnv(t *testing.T) {
 	configDir := filepath.Join(t.TempDir(), ".nexus")
 	t.Setenv("NEXUS_CONFIG_DIR", configDir)

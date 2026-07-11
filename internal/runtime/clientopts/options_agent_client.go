@@ -72,6 +72,8 @@ func BuildAgentClientOptions(
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, workspaceRuntimeEnv(input.WorkspacePath))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, buildScopedRuntimeEnv(ctx))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, input.ExtraEnv)
+	// 调度归 Nexus automation 所有，调用方不得通过 ExtraEnv 重新开启内核调度器。
+	runtimeEnv = mergeRuntimeEnv(runtimeEnv, hostManagedScheduleRuntimeEnv(effectiveRuntimeKind))
 
 	permissionMode := input.PermissionMode
 	if permissionMode == "" {

@@ -96,6 +96,8 @@ const (
 	TaskEventActionRecover = "recover"
 	// TaskEventActionRetryDelivery 表示手动重试投递。
 	TaskEventActionRetryDelivery = "retry_delivery"
+	// TaskEventActionExpire 表示任务到达显式过期时间后自动停用。
+	TaskEventActionExpire = "expire"
 	// TaskEventActionAutoRetryDelivery 表示系统自动重试投递。
 	TaskEventActionAutoRetryDelivery = "auto_retry_delivery"
 

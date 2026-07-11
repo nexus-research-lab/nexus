@@ -6,8 +6,8 @@
 //
 // 成员清单：
 //   - service_task_*.go：任务 CRUD / 查询 / 运行 / 历史 / 事件 / 支撑。
-//   - service_scheduler*.go：调度与恢复。
-//   - service_execution*.go：执行分发 / 观测 / 重叠处理。
+//   - service_scheduler*.go：调度、数据库租约与恢复。
+//   - service_execution*.go：执行分发 / 观测 / 重叠与 misfire 处理。
 //   - service_heartbeat_*.go：heartbeat 分发 / 运行时 / 状态。
 //   - service_observability*.go：可观测性、日报、健康。
 //   - service_delivery_retry.go：投递重试。

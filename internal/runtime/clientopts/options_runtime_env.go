@@ -41,6 +41,8 @@ const nexusRuntimeUserIDEnvName = "NEXUS_RUNTIME_USER_ID"
 const (
 	nexusAutoDreamWakeModeEnvName     = "NEXUS_AUTO_DREAM_WAKE_MODE"
 	nexusProviderManagedByHostEnvName = "NEXUS_PROVIDER_MANAGED_BY_HOST"
+	nexusDisableCronEnvName           = "NEXUS_DISABLE_CRON"
+	claudeDisableCronEnvName          = "CLAUDE_CODE_DISABLE_CRON"
 )
 
 func runtimeEnvFromConfig(runtimeConfig *RuntimeConfig, runtimeKind string) map[string]string {
@@ -145,6 +147,14 @@ func nxsHostManagedRuntimeEnv(runtimeKind string) map[string]string {
 		nexusAutoDreamWakeModeEnvName:     "host",
 		nexusProviderManagedByHostEnvName: "1",
 	}
+}
+
+// hostManagedScheduleRuntimeEnv 关闭内核自带调度器，保证持久化任务只由 Nexus 调度。
+func hostManagedScheduleRuntimeEnv(runtimeKind string) map[string]string {
+	if runtimeProfileForKind(runtimeKind).isNXS() {
+		return map[string]string{nexusDisableCronEnvName: "1"}
+	}
+	return map[string]string{claudeDisableCronEnvName: "1"}
 }
 
 func nxsDiagnosticsRuntimeEnv(runtimeKind string, enabled bool) map[string]string {

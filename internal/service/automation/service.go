@@ -91,14 +91,17 @@ type Service struct {
 	nowFn     func() time.Time
 	idFactory func(string) string
 
-	mu                   sync.Mutex
-	jobStates            map[string]*automationexec.JobRuntimeState
-	heartbeatState       map[string]*automationexec.HeartbeatRuntimeState
-	wakeRequests         map[string][]automationexec.HeartbeatWakeRequest
-	deliveryRetryRunning bool
-	started              bool
-	cancel               context.CancelFunc
-	wg                   sync.WaitGroup
+	mu                    sync.Mutex
+	jobStates             map[string]*automationexec.JobRuntimeState
+	heartbeatState        map[string]*automationexec.HeartbeatRuntimeState
+	wakeRequests          map[string][]automationexec.HeartbeatWakeRequest
+	deliveryRetryRunning  bool
+	schedulerOwnerID      string
+	schedulerLeaseHeld    bool
+	schedulerLeaseRenewAt time.Time
+	started               bool
+	cancel                context.CancelFunc
+	wg                    sync.WaitGroup
 }
 
 // NewService 创建自动化服务。
@@ -113,20 +116,21 @@ func NewService(
 	delivery deliveryRouter,
 ) *Service {
 	return &Service{
-		config:         cfg,
-		repository:     automationstore.NewRepository(cfg, db),
-		agents:         agents,
-		dm:             dm,
-		room:           room,
-		permission:     permission,
-		workspace:      workspace,
-		delivery:       delivery,
-		logger:         logx.NewDiscardLogger(),
-		nowFn:          func() time.Time { return time.Now().UTC() },
-		idFactory:      automationexec.NewID,
-		jobStates:      make(map[string]*automationexec.JobRuntimeState),
-		heartbeatState: make(map[string]*automationexec.HeartbeatRuntimeState),
-		wakeRequests:   make(map[string][]automationexec.HeartbeatWakeRequest),
+		config:           cfg,
+		repository:       automationstore.NewRepository(cfg, db),
+		agents:           agents,
+		dm:               dm,
+		room:             room,
+		permission:       permission,
+		workspace:        workspace,
+		delivery:         delivery,
+		logger:           logx.NewDiscardLogger(),
+		nowFn:            func() time.Time { return time.Now().UTC() },
+		idFactory:        automationexec.NewID,
+		schedulerOwnerID: automationexec.NewID("scheduler"),
+		jobStates:        make(map[string]*automationexec.JobRuntimeState),
+		heartbeatState:   make(map[string]*automationexec.HeartbeatRuntimeState),
+		wakeRequests:     make(map[string][]automationexec.HeartbeatWakeRequest),
 	}
 }
 
@@ -174,10 +178,22 @@ func (s *Service) Start(ctx context.Context) error {
 
 	if s.agents != nil {
 		if err := s.agents.EnsureReady(ctx); err != nil {
+			s.mu.Lock()
+			s.started = false
+			s.mu.Unlock()
 			return err
 		}
 	}
 	if err := s.bootstrapRuntime(ctx); err != nil {
+		s.mu.Lock()
+		s.started = false
+		s.mu.Unlock()
+		return err
+	}
+	if _, _, err := s.refreshSchedulerLease(ctx, s.nowFn()); err != nil {
+		s.mu.Lock()
+		s.started = false
+		s.mu.Unlock()
 		return err
 	}
 
@@ -204,6 +220,9 @@ func (s *Service) Stop() {
 		cancel()
 	}
 	s.wg.Wait()
+	if err := s.releaseSchedulerLease(context.Background()); err != nil {
+		s.loggerFor(context.Background()).Warn("释放自动化调度器租约失败", "err", err)
+	}
 	s.loggerFor(context.Background()).Info("自动化调度器已停止")
 }
 

@@ -119,8 +119,8 @@ func (s *Service) startJobExecution(ctx context.Context, job automationdomain.Cr
 		return s.recordSkippedOverlap(ctx, job, triggerKind, scheduledFor, true)
 	}
 	nextRunAt := cloneTimePointer(state.NextRunAt)
-	if triggerKind == "cron" {
-		nextRunAt = s.computeJobNext(job, scheduledFor.UTC().Add(time.Second))
+	if triggerKind == "cron" || triggerKind == "misfire" {
+		nextRunAt = s.nextRunAfterScheduledTrigger(job, triggerKind, scheduledFor)
 	}
 	s.mu.Unlock()
 

@@ -391,6 +391,18 @@ task 的控制请求由 task item 的 `host_agent_id` 路由到实际承载该 s
 | GET | `/capability/scheduled/tasks/{job_id}/events` | 事件列表 | — |
 | POST | `/capability/scheduled/tasks/{job_id}/runs/{run_id}/delivery/retry` | 重试投递 | `retryScheduledTaskRunDeliveryApi` |
 
+创建和更新任务可传 `expires_at`（RFC3339）。到期后任务自动停用，但不会中断已经开始的 run；更新时传 `clear_expires_at: true` 可清除截止时间。
+
+调度策略由服务端环境变量控制：
+
+| 配置项 | 默认值 | 说明 |
+|------|------|------|
+| `AUTOMATION_SCHEDULER_LEASE_SECONDS` | `30` | 多实例 leader 租约时长 |
+| `AUTOMATION_RECURRING_JITTER_MAX_SECONDS` | `900` | 循环任务稳定 jitter 上限 |
+| `AUTOMATION_MISFIRE_POLICY` | `run_once` | 恢复时补跑一次；可设为 `skip` |
+| `AUTOMATION_MISFIRE_GRACE_SECONDS` | `60` | `skip` 策略允许的延迟窗口 |
+| `AUTOMATION_MAX_ENABLED_TASKS_PER_USER` | `100` | 单用户已启用任务上限 |
+
 ---
 
 ## 14. Heartbeat 心跳自动化

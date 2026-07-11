@@ -58,7 +58,8 @@ func (s *Service) computeJobNext(job automationdomain.CronJob, now time.Time) *t
 	if !job.Enabled {
 		return nil
 	}
-	next, err := automationexec.ComputeNextRunAt(job.Schedule, now)
+	maxJitter := time.Duration(s.config.AutomationRecurringJitterSeconds) * time.Second
+	next, err := automationexec.ComputeJitteredNextRunAt(job.Schedule, now, job.JobID, maxJitter)
 	if err != nil {
 		return nil
 	}
@@ -95,7 +96,10 @@ func (s *Service) finishJobRuntime(jobID string, finishedAt *time.Time, status s
 	}
 
 	now := s.nowFn()
-	naturalNext := s.computeJobNext(state.Job, now)
+	naturalNext := cloneTimePointer(state.NextRunAt)
+	if naturalNext == nil || !naturalNext.After(now) {
+		naturalNext = s.computeJobNext(state.Job, now)
+	}
 
 	if isSuccessfulRuntimeStatus(status) {
 		state.FailureStreak = 0

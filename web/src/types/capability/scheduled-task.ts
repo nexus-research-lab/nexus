@@ -107,6 +107,7 @@ export interface ApiScheduledTask {
   delivery: ScheduledTaskDeliveryTarget;
   source: ScheduledTaskSource;
   overlap_policy?: ScheduledTaskOverlapPolicy | null;
+  expires_at?: string | null;
   enabled: boolean;
   next_run_at?: string | null;
   running: boolean;
@@ -119,7 +120,8 @@ export interface ApiScheduledTask {
   last_delivery_status?: string | null;
 }
 
-export interface ScheduledTaskItem extends Omit<ApiScheduledTask, "next_run_at" | "running_started_at" | "last_run_at" | "failure_streak"> {
+export interface ScheduledTaskItem extends Omit<ApiScheduledTask, "expires_at" | "next_run_at" | "running_started_at" | "last_run_at" | "failure_streak"> {
+  expires_at: number | null;
   next_run_at: number | null;
   running_started_at: number | null;
   last_run_at: number | null;
@@ -140,6 +142,7 @@ export interface CreateScheduledTaskParams {
   delivery?: ScheduledTaskDeliveryTarget;
   source?: ScheduledTaskSource;
   overlap_policy?: ScheduledTaskOverlapPolicy;
+  expires_at?: string;
   enabled?: boolean;
 }
 
@@ -153,6 +156,8 @@ export interface UpdateScheduledTaskParams {
   delivery?: ScheduledTaskDeliveryTarget;
   source?: ScheduledTaskSource;
   overlap_policy?: ScheduledTaskOverlapPolicy;
+  expires_at?: string;
+  clear_expires_at?: boolean;
   enabled?: boolean;
 }
 

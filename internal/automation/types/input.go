@@ -3,6 +3,7 @@ package types
 import (
 	"errors"
 	"strings"
+	"time"
 )
 
 // CreateJobInput 表示创建请求。
@@ -16,6 +17,7 @@ type CreateJobInput struct {
 	Delivery      DeliveryTarget `json:"delivery"`
 	Source        Source         `json:"source"`
 	OverlapPolicy string         `json:"overlap_policy,omitempty"`
+	ExpiresAt     *time.Time     `json:"expires_at,omitempty"`
 	Enabled       bool           `json:"enabled"`
 }
 
@@ -63,6 +65,10 @@ func (i CreateJobInput) Normalized() CreateJobInput {
 	result.Delivery = result.Delivery.Normalized()
 	result.Source = result.Source.Normalized()
 	result.OverlapPolicy = NormalizeOverlapPolicy(result.OverlapPolicy)
+	if result.ExpiresAt != nil {
+		expiresAt := result.ExpiresAt.UTC()
+		result.ExpiresAt = &expiresAt
+	}
 	return result
 }
 
@@ -104,13 +110,15 @@ func validateExecutionKind(kind string) error {
 
 // UpdateJobInput 表示更新请求。
 type UpdateJobInput struct {
-	Name          *string         `json:"name,omitempty"`
-	Schedule      *Schedule       `json:"schedule,omitempty"`
-	Instruction   *string         `json:"instruction,omitempty"`
-	ExecutionKind *string         `json:"execution_kind,omitempty"`
-	SessionTarget *SessionTarget  `json:"session_target,omitempty"`
-	Delivery      *DeliveryTarget `json:"delivery,omitempty"`
-	Source        *Source         `json:"source,omitempty"`
-	OverlapPolicy *string         `json:"overlap_policy,omitempty"`
-	Enabled       *bool           `json:"enabled,omitempty"`
+	Name           *string         `json:"name,omitempty"`
+	Schedule       *Schedule       `json:"schedule,omitempty"`
+	Instruction    *string         `json:"instruction,omitempty"`
+	ExecutionKind  *string         `json:"execution_kind,omitempty"`
+	SessionTarget  *SessionTarget  `json:"session_target,omitempty"`
+	Delivery       *DeliveryTarget `json:"delivery,omitempty"`
+	Source         *Source         `json:"source,omitempty"`
+	OverlapPolicy  *string         `json:"overlap_policy,omitempty"`
+	ExpiresAt      *time.Time      `json:"expires_at,omitempty"`
+	ClearExpiresAt bool            `json:"clear_expires_at,omitempty"`
+	Enabled        *bool           `json:"enabled,omitempty"`
 }

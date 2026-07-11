@@ -16,7 +16,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-func TestServiceBootstrapRecoversInterruptedTaskRuntime(t *testing.T) {
+func TestServiceBootstrapPreservesFreshRunningTaskRuntime(t *testing.T) {
 	db := newAutomationTestDB(t)
 	service := NewService(
 		config.Config{DatabaseDriver: "sqlite"},
@@ -94,44 +94,21 @@ WHERE job_id = ?`,
 	var runError sql.NullString
 	var finishedAt sql.NullTime
 	if err = db.QueryRow(`SELECT status, error_message, finished_at FROM automation_cron_runs WHERE run_id = ?`, runID).Scan(&runStatus, &runError, &finishedAt); err != nil {
-		t.Fatalf("读取恢复后的 run 失败: %v", err)
+		t.Fatalf("读取 bootstrap 后的 run 失败: %v", err)
 	}
-	if runStatus != automationdomain.RunStatusCancelled {
-		t.Fatalf("run status = %s, 期望 %s", runStatus, automationdomain.RunStatusCancelled)
-	}
-	if !runError.Valid || !strings.Contains(runError.String, "scheduler restarted") {
-		t.Fatalf("run error 未记录重启原因: %+v", runError)
-	}
-	if !finishedAt.Valid {
-		t.Fatalf("run finished_at 未记录")
+	if runStatus != automationdomain.RunStatusRunning || runError.Valid || finishedAt.Valid {
+		t.Fatalf("bootstrap 不应取消其他实例可能仍在执行的 run: status=%s error=%+v finished=%+v", runStatus, runError, finishedAt)
 	}
 
-	var runningRunID sql.NullString
-	var nextRunAt sql.NullTime
-	var lastRunStatus sql.NullString
-	var failureStreak int
-	var lastError sql.NullString
-	if err = db.QueryRow(
-		`SELECT running_run_id, next_run_at, last_run_status, failure_streak, last_error
-FROM automation_cron_jobs WHERE job_id = ?`,
-		task.JobID,
-	).Scan(&runningRunID, &nextRunAt, &lastRunStatus, &failureStreak, &lastError); err != nil {
-		t.Fatalf("读取恢复后的 job 失败: %v", err)
+	current, err := recoveredService.GetTask(context.Background(), task.JobID)
+	if err != nil {
+		t.Fatalf("GetTask 失败: %v", err)
 	}
-	if runningRunID.Valid {
-		t.Fatalf("running_run_id 未清理: %s", runningRunID.String)
+	if current == nil || !current.Running || current.RunningRunID != runID {
+		t.Fatalf("bootstrap 应保留运行占用: %+v", current)
 	}
-	if !nextRunAt.Valid || !nextRunAt.Time.UTC().Equal(recoveredAt.Add(30*time.Second)) {
-		t.Fatalf("next_run_at = %+v, 期望 %s", nextRunAt, recoveredAt.Add(30*time.Second))
-	}
-	if !lastRunStatus.Valid || lastRunStatus.String != automationdomain.RunStatusCancelled {
-		t.Fatalf("last_run_status = %+v, 期望 cancelled", lastRunStatus)
-	}
-	if failureStreak != 1 {
-		t.Fatalf("failure_streak = %d, 期望 1", failureStreak)
-	}
-	if !lastError.Valid || !strings.Contains(lastError.String, "scheduler restarted") {
-		t.Fatalf("last_error 未记录重启原因: %+v", lastError)
+	if current.NextRunAt == nil || !current.NextRunAt.UTC().Equal(recoveredAt.Add(time.Hour)) {
+		t.Fatalf("内存中的 next_run_at = %+v, 期望 %s", current.NextRunAt, recoveredAt.Add(time.Hour))
 	}
 }
 

@@ -88,6 +88,20 @@ function validateSchedule({ schedule }: TaskDialogSubmitContext): string | null 
   return runAtEpoch > Date.now() ? null : "单次执行时间必须晚于当前时间";
 }
 
+function validateExpiration({ form, schedule }: TaskDialogSubmitContext): string | null {
+  if (!form.expiresAt.trim()) {
+    return null;
+  }
+  const expiresAt = zonedDateTimeToEpochMs(
+    form.expiresAt,
+    schedule.timezone.trim() || "Asia/Shanghai",
+  );
+  if (expiresAt === null) {
+    return "请选择有效的任务有效期";
+  }
+  return expiresAt > Date.now() ? null : "任务有效期必须晚于当前时间";
+}
+
 function validateDelivery(context: TaskDialogSubmitContext): string | null {
   const { form, selectedReplySession } = context;
   if (form.executionKind === "script") {
@@ -107,6 +121,7 @@ const VALIDATORS: Validator[] = [
   validateTarget,
   validateExecution,
   validateSchedule,
+  validateExpiration,
   validateDelivery,
 ];
 
@@ -201,6 +216,23 @@ function buildSchedule(schedule: TaskScheduleDraft): ScheduledTaskSchedule {
   return { kind: "at", run_at: schedule.runAt.trim(), timezone };
 }
 
+function buildExpiresAt(
+  form: TaskFormDraft,
+  schedule: TaskScheduleDraft,
+): string | undefined {
+  if (!form.expiresAt.trim()) {
+    return undefined;
+  }
+  const epochMs = zonedDateTimeToEpochMs(
+    form.expiresAt,
+    schedule.timezone.trim() || "Asia/Shanghai",
+  );
+  if (epochMs === null) {
+    throw new Error("请选择有效的任务有效期");
+  }
+  return new Date(epochMs).toISOString();
+}
+
 function resolveAgentId(context: TaskDialogSubmitContext): string {
   const { form, selectedSession } = context;
   if (form.executionKind === "script" || form.targetType === "agent") {
@@ -251,6 +283,7 @@ export function buildScheduledTaskPayload(
   const common = {
     agent_id: resolveAgentId(context),
     enabled: form.enabled,
+    expires_at: buildExpiresAt(form, schedule),
     instruction: form.instruction.trim(),
     name: form.taskName.trim(),
     schedule: buildSchedule(schedule),

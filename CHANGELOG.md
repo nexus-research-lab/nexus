@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added durable scheduler leadership leases, deterministic recurring jitter, configurable misfire handling, per-user enabled-task limits, and explicit task expiration with audit events.
 - Added per-Agent non-secret nxs settings projection, including enabled Summary/AutoMemory/AutoDream defaults, and a host memory-maintenance coordinator that resolves owner provider credentials and background models before waking AutoDream.
 - Preserved native `system/memory_saved` events and AutoDream written paths through the bridge and Nexus message projection.
 - Added a file-backed Memory view to Agent contact details, with `MEMORY.md` index navigation, typed topic memories, daily logs, index coverage, freshness warnings, search, and direct Markdown editing.
@@ -16,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Made Nexus the sole owner of scheduled-task state and timing, exposed automation to runtimes through the injected MCP server, and simplified task creation, list actions, and run diagnostics around progressive disclosure.
 - Split Room page state into scoped data, projection, command, snapshot, and existing-Agent option controllers, and reduced the page entry to orchestration only.
 - Split Room Workspace orchestration into Agent scope, file resource, path model, command, layout, file-browser, and dialog modules.
 - Split conversation Todo projection into round indexing, runtime-task merging, status inference, and a stable shared hook used by both DM and Room panels.

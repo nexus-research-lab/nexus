@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
@@ -23,19 +24,22 @@ type scheduledTaskCreatePayload struct {
 	Delivery      *automationdomain.DeliveryTarget `json:"delivery,omitempty"`
 	Source        *automationdomain.Source         `json:"source,omitempty"`
 	OverlapPolicy string                           `json:"overlap_policy,omitempty"`
+	ExpiresAt     *time.Time                       `json:"expires_at,omitempty"`
 	Enabled       *bool                            `json:"enabled,omitempty"`
 }
 
 type scheduledTaskUpdatePayload struct {
-	Name          *string                          `json:"name,omitempty"`
-	Schedule      *automationdomain.Schedule       `json:"schedule,omitempty"`
-	Instruction   *string                          `json:"instruction,omitempty"`
-	ExecutionKind *string                          `json:"execution_kind,omitempty"`
-	SessionTarget *automationdomain.SessionTarget  `json:"session_target,omitempty"`
-	Delivery      *automationdomain.DeliveryTarget `json:"delivery,omitempty"`
-	Source        *automationdomain.Source         `json:"source,omitempty"`
-	OverlapPolicy *string                          `json:"overlap_policy,omitempty"`
-	Enabled       *bool                            `json:"enabled,omitempty"`
+	Name           *string                          `json:"name,omitempty"`
+	Schedule       *automationdomain.Schedule       `json:"schedule,omitempty"`
+	Instruction    *string                          `json:"instruction,omitempty"`
+	ExecutionKind  *string                          `json:"execution_kind,omitempty"`
+	SessionTarget  *automationdomain.SessionTarget  `json:"session_target,omitempty"`
+	Delivery       *automationdomain.DeliveryTarget `json:"delivery,omitempty"`
+	Source         *automationdomain.Source         `json:"source,omitempty"`
+	OverlapPolicy  *string                          `json:"overlap_policy,omitempty"`
+	ExpiresAt      *time.Time                       `json:"expires_at,omitempty"`
+	ClearExpiresAt bool                             `json:"clear_expires_at,omitempty"`
+	Enabled        *bool                            `json:"enabled,omitempty"`
 }
 
 type scheduledTaskStatusPayload struct {
@@ -103,6 +107,7 @@ func (h *Handlers) HandleCreateScheduledTask(writer http.ResponseWriter, request
 		Delivery:      delivery,
 		Source:        source,
 		OverlapPolicy: payload.OverlapPolicy,
+		ExpiresAt:     payload.ExpiresAt,
 		Enabled:       enabled,
 	})
 	if err != nil {
@@ -122,15 +127,17 @@ func (h *Handlers) HandleUpdateScheduledTask(writer http.ResponseWriter, request
 		return
 	}
 	item, err := h.automation.UpdateTask(request.Context(), chi.URLParam(request, "job_id"), automationdomain.UpdateJobInput{
-		Name:          payload.Name,
-		Schedule:      payload.Schedule,
-		Instruction:   payload.Instruction,
-		ExecutionKind: payload.ExecutionKind,
-		SessionTarget: payload.SessionTarget,
-		Delivery:      payload.Delivery,
-		Source:        payload.Source,
-		OverlapPolicy: payload.OverlapPolicy,
-		Enabled:       payload.Enabled,
+		Name:           payload.Name,
+		Schedule:       payload.Schedule,
+		Instruction:    payload.Instruction,
+		ExecutionKind:  payload.ExecutionKind,
+		SessionTarget:  payload.SessionTarget,
+		Delivery:       payload.Delivery,
+		Source:         payload.Source,
+		OverlapPolicy:  payload.OverlapPolicy,
+		ExpiresAt:      payload.ExpiresAt,
+		ClearExpiresAt: payload.ClearExpiresAt,
+		Enabled:        payload.Enabled,
 	})
 	if err != nil {
 		if errors.Is(err, automationdomain.ErrJobNotFound) {

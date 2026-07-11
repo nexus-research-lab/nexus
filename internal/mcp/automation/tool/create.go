@@ -26,6 +26,7 @@ const createDescription = "创建定时任务（== UI「新建任务」对话框
 	"短文本提醒类任务在当前会话中可缺省，工具会默认 existing+execution，让用户能看到提醒；execution_mode=existing 时若不传 selected_session_key 默认使用当前会话。" +
 	"独立/临时执行但仍要让用户看到结果时，用 execution_mode=temporary + reply_mode=selected + selected_reply_session_key；只有用户明确要求后台静默时才用 reply_mode=none。" +
 	"overlap_policy 可选 skip|allow，缺省 skip。" +
+	"expires_at 可选 RFC3339 时间；到期后只停止后续触发，不中断正在执行的任务。" +
 	"想让结果回到当前会话：显式 execution_mode=existing + reply_mode=execution。"
 
 func create(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
@@ -68,6 +69,10 @@ func buildCreateInput(args map[string]any, sctx contract.ServerContext) (automat
 	if err != nil {
 		return automationdomain.CreateJobInput{}, err
 	}
+	expiresAt, err := parseExpiresAt(args)
+	if err != nil {
+		return automationdomain.CreateJobInput{}, err
+	}
 	executionKind := automationdomain.NormalizeExecutionKind(argx.String(args, "execution_kind"))
 	if executionKind == automationdomain.ExecutionKindScript {
 		return automationdomain.CreateJobInput{
@@ -80,6 +85,7 @@ func buildCreateInput(args map[string]any, sctx contract.ServerContext) (automat
 			Delivery:      automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
 			Source:        semantic.Source(sctx, agentID),
 			OverlapPolicy: argx.String(args, "overlap_policy"),
+			ExpiresAt:     expiresAt,
 			Enabled:       argx.Bool(args, "enabled", true),
 		}, nil
 	}
@@ -108,6 +114,7 @@ func buildCreateInput(args map[string]any, sctx contract.ServerContext) (automat
 		Delivery:      delivery,
 		Source:        semantic.Source(sctx, agentID),
 		OverlapPolicy: argx.String(args, "overlap_policy"),
+		ExpiresAt:     expiresAt,
 		Enabled:       argx.Bool(args, "enabled", true),
 	}, nil
 }

@@ -178,6 +178,9 @@ func taskEventJobSnapshot(job automationdomain.CronJob) map[string]any {
 	if job.Schedule.CronExpression != nil {
 		detail["schedule_cron_expression"] = strings.TrimSpace(*job.Schedule.CronExpression)
 	}
+	if job.ExpiresAt != nil {
+		detail["expires_at"] = job.ExpiresAt.UTC()
+	}
 	if strings.TrimSpace(job.SessionTarget.BoundSessionKey) != "" {
 		detail["bound_session_key"] = strings.TrimSpace(job.SessionTarget.BoundSessionKey)
 	}
@@ -213,6 +216,9 @@ func changedTaskFields(input automationdomain.UpdateJobInput) []string {
 	if input.OverlapPolicy != nil {
 		fields = append(fields, "overlap_policy")
 	}
+	if input.ExpiresAt != nil || input.ClearExpiresAt {
+		fields = append(fields, "expires_at")
+	}
 	if input.Enabled != nil {
 		fields = append(fields, "enabled")
 	}
@@ -228,5 +234,7 @@ func onlyEnabledChanged(input automationdomain.UpdateJobInput) bool {
 		input.Delivery == nil &&
 		input.Source == nil &&
 		input.OverlapPolicy == nil &&
+		input.ExpiresAt == nil &&
+		!input.ClearExpiresAt &&
 		input.Enabled != nil
 }

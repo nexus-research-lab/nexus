@@ -235,6 +235,12 @@ func TestGoalCompatMigrationRunsAfterAppliedVersion36(t *testing.T) {
 	)`); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := db.Exec(`CREATE TABLE automation_cron_jobs (
+		job_id VARCHAR(64) NOT NULL PRIMARY KEY,
+		enabled BOOLEAN NOT NULL DEFAULT 1
+	)`); err != nil {
+		t.Fatal(err)
+	}
 
 	if err := goose.SetDialect("sqlite3"); err != nil {
 		t.Fatal(err)
@@ -248,8 +254,8 @@ func TestGoalCompatMigrationRunsAfterAppliedVersion36(t *testing.T) {
 	if err := db.QueryRow("SELECT MAX(version_id) FROM goose_db_version WHERE is_applied = 1").Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != 46 {
-		t.Fatalf("goose version = %d, want 46", version)
+	if version != 48 {
+		t.Fatalf("goose version = %d, want 48", version)
 	}
 }
 

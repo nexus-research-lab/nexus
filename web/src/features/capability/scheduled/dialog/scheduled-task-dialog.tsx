@@ -60,12 +60,12 @@ export function ScheduledTaskDialog({
         onPointerMove={(event) => event.stopPropagation()}
         onPointerUp={(event) => event.stopPropagation()}
       >
-        <UiDialogShell className="max-h-[90vh] max-w-[1120px]" size="wide">
+        <UiDialogShell className="max-h-[90vh] max-w-[960px]" size="wide">
           <UiDialogHeader
             onClose={onClose}
             subtitle={initialTask
-              ? "修改调度、执行会话和结果回传方式。"
-              : "先选目标对象，再决定执行会话和结果回传方式。"}
+              ? "修改任务内容或执行时间；不常用的选项收在高级设置里。"
+              : "填写任务、目标和执行时间即可创建。"}
             title={initialTask ? "编辑任务" : "新建任务"}
             titleId="create-task-dialog-title"
           />

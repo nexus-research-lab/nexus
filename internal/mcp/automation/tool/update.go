@@ -17,7 +17,7 @@ import (
 
 const updateDescription = "按 job_id 或 query 局部更新定时任务字段。query 只在当前权限范围内唯一命中当前未删除任务时才会执行，多候选会要求用户确认。字段语义与 UI「编辑任务」对话框一致：" +
 	"name / instruction / execution_kind / schedule / execution_mode / reply_mode / selected_session_key / " +
-	"instruction_append / named_session_key / selected_reply_session_key / reply_agent_id / reply_session_key / reply_channel / reply_to / reply_account_id / reply_thread_id / overlap_policy / enabled。只有提供的字段会被更新。" +
+	"instruction_append / named_session_key / selected_reply_session_key / reply_agent_id / reply_session_key / reply_channel / reply_to / reply_account_id / reply_thread_id / overlap_policy / expires_at / clear_expires_at / enabled。只有提供的字段会被更新。" +
 	"除了 job_id/query 之外必须至少提供一个要修改的字段。" +
 	"用户说“再加一条要求/补充任务细节”时优先用 instruction_append；只有明确要重写任务内容时才用 instruction。" +
 	"只改投递目标时不需要同时传 execution_mode；传 reply_channel/reply_to/reply_session_key 会默认按 reply_mode=channel 处理，当前会话是结构化外部 IM 群且 reply_channel 与当前通道一致时可省略 reply_to；" +
@@ -80,6 +80,14 @@ func buildUpdateInput(args map[string]any, sctx contract.ServerContext, currentJ
 	if overlapPolicy, ok := args["overlap_policy"]; ok {
 		s := strings.TrimSpace(argx.StringOf(overlapPolicy))
 		input.OverlapPolicy = &s
+	}
+	expiresAt, err := parseExpiresAt(args)
+	if err != nil {
+		return automationdomain.UpdateJobInput{}, err
+	}
+	input.ExpiresAt = expiresAt
+	if clearExpiresAt, ok := args["clear_expires_at"]; ok {
+		input.ClearExpiresAt = argx.ParseBool(clearExpiresAt)
 	}
 	if raw, ok := args["schedule"]; ok {
 		schedule, err := builder.Schedule(raw, sctx.DefaultTimezone)
@@ -160,5 +168,7 @@ func hasUpdateFields(input automationdomain.UpdateJobInput) bool {
 		input.Delivery != nil ||
 		input.Source != nil ||
 		input.OverlapPolicy != nil ||
+		input.ExpiresAt != nil ||
+		input.ClearExpiresAt ||
 		input.Enabled != nil
 }

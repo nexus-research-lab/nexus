@@ -392,6 +392,7 @@ CREATE TABLE automation_cron_jobs (
     source_session_key VARCHAR(255),
     source_session_label VARCHAR(255),
     overlap_policy VARCHAR(32) NOT NULL DEFAULT 'skip',
+    expires_at DATETIME,
     schedule_kind VARCHAR(32) NOT NULL,
     run_at VARCHAR(32),
     interval_seconds INTEGER,
@@ -447,6 +448,13 @@ CREATE TABLE automation_cron_runs (
     assistant_text TEXT,
     result_text TEXT,
     artifact_path VARCHAR(512),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+CREATE TABLE automation_scheduler_leases (
+    lease_name VARCHAR(64) NOT NULL PRIMARY KEY,
+    owner_id VARCHAR(64) NOT NULL,
+    expires_at DATETIME NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
 );

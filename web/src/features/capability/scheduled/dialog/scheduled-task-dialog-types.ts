@@ -32,6 +32,7 @@ export interface TaskDialogSessionOption extends TaskDialogLabelOption {
 export interface TaskFormDraft {
   dedicatedSessionKey: string;
   enabled: boolean;
+  expiresAt: string;
   executionKind: ExecutionKind;
   executionMode: ExecutionMode;
   instruction: string;

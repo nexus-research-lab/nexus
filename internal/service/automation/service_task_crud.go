@@ -22,11 +22,17 @@ func (s *Service) CreateTask(ctx context.Context, input automationdomain.CreateJ
 	if err := normalized.Validate(); err != nil {
 		return nil, err
 	}
+	if err := s.validateTaskExpiration(normalized.ExpiresAt); err != nil {
+		return nil, err
+	}
 	if err := s.validateAgentAndTarget(ctx, normalized.AgentID, normalized.SessionTarget); err != nil {
 		return nil, err
 	}
 	ownerUserID, err := s.resolveTaskOwnerUserID(ctx, normalized.AgentID)
 	if err != nil {
+		return nil, err
+	}
+	if err = s.validateTaskCapacity(ctx, ownerUserID, normalized.Enabled); err != nil {
 		return nil, err
 	}
 
@@ -42,6 +48,7 @@ func (s *Service) CreateTask(ctx context.Context, input automationdomain.CreateJ
 		Delivery:      normalized.Delivery,
 		Source:        normalized.Source,
 		OverlapPolicy: normalized.OverlapPolicy,
+		ExpiresAt:     cloneTimePointer(normalized.ExpiresAt),
 		Enabled:       normalized.Enabled,
 	}
 	created, err := s.repository.UpsertCronJob(ctx, job)
@@ -103,8 +110,28 @@ func (s *Service) UpdateTask(ctx context.Context, jobID string, input automation
 	if input.OverlapPolicy != nil {
 		next.OverlapPolicy = automationdomain.NormalizeOverlapPolicy(*input.OverlapPolicy)
 	}
+	if input.ExpiresAt != nil && input.ClearExpiresAt {
+		return nil, errors.New("expires_at 和 clear_expires_at 不能同时设置")
+	}
+	if input.ClearExpiresAt {
+		next.ExpiresAt = nil
+	} else if input.ExpiresAt != nil {
+		expiresAt := input.ExpiresAt.UTC()
+		if err = s.validateTaskExpiration(&expiresAt); err != nil {
+			return nil, err
+		}
+		next.ExpiresAt = &expiresAt
+	}
 	if input.Enabled != nil {
 		next.Enabled = *input.Enabled
+	}
+	if !current.Enabled && next.Enabled {
+		if err = s.validateTaskExpiration(next.ExpiresAt); err != nil {
+			return nil, err
+		}
+	}
+	if err = s.validateTaskCapacity(ctx, next.OwnerUserID, !current.Enabled && next.Enabled); err != nil {
+		return nil, err
 	}
 
 	createLike := automationdomain.CreateJobInput{
@@ -117,6 +144,7 @@ func (s *Service) UpdateTask(ctx context.Context, jobID string, input automation
 		Delivery:      next.Delivery,
 		Source:        next.Source,
 		OverlapPolicy: next.OverlapPolicy,
+		ExpiresAt:     cloneTimePointer(next.ExpiresAt),
 		Enabled:       next.Enabled,
 	}
 	if err = createLike.Validate(); err != nil {

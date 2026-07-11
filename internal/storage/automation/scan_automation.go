@@ -27,6 +27,7 @@ func scanCronJob(scanner interface {
 		sourceContextLabel sql.NullString
 		sourceSessionKey   sql.NullString
 		sourceSessionLabel sql.NullString
+		expiresAt          sql.NullTime
 		nextRunAt          sql.NullTime
 		runningRunID       sql.NullString
 		runningStartedAt   sql.NullTime
@@ -65,6 +66,7 @@ func scanCronJob(scanner interface {
 		&sourceSessionKey,
 		&sourceSessionLabel,
 		&item.OverlapPolicy,
+		&expiresAt,
 		&item.Enabled,
 		&nextRunAt,
 		&runningRunID,
@@ -97,6 +99,7 @@ func scanCronJob(scanner interface {
 	item.Source.SessionLabel = nullStringValue(sourceSessionLabel)
 	item.Source = item.Source.Normalized()
 	item.OverlapPolicy = automationdomain.NormalizeOverlapPolicy(item.OverlapPolicy)
+	item.ExpiresAt = nullTimePointer(expiresAt)
 	item.NextRunAt = nullTimePointer(nextRunAt)
 	item.RunningRunID = nullStringValue(runningRunID)
 	item.RunningStartedAt = nullTimePointer(runningStartedAt)

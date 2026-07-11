@@ -7,7 +7,10 @@ import {
   updateScheduledTaskApi,
 } from "@/lib/api/scheduled-task-api";
 import { closeOnEscape } from "@/shared/ui/dialog/dialog-keyboard";
-import type { ScheduledTaskItem } from "@/types/capability/scheduled-task";
+import type {
+  ScheduledTaskItem,
+  UpdateScheduledTaskParams,
+} from "@/types/capability/scheduled-task";
 
 import {
   buildDefaultTaskDialogInitialState,
@@ -111,7 +114,14 @@ export function useTaskDialogController({
         initialTask?.source,
       );
       if (initialTask) {
-        const updated = await updateScheduledTaskApi(initialTask.job_id, payload);
+        const updatePayload: UpdateScheduledTaskParams = { ...payload };
+        if (!form.draft.expiresAt.trim() && initialTask.expires_at !== null) {
+          updatePayload.clear_expires_at = true;
+        }
+        const updated = await updateScheduledTaskApi(
+          initialTask.job_id,
+          updatePayload,
+        );
         await onSaved?.(updated);
       } else {
         const created = await createScheduledTaskApi(payload);
@@ -128,7 +138,7 @@ export function useTaskDialogController({
       submitInFlightRef.current = false;
       setIsSubmitting(false);
     }
-  }, [initialTask, onClose, onCreated, onSaved, submitContext]);
+  }, [form.draft.expiresAt, initialTask, onClose, onCreated, onSaved, submitContext]);
 
   useEffect(() => {
     if (!isOpen) {

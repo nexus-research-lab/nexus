@@ -15,6 +15,7 @@ type CronJob struct {
 	Delivery           DeliveryTarget `json:"delivery"`
 	Source             Source         `json:"source"`
 	OverlapPolicy      string         `json:"overlap_policy,omitempty"`
+	ExpiresAt          *time.Time     `json:"expires_at,omitempty"`
 	Enabled            bool           `json:"enabled"`
 	NextRunAt          *time.Time     `json:"next_run_at,omitempty"`
 	Running            bool           `json:"running"`

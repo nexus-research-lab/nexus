@@ -131,10 +131,11 @@ export function buildDefaultTaskDialogInitialState(
     form: {
       dedicatedSessionKey: "",
       enabled: true,
+      expiresAt: "",
       executionKind: "agent",
-      executionMode: "existing",
+      executionMode: "temporary",
       instruction: "",
-      replyMode: "execution",
+      replyMode: "none",
       selectedAgentId: agentId,
       selectedReplySessionKey: "",
       selectedRoomId: "",
@@ -149,6 +150,7 @@ export function buildDefaultTaskDialogInitialState(
 export function buildTaskDialogInitialState(
   task: ScheduledTaskItem,
 ): TaskDialogInitialState {
+  const schedule = buildTaskSchedule(task);
   const executionKind = task.execution_kind === "script" ? "script" : "agent";
   const targetType: TargetType = task.source?.context_type === "room"
     ? "room"
@@ -159,6 +161,12 @@ export function buildTaskDialogInitialState(
       ? task.session_target.named_session_key
       : "",
     enabled: task.enabled,
+    expiresAt: task.expires_at === null
+      ? ""
+      : isoToZonedLocalInput(
+          new Date(task.expires_at).toISOString(),
+          schedule.timezone,
+        ) ?? "",
     executionKind,
     executionMode: executionKind === "script"
       ? "temporary"
@@ -188,7 +196,7 @@ export function buildTaskDialogInitialState(
     targetType: executionKind === "script" ? "agent" : targetType,
     taskName: task.name,
   };
-  return { form, schedule: buildTaskSchedule(task) };
+  return { form, schedule };
 }
 
 function selectedReplySessionKey(

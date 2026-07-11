@@ -112,6 +112,7 @@ export function useTaskForm(
   const actions = useMemo(() => ({
     setDedicatedSessionKey: (value: string) => setValue("dedicatedSessionKey", value),
     setEnabled: (value: boolean) => setValue("enabled", value),
+    setExpiresAt: (value: string) => setValue("expiresAt", value),
     setExecutionKind,
     setExecutionMode,
     setInstruction: (value: string) => setValue("instruction", value),

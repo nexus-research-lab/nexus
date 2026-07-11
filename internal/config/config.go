@@ -10,73 +10,78 @@ import (
 
 // Config 承载 Go 服务运行时配置。
 type Config struct {
-	Host                           string
-	Port                           int
-	Debug                          bool
-	ProjectName                    string
-	LogLevel                       string
-	LogFormat                      string
-	LogPath                        string
-	LogStdout                      bool
-	LogNoColor                     bool
-	LogFileEnabled                 bool
-	LogRotateDaily                 bool
-	LogMaxSizeMB                   int
-	LogMaxAgeDays                  int
-	LogMaxBackups                  int
-	LogCompress                    bool
-	MessageDebugStreamEvent        bool
-	APIPrefix                      string
-	WebSocketPath                  string
-	DefaultAgentID                 string
-	DefaultTimezone                string
-	WorkspacePath                  string
-	CacheFileDir                   string
-	WebDistDir                     string
-	AppMode                        string
-	DesktopSessionToken            string
-	SkillsAPIURL                   string
-	SkillsSourceURLs               string
-	SkillsDefaultSourcesEnabled    bool
-	SkillsAPISearchLimit           int
-	DatabaseDriver                 string
-	DatabaseURL                    string
-	AccessToken                    string
-	AuthSessionCookieName          string
-	AuthCookieSameSite             string
-	AuthCookieSecure               bool
-	AuthSessionTTLHours            int
-	BaseSystemPrompt               string
-	MainAgentSystemPrompt          string
-	MemoryMaintenance              MemoryMaintenanceConfig
-	DiscordEnabled                 bool
-	DiscordBotToken                string
-	TelegramEnabled                bool
-	TelegramBotToken               string
-	ConnectorOAuthRedirectURI      string
-	ConnectorOAuthAllowedOrigins   []string
-	AllowedWebSocketOrigins        []string
-	ConnectorOAuthStateTTLSeconds  int
-	GoalEnabled                    bool
-	GoalAutoContinueEnabled        bool
-	GoalMaxContinuationsPerRun     int
-	AutomationRunTimeoutSeconds    int
-	RuntimeRoundIdleTimeoutSeconds int
-	RuntimeIdleSessionTTLSeconds   int
-	RuntimeIdleSessionSweepSeconds int
-	ConnectorCredentialsKey        string
-	ConnectorGitHubClientID        string
-	ConnectorGitHubClientSecret    string
-	ConnectorGoogleClientID        string
-	ConnectorGoogleClientSecret    string
-	ConnectorLinkedInClientID      string
-	ConnectorLinkedInClientSecret  string
-	ConnectorTwitterClientID       string
-	ConnectorTwitterClientSecret   string
-	ConnectorInstagramClientID     string
-	ConnectorInstagramClientSecret string
-	ConnectorShopifyClientID       string
-	ConnectorShopifyClientSecret   string
+	Host                             string
+	Port                             int
+	Debug                            bool
+	ProjectName                      string
+	LogLevel                         string
+	LogFormat                        string
+	LogPath                          string
+	LogStdout                        bool
+	LogNoColor                       bool
+	LogFileEnabled                   bool
+	LogRotateDaily                   bool
+	LogMaxSizeMB                     int
+	LogMaxAgeDays                    int
+	LogMaxBackups                    int
+	LogCompress                      bool
+	MessageDebugStreamEvent          bool
+	APIPrefix                        string
+	WebSocketPath                    string
+	DefaultAgentID                   string
+	DefaultTimezone                  string
+	WorkspacePath                    string
+	CacheFileDir                     string
+	WebDistDir                       string
+	AppMode                          string
+	DesktopSessionToken              string
+	SkillsAPIURL                     string
+	SkillsSourceURLs                 string
+	SkillsDefaultSourcesEnabled      bool
+	SkillsAPISearchLimit             int
+	DatabaseDriver                   string
+	DatabaseURL                      string
+	AccessToken                      string
+	AuthSessionCookieName            string
+	AuthCookieSameSite               string
+	AuthCookieSecure                 bool
+	AuthSessionTTLHours              int
+	BaseSystemPrompt                 string
+	MainAgentSystemPrompt            string
+	MemoryMaintenance                MemoryMaintenanceConfig
+	DiscordEnabled                   bool
+	DiscordBotToken                  string
+	TelegramEnabled                  bool
+	TelegramBotToken                 string
+	ConnectorOAuthRedirectURI        string
+	ConnectorOAuthAllowedOrigins     []string
+	AllowedWebSocketOrigins          []string
+	ConnectorOAuthStateTTLSeconds    int
+	GoalEnabled                      bool
+	GoalAutoContinueEnabled          bool
+	GoalMaxContinuationsPerRun       int
+	AutomationRunTimeoutSeconds      int
+	AutomationRecurringJitterSeconds int
+	AutomationSchedulerLeaseSeconds  int
+	AutomationMaxEnabledTasksPerUser int
+	AutomationMisfirePolicy          string
+	AutomationMisfireGraceSeconds    int
+	RuntimeRoundIdleTimeoutSeconds   int
+	RuntimeIdleSessionTTLSeconds     int
+	RuntimeIdleSessionSweepSeconds   int
+	ConnectorCredentialsKey          string
+	ConnectorGitHubClientID          string
+	ConnectorGitHubClientSecret      string
+	ConnectorGoogleClientID          string
+	ConnectorGoogleClientSecret      string
+	ConnectorLinkedInClientID        string
+	ConnectorLinkedInClientSecret    string
+	ConnectorTwitterClientID         string
+	ConnectorTwitterClientSecret     string
+	ConnectorInstagramClientID       string
+	ConnectorInstagramClientSecret   string
+	ConnectorShopifyClientID         string
+	ConnectorShopifyClientSecret     string
 }
 
 // MemoryMaintenanceConfig 描述 Nexus 唤醒 nxs 记忆维护任务的宿主策略。
@@ -157,34 +162,39 @@ func Load() Config {
 			RunTimeout:    time.Duration(parseIntEnv(getEnv("MEMORY_MAINTENANCE_RUN_TIMEOUT_SECONDS", "3600"), 3600)) * time.Second,
 			SweepInterval: time.Duration(parseIntEnv(getEnv("MEMORY_MAINTENANCE_SWEEP_SECONDS", "600"), 600)) * time.Second,
 		},
-		DiscordEnabled:                 mustBool(getEnv("DISCORD_ENABLED", "true")),
-		DiscordBotToken:                getEnv("DISCORD_BOT_TOKEN", ""),
-		TelegramEnabled:                mustBool(getEnv("TELEGRAM_ENABLED", "true")),
-		TelegramBotToken:               getEnv("TELEGRAM_BOT_TOKEN", ""),
-		ConnectorOAuthRedirectURI:      getEnv("CONNECTOR_OAUTH_REDIRECT_URI", "http://localhost:3000/capability/connectors/oauth/callback"),
-		ConnectorOAuthAllowedOrigins:   mustStringList(getEnv("CONNECTOR_OAUTH_ALLOWED_ORIGINS", "http://localhost:3000")),
-		AllowedWebSocketOrigins:        mustStringList(getEnv("ALLOWED_WEBSOCKET_ORIGINS", "")),
-		ConnectorOAuthStateTTLSeconds:  parseIntEnv(getEnv("CONNECTOR_OAUTH_STATE_TTL_SECONDS", "600"), 600),
-		GoalEnabled:                    mustBool(getEnv("NEXUS_GOAL_ENABLED", "true")),
-		GoalAutoContinueEnabled:        mustBool(getEnv("NEXUS_GOAL_AUTO_CONTINUE_ENABLED", "true")),
-		GoalMaxContinuationsPerRun:     parseIntEnv(getEnv("NEXUS_GOAL_MAX_CONTINUATIONS_PER_RUN", "20"), 20),
-		AutomationRunTimeoutSeconds:    parseIntEnv(getEnv("AUTOMATION_RUN_TIMEOUT_SECONDS", "21600"), 21600),
-		RuntimeRoundIdleTimeoutSeconds: parseIntEnv(getEnv("RUNTIME_ROUND_IDLE_TIMEOUT_SECONDS", "1200"), 1200),
-		RuntimeIdleSessionTTLSeconds:   parseIntEnv(getEnv("RUNTIME_IDLE_SESSION_TTL_SECONDS", "600"), 600),
-		RuntimeIdleSessionSweepSeconds: parseIntEnv(getEnv("RUNTIME_IDLE_SESSION_SWEEP_SECONDS", "120"), 120),
-		ConnectorCredentialsKey:        getEnv("CONNECTOR_CREDENTIALS_KEY", ""),
-		ConnectorGitHubClientID:        getEnv("CONNECTOR_GITHUB_CLIENT_ID", ""),
-		ConnectorGitHubClientSecret:    getEnv("CONNECTOR_GITHUB_CLIENT_SECRET", ""),
-		ConnectorGoogleClientID:        getEnv("CONNECTOR_GOOGLE_CLIENT_ID", ""),
-		ConnectorGoogleClientSecret:    getEnv("CONNECTOR_GOOGLE_CLIENT_SECRET", ""),
-		ConnectorLinkedInClientID:      getEnv("CONNECTOR_LINKEDIN_CLIENT_ID", ""),
-		ConnectorLinkedInClientSecret:  getEnv("CONNECTOR_LINKEDIN_CLIENT_SECRET", ""),
-		ConnectorTwitterClientID:       getEnv("CONNECTOR_TWITTER_CLIENT_ID", ""),
-		ConnectorTwitterClientSecret:   getEnv("CONNECTOR_TWITTER_CLIENT_SECRET", ""),
-		ConnectorInstagramClientID:     getEnv("CONNECTOR_INSTAGRAM_CLIENT_ID", ""),
-		ConnectorInstagramClientSecret: getEnv("CONNECTOR_INSTAGRAM_CLIENT_SECRET", ""),
-		ConnectorShopifyClientID:       getEnv("CONNECTOR_SHOPIFY_CLIENT_ID", ""),
-		ConnectorShopifyClientSecret:   getEnv("CONNECTOR_SHOPIFY_CLIENT_SECRET", ""),
+		DiscordEnabled:                   mustBool(getEnv("DISCORD_ENABLED", "true")),
+		DiscordBotToken:                  getEnv("DISCORD_BOT_TOKEN", ""),
+		TelegramEnabled:                  mustBool(getEnv("TELEGRAM_ENABLED", "true")),
+		TelegramBotToken:                 getEnv("TELEGRAM_BOT_TOKEN", ""),
+		ConnectorOAuthRedirectURI:        getEnv("CONNECTOR_OAUTH_REDIRECT_URI", "http://localhost:3000/capability/connectors/oauth/callback"),
+		ConnectorOAuthAllowedOrigins:     mustStringList(getEnv("CONNECTOR_OAUTH_ALLOWED_ORIGINS", "http://localhost:3000")),
+		AllowedWebSocketOrigins:          mustStringList(getEnv("ALLOWED_WEBSOCKET_ORIGINS", "")),
+		ConnectorOAuthStateTTLSeconds:    parseIntEnv(getEnv("CONNECTOR_OAUTH_STATE_TTL_SECONDS", "600"), 600),
+		GoalEnabled:                      mustBool(getEnv("NEXUS_GOAL_ENABLED", "true")),
+		GoalAutoContinueEnabled:          mustBool(getEnv("NEXUS_GOAL_AUTO_CONTINUE_ENABLED", "true")),
+		GoalMaxContinuationsPerRun:       parseIntEnv(getEnv("NEXUS_GOAL_MAX_CONTINUATIONS_PER_RUN", "20"), 20),
+		AutomationRunTimeoutSeconds:      parseIntEnv(getEnv("AUTOMATION_RUN_TIMEOUT_SECONDS", "21600"), 21600),
+		AutomationRecurringJitterSeconds: parseIntEnv(getEnv("AUTOMATION_RECURRING_JITTER_MAX_SECONDS", "900"), 900),
+		AutomationSchedulerLeaseSeconds:  parseIntEnv(getEnv("AUTOMATION_SCHEDULER_LEASE_SECONDS", "30"), 30),
+		AutomationMaxEnabledTasksPerUser: parseIntEnv(getEnv("AUTOMATION_MAX_ENABLED_TASKS_PER_USER", "100"), 100),
+		AutomationMisfirePolicy:          getEnv("AUTOMATION_MISFIRE_POLICY", "run_once"),
+		AutomationMisfireGraceSeconds:    parseIntEnv(getEnv("AUTOMATION_MISFIRE_GRACE_SECONDS", "60"), 60),
+		RuntimeRoundIdleTimeoutSeconds:   parseIntEnv(getEnv("RUNTIME_ROUND_IDLE_TIMEOUT_SECONDS", "1200"), 1200),
+		RuntimeIdleSessionTTLSeconds:     parseIntEnv(getEnv("RUNTIME_IDLE_SESSION_TTL_SECONDS", "600"), 600),
+		RuntimeIdleSessionSweepSeconds:   parseIntEnv(getEnv("RUNTIME_IDLE_SESSION_SWEEP_SECONDS", "120"), 120),
+		ConnectorCredentialsKey:          getEnv("CONNECTOR_CREDENTIALS_KEY", ""),
+		ConnectorGitHubClientID:          getEnv("CONNECTOR_GITHUB_CLIENT_ID", ""),
+		ConnectorGitHubClientSecret:      getEnv("CONNECTOR_GITHUB_CLIENT_SECRET", ""),
+		ConnectorGoogleClientID:          getEnv("CONNECTOR_GOOGLE_CLIENT_ID", ""),
+		ConnectorGoogleClientSecret:      getEnv("CONNECTOR_GOOGLE_CLIENT_SECRET", ""),
+		ConnectorLinkedInClientID:        getEnv("CONNECTOR_LINKEDIN_CLIENT_ID", ""),
+		ConnectorLinkedInClientSecret:    getEnv("CONNECTOR_LINKEDIN_CLIENT_SECRET", ""),
+		ConnectorTwitterClientID:         getEnv("CONNECTOR_TWITTER_CLIENT_ID", ""),
+		ConnectorTwitterClientSecret:     getEnv("CONNECTOR_TWITTER_CLIENT_SECRET", ""),
+		ConnectorInstagramClientID:       getEnv("CONNECTOR_INSTAGRAM_CLIENT_ID", ""),
+		ConnectorInstagramClientSecret:   getEnv("CONNECTOR_INSTAGRAM_CLIENT_SECRET", ""),
+		ConnectorShopifyClientID:         getEnv("CONNECTOR_SHOPIFY_CLIENT_ID", ""),
+		ConnectorShopifyClientSecret:     getEnv("CONNECTOR_SHOPIFY_CLIENT_SECRET", ""),
 	}
 }
 

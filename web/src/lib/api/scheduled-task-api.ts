@@ -28,6 +28,7 @@ const SCHEDULED_TASKS_API_BASE_URL = `${AGENT_API_BASE_URL}/capability/scheduled
 function transformTask(apiTask: ApiScheduledTask): ScheduledTaskItem {
   return {
     ...apiTask,
+    expires_at: toTimestampOrNull(apiTask.expires_at),
     next_run_at: toTimestampOrNull(apiTask.next_run_at),
     running_started_at: toTimestampOrNull(apiTask.running_started_at),
     last_run_at: toTimestampOrNull(apiTask.last_run_at),

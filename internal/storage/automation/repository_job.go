@@ -40,6 +40,7 @@ SELECT
     source_session_key,
     source_session_label,
     overlap_policy,
+    expires_at,
     enabled,
     next_run_at,
     running_run_id,
@@ -133,6 +134,7 @@ SELECT
     source_session_key,
     source_session_label,
     overlap_policy,
+    expires_at,
     enabled,
     next_run_at,
     running_run_id,
@@ -195,6 +197,7 @@ func (r *Repository) UpsertCronJob(ctx context.Context, job automationdomain.Cro
 		nullString(job.Source.SessionKey),
 		nullString(job.Source.SessionLabel),
 		automationdomain.NormalizeOverlapPolicy(job.OverlapPolicy),
+		nullableTime(job.ExpiresAt),
 		job.Enabled,
 	)
 	if err != nil {

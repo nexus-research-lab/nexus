@@ -55,7 +55,10 @@ func TestServiceDeliveryFailureDoesNotFailExecutionAndCanRetry(t *testing.T) {
 	}
 	waitFor(t, 2*time.Second, func() bool {
 		items, listErr := service.ListTaskRuns(context.Background(), task.JobID)
-		return listErr == nil && len(items) > 0 && items[0].DeliveryStatus == automationdomain.DeliveryStatusFailed
+		current, taskErr := service.GetTask(context.Background(), task.JobID)
+		return listErr == nil && taskErr == nil && len(items) > 0 &&
+			items[0].DeliveryStatus == automationdomain.DeliveryStatusFailed &&
+			current.LastRunStatus == automationdomain.RunStatusSucceeded && !current.Running
 	})
 
 	runs, err := service.ListTaskRuns(context.Background(), task.JobID)

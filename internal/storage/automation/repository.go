@@ -52,6 +52,7 @@ INSERT INTO automation_cron_jobs (
     source_session_key,
     source_session_label,
     overlap_policy,
+    expires_at,
     enabled,
     created_at,
     updated_at
@@ -86,6 +87,7 @@ ON CONFLICT(job_id) DO UPDATE SET
     source_session_key = EXCLUDED.source_session_key,
     source_session_label = EXCLUDED.source_session_label,
     overlap_policy = EXCLUDED.overlap_policy,
+    expires_at = EXCLUDED.expires_at,
     enabled = EXCLUDED.enabled,
     updated_at = CURRENT_TIMESTAMP`
 
@@ -96,7 +98,7 @@ func NewRepository(cfg config.Config, db *sql.DB) *Repository {
 		isPostgres: storage.NormalizeSQLDriver(cfg.DatabaseDriver) == "pgx",
 		dialect:    storage.NewSQLDialect(cfg.DatabaseDriver),
 	}
-	repository.upsertCronJobQuery = fmt.Sprintf(upsertCronJobQueryTemplate, repository.bindList(29))
+	repository.upsertCronJobQuery = fmt.Sprintf(upsertCronJobQueryTemplate, repository.bindList(30))
 	repository.insertRunPendingQuery = fmt.Sprintf(
 		`INSERT INTO automation_cron_runs (
     run_id,
