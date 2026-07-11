@@ -9,7 +9,7 @@ import {
   getDefaultAgentId,
   isMainAgent,
 } from "@/config/options";
-import { useChatCompletionNotifications } from "@/features/home/use-chat-completion-notifications";
+import { useChatCompletionNotifications } from "@/features/home/notifications/use-chat-completion-notifications";
 import { usePrefersReducedMotion } from "@/hooks/ui/use-prefers-reduced-motion";
 import { resolveDirectRoomNavigationTarget } from "@/lib/conversation/direct-room-navigation";
 import { getIconAvatarSrc } from "@/lib/utils";

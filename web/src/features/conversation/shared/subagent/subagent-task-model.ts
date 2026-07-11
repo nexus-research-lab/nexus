@@ -32,36 +32,43 @@ const SUBAGENT_AVATAR_PALETTE = [
   "#b891ed",
 ];
 
+const SUBAGENT_STATUS_BY_ALIAS: Readonly<Record<string, SubagentTaskViewStatus>> = {
+  queued: "pending",
+  created: "pending",
+  pending: "pending",
+  running: "running",
+  started: "running",
+  in_progress: "running",
+  "in progress": "running",
+  completed: "completed",
+  complete: "completed",
+  success: "completed",
+  done: "completed",
+  finished: "completed",
+  stopped: "stopped",
+  deleted: "stopped",
+  cancelled: "stopped",
+  canceled: "stopped",
+  killed: "stopped",
+  interrupted: "stopped",
+  failed: "failed",
+  error: "failed",
+};
+
+const SUBAGENT_RUNTIME_BY_ALIAS: Readonly<Record<string, SubagentRuntimeKind>> = {
+  nxs: "nxs",
+  go: "nxs",
+  "go-native": "nxs",
+  gonative: "nxs",
+  claude: "claude",
+  cc: "claude",
+  "claude-code": "claude",
+  claudecode: "claude",
+  mixed: "mixed",
+};
+
 export function normalizeSubagentTaskStatus(status?: string | null): SubagentTaskViewStatus {
-  switch (status?.trim().toLowerCase()) {
-    case "queued":
-    case "created":
-    case "pending":
-      return "pending";
-    case "running":
-    case "started":
-    case "in_progress":
-    case "in progress":
-      return "running";
-    case "completed":
-    case "complete":
-    case "success":
-    case "done":
-    case "finished":
-      return "completed";
-    case "stopped":
-    case "deleted":
-    case "cancelled":
-    case "canceled":
-    case "killed":
-    case "interrupted":
-      return "stopped";
-    case "failed":
-    case "error":
-      return "failed";
-    default:
-      return "pending";
-  }
+  return SUBAGENT_STATUS_BY_ALIAS[normalizeAlias(status)] ?? "pending";
 }
 
 export function isSubagentTaskActive(task: SubagentTask): boolean {
@@ -131,22 +138,7 @@ export function normalizeSubagentTask(
 export function normalizeSubagentRuntimeKind(
   value?: string | null,
 ): SubagentRuntimeKind {
-  switch (value?.trim().toLowerCase()) {
-    case "nxs":
-    case "go":
-    case "go-native":
-    case "gonative":
-      return "nxs";
-    case "claude":
-    case "cc":
-    case "claude-code":
-    case "claudecode":
-      return "claude";
-    case "mixed":
-      return "mixed";
-    default:
-      return "unknown";
-  }
+  return SUBAGENT_RUNTIME_BY_ALIAS[normalizeAlias(value)] ?? "unknown";
 }
 
 function normalizeSubagentTaskCapabilities(
@@ -190,4 +182,8 @@ function stableHash(value: string): number {
     hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
   }
   return hash;
+}
+
+function normalizeAlias(value?: string | null): string {
+  return value?.trim().toLowerCase() ?? "";
 }

@@ -32,7 +32,7 @@ import { useSidebarStore } from "@/store/sidebar";
 import {
   buildChatNotificationTargetKey,
   getActiveChatTargetFromPath,
-} from "./chat-notification-target";
+} from "./notifications/chat-notification-target";
 import {
   buildConversationItems,
   buildSidebarItemNotificationKey,

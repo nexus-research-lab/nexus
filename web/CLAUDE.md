@@ -9,7 +9,7 @@ src/
   pages/       - 页面组件
   routes/      - React Router 路由定义
   components/  - UI 组件（按功能领域组织）
-  features/    - 领域功能实现；`capability/skills/` 负责技能市场及其状态域，`capability/connectors/` 按 catalog/detail/auth/controller 分离目录、详情、认证和命令，`capability/channels/` 按 catalog/connection/pairings 分离频道目录、连接状态机与 IM 配对，`capability/scheduled/dialog/` 按 form/schedule/resources 分离任务表单、调度规则与依赖资源，`conversation/shared/goal/` 负责 Goal 资源快照、命令和视图，`conversation/shared/session/` 统一 DM/Room 会话基础设施，`conversation/shared/timeline/` 负责时间线投影、滚动与窗口加载协议，`conversation/shared/composer/controller/` 负责 DM/Room 输入状态与动作协议，`conversation/shared/feed/` 负责 DM 轮次渲染及共享虚拟列表协议，`conversation/shared/message/item/` 按控制与视图分层，`conversation/room/dm/panel/` 负责 DM 页面模型与视图，`conversation/room/surface/layout/` 负责桌面分栏与右栏编排，`conversation/room/group/chat/panel/` 负责 Room 会话编排，`conversation/room/group/chat/feed/` 负责 Room 轮次渲染，`conversation/room/group/round/` 负责 Room Agent 轮次与 Thread 纯投影，`conversation/room/members/` 负责 Room 成员与设置表单，`conversation/shared/subagent/` 负责子智能体任务，`conversation/shared/session-navigator/` 负责轮次导航，`operations/subscription-admin/` 负责订阅运营，`settings/general/` 负责通用偏好与默认模型，`settings/provider-settings/` 按 `model/` 与 `actions/` 分离 Provider 纯模型和异步命令
+  features/    - 领域功能实现；`home/home-directory-resource.ts` 负责侧栏与通知共用的聊天目录，`home/notifications/` 分离通知投影、浏览器边界和 Room 协议，`agents/options/editor/` 负责单一 Agent 配置草稿、校验与保存事务，`memory/` 负责 SDK 记忆投影、Agent 快照与文档资源，`capability/skills/` 负责技能市场及其状态域，`capability/connectors/` 按 catalog/detail/auth/controller 分离目录、详情、认证和命令，`capability/channels/` 按 catalog/connection/pairings 分离频道目录、连接状态机与 IM 配对，`capability/scheduled/dialog/` 按 form/schedule/resources 分离任务表单、调度规则与依赖资源，`conversation/shared/goal/` 负责 Goal 资源快照、命令和视图，`conversation/shared/session/` 统一 DM/Room 会话基础设施，`conversation/shared/timeline/` 负责时间线投影、滚动与窗口加载协议，`conversation/shared/composer/controller/` 负责 DM/Room 输入状态与动作协议，`conversation/shared/feed/` 负责 DM 轮次渲染及共享虚拟列表协议，`conversation/shared/message/item/` 按控制与视图分层，`conversation/shared/subagent/` 负责子智能体列表、线程资源和命令，`conversation/room/dm/panel/` 负责 DM 页面模型与视图，`conversation/room/surface/layout/` 负责桌面分栏与右栏编排，`conversation/room/group/chat/panel/` 负责 Room 会话编排，`conversation/room/group/chat/feed/` 负责 Room 轮次渲染，`conversation/room/group/round/` 负责 Room Agent 轮次与 Thread 纯投影，`conversation/room/members/` 负责 Room 成员与设置表单，`conversation/shared/session-navigator/` 负责轮次导航，`operations/subscription-admin/` 负责订阅运营，`settings/general/` 负责通用偏好与默认模型，`settings/provider-settings/` 按 `model/` 与 `actions/` 分离 Provider 纯模型和异步命令
   config/      - 运行时配置常量；`desktop-runtime/` 按宿主配置、鉴权、OAuth 和生命周期协议分层
   hooks/       - 自定义 React Hooks；`agent/` 按动作、会话、运行态和传输协议分层
   lib/         - API 客户端、WebSocket、工具函数
@@ -28,6 +28,9 @@ src/
 - DM/Room 滚动视口、历史提示、错误和浮动控制统一由 `shared/conversation-panel-layout.tsx` 渲染，不复制表面布局 class
 - Room 主 Feed 与 Thread 共用 `room/group/round/round-agent-model.ts` 的 Agent 聚合状态；状态优先级不得在视图中重复推导
 - Room 创建与管理弹窗只通过 `members/use-create-room-form.ts` 管理不变量，并以 `RoomDialogSubmission` 对象提交；视图组件不得在渲染期修正表单状态
+- Home 侧栏与聊天通知只消费 `home-directory-resource.ts` 的共享目录快照；bootstrap 请求、刷新排队和全局目录事件不得在消费者中重复实现
+- Agent Options 以 `agents/options/editor/agent-options-draft.ts` 的单一草稿为编辑真相；名称校验与保存完成必须同时匹配 Agent 作用域和草稿版本
+- 记忆列表请求必须绑定 Agent，文档加载与保存必须绑定 `agentId:path`；SDK 实时内容优先于旧 HTTP 响应，保存完成不得覆盖更新的草稿
 - 宽侧栏由 `shared/ui/sidebar/wide-panel/` 管理；折叠栏与展开面板共用主 Tab、Nexus 入口和系统操作，路由/Store 同步只留在入口控制器
 - 技能市场由 `features/capability/skills/controller/` 按目录、外部搜索、来源和操作拆分状态；子视图只消费窄 Props，不得依赖完整控制器
 - 频道连接与 IM 配对分别持有命令互斥入口；写操作后必须使旧列表请求失效或按当前筛选刷新，视图不得复制协议字段别名
@@ -42,7 +45,7 @@ src/
 - 消息项由 `features/conversation/shared/message/item/controller/` 统一完成顺序、权限、过程链和最终回复投影；`view/` 不重复推导领域状态
 - 消息内容块按 `blocks/{question,code,artifact,tool}/` 分域；工具状态与权限摘要只能由 `tool/tool-block-model.ts` 派生
 - Room 桌面布局由 `features/conversation/room/surface/layout/` 分离 Header、辅助面板、Thread 和布局控制；移动端与桌面端共用 Surface 纯派生
-- 子智能体 UI 只依据服务端下发的 capabilities 开放停止、发送和恢复动作；runtime kind 仅用于呈现 nxs/Claude Code 差异
+- 子智能体列表与线程资源必须绑定来源/任务作用域并拒绝旧请求写回；发送与停止共享命令互斥入口，UI 只依据服务端 capabilities 开放动作
 - 环境变量统一使用 `VITE_*` 前缀，通过 `import.meta.env` 读取
 
 ## 配置文件

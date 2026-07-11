@@ -15,7 +15,7 @@ import { AgentOptionsNav } from "@/features/agents/options/components/agent-opti
 import { AgentOptionsIdentityTab } from "@/features/agents/options/components/agent-options-identity-tab";
 import { AgentOptionsSkillsTab } from "@/features/agents/options/components/agent-options-skills-tab";
 import { AgentOptionsAdvancedTab } from "@/features/agents/options/components/agent-options-advanced-tab";
-import { useAgentOptionsEditorController } from "@/features/agents/options/use-agent-options-editor-controller";
+import { useAgentOptionsEditorController } from "@/features/agents/options/editor/use-agent-options-editor-controller";
 import type { AgentOptionsEditorProps } from "@/features/agents/options/agent-options-editor-model";
 
 export type { AgentOptionsEditorProps } from "@/features/agents/options/agent-options-editor-model";

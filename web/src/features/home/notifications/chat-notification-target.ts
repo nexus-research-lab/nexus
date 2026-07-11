@@ -37,17 +37,6 @@ export function buildChatNotificationTargetKey({
   return null;
 }
 
-function decodeRouteSegment(value: string | undefined): string {
-  if (!value) {
-    return "";
-  }
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    return value;
-  }
-}
-
 export function getActiveChatTargetFromPath(
   pathname: string,
 ): ActiveChatNotificationTarget | null {
@@ -60,25 +49,18 @@ export function getActiveChatTargetFromPath(
   if (parts[2] === "sessions") {
     const sessionKey = decodeRouteSegment(parts[3]);
     const key = buildChatNotificationTargetKey({ session_key: sessionKey });
-    return key
-      ? {
-          key,
-          room_id: roomId,
-          session_key: sessionKey,
-        }
-      : null;
+    return key ? { key, room_id: roomId, session_key: sessionKey } : null;
   }
 
   const conversationId = parts[2] === "conversations"
     ? decodeRouteSegment(parts[3])
     : "";
-  const key = buildChatNotificationTargetKey({ conversation_id: conversationId, room_id: roomId });
+  const key = buildChatNotificationTargetKey({
+    conversation_id: conversationId,
+    room_id: roomId,
+  });
   return key
-    ? {
-        conversation_id: conversationId,
-        key,
-        room_id: roomId,
-      }
+    ? { conversation_id: conversationId, key, room_id: roomId }
     : null;
 }
 
@@ -95,8 +77,16 @@ export function isChatNotificationTargetActive(
   if (activeTarget.session_key) {
     return false;
   }
-  if (activeTarget.room_id && target.room_id === activeTarget.room_id) {
-    return true;
+  return Boolean(activeTarget.room_id && target.room_id === activeTarget.room_id);
+}
+
+function decodeRouteSegment(value: string | undefined): string {
+  if (!value) {
+    return "";
   }
-  return false;
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
 }

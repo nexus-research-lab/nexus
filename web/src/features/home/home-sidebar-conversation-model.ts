@@ -13,7 +13,7 @@ import {
   buildChatNotificationTargetKey,
   isChatNotificationTargetActive,
   type ActiveChatNotificationTarget,
-} from "./chat-notification-target";
+} from "./notifications/chat-notification-target";
 
 export interface SidebarConversationItem {
   id: string;

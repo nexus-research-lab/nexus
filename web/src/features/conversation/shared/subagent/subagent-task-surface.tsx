@@ -22,8 +22,25 @@ export function SubagentTaskSurface({
   onOpenWorkspaceFile,
   source,
 }: SubagentTaskSurfaceProps) {
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const sourceKey = subagentTaskSourceKey(source);
+  return (
+    <SubagentTaskSourceSurface
+      key={sourceKey}
+      layout={layout}
+      onClose={onClose}
+      onOpenWorkspaceFile={onOpenWorkspaceFile}
+      source={source}
+    />
+  );
+}
+
+function SubagentTaskSourceSurface({
+  layout = "desktop",
+  onClose,
+  onOpenWorkspaceFile,
+  source,
+}: SubagentTaskSurfaceProps) {
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const {
     data,
     error,
@@ -34,19 +51,14 @@ export function SubagentTaskSurface({
   const selectedTask = tasks.find((task) => task.task_id === selectedTaskId) ?? null;
 
   useEffect(() => {
-    setSelectedTaskId(null);
-  }, [sourceKey]);
-
-  useEffect(() => {
     if (selectedTaskId && data && !selectedTask) {
       setSelectedTaskId(null);
     }
   }, [data, selectedTask, selectedTaskId]);
 
-  const refreshTasks = useCallback(
-    () => refresh(true),
-    [refresh],
-  );
+  const refreshTasks = useCallback(() => {
+    void refresh(true);
+  }, [refresh]);
 
   if (selectedTask) {
     return (

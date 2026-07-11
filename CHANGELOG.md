@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Split Agent memory browsing and document editing into scoped resource controllers, with a presentation-only catalog and explicit live SDK content precedence.
+- Consolidated Agent Options identity, model, and permission fields into one scoped draft, with dedicated Provider, name-validation, and save-feedback controllers.
+- Unified sidebar and chat-notification bootstrap data behind one queued Home directory resource, and split notification projection, browser effects, and Room WebSocket protocol into dedicated modules.
+- Split subagent task inspection into scoped list/thread resources, a serialized command controller, and a presentation-only thread view.
 - Split the DM chat panel into entry, model, and view layers, and unified DM/Room session orchestration and conversation surface layout behind shared controllers.
 - Consolidated conversation timeline grouping and Room Agent round projection into their domain models, removing the shared conversation utility catch-all.
 - Moved long-term memory fully out of the product backend and into the SDK subprocess: removed the legacy memory engine, configuration, HTTP/CLI contracts, entry-management surfaces, and product-side DM/Room injection. The runtime now owns file-based recall and storage through each Agent workspace's `MEMORY.md` index and `memory/` topic directory, while Nexus only projects and edits the underlying workspace files.
@@ -23,6 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Prevented stale Agent memory snapshots, document loads, and save completions from crossing Agent or file boundaries, while preserving newer edits when a save finishes.
+- Prevented delayed Agent name checks and save completions from updating another Agent or closing an editor whose draft changed while the request was running.
+- Prevented unchanged Home directory snapshots from repeatedly resubscribing every Room notification channel, and removed duplicate bootstrap refresh listeners from the notification path.
+- Prevented stale subagent list, transcript, and command completions from crossing source/task boundaries, and stopped background polling from hiding command failures.
 - Preserved terminal Room slot states in the shared Agent round projection instead of treating a completed slot without messages as pending.
 - Fixed conversation navigation so stale round-window requests and removed navigation targets cannot mutate or block the active session after switching conversations.
 - Fixed visible conversation window loading to reject stale session completions, handle rejected requests, and retry transient failures without permanently suppressing a round.
