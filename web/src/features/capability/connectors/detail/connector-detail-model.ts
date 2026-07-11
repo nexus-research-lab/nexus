@@ -20,10 +20,12 @@ export type ConnectorStatusTone =
   | "unconfigured"
   | "disconnected";
 
+export type ConnectorOauthClientAction = "configure" | "reconfigure" | null;
+
 export interface ConnectorDetailState {
-  oauthClientConfigured: boolean;
+  configurationError: string | null | undefined;
+  oauthClientAction: ConnectorOauthClientAction;
   primaryAction: ConnectorPrimaryAction;
-  requiresOauthClientConfig: boolean;
   status: ConnectorStatusTone;
 }
 
@@ -46,8 +48,11 @@ export function getConnectorAuthLabel(authType: ConnectorAuthType): string {
 export function getConnectorFeatureDetails(
   detail: ConnectorDetail,
 ): ConnectorFeatureDetail[] {
-  const featureDetails = detail.feature_details ?? [];
-  if (featureDetails.length === 0 || detail.features.length === 0) {
+  const featureDetails = detail.feature_details;
+  if (!featureDetails?.length) {
+    return [];
+  }
+  if (detail.features.length === 0) {
     return featureDetails;
   }
   const detailsByName = new Map(
@@ -59,21 +64,68 @@ export function getConnectorFeatureDetails(
   });
 }
 
+function firstMatchingValue<Value>(rules: StateRule<Value>[]): Value {
+  const rule = rules.find((candidate) => candidate.matches);
+  if (!rule) {
+    throw new Error("连接器状态规则缺少兜底项");
+  }
+  return rule.value;
+}
+
+function configuredPrimaryAction(
+  authType: ConnectorAuthType,
+): ConnectorPrimaryAction {
+  return isDirectCredentialAuth(authType)
+    ? "configure-credential"
+    : "connect";
+}
+
+function configurationError(
+  detail: ConnectorDetail,
+  status: ConnectorStatusTone,
+  requiresOauthClientConfig: boolean,
+): string | null | undefined {
+  if (status !== "unconfigured") {
+    return null;
+  }
+  if (requiresOauthClientConfig) {
+    return null;
+  }
+  return detail.config_error;
+}
+
+function oauthClientAction({
+  connected,
+  oauthClientConfigured,
+  requiresOauthClientConfig,
+}: {
+  connected: boolean;
+  oauthClientConfigured: boolean;
+  requiresOauthClientConfig: boolean;
+}): ConnectorOauthClientAction {
+  return firstMatchingValue([
+    { matches: connected, value: null },
+    { matches: !requiresOauthClientConfig, value: null },
+    { matches: oauthClientConfigured, value: "reconfigure" },
+    { matches: true, value: "configure" },
+  ]);
+}
+
 export function getConnectorDetailState(
   detail: ConnectorDetail,
 ): ConnectorDetailState {
   const connected = detail.connection_state === "connected";
   const comingSoon = detail.status === "coming_soon";
   const configured = detail.is_configured;
-  const requiresOauthClientConfig =
-    detail.oauth_client_config_required ?? false;
+  const requiresOauthClientConfig = Boolean(
+    detail.oauth_client_config_required,
+  );
+  const oauthClientConfigured = Boolean(detail.oauth_client_configured);
   const primaryActionRules: StateRule<ConnectorPrimaryAction>[] = [
     { matches: connected, value: "disconnect" },
     {
       matches: !comingSoon && configured,
-      value: isDirectCredentialAuth(detail.auth_type)
-        ? "configure-credential"
-        : "connect",
+      value: configuredPrimaryAction(detail.auth_type),
     },
     { matches: comingSoon, value: "coming-soon" },
     { matches: requiresOauthClientConfig, value: "none" },
@@ -85,12 +137,20 @@ export function getConnectorDetailState(
     { matches: !configured, value: "unconfigured" },
     { matches: true, value: "disconnected" },
   ];
+  const status = firstMatchingValue(statusRules);
 
   return {
-    oauthClientConfigured: detail.oauth_client_configured ?? false,
-    primaryAction: primaryActionRules.find((rule) => rule.matches)?.value
-      ?? "unavailable",
-    requiresOauthClientConfig,
-    status: statusRules.find((rule) => rule.matches)?.value ?? "disconnected",
+    configurationError: configurationError(
+      detail,
+      status,
+      requiresOauthClientConfig,
+    ),
+    oauthClientAction: oauthClientAction({
+      connected,
+      oauthClientConfigured,
+      requiresOauthClientConfig,
+    }),
+    primaryAction: firstMatchingValue(primaryActionRules),
+    status,
   };
 }

@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Split Connector detail state, header actions, status content, and feature selection into owned modules, replacing eager JSX action matrices and repeated OAuth/configuration conditions with explicit state rules.
+- Split the scheduled-task basics form into target/session presentation, reusable choice fields, and small advanced-setting sections instead of maintaining one branch-heavy component with repeated selectors and inline copy rules.
 - Split Skill detail routing, scoped resource loading, presentation projection, and pure rendering, while reusing marketplace update/delete commands with explicit success results instead of duplicating API and feedback transactions inside the view.
 - Removed the unused stacked Workspace Header mode and trailing-tab contract, standardized its shared single-row height, and separated identity, navigation, and toolbar action ownership instead of maintaining an optional-prop layout matrix.
 - Moved shared tool activity labels and input summaries out of the concrete Tool Block model, removed unused view-model state, and returned permission labels, status styles, and detail scrolling to their owning projections and views.

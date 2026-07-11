@@ -78,7 +78,7 @@ src/
 - 宽侧栏由 `features/navigation/sidebar/` 管理；折叠栏与展开面板共用主 Tab、Nexus 入口和系统操作，路由/Store 同步只留在控制器
 - 技能市场由 `features/capability/skills/controller/` 按目录、外部搜索、来源和操作拆分状态；子视图只消费窄 Props，不得依赖完整控制器
 - 频道连接与 IM 配对分别持有命令互斥入口；`channels/connection/login/` 独占扫码会话和串行轮询但复用连接命令锁，`channels/connection/view/` 按字段区、Footer 和展示投影拆分并由消费者定义窄接口；写操作后必须刷新当前服务端快照，视图不得复制协议字段别名
-- 定时任务弹窗的表单和调度各自维护单一草稿对象，资源层按执行模式加载依赖并拒绝过期响应；Room 任务只允许绑定明确执行成员
+- 定时任务弹窗的表单和调度各自维护单一草稿对象，基础字段的目标/会话文案由纯模型投影，高级设置按字段职责组合；资源层按执行模式加载依赖并拒绝过期响应，Room 任务只允许绑定明确执行成员
 - 定时任务时间选择器共用 `capability/scheduled/pickers/time-picker-column.tsx`，锚点浮层复用 `shared/ui/overlay/`，不得在 Daily/SingleRun 中复制选项按钮
 - 定时任务目录只通过 `capability/scheduled/controller/` 读写任务；不得恢复混合 Heartbeat 的 Automation 控制器，命令结果必须先于后台刷新落地
 - 定时任务运行历史由 `capability/scheduled/history/` 分离 Job 作用域资源、动作事务和纯视图；弹窗壳层不得直接请求 API 或维护单项命令状态
