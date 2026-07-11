@@ -7,7 +7,7 @@ import type {
   AgentEventHandlerMap,
 } from "./agent-event-context";
 import { AGENT_MESSAGE_EVENT_HANDLERS } from "./handlers/agent-message-event-handlers";
-import { AGENT_PERMISSION_EVENT_HANDLERS } from "./handlers/permission-event-handlers";
+import { AGENT_PERMISSION_EVENT_HANDLERS } from "./handlers/permission/permission-event-handlers";
 import { AGENT_RESYNC_EVENT_HANDLERS } from "./handlers/resync-event-handlers";
 import { AGENT_SCOPE_EVENT_HANDLERS } from "./handlers/scope-event-handlers";
 import { AGENT_SESSION_EVENT_HANDLERS } from "./handlers/session-event-handlers";

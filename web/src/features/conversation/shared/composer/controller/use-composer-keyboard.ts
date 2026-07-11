@@ -1,4 +1,9 @@
-import { useCallback, useRef } from "react";
+import {
+  useCallback,
+  useMemo,
+  useRef,
+  type MutableRefObject,
+} from "react";
 import type { KeyboardEvent } from "react";
 
 import {
@@ -21,6 +26,12 @@ interface UseComposerKeyboardOptions {
   recallPrevious: () => void;
 }
 
+interface CompositionState {
+  ignoreNextEnterRef: MutableRefObject<boolean>;
+  isComposingRef: MutableRefObject<boolean>;
+  lastCompositionEndAtRef: MutableRefObject<number>;
+}
+
 interface KeyboardCommand {
   matches: boolean;
   run: () => void;
@@ -39,72 +50,50 @@ export function useComposerKeyboard({
   const isComposingRef = useRef(false);
   const ignoreNextEnterRef = useRef(false);
   const lastCompositionEndAtRef = useRef(0);
+  const compositionState = useMemo<CompositionState>(() => ({
+    ignoreNextEnterRef,
+    isComposingRef,
+    lastCompositionEndAtRef,
+  }), []);
 
   const handleCompositionStart = useCallback(() => {
-    isComposingRef.current = true;
-    ignoreNextEnterRef.current = false;
-  }, []);
+    compositionState.isComposingRef.current = true;
+    compositionState.ignoreNextEnterRef.current = false;
+  }, [compositionState]);
 
   const handleCompositionEnd = useCallback((timeStamp: number) => {
-    isComposingRef.current = false;
-    ignoreNextEnterRef.current = true;
-    lastCompositionEndAtRef.current = timeStamp;
-  }, []);
+    compositionState.isComposingRef.current = false;
+    compositionState.ignoreNextEnterRef.current = true;
+    compositionState.lastCompositionEndAtRef.current = timeStamp;
+  }, [compositionState]);
 
   const handleKeyDown = useCallback((
     event: KeyboardEvent<HTMLTextAreaElement>,
   ) => {
-    const nativeEvent = event.nativeEvent as ComposerNativeKeyboardEvent;
-
-    // Safari 可能在中文候选词确认后补发一个不带 composing 标记的 Enter。
-    if (isComposingRef.current || isImeKeyboardEvent(nativeEvent)) {
+    if (shouldIgnoreKeyboardEvent(
+      event,
+      compositionState,
+      mentionActive,
+    )) {
       return;
     }
-
-    if (event.key === "Enter" && ignoreNextEnterRef.current) {
-      const withinGuard = lastCompositionEndAtRef.current > 0
-        && event.timeStamp - lastCompositionEndAtRef.current
-          <= COMPOSITION_END_ENTER_GUARD_MS;
-      ignoreNextEnterRef.current = false;
-      if (withinGuard) {
-        return;
-      }
-    } else if (event.key !== "Enter") {
-      ignoreNextEnterRef.current = false;
-    }
-
-    if (mentionActive && MENTION_NAVIGATION_KEYS.has(event.key)) {
+    const command = resolveKeyboardCommand(event, {
+      historyIndex,
+      historyItemCount,
+      isLoading,
+      mentionActive,
+      onSend,
+      onStop,
+      recallNext,
+      recallPrevious,
+    });
+    if (!command) {
       return;
     }
-
-    const commands: KeyboardCommand[] = [
-      {
-        matches: event.key === "Enter" && !event.shiftKey,
-        run: () => void onSend(),
-      },
-      {
-        matches: event.key === "ArrowUp"
-          && historyItemCount > 0
-          && (event.ctrlKey || isCaretOnFirstLine(event.currentTarget)),
-        run: recallPrevious,
-      },
-      {
-        matches: event.key === "ArrowDown"
-          && historyIndex >= 0
-          && (event.ctrlKey || isCaretOnLastLine(event.currentTarget)),
-        run: recallNext,
-      },
-      {
-        matches: event.key === "Escape" && isLoading && Boolean(onStop),
-        run: () => onStop?.(),
-      },
-    ];
-    const command = commands.find((item) => item.matches);
-    if (command) {
-      event.preventDefault();
-      command.run();
-    }
+    event.preventDefault();
+    command();
   }, [
+    compositionState,
     historyIndex,
     historyItemCount,
     isLoading,
@@ -120,4 +109,100 @@ export function useComposerKeyboard({
     handleCompositionStart,
     handleKeyDown,
   };
+}
+
+function shouldIgnoreKeyboardEvent(
+  event: KeyboardEvent<HTMLTextAreaElement>,
+  compositionState: CompositionState,
+  mentionActive: boolean,
+): boolean {
+  // Safari 可能在中文候选词确认后补发一个不带 composing 标记的 Enter。
+  const guards = [
+    () => isCompositionEvent(event, compositionState),
+    () => consumeCompositionEnterGuard(event, compositionState),
+    () => isMentionNavigationEvent(event, mentionActive),
+  ];
+  return guards.some((guard) => guard());
+}
+
+function isCompositionEvent(
+  event: KeyboardEvent<HTMLTextAreaElement>,
+  compositionState: CompositionState,
+): boolean {
+  return [
+    compositionState.isComposingRef.current,
+    isImeKeyboardEvent(event.nativeEvent as ComposerNativeKeyboardEvent),
+  ].some(Boolean);
+}
+
+function consumeCompositionEnterGuard(
+  event: KeyboardEvent<HTMLTextAreaElement>,
+  compositionState: CompositionState,
+): boolean {
+  if (event.key !== "Enter") {
+    compositionState.ignoreNextEnterRef.current = false;
+    return false;
+  }
+  if (!compositionState.ignoreNextEnterRef.current) {
+    return false;
+  }
+  compositionState.ignoreNextEnterRef.current = false;
+  return isWithinCompositionGuard(
+    event.timeStamp,
+    compositionState.lastCompositionEndAtRef.current,
+  );
+}
+
+function isWithinCompositionGuard(
+  eventTime: number,
+  compositionEndTime: number,
+): boolean {
+  return [
+    compositionEndTime > 0,
+    eventTime - compositionEndTime <= COMPOSITION_END_ENTER_GUARD_MS,
+  ].every(Boolean);
+}
+
+function isMentionNavigationEvent(
+  event: KeyboardEvent<HTMLTextAreaElement>,
+  mentionActive: boolean,
+): boolean {
+  return [mentionActive, MENTION_NAVIGATION_KEYS.has(event.key)].every(Boolean);
+}
+
+function resolveKeyboardCommand(
+  event: KeyboardEvent<HTMLTextAreaElement>,
+  options: UseComposerKeyboardOptions,
+): (() => void) | null {
+  const commands: KeyboardCommand[] = [
+    {
+      matches: [event.key === "Enter", !event.shiftKey].every(Boolean),
+      run: () => void options.onSend(),
+    },
+    {
+      matches: [
+        event.key === "ArrowUp",
+        options.historyItemCount > 0,
+        [event.ctrlKey, isCaretOnFirstLine(event.currentTarget)].some(Boolean),
+      ].every(Boolean),
+      run: options.recallPrevious,
+    },
+    {
+      matches: [
+        event.key === "ArrowDown",
+        options.historyIndex >= 0,
+        [event.ctrlKey, isCaretOnLastLine(event.currentTarget)].some(Boolean),
+      ].every(Boolean),
+      run: options.recallNext,
+    },
+    {
+      matches: [
+        event.key === "Escape",
+        options.isLoading,
+        Boolean(options.onStop),
+      ].every(Boolean),
+      run: () => options.onStop?.(),
+    },
+  ];
+  return commands.find((command) => command.matches)?.run ?? null;
 }

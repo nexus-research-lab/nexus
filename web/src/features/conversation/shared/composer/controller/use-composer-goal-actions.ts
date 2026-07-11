@@ -37,8 +37,11 @@ export function useComposerGoalActions({
     state: { input, isGoalCreating },
   } = draft;
   const canCreateGoal = Boolean(onCreateGoal);
-  const canUseLoop = enableLoops && (Boolean(onCreateLoopGoal) || canCreateGoal);
-  const blockedReason = goalCreateDisabledReason?.trim() || null;
+  const canUseLoop = [
+    enableLoops,
+    [Boolean(onCreateLoopGoal), canCreateGoal].some(Boolean),
+  ].every(Boolean);
+  const blockedReason = normalizeBlockedReason(goalCreateDisabledReason);
 
   const submitGoal = useCallback(async () => {
     const objective = input.trim();
@@ -141,4 +144,8 @@ export function useComposerGoalActions({
     submitGoal,
     toggleGoalInput,
   };
+}
+
+function normalizeBlockedReason(reason: string | null): string | null {
+  return reason?.trim() || null;
 }

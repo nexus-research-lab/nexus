@@ -32,57 +32,14 @@ interface UseComposerMessageSubmitOptions {
   resetTextareaHeight: () => void;
 }
 
-export function useComposerMessageSubmit({
-  attachmentCount,
-  clearAttachmentError,
-  clearAttachments,
-  defaultDeliveryPolicy,
-  input,
-  isLoading,
-  isPreparingAttachments,
-  onEnqueueMessage,
-  onSendMessage,
-  prepareAttachments,
-  queueItemCount,
-  queueWhenSessionBusy,
-  recordHistory,
-  resetInput,
-  resetTextareaHeight,
-}: UseComposerMessageSubmitOptions) {
-  return useCallback(async () => {
-    const content = input.trim();
-    if ((!content && attachmentCount === 0) || isPreparingAttachments) {
-      return;
-    }
+interface ComposerMessageSubmission {
+  content: string;
+  deliver: DeliverMessage;
+  policy: AgentConversationDeliveryPolicy;
+}
 
-    const delivery = resolveComposerDelivery(
-      isLoading || queueItemCount > 0,
-      queueWhenSessionBusy,
-      defaultDeliveryPolicy,
-    );
-    const deliver = delivery.handler === "enqueue"
-      ? onEnqueueMessage
-      : onSendMessage;
-    if (!deliver) {
-      return;
-    }
-
-    const preparedAttachments = await prepareAttachments();
-    if (!preparedAttachments) {
-      return;
-    }
-
-    try {
-      await deliver(content, delivery.policy, preparedAttachments);
-      recordHistory(content);
-      resetInput();
-      clearAttachments();
-      clearAttachmentError();
-      resetTextareaHeight();
-    } catch (error) {
-      console.error("发送消息失败:", error);
-    }
-  }, [
+export function useComposerMessageSubmit(
+  {
     attachmentCount,
     clearAttachmentError,
     clearAttachments,
@@ -98,5 +55,109 @@ export function useComposerMessageSubmit({
     recordHistory,
     resetInput,
     resetTextareaHeight,
-  ]);
+  }: UseComposerMessageSubmitOptions,
+) {
+  return useCallback(
+    () => runComposerMessageSubmission({
+      attachmentCount,
+      clearAttachmentError,
+      clearAttachments,
+      defaultDeliveryPolicy,
+      input,
+      isLoading,
+      isPreparingAttachments,
+      onEnqueueMessage,
+      onSendMessage,
+      prepareAttachments,
+      queueItemCount,
+      queueWhenSessionBusy,
+      recordHistory,
+      resetInput,
+      resetTextareaHeight,
+    }),
+    [
+      attachmentCount,
+      clearAttachmentError,
+      clearAttachments,
+      defaultDeliveryPolicy,
+      input,
+      isLoading,
+      isPreparingAttachments,
+      onEnqueueMessage,
+      onSendMessage,
+      prepareAttachments,
+      queueItemCount,
+      queueWhenSessionBusy,
+      recordHistory,
+      resetInput,
+      resetTextareaHeight,
+    ],
+  );
+}
+
+async function runComposerMessageSubmission(
+  options: UseComposerMessageSubmitOptions,
+): Promise<void> {
+  const submission = resolveMessageSubmission(options);
+  if (!submission) {
+    return;
+  }
+  const attachments = await options.prepareAttachments();
+  if (!attachments) {
+    return;
+  }
+  try {
+    await submission.deliver(
+      submission.content,
+      submission.policy,
+      attachments,
+    );
+    completeMessageSubmission(options, submission.content);
+  } catch (error) {
+    console.error("发送消息失败:", error);
+  }
+}
+
+function resolveMessageSubmission(
+  options: UseComposerMessageSubmitOptions,
+): ComposerMessageSubmission | null {
+  const content = options.input.trim();
+  if (!canStartMessageSubmission(content, options)) {
+    return null;
+  }
+  const delivery = resolveComposerDelivery(
+    [options.isLoading, options.queueItemCount > 0].some(Boolean),
+    options.queueWhenSessionBusy,
+    options.defaultDeliveryPolicy,
+  );
+  const handlers = {
+    enqueue: options.onEnqueueMessage,
+    send: options.onSendMessage,
+  };
+  const deliver = handlers[delivery.handler];
+  if (!deliver) {
+    return null;
+  }
+  return { content, deliver, policy: delivery.policy };
+}
+
+function canStartMessageSubmission(
+  content: string,
+  options: UseComposerMessageSubmitOptions,
+): boolean {
+  const hasContent = [Boolean(content), options.attachmentCount > 0].some(
+    Boolean,
+  );
+  return [hasContent, !options.isPreparingAttachments].every(Boolean);
+}
+
+function completeMessageSubmission(
+  options: UseComposerMessageSubmitOptions,
+  content: string,
+): void {
+  options.recordHistory(content);
+  options.resetInput();
+  options.clearAttachments();
+  options.clearAttachmentError();
+  options.resetTextareaHeight();
 }

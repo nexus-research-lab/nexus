@@ -8,7 +8,7 @@ import type {
 
 import { parseAskUserQuestions } from "./ask-user-question-model";
 import { AskUserQuestionView } from "./ask-user-question-view";
-import { useAskUserQuestionController } from "./use-ask-user-question-controller";
+import { useAskUserQuestionController } from "./controller/use-ask-user-question-controller";
 
 interface AskUserQuestionBlockProps {
   initialSubmitted?: boolean;

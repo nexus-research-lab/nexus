@@ -97,22 +97,54 @@ export function AskUserQuestionHeader({
       <span className="text-muted-foreground/30">│</span>
       <span className="text-muted-foreground">{questionCount} 个问题</span>
 
-      {!expanded && answerSummary ? (
-        <>
-          <span className="text-muted-foreground/30">│</span>
-          <span className="max-w-[200px] truncate text-(--text-muted)">
-            {answerSummary}
-          </span>
-        </>
-      ) : null}
+      <CollapsedAnswerSummary
+        expanded={expanded}
+        summary={answerSummary}
+      />
 
       <span className="flex-1" />
-      {!readOnly && totalSelected > 0 ? (
-        <span className="text-[10px] font-semibold text-primary/80">
-          已选 {totalSelected} 项
-        </span>
-      ) : null}
+      <QuestionSelectedCount
+        count={totalSelected}
+        readOnly={readOnly}
+      />
       <ExpandIcon className="h-3.5 w-3.5 text-muted-foreground/40" />
     </button>
+  );
+}
+
+function CollapsedAnswerSummary({
+  expanded,
+  summary,
+}: {
+  expanded: boolean;
+  summary: string;
+}) {
+  if (expanded || !summary) {
+    return null;
+  }
+  return (
+    <>
+      <span className="text-muted-foreground/30">│</span>
+      <span className="max-w-[200px] truncate text-(--text-muted)">
+        {summary}
+      </span>
+    </>
+  );
+}
+
+function QuestionSelectedCount({
+  count,
+  readOnly,
+}: {
+  count: number;
+  readOnly: boolean;
+}) {
+  if (readOnly || count === 0) {
+    return null;
+  }
+  return (
+    <span className="text-[10px] font-semibold text-primary/80">
+      已选 {count} 项
+    </span>
   );
 }

@@ -2,13 +2,16 @@ import { cn } from "@/shared/ui/class-name";
 import type {
   PendingPermission,
   PermissionDecisionPayload,
+  PermissionUpdate,
 } from "@/types/conversation/interaction/permission";
 
 import { ToolBlock } from "../../../blocks/tool/tool-block";
+import type { ToolPermissionRequest } from "../../../blocks/tool/tool-block-types";
+import type { AssistantContentMode } from "../../message-item-projection";
 
 interface PendingPermissionListProps {
   canRespond: boolean;
-  isRoomThreadMode: boolean;
+  mode: AssistantContentMode;
   onResponse?: (payload: PermissionDecisionPayload) => boolean;
   permissions: PendingPermission[];
   readOnlyReason?: string;
@@ -17,7 +20,7 @@ interface PendingPermissionListProps {
 
 export function PendingPermissionList({
   canRespond,
-  isRoomThreadMode,
+  mode,
   onResponse,
   permissions,
   readOnlyReason,
@@ -31,9 +34,7 @@ export function PendingPermissionList({
     <div
       className={cn(
         "mt-3 flex flex-col gap-3",
-        isRoomThreadMode
-          ? "border-t border-(--divider-subtle-color) pt-3"
-          : "rounded-2xl bg-transparent p-3",
+        PERMISSION_LIST_LAYOUTS[mode],
       )}
     >
       {permissions.map((permission) => (
@@ -41,25 +42,7 @@ export function PendingPermissionList({
           interactionDisabled={!canRespond}
           interactionDisabledReason={readOnlyReason}
           key={permission.request_id}
-          permissionRequest={{
-            expires_at: permission.expires_at,
-            on_allow: (updatedPermissions) => onResponse?.({
-              decision: "allow",
-              request_id: permission.request_id,
-              updated_permissions: updatedPermissions,
-            }),
-            on_deny: (updatedPermissions) => onResponse?.({
-              decision: "deny",
-              request_id: permission.request_id,
-              updated_permissions: updatedPermissions,
-            }),
-            request_id: permission.request_id,
-            risk_label: permission.risk_label,
-            risk_level: permission.risk_level,
-            suggestions: permission.suggestions,
-            summary: permission.summary,
-            tool_input: permission.tool_input,
-          }}
+          permissionRequest={createPermissionRequest(permission, onResponse)}
           status="waiting_permission"
           toolUse={{
             id: `pending_${permission.request_id}`,
@@ -72,4 +55,36 @@ export function PendingPermissionList({
       ))}
     </div>
   );
+}
+
+const PERMISSION_LIST_LAYOUTS: Record<AssistantContentMode, string> = {
+  dm_archived: "rounded-2xl bg-transparent p-3",
+  dm_live: "rounded-2xl bg-transparent p-3",
+  room_result: "rounded-2xl bg-transparent p-3",
+  room_thread: "border-t border-(--divider-subtle-color) pt-3",
+};
+
+function createPermissionRequest(
+  permission: PendingPermission,
+  onResponse?: (payload: PermissionDecisionPayload) => boolean,
+): ToolPermissionRequest {
+  const respond = (
+    decision: PermissionDecisionPayload["decision"],
+    updatedPermissions?: PermissionUpdate[],
+  ) => onResponse?.({
+    decision,
+    request_id: permission.request_id,
+    updated_permissions: updatedPermissions,
+  });
+  return {
+    expires_at: permission.expires_at,
+    on_allow: (updatedPermissions) => respond("allow", updatedPermissions),
+    on_deny: (updatedPermissions) => respond("deny", updatedPermissions),
+    request_id: permission.request_id,
+    risk_label: permission.risk_label,
+    risk_level: permission.risk_level,
+    suggestions: permission.suggestions,
+    summary: permission.summary,
+    tool_input: permission.tool_input,
+  };
 }

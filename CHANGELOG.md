@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Split Composer state derivation into input, runtime, mode, and action projections; separated message submission phases and ordered IME, Safari, and Mention keyboard guards while keeping the panel contract flat.
+- Moved permission event decoding into its own transport subdomain, replacing repeated optional-field branches with typed enum, scope, suggestion, and default-interaction projections before handlers mutate Session state.
+- Split AskUserQuestion cards and control flow into scoped presentation, draft restoration, interaction state, and submission transaction modules, removing branch-heavy JSX and preserving stale-scope submission isolation.
+- Split Assistant message rendering into scoped layout, header, content, process, and permission views; unmatched permission requests now render exactly once instead of borrowing or duplicating process content placement.
 - Split tool execution blocks into scoped interaction control, a single status model, and header projection/actions, removing mirrored running/waiting flags and branch-heavy JSX state interpretation.
 - Replaced the optional-mode Agent Options editor with explicit inline and dialog shells, removed the unconsumed inline navigation path, and separated tab content, footer actions, and scoped save transactions from controller assembly.
 - Split Connector detail state, header actions, status content, and feature selection into owned modules, replacing eager JSX action matrices and repeated OAuth/configuration conditions with explicit state rules.

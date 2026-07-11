@@ -39,37 +39,59 @@ interface QuestionStatusInput {
 
 function parseQuestionOption(value: unknown): QuestionOption | null {
   const record = asUnknownRecord(value);
-  const label = record ? readString(record, "label")?.trim() : null;
-  if (!record || !label) {
+  if (!record) {
+    return null;
+  }
+  const label = readString(record, "label")?.trim();
+  if (!label) {
     return null;
   }
   const description = readString(record, "description")?.trim();
   return {
     label,
-    ...(description ? { description } : {}),
+    ...optionalDescription(description),
   };
+}
+
+function optionalDescription(description?: string) {
+  return description ? { description } : {};
 }
 
 function parseUserQuestion(value: unknown): UserQuestion | null {
   const record = asUnknownRecord(value);
-  const question = record ? readString(record, "question")?.trim() : null;
-  if (!record || !question) {
+  if (!record) {
+    return null;
+  }
+  const question = readString(record, "question")?.trim();
+  if (!question) {
     return null;
   }
 
   const header = readString(record, "header")?.trim();
-  const rawOptions = Array.isArray(record.options) ? record.options : [];
   return {
     question,
-    ...(header ? { header } : {}),
+    ...optionalHeader(header),
     // camelCase 只在协议入口兼容，内部统一使用 snake_case。
-    multi_select: readBoolean(record, "multi_select")
-      ?? readBoolean(record, "multiSelect")
-      ?? false,
-    options: rawOptions
-      .map(parseQuestionOption)
-      .filter((option): option is QuestionOption => option !== null),
+    multi_select: readMultiSelect(record),
+    options: readQuestionOptions(record.options),
   };
+}
+
+function optionalHeader(header?: string) {
+  return header ? { header } : {};
+}
+
+function readMultiSelect(record: Record<string, unknown>): boolean {
+  return readBoolean(record, "multi_select")
+    ?? readBoolean(record, "multiSelect")
+    ?? false;
+}
+
+function readQuestionOptions(value: unknown): QuestionOption[] {
+  const options = Array.isArray(value) ? value : [];
+  return options
+    .map(parseQuestionOption)
+    .filter((option): option is QuestionOption => option !== null);
 }
 
 export function parseAskUserQuestions(input: unknown): UserQuestion[] {
@@ -130,7 +152,7 @@ export function buildSubmittedQuestionDraft(
   toolResult?: ToolResultContent,
 ): QuestionDraft {
   const emptyDraft = createEmptyQuestionDraft(questions.length);
-  if (!toolResult || toolResult.is_error || typeof toolResult.content !== "string") {
+  if (!hasRecoverableQuestionResult(toolResult)) {
     return emptyDraft;
   }
 
@@ -141,6 +163,16 @@ export function buildSubmittedQuestionDraft(
       ? restoreQuestionAnswer(question, answerText)
       : emptyDraft[index];
   });
+}
+
+function hasRecoverableQuestionResult(
+  toolResult?: ToolResultContent,
+): toolResult is ToolResultContent & { content: string } {
+  return [
+    Boolean(toolResult),
+    !toolResult?.is_error,
+    typeof toolResult?.content === "string",
+  ].every(Boolean);
 }
 
 export function hasQuestionDraftContent(draft: QuestionDraft): boolean {
@@ -160,13 +192,31 @@ export function toggleQuestionOption(
     return draft;
   }
 
-  const selectedOptions = multiSelect
-    ? toggleOption(answer.selectedOptions, optionLabel)
-    : new Set([optionLabel]);
   return replaceQuestionAnswer(draft, questionIndex, {
-    customAnswer: multiSelect ? answer.customAnswer : "",
-    selectedOptions,
+    customAnswer: resolveOptionCustomAnswer(answer, multiSelect),
+    selectedOptions: resolveSelectedOptions(
+      answer.selectedOptions,
+      optionLabel,
+      multiSelect,
+    ),
   });
+}
+
+function resolveSelectedOptions(
+  selectedOptions: ReadonlySet<string>,
+  optionLabel: string,
+  multiSelect: boolean,
+): Set<string> {
+  return multiSelect
+    ? toggleOption(selectedOptions, optionLabel)
+    : new Set([optionLabel]);
+}
+
+function resolveOptionCustomAnswer(
+  answer: QuestionAnswerDraft,
+  multiSelect: boolean,
+): string {
+  return multiSelect ? answer.customAnswer : "";
 }
 
 function toggleOption(
@@ -195,10 +245,23 @@ export function updateQuestionCustomAnswer(
 
   return replaceQuestionAnswer(draft, questionIndex, {
     customAnswer,
-    selectedOptions: !multiSelect && customAnswer.trim()
-      ? new Set()
-      : answer.selectedOptions,
+    selectedOptions: resolveCustomAnswerSelection(
+      answer.selectedOptions,
+      customAnswer,
+      multiSelect,
+    ),
   });
+}
+
+function resolveCustomAnswerSelection(
+  selectedOptions: ReadonlySet<string>,
+  customAnswer: string,
+  multiSelect: boolean,
+): ReadonlySet<string> {
+  const replacesSelection = [!multiSelect, Boolean(customAnswer.trim())].every(
+    Boolean,
+  );
+  return replacesSelection ? new Set() : selectedOptions;
 }
 
 function replaceQuestionAnswer(

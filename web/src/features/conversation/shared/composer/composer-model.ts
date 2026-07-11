@@ -86,26 +86,37 @@ const IME_COMPOSITION_KEY_CODE = 229;
 export const COMPOSITION_END_ENTER_GUARD_MS = 80;
 
 export function isCaretOnFirstLine(target: HTMLTextAreaElement): boolean {
-  const selectionStart = target.selectionStart ?? 0;
-  const selectionEnd = target.selectionEnd ?? 0;
-  return selectionStart === selectionEnd
-    && !target.value.slice(0, selectionStart).includes("\n");
+  const { end, start } = readSelectionRange(target);
+  return [
+    start === end,
+    !target.value.slice(0, start).includes("\n"),
+  ].every(Boolean);
 }
 
 export function isCaretOnLastLine(target: HTMLTextAreaElement): boolean {
-  const selectionStart = target.selectionStart ?? 0;
-  const selectionEnd = target.selectionEnd ?? 0;
-  return selectionStart === selectionEnd
-    && !target.value.slice(selectionEnd).includes("\n");
+  const { end, start } = readSelectionRange(target);
+  return [
+    start === end,
+    !target.value.slice(end).includes("\n"),
+  ].every(Boolean);
+}
+
+function readSelectionRange(target: HTMLTextAreaElement) {
+  return {
+    end: target.selectionEnd ?? 0,
+    start: target.selectionStart ?? 0,
+  };
 }
 
 export function isImeKeyboardEvent(
   event: ComposerNativeKeyboardEvent,
 ): boolean {
-  return event.isComposing
-    || event.key === "Process"
-    || event.keyCode === IME_COMPOSITION_KEY_CODE
-    || event.which === IME_COMPOSITION_KEY_CODE;
+  return [
+    event.isComposing,
+    event.key === "Process",
+    event.keyCode === IME_COMPOSITION_KEY_CODE,
+    event.which === IME_COMPOSITION_KEY_CODE,
+  ].some(Boolean);
 }
 
 export function resolveComposerDelivery(
@@ -114,9 +125,24 @@ export function resolveComposerDelivery(
   defaultPolicy: AgentConversationDeliveryPolicy,
 ): ComposerDelivery {
   return {
-    handler: queueWhenSessionBusy && busy ? "enqueue" : "send",
-    policy: busy ? defaultPolicy : "queue",
+    handler: resolveComposerDeliveryHandler(busy, queueWhenSessionBusy),
+    policy: resolveComposerDeliveryPolicy(busy, defaultPolicy),
   };
+}
+
+function resolveComposerDeliveryHandler(
+  busy: boolean,
+  queueWhenSessionBusy: boolean,
+): ComposerDelivery["handler"] {
+  const shouldEnqueue = [busy, queueWhenSessionBusy].every(Boolean);
+  return shouldEnqueue ? "enqueue" : "send";
+}
+
+function resolveComposerDeliveryPolicy(
+  busy: boolean,
+  defaultPolicy: AgentConversationDeliveryPolicy,
+): AgentConversationDeliveryPolicy {
+  return busy ? defaultPolicy : "queue";
 }
 
 export function getComposerInputRowPaddingClass(
@@ -125,6 +151,11 @@ export function getComposerInputRowPaddingClass(
   isGoalMode: boolean,
 ): string {
   const density = compact ? "compact" : "regular";
-  const state = isGoalMode ? "goal" : hasPendingQueue ? "queue" : "default";
+  const candidates = [
+    { active: isGoalMode, state: "goal" },
+    { active: hasPendingQueue, state: "queue" },
+  ] as const;
+  const state = candidates.find((candidate) => candidate.active)?.state
+    ?? "default";
   return INPUT_ROW_PADDING[density][state];
 }

@@ -9,6 +9,11 @@ const ACTIVE_STREAM_STATUSES = new Set([
   "error",
 ]);
 const STOPPABLE_STREAM_STATUSES = new Set(["pending", "streaming"]);
+const PROCESS_CONTENT_MODES = new Set<AssistantContentMode>(["dm_archived"]);
+const FOOTER_MODES = new Set<AssistantContentMode>([
+  "dm_archived",
+  "room_result",
+]);
 
 interface AssistantDisplayProjection {
   assistantMessages: readonly unknown[];
@@ -48,39 +53,41 @@ export function resolveAssistantDisplayState({
   projection,
 }: ResolveAssistantDisplayStateOptions) {
   const directVisible = projection.directOrderedProjection.content.length > 0;
-  const processVisible = assistantContentMode === "dm_archived" && (
-    projection.processProjection.content.length > 0 ||
-    projection.unmatchedPendingPermissions.length > 0
+  const processVisible = hasVisibleProcessContent(
+    assistantContentMode,
+    projection.processProjection.content.length,
   );
   const finalVisible = hasDisplayContent(projection.finalAssistantContent);
-  const showCursor = isLastRound && isLoading && [
-    projection.streamingBlockIndexes.size > 0,
-    projection.assistantMessages.length > 0,
-    pendingPermissionCount > 0,
-    STOPPABLE_STREAM_STATUSES.has(projection.streamStatus ?? ""),
-  ].some(Boolean);
+  const showCursor = resolveShowCursor({
+    hasAssistantMessages: projection.assistantMessages.length > 0,
+    hasPendingPermissions: pendingPermissionCount > 0,
+    hasStreamingBlocks: projection.streamingBlockIndexes.size > 0,
+    isLastRound,
+    isLoading,
+    streamStatus: projection.streamStatus,
+  });
   const canCopy = Boolean(projection.finalAssistantText.trim());
 
   return {
     canCopy,
-    canStop:
-      hasStopHandler &&
-      STOPPABLE_STREAM_STATUSES.has(projection.streamStatus ?? ""),
+    canStop: resolveCanStop(hasStopHandler, projection.streamStatus),
     directVisible,
     emptyStreamStatus: resolveEmptyStreamStatus(
       projection.mergedContent.length,
       projection.streamStatus,
     ),
-    finalStreaming: Boolean(
-      showCursor &&
-      typeof projection.finalAssistantContent !== "string" &&
-      projection.finalAssistantStreamingIndexes.size > 0
+    finalStreaming: resolveFinalStreaming(
+      projection.finalAssistantContent,
+      projection.finalAssistantStreamingIndexes.size,
+      showCursor,
     ),
     finalVisible,
-    footerVisible:
-      (assistantContentMode === "dm_archived" ||
-        assistantContentMode === "room_result") &&
-      (Boolean(projection.stats) || (!isLoading && canCopy)),
+    footerVisible: resolveFooterVisible({
+      canCopy,
+      hasStats: Boolean(projection.stats),
+      isLoading,
+      mode: assistantContentMode,
+    }),
     hidden: !hasAssistantSurfaceContent({
       hasDirectContent: directVisible,
       hasFinalContent: finalVisible,
@@ -92,13 +99,100 @@ export function resolveAssistantDisplayState({
     }),
     processVisible,
     showCursor,
-    standaloneActivity: Boolean(
-      projection.liveActivityState &&
-      !directVisible &&
-      !processVisible &&
-      !finalVisible
+    standaloneActivity: resolveStandaloneActivity(
+      Boolean(projection.liveActivityState),
+      directVisible,
+      processVisible,
+      finalVisible,
     ),
   };
+}
+
+// 未匹配权限拥有独立内容段，过程可见性只表达真实过程内容。
+function hasVisibleProcessContent(
+  mode: AssistantContentMode,
+  contentLength: number,
+): boolean {
+  return [PROCESS_CONTENT_MODES.has(mode), contentLength > 0].every(Boolean);
+}
+
+interface ShowCursorOptions {
+  hasAssistantMessages: boolean;
+  hasPendingPermissions: boolean;
+  hasStreamingBlocks: boolean;
+  isLastRound: boolean;
+  isLoading: boolean;
+  streamStatus: string | null;
+}
+
+function resolveShowCursor({
+  hasAssistantMessages,
+  hasPendingPermissions,
+  hasStreamingBlocks,
+  isLastRound,
+  isLoading,
+  streamStatus,
+}: ShowCursorOptions): boolean {
+  const isActiveRound = [isLastRound, isLoading].every(Boolean);
+  const hasLiveContent = [
+    hasStreamingBlocks,
+    hasAssistantMessages,
+    hasPendingPermissions,
+    hasStreamStatus(STOPPABLE_STREAM_STATUSES, streamStatus),
+  ].some(Boolean);
+  return [isActiveRound, hasLiveContent].every(Boolean);
+}
+
+function resolveCanStop(
+  hasStopHandler: boolean,
+  streamStatus: string | null,
+): boolean {
+  return [
+    hasStopHandler,
+    hasStreamStatus(STOPPABLE_STREAM_STATUSES, streamStatus),
+  ].every(Boolean);
+}
+
+function resolveFinalStreaming(
+  content: string | readonly ContentBlock[] | null,
+  streamingBlockCount: number,
+  showCursor: boolean,
+): boolean {
+  return [
+    showCursor,
+    typeof content !== "string",
+    streamingBlockCount > 0,
+  ].every(Boolean);
+}
+
+function resolveFooterVisible({
+  canCopy,
+  hasStats,
+  isLoading,
+  mode,
+}: {
+  canCopy: boolean;
+  hasStats: boolean;
+  isLoading: boolean;
+  mode: AssistantContentMode;
+}): boolean {
+  const hasCompletedCopy = [!isLoading, canCopy].every(Boolean);
+  const hasFooterContent = [hasStats, hasCompletedCopy].some(Boolean);
+  return [FOOTER_MODES.has(mode), hasFooterContent].every(Boolean);
+}
+
+function resolveStandaloneActivity(
+  hasLiveActivity: boolean,
+  directVisible: boolean,
+  processVisible: boolean,
+  finalVisible: boolean,
+): boolean {
+  return [
+    hasLiveActivity,
+    !directVisible,
+    !processVisible,
+    !finalVisible,
+  ].every(Boolean);
 }
 
 function hasDisplayContent(
@@ -116,9 +210,13 @@ function resolveEmptyStreamStatus(
   if (contentLength !== 0) {
     return null;
   }
-  return streamStatus === "cancelled" || streamStatus === "error"
-    ? streamStatus
-    : null;
+  return isEmptyStreamStatus(streamStatus) ? streamStatus : null;
+}
+
+function isEmptyStreamStatus(
+  streamStatus: string | null,
+): streamStatus is "cancelled" | "error" {
+  return streamStatus === "cancelled" || streamStatus === "error";
 }
 
 function hasAssistantSurfaceContent({
@@ -145,6 +243,13 @@ function hasAssistantSurfaceContent({
     hasPendingPermission,
     hasProcessContent,
     hasResultSummary,
-    ACTIVE_STREAM_STATUSES.has(streamStatus ?? ""),
+    hasStreamStatus(ACTIVE_STREAM_STATUSES, streamStatus),
   ].some(Boolean);
+}
+
+function hasStreamStatus(
+  statuses: ReadonlySet<string>,
+  streamStatus: string | null,
+): boolean {
+  return statuses.has(streamStatus ?? "");
 }
