@@ -7,7 +7,7 @@ import { buildChatNotificationTargetKey } from "@/features/home/notifications/ch
 import { resolveDirectRoomNavigationTarget } from "@/lib/conversation/direct-room-navigation";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { SidebarEmptyGuide } from "@/shared/ui/sidebar/sidebar-empty-guide";
-import { SIDEBAR_TOUR_ANCHORS } from "@/shared/ui/sidebar/sidebar-navigation-tour";
+import { SIDEBAR_TOUR_ANCHORS } from "@/features/onboarding/tours/sidebar-navigation-tour";
 import { useAgentStore } from "@/store/agent";
 import { useSidebarStore } from "@/store/sidebar";
 

@@ -7,7 +7,7 @@ import {
   CapabilityFilterSelect,
 } from "@/features/capability/shared/capability-page-layout";
 import type { DiscoveryMode } from "./controller/skill-marketplace-controller";
-import { SKILLS_TOUR_ANCHORS } from "./skills-tour";
+import { SKILLS_TOUR_ANCHORS } from "@/features/onboarding/tours/skills-tour";
 
 interface SkillsSearchBarProps {
   activeCategory: string;

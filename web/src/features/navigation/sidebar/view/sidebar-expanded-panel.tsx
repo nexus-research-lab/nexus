@@ -10,9 +10,9 @@ import { AppRouteBuilders } from "@/app/router/route-paths";
 import { CapabilitiesPanelContent } from "@/features/capability/capabilities-sidebar-panel";
 import { ChatSidebarPanelContent } from "@/features/home/sidebar/chat-sidebar-panel";
 import { ContactsSidebarPanelContent } from "@/features/home/sidebar/contacts-sidebar-panel";
+import { SIDEBAR_TOUR_ANCHORS } from "@/features/onboarding/tours/sidebar-navigation-tour";
 import { HOME_SIDEBAR_PADDING_CLASS } from "@/lib/layout/home-layout";
 import { cn } from "@/lib/utils";
-import { SIDEBAR_TOUR_ANCHORS } from "@/shared/ui/sidebar/sidebar-navigation-tour";
 import { COMPACT_WORKSPACE_HEADER_SINGLE_ROW_HEIGHT_CLASS } from "@/shared/ui/workspace/surface/workspace-header-layout";
 
 import { SidebarNexusButton } from "./sidebar-nexus-button";

@@ -23,7 +23,7 @@ import { RoomSurfaceTabKey } from "@/types/conversation/room-surface";
 import { useSidebarStore } from "@/store/sidebar";
 
 import { CreateRoomDialog } from "@/features/conversation/room/members/create-room-dialog";
-import { CONVERSATION_TOUR_ANCHORS } from "../../room-tour";
+import { CONVERSATION_TOUR_ANCHORS } from "@/features/onboarding/tours/conversation-tour";
 
 interface GroupConversationHeaderProps {
   conversationId: string | null;

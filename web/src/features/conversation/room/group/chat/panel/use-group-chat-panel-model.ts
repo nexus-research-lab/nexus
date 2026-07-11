@@ -23,7 +23,7 @@ import type { Message } from "@/types/conversation/message";
 import type { TodoItem } from "@/types/conversation/todo";
 
 import { useRoomThreadSource } from "../use-room-thread-panel-data";
-import { CONVERSATION_TOUR_ANCHORS } from "../../../room-tour";
+import { CONVERSATION_TOUR_ANCHORS } from "@/features/onboarding/tours/conversation-tour";
 import type { GroupChatPanelViewModel } from "./group-chat-panel-view";
 import type { GroupChatPanelProps } from "./group-chat-panel-types";
 import { useRoomGoalComposer } from "./use-room-goal-composer";

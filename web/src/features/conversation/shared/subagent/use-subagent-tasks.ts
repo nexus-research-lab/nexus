@@ -1,14 +1,6 @@
 "use client";
 
-import {
-  type Dispatch,
-  type SetStateAction,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { listSubagentTasksApi } from "@/lib/api/subagent-task-api";
 import type {
@@ -20,10 +12,12 @@ import type {
 import {
   isSubagentTaskActive,
   normalizeSubagentTaskListResponse,
+  SUBAGENT_TASK_POLL_INTERVAL_MS,
+  subagentTaskErrorMessage,
   subagentTaskSourceKey,
 } from "./subagent-task-model";
+import { useScopedResource } from "./use-scoped-resource";
 
-const RUNNING_TASK_POLL_INTERVAL_MS = 3_000;
 const EMPTY_TASKS: SubagentTask[] = [];
 
 interface UseSubagentTasksResult {
@@ -49,25 +43,25 @@ export function useSubagentTasks(
   const scopeKey = enabled && source ? sourceKey : "";
   const sourceRef = useRef(source);
   sourceRef.current = source;
-  const scopeKeyRef = useRef(scopeKey);
-  scopeKeyRef.current = scopeKey;
-  const [storedSnapshot, setStoredSnapshot] = useState<TaskListSnapshot>(() =>
-    createTaskListSnapshot(scopeKey),
-  );
-  const requestSequenceRef = useRef(0);
-  const snapshot = storedSnapshot.scopeKey === scopeKey
-    ? storedSnapshot
-    : createTaskListSnapshot(scopeKey);
+  const {
+    beginRequest,
+    commit,
+    invalidateRequests,
+    isCurrentRequest,
+    snapshot,
+  } = useScopedResource(scopeKey, createTaskListSnapshot);
 
   const refresh = useCallback(async (silent = false) => {
     const currentSource = sourceRef.current;
     if (!currentSource || !scopeKey || subagentTaskSourceKey(currentSource) !== scopeKey) {
       return;
     }
-    const requestSequence = requestSequenceRef.current + 1;
-    requestSequenceRef.current = requestSequence;
+    const requestId = beginRequest(scopeKey);
+    if (requestId === null) {
+      return;
+    }
     if (!silent) {
-      commitSnapshot(setStoredSnapshot, scopeKeyRef, scopeKey, (current) => ({
+      commit(scopeKey, (current) => ({
         ...current,
         error: null,
         isLoading: true,
@@ -76,38 +70,34 @@ export function useSubagentTasks(
 
     try {
       const response = await listSubagentTasksApi(currentSource);
-      if (!isCurrentRequest(scopeKeyRef, scopeKey, requestSequenceRef, requestSequence)) {
+      if (!isCurrentRequest(scopeKey, requestId)) {
         return;
       }
-      commitSnapshot(setStoredSnapshot, scopeKeyRef, scopeKey, (current) => ({
+      commit(scopeKey, (current) => ({
         ...current,
         data: normalizeSubagentTaskListResponse(response),
         error: null,
         isLoading: false,
       }));
     } catch (requestError) {
-      if (!isCurrentRequest(scopeKeyRef, scopeKey, requestSequenceRef, requestSequence)) {
+      if (!isCurrentRequest(scopeKey, requestId)) {
         return;
       }
-      commitSnapshot(setStoredSnapshot, scopeKeyRef, scopeKey, (current) => ({
+      commit(scopeKey, (current) => ({
         ...current,
-        error: requestError instanceof Error
-          ? requestError.message
-          : String(requestError),
+        error: subagentTaskErrorMessage(requestError),
         isLoading: false,
       }));
     }
-  }, [scopeKey]);
+  }, [beginRequest, commit, isCurrentRequest, scopeKey]);
 
   useEffect(() => {
-    requestSequenceRef.current += 1;
+    invalidateRequests();
     if (scopeKey) {
       void refresh();
     }
-    return () => {
-      requestSequenceRef.current += 1;
-    };
-  }, [refresh, scopeKey]);
+    return invalidateRequests;
+  }, [invalidateRequests, refresh, scopeKey]);
 
   const tasks = snapshot.data?.items ?? EMPTY_TASKS;
   const hasRunningTasks = useMemo(
@@ -121,7 +111,7 @@ export function useSubagentTasks(
     }
     const intervalId = window.setInterval(() => {
       void refresh(true);
-    }, RUNNING_TASK_POLL_INTERVAL_MS);
+    }, SUBAGENT_TASK_POLL_INTERVAL_MS);
     return () => window.clearInterval(intervalId);
   }, [hasRunningTasks, refresh, scopeKey]);
 
@@ -141,34 +131,4 @@ function createTaskListSnapshot(scopeKey: string): TaskListSnapshot {
     isLoading: Boolean(scopeKey),
     scopeKey,
   };
-}
-
-function commitSnapshot(
-  setSnapshot: Dispatch<SetStateAction<TaskListSnapshot>>,
-  currentScopeKey: { current: string },
-  expectedScopeKey: string,
-  update: (snapshot: TaskListSnapshot) => TaskListSnapshot,
-) {
-  if (currentScopeKey.current !== expectedScopeKey) {
-    return;
-  }
-  setSnapshot((current) => {
-    if (currentScopeKey.current !== expectedScopeKey) {
-      return current;
-    }
-    const scopedSnapshot = current.scopeKey === expectedScopeKey
-      ? current
-      : createTaskListSnapshot(expectedScopeKey);
-    return update(scopedSnapshot);
-  });
-}
-
-function isCurrentRequest(
-  currentScopeKey: { current: string },
-  expectedScopeKey: string,
-  requestSequenceRef: { current: number },
-  requestSequence: number,
-): boolean {
-  return currentScopeKey.current === expectedScopeKey
-    && requestSequenceRef.current === requestSequence;
 }

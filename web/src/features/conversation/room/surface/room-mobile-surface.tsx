@@ -16,7 +16,7 @@ import { DmChatPanel } from "@/features/conversation/room/dm/panel/dm-chat-panel
 import { SubagentTaskSurface } from "@/features/conversation/shared/subagent/subagent-task-surface";
 import { GroupChatPanel } from "../group/chat/panel/group-chat-panel";
 import { GroupThreadContextProvider } from "../group/thread/group-thread-context";
-import { GroupThreadDetailPanel } from "../group/thread/group-thread-detail-panel";
+import { ConversationThreadPanel } from "@/features/conversation/shared/thread/conversation-thread-panel";
 import { useGroupThread } from "../group/thread/group-thread-state";
 import { useRoomThreadPanel } from "../group/chat/use-room-thread-panel-data";
 import { resolveRoomSubagentTaskSource } from "./room-surface-model";
@@ -268,7 +268,7 @@ function MobileThreadOverlay() {
 
   return (
     <div className="fixed inset-0 z-50 bg-(--surface-panel-background)">
-      <GroupThreadDetailPanel
+      <ConversationThreadPanel
         roundId={activeThread.roundId}
         agentId={activeThread.agentId}
         agentName={threadPanelData.agentName ?? activeThread.agentId}

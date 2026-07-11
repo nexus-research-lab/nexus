@@ -10,9 +10,7 @@ import { cn } from "@/lib/utils";
 import { useSidebarStore } from "@/store/sidebar";
 import { queryLauncher } from "@/lib/api/launcher-api";
 import { ensureDirectRoom, getRoomContexts } from "@/lib/api/room-api";
-import {
-  buildLauncherTour,
-} from "@/features/launcher/launcher-tour";
+import { buildLauncherTour } from "@/features/onboarding/tours/launcher-tour";
 import { usePageOnboardingTour } from "@/shared/ui/onboarding/use-page-onboarding-tour";
 import {
   buildDecorativeTokens,

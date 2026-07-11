@@ -1,4 +1,3 @@
-import { getSessionChannelLabel } from "@/features/conversation/external-session-labels";
 import { RoomConversationView } from "@/types/conversation/conversation";
 
 const CREATE_CONVERSATION_BUTTON_SPACE = 88;
@@ -96,24 +95,6 @@ export function getCloseFallbackConversationId(
   );
 }
 
-export function isExternalSessionConversation(
-  conversation?: RoomConversationView,
-): boolean {
-  return conversation?.options?.external_session === true;
-}
-
-export function getExternalSessionLabel(
-  conversation: RoomConversationView,
-): string | null {
-  if (!isExternalSessionConversation(conversation)) {
-    return null;
-  }
-  return getSessionChannelLabel(
-    readStringOption(conversation.options, "channel_type"),
-    conversation.session_key,
-  );
-}
-
 export function calculateConversationTabWidths({
   activeConversationId,
   hasCreateButton,
@@ -172,9 +153,4 @@ function areIdsEqual(leftIds: string[], rightIds: string[]): boolean {
   return leftIds.length === rightIds.length && leftIds.every(
     (id, index) => id === rightIds[index],
   );
-}
-
-function readStringOption(options: Record<string, unknown>, key: string): string | null {
-  const value = options[key];
-  return typeof value === "string" ? value : null;
 }

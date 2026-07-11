@@ -9,11 +9,11 @@
 
 import { Outlet } from "react-router-dom";
 
+import { SidebarWidePanel } from "@/features/navigation/sidebar/sidebar-wide-panel";
 import { HOME_PAGE_PADDING_CLASS } from "@/lib/layout/home-layout";
 import { cn } from "@/lib/utils";
-import { SidebarWidePanel } from "@/shared/ui/sidebar/wide-panel/sidebar-wide-panel";
 
-export function AppLayout({ showSidebar: showSidebar = true }: { showSidebar?: boolean }) {
+export function AppLayout({ showSidebar = true }: { showSidebar?: boolean }) {
   return (
     <main className="desktop-window-frame relative flex h-screen w-full overflow-hidden bg-transparent text-foreground">
       {showSidebar ? <SidebarWidePanel /> : null}

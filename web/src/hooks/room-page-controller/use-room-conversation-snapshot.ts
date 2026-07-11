@@ -1,6 +1,6 @@
 import { useCallback, type Dispatch, type SetStateAction } from "react";
 
-import { isExternalSessionChannel } from "@/features/conversation/external-session-labels";
+import { isExternalSessionChannel } from "@/lib/conversation/external-session";
 import { notifyRoomDirectoryUpdated } from "@/lib/api/room-api";
 import type { AgentConversationIdentity } from "@/types/agent/agent-conversation";
 import type {

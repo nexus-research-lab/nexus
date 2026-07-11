@@ -1,9 +1,9 @@
 import { ConversationResizeHandle } from "@/features/conversation/shared/editor/conversation-resize-handle";
+import { ConversationThreadPanel } from "@/features/conversation/shared/thread/conversation-thread-panel";
 import { cn } from "@/lib/utils";
 import type { RoomSurfaceTabKey } from "@/types/conversation/room-surface";
 
 import { useRoomThreadPanel } from "../../group/chat/use-room-thread-panel-data";
-import { GroupThreadDetailPanel } from "../../group/thread/group-thread-detail-panel";
 import { useGroupThread } from "../../group/thread/group-thread-state";
 
 interface RoomThreadInlinePanelProps {
@@ -43,7 +43,7 @@ export function RoomThreadInlinePanel({
         onMouseDown={onStartEditorResize}
       />
 
-      <GroupThreadDetailPanel
+      <ConversationThreadPanel
         roundId={activeThread.roundId}
         agentId={activeThread.agentId}
         agentName={threadPanelData.agentName ?? activeThread.agentId}

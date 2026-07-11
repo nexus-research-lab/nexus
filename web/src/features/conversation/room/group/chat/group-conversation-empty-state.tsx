@@ -23,7 +23,7 @@ import {
   WorkspaceCatalogTitle,
   WorkspaceIconFrame,
 } from "@/shared/ui/workspace/catalog/workspace-catalog-card";
-import { CONVERSATION_TOUR_ANCHORS } from "../../room-tour";
+import { CONVERSATION_TOUR_ANCHORS } from "@/features/onboarding/tours/conversation-tour";
 
 interface GroupConversationEmptyStateProps {
   onCreateConversation: (title?: string) => void | Promise<string | null>;

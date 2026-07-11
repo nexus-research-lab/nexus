@@ -11,7 +11,7 @@ const AuthenticatedAppSessionRoot = lazy(() =>
   })),
 );
 const AppLayout = lazy(() =>
-  import("@/shared/ui/layout/app-layout").then((m) => ({ default: m.AppLayout })),
+  import("@/app/layout/app-layout").then((m) => ({ default: m.AppLayout })),
 );
 
 // 懒加载页面组件 — 首次导航时按需加载

@@ -13,6 +13,8 @@ export type SubagentTaskViewStatus =
   | "stopped"
   | "failed";
 
+export const SUBAGENT_TASK_POLL_INTERVAL_MS = 3_000;
+
 const EMPTY_CAPABILITIES: SubagentTaskCapabilities = {
   observe: false,
   transcript: false,
@@ -102,6 +104,10 @@ export function subagentTaskSourceKey(source: SubagentTaskSource | null): string
     return `session:${source.session_key}`;
   }
   return `room:${source.room_id}:${source.conversation_id}`;
+}
+
+export function subagentTaskErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 export function normalizeSubagentTaskListResponse(

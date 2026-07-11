@@ -12,7 +12,7 @@ import {
 import { ArrowRight, MessageSquare } from "lucide-react";
 
 import { HeroBlobShell } from "@/features/launcher/launcher-glass-shell";
-import { LAUNCHER_TOUR_ANCHORS } from "@/features/launcher/launcher-tour";
+import { LAUNCHER_TOUR_ANCHORS } from "@/features/onboarding/tours/launcher-tour";
 import {
   MentionTargetItem,
   MentionTargetPopover,

@@ -26,7 +26,7 @@ import { SkillsExternalResults } from "./external/skills-external-results";
 import { SkillImportDialog } from "./import/skill-import-dialog";
 import { SkillsHeader } from "./skills-header";
 import { SkillsSearchBar } from "./skills-search-bar";
-import { SKILLS_TOUR_ANCHORS } from "./skills-tour";
+import { SKILLS_TOUR_ANCHORS } from "@/features/onboarding/tours/skills-tour";
 
 /* ── Skills 页面主编排组件 ────────────────────── */
 

@@ -9,7 +9,7 @@ import {
   buildExternalSessionConversationId,
   formatExternalSessionTitle,
   isExternalSessionChannel,
-} from "@/features/conversation/external-session-labels";
+} from "@/lib/conversation/external-session";
 import { AgentSession } from "@/types/agent/agent";
 import { RoomConversationView } from "@/types/conversation/conversation";
 

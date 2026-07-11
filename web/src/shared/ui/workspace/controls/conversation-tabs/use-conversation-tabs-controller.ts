@@ -7,12 +7,12 @@ import {
 } from "react";
 import { flushSync } from "react-dom";
 
+import { isExternalSessionConversation } from "@/lib/conversation/external-session";
 import {
   calculateConversationTabWidths,
   getCloseFallbackConversationId,
   getInitialOpenConversationIds,
   getRecentConversationIds,
-  isExternalSessionConversation,
   reconcileOpenConversationIds,
   resolveActiveConversationId,
 } from "@/shared/ui/workspace/controls/conversation-tabs/conversation-tabs-model";

@@ -1,5 +1,3 @@
-"use client";
-
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import type { OnboardingTourDefinition } from "@/shared/ui/onboarding/tour-provider";
 

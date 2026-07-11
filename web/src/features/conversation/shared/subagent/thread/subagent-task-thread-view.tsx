@@ -3,10 +3,8 @@
 import { Loader2, Send, Square } from "lucide-react";
 import type { FormEvent } from "react";
 
-import {
-  GroupThreadDetailPanel,
-  type GroupThreadRound,
-} from "@/features/conversation/room/group/thread/group-thread-detail-panel";
+import { ConversationThreadPanel } from "@/features/conversation/shared/thread/conversation-thread-panel";
+import type { ConversationThreadRound } from "@/features/conversation/shared/thread/conversation-thread-model";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { Message } from "@/types/conversation/message";
 import type {
@@ -14,16 +12,16 @@ import type {
   SubagentTaskMessagesResponse,
 } from "@/types/conversation/subagent-task";
 
-import { SubagentTaskAvatar } from "./subagent-task-list";
+import { SubagentTaskAvatar } from "../subagent-task-list";
 import {
   isSubagentTaskActive,
   subagentTaskAvatarDataUrl,
   subagentTaskTitle,
-} from "./subagent-task-model";
+} from "../subagent-task-model";
 import type {
   SubagentTaskCommand,
   SubagentTaskThreadError,
-} from "./use-subagent-task-thread";
+} from "./subagent-task-thread-model";
 
 export interface SubagentTaskThreadViewModel {
   canSend: boolean;
@@ -38,7 +36,7 @@ export interface SubagentTaskThreadViewModel {
   onRetry: () => void;
   onSend: () => void;
   onStop: () => void;
-  rounds: GroupThreadRound[];
+  rounds: ConversationThreadRound[];
   sessionKey: string;
   setDraft: (value: string) => void;
   task: SubagentTask;
@@ -63,7 +61,7 @@ export function SubagentTaskThreadView({
     : undefined;
 
   return (
-    <GroupThreadDetailPanel
+    <ConversationThreadPanel
       agentAvatar={subagentTaskAvatarDataUrl(model.task.task_id)}
       agentId={model.task.agent_id ?? model.task.task_id}
       agentName={taskTitle}

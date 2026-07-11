@@ -6,7 +6,7 @@ import {
   WorkspaceSurfaceToolbarAction,
 } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import type { TranslationKey } from "@/shared/i18n/messages";
-import { SKILLS_TOUR_ANCHORS } from "./skills-tour";
+import { SKILLS_TOUR_ANCHORS } from "@/features/onboarding/tours/skills-tour";
 
 import type {
   DiscoveryMode,

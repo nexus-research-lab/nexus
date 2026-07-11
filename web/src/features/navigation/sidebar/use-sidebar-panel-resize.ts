@@ -10,13 +10,13 @@ const SIDEBAR_RESIZE_HOTZONE_WIDTH = 8;
 const MODAL_ROOT_SELECTOR = "[data-modal-root='true']";
 
 interface UseSidebarPanelResizeOptions {
-  set_wide_panel_width: (width: number) => void;
-  wide_panel_width: number;
+  setWidth: (width: number) => void;
+  width: number;
 }
 
 export function useSidebarPanelResize({
-  set_wide_panel_width: setWidePanelWidth,
-  wide_panel_width: widePanelWidth,
+  setWidth,
+  width,
 }: UseSidebarPanelResizeOptions) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [isResizeHotzoneActive, setIsResizeHotzoneActive] = useState(false);
@@ -43,11 +43,11 @@ export function useSidebarPanelResize({
       event.preventDefault();
       isDraggingRef.current = true;
       startXRef.current = event.clientX;
-      startWidthRef.current = widePanelWidth;
+      startWidthRef.current = width;
       setIsResizeHotzoneActive(true);
       event.currentTarget.setPointerCapture(event.pointerId);
     },
-    [widePanelWidth],
+    [width],
   );
 
   const handlePointerMove = useCallback(
@@ -72,9 +72,9 @@ export function useSidebarPanelResize({
 
       const delta = event.clientX - startXRef.current;
       const nextWidth = startWidthRef.current + delta;
-      setWidePanelWidth(nextWidth);
+      setWidth(nextWidth);
     },
-    [setWidePanelWidth],
+    [setWidth],
   );
 
   const handlePointerUp = useCallback(() => {
@@ -100,11 +100,11 @@ export function useSidebarPanelResize({
   }, []);
 
   return {
-    handle_pointer_down: handlePointerDown,
-    handle_pointer_leave: handlePointerLeave,
-    handle_pointer_move: handlePointerMove,
-    handle_pointer_up: handlePointerUp,
-    is_resize_hotzone_active: isResizeHotzoneActive,
-    root_ref: rootRef,
+    handlePointerDown,
+    handlePointerLeave,
+    handlePointerMove,
+    handlePointerUp,
+    isResizeHotzoneActive,
+    rootRef,
   };
 }

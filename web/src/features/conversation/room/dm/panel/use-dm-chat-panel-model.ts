@@ -21,7 +21,7 @@ import type { SessionSnapshotPayload } from "@/types/conversation/conversation";
 import type { Message } from "@/types/conversation/message";
 import type { TodoItem } from "@/types/conversation/todo";
 
-import { CONVERSATION_TOUR_ANCHORS } from "../../room-tour";
+import { CONVERSATION_TOUR_ANCHORS } from "@/features/onboarding/tours/conversation-tour";
 import type { DmChatPanelProps } from "./dm-chat-panel-types";
 import type { DmChatPanelViewModel } from "./dm-chat-panel-view";
 

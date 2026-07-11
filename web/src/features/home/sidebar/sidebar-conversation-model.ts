@@ -1,5 +1,5 @@
 import { isMainAgent } from "@/config/options";
-import { isExternalSessionChannel } from "@/features/conversation/external-session-labels";
+import { isExternalSessionChannel } from "@/lib/conversation/external-session";
 import type { AgentRuntimeStatus } from "@/types/agent/agent";
 import type {
   LauncherAgentSummary,

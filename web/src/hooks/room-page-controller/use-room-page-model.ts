@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 
 import { isMainAgent } from "@/config/options";
-import { buildExternalSessionConversationId } from "@/features/conversation/external-session-labels";
+import { buildExternalSessionConversationId } from "@/lib/conversation/external-session";
 import type { Agent, AgentSession } from "@/types/agent/agent";
 import type { AgentConversationIdentity } from "@/types/agent/agent-conversation";
 import type { RoomConversationView } from "@/types/conversation/conversation";

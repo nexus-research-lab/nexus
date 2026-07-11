@@ -19,7 +19,7 @@ import { WorkspaceConversationTabs } from "@/shared/ui/workspace/controls/worksp
 import { RoomSurfaceTabKey } from "@/types/conversation/room-surface";
 import { RoomConversationView } from "@/types/conversation/conversation";
 import { useSidebarStore } from "@/store/sidebar";
-import { CONVERSATION_TOUR_ANCHORS } from "../room-tour";
+import { CONVERSATION_TOUR_ANCHORS } from "@/features/onboarding/tours/conversation-tour";
 
 interface DmConversationHeaderProps {
   conversationId: string | null;

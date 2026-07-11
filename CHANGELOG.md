@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Made Nexus the sole owner of scheduled-task state and timing, exposed automation to runtimes through the injected MCP server, and simplified task creation, list actions, and run diagnostics around progressive disclosure.
+- Renamed the product scheduling domain and storage from Cron jobs to scheduled tasks; Cron now denotes only the `schedule.kind=cron` expression mode.
 - Split Room page state into scoped data, projection, command, snapshot, and existing-Agent option controllers, and reduced the page entry to orchestration only.
 - Split Room Workspace orchestration into Agent scope, file resource, path model, command, layout, file-browser, and dialog modules.
 - Split conversation Todo projection into round indexing, runtime-task merging, status inference, and a stable shared hook used by both DM and Room panels.
@@ -43,6 +44,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Moved Agent message collection, chat-ack failure, and event-dispatch lifecycles out of the public conversation hook, while keeping public actions stable against streaming state updates.
 - Split Agent session orchestration into identity migration, background/volatile snapshots, lifecycle context, and command composition, removing a redundant input-queue setter wrapper.
 - Split Agent WebSocket handlers by message, permission, resync, session, and scope event families, centralizing current-session guards and rejecting duplicate event ownership during router registration.
+- Split subagent threads into scoped transcript resources, serialized commands, and pure presentation, while promoting the Room-specific Thread panel into a shared conversation boundary.
+- Moved application Tours and guide-center navigation out of shared Sidebar UI, and split the wide Sidebar into an app-navigation controller, pure projection, resize behavior, and presentation views.
+- Removed the remaining base-layer dependencies on Features by relocating the app shell and Agent Options dialog to their owners and centralizing external-session protocol and labels under `lib/conversation`.
 - Unified sidebar and chat-notification bootstrap data behind one queued Home directory resource, and split notification projection, browser effects, and Room WebSocket protocol into dedicated modules.
 - Consolidated Home chat and contact sidebar code into one domain, separating Room/DM catalog projection, unread aggregation, directory subscriptions, Room commands, and presentation-only panels.
 - Split Personal settings into a scoped profile resource and command controller, data-driven password validation, and presentation-only profile, password, and token-usage sections.

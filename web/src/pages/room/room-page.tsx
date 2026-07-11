@@ -3,7 +3,7 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
 
-import { getExternalSessionKeyFromConversationId } from "@/features/conversation/external-session-labels";
+import { getExternalSessionKeyFromConversationId } from "@/lib/conversation/external-session";
 import { GroupRouteEntry } from "@/features/conversation/room/group/group-route-entry";
 import { RoomSurfaceShell } from "@/features/conversation/room/surface/room-surface-shell";
 import { useRoomPageController } from "@/hooks/room-page-controller/use-room-page-controller";
@@ -17,7 +17,7 @@ import {
   buildDmConversationTour,
   buildRoomConversationTour,
   buildRoomEmptyConversationTour,
-} from "@/features/conversation/room/room-tour";
+} from "@/features/onboarding/tours/conversation-tour";
 
 export function RoomPage() {
   const { t } = useI18n();

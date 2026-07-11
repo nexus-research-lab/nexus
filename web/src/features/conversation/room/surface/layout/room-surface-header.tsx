@@ -5,7 +5,7 @@ import type { UpdateRoomParams } from "@/types/conversation/room";
 import type { RoomSurfaceTabKey } from "@/types/conversation/room-surface";
 
 import { GroupConversationHeader } from "../../group/header/group-conversation-header";
-import { CONVERSATION_TOUR_ANCHORS } from "../../room-tour";
+import { CONVERSATION_TOUR_ANCHORS } from "@/features/onboarding/tours/conversation-tour";
 
 interface RoomSurfaceHeaderProps {
   activeSurfaceTab: RoomSurfaceTabKey;

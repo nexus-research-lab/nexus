@@ -2,11 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
+import { AgentOptionsDialog } from "@/features/agents/options/dialog/agent-options-dialog";
 import { ContactsAgentDetail } from "@/features/contacts/contacts-agent-detail";
 import { ContactsDirectory } from "@/features/contacts/contacts-directory";
 import { validateAgentNameApi } from "@/lib/api/agent-manage-api";
 import { createRoom, ensureDirectRoom } from "@/lib/api/room-api";
-import { AgentOptions } from "@/shared/ui/dialog/agent-options";
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
 import { WorkspaceLoadingState } from "@/shared/ui/workspace/frame/workspace-loading-state";
 import { WorkspacePageFrame } from "@/shared/ui/workspace/frame/workspace-page-frame";
@@ -263,7 +263,7 @@ export function ContactsPage() {
         )}
       </WorkspacePageFrame>
 
-      <AgentOptions
+      <AgentOptionsDialog
         agentId={editingAgentId ?? undefined}
         initialOptions={dialogInitialOptions}
         initialAvatar={editingAgent?.avatar ?? ""}

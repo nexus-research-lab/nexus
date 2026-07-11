@@ -5,7 +5,7 @@ import { CreateRoomDialog } from "@/features/conversation/room/members/create-ro
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
 import { SidebarEmptyGuide } from "@/shared/ui/sidebar/sidebar-empty-guide";
-import { SIDEBAR_TOUR_ANCHORS } from "@/shared/ui/sidebar/sidebar-navigation-tour";
+import { SIDEBAR_TOUR_ANCHORS } from "@/features/onboarding/tours/sidebar-navigation-tour";
 
 import {
   ConversationRow,

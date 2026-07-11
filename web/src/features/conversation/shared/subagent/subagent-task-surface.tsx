@@ -6,7 +6,7 @@ import type { SubagentTaskSource } from "@/types/conversation/subagent-task";
 
 import { SubagentTaskList } from "./subagent-task-list";
 import { subagentTaskSourceKey } from "./subagent-task-model";
-import { SubagentTaskThread } from "./subagent-task-thread";
+import { SubagentTaskThread } from "./thread/subagent-task-thread";
 import { useSubagentTasks } from "./use-subagent-tasks";
 
 interface SubagentTaskSurfaceProps {

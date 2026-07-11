@@ -1,12 +1,3 @@
-/**
- * =====================================================
- * @File   : agent-options-dialog.tsx
- * @Date   : 2026-04-15 17:38
- * @Author : leemysw
- * 2026-04-15 17:38   Create
- * =====================================================
- */
-
 "use client";
 
 import { useEffect } from "react";
@@ -27,13 +18,17 @@ import type {
   AgentOptions as AgentConfigOptions,
 } from "@/types/agent/agent";
 
-export interface AgentOptionsProps {
+export interface AgentOptionsDialogProps {
   agentId?: string;
   mode: "create" | "edit";
   isOpen: boolean;
   onClose: () => void;
   onDelete?: (agentId: string) => void;
-  onSave: (title: string, options: AgentConfigOptions, identity: AgentIdentityDraft) => void | Promise<void>;
+  onSave: (
+    title: string,
+    options: AgentConfigOptions,
+    identity: AgentIdentityDraft,
+  ) => void | Promise<void>;
   onValidateName?: (name: string) => Promise<AgentNameValidationResult>;
   initialTitle?: string;
   initialOptions?: Partial<AgentConfigOptions>;
@@ -42,21 +37,21 @@ export interface AgentOptionsProps {
   initialVibeTags?: string[];
 }
 
-/** 中文注释：共享层只保留对话框骨架，真实编辑器和业务状态迁回 feature。 */
-export function AgentOptions({
-  agentId: agentId,
+/** Contacts 创建与编辑共用同一编辑器，弹窗只负责 Portal、键盘关闭和窗口骨架。 */
+export function AgentOptionsDialog({
+  agentId,
   mode,
-  isOpen: isOpen,
-  onClose: onClose,
-  onDelete: onDelete,
-  onSave: onSave,
-  onValidateName: onValidateName,
-  initialTitle: initialTitle = "",
-  initialOptions: initialOptions = {},
-  initialAvatar: initialAvatar = "",
-  initialDescription: initialDescription = "",
-  initialVibeTags: initialVibeTags = [],
-}: AgentOptionsProps) {
+  isOpen,
+  onClose,
+  onDelete,
+  onSave,
+  onValidateName,
+  initialTitle = "",
+  initialOptions = {},
+  initialAvatar = "",
+  initialDescription = "",
+  initialVibeTags = [],
+}: AgentOptionsDialogProps) {
   const { t } = useI18n();
 
   useEffect(() => {

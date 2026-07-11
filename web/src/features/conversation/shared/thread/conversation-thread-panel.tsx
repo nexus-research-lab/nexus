@@ -1,28 +1,22 @@
 "use client";
 
-import { useMemo, type ReactNode } from "react";
 import { ArrowLeft, Bot, X } from "lucide-react";
+import { type ReactNode, useMemo } from "react";
 
-import { useFollowScroll } from "@/features/conversation/shared/timeline/scroll/use-follow-scroll";
-import { cn } from "@/lib/utils";
 import { MessageItem } from "@/features/conversation/shared/message";
+import { MessageAvatar } from "@/features/conversation/shared/message/ui/message-primitives";
+import { ScrollToLatestButton } from "@/features/conversation/shared/scroll-to-latest-button";
+import { useFollowScroll } from "@/features/conversation/shared/timeline/scroll/use-follow-scroll";
 import {
   buildConversationScrollContentKey,
 } from "@/features/conversation/shared/timeline/scroll/follow-scroll-model";
-import { ScrollToLatestButton } from "@/features/conversation/shared/scroll-to-latest-button";
-import { MessageAvatar } from "@/features/conversation/shared/message/ui/message-primitives";
-import { Message } from "@/types/conversation/message";
-import {
-  PendingPermission,
-  PermissionDecisionPayload,
-} from "@/types/conversation/permission";
+import { cn } from "@/lib/utils";
+import type { Message } from "@/types/conversation/message";
+import type { PendingPermission, PermissionDecisionPayload } from "@/types/conversation/permission";
 
-export interface GroupThreadRound {
-  roundId: string;
-  messages: Message[];
-}
+import type { ConversationThreadRound } from "./conversation-thread-model";
 
-interface GroupThreadDetailPanelProps {
+interface ConversationThreadPanelProps {
   roundId: string;
   agentId: string;
   agentName: string;
@@ -31,7 +25,7 @@ interface GroupThreadDetailPanelProps {
   /** 已过滤好的 Thread 消息。 */
   messages: Message[];
   /** 子智能体可在同一个 Thread 中连续产生多轮消息。 */
-  rounds?: GroupThreadRound[];
+  rounds?: ConversationThreadRound[];
   pendingPermissions?: PendingPermission[];
   onPermissionResponse?: (payload: PermissionDecisionPayload) => boolean;
   onClose: () => void;
@@ -58,7 +52,7 @@ interface GroupThreadDetailPanelProps {
  * Thread 详情面板：群聊回复与子智能体都复用同一个完整过程渲染器。
  * 上游只负责提供消息轮次和能力动作，这里统一处理思考、工具、文件与滚动状态。
  */
-export function GroupThreadDetailPanel({
+export function ConversationThreadPanel({
   roundId,
   agentId,
   agentName,
@@ -82,9 +76,9 @@ export function GroupThreadDetailPanel({
   emptyContent,
   sessionKey,
   workspaceAgentId,
-}: GroupThreadDetailPanelProps) {
+}: ConversationThreadPanelProps) {
   const isMobile = layout === "mobile";
-  const resolvedRounds = useMemo<GroupThreadRound[]>(
+  const resolvedRounds = useMemo<ConversationThreadRound[]>(
     () => rounds ?? [{ roundId, messages }],
     [messages, roundId, rounds],
   );

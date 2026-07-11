@@ -2,9 +2,9 @@
 
 import { Plus } from "lucide-react";
 
+import { getExternalSessionConversationLabel } from "@/lib/conversation/external-session";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { getExternalSessionLabel } from "@/shared/ui/workspace/controls/conversation-tabs/conversation-tabs-model";
 import { useConversationTabsController } from "@/shared/ui/workspace/controls/conversation-tabs/use-conversation-tabs-controller";
 import { WorkspaceConversationTab } from "@/shared/ui/workspace/controls/conversation-tabs/workspace-conversation-tab";
 import { RoomConversationView } from "@/types/conversation/conversation";
@@ -59,7 +59,7 @@ export function WorkspaceConversationTabs({
           <WorkspaceConversationTab
             canClose={controller.orderedConversations.length > 1}
             closeLabel={t("room.close_conversation")}
-            externalSessionLabel={getExternalSessionLabel(conversation)}
+            externalSessionLabel={getExternalSessionConversationLabel(conversation)}
             isActive={isActive}
             key={conversationId}
             onClose={() => controller.closeConversation(conversationId)}

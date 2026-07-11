@@ -12,7 +12,7 @@ import { ConversationFeed } from "@/features/conversation/shared/feed/conversati
 import { GoalPanel } from "@/features/conversation/shared/goal/goal-panel";
 import { ConversationSessionNavigator } from "@/features/conversation/shared/session-navigator/conversation-session-navigator";
 
-import { CONVERSATION_TOUR_ANCHORS } from "../../room-tour";
+import { CONVERSATION_TOUR_ANCHORS } from "@/features/onboarding/tours/conversation-tour";
 
 type NavigatorModel = Omit<
   ComponentProps<typeof ConversationSessionNavigator>,

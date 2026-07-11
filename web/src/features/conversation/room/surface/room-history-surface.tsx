@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, Clock3, MessageSquarePlus, Pencil, Trash2, X } from "lucide-react";
 
-import { getSessionChannelLabel } from "@/features/conversation/external-session-labels";
+import {
+  getExternalSessionConversationLabel,
+  isExternalSessionConversation,
+} from "@/lib/conversation/external-session";
 import { cn, formatRelativeTime } from "@/lib/utils";
 import {
   ConversationDeleteState,
@@ -38,21 +41,6 @@ function compareConversationsByRecentActivity(
   return left.conversation_id.localeCompare(right.conversation_id);
 }
 
-function stringOption(options: Record<string, unknown>, key: string): string | null {
-  const value = options[key];
-  return typeof value === "string" ? value : null;
-}
-
-function getExternalSessionLabel(conversation: RoomConversationView): string | null {
-  if (conversation.options?.external_session !== true) {
-    return null;
-  }
-  return getSessionChannelLabel(
-    stringOption(conversation.options, "channel_type"),
-    conversation.session_key,
-  );
-}
-
 export function RoomHistorySurface({
   canManageConversations: canManageConversations = true,
   conversations,
@@ -84,7 +72,7 @@ export function RoomHistorySurface({
         {orderedConversations.length > 0 ? (
           <div className="space-y-1.5">
             {orderedConversations.map((conversation) => {
-              const isExternalSession = conversation.options?.external_session === true;
+              const isExternalSession = isExternalSessionConversation(conversation);
               const deleteState = isExternalSession
                 ? { enabled: false, reason: "外部会话由 IM 通道生成" }
                 : resolveRoomConversationDeleteState(
@@ -184,7 +172,7 @@ function ConversationHistoryItem({
     }
   }, [isEditing]);
   const showActions = !isEditing && (canRename || deleteState.enabled);
-  const externalSessionLabel = getExternalSessionLabel(conversation);
+  const externalSessionLabel = getExternalSessionConversationLabel(conversation);
 
   const startEdit = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
