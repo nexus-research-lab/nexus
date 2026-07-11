@@ -10,6 +10,7 @@ import {
   ROOM_GOAL_SCOPE_LABEL,
 } from "@/features/conversation/shared/goal/goal-continuation-hold";
 import { GoalPanel } from "@/features/conversation/shared/goal/goal-panel";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import {
   resolveDefaultRoomGoalLead,
   resolveRoomGoalLeadAgentId,
@@ -17,7 +18,6 @@ import {
 
 interface RoomGoalPanelProps {
   activityKey: string | number | null;
-  canControlSession: boolean;
   isLoading: boolean;
   isMobileLayout: boolean;
   roomHostAgentId?: string | null;
@@ -28,7 +28,6 @@ interface RoomGoalPanelProps {
 
 export function RoomGoalPanel({
   activityKey: activityKey,
-  canControlSession: canControlSession,
   isLoading: isLoading,
   isMobileLayout: isMobileLayout,
   roomHostAgentId: roomHostAgentId,
@@ -36,6 +35,7 @@ export function RoomGoalPanel({
   roomMembers: roomMembers,
   sessionKey: sessionKey,
 }: RoomGoalPanelProps) {
+  const { t } = useI18n();
   const [currentGoal, setCurrentGoal] = useState<Goal | null>(null);
   const defaultLeadAgentId = useMemo(
     () => resolveDefaultRoomGoalLead(roomMembers, roomHostAgentId),
@@ -71,10 +71,12 @@ export function RoomGoalPanel({
   const statusExtra = leadAgent ? (
     <span
       className="inline-flex min-w-0 items-center gap-1 truncate text-(--text-muted)"
-      title={`Room Goal 负责人：${leadAgent.name}`}
+      title={t("room.goal_lead_status_title", { name: leadAgent.name })}
     >
       <UserRound className="h-3 w-3 shrink-0" />
-      <span className="truncate">负责人 {leadAgent.name}</span>
+      <span className="truncate">
+        {t("room.goal_lead_status", { name: leadAgent.name })}
+      </span>
     </span>
   ) : null;
 
@@ -83,7 +85,6 @@ export function RoomGoalPanel({
       activityKey={activityKey}
       compact={isMobileLayout}
       continuationHold={continuationHold}
-      disabled={!canControlSession}
       isGenerating={isLoading}
       sessionKey={sessionKey}
       scopeLabel={ROOM_GOAL_SCOPE_LABEL}

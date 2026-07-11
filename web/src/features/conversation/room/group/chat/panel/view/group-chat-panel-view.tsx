@@ -1,5 +1,4 @@
 import type { ComponentProps } from "react";
-import { UserRound } from "lucide-react";
 
 import { ComposerPanel } from "@/features/conversation/shared/composer/composer-panel";
 import {
@@ -10,18 +9,21 @@ import {
   type ConversationViewportModel,
 } from "@/features/conversation/shared/conversation-panel-layout";
 import { ConversationSessionNavigator } from "@/features/conversation/shared/session-navigator/conversation-session-navigator";
-import type { Agent } from "@/types/agent/agent";
 
-import { GroupConversationFeed } from "../feed/group-conversation-feed";
-import type { GroupConversationFeedProps } from "../feed/group-conversation-feed-model";
-import { GroupConversationEmptyState } from "../group-conversation-empty-state";
-import { RoomGoalPanel } from "../room-goal-panel";
+import { GroupConversationFeed } from "../../feed/group-conversation-feed";
+import type { GroupConversationFeedProps } from "../../feed/group-conversation-feed-model";
+import { GroupConversationEmptyState } from "../../group-conversation-empty-state";
+import { RoomGoalPanel } from "../../room-goal-panel";
+import {
+  RoomGoalLeadControl,
+  type RoomGoalLeadControlProps,
+} from "./room-goal-lead-control";
 
 type NavigatorModel = Omit<
   ComponentProps<typeof ConversationSessionNavigator>,
   "className"
 >;
-type ComposerModel = Omit<
+export type GroupChatComposerModel = Omit<
   ComponentProps<typeof ComposerPanel>,
   "compact" | "goalModeExtra"
 >;
@@ -29,15 +31,11 @@ type GoalPanelModel = Omit<
   ComponentProps<typeof RoomGoalPanel>,
   "isMobileLayout"
 >;
+
 export interface GroupChatPanelViewModel {
-  composer: ComposerModel;
+  composer: GroupChatComposerModel;
   feed: GroupConversationFeedProps;
-  goalLead: {
-    agentId: string;
-    disabled: boolean;
-    onChange: (agentId: string) => void;
-    roomMembers: Agent[];
-  };
+  goalLead: RoomGoalLeadControlProps;
   goalPanel: GoalPanelModel;
   isMobileLayout: boolean;
   navigator: NavigatorModel;
@@ -100,34 +98,5 @@ function ActiveGroupConversation({
         goalModeExtra={<RoomGoalLeadControl {...model.goalLead} />}
       />
     </>
-  );
-}
-
-function RoomGoalLeadControl({
-  agentId,
-  disabled,
-  onChange,
-  roomMembers,
-}: GroupChatPanelViewModel["goalLead"]) {
-  return (
-    <label
-      className="pointer-events-auto inline-flex h-5 min-w-0 max-w-[190px] items-center gap-1 rounded-[7px] border border-(--surface-canvas-border) bg-(--surface-elevated-background) px-1.5 text-[10px] font-medium text-(--text-muted)"
-      title="选择 Room Goal 负责人"
-    >
-      <UserRound className="h-3 w-3 shrink-0" />
-      <select
-        className="min-w-0 flex-1 bg-transparent text-[10px] font-semibold text-(--text-default) outline-none disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)"
-        disabled={disabled}
-        value={agentId}
-        onChange={(event) => onChange(event.target.value)}
-      >
-        <option value="">负责人</option>
-        {roomMembers.map((agent) => (
-          <option key={agent.agent_id} value={agent.agent_id}>
-            {agent.name}
-          </option>
-        ))}
-      </select>
-    </label>
   );
 }

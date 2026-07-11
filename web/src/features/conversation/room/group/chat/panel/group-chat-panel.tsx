@@ -1,8 +1,8 @@
 "use client";
 
-import { GroupChatPanelView } from "./group-chat-panel-view";
+import { useGroupChatPanelModel } from "./controller/use-group-chat-panel-model";
 import type { GroupChatPanelProps } from "./group-chat-panel-types";
-import { useGroupChatPanelModel } from "./use-group-chat-panel-model";
+import { GroupChatPanelView } from "./view/group-chat-panel-view";
 
 export type { GroupChatPanelProps } from "./group-chat-panel-types";
 

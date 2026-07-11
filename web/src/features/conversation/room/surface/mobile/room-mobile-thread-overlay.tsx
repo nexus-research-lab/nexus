@@ -1,7 +1,7 @@
 import { ConversationThreadPanel } from "@/features/conversation/shared/thread/conversation-thread-panel";
 
-import { useRoomThreadPanel } from "../../group/chat/use-room-thread-panel-data";
 import { useGroupThread } from "../../group/thread/group-thread-state";
+import { useRoomThreadPanel } from "../../group/thread/live/use-room-thread-panel";
 
 export function RoomMobileThreadOverlay() {
   const { activeThread, closeThread } = useGroupThread();
@@ -16,7 +16,7 @@ export function RoomMobileThreadOverlay() {
       <ConversationThreadPanel
         agentAvatar={threadPanelData.agentAvatar}
         agentId={activeThread.agentId}
-        agentName={threadPanelData.agentName ?? activeThread.agentId}
+        agentName={threadPanelData.agentName}
         isLoading={threadPanelData.isLoading}
         layout="mobile"
         messages={threadPanelData.messages}

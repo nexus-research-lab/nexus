@@ -3,8 +3,8 @@ import { ConversationThreadPanel } from "@/features/conversation/shared/thread/c
 import { cn } from "@/lib/utils";
 import type { RoomSurfaceTabKey } from "@/types/conversation/room-surface";
 
-import { useRoomThreadPanel } from "../../group/chat/use-room-thread-panel-data";
 import { useGroupThread } from "../../group/thread/group-thread-state";
+import { useRoomThreadPanel } from "../../group/thread/live/use-room-thread-panel";
 
 interface RoomThreadInlinePanelProps {
   activeSurfaceTab: RoomSurfaceTabKey;
@@ -46,7 +46,7 @@ export function RoomThreadInlinePanel({
       <ConversationThreadPanel
         roundId={activeThread.roundId}
         agentId={activeThread.agentId}
-        agentName={threadPanelData.agentName ?? activeThread.agentId}
+        agentName={threadPanelData.agentName}
         agentAvatar={threadPanelData.agentAvatar}
         userAvatar={threadPanelData.userAvatar}
         messages={threadPanelData.messages}

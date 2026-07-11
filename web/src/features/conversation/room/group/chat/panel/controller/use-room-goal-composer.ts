@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { createGoalApi } from "@/lib/api/goal-api";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import type { Agent } from "@/types/agent/agent";
 import type { LoopCatalogItem } from "@/types/capability/loop";
 
@@ -9,7 +10,7 @@ import {
   buildRoomLoopGoalMetadata,
   buildRoomLoopGoalObjective,
   resolveDefaultRoomGoalLead,
-} from "../room-goal-model";
+} from "../../room-goal-model";
 
 interface UseRoomGoalComposerOptions {
   roomHostAgentId: string | null;
@@ -32,6 +33,7 @@ export function useRoomGoalComposer({
   roomMembers,
   sessionKey,
 }: UseRoomGoalComposerOptions): RoomGoalComposerModel {
+  const { t } = useI18n();
   const defaultLeadAgentId = useMemo(
     () => resolveDefaultRoomGoalLead(roomMembers, roomHostAgentId),
     [roomHostAgentId, roomMembers],
@@ -52,12 +54,9 @@ export function useRoomGoalComposer({
     setRefreshSequence((value) => value + 1);
   }, []);
   const createGoal = useCallback(
-    async (
-      objective: string,
-      metadata: Record<string, unknown>,
-    ) => {
+    async (objective: string, metadata: Record<string, unknown>) => {
       if (!sessionKey) {
-        throw new Error("当前房间会话尚未准备好，暂时无法启动 Goal。");
+        throw new Error(t("room.goal_session_not_ready"));
       }
       await createGoalApi({
         metadata,
@@ -67,15 +66,15 @@ export function useRoomGoalComposer({
       });
       refresh();
     },
-    [refresh, sessionKey],
+    [refresh, sessionKey, t],
   );
   const requireLeadAgentId = useCallback(() => {
     const normalized = leadAgentId.trim();
     if (!normalized) {
-      throw new Error("请选择 Room Goal 负责人。");
+      throw new Error(t("room.goal_lead_required"));
     }
     return normalized;
-  }, [leadAgentId]);
+  }, [leadAgentId, t]);
   const onCreateGoal = useCallback(
     async (objective: string) => {
       const leadAgent = requireLeadAgentId();
@@ -101,6 +100,8 @@ export function useRoomGoalComposer({
     createDisabledReason: resolveCreateDisabledReason(
       roomMembers,
       leadAgentId,
+      t("room.goal_no_assignable_agent"),
+      t("room.goal_lead_required"),
     ),
     leadAgentId,
     onCreateGoal,
@@ -114,12 +115,11 @@ export function useRoomGoalComposer({
 function resolveCreateDisabledReason(
   roomMembers: Agent[],
   leadAgentId: string,
+  noAssignableAgentMessage: string,
+  leadRequiredMessage: string,
 ): string | null {
   if (roomMembers.length === 0) {
-    return "房间还没有可指派的 Agent";
+    return noAssignableAgentMessage;
   }
-  if (leadAgentId.trim() === "") {
-    return "请选择 Room Goal 负责人";
-  }
-  return null;
+  return leadAgentId.trim() === "" ? leadRequiredMessage : null;
 }

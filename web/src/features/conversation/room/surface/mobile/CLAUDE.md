@@ -4,4 +4,5 @@
 - `room-mobile-header.tsx` 只负责返回、会话入口和子智能体入口。
 - `room-mobile-conversation-sheet.tsx` 独占会话列表展示与选择交互。
 - Thread 与子智能体全屏层分别由各自 Overlay 组件装配，不回流到主表面。
+- 移动端 Thread 与桌面右栏共用 `group/thread/live/` 的面板模型，不自行补全身份或动作。
 - DM/Group 聊天参数统一经过 `../room-chat-surface.tsx`；移动端不得复制 Panel 分支。

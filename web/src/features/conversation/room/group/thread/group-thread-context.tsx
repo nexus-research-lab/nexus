@@ -1,21 +1,18 @@
 "use client";
 
-import { ReactNode, useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 
 import {
   ThreadControlContext,
-  ThreadControlState,
-  ThreadTarget,
+  type ThreadControlState,
+  type ThreadTarget,
 } from "./group-thread-state";
 
-// ── Provider ─────────────────────────────────────────────────────────────────
-//
-// 只负责 Thread 控制态（哪个 round/agent 的 thread 被打开）。
-// 面板数据走 room-thread-live store（见 use-room-thread-panel-data.ts），不再经此。
+// 控制上下文只保存选择态；高频实时数据由 `live/` 发布，避免消息流重渲染整棵子树。
 
 export function GroupThreadContextProvider({
   children,
-  onOpenThread: onOpenThread,
+  onOpenThread,
 }: {
   children: ReactNode;
   onOpenThread?: () => void;
@@ -32,7 +29,7 @@ export function GroupThreadContextProvider({
   }, [onOpenThread]);
 
   const closeThread = useCallback(() => {
-    setActiveThread((current) => current ? null : current);
+    setActiveThread(null);
   }, []);
 
   const controlValue = useMemo<ThreadControlState>(

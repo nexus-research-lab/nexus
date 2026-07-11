@@ -25,7 +25,7 @@ export function GroupConversationRound({
   renderer,
   state,
 }: GroupConversationRoundProps) {
-  const { index, isLast, isLive, isLoaded, messages, pendingPermissions, pendingSlots, roundId } = state;
+  const { index, isLoaded, messages, pendingPermissions, pendingSlots, roundId } = state;
   const hasRoomEntries = hasRoomAgentRoundEntries(messages, pendingSlots);
 
   return (
@@ -43,8 +43,6 @@ export function GroupConversationRound({
           agentAvatarMap={renderer.agentAvatarMap}
           agentNameMap={renderer.agentNameMap}
           currentUserAvatar={renderer.currentUserAvatar}
-          isLastRound={isLast}
-          isLoading={isLive}
           messages={messages}
           onOpenAgentContact={renderer.onOpenAgentContact}
           onOpenWorkspaceFile={renderer.onOpenWorkspaceFile}
