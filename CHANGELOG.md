@@ -32,6 +32,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Split Agent skill configuration into scoped resource, command, search projection, and presentation modules, cancelling stale list requests and serializing writes per Agent.
 - Split AskUserQuestion into an atomic answer model, tool-scoped interaction controller, and status-driven presentation, preventing duplicate submissions and stale result hydration.
 - Replaced the message-item support grab bag with owned content, time, projection, activity, and timeline modules, and converted message ordering into an explicit staged pipeline.
+- Removed the flat message-item state contract, grouping User and Assistant state by visual responsibility while letting each view define its own narrow input contract.
+- Split conversation navigation into timeline data projection and ruler presentation models, unifying loaded and indexed rounds behind one navigation-item projection.
+- Decomposed round jumping into scoped target, serialized window-loading, and DOM landing controllers, preventing stale requests from affecting newer navigation.
+- Split visible timeline window loading into candidate selection, retry runtime, and scheduling controllers while keeping its opportunistic strategy distinct from explicit round jumps.
+- Split Provider configuration actions into field linkage, persistence, enablement, and deletion controllers, exposing only a narrow persistence command to model and connectivity-test actions.
 - Unified sidebar and chat-notification bootstrap data behind one queued Home directory resource, and split notification projection, browser effects, and Room WebSocket protocol into dedicated modules.
 - Consolidated Home chat and contact sidebar code into one domain, separating Room/DM catalog projection, unread aggregation, directory subscriptions, Room commands, and presentation-only panels.
 - Split Personal settings into a scoped profile resource and command controller, data-driven password validation, and presentation-only profile, password, and token-usage sections.

@@ -1,27 +1,31 @@
 import type { ReactNode, RefObject } from "react";
 import { ChevronDown, ChevronRight, Wrench } from "lucide-react";
 
-import type { PermissionDecisionPayload } from "@/types/conversation/permission";
 import type { WorkspaceFileArtifactContent } from "@/types/conversation/message";
+import type {
+  PendingPermission,
+  PermissionDecisionPayload,
+} from "@/types/conversation/permission";
 
 import { WorkspaceFileArtifactList } from "../../../blocks/artifact/workspace-file-artifacts";
-import type { MessageItemState } from "../../message-item-types";
+import type { MessageActivityState } from "../../../ui/message-primitives";
+import type { ContentProjection } from "../../message-item-projection";
 import { ContentRenderer } from "../content/content-renderer";
 
 interface AssistantProcessCallchainProps {
-  anchorRef: MessageItemState["processAnchorRef"];
+  anchorRef: RefObject<HTMLElement | null>;
   canRespondToPermissions: boolean;
   collapsedFileArtifacts: WorkspaceFileArtifactContent[];
-  fallbackActivityState: MessageItemState["liveActivityState"];
+  fallbackActivityState: MessageActivityState | null;
   hiddenToolNames: string[];
   isExpanded: boolean;
   isStreaming: boolean;
   onOpenWorkspaceFile?: (path: string) => void;
   onPermissionResponse?: (payload: PermissionDecisionPayload) => boolean;
   pendingPermissionBlock: ReactNode;
-  pendingPermissionsByToolUseId: MessageItemState["matchedPendingPermissionsByToolUseId"];
+  pendingPermissionsByToolUseId: ReadonlyMap<string, PendingPermission>;
   permissionReadOnlyReason?: string;
-  processProjection: MessageItemState["processProjection"];
+  processProjection: ContentProjection;
   summary: string;
   toggleExpanded: () => void;
   workspaceAgentId?: string | null;

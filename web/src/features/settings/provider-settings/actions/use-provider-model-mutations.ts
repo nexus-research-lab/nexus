@@ -17,7 +17,7 @@ import type {
   FeedbackState,
   ModelOptionsState,
 } from "../model/provider-settings-types";
-import type { PersistProvider } from "./use-provider-config-actions";
+import type { PersistProvider } from "./config/use-provider-persistence";
 import type { RunProviderCommand } from "./use-provider-command";
 
 interface UseProviderModelMutationsOptions {

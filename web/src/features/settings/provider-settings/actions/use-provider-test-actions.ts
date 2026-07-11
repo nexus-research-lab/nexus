@@ -11,7 +11,7 @@ import type { ProviderModelApi } from "../provider-settings-api";
 import { getProviderErrorMessage } from "../model/provider-feedback-model";
 import { AUTO_TEST_MODEL_VALUE } from "../model/provider-model-model";
 import type { FeedbackState } from "../model/provider-settings-types";
-import type { PersistProvider } from "./use-provider-config-actions";
+import type { PersistProvider } from "./config/use-provider-persistence";
 import type {
   ProviderPendingAction,
   RunProviderCommand,

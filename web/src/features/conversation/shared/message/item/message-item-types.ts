@@ -1,22 +1,13 @@
-import type { CSSProperties, ReactNode } from "react";
+import type { ReactNode } from "react";
 
 import type { AgentConversationRuntimePhase } from "@/types/agent/agent-conversation";
-import type {
-  AssistantMessage,
-  ContentBlock,
-  Message,
-  MessageAttachment,
-} from "@/types/conversation/message";
+import type { Message } from "@/types/conversation/message";
 import type {
   PendingPermission,
   PermissionDecisionPayload,
 } from "@/types/conversation/permission";
 
-import type {
-  AssistantContentMode,
-  ContentProjection,
-} from "./message-item-projection";
-import type { MessageActivityState } from "../ui/message-primitives";
+import type { AssistantContentMode } from "./message-item-projection";
 
 export interface MessageItemProps {
   compact?: boolean;
@@ -49,46 +40,4 @@ export interface MessageStatsData {
   tokens: string | null;
   cost: string | null;
   cacheHit: string | null;
-}
-
-export interface MessageItemState {
-  copiedUser: boolean;
-  copiedAssistant: boolean;
-  userMessage: Message | undefined;
-  userContent: string;
-  userAttachments: MessageAttachment[];
-  assistantAgentId: string | null;
-  model: string | undefined;
-  timestamp: number | undefined;
-  streamStatus: AssistantMessage["stream_status"] | null;
-  stopReason: AssistantMessage["stop_reason"] | null;
-  stats: MessageStatsData | null;
-  matchedPendingPermissionsByToolUseId: ReadonlyMap<string, PendingPermission>;
-  unmatchedPendingPermissions: PendingPermission[];
-  directOrderedProjection: ContentProjection;
-  processProjection: ContentProjection;
-  finalAssistantContent: string | ContentBlock[] | null;
-  finalAssistantStreamingIndexes: Set<number>;
-  finalAssistantText: string;
-  shouldRenderDirectAssistantContent: boolean;
-  shouldRenderProcessCallchain: boolean;
-  shouldRenderAssistantText: boolean;
-  shouldRenderStandaloneActivityStatus: boolean;
-  shouldShowAssistantFooter: boolean;
-  showCursor: boolean;
-  finalAssistantIsStreaming: boolean;
-  shouldHideAssistantContent: boolean;
-  processSummary: string;
-  liveActivityState: MessageActivityState | null;
-  isProcessExpanded: boolean;
-  toggleProcessExpanded: () => void;
-  processAnchorRef: React.RefObject<HTMLElement | null>;
-  canCopyAssistant: boolean;
-  canStopMessage: boolean;
-  handleCopyUser: () => Promise<void>;
-  handleCopyAssistant: () => Promise<void>;
-  handleStopMessage: () => void;
-  contentAreaRef: React.RefObject<HTMLDivElement | null>;
-  contentAreaStyle: CSSProperties | undefined;
-  mergedContentLength: number;
 }

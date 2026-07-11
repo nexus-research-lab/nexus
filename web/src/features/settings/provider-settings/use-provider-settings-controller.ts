@@ -5,7 +5,7 @@ import type { ProviderConfigRecord } from "@/types/capability/provider";
 
 import { getProviderSettingsApi } from "./provider-settings-api";
 import { useProviderCommand } from "./actions/use-provider-command";
-import { useProviderConfigActions } from "./actions/use-provider-config-actions";
+import { useProviderConfigActions } from "./actions/config/use-provider-config-actions";
 import { useProviderModelActions } from "./actions/use-provider-model-actions";
 import { buildProviderCatalog } from "./model/provider-catalog-model";
 import { getEffectiveModelsPath, getProviderTitle } from "./model/provider-config-model";

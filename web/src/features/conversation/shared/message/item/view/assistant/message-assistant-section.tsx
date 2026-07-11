@@ -1,17 +1,27 @@
-"use client";
-
-import { useCallback, type ReactNode } from "react";
+import {
+  useCallback,
+  type CSSProperties,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import { AlertTriangle } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { ContentBlock } from "@/types/conversation/message";
-import type { PermissionDecisionPayload } from "@/types/conversation/permission";
+import type {
+  PendingPermission,
+  PermissionDecisionPayload,
+} from "@/types/conversation/permission";
 
 import { useWorkspaceFileArtifactsFromContent } from "../../../blocks/artifact/workspace-file-artifact-utils";
 import { MessageStats } from "../../../ui/message-stats";
-import { MessageActivityStatus } from "../../../ui/message-primitives";
-import type { MessageItemState } from "../../message-item-types";
+import {
+  MessageActivityStatus,
+  type MessageActivityState,
+} from "../../../ui/message-primitives";
+import type { ContentProjection } from "../../message-item-projection";
+import type { MessageStatsData } from "../../message-item-types";
 import { ContentRenderer } from "../content/content-renderer";
 import {
   AssistantMessageAvatar,
@@ -22,7 +32,58 @@ import { PendingPermissionList } from "./pending-permission-list";
 
 const EMPTY_CONTENT_BLOCKS: ContentBlock[] = [];
 
+interface MessageAssistantState {
+  activity: {
+    emptyStreamStatus: "cancelled" | "error" | null;
+    showCursor: boolean;
+    standalone: boolean;
+    state: MessageActivityState | null;
+  };
+  direct: {
+    projection: ContentProjection;
+    visible: boolean;
+  };
+  final: {
+    content: string | ContentBlock[] | null;
+    isStreaming: boolean;
+    streamingIndexes: ReadonlySet<number>;
+    visible: boolean;
+  };
+  footer: {
+    copied: boolean;
+    onCopy?: () => Promise<void>;
+    stats: MessageStatsData | null;
+    visible: boolean;
+  };
+  header: {
+    agentId: string | null;
+    canStop: boolean;
+    model: string | undefined;
+    stop: () => void;
+    timestamp: number | undefined;
+  };
+  hidden: boolean;
+  layout: {
+    contentAreaRef: RefObject<HTMLDivElement | null>;
+    contentAreaStyle: CSSProperties | undefined;
+  };
+  permissions: {
+    matchedByToolUseId: ReadonlyMap<string, PendingPermission>;
+    unmatched: PendingPermission[];
+  };
+  process: {
+    anchorRef: RefObject<HTMLElement | null>;
+    expanded: boolean;
+    projection: ContentProjection;
+    summary: string;
+    toggle: () => void;
+    visible: boolean;
+  };
+  showMaxTokensWarning: boolean;
+}
+
 interface MessageAssistantSectionProps {
+  assistant: MessageAssistantState;
   assistantContentMode:
     | "dm_live"
     | "dm_archived"
@@ -38,11 +99,11 @@ interface MessageAssistantSectionProps {
   onOpenWorkspaceFile?: (path: string) => void;
   onPermissionResponse?: (payload: PermissionDecisionPayload) => boolean;
   permissionReadOnlyReason?: string;
-  state: MessageItemState;
   workspaceAgentId?: string | null;
 }
 
 export function MessageAssistantSection({
+  assistant,
   assistantContentMode,
   assistantHeaderAction,
   canRespondToPermissions,
@@ -54,15 +115,14 @@ export function MessageAssistantSection({
   onOpenWorkspaceFile,
   onPermissionResponse,
   permissionReadOnlyReason,
-  state,
   workspaceAgentId,
 }: MessageAssistantSectionProps) {
   const { t } = useI18n();
-  const contentWorkspaceAgentId = state.assistantAgentId ?? workspaceAgentId;
-  const avatarAgentId = state.assistantAgentId ?? workspaceAgentId ?? null;
+  const contentWorkspaceAgentId = assistant.header.agentId ?? workspaceAgentId;
+  const avatarAgentId = assistant.header.agentId ?? workspaceAgentId ?? null;
   const collapsedProcessFileArtifacts = useWorkspaceFileArtifactsFromContent(
-    state.shouldRenderProcessCallchain && !state.isProcessExpanded
-      ? state.processProjection.content
+    assistant.process.visible && !assistant.process.expanded
+      ? assistant.process.projection.content
       : EMPTY_CONTENT_BLOCKS,
   );
   const handleOpenAgentContact = useCallback(() => {
@@ -71,7 +131,7 @@ export function MessageAssistantSection({
     }
   }, [avatarAgentId, onOpenAgentContact]);
 
-  if (state.shouldHideAssistantContent) {
+  if (assistant.hidden) {
     return null;
   }
 
@@ -80,7 +140,7 @@ export function MessageAssistantSection({
       canRespond={canRespondToPermissions}
       isRoomThreadMode={assistantContentMode === "room_thread"}
       onResponse={onPermissionResponse}
-      permissions={state.unmatchedPendingPermissions}
+      permissions={assistant.permissions.unmatched}
       readOnlyReason={permissionReadOnlyReason}
       workspaceAgentId={contentWorkspaceAgentId}
     />
@@ -110,14 +170,14 @@ export function MessageAssistantSection({
             <AssistantMessageHeader
               avatarUrl={currentAgentAvatar}
               canOpenContact={canOpenContact}
-              canStop={state.canStopMessage}
+              canStop={assistant.header.canStop}
               compact={compact}
               headerAction={assistantHeaderAction}
-              model={state.model}
+              model={assistant.header.model}
               name={currentAgentName}
               onOpenContact={handleOpenAgentContact}
-              onStop={state.handleStopMessage}
-              timestamp={state.timestamp}
+              onStop={assistant.header.stop}
+              timestamp={assistant.header.timestamp}
             />
 
             <div
@@ -125,94 +185,88 @@ export function MessageAssistantSection({
                 "nexus-chat-message-content min-w-0 max-w-full overflow-x-hidden pb-2 pt-1 text-left",
                 compact ? "text-[15px] leading-6" : "text-[16px] leading-7",
               )}
-              ref={state.contentAreaRef}
-              style={state.contentAreaStyle}
+              ref={assistant.layout.contentAreaRef}
+              style={assistant.layout.contentAreaStyle}
             >
-              {state.shouldRenderStandaloneActivityStatus ? (
+              {assistant.activity.standalone ? (
                 <MessageActivityStatus
                   className="py-1"
-                  state={state.liveActivityState!}
+                  state={assistant.activity.state!}
                 />
               ) : null}
-              <EmptyStreamStatus
-                contentLength={state.mergedContentLength}
-                streamStatus={state.streamStatus}
-              />
+              <EmptyStreamStatus status={assistant.activity.emptyStreamStatus} />
 
-              {state.shouldRenderDirectAssistantContent ? (
+              {assistant.direct.visible ? (
                 <div>
                   <ContentRenderer
                     canRespondToPermissions={canRespondToPermissions}
-                    content={state.directOrderedProjection.content}
-                    fallbackActivityState={state.liveActivityState}
+                    content={assistant.direct.projection.content}
+                    fallbackActivityState={assistant.activity.state}
                     hiddenToolNames={hiddenToolNames}
-                    isStreaming={state.showCursor}
+                    isStreaming={assistant.activity.showCursor}
                     onOpenWorkspaceFile={onOpenWorkspaceFile}
                     onPermissionResponse={onPermissionResponse}
-                    pendingPermissionsByToolUseId={state.matchedPendingPermissionsByToolUseId}
+                    pendingPermissionsByToolUseId={assistant.permissions.matchedByToolUseId}
                     permissionReadOnlyReason={permissionReadOnlyReason}
                     showTimelineDots
-                    streamingBlockIndexes={state.directOrderedProjection.streamingIndexes}
+                    streamingBlockIndexes={assistant.direct.projection.streamingIndexes}
                     workspaceAgentId={contentWorkspaceAgentId}
                   />
                   {pendingPermissionBlock}
                 </div>
               ) : null}
 
-              {state.shouldRenderProcessCallchain ? (
+              {assistant.process.visible ? (
                 <AssistantProcessCallchain
-                  anchorRef={state.processAnchorRef}
+                  anchorRef={assistant.process.anchorRef}
                   canRespondToPermissions={canRespondToPermissions}
                   collapsedFileArtifacts={collapsedProcessFileArtifacts}
-                  fallbackActivityState={state.liveActivityState}
+                  fallbackActivityState={assistant.activity.state}
                   hiddenToolNames={hiddenToolNames}
-                  isExpanded={state.isProcessExpanded}
-                  isStreaming={state.showCursor}
+                  isExpanded={assistant.process.expanded}
+                  isStreaming={assistant.activity.showCursor}
                   onOpenWorkspaceFile={onOpenWorkspaceFile}
                   onPermissionResponse={onPermissionResponse}
                   pendingPermissionBlock={pendingPermissionBlock}
-                  pendingPermissionsByToolUseId={state.matchedPendingPermissionsByToolUseId}
+                  pendingPermissionsByToolUseId={assistant.permissions.matchedByToolUseId}
                   permissionReadOnlyReason={permissionReadOnlyReason}
-                  processProjection={state.processProjection}
-                  summary={state.processSummary}
-                  toggleExpanded={state.toggleProcessExpanded}
+                  processProjection={assistant.process.projection}
+                  summary={assistant.process.summary}
+                  toggleExpanded={assistant.process.toggle}
                   workspaceAgentId={contentWorkspaceAgentId}
                 />
               ) : null}
 
-              {state.shouldRenderAssistantText ? (
+              {assistant.final.visible ? (
                 <ContentRenderer
-                  content={state.finalAssistantContent ?? []}
-                  fallbackActivityState={state.liveActivityState}
-                  isStreaming={state.finalAssistantIsStreaming}
+                  content={assistant.final.content ?? []}
+                  fallbackActivityState={assistant.activity.state}
+                  isStreaming={assistant.final.isStreaming}
                   onOpenWorkspaceFile={onOpenWorkspaceFile}
-                  streamingBlockIndexes={state.finalAssistantStreamingIndexes}
+                  streamingBlockIndexes={assistant.final.streamingIndexes}
                   workspaceAgentId={contentWorkspaceAgentId}
                 />
               ) : null}
 
-              {state.stopReason === "max_tokens" ? (
+              {assistant.showMaxTokensWarning ? (
                 <div className="mt-2 flex items-center gap-1.5 rounded-[8px] border border-[color:color-mix(in_srgb,var(--warning)_18%,transparent)] px-3 py-2 text-xs leading-5 text-(--warning)">
                   <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
                   <span>{t("message.max_tokens_warning")}</span>
                 </div>
               ) : null}
 
-              {!state.shouldRenderDirectAssistantContent &&
-              !state.shouldRenderProcessCallchain ? (
+              {!assistant.direct.visible && !assistant.process.visible ? (
                 <div className="pt-2">{pendingPermissionBlock}</div>
               ) : null}
             </div>
 
-            {state.shouldShowAssistantFooter ? (
+            {assistant.footer.visible ? (
               <MessageStats
                 compact={compact}
-                copiedAssistant={state.copiedAssistant}
-                onCopyAssistant={state.canCopyAssistant
-                  ? state.handleCopyAssistant
-                  : undefined}
-                showCursor={state.showCursor}
-                stats={state.stats || undefined}
+                copiedAssistant={assistant.footer.copied}
+                onCopyAssistant={assistant.footer.onCopy}
+                showCursor={assistant.activity.showCursor}
+                stats={assistant.footer.stats || undefined}
               />
             ) : null}
           </div>
@@ -223,20 +277,13 @@ export function MessageAssistantSection({
 }
 
 function EmptyStreamStatus({
-  contentLength,
-  streamStatus,
+  status,
 }: {
-  contentLength: number;
-  streamStatus: MessageItemState["streamStatus"];
+  status: "cancelled" | "error" | null;
 }) {
-  if (contentLength !== 0) {
-    return null;
-  }
   const labels = {
     cancelled: <span className="text-xs italic text-(--text-soft)">已停止</span>,
     error: <span className="text-xs italic text-rose-500">执行失败</span>,
   };
-  return streamStatus === "cancelled" || streamStatus === "error"
-    ? labels[streamStatus]
-    : null;
+  return status ? labels[status] : null;
 }

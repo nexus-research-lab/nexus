@@ -22,7 +22,7 @@ import {
   getTickDisplayPercent,
   RULER_TRACK_BOTTOM_SAFE_INSET_PX,
   RULER_TRACK_TOP_SAFE_INSET_PX,
-} from "./session-navigator-model";
+} from "./session-navigator-ruler-model";
 import { useConversationSessionNavigation } from "./use-conversation-session-navigation";
 
 interface ConversationSessionNavigatorProps {

@@ -8,7 +8,7 @@ import {
   type SessionNavigationItem,
 } from "./session-navigator-model";
 import { useActiveRound } from "./use-active-round";
-import { useRoundJump } from "./use-round-jump";
+import { useRoundJump } from "./jump/use-round-jump";
 
 interface UseConversationSessionNavigationParams {
   timeline: ConversationTimeline;

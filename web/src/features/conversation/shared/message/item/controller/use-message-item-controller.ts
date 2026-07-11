@@ -2,8 +2,9 @@ import { useCallback, useEffect, useRef } from "react";
 
 import { useScrollAnchoredState } from "@/features/conversation/shared/timeline/scroll/use-scroll-anchored-state";
 import { useCopyToClipboard } from "@/hooks/ui/use-copy-to-clipboard";
+import type { ContentBlock } from "@/types/conversation/message";
 
-import type { MessageItemProps, MessageItemState } from "../message-item-types";
+import type { MessageItemProps } from "../message-item-types";
 import { useMessageItemStreamingLayout } from "../view/message-item-streaming-layout";
 import { hasTimedOutAskUserQuestion } from "./message-item-activity";
 import { useMessageItemProjection } from "./use-message-item-projection";
@@ -36,7 +37,7 @@ export function useMessageItemController({
   pendingPermissions = [],
   roundId,
   runtimePhase,
-}: MessageItemControllerOptions): MessageItemState {
+}: MessageItemControllerOptions) {
   const { copied: copiedUser, copy: copyUser } = useCopyToClipboard();
   const { copied: copiedAssistant, copy: copyAssistant } = useCopyToClipboard();
   const {
@@ -55,55 +56,14 @@ export function useMessageItemController({
     roundId,
     runtimePhase,
   });
-
-  const shouldRenderDirectAssistantContent =
-    projection.directOrderedProjection.content.length > 0;
-  const shouldRenderProcessCallchain =
-    assistantContentMode === "dm_archived" &&
-    (
-      projection.processProjection.content.length > 0 ||
-      projection.unmatchedPendingPermissions.length > 0
-    );
-  const shouldRenderAssistantText = hasDisplayContent(
-    projection.finalAssistantContent,
-  );
-  const shouldRenderStandaloneActivityStatus = Boolean(
-    projection.liveActivityState &&
-    !shouldRenderDirectAssistantContent &&
-    !shouldRenderProcessCallchain &&
-    !shouldRenderAssistantText,
-  );
-  const shouldHideAssistantContent = !hasAssistantSurfaceContent({
-    hasDirectContent: shouldRenderDirectAssistantContent,
-    hasFinalContent: shouldRenderAssistantText,
-    hasLiveActivity: Boolean(projection.liveActivityState),
-    hasPendingPermission: projection.unmatchedPendingPermissions.length > 0,
-    hasProcessContent: projection.processProjection.content.length > 0,
-    hasResultSummary: Boolean(projection.resultSummary),
-    streamStatus: projection.streamStatus,
+  const display = resolveAssistantDisplayState({
+    assistantContentMode,
+    hasStopHandler: Boolean(onStopMessage),
+    isLastRound: Boolean(isLastRound),
+    isLoading: Boolean(isLoading),
+    pendingPermissionCount: pendingPermissions.length,
+    projection,
   });
-  const showCursor = Boolean(
-    isLastRound &&
-    isLoading &&
-    (
-      projection.streamingBlockIndexes.size > 0 ||
-      projection.assistantMessages.length > 0 ||
-      pendingPermissions.length > 0 ||
-      STOPPABLE_STREAM_STATUSES.has(projection.streamStatus ?? "")
-    ),
-  );
-  const finalAssistantIsStreaming = Boolean(
-    showCursor &&
-    typeof projection.finalAssistantContent !== "string" &&
-    projection.finalAssistantStreamingIndexes.size > 0,
-  );
-  const canCopyAssistant = Boolean(projection.finalAssistantText.trim());
-  const shouldShowAssistantFooter =
-    (assistantContentMode === "dm_archived" || assistantContentMode === "room_result") &&
-    (Boolean(projection.stats) || (!isLoading && canCopyAssistant));
-  const canStopMessage = Boolean(
-    onStopMessage && STOPPABLE_STREAM_STATUSES.has(projection.streamStatus ?? ""),
-  );
   const hasTimedOutQuestion = hasTimedOutAskUserQuestion(
     projection.processProjection.content,
   );
@@ -134,59 +94,156 @@ export function useMessageItemController({
     assistantContentMode,
     directContent: projection.directOrderedProjection.content,
     finalAssistantText: projection.finalAssistantText,
-    showCursor,
+    showCursor: display.showCursor,
   });
 
   return {
-    copiedUser,
-    copiedAssistant,
-    userMessage: projection.userMessage,
-    userContent: projection.userContent,
-    userAttachments: projection.userAttachments,
-    assistantAgentId: projection.assistantAgentId,
-    model: projection.model,
-    timestamp: projection.timestamp,
-    streamStatus: projection.streamStatus,
-    stopReason: projection.stopReason,
-    stats: projection.stats,
-    matchedPendingPermissionsByToolUseId:
-      projection.matchedPendingPermissionsByToolUseId,
-    unmatchedPendingPermissions: projection.unmatchedPendingPermissions,
-    directOrderedProjection: projection.directOrderedProjection,
-    processProjection: projection.processProjection,
-    finalAssistantContent: projection.finalAssistantContent,
-    finalAssistantStreamingIndexes: projection.finalAssistantStreamingIndexes,
-    finalAssistantText: projection.finalAssistantText,
-    shouldRenderDirectAssistantContent,
-    shouldRenderProcessCallchain,
-    shouldRenderAssistantText,
-    shouldRenderStandaloneActivityStatus,
-    shouldShowAssistantFooter,
+    user: {
+      attachments: projection.userAttachments,
+      content: projection.userContent,
+      copied: copiedUser,
+      copy: handleCopyUser,
+      message: projection.userMessage,
+    },
+    assistant: {
+      hidden: display.hidden,
+      header: {
+        agentId: projection.assistantAgentId,
+        canStop: display.canStop,
+        model: projection.model,
+        stop: handleStopMessage,
+        timestamp: projection.timestamp,
+      },
+      permissions: {
+        matchedByToolUseId: projection.matchedPendingPermissionsByToolUseId,
+        unmatched: projection.unmatchedPendingPermissions,
+      },
+      direct: {
+        projection: projection.directOrderedProjection,
+        visible: display.directVisible,
+      },
+      process: {
+        anchorRef: processAnchorRef,
+        expanded: isProcessExpanded,
+        projection: projection.processProjection,
+        summary: projection.processSummary,
+        toggle: toggleProcessExpanded,
+        visible: display.processVisible,
+      },
+      final: {
+        content: projection.finalAssistantContent,
+        isStreaming: display.finalStreaming,
+        streamingIndexes: projection.finalAssistantStreamingIndexes,
+        visible: display.finalVisible,
+      },
+      activity: {
+        emptyStreamStatus: display.emptyStreamStatus,
+        showCursor: display.showCursor,
+        standalone: display.standaloneActivity,
+        state: projection.liveActivityState,
+      },
+      footer: {
+        copied: copiedAssistant,
+        onCopy: display.canCopy ? handleCopyAssistant : undefined,
+        stats: projection.stats,
+        visible: display.footerVisible,
+      },
+      layout: {
+        contentAreaRef,
+        contentAreaStyle,
+      },
+      showMaxTokensWarning: projection.stopReason === "max_tokens",
+    },
+  };
+}
+
+function resolveAssistantDisplayState({
+  assistantContentMode,
+  hasStopHandler,
+  isLastRound,
+  isLoading,
+  pendingPermissionCount,
+  projection,
+}: {
+  assistantContentMode: NonNullable<MessageItemProps["assistantContentMode"]>;
+  hasStopHandler: boolean;
+  isLastRound: boolean;
+  isLoading: boolean;
+  pendingPermissionCount: number;
+  projection: ReturnType<typeof useMessageItemProjection>;
+}) {
+  const directVisible = projection.directOrderedProjection.content.length > 0;
+  const processVisible = assistantContentMode === "dm_archived" && (
+    projection.processProjection.content.length > 0 ||
+    projection.unmatchedPendingPermissions.length > 0
+  );
+  const finalVisible = hasDisplayContent(projection.finalAssistantContent);
+  const showCursor = isLastRound && isLoading && [
+    projection.streamingBlockIndexes.size > 0,
+    projection.assistantMessages.length > 0,
+    pendingPermissionCount > 0,
+    STOPPABLE_STREAM_STATUSES.has(projection.streamStatus ?? ""),
+  ].some(Boolean);
+  const canCopy = Boolean(projection.finalAssistantText.trim());
+
+  return {
+    canCopy,
+    canStop:
+      hasStopHandler &&
+      STOPPABLE_STREAM_STATUSES.has(projection.streamStatus ?? ""),
+    directVisible,
+    emptyStreamStatus: resolveEmptyStreamStatus(
+      projection.mergedContent.length,
+      projection.streamStatus,
+    ),
+    finalStreaming: Boolean(
+      showCursor &&
+      typeof projection.finalAssistantContent !== "string" &&
+      projection.finalAssistantStreamingIndexes.size > 0,
+    ),
+    finalVisible,
+    footerVisible:
+      (assistantContentMode === "dm_archived" ||
+        assistantContentMode === "room_result") &&
+      (Boolean(projection.stats) || (!isLoading && canCopy)),
+    hidden: !hasAssistantSurfaceContent({
+      hasDirectContent: directVisible,
+      hasFinalContent: finalVisible,
+      hasLiveActivity: Boolean(projection.liveActivityState),
+      hasPendingPermission: projection.unmatchedPendingPermissions.length > 0,
+      hasProcessContent: projection.processProjection.content.length > 0,
+      hasResultSummary: Boolean(projection.resultSummary),
+      streamStatus: projection.streamStatus,
+    }),
+    processVisible,
     showCursor,
-    finalAssistantIsStreaming,
-    shouldHideAssistantContent,
-    processSummary: projection.processSummary,
-    liveActivityState: projection.liveActivityState,
-    isProcessExpanded,
-    toggleProcessExpanded,
-    processAnchorRef,
-    canCopyAssistant,
-    canStopMessage,
-    handleCopyUser,
-    handleCopyAssistant,
-    handleStopMessage,
-    contentAreaRef,
-    contentAreaStyle,
-    mergedContentLength: projection.mergedContent.length,
+    standaloneActivity: Boolean(
+      projection.liveActivityState &&
+      !directVisible &&
+      !processVisible &&
+      !finalVisible,
+    ),
   };
 }
 
 function hasDisplayContent(
-  content: MessageItemState["finalAssistantContent"],
+  content: string | ContentBlock[] | null,
 ): boolean {
   return typeof content === "string"
     ? Boolean(content.trim())
     : Boolean(content?.length);
+}
+
+function resolveEmptyStreamStatus(
+  contentLength: number,
+  streamStatus: string | null,
+): "cancelled" | "error" | null {
+  if (contentLength !== 0) {
+    return null;
+  }
+  return streamStatus === "cancelled" || streamStatus === "error"
+    ? streamStatus
+    : null;
 }
 
 function hasAssistantSurfaceContent({

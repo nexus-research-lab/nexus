@@ -8,7 +8,7 @@ import type {
 
 import type { ProviderModelApi } from "../provider-settings-api";
 import type { FeedbackState } from "../model/provider-settings-types";
-import type { PersistProvider } from "./use-provider-config-actions";
+import type { PersistProvider } from "./config/use-provider-persistence";
 import type { RunProviderCommand } from "./use-provider-command";
 import { useProviderModelControls } from "./use-provider-model-controls";
 import { useProviderModelMutations } from "./use-provider-model-mutations";

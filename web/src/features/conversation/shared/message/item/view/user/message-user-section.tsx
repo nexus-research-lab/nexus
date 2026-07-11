@@ -1,5 +1,3 @@
-"use client";
-
 import { useCallback } from "react";
 import {
   Check,
@@ -10,13 +8,13 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import type { Message, MessageAttachment } from "@/types/conversation/message";
 
 import {
   MessageActionButton,
   MessageAvatar,
 } from "../../../ui/message-primitives";
 import { formatMessageTime } from "../../../message-time";
-import type { MessageItemState } from "../../message-item-types";
 import { ContentRenderer } from "../content/content-renderer";
 import { MessageUserAttachments } from "./message-user-attachments";
 import { UserMessageEditor } from "./user-message-editor";
@@ -24,45 +22,44 @@ import { useUserMessageEditor } from "./use-user-message-editor";
 
 interface MessageUserSectionProps {
   compact: boolean;
-  copiedUser: boolean;
   currentUserAvatar?: string | null;
-  onCopyUser: () => Promise<void>;
   onEditUserMessage?: (messageId: string, newContent: string) => void;
   onOpenWorkspaceFile?: (path: string, workspaceAgentId?: string | null) => void;
-  userAttachments: MessageItemState["userAttachments"];
-  userContent: string;
-  userMessage: MessageItemState["userMessage"];
+  user: {
+    attachments: MessageAttachment[];
+    content: string;
+    copied: boolean;
+    copy: () => Promise<void>;
+    message: Message | undefined;
+  };
   workspaceAgentId?: string | null;
 }
 
 export function MessageUserSection({
   compact,
-  copiedUser,
   currentUserAvatar,
-  onCopyUser,
   onEditUserMessage,
   onOpenWorkspaceFile,
-  userAttachments,
-  userContent,
-  userMessage,
+  user,
   workspaceAgentId,
 }: MessageUserSectionProps) {
+  const { attachments, content, copied, copy, message } = user;
   const submitEditedContent = useCallback((content: string) => {
-    if (userMessage) {
-      onEditUserMessage?.(userMessage.round_id, content);
+    if (message) {
+      onEditUserMessage?.(message.round_id, content);
     }
-  }, [onEditUserMessage, userMessage]);
+  }, [message, onEditUserMessage]);
   const editor = useUserMessageEditor({
     compact,
-    content: userContent,
-    onSubmit: userMessage && onEditUserMessage ? submitEditedContent : undefined,
+    content,
+    onSubmit: message && onEditUserMessage ? submitEditedContent : undefined,
   });
 
-  if (!userMessage) {
+  if (!message) {
     return null;
   }
   const isGuidedUserMessage =
-    userMessage.role === "user" && userMessage.delivery_policy === "guide";
+    message.role === "user" && message.delivery_policy === "guide";
 
   return (
     <div
@@ -96,10 +93,10 @@ export function MessageUserSection({
                   ) : null}
                   <MessageActionButton
                     aria-label="复制消息"
-                    onClick={onCopyUser}
-                    tone={copiedUser ? "success" : "default"}
+                    onClick={copy}
+                    tone={copied ? "success" : "default"}
                   >
-                    {copiedUser ? (
+                    {copied ? (
                       <Check className="h-3 w-3" />
                     ) : (
                       <Copy className="h-3 w-3" />
@@ -107,7 +104,7 @@ export function MessageUserSection({
                   </MessageActionButton>
                 </div>
                 <span className="nexus-chat-meta hidden shrink-0 text-xs text-(--text-muted) sm:inline">
-                  {formatMessageTime(userMessage.timestamp)}
+                  {formatMessageTime(message.timestamp)}
                 </span>
                 {isGuidedUserMessage ? (
                   <span className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-(--text-muted)">
@@ -142,7 +139,7 @@ export function MessageUserSection({
               />
             ) : (
               <div className="nexus-chat-user-content-shell ml-auto flex w-fit max-w-full flex-col items-end rounded-2xl px-4 py-3">
-                {userContent.trim() ? (
+                {content.trim() ? (
                   <ContentRenderer
                     className={cn(
                       "nexus-chat-user-content w-fit max-w-[min(100%,760px)] self-end break-words text-left text-(--text-strong)",
@@ -150,13 +147,13 @@ export function MessageUserSection({
                         ? "text-[15px] leading-6 [&_.katex-display]:my-2"
                         : "text-[16px] leading-7 [&_.katex-display]:my-3",
                     )}
-                    content={userContent}
+                    content={content}
                     onOpenWorkspaceFile={onOpenWorkspaceFile}
                     workspaceAgentId={workspaceAgentId}
                   />
                 ) : null}
                 <MessageUserAttachments
-                  attachments={userAttachments}
+                  attachments={attachments}
                   onOpenWorkspaceFile={onOpenWorkspaceFile}
                   workspaceAgentId={workspaceAgentId}
                 />

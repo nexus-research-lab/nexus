@@ -14,7 +14,7 @@ import type { ConversationRoundScrollHandle } from "../timeline/scroll/round-scr
 import { buildConversationScrollContentKey } from "../timeline/scroll/follow-scroll-model";
 import { useConversationHistoryLoader } from "../timeline/use-history-loader";
 import { useConversationTimeline } from "../timeline/use-conversation-timeline";
-import { useVisibleRoundWindowLoader } from "../timeline/use-visible-window-loader";
+import { useVisibleRoundWindowLoader } from "../timeline/window-loader/use-visible-window-loader";
 
 interface UseConversationSessionOptions {
   chatType: AgentConversationChatType;

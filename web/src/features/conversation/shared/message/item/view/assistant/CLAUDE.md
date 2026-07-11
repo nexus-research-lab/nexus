@@ -6,3 +6,4 @@
 - `pending-permission-list.tsx`: 把未匹配权限请求适配为待确认工具块。
 
 本目录只消费控制器已经推导出的显示状态；不得重新排序消息、匹配权限或选择最终回复。
+Assistant 入口按 header、permissions、direct、process、final、activity、footer 和 layout 消费状态；子视图直接依赖领域类型，不索引上层聚合状态。

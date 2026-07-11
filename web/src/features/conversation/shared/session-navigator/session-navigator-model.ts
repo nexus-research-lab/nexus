@@ -26,152 +26,42 @@ export interface SessionNavigationItem {
   title: string;
 }
 
-export interface SessionNavigatorTickVisual {
-  background: string;
-  filter: string | undefined;
-  opacity: number;
-  width: number;
-}
-
-export const RULER_TRACK_TOP_SAFE_INSET_PX = 56;
-export const RULER_TRACK_BOTTOM_SAFE_INSET_PX = 24;
-
-const RULER_TICK_SPACING_PX = 14;
-const WAVE_RADIUS_TICKS = 4;
-const USER_TICK_COLOR = "#5b7cfa";
-const LIVE_TICK_COLOR = "#7c8cff";
-const NEUTRAL_TICK_COLOR = "var(--text-muted)";
-const ACTIVE_NEUTRAL_TICK_COLOR = "var(--text-strong)";
-const AGENT_TICK_COLORS = [
-  "#10b981",
-  "#f59e0b",
-  "#ec4899",
-  "#06b6d4",
-  "#8b5cf6",
-  "#ef4444",
-  "#84cc16",
-  "#14b8a6",
-];
 const INDEXED_STATUS_LABELS: Readonly<Record<string, string>> = {
   error: "失败",
   interrupted: "已中断",
 };
 
-export function getRulerTrackHeight(itemCount: number): number {
-  return Math.max(RULER_TICK_SPACING_PX, itemCount * RULER_TICK_SPACING_PX);
+interface NavigationItemSource {
+  agentIds: string[];
+  durationMs: number | null | undefined;
+  hasUserMessage: boolean;
+  isLive: boolean;
+  roundId: string;
+  status: string;
+  summary: string;
+  summaryFallback: string;
+  timestamp: number | null | undefined;
+  title: string;
 }
 
-export function getTickDisplayPercent(index: number, total: number): number {
-  return total > 0 ? ((index + 0.5) / total) * 100 : 50;
-}
-
-function smoothWave(distanceTicks: number): number {
-  const normalized = Math.max(0, 1 - distanceTicks / WAVE_RADIUS_TICKS);
-  return normalized * normalized * (3 - 2 * normalized);
-}
-
-function tickWidth(wave: number): number {
-  return Math.round(5 + wave * 11);
-}
-
-function tickOpacity(wave: number): number {
-  return Math.min(1, 0.48 + wave * 0.42);
-}
-
-function hashText(value: string): number {
-  let hash = 0;
-  for (let index = 0; index < value.length; index += 1) {
-    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
-  }
-  return hash;
-}
-
-function getAgentTickColor(agentId: string): string {
-  return AGENT_TICK_COLORS[hashText(agentId) % AGENT_TICK_COLORS.length];
-}
+const DURATION_FORMAT_RULES = [
+  {
+    matches: (totalSeconds: number) => totalSeconds < 60,
+    format: (totalSeconds: number) => `${totalSeconds}s`,
+  },
+  {
+    matches: (totalSeconds: number) => totalSeconds < 3600,
+    format: (totalSeconds: number) => (
+      `${Math.floor(totalSeconds / 60)}m ${totalSeconds % 60}s`
+    ),
+  },
+];
 
 function normalizeAgentIds(agentIds: string[]): string[] {
   const normalizedAgentIds = agentIds
     .map((agentId) => agentId.trim())
     .filter(Boolean);
   return Array.from(new Set(normalizedAgentIds));
-}
-
-function buildTickSegments(item: SessionNavigationItem): string[] {
-  const segments = item.hasUserMessage ? [USER_TICK_COLOR] : [];
-  segments.push(
-    ...normalizeAgentIds(item.agentIds)
-      .slice(0, 4)
-      .map(getAgentTickColor),
-  );
-  if (segments.length === 0) {
-    segments.push(item.isLive ? LIVE_TICK_COLOR : NEUTRAL_TICK_COLOR);
-  }
-  return segments;
-}
-
-export function buildTickBackground(item: SessionNavigationItem): string {
-  const segments = buildTickSegments(item);
-  if (segments.length === 1) {
-    return segments[0];
-  }
-  const step = 100 / segments.length;
-  const stops = segments.flatMap((color, index) => [
-    `${color} ${index * step}%`,
-    `${color} ${(index + 1) * step}%`,
-  ]);
-  return `linear-gradient(90deg, ${stops.join(", ")})`;
-}
-
-export function buildTickVisual(
-  item: SessionNavigationItem,
-  activeRoundId: string | null,
-  previewIndex: number | null,
-  previewRoundId: string | null,
-): SessionNavigatorTickVisual {
-  const hasPreview = previewIndex !== null;
-  const isActive = item.roundId === activeRoundId;
-  const isPreviewed = item.roundId === previewRoundId;
-  const wave = hasPreview
-    ? smoothWave(Math.abs(item.index - previewIndex))
-    : 0;
-  let background = NEUTRAL_TICK_COLOR;
-  if (isPreviewed) {
-    background = buildTickBackground(item);
-  } else if (!hasPreview && isActive) {
-    background = ACTIVE_NEUTRAL_TICK_COLOR;
-  }
-  let opacity = 0.58;
-  if (hasPreview) {
-    opacity = tickOpacity(wave);
-  } else if (isActive) {
-    opacity = 0.9;
-  }
-  return {
-    background,
-    filter: isPreviewed ? "saturate(1.18)" : undefined,
-    opacity,
-    width: hasPreview ? tickWidth(wave) : 5,
-  };
-}
-
-function formatAgentDisplayName(
-  agentId: string,
-  agentNameMap?: Record<string, string>,
-): string {
-  return agentNameMap?.[agentId] || `Agent ${agentId.slice(0, 6)}`;
-}
-
-export function formatSpeakerSummary(
-  item: SessionNavigationItem,
-  agentNameMap?: Record<string, string>,
-): string {
-  const speakers = item.hasUserMessage ? ["用户"] : [];
-  speakers.push(
-    ...normalizeAgentIds(item.agentIds)
-      .map((agentId) => formatAgentDisplayName(agentId, agentNameMap)),
-  );
-  return speakers.join(" · ") || "未加载";
 }
 
 function compactText(text: string, fallback: string): string {
@@ -194,36 +84,27 @@ function formatDuration(durationMs: number | null | undefined): string | null {
     return null;
   }
   const totalSeconds = Math.max(1, Math.round(durationMs / 1000));
+  const rule = DURATION_FORMAT_RULES.find((candidate) => (
+    candidate.matches(totalSeconds)
+  ));
+  if (rule) {
+    return rule.format(totalSeconds);
+  }
   const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  if (minutes <= 0) {
-    return `${seconds}s`;
-  }
-  if (minutes < 60) {
-    return `${minutes}m ${seconds}s`;
-  }
   const hours = Math.floor(minutes / 60);
   const restMinutes = minutes % 60;
   return restMinutes > 0 ? `${hours}h ${restMinutes}m` : `${hours}h`;
 }
 
-function formatIndexedStatus(status: string | null, isLive: boolean): string {
+function formatStatus(status: string | null, isLive: boolean): string {
   return isLive ? "处理中" : INDEXED_STATUS_LABELS[status ?? ""] ?? "已处理";
 }
 
-function formatLoadedStatus(isLive: boolean, isError: boolean): string {
-  if (isLive) {
-    return "处理中";
-  }
-  return isError ? "失败" : "已处理";
-}
-
-function buildLoadedNavigationItem(
+function resolveLoadedNavigationSource(
   roundId: string,
-  index: number,
   messages: Message[],
   liveRoundIds: Set<string>,
-): SessionNavigationItem {
+): NavigationItemSource {
   const userMessage = messages.find(isUserMessage);
   const assistantMessages = messages.filter(isAssistantMessage);
   const firstAssistant = assistantMessages[0];
@@ -233,64 +114,65 @@ function buildLoadedNavigationItem(
   const assistantText = firstAssistant
     ? extractTextFromContentBlocks(firstAssistant.content)
     : "";
-  const status = formatLoadedStatus(
-    isLive,
-    resultSummary?.subtype === "error",
-  );
-  const duration = formatDuration(resultSummary?.duration_ms);
-  const timestamp = userMessage?.timestamp
-    ?? firstAssistant?.timestamp
-    ?? resultSummary?.timestamp
-    ?? null;
   return {
-    agentIds: normalizeAgentIds(
-      assistantMessages.map((message) => message.agent_id ?? ""),
-    ),
+    agentIds: assistantMessages.map((message) => message.agent_id ?? ""),
+    durationMs: resultSummary?.duration_ms,
     hasUserMessage: Boolean(userMessage),
-    index,
-    inputRoundId: roundId,
     isLive,
-    meta: [status, duration].filter(Boolean).join(" "),
     roundId,
-    summary: isLive
-      ? "正在处理当前轮次"
-      : compactText(resultSummary?.result ?? assistantText, "尚无回复内容"),
-    time: timestamp ? formatRelativeTime(timestamp) : formatMessageTime(null),
-    title: compactText(userMessage?.content ?? "", `第 ${index + 1} 轮`),
+    status: formatStatus(
+      resultSummary?.subtype === "error" ? "error" : null,
+      isLive,
+    ),
+    summary: resultSummary?.result ?? assistantText,
+    summaryFallback: "尚无回复内容",
+    timestamp:
+      userMessage?.timestamp ??
+      firstAssistant?.timestamp ??
+      resultSummary?.timestamp,
+    title: userMessage?.content ?? "",
   };
 }
 
-function buildIndexedNavigationItem(
+function resolveIndexedNavigationSource(
   item: SessionRoundIndexItem,
-  index: number,
-  messages: Message[],
   liveRoundIds: Set<string>,
-): SessionNavigationItem {
-  if (messages.length > 0) {
-    return buildLoadedNavigationItem(
-      item.roundId,
-      index,
-      messages,
-      liveRoundIds,
-    );
-  }
+): NavigationItemSource {
   const isLive = item.isLive || liveRoundIds.has(item.roundId);
-  const duration = formatDuration(item.durationMs);
   return {
-    agentIds: normalizeAgentIds(item.agentIds),
+    agentIds: item.agentIds,
+    durationMs: item.durationMs,
     hasUserMessage: item.hasUserMessage,
-    index,
-    inputRoundId: item.roundId,
     isLive,
-    meta: [formatIndexedStatus(item.status, isLive), duration]
-      .filter(Boolean)
-      .join(" "),
     roundId: item.roundId,
-    summary: isLive ? "正在处理当前轮次" : "滚动加载后可查看详情",
-    time: item.timestamp
-      ? formatRelativeTime(item.timestamp)
+    status: formatStatus(item.status, isLive),
+    summary: "",
+    summaryFallback: "滚动加载后可查看详情",
+    timestamp: item.timestamp,
+    title: item.title,
+  };
+}
+
+function projectNavigationItem(
+  source: NavigationItemSource,
+  index: number,
+): SessionNavigationItem {
+  const duration = formatDuration(source.durationMs);
+  return {
+    agentIds: normalizeAgentIds(source.agentIds),
+    hasUserMessage: source.hasUserMessage,
+    index,
+    inputRoundId: source.roundId,
+    isLive: source.isLive,
+    meta: [source.status, duration].filter(Boolean).join(" "),
+    roundId: source.roundId,
+    summary: source.isLive
+      ? "正在处理当前轮次"
+      : compactText(source.summary, source.summaryFallback),
+    time: source.timestamp
+      ? formatRelativeTime(source.timestamp)
       : formatMessageTime(null),
-    title: compactText(item.title, `第 ${index + 1} 轮`),
+    title: compactText(source.title, `第 ${index + 1} 轮`),
   };
 }
 
@@ -324,20 +206,21 @@ export function buildSessionNavigationItems(
   );
   const missingLiveRoundIds = Array.from(new Set(liveRoundIds))
     .filter((roundId) => roundId.trim() && !indexedRoundIds.has(roundId));
-  const indexedItems = roundIndexItems.map((item, index) => (
-    buildIndexedNavigationItem(
-      item,
-      index,
-      messageGroups.get(item.roundId) ?? [],
-      liveRoundIdSet,
-    )
-  ));
+  const indexedItems = roundIndexItems.map((item, index) => {
+    const messages = messageGroups.get(item.roundId) ?? [];
+    const source = messages.length > 0
+      ? resolveLoadedNavigationSource(item.roundId, messages, liveRoundIdSet)
+      : resolveIndexedNavigationSource(item, liveRoundIdSet);
+    return projectNavigationItem(source, index);
+  });
   const liveItems = missingLiveRoundIds.map((roundId, offset) => (
-    buildLoadedNavigationItem(
-      roundId,
+    projectNavigationItem(
+      resolveLoadedNavigationSource(
+        roundId,
+        messageGroups.get(roundId) ?? [],
+        liveRoundIdSet,
+      ),
       roundIndexItems.length + offset,
-      messageGroups.get(roundId) ?? [],
-      liveRoundIdSet,
     )
   ));
   return bindInputRoundIds([...indexedItems, ...liveItems]);

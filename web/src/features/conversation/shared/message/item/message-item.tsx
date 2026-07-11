@@ -1,5 +1,3 @@
-"use client";
-
 import { memo } from "react";
 
 import { cn } from "@/lib/utils";
@@ -61,14 +59,10 @@ function MessageItemInner({
     >
       <MessageUserSection
         compact={compact}
-        userMessage={state.userMessage}
-        userContent={state.userContent}
-        userAttachments={state.userAttachments}
         currentUserAvatar={currentUserAvatar}
-        copiedUser={state.copiedUser}
-        onCopyUser={state.handleCopyUser}
         onEditUserMessage={onEditUserMessage}
         onOpenWorkspaceFile={onOpenWorkspaceFile}
+        user={state.user}
         workspaceAgentId={workspaceAgentId}
       />
 
@@ -85,7 +79,7 @@ function MessageItemInner({
         hiddenToolNames={hiddenToolNames}
         assistantHeaderAction={assistantHeaderAction}
         assistantContentMode={assistantContentMode}
-        state={state}
+        assistant={state.assistant}
       />
     </MessageShell>
   );
