@@ -6,7 +6,7 @@ import (
 
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
-	sqliterepo "github.com/nexus-research-lab/nexus/internal/storage/sqlite"
+	"github.com/nexus-research-lab/nexus/internal/storage/agentrepo"
 )
 
 func TestIngressServiceAcceptWeixinPersonalPassesReplyTarget(t *testing.T) {
@@ -14,7 +14,7 @@ func TestIngressServiceAcceptWeixinPersonalPassesReplyTarget(t *testing.T) {
 	db := migrateIngressSQLite(t, cfg.DatabaseURL)
 	defer func() { _ = db.Close() }()
 
-	agentService := agentsvc.NewService(cfg, sqliterepo.NewAgentRepository(db))
+	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
 	handler := &fakeIngressDMHandler{}
 	notifier := &fakeExternalSessionNotifier{}
 	router := NewRouter(cfg, db, agentService, permissionctx.NewContext())
@@ -70,7 +70,7 @@ func TestIngressServiceAcceptsManyWeixinUsersAsSeparateAgentSessions(t *testing.
 	db := migrateIngressSQLite(t, cfg.DatabaseURL)
 	defer func() { _ = db.Close() }()
 
-	agentService := agentsvc.NewService(cfg, sqliterepo.NewAgentRepository(db))
+	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
 	ownerCtx := ingressTestOwnerContext("owner-a")
 	ownerAgent, err := agentService.GetDefaultAgent(ownerCtx)
 	if err != nil {
@@ -158,7 +158,7 @@ func TestIngressServiceScopesSameWeixinUserByAccount(t *testing.T) {
 	db := migrateIngressSQLite(t, cfg.DatabaseURL)
 	defer func() { _ = db.Close() }()
 
-	agentService := agentsvc.NewService(cfg, sqliterepo.NewAgentRepository(db))
+	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
 	ownerCtx := ingressTestOwnerContext("owner-a")
 	ownerAgent, err := agentService.GetDefaultAgent(ownerCtx)
 	if err != nil {

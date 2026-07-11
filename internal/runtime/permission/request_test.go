@@ -188,17 +188,6 @@ func TestContextCancelRequestsForSessionBroadcastsResolved(t *testing.T) {
 	}
 }
 
-func readPermissionEvent(t *testing.T, events <-chan protocol.EventMessage) protocol.EventMessage {
-	t.Helper()
-	select {
-	case event := <-events:
-		return event
-	case <-time.After(2 * time.Second):
-		t.Fatal("等待权限事件超时")
-		return protocol.EventMessage{}
-	}
-}
-
 func readPermissionEventByType(
 	t *testing.T,
 	events <-chan protocol.EventMessage,

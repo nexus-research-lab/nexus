@@ -55,65 +55,90 @@ func (s *Server) startBackgroundServices(ctx context.Context) (func(), error) {
 			stops[i]()
 		}
 	}
-
-	if s.services != nil && s.services.Channels != nil {
-		if s.services.ChannelControl != nil {
-			if err := s.services.ChannelControl.LoadConfiguredChannels(ctx); err != nil {
-				s.api.BaseLogger().Warn("加载 IM 通道配置失败，跳过数据库通道注册", "err", err)
-			}
-		}
-		s.api.BaseLogger().Info("启动通道适配器",
-			"discord_enabled", s.config.DiscordEnabled,
-			"discord_configured", strings.TrimSpace(s.config.DiscordBotToken) != "",
-			"telegram_enabled", s.config.TelegramEnabled,
-			"telegram_configured", strings.TrimSpace(s.config.TelegramBotToken) != "",
-			"registered_channels", s.services.Channels.RegisteredChannelTypes(),
-		)
-		if err := s.services.Channels.Start(ctx); err != nil {
-			s.api.BaseLogger().Error("启动通道适配器失败", "err", err)
-			return nil, err
-		}
-		stops = append(stops, func() {
-			s.services.Channels.Stop(context.Background())
-		})
+	starters := []func(context.Context) (func(), error){
+		s.startChannels,
+		s.startAutomation,
+		s.startMemoryMaintenance,
+		s.startGoalResume,
 	}
-
-	if s.services != nil && s.services.Automation != nil {
-		s.api.BaseLogger().Info("启动自动化调度器")
-		if err := s.services.Automation.Start(ctx); err != nil {
-			s.api.BaseLogger().Error("启动自动化调度器失败", "err", err)
-			stopAll()
-			return nil, err
-		}
-		stops = append(stops, s.services.Automation.Stop)
-	}
-
-	if s.services != nil && s.services.MemoryMaintenance != nil {
-		s.api.BaseLogger().Info("启动记忆维护协调器")
-		if err := s.services.MemoryMaintenance.Start(ctx); err != nil {
-			s.api.BaseLogger().Error("启动记忆维护协调器失败", "err", err)
-			stopAll()
-			return nil, err
-		}
-		stops = append(stops, s.services.MemoryMaintenance.Stop)
-	}
-
-	if s.services != nil && s.services.Goal != nil {
-		s.api.BaseLogger().Info("启动 Goal durable resume")
-		stopGoalResume, err := s.services.Goal.StartAutoResume(ctx, newGoalContinuationDispatcher(s.services.Runtime, s.services.DM, s.services.RoomRealtime))
+	for _, start := range starters {
+		stop, err := start(ctx)
 		if err != nil {
-			s.api.BaseLogger().Error("启动 Goal durable resume 失败", "err", err)
 			stopAll()
 			return nil, err
 		}
-		stops = append(stops, stopGoalResume)
+		if stop != nil {
+			stops = append(stops, stop)
+		}
 	}
-
 	if stopRuntimeIdleReclaimer := s.startRuntimeIdleSessionReclaimer(ctx); stopRuntimeIdleReclaimer != nil {
 		stops = append(stops, stopRuntimeIdleReclaimer)
 	}
 
 	return stopAll, nil
+}
+
+func (s *Server) startChannels(ctx context.Context) (func(), error) {
+	if s.services == nil || s.services.Channels == nil {
+		return nil, nil
+	}
+	if s.services.ChannelControl != nil {
+		if err := s.services.ChannelControl.LoadConfiguredChannels(ctx); err != nil {
+			s.api.BaseLogger().Warn("加载 IM 通道配置失败，跳过数据库通道注册", "err", err)
+		}
+	}
+	s.api.BaseLogger().Info("启动通道适配器",
+		"discord_enabled", s.config.DiscordEnabled,
+		"discord_configured", strings.TrimSpace(s.config.DiscordBotToken) != "",
+		"telegram_enabled", s.config.TelegramEnabled,
+		"telegram_configured", strings.TrimSpace(s.config.TelegramBotToken) != "",
+		"registered_channels", s.services.Channels.RegisteredChannelTypes(),
+	)
+	if err := s.services.Channels.Start(ctx); err != nil {
+		s.api.BaseLogger().Error("启动通道适配器失败", "err", err)
+		return nil, err
+	}
+	return func() { s.services.Channels.Stop(context.Background()) }, nil
+}
+
+func (s *Server) startAutomation(ctx context.Context) (func(), error) {
+	if s.services == nil || s.services.Automation == nil {
+		return nil, nil
+	}
+	s.api.BaseLogger().Info("启动自动化调度器")
+	if err := s.services.Automation.Start(ctx); err != nil {
+		s.api.BaseLogger().Error("启动自动化调度器失败", "err", err)
+		return nil, err
+	}
+	return s.services.Automation.Stop, nil
+}
+
+func (s *Server) startMemoryMaintenance(ctx context.Context) (func(), error) {
+	if s.services == nil || s.services.MemoryMaintenance == nil {
+		return nil, nil
+	}
+	s.api.BaseLogger().Info("启动记忆维护协调器")
+	if err := s.services.MemoryMaintenance.Start(ctx); err != nil {
+		s.api.BaseLogger().Error("启动记忆维护协调器失败", "err", err)
+		return nil, err
+	}
+	return s.services.MemoryMaintenance.Stop, nil
+}
+
+func (s *Server) startGoalResume(ctx context.Context) (func(), error) {
+	if s.services == nil || s.services.Goal == nil {
+		return nil, nil
+	}
+	s.api.BaseLogger().Info("启动 Goal durable resume")
+	stop, err := s.services.Goal.StartAutoResume(
+		ctx,
+		newGoalContinuationDispatcher(s.services.Runtime, s.services.DM, s.services.RoomRealtime),
+	)
+	if err != nil {
+		s.api.BaseLogger().Error("启动 Goal durable resume 失败", "err", err)
+		return nil, err
+	}
+	return stop, nil
 }
 
 func (s *Server) startRuntimeIdleSessionReclaimer(ctx context.Context) func() {

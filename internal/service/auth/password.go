@@ -26,6 +26,22 @@ var (
 	ErrPasswordHashFormat = errors.New("password hash format is invalid")
 )
 
+type passwordHash struct {
+	algorithm   string
+	version     int
+	memory      uint32
+	timeCost    uint32
+	parallelism uint8
+	salt        []byte
+	value       []byte
+}
+
+type passwordHashParameters struct {
+	memory      uint64
+	timeCost    uint64
+	parallelism uint64
+}
+
 // HashPassword 使用 argon2id 生成密码哈希。
 func HashPassword(password string) (string, error) {
 	salt := make([]byte, passwordSaltLength)
@@ -54,72 +70,92 @@ func HashPassword(password string) (string, error) {
 
 // VerifyPassword 校验明文密码与 argon2id 哈希是否匹配。
 func VerifyPassword(password string, encoded string) (bool, error) {
-	algorithm, version, memory, timeCost, parallelism, salt, hashValue, err := decodePasswordHash(encoded)
+	decoded, err := decodePasswordHash(encoded)
 	if err != nil {
 		return false, err
 	}
-	if algorithm != passwordAlgorithmArgon2ID || version != argon2.Version {
+	if decoded.algorithm != passwordAlgorithmArgon2ID || decoded.version != argon2.Version {
 		return false, ErrPasswordHashFormat
 	}
 	computed := argon2.IDKey(
 		[]byte(password),
-		salt,
-		timeCost,
-		memory,
-		parallelism,
-		uint32(len(hashValue)),
+		decoded.salt,
+		decoded.timeCost,
+		decoded.memory,
+		decoded.parallelism,
+		uint32(len(decoded.value)),
 	)
-	return subtle.ConstantTimeCompare(computed, hashValue) == 1, nil
+	return subtle.ConstantTimeCompare(computed, decoded.value) == 1, nil
 }
 
-func decodePasswordHash(encoded string) (string, int, uint32, uint32, uint8, []byte, []byte, error) {
+func decodePasswordHash(encoded string) (passwordHash, error) {
 	parts := strings.Split(strings.TrimSpace(encoded), "$")
 	if len(parts) != 6 || parts[0] != "" {
-		return "", 0, 0, 0, 0, nil, nil, ErrPasswordHashFormat
+		return passwordHash{}, ErrPasswordHashFormat
 	}
-
 	versionValue, err := parseHashInt(strings.TrimPrefix(parts[2], "v="))
 	if err != nil {
-		return "", 0, 0, 0, 0, nil, nil, ErrPasswordHashFormat
+		return passwordHash{}, ErrPasswordHashFormat
 	}
+	parameters, err := parsePasswordHashParameters(parts[3])
+	if err != nil {
+		return passwordHash{}, err
+	}
+	salt, err := decodePasswordHashBytes(parts[4])
+	if err != nil {
+		return passwordHash{}, err
+	}
+	hashValue, err := decodePasswordHashBytes(parts[5])
+	if err != nil {
+		return passwordHash{}, err
+	}
+	return passwordHash{
+		algorithm:   parts[1],
+		version:     versionValue,
+		memory:      uint32(parameters.memory),
+		timeCost:    uint32(parameters.timeCost),
+		parallelism: uint8(parameters.parallelism),
+		salt:        salt,
+		value:       hashValue,
+	}, nil
+}
 
-	var memory uint64
-	var timeCost uint64
-	var parallelism uint64
-	for _, item := range strings.Split(parts[3], ",") {
+func parsePasswordHashParameters(raw string) (passwordHashParameters, error) {
+	parameters := passwordHashParameters{}
+	for _, item := range strings.Split(raw, ",") {
 		key, value, found := strings.Cut(item, "=")
 		if !found {
-			return "", 0, 0, 0, 0, nil, nil, ErrPasswordHashFormat
+			return passwordHashParameters{}, ErrPasswordHashFormat
 		}
 		parsed, parseErr := parseHashInt(value)
 		if parseErr != nil {
-			return "", 0, 0, 0, 0, nil, nil, ErrPasswordHashFormat
+			return passwordHashParameters{}, ErrPasswordHashFormat
 		}
 		switch key {
 		case "m":
-			memory = uint64(parsed)
+			parameters.memory = uint64(parsed)
 		case "t":
-			timeCost = uint64(parsed)
+			parameters.timeCost = uint64(parsed)
 		case "p":
-			parallelism = uint64(parsed)
+			parameters.parallelism = uint64(parsed)
 		default:
-			return "", 0, 0, 0, 0, nil, nil, ErrPasswordHashFormat
+			return passwordHashParameters{}, ErrPasswordHashFormat
 		}
 	}
-	if memory == 0 || timeCost == 0 || parallelism == 0 {
-		return "", 0, 0, 0, 0, nil, nil, ErrPasswordHashFormat
+	if parameters.memory == 0 || parameters.memory > uint64(^uint32(0)) ||
+		parameters.timeCost == 0 || parameters.timeCost > uint64(^uint32(0)) ||
+		parameters.parallelism == 0 || parameters.parallelism > uint64(^uint8(0)) {
+		return passwordHashParameters{}, ErrPasswordHashFormat
 	}
+	return parameters, nil
+}
 
-	salt, err := base64.RawStdEncoding.DecodeString(parts[4])
-	if err != nil || len(salt) == 0 {
-		return "", 0, 0, 0, 0, nil, nil, ErrPasswordHashFormat
+func decodePasswordHashBytes(raw string) ([]byte, error) {
+	value, err := base64.RawStdEncoding.DecodeString(raw)
+	if err != nil || len(value) == 0 {
+		return nil, ErrPasswordHashFormat
 	}
-	hashValue, err := base64.RawStdEncoding.DecodeString(parts[5])
-	if err != nil || len(hashValue) == 0 {
-		return "", 0, 0, 0, 0, nil, nil, ErrPasswordHashFormat
-	}
-
-	return parts[1], versionValue, uint32(memory), uint32(timeCost), uint8(parallelism), salt, hashValue, nil
+	return value, nil
 }
 
 func parseHashInt(raw string) (int, error) {

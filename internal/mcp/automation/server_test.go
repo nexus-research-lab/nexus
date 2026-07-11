@@ -17,36 +17,36 @@ type stubService struct {
 	statusEnabled     bool
 	deletedJobID      string
 	runNowJobID       string
-	created           *automationdomain.CronJob
+	created           *automationdomain.ScheduledTask
 	recoverJobID      string
 	recoverRunID      string
 	redeliverJobID    string
 	redeliverRunID    string
 	listErr           error
 	updateErr         error
-	jobs              []automationdomain.CronJob
+	jobs              []automationdomain.ScheduledTask
 	missingJobs       map[string]bool
 	listAgentID       string
-	runsByJob         map[string][]automationdomain.CronRun
-	eventsByJob       map[string][]automationdomain.CronTaskEvent
-	historyItems      []automationdomain.CronTaskHistoryItem
-	historyInput      automationdomain.CronTaskHistorySearchInput
-	taskStatus        *automationdomain.CronTaskStatus
-	dailyReport       *automationdomain.CronDailyReport
-	dailyReportsByJob map[string]*automationdomain.CronDailyReport
-	dailyInput        automationdomain.CronDailyReportInput
-	dailyInputs       []automationdomain.CronDailyReportInput
+	runsByJob         map[string][]automationdomain.ScheduledTaskRun
+	eventsByJob       map[string][]automationdomain.ScheduledTaskEvent
+	historyItems      []automationdomain.ScheduledTaskHistoryItem
+	historyInput      automationdomain.ScheduledTaskHistorySearchInput
+	taskStatus        *automationdomain.ScheduledTaskStatus
+	dailyReport       *automationdomain.ScheduledTaskDailyReport
+	dailyReportsByJob map[string]*automationdomain.ScheduledTaskDailyReport
+	dailyInput        automationdomain.ScheduledTaskDailyReportInput
+	dailyInputs       []automationdomain.ScheduledTaskDailyReportInput
 }
 
-func (s *stubService) ListTasks(_ context.Context, agentID string) ([]automationdomain.CronJob, error) {
+func (s *stubService) ListTasks(_ context.Context, agentID string) ([]automationdomain.ScheduledTask, error) {
 	s.listAgentID = agentID
 	return s.jobs, s.listErr
 }
 
-func (s *stubService) CreateTask(_ context.Context, input automationdomain.CreateJobInput) (*automationdomain.CronJob, error) {
+func (s *stubService) CreateTask(_ context.Context, input automationdomain.CreateJobInput) (*automationdomain.ScheduledTask, error) {
 	s.createInput = input
 	if s.created == nil {
-		s.created = &automationdomain.CronJob{
+		s.created = &automationdomain.ScheduledTask{
 			JobID:         "job-1",
 			Name:          input.Name,
 			AgentID:       input.AgentID,
@@ -61,13 +61,13 @@ func (s *stubService) CreateTask(_ context.Context, input automationdomain.Creat
 	return s.created, nil
 }
 
-func (s *stubService) UpdateTask(_ context.Context, jobID string, input automationdomain.UpdateJobInput) (*automationdomain.CronJob, error) {
+func (s *stubService) UpdateTask(_ context.Context, jobID string, input automationdomain.UpdateJobInput) (*automationdomain.ScheduledTask, error) {
 	s.updateJobID = jobID
 	s.updateInput = input
 	if s.updateErr != nil {
 		return nil, s.updateErr
 	}
-	job := automationdomain.CronJob{
+	job := automationdomain.ScheduledTask{
 		JobID:    jobID,
 		AgentID:  "agent-1",
 		Schedule: automationdomain.Schedule{Timezone: "Asia/Shanghai"},
@@ -78,7 +78,7 @@ func (s *stubService) UpdateTask(_ context.Context, jobID string, input automati
 	return &job, nil
 }
 
-func (s *stubService) UpdateTaskStatus(_ context.Context, jobID string, enabled bool) (*automationdomain.CronJob, error) {
+func (s *stubService) UpdateTaskStatus(_ context.Context, jobID string, enabled bool) (*automationdomain.ScheduledTask, error) {
 	s.statusJobID = jobID
 	s.statusEnabled = enabled
 	for _, job := range s.jobs {
@@ -87,7 +87,7 @@ func (s *stubService) UpdateTaskStatus(_ context.Context, jobID string, enabled 
 			return &job, nil
 		}
 	}
-	return &automationdomain.CronJob{JobID: jobID, Enabled: enabled, Schedule: automationdomain.Schedule{Timezone: "Asia/Shanghai"}}, nil
+	return &automationdomain.ScheduledTask{JobID: jobID, Enabled: enabled, Schedule: automationdomain.Schedule{Timezone: "Asia/Shanghai"}}, nil
 }
 
 func (s *stubService) DeleteTask(_ context.Context, jobID string) (*automationdomain.DeleteJobResult, error) {
@@ -113,26 +113,26 @@ func (s *stubService) RunTaskNow(_ context.Context, jobID string) (*automationdo
 	return &automationdomain.ExecutionResult{JobID: jobID, Status: "succeeded"}, nil
 }
 
-func (s *stubService) ListTaskRuns(_ context.Context, jobID string) ([]automationdomain.CronRun, error) {
+func (s *stubService) ListTaskRuns(_ context.Context, jobID string) ([]automationdomain.ScheduledTaskRun, error) {
 	if s.runsByJob == nil {
 		return nil, nil
 	}
 	return s.runsByJob[jobID], nil
 }
 
-func (s *stubService) ListTaskEvents(_ context.Context, jobID string, _ int) ([]automationdomain.CronTaskEvent, error) {
+func (s *stubService) ListTaskEvents(_ context.Context, jobID string, _ int) ([]automationdomain.ScheduledTaskEvent, error) {
 	if s.eventsByJob == nil {
 		return nil, nil
 	}
 	return s.eventsByJob[jobID], nil
 }
 
-func (s *stubService) SearchTaskHistory(_ context.Context, input automationdomain.CronTaskHistorySearchInput) ([]automationdomain.CronTaskHistoryItem, error) {
+func (s *stubService) SearchTaskHistory(_ context.Context, input automationdomain.ScheduledTaskHistorySearchInput) ([]automationdomain.ScheduledTaskHistoryItem, error) {
 	s.historyInput = input
 	return s.historyItems, nil
 }
 
-func (s *stubService) GetTaskStatus(_ context.Context, jobID string, _ int, _ int) (*automationdomain.CronTaskStatus, error) {
+func (s *stubService) GetTaskStatus(_ context.Context, jobID string, _ int, _ int) (*automationdomain.ScheduledTaskStatus, error) {
 	if s.taskStatus != nil {
 		return s.taskStatus, nil
 	}
@@ -143,15 +143,15 @@ func (s *stubService) GetTaskStatus(_ context.Context, jobID string, _ int, _ in
 	if job == nil {
 		return nil, nil
 	}
-	return &automationdomain.CronTaskStatus{
+	return &automationdomain.ScheduledTaskStatus{
 		Job:          *job,
-		Health:       automationdomain.CronTaskHealth{State: "scheduled"},
+		Health:       automationdomain.ScheduledTaskHealth{State: "scheduled"},
 		RecentRuns:   s.runsByJob[jobID],
 		RecentEvents: s.eventsByJob[jobID],
 	}, nil
 }
 
-func (s *stubService) GetDailyReport(_ context.Context, input automationdomain.CronDailyReportInput) (*automationdomain.CronDailyReport, error) {
+func (s *stubService) GetDailyReport(_ context.Context, input automationdomain.ScheduledTaskDailyReportInput) (*automationdomain.ScheduledTaskDailyReport, error) {
 	s.dailyInput = input
 	s.dailyInputs = append(s.dailyInputs, input)
 	s.listAgentID = input.AgentID
@@ -163,7 +163,7 @@ func (s *stubService) GetDailyReport(_ context.Context, input automationdomain.C
 	if s.dailyReport != nil {
 		return s.dailyReport, nil
 	}
-	return &automationdomain.CronDailyReport{
+	return &automationdomain.ScheduledTaskDailyReport{
 		Date:     input.Date,
 		Timezone: input.Timezone,
 		AgentID:  input.AgentID,
@@ -171,10 +171,10 @@ func (s *stubService) GetDailyReport(_ context.Context, input automationdomain.C
 	}, nil
 }
 
-func (s *stubService) RetryRunDelivery(_ context.Context, jobID string, runID string) (*automationdomain.CronRun, error) {
+func (s *stubService) RetryRunDelivery(_ context.Context, jobID string, runID string) (*automationdomain.ScheduledTaskRun, error) {
 	s.redeliverJobID = jobID
 	s.redeliverRunID = runID
-	return &automationdomain.CronRun{
+	return &automationdomain.ScheduledTaskRun{
 		JobID:          jobID,
 		RunID:          runID,
 		Status:         automationdomain.RunStatusSucceeded,
@@ -182,13 +182,13 @@ func (s *stubService) RetryRunDelivery(_ context.Context, jobID string, runID st
 	}, nil
 }
 
-func (s *stubService) RecoverTaskRunningRun(_ context.Context, jobID string, runID string) (*automationdomain.CronJob, error) {
+func (s *stubService) RecoverTaskRunningRun(_ context.Context, jobID string, runID string) (*automationdomain.ScheduledTask, error) {
 	s.recoverJobID = jobID
 	s.recoverRunID = runID
-	return &automationdomain.CronJob{JobID: jobID, AgentID: "agent-1", Schedule: automationdomain.Schedule{Timezone: "Asia/Shanghai"}}, nil
+	return &automationdomain.ScheduledTask{JobID: jobID, AgentID: "agent-1", Schedule: automationdomain.Schedule{Timezone: "Asia/Shanghai"}}, nil
 }
 
-func (s *stubService) GetTask(_ context.Context, jobID string) (*automationdomain.CronJob, error) {
+func (s *stubService) GetTask(_ context.Context, jobID string) (*automationdomain.ScheduledTask, error) {
 	if s.missingJobs[jobID] {
 		return nil, nil
 	}
@@ -200,7 +200,7 @@ func (s *stubService) GetTask(_ context.Context, jobID string) (*automationdomai
 	if s.created != nil && s.created.JobID == jobID {
 		return s.created, nil
 	}
-	return &automationdomain.CronJob{JobID: jobID}, nil
+	return &automationdomain.ScheduledTask{JobID: jobID}, nil
 }
 
 func newInterval(v int) *int { return &v }

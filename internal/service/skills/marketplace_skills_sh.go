@@ -19,6 +19,20 @@ type skillsShImportTarget struct {
 	SkillSlug     string
 }
 
+type skillsShSourceCandidate struct {
+	path  string
+	score int
+}
+
+type skillsShSourceSearch struct {
+	root           string
+	skillSlug      string
+	normalizedSlug string
+	normalizedPath string
+	candidates     []skillsShSourceCandidate
+	allSkillDirs   []string
+}
+
 func parseSkillsShImportTarget(packageSpec string, skillSlug string) (skillsShImportTarget, error) {
 	rawSpec := strings.TrimSpace(packageSpec)
 	rawSlug := strings.TrimSpace(skillSlug)
@@ -102,73 +116,106 @@ func findSkillsShSourceDir(root string, skillPath string, skillSlug string) (str
 	if err != nil {
 		return "", err
 	}
-	if cleanSkillPath != "" {
-		sourceDir := filepath.Join(root, cleanSkillPath)
-		if _, statErr := os.Stat(filepath.Join(sourceDir, "SKILL.md")); statErr == nil {
-			return sourceDir, nil
-		}
+	if sourceDir := exactSkillsShSourceDir(root, cleanSkillPath); sourceDir != "" {
+		return sourceDir, nil
 	}
-	type candidate struct {
-		path  string
-		score int
+	search := &skillsShSourceSearch{
+		root:           root,
+		skillSlug:      strings.TrimSpace(skillSlug),
+		normalizedSlug: strings.ToLower(strings.TrimSpace(skillSlug)),
+		normalizedPath: strings.ToLower(filepath.ToSlash(cleanSkillPath)),
+		candidates:     make([]skillsShSourceCandidate, 0),
+		allSkillDirs:   make([]string, 0),
 	}
-	candidates := make([]candidate, 0)
-	allSkillDirs := make([]string, 0)
-	normalizedSlug := strings.ToLower(strings.TrimSpace(skillSlug))
-	normalizedPath := strings.ToLower(filepath.ToSlash(cleanSkillPath))
-	err = filepath.Walk(root, func(path string, info os.FileInfo, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if info.IsDir() || info.Name() != "SKILL.md" {
-			return nil
-		}
-		sourceDir := filepath.Dir(path)
-		allSkillDirs = append(allSkillDirs, sourceDir)
-		relativeDir, relErr := filepath.Rel(root, sourceDir)
-		if relErr != nil {
-			return relErr
-		}
-		relativeSlash := strings.ToLower(filepath.ToSlash(relativeDir))
-		baseName := strings.ToLower(filepath.Base(sourceDir))
-		score := 100
-		if normalizedPath != "" && relativeSlash == normalizedPath {
-			score = 0
-		} else if normalizedPath != "" && (strings.HasSuffix(relativeSlash, "/"+normalizedPath) || relativeSlash == "skills/"+normalizedPath) {
-			score = 1
-		} else if normalizedSlug != "" && baseName == normalizedSlug {
-			score = 2
-		} else if normalizedSlug != "" {
-			content, readErr := os.ReadFile(path)
-			if readErr != nil {
-				return readErr
-			}
-			parsed := parseSkillFrontmatter(string(content), filepath.Base(sourceDir))
-			if strings.EqualFold(parsed.Name, skillSlug) || strings.EqualFold(parsed.Title, skillSlug) {
-				score = 3
-			}
-		}
-		if score < 100 {
-			candidates = append(candidates, candidate{path: sourceDir, score: score})
-		}
-		return nil
-	})
-	if err != nil {
+	if err = filepath.Walk(root, search.visit); err != nil {
 		return "", err
 	}
-	if len(candidates) == 0 && len(allSkillDirs) == 1 {
-		return allSkillDirs[0], nil
+	return search.resolve(firstNonEmpty(skillPath, skillSlug))
+}
+
+func exactSkillsShSourceDir(root string, cleanSkillPath string) string {
+	if cleanSkillPath == "" {
+		return ""
 	}
-	if len(candidates) == 0 {
-		return "", fmt.Errorf("未找到 skills.sh skill 目录: %s", firstNonEmpty(skillPath, skillSlug))
+	sourceDir := filepath.Join(root, cleanSkillPath)
+	if _, err := os.Stat(filepath.Join(sourceDir, "SKILL.md")); err != nil {
+		return ""
 	}
-	slices.SortFunc(candidates, func(left candidate, right candidate) int {
+	return sourceDir
+}
+
+func (s *skillsShSourceSearch) visit(path string, info os.FileInfo, walkErr error) error {
+	if walkErr != nil {
+		return walkErr
+	}
+	if info.IsDir() || info.Name() != "SKILL.md" {
+		return nil
+	}
+	sourceDir := filepath.Dir(path)
+	s.allSkillDirs = append(s.allSkillDirs, sourceDir)
+	score, matched, err := s.score(path, sourceDir)
+	if err != nil {
+		return err
+	}
+	if matched {
+		s.candidates = append(s.candidates, skillsShSourceCandidate{path: sourceDir, score: score})
+	}
+	return nil
+}
+
+func (s *skillsShSourceSearch) score(skillFile string, sourceDir string) (int, bool, error) {
+	relativeDir, err := filepath.Rel(s.root, sourceDir)
+	if err != nil {
+		return 0, false, err
+	}
+	relativePath := strings.ToLower(filepath.ToSlash(relativeDir))
+	if score, matched := scoreSkillsShSourcePath(relativePath, filepath.Base(sourceDir), s.normalizedPath, s.normalizedSlug); matched {
+		return score, true, nil
+	}
+	if s.normalizedSlug == "" {
+		return 0, false, nil
+	}
+	content, err := os.ReadFile(skillFile)
+	if err != nil {
+		return 0, false, err
+	}
+	frontmatter := parseSkillFrontmatter(string(content), filepath.Base(sourceDir))
+	matched := strings.EqualFold(frontmatter.Name, s.skillSlug) || strings.EqualFold(frontmatter.Title, s.skillSlug)
+	return 3, matched, nil
+}
+
+func scoreSkillsShSourcePath(
+	relativePath string,
+	baseName string,
+	normalizedPath string,
+	normalizedSlug string,
+) (int, bool) {
+	if normalizedPath != "" && relativePath == normalizedPath {
+		return 0, true
+	}
+	if normalizedPath != "" && (strings.HasSuffix(relativePath, "/"+normalizedPath) || relativePath == "skills/"+normalizedPath) {
+		return 1, true
+	}
+	if normalizedSlug != "" && strings.EqualFold(baseName, normalizedSlug) {
+		return 2, true
+	}
+	return 0, false
+}
+
+func (s *skillsShSourceSearch) resolve(label string) (string, error) {
+	if len(s.candidates) == 0 && len(s.allSkillDirs) == 1 {
+		return s.allSkillDirs[0], nil
+	}
+	if len(s.candidates) == 0 {
+		return "", fmt.Errorf("未找到 skills.sh skill 目录: %s", label)
+	}
+	slices.SortFunc(s.candidates, func(left skillsShSourceCandidate, right skillsShSourceCandidate) int {
 		if result := cmp.Compare(left.score, right.score); result != 0 {
 			return result
 		}
 		return cmp.Compare(len(left.path), len(right.path))
 	})
-	return candidates[0].path, nil
+	return s.candidates[0].path, nil
 }
 
 func buildSkillsPackageSpec(source string, slug string, name string) string {

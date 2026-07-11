@@ -122,49 +122,46 @@ func GetSessionKeyValidationError(raw string) string {
 	}
 
 	if strings.HasPrefix(normalized, string(SessionKeyKindAgent)+":") {
-		parts := strings.Split(normalized, ":")
-		if len(parts) < 5 || strings.TrimSpace(parts[1]) == "" || strings.TrimSpace(parts[2]) == "" || strings.TrimSpace(parts[3]) == "" {
-			return agentSessionKeyShapeError()
-		}
-
-		_, refStart, splitErr := splitAgentRefParts(parts)
-		if splitErr != "" {
-			return splitErr
-		}
-		topicIndex := findTopicIndex(parts, refStart)
-		if topicIndex >= 0 {
-			ref := strings.TrimSpace(strings.Join(parts[refStart:topicIndex], ":"))
-			threadID := strings.TrimSpace(strings.Join(parts[topicIndex+1:], ":"))
-			if ref == "" || threadID == "" {
-				return agentSessionKeyShapeError()
-			}
-			return ""
-		}
-
-		if strings.TrimSpace(strings.Join(parts[refStart:], ":")) == "" {
-			return agentSessionKeyShapeError()
-		}
-		return ""
+		return validateAgentSessionKey(normalized)
 	}
 
 	if strings.HasPrefix(normalized, string(SessionKeyKindRoom)+":") {
-		parts := strings.Split(normalized, ":")
-		conversationID := ""
-		if len(parts) > 2 {
-			conversationID = strings.TrimSpace(strings.Join(parts[2:], ":"))
-		}
-		if len(parts) < 3 || parts[1] != roomSharedChatType || conversationID == "" {
-			return "session_key must match room:group:<conversation_id>"
-		}
-		return ""
+		return validateRoomSessionKey(normalized)
 	}
 
 	return "session_key must use structured session_key format"
 }
 
-// IsStructuredSessionKey 判断是否合法。
-func IsStructuredSessionKey(raw string) bool {
-	return GetSessionKeyValidationError(raw) == ""
+func validateAgentSessionKey(sessionKey string) string {
+	parts := strings.Split(sessionKey, ":")
+	if len(parts) < 5 || strings.TrimSpace(parts[1]) == "" || strings.TrimSpace(parts[2]) == "" || strings.TrimSpace(parts[3]) == "" {
+		return agentSessionKeyShapeError()
+	}
+	_, refStart, splitErr := splitAgentRefParts(parts)
+	if splitErr != "" {
+		return splitErr
+	}
+	topicIndex := findTopicIndex(parts, refStart)
+	if topicIndex < 0 {
+		if strings.TrimSpace(strings.Join(parts[refStart:], ":")) == "" {
+			return agentSessionKeyShapeError()
+		}
+		return ""
+	}
+	ref := strings.TrimSpace(strings.Join(parts[refStart:topicIndex], ":"))
+	threadID := strings.TrimSpace(strings.Join(parts[topicIndex+1:], ":"))
+	if ref == "" || threadID == "" {
+		return agentSessionKeyShapeError()
+	}
+	return ""
+}
+
+func validateRoomSessionKey(sessionKey string) string {
+	parts := strings.Split(sessionKey, ":")
+	if len(parts) < 3 || parts[1] != roomSharedChatType || strings.TrimSpace(strings.Join(parts[2:], ":")) == "" {
+		return "session_key must match room:group:<conversation_id>"
+	}
+	return ""
 }
 
 // RequireStructuredSessionKey 要求必须是结构化 session_key。

@@ -8,6 +8,13 @@ import (
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
+func buildSDKMessageLogFields(message sdkprotocol.ReceivedMessage) []any {
+	return BuildSDKMessageLogFieldsWithOptions(message, SDKMessageLogOptions{
+		IncludeStreamEvent:  true,
+		IncludeSnapshotData: true,
+	})
+}
+
 func TestBuildSDKMessageLogSummaryForStreamEvent(t *testing.T) {
 	summary := BuildSDKMessageLogSummary(sdkprotocol.ReceivedMessage{
 		Type: sdkprotocol.MessageTypeStreamEvent,
@@ -53,7 +60,7 @@ func TestBuildSDKMessageLogSummaryForAssistantSnapshot(t *testing.T) {
 }
 
 func TestBuildSDKMessageLogFieldsSkipsThinkingTokens(t *testing.T) {
-	fields := BuildSDKMessageLogFields(sdkprotocol.ReceivedMessage{
+	fields := buildSDKMessageLogFields(sdkprotocol.ReceivedMessage{
 		Type: sdkprotocol.MessageTypeSystem,
 		System: &sdkprotocol.SystemMessage{
 			Subtype: "thinking_tokens",
@@ -136,7 +143,7 @@ func TestBuildSDKMessageLogSummaryForToolResult(t *testing.T) {
 }
 
 func TestBuildSDKMessageLogFieldsIncludesSummary(t *testing.T) {
-	fields := BuildSDKMessageLogFields(sdkprotocol.ReceivedMessage{
+	fields := buildSDKMessageLogFields(sdkprotocol.ReceivedMessage{
 		Type: sdkprotocol.MessageTypeResult,
 		Result: &sdkprotocol.ResultMessage{
 			Subtype: "success",
@@ -156,7 +163,7 @@ func TestBuildSDKMessageLogFieldsIncludesSummary(t *testing.T) {
 }
 
 func TestBuildSDKMessageLogFieldsIncludesToolResultCounts(t *testing.T) {
-	fields := BuildSDKMessageLogFields(sdkprotocol.ReceivedMessage{
+	fields := buildSDKMessageLogFields(sdkprotocol.ReceivedMessage{
 		Type: sdkprotocol.MessageTypeUser,
 		User: &sdkprotocol.UserMessage{
 			Message: sdkprotocol.ConversationEnvelope{
@@ -188,7 +195,7 @@ func TestBuildSDKMessageLogFieldsIncludesToolResultCounts(t *testing.T) {
 }
 
 func TestBuildSDKMessageLogFieldsIncludesStreamTextDelta(t *testing.T) {
-	fields := BuildSDKMessageLogFields(sdkprotocol.ReceivedMessage{
+	fields := buildSDKMessageLogFields(sdkprotocol.ReceivedMessage{
 		Type:      sdkprotocol.MessageTypeStreamEvent,
 		SessionID: "session-123",
 		UUID:      "uuid-456",
@@ -305,7 +312,7 @@ func TestBuildSDKMessageLogSummaryFollowsOfficialStreamFlow(t *testing.T) {
 }
 
 func TestBuildSDKMessageLogFieldsForMessageDelta(t *testing.T) {
-	fields := BuildSDKMessageLogFields(sdkprotocol.ReceivedMessage{
+	fields := buildSDKMessageLogFields(sdkprotocol.ReceivedMessage{
 		Type: sdkprotocol.MessageTypeStreamEvent,
 		Stream: &sdkprotocol.StreamEvent{
 			Event: map[string]any{
@@ -328,7 +335,7 @@ func TestBuildSDKMessageLogFieldsForMessageDelta(t *testing.T) {
 
 func TestBuildSDKMessageLogFieldsIncludesAssistantSnapshotText(t *testing.T) {
 	fullText := strings.Repeat("完整文本", 80) + "最终结尾"
-	fields := BuildSDKMessageLogFields(sdkprotocol.ReceivedMessage{
+	fields := buildSDKMessageLogFields(sdkprotocol.ReceivedMessage{
 		Type: sdkprotocol.MessageTypeAssistant,
 		Assistant: &sdkprotocol.AssistantMessage{
 			Message: sdkprotocol.ConversationEnvelope{
@@ -373,7 +380,7 @@ func TestBuildSDKMessageLogFieldsCanHideAssistantSnapshotText(t *testing.T) {
 }
 
 func TestBuildSDKMessageLogFieldsIncludesThinkingDelta(t *testing.T) {
-	fields := BuildSDKMessageLogFields(sdkprotocol.ReceivedMessage{
+	fields := buildSDKMessageLogFields(sdkprotocol.ReceivedMessage{
 		Type: sdkprotocol.MessageTypeStreamEvent,
 		Stream: &sdkprotocol.StreamEvent{
 			Event: map[string]any{
@@ -395,7 +402,7 @@ func TestBuildSDKMessageLogFieldsIncludesThinkingDelta(t *testing.T) {
 }
 
 func TestBuildSDKMessageLogFieldsKeepsToolNameOnly(t *testing.T) {
-	fields := BuildSDKMessageLogFields(sdkprotocol.ReceivedMessage{
+	fields := buildSDKMessageLogFields(sdkprotocol.ReceivedMessage{
 		Type: sdkprotocol.MessageTypeStreamEvent,
 		Stream: &sdkprotocol.StreamEvent{
 			Event: map[string]any{
@@ -420,7 +427,7 @@ func TestBuildSDKMessageLogFieldsKeepsToolNameOnly(t *testing.T) {
 }
 
 func TestBuildSDKMessageLogFieldsIncludesToolProgress(t *testing.T) {
-	fields := BuildSDKMessageLogFields(sdkprotocol.ReceivedMessage{
+	fields := buildSDKMessageLogFields(sdkprotocol.ReceivedMessage{
 		Type: sdkprotocol.MessageTypeTaskProgress,
 		TaskProgress: &sdkprotocol.TaskProgressMessage{
 			ToolUseID:    "toolu_123",
@@ -444,7 +451,7 @@ func TestBuildSDKMessageLogFieldsIncludesToolProgress(t *testing.T) {
 }
 
 func TestBuildSDKMessageLogFieldsRedactsToolInputDelta(t *testing.T) {
-	fields := BuildSDKMessageLogFields(sdkprotocol.ReceivedMessage{
+	fields := buildSDKMessageLogFields(sdkprotocol.ReceivedMessage{
 		Type: sdkprotocol.MessageTypeStreamEvent,
 		Stream: &sdkprotocol.StreamEvent{
 			Event: map[string]any{
@@ -515,7 +522,7 @@ func TestBuildSDKMessageLogFieldsIncludesPassiveMessageTypes(t *testing.T) {
 			if got := BuildSDKMessageLogSummary(tt.message); !strings.Contains(got, tt.summary) {
 				t.Fatalf("summary = %q, want contains %q", got, tt.summary)
 			}
-			fields := BuildSDKMessageLogFields(tt.message)
+			fields := buildSDKMessageLogFields(tt.message)
 			if !hasLogFieldKey(fields, tt.field) {
 				t.Fatalf("缺少字段 %q: %+v", tt.field, fields)
 			}

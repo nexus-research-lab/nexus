@@ -277,7 +277,7 @@ func (h *Handlers) HandleListScheduledTaskEvents(writer http.ResponseWriter, req
 
 func (h *Handlers) HandleGetScheduledTaskDailyReport(writer http.ResponseWriter, request *http.Request) {
 	query := request.URL.Query()
-	item, err := h.automation.GetDailyReport(request.Context(), automationdomain.CronDailyReportInput{
+	item, err := h.automation.GetDailyReport(request.Context(), automationdomain.ScheduledTaskDailyReportInput{
 		Date:     strings.TrimSpace(query.Get("date")),
 		Timezone: strings.TrimSpace(query.Get("timezone")),
 		AgentID:  strings.TrimSpace(query.Get("agent_id")),

@@ -5,18 +5,6 @@ import (
 	"strings"
 )
 
-func (slot *activeRoomSlot) enqueueQueuedInput(roundID string, content string) {
-	if slot == nil || strings.TrimSpace(content) == "" {
-		return
-	}
-	slot.inputMu.Lock()
-	defer slot.inputMu.Unlock()
-	slot.QueuedInputs = append(slot.QueuedInputs, roomQueuedInput{
-		RoundID: strings.TrimSpace(roundID),
-		Content: strings.TrimSpace(content),
-	})
-}
-
 func (slot *activeRoomSlot) drainQueuedInputs() []roomQueuedInput {
 	if slot == nil {
 		return nil

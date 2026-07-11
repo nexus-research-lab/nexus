@@ -7,6 +7,15 @@ import (
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
+type streamEventFieldBuilder func([]any, map[string]any) []any
+
+var streamEventFieldBuilders = map[string]streamEventFieldBuilder{
+	"message_start":       appendMessageStartFields,
+	"content_block_start": appendContentBlockStartFields,
+	"content_block_delta": appendContentBlockDeltaFields,
+	"message_delta":       appendMessageDeltaFields,
+}
+
 func buildUserMessageFields(message sdkprotocol.ReceivedMessage, includeSnapshotData bool) []any {
 	if message.User == nil {
 		return nil
@@ -116,49 +125,58 @@ func buildStreamEventFields(message sdkprotocol.ReceivedMessage) []any {
 	}
 	fields := []any{"stream_event", eventType}
 	fields = appendRawLogField(fields, "stream_index", event["index"])
-	switch eventType {
-	case "message_start":
-		startMessage := RawMap(event["message"])
-		fields = appendRawLogField(fields, "stream_role", startMessage["role"])
-		fields = appendRawLogField(fields, "stream_model", startMessage["model"])
-	case "content_block_start":
-		block := RawMap(event["content_block"])
-		blockType := normalizeSDKBlockType(RawString(block["type"]))
-		fields = appendRawLogField(fields, "stream_block", blockType)
-		switch blockType {
-		case "text":
-			if text := streamDebugText(RawString(block["text"])); text != "" {
-				fields = append(fields, "stream_text", text)
-			}
-		case "tool_use":
-			if toolName := strings.TrimSpace(FirstNonEmpty(RawString(block["name"]), RawString(block["id"]))); toolName != "" {
-				fields = append(fields, "tool", toolName)
-			}
-		}
-	case "content_block_delta":
-		delta := RawMap(event["delta"])
-		deltaType := strings.TrimSpace(RawString(delta["type"]))
-		fields = appendRawLogField(fields, "stream_delta", deltaType)
-		switch deltaType {
-		case "text_delta":
-			text := RawString(delta["text"])
-			if preview := streamDebugText(text); preview != "" {
-				fields = append(fields, "delta", preview)
-			}
-		case "thinking_delta":
-			text := FirstNonEmpty(RawString(delta["thinking"]), RawString(delta["text"]))
-			if preview := streamDebugText(text); preview != "" {
-				fields = append(fields, "thinking", preview)
-			}
-		}
-	case "content_block_stop":
-	case "message_delta":
-		delta := RawMap(event["delta"])
-		fields = appendRawLogField(fields, "stream_stop_reason", delta["stop_reason"])
-		fields = appendRawLogField(fields, "stream_stop_sequence", delta["stop_sequence"])
-	case "message_stop":
+	if builder := streamEventFieldBuilders[eventType]; builder != nil {
+		fields = builder(fields, event)
 	}
 	return fields
+}
+
+func appendMessageStartFields(fields []any, event map[string]any) []any {
+	message := RawMap(event["message"])
+	fields = appendRawLogField(fields, "stream_role", message["role"])
+	return appendRawLogField(fields, "stream_model", message["model"])
+}
+
+func appendContentBlockStartFields(fields []any, event map[string]any) []any {
+	block := RawMap(event["content_block"])
+	blockType := normalizeSDKBlockType(RawString(block["type"]))
+	fields = appendRawLogField(fields, "stream_block", blockType)
+	switch blockType {
+	case "text":
+		if text := streamDebugText(RawString(block["text"])); text != "" {
+			fields = append(fields, "stream_text", text)
+		}
+	case "tool_use":
+		toolName := strings.TrimSpace(FirstNonEmpty(RawString(block["name"]), RawString(block["id"])))
+		if toolName != "" {
+			fields = append(fields, "tool", toolName)
+		}
+	}
+	return fields
+}
+
+func appendContentBlockDeltaFields(fields []any, event map[string]any) []any {
+	delta := RawMap(event["delta"])
+	deltaType := strings.TrimSpace(RawString(delta["type"]))
+	fields = appendRawLogField(fields, "stream_delta", deltaType)
+	var key, text string
+	switch deltaType {
+	case "text_delta":
+		key, text = "delta", RawString(delta["text"])
+	case "thinking_delta":
+		key = "thinking"
+		text = FirstNonEmpty(RawString(delta["thinking"]), RawString(delta["text"]))
+	}
+	if preview := streamDebugText(text); key != "" && preview != "" {
+		fields = append(fields, key, preview)
+	}
+	return fields
+}
+
+func appendMessageDeltaFields(fields []any, event map[string]any) []any {
+	delta := RawMap(event["delta"])
+	fields = appendRawLogField(fields, "stream_stop_reason", delta["stop_reason"])
+	return appendRawLogField(fields, "stream_stop_sequence", delta["stop_sequence"])
 }
 
 func buildTaskProgressFields(message sdkprotocol.ReceivedMessage) []any {

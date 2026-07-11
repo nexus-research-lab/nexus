@@ -2,8 +2,8 @@ package types
 
 import "time"
 
-// CronDailyReportTotals 表示定时任务日报聚合计数。
-type CronDailyReportTotals struct {
+// ScheduledTaskDailyReportTotals 表示定时任务日报聚合计数。
+type ScheduledTaskDailyReportTotals struct {
 	TaskCount                  int `json:"task_count"`
 	EnabledTaskCount           int `json:"enabled_task_count"`
 	RunningTaskCount           int `json:"running_task_count"`
@@ -21,49 +21,49 @@ type CronDailyReportTotals struct {
 	DeliveryNotAttemptedCount  int `json:"delivery_not_attempted_count"`
 }
 
-// CronDailyReportTask 表示日报里单个任务的运行与投递情况。
-type CronDailyReportTask struct {
-	JobID                    string                `json:"job_id"`
-	Name                     string                `json:"name"`
-	AgentID                  string                `json:"agent_id"`
-	Deleted                  bool                  `json:"deleted,omitempty"`
-	Enabled                  bool                  `json:"enabled"`
-	Running                  bool                  `json:"running"`
-	RunningRunID             string                `json:"running_run_id,omitempty"`
-	RecoveryRunID            string                `json:"recovery_run_id,omitempty"`
-	NextRunAt                *time.Time            `json:"next_run_at,omitempty"`
-	LastRunAt                *time.Time            `json:"last_run_at,omitempty"`
-	LastRunStatus            string                `json:"last_run_status,omitempty"`
-	LastDeliveryStatus       string                `json:"last_delivery_status,omitempty"`
-	FailureStreak            int                   `json:"failure_streak,omitempty"`
-	LastError                *string               `json:"last_error,omitempty"`
-	LatestExecutionError     *string               `json:"latest_execution_error,omitempty"`
-	LatestDeliveryError      *string               `json:"latest_delivery_error,omitempty"`
-	Signals                  []string              `json:"signals,omitempty"`
-	SuggestedTools           []string              `json:"suggested_tools,omitempty"`
-	ExecutionFailedRunIDs    []string              `json:"execution_failed_run_ids,omitempty"`
-	ManualRedeliveryRunIDs   []string              `json:"manual_redelivery_run_ids,omitempty"`
-	DeliveryPendingRunIDs    []string              `json:"delivery_pending_run_ids,omitempty"`
-	DeliverySkippedRunIDs    []string              `json:"delivery_skipped_run_ids,omitempty"`
-	DeliveryDeadLetterRunIDs []string              `json:"delivery_dead_letter_run_ids,omitempty"`
-	Runs                     []CronRun             `json:"runs"`
-	Totals                   CronDailyReportTotals `json:"totals"`
+// ScheduledTaskDailyReportItem 表示日报里单个任务的运行与投递情况。
+type ScheduledTaskDailyReportItem struct {
+	JobID                    string                         `json:"job_id"`
+	Name                     string                         `json:"name"`
+	AgentID                  string                         `json:"agent_id"`
+	Deleted                  bool                           `json:"deleted,omitempty"`
+	Enabled                  bool                           `json:"enabled"`
+	Running                  bool                           `json:"running"`
+	RunningRunID             string                         `json:"running_run_id,omitempty"`
+	RecoveryRunID            string                         `json:"recovery_run_id,omitempty"`
+	NextRunAt                *time.Time                     `json:"next_run_at,omitempty"`
+	LastRunAt                *time.Time                     `json:"last_run_at,omitempty"`
+	LastRunStatus            string                         `json:"last_run_status,omitempty"`
+	LastDeliveryStatus       string                         `json:"last_delivery_status,omitempty"`
+	FailureStreak            int                            `json:"failure_streak,omitempty"`
+	LastError                *string                        `json:"last_error,omitempty"`
+	LatestExecutionError     *string                        `json:"latest_execution_error,omitempty"`
+	LatestDeliveryError      *string                        `json:"latest_delivery_error,omitempty"`
+	Signals                  []string                       `json:"signals,omitempty"`
+	SuggestedTools           []string                       `json:"suggested_tools,omitempty"`
+	ExecutionFailedRunIDs    []string                       `json:"execution_failed_run_ids,omitempty"`
+	ManualRedeliveryRunIDs   []string                       `json:"manual_redelivery_run_ids,omitempty"`
+	DeliveryPendingRunIDs    []string                       `json:"delivery_pending_run_ids,omitempty"`
+	DeliverySkippedRunIDs    []string                       `json:"delivery_skipped_run_ids,omitempty"`
+	DeliveryDeadLetterRunIDs []string                       `json:"delivery_dead_letter_run_ids,omitempty"`
+	Runs                     []ScheduledTaskRun             `json:"runs"`
+	Totals                   ScheduledTaskDailyReportTotals `json:"totals"`
 }
 
-// CronDailyReport 表示指定日期的任务运行和投递日报。
-type CronDailyReport struct {
-	Date     string                `json:"date"`
-	Timezone string                `json:"timezone"`
-	AgentID  string                `json:"agent_id,omitempty"`
-	JobID    string                `json:"job_id,omitempty"`
-	StartAt  time.Time             `json:"start_at"`
-	EndAt    time.Time             `json:"end_at"`
-	Totals   CronDailyReportTotals `json:"totals"`
-	Tasks    []CronDailyReportTask `json:"tasks"`
+// ScheduledTaskDailyReport 表示指定日期的任务运行和投递日报。
+type ScheduledTaskDailyReport struct {
+	Date     string                         `json:"date"`
+	Timezone string                         `json:"timezone"`
+	AgentID  string                         `json:"agent_id,omitempty"`
+	JobID    string                         `json:"job_id,omitempty"`
+	StartAt  time.Time                      `json:"start_at"`
+	EndAt    time.Time                      `json:"end_at"`
+	Totals   ScheduledTaskDailyReportTotals `json:"totals"`
+	Tasks    []ScheduledTaskDailyReportItem `json:"tasks"`
 }
 
-// CronDailyReportInput 表示日报查询输入。
-type CronDailyReportInput struct {
+// ScheduledTaskDailyReportInput 表示日报查询输入。
+type ScheduledTaskDailyReportInput struct {
 	Date     string
 	Timezone string
 	AgentID  string

@@ -70,6 +70,13 @@ const (
 	// RunStatusSkipped 表示因重叠策略跳过本次触发。
 	RunStatusSkipped = "skipped"
 
+	// TriggerKindScheduled 表示由 Scheduler 到点触发。
+	TriggerKindScheduled = "scheduled"
+	// TriggerKindMisfire 表示接管后处理错过的调度窗口。
+	TriggerKindMisfire = "misfire"
+	// TriggerKindManual 表示用户立即运行。
+	TriggerKindManual = "manual"
+
 	// OverlapPolicySkip 表示已有执行时跳过新触发。
 	OverlapPolicySkip = "skip"
 	// OverlapPolicyAllow 表示允许同一任务并发执行。

@@ -10,7 +10,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
-	sqliterepo "github.com/nexus-research-lab/nexus/internal/storage/sqlite"
+	"github.com/nexus-research-lab/nexus/internal/storage/agentrepo"
 )
 
 func TestServiceManagesWorkspaceFiles(t *testing.T) {
@@ -22,7 +22,7 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}
 	defer func() { _ = db.Close() }()
-	agentService := agentsvc.NewService(cfg, sqliterepo.NewAgentRepository(db))
+	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
 	workspaceService := NewService(cfg, agentService)
 	ctx := context.Background()
 

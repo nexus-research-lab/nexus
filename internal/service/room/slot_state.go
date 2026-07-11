@@ -108,15 +108,6 @@ func (slot *activeRoomSlot) setRuntimeKind(runtimeKind string) {
 	slot.stateMu.Unlock()
 }
 
-func (slot *activeRoomSlot) getRuntimeKind() string {
-	if slot == nil {
-		return ""
-	}
-	slot.stateMu.RLock()
-	defer slot.stateMu.RUnlock()
-	return strings.TrimSpace(slot.RuntimeKind)
-}
-
 func (slot *activeRoomSlot) setInterruptReason(reason string) {
 	if slot == nil {
 		return

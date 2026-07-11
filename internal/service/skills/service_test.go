@@ -17,7 +17,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
-	sqliterepo "github.com/nexus-research-lab/nexus/internal/storage/sqlite"
+	"github.com/nexus-research-lab/nexus/internal/storage/agentrepo"
 
 	"github.com/pressly/goose/v3"
 	_ "modernc.org/sqlite"
@@ -32,7 +32,7 @@ func TestServiceImportsAndInstallsSkill(t *testing.T) {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}
 	defer func() { _ = db.Close() }()
-	agentService := agentsvc.NewService(cfg, sqliterepo.NewAgentRepository(db))
+	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
 	workspaceService := workspacepkg.NewService(cfg, agentService)
 	service := NewService(cfg, agentService, workspaceService)
 	ctx := context.Background()
@@ -258,7 +258,7 @@ func TestUpdateSingleSkillReportsRedeployFailureAndContinues(t *testing.T) {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}
 	defer func() { _ = db.Close() }()
-	agentService := agentsvc.NewService(cfg, sqliterepo.NewAgentRepository(db))
+	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
 	workspaceService := workspacepkg.NewService(cfg, agentService)
 	service := NewServiceWithDB(cfg, db, agentService, workspaceService)
 	ctx := context.Background()

@@ -526,31 +526,6 @@ func waitForAtomicBool(t *testing.T, value *atomic.Bool, message string) {
 	}
 }
 
-func waitForRoomPublicHistoryContent(
-	t *testing.T,
-	store *workspacestore.RoomHistoryStore,
-	conversationID string,
-	content string,
-) []protocol.Message {
-	t.Helper()
-	deadline := time.After(3 * time.Second)
-	for {
-		messages, err := store.ReadMessages(conversationID, nil)
-		if err != nil {
-			t.Fatalf("读取公区历史失败: %v", err)
-		}
-		if strings.Contains(fmt.Sprint(messages), content) {
-			return messages
-		}
-		select {
-		case <-deadline:
-			t.Fatalf("公区历史未出现内容 %q: %+v", content, messages)
-		default:
-			time.Sleep(10 * time.Millisecond)
-		}
-	}
-}
-
 func roomDirectedMessageContentsContain(messages []protocol.RoomDirectedMessageRecord, content string) bool {
 	return slices.ContainsFunc(messages, func(message protocol.RoomDirectedMessageRecord) bool {
 		return message.Content == content

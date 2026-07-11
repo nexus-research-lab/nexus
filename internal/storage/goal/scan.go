@@ -143,14 +143,3 @@ func parseMap(raw string) map[string]any {
 	}
 	return result
 }
-
-func parseUsage(raw string) protocol.GoalUsage {
-	if raw == "" {
-		return protocol.GoalUsage{}
-	}
-	var result protocol.GoalUsage
-	if err := json.Unmarshal([]byte(raw), &result); err != nil {
-		return protocol.GoalUsage{}
-	}
-	return result
-}

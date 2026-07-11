@@ -8,8 +8,8 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
-func TestCronJobMatchesQueryUsesDeliveryAndStatusAliases(t *testing.T) {
-	job := types.CronJob{
+func TestScheduledTaskMatchesQueryUsesDeliveryAndStatusAliases(t *testing.T) {
+	job := types.ScheduledTask{
 		JobID:   "job-1",
 		Enabled: true,
 		Running: true,
@@ -19,11 +19,11 @@ func TestCronJobMatchesQueryUsesDeliveryAndStatusAliases(t *testing.T) {
 	}
 
 	for _, query := range []string{"飞书群", "fs", "运行中", "enabled"} {
-		if !CronJobMatchesQuery(job, query) {
+		if !ScheduledTaskMatchesQuery(job, query) {
 			t.Fatalf("expected query %q to match job", query)
 		}
 	}
-	if CronJobMatchesQuery(job, "停用") {
+	if ScheduledTaskMatchesQuery(job, "停用") {
 		t.Fatalf("did not expect disabled alias to match enabled job")
 	}
 }
@@ -38,8 +38,8 @@ func TestQueryVariantsExpandsChannelAliases(t *testing.T) {
 	}
 }
 
-func TestBestMatchingCronJobsPrefersSpecificNaturalLanguageTarget(t *testing.T) {
-	jobs := []types.CronJob{
+func TestBestMatchingScheduledTasksPrefersSpecificNaturalLanguageTarget(t *testing.T) {
+	jobs := []types.ScheduledTask{
 		{
 			JobID:       "job-feishu-weather",
 			Name:        "飞书群天气",
@@ -69,21 +69,21 @@ func TestBestMatchingCronJobsPrefersSpecificNaturalLanguageTarget(t *testing.T) 
 		},
 	}
 
-	matches := BestMatchingCronJobs(jobs, "飞书群暂停新闻")
+	matches := BestMatchingScheduledTasks(jobs, "飞书群暂停新闻")
 
 	if len(matches) != 1 || matches[0].JobID != "job-feishu-news" {
 		t.Fatalf("expected specific disabled Feishu news task, got %+v", matches)
 	}
 }
 
-func TestBestMatchingCronJobsKeepsEqualTopCandidatesAmbiguous(t *testing.T) {
-	jobs := []types.CronJob{
+func TestBestMatchingScheduledTasksKeepsEqualTopCandidatesAmbiguous(t *testing.T) {
+	jobs := []types.ScheduledTask{
 		{JobID: "job-news-a", Name: "早间新闻", AgentID: "agent-1", Enabled: true},
 		{JobID: "job-news-b", Name: "晚间新闻", AgentID: "agent-1", Enabled: true},
 		{JobID: "job-water", Name: "喝水提醒", AgentID: "agent-1", Enabled: true},
 	}
 
-	matches := BestMatchingCronJobs(jobs, "新闻")
+	matches := BestMatchingScheduledTasks(jobs, "新闻")
 
 	if len(matches) != 2 {
 		t.Fatalf("expected two equally strong news candidates, got %+v", matches)

@@ -32,7 +32,7 @@ func searchHistory(svc contract.Service, sctx contract.ServerContext) sdktool.To
 			if err != nil {
 				return render.Error(err), nil
 			}
-			input := automationdomain.CronTaskHistorySearchInput{
+			input := automationdomain.ScheduledTaskHistorySearchInput{
 				Query:          argx.String(args, "query"),
 				AgentID:        agentID,
 				IncludeActive:  optionalBoolDefault(args, "include_active", true),

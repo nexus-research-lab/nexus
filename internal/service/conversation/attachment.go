@@ -52,30 +52,6 @@ func (c RuntimeContent) Payload() any {
 	return cloneRuntimeBlocks(c.blocks)
 }
 
-// PrependText 将系统动态上下文放在用户输入前面。
-func (c RuntimeContent) PrependText(prefix string) RuntimeContent {
-	prefix = strings.TrimSpace(prefix)
-	if prefix == "" {
-		return c
-	}
-	text := strings.TrimSpace(c.text)
-	if text == "" {
-		c.text = prefix
-	} else {
-		c.text = prefix + "\n\n" + text
-	}
-	if len(c.blocks) > 0 {
-		blocks := make([]map[string]any, 0, len(c.blocks)+1)
-		blocks = append(blocks, map[string]any{
-			"type": "text",
-			"text": prefix,
-		})
-		blocks = append(blocks, cloneRuntimeBlocks(c.blocks)...)
-		c.blocks = blocks
-	}
-	return c
-}
-
 // AppendText 将运行时动态上下文追加到本轮用户输入尾部。
 func (c RuntimeContent) AppendText(suffix string) RuntimeContent {
 	suffix = strings.TrimSpace(suffix)

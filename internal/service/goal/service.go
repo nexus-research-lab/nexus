@@ -133,52 +133,104 @@ func (s *Service) Update(ctx context.Context, goalID string, request protocol.Up
 	if err != nil {
 		return nil, err
 	}
-	changed := false
-	payload := map[string]any{}
-	if request.Objective != nil {
-		objective, err := normalizeObjective(*request.Objective)
-		if err != nil {
-			return nil, err
-		}
-		objective, payload = s.rewriteUpdateObjective(ctx, request, item.SessionKey, objective, payload)
-		if item.Objective != objective {
-			item.Objective = objective
-			changed = true
-			payload["objective_updated"] = true
-		}
-	}
-	if request.TokenBudget.Present {
-		tokenBudget, err := normalizeUpdateBudget(request.TokenBudget.Value)
-		if err != nil {
-			return nil, err
-		}
-		if !goalTokenBudgetEqual(item.TokenBudget, tokenBudget) {
-			item.TokenBudget = tokenBudget
-			changed = true
-			if item.TokenBudget != nil {
-				payload["token_budget"] = *item.TokenBudget
-			} else {
-				payload["token_budget"] = nil
-			}
-		}
-	}
-	if request.Metadata != nil {
-		item.Metadata = cloneMap(request.Metadata)
-		changed = true
-		payload["metadata_updated"] = true
-	}
-	if !changed {
-		return item, nil
-	}
-	nextStatus := statusAfterUserGoalUpdate(item.Status, request.Objective != nil)
-	updated, err := s.persistTransition(ctx, *item, nextStatus, protocol.GoalUpdateSourceUser, "updated", "", payload)
+	mutation, err := s.buildGoalUpdateMutation(ctx, item, request)
 	if err != nil {
 		return nil, err
 	}
-	if request.Objective != nil {
+	if !mutation.changed {
+		return item, nil
+	}
+	nextStatus := statusAfterUserGoalUpdate(item.Status, mutation.objectiveRequested)
+	updated, err := s.persistTransition(ctx, *item, nextStatus, protocol.GoalUpdateSourceUser, "updated", "", mutation.payload)
+	if err != nil {
+		return nil, err
+	}
+	if mutation.objectiveRequested {
 		s.updatePreviewFromGoal(ctx, *updated, request.OwnerUserID)
 	}
-	if protocol.NormalizeGoalStatus(updated.Status) == protocol.GoalStatusBudgetLimited && !s.goalBudgetExhausted(*updated) {
+	return s.reconcileUpdatedGoalBudget(ctx, updated)
+}
+
+type goalUpdateMutation struct {
+	changed            bool
+	objectiveRequested bool
+	payload            map[string]any
+}
+
+func (s *Service) buildGoalUpdateMutation(
+	ctx context.Context,
+	item *protocol.Goal,
+	request protocol.UpdateGoalRequest,
+) (goalUpdateMutation, error) {
+	mutation := goalUpdateMutation{
+		objectiveRequested: request.Objective != nil,
+		payload:            make(map[string]any),
+	}
+	if err := s.applyGoalObjectiveUpdate(ctx, item, request, &mutation); err != nil {
+		return goalUpdateMutation{}, err
+	}
+	if err := applyGoalBudgetUpdate(item, request, &mutation); err != nil {
+		return goalUpdateMutation{}, err
+	}
+	if request.Metadata != nil {
+		item.Metadata = cloneMap(request.Metadata)
+		mutation.changed = true
+		mutation.payload["metadata_updated"] = true
+	}
+	return mutation, nil
+}
+
+func (s *Service) applyGoalObjectiveUpdate(
+	ctx context.Context,
+	item *protocol.Goal,
+	request protocol.UpdateGoalRequest,
+	mutation *goalUpdateMutation,
+) error {
+	if request.Objective == nil {
+		return nil
+	}
+	objective, err := normalizeObjective(*request.Objective)
+	if err != nil {
+		return err
+	}
+	objective, mutation.payload = s.rewriteUpdateObjective(ctx, request, item.SessionKey, objective, mutation.payload)
+	if item.Objective == objective {
+		return nil
+	}
+	item.Objective = objective
+	mutation.changed = true
+	mutation.payload["objective_updated"] = true
+	return nil
+}
+
+func applyGoalBudgetUpdate(
+	item *protocol.Goal,
+	request protocol.UpdateGoalRequest,
+	mutation *goalUpdateMutation,
+) error {
+	if !request.TokenBudget.Present {
+		return nil
+	}
+	tokenBudget, err := normalizeUpdateBudget(request.TokenBudget.Value)
+	if err != nil {
+		return err
+	}
+	if goalTokenBudgetEqual(item.TokenBudget, tokenBudget) {
+		return nil
+	}
+	item.TokenBudget = tokenBudget
+	mutation.changed = true
+	mutation.payload["token_budget"] = nil
+	if tokenBudget != nil {
+		mutation.payload["token_budget"] = *tokenBudget
+	}
+	return nil
+}
+
+func (s *Service) reconcileUpdatedGoalBudget(ctx context.Context, updated *protocol.Goal) (*protocol.Goal, error) {
+	status := protocol.NormalizeGoalStatus(updated.Status)
+	exhausted := s.goalBudgetExhausted(*updated)
+	if status == protocol.GoalStatusBudgetLimited && !exhausted {
 		resumed, err := s.persistTransition(ctx, *updated, protocol.GoalStatusActive, protocol.GoalUpdateSourceUser, "resumed", "", map[string]any{
 			"reason": "token budget updated",
 		})
@@ -188,7 +240,7 @@ func (s *Service) Update(ctx context.Context, goalID string, request protocol.Up
 		s.maybeDispatchActiveGoalContinuation(ctx, *resumed)
 		return resumed, nil
 	}
-	if protocol.NormalizeGoalStatus(updated.Status) == protocol.GoalStatusActive && s.goalBudgetExhausted(*updated) {
+	if status == protocol.GoalStatusActive && exhausted {
 		return s.limitForSystem(ctx, *updated, protocol.GoalStatusBudgetLimited, "budget_limited", "", "Goal token budget exhausted")
 	}
 	s.maybeDispatchActiveGoalContinuation(ctx, *updated)

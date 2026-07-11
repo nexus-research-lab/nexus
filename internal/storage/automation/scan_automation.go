@@ -6,11 +6,11 @@ import (
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 )
 
-func scanCronJob(scanner interface {
+func scanScheduledTask(scanner interface {
 	Scan(dest ...any) error
-}) (automationdomain.CronJob, error) {
+}) (automationdomain.ScheduledTask, error) {
 	var (
-		item               automationdomain.CronJob
+		item               automationdomain.ScheduledTask
 		runAt              sql.NullString
 		intervalSeconds    sql.NullInt64
 		cronExpression     sql.NullString
@@ -78,7 +78,7 @@ func scanCronJob(scanner interface {
 		&lastDeliveryStatus,
 	)
 	if err != nil {
-		return automationdomain.CronJob{}, err
+		return automationdomain.ScheduledTask{}, err
 	}
 	item.Schedule.RunAt = nullStringToPointer(runAt)
 	item.Schedule.IntervalSeconds = nullIntToPointer(intervalSeconds)
@@ -114,19 +114,19 @@ func scanCronJob(scanner interface {
 	return item, nil
 }
 
-func scanCronJobRow(row *sql.Row) (*automationdomain.CronJob, error) {
-	item, err := scanCronJob(row)
+func scanScheduledTaskRow(row *sql.Row) (*automationdomain.ScheduledTask, error) {
+	item, err := scanScheduledTask(row)
 	if err != nil {
 		return nil, err
 	}
 	return &item, nil
 }
 
-func scanCronRun(scanner interface {
+func scanScheduledTaskRun(scanner interface {
 	Scan(dest ...any) error
-}) (automationdomain.CronRun, error) {
+}) (automationdomain.ScheduledTaskRun, error) {
 	var (
-		item                  automationdomain.CronRun
+		item                  automationdomain.ScheduledTaskRun
 		sessionKey            sql.NullString
 		roundID               sql.NullString
 		sessionID             sql.NullString
@@ -177,7 +177,7 @@ func scanCronRun(scanner interface {
 		&item.UpdatedAt,
 	)
 	if err != nil {
-		return automationdomain.CronRun{}, err
+		return automationdomain.ScheduledTaskRun{}, err
 	}
 	item.ScheduledFor = nullTimePointer(scheduledFor)
 	item.StartedAt = nullTimePointer(startedAt)

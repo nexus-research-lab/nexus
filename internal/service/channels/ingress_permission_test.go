@@ -7,7 +7,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
-	sqliterepo "github.com/nexus-research-lab/nexus/internal/storage/sqlite"
+	"github.com/nexus-research-lab/nexus/internal/storage/agentrepo"
 
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
@@ -17,7 +17,7 @@ func TestIngressServiceFeishuAllowsScheduledTaskSkillWithRestrictiveAgentTools(t
 	db := migrateIngressSQLite(t, cfg.DatabaseURL)
 	defer func() { _ = db.Close() }()
 
-	agentService := agentsvc.NewService(cfg, sqliterepo.NewAgentRepository(db))
+	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
 	if _, err := agentService.UpdateAgent(context.Background(), cfg.DefaultAgentID, protocol.UpdateRequest{
 		Options: &protocol.Options{AllowedTools: []string{"nexus_automation"}},
 	}); err != nil {
@@ -99,7 +99,7 @@ func TestIngressServiceAcceptTelegramAllowsScheduledTaskToolsOnly(t *testing.T) 
 	db := migrateIngressSQLite(t, cfg.DatabaseURL)
 	defer func() { _ = db.Close() }()
 
-	agentService := agentsvc.NewService(cfg, sqliterepo.NewAgentRepository(db))
+	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
 	handler := &fakeIngressDMHandler{}
 	router := NewRouter(cfg, db, agentService, permissionctx.NewContext())
 	service := NewIngressService(cfg, agentService, handler, router)
@@ -176,7 +176,7 @@ func TestIngressServiceAutoApproveToolsCanAllowNexusAutomationServer(t *testing.
 	db := migrateIngressSQLite(t, cfg.DatabaseURL)
 	defer func() { _ = db.Close() }()
 
-	agentService := agentsvc.NewService(cfg, sqliterepo.NewAgentRepository(db))
+	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
 	handler := &fakeIngressDMHandler{}
 	router := NewRouter(cfg, db, agentService, permissionctx.NewContext())
 	service := NewIngressService(cfg, agentService, handler, router)

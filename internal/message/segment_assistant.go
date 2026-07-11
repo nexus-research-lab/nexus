@@ -269,48 +269,46 @@ func (s *AssistantSegment) normalizedContent() []map[string]any {
 	return content
 }
 
+type assistantBlockMatcher func(map[string]any, map[string]any) bool
+
+var assistantBlockMatchers = map[string]assistantBlockMatcher{
+	"thinking":      func(map[string]any, map[string]any) bool { return true },
+	"tool_use":      blockFieldMatcher("id"),
+	"tool_result":   blockFieldMatcher("tool_use_id"),
+	"task_progress": blockFieldMatcher("task_id"),
+	protocol.ContentBlockTypeWorkspaceFileArtifact: func(current map[string]any, incoming map[string]any) bool {
+		return workspaceFileArtifactKey(current) == workspaceFileArtifactKey(incoming)
+	},
+	"text": func(current map[string]any, incoming map[string]any) bool {
+		currentText := rawString(current["text"])
+		incomingText := rawString(incoming["text"])
+		return currentText == incomingText ||
+			strings.HasPrefix(currentText, incomingText) ||
+			strings.HasPrefix(incomingText, currentText)
+	},
+}
+
+func blockFieldMatcher(field string) assistantBlockMatcher {
+	return func(current map[string]any, incoming map[string]any) bool {
+		return normalizeString(current[field]) == normalizeString(incoming[field])
+	}
+}
+
 func (s *AssistantSegment) upsertBlock(incoming map[string]any) {
 	block := cloneMap(incoming)
 	incomingType := normalizeString(block["type"])
+	matcher := assistantBlockMatchers[incomingType]
+	if matcher == nil {
+		s.content = append(s.content, block)
+		return
+	}
 	for index, current := range s.content {
 		currentType := normalizeString(current["type"])
-		if currentType != incomingType {
+		if currentType != incomingType || !matcher(current, block) {
 			continue
 		}
-		switch incomingType {
-		case "thinking":
-			s.content[index] = block
-			return
-		case "tool_use":
-			if normalizeString(current["id"]) == normalizeString(block["id"]) {
-				s.content[index] = block
-				return
-			}
-		case "tool_result":
-			if normalizeString(current["tool_use_id"]) == normalizeString(block["tool_use_id"]) {
-				s.content[index] = block
-				return
-			}
-		case "task_progress":
-			if normalizeString(current["task_id"]) == normalizeString(block["task_id"]) {
-				s.content[index] = block
-				return
-			}
-		case protocol.ContentBlockTypeWorkspaceFileArtifact:
-			if workspaceFileArtifactKey(current) == workspaceFileArtifactKey(block) {
-				s.content[index] = block
-				return
-			}
-		case "text":
-			currentText := rawString(current["text"])
-			incomingText := rawString(block["text"])
-			if currentText == incomingText ||
-				strings.HasPrefix(currentText, incomingText) ||
-				strings.HasPrefix(incomingText, currentText) {
-				s.content[index] = block
-				return
-			}
-		}
+		s.content[index] = block
+		return
 	}
 	s.content = append(s.content, block)
 }

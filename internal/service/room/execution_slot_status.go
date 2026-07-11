@@ -120,6 +120,57 @@ func (s *RealtimeService) broadcastAgentRoundStatus(ctx context.Context, roundVa
 	))
 }
 
+func (e *slotExecution) complete(result exec.RoundExecutionResult) error {
+	lastAssistant := e.mapper.LastAssistantMessage()
+	if result.CompletedByAssistant {
+		e.service.recordTerminalAssistantUsage(e.round, e.slot, lastAssistant)
+	}
+	e.service.recordGoalUsageForSlot(e.ctx, e.slot, result, lastAssistant)
+	e.service.recordGoalUsageLimitForSlot(e.ctx, e.slot, result)
+	e.service.recordGoalContinuationProgressForSlot(e.ctx, e.slot, e.round, result, lastAssistant)
+	if e.slot.getStatus() == "running" {
+		e.slot.setStatus(resultStatus(result.ResultSubtype))
+	}
+	e.service.broadcastAgentRoundStatus(e.ctx, e.round, e.slot, e.slot.getStatus())
+	if err := e.persistCompletionOutput(lastAssistant); err != nil {
+		return err
+	}
+	if e.slot.getStatus() != "finished" {
+		return nil
+	}
+	return e.commitCompletionCursors()
+}
+
+func (e *slotExecution) persistCompletionOutput(lastAssistant protocol.Message) error {
+	if e.slot.shouldSuppressOutput() {
+		return nil
+	}
+	if err := e.service.recordRoomDirectedMessageReply(e.ctx, e.round, e.slot, lastAssistant); err != nil {
+		return err
+	}
+	if !roomSlotPublishesPublicOutput(e.slot) {
+		return nil
+	}
+	return e.service.collectPublicMentionWakes(e.ctx, e.round, e.slot, lastAssistant)
+}
+
+func (e *slotExecution) commitCompletionCursors() error {
+	if err := e.service.recordRoomPublicCursor(e.slot, e.round, e.slot.PublicCursorID, e.slot.PublicCursorTS); err != nil {
+		return err
+	}
+	messageCursor, recorded, err := e.service.recordRoomDirectedMessageCursor(e.slot, e.round)
+	if err != nil || !recorded {
+		return err
+	}
+	e.service.broadcastSharedEventWithTimeout(
+		e.ctx,
+		e.round.SessionKey,
+		e.round.RoomID,
+		newRoomDirectedMessageConsumedEvent(messageCursor),
+	)
+	return nil
+}
+
 func (s *RealtimeService) handleSlotFailure(ctx context.Context, roundValue *activeRoomRound, slot *activeRoomSlot, mapper *roomdomain.SlotMessageMapper, err error) {
 	fields := []any{
 		"session_key", roundValue.SessionKey,

@@ -12,7 +12,7 @@
 //     对话投影、统一事件类型、Goal 生命周期、输入队列面。
 //   - chat_attachment.go / workspace_file_artifact.go / delivery_policy.go：
 //     聊天附件、工作区文件产物、投递策略。
-//   - identity.go：ID 生成。
+//   - identity.go / value.go：ID 生成与跨边界值解码。
 //   - generate.go / typescript_event.go：前端 TS 类型代码生成入口（go:generate）。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）

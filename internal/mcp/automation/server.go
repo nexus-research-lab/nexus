@@ -2,7 +2,7 @@
 //
 // 子包分工：
 //   - contract/   公共契约：Service 接口、ServerContext、ServerName
-//   - tool/       MCP 工具（每个工具一个文件）+ JSON Schema
+//   - tool/       MCP 工具（每个工具一个文件）+ JSON Schema，更新工具按字段阶段构建输入
 //   - internal/argx/      入参类型转换与访问器
 //   - internal/render/    返回值序列化 + 时间字段本地化
 //   - internal/builder/   schedule/session/delivery/source 对象构造

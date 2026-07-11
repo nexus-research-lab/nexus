@@ -56,78 +56,140 @@ func update(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 
 // buildUpdateInput 把工具入参映射成底层 UpdateJobInput（仅设置出现的字段）。
 // 只接受 UI 对齐字段，不再允许直接传 session_target / delivery / source。
-func buildUpdateInput(args map[string]any, sctx contract.ServerContext, currentJob automationdomain.CronJob) (automationdomain.UpdateJobInput, error) {
-	input := automationdomain.UpdateJobInput{}
-	if name, ok := args["name"]; ok {
-		s := strings.TrimSpace(argx.StringOf(name))
-		input.Name = &s
+func buildUpdateInput(args map[string]any, sctx contract.ServerContext, currentJob automationdomain.ScheduledTask) (automationdomain.UpdateJobInput, error) {
+	builder := scheduledTaskUpdateInputBuilder{args: args, server: sctx, currentJob: currentJob}
+	return builder.build()
+}
+
+type scheduledTaskUpdateInputBuilder struct {
+	args       map[string]any
+	server     contract.ServerContext
+	currentJob automationdomain.ScheduledTask
+	input      automationdomain.UpdateJobInput
+}
+
+func (b *scheduledTaskUpdateInputBuilder) build() (automationdomain.UpdateJobInput, error) {
+	stages := []func() error{
+		b.applyBasicFields,
+		b.applyInstruction,
+		b.applyExpiration,
+		b.applySchedule,
+		b.applyRouting,
 	}
-	instruction, err := updateInstruction(args, currentJob.Instruction)
-	if err != nil {
-		return automationdomain.UpdateJobInput{}, err
-	}
-	if instruction != nil {
-		input.Instruction = instruction
-	}
-	if executionKind, ok := args["execution_kind"]; ok {
-		s := automationdomain.NormalizeExecutionKind(argx.StringOf(executionKind))
-		input.ExecutionKind = &s
-	}
-	if enabled, ok := args["enabled"]; ok {
-		b := argx.ParseBool(enabled)
-		input.Enabled = &b
-	}
-	if overlapPolicy, ok := args["overlap_policy"]; ok {
-		s := strings.TrimSpace(argx.StringOf(overlapPolicy))
-		input.OverlapPolicy = &s
-	}
-	expiresAt, err := parseExpiresAt(args)
-	if err != nil {
-		return automationdomain.UpdateJobInput{}, err
-	}
-	input.ExpiresAt = expiresAt
-	if clearExpiresAt, ok := args["clear_expires_at"]; ok {
-		input.ClearExpiresAt = argx.ParseBool(clearExpiresAt)
-	}
-	if raw, ok := args["schedule"]; ok {
-		schedule, err := builder.Schedule(raw, sctx.DefaultTimezone)
-		if err != nil {
+	for _, stage := range stages {
+		if err := stage(); err != nil {
 			return automationdomain.UpdateJobInput{}, err
 		}
-		input.Schedule = &schedule
 	}
-	executionMode := strings.TrimSpace(argx.String(args, "execution_mode"))
-	replyMode := strings.TrimSpace(argx.String(args, "reply_mode"))
-	if executionMode != "" {
-		if err := semantic.ValidatePage(executionMode, replyMode); err != nil {
-			return automationdomain.UpdateJobInput{}, err
-		}
-		target, err := semantic.SessionTarget(args, sctx, executionMode)
-		if err != nil {
-			return automationdomain.UpdateJobInput{}, err
-		}
-		input.SessionTarget = &target
-		if replyMode != "" {
-			delivery, err := semantic.Delivery(args, sctx, currentJob.AgentID, executionMode, replyMode, target)
-			if err != nil {
-				return automationdomain.UpdateJobInput{}, err
-			}
-			input.Delivery = &delivery
-		}
-	} else if replyMode != "" {
-		if replyMode == "execution" {
-			return automationdomain.UpdateJobInput{}, errors.New("reply_mode=execution update requires execution_mode in the same call so the execution session can be resolved safely")
-		}
-		delivery, err := semantic.Delivery(args, sctx, currentJob.AgentID, executionMode, replyMode, automationdomain.SessionTarget{})
-		if err != nil {
-			return automationdomain.UpdateJobInput{}, err
-		}
-		input.Delivery = &delivery
-	}
-	if !hasUpdateFields(input) {
+	if !hasUpdateFields(b.input) {
 		return automationdomain.UpdateJobInput{}, errors.New("update_scheduled_task requires at least one field to update besides job_id")
 	}
-	return input, nil
+	return b.input, nil
+}
+
+func (b *scheduledTaskUpdateInputBuilder) applyBasicFields() error {
+	if name, ok := b.args["name"]; ok {
+		s := strings.TrimSpace(argx.StringOf(name))
+		b.input.Name = &s
+	}
+	if executionKind, ok := b.args["execution_kind"]; ok {
+		s := automationdomain.NormalizeExecutionKind(argx.StringOf(executionKind))
+		b.input.ExecutionKind = &s
+	}
+	if enabled, ok := b.args["enabled"]; ok {
+		value := argx.ParseBool(enabled)
+		b.input.Enabled = &value
+	}
+	if overlapPolicy, ok := b.args["overlap_policy"]; ok {
+		s := strings.TrimSpace(argx.StringOf(overlapPolicy))
+		b.input.OverlapPolicy = &s
+	}
+	return nil
+}
+
+func (b *scheduledTaskUpdateInputBuilder) applyInstruction() error {
+	instruction, err := updateInstruction(b.args, b.currentJob.Instruction)
+	if err != nil {
+		return err
+	}
+	b.input.Instruction = instruction
+	return nil
+}
+
+func (b *scheduledTaskUpdateInputBuilder) applyExpiration() error {
+	expiresAt, err := parseExpiresAt(b.args)
+	if err != nil {
+		return err
+	}
+	b.input.ExpiresAt = expiresAt
+	if clearExpiresAt, ok := b.args["clear_expires_at"]; ok {
+		b.input.ClearExpiresAt = argx.ParseBool(clearExpiresAt)
+	}
+	return nil
+}
+
+func (b *scheduledTaskUpdateInputBuilder) applySchedule() error {
+	raw, ok := b.args["schedule"]
+	if !ok {
+		return nil
+	}
+	schedule, err := builder.Schedule(raw, b.server.DefaultTimezone)
+	if err != nil {
+		return err
+	}
+	b.input.Schedule = &schedule
+	return nil
+}
+
+func (b *scheduledTaskUpdateInputBuilder) applyRouting() error {
+	executionMode := strings.TrimSpace(argx.String(b.args, "execution_mode"))
+	replyMode := strings.TrimSpace(argx.String(b.args, "reply_mode"))
+	if executionMode != "" {
+		return b.applyExecutionRoute(executionMode, replyMode)
+	}
+	if replyMode != "" {
+		return b.applyDeliveryOnly(replyMode)
+	}
+	return nil
+}
+
+func (b *scheduledTaskUpdateInputBuilder) applyExecutionRoute(executionMode string, replyMode string) error {
+	if err := semantic.ValidatePage(executionMode, replyMode); err != nil {
+		return err
+	}
+	target, err := semantic.SessionTarget(b.args, b.server, executionMode)
+	if err != nil {
+		return err
+	}
+	b.input.SessionTarget = &target
+	if replyMode == "" {
+		return nil
+	}
+	delivery, err := semantic.Delivery(b.args, b.server, b.currentJob.AgentID, executionMode, replyMode, target)
+	if err != nil {
+		return err
+	}
+	b.input.Delivery = &delivery
+	return nil
+}
+
+func (b *scheduledTaskUpdateInputBuilder) applyDeliveryOnly(replyMode string) error {
+	if replyMode == "execution" {
+		return errors.New("reply_mode=execution update requires execution_mode in the same call so the execution session can be resolved safely")
+	}
+	delivery, err := semantic.Delivery(
+		b.args,
+		b.server,
+		b.currentJob.AgentID,
+		"",
+		replyMode,
+		automationdomain.SessionTarget{},
+	)
+	if err != nil {
+		return err
+	}
+	b.input.Delivery = &delivery
+	return nil
 }
 
 func updateInstruction(args map[string]any, currentInstruction string) (*string, error) {

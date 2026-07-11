@@ -22,7 +22,7 @@ import (
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
-	sqlitestorage "github.com/nexus-research-lab/nexus/internal/storage/sqlite"
+	"github.com/nexus-research-lab/nexus/internal/storage/agentrepo"
 	versionpkg "github.com/nexus-research-lab/nexus/internal/version"
 )
 
@@ -133,7 +133,7 @@ func TestHandleRuntimeOptionsReturnsDefaultProvider(t *testing.T) {
 
 	db := handlertest.OpenSQLite(t, cfg.DatabaseURL)
 	defer func() { _ = db.Close() }()
-	agents := agentpkg.NewService(cfg, sqlitestorage.NewAgentRepository(db))
+	agents := agentpkg.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
 	providers := providercfg.NewServiceWithDB(cfg, db)
 	createdProvider, err := providers.Create(context.Background(), providercfg.CreateInput{
 		Provider:    "glm",

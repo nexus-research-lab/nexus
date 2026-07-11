@@ -42,7 +42,7 @@ func dailyReport(svc contract.Service, sctx contract.ServerContext) sdktool.Tool
 					return render.Error(err), nil
 				}
 			}
-			payload, err := svc.GetDailyReport(scopedCtx, automationdomain.CronDailyReportInput{
+			payload, err := svc.GetDailyReport(scopedCtx, automationdomain.ScheduledTaskDailyReportInput{
 				Date:     argx.String(args, "date"),
 				Timezone: argx.FirstNonEmpty(argx.String(args, "timezone"), sctx.DefaultTimezone),
 				AgentID:  agentID,

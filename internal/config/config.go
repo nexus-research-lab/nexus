@@ -245,14 +245,6 @@ func mustBool(raw string) bool {
 	return value
 }
 
-func mustFloat(raw string) float64 {
-	value, err := strconv.ParseFloat(raw, 64)
-	if err != nil {
-		return 0
-	}
-	return value
-}
-
 func mustStringList(raw string) []string {
 	parts := strings.Split(raw, ",")
 	values := make([]string, 0, len(parts))

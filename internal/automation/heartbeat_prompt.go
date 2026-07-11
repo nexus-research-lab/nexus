@@ -11,121 +11,151 @@ type HeartbeatTask struct {
 
 // ParseHeartbeatTasks 从 HEARTBEAT.md 的 tasks 段解析任务提示。
 func ParseHeartbeatTasks(text string) []HeartbeatTask {
-	lines := strings.Split(text, "\n")
-	tasks := make([]HeartbeatTask, 0)
-	current := map[string]string{}
-	inTasks := false
-	tasksIndent := 0
-	pendingBlockKey := ""
-	pendingBlockIndent := 0
-	blockLines := make([]string, 0)
-	blockContentIndent := 0
-
-	flushCurrent := func() {
-		if len(current) == 0 {
-			return
-		}
-		task := buildHeartbeatTask(current)
-		if task != nil {
-			tasks = append(tasks, *task)
-		}
-		current = map[string]string{}
+	parser := heartbeatTaskParser{
+		lines:   strings.Split(text, "\n"),
+		current: make(map[string]string),
 	}
-	finishBlock := func() {
-		if pendingBlockKey == "" {
-			return
-		}
-		current[pendingBlockKey] = strings.TrimRight(strings.Join(blockLines, "\n"), " \t\r\n")
-		pendingBlockKey = ""
-		pendingBlockIndent = 0
-		blockLines = make([]string, 0)
-		blockContentIndent = 0
-	}
+	return parser.parse()
+}
 
-	for i := 0; i < len(lines); {
-		line := strings.TrimRight(lines[i], "\r")
-		stripped := strings.TrimSpace(line)
-		indent := len(line) - len(strings.TrimLeft(line, " "))
+type heartbeatTaskParser struct {
+	lines       []string
+	index       int
+	tasks       []HeartbeatTask
+	current     map[string]string
+	inTasks     bool
+	tasksIndent int
+	block       *heartbeatBlock
+}
 
-		if !inTasks {
-			if stripped == "tasks:" {
-				inTasks = true
-				tasksIndent = indent
-			}
-			i++
+type heartbeatBlock struct {
+	key           string
+	markerIndent  int
+	contentIndent int
+	lines         []string
+}
+
+type heartbeatLine struct {
+	raw      string
+	stripped string
+	indent   int
+}
+
+func (p *heartbeatTaskParser) parse() []HeartbeatTask {
+	for p.index < len(p.lines) {
+		line := newHeartbeatLine(p.lines[p.index])
+		if p.consumeLine(line) {
+			p.index++
 			continue
 		}
-
-		if pendingBlockKey != "" {
-			if stripped == "" {
-				blockLines = append(blockLines, "")
-				i++
-				continue
-			}
-			if indent <= pendingBlockIndent {
-				finishBlock()
-				continue
-			}
-			if blockContentIndent == 0 {
-				blockContentIndent = indent
-			}
-			if indent < blockContentIndent {
-				finishBlock()
-				continue
-			}
-			if blockContentIndent <= len(line) {
-				blockLines = append(blockLines, strings.TrimRight(line[blockContentIndent:], " \t\r"))
-			} else {
-				blockLines = append(blockLines, "")
-			}
-			i++
-			continue
-		}
-
-		// 中文注释：tasks 块回到更外层且不是列表项时，视为任务段结束。
-		if stripped != "" && indent <= tasksIndent && !strings.HasPrefix(stripped, "-") {
-			break
-		}
-		if stripped == "" {
-			i++
-			continue
-		}
-
-		if strings.HasPrefix(stripped, "-") {
-			flushCurrent()
-			item := strings.TrimSpace(strings.TrimPrefix(stripped, "-"))
-			if item != "" {
-				key, value := parseHeartbeatKeyValue(item)
-				if key != "" {
-					if value == "|" {
-						pendingBlockKey = key
-						pendingBlockIndent = indent
-					} else {
-						current[key] = value
-					}
-				}
-			}
-			i++
-			continue
-		}
-
-		key, value := parseHeartbeatKeyValue(stripped)
-		if key != "" {
-			if value == "|" {
-				pendingBlockKey = key
-				pendingBlockIndent = indent
-			} else {
-				current[key] = value
-			}
-		}
-		i++
+		break
 	}
+	p.finishBlock()
+	p.flushTask()
+	return p.tasks
+}
 
-	if pendingBlockKey != "" {
-		finishBlock()
+func (p *heartbeatTaskParser) consumeLine(line heartbeatLine) bool {
+	if !p.inTasks {
+		p.findTasksSection(line)
+		return true
 	}
-	flushCurrent()
-	return tasks
+	if p.block != nil {
+		return p.consumeBlockLine(line)
+	}
+	if p.sectionEnded(line) {
+		return false
+	}
+	p.consumeTaskLine(line)
+	return true
+}
+
+func (p *heartbeatTaskParser) findTasksSection(line heartbeatLine) {
+	if line.stripped != "tasks:" {
+		return
+	}
+	p.inTasks = true
+	p.tasksIndent = line.indent
+}
+
+func (p *heartbeatTaskParser) sectionEnded(line heartbeatLine) bool {
+	return line.stripped != "" &&
+		line.indent <= p.tasksIndent &&
+		!strings.HasPrefix(line.stripped, "-")
+}
+
+func (p *heartbeatTaskParser) consumeTaskLine(line heartbeatLine) {
+	if line.stripped == "" {
+		return
+	}
+	field := line.stripped
+	if strings.HasPrefix(field, "-") {
+		p.flushTask()
+		field = strings.TrimSpace(strings.TrimPrefix(field, "-"))
+	}
+	p.consumeField(field, line.indent)
+}
+
+func (p *heartbeatTaskParser) consumeField(field string, indent int) {
+	if field == "" {
+		return
+	}
+	key, value := parseHeartbeatKeyValue(field)
+	if key == "" {
+		return
+	}
+	if value == "|" {
+		p.block = &heartbeatBlock{key: key, markerIndent: indent}
+		return
+	}
+	p.current[key] = value
+}
+
+func (p *heartbeatTaskParser) consumeBlockLine(line heartbeatLine) bool {
+	if line.stripped == "" {
+		p.block.lines = append(p.block.lines, "")
+		return true
+	}
+	if line.indent <= p.block.markerIndent {
+		p.finishBlock()
+		return p.consumeLine(line)
+	}
+	if p.block.contentIndent == 0 {
+		p.block.contentIndent = line.indent
+	}
+	if line.indent < p.block.contentIndent {
+		p.finishBlock()
+		return p.consumeLine(line)
+	}
+	p.block.lines = append(p.block.lines, strings.TrimRight(line.raw[p.block.contentIndent:], " \t\r"))
+	return true
+}
+
+func (p *heartbeatTaskParser) finishBlock() {
+	if p.block == nil {
+		return
+	}
+	p.current[p.block.key] = strings.TrimRight(strings.Join(p.block.lines, "\n"), " \t\r\n")
+	p.block = nil
+}
+
+func (p *heartbeatTaskParser) flushTask() {
+	if len(p.current) == 0 {
+		return
+	}
+	if task := buildHeartbeatTask(p.current); task != nil {
+		p.tasks = append(p.tasks, *task)
+	}
+	p.current = make(map[string]string)
+}
+
+func newHeartbeatLine(raw string) heartbeatLine {
+	raw = strings.TrimRight(raw, "\r")
+	return heartbeatLine{
+		raw:      raw,
+		stripped: strings.TrimSpace(raw),
+		indent:   len(raw) - len(strings.TrimLeft(raw, " ")),
+	}
 }
 
 func parseHeartbeatKeyValue(line string) (string, string) {

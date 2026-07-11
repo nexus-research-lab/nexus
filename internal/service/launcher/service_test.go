@@ -14,7 +14,9 @@ import (
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
 	sessionsvc "github.com/nexus-research-lab/nexus/internal/service/session"
-	sqliterepo "github.com/nexus-research-lab/nexus/internal/storage/sqlite"
+	"github.com/nexus-research-lab/nexus/internal/storage/agentrepo"
+	"github.com/nexus-research-lab/nexus/internal/storage/roomrepo"
+	"github.com/nexus-research-lab/nexus/internal/storage/sessionrepo"
 
 	"github.com/pressly/goose/v3"
 	_ "modernc.org/sqlite"
@@ -29,9 +31,9 @@ func TestLauncherQueryAndSuggestions(t *testing.T) {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}
 	defer func() { _ = db.Close() }()
-	agentService := agentsvc.NewService(cfg, sqliterepo.NewAgentRepository(db))
-	roomService := roomsvc.NewService(cfg, agentService, sqliterepo.NewRoomRepository(db))
-	sessionService := sessionsvc.NewService(cfg, agentService, sqliterepo.NewSessionRepository(db))
+	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
+	roomService := roomsvc.NewService(cfg, agentService, roomrepo.NewSQLRepository("sqlite", db))
+	sessionService := sessionsvc.NewService(cfg, agentService, sessionrepo.NewSQLRepository("sqlite", db))
 	service := NewService(cfg, agentService, roomService, sessionService)
 
 	ctx := context.Background()

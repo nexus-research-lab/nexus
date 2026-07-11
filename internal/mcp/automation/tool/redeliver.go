@@ -63,7 +63,7 @@ func resolveRetryDeliveryRunID(
 	}
 }
 
-func retryableDeliveryRunIDs(status *automationdomain.CronTaskStatus) []string {
+func retryableDeliveryRunIDs(status *automationdomain.ScheduledTaskStatus) []string {
 	if status == nil {
 		return nil
 	}

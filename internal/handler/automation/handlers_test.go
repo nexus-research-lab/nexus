@@ -272,7 +272,7 @@ func insertHTTPFailedDeliveryRun(t *testing.T, databaseURL string, jobID string,
 	defer func() { _ = db.Close() }()
 
 	var ownerUserID string
-	if err := db.QueryRow(`SELECT owner_user_id FROM automation_cron_jobs WHERE job_id = ?`, jobID).Scan(&ownerUserID); err != nil {
+	if err := db.QueryRow(`SELECT owner_user_id FROM automation_scheduled_tasks WHERE job_id = ?`, jobID).Scan(&ownerUserID); err != nil {
 		t.Fatalf("读取任务 owner_user_id 失败: %v", err)
 	}
 	if strings.TrimSpace(ownerUserID) == "" {
@@ -282,7 +282,7 @@ func insertHTTPFailedDeliveryRun(t *testing.T, databaseURL string, jobID string,
 	scheduledFor := time.Date(2026, 5, 22, 9, 0, 0, 0, time.UTC)
 	deliveryNextAttemptAt := scheduledFor.Add(10 * time.Minute)
 	_, err := db.Exec(`
-INSERT INTO automation_cron_runs (
+INSERT INTO automation_task_runs (
     run_id, job_id, owner_user_id, status, trigger_kind,
     session_key, round_id, message_count,
     delivery_mode, delivery_to, delivery_status, delivery_error,
@@ -294,8 +294,8 @@ INSERT INTO automation_cron_runs (
 		jobID,
 		ownerUserID,
 		automationdomain.RunStatusSucceeded,
-		"cron",
-		protocol.BuildAgentSessionKey("nexus", "automation", "dm", "cron:"+jobID+":"+runID, ""),
+		automationdomain.TriggerKindScheduled,
+		protocol.BuildAgentSessionKey("nexus", "automation", "dm", "scheduled-task:"+jobID+":"+runID, ""),
 		"round-"+runID,
 		1,
 		automationdomain.DeliveryModeExplicit,

@@ -55,19 +55,6 @@ func anyString(value any) string {
 	return typed
 }
 
-func intValue(value any) int {
-	switch typed := value.(type) {
-	case int:
-		return typed
-	case int64:
-		return int(typed)
-	case float64:
-		return int(typed)
-	default:
-		return 0
-	}
-}
-
 func roomTargetResolution(targetAgentIDs []string) string {
 	if len(targetAgentIDs) > 0 {
 		return "mention"
@@ -82,14 +69,6 @@ func cloneMessageWithSessionKey(message protocol.Message, sessionKey string) pro
 	}
 	result["session_key"] = sessionKey
 	return result
-}
-
-func stringPointer(value string) *string {
-	if strings.TrimSpace(value) == "" {
-		return nil
-	}
-	normalized := strings.TrimSpace(value)
-	return &normalized
 }
 
 func normalizeInt64(value any) int64 {

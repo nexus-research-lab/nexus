@@ -41,7 +41,7 @@ func list(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 	}
 }
 
-func filterListedTasks(jobs []automationdomain.CronJob, args map[string]any, sctx contract.ServerContext) []automationdomain.CronJob {
+func filterListedTasks(jobs []automationdomain.ScheduledTask, args map[string]any, sctx contract.ServerContext) []automationdomain.ScheduledTask {
 	query := strings.TrimSpace(argx.String(args, "query"))
 	var enabledFilter *bool
 	if args != nil {
@@ -52,15 +52,15 @@ func filterListedTasks(jobs []automationdomain.CronJob, args map[string]any, sct
 	}
 	if shouldDefaultListToCurrentExternal(args, sctx) {
 		current, _ := currentExternalTaskContextFromServerContext(sctx)
-		jobs = filterCronJobsByCurrentExternalContext(jobs, current)
+		jobs = filterScheduledTasksByCurrentExternalContext(jobs, current)
 	}
 	if query != "" {
-		jobs = filterCronJobsByToolQuery(jobs, query, sctx)
+		jobs = filterScheduledTasksByToolQuery(jobs, query, sctx)
 	}
 	if enabledFilter == nil {
 		return jobs
 	}
-	result := make([]automationdomain.CronJob, 0, len(jobs))
+	result := make([]automationdomain.ScheduledTask, 0, len(jobs))
 	for _, job := range jobs {
 		if enabledFilter != nil && job.Enabled != *enabledFilter {
 			continue

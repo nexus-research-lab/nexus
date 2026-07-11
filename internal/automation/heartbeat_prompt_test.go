@@ -60,3 +60,21 @@ func TestParseHeartbeatTasksSupportsMultilinePrompt(t *testing.T) {
 		t.Fatalf("多行 prompt 解析错误: %q", tasks[0].Prompt)
 	}
 }
+
+func TestParseHeartbeatTasksContinuesAfterMultilinePrompt(t *testing.T) {
+	tasks := ParseHeartbeatTasks(
+		"tasks:\n" +
+			"- name: report\n" +
+			"  prompt: |\n" +
+			"    gather metrics\n" +
+			"- name: inbox\n" +
+			"  prompt: check inbox\n" +
+			"summary: done\n",
+	)
+	if len(tasks) != 2 {
+		t.Fatalf("期望连续解析 2 个任务，实际 %d: %+v", len(tasks), tasks)
+	}
+	if tasks[0].Prompt != "gather metrics" || tasks[1].Name != "inbox" {
+		t.Fatalf("多行块结束后的任务解析错误: %+v", tasks)
+	}
+}

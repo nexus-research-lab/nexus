@@ -18,7 +18,7 @@ import (
 
 const maxScriptOutputBytes = 128 * 1024
 
-func (s *Service) startScriptJobExecution(ctx context.Context, job automationdomain.CronJob, triggerKind string, scheduledFor time.Time) (*automationdomain.ExecutionResult, error) {
+func (s *Service) startScriptJobExecution(ctx context.Context, job automationdomain.ScheduledTask, triggerKind string, scheduledFor time.Time) (*automationdomain.ExecutionResult, error) {
 	logger := s.loggerFor(ctx).With(
 		"job_id", job.JobID,
 		"agent_id", job.AgentID,
@@ -35,19 +35,19 @@ func (s *Service) startScriptJobExecution(ctx context.Context, job automationdom
 		return s.recordSkippedOverlap(ctx, job, triggerKind, scheduledFor, true)
 	}
 	nextRunAt := cloneTimePointer(state.NextRunAt)
-	if triggerKind == "cron" || triggerKind == "misfire" {
+	if triggerKind == automationdomain.TriggerKindScheduled || triggerKind == automationdomain.TriggerKindMisfire {
 		nextRunAt = s.nextRunAfterScheduledTrigger(job, triggerKind, scheduledFor)
 	}
 	s.mu.Unlock()
 
 	startedAt := s.nowFn()
-	claimed, err := s.repository.ClaimCronJobRuntime(ctx, automationstore.JobRuntimeClaimInput{
+	claimed, err := s.repository.ClaimScheduledTaskRuntime(ctx, automationstore.JobRuntimeClaimInput{
 		JobID:         job.JobID,
 		RunID:         runID,
 		StartedAt:     startedAt,
 		NextRunAt:     nextRunAt,
 		OverlapPolicy: overlapPolicy,
-		AllowDisabled: triggerKind == "manual",
+		AllowDisabled: triggerKind == automationdomain.TriggerKindManual,
 	})
 	if err != nil {
 		logger.Error("脚本自动化任务领取执行权失败", "run_id", runID, "err", err)
@@ -98,7 +98,7 @@ func (s *Service) startScriptJobExecution(ctx context.Context, job automationdom
 	}, nil
 }
 
-func (s *Service) observeScriptJob(job automationdomain.CronJob, runID string, scheduledFor time.Time) {
+func (s *Service) observeScriptJob(job automationdomain.ScheduledTask, runID string, scheduledFor time.Time) {
 	jobCtx := backgroundContextForJobOwner(job)
 	logger := s.loggerFor(jobCtx).With(
 		"job_id", job.JobID,
@@ -168,7 +168,7 @@ func (s *Service) observeScriptJob(job automationdomain.CronJob, runID string, s
 	logger.Info("脚本自动化任务执行结束", "status", status, "delivery_status", deliveryStatus, "scheduled_for", scheduledFor)
 }
 
-func (s *Service) runScriptJob(ctx context.Context, job automationdomain.CronJob, runID string) automationexec.ExecutionObservation {
+func (s *Service) runScriptJob(ctx context.Context, job automationdomain.ScheduledTask, runID string) automationexec.ExecutionObservation {
 	workspacePath, err := s.resolveAutomationWorkspacePath(ctx, job.AgentID)
 	if err != nil {
 		message := err.Error()

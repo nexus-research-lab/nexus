@@ -3,12 +3,12 @@
 // L2 | 父级: internal/service（L1 见 AGENTS.md）
 //
 // 成员清单：
-//   - service.go / state_machine.go / service_transition.go：Service 与状态机、状态迁移。
-//   - service_continuation.go / service_progress.go / service_resume.go / service_steering.go：续跑、进展记录、恢复、导向。
-//   - service_context.go / service_runtime.go / runtime_*.go：运行时上下文、accounting、wall clock。
-//   - service_objective.go / service_preview.go / service_appserver.go：目标改写、预览填充、Codex app-server 语义。
-//   - service_room_collaboration.go / service_tool.go / service_event.go / service_cleanup.go / service_helpers.go：Room 协作证据、模型工具完成、事件广播、清理、辅助。
-//   - errors.go / repository.go：错误与持久化。
+//   - service.go / state_machine.go / transition.go：Service 与状态机、状态迁移。
+//   - continuation.go / progress.go / resume.go / steering.go：续跑、进展记录、恢复、导向。
+//   - context.go / runtime.go / runtime_*.go：运行时上下文、accounting、wall clock。
+//   - objective.go / preview.go / appserver.go：目标改写、预览填充、Codex app-server 语义。
+//   - room_collaboration.go / tool.go / event.go / cleanup.go / helpers.go：Room 协作证据、模型工具完成、事件广播、清理、辅助。
+//   - errors.go / repository.go：跨调用方统一的错误分类与持久化契约。
 //
 // Codex app-server 协议模型见子包 appserver/。
 //

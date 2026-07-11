@@ -8,7 +8,7 @@ import (
 
 // JobRuntimeState 是进程内的自动化任务运行态。
 type JobRuntimeState struct {
-	Job                types.CronJob
+	Job                types.ScheduledTask
 	Running            bool
 	RunningCount       int
 	NextRunAt          *time.Time

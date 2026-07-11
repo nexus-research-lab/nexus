@@ -299,12 +299,6 @@ func (c *sdkClientAdapter) Wait() error {
 	return session.Wait()
 }
 
-func (c *sdkClientAdapter) setStreamError(err error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.streamErr = err
-}
-
 func (c *sdkClientAdapter) markDisconnected(session *agentclient.Session, err error) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()

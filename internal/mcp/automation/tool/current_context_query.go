@@ -28,96 +28,78 @@ var currentConversationQueryTerms = []string{
 	"this task", "current task", "this scheduled task", "current scheduled task",
 }
 
-func bestMatchingCronJobsForToolQuery(
-	jobs []automationdomain.CronJob,
+func bestMatchingScheduledTasksForToolQuery(
+	jobs []automationdomain.ScheduledTask,
 	query string,
 	sctx contract.ServerContext,
-) []automationdomain.CronJob {
-	matches, hasCurrent := bestMatchingCurrentCronJobsForToolQuery(jobs, query, sctx)
+) []automationdomain.ScheduledTask {
+	matches, hasCurrent := bestMatchingCurrentScheduledTasksForToolQuery(jobs, query, sctx)
 	if hasCurrent {
 		if queryMentionsCurrentConversation(query) || len(matches) > 0 {
 			return matches
 		}
 	}
-	return automationexec.BestMatchingCronJobs(jobs, query)
+	return automationexec.BestMatchingScheduledTasks(jobs, query)
 }
 
-func cronJobMatchesToolQuery(job automationdomain.CronJob, query string, sctx contract.ServerContext) bool {
-	if !queryMentionsCurrentConversation(query) {
-		return automationexec.CronJobMatchesQuery(job, query)
-	}
-	current, ok := currentTaskContextFromServerContext(sctx)
-	if !ok {
-		return automationexec.CronJobMatchesQuery(job, query)
-	}
-	if !cronJobMatchesCurrentContext(job, current) {
-		return false
-	}
-	remainder := stripCurrentConversationTerms(query)
-	if strings.TrimSpace(remainder) == "" {
-		return true
-	}
-	return automationexec.CronJobMatchesQuery(job, remainder)
-}
-
-func filterCronJobsByToolQuery(
-	jobs []automationdomain.CronJob,
+func filterScheduledTasksByToolQuery(
+	jobs []automationdomain.ScheduledTask,
 	query string,
 	sctx contract.ServerContext,
-) []automationdomain.CronJob {
-	currentMatches, hasCurrent := currentCronJobsForToolQuery(jobs, query, sctx)
+) []automationdomain.ScheduledTask {
+	currentMatches, hasCurrent := currentScheduledTasksForToolQuery(jobs, query, sctx)
 	if hasCurrent {
 		if queryMentionsCurrentConversation(query) || len(currentMatches) > 0 {
 			return currentMatches
 		}
 	}
-	return filterCronJobsByPlainQuery(jobs, query)
+	return filterScheduledTasksByPlainQuery(jobs, query)
 }
 
-func currentCronJobsForToolQuery(
-	jobs []automationdomain.CronJob,
+func currentScheduledTasksForToolQuery(
+	jobs []automationdomain.ScheduledTask,
 	query string,
 	sctx contract.ServerContext,
-) ([]automationdomain.CronJob, bool) {
+) ([]automationdomain.ScheduledTask, bool) {
 	current, ok := currentTaskContextFromServerContext(sctx)
 	if !ok {
 		return nil, false
 	}
-	scoped := filterCronJobsByCurrentContext(jobs, current)
+	scoped := filterScheduledTasksByCurrentContext(jobs, current)
 	if !queryMentionsCurrentConversation(query) {
-		return filterCronJobsByPlainQuery(scoped, query), true
+		return filterScheduledTasksByPlainQuery(scoped, query), true
 	}
 	remainder := stripCurrentConversationTerms(query)
 	if strings.TrimSpace(remainder) == "" {
 		return scoped, true
 	}
-	return filterCronJobsByPlainQuery(scoped, remainder), true
+	return filterScheduledTasksByPlainQuery(scoped, remainder), true
 }
 
-func bestMatchingCurrentCronJobsForToolQuery(
-	jobs []automationdomain.CronJob,
+func bestMatchingCurrentScheduledTasksForToolQuery(
+	jobs []automationdomain.ScheduledTask,
 	query string,
 	sctx contract.ServerContext,
-) ([]automationdomain.CronJob, bool) {
+) ([]automationdomain.ScheduledTask, bool) {
 	current, ok := currentTaskContextFromServerContext(sctx)
 	if !ok {
 		return nil, false
 	}
-	scoped := filterCronJobsByCurrentContext(jobs, current)
+	scoped := filterScheduledTasksByCurrentContext(jobs, current)
 	if !queryMentionsCurrentConversation(query) {
-		return automationexec.BestMatchingCronJobs(scoped, query), true
+		return automationexec.BestMatchingScheduledTasks(scoped, query), true
 	}
 	remainder := stripCurrentConversationTerms(query)
 	if strings.TrimSpace(remainder) == "" {
 		return scoped, true
 	}
-	return automationexec.BestMatchingCronJobs(scoped, remainder), true
+	return automationexec.BestMatchingScheduledTasks(scoped, remainder), true
 }
 
-func filterCronJobsByPlainQuery(jobs []automationdomain.CronJob, query string) []automationdomain.CronJob {
-	matches := make([]automationdomain.CronJob, 0, len(jobs))
+func filterScheduledTasksByPlainQuery(jobs []automationdomain.ScheduledTask, query string) []automationdomain.ScheduledTask {
+	matches := make([]automationdomain.ScheduledTask, 0, len(jobs))
 	for _, job := range jobs {
-		if automationexec.CronJobMatchesQuery(job, query) {
+		if automationexec.ScheduledTaskMatchesQuery(job, query) {
 			matches = append(matches, job)
 		}
 	}
@@ -156,30 +138,30 @@ func currentTaskContextFromServerContext(sctx contract.ServerContext) (currentTa
 	return current, true
 }
 
-func filterCronJobsByCurrentExternalContext(
-	jobs []automationdomain.CronJob,
+func filterScheduledTasksByCurrentExternalContext(
+	jobs []automationdomain.ScheduledTask,
 	current currentTaskContext,
-) []automationdomain.CronJob {
+) []automationdomain.ScheduledTask {
 	if !current.external {
 		return nil
 	}
-	return filterCronJobsByCurrentContext(jobs, current)
+	return filterScheduledTasksByCurrentContext(jobs, current)
 }
 
-func filterCronJobsByCurrentContext(
-	jobs []automationdomain.CronJob,
+func filterScheduledTasksByCurrentContext(
+	jobs []automationdomain.ScheduledTask,
 	current currentTaskContext,
-) []automationdomain.CronJob {
-	matches := make([]automationdomain.CronJob, 0, len(jobs))
+) []automationdomain.ScheduledTask {
+	matches := make([]automationdomain.ScheduledTask, 0, len(jobs))
 	for _, job := range jobs {
-		if cronJobMatchesCurrentContext(job, current) {
+		if scheduledTaskMatchesCurrentContext(job, current) {
 			matches = append(matches, job)
 		}
 	}
 	return matches
 }
 
-func cronJobMatchesCurrentContext(job automationdomain.CronJob, current currentTaskContext) bool {
+func scheduledTaskMatchesCurrentContext(job automationdomain.ScheduledTask, current currentTaskContext) bool {
 	if strings.TrimSpace(current.sessionKey) == "" {
 		return false
 	}
@@ -192,7 +174,7 @@ func cronJobMatchesCurrentContext(job automationdomain.CronJob, current currentT
 	return deliveryTargetMatchesCurrentContext(job.Delivery, current)
 }
 
-func taskEventMatchesCurrentContext(event automationdomain.CronTaskEvent, current currentTaskContext) bool {
+func taskEventMatchesCurrentContext(event automationdomain.ScheduledTaskEvent, current currentTaskContext) bool {
 	if strings.TrimSpace(current.sessionKey) == "" {
 		return false
 	}
@@ -208,13 +190,6 @@ func taskEventMatchesCurrentContext(event automationdomain.CronTaskEvent, curren
 		AccountID: eventDetailString(event.Detail, "delivery_account_id"),
 		ThreadID:  eventDetailString(event.Detail, "delivery_thread_id"),
 	}, current)
-}
-
-func taskEventMatchesCurrentExternalContext(event automationdomain.CronTaskEvent, current currentTaskContext) bool {
-	if !current.external {
-		return false
-	}
-	return taskEventMatchesCurrentContext(event, current)
 }
 
 func deliveryTargetMatchesCurrentContext(target automationdomain.DeliveryTarget, current currentTaskContext) bool {

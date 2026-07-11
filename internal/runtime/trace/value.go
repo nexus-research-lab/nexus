@@ -1,6 +1,7 @@
 package trace
 
 import (
+	"reflect"
 	"strings"
 	"unicode/utf8"
 )
@@ -36,41 +37,23 @@ func appendRawLogField(fields []any, key string, value any) []any {
 	if strings.TrimSpace(key) == "" {
 		return fields
 	}
-	switch typed := value.(type) {
-	case string:
-		if strings.TrimSpace(typed) == "" {
-			return fields
-		}
-		return append(fields, key, strings.TrimSpace(typed))
-	case int:
-		return append(fields, key, typed)
-	case int8:
-		return append(fields, key, typed)
-	case int16:
-		return append(fields, key, typed)
-	case int32:
-		return append(fields, key, typed)
-	case int64:
-		return append(fields, key, typed)
-	case uint:
-		return append(fields, key, typed)
-	case uint8:
-		return append(fields, key, typed)
-	case uint16:
-		return append(fields, key, typed)
-	case uint32:
-		return append(fields, key, typed)
-	case uint64:
-		return append(fields, key, typed)
-	case float32:
-		return append(fields, key, typed)
-	case float64:
-		return append(fields, key, typed)
-	case bool:
-		return append(fields, key, typed)
-	default:
+	reflected := reflect.ValueOf(value)
+	if !reflected.IsValid() {
 		return fields
 	}
+	switch reflected.Kind() {
+	case reflect.String:
+		text := strings.TrimSpace(reflected.String())
+		if text == "" {
+			return fields
+		}
+		return append(fields, key, text)
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
+		reflect.Float32, reflect.Float64, reflect.Bool:
+		return append(fields, key, value)
+	}
+	return fields
 }
 
 func streamDebugText(value string) string {

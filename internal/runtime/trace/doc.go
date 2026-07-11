@@ -3,7 +3,7 @@
 // L2 | 父级: internal/runtime（L1 见 AGENTS.md）
 //
 // 成员清单：
-//   - message.go：SDKMessageLogOptions、DefaultSDKMessageLogOptions、BuildSDKMessageLogFields 入口。
+//   - message.go：SDKMessageLogOptions 与 BuildSDKMessageLogFieldsWithOptions 入口。
 //   - fields.go：各消息类型的日志字段构建。
 //   - summary.go：BuildSDKMessageLogSummary 单行摘要与各 summarize* 逻辑。
 //   - value.go：RawMap / RawString / FirstNonEmpty 等 raw SDK 值解析工具（供 runtime、exec 复用）。

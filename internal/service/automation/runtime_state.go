@@ -10,7 +10,7 @@ import (
 	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"
 )
 
-func (s *Service) ensureJobState(job automationdomain.CronJob) *automationexec.JobRuntimeState {
+func (s *Service) ensureJobState(job automationdomain.ScheduledTask) *automationexec.JobRuntimeState {
 	s.mu.Lock()
 	state := s.jobStates[job.JobID]
 	created := state == nil
@@ -54,7 +54,7 @@ func (s *Service) ensureJobState(job automationdomain.CronJob) *automationexec.J
 	return state
 }
 
-func (s *Service) computeJobNext(job automationdomain.CronJob, now time.Time) *time.Time {
+func (s *Service) computeJobNext(job automationdomain.ScheduledTask, now time.Time) *time.Time {
 	if !job.Enabled {
 		return nil
 	}
@@ -73,6 +73,32 @@ func (s *Service) finishJobRuntime(jobID string, finishedAt *time.Time, status s
 		s.mu.Unlock()
 		return
 	}
+	status = normalizeFinishedRunState(state, finishedAt, status, errorMessage, deliveryStatuses)
+	now := s.nowFn()
+	naturalNext := s.naturalNextRunAt(state, now)
+	applyFinishedRunOutcome(state, status, now, naturalNext)
+
+	// at-kind 是一次性任务：成功或重试耗尽后没有下一次自然触发，主动停用以避免数据库残留启用态。
+	shouldDisable := state.Job.Enabled &&
+		strings.EqualFold(state.Job.Schedule.Kind, automationdomain.ScheduleKindAt) &&
+		state.NextRunAt == nil
+	jobSnapshot := state.Job
+	runtimeSnapshot := jobRuntimeUpdateFromState(jobID, state)
+	s.mu.Unlock()
+
+	s.persistJobRuntime(context.Background(), runtimeSnapshot)
+	if shouldDisable {
+		s.disableExpiredJobAsync(jobSnapshot)
+	}
+}
+
+func normalizeFinishedRunState(
+	state *automationexec.JobRuntimeState,
+	finishedAt *time.Time,
+	status string,
+	errorMessage *string,
+	deliveryStatuses []string,
+) string {
 	if state.RunningCount > 0 {
 		state.RunningCount--
 	}
@@ -94,44 +120,41 @@ func (s *Service) finishJobRuntime(jobID string, finishedAt *time.Time, status s
 	} else if !isSuccessfulRuntimeStatus(status) {
 		state.LastDeliveryStatus = automationdomain.DeliveryStatusNotAttempted
 	}
+	return status
+}
 
-	now := s.nowFn()
+func (s *Service) naturalNextRunAt(state *automationexec.JobRuntimeState, now time.Time) *time.Time {
 	naturalNext := cloneTimePointer(state.NextRunAt)
 	if naturalNext == nil || !naturalNext.After(now) {
 		naturalNext = s.computeJobNext(state.Job, now)
 	}
+	return naturalNext
+}
 
+func applyFinishedRunOutcome(
+	state *automationexec.JobRuntimeState,
+	status string,
+	now time.Time,
+	naturalNext *time.Time,
+) {
+	state.NextRunAt = naturalNext
 	if isSuccessfulRuntimeStatus(status) {
 		state.FailureStreak = 0
-		state.NextRunAt = naturalNext
 		state.LastError = nil
-	} else {
-		state.FailureStreak++
-		state.NextRunAt = naturalNext
-		if backoff, ok := automationexec.RetryBackoffFor(state.FailureStreak); ok {
-			retryAt := now.UTC().Add(backoff)
-			if naturalNext == nil || retryAt.Before(*naturalNext) {
-				retryCopy := retryAt
-				state.NextRunAt = &retryCopy
-			}
-		}
+		return
 	}
-
-	// at-kind 是一次性任务：成功或重试耗尽后没有下一次自然触发，主动停用以避免数据库残留启用态。
-	shouldDisable := state.Job.Enabled &&
-		strings.EqualFold(state.Job.Schedule.Kind, automationdomain.ScheduleKindAt) &&
-		state.NextRunAt == nil
-	jobSnapshot := state.Job
-	runtimeSnapshot := jobRuntimeUpdateFromState(jobID, state)
-	s.mu.Unlock()
-
-	s.persistJobRuntime(context.Background(), runtimeSnapshot)
-	if shouldDisable {
-		s.disableExpiredJobAsync(jobSnapshot)
+	state.FailureStreak++
+	backoff, ok := automationexec.RetryBackoffFor(state.FailureStreak)
+	if !ok {
+		return
+	}
+	retryAt := now.UTC().Add(backoff)
+	if naturalNext == nil || retryAt.Before(*naturalNext) {
+		state.NextRunAt = cloneTimePointer(&retryAt)
 	}
 }
 
-func (s *Service) updateJobLastDeliveryStatus(job automationdomain.CronJob, deliveryStatus string) {
+func (s *Service) updateJobLastDeliveryStatus(job automationdomain.ScheduledTask, deliveryStatus string) {
 	status := strings.TrimSpace(deliveryStatus)
 	if status == "" {
 		return
@@ -178,7 +201,7 @@ func (s *Service) advanceJobRuntimeAfterTriggerWithPersistence(jobID string, sch
 	}
 }
 
-func (s *Service) replaceJobRuntimeState(job automationdomain.CronJob) *automationexec.JobRuntimeState {
+func (s *Service) replaceJobRuntimeState(job automationdomain.ScheduledTask) *automationexec.JobRuntimeState {
 	s.mu.Lock()
 	state := s.jobStates[job.JobID]
 	if state == nil {
@@ -213,7 +236,7 @@ func (s *Service) persistJobRuntime(ctx context.Context, input automationstore.J
 	if strings.TrimSpace(input.JobID) == "" {
 		return
 	}
-	if err := s.repository.UpdateCronJobRuntime(ctx, input); err != nil {
+	if err := s.repository.UpdateScheduledTaskRuntime(ctx, input); err != nil {
 		s.loggerFor(ctx).Warn("持久化自动化任务运行态失败",
 			"job_id", input.JobID,
 			"err", err,
@@ -233,6 +256,26 @@ func jobRuntimeUpdateFromState(jobID string, state *automationexec.JobRuntimeSta
 		LastError:          cloneStringPointer(state.LastError),
 		LastDeliveryStatus: strings.TrimSpace(state.LastDeliveryStatus),
 	}
+}
+
+// scheduledTaskWithRuntime 将持久化定义与进程运行态合成唯一对外视图，避免各入口各自维护字段集合。
+func scheduledTaskWithRuntime(
+	job automationdomain.ScheduledTask,
+	state *automationexec.JobRuntimeState,
+) automationdomain.ScheduledTask {
+	if state == nil {
+		return job
+	}
+	job.NextRunAt = cloneTimePointer(state.NextRunAt)
+	job.Running = state.Running
+	job.RunningRunID = strings.TrimSpace(state.RunningRunID)
+	job.RunningStartedAt = cloneTimePointer(state.RunningStartedAt)
+	job.LastRunAt = cloneTimePointer(state.LastRunAt)
+	job.LastRunStatus = strings.TrimSpace(state.LastRunStatus)
+	job.FailureStreak = state.FailureStreak
+	job.LastError = cloneStringPointer(state.LastError)
+	job.LastDeliveryStatus = strings.TrimSpace(state.LastDeliveryStatus)
+	return job
 }
 
 func isSuccessfulRuntimeStatus(status string) bool {
@@ -261,13 +304,13 @@ func anyIntPointer(value *int) int {
 	return *value
 }
 
-func (s *Service) disableExpiredJobAsync(job automationdomain.CronJob) {
+func (s *Service) disableExpiredJobAsync(job automationdomain.ScheduledTask) {
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
 		updated := job
 		updated.Enabled = false
-		if _, err := s.repository.UpsertCronJob(context.Background(), updated); err != nil {
+		if _, err := s.repository.UpsertScheduledTask(context.Background(), updated); err != nil {
 			s.loggerFor(context.Background()).Warn("at 任务到期自动停用失败",
 				"job_id", job.JobID,
 				"agent_id", job.AgentID,

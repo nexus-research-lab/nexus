@@ -5,8 +5,10 @@
 // 成员清单：
 //   - app.go：New 创建 CLI 应用。
 //   - services.go：按命令域延迟创建服务，避免 help 等命令拉起全量后端依赖。
-//   - command_*.go：各命令域（agent / auth / automation / channel / connector /
-//     conversation / emotion / imagegen / launcher / room / session / skill / workspace）。
+//   - automation*.go：自动化任务的查询、变更、运行与运维命令。
+//   - skill.go / skill_agent.go / skill_external.go：技能目录、Agent 安装与来源管理命令。
+//   - 其余领域文件：agent / auth / channel / connector / conversation / emotion /
+//     imagegen / launcher / room / session / workspace 命令域。
 //   - output.go / flag_int_pointer.go：输出格式与 flag helper。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）

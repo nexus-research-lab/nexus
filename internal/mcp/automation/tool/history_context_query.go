@@ -13,23 +13,23 @@ func searchTaskHistoryForToolQuery(
 	ctx context.Context,
 	svc contract.Service,
 	sctx contract.ServerContext,
-	input automationdomain.CronTaskHistorySearchInput,
-) ([]automationdomain.CronTaskHistoryItem, error) {
+	input automationdomain.ScheduledTaskHistorySearchInput,
+) ([]automationdomain.ScheduledTaskHistoryItem, error) {
 	current, ok := currentTaskContextFromServerContext(sctx)
 	if !ok {
 		return svc.SearchTaskHistory(ctx, input)
 	}
 	mentionsCurrent := queryMentionsCurrentConversation(input.Query)
 	limit := normalizedTaskHistoryToolLimit(input.Limit)
-	items := make([]automationdomain.CronTaskHistoryItem, 0, limit)
+	items := make([]automationdomain.ScheduledTaskHistoryItem, 0, limit)
 	seen := map[string]bool{}
 	if input.IncludeActive {
 		jobs, err := svc.ListTasks(ctx, strings.TrimSpace(input.AgentID))
 		if err != nil {
 			return nil, err
 		}
-		for _, job := range currentCronJobsForHistoryQuery(jobs, input.Query, sctx) {
-			if appendTaskHistoryItem(&items, seen, cronJobTaskHistoryItem(job), limit) {
+		for _, job := range currentScheduledTasksForHistoryQuery(jobs, input.Query, sctx) {
+			if appendTaskHistoryItem(&items, seen, scheduledTaskHistoryItem(job), limit) {
 				return items, nil
 			}
 		}
@@ -62,12 +62,12 @@ func searchTaskHistoryForToolQuery(
 	return svc.SearchTaskHistory(ctx, input)
 }
 
-func currentCronJobsForHistoryQuery(
-	jobs []automationdomain.CronJob,
+func currentScheduledTasksForHistoryQuery(
+	jobs []automationdomain.ScheduledTask,
 	query string,
 	sctx contract.ServerContext,
-) []automationdomain.CronJob {
-	matches, hasCurrent := currentCronJobsForToolQuery(jobs, query, sctx)
+) []automationdomain.ScheduledTask {
+	matches, hasCurrent := currentScheduledTasksForToolQuery(jobs, query, sctx)
 	if !hasCurrent {
 		return nil
 	}
@@ -90,7 +90,7 @@ func requireCurrentConversationTaskHistoryScopeForQuery(
 	if err != nil {
 		return taskHistoryScope{}, true, err
 	}
-	matches, _ := bestMatchingCurrentCronJobsForToolQuery(jobs, query, sctx)
+	matches, _ := bestMatchingCurrentScheduledTasksForToolQuery(jobs, query, sctx)
 	switch len(matches) {
 	case 1:
 		job := matches[0]
@@ -105,7 +105,7 @@ func requireCurrentConversationTaskHistoryScopeForQuery(
 		}
 		return taskHistoryScope{}, false, nil
 	default:
-		return taskHistoryScope{}, true, fmt.Errorf("query %q matched multiple current scheduled tasks; ask the user to choose one job_id: %s", strings.TrimSpace(query), describeCronJobCandidates(matches, 5))
+		return taskHistoryScope{}, true, fmt.Errorf("query %q matched multiple current scheduled tasks; ask the user to choose one job_id: %s", strings.TrimSpace(query), describeScheduledTaskCandidates(matches, 5))
 	}
 }
 
@@ -143,12 +143,12 @@ func deletedCurrentConversationTaskHistoryMatches(
 	current currentTaskContext,
 	agentID string,
 	query string,
-) ([]automationdomain.CronTaskHistoryItem, error) {
+) ([]automationdomain.ScheduledTaskHistoryItem, error) {
 	searchQuery := query
 	if queryMentionsCurrentConversation(query) {
 		searchQuery = stripCurrentConversationTerms(query)
 	}
-	items, err := svc.SearchTaskHistory(scopedCtx, automationdomain.CronTaskHistorySearchInput{
+	items, err := svc.SearchTaskHistory(scopedCtx, automationdomain.ScheduledTaskHistorySearchInput{
 		Query:          searchQuery,
 		AgentID:        agentID,
 		IncludeActive:  false,
@@ -165,9 +165,9 @@ func filterTaskHistoryItemsByCurrentContext(
 	ctx context.Context,
 	svc contract.Service,
 	current currentTaskContext,
-	items []automationdomain.CronTaskHistoryItem,
-) ([]automationdomain.CronTaskHistoryItem, error) {
-	matches := make([]automationdomain.CronTaskHistoryItem, 0, len(items))
+	items []automationdomain.ScheduledTaskHistoryItem,
+) ([]automationdomain.ScheduledTaskHistoryItem, error) {
+	matches := make([]automationdomain.ScheduledTaskHistoryItem, 0, len(items))
 	for _, item := range items {
 		events, err := svc.ListTaskEvents(ctx, item.JobID, 50)
 		if err != nil {
@@ -183,9 +183,9 @@ func filterTaskHistoryItemsByCurrentContext(
 	return matches, nil
 }
 
-func cronJobTaskHistoryItem(job automationdomain.CronJob) automationdomain.CronTaskHistoryItem {
+func scheduledTaskHistoryItem(job automationdomain.ScheduledTask) automationdomain.ScheduledTaskHistoryItem {
 	enabled := job.Enabled
-	return automationdomain.CronTaskHistoryItem{
+	return automationdomain.ScheduledTaskHistoryItem{
 		JobID:              strings.TrimSpace(job.JobID),
 		Name:               strings.TrimSpace(job.Name),
 		AgentID:            strings.TrimSpace(job.AgentID),
@@ -199,7 +199,7 @@ func cronJobTaskHistoryItem(job automationdomain.CronJob) automationdomain.CronT
 	}
 }
 
-func appendTaskHistoryItem(items *[]automationdomain.CronTaskHistoryItem, seen map[string]bool, item automationdomain.CronTaskHistoryItem, limit int) bool {
+func appendTaskHistoryItem(items *[]automationdomain.ScheduledTaskHistoryItem, seen map[string]bool, item automationdomain.ScheduledTaskHistoryItem, limit int) bool {
 	jobID := strings.TrimSpace(item.JobID)
 	if jobID == "" || seen[jobID] {
 		return false

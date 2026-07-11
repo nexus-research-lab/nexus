@@ -158,10 +158,6 @@ type goalContextProvider interface {
 	GoalContinuationStillCurrent(context.Context, protocol.GoalContinuation) (bool, error)
 }
 
-type goalContinuationPlanReleaser interface {
-	ReleaseContinuationPlan(context.Context, protocol.GoalContinuation, string) (*protocol.Goal, error)
-}
-
 // NewService 创建 DM 会话编排服务。
 func NewService(
 	cfg config.Config,

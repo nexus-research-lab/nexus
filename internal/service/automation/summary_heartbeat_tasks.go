@@ -25,7 +25,7 @@ func (s *Service) describeScheduledTasksSection(ctx context.Context, agentID str
 		return ""
 	}
 
-	slices.SortStableFunc(jobs, func(left automationdomain.CronJob, right automationdomain.CronJob) int {
+	slices.SortStableFunc(jobs, func(left automationdomain.ScheduledTask, right automationdomain.ScheduledTask) int {
 		return scheduledTaskSortKey(left).Compare(scheduledTaskSortKey(right))
 	})
 
@@ -46,10 +46,10 @@ func (s *Service) describeScheduledTasksSection(ctx context.Context, agentID str
 
 // snapshotJobsForAgent 从 in-memory jobStates 拷贝当前 agent 的任务视图。
 // Start() 会在启动时把 DB 状态同步到 jobStates，因此这里读 in-memory 是与运行态一致的真相源。
-func (s *Service) snapshotJobsForAgent(agentID string) []automationdomain.CronJob {
+func (s *Service) snapshotJobsForAgent(agentID string) []automationdomain.ScheduledTask {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	jobs := make([]automationdomain.CronJob, 0, len(s.jobStates))
+	jobs := make([]automationdomain.ScheduledTask, 0, len(s.jobStates))
 	for _, state := range s.jobStates {
 		if state == nil {
 			continue
@@ -67,7 +67,7 @@ func (s *Service) snapshotJobsForAgent(agentID string) []automationdomain.CronJo
 }
 
 // scheduledTaskSortKey 用最近一次触发时间作为排序键，没有则用未来很远的时间排到末尾。
-func scheduledTaskSortKey(job automationdomain.CronJob) time.Time {
+func scheduledTaskSortKey(job automationdomain.ScheduledTask) time.Time {
 	if job.NextRunAt != nil {
 		return *job.NextRunAt
 	}
@@ -75,7 +75,7 @@ func scheduledTaskSortKey(job automationdomain.CronJob) time.Time {
 }
 
 // formatScheduledTaskLine 把单个任务摘要成一行简洁文本。
-func formatScheduledTaskLine(job automationdomain.CronJob) string {
+func formatScheduledTaskLine(job automationdomain.ScheduledTask) string {
 	state := "enabled"
 	if !job.Enabled {
 		state = "paused"

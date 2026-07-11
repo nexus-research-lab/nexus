@@ -16,7 +16,7 @@ import (
 type ownedTaskScope struct {
 	Context context.Context
 	JobID   string
-	Job     automationdomain.CronJob
+	Job     automationdomain.ScheduledTask
 }
 
 type taskHistoryScope struct {
@@ -62,7 +62,7 @@ func requireOwnedTaskScopeForQuery(
 	if err != nil {
 		return ownedTaskScope{}, err
 	}
-	matches := bestMatchingCronJobsForToolQuery(jobs, query, sctx)
+	matches := bestMatchingScheduledTasksForToolQuery(jobs, query, sctx)
 	switch len(matches) {
 	case 0:
 		return ownedTaskScope{}, fmt.Errorf("no current scheduled task matched query %q", strings.TrimSpace(query))
@@ -73,7 +73,7 @@ func requireOwnedTaskScopeForQuery(
 		}
 		return ownedTaskScope{Context: scopedCtx, JobID: strings.TrimSpace(job.JobID), Job: job}, nil
 	default:
-		return ownedTaskScope{}, fmt.Errorf("query %q matched multiple current scheduled tasks; ask the user to choose one job_id: %s", strings.TrimSpace(query), describeCronJobCandidates(matches, 5))
+		return ownedTaskScope{}, fmt.Errorf("query %q matched multiple current scheduled tasks; ask the user to choose one job_id: %s", strings.TrimSpace(query), describeScheduledTaskCandidates(matches, 5))
 	}
 }
 
@@ -145,7 +145,7 @@ func requireOwnedTaskHistoryScopeForQuery(
 	if scope, handled, err := requireCurrentConversationTaskHistoryScopeForQuery(scopedCtx, svc, sctx, agentID, query); handled {
 		return scope, err
 	}
-	items, err := svc.SearchTaskHistory(scopedCtx, automationdomain.CronTaskHistorySearchInput{
+	items, err := svc.SearchTaskHistory(scopedCtx, automationdomain.ScheduledTaskHistorySearchInput{
 		Query:          query,
 		AgentID:        agentID,
 		IncludeActive:  true,
@@ -165,18 +165,7 @@ func requireOwnedTaskHistoryScopeForQuery(
 	}
 }
 
-// ensureJobOwnedByCaller 校验 jobID 对应任务是否属于当前调用方。
-// 主智能体豁免；普通 agent 仅可访问/修改自己 agent_id 的任务。
-func ensureJobOwnedByCaller(ctx context.Context, svc contract.Service, sctx contract.ServerContext, jobID string) error {
-	return ensureJobOwnedByCallerInScope(scopedToolContext(ctx, sctx), svc, sctx, jobID)
-}
-
-func ensureJobOwnedByCallerInScope(ctx context.Context, svc contract.Service, sctx contract.ServerContext, jobID string) error {
-	_, err := ownedTaskInScope(ctx, svc, sctx, jobID)
-	return err
-}
-
-func ownedTaskInScope(ctx context.Context, svc contract.Service, sctx contract.ServerContext, jobID string) (*automationdomain.CronJob, error) {
+func ownedTaskInScope(ctx context.Context, svc contract.Service, sctx contract.ServerContext, jobID string) (*automationdomain.ScheduledTask, error) {
 	job, err := svc.GetTask(ctx, jobID)
 	if err != nil {
 		return nil, err
@@ -216,7 +205,7 @@ func taskOwnershipError(jobID string) error {
 	return fmt.Errorf("scheduled task %s belongs to another agent; only its owner or main agent can manage it", jobID)
 }
 
-func describeCronJobCandidates(jobs []automationdomain.CronJob, limit int) string {
+func describeScheduledTaskCandidates(jobs []automationdomain.ScheduledTask, limit int) string {
 	parts := make([]string, 0, len(jobs))
 	for index, job := range jobs {
 		if limit > 0 && index >= limit {
@@ -228,7 +217,7 @@ func describeCronJobCandidates(jobs []automationdomain.CronJob, limit int) strin
 	return strings.Join(parts, "; ")
 }
 
-func describeTaskHistoryCandidates(items []automationdomain.CronTaskHistoryItem, limit int) string {
+func describeTaskHistoryCandidates(items []automationdomain.ScheduledTaskHistoryItem, limit int) string {
 	parts := make([]string, 0, len(items))
 	for index, item := range items {
 		if limit > 0 && index >= limit {

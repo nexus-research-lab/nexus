@@ -51,29 +51,6 @@ func TestMustBool(t *testing.T) {
 	}
 }
 
-func TestMustFloat(t *testing.T) {
-	tests := []struct {
-		name string
-		raw  string
-		want float64
-	}{
-		{"valid float", "3.14", 3.14},
-		{"valid int as float", "42", 42.0},
-		{"zero", "0", 0},
-		{"invalid returns zero", "abc", 0},
-		{"empty returns zero", "", 0},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := mustFloat(tt.raw)
-			if got != tt.want {
-				t.Errorf("mustFloat(%q) = %v, want %v", tt.raw, got, tt.want)
-			}
-		})
-	}
-}
-
 func TestMustStringList(t *testing.T) {
 	tests := []struct {
 		name string

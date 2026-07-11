@@ -60,14 +60,14 @@ type imagegenDefaultResolver interface {
 
 // TaskEventNotifier 接收定时任务变更事件。
 type TaskEventNotifier interface {
-	NotifyTaskEvent(context.Context, automationdomain.CronTaskEvent)
+	NotifyTaskEvent(context.Context, automationdomain.ScheduledTaskEvent)
 }
 
 // TaskEventNotifierFunc 适配函数式定时任务事件通知器。
-type TaskEventNotifierFunc func(context.Context, automationdomain.CronTaskEvent)
+type TaskEventNotifierFunc func(context.Context, automationdomain.ScheduledTaskEvent)
 
 // NotifyTaskEvent 实现 TaskEventNotifier。
-func (fn TaskEventNotifierFunc) NotifyTaskEvent(ctx context.Context, event automationdomain.CronTaskEvent) {
+func (fn TaskEventNotifierFunc) NotifyTaskEvent(ctx context.Context, event automationdomain.ScheduledTaskEvent) {
 	if fn != nil {
 		fn(ctx, event)
 	}
@@ -279,7 +279,7 @@ func (s *Service) ensureDirectTargetSupported(target automationdomain.SessionTar
 	if strings.TrimSpace(target.Kind) == automationdomain.SessionTargetMain {
 		return nil
 	}
-	_, err := automationexec.ResolveSessionKey(automationdomain.CronJob{
+	_, err := automationexec.ResolveSessionKey(automationdomain.ScheduledTask{
 		AgentID:       "noop",
 		SessionTarget: target,
 	}, stringPointer("noop"))

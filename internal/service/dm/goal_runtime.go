@@ -137,56 +137,50 @@ func (r *roundRunner) recordGoalContinuationProgress(result exec.RoundExecutionR
 			assistantText,
 			"Goal continuation runtime failed",
 		)
-		_, err := r.service.goals.RecordContinuationFailure(context.Background(), r.goalIDForUsage, r.roundID, reason)
-		if err != nil && !errors.Is(err, goalsvc.ErrGoalDisabled) && !errors.Is(err, goalsvc.ErrGoalNotFound) && !errors.Is(err, goalsvc.ErrGoalInvalidState) && !errors.Is(err, goalsvc.ErrGoalVersionStale) {
-			r.service.loggerFor(context.Background()).Warn("记录 Goal 续跑失败原因失败",
-				"session_key", r.sessionKey,
-				"goal_id", r.goalIDForUsage,
-				"round_id", r.roundID,
-				"err", err,
-			)
-		}
+		r.recordGoalMutation("记录 Goal 续跑失败原因失败", func() error {
+			_, err := r.service.goals.RecordContinuationFailure(context.Background(), r.goalIDForUsage, r.roundID, reason)
+			return err
+		})
 		return
 	}
 	if strings.TrimSpace(r.inputOptions.Purpose) != "goal_continuation" {
-		_, err := r.service.goals.RecordGoalActivity(context.Background(), r.goalIDForUsage, r.roundID)
-		if err != nil && !errors.Is(err, goalsvc.ErrGoalDisabled) && !errors.Is(err, goalsvc.ErrGoalNotFound) && !errors.Is(err, goalsvc.ErrGoalInvalidState) && !errors.Is(err, goalsvc.ErrGoalVersionStale) {
-			r.service.loggerFor(context.Background()).Warn("记录 Goal 显式活动失败",
-				"session_key", r.sessionKey,
-				"goal_id", r.goalIDForUsage,
-				"round_id", r.roundID,
-				"err", err,
-			)
-		}
+		r.recordGoalMutation("记录 Goal 显式活动失败", func() error {
+			_, err := r.service.goals.RecordGoalActivity(context.Background(), r.goalIDForUsage, r.roundID)
+			return err
+		})
 		return
 	}
 	if messageutil.AssistantMissedGoalCompletionTool(r.lastGoalAssistantMessage()) {
 		reason := "assistant claimed goal completion but did not call mcp__nexus_goal__update_goal"
-		_, err := r.service.goals.RecordCompletionToolMiss(context.Background(), r.goalIDForUsage, r.roundID, reason)
-		if err != nil && !errors.Is(err, goalsvc.ErrGoalDisabled) && !errors.Is(err, goalsvc.ErrGoalNotFound) && !errors.Is(err, goalsvc.ErrGoalInvalidState) && !errors.Is(err, goalsvc.ErrGoalVersionStale) {
-			r.service.loggerFor(context.Background()).Warn("记录 Goal 完成工具漏调用失败",
-				"session_key", r.sessionKey,
-				"goal_id", r.goalIDForUsage,
-				"round_id", r.roundID,
-				"err", err,
-			)
-		}
+		r.recordGoalMutation("记录 Goal 完成工具漏调用失败", func() error {
+			_, err := r.service.goals.RecordCompletionToolMiss(context.Background(), r.goalIDForUsage, r.roundID, reason)
+			return err
+		})
 		return
 	}
 	progressed := r.hasGoalToolProgress()
 	if !progressed && r.hasRunningSubagentTask() {
 		return
 	}
-	_, err := r.service.goals.RecordContinuationProgress(context.Background(), r.goalIDForUsage, r.roundID, progressed)
-	if err != nil && !errors.Is(err, goalsvc.ErrGoalDisabled) && !errors.Is(err, goalsvc.ErrGoalNotFound) && !errors.Is(err, goalsvc.ErrGoalInvalidState) && !errors.Is(err, goalsvc.ErrGoalVersionStale) {
-		r.service.loggerFor(context.Background()).Warn("记录 Goal 续跑进展失败",
-			"session_key", r.sessionKey,
-			"goal_id", r.goalIDForUsage,
-			"round_id", r.roundID,
-			"progressed", progressed,
-			"err", err,
-		)
+	r.recordGoalMutation("记录 Goal 续跑进展失败", func() error {
+		_, err := r.service.goals.RecordContinuationProgress(context.Background(), r.goalIDForUsage, r.roundID, progressed)
+		return err
+	}, "progressed", progressed)
+}
+
+func (r *roundRunner) recordGoalMutation(logMessage string, mutation func() error, fields ...any) {
+	err := mutation()
+	if err == nil || goalsvc.IsExpectedMutationError(err) {
+		return
 	}
+	baseFields := []any{
+		"session_key", r.sessionKey,
+		"goal_id", r.goalIDForUsage,
+		"round_id", r.roundID,
+	}
+	baseFields = append(baseFields, fields...)
+	baseFields = append(baseFields, "err", err)
+	r.service.loggerFor(context.Background()).Warn(logMessage, baseFields...)
 }
 
 func (r *roundRunner) rememberGoalToolProgress(progressed bool) {

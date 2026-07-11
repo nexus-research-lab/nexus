@@ -214,20 +214,6 @@ func TextPart(messageID string) ReceiptPart {
 	}
 }
 
-func MergeReceipts(params ReceiptParams, receipts ...*Receipt) *Receipt {
-	parts := make([]ReceiptPart, 0)
-	for _, receipt := range receipts {
-		if receipt == nil {
-			continue
-		}
-		for _, part := range receipt.Parts {
-			parts = append(parts, part)
-		}
-	}
-	params.Parts = append(params.Parts, parts...)
-	return NewReceipt(params)
-}
-
 func firstNonEmpty(values ...string) string {
 	for _, value := range values {
 		if trimmed := strings.TrimSpace(value); trimmed != "" {

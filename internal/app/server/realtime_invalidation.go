@@ -30,7 +30,7 @@ func configureRealtimeInvalidation(
 	}
 	if services.Automation != nil {
 		services.Automation.SetTaskEventNotifier(automationsvc.TaskEventNotifierFunc(
-			func(ctx context.Context, event automationdomain.CronTaskEvent) {
+			func(ctx context.Context, event automationdomain.ScheduledTaskEvent) {
 				broadcaster.BroadcastScheduledTaskChanged(ctx, event)
 			},
 		))
