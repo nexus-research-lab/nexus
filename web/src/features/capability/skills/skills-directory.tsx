@@ -19,7 +19,7 @@ import {
   type SkillMarketplaceFeedback,
 } from "./controller/skill-marketplace-controller";
 import { useSkillMarketplace } from "./controller/use-skill-marketplace";
-import { SkillDetailView } from "./detail/skill-detail-view";
+import { SkillDetailRoute } from "./detail/skill-detail-route";
 import { ExternalSkillPreviewDialog } from "./external/external-skill-preview-dialog";
 import { SkillSourceManagerDialog } from "./external/skill-source-manager-dialog";
 import { SkillsExternalResults } from "./external/skills-external-results";
@@ -56,10 +56,6 @@ export function SkillsDirectory({ onReplayTour }: SkillsDirectoryProps) {
   const backToSkills = useCallback(() => {
     navigate(AppRouteBuilders.skills());
   }, [navigate]);
-  const handleSkillDeleted = useCallback(async () => {
-    await catalog.refresh();
-    navigate(AppRouteBuilders.skills());
-  }, [catalog, navigate]);
   const previewImportState = external.previewItem
     ? getExternalSkillImportState(
         external.previewItem,
@@ -104,11 +100,13 @@ export function SkillsDirectory({ onReplayTour }: SkillsDirectoryProps) {
         stableGutter
       >
         {skillName ? (
-          <SkillDetailView
+          <SkillDetailRoute
+            deleteSkill={operations.deleteSkill}
+            key={skillName}
             skillName={skillName}
             onBack={backToSkills}
-            onDeleted={handleSkillDeleted}
-            onRefreshed={catalog.refresh}
+            onDeleted={backToSkills}
+            updateSkill={operations.updateSkill}
           />
         ) : (
           <div className={WORKSPACE_DETAIL_PAGE_CLASS_NAME}>

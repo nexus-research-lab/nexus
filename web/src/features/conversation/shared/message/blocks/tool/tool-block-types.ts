@@ -54,17 +54,21 @@ export type ToolStatusTone =
   | "success"
   | "waiting";
 
+export interface ToolPrimaryInputDetail {
+  key: string;
+  label: string;
+  value: string;
+}
+
 export interface ToolBlockViewModel {
   collapsedDetailText: string | null;
   durationText: string;
   expandedDetailText: string | null;
   hasResult: boolean;
-  isError: boolean;
   isRunning: boolean;
-  isSuccess: boolean;
   isWaiting: boolean;
   liveStatusText: string | null;
-  primaryInputDetail: { key: string; value: string } | null;
+  primaryInputDetail: ToolPrimaryInputDetail | null;
   readableSuggestions: ToolPermissionSuggestion[];
   status: ToolBlockStatus;
   statusBadgeClassName: string;

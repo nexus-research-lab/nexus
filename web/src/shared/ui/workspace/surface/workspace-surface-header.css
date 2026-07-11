@@ -1,13 +1,13 @@
-.workspace-surface-header-single-row {
+.workspace-surface-header {
   container-name: workspace-surface-header;
   container-type: inline-size;
 }
 
-.workspace-surface-header-single-row-title {
+.workspace-surface-header-title {
   max-width: 260px;
 }
 
-.workspace-surface-header-single-row-title-trailing > * {
+.workspace-surface-header-title-trailing > * {
   flex-wrap: nowrap;
 }
 
@@ -16,13 +16,13 @@
     display: none;
   }
 
-  .workspace-surface-header-single-row-title {
+  .workspace-surface-header-title {
     max-width: 200px;
   }
 }
 
 @container workspace-surface-header (max-width: 700px) {
-  .workspace-surface-header-single-row-title {
+  .workspace-surface-header-title {
     max-width: 160px;
   }
 

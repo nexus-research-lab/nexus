@@ -21,10 +21,8 @@ import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 import { WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
-import {
-  WorkspaceSurfaceHeader,
-  WorkspaceSurfaceToolbarAction,
-} from "@/shared/ui/workspace/surface/workspace-surface-header";
+import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
+import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-toolbar-action";
 import type {
   Agent,
   AgentIdentityDraft,
@@ -146,7 +144,6 @@ export function ContactsAgentDetail({
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <WorkspaceSurfaceHeader
         activeTab={activeTab}
-        density="compact"
         leading={<UiAgentAvatar avatar={agent.avatar} className="h-full w-full border-0 shadow-none" name={agent.name} size="sm" />}
         onChangeTab={setActiveTab}
         tabs={configTabs}

@@ -71,7 +71,7 @@ export interface SkillOperationsController {
   checkUpdateMessage: string | null;
   checkUpdates: () => Promise<void>;
   checkingUpdates: boolean;
-  deleteSkill: (skill: SkillInfo) => Promise<void>;
+  deleteSkill: (skill: SkillInfo) => Promise<boolean>;
   fileInputRef: RefObject<HTMLInputElement | null>;
   importDialogMode: SkillImportDialogMode | null;
   importExternal: (item: ExternalSkillSearchItem) => Promise<void>;
@@ -80,7 +80,7 @@ export interface SkillOperationsController {
   importing: boolean;
   lastUpdateCheckedAt: number | null;
   setImportDialogMode: (mode: SkillImportDialogMode | null) => void;
-  updateSkill: (skillName: string) => Promise<void>;
+  updateSkill: (skillName: string) => Promise<boolean>;
 }
 
 export interface SkillMarketplaceController {

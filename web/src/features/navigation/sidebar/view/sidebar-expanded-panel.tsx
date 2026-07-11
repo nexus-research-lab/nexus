@@ -13,7 +13,7 @@ import { ContactsSidebarPanelContent } from "@/features/home/sidebar/contacts-si
 import { SIDEBAR_TOUR_ANCHORS } from "@/features/onboarding/tours/sidebar-navigation-tour";
 import { HOME_SIDEBAR_PADDING_CLASS } from "@/lib/layout/home-layout";
 import { cn } from "@/shared/ui/class-name";
-import { COMPACT_WORKSPACE_HEADER_SINGLE_ROW_HEIGHT_CLASS } from "@/shared/ui/workspace/surface/workspace-header-layout";
+import { WORKSPACE_HEADER_HEIGHT_CLASS } from "@/shared/ui/workspace/surface/workspace-header-layout";
 
 import { SidebarNexusButton } from "./sidebar-nexus-button";
 import { SidebarPrimaryTabs } from "./sidebar-primary-tabs";
@@ -96,7 +96,7 @@ export function SidebarExpandedPanel({
       <div
         className={cn(
           "grid grid-cols-[46px_minmax(0,1fr)] items-center gap-1.5 border-b divider-subtle px-3",
-          COMPACT_WORKSPACE_HEADER_SINGLE_ROW_HEIGHT_CLASS,
+          WORKSPACE_HEADER_HEIGHT_CLASS,
         )}
       >
         <SidebarNexusButton {...nexus} variant="panel" />

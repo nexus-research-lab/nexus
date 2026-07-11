@@ -3,7 +3,7 @@ import { FilePlus, FolderOpen, FolderPlus, FolderTree, LoaderCircle, Upload } fr
 
 import { ConversationResizeHandle } from "@/features/conversation/shared/editor/conversation-resize-handle";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-header";
+import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-toolbar-action";
 import { WorkspaceFileTree } from "@/shared/ui/workspace/tree/workspace-file-tree";
 import type { WorkspaceFileEntry } from "@/types/agent/agent";
 

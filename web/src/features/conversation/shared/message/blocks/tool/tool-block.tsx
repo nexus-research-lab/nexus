@@ -7,9 +7,9 @@ import { useCopyToClipboard } from "@/hooks/ui/use-copy-to-clipboard";
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 
 import { ToolBlockHeader } from "./tool-block-header";
+import { ToolBlockResult } from "./tool-block-detail";
 import { buildToolBlockViewModel } from "./tool-block-model";
 import { ToolBlockPermission } from "./tool-block-permission";
-import { ToolBlockResult } from "./tool-block-result";
 import type { ToolBlockProps } from "./tool-block-types";
 
 export function ToolBlock({

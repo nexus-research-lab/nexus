@@ -138,7 +138,6 @@ export function ProviderSettingsPanel({
           header={(
             <WorkspaceSurfaceHeader
               activeTab="providers"
-              density="compact"
               leading={<Cable className="h-4 w-4" />}
               tabs={SETTINGS_TABS.map((item) => ({
                 key: item.key,

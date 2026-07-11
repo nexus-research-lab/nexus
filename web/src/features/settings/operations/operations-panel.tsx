@@ -13,10 +13,8 @@ import { useNavigate } from "react-router-dom";
 import { APP_ROUTE_PATHS } from "@/app/router/route-paths";
 import { ProviderSettingsPanel } from "@/features/settings/provider-settings/provider-settings-panel";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import {
-  WorkspaceSurfaceHeader,
-  WorkspaceSurfaceToolbarAction,
-} from "@/shared/ui/workspace/surface/workspace-surface-header";
+import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
+import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-toolbar-action";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 
 import { SubscriptionAdminPanel } from "./subscription-admin/subscription-admin-panel";
@@ -85,7 +83,6 @@ export function OperationsPanel({ embedded = false }: { embedded?: boolean }) {
       <>
         <WorkspaceSurfaceHeader
           activeTab={activeTab}
-          density="compact"
           onChangeTab={setActiveTab}
           tabs={tabs}
         />
@@ -101,7 +98,6 @@ export function OperationsPanel({ embedded = false }: { embedded?: boolean }) {
       header={(
         <WorkspaceSurfaceHeader
           activeTab={activeTab}
-          density="compact"
           leading={<ActiveIcon className="h-4 w-4" />}
           onChangeTab={setActiveTab}
           tabs={tabs}

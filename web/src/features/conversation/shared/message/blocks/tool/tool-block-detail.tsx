@@ -1,11 +1,15 @@
-import type { ToolResultContent } from "@/types/conversation/message/content";
+import type { PropsWithChildren } from "react";
+
+import type {
+  ImageContent,
+  ToolResultContent,
+} from "@/types/conversation/message/content";
 
 import { ImageBlock } from "../artifact/image-block";
 import { CodeBlock } from "@/shared/ui/markdown/code/code-block";
-import {
-  isImageContent,
-  TOOL_DETAIL_SCROLL_CLASS_NAME,
-} from "./tool-block-model";
+
+const TOOL_DETAIL_SCROLL_CLASS_NAME =
+  "min-w-0 max-h-[18rem] overflow-auto overscroll-contain custom-scrollbar";
 
 interface ToolBlockResultProps {
   onOpenWorkspaceFile?: (path: string) => void;
@@ -20,15 +24,19 @@ export function ToolBlockResult({
 }: ToolBlockResultProps) {
   return (
     <div className="message-cjk-font ml-7 mt-2 min-w-0">
-      <div className={TOOL_DETAIL_SCROLL_CLASS_NAME}>
+      <ToolBlockDetailScroll>
         <ToolResultContentView
           content={toolResult.content}
           onOpenWorkspaceFile={onOpenWorkspaceFile}
           workspaceAgentId={workspaceAgentId}
         />
-      </div>
+      </ToolBlockDetailScroll>
     </div>
   );
+}
+
+export function ToolBlockDetailScroll({ children }: PropsWithChildren) {
+  return <div className={TOOL_DETAIL_SCROLL_CLASS_NAME}>{children}</div>;
 }
 
 function ToolResultContentView({
@@ -72,4 +80,12 @@ function ToolResultContentView({
   }
 
   return <CodeBlock language="json" value={JSON.stringify(content, null, 2)} />;
+}
+
+function isImageContent(value: unknown): value is ImageContent {
+  return Boolean(
+    value &&
+    typeof value === "object" &&
+    (value as { type?: unknown }).type === "image",
+  );
 }

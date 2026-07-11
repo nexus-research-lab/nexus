@@ -1,9 +1,6 @@
 import { getUiChoiceClassName } from "@/shared/ui/form/choice-styles";
 
-import {
-  FIELD_LABEL_MAP,
-  TOOL_DETAIL_SCROLL_CLASS_NAME,
-} from "./tool-block-model";
+import { ToolBlockDetailScroll } from "./tool-block-detail";
 import type {
   ToolBlockViewModel,
   ToolPermissionRequest,
@@ -31,13 +28,13 @@ export function ToolBlockPermission({
       {model.primaryInputDetail?.value.trim() ? (
         <div className="space-y-1 px-0 py-0 text-[12px] leading-5 text-(--text-default)">
           <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-(--text-soft)">
-            {FIELD_LABEL_MAP[model.primaryInputDetail.key] || model.primaryInputDetail.key}
+            {model.primaryInputDetail.label}
           </div>
-          <div className={TOOL_DETAIL_SCROLL_CLASS_NAME}>
+          <ToolBlockDetailScroll>
             <pre className="message-cjk-font whitespace-pre-wrap break-all text-[12px] leading-5 text-(--text-default)">
               {model.primaryInputDetail.value}
             </pre>
-          </div>
+          </ToolBlockDetailScroll>
         </div>
       ) : null}
 

@@ -1,33 +1,22 @@
-import type { ImageContent } from "@/types/conversation/message/content";
 import type { PermissionUpdate } from "@/types/conversation/interaction/permission";
 import { formatTokens } from "@/lib/format/token-count";
+
+import {
+  getToolInputSummary,
+  getToolTitle,
+} from "../../tool-activity";
 
 import type {
   ToolBlockProps,
   ToolBlockStatus,
   ToolBlockViewModel,
+  ToolPermissionRequest,
   ToolPermissionSuggestion,
+  ToolPrimaryInputDetail,
   ToolStatusTone,
 } from "./tool-block-types";
 
-const TOOL_TITLE_MAP: Record<string, string> = {
-  Bash: "执行命令",
-  Read: "读取内容",
-  Write: "写入内容",
-  Edit: "修改内容",
-  MultiEdit: "批量修改",
-  Grep: "查找内容",
-  Glob: "浏览文件",
-  LS: "查看目录",
-  TodoWrite: "更新计划",
-  AskUserQuestion: "等待你的确认",
-  WebSearch: "网络搜索",
-  WebFetch: "抓取网页",
-  Skill: "调用技能",
-  Task: "委派任务",
-};
-
-export const FIELD_LABEL_MAP: Record<string, string> = {
+const FIELD_LABEL_MAP: Record<string, string> = {
   query: "搜索内容",
   url: "网址",
   command: "命令",
@@ -54,40 +43,6 @@ const PRIMARY_INPUT_KEYS = [
   "task",
 ] as const;
 
-const INPUT_SUMMARY_KEYS = [
-  "file_path",
-  "path",
-  "url",
-  "query",
-  "pattern",
-  "description",
-  "task",
-  "prompt",
-] as const;
-
-export const TOOL_DETAIL_SCROLL_CLASS_NAME =
-  "min-w-0 max-h-[18rem] overflow-auto overscroll-contain custom-scrollbar";
-
-export const TOOL_TONE_STYLES: Record<ToolStatusTone, string> = {
-  default: "text-(--icon-muted)",
-  error: "text-(--destructive)",
-  running: "text-(--primary)",
-  success: "text-(--success)",
-  waiting: "text-(--warning)",
-};
-
-export const TOOL_LABEL_STYLES: Record<ToolStatusTone, string> = {
-  default: "text-(--text-default)",
-  error: "text-(--destructive)",
-  running: "text-(--primary)",
-  success: "text-(--success)",
-  waiting: "text-(--warning)",
-};
-
-export function getToolTitle(toolName: string): string {
-  return TOOL_TITLE_MAP[toolName] ?? toolName;
-}
-
 function formatPermissionValue(value: unknown): string {
   if (value == null || value === "") return "空";
   if (typeof value === "string") return value;
@@ -97,7 +52,7 @@ function formatPermissionValue(value: unknown): string {
   }
   if (typeof value === "object") {
     return Object.entries(value as Record<string, unknown>)
-      .map(([key, nestedValue]) => `${FIELD_LABEL_MAP[key] || key}：${formatPermissionValue(nestedValue)}`)
+      .map(([key, nestedValue]) => `${getFieldLabel(key)}：${formatPermissionValue(nestedValue)}`)
       .join("；");
   }
   return String(value);
@@ -135,27 +90,13 @@ function getReadableSuggestions(
   });
 }
 
-export function getInputSummary(input: unknown): string | null {
-  const record = asRecord(input);
-  if (!record) return null;
-  for (const key of INPUT_SUMMARY_KEYS) {
-    const value = getStringField(record, key);
-    if (value) return value;
-  }
-  const command = getStringField(record, "command");
-  if (command) {
-    return `$ ${command.slice(0, 50)}${command.length > 50 ? "..." : ""}`;
-  }
-  return null;
-}
-
-function getPrimaryInputDetail(input: unknown): { key: string; value: string } | null {
+function getPrimaryInputDetail(input: unknown): ToolPrimaryInputDetail | null {
   const record = asRecord(input);
   if (!record) return null;
   for (const key of PRIMARY_INPUT_KEYS) {
     const value = getStringField(record, key);
     if (value) {
-      return { key, value };
+      return { key, label: getFieldLabel(key), value };
     }
   }
   return null;
@@ -166,14 +107,6 @@ function getResultSummary(content: unknown): string {
     return content.slice(0, 80) + (content.length > 80 ? "..." : "");
   }
   return "JSON 数据";
-}
-
-export function isImageContent(value: unknown): value is ImageContent {
-  return Boolean(
-    value &&
-    typeof value === "object" &&
-    (value as { type?: unknown }).type === "image",
-  );
 }
 
 const STATUS_META: Record<
@@ -231,42 +164,30 @@ export function buildToolBlockViewModel({
 >): ToolBlockViewModel {
   const finalStatus = toolResult?.is_error ? "error" : status;
   const statusMeta = STATUS_META[finalStatus];
-  const inputSummary = getInputSummary(toolUse.input);
-  const primaryInputDetail = getPrimaryInputDetail(
-    permissionRequest?.tool_input ?? toolUse.input,
-  );
-  const permissionFields = Object.entries(permissionRequest?.tool_input ?? {})
-    .filter(([key]) => key !== primaryInputDetail?.key)
-    .map(([key, value]) => ({
-      label: FIELD_LABEL_MAP[key] || key,
-      value: formatPermissionValue(value),
-    }));
-  const permissionFieldSummary = permissionFields.length > 0
-    ? permissionFields.map((field) => `${field.label}：${field.value}`).join(" · ")
-    : null;
+  const inputSummary = getToolInputSummary(toolUse.input);
+  const permission = buildPermissionProjection(permissionRequest);
   const resultSummary = toolResult ? getResultSummary(toolResult.content) : null;
   const expandedInputDetail = getPrimaryInputDetail(toolUse.input);
   const isWaiting = finalStatus === "waiting_permission";
+  const waitingDetail = isWaiting ? permission.fieldSummary : null;
 
   return {
     collapsedDetailText:
-      (isWaiting && permissionFieldSummary) ||
+      waitingDetail ||
       inputSummary ||
       resultSummary,
     durationText: formatDuration(startTime, endTime),
     expandedDetailText:
-      (isWaiting && permissionFieldSummary) ||
+      waitingDetail ||
       expandedInputDetail?.value.trim() ||
       inputSummary ||
       resultSummary,
     hasResult: Boolean(toolResult),
-    isError: finalStatus === "error",
     isRunning: finalStatus === "running",
-    isSuccess: finalStatus === "success",
     isWaiting,
     liveStatusText: formatLiveProgress(liveProgress),
-    primaryInputDetail,
-    readableSuggestions: getReadableSuggestions(permissionRequest?.suggestions),
+    primaryInputDetail: permission.primaryInputDetail,
+    readableSuggestions: permission.readableSuggestions,
     status: finalStatus,
     statusBadgeClassName: statusMeta.badgeClassName,
     statusText: statusMeta.label,
@@ -275,6 +196,38 @@ export function buildToolBlockViewModel({
     waitingActionHint: interactionDisabled
       ? interactionDisabledReason || "当前暂不可操作"
       : formatPermissionDeadline(permissionRequest?.expires_at),
+  };
+}
+
+function buildPermissionProjection(
+  permissionRequest?: ToolPermissionRequest,
+): {
+  fieldSummary: string | null;
+  primaryInputDetail: ToolPrimaryInputDetail | null;
+  readableSuggestions: ToolPermissionSuggestion[];
+} {
+  if (!permissionRequest) {
+    return {
+      fieldSummary: null,
+      primaryInputDetail: null,
+      readableSuggestions: [],
+    };
+  }
+
+  const primaryInputDetail = getPrimaryInputDetail(permissionRequest.tool_input);
+  const fields = Object.entries(permissionRequest.tool_input)
+    .filter(([key]) => key !== primaryInputDetail?.key)
+    .map(([key, value]) => ({
+      label: getFieldLabel(key),
+      value: formatPermissionValue(value),
+    }));
+
+  return {
+    fieldSummary: fields.length > 0
+      ? fields.map((field) => `${field.label}：${field.value}`).join(" · ")
+      : null,
+    primaryInputDetail,
+    readableSuggestions: getReadableSuggestions(permissionRequest.suggestions),
   };
 }
 
@@ -317,4 +270,8 @@ function getStringField(
 ): string | null {
   const value = record[key];
   return typeof value === "string" && value ? value : null;
+}
+
+function getFieldLabel(key: string): string {
+  return FIELD_LABEL_MAP[key] ?? key;
 }

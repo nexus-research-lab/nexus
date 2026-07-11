@@ -35,10 +35,8 @@ import { UiSearchInput } from "@/shared/ui/form/form-control";
 import { UiListRow } from "@/shared/ui/list/list-row";
 import { WorkspaceConversationTabs } from "@/shared/ui/workspace/controls/workspace-conversation-tabs";
 import { WorkspaceFileTree } from "@/shared/ui/workspace/tree/workspace-file-tree";
-import {
-  WorkspaceSurfaceHeader,
-  WorkspaceSurfaceToolbarAction,
-} from "@/shared/ui/workspace/surface/workspace-surface-header";
+import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
+import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-toolbar-action";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 import { WorkspaceTaskPanel } from "@/shared/ui/workspace/surface/workspace-task-strip";
 import { WorkspaceSurfaceView } from "@/shared/ui/workspace/surface/workspace-surface-view";
@@ -230,7 +228,6 @@ function LandingWorkbenchMain() {
         header={(
           <WorkspaceSurfaceHeader
             activeTab={activeTab}
-            density="compact"
             leading={<UiAgentAvatar avatar="/icon/agent/8.png" className="h-full w-full border-0 shadow-none" name="Amy" size="sm" />}
             onChangeTab={setActiveTab}
             tabs={[

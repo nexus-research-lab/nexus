@@ -84,7 +84,6 @@ export const GroupConversationHeader = memo(function GroupConversationHeader({
     <>
       <WorkspaceSurfaceHeader
         activeTab={activeTab}
-        density="compact"
         dismissActiveTabLabel={t("common.close")}
         leading={(
           <UiRoomAvatar

@@ -20,10 +20,8 @@ import {
   type FeedbackBannerItem,
 } from "@/shared/ui/feedback/feedback-banner-stack";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
-import {
-  WorkspaceSurfaceHeader,
-  WorkspaceSurfaceToolbarAction,
-} from "@/shared/ui/workspace/surface/workspace-surface-header";
+import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
+import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-toolbar-action";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 
 import {
@@ -64,7 +62,6 @@ export function ChannelsDirectory() {
             badge={t("capability.channels_badge", {
               count: controller.channels.length || 6,
             })}
-            density="compact"
             leading={<MessageCircle className="h-4 w-4" />}
             subtitle={t("capability.channels_subtitle")}
             title={t("capability.channels")}

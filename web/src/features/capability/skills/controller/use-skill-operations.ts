@@ -15,6 +15,7 @@ import {
   importLocalSkillApi,
   updateSingleSkillApi,
 } from "@/lib/api/capability/skill-api";
+import { getErrorMessage } from "@/lib/error-message";
 import type { ExternalSkillSearchItem, SkillInfo } from "@/types/capability/skill";
 
 import { formatDeployFailureMessage } from "../detail/skill-deploy-failures";
@@ -121,7 +122,7 @@ export function useSkillOperations({
       await refreshCatalog();
     } catch (error) {
       if (manual) {
-        feedback.error(error instanceof Error ? error.message : "技能更新检查失败");
+        feedback.error(getErrorMessage(error, "技能更新检查失败"));
       } else {
         recordUpdateCheck();
       }
@@ -155,8 +156,10 @@ export function useSkillOperations({
       if (warning) feedback.warning(warning);
       else feedback.success(`已更新 ${skillName}`);
       await refreshCatalog();
+      return true;
     } catch (error) {
-      feedback.error(error instanceof Error ? error.message : "技能更新失败");
+      feedback.error(getErrorMessage(error, "技能更新失败"));
+      return false;
     } finally {
       setBusyKey(setBusySkillNames, skillName, false);
     }
@@ -169,8 +172,10 @@ export function useSkillOperations({
       await deleteSkillApi(skill.name);
       feedback.success(`${skill.title || skill.name} 已从技能库删除`);
       await refreshCatalog();
+      return true;
     } catch (error) {
-      feedback.error(error instanceof Error ? error.message : "技能删除失败");
+      feedback.error(getErrorMessage(error, "技能删除失败"));
+      return false;
     } finally {
       setBusyKey(setBusySkillNames, skill.name, false);
     }
@@ -187,7 +192,7 @@ export function useSkillOperations({
       setImportDialogMode(null);
       await refreshCatalog();
     } catch (error) {
-      feedback.error(error instanceof Error ? error.message : "技能导入失败");
+      feedback.error(getErrorMessage(error, "技能导入失败"));
     } finally {
       importingRef.current = false;
       setImporting(false);
@@ -214,7 +219,7 @@ export function useSkillOperations({
       setImportDialogMode(null);
       await refreshCatalog();
     } catch (error) {
-      feedback.error(error instanceof Error ? error.message : "Git 技能导入失败");
+      feedback.error(getErrorMessage(error, "Git 技能导入失败"));
     } finally {
       importingRef.current = false;
       setImporting(false);
@@ -231,7 +236,7 @@ export function useSkillOperations({
       await refreshCatalog();
       closeExternalPreview();
     } catch (error) {
-      feedback.error(error instanceof Error ? error.message : "外部技能导入失败");
+      feedback.error(getErrorMessage(error, "外部技能导入失败"));
     } finally {
       setBusyKey(setBusyExternalKeys, key, false);
     }

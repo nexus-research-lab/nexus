@@ -50,7 +50,6 @@ export function ContactsDirectory({
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <WorkspaceSurfaceHeader
         badge="AGENTS"
-        density="compact"
         leading={<Users className="h-4 w-4 text-(--icon-default)" />}
         title={t("contacts.title")}
         trailing={headerTrailing}

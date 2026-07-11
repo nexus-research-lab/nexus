@@ -25,10 +25,8 @@ import {
   type FeedbackBannerItem,
 } from "@/shared/ui/feedback/feedback-banner-stack";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
-import {
-  WorkspaceSurfaceHeader,
-  WorkspaceSurfaceToolbarAction,
-} from "@/shared/ui/workspace/surface/workspace-surface-header";
+import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
+import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-toolbar-action";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 
 import { CreatePairingDialog } from "./pairings/pairing-create-dialog";
@@ -61,7 +59,6 @@ export function PairingsDirectory() {
             badge={t("capability.pairings_badge", {
               count: controller.items.length,
             })}
-            density="compact"
             leading={<ShieldCheck className="h-4 w-4" />}
             subtitle={t("capability.pairings_subtitle")}
             title={t("capability.pairings")}

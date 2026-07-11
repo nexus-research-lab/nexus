@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Split Skill detail routing, scoped resource loading, presentation projection, and pure rendering, while reusing marketplace update/delete commands with explicit success results instead of duplicating API and feedback transactions inside the view.
+- Removed the unused stacked Workspace Header mode and trailing-tab contract, standardized its shared single-row height, and separated identity, navigation, and toolbar action ownership instead of maintaining an optional-prop layout matrix.
+- Moved shared tool activity labels and input summaries out of the concrete Tool Block model, removed unused view-model state, and returned permission labels, status styles, and detail scrolling to their owning projections and views.
 - Moved subscription operations under the Settings domain to remove the top-level Settings/Operations dependency cycle, consolidated tab metadata and content selection into one definition table, and promoted shared Agent Options rules out of the editor Feature so Config and sibling Features depend only on the base library.
 - Replaced the mixed runtime options entry with separate endpoint, conversation-policy, scoped-snapshot, and application-resource modules, and moved authentication transactions out of the shared Context layer.
 - Removed the remaining TypeScript import cycles by moving Agent conversation identity projection out of protocol types and separating Onboarding contracts from the Context and Provider implementation.

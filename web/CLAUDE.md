@@ -88,6 +88,8 @@ src/
 - API/WebSocket 地址、用户作用域运行时快照和固定会话策略分别归 `config/runtime-endpoints.ts`、`config/runtime-options.ts` 与 `config/conversation-policy.ts`；配置层不得请求网络或依赖 Feature
 - 认证 Provider 归 `app/auth/`，登录/登出后的运行时配置刷新只通过 `app/runtime-options-resource.ts`；`shared/auth/` 只暴露 Context 契约和消费 Hook
 - Workspace Catalog 共享 UI 按卡片框架、内容结构、动作和图标容器分离；消费者直接导入职责模块，不恢复混合聚合出口
+- Workspace Surface Header 固定为真实使用的单行布局，标题、导航和尾部动作按职责组合；工具栏动作从 Header 独立导入，不恢复无消费者的密度模式
+- 技能详情按 route/controller/model/view 分离，详情资源用请求代次拒绝旧响应；更新和删除只复用市场命令的明确结果，不在视图重复调用 API
 - Composer 由 `features/conversation/shared/composer/controller/` 分离草稿、投递、Goal/Loop、键盘和视图派生；面板只消费控制器结果
 - Composer 附件只由 `shared/composer/attachments/` 的有序规则表分类并生成文件选择过滤；整批校验必须先于上传，DM/Room 只提供窄上传目标
 - General 设置由 `features/settings/general/` 统一编排；默认模型值直接派生自用户偏好和 Provider 默认值，不维护镜像选择状态
@@ -109,7 +111,7 @@ src/
 - 会话导航由 `shared/session-navigator/` 分离时间线数据投影、刻度视觉模型、纯 DOM 定位和活动轮同步，`session-navigator/jump/` 分离目标、串行加载与落点确认；缺失窗口加载必须绑定会话键和请求代次，失效目标不得产生副作用
 - 消息项由 `features/conversation/shared/message/item/controller/` 统一完成顺序、权限、过程链和最终回复投影，`controller/display/` 分离纯显示状态与展开生命周期；`view/` 不重复推导领域状态
 - `MessageItem` 直接从 `message/item/message-item.tsx` 导入；消息目录不提供只做转发的聚合出口
-- 消息内容块按 `blocks/{question,code,artifact,tool}/` 分域；工具状态与权限摘要只能由 `tool/tool-block-model.ts` 派生
+- 消息内容块按 `blocks/{question,code,artifact,tool}/` 分域；跨消息项的工具名称与输入摘要归消息域 `tool-activity.ts`，工具状态与权限详情只由 `tool/tool-block-model.ts` 派生
 - Room 桌面布局由 `features/conversation/room/surface/layout/` 分离 Header、辅助面板、Thread 和布局控制；移动端与桌面端共用 Surface 纯派生
 - Room Group Header 按成员头像、指南菜单和主装配分离；异步弹窗状态必须绑定 Room 身份，不能跨路由复用布尔状态
 - DM/Group Header 共用 `surface/header/` 的 Tab 定义与指南菜单；移动端只在 `surface/mobile/` 组合头部、会话 Sheet 和 Overlay，聊天主体必须复用 `room-chat-surface.tsx`

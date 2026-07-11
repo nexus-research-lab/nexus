@@ -1,10 +1,8 @@
 import { Compass, Download, Loader2, Puzzle, RefreshCw, SlidersHorizontal } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
-import {
-  WorkspaceSurfaceHeader,
-  WorkspaceSurfaceToolbarAction,
-} from "@/shared/ui/workspace/surface/workspace-surface-header";
+import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
+import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-toolbar-action";
 import type { TranslationKey } from "@/shared/i18n/messages";
 import { SKILLS_TOUR_ANCHORS } from "@/features/onboarding/tours/skills-tour";
 
@@ -46,7 +44,6 @@ export function SkillsHeader({
   return (
     <WorkspaceSurfaceHeader
       badge={t("capability.skills_badge", { count: catalogCount })}
-      density="compact"
       leading={<Puzzle className="h-4 w-4" />}
       title={t("capability.skills")}
       tabs={DISCOVERY_OPTIONS.map((item) => ({

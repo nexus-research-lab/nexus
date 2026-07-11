@@ -4,9 +4,9 @@ import type { PendingPermission } from "@/types/conversation/interaction/permiss
 
 import { isAskUserQuestionTimedOutResult } from "../../blocks/question/ask-user-question-timeout";
 import {
-  getInputSummary,
+  getToolInputSummary,
   getToolTitle,
-} from "../../blocks/tool/tool-block-model";
+} from "../../tool-activity";
 import type { MessageActivityState } from "../../ui/message-primitives";
 
 const PROCESS_SUMMARY_DETAIL_LIMIT = 72;
@@ -40,7 +40,7 @@ const PROCESS_DETAIL_RESOLVERS: Array<
     if (block.type !== "tool_use") {
       return null;
     }
-    const detail = getInputSummary(block.input);
+    const detail = getToolInputSummary(block.input);
     return compactProcessDetail(
       detail ? `${getToolTitle(block.name)}：${detail}` : getToolTitle(block.name),
     );

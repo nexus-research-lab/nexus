@@ -107,7 +107,6 @@ export function LoopsDirectory() {
       header={(
         <WorkspaceSurfaceHeader
           badge={headerBadge}
-          density="compact"
           leading={<Repeat2 className="h-4 w-4" />}
           subtitle={t("capability.loops_intro_description")}
           title={t("capability.loops")}

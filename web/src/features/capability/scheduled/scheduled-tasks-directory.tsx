@@ -8,10 +8,8 @@ import {
   FeedbackBannerStack,
   type FeedbackBannerItem,
 } from "@/shared/ui/feedback/feedback-banner-stack";
-import {
-  WorkspaceSurfaceHeader,
-  WorkspaceSurfaceToolbarAction,
-} from "@/shared/ui/workspace/surface/workspace-surface-header";
+import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
+import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-toolbar-action";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 import type { ScheduledTaskRunItem } from "@/types/capability/scheduled-task/run";
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
@@ -101,7 +99,6 @@ export function ScheduledTasksDirectory() {
         header={(
           <WorkspaceSurfaceHeader
             badge={t("capability.scheduled_badge", { count: resource.items.length })}
-            density="compact"
             leading={<CalendarClock className="h-4 w-4" />}
             subtitle={t("capability.scheduled_subtitle")}
             title={t("capability.scheduled")}

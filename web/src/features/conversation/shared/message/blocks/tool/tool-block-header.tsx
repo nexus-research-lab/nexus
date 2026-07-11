@@ -13,13 +13,10 @@ import {
 
 import { cn } from "@/shared/ui/class-name";
 
-import {
-  TOOL_LABEL_STYLES,
-  TOOL_TONE_STYLES,
-} from "./tool-block-model";
 import type {
   ToolBlockStatus,
   ToolBlockViewModel,
+  ToolStatusTone,
 } from "./tool-block-types";
 
 const TOOL_STATUS_ICON_MAP: Record<
@@ -31,6 +28,22 @@ const TOOL_STATUS_ICON_MAP: Record<
   success: { className: "", icon: CheckCircle },
   error: { className: "", icon: XCircle },
   waiting_permission: { className: "animate-pulse", icon: Clock },
+};
+
+const TOOL_TONE_STYLES: Record<ToolStatusTone, string> = {
+  default: "text-(--icon-muted)",
+  error: "text-(--destructive)",
+  running: "text-(--primary)",
+  success: "text-(--success)",
+  waiting: "text-(--warning)",
+};
+
+const TOOL_LABEL_STYLES: Record<ToolStatusTone, string> = {
+  default: "text-(--text-default)",
+  error: "text-(--destructive)",
+  running: "text-(--primary)",
+  success: "text-(--success)",
+  waiting: "text-(--warning)",
 };
 
 interface ToolBlockHeaderProps {
