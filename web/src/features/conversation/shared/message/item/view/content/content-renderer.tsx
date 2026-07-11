@@ -9,13 +9,11 @@ import type {
   PermissionDecisionPayload,
 } from "@/types/conversation/interaction/permission";
 
+import { resolveContentActivityState } from "../../activity/message-content-activity";
+import type { MessageActivityState } from "../../activity/message-activity-state";
 import { MarkdownRenderer } from "../../../markdown-renderer";
-import {
-  MessageActivityStatus,
-  type MessageActivityState,
-} from "../../../ui/message-primitives";
+import { MessageActivityStatus } from "../message-activity-status";
 import { renderContentBlock } from "./content-block-view";
-import { resolveActivityState } from "./content-renderer-activity";
 import { projectStructuredContent } from "./content-renderer-model";
 import { TimelineBlock } from "./content-renderer-timeline";
 
@@ -70,14 +68,14 @@ export function ContentRenderer({
   const projection = projectStructuredContent(content);
   const hiddenToolNameSet = new Set(hiddenToolNames);
   const activityState = isStreaming
-    ? resolveActivityState({
+    ? resolveContentActivityState({
       consumedBlockIndexes: projection.consumedBlockIndexes,
       content,
       fallbackActivityState,
       hiddenToolNames: hiddenToolNameSet,
       pendingPermissionsByToolUseId,
+      resolvedToolUseIds: projection.resolvedToolUseIds,
       streamingBlockIndexes,
-      toolUseById: projection.toolUseById,
     })
     : null;
 

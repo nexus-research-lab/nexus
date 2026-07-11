@@ -4,10 +4,8 @@ import { Bot, Square } from "lucide-react";
 import { cn } from "@/shared/ui/class-name";
 
 import { formatMessageTime } from "../../../message-time";
-import {
-  MessageActionButton,
-  MessageAvatar,
-} from "../../../ui/message-primitives";
+import { MessageActionButton } from "../../../ui/message-action-button";
+import { MessageAvatar } from "../../../ui/message-avatar";
 
 interface AssistantMessageHeaderProps {
   avatarUrl?: string | null;

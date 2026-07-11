@@ -2,7 +2,6 @@ import { memo } from "react";
 
 import { cn } from "@/shared/ui/class-name";
 
-import { MessageShell } from "../ui/message-primitives";
 import { useMessageItemController } from "./controller/use-message-item-controller";
 import type { MessageItemProps } from "./message-item-types";
 import { MessageAssistantSection } from "./view/assistant/message-assistant-section";
@@ -49,13 +48,13 @@ function MessageItemInner({
   });
 
   return (
-    <MessageShell
+    <div
       className={cn(
-        "nexus-chat-message-round animate-in fade-in slide-in-from-bottom-2 space-y-2 py-3 duration-300",
+        "nexus-chat-message-round w-full min-w-0 animate-in fade-in slide-in-from-bottom-2 space-y-2 py-3 duration-300",
         compact ? "nexus-chat-message-round-compact" : "nexus-chat-message-round-expanded",
+        !compact && "border-b border-(--divider-subtle-color)",
         className,
       )}
-      separated={!compact}
     >
       <MessageUserSection
         compact={compact}
@@ -81,7 +80,7 @@ function MessageItemInner({
         assistantContentMode={assistantContentMode}
         assistant={state.assistant}
       />
-    </MessageShell>
+    </div>
   );
 }
 

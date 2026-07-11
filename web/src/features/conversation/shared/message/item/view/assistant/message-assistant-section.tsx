@@ -2,7 +2,6 @@ import { useCallback } from "react";
 
 import { cn } from "@/shared/ui/class-name";
 
-import { MessageStats } from "../../../ui/message-stats";
 import { AssistantMessageContent } from "./assistant-message-content";
 import {
   AssistantMessageAvatar,
@@ -15,6 +14,7 @@ import {
   type AssistantFooterState,
   type MessageAssistantSectionProps,
 } from "./assistant-message-model";
+import { AssistantMessageStats } from "./assistant-message-stats";
 
 export function MessageAssistantSection({
   assistant,
@@ -161,12 +161,12 @@ function AssistantFooter({
     return null;
   }
   return (
-    <MessageStats
+    <AssistantMessageStats
       compact={compact}
-      copiedAssistant={footer.copied}
-      onCopyAssistant={footer.onCopy}
-      showCursor={activityShowCursor}
-      stats={footer.stats || undefined}
+      copied={footer.copied}
+      onCopy={footer.onCopy}
+      stats={footer.stats}
+      streaming={activityShowCursor}
     />
   );
 }

@@ -11,8 +11,7 @@ import type {
 } from "@/types/conversation/interaction/permission";
 
 import type { AssistantContentMode, ContentProjection } from "../../message-item-projection";
-import type { MessageStatsData } from "../../message-item-types";
-import type { MessageActivityState } from "../../../ui/message-primitives";
+import type { MessageActivityState } from "../../activity/message-activity-state";
 
 export interface AssistantActivityState {
   emptyStreamStatus: "cancelled" | "error" | null;
@@ -36,8 +35,15 @@ export interface AssistantFinalState {
 export interface AssistantFooterState {
   copied: boolean;
   onCopy?: () => Promise<void>;
-  stats: MessageStatsData | null;
+  stats: AssistantFooterStats | null;
   visible: boolean;
+}
+
+export interface AssistantFooterStats {
+  cacheHit: string | null;
+  cost: string | null;
+  duration: string | null;
+  tokens: string | null;
 }
 
 interface AssistantHeaderState {

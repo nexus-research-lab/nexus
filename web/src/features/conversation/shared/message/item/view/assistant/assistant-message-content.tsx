@@ -2,11 +2,9 @@ import { AlertTriangle } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 
+import type { MessageActivityState } from "../../activity/message-activity-state";
+import { MessageActivityStatus } from "../message-activity-status";
 import { ContentRenderer } from "../content/content-renderer";
-import {
-  MessageActivityStatus,
-  type MessageActivityState,
-} from "../../../ui/message-primitives";
 import type {
   AssistantActivityState,
   AssistantContentEnvironment,

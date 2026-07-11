@@ -4,7 +4,7 @@ import { Bot, Loader2, Square } from "lucide-react";
 import { memo, useCallback, useMemo } from "react";
 
 import { UiMarkdownContent } from "@/shared/ui/markdown/markdown-content";
-import { MessageAvatar } from "@/features/conversation/shared/message/ui/message-primitives";
+import { MessageAvatar } from "@/features/conversation/shared/message/ui/message-avatar";
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type {

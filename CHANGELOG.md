@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Moved message activity state out of UI primitives, consolidated round and content activity rules under an owned pure domain, and separated process summaries and question timeout detection from the controller aggregate.
+- Split the mixed message UI primitive aggregate into directly owned avatar, action, activity-status, and message-item shell responsibilities, consolidating activity presentation under one exhaustive state table.
+- Replaced branch-heavy message result and usage formatting with ordered display and numeric-range rules plus independent duration, token, cost, and cache projections.
 - Consolidated modal stacking, body scroll locking, focus discovery, focus cycling, and Escape handling under shared Dialog ownership; removed duplicate business-level keyboard listeners and migrated Agent Options, Mermaid preview, and scheduled-task run history off their private modal shells.
 - Separated scheduled-task run diagnostics from history status and action rules, using ordered definitions for detail rows, output sections, and copied diagnostic fields instead of repeated conditional assembly.
 - Moved ExcelJS cell-value classification and text formatting into an owned Spreadsheet value model, replacing the branch-heavy `unknown` object probe chain with ordered rules over the real closed `CellValue` union.

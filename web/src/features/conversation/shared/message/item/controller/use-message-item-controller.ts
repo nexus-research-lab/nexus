@@ -4,10 +4,10 @@ import { useScrollAnchoredState } from "@/features/conversation/shared/timeline/
 import { useCopyToClipboard } from "@/hooks/ui/use-copy-to-clipboard";
 
 import type { MessageItemProps } from "../message-item-types";
+import { hasTimedOutAskUserQuestion } from "../process/message-question-timeout";
 import { useMessageItemStreamingLayout } from "../view/message-item-streaming-layout";
 import { resolveAssistantDisplayState } from "./display/message-item-display-model";
 import { useProcessExpansionLifecycle } from "./display/use-process-expansion-lifecycle";
-import { hasTimedOutAskUserQuestion } from "./message-item-activity";
 import { useMessageItemProjection } from "./use-message-item-projection";
 
 type MessageItemControllerOptions = Pick<

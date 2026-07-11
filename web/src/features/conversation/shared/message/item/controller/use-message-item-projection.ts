@@ -17,7 +17,8 @@ import type {
   AssistantContentMode,
   ContentProjection,
 } from "../message-item-projection";
-import { buildProcessSummary, resolveLiveActivityState } from "./message-item-activity";
+import { resolveLiveActivityState } from "../activity/message-live-activity";
+import { buildProcessSummary } from "../process/message-process-summary";
 import { resolveMessageItemFinalProjection } from "./message-item-final-projection";
 import {
   buildVisibleAssistantTurns,

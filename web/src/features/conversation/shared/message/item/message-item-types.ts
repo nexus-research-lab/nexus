@@ -34,10 +34,3 @@ export interface MessageItemProps {
   assistantContentMode?: AssistantContentMode;
   className?: string;
 }
-
-export interface MessageStatsData {
-  duration: string | null;
-  tokens: string | null;
-  cost: string | null;
-  cacheHit: string | null;
-}

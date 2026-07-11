@@ -7,10 +7,8 @@ import {
   User,
 } from "lucide-react";
 
-import {
-  MessageActionButton,
-  MessageAvatar,
-} from "../../../ui/message-primitives";
+import { MessageActionButton } from "../../../ui/message-action-button";
+import { MessageAvatar } from "../../../ui/message-avatar";
 import type { UserMessagePresentation } from "./user-message-model";
 
 interface UserMessageHeaderProps {

@@ -4,7 +4,7 @@ import { CircleAlert } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
 
-import { MessageAvatar } from "./message/ui/message-primitives";
+import { MessageAvatar } from "./message/ui/message-avatar";
 
 interface ConversationErrorBubbleProps {
   error: string;

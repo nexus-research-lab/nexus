@@ -18,6 +18,7 @@ export interface ToolUseProjection {
 
 export interface StructuredContentProjection {
   consumedBlockIndexes: ReadonlySet<number>;
+  resolvedToolUseIds: ReadonlySet<string>;
   taskProgressByToolUseId: ReadonlyMap<string, TaskProgressContent>;
   toolUseById: ReadonlyMap<string, ToolUseProjection>;
 }
@@ -38,6 +39,7 @@ export function projectStructuredContent(
   });
 
   const consumedBlockIndexes = new Set<number>();
+  const resolvedToolUseIds = new Set<string>();
   content.forEach((block, index) => {
     if (block.type !== "tool_result") {
       return;
@@ -47,11 +49,13 @@ export function projectStructuredContent(
       return;
     }
     toolUse.result = block;
+    resolvedToolUseIds.add(block.tool_use_id);
     consumedBlockIndexes.add(index);
   });
 
   return {
     consumedBlockIndexes,
+    resolvedToolUseIds,
     taskProgressByToolUseId,
     toolUseById,
   };
