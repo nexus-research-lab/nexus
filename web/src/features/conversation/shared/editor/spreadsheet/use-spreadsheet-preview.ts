@@ -1,45 +1,17 @@
 import { useEffect } from "react";
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
-import { getWorkspaceFilePreviewUrl } from "@/lib/api/agent-manage-api";
+import { fetchOfficePreviewBuffer } from "../office-preview-resource";
 
 import {
   workbookToSpreadsheetPreviewData,
   type SpreadsheetPreviewWorkbookData,
 } from "./spreadsheet-preview-model";
 
-const MAX_XLSX_PREVIEW_BYTES = 15 * 1024 * 1024;
-
 export type SpreadsheetPreviewStatus =
   | { state: "loading"; message: string }
   | { state: "loaded"; sheetCount: number }
   | { state: "error"; message: string };
-
-function assertPreviewSize(byteLength: number): void {
-  if (byteLength > MAX_XLSX_PREVIEW_BYTES) {
-    throw new Error(
-      "文件超过 15MB，当前无法内置预览，请使用上方按钮处理",
-    );
-  }
-}
-
-async function fetchSpreadsheetBuffer(
-  agentId: string,
-  path: string,
-  signal: AbortSignal,
-): Promise<ArrayBuffer> {
-  const response = await fetch(getWorkspaceFilePreviewUrl(agentId, path), {
-    credentials: "include",
-    signal,
-  });
-  if (!response.ok) {
-    throw new Error(`读取文件失败：HTTP ${response.status}`);
-  }
-  assertPreviewSize(Number(response.headers.get("content-length") || 0));
-  const buffer = await response.arrayBuffer();
-  assertPreviewSize(buffer.byteLength);
-  return buffer;
-}
 
 async function parseSpreadsheetBuffer(
   buffer: ArrayBuffer,
@@ -73,11 +45,12 @@ export function useSpreadsheetPreview(agentId: string, path: string) {
     let active = true;
     const loadPreview = async (): Promise<void> => {
       try {
-        const buffer = await fetchSpreadsheetBuffer(
+        const buffer = await fetchOfficePreviewBuffer({
           agentId,
+          fileLabel: "xlsx",
           path,
-          abortController.signal,
-        );
+          signal: abortController.signal,
+        });
         if (!active) {
           return;
         }

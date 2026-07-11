@@ -1,4 +1,3 @@
-export const MAX_PPTX_PREVIEW_BYTES = 15 * 1024 * 1024;
 export const EMU_PER_PIXEL = 9525;
 export const DEFAULT_SLIDE_WIDTH_EMU = 12192000;
 export const DEFAULT_SLIDE_HEIGHT_EMU = 6858000;

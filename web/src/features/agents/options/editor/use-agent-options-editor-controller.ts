@@ -220,6 +220,7 @@ export function useAgentOptionsEditorController({
       providerOptions: providerOptions.items,
       providerOptionsError: providerOptions.error,
       providerOptionsLoading: providerOptions.loading,
+      scopeKey,
       onProviderChange: (value: string) => updateField("provider", value),
       onModelChange: (value: string) => updateField("model", value),
       nameValidation: validation.result,

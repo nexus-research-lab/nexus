@@ -25,6 +25,7 @@ src/
 - Agent WebSocket 信封校验与事件路由位于 `hooks/agent/transport/`，业务处理器不得回流到组件层
 - WebSocket 连接策略只由 `lib/websocket/socket-policy.ts` 定义；共享通道使用完整有效配置作为身份，业务消息不得进入离线队列
 - Workspace 会话标签由 `shared/ui/workspace/controls/conversation-tabs/` 分离纯模型、标签事务和单项视图；活动标签必须属于打开集合，视图不得直接修正集合状态
+- 引导浮层由 `shared/ui/onboarding/overlay/` 分离目标/卡片观察器、定位策略、贴纸模型和步骤视图；Portal 入口不得重新实现这些规则
 - Room 群聊面板只在 `panel/` 组合会话、Goal 与输入区模型；普通和虚拟消息流必须共用 `feed/group-conversation-round.tsx`，不得复制轮次分支
 - DM 与 Room 只通过 `shared/session/use-conversation-session.ts` 串联运行时、滚动、历史和时间线；具体面板只装配业务模型
 - DM/Room 滚动视口、历史提示、错误和浮动控制统一由 `shared/conversation-panel-layout.tsx` 渲染，不复制表面布局 class
@@ -45,8 +46,10 @@ src/
 - Composer 由 `features/conversation/shared/composer/controller/` 分离草稿、投递、Goal/Loop、键盘和视图派生；面板只消费控制器结果
 - General 设置由 `features/settings/general/` 统一编排；默认模型值直接派生自用户偏好和 Provider 默认值，不维护镜像选择状态
 - Personal 设置只通过 `features/settings/personal/use-personal-settings-controller.ts` 读写资料；密码规则由纯模型的有序规则表定义，区块视图不得直接调用 Auth API
+- Agent 身份页由 `features/agents/options/components/identity/` 的单一布局结构组合；资料、标签和模型选择各自拥有窄接口，待添加标签草稿必须绑定编辑作用域
 - Markdown 根入口只编排渲染；正文/摘要语义、流式推进、工作区路径和 Mermaid 预览分别归属 `core/`、`streaming/`、`workspace/` 与 `mermaid/`
 - Message item 的结构化内容关联只由 `view/content/content-renderer-model.ts` 建立；Assistant/User 视图不得再次扫描整轮内容或手写不完整的 Props 比较器
+- Office 预览下载与载荷上限只由 `conversation/shared/editor/office-preview-resource.ts` 管理；文档预览的加载生命周期、DOM 归一化与视图分别归属 `document/` 下的 Hook、DOM 模型和视图模块
 - DM/Room 虚拟消息流共用 `features/conversation/shared/feed/` 的容器测量与轮次导航协议；高度估算必须响应容器宽度变化
 - DM/Room 时间线只从 `features/conversation/shared/timeline/timeline-model.ts` 派生轮次顺序；窗口加载必须用会话代次隔离在途请求，并对失败执行有限重试
 - 对话滚动只通过 `features/conversation/shared/timeline/scroll/` 协调；面板不得复制底部阈值、RAF 动画、历史前插锚点或轮次 DOM 标记

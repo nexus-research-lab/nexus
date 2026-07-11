@@ -19,7 +19,7 @@ import {
   writeCompletedTours,
 } from "@/shared/ui/onboarding/tour-state";
 
-type TourPlacement = "top" | "right" | "bottom" | "left" | "center";
+export type TourPlacement = "top" | "right" | "bottom" | "left" | "center";
 
 export interface OnboardingTourStepItem {
   icon: "bot" | "users" | "hash" | "puzzle";
@@ -62,7 +62,7 @@ export interface OnboardingTourContextValue {
 }
 
 const OnboardingTourOverlay = lazy(() =>
-  import("@/shared/ui/onboarding/tour-overlay").then((m) => ({
+  import("@/shared/ui/onboarding/overlay/tour-overlay").then((m) => ({
     default: m.OnboardingTourOverlay,
   })),
 );

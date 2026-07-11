@@ -4,12 +4,11 @@ import { useEffect, useRef } from "react";
 import { ChevronLeft, ChevronRight, Eye, FileText, FileWarning, LoaderCircle } from "lucide-react";
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
-import { getWorkspaceFilePreviewUrl } from "@/lib/api/agent-manage-api";
 import { cn } from "@/lib/utils";
 import { ConversationResizeHandle } from "../conversation-resize-handle";
+import { fetchOfficePreviewBuffer } from "../office-preview-resource";
 import { parsePptx } from "./presentation-pptx-parser";
 import {
-  MAX_PPTX_PREVIEW_BYTES,
   type PresentationPreviewStatus,
   type PresentationSlide,
 } from "./presentation-preview-model";
@@ -49,27 +48,14 @@ export function PresentationFilePreview({
 
     async function loadPreview() {
       try {
-        const previewUrl = getWorkspaceFilePreviewUrl(agentId, path);
-        const response = await fetch(previewUrl, {
-          credentials: "include",
+        const buffer = await fetchOfficePreviewBuffer({
+          agentId,
+          fileLabel: "pptx",
+          path,
           signal: abortController.signal,
         });
-
-        if (!response.ok) {
-          throw new Error(`读取失败: ${response.status}`);
-        }
-
-        const contentLength = response.headers.get("content-length");
-        if (contentLength && Number(contentLength) > MAX_PPTX_PREVIEW_BYTES) {
-          throw new Error("pptx 文件超过 15MB，当前无法内置预览，请使用上方按钮处理");
-        }
-
-        const buffer = await response.arrayBuffer();
         if (cancelled) {
           return;
-        }
-        if (buffer.byteLength > MAX_PPTX_PREVIEW_BYTES) {
-          throw new Error("pptx 文件超过 15MB，当前无法内置预览，请使用上方按钮处理");
         }
 
         setStatus({ state: "loading", message: "解析 pptx 文件中" });
