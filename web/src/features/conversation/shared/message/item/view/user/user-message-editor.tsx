@@ -1,6 +1,6 @@
 import type { KeyboardEvent, RefObject } from "react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 import { getUiButtonClassName } from "@/shared/ui/button/button-styles";
 
 interface UserMessageEditorProps {

@@ -3,7 +3,8 @@ import { useLocation } from "react-router-dom";
 
 import { useHomeDirectory } from "@/features/home/home-directory-resource";
 import { useSidebarStore } from "@/store/sidebar";
-import type { AssistantMessage, EventMessage } from "@/types/conversation/message";
+import type { AssistantMessage } from "@/types/conversation/message/entity";
+import type { EventMessage } from "@/types/generated/protocol";
 
 import {
   isWindowActive,

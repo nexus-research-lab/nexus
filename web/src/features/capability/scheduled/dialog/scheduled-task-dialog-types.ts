@@ -3,7 +3,7 @@ import type { RefObject } from "react";
 import type {
   ScheduledTaskExecutionKind,
   ScheduledTaskSchedule,
-} from "@/types/capability/scheduled-task";
+} from "@/types/capability/scheduled-task/task";
 
 import type { Weekday } from "../pickers/picker-types";
 

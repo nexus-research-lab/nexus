@@ -9,7 +9,7 @@ import {
   OUTER_VIEWBOX_HEIGHT,
   OUTER_VIEWBOX_WIDTH,
 } from "./launcher-blob-shape";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 
 interface HeroBlobShellProps {
   children: ReactNode;

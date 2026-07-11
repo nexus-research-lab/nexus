@@ -15,7 +15,7 @@ import type {
   ConversationSnapshotPayload,
   RoomConversationView,
 } from "@/types/conversation/conversation";
-import type { RoomSurfaceTabKey } from "@/types/conversation/room-surface";
+import type { RoomSurfaceTabKey } from "@/features/conversation/room/surface/header/room-header-tabs";
 import type { TodoItem } from "@/types/conversation/todo";
 
 export interface RoomSurfaceLayoutProps {

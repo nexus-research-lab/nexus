@@ -3,7 +3,7 @@
 import { memo, useCallback, useState, type MouseEvent } from "react";
 import { ChevronRight, Folder, FolderOpen, Pencil, Trash2 } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { WorkspaceFileEntry } from "@/types/agent/agent";
 

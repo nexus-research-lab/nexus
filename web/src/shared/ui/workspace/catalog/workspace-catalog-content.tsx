@@ -4,7 +4,7 @@ import type {
   ReactNode,
 } from "react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 
 type CatalogCardAlign = "start" | "center";
 type CatalogFooterJustify = "between" | "start" | "end" | "center";

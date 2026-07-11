@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 
 const PROVIDER_ICON_SRC: Record<string, string> = {
   anthropic: "/icon/provider/anthropic.svg",

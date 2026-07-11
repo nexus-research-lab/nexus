@@ -10,7 +10,7 @@ import {
 
 import type { WorkspaceFileEntry } from "@/types/agent/agent";
 import type { RoomConversationView } from "@/types/conversation/conversation";
-import type { Message } from "@/types/conversation/message";
+import type { Message } from "@/types/conversation/message/entity";
 import type { TodoItem } from "@/types/conversation/todo";
 
 export interface LandingCapabilityItem {

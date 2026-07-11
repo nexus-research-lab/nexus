@@ -1,4 +1,4 @@
-import type { Message } from "@/types/conversation/message";
+import type { Message } from "@/types/conversation/message/entity";
 
 const BOTTOM_THRESHOLD_PX = 80;
 

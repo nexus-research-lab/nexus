@@ -1,4 +1,5 @@
-import type { SystemMessage, TaskProgressContent } from "@/types/conversation/message";
+import type { SystemMessage } from "@/types/conversation/message/entity";
+import type { TaskProgressContent } from "@/types/conversation/message/content";
 import type { TodoItem } from "@/types/conversation/todo";
 
 import { inferSystemTaskStatus, inferTaskProgressStatus } from "./todo-status-model";

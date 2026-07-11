@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Bot, Square } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 
 import {
   MessageActionButton,

@@ -14,7 +14,8 @@ import { Brain, Globe, MessageCircleMore, MessageSquareText, ShieldAlert, Wrench
 import spinners, { type BrailleSpinnerName } from "unicode-animations";
 
 import { usePrefersReducedMotion } from "@/hooks/ui/use-prefers-reduced-motion";
-import { cn, getIconAvatarSrc } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
+import { getIconAvatarSrc } from "@/lib/avatar";
 
 type MessageAvatarSize = "full" | "compact";
 type MessageActionTone = "default" | "success" | "danger";

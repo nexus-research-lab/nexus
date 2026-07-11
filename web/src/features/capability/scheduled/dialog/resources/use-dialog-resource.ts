@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 
+import { getErrorMessage } from "@/lib/error-message";
+
 export interface DialogResource<T> {
   error: string | null;
   items: T[];
@@ -17,10 +19,6 @@ const IDLE_RESOURCE: DialogResource<never> = {
   items: [],
   loading: false,
 };
-
-function errorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error ? error.message : fallback;
-}
 
 export function useDialogResource<T>(
   requestKey: string | null,
@@ -48,7 +46,7 @@ export function useDialogResource<T>(
       .catch((error: unknown) => {
         if (active) {
           setSnapshot({
-            error: errorMessage(error, fallbackError),
+            error: getErrorMessage(error, fallbackError),
             items: [],
             key: requestKey,
             loading: false,

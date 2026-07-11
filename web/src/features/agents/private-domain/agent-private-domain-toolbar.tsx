@@ -1,6 +1,6 @@
 import { Handshake, RefreshCw } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 
 export function PrivateDomainToolbar({
   count,

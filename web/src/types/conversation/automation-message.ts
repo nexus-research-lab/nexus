@@ -1,4 +1,4 @@
-import type { Message } from "@/types/conversation/message";
+import type { Message } from "@/types/conversation/message/entity";
 
 const AUTOMATION_CRON_MARKER_PATTERN = /(?:^|\n)\s*(?:-\s*)?\[cron:[^\]\r\n]+\]/;
 

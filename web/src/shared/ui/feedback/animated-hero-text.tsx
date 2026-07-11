@@ -2,7 +2,7 @@
 
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { prepareWithSegments } from "@chenglou/pretext";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 
 // ─── AnimatedHeroText ────────────────────────────────────────────────────────
 // Uses pretext to split text into grapheme clusters (handles CJK + emoji + bidi)

@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 
 import { getWorkspaceFilePreviewKind } from "./workspace-file-preview-kind";
 import { WorkspaceFilePreviewRouter } from "./workspace-file-preview-router";

@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { ChevronLeft, ChevronRight, Eye, FileText, FileWarning, LoaderCircle } from "lucide-react";
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 import { ConversationResizeHandle } from "../conversation-resize-handle";
 import { fetchOfficePreviewBuffer } from "../office-preview-resource";
 import { parsePptx } from "./presentation-pptx-parser";

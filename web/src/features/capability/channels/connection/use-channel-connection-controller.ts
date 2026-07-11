@@ -13,6 +13,7 @@ import {
   type ChannelCredentialField,
   type ChannelLoginView,
 } from "@/lib/api/capability/channel-api";
+import { getErrorMessage } from "@/lib/error-message";
 import type { Agent } from "@/types/agent/agent";
 
 import { notifyCapabilitySummaryMutated } from "../../capability-summary-events";
@@ -33,10 +34,6 @@ interface UseChannelConnectionOptions {
   onDeleted: (item: ChannelConfigView) => Promise<void> | void;
   onError: (message: string) => void;
   onSaved: (item: ChannelConfigView, announce?: boolean) => void;
-}
-
-function errorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error ? error.message : fallback;
 }
 
 export function useChannelConnectionController({
@@ -114,7 +111,7 @@ export function useChannelConnectionController({
         }
       } catch (error) {
         if (!disposed) {
-          onError(errorMessage(error, "扫码登录状态刷新失败"));
+          onError(getErrorMessage(error, "扫码登录状态刷新失败"));
         }
       }
     };
@@ -153,7 +150,7 @@ export function useChannelConnectionController({
         }
         return true;
       } catch (error) {
-        onError(errorMessage(error, "连接失败"));
+        onError(getErrorMessage(error, "连接失败"));
         return false;
       }
     });
@@ -174,7 +171,7 @@ export function useChannelConnectionController({
         setLoginView(nextLogin);
         return true;
       } catch (error) {
-        onError(errorMessage(error, "验证码提交失败"));
+        onError(getErrorMessage(error, "验证码提交失败"));
         return false;
       }
     });
@@ -202,7 +199,7 @@ export function useChannelConnectionController({
         await onDeleted(currentItem);
         onClose();
       } catch (error) {
-        onError(errorMessage(error, "断开频道失败"));
+        onError(getErrorMessage(error, "断开频道失败"));
       }
     });
   }, [currentItem, onClose, onDeleted, onError, planned, runCommand]);
@@ -228,7 +225,7 @@ export function useChannelConnectionController({
         });
         onSaved(updated, false);
       } catch (error) {
-        onError(errorMessage(error, "删除账号失败"));
+        onError(getErrorMessage(error, "删除账号失败"));
       }
     });
   }, [currentItem.channel_type, onError, onSaved, runCommand]);

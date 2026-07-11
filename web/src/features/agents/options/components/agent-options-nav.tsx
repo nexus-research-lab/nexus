@@ -8,7 +8,7 @@
 
 import { type ReactNode } from "react";
 import { UserPen, ToolCase, Album, type LucideIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiChoiceButton } from "@/shared/ui/form/choice";
 import { UiUnderlineTabs } from "@/shared/ui/navigation/tabs";

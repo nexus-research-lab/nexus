@@ -8,8 +8,8 @@ import {
 } from "lucide-react";
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
-import { cn } from "@/lib/utils";
-import type { SystemEventContent } from "@/types/conversation/message";
+import { cn } from "@/shared/ui/class-name";
+import type { SystemEventContent } from "@/types/conversation/message/content";
 
 import {
   MessageRail,

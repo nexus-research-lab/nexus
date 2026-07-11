@@ -1,5 +1,5 @@
 import { Agent, ApiAgent } from "@/types/agent/agent";
-import { Message as ChatMessage } from "@/types/conversation/message";
+import type { Message as ChatMessage } from "@/types/conversation/message/entity";
 
 export interface RoomMember {
   id: string;

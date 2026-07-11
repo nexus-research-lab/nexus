@@ -4,10 +4,8 @@ import { useCallback, useLayoutEffect, useRef } from "react";
 
 import { writeTextToClipboard } from "@/hooks/ui/clipboard";
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
-import type {
-  ScheduledTaskItem,
-  ScheduledTaskRunItem,
-} from "@/types/capability/scheduled-task";
+import type { ScheduledTaskRunItem } from "@/types/capability/scheduled-task/run";
+import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
 
 import {
   createPendingCommandState,

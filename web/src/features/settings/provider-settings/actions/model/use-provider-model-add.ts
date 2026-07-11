@@ -1,11 +1,11 @@
 import { useCallback } from "react";
 import type { Dispatch, SetStateAction } from "react";
 
+import { getErrorMessage } from "@/lib/error-message";
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import type { ProviderConfigRecord } from "@/types/capability/provider";
 
 import type { ProviderModelApi } from "../../provider-settings-api";
-import { getProviderErrorMessage } from "../../model/provider-feedback-model";
 import { buildNewModelPayload } from "../../model/provider-model-model";
 import type { FeedbackState } from "../../model/provider-settings-types";
 import type { RunProviderCommand } from "../use-provider-command";
@@ -71,7 +71,7 @@ export function useProviderModelAdd({
         setFeedback({
           tone: "error",
           title: t("settings.providers.model_add_failed_title"),
-          message: getProviderErrorMessage(
+          message: getErrorMessage(
             error,
             t("settings.providers.model_add_failed_message"),
           ),

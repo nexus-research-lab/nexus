@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 
 import { ChannelConfigView } from "@/lib/api/capability/channel-api";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { UiListActionButton } from "@/shared/ui/list/list-action";
 import { UiListRow } from "@/shared/ui/list/list-row";

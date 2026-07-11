@@ -3,11 +3,12 @@
 import { memo, useCallback, useMemo } from "react";
 
 import { MessageItem } from "@/features/conversation/shared/message";
-import type { Message, RoomPendingAgentSlotState } from "@/types/conversation/message";
+import type { Message } from "@/types/conversation/message/entity";
+import type { RoomPendingAgentSlotState } from "@/types/agent/agent-conversation";
 import type {
   PendingPermission,
   PermissionDecisionPayload,
-} from "@/types/conversation/permission";
+} from "@/types/conversation/interaction/permission";
 
 import { GroupAgentStatusCard } from "./group-agent-status-card";
 import { GroupCompletedReply } from "./group-completed-reply";

@@ -1,6 +1,6 @@
 import { resolveAgentId } from "@/config/options";
-import type { Message } from "@/types";
-import type { PermissionDecisionPayload } from "@/types/conversation/permission";
+import type { Message } from "@/types/conversation/message/entity";
+import type { PermissionDecisionPayload } from "@/types/conversation/interaction/permission";
 import type { WebSocketMessage } from "@/types/system/websocket";
 
 import {

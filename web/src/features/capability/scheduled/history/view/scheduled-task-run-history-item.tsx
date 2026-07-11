@@ -1,10 +1,8 @@
 "use client";
 
 import { WorkspaceStatusBadge } from "@/shared/ui/workspace/controls/workspace-status-badge";
-import type {
-  ScheduledTaskItem,
-  ScheduledTaskRunItem,
-} from "@/types/capability/scheduled-task";
+import type { ScheduledTaskRunItem } from "@/types/capability/scheduled-task/run";
+import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
 
 import { formatScheduledDatetime } from "../../scheduled-formatters";
 import { ScheduledTaskRunActions } from "./scheduled-task-run-actions";

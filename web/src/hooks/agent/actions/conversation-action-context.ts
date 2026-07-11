@@ -2,9 +2,9 @@ import type { Dispatch, RefObject, SetStateAction } from "react";
 
 import { resolveAgentId } from "@/config/options";
 import { isStructuredSessionKey } from "@/lib/conversation/session-key";
-import type { Message } from "@/types";
+import type { Message } from "@/types/conversation/message/entity";
 import type { AgentConversationIdentity } from "@/types/agent/agent-conversation";
-import type { PendingPermission } from "@/types/conversation/permission";
+import type { PendingPermission } from "@/types/conversation/interaction/permission";
 import type {
   WebSocketMessage,
   WebSocketSendResult,

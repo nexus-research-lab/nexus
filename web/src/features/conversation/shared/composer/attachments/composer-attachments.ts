@@ -1,6 +1,6 @@
 import { uploadWorkspaceFileApi } from "@/lib/api/agent/agent-api";
 import { uploadRoomConversationAttachmentApi } from "@/lib/api/conversation/room-command-api";
-import type { MessageAttachment } from "@/types/conversation/message";
+import type { MessageAttachment } from "@/types/conversation/message/attachment";
 
 export type ComposerAttachmentKind = "text" | "image" | "file";
 

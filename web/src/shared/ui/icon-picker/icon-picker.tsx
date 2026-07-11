@@ -10,7 +10,8 @@
 import { X } from "lucide-react";
 import { useMemo } from "react";
 
-import { AvatarIconFamily, cn } from "@/lib/utils";
+import type { AvatarIconFamily } from "@/lib/avatar";
+import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 
 interface IconPickerProps {

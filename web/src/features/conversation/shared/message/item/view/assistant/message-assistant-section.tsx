@@ -6,13 +6,13 @@ import {
 } from "react";
 import { AlertTriangle } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import type { ContentBlock } from "@/types/conversation/message";
+import type { ContentBlock } from "@/types/conversation/message/content";
 import type {
   PendingPermission,
   PermissionDecisionPayload,
-} from "@/types/conversation/permission";
+} from "@/types/conversation/interaction/permission";
 
 import { useWorkspaceFileArtifactsFromContent } from "../../../blocks/artifact/workspace-file-artifact-utils";
 import { MessageStats } from "../../../ui/message-stats";

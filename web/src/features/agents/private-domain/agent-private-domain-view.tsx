@@ -12,9 +12,7 @@ import {
   listAgentPrivateThreadsApi,
 } from "@/lib/api/agent/private-domain-api";
 import { isExternalSessionConversationId } from "@/lib/conversation/external-session";
-import {
-  cn,
-} from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 import { WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
 import { Agent } from "@/types/agent/agent";
 import {

@@ -1,4 +1,4 @@
-import type { ContentBlock } from "@/types/conversation/message";
+import type { ContentBlock } from "@/types/conversation/message/content";
 
 export type AssistantContentMode =
   | "dm_archived"

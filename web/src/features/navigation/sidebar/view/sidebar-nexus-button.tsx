@@ -1,6 +1,6 @@
 import { SIDEBAR_TOUR_ANCHORS } from "@/features/onboarding/tours/sidebar-navigation-tour";
 import { GlassMagnifierStatic } from "@/shared/ui/liquid-glass";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 
 interface SidebarNexusButtonProps {
   active: boolean;

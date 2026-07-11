@@ -28,7 +28,7 @@ import {
 } from "@/features/conversation/shared/composer/composer-styles";
 import { ConversationResizeHandle } from "@/features/conversation/shared/editor/conversation-resize-handle";
 import { MessageItem } from "@/features/conversation/shared/message";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 import { UiAgentAvatar, UiRoomAvatar } from "@/shared/ui/display/avatar";
 import { UiBadge, UiCounterBadge } from "@/shared/ui/display/badge";
 import { UiSearchInput } from "@/shared/ui/form/form-control";
@@ -42,7 +42,7 @@ import {
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 import { WorkspaceTaskPanel } from "@/shared/ui/workspace/surface/workspace-task-strip";
 import { WorkspaceSurfaceView } from "@/shared/ui/workspace/surface/workspace-surface-view";
-import type { RoomSurfaceTabKey } from "@/types/conversation/room-surface";
+import type { RoomSurfaceTabKey } from "@/features/conversation/room/surface/header/room-header-tabs";
 
 import {
   demoConversations,

@@ -1,11 +1,6 @@
-import type { FeedbackState } from "./provider-settings-types";
+import { getErrorMessage } from "@/lib/error-message";
 
-export function getProviderErrorMessage(
-  error: unknown,
-  fallbackMessage: string,
-): string {
-  return error instanceof Error ? error.message : fallbackMessage;
-}
+import type { FeedbackState } from "./provider-settings-types";
 
 export function buildProviderErrorFeedback(
   error: unknown,
@@ -15,6 +10,6 @@ export function buildProviderErrorFeedback(
   return {
     tone: "error",
     title,
-    message: getProviderErrorMessage(error, fallbackMessage),
+    message: getErrorMessage(error, fallbackMessage),
   };
 }

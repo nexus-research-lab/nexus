@@ -1,8 +1,8 @@
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 import type {
   PendingPermission,
   PermissionDecisionPayload,
-} from "@/types/conversation/permission";
+} from "@/types/conversation/interaction/permission";
 
 import { ToolBlock } from "../../../blocks/tool/tool-block";
 

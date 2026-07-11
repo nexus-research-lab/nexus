@@ -1,6 +1,6 @@
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 import { AgentPrivateParticipant } from "@/types/agent/private-domain";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 
 export function PrivateParticipantAvatarStack({
   ownerAgentId: ownerAgentId,

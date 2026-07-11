@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 
 import { ImChannelType } from "@/lib/api/capability/channel-api";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 
 const CHANNEL_STYLES: Record<ImChannelType, { icon: typeof Send; cn_name: string }> = {
   dingtalk: { icon: Send, cn_name: "bg-[#1677ff] text-white" },

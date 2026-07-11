@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 import type { SpotlightToken } from "@/types/app/launcher";
 
 import { LauncherAgentToken } from "./launcher-agent-token";

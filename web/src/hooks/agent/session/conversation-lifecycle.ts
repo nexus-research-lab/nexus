@@ -8,12 +8,13 @@ import {
   buildSessionKey,
 } from "@/lib/conversation/session-key";
 import { generateUuid } from "@/lib/uuid";
-import type { Message, RoomPendingAgentSlotState } from "@/types";
+import type { Message } from "@/types/conversation/message/entity";
+import type { RoomPendingAgentSlotState } from "@/types/agent/agent-conversation";
 import type {
   AgentConversationIdentity,
   InputQueueItem,
 } from "@/types/agent/agent-conversation";
-import type { PendingPermission } from "@/types/conversation/permission";
+import type { PendingPermission } from "@/types/conversation/interaction/permission";
 
 import {
   mergeLoadedMessages,

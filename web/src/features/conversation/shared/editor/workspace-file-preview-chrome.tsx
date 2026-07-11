@@ -5,7 +5,7 @@ import { Download, FolderOpen, Maximize2, Minimize2 } from "lucide-react";
 
 import { downloadWorkspaceFileApi } from "@/lib/api/agent/agent-api";
 import { getWorkspaceFileExternalActionCopy } from "@/lib/workspace-file-action";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 
 const WORKSPACE_FILE_TOOLBAR_BUTTON_CLASS_NAME = cn(
   "inline-flex h-8 items-center justify-center gap-1.5 rounded-[10px] border px-2.5 text-[11px] font-semibold leading-none transition-colors",

@@ -2,11 +2,11 @@ import type { RefObject } from "react";
 
 import type { ConversationRoundScrollHandleRef } from "../timeline/scroll/round-scroll";
 import type { AgentConversationRuntimePhase } from "@/types/agent/agent-conversation";
-import type { Message } from "@/types/conversation/message";
+import type { Message } from "@/types/conversation/message/entity";
 import type {
   PendingPermission,
   PermissionDecisionPayload,
-} from "@/types/conversation/permission";
+} from "@/types/conversation/interaction/permission";
 import type { SessionRoundIndexItem } from "@/types/conversation/room";
 
 interface ConversationFeedRefs {

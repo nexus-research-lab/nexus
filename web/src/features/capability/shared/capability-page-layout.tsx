@@ -6,7 +6,7 @@ import {
   type ReactNode,
 } from "react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 import { UiSearchInput } from "@/shared/ui/form/form-control";
 import { WORKSPACE_DETAIL_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
 import { UiSelectMenu, type UiSelectMenuOption } from "@/shared/ui/menu/select-menu";

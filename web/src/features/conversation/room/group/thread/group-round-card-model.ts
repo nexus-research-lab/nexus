@@ -3,10 +3,10 @@ import type {
   AssistantMessage,
   Message,
   ResultSummary,
-  RoomPendingAgentSlotState,
   UserMessage,
-} from "@/types/conversation/message";
-import type { PendingPermission } from "@/types/conversation/permission";
+} from "@/types/conversation/message/entity";
+import type { RoomPendingAgentSlotState } from "@/types/agent/agent-conversation";
+import type { PendingPermission } from "@/types/conversation/interaction/permission";
 
 import {
   buildRoomAgentRoundEntries,

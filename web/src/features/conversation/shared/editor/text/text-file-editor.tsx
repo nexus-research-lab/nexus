@@ -11,7 +11,7 @@ import {
 } from "react";
 import { Eye, FileText, LoaderCircle, Pencil, Save } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 import { TypewriterFileView } from "@/shared/ui/feedback/typewriter-file-view";
 
 import { ConversationResizeHandle } from "../conversation-resize-handle";

@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactNode, RefObject } from "react";
 import { Eye, FileText, FileWarning, LoaderCircle } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 import {
   WorkspaceFileDownloadButton,
   WorkspaceFilePreviewFocusButton,

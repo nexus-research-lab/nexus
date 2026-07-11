@@ -1,4 +1,5 @@
-import type { EventMessage } from "@/types";
+import { parseEventMessage } from "@/lib/websocket/protocol/event-message";
+import type { EventMessage } from "@/types/generated/protocol";
 
 import type {
   AgentEventContext,
@@ -34,17 +35,6 @@ const AGENT_EVENT_HANDLERS = registerEventHandlers([
   AGENT_SESSION_EVENT_HANDLERS,
 ]);
 
-function isEventMessage(data: unknown): data is EventMessage {
-  if (typeof data !== "object" || data === null) {
-    return false;
-  }
-  const message = data as Record<string, unknown>;
-  return (
-    typeof message.event_type === "string" &&
-    typeof message.protocol_version === "number"
-  );
-}
-
 function updateEventCursors(
   event: EventMessage,
   context: AgentEventContext,
@@ -79,7 +69,8 @@ export function routeAgentConversationEvent(
   backendMessage: unknown,
   context: AgentEventContext,
 ): void {
-  if (!isEventMessage(backendMessage)) {
+  const event = parseEventMessage(backendMessage);
+  if (!event) {
     console.warn(
       "[agent-event-router] Received unexpected message shape:",
       backendMessage,
@@ -87,9 +78,9 @@ export function routeAgentConversationEvent(
     return;
   }
 
-  updateEventCursors(backendMessage, context);
-  AGENT_EVENT_HANDLERS.get(backendMessage.event_type)?.(
-    backendMessage,
+  updateEventCursors(event, context);
+  AGENT_EVENT_HANDLERS.get(event.event_type)?.(
+    event,
     context,
   );
 }

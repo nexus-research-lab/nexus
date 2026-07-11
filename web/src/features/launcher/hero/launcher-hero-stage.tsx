@@ -8,7 +8,7 @@ import {
 import { ArrowRight, MessageSquare } from "lucide-react";
 
 import { LAUNCHER_TOUR_ANCHORS } from "@/features/onboarding/tours/launcher-tour";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 import { ANIMATIONS } from "@/config/animation-assets";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { LottiePlayer } from "@/shared/ui/feedback/lottie-player";

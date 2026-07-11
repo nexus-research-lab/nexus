@@ -1,12 +1,3 @@
-/**
- * =====================================================
- * @File   : i18n-provider.tsx
- * @Date   : 2026-04-04 17:05
- * @Author : leemysw
- * 2026-04-04 17:05   Create
- * =====================================================
- */
-
 "use client";
 
 import {
@@ -15,17 +6,14 @@ import {
   useState,
 } from "react";
 
-import { I18N_CONTEXT, I18nContextValue } from "./i18n-context";
+import { I18N_CONTEXT } from "./i18n-context";
+import type { I18nContextValue, TranslateParams } from "./i18n-context";
 import {
   DEFAULT_LOCALE,
   LOCALE_STORAGE_KEY,
-  Locale,
   MESSAGES,
 } from "./messages";
-
-interface TranslateParams {
-  [key: string]: string | number;
-}
+import type { Locale } from "./messages";
 
 function detectInitialLocale(): Locale {
   if (typeof window === "undefined") {

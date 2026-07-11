@@ -1,6 +1,6 @@
 import { Loader2, Play } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { GlassSwitch } from "@/shared/ui/liquid-glass";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";

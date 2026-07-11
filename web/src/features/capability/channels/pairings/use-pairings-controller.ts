@@ -8,6 +8,7 @@ import {
   type PairingView,
   type UpdatePairingPayload,
 } from "@/lib/api/capability/channel-api";
+import { getErrorMessage } from "@/lib/error-message";
 import { useCopyToClipboard } from "@/hooks/ui/use-copy-to-clipboard";
 import type { Agent } from "@/types/agent/agent";
 
@@ -29,10 +30,6 @@ const INITIAL_FILTERS: PairingFilters = {
   query: "",
   status: "",
 };
-
-function errorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error ? error.message : fallback;
-}
 
 export function usePairingsController() {
   const requestIdRef = useRef(0);
@@ -71,7 +68,7 @@ export function usePairingsController() {
         setFeedback({
           tone: "error",
           title: "加载失败",
-          message: errorMessage(error, "配对列表加载失败"),
+          message: getErrorMessage(error, "配对列表加载失败"),
         });
       }
       return requestId !== requestIdRef.current;
@@ -123,7 +120,7 @@ export function usePairingsController() {
         setFeedback({
           tone: "error",
           title: "更新失败",
-          message: errorMessage(error, "配对更新失败"),
+          message: getErrorMessage(error, "配对更新失败"),
         });
       }
     });
@@ -154,7 +151,7 @@ export function usePairingsController() {
         setFeedback({
           tone: "error",
           title: "删除失败",
-          message: errorMessage(error, "配对删除失败"),
+          message: getErrorMessage(error, "配对删除失败"),
         });
       }
     });

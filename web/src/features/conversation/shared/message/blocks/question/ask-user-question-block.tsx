@@ -3,11 +3,11 @@ import { useMemo } from "react";
 import type {
   AskUserQuestionInput,
   UserQuestionAnswer,
-} from "@/types/conversation/ask-user-question";
+} from "@/types/conversation/interaction/ask-user-question";
 import type {
   ToolResultContent,
   ToolUseContent,
-} from "@/types/conversation/message";
+} from "@/types/conversation/message/content";
 
 import { normalizeQuestion } from "./ask-user-question-model";
 import { AskUserQuestionView } from "./ask-user-question-view";

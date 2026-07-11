@@ -2,7 +2,7 @@ import {
   buildRoomSharedSessionKey,
   parseSessionKey,
 } from "@/lib/conversation/session-key";
-import type { ScheduledTaskItem } from "@/types/capability/scheduled-task";
+import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
 
 import type {
   ExecutionMode,

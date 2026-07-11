@@ -3,7 +3,7 @@ import { useEffect, useRef } from "react";
 import type {
   AssistantMessage,
   Message,
-} from "@/types/conversation/message";
+} from "@/types/conversation/message/entity";
 
 interface ConversationActivitySnapshot {
   scopeKey: string;

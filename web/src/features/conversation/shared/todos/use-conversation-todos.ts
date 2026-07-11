@@ -1,6 +1,6 @@
 import { useMemo, useRef } from "react";
 
-import type { Message } from "@/types/conversation/message";
+import type { Message } from "@/types/conversation/message/entity";
 import type { TodoItem } from "@/types/conversation/todo";
 
 import { areTodoListsEqual, projectConversationTodos } from "./todo-projection-model";

@@ -1,5 +1,5 @@
 import { generateUuid } from "@/lib/uuid";
-import type { Message } from "@/types";
+import type { Message } from "@/types/conversation/message/entity";
 import type {
   AgentConversationSendOptions,
 } from "@/types/agent/agent-conversation";

@@ -2,16 +2,15 @@ import { useCallback, useEffect, useMemo } from "react";
 
 import { getDesktopWebsocketProtocols } from "@/config/desktop-runtime";
 import { getAgentWsUrl } from "@/config/options";
+import { parseAgentRuntimeStatus } from "@/lib/agent-runtime-status";
 import { useWebSocket } from "@/lib/websocket";
+import { parseEventMessage } from "@/lib/websocket/protocol/event-message";
 import { useAgentStore } from "@/store/agent";
-import type { AgentRuntimeStatus } from "@/types/agent/agent";
 import type {
   LauncherAgentSummary,
   LauncherConversationSummary,
   LauncherRoomSummary,
 } from "@/types/app/launcher";
-import type { EventMessage } from "@/types/conversation/message";
-
 import { refreshHomeDirectory, useHomeDirectory } from "../home-directory-resource";
 
 export interface SidebarDirectoryState {
@@ -31,15 +30,18 @@ export function useSidebarDirectory(): SidebarDirectoryState {
   );
   const agentIdSet = useMemo(() => new Set(agentIds), [agentIds]);
   const handleRuntimeMessage = useCallback((message: unknown) => {
-    const event = message as EventMessage;
+    const event = parseEventMessage(message);
+    if (!event) {
+      return;
+    }
     if (event.event_type !== "agent_runtime_event" || !event.agent_id) {
       return;
     }
     if (!agentIdSet.has(event.agent_id)) {
       return;
     }
-    const payload = event.data as AgentRuntimeStatus | undefined;
-    if (payload?.agent_id) {
+    const payload = parseAgentRuntimeStatus(event.data);
+    if (payload) {
       applyAgentRuntimeStatus(payload);
     }
   }, [agentIdSet, applyAgentRuntimeStatus]);

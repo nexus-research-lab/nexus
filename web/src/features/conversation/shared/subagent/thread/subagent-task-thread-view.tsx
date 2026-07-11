@@ -6,7 +6,7 @@ import type { FormEvent } from "react";
 import { ConversationThreadPanel } from "@/features/conversation/shared/thread/conversation-thread-panel";
 import type { ConversationThreadRound } from "@/features/conversation/shared/thread/conversation-thread-model";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import type { Message } from "@/types/conversation/message";
+import type { Message } from "@/types/conversation/message/entity";
 import type {
   SubagentTask,
   SubagentTaskMessagesResponse,

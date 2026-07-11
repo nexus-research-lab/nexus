@@ -1,9 +1,9 @@
-import { formatRelativeTime } from "@/lib/utils";
+import { formatRelativeTime } from "@/lib/format/relative-time";
 import type {
   AssistantMessage,
   Message,
   UserMessage,
-} from "@/types/conversation/message";
+} from "@/types/conversation/message/entity";
 import type { SessionRoundIndexItem } from "@/types/conversation/room";
 
 import type { ConversationTimeline } from "../timeline/timeline-model";

@@ -1,6 +1,6 @@
 import { groupMessagesByRound } from "@/features/conversation/shared/timeline/timeline-model";
 import type { ConversationThreadRound } from "@/features/conversation/shared/thread/conversation-thread-model";
-import type { Message } from "@/types/conversation/message";
+import type { Message } from "@/types/conversation/message/entity";
 import type {
   SubagentTask,
   SubagentTaskMessagesResponse,

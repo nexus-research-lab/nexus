@@ -10,7 +10,7 @@ import { closeOnEscape } from "@/shared/ui/dialog/dialog-keyboard";
 import type {
   ScheduledTaskItem,
   UpdateScheduledTaskParams,
-} from "@/types/capability/scheduled-task";
+} from "@/types/capability/scheduled-task/task";
 
 import {
   buildDefaultTaskDialogInitialState,

@@ -4,7 +4,7 @@ import { useMemo } from "react";
 
 import { ANIMATIONS } from "@/config/animation-assets";
 import { buildLauncherTour } from "@/features/onboarding/tours/launcher-tour";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { LottiePlayer } from "@/shared/ui/feedback/lottie-player";
 import { usePageOnboardingTour } from "@/shared/ui/onboarding/use-page-onboarding-tour";

@@ -9,18 +9,20 @@ import { requestApi } from "@/lib/api/core/http";
 import { toTimestampOrNull } from "@/lib/api/core/timestamp";
 import type {
   ApiScheduledTask,
-  ApiScheduledTaskExecutionResult,
-  ApiScheduledTaskRun,
   CreateScheduledTaskParams,
   DeleteScheduledTaskResponse,
   ListScheduledTasksParams,
   RecoverScheduledTaskRunParams,
   ScheduledTaskItem,
-  ScheduledTaskRunItem,
-  ScheduledTaskRunNowResponse,
   UpdateScheduledTaskParams,
   UpdateScheduledTaskStatusParams,
-} from "@/types/capability/scheduled-task";
+} from "@/types/capability/scheduled-task/task";
+import type {
+  ApiScheduledTaskExecutionResult,
+  ApiScheduledTaskRun,
+  ScheduledTaskRunItem,
+  ScheduledTaskRunNowResponse,
+} from "@/types/capability/scheduled-task/run";
 
 const AGENT_API_BASE_URL = getAgentApiBaseUrl();
 const SCHEDULED_TASKS_API_BASE_URL = `${AGENT_API_BASE_URL}/capability/scheduled/tasks`;

@@ -4,7 +4,7 @@ import { useRef } from "react";
 
 import { EditorPanel } from "@/features/conversation/shared/editor/editor-panel";
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { WorkspaceSurfaceView } from "@/shared/ui/workspace/surface/workspace-surface-view";
 import type { Agent } from "@/types/agent/agent";

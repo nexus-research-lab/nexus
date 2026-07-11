@@ -1,9 +1,6 @@
-import type { Message } from "@/types/conversation/message";
-import {
-  collectUnresolvedToolUseCandidates,
-  matchPendingPermissionsToToolUses,
-  type PendingPermission,
-} from "@/types/conversation/permission";
+import type { Message } from "@/types/conversation/message/entity";
+import { matchPendingPermissionsToMessages } from "@/lib/conversation/pending-permission-match";
+import type { PendingPermission } from "@/types/conversation/interaction/permission";
 
 export interface MessageItemPermissionMatch {
   matchedPendingPermissionsByToolUseId: Map<string, PendingPermission>;
@@ -11,7 +8,7 @@ export interface MessageItemPermissionMatch {
 }
 
 /**
- * 权限只按 message_id + tool_use_id 精确绑定（在 matchPendingPermissionsToToolUses 内），
+ * 权限只按 message_id + tool_use_id 精确绑定，
  * 不再做单候选或跨消息补配；匹配不上的保留为未匹配卡片。
  */
 export function resolveMessageItemPermissions(
@@ -25,14 +22,14 @@ export function resolveMessageItemPermissions(
     };
   }
 
-  const permissionMatchResult = matchPendingPermissionsToToolUses(
+  const permissionMatchResult = matchPendingPermissionsToMessages(
+    messages,
     pendingPermissions,
-    collectUnresolvedToolUseCandidates(messages),
   );
 
   return {
     matchedPendingPermissionsByToolUseId:
-      permissionMatchResult.matched_permissions_by_tool_use_id,
-    unmatchedPendingPermissions: permissionMatchResult.unmatched_permissions,
+      permissionMatchResult.matchedByToolUseId,
+    unmatchedPendingPermissions: permissionMatchResult.unmatchedPermissions,
   };
 }

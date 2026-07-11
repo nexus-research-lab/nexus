@@ -1,6 +1,6 @@
 import { Clock3, Link2, Search } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiSearchInput } from "@/shared/ui/form/form-control";
 import type { MemoryDocument, MemorySnapshot } from "@/types/memory/memory";

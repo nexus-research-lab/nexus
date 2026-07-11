@@ -2,21 +2,25 @@ import type { Dispatch, RefObject, SetStateAction } from "react";
 
 import type {
   AgentRoundStatusEventPayload,
+  ChatAckData,
+  RoundLifecycleStatus,
+  StreamMessage,
+} from "@/types/conversation/message/event";
+import type {
   AssistantMessage,
   AssistantMessageStatus,
-  ChatAckData,
-  EventMessage,
   Message,
-  RoundLifecycleStatus,
-  SessionStatusEventPayload,
-  StreamMessage,
-} from "@/types";
+} from "@/types/conversation/message/entity";
+import type {
+  EventMessage,
+  SessionStatusData,
+} from "@/types/generated/protocol";
 import type {
   InputQueueItem,
   RoomEventPayload,
 } from "@/types/agent/agent-conversation";
 import type { WorkspaceEventPayload } from "@/types/app/workspace-live";
-import type { PendingPermission } from "@/types/conversation/permission";
+import type { PendingPermission } from "@/types/conversation/interaction/permission";
 import type {
   WebSocketMessage,
   WebSocketSendResult,
@@ -59,7 +63,7 @@ interface AgentEventRuntime {
   ) => void;
   rejectChatAck: (clientRequestId: string, reason: string) => boolean;
   removeRewrittenRound: (roundId: string) => void;
-  syncSessionStatus: (payload: SessionStatusEventPayload) => void;
+  syncSessionStatus: (payload: SessionStatusData) => void;
   trackAssistantMessage: (message: AssistantMessage) => void;
   trackChatAck: (ack: ChatAckData) => void;
   updateMessageStatus: (

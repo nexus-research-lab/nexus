@@ -1,10 +1,10 @@
 import type { ReactNode } from "react";
 
-import type { ContentBlock } from "@/types/conversation/message";
+import type { ContentBlock } from "@/types/conversation/message/content";
 import type {
   PendingPermission,
   PermissionDecisionPayload,
-} from "@/types/conversation/permission";
+} from "@/types/conversation/interaction/permission";
 
 import { ImageBlock } from "../../../blocks/artifact/image-block";
 import { WorkspaceFileArtifactBlock } from "../../../blocks/artifact/workspace-file-artifacts";

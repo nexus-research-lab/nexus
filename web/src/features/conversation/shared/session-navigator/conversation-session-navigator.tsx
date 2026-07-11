@@ -1,7 +1,7 @@
 import type { RefObject } from "react";
 import { ChevronRight, MessageSquareText } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 import {
   UiDialogBody,
   UiDialogHeader,

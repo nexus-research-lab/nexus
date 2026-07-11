@@ -4,10 +4,8 @@ import { History } from "lucide-react";
 
 import { UiSkeletonCardList } from "@/shared/ui/display/skeleton";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
-import type {
-  ScheduledTaskItem,
-  ScheduledTaskRunItem,
-} from "@/types/capability/scheduled-task";
+import type { ScheduledTaskRunItem } from "@/types/capability/scheduled-task/run";
+import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
 
 import { ScheduledTaskRunHistoryItem } from "./scheduled-task-run-history-item";
 

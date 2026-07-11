@@ -8,8 +8,8 @@ import {
   Square,
 } from "lucide-react";
 
-import { cn } from "@/lib/utils";
-import type { UserQuestion } from "@/types/conversation/ask-user-question";
+import { cn } from "@/shared/ui/class-name";
+import type { UserQuestion } from "@/types/conversation/interaction/ask-user-question";
 
 interface AskUserQuestionCardProps {
   question: UserQuestion;

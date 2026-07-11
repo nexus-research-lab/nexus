@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef } from "react";
 
 import { useScrollAnchoredState } from "@/features/conversation/shared/timeline/scroll/use-scroll-anchored-state";
 import { useCopyToClipboard } from "@/hooks/ui/use-copy-to-clipboard";
-import type { ContentBlock } from "@/types/conversation/message";
+import type { ContentBlock } from "@/types/conversation/message/content";
 
 import type { MessageItemProps } from "../message-item-types";
 import { useMessageItemStreamingLayout } from "../view/message-item-streaming-layout";

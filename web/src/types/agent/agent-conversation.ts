@@ -1,7 +1,7 @@
 /**
  * useAgentConversation Hook 类型定义
  *
- * [INPUT]: 依赖 @/types 的 Message
+ * [INPUT]: 依赖会话消息和权限协议
  * [OUTPUT]: 对外提供 UseAgentConversationOptions, UseAgentConversationReturn
  * [POS]: types 模块的对话交互类型
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -9,12 +9,12 @@
 
 import { getSessionKeyIdentity } from '@/lib/conversation/session-key';
 
-import {
-  MessageAttachment,
+import type { MessageAttachment } from '@/types/conversation/message/attachment';
+import type {
+  AssistantMessageStatus,
   Message,
-  RoomPendingAgentSlotState,
-} from '@/types';
-import { PendingPermission, PermissionDecisionPayload } from '@/types/conversation/permission';
+} from '@/types/conversation/message/entity';
+import { PendingPermission, PermissionDecisionPayload } from '@/types/conversation/interaction/permission';
 import { WebSocketState } from '@/types/system/websocket';
 
 export type AgentConversationChatType = 'dm' | 'group';
@@ -24,6 +24,18 @@ export type AgentConversationRuntimePhase =
   | 'running'
   | 'streaming'
   | 'awaiting_permission';
+
+/** Room Agent 尚未落成消息的运行态占位，不属于持久化消息协议。 */
+export interface RoomPendingAgentSlotState {
+  agent_id: string;
+  agent_round_id: string;
+  msg_id: string;
+  round_id: string;
+  status: AssistantMessageStatus;
+  timestamp: number;
+  index?: number;
+}
+
 export interface AgentConversationIdentity {
   session_key: string | null;
   agent_id?: string | null;

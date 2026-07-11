@@ -4,7 +4,7 @@ import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 
 import {
   filterMentionTargets,

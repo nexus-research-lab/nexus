@@ -1,7 +1,8 @@
 import { useCallback } from "react";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 
-import type { Message, WebSocketState } from "@/types";
+import type { Message } from "@/types/conversation/message/entity";
+import type { WebSocketState } from "@/types/system/websocket";
 
 import { removeFailedOutboundUserMessage } from "../runtime/model/conversation-runtime-reconciliation";
 

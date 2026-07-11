@@ -1,4 +1,4 @@
-import type { EventMessage } from "@/types";
+import type { EventMessage } from "@/types/generated/protocol";
 
 import {
   buildRoomSubscriptionMessage,

@@ -1,8 +1,8 @@
 import type {
   UserQuestion,
   UserQuestionAnswer,
-} from "@/types/conversation/ask-user-question";
-import type { ToolResultContent } from "@/types/conversation/message";
+} from "@/types/conversation/interaction/ask-user-question";
+import type { ToolResultContent } from "@/types/conversation/message/content";
 
 interface QuestionAnswerDraft {
   customAnswer: string;

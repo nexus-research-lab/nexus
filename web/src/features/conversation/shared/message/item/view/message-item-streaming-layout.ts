@@ -1,7 +1,7 @@
 import { prepare, layout } from "@chenglou/pretext";
 import { useEffect, useRef, type CSSProperties, type RefObject } from "react";
 
-import type { ContentBlock } from "@/types/conversation/message";
+import type { ContentBlock } from "@/types/conversation/message/content";
 
 import { extractTextFromContentBlocks } from "../../message-content-model";
 

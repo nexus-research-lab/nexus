@@ -2,13 +2,16 @@ import { useMemo } from "react";
 
 import { useAssistantContentMerge } from "@/hooks/conversation/use-assistant-content-merge";
 import type { AgentConversationRuntimePhase } from "@/types/agent/agent-conversation";
-import {
-  getSystemMessageDisplayMeta,
-  type AssistantMessage,
-  type Message,
-  type SystemEventContent,
-} from "@/types/conversation/message";
-import type { PendingPermission } from "@/types/conversation/permission";
+import type {
+  AssistantMessage,
+  Message,
+  SystemMessage,
+} from "@/types/conversation/message/entity";
+import type {
+  SystemEventIcon,
+  SystemEventContent,
+} from "@/types/conversation/message/content";
+import type { PendingPermission } from "@/types/conversation/interaction/permission";
 
 import type {
   AssistantContentMode,
@@ -32,6 +35,39 @@ interface MessageItemProjectionOptions {
   pendingPermissions: PendingPermission[];
   roundId: string;
   runtimePhase?: AgentConversationRuntimePhase | null;
+}
+
+interface SystemMessageDisplayMeta {
+  icon: SystemEventIcon;
+  label: string;
+  tone: "neutral" | "warning";
+}
+
+const DEFAULT_SYSTEM_MESSAGE_DISPLAY_META: SystemMessageDisplayMeta = {
+  icon: "status",
+  label: "系统事件",
+  tone: "neutral",
+};
+
+const SYSTEM_MESSAGE_DISPLAY_META_BY_SUBTYPE: Record<
+  string,
+  SystemMessageDisplayMeta
+> = {
+  api_retry: { icon: "retry", label: "自动重试", tone: "warning" },
+  compact_boundary: { icon: "status", label: "上下文压缩", tone: "neutral" },
+  guided_input: { icon: "guide", label: "已引导对话", tone: "neutral" },
+  status: { icon: "status", label: "状态更新", tone: "neutral" },
+  task_notification: { icon: "status", label: "状态更新", tone: "neutral" },
+  task_progress: { icon: "progress", label: "执行状态", tone: "neutral" },
+  task_started: { icon: "progress", label: "执行状态", tone: "neutral" },
+  task_updated: { icon: "status", label: "状态更新", tone: "neutral" },
+};
+
+function getSystemMessageDisplayMeta(
+  message: SystemMessage,
+): SystemMessageDisplayMeta {
+  return SYSTEM_MESSAGE_DISPLAY_META_BY_SUBTYPE[message.metadata?.subtype ?? ""]
+    ?? DEFAULT_SYSTEM_MESSAGE_DISPLAY_META;
 }
 
 export function useMessageItemProjection({

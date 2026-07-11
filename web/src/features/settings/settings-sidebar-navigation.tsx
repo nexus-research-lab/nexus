@@ -11,7 +11,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 import { isDesktopRuntime } from "@/config/desktop-runtime";
 import { canUseOperations } from "@/features/operations/operations-access";
 import { useAuth } from "@/shared/auth/auth-context";

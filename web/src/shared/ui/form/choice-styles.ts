@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 
 export type UiChoiceTone = "primary" | "danger" | "success";
 export type UiChoiceVariant = "surface" | "picker" | "calendar";

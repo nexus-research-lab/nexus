@@ -1,6 +1,6 @@
-import type { ImageContent } from "@/types/conversation/message";
-import type { PermissionUpdate } from "@/types/conversation/permission";
-import { formatTokens } from "@/lib/utils";
+import type { ImageContent } from "@/types/conversation/message/content";
+import type { PermissionUpdate } from "@/types/conversation/interaction/permission";
+import { formatTokens } from "@/lib/format/token-count";
 
 import type {
   ToolBlockProps,

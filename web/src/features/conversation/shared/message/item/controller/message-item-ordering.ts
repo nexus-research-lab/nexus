@@ -1,7 +1,7 @@
 import type {
   ContentBlock,
   SystemEventContent,
-} from "@/types/conversation/message";
+} from "@/types/conversation/message/content";
 
 import { splitTextBlockByToolUseError } from "../../message-content-model";
 import type {

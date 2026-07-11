@@ -4,7 +4,8 @@ import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { listScheduledTaskRunsApi } from "@/lib/api/capability/scheduled-task-api";
-import type { ScheduledTaskRunItem } from "@/types/capability/scheduled-task";
+import { getErrorMessage } from "@/lib/error-message";
+import type { ScheduledTaskRunItem } from "@/types/capability/scheduled-task/run";
 
 interface RunHistoryResourceState {
   errorMessage: string | null;
@@ -47,7 +48,7 @@ export function useScheduledTaskRunHistoryResource(taskJobId: string | null) {
       ) {
         setState((current) => ({
           ...current,
-          errorMessage: error instanceof Error ? error.message : "加载运行历史失败",
+          errorMessage: getErrorMessage(error, "加载运行历史失败"),
           runs: [],
         }));
       }

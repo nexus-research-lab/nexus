@@ -9,15 +9,15 @@ import {
   runScheduledTaskApi,
   updateScheduledTaskStatusApi,
 } from "@/lib/api/capability/scheduled-task-api";
+import { getErrorMessage } from "@/lib/error-message";
+import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
 import type {
-  ScheduledTaskItem,
   ScheduledTaskRunItem,
   ScheduledTaskRunNowResponse,
-} from "@/types/capability/scheduled-task";
+} from "@/types/capability/scheduled-task/run";
 
 import { notifyScheduledTasksMutated } from "../../scheduled-task-events";
 import {
-  getCommandErrorMessage,
   SCHEDULED_TASK_COMMAND_KINDS,
   type ScheduledTaskCommandKind,
   type ScheduledTaskFeedback,
@@ -79,7 +79,7 @@ export function useScheduledTaskCommands(resource: ScheduledTaskCommandResource)
       return await execute();
     } catch (error) {
       setFeedback({
-        message: getCommandErrorMessage(error, failure.fallbackMessage),
+        message: getErrorMessage(error, failure.fallbackMessage),
         title: failure.title,
         tone: "error",
       });

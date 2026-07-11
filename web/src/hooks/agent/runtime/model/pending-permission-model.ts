@@ -1,9 +1,6 @@
-import type { Message } from "@/types";
-import {
-  collectUnresolvedToolUseCandidates,
-  matchPendingPermissionsToToolUses,
-  type PendingPermission,
-} from "@/types/conversation/permission";
+import type { Message } from "@/types/conversation/message/entity";
+import { matchPendingPermissionsToMessages } from "@/lib/conversation/pending-permission-match";
+import type { PendingPermission } from "@/types/conversation/interaction/permission";
 
 function getExpirationTime(permission: PendingPermission): number | null {
   if (!permission.expires_at) {
@@ -35,9 +32,9 @@ export function filterPendingPermissionsFromSnapshot(
       .filter((message) => message.role === "assistant")
       .map((message) => message.message_id),
   );
-  const matchResult = matchPendingPermissionsToToolUses(
+  const matchResult = matchPendingPermissionsToMessages(
+    messages,
     currentPermissions,
-    collectUnresolvedToolUseCandidates(messages),
   );
 
   return currentPermissions.filter((permission) => {
@@ -47,7 +44,7 @@ export function filterPendingPermissionsFromSnapshot(
     if (permission.round_id && isRoundTerminal(permission.round_id)) {
       return false;
     }
-    if (matchResult.matched_request_ids.has(permission.request_id)) {
+    if (matchResult.matchedRequestIds.has(permission.request_id)) {
       return true;
     }
     // 旧事件缺少 messageId，无法唯一绑定，只能等待明确结果或重载收口。

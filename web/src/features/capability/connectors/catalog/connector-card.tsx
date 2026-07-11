@@ -3,7 +3,7 @@
 import { Check, Clock3, KeyRound, Loader2, Plus, Settings2 } from "lucide-react";
 import { type KeyboardEvent, type MouseEvent } from "react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { UiIconButton } from "@/shared/ui/button/button";

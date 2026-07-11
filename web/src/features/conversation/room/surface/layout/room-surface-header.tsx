@@ -2,7 +2,7 @@ import { DmConversationHeader } from "@/features/conversation/room/dm/dm-convers
 import type { Agent } from "@/types/agent/agent";
 import type { RoomDialogSubmission } from "@/features/conversation/room/members/create-room-dialog";
 import type { RoomConversationView } from "@/types/conversation/conversation";
-import type { RoomSurfaceTabKey } from "@/types/conversation/room-surface";
+import type { RoomSurfaceTabKey } from "@/features/conversation/room/surface/header/room-header-tabs";
 
 import { GroupConversationHeader } from "../../group/header/group-conversation-header";
 import { CONVERSATION_TOUR_ANCHORS } from "@/features/onboarding/tours/conversation-tour";

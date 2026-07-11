@@ -5,7 +5,7 @@ import { PrismAsyncLight as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneLight, vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 
 import { useCopyToClipboard } from "@/hooks/ui/use-copy-to-clipboard";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 import { useTheme } from "@/shared/theme/theme-context";
 
 import { CodeShell } from "./code-shell";

@@ -8,7 +8,12 @@
 import { useMemo } from "react";
 
 import { isAutomationTriggerUserMessage } from "@/types/conversation/automation-message";
-import { AssistantMessage, ContentBlock, Message, ResultSummary } from "@/types/conversation/message";
+import type {
+  AssistantMessage,
+  Message,
+  ResultSummary,
+} from "@/types/conversation/message/entity";
+import type { ContentBlock } from "@/types/conversation/message/content";
 
 interface UseAssistantContentMergeOptions {
   messages: Message[];

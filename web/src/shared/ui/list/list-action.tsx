@@ -2,7 +2,7 @@
 
 import { ButtonHTMLAttributes, forwardRef, MouseEvent, ReactNode } from "react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 import {
   getUiListActionClassName,
   type UiListActionShape,

@@ -1,10 +1,11 @@
 import { create } from "zustand";
 
-import type { Message, RoomPendingAgentSlotState } from "@/types/conversation/message";
+import type { Message } from "@/types/conversation/message/entity";
+import type { RoomPendingAgentSlotState } from "@/types/agent/agent-conversation";
 import type {
   PendingPermission,
   PermissionDecisionPayload,
-} from "@/types/conversation/permission";
+} from "@/types/conversation/interaction/permission";
 
 export interface RoomThreadLiveSource {
   agentAvatarMap?: Record<string, string | null>;

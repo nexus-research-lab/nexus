@@ -5,10 +5,8 @@ import { Download, FolderOpen, RotateCcw, X } from "lucide-react";
 
 import { downloadWorkspaceFileApi } from "@/lib/api/agent/agent-api";
 import { getWorkspaceFileExternalActionCopy } from "@/lib/workspace-file-action";
-import type {
-  ScheduledTaskItem,
-  ScheduledTaskRunItem,
-} from "@/types/capability/scheduled-task";
+import type { ScheduledTaskRunItem } from "@/types/capability/scheduled-task/run";
+import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
 
 import {
   artifactFileName,

@@ -5,7 +5,7 @@ import { useCallback, useEffect } from "react";
 import { getDesktopWebsocketProtocols } from "@/config/desktop-runtime";
 import { getAgentWsUrl } from "@/config/options";
 import { useAppEventSubscription, useWebSocket } from "@/lib/websocket";
-import type { EventMessage } from "@/types/conversation/message";
+import { parseEventMessage } from "@/lib/websocket/protocol/event-message";
 
 import { notifyScheduledTasksMutated } from "../scheduled-task-events";
 
@@ -36,8 +36,8 @@ export function useScheduledTaskRealtimeRefresh({
   const wsUrl = getAgentWsUrl();
 
   const handleRealtimeMessage = useCallback((rawMessage: unknown) => {
-    const event = rawMessage as EventMessage;
-    if (event.event_type !== "scheduled_task_changed") {
+    const event = parseEventMessage(rawMessage);
+    if (!event || event.event_type !== "scheduled_task_changed") {
       return;
     }
     notifyScheduledTasksMutated(event.agent_id ?? "");

@@ -4,7 +4,7 @@ import {
   ACTIVE_TAB_MIN_WIDTH,
   INACTIVE_TAB_MIN_WIDTH,
 } from "@/shared/ui/workspace/controls/conversation-tabs/conversation-tabs-model";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 
 const TAB_BASE_CLASS_NAME =
   "group relative inline-flex h-6.5 flex-none items-center overflow-hidden rounded-[13px] border text-[11px] font-semibold transition-[width,background-color,border-color,color,box-shadow] duration-[145ms] ease-[cubic-bezier(0.25,0.1,0.25,1)]";

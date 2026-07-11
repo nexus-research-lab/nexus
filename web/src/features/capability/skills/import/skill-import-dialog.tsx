@@ -10,7 +10,7 @@ import {
 } from "react";
 import { Download, FileText, FolderUp, GitBranch, Info, Loader2, PackageCheck } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 import { UiButton } from "@/shared/ui/button/button";
 import {
   UiDialogBackdrop,

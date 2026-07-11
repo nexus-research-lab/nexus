@@ -7,7 +7,7 @@ import type { RoomDialogSubmission } from "@/features/conversation/room/members/
 import { Agent, AgentIdentityDraft, AgentNameValidationResult, AgentOptions } from "@/types/agent/agent";
 import { AgentConversationIdentity } from "@/types/agent/agent-conversation";
 import { ConversationSnapshotPayload, RoomConversationView } from "@/types/conversation/conversation";
-import { RoomSurfaceTabKey } from "@/types/conversation/room-surface";
+import type { RoomSurfaceTabKey } from "@/features/conversation/room/surface/header/room-header-tabs";
 import { TodoItem } from "@/types/conversation/todo";
 
 import { RoomMobileSurface } from "./mobile/room-mobile-surface";

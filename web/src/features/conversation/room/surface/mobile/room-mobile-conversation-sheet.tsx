@@ -1,6 +1,6 @@
 import { Check, MessageSquare, X } from "lucide-react";
 
-import { formatRelativeTime } from "@/lib/utils";
+import { formatRelativeTime } from "@/lib/format/relative-time";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { RoomConversationView } from "@/types/conversation/conversation";
 

@@ -2,11 +2,11 @@ import type {
   TaskProgressContent,
   ToolResultContent,
   ToolUseContent,
-} from "@/types/conversation/message";
+} from "@/types/conversation/message/content";
 import type {
   PermissionRiskLevel,
   PermissionUpdate,
-} from "@/types/conversation/permission";
+} from "@/types/conversation/interaction/permission";
 
 export type ToolBlockStatus =
   | "pending"

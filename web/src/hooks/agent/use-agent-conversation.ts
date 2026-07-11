@@ -8,7 +8,10 @@ import {
 import { getAgentWsUrl } from "@/config/options";
 import { useAgentStore } from "@/store/agent";
 import { useWorkspaceLiveStore } from "@/store/workspace-live";
-import type { WebSocketMessage, WebSocketState } from "@/types";
+import type {
+  WebSocketMessage,
+  WebSocketState,
+} from "@/types/system/websocket";
 import type {
   RoomEventPayload,
   UseAgentConversationOptions,

@@ -2,7 +2,7 @@
 
 import { Loader2 } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 import { FeedbackBannerStack } from "@/shared/ui/feedback/feedback-banner-stack";
 import { WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
 

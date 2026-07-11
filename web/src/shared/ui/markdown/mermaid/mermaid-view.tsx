@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 
 import { writeTextToClipboard } from "@/hooks/ui/clipboard";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 
 import { MermaidPreviewDialog } from "./mermaid-preview-dialog";
 import {

@@ -1,6 +1,6 @@
 import type { CSSProperties, HTMLAttributes, ReactNode } from "react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 
 type IconFrameShape = "round" | "rounded";
 type IconFrameTone = "default" | "primary" | "success" | "warning";

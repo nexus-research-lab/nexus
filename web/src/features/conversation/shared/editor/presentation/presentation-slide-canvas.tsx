@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 import {
   ROUND_RECT_MAX_RADIUS,
   ROUND_RECT_RADIUS_RATIO,

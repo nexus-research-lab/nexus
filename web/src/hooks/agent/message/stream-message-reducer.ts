@@ -1,11 +1,13 @@
 import type {
   AssistantMessage,
-  ImageContent,
   Message,
-  StreamMessage,
+} from "@/types/conversation/message/entity";
+import type {
+  ImageContent,
   TextContent,
   ThinkingContent,
-} from "@/types";
+} from "@/types/conversation/message/content";
+import type { StreamMessage } from "@/types/conversation/message/event";
 
 type StreamRenderableBlock = TextContent | ThinkingContent | ImageContent;
 

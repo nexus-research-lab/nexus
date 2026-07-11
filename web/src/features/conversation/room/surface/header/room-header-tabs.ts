@@ -3,7 +3,8 @@ import { Bot, FolderTree, History, Info, type LucideIcon } from "lucide-react";
 import { CONVERSATION_TOUR_ANCHORS } from "@/features/onboarding/tours/conversation-tour";
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
-import type { RoomSurfaceTabKey } from "@/types/conversation/room-surface";
+
+export type RoomSurfaceTabKey = "chat" | "history" | "workspace" | "about" | "subagents";
 
 interface RoomHeaderTab {
   anchor?: string;

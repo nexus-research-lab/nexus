@@ -10,7 +10,7 @@ import { Link } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { SIDEBAR_TOUR_ANCHORS } from "@/features/onboarding/tours/sidebar-navigation-tour";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 
 import type { SidebarUtilityLabels } from "./sidebar-wide-panel-types";
 

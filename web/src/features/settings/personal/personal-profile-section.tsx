@@ -1,7 +1,10 @@
 import { Image, Loader2 } from "lucide-react";
 
 import type { PersonalProfile } from "@/lib/api/account/auth-api";
-import { AGENT_ICON_ID_END, AGENT_ICON_ID_START } from "@/lib/utils";
+import {
+  AGENT_ICON_ID_END,
+  AGENT_ICON_ID_START,
+} from "@/lib/avatar";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 import { IconPicker } from "@/shared/ui/icon-picker/icon-picker";

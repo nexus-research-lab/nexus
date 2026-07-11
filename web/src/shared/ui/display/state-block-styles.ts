@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 
 export type UiStateBlockSize = "sm" | "md" | "lg";
 export type UiStateBlockTone = "default" | "danger";

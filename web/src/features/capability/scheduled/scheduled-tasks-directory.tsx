@@ -13,10 +13,8 @@ import {
   WorkspaceSurfaceToolbarAction,
 } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
-import type {
-  ScheduledTaskItem,
-  ScheduledTaskRunItem,
-} from "@/types/capability/scheduled-task";
+import type { ScheduledTaskRunItem } from "@/types/capability/scheduled-task/run";
+import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
 
 import {
   CapabilityPageLayout,

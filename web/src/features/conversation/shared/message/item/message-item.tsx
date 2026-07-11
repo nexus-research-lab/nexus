@@ -1,6 +1,6 @@
 import { memo } from "react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 
 import { MessageShell } from "../ui/message-primitives";
 import { useMessageItemController } from "./controller/use-message-item-controller";

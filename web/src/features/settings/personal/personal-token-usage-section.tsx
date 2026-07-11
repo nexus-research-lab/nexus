@@ -10,7 +10,8 @@ import {
 } from "lucide-react";
 
 import type { TokenUsageSummary } from "@/lib/api/account/auth-api";
-import { cn, formatTokens } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
+import { formatTokens } from "@/lib/format/token-count";
 import { useI18n } from "@/shared/i18n/i18n-context";
 
 function formatUpdatedAt(value: string, locale: "zh" | "en"): string {

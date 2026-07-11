@@ -2,8 +2,8 @@ import type {
   ContentBlock,
   TaskProgressContent,
   ToolUseContent,
-} from "@/types/conversation/message";
-import type { PendingPermission } from "@/types/conversation/permission";
+} from "@/types/conversation/message/content";
+import type { PendingPermission } from "@/types/conversation/interaction/permission";
 
 import type { MessageActivityState } from "../../../ui/message-primitives";
 import type { ToolUseProjection } from "./content-renderer-model";

@@ -1,3 +1,9 @@
+import { parseAgentRuntimeStatus } from "@/lib/agent-runtime-status";
+import {
+  asUnknownRecord,
+  readNumber,
+  readString,
+} from "@/lib/unknown-value";
 import type { RoomEventPayload } from "@/types/agent/agent-conversation";
 import type { WorkspaceEventPayload } from "@/types/app/workspace-live";
 
@@ -6,10 +12,43 @@ import type {
   AgentEventHandlerMap,
 } from "../agent-event-context";
 
+const WORKSPACE_EVENT_TYPES = new Set<WorkspaceEventPayload["type"]>([
+  "file_deleted",
+  "file_write_delta",
+  "file_write_end",
+  "file_write_start",
+]);
+const WORKSPACE_EVENT_SOURCES = new Set<WorkspaceEventPayload["source"]>([
+  "agent",
+  "api",
+  "system",
+  "unknown",
+]);
+
+function parseWorkspaceEventPayload(value: unknown): WorkspaceEventPayload | null {
+  const record = asUnknownRecord(value);
+  if (!record) {
+    return null;
+  }
+  const type = readString(record, "type") as WorkspaceEventPayload["type"] | null;
+  const source = readString(record, "source") as WorkspaceEventPayload["source"] | null;
+  if (
+    !type
+    || !WORKSPACE_EVENT_TYPES.has(type)
+    || !source
+    || !WORKSPACE_EVENT_SOURCES.has(source)
+    || !readString(record, "agent_id")
+    || !readString(record, "path")
+    || readNumber(record, "version") === null
+    || !readString(record, "timestamp")
+  ) {
+    return null;
+  }
+  return record as unknown as WorkspaceEventPayload;
+}
+
 const handleAgentRuntimeEvent: AgentEventHandler = (event, context) => {
-  const payload = event.data as
-    | { agent_id?: string; running_task_count?: number; status?: string }
-    | undefined;
+  const payload = parseAgentRuntimeStatus(event.data);
   if (
     payload?.agent_id === context.scope.agentId
     && payload.running_task_count === 0
@@ -20,8 +59,8 @@ const handleAgentRuntimeEvent: AgentEventHandler = (event, context) => {
 };
 
 const handleWorkspaceEvent: AgentEventHandler = (event, context) => {
-  const payload = event.data as WorkspaceEventPayload;
-  if (payload?.agent_id && payload.path) {
+  const payload = parseWorkspaceEventPayload(event.data);
+  if (payload) {
     context.callbacks.applyWorkspaceEvent(payload);
   }
 };

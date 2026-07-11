@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { LoaderCircle } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
 import { UiMarkdownContent } from "@/shared/ui/markdown/markdown-content";

@@ -2,12 +2,12 @@
 
 import type { Key, ReactNode } from "react";
 
-import { cn } from "@/lib/utils";
-import type { ContentBlock } from "@/types/conversation/message";
+import { cn } from "@/shared/ui/class-name";
+import type { ContentBlock } from "@/types/conversation/message/content";
 import type {
   PendingPermission,
   PermissionDecisionPayload,
-} from "@/types/conversation/permission";
+} from "@/types/conversation/interaction/permission";
 
 import { MarkdownRenderer } from "../../../markdown-renderer";
 import {

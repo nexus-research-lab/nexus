@@ -1,9 +1,9 @@
 import type {
   AssistantMessage,
-  ContentBlock,
   Message,
   ResultSummary,
-} from "@/types/conversation/message";
+} from "@/types/conversation/message/entity";
+import type { ContentBlock } from "@/types/conversation/message/content";
 import { extractTextFromContentBlocks } from "../../message-content-model";
 import { getResultSummaryDisplayText } from "./message-item-stats";
 import {

@@ -9,6 +9,7 @@ import {
   saveConnectorOauthClientApi,
   startConnectorDeviceAuthApi,
 } from "@/lib/api/capability/connector-api";
+import { getErrorMessage } from "@/lib/error-message";
 import type {
   ConnectorDeviceAuthStart,
   ConnectorInfo,
@@ -40,10 +41,6 @@ interface MutationOptions {
   errorFallback: string;
   request: () => Promise<unknown>;
   successMessage: string;
-}
-
-function getErrorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error ? error.message : fallback;
 }
 
 function requiresShopDomain(connector: ConnectorInfo): boolean {

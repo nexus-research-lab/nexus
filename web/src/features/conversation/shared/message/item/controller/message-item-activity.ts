@@ -1,8 +1,8 @@
 import type { AgentConversationRuntimePhase } from "@/types/agent/agent-conversation";
-import { isAskUserQuestionTimedOutResult } from "@/types/conversation/ask-user-question";
-import type { ContentBlock } from "@/types/conversation/message";
-import type { PendingPermission } from "@/types/conversation/permission";
+import type { ContentBlock } from "@/types/conversation/message/content";
+import type { PendingPermission } from "@/types/conversation/interaction/permission";
 
+import { isAskUserQuestionTimedOutResult } from "../../blocks/question/ask-user-question-timeout";
 import {
   getInputSummary,
   getToolTitle,

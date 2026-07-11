@@ -1,6 +1,6 @@
 import { getRoomAgentRoundEntry, isAgentRoundActive } from "../../round/round-agent-model";
 import { getRoomThreadMessages } from "../../round/round-thread-model";
-import type { PendingPermission } from "@/types/conversation/permission";
+import type { PendingPermission } from "@/types/conversation/interaction/permission";
 import type { ThreadTarget } from "../group-thread-state";
 import type { RoomThreadLiveSource } from "./room-thread-live-store";
 

@@ -10,10 +10,8 @@ import {
   privateThreadTitle,
 } from "@/features/agents/private-domain/agent-private-domain-model";
 import { UiMarkdownContent } from "@/shared/ui/markdown/markdown-content";
-import {
-  cn,
-  formatRelativeTime,
-} from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
+import { formatRelativeTime } from "@/lib/format/relative-time";
 import {
   AgentPrivateEvent,
   AgentPrivateThread,

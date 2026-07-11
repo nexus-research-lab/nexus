@@ -1,5 +1,5 @@
 import { UiCounterBadge } from "@/shared/ui/display/badge";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 
 import type {
   SidebarPrimaryTab,

@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import type { Dispatch, SetStateAction } from "react";
 
+import { getErrorMessage } from "@/lib/error-message";
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import type {
   ProviderConfigRecord,
@@ -8,7 +9,6 @@ import type {
 } from "@/types/capability/provider";
 
 import type { ProviderModelApi } from "../../provider-settings-api";
-import { getProviderErrorMessage } from "../../model/provider-feedback-model";
 import {
   isDefaultModelDisable,
   modelUpdatePayload,
@@ -78,7 +78,7 @@ export function useProviderModelUpdate({
         setFeedback({
           tone: "error",
           title: t("settings.providers.model_status_failed_title"),
-          message: getProviderErrorMessage(
+          message: getErrorMessage(
             error,
             t("settings.providers.retry_later"),
           ),
@@ -129,7 +129,7 @@ export function useProviderModelUpdate({
         setFeedback({
           tone: "error",
           title: t("settings.providers.model_options_save_failed_title"),
-          message: getProviderErrorMessage(
+          message: getErrorMessage(
             error,
             t("settings.providers.check_json_format"),
           ),

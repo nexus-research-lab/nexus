@@ -3,8 +3,8 @@ import type {
   AssistantMessageStatus,
   Message,
   ResultSummary,
-  RoomPendingAgentSlotState,
-} from "@/types/conversation/message";
+} from "@/types/conversation/message/entity";
+import type { RoomPendingAgentSlotState } from "@/types/agent/agent-conversation";
 
 export type AgentRoundStatus = AssistantMessageStatus;
 

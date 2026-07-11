@@ -11,7 +11,7 @@ import {
   UiDialogPortal,
   UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
-import type { ScheduledTaskItem } from "@/types/capability/scheduled-task";
+import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
 
 import { TaskBasicsPanel } from "./form/task-basics-panel";
 import { TaskSchedulePanel } from "./schedule/task-schedule-panel";

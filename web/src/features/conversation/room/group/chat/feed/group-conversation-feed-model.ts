@@ -3,14 +3,12 @@ import type { RefObject } from "react";
 import type {
   AgentConversationRuntimePhase,
 } from "@/types/agent/agent-conversation";
-import type {
-  Message,
-  RoomPendingAgentSlotState,
-} from "@/types/conversation/message";
+import type { Message } from "@/types/conversation/message/entity";
+import type { RoomPendingAgentSlotState } from "@/types/agent/agent-conversation";
 import type {
   PendingPermission,
   PermissionDecisionPayload,
-} from "@/types/conversation/permission";
+} from "@/types/conversation/interaction/permission";
 import type { SessionRoundIndexItem } from "@/types/conversation/room";
 import type { ConversationRoundScrollHandleRef } from "@/features/conversation/shared/timeline/scroll/round-scroll";
 

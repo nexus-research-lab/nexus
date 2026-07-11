@@ -7,8 +7,9 @@ import {
   User,
 } from "lucide-react";
 
-import { cn } from "@/lib/utils";
-import type { Message, MessageAttachment } from "@/types/conversation/message";
+import { cn } from "@/shared/ui/class-name";
+import type { Message } from "@/types/conversation/message/entity";
+import type { MessageAttachment } from "@/types/conversation/message/attachment";
 
 import {
   MessageActionButton,

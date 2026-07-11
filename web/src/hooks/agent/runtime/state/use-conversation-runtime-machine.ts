@@ -8,10 +8,10 @@ import {
 import type {
   AssistantMessage,
   AssistantMessageStatus,
-  ChatAckData,
   Message,
-  RoundLifecycleStatus,
-} from "@/types";
+} from "@/types/conversation/message/entity";
+import type { ChatAckData } from "@/types/conversation/message/event";
+import type { RoundLifecycleStatus } from "@/types/conversation/message/event";
 import type { AgentConversationChatType } from "@/types/agent/agent-conversation";
 
 import { AgentConversationRuntimeMachine } from "../model/agent-conversation-runtime-machine";

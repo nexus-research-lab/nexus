@@ -1,7 +1,7 @@
 import type {
   ContentBlock,
   TextContent,
-} from "@/types/conversation/message";
+} from "@/types/conversation/message/content";
 
 const TOOL_USE_ERROR_TAG_PATTERN =
   /<tool_use_error>([\s\S]*?)<\/tool_use_error>/g;

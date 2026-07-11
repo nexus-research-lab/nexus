@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 import { HOME_SIDEBAR_PADDING_CLASS } from "@/lib/layout/home-layout";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 
 import { SidebarNexusButton } from "./sidebar-nexus-button";
 import { SidebarPrimaryTabs } from "./sidebar-primary-tabs";

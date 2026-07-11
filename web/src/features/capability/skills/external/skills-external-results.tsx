@@ -1,7 +1,7 @@
 import { Download, Loader2, Puzzle } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { UiListActionButton } from "@/shared/ui/list/list-action";

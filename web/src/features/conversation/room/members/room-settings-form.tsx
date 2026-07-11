@@ -1,6 +1,10 @@
 import { Crown } from "lucide-react";
 
-import { cn, ROOM_ICON_ID_END, ROOM_ICON_ID_START } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
+import {
+  ROOM_ICON_ID_END,
+  ROOM_ICON_ID_START,
+} from "@/lib/avatar";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiRoomAvatar } from "@/shared/ui/display/avatar";
 import { IconPicker } from "@/shared/ui/icon-picker/icon-picker";

@@ -1,6 +1,7 @@
 import { Check, Clock3, Pencil, Trash2, X } from "lucide-react";
 
-import { cn, formatRelativeTime } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
+import { formatRelativeTime } from "@/lib/format/relative-time";
 import { useI18n } from "@/shared/i18n/i18n-context";
 
 import type { RoomHistoryEntry } from "./room-history-model";

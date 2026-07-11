@@ -4,7 +4,7 @@ import type {
   TaskProgressContent,
   ToolResultContent,
   ToolUseContent,
-} from "@/types/conversation/message";
+} from "@/types/conversation/message/content";
 
 import type { ToolBlockStatus } from "../../../blocks/tool/tool-block-types";
 

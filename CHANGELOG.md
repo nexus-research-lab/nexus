@@ -19,6 +19,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Organized frontend API clients by Agent, Account, Capability, Conversation, Settings, and Core ownership, renamed the ambiguous conversation `agent-api` to `session-api`, merged duplicate runtime settings clients, split Room queries, commands, projections, directory events, and navigation recovery to remove the API-to-Store dependency cycle, removed unused app-update declarations and the dead bulk Skill update client, and made file-private declarations stop leaking as public exports.
 - Organized shared UI primitives by button, form, display, list, and navigation ownership instead of keeping unrelated controls in one flat root.
+- Split oversized Chinese and English message catalogs into typed domain segments with per-segment key parity checks.
+- Removed matching and presentation logic from conversation type declarations, consolidating permission matching and returning question, system-event, and Surface Tab rules to their owning domains.
+- Consolidated identical cross-feature error-message wrappers into one stateless library projection while keeping domain feedback composition local.
+- Split scheduled-task types into task and run contracts, removing unused status, event, health, and daily-report declarations instead of preserving speculative API mirrors.
+- Split conversation messages into attachment, content, entity, and event contracts, removed the root type barrel and unused message declarations, reused generated WebSocket envelopes, and added owner-specific decoding for previously unchecked event data.
+- Removed the frontend utility grab bag, routing class-name composition directly to its UI primitive while separating relative-time, token-count, and avatar rules into owned modules with data-driven projections.
 - Split the scheduled-task directory and run history into scoped resources, mutation commands, overview, dialog shell, and narrow list/detail/action views, reusing the shared anchored action menu for task actions.
 - Consolidated action, select, and multi-select menus under shared menu ownership, and unified scheduled-task time columns and anchored overlay behavior across pickers.
 - Split the Home ASCII Hero into presentation, React lifecycle, Canvas scene, and particle-model modules.

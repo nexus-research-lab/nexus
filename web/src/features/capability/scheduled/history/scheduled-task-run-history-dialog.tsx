@@ -6,10 +6,8 @@ import { RefreshCw, X } from "lucide-react";
 import { UiButton, UiIconButton } from "@/shared/ui/button/button";
 import { closeOnEscape } from "@/shared/ui/dialog/dialog-keyboard";
 import { WorkspaceStatusBadge } from "@/shared/ui/workspace/controls/workspace-status-badge";
-import type {
-  ScheduledTaskItem,
-  ScheduledTaskRunItem,
-} from "@/types/capability/scheduled-task";
+import type { ScheduledTaskRunItem } from "@/types/capability/scheduled-task/run";
+import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
 
 import { getTaskStatusMeta } from "./scheduled-task-run-history-model";
 import { useScheduledTaskRunHistoryActions } from "./use-scheduled-task-run-history-actions";

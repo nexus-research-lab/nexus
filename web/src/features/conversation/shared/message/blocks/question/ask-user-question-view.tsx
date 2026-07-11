@@ -1,7 +1,7 @@
 import { Check, Loader2, Send } from "lucide-react";
 
-import { cn } from "@/lib/utils";
-import type { UserQuestion } from "@/types/conversation/ask-user-question";
+import { cn } from "@/shared/ui/class-name";
+import type { UserQuestion } from "@/types/conversation/interaction/ask-user-question";
 
 import { MessageRail } from "../../ui/message-rail";
 import { AskUserQuestionCard } from "./ask-user-question-card";

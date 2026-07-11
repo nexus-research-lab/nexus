@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 import { ConversationResizeHandle } from "@/features/conversation/shared/editor/conversation-resize-handle";
 import { SubagentTaskSurface } from "@/features/conversation/shared/subagent/subagent-task-surface";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 import type {
   Agent,
   AgentIdentityDraft,
@@ -10,7 +10,7 @@ import type {
   AgentOptions,
 } from "@/types/agent/agent";
 import type { RoomConversationView } from "@/types/conversation/conversation";
-import type { RoomSurfaceTabKey } from "@/types/conversation/room-surface";
+import type { RoomSurfaceTabKey } from "@/features/conversation/room/surface/header/room-header-tabs";
 import type { SubagentTaskSource } from "@/types/conversation/subagent-task";
 
 import { RoomAgentAboutSurface } from "../room-agent-about-surface";

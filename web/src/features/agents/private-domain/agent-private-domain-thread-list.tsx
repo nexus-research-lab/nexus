@@ -9,10 +9,8 @@ import {
 import { PrivateParticipantAvatarStack } from "@/features/agents/private-domain/agent-private-domain-avatar";
 import { privateThreadTitle } from "@/features/agents/private-domain/agent-private-domain-model";
 import { UiMarkdownContent } from "@/shared/ui/markdown/markdown-content";
-import {
-  cn,
-  formatRelativeTime,
-} from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
+import { formatRelativeTime } from "@/lib/format/relative-time";
 import { AgentPrivateThread } from "@/types/agent/private-domain";
 
 export function PrivateThreadList({

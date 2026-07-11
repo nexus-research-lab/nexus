@@ -1,7 +1,7 @@
 "use client";
 
 import { UiMarkdownContent } from "@/shared/ui/markdown/markdown-content";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 
 const SKILL_MARKDOWN_CLASS_NAME =
   "[&_h1:first-child]:mt-0 [&_h2:first-child]:mt-0 [&_h3:first-child]:mt-0 [&_p:first-child]:mt-0";

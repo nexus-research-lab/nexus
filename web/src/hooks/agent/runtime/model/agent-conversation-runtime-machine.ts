@@ -1,10 +1,10 @@
 import type {
   AssistantMessage,
   AssistantMessageStatus,
-  ChatAckData,
   Message,
-  RoundLifecycleStatus,
-} from "@/types";
+} from "@/types/conversation/message/entity";
+import type { ChatAckData } from "@/types/conversation/message/event";
+import type { RoundLifecycleStatus } from "@/types/conversation/message/event";
 import type {
   AgentConversationChatType,
   AgentConversationRuntimePhase,
@@ -121,13 +121,13 @@ export class AgentConversationRuntimeMachine {
     this.sendingRoundIds.delete(ack.client_request_id);
     this.terminalRoundIds.delete(ack.round_id);
 
-    for (const slot of ack.pending ?? []) {
+    for (const slot of ack.pending) {
       if (this.isRoundTerminal(ack.round_id)) {
         continue;
       }
       this.activeMessageTrackers.set(slot.msg_id, {
         roundId: ack.round_id,
-        status: slot.status ?? "pending",
+        status: slot.status,
       });
     }
   }

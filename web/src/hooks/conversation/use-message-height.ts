@@ -1,6 +1,7 @@
 import { prepare, layout } from "@chenglou/pretext";
 import { isAutomationTriggerUserMessage } from "@/types/conversation/automation-message";
-import { ContentBlock, Message } from "@/types/conversation/message";
+import type { ContentBlock } from "@/types/conversation/message/content";
+import type { Message } from "@/types/conversation/message/entity";
 
 // 与 Markdown 正文的字号和行高保持一致，避免虚拟列表初始估高跳动。
 const PROSE_FONT = "400 14px ui-sans-serif, system-ui, sans-serif";

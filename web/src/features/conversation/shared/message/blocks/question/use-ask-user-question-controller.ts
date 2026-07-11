@@ -7,11 +7,10 @@ import {
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import {
-  isAskUserQuestionTimedOutResult,
   type UserQuestion,
   type UserQuestionAnswer,
-} from "@/types/conversation/ask-user-question";
-import type { ToolResultContent } from "@/types/conversation/message";
+} from "@/types/conversation/interaction/ask-user-question";
+import type { ToolResultContent } from "@/types/conversation/message/content";
 
 import {
   buildQuestionAnswers,
@@ -27,6 +26,7 @@ import {
   toggleQuestionOption,
   updateQuestionCustomAnswer,
 } from "./ask-user-question-model";
+import { isAskUserQuestionTimedOutResult } from "./ask-user-question-timeout";
 
 interface UseAskUserQuestionControllerParams {
   initialSubmitted: boolean;

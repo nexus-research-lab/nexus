@@ -1,4 +1,4 @@
-import type { ScheduledTaskItem } from "@/types/capability/scheduled-task";
+import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
 
 import type { PendingCommandState } from "./pending-command-model";
 
@@ -33,8 +33,4 @@ export function getScheduledTaskMetrics(
     ...counts,
     paused: items.length - counts.enabled,
   };
-}
-
-export function getCommandErrorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error ? error.message : fallback;
 }

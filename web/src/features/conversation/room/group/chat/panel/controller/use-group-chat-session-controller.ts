@@ -11,7 +11,7 @@ import type {
   RoomEventPayload,
 } from "@/types/agent/agent-conversation";
 import type { RoomConversationSnapshotPayload } from "@/types/conversation/conversation";
-import type { Message } from "@/types/conversation/message";
+import type { Message } from "@/types/conversation/message/entity";
 import type { TodoItem } from "@/types/conversation/todo";
 
 interface UseGroupChatSessionControllerOptions {

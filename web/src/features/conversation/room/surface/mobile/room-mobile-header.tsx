@@ -1,6 +1,9 @@
 import { ArrowLeft, Bot, ChevronDown } from "lucide-react";
 
-import { getIconAvatarSrc, getInitials } from "@/lib/utils";
+import {
+  getIconAvatarSrc,
+  getInitials,
+} from "@/lib/avatar";
 import { useI18n } from "@/shared/i18n/i18n-context";
 
 interface RoomMobileHeaderProps {

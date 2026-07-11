@@ -7,7 +7,7 @@ import {
   downloadWorkspaceFileApi,
 } from "@/lib/api/agent/agent-api";
 import { getWorkspaceFileExternalActionCopy } from "@/lib/workspace-file-action";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 import { useAgentStore } from "@/store/agent";
 
 interface FileArtifactBlockProps {

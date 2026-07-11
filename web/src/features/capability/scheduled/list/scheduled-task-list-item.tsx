@@ -11,7 +11,7 @@ import {
 } from "@/shared/ui/menu/action-menu";
 import { WorkspaceStatusBadge } from "@/shared/ui/workspace/controls/workspace-status-badge";
 import { WorkspaceCatalogAction } from "@/shared/ui/workspace/catalog/workspace-catalog-actions";
-import type { ScheduledTaskItem } from "@/types/capability/scheduled-task";
+import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
 
 import { formatScheduledDatetime } from "../scheduled-formatters";
 import {

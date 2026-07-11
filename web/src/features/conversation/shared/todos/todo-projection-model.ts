@@ -1,5 +1,8 @@
 import { areEquivalentSessionKeys } from "@/lib/conversation/session-key";
-import type { AssistantMessage, Message } from "@/types/conversation/message";
+import type {
+  AssistantMessage,
+  Message,
+} from "@/types/conversation/message/entity";
 import type { TodoItem } from "@/types/conversation/todo";
 
 import {

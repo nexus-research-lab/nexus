@@ -3,7 +3,7 @@
 import { type LucideIcon } from "lucide-react";
 import { type ReactNode } from "react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 import { UiUnderlineTabs } from "@/shared/ui/navigation/tabs";
 import {
   COMPACT_WORKSPACE_HEADER_SINGLE_ROW_HEIGHT_CLASS,

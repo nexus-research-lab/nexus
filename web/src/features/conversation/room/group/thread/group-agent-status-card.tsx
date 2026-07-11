@@ -5,17 +5,17 @@ import { memo, useCallback, useMemo } from "react";
 
 import { UiMarkdownContent } from "@/shared/ui/markdown/markdown-content";
 import { MessageAvatar } from "@/features/conversation/shared/message/ui/message-primitives";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type {
   AssistantMessage,
   ResultSummary,
-  RoomPendingAgentSlotState,
-} from "@/types/conversation/message";
+} from "@/types/conversation/message/entity";
+import type { RoomPendingAgentSlotState } from "@/types/agent/agent-conversation";
 import type {
   PendingPermission,
   PermissionDecisionPayload,
-} from "@/types/conversation/permission";
+} from "@/types/conversation/interaction/permission";
 
 import type { AgentRoundStatus } from "../round/round-agent-model";
 import {

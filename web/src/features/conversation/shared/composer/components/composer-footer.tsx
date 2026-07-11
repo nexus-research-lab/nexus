@@ -1,7 +1,7 @@
 import type { ReactNode, RefObject } from "react";
 import { Paperclip, Plus, Repeat2, Target, X } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiActionMenu } from "@/shared/ui/menu/action-menu";
 import { LoadingOrb } from "@/shared/ui/feedback/loading-orb";

@@ -2,13 +2,12 @@ import { useCallback, useEffect, useRef } from "react";
 
 import { getDesktopWebsocketProtocols } from "@/config/desktop-runtime";
 import { getAgentWsUrl } from "@/config/options";
+import { parseConversationMessage } from "@/lib/conversation/message-protocol";
 import { notifyRoomDirectoryUpdated } from "@/lib/conversation/room-directory-events";
 import { useAppEventSubscription, useWebSocket } from "@/lib/websocket";
-import type {
-  AssistantMessage,
-  EventMessage,
-  Message,
-} from "@/types/conversation/message";
+import { parseEventMessage } from "@/lib/websocket/protocol/event-message";
+import type { AssistantMessage } from "@/types/conversation/message/entity";
+import type { EventMessage } from "@/types/generated/protocol";
 
 import { isCompletedAssistantMessage } from "./chat-notification-model";
 
@@ -23,7 +22,10 @@ export function useChatNotificationSocket({
 }: UseChatNotificationSocketOptions): void {
   const roomSeqCursorRef = useRef<Record<string, number>>({});
   const handleMessage = useCallback((rawMessage: unknown) => {
-    const event = rawMessage as EventMessage;
+    const event = parseEventMessage(rawMessage);
+    if (!event) {
+      return;
+    }
     if (event.event_type === "directory_changed") {
       notifyRoomDirectoryUpdated();
       return;
@@ -37,8 +39,11 @@ export function useChatNotificationSocket({
     if (event.event_type !== "message" || event.delivery_mode === "ephemeral") {
       return;
     }
-    const message = event.data as Message;
-    if (isCompletedAssistantMessage(message)) {
+    const message = parseConversationMessage(event.data, {
+      deliveryMode: event.delivery_mode,
+      sessionKey: event.session_key,
+    });
+    if (message && isCompletedAssistantMessage(message)) {
       notifyRoomDirectoryUpdated();
       onCompletedMessage(event, message);
     }

@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import type { Components } from "react-markdown";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 
 import { createMarkdownComponents } from "@/shared/ui/markdown/core/markdown-components";
 import {

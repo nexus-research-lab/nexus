@@ -11,7 +11,7 @@ import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 import { WorkspaceConversationTabs } from "@/shared/ui/workspace/controls/workspace-conversation-tabs";
 import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import type { RoomConversationView } from "@/types/conversation/conversation";
-import type { RoomSurfaceTabKey } from "@/types/conversation/room-surface";
+import type { RoomSurfaceTabKey } from "@/features/conversation/room/surface/header/room-header-tabs";
 
 interface DmConversationHeaderProps {
   activeTab: RoomSurfaceTabKey;

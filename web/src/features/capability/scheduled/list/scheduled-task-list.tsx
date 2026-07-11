@@ -5,7 +5,7 @@ import { Clock3 } from "lucide-react";
 import { UiSkeleton } from "@/shared/ui/display/skeleton";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
 import { WorkspaceCatalogTextAction } from "@/shared/ui/workspace/catalog/workspace-catalog-actions";
-import type { ScheduledTaskItem } from "@/types/capability/scheduled-task";
+import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
 
 import type { ScheduledTaskPendingCommands } from "../controller/scheduled-task-directory-model";
 import { ScheduledTaskListItem } from "./scheduled-task-list-item";

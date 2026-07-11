@@ -1,21 +1,20 @@
-import type {
-  AgentRoundStatusEventPayload,
-  ChatAckData,
-  EventMessage,
-  RoundStatusEventPayload,
-  SessionStatusEventPayload,
-} from "@/types";
-import type {
-  InputQueueEventPayload,
-  RoomEventPayload,
-} from "@/types/agent/agent-conversation";
-import type { AssistantMessageStatus } from "@/types/conversation/message";
+import { readString } from "@/lib/unknown-value";
+import type { RoomEventPayload } from "@/types/agent/agent-conversation";
+import type { AssistantMessageStatus } from "@/types/conversation/message/entity";
+import type { EventMessage } from "@/types/generated/protocol";
 
 import type {
   AgentEventHandler,
   AgentEventHandlerMap,
 } from "../agent-event-context";
 import { withCurrentSessionEvent } from "./handler-scope";
+import {
+  parseAgentRoundStatusEventPayload,
+  parseChatAckData,
+  parseInputQueueEventPayload,
+  parseRoundStatusEventPayload,
+  parseSessionStatusData,
+} from "./session-event-data";
 
 function getEventRoundId(event: EventMessage): string | null {
   const dataRoundId = typeof event.data?.round_id === "string"
@@ -43,10 +42,8 @@ const handleErrorEvent: AgentEventHandler = (event, context) => {
   if (event.message_id) {
     context.runtime.updateMessageStatus(event.message_id, "error", roundId);
   }
-  const message = event.data?.message || "Unknown error";
-  const clientRequestId = typeof event.data?.client_request_id === "string"
-    ? event.data.client_request_id
-    : "";
+  const message = readString(event.data, "message") ?? "Unknown error";
+  const clientRequestId = readString(event.data, "client_request_id") ?? "";
   if (clientRequestId) {
     context.runtime.rejectChatAck(clientRequestId, message);
   }
@@ -54,16 +51,17 @@ const handleErrorEvent: AgentEventHandler = (event, context) => {
 };
 
 const handleSessionStatus = withCurrentSessionEvent((event, context) => {
-  context.runtime.syncSessionStatus(
-    (event.data ?? {}) as SessionStatusEventPayload,
-  );
+  const payload = parseSessionStatusData(event.data);
+  if (payload) {
+    context.runtime.syncSessionStatus(payload);
+  }
 });
 
 const handleInputQueue = withCurrentSessionEvent((event, context) => {
-  const payload = (event.data ?? {}) as InputQueueEventPayload;
-  context.state.setInputQueueItems(
-    Array.isArray(payload.items) ? payload.items : [],
-  );
+  const payload = parseInputQueueEventPayload(event.data);
+  if (payload) {
+    context.state.setInputQueueItems(payload.items);
+  }
 });
 
 const handleGoalEvent = withCurrentSessionEvent((event, context) => {
@@ -74,22 +72,22 @@ const handleGoalEvent = withCurrentSessionEvent((event, context) => {
 });
 
 const handleRoundStatus = withCurrentSessionEvent((event, context) => {
-  const payload = (event.data ?? {}) as RoundStatusEventPayload;
-  if (payload.round_id && payload.status) {
+  const payload = parseRoundStatusEventPayload(event.data);
+  if (payload) {
     context.runtime.applyRoundStatus(payload.round_id, payload.status);
   }
 });
 
 const handleAgentRoundStatus = withCurrentSessionEvent((event, context) => {
-  const payload = (event.data ?? {}) as AgentRoundStatusEventPayload;
-  if (payload.agent_round_id && payload.status) {
+  const payload = parseAgentRoundStatusEventPayload(event.data);
+  if (payload) {
     context.runtime.applyAgentRoundStatus(payload);
   }
 });
 
 const handleChatAck = withCurrentSessionEvent((event, context) => {
-  const ack = event.data as ChatAckData;
-  if (ack?.round_id) {
+  const ack = parseChatAckData(event.data);
+  if (ack) {
     context.runtime.trackChatAck(ack);
   }
 });
@@ -98,12 +96,12 @@ function createMessageStatusHandler(
   status: AssistantMessageStatus,
 ): AgentEventHandler {
   return withCurrentSessionEvent((event, context) => {
-    const messageId = event.message_id || event.data?.msg_id;
-    if (typeof messageId === "string" && messageId) {
+    const messageId = event.message_id || readString(event.data, "msg_id");
+    if (messageId) {
       context.runtime.updateMessageStatus(
         messageId,
         status,
-        event.data?.round_id,
+        readString(event.data, "round_id"),
       );
     }
   });

@@ -4,7 +4,7 @@ import type {
   ScheduledTaskSchedule,
   ScheduledTaskSource,
   ScheduledTaskSessionTarget,
-} from "@/types/capability/scheduled-task";
+} from "@/types/capability/scheduled-task/task";
 import { formatScheduledDatetime } from "../scheduled-formatters";
 
 function formatInterval(seconds: number): string {

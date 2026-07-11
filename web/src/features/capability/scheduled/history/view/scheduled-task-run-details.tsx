@@ -2,8 +2,8 @@
 
 import { Copy } from "lucide-react";
 
-import { cn } from "@/lib/utils";
-import type { ScheduledTaskRunItem } from "@/types/capability/scheduled-task";
+import { cn } from "@/shared/ui/class-name";
+import type { ScheduledTaskRunItem } from "@/types/capability/scheduled-task/run";
 
 import {
   getRunDiagnosticRows,

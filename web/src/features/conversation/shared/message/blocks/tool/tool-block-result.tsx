@@ -1,4 +1,4 @@
-import type { ToolResultContent } from "@/types/conversation/message";
+import type { ToolResultContent } from "@/types/conversation/message/content";
 
 import { ImageBlock } from "../artifact/image-block";
 import { CodeBlock } from "@/shared/ui/markdown/code/code-block";

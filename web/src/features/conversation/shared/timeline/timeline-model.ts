@@ -1,10 +1,10 @@
 import type {
   AssistantMessage,
   Message,
-  RoomPendingAgentSlotState,
   UserMessage,
-} from "@/types/conversation/message";
-import type { PendingPermission } from "@/types/conversation/permission";
+} from "@/types/conversation/message/entity";
+import type { RoomPendingAgentSlotState } from "@/types/agent/agent-conversation";
+import type { PendingPermission } from "@/types/conversation/interaction/permission";
 import type { SessionRoundIndexItem } from "@/types/conversation/room";
 import { stripRoomControlMarkers } from "../message/message-content-model";
 

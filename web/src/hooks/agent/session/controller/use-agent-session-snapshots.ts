@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef } from "react";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 
-import type { Message, RoomPendingAgentSlotState } from "@/types";
+import type { Message } from "@/types/conversation/message/entity";
+import type { RoomPendingAgentSlotState } from "@/types/agent/agent-conversation";
 
 import {
   mergeLoadedMessages,

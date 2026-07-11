@@ -8,7 +8,7 @@ import {
   useState,
 } from "react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 
 import { supportsTrueLiquidGlass } from "./liquid-glass-engine";
 

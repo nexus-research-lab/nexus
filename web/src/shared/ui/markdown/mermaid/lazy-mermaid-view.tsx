@@ -3,7 +3,7 @@
 import { lazy, Suspense } from "react";
 import { LoaderCircle } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 import { type MermaidViewProps } from "./mermaid-view";
 
 const LazyMermaidViewInner = lazy(async () => {

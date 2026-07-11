@@ -4,6 +4,7 @@ import { useCallback, useRef, useState } from "react";
 
 import { getCurrentGoalApi } from "@/lib/api/conversation/goal-api";
 import { ApiRequestError } from "@/lib/api/core/http";
+import { getErrorMessage } from "@/lib/error-message";
 import type { Goal } from "@/types/conversation/goal";
 
 export type GoalCommandPhase = "clearing" | "pausing" | "resuming" | "updating";
@@ -40,10 +41,6 @@ function emptySnapshot(sessionKey: string | null): GoalSnapshot {
     loading: Boolean(sessionKey),
     sessionKey,
   };
-}
-
-function requestError(error: unknown, fallback: string): string {
-  return error instanceof Error ? error.message : fallback;
 }
 
 function hasStatus(error: unknown, status: number): boolean {
@@ -123,7 +120,7 @@ export function useGoalResource({
       setSnapshot((current) => current.sessionKey === sessionKey
         ? {
             ...current,
-            error: requestError(error, "Goal 状态读取失败"),
+            error: getErrorMessage(error, "Goal 状态读取失败"),
             loading: false,
           }
         : current);
@@ -170,7 +167,7 @@ export function useGoalResource({
     } catch (error) {
       if (requestVersionRef.current === operationVersion) {
         setSnapshot((current) => current.sessionKey === sessionKey
-          ? { ...current, error: requestError(error, fallbackError) }
+          ? { ...current, error: getErrorMessage(error, fallbackError) }
           : current);
       }
       return { goal: null, ok: false };

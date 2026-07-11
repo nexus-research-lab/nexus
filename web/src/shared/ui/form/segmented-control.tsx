@@ -2,7 +2,7 @@
 
 import { LucideIcon } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 
 interface UiSegmentedControlOption<T extends string> {
   label: string;

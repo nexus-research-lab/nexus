@@ -4,7 +4,7 @@ import type {
   ScheduledTaskSchedule,
   ScheduledTaskSessionTarget,
   ScheduledTaskSource,
-} from "@/types/capability/scheduled-task";
+} from "@/types/capability/scheduled-task/task";
 
 import type {
   TaskDialogLabelOption,

@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import type { Dispatch, SetStateAction } from "react";
 
+import { getErrorMessage } from "@/lib/error-message";
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import type {
   ProviderConfigRecord,
@@ -8,7 +9,6 @@ import type {
 } from "@/types/capability/provider";
 
 import type { ProviderModelApi } from "../../provider-settings-api";
-import { getProviderErrorMessage } from "../../model/provider-feedback-model";
 import { AUTO_TEST_MODEL_VALUE } from "../../model/provider-model-model";
 import type { FeedbackState } from "../../model/provider-settings-types";
 import type { PersistProvider } from "../config/use-provider-persistence";
@@ -85,7 +85,7 @@ export function useProviderTestActions({
       (error) => ({
         tone: "error",
         title: messages.failureTitle,
-        message: getProviderErrorMessage(error, messages.failureFallback),
+        message: getErrorMessage(error, messages.failureFallback),
       }),
     );
   }, [

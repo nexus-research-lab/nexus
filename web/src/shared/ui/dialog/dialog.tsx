@@ -10,7 +10,7 @@ import {
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 import { useDialogModalBehavior } from "@/shared/ui/dialog/dialog-behavior";
 import {
   DIALOG_BACKDROP_CLASS_NAME,

@@ -3,7 +3,11 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown } from "lucide-react";
 
-import { cn, getIconAvatarSrc, getInitials } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
+import {
+  getIconAvatarSrc,
+  getInitials,
+} from "@/lib/avatar";
 import {
   UiActionMenu,
   type UiActionMenuItem,

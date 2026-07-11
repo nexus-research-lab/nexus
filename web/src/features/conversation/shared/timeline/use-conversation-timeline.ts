@@ -1,10 +1,8 @@
 import { useMemo } from "react";
 
-import type {
-  Message,
-  RoomPendingAgentSlotState,
-} from "@/types/conversation/message";
-import type { PendingPermission } from "@/types/conversation/permission";
+import type { Message } from "@/types/conversation/message/entity";
+import type { RoomPendingAgentSlotState } from "@/types/agent/agent-conversation";
+import type { PendingPermission } from "@/types/conversation/interaction/permission";
 import type { SessionRoundIndexItem } from "@/types/conversation/room";
 import type { AgentConversationChatType } from "@/types/agent/agent-conversation";
 

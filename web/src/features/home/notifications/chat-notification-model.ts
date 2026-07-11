@@ -6,10 +6,10 @@ import type {
 } from "@/types/app/launcher";
 import type {
   AssistantMessage,
-  ContentBlock,
-  EventMessage,
   Message,
-} from "@/types/conversation/message";
+} from "@/types/conversation/message/entity";
+import type { ContentBlock } from "@/types/conversation/message/content";
+import type { EventMessage } from "@/types/generated/protocol";
 
 import { buildChatNotificationTargetKey } from "./chat-notification-target";
 

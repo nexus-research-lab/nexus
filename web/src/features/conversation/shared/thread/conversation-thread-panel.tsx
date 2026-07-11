@@ -10,9 +10,9 @@ import { useFollowScroll } from "@/features/conversation/shared/timeline/scroll/
 import {
   buildConversationScrollContentKey,
 } from "@/features/conversation/shared/timeline/scroll/follow-scroll-model";
-import { cn } from "@/lib/utils";
-import type { Message } from "@/types/conversation/message";
-import type { PendingPermission, PermissionDecisionPayload } from "@/types/conversation/permission";
+import { cn } from "@/shared/ui/class-name";
+import type { Message } from "@/types/conversation/message/entity";
+import type { PendingPermission, PermissionDecisionPayload } from "@/types/conversation/interaction/permission";
 
 import type { ConversationThreadRound } from "./conversation-thread-model";
 

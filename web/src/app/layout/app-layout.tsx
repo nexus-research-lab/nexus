@@ -11,7 +11,7 @@ import { Outlet } from "react-router-dom";
 
 import { SidebarWidePanel } from "@/features/navigation/sidebar/sidebar-wide-panel";
 import { HOME_PAGE_PADDING_CLASS } from "@/lib/layout/home-layout";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 
 export function AppLayout({ showSidebar = true }: { showSidebar?: boolean }) {
   return (

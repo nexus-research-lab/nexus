@@ -1,8 +1,8 @@
 import type {
   AssistantMessageStatus,
   Message,
-  RoomPendingAgentSlotState,
-} from "@/types";
+} from "@/types/conversation/message/entity";
+import type { RoomPendingAgentSlotState } from "@/types/agent/agent-conversation";
 
 import {
   isEphemeralMessage,

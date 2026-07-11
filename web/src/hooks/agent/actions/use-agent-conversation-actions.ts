@@ -5,12 +5,12 @@ import {
   type SetStateAction,
 } from "react";
 
-import type { RoomPendingAgentSlotState } from "@/types";
+import type { RoomPendingAgentSlotState } from "@/types/agent/agent-conversation";
 import type {
   AgentConversationDeliveryPolicy,
   AgentConversationSendOptions,
 } from "@/types/agent/agent-conversation";
-import type { PermissionDecisionPayload } from "@/types/conversation/permission";
+import type { PermissionDecisionPayload } from "@/types/conversation/interaction/permission";
 
 import type { AgentConversationActionContext } from "./conversation-action-context";
 import {

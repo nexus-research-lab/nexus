@@ -2,12 +2,14 @@ import { useCallback, type Dispatch, type SetStateAction } from "react";
 
 import type {
   AgentRoundStatusEventPayload,
-  AssistantMessageStatus,
   ChatAckData,
-  Message,
   RoundLifecycleStatus,
-  SessionStatusEventPayload,
-} from "@/types";
+} from "@/types/conversation/message/event";
+import type {
+  AssistantMessageStatus,
+  Message,
+} from "@/types/conversation/message/entity";
+import type { SessionStatusData } from "@/types/generated/protocol";
 import type { AgentConversationChatType } from "@/types/agent/agent-conversation";
 
 import {
@@ -36,7 +38,7 @@ interface UseAgentConversationRuntimeParams {
   settleAgentWorkspaceWrites: (agentId: string) => void;
 }
 
-function getRunningRoundIds(payload: SessionStatusEventPayload): string[] {
+function getRunningRoundIds(payload: SessionStatusData): string[] {
   if (!Array.isArray(payload.running_round_ids)) {
     return [];
   }
@@ -129,7 +131,7 @@ export function useAgentConversationRuntime({
   ]);
 
   const syncSessionStatus = useCallback(
-    (payload: SessionStatusEventPayload): void => {
+    (payload: SessionStatusData): void => {
       const runningRoundIds = getRunningRoundIds(payload);
       if (!payload.is_generating || runningRoundIds.length === 0) {
         reconcileStoppedSession();

@@ -1,11 +1,11 @@
 import type { ReactNode } from "react";
 
 import type { AgentConversationRuntimePhase } from "@/types/agent/agent-conversation";
-import type { Message } from "@/types/conversation/message";
+import type { Message } from "@/types/conversation/message/entity";
 import type {
   PendingPermission,
   PermissionDecisionPayload,
-} from "@/types/conversation/permission";
+} from "@/types/conversation/interaction/permission";
 
 import type { AssistantContentMode } from "./message-item-projection";
 

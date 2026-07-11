@@ -1,4 +1,4 @@
-import type { TaskProgressContent } from "@/types/conversation/message";
+import type { TaskProgressContent } from "@/types/conversation/message/content";
 import type { TodoItem } from "@/types/conversation/todo";
 
 const TERMINAL_STATUSES = new Set([

@@ -1,9 +1,9 @@
 import type {
   ScheduledTaskDeliveryStatus,
-  ScheduledTaskItem,
   ScheduledTaskRunItem,
   ScheduledTaskRunLedgerStatus,
-} from "@/types/capability/scheduled-task";
+} from "@/types/capability/scheduled-task/run";
+import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
 
 import { formatScheduledDatetime } from "../scheduled-formatters";
 

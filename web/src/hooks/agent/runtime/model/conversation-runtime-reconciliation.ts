@@ -1,12 +1,12 @@
 import type {
   AssistantMessage,
   AssistantMessageStatus,
-  ChatAckData,
   Message,
-  RoomPendingAgentSlotState,
-  RoundLifecycleStatus,
-} from "@/types";
-import type { PendingPermission } from "@/types/conversation/permission";
+} from "@/types/conversation/message/entity";
+import type { ChatAckData } from "@/types/conversation/message/event";
+import type { RoomPendingAgentSlotState } from "@/types/agent/agent-conversation";
+import type { RoundLifecycleStatus } from "@/types/conversation/message/event";
+import type { PendingPermission } from "@/types/conversation/interaction/permission";
 import {
   getTerminalMessageStatus,
   isEphemeralMessage,
@@ -198,13 +198,13 @@ export function mergeChatAckPendingSlots(
   ack: ChatAckData,
 ): RoomPendingAgentSlotState[] {
   const preservedSlots = slots.filter((slot) => slot.round_id !== ack.round_id);
-  const nextSlots = (ack.pending ?? []).map((slot) => ({
+  const nextSlots = ack.pending.map((slot) => ({
     agent_id: slot.agent_id,
     agent_round_id: slot.agent_round_id,
     msg_id: slot.msg_id,
     round_id: ack.round_id,
-    status: (slot.status ?? "pending") as AssistantMessageStatus,
-    timestamp: slot.timestamp ?? Date.now(),
+    status: slot.status,
+    timestamp: slot.timestamp,
   }));
   return [...preservedSlots, ...nextSlots];
 }

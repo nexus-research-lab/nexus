@@ -11,7 +11,7 @@ import {
 import { createPortal } from "react-dom";
 import { Check, ChevronDown, Loader2, Search, X } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 import { useAnchoredOverlayLayer } from "../overlay/anchored-overlay-layer";
 import {
   estimateSelectMenuHeight,

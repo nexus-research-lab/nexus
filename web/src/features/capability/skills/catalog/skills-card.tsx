@@ -2,7 +2,7 @@
 
 import { Lock, Puzzle, Trash2 } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { UiListActionButton } from "@/shared/ui/list/list-action";
 import { UiListRow } from "@/shared/ui/list/list-row";

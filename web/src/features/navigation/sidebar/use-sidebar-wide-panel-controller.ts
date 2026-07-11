@@ -14,7 +14,7 @@ import { useChatCompletionNotifications } from "@/features/home/notifications/us
 import { useGuideCenterController } from "@/features/onboarding/guide-center/use-guide-center-controller";
 import { usePrefersReducedMotion } from "@/hooks/ui/use-prefers-reduced-motion";
 import { resolveDirectRoomNavigationTarget } from "@/features/navigation/direct-room/direct-room-navigation";
-import { getIconAvatarSrc } from "@/lib/utils";
+import { getIconAvatarSrc } from "@/lib/avatar";
 import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { useAgentStore } from "@/store/agent";

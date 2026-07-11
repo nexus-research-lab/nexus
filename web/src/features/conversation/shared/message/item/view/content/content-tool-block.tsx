@@ -1,11 +1,11 @@
 import type { ReactNode } from "react";
 
-import type { ToolUseContent } from "@/types/conversation/message";
+import type { ToolUseContent } from "@/types/conversation/message/content";
 import type {
   PendingPermission,
   PermissionDecisionPayload,
   PermissionUpdate,
-} from "@/types/conversation/permission";
+} from "@/types/conversation/interaction/permission";
 
 import { AskUserQuestionBlock } from "../../../blocks/question/ask-user-question-block";
 import { ToolBlock } from "../../../blocks/tool/tool-block";

@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 
-import type { Message } from "@/types";
+import type { Message } from "@/types/conversation/message/entity";
 
 import { dedupeMessagesById } from "./message-collection-model";
 

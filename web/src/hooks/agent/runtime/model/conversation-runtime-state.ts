@@ -1,8 +1,8 @@
 import type {
   AssistantMessageStatus,
   Message,
-  RoundLifecycleStatus,
-} from "@/types";
+} from "@/types/conversation/message/entity";
+import type { RoundLifecycleStatus } from "@/types/conversation/message/event";
 import type { AgentConversationRuntimePhase } from "@/types/agent/agent-conversation";
 
 export interface AgentConversationRuntimeSnapshot {

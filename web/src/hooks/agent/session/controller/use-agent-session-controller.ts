@@ -2,12 +2,13 @@ import { useCallback, useRef, useState } from "react";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
-import type { Message, RoomPendingAgentSlotState } from "@/types";
+import type { Message } from "@/types/conversation/message/entity";
+import type { RoomPendingAgentSlotState } from "@/types/agent/agent-conversation";
 import type {
   AgentConversationIdentity,
   InputQueueItem,
 } from "@/types/agent/agent-conversation";
-import type { PendingPermission } from "@/types/conversation/permission";
+import type { PendingPermission } from "@/types/conversation/interaction/permission";
 
 import type { AgentConversationRuntimeSnapshot } from "../../runtime/model/conversation-runtime-state";
 import { loadAgentSession } from "../conversation-lifecycle";

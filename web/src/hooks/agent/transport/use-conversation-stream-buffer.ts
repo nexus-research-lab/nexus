@@ -6,7 +6,8 @@ import {
   useEffect,
   useRef,
 } from "react";
-import { Message, StreamMessage } from "@/types";
+import type { Message } from "@/types/conversation/message/entity";
+import type { StreamMessage } from "@/types/conversation/message/event";
 import { applyStreamMessage } from "../message/stream-message-reducer";
 
 export function useConversationStreamBuffer(

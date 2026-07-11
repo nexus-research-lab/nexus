@@ -12,7 +12,7 @@ import { WorkspaceConversationTabs } from "@/shared/ui/workspace/controls/worksp
 import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import type { Agent } from "@/types/agent/agent";
 import type { RoomConversationView } from "@/types/conversation/conversation";
-import type { RoomSurfaceTabKey } from "@/types/conversation/room-surface";
+import type { RoomSurfaceTabKey } from "@/features/conversation/room/surface/header/room-header-tabs";
 import { RoomHeaderGuideMenu } from "@/features/conversation/room/surface/header/room-header-guide-menu";
 import { buildRoomHeaderTabs } from "@/features/conversation/room/surface/header/room-header-tabs";
 

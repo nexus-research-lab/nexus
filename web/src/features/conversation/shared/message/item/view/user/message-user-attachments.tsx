@@ -5,8 +5,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-import { cn } from "@/lib/utils";
-import type { MessageAttachment } from "@/types/conversation/message";
+import { cn } from "@/shared/ui/class-name";
+import type { MessageAttachment } from "@/types/conversation/message/attachment";
 
 const ATTACHMENT_PRESENTATION: Record<
   MessageAttachment["kind"],

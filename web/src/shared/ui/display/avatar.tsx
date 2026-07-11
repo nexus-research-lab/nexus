@@ -7,8 +7,8 @@ import {
   getIconAvatarSrc,
   getInitials,
   getRoomAvatarIconId,
-} from "@/lib/utils";
-import { cn } from "@/lib/utils";
+} from "@/lib/avatar";
+import { cn } from "@/shared/ui/class-name";
 
 type UiAvatarSize = "xs" | "sm" | "md" | "lg" | "xl";
 type UiAvatarShape = "round" | "rounded";

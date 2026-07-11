@@ -1,4 +1,4 @@
-import type { AssistantMessage } from "@/types/conversation/message";
+import type { AssistantMessage } from "@/types/conversation/message/entity";
 
 import { stripRoomControlMarkers } from "../../message-content-model";
 import type { MessageStatsData } from "../message-item-types";

@@ -3,6 +3,7 @@
 - `room-chat-surface.tsx` 是 DM/Group 与 desktop/mobile 共用的聊天参数装配边界。
 - `room-chat-error-boundary.tsx` 按会话身份隔离渲染错误，`room-chat-error-view.tsx` 只负责 i18n 回退视图。
 - `header/` 保存 DM/Group 共用导航，`mobile/` 按头部、会话 Sheet 和全屏 Overlay 分离移动端职责。
+- Surface Tab 是 Header 导航契约，不得在全局 `types/` 重复定义 UI 状态。
 
 - 根目录保留桌面/移动端入口和可独立展示的业务 Surface。
 - `room-surface-model.ts` 放置桌面与移动端共享的纯派生，不读取 UI 状态。

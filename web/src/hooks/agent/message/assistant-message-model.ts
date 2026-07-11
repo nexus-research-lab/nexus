@@ -1,9 +1,11 @@
 import type {
   AssistantMessage,
+  Message,
+} from "@/types/conversation/message/entity";
+import type {
   ContentBlock,
   ImageContent,
-  Message,
-} from "@/types";
+} from "@/types/conversation/message/content";
 
 type ContentBlockType = ContentBlock["type"];
 type ContentBlockOf<Type extends ContentBlockType> = Extract<

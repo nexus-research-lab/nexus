@@ -6,6 +6,7 @@ import {
   type PersonalProfile,
   updatePersonalProfileApi,
 } from "@/lib/api/account/auth-api";
+import { getErrorMessage } from "@/lib/error-message";
 import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
 
@@ -50,7 +51,7 @@ export function usePersonalSettingsController() {
           return;
         }
         setFeedback({
-          message: toErrorMessage(error, t("settings.personal.load_failed_message")),
+          message: getErrorMessage(error, t("settings.personal.load_failed_message")),
           title: t("settings.personal.load_failed_title"),
           tone: "error",
         });
@@ -85,7 +86,7 @@ export function usePersonalSettingsController() {
       });
     } catch (error) {
       setFeedback({
-        message: toErrorMessage(error, t("settings.personal.avatar_save_failed_message")),
+        message: getErrorMessage(error, t("settings.personal.avatar_save_failed_message")),
         title: t("settings.personal.profile_save_failed_title"),
         tone: "error",
       });
@@ -121,7 +122,7 @@ export function usePersonalSettingsController() {
       });
     } catch (error) {
       setFeedback({
-        message: toErrorMessage(error, t("settings.personal.save_failed_message")),
+        message: getErrorMessage(error, t("settings.personal.save_failed_message")),
         title: t("settings.personal.save_failed_title"),
         tone: "error",
       });
@@ -160,8 +161,4 @@ export function usePersonalSettingsController() {
       value: profile,
     },
   };
-}
-
-function toErrorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error ? error.message : fallback;
 }

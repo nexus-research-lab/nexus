@@ -6,8 +6,8 @@ import {
   type SetStateAction,
 } from "react";
 
-import type { RoomPendingAgentSlotState } from "@/types";
-import type { PendingPermission } from "@/types/conversation/permission";
+import type { RoomPendingAgentSlotState } from "@/types/agent/agent-conversation";
+import type { PendingPermission } from "@/types/conversation/interaction/permission";
 
 import {
   getNextPendingPermissionTimeoutMs,

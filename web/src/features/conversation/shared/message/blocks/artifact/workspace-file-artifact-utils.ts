@@ -5,7 +5,7 @@ import { useMemo } from "react";
 import type {
   ContentBlock,
   WorkspaceFileArtifactContent,
-} from "@/types/conversation/message";
+} from "@/types/conversation/message/content";
 
 function collectWorkspaceFileArtifactsFromContentBlocks(
   content: ContentBlock[],

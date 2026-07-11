@@ -5,7 +5,7 @@ import {
 import type { ReactNode } from "react";
 
 import { UiMarkdownContent } from "@/shared/ui/markdown/markdown-content";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiAgentAvatar, UiRoomAvatar } from "@/shared/ui/display/avatar";
 import { UiBadge, UiCounterBadge } from "@/shared/ui/display/badge";

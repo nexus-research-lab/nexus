@@ -1,11 +1,11 @@
 import type { ReactNode, RefObject } from "react";
 import { ChevronDown, ChevronRight, Wrench } from "lucide-react";
 
-import type { WorkspaceFileArtifactContent } from "@/types/conversation/message";
+import type { WorkspaceFileArtifactContent } from "@/types/conversation/message/content";
 import type {
   PendingPermission,
   PermissionDecisionPayload,
-} from "@/types/conversation/permission";
+} from "@/types/conversation/interaction/permission";
 
 import { WorkspaceFileArtifactList } from "../../../blocks/artifact/workspace-file-artifacts";
 import type { MessageActivityState } from "../../../ui/message-primitives";
