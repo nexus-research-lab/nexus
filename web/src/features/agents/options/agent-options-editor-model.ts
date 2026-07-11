@@ -3,11 +3,13 @@ import type {
   AgentNameValidationResult,
   AgentOptions as AgentConfigOptions,
 } from "@/types/agent/agent";
-import type { TabKey } from "@/features/agents/options/components/agent-options-nav";
 
-export interface AgentOptionsEditorProps {
+export type AgentOptionsMode = "create" | "edit";
+export type AgentOptionsTabKey = "identity" | "skills" | "advanced";
+
+export interface AgentOptionsFormProps {
   agentId?: string;
-  mode: "create" | "edit";
+  mode: AgentOptionsMode;
   isActive: boolean;
   onDelete?: (agentId: string) => void;
   onSave: (title: string, options: AgentConfigOptions, identity: AgentIdentityDraft) => void | Promise<void>;
@@ -17,18 +19,26 @@ export interface AgentOptionsEditorProps {
   initialAvatar?: string;
   initialDescription?: string;
   initialVibeTags?: string[];
-  onCancel?: () => void;
-  closeAfterSave?: boolean;
-  showCancelButton?: boolean;
   showDeleteButton?: boolean;
-  variant?: "dialog" | "inline";
-  contentMaxWidthClassName?: string;
-  activeTab?: TabKey;
-  onTabChange?: (tab: TabKey) => void;
-  hideInlineNav?: boolean;
 }
 
-export interface AgentDialogInitialOptions extends Partial<AgentConfigOptions> {
+export interface AgentOptionsInlineEditorProps extends AgentOptionsFormProps {
+  activeTab: AgentOptionsTabKey;
+  contentMaxWidthClassName: string;
+  onTabChange: (tab: AgentOptionsTabKey) => void;
+}
+
+export interface AgentOptionsDialogEditorProps extends AgentOptionsFormProps {
+  onCancel: () => void;
+}
+
+export interface AgentOptionsControllerOptions extends AgentOptionsFormProps {
+  activeTab?: AgentOptionsTabKey;
+  onSaveSuccess?: () => void;
+  onTabChange?: (tab: AgentOptionsTabKey) => void;
+}
+
+export interface AgentEditorInitialOptions extends Partial<AgentConfigOptions> {
   permission_mode?: string;
   allowed_tools?: string[];
   disallowed_tools?: string[];

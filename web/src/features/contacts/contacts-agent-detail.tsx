@@ -13,10 +13,10 @@ import {
 } from "lucide-react";
 
 import { AgentPrivateDomainView } from "@/features/agents/private-domain/agent-private-domain-view";
-import { AgentOptionsEditor } from "@/features/agents/options/agent-options-editor";
+import { AgentOptionsInlineEditor } from "@/features/agents/options/agent-options-editor";
 import { pickAgentEditableOptions } from "@/lib/agent-options";
 import { AgentMemoryView } from "@/features/memory/agent-memory-view";
-import type { TabKey } from "@/features/agents/options/components/agent-options-nav";
+import type { AgentOptionsTabKey } from "@/features/agents/options/agent-options-editor-model";
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
@@ -48,7 +48,7 @@ interface ContactsAgentDetailProps {
   ) => Promise<AgentNameValidationResult>;
 }
 
-type ContactDetailTabKey = TabKey | "private_domain" | "memory";
+type ContactDetailTabKey = AgentOptionsTabKey | "private_domain" | "memory";
 
 /** 侧边栏联系人进入的内嵌 Agent 页面。 */
 export function ContactsAgentDetail({
@@ -70,9 +70,9 @@ export function ContactsAgentDetail({
     () => [
       { key: "private_domain" as ContactDetailTabKey, label: "联络", icon: Handshake },
       { key: "memory" as ContactDetailTabKey, label: t("capability.memory"), icon: Brain },
-      { key: "identity" as TabKey, label: t("agent_options.nav.identity"), icon: UserPen },
-      { key: "advanced" as TabKey, label: t("agent_options.nav.tools"), icon: ToolCase },
-      { key: "skills" as TabKey, label: t("agent_options.nav.skills"), icon: Album },
+      { key: "identity" as AgentOptionsTabKey, label: t("agent_options.nav.identity"), icon: UserPen },
+      { key: "advanced" as AgentOptionsTabKey, label: t("agent_options.nav.tools"), icon: ToolCase },
+      { key: "skills" as AgentOptionsTabKey, label: t("agent_options.nav.skills"), icon: Album },
     ],
     [t],
   );
@@ -157,11 +157,10 @@ export function ContactsAgentDetail({
       ) : activeTab === "memory" ? (
         <AgentMemoryView agent={agent} />
       ) : (
-        <AgentOptionsEditor
+        <AgentOptionsInlineEditor
           activeTab={activeTab}
           agentId={agent.agent_id}
           contentMaxWidthClassName={WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME}
-          hideInlineNav
           initialAvatar={agent.avatar ?? ""}
           initialDescription={agent.description ?? ""}
           initialOptions={initialOptions}
@@ -173,9 +172,7 @@ export function ContactsAgentDetail({
           onSave={handleSave}
           onTabChange={setActiveTab}
           onValidateName={handleValidateName}
-          showCancelButton={false}
           showDeleteButton
-          variant="inline"
         />
       )}
     </div>

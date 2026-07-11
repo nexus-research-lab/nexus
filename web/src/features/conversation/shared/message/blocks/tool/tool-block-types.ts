@@ -65,8 +65,6 @@ export interface ToolBlockViewModel {
   durationText: string;
   expandedDetailText: string | null;
   hasResult: boolean;
-  isRunning: boolean;
-  isWaiting: boolean;
   liveStatusText: string | null;
   primaryInputDetail: ToolPrimaryInputDetail | null;
   readableSuggestions: ToolPermissionSuggestion[];

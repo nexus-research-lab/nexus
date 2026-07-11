@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Settings, X } from "lucide-react";
 
-import { AgentOptionsEditor } from "@/features/agents/options/agent-options-editor";
+import { AgentOptionsDialogEditor } from "@/features/agents/options/agent-options-editor";
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import {
@@ -112,7 +112,7 @@ export function AgentOptionsDialog({
           </button>
         </div>
 
-        <AgentOptionsEditor
+        <AgentOptionsDialogEditor
           agentId={agentId}
           mode={mode}
           isActive={isOpen}
@@ -125,8 +125,6 @@ export function AgentOptionsDialog({
           initialAvatar={initialAvatar}
           initialDescription={initialDescription}
           initialVibeTags={initialVibeTags}
-          closeAfterSave
-          showCancelButton
         />
       </div>
     </div>,

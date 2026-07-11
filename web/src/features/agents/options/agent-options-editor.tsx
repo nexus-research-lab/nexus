@@ -1,173 +1,86 @@
 import { cn } from "@/shared/ui/class-name";
-import { UiButton } from "@/shared/ui/button/button";
-import { AgentOptionsNav } from "@/features/agents/options/components/agent-options-nav";
-import { AgentOptionsIdentityTab } from "@/features/agents/options/components/identity/agent-options-identity-tab";
-import { AgentOptionsSkillsTab } from "@/features/agents/options/components/skills/agent-options-skills-tab";
-import { AgentOptionsAdvancedTab } from "@/features/agents/options/components/agent-options-advanced-tab";
-import { useAgentOptionsEditorController } from "@/features/agents/options/editor/use-agent-options-editor-controller";
-import type { AgentOptionsEditorProps } from "@/features/agents/options/agent-options-editor-model";
+import { useI18n } from "@/shared/i18n/i18n-context";
 
-export type { AgentOptionsEditorProps } from "@/features/agents/options/agent-options-editor-model";
+import {
+  AgentOptionsEditorActions,
+  type AgentOptionsEditorAction,
+} from "./components/agent-options-editor-actions";
+import { AgentOptionsEditorContent } from "./components/agent-options-editor-content";
+import { AgentOptionsNav } from "./components/agent-options-nav";
+import type {
+  AgentOptionsDialogEditorProps,
+  AgentOptionsInlineEditorProps,
+} from "./agent-options-editor-model";
+import { useAgentOptionsEditorController } from "./editor/use-agent-options-editor-controller";
 
-export function AgentOptionsEditor(props: AgentOptionsEditorProps) {
-  const controller = useAgentOptionsEditorController(props);
-  const content = (
-    <>
-      {controller.activeTab === "identity" && (
-        <AgentOptionsIdentityTab {...controller.identityProps} />
-      )}
+export function AgentOptionsInlineEditor({
+  activeTab,
+  contentMaxWidthClassName,
+  onTabChange,
+  ...formProps
+}: AgentOptionsInlineEditorProps) {
+  const controller = useAgentOptionsEditorController({
+    ...formProps,
+    activeTab,
+    onTabChange,
+  });
 
-      {controller.activeTab === "advanced" && (
-        <AgentOptionsAdvancedTab {...controller.advancedProps} />
-      )}
-
-      {controller.activeTab === "skills" && (
-        <AgentOptionsSkillsTab
-          agentId={controller.skillsAgentId}
-          isVisible={controller.isActive && controller.activeTab === "skills"}
-        />
-      )}
-    </>
-  );
-
-  if (controller.variant === "inline") {
-    const saveFeedback = controller.saveFeedback ? (
-      <span
-        className={cn(
-          "max-w-[280px] truncate text-[12px]",
-          controller.saveFeedback.tone === "success" ? "text-(--success)" : "text-(--destructive)",
-        )}
-        title={controller.saveFeedback.message}
-      >
-        {controller.saveFeedback.message}
-      </span>
-    ) : null;
-    const saveButton = (
-      <>
-        {saveFeedback}
-        <UiButton
-          onClick={() => {
-            void controller.handleSave();
-          }}
-          disabled={!controller.canSave}
-          size="sm"
-          tone={controller.canSave ? "primary" : "default"}
-          type="button"
-          variant="surface"
-        >
-          {controller.saveButtonLabel}
-        </UiButton>
-      </>
-    );
-
-    return (
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        {!controller.hideInlineNav ? (
-          <AgentOptionsNav
+  return (
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="min-h-0 flex-1 overflow-y-auto [overflow-anchor:none] [scrollbar-gutter:stable]">
+        <div className={cn("mx-auto w-full px-6 py-5", contentMaxWidthClassName)}>
+          <AgentOptionsEditorContent
             activeTab={controller.activeTab}
-            onTabChange={controller.setActiveTab}
-            variant="inline"
-            trailing={saveButton}
+            {...controller.content}
+            identityVariant="inline"
           />
-        ) : null}
-
-        <div className="min-h-0 flex-1 overflow-y-auto [overflow-anchor:none] [scrollbar-gutter:stable]">
-          <div
-            className={cn(
-              "w-full px-6 py-5",
-              controller.contentMaxWidthClassName,
-              "mx-auto"
-            )}
-          >
-            {content}
-          </div>
         </div>
-
-        {controller.canDelete || (controller.showCancelButton && controller.onCancel) || controller.hideInlineNav ? (
-          <div className="flex items-center justify-end gap-2 border-t dialog-divider px-6 py-3">
-            {controller.canDelete ? (
-              <UiButton
-                className="mr-auto"
-                onClick={controller.handleDelete}
-                tone="danger"
-                type="button"
-                variant="surface"
-              >
-                {controller.deleteAgentLabel}
-              </UiButton>
-            ) : null}
-            {controller.showCancelButton && controller.onCancel ? (
-              <UiButton
-                onClick={controller.onCancel}
-                type="button"
-                variant="surface"
-              >
-                {controller.cancelLabel}
-              </UiButton>
-            ) : null}
-            {controller.hideInlineNav ? saveButton : null}
-          </div>
-        ) : null}
       </div>
-    );
-  }
+      <div className="flex items-center justify-end gap-2 border-t dialog-divider px-6 py-3">
+        <AgentOptionsEditorActions
+          {...controller.actions}
+          saveButtonSize="sm"
+        />
+      </div>
+    </div>
+  );
+}
+
+export function AgentOptionsDialogEditor({
+  onCancel,
+  ...formProps
+}: AgentOptionsDialogEditorProps) {
+  const { t } = useI18n();
+  const controller = useAgentOptionsEditorController({
+    ...formProps,
+    onSaveSuccess: onCancel,
+  });
+  const cancelAction: AgentOptionsEditorAction = {
+    label: t("common.cancel"),
+    run: onCancel,
+  };
 
   return (
     <>
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <AgentOptionsNav
           activeTab={controller.activeTab}
-          onTabChange={controller.setActiveTab}
+          onTabChange={controller.onTabChange}
         />
-
         <div className="flex-1 overflow-y-auto bg-transparent p-6 [overflow-anchor:none] [scrollbar-gutter:stable]">
-          {content}
+          <AgentOptionsEditorContent
+            activeTab={controller.activeTab}
+            {...controller.content}
+            identityVariant="dialog"
+          />
         </div>
       </div>
-
       <div className="dialog-footer px-5 py-3.5">
-        {controller.canDelete ? (
-          <UiButton
-            className="mr-auto"
-            onClick={controller.handleDelete}
-            tone="danger"
-            type="button"
-            variant="surface"
-          >
-            {controller.deleteAgentLabel}
-          </UiButton>
-        ) : null}
-        {controller.showCancelButton && controller.onCancel ? (
-          <UiButton
-            onClick={controller.onCancel}
-            type="button"
-            variant="surface"
-          >
-            {controller.cancelLabel}
-          </UiButton>
-        ) : null}
-        <UiButton
-          onClick={() => {
-            void controller.handleSave();
-          }}
-          disabled={!controller.canSave}
-          tone={controller.canSave ? "primary" : "default"}
-          type="button"
-          variant="surface"
-        >
-          {controller.saveButtonLabel}
-        </UiButton>
-        {controller.saveFeedback ? (
-          <span
-            className={cn(
-              "max-w-[260px] truncate text-[12px]",
-              controller.saveFeedback.tone === "success" ? "text-(--success)" : "text-(--destructive)",
-            )}
-            title={controller.saveFeedback.message}
-          >
-            {controller.saveFeedback.message}
-          </span>
-        ) : null}
+        <AgentOptionsEditorActions
+          {...controller.actions}
+          cancelAction={cancelAction}
+          saveButtonSize="md"
+        />
       </div>
     </>
   );

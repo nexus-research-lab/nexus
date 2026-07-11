@@ -12,8 +12,8 @@ import {
   normalizeAgentOptionProvider,
 } from "@/lib/agent-options";
 import type {
-  AgentDialogInitialOptions,
-  AgentOptionsEditorProps,
+  AgentEditorInitialOptions,
+  AgentOptionsFormProps,
 } from "../agent-options-editor-model";
 
 export interface AgentOptionsDraft {
@@ -38,15 +38,15 @@ interface CreateAgentOptionsDraftOptions {
   defaultTitle: string;
   initialAvatar: string;
   initialDescription: string;
-  initialOptions: AgentDialogInitialOptions;
+  initialOptions: AgentEditorInitialOptions;
   initialTitle: string;
   initialVibeTags: string[];
 }
 
 interface AgentEditorScopeOptions {
   draft: AgentOptionsDraft;
-  initialOptions: AgentDialogInitialOptions;
-  props: Pick<AgentOptionsEditorProps, "agentId" | "isActive" | "mode">;
+  initialOptions: AgentEditorInitialOptions;
+  props: Pick<AgentOptionsFormProps, "agentId" | "isActive" | "mode">;
 }
 
 export function createAgentOptionsDraft({
@@ -89,7 +89,7 @@ export function buildAgentEditorScopeKey({
 
 export function buildAgentOptionsSubmission(
   draft: AgentOptionsDraft,
-  sourceOptions: AgentDialogInitialOptions,
+  sourceOptions: AgentEditorInitialOptions,
 ): AgentOptionsSubmission {
   const provider = draft.provider.trim();
   const model = draft.model.trim();

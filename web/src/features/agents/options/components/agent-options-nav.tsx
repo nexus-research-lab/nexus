@@ -1,24 +1,14 @@
-/**
- * AgentOptions 左侧图标导航栏
- *
- * 垂直标签导航，强调配置分组与当前上下文
- */
-
 "use client";
 
-import { type ReactNode } from "react";
 import { UserPen, ToolCase, Album, type LucideIcon } from "lucide-react";
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiChoiceButton } from "@/shared/ui/form/choice";
-import { UiUnderlineTabs } from "@/shared/ui/navigation/tabs";
 
-/** Tab 键值类型 */
-export type TabKey = "identity" | "skills" | "advanced";
+import type { AgentOptionsTabKey } from "../agent-options-editor-model";
 
-/** 单个导航项配置 */
 interface NavItem {
-  key: TabKey;
+  key: AgentOptionsTabKey;
   labelKey:
     | "agent_options.nav.identity"
     | "agent_options.nav.tools"
@@ -34,48 +24,15 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 interface AgentOptionsNavProps {
-  activeTab: TabKey;
-  onTabChange: (tab: TabKey) => void;
-  variant?: "sidebar" | "inline";
-  trailing?: ReactNode;
+  activeTab: AgentOptionsTabKey;
+  onTabChange: (tab: AgentOptionsTabKey) => void;
 }
 
-/** 左侧图标导航栏组件 */
 export function AgentOptionsNav({
-  activeTab: activeTab,
-  onTabChange: onTabChange,
-  variant = "sidebar",
-  trailing,
+  activeTab,
+  onTabChange,
 }: AgentOptionsNavProps) {
   const { t } = useI18n();
-
-  if (variant === "inline") {
-    return (
-      <div className="flex h-[41px] min-w-0 items-center justify-between gap-4 border-b dialog-divider px-6">
-        <UiUnderlineTabs
-          activeValue={activeTab}
-          ariaLabel="Agent 配置切换"
-          className="-mx-0.5 flex-1 px-0.5"
-          itemClassName="h-full"
-          onChange={onTabChange}
-          options={NAV_ITEMS.map((item) => {
-            const label = t(item.labelKey);
-            return {
-              icon: item.icon,
-              label,
-              title: label,
-              value: item.key,
-            };
-          })}
-        />
-        {trailing ? (
-          <div className="ml-4 flex shrink-0 items-center gap-2">
-            {trailing}
-          </div>
-        ) : null}
-      </div>
-    );
-  }
 
   return (
     <div className="flex w-36 flex-col border-r dialog-divider bg-transparent px-2.5 py-3">

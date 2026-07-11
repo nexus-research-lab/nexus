@@ -11,8 +11,8 @@ import {
 
 import { AgentPrivateDomainView } from "@/features/agents/private-domain/agent-private-domain-view";
 import { pickAgentEditableOptions } from "@/lib/agent-options";
-import { AgentOptionsEditor } from "@/features/agents/options/agent-options-editor";
-import type { TabKey } from "@/features/agents/options/components/agent-options-nav";
+import { AgentOptionsInlineEditor } from "@/features/agents/options/agent-options-editor";
+import type { AgentOptionsTabKey } from "@/features/agents/options/agent-options-editor-model";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiUnderlineTabs } from "@/shared/ui/navigation/tabs";
 import { WorkspaceSurfaceView } from "@/shared/ui/workspace/surface/workspace-surface-view";
@@ -20,7 +20,7 @@ import type { Agent, AgentIdentityDraft, AgentNameValidationResult, AgentOptions
 
 import { RoomAgentSwitcher } from "./room-agent-switcher";
 
-type RoomAgentPanelTabKey = TabKey | "private_domain";
+type RoomAgentPanelTabKey = AgentOptionsTabKey | "private_domain";
 
 interface RoomAgentAboutSurfaceProps {
   agent: Agent;
@@ -118,11 +118,10 @@ export function RoomAgentAboutSurface({
             variant="preview"
           />
         ) : (
-          <AgentOptionsEditor
+          <AgentOptionsInlineEditor
             activeTab={activeTab}
             agentId={selectedAgent.agent_id}
             contentMaxWidthClassName="max-w-[860px]"
-            hideInlineNav
             initialAvatar={selectedAgent.avatar ?? ""}
             initialDescription={selectedAgent.description ?? ""}
             initialOptions={initialOptions}
@@ -133,9 +132,7 @@ export function RoomAgentAboutSurface({
             onSave={handleSave}
             onTabChange={setActiveTab}
             onValidateName={handleValidateName}
-            showCancelButton={false}
             showDeleteButton={false}
-            variant="inline"
           />
         )}
       </div>

@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Split tool execution blocks into scoped interaction control, a single status model, and header projection/actions, removing mirrored running/waiting flags and branch-heavy JSX state interpretation.
+- Replaced the optional-mode Agent Options editor with explicit inline and dialog shells, removed the unconsumed inline navigation path, and separated tab content, footer actions, and scoped save transactions from controller assembly.
 - Split Connector detail state, header actions, status content, and feature selection into owned modules, replacing eager JSX action matrices and repeated OAuth/configuration conditions with explicit state rules.
 - Split the scheduled-task basics form into target/session presentation, reusable choice fields, and small advanced-setting sections instead of maintaining one branch-heavy component with repeated selectors and inline copy rules.
 - Split Skill detail routing, scoped resource loading, presentation projection, and pure rendering, while reusing marketplace update/delete commands with explicit success results instead of duplicating API and feedback transactions inside the view.
