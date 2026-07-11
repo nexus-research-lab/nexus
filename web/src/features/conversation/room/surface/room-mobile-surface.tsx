@@ -12,7 +12,7 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { WorkspaceTaskPanel } from "@/shared/ui/workspace/surface/workspace-task-strip";
 import type { TodoItem } from "@/types/conversation/todo";
 
-import { DmChatPanel } from "@/features/conversation/room/dm/dm-chat-panel";
+import { DmChatPanel } from "@/features/conversation/room/dm/panel/dm-chat-panel";
 import { SubagentTaskSurface } from "@/features/conversation/shared/subagent/subagent-task-surface";
 import { GroupChatPanel } from "../group/chat/panel/group-chat-panel";
 import { GroupThreadContextProvider } from "../group/thread/group-thread-context";

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo } from "react";
 import { prepareRoomConversationAttachments } from "@/features/conversation/shared/composer/attachments/composer-attachments";
 import { useConversationComposerHandlers } from "@/features/conversation/shared/composer/use-conversation-composer-handlers";
 import { ROOM_GOAL_SCOPE_LABEL } from "@/features/conversation/shared/goal/goal-continuation-hold";
+import { useConversationSession } from "@/features/conversation/shared/session/use-conversation-session";
 import {
   useConversationSnapshotReporter,
   type ConversationSnapshotBuildInput,
@@ -25,7 +26,6 @@ import { useRoomThreadSource } from "../use-room-thread-panel-data";
 import { CONVERSATION_TOUR_ANCHORS } from "../../../room-tour";
 import type { GroupChatPanelViewModel } from "./group-chat-panel-view";
 import type { GroupChatPanelProps } from "./group-chat-panel-types";
-import { useGroupChatSession } from "./use-group-chat-session";
 import { useRoomGoalComposer } from "./use-room-goal-composer";
 
 export function useGroupChatPanelModel({
@@ -71,10 +71,11 @@ export function useGroupChatPanelModel({
     roomId,
     sessionKey,
   });
-  const session = useGroupChatSession({
+  const session = useConversationSession({
+    chatType: "group",
+    debugName: "GroupChatPanel",
     identity,
     onRoomEvent: handleRoomEvent,
-    sessionKey,
   });
   const { conversation, history, roundIndexItems, roundScrollRef, scroll, timeline } =
     session;
@@ -200,6 +201,7 @@ export function useGroupChatPanelModel({
       onLoadRoundWindow: conversation.load_round_window,
       onNavigateStart: scroll.pauseFollowLatest,
       roundScrollRef,
+      scopeKey: sessionKey,
       scrollRef: scroll.scrollRef,
       timeline,
     },

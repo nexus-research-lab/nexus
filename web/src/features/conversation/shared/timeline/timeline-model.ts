@@ -19,6 +19,45 @@ export interface ConversationTimeline {
   live_round_ids: string[];
 }
 
+function groupByRound<T>(
+  items: T[],
+  getRoundId: (item: T) => string | null | undefined,
+): Map<string, T[]> {
+  const groups = new Map<string, T[]>();
+  for (const item of items) {
+    const roundId = getRoundId(item)?.trim();
+    if (!roundId) {
+      continue;
+    }
+    const group = groups.get(roundId);
+    if (group) {
+      group.push(item);
+    } else {
+      groups.set(roundId, [item]);
+    }
+  }
+  return groups;
+}
+
+/** 消息的 round_id 已由后端归一为根轮次。 */
+export function groupMessagesByRound(
+  messages: Message[],
+): Map<string, Message[]> {
+  return groupByRound(messages, (message) => message.round_id);
+}
+
+export function groupPendingPermissionsByRound(
+  permissions: PendingPermission[],
+): Map<string, PendingPermission[]> {
+  return groupByRound(permissions, (permission) => permission.round_id);
+}
+
+export function groupPendingSlotsByRound(
+  slots: RoomPendingAgentSlotState[],
+): Map<string, RoomPendingAgentSlotState[]> {
+  return groupByRound(slots, (slot) => slot.round_id);
+}
+
 // 终态轮次里 assistant 仅剩无回复标记（剥离后无文本、无工具/图片等块）时，
 // 视为纯 no-reply，不在时间线显示。保守判定：任何工具/非文本块都算可见输出。
 function isBlankNoReplyRound(messages: Message[]): boolean {

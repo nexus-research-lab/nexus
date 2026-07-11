@@ -7,7 +7,7 @@ import {
   GroupThreadDetailPanel,
   type GroupThreadRound,
 } from "@/features/conversation/room/group/thread/group-thread-detail-panel";
-import { groupMessagesByRound } from "@/features/conversation/shared/utils";
+import { groupMessagesByRound } from "@/features/conversation/shared/timeline/timeline-model";
 import {
   getSubagentTaskMessagesApi,
   sendSubagentTaskMessageApi,

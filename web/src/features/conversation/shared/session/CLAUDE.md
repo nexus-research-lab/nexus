@@ -1,0 +1,6 @@
+# Conversation Session
+
+- `use-conversation-session.ts` 统一编排 DM / Room 的运行时会话、滚动、历史和时间线。
+- 消费者只提供聊天类型、身份和 Room 事件回调，不重复拼接底层 hooks。
+- 会话键只从 `identity.session_key` 派生，不维护第二份输入状态。
+- 本目录负责会话基础设施，不包含 Goal、Composer、快照或具体视图逻辑。

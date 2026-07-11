@@ -9,9 +9,9 @@ import type {
 } from "@/types/conversation/permission";
 import {
   getRoomAgentRoundEntry,
-  getRoomThreadMessages,
   isAgentRoundActive,
-} from "@/features/conversation/shared/utils";
+} from "../round/round-agent-model";
+import { getRoomThreadMessages } from "../round/round-thread-model";
 import {
   useRoomThreadLiveStore,
   type RoomThreadSource,

@@ -9,13 +9,11 @@ import type { SessionRoundIndexItem } from "@/types/conversation/room";
 import type { AgentConversationChatType } from "@/types/agent/agent-conversation";
 
 import {
-  groupMessagesByRound,
-  groupRoomPendingPermissionsByRound,
-  groupRoomPendingSlotsByRound,
-} from "../utils";
-import {
   buildIndexedTimelineRoundIds,
   buildTimelineRoundIds,
+  groupMessagesByRound,
+  groupPendingPermissionsByRound,
+  groupPendingSlotsByRound,
 } from "./timeline-model";
 import type { ConversationTimeline } from "./timeline-model";
 
@@ -46,11 +44,17 @@ export function useConversationTimeline({
     [messages],
   );
   const pendingSlotGroups = useMemo(
-    () => (isRoom ? groupRoomPendingSlotsByRound(pendingAgentSlots) : new Map<string, RoomPendingAgentSlotState[]>()),
+    () =>
+      isRoom
+        ? groupPendingSlotsByRound(pendingAgentSlots)
+        : new Map<string, RoomPendingAgentSlotState[]>(),
     [isRoom, pendingAgentSlots],
   );
   const pendingPermissionGroups = useMemo(
-    () => (isRoom ? groupRoomPendingPermissionsByRound(pendingPermissions) : new Map<string, PendingPermission[]>()),
+    () =>
+      isRoom
+        ? groupPendingPermissionsByRound(pendingPermissions)
+        : new Map<string, PendingPermission[]>(),
     [isRoom, pendingPermissions],
   );
   const loadedRoundIds = useMemo(

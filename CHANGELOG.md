@@ -16,11 +16,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Split the DM chat panel into entry, model, and view layers, and unified DM/Room session orchestration and conversation surface layout behind shared controllers.
+- Consolidated conversation timeline grouping and Room Agent round projection into their domain models, removing the shared conversation utility catch-all.
 - Moved long-term memory fully out of the product backend and into the SDK subprocess: removed the legacy memory engine, configuration, HTTP/CLI contracts, entry-management surfaces, and product-side DM/Room injection. The runtime now owns file-based recall and storage through each Agent workspace's `MEMORY.md` index and `memory/` topic directory, while Nexus only projects and edits the underlying workspace files.
 - Unified Room and DM auxiliary panels on one shared width policy, removed per-surface headers, and moved panel dismissal onto the active surface tab beside its label.
 
 ### Fixed
 
+- Preserved terminal Room slot states in the shared Agent round projection instead of treating a completed slot without messages as pending.
+- Fixed conversation navigation so stale round-window requests and removed navigation targets cannot mutate or block the active session after switching conversations.
 - Fixed visible conversation window loading to reject stale session completions, handle rejected requests, and retry transient failures without permanently suppressing a round.
 - Fixed Goal panels so stale refresh responses cannot replace a newer session or completed mutation, and serialized edit, pause, resume, and clear commands behind one controller.
 - Fixed scheduled-task editing to preserve future single-run times, load only the resources required by the active execution mode, and enforce Room member-bound execution consistently in the form and payload.

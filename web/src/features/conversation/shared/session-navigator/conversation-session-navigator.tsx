@@ -33,6 +33,7 @@ interface ConversationSessionNavigatorProps {
   onLoadRoundWindow?: (roundId: string) => Promise<boolean>;
   onNavigateStart?: () => void;
   roundScrollRef?: ConversationRoundScrollHandleRef;
+  scopeKey: string | null;
   scrollRef: RefObject<HTMLDivElement | null>;
 }
 
@@ -43,6 +44,7 @@ export function ConversationSessionNavigator({
   onLoadRoundWindow,
   onNavigateStart,
   roundScrollRef,
+  scopeKey,
   scrollRef,
 }: ConversationSessionNavigatorProps) {
   const {
@@ -58,6 +60,7 @@ export function ConversationSessionNavigator({
     onLoadRoundWindow,
     onNavigateStart,
     roundScrollRef,
+    scopeKey,
     scrollRef,
   });
 

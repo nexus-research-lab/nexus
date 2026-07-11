@@ -9,8 +9,8 @@ import { PendingPermission, PermissionDecisionPayload } from "@/types/conversati
 import {
   buildRoomAgentRoundEntries,
   isAgentRoundActive,
-  is_automation_trigger_user_message,
-} from "@/features/conversation/shared/utils";
+} from "../round/round-agent-model";
+import { isAutomationTriggerUserMessage } from "@/types/conversation/automation-message";
 import { GroupAgentStatusCard } from "./group-agent-status-card";
 import { useGroupThread } from "./group-thread-state";
 
@@ -121,7 +121,11 @@ function GroupRoundCardGroupInner(
   const { activeThread, closeThread, openThread } = useGroupThread();
 
   const userMessage = useMemo(
-    () => messages.find((message) => message.role === "user" && !is_automation_trigger_user_message(message)),
+    () =>
+      messages.find(
+        (message) =>
+          message.role === "user" && !isAutomationTriggerUserMessage(message),
+      ),
     [messages],
   );
 

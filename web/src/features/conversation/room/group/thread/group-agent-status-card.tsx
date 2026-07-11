@@ -12,7 +12,7 @@ import { PendingPermission, PermissionDecisionPayload } from "@/types/conversati
 import {
   AgentRoundStatus,
   extractAgentPreviewText,
-} from "@/features/conversation/shared/utils";
+} from "../round/round-agent-model";
 import { MarkdownRendererContent } from "@/features/conversation/shared/message/markdown/markdown-renderer-content";
 import { MessageAvatar } from "@/features/conversation/shared/message/ui/message-primitives";
 
