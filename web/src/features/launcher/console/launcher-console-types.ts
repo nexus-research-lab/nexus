@@ -1,5 +1,5 @@
-import { MentionTargetItem } from "@/features/conversation/shared/mention-popover";
-import {
+import type { MentionTargetItem } from "@/shared/ui/mention/mention-target-model";
+import type {
   LauncherAgentSummary,
   LauncherConversationSummary,
   LauncherRoomSummary,
@@ -26,16 +26,14 @@ export interface RecentLauncherEntry {
   conversation_id?: string;
 }
 
-export interface LauncherMentionMatch {
-  trigger: "@" | "#";
-  filter: string;
-  start_pos: number;
+export interface LauncherMentionTarget extends MentionTargetItem {
+  kind: "agent" | "room";
 }
 
 export interface HeroStageProps {
   currentAgentId: string | null;
   decorativeTokens: SpotlightToken[];
-  mentionTargets: MentionTargetItem[];
+  mentionTargets: LauncherMentionTarget[];
   onEnterHome: () => void;
   onOpenMainAgentDm: (initialPrompt?: string) => void;
   onQueryChange: (value: string) => void;

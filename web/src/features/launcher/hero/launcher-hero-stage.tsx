@@ -3,20 +3,11 @@
 import {
   memo,
   useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
   type MouseEvent,
 } from "react";
 import { ArrowRight, MessageSquare } from "lucide-react";
 
-import { HeroBlobShell } from "@/features/launcher/launcher-glass-shell";
 import { LAUNCHER_TOUR_ANCHORS } from "@/features/onboarding/tours/launcher-tour";
-import {
-  MentionTargetItem,
-  MentionTargetPopover,
-} from "@/features/conversation/shared/mention-popover";
 import { cn } from "@/lib/utils";
 import { ANIMATIONS } from "@/config/animation-assets";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -25,59 +16,40 @@ import {
   AnimatedHeroText,
   FadeSlideIn,
 } from "@/shared/ui/feedback/animated-hero-text";
+import { MentionTargetPopover } from "@/shared/ui/mention/mention-target-popover";
 
-import { AgentPile } from "./launcher-agent-pile";
+import type { HeroStageProps } from "../console/launcher-console-types";
 import {
-  findLauncherMentionMatch,
   isLauncherChipTruncated,
   truncateLauncherChipLabel,
-} from "./launcher-console-helpers";
-import { HeroStageProps, LauncherMentionMatch } from "./launcher-console-types";
+} from "../console/launcher-console-helpers";
+import { HeroBlobShell } from "./launcher-glass-shell";
+import { AgentPile } from "./pile/launcher-agent-pile";
+import { useLauncherQueryInput } from "./use-launcher-query-input";
 
 const MemoAgentPile = memo(AgentPile);
 
 export const LauncherHeroStage = memo(function LauncherHeroStage({
-  currentAgentId: currentAgentId,
-  decorativeTokens: decorativeTokens,
-  mentionTargets: mentionTargets,
-  onEnterHome: onEnterHome,
-  onOpenMainAgentDm: onOpenMainAgentDm,
-  onQueryChange: onQueryChange,
-  onSelectAgent: onSelectAgent,
-  onOpenRecentEntry: onOpenRecentEntry,
-  onSubmit: onSubmit,
+  currentAgentId,
+  decorativeTokens,
+  mentionTargets,
+  onEnterHome,
+  onOpenMainAgentDm,
+  onQueryChange,
+  onSelectAgent,
+  onOpenRecentEntry,
+  onSubmit,
   query,
-  recentEntries: recentEntries,
-  isQueryLoading: isQueryLoading,
+  recentEntries,
+  isQueryLoading,
 }: HeroStageProps) {
   const { t } = useI18n();
-  const isComposingRef = useRef(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [localQuery, setLocalQuery] = useState(query);
-  const [mentionMatch, setMentionMatch] =
-    useState<LauncherMentionMatch | null>(null);
-
-  const visibleMentionTargets = useMemo(() => {
-    if (!mentionMatch) {
-      return [];
-    }
-    return mentionTargets.filter((item) =>
-      mentionMatch.trigger === "@"
-        ? item.kind === "agent"
-        : item.kind === "room",
-    );
-  }, [mentionMatch, mentionTargets]);
-
-  const syncMentionMatch = useCallback(
-    (value: string, cursorPos: number) => {
-      setMentionMatch(findLauncherMentionMatch(value, cursorPos));
-    },
-    [],
-  );
-
-  const handleMentionClose = useCallback(() => {
-    setMentionMatch(null);
-  }, []);
+  const queryInput = useLauncherQueryInput({
+    mentionTargets,
+    onQueryChange,
+    onSubmit,
+    query,
+  });
 
   const handleEnterHomeClick = useCallback(
     (event: MouseEvent<HTMLButtonElement>) => {
@@ -86,66 +58,6 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
     },
     [onEnterHome],
   );
-
-  const handleQueryChange = useCallback(
-    (value: string) => {
-      setLocalQuery(value);
-      onQueryChange(value);
-      const cursorPos = inputRef.current?.selectionStart ?? value.length;
-      syncMentionMatch(value, cursorPos);
-    },
-    [onQueryChange, syncMentionMatch],
-  );
-
-  const handleMentionSelect = useCallback(
-    (item: MentionTargetItem) => {
-      if (!mentionMatch) {
-        return;
-      }
-      const cursorPos =
-        inputRef.current?.selectionStart ?? localQuery.length;
-      const before = localQuery.slice(0, mentionMatch.start_pos);
-      const after = localQuery.slice(cursorPos);
-      const nextQuery = `${before}${mentionMatch.trigger}${item.label} ${after}`;
-      setLocalQuery(nextQuery);
-      onQueryChange(nextQuery);
-      setMentionMatch(null);
-
-      requestAnimationFrame(() => {
-        const nextCursor = mentionMatch.start_pos + item.label.length + 2;
-        inputRef.current?.setSelectionRange(nextCursor, nextCursor);
-        inputRef.current?.focus();
-      });
-    },
-    [localQuery, mentionMatch, onQueryChange],
-  );
-
-  useEffect(() => {
-    setLocalQuery(query);
-  }, [query]);
-
-  useEffect(() => {
-    if (!localQuery) {
-      setMentionMatch(null);
-    }
-  }, [localQuery]);
-
-  const handleSubmit = useCallback(() => {
-    const trimmedQuery = localQuery.trim();
-    if (!trimmedQuery) {
-      return;
-    }
-
-    const didSubmit = onSubmit(trimmedQuery);
-    if (!didSubmit) {
-      return;
-    }
-
-    // 提交后先在本地立即清空，避免受控值回流慢一拍。
-    setLocalQuery("");
-    onQueryChange("");
-    setMentionMatch(null);
-  }, [localQuery, onQueryChange, onSubmit]);
 
   return (
     <div
@@ -222,15 +134,15 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
               }}
             >
               <div className="relative flex min-w-0 items-center gap-2.5 sm:gap-3">
-                {mentionMatch ? (
+                {queryInput.mention.match ? (
                   <MentionTargetPopover
                     anchorRect={
-                      inputRef.current?.getBoundingClientRect() ?? null
+                      queryInput.input.ref.current?.getBoundingClientRect() ?? null
                     }
-                    filter={mentionMatch.filter}
-                    items={visibleMentionTargets}
-                    onClose={handleMentionClose}
-                    onSelect={handleMentionSelect}
+                    filter={queryInput.mention.match.filter}
+                    items={queryInput.mention.targets}
+                    onClose={queryInput.mention.close}
+                    onSelect={queryInput.mention.select}
                     placement="below"
                   />
                 ) : null}
@@ -240,56 +152,16 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
                 />
                 <input
                   aria-label="输入启动器指令"
-                  ref={inputRef}
+                  ref={queryInput.input.ref}
                   className="flex-1 bg-transparent text-[14px] outline-none shadow-none ring-0 placeholder:text-(--launcher-input-placeholder) focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none sm:text-[15px]"
                   style={{ color: "var(--launcher-input-text)" }}
-                  onBlur={() => {
-                    requestAnimationFrame(() => {
-                      if (document.activeElement !== inputRef.current) {
-                        setMentionMatch(null);
-                      }
-                    });
-                  }}
-                  onChange={(event) => handleQueryChange(event.target.value)}
-                  onCompositionEnd={() => {
-                    isComposingRef.current = false;
-                  }}
-                  onCompositionStart={() => {
-                    isComposingRef.current = true;
-                  }}
-                  onKeyDown={(event) => {
-                    if (
-                      isComposingRef.current ||
-                      event.nativeEvent.isComposing
-                    ) {
-                      return;
-                    }
-                    if (
-                      mentionMatch &&
-                      visibleMentionTargets.length > 0 &&
-                      [
-                        "ArrowDown",
-                        "ArrowUp",
-                        "Enter",
-                        "Tab",
-                        "Escape",
-                      ].includes(event.key)
-                    ) {
-                      return;
-                    }
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      handleSubmit();
-                    }
-                  }}
-                  onSelect={(event) => {
-                    const target = event.target as HTMLInputElement;
-                    syncMentionMatch(
-                      target.value,
-                      target.selectionStart ?? target.value.length,
-                    );
-                  }}
-                  value={localQuery}
+                  onBlur={queryInput.input.onBlur}
+                  onChange={queryInput.input.onChange}
+                  onCompositionEnd={queryInput.input.onCompositionEnd}
+                  onCompositionStart={queryInput.input.onCompositionStart}
+                  onKeyDown={queryInput.input.onKeyDown}
+                  onSelect={queryInput.input.onSelect}
+                  value={queryInput.input.value}
                   placeholder={t("launcher.query_placeholder")}
                   disabled={isQueryLoading}
                 />
@@ -312,7 +184,7 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
                         : "none",
                     color: "var(--launcher-submit-color)",
                   }}
-                  onClick={handleSubmit}
+                  onClick={queryInput.submit}
                   type="button"
                   disabled={isQueryLoading}
                 >
@@ -409,7 +281,7 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
                 data-tour-anchor={LAUNCHER_TOUR_ANCHORS.handoff}
                 className="px-1 text-xs font-medium transition-colors duration-150 ease-out hover:text-(--launcher-handoff-hover-color) sm:text-sm"
                 style={{ color: "var(--launcher-handoff-color)" }}
-                onClick={() => onOpenMainAgentDm(query)}
+                onClick={() => onOpenMainAgentDm(queryInput.input.value)}
                 type="button"
               >
                 <span className="inline-flex items-center gap-1.5">

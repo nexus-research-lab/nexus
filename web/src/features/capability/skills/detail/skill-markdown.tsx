@@ -1,6 +1,6 @@
 "use client";
 
-import { MarkdownRendererContent } from "@/features/conversation/shared/message/markdown/markdown-renderer-content";
+import { UiMarkdownContent } from "@/shared/ui/markdown/markdown-content";
 import { cn } from "@/lib/utils";
 
 const SKILL_MARKDOWN_CLASS_NAME =
@@ -64,7 +64,7 @@ export function SkillMarkdown({ markdown, title, description, className }: Skill
   const normalizedMarkdown = stripLeadingDuplicateContent(markdown, title, description);
 
   return (
-    <MarkdownRendererContent
+    <UiMarkdownContent
       className={cn(SKILL_MARKDOWN_CLASS_NAME, className)}
       content={normalizedMarkdown || markdown}
     />

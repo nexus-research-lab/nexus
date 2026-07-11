@@ -9,7 +9,7 @@ import {
   eventRouteLabel,
   privateThreadTitle,
 } from "@/features/agents/private-domain/agent-private-domain-model";
-import { MarkdownRendererContent } from "@/features/conversation/shared/message/markdown/markdown-renderer-content";
+import { UiMarkdownContent } from "@/shared/ui/markdown/markdown-content";
 import {
   cn,
   formatRelativeTime,
@@ -132,7 +132,7 @@ function PrivateEventBubble({
             {formatRelativeTime(event.timestamp)}
           </span>
         </div>
-        <MarkdownRendererContent
+        <UiMarkdownContent
           className={cn(
             "text-(--text-default) [&_[data-markdown-anchor]]:my-1 [&_[data-markdown-anchor]]:leading-5 [&_blockquote]:my-2 [&_ol]:mb-2 [&_ol]:space-y-1 [&_ul]:mb-2 [&_ul]:space-y-1",
             compact ? "mt-1.5 text-[12.5px] leading-5" : "mt-2 text-[13px] leading-5",

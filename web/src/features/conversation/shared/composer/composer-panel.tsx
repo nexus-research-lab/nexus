@@ -6,6 +6,7 @@ import { Send, StopCircle, Target } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { LoadingOrb } from "@/shared/ui/feedback/loading-orb";
+import { MentionTargetPopover } from "@/shared/ui/mention/mention-target-popover";
 
 import { COMPOSER_ATTACHMENT_ACCEPT } from "./attachments/composer-attachments";
 import { ComposerAttachmentList } from "./attachments/composer-local-attachments";
@@ -23,7 +24,6 @@ import {
   COMPOSER_SHELL_CLASS_NAME,
 } from "./composer-styles";
 import { useComposerController } from "./controller/use-composer-controller";
-import { MentionTargetPopover } from "../mention-popover";
 
 const ComposerPanelView = memo((props: ComposerPanelProps) => {
   const { t } = useI18n();

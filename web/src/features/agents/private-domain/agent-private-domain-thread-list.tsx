@@ -8,7 +8,7 @@ import {
 
 import { PrivateParticipantAvatarStack } from "@/features/agents/private-domain/agent-private-domain-avatar";
 import { privateThreadTitle } from "@/features/agents/private-domain/agent-private-domain-model";
-import { MarkdownRendererContent } from "@/features/conversation/shared/message/markdown/markdown-renderer-content";
+import { UiMarkdownContent } from "@/shared/ui/markdown/markdown-content";
 import {
   cn,
   formatRelativeTime,
@@ -80,7 +80,7 @@ export function PrivateThreadList({
                   </span>
                   <ThreadScopeIcon scope={thread.scope} />
                 </div>
-                <MarkdownRendererContent
+                <UiMarkdownContent
                   className={cn(
                     "mt-1 text-(--text-muted) [&_*]:leading-4",
                     compact ? "line-clamp-1 text-[11.5px] leading-4" : "line-clamp-2 text-[12px] leading-4",

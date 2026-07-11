@@ -1,7 +1,7 @@
 import type { ComponentType } from "react";
 
-import { LazyMermaidView } from "@/features/conversation/shared/message/markdown/mermaid/lazy-mermaid-view";
-import { MarkdownRendererContent } from "@/features/conversation/shared/message/markdown/markdown-renderer-content";
+import { UiMarkdownContent } from "@/shared/ui/markdown/markdown-content";
+import { LazyMermaidView } from "@/shared/ui/markdown/mermaid/lazy-mermaid-view";
 
 import { HtmlFilePreview } from "../media/html-file-preview";
 import type { WorkspaceFilePreviewKind } from "../workspace-file-preview-kind";
@@ -19,7 +19,7 @@ interface TextFileContentProps extends TextRendererProps {
 
 function MarkdownContent({ content }: TextRendererProps) {
   return (
-    <MarkdownRendererContent
+    <UiMarkdownContent
       className="min-h-full"
       content={content}
       mermaidShowHeader={false}

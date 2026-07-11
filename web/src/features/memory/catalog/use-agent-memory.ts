@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { getAgentMemorySnapshotApi } from "@/lib/api/memory-api";
-import type { MemoryDocument, MemorySnapshot } from "@/types/memory/memory";
+import type { MemorySnapshot } from "@/types/memory/memory";
 
 import {
-  memoryDocumentMatches,
   type MemoryFilter,
-} from "./memory-utils";
+  projectMemoryCatalog,
+  resolveSelectedMemoryPath,
+} from "./memory-catalog-model";
 
 interface AgentMemoryState {
   agentId: string;
@@ -62,20 +63,13 @@ export function useAgentMemory(agentId: string, fallbackError: string) {
       if (!isCurrentRequest(agentIdRef, expectedAgentId, requestSequenceRef, requestSequence)) {
         return;
       }
-      commit(expectedAgentId, (current) => {
-        const documents = getAllMemoryDocuments(snapshot);
-        const selectedPath = documents.some((document) =>
-          document.path === current.selectedPath)
-          ? current.selectedPath
-          : documents[0]?.path ?? "";
-        return {
-          ...current,
-          error: null,
-          isLoading: false,
-          selectedPath,
-          snapshot,
-        };
-      });
+      commit(expectedAgentId, (current) => ({
+        ...current,
+        error: null,
+        isLoading: false,
+        selectedPath: resolveSelectedMemoryPath(snapshot, current.selectedPath),
+        snapshot,
+      }));
     } catch (error) {
       if (!isCurrentRequest(agentIdRef, expectedAgentId, requestSequenceRef, requestSequence)) {
         return;
@@ -98,22 +92,18 @@ export function useAgentMemory(agentId: string, fallbackError: string) {
     };
   }, [agentId, refresh]);
 
-  const allDocuments = useMemo(
-    () => getAllMemoryDocuments(state.snapshot),
-    [state.snapshot],
-  );
-  const visibleDocuments = useMemo(
-    () => (state.snapshot?.documents ?? []).filter((document) =>
-      memoryDocumentMatches(document, state.filter, state.query)),
-    [state.filter, state.query, state.snapshot?.documents],
-  );
-  const selectedDocument = useMemo(
-    () => allDocuments.find((document) => document.path === state.selectedPath) ?? null,
-    [allDocuments, state.selectedPath],
+  const projection = useMemo(
+    () => projectMemoryCatalog(
+      state.snapshot,
+      state.selectedPath,
+      state.filter,
+      state.query,
+    ),
+    [state.filter, state.query, state.selectedPath, state.snapshot],
   );
 
   const selectDocument = useCallback((path: string) => {
-    if (!allDocuments.some((document) => document.path === path)) {
+    if (!projection.allDocuments.some((document) => document.path === path)) {
       return;
     }
     commit(agentId, (current) => ({
@@ -121,33 +111,44 @@ export function useAgentMemory(agentId: string, fallbackError: string) {
       compactDocumentOpen: true,
       selectedPath: path,
     }));
-  }, [agentId, allDocuments, commit]);
+  }, [agentId, commit, projection.allDocuments]);
+  const closeCompactDocument = useCallback(() => {
+    commit(agentId, (current) => ({ ...current, compactDocumentOpen: false }));
+  }, [agentId, commit]);
+  const setFilter = useCallback((filter: MemoryFilter) => {
+    commit(agentId, (current) => ({ ...current, filter }));
+  }, [agentId, commit]);
+  const setQuery = useCallback((query: string) => {
+    commit(agentId, (current) => ({ ...current, query }));
+  }, [agentId, commit]);
 
   return {
-    ...state,
-    allDocuments,
-    counts: countMemoryDocuments(state.snapshot),
-    indexVisible: Boolean(
-      state.snapshot?.index
-      && memoryDocumentMatches(state.snapshot.index, "index", state.query),
-    ),
-    latestDocument: state.snapshot?.documents[0] ?? state.snapshot?.index ?? null,
-    refresh,
-    selectDocument,
-    selectedDocument,
-    setCompactDocumentOpen: (open: boolean) => commit(agentId, (current) => ({
-      ...current,
-      compactDocumentOpen: open,
-    })),
-    setFilter: (filter: MemoryFilter) => commit(agentId, (current) => ({
-      ...current,
-      filter,
-    })),
-    setQuery: (query: string) => commit(agentId, (current) => ({
-      ...current,
-      query,
-    })),
-    visibleDocuments,
+    catalog: {
+      filter: state.filter,
+      indexVisible: projection.indexVisible,
+      query: state.query,
+      selectedPath: state.selectedPath,
+      setFilter,
+      setQuery,
+      snapshot: state.snapshot,
+      visibleDocuments: projection.visibleDocuments,
+    },
+    document: {
+      closeCompactDocument,
+      compactDocumentOpen: state.compactDocumentOpen,
+      selectDocument,
+      selectedDocument: projection.selectedDocument,
+    },
+    resource: {
+      error: state.error,
+      isLoading: state.isLoading,
+      refresh,
+      snapshot: state.snapshot,
+    },
+    summary: {
+      counts: projection.counts,
+      latestDocument: projection.latestDocument,
+    },
   };
 }
 
@@ -162,24 +163,6 @@ function createAgentMemoryState(agentId: string): AgentMemoryState {
     selectedPath: "",
     snapshot: null,
   };
-}
-
-function getAllMemoryDocuments(snapshot: MemorySnapshot | null): MemoryDocument[] {
-  return snapshot
-    ? [snapshot.index, ...snapshot.documents].filter(Boolean) as MemoryDocument[]
-    : [];
-}
-
-function countMemoryDocuments(
-  snapshot: MemorySnapshot | null,
-): { logs: number; topics: number } {
-  return (snapshot?.documents ?? []).reduce(
-    (counts, document) => ({
-      logs: counts.logs + Number(document.kind === "daily_log"),
-      topics: counts.topics + Number(document.kind !== "daily_log"),
-    }),
-    { logs: 0, topics: 0 },
-  );
 }
 
 function isCurrentRequest(

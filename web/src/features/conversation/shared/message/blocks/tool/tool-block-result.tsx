@@ -1,7 +1,7 @@
 import type { ToolResultContent } from "@/types/conversation/message";
 
 import { ImageBlock } from "../artifact/image-block";
-import { CodeBlock } from "../code/code-block";
+import { CodeBlock } from "@/shared/ui/markdown/code/code-block";
 import {
   isImageContent,
   TOOL_DETAIL_SCROLL_CLASS_NAME,

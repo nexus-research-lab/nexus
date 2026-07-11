@@ -14,7 +14,7 @@ import {
   resolveWorkspaceArtifactPath,
   useMarkdownCurrentAgentID,
   useMarkdownFileResolver,
-} from "../../markdown/workspace/markdown-workspace-artifacts";
+} from "@/shared/ui/markdown/workspace/markdown-workspace-artifacts";
 
 interface ImageBlockProps {
   block: ImageContent;

@@ -9,7 +9,7 @@ import type {
   PermissionDecisionPayload,
 } from "@/types/conversation/permission";
 
-import { MarkdownRenderer } from "../../../markdown/markdown-renderer";
+import { MarkdownRenderer } from "../../../markdown-renderer";
 import {
   MessageActivityStatus,
   type MessageActivityState,

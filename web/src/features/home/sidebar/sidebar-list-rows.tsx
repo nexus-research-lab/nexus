@@ -4,7 +4,7 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { MarkdownRendererContent } from "@/features/conversation/shared/message/markdown/markdown-renderer-content";
+import { UiMarkdownContent } from "@/shared/ui/markdown/markdown-content";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiAgentAvatar, UiRoomAvatar } from "@/shared/ui/avatar";
@@ -129,7 +129,7 @@ export function ConversationRow({
       active={isActive}
       className="min-h-[58px] gap-2.5 rounded-[13px] px-2.5 py-2"
       description={item.summary ? (
-        <MarkdownRendererContent
+        <UiMarkdownContent
           className="truncate text-[12px] leading-5 text-(--text-muted) [&_*]:leading-5"
           content={item.summary}
           mermaidShowHeader={false}

@@ -4,7 +4,7 @@ import { type Components } from "react-markdown";
 
 import { getWorkspaceFilePreviewUrl } from "@/lib/api/agent-manage-api";
 
-import { CodeBlock } from "../../blocks/code/code-block";
+import { CodeBlock } from "../code/code-block";
 import { LazyMermaidView } from "../mermaid/lazy-mermaid-view";
 import { WorkspaceFileButton } from "../workspace/markdown-workspace-file-button";
 import {

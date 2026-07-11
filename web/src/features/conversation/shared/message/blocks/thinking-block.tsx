@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Brain, ChevronRight } from "lucide-react";
-import { MarkdownRenderer } from "../markdown/markdown-renderer";
+import { MarkdownRenderer } from "../markdown-renderer";
 import { MessageRail, MessageRailBody, MessageRailLabel } from "../ui/message-rail";
 
 interface ThinkingBlockProps {

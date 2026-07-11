@@ -1,7 +1,3 @@
-import type { MemoryDocument } from "@/types/memory/memory";
-
-export type MemoryFilter = "all" | "index" | "user" | "feedback" | "project" | "reference" | "daily_log";
-
 export interface MemoryIndexEntry {
   description: string;
   path: string;
@@ -29,29 +25,6 @@ export function parseMemoryIndexEntries(content: string): MemoryIndexEntry[] {
     });
   }
   return entries;
-}
-
-export function memoryDocumentMatches(
-  document: MemoryDocument,
-  filter: MemoryFilter,
-  query: string,
-): boolean {
-  const matchesFilter = filter === "all"
-    || (filter === "index" && document.kind === "index")
-    || (filter === "daily_log" && document.kind === "daily_log")
-    || (document.kind === "topic" && document.type === filter);
-  if (!matchesFilter) {
-    return false;
-  }
-  const normalizedQuery = query.trim().toLowerCase();
-  if (!normalizedQuery) {
-    return true;
-  }
-  return [document.title, document.description, document.path, document.type]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase()
-    .includes(normalizedQuery);
 }
 
 export function memoryAgeDays(modifiedAt: string, now = Date.now()): number {

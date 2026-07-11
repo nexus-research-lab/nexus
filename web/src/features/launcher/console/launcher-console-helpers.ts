@@ -1,13 +1,12 @@
-import { MentionTargetItem } from "@/features/conversation/shared/mention-popover";
-import {
+import type {
   LauncherAgentSummary,
   LauncherConversationSummary,
   LauncherRoomSummary,
   SpotlightToken,
 } from "@/types/app/launcher";
 
-import {
-  LauncherMentionMatch,
+import type {
+  LauncherMentionTarget,
   RecentLauncherEntry,
 } from "./launcher-console-types";
 
@@ -124,13 +123,14 @@ export function buildDecorativeTokens(
 export function buildLauncherMentionTargets(
   agents: LauncherAgentSummary[],
   rooms: LauncherRoomSummary[],
-): MentionTargetItem[] {
+): LauncherMentionTarget[] {
   const agentTargets = agents
     .slice()
     .sort((left, right) => left.name.localeCompare(right.name, "zh-CN"))
     .map((agent) => ({
       id: `agent-${agent.id}`,
       label: agent.name,
+      marker: agent.name.charAt(0).toUpperCase(),
       subtitle: "Agent",
       kind: "agent" as const,
     }));
@@ -144,6 +144,7 @@ export function buildLauncherMentionTargets(
     .map((room) => ({
       id: `room-${room.id}`,
       label: room.name?.trim() || "未命名 Room",
+      marker: "#",
       subtitle: "Room",
       kind: "room" as const,
     }));
@@ -151,24 +152,6 @@ export function buildLauncherMentionTargets(
   return [...agentTargets, ...roomTargets];
 }
 
-export function findLauncherMentionMatch(
-  value: string,
-  cursorPos: number,
-): LauncherMentionMatch | null {
-  const beforeCursor = value.slice(0, cursorPos);
-  const match = beforeCursor.match(/(?:^|\s)([@#])([^\s@#]*)$/);
-  if (!match) {
-    return null;
-  }
-  const trigger = match[1] as "@" | "#";
-  const filter = match[2] ?? "";
-  const startPos = beforeCursor.length - filter.length - 1;
-  return {
-    trigger,
-    filter,
-    start_pos: startPos,
-  };
-}
 
 export function buildRecentLauncherEntries(
   conversations: LauncherConversationSummary[],

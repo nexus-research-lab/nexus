@@ -4,8 +4,8 @@ import { useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { getDefaultAgentId, isMainAgent } from "@/config/options";
-import { LauncherConsole } from "@/features/launcher/launcher-console";
-import { getLauncherSurfaceThemeStyle } from "@/features/launcher/launcher-surface-theme";
+import { LauncherConsole } from "@/features/launcher/console/launcher-console";
+import { getLauncherSurfaceThemeStyle } from "@/features/launcher/hero/launcher-surface-theme";
 import { useLauncherPageController } from "@/hooks/launcher/use-launcher-page-controller";
 import { resolveDirectRoomNavigationTarget } from "@/lib/conversation/direct-room-navigation";
 import { useTheme } from "@/shared/theme/theme-context";

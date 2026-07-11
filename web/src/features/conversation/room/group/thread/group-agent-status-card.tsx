@@ -3,7 +3,7 @@
 import { Bot, Loader2, Square } from "lucide-react";
 import { memo, useCallback, useMemo } from "react";
 
-import { MarkdownRendererContent } from "@/features/conversation/shared/message/markdown/markdown-renderer-content";
+import { UiMarkdownContent } from "@/shared/ui/markdown/markdown-content";
 import { MessageAvatar } from "@/features/conversation/shared/message/ui/message-primitives";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -218,7 +218,7 @@ function GroupAgentStatusCardInner({
 
         <div className="min-w-0 pt-1">
           {shouldRenderMarkdownSummary ? (
-            <MarkdownRendererContent
+            <UiMarkdownContent
               className="line-clamp-1 text-(--text-strong)"
               content={preview}
               variant="summary"

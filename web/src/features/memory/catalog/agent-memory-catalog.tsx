@@ -1,105 +1,41 @@
-import {
-  BookOpenText,
-  Clock3,
-  FileText,
-  FolderKanban,
-  History,
-  Link2,
-  MessageSquareWarning,
-  Search,
-  UserRound,
-  type LucideIcon,
-} from "lucide-react";
+import { Clock3, Link2, Search } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import type { TranslationKey } from "@/shared/i18n/messages";
 import { UiSearchInput } from "@/shared/ui/form-control";
-import type {
-  MemoryDocument,
-  MemoryDocumentKind,
-  MemoryDocumentType,
-  MemorySnapshot,
-} from "@/types/memory/memory";
+import type { MemoryDocument, MemorySnapshot } from "@/types/memory/memory";
 
+import { formatMemoryModifiedTime, memoryAgeDays } from "../memory-utils";
 import {
-  formatMemoryModifiedTime,
-  memoryAgeDays,
+  MEMORY_FILTER_OPTIONS,
   type MemoryFilter,
-} from "./memory-utils";
+} from "./memory-catalog-model";
+import { getMemoryDocumentPresentation } from "./memory-catalog-presentation";
 
-const FILTERS: MemoryFilter[] = [
-  "all",
-  "user",
-  "feedback",
-  "project",
-  "reference",
-  "daily_log",
-];
-
-const FILTER_LABEL_KEY: Readonly<Partial<Record<MemoryFilter, TranslationKey>>> = {
-  user: "capability.memory_type_user",
-  feedback: "capability.memory_type_feedback",
-  project: "capability.memory_type_project",
-  reference: "capability.memory_type_reference",
-  daily_log: "capability.memory_type_daily_log",
-};
-
-const ICON_BY_KIND: Readonly<Partial<Record<MemoryDocumentKind, LucideIcon>>> = {
-  index: BookOpenText,
-  daily_log: History,
-};
-
-const ICON_BY_TYPE: Readonly<Partial<Record<MemoryDocumentType, LucideIcon>>> = {
-  user: UserRound,
-  feedback: MessageSquareWarning,
-  project: FolderKanban,
-  reference: Link2,
-};
-
-const TONE_BY_KIND: Readonly<Partial<Record<MemoryDocumentKind, string>>> = {
-  index: "bg-sky-500/10 text-sky-600 dark:text-sky-400",
-  daily_log: "bg-zinc-500/10 text-zinc-600 dark:text-zinc-400",
-};
-
-const TONE_BY_TYPE: Readonly<Partial<Record<MemoryDocumentType, string>>> = {
-  user: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-  feedback: "bg-amber-500/10 text-amber-700 dark:text-amber-400",
-  project: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
-  reference: "bg-rose-500/10 text-rose-600 dark:text-rose-400",
-};
-
-const TYPE_LABEL_KEY: Readonly<Partial<Record<MemoryDocumentType, TranslationKey>>> = {
-  user: "capability.memory_type_user",
-  feedback: "capability.memory_type_feedback",
-  project: "capability.memory_type_project",
-  reference: "capability.memory_type_reference",
-};
-
-export interface AgentMemoryCatalogModel {
+interface AgentMemoryCatalogProps {
   filter: MemoryFilter;
   indexVisible: boolean;
-  locale: string;
+  onFilterChange: (filter: MemoryFilter) => void;
+  onQueryChange: (query: string) => void;
+  onSelectDocument: (path: string) => void;
   query: string;
   selectedPath: string;
   snapshot: MemorySnapshot | null;
   visibleDocuments: MemoryDocument[];
 }
 
-interface AgentMemoryCatalogProps {
-  model: AgentMemoryCatalogModel;
-  onFilterChange: (filter: MemoryFilter) => void;
-  onQueryChange: (query: string) => void;
-  onSelectDocument: (path: string) => void;
-}
-
 export function AgentMemoryCatalog({
-  model,
+  filter,
+  indexVisible,
   onFilterChange,
   onQueryChange,
   onSelectDocument,
+  query,
+  selectedPath,
+  snapshot,
+  visibleDocuments,
 }: AgentMemoryCatalogProps) {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   return (
     <aside className="nexus-memory-catalog flex min-h-0 min-w-0 flex-col border-r border-(--divider-subtle-color) bg-(--surface-raised-background)">
       <div className="shrink-0 border-b border-(--divider-subtle-color) p-3">
@@ -108,65 +44,61 @@ export function AgentMemoryCatalog({
           inputClassName="text-[12px]"
           onChange={onQueryChange}
           placeholder={t("capability.memory_search_placeholder")}
-          value={model.query}
+          value={query}
         />
         <div className="soft-scrollbar mt-2.5 flex gap-1 overflow-x-auto" role="tablist">
-          {FILTERS.map((filter) => (
+          {MEMORY_FILTER_OPTIONS.map((option) => (
             <button
-              aria-selected={model.filter === filter}
+              aria-selected={filter === option.value}
               className={cn(
                 "shrink-0 rounded-[6px] px-2 py-1 text-[10.5px] font-medium transition-colors",
-                model.filter === filter
+                filter === option.value
                   ? "bg-(--surface-interactive-active-background) text-(--text-strong)"
                   : "text-(--text-soft) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-default)",
               )}
-              key={filter}
-              onClick={() => onFilterChange(filter)}
+              key={option.value}
+              onClick={() => onFilterChange(option.value)}
               role="tab"
               type="button"
             >
-              {t(FILTER_LABEL_KEY[filter] ?? "capability.memory_filter_all")}
+              {t(option.labelKey)}
             </button>
           ))}
         </div>
       </div>
 
       <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto px-2 py-2">
-        {model.indexVisible && model.snapshot?.index ? (
+        {indexVisible && snapshot?.index ? (
           <div className="mb-2">
             <MemorySectionLabel label={t("capability.memory_index")} />
             <MemoryDocumentRow
-              document={model.snapshot.index}
-              isSelected={model.selectedPath === model.snapshot.index.path}
-              locale={model.locale}
+              document={snapshot.index}
+              isSelected={selectedPath === snapshot.index.path}
+              locale={locale}
               onSelect={onSelectDocument}
-              typeLabel={t("capability.memory_index")}
             />
           </div>
         ) : null}
 
-        {model.visibleDocuments.length > 0 ? (
+        {visibleDocuments.length > 0 ? (
           <div>
             <MemorySectionLabel
               label={t("capability.memory_documents")}
-              value={String(model.visibleDocuments.length)}
+              value={String(visibleDocuments.length)}
             />
             <div className="space-y-0.5">
-              {model.visibleDocuments.map((document) => (
+              {visibleDocuments.map((document) => (
                 <MemoryDocumentRow
                   document={document}
-                  isSelected={model.selectedPath === document.path}
+                  isSelected={selectedPath === document.path}
                   key={document.path}
-                  locale={model.locale}
+                  locale={locale}
                   onSelect={onSelectDocument}
-                  typeLabel={document.kind === "daily_log"
-                    ? t("capability.memory_type_daily_log")
-                    : t(TYPE_LABEL_KEY[document.type ?? ""] ?? "capability.memory_type_topic")}
                 />
               ))}
             </div>
           </div>
-        ) : !model.indexVisible ? (
+        ) : !indexVisible ? (
           <div className="px-3 py-10 text-center">
             <Search className="mx-auto h-5 w-5 text-(--icon-muted)" />
             <p className="mt-2 text-[12px] text-(--text-muted)">
@@ -175,14 +107,14 @@ export function AgentMemoryCatalog({
           </div>
         ) : null}
 
-        {model.snapshot?.truncated ? (
+        {snapshot?.truncated ? (
           <p className="px-3 py-3 text-[10.5px] leading-4 text-(--text-soft)">
             {t("capability.memory_truncated")}
           </p>
         ) : null}
       </div>
 
-      {model.snapshot?.layout === "empty" ? (
+      {snapshot?.layout === "empty" ? (
         <div className="border-t border-(--divider-subtle-color) px-4 py-4">
           <p className="text-[12px] font-semibold text-(--text-strong)">
             {t("capability.memory_empty_title")}
@@ -210,18 +142,15 @@ function MemoryDocumentRow({
   isSelected,
   locale,
   onSelect,
-  typeLabel,
 }: {
   document: MemoryDocument;
   isSelected: boolean;
   locale: string;
   onSelect: (path: string) => void;
-  typeLabel: string;
 }) {
-  const Icon = ICON_BY_KIND[document.kind] ?? ICON_BY_TYPE[document.type ?? ""] ?? FileText;
-  const tone = TONE_BY_KIND[document.kind]
-    ?? TONE_BY_TYPE[document.type ?? ""]
-    ?? "bg-zinc-500/10 text-zinc-600 dark:text-zinc-400";
+  const { t } = useI18n();
+  const presentation = getMemoryDocumentPresentation(document);
+  const Icon = presentation.icon;
   const stale = memoryAgeDays(document.modified_at) > 1;
   return (
     <button
@@ -239,7 +168,7 @@ function MemoryDocumentRow({
       ) : null}
       <span className={cn(
         "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-[6px]",
-        tone,
+        presentation.tone,
       )}>
         <Icon className="h-3.5 w-3.5" />
       </span>
@@ -256,7 +185,7 @@ function MemoryDocumentRow({
           {document.description || document.path}
         </span>
         <span className="mt-1 flex items-center gap-1.5 text-[9.5px] text-(--text-soft)">
-          <span>{typeLabel}</span>
+          <span>{t(presentation.labelKey)}</span>
           <span aria-hidden="true">·</span>
           <Clock3 className="h-2.5 w-2.5" />
           <span className={stale ? "text-amber-600 dark:text-amber-400" : undefined}>

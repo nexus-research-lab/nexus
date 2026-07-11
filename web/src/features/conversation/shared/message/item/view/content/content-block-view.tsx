@@ -10,7 +10,7 @@ import { ImageBlock } from "../../../blocks/artifact/image-block";
 import { WorkspaceFileArtifactBlock } from "../../../blocks/artifact/workspace-file-artifacts";
 import { ThinkingBlock } from "../../../blocks/thinking-block";
 import { ToolUseErrorBlock } from "../../../blocks/tool/tool-use-error-block";
-import { MarkdownRenderer } from "../../../markdown/markdown-renderer";
+import { MarkdownRenderer } from "../../../markdown-renderer";
 import {
   isHiddenSystemEvent,
   type StructuredContentProjection,

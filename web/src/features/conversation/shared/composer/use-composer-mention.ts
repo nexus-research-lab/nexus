@@ -8,8 +8,14 @@ import {
 import type { Dispatch, RefObject, SetStateAction } from "react";
 
 import type { Agent } from "@/types/agent/agent";
+import {
+  findMentionTextMatch,
+  insertMentionTarget,
+  type MentionTargetItem,
+  type MentionTextMatch,
+} from "@/shared/ui/mention/mention-target-model";
 
-import type { MentionTargetItem } from "../mention-popover";
+const COMPOSER_MENTION_TRIGGERS = ["@"] as const;
 
 interface UseComposerMentionOptions {
   input: string;
@@ -31,44 +37,29 @@ export function useComposerMention({
       roomMembers.map<MentionTargetItem>((member) => ({
         id: member.agent_id,
         label: member.name,
+        marker: member.name.charAt(0).toUpperCase(),
         subtitle: null,
-        kind: "agent",
       })),
     [roomMembers],
   );
 
-  const [mentionActive, setMentionActive] = useState(false);
-  const [mentionFilter, setMentionFilter] = useState("");
-  const [mentionStartPos, setMentionStartPos] = useState(-1);
+  const [mentionMatch, setMentionMatch] = useState<MentionTextMatch | null>(null);
 
   const closeMention = useCallback(() => {
-    setMentionActive(false);
+    setMentionMatch(null);
   }, []);
 
   const updateMentionForInput = useCallback((value: string) => {
     if (isGoalMode || roomMembers.length === 0) {
-      setMentionActive(false);
+      setMentionMatch(null);
       return;
     }
-
     const cursorPos = textareaRef.current?.selectionStart ?? value.length;
-    const beforeCursor = value.slice(0, cursorPos);
-    const atIndex = beforeCursor.lastIndexOf("@");
-
-    if (atIndex >= 0) {
-      const charBeforeAt = atIndex > 0 ? beforeCursor[atIndex - 1] : " ";
-      if (charBeforeAt === " " || charBeforeAt === "\n" || atIndex === 0) {
-        const filterText = beforeCursor.slice(atIndex + 1);
-        if (!filterText.includes(" ")) {
-          setMentionActive(true);
-          setMentionFilter(filterText);
-          setMentionStartPos(atIndex);
-          return;
-        }
-      }
-    }
-
-    setMentionActive(false);
+    setMentionMatch(findMentionTextMatch(
+      value,
+      cursorPos,
+      COMPOSER_MENTION_TRIGGERS,
+    ));
   }, [
     roomMembers.length,
     isGoalMode,
@@ -76,35 +67,32 @@ export function useComposerMention({
   ]);
 
   const selectMentionItem = useCallback((item: MentionTargetItem) => {
-    const selectedMember = roomMembers.find((member) => member.agent_id === item.id);
-    if (!selectedMember) {
+    if (!mentionMatch) {
       return;
     }
-
-    const before = input.slice(0, mentionStartPos);
     const cursorPos = textareaRef.current?.selectionStart ?? input.length;
-    const after = input.slice(cursorPos);
-    const nextInput = `${before}@${selectedMember.name} ${after}`;
-    setInput(nextInput);
-    setMentionActive(false);
+    const insertion = insertMentionTarget(input, cursorPos, mentionMatch, item.label);
+    setInput(insertion.value);
+    setMentionMatch(null);
 
     requestAnimationFrame(() => {
-      const newCursor = mentionStartPos + selectedMember.name.length + 2;
-      textareaRef.current?.setSelectionRange(newCursor, newCursor);
+      textareaRef.current?.setSelectionRange(
+        insertion.cursorPosition,
+        insertion.cursorPosition,
+      );
       textareaRef.current?.focus();
     });
   }, [
-    roomMembers,
     input,
-    mentionStartPos,
+    mentionMatch,
     setInput,
     textareaRef,
   ]);
 
   return {
     closeMention,
-    mentionActive,
-    mentionFilter,
+    mentionActive: Boolean(mentionMatch),
+    mentionFilter: mentionMatch?.filter ?? "",
     mentionTargetItems,
     selectMentionItem,
     updateMentionForInput,

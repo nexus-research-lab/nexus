@@ -8,7 +8,7 @@ import {
   DEFAULT_OUTER_POINTS,
   OUTER_VIEWBOX_HEIGHT,
   OUTER_VIEWBOX_WIDTH,
-} from "@/features/launcher/launcher-blob-shape";
+} from "./launcher-blob-shape";
 import { cn } from "@/lib/utils";
 
 interface HeroBlobShellProps {
