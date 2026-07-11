@@ -54,6 +54,7 @@ export function ScheduledTaskDialog({
     <UiDialogPortal>
       <UiDialogBackdrop
         className="z-[9999]"
+        initialFocusRef={controller.refs.nameRef}
         labelledBy="create-task-dialog-title"
         onClose={onClose}
         onPointerDown={(event) => event.stopPropagation()}

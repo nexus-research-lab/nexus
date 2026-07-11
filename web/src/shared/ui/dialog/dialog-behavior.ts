@@ -2,18 +2,20 @@
 
 import { type RefObject, useEffect, useRef } from "react";
 
-const FOCUSABLE_SELECTOR = [
-  "a[href]",
-  "button:not([disabled])",
-  "textarea:not([disabled])",
-  "input:not([disabled])",
-  "select:not([disabled])",
-  "[tabindex]:not([tabindex='-1'])",
-].join(",");
-
-const dialogStack: symbol[] = [];
-let scrollLockCount = 0;
-let bodyOverflowBeforeLock = "";
+import {
+  focusDialogElement,
+  getDialogFocusState,
+  getDialogFocusableElements,
+} from "@/shared/ui/dialog/dialog-focus";
+import {
+  type DialogKeyboardAction,
+  resolveDialogKeyboardAction,
+} from "@/shared/ui/dialog/dialog-keyboard";
+import {
+  isTopDialogModal,
+  registerDialogModal,
+  unregisterDialogModal,
+} from "@/shared/ui/dialog/dialog-modal-runtime";
 
 interface DialogModalBehaviorOptions<T extends HTMLElement> {
   enabled?: boolean;
@@ -22,70 +24,44 @@ interface DialogModalBehaviorOptions<T extends HTMLElement> {
   rootRef: RefObject<T | null>;
 }
 
-function lockBodyScroll() {
-  if (typeof document === "undefined") {
-    return;
-  }
-
-  if (scrollLockCount === 0) {
-    bodyOverflowBeforeLock = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-  }
-
-  scrollLockCount += 1;
-}
-
-function unlockBodyScroll() {
-  if (typeof document === "undefined") {
-    return;
-  }
-
-  scrollLockCount = Math.max(0, scrollLockCount - 1);
-  if (scrollLockCount === 0) {
-    document.body.style.overflow = bodyOverflowBeforeLock;
-    bodyOverflowBeforeLock = "";
-  }
-}
-
-function isVisibleFocusTarget(element: HTMLElement): boolean {
-  if (element.hasAttribute("disabled") || element.getAttribute("aria-hidden") === "true") {
-    return false;
-  }
-
-  const style = window.getComputedStyle(element);
-  if (style.visibility === "hidden" || style.display === "none") {
-    return false;
-  }
-
-  return element.getClientRects().length > 0;
-}
-
-function getFocusableElements(root: HTMLElement): HTMLElement[] {
-  return Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
-    isVisibleFocusTarget,
-  );
-}
-
-function focusElement(element: HTMLElement | null | undefined) {
-  element?.focus({ preventScroll: true });
-}
-
-function isTopDialog(token: symbol): boolean {
-  return dialogStack[dialogStack.length - 1] === token;
-}
-
 function hasOpenOverlayControl(): boolean {
   return Boolean(document.querySelector("[data-ui-select-menu-open='true']"));
 }
 
-function removeDialogToken(token: symbol) {
-  const index = dialogStack.lastIndexOf(token);
-  if (index >= 0) {
-    dialogStack.splice(index, 1);
-  }
+interface DialogKeyboardActionContext {
+  event: KeyboardEvent;
+  first: HTMLElement | null;
+  last: HTMLElement | null;
+  onClose?: () => void;
+  root: HTMLElement;
 }
 
-/** 中文注释：集中提供接近 Radix Dialog 的键盘与焦点行为，业务弹窗只关心内容。 */
+type DialogKeyboardActionHandler = (context: DialogKeyboardActionContext) => void;
+
+const DIALOG_KEYBOARD_ACTION_HANDLERS: Record<
+  DialogKeyboardAction,
+  DialogKeyboardActionHandler
+> = {
+  close: ({ event, onClose }) => {
+    event.preventDefault();
+    onClose?.();
+  },
+  "focus-first": ({ event, first }) => {
+    event.preventDefault();
+    focusDialogElement(first);
+  },
+  "focus-last": ({ event, last }) => {
+    event.preventDefault();
+    focusDialogElement(last);
+  },
+  "focus-root": ({ event, root }) => {
+    event.preventDefault();
+    focusDialogElement(root);
+  },
+  ignore: () => undefined,
+};
+
+/** 统一装配模态栈、滚动锁定、初始焦点、焦点循环与焦点恢复。 */
 export function useDialogModalBehavior<T extends HTMLElement>({
   enabled = true,
   initialFocusRef,
@@ -103,75 +79,47 @@ export function useDialogModalBehavior<T extends HTMLElement>({
       return;
     }
 
-    const token = Symbol("ui-dialog");
+    const token = registerDialogModal();
     const previousFocus = document.activeElement instanceof HTMLElement
       ? document.activeElement
       : null;
-    dialogStack.push(token);
-    lockBodyScroll();
 
     const focusTimer = window.setTimeout(() => {
       const root = rootRef.current;
-      if (!root || !isTopDialog(token)) {
+      if (!root || !isTopDialogModal(token)) {
         return;
       }
 
       const autoFocusTarget =
         initialFocusRef?.current ??
         root.querySelector<HTMLElement>("[data-autofocus='true'], [autofocus]") ??
-        getFocusableElements(root)[0] ??
+        getDialogFocusableElements(root)[0] ??
         root;
-      focusElement(autoFocusTarget);
+      focusDialogElement(autoFocusTarget);
     }, 0);
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (!isTopDialog(token) || event.defaultPrevented) {
-        return;
-      }
-
       const root = rootRef.current;
-      if (!root) {
+      if (!root || !isTopDialogModal(token) || event.defaultPrevented) {
         return;
       }
 
-      if (event.key === "Escape") {
-        if (hasOpenOverlayControl()) {
-          return;
-        }
-        event.preventDefault();
-        onCloseRef.current?.();
-        return;
-      }
-
-      if (event.key !== "Tab") {
-        return;
-      }
-
-      const focusable = getFocusableElements(root);
-      if (focusable.length === 0) {
-        event.preventDefault();
-        focusElement(root);
-        return;
-      }
-
-      const activeElement = document.activeElement instanceof HTMLElement
-        ? document.activeElement
-        : null;
-      const activeIndex = activeElement ? focusable.indexOf(activeElement) : -1;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      const isFocusOutside = !activeElement || !root.contains(activeElement);
-
-      if (event.shiftKey && (isFocusOutside || activeIndex <= 0)) {
-        event.preventDefault();
-        focusElement(last);
-        return;
-      }
-
-      if (!event.shiftKey && (isFocusOutside || activeIndex === focusable.length - 1)) {
-        event.preventDefault();
-        focusElement(first);
-      }
+      const focusable = getDialogFocusableElements(root);
+      const focusState = getDialogFocusState(root, focusable);
+      const action = resolveDialogKeyboardAction({
+        ...focusState,
+        focusableCount: focusable.length,
+        hasOpenOverlay: hasOpenOverlayControl(),
+        key: event.key,
+        shiftKey: event.shiftKey,
+      });
+      DIALOG_KEYBOARD_ACTION_HANDLERS[action]({
+        event,
+        first: focusable[0] ?? null,
+        last: focusable.at(-1) ?? null,
+        onClose: onCloseRef.current,
+        root,
+      });
     };
 
     document.addEventListener("keydown", handleKeyDown);
@@ -179,11 +127,10 @@ export function useDialogModalBehavior<T extends HTMLElement>({
     return () => {
       window.clearTimeout(focusTimer);
       document.removeEventListener("keydown", handleKeyDown);
-      removeDialogToken(token);
-      unlockBodyScroll();
+      unregisterDialogModal(token);
 
       if (previousFocus?.isConnected) {
-        focusElement(previousFocus);
+        focusDialogElement(previousFocus);
       }
     };
   }, [enabled, initialFocusRef, rootRef]);

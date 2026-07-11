@@ -6,7 +6,6 @@ import {
   createScheduledTaskApi,
   updateScheduledTaskApi,
 } from "@/lib/api/capability/scheduled-task-api";
-import { closeOnEscape } from "@/shared/ui/dialog/dialog-keyboard";
 import type {
   ScheduledTaskItem,
   UpdateScheduledTaskParams,
@@ -145,17 +144,7 @@ export function useTaskDialogController({
       return;
     }
     hydrate();
-    requestAnimationFrame(() => refs.nameRef.current?.focus());
-  }, [hydrate, isOpen, refs.nameRef]);
-
-  useEffect(() => {
-    if (!isOpen) {
-      return;
-    }
-    const onKeyDown = (event: KeyboardEvent) => closeOnEscape(event, onClose);
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [isOpen, onClose]);
+  }, [hydrate, isOpen]);
 
   return {
     clearError,

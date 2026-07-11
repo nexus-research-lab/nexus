@@ -39,7 +39,7 @@ export function ScheduledTaskRunHistoryContent({
   task,
 }: ScheduledTaskRunHistoryContentProps) {
   return (
-    <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto px-6 py-5">
+    <div>
       {isLoading ? (
         <UiSkeletonCardList cardClassName="min-h-[108px]" count={4} />
       ) : errorMessage ? (

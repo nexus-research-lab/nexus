@@ -36,6 +36,7 @@ interface UiDialogPortalProps {
 interface UiDialogBackdropProps extends HTMLAttributes<HTMLDivElement> {
   children: ReactNode;
   className?: string;
+  closeOnBackdrop?: boolean;
   labelledBy?: string;
   describedBy?: string;
   initialFocusRef?: RefObject<HTMLElement | null>;
@@ -59,6 +60,7 @@ interface UiDialogHeaderProps extends Omit<HTMLAttributes<HTMLDivElement>, "titl
   actions?: ReactNode;
   children?: ReactNode;
   className?: string;
+  closeLabel?: string;
   icon?: ReactNode;
   iconClassName?: string;
   onClose?: () => void;
@@ -90,12 +92,13 @@ export function UiDialogPortal({ children }: UiDialogPortalProps) {
 export function UiDialogBackdrop({
   children,
   className,
-  describedBy: describedBy,
-  initialFocusRef: initialFocusRef,
-  labelledBy: labelledBy,
+  closeOnBackdrop = true,
+  describedBy,
+  initialFocusRef,
+  labelledBy,
   onClick,
-  onClose: onClose,
-  trapFocus: trapFocus = true,
+  onClose,
+  trapFocus = true,
   ...props
 }: UiDialogBackdropProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -107,7 +110,7 @@ export function UiDialogBackdrop({
   });
 
   return (
-    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- backdrop click-to-close + Escape is a standard modal dialog pattern
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- 模态根节点统一承载遮罩关闭，键盘协议由行为层监听。
     <div
       ref={rootRef}
       aria-describedby={describedBy}
@@ -118,12 +121,11 @@ export function UiDialogBackdrop({
       data-ui-dialog-root="true"
       onClick={(event) => {
         onClick?.(event);
-        if (!event.defaultPrevented && event.target === event.currentTarget) {
-          onClose?.();
-        }
-      }}
-      onKeyDown={(event) => {
-        if (event.key === "Escape") {
+        if (
+          closeOnBackdrop
+          && !event.defaultPrevented
+          && event.target === event.currentTarget
+        ) {
           onClose?.();
         }
       }}
@@ -182,12 +184,13 @@ export function UiDialogHeader({
   actions,
   children,
   className,
+  closeLabel,
   icon,
-  iconClassName: iconClassName,
-  onClose: onClose,
+  iconClassName,
+  onClose,
   subtitle,
   title,
-  titleId: titleId,
+  titleId,
   ...props
 }: UiDialogHeaderProps) {
   return (
@@ -210,7 +213,7 @@ export function UiDialogHeader({
         </div>
       )}
       {actions}
-      {onClose ? <UiDialogCloseButton onClose={onClose} /> : null}
+      {onClose ? <UiDialogCloseButton ariaLabel={closeLabel} onClose={onClose} /> : null}
     </div>
   );
 }
@@ -248,15 +251,17 @@ export function UiDialogFooter({
 }
 
 export function UiDialogCloseButton({
+  ariaLabel = "关闭",
   className,
-  onClose: onClose,
+  onClose,
 }: {
+  ariaLabel?: string;
   className?: string;
   onClose: () => void;
 }) {
   return (
     <button
-      aria-label="关闭"
+      aria-label={ariaLabel}
       className={cn(DIALOG_ICON_BUTTON_CLASS_NAME, className)}
       onClick={(event) => {
         event.preventDefault();

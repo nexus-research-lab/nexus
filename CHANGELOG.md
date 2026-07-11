@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Consolidated modal stacking, body scroll locking, focus discovery, focus cycling, and Escape handling under shared Dialog ownership; removed duplicate business-level keyboard listeners and migrated Agent Options, Mermaid preview, and scheduled-task run history off their private modal shells.
 - Separated scheduled-task run diagnostics from history status and action rules, using ordered definitions for detail rows, output sections, and copied diagnostic fields instead of repeated conditional assembly.
 - Moved ExcelJS cell-value classification and text formatting into an owned Spreadsheet value model, replacing the branch-heavy `unknown` object probe chain with ordered rules over the real closed `CellValue` union.
 - Split Room history items into pure activity/action projection and mode-driven reading/editing views, replacing repeated active, capability, metadata, and title-state conditions in the item entry component.

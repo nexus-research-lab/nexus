@@ -1,10 +1,15 @@
 "use client";
 
-import { useEffect } from "react";
-import { RefreshCw, X } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 
-import { UiButton, UiIconButton } from "@/shared/ui/button/button";
-import { closeOnEscape } from "@/shared/ui/dialog/dialog-keyboard";
+import { UiButton } from "@/shared/ui/button/button";
+import {
+  UiDialogBackdrop,
+  UiDialogBody,
+  UiDialogHeader,
+  UiDialogPortal,
+  UiDialogShell,
+} from "@/shared/ui/dialog/dialog";
 import { WorkspaceStatusBadge } from "@/shared/ui/workspace/controls/workspace-status-badge";
 import type { ScheduledTaskRunItem } from "@/types/capability/scheduled-task/run";
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
@@ -49,35 +54,38 @@ export function ScheduledTaskRunHistoryDialog({
     task: activeTask,
   });
 
-  useEffect(() => {
-    if (!isOpen) {
-      return;
-    }
-    const onKeyDown = (event: KeyboardEvent) => closeOnEscape(event, onClose);
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [isOpen, onClose]);
-
   if (!activeTask) {
     return null;
   }
 
   const taskStatus = getTaskStatusMeta(activeTask);
   return (
-    <div
-      aria-labelledby="scheduled-task-run-history-title"
-      aria-modal="true"
-      className="dialog-backdrop"
-      data-modal-root="true"
-      role="dialog"
-    >
-      <div className="dialog-shell surface-radius-md flex h-[82vh] w-full max-w-4xl flex-col overflow-hidden">
-        <div className="dialog-header">
+    <UiDialogPortal>
+      <UiDialogBackdrop
+        closeOnBackdrop={false}
+        labelledBy="scheduled-task-run-history-title"
+        onClose={onClose}
+      >
+        <UiDialogShell className="h-[82vh]" size="xl">
+          <UiDialogHeader
+            actions={(
+              <UiButton
+                onClick={() => void resource.refresh().catch(() => undefined)}
+                size="xs"
+                type="button"
+                variant="text"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                刷新
+              </UiButton>
+            )}
+            onClose={onClose}
+          >
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <h3 className="dialog-title" id="scheduled-task-run-history-title">
+              <h2 className="dialog-title" id="scheduled-task-run-history-title">
                 {activeTask.name} 运行历史
-              </h3>
+              </h2>
               <WorkspaceStatusBadge
                 label={taskStatus.label}
                 size="compact"
@@ -91,37 +99,26 @@ export function ScheduledTaskRunHistoryDialog({
               </p>
             ) : null}
           </div>
-          <div className="flex items-center gap-2">
-            <UiButton
-              onClick={() => void resource.refresh().catch(() => undefined)}
-              size="xs"
-              type="button"
-              variant="text"
-            >
-              <RefreshCw className="h-3.5 w-3.5" />
-              刷新
-            </UiButton>
-            <UiIconButton aria-label="关闭" onClick={onClose} size="md" type="button">
-              <X className="h-4 w-4" />
-            </UiIconButton>
-          </div>
-        </div>
+          </UiDialogHeader>
 
-        <ScheduledTaskRunHistoryContent
-          copiedRunId={actions.copiedRunId}
-          errorMessage={resource.errorMessage}
-          isLoading={resource.isLoading}
-          onCopyDiagnostic={actions.copyDiagnostic}
-          onRecover={actions.recover}
-          onRetry={actions.retry}
-          onRetryDelivery={actions.retryDelivery}
-          pendingRecoveries={actions.pending.get("recover") ?? EMPTY_PENDING_RUN_IDS}
-          pendingRetries={actions.pending.get("retry") ?? EMPTY_PENDING_RUN_IDS}
-          pendingRetryDeliveries={actions.pending.get("retryDelivery") ?? EMPTY_PENDING_RUN_IDS}
-          runs={resource.runs}
-          task={activeTask}
-        />
-      </div>
-    </div>
+          <UiDialogBody className="min-h-0 flex-1" scrollable>
+            <ScheduledTaskRunHistoryContent
+              copiedRunId={actions.copiedRunId}
+              errorMessage={resource.errorMessage}
+              isLoading={resource.isLoading}
+              onCopyDiagnostic={actions.copyDiagnostic}
+              onRecover={actions.recover}
+              onRetry={actions.retry}
+              onRetryDelivery={actions.retryDelivery}
+              pendingRecoveries={actions.pending.get("recover") ?? EMPTY_PENDING_RUN_IDS}
+              pendingRetries={actions.pending.get("retry") ?? EMPTY_PENDING_RUN_IDS}
+              pendingRetryDeliveries={actions.pending.get("retryDelivery") ?? EMPTY_PENDING_RUN_IDS}
+              runs={resource.runs}
+              task={activeTask}
+            />
+          </UiDialogBody>
+        </UiDialogShell>
+      </UiDialogBackdrop>
+    </UiDialogPortal>
   );
 }

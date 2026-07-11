@@ -90,6 +90,7 @@ export function IdentityProfileFields({
           <UiInput
             className={layout.inputClassName}
             controlSize="md"
+            data-autofocus="true"
             onChange={(event) => onTitleChange(event.target.value)}
             placeholder={namePlaceholder}
             type="text"

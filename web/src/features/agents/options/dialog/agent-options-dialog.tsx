@@ -1,16 +1,19 @@
 "use client";
 
-import { useEffect } from "react";
-import { createPortal } from "react-dom";
-import { Settings, X } from "lucide-react";
+import { Settings } from "lucide-react";
 
 import { AgentOptionsDialogEditor } from "@/features/agents/options/agent-options-editor";
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import {
+  UiDialogBackdrop,
+  UiDialogHeader,
+  UiDialogPortal,
+  UiDialogShell,
+} from "@/shared/ui/dialog/dialog";
+import {
   DIALOG_HEADER_ICON_CLASS_NAME,
   DIALOG_HEADER_LEADING_CLASS_NAME,
-  DIALOG_ICON_BUTTON_CLASS_NAME,
 } from "@/shared/ui/dialog/dialog-styles";
 import type {
   AgentIdentityDraft,
@@ -37,7 +40,7 @@ export interface AgentOptionsDialogProps {
   initialVibeTags?: string[];
 }
 
-/** Contacts 创建与编辑共用同一编辑器，弹窗只负责 Portal、键盘关闭和窗口骨架。 */
+/** Contacts 创建与编辑共用同一编辑器，弹窗只负责共享模态骨架与标题。 */
 export function AgentOptionsDialog({
   agentId,
   mode,
@@ -54,80 +57,60 @@ export function AgentOptionsDialog({
 }: AgentOptionsDialogProps) {
   const { t } = useI18n();
 
-  useEffect(() => {
-    if (!isOpen) {
-      return;
-    }
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        onClose();
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, onClose]);
-
-  if (!isOpen || typeof document === "undefined") {
+  if (!isOpen) {
     return null;
   }
 
-  return createPortal(
-    <div
-      aria-labelledby="agent-options-dialog-title"
-      aria-modal="true"
-      className="dialog-backdrop z-[9999]"
-      data-modal-root="true"
-      role="dialog"
-    >
-      <div className="dialog-shell surface-radius-md flex h-[80vh] w-full max-w-[920px] flex-col overflow-hidden">
-        <div className="dialog-header px-5 py-4">
-          <div className={cn(DIALOG_HEADER_LEADING_CLASS_NAME, "min-w-0 flex-1 items-center")}>
-            <div className={cn(DIALOG_HEADER_ICON_CLASS_NAME, "h-11 w-11 rounded-[16px] text-primary")}>
-              <Settings className="h-5 w-5" />
-            </div>
-            <div className="min-w-0">
-              <h2
-                className="dialog-title truncate text-[22px] font-black tracking-[-0.04em]"
-                id="agent-options-dialog-title"
-              >
-                {mode === "create" ? t("agent_options.title_create") : initialTitle}
-              </h2>
-              {mode === "edit" && agentId ? (
-                <p className="dialog-subtitle">{t("agent_options.id_prefix")}: {agentId}</p>
-              ) : (
-                <p className="dialog-subtitle">{t("agent_options.subtitle_create")}</p>
-              )}
-            </div>
-          </div>
-          <button
-            className={DIALOG_ICON_BUTTON_CLASS_NAME}
-            aria-label={t("agent_options.close_dialog")}
-            onClick={onClose}
-            type="button"
+  return (
+    <UiDialogPortal>
+      <UiDialogBackdrop
+        className="z-[9999]"
+        closeOnBackdrop={false}
+        labelledBy="agent-options-dialog-title"
+        onClose={onClose}
+      >
+        <UiDialogShell className="h-[80vh] max-w-[920px]" size="wide">
+          <UiDialogHeader
+            className="px-5 py-4"
+            closeLabel={t("agent_options.close_dialog")}
+            onClose={onClose}
           >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
+            <div className={cn(DIALOG_HEADER_LEADING_CLASS_NAME, "min-w-0 flex-1 items-center")}>
+              <div className={cn(DIALOG_HEADER_ICON_CLASS_NAME, "h-11 w-11 rounded-[16px] text-primary")}>
+                <Settings className="h-5 w-5" />
+              </div>
+              <div className="min-w-0">
+                <h2
+                  className="dialog-title truncate text-[22px] font-black"
+                  id="agent-options-dialog-title"
+                >
+                  {mode === "create" ? t("agent_options.title_create") : initialTitle}
+                </h2>
+                {mode === "edit" && agentId ? (
+                  <p className="dialog-subtitle">{t("agent_options.id_prefix")}: {agentId}</p>
+                ) : (
+                  <p className="dialog-subtitle">{t("agent_options.subtitle_create")}</p>
+                )}
+              </div>
+            </div>
+          </UiDialogHeader>
 
-        <AgentOptionsDialogEditor
-          agentId={agentId}
-          mode={mode}
-          isActive={isOpen}
-          onCancel={onClose}
-          onDelete={onDelete}
-          onSave={onSave}
-          onValidateName={onValidateName}
-          initialTitle={initialTitle}
-          initialOptions={initialOptions}
-          initialAvatar={initialAvatar}
-          initialDescription={initialDescription}
-          initialVibeTags={initialVibeTags}
-        />
-      </div>
-    </div>,
-    document.body,
+          <AgentOptionsDialogEditor
+            agentId={agentId}
+            initialAvatar={initialAvatar}
+            initialDescription={initialDescription}
+            initialOptions={initialOptions}
+            initialTitle={initialTitle}
+            initialVibeTags={initialVibeTags}
+            isActive={isOpen}
+            mode={mode}
+            onCancel={onClose}
+            onDelete={onDelete}
+            onSave={onSave}
+            onValidateName={onValidateName}
+          />
+        </UiDialogShell>
+      </UiDialogBackdrop>
+    </UiDialogPortal>
   );
 }
