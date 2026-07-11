@@ -11,8 +11,21 @@ export interface ComposerLocalAttachment {
   kind: MessageAttachmentKind;
 }
 
-export const MAX_COMPOSER_ATTACHMENTS = 6;
-export const PASTED_TEXT_ATTACHMENT_THRESHOLD = 10_000;
+export interface ComposerLocalAttachmentBatch {
+  attachments: ComposerLocalAttachment[];
+  rejections: ComposerAttachmentRejection[];
+}
+
+export type ComposerPasteActionKind = "append_files" | "append_text" | "native" | "reject_goal";
+
+export interface ComposerPasteAction {
+  files: File[];
+  kind: ComposerPasteActionKind;
+  text: string;
+}
+
+const MAX_COMPOSER_ATTACHMENTS = 6;
+const PASTED_TEXT_ATTACHMENT_THRESHOLD = 10_000;
 
 const CLIPBOARD_IMAGE_EXTENSION_BY_MIME: Record<string, string> = {
   "image/png": "png",
@@ -52,7 +65,7 @@ export function buildPastedTextFile(text: string): File {
   });
 }
 
-export function getClipboardFiles(clipboardData: DataTransfer): File[] {
+function getClipboardFiles(clipboardData: DataTransfer): File[] {
   const filesFromItems = Array.from(clipboardData.items)
     .filter((item) => item.kind === "file")
     .map((item) => item.getAsFile())
@@ -66,7 +79,7 @@ export function getClipboardFiles(clipboardData: DataTransfer): File[] {
   return Array.from(clipboardData.files).map(buildPastedImageFile);
 }
 
-export function buildLocalAttachment(
+function buildLocalAttachment(
   file: File,
 ): {
   attachment: ComposerLocalAttachment | null;
@@ -84,5 +97,59 @@ export function buildLocalAttachment(
       kind: inspection.kind,
     },
     rejection: null,
+  };
+}
+
+export function buildLocalAttachmentBatch(
+  files: File[],
+): ComposerLocalAttachmentBatch {
+  const results = files.map(buildLocalAttachment);
+  return {
+    attachments: results.flatMap((result) => (
+      result.attachment ? [result.attachment] : []
+    )),
+    rejections: results.flatMap((result) => (
+      result.rejection ? [result.rejection] : []
+    )),
+  };
+}
+
+export function appendLocalAttachments(
+  current: ComposerLocalAttachment[],
+  additions: ComposerLocalAttachment[],
+): ComposerLocalAttachment[] {
+  if (additions.length === 0) {
+    return current;
+  }
+  return [...current, ...additions].slice(0, MAX_COMPOSER_ATTACHMENTS);
+}
+
+export function projectComposerPasteAction(
+  clipboardData: DataTransfer,
+  isGoalMode: boolean,
+): ComposerPasteAction {
+  const files = getClipboardFiles(clipboardData);
+  const text = clipboardData.getData("text/plain");
+  const candidates: Array<{
+    active: boolean;
+    kind: ComposerPasteActionKind;
+  }> = [
+    {
+      active: [files.length > 0, isGoalMode].every(Boolean),
+      kind: "reject_goal",
+    },
+    { active: files.length > 0, kind: "append_files" },
+    {
+      active: [
+        !isGoalMode,
+        text.length > PASTED_TEXT_ATTACHMENT_THRESHOLD,
+      ].every(Boolean),
+      kind: "append_text",
+    },
+  ];
+  return {
+    files,
+    kind: candidates.find((candidate) => candidate.active)?.kind ?? "native",
+    text,
   };
 }

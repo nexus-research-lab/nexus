@@ -5,7 +5,7 @@ import type {
   ToolResultContent,
 } from "@/types/conversation/message/content";
 
-import { ImageBlock } from "../artifact/image-block";
+import { ImageBlock } from "../artifact/image/image-block";
 import { CodeBlock } from "@/shared/ui/markdown/code/code-block";
 
 const TOOL_DETAIL_SCROLL_CLASS_NAME =

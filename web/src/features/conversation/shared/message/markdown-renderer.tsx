@@ -27,7 +27,7 @@ import {
 
 import "katex/dist/katex.min.css";
 
-import { FileArtifactBlock } from "./blocks/artifact/file-artifact-block";
+import { FileArtifactBlock } from "./blocks/artifact/file/file-artifact-block";
 
 interface MarkdownRendererProps {
   content: string;

@@ -15,19 +15,31 @@ import {
   ComposerAttachmentRejectedError,
 } from "./composer-attachments";
 import {
-  buildLocalAttachment,
+  appendLocalAttachments,
+  buildLocalAttachmentBatch,
   buildPastedTextFile,
+  type ComposerPasteAction,
+  type ComposerPasteActionKind,
   ComposerLocalAttachment,
-  getClipboardFiles,
-  MAX_COMPOSER_ATTACHMENTS,
-  PASTED_TEXT_ATTACHMENT_THRESHOLD,
+  projectComposerPasteAction,
 } from "./composer-local-attachment-model";
 
 interface UseComposerAttachmentsOptions {
   isGoalMode: boolean;
   onGoalAttachmentRejected: (message: string) => void;
-  onPrepareAttachments?: (files: File[]) => Promise<MessageAttachment[]>;
+  onPrepareAttachments: (files: File[]) => Promise<MessageAttachment[]>;
 }
+
+interface ComposerPasteActionContext {
+  action: ComposerPasteAction;
+  appendFiles: (files: File[]) => void;
+  event: ClipboardEvent<HTMLTextAreaElement>;
+  rejectGoalAttachment: () => void;
+}
+
+type ComposerPasteActionHandler = (
+  context: ComposerPasteActionContext,
+) => void;
 
 const ATTACHMENT_REJECTION_MESSAGE_KEYS: Record<
   ComposerAttachmentRejectionCode,
@@ -35,6 +47,25 @@ const ATTACHMENT_REJECTION_MESSAGE_KEYS: Record<
 > = {
   too_large: "composer.attachment_too_large",
   unsupported_format: "composer.attachment_format_unsupported",
+};
+
+const PASTE_ACTION_HANDLERS: Record<
+  ComposerPasteActionKind,
+  ComposerPasteActionHandler
+> = {
+  append_files: ({ action, appendFiles, event }) => {
+    event.preventDefault();
+    appendFiles(action.files);
+  },
+  append_text: ({ action, appendFiles, event }) => {
+    event.preventDefault();
+    appendFiles([buildPastedTextFile(action.text)]);
+  },
+  native: () => undefined,
+  reject_goal: ({ event, rejectGoalAttachment }) => {
+    event.preventDefault();
+    rejectGoalAttachment();
+  },
 };
 
 function formatAttachmentRejection(
@@ -56,6 +87,16 @@ function formatAttachmentPreparationError(
   return error instanceof Error
     ? error.message
     : translate("composer.attachment_failed");
+}
+
+function formatFirstAttachmentRejection(
+  rejection: ComposerAttachmentRejection | undefined,
+  translate: I18nContextValue["t"],
+): string | null {
+  if (!rejection) {
+    return null;
+  }
+  return formatAttachmentRejection(rejection, translate);
 }
 
 export function useComposerAttachments({
@@ -80,31 +121,12 @@ export function useComposerAttachments({
     if (files.length === 0) {
       return;
     }
-
-    const nextAttachments: ComposerLocalAttachment[] = [];
-    const rejections: ComposerAttachmentRejection[] = [];
-
-    files.forEach((file) => {
-      const { attachment, rejection } = buildLocalAttachment(file);
-      if (rejection) {
-        rejections.push(rejection);
-        return;
-      }
-      if (attachment) {
-        nextAttachments.push(attachment);
-      }
-    });
-
-    const firstRejection = rejections[0];
-    if (firstRejection) {
-      setAttachmentError(formatAttachmentRejection(firstRejection, t));
-    } else {
-      setAttachmentError(null);
-    }
-
-    if (nextAttachments.length > 0) {
-      setAttachments((prev) => [...prev, ...nextAttachments].slice(0, MAX_COMPOSER_ATTACHMENTS));
-    }
+    const batch = buildLocalAttachmentBatch(files);
+    setAttachmentError(formatFirstAttachmentRejection(batch.rejections[0], t));
+    setAttachments((current) => appendLocalAttachments(
+      current,
+      batch.attachments,
+    ));
   }, [t]);
 
   const handleFileSelect = useCallback((event: ChangeEvent<HTMLInputElement>) => {
@@ -118,22 +140,15 @@ export function useComposerAttachments({
   }, [appendAttachmentFiles]);
 
   const handlePaste = useCallback((event: ClipboardEvent<HTMLTextAreaElement>) => {
-    const pastedFiles = getClipboardFiles(event.clipboardData);
-    if (pastedFiles.length === 0) {
-      const pastedText = event.clipboardData.getData("text/plain");
-      if (!isGoalMode && pastedText.length > PASTED_TEXT_ATTACHMENT_THRESHOLD) {
-        event.preventDefault();
-        appendAttachmentFiles([buildPastedTextFile(pastedText)]);
-      }
-      return;
-    }
-
-    event.preventDefault();
-    if (isGoalMode) {
-      onGoalAttachmentRejected(t("composer.goal_attachment_unsupported"));
-      return;
-    }
-    appendAttachmentFiles(pastedFiles);
+    const action = projectComposerPasteAction(event.clipboardData, isGoalMode);
+    PASTE_ACTION_HANDLERS[action.kind]({
+      action,
+      appendFiles: appendAttachmentFiles,
+      event,
+      rejectGoalAttachment: () => {
+        onGoalAttachmentRejected(t("composer.goal_attachment_unsupported"));
+      },
+    });
   }, [
     appendAttachmentFiles,
     isGoalMode,
@@ -145,11 +160,6 @@ export function useComposerAttachments({
     if (attachments.length === 0) {
       return [] as MessageAttachment[];
     }
-    if (!onPrepareAttachments) {
-      setAttachmentError(t("composer.unsupported_attachment"));
-      return null;
-    }
-
     setIsPreparingAttachments(true);
     setAttachmentError(null);
     try {

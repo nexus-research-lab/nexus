@@ -22,7 +22,7 @@ interface UseComposerMessageSubmitOptions {
   input: string;
   isLoading: boolean;
   isPreparingAttachments: boolean;
-  onEnqueueMessage?: DeliverMessage;
+  onEnqueueMessage: DeliverMessage;
   onSendMessage: DeliverMessage;
   prepareAttachments: () => Promise<MessageAttachment[] | null>;
   queueItemCount: number;
@@ -135,9 +135,6 @@ function resolveMessageSubmission(
     send: options.onSendMessage,
   };
   const deliver = handlers[delivery.handler];
-  if (!deliver) {
-    return null;
-  }
   return { content, deliver, policy: delivery.policy };
 }
 

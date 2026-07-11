@@ -30,7 +30,6 @@ interface ComposerViewStateOptions {
   isLoading: boolean;
   isLoopPickerOpen: boolean;
   isPreparingAttachments: boolean;
-  hasStopHandler: boolean;
   queueItemCount: number;
   queueWhenSessionBusy: boolean;
   runtimePhase: AgentConversationRuntimePhase | null;
@@ -44,7 +43,6 @@ export function buildComposerViewState(
     options.attachmentCount,
   );
   const runtimeState = projectComposerRuntime({
-    hasStopHandler: options.hasStopHandler,
     isLoading: options.isLoading,
     queueItemCount: options.queueItemCount,
     runtimePhase: options.runtimePhase,

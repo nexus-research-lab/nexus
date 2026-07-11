@@ -60,21 +60,17 @@ export function projectComposerInput(
 }
 
 export function projectComposerRuntime({
-  hasStopHandler,
   isLoading,
   queueItemCount,
   runtimePhase,
 }: {
-  hasStopHandler: boolean;
   isLoading: boolean;
   queueItemCount: number;
   runtimePhase: AgentConversationRuntimePhase | null;
 }): ComposerRuntimeProjection {
   const isDispatching = [isLoading, runtimePhase === "sending"].every(Boolean);
   return {
-    canStopGeneration: [isLoading, !isDispatching, hasStopHandler].every(
-      Boolean,
-    ),
+    canStopGeneration: [isLoading, !isDispatching].every(Boolean),
     isDispatching,
     sessionBusy: [isLoading, queueItemCount > 0].some(Boolean),
   };

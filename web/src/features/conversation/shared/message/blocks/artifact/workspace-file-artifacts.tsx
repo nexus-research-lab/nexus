@@ -3,7 +3,7 @@
 import { cn } from "@/shared/ui/class-name";
 import type { WorkspaceFileArtifactContent } from "@/types/conversation/message/content";
 
-import { FileArtifactBlock } from "./file-artifact-block";
+import { FileArtifactBlock } from "./file/file-artifact-block";
 
 interface WorkspaceFileArtifactListProps {
   artifacts: WorkspaceFileArtifactContent[];

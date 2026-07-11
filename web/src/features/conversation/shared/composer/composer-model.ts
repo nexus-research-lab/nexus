@@ -12,27 +12,27 @@ import type { MessageAttachment } from "@/types/conversation/message/attachment"
 
 export interface ComposerPanelProps {
   compact: boolean;
-  isLoading?: boolean;
-  runtimePhase?: AgentConversationRuntimePhase | null;
+  isLoading: boolean;
+  runtimePhase: AgentConversationRuntimePhase | null;
   onSendMessage: (
     content: string,
     deliveryPolicy: AgentConversationDeliveryPolicy,
     attachments?: MessageAttachment[],
   ) => void | Promise<void>;
-  inputQueueItems?: InputQueueItem[];
-  onEnqueueMessage?: (
+  inputQueueItems: InputQueueItem[];
+  onEnqueueMessage: (
     content: string,
     deliveryPolicy: AgentConversationDeliveryPolicy,
     attachments?: MessageAttachment[],
   ) => void | Promise<void>;
-  onDeleteQueuedMessage?: (itemId: string) => void | Promise<void>;
-  onGuideQueuedMessage?: (itemId: string) => void | Promise<void>;
-  onReorderQueueMessages?: (orderedIds: string[]) => void | Promise<void>;
-  onStop?: () => void;
-  defaultDeliveryPolicy?: AgentConversationDefaultDeliveryPolicy;
+  onDeleteQueuedMessage: (itemId: string) => void | Promise<void>;
+  onGuideQueuedMessage: (itemId: string) => void | Promise<void>;
+  onReorderQueueMessages: (orderedIds: string[]) => void | Promise<void>;
+  onStop: () => void;
+  defaultDeliveryPolicy: AgentConversationDefaultDeliveryPolicy;
   queueWhenSessionBusy?: boolean;
   roomMembers?: Agent[];
-  onPrepareAttachments?: (
+  onPrepareAttachments: (
     files: File[],
   ) => Promise<MessageAttachment[]>;
   onCreateGoal?: (objective: string) => Promise<void>;
@@ -40,8 +40,8 @@ export interface ComposerPanelProps {
   onCreateLoopGoal?: (loop: LoopCatalogItem) => Promise<void>;
   goalCreateDisabledReason?: string | null;
   goalModeExtra?: ReactNode;
-  goalScopeLabel?: string;
-  tourAnchor?: string;
+  goalScopeLabel: string;
+  tourAnchor: string;
 }
 
 export type ComposerInputMode = "message" | "goal";

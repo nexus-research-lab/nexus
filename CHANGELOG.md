@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Split message file and image artifacts into scoped source and presentation models, consolidating path parsing and browser-download or desktop-reveal behavior into one Artifact-owned action.
+- Split Composer input, submit, Footer, pending-queue, Loop-picker, and attachment-paste responsibilities into scoped models, controllers, and views; removed optional handlers unsupported by its real DM and Room consumers.
 - Split Composer state derivation into input, runtime, mode, and action projections; separated message submission phases and ordered IME, Safari, and Mention keyboard guards while keeping the panel contract flat.
 - Moved permission event decoding into its own transport subdomain, replacing repeated optional-field branches with typed enum, scope, suggestion, and default-interaction projections before handlers mutate Session state.
 - Split AskUserQuestion cards and control flow into scoped presentation, draft restoration, interaction state, and submission transaction modules, removing branch-heavy JSX and preserving stale-scope submission isolation.

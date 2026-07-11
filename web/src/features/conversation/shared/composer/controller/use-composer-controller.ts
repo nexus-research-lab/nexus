@@ -3,7 +3,6 @@ import { useCallback, useEffect, useRef } from "react";
 import { useTextareaHeight } from "@/hooks/ui/use-textarea-height";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { Agent } from "@/types/agent/agent";
-import type { InputQueueItem } from "@/types/agent/agent-conversation";
 
 import { useComposerAttachments } from "../attachments/use-composer-attachments";
 import type { ComposerPanelProps } from "../composer-model";
@@ -15,16 +14,15 @@ import { useComposerGoalActions } from "./use-composer-goal-actions";
 import { useComposerKeyboard } from "./use-composer-keyboard";
 import { useComposerMessageSubmit } from "./use-composer-message-submit";
 
-const EMPTY_INPUT_QUEUE_ITEMS: InputQueueItem[] = [];
 const EMPTY_ROOM_MEMBERS: Agent[] = [];
 
 export function useComposerController({
   compact,
-  defaultDeliveryPolicy = "queue",
+  defaultDeliveryPolicy,
   enableLoops = false,
   goalCreateDisabledReason = null,
-  inputQueueItems = EMPTY_INPUT_QUEUE_ITEMS,
-  isLoading = false,
+  inputQueueItems,
+  isLoading,
   onCreateGoal,
   onCreateLoopGoal,
   onEnqueueMessage,
@@ -33,7 +31,7 @@ export function useComposerController({
   onStop,
   queueWhenSessionBusy = true,
   roomMembers = EMPTY_ROOM_MEMBERS,
-  runtimePhase = null,
+  runtimePhase,
 }: ComposerPanelProps) {
   const { t } = useI18n();
   const draft = useComposerDraft();
@@ -176,7 +174,6 @@ export function useComposerController({
     },
     goalCreateBlockedReason: goal.blockedReason,
     goalError: draftState.goalError,
-    hasStopHandler: Boolean(onStop),
     historyIndex: history.index,
     historyItemCount: history.itemCount,
     input: draftState.input,

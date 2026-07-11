@@ -245,7 +245,6 @@ export const enConversationMessages = {
   "composer.stop_generation": "Stop generation",
   "composer.esc_stop": "ESC to stop",
   "composer.send_message": "Send message",
-  "composer.unsupported_attachment": "Attachments are not supported in this chat.",
   "composer.attachment_format_unsupported": "Unsupported attachment format: {name}",
   "composer.attachment_too_large": "Attachment exceeds 20MB: {name}",
   "composer.attachment_failed": "Failed to prepare attachment. Please try again.",
