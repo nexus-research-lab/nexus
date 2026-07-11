@@ -4,16 +4,16 @@
 
 import { useCallback } from "react";
 
+import { useExistingAgentOptionsCommands } from "@/features/agents/options/use-existing-agent-options-commands";
 import { useHomeWorkspaceController } from "@/hooks/home/use-home-workspace-controller";
 import { useAgentStore } from "@/store/agent";
 import { useConversationStore } from "@/store/conversation";
 import type { RoomPageControllerOptions } from "@/types/app/route";
 
-import { useRoomAgentOptions } from "./use-room-agent-options";
-import { useRoomConversationSnapshot } from "./use-room-conversation-snapshot";
-import { useRoomPageCommands } from "./use-room-page-commands";
+import { useRoomPageCommands } from "./commands/use-room-page-commands";
+import { useRoomConversationSnapshot } from "./model/use-room-conversation-snapshot";
 import { useRoomPageData } from "./use-room-page-data";
-import { useRoomPageModel } from "./use-room-page-model";
+import { useRoomPageModel } from "./model/use-room-page-model";
 
 export function useRoomPageController({
   roomId,
@@ -35,11 +35,11 @@ export function useRoomPageController({
     roomId,
     sessionKey,
   });
-  const agentOptions = useRoomAgentOptions({updateAgent});
+  const agentOptions = useExistingAgentOptionsCommands({updateAgent});
   const commands = useRoomPageCommands({
     roomId,
     refreshRoomContexts: data.refreshRoomContexts,
-    saveExistingAgentOptions: agentOptions.saveExistingAgentOptions,
+    saveExistingAgentOptions: agentOptions.saveAgentOptions,
   });
   const handleConversationSnapshotChange = useRoomConversationSnapshot({
     activeRoomSessionId: model.activeRoomSession?.id ?? null,

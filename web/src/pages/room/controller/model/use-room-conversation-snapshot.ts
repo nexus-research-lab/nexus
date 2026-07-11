@@ -9,7 +9,7 @@ import type {
 } from "@/types/conversation/conversation";
 import type { RoomContextAggregate } from "@/types/conversation/room";
 
-import { applyConversationSnapshotToRoomContexts } from "./room-page-controller-core";
+import { applyConversationSnapshotToRoomContexts } from "./room-snapshot-model";
 
 interface UseRoomConversationSnapshotOptions {
   activeRoomSessionId: string | null;

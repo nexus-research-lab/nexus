@@ -9,11 +9,11 @@ import type { RoomContextAggregate } from "@/types/conversation/room";
 
 import {
   buildRoomConversationViews,
-  resolveCurrentAgentSessionIdentity,
   resolveCurrentRoomContext,
-  resolveRoomMemberAgents,
   resolveSelectedConversationId,
-} from "./room-page-controller-core";
+} from "./room-conversation-model";
+import { resolveRoomMemberAgents } from "./room-member-model";
+import { resolveCurrentAgentSessionIdentity } from "./room-session-model";
 import { useRoomExternalSessions } from "./use-room-external-sessions";
 
 interface UseRoomPageModelOptions {

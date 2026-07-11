@@ -1,12 +1,3 @@
-/**
- * =====================================================
- * @File   : room-agent-about-surface.tsx
- * @Date   : 2026-04-15 15:08
- * @Author : leemysw
- * 2026-04-15 15:08   Create
- * =====================================================
- */
-
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -19,12 +10,14 @@ import {
 } from "lucide-react";
 
 import { AgentPrivateDomainView } from "@/features/agents/private-domain/agent-private-domain-view";
+import { pickAgentEditableOptions } from "@/features/agents/options/agent-options-constants";
 import { AgentOptionsEditor } from "@/features/agents/options/agent-options-editor";
 import type { TabKey } from "@/features/agents/options/components/agent-options-nav";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiUnderlineTabs } from "@/shared/ui/tabs";
 import { WorkspaceSurfaceView } from "@/shared/ui/workspace/surface/workspace-surface-view";
-import { AgentIdentityDraft, AgentNameValidationResult, AgentOptions, Agent } from "@/types/agent/agent";
-import { useI18n } from "@/shared/i18n/i18n-context";
+import type { Agent, AgentIdentityDraft, AgentNameValidationResult, AgentOptions } from "@/types/agent/agent";
+
 import { RoomAgentSwitcher } from "./room-agent-switcher";
 
 type RoomAgentPanelTabKey = TabKey | "private_domain";
@@ -52,15 +45,15 @@ interface RoomAgentAboutSurfaceProps {
 
 export function RoomAgentAboutSurface({
   agent,
-  roomId: roomId,
-  conversationId: conversationId,
-  roomMembers: roomMembers,
-  isVisible: isVisible,
-  requestedAgentId: requestedAgentId,
-  requestedTab: requestedTab,
-  requestKey: requestKey,
-  onSaveAgentOptions: onSaveAgentOptions,
-  onValidateAgentName: onValidateAgentName,
+  roomId,
+  conversationId,
+  roomMembers,
+  isVisible,
+  requestedAgentId,
+  requestedTab,
+  requestKey,
+  onSaveAgentOptions,
+  onValidateAgentName,
 }: RoomAgentAboutSurfaceProps) {
   const { t } = useI18n();
   const [selectedAgentId, setSelectedAgentId] = useState(agent.agent_id);
@@ -75,27 +68,10 @@ export function RoomAgentAboutSurface({
     return roomMembers.find((member) => member.agent_id === selectedAgentId) ?? agent;
   }, [agent, roomMembers, selectedAgentId]);
 
-  const initialOptions = useMemo(() => ({
-    provider: selectedAgent.options.provider,
-    model: selectedAgent.options.model,
-    permission_mode: selectedAgent.options.permission_mode,
-    allowed_tools: selectedAgent.options.allowed_tools,
-    disallowed_tools: selectedAgent.options.disallowed_tools,
-    max_turns: selectedAgent.options.max_turns,
-    max_thinking_tokens: selectedAgent.options.max_thinking_tokens,
-    mcp_servers: selectedAgent.options.mcp_servers,
-    setting_sources: selectedAgent.options.setting_sources,
-  }), [
-    selectedAgent.options.allowed_tools,
-    selectedAgent.options.disallowed_tools,
-    selectedAgent.options.max_thinking_tokens,
-    selectedAgent.options.max_turns,
-    selectedAgent.options.mcp_servers,
-    selectedAgent.options.model,
-    selectedAgent.options.permission_mode,
-    selectedAgent.options.provider,
-    selectedAgent.options.setting_sources,
-  ]);
+  const initialOptions = useMemo(
+    () => pickAgentEditableOptions(selectedAgent.options),
+    [selectedAgent.options],
+  );
 
   const handleSave = useCallback(async (
     title: string,

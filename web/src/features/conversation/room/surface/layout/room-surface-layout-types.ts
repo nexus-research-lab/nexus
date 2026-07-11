@@ -61,7 +61,7 @@ export interface RoomSurfaceLayoutProps {
     name: string,
     agentId?: string,
   ) => Promise<AgentNameValidationResult>;
-  onUpdateRoom: (roomId: string, params: UpdateRoomParams) => Promise<void>;
+  onUpdateRoom: (params: UpdateRoomParams) => Promise<void>;
   onUpdateConversationTitle: (
     conversationId: string,
     title: string,

@@ -48,7 +48,7 @@ interface RoomSurfaceShellProps {
   onOpenMemberManager: () => Promise<void>;
   onSaveAgentOptions: (agentId: string, title: string, options: AgentOptions, identity: AgentIdentityDraft) => Promise<void>;
   onValidateAgentName: (name: string, agentId?: string) => Promise<AgentNameValidationResult>;
-  onUpdateRoom: (roomId: string, params: UpdateRoomParams) => Promise<void>;
+  onUpdateRoom: (params: UpdateRoomParams) => Promise<void>;
   onUpdateConversationTitle: (conversationId: string, title: string) => Promise<void>;
   onOpenWorkspaceFile: (path: string | null, workspaceAgentId?: string | null) => void;
   onStartEditorResize: () => void;

@@ -14,7 +14,7 @@ import type { RoomSurfaceTabKey } from "@/types/conversation/room-surface";
 import type { SubagentTaskSource } from "@/types/conversation/subagent-task";
 
 import { RoomAgentAboutSurface } from "../room-agent-about-surface";
-import { RoomHistorySurface } from "../room-history-surface";
+import { RoomHistorySurface } from "../history/room-history-surface";
 import { RoomWorkspaceView } from "../../workspace/room-workspace-view";
 import type { RoomAgentAboutRequest } from "./room-surface-layout-types";
 

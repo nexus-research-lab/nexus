@@ -10,7 +10,7 @@ import { WorkspaceStatusBadge } from "@/shared/ui/workspace/controls/workspace-s
 import {
   WorkspaceCatalogAction,
   WorkspaceCatalogTextAction,
-} from "@/shared/ui/workspace/catalog/workspace-catalog-card";
+} from "@/shared/ui/workspace/catalog/workspace-catalog-actions";
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task";
 import { formatScheduledDatetime } from "./scheduled-formatters";
 import {

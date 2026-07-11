@@ -14,6 +14,7 @@ import {
 
 import { AgentPrivateDomainView } from "@/features/agents/private-domain/agent-private-domain-view";
 import { AgentOptionsEditor } from "@/features/agents/options/agent-options-editor";
+import { pickAgentEditableOptions } from "@/features/agents/options/agent-options-constants";
 import { AgentMemoryView } from "@/features/memory/agent-memory-view";
 import type { TabKey } from "@/features/agents/options/components/agent-options-nav";
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
@@ -54,12 +55,12 @@ type ContactDetailTabKey = TabKey | "private_domain" | "memory";
 /** 侧边栏联系人进入的内嵌 Agent 页面。 */
 export function ContactsAgentDetail({
   agent,
-  onBack: onBack,
-  onCreateTeam: onCreateTeam,
-  onDeleteAgent: onDeleteAgent,
-  onOpenDirectRoom: onOpenDirectRoom,
-  onSaveAgentOptions: onSaveAgentOptions,
-  onValidateAgentName: onValidateAgentName,
+  onBack,
+  onCreateTeam,
+  onDeleteAgent,
+  onOpenDirectRoom,
+  onSaveAgentOptions,
+  onValidateAgentName,
 }: ContactsAgentDetailProps) {
   const { t } = useI18n();
   const [activeTab, setActiveTab] = useResettableState<ContactDetailTabKey>(
@@ -85,28 +86,8 @@ export function ContactsAgentDetail({
   }, [agent.vibe_tags]);
 
   const initialOptions = useMemo(
-    () => ({
-      provider: agent.options.provider,
-      model: agent.options.model,
-      permission_mode: agent.options.permission_mode,
-      allowed_tools: agent.options.allowed_tools,
-      disallowed_tools: agent.options.disallowed_tools,
-      max_turns: agent.options.max_turns,
-      max_thinking_tokens: agent.options.max_thinking_tokens,
-      mcp_servers: agent.options.mcp_servers,
-      setting_sources: agent.options.setting_sources,
-    }),
-    [
-      agent.options.allowed_tools,
-      agent.options.disallowed_tools,
-      agent.options.max_thinking_tokens,
-      agent.options.max_turns,
-      agent.options.mcp_servers,
-      agent.options.model,
-      agent.options.permission_mode,
-      agent.options.provider,
-      agent.options.setting_sources,
-    ],
+    () => pickAgentEditableOptions(agent.options),
+    [agent.options],
   );
 
   const handleSave = useCallback(

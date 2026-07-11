@@ -16,7 +16,7 @@ import { RoomConversationView } from "@/types/conversation/conversation";
 const EXTERNAL_AGENT_SESSION_FALLBACK_REFRESH_INTERVAL_MS = 60000;
 
 function buildExternalRoomConversationViews({
-  roomId: roomId,
+  roomId,
   sessions,
 }: {
   roomId: string | null;
@@ -80,9 +80,9 @@ function filterExternalAgentSessions(sessions: AgentSession[]): AgentSession[] {
 }
 
 export function useRoomExternalSessions({
-  agentId: agentId,
-  roomId: roomId,
-  roomType: roomType,
+  agentId,
+  roomId,
+  roomType,
 }: {
   agentId: string | null;
   roomId: string | null;
@@ -158,14 +158,14 @@ export function useRoomExternalSessions({
 
   const externalRoomConversations = useMemo(
     () => buildExternalRoomConversationViews({
-      roomId: roomId,
+      roomId,
       sessions: externalAgentSessions,
     }),
     [externalAgentSessions, roomId],
   );
 
   return {
-    externalAgentSessions: externalAgentSessions,
-    externalRoomConversations: externalRoomConversations,
+    externalAgentSessions,
+    externalRoomConversations,
   };
 }

@@ -115,7 +115,7 @@ export function normalizeAgentOptionProvider(provider?: string | null): string {
   return normalizedProvider || DEFAULT_AGENT_OPTION_PROVIDER;
 }
 
-export function buildAgentOptionsSavePayload(options: AgentOptions): AgentOptions {
+export function pickAgentEditableOptions(options: AgentOptions): AgentOptions {
   return {
     provider: options.provider,
     model: options.model,

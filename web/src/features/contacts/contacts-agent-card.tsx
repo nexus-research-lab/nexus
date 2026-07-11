@@ -6,14 +6,14 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiAgentAvatar } from "@/shared/ui/avatar";
 import { Agent } from "@/types/agent/agent";
 import { formatProviderLabel } from "@/types/capability/provider";
+import { WorkspaceCatalogTextAction } from "@/shared/ui/workspace/catalog/workspace-catalog-actions";
+import { WorkspaceCatalogCard } from "@/shared/ui/workspace/catalog/workspace-catalog-card";
 import {
   WorkspaceCatalogBody,
-  WorkspaceCatalogCard,
   WorkspaceCatalogDescription,
   WorkspaceCatalogFooter,
-  WorkspaceCatalogTextAction,
   WorkspaceCatalogTitle,
-} from "@/shared/ui/workspace/catalog/workspace-catalog-card";
+} from "@/shared/ui/workspace/catalog/workspace-catalog-content";
 
 interface ContactsAgentCardProps {
   agent: Agent;

@@ -47,7 +47,7 @@ interface GroupConversationHeaderProps {
   onAddRoomMember: (agentId: string) => Promise<void>;
   onRemoveRoomMember: (agentId: string) => Promise<void>;
   onOpenMemberManager: () => Promise<void>;
-  onUpdateRoom: (roomId: string, params: UpdateRoomParams) => Promise<void>;
+  onUpdateRoom: (params: UpdateRoomParams) => Promise<void>;
 }
 
 function MemberAvatarStack({
@@ -267,7 +267,7 @@ const GroupConversationHeaderView = memo(({
             await onAddRoomMember(agentId);
           }
 
-          await onUpdateRoom(roomId, {
+          await onUpdateRoom({
             name,
             avatar,
             skill_names: skillNames,

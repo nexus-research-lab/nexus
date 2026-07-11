@@ -19,7 +19,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Made Nexus the sole owner of scheduled-task state and timing, exposed automation to runtimes through the injected MCP server, and simplified task creation, list actions, and run diagnostics around progressive disclosure.
 - Renamed the product scheduling domain and storage from Cron jobs to scheduled tasks; Cron now denotes only the `schedule.kind=cron` expression mode.
-- Split Room page state into scoped data, projection, command, snapshot, and existing-Agent option controllers, and reduced the page entry to orchestration only.
+- Moved Room page state into page-owned scoped data, projection, command, snapshot, and existing-Agent option controllers, while separating URL navigation, one-shot drafts, server events, and Tours from the view entry.
+- Split Contacts into page-owned Agent resource/editor commands and URL navigation, replacing three conflicting dialog states with one tagged state and reusing the shared Agent Options mutation boundary across Contacts and Room.
+- Split root bootstrap into startup orchestration, React root rendering, shared failure presentation, chunk/auth recovery, reload guards, and blank-render watchdog modules.
+- Split Room conversation history into pure entry projection, a single-state title editor, item and empty-state views, while moving its private delete policy out of the shared conversation protocol layer.
+- Split Workspace Catalog shared UI into card frames, content primitives, actions, and icon media instead of exposing unrelated controls from one aggregate module.
 - Split Room Workspace orchestration into Agent scope, file resource, path model, command, layout, file-browser, and dialog modules.
 - Split conversation Todo projection into round indexing, runtime-task merging, status inference, and a stable shared hook used by both DM and Room panels.
 - Consolidated conversation scrolling under the timeline domain, separating smooth animation, user interactions, history-prepend anchoring, local expansion anchoring, and round navigation protocols.
@@ -65,6 +69,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Prevented stale Room context refreshes, snapshot setters, and mutation results from crossing route Room boundaries.
+- Redirected immediately from rooms confirmed deleted by the server instead of racing a stale page snapshot against a second refresh.
 - Prevented stale Workspace file refreshes and mutation completions from crossing Agent boundaries, and consumed one-shot file-open Agent signals in both DM and Room views.
 - Unified TodoWrite plans and runtime task events through one chronological round projection, preventing message-role-specific task lists and repeated full-message scans.
 - Ensured incoming message snapshots remain authoritative even when the existing in-memory collection already contains duplicate message IDs, and ignored invalid negative stream block indexes.

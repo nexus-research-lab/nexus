@@ -1,28 +1,19 @@
-/**
- * =====================================================
- * @File   : group-conversation-empty-state.tsx
- * @Date   : 2026-04-11 16:39
- * @Author : leemysw
- * 2026-04-11 16:39   Create
- * =====================================================
- */
-
 "use client";
 
 import { FolderKanban, MessageSquarePlus } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { WorkspaceCatalogTextAction } from "@/shared/ui/workspace/catalog/workspace-catalog-actions";
+import { WorkspaceCatalogCard } from "@/shared/ui/workspace/catalog/workspace-catalog-card";
 import {
   WorkspaceCatalogBody,
-  WorkspaceCatalogCard,
   WorkspaceCatalogDescription,
   WorkspaceCatalogFooter,
   WorkspaceCatalogHeader,
   WorkspaceCatalogTag,
-  WorkspaceCatalogTextAction,
   WorkspaceCatalogTitle,
-  WorkspaceIconFrame,
-} from "@/shared/ui/workspace/catalog/workspace-catalog-card";
+} from "@/shared/ui/workspace/catalog/workspace-catalog-content";
+import { WorkspaceIconFrame } from "@/shared/ui/workspace/catalog/workspace-icon-frame";
 import { CONVERSATION_TOUR_ANCHORS } from "@/features/onboarding/tours/conversation-tour";
 
 interface GroupConversationEmptyStateProps {

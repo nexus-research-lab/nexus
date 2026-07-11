@@ -8,9 +8,7 @@ export interface DirectRoomNavigationTarget {
 }
 
 /**
- * 中文注释：标准化「打开某个 agent 的 DM」入口。
- * 无论来自 Launcher、侧边栏 header 还是其他入口，都必须先确保 direct room 存在，
- * 然后统一落到真实的 roomConversation 路由，避免再维护中转页。
+ * 所有 DM 入口先解析真实 Direct Room，再进入 Conversation 路由，避免各入口复制创建协议。
  */
 export async function resolveDirectRoomNavigationTarget(
   agentId: string,

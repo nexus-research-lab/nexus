@@ -24,7 +24,7 @@ interface RoomSurfaceHeaderProps {
   onRemoveRoomMember: (agentId: string) => Promise<void>;
   onReplayTour?: () => void;
   onSelectConversation: (conversationId: string) => void;
-  onUpdateRoom: (roomId: string, params: UpdateRoomParams) => Promise<void>;
+  onUpdateRoom: (params: UpdateRoomParams) => Promise<void>;
   roomAvatar?: string | null;
   roomHostAgentId?: string | null;
   roomHostAutoReplyEnabled: boolean;
