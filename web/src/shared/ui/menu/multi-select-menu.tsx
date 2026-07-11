@@ -1,23 +1,18 @@
 "use client";
 
 import {
-  type KeyboardEvent,
   type ReactNode,
   useCallback,
   useMemo,
-  useRef,
-  useState,
 } from "react";
 import { createPortal } from "react-dom";
-import { Check, ChevronDown, Loader2, Search, X } from "lucide-react";
+import { Check, Loader2, Search, X } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
-import { useAnchoredOverlayLayer } from "../overlay/anchored-overlay-layer";
 import {
   estimateSelectMenuHeight,
   getSelectMenuButtonClassName,
   getSelectMenuOptionStateClassName,
-  getSelectMenuPanelSurfaceClassName,
   getSelectMenuSizeConfig,
   resolveSelectMenuPosition,
   SELECT_MENU_SEARCH_ROW_HEIGHT,
@@ -25,6 +20,11 @@ import {
   type UiSelectMenuSize,
   type UiSelectMenuSurface,
 } from "./select-menu-model";
+import {
+  SelectMenuPanel,
+  SelectMenuTriggerContent,
+} from "./select-menu-primitives";
+import { useSelectMenuOverlay } from "./use-select-menu-overlay";
 
 interface UiMultiSelectMenuOption {
   value: string;
@@ -83,8 +83,6 @@ export function UiMultiSelectMenu({
   value,
 }: UiMultiSelectMenuProps) {
   const selectedValueSet = useMemo(() => new Set(value), [value]);
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  const [isOpen, setIsOpen] = useState(false);
   const selectedOptions = useMemo(
     () => value.map((item) => options.find((option) => option.value === item) ?? { value: item, label: item }),
     [options, value],
@@ -112,33 +110,21 @@ export function UiMultiSelectMenu({
     });
   }, [estimatedOptionHeight, hasOptionDescription, hasSearch, options.length, placement]);
 
-  const closeMenu = useCallback(() => setIsOpen(false), []);
   const {
-    overlayId: menuId,
-    overlayPosition: menuPosition,
-    overlayRef: menuRef,
-    overlayStyle: menuStyle,
+    buttonRef,
+    handleTriggerKeyDown,
+    isOpen,
+    menuId,
+    menuPosition,
+    menuRef,
+    menuStyle,
     portalContainer,
-    updateOverlayPosition: updateMenuPosition,
-  } = useAnchoredOverlayLayer({
-    anchorRef: buttonRef,
+    toggleMenu,
+    updateMenuPosition,
+  } = useSelectMenuOverlay({
     disabled,
     estimatePosition,
-    isOpen,
-    onClose: closeMenu,
   });
-
-  const toggleOpen = () => {
-    if (disabled) {
-      return;
-    }
-    setIsOpen((open) => {
-      if (!open) {
-        updateMenuPosition();
-      }
-      return !open;
-    });
-  };
 
   const toggleValue = (nextValue: string) => {
     if (disabled) {
@@ -155,37 +141,16 @@ export function UiMultiSelectMenu({
     onChange(value.filter((item) => item !== nextValue));
     updateMenuPosition();
   };
-
-  const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
-    if (disabled) {
-      return;
-    }
-    if (event.key === "Escape") {
-      setIsOpen(false);
-      return;
-    }
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      toggleOpen();
-    }
-  };
-
   const menu = isOpen ? (
-    <div
-      ref={menuRef}
-      aria-label={ariaLabel}
-      className={cn(
-        "fixed z-[120] flex flex-col overflow-hidden rounded-[14px] border animate-in fade-in-0 zoom-in-95 duration-(--motion-duration-fast) data-[placement=bottom]:slide-in-from-top-1 data-[placement=top]:slide-in-from-bottom-1",
-        getSelectMenuPanelSurfaceClassName(surface),
-        menuClassName,
-      )}
-      data-placement={menuPosition?.placement ?? "bottom"}
-      data-state="open"
-      data-surface={surface}
-      data-ui-select-menu-open="true"
+    <SelectMenuPanel
+      ariaLabel={ariaLabel}
       id={menuId}
-      role="listbox"
+      layoutClassName="flex flex-col overflow-hidden"
+      menuClassName={menuClassName}
+      panelRef={menuRef}
+      placement={menuPosition?.placement}
       style={menuStyle}
+      surface={surface}
     >
       {hasSearch ? (
         <label className="flex h-11 items-center gap-2 border-b border-(--divider-subtle-color) px-3">
@@ -248,7 +213,7 @@ export function UiMultiSelectMenu({
           })
         )}
       </div>
-    </div>
+    </SelectMenuPanel>
   ) : null;
 
   return (
@@ -271,20 +236,15 @@ export function UiMultiSelectMenu({
         })}
         disabled={disabled}
         id={id}
-        onClick={toggleOpen}
-        onKeyDown={handleKeyDown}
+        onClick={toggleMenu}
+        onKeyDown={handleTriggerKeyDown}
         type="button"
       >
-        <span className="flex min-w-0 flex-1 items-center gap-2">
-          {leading ? <span className="shrink-0 text-(--icon-default)">{leading}</span> : null}
-          {label ? (
-            <>
-              <span className="shrink-0 text-[12px] font-medium text-(--text-muted)">
-                {label}
-              </span>
-              <span className="h-3.5 w-px shrink-0 bg-(--divider-subtle-color)" />
-            </>
-          ) : null}
+        <SelectMenuTriggerContent
+          isOpen={isOpen}
+          label={label}
+          leading={leading}
+        >
           <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
             {selectedOptions.length > 0 ? (
               selectedOptions.map((option) => {
@@ -319,13 +279,7 @@ export function UiMultiSelectMenu({
               </span>
             )}
           </span>
-        </span>
-        <ChevronDown
-          className={cn(
-            "h-4 w-4 shrink-0 text-(--icon-muted) transition-transform",
-            isOpen && "rotate-180",
-          )}
-        />
+        </SelectMenuTriggerContent>
       </button>
 
       {menu && portalContainer ? createPortal(menu, portalContainer) : null}

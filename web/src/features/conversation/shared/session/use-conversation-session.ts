@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef } from "react";
 
-import { useAgentConversation } from "@/hooks/agent";
+import { useAgentConversation } from "@/hooks/agent/use-agent-conversation";
 import { useFollowScroll } from "@/features/conversation/shared/timeline/scroll/use-follow-scroll";
 import { useSessionLoader } from "@/hooks/conversation/use-session-loader";
 import { useSessionRoundIndex } from "@/hooks/conversation/use-session-round-index";

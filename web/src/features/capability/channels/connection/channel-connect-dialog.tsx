@@ -33,7 +33,7 @@ import {
   type PendingChannelDelete,
 } from "./channel-connection-model";
 import { ChannelGuide } from "./channel-guide";
-import { ChannelLoginPanel } from "./channel-login-panel";
+import { ChannelLoginPanel } from "./login/channel-login-panel";
 import { useChannelConnectionController } from "./use-channel-connection-controller";
 
 interface ChannelConnectDialogProps {

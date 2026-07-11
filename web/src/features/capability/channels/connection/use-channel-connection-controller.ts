@@ -1,17 +1,13 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 
 import {
   deleteChannelAccountApi,
   deleteChannelConfigApi,
-  getChannelLoginApi,
   listChannelsApi,
-  startChannelLoginApi,
-  submitChannelLoginVerifyCodeApi,
   upsertChannelConfigApi,
   type ChannelAccountView,
   type ChannelConfigView,
   type ChannelCredentialField,
-  type ChannelLoginView,
 } from "@/lib/api/capability/channel-api";
 import { getErrorMessage } from "@/lib/error-message";
 import type { Agent } from "@/types/agent/agent";
@@ -21,10 +17,10 @@ import { isChannelPlanned } from "../channel-model";
 import {
   buildDiscordOauthUrl,
   createChannelDraft,
-  isChannelLoginRunning,
   isPersonalWeixinChannel,
   type PendingChannelDelete,
 } from "./channel-connection-model";
+import { useChannelLoginController } from "./login/use-channel-login-controller";
 import { useChannelCommand } from "./use-channel-command";
 
 interface UseChannelConnectionOptions {
@@ -49,7 +45,6 @@ export function useChannelConnectionController({
     item,
     agents[0]?.agent_id || "",
   ));
-  const [loginView, setLoginView] = useState<ChannelLoginView | null>(null);
   const [pendingDelete, setPendingDelete] =
     useState<PendingChannelDelete | null>(null);
   const { pendingAction, runCommand } = useChannelCommand();
@@ -58,8 +53,6 @@ export function useChannelConnectionController({
     currentItem.channel_type,
   );
   const planned = isChannelPlanned(currentItem);
-  const loginRunning = isChannelLoginRunning(loginView);
-
   const updateField = useCallback((
     field: ChannelCredentialField,
     value: string,
@@ -86,48 +79,20 @@ export function useChannelConnectionController({
     }
   }, [currentItem.channel_type, onSaved]);
 
-  useEffect(() => {
-    if (!supportsPersonalWeixinLogin || !loginView?.login_id || !loginRunning) {
-      return;
-    }
-    let disposed = false;
-    let timer = 0;
-    const poll = async () => {
-      try {
-        const nextLogin = await getChannelLoginApi(
-          currentItem.channel_type,
-          loginView.login_id,
-        );
-        if (disposed) {
-          return;
-        }
-        setLoginView(nextLogin);
-        if (nextLogin.status === "succeeded") {
-          await refreshCurrentChannel();
-          return;
-        }
-        if (nextLogin.status === "running") {
-          timer = window.setTimeout(poll, 1500);
-        }
-      } catch (error) {
-        if (!disposed) {
-          onError(getErrorMessage(error, "扫码登录状态刷新失败"));
-        }
-      }
-    };
-    timer = window.setTimeout(poll, 1500);
-    return () => {
-      disposed = true;
-      window.clearTimeout(timer);
-    };
-  }, [
-    currentItem.channel_type,
-    loginRunning,
-    loginView?.login_id,
+  const {
+    loading: loginLoading,
+    running: loginRunning,
+    startLogin,
+    submitVerifyCode,
+    view: loginView,
+  } = useChannelLoginController({
+    channelType: currentItem.channel_type,
+    enabled: supportsPersonalWeixinLogin,
+    onCompleted: refreshCurrentChannel,
     onError,
-    refreshCurrentChannel,
-    supportsPersonalWeixinLogin,
-  ]);
+    pendingAction,
+    runCommand,
+  });
 
   const saveChannel = useCallback(async () => {
     if (!draft.agentId || planned) {
@@ -144,7 +109,7 @@ export function useChannelConnectionController({
         const shouldStartLogin = isPersonalWeixinChannel(saved.channel_type);
         onSaved(saved, !shouldStartLogin);
         if (shouldStartLogin) {
-          setLoginView(await startChannelLoginApi(saved.channel_type));
+          await startLogin();
         } else {
           onClose();
         }
@@ -155,33 +120,15 @@ export function useChannelConnectionController({
       }
     });
     return result ?? false;
-  }, [currentItem.channel_type, draft, onClose, onError, onSaved, planned, runCommand]);
-
-  const submitVerifyCode = useCallback(async (value: string) => {
-    if (!supportsPersonalWeixinLogin || !loginView?.login_id) {
-      return false;
-    }
-    const result = await runCommand({ kind: "verify-code" }, async () => {
-      try {
-        const nextLogin = await submitChannelLoginVerifyCodeApi(
-          currentItem.channel_type,
-          loginView.login_id,
-          value,
-        );
-        setLoginView(nextLogin);
-        return true;
-      } catch (error) {
-        onError(getErrorMessage(error, "验证码提交失败"));
-        return false;
-      }
-    });
-    return result ?? false;
   }, [
     currentItem.channel_type,
-    loginView?.login_id,
+    draft,
+    onClose,
     onError,
+    onSaved,
+    planned,
     runCommand,
-    supportsPersonalWeixinLogin,
+    startLogin,
   ]);
 
   const deleteChannel = useCallback(async () => {
@@ -256,8 +203,7 @@ export function useChannelConnectionController({
       ? buildDiscordOauthUrl(draft.config)
       : "",
     draft,
-    loginLoading: pendingAction?.kind === "save"
-      || pendingAction?.kind === "verify-code",
+    loginLoading,
     loginRunning,
     loginView,
     pendingDelete,

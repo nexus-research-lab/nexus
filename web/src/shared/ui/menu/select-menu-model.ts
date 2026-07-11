@@ -13,14 +13,62 @@ const SELECT_MENU_MAX_HEIGHT = 280;
 
 export const SELECT_MENU_SEARCH_ROW_HEIGHT = 44;
 
+const SELECT_MENU_SIZE_CONFIG: Record<UiSelectMenuSize, {
+  estimatedOptionHeight: number;
+  heightClassName: string;
+  optionHeightClassName: string;
+  roundedClassName: string;
+  textClassName: string;
+}> = {
+  md: {
+    estimatedOptionHeight: 32,
+    heightClassName: "h-10",
+    optionHeightClassName: "min-h-8 text-[13px]",
+    roundedClassName: "rounded-[13px]",
+    textClassName: "text-[13px]",
+  },
+  sm: {
+    estimatedOptionHeight: 32,
+    heightClassName: "h-9",
+    optionHeightClassName: "min-h-8 text-[13px]",
+    roundedClassName: "rounded-[12px]",
+    textClassName: "text-[12px]",
+  },
+  xs: {
+    estimatedOptionHeight: 28,
+    heightClassName: "h-7",
+    optionHeightClassName: "min-h-7 text-[12px]",
+    roundedClassName: "rounded-[10px]",
+    textClassName: "text-[11px]",
+  },
+};
+
+const SELECT_MENU_BUTTON_SURFACE_CLASS_NAMES: Record<UiSelectMenuSurface, string> = {
+  dialog: "dialog-input shadow-none hover:border-[color:color-mix(in_srgb,var(--primary)_24%,var(--modal-input-border))] hover:bg-[color:color-mix(in_srgb,var(--modal-input-focus-background)_72%,transparent)] focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_14%,transparent)]",
+  surface: "border border-[color:color-mix(in_srgb,var(--primary)_22%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--background)_94%,white)] shadow-[0_1px_2px_rgba(15,23,42,0.04)] hover:border-[color:color-mix(in_srgb,var(--primary)_38%,var(--divider-subtle-color))] focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_18%,transparent)]",
+};
+
+const SELECT_MENU_PANEL_SURFACE_CLASS_NAMES: Record<UiSelectMenuSurface, string> = {
+  dialog: "border-(--modal-card-border) bg-[color:color-mix(in_srgb,var(--background)_94%,white)] shadow-[0_16px_36px_rgba(15,23,42,0.14)]",
+  surface: "border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_96%,white)] shadow-[0_14px_32px_rgba(15,23,42,0.12)] backdrop-blur",
+};
+
+const SELECT_MENU_OPTION_STATE_CLASS_NAMES: Record<
+  UiSelectMenuSurface,
+  Record<"active" | "inactive", string>
+> = {
+  dialog: {
+    active: "bg-[color:color-mix(in_srgb,var(--primary)_13%,transparent)] font-semibold text-(--text-strong) hover:bg-[color:color-mix(in_srgb,var(--primary)_16%,transparent)]",
+    inactive: "text-(--text-default) hover:bg-[color:color-mix(in_srgb,var(--primary)_7%,transparent)] hover:text-(--text-strong)",
+  },
+  surface: {
+    active: "bg-[color:color-mix(in_srgb,var(--primary)_11%,transparent)] font-semibold text-(--text-strong) hover:bg-[color:color-mix(in_srgb,var(--primary)_14%,transparent)]",
+    inactive: "text-(--text-default) hover:bg-(--surface-interactive-hover-background)",
+  },
+};
+
 export function getSelectMenuSizeConfig(size: UiSelectMenuSize) {
-  return {
-    heightClassName: size === "xs" ? "h-7" : size === "sm" ? "h-9" : "h-10",
-    roundedClassName: size === "xs" ? "rounded-[10px]" : size === "sm" ? "rounded-[12px]" : "rounded-[13px]",
-    textClassName: size === "xs" ? "text-[11px]" : size === "sm" ? "text-[12px]" : "text-[13px]",
-    optionHeightClassName: size === "xs" ? "min-h-7 text-[12px]" : "min-h-8 text-[13px]",
-    estimatedOptionHeight: size === "xs" ? 28 : 32,
-  };
+  return SELECT_MENU_SIZE_CONFIG[size];
 }
 
 export function estimateSelectMenuHeight(optionCount: number, optionHeight: number, extraHeight = 8): number {
@@ -66,9 +114,7 @@ export function getSelectMenuButtonClassName({
 }) {
   return cn(
     "flex h-full w-full items-center justify-between gap-2 px-3 transition-[background,border-color,box-shadow] duration-(--motion-duration-fast) focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)",
-    surface === "dialog"
-      ? "dialog-input shadow-none hover:border-[color:color-mix(in_srgb,var(--primary)_24%,var(--modal-input-border))] hover:bg-[color:color-mix(in_srgb,var(--modal-input-focus-background)_72%,transparent)] focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_14%,transparent)]"
-      : "border border-[color:color-mix(in_srgb,var(--primary)_22%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--background)_94%,white)] shadow-[0_1px_2px_rgba(15,23,42,0.04)] hover:border-[color:color-mix(in_srgb,var(--primary)_38%,var(--divider-subtle-color))] focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_18%,transparent)]",
+    SELECT_MENU_BUTTON_SURFACE_CLASS_NAMES[surface],
     roundedClassName,
     textClassName,
     className,
@@ -76,19 +122,11 @@ export function getSelectMenuButtonClassName({
 }
 
 export function getSelectMenuPanelSurfaceClassName(surface: UiSelectMenuSurface): string {
-  return surface === "dialog"
-    ? "border-(--modal-card-border) bg-[color:color-mix(in_srgb,var(--background)_94%,white)] shadow-[0_16px_36px_rgba(15,23,42,0.14)]"
-    : "border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_96%,white)] shadow-[0_14px_32px_rgba(15,23,42,0.12)] backdrop-blur";
+  return SELECT_MENU_PANEL_SURFACE_CLASS_NAMES[surface];
 }
 
 export function getSelectMenuOptionStateClassName(surface: UiSelectMenuSurface, isActive: boolean): string {
-  if (isActive) {
-    return surface === "dialog"
-      ? "bg-[color:color-mix(in_srgb,var(--primary)_13%,transparent)] font-semibold text-(--text-strong) hover:bg-[color:color-mix(in_srgb,var(--primary)_16%,transparent)]"
-      : "bg-[color:color-mix(in_srgb,var(--primary)_11%,transparent)] font-semibold text-(--text-strong) hover:bg-[color:color-mix(in_srgb,var(--primary)_14%,transparent)]";
-  }
-
-  return surface === "dialog"
-    ? "text-(--text-default) hover:bg-[color:color-mix(in_srgb,var(--primary)_7%,transparent)] hover:text-(--text-strong)"
-    : "text-(--text-default) hover:bg-(--surface-interactive-hover-background)";
+  return SELECT_MENU_OPTION_STATE_CLASS_NAMES[surface][
+    isActive ? "active" : "inactive"
+  ];
 }

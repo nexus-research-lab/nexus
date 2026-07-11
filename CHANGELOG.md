@@ -28,6 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Separated Liquid Glass capability, interaction, animation cleanup, and SVG filter ownership, removed render-phase state writes, and deleted message and shared-UI forwarding barrels in favor of direct responsibility imports.
 - Removed the remaining frontend protocol `any` escapes and dead SDK aliases, sharing unknown tool inputs across messages and permissions while validating AskUserQuestion payloads inside the owning feature.
 - Consolidated Composer attachment classification, accept filters, rejection localization, and Agent/Room upload preparation into one data-driven pipeline that validates whole batches before side effects.
+- Split channel QR login state, polling, status projection, and verification UI from channel configuration transactions while preserving one shared command lock, and removed the single-export Agent Hook forwarding entry.
+- Consolidated Select and MultiSelect overlay state, trigger keyboard behavior, listbox framing, and data-driven size/surface projections while preserving their distinct selection semantics.
 - Split the scheduled-task directory and run history into scoped resources, mutation commands, overview, dialog shell, and narrow list/detail/action views, reusing the shared anchored action menu for task actions.
 - Consolidated action, select, and multi-select menus under shared menu ownership, and unified scheduled-task time columns and anchored overlay behavior across pickers.
 - Split the Home ASCII Hero into presentation, React lifecycle, Canvas scene, and particle-model modules.

@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
-import { ChannelLoginView } from "@/lib/api/capability/channel-api";
+import type { ChannelLoginView } from "@/lib/api/capability/channel-api";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { UiButton } from "@/shared/ui/button/button";
 import { UiInput } from "@/shared/ui/form/form-control";
@@ -17,7 +17,7 @@ import {
   channelLoginStatusLabel,
   channelLoginStatusTone,
   isChannelLoginRunning,
-} from "./channel-connection-model";
+} from "./channel-login-model";
 
 const LOGIN_STATUS_ICONS: Record<string, typeof Terminal> = {
   error: TriangleAlert,

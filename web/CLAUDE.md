@@ -74,7 +74,7 @@ src/
 - Contacts 页面使用互斥编辑状态，资源和 CRUD 归 `pages/contacts/controller/`，URL 选择与 Room 跳转归 `pages/contacts/orchestration/`
 - 宽侧栏由 `features/navigation/sidebar/` 管理；折叠栏与展开面板共用主 Tab、Nexus 入口和系统操作，路由/Store 同步只留在控制器
 - 技能市场由 `features/capability/skills/controller/` 按目录、外部搜索、来源和操作拆分状态；子视图只消费窄 Props，不得依赖完整控制器
-- 频道连接与 IM 配对分别持有命令互斥入口；写操作后必须使旧列表请求失效或按当前筛选刷新，视图不得复制协议字段别名
+- 频道连接与 IM 配对分别持有命令互斥入口；`channels/connection/login/` 独占扫码会话和串行轮询但复用连接命令锁；写操作后必须刷新当前服务端快照，视图不得复制协议字段别名
 - 定时任务弹窗的表单和调度各自维护单一草稿对象，资源层按执行模式加载依赖并拒绝过期响应；Room 任务只允许绑定明确执行成员
 - 定时任务时间选择器共用 `capability/scheduled/pickers/time-picker-column.tsx`，锚点浮层复用 `shared/ui/overlay/`，不得在 Daily/SingleRun 中复制选项按钮
 - 定时任务目录只通过 `capability/scheduled/controller/` 读写任务；不得恢复混合 Heartbeat 的 Automation 控制器，命令结果必须先于后台刷新落地
@@ -92,7 +92,7 @@ src/
 - Agent 身份页由 `features/agents/options/components/identity/` 的单一布局结构组合；资料、标签和模型选择各自拥有窄接口，待添加标签草稿必须绑定编辑作用域
 - 通用 Markdown 只归 `shared/ui/markdown/`；Conversation 的 `message/markdown-renderer.tsx` 只解释消息文件产物协议，不得成为其他 Feature 的渲染入口
 - 通用 Mention 只归 `shared/ui/mention/`；目标分类和标记由消费者投影，共享视图不得解释 Agent 或 Room
-- 锚定浮层共用 `shared/ui/overlay/` 的定位、Portal 和关闭生命周期；Action/Select/MultiSelect 只在 `shared/ui/menu/` 维护菜单语义，消费者直接导入具体组件
+- 锚定浮层共用 `shared/ui/overlay/` 的定位、Portal 和关闭生命周期；Select/MultiSelect 在 `shared/ui/menu/` 复用内部开关、触发键盘协议和 listbox 框架，ActionMenu 保持外部受控，消费者直接导入具体组件
 - Launcher 按 `console/` 与 `hero/` 分离 API/导航和视觉/输入；服务端动作使用完整分发表，Hero 不直接访问领域 API
 - Message item 的结构化内容关联只由 `view/content/content-renderer-model.ts` 建立；Assistant/User 视图不得再次扫描整轮内容或手写不完整的 Props 比较器
 - Office 预览下载与载荷上限只由 `conversation/shared/editor/office-preview-resource.ts` 管理；文档预览的加载生命周期、DOM 归一化与视图分别归属 `document/` 下的 Hook、DOM 模型和视图模块

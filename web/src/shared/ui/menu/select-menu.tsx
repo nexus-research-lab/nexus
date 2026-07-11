@@ -1,29 +1,29 @@
 "use client";
 
 import {
-  type KeyboardEvent,
   type ReactNode,
   useCallback,
   useMemo,
-  useRef,
-  useState,
 } from "react";
 import { createPortal } from "react-dom";
-import { Check, ChevronDown } from "lucide-react";
+import { Check } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
-import { useAnchoredOverlayLayer } from "../overlay/anchored-overlay-layer";
 import {
   estimateSelectMenuHeight,
   getSelectMenuButtonClassName,
   getSelectMenuOptionStateClassName,
-  getSelectMenuPanelSurfaceClassName,
   getSelectMenuSizeConfig,
   resolveSelectMenuPosition,
   type UiSelectMenuPlacement,
   type UiSelectMenuSize,
   type UiSelectMenuSurface,
 } from "./select-menu-model";
+import {
+  SelectMenuPanel,
+  SelectMenuTriggerContent,
+} from "./select-menu-primitives";
+import { useSelectMenuOverlay } from "./use-select-menu-overlay";
 
 export interface UiSelectMenuOption {
   value: string;
@@ -76,8 +76,6 @@ export function UiSelectMenu({
     [options],
   );
   const activeOption = options.find((option) => option.value === value);
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  const [isOpen, setIsOpen] = useState(false);
   const {
     estimatedOptionHeight,
     heightClassName,
@@ -99,20 +97,20 @@ export function UiSelectMenu({
     });
   }, [allowLabelWrap, estimatedOptionHeight, menuMinWidth, options.length, placement]);
 
-  const closeMenu = useCallback(() => setIsOpen(false), []);
   const {
-    overlayId: menuId,
-    overlayPosition: menuPosition,
-    overlayRef: menuRef,
-    overlayStyle: menuStyle,
+    buttonRef,
+    closeMenu,
+    handleTriggerKeyDown,
+    isOpen,
+    menuId,
+    menuPosition,
+    menuRef,
+    menuStyle,
     portalContainer,
-    updateOverlayPosition: updateMenuPosition,
-  } = useAnchoredOverlayLayer({
-    anchorRef: buttonRef,
+    toggleMenu,
+  } = useSelectMenuOverlay({
     disabled,
     estimatePosition,
-    isOpen,
-    onClose: closeMenu,
   });
 
   const changeValue = (nextValue: string) => {
@@ -120,13 +118,13 @@ export function UiSelectMenu({
       return;
     }
     onChange(nextValue);
-    setIsOpen(false);
+    closeMenu();
     buttonRef.current?.focus();
   };
 
-  const moveSelection = (direction: 1 | -1) => {
+  const moveSelection = (direction: 1 | -1): boolean => {
     if (disabled || enabledOptions.length === 0) {
-      return;
+      return false;
     }
     const currentIndex = Math.max(
       0,
@@ -134,53 +132,19 @@ export function UiSelectMenu({
     );
     const nextIndex = (currentIndex + direction + enabledOptions.length) % enabledOptions.length;
     onChange(enabledOptions[nextIndex].value);
-    updateMenuPosition();
-    setIsOpen(true);
-  };
-
-  const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
-    if (disabled) {
-      return;
-    }
-
-    if (event.key === "Escape") {
-      setIsOpen(false);
-      return;
-    }
-
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      setIsOpen((open) => {
-        if (!open) {
-          updateMenuPosition();
-        }
-        return !open;
-      });
-      return;
-    }
-
-    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-      event.preventDefault();
-      moveSelection(event.key === "ArrowDown" ? 1 : -1);
-    }
+    return true;
   };
 
   const menu = isOpen ? (
-    <div
-      ref={menuRef}
-      aria-label={ariaLabel}
-      className={cn(
-        "fixed z-[120] overflow-y-auto rounded-[14px] border p-1 animate-in fade-in-0 zoom-in-95 duration-(--motion-duration-fast) data-[placement=bottom]:slide-in-from-top-1 data-[placement=top]:slide-in-from-bottom-1",
-        getSelectMenuPanelSurfaceClassName(surface),
-        menuClassName,
-      )}
-      data-placement={menuPosition?.placement ?? "bottom"}
-      data-state="open"
-      data-surface={surface}
-      data-ui-select-menu-open="true"
+    <SelectMenuPanel
+      ariaLabel={ariaLabel}
       id={menuId}
-      role="listbox"
+      layoutClassName="overflow-y-auto p-1"
+      menuClassName={menuClassName}
+      panelRef={menuRef}
+      placement={menuPosition?.placement}
       style={menuStyle}
+      surface={surface}
     >
       {options.map((option) => {
         const isActive = option.value === value;
@@ -212,7 +176,7 @@ export function UiSelectMenu({
           </button>
         );
       })}
-    </div>
+    </SelectMenuPanel>
   ) : null;
 
   return (
@@ -235,27 +199,15 @@ export function UiSelectMenu({
         })}
         disabled={disabled}
         id={id}
-        onClick={() => {
-          setIsOpen((open) => {
-            if (!open) {
-              updateMenuPosition();
-            }
-            return !open;
-          });
-        }}
-        onKeyDown={handleKeyDown}
+        onClick={toggleMenu}
+        onKeyDown={(event) => handleTriggerKeyDown(event, moveSelection)}
         type="button"
       >
-        <span className="flex min-w-0 flex-1 items-center gap-2">
-          {leading ? <span className="shrink-0 text-(--icon-default)">{leading}</span> : null}
-          {label ? (
-            <>
-              <span className="shrink-0 text-[12px] font-medium text-(--text-muted)">
-                {label}
-              </span>
-              <span className="h-3.5 w-px shrink-0 bg-(--divider-subtle-color)" />
-            </>
-          ) : null}
+        <SelectMenuTriggerContent
+          isOpen={isOpen}
+          label={label}
+          leading={leading}
+        >
           <span
             className={cn(
               "min-w-0 font-semibold text-(--text-strong)",
@@ -264,13 +216,7 @@ export function UiSelectMenu({
           >
             {activeOption?.label ?? placeholder}
           </span>
-        </span>
-        <ChevronDown
-          className={cn(
-            "h-4 w-4 shrink-0 text-(--icon-muted) transition-transform",
-            isOpen && "rotate-180",
-          )}
-        />
+        </SelectMenuTriggerContent>
       </button>
 
       {menu && portalContainer ? createPortal(menu, portalContainer) : null}
