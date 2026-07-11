@@ -1,40 +1,19 @@
 import { useLayoutEffect, useRef, type ReactNode } from "react";
-import { CornerDownRight, Info, LoaderCircle, RotateCcw } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import type { SystemEventContent } from "@/types/conversation/message";
 
 import {
   DEFAULT_TIMELINE_DOT_TOP,
   getTimelineAnchorElement,
   getTimelineAnchorTop,
-} from "../message-item-support";
-
-export function SystemEventIcon({
-  icon,
-  className: className,
-}: {
-  icon: SystemEventContent["icon"];
-  className?: string;
-}) {
-  if (icon === "retry") {
-    return <RotateCcw className={className} />;
-  }
-  if (icon === "progress") {
-    return <LoaderCircle className={className} />;
-  }
-  if (icon === "guide") {
-    return <CornerDownRight className={className} />;
-  }
-  return <Info className={className} />;
-}
+} from "../../message-item-support";
 
 export function TimelineBlock({
-  children,
   active = false,
+  children,
 }: {
-  children: ReactNode;
   active?: boolean;
+  children: ReactNode;
 }) {
   const contentRef = useRef<HTMLDivElement | null>(null);
   const dotRef = useRef<HTMLSpanElement | null>(null);
@@ -47,7 +26,7 @@ export function TimelineBlock({
       return;
     }
 
-    // 圆点位置是纯 DOM 对齐值，避免用 state 回写触发渲染递归。
+    // 圆点位置只写入 DOM，避免测量值进入 React 状态后形成渲染循环。
     const updateDotTop = () => {
       const anchorElement = getTimelineAnchorElement(contentElement);
       const nextDotTop = getTimelineAnchorTop(contentElement, anchorElement);
@@ -59,7 +38,6 @@ export function TimelineBlock({
     };
 
     updateDotTop();
-
     const frameId = window.requestAnimationFrame(updateDotTop);
     return () => window.cancelAnimationFrame(frameId);
   });
@@ -68,15 +46,15 @@ export function TimelineBlock({
     <div className="nexus-chat-timeline-block relative grid min-w-0 grid-cols-[12px_minmax(0,1fr)] items-start gap-3">
       <div className="relative">
         <span
-          ref={dotRef}
           className={cn(
             "absolute left-1/2 block h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-(--divider-subtle-color)",
-            active ? "bg-primary/70" : null,
+            active && "bg-primary/70",
           )}
+          ref={dotRef}
           style={{ top: `${DEFAULT_TIMELINE_DOT_TOP}px` }}
         />
       </div>
-      <div ref={contentRef} className="min-w-0">
+      <div className="min-w-0" ref={contentRef}>
         {children}
       </div>
     </div>

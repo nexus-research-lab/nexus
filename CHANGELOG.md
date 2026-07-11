@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Split Personal settings into a scoped profile resource and command controller, data-driven password validation, and presentation-only profile, password, and token-usage sections.
 - Moved General settings sections and pure option/preference models into their owning domain, while relocating settings-style UI shared with Operations to an explicit shared layer.
 - Reorganized Markdown rendering into core, streaming, workspace, and Mermaid domains, separating link normalization, summary components, SVG rendering, and preview interaction state.
+- Split message item rendering into content, Assistant, and User domains, centralized structured tool/result projection, and removed an incomplete custom memo comparator that could retain stale action callbacks.
 - Split subagent task inspection into scoped list/thread resources, a serialized command controller, and a presentation-only thread view.
 - Split the DM chat panel into entry, model, and view layers, and unified DM/Room session orchestration and conversation surface layout behind shared controllers.
 - Consolidated conversation timeline grouping and Room Agent round projection into their domain models, removing the shared conversation utility catch-all.

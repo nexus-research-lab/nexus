@@ -1,133 +1,117 @@
 import type {
   ContentBlock,
   TaskProgressContent,
-  ToolResultContent,
   ToolUseContent,
 } from "@/types/conversation/message";
 import type { PendingPermission } from "@/types/conversation/permission";
 
-import type { MessageActivityState } from "../../ui/message-primitives";
+import type { MessageActivityState } from "../../../ui/message-primitives";
+import type { ToolUseProjection } from "./content-renderer-model";
+
+const BROWSING_TOOLS = new Set([
+  "Read",
+  "Glob",
+  "LS",
+  "Grep",
+  "WebSearch",
+  "WebFetch",
+]);
 
 export function resolveActivityState({
+  consumedBlockIndexes,
   content,
-  streamingBlockIndexes,
-  toolUseMap,
-  renderedIndices,
   fallbackActivityState,
-  pendingPermissionsByToolUseId,
   hiddenToolNames,
+  pendingPermissionsByToolUseId,
+  streamingBlockIndexes,
+  toolUseById,
 }: {
+  consumedBlockIndexes: ReadonlySet<number>;
   content: ContentBlock[];
-  streamingBlockIndexes?: ReadonlySet<number>;
-  toolUseMap: ReadonlyMap<string, {
-    use: ToolUseContent;
-    result?: ToolResultContent;
-    index: number;
-  }>;
-  renderedIndices: ReadonlySet<number>;
   fallbackActivityState?: MessageActivityState | null;
+  hiddenToolNames: ReadonlySet<string>;
   pendingPermissionsByToolUseId?: ReadonlyMap<string, PendingPermission>;
-  hiddenToolNames: string[];
+  streamingBlockIndexes?: ReadonlySet<number>;
+  toolUseById: ReadonlyMap<string, ToolUseProjection>;
 }): MessageActivityState {
   const latestPendingTool = findLatestPendingToolUse(
     content,
-    toolUseMap,
+    toolUseById,
     hiddenToolNames,
   );
   if (latestPendingTool) {
     const pendingPermission = pendingPermissionsByToolUseId?.get(latestPendingTool.id);
     if (pendingPermission) {
-      if (latestPendingTool.name === "AskUserQuestion") {
-        return "waiting_input";
-      }
-      return "waiting_permission";
+      return latestPendingTool.name === "AskUserQuestion"
+        ? "waiting_input"
+        : "waiting_permission";
     }
-
     if (latestPendingTool.name === "AskUserQuestion") {
       return fallbackActivityState ?? "thinking";
     }
-
     return mapToolNameToActivityState(latestPendingTool.name);
   }
 
   const latestVisibleBlock = findLatestVisibleBlock(
     content,
-    renderedIndices,
+    consumedBlockIndexes,
     hiddenToolNames,
   );
   if (!latestVisibleBlock) {
     return fallbackActivityState ?? "thinking";
   }
 
-  if (latestVisibleBlock.type === "task_progress") {
-    return mapProgressToActivityState(latestVisibleBlock);
-  }
-
-  if (latestVisibleBlock.type === "tool_use") {
-    if (latestVisibleBlock.name === "AskUserQuestion") {
+  switch (latestVisibleBlock.type) {
+    case "task_progress":
+      return mapProgressToActivityState(latestVisibleBlock);
+    case "tool_use":
+      if (latestVisibleBlock.name !== "AskUserQuestion") {
+        return mapToolNameToActivityState(latestVisibleBlock.name);
+      }
       return pendingPermissionsByToolUseId?.has(latestVisibleBlock.id)
         ? "waiting_input"
         : (fallbackActivityState ?? "thinking");
-    }
-    return mapToolNameToActivityState(latestVisibleBlock.name);
+    case "thinking":
+      return "thinking";
+    case "text":
+      return hasStreamingTextBlock(content, streamingBlockIndexes)
+        ? "replying"
+        : (fallbackActivityState ?? "replying");
+    case "workspace_file_artifact":
+      return fallbackActivityState ?? "executing";
+    default:
+      return fallbackActivityState ?? "thinking";
   }
-
-  if (latestVisibleBlock.type === "thinking") {
-    return "thinking";
-  }
-
-  if (latestVisibleBlock.type === "text") {
-    return hasStreamingTextBlock(content, streamingBlockIndexes) ? "replying" : (fallbackActivityState ?? "replying");
-  }
-
-  if (latestVisibleBlock.type === "workspace_file_artifact") {
-    return fallbackActivityState ?? "executing";
-  }
-
-  return fallbackActivityState ?? "thinking";
 }
 
 function findLatestPendingToolUse(
   content: ContentBlock[],
-  toolUseMap: ReadonlyMap<string, {
-    use: ToolUseContent;
-    result?: ToolResultContent;
-    index: number;
-  }>,
-  hiddenToolNames: string[],
+  toolUseById: ReadonlyMap<string, ToolUseProjection>,
+  hiddenToolNames: ReadonlySet<string>,
 ): ToolUseContent | null {
   for (let index = content.length - 1; index >= 0; index -= 1) {
     const block = content[index];
-    if (block?.type !== "tool_use") {
+    if (block?.type !== "tool_use" || hiddenToolNames.has(block.name)) {
       continue;
     }
-    if (hiddenToolNames.includes(block.name)) {
-      continue;
-    }
-
-    const toolData = toolUseMap.get(block.id);
-    if (!toolData?.result) {
+    if (!toolUseById.get(block.id)?.result) {
       return block;
     }
   }
-
   return null;
 }
 
 function findLatestVisibleBlock(
   content: ContentBlock[],
-  renderedIndices: ReadonlySet<number>,
-  hiddenToolNames: string[],
+  consumedBlockIndexes: ReadonlySet<number>,
+  hiddenToolNames: ReadonlySet<string>,
 ): ContentBlock | null {
   for (let index = content.length - 1; index >= 0; index -= 1) {
     const block = content[index];
-    if (!block) {
+    if (!block || consumedBlockIndexes.has(index)) {
       continue;
     }
-    if (renderedIndices.has(index)) {
-      continue;
-    }
-    if (block.type === "tool_use" && hiddenToolNames.includes(block.name)) {
+    if (block.type === "tool_use" && hiddenToolNames.has(block.name)) {
       continue;
     }
     if (block.type === "text" && !block.text.trim()) {
@@ -138,33 +122,22 @@ function findLatestVisibleBlock(
     }
     return block;
   }
-
   return null;
 }
 
-function mapProgressToActivityState(block: TaskProgressContent): MessageActivityState {
+function mapProgressToActivityState(
+  block: TaskProgressContent,
+): MessageActivityState {
   return mapToolNameToActivityState(block.last_tool_name ?? null);
 }
 
-function mapToolNameToActivityState(toolName?: string | null): MessageActivityState {
+function mapToolNameToActivityState(
+  toolName?: string | null,
+): MessageActivityState {
   if (!toolName) {
     return "executing";
   }
-
-  const browsingTools = new Set([
-    "Read",
-    "Glob",
-    "LS",
-    "Grep",
-    "WebSearch",
-    "WebFetch",
-  ]);
-
-  if (browsingTools.has(toolName)) {
-    return "browsing";
-  }
-
-  return "executing";
+  return BROWSING_TOOLS.has(toolName) ? "browsing" : "executing";
 }
 
 function hasStreamingTextBlock(
@@ -174,13 +147,11 @@ function hasStreamingTextBlock(
   if (!streamingBlockIndexes?.size) {
     return false;
   }
-
   for (const index of streamingBlockIndexes) {
     const block = content[index];
     if (block?.type === "text" && block.text.trim()) {
       return true;
     }
   }
-
   return false;
 }
