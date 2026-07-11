@@ -1,6 +1,6 @@
 "use client";
 
-import { lazy, Suspense, useCallback, useState } from "react";
+import { useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { getDefaultAgentId, isMainAgent } from "@/config/options";
@@ -10,19 +10,7 @@ import { useLauncherPageController } from "@/hooks/launcher/use-launcher-page-co
 import { resolveDirectRoomNavigationTarget } from "@/lib/conversation/direct-room-navigation";
 import { useTheme } from "@/shared/theme/theme-context";
 import { AppLoadingScreen } from "@/shared/ui/layout/app-loading-screen";
-import { useAgentStore } from "@/store/agent";
 import { SIDEBAR_SYSTEM_ITEM_IDS, useSidebarStore } from "@/store/sidebar";
-import {
-  AgentIdentityDraft,
-  AgentOptions as AgentConfigOptions,
-} from "@/types/agent/agent";
-
-const AgentOptions = lazy(() =>
-  import("@/shared/ui/dialog/agent-options").then((m) => ({ default: m.AgentOptions })),
-);
-const ConfirmDialog = lazy(() =>
-  import("@/shared/ui/dialog/confirm-dialog").then((m) => ({ default: m.ConfirmDialog })),
-);
 
 export function LauncherPage() {
   const { theme } = useTheme();
@@ -32,10 +20,6 @@ export function LauncherPage() {
     (state) => state.set_active_panel_item,
   );
   const defaultAgentId = getDefaultAgentId();
-  const [pendingDeleteAgent, setPendingDeleteAgent] = useState<{
-    id: string;
-    name: string;
-  } | null>(null);
 
   const openNavigationRoute = useCallback(
     (route: string) => {
@@ -86,110 +70,24 @@ export function LauncherPage() {
     [openAgentDm],
   );
 
-  const handleSaveAgentOptions = useCallback(
-    async (
-      _title: string,
-      options: AgentConfigOptions,
-      identity: AgentIdentityDraft,
-    ) => {
-      const shouldOpenRoomAfterCreate = controller.dialogMode === "create";
-      await controller.handleSaveAgentOptions(_title, options, identity);
-
-      if (!shouldOpenRoomAfterCreate) {
-        return;
-      }
-
-      const nextAgentId = useAgentStore.getState().current_agent_id;
-      if (!nextAgentId) {
-        return;
-      }
-
-      const { context, route } =
-        await resolveDirectRoomNavigationTarget(nextAgentId);
-      setActivePanelItem(context.room.id);
-      openNavigationRoute(route);
-    },
-    [controller, openNavigationRoute, setActivePanelItem],
-  );
-
-  const handleRequestDeleteAgent = useCallback(
-    (agentId: string) => {
-      const targetAgent = controller.agents.find(
-        (agent) => agent.id === agentId,
-      );
-      controller.setIsDialogOpen(false);
-      setPendingDeleteAgent({
-        id: agentId,
-        name: targetAgent?.name ?? "该 Agent",
-      });
-    },
-    [controller],
-  );
-
-  const handleConfirmDeleteAgent = useCallback(async () => {
-    if (!pendingDeleteAgent) {
-      return;
-    }
-
-    await controller.handle_delete_agent(pendingDeleteAgent.id);
-    setPendingDeleteAgent(null);
-  }, [controller, pendingDeleteAgent]);
-
   if (!controller.is_hydrated) {
     return <AppLoadingScreen />;
   }
 
   return (
-    <>
-      <div
-        className="relative flex min-h-0 flex-1 overflow-hidden"
-        style={getLauncherSurfaceThemeStyle(theme)}
-      >
-        <LauncherConsole
-          agents={controller.agents}
-          rooms={controller.rooms}
-          conversations={controller.conversations}
-          currentAgentId={controller.current_agent_id}
-          onOpenMainAgentDm={handleOpenMainAgentDm}
-          onOpenRoute={openNavigationRoute}
-          onSelectAgent={handleSelectAgent}
-        />
-      </div>
-
-      <Suspense fallback={null}>
-        {controller.isDialogOpen ? (
-          <AgentOptions
-            agentId={controller.editingAgentId ?? undefined}
-            mode={controller.dialogMode}
-            isOpen={controller.isDialogOpen}
-            onClose={() => {
-              controller.setIsDialogOpen(false);
-            }}
-            onDelete={handleRequestDeleteAgent}
-            onSave={handleSaveAgentOptions}
-            onValidateName={controller.handleValidateAgentName}
-            initialAvatar={controller.dialogInitialAvatar}
-            initialDescription={controller.dialogInitialDescription}
-            initialTitle={controller.dialogInitialTitle}
-            initialOptions={controller.dialogInitialOptions}
-            initialVibeTags={controller.dialogInitialVibeTags}
-          />
-        ) : null}
-
-        {pendingDeleteAgent ? (
-          <ConfirmDialog
-            confirmText="删除成员"
-            isOpen={Boolean(pendingDeleteAgent)}
-            message={`删除「${pendingDeleteAgent?.name ?? "该 Agent"}」后，该成员将不再出现在当前前端列表中。已有历史协作不会自动删除。`}
-            onCancel={() => setPendingDeleteAgent(null)}
-            onConfirm={() => {
-              void handleConfirmDeleteAgent();
-            }}
-            title="删除成员"
-            variant="danger"
-          />
-        ) : null}
-      </Suspense>
-    </>
+    <div
+      className="relative flex min-h-0 flex-1 overflow-hidden"
+      style={getLauncherSurfaceThemeStyle(theme)}
+    >
+      <LauncherConsole
+        agents={controller.agents}
+        conversations={controller.conversations}
+        currentAgentId={controller.current_agent_id}
+        onOpenMainAgentDm={handleOpenMainAgentDm}
+        onOpenRoute={openNavigationRoute}
+        onSelectAgent={handleSelectAgent}
+        rooms={controller.rooms}
+      />
+    </div>
   );
 }

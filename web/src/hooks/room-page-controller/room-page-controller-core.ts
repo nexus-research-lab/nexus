@@ -150,29 +150,6 @@ export function resolveCurrentRoomContext(
     null;
 }
 
-export function resolveSelectedMemberAgentId(
-  currentRoomContext: RoomContextAggregate | null,
-  currentSelectedMemberAgentId: string | null,
-): string | null {
-  const memberAgentIds =
-    currentRoomContext?.sessions
-      .map((session) => session.agent_id)
-      .filter(Boolean) ?? [];
-
-  if (!memberAgentIds.length) {
-    return null;
-  }
-
-  if (
-    currentSelectedMemberAgentId &&
-    memberAgentIds.includes(currentSelectedMemberAgentId)
-  ) {
-    return currentSelectedMemberAgentId;
-  }
-
-  return memberAgentIds[0];
-}
-
 export function resolveCurrentAgentSessionIdentity(params: {
   currentRoomId: string | null;
   currentConversationId: string | null;

@@ -12,6 +12,18 @@ import { create } from 'zustand';
 import { getWorkspaceFilesApi } from '@/lib/api/agent-manage-api';
 import { WorkspaceFileEntry } from '@/types/agent/agent';
 
+const requestVersionByAgent = new Map<string, number>();
+
+function nextRequestVersion(agentId: string): number {
+  const nextVersion = (requestVersionByAgent.get(agentId) ?? 0) + 1;
+  requestVersionByAgent.set(agentId, nextVersion);
+  return nextVersion;
+}
+
+function isCurrentRequest(agentId: string, requestVersion: number): boolean {
+  return requestVersionByAgent.get(agentId) === requestVersion;
+}
+
 interface WorkspaceFilesStoreState {
   files_by_agent: Record<string, WorkspaceFileEntry[]>;
   // 一次性「打开文件时请求切到的归属 Agent」：消息区点资产带上 workspace_agent_id，
@@ -32,6 +44,7 @@ export const useWorkspaceFilesStore = create<WorkspaceFilesStoreState>()((set) =
   },
 
   set_files: (agentId, files) => {
+    nextRequestVersion(agentId);
     set((state) => ({
       files_by_agent: {
         ...state.files_by_agent,
@@ -41,6 +54,7 @@ export const useWorkspaceFilesStore = create<WorkspaceFilesStoreState>()((set) =
   },
 
   clear_agent: (agentId) => {
+    nextRequestVersion(agentId);
     set((state) => {
       const next = { ...state.files_by_agent };
       delete next[agentId];
@@ -49,7 +63,11 @@ export const useWorkspaceFilesStore = create<WorkspaceFilesStoreState>()((set) =
   },
 
   refresh_files: async (agentId) => {
+    const requestVersion = nextRequestVersion(agentId);
     const files = await getWorkspaceFilesApi(agentId);
+    if (!isCurrentRequest(agentId, requestVersion)) {
+      return files;
+    }
     set((state) => ({
       files_by_agent: {
         ...state.files_by_agent,

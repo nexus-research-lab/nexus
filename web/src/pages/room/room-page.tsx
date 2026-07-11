@@ -7,8 +7,6 @@ import { getExternalSessionKeyFromConversationId } from "@/features/conversation
 import { GroupRouteEntry } from "@/features/conversation/room/group/group-route-entry";
 import { RoomSurfaceShell } from "@/features/conversation/room/surface/room-surface-shell";
 import { useRoomPageController } from "@/hooks/room-page-controller/use-room-page-controller";
-import { AgentOptions } from "@/shared/ui/dialog/agent-options";
-import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { usePageOnboardingTour } from "@/shared/ui/onboarding/use-page-onboarding-tour";
 import { WorkspaceLoadingState } from "@/shared/ui/workspace/frame/workspace-loading-state";
@@ -31,7 +29,6 @@ export function RoomPage() {
     id: string;
     room_type: "room" | "dm";
   } | null>(null);
-  const [pendingDeleteAgent, setPendingDeleteAgent] = useState<{ id: string; name: string } | null>(null);
   const controller = useRoomPageController({
     roomId: params.roomId,
     conversationId: params.conversationId,
@@ -78,16 +75,14 @@ export function RoomPage() {
   }, []);
 
   const handleBackToLauncher = useCallback(() => {
-    controller.handleBackToDirectory();
     navigate(AppRouteBuilders.launcher());
-  }, [controller, navigate]);
+  }, [navigate]);
 
   const handleUpdateRoom = useCallback(async (_room_id: string, params: UpdateRoomParams) => {
     await controller.handleUpdateRoom(params);
   }, [controller]);
 
   const handleSelectConversation = useCallback((conversationId: string) => {
-    controller.handleSelectConversation(conversationId);
     const routeRoomId = params.roomId;
     if (routeRoomId) {
       const externalSessionKey = getExternalSessionKeyFromConversationId(conversationId);
@@ -97,7 +92,7 @@ export function RoomPage() {
       }
       navigate(AppRouteBuilders.roomConversation(routeRoomId, conversationId));
     }
-  }, [controller, navigate, params.roomId]);
+  }, [navigate, params.roomId]);
 
   const handleCreateConversation = useCallback(async (title?: string) => {
     const routeRoomId = params.roomId;
@@ -214,24 +209,6 @@ export function RoomPage() {
     pendingDeletedRoom,
   ]);
 
-  const handleRequestDeleteAgent = useCallback((agentId: string) => {
-    const targetAgent = controller.agents.find((agent) => agent.agent_id === agentId);
-    controller.setIsDialogOpen(false);
-    setPendingDeleteAgent({
-      id: agentId,
-      name: targetAgent?.name ?? "该 Agent",
-    });
-  }, [controller]);
-
-  const handleConfirmDeleteAgent = useCallback(async () => {
-    if (!pendingDeleteAgent) {
-      return;
-    }
-
-    await controller.handleDeleteAgent(pendingDeleteAgent.id);
-    setPendingDeleteAgent(null);
-  }, [controller, pendingDeleteAgent]);
-
   useEffect(() => {
     // 原有逻辑：自动导航到当前对话
     if (
@@ -328,32 +305,6 @@ export function RoomPage() {
           />
         </WorkspacePageFrame>
 
-        <AgentOptions
-          agentId={controller.editingAgentId ?? undefined}
-          initialAvatar={controller.dialogInitialAvatar}
-          initialDescription={controller.dialogInitialDescription}
-          mode={controller.dialogMode}
-          isOpen={controller.isDialogOpen}
-          onClose={() => controller.setIsDialogOpen(false)}
-          onDelete={handleRequestDeleteAgent}
-          onSave={controller.handleSaveAgentOptions}
-          onValidateName={controller.handleValidateAgentName}
-          initialTitle={controller.dialogInitialTitle}
-          initialOptions={controller.dialogInitialOptions}
-          initialVibeTags={controller.dialogInitialVibeTags}
-        />
-
-        <ConfirmDialog
-          confirmText="删除成员"
-          isOpen={Boolean(pendingDeleteAgent)}
-          message={`删除「${pendingDeleteAgent?.name ?? "该 Agent"}」后，该成员将不再出现在当前前端列表中。已有历史协作不会自动删除。`}
-          onCancel={() => setPendingDeleteAgent(null)}
-          onConfirm={() => {
-            void handleConfirmDeleteAgent();
-          }}
-          title="删除成员"
-          variant="danger"
-        />
       </>
     );
   }

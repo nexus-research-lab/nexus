@@ -9,7 +9,7 @@ import {
   type ConversationSnapshotBuildInput,
 } from "@/features/conversation/shared/use-conversation-snapshot-reporter";
 import { useProviderAvailability } from "@/hooks/capability/use-provider-availability";
-import { useExtractTodos } from "@/hooks/conversation/use-extract-todos";
+import { useConversationTodos } from "@/features/conversation/shared/todos/use-conversation-todos";
 import { useDefaultChatDeliveryPolicy } from "@/hooks/settings/use-default-chat-delivery-policy";
 import { createGoalApi } from "@/lib/api/goal-api";
 import { useAuth } from "@/shared/auth/auth-context";
@@ -240,7 +240,7 @@ function useDmConversationObservers({
   onTodosChange?: (todos: TodoItem[]) => void;
   sessionKey: string | null;
 }): void {
-  const todos = useExtractTodos(messages, sessionKey);
+  const todos = useConversationTodos(messages, sessionKey);
   useEffect(() => onTodosChange?.(todos), [onTodosChange, todos]);
   const buildSnapshot = useCallback(
     (input: ConversationSnapshotBuildInput) =>
