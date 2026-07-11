@@ -14,6 +14,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
 )
 
 // roomChatExecution 保存一次 Room 输入从受理到启动 round 的业务态。
@@ -34,6 +35,84 @@ type roomChatExecution struct {
 	deliveryPolicy     protocol.ChatDeliveryPolicy
 	history            []protocol.Message
 	userMessage        protocol.Message
+}
+
+func (s *RealtimeService) buildAgentDirectory(
+	ctx context.Context,
+	contextValue *protocol.ConversationContextAggregate,
+) (map[string]string, map[string]*protocol.Agent, error) {
+	agentNameByID := make(map[string]string)
+	agentByID := make(map[string]*protocol.Agent)
+	if contextValue == nil {
+		return agentNameByID, agentByID, nil
+	}
+	memberIDs := make(map[string]struct{})
+	for _, member := range contextValue.Members {
+		if member.MemberType != protocol.MemberTypeAgent || strings.TrimSpace(member.MemberAgentID) == "" {
+			continue
+		}
+		memberIDs[strings.TrimSpace(member.MemberAgentID)] = struct{}{}
+	}
+	for _, agentValue := range contextValue.MemberAgents {
+		if _, ok := memberIDs[agentValue.AgentID]; !ok {
+			continue
+		}
+		item := agentValue
+		agentNameByID[item.AgentID] = item.Name
+		agentByID[item.AgentID] = &item
+	}
+	for agentID := range memberIDs {
+		if _, ok := agentByID[agentID]; ok {
+			continue
+		}
+		agentValue, err := s.agents.GetAgent(ctx, agentID)
+		if err != nil {
+			return nil, nil, err
+		}
+		agentNameByID[agentValue.AgentID] = agentValue.Name
+		agentByID[agentValue.AgentID] = agentValue
+	}
+	return agentNameByID, agentByID, nil
+}
+
+func (s *RealtimeService) scheduleTitleGeneration(
+	ctx context.Context,
+	sessionKey string,
+	contextValue *protocol.ConversationContextAggregate,
+	content string,
+	provider string,
+	model string,
+) {
+	if s.titles == nil || contextValue == nil {
+		return
+	}
+	s.titles.Schedule(ctx, titlegen.Request{
+		OwnerUserID:              authctx.OwnerUserID(ctx),
+		SessionKey:               sessionKey,
+		Provider:                 strings.TrimSpace(provider),
+		Model:                    strings.TrimSpace(model),
+		Content:                  content,
+		SessionMessageCount:      -1,
+		ConversationID:           contextValue.Conversation.ID,
+		ConversationRoomID:       contextValue.Room.ID,
+		ConversationTitle:        contextValue.Conversation.Title,
+		ConversationRoomName:     contextValue.Room.Name,
+		ConversationMessageCount: contextValue.Conversation.MessageCount,
+	})
+}
+
+func resolveTitleRuntimeTarget(
+	targetAgentIDs []string,
+	agentByID map[string]*protocol.Agent,
+) (string, string) {
+	for _, agentID := range targetAgentIDs {
+		agentValue := agentByID[strings.TrimSpace(agentID)]
+		if agentValue == nil {
+			continue
+		}
+		return strings.TrimSpace(agentValue.Options.Provider), strings.TrimSpace(agentValue.Options.Model)
+	}
+	return "", ""
 }
 
 // HandleChat 处理 Room 主对话消息。

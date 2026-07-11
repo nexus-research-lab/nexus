@@ -11,6 +11,28 @@ import (
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
+func dmExternalReplyTarget(target *DeliveryTarget) *dmsvc.ExternalReplyTarget {
+	if target == nil {
+		return nil
+	}
+	normalized := target.Normalized()
+	if normalized.Mode == DeliveryModeNone {
+		return nil
+	}
+	switch normalized.Channel {
+	case "", ChannelTypeWebSocket, ChannelTypeInternal:
+		return nil
+	}
+	return &dmsvc.ExternalReplyTarget{
+		Mode:       normalized.Mode,
+		Channel:    normalized.Channel,
+		To:         normalized.To,
+		AccountID:  normalized.AccountID,
+		ThreadID:   normalized.ThreadID,
+		SessionKey: normalized.SessionKey,
+	}
+}
+
 // Accept 受理一条外部通道消息。
 func (s *IngressService) Accept(ctx context.Context, request IngressRequest) (*IngressResult, error) {
 	normalized, err := s.normalizeRequest(ctx, request)

@@ -33,6 +33,80 @@ type roomInputQueueEntry struct {
 	Location workspacestore.InputQueueLocation
 }
 
+func inputQueueTargetAgentIDs(item protocol.InputQueueItem) []string {
+	targets := make([]string, 0, len(item.TargetAgentIDs)+1)
+	seen := make(map[string]struct{}, len(item.TargetAgentIDs)+1)
+	appendTarget := func(agentID string) {
+		agentID = strings.TrimSpace(agentID)
+		if agentID == "" {
+			return
+		}
+		if _, exists := seen[agentID]; exists {
+			return
+		}
+		seen[agentID] = struct{}{}
+		targets = append(targets, agentID)
+	}
+	appendTarget(item.AgentID)
+	for _, agentID := range item.TargetAgentIDs {
+		appendTarget(agentID)
+	}
+	return targets
+}
+
+func inputQueueLocationAgentID(location workspacestore.InputQueueLocation) string {
+	return strings.TrimSpace(protocol.ParseSessionKey(location.SessionKey).AgentID)
+}
+
+func inputQueueLocationKey(location workspacestore.InputQueueLocation) string {
+	return strings.TrimSpace(location.WorkspacePath) + "::" + strings.TrimSpace(location.SessionKey)
+}
+
+func contextWithQueueOwner(ctx context.Context, ownerUserID string) context.Context {
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	if ownerUserID == "" {
+		return ctx
+	}
+	if _, ok := authctx.CurrentUserID(ctx); ok {
+		return ctx
+	}
+	return authctx.WithPrincipal(ctx, &authctx.Principal{
+		UserID: ownerUserID,
+		Role:   authctx.RoleOwner,
+	})
+}
+
+func (s *RealtimeService) broadcastRoomInputQueueSnapshot(
+	ctx context.Context,
+	sessionKey string,
+	contextValue *protocol.ConversationContextAggregate,
+) error {
+	items, err := s.roomInputQueueItems(ctx, contextValue)
+	if err != nil {
+		return err
+	}
+	s.broadcastInputQueueItems(ctx, sessionKey, contextValue.Room.ID, contextValue.Conversation.ID, items)
+	return nil
+}
+
+func (s *RealtimeService) broadcastInputQueueItems(
+	ctx context.Context,
+	sessionKey string,
+	roomID string,
+	conversationID string,
+	items []protocol.InputQueueItem,
+) {
+	s.broadcastSharedEvent(ctx, sessionKey, roomID, newRoomInputQueueEvent(sessionKey, roomID, conversationID, items))
+}
+
+func newRoomInputQueueEvent(sessionKey string, roomID string, conversationID string, items []protocol.InputQueueItem) protocol.EventMessage {
+	event := protocol.NewInputQueueEvent(sessionKey, items)
+	event.Data["scope"] = string(protocol.InputQueueScopeRoom)
+	event.RoomID = strings.TrimSpace(roomID)
+	event.ConversationID = strings.TrimSpace(conversationID)
+	return event
+}
+
 // HandleInputQueue 处理 Room 待发送队列控制消息。
 func (s *RealtimeService) HandleInputQueue(ctx context.Context, request InputQueueRequest) error {
 	sessionKey, contextValue, err := s.resolveInputQueueContext(ctx, request)

@@ -3,7 +3,10 @@ package workspace
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -51,6 +54,119 @@ func NewInputQueueID() string {
 		return fmt.Sprintf("input_%d", time.Now().UnixNano())
 	}
 	return hex.EncodeToString(buffer)
+}
+
+func (s *InputQueueStore) removeLocked(
+	location InputQueueLocation,
+	itemID string,
+	action string,
+) ([]protocol.InputQueueItem, error) {
+	itemID = strings.TrimSpace(itemID)
+	if itemID == "" {
+		return s.snapshotLocked(location)
+	}
+	if err := s.appendActionLocked(location, map[string]any{
+		"action":    action,
+		"item_id":   itemID,
+		"timestamp": time.Now().UnixMilli(),
+	}); err != nil {
+		return nil, err
+	}
+	return s.snapshotLocked(location)
+}
+
+func (s *InputQueueStore) snapshotLocked(location InputQueueLocation) ([]protocol.InputQueueItem, error) {
+	path, err := s.pathForLocation(location)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := s.files.readJSONL(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return []protocol.InputQueueItem{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return replayInputQueueRows(location, rows), nil
+}
+
+func (s *InputQueueStore) appendActionLocked(location InputQueueLocation, row map[string]any) error {
+	path, err := s.pathForLocation(location)
+	if err != nil {
+		return err
+	}
+	if err = os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	return s.files.appendJSONL(path, row)
+}
+
+func (s *InputQueueStore) pathForLocation(location InputQueueLocation) (string, error) {
+	workspacePath := strings.TrimSpace(location.WorkspacePath)
+	sessionKey := strings.TrimSpace(location.SessionKey)
+	if workspacePath == "" {
+		return "", errors.New("workspace_path is required")
+	}
+	if sessionKey == "" {
+		return "", errors.New("session_key is required")
+	}
+	return s.paths.SessionInputQueuePath(workspacePath, sessionKey), nil
+}
+
+func removeInputQueueOrderID(order []string, itemID string) []string {
+	return slices.DeleteFunc(order, func(id string) bool {
+		return id == itemID
+	})
+}
+
+func reorderInputQueueIDs(
+	current []string,
+	itemsByID map[string]protocol.InputQueueItem,
+	orderedIDs []string,
+) []string {
+	result := make([]string, 0, len(current))
+	seen := make(map[string]struct{}, len(current))
+	for _, id := range orderedIDs {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+		if _, ok := itemsByID[id]; !ok {
+			continue
+		}
+		if _, exists := seen[id]; exists {
+			continue
+		}
+		seen[id] = struct{}{}
+		result = append(result, id)
+	}
+	for _, id := range current {
+		if _, ok := itemsByID[id]; !ok {
+			continue
+		}
+		if _, exists := seen[id]; exists {
+			continue
+		}
+		seen[id] = struct{}{}
+		result = append(result, id)
+	}
+	return result
+}
+
+func applyInputQueueOrder(itemsByID map[string]protocol.InputQueueItem, orderedIDs []string, timestamp int64) {
+	for index, id := range orderedIDs {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+		item, ok := itemsByID[id]
+		if !ok {
+			continue
+		}
+		item.QueueOrder = timestamp + int64(index)
+		item.UpdatedAt = item.QueueOrder
+		itemsByID[id] = item
+	}
 }
 
 // Snapshot 读取当前位置的待发送队列快照。

@@ -2,6 +2,7 @@ package room
 
 import (
 	"context"
+	"log/slog"
 	"strings"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
@@ -16,6 +17,7 @@ import (
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 	"github.com/nexus-research-lab/nexus/internal/service/room/runtimepolicy"
 	runtimeselectionsvc "github.com/nexus-research-lab/nexus/internal/service/runtimeselection"
+	sessionresumesvc "github.com/nexus-research-lab/nexus/internal/service/sessionresume"
 	"github.com/nexus-research-lab/nexus/internal/service/toolpolicy"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
@@ -32,6 +34,63 @@ type preparedSlotRuntime struct {
 	options   agentclient.Options
 	selection runtimeselectionsvc.Selection
 	provider  string
+}
+
+func roomSourceContextLabel(roundValue *activeRoomRound) string {
+	if roundValue == nil || roundValue.Context == nil {
+		return ""
+	}
+	if roomName := strings.TrimSpace(roundValue.Context.Room.Name); roomName != "" {
+		return roomName
+	}
+	return strings.TrimSpace(roundValue.Context.Conversation.Title)
+}
+
+func (s *RealtimeService) resolveReusableRoomSDKSessionID(
+	ctx context.Context,
+	logger *slog.Logger,
+	workspacePath string,
+	slot *activeRoomSlot,
+	resumeID string,
+) (string, error) {
+	resumeID = strings.TrimSpace(resumeID)
+	if resumeID == "" {
+		return "", nil
+	}
+	decision := sessionresumesvc.NewPolicy(s.history).CanResume(workspacePath, resumeID)
+	if decision.Allowed {
+		return resumeID, nil
+	}
+	if decision.Err != nil {
+		logger.Warn("检查 Room SDK session transcript 失败，跳过过期 resume",
+			"agent_id", slot.AgentID,
+			"agent_round_id", slot.AgentRoundID,
+			"runtime_session_key", slot.RuntimeSessionKey,
+			"room_session_id", slot.RoomSessionID,
+			"workspace_path", workspacePath,
+			"sdk_session_id", decision.SessionID,
+			"reason", string(decision.Reason),
+			"err", decision.Err,
+		)
+		if clearErr := s.clearSlotSDKSessionID(ctx, slot); clearErr != nil {
+			return "", clearErr
+		}
+		return "", nil
+	}
+
+	logger.Warn("Room SDK session transcript 不存在，跳过过期 resume",
+		"agent_id", slot.AgentID,
+		"agent_round_id", slot.AgentRoundID,
+		"runtime_session_key", slot.RuntimeSessionKey,
+		"room_session_id", slot.RoomSessionID,
+		"workspace_path", workspacePath,
+		"sdk_session_id", decision.SessionID,
+		"reason", string(decision.Reason),
+	)
+	if err := s.clearSlotSDKSessionID(ctx, slot); err != nil {
+		return "", err
+	}
+	return "", nil
 }
 
 func (e *slotExecution) prepareRuntimeClient() (runtimectx.Client, error) {

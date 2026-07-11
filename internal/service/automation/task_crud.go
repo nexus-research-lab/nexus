@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"strings"
+	"time"
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -12,6 +13,39 @@ import (
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
 	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"
 )
+
+// expireTask 只阻止后续触发，不中断已经开始的 run。
+func (s *Service) expireTask(ctx context.Context, job automationdomain.ScheduledTask, expiredAt time.Time) error {
+	if !job.Enabled {
+		return nil
+	}
+	updated := job
+	updated.Enabled = false
+	persisted, err := s.repository.UpsertScheduledTask(ctx, updated)
+	if err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	state := s.jobStates[job.JobID]
+	var runtimeUpdate *automationstore.JobRuntimeUpdateInput
+	if state != nil {
+		state.Job = *persisted
+		state.NextRunAt = nil
+		snapshot := jobRuntimeUpdateFromState(job.JobID, state)
+		runtimeUpdate = &snapshot
+	}
+	s.mu.Unlock()
+
+	if runtimeUpdate != nil {
+		s.persistJobRuntime(ctx, *runtimeUpdate)
+	}
+	s.recordTaskEvent(ctx, automationdomain.TaskEventActionExpire, *persisted, "", map[string]any{
+		"expired_at": expiredAt.UTC(),
+		"expires_at": cloneTimePointer(persisted.ExpiresAt),
+	})
+	return nil
+}
 
 // CreateTask 创建任务。
 func (s *Service) CreateTask(ctx context.Context, input automationdomain.CreateJobInput) (*automationdomain.ScheduledTask, error) {
