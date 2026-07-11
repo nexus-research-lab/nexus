@@ -73,16 +73,14 @@ export function RoomPage() {
           isEditorOpen={controller.isEditorOpen}
           isResizingEditor={controller.isResizingEditor}
           onReplayTour={startCurrentTour}
-          onAddRoomMember={controller.handleAddRoomMember}
+          onManageRoom={controller.handleManageRoom}
           onOpenMemberManager={controller.handlePrepareRoomAgentCatalog}
-          onRemoveRoomMember={controller.handleRemoveRoomMember}
           onBackToDirectory={navigation.backToLauncher}
           onCloseConversation={controller.handleCloseConversation}
           onDeleteConversation={navigation.deleteConversation}
           onCreateConversation={navigation.createConversation}
           onOpenWorkspaceFile={controller.handleOpenWorkspaceFile}
           onSaveAgentOptions={controller.handleSaveExistingAgentOptions}
-          onUpdateRoom={controller.handleUpdateRoom}
           onUpdateConversationTitle={controller.handleUpdateConversationTitle}
           onSelectConversation={navigation.selectConversation}
           onConversationSnapshotChange={controller.handleConversationSnapshotChange}

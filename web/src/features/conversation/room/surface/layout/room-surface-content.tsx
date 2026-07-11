@@ -31,16 +31,15 @@ export function RoomSurfaceContent({
   isEditorOpen,
   isResizingEditor,
   isThreadPanelOpen,
-  onAddRoomMember,
   onChangeSurfaceTab,
   onCloseConversation,
   onConversationSnapshotChange,
   onCreateConversation,
   onDeleteConversation,
   onInitialDraftConsumed,
+  onManageRoom,
   onOpenMemberManager,
   onOpenWorkspaceFile,
-  onRemoveRoomMember,
   onReplayTour,
   onRoomEvent,
   onSaveAgentOptions,
@@ -48,7 +47,6 @@ export function RoomSurfaceContent({
   onStartEditorResize,
   onTodosChange,
   onUpdateConversationTitle,
-  onUpdateRoom,
   onValidateAgentName,
   roomAvatar,
   roomHostAgentId,
@@ -91,16 +89,14 @@ export function RoomSurfaceContent({
               currentAgent={currentAgent}
               currentRoomTitle={currentRoomTitle}
               isDm={isDm}
-              onAddRoomMember={onAddRoomMember}
               onChangeSurfaceTab={layout.handleChangeSurfaceTab}
               onCloseAuxiliaryPanel={layout.handleCloseAuxiliaryPanel}
               onCloseConversation={onCloseConversation}
               onCreateConversation={onCreateConversation}
+              onManageRoom={onManageRoom}
               onOpenMemberManager={onOpenMemberManager}
-              onRemoveRoomMember={onRemoveRoomMember}
               onReplayTour={onReplayTour}
               onSelectConversation={onSelectConversation}
-              onUpdateRoom={onUpdateRoom}
               roomAvatar={roomAvatar}
               roomHostAgentId={roomHostAgentId}
               roomHostAutoReplyEnabled={roomHostAutoReplyEnabled}

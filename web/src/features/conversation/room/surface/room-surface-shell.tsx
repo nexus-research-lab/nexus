@@ -3,14 +3,14 @@
 import { useCallback, useState } from "react";
 
 import { useMediaQuery } from "@/hooks/ui/use-media-query";
+import type { RoomDialogSubmission } from "@/features/conversation/room/members/create-room-dialog";
 import { Agent, AgentIdentityDraft, AgentNameValidationResult, AgentOptions } from "@/types/agent/agent";
 import { AgentConversationIdentity } from "@/types/agent/agent-conversation";
 import { ConversationSnapshotPayload, RoomConversationView } from "@/types/conversation/conversation";
 import { RoomSurfaceTabKey } from "@/types/conversation/room-surface";
 import { TodoItem } from "@/types/conversation/todo";
-import { UpdateRoomParams } from "@/types/conversation/room";
 
-import { RoomMobileSurface } from "./room-mobile-surface";
+import { RoomMobileSurface } from "./mobile/room-mobile-surface";
 import { RoomSurfaceLayout } from "./layout/room-surface-layout";
 
 interface RoomSurfaceShellProps {
@@ -43,12 +43,10 @@ interface RoomSurfaceShellProps {
   onSelectConversation: (conversationId: string) => void;
   onCloseConversation: (conversationId: string) => Promise<void>;
   onDeleteConversation: (conversationId: string) => Promise<string | null>;
-  onAddRoomMember: (agentId: string) => Promise<void>;
-  onRemoveRoomMember: (agentId: string) => Promise<void>;
+  onManageRoom: (submission: RoomDialogSubmission) => Promise<void>;
   onOpenMemberManager: () => Promise<void>;
   onSaveAgentOptions: (agentId: string, title: string, options: AgentOptions, identity: AgentIdentityDraft) => Promise<void>;
   onValidateAgentName: (name: string, agentId?: string) => Promise<AgentNameValidationResult>;
-  onUpdateRoom: (params: UpdateRoomParams) => Promise<void>;
   onUpdateConversationTitle: (conversationId: string, title: string) => Promise<void>;
   onOpenWorkspaceFile: (path: string | null, workspaceAgentId?: string | null) => void;
   onStartEditorResize: () => void;
@@ -87,12 +85,10 @@ export function RoomSurfaceShell({
   onSelectConversation: onSelectConversation,
   onCloseConversation: onCloseConversation,
   onDeleteConversation: onDeleteConversation,
-  onAddRoomMember: onAddRoomMember,
-  onRemoveRoomMember: onRemoveRoomMember,
+  onManageRoom: onManageRoom,
   onOpenMemberManager: onOpenMemberManager,
   onSaveAgentOptions: onSaveAgentOptions,
   onValidateAgentName: onValidateAgentName,
-  onUpdateRoom: onUpdateRoom,
   onUpdateConversationTitle: onUpdateConversationTitle,
   onOpenWorkspaceFile: onOpenWorkspaceFile,
   onStartEditorResize: onStartEditorResize,
@@ -119,6 +115,7 @@ export function RoomSurfaceShell({
   if (isMobile) {
     return (
       <RoomMobileSurface
+        key={roomId ?? currentAgent.agent_id}
         currentAgent={currentAgent}
         currentRoomType={currentRoomType}
         roomId={roomId}
@@ -170,9 +167,8 @@ export function RoomSurfaceShell({
       isEditorOpen={isEditorOpen}
       isResizingEditor={isResizingEditor}
       onReplayTour={onReplayTour}
-      onAddRoomMember={onAddRoomMember}
+      onManageRoom={onManageRoom}
       onOpenMemberManager={onOpenMemberManager}
-      onRemoveRoomMember={onRemoveRoomMember}
       onSaveAgentOptions={onSaveAgentOptions}
       onValidateAgentName={onValidateAgentName}
       onChangeSurfaceTab={setActiveSurfaceTab}
@@ -181,7 +177,6 @@ export function RoomSurfaceShell({
       onCloseConversation={onCloseConversation}
       onDeleteConversation={onDeleteConversation}
       onOpenWorkspaceFile={handleOpenWorkspaceFileInShell}
-      onUpdateRoom={onUpdateRoom}
       onUpdateConversationTitle={onUpdateConversationTitle}
       onSelectConversation={onSelectConversation}
       onStartEditorResize={onStartEditorResize}

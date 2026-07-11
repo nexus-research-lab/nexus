@@ -1,7 +1,7 @@
 import { DmConversationHeader } from "@/features/conversation/room/dm/dm-conversation-header";
 import type { Agent } from "@/types/agent/agent";
+import type { RoomDialogSubmission } from "@/features/conversation/room/members/create-room-dialog";
 import type { RoomConversationView } from "@/types/conversation/conversation";
-import type { UpdateRoomParams } from "@/types/conversation/room";
 import type { RoomSurfaceTabKey } from "@/types/conversation/room-surface";
 
 import { GroupConversationHeader } from "../../group/header/group-conversation-header";
@@ -15,16 +15,14 @@ interface RoomSurfaceHeaderProps {
   currentAgent: Agent;
   currentRoomTitle: string;
   isDm: boolean;
-  onAddRoomMember: (agentId: string) => Promise<void>;
   onChangeSurfaceTab: (tab: RoomSurfaceTabKey) => void;
   onCloseAuxiliaryPanel: () => void;
   onCloseConversation: (conversationId: string) => Promise<void>;
   onCreateConversation: (title?: string) => Promise<string | null>;
+  onManageRoom: (submission: RoomDialogSubmission) => Promise<void>;
   onOpenMemberManager: () => Promise<void>;
-  onRemoveRoomMember: (agentId: string) => Promise<void>;
   onReplayTour?: () => void;
   onSelectConversation: (conversationId: string) => void;
-  onUpdateRoom: (params: UpdateRoomParams) => Promise<void>;
   roomAvatar?: string | null;
   roomHostAgentId?: string | null;
   roomHostAutoReplyEnabled: boolean;
@@ -42,16 +40,14 @@ export function RoomSurfaceHeader({
   currentAgent,
   currentRoomTitle,
   isDm,
-  onAddRoomMember,
   onChangeSurfaceTab,
   onCloseAuxiliaryPanel,
   onCloseConversation,
   onCreateConversation,
+  onManageRoom,
   onOpenMemberManager,
-  onRemoveRoomMember,
   onReplayTour,
   onSelectConversation,
-  onUpdateRoom,
   roomAvatar,
   roomHostAgentId,
   roomHostAutoReplyEnabled,
@@ -76,21 +72,20 @@ export function RoomSurfaceHeader({
     />
   ) : (
     <GroupConversationHeader
+      key={roomId ?? "room-header"}
       activeTab={activeSurfaceTab}
       availableRoomAgents={availableRoomAgents}
       conversationId={conversationId}
       conversations={conversations}
       currentRoomTitle={currentRoomTitle}
-      onAddRoomMember={onAddRoomMember}
       onChangeTab={onChangeSurfaceTab}
       onCloseActiveTab={onCloseAuxiliaryPanel}
       onCloseConversation={onCloseConversation}
       onCreateConversation={onCreateConversation}
+      onManageRoom={onManageRoom}
       onOpenMemberManager={onOpenMemberManager}
-      onRemoveRoomMember={onRemoveRoomMember}
       onReplayTour={onReplayTour}
       onSelectConversation={onSelectConversation}
-      onUpdateRoom={onUpdateRoom}
       roomAvatar={roomAvatar}
       roomHostAgentId={roomHostAgentId}
       roomHostAutoReplyEnabled={roomHostAutoReplyEnabled}

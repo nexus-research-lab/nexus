@@ -38,6 +38,7 @@ export function useRoomPageController({
   const agentOptions = useExistingAgentOptionsCommands({updateAgent});
   const commands = useRoomPageCommands({
     roomId,
+    roomMembers: model.roomMemberAgents,
     refreshRoomContexts: data.refreshRoomContexts,
     saveExistingAgentOptions: agentOptions.saveAgentOptions,
   });
@@ -81,9 +82,7 @@ export function useRoomPageController({
     handleDeleteConversation: commands.handleDeleteConversation,
     handleCreateConversation: commands.handleCreateConversation,
     handleUpdateConversationTitle: commands.handleUpdateConversationTitle,
-    handleUpdateRoom: commands.handleUpdateRoom,
-    handleAddRoomMember: commands.handleAddRoomMember,
-    handleRemoveRoomMember: commands.handleRemoveRoomMember,
+    handleManageRoom: commands.handleManageRoom,
     routeRoomId: roomId ?? null,
     ...workspace,
   };

@@ -1,20 +1,21 @@
 import { useCallback, useRef } from "react";
 
 import {
-  addRoomMember,
   closeRoomConversationRuntime,
   createRoomConversation,
   deleteRoomConversation,
   notifyRoomDirectoryUpdated,
-  removeRoomMember,
-  updateRoom,
   updateRoomConversation,
 } from "@/lib/api/room-api";
+import type { RoomDialogSubmission } from "@/features/conversation/room/members/create-room-dialog";
 import type { AgentIdentityDraft, AgentOptions } from "@/types/agent/agent";
-import type { RoomContextAggregate, UpdateRoomParams } from "@/types/conversation/room";
+import type { RoomContextAggregate } from "@/types/conversation/room";
+
+import { saveRoomManagement } from "./room-management-command";
 
 interface UseRoomPageCommandsOptions {
   roomId?: string | null;
+  roomMembers: readonly { agent_id: string }[];
   refreshRoomContexts: () => Promise<RoomContextAggregate[]>;
   saveExistingAgentOptions: (
     agentId: string,
@@ -28,6 +29,10 @@ interface RoomCommandPolicy {
   refresh: boolean;
 }
 
+type CommandOutcome<Result> =
+  | { ok: true; value: Result }
+  | { ok: false; error: unknown };
+
 const ROOM_COMMAND_POLICIES = {
   mutate: {refresh: true},
   runtime: {refresh: false},
@@ -35,6 +40,7 @@ const ROOM_COMMAND_POLICIES = {
 
 export function useRoomPageCommands({
   roomId,
+  roomMembers,
   refreshRoomContexts,
   saveExistingAgentOptions,
 }: UseRoomPageCommandsOptions) {
@@ -49,19 +55,20 @@ export function useRoomPageCommands({
       return null;
     }
     const scopeRoomId = roomId;
-    const result = await command(scopeRoomId);
-    if (policy.refresh) {
-      await refreshRoomContexts();
-    }
-    return scopeRef.current === scopeRoomId ? result : null;
-  }, [refreshRoomContexts, roomId]);
+    const commandOutcome = await settleCommand(command(scopeRoomId));
+    const refreshOutcome = policy.refresh
+      ? await settleCommand(refreshRoomContexts())
+      : null;
 
-  const handleUpdateRoom = useCallback(async (params: UpdateRoomParams) => {
-    await runRoomCommand(
-      ROOM_COMMAND_POLICIES.mutate,
-      (scopeRoomId) => updateRoom(scopeRoomId, params),
-    );
-  }, [runRoomCommand]);
+    // 复合写入可能只完成前半段，失败后仍以服务端快照校正页面。
+    if (!commandOutcome.ok) {
+      throw commandOutcome.error;
+    }
+    if (refreshOutcome && !refreshOutcome.ok) {
+      throw refreshOutcome.error;
+    }
+    return scopeRef.current === scopeRoomId ? commandOutcome.value : null;
+  }, [refreshRoomContexts, roomId]);
 
   const handleCreateConversation = useCallback(async (title?: string): Promise<string | null> => {
     const context = await runRoomCommand(
@@ -98,19 +105,16 @@ export function useRoomPageCommands({
     );
   }, [runRoomCommand]);
 
-  const handleAddRoomMember = useCallback(async (agentId: string) => {
+  const handleManageRoom = useCallback(async (submission: RoomDialogSubmission) => {
     await runRoomCommand(
       ROOM_COMMAND_POLICIES.mutate,
-      (scopeRoomId) => addRoomMember(scopeRoomId, agentId),
+      (scopeRoomId) => saveRoomManagement(
+        scopeRoomId,
+        roomMembers.map((member) => member.agent_id),
+        submission,
+      ),
     );
-  }, [runRoomCommand]);
-
-  const handleRemoveRoomMember = useCallback(async (agentId: string) => {
-    await runRoomCommand(
-      ROOM_COMMAND_POLICIES.mutate,
-      (scopeRoomId) => removeRoomMember(scopeRoomId, agentId),
-    );
-  }, [runRoomCommand]);
+  }, [roomMembers, runRoomCommand]);
 
   const handleSaveExistingRoomMemberOptions = useCallback(async (
     agentId: string,
@@ -136,14 +140,22 @@ export function useRoomPageCommands({
   }, [refreshRoomContexts, roomId]);
 
   return {
-    handleUpdateRoom,
     handleCreateConversation,
     handleDeleteConversation,
     handleCloseConversation,
     handleUpdateConversationTitle,
-    handleAddRoomMember,
-    handleRemoveRoomMember,
+    handleManageRoom,
     handleSaveExistingRoomMemberOptions,
     handleRefreshRoomState,
   };
+}
+
+async function settleCommand<Result>(
+  command: Promise<Result>,
+): Promise<CommandOutcome<Result>> {
+  try {
+    return { ok: true, value: await command };
+  } catch (error) {
+    return { ok: false, error };
+  }
 }

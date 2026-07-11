@@ -24,6 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Split root bootstrap into startup orchestration, React root rendering, shared failure presentation, chunk/auth recovery, reload guards, and blank-render watchdog modules.
 - Split Room conversation history into pure entry projection, a single-state title editor, item and empty-state views, while moving its private delete policy out of the shared conversation protocol layer.
 - Split Workspace Catalog shared UI into card frames, content primitives, actions, and icon media instead of exposing unrelated controls from one aggregate module.
+- Collapsed Room member management into one page-scoped command and split the Group header's member stack and guide menu into narrow presentation modules.
+- Unified DM/Group header tabs and guide actions, and split the mobile Room surface into header, conversation sheet, thread, subagent, and shared chat modules.
 - Split Room Workspace orchestration into Agent scope, file resource, path model, command, layout, file-browser, and dialog modules.
 - Split conversation Todo projection into round indexing, runtime-task merging, status inference, and a stable shared hook used by both DM and Room panels.
 - Consolidated conversation scrolling under the timeline domain, separating smooth animation, user interactions, history-prepend anchoring, local expansion anchoring, and round navigation protocols.
@@ -70,6 +72,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Prevented stale Room context refreshes, snapshot setters, and mutation results from crossing route Room boundaries.
 - Redirected immediately from rooms confirmed deleted by the server instead of racing a stale page snapshot against a second refresh.
+- Refreshed authoritative Room context after failed mutations, while reducing multi-member management from one refresh per write to one refresh per submission.
+- Reset chat render errors when the active conversation identity changes and localized the shared desktop/mobile fallback view.
 - Prevented stale Workspace file refreshes and mutation completions from crossing Agent boundaries, and consumed one-shot file-open Agent signals in both DM and Room views.
 - Unified TodoWrite plans and runtime task events through one chronological round projection, preventing message-role-specific task lists and repeated full-message scans.
 - Ensured incoming message snapshots remain authoritative even when the existing in-memory collection already contains duplicate message IDs, and ignored invalid negative stream block indexes.

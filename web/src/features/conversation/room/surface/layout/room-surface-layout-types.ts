@@ -1,5 +1,6 @@
 import type { RefObject } from "react";
 
+import type { RoomDialogSubmission } from "@/features/conversation/room/members/create-room-dialog";
 import type {
   Agent,
   AgentIdentityDraft,
@@ -14,7 +15,6 @@ import type {
   ConversationSnapshotPayload,
   RoomConversationView,
 } from "@/types/conversation/conversation";
-import type { UpdateRoomParams } from "@/types/conversation/room";
 import type { RoomSurfaceTabKey } from "@/types/conversation/room-surface";
 import type { TodoItem } from "@/types/conversation/todo";
 
@@ -48,8 +48,7 @@ export interface RoomSurfaceLayoutProps {
   onSelectConversation: (conversationId: string) => void;
   onCloseConversation: (conversationId: string) => Promise<void>;
   onDeleteConversation: (conversationId: string) => Promise<string | null>;
-  onAddRoomMember: (agentId: string) => Promise<void>;
-  onRemoveRoomMember: (agentId: string) => Promise<void>;
+  onManageRoom: (submission: RoomDialogSubmission) => Promise<void>;
   onOpenMemberManager: () => Promise<void>;
   onSaveAgentOptions: (
     agentId: string,
@@ -61,7 +60,6 @@ export interface RoomSurfaceLayoutProps {
     name: string,
     agentId?: string,
   ) => Promise<AgentNameValidationResult>;
-  onUpdateRoom: (params: UpdateRoomParams) => Promise<void>;
   onUpdateConversationTitle: (
     conversationId: string,
     title: string,
