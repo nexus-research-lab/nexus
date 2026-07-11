@@ -1,11 +1,15 @@
-import type { useConversationSession } from "@/features/conversation/shared/session/use-conversation-session";
+import type { RefObject } from "react";
+
 import {
   buildConversationNavigatorModel,
   buildConversationScrollToLatestModel,
   buildConversationViewportModel,
+  type ConversationPanelSessionSource,
 } from "@/features/conversation/shared/conversation-panel-model";
 import { buildGoalActivityKey } from "@/features/conversation/shared/goal/goal-model";
 import type { Agent } from "@/types/agent/agent";
+import type { UseAgentConversationReturn } from "@/types/agent/agent-conversation";
+import type { SessionRoundIndexItem } from "@/types/conversation/room";
 
 import type {
   GroupChatComposerModel,
@@ -17,6 +21,26 @@ export interface RoomAgentDirectory {
   avatars?: Record<string, string | null>;
   names?: Record<string, string>;
 }
+
+type GroupChatSession = Omit<
+  ConversationPanelSessionSource,
+  "conversation" | "scroll"
+> & {
+  conversation: ConversationPanelSessionSource["conversation"] & Pick<
+    UseAgentConversationReturn,
+    | "live_round_ids"
+    | "messages"
+    | "pending_permissions"
+    | "runtime_phase"
+    | "send_permission_response"
+    | "stop_generation"
+  >;
+  roundIndexItems: SessionRoundIndexItem[];
+  scroll: ConversationPanelSessionSource["scroll"] & {
+    bottomAnchorRef: RefObject<HTMLDivElement | null>;
+    feedRef: RefObject<HTMLDivElement | null>;
+  };
+};
 
 interface BuildGroupChatPanelViewModelOptions {
   composer: GroupChatComposerModel;
@@ -35,7 +59,7 @@ interface BuildGroupChatPanelViewModelOptions {
   roomHostAgentId: string | null;
   roomHostAutoReplyEnabled: boolean;
   roomMembers: Agent[];
-  session: ReturnType<typeof useConversationSession>;
+  session: GroupChatSession;
 }
 
 export function buildGroupChatPanelViewModel({

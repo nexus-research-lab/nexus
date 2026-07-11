@@ -20,7 +20,7 @@ import {
 
 import { hydrateRuntimeOptions } from "@/config/options";
 import { AuthStatus, getAuthStatus, loginApi, logoutApi } from "@/lib/api/account/auth-api";
-import { AUTH_REQUIRED_EVENT } from "@/lib/api/core/http";
+import { AUTH_REQUIRED_EVENT } from "@/lib/api/core/http-auth";
 import { AUTH_CONTEXT } from "@/shared/auth/auth-context";
 
 const DEFAULT_UNAUTHORIZED_STATUS: AuthStatus = {

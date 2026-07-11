@@ -77,10 +77,13 @@ export function useConversationSession({
   useVisibleRoundWindowLoader({
     enabled: useIndexedTimeline,
     loadRoundWindow: conversation.load_round_window,
-    revision: buildVisibleRoundRevision(
-      conversation,
-      timeline.feed_round_ids,
-    ),
+    revision: buildVisibleRoundRevision({
+      feedRoundCount: timeline.feed_round_ids.length,
+      liveRoundCount: conversation.live_round_ids.length,
+      messageCount: conversation.messages.length,
+      pendingAgentSlotCount: conversation.pending_agent_slots.length,
+      pendingPermissionCount: conversation.pending_permissions.length,
+    }),
     scopeKey: sessionKey,
     scrollRef: scroll.scrollRef,
   });
@@ -108,15 +111,26 @@ export function useConversationSession({
   };
 }
 
-function buildVisibleRoundRevision(
-  conversation: ReturnType<typeof useAgentConversation>,
-  feedRoundIds: string[],
-): string {
+interface VisibleRoundRevisionInput {
+  feedRoundCount: number;
+  liveRoundCount: number;
+  messageCount: number;
+  pendingAgentSlotCount: number;
+  pendingPermissionCount: number;
+}
+
+function buildVisibleRoundRevision({
+  feedRoundCount,
+  liveRoundCount,
+  messageCount,
+  pendingAgentSlotCount,
+  pendingPermissionCount,
+}: VisibleRoundRevisionInput): string {
   return [
-    feedRoundIds.length,
-    conversation.messages.length,
-    conversation.pending_agent_slots.length,
-    conversation.pending_permissions.length,
-    conversation.live_round_ids.length,
+    feedRoundCount,
+    messageCount,
+    pendingAgentSlotCount,
+    pendingPermissionCount,
+    liveRoundCount,
   ].join(":");
 }

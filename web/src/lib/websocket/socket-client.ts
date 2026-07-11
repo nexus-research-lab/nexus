@@ -1,4 +1,4 @@
-import { notifyAuthRequired } from "@/lib/api/core/http";
+import { notifyAuthRequired } from "@/lib/api/core/http-auth";
 import type {
   WebSocketConfig,
   WebSocketMessage,

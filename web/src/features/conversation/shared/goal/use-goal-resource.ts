@@ -3,7 +3,7 @@
 import { useCallback, useRef, useState } from "react";
 
 import { getCurrentGoalApi } from "@/lib/api/conversation/goal-api";
-import { ApiRequestError } from "@/lib/api/core/http";
+import { ApiRequestError } from "@/lib/api/core/http-error";
 import { getErrorMessage } from "@/lib/error-message";
 import type { Goal } from "@/types/conversation/goal";
 

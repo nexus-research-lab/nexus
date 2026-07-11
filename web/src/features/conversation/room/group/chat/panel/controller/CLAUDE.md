@@ -7,5 +7,5 @@
 - `group-chat-panel-projection.ts` 只把已完成的领域状态投影为视图模型，不持有状态或副作用。
 - 导航、视口和滚动控件统一复用 `shared/conversation-panel-model.ts`，不得在 DM / Room 内各自复制。
 
-接口由消费阶段定义，只传实际读取的数据；不得重新引入恒定权限标记。
+接口由消费阶段定义，只传实际读取的数据；不得通过 Hook `ReturnType` 反向依赖完整 Session 控制器，也不得重新引入恒定权限标记。
 Thread 数据只通过 `group/thread/live/use-room-thread-source.ts` 发布，不在 Chat 域保存桥接状态。

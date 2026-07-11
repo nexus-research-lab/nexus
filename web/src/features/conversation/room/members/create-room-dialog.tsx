@@ -29,6 +29,25 @@ export type {
   RoomDialogSubmission,
 } from "./create-room-dialog-types";
 
+const ROOM_DIALOG_LABEL_KEYS = {
+  create: {
+    confirm: "room.create_action",
+    subtitle: "room.create_dialog_subtitle",
+    title: "room.create_dialog_title",
+  },
+  manage: {
+    confirm: "common.save",
+    subtitle: "room.manage_dialog_subtitle",
+    title: "room.manage_dialog_title",
+  },
+} as const;
+
+type RoomDialogMode = keyof typeof ROOM_DIALOG_LABEL_KEYS;
+type RoomDialogLabelKey = typeof ROOM_DIALOG_LABEL_KEYS[RoomDialogMode][
+  keyof typeof ROOM_DIALOG_LABEL_KEYS[RoomDialogMode]
+];
+type RoomDialogTranslator = (key: RoomDialogLabelKey) => string;
+
 export function CreateRoomDialog(props: CreateRoomDialogProps) {
   if (!props.isOpen) {
     return null;
@@ -185,24 +204,13 @@ function buildDialogInstanceKey(props: CreateRoomDialogProps): string {
 }
 
 function resolveDialogLabels(
-  mode: NonNullable<CreateRoomDialogProps["mode"]>,
-  t: ReturnType<typeof useI18n>["t"],
+  mode: RoomDialogMode,
+  t: RoomDialogTranslator,
 ) {
-  const keys = {
-    create: {
-      confirm: "room.create_action",
-      subtitle: "room.create_dialog_subtitle",
-      title: "room.create_dialog_title",
-    },
-    manage: {
-      confirm: "common.save",
-      subtitle: "room.manage_dialog_subtitle",
-      title: "room.manage_dialog_title",
-    },
-  } as const;
+  const keys = ROOM_DIALOG_LABEL_KEYS[mode];
   return {
-    confirm: t(keys[mode].confirm),
-    subtitle: t(keys[mode].subtitle),
-    title: t(keys[mode].title),
+    confirm: t(keys.confirm),
+    subtitle: t(keys.subtitle),
+    title: t(keys.title),
   };
 }

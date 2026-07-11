@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Organized frontend API clients by Agent, Account, Capability, Conversation, Settings, and Core ownership, renamed the ambiguous conversation `agent-api` to `session-api`, merged duplicate runtime settings clients, split Room queries, commands, projections, directory events, and navigation recovery to remove the API-to-Store dependency cycle, removed unused app-update declarations and the dead bulk Skill update client, and made file-private declarations stop leaking as public exports.
+- Split the core HTTP transport into request preparation, response projection, error types, authentication events, and fetch orchestration, removed forwarding imports, and guaranteed abort-listener cleanup when response parsing fails.
 - Organized shared UI primitives by button, form, display, list, and navigation ownership instead of keeping unrelated controls in one flat root.
 - Split oversized Chinese and English message catalogs into typed domain segments with per-segment key parity checks.
 - Removed matching and presentation logic from conversation type declarations, consolidating permission matching and returning question, system-event, and Surface Tab rules to their owning domains.
@@ -28,8 +29,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Separated Liquid Glass capability, interaction, animation cleanup, and SVG filter ownership, removed render-phase state writes, and deleted message and shared-UI forwarding barrels in favor of direct responsibility imports.
 - Removed the remaining frontend protocol `any` escapes and dead SDK aliases, sharing unknown tool inputs across messages and permissions while validating AskUserQuestion payloads inside the owning feature.
 - Consolidated Composer attachment classification, accept filters, rejection localization, and Agent/Room upload preparation into one data-driven pipeline that validates whole batches before side effects.
-- Split channel QR login state, polling, status projection, and verification UI from channel configuration transactions while preserving one shared command lock, and removed the single-export Agent Hook forwarding entry.
+- Split channel QR login state, polling, status projection, and verification UI from channel configuration transactions while preserving one shared command lock; separated the connection dialog shell, fields, footer, and presentation projections behind consumer-defined contracts; and removed the single-export Agent Hook forwarding entry.
 - Consolidated Select and MultiSelect overlay state, trigger keyboard behavior, listbox framing, and data-driven size/surface projections while preserving their distinct selection semantics.
+- Replaced inferred Conversation Session and Room label Hook types with consumer-defined navigator, viewport, feed, and translation contracts, and reduced visible-window revisions to their explicit count inputs.
 - Split the scheduled-task directory and run history into scoped resources, mutation commands, overview, dialog shell, and narrow list/detail/action views, reusing the shared anchored action menu for task actions.
 - Consolidated action, select, and multi-select menus under shared menu ownership, and unified scheduled-task time columns and anchored overlay behavior across pickers.
 - Split the Home ASCII Hero into presentation, React lifecycle, Canvas scene, and particle-model modules.
@@ -62,6 +64,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Split AskUserQuestion into an atomic answer model, tool-scoped interaction controller, and status-driven presentation, preventing duplicate submissions and stale result hydration.
 - Replaced the message-item support grab bag with owned content, time, projection, activity, and timeline modules, and converted message ordering into an explicit staged pipeline.
 - Removed the flat message-item state contract, grouping User and Assistant state by visual responsibility while letting each view define its own narrow input contract.
+- Split message-item display projection and process-expansion lifecycle from controller assembly, replacing the inferred projection-hook dependency with a consumer-defined structural contract.
 - Split conversation navigation into timeline data projection and ruler presentation models, unifying loaded and indexed rounds behind one navigation-item projection.
 - Decomposed round jumping into scoped target, serialized window-loading, and DOM landing controllers, preventing stale requests from affecting newer navigation.
 - Split visible timeline window loading into candidate selection, retry runtime, and scheduling controllers while keeping its opportunistic strategy distinct from explicit round jumps.

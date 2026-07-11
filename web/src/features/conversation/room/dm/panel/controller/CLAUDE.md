@@ -7,4 +7,4 @@
 - `dm-chat-panel-projection.ts` 只把领域状态投影为视图模型。
 
 导航、视口和滚动控件统一复用 `shared/conversation-panel-model.ts`。
-接口由消费阶段定义，只传实际读取的数据。
+接口由消费阶段定义，只传实际读取的数据；不得通过 Hook `ReturnType` 反向依赖完整 Session 控制器。

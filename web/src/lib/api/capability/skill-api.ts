@@ -7,7 +7,8 @@
  */
 
 import { getAgentApiBaseUrl } from "@/config/options";
-import { requestApi, type RequestApiOptions } from "@/lib/api/core/http";
+import { requestApi } from "@/lib/api/core/http";
+import type { RequestApiOptions } from "@/lib/api/core/http-request";
 import type {
   AgentSkillEntry,
   CheckSkillUpdatesResponse,

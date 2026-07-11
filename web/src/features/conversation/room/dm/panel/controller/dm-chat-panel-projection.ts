@@ -1,10 +1,14 @@
+import type { RefObject } from "react";
+
 import {
   buildConversationNavigatorModel,
   buildConversationScrollToLatestModel,
   buildConversationViewportModel,
+  type ConversationPanelSessionSource,
 } from "@/features/conversation/shared/conversation-panel-model";
 import { buildGoalActivityKey } from "@/features/conversation/shared/goal/goal-model";
-import type { useConversationSession } from "@/features/conversation/shared/session/use-conversation-session";
+import type { UseAgentConversationReturn } from "@/types/agent/agent-conversation";
+import type { SessionRoundIndexItem } from "@/types/conversation/room";
 
 import type {
   DmChatComposerModel,
@@ -12,7 +16,24 @@ import type {
 } from "../view/dm-chat-panel-view";
 import type { DmGoalControllerModel } from "./use-dm-goal-controller";
 
-type DmChatSession = ReturnType<typeof useConversationSession>;
+type DmChatSession = Omit<
+  ConversationPanelSessionSource,
+  "conversation" | "scroll"
+> & {
+  conversation: ConversationPanelSessionSource["conversation"] & Pick<
+    UseAgentConversationReturn,
+    | "live_round_ids"
+    | "messages"
+    | "pending_permissions"
+    | "runtime_phase"
+    | "send_permission_response"
+  >;
+  roundIndexItems: SessionRoundIndexItem[];
+  scroll: ConversationPanelSessionSource["scroll"] & {
+    bottomAnchorRef: RefObject<HTMLDivElement | null>;
+    feedRef: RefObject<HTMLDivElement | null>;
+  };
+};
 type DmGoalProjection = Pick<
   DmGoalControllerModel,
   "continuationHold" | "refreshSequence"
