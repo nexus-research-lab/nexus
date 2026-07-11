@@ -4,6 +4,8 @@ import { getAvailableSkillsApi } from "@/lib/api/capability/skill-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { SkillInfo } from "@/types/capability/skill";
 
+import type { RoomSkillOption } from "./room-skill-multi-select-model";
+
 interface RoomSkillState {
   error: string | null;
   items: SkillInfo[];
@@ -29,10 +31,9 @@ export function useRoomSkillOptions(query: string) {
       .catch((error: unknown) => {
         if (active) {
           setState({
-            error:
-              error instanceof Error
-                ? error.message
-                : t("room.skills_load_error"),
+            error: error instanceof Error
+              ? error.message
+              : t("room.skills_load_error"),
             items: [],
             loading: false,
           });
@@ -44,15 +45,14 @@ export function useRoomSkillOptions(query: string) {
   }, [t]);
 
   const normalizedQuery = query.trim().toLowerCase();
-  const options = useMemo(
-    () =>
-      state.items
-        .filter((skill) => matchesSkill(skill, normalizedQuery))
-        .map((skill) => ({
-          description: skill.description || skill.title,
-          label: skill.name,
-          value: skill.name,
-        })),
+  const options = useMemo<RoomSkillOption[]>(
+    () => state.items
+      .filter((skill) => matchesSkill(skill, normalizedQuery))
+      .map((skill) => ({
+        description: skill.description || skill.title,
+        label: skill.name,
+        value: skill.name,
+      })),
     [normalizedQuery, state.items],
   );
   return { ...state, options };

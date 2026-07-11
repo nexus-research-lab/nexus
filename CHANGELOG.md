@@ -17,6 +17,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Separated scheduled-task run diagnostics from history status and action rules, using ordered definitions for detail rows, output sections, and copied diagnostic fields instead of repeated conditional assembly.
+- Moved ExcelJS cell-value classification and text formatting into an owned Spreadsheet value model, replacing the branch-heavy `unknown` object probe chain with ordered rules over the real closed `CellValue` union.
+- Split Room history items into pure activity/action projection and mode-driven reading/editing views, replacing repeated active, capability, metadata, and title-state conditions in the item entry component.
+- Split Skill import into a thin dialog shell, Git draft controller, mode-driven source views, static authoring guide, and Footer commands, replacing the branch-heavy component that mixed focus, submission, upload, documentation, and presentation state.
+- Removed the single-consumer shared MultiSelect abstraction and moved Room skill loading, filtering, multi-selection, search, and asynchronous menu states into an owned `members/skills` domain while retaining only reusable overlay and listbox infrastructure in shared UI.
+- Moved the Agent private-domain timeline into an owned subdomain with exclusive body states, typed direction styling, and pure event/header projection; tightened private direction and scope contracts to the backend's closed enums and removed the ambiguous shared presentation model.
+- Split the text file editor into pure mode and toolbar projection, Header, and Body ownership, separating external-write status, renderer selection, element sizing, and textarea focus from entry orchestration.
+- Reworked scheduled-task edit initialization into execution, target, and reply projections, normalizing hidden fields that are invalid for Script or Room tasks instead of carrying stale combinations into the form draft.
 - Moved capability navigation into an owned sidebar domain with table-driven item projection and consolidated summary revalidation, removing an unused shared row API and the duplicate scheduled-task mutation event.
 - Split User message presentation into density projection, header actions, identity, content, and editing composition, while preserving concrete role types through assistant-content merging, separating deduplication phases, and removing unconsumed text projections.
 - Replaced the unused multi-banner Stack contract with a single feedback viewport and table-driven tone presentation, resetting auto-dismiss timing when feedback content changes.

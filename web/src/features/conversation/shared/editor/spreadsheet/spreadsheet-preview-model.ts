@@ -1,9 +1,10 @@
-import type { Cell, Workbook, Worksheet } from "exceljs";
+import type { Workbook, Worksheet } from "exceljs";
 
 import {
   getSpreadsheetCellStyle,
   type SpreadsheetPreviewCellStyle,
 } from "./spreadsheet-cell-style";
+import { getSpreadsheetCellText } from "./spreadsheet-cell-value";
 
 export type {
   SpreadsheetPreviewBorderSide,
@@ -102,7 +103,7 @@ function worksheetToSpreadsheetPreviewSheet(worksheet: Worksheet): SpreadsheetPr
       }
 
       const colIndex = colNumber - 1;
-      const text = getCellText(cell);
+      const text = getSpreadsheetCellText(cell);
       const style = getSpreadsheetCellStyle(cell);
       const styleIndex = style ? registerStyle(sheet.styles, styleIndexes, style) : undefined;
       rowData.cells[colIndex] = {
@@ -162,7 +163,7 @@ function applyMergeRange(
     ...(existingCell?.style !== undefined || styleIndex === undefined ? {} : { style: styleIndex }),
     ...existingCell,
     merge: [rowSpan, colSpan],
-    text: existingCell?.text ?? getCellText(cell),
+    text: existingCell?.text ?? getSpreadsheetCellText(cell),
   };
 }
 
@@ -180,46 +181,6 @@ function registerStyle(
   styles.push(style);
   styleIndexes.set(key, nextIndex);
   return nextIndex;
-}
-
-function getCellText(cell: Cell): string {
-  const valueText = formatCellValue(cell.value);
-  if (valueText !== "") {
-    return valueText;
-  }
-  return cell.text || "";
-}
-
-function formatCellValue(value: unknown): string {
-  if (value === null || value === undefined) {
-    return "";
-  }
-  if (value instanceof Date) {
-    return Number.isNaN(value.getTime()) ? "" : value.toLocaleString();
-  }
-  if (typeof value === "number" || typeof value === "boolean" || typeof value === "string") {
-    return String(value);
-  }
-  if (typeof value !== "object") {
-    return "";
-  }
-
-  const record = value as Record<string, unknown>;
-  if ("result" in record) {
-    return formatCellValue(record.result);
-  }
-  if ("richText" in record && Array.isArray(record.richText)) {
-    return record.richText
-      .map((part) => typeof part === "object" && part !== null && "text" in part ? String(part.text) : "")
-      .join("");
-  }
-  if ("text" in record) {
-    return String(record.text ?? "");
-  }
-  if ("error" in record) {
-    return typeof record.error === "string" ? record.error : "";
-  }
-  return "";
 }
 
 function parseSpreadsheetCellRange(range: string): SpreadsheetPreviewRange | null {

@@ -9,7 +9,7 @@ import {
   getRunDiagnosticRows,
   getRunOutputSections,
   type RunOutputSection,
-} from "../scheduled-task-run-history-model";
+} from "../scheduled-task-run-diagnostic-model";
 
 interface ScheduledTaskRunDetailsProps {
   isCopied: boolean;

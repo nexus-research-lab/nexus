@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo } from "react";
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
-import { PrivateEventTimeline } from "@/features/agents/private-domain/agent-private-domain-timeline";
+import { PrivateEventTimeline } from "@/features/agents/private-domain/timeline/agent-private-domain-timeline";
 import { PrivateDomainToolbar } from "@/features/agents/private-domain/agent-private-domain-toolbar";
 import { PrivateThreadList } from "@/features/agents/private-domain/agent-private-domain-thread-list";
 import {

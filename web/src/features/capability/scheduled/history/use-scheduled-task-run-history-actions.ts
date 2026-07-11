@@ -12,7 +12,7 @@ import {
   type PendingCommandState,
   setPendingCommand,
 } from "../controller/pending-command-model";
-import { buildRunDiagnostic } from "./scheduled-task-run-history-model";
+import { buildRunDiagnostic } from "./scheduled-task-run-diagnostic-model";
 
 const RUN_HISTORY_ACTIONS = ["recover", "retry", "retryDelivery"] as const;
 type RunHistoryAction = typeof RUN_HISTORY_ACTIONS[number];

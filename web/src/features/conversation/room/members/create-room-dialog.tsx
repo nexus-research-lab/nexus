@@ -20,9 +20,9 @@ import {
 import type { CreateRoomDialogProps } from "./create-room-dialog-types";
 import { RoomMemberSelector } from "./room-member-selector";
 import { RoomSettingsForm } from "./room-settings-form";
-import { RoomSkillsSelector } from "./room-skills-selector";
+import { RoomSkillsSelector } from "./skills/room-skills-selector";
+import { useRoomSkillOptions } from "./skills/use-room-skill-options";
 import { useCreateRoomForm } from "./use-create-room-form";
-import { useRoomSkillOptions } from "./use-room-skill-options";
 
 export type {
   CreateRoomDialogProps,

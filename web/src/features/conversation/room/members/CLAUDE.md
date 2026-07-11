@@ -4,8 +4,8 @@
 
 - `create-room-dialog.tsx` 只负责弹窗生命周期、区块组合和提交入口。
 - `use-create-room-form.ts` 独占表单状态、不变量归一化和提交模型构造；成员移除后群主失效等联动必须在这里完成。
-- `room-settings-form.tsx`、`room-member-selector.tsx`、`room-skills-selector.tsx` 只负责各自视图和用户输入，不在渲染期修正状态。
-- `use-room-skill-options.ts` 独占技能选项获取、过滤和加载状态。
+- `room-settings-form.tsx`、`room-member-selector.tsx` 只负责各自视图和用户输入，不在渲染期修正状态。
+- `skills/` 独占 Room 技能资源、选择状态和异步菜单，不将单一业务消费者伪装成共享控件。
 
 ## 约定
 

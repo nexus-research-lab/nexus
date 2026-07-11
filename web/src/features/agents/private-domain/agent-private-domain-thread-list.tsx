@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 
 import { PrivateParticipantAvatarStack } from "@/features/agents/private-domain/agent-private-domain-avatar";
-import { privateThreadTitle } from "@/features/agents/private-domain/agent-private-domain-model";
+import { privateThreadTitle } from "@/features/agents/private-domain/agent-private-domain-thread-model";
 import { UiMarkdownContent } from "@/shared/ui/markdown/markdown-content";
 import { cn } from "@/shared/ui/class-name";
 import { formatRelativeTime } from "@/lib/format/relative-time";

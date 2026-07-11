@@ -32,6 +32,22 @@ const SESSION_TARGET_MODES: Record<
   named: "dedicated",
 };
 
+type TaskExecutionInitialState = Pick<
+  TaskFormDraft,
+  | "dedicatedSessionKey"
+  | "executionKind"
+  | "executionMode"
+  | "selectedAgentId"
+  | "selectedRoomId"
+  | "selectedSessionKey"
+  | "targetType"
+>;
+
+type TaskReplyInitialState = Pick<
+  TaskFormDraft,
+  "replyMode" | "selectedReplySessionKey"
+>;
+
 function buildRoomExecutorSelectionFromSessionKey(
   sessionKey: string,
   agentId: string,
@@ -61,6 +77,94 @@ function buildRoomTaskExecutorSelectionKey(task: ScheduledTaskItem): string {
   );
 }
 
+function sourceContextId(task: ScheduledTaskItem): string {
+  return task.source.context_id?.trim() || "";
+}
+
+function namedSessionKey(task: ScheduledTaskItem): string {
+  return task.session_target.kind === "named"
+    ? task.session_target.named_session_key
+    : "";
+}
+
+function boundSessionKey(task: ScheduledTaskItem): string {
+  return task.session_target.kind === "bound"
+    ? task.session_target.bound_session_key
+    : "";
+}
+
+function buildAgentTargetInitialState(
+  task: ScheduledTaskItem,
+): TaskExecutionInitialState {
+  return {
+    dedicatedSessionKey: namedSessionKey(task),
+    executionKind: "agent",
+    executionMode: SESSION_TARGET_MODES[task.session_target.kind],
+    selectedAgentId: sourceContextId(task) || task.agent_id,
+    selectedRoomId: "",
+    selectedSessionKey: boundSessionKey(task),
+    targetType: "agent",
+  };
+}
+
+function buildRoomTargetInitialState(
+  task: ScheduledTaskItem,
+): TaskExecutionInitialState {
+  return {
+    dedicatedSessionKey: "",
+    executionKind: "agent",
+    executionMode: "existing",
+    selectedAgentId: task.agent_id,
+    selectedRoomId: sourceContextId(task),
+    selectedSessionKey: buildRoomTaskExecutorSelectionKey(task),
+    targetType: "room",
+  };
+}
+
+const AGENT_TARGET_INITIALIZERS: Record<
+  TargetType,
+  (task: ScheduledTaskItem) => TaskExecutionInitialState
+> = {
+  agent: buildAgentTargetInitialState,
+  room: buildRoomTargetInitialState,
+};
+
+function agentTargetType(task: ScheduledTaskItem): TargetType {
+  return task.source.context_type === "room" ? "room" : "agent";
+}
+
+function buildAgentExecutionInitialState(
+  task: ScheduledTaskItem,
+): TaskExecutionInitialState {
+  return AGENT_TARGET_INITIALIZERS[agentTargetType(task)](task);
+}
+
+function buildScriptExecutionInitialState(
+  task: ScheduledTaskItem,
+): TaskExecutionInitialState {
+  return {
+    dedicatedSessionKey: "",
+    executionKind: "script",
+    executionMode: "temporary",
+    selectedAgentId: task.agent_id,
+    selectedRoomId: "",
+    selectedSessionKey: "",
+    targetType: "agent",
+  };
+}
+
+const EXECUTION_INITIALIZERS: Record<
+  TaskFormDraft["executionKind"],
+  (task: ScheduledTaskItem) => TaskExecutionInitialState
+> = {
+  agent: buildAgentExecutionInitialState,
+  script: buildScriptExecutionInitialState,
+};
+
+function executionKind(task: ScheduledTaskItem): TaskFormDraft["executionKind"] {
+  return task.execution_kind === "script" ? "script" : "agent";
+}
+
 function resolveReplyMode(
   task: ScheduledTaskItem,
   executionTarget: string,
@@ -74,6 +178,63 @@ function resolveReplyMode(
   }
   return "execution";
 }
+
+const REPLY_SESSION_KEY_BUILDERS: Record<
+  TargetType,
+  (sessionKey: string, agentId: string) => string
+> = {
+  agent: (sessionKey) => sessionKey,
+  room: buildRoomExecutorSelectionFromSessionKey,
+};
+
+function selectedReplySessionKey(
+  task: ScheduledTaskItem,
+  targetType: TargetType,
+  executionTarget: string,
+): string {
+  if (task.delivery.mode !== "explicit"
+    || !task.delivery.to
+    || task.delivery.to === executionTarget) {
+    return "";
+  }
+  return REPLY_SESSION_KEY_BUILDERS[targetType](
+    task.delivery.to,
+    task.agent_id,
+  );
+}
+
+function buildAgentReplyInitialState(
+  task: ScheduledTaskItem,
+  execution: TaskExecutionInitialState,
+): TaskReplyInitialState {
+  const executionTarget = executionSessionKey(task);
+  return {
+    replyMode: resolveReplyMode(task, executionTarget),
+    selectedReplySessionKey: selectedReplySessionKey(
+      task,
+      execution.targetType,
+      executionTarget,
+    ),
+  };
+}
+
+function buildScriptReplyInitialState(): TaskReplyInitialState {
+  return {
+    replyMode: "none",
+    selectedReplySessionKey: "",
+  };
+}
+
+const REPLY_INITIALIZERS: Record<
+  TaskFormDraft["executionKind"],
+  (
+    task: ScheduledTaskItem,
+    execution: TaskExecutionInitialState,
+  ) => TaskReplyInitialState
+> = {
+  agent: buildAgentReplyInitialState,
+  script: buildScriptReplyInitialState,
+};
 
 function buildTaskSchedule(task: ScheduledTaskItem): TaskScheduleDraft {
   const timezone = task.schedule.timezone?.trim() || getDefaultTimezone();
@@ -151,65 +312,29 @@ export function buildTaskDialogInitialState(
   task: ScheduledTaskItem,
 ): TaskDialogInitialState {
   const schedule = buildTaskSchedule(task);
-  const executionKind = task.execution_kind === "script" ? "script" : "agent";
-  const targetType: TargetType = task.source?.context_type === "room"
-    ? "room"
-    : "agent";
-  const executionTarget = executionSessionKey(task);
+  const kind = executionKind(task);
+  const execution = EXECUTION_INITIALIZERS[kind](task);
+  const reply = REPLY_INITIALIZERS[kind](task, execution);
   const form: TaskFormDraft = {
-    dedicatedSessionKey: task.session_target.kind === "named"
-      ? task.session_target.named_session_key
-      : "",
+    ...execution,
+    ...reply,
     enabled: task.enabled,
-    expiresAt: task.expires_at === null
-      ? ""
-      : isoToZonedLocalInput(
-          new Date(task.expires_at).toISOString(),
-          schedule.timezone,
-        ) ?? "",
-    executionKind,
-    executionMode: executionKind === "script"
-      ? "temporary"
-      : targetType === "room"
-        ? "existing"
-        : SESSION_TARGET_MODES[task.session_target.kind],
+    expiresAt: buildExpirationInput(task, schedule.timezone),
     instruction: task.instruction,
-    replyMode: resolveReplyMode(task, executionTarget),
-    selectedAgentId: executionKind === "script"
-      ? task.agent_id
-      : targetType === "agent"
-        ? task.source?.context_id || task.agent_id
-        : task.agent_id,
-    selectedReplySessionKey: selectedReplySessionKey(
-      task,
-      targetType,
-      executionTarget,
-    ),
-    selectedRoomId: executionKind === "script" || targetType !== "room"
-      ? ""
-      : task.source?.context_id || "",
-    selectedSessionKey: targetType === "room"
-      ? buildRoomTaskExecutorSelectionKey(task)
-      : task.session_target.kind === "bound"
-        ? task.session_target.bound_session_key
-        : "",
-    targetType: executionKind === "script" ? "agent" : targetType,
     taskName: task.name,
   };
   return { form, schedule };
 }
 
-function selectedReplySessionKey(
+function buildExpirationInput(
   task: ScheduledTaskItem,
-  targetType: TargetType,
-  executionTarget: string,
+  timezone: string,
 ): string {
-  if (task.delivery.mode !== "explicit"
-    || !task.delivery.to
-    || task.delivery.to === executionTarget) {
+  if (task.expires_at === null) {
     return "";
   }
-  return targetType === "room"
-    ? buildRoomExecutorSelectionFromSessionKey(task.delivery.to, task.agent_id)
-    : task.delivery.to;
+  return isoToZonedLocalInput(
+    new Date(task.expires_at).toISOString(),
+    timezone,
+  ) ?? "";
 }
