@@ -2,11 +2,7 @@ import { useLayoutEffect, useRef, type ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 
-import {
-  DEFAULT_TIMELINE_DOT_TOP,
-  getTimelineAnchorElement,
-  getTimelineAnchorTop,
-} from "../../message-item-support";
+const DEFAULT_TIMELINE_DOT_TOP = 12;
 
 export function TimelineBlock({
   active = false,
@@ -59,4 +55,58 @@ export function TimelineBlock({
       </div>
     </div>
   );
+}
+
+function getTimelineAnchorElement(
+  contentElement: HTMLElement,
+): HTMLElement | null {
+  return contentElement.querySelector<HTMLElement>("[data-timeline-anchor]")
+    ?? contentElement.querySelector<HTMLElement>(
+      "[data-markdown-anchor], button, li, h1, h2, h3, h4, pre, blockquote, th, td",
+    );
+}
+
+function getTimelineAnchorTop(
+  contentElement: HTMLElement,
+  anchorElement: HTMLElement | null,
+): number {
+  if (!anchorElement) {
+    return getFirstTextLineTop(contentElement) ?? DEFAULT_TIMELINE_DOT_TOP;
+  }
+
+  const contentRect = contentElement.getBoundingClientRect();
+  const candidateRect = anchorElement.getBoundingClientRect();
+  if (anchorElement.dataset.timelineAnchorMode === "box") {
+    return candidateRect.top - contentRect.top + candidateRect.height / 2;
+  }
+
+  const parsedLineHeight = Number.parseFloat(
+    window.getComputedStyle(anchorElement).lineHeight,
+  );
+  const anchorHeight = Number.isFinite(parsedLineHeight)
+    ? parsedLineHeight
+    : candidateRect.height;
+  return candidateRect.top - contentRect.top + anchorHeight / 2;
+}
+
+function getFirstTextLineTop(contentElement: HTMLElement): number | null {
+  const textWalker = document.createTreeWalker(
+    contentElement,
+    NodeFilter.SHOW_TEXT,
+    {
+      acceptNode: (node) => node.textContent?.trim()
+        ? NodeFilter.FILTER_ACCEPT
+        : NodeFilter.FILTER_SKIP,
+    },
+  );
+  const firstTextNode = textWalker.nextNode();
+  if (!(firstTextNode instanceof Text) || !firstTextNode.textContent) {
+    return null;
+  }
+
+  const range = document.createRange();
+  range.selectNodeContents(firstTextNode);
+  const firstLineRect = range.getClientRects()[0] ?? range.getBoundingClientRect();
+  const contentRect = contentElement.getBoundingClientRect();
+  return firstLineRect.top - contentRect.top + firstLineRect.height / 2;
 }

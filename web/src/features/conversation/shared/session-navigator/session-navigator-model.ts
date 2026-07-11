@@ -9,9 +9,9 @@ import type { SessionRoundIndexItem } from "@/types/conversation/room";
 import type { ConversationTimeline } from "../timeline/timeline-model";
 import {
   extractTextFromContentBlocks,
-  formatMessageTime,
   stripRoomControlMarkers,
-} from "../message/item/message-item-support";
+} from "../message/message-content-model";
+import { formatMessageTime } from "../message/message-time";
 
 export interface SessionNavigationItem {
   agentIds: string[];

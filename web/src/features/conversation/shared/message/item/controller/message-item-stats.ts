@@ -1,6 +1,6 @@
 import type { AssistantMessage } from "@/types/conversation/message";
 
-import { stripRoomControlMarkers } from "../message-item-support";
+import { stripRoomControlMarkers } from "../../message-content-model";
 import type { MessageStatsData } from "../message-item-types";
 
 function formatCompactCount(value: number): string {

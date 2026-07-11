@@ -4,15 +4,15 @@ import type {
   Message,
   ResultSummary,
 } from "@/types/conversation/message";
+import { extractTextFromContentBlocks } from "../../message-content-model";
 import { getResultSummaryDisplayText } from "./message-item-stats";
 import {
-  extractTextFromContentBlocks,
   projectionFromOrderedEntries,
   type AssistantContentMode,
   type AssistantTurnEntry,
   type ContentProjection,
   type OrderedAssistantEntry,
-} from "../message-item-support";
+} from "../message-item-projection";
 
 interface FinalProjectionInput {
   assistantContentMode: AssistantContentMode;

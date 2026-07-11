@@ -6,7 +6,7 @@ import type {
 } from "@/types/conversation/message";
 import type { PendingPermission } from "@/types/conversation/permission";
 import type { SessionRoundIndexItem } from "@/types/conversation/room";
-import { stripRoomControlMarkers } from "../message/item/message-item-support";
+import { stripRoomControlMarkers } from "../message/message-content-model";
 
 /** DM / Room 共用的唯一时间线投影。 */
 export interface ConversationTimeline {

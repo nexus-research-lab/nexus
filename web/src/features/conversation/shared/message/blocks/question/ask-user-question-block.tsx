@@ -1,366 +1,74 @@
-/**
- * AskUserQuestion Block Component - 用户问答交互组件
- *
- * 渲染 Agent 的问题，支持单选/多选，用户提交答案后返回给 Agent
- *
- * [INPUT]: 依赖 @/types/conversation/ask-user-question、@/types/conversation/message、@/lib/utils
- * [OUTPUT]: 对外提供 AskUserQuestionBlock 组件
- * [POS]: block 模块的专用工具组件，被 content-renderer.tsx 消费
- * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
- */
+import { useMemo } from "react";
 
-"use client";
+import type {
+  AskUserQuestionInput,
+  UserQuestionAnswer,
+} from "@/types/conversation/ask-user-question";
+import type {
+  ToolResultContent,
+  ToolUseContent,
+} from "@/types/conversation/message";
 
-import { useState, useCallback, useEffect, useMemo } from 'react';
-import { AlertCircle, Check, CheckCircle, ChevronDown, ChevronRight, MessageSquare, Send } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import {
-    AskUserQuestionInput,
-    UserQuestionAnswer,
-    isAskUserQuestionTimedOutResult,
-} from '@/types/conversation/ask-user-question';
-import { ToolResultContent, ToolUseContent } from '@/types/conversation/message';
-import { MessageRail } from "../../ui/message-rail";
-import { AskUserQuestionCard } from "./ask-user-question-card";
-import {
-    buildSubmittedSelectionState,
-    createEmptyQuestionSelectionState,
-    hasSelectionStateContent,
-    normalizeQuestion,
-} from "./ask-user-question-model";
+import { normalizeQuestion } from "./ask-user-question-model";
+import { AskUserQuestionView } from "./ask-user-question-view";
+import { useAskUserQuestionController } from "./use-ask-user-question-controller";
 
 interface AskUserQuestionBlockProps {
-    toolUse: ToolUseContent;
-    toolResult?: ToolResultContent;
-    onSubmit?: (toolUseId: string, answers: UserQuestionAnswer[]) => boolean | Promise<boolean>;
-    isSubmitted?: boolean;
-    isReady?: boolean;
-    interactionDisabled?: boolean;
-    interactionDisabledReason?: string;
+  initialSubmitted?: boolean;
+  interactionDisabled?: boolean;
+  isReady?: boolean;
+  onSubmit: (
+    toolUseId: string,
+    answers: UserQuestionAnswer[],
+  ) => boolean | Promise<boolean>;
+  toolResult?: ToolResultContent;
+  toolUse: ToolUseContent;
 }
 
 export function AskUserQuestionBlock({
-    toolUse: toolUse,
-    toolResult: toolResult,
-    onSubmit: onSubmit,
-    isSubmitted: initialSubmitted = false,
-    isReady: isReady = true,
-    interactionDisabled: interactionDisabled = false,
-    interactionDisabledReason: interactionDisabledReason,
+  initialSubmitted = false,
+  interactionDisabled = false,
+  isReady = true,
+  onSubmit,
+  toolResult,
+  toolUse,
 }: AskUserQuestionBlockProps) {
-    // 解析输入
-    const input = toolUse.input as AskUserQuestionInput;
-    const questions = useMemo(
-        () => (input?.questions || []).map(normalizeQuestion),
-        [input?.questions],
-    );
-    const submittedSelectionState = useMemo(
-        () => buildSubmittedSelectionState(questions, toolResult),
-        [questions, toolResult],
-    );
-    const hasSubmittedSelectionState = useMemo(
-        () => hasSelectionStateContent(submittedSelectionState),
-        [submittedSelectionState],
-    );
+  const input = toolUse.input as AskUserQuestionInput;
+  const questions = useMemo(
+    () => (input?.questions ?? []).map(normalizeQuestion),
+    [input?.questions],
+  );
+  const controller = useAskUserQuestionController({
+    initialSubmitted,
+    interactionDisabled,
+    isReady,
+    onSubmit,
+    questions,
+    toolResult,
+    toolUseId: toolUse.id,
+  });
 
-    // 状态：每个问题的选中选项
-    const [selections, setSelections] = useState<Map<number, Set<string>>>(
-        () => createEmptyQuestionSelectionState(questions).selections,
-    );
-    const [customAnswers, setCustomAnswers] = useState<Map<number, string>>(
-        () => createEmptyQuestionSelectionState(questions).custom_answers,
-    );
-    const isTimedOut = isAskUserQuestionTimedOutResult(toolResult);
-    const isFailed = Boolean(toolResult?.is_error && !isTimedOut);
-    const [hasLocalSubmission, setHasLocalSubmission] = useState(false);
-    const isSubmitted = initialSubmitted || hasLocalSubmission;
-    const isObserverReadOnly = interactionDisabled && !isSubmitted && !isTimedOut && !isFailed;
-    const shouldStartCollapsed = initialSubmitted || isTimedOut || isFailed;
-    // 展开/收起状态：首帧就按最终状态初始化，避免先展开再收起的闪动
-    const [isExpanded, setIsExpanded] = useState(() => !shouldStartCollapsed);
+  if (questions.length === 0) {
+    return null;
+  }
 
-    useEffect(() => {
-        if (initialSubmitted || isTimedOut || isFailed) {
-            setIsExpanded(false);
-        }
-    }, [initialSubmitted, isFailed, isTimedOut]);
-
-    useEffect(() => {
-        const emptyState = createEmptyQuestionSelectionState(questions);
-        setSelections(emptyState.selections);
-        setCustomAnswers(emptyState.custom_answers);
-    }, [questions]);
-
-    useEffect(() => {
-        if (!initialSubmitted && !hasSubmittedSelectionState) {
-            return;
-        }
-        setSelections(new Map(
-            Array.from(submittedSelectionState.selections.entries()).map(([index, values]) => [index, new Set(values)]),
-        ));
-        setCustomAnswers(new Map(submittedSelectionState.custom_answers));
-    }, [hasSubmittedSelectionState, initialSubmitted, submittedSelectionState]);
-
-    // 切换选项
-    const handleToggleOption = useCallback((questionIndex: number, optionLabel: string, multiSelect: boolean) => {
-        if (isSubmitted) return;
-
-        setSelections(prev => {
-            const newMap = new Map(prev);
-            const currentSet = new Set(prev.get(questionIndex) || []);
-
-            if (multiSelect) {
-                // 多选：切换选中状态
-                if (currentSet.has(optionLabel)) {
-                    currentSet.delete(optionLabel);
-                } else {
-                    currentSet.add(optionLabel);
-                }
-            } else {
-                // 单选：清空后选中
-                currentSet.clear();
-                currentSet.add(optionLabel);
-            }
-
-            newMap.set(questionIndex, currentSet);
-            return newMap;
-        });
-
-        if (!multiSelect) {
-            setCustomAnswers((prev) => {
-                const nextMap = new Map(prev);
-                nextMap.set(questionIndex, '');
-                return nextMap;
-            });
-        }
-    }, [isSubmitted]);
-
-    const handleCustomAnswerChange = useCallback((
-        questionIndex: number,
-        customAnswer: string,
-        multiSelect: boolean,
-    ) => {
-        if (isSubmitted) return;
-
-        setCustomAnswers((prev) => {
-            const nextMap = new Map(prev);
-            nextMap.set(questionIndex, customAnswer);
-            return nextMap;
-        });
-
-        if (!multiSelect && customAnswer.trim()) {
-            setSelections((prev) => {
-                const nextMap = new Map(prev);
-                nextMap.set(questionIndex, new Set());
-                return nextMap;
-            });
-        }
-    }, [isSubmitted]);
-
-    // 检查是否可以提交（每个问题至少选一个）
-    const canSubmit = useMemo(() => {
-        return questions.every((_, index) => {
-            const selected = selections.get(index);
-            const customAnswer = customAnswers.get(index)?.trim() || '';
-            return (selected && selected.size > 0) || customAnswer.length > 0;
-        });
-    }, [customAnswers, questions, selections]);
-
-    // 提交回答
-    const handleSubmit = useCallback(async () => {
-        if (!canSubmit || isSubmitted || !isReady || interactionDisabled) return;
-
-        const answers: UserQuestionAnswer[] = questions.map((_, index) => {
-            const selectedOptions = Array.from(selections.get(index) || []);
-            const customAnswer = customAnswers.get(index)?.trim() || '';
-            if (customAnswer) {
-                selectedOptions.push(customAnswer);
-            }
-
-            return {
-                question_index: index,
-                selected_options: selectedOptions,
-            };
-        });
-
-        const submitted = await onSubmit?.(toolUse.id, answers);
-        if (submitted === false) {
-            return;
-        }
-        setHasLocalSubmission(true);
-        setIsExpanded(false); // 提交后收起
-    }, [canSubmit, customAnswers, interactionDisabled, isSubmitted, isReady, onSubmit, questions, selections, toolUse.id]);
-
-    // 计算已选数量
-    const totalSelected = useMemo(() => {
-        let count = 0;
-        selections.forEach((set, index) => {
-            count += set.size;
-            if (customAnswers.get(index)?.trim()) {
-                count += 1;
-            }
-        });
-        return count;
-    }, [customAnswers, selections]);
-
-    // 获取回答摘要（收起时显示）
-    const answerSummary = useMemo(() => {
-        if (!isSubmitted) return null;
-        const allSelected: string[] = [];
-        selections.forEach((set, index) => {
-            set.forEach(label => allSelected.push(label));
-            const customAnswer = customAnswers.get(index)?.trim();
-            if (customAnswer) {
-                allSelected.push(customAnswer);
-            }
-        });
-        return allSelected.slice(0, 3).join('、') + (allSelected.length > 3 ? '...' : '');
-    }, [customAnswers, isSubmitted, selections]);
-
-    if (questions.length === 0) {
-        return null;
-    }
-
-    const isReadOnly = isSubmitted || isTimedOut || isFailed || isObserverReadOnly;
-    const headerToneClassName = isTimedOut || isFailed
-        ? "text-(--warning)"
-        : isSubmitted
-            ? "text-(--success)"
-            : "text-primary";
-    const headerLabel = isTimedOut
-        ? "提问已超时"
-            : isFailed
-                ? "提问未完成"
-            : isObserverReadOnly
-                ? "等待回应"
-                : isSubmitted
-                    ? "已收到你的回应"
-                    : "需要你的回应";
-
-    return (
-        <MessageRail className="my-1.5">
-            {/* ═══════════ 头部（可点击展开/收起） ═══════════ */}
-            <button
-                type="button"
-                className={cn(
-                    "flex min-h-8 w-full cursor-pointer select-none items-center gap-2 py-0.5 text-left text-xs transition duration-(--motion-duration-fast) ease-out",
-                )}
-                onClick={() => setIsExpanded(!isExpanded)}
-            >
-                <div className={cn(
-                    "flex h-5 w-5 items-center justify-center rounded-full",
-                    headerToneClassName,
-                )} data-timeline-anchor data-timeline-anchor-mode="box">
-                    {isTimedOut || isFailed ? (
-                        <AlertCircle className="w-3.5 h-3.5" />
-                    ) : isSubmitted ? (
-                        <CheckCircle className="w-3.5 h-3.5" />
-                    ) : (
-                        <MessageSquare className="w-3.5 h-3.5" />
-                    )}
-                </div>
-
-                <span className={cn(
-                    "font-medium uppercase tracking-[0.12em]",
-                    headerToneClassName,
-                )}>
-                    {headerLabel}
-                </span>
-
-                <span className="text-muted-foreground/30">│</span>
-
-                <span className="text-muted-foreground">
-                    {questions.length} 个问题
-                </span>
-
-                {/* 收起时显示回答摘要 */}
-                {!isExpanded && answerSummary && (
-                    <>
-                        <span className="text-muted-foreground/30">│</span>
-                        <span className="truncate max-w-[200px] text-(--text-muted)">
-                            {answerSummary}
-                        </span>
-                    </>
-                )}
-
-                <div className="flex-1" />
-
-                {!isReadOnly && totalSelected > 0 && (
-                    <span className="text-[10px] font-semibold text-primary/80">
-                        已选 {totalSelected} 项
-                    </span>
-                )}
-
-                {/* 展开/收起指示器 */}
-                <div className="text-muted-foreground/40">
-                    {isExpanded ? (
-                        <ChevronDown className="w-3.5 h-3.5" />
-                    ) : (
-                        <ChevronRight className="w-3.5 h-3.5" />
-                    )}
-                </div>
-            </button>
-
-            {/* ═══════════ 问题列表（可收起） ═══════════ */}
-            {isExpanded && (
-                <div className="mt-2 space-y-2">
-                    {questions.map((question, index) => (
-                        <AskUserQuestionCard
-                            key={`${question.header ?? "question"}:${question.question}`}
-                            question={question}
-                            questionIndex={index}
-                            selectedOptions={selections.get(index) || new Set()}
-                            customAnswer={customAnswers.get(index) || ''}
-                            onToggleOption={handleToggleOption}
-                            onCustomAnswerChange={handleCustomAnswerChange}
-                            isSubmitted={isReadOnly}
-                            defaultExpanded={!isReadOnly}
-                        />
-                    ))}
-                </div>
-            )}
-
-            {/* ═══════════ 底部操作栏 ═══════════ */}
-            {!isReadOnly && isExpanded && (
-                <div className="message-cjk-font mt-2 flex min-h-0 items-center justify-between gap-3 border-t border-(--divider-subtle-color) pt-2">
-                    <span className="text-[11px] leading-none text-muted-foreground">
-                        {!isReady
-                            ? '等待提问就绪'
-                            : isObserverReadOnly
-                                ? (interactionDisabledReason || '当前暂不可操作')
-                                : canSubmit
-                                    ? '✓ 所有问题都已回应'
-                                    : '每个问题至少回应一次'}
-                    </span>
-
-                    <button
-                        type="button"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            void handleSubmit();
-                        }}
-                        disabled={!canSubmit || !isReady || interactionDisabled}
-                        title={interactionDisabled ? interactionDisabledReason : undefined}
-                        className={cn(
-                            "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[8px] border px-2.5 py-1 text-xs font-medium leading-none transition-colors",
-                            canSubmit && isReady && !interactionDisabled
-                                ? "border-primary/24 bg-primary/8 text-primary hover:bg-primary/12"
-                                : "border-(--divider-subtle-color) bg-transparent text-(--text-soft)",
-                        )}
-                    >
-                        <Send className="h-3 w-3" />
-                        继续协作
-                    </button>
-                </div>
-            )}
-
-            {/* ═══════════ 已提交状态（展开时显示） ═══════════ */}
-            {isSubmitted && isExpanded && (
-                <div className="message-cjk-font mt-2 flex items-center gap-2 border-t border-[color:color-mix(in_srgb,var(--success)_18%,transparent)] pt-2 text-xs font-semibold text-(--success)">
-                    <Check className="w-3.5 h-3.5 text-(--success)" />
-                    <span className="text-xs font-medium text-(--success)">已收到你的回应</span>
-                </div>
-            )}
-        </MessageRail>
-    );
+  return (
+    <AskUserQuestionView
+      answerSummary={controller.answerSummary}
+      draft={controller.draft}
+      draftComplete={controller.draftComplete}
+      expanded={controller.isExpanded}
+      isReady={controller.isReady}
+      isSubmitting={controller.isSubmitting}
+      onExpandedChange={controller.setIsExpanded}
+      onSubmit={() => void controller.submit()}
+      onToggleOption={controller.toggleOption}
+      onUpdateCustomAnswer={controller.updateCustomAnswer}
+      questions={questions}
+      readOnly={controller.readOnly}
+      status={controller.status}
+      submitEnabled={controller.submitEnabled}
+      totalSelected={controller.totalSelected}
+    />
+  );
 }

@@ -15,7 +15,7 @@ import {
   MessageActionButton,
   MessageAvatar,
 } from "../../../ui/message-primitives";
-import { formatMessageTime } from "../../message-item-support";
+import { formatMessageTime } from "../../../message-time";
 import type { MessageItemState } from "../../message-item-types";
 import { ContentRenderer } from "../content/content-renderer";
 import { MessageUserAttachments } from "./message-user-attachments";

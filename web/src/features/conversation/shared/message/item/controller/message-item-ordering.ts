@@ -3,11 +3,59 @@ import type {
   SystemEventContent,
 } from "@/types/conversation/message";
 
-import {
-  splitTextBlockByToolUseError,
-  type AssistantTurnEntry,
-  type OrderedAssistantEntry,
-} from "../message-item-support";
+import { splitTextBlockByToolUseError } from "../../message-content-model";
+import type {
+  AssistantTurnEntry,
+  OrderedAssistantEntry,
+} from "../message-item-projection";
+
+interface BlockProjectionContext {
+  hiddenToolNames: ReadonlySet<string>;
+  hiddenToolUseIds: ReadonlySet<string>;
+  showTaskProgress: boolean;
+}
+
+type BlockProjector = (
+  block: ContentBlock,
+  context: BlockProjectionContext,
+) => ContentBlock[] | null;
+
+const BLOCK_PROJECTORS: BlockProjector[] = [
+  (block) => block.type === "text"
+    ? splitTextBlockByToolUseError(block)
+    : null,
+  (block) => block.type === "thinking"
+    ? (block.thinking.trim() ? [block] : [])
+    : null,
+  (block, context) => block.type === "tool_use"
+    ? (context.hiddenToolNames.has(block.name) ? [] : [block])
+    : null,
+  (block, context) => block.type === "tool_result"
+    ? (context.hiddenToolUseIds.has(block.tool_use_id) ? [] : [block])
+    : null,
+  (block, context) => block.type === "task_progress"
+    ? (context.showTaskProgress ? [block] : [])
+    : null,
+  (block) => block.type === "tool_use_error"
+    ? (block.content.trim() ? [block] : [])
+    : null,
+];
+
+type ResolveSourceOrder = (sourceMessageId: string) => number;
+
+interface SystemEventPartition {
+  byToolUseId: Map<string, SystemEventContent[]>;
+  unmatched: SystemEventContent[];
+}
+
+interface AttachedSystemEvents {
+  entries: OrderedAssistantEntry[];
+  unmatched: SystemEventContent[];
+}
+
+interface OrderedSystemEventEntry extends OrderedAssistantEntry {
+  block: SystemEventContent;
+}
 
 export function buildVisibleOrderedAssistantEntries({
   hiddenToolNames,
@@ -26,179 +74,161 @@ export function buildVisibleOrderedAssistantEntries({
   sourceMessageOrderById: ReadonlyMap<string, number>;
   systemEventBlocks: SystemEventContent[];
 }): OrderedAssistantEntry[] {
-  const assistantEntries: OrderedAssistantEntry[] = [];
-  const shouldShowTaskProgressInline =
-    isLoading ||
-    !mergedContent.some(
-      (block) => block.type === "text" && Boolean(block.text.trim()),
-    );
-  const resolveSourceOrder = (sourceMessageId: string) =>
-    sourceMessageOrderById.get(sourceMessageId) ??
-    Number.MAX_SAFE_INTEGER;
+  const resolveSourceOrder: ResolveSourceOrder = (sourceMessageId) =>
+    sourceMessageOrderById.get(sourceMessageId) ?? Number.MAX_SAFE_INTEGER;
+  const projectionContext: BlockProjectionContext = {
+    hiddenToolNames,
+    hiddenToolUseIds,
+    showTaskProgress: Boolean(isLoading) || !hasVisibleText(mergedContent),
+  };
+  const assistantEntries = projectAssistantEntries({
+    context: projectionContext,
+    mergedContent,
+    mergedContentSourceMessageIds,
+    resolveSourceOrder,
+  });
+  const attached = attachSystemEvents(
+    assistantEntries,
+    partitionSystemEvents(systemEventBlocks),
+    resolveSourceOrder,
+  );
+  const unmatchedEntries = orderSystemEventEntries(
+    attached.unmatched,
+    resolveSourceOrder,
+  );
+  return mergeEntriesBySourceOrder(attached.entries, unmatchedEntries);
+}
 
-  mergedContent.forEach((block, mergedIndex) => {
-    const sourceMessageId =
-      mergedContentSourceMessageIds[mergedIndex] || "";
+function hasVisibleText(content: ContentBlock[]): boolean {
+  return content.some(
+    (block) => block.type === "text" && Boolean(block.text.trim()),
+  );
+}
+
+function projectAssistantEntries({
+  context,
+  mergedContent,
+  mergedContentSourceMessageIds,
+  resolveSourceOrder,
+}: {
+  context: BlockProjectionContext;
+  mergedContent: ContentBlock[];
+  mergedContentSourceMessageIds: string[];
+  resolveSourceOrder: ResolveSourceOrder;
+}): OrderedAssistantEntry[] {
+  return mergedContent.flatMap((block, mergedIndex) => {
+    const sourceMessageId = mergedContentSourceMessageIds[mergedIndex] ?? "";
     const sourceOrder = resolveSourceOrder(sourceMessageId);
-
-    if (block.type === "text") {
-      const splitBlocks = splitTextBlockByToolUseError(block);
-      splitBlocks.forEach((splitBlock) => {
-        assistantEntries.push({
-          block: splitBlock,
-          mergedIndex,
-          sourceMessageId,
-          sourceOrder,
-        });
-      });
-      return;
-    }
-
-    if (block.type === "thinking") {
-      if (block.thinking?.trim()) {
-        assistantEntries.push({
-          block,
-          mergedIndex,
-          sourceMessageId,
-          sourceOrder,
-        });
-      }
-      return;
-    }
-
-    if (block.type === "tool_use") {
-      if (!hiddenToolNames.has(block.name)) {
-        assistantEntries.push({
-          block,
-          mergedIndex,
-          sourceMessageId,
-          sourceOrder,
-        });
-      }
-      return;
-    }
-
-    if (block.type === "tool_result") {
-      if (!hiddenToolUseIds.has(block.tool_use_id)) {
-        assistantEntries.push({
-          block,
-          mergedIndex,
-          sourceMessageId,
-          sourceOrder,
-        });
-      }
-      return;
-    }
-
-    if (block.type === "task_progress") {
-      if (shouldShowTaskProgressInline) {
-        assistantEntries.push({
-          block,
-          mergedIndex,
-          sourceMessageId,
-          sourceOrder,
-        });
-      }
-      return;
-    }
-
-    if (block.type === "tool_use_error") {
-      if (block.content.trim()) {
-        assistantEntries.push({
-          block,
-          mergedIndex,
-          sourceMessageId,
-          sourceOrder,
-        });
-      }
-    }
+    return projectVisibleBlocks(block, context).map((visibleBlock) => ({
+      block: visibleBlock,
+      mergedIndex,
+      sourceMessageId,
+      sourceOrder,
+    }));
   });
+}
 
-  const orderedEntries: OrderedAssistantEntry[] = [];
-  const systemBlocksByToolUseId = new Map<
-    string,
-    SystemEventContent[]
-  >();
-  const unmatchedSystemBlocks: SystemEventContent[] = [];
-
-  systemEventBlocks.forEach((block) => {
-    if (block.tool_use_id) {
-      const existingBlocks =
-        systemBlocksByToolUseId.get(block.tool_use_id) ?? [];
-      existingBlocks.push(block);
-      systemBlocksByToolUseId.set(block.tool_use_id, existingBlocks);
-      return;
+function projectVisibleBlocks(
+  block: ContentBlock,
+  context: BlockProjectionContext,
+): ContentBlock[] {
+  for (const projectBlock of BLOCK_PROJECTORS) {
+    const projected = projectBlock(block, context);
+    if (projected !== null) {
+      return projected;
     }
-    unmatchedSystemBlocks.push(block);
-  });
+  }
+  return [];
+}
 
-  assistantEntries.forEach((entry) => {
-    orderedEntries.push(entry);
+function partitionSystemEvents(
+  blocks: SystemEventContent[],
+): SystemEventPartition {
+  const partition: SystemEventPartition = {
+    byToolUseId: new Map(),
+    unmatched: [],
+  };
+  for (const block of blocks) {
+    if (!block.tool_use_id) {
+      partition.unmatched.push(block);
+      continue;
+    }
+    const matchedBlocks = partition.byToolUseId.get(block.tool_use_id) ?? [];
+    matchedBlocks.push(block);
+    partition.byToolUseId.set(block.tool_use_id, matchedBlocks);
+  }
+  return partition;
+}
+
+function attachSystemEvents(
+  assistantEntries: OrderedAssistantEntry[],
+  partition: SystemEventPartition,
+  resolveSourceOrder: ResolveSourceOrder,
+): AttachedSystemEvents {
+  const entries: OrderedAssistantEntry[] = [];
+  for (const entry of assistantEntries) {
+    entries.push(entry);
     if (entry.block.type !== "tool_use") {
-      return;
+      continue;
     }
 
-    const matchedSystemBlocks = systemBlocksByToolUseId.get(
-      entry.block.id,
+    const matchedBlocks = partition.byToolUseId.get(entry.block.id) ?? [];
+    entries.push(...matchedBlocks.map(
+      (block) => createSystemEventEntry(block, resolveSourceOrder),
+    ));
+    partition.byToolUseId.delete(entry.block.id);
+  }
+
+  const unmatched = [...partition.unmatched];
+  partition.byToolUseId.forEach((blocks) => unmatched.push(...blocks));
+  return { entries, unmatched };
+}
+
+function createSystemEventEntry(
+  block: SystemEventContent,
+  resolveSourceOrder: ResolveSourceOrder,
+): OrderedSystemEventEntry {
+  return {
+    block,
+    mergedIndex: -1,
+    sourceMessageId: block.source_message_id,
+    sourceOrder: resolveSourceOrder(block.source_message_id),
+  };
+}
+
+function orderSystemEventEntries(
+  blocks: SystemEventContent[],
+  resolveSourceOrder: ResolveSourceOrder,
+): OrderedSystemEventEntry[] {
+  return blocks
+    .map((block) => createSystemEventEntry(block, resolveSourceOrder))
+    .sort((left, right) =>
+      left.sourceOrder - right.sourceOrder
+      || left.block.timestamp - right.block.timestamp,
     );
-    if (!matchedSystemBlocks?.length) {
-      return;
-    }
+}
 
-    matchedSystemBlocks.forEach((block) => {
-      orderedEntries.push({
-        block,
-        mergedIndex: -1,
-        sourceMessageId: block.source_message_id,
-        sourceOrder: resolveSourceOrder(block.source_message_id),
-      });
-    });
-    systemBlocksByToolUseId.delete(entry.block.id);
-  });
-
-  systemBlocksByToolUseId.forEach((blocks) => {
-    unmatchedSystemBlocks.push(...blocks);
-  });
-  const unmatchedOrderedEntries = unmatchedSystemBlocks
-    .map((block) => ({
-      block,
-      mergedIndex: -1,
-      sourceMessageId: block.source_message_id,
-      sourceOrder: resolveSourceOrder(block.source_message_id),
-    }))
-    .sort((left, right) => {
-      if (left.sourceOrder !== right.sourceOrder) {
-        return left.sourceOrder - right.sourceOrder;
-      }
-      const leftTimestamp =
-        left.block.type === "system_event" ? left.block.timestamp : 0;
-      const rightTimestamp =
-        right.block.type === "system_event" ? right.block.timestamp : 0;
-      return leftTimestamp - rightTimestamp;
-    });
-
-  if (unmatchedOrderedEntries.length === 0) {
-    return orderedEntries;
+function mergeEntriesBySourceOrder(
+  entries: OrderedAssistantEntry[],
+  systemEntries: OrderedSystemEventEntry[],
+): OrderedAssistantEntry[] {
+  if (systemEntries.length === 0) {
+    return entries;
   }
 
   const mergedEntries: OrderedAssistantEntry[] = [];
   let systemIndex = 0;
-  orderedEntries.forEach((entry) => {
+  for (const entry of entries) {
     while (
-      systemIndex < unmatchedOrderedEntries.length &&
-      unmatchedOrderedEntries[systemIndex].sourceOrder <
-        entry.sourceOrder
+      systemIndex < systemEntries.length
+      && systemEntries[systemIndex].sourceOrder < entry.sourceOrder
     ) {
-      mergedEntries.push(unmatchedOrderedEntries[systemIndex]);
+      mergedEntries.push(systemEntries[systemIndex]);
       systemIndex += 1;
     }
     mergedEntries.push(entry);
-  });
-  while (systemIndex < unmatchedOrderedEntries.length) {
-    mergedEntries.push(unmatchedOrderedEntries[systemIndex]);
-    systemIndex += 1;
   }
-
+  mergedEntries.push(...systemEntries.slice(systemIndex));
   return mergedEntries;
 }
 

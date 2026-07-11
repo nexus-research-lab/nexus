@@ -14,29 +14,28 @@ import type { UserQuestion } from "@/types/conversation/ask-user-question";
 interface AskUserQuestionCardProps {
   question: UserQuestion;
   questionIndex: number;
-  selectedOptions: Set<string>;
+  selectedOptions: ReadonlySet<string>;
   customAnswer: string;
-  onToggleOption: (questionIndex: number, optionLabel: string, multiSelect: boolean) => void;
-  onCustomAnswerChange: (questionIndex: number, customAnswer: string, multiSelect: boolean) => void;
-  isSubmitted: boolean;
-  defaultExpanded?: boolean;
+  onToggleOption: (questionIndex: number, optionLabel: string) => void;
+  onCustomAnswerChange: (questionIndex: number, customAnswer: string) => void;
+  readOnly: boolean;
+  initiallyExpanded?: boolean;
 }
 
-/** 单个问题卡片（支持独立收起） */
 export function AskUserQuestionCard({
   question,
-  questionIndex: questionIndex,
-  selectedOptions: selectedOptions,
-  customAnswer: customAnswer,
-  onToggleOption: onToggleOption,
-  onCustomAnswerChange: onCustomAnswerChange,
-  isSubmitted: isSubmitted,
-  defaultExpanded: defaultExpanded = false,
+  questionIndex,
+  selectedOptions,
+  customAnswer,
+  onToggleOption,
+  onCustomAnswerChange,
+  readOnly,
+  initiallyExpanded = false,
 }: AskUserQuestionCardProps) {
-  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+  const [isExpanded, setIsExpanded] = useState(initiallyExpanded);
   const isMultiSelect = question.multi_select ?? false;
   const hasCustomAnswer = customAnswer.trim().length > 0;
-  const showCustomAnswer = !isSubmitted || hasCustomAnswer;
+  const showCustomAnswer = !readOnly || hasCustomAnswer;
   const hasSelection = selectedOptions.size > 0 || hasCustomAnswer;
   const selectedCount = selectedOptions.size + (hasCustomAnswer ? 1 : 0);
   const summaryItems = [...Array.from(selectedOptions), ...(hasCustomAnswer ? [customAnswer.trim()] : [])];
@@ -111,7 +110,7 @@ export function AskUserQuestionCard({
       {isExpanded && (
         <div className="message-cjk-font p-2.5">
           <div className="overflow-hidden rounded-[8px] border border-(--divider-subtle-color)">
-            {question.options.map((option, optIndex) => {
+            {question.options.map((option) => {
               const isSelected = selectedOptions.has(option.label);
               const Icon = isMultiSelect
                 ? (isSelected ? CheckSquare : Square)
@@ -119,18 +118,18 @@ export function AskUserQuestionCard({
 
               return (
                 <button
-                  key={optIndex}
+                  key={option.label}
                   className={cn(
                     "w-full border-b border-(--divider-subtle-color) px-3 py-2 text-left transition duration-(--motion-duration-fast) ease-out last:border-b-0",
                     isSelected
                       ? "bg-primary/4"
                       : "bg-transparent hover:bg-(--surface-interactive-hover-background)",
-                    isSubmitted && "cursor-not-allowed opacity-60",
+                    readOnly && "cursor-not-allowed opacity-60",
                   )}
-                  disabled={isSubmitted}
+                  disabled={readOnly}
                   onClick={(e) => {
                     e.stopPropagation();
-                    onToggleOption(questionIndex, option.label, isMultiSelect);
+                    onToggleOption(questionIndex, option.label);
                   }}
                   type="button"
                 >
@@ -183,15 +182,14 @@ export function AskUserQuestionCard({
                     className={cn(
                       "h-7 min-h-7 w-full resize-none border-0 bg-transparent px-0 py-0 text-[13px] leading-7 text-(--text-strong) outline-none shadow-none ring-0 transition duration-(--motion-duration-fast) ease-out focus:border-0 focus:bg-transparent focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none",
                       "placeholder:text-muted-foreground/70",
-                      isSubmitted && "cursor-not-allowed opacity-60",
+                      readOnly && "cursor-not-allowed opacity-60",
                     )}
-                    disabled={isSubmitted}
+                    disabled={readOnly}
                     value={customAnswer}
                     onChange={(event) => {
                       onCustomAnswerChange(
                         questionIndex,
                         event.target.value,
-                        isMultiSelect,
                       );
                     }}
                     onClick={(event) => event.stopPropagation()}

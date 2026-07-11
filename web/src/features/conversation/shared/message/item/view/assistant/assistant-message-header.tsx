@@ -7,7 +7,7 @@ import {
   MessageActionButton,
   MessageAvatar,
 } from "../../../ui/message-primitives";
-import { formatMessageTime } from "../../message-item-support";
+import { formatMessageTime } from "../../../message-time";
 
 interface AssistantMessageHeaderProps {
   avatarUrl?: string | null;

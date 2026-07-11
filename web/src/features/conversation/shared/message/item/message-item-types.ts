@@ -1,12 +1,3 @@
-/**
- * =====================================================
- * @File   ：message-item-types.ts
- * @Date   ：2026-04-16 15:54
- * @Author ：leemysw
- * 2026-04-16 15:54   Create
- * =====================================================
- */
-
 import type { CSSProperties, ReactNode } from "react";
 
 import type { AgentConversationRuntimePhase } from "@/types/agent/agent-conversation";
@@ -21,7 +12,10 @@ import type {
   PermissionDecisionPayload,
 } from "@/types/conversation/permission";
 
-import type { ContentProjection } from "./message-item-support";
+import type {
+  AssistantContentMode,
+  ContentProjection,
+} from "./message-item-projection";
 import type { MessageActivityState } from "../ui/message-primitives";
 
 export interface MessageItemProps {
@@ -46,7 +40,7 @@ export interface MessageItemProps {
   onStopMessage?: (msgId: string) => void;
   defaultProcessExpanded?: boolean;
   assistantHeaderAction?: ReactNode;
-  assistantContentMode?: "dm_live" | "dm_archived" | "room_thread" | "room_result";
+  assistantContentMode?: AssistantContentMode;
   className?: string;
 }
 

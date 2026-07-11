@@ -12,10 +12,6 @@ import { cn } from "@/lib/utils";
 import type { SystemEventContent } from "@/types/conversation/message";
 
 import {
-  getSystemMessageIconClassName,
-  getSystemMessageLabelClassName,
-} from "../../message-item-support";
-import {
   MessageRail,
   MessageRailBody,
   MessageRailLabel,
@@ -28,18 +24,32 @@ const SYSTEM_EVENT_ICONS: Record<SystemEventContent["icon"], LucideIcon> = {
   retry: RotateCcw,
   status: Info,
 };
+const SYSTEM_EVENT_STYLES: Record<
+  SystemEventContent["tone"],
+  { iconClassName: string; labelClassName: string }
+> = {
+  neutral: {
+    iconClassName: "text-(--icon-muted)",
+    labelClassName: "text-(--text-muted)",
+  },
+  warning: {
+    iconClassName: "text-(--warning)",
+    labelClassName: "text-amber-800/80",
+  },
+};
 
 export function ContentSystemEvent({ block }: { block: SystemEventContent }) {
   const Icon = SYSTEM_EVENT_ICONS[block.icon];
+  const style = SYSTEM_EVENT_STYLES[block.tone];
   return (
     <MessageRail className="min-w-0">
-      <MessageRailLabel className={cn("flex-1", getSystemMessageLabelClassName(block.tone))}>
+      <MessageRailLabel className={cn("flex-1", style.labelClassName)}>
         <span
           className="flex h-4 w-4 shrink-0 items-center justify-center"
           data-timeline-anchor
           data-timeline-anchor-mode="box"
         >
-          <Icon className={cn("h-3 w-3", getSystemMessageIconClassName(block.tone))} />
+          <Icon className={cn("h-3 w-3", style.iconClassName)} />
         </span>
         <span>{block.label}</span>
       </MessageRailLabel>

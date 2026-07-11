@@ -41,26 +41,23 @@ export function renderContentToolBlock({
 
   if (block.name === "AskUserQuestion") {
     return (
-      <div>
-        <AskUserQuestionBlock
-          interactionDisabled={!canRespondToPermissions}
-          interactionDisabledReason={permissionReadOnlyReason}
-          isReady={waitingForPermission}
-          isSubmitted={Boolean(toolUse?.result && !toolUse.result.is_error)}
-          onSubmit={(_, answers) => {
-            if (!pendingPermission) {
-              return false;
-            }
-            return onPermissionResponse?.({
-              decision: "allow",
-              request_id: pendingPermission.request_id,
-              user_answers: answers,
-            }) ?? false;
-          }}
-          toolResult={toolUse?.result}
-          toolUse={block}
-        />
-      </div>
+      <AskUserQuestionBlock
+        initialSubmitted={Boolean(toolUse?.result && !toolUse.result.is_error)}
+        interactionDisabled={!canRespondToPermissions}
+        isReady={waitingForPermission}
+        onSubmit={(_, answers) => {
+          if (!pendingPermission) {
+            return false;
+          }
+          return onPermissionResponse?.({
+            decision: "allow",
+            request_id: pendingPermission.request_id,
+            user_answers: answers,
+          }) ?? false;
+        }}
+        toolResult={toolUse?.result}
+        toolUse={block}
+      />
     );
   }
 

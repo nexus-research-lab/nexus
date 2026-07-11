@@ -1,13 +1,11 @@
-"use client";
-
 import { useCallback, useEffect, useRef } from "react";
 
 import { useScrollAnchoredState } from "@/features/conversation/shared/timeline/scroll/use-scroll-anchored-state";
 import { useCopyToClipboard } from "@/hooks/ui/use-copy-to-clipboard";
 
-import { hasTimedOutAskUserQuestion } from "../message-item-support";
 import type { MessageItemProps, MessageItemState } from "../message-item-types";
 import { useMessageItemStreamingLayout } from "../view/message-item-streaming-layout";
+import { hasTimedOutAskUserQuestion } from "./message-item-activity";
 import { useMessageItemProjection } from "./use-message-item-projection";
 
 const ACTIVE_STREAM_STATUSES = new Set(["pending", "streaming", "cancelled", "error"]);

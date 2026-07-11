@@ -1,5 +1,3 @@
-"use client";
-
 import { useMemo } from "react";
 
 import { useAssistantContentMerge } from "@/hooks/conversation/use-assistant-content-merge";
@@ -12,7 +10,10 @@ import {
 } from "@/types/conversation/message";
 import type { PendingPermission } from "@/types/conversation/permission";
 
-import type { AssistantContentMode, ContentProjection } from "../message-item-support";
+import type {
+  AssistantContentMode,
+  ContentProjection,
+} from "../message-item-projection";
 import { buildProcessSummary, resolveLiveActivityState } from "./message-item-activity";
 import { resolveMessageItemFinalProjection } from "./message-item-final-projection";
 import {
