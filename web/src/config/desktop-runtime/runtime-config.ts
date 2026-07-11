@@ -1,6 +1,6 @@
 /** 桌面宿主注入配置的解析与文档级标记。 */
 
-export interface DesktopRuntimeConfig {
+interface DesktopRuntimeConfig {
   apiBaseUrl?: string;
   appMode?: string;
   appVersion?: string;

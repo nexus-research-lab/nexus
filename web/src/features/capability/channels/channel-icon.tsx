@@ -5,7 +5,7 @@ import {
   Send,
 } from "lucide-react";
 
-import { ImChannelType } from "@/lib/api/channel-api";
+import { ImChannelType } from "@/lib/api/capability/channel-api";
 import { cn } from "@/lib/utils";
 
 const CHANNEL_STYLES: Record<ImChannelType, { icon: typeof Send; cn_name: string }> = {

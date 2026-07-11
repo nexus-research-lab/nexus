@@ -4,8 +4,8 @@ import type {
   ChannelCredentialField,
   ChannelLoginView,
   ImChannelType,
-} from "@/lib/api/channel-api";
-import type { UiBadgeTone } from "@/shared/ui/badge-styles";
+} from "@/lib/api/capability/channel-api";
+import type { UiBadgeTone } from "@/shared/ui/display/badge-styles";
 
 export interface ChannelConnectionDraft {
   agentId: string;

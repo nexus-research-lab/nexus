@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from "react";
 
-import { getWorkspaceFileContentApi } from "@/lib/api/agent-manage-api";
+import { getWorkspaceFileContentApi } from "@/lib/api/agent/agent-api";
 import type { WorkspaceLiveFileState } from "@/types/app/workspace-live";
 
 import type {

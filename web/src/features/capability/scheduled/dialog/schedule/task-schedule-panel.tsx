@@ -1,12 +1,12 @@
 "use client";
 
-import { UiCheckboxRow } from "@/shared/ui/checkbox-row";
-import { UiChoiceButton } from "@/shared/ui/choice";
-import { UiInput, UiTextarea } from "@/shared/ui/form-control";
+import { UiCheckboxRow } from "@/shared/ui/form/checkbox-row";
+import { UiChoiceButton } from "@/shared/ui/form/choice";
+import { UiInput, UiTextarea } from "@/shared/ui/form/form-control";
 import { UiPanel } from "@/shared/ui/panel";
-import { UiSegmentedControl } from "@/shared/ui/segmented-control";
+import { UiSegmentedControl } from "@/shared/ui/form/segmented-control";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
-import { UiStateBlock } from "@/shared/ui/state-block";
+import { UiStateBlock } from "@/shared/ui/display/state-block";
 
 import { DailyTimePicker } from "../../pickers/daily-time-picker";
 import { SingleRunPicker } from "../../pickers/single-run-picker";

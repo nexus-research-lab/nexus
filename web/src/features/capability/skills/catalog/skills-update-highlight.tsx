@@ -3,9 +3,9 @@
 import { AlertTriangle, CheckCircle2, Clock3, Loader2, Puzzle, RefreshCw } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { UiBadge } from "@/shared/ui/badge";
-import { UiButton } from "@/shared/ui/button";
-import { UiListRow } from "@/shared/ui/list-row";
+import { UiBadge } from "@/shared/ui/display/badge";
+import { UiButton } from "@/shared/ui/button/button";
+import { UiListRow } from "@/shared/ui/list/list-row";
 import type { SkillInfo } from "@/types/capability/skill";
 
 interface SkillsUpdateHighlightProps {

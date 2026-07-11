@@ -7,7 +7,7 @@ import type { RoomDialogSubmission } from "@/features/conversation/room/members/
 import { CONVERSATION_TOUR_ANCHORS } from "@/features/onboarding/tours/conversation-tour";
 import { useSidebarStore } from "@/store/sidebar";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiRoomAvatar } from "@/shared/ui/avatar";
+import { UiRoomAvatar } from "@/shared/ui/display/avatar";
 import { WorkspaceConversationTabs } from "@/shared/ui/workspace/controls/workspace-conversation-tabs";
 import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import type { Agent } from "@/types/agent/agent";

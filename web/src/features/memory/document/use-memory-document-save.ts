@@ -1,6 +1,6 @@
 import { useCallback, useRef } from "react";
 
-import { updateWorkspaceFileContentApi } from "@/lib/api/agent-manage-api";
+import { updateWorkspaceFileContentApi } from "@/lib/api/agent/agent-api";
 
 import type {
   MemoryDocumentCommit,

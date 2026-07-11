@@ -1,7 +1,7 @@
 import { Loader2, Lock } from "lucide-react";
 
-import { UiBadge } from "@/shared/ui/badge";
-import { UiButton } from "@/shared/ui/button";
+import { UiBadge } from "@/shared/ui/display/badge";
+import { UiButton } from "@/shared/ui/button/button";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { AgentSkillEntry } from "@/types/capability/skill";
 

@@ -11,7 +11,7 @@ import {
 import { Download, FileText, FolderUp, GitBranch, Info, Loader2, PackageCheck } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { UiButton } from "@/shared/ui/button";
+import { UiButton } from "@/shared/ui/button/button";
 import {
   UiDialogBackdrop,
   UiDialogBody,
@@ -20,7 +20,7 @@ import {
   UiDialogHeader,
   UiDialogPortal,
 } from "@/shared/ui/dialog/dialog";
-import { UiField, UiInput } from "@/shared/ui/form-control";
+import { UiField, UiInput } from "@/shared/ui/form/form-control";
 
 import type { SkillImportDialogMode } from "../controller/skill-marketplace-controller";
 import roomCollaborationMechanismMarkdown from "../../../../../../docs/specs/room-collaboration-mechanism.md?raw";

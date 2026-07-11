@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 
-import { getRoomContexts } from "@/lib/api/room-api";
+import { getRoomContexts } from "@/lib/api/conversation/room-resource-api";
 import type { RoomContextAggregate } from "@/types/conversation/room";
 
 interface UseRoomPageDataOptions {

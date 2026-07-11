@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
-import { getAvailableSkillsApi } from "@/lib/api/skill-api";
+import { getAvailableSkillsApi } from "@/lib/api/capability/skill-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { SkillInfo } from "@/types/capability/skill";
 

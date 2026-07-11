@@ -14,7 +14,7 @@ import { pickAgentEditableOptions } from "@/features/agents/options/agent-option
 import { AgentOptionsEditor } from "@/features/agents/options/agent-options-editor";
 import type { TabKey } from "@/features/agents/options/components/agent-options-nav";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiUnderlineTabs } from "@/shared/ui/tabs";
+import { UiUnderlineTabs } from "@/shared/ui/navigation/tabs";
 import { WorkspaceSurfaceView } from "@/shared/ui/workspace/surface/workspace-surface-view";
 import type { Agent, AgentIdentityDraft, AgentNameValidationResult, AgentOptions } from "@/types/agent/agent";
 

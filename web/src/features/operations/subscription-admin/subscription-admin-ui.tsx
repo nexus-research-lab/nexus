@@ -1,6 +1,6 @@
 import { Loader2 } from "lucide-react";
 
-import { getUiButtonClassName } from "@/shared/ui/button-styles";
+import { getUiButtonClassName } from "@/shared/ui/button/button-styles";
 
 export const CONTROL_CLASS_NAME =
   "dialog-input h-9 w-full rounded-xl px-3 text-sm text-(--text-strong) outline-none disabled:opacity-(--disabled-opacity)";

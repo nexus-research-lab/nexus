@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiButton, UiIconButton } from "@/shared/ui/button";
+import { UiButton, UiIconButton } from "@/shared/ui/button/button";
 import type { MemoryDocument } from "@/types/memory/memory";
 
 import {

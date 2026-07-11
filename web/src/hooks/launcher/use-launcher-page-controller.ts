@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { getLauncherBootstrapApi } from "@/lib/api/launcher-api";
-import { subscribeRoomDirectoryUpdates } from "@/lib/api/room-api";
+import { subscribeRoomDirectoryUpdates } from "@/lib/conversation/room-directory-events";
 import { useAgentStore } from "@/store/agent";
 import {
   LauncherAgentSummary,

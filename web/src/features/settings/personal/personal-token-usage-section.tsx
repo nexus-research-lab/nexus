@@ -9,7 +9,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
-import type { TokenUsageSummary } from "@/lib/api/auth-api";
+import type { TokenUsageSummary } from "@/lib/api/account/auth-api";
 import { cn, formatTokens } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
 

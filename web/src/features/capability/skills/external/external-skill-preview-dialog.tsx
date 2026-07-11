@@ -2,9 +2,9 @@
 
 import { ExternalLink, Loader2, PackagePlus, Puzzle } from "lucide-react";
 
-import { UiBadge } from "@/shared/ui/badge";
-import { UiButton } from "@/shared/ui/button";
-import { getUiButtonClassName } from "@/shared/ui/button-styles";
+import { UiBadge } from "@/shared/ui/display/badge";
+import { UiButton } from "@/shared/ui/button/button";
+import { getUiButtonClassName } from "@/shared/ui/button/button-styles";
 import {
   UiDialogBackdrop,
   UiDialogBody,

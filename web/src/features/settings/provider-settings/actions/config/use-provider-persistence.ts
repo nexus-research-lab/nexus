@@ -21,7 +21,7 @@ import type {
 } from "../../model/provider-settings-types";
 import type { RunProviderCommand } from "../use-provider-command";
 
-export interface ProviderPersistResult {
+interface ProviderPersistResult {
   changed: boolean;
   record: ProviderConfigRecord;
 }

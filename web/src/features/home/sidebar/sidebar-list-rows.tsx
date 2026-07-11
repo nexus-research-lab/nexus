@@ -7,11 +7,11 @@ import type { ReactNode } from "react";
 import { UiMarkdownContent } from "@/shared/ui/markdown/markdown-content";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiAgentAvatar, UiRoomAvatar } from "@/shared/ui/avatar";
-import { UiBadge, UiCounterBadge } from "@/shared/ui/badge";
-import { UiIconButton } from "@/shared/ui/button";
-import { UiSearchInput } from "@/shared/ui/form-control";
-import { UiListRow } from "@/shared/ui/list-row";
+import { UiAgentAvatar, UiRoomAvatar } from "@/shared/ui/display/avatar";
+import { UiBadge, UiCounterBadge } from "@/shared/ui/display/badge";
+import { UiIconButton } from "@/shared/ui/button/button";
+import { UiSearchInput } from "@/shared/ui/form/form-control";
+import { UiListRow } from "@/shared/ui/list/list-row";
 import type { LauncherAgentSummary } from "@/types/app/launcher";
 
 import type { SidebarConversationItem } from "./sidebar-conversation-model";

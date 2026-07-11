@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import { Download, FolderOpen, RotateCcw, X } from "lucide-react";
 
-import { downloadWorkspaceFileApi } from "@/lib/api/agent-manage-api";
+import { downloadWorkspaceFileApi } from "@/lib/api/agent/agent-api";
 import { getWorkspaceFileExternalActionCopy } from "@/lib/workspace-file-action";
 import type {
   ScheduledTaskItem,

@@ -9,8 +9,8 @@ import {
   Trash2,
 } from "lucide-react";
 
-import type { ChannelConfigView } from "@/lib/api/channel-api";
-import { UiButton } from "@/shared/ui/button";
+import type { ChannelConfigView } from "@/lib/api/capability/channel-api";
+import { UiButton } from "@/shared/ui/button/button";
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
 import {
   UiDialogBackdrop,
@@ -20,9 +20,9 @@ import {
   UiDialogHeader,
   UiDialogPortal,
 } from "@/shared/ui/dialog/dialog";
-import { UiField, UiInput } from "@/shared/ui/form-control";
+import { UiField, UiInput } from "@/shared/ui/form/form-control";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
-import { UiStateBlock } from "@/shared/ui/state-block";
+import { UiStateBlock } from "@/shared/ui/display/state-block";
 import type { Agent } from "@/types/agent/agent";
 
 import { ChannelIcon } from "../channel-icon";

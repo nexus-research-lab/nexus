@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { ListPlus, Loader2 } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiButton } from "@/shared/ui/button";
+import { UiButton } from "@/shared/ui/button/button";
 import {
   UiDialogBackdrop,
   UiDialogBody,
@@ -11,7 +11,7 @@ import {
   UiDialogHeader,
   UiDialogPortal,
 } from "@/shared/ui/dialog/dialog";
-import { UiField, UiInput } from "@/shared/ui/form-control";
+import { UiField, UiInput } from "@/shared/ui/form/form-control";
 import { GlassSwitch } from "@/shared/ui/liquid-glass";
 
 import type { ProviderPendingAction } from "../actions/use-provider-command";

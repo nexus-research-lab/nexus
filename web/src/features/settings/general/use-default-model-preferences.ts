@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { listProviderOptionsApi } from "@/lib/api/provider-config-api";
+import { listProviderOptionsApi } from "@/lib/api/settings/provider-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { ProviderOption } from "@/types/capability/provider";
 import type {

@@ -13,12 +13,12 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { deleteSkillApi, getSkillDetailApi, updateSingleSkillApi } from "@/lib/api/skill-api";
-import { UiBadge } from "@/shared/ui/badge";
-import { UiButton } from "@/shared/ui/button";
+import { deleteSkillApi, getSkillDetailApi, updateSingleSkillApi } from "@/lib/api/capability/skill-api";
+import { UiBadge } from "@/shared/ui/display/badge";
+import { UiButton } from "@/shared/ui/button/button";
 import { WORKSPACE_DETAIL_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
 import { UiPanel } from "@/shared/ui/panel";
-import { UiStateBlock } from "@/shared/ui/state-block";
+import { UiStateBlock } from "@/shared/ui/display/state-block";
 import type { SkillDetail } from "@/types/capability/skill";
 
 import { formatDeployFailureMessage } from "./skill-deploy-failures";

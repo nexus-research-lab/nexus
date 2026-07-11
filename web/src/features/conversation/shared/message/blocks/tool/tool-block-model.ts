@@ -88,7 +88,7 @@ export function getToolTitle(toolName: string): string {
   return TOOL_TITLE_MAP[toolName] ?? toolName;
 }
 
-export function formatPermissionValue(value: unknown): string {
+function formatPermissionValue(value: unknown): string {
   if (value == null || value === "") return "空";
   if (typeof value === "string") return value;
   if (typeof value === "number" || typeof value === "boolean") return String(value);
@@ -103,7 +103,7 @@ export function formatPermissionValue(value: unknown): string {
   return String(value);
 }
 
-export function getReadableSuggestions(
+function getReadableSuggestions(
   suggestions: PermissionUpdate[] = [],
 ): ToolPermissionSuggestion[] {
   const destinationMap: Record<string, string> = {
@@ -149,7 +149,7 @@ export function getInputSummary(input: unknown): string | null {
   return null;
 }
 
-export function getPrimaryInputDetail(input: unknown): { key: string; value: string } | null {
+function getPrimaryInputDetail(input: unknown): { key: string; value: string } | null {
   const record = asRecord(input);
   if (!record) return null;
   for (const key of PRIMARY_INPUT_KEYS) {
@@ -161,7 +161,7 @@ export function getPrimaryInputDetail(input: unknown): { key: string; value: str
   return null;
 }
 
-export function getResultSummary(content: unknown): string {
+function getResultSummary(content: unknown): string {
   if (typeof content === "string") {
     return content.slice(0, 80) + (content.length > 80 ? "..." : "");
   }

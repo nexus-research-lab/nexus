@@ -35,7 +35,7 @@ export function isExternalSessionChannel(
   return !INTERNAL_CHANNELS.has(channel) && SUPPORTED_EXTERNAL_CHANNELS.has(channel);
 }
 
-export function getSessionChannelLabel(
+function getSessionChannelLabel(
   channelType?: string | null,
   sessionKey?: string | null,
 ): string {

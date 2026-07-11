@@ -4,8 +4,8 @@ import {
   AGENT_ICON_ID_END,
   AGENT_ICON_ID_START,
 } from "@/lib/utils";
-import { UiAgentAvatar } from "@/shared/ui/avatar";
-import { UiInput } from "@/shared/ui/form-control";
+import { UiAgentAvatar } from "@/shared/ui/display/avatar";
+import { UiInput } from "@/shared/ui/form/form-control";
 import { IconPicker } from "@/shared/ui/icon-picker/icon-picker";
 import type { AgentNameValidationResult } from "@/types/agent/agent";
 

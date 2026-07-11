@@ -1,7 +1,7 @@
 import type { MutableRefObject } from "react";
 
 export const CONVERSATION_ROUND_SELECTOR = "[data-conversation-round-id]";
-export const CONVERSATION_ROUND_USER_ANCHOR_SELECTOR =
+const CONVERSATION_ROUND_USER_ANCHOR_SELECTOR =
   '[data-conversation-round-user-anchor="true"]';
 const ROUND_NAVIGATION_TARGET_DATA_KEY = "conversationRoundNavigationTarget";
 

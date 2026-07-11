@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Repeat2 } from "lucide-react";
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
-import { listLoopsApi } from "@/lib/api/loop-api";
+import { listLoopsApi } from "@/lib/api/capability/loop-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import {
   UiDialogBackdrop,
@@ -13,8 +13,8 @@ import {
   UiDialogPortal,
   UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
-import { UiButton } from "@/shared/ui/button";
-import { UiSearchInput } from "@/shared/ui/form-control";
+import { UiButton } from "@/shared/ui/button/button";
+import { UiSearchInput } from "@/shared/ui/form/form-control";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import type { LoopCatalogItem } from "@/types/capability/loop";
 

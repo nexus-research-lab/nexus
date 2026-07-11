@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 
 import { invalidateProviderAvailability } from "@/hooks/capability/use-provider-availability";
-import { listProviderPresetsApi } from "@/lib/api/provider-config-api";
+import { listProviderPresetsApi } from "@/lib/api/settings/provider-api";
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import type { ProviderConfigRecord } from "@/types/capability/provider";
 

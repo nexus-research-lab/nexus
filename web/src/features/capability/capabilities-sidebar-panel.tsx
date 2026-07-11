@@ -20,9 +20,9 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
-import { getCapabilitySummaryApi, type CapabilitySummary } from "@/lib/api/capability-api";
+import { getCapabilitySummaryApi, type CapabilitySummary } from "@/lib/api/capability/summary-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiSearchInput } from "@/shared/ui/form-control";
+import { UiSearchInput } from "@/shared/ui/form/form-control";
 import { SidebarListItem } from "@/shared/ui/sidebar/collapsible-section";
 import { SIDEBAR_CAPABILITY_ITEM_IDS, useSidebarStore } from "@/store/sidebar";
 

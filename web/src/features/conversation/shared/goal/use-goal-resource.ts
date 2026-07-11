@@ -2,8 +2,8 @@
 
 import { useCallback, useRef, useState } from "react";
 
-import { getCurrentGoalApi } from "@/lib/api/goal-api";
-import { ApiRequestError } from "@/lib/api/http";
+import { getCurrentGoalApi } from "@/lib/api/conversation/goal-api";
+import { ApiRequestError } from "@/lib/api/core/http";
 import type { Goal } from "@/types/conversation/goal";
 
 export type GoalCommandPhase = "clearing" | "pausing" | "resuming" | "updating";

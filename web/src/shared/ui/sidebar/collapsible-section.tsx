@@ -5,7 +5,7 @@ import { type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type Reac
 
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiListActionButton } from "@/shared/ui/list-action";
+import { UiListActionButton } from "@/shared/ui/list/list-action";
 
 const SIDEBAR_LIST_ITEM_CLASS_NAME =
   "flex min-w-0 flex-1 items-center gap-2.5 text-left text-[14px]";

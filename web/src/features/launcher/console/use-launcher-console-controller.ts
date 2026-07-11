@@ -7,7 +7,8 @@ import {
   queryLauncher,
   type LauncherQueryResponse,
 } from "@/lib/api/launcher-api";
-import { ensureDirectRoom, getRoomContexts } from "@/lib/api/room-api";
+import { resolveDirectRoomNavigationTarget } from "@/features/navigation/direct-room/direct-room-navigation";
+import { getRoomContexts } from "@/lib/api/conversation/room-resource-api";
 import { useSidebarStore } from "@/store/sidebar";
 
 import type {
@@ -55,7 +56,7 @@ export function useLauncherConsoleController({
     () => ({
       open_agent_dm: async (action) => {
         onSelectAgent(action.target_id);
-        const context = await ensureDirectRoom(action.target_id);
+        const { context } = await resolveDirectRoomNavigationTarget(action.target_id);
         openConversation(
           context.room.id,
           context.conversation.id,
@@ -88,7 +89,7 @@ export function useLauncherConsoleController({
           return;
         }
         onSelectAgent(entry.agent_id);
-        const context = await ensureDirectRoom(entry.agent_id);
+        const { context } = await resolveDirectRoomNavigationTarget(entry.agent_id);
         openConversation(context.room.id, context.conversation.id);
       },
       room: async (entry) => {

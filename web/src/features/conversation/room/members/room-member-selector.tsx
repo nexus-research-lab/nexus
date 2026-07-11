@@ -2,7 +2,7 @@ import { Check, Plus, Search } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiAgentAvatar } from "@/shared/ui/avatar";
+import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 
 import type { RoomMemberAgentOption } from "./create-room-dialog-types";
 

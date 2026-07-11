@@ -5,7 +5,7 @@ import { Download, FileText, FolderOpen } from "lucide-react";
 
 import {
   downloadWorkspaceFileApi,
-} from "@/lib/api/agent-manage-api";
+} from "@/lib/api/agent/agent-api";
 import { getWorkspaceFileExternalActionCopy } from "@/lib/workspace-file-action";
 import { cn } from "@/lib/utils";
 import { useAgentStore } from "@/store/agent";

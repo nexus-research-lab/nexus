@@ -3,8 +3,8 @@
 import { type RefObject } from "react";
 import { Settings2 } from "lucide-react";
 
-import { UiChoiceButton } from "@/shared/ui/choice";
-import { UiField, UiInput } from "@/shared/ui/form-control";
+import { UiChoiceButton } from "@/shared/ui/form/choice";
+import { UiField, UiInput } from "@/shared/ui/form/form-control";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 
 import type {

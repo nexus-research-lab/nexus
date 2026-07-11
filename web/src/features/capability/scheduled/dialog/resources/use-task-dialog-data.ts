@@ -2,9 +2,9 @@
 
 import { useMemo } from "react";
 
-import { getAgentSessionsApi } from "@/lib/api/agent-api";
-import { getAgents } from "@/lib/api/agent-manage-api";
-import { getRoomContexts, listRooms } from "@/lib/api/room-api";
+import { getAgentSessionsApi } from "@/lib/api/conversation/session-api";
+import { getAgents } from "@/lib/api/agent/agent-api";
+import { getRoomContexts, listRooms } from "@/lib/api/conversation/room-resource-api";
 import type { Agent, AgentSession } from "@/types/agent/agent";
 import type { RoomAggregate, RoomContextAggregate } from "@/types/conversation/room";
 

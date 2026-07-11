@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import {
   getUiButtonClassName,
   getUiIconButtonClassName,
-} from "@/shared/ui/button-styles";
+} from "@/shared/ui/button/button-styles";
 
 export const DIALOG_HEADER_LEADING_CLASS_NAME = "flex min-w-0 items-center gap-2.5";
 

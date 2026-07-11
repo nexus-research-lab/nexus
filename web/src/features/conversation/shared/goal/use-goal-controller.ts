@@ -13,7 +13,7 @@ import {
   pauseGoalApi,
   resumeGoalApi,
   updateGoalApi,
-} from "@/lib/api/goal-api";
+} from "@/lib/api/conversation/goal-api";
 import type { Goal, GoalStatus } from "@/types/conversation/goal";
 
 import { useGoalResource } from "./use-goal-resource";

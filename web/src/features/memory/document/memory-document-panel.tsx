@@ -5,7 +5,7 @@ import { LoaderCircle } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiStateBlock } from "@/shared/ui/state-block";
+import { UiStateBlock } from "@/shared/ui/display/state-block";
 import { UiMarkdownContent } from "@/shared/ui/markdown/markdown-content";
 import { useWorkspaceLiveStore } from "@/store/workspace-live";
 import type { MemoryDocument } from "@/types/memory/memory";

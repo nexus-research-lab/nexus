@@ -12,8 +12,8 @@ import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { APP_ROUTE_PATHS } from "@/app/router/route-paths";
 import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiButton } from "@/shared/ui/button";
-import { UiInput } from "@/shared/ui/form-control";
+import { UiButton } from "@/shared/ui/button/button";
+import { UiInput } from "@/shared/ui/form/form-control";
 
 const loginSignalItems = [
   {

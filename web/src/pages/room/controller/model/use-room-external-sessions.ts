@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
-import { getAgentSessionsApi } from "@/lib/api/agent-api";
-import { subscribeRoomDirectoryUpdates } from "@/lib/api/room-api";
+import { getAgentSessionsApi } from "@/lib/api/conversation/session-api";
+import { subscribeRoomDirectoryUpdates } from "@/lib/conversation/room-directory-events";
 import {
   buildExternalSessionConversationId,
   formatExternalSessionTitle,

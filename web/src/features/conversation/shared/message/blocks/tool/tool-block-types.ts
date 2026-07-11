@@ -42,12 +42,6 @@ export interface ToolBlockProps {
   workspaceAgentId?: string | null;
 }
 
-export interface ToolPermissionField {
-  key: string;
-  label: string;
-  value: string;
-}
-
 export interface ToolPermissionSuggestion {
   index: number;
   label: string;

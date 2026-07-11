@@ -3,11 +3,11 @@
 import { useEffect, useState } from "react";
 import { ArrowLeft, Check, Copy } from "lucide-react";
 
-import { getLoopApi } from "@/lib/api/loop-api";
+import { getLoopApi } from "@/lib/api/capability/loop-api";
 import { writeTextToClipboard } from "@/hooks/ui/clipboard";
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiButton } from "@/shared/ui/button";
+import { UiButton } from "@/shared/ui/button/button";
 import type { LoopCatalogItem } from "@/types/capability/loop";
 
 interface LoopDetailViewProps {

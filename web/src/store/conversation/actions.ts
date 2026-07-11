@@ -1,14 +1,14 @@
 /**
  * Conversation Store Actions
  *
- * [INPUT]: 依赖 @/types, @/lib/api/agent-api
+ * [INPUT]: 依赖 @/types, @/lib/api/conversation/session-api
  * [OUTPUT]: 对外提供 conversation 元数据同步 actions
  * [POS]: store/conversation 模块的操作函数
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 
 import { Conversation, ConversationStoreState } from '@/types/conversation/conversation';
-import { getConversations } from "@/lib/api/agent-api";
+import { getConversations } from "@/lib/api/conversation/session-api";
 
 type ConversationStoreSetter = (
   update:

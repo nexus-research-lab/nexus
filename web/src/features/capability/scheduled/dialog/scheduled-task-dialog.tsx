@@ -2,7 +2,7 @@
 
 import { Pencil } from "lucide-react";
 
-import { UiButton } from "@/shared/ui/button";
+import { UiButton } from "@/shared/ui/button/button";
 import {
   UiDialogBackdrop,
   UiDialogBody,

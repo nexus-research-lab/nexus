@@ -27,7 +27,7 @@ type ConversationSocketSend = (
   payload: WebSocketMessage,
 ) => WebSocketSendResult;
 
-export interface AgentEventScope {
+interface AgentEventScope {
   agentId: string | null;
   conversationId: string | null;
   roomId: string | null;
@@ -36,7 +36,7 @@ export interface AgentEventScope {
   isCurrentSessionEvent: (sessionKey?: string | null) => boolean;
 }
 
-export interface AgentEventTransport {
+interface AgentEventTransport {
   roomSeqCursorRef: RefObject<number>;
   sessionSeqCursorRef: RefObject<number>;
   wsSendRef: RefObject<ConversationSocketSend>;
@@ -44,14 +44,14 @@ export interface AgentEventTransport {
   reloadCurrentSession: () => Promise<void>;
 }
 
-export interface AgentEventState {
+interface AgentEventState {
   setError: Dispatch<SetStateAction<string | null>>;
   setInputQueueItems: Dispatch<SetStateAction<InputQueueItem[]>>;
   setMessages: Dispatch<SetStateAction<Message[]>>;
   setPendingPermissions: Dispatch<SetStateAction<PendingPermission[]>>;
 }
 
-export interface AgentEventRuntime {
+interface AgentEventRuntime {
   applyAgentRoundStatus: (payload: AgentRoundStatusEventPayload) => void;
   applyRoundStatus: (
     roundId: string,
@@ -69,7 +69,7 @@ export interface AgentEventRuntime {
   ) => void;
 }
 
-export interface AgentEventCallbacks {
+interface AgentEventCallbacks {
   applyWorkspaceEvent: (payload: WorkspaceEventPayload) => void;
   enqueueStreamPayload: (payload: StreamMessage) => void;
   onBackgroundMessage: (sessionKey: string, message: Message) => void;

@@ -15,12 +15,12 @@ export interface SettingsNavigationGroup {
   items: readonly SettingsNavigationItem[];
 }
 
-export interface SettingsNavigationItem {
+interface SettingsNavigationItem {
   key: SettingsSectionKey;
   labelKey: TranslationKey;
 }
 
-export const DEFAULT_SETTINGS_SECTION: SettingsSectionKey = "general";
+const DEFAULT_SETTINGS_SECTION: SettingsSectionKey = "general";
 
 export const SETTINGS_NAVIGATION_GROUPS: readonly SettingsNavigationGroup[] = [
   {

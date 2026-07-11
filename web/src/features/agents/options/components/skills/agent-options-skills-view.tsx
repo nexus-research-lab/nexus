@@ -1,12 +1,12 @@
 import { Loader2, RefreshCw } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { UiIconButton } from "@/shared/ui/button";
+import { UiIconButton } from "@/shared/ui/button/button";
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
-import { UiSearchInput } from "@/shared/ui/form-control";
+import { UiSearchInput } from "@/shared/ui/form/form-control";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
-import { UiStateBlock } from "@/shared/ui/state-block";
+import { UiStateBlock } from "@/shared/ui/display/state-block";
 import type { AgentSkillEntry } from "@/types/capability/skill";
 
 import type { AgentSkillsProjection } from "./agent-skills-model";

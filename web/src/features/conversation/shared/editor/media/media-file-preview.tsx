@@ -12,7 +12,7 @@ import {
 
 import {
   getWorkspaceFilePreviewUrl,
-} from "@/lib/api/agent-manage-api";
+} from "@/lib/api/agent/agent-api";
 import { getWorkspaceFileExternalActionCopy } from "@/lib/workspace-file-action";
 import { ConversationResizeHandle } from "../conversation-resize-handle";
 import {

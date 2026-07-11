@@ -9,10 +9,10 @@ import {
 } from "lucide-react";
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
-import { ChannelLoginView } from "@/lib/api/channel-api";
-import { UiBadge } from "@/shared/ui/badge";
-import { UiButton } from "@/shared/ui/button";
-import { UiInput } from "@/shared/ui/form-control";
+import { ChannelLoginView } from "@/lib/api/capability/channel-api";
+import { UiBadge } from "@/shared/ui/display/badge";
+import { UiButton } from "@/shared/ui/button/button";
+import { UiInput } from "@/shared/ui/form/form-control";
 import {
   channelLoginStatusLabel,
   channelLoginStatusTone,

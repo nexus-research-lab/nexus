@@ -22,7 +22,7 @@ import type {
   LauncherConversationSummary,
 } from "@/types/app/launcher";
 
-export type GuideCenterTourId =
+type GuideCenterTourId =
   | typeof LAUNCHER_TOUR_ID
   | typeof SIDEBAR_NAVIGATION_TOUR_ID
   | typeof DM_CONVERSATION_TOUR_ID

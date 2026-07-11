@@ -83,7 +83,7 @@ export const MENTION_NAVIGATION_KEYS = new Set([
   "Tab",
   "Escape",
 ]);
-export const IME_COMPOSITION_KEY_CODE = 229;
+const IME_COMPOSITION_KEY_CODE = 229;
 export const COMPOSITION_END_ENTER_GUARD_MS = 80;
 
 export function isCaretOnFirstLine(target: HTMLTextAreaElement): boolean {

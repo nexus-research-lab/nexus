@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
-import { listSubagentTasksApi } from "@/lib/api/subagent-task-api";
+import { listSubagentTasksApi } from "@/lib/api/conversation/subagent-task-api";
 import type {
   SubagentTask,
   SubagentTaskListResponse,

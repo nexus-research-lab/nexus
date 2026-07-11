@@ -2,8 +2,8 @@
 
 import { History } from "lucide-react";
 
-import { UiSkeletonCardList } from "@/shared/ui/skeleton";
-import { UiStateBlock } from "@/shared/ui/state-block";
+import { UiSkeletonCardList } from "@/shared/ui/display/skeleton";
+import { UiStateBlock } from "@/shared/ui/display/state-block";
 import type {
   ScheduledTaskItem,
   ScheduledTaskRunItem,

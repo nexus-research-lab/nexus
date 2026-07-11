@@ -12,7 +12,7 @@ import {
   type ChannelConfigView,
   type ChannelCredentialField,
   type ChannelLoginView,
-} from "@/lib/api/channel-api";
+} from "@/lib/api/capability/channel-api";
 import type { Agent } from "@/types/agent/agent";
 
 import { notifyCapabilitySummaryMutated } from "../../capability-summary-events";

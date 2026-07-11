@@ -1,7 +1,7 @@
 import type {
   ChannelConfigView,
   ImChannelType,
-} from "@/lib/api/channel-api";
+} from "@/lib/api/capability/channel-api";
 import type { TranslationKey } from "@/shared/i18n/messages";
 
 import { isChannelPlanned } from "../channel-model";

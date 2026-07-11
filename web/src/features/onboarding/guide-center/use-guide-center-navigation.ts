@@ -11,7 +11,7 @@ import { LAUNCHER_TOUR_ID } from "@/features/onboarding/tours/launcher-tour";
 import { SIDEBAR_NAVIGATION_TOUR_ID } from "@/features/onboarding/tours/sidebar-navigation-tour";
 import { SKILLS_TOUR_ID } from "@/features/onboarding/tours/skills-tour";
 import { getLauncherBootstrapApi } from "@/lib/api/launcher-api";
-import { resolveDirectRoomNavigationTarget } from "@/lib/conversation/direct-room-navigation";
+import { resolveDirectRoomNavigationTarget } from "@/features/navigation/direct-room/direct-room-navigation";
 import { setRequestedTourId } from "@/shared/ui/onboarding/tour-state";
 import { SIDEBAR_CAPABILITY_ITEM_IDS } from "@/store/sidebar";
 

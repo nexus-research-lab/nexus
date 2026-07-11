@@ -14,7 +14,7 @@ import {
   importGitSkillApi,
   importLocalSkillApi,
   updateSingleSkillApi,
-} from "@/lib/api/skill-api";
+} from "@/lib/api/capability/skill-api";
 import type { ExternalSkillSearchItem, SkillInfo } from "@/types/capability/skill";
 
 import { formatDeployFailureMessage } from "../detail/skill-deploy-failures";

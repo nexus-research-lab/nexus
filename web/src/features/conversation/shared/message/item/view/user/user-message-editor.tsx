@@ -1,7 +1,7 @@
 import type { KeyboardEvent, RefObject } from "react";
 
 import { cn } from "@/lib/utils";
-import { getUiButtonClassName } from "@/shared/ui/button-styles";
+import { getUiButtonClassName } from "@/shared/ui/button/button-styles";
 
 interface UserMessageEditorProps {
   canSubmit: boolean;

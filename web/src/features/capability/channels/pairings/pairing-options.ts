@@ -1,4 +1,4 @@
-import { ImChatType, ImChannelType, ImPairingStatus } from "@/lib/api/channel-api";
+import { ImChatType, ImChannelType, ImPairingStatus } from "@/lib/api/capability/channel-api";
 
 export const CHANNEL_LABELS: Record<ImChannelType, string> = {
   dingtalk: "钉钉",

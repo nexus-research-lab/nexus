@@ -10,7 +10,7 @@ import {
   isDesktopLoopbackOauthCallback,
 } from "@/config/desktop-runtime";
 import { isDesktopBridgeAvailable, openDesktopRoute } from "@/lib/desktop-bridge";
-import { completeConnectorOAuthApi } from "@/lib/api/connector-api";
+import { completeConnectorOAuthApi } from "@/lib/api/capability/connector-api";
 import {
   publishConnectorOauthEvent,
   type ConnectorOAuthEventType,

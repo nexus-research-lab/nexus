@@ -4,10 +4,10 @@ import { Brain, LoaderCircle, RefreshCw } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiAgentAvatar } from "@/shared/ui/avatar";
-import { UiIconButton } from "@/shared/ui/button";
+import { UiAgentAvatar } from "@/shared/ui/display/avatar";
+import { UiIconButton } from "@/shared/ui/button/button";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
-import { UiStateBlock } from "@/shared/ui/state-block";
+import { UiStateBlock } from "@/shared/ui/display/state-block";
 import type { Agent } from "@/types/agent/agent";
 
 import { AgentMemoryCatalog } from "./catalog/agent-memory-catalog";

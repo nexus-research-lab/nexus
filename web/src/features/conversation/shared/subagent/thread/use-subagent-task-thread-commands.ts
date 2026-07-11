@@ -5,7 +5,7 @@ import { useCallback, useRef } from "react";
 import {
   sendSubagentTaskMessageApi,
   stopSubagentTaskApi,
-} from "@/lib/api/subagent-task-api";
+} from "@/lib/api/conversation/subagent-task-api";
 
 import { subagentTaskErrorMessage } from "../subagent-task-model";
 import { useScopedResource } from "../use-scoped-resource";

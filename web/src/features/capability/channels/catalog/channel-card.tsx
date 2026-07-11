@@ -7,11 +7,11 @@ import {
   UsersRound,
 } from "lucide-react";
 
-import { ChannelConfigView } from "@/lib/api/channel-api";
+import { ChannelConfigView } from "@/lib/api/capability/channel-api";
 import { cn } from "@/lib/utils";
-import { UiBadge } from "@/shared/ui/badge";
-import { UiListActionButton } from "@/shared/ui/list-action";
-import { UiListRow } from "@/shared/ui/list-row";
+import { UiBadge } from "@/shared/ui/display/badge";
+import { UiListActionButton } from "@/shared/ui/list/list-action";
+import { UiListRow } from "@/shared/ui/list/list-row";
 import { ChannelIcon } from "../channel-icon";
 import { isChannelPlanned } from "../channel-model";
 import { describeChannel } from "./channel-catalog-model";

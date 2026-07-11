@@ -5,8 +5,8 @@ import { type KeyboardEvent, type MouseEvent } from "react";
 
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiBadge } from "@/shared/ui/badge";
-import { UiIconButton } from "@/shared/ui/button";
+import { UiBadge } from "@/shared/ui/display/badge";
+import { UiIconButton } from "@/shared/ui/button/button";
 import type { ConnectorInfo } from "@/types/capability/connector";
 
 import { isDirectCredentialAuth } from "../auth/connector-auth";

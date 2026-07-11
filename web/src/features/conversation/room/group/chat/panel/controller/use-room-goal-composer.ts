@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { createGoalApi } from "@/lib/api/goal-api";
+import { createGoalApi } from "@/lib/api/conversation/goal-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { Agent } from "@/types/agent/agent";
 import type { LoopCatalogItem } from "@/types/capability/loop";

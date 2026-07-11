@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-import { getSessionRoundIndexApi } from "@/lib/api/agent-api";
+import { getSessionRoundIndexApi } from "@/lib/api/conversation/session-api";
 import type { SessionRoundIndexItem } from "@/types/conversation/room";
 
 export function useSessionRoundIndex(sessionKey: string | null) {

@@ -13,8 +13,8 @@ import {
   UiDialogFormShell,
   UiDialogHeader,
 } from "@/shared/ui/dialog/dialog";
-import { UiButton, UiIconButton, UiLinkButton } from "@/shared/ui/button";
-import { UiInput } from "@/shared/ui/form-control";
+import { UiButton, UiIconButton, UiLinkButton } from "@/shared/ui/button/button";
+import { UiInput } from "@/shared/ui/form/form-control";
 import { UiPanel } from "@/shared/ui/panel";
 import type { ConnectorDetail } from "@/types/capability/connector";
 

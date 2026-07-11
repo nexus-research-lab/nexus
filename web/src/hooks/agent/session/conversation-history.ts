@@ -1,7 +1,7 @@
 import { Dispatch, MutableRefObject, RefObject, SetStateAction } from "react";
 import { getMessageHistoryRoundPageSize } from "@/config/options";
-import { getSessionMessagesApi } from "@/lib/api/agent-api";
-import { getRoomConversationMessages } from "@/lib/api/room-api";
+import { getSessionMessagesApi } from "@/lib/api/conversation/session-api";
+import { getRoomConversationMessages } from "@/lib/api/conversation/room-resource-api";
 import { Message } from "@/types";
 import { AgentConversationIdentity } from "@/types/agent/agent-conversation";
 import {

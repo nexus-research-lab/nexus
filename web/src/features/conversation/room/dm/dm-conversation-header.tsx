@@ -7,7 +7,7 @@ import { RoomHeaderGuideMenu } from "@/features/conversation/room/surface/header
 import { buildRoomHeaderTabs } from "@/features/conversation/room/surface/header/room-header-tabs";
 import { useSidebarStore } from "@/store/sidebar";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiAgentAvatar } from "@/shared/ui/avatar";
+import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 import { WorkspaceConversationTabs } from "@/shared/ui/workspace/controls/workspace-conversation-tabs";
 import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import type { RoomConversationView } from "@/types/conversation/conversation";

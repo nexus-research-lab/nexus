@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { writeTextToClipboard } from "@/hooks/ui/clipboard";
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
-import { pollConnectorDeviceAuthApi } from "@/lib/api/connector-api";
+import { pollConnectorDeviceAuthApi } from "@/lib/api/capability/connector-api";
 import {
   UiDialogBackdrop,
   UiDialogBody,
@@ -14,7 +14,7 @@ import {
   UiDialogPortal,
   UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
-import { UiButton, UiIconButton } from "@/shared/ui/button";
+import { UiButton, UiIconButton } from "@/shared/ui/button/button";
 import { UiPanel } from "@/shared/ui/panel";
 import type { ConnectorDeviceAuthStart } from "@/types/capability/connector";
 

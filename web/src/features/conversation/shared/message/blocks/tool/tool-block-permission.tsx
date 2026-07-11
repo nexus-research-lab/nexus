@@ -1,4 +1,4 @@
-import { getUiChoiceClassName } from "@/shared/ui/choice-styles";
+import { getUiChoiceClassName } from "@/shared/ui/form/choice-styles";
 
 import {
   FIELD_LABEL_MAP,

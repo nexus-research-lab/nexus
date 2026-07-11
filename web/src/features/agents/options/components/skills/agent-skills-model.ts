@@ -1,6 +1,6 @@
 import type { AgentSkillEntry } from "@/types/capability/skill";
 
-export type AvailableSkillsEmptyState =
+type AvailableSkillsEmptyState =
   | "catalog_empty"
   | "no_addable"
   | "no_search_match"

@@ -23,7 +23,7 @@ import type {
   SubagentTaskThreadError,
 } from "./subagent-task-thread-model";
 
-export interface SubagentTaskThreadViewModel {
+interface SubagentTaskThreadViewModel {
   canSend: boolean;
   canStop: boolean;
   command: SubagentTaskCommand | null;

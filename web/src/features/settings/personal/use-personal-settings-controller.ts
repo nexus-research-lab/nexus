@@ -5,7 +5,7 @@ import {
   getPersonalProfileApi,
   type PersonalProfile,
   updatePersonalProfileApi,
-} from "@/lib/api/auth-api";
+} from "@/lib/api/account/auth-api";
 import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
 

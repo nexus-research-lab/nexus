@@ -19,7 +19,7 @@ import { AgentMemoryView } from "@/features/memory/agent-memory-view";
 import type { TabKey } from "@/features/agents/options/components/agent-options-nav";
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiAgentAvatar } from "@/shared/ui/avatar";
+import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 import { WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
 import {
   WorkspaceSurfaceHeader,

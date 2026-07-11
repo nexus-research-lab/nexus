@@ -1,4 +1,4 @@
-import { UiCounterBadge } from "@/shared/ui/badge";
+import { UiCounterBadge } from "@/shared/ui/display/badge";
 import { cn } from "@/lib/utils";
 
 import type {

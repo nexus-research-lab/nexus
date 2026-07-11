@@ -9,7 +9,7 @@ import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import {
   getWorkspaceFileContentApi,
   updateWorkspaceFileContentApi,
-} from "@/lib/api/agent-manage-api";
+} from "@/lib/api/agent/agent-api";
 import { useWorkspaceLiveStore } from "@/store/workspace-live";
 
 interface UseTextFileEditorParams {

@@ -2,7 +2,7 @@
 
 import { type Components } from "react-markdown";
 
-import { getWorkspaceFilePreviewUrl } from "@/lib/api/agent-manage-api";
+import { getWorkspaceFilePreviewUrl } from "@/lib/api/agent/agent-api";
 
 import { CodeBlock } from "../code/code-block";
 import { LazyMermaidView } from "../mermaid/lazy-mermaid-view";

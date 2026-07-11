@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   getExternalSkillPreviewApi,
   searchExternalSkillsApi,
-} from "@/lib/api/skill-api";
+} from "@/lib/api/capability/skill-api";
 import type {
   ExternalSkillSearchItem,
   ExternalSkillSourceStatus,

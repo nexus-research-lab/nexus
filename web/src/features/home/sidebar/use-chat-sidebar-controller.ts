@@ -4,7 +4,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import type { RoomDialogSubmission } from "@/features/conversation/room/members/create-room-dialog";
 import { getActiveChatTargetFromPath } from "@/features/home/notifications/chat-notification-target";
-import { createRoom, deleteRoom } from "@/lib/api/room-api";
+import { createRoom, deleteRoom } from "@/lib/api/conversation/room-command-api";
 import { useAgentStore } from "@/store/agent";
 import { useSidebarStore } from "@/store/sidebar";
 

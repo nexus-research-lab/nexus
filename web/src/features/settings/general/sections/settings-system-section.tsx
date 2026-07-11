@@ -6,7 +6,7 @@ import { ExternalLink, PackageOpen } from "lucide-react";
 import {
   getSystemVersionApi,
   type SystemVersionInfo,
-} from "@/lib/api/system-api";
+} from "@/lib/api/settings/system-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
 
 import {

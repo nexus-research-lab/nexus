@@ -5,7 +5,7 @@ import { Download, FolderOpen, ImageIcon } from "lucide-react";
 import {
   downloadWorkspaceFileApi,
   getWorkspaceFilePreviewUrl,
-} from "@/lib/api/agent-manage-api";
+} from "@/lib/api/agent/agent-api";
 import { getWorkspaceFileExternalActionCopy } from "@/lib/workspace-file-action";
 import { cn } from "@/lib/utils";
 import { type ImageContent } from "@/types/conversation/message";

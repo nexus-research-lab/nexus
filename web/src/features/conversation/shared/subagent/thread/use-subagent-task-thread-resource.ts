@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef } from "react";
 
-import { getSubagentTaskMessagesApi } from "@/lib/api/subagent-task-api";
+import { getSubagentTaskMessagesApi } from "@/lib/api/conversation/subagent-task-api";
 import type { SubagentTaskMessagesResponse } from "@/types/conversation/subagent-task";
 
 import {

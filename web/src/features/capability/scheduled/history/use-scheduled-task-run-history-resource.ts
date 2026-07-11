@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
-import { listScheduledTaskRunsApi } from "@/lib/api/scheduled-task-api";
+import { listScheduledTaskRunsApi } from "@/lib/api/capability/scheduled-task-api";
 import type { ScheduledTaskRunItem } from "@/types/capability/scheduled-task";
 
 interface RunHistoryResourceState {

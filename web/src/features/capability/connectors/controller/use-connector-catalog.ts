@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { getConnectorsApi } from "@/lib/api/connector-api";
+import { getConnectorsApi } from "@/lib/api/capability/connector-api";
 import type { ConnectorInfo } from "@/types/capability/connector";
 
 import {

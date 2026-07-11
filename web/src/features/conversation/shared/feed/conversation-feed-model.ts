@@ -9,7 +9,7 @@ import type {
 } from "@/types/conversation/permission";
 import type { SessionRoundIndexItem } from "@/types/conversation/room";
 
-export interface ConversationFeedRefs {
+interface ConversationFeedRefs {
   bottomAnchorRef: RefObject<HTMLDivElement | null>;
   feedRef?: RefObject<HTMLDivElement | null>;
   roundScrollRef?: ConversationRoundScrollHandleRef;

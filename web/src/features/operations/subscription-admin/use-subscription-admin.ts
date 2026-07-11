@@ -5,7 +5,7 @@ import {
   getSubscriptionOverviewApi,
   updateSubscriptionPlanApi,
   updateUserSubscriptionApi,
-} from "@/lib/api/subscription-api";
+} from "@/lib/api/account/subscription-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type {
   SubscriptionAccount,

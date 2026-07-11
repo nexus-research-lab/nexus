@@ -6,8 +6,8 @@ import { Folder, Loader2, Save } from "lucide-react";
 import {
   getRuntimeSettingsApi,
   updateRuntimeSettingsApi,
-} from "@/lib/api/settings-runtime-api";
-import { UiInput } from "@/shared/ui/form-control";
+} from "@/lib/api/settings/runtime-api";
+import { UiInput } from "@/shared/ui/form/form-control";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { RuntimeSettings } from "@/types/settings/runtime";
 

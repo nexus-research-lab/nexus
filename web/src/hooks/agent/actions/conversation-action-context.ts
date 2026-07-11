@@ -32,7 +32,7 @@ export interface ResolvedConversationActionContext {
   sessionKey: string;
 }
 
-export type ConversationContextFailure =
+type ConversationContextFailure =
   | "missing_session"
   | "invalid_session"
   | "disconnected";

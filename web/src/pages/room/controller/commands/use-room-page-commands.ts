@@ -4,10 +4,10 @@ import {
   closeRoomConversationRuntime,
   createRoomConversation,
   deleteRoomConversation,
-  notifyRoomDirectoryUpdated,
   updateRoomConversation,
-} from "@/lib/api/room-api";
+} from "@/lib/api/conversation/room-command-api";
 import type { RoomDialogSubmission } from "@/features/conversation/room/members/create-room-dialog";
+import { notifyRoomDirectoryUpdated } from "@/lib/conversation/room-directory-events";
 import type { AgentIdentityDraft, AgentOptions } from "@/types/agent/agent";
 import type { RoomContextAggregate } from "@/types/conversation/room";
 

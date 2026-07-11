@@ -19,7 +19,7 @@ import {
   FeedbackBannerStack,
   type FeedbackBannerItem,
 } from "@/shared/ui/feedback/feedback-banner-stack";
-import { UiStateBlock } from "@/shared/ui/state-block";
+import { UiStateBlock } from "@/shared/ui/display/state-block";
 import {
   WorkspaceSurfaceHeader,
   WorkspaceSurfaceToolbarAction,

@@ -3,9 +3,9 @@ import { useMemo, useState } from "react";
 
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiBadge } from "@/shared/ui/badge";
-import { UiListActionButton } from "@/shared/ui/list-action";
-import { UiListRow } from "@/shared/ui/list-row";
+import { UiBadge } from "@/shared/ui/display/badge";
+import { UiListActionButton } from "@/shared/ui/list/list-action";
+import { UiListRow } from "@/shared/ui/list/list-row";
 import type {
   ExternalSkillSearchItem,
   ExternalSkillSourceInfo,

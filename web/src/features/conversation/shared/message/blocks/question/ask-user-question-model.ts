@@ -4,7 +4,7 @@ import type {
 } from "@/types/conversation/ask-user-question";
 import type { ToolResultContent } from "@/types/conversation/message";
 
-export interface QuestionAnswerDraft {
+interface QuestionAnswerDraft {
   customAnswer: string;
   selectedOptions: ReadonlySet<string>;
 }

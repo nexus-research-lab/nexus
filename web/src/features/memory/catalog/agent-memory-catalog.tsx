@@ -2,7 +2,7 @@ import { Clock3, Link2, Search } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiSearchInput } from "@/shared/ui/form-control";
+import { UiSearchInput } from "@/shared/ui/form/form-control";
 import type { MemoryDocument, MemorySnapshot } from "@/types/memory/memory";
 
 import { formatMemoryModifiedTime, memoryAgeDays } from "../memory-utils";

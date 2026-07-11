@@ -2,7 +2,7 @@ import { type Dispatch, type SetStateAction } from "react";
 import { Brain, Database, Eye, Image, Loader2, SlidersHorizontal, Wrench } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiButton } from "@/shared/ui/button";
+import { UiButton } from "@/shared/ui/button/button";
 import {
   UiDialogBackdrop,
   UiDialogBody,
@@ -11,7 +11,7 @@ import {
   UiDialogPortal,
   UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
-import { UiInput, UiTextarea } from "@/shared/ui/form-control";
+import { UiInput, UiTextarea } from "@/shared/ui/form/form-control";
 
 import { CapabilitySwitch } from "../components/provider-settings-capability-switch";
 import type { ProviderPendingAction } from "../actions/use-provider-command";

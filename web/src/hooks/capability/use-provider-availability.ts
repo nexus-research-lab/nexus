@@ -6,7 +6,7 @@ import {
   getDefaultAgentRuntimeKind,
   USER_PREFERENCES_CHANGED_EVENT,
 } from "@/config/options";
-import { listProviderOptionsApi } from "@/lib/api/provider-config-api";
+import { listProviderOptionsApi } from "@/lib/api/settings/provider-api";
 import type { AgentRuntimeKind } from "@/types/settings/preferences";
 
 interface ProviderAvailabilityState {

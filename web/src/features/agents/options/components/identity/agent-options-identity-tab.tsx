@@ -1,7 +1,7 @@
 "use client";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiTextarea } from "@/shared/ui/form-control";
+import { UiTextarea } from "@/shared/ui/form/form-control";
 import type { AgentNameValidationResult, AgentProvider } from "@/types/agent/agent";
 import type { ProviderOption } from "@/types/capability/provider";
 

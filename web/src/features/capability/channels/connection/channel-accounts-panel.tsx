@@ -3,9 +3,9 @@ import {
   Trash2,
 } from "lucide-react";
 
-import { ChannelAccountView } from "@/lib/api/channel-api";
-import { UiBadge } from "@/shared/ui/badge";
-import { UiListActionButton } from "@/shared/ui/list-action";
+import { ChannelAccountView } from "@/lib/api/capability/channel-api";
+import { UiBadge } from "@/shared/ui/display/badge";
+import { UiListActionButton } from "@/shared/ui/list/list-action";
 import { channelAccountStatusLabel } from "./channel-connection-model";
 
 export function ChannelAccountsPanel({

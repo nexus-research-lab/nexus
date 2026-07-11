@@ -4,7 +4,7 @@ import { setUserPreferences } from "@/config/options";
 import {
   getUserPreferencesApi,
   updateUserPreferencesApi,
-} from "@/lib/api/settings-preferences-api";
+} from "@/lib/api/settings/preferences-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { UserPreferences } from "@/types/settings/preferences";
 

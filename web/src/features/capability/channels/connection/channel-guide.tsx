@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import type {
   ChannelConfigView,
   ImChannelType,
-} from "@/lib/api/channel-api";
+} from "@/lib/api/capability/channel-api";
 import {
   getDialogNoteClassName,
   getDialogNoteStyle,

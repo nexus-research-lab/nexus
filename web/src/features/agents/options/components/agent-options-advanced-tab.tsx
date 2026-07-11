@@ -8,7 +8,7 @@
 
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiChoiceButton } from "@/shared/ui/choice";
+import { UiChoiceButton } from "@/shared/ui/form/choice";
 import { GlassSwitch } from "@/shared/ui/liquid-glass";
 import {
   AGENT_PERMISSION_MODES,

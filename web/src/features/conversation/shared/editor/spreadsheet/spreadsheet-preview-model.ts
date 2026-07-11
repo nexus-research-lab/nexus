@@ -7,7 +7,6 @@ import {
 
 export type {
   SpreadsheetPreviewBorderSide,
-  SpreadsheetPreviewCellStyle,
 } from "./spreadsheet-cell-style";
 
 const MIN_SHEET_ROWS = 1;

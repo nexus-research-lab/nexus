@@ -1,4 +1,4 @@
-import type { ChannelConfigView } from "@/lib/api/channel-api";
+import type { ChannelConfigView } from "@/lib/api/capability/channel-api";
 
 export interface ChannelFeedback {
   message: string;

@@ -8,7 +8,7 @@ import {
   retryScheduledTaskRunDeliveryApi,
   runScheduledTaskApi,
   updateScheduledTaskStatusApi,
-} from "@/lib/api/scheduled-task-api";
+} from "@/lib/api/capability/scheduled-task-api";
 import type {
   ScheduledTaskItem,
   ScheduledTaskRunItem,

@@ -29,10 +29,10 @@ import {
 import { ConversationResizeHandle } from "@/features/conversation/shared/editor/conversation-resize-handle";
 import { MessageItem } from "@/features/conversation/shared/message";
 import { cn } from "@/lib/utils";
-import { UiAgentAvatar, UiRoomAvatar } from "@/shared/ui/avatar";
-import { UiBadge, UiCounterBadge } from "@/shared/ui/badge";
-import { UiSearchInput } from "@/shared/ui/form-control";
-import { UiListRow } from "@/shared/ui/list-row";
+import { UiAgentAvatar, UiRoomAvatar } from "@/shared/ui/display/avatar";
+import { UiBadge, UiCounterBadge } from "@/shared/ui/display/badge";
+import { UiSearchInput } from "@/shared/ui/form/form-control";
+import { UiListRow } from "@/shared/ui/list/list-row";
 import { WorkspaceConversationTabs } from "@/shared/ui/workspace/controls/workspace-conversation-tabs";
 import { WorkspaceFileTree } from "@/shared/ui/workspace/tree/workspace-file-tree";
 import {

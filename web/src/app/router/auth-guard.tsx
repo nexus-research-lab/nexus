@@ -11,7 +11,7 @@ import { Navigate, Outlet, useLocation } from "react-router-dom";
 
 import { APP_ROUTE_PATHS } from "@/app/router/route-paths";
 import { useAuth } from "@/shared/auth/auth-context";
-import { getUiButtonClassName } from "@/shared/ui/button-styles";
+import { getUiButtonClassName } from "@/shared/ui/button/button-styles";
 import { AppLoadingState } from "@/shared/ui/layout/app-loading-screen";
 
 function GuardState({

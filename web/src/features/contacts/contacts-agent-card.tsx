@@ -3,7 +3,7 @@
 import { MessageSquareText, Users } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiAgentAvatar } from "@/shared/ui/avatar";
+import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 import { Agent } from "@/types/agent/agent";
 import { formatProviderLabel } from "@/types/capability/provider";
 import { WorkspaceCatalogTextAction } from "@/shared/ui/workspace/catalog/workspace-catalog-actions";
@@ -19,7 +19,7 @@ interface ContactsAgentCardProps {
   agent: Agent;
   /** 点击卡片本身 → 打开 AgentOptions 对话框（edit 模式） */
   onOpenProfile: () => void;
-  /** 💬 Chat 按钮 → ensureDirectRoom 发起 DM */
+  /** 打开 Agent 对应的私聊会话。 */
   onOpenRoom: () => void;
   /** 👥 Create Team 按钮 → 用该 Agent 创建 Room */
   onCreateTeam: () => void;

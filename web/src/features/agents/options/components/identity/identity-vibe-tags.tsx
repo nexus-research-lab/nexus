@@ -3,8 +3,8 @@ import { Plus, X } from "lucide-react";
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { cn } from "@/lib/utils";
-import { UiIconButton } from "@/shared/ui/button";
-import { UiInput } from "@/shared/ui/form-control";
+import { UiIconButton } from "@/shared/ui/button/button";
+import { UiInput } from "@/shared/ui/form/form-control";
 
 import type { AgentIdentityVariant } from "./identity-layout";
 

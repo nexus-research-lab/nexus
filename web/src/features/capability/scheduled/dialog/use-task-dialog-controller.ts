@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   createScheduledTaskApi,
   updateScheduledTaskApi,
-} from "@/lib/api/scheduled-task-api";
+} from "@/lib/api/capability/scheduled-task-api";
 import { closeOnEscape } from "@/shared/ui/dialog/dialog-keyboard";
 import type {
   ScheduledTaskItem,

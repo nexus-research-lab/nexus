@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 
 import { getLauncherBootstrapApi } from "@/lib/api/launcher-api";
-import { subscribeRoomDirectoryUpdates } from "@/lib/api/room-api";
+import { subscribeRoomDirectoryUpdates } from "@/lib/conversation/room-directory-events";
 import { AGENT_LIST_UPDATED_EVENT_NAME } from "@/store/agent";
 import type {
   LauncherAgentSummary,

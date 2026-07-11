@@ -3,7 +3,7 @@ import {
   addRoomMember,
   removeRoomMember,
   updateRoom,
-} from "@/lib/api/room-api";
+} from "@/lib/api/conversation/room-command-api";
 import type { UpdateRoomParams } from "@/types/conversation/room";
 
 import { buildRoomMembershipPlan } from "./room-management-command-model";

@@ -82,7 +82,7 @@ export function getTaskStatusMeta(task: ScheduledTaskItem): RunStatusMeta {
   return { label: "已暂停", tone: "idle" };
 }
 
-export function shouldShowAssistantText(run: ScheduledTaskRunItem): boolean {
+function shouldShowAssistantText(run: ScheduledTaskRunItem): boolean {
   return Boolean(
     run.assistant_text
     && run.assistant_text.trim() !== (run.result_text ?? "").trim(),

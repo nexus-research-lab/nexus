@@ -1,5 +1,5 @@
-import { uploadWorkspaceFileApi } from "@/lib/api/agent-manage-api";
-import { uploadRoomConversationAttachmentApi } from "@/lib/api/room-api";
+import { uploadWorkspaceFileApi } from "@/lib/api/agent/agent-api";
+import { uploadRoomConversationAttachmentApi } from "@/lib/api/conversation/room-command-api";
 import type { MessageAttachment } from "@/types/conversation/message";
 
 export type ComposerAttachmentKind = "text" | "image" | "file";

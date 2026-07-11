@@ -3,8 +3,8 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { History, MoreHorizontal, Pencil, Play, Trash2 } from "lucide-react";
 
-import { UiButton, UiIconButton } from "@/shared/ui/button";
-import { UiMetaGrid, UiMetaItem } from "@/shared/ui/meta-grid";
+import { UiButton, UiIconButton } from "@/shared/ui/button/button";
+import { UiMetaGrid, UiMetaItem } from "@/shared/ui/display/meta-grid";
 import {
   UiActionMenu,
   type UiActionMenuItem,

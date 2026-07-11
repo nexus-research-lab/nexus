@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { RefreshCw, X } from "lucide-react";
 
-import { UiButton, UiIconButton } from "@/shared/ui/button";
+import { UiButton, UiIconButton } from "@/shared/ui/button/button";
 import { closeOnEscape } from "@/shared/ui/dialog/dialog-keyboard";
 import { WorkspaceStatusBadge } from "@/shared/ui/workspace/controls/workspace-status-badge";
 import type {

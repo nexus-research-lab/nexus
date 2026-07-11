@@ -4,7 +4,7 @@ import type { FormEvent } from "react";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
-import { getUiButtonClassName } from "@/shared/ui/button-styles";
+import { getUiButtonClassName } from "@/shared/ui/button/button-styles";
 
 import type { PasswordDraft, PasswordField } from "./personal-settings-model";
 

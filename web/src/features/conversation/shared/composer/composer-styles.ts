@@ -7,7 +7,7 @@
  * =====================================================
  */
 
-import { getUiIconButtonClassName } from "@/shared/ui/button-styles";
+import { getUiIconButtonClassName } from "@/shared/ui/button/button-styles";
 
 export const COMPOSER_ATTACHMENT_CLASS_NAME =
   "chip-default group relative inline-flex items-center gap-2 rounded-[14px] px-3 py-[0.45rem]";

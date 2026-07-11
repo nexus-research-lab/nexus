@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 
-import { getConnectorDetailApi } from "@/lib/api/connector-api";
+import { getConnectorDetailApi } from "@/lib/api/capability/connector-api";
 import type { ConnectorDetail } from "@/types/capability/connector";
 
 interface UseConnectorDetailOptions {

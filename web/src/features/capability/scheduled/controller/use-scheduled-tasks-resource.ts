@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { resolveAgentId } from "@/config/options";
-import { listScheduledTasksApi } from "@/lib/api/scheduled-task-api";
+import { listScheduledTasksApi } from "@/lib/api/capability/scheduled-task-api";
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task";
 
 interface RefreshScheduledTasksOptions {

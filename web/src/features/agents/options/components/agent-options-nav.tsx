@@ -10,8 +10,8 @@ import { type ReactNode } from "react";
 import { UserPen, ToolCase, Album, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiChoiceButton } from "@/shared/ui/choice";
-import { UiUnderlineTabs } from "@/shared/ui/tabs";
+import { UiChoiceButton } from "@/shared/ui/form/choice";
+import { UiUnderlineTabs } from "@/shared/ui/navigation/tabs";
 
 /** Tab 键值类型 */
 export type TabKey = "identity" | "skills" | "advanced";

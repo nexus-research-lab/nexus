@@ -12,8 +12,8 @@ import {
 } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiButton, UiIconButton } from "@/shared/ui/button";
-import { UiSearchInput } from "@/shared/ui/form-control";
+import { UiButton, UiIconButton } from "@/shared/ui/button/button";
+import { UiSearchInput } from "@/shared/ui/form/form-control";
 import { GlassSwitch } from "@/shared/ui/liquid-glass";
 import type {
   ProviderConfigRecord,

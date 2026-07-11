@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { getAgents } from "@/lib/api/agent-manage-api";
+import { getAgents } from "@/lib/api/agent/agent-api";
 import {
   listChannelsApi,
   type ChannelConfigView,
   type ImChannelType,
-} from "@/lib/api/channel-api";
+} from "@/lib/api/capability/channel-api";
 import type { Agent } from "@/types/agent/agent";
 
 import { notifyCapabilitySummaryMutated } from "../../capability-summary-events";

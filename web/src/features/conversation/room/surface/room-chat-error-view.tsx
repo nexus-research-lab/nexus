@@ -1,6 +1,6 @@
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiButton } from "@/shared/ui/button";
-import { UiStateBlock } from "@/shared/ui/state-block";
+import { UiButton } from "@/shared/ui/button/button";
+import { UiStateBlock } from "@/shared/ui/display/state-block";
 
 export function RoomChatErrorView() {
   const { t } = useI18n();

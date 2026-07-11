@@ -17,14 +17,14 @@ import {
 import type {
   ImChannelType,
   ImPairingStatus,
-} from "@/lib/api/channel-api";
+} from "@/lib/api/capability/channel-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
 import {
   FeedbackBannerStack,
   type FeedbackBannerItem,
 } from "@/shared/ui/feedback/feedback-banner-stack";
-import { UiStateBlock } from "@/shared/ui/state-block";
+import { UiStateBlock } from "@/shared/ui/display/state-block";
 import {
   WorkspaceSurfaceHeader,
   WorkspaceSurfaceToolbarAction,

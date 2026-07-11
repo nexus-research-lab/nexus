@@ -12,7 +12,7 @@ import {
   UiDialogPortal,
 } from "@/shared/ui/dialog/dialog";
 import { getDialogActionClassName } from "@/shared/ui/dialog/dialog-styles";
-import { UiField, UiInput, UiTextarea } from "@/shared/ui/form-control";
+import { UiField, UiInput, UiTextarea } from "@/shared/ui/form/form-control";
 
 interface GoalDraftFormProps {
   budget: string;

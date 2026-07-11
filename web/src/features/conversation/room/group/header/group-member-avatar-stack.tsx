@@ -1,6 +1,6 @@
 import type { Agent } from "@/types/agent/agent";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiAgentAvatar } from "@/shared/ui/avatar";
+import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 
 interface GroupMemberAvatarStackProps {
   members: Agent[];

@@ -4,7 +4,7 @@ import { ExternalLink, KeyRound, Save } from "lucide-react";
 import { type FormEvent, useCallback } from "react";
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
-import { UiButton, UiLinkButton } from "@/shared/ui/button";
+import { UiButton, UiLinkButton } from "@/shared/ui/button/button";
 import {
   UiDialogBackdrop,
   UiDialogBody,
@@ -12,7 +12,7 @@ import {
   UiDialogFormShell,
   UiDialogHeader,
 } from "@/shared/ui/dialog/dialog";
-import { UiInput } from "@/shared/ui/form-control";
+import { UiInput } from "@/shared/ui/form/form-control";
 import { UiPanel } from "@/shared/ui/panel";
 import type { ConnectorDetail } from "@/types/capability/connector";
 

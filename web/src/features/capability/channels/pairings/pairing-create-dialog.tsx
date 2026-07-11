@@ -14,8 +14,8 @@ import {
   type ImChatType,
   type ImPairingStatus,
   type PairingView,
-} from "@/lib/api/channel-api";
-import { UiButton } from "@/shared/ui/button";
+} from "@/lib/api/capability/channel-api";
+import { UiButton } from "@/shared/ui/button/button";
 import {
   UiDialogBackdrop,
   UiDialogBody,
@@ -24,7 +24,7 @@ import {
   UiDialogHeader,
   UiDialogPortal,
 } from "@/shared/ui/dialog/dialog";
-import { UiField, UiInput } from "@/shared/ui/form-control";
+import { UiField, UiInput } from "@/shared/ui/form/form-control";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import type { Agent } from "@/types/agent/agent";
 

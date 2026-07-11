@@ -1,6 +1,6 @@
-import { getWorkspaceFilePreviewUrl } from "@/lib/api/agent-manage-api";
+import { getWorkspaceFilePreviewUrl } from "@/lib/api/agent/agent-api";
 
-export const DEFAULT_OFFICE_PREVIEW_MAX_BYTES = 15 * 1024 * 1024;
+const DEFAULT_OFFICE_PREVIEW_MAX_BYTES = 15 * 1024 * 1024;
 
 interface FetchOfficePreviewBufferOptions {
   agentId: string;

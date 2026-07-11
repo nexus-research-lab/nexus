@@ -8,7 +8,7 @@ import {
 } from "react";
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
-import { installSkillApi, uninstallSkillApi } from "@/lib/api/skill-api";
+import { installSkillApi, uninstallSkillApi } from "@/lib/api/capability/skill-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { AgentSkillEntry } from "@/types/capability/skill";
 

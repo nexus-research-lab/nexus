@@ -14,7 +14,7 @@ import type {
 import type { SessionRoundIndexItem } from "@/types/conversation/room";
 import type { ConversationRoundScrollHandleRef } from "@/features/conversation/shared/timeline/scroll/round-scroll";
 
-export interface GroupConversationFeedRefs {
+interface GroupConversationFeedRefs {
   bottomAnchorRef: RefObject<HTMLDivElement | null>;
   feedRef?: RefObject<HTMLDivElement | null>;
   roundScrollRef?: ConversationRoundScrollHandleRef;

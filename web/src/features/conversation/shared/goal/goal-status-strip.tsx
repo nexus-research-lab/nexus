@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 
 import { cn, formatTokens } from "@/lib/utils";
-import { UiIconButton } from "@/shared/ui/button";
+import { UiIconButton } from "@/shared/ui/button/button";
 import type { Goal, GoalStatus } from "@/types/conversation/goal";
 import type { GoalContinuationHold } from "./goal-continuation-hold";
 import {

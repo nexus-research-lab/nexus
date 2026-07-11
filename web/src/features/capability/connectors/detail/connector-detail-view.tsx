@@ -14,13 +14,13 @@ import {
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiBadge } from "@/shared/ui/badge";
-import { UiButton } from "@/shared/ui/button";
-import { getUiButtonClassName } from "@/shared/ui/button-styles";
+import { UiBadge } from "@/shared/ui/display/badge";
+import { UiButton } from "@/shared/ui/button/button";
+import { getUiButtonClassName } from "@/shared/ui/button/button-styles";
 import { WORKSPACE_DETAIL_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
-import { UiListRow } from "@/shared/ui/list-row";
+import { UiListRow } from "@/shared/ui/list/list-row";
 import { UiPanel } from "@/shared/ui/panel";
-import { UiStateBlock } from "@/shared/ui/state-block";
+import { UiStateBlock } from "@/shared/ui/display/state-block";
 import type { ConnectorDetail } from "@/types/capability/connector";
 
 import { ConnectorIcon } from "../connector-icon";

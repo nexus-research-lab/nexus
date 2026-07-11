@@ -3,7 +3,7 @@
  */
 
 import { getAgentApiBaseUrl } from "@/config/options";
-import { requestApi } from "@/lib/api/http";
+import { requestApi } from "@/lib/api/core/http";
 import type { LauncherBootstrapResponse } from "@/types/app/launcher";
 
 export interface LauncherQueryParams {

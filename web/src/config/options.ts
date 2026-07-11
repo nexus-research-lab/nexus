@@ -5,7 +5,7 @@
  * 只有显式配置了绝对地址时，才会直连外部 API / WebSocket。
  */
 
-import { requestApi } from "@/lib/api/http";
+import { requestApi } from "@/lib/api/core/http";
 import { getDesktopRuntimeConfig } from "@/config/desktop-runtime";
 import type { AgentOptions } from "@/types/agent/agent";
 import type { AgentConversationDefaultDeliveryPolicy } from "@/types/agent/agent-conversation";

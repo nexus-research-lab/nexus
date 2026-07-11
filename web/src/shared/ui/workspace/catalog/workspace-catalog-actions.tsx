@@ -1,7 +1,7 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
-import { UiButton } from "@/shared/ui/button";
-import { UiListActionButton } from "@/shared/ui/list-action";
+import { UiButton } from "@/shared/ui/button/button";
+import { UiListActionButton } from "@/shared/ui/list/list-action";
 
 type CatalogActionTone = "default" | "danger";
 type CatalogActionSize = "sm" | "md";

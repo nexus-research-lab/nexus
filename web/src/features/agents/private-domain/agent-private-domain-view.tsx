@@ -10,7 +10,7 @@ import {
   AgentPrivateDomainQuery,
   listAgentPrivateEventsApi,
   listAgentPrivateThreadsApi,
-} from "@/lib/api/agent-private-domain-api";
+} from "@/lib/api/agent/private-domain-api";
 import { isExternalSessionConversationId } from "@/lib/conversation/external-session";
 import {
   cn,

@@ -85,7 +85,7 @@ export function getSupportedPresetFormat(
     ?? null;
 }
 
-export function presetProviderKinds(
+function presetProviderKinds(
   preset: ProviderPreset | null,
 ): ProviderKind[] {
   if (!preset) {

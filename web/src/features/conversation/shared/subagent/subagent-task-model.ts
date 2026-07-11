@@ -6,7 +6,7 @@ import type {
   SubagentTaskSource,
 } from "@/types/conversation/subagent-task";
 
-export type SubagentTaskViewStatus =
+type SubagentTaskViewStatus =
   | "pending"
   | "running"
   | "completed"
@@ -69,7 +69,7 @@ const SUBAGENT_RUNTIME_BY_ALIAS: Readonly<Record<string, SubagentRuntimeKind>> =
   mixed: "mixed",
 };
 
-export function normalizeSubagentTaskStatus(status?: string | null): SubagentTaskViewStatus {
+function normalizeSubagentTaskStatus(status?: string | null): SubagentTaskViewStatus {
   return SUBAGENT_STATUS_BY_ALIAS[normalizeAlias(status)] ?? "pending";
 }
 
@@ -141,7 +141,7 @@ export function normalizeSubagentTask(
   };
 }
 
-export function normalizeSubagentRuntimeKind(
+function normalizeSubagentRuntimeKind(
   value?: string | null,
 ): SubagentRuntimeKind {
   return SUBAGENT_RUNTIME_BY_ALIAS[normalizeAlias(value)] ?? "unknown";

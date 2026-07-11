@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { getAvailableSkillsApi } from "@/lib/api/skill-api";
+import { getAvailableSkillsApi } from "@/lib/api/capability/skill-api";
 import type { SkillInfo } from "@/types/capability/skill";
 
 import type { SkillCatalogController } from "./skill-marketplace-controller";

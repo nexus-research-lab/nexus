@@ -6,7 +6,7 @@ import {
   downloadWorkspaceFileApi,
   renameWorkspaceEntryApi,
   uploadWorkspaceFileApi,
-} from "@/lib/api/agent-manage-api";
+} from "@/lib/api/agent/agent-api";
 import type {
   WorkspaceEntryMutationResponse,
   WorkspaceEntryRenameResponse,

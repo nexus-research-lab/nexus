@@ -7,7 +7,7 @@
  * =====================================================
  */
 
-import { UiBadge } from "@/shared/ui/badge";
+import { UiBadge } from "@/shared/ui/display/badge";
 
 interface SkillStatePillProps {
   children: string;

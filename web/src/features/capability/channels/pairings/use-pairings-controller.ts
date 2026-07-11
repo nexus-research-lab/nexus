@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { getAgents } from "@/lib/api/agent-manage-api";
+import { getAgents } from "@/lib/api/agent/agent-api";
 import {
   deletePairingApi,
   listPairingsApi,
   updatePairingApi,
   type PairingView,
   type UpdatePairingPayload,
-} from "@/lib/api/channel-api";
+} from "@/lib/api/capability/channel-api";
 import { useCopyToClipboard } from "@/hooks/ui/use-copy-to-clipboard";
 import type { Agent } from "@/types/agent/agent";
 

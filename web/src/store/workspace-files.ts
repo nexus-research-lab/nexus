@@ -9,7 +9,7 @@
 
 import { create } from 'zustand';
 
-import { getWorkspaceFilesApi } from '@/lib/api/agent-manage-api';
+import { getWorkspaceFilesApi } from '@/lib/api/agent/agent-api';
 import { WorkspaceFileEntry } from '@/types/agent/agent';
 
 const requestVersionByAgent = new Map<string, number>();

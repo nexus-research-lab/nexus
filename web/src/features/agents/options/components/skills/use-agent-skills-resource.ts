@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { getAgentSkillsApi } from "@/lib/api/skill-api";
+import { getAgentSkillsApi } from "@/lib/api/capability/skill-api";
 import type { AgentSkillEntry } from "@/types/capability/skill";
 
 const SKILL_REFRESH_INTERVAL_MS = 5000;

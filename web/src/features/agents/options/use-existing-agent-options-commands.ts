@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 
-import { validateAgentNameApi } from "@/lib/api/agent-manage-api";
+import { validateAgentNameApi } from "@/lib/api/agent/agent-api";
 import type {
   AgentIdentityDraft,
   AgentOptions,

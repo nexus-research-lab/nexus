@@ -1,4 +1,4 @@
-import { getUiChoiceClassName } from "@/shared/ui/choice-styles";
+import { getUiChoiceClassName } from "@/shared/ui/form/choice-styles";
 
 export const PICKER_TRIGGER_CLASS_NAME =
   "flex w-full items-center justify-between gap-3 rounded-[12px] border border-(--divider-subtle-color) bg-transparent px-5 py-4 text-left text-[17px] font-medium text-(--text-strong) transition-[border-color,background-color] duration-(--motion-duration-fast) hover:border-[color:color-mix(in_srgb,var(--primary)_26%,var(--divider-subtle-color))] hover:bg-(--surface-interactive-hover-background)";

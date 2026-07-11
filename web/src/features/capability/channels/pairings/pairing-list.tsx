@@ -12,11 +12,11 @@ import type {
   ImPairingStatus,
   PairingView,
   UpdatePairingPayload,
-} from "@/lib/api/channel-api";
-import { UiBadge } from "@/shared/ui/badge";
-import type { UiBadgeTone } from "@/shared/ui/badge-styles";
-import { UiButton, UiIconButton } from "@/shared/ui/button";
-import { UiField } from "@/shared/ui/form-control";
+} from "@/lib/api/capability/channel-api";
+import { UiBadge } from "@/shared/ui/display/badge";
+import type { UiBadgeTone } from "@/shared/ui/display/badge-styles";
+import { UiButton, UiIconButton } from "@/shared/ui/button/button";
+import { UiField } from "@/shared/ui/form/form-control";
 import { UiPanel } from "@/shared/ui/panel";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import type { Agent } from "@/types/agent/agent";

@@ -15,7 +15,7 @@ import {
   updateProviderModelApi,
   updateSubscriptionProviderConfigApi,
   updateSubscriptionProviderModelApi,
-} from "@/lib/api/provider-config-api";
+} from "@/lib/api/settings/provider-api";
 import type {
   FetchProviderModelsResponse,
   ProviderConfigRecord,

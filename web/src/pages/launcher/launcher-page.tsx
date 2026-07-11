@@ -7,7 +7,7 @@ import { getDefaultAgentId, isMainAgent } from "@/config/options";
 import { LauncherConsole } from "@/features/launcher/console/launcher-console";
 import { getLauncherSurfaceThemeStyle } from "@/features/launcher/hero/launcher-surface-theme";
 import { useLauncherPageController } from "@/hooks/launcher/use-launcher-page-controller";
-import { resolveDirectRoomNavigationTarget } from "@/lib/conversation/direct-room-navigation";
+import { resolveDirectRoomNavigationTarget } from "@/features/navigation/direct-room/direct-room-navigation";
 import { useTheme } from "@/shared/theme/theme-context";
 import { AppLoadingScreen } from "@/shared/ui/layout/app-loading-screen";
 import { SIDEBAR_SYSTEM_ITEM_IDS, useSidebarStore } from "@/store/sidebar";

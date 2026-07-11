@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { UiButton } from "@/shared/ui/button";
+import { UiButton } from "@/shared/ui/button/button";
 import { AgentOptionsNav } from "@/features/agents/options/components/agent-options-nav";
 import { AgentOptionsIdentityTab } from "@/features/agents/options/components/identity/agent-options-identity-tab";
 import { AgentOptionsSkillsTab } from "@/features/agents/options/components/skills/agent-options-skills-tab";

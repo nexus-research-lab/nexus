@@ -4,7 +4,7 @@ import type {
   ImChatType,
   ImPairingStatus,
   PairingView,
-} from "@/lib/api/channel-api";
+} from "@/lib/api/capability/channel-api";
 import type { Agent } from "@/types/agent/agent";
 
 import {

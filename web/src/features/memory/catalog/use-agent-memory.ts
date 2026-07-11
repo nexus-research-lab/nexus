@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { getAgentMemorySnapshotApi } from "@/lib/api/memory-api";
+import { getAgentMemorySnapshotApi } from "@/lib/api/agent/memory-api";
 import type { MemorySnapshot } from "@/types/memory/memory";
 
 import {

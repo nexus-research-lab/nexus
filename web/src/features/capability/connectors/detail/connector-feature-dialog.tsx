@@ -1,6 +1,6 @@
 import { Check } from "lucide-react";
 
-import { UiBadge } from "@/shared/ui/badge";
+import { UiBadge } from "@/shared/ui/display/badge";
 import {
   UiDialogBackdrop,
   UiDialogBody,

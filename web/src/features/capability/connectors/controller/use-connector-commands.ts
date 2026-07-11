@@ -8,7 +8,7 @@ import {
   getConnectorAuthUrlApi,
   saveConnectorOauthClientApi,
   startConnectorDeviceAuthApi,
-} from "@/lib/api/connector-api";
+} from "@/lib/api/capability/connector-api";
 import type {
   ConnectorDeviceAuthStart,
   ConnectorInfo,

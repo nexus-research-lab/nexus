@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { getDefaultAgentRuntimeKind } from "@/config/options";
-import { listProviderOptionsApi } from "@/lib/api/provider-config-api";
+import { listProviderOptionsApi } from "@/lib/api/settings/provider-api";
 import type { AgentProvider } from "@/types/agent/agent";
 import type { ProviderOption } from "@/types/capability/provider";
 
