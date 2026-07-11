@@ -19,7 +19,7 @@ import {
   SETTINGS_ROW_CLASS_NAME,
   SETTINGS_SECTION_TITLE_CLASS_NAME,
   SETTINGS_TEXT_ROW_CLASS_NAME,
-} from "./settings-panel-ui";
+} from "../../shared/settings-panel-ui";
 
 const DEFAULT_RELEASE_PAGE_URL =
   "https://github.com/nexus-research-lab/nexus/releases/latest";

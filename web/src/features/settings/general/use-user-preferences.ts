@@ -12,7 +12,7 @@ import {
   type PreferenceFeedback,
   buildPreferencesUpdatePayload,
   normalizePreferences,
-} from "./settings-preferences-model";
+} from "./model/settings-preferences-model";
 
 type PreferenceMutation = (current: UserPreferences) => UserPreferences;
 

@@ -1,17 +1,22 @@
 "use client";
 
-import { type ReactNode } from "react";
 import { type Components } from "react-markdown";
 
 import { getWorkspaceFilePreviewUrl } from "@/lib/api/agent-manage-api";
 
-import { CodeBlock } from "../blocks/code/code-block";
-import { LazyMermaidView } from "./lazy-mermaid-view";
-import { WorkspaceFileButton } from "./markdown-workspace-file-button";
+import { CodeBlock } from "../../blocks/code/code-block";
+import { LazyMermaidView } from "../mermaid/lazy-mermaid-view";
+import { WorkspaceFileButton } from "../workspace/markdown-workspace-file-button";
 import {
   resolveWorkspaceArtifactPath,
   type ResolveWorkspaceFilePath,
-} from "./markdown-workspace-artifacts";
+} from "../workspace/markdown-workspace-artifacts";
+import {
+  compactExternalUrlLabel,
+  getPlainTextFromChildren,
+  normalizeExternalMarkdownHref,
+  splitTrailingUrlPunctuation,
+} from "./markdown-link-model";
 
 type MarkdownNodeLike = {
   position?: {
@@ -27,14 +32,6 @@ interface CreateMarkdownComponentsOptions {
   streamMermaid?: boolean;
 }
 
-interface CreateMarkdownSummaryComponentsOptions {
-  monochrome?: boolean;
-  strongAsText?: boolean;
-}
-
-const URL_TRAILING_PUNCTUATION_PATTERN = /[.,;:!?，。；：！？、]+$/u;
-const ALLOWED_MARKDOWN_LINK_PROTOCOLS = new Set(["http:", "https:", "mailto:"]);
-
 function isBlockCode(node: MarkdownNodeLike | null | undefined, className: string | undefined, value: string): boolean {
   if (className && /language-\w+/.test(className)) {
     return true;
@@ -47,106 +44,6 @@ function isBlockCode(node: MarkdownNodeLike | null | undefined, className: strin
   const startLine = node?.position?.start?.line;
   const endLine = node?.position?.end?.line;
   return typeof startLine === "number" && typeof endLine === "number" && startLine !== endLine;
-}
-
-function getPlainTextFromChildren(children: ReactNode): string | null {
-  if (typeof children === "string" || typeof children === "number") {
-    return String(children);
-  }
-
-  if (!Array.isArray(children)) {
-    return null;
-  }
-
-  const parts: string[] = [];
-  for (const child of children) {
-    if (typeof child === "string" || typeof child === "number") {
-      parts.push(String(child));
-      continue;
-    }
-    if (child === null || child === undefined || typeof child === "boolean") {
-      continue;
-    }
-    return null;
-  }
-
-  return parts.join("");
-}
-
-function countChar(value: string, char: string): number {
-  return Array.from(value).filter((item) => item === char).length;
-}
-
-function splitTrailingUrlPunctuation(value: string): { href: string; trailingText: string } {
-  let href = value.trim();
-  let trailingText = "";
-
-  const appendTrailing = (text: string) => {
-    trailingText = `${text}${trailingText}`;
-  };
-
-  while (href) {
-    const punctuationMatch = URL_TRAILING_PUNCTUATION_PATTERN.exec(href);
-    if (punctuationMatch?.[0]) {
-      href = href.slice(0, -punctuationMatch[0].length);
-      appendTrailing(punctuationMatch[0]);
-      continue;
-    }
-
-    const lastChar = href.at(-1);
-    if (
-      lastChar === ")" &&
-      countChar(href, ")") > countChar(href, "(")
-    ) {
-      href = href.slice(0, -1);
-      appendTrailing(")");
-      continue;
-    }
-
-    if (
-      lastChar === "]" &&
-      countChar(href, "]") > countChar(href, "[")
-    ) {
-      href = href.slice(0, -1);
-      appendTrailing("]");
-      continue;
-    }
-
-    break;
-  }
-
-  return { href, trailingText: trailingText };
-}
-
-function normalizeExternalMarkdownHref(href: string): string | null {
-  const trimmed = href.trim();
-  if (!trimmed) {
-    return null;
-  }
-
-  const normalized = /^www\./i.test(trimmed) ? `https://${trimmed}` : trimmed;
-  try {
-    const url = new URL(normalized);
-    return ALLOWED_MARKDOWN_LINK_PROTOCOLS.has(url.protocol) ? url.toString() : null;
-  } catch {
-    return null;
-  }
-}
-
-function compactExternalUrlLabel(href: string): string {
-  if (href.startsWith("mailto:")) {
-    return href.slice("mailto:".length);
-  }
-
-  try {
-    const url = new URL(href);
-    const host = url.hostname.replace(/^www\./i, "");
-    const suffix = `${url.pathname === "/" ? "" : url.pathname}${url.search ? "?..." : ""}${url.hash ? "#..." : ""}`;
-    const label = `${host}${suffix}`;
-    return label.length > 64 ? `${label.slice(0, 42)}...${label.slice(-16)}` : label;
-  } catch {
-    return href;
-  }
 }
 
 export function createMarkdownComponents(
@@ -348,119 +245,6 @@ export function createMarkdownComponents(
     },
     td({ children }) {
       return <td data-markdown-anchor className="min-w-[120px] border-t border-b px-3 py-2 text-start align-top whitespace-normal break-words sm:px-4 sm:py-3" style={{ borderColor: "var(--divider-subtle-color)" }}>{children}</td>;
-    },
-  };
-}
-
-export function createMarkdownSummaryComponents(
-  resolveFilePath: ResolveWorkspaceFilePath,
-  onOpenWorkspaceFile?: (path: string, workspaceAgentId?: string | null) => void,
-  currentAgentId?: string | null,
-  options: CreateMarkdownSummaryComponentsOptions = {},
-): Components {
-  const baseComponents = createMarkdownComponents(resolveFilePath, onOpenWorkspaceFile, currentAgentId);
-  const headingClassName = options.monochrome
-    ? `inline ${options.strongAsText ? "font-normal" : "font-semibold"} text-inherit`
-    : "inline font-semibold text-foreground";
-
-  return {
-    ...baseComponents,
-    // 摘要需要保留 Markdown 的基础语义，但必须压成内联展示，
-    // 不能再沿用正文里的块级布局，否则会把列表或占位卡撑高。
-    p({ children }) {
-      return <span className="inline min-w-0 max-w-full wrap-anywhere">{children}</span>;
-    },
-    ul({ children }) {
-      return <span className="inline min-w-0 max-w-full wrap-anywhere">{children}</span>;
-    },
-    ol({ children }) {
-      return <span className="inline min-w-0 max-w-full wrap-anywhere">{children}</span>;
-    },
-    li({ children }) {
-      return <span className="inline min-w-0 max-w-full wrap-anywhere [&_p]:inline [&_p]:m-0">• {children} </span>;
-    },
-    blockquote({ children }) {
-      return (
-        <span className={options.monochrome
-          ? "inline min-w-0 max-w-full italic text-inherit wrap-anywhere"
-          : "inline min-w-0 max-w-full italic text-(--text-muted) wrap-anywhere"}
-        >
-          {children}
-        </span>
-      );
-    },
-    strong({ children }) {
-      return options.strongAsText ? <span>{children}</span> : <strong>{children}</strong>;
-    },
-    a({ children }) {
-      return <span className={options.monochrome ? "inline text-inherit" : "inline text-primary"}>{children}</span>;
-    },
-    code({ children }) {
-      const value = String(children).replace(/\s+/g, " ").trim();
-      return (
-        <span className={options.monochrome
-          ? "message-cjk-code-font inline text-[0.9em] text-inherit"
-          : "message-cjk-code-font mx-0.5 inline rounded-[4px] bg-primary/10 px-1 text-[0.9em] text-primary"}
-        >
-          {value}
-        </span>
-      );
-    },
-    img({ alt }) {
-      return alt ? <span className={options.monochrome ? "inline text-inherit" : "inline text-(--text-muted)"}>{alt}</span> : null;
-    },
-    ...(options.monochrome ? {
-      kbd({ children }) {
-        return <span className="inline text-inherit">{children}</span>;
-      },
-      mark({ children }) {
-        return <span className="inline text-inherit">{children}</span>;
-      },
-    } satisfies Components : {}),
-    h1({ children }) {
-      return <span className={headingClassName}>{children}</span>;
-    },
-    h2({ children }) {
-      return <span className={headingClassName}>{children}</span>;
-    },
-    h3({ children }) {
-      return <span className={headingClassName}>{children}</span>;
-    },
-    h4({ children }) {
-      return <span className={headingClassName}>{children}</span>;
-    },
-    h5({ children }) {
-      return <span className={headingClassName}>{children}</span>;
-    },
-    h6({ children }) {
-      return <span className={headingClassName}>{children}</span>;
-    },
-    hr() {
-      return <span className={options.monochrome ? "inline text-inherit" : "inline text-(--text-soft)"}> · </span>;
-    },
-    table({ children }) {
-      return <span className="inline min-w-0 max-w-full wrap-anywhere">{children}</span>;
-    },
-    thead({ children }) {
-      return <span className="inline">{children}</span>;
-    },
-    tbody({ children }) {
-      return <span className="inline">{children}</span>;
-    },
-    tr({ children }) {
-      return <span className="inline">{children}</span>;
-    },
-    th({ children }) {
-      return <span className="inline font-medium">{children}</span>;
-    },
-    td({ children }) {
-      return <span className="inline">{children}</span>;
-    },
-    pre({ children }) {
-      return <span className="inline min-w-0 max-w-full overflow-hidden">{children}</span>;
-    },
-    br() {
-      return <span>{" "}</span>;
     },
   };
 }

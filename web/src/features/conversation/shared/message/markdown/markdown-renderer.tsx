@@ -5,23 +5,23 @@ import { cn } from "@/lib/utils";
 
 import "katex/dist/katex.min.css";
 
-import { createMarkdownComponents } from "./markdown-components";
+import { createMarkdownComponents } from "./core/markdown-components";
 import {
   MARKDOWN_BODY_CLASS_NAME,
   MARKDOWN_PLUGINS,
   normalizeMarkdownContent,
   REHYPE_PLUGINS,
-} from "./markdown-renderer-shared";
+} from "./core/markdown-renderer-shared";
 import {
   splitMarkdownFileArtifacts,
   useMarkdownCurrentAgentID,
   useMarkdownFileResolver,
-} from "./markdown-workspace-artifacts";
+} from "./workspace/markdown-workspace-artifacts";
 import {
   StableMarkdownText,
   StreamingMarkdownText,
-} from "./markdown-streaming";
-import { useSmoothStreamingMarkdownContent } from "./use-smooth-streaming-markdown-content";
+} from "./streaming/markdown-streaming";
+import { useSmoothStreamingMarkdownContent } from "./streaming/use-smooth-streaming-markdown-content";
 import { FileArtifactBlock } from "../blocks/artifact/file-artifact-block";
 
 interface MarkdownRendererProps {

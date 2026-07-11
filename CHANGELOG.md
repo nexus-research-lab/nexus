@@ -22,9 +22,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Consolidated conversation scrolling under the timeline domain, separating smooth animation, user interactions, history-prepend anchoring, local expansion anchoring, and round navigation protocols.
 - Split Agent message processing into Assistant content identity, message collection, and stream reducer models instead of sharing one cross-layer helper module.
 - Split WebSocket transport into connection policy, heartbeat, client, shared-channel registry, and React lifecycle modules, with shared identity derived from the complete effective configuration.
+- Split Workspace conversation tabs into pure ordering/layout models, a browser-style tab transaction controller, and a presentation-only tab item.
 - Split Agent memory browsing and document editing into scoped resource controllers, with a presentation-only catalog and explicit live SDK content precedence.
 - Consolidated Agent Options identity, model, and permission fields into one scoped draft, with dedicated Provider, name-validation, and save-feedback controllers.
 - Unified sidebar and chat-notification bootstrap data behind one queued Home directory resource, and split notification projection, browser effects, and Room WebSocket protocol into dedicated modules.
+- Consolidated Home chat and contact sidebar code into one domain, separating Room/DM catalog projection, unread aggregation, directory subscriptions, Room commands, and presentation-only panels.
+- Split Personal settings into a scoped profile resource and command controller, data-driven password validation, and presentation-only profile, password, and token-usage sections.
+- Moved General settings sections and pure option/preference models into their owning domain, while relocating settings-style UI shared with Operations to an explicit shared layer.
+- Reorganized Markdown rendering into core, streaming, workspace, and Mermaid domains, separating link normalization, summary components, SVG rendering, and preview interaction state.
 - Split subagent task inspection into scoped list/thread resources, a serialized command controller, and a presentation-only thread view.
 - Split the DM chat panel into entry, model, and view layers, and unified DM/Room session orchestration and conversation surface layout behind shared controllers.
 - Consolidated conversation timeline grouping and Room Agent round projection into their domain models, removing the shared conversation utility catch-all.

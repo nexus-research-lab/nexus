@@ -4,26 +4,24 @@ import { useMemo } from "react";
 import { cn } from "@/lib/utils";
 
 import "katex/dist/katex.min.css";
-import {
-  createMarkdownComponents,
-  createMarkdownSummaryComponents,
-} from "./markdown-components";
+import { createMarkdownComponents } from "./core/markdown-components";
+import { createMarkdownSummaryComponents } from "./core/markdown-summary-components";
 import {
   MARKDOWN_BODY_CLASS_NAME,
   MARKDOWN_SUMMARY_CLASS_NAME,
   MARKDOWN_PLUGINS,
   normalizeMarkdownContent,
   REHYPE_PLUGINS,
-} from "./markdown-renderer-shared";
+} from "./core/markdown-renderer-shared";
 import {
   useMarkdownCurrentAgentID,
   useMarkdownFileResolver,
-} from "./markdown-workspace-artifacts";
+} from "./workspace/markdown-workspace-artifacts";
 import {
   StableMarkdownText,
   StreamingMarkdownText,
-} from "./markdown-streaming";
-import { useSmoothStreamingMarkdownContent } from "./use-smooth-streaming-markdown-content";
+} from "./streaming/markdown-streaming";
+import { useSmoothStreamingMarkdownContent } from "./streaming/use-smooth-streaming-markdown-content";
 
 interface MarkdownRendererProps {
   content: string;

@@ -19,7 +19,7 @@ import { SettingsDefaultModelRow } from "../components/settings-default-model-ro
 import {
   AGENT_RUNTIME_KIND_OPTIONS,
   DELIVERY_POLICY_OPTIONS,
-} from "../../settings-options";
+} from "../model/settings-options";
 import {
   SETTINGS_CARD_CLASS_NAME,
   SETTINGS_CONTROL_LABEL_CLASS_NAME,
@@ -30,8 +30,8 @@ import {
   SETTINGS_SECTION_TITLE_CLASS_NAME,
   SETTINGS_TEXT_ROW_CLASS_NAME,
   SettingsSegmentedControl,
-} from "../../settings-panel-ui";
-import type { DefaultModelPreferenceRole } from "../settings-preferences-model";
+} from "../../shared/settings-panel-ui";
+import type { DefaultModelPreferenceRole } from "../model/settings-preferences-model";
 import { SettingsOnboardingRow } from "../components/settings-onboarding-row";
 
 interface SettingsGeneralBehaviorSectionProps {

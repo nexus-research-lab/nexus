@@ -21,7 +21,7 @@ import {
 } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 
-import { PersonalSettingsPanel } from "./personal-settings-panel";
+import { PersonalSettingsPanel } from "./personal/personal-settings-panel";
 import { ProviderSettingsPanel } from "./provider-settings/provider-settings-panel";
 import { SettingsGeneralSection } from "./general/settings-general-section";
 

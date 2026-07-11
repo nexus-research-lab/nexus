@@ -6,7 +6,7 @@ import {
   SETTINGS_CARD_CLASS_NAME,
   SETTINGS_ICON_CLASS_NAME,
   SETTINGS_ITEM_TITLE_CLASS_NAME,
-} from "@/features/settings/settings-panel-ui";
+} from "@/features/settings/shared/settings-panel-ui";
 import type { SubscriptionAccount } from "@/types/settings/subscription";
 
 import {

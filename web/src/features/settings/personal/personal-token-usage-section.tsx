@@ -26,7 +26,7 @@ function formatUpdatedAt(value: string, locale: "zh" | "en"): string {
   });
 }
 
-export function PersonalSettingsTokenUsageSection({
+export function PersonalTokenUsageSection({
   usage,
 }: {
   usage: TokenUsageSummary | undefined;

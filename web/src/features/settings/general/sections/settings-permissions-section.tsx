@@ -19,7 +19,7 @@ import {
   SETTINGS_SECTION_TITLE_CLASS_NAME,
   SETTINGS_SELECT_BUTTON_CLASS_NAME,
   SETTINGS_TEXT_ROW_CLASS_NAME,
-} from "../../settings-panel-ui";
+} from "../../shared/settings-panel-ui";
 
 interface SettingsPermissionsSectionProps {
   feedbackMessage?: string | null;

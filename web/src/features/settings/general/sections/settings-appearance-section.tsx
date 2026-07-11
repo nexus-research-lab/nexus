@@ -8,7 +8,7 @@ import { useTheme } from "@/shared/theme/theme-context";
 import {
   LOCALE_OPTIONS,
   THEME_OPTIONS,
-} from "./settings-options";
+} from "../model/settings-options";
 import {
   SETTINGS_CARD_CLASS_NAME,
   SETTINGS_ICON_CLASS_NAME,
@@ -18,7 +18,7 @@ import {
   SETTINGS_SECTION_TITLE_CLASS_NAME,
   SETTINGS_TEXT_ROW_CLASS_NAME,
   SettingsSegmentedControl,
-} from "./settings-panel-ui";
+} from "../../shared/settings-panel-ui";
 
 export function SettingsAppearanceSection() {
   const { locale, setLocale, t } = useI18n();

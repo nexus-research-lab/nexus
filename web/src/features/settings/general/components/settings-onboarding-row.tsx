@@ -12,7 +12,7 @@ import {
   SETTINGS_ITEM_TITLE_CLASS_NAME,
   SETTINGS_ROW_CLASS_NAME,
   SETTINGS_TEXT_ROW_CLASS_NAME,
-} from "../../settings-panel-ui";
+} from "../../shared/settings-panel-ui";
 
 interface SettingsOnboardingRowProps {
   onReset: () => void;

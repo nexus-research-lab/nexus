@@ -7,7 +7,7 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
 import { UiSelectMenu, type UiSelectMenuOption } from "@/shared/ui/select-menu";
 
-import type { DefaultModelPreferenceRole } from "../settings-preferences-model";
+import type { DefaultModelPreferenceRole } from "../model/settings-preferences-model";
 import {
   SETTINGS_CONTROL_HEIGHT_CLASS_NAME,
   SETTINGS_CONTROL_LABEL_CLASS_NAME,
@@ -17,7 +17,7 @@ import {
   SETTINGS_ROW_CLASS_NAME,
   SETTINGS_SELECT_BUTTON_CLASS_NAME,
   SETTINGS_TEXT_ROW_CLASS_NAME,
-} from "../../settings-panel-ui";
+} from "../../shared/settings-panel-ui";
 
 interface SettingsDefaultModelRowProps {
   disabled: boolean;

@@ -12,7 +12,7 @@ import type {
 } from "@/types/app/launcher";
 import type { EventMessage } from "@/types/conversation/message";
 
-import { refreshHomeDirectory, useHomeDirectory } from "./home-directory-resource";
+import { refreshHomeDirectory, useHomeDirectory } from "../home-directory-resource";
 
 export interface SidebarDirectoryState {
   agents: LauncherAgentSummary[];

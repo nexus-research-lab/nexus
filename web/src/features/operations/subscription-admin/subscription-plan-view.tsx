@@ -5,7 +5,7 @@ import type { TranslationKey } from "@/shared/i18n/messages";
 import { UiSelectMenu } from "@/shared/ui/select-menu";
 import {
   SETTINGS_CARD_CLASS_NAME,
-} from "@/features/settings/settings-panel-ui";
+} from "@/features/settings/shared/settings-panel-ui";
 import type { SubscriptionPlan } from "@/types/settings/subscription";
 
 import {

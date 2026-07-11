@@ -8,7 +8,7 @@ import { WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME } from "@/shared/ui/layout/worksp
 import {
   SETTINGS_ITEM_DESCRIPTION_CLASS_NAME,
   SETTINGS_SECTION_TITLE_CLASS_NAME,
-} from "@/features/settings/settings-panel-ui";
+} from "@/features/settings/shared/settings-panel-ui";
 
 import { SubscriptionAccountView } from "./subscription-account-view";
 import type { SubscriptionAdminView } from "./subscription-admin-model";

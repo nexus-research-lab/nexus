@@ -15,7 +15,7 @@ import {
   buildDefaultModelOptions,
   decodeDefaultModelValue,
   encodeOptionalModelSelection,
-} from "./settings-preferences-model";
+} from "./model/settings-preferences-model";
 
 interface ProviderCatalogState {
   agentDefault: DefaultModelSelection | null;

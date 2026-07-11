@@ -14,7 +14,7 @@ import { UiSearchInput } from "@/shared/ui/form-control";
 import { UiListRow } from "@/shared/ui/list-row";
 import type { LauncherAgentSummary } from "@/types/app/launcher";
 
-import type { SidebarConversationItem } from "./home-sidebar-conversation-model";
+import type { SidebarConversationItem } from "./sidebar-conversation-model";
 
 export function SidebarSearchField({
   action,

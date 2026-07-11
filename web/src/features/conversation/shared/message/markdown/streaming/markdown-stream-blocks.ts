@@ -1,4 +1,4 @@
-import { readMarkdownFenceMarker } from "./markdown-fence";
+import { readMarkdownFenceMarker } from "../core/markdown-fence";
 
 type MarkdownStreamBlockState = "revealed" | "streaming";
 

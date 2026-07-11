@@ -1,6 +1,6 @@
 import type { ComponentType } from "react";
 
-import { LazyMermaidView } from "@/features/conversation/shared/message/markdown/lazy-mermaid-view";
+import { LazyMermaidView } from "@/features/conversation/shared/message/markdown/mermaid/lazy-mermaid-view";
 import { MarkdownRendererContent } from "@/features/conversation/shared/message/markdown/markdown-renderer-content";
 
 import { HtmlFilePreview } from "../media/html-file-preview";

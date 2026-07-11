@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { findOpenMarkdownFenceLanguage } from "./markdown-fence";
+import { findOpenMarkdownFenceLanguage } from "../core/markdown-fence";
 
 const STREAM_ACTIVE_INPUT_WINDOW_MS = 170;
 const STREAM_TARGET_LAG_CHARS = 5;

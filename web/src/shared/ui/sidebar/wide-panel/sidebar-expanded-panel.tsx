@@ -3,10 +3,8 @@ import { Link } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { CapabilitiesPanelContent } from "@/features/capability/capabilities-sidebar-panel";
-import {
-  ChatSidebarPanelContent,
-  ContactsSidebarPanelContent,
-} from "@/features/home/home-sidebar-panel";
+import { ChatSidebarPanelContent } from "@/features/home/sidebar/chat-sidebar-panel";
+import { ContactsSidebarPanelContent } from "@/features/home/sidebar/contacts-sidebar-panel";
 import { HOME_SIDEBAR_PADDING_CLASS } from "@/lib/layout/home-layout";
 import { cn } from "@/lib/utils";
 import { SIDEBAR_TOUR_ANCHORS } from "@/shared/ui/sidebar/sidebar-navigation-tour";
