@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef } from "react";
 
 import { useAgentConversation } from "@/hooks/agent";
-import { useFollowScroll } from "@/hooks/conversation/use-follow-scroll";
+import { useFollowScroll } from "@/features/conversation/shared/timeline/scroll/use-follow-scroll";
 import { useSessionLoader } from "@/hooks/conversation/use-session-loader";
 import { useSessionRoundIndex } from "@/hooks/conversation/use-session-round-index";
 import type {
@@ -10,8 +10,8 @@ import type {
   RoomEventPayload,
 } from "@/types/agent/agent-conversation";
 
-import type { ConversationRoundScrollHandle } from "../timeline/round-scroll";
-import { buildConversationScrollContentKey } from "../timeline/scroll-content-key";
+import type { ConversationRoundScrollHandle } from "../timeline/scroll/round-scroll";
+import { buildConversationScrollContentKey } from "../timeline/scroll/follow-scroll-model";
 import { useConversationHistoryLoader } from "../timeline/use-history-loader";
 import { useConversationTimeline } from "../timeline/use-conversation-timeline";
 import { useVisibleRoundWindowLoader } from "../timeline/use-visible-window-loader";

@@ -24,7 +24,7 @@ import type {
 import type { AgentConversationActionContext } from "./actions/conversation-action-context";
 import { useAgentConversationActions } from "./actions/use-agent-conversation-actions";
 import { usePendingChatAcks } from "./actions/use-pending-chat-acks";
-import { dedupeMessagesById } from "./message-helpers";
+import { dedupeMessagesById } from "./message/message-collection-model";
 import { removeFailedOutboundUserMessage } from "./runtime/conversation-runtime-reconciliation";
 import { useAgentConversationRuntime } from "./runtime/use-agent-conversation-runtime";
 import { useAgentSessionController } from "./session/use-agent-session-controller";

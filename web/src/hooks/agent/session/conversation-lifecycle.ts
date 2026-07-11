@@ -15,7 +15,10 @@ import type {
 } from "@/types/agent/agent-conversation";
 import type { PendingPermission } from "@/types/conversation/permission";
 
-import { mergeLoadedMessages, sortMessages } from "../message-helpers";
+import {
+  mergeLoadedMessages,
+  sortMessages,
+} from "../message/message-collection-model";
 
 interface SessionMessagesPage {
   has_more?: boolean;

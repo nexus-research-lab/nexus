@@ -24,12 +24,16 @@ export function findConversationRoundElement(
   scrollElement: HTMLDivElement,
   roundId: string,
 ): HTMLElement | null {
-  return Array.from(
-    scrollElement.querySelectorAll<HTMLElement>(CONVERSATION_ROUND_SELECTOR),
-  ).find((element) => element.dataset.conversationRoundId === roundId) ?? null;
+  return (
+    Array.from(
+      scrollElement.querySelectorAll<HTMLElement>(CONVERSATION_ROUND_SELECTOR),
+    ).find((element) => element.dataset.conversationRoundId === roundId) ?? null
+  );
 }
 
-export function getConversationRoundFocusOffset(scrollElement: HTMLDivElement | null): number {
+export function getConversationRoundFocusOffset(
+  scrollElement: HTMLDivElement | null,
+): number {
   if (!scrollElement) {
     return 180;
   }
@@ -60,18 +64,18 @@ export function clearConversationRoundNavigationTarget(
   delete scrollElement.dataset[ROUND_NAVIGATION_TARGET_DATA_KEY];
 }
 
-function resolveConversationRoundScrollTarget(target: HTMLElement): HTMLElement {
-  return target.querySelector<HTMLElement>(CONVERSATION_ROUND_USER_ANCHOR_SELECTOR) ?? target;
-}
-
 export function isConversationRoundScrollTargetVisible(
   scrollElement: HTMLDivElement,
   target: HTMLElement,
 ): boolean {
   const containerRect = scrollElement.getBoundingClientRect();
-  const scrollTarget = resolveConversationRoundScrollTarget(target);
-  const targetRect = scrollTarget.getBoundingClientRect();
-  return targetRect.top >= containerRect.top + 8 && targetRect.top < containerRect.bottom - 8;
+  const targetRect = resolveConversationRoundScrollTarget(
+    target,
+  ).getBoundingClientRect();
+  return (
+    targetRect.top >= containerRect.top + 8 &&
+    targetRect.top < containerRect.bottom - 8
+  );
 }
 
 export function scrollToConversationRoundElement(
@@ -80,18 +84,34 @@ export function scrollToConversationRoundElement(
   options?: ConversationRoundScrollOptions,
 ): void {
   const containerRect = scrollElement.getBoundingClientRect();
-  const scrollTarget = resolveConversationRoundScrollTarget(target);
-  const targetRect = scrollTarget.getBoundingClientRect();
-  const offset = options?.align === "focus"
-    ? getConversationRoundFocusOffset(scrollElement)
-    : 24;
-  const maxScrollTop = Math.max(0, scrollElement.scrollHeight - scrollElement.clientHeight);
+  const targetRect = resolveConversationRoundScrollTarget(
+    target,
+  ).getBoundingClientRect();
+  const offset =
+    options?.align === "focus"
+      ? getConversationRoundFocusOffset(scrollElement)
+      : 24;
+  const maxScrollTop = Math.max(
+    0,
+    scrollElement.scrollHeight - scrollElement.clientHeight,
+  );
   const nextScrollTop = Math.min(
     maxScrollTop,
-    Math.max(0, scrollElement.scrollTop + targetRect.top - containerRect.top - offset),
+    Math.max(
+      0,
+      scrollElement.scrollTop + targetRect.top - containerRect.top - offset,
+    ),
   );
   scrollElement.scrollTo({
     behavior: options?.behavior ?? "smooth",
     top: nextScrollTop,
   });
+}
+
+function resolveConversationRoundScrollTarget(target: HTMLElement): HTMLElement {
+  return (
+    target.querySelector<HTMLElement>(
+      CONVERSATION_ROUND_USER_ANCHOR_SELECTOR,
+    ) ?? target
+  );
 }

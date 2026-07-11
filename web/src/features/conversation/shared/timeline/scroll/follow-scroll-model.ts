@@ -1,5 +1,15 @@
 import type { Message } from "@/types/conversation/message";
 
+const BOTTOM_THRESHOLD_PX = 80;
+
+export function getScrollBottomTop(element: HTMLDivElement): number {
+  return Math.max(0, element.scrollHeight - element.clientHeight);
+}
+
+export function isNearScrollBottom(element: HTMLDivElement): boolean {
+  return getScrollBottomTop(element) - element.scrollTop <= BOTTOM_THRESHOLD_PX;
+}
+
 export function buildConversationScrollContentKey(
   sessionKey: string | null,
   messages: readonly Message[],

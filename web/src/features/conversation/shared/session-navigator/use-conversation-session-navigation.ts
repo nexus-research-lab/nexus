@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import type { RefObject } from "react";
 
-import type { ConversationRoundScrollHandleRef } from "../timeline/round-scroll";
+import type { ConversationRoundScrollHandleRef } from "../timeline/scroll/round-scroll";
 import type { ConversationTimeline } from "../timeline/timeline-model";
 import {
   buildSessionNavigationItems,

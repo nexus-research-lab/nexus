@@ -8,7 +8,7 @@ import {
   isConversationRoundScrollTargetVisible,
   setConversationRoundNavigationTarget,
   type ConversationRoundScrollHandleRef,
-} from "../timeline/round-scroll";
+} from "../timeline/scroll/round-scroll";
 import type { ConversationTimeline } from "../timeline/timeline-model";
 import { scrollToTimelineRound } from "./navigation-dom";
 import type { SessionNavigationItem } from "./session-navigator-model";

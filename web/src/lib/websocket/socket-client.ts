@@ -1,423 +1,304 @@
-/**
- * WebSocket 核心客户端类
- */
-
-import {
-  WebSocketClientCallbacks,
+import { notifyAuthRequired } from "@/lib/api/http";
+import type {
   WebSocketConfig,
   WebSocketMessage,
   WebSocketSendResult,
   WebSocketState,
 } from "@/types/system/websocket";
-import { notifyAuthRequired } from "@/lib/api/http";
+
+import { SocketHeartbeat } from "./socket-heartbeat";
+import {
+  getReconnectDelay,
+  isWebSocketTransportStale,
+  resolveWebSocketConfig,
+  shouldQueueWebSocketMessage,
+  type ResolvedWebSocketConfig,
+} from "./socket-policy";
+
+interface WebSocketClientCallbacks {
+  onError?: (event: Event) => void;
+  onMessage?: (data: unknown) => void;
+  onStateChange?: (state: WebSocketState) => void;
+}
 
 export class WebSocketClient {
-  private ws: WebSocket | null = null;
-  private config: Required<WebSocketConfig>;
-  private callbacks: WebSocketClientCallbacks;
+  private readonly callbacks: WebSocketClientCallbacks;
+  private readonly config: ResolvedWebSocketConfig;
+  private readonly heartbeat: SocketHeartbeat;
+  private socket: WebSocket | null = null;
   private state: WebSocketState = "disconnected";
-  private isIntentionalDisconnect = false;
+  private intentionalDisconnect = false;
+  private reconnectEnabled: boolean;
   private reconnectAttempts = 0;
-  private reconnectTimer: NodeJS.Timeout | null = null;
-  private heartbeatTimer: NodeJS.Timeout | null = null;
-  private heartbeatTimeoutTimer: NodeJS.Timeout | null = null;
+  private reconnectTimerId: number | null = null;
   private messageQueue: WebSocketMessage[] = [];
   private lastServerActivityTime = 0;
-
-  private readonly DEFAULT_CONFIG: Required<WebSocketConfig> = {
-    url: "",
-    protocols: [],
-    reconnect: true,
-    maxReconnectAttempts: 5,
-    reconnectDelay: 1000,
-    maxReconnectDelay: 30000,
-    heartbeatInterval: 30000,
-    heartbeatTimeout: 10000,
-  };
 
   constructor(
     config: WebSocketConfig,
     callbacks: WebSocketClientCallbacks = {},
   ) {
-    this.config = { ...this.DEFAULT_CONFIG, ...config };
+    this.config = resolveWebSocketConfig(config);
     this.callbacks = callbacks;
+    this.reconnectEnabled = this.config.reconnect;
+    this.heartbeat = new SocketHeartbeat({
+      intervalMs: this.config.heartbeatInterval,
+      timeoutMs: this.config.heartbeatTimeout,
+      isConnected: () => this.isSocketOpen(),
+      onTimeout: () => {
+        console.warn("[WebSocketClient] Heartbeat timeout, reconnecting...");
+        this.socket?.close(4000, "Heartbeat timeout");
+      },
+      sendPing: () => {
+        this.send({ type: "ping" });
+      },
+    });
   }
 
-  /**
-   * 连接WebSocket
-   */
-  public connect(): void {
-    if (this.state === "connecting" || this.state === "connected") {
-      console.warn("[WebSocketClient] Already connecting or connected");
+  connect(): void {
+    if (
+      this.state === "connecting" ||
+      this.state === "connected" ||
+      this.state === "reconnecting"
+    ) {
       return;
     }
-
-    // 重连或重新连接前，清空主动断开标记，避免误伤真实错误。
-    this.isIntentionalDisconnect = false;
+    this.intentionalDisconnect = false;
+    this.reconnectEnabled = this.config.reconnect;
+    this.reconnectAttempts = 0;
     this.clearReconnectTimer();
     this.setState("connecting");
     this.createConnection();
   }
 
-  /**
-   * 断开连接
-   */
-  public disconnect(): void {
-    // 标记为主动断开，忽略卸载或手动关闭过程中的 error/1006 噪音。
-    this.isIntentionalDisconnect = true;
-    this.config.reconnect = false; // 禁止自动重连
-    this.cleanup();
-    if (this.ws) {
-      this.ws.close(1000, "Client disconnect");
-      this.ws = null;
-    }
+  disconnect(): void {
+    this.intentionalDisconnect = true;
+    this.reconnectEnabled = false;
+    this.messageQueue = [];
+    this.lastServerActivityTime = 0;
+    this.cleanupTimers();
+    this.closeCurrentSocket(1000, "Client disconnect");
     this.setState("disconnected");
   }
 
-  /**
-   * 发送消息
-   */
-  public send(data: WebSocketMessage): WebSocketSendResult {
-    if (!this.shouldQueueMessage(data) && this.isTransportStale()) {
+  forceReconnect(reason = "Force reconnect"): void {
+    this.intentionalDisconnect = false;
+    this.reconnectEnabled = this.config.reconnect;
+    this.reconnectAttempts = 0;
+    this.cleanupTimers();
+    this.closeCurrentSocket(4001, reason);
+    this.setState("reconnecting");
+    this.createConnection();
+  }
+
+  send(message: WebSocketMessage): WebSocketSendResult {
+    const canQueue = shouldQueueWebSocketMessage(message);
+    if (!canQueue && this.isTransportStale()) {
       console.warn(
         "[WebSocketClient] Transport stale, reconnect before sending business message",
-        data.type,
+        message.type,
       );
       this.forceReconnect("Transport stale");
       return { disposition: "dropped" };
     }
 
-    if (this.state === "connected" && this.ws?.readyState === WebSocket.OPEN) {
-      try {
-        this.ws.send(JSON.stringify(data));
-        return { disposition: "sent" };
-      } catch (error) {
-        console.error("[WebSocketClient] Send error:", error);
-        if (this.shouldQueueMessage(data)) {
-          this.messageQueue.push(data);
-          return { disposition: "queued" };
-        }
-        return { disposition: "dropped" };
-      }
+    if (this.isSocketOpen()) {
+      return this.sendOpenMessage(message, canQueue);
     }
-
-    if (this.shouldQueueMessage(data)) {
-      this.messageQueue.push(data);
+    if (canQueue) {
+      this.messageQueue.push(message);
       console.warn("[WebSocketClient] Message queued, not connected");
       return { disposition: "queued" };
     }
-
     console.warn(
       "[WebSocketClient] Message dropped, transport unavailable",
-      data.type,
+      message.type,
     );
     return { disposition: "dropped" };
   }
 
-  /**
-   * 获取当前状态
-   */
-  public getState(): WebSocketState {
-    return this.state;
-  }
-
-  /**
-   * 强制重建连接，避免继续复用僵尸连接。
-   */
-  public forceReconnect(reason: string = "Force reconnect"): void {
-    const previousSocket = this.ws;
-    this.cleanup();
-    this.isIntentionalDisconnect = false;
-    this.ws = null;
-    this.setState("reconnecting");
-
-    if (previousSocket) {
-      previousSocket.onopen = null;
-      previousSocket.onmessage = null;
-      previousSocket.onerror = null;
-      previousSocket.onclose = null;
-      try {
-        previousSocket.close(4001, reason);
-      } catch (error) {
-        console.debug(
-          "[WebSocketClient] Ignore close error during forceReconnect",
-          error,
-        );
+  private sendOpenMessage(
+    message: WebSocketMessage,
+    canQueue: boolean,
+  ): WebSocketSendResult {
+    try {
+      this.socket?.send(JSON.stringify(message));
+      return { disposition: "sent" };
+    } catch (error) {
+      console.error("[WebSocketClient] Send error:", error);
+      if (canQueue) {
+        this.messageQueue.push(message);
       }
+      this.forceReconnect("Send failed");
+      return { disposition: canQueue ? "queued" : "dropped" };
     }
-
-    this.createConnection();
   }
 
-  /**
-   * 创建WebSocket连接
-   */
   private createConnection(): void {
     try {
-      this.ws = new WebSocket(this.config.url, this.config.protocols);
-
-      this.ws.onopen = (event) => this.handleOpen(event);
-      this.ws.onmessage = (event) => this.handleMessage(event);
-      this.ws.onerror = (event) => this.handleError(event);
-      this.ws.onclose = (event) => this.handleClose(event);
+      const socket = new WebSocket(this.config.url, this.config.protocols);
+      this.socket = socket;
+      socket.onopen = () => this.handleOpen(socket);
+      socket.onmessage = (event) => this.handleMessage(socket, event);
+      socket.onerror = (event) => this.handleError(socket, event);
+      socket.onclose = (event) => this.handleClose(socket, event);
     } catch (error) {
+      this.socket = null;
       console.error("[WebSocketClient] Connection error:", error);
       this.handleConnectionFailure();
     }
   }
 
-  /**
-   * 处理连接打开
-   */
-  private handleOpen(event: Event): void {
-    console.debug("[WebSocketClient] Connected");
-    this.isIntentionalDisconnect = false;
-    this.lastServerActivityTime = Date.now();
-    this.setState("connected");
-    this.reconnectAttempts = 0;
-
-    // 启动心跳
-    this.startHeartbeat();
-
-    // 发送队列中的消息
-    this.flushMessageQueue();
-
-    // 回调
-    this.callbacks.onOpen?.(event);
-    if (this.reconnectAttempts > 0) {
-      this.callbacks.onReconnected?.();
+  private handleOpen(socket: WebSocket): void {
+    if (this.socket !== socket) {
+      return;
     }
+    console.debug("[WebSocketClient] Connected");
+    this.intentionalDisconnect = false;
+    this.lastServerActivityTime = Date.now();
+    this.reconnectAttempts = 0;
+    this.setState("connected");
+    this.heartbeat.start();
+    this.flushMessageQueue();
   }
 
-  /**
-   * 处理消息
-   */
-  private handleMessage(event: MessageEvent): void {
+  private handleMessage(socket: WebSocket, event: MessageEvent): void {
+    if (this.socket !== socket) {
+      return;
+    }
     try {
-      const data = JSON.parse(event.data);
+      const data = JSON.parse(event.data) as { event_type?: string };
       this.lastServerActivityTime = Date.now();
-
-      // 处理pong响应
       if (data.event_type === "pong") {
-        this.resetHeartbeatTimeout();
+        this.heartbeat.acknowledge();
         return;
       }
-
       this.callbacks.onMessage?.(data);
     } catch (error) {
       console.error("[WebSocketClient] Message parse error:", error);
     }
   }
 
-  /**
-   * 处理连接错误
-   */
-  private handleError(event: Event): void {
-    if (this.isIntentionalDisconnect) {
-      console.debug(
-        "[WebSocketClient] Ignored WebSocket error during intentional disconnect",
-      );
+  private handleError(socket: WebSocket, event: Event): void {
+    if (this.socket !== socket || this.intentionalDisconnect) {
       return;
     }
-
     console.error("[WebSocketClient] WebSocket error:", event);
     this.callbacks.onError?.(event);
   }
 
-  /**
-   * 处理连接关闭
-   */
-  private handleClose(event: CloseEvent): void {
+  private handleClose(socket: WebSocket, event: CloseEvent): void {
+    if (this.socket !== socket) {
+      return;
+    }
     console.debug("[WebSocketClient] Disconnected:", event.code, event.reason);
+    this.socket = null;
+    this.cleanupTimers();
 
-    this.cleanup();
-    this.callbacks.onClose?.(event);
-
-    if (this.isIntentionalDisconnect) {
-      this.ws = null;
+    if (this.intentionalDisconnect) {
       this.setState("disconnected");
       return;
     }
-
     if (event.code === 4401) {
-      this.ws = null;
       this.setState("failed");
       notifyAuthRequired();
       return;
     }
-
-    // 判断是否需要重连
-    if (this.config.reconnect && !event.wasClean && event.code !== 1000) {
+    if (this.reconnectEnabled && !event.wasClean && event.code !== 1000) {
       this.attemptReconnect();
-    } else {
-      this.ws = null;
-      this.setState("disconnected");
+      return;
     }
+    this.setState("disconnected");
   }
 
-  /**
-   * 尝试重连
-   */
+  private handleConnectionFailure(): void {
+    if (this.reconnectEnabled) {
+      this.attemptReconnect();
+      return;
+    }
+    this.setState("failed");
+  }
+
   private attemptReconnect(): void {
     if (this.reconnectAttempts >= this.config.maxReconnectAttempts) {
       console.error("[WebSocketClient] Max reconnect attempts reached");
       this.setState("failed");
-      this.callbacks.onMaxRetriesReached?.();
       return;
     }
 
-    this.reconnectAttempts++;
+    this.reconnectAttempts += 1;
     this.setState("reconnecting");
-    this.callbacks.onReconnecting?.(this.reconnectAttempts);
-
-    // 指数退避
-    const delay = Math.min(
-      this.config.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1),
-      this.config.maxReconnectDelay,
-    );
-
+    const delay = getReconnectDelay(this.config, this.reconnectAttempts);
     console.debug(
       `[WebSocketClient] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.config.maxReconnectAttempts})`,
     );
-
     this.clearReconnectTimer();
-    this.reconnectTimer = setTimeout(() => {
-      this.reconnectTimer = null;
+    this.reconnectTimerId = window.setTimeout(() => {
+      this.reconnectTimerId = null;
       this.createConnection();
     }, delay);
   }
 
-  /**
-   * 连接失败处理
-   */
-  private handleConnectionFailure(): void {
-    if (this.config.reconnect) {
-      this.attemptReconnect();
-    } else {
-      this.setState("failed");
+  private flushMessageQueue(): void {
+    const queuedMessages = this.messageQueue;
+    this.messageQueue = [];
+    for (const message of queuedMessages) {
+      this.send(message);
     }
   }
 
-  /**
-   * 启动心跳
-   */
-  private startHeartbeat(): void {
-    this.stopHeartbeat();
+  private isSocketOpen(): boolean {
+    return (
+      this.state === "connected" &&
+      this.socket?.readyState === WebSocket.OPEN
+    );
+  }
 
-    // 如果heartbeatInterval为0,则禁用心跳
-    if (this.config.heartbeatInterval === 0) {
+  private isTransportStale(): boolean {
+    return isWebSocketTransportStale({
+      config: this.config,
+      isSocketOpen: this.isSocketOpen(),
+      lastServerActivityTime: this.lastServerActivityTime,
+      now: Date.now(),
+      state: this.state,
+    });
+  }
+
+  private closeCurrentSocket(code: number, reason: string): void {
+    const socket = this.socket;
+    this.socket = null;
+    if (!socket) {
       return;
     }
-
-    this.heartbeatTimer = setInterval(() => {
-      if (this.state === "connected") {
-        this.send({ type: "ping" });
-
-        // 启动心跳超时检测
-        this.heartbeatTimeoutTimer = setTimeout(() => {
-          console.warn("[WebSocketClient] Heartbeat timeout, reconnecting...");
-          this.ws?.close(4000, "Heartbeat timeout");
-        }, this.config.heartbeatTimeout);
-      }
-    }, this.config.heartbeatInterval);
-  }
-
-  /**
-   * 停止心跳
-   */
-  private stopHeartbeat(): void {
-    if (this.heartbeatTimer) {
-      clearInterval(this.heartbeatTimer);
-      this.heartbeatTimer = null;
-    }
-    if (this.heartbeatTimeoutTimer) {
-      clearTimeout(this.heartbeatTimeoutTimer);
-      this.heartbeatTimeoutTimer = null;
+    socket.onopen = null;
+    socket.onmessage = null;
+    socket.onerror = null;
+    socket.onclose = null;
+    try {
+      socket.close(code, reason);
+    } catch (error) {
+      console.debug("[WebSocketClient] Ignore close error", error);
     }
   }
 
-  /**
-   * 重置心跳超时
-   */
-  private resetHeartbeatTimeout(): void {
-    if (this.heartbeatTimeoutTimer) {
-      clearTimeout(this.heartbeatTimeoutTimer);
-      this.heartbeatTimeoutTimer = null;
-    }
-  }
-
-  /**
-   * 发送队列中的消息
-   */
-  private flushMessageQueue(): void {
-    while (this.messageQueue.length > 0) {
-      const message = this.messageQueue.shift();
-      if (message) {
-        this.send(message);
-      }
-    }
-  }
-
-  /**
-   * 清理资源
-   */
-  private cleanup(): void {
+  private cleanupTimers(): void {
     this.clearReconnectTimer();
-    this.stopHeartbeat();
+    this.heartbeat.stop();
   }
 
   private clearReconnectTimer(): void {
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = null;
+    if (this.reconnectTimerId !== null) {
+      window.clearTimeout(this.reconnectTimerId);
+      this.reconnectTimerId = null;
     }
   }
 
-  /**
-   * 只有会话绑定/订阅这类幂等控制消息允许离线排队。
-   * chat/interrupt/permission_response 必须立刻失败，避免前端误以为后端已受理。
-   */
-  private shouldQueueMessage(data: WebSocketMessage): boolean {
-    switch (data.type) {
-      case "ping":
-      case "bind_session":
-      case "unbind_session":
-      case "subscribe_room":
-      case "unsubscribe_room":
-      case "subscribe_workspace":
-      case "unsubscribe_workspace":
-      case "subscribe_app_events":
-      case "unsubscribe_app_events":
-        return true;
-      default:
-        return false;
+  private setState(nextState: WebSocketState): void {
+    if (this.state === nextState) {
+      return;
     }
-  }
-
-  /**
-   * OPEN 但长时间收不到任何服务端活动时，视为僵尸连接。
-   */
-  private isTransportStale(): boolean {
-    if (this.state !== "connected" || this.ws?.readyState !== WebSocket.OPEN) {
-      return false;
-    }
-    if (this.lastServerActivityTime <= 0) {
-      return false;
-    }
-
-    const maxSilenceMs =
-      this.config.heartbeatInterval + this.config.heartbeatTimeout;
-    return Date.now() - this.lastServerActivityTime > maxSilenceMs;
-  }
-
-  /**
-   * 设置状态
-   */
-  private setState(newState: WebSocketState): void {
-    if (this.state !== newState) {
-      console.debug(`[WebSocketClient] State: ${this.state} -> ${newState}`);
-      this.state = newState;
-      this.callbacks.onStateChange?.(newState);
-    }
+    console.debug(`[WebSocketClient] State: ${this.state} -> ${nextState}`);
+    this.state = nextState;
+    this.callbacks.onStateChange?.(nextState);
   }
 }

@@ -1,6 +1,6 @@
 import type { RefObject } from "react";
 
-import type { ConversationRoundScrollHandleRef } from "../timeline/round-scroll";
+import type { ConversationRoundScrollHandleRef } from "../timeline/scroll/round-scroll";
 import type { AgentConversationRuntimePhase } from "@/types/agent/agent-conversation";
 import type { Message } from "@/types/conversation/message";
 import type {

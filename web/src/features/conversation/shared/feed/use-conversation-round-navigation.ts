@@ -6,7 +6,7 @@ import {
   scrollToConversationRoundElement,
   type ConversationRoundScrollHandleRef,
   type ConversationRoundScrollOptions,
-} from "../timeline/round-scroll";
+} from "../timeline/scroll/round-scroll";
 
 interface UseConversationRoundNavigationOptions {
   fallbackScrollToIndex?: (

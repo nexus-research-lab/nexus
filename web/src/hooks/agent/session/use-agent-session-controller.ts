@@ -22,7 +22,7 @@ import type { PendingPermission } from "@/types/conversation/permission";
 import {
   mergeLoadedMessages,
   upsertMessage,
-} from "../message-helpers";
+} from "../message/message-collection-model";
 import type { AgentConversationRuntimeSnapshot } from "../runtime/agent-conversation-runtime-machine";
 import {
   buildVolatileConversationSnapshot,

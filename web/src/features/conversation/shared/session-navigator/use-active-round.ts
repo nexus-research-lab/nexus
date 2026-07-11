@@ -4,7 +4,7 @@ import type { RefObject } from "react";
 import {
   clearConversationRoundNavigationTarget,
   getConversationRoundNavigationTarget,
-} from "../timeline/round-scroll";
+} from "../timeline/scroll/round-scroll";
 import { resolveVisibleRoundId } from "./navigation-dom";
 
 const SCROLL_NAVIGATION_KEYS = new Set([

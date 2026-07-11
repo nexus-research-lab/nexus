@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import type { RefObject } from "react";
 
-import { getConversationRoundNavigationTarget } from "./round-scroll";
+import { getConversationRoundNavigationTarget } from "./scroll/round-scroll";
 
 const UNLOADED_ROUND_SELECTOR =
   '[data-conversation-round-id][data-conversation-round-loaded="false"]';

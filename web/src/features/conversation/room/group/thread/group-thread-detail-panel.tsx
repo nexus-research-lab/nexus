@@ -3,12 +3,12 @@
 import { useMemo, type ReactNode } from "react";
 import { ArrowLeft, Bot, X } from "lucide-react";
 
-import { useFollowScroll } from "@/hooks/conversation/use-follow-scroll";
+import { useFollowScroll } from "@/features/conversation/shared/timeline/scroll/use-follow-scroll";
 import { cn } from "@/lib/utils";
 import { MessageItem } from "@/features/conversation/shared/message";
 import {
   buildConversationScrollContentKey,
-} from "@/features/conversation/shared/timeline/scroll-content-key";
+} from "@/features/conversation/shared/timeline/scroll/follow-scroll-model";
 import { ScrollToLatestButton } from "@/features/conversation/shared/scroll-to-latest-button";
 import { MessageAvatar } from "@/features/conversation/shared/message/ui/message-primitives";
 import { Message } from "@/types/conversation/message";

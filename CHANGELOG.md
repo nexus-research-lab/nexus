@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Split Room page state into scoped data, projection, command, snapshot, and existing-Agent option controllers, and reduced the page entry to orchestration only.
 - Split Room Workspace orchestration into Agent scope, file resource, path model, command, layout, file-browser, and dialog modules.
 - Split conversation Todo projection into round indexing, runtime-task merging, status inference, and a stable shared hook used by both DM and Room panels.
+- Consolidated conversation scrolling under the timeline domain, separating smooth animation, user interactions, history-prepend anchoring, local expansion anchoring, and round navigation protocols.
+- Split Agent message processing into Assistant content identity, message collection, and stream reducer models instead of sharing one cross-layer helper module.
+- Split WebSocket transport into connection policy, heartbeat, client, shared-channel registry, and React lifecycle modules, with shared identity derived from the complete effective configuration.
 - Split Agent memory browsing and document editing into scoped resource controllers, with a presentation-only catalog and explicit live SDK content precedence.
 - Consolidated Agent Options identity, model, and permission fields into one scoped draft, with dedicated Provider, name-validation, and save-feedback controllers.
 - Unified sidebar and chat-notification bootstrap data behind one queued Home directory resource, and split notification projection, browser effects, and Room WebSocket protocol into dedicated modules.
@@ -33,6 +36,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Prevented stale Room context refreshes, snapshot setters, and mutation results from crossing route Room boundaries.
 - Prevented stale Workspace file refreshes and mutation completions from crossing Agent boundaries, and consumed one-shot file-open Agent signals in both DM and Room views.
 - Unified TodoWrite plans and runtime task events through one chronological round projection, preventing message-role-specific task lists and repeated full-message scans.
+- Ensured incoming message snapshots remain authoritative even when the existing in-memory collection already contains duplicate message IDs, and ignored invalid negative stream block indexes.
+- Prevented queued WebSocket control-message flushes from looping after send failures, reset reconnect budgets for explicit recovery, discarded stale queues on intentional disconnect, and rebuilt sockets whose OPEN transport can no longer send.
 - Prevented stale Agent memory snapshots, document loads, and save completions from crossing Agent or file boundaries, while preserving newer edits when a save finishes.
 - Prevented delayed Agent name checks and save completions from updating another Agent or closing an editor whose draft changed while the request was running.
 - Prevented unchanged Home directory snapshots from repeatedly resubscribing every Room notification channel, and removed duplicate bootstrap refresh listeners from the notification path.

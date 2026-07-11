@@ -30,14 +30,3 @@ export interface WebSocketConfig {
   heartbeatInterval?: number;
   heartbeatTimeout?: number;
 }
-
-export interface WebSocketClientCallbacks {
-  onOpen?: (event: Event) => void;
-  onMessage?: (data: unknown) => void;
-  onClose?: (event: CloseEvent) => void;
-  onError?: (event: Event) => void;
-  onReconnecting?: (attempt: number) => void;
-  onReconnected?: () => void;
-  onMaxRetriesReached?: () => void;
-  onStateChange?: (state: WebSocketState) => void;
-}

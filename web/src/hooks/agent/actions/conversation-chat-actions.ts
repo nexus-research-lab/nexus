@@ -5,7 +5,7 @@ import type {
 } from "@/types/agent/agent-conversation";
 import type { WebSocketMessage } from "@/types/system/websocket";
 
-import { upsertMessage } from "../message-helpers";
+import { upsertMessage } from "../message/message-collection-model";
 import {
   failConversationAction,
   requireConversationActionContext,

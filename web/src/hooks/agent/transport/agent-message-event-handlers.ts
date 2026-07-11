@@ -4,10 +4,8 @@ import type {
   StreamMessage,
 } from "@/types";
 
-import {
-  normalizeAssistantMessage,
-  upsertMessage,
-} from "../message-helpers";
+import { normalizeAssistantMessage } from "../message/assistant-message-model";
+import { upsertMessage } from "../message/message-collection-model";
 import type {
   AgentEventHandler,
   AgentEventHandlerMap,

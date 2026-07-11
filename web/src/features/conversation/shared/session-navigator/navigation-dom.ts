@@ -1,13 +1,13 @@
 import type {
   ConversationRoundScrollHandle,
   ConversationRoundScrollOptions,
-} from "../timeline/round-scroll";
+} from "../timeline/scroll/round-scroll";
 import {
   CONVERSATION_ROUND_SELECTOR,
   findConversationRoundElement,
   getConversationRoundFocusOffset,
   scrollToConversationRoundElement,
-} from "../timeline/round-scroll";
+} from "../timeline/scroll/round-scroll";
 
 const SCROLL_BOUNDARY_EPSILON_PX = 2;
 

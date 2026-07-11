@@ -2,7 +2,7 @@
 
 import { useCallback } from "react";
 
-import { useScrollAnchoredState } from "@/hooks/conversation/use-scroll-anchored-state";
+import { useScrollAnchoredState } from "@/features/conversation/shared/timeline/scroll/use-scroll-anchored-state";
 import { useCopyToClipboard } from "@/hooks/ui/use-copy-to-clipboard";
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 
