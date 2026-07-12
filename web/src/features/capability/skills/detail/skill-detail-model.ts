@@ -64,6 +64,26 @@ const SKILL_LOCK_PRESENTATION: Record<"false" | "true", SkillLockPresentation> =
 };
 
 const HTTP_URL_PATTERN = /^https?:\/\//;
+const SKILL_FRONTMATTER_PATTERN = /^---\s*\n[\s\S]*?\n---\s*(?:\n+|$)/;
+const SKILL_HEADING_PATTERN = /^#\s+(.+?)\n+/;
+const SKILL_FIRST_BLOCK_PATTERN = /^([\s\S]*?)(?:\n\s*\n|$)/;
+const SKILL_STRUCTURED_BLOCK_PATTERN = /^(#|>|-|[*]|\d+\.)/;
+
+interface SkillMarkdownContext {
+  description: string;
+  title: string;
+}
+
+type SkillMarkdownTransform = (
+  markdown: string,
+  context: SkillMarkdownContext,
+) => string;
+
+const SKILL_MARKDOWN_TRANSFORMS: readonly SkillMarkdownTransform[] = [
+  stripSkillFrontmatter,
+  stripDuplicateSkillTitle,
+  stripDuplicateSkillDescription,
+];
 
 export function buildSkillDetailPresentation(
   skill: SkillDetail,
@@ -129,4 +149,76 @@ export function getSkillDetailSnapshotTitle(
   return snapshot.status === "ready"
     ? snapshot.skill.title || snapshot.skill.name
     : null;
+}
+
+export function normalizeSkillMarkdownContent(
+  markdown: string,
+  title?: string,
+  description?: string,
+): string {
+  const normalizedMarkdown = markdown.replace(/^\uFEFF/, "").trim();
+  if (!normalizedMarkdown) {
+    return "";
+  }
+  const context = {
+    description: description ? normalizeSkillPlainText(description) : "",
+    title: title ? normalizeSkillPlainText(title) : "",
+  };
+  return SKILL_MARKDOWN_TRANSFORMS.reduce(
+    (content, transform) => transform(content, context),
+    normalizedMarkdown,
+  );
+}
+
+function normalizeSkillPlainText(value: string): string {
+  return value
+    .replace(/\r\n/g, "\n")
+    .replace(/[`*_>#~\-]/g, " ")
+    .replace(/\[(.*?)\]\((.*?)\)/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLocaleLowerCase();
+}
+
+function stripSkillFrontmatter(markdown: string): string {
+  const match = markdown.match(SKILL_FRONTMATTER_PATTERN);
+  return match ? markdown.slice(match[0].length).trimStart() : markdown;
+}
+
+function stripDuplicateSkillTitle(
+  markdown: string,
+  context: SkillMarkdownContext,
+): string {
+  if (!context.title) {
+    return markdown;
+  }
+  const match = markdown.match(SKILL_HEADING_PATTERN);
+  if (!match || normalizeSkillPlainText(match[1]) !== context.title) {
+    return markdown;
+  }
+  return markdown.slice(match[0].length).trimStart();
+}
+
+function stripDuplicateSkillDescription(
+  markdown: string,
+  context: SkillMarkdownContext,
+): string {
+  if (!context.description) {
+    return markdown;
+  }
+  const match = markdown.match(SKILL_FIRST_BLOCK_PATTERN);
+  const firstBlock = match?.[1]?.trim() ?? "";
+  if (!match || !isDuplicateDescriptionBlock(firstBlock, context.description)) {
+    return markdown;
+  }
+  return markdown.slice(match[0].length).trimStart();
+}
+
+function isDuplicateDescriptionBlock(
+  block: string,
+  normalizedDescription: string,
+): boolean {
+  return Boolean(block)
+    && !SKILL_STRUCTURED_BLOCK_PATTERN.test(block)
+    && normalizeSkillPlainText(block) === normalizedDescription;
 }

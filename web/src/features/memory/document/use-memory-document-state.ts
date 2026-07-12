@@ -28,6 +28,21 @@ export type MemoryDocumentCommit = (
   update: (current: MemoryDocumentState) => MemoryDocumentState,
 ) => void;
 
+export function mergeSavedMemoryDocument(
+  current: MemoryDocumentState,
+  savedDraft: string,
+  savedContent: string,
+): MemoryDocumentState {
+  const draftWasUnchanged = current.draft === savedDraft;
+  return {
+    ...current,
+    commandError: null,
+    content: savedContent,
+    draft: draftWasUnchanged ? savedContent : current.draft,
+    editing: !draftWasUnchanged,
+  };
+}
+
 export function useMemoryDocumentState(
   agentId: string,
   document: MemoryDocument | null,

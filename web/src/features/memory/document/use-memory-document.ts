@@ -40,7 +40,6 @@ export function useMemoryDocument({
     fallbackSaveError,
     onSaved,
     runtimeWriting,
-    scopeKey,
     scopeRef,
     state,
   });

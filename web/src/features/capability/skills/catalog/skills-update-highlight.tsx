@@ -8,6 +8,11 @@ import { UiButton } from "@/shared/ui/button/button";
 import { UiListRow } from "@/shared/ui/list/list-row";
 import type { SkillInfo } from "@/types/capability/skill";
 
+import {
+  buildSkillsUpdateModel,
+  type SkillUpdateStatus,
+} from "./skills-catalog-model";
+
 interface SkillsUpdateHighlightProps {
   busySkillNames: ReadonlySet<string>;
   checkUpdateMessage: string | null;
@@ -19,24 +24,32 @@ interface SkillsUpdateHighlightProps {
   updates: SkillInfo[];
 }
 
-function formatCheckedTime(value: number | null): string {
-  if (!value) return "尚未检查";
-  return new Date(value).toLocaleString("zh-CN", {
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    month: "2-digit",
-  });
-}
+const SKILL_UPDATE_STATUS_ICON = {
+  checking: {
+    className: "animate-spin",
+    icon: Loader2,
+  },
+  current: {
+    className: "text-(--success)",
+    icon: CheckCircle2,
+  },
+  failure: {
+    className: "text-(--destructive)",
+    icon: AlertTriangle,
+  },
+  updates: {
+    className: null,
+    icon: Clock3,
+  },
+} satisfies Record<SkillUpdateStatus, {
+  className: string | null;
+  icon: typeof Clock3;
+}>;
 
-function statusLabel(
-  checkingUpdates: boolean,
-  checkUpdateMessage: string | null,
-  lastUpdateCheckedAt: number | null,
-): string {
-  if (checkingUpdates) return "正在检查远端版本...";
-  if (checkUpdateMessage) return checkUpdateMessage;
-  return `上次检查 ${formatCheckedTime(lastUpdateCheckedAt)}`;
+function SkillUpdateStatusIcon({ status }: { status: SkillUpdateStatus }) {
+  const presentation = SKILL_UPDATE_STATUS_ICON[status];
+  const Icon = presentation.icon;
+  return <Icon className={cn("h-3.5 w-3.5", presentation.className)} />;
 }
 
 function UpdateSkillRow({
@@ -104,10 +117,16 @@ export function SkillsUpdateHighlight({
   onUpdateSkill,
   updates,
 }: SkillsUpdateHighlightProps) {
-  const hasFailure = checkUpdateMessage?.includes("无法检查") ?? false;
-  const shouldShow = checkingUpdates || Boolean(checkUpdateMessage) || updates.length > 0;
-
-  if (!shouldShow) return null;
+  const model = buildSkillsUpdateModel({
+    checkingUpdates,
+    checkUpdateMessage,
+    lastUpdateCheckedAt,
+    updateCount: updates.length,
+  });
+  if (!model) {
+    return null;
+  }
+  const ActionIcon = model.actionDisabled ? Loader2 : RefreshCw;
 
   return (
     <section className="mb-7 rounded-[16px] border border-[color:color-mix(in_srgb,var(--warning)_24%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--warning)_5%,transparent)] px-4 py-4">
@@ -115,37 +134,32 @@ export function SkillsUpdateHighlight({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-[16px] font-semibold tracking-[-0.025em] text-(--text-strong)">
-              {updates.length ? "可更新 Skill" : "更新检查"}
+              {model.title}
             </h2>
-            {updates.length ? <UiBadge tone="warning">{updates.length} 个可更新</UiBadge> : null}
+            {model.badgeLabel ? <UiBadge tone="warning">{model.badgeLabel}</UiBadge> : null}
           </div>
           <div className="mt-1 flex items-center gap-1.5 text-xs text-(--text-muted)">
-            {checkingUpdates ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : hasFailure ? (
-              <AlertTriangle className="h-3.5 w-3.5 text-(--destructive)" />
-            ) : updates.length ? (
-              <Clock3 className="h-3.5 w-3.5" />
-            ) : (
-              <CheckCircle2 className="h-3.5 w-3.5 text-(--success)" />
-            )}
-            <span>{statusLabel(checkingUpdates, checkUpdateMessage, lastUpdateCheckedAt)}</span>
+            <SkillUpdateStatusIcon status={model.status} />
+            <span>{model.statusLabel}</span>
           </div>
         </div>
         <UiButton
-          disabled={checkingUpdates}
+          disabled={model.actionDisabled}
           onClick={onCheckUpdates}
           size="sm"
           tone="primary"
           type="button"
           variant="surface"
         >
-          {checkingUpdates ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-          {checkingUpdates ? "检查中" : "重新检查"}
+          <ActionIcon className={cn(
+            "h-3.5 w-3.5",
+            model.actionDisabled && "animate-spin",
+          )} />
+          {model.actionLabel}
         </UiButton>
       </div>
 
-      {updates.length ? (
+      {model.showUpdates ? (
         <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
           {updates.map((skill) => (
             <UpdateSkillRow

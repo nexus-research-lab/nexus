@@ -7,7 +7,7 @@ export interface ExternalSkillImportModel {
   canImport: boolean;
   kind: ExternalSkillImportKind;
   label: string;
-  tone: "neutral" | "success" | "warning";
+  tone: "default" | "success" | "warning";
 }
 
 export interface ExternalSkillListItemModel {
@@ -37,7 +37,7 @@ const IMPORT_PRESENTATIONS: Record<
     canImport: true,
     kind: "available",
     label: "可导入",
-    tone: "neutral",
+    tone: "default",
   },
   conflict: {
     canImport: false,

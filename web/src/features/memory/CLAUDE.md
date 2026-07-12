@@ -6,7 +6,7 @@
 
 - `catalog/` 管理 Agent 级目录快照、筛选、选择和摘要投影，所有状态绑定 `agentId`。
 - `document/` 按作用域状态、正文资源、保存事务和视图拆分 `agentId:path` 文档。
-- `agent-memory-view.tsx` 只编排摘要、目录和文档面板。
+- `agent-memory-view.tsx` 只编排摘要和内容区；Agent 身份、指标、资源状态各自拥有窄视图。
 - `memory-utils.ts` 只保留 Markdown frontmatter、索引链接、时间与尺寸纯函数。
 
 ## 不变量

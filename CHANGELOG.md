@@ -30,6 +30,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Replaced Agent identity name-validation JSX candidates with ordered semantic feedback rules and a single tone renderer.
 - Consolidated Provider Settings presentation rules, removed duplicate custom-provider state, added icon fallbacks, and split configuration, header, model-row, capability, and toggle rendering responsibilities.
 - Centralized Goal form and controller projections, unified confirmation rendering, and split command transactions into explicit lifecycle phases.
+- Split Memory summary and document body states into narrow views, and made save scope snapshots and draft-merge rules explicit.
+- Centralized Skill catalog source, install-state, and update-check projections, removed a forwarding badge wrapper, and turned Markdown deduplication into an ordered model pipeline.
 - Removed render-phase Thinking expansion mutations and separated image-source normalization, user-attachment capability projection, and embedded tool-error parsing into short owned phases.
 - Moved message ordering, system-event, permission, result, and final-response projection into an owned controller subdomain, reusing the single ordered-entry projection and replacing content-mode branches with exhaustive strategies.
 - Split message content rendering into entry selection, structured orchestration, exhaustive block routing, and tool interaction phases, while consolidating the shared AskUserQuestion tool identifier.

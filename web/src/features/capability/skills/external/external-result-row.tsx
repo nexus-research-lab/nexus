@@ -5,7 +5,6 @@ import { UiListActionButton } from "@/shared/ui/list/list-action";
 import { UiListRow } from "@/shared/ui/list/list-row";
 import type { ExternalSkillSearchItem } from "@/types/capability/skill";
 
-import { SkillStatePill } from "../catalog/skill-state-pill";
 import {
   buildExternalSkillListItemModel,
   type ExternalSkillImportModel,
@@ -83,9 +82,9 @@ function ExternalResultActions({
 }: ExternalResultActionsProps) {
   return (
     <div className="flex shrink-0 items-center gap-1.5">
-      <SkillStatePill tone={importState.tone}>
+      <UiBadge tone={importState.tone}>
         {importState.label}
-      </SkillStatePill>
+      </UiBadge>
       {importState.canImport ? (
         <UiListActionButton
           className="text-(--primary) hover:text-(--primary)"
