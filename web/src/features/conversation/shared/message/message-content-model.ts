@@ -20,22 +20,29 @@ export function splitTextBlockByToolUseError(
   let cursor = 0;
   for (const match of block.text.matchAll(TOOL_USE_ERROR_TAG_PATTERN)) {
     const index = match.index ?? 0;
-    const text = block.text.slice(cursor, index);
-    if (text.trim()) {
-      blocks.push({ type: "text", text });
-    }
-    const content = (match[1] ?? "").trim();
-    if (content) {
-      blocks.push({ type: "tool_use_error", content });
-    }
+    appendTextBlock(blocks, block.text.slice(cursor, index));
+    appendToolUseErrorBlock(blocks, match[1] ?? "");
     cursor = index + match[0].length;
   }
 
-  const tail = block.text.slice(cursor);
-  if (tail.trim()) {
-    blocks.push({ type: "text", text: tail });
-  }
+  appendTextBlock(blocks, block.text.slice(cursor));
   return blocks;
+}
+
+function appendTextBlock(blocks: ContentBlock[], text: string): void {
+  if (text.trim()) {
+    blocks.push({ type: "text", text });
+  }
+}
+
+function appendToolUseErrorBlock(
+  blocks: ContentBlock[],
+  rawContent: string,
+): void {
+  const content = rawContent.trim();
+  if (content) {
+    blocks.push({ type: "tool_use_error", content });
+  }
 }
 
 export function stripRoomControlMarkers(text: string): string {

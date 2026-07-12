@@ -3,11 +3,11 @@ import type {
   SystemEventContent,
 } from "@/types/conversation/message/content";
 
-import { splitTextBlockByToolUseError } from "../../message-content-model";
+import { splitTextBlockByToolUseError } from "../../../message-content-model";
 import type {
   AssistantTurnEntry,
   OrderedAssistantEntry,
-} from "../message-item-projection";
+} from "../../message-item-projection";
 
 interface BlockProjectionContext {
   hiddenToolNames: ReadonlySet<string>;

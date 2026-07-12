@@ -57,25 +57,16 @@ function MessageUserAttachment({
 }) {
   const presentation = ATTACHMENT_PRESENTATION[attachment.kind];
   const Icon = presentation.icon;
-  const canOpen = Boolean(
-    onOpenWorkspaceFile &&
-    attachment.workspace_path &&
-    workspaceAgentId &&
-    attachment.workspace_agent_id === workspaceAgentId,
-  );
-  const title = `${attachment.file_name || attachment.workspace_path} · ${attachment.workspace_path}`;
-  const className = cn(
-    "inline-flex max-w-[260px] items-center gap-1.5 rounded-[7px] border px-2.5 py-1 text-xs font-medium",
-    "border-(--divider-subtle-color) bg-transparent text-(--text-muted)",
-    canOpen
-      ? "cursor-pointer transition-colors hover:border-(--accent-color) hover:text-(--text-strong)"
-      : "cursor-default",
+  const attachmentView = projectMessageUserAttachment(
+    attachment,
+    Boolean(onOpenWorkspaceFile),
+    workspaceAgentId,
   );
   const content = (
     <>
       <Icon className="h-3.5 w-3.5 shrink-0" />
       <span className="min-w-0 truncate">
-        {attachment.file_name || attachment.workspace_path}
+        {attachmentView.displayName}
       </span>
       <span className="shrink-0 text-[10px] text-(--text-faint)">
         {presentation.label}
@@ -83,20 +74,71 @@ function MessageUserAttachment({
     </>
   );
 
-  if (!canOpen) {
-    return <span className={className} title={title}>{content}</span>;
+  if (!attachmentView.canOpen) {
+    return (
+      <span className={attachmentView.className} title={attachmentView.title}>
+        {content}
+      </span>
+    );
   }
   return (
     <button
-      className={className}
-      onClick={() => onOpenWorkspaceFile?.(
-        attachment.workspace_path,
-        attachment.workspace_agent_id ?? workspaceAgentId,
+      className={attachmentView.className}
+      onClick={() => openMessageUserAttachment(
+        attachment,
+        onOpenWorkspaceFile,
+        workspaceAgentId,
       )}
-      title={title}
+      title={attachmentView.title}
       type="button"
     >
       {content}
     </button>
+  );
+}
+
+function projectMessageUserAttachment(
+  attachment: MessageAttachment,
+  hasOpenHandler: boolean,
+  workspaceAgentId?: string | null,
+) {
+  const displayName = attachment.file_name || attachment.workspace_path;
+  const canOpen = [
+    hasOpenHandler,
+    Boolean(attachment.workspace_path),
+    Boolean(workspaceAgentId),
+    attachment.workspace_agent_id === workspaceAgentId,
+  ].every(Boolean);
+  return {
+    canOpen,
+    className: resolveAttachmentClassName(canOpen),
+    displayName,
+    title: `${displayName} · ${attachment.workspace_path}`,
+  };
+}
+
+function resolveAttachmentClassName(canOpen: boolean): string {
+  return cn(
+    "inline-flex max-w-[260px] items-center gap-1.5 rounded-[7px] border px-2.5 py-1 text-xs font-medium",
+    "border-(--divider-subtle-color) bg-transparent text-(--text-muted)",
+    canOpen
+      ? "cursor-pointer transition-colors hover:border-(--accent-color) hover:text-(--text-strong)"
+      : "cursor-default",
+  );
+}
+
+function openMessageUserAttachment(
+  attachment: MessageAttachment,
+  onOpenWorkspaceFile:
+    | ((path: string, workspaceAgentId?: string | null) => void)
+    | undefined,
+  workspaceAgentId?: string | null,
+): void {
+  if (!onOpenWorkspaceFile) {
+    return;
+  }
+  onOpenWorkspaceFile(
+    attachment.workspace_path,
+    attachment.workspace_agent_id ?? workspaceAgentId,
   );
 }

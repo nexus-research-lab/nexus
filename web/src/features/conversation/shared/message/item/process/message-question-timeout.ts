@@ -1,7 +1,7 @@
 import { isAskUserQuestionTimedOutResult } from "@/features/conversation/shared/message/blocks/question/ask-user-question-timeout";
 import type { ContentBlock } from "@/types/conversation/message/content";
 
-import { ASK_USER_QUESTION_TOOL_NAME } from "../activity/message-activity-state";
+import { ASK_USER_QUESTION_TOOL_NAME } from "../../message-tool-names";
 
 export function hasTimedOutAskUserQuestion(
   content: readonly ContentBlock[],

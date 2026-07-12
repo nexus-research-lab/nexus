@@ -8,6 +8,7 @@ import type {
 import type { RoomPendingAgentSlotState } from "@/types/agent/agent-conversation";
 import type { PendingPermission } from "@/types/conversation/interaction/permission";
 
+import { ASK_USER_QUESTION_TOOL_NAME } from "@/features/conversation/shared/message/message-tool-names";
 import {
   buildRoomAgentRoundEntries,
   extractAgentPreviewText,
@@ -119,7 +120,7 @@ export function buildGroupAgentStatusModel({
     primaryPendingPermission
     && (
       primaryPendingPermission.interaction_mode === "question"
-      || primaryPendingPermission.tool_name === "AskUserQuestion"
+      || primaryPendingPermission.tool_name === ASK_USER_QUESTION_TOOL_NAME
     ),
   );
   const lastMessage = messages[messages.length - 1];

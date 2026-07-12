@@ -1,9 +1,16 @@
 "use client";
 
-import { useState } from "react";
 import { Brain, ChevronRight } from "lucide-react";
+
+import { useResettableState } from "@/hooks/ui/use-resettable-state";
+import { cn } from "@/shared/ui/class-name";
+
 import { MarkdownRenderer } from "../markdown-renderer";
-import { MessageRail, MessageRailBody, MessageRailLabel } from "../ui/message-rail";
+import {
+  MessageRail,
+  MessageRailBody,
+  MessageRailLabel,
+} from "../ui/message-rail";
 
 interface ThinkingBlockProps {
   thinking: string;
@@ -11,20 +18,39 @@ interface ThinkingBlockProps {
   workspaceAgentId?: string | null;
 }
 
-export function ThinkingBlock({ thinking, isStreaming: isStreaming, workspaceAgentId: workspaceAgentId }: ThinkingBlockProps) {
-  const [isExpanded, setIsExpanded] = useState(Boolean(isStreaming));
-  const [wasStreaming, setWasStreaming] = useState(Boolean(isStreaming));
+interface ThinkingPresentation {
+  iconClassName: string;
+  label: string;
+}
 
-  // 流式思考需要即时可见；输出结束后自动收起，历史思考默认保持收起。
-  if (isStreaming && !wasStreaming) {
-    setWasStreaming(true);
-    setIsExpanded(true);
-  } else if (!isStreaming && wasStreaming) {
-    setWasStreaming(false);
-    setIsExpanded(false);
+const THINKING_PRESENTATIONS: Readonly<Record<
+  "idle" | "streaming",
+  ThinkingPresentation
+>> = {
+  idle: {
+    iconClassName: "h-3 w-3 text-(--icon-muted)",
+    label: "Thought",
+  },
+  streaming: {
+    iconClassName: "h-3 w-3 animate-pulse text-(--primary)",
+    label: "Thinking……",
+  },
+};
+
+export function ThinkingBlock({
+  thinking,
+  isStreaming = false,
+  workspaceAgentId,
+}: ThinkingBlockProps) {
+  // 流式边界是展开状态的重置域；同一阶段内仍允许用户手动切换。
+  const [isExpanded, setIsExpanded] = useResettableState(
+    isStreaming,
+    isStreaming,
+  );
+  const presentation = resolveThinkingPresentation(isStreaming);
+  if (!thinking) {
+    return null;
   }
-
-  if (!thinking) return null;
 
   return (
     <MessageRail>
@@ -33,30 +59,39 @@ export function ThinkingBlock({ thinking, isStreaming: isStreaming, workspaceAge
         onClick={() => setIsExpanded((previous) => !previous)}
         type="button"
       >
-        <MessageRailLabel active={Boolean(isStreaming)} className="flex-1">
-          <span data-timeline-anchor data-timeline-anchor-mode="box" className="flex h-4 w-4 shrink-0 items-center justify-center">
-            <Brain className={isStreaming ? "h-3 w-3 animate-pulse text-(--primary)" : "h-3 w-3 text-(--icon-muted)"} />
+        <MessageRailLabel active={isStreaming} className="flex-1">
+          <span
+            className="flex h-4 w-4 shrink-0 items-center justify-center"
+            data-timeline-anchor
+            data-timeline-anchor-mode="box"
+          >
+            <Brain className={presentation.iconClassName} />
           </span>
-          <span>{isStreaming ? "Thinking……" : "Thought"}</span>
+          <span>{presentation.label}</span>
         </MessageRailLabel>
-        <span className="shrink-0 text-(--icon-muted)">
-          <ChevronRight
-            className={isExpanded
-              ? "h-3.5 w-3.5 rotate-90 transition-transform duration-(--motion-duration-fast)"
-              : "h-3.5 w-3.5 transition-transform duration-(--motion-duration-fast)"}
-          />
-        </span>
+        <ChevronRight
+          className={cn(
+            "h-3.5 w-3.5 shrink-0 text-(--icon-muted) transition-transform duration-(--motion-duration-fast)",
+            isExpanded && "rotate-90",
+          )}
+        />
       </button>
       {isExpanded ? (
         <MessageRailBody className="pt-1">
           <MarkdownRenderer
+            className="min-w-0 max-w-full overflow-hidden break-all"
             content={thinking}
             isStreaming={isStreaming}
-            className="min-w-0 max-w-full overflow-hidden break-all"
             workspaceAgentId={workspaceAgentId}
           />
         </MessageRailBody>
       ) : null}
     </MessageRail>
   );
+}
+
+function resolveThinkingPresentation(
+  isStreaming: boolean,
+): ThinkingPresentation {
+  return THINKING_PRESENTATIONS[isStreaming ? "streaming" : "idle"];
 }

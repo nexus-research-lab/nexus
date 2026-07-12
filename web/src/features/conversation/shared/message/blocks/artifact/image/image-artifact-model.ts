@@ -56,46 +56,87 @@ export function projectImageArtifact({
   hasOpenHandler: boolean;
   resolveFilePath: (value: string) => string | null;
 }): ImageArtifactProjection {
-  const source = block.source;
-  const resolvedAgentId = currentAgentId?.trim() ?? "";
-  const imageSource = resolveImageSource({
-    currentAgentId: resolvedAgentId,
-    rawPath: firstNonEmptyArtifactValue(
-      block.path,
-      block.url,
-      block.uri,
-      source?.path,
-      source?.url,
-      source?.uri,
-    ),
-    resolveFilePath,
-    sourceData: firstNonEmptyArtifactValue(source?.data, block.data),
-    sourceMimeType: firstNonEmptyArtifactValue(
-      block.mime_type,
-      source?.mime_type,
-      source?.media_type,
-    ),
-  });
-  const canOpen = [
-    Boolean(imageSource.workspacePath),
-    hasOpenHandler,
-  ].every(Boolean);
+  const resolvedAgentId = resolveAgentId(currentAgentId);
+  const imageSource = resolveImageSource(
+    buildImageSourceContext(block, resolvedAgentId, resolveFilePath),
+  );
+  const canOpen = canOpenImageSource(imageSource, hasOpenHandler);
   return {
-    action: buildWorkspaceArtifactExternalAction({
-      agentId: resolvedAgentId,
-      fileName: getArtifactFileName(
-        imageSource.workspacePath ?? "",
-        "image",
-      ),
-      path: imageSource.workspacePath,
-    }),
-    alt: block.alt || "generated image",
+    action: buildImageExternalAction(imageSource, resolvedAgentId),
+    alt: resolveImageAlt(block),
     canOpen,
-    openClassName: canOpen
-      ? "cursor-pointer transition-colors hover:border-primary/30 hover:bg-primary/5"
-      : "cursor-default",
+    openClassName: resolveImageOpenClassName(canOpen),
     source: imageSource,
   };
+}
+
+function buildImageSourceContext(
+  block: ImageContent,
+  currentAgentId: string,
+  resolveFilePath: (value: string) => string | null,
+): ImageSourceContext {
+  return {
+    currentAgentId,
+    rawPath: resolveRawImagePath(block),
+    resolveFilePath,
+    sourceData: resolveInlineImageData(block),
+    sourceMimeType: resolveImageMimeType(block),
+  };
+}
+
+function resolveAgentId(currentAgentId: string | null | undefined): string {
+  return currentAgentId?.trim() ?? "";
+}
+
+function resolveRawImagePath(block: ImageContent): string {
+  return firstNonEmptyArtifactValue(
+    block.path,
+    block.url,
+    block.uri,
+    block.source?.path,
+    block.source?.url,
+    block.source?.uri,
+  );
+}
+
+function resolveInlineImageData(block: ImageContent): string {
+  return firstNonEmptyArtifactValue(block.source?.data, block.data);
+}
+
+function resolveImageMimeType(block: ImageContent): string {
+  return firstNonEmptyArtifactValue(
+    block.mime_type,
+    block.source?.mime_type,
+    block.source?.media_type,
+  );
+}
+
+function canOpenImageSource(
+  source: ImageSource,
+  hasOpenHandler: boolean,
+): boolean {
+  return [Boolean(source.workspacePath), hasOpenHandler].every(Boolean);
+}
+
+function buildImageExternalAction(
+  source: ImageSource,
+  agentId: string,
+): WorkspaceArtifactExternalAction | null {
+  return buildWorkspaceArtifactExternalAction({
+    agentId,
+    fileName: getArtifactFileName(source.workspacePath ?? "", "image"),
+    path: source.workspacePath,
+  });
+}
+
+function resolveImageAlt(block: ImageContent): string {
+  return block.alt || "generated image";
+}
+
+function resolveImageOpenClassName(canOpen: boolean): string {
+  return canOpen
+    ? "cursor-pointer transition-colors hover:border-primary/30 hover:bg-primary/5"
+    : "cursor-default";
 }
 
 function resolveImageSource(context: ImageSourceContext): ImageSource {

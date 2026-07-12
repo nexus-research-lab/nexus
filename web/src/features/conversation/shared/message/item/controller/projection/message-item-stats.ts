@@ -1,6 +1,6 @@
 import type { AssistantMessage } from "@/types/conversation/message/entity";
 
-import { stripRoomControlMarkers } from "../../message-content-model";
+import { stripRoomControlMarkers } from "../../../message-content-model";
 
 type ResultSummary = NonNullable<AssistantMessage["result_summary"]>;
 

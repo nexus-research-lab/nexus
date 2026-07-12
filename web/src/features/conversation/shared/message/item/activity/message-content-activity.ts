@@ -5,8 +5,8 @@ import type {
 } from "@/types/conversation/message/content";
 import type { PendingPermission } from "@/types/conversation/interaction/permission";
 
+import { ASK_USER_QUESTION_TOOL_NAME } from "../../message-tool-names";
 import {
-  ASK_USER_QUESTION_TOOL_NAME,
   type MessageActivityState,
   resolveToolActivityState,
 } from "./message-activity-state";

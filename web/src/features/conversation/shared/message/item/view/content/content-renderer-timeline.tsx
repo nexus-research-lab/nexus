@@ -4,6 +4,9 @@ import { cn } from "@/shared/ui/class-name";
 
 const DEFAULT_TIMELINE_DOT_TOP = 12;
 
+export const TIMELINE_LINE_CLASS_NAME =
+  "relative before:absolute before:bottom-0 before:left-[5.5px] before:top-0 before:w-px before:bg-(--divider-subtle-color)";
+
 export function TimelineBlock({
   active = false,
   children,

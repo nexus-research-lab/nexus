@@ -1,5 +1,7 @@
 import type { PendingPermission } from "@/types/conversation/interaction/permission";
 
+import { ASK_USER_QUESTION_TOOL_NAME } from "../../message-tool-names";
+
 export type MessageActivityState =
   | "sending"
   | "thinking"
@@ -8,8 +10,6 @@ export type MessageActivityState =
   | "executing"
   | "waiting_permission"
   | "waiting_input";
-
-export const ASK_USER_QUESTION_TOOL_NAME = "AskUserQuestion";
 
 const BROWSING_TOOL_NAMES = new Set([
   "Read",

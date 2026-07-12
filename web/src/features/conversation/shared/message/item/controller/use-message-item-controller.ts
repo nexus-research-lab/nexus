@@ -8,7 +8,7 @@ import { hasTimedOutAskUserQuestion } from "../process/message-question-timeout"
 import { useMessageItemStreamingLayout } from "../view/message-item-streaming-layout";
 import { resolveAssistantDisplayState } from "./display/message-item-display-model";
 import { useProcessExpansionLifecycle } from "./display/use-process-expansion-lifecycle";
-import { useMessageItemProjection } from "./use-message-item-projection";
+import { useMessageItemProjection } from "./projection/use-message-item-projection";
 
 type MessageItemControllerOptions = Pick<
   MessageItemProps,

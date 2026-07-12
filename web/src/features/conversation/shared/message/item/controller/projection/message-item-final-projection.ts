@@ -4,7 +4,7 @@ import type {
   ResultSummary,
 } from "@/types/conversation/message/entity";
 import type { ContentBlock } from "@/types/conversation/message/content";
-import { extractTextFromContentBlocks } from "../../message-content-model";
+import { extractTextFromContentBlocks } from "../../../message-content-model";
 import { getResultSummaryDisplayText } from "./message-item-stats";
 import {
   projectionFromOrderedEntries,
@@ -12,7 +12,7 @@ import {
   type AssistantTurnEntry,
   type ContentProjection,
   type OrderedAssistantEntry,
-} from "../message-item-projection";
+} from "../../message-item-projection";
 
 interface FinalProjectionInput {
   assistantContentMode: AssistantContentMode;
@@ -26,6 +26,32 @@ interface FinalProjectionInput {
   visibleAssistantTurns: AssistantTurnEntry[];
   visibleOrderedAssistantEntries: OrderedAssistantEntry[];
 }
+
+interface FinalAssistantContentContext {
+  fallbackFinalAssistantContent: ContentBlock[] | null;
+  finalAssistantTurn: AssistantTurnEntry | null;
+  finalTailEntries: OrderedAssistantEntry[];
+  resultText: string | null;
+}
+
+type FinalAssistantContentResolver = (
+  context: FinalAssistantContentContext,
+) => string | ContentBlock[] | null;
+
+const DIRECT_CONTENT_MODES: ReadonlySet<AssistantContentMode> = new Set([
+  "dm_live",
+  "room_thread",
+]);
+
+const FINAL_ASSISTANT_CONTENT_RESOLVERS: Readonly<Record<
+  AssistantContentMode,
+  FinalAssistantContentResolver
+>> = {
+  dm_archived: resolveArchivedFinalAssistantContent,
+  dm_live: resolveHiddenFinalAssistantContent,
+  room_result: resolveRoomResultFinalAssistantContent,
+  room_thread: resolveHiddenFinalAssistantContent,
+};
 
 export function resolveMessageItemFinalProjection({
   assistantContentMode,
@@ -65,15 +91,14 @@ export function resolveMessageItemFinalProjection({
       streamingBlockIndexes,
     );
 
-  const directOrderedProjection =
-    assistantContentMode === "dm_live" ||
-    assistantContentMode === "room_thread"
-      ? orderedProjection
-      : emptyProjection();
-  const processProjection =
-    assistantContentMode === "dm_archived"
-      ? archivedProcessProjection
-      : emptyProjection();
+  const directOrderedProjection = resolveDirectOrderedProjection(
+    assistantContentMode,
+    orderedProjection,
+  );
+  const processProjection = resolveProcessProjection(
+    assistantContentMode,
+    archivedProcessProjection,
+  );
   const finalAssistantContent = resolveFinalAssistantContent({
     assistantContentMode,
     fallbackFinalAssistantContent,
@@ -81,16 +106,12 @@ export function resolveMessageItemFinalProjection({
     finalTailEntries,
     resultSummary,
   });
-  const finalAssistantStreamingIndexes =
-    assistantContentMode === "dm_live" ||
-    assistantContentMode === "room_thread" ||
-    typeof finalAssistantContent === "string"
-      ? new Set<number>()
-      : fallbackFinalAssistantStreamingIndexes;
-  const finalAssistantText =
-    typeof finalAssistantContent === "string"
-      ? finalAssistantContent
-      : extractTextFromContentBlocks(finalAssistantContent);
+  const finalAssistantStreamingIndexes = resolveFinalStreamingIndexes(
+    assistantContentMode,
+    finalAssistantContent,
+    fallbackFinalAssistantStreamingIndexes,
+  );
+  const finalAssistantText = resolveFinalAssistantText(finalAssistantContent);
 
   return {
     directOrderedProjection,
@@ -99,6 +120,43 @@ export function resolveMessageItemFinalProjection({
     finalAssistantStreamingIndexes,
     finalAssistantText,
   };
+}
+
+function resolveDirectOrderedProjection(
+  mode: AssistantContentMode,
+  orderedProjection: ContentProjection,
+): ContentProjection {
+  return DIRECT_CONTENT_MODES.has(mode)
+    ? orderedProjection
+    : emptyProjection();
+}
+
+function resolveProcessProjection(
+  mode: AssistantContentMode,
+  archivedProcessProjection: ContentProjection,
+): ContentProjection {
+  return mode === "dm_archived"
+    ? archivedProcessProjection
+    : emptyProjection();
+}
+
+function resolveFinalStreamingIndexes(
+  mode: AssistantContentMode,
+  content: string | ContentBlock[] | null,
+  fallbackStreamingIndexes: Set<number>,
+): Set<number> {
+  if (DIRECT_CONTENT_MODES.has(mode) || typeof content === "string") {
+    return new Set<number>();
+  }
+  return fallbackStreamingIndexes;
+}
+
+function resolveFinalAssistantText(
+  content: string | ContentBlock[] | null,
+): string {
+  return typeof content === "string"
+    ? content
+    : extractTextFromContentBlocks(content);
 }
 
 function resolveFinalAssistantTurn(
@@ -253,32 +311,38 @@ function resolveFinalAssistantContent({
   finalTailEntries: OrderedAssistantEntry[];
   resultSummary: ResultSummary | undefined;
 }) {
-  if (
-    assistantContentMode === "dm_live" ||
-    assistantContentMode === "room_thread"
-  ) {
-    return null;
+  return FINAL_ASSISTANT_CONTENT_RESOLVERS[assistantContentMode]({
+    fallbackFinalAssistantContent,
+    finalAssistantTurn,
+    finalTailEntries,
+    resultText: getResultSummaryDisplayText(resultSummary),
+  });
+}
+
+function resolveArchivedFinalAssistantContent({
+  finalAssistantTurn,
+  finalTailEntries,
+  resultText,
+}: FinalAssistantContentContext): string | ContentBlock[] | null {
+  // 归档回复优先使用已从过程链剥离的正文，result 只补齐缺失正文。
+  if (finalTailEntries.length > 0) {
+    return finalTailEntries.map((entry) => entry.block);
   }
-
-  const resultText = getResultSummaryDisplayText(resultSummary);
-
-  if (assistantContentMode === "dm_archived") {
-    // 优先用消息正文（过程链已剥离同一段内容）；
-    // result 摘要文本只在正文缺失时兜底，避免两边措辞不一致时重复展示。
-    if (finalTailEntries.length > 0) {
-      return finalTailEntries.map((entry) => entry.block);
-    }
-    if (finalAssistantTurn?.textContent.length) {
-      return finalAssistantTurn.textContent;
-    }
-    return resultText || null;
+  if (finalAssistantTurn?.textContent.length) {
+    return finalAssistantTurn.textContent;
   }
+  return resultText || null;
+}
 
-  if (resultText) {
-    return resultText;
-  }
+function resolveRoomResultFinalAssistantContent({
+  fallbackFinalAssistantContent,
+  resultText,
+}: FinalAssistantContentContext): string | ContentBlock[] | null {
+  return resultText || fallbackFinalAssistantContent;
+}
 
-  return fallbackFinalAssistantContent;
+function resolveHiddenFinalAssistantContent(): null {
+  return null;
 }
 
 function textEntryIndexesForTurn(
