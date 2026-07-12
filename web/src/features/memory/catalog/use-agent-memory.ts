@@ -1,8 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { getAgentMemorySnapshotApi } from "@/lib/api/agent/memory-api";
 import type { MemorySnapshot } from "@/types/memory/memory";
 
+import {
+  type ScopedMemoryScope,
+  type ScopedMemoryScopeRef,
+  useScopedMemoryState,
+} from "../use-scoped-memory-state";
 import {
   type MemoryFilter,
   projectMemoryCatalog,
@@ -10,7 +15,6 @@ import {
 } from "./memory-catalog-model";
 
 interface AgentMemoryState {
-  agentId: string;
   compactDocumentOpen: boolean;
   error: string | null;
   filter: MemoryFilter;
@@ -18,36 +22,19 @@ interface AgentMemoryState {
   query: string;
   selectedPath: string;
   snapshot: MemorySnapshot | null;
+  scopeKey: string;
+}
+
+interface AgentMemoryScope extends ScopedMemoryScope {
+  agentId: string;
 }
 
 export function useAgentMemory(agentId: string, fallbackError: string) {
-  const agentIdRef = useRef(agentId);
-  agentIdRef.current = agentId;
   const requestSequenceRef = useRef(0);
-  const [storedState, setStoredState] = useState<AgentMemoryState>(() =>
-    createAgentMemoryState(agentId),
+  const { commit, scopeRef, state } = useScopedMemoryState(
+    { agentId, key: agentId },
+    createAgentMemoryState,
   );
-  const state = storedState.agentId === agentId
-    ? storedState
-    : createAgentMemoryState(agentId);
-
-  const commit = useCallback((expectedAgentId: string, update: (
-    current: AgentMemoryState,
-  ) => AgentMemoryState) => {
-    if (agentIdRef.current !== expectedAgentId) {
-      return;
-    }
-    setStoredState((current) => {
-      if (agentIdRef.current !== expectedAgentId) {
-        return current;
-      }
-      return update(
-        current.agentId === expectedAgentId
-          ? current
-          : createAgentMemoryState(expectedAgentId),
-      );
-    });
-  }, []);
 
   const refresh = useCallback(async () => {
     const expectedAgentId = agentId;
@@ -60,7 +47,7 @@ export function useAgentMemory(agentId: string, fallbackError: string) {
     }));
     try {
       const snapshot = await getAgentMemorySnapshotApi(expectedAgentId);
-      if (!isCurrentRequest(agentIdRef, expectedAgentId, requestSequenceRef, requestSequence)) {
+      if (!isCurrentRequest(scopeRef, expectedAgentId, requestSequenceRef, requestSequence)) {
         return;
       }
       commit(expectedAgentId, (current) => ({
@@ -71,7 +58,7 @@ export function useAgentMemory(agentId: string, fallbackError: string) {
         snapshot,
       }));
     } catch (error) {
-      if (!isCurrentRequest(agentIdRef, expectedAgentId, requestSequenceRef, requestSequence)) {
+      if (!isCurrentRequest(scopeRef, expectedAgentId, requestSequenceRef, requestSequence)) {
         return;
       }
       commit(expectedAgentId, (current) => ({
@@ -82,7 +69,7 @@ export function useAgentMemory(agentId: string, fallbackError: string) {
         snapshot: null,
       }));
     }
-  }, [agentId, commit, fallbackError]);
+  }, [agentId, commit, fallbackError, scopeRef]);
 
   useEffect(() => {
     requestSequenceRef.current += 1;
@@ -124,14 +111,14 @@ export function useAgentMemory(agentId: string, fallbackError: string) {
 
   return {
     catalog: {
+      emptyFilterVisible: projection.emptyFilterVisible,
+      emptyMemoryVisible: projection.emptyMemoryVisible,
       filter: state.filter,
-      indexVisible: projection.indexVisible,
       query: state.query,
-      selectedPath: state.selectedPath,
+      sections: projection.sections,
       setFilter,
       setQuery,
-      snapshot: state.snapshot,
-      visibleDocuments: projection.visibleDocuments,
+      truncated: projection.truncated,
     },
     document: {
       closeCompactDocument,
@@ -154,7 +141,6 @@ export function useAgentMemory(agentId: string, fallbackError: string) {
 
 function createAgentMemoryState(agentId: string): AgentMemoryState {
   return {
-    agentId,
     compactDocumentOpen: false,
     error: null,
     filter: "all",
@@ -162,15 +148,16 @@ function createAgentMemoryState(agentId: string): AgentMemoryState {
     query: "",
     selectedPath: "",
     snapshot: null,
+    scopeKey: agentId,
   };
 }
 
 function isCurrentRequest(
-  currentAgentId: { current: string },
+  currentScope: ScopedMemoryScopeRef<AgentMemoryScope>,
   expectedAgentId: string,
   currentSequence: { current: number },
   expectedSequence: number,
 ): boolean {
-  return currentAgentId.current === expectedAgentId
+  return currentScope.current.agentId === expectedAgentId
     && currentSequence.current === expectedSequence;
 }

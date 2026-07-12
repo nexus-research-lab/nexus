@@ -2,7 +2,7 @@ import { Check, Link2 } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 
-import type { MemoryIndexEntry } from "../memory-utils";
+import type { MemoryIndexEntry } from "./memory-index-model";
 
 interface MemoryIndexEntriesProps {
   entries: MemoryIndexEntry[];

@@ -1,7 +1,7 @@
 import { RefreshCw } from "lucide-react";
 
 import { UiIconButton } from "@/shared/ui/button/button";
-import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
+import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
 import type { AgentSkillEntry } from "@/types/capability/skill";

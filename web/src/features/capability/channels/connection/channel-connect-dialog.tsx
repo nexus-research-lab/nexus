@@ -3,7 +3,7 @@
 import type { FormEvent } from "react";
 
 import type { ChannelConfigView } from "@/lib/api/capability/channel-api";
-import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
+import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import {
   UiDialogBackdrop,
   UiDialogBody,

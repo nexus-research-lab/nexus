@@ -5,7 +5,7 @@
 import { useCallback, useState } from "react";
 import { createRoot } from "react-dom/client";
 
-import { PromptDialog } from "@/shared/ui/dialog/confirm-dialog";
+import { PromptDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 
 const SHOP_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 

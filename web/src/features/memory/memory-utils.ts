@@ -1,30 +1,15 @@
-export interface MemoryIndexEntry {
-  description: string;
-  path: string;
-  title: string;
-}
+import type { MemoryDocument } from "@/types/memory/memory";
 
 const FRONTMATTER_PATTERN = /^---\r?\n[\s\S]*?\r?\n---\r?\n?/;
-const INDEX_ENTRY_PATTERN = /^\s*-\s+\[([^\]]+)]\(([^)]+\.md)(?:#[^)]*)?\)\s*(?:[—–-]\s*)?(.*)$/gm;
+
+export const MEMORY_STALE_AFTER_DAYS = 1;
+
+export function isIndexedMemoryTopic(document: MemoryDocument): boolean {
+  return document.indexed && document.kind === "topic";
+}
 
 export function stripMemoryFrontmatter(content: string): string {
   return content.replace(FRONTMATTER_PATTERN, "").trim();
-}
-
-export function parseMemoryIndexEntries(content: string): MemoryIndexEntry[] {
-  const entries: MemoryIndexEntry[] = [];
-  for (const match of content.matchAll(INDEX_ENTRY_PATTERN)) {
-    const path = normalizeMemoryPath(match[2]);
-    if (!path.startsWith("memory/")) {
-      continue;
-    }
-    entries.push({
-      description: match[3]?.trim() ?? "",
-      path,
-      title: match[1].trim(),
-    });
-  }
-  return entries;
 }
 
 export function memoryAgeDays(modifiedAt: string, now = Date.now()): number {
@@ -56,8 +41,4 @@ export function formatMemoryFileSize(size: number): string {
     return `${(size / 1024).toFixed(size < 10 * 1024 ? 1 : 0)} KB`;
   }
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function normalizeMemoryPath(path: string): string {
-  return path.trim().replace(/^<|>$/g, "").replace(/^\.\//, "").replaceAll("\\", "/");
 }

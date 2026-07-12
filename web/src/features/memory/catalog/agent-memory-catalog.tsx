@@ -3,37 +3,43 @@ import { Clock3, Link2, Search } from "lucide-react";
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiSearchInput } from "@/shared/ui/form/form-control";
-import type { MemoryDocument, MemorySnapshot } from "@/types/memory/memory";
 
-import { formatMemoryModifiedTime, memoryAgeDays } from "../memory-utils";
+import {
+  formatMemoryModifiedTime,
+  isIndexedMemoryTopic,
+  MEMORY_STALE_AFTER_DAYS,
+  memoryAgeDays,
+} from "../memory-utils";
 import {
   MEMORY_FILTER_OPTIONS,
+  type MemoryCatalogRow,
+  type MemoryCatalogSection,
   type MemoryFilter,
 } from "./memory-catalog-model";
 import { getMemoryDocumentPresentation } from "./memory-catalog-presentation";
 
 interface AgentMemoryCatalogProps {
+  emptyFilterVisible: boolean;
+  emptyMemoryVisible: boolean;
   filter: MemoryFilter;
-  indexVisible: boolean;
   onFilterChange: (filter: MemoryFilter) => void;
   onQueryChange: (query: string) => void;
   onSelectDocument: (path: string) => void;
   query: string;
-  selectedPath: string;
-  snapshot: MemorySnapshot | null;
-  visibleDocuments: MemoryDocument[];
+  sections: MemoryCatalogSection[];
+  truncated: boolean;
 }
 
 export function AgentMemoryCatalog({
+  emptyFilterVisible,
+  emptyMemoryVisible,
   filter,
-  indexVisible,
   onFilterChange,
   onQueryChange,
   onSelectDocument,
   query,
-  selectedPath,
-  snapshot,
-  visibleDocuments,
+  sections,
+  truncated,
 }: AgentMemoryCatalogProps) {
   const { locale, t } = useI18n();
   return (
@@ -68,37 +74,15 @@ export function AgentMemoryCatalog({
       </div>
 
       <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto px-2 py-2">
-        {indexVisible && snapshot?.index ? (
-          <div className="mb-2">
-            <MemorySectionLabel label={t("capability.memory_index")} />
-            <MemoryDocumentRow
-              document={snapshot.index}
-              isSelected={selectedPath === snapshot.index.path}
-              locale={locale}
-              onSelect={onSelectDocument}
-            />
-          </div>
-        ) : null}
-
-        {visibleDocuments.length > 0 ? (
-          <div>
-            <MemorySectionLabel
-              label={t("capability.memory_documents")}
-              value={String(visibleDocuments.length)}
-            />
-            <div className="space-y-0.5">
-              {visibleDocuments.map((document) => (
-                <MemoryDocumentRow
-                  document={document}
-                  isSelected={selectedPath === document.path}
-                  key={document.path}
-                  locale={locale}
-                  onSelect={onSelectDocument}
-                />
-              ))}
-            </div>
-          </div>
-        ) : !indexVisible ? (
+        {sections.map((section) => (
+          <MemoryCatalogSectionView
+            key={section.key}
+            locale={locale}
+            onSelect={onSelectDocument}
+            section={section}
+          />
+        ))}
+        {emptyFilterVisible ? (
           <div className="px-3 py-10 text-center">
             <Search className="mx-auto h-5 w-5 text-(--icon-muted)" />
             <p className="mt-2 text-[12px] text-(--text-muted)">
@@ -107,14 +91,14 @@ export function AgentMemoryCatalog({
           </div>
         ) : null}
 
-        {snapshot?.truncated ? (
+        {truncated ? (
           <p className="px-3 py-3 text-[10.5px] leading-4 text-(--text-soft)">
             {t("capability.memory_truncated")}
           </p>
         ) : null}
       </div>
 
-      {snapshot?.layout === "empty" ? (
+      {emptyMemoryVisible ? (
         <div className="border-t border-(--divider-subtle-color) px-4 py-4">
           <p className="text-[12px] font-semibold text-(--text-strong)">
             {t("capability.memory_empty_title")}
@@ -128,6 +112,36 @@ export function AgentMemoryCatalog({
   );
 }
 
+function MemoryCatalogSectionView({
+  locale,
+  onSelect,
+  section,
+}: {
+  locale: string;
+  onSelect: (path: string) => void;
+  section: MemoryCatalogSection;
+}) {
+  const { t } = useI18n();
+  return (
+    <div className={section.key === "index" ? "mb-2" : undefined}>
+      <MemorySectionLabel
+        label={t(section.labelKey)}
+        value={section.countVisible ? String(section.rows.length) : undefined}
+      />
+      <div className="space-y-0.5">
+        {section.rows.map((row) => (
+          <MemoryDocumentRow
+            key={row.document.path}
+            locale={locale}
+            onSelect={onSelect}
+            row={row}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function MemorySectionLabel({ label, value }: { label: string; value?: string }) {
   return (
     <div className="flex items-center justify-between px-2 pb-1 pt-1 text-[10px] font-semibold uppercase text-(--text-soft)">
@@ -138,20 +152,19 @@ function MemorySectionLabel({ label, value }: { label: string; value?: string })
 }
 
 function MemoryDocumentRow({
-  document,
-  isSelected,
   locale,
   onSelect,
+  row,
 }: {
-  document: MemoryDocument;
-  isSelected: boolean;
   locale: string;
   onSelect: (path: string) => void;
+  row: MemoryCatalogRow;
 }) {
   const { t } = useI18n();
+  const { document, isSelected } = row;
   const presentation = getMemoryDocumentPresentation(document);
   const Icon = presentation.icon;
-  const stale = memoryAgeDays(document.modified_at) > 1;
+  const stale = memoryAgeDays(document.modified_at) > MEMORY_STALE_AFTER_DAYS;
   return (
     <button
       className={cn(
@@ -177,7 +190,7 @@ function MemoryDocumentRow({
           <span className="truncate text-[12px] font-semibold text-(--text-strong)">
             {document.title}
           </span>
-          {document.indexed && document.kind === "topic" ? (
+          {isIndexedMemoryTopic(document) ? (
             <Link2 className="h-3 w-3 shrink-0 text-emerald-600 dark:text-emerald-400" />
           ) : null}
         </span>

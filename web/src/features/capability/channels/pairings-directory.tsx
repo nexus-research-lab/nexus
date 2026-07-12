@@ -19,7 +19,7 @@ import type {
   ImPairingStatus,
 } from "@/lib/api/capability/channel-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
+import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import {
   type FeedbackBannerProps,
 } from "@/shared/ui/feedback/feedback-banner";

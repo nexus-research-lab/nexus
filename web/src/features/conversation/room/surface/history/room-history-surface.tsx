@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
+import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import { WorkspaceSurfaceView } from "@/shared/ui/workspace/surface/workspace-surface-view";
 import type { RoomConversationView } from "@/types/conversation/conversation";
 

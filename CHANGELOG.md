@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Consolidated Provider Settings presentation rules, removed duplicate custom-provider state, added icon fallbacks, and split configuration, header, model-row, capability, and toggle rendering responsibilities.
 - Centralized Goal form and controller projections, unified confirmation rendering, and split command transactions into explicit lifecycle phases.
 - Split Memory summary and document body states into narrow views, and made save scope snapshots and draft-merge rules explicit.
+- Unified Memory Agent and document scope guards, projected catalog sections and document actions from pure models, and moved `MEMORY.md` index parsing into its owned subdomain.
 - Centralized Skill catalog source, install-state, and update-check projections, removed a forwarding badge wrapper, and turned Markdown deduplication into an ordered model pipeline.
 - Centralized Channel card and QR-login state projections, replacing duplicated JSX conditionals with discriminated actions and session views.
 - Separated General Settings resource controllers from Sections, split default-model catalog projection from preference normalization, removed obsolete provider-response fallbacks, and made desktop version failures leave loading state.
@@ -64,6 +65,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Split the mixed message UI primitive aggregate into directly owned avatar, action, activity-status, and message-item shell responsibilities, consolidating activity presentation under one exhaustive state table.
 - Replaced branch-heavy message result and usage formatting with ordered display and numeric-range rules plus independent duration, token, cost, and cache projections.
 - Consolidated modal stacking, body scroll locking, focus discovery, focus cycling, and Escape handling under shared Dialog ownership; removed duplicate business-level keyboard listeners and migrated Agent Options, Mermaid preview, and scheduled-task run history off their private modal shells.
+- Moved Confirm and Prompt dialogs into an owned decision subdomain, sharing one modal frame and action bar while replacing Prompt focus/reset effects with mount-scoped state and ordered keyboard rules.
 - Separated scheduled-task run diagnostics from history status and action rules, using ordered definitions for detail rows, output sections, and copied diagnostic fields instead of repeated conditional assembly.
 - Moved ExcelJS cell-value classification and text formatting into an owned Spreadsheet value model, replacing the branch-heavy `unknown` object probe chain with ordered rules over the real closed `CellValue` union.
 - Split Room history items into pure activity/action projection and mode-driven reading/editing views, replacing repeated active, capability, metadata, and title-state conditions in the item entry component.

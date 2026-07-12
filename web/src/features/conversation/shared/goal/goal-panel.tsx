@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 
-import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
+import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import type { Goal } from "@/types/conversation/goal";
 
 import type { GoalContinuationHold } from "./goal-continuation-hold";

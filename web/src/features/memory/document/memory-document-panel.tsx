@@ -12,12 +12,13 @@ import type { WorkspaceLiveFileState } from "@/types/app/workspace-live";
 import type { MemoryDocument } from "@/types/memory/memory";
 
 import {
+  MEMORY_STALE_AFTER_DAYS,
   memoryAgeDays,
-  parseMemoryIndexEntries,
   stripMemoryFrontmatter,
 } from "../memory-utils";
+import { MemoryIndexEntries } from "./index/memory-index-entries";
+import { parseMemoryIndexEntries } from "./index/memory-index-model";
 import { MemoryDocumentHeader } from "./memory-document-header";
-import { MemoryIndexEntries } from "./memory-index-entries";
 import { useMemoryDocument } from "./use-memory-document";
 
 interface MemoryDocumentPanelProps {
@@ -113,7 +114,7 @@ function MemoryDocumentAlerts({
   const staleDays = memoryAgeDays(document.modified_at);
   return (
     <>
-      {staleDays > 1 ? (
+      {staleDays > MEMORY_STALE_AFTER_DAYS ? (
         <div className="shrink-0 border-b border-amber-200/70 bg-amber-50/70 px-4 py-2 text-[11.5px] leading-5 text-amber-800 dark:border-amber-800/40 dark:bg-amber-950/20 dark:text-amber-300">
           {t("capability.memory_stale", { count: staleDays })}
         </div>

@@ -7,6 +7,10 @@ import type {
   MemoryDocumentCommit,
   MemoryDocumentScopeRef,
 } from "./use-memory-document-state";
+import {
+  type ConsumedMemoryLiveVersion,
+  resolveMemoryLiveUpdateIntent,
+} from "./memory-document-model";
 
 interface UseMemoryDocumentResourceOptions {
   commit: MemoryDocumentCommit;
@@ -28,7 +32,7 @@ export function useMemoryDocumentResource({
   const requestSequenceRef = useRef(0);
   const liveVersionRef = useRef(liveState?.version ?? 0);
   liveVersionRef.current = liveState?.version ?? 0;
-  const consumedLiveVersionRef = useRef({
+  const consumedLiveVersionRef = useRef<ConsumedMemoryLiveVersion>({
     scopeKey,
     version: liveState?.version ?? 0,
   });
@@ -84,30 +88,28 @@ export function useMemoryDocumentResource({
   }, [reload, scopeKey]);
 
   useEffect(() => {
-    if (editing || !liveState || !scopeKey) {
+    const intent = resolveMemoryLiveUpdateIntent({
+      consumed: consumedLiveVersionRef.current,
+      editing,
+      liveState,
+      scopeKey,
+    });
+    if (intent.kind === "ignore") {
       return;
     }
-    const liveContent = liveState.live_content;
-    if (typeof liveContent === "string") {
+    consumedLiveVersionRef.current = { scopeKey, version: intent.version };
+    if (intent.kind === "apply") {
       requestSequenceRef.current += 1;
-      consumedLiveVersionRef.current = { scopeKey, version: liveState.version };
       commit(scopeKey, (current) => ({
         ...current,
-        content: liveContent,
-        draft: liveContent,
+        content: intent.content,
+        draft: intent.content,
         isLoading: false,
         resourceError: null,
       }));
       return;
     }
-    const consumed = consumedLiveVersionRef.current;
-    if (
-      liveState.status === "updated"
-      && (consumed.scopeKey !== scopeKey || liveState.version > consumed.version)
-    ) {
-      consumedLiveVersionRef.current = { scopeKey, version: liveState.version };
-      void reload();
-    }
+    void reload();
   }, [commit, editing, liveState, reload, scopeKey]);
 
   return { reload };

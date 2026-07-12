@@ -3,7 +3,7 @@ import { memo } from "react";
 
 import { CreateRoomDialog } from "@/features/conversation/room/members/create-room-dialog";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
+import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import { SidebarEmptyGuide } from "@/shared/ui/sidebar/sidebar-empty-guide";
 import { SIDEBAR_TOUR_ANCHORS } from "@/features/onboarding/tours/sidebar-navigation-tour";
 

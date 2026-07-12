@@ -183,15 +183,15 @@ function MemoryContent({
   return (
     <div className="nexus-memory-layout min-h-0 min-w-0 flex-1">
       <AgentMemoryCatalog
+        emptyFilterVisible={memory.catalog.emptyFilterVisible}
+        emptyMemoryVisible={memory.catalog.emptyMemoryVisible}
         filter={memory.catalog.filter}
-        indexVisible={memory.catalog.indexVisible}
         onFilterChange={memory.catalog.setFilter}
         onQueryChange={memory.catalog.setQuery}
         onSelectDocument={memory.document.selectDocument}
         query={memory.catalog.query}
-        selectedPath={memory.catalog.selectedPath}
-        snapshot={memory.catalog.snapshot}
-        visibleDocuments={memory.catalog.visibleDocuments}
+        sections={memory.catalog.sections}
+        truncated={memory.catalog.truncated}
       />
       <MemoryDocumentPanel
         agentId={agentId}

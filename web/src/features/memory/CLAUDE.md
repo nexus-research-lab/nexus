@@ -6,8 +6,9 @@
 
 - `catalog/` 管理 Agent 级目录快照、筛选、选择和摘要投影，所有状态绑定 `agentId`。
 - `document/` 按作用域状态、正文资源、保存事务和视图拆分 `agentId:path` 文档。
+- `use-scoped-memory-state.ts` 统一 Agent 与文档的作用域状态提交协议，旧异步结果只能提交到发起时的 scope。
 - `agent-memory-view.tsx` 只编排摘要和内容区；Agent 身份、指标、资源状态各自拥有窄视图。
-- `memory-utils.ts` 只保留 Markdown frontmatter、索引链接、时间与尺寸纯函数。
+- `memory-utils.ts` 只保留跨目录共用的文档状态、Markdown frontmatter、时间与尺寸纯函数。
 
 ## 不变量
 

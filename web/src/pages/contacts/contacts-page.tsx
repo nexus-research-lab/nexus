@@ -3,7 +3,7 @@ import type { ComponentProps } from "react";
 import { AgentOptionsDialog } from "@/features/agents/options/dialog/agent-options-dialog";
 import { ContactsAgentDetail } from "@/features/contacts/contacts-agent-detail";
 import { ContactsDirectory } from "@/features/contacts/contacts-directory";
-import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
+import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import { WorkspaceLoadingState } from "@/shared/ui/workspace/frame/workspace-loading-state";
 import { WorkspacePageFrame } from "@/shared/ui/workspace/frame/workspace-page-frame";
 

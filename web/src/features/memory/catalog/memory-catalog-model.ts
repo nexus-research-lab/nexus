@@ -23,11 +23,36 @@ export interface MemoryCatalogProjection {
     logs: number;
     topics: number;
   };
-  indexVisible: boolean;
+  emptyFilterVisible: boolean;
+  emptyMemoryVisible: boolean;
   latestDocument: MemoryDocument | null;
+  sections: MemoryCatalogSection[];
   selectedDocument: MemoryDocument | null;
-  visibleDocuments: MemoryDocument[];
+  truncated: boolean;
 }
+
+export interface MemoryCatalogRow {
+  document: MemoryDocument;
+  isSelected: boolean;
+}
+
+export interface MemoryCatalogSection {
+  countVisible: boolean;
+  key: "index" | "documents";
+  labelKey: TranslationKey;
+  rows: MemoryCatalogRow[];
+}
+
+type MemoryFilterMatcher = (document: MemoryDocument) => boolean;
+
+const FILTER_MATCHER_BY_KEY: Readonly<Record<MemoryFilter, MemoryFilterMatcher>> = {
+  all: () => true,
+  daily_log: (document) => document.kind === "daily_log",
+  feedback: (document) => document.kind === "topic" && document.type === "feedback",
+  project: (document) => document.kind === "topic" && document.type === "project",
+  reference: (document) => document.kind === "topic" && document.type === "reference",
+  user: (document) => document.kind === "topic" && document.type === "user",
+};
 
 export function projectMemoryCatalog(
   snapshot: MemorySnapshot | null,
@@ -37,16 +62,21 @@ export function projectMemoryCatalog(
 ): MemoryCatalogProjection {
   const allDocuments = getAllMemoryDocuments(snapshot);
   const documents = snapshot?.documents ?? [];
+  const sections = buildMemoryCatalogSections(
+    snapshot,
+    selectedPath,
+    filter,
+    query,
+  );
   return {
     allDocuments,
     counts: countMemoryDocuments(documents),
-    indexVisible: Boolean(
-      snapshot?.index && memoryDocumentMatches(snapshot.index, "index", query),
-    ),
-    latestDocument: documents[0] ?? snapshot?.index ?? null,
-    selectedDocument: allDocuments.find((document) => document.path === selectedPath) ?? null,
-    visibleDocuments: documents.filter((document) =>
-      memoryDocumentMatches(document, filter, query)),
+    emptyFilterVisible: sections.length === 0,
+    emptyMemoryVisible: isEmptyMemorySnapshot(snapshot),
+    latestDocument: getLatestMemoryDocument(snapshot, documents),
+    sections,
+    selectedDocument: findSelectedMemoryDocument(allDocuments, selectedPath),
+    truncated: isTruncatedMemorySnapshot(snapshot),
   };
 }
 
@@ -62,8 +92,36 @@ export function resolveSelectedMemoryPath(
 
 function getAllMemoryDocuments(snapshot: MemorySnapshot | null): MemoryDocument[] {
   return snapshot
-    ? [snapshot.index, ...snapshot.documents].filter(Boolean) as MemoryDocument[]
+    ? [snapshot.index, ...snapshot.documents].filter(isMemoryDocument)
     : [];
+}
+
+function isMemoryDocument(
+  document: MemoryDocument | null | undefined,
+): document is MemoryDocument {
+  return Boolean(document);
+}
+
+function isEmptyMemorySnapshot(snapshot: MemorySnapshot | null): boolean {
+  return snapshot?.layout === "empty";
+}
+
+function isTruncatedMemorySnapshot(snapshot: MemorySnapshot | null): boolean {
+  return Boolean(snapshot?.truncated);
+}
+
+function getLatestMemoryDocument(
+  snapshot: MemorySnapshot | null,
+  documents: MemoryDocument[],
+): MemoryDocument | null {
+  return documents[0] ?? snapshot?.index ?? null;
+}
+
+function findSelectedMemoryDocument(
+  documents: MemoryDocument[],
+  selectedPath: string,
+): MemoryDocument | null {
+  return documents.find((document) => document.path === selectedPath) ?? null;
 }
 
 function countMemoryDocuments(documents: MemoryDocument[]): {
@@ -81,15 +139,17 @@ function countMemoryDocuments(documents: MemoryDocument[]): {
 
 function memoryDocumentMatches(
   document: MemoryDocument,
-  filter: MemoryFilter | "index",
+  filter: MemoryFilter,
   query: string,
 ): boolean {
-  const matchesFilter = filter === "all"
-    || document.kind === filter
-    || (document.kind === "topic" && document.type === filter);
-  if (!matchesFilter) {
-    return false;
-  }
+  return FILTER_MATCHER_BY_KEY[filter](document)
+    && memoryDocumentMatchesQuery(document, query);
+}
+
+function memoryDocumentMatchesQuery(
+  document: MemoryDocument,
+  query: string,
+): boolean {
   const normalizedQuery = query.trim().toLowerCase();
   if (!normalizedQuery) {
     return true;
@@ -99,4 +159,43 @@ function memoryDocumentMatches(
     .join(" ")
     .toLowerCase()
     .includes(normalizedQuery);
+}
+
+function buildMemoryCatalogSections(
+  snapshot: MemorySnapshot | null,
+  selectedPath: string,
+  filter: MemoryFilter,
+  query: string,
+): MemoryCatalogSection[] {
+  const indexRows = snapshot?.index && memoryDocumentMatchesQuery(snapshot.index, query)
+    ? [projectMemoryCatalogRow(snapshot.index, selectedPath)]
+    : [];
+  const documentRows = (snapshot?.documents ?? [])
+    .filter((document) => memoryDocumentMatches(document, filter, query))
+    .map((document) => projectMemoryCatalogRow(document, selectedPath));
+  const sections: MemoryCatalogSection[] = [
+    {
+      countVisible: false,
+      key: "index",
+      labelKey: "capability.memory_index",
+      rows: indexRows,
+    },
+    {
+      countVisible: true,
+      key: "documents",
+      labelKey: "capability.memory_documents",
+      rows: documentRows,
+    },
+  ];
+  return sections.filter((section) => section.rows.length > 0);
+}
+
+function projectMemoryCatalogRow(
+  document: MemoryDocument,
+  selectedPath: string,
+): MemoryCatalogRow {
+  return {
+    document,
+    isSelected: document.path === selectedPath,
+  };
 }

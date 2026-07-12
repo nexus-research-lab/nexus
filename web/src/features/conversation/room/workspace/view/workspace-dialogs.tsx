@@ -1,4 +1,7 @@
-import { ConfirmDialog, PromptDialog } from "@/shared/ui/dialog/confirm-dialog";
+import {
+  ConfirmDialog,
+  PromptDialog,
+} from "@/shared/ui/dialog/decision/decision-dialog";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { WorkspaceFileEntry } from "@/types/agent/agent";
 
