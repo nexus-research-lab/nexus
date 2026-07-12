@@ -16,50 +16,35 @@ import {
   DIALOG_HEADER_LEADING_CLASS_NAME,
 } from "@/shared/ui/dialog/dialog-styles";
 import type {
-  AgentIdentityDraft,
-  AgentNameValidationResult,
-  AgentOptions as AgentConfigOptions,
-} from "@/types/agent/agent";
+  AgentOptionsFormProps,
+} from "../agent-options-editor-model";
+import {
+  type AgentOptionsDialogState,
+  getAgentOptionsDialogHeader,
+} from "./agent-options-dialog-model";
 
-export interface AgentOptionsDialogProps {
-  agentId?: string;
-  mode: "create" | "edit";
-  isOpen: boolean;
+interface AgentOptionsDialogProps {
   onClose: () => void;
-  onDelete?: (agentId: string) => void;
-  onSave: (
-    title: string,
-    options: AgentConfigOptions,
-    identity: AgentIdentityDraft,
-  ) => void | Promise<void>;
-  onValidateName?: (name: string) => Promise<AgentNameValidationResult>;
-  initialTitle?: string;
-  initialOptions?: Partial<AgentConfigOptions>;
-  initialAvatar?: string;
-  initialDescription?: string;
-  initialVibeTags?: string[];
+  onDelete: NonNullable<AgentOptionsFormProps["onDelete"]>;
+  onSave: AgentOptionsFormProps["onSave"];
+  onValidateName: NonNullable<AgentOptionsFormProps["onValidateName"]>;
+  state: AgentOptionsDialogState;
 }
 
 /** Contacts 创建与编辑共用同一编辑器，弹窗只负责共享模态骨架与标题。 */
 export function AgentOptionsDialog({
-  agentId,
-  mode,
-  isOpen,
   onClose,
   onDelete,
   onSave,
   onValidateName,
-  initialTitle = "",
-  initialOptions = {},
-  initialAvatar = "",
-  initialDescription = "",
-  initialVibeTags = [],
+  state,
 }: AgentOptionsDialogProps) {
   const { t } = useI18n();
 
-  if (!isOpen) {
+  if (state.kind === "closed") {
     return null;
   }
+  const header = getAgentOptionsDialogHeader(state, t);
 
   return (
     <UiDialogPortal>
@@ -84,30 +69,20 @@ export function AgentOptionsDialog({
                   className="dialog-title truncate text-[22px] font-black"
                   id="agent-options-dialog-title"
                 >
-                  {mode === "create" ? t("agent_options.title_create") : initialTitle}
+                  {header.title}
                 </h2>
-                {mode === "edit" && agentId ? (
-                  <p className="dialog-subtitle">{t("agent_options.id_prefix")}: {agentId}</p>
-                ) : (
-                  <p className="dialog-subtitle">{t("agent_options.subtitle_create")}</p>
-                )}
+                <p className="dialog-subtitle">{header.subtitle}</p>
               </div>
             </div>
           </UiDialogHeader>
 
           <AgentOptionsDialogEditor
-            agentId={agentId}
-            initialAvatar={initialAvatar}
-            initialDescription={initialDescription}
-            initialOptions={initialOptions}
-            initialTitle={initialTitle}
-            initialVibeTags={initialVibeTags}
-            isActive={isOpen}
-            mode={mode}
+            isActive
             onCancel={onClose}
             onDelete={onDelete}
             onSave={onSave}
             onValidateName={onValidateName}
+            source={state}
           />
         </UiDialogShell>
       </UiDialogBackdrop>

@@ -16,7 +16,6 @@ import { SIDEBAR_NAVIGATION_TOUR_ID } from "@/features/onboarding/tours/sidebar-
 import { SKILLS_TOUR_ID } from "@/features/onboarding/tours/skills-tour";
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
-import type { OnboardingGuideCenterItem } from "@/shared/ui/onboarding/onboarding-guide-center";
 import type {
   LauncherBootstrapResponse,
   LauncherConversationSummary,
@@ -37,6 +36,16 @@ interface GuideCenterDefinition {
   icon: LucideIcon;
   id: GuideCenterTourId;
   titleKey: TranslationKey;
+}
+
+export interface GuideCenterItem {
+  actionLabel: string;
+  completed: boolean;
+  description: string;
+  icon: LucideIcon;
+  id: GuideCenterTourId;
+  onAction: () => void;
+  title: string;
 }
 
 export interface RoomTourNavigationTarget {
@@ -97,7 +106,7 @@ export function buildGuideCenterItems(
   t: I18nContextValue["t"],
   hasCompletedTour: (tourId: string) => boolean,
   actions: GuideCenterTourActions,
-): OnboardingGuideCenterItem[] {
+): GuideCenterItem[] {
   return GUIDE_CENTER_DEFINITIONS.map((definition) => ({
     actionLabel: t("common.view_guide"),
     completed: definition.completedTourIds.some(hasCompletedTour),

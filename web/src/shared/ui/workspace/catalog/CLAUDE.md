@@ -4,7 +4,7 @@
 
 ## 边界
 
-- `workspace-catalog-card.tsx` 只负责卡片框架、交互语义与 Ghost 占位。
+- `workspace-catalog-card.tsx` 只负责静态卡片框架与语义化 Ghost 动作，不把 Article 伪装成按钮。
 - `workspace-catalog-content.tsx` 只负责标题、正文、标签和内容区布局。
 - `workspace-catalog-actions.tsx` 只负责目录动作按钮外观。
 - `workspace-icon-frame.tsx` 只负责图标容器的尺寸、形状和色调。

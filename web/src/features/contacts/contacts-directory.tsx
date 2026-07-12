@@ -6,7 +6,7 @@ import { useMemo, useState } from "react";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { WorkspaceSearchInput } from "@/shared/ui/workspace/controls/workspace-search-input";
 import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
-import { WorkspaceCatalogGhostCard } from "@/shared/ui/workspace/catalog/workspace-catalog-card";
+import { WorkspaceCatalogGhostAction } from "@/shared/ui/workspace/catalog/workspace-catalog-card";
 import { WorkspaceIconFrame } from "@/shared/ui/workspace/catalog/workspace-icon-frame";
 import { Agent } from "@/types/agent/agent";
 
@@ -57,7 +57,7 @@ export function ContactsDirectory({
 
       <div className="soft-scrollbar scrollbar-stable-gutter min-h-0 flex-1 overflow-y-auto px-5 py-5 xl:px-6">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-          <WorkspaceCatalogGhostCard
+          <WorkspaceCatalogGhostAction
             className="py-8"
             onClick={onCreateAgent}
             size="comfort"
@@ -71,7 +71,7 @@ export function ContactsDirectory({
             <p className="mt-2 text-[13px] leading-5 text-(--text-default)">
               {t("contacts.new_agent_description")}
             </p>
-          </WorkspaceCatalogGhostCard>
+          </WorkspaceCatalogGhostAction>
           {filteredAgents.map((agent) => (
             <ContactsAgentCard
               key={agent.agent_id}

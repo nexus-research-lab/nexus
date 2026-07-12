@@ -21,7 +21,6 @@ import {
   isDirectCredentialAuth,
   resolveConnectorConnectMode,
 } from "../auth/connector-auth";
-import { openShopPrompt } from "../auth/shop-domain-prompt";
 import type { ReportConnectorFeedback } from "./connector-controller-types";
 import type {
   ConnectorPendingAction,
@@ -33,6 +32,7 @@ interface UseConnectorCommandsOptions {
   refreshCatalog: () => Promise<void>;
   refreshConnector: (connectorId: string) => Promise<void>;
   reportFeedback: ReportConnectorFeedback;
+  requestShopDomain: () => Promise<string | null>;
   runCommand: RunConnectorCommand;
 }
 
@@ -53,6 +53,7 @@ export function useConnectorCommands({
   refreshCatalog,
   refreshConnector,
   reportFeedback,
+  requestShopDomain,
   runCommand,
 }: UseConnectorCommandsOptions) {
   const [deviceAuthSession, setDeviceAuthSession] =
@@ -98,7 +99,7 @@ export function useConnectorCommands({
   ): Promise<boolean> => {
     const needsShopDomain = requiresShopDomain(connector);
     const shop = needsShopDomain
-      ? await openShopPrompt()
+      ? await requestShopDomain()
       : undefined;
     if (needsShopDomain && !shop) {
       return false;
@@ -126,7 +127,7 @@ export function useConnectorCommands({
       message: "已打开授权页面，请在新窗口完成授权",
     });
     return true;
-  }, [reportFeedback]);
+  }, [reportFeedback, requestShopDomain]);
 
   const openDeviceOauth = useCallback(async (
     connector: ConnectorInfo,

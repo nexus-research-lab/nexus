@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { getAgentSkillsApi } from "@/lib/api/capability/skill-api";
+import { getErrorMessage } from "@/lib/error-message";
 import type { AgentSkillEntry } from "@/types/capability/skill";
 
 const SKILL_REFRESH_INTERVAL_MS = 5000;
@@ -24,6 +25,34 @@ function createResourceState(agentId: string | null): AgentSkillsResourceState {
   return { agentId, error: null, items: [], loading: false };
 }
 
+function getScopedResourceState(
+  state: AgentSkillsResourceState,
+  agentId: string,
+): AgentSkillsResourceState {
+  return state.agentId === agentId ? state : createResourceState(agentId);
+}
+
+function createLoadingState(
+  state: AgentSkillsResourceState,
+  agentId: string,
+  mode: AgentSkillsRefreshMode,
+): AgentSkillsResourceState {
+  const scoped = getScopedResourceState(state, agentId);
+  return {
+    ...scoped,
+    error: null,
+    loading: mode === "foreground" || scoped.loading,
+  };
+}
+
+function isStaleRequest(
+  activeSequence: number,
+  requestSequence: number,
+  signal: AbortSignal,
+): boolean {
+  return signal.aborted || activeSequence !== requestSequence;
+}
+
 export function useAgentSkillsResource({
   agentId,
   fallbackErrorMessage,
@@ -39,8 +68,8 @@ export function useAgentSkillsResource({
     ? storedState
     : createResourceState(scopeAgentId);
 
-  const refresh = useCallback(async (
-    mode: AgentSkillsRefreshMode = "foreground",
+  const runRefresh = useCallback(async (
+    mode: AgentSkillsRefreshMode,
   ): Promise<void> => {
     requestControllerRef.current?.abort();
     const requestSequence = requestSequenceRef.current + 1;
@@ -53,20 +82,15 @@ export function useAgentSkillsResource({
 
     const controller = new AbortController();
     requestControllerRef.current = controller;
-    setStoredState((current) => {
-      const scoped = current.agentId === scopeAgentId
-        ? current
-        : createResourceState(scopeAgentId);
-      return {
-        ...scoped,
-        error: null,
-        loading: mode === "background" ? scoped.loading : true,
-      };
-    });
+    setStoredState((current) => createLoadingState(current, scopeAgentId, mode));
 
     try {
       const items = await getAgentSkillsApi(scopeAgentId, controller.signal);
-      if (requestSequenceRef.current !== requestSequence) {
+      if (isStaleRequest(
+        requestSequenceRef.current,
+        requestSequence,
+        controller.signal,
+      )) {
         return;
       }
       setStoredState({
@@ -76,28 +100,35 @@ export function useAgentSkillsResource({
         loading: false,
       });
     } catch (error) {
-      if (controller.signal.aborted || requestSequenceRef.current !== requestSequence) {
+      if (isStaleRequest(
+        requestSequenceRef.current,
+        requestSequence,
+        controller.signal,
+      )) {
         return;
       }
       setStoredState((current) => ({
-        ...(current.agentId === scopeAgentId
-          ? current
-          : createResourceState(scopeAgentId)),
-        error: error instanceof Error ? error.message : fallbackErrorMessage,
+        ...getScopedResourceState(current, scopeAgentId),
+        error: getErrorMessage(error, fallbackErrorMessage),
         loading: false,
       }));
     }
   }, [fallbackErrorMessage, scopeAgentId]);
 
+  const refresh = useCallback(
+    () => runRefresh("foreground"),
+    [runRefresh],
+  );
+
   useEffect(() => {
     if (!isVisible) {
       return undefined;
     }
-    void refresh();
+    void runRefresh("foreground");
 
     const refreshIfVisible = (): void => {
       if (!document.hidden) {
-        void refresh("background");
+        void runRefresh("background");
       }
     };
     const intervalId = window.setInterval(
@@ -113,7 +144,7 @@ export function useAgentSkillsResource({
       window.removeEventListener("focus", refreshIfVisible);
       document.removeEventListener("visibilitychange", refreshIfVisible);
     };
-  }, [isVisible, refresh]);
+  }, [isVisible, runRefresh]);
 
   return {
     error: state.error,

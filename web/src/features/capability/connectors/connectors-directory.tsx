@@ -14,6 +14,7 @@ import type { ConnectorDetail } from "@/types/capability/connector";
 import { ConnectorCredentialDialog } from "./auth/connector-credential-dialog";
 import { ConnectorDeviceAuthDialog } from "./auth/device-flow/connector-device-auth-dialog";
 import { ConnectorOAuthClientDialog } from "./auth/connector-oauth-client-dialog";
+import { ShopDomainPromptDialog } from "./auth/shop-domain/shop-domain-prompt-dialog";
 import { ConnectorsGrid } from "./catalog/connectors-grid";
 import { ConnectorsHeader } from "./catalog/connectors-header";
 import { ConnectorsSearchBar } from "./catalog/connectors-search-bar";
@@ -188,6 +189,11 @@ export function ConnectorsDirectory() {
           message,
         })}
         session={controller.deviceAuthSession}
+      />
+      <ShopDomainPromptDialog
+        onCancel={controller.cancelShopDomainPrompt}
+        onConfirm={controller.confirmShopDomainPrompt}
+        state={controller.shopDomainPrompt}
       />
       <FeedbackBannerViewport
         item={controller.feedback ? {

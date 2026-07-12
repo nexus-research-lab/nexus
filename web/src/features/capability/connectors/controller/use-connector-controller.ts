@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 
+import { useShopDomainPrompt } from "../auth/shop-domain/use-shop-domain-prompt";
 import type { ConnectorFeedback } from "./connector-controller-types";
 import { useConnectorCatalog } from "./use-connector-catalog";
 import { useConnectorCommand } from "./use-connector-command";
@@ -18,6 +19,7 @@ export function useConnectorController() {
   }, []);
   const catalog = useConnectorCatalog({ onError: reportError });
   const detail = useConnectorDetail({ onError: reportError });
+  const shopDomainPrompt = useShopDomainPrompt();
   const { pendingAction, runCommand } = useConnectorCommand();
   const { refresh: refreshCatalog } = catalog;
   const { refreshDetail } = detail;
@@ -34,6 +36,7 @@ export function useConnectorController() {
     refreshCatalog,
     refreshConnector,
     reportFeedback,
+    requestShopDomain: shopDomainPrompt.request,
     runCommand,
   });
 
@@ -52,6 +55,9 @@ export function useConnectorController() {
     refreshCatalog,
     reportFeedback,
     searchQuery: catalog.searchQuery,
+    shopDomainPrompt: shopDomainPrompt.state,
+    cancelShopDomainPrompt: shopDomainPrompt.cancel,
+    confirmShopDomainPrompt: shopDomainPrompt.confirm,
     selectedDetail: detail.selectedDetail,
     detailLoading: detail.detailLoading,
     setActiveCategory: catalog.setActiveCategory,

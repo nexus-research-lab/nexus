@@ -38,7 +38,6 @@ export function ContactsPage() {
 
   const presentation = getContactsPagePresentation({
     contactCount: controller.contactAgents.length,
-    editingAgent: controller.editor.editingAgent,
     loading: controller.loading,
     pendingDeleteAgent: controller.pendingDeleteAgent,
     selectedAgent: navigation.selectedAgent,
@@ -67,18 +66,11 @@ export function ContactsPage() {
       />
 
       <AgentOptionsDialog
-        agentId={presentation.editor.agentId}
-        initialOptions={controller.editor.initialOptions}
-        initialAvatar={presentation.editor.initialAvatar}
-        initialDescription={presentation.editor.initialDescription}
-        initialTitle={presentation.editor.initialTitle}
-        initialVibeTags={presentation.editor.initialVibeTags}
-        isOpen={controller.editor.isOpen}
-        mode={controller.editor.mode}
         onClose={controller.editor.close}
         onDelete={controller.requestDeleteAgent}
         onSave={controller.editor.save}
         onValidateName={controller.editor.validateName}
+        state={controller.editor.dialogState}
       />
 
       <ConfirmDialog

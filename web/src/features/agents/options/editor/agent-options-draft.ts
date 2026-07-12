@@ -13,7 +13,8 @@ import {
 } from "@/lib/agent-options";
 import type {
   AgentEditorInitialOptions,
-  AgentOptionsFormProps,
+  AgentOptionsEditorInitialValues,
+  AgentOptionsEditorSource,
 } from "../agent-options-editor-model";
 
 export interface AgentOptionsDraft {
@@ -36,54 +37,52 @@ export interface AgentOptionsSubmission {
 
 interface CreateAgentOptionsDraftOptions {
   defaultTitle: string;
-  initialAvatar: string;
-  initialDescription: string;
-  initialOptions: AgentEditorInitialOptions;
-  initialTitle: string;
-  initialVibeTags: string[];
+  initial: AgentOptionsEditorInitialValues;
 }
 
 interface AgentEditorScopeOptions {
   draft: AgentOptionsDraft;
-  initialOptions: AgentEditorInitialOptions;
-  props: Pick<AgentOptionsFormProps, "agentId" | "isActive" | "mode">;
+  isActive: boolean;
+  source: AgentOptionsEditorSource;
 }
 
 export function createAgentOptionsDraft({
   defaultTitle,
-  initialAvatar,
-  initialDescription,
-  initialOptions,
-  initialTitle,
-  initialVibeTags,
+  initial,
 }: CreateAgentOptionsDraftOptions): AgentOptionsDraft {
-  const model = initialOptions.model?.trim() || DEFAULT_AGENT_OPTION_MODEL;
+  const model = initial.options.model?.trim() || DEFAULT_AGENT_OPTION_MODEL;
   return {
-    allowedTools: normalizeAgentAllowedToolsForEditor(initialOptions.allowed_tools),
-    avatar: initialAvatar,
-    description: initialDescription,
-    disallowedTools: initialOptions.disallowed_tools ?? [],
+    allowedTools: normalizeAgentAllowedToolsForEditor(initial.options.allowed_tools),
+    avatar: initial.avatar,
+    description: initial.description,
+    disallowedTools: initial.options.disallowed_tools ?? [],
     model,
-    permissionMode: initialOptions.permission_mode || DEFAULT_AGENT_PERMISSION_MODE,
-    provider: model
-      ? normalizeAgentOptionProvider(initialOptions.provider) || DEFAULT_AGENT_OPTION_PROVIDER
-      : DEFAULT_AGENT_OPTION_PROVIDER,
-    title: initialTitle || defaultTitle,
-    vibeTags: initialVibeTags,
+    permissionMode: initial.options.permission_mode || DEFAULT_AGENT_PERMISSION_MODE,
+    provider: resolveInitialProvider(model, initial.options.provider),
+    title: initial.title || defaultTitle,
+    vibeTags: initial.vibeTags,
   };
+}
+
+function resolveInitialProvider(
+  model: string,
+  provider: AgentProvider | undefined,
+): AgentProvider {
+  if (!model) {
+    return DEFAULT_AGENT_OPTION_PROVIDER;
+  }
+  return normalizeAgentOptionProvider(provider) || DEFAULT_AGENT_OPTION_PROVIDER;
 }
 
 export function buildAgentEditorScopeKey({
   draft,
-  initialOptions,
-  props,
+  isActive,
+  source,
 }: AgentEditorScopeOptions): string {
   return JSON.stringify({
-    agentId: props.agentId ?? null,
     draft,
-    initialOptions,
-    isActive: props.isActive,
-    mode: props.mode,
+    isActive,
+    source,
   });
 }
 

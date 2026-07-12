@@ -10,9 +10,11 @@ import {
 } from "lucide-react";
 
 import { AgentPrivateDomainView } from "@/features/agents/private-domain/agent-private-domain-view";
-import { pickAgentEditableOptions } from "@/lib/agent-options";
 import { AgentOptionsInlineEditor } from "@/features/agents/options/agent-options-editor";
-import type { AgentOptionsTabKey } from "@/features/agents/options/agent-options-editor-model";
+import {
+  buildAgentOptionsEditSource,
+  type AgentOptionsTabKey,
+} from "@/features/agents/options/agent-options-editor-model";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiUnderlineTabs } from "@/shared/ui/navigation/tabs";
 import { WorkspaceSurfaceView } from "@/shared/ui/workspace/surface/workspace-surface-view";
@@ -68,9 +70,9 @@ export function RoomAgentAboutSurface({
     return roomMembers.find((member) => member.agent_id === selectedAgentId) ?? agent;
   }, [agent, roomMembers, selectedAgentId]);
 
-  const initialOptions = useMemo(
-    () => pickAgentEditableOptions(selectedAgent.options),
-    [selectedAgent.options],
+  const editorSource = useMemo(
+    () => buildAgentOptionsEditSource(selectedAgent),
+    [selectedAgent],
   );
 
   const handleSave = useCallback(async (
@@ -120,19 +122,13 @@ export function RoomAgentAboutSurface({
         ) : (
           <AgentOptionsInlineEditor
             activeTab={activeTab}
-            agentId={selectedAgent.agent_id}
             contentMaxWidthClassName="max-w-[860px]"
-            initialAvatar={selectedAgent.avatar ?? ""}
-            initialDescription={selectedAgent.description ?? ""}
-            initialOptions={initialOptions}
-            initialTitle={selectedAgent.name}
-            initialVibeTags={selectedAgent.vibe_tags ?? []}
             isActive={isVisible}
-            mode="edit"
             onSave={handleSave}
             onTabChange={setActiveTab}
             onValidateName={handleValidateName}
             showDeleteButton={false}
+            source={editorSource}
           />
         )}
       </div>

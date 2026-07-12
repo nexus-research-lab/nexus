@@ -1,5 +1,5 @@
+import { GuideCenterDialog } from "@/features/onboarding/guide-center/guide-center-dialog";
 import { SettingsSidebarNavigation } from "@/features/settings/settings-sidebar-navigation";
-import { OnboardingGuideCenter } from "@/shared/ui/onboarding/onboarding-guide-center";
 
 import { SidebarCollapsedRail } from "./view/sidebar-collapsed-rail";
 import { SidebarExpandedPanel } from "./view/sidebar-expanded-panel";
@@ -25,7 +25,7 @@ export function SidebarWidePanel() {
           settingsNavigation={settingsNavigation}
         />
       )}
-      <OnboardingGuideCenter {...controller.guideCenterProps} />
+      <GuideCenterDialog {...controller.guideCenterProps} />
     </>
   );
 }

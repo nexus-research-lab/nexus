@@ -14,9 +14,11 @@ import {
 
 import { AgentPrivateDomainView } from "@/features/agents/private-domain/agent-private-domain-view";
 import { AgentOptionsInlineEditor } from "@/features/agents/options/agent-options-editor";
-import { pickAgentEditableOptions } from "@/lib/agent-options";
+import {
+  buildAgentOptionsEditSource,
+  type AgentOptionsTabKey,
+} from "@/features/agents/options/agent-options-editor-model";
 import { AgentMemoryView } from "@/features/memory/agent-memory-view";
-import type { AgentOptionsTabKey } from "@/features/agents/options/agent-options-editor-model";
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
@@ -83,9 +85,9 @@ export function ContactsAgentDetail({
       .filter(Boolean);
   }, [agent.vibe_tags]);
 
-  const initialOptions = useMemo(
-    () => pickAgentEditableOptions(agent.options),
-    [agent.options],
+  const editorSource = useMemo(
+    () => buildAgentOptionsEditSource(agent),
+    [agent],
   );
 
   const handleSave = useCallback(
@@ -159,20 +161,14 @@ export function ContactsAgentDetail({
       ) : (
         <AgentOptionsInlineEditor
           activeTab={activeTab}
-          agentId={agent.agent_id}
           contentMaxWidthClassName={WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME}
-          initialAvatar={agent.avatar ?? ""}
-          initialDescription={agent.description ?? ""}
-          initialOptions={initialOptions}
-          initialTitle={agent.name}
-          initialVibeTags={agent.vibe_tags ?? []}
           isActive
-          mode="edit"
           onDelete={onDeleteAgent}
           onSave={handleSave}
           onTabChange={setActiveTab}
           onValidateName={handleValidateName}
           showDeleteButton
+          source={editorSource}
         />
       )}
     </div>

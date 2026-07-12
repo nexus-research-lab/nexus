@@ -1,13 +1,11 @@
 "use client";
 
-import { useCallback } from "react";
-
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { useI18n } from "@/shared/i18n/i18n-context";
 
 import type {
-  AgentEditorInitialOptions,
   AgentOptionsControllerOptions,
+  AgentOptionsEditorSource,
   AgentOptionsMode,
   AgentOptionsTabKey,
   SaveFeedback,
@@ -23,36 +21,26 @@ import { useAgentProviderOptions } from "./use-agent-provider-options";
 import { useAgentSaveFeedback } from "./use-agent-save-feedback";
 
 export function useAgentOptionsEditorController({
-  agentId,
-  mode,
   isActive,
   onDelete,
   onSave,
   onSaveSuccess,
   onValidateName,
-  initialTitle = "",
-  initialOptions = {},
-  initialAvatar = "",
-  initialDescription = "",
-  initialVibeTags = [],
   showDeleteButton = true,
+  source,
   activeTab: controlledActiveTab,
   onTabChange,
 }: AgentOptionsControllerOptions) {
   const { t } = useI18n();
-  const sourceOptions = initialOptions as AgentEditorInitialOptions;
+  const sourceOptions = source.initial.options;
   const initialDraft = createAgentOptionsDraft({
     defaultTitle: t("agent_options.default_name"),
-    initialAvatar,
-    initialDescription,
-    initialOptions: sourceOptions,
-    initialTitle,
-    initialVibeTags,
+    initial: source.initial,
   });
   const scopeKey = buildAgentEditorScopeKey({
     draft: initialDraft,
-    initialOptions: sourceOptions,
-    props: { agentId, isActive, mode },
+    isActive,
+    source,
   });
   const feedback = useAgentSaveFeedback(scopeKey);
   const draftController = useAgentOptionsDraft({
@@ -87,7 +75,7 @@ export function useAgentOptionsEditorController({
       failed: t("agent_options.save_failed"),
       success: t("agent_options.save_success"),
     },
-    mode,
+    mode: source.kind,
     onSave,
     onSaveSuccess,
     onValidateName,
@@ -95,20 +83,14 @@ export function useAgentOptionsEditorController({
     sourceOptions,
     validation,
   });
-  const handleDelete = useCallback(() => {
-    onDelete?.(agentId ?? "");
-  }, [agentId, onDelete]);
-
   return {
     activeTab: tabs.activeTab,
     actions: buildEditorActions({
-      agentId,
       feedback: feedback.feedback,
-      handleDelete,
-      mode,
       onDelete,
       saveCommand,
       showDeleteButton,
+      source,
       t,
     }),
     content: {
@@ -119,7 +101,7 @@ export function useAgentOptionsEditorController({
         scopeKey,
         validation,
       }),
-      skills: buildSkillsProps(agentId, isActive, mode, tabs.activeTab),
+      skills: buildSkillsProps(source, isActive, tabs.activeTab),
     },
     onTabChange: tabs.onTabChange,
   };
@@ -147,32 +129,26 @@ function useAgentOptionsTabs({
 }
 
 function buildEditorActions({
-  agentId,
   feedback,
-  handleDelete,
-  mode,
   onDelete,
   saveCommand,
   showDeleteButton,
+  source,
   t,
 }: {
-  agentId?: string;
   feedback: SaveFeedback | null;
-  handleDelete: () => void;
-  mode: AgentOptionsMode;
   onDelete?: (agentId: string) => void;
   saveCommand: SaveCommand;
   showDeleteButton: boolean;
+  source: AgentOptionsEditorSource;
   t: Translate;
 }) {
   return {
     deleteAction: buildDeleteAction({
-      agentId,
-      handleDelete,
       label: t("agent_options.delete_agent"),
-      mode,
       onDelete,
       showDeleteButton,
+      source,
     }),
     feedback,
     saveAction: {
@@ -180,7 +156,7 @@ function buildEditorActions({
       label: resolveSaveButtonLabel({
         feedback,
         isSaving: saveCommand.isSaving,
-        mode,
+        mode: source.kind,
         labels: {
           create: t("agent_options.title_create"),
           error: t("agent_options.save_failed"),
@@ -195,47 +171,32 @@ function buildEditorActions({
 }
 
 function buildDeleteAction({
-  agentId,
-  handleDelete,
   label,
-  mode,
   onDelete,
   showDeleteButton,
+  source,
 }: {
-  agentId?: string;
-  handleDelete: () => void;
   label: string;
-  mode: AgentOptionsMode;
   onDelete?: (agentId: string) => void;
   showDeleteButton: boolean;
+  source: AgentOptionsEditorSource;
 }) {
-  const rules = [
-    {
-      matches: [
-        showDeleteButton,
-        mode === "edit",
-        Boolean(agentId),
-        Boolean(onDelete),
-      ].every(Boolean),
-      value: { label, run: handleDelete },
-    },
-    { matches: true, value: null },
-  ];
-  return rules.find((rule) => rule.matches)!.value;
+  if (!showDeleteButton || source.kind !== "edit" || !onDelete) {
+    return null;
+  }
+  return {
+    label,
+    run: () => onDelete(source.agentId),
+  };
 }
 
 function buildSkillsProps(
-  agentId: string | undefined,
+  source: AgentOptionsEditorSource,
   isActive: boolean,
-  mode: AgentOptionsMode,
   activeTab: AgentOptionsTabKey,
 ) {
-  const agentIdByMode: Readonly<Record<AgentOptionsMode, string | undefined>> = {
-    create: undefined,
-    edit: agentId,
-  };
   return {
-    agentId: agentIdByMode[mode],
+    agentId: source.kind === "edit" ? source.agentId : undefined,
     isVisible: [isActive, activeTab === "skills"].every(Boolean),
   };
 }

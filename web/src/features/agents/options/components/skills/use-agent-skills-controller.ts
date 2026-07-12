@@ -39,6 +39,32 @@ interface SkillCommandExecution {
   skill: AgentSkillEntry;
 }
 
+interface AgentSkillCommandProjection {
+  busySkillName: string | null;
+  commandBusy: boolean;
+  errorMessage: string | null;
+}
+
+function normalizeAgentSkillScope(agentId: string | undefined): string | null {
+  return agentId?.trim() || null;
+}
+
+function projectAgentSkillCommandState(
+  busyCommand: SkillCommandToken | null,
+  scopeAgentId: string | null,
+  actionError: string | null,
+  resourceError: string | null,
+): AgentSkillCommandProjection {
+  const scopedCommand = busyCommand?.agentId === scopeAgentId
+    ? busyCommand
+    : null;
+  return {
+    busySkillName: scopedCommand?.skillName ?? null,
+    commandBusy: scopedCommand !== null,
+    errorMessage: actionError ?? resourceError,
+  };
+}
+
 function createSkillCommand(
   agentId: string | null,
   skill: AgentSkillEntry,
@@ -98,7 +124,7 @@ export function useAgentSkillsController({
   isVisible,
 }: UseAgentSkillsControllerParams) {
   const { t } = useI18n();
-  const scopeAgentId = agentId?.trim() || null;
+  const scopeAgentId = normalizeAgentSkillScope(agentId);
   const activeAgentIdRef = useRef(scopeAgentId);
   activeAgentIdRef.current = scopeAgentId;
   const activeCommandRef = useRef<SkillCommandToken | null>(null);
@@ -125,6 +151,12 @@ export function useAgentSkillsController({
   const projection = useMemo(
     () => projectAgentSkills(items, deferredSearchQuery),
     [deferredSearchQuery, items],
+  );
+  const commandProjection = projectAgentSkillCommandState(
+    busyCommand,
+    scopeAgentId,
+    actionError,
+    resourceError,
   );
 
   useEffect(() => () => {
@@ -177,13 +209,11 @@ export function useAgentSkillsController({
 
   return {
     agentId: scopeAgentId,
-    busySkillName: busyCommand?.agentId === scopeAgentId
-      ? busyCommand.skillName
-      : null,
+    busySkillName: commandProjection.busySkillName,
     cancelRemove: () => setPendingRemoveSkill(null),
-    commandBusy: busyCommand?.agentId === scopeAgentId,
+    commandBusy: commandProjection.commandBusy,
     confirmRemove,
-    errorMessage: actionError ?? resourceError,
+    errorMessage: commandProjection.errorMessage,
     loading,
     pendingRemoveSkill,
     projection,

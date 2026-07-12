@@ -1,8 +1,12 @@
 import { useCallback, useMemo, useState } from "react";
 
 import { getInitialAgentOptions } from "@/config/runtime-options";
-import { pickAgentEditableOptions } from "@/lib/agent-options";
 import { buildAgentMutationParams } from "@/features/agents/options/agent-options-mutation";
+import {
+  buildAgentOptionsCreateSource,
+  buildAgentOptionsEditSource,
+} from "@/features/agents/options/agent-options-editor-model";
+import type { AgentOptionsDialogState } from "@/features/agents/options/dialog/agent-options-dialog-model";
 import type {
   Agent,
   AgentIdentityDraft,
@@ -14,7 +18,7 @@ import type {
 type ContactAgentEditorState =
   | {kind: "closed"}
   | {kind: "create"}
-  | {kind: "edit"; agentId: string};
+  | {agent: Agent; kind: "edit"};
 
 interface UseContactAgentEditorOptions {
   agents: Agent[];
@@ -38,15 +42,9 @@ export function useContactAgentEditor({
   validateAgentName,
 }: UseContactAgentEditorOptions) {
   const [state, setState] = useState<ContactAgentEditorState>({kind: "closed"});
-  const editingAgent = state.kind === "edit"
-    ? agents.find((agent) => agent.agent_id === state.agentId) ?? null
-    : null;
-  const mode: "create" | "edit" = state.kind === "edit" ? "edit" : "create";
-  const initialOptions = useMemo(
-    () => editingAgent
-      ? pickAgentEditableOptions(editingAgent.options)
-      : getInitialAgentOptions(),
-    [editingAgent],
+  const dialogState = useMemo(
+    () => buildContactAgentDialogState(state),
+    [state],
   );
 
   const save = useCallback(async (
@@ -61,31 +59,43 @@ export function useContactAgentEditor({
       await createAgent(buildAgentMutationParams(title, options, identity));
       return;
     }
-    await saveAgentOptions(state.agentId, title, options, identity);
+    await saveAgentOptions(state.agent.agent_id, title, options, identity);
   }, [createAgent, saveAgentOptions, state]);
 
   const validateName = useCallback((name: string) => (
     validateAgentName(
       name,
-      state.kind === "edit" ? state.agentId : undefined,
+      state.kind === "edit" ? state.agent.agent_id : undefined,
     )
   ), [state, validateAgentName]);
   const openCreate = useCallback(() => setState({kind: "create"}), []);
-  const openEdit = useCallback(
-    (agentId: string) => setState({kind: "edit", agentId}),
-    [],
-  );
+  const openEdit = useCallback((agentId: string) => {
+    const agent = agents.find((candidate) => candidate.agent_id === agentId);
+    if (agent) {
+      setState({agent, kind: "edit"});
+    }
+  }, [agents]);
   const close = useCallback(() => setState({kind: "closed"}), []);
 
   return {
-    isOpen: state.kind !== "closed",
-    mode,
-    editingAgent,
-    initialOptions,
+    dialogState,
     openCreate,
     openEdit,
     close,
     save,
     validateName,
   };
+}
+
+function buildContactAgentDialogState(
+  state: ContactAgentEditorState,
+): AgentOptionsDialogState {
+  switch (state.kind) {
+    case "closed":
+      return {kind: "closed"};
+    case "create":
+      return buildAgentOptionsCreateSource(getInitialAgentOptions());
+    case "edit":
+      return buildAgentOptionsEditSource(state.agent);
+  }
 }

@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Moved spreadsheet CSS projection out of the virtual grid model and into the cell-style domain, removing an unused border-type forwarding surface.
 - Replaced PPTX shape-tree branching with node handlers, privatized parser-only state, and split spreadsheet virtual-grid projection into explicit viewport, cell, merge, and layout phases.
 - Split Agent Options skill loading states and list sections into narrow views, and separated scoped skill command creation, mutation, stale-result rejection, and cleanup phases.
+- Replaced Agent Options mode and optional-initial-value matrices with explicit create/edit sources, reused one Agent projection across Contacts and Room, and split Skill refresh lifecycle phases into pure state transitions.
 - Replaced Agent identity name-validation JSX candidates with ordered semantic feedback rules and a single tone renderer.
 - Consolidated Provider Settings presentation rules, removed duplicate custom-provider state, added icon fallbacks, and split configuration, header, model-row, capability, and toggle rendering responsibilities.
 - Centralized Goal form and controller projections, unified confirmation rendering, and split command transactions into explicit lifecycle phases.
@@ -67,6 +68,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Replaced branch-heavy message result and usage formatting with ordered display and numeric-range rules plus independent duration, token, cost, and cache projections.
 - Consolidated modal stacking, body scroll locking, focus discovery, focus cycling, and Escape handling under shared Dialog ownership; removed duplicate business-level keyboard listeners and migrated Agent Options, Mermaid preview, and scheduled-task run history off their private modal shells.
 - Moved Confirm and Prompt dialogs into an owned decision subdomain, sharing one modal frame and action bar while replacing Prompt focus/reset effects with mount-scoped state and ordered keyboard rules.
+- Moved Guide Center modal ownership into Onboarding, replaced interactive Article cards with semantic actions, and made Shopify domain input a controlled Auth transaction instead of a temporary React Root.
 - Separated scheduled-task run diagnostics from history status and action rules, using ordered definitions for detail rows, output sections, and copied diagnostic fields instead of repeated conditional assembly.
 - Moved ExcelJS cell-value classification and text formatting into an owned Spreadsheet value model, replacing the branch-heavy `unknown` object probe chain with ordered rules over the real closed `CellValue` union.
 - Split Room history items into pure activity/action projection and mode-driven reading/editing views, replacing repeated active, capability, metadata, and title-state conditions in the item entry component.

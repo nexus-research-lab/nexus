@@ -5,14 +5,6 @@ export type ContactsPageContentState =
   | { kind: "directory" }
   | { kind: "loading" };
 
-interface ContactsEditorPresentation {
-  agentId: string | undefined;
-  initialAvatar: string;
-  initialDescription: string;
-  initialTitle: string | undefined;
-  initialVibeTags: string[];
-}
-
 interface ContactsDeleteDialogPresentation {
   isOpen: boolean;
   message: string;
@@ -21,7 +13,6 @@ interface ContactsDeleteDialogPresentation {
 interface ContactsPagePresentation {
   content: ContactsPageContentState;
   deleteDialog: ContactsDeleteDialogPresentation;
-  editor: ContactsEditorPresentation;
 }
 
 function getContactsContentState({
@@ -41,27 +32,6 @@ function getContactsContentState({
     : { kind: "directory" };
 }
 
-function getContactsEditorPresentation(
-  editingAgent: Agent | null,
-): ContactsEditorPresentation {
-  if (!editingAgent) {
-    return {
-      agentId: undefined,
-      initialAvatar: "",
-      initialDescription: "",
-      initialTitle: undefined,
-      initialVibeTags: [],
-    };
-  }
-  return {
-    agentId: editingAgent.agent_id,
-    initialAvatar: editingAgent.avatar ?? "",
-    initialDescription: editingAgent.description ?? "",
-    initialTitle: editingAgent.name,
-    initialVibeTags: editingAgent.vibe_tags ?? [],
-  };
-}
-
 function getContactsDeleteDialogPresentation(
   pendingDeleteAgent: { name: string } | null,
 ): ContactsDeleteDialogPresentation {
@@ -74,13 +44,11 @@ function getContactsDeleteDialogPresentation(
 
 export function getContactsPagePresentation({
   contactCount,
-  editingAgent,
   loading,
   pendingDeleteAgent,
   selectedAgent,
 }: {
   contactCount: number;
-  editingAgent: Agent | null;
   loading: boolean;
   pendingDeleteAgent: { name: string } | null;
   selectedAgent: Agent | null;
@@ -88,6 +56,5 @@ export function getContactsPagePresentation({
   return {
     content: getContactsContentState({ contactCount, loading, selectedAgent }),
     deleteDialog: getContactsDeleteDialogPresentation(pendingDeleteAgent),
-    editor: getContactsEditorPresentation(editingAgent),
   };
 }
