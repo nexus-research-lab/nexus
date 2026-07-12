@@ -1,11 +1,10 @@
 "use client";
 
 import { Check, Copy, ExternalLink, Github, Loader2 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 
 import { writeTextToClipboard } from "@/hooks/ui/clipboard";
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
-import { pollConnectorDeviceAuthApi } from "@/lib/api/capability/connector-api";
 import {
   UiDialogBackdrop,
   UiDialogBody,
@@ -17,6 +16,8 @@ import {
 import { UiButton, UiIconButton } from "@/shared/ui/button/button";
 import { UiPanel } from "@/shared/ui/panel";
 import type { ConnectorDeviceAuthStart } from "@/types/capability/connector";
+
+import { useConnectorDeviceAuth } from "./use-connector-device-auth";
 
 interface ConnectorDeviceAuthDialogProps {
   session: ConnectorDeviceAuthStart | null;
@@ -37,76 +38,13 @@ export function ConnectorDeviceAuthDialog({
     "等待 GitHub 授权确认",
     session?.device_code ?? null,
   );
-  const onConnectedRef = useRef(onConnected);
-  const onCloseRef = useRef(onClose);
-  const onErrorRef = useRef(onError);
-
-  useEffect(() => {
-    onConnectedRef.current = onConnected;
-  }, [onConnected]);
-
-  useEffect(() => {
-    onCloseRef.current = onClose;
-  }, [onClose]);
-
-  useEffect(() => {
-    onErrorRef.current = onError;
-  }, [onError]);
-
-  useEffect(() => {
-    if (!session) {
-      return;
-    }
-    let cancelled = false;
-    let timeoutId: ReturnType<typeof setTimeout> | null = null;
-    let delayMs = Math.max(session.interval || 5, 1) * 1000;
-
-    const scheduleNextPoll = () => {
-      timeoutId = setTimeout(() => {
-        void poll();
-      }, delayMs);
-    };
-
-    const poll = async () => {
-      try {
-        const result = await pollConnectorDeviceAuthApi(session.connector_id, session.device_code);
-        if (cancelled) {
-          return;
-        }
-        if (result.status === "connected") {
-          setPollingMessage("GitHub 已授权");
-          await onConnectedRef.current(session.connector_id);
-          if (!cancelled) {
-            onCloseRef.current();
-          }
-          return;
-        }
-        if (result.status === "slow_down") {
-          delayMs += 5000;
-        }
-        if (result.status === "expired" || result.status === "denied") {
-          onErrorRef.current(result.message || "GitHub 授权未完成");
-          onCloseRef.current();
-          return;
-        }
-        setPollingMessage(result.message || "等待 GitHub 授权确认");
-        scheduleNextPoll();
-      } catch (err) {
-        if (!cancelled) {
-          onErrorRef.current(err instanceof Error ? err.message : "GitHub 授权轮询失败");
-          onCloseRef.current();
-        }
-      }
-    };
-
-    scheduleNextPoll();
-    return () => {
-      cancelled = true;
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-    };
-  }, [session, setPollingMessage]);
+  useConnectorDeviceAuth({
+    onClose,
+    onConnected,
+    onError,
+    onMessage: setPollingMessage,
+    session,
+  });
 
   const handleCopy = useCallback(async () => {
     if (!session) {
@@ -117,8 +55,8 @@ export function ConnectorDeviceAuthDialog({
       setTimeout(() => setCopied(false), 1400);
       return;
     }
-    onErrorRef.current("复制授权码失败");
-  }, [session]);
+    onError("复制授权码失败");
+  }, [onError, session]);
 
   if (!session || typeof document === "undefined") {
     return null;

@@ -53,6 +53,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Split scheduled-task source and submit transactions into explicit phases, made daily Cron parsing reject partially invalid expressions, and centralized run actions plus list-item state in ordered presentation models.
 - Centralized Icon Picker, List Row, Glass Switch, and Workspace Tree Row presentation and interaction rules in shared models and Hooks, removing duplicated disabled guards and render-level state matrices.
 - Replaced Contacts page optional-field assembly and Agent private-thread render branches with explicit page-state and density-aware thread-list projections.
+- Moved connector Device Flow polling into an owned cancellable state machine, and serialized subscription loading plus mutations while centralizing feedback and view projections.
+- Split login redirect policy, Auth orchestration, and form rendering into owned layers, rejecting external and login-loop redirects while consolidating desktop render snapshot sentinels.
+- Split presentation text rendering into shape, paragraph, and run stages, and centralized Launcher recent-entry type styling in a dedicated presentation model.
+- Split PPTX package orchestration from Shape Tree parsing, caching shared layout and master parts so repeated slides reuse inherited elements and image resources.
 - Removed render-phase Thinking expansion mutations and separated image-source normalization, user-attachment capability projection, and embedded tool-error parsing into short owned phases.
 - Moved message ordering, system-event, permission, result, and final-response projection into an owned controller subdomain, reusing the single ordered-entry projection and replacing content-mode branches with exhaustive strategies.
 - Split message content rendering into entry selection, structured orchestration, exhaustive block routing, and tool interaction phases, while consolidating the shared AskUserQuestion tool identifier.

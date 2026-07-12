@@ -19,11 +19,8 @@ import {
 import { MentionTargetPopover } from "@/shared/ui/mention/mention-target-popover";
 
 import type { HeroStageProps } from "../console/launcher-console-types";
-import {
-  isLauncherChipTruncated,
-  truncateLauncherChipLabel,
-} from "../console/launcher-console-helpers";
 import { HeroBlobShell } from "./launcher-glass-shell";
+import { LauncherRecentEntries } from "./launcher-recent-entries";
 import { AgentPile } from "./pile/launcher-agent-pile";
 import { useLauncherQueryInput } from "./use-launcher-query-input";
 
@@ -198,99 +195,13 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
             </div>
           </FadeSlideIn>
 
-          <div
-            data-tour-anchor={LAUNCHER_TOUR_ANCHORS.recent}
-            className={cn(
-              "mx-auto flex w-full max-w-[326px] flex-wrap items-center justify-center gap-1 sm:max-w-[420px]",
-              "mt-3 sm:mt-4",
-            )}
-          >
-            {recentEntries.map((entry, index) => (
-              <FadeSlideIn
-                key={entry.key}
-                delayMs={580 + index * 55}
-                durationMs={360}
-                yOffset={6}
-                style={{ display: "inline-flex" }}
-              >
-                <div className="group relative inline-flex">
-                  {isLauncherChipTruncated(entry.label) ? (
-                    <div
-                      className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 w-max max-w-[220px] -translate-x-1/2 translate-y-1 rounded-2xl px-3 py-2 text-center text-xs font-medium leading-5 opacity-0 shadow-[0_18px_42px_rgba(38,52,76,0.16)] transition duration-200 ease-out group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100"
-                      style={{
-                        background: "rgba(247, 249, 253, 0.96)",
-                        boxShadow:
-                          "0 18px 42px rgba(38, 52, 76, 0.16), inset 0 0 0 1px rgba(255, 255, 255, 0.52)",
-                        color: "rgba(39, 50, 74, 0.88)",
-                      }}
-                    >
-                      {entry.type === "room" ? "#" : ""}
-                      {entry.label}
-                    </div>
-                  ) : null}
-                  <button
-                    aria-label={
-                      entry.type === "room"
-                        ? `房间 ${entry.label}`
-                        : `私聊 ${entry.label}`
-                    }
-                    className="inline-flex items-center gap-1 rounded-full px-2 py-1.5 text-xs font-medium transition duration-150 ease-out hover:-translate-y-0.5 sm:text-sm"
-                    style={{
-                      background:
-                        entry.type === "room"
-                          ? "var(--launcher-room-chip-background)"
-                          : "var(--launcher-agent-chip-background)",
-                      boxShadow:
-                        entry.type === "room"
-                          ? "inset 0 0 0 1px var(--launcher-room-chip-border)"
-                          : "inset 0 0 0 1px var(--launcher-agent-chip-border)",
-                      color:
-                        entry.type === "room"
-                          ? "var(--launcher-room-chip-text)"
-                          : "var(--launcher-agent-chip-text)",
-                    }}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onOpenRecentEntry(entry);
-                    }}
-                    type="button"
-                  >
-                    {entry.type === "dm" ? (
-                      <span
-                        className="h-4 w-4 rounded-full"
-                        style={{
-                          backgroundColor: index === 0 ? "#bff0ca" : "#ffd7b8",
-                          border: `1px solid ${index === 0 ? "#7fe3a8" : "#e3c6ad"}`,
-                        }}
-                      />
-                    ) : null}
-                    {entry.type === "room" ? "#" : ""}
-                    {truncateLauncherChipLabel(entry.label)}
-                  </button>
-                </div>
-              </FadeSlideIn>
-            ))}
-
-            <FadeSlideIn
-              delayMs={580 + recentEntries.length * 55}
-              durationMs={360}
-              yOffset={6}
-              style={{ display: "inline-flex" }}
-            >
-              <button
-                data-tour-anchor={LAUNCHER_TOUR_ANCHORS.handoff}
-                className="px-1 text-xs font-medium transition-colors duration-150 ease-out hover:text-(--launcher-handoff-hover-color) sm:text-sm"
-                style={{ color: "var(--launcher-handoff-color)" }}
-                onClick={() => onOpenMainAgentDm(queryInput.input.value)}
-                type="button"
-              >
-                <span className="inline-flex items-center gap-1.5">
-                  {t("launcher.handoff")}
-                  <ArrowRight className="h-3.5 w-3.5" />
-                </span>
-              </button>
-            </FadeSlideIn>
-          </div>
+          <LauncherRecentEntries
+            handoffLabel={t("launcher.handoff")}
+            initialPrompt={queryInput.input.value}
+            onHandoff={onOpenMainAgentDm}
+            onOpen={onOpenRecentEntry}
+            recentEntries={recentEntries}
+          />
         </div>
       </HeroBlobShell>
 

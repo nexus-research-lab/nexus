@@ -12,7 +12,7 @@ import type { ConnectorsRouteParams } from "@/types/app/route";
 import type { ConnectorDetail } from "@/types/capability/connector";
 
 import { ConnectorCredentialDialog } from "./auth/connector-credential-dialog";
-import { ConnectorDeviceAuthDialog } from "./auth/connector-device-auth-dialog";
+import { ConnectorDeviceAuthDialog } from "./auth/device-flow/connector-device-auth-dialog";
 import { ConnectorOAuthClientDialog } from "./auth/connector-oauth-client-dialog";
 import { ConnectorsGrid } from "./catalog/connectors-grid";
 import { ConnectorsHeader } from "./catalog/connectors-header";

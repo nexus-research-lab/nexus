@@ -8,6 +8,11 @@ interface DesktopPerformanceMark {
   startTimeMs: number;
 }
 
+interface DesktopElementRenderSnapshot {
+  children: number;
+  textLength: number;
+}
+
 interface DesktopWebReadyPerformance {
   domContentLoadedMs?: number;
   firstContentfulPaintMs?: number;
@@ -66,6 +71,10 @@ type DesktopLifecycleMessage =
   | DesktopWebReadyMessage;
 
 const DESKTOP_DIAGNOSTIC_TEXT_LIMIT = 4_096;
+const MISSING_ELEMENT_RENDER_SNAPSHOT: DesktopElementRenderSnapshot = {
+  children: -1,
+  textLength: -1,
+};
 
 declare global {
   interface Window {
@@ -137,17 +146,37 @@ export function notifyDesktopRenderHealth(
 
 export function getDesktopRenderSnapshot(): DesktopRenderSnapshot {
   const root = document.getElementById("root");
-  const body = document.body;
+  const bodySnapshot = getElementRenderSnapshot(
+    document.body,
+    (text) => text.length,
+  );
+  const rootSnapshot = getElementRenderSnapshot(
+    root,
+    (text) => text.trim().length,
+  );
   return {
-    bodyChildren: body?.childElementCount ?? -1,
-    bodyTextLength: body?.innerText?.length ?? -1,
+    bodyChildren: bodySnapshot.children,
+    bodyTextLength: bodySnapshot.textLength,
     hasRoot: Boolean(root),
     href: window.location.href,
     path: currentDesktopLocationPath(),
     readyState: document.readyState,
-    rootChildren: root?.childElementCount ?? -1,
-    rootTextLength: root?.innerText?.trim().length ?? -1,
+    rootChildren: rootSnapshot.children,
+    rootTextLength: rootSnapshot.textLength,
     title: document.title,
+  };
+}
+
+function getElementRenderSnapshot(
+  element: HTMLElement | null,
+  getTextLength: (text: string) => number,
+): DesktopElementRenderSnapshot {
+  if (!element) {
+    return MISSING_ELEMENT_RENDER_SNAPSHOT;
+  }
+  return {
+    children: element.childElementCount,
+    textLength: getTextLength(element.innerText),
   };
 }
 

@@ -1,3 +1,5 @@
+import type { CSSProperties } from "react";
+
 import { cn } from "@/shared/ui/class-name";
 import {
   ROUND_RECT_MAX_RADIUS,
@@ -60,6 +62,24 @@ function PresentationShape({
 }) {
   const stroke = shape.stroke || "none";
   const fill = shape.geometry === "line" ? "none" : shape.fill || "transparent";
+  return (
+    <g>
+      {renderShapeGeometry(shape, fill, stroke)}
+      <PresentationShapeText shape={shape} thumbnail={thumbnail} />
+    </g>
+  );
+}
+
+function PresentationShapeText({
+  shape,
+  thumbnail,
+}: {
+  shape: PresentationShapeElement;
+  thumbnail: boolean;
+}) {
+  if (shape.paragraphs.length === 0) {
+    return null;
+  }
   const textPadding = thumbnail
     ? Math.max(Math.min(shape.width, shape.height) * 0.03, 4)
     : Math.max(Math.min(shape.width, shape.height) * 0.045, 6);
@@ -68,74 +88,116 @@ function PresentationShape({
     : shape.textAnchor === "bottom"
       ? "flex-end"
       : "flex-start";
-
   return (
-    <g>
-      {renderShapeGeometry(shape, fill, stroke)}
-      {shape.paragraphs.length > 0 ? (
-        <foreignObject height={shape.height} width={shape.width} x={shape.x} y={shape.y}>
-          <div
-            style={{
-              boxSizing: "border-box",
-              display: "flex",
-              flexDirection: "column",
-              height: "100%",
-              justifyContent,
-              overflow: "hidden",
-              padding: textPadding,
-              width: "100%",
-            }}
-          >
-            {shape.paragraphs.map((paragraph) => (
-              <p
-                key={getParagraphKey(shape.id, paragraph)}
-                style={{
-                  columnGap: paragraph.bullet ? paragraph.fontSize * 0.45 : undefined,
-                  display: paragraph.bullet ? "grid" : "block",
-                  fontSize: paragraph.fontSize,
-                  gridTemplateColumns: paragraph.bullet ? `${paragraph.bulletIndent}px minmax(0, 1fr)` : undefined,
-                  lineHeight: paragraph.lineHeight,
-                  margin: paragraph === shape.paragraphs[0] ? 0 : `${paragraph.fontSize * 0.42}px 0 0`,
-                  textAlign: paragraph.align || "left",
-                  whiteSpace: "normal",
-                  wordBreak: paragraph.align === "center" ? "keep-all" : "normal",
-                }}
-              >
-                {paragraph.bullet ? (
-                  <span
-                    style={{
-                      color: paragraph.runs[0]?.color || "#111827",
-                      fontFamily: "Arial, sans-serif",
-                      fontSize: paragraph.fontSize,
-                      fontWeight: 700,
-                      lineHeight: paragraph.lineHeight,
-                    }}
-                  >
-                    {paragraph.bullet}
-                  </span>
-                ) : null}
-                <span style={{ minWidth: 0, overflowWrap: paragraph.align === "center" ? "normal" : "break-word" }}>
-                  {paragraph.runs.map((run) => (
-                    <span
-                      key={getTextRunKey(shape.id, paragraph, run)}
-                      style={{
-                        color: run.color || "#111827",
-                        fontFamily: run.fontFace || "Arial, sans-serif",
-                        fontSize: run.fontSize,
-                        fontStyle: run.italic ? "italic" : "normal",
-                        fontWeight: run.bold ? 700 : 400,
-                      }}
-                    >
-                      {run.text}
-                    </span>
-                  ))}
-                </span>
-              </p>
-            ))}
-          </div>
-        </foreignObject>
+    <foreignObject height={shape.height} width={shape.width} x={shape.x} y={shape.y}>
+      <div
+        style={{
+          boxSizing: "border-box",
+          display: "flex",
+          flexDirection: "column",
+          height: "100%",
+          justifyContent,
+          overflow: "hidden",
+          padding: textPadding,
+          width: "100%",
+        }}
+      >
+        {shape.paragraphs.map((paragraph, index) => (
+          <PresentationParagraphView
+            key={getParagraphKey(shape.id, paragraph)}
+            first={index === 0}
+            paragraph={paragraph}
+            shapeId={shape.id}
+          />
+        ))}
+      </div>
+    </foreignObject>
+  );
+}
+
+function PresentationParagraphView({
+  first,
+  paragraph,
+  shapeId,
+}: {
+  first: boolean;
+  paragraph: PresentationParagraph;
+  shapeId: string;
+}) {
+  return (
+    <p style={buildPresentationParagraphStyle(paragraph, first)}>
+      {paragraph.bullet ? (
+        <span style={buildPresentationBulletStyle(paragraph)}>
+          {paragraph.bullet}
+        </span>
       ) : null}
-    </g>
+      <span style={buildPresentationParagraphContentStyle(paragraph)}>
+        {paragraph.runs.map((run) => (
+          <PresentationTextRunView
+            key={getTextRunKey(shapeId, paragraph, run)}
+            run={run}
+          />
+        ))}
+      </span>
+    </p>
+  );
+}
+
+function buildPresentationParagraphStyle(
+  paragraph: PresentationParagraph,
+  first: boolean,
+): CSSProperties {
+  const centered = paragraph.align === "center";
+  const hasBullet = Boolean(paragraph.bullet);
+  return {
+    columnGap: hasBullet ? paragraph.fontSize * 0.45 : undefined,
+    display: hasBullet ? "grid" : "block",
+    fontSize: paragraph.fontSize,
+    gridTemplateColumns: hasBullet
+      ? `${paragraph.bulletIndent}px minmax(0, 1fr)`
+      : undefined,
+    lineHeight: paragraph.lineHeight,
+    margin: first ? 0 : `${paragraph.fontSize * 0.42}px 0 0`,
+    textAlign: paragraph.align || "left",
+    whiteSpace: "normal",
+    wordBreak: centered ? "keep-all" : "normal",
+  };
+}
+
+function buildPresentationBulletStyle(
+  paragraph: PresentationParagraph,
+): CSSProperties {
+  return {
+    color: paragraph.runs[0]?.color || "#111827",
+    fontFamily: "Arial, sans-serif",
+    fontSize: paragraph.fontSize,
+    fontWeight: 700,
+    lineHeight: paragraph.lineHeight,
+  };
+}
+
+function buildPresentationParagraphContentStyle(
+  paragraph: PresentationParagraph,
+): CSSProperties {
+  return {
+    minWidth: 0,
+    overflowWrap: paragraph.align === "center" ? "normal" : "break-word",
+  };
+}
+
+function PresentationTextRunView({ run }: { run: PresentationTextRun }) {
+  return (
+    <span
+      style={{
+        color: run.color || "#111827",
+        fontFamily: run.fontFace || "Arial, sans-serif",
+        fontSize: run.fontSize,
+        fontStyle: run.italic ? "italic" : "normal",
+        fontWeight: run.bold ? 700 : 400,
+      }}
+    >
+      {run.text}
+    </span>
   );
 }
 

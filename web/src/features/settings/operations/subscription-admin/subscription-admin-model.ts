@@ -1,3 +1,4 @@
+import type { TranslationKey } from "@/shared/i18n/messages";
 import type {
   SubscriptionAccount,
   SubscriptionOverview,
@@ -61,10 +62,26 @@ export interface PlanViewModel {
   savingPlanKey: string | null;
 }
 
+export interface SubscriptionAdminViewModels {
+  accountView: AccountViewModel;
+  planView: PlanViewModel;
+}
+
 export type PendingSubscriptionMutation =
   | { kind: "account"; ownerUserId: string }
   | { kind: "plan"; planKey: string }
   | { kind: "create-plan" };
+
+export type SubscriptionFeedbackEvent =
+  | "account-save-failed"
+  | "account-save-succeeded"
+  | "load-failed"
+  | "plan-create-failed"
+  | "plan-create-invalid"
+  | "plan-create-succeeded"
+  | "plan-save-failed"
+  | "plan-save-invalid"
+  | "plan-save-succeeded";
 
 export const PLAN_STATUSES: PlanStatus[] = ["active", "archived"];
 
@@ -73,6 +90,63 @@ export const EMPTY_SUBSCRIPTION_SNAPSHOT: SubscriptionAdminSnapshot = {
   accountDrafts: {},
   planDrafts: {},
 };
+
+interface FeedbackCopy {
+  message: TranslationKey;
+  title: TranslationKey;
+  tone: FeedbackState["tone"];
+}
+
+const FEEDBACK_COPY: Record<SubscriptionFeedbackEvent, FeedbackCopy> = {
+  "account-save-failed": {
+    message: "settings.subscription.save_failed_message",
+    title: "settings.subscription.save_failed_title",
+    tone: "error",
+  },
+  "account-save-succeeded": {
+    message: "settings.subscription.save_success_message",
+    title: "settings.subscription.save_success_title",
+    tone: "success",
+  },
+  "load-failed": {
+    message: "settings.subscription.load_failed_message",
+    title: "settings.subscription.load_failed_title",
+    tone: "error",
+  },
+  "plan-create-failed": {
+    message: "settings.subscription.plan_create_failed_message",
+    title: "settings.subscription.plan_create_failed_title",
+    tone: "error",
+  },
+  "plan-create-invalid": {
+    message: "settings.subscription.plan_limit_invalid",
+    title: "settings.subscription.plan_create_failed_title",
+    tone: "error",
+  },
+  "plan-create-succeeded": {
+    message: "settings.subscription.plan_create_success_message",
+    title: "settings.subscription.plan_create_success_title",
+    tone: "success",
+  },
+  "plan-save-failed": {
+    message: "settings.subscription.plan_save_failed_message",
+    title: "settings.subscription.plan_save_failed_title",
+    tone: "error",
+  },
+  "plan-save-invalid": {
+    message: "settings.subscription.plan_limit_invalid",
+    title: "settings.subscription.plan_save_failed_title",
+    tone: "error",
+  },
+  "plan-save-succeeded": {
+    message: "settings.subscription.plan_save_success_message",
+    title: "settings.subscription.plan_save_success_title",
+    tone: "success",
+  },
+};
+
+const EMPTY_ACCOUNTS: SubscriptionAccount[] = [];
+const EMPTY_PLANS: SubscriptionPlan[] = [];
 
 const TOKEN_COUNT_FORMATTER = new Intl.NumberFormat(undefined, {
   maximumFractionDigits: 0,
@@ -132,7 +206,7 @@ export function buildSubscriptionSnapshot(
   };
 }
 
-export function buildSubscriptionSummary(
+function buildSubscriptionSummary(
   accounts: SubscriptionAccount[],
   plans: SubscriptionPlan[],
 ): SubscriptionSummary {
@@ -146,7 +220,64 @@ export function buildSubscriptionSummary(
   };
 }
 
-export function getSelectablePlans(plans: SubscriptionPlan[]): SubscriptionPlan[] {
+export function buildSubscriptionFeedback(
+  translate: (key: TranslationKey) => string,
+  event: SubscriptionFeedbackEvent,
+): FeedbackState {
+  const copy = FEEDBACK_COPY[event];
+  return {
+    message: translate(copy.message),
+    title: translate(copy.title),
+    tone: copy.tone,
+  };
+}
+
+function getSavingOwnerUserId(
+  pending: PendingSubscriptionMutation | null,
+): string | null {
+  return pending?.kind === "account" ? pending.ownerUserId : null;
+}
+
+function getSavingPlanKey(
+  pending: PendingSubscriptionMutation | null,
+): string | null {
+  return pending?.kind === "plan" ? pending.planKey : null;
+}
+
+export function buildSubscriptionAdminViewModels(
+  snapshot: SubscriptionAdminSnapshot,
+  newPlanDraft: PlanDraft,
+  loading: boolean,
+  pending: PendingSubscriptionMutation | null,
+): SubscriptionAdminViewModels {
+  const accounts = snapshot.overview?.accounts ?? EMPTY_ACCOUNTS;
+  const plans = snapshot.overview?.plans ?? EMPTY_PLANS;
+  const mutationPending = pending !== null;
+  return {
+    accountView: {
+      accounts,
+      drafts: snapshot.accountDrafts,
+      loading,
+      mutationPending,
+      periodEnd: snapshot.overview?.period_end ?? "",
+      periodStart: snapshot.overview?.period_start ?? "",
+      plans: getSelectablePlans(plans),
+      savingOwnerUserId: getSavingOwnerUserId(pending),
+      summary: buildSubscriptionSummary(accounts, plans),
+    },
+    planView: {
+      creating: pending?.kind === "create-plan",
+      drafts: snapshot.planDrafts,
+      loading,
+      mutationPending,
+      newPlanDraft,
+      plans,
+      savingPlanKey: getSavingPlanKey(pending),
+    },
+  };
+}
+
+function getSelectablePlans(plans: SubscriptionPlan[]): SubscriptionPlan[] {
   const activePlans = plans.filter((plan) => plan.status !== "archived");
   return activePlans.length > 0 ? activePlans : plans;
 }
