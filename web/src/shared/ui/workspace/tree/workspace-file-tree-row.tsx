@@ -8,6 +8,7 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import type { WorkspaceFileEntry } from "@/types/agent/agent";
 
 import {
+  getWorkspaceFileTreeRowPresentation,
   getWorkspaceFileVisual,
   type WorkspaceFileTreeNode,
 } from "./workspace-file-tree-model";
@@ -37,9 +38,13 @@ export const WorkspaceFileTreeRow = memo(function WorkspaceFileTreeRow({
 }: WorkspaceFileTreeRowProps) {
   const { entry, children } = node;
   const [isOpen, setIsOpen] = useState(depth === 0);
-  const isActive = entry.path === activePath;
-  const isDirectoryTarget = entry.is_dir && entry.path === focusedDirectoryPath;
-  const isSelected = isActive || isDirectoryTarget;
+  const presentation = getWorkspaceFileTreeRowPresentation({
+    activePath,
+    depth,
+    entry,
+    focusedDirectoryPath,
+    isOpen,
+  });
 
   const handleClick = useCallback(() => {
     if (entry.is_dir) {
@@ -58,73 +63,101 @@ export const WorkspaceFileTreeRow = memo(function WorkspaceFileTreeRow({
   return (
     <div>
       <div
-        className={cn(
-          "group relative flex min-w-full w-max items-center rounded-xl pr-2 text-left transition-colors",
-          "hover:bg-(--surface-interactive-hover-background)",
-          isSelected
-            ? "bg-[color:color-mix(in_srgb,var(--foreground)_4%,transparent)] text-(--text-strong)"
-            : "text-(--text-default)",
-        )}
+        className={presentation.rowClassName}
         onContextMenu={handleContextMenu}
       >
-        {isSelected ? (
-          <span
-            aria-hidden="true"
-            className="absolute left-1 top-2 bottom-2 w-px rounded-full bg-[color:color-mix(in_srgb,var(--primary)_72%,white_28%)]"
-          />
-        ) : null}
+        <WorkspaceTreeSelectionIndicator visible={presentation.isSelected} />
 
         <button
           className="flex min-w-0 flex-1 items-center gap-1.25 py-1.25 text-left"
           onClick={handleClick}
-          style={{ paddingLeft: `${8 + depth * 12}px` }}
+          style={{ paddingLeft: `${presentation.paddingLeft}px` }}
           type="button"
         >
-          {entry.is_dir ? (
-            <ChevronRight
-              className={cn(
-                "h-3 w-3 shrink-0 transition-transform",
-                isSelected ? "text-(--icon-default)" : "text-(--icon-muted)",
-                isOpen && "rotate-90",
-              )}
-            />
-          ) : (
-            <span className="w-3 shrink-0" />
-          )}
+          <WorkspaceTreeExpandIndicator
+            className={presentation.chevronClassName}
+            isDirectory={entry.is_dir}
+          />
           <WorkspaceTreeEntryIcon
             entry={entry}
-            isDirectoryTarget={isDirectoryTarget}
+            isDirectoryTarget={presentation.isDirectoryTarget}
             isOpen={isOpen}
           />
-          <span
-            className={cn(
-              "shrink-0 whitespace-nowrap text-[13px] leading-[1.3rem]",
-              entry.is_dir || isSelected ? "font-medium" : "font-normal",
-            )}
-          >
+          <span className={presentation.nameClassName}>
             {entry.name}
           </span>
         </button>
         <WorkspaceFileTreeRowActions
           actions={actions}
           entry={entry}
-          visible={isSelected}
+          visible={presentation.actionsVisible}
         />
       </div>
-
-      {entry.is_dir && isOpen ? children.map((child) => (
-        <WorkspaceFileTreeRow
-          actions={actions}
-          activePath={activePath}
-          depth={depth + 1}
-          focusedDirectoryPath={focusedDirectoryPath}
-          key={child.entry.path}
-          node={child}
-        />
-      )) : null}
+      <WorkspaceFileTreeChildren
+        actions={actions}
+        activePath={activePath}
+        children={children}
+        depth={depth}
+        focusedDirectoryPath={focusedDirectoryPath}
+        visible={presentation.showChildren}
+      />
     </div>
   );
 });
+
+function WorkspaceTreeSelectionIndicator({ visible }: { visible: boolean }) {
+  if (!visible) {
+    return null;
+  }
+  return (
+    <span
+      aria-hidden="true"
+      className="absolute left-1 top-2 bottom-2 w-px rounded-full bg-[color:color-mix(in_srgb,var(--primary)_72%,white_28%)]"
+    />
+  );
+}
+
+function WorkspaceTreeExpandIndicator({
+  className,
+  isDirectory,
+}: {
+  className: string;
+  isDirectory: boolean;
+}) {
+  return isDirectory
+    ? <ChevronRight className={className} />
+    : <span className="w-3 shrink-0" />;
+}
+
+function WorkspaceFileTreeChildren({
+  actions,
+  activePath,
+  children,
+  depth,
+  focusedDirectoryPath,
+  visible,
+}: {
+  actions: WorkspaceFileTreeActions;
+  activePath: string | null;
+  children: WorkspaceFileTreeNode[];
+  depth: number;
+  focusedDirectoryPath: string | null;
+  visible: boolean;
+}) {
+  if (!visible) {
+    return null;
+  }
+  return children.map((child) => (
+    <WorkspaceFileTreeRow
+      actions={actions}
+      activePath={activePath}
+      depth={depth + 1}
+      focusedDirectoryPath={focusedDirectoryPath}
+      key={child.entry.path}
+      node={child}
+    />
+  ));
+}
 
 function WorkspaceTreeEntryIcon({
   entry,

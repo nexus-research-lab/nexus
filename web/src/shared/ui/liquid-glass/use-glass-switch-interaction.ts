@@ -1,16 +1,32 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type PointerEvent,
+  type TransitionEvent,
+} from "react";
 
 interface GlassSwitchInteractionOptions {
   checked: boolean;
   disabled: boolean;
+  onChange: (checked: boolean) => void;
 }
 
 interface GlassSwitchInteraction {
-  finishTransition: () => void;
+  buttonHandlers: {
+    onBlur: () => void;
+    onClick: () => void;
+    onKeyDown: (event: KeyboardEvent<HTMLButtonElement>) => void;
+    onKeyUp: (event: KeyboardEvent<HTMLButtonElement>) => void;
+    onPointerCancel: () => void;
+    onPointerDown: (event: PointerEvent<HTMLButtonElement>) => void;
+    onPointerUp: (event: PointerEvent<HTMLButtonElement>) => void;
+  };
   isPressed: boolean;
   isTransitioning: boolean;
-  press: () => void;
-  release: () => void;
+  onThumbTransitionEnd: (event: TransitionEvent<HTMLDivElement>) => void;
 }
 
 interface GlassSwitchInteractionState {
@@ -23,12 +39,15 @@ const IDLE_INTERACTION: GlassSwitchInteractionState = {
   isTransitioning: false,
 };
 
+const SWITCH_ACTIVATION_KEYS = new Set([" ", "Enter"]);
+
 /**
  * 交互状态只响应已提交的属性变化，避免组件在 render 阶段修正自身状态。
  */
 export function useGlassSwitchInteraction({
   checked,
   disabled,
+  onChange,
 }: GlassSwitchInteractionOptions): GlassSwitchInteraction {
   const previousCheckedRef = useRef(checked);
   const [interaction, setInteraction] = useState<GlassSwitchInteractionState>(IDLE_INTERACTION);
@@ -71,11 +90,57 @@ export function useGlassSwitchInteraction({
     ));
   }, []);
 
+  const handleClick = useCallback(() => {
+    if (!disabled) {
+      onChange(!checked);
+    }
+  }, [checked, disabled, onChange]);
+
+  const handleKeyDown = useCallback((event: KeyboardEvent<HTMLButtonElement>) => {
+    if (!disabled && SWITCH_ACTIVATION_KEYS.has(event.key)) {
+      press();
+    }
+  }, [disabled, press]);
+
+  const handleKeyUp = useCallback((event: KeyboardEvent<HTMLButtonElement>) => {
+    if (SWITCH_ACTIVATION_KEYS.has(event.key)) {
+      release();
+    }
+  }, [release]);
+
+  const handlePointerDown = useCallback((event: PointerEvent<HTMLButtonElement>) => {
+    if (disabled) {
+      return;
+    }
+    event.currentTarget.setPointerCapture(event.pointerId);
+    press();
+  }, [disabled, press]);
+
+  const handlePointerUp = useCallback((event: PointerEvent<HTMLButtonElement>) => {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    release();
+  }, [release]);
+
+  const handleThumbTransitionEnd = useCallback((event: TransitionEvent<HTMLDivElement>) => {
+    if (event.propertyName === "transform") {
+      finishTransition();
+    }
+  }, [finishTransition]);
+
   return {
-    finishTransition,
+    buttonHandlers: {
+      onBlur: release,
+      onClick: handleClick,
+      onKeyDown: handleKeyDown,
+      onKeyUp: handleKeyUp,
+      onPointerCancel: release,
+      onPointerDown: handlePointerDown,
+      onPointerUp: handlePointerUp,
+    },
     isPressed: interaction.isPressed,
     isTransitioning: interaction.isTransitioning,
-    press,
-    release,
+    onThumbTransitionEnd: handleThumbTransitionEnd,
   };
 }

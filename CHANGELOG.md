@@ -50,6 +50,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Replaced conditional rail and panel primary-tab rendering with one button structure driven by an explicit presentation table.
 - Replaced branch-heavy chat notification target and route resolution with ordered identity rules while preserving Room fallback and Session isolation.
 - Split workspace conversation-tab reconciliation into explicit retain, append, and fallback phases, and moved single-tab state styling into a pure presentation model.
+- Split scheduled-task source and submit transactions into explicit phases, made daily Cron parsing reject partially invalid expressions, and centralized run actions plus list-item state in ordered presentation models.
+- Centralized Icon Picker, List Row, Glass Switch, and Workspace Tree Row presentation and interaction rules in shared models and Hooks, removing duplicated disabled guards and render-level state matrices.
+- Replaced Contacts page optional-field assembly and Agent private-thread render branches with explicit page-state and density-aware thread-list projections.
 - Removed render-phase Thinking expansion mutations and separated image-source normalization, user-attachment capability projection, and embedded tool-error parsing into short owned phases.
 - Moved message ordering, system-event, permission, result, and final-response projection into an owned controller subdomain, reusing the single ordered-entry projection and replacing content-mode branches with exhaustive strategies.
 - Split message content rendering into entry selection, structured orchestration, exhaustive block routing, and tool interaction phases, while consolidating the shared AskUserQuestion tool identifier.

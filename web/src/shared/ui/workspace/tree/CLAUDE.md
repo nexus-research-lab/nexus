@@ -4,9 +4,9 @@
 
 ## 职责
 
-- `workspace-file-tree-model.ts`：文件层级和扩展名视觉规则的纯投影。
+- `workspace-file-tree-model.ts`：文件层级、扩展名视觉规则和单行选中/展开展示的纯投影。
 - `workspace-file-tree.tsx`：公共入口，只构建树和稳定动作对象。
-- `workspace-file-tree-row.tsx`：递归行、展开状态和行内动作视图。
+- `workspace-file-tree-row.tsx`：递归行、展开状态和窄职责的指示器、子树与行内动作视图。
 
 ## 边界
 

@@ -146,38 +146,67 @@ export function buildDailyCronExpression(timeValue: string, weekdays: Weekday[])
 export function parseDailyCronExpression(
   cronExpression: string,
 ): { dailyTime: string; selectedWeekdays: Weekday[] } | null {
+  const fields = parseDailyCronFields(cronExpression);
+  if (!fields) {
+    return null;
+  }
+  const dailyTime = parseDailyCronTime(fields.minute, fields.hour);
+  const selectedWeekdays = parseDailyCronWeekdays(fields.dayOfWeek);
+  if (!dailyTime || !selectedWeekdays) {
+    return null;
+  }
+
+  return { dailyTime, selectedWeekdays };
+}
+
+interface DailyCronFields {
+  dayOfWeek: string;
+  hour: string;
+  minute: string;
+}
+
+function parseDailyCronFields(cronExpression: string): DailyCronFields | null {
   const parts = cronExpression.trim().split(/\s+/);
   if (parts.length !== 5) {
     return null;
   }
+  const [minute, hour, dayOfMonth, month, dayOfWeek] = parts;
+  return dayOfMonth === "*" && month === "*"
+    ? { dayOfWeek, hour, minute }
+    : null;
+}
 
-  const [minuteText, hourText, dayOfMonth, month, dayOfWeek] = parts;
-  if (dayOfMonth !== "*" || month !== "*") {
-    return null;
-  }
-
+function parseDailyCronTime(minuteText: string, hourText: string): string | null {
   const hour = Number(hourText);
   const minute = Number(minuteText);
-  if (!Number.isInteger(hour) || !Number.isInteger(minute) || hour < 0 || hour > 23 || minute < 0 || minute > 59) {
-    return null;
+  const isValid = Number.isInteger(hour)
+    && Number.isInteger(minute)
+    && hour >= 0
+    && hour <= 23
+    && minute >= 0
+    && minute <= 59;
+  return isValid
+    ? `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`
+    : null;
+}
+
+const CRON_VALUE_TO_WEEKDAY = new Map(
+  WEEKDAY_OPTIONS.map((option) => [String(option.cronValue), option.key]),
+);
+
+function parseDailyCronWeekdays(dayOfWeek: string): Weekday[] | null {
+  if (dayOfWeek === "*") {
+    return WEEKDAY_OPTIONS.map((option) => option.key);
   }
-
-  const cronValueToWeekday = new Map(WEEKDAY_OPTIONS.map((option) => [String(option.cronValue), option.key]));
-  const selectedWeekdays = dayOfWeek === "*"
-    ? WEEKDAY_OPTIONS.map((option) => option.key)
-    : dayOfWeek
-      .split(",")
-      .map((value) => cronValueToWeekday.get(value.trim()))
-      .filter((value): value is Weekday => Boolean(value));
-
-  if (selectedWeekdays.length === 0) {
-    return null;
+  const weekdays: Weekday[] = [];
+  for (const value of dayOfWeek.split(",")) {
+    const weekday = CRON_VALUE_TO_WEEKDAY.get(value.trim());
+    if (!weekday) {
+      return null;
+    }
+    weekdays.push(weekday);
   }
-
-  return {
-    dailyTime: `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`,
-    selectedWeekdays: selectedWeekdays,
-  };
+  return weekdays.length > 0 ? weekdays : null;
 }
 
 export function toIntervalSeconds(value: string, unit: EveryUnit): number | null {

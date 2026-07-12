@@ -72,6 +72,93 @@ export function artifactFileName(path: string): string {
   return path.split("/").filter(Boolean).at(-1) ?? "automation-run.md";
 }
 
-export function isRetryableStatus(status: ScheduledTaskRunLedgerStatus): boolean {
+function isRetryableStatus(status: ScheduledTaskRunLedgerStatus): boolean {
   return status === "failed" || status === "cancelled" || status === "skipped";
+}
+
+export type ScheduledTaskRunActionKind = "recover" | "retry" | "retry_delivery";
+
+interface ScheduledTaskRunActionPresentation {
+  disabled: boolean;
+  kind: ScheduledTaskRunActionKind;
+  label: string;
+  title: string;
+  tone: "danger" | "primary";
+}
+
+interface ScheduledTaskRunActionContext {
+  isRecovering: boolean;
+  isRetrying: boolean;
+  isRetryingDelivery: boolean;
+  run: ScheduledTaskRunItem;
+  task: ScheduledTaskItem;
+}
+
+type RunActionBuilder = (
+  context: ScheduledTaskRunActionContext,
+) => ScheduledTaskRunActionPresentation | null;
+
+function buildRetryAction({
+  isRetrying,
+  run,
+  task,
+}: ScheduledTaskRunActionContext): ScheduledTaskRunActionPresentation | null {
+  if (!isRetryableStatus(run.status)) {
+    return null;
+  }
+  return {
+    disabled: isRetrying || task.running,
+    kind: "retry",
+    label: isRetrying ? "触发中" : "重新运行",
+    title: task.running ? "任务当前正在运行" : "用当前任务配置重新运行一次",
+    tone: "primary",
+  };
+}
+
+function buildRetryDeliveryAction({
+  isRetryingDelivery,
+  run,
+}: ScheduledTaskRunActionContext): ScheduledTaskRunActionPresentation | null {
+  if (run.delivery_status !== "failed") {
+    return null;
+  }
+  return {
+    disabled: isRetryingDelivery,
+    kind: "retry_delivery",
+    label: isRetryingDelivery ? "投递中" : "重试投递",
+    title: "只重试这次运行的结果投递，不重新执行任务",
+    tone: "primary",
+  };
+}
+
+function buildRecoverAction({
+  isRecovering,
+  run,
+  task,
+}: ScheduledTaskRunActionContext): ScheduledTaskRunActionPresentation | null {
+  if (run.status !== "running" || !task.running) {
+    return null;
+  }
+  return {
+    disabled: isRecovering,
+    kind: "recover",
+    label: isRecovering ? "释放中" : "释放占用",
+    title: "把该运行标记为取消，并释放任务占用",
+    tone: "danger",
+  };
+}
+
+const RUN_ACTION_BUILDERS: RunActionBuilder[] = [
+  buildRetryAction,
+  buildRetryDeliveryAction,
+  buildRecoverAction,
+];
+
+export function getRunActionPresentations(
+  context: ScheduledTaskRunActionContext,
+): ScheduledTaskRunActionPresentation[] {
+  return RUN_ACTION_BUILDERS.flatMap((buildAction) => {
+    const action = buildAction(context);
+    return action ? [action] : [];
+  });
 }

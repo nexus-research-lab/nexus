@@ -1,8 +1,12 @@
 "use client";
 
-import { type HTMLAttributes, type ReactNode } from "react";
+import {
+  type HTMLAttributes,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 
-import { cn } from "@/shared/ui/class-name";
+import { getUiListRowPresentation } from "./list-row-model";
 
 interface UiListRowProps extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {
   actions?: ReactNode;
@@ -32,60 +36,81 @@ export function UiListRow({
   title,
   ...props
 }: UiListRowProps) {
+  const presentation = getUiListRowPresentation({
+    active,
+    className,
+    interactive: Boolean(onClick),
+  });
   return (
     <div
-      className={cn(
-        "group/item relative flex min-h-[68px] w-full items-center gap-3 rounded-[14px] px-3 py-2.5 text-left transition-[background,color,transform] duration-(--motion-duration-fast)",
-        onClick && "cursor-pointer",
-        active
-          ? "bg-[color:color-mix(in_srgb,var(--primary)_10%,var(--surface-elevated-background))] text-(--text-strong) shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--primary)_12%,transparent)]"
-          : "text-(--text-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
-        className,
-      )}
+      className={presentation.className}
       {...props}
       onClick={onClick}
-      onKeyDown={(event) => {
-        props.onKeyDown?.(event);
-        if (!onClick || event.defaultPrevented) {
-          return;
-        }
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          onClick();
-        }
-      }}
-      role={onClick ? "button" : undefined}
-      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={(event) => handleListRowKeyDown(event, props.onKeyDown, onClick)}
+      role={presentation.role}
+      tabIndex={presentation.tabIndex}
     >
-      {active ? (
+      {presentation.showActiveIndicator ? (
         <span className="absolute left-0 top-1/2 h-9 w-[3px] -translate-y-1/2 rounded-full bg-(--primary)" />
       ) : null}
 
       {leading}
-
       {children ?? (
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="min-w-0 flex-1 truncate text-[14px] font-semibold">{title}</span>
-            {meta}
-          </div>
-          {(description || subtitleTrailing) ? (
-            <div className="mt-1 flex min-w-0 items-center gap-2">
-              {description ? (
-                <div className="min-w-0 flex-1 truncate text-[12px] leading-5 text-(--text-muted)">
-                  {description}
-                </div>
-              ) : (
-                <span className="min-w-0 flex-1" />
-              )}
-              {subtitleTrailing}
-            </div>
-          ) : null}
-        </div>
+        <UiListRowDefaultContent
+          description={description}
+          meta={meta}
+          subtitleTrailing={subtitleTrailing}
+          title={title}
+        />
       )}
-
       {right}
       {actions}
+    </div>
+  );
+}
+
+function handleListRowKeyDown(
+  event: KeyboardEvent<HTMLDivElement>,
+  onKeyDown: UiListRowProps["onKeyDown"],
+  onClick: UiListRowProps["onClick"],
+): void {
+  onKeyDown?.(event);
+  if (!onClick || event.defaultPrevented) {
+    return;
+  }
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    onClick();
+  }
+}
+
+function UiListRowDefaultContent({
+  description,
+  meta,
+  subtitleTrailing,
+  title,
+}: Pick<
+  UiListRowProps,
+  "description" | "meta" | "subtitleTrailing" | "title"
+>) {
+  return (
+    <div className="min-w-0 flex-1">
+      <div className="flex min-w-0 items-center gap-2">
+        <span className="min-w-0 flex-1 truncate text-[14px] font-semibold">{title}</span>
+        {meta}
+      </div>
+      {description || subtitleTrailing ? (
+        <div className="mt-1 flex min-w-0 items-center gap-2">
+          {description ? (
+            <div className="min-w-0 flex-1 truncate text-[12px] leading-5 text-(--text-muted)">
+              {description}
+            </div>
+          ) : (
+            <span className="min-w-0 flex-1" />
+          )}
+          {subtitleTrailing}
+        </div>
+      ) : null}
     </div>
   );
 }

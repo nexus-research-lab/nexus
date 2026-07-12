@@ -20,7 +20,7 @@ function formatInterval(seconds: number): string {
   return `${seconds} 秒`;
 }
 
-export function getScheduleSummary(schedule: ScheduledTaskSchedule): string {
+function getScheduleSummary(schedule: ScheduledTaskSchedule): string {
   if (schedule.kind === "every") {
     return `每 ${formatInterval(schedule.interval_seconds)}`;
   }
@@ -43,7 +43,7 @@ function getSessionTargetSummary(target: ScheduledTaskSessionTarget): string {
   return "每次新建临时会话";
 }
 
-export function getSourceKindLabel(source: ScheduledTaskSource | null | undefined): string {
+function getSourceKindLabel(source: ScheduledTaskSource | null | undefined): string {
   if (!source) {
     return "未知来源";
   }
@@ -59,7 +59,7 @@ export function getSourceKindLabel(source: ScheduledTaskSource | null | undefine
   return "系统创建";
 }
 
-export function getDeliverySummary(
+function getDeliverySummary(
   delivery: ScheduledTaskDeliveryTarget,
   source: ScheduledTaskSource | null | undefined,
 ): string {
@@ -78,7 +78,7 @@ export function getDeliverySummary(
   return "回到指定位置";
 }
 
-export function getContextSummary(task: ScheduledTaskItem): string {
+function getContextSummary(task: ScheduledTaskItem): string {
   const source = task.source;
   if (source?.context_type === "room" && source.context_label) {
     return `Room：${source.context_label}`;
@@ -89,7 +89,7 @@ export function getContextSummary(task: ScheduledTaskItem): string {
   return `智能体：${task.agent_id}`;
 }
 
-export function getSessionSummary(task: ScheduledTaskItem): string {
+function getSessionSummary(task: ScheduledTaskItem): string {
   if (task.execution_kind === "script") {
     return "脚本执行";
   }
@@ -111,7 +111,7 @@ function isSameSessionLoop(task: ScheduledTaskItem): boolean {
   );
 }
 
-export function getBehaviorSummary(task: ScheduledTaskItem): string {
+function getBehaviorSummary(task: ScheduledTaskItem): string {
   if (task.execution_kind === "script") {
     return "直接在工作区执行脚本，不占用 Agent 会话；运行输出会写入产物。";
   }
@@ -130,7 +130,7 @@ export function getBehaviorSummary(task: ScheduledTaskItem): string {
   return "每次执行都会新开一条临时会话，不会复用旧上下文。";
 }
 
-export function getPrimaryStatus(task: ScheduledTaskItem) {
+function getPrimaryStatus(task: ScheduledTaskItem) {
   if (task.running) {
     return { label: "运行中", tone: "running" as const };
   }
@@ -143,7 +143,7 @@ export function getPrimaryStatus(task: ScheduledTaskItem) {
   return { label: "已暂停", tone: "idle" as const };
 }
 
-export function getRunStatusLabel(status: string | null | undefined): string {
+function getRunStatusLabel(status: string | null | undefined): string {
   if (status === "succeeded") {
     return "成功";
   }
@@ -168,7 +168,7 @@ export function getRunStatusLabel(status: string | null | undefined): string {
   return status || "暂无记录";
 }
 
-export function getToggleAction(task: ScheduledTaskItem): {
+function getToggleAction(task: ScheduledTaskItem): {
   label: string;
   pending_label: string;
   tone: "danger" | "primary";
@@ -184,6 +184,119 @@ export function getToggleAction(task: ScheduledTaskItem): {
     label: "恢复",
     pending_label: "恢复中",
     tone: "primary",
+  };
+}
+
+interface ScheduledTaskListItemPendingState {
+  isDeleting: boolean;
+  isRunning: boolean;
+  isToggling: boolean;
+}
+
+interface ScheduledTaskListStatusBadge {
+  label: string;
+  tone: "active" | "default" | "idle" | "running";
+}
+
+interface ScheduledTaskListDetailItem {
+  label: string;
+  value: string;
+}
+
+interface ScheduledTaskListItemPresentation {
+  behaviorSummary: string;
+  contextSummary: string;
+  deleteDisabled: boolean;
+  deliverySummary: string;
+  detailItems: ScheduledTaskListDetailItem[];
+  historyDisabled: boolean;
+  lastError: string | null | undefined;
+  lastRunSummary: string;
+  nextRunSummary: string;
+  overlapPolicyLabel: string;
+  runAction: {
+    disabled: boolean;
+    title: string;
+  };
+  scheduleSummary: string;
+  sessionSummary: string;
+  sourceKindLabel: string;
+  statusBadges: ScheduledTaskListStatusBadge[];
+  toggleAction: {
+    disabled: boolean;
+    label: string;
+    title: string;
+    tone: "danger" | "primary";
+  };
+}
+
+function isPresent<Value>(value: Value | null): value is Value {
+  return value !== null;
+}
+
+function buildStatusBadges(
+  task: ScheduledTaskItem,
+): ScheduledTaskListStatusBadge[] {
+  return [
+    getPrimaryStatus(task),
+    task.running
+      ? { label: "执行占用中", tone: "running" as const }
+      : null,
+    task.failure_streak > 0
+      ? { label: `连续失败 ${task.failure_streak} 次`, tone: "default" as const }
+      : null,
+  ].filter(isPresent);
+}
+
+function buildDetailItems(
+  task: ScheduledTaskItem,
+): ScheduledTaskListDetailItem[] {
+  return [
+    task.running_started_at
+      ? {
+          label: "本次开始",
+          value: formatScheduledDatetime(task.running_started_at, { includeSeconds: true }),
+        }
+      : null,
+    task.expires_at
+      ? {
+          label: "有效期至",
+          value: formatScheduledDatetime(task.expires_at, { includeSeconds: true }),
+        }
+      : null,
+  ].filter(isPresent);
+}
+
+export function getScheduledTaskListItemPresentation(
+  task: ScheduledTaskItem,
+  pending: ScheduledTaskListItemPendingState,
+): ScheduledTaskListItemPresentation {
+  const toggleAction = getToggleAction(task);
+  return {
+    behaviorSummary: getBehaviorSummary(task),
+    contextSummary: getContextSummary(task),
+    deleteDisabled: pending.isDeleting,
+    deliverySummary: getDeliverySummary(task.delivery, task.source),
+    detailItems: buildDetailItems(task),
+    historyDisabled: task.session_target.kind === "main",
+    lastError: task.last_error,
+    lastRunSummary: `最近 ${getRunStatusLabel(task.last_run_status)} · ${formatScheduledDatetime(task.last_run_at, { emptyLabel: "尚未执行" })}`,
+    nextRunSummary: `下次 ${formatScheduledDatetime(task.next_run_at, { emptyLabel: "未安排" })}`,
+    overlapPolicyLabel: task.overlap_policy === "allow" ? "允许并行" : "跳过重叠",
+    runAction: {
+      disabled: pending.isRunning || task.running,
+      title: task.running ? "任务当前已经在运行中" : "立即触发一次执行",
+    },
+    scheduleSummary: getScheduleSummary(task.schedule),
+    sessionSummary: getSessionSummary(task),
+    sourceKindLabel: getSourceKindLabel(task.source),
+    statusBadges: buildStatusBadges(task),
+    toggleAction: {
+      disabled: pending.isToggling,
+      label: pending.isToggling ? toggleAction.pending_label : toggleAction.label,
+      title: task.enabled ? "暂停后不会再按计划自动触发" : "恢复后会重新参与调度",
+      tone: toggleAction.tone,
+    },
   };
 }
 

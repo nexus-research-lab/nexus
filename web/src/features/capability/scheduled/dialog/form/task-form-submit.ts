@@ -251,27 +251,57 @@ function selectedLabel(
   return options.find((option) => option.value === value)?.label || value.trim();
 }
 
+interface TaskSourceContext {
+  context_id: string;
+  context_label: string;
+  context_type: "agent" | "room";
+}
+
+function resolveTaskSourceContext(
+  context: TaskDialogSubmitContext,
+): TaskSourceContext {
+  const { agentOptions, form, roomOptions } = context;
+  const roomTarget = form.executionKind === "agent" && form.targetType === "room";
+  const target = roomTarget
+    ? {
+        contextType: "room" as const,
+        options: roomOptions,
+        value: form.selectedRoomId,
+      }
+    : {
+        contextType: "agent" as const,
+        options: agentOptions,
+        value: form.selectedAgentId,
+      };
+  const contextId = target.value.trim();
+  return {
+    context_id: contextId,
+    context_label: selectedLabel(target.options, contextId),
+    context_type: target.contextType,
+  };
+}
+
+function resolveTaskSourceSession(
+  context: TaskDialogSubmitContext,
+): Pick<ScheduledTaskSource, "session_key" | "session_label"> {
+  if (context.form.executionKind === "script") {
+    return { session_key: null, session_label: null };
+  }
+  return {
+    session_key: context.selectedSession?.sessionKey ?? null,
+    session_label: context.selectedSession?.label ?? null,
+  };
+}
+
 function buildSource(
   context: TaskDialogSubmitContext,
   originalSource?: ScheduledTaskSource | null,
 ): ScheduledTaskSource {
-  const { agentOptions, form, roomOptions, selectedSession } = context;
-  const isRoom = form.executionKind === "agent" && form.targetType === "room";
-  const contextId = isRoom ? form.selectedRoomId.trim() : form.selectedAgentId.trim();
   return {
-    context_id: contextId,
-    context_label: isRoom
-      ? selectedLabel(roomOptions, contextId)
-      : selectedLabel(agentOptions, contextId),
-    context_type: isRoom ? "room" : "agent",
+    ...resolveTaskSourceContext(context),
+    ...resolveTaskSourceSession(context),
     creator_agent_id: originalSource?.creator_agent_id ?? null,
     kind: originalSource?.kind ?? "user_page",
-    session_key: form.executionKind === "script"
-      ? null
-      : selectedSession?.sessionKey ?? null,
-    session_label: form.executionKind === "script"
-      ? null
-      : selectedSession?.label ?? null,
   };
 }
 

@@ -10,6 +10,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import { cn } from "@/shared/ui/class-name";
 import type { WorkspaceFileEntry } from "@/types/agent/agent";
 
 export interface WorkspaceFileTreeNode {
@@ -24,6 +25,17 @@ interface WorkspaceFileVisual {
 
 interface WorkspaceFileVisualGroup extends WorkspaceFileVisual {
   extensions: readonly string[];
+}
+
+interface WorkspaceFileTreeRowPresentation {
+  actionsVisible: boolean;
+  chevronClassName: string;
+  isDirectoryTarget: boolean;
+  isSelected: boolean;
+  nameClassName: string;
+  paddingLeft: number;
+  rowClassName: string;
+  showChildren: boolean;
 }
 
 const DEFAULT_FILE_VISUAL: WorkspaceFileVisual = {
@@ -138,6 +150,46 @@ export function getWorkspaceFileVisual(name: string): WorkspaceFileVisual {
     return NO_EXTENSION_VISUAL;
   }
   return FILE_VISUAL_BY_EXTENSION.get(extension) ?? DEFAULT_FILE_VISUAL;
+}
+
+export function getWorkspaceFileTreeRowPresentation({
+  activePath,
+  depth,
+  entry,
+  focusedDirectoryPath,
+  isOpen,
+}: {
+  activePath: string | null;
+  depth: number;
+  entry: WorkspaceFileEntry;
+  focusedDirectoryPath: string | null;
+  isOpen: boolean;
+}): WorkspaceFileTreeRowPresentation {
+  const isActive = entry.path === activePath;
+  const isDirectoryTarget = entry.is_dir && entry.path === focusedDirectoryPath;
+  const isSelected = isActive || isDirectoryTarget;
+  return {
+    actionsVisible: isSelected,
+    chevronClassName: cn(
+      "h-3 w-3 shrink-0 transition-transform",
+      isSelected ? "text-(--icon-default)" : "text-(--icon-muted)",
+      isOpen && "rotate-90",
+    ),
+    isDirectoryTarget,
+    isSelected,
+    nameClassName: cn(
+      "shrink-0 whitespace-nowrap text-[13px] leading-[1.3rem]",
+      entry.is_dir || isSelected ? "font-medium" : "font-normal",
+    ),
+    paddingLeft: 8 + depth * 12,
+    rowClassName: cn(
+      "group relative flex min-w-full w-max items-center rounded-xl pr-2 text-left transition-colors hover:bg-(--surface-interactive-hover-background)",
+      isSelected
+        ? "bg-[color:color-mix(in_srgb,var(--foreground)_4%,transparent)] text-(--text-strong)"
+        : "text-(--text-default)",
+    ),
+    showChildren: entry.is_dir && isOpen,
+  };
 }
 
 function compareWorkspaceEntries(

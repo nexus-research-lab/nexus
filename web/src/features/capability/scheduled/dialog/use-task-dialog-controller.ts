@@ -34,6 +34,56 @@ interface TaskDialogControllerOptions {
   onSaved?: (task: ScheduledTaskItem) => void | Promise<void>;
 }
 
+interface SubmitTaskDialogOptions {
+  context: TaskDialogSubmitContext;
+  initialTask: ScheduledTaskItem | null;
+  onCreated?: (task: ScheduledTaskItem) => void | Promise<void>;
+  onSaved?: (task: ScheduledTaskItem) => void | Promise<void>;
+}
+
+function buildUpdatePayload(
+  payload: UpdateScheduledTaskParams,
+  initialTask: ScheduledTaskItem,
+  expiresAtDraft: string,
+): UpdateScheduledTaskParams {
+  if (expiresAtDraft.trim() || initialTask.expires_at === null) {
+    return payload;
+  }
+  return { ...payload, clear_expires_at: true };
+}
+
+async function submitTaskDialog({
+  context,
+  initialTask,
+  onCreated,
+  onSaved,
+}: SubmitTaskDialogOptions): Promise<void> {
+  const payload = buildScheduledTaskPayload(context, initialTask?.source);
+  if (initialTask) {
+    const updatePayload = buildUpdatePayload(
+      payload,
+      initialTask,
+      context.form.expiresAt,
+    );
+    const updated = await updateScheduledTaskApi(initialTask.job_id, updatePayload);
+    await onSaved?.(updated);
+    return;
+  }
+
+  const created = await createScheduledTaskApi(payload);
+  await onCreated?.(created);
+}
+
+function getSubmitErrorMessage(
+  error: unknown,
+  initialTask: ScheduledTaskItem | null,
+): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return initialTask ? "保存任务失败" : "创建任务失败";
+}
+
 export function useTaskDialogController({
   agentId,
   initialTask = null,
@@ -108,36 +158,20 @@ export function useTaskDialogController({
     setIsSubmitting(true);
     setErrorMessage(null);
     try {
-      const payload = buildScheduledTaskPayload(
-        submitContext,
-        initialTask?.source,
-      );
-      if (initialTask) {
-        const updatePayload: UpdateScheduledTaskParams = { ...payload };
-        if (!form.draft.expiresAt.trim() && initialTask.expires_at !== null) {
-          updatePayload.clear_expires_at = true;
-        }
-        const updated = await updateScheduledTaskApi(
-          initialTask.job_id,
-          updatePayload,
-        );
-        await onSaved?.(updated);
-      } else {
-        const created = await createScheduledTaskApi(payload);
-        await onCreated?.(created);
-      }
+      await submitTaskDialog({
+        context: submitContext,
+        initialTask,
+        onCreated,
+        onSaved,
+      });
       onClose();
     } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : initialTask ? "保存任务失败" : "创建任务失败",
-      );
+      setErrorMessage(getSubmitErrorMessage(error, initialTask));
     } finally {
       submitInFlightRef.current = false;
       setIsSubmitting(false);
     }
-  }, [form.draft.expiresAt, initialTask, onClose, onCreated, onSaved, submitContext]);
+  }, [initialTask, onClose, onCreated, onSaved, submitContext]);
 
   useEffect(() => {
     if (!isOpen) {

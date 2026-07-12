@@ -1,7 +1,13 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Download, FolderOpen, RotateCcw, X } from "lucide-react";
+import {
+  Download,
+  FolderOpen,
+  RotateCcw,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 
 import { downloadWorkspaceFileApi } from "@/lib/api/agent/agent-api";
 import { getWorkspaceFileExternalActionCopy } from "@/lib/workspace-file-action";
@@ -10,8 +16,20 @@ import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
 
 import {
   artifactFileName,
-  isRetryableStatus,
+  getRunActionPresentations,
+  type ScheduledTaskRunActionKind,
 } from "../scheduled-task-run-history-model";
+
+const RUN_ACTION_ICONS: Record<ScheduledTaskRunActionKind, LucideIcon> = {
+  recover: X,
+  retry: RotateCcw,
+  retry_delivery: RotateCcw,
+};
+
+const RUN_ACTION_TONE_CLASS_NAMES = {
+  danger: "inline-flex items-center justify-end gap-1.5 text-xs font-semibold text-(--destructive) transition duration-(--motion-duration-fast) hover:text-(--destructive) disabled:opacity-60",
+  primary: "inline-flex items-center justify-end gap-1.5 text-xs font-semibold text-(--primary) transition duration-(--motion-duration-fast) hover:text-(--primary-hover) disabled:opacity-60",
+} as const;
 
 interface ScheduledTaskRunActionsProps {
   isRecovering: boolean;
@@ -34,37 +52,35 @@ export function ScheduledTaskRunActions({
   run,
   task,
 }: ScheduledTaskRunActionsProps) {
+  const actions = getRunActionPresentations({
+    isRecovering,
+    isRetrying,
+    isRetryingDelivery,
+    run,
+    task,
+  });
+  const actionHandlers: Record<ScheduledTaskRunActionKind, () => void | Promise<void>> = {
+    recover: onRecover,
+    retry: onRetry,
+    retry_delivery: onRetryDelivery,
+  };
   return (
     <div className="shrink-0 text-right text-sm text-(--text-default)">
       <div className="flex flex-col items-end gap-1.5">
-        {isRetryableStatus(run.status) ? (
-          <RunActionButton
-            disabled={isRetrying || task.running}
-            icon={<RotateCcw className="h-3.5 w-3.5" />}
-            label={isRetrying ? "触发中" : "重新运行"}
-            onClick={onRetry}
-            title={task.running ? "任务当前正在运行" : "用当前任务配置重新运行一次"}
-          />
-        ) : null}
-        {run.delivery_status === "failed" ? (
-          <RunActionButton
-            disabled={isRetryingDelivery}
-            icon={<RotateCcw className="h-3.5 w-3.5" />}
-            label={isRetryingDelivery ? "投递中" : "重试投递"}
-            onClick={onRetryDelivery}
-            title="只重试这次运行的结果投递，不重新执行任务"
-          />
-        ) : null}
-        {run.status === "running" && task.running ? (
-          <RunActionButton
-            disabled={isRecovering}
-            icon={<X className="h-3.5 w-3.5" />}
-            label={isRecovering ? "释放中" : "释放占用"}
-            onClick={onRecover}
-            title="把该运行标记为取消，并释放任务占用"
-            tone="danger"
-          />
-        ) : null}
+        {actions.map((action) => {
+          const Icon = RUN_ACTION_ICONS[action.kind];
+          return (
+            <RunActionButton
+              disabled={action.disabled}
+              icon={<Icon className="h-3.5 w-3.5" />}
+              key={action.kind}
+              label={action.label}
+              onClick={actionHandlers[action.kind]}
+              title={action.title}
+              tone={action.tone}
+            />
+          );
+        })}
       </div>
       {run.artifact_path ? (
         <ScheduledRunArtifactButton
@@ -82,20 +98,18 @@ function RunActionButton({
   label,
   onClick,
   title,
-  tone = "primary",
+  tone,
 }: {
   disabled: boolean;
   icon: ReactNode;
   label: string;
   onClick: () => void | Promise<void>;
   title: string;
-  tone?: "danger" | "primary";
+  tone: "danger" | "primary";
 }) {
   return (
     <button
-      className={tone === "danger"
-        ? "inline-flex items-center justify-end gap-1.5 text-xs font-semibold text-(--destructive) transition duration-(--motion-duration-fast) hover:text-(--destructive) disabled:opacity-60"
-        : "inline-flex items-center justify-end gap-1.5 text-xs font-semibold text-(--primary) transition duration-(--motion-duration-fast) hover:text-(--primary-hover) disabled:opacity-60"}
+      className={RUN_ACTION_TONE_CLASS_NAMES[tone]}
       disabled={disabled}
       onClick={() => void onClick()}
       title={title}
