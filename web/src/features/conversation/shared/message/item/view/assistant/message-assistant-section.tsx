@@ -24,7 +24,7 @@ export function MessageAssistantSection({
   compact,
   currentAgentAvatar,
   currentAgentName,
-  hiddenToolNames = ["TodoWrite"],
+  hiddenToolNames,
   onOpenAgentContact,
   onOpenWorkspaceFile,
   onPermissionResponse,

@@ -103,6 +103,62 @@ func TestProcessorHandlesToolResultMessage(t *testing.T) {
 	}
 }
 
+func TestProcessorPreservesTaskListStructuredOutputFromTranscript(t *testing.T) {
+	processor := NewProcessor(MessageContext{
+		SessionKey: "agent:nexus:ws:dm:test",
+		AgentID:    "nexus",
+		RoundID:    "round-task-list",
+		ParentID:   "round-task-list",
+	}, "")
+	processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeAssistant,
+		Assistant: &sdkprotocol.AssistantMessage{
+			Message: sdkprotocol.ConversationEnvelope{
+				Content: []sdkprotocol.ContentBlock{
+					sdkprotocol.ToolUseBlock{ID: "tool-task-list", Name: "TaskList"},
+				},
+			},
+		},
+	})
+
+	message, err := sdkprotocol.DecodeMessage(map[string]any{
+		"type": "user",
+		"message": map[string]any{
+			"role": "user",
+			"content": []any{map[string]any{
+				"type":        "tool_result",
+				"tool_use_id": "tool-task-list",
+				"content":     "#1 [pending] 验证任务列表",
+			}},
+		},
+		// Claude Code transcript 使用 camelCase，实时协议使用 snake_case。
+		"toolUseResult": map[string]any{
+			"tasks": []any{map[string]any{
+				"id":      "1",
+				"subject": "验证任务列表",
+				"status":  "pending",
+			}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("DecodeMessage() error = %v", err)
+	}
+
+	output := processor.Process(message)
+	if len(output.DurableMessages) != 1 {
+		t.Fatalf("TaskList tool result 未生成 durable message: %+v", output)
+	}
+	blocks, _ := output.DurableMessages[0]["content"].([]map[string]any)
+	if len(blocks) != 2 {
+		t.Fatalf("TaskList content blocks = %+v", blocks)
+	}
+	structured, _ := blocks[1]["structured_output"].(map[string]any)
+	tasks, _ := structured["tasks"].([]any)
+	if len(tasks) != 1 {
+		t.Fatalf("TaskList structured_output = %+v", structured)
+	}
+}
+
 func TestProcessorDropsUnmatchedSuccessfulToolResultMessage(t *testing.T) {
 	processor := NewProcessor(MessageContext{
 		SessionKey: "agent:nexus:ws:dm:test",

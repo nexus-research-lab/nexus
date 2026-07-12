@@ -6,6 +6,12 @@ import (
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
+var taskListToolNames = map[string]struct{}{
+	"TaskCreate": {},
+	"TaskList":   {},
+	"TaskUpdate": {},
+}
+
 func (p *Processor) processToolResultMessage(message sdkprotocol.ReceivedMessage) *protocol.Message {
 	if message.User == nil {
 		return nil
@@ -19,12 +25,13 @@ func (p *Processor) processToolResultMessage(message sdkprotocol.ReceivedMessage
 			return nil
 		}
 	}
+	structuredOutput := taskToolStructuredOutput(message, len(content))
 	enrichedBlocks := make([]map[string]any, 0, len(content))
 	for _, block := range content {
 		if !p.shouldKeepToolResultBlock(block) {
 			continue
 		}
-		enrichedBlock := p.enrichToolResultBlock(block)
+		enrichedBlock := p.enrichToolResultBlock(block, structuredOutput)
 		enrichedBlocks = append(enrichedBlocks, enrichedBlock)
 		enrichedBlocks = append(enrichedBlocks, p.workspaceFileArtifactsForToolResult(enrichedBlock)...)
 	}
@@ -44,11 +51,15 @@ func (p *Processor) shouldKeepToolResultBlock(block map[string]any) bool {
 	return boolValue(block["is_error"])
 }
 
-func (p *Processor) enrichToolResultBlock(block map[string]any) map[string]any {
+func (p *Processor) enrichToolResultBlock(
+	block map[string]any,
+	structuredOutput map[string]any,
+) map[string]any {
 	enriched := cloneMap(block)
 	if len(enriched) == 0 {
 		enriched = map[string]any{"type": "tool_result"}
 	}
+	p.attachTaskToolStructuredOutput(enriched, structuredOutput)
 	if boolValue(enriched["is_error"]) {
 		toolUseID := normalizeString(enriched["tool_use_id"])
 		if toolUseID != "" {
@@ -60,6 +71,36 @@ func (p *Processor) enrichToolResultBlock(block map[string]any) map[string]any {
 		}
 	}
 	return enriched
+}
+
+// attachTaskToolStructuredOutput 只保留任务列表工具的机器可读结果，避免前端解析展示文案。
+func (p *Processor) attachTaskToolStructuredOutput(
+	block map[string]any,
+	structuredOutput map[string]any,
+) {
+	if len(structuredOutput) == 0 || block["structured_output"] != nil {
+		return
+	}
+	toolUseID := normalizeString(block["tool_use_id"])
+	if _, ok := taskListToolNames[p.segment.FindToolName(toolUseID)]; !ok {
+		return
+	}
+	block["structured_output"] = cloneMap(structuredOutput)
+}
+
+// taskToolStructuredOutput 兼容实时 stream-json 与 Claude Code transcript 的字段命名。
+func taskToolStructuredOutput(
+	message sdkprotocol.ReceivedMessage,
+	blockCount int,
+) map[string]any {
+	if message.User == nil || blockCount != 1 {
+		return nil
+	}
+	value := message.User.ToolUseResult
+	if value == nil {
+		value = message.Raw["toolUseResult"]
+	}
+	return mapValue(value)
 }
 
 func boolValue(value any) bool {

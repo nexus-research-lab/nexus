@@ -104,7 +104,7 @@ export interface MessageAssistantSectionProps {
   compact: boolean;
   currentAgentAvatar?: string | null;
   currentAgentName?: string | null;
-  hiddenToolNames?: string[];
+  hiddenToolNames: string[];
   onOpenAgentContact?: (agentId: string) => void;
   onOpenWorkspaceFile?: (path: string) => void;
   onPermissionResponse?: (payload: PermissionDecisionPayload) => boolean;

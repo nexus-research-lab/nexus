@@ -28,6 +28,7 @@ export interface ToolResultContent {
   content: string | unknown[];
   is_error?: boolean;
   error_code?: string | null;
+  structured_output?: unknown;
 }
 
 export interface ThinkingContent {

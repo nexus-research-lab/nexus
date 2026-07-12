@@ -11,6 +11,7 @@ import {
   upsertAssistantRuntimeTask,
   upsertSystemRuntimeTask,
 } from "./runtime-task-model";
+import { projectTaskListToolTodos } from "./task-list-tool-model";
 
 interface MutableTodoRound {
   plan: TodoItem[] | null;
@@ -193,6 +194,11 @@ export function projectConversationTodos(
 ): TodoItem[] {
   if (!sessionKey || messages.length === 0) {
     return [];
+  }
+
+  const taskListProjection = projectTaskListToolTodos(messages, sessionKey);
+  if (taskListProjection.observed) {
+    return taskListProjection.todos;
   }
 
   const roundIndex = buildTodoRoundIndex(messages, sessionKey);

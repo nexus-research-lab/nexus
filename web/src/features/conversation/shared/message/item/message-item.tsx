@@ -1,13 +1,12 @@
 import { memo } from "react";
 
 import { cn } from "@/shared/ui/class-name";
+import { CONVERSATION_TASK_TOOL_NAMES } from "@/features/conversation/shared/todos/task-tool-names";
 
 import { useMessageItemController } from "./controller/use-message-item-controller";
 import type { MessageItemProps } from "./message-item-types";
 import { MessageAssistantSection } from "./view/assistant/message-assistant-section";
 import { MessageUserSection } from "./view/user/message-user-section";
-
-const DEFAULT_HIDDEN_TOOL_NAMES = ["TodoWrite"];
 
 function MessageItemInner({
   compact = false,
@@ -27,7 +26,7 @@ function MessageItemInner({
   onPermissionResponse,
   canRespondToPermissions = true,
   permissionReadOnlyReason,
-  hiddenToolNames = DEFAULT_HIDDEN_TOOL_NAMES,
+  hiddenToolNames = CONVERSATION_TASK_TOOL_NAMES,
   onStopMessage,
   defaultProcessExpanded,
   assistantHeaderAction,
