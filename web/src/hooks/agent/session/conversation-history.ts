@@ -8,8 +8,8 @@ import type {
 import { getRoomConversationMessages } from "@/lib/api/conversation/room-resource-api";
 import { getSessionMessagesApi } from "@/lib/api/conversation/session-api";
 import type { AgentConversationIdentity } from "@/types/agent/agent-conversation";
+import type { ConversationMessagePage } from "@/types/conversation/history";
 import type { Message } from "@/types/conversation/message/entity";
-import type { RoomConversationMessagePage } from "@/types/conversation/room";
 
 import {
   mergeLoadedMessages,
@@ -47,7 +47,7 @@ interface LoadRoundWindowMessagesParams
 
 async function requestHistoryPage(
   request: ConversationHistoryRequest,
-): Promise<RoomConversationMessagePage> {
+): Promise<ConversationMessagePage> {
   if (request.source.kind === "room") {
     return getRoomConversationMessages(
       request.source.roomId,
@@ -67,7 +67,7 @@ function isCurrentHistoryRequest(
 
 function updateHistoryCursor(
   cursorRef: MutableRefObject<AgentConversationHistoryCursor>,
-  page: RoomConversationMessagePage,
+  page: ConversationMessagePage,
 ): void {
   cursorRef.current = {
     before_round_id: page.next_before_round_id,
@@ -76,7 +76,7 @@ function updateHistoryCursor(
 }
 
 function commitOlderHistoryPage(
-  page: RoomConversationMessagePage,
+  page: ConversationMessagePage,
   context: LoadOlderAgentConversationMessagesParams,
 ): boolean {
   const sortedMessages = sortMessages(page.items);
@@ -99,7 +99,7 @@ function commitOlderHistoryPage(
 }
 
 function commitRoundWindowHistoryPage(
-  page: RoomConversationMessagePage,
+  page: ConversationMessagePage,
   context: LoadRoundWindowMessagesParams,
 ): boolean {
   const sortedMessages = sortMessages(page.items);

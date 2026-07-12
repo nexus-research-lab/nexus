@@ -5,7 +5,7 @@ import type {
   ResultSummary,
   UserMessage,
 } from "@/types/conversation/message/entity";
-import type { SessionRoundIndexItem } from "@/types/conversation/room";
+import type { SessionRoundIndexItem } from "@/types/conversation/history";
 
 import type { ConversationTimeline } from "../timeline/timeline-model";
 import {

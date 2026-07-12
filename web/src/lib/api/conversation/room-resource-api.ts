@@ -1,18 +1,21 @@
 import { getAgentApiBaseUrl } from "@/config/runtime-endpoints";
 import { requestApi } from "@/lib/api/core/http";
 import type {
+  ApiConversationMessagePage,
+  ConversationMessagePage,
+  ConversationMessagesQuery,
+} from "@/types/conversation/history";
+import type {
   ApiRoomContextAggregate,
-  ApiRoomConversationMessagePage,
   RoomAggregate,
   RoomContextAggregate,
-  RoomConversationMessagePage,
 } from "@/types/conversation/room";
 
 import {
-  buildRoomMessagesQuery,
-  type RoomMessagesQuery,
-  transformRoomContext,
-} from "./room-api-model";
+  buildConversationMessagesQuerySuffix,
+  normalizeConversationMessagePage,
+} from "./message-page-model";
+import { transformRoomContext } from "./room-api-model";
 
 const AGENT_API_BASE_URL = getAgentApiBaseUrl();
 
@@ -36,16 +39,11 @@ export async function getRoomContexts(
 export async function getRoomConversationMessages(
   roomId: string,
   conversationId: string,
-  options: RoomMessagesQuery = {},
-): Promise<RoomConversationMessagePage> {
-  const result = await requestApi<ApiRoomConversationMessagePage>(
-    `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(roomId)}/conversations/${encodeURIComponent(conversationId)}/messages${buildRoomMessagesQuery(options)}`,
+  options: ConversationMessagesQuery = {},
+): Promise<ConversationMessagePage> {
+  const result = await requestApi<ApiConversationMessagePage>(
+    `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(roomId)}/conversations/${encodeURIComponent(conversationId)}/messages${buildConversationMessagesQuerySuffix(options)}`,
     { method: "GET" },
   );
-  return {
-    has_more: result.has_more ?? false,
-    items: result.items ?? [],
-    next_before_round_id: result.next_before_round_id ?? null,
-    next_before_round_timestamp: result.next_before_round_timestamp ?? null,
-  };
+  return normalizeConversationMessagePage(result);
 }

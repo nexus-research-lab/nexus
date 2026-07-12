@@ -15,18 +15,12 @@ import type {
   InputQueueItem,
 } from "@/types/agent/agent-conversation";
 import type { PendingPermission } from "@/types/conversation/interaction/permission";
+import type { ConversationMessagePage } from "@/types/conversation/history";
 
 import {
   mergeLoadedMessages,
   sortMessages,
 } from "../message/message-collection-model";
-
-interface SessionMessagesPage {
-  has_more?: boolean;
-  items?: Message[];
-  next_before_round_id?: string | null;
-  next_before_round_timestamp?: number | null;
-}
 
 interface AgentConversationLifecycleRefs {
   activeSessionKey: RefObject<string | null>;
@@ -140,7 +134,7 @@ function prepareSessionLoad(
 async function fetchSessionMessages(
   identity: AgentConversationIdentity | null,
   sessionKey: string,
-): Promise<SessionMessagesPage> {
+): Promise<ConversationMessagePage> {
   const query = { limit: getMessageHistoryRoundPageSize() };
   if (identity?.room_id && identity.conversation_id) {
     return getRoomConversationMessages(
@@ -154,21 +148,21 @@ async function fetchSessionMessages(
 
 function commitSessionMessages(
   sessionKey: string,
-  page: SessionMessagesPage,
+  page: ConversationMessagePage,
   context: AgentConversationLifecycleContext,
   isReload: boolean,
 ): void {
-  const sortedMessages = sortMessages(page.items ?? []);
+  const sortedMessages = sortMessages(page.items);
   let mergedMessages = sortedMessages;
   context.state.setMessages((currentMessages) => {
     mergedMessages = mergeLoadedMessages(sortedMessages, currentMessages);
     return mergedMessages;
   });
   context.onSessionMessagesLoaded(mergedMessages, {
-    hasMoreHistory: page.has_more ?? false,
+    hasMoreHistory: page.has_more,
     isReload,
-    nextBeforeRoundId: page.next_before_round_id ?? null,
-    nextBeforeRoundTimestamp: page.next_before_round_timestamp ?? null,
+    nextBeforeRoundId: page.next_before_round_id,
+    nextBeforeRoundTimestamp: page.next_before_round_timestamp,
     sessionKey,
   });
   context.refs.backgroundMessages.current.delete(sessionKey);

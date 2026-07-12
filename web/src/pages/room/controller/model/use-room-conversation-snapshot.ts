@@ -1,6 +1,5 @@
 import { useCallback, type Dispatch, type SetStateAction } from "react";
 
-import { isExternalSessionChannel } from "@/lib/conversation/external-session";
 import { notifyRoomDirectoryUpdated } from "@/lib/conversation/room-directory-events";
 import type { AgentConversationIdentity } from "@/types/agent/agent-conversation";
 import type {
@@ -9,7 +8,10 @@ import type {
 } from "@/types/conversation/conversation";
 import type { RoomContextAggregate } from "@/types/conversation/room";
 
-import { applyConversationSnapshotToRoomContexts } from "./room-snapshot-model";
+import {
+  applyConversationSnapshotToRoomContexts,
+  projectRoomConversationSnapshot,
+} from "./room-snapshot-model";
 
 interface UseRoomConversationSnapshotOptions {
   activeRoomSessionId: string | null;
@@ -27,32 +29,26 @@ export function useRoomConversationSnapshot({
   syncConversationSnapshot,
 }: UseRoomConversationSnapshotOptions) {
   return useCallback((snapshot: ConversationSnapshotPayload) => {
-    const conversationId = "conversation_id" in snapshot
-      ? snapshot.conversation_id ?? null
-      : currentConversationId;
-    const roomSessionId = "room_session_id" in snapshot
-      ? snapshot.room_session_id ?? null
-      : activeRoomSessionId;
+    const projection = projectRoomConversationSnapshot(snapshot, {
+      activeRoomSessionId,
+      currentConversationId,
+      currentSessionKey: currentIdentity?.session_key ?? null,
+    });
 
-    setRoomContexts((current) => applyConversationSnapshotToRoomContexts(current, {
-      conversation_id: conversationId,
-      room_session_id: roomSessionId,
-      session_id: snapshot.session_id ?? null,
-      last_activity_at: snapshot.last_activity_at,
-    }));
+    setRoomContexts((current) => applyConversationSnapshotToRoomContexts(
+      current,
+      projection.roomContextSnapshot,
+    ));
 
-    const sessionKey = "session_key" in snapshot
-      ? snapshot.session_key
-      : currentIdentity?.session_key ?? null;
-    if (!sessionKey) {
+    if (!projection.storeUpdate) {
       return;
     }
 
-    syncConversationSnapshot(sessionKey, {
-      ...(snapshot.last_activity_at ? {last_activity_at: snapshot.last_activity_at} : {}),
-      session_id: snapshot.session_id,
-    });
-    if (isExternalSessionChannel(null, sessionKey)) {
+    syncConversationSnapshot(
+      projection.storeUpdate.sessionKey,
+      projection.storeUpdate.patch,
+    );
+    if (projection.shouldNotifyRoomDirectory) {
       notifyRoomDirectoryUpdated();
     }
   }, [

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { getSessionRoundIndexApi } from "@/lib/api/conversation/session-api";
-import type { SessionRoundIndexItem } from "@/types/conversation/room";
+import type { SessionRoundIndexItem } from "@/types/conversation/history";
 
 export function useSessionRoundIndex(sessionKey: string | null) {
   const [items, setItems] = useState<SessionRoundIndexItem[]>([]);

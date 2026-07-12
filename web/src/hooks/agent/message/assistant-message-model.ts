@@ -17,6 +17,21 @@ type ContentBlockKeyResolverMap = {
     block: ContentBlockOf<Type>,
   ) => string | null;
 };
+type ImageIdentityResolver = (
+  block: ImageContent,
+) => string | null | undefined;
+
+// 顺序是图片跨快照合并的身份优先级，新增来源时必须显式选择位置。
+const IMAGE_IDENTITY_RESOLVERS: readonly ImageIdentityResolver[] = [
+  (block) => block.path,
+  (block) => block.url,
+  (block) => block.uri,
+  (block) => block.source?.path,
+  (block) => block.source?.url,
+  (block) => block.source?.uri,
+  (block) => block.data,
+  (block) => block.source?.data,
+];
 
 const CONTENT_BLOCK_KEY_RESOLVERS = {
   image: (block) => imageContentBlockKey(block),
@@ -188,15 +203,11 @@ function assistantContentBlockKey(block: ContentBlock): string | null {
 }
 
 function imageContentBlockKey(block: ImageContent): string | null {
-  const rawKey =
-    block.path ||
-    block.url ||
-    block.uri ||
-    block.source?.path ||
-    block.source?.url ||
-    block.source?.uri ||
-    block.data ||
-    block.source?.data ||
-    null;
-  return rawKey ? `image:${rawKey}` : null;
+  for (const resolveIdentity of IMAGE_IDENTITY_RESOLVERS) {
+    const identity = resolveIdentity(block);
+    if (identity) {
+      return `image:${identity}`;
+    }
+  }
+  return null;
 }

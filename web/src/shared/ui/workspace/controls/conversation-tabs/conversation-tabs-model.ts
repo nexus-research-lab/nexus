@@ -1,4 +1,4 @@
-import { RoomConversationView } from "@/types/conversation/conversation";
+import type { RoomConversationView } from "@/types/conversation/conversation";
 
 const CREATE_CONVERSATION_BUTTON_SPACE = 88;
 const TRACK_HORIZONTAL_PADDING = 2;
@@ -43,18 +43,63 @@ export function reconcileOpenConversationIds({
   recentIds: string[];
 }): string[] {
   const liveIds = new Set(recentIds);
-  const selectedId = conversationId && liveIds.has(conversationId) ? conversationId : null;
-  const retainedIds = currentIds.filter((id) => liveIds.has(id));
-  const shouldOpenSelected = selectedId !== null &&
-    selectedId !== pendingClosedId &&
-    !retainedIds.includes(selectedId);
-  const nextIds = shouldOpenSelected
-    ? [...retainedIds, selectedId]
-    : retainedIds;
-  const fallbackId = selectedId ?? recentIds[0] ?? null;
-  const resolvedIds = nextIds.length === 0 && fallbackId ? [fallbackId] : nextIds;
+  const selectedId = resolveLiveConversationId(conversationId, liveIds);
+  const retainedIds = retainLiveConversationIds(currentIds, liveIds);
+  const selectedIds = appendSelectedConversationId(
+    retainedIds,
+    selectedId,
+    pendingClosedId,
+  );
+  const resolvedIds = ensureOpenConversationId(
+    selectedIds,
+    selectedId,
+    recentIds,
+  );
 
   return areIdsEqual(currentIds, resolvedIds) ? currentIds : resolvedIds;
+}
+
+function resolveLiveConversationId(
+  conversationId: string | null,
+  liveIds: Set<string>,
+): string | null {
+  return conversationId && liveIds.has(conversationId)
+    ? conversationId
+    : null;
+}
+
+function retainLiveConversationIds(
+  currentIds: string[],
+  liveIds: Set<string>,
+): string[] {
+  return currentIds.filter((id) => liveIds.has(id));
+}
+
+function appendSelectedConversationId(
+  currentIds: string[],
+  selectedId: string | null,
+  pendingClosedId: string | null,
+): string[] {
+  if (
+    !selectedId
+    || selectedId === pendingClosedId
+    || currentIds.includes(selectedId)
+  ) {
+    return currentIds;
+  }
+  return [...currentIds, selectedId];
+}
+
+function ensureOpenConversationId(
+  currentIds: string[],
+  selectedId: string | null,
+  recentIds: string[],
+): string[] {
+  if (currentIds.length > 0) {
+    return currentIds;
+  }
+  const fallbackId = selectedId ?? recentIds[0] ?? null;
+  return fallbackId ? [fallbackId] : currentIds;
 }
 
 export function resolveActiveConversationId({

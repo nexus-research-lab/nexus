@@ -7,7 +7,7 @@ import type {
   PendingPermission,
   PermissionDecisionPayload,
 } from "@/types/conversation/interaction/permission";
-import type { SessionRoundIndexItem } from "@/types/conversation/room";
+import type { SessionRoundIndexItem } from "@/types/conversation/history";
 
 interface ConversationFeedRefs {
   bottomAnchorRef: RefObject<HTMLDivElement | null>;

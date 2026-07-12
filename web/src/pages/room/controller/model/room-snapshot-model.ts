@@ -1,3 +1,8 @@
+import { isExternalSessionChannel } from "@/lib/conversation/external-session";
+import type {
+  ConversationSnapshotPayload,
+  ConversationStoreState,
+} from "@/types/conversation/conversation";
 import type { RoomContextAggregate } from "@/types/conversation/room";
 
 interface RoomConversationSnapshot {
@@ -5,6 +10,103 @@ interface RoomConversationSnapshot {
   room_session_id: string | null;
   session_id?: string | null;
   last_activity_at?: number | string | null;
+}
+
+interface RoomConversationSnapshotProjectionContext {
+  activeRoomSessionId: string | null;
+  currentConversationId: string | null;
+  currentSessionKey: string | null;
+}
+
+interface ConversationStoreSnapshotUpdate {
+  patch: Parameters<
+    ConversationStoreState["sync_conversation_snapshot"]
+  >[1];
+  sessionKey: string;
+}
+
+export interface ProjectedRoomConversationSnapshot {
+  roomContextSnapshot: RoomConversationSnapshot;
+  shouldNotifyRoomDirectory: boolean;
+  storeUpdate: ConversationStoreSnapshotUpdate | null;
+}
+
+export function projectRoomConversationSnapshot(
+  snapshot: ConversationSnapshotPayload,
+  context: RoomConversationSnapshotProjectionContext,
+): ProjectedRoomConversationSnapshot {
+  const conversationId = resolveSnapshotConversationId(
+    snapshot,
+    context.currentConversationId,
+  );
+  const roomSessionId = resolveSnapshotRoomSessionId(
+    snapshot,
+    context.activeRoomSessionId,
+  );
+  const sessionKey = resolveSnapshotSessionKey(
+    snapshot,
+    context.currentSessionKey,
+  );
+  const storeUpdate = buildConversationStoreSnapshotUpdate(
+    snapshot,
+    sessionKey,
+  );
+
+  return {
+    roomContextSnapshot: {
+      conversation_id: conversationId,
+      last_activity_at: snapshot.last_activity_at,
+      room_session_id: roomSessionId,
+      session_id: snapshot.session_id ?? null,
+    },
+    shouldNotifyRoomDirectory: storeUpdate
+      ? isExternalSessionChannel(null, storeUpdate.sessionKey)
+      : false,
+    storeUpdate,
+  };
+}
+
+function resolveSnapshotConversationId(
+  snapshot: ConversationSnapshotPayload,
+  fallback: string | null,
+): string | null {
+  return "conversation_id" in snapshot
+    ? snapshot.conversation_id ?? null
+    : fallback;
+}
+
+function resolveSnapshotRoomSessionId(
+  snapshot: ConversationSnapshotPayload,
+  fallback: string | null,
+): string | null {
+  return "room_session_id" in snapshot
+    ? snapshot.room_session_id ?? null
+    : fallback;
+}
+
+function resolveSnapshotSessionKey(
+  snapshot: ConversationSnapshotPayload,
+  fallback: string | null,
+): string | null {
+  return "session_key" in snapshot ? snapshot.session_key : fallback;
+}
+
+function buildConversationStoreSnapshotUpdate(
+  snapshot: ConversationSnapshotPayload,
+  sessionKey: string | null,
+): ConversationStoreSnapshotUpdate | null {
+  if (!sessionKey) {
+    return null;
+  }
+  return {
+    patch: {
+      ...(snapshot.last_activity_at
+        ? {last_activity_at: snapshot.last_activity_at}
+        : {}),
+      session_id: snapshot.session_id,
+    },
+    sessionKey,
+  };
 }
 
 export function applyConversationSnapshotToRoomContexts(

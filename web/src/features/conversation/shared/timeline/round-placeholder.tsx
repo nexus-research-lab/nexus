@@ -1,7 +1,7 @@
 import { MessageSquareText } from "lucide-react";
 
 import { formatRelativeTime } from "@/lib/format/relative-time";
-import type { SessionRoundIndexItem } from "@/types/conversation/room";
+import type { SessionRoundIndexItem } from "@/types/conversation/history";
 
 function formatPlaceholderStatus(item?: SessionRoundIndexItem): string {
   if (item?.isLive) {

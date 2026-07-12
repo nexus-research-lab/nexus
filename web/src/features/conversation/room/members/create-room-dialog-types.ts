@@ -14,6 +14,8 @@ export interface RoomDialogSubmission {
   skillNames: string[];
 }
 
+export type RoomDialogMode = "create" | "manage";
+
 export interface CreateRoomDialogProps {
   agents: RoomMemberAgentOption[];
   initialAvatar?: string;
@@ -25,7 +27,7 @@ export interface CreateRoomDialogProps {
   initialSelectedAgentIds?: string[];
   isCreating?: boolean;
   isOpen: boolean;
-  mode?: "create" | "manage";
+  mode?: RoomDialogMode;
   onCancel: () => void;
   onConfirm: (submission: RoomDialogSubmission) => void;
 }

@@ -9,7 +9,7 @@ import type {
   PendingPermission,
   PermissionDecisionPayload,
 } from "@/types/conversation/interaction/permission";
-import type { SessionRoundIndexItem } from "@/types/conversation/room";
+import type { SessionRoundIndexItem } from "@/types/conversation/history";
 import type { ConversationRoundScrollHandleRef } from "@/features/conversation/shared/timeline/scroll/round-scroll";
 
 interface GroupConversationFeedRefs {

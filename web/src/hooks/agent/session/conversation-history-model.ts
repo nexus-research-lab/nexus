@@ -1,6 +1,6 @@
 import { getMessageHistoryRoundPageSize } from "@/config/conversation-policy";
-import type { RoomMessagesQuery } from "@/lib/api/conversation/room-api-model";
 import type { AgentConversationIdentity } from "@/types/agent/agent-conversation";
+import type { ConversationMessagesQuery } from "@/types/conversation/history";
 
 const TARGET_ROUND_WINDOW_RADIUS = 1;
 
@@ -22,7 +22,7 @@ type ConversationHistorySource =
 
 export interface ConversationHistoryRequest {
   activeSessionKey: string;
-  query: RoomMessagesQuery;
+  query: ConversationMessagesQuery;
   source: ConversationHistorySource;
 }
 
@@ -67,7 +67,7 @@ function resolveHistorySource(
 
 function createHistoryRequest(
   context: ConversationHistoryRequestContext,
-  query: RoomMessagesQuery,
+  query: ConversationMessagesQuery,
 ): ConversationHistoryRequest | null {
   const activeSessionKey = context.activeSessionKey;
   if (!activeSessionKey) {

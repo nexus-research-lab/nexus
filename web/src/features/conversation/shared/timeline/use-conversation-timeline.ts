@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import type { Message } from "@/types/conversation/message/entity";
 import type { RoomPendingAgentSlotState } from "@/types/agent/agent-conversation";
 import type { PendingPermission } from "@/types/conversation/interaction/permission";
-import type { SessionRoundIndexItem } from "@/types/conversation/room";
+import type { SessionRoundIndexItem } from "@/types/conversation/history";
 import type { AgentConversationChatType } from "@/types/agent/agent-conversation";
 
 import {

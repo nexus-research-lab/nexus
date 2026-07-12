@@ -8,7 +8,7 @@ import {
 import { buildGoalActivityKey } from "@/features/conversation/shared/goal/goal-model";
 import type { Agent } from "@/types/agent/agent";
 import type { UseAgentConversationReturn } from "@/types/agent/agent-conversation";
-import type { SessionRoundIndexItem } from "@/types/conversation/room";
+import type { SessionRoundIndexItem } from "@/types/conversation/history";
 
 import type {
   GroupChatComposerModel,

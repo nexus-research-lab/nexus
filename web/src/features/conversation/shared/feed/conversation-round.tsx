@@ -1,7 +1,7 @@
 import type { Ref } from "react";
 
 import { MessageItem } from "@/features/conversation/shared/message/item/message-item";
-import type { SessionRoundIndexItem } from "@/types/conversation/room";
+import type { SessionRoundIndexItem } from "@/types/conversation/history";
 
 import { ConversationRoundPlaceholder } from "../timeline/round-placeholder";
 import {

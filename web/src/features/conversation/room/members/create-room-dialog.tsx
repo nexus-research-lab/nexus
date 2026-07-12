@@ -17,6 +17,12 @@ import {
   getDialogActionClassName,
 } from "@/shared/ui/dialog/dialog-styles";
 
+import {
+  buildRoomDialogInstanceKey,
+  resolveRoomDialogContentProps,
+  resolveRoomDialogLabels,
+  type RoomDialogContentProps,
+} from "./create-room-dialog-model";
 import type { CreateRoomDialogProps } from "./create-room-dialog-types";
 import { RoomMemberSelector } from "./room-member-selector";
 import { RoomSettingsForm } from "./room-settings-form";
@@ -29,46 +35,33 @@ export type {
   RoomDialogSubmission,
 } from "./create-room-dialog-types";
 
-const ROOM_DIALOG_LABEL_KEYS = {
-  create: {
-    confirm: "room.create_action",
-    subtitle: "room.create_dialog_subtitle",
-    title: "room.create_dialog_title",
-  },
-  manage: {
-    confirm: "common.save",
-    subtitle: "room.manage_dialog_subtitle",
-    title: "room.manage_dialog_title",
-  },
-} as const;
-
-type RoomDialogMode = keyof typeof ROOM_DIALOG_LABEL_KEYS;
-type RoomDialogLabelKey = typeof ROOM_DIALOG_LABEL_KEYS[RoomDialogMode][
-  keyof typeof ROOM_DIALOG_LABEL_KEYS[RoomDialogMode]
-];
-type RoomDialogTranslator = (key: RoomDialogLabelKey) => string;
-
 export function CreateRoomDialog(props: CreateRoomDialogProps) {
   if (!props.isOpen) {
     return null;
   }
-  return <CreateRoomDialogContent key={buildDialogInstanceKey(props)} {...props} />;
+  const contentProps = resolveRoomDialogContentProps(props);
+  return (
+    <CreateRoomDialogContent
+      key={buildRoomDialogInstanceKey(contentProps)}
+      {...contentProps}
+    />
+  );
 }
 
 function CreateRoomDialogContent({
   agents,
-  initialAvatar = "",
-  initialHostAgentId = null,
-  initialHostAutoReplyEnabled = false,
-  initialName = "",
-  initialPrivateMessagesEnabled = false,
-  initialRoomSkillNames = [],
-  initialSelectedAgentIds = [],
-  isCreating = false,
-  mode = "create",
+  initialAvatar,
+  initialHostAgentId,
+  initialHostAutoReplyEnabled,
+  initialName,
+  initialPrivateMessagesEnabled,
+  initialRoomSkillNames,
+  initialSelectedAgentIds,
+  isCreating,
+  mode,
   onCancel,
   onConfirm,
-}: CreateRoomDialogProps) {
+}: RoomDialogContentProps) {
   const { t } = useI18n();
   const form = useCreateRoomForm({
     agents,
@@ -81,7 +74,7 @@ function CreateRoomDialogContent({
     initialSelectedAgentIds,
   });
   const skills = useRoomSkillOptions(form.state.skillQuery);
-  const labels = resolveDialogLabels(mode, t);
+  const labels = resolveRoomDialogLabels(mode, t);
   const canSubmit = form.canSubmit && !isCreating;
   const handleSubmit = () => {
     if (canSubmit) {
@@ -189,28 +182,4 @@ function CreateRoomDialogContent({
       </UiDialogBackdrop>
     </UiDialogPortal>
   );
-}
-
-function buildDialogInstanceKey(props: CreateRoomDialogProps): string {
-  return JSON.stringify({
-    avatar: props.initialAvatar ?? "",
-    hostAgentId: props.initialHostAgentId?.trim() ?? "",
-    hostAutoReplyEnabled: props.initialHostAutoReplyEnabled ?? false,
-    name: props.initialName ?? "",
-    privateMessagesEnabled: props.initialPrivateMessagesEnabled ?? false,
-    selectedAgentIds: props.initialSelectedAgentIds ?? [],
-    selectedSkillNames: props.initialRoomSkillNames ?? [],
-  });
-}
-
-function resolveDialogLabels(
-  mode: RoomDialogMode,
-  t: RoomDialogTranslator,
-) {
-  const keys = ROOM_DIALOG_LABEL_KEYS[mode];
-  return {
-    confirm: t(keys.confirm),
-    subtitle: t(keys.subtitle),
-    title: t(keys.title),
-  };
 }

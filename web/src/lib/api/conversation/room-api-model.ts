@@ -6,14 +6,6 @@ import type {
   UpdateRoomParams,
 } from "@/types/conversation/room";
 
-export interface RoomMessagesQuery {
-  around_limit?: number | null;
-  around_round_id?: string | null;
-  before_round_id?: string | null;
-  before_round_timestamp?: number | null;
-  limit?: number;
-}
-
 type RoomMutationParams = CreateRoomParams | UpdateRoomParams;
 
 function appendDefinedRoomSettings(
@@ -58,34 +50,6 @@ export function buildUpdateRoomBody(
     name: params.name,
     title: params.title,
   }, params);
-}
-
-export function buildRoomMessagesQuery(options: RoomMessagesQuery): string {
-  const values: Array<[string, string | null]> = [
-    ["limit", options.limit && options.limit > 0 ? String(options.limit) : null],
-    ["before_round_id", options.before_round_id ?? null],
-    [
-      "before_round_timestamp",
-      options.before_round_timestamp && options.before_round_timestamp > 0
-        ? String(options.before_round_timestamp)
-        : null,
-    ],
-    ["around_round_id", options.around_round_id ?? null],
-    [
-      "around_limit",
-      options.around_limit && options.around_limit > 0
-        ? String(options.around_limit)
-        : null,
-    ],
-  ];
-  const params = new URLSearchParams();
-  for (const [key, value] of values) {
-    if (value) {
-      params.set(key, value);
-    }
-  }
-  const query = params.toString();
-  return query ? `?${query}` : "";
 }
 
 export function normalizeConversationTitle(value: unknown): string | undefined {

@@ -2,7 +2,7 @@ import type { Ref } from "react";
 
 import { ConversationRoundPlaceholder } from "@/features/conversation/shared/timeline/round-placeholder";
 import { MessageItem } from "@/features/conversation/shared/message/item/message-item";
-import type { SessionRoundIndexItem } from "@/types/conversation/room";
+import type { SessionRoundIndexItem } from "@/types/conversation/history";
 
 import { hasRoomAgentRoundEntries } from "../../round/round-agent-model";
 import { GroupRoundCardGroup } from "../../thread/round-card/group-round-card-group";

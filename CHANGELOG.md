@@ -42,6 +42,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Unified required-field and enum decoding across conversation, Session, ACK, and Workspace payloads, and consolidated Resync cursor advancement plus reload-before-resubscribe lifecycle.
 - Replaced conversation action validation with ordered guards, separated stream metadata from content updates, and unified runtime snapshot and terminal-message reconciliation phases.
 - Moved Agent conversation option normalization and public result projection out of the assembly Hook, using a default identity sentinel and removing its unused type-forwarding surface.
+- Replaced the branch-heavy Assistant image identity fallback chain with an explicit ordered resolver table while preserving snapshot merge priority.
+- Unified virtual-feed height inputs into one role and content-block projection, removing duplicate message scans and obsolete string-content compatibility branches.
+- Centralized Room Session key strategy and snapshot field fallback in pure models, leaving the snapshot Hook responsible only for applying projected effects.
+- Moved shared message history and round-index contracts out of Room types, unified Room and Session pagination serialization and response normalization, and separated Session HTTP calls from response transforms.
+- Moved Room dialog defaults, remount identity, and mode labels into a pure model so the dialog view consumes one concrete content contract.
+- Replaced conditional rail and panel primary-tab rendering with one button structure driven by an explicit presentation table.
+- Replaced branch-heavy chat notification target and route resolution with ordered identity rules while preserving Room fallback and Session isolation.
+- Split workspace conversation-tab reconciliation into explicit retain, append, and fallback phases, and moved single-tab state styling into a pure presentation model.
 - Removed render-phase Thinking expansion mutations and separated image-source normalization, user-attachment capability projection, and embedded tool-error parsing into short owned phases.
 - Moved message ordering, system-event, permission, result, and final-response projection into an owned controller subdomain, reusing the single ordered-entry projection and replacing content-mode branches with exhaustive strategies.
 - Split message content rendering into entry selection, structured orchestration, exhaustive block routing, and tool interaction phases, while consolidating the shared AskUserQuestion tool identifier.

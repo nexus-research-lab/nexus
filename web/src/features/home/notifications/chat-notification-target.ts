@@ -16,23 +16,52 @@ export interface ChatNotificationTargetMatcher {
   room_id?: string | null;
 }
 
+interface NormalizedChatNotificationTarget {
+  conversationId: string;
+  roomId: string;
+  sessionKey: string;
+}
+
+type ChatNotificationTargetKeyResolver = (
+  target: NormalizedChatNotificationTarget,
+) => string | null;
+
+type ActiveTargetRouteResolver = (
+  parts: string[],
+  roomId: string,
+) => ActiveChatNotificationTarget | null;
+
+const CHAT_NOTIFICATION_TARGET_KEY_RESOLVERS: readonly ChatNotificationTargetKeyResolver[] = [
+  ({conversationId, roomId}) => roomId && conversationId
+    ? `room:${roomId}:conversation:${conversationId}`
+    : null,
+  ({roomId}) => roomId ? `room:${roomId}` : null,
+  ({sessionKey}) => sessionKey ? `session:${sessionKey}` : null,
+];
+
+const ACTIVE_TARGET_ROUTE_RESOLVERS: Record<
+  string,
+  ActiveTargetRouteResolver
+> = {
+  conversations: resolveConversationRouteTarget,
+  sessions: resolveSessionRouteTarget,
+};
+
 export function buildChatNotificationTargetKey({
   conversation_id: conversationId,
   room_id: roomId,
   session_key: sessionKey,
 }: ChatNotificationTargetInput): string | null {
-  const normalizedRoomId = roomId?.trim() ?? "";
-  const normalizedConversationId = conversationId?.trim() ?? "";
-  const normalizedSessionKey = sessionKey?.trim() ?? "";
-
-  if (normalizedRoomId && normalizedConversationId) {
-    return `room:${normalizedRoomId}:conversation:${normalizedConversationId}`;
-  }
-  if (normalizedRoomId) {
-    return `room:${normalizedRoomId}`;
-  }
-  if (normalizedSessionKey) {
-    return `session:${normalizedSessionKey}`;
+  const target = {
+    conversationId: conversationId?.trim() ?? "",
+    roomId: roomId?.trim() ?? "",
+    sessionKey: sessionKey?.trim() ?? "",
+  };
+  for (const resolveKey of CHAT_NOTIFICATION_TARGET_KEY_RESOLVERS) {
+    const key = resolveKey(target);
+    if (key) {
+      return key;
+    }
   }
   return null;
 }
@@ -46,22 +75,43 @@ export function getActiveChatTargetFromPath(
   }
 
   const roomId = decodeRouteSegment(parts[1]);
-  if (parts[2] === "sessions") {
-    const sessionKey = decodeRouteSegment(parts[3]);
-    const key = buildChatNotificationTargetKey({ session_key: sessionKey });
-    return key ? { key, room_id: roomId, session_key: sessionKey } : null;
-  }
+  const resolveTarget = ACTIVE_TARGET_ROUTE_RESOLVERS[parts[2] ?? ""]
+    ?? resolveRoomRouteTarget;
+  return resolveTarget(parts, roomId);
+}
 
-  const conversationId = parts[2] === "conversations"
-    ? decodeRouteSegment(parts[3])
-    : "";
-  const key = buildChatNotificationTargetKey({
+function resolveConversationRouteTarget(
+  parts: string[],
+  roomId: string,
+): ActiveChatNotificationTarget | null {
+  const conversationId = decodeRouteSegment(parts[3]);
+  return createActiveChatTarget({
     conversation_id: conversationId,
     room_id: roomId,
   });
-  return key
-    ? { conversation_id: conversationId, key, room_id: roomId }
-    : null;
+}
+
+function resolveSessionRouteTarget(
+  parts: string[],
+  roomId: string,
+): ActiveChatNotificationTarget | null {
+  const sessionKey = decodeRouteSegment(parts[3]);
+  const key = buildChatNotificationTargetKey({session_key: sessionKey});
+  return key ? {key, room_id: roomId, session_key: sessionKey} : null;
+}
+
+function resolveRoomRouteTarget(
+  _parts: string[],
+  roomId: string,
+): ActiveChatNotificationTarget | null {
+  return createActiveChatTarget({conversation_id: "", room_id: roomId});
+}
+
+function createActiveChatTarget(
+  target: Omit<ActiveChatNotificationTarget, "key">,
+): ActiveChatNotificationTarget | null {
+  const key = buildChatNotificationTargetKey(target);
+  return key ? {...target, key} : null;
 }
 
 export function isChatNotificationTargetActive(
@@ -71,13 +121,15 @@ export function isChatNotificationTargetActive(
   if (!activeTarget) {
     return false;
   }
-  if (target.key && target.key === activeTarget.key) {
-    return true;
-  }
-  if (activeTarget.session_key) {
-    return false;
-  }
-  return Boolean(activeTarget.room_id && target.room_id === activeTarget.room_id);
+  const exactKeyMatches = Boolean(
+    target.key && target.key === activeTarget.key,
+  );
+  const roomFallbackMatches = Boolean(
+    !activeTarget.session_key
+      && activeTarget.room_id
+      && target.room_id === activeTarget.room_id,
+  );
+  return exactKeyMatches || roomFallbackMatches;
 }
 
 function decodeRouteSegment(value: string | undefined): string {
