@@ -7,8 +7,30 @@ import type { Goal } from "@/types/conversation/goal";
 
 import type { GoalContinuationHold } from "./goal-continuation-hold";
 import { GoalDraftForm } from "./goal-draft-form";
+import type { GoalDialog } from "./goal-model";
 import { GoalStatusStrip } from "./goal-status-strip";
 import { useGoalController } from "./use-goal-controller";
+
+interface GoalDialogPresentation {
+  cancelText: string;
+  confirmText: string;
+  title: string;
+  variant?: "danger";
+}
+
+const GOAL_DIALOG_PRESENTATION: Record<"clear" | "resume", GoalDialogPresentation> = {
+  clear: {
+    cancelText: "取消",
+    confirmText: "清除",
+    title: "清除当前 Goal?",
+    variant: "danger",
+  },
+  resume: {
+    cancelText: "暂不继续",
+    confirmText: "继续",
+    title: "继续当前 Goal?",
+  },
+};
 
 interface GoalPanelProps {
   activityKey?: number | string | null;
@@ -22,25 +44,53 @@ interface GoalPanelProps {
   statusExtra?: ReactNode;
 }
 
-export function GoalPanel({
-  activityKey = null,
-  compact = false,
-  continuationHold = null,
-  disabled = false,
-  isGenerating = false,
-  onGoalChange,
-  scopeLabel = "会话 Goal",
-  sessionKey,
-  statusExtra = null,
-}: GoalPanelProps) {
-  const controller = useGoalController({
-    activityKey,
-    disabled,
-    onGoalChange,
-    sessionKey,
-  });
-  const { actions, dialog, draft, goal } = controller;
+function GoalConfirmationDialog({
+  dialog,
+  onCancel,
+  onConfirm,
+}: {
+  dialog: GoalDialog;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  if (dialog.kind === "none") {
+    return null;
+  }
+  const presentation = GOAL_DIALOG_PRESENTATION[dialog.kind];
+  return (
+    <ConfirmDialog
+      cancelText={presentation.cancelText}
+      confirmText={presentation.confirmText}
+      isOpen
+      message={`Goal：${dialog.goal.objective}`}
+      title={presentation.title}
+      variant={presentation.variant}
+      onCancel={onCancel}
+      onConfirm={onConfirm}
+    />
+  );
+}
 
+function GoalPanelContent({
+  compact,
+  continuationHold,
+  controller,
+  disabled,
+  isGenerating,
+  scopeLabel,
+  sessionKey,
+  statusExtra,
+}: {
+  compact: boolean;
+  continuationHold: GoalContinuationHold | null;
+  controller: ReturnType<typeof useGoalController>;
+  disabled: boolean;
+  isGenerating: boolean;
+  scopeLabel: string;
+  sessionKey: string | null;
+  statusExtra: ReactNode;
+}) {
+  const { actions, dialog, draft, goal } = controller;
   if (!controller.isAvailable || !sessionKey || !goal) {
     return null;
   }
@@ -78,25 +128,43 @@ export function GoalPanel({
           onSubmit={actions.submit}
         />
       ) : null}
-      <ConfirmDialog
-        cancelText="取消"
-        confirmText="清除"
-        isOpen={dialog.kind === "clear"}
-        message={`Goal：${goal.objective}`}
-        title="清除当前 Goal?"
-        variant="danger"
-        onCancel={actions.cancelDialog}
-        onConfirm={actions.confirmDialog}
-      />
-      <ConfirmDialog
-        cancelText="暂不继续"
-        confirmText="继续"
-        isOpen={dialog.kind === "resume"}
-        message={`Goal：${dialog.kind === "resume" ? dialog.goal.objective : ""}`}
-        title="继续当前 Goal?"
+      <GoalConfirmationDialog
+        dialog={dialog}
         onCancel={actions.cancelDialog}
         onConfirm={actions.confirmDialog}
       />
     </>
+  );
+}
+
+export function GoalPanel({
+  activityKey = null,
+  compact = false,
+  continuationHold = null,
+  disabled = false,
+  isGenerating = false,
+  onGoalChange,
+  scopeLabel = "会话 Goal",
+  sessionKey,
+  statusExtra = null,
+}: GoalPanelProps) {
+  const controller = useGoalController({
+    activityKey,
+    disabled,
+    onGoalChange,
+    sessionKey,
+  });
+
+  return (
+    <GoalPanelContent
+      compact={compact}
+      continuationHold={continuationHold}
+      controller={controller}
+      disabled={disabled}
+      isGenerating={isGenerating}
+      scopeLabel={scopeLabel}
+      sessionKey={sessionKey}
+      statusExtra={statusExtra}
+    />
   );
 }

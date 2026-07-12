@@ -25,6 +25,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Consolidated DrawingML transform rectangles, group bounds, geometry presets, and fill-color sources under presentation-owned readers with explicit validity rules.
 - Split PPTX slide inheritance, shape resolution, and preview filtering into explicit phases, restoring placeholder stroke-width fallback when a shape has no local line definition.
 - Moved spreadsheet CSS projection out of the virtual grid model and into the cell-style domain, removing an unused border-type forwarding surface.
+- Replaced PPTX shape-tree branching with node handlers, privatized parser-only state, and split spreadsheet virtual-grid projection into explicit viewport, cell, merge, and layout phases.
+- Split Agent Options skill loading states and list sections into narrow views, and separated scoped skill command creation, mutation, stale-result rejection, and cleanup phases.
+- Replaced Agent identity name-validation JSX candidates with ordered semantic feedback rules and a single tone renderer.
+- Consolidated Provider Settings presentation rules, removed duplicate custom-provider state, added icon fallbacks, and split configuration, header, model-row, capability, and toggle rendering responsibilities.
+- Centralized Goal form and controller projections, unified confirmation rendering, and split command transactions into explicit lifecycle phases.
 - Removed render-phase Thinking expansion mutations and separated image-source normalization, user-attachment capability projection, and embedded tool-error parsing into short owned phases.
 - Moved message ordering, system-event, permission, result, and final-response projection into an owned controller subdomain, reusing the single ordered-entry projection and replacing content-mode branches with exhaustive strategies.
 - Split message content rendering into entry selection, structured orchestration, exhaustive block routing, and tool interaction phases, while consolidating the shared AskUserQuestion tool identifier.

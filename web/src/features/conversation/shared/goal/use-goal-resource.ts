@@ -7,7 +7,7 @@ import { ApiRequestError } from "@/lib/api/core/http-error";
 import { getErrorMessage } from "@/lib/error-message";
 import type { Goal } from "@/types/conversation/goal";
 
-export type GoalCommandPhase = "clearing" | "pausing" | "resuming" | "updating";
+import type { GoalCommandPhase } from "./goal-model";
 
 interface GoalSnapshot {
   available: boolean;
@@ -26,6 +26,12 @@ interface ActiveGoalCommand {
 interface GoalCommandOutcome {
   goal: Goal | null;
   ok: boolean;
+}
+
+interface GoalCommandTransaction {
+  command: ActiveGoalCommand;
+  goalId: string;
+  operationVersion: number;
 }
 
 interface GoalResourceOptions {
@@ -127,13 +133,11 @@ export function useGoalResource({
     }
   }, [onGoalResolved, sessionKey]);
 
-  const runCommand = useCallback(async (
+  const beginCommand = useCallback((
     phase: GoalCommandPhase,
-    action: (goalId: string) => Promise<Goal | null>,
-    fallbackError: string,
-  ): Promise<GoalCommandOutcome> => {
+  ): GoalCommandTransaction | null => {
     if (!goal || !sessionKey || activeCommandRef.current) {
-      return { goal: null, ok: false };
+      return null;
     }
 
     const nextCommand: ActiveGoalCommand = {
@@ -141,49 +145,92 @@ export function useGoalResource({
       phase,
       sessionKey,
     };
+    const operationVersion = requestVersionRef.current + 1;
     commandSequenceRef.current = nextCommand.id;
+    requestVersionRef.current = operationVersion;
     activeCommandRef.current = nextCommand;
     setCommand(nextCommand);
-    const operationVersion = requestVersionRef.current + 1;
-    requestVersionRef.current = operationVersion;
     setSnapshot((current) => current.sessionKey === sessionKey
       ? { ...current, error: null }
       : current);
+    return {
+      command: nextCommand,
+      goalId: goal.id,
+      operationVersion,
+    };
+  }, [goal, sessionKey]);
+
+  const resolveCommand = useCallback((
+    transaction: GoalCommandTransaction,
+    updated: Goal | null,
+  ): boolean => {
+    if (requestVersionRef.current !== transaction.operationVersion) {
+      return false;
+    }
+    setSnapshot({
+      available: true,
+      error: null,
+      goal: updated,
+      loading: false,
+      sessionKey: transaction.command.sessionKey,
+    });
+    onGoalResolved(updated);
+    return true;
+  }, [onGoalResolved]);
+
+  const rejectCommand = useCallback((
+    transaction: GoalCommandTransaction,
+    error: unknown,
+    fallbackError: string,
+  ) => {
+    if (requestVersionRef.current !== transaction.operationVersion) {
+      return;
+    }
+    setSnapshot((current) => (
+      current.sessionKey === transaction.command.sessionKey
+        ? { ...current, error: getErrorMessage(error, fallbackError) }
+        : current
+    ));
+  }, []);
+
+  const finishCommand = useCallback((transaction: GoalCommandTransaction) => {
+    const finishedCommand = transaction.command;
+    if (activeCommandRef.current?.id === finishedCommand.id) {
+      activeCommandRef.current = null;
+    }
+    setCommand((current) => current?.id === finishedCommand.id ? null : current);
+    if (deferredRefreshRef.current !== finishedCommand.sessionKey) {
+      return;
+    }
+    deferredRefreshRef.current = null;
+    if (currentSessionKeyRef.current === finishedCommand.sessionKey) {
+      void refresh();
+    }
+  }, [refresh]);
+
+  const runCommand = useCallback(async (
+    phase: GoalCommandPhase,
+    action: (goalId: string) => Promise<Goal | null>,
+    fallbackError: string,
+  ): Promise<GoalCommandOutcome> => {
+    const transaction = beginCommand(phase);
+    if (!transaction) {
+      return { goal: null, ok: false };
+    }
 
     try {
-      const updated = await action(goal.id);
-      if (requestVersionRef.current !== operationVersion) {
+      const updated = await action(transaction.goalId);
+      if (!resolveCommand(transaction, updated)) {
         return { goal: null, ok: false };
       }
-      setSnapshot({
-        available: true,
-        error: null,
-        goal: updated,
-        loading: false,
-        sessionKey,
-      });
-      onGoalResolved(updated);
       return { goal: updated, ok: true };
     } catch (error) {
-      if (requestVersionRef.current === operationVersion) {
-        setSnapshot((current) => current.sessionKey === sessionKey
-          ? { ...current, error: getErrorMessage(error, fallbackError) }
-          : current);
-      }
+      rejectCommand(transaction, error, fallbackError);
       return { goal: null, ok: false };
     } finally {
-      if (activeCommandRef.current?.id === nextCommand.id) {
-        activeCommandRef.current = null;
-      }
-      setCommand((current) => current?.id === nextCommand.id ? null : current);
-      if (deferredRefreshRef.current === sessionKey) {
-        deferredRefreshRef.current = null;
-        if (currentSessionKeyRef.current === sessionKey) {
-          void refresh();
-        }
-      }
+      finishCommand(transaction);
     }
-  }, [goal, onGoalResolved, refresh, sessionKey]);
+  }, [beginCommand, finishCommand, rejectCommand, resolveCommand]);
 
   return {
     available: visibleSnapshot.available,

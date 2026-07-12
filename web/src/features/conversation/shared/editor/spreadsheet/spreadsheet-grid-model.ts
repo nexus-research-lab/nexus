@@ -30,6 +30,22 @@ export interface RenderedSpreadsheetCell {
   width: number;
 }
 
+type SpreadsheetPreviewRange = SpreadsheetPreviewSheetData["merges"][number];
+
+interface SpreadsheetGridViewport {
+  columnEnd: number;
+  columnStart: number;
+  rowEnd: number;
+  rowStart: number;
+}
+
+interface SpreadsheetGridProjection {
+  cells: Map<string, RenderedSpreadsheetCell>;
+  columnSizes: SpreadsheetSizeTable;
+  rowSizes: SpreadsheetSizeTable;
+  sheet: SpreadsheetPreviewSheetData;
+}
+
 export function createRowSizeTable(
   sheet: SpreadsheetPreviewSheetData,
 ): SpreadsheetSizeTable {
@@ -80,25 +96,56 @@ export function createRenderedSpreadsheetCells(
   virtualRows: VirtualItem[],
   virtualColumns: VirtualItem[],
 ): RenderedSpreadsheetCell[] {
-  const rowRange = getVirtualRange(virtualRows);
-  const columnRange = getVirtualRange(virtualColumns);
-  if (!rowRange || !columnRange) {
+  const viewport = createSpreadsheetGridViewport(
+    virtualRows,
+    virtualColumns,
+  );
+  if (!viewport) {
     return [];
   }
 
-  const cells = new Map<string, RenderedSpreadsheetCell>();
+  const projection: SpreadsheetGridProjection = {
+    cells: new Map<string, RenderedSpreadsheetCell>(),
+    columnSizes,
+    rowSizes,
+    sheet,
+  };
+  projectVirtualSpreadsheetCells(projection, virtualRows, virtualColumns);
+  projectVisibleMergeAnchors(projection, viewport);
+  return Array.from(projection.cells.values());
+}
+
+function createSpreadsheetGridViewport(
+  virtualRows: VirtualItem[],
+  virtualColumns: VirtualItem[],
+): SpreadsheetGridViewport | null {
+  const rowRange = getVirtualRange(virtualRows);
+  const columnRange = getVirtualRange(virtualColumns);
+  return rowRange && columnRange
+    ? {
+        columnEnd: columnRange.end,
+        columnStart: columnRange.start,
+        rowEnd: rowRange.end,
+        rowStart: rowRange.start,
+      }
+    : null;
+}
+
+function projectVirtualSpreadsheetCells(
+  projection: SpreadsheetGridProjection,
+  virtualRows: VirtualItem[],
+  virtualColumns: VirtualItem[],
+): void {
   for (const row of virtualRows) {
     for (const column of virtualColumns) {
-      const merge = findMergeForCell(sheet, row.index, column.index);
-      const isCoveredCell = merge && (
-        merge.start_row !== row.index || merge.start_col !== column.index
+      const merge = findMergeForCell(
+        projection.sheet,
+        row.index,
+        column.index,
       );
-      if (!isCoveredCell) {
+      if (isStandaloneOrMergeAnchor(merge, row.index, column.index)) {
         addRenderedCell(
-          cells,
-          sheet,
-          rowSizes,
-          columnSizes,
+          projection,
           row.index,
           column.index,
           merge,
@@ -106,47 +153,73 @@ export function createRenderedSpreadsheetCells(
       }
     }
   }
+}
 
-  for (const merge of sheet.merges) {
-    const isVisible = rangesOverlap(
-      rowRange.start,
-      rowRange.end,
-      merge.start_row,
-      merge.end_row,
-    ) && rangesOverlap(
-      columnRange.start,
-      columnRange.end,
-      merge.start_col,
-      merge.end_col,
-    );
-    if (isVisible) {
+function projectVisibleMergeAnchors(
+  projection: SpreadsheetGridProjection,
+  viewport: SpreadsheetGridViewport,
+): void {
+  for (const merge of projection.sheet.merges) {
+    if (isMergeVisible(merge, viewport)) {
       addRenderedCell(
-        cells,
-        sheet,
-        rowSizes,
-        columnSizes,
+        projection,
         merge.start_row,
         merge.start_col,
         merge,
       );
     }
   }
-  return Array.from(cells.values());
+}
+
+function isStandaloneOrMergeAnchor(
+  merge: SpreadsheetPreviewRange | undefined,
+  rowIndex: number,
+  columnIndex: number,
+): boolean {
+  return !merge
+    || (merge.start_row === rowIndex && merge.start_col === columnIndex);
+}
+
+function isMergeVisible(
+  merge: SpreadsheetPreviewRange,
+  viewport: SpreadsheetGridViewport,
+): boolean {
+  return rangesOverlap(
+    viewport.rowStart,
+    viewport.rowEnd,
+    merge.start_row,
+    merge.end_row,
+  ) && rangesOverlap(
+    viewport.columnStart,
+    viewport.columnEnd,
+    merge.start_col,
+    merge.end_col,
+  );
 }
 
 function addRenderedCell(
-  cells: Map<string, RenderedSpreadsheetCell>,
-  sheet: SpreadsheetPreviewSheetData,
-  rowSizes: SpreadsheetSizeTable,
-  columnSizes: SpreadsheetSizeTable,
+  projection: SpreadsheetGridProjection,
   rowIndex: number,
   columnIndex: number,
-  merge = findMergeForCell(sheet, rowIndex, columnIndex),
+  merge?: SpreadsheetPreviewRange,
 ): void {
   const key = `${rowIndex}:${columnIndex}`;
-  if (cells.has(key)) {
+  if (projection.cells.has(key)) {
     return;
   }
+  projection.cells.set(
+    key,
+    createRenderedCell(projection, rowIndex, columnIndex, merge),
+  );
+}
+
+function createRenderedCell(
+  projection: SpreadsheetGridProjection,
+  rowIndex: number,
+  columnIndex: number,
+  merge?: SpreadsheetPreviewRange,
+): RenderedSpreadsheetCell {
+  const { columnSizes, rowSizes, sheet } = projection;
   const endRow = Math.min(
     merge?.end_row ?? rowIndex,
     sheet.row_count - 1,
@@ -155,7 +228,7 @@ function addRenderedCell(
     merge?.end_col ?? columnIndex,
     sheet.column_count - 1,
   );
-  cells.set(key, {
+  return {
     cell: sheet.rows[rowIndex]?.cells[columnIndex],
     columnIndex,
     columnStart: columnSizes.starts[columnIndex] ?? 0,
@@ -163,14 +236,14 @@ function addRenderedCell(
     rowIndex,
     rowStart: rowSizes.starts[rowIndex] ?? 0,
     width: getSizeRange(columnSizes, columnIndex, endColumn),
-  });
+  };
 }
 
 function findMergeForCell(
   sheet: SpreadsheetPreviewSheetData,
   rowIndex: number,
   columnIndex: number,
-) {
+): SpreadsheetPreviewRange | undefined {
   return sheet.merges.find((merge) => (
     rowIndex >= merge.start_row &&
     rowIndex <= merge.end_row &&

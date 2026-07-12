@@ -96,6 +96,45 @@ function buildProviderFormatOptions(
   });
 }
 
+function resolveBuiltinEndpointFormats(
+  preset: ProviderPreset | null,
+  usesBuiltinEndpoint: boolean,
+) {
+  return usesBuiltinEndpoint ? preset?.formats ?? [] : [];
+}
+
+function resolveProviderDetailTitle({
+  currentPreset,
+  draft,
+  isEditing,
+  selectedRecord,
+  t,
+}: Pick<
+  BuildProviderSettingsPresentationOptions,
+  "currentPreset" | "draft" | "isEditing" | "selectedRecord" | "t"
+>): string {
+  if (isEditing && selectedRecord) {
+    return getProviderTitle(selectedRecord);
+  }
+  return draft.display_name
+    || currentPreset?.display_name
+    || t("settings.providers.custom_provider");
+}
+
+function isProviderFormatConfigurable(
+  format: ReturnType<typeof getPresetFormat>,
+  providerKind: ProviderKind,
+  canSelectNonRuntimeFormat: boolean,
+): boolean {
+  return canSelectNonRuntimeFormat
+    || Boolean(format && formatSupportsProviderKind(format, providerKind));
+}
+
+function shouldShowRuntimeFormatBadge(draft: ProviderDraft): boolean {
+  return draft.provider_kind === "llm"
+    && !SUPPORTED_AGENT_API_FORMATS.has(draft.api_format);
+}
+
 export function buildProviderSettingsPresentation({
   canSelectNonRuntimeFormat,
   currentPreset,
@@ -110,17 +149,20 @@ export function buildProviderSettingsPresentation({
   const usesBuiltinEndpoint = presetUsesBuiltinEndpoint(currentPreset);
   const currentFormat = getPresetFormat(currentPreset, draft.api_format);
   return {
-    builtinEndpointFormats: usesBuiltinEndpoint
-      ? currentPreset?.formats ?? []
-      : [],
+    builtinEndpointFormats: resolveBuiltinEndpointFormats(
+      currentPreset,
+      usesBuiltinEndpoint,
+    ),
     configuredByPreset: catalog.configuredByPreset,
     currentFormat,
     customProviders: catalog.customProviders,
-    detailTitle: isEditing && selectedRecord
-      ? getProviderTitle(selectedRecord)
-      : draft.display_name
-        || currentPreset?.display_name
-        || t("settings.providers.custom_provider"),
+    detailTitle: resolveProviderDetailTitle({
+      currentPreset,
+      draft,
+      isEditing,
+      selectedRecord,
+      t,
+    }),
     formatOptions: buildProviderFormatOptions(
       currentPreset,
       draft.provider_kind,
@@ -130,18 +172,17 @@ export function buildProviderSettingsPresentation({
     hasModelsEndpoint: Boolean(
       getEffectiveModelsPath(draft, currentPreset).trim(),
     ),
-    isApiFormatConfigurable: Boolean(
-      currentFormat
-      && formatSupportsProviderKind(currentFormat, draft.provider_kind),
-    ) || canSelectNonRuntimeFormat,
+    isApiFormatConfigurable: isProviderFormatConfigurable(
+      currentFormat,
+      draft.provider_kind,
+      canSelectNonRuntimeFormat,
+    ),
     presetSidebarItems: presets.filter(
       (preset) => preset.preset_key !== "custom",
     ),
     providerKindOptions: buildProviderKindOptions(currentPreset, t),
     showProviderShapeControls: draft.preset_key === "custom",
-    showRuntimeFormatBadge:
-      draft.provider_kind === "llm"
-      && !SUPPORTED_AGENT_API_FORMATS.has(draft.api_format),
+    showRuntimeFormatBadge: shouldShowRuntimeFormatBadge(draft),
     usesBuiltinEndpoint,
   };
 }

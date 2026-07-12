@@ -12,13 +12,10 @@ import {
   type PresentationImageElement,
   type PresentationParagraph,
   type PresentationParseResult,
-  type PresentationPart,
   type PresentationPlaceholderStyle,
   type PresentationRelationship,
   type PresentationShapeElement,
   type PresentationShapeGeometry,
-  type PresentationShapeTreeContext,
-  type PresentationShapeTreeResult,
   type PresentationSlide,
   type PresentationTransform,
 } from "./presentation-preview-model";
@@ -54,6 +51,38 @@ interface PresentationSlideParts {
   slideRels: Record<string, PresentationRelationship>;
 }
 
+interface PresentationPart {
+  background?: string;
+  elements: PresentationElement[];
+  placeholderStyles: Map<string, PresentationPlaceholderStyle>;
+}
+
+interface PresentationShapeTreeContext {
+  elementIndex: number;
+  fallbackPlaceholders?: Map<string, PresentationPlaceholderStyle>;
+  idPrefix: string;
+  includePlaceholderShapes: boolean;
+}
+
+interface PresentationShapeTreeResult {
+  elements: PresentationElement[];
+  placeholderStyles: Map<string, PresentationPlaceholderStyle>;
+}
+
+interface ShapeTreeParseInput {
+  context: PresentationShapeTreeContext;
+  objectUrls: string[];
+  rels: Record<string, PresentationRelationship>;
+  slidePath: string;
+  state: PresentationShapeTreeResult;
+  zip: JSZip;
+}
+
+type ShapeTreeChildHandler = (
+  child: Element,
+  input: ShapeTreeParseInput,
+) => Promise<void> | void;
+
 interface ParsedPresentationShape {
   isPlaceholder: boolean;
   placeholderStyle: PresentationPlaceholderStyle | null;
@@ -88,6 +117,13 @@ const SHAPE_SKIP_RULES: ShapeSkipRule[] = [
   isDecorationFallbackShape,
   isBackgroundFallbackShape,
 ];
+
+const SHAPE_TREE_CHILD_HANDLERS: Record<string, ShapeTreeChildHandler> = {
+  cxnSp: parseShapeTreeShapeChild,
+  grpSp: parseShapeTreeGroupChild,
+  pic: parseShapeTreePictureChild,
+  sp: parseShapeTreeShapeChild,
+};
 
 export async function parsePptx(buffer: ArrayBuffer): Promise<PresentationParseResult> {
   const { default: JSZipConstructor } = await import("jszip");
@@ -323,7 +359,6 @@ async function parsePresentationPart(
     background: readSlideBackground(partDoc),
     elements: result.elements,
     placeholderStyles: result.placeholderStyles,
-    rels,
   };
 }
 
@@ -358,67 +393,123 @@ async function parseShapeTree(
   context: PresentationShapeTreeContext,
   groupTransform?: PresentationGroupTransform | null,
 ): Promise<PresentationShapeTreeResult> {
-  const elements: PresentationElement[] = [];
-  const placeholderStyles = new Map<string, PresentationPlaceholderStyle>();
-  const children = Array.from(shapeTree.children);
+  const state = emptyShapeTreeResult();
+  const input: ShapeTreeParseInput = {
+    context,
+    objectUrls,
+    rels,
+    slidePath,
+    state,
+    zip,
+  };
 
-  for (const child of children) {
-    switch (child.localName) {
-      case "cxnSp":
-      case "sp": {
-        const parsedShape = parseShape(child, `${context.idPrefix}-shape-${context.elementIndex}`, context);
-        context.elementIndex += 1;
-        if (parsedShape.placeholderStyle) {
-          placeholderStyles.set(parsedShape.placeholderStyle.key, parsedShape.placeholderStyle);
-        }
-        if (parsedShape.shape && (!parsedShape.isPlaceholder || context.includePlaceholderShapes)) {
-          elements.push(parsedShape.shape);
-        }
-        break;
-      }
-      case "grpSp": {
-        const groupResult = await parseShapeTree(
-          zip,
-          slidePath,
-          rels,
-          child,
-          objectUrls,
-          context,
-          readGroupTransform(child),
-        );
-        groupResult.placeholderStyles.forEach((style, key) => {
-          placeholderStyles.set(key, style);
-        });
-        elements.push(...groupResult.elements);
-        break;
-      }
-      case "pic": {
-        const image = await parsePicture(
-          zip,
-          slidePath,
-          rels,
-          child,
-          `${context.idPrefix}-image-${context.elementIndex}`,
-          objectUrls,
-        );
-        context.elementIndex += 1;
-        if (image) {
-          elements.push(image);
-        }
-        break;
-      }
-      default:
-        break;
-    }
+  for (const child of Array.from(shapeTree.children)) {
+    await SHAPE_TREE_CHILD_HANDLERS[child.localName]?.(child, input);
   }
 
+  return applyShapeTreeGroupTransform(state, groupTransform);
+}
+
+function parseShapeTreeShapeChild(
+  child: Element,
+  input: ShapeTreeParseInput,
+): void {
+  const parsedShape = parseShape(
+    child,
+    consumeShapeTreeElementId(input.context, "shape"),
+    input.context,
+  );
+  registerPlaceholderStyle(input.state, parsedShape.placeholderStyle);
+  if (isVisibleParsedShape(parsedShape, input.context)) {
+    input.state.elements.push(parsedShape.shape);
+  }
+}
+
+async function parseShapeTreeGroupChild(
+  child: Element,
+  input: ShapeTreeParseInput,
+): Promise<void> {
+  const groupResult = await parseShapeTree(
+    input.zip,
+    input.slidePath,
+    input.rels,
+    child,
+    input.objectUrls,
+    input.context,
+    readGroupTransform(child),
+  );
+  mergeShapeTreeResult(input.state, groupResult);
+}
+
+async function parseShapeTreePictureChild(
+  child: Element,
+  input: ShapeTreeParseInput,
+): Promise<void> {
+  const image = await parsePicture(
+    input.zip,
+    input.slidePath,
+    input.rels,
+    child,
+    consumeShapeTreeElementId(input.context, "image"),
+    input.objectUrls,
+  );
+  if (image) {
+    input.state.elements.push(image);
+  }
+}
+
+function consumeShapeTreeElementId(
+  context: PresentationShapeTreeContext,
+  kind: "image" | "shape",
+): string {
+  const id = `${context.idPrefix}-${kind}-${context.elementIndex}`;
+  context.elementIndex += 1;
+  return id;
+}
+
+function registerPlaceholderStyle(
+  state: PresentationShapeTreeResult,
+  style: PresentationPlaceholderStyle | null,
+): void {
+  if (style) {
+    state.placeholderStyles.set(style.key, style);
+  }
+}
+
+function isVisibleParsedShape(
+  parsedShape: ParsedPresentationShape,
+  context: PresentationShapeTreeContext,
+): parsedShape is ParsedPresentationShape & { shape: PresentationShapeElement } {
+  return parsedShape.shape !== null
+    && (!parsedShape.isPlaceholder || context.includePlaceholderShapes);
+}
+
+function mergeShapeTreeResult(
+  target: PresentationShapeTreeResult,
+  source: PresentationShapeTreeResult,
+): void {
+  target.elements.push(...source.elements);
+  source.placeholderStyles.forEach((style, key) => {
+    target.placeholderStyles.set(key, style);
+  });
+}
+
+function applyShapeTreeGroupTransform(
+  result: PresentationShapeTreeResult,
+  groupTransform?: PresentationGroupTransform | null,
+): PresentationShapeTreeResult {
   if (!groupTransform) {
-    return { elements, placeholderStyles };
+    return result;
   }
 
   return {
-    elements: elements.map((element) => applyGroupTransformToElement(element, groupTransform)),
-    placeholderStyles: mapGroupPlaceholderStyles(placeholderStyles, groupTransform),
+    elements: result.elements.map((element) => (
+      applyGroupTransformToElement(element, groupTransform)
+    )),
+    placeholderStyles: mapGroupPlaceholderStyles(
+      result.placeholderStyles,
+      groupTransform,
+    ),
   };
 }
 

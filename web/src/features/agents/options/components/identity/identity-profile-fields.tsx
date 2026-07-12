@@ -1,5 +1,3 @@
-import type { ReactNode } from "react";
-
 import {
   AGENT_ICON_ID_END,
   AGENT_ICON_ID_START,
@@ -51,6 +49,37 @@ interface IdentityProfileFieldsProps {
   variant: AgentIdentityVariant;
 }
 
+type NameValidationFeedbackTone = "danger" | "muted" | "success";
+
+interface NameValidationFeedback {
+  message: string;
+  tone: NameValidationFeedbackTone;
+}
+
+type NameValidationFeedbackContext = Pick<
+  IdentityProfileFieldsProps,
+  "isValidatingName" | "nameAvailable" | "nameValidation" | "validatingLabel"
+>;
+
+type NameValidationFeedbackRule = (
+  context: NameValidationFeedbackContext,
+) => NameValidationFeedback | null;
+
+const VALIDATION_FEEDBACK_CLASS: Record<
+  NameValidationFeedbackTone,
+  string
+> = {
+  danger: "text-(--destructive)",
+  muted: "text-muted-foreground",
+  success: "text-(--success)",
+};
+
+const NAME_VALIDATION_FEEDBACK_RULES: NameValidationFeedbackRule[] = [
+  createValidatingFeedback,
+  createRejectedNameFeedback,
+  createAvailableNameFeedback,
+];
+
 export function IdentityProfileFields({
   avatar,
   avatarAlt,
@@ -66,7 +95,7 @@ export function IdentityProfileFields({
   variant,
 }: IdentityProfileFieldsProps) {
   const layout = PROFILE_LAYOUTS[variant];
-  const validationMessage = resolveValidationMessage({
+  const validationFeedback = resolveValidationFeedback({
     isValidatingName,
     nameAvailable,
     nameValidation,
@@ -110,39 +139,53 @@ export function IdentityProfileFields({
         value={avatar}
       />
 
-      <div className="min-h-5 text-xs">{validationMessage}</div>
+      <div className="min-h-5 text-xs">
+        {validationFeedback ? (
+          <span className={VALIDATION_FEEDBACK_CLASS[validationFeedback.tone]}>
+            {validationFeedback.message}
+          </span>
+        ) : null}
+      </div>
     </>
   );
 }
 
-function resolveValidationMessage({
-  isValidatingName,
-  nameAvailable,
-  nameValidation,
-  validatingLabel,
-}: Pick<
-  IdentityProfileFieldsProps,
-  "isValidatingName" | "nameAvailable" | "nameValidation" | "validatingLabel"
->): ReactNode {
-  const candidates = [
-    {
-      active: isValidatingName,
-      content: <span className="text-muted-foreground">{validatingLabel}</span>,
-    },
-    {
-      active: !isValidatingName && Boolean(nameValidation?.reason),
-      content: <span className="text-(--destructive)">{nameValidation?.reason}</span>,
-    },
-    {
-      active: !isValidatingName
-        && Boolean(nameValidation?.is_valid)
-        && Boolean(nameValidation?.is_available),
-      content: (
-        <span className="text-(--success)">
-          {nameAvailable(nameValidation?.workspace_path ?? "")}
-        </span>
-      ),
-    },
-  ];
-  return candidates.find((candidate) => candidate.active)?.content ?? null;
+function resolveValidationFeedback(
+  context: NameValidationFeedbackContext,
+): NameValidationFeedback | null {
+  for (const rule of NAME_VALIDATION_FEEDBACK_RULES) {
+    const feedback = rule(context);
+    if (feedback) {
+      return feedback;
+    }
+  }
+  return null;
+}
+
+function createValidatingFeedback(
+  context: NameValidationFeedbackContext,
+): NameValidationFeedback | null {
+  return context.isValidatingName
+    ? { message: context.validatingLabel, tone: "muted" }
+    : null;
+}
+
+function createRejectedNameFeedback(
+  context: NameValidationFeedbackContext,
+): NameValidationFeedback | null {
+  const reason = context.nameValidation?.reason;
+  return reason ? { message: reason, tone: "danger" } : null;
+}
+
+function createAvailableNameFeedback(
+  context: NameValidationFeedbackContext,
+): NameValidationFeedback | null {
+  const validation = context.nameValidation;
+  if (!validation?.is_valid || !validation.is_available) {
+    return null;
+  }
+  return {
+    message: context.nameAvailable(validation.workspace_path ?? ""),
+    tone: "success",
+  };
 }

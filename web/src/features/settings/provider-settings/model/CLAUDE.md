@@ -4,5 +4,5 @@
 - `provider-config-model.ts` 负责草稿、校验以及创建、更新、启停请求载荷。
 - `provider-model-model.ts` 负责模型过滤、排序、新增/更新载荷与默认模型保护判定。
 - `provider-catalog-model.ts` 只处理 Provider 列表顺序和选择。
-- `provider-settings-presentation.ts` 集中目录、格式、标题与能力标志等纯展示投影，不读取交互状态。
+- `provider-settings-presentation.ts` 分阶段集中目录、格式、标题、端点与能力标志等纯展示投影，不读取交互状态。
 - 模型层保持纯函数，不发请求、不持有 React 状态。

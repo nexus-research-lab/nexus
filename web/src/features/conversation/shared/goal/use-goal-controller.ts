@@ -14,20 +14,19 @@ import {
   resumeGoalApi,
   updateGoalApi,
 } from "@/lib/api/conversation/goal-api";
-import type { Goal, GoalStatus } from "@/types/conversation/goal";
+import type { Goal } from "@/types/conversation/goal";
 
+import {
+  buildGoalControllerProjection,
+  createGoalDraft,
+  EMPTY_GOAL_DIALOG,
+  goalResumePromptKey,
+  nextGoalBudgetInput,
+  shouldPromptResumeGoal,
+  type GoalDialog,
+  type GoalDraft,
+} from "./goal-model";
 import { useGoalResource } from "./use-goal-resource";
-
-interface GoalDraft {
-  budget: string;
-  goalId: string;
-  objective: string;
-}
-
-type GoalDialog =
-  | { kind: "clear"; goalId: string }
-  | { kind: "none" }
-  | { goal: Goal; kind: "resume" };
 
 interface GoalControllerOptions {
   activityKey?: number | string | null;
@@ -36,35 +35,11 @@ interface GoalControllerOptions {
   sessionKey: string | null;
 }
 
-const EMPTY_DIALOG: GoalDialog = { kind: "none" };
-const RESUMABLE_STATUSES: GoalStatus[] = ["blocked", "paused", "usage_limited"];
-
-function normalizeBudget(value: string): number | null {
-  const parsed = Number.parseInt(value.trim(), 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
-}
-
-function nextBudgetInput(
-  goal: Goal,
-  value: string,
-): number | null | undefined {
-  if (value.trim()) {
-    return normalizeBudget(value);
-  }
-  return goal.token_budget ? null : undefined;
-}
-
-function shouldPromptResumeGoal(status: GoalStatus): boolean {
-  return status === "blocked" || status === "usage_limited";
-}
-
-function canResumeGoal(goal: Goal): boolean {
-  return RESUMABLE_STATUSES.includes(goal.status)
-    || (goal.status === "active" && (goal.empty_progress_count ?? 0) > 0);
-}
-
-function resumePromptKey(goal: Goal): string {
-  return `${goal.id}:${goal.status}:${goal.updated_at}`;
+function updateGoalDraft(
+  current: GoalDraft | null,
+  values: Partial<Pick<GoalDraft, "budget" | "objective">>,
+): GoalDraft | null {
+  return current ? { ...current, ...values } : null;
 }
 
 export function useGoalController({
@@ -74,15 +49,15 @@ export function useGoalController({
   sessionKey,
 }: GoalControllerOptions) {
   const [draft, setDraft] = useState<GoalDraft | null>(null);
-  const [dialog, setDialog] = useState<GoalDialog>(EMPTY_DIALOG);
+  const [dialog, setDialog] = useState<GoalDialog>(EMPTY_GOAL_DIALOG);
   const resumePromptKeyRef = useRef<string | null>(null);
 
   const syncResumeDialog = useCallback((current: Goal | null) => {
     if (!current || disabled || !shouldPromptResumeGoal(current.status)) {
-      setDialog((value) => value.kind === "resume" ? EMPTY_DIALOG : value);
+      setDialog((value) => value.kind === "resume" ? EMPTY_GOAL_DIALOG : value);
       return;
     }
-    const key = resumePromptKey(current);
+    const key = goalResumePromptKey(current);
     if (resumePromptKeyRef.current === key) {
       return;
     }
@@ -105,14 +80,13 @@ export function useGoalController({
     refresh,
     runCommand,
   } = resource;
-  const visibleDraft = draft?.goalId === goal?.id ? draft : null;
-  const dialogGoalId = dialog.kind === "none"
-    ? null
-    : dialog.kind === "resume" ? dialog.goal.id : dialog.goalId;
-  const dialogMatchesGoal = dialog.kind === "none" || dialogGoalId === goal?.id;
-  const visibleDialog = dialogMatchesGoal && !(disabled && dialog.kind === "resume")
-    ? dialog
-    : EMPTY_DIALOG;
+  const projection = buildGoalControllerProjection({
+    dialog,
+    disabled,
+    draft,
+    goal,
+    phase,
+  });
 
   const clearGoal = useCallback(async () => {
     if (!goal || disabled) {
@@ -133,32 +107,33 @@ export function useGoalController({
 
   const submit = useCallback(async (event: FormEvent) => {
     event.preventDefault();
-    if (!goal || !visibleDraft?.objective.trim() || disabled) {
+    const currentDraft = projection.draft;
+    if (!goal || !currentDraft?.objective.trim() || disabled) {
       return;
     }
     const outcome = await runCommand(
       "updating",
       (goalId) => updateGoalApi(goalId, {
-        objective: visibleDraft.objective.trim(),
-        token_budget: nextBudgetInput(goal, visibleDraft.budget),
+        objective: currentDraft.objective.trim(),
+        token_budget: nextGoalBudgetInput(goal, currentDraft.budget),
       }),
       "Goal 保存失败",
     );
     if (outcome.ok) {
       setDraft(null);
     }
-  }, [disabled, goal, runCommand, visibleDraft]);
+  }, [disabled, goal, projection.draft, runCommand]);
 
   const confirmDialog = useCallback(() => {
-    const currentDialog = visibleDialog;
-    setDialog(EMPTY_DIALOG);
+    const currentDialog = projection.dialog;
+    setDialog(EMPTY_GOAL_DIALOG);
     if (currentDialog.kind === "clear") {
       void clearGoal();
     }
     if (currentDialog.kind === "resume") {
       void runCommand("resuming", resumeGoalApi, "Goal 操作失败");
     }
-  }, [clearGoal, runCommand, visibleDialog]);
+  }, [clearGoal, projection.dialog, runCommand]);
 
   useEffect(() => {
     void refresh();
@@ -170,7 +145,7 @@ export function useGoalController({
 
   return {
     actions: {
-      cancelDialog: () => setDialog(EMPTY_DIALOG),
+      cancelDialog: () => setDialog(EMPTY_GOAL_DIALOG),
       cancelEditing: () => setDraft(null),
       confirmDialog,
       pause: () => {
@@ -184,27 +159,23 @@ export function useGoalController({
           void runCommand("resuming", resumeGoalApi, "Goal 操作失败");
         }
       },
-      setBudget: (budget: string) => setDraft((current) => current
-        ? { ...current, budget }
-        : current),
-      setObjective: (objective: string) => setDraft((current) => current
-        ? { ...current, objective }
-        : current),
-      startClearing: () => goal && setDialog({ goalId: goal.id, kind: "clear" }),
-      startEditing: () => goal && setDraft({
-        budget: goal.token_budget ? String(goal.token_budget) : "",
-        goalId: goal.id,
-        objective: goal.objective,
-      }),
+      setBudget: (budget: string) => setDraft((current) => (
+        updateGoalDraft(current, { budget })
+      )),
+      setObjective: (objective: string) => setDraft((current) => (
+        updateGoalDraft(current, { objective })
+      )),
+      startClearing: () => goal && setDialog({ goal, kind: "clear" }),
+      startEditing: () => goal && setDraft(createGoalDraft(goal)),
       submit,
     },
-    canResume: goal ? canResumeGoal(goal) : false,
-    dialog: visibleDialog,
-    draft: visibleDraft,
+    canResume: projection.canResume,
+    dialog: projection.dialog,
+    draft: projection.draft,
     error,
     goal,
     isAvailable: available,
     isLoading,
-    loadingLabel: phase === "updating" ? "正在更新目标" : null,
+    loadingLabel: projection.loadingLabel,
   };
 }

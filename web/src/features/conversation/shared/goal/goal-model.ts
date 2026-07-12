@@ -2,6 +2,34 @@ import { formatTokens } from "@/lib/format/token-count";
 import type { Goal, GoalStatus } from "@/types/conversation/goal";
 import type { GoalContinuationHold } from "./goal-continuation-hold";
 
+export type GoalCommandPhase = "clearing" | "pausing" | "resuming" | "updating";
+
+export interface GoalDraft {
+  budget: string;
+  goalId: string;
+  objective: string;
+}
+
+export type GoalDialog =
+  | { kind: "clear" | "resume"; goal: Goal }
+  | { kind: "none" };
+
+export interface GoalControllerProjection {
+  canResume: boolean;
+  dialog: GoalDialog;
+  draft: GoalDraft | null;
+  loadingLabel: string | null;
+}
+
+export interface GoalDraftFormModel {
+  canClose: boolean;
+  fieldsDisabled: boolean;
+  isLoading: boolean;
+  submitDisabled: boolean;
+  submitLabel: string;
+  submitTone: "default" | "primary";
+}
+
 interface GoalStatusTone {
   badge: string;
   icon: string;
@@ -139,6 +167,14 @@ const GOAL_ACTION_RULES: GoalActionRule[] = [
   { action: "clear", visible: () => true },
 ];
 
+export const EMPTY_GOAL_DIALOG: GoalDialog = { kind: "none" };
+
+const RESUMABLE_GOAL_STATUSES = new Set<GoalStatus>([
+  "blocked",
+  "paused",
+  "usage_limited",
+]);
+
 function goalUsageTotal(goal: Goal | null): number {
   return goal?.usage?.total_tokens ?? 0;
 }
@@ -208,4 +244,95 @@ export function buildGoalActivityKey(
   refreshSequence: number,
 ): string {
   return `${messageCount}:${isLoading ? "loading" : "idle"}:${refreshSequence}`;
+}
+
+export function buildGoalDraftFormModel({
+  disabled,
+  isLoading,
+  loadingLabel,
+  objective,
+}: {
+  disabled: boolean;
+  isLoading: boolean;
+  loadingLabel: string | null;
+  objective: string;
+}): GoalDraftFormModel {
+  const hasObjective = objective.trim().length > 0;
+  const fieldsDisabled = disabled || isLoading;
+  return {
+    canClose: !fieldsDisabled,
+    fieldsDisabled,
+    isLoading,
+    submitDisabled: fieldsDisabled || !hasObjective,
+    submitLabel: isLoading ? loadingLabel ?? "保存中" : "保存",
+    submitTone: hasObjective ? "primary" : "default",
+  };
+}
+
+export function buildGoalControllerProjection({
+  dialog,
+  disabled,
+  draft,
+  goal,
+  phase,
+}: {
+  dialog: GoalDialog;
+  disabled: boolean;
+  draft: GoalDraft | null;
+  goal: Goal | null;
+  phase: GoalCommandPhase | null;
+}): GoalControllerProjection {
+  return {
+    canResume: goal ? canResumeGoal(goal) : false,
+    dialog: visibleGoalDialog(dialog, goal, disabled),
+    draft: draft?.goalId === goal?.id ? draft : null,
+    loadingLabel: phase === "updating" ? "正在更新目标" : null,
+  };
+}
+
+export function createGoalDraft(goal: Goal): GoalDraft {
+  return {
+    budget: goal.token_budget ? String(goal.token_budget) : "",
+    goalId: goal.id,
+    objective: goal.objective,
+  };
+}
+
+export function nextGoalBudgetInput(
+  goal: Goal,
+  value: string,
+): number | null | undefined {
+  if (value.trim()) {
+    return normalizeGoalBudget(value);
+  }
+  return goal.token_budget ? null : undefined;
+}
+
+export function shouldPromptResumeGoal(status: GoalStatus): boolean {
+  return status === "blocked" || status === "usage_limited";
+}
+
+export function goalResumePromptKey(goal: Goal): string {
+  return `${goal.id}:${goal.status}:${goal.updated_at}`;
+}
+
+function normalizeGoalBudget(value: string): number | null {
+  const parsed = Number.parseInt(value.trim(), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function canResumeGoal(goal: Goal): boolean {
+  return RESUMABLE_GOAL_STATUSES.has(goal.status)
+    || (goal.status === "active" && (goal.empty_progress_count ?? 0) > 0);
+}
+
+function visibleGoalDialog(
+  dialog: GoalDialog,
+  goal: Goal | null,
+  disabled: boolean,
+): GoalDialog {
+  if (dialog.kind === "none" || !goal || dialog.goal.id !== goal.id) {
+    return EMPTY_GOAL_DIALOG;
+  }
+  return disabled && dialog.kind === "resume" ? EMPTY_GOAL_DIALOG : dialog;
 }

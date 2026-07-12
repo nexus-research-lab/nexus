@@ -117,25 +117,6 @@ export interface PresentationPlaceholderStyle {
   transform: PresentationTransform;
 }
 
-export interface PresentationPart {
-  background?: string;
-  elements: PresentationElement[];
-  placeholderStyles: Map<string, PresentationPlaceholderStyle>;
-  rels: Record<string, PresentationRelationship>;
-}
-
-export interface PresentationShapeTreeContext {
-  elementIndex: number;
-  fallbackPlaceholders?: Map<string, PresentationPlaceholderStyle>;
-  idPrefix: string;
-  includePlaceholderShapes: boolean;
-}
-
-export interface PresentationShapeTreeResult {
-  elements: PresentationElement[];
-  placeholderStyles: Map<string, PresentationPlaceholderStyle>;
-}
-
 export interface PresentationGroupTransform extends PresentationTransform {
   childHeight: number;
   childWidth: number;

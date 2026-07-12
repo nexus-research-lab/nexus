@@ -14,6 +14,8 @@ import {
 import { getDialogActionClassName } from "@/shared/ui/dialog/dialog-styles";
 import { UiField, UiInput, UiTextarea } from "@/shared/ui/form/form-control";
 
+import { buildGoalDraftFormModel } from "./goal-model";
+
 interface GoalDraftFormProps {
   budget: string;
   disabled: boolean;
@@ -40,10 +42,12 @@ export function GoalDraftForm({
   onSubmit,
 }: GoalDraftFormProps) {
   const objectiveRef = useRef<HTMLTextAreaElement | null>(null);
-  const canClose = !disabled && !isLoading;
-  const submitLabel = isLoading
-    ? (loadingLabel ?? "保存中")
-    : "保存";
+  const model = buildGoalDraftFormModel({
+    disabled,
+    isLoading,
+    loadingLabel,
+    objective,
+  });
 
   return (
     <UiDialogPortal>
@@ -51,7 +55,7 @@ export function GoalDraftForm({
         className="z-[9998]"
         initialFocusRef={objectiveRef}
         labelledBy="goal-edit-dialog-title"
-        onClose={canClose ? onCancel : undefined}
+        onClose={model.canClose ? onCancel : undefined}
       >
         <UiDialogFormShell
           className="pointer-events-auto"
@@ -63,7 +67,7 @@ export function GoalDraftForm({
             iconClassName="text-(--primary)"
             title="编辑 Goal"
             titleId="goal-edit-dialog-title"
-            onClose={canClose ? onCancel : undefined}
+            onClose={model.canClose ? onCancel : undefined}
           />
 
           <UiDialogBody className="flex flex-col gap-4">
@@ -76,7 +80,7 @@ export function GoalDraftForm({
                 ref={objectiveRef}
                 className="min-h-[128px]"
                 data-autofocus="true"
-                disabled={disabled || isLoading}
+                disabled={model.fieldsDisabled}
                 id="goal-objective-input"
                 placeholder="输入长期目标"
                 value={objective}
@@ -91,7 +95,7 @@ export function GoalDraftForm({
             >
               <UiInput
                 className="max-w-[180px]"
-                disabled={disabled || isLoading}
+                disabled={model.fieldsDisabled}
                 id="goal-budget-input"
                 inputMode="numeric"
                 placeholder="不限制"
@@ -105,24 +109,24 @@ export function GoalDraftForm({
           <UiDialogFooter className="justify-end gap-3">
             <button
               className={getDialogActionClassName("default")}
-              disabled={disabled || isLoading}
+              disabled={model.fieldsDisabled}
               type="button"
               onClick={onCancel}
             >
               取消
             </button>
             <button
-              className={getDialogActionClassName(objective.trim() ? "primary" : "default")}
-              disabled={disabled || isLoading || !objective.trim()}
+              className={getDialogActionClassName(model.submitTone)}
+              disabled={model.submitDisabled}
               type="submit"
             >
-              {isLoading ? (
+              {model.isLoading ? (
                 <span className="inline-flex items-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  {submitLabel}
+                  {model.submitLabel}
                 </span>
               ) : (
-                submitLabel
+                model.submitLabel
               )}
             </button>
           </UiDialogFooter>

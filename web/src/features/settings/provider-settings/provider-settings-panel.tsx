@@ -81,7 +81,6 @@ export function ProviderSettingsPanel({
                   detailTitle={state.detailTitle}
                   draft={state.draft}
                   formatOptions={state.formatOptions}
-                  isCustomProvider={state.showProviderShapeControls}
                   isEditing={state.isEditing}
                   onApiFormatChange={actions.handleApiFormatChange}
                   onAuthTokenChange={(value) => actions.updateDraft({

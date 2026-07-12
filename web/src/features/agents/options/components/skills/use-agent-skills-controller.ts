@@ -1,4 +1,7 @@
 import {
+  type Dispatch,
+  type RefObject,
+  type SetStateAction,
   useCallback,
   useDeferredValue,
   useEffect,
@@ -23,6 +26,71 @@ interface UseAgentSkillsControllerParams {
 interface SkillCommandToken {
   agentId: string;
   skillName: string;
+}
+
+interface SkillCommandExecution {
+  activeAgentIdRef: RefObject<string | null>;
+  activeCommandRef: RefObject<SkillCommandToken | null>;
+  command: SkillCommandToken;
+  fallbackErrorMessage: string;
+  refresh: () => Promise<void>;
+  setActionError: Dispatch<SetStateAction<string | null>>;
+  setBusyCommand: Dispatch<SetStateAction<SkillCommandToken | null>>;
+  skill: AgentSkillEntry;
+}
+
+function createSkillCommand(
+  agentId: string | null,
+  skill: AgentSkillEntry,
+  activeCommand: SkillCommandToken | null,
+): SkillCommandToken | null {
+  if (!agentId || skill.locked || activeCommand?.agentId === agentId) {
+    return null;
+  }
+  return { agentId, skillName: skill.name };
+}
+
+async function mutateAgentSkill(
+  command: SkillCommandToken,
+  skill: AgentSkillEntry,
+): Promise<void> {
+  const mutate = skill.installed ? uninstallSkillApi : installSkillApi;
+  await mutate(command.agentId, command.skillName);
+}
+
+// 命令结果只写回发起时的 Agent 作用域，切换 Agent 后旧结果直接失效。
+async function executeSkillCommand({
+  activeAgentIdRef,
+  activeCommandRef,
+  command,
+  fallbackErrorMessage,
+  refresh,
+  setActionError,
+  setBusyCommand,
+  skill,
+}: SkillCommandExecution): Promise<void> {
+  activeCommandRef.current = command;
+  setBusyCommand(command);
+  setActionError(null);
+  try {
+    await mutateAgentSkill(command, skill);
+    if (activeAgentIdRef.current === command.agentId) {
+      await refresh();
+    }
+  } catch (error) {
+    if (activeAgentIdRef.current === command.agentId) {
+      setActionError(
+        error instanceof Error ? error.message : fallbackErrorMessage,
+      );
+    }
+  } finally {
+    if (activeCommandRef.current === command) {
+      activeCommandRef.current = null;
+    }
+    if (activeAgentIdRef.current === command.agentId) {
+      setBusyCommand((current) => current === command ? null : current);
+    }
+  }
 }
 
 export function useAgentSkillsController({
@@ -66,42 +134,24 @@ export function useAgentSkillsController({
   }, [scopeAgentId]);
 
   const runSkillToggle = useCallback(async (skill: AgentSkillEntry) => {
-    if (!scopeAgentId || skill.locked) {
+    const command = createSkillCommand(
+      scopeAgentId,
+      skill,
+      activeCommandRef.current,
+    );
+    if (!command) {
       return;
     }
-    if (activeCommandRef.current?.agentId === scopeAgentId) {
-      return;
-    }
-
-    const command = { agentId: scopeAgentId, skillName: skill.name };
-    activeCommandRef.current = command;
-    setBusyCommand(command);
-    setActionError(null);
-    try {
-      if (skill.installed) {
-        await uninstallSkillApi(scopeAgentId, skill.name);
-      } else {
-        await installSkillApi(scopeAgentId, skill.name);
-      }
-      if (activeAgentIdRef.current === scopeAgentId) {
-        await refreshResource();
-      }
-    } catch (error) {
-      if (activeAgentIdRef.current === scopeAgentId) {
-        setActionError(
-          error instanceof Error
-            ? error.message
-            : t("agent_options.skills.toggle_failed"),
-        );
-      }
-    } finally {
-      if (activeCommandRef.current === command) {
-        activeCommandRef.current = null;
-      }
-      if (activeAgentIdRef.current === scopeAgentId) {
-        setBusyCommand((current) => current === command ? null : current);
-      }
-    }
+    await executeSkillCommand({
+      activeAgentIdRef,
+      activeCommandRef,
+      command,
+      fallbackErrorMessage: t("agent_options.skills.toggle_failed"),
+      refresh: refreshResource,
+      setActionError,
+      setBusyCommand,
+      skill,
+    });
   }, [refreshResource, scopeAgentId, setActionError, t]);
 
   const requestSkillAction = useCallback((skill: AgentSkillEntry): void => {
