@@ -16,7 +16,7 @@ func searchTaskHistoryForToolQuery(
 	input automationdomain.ScheduledTaskHistorySearchInput,
 ) ([]automationdomain.ScheduledTaskHistoryItem, error) {
 	current, ok := currentTaskContextFromServerContext(sctx)
-	if !ok {
+	if !ok || (strings.TrimSpace(input.Query) == "" && !current.external) {
 		return svc.SearchTaskHistory(ctx, input)
 	}
 	mentionsCurrent := queryMentionsCurrentConversation(input.Query)

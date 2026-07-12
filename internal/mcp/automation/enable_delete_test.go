@@ -57,8 +57,9 @@ func TestEnableScheduledTaskCanResumeDisabledTaskByQuery(t *testing.T) {
 			},
 		},
 	}
-	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "enable_scheduled_task", map[string]any{
-		"query": "飞书群暂停新闻",
+	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "update_scheduled_task", map[string]any{
+		"enabled": true,
+		"query":   "飞书群暂停新闻",
 	})
 	if isError {
 		t.Fatalf("unexpected error: %s", extractText(t, result))
@@ -80,8 +81,9 @@ func TestRegularAgentCannotEnableAnotherAgentsTask(t *testing.T) {
 			Schedule: automationdomain.Schedule{Timezone: "Asia/Shanghai"},
 		}},
 	}
-	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "enable_scheduled_task", map[string]any{
-		"job_id": "job-1",
+	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "update_scheduled_task", map[string]any{
+		"enabled": true,
+		"job_id":  "job-1",
 	})
 	if !isError {
 		t.Fatalf("expected ownership error, got %+v", result)

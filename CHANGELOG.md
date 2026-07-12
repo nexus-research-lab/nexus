@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Consolidated the scheduled-task MCP surface from fourteen backend-shaped tools into eight intent-level tools, removed the duplicate scheduled-task Skill through the shared one-time workspace migration ledger, and made models discover the tools directly through Tool Search.
 - Split the shared Select menu into pure presentation, controller, and view ownership; removed stale memoization and type forwarding, fixed unknown-value keyboard traversal, and made nested overlays consume Escape before parent dialogs.
 - Made the selected workspace path the single preview state, removed unreachable standalone preview and resize modes, and moved the shared panel resize handle under layout ownership.
 - Replaced the shared workspace surface header boolean matrix with explicit page, overlay, and accessibility-only modes, removing unsupported title-slot combinations.

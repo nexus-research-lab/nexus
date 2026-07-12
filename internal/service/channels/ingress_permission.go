@@ -21,20 +21,14 @@ var defaultReadOnlyApprovedTools = map[string]struct{}{
 }
 
 var defaultScheduledTaskApprovedTools = map[string]struct{}{
-	"create_scheduled_task":           {},
-	"delete_scheduled_task":           {},
-	"disable_scheduled_task":          {},
-	"enable_scheduled_task":           {},
-	"get_scheduled_task_daily_report": {},
-	"get_scheduled_task_events":       {},
-	"get_scheduled_task_runs":         {},
-	"get_scheduled_task_status":       {},
-	"list_scheduled_tasks":            {},
-	"recover_scheduled_task":          {},
-	"retry_scheduled_task_delivery":   {},
-	"run_scheduled_task":              {},
-	"search_scheduled_task_history":   {},
-	"update_scheduled_task":           {},
+	"create_scheduled_task":     {},
+	"delete_scheduled_task":     {},
+	"find_scheduled_tasks":      {},
+	"get_scheduled_task_report": {},
+	"inspect_scheduled_task":    {},
+	"repair_scheduled_task":     {},
+	"run_scheduled_task":        {},
+	"update_scheduled_task":     {},
 }
 
 var defaultGoalApprovedTools = map[string]struct{}{

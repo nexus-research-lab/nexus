@@ -42,7 +42,6 @@ type Service interface {
 	GetTask(ctx context.Context, jobID string) (*automationdomain.ScheduledTask, error)
 	CreateTask(ctx context.Context, input automationdomain.CreateJobInput) (*automationdomain.ScheduledTask, error)
 	UpdateTask(ctx context.Context, jobID string, input automationdomain.UpdateJobInput) (*automationdomain.ScheduledTask, error)
-	UpdateTaskStatus(ctx context.Context, jobID string, enabled bool) (*automationdomain.ScheduledTask, error)
 	DeleteTask(ctx context.Context, jobID string) (*automationdomain.DeleteJobResult, error)
 	RunTaskNow(ctx context.Context, jobID string) (*automationdomain.ExecutionResult, error)
 	ListTaskRuns(ctx context.Context, jobID string) ([]automationdomain.ScheduledTaskRun, error)

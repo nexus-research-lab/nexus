@@ -272,7 +272,7 @@ func TestAgentHistoryStorePreservesParallelToolResultsFromTranscriptBranches(t *
 					{
 						"type":  "tool_use",
 						"id":    "call-automation",
-						"name":  "mcp__nexus_automation__list_scheduled_tasks",
+						"name":  "mcp__nexus_automation__find_scheduled_tasks",
 						"input": map[string]any{},
 					},
 				},

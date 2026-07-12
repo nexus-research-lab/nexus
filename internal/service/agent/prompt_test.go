@@ -92,7 +92,10 @@ func TestServiceBuildRuntimePromptIncludesHumanIdentityRules(t *testing.T) {
 	assertPromptContains(t, prompt, "Do not search for `cmd/nexusctl`")
 	assertPromptContains(t, prompt, "use `WebSearch` and `WebFetch` as a pair")
 	assertPromptContains(t, prompt, "Do not rely on search snippets alone")
-	assertPromptContains(t, prompt, "scheduled-task-manager")
+	assertPromptContains(t, prompt, "Use Nexus automation tools")
+	if strings.Contains(prompt, "scheduled-task-manager") {
+		t.Fatalf("定时任务不应再要求加载重复 skill: %s", prompt)
+	}
 	assertPromptContains(t, prompt, "Do not narrate the user's input as an event")
 	assertPromptContains(t, prompt, `Never say phrases like "用户输入了一个..."`)
 	if strings.Contains(prompt, "You are Nexus - not an assistant") || strings.Contains(prompt, "insist that you are Nexus") {
@@ -318,7 +321,10 @@ func TestServiceBuildRuntimePromptIncludesMainAgentDefaultPolicy(t *testing.T) {
 	assertPromptContains(t, prompt, "use `WebSearch` and `WebFetch` as a pair")
 	assertPromptContains(t, prompt, "Do not rely on search snippets alone")
 	assertPromptContains(t, prompt, "Use `nexus-manager` for members, Rooms, DMs, workspaces, and skills")
-	assertPromptContains(t, prompt, "Use `scheduled-task-manager` and `nexus_automation` tools")
+	assertPromptContains(t, prompt, "Use `nexus_automation` tools (`create_scheduled_task` and related) directly")
+	if strings.Contains(prompt, "scheduled-task-manager") {
+		t.Fatalf("主智能体定时任务不应再要求加载重复 skill: %s", prompt)
+	}
 	assertPromptContains(t, prompt, "Do not narrate the user's input as an event")
 	assertPromptContains(t, prompt, `Never say phrases like "用户输入了一个..."`)
 	assertPromptContains(t, prompt, "setup_status: configured")

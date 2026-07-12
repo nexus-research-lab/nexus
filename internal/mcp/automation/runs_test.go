@@ -67,8 +67,9 @@ func TestGetScheduledTaskRunsAllowsDeletedOwnedTaskHistory(t *testing.T) {
 			"job-deleted": {{RunID: "run-before-delete", JobID: "job-deleted", Status: automationdomain.RunStatusSucceeded}},
 		},
 	}
-	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "get_scheduled_task_runs", map[string]any{
+	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "inspect_scheduled_task", map[string]any{
 		"job_id": "job-deleted",
+		"view":   "runs",
 	})
 	if isError {
 		t.Fatalf("unexpected error: %s", extractText(t, result))
@@ -114,8 +115,9 @@ func TestGetScheduledTaskRunsCanResolveCurrentExternalGroupQuery(t *testing.T) {
 	result, isError := callTool(t, svc, contract.ServerContext{
 		CurrentAgentID:    "agent-1",
 		CurrentSessionKey: "agent:agent-1:fs:group:oc_group_123",
-	}, "get_scheduled_task_runs", map[string]any{
+	}, "inspect_scheduled_task", map[string]any{
 		"query": "这个群的新闻任务",
+		"view":  "runs",
 	})
 	if isError {
 		t.Fatalf("unexpected error: %s", extractText(t, result))
@@ -146,8 +148,9 @@ func TestGetScheduledTaskRunsRejectsDeletedOtherAgentTask(t *testing.T) {
 			"job-deleted": {{RunID: "run-before-delete", JobID: "job-deleted", Status: automationdomain.RunStatusSucceeded}},
 		},
 	}
-	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "get_scheduled_task_runs", map[string]any{
+	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "inspect_scheduled_task", map[string]any{
 		"job_id": "job-deleted",
+		"view":   "runs",
 	})
 	if !isError {
 		t.Fatalf("expected error, got %+v", result)
@@ -166,7 +169,8 @@ func TestRecoverScheduledTaskPassesRunID(t *testing.T) {
 			Schedule:     automationdomain.Schedule{Timezone: "Asia/Shanghai"},
 		}},
 	}
-	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "recover_scheduled_task", map[string]any{
+	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "repair_scheduled_task", map[string]any{
+		"action": "recover",
 		"job_id": "job-1",
 		"run_id": "run-1",
 	})
@@ -186,7 +190,8 @@ func TestRetryScheduledTaskDeliveryPassesRunID(t *testing.T) {
 			Schedule: automationdomain.Schedule{Timezone: "Asia/Shanghai"},
 		}},
 	}
-	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "retry_scheduled_task_delivery", map[string]any{
+	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "repair_scheduled_task", map[string]any{
+		"action": "retry_delivery",
 		"job_id": "job-1",
 		"run_id": "run-1",
 	})
@@ -217,7 +222,8 @@ func TestRetryScheduledTaskDeliveryCanInferUniqueFailedRunID(t *testing.T) {
 			},
 		},
 	}
-	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "retry_scheduled_task_delivery", map[string]any{
+	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "repair_scheduled_task", map[string]any{
+		"action": "retry_delivery",
 		"job_id": "job-1",
 	})
 	if isError {
@@ -247,7 +253,8 @@ func TestRetryScheduledTaskDeliveryRequiresRunIDWhenMultipleFailedRuns(t *testin
 			},
 		},
 	}
-	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "retry_scheduled_task_delivery", map[string]any{
+	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "repair_scheduled_task", map[string]any{
+		"action": "retry_delivery",
 		"job_id": "job-1",
 	})
 	if !isError {

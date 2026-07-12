@@ -112,7 +112,7 @@ func TestProcessorMergesSequentialAssistantToolUseSnapshots(t *testing.T) {
 				Content: []sdkprotocol.ContentBlock{
 					sdkprotocol.ToolUseBlock{
 						ID:    "tool-automation",
-						Name:  "mcp__nexus_automation__list_scheduled_tasks",
+						Name:  "mcp__nexus_automation__find_scheduled_tasks",
 						Input: json.RawMessage(`{}`),
 					},
 				},

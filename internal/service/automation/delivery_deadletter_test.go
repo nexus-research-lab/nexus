@@ -238,8 +238,8 @@ INSERT INTO automation_task_runs (
 		!containsString(dailyTask.Signals, "delivery_attention") ||
 		!containsString(dailyTask.DeliveryDeadLetterRunIDs, runID) ||
 		containsString(dailyTask.ManualRedeliveryRunIDs, runID) ||
-		!containsString(dailyTask.SuggestedTools, "get_scheduled_task_events") ||
-		containsString(dailyTask.SuggestedTools, "retry_scheduled_task_delivery") {
+		!containsString(dailyTask.SuggestedTools, "inspect_scheduled_task") ||
+		containsString(dailyTask.SuggestedTools, "repair_scheduled_task") {
 		t.Fatalf("删除任务日报应保留失败信号但不建议不可执行补投递: %+v", dailyTask)
 	}
 

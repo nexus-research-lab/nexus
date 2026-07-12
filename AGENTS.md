@@ -33,7 +33,7 @@ internal/   - 后端核心（各子包 L2 见其 doc.go）:
   cli/        - nexusctl 命令装配（按领域文件组织）
   app/        - HTTP 服务装配与生命周期
   mcp/ connectors/ workspace/ - 能力域
-  config/ storage/ infra/ version/ - 装配与基础
+  config/ storage/ infra/ migration/ version/ - 装配、一次性迁移与基础
 docs/       - 跨切面设计文档
 </directory>
 ```

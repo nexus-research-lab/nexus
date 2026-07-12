@@ -18,6 +18,7 @@ import (
 const updateDescription = "按 job_id 或 query 局部更新定时任务字段。query 只在当前权限范围内唯一命中当前未删除任务时才会执行，多候选会要求用户确认。字段语义与 UI「编辑任务」对话框一致：" +
 	"name / instruction / execution_kind / schedule / execution_mode / reply_mode / selected_session_key / " +
 	"instruction_append / named_session_key / selected_reply_session_key / reply_agent_id / reply_session_key / reply_channel / reply_to / reply_account_id / reply_thread_id / overlap_policy / expires_at / clear_expires_at / enabled。只有提供的字段会被更新。" +
+	"启用或停用直接设置 enabled；cancel_active_run=true 会隐含 enabled=false，并中断当前 active run。" +
 	"除了 job_id/query 之外必须至少提供一个要修改的字段。" +
 	"用户说“再加一条要求/补充任务细节”时优先用 instruction_append；只有明确要重写任务内容时才用 instruction。" +
 	"只改投递目标时不需要同时传 execution_mode；传 reply_channel/reply_to/reply_session_key 会默认按 reply_mode=channel 处理，当前会话是结构化外部 IM 群且 reply_channel 与当前通道一致时可省略 reply_to；" +
@@ -32,6 +33,9 @@ func update(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
 			if args == nil {
 				args = map[string]any{}
+			}
+			if err := normalizeUpdateCancellation(args); err != nil {
+				return render.Error(err), nil
 			}
 			scope, err := requireOwnedTaskScope(ctx, svc, sctx, args)
 			if err != nil {
@@ -49,9 +53,46 @@ func update(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 			if err != nil {
 				return render.Error(err), nil
 			}
+			if argx.Bool(args, "cancel_active_run", false) {
+				runID := firstNonEmptyString(
+					argx.String(args, "run_id"),
+					strings.TrimSpace(job.RunningRunID),
+					strings.TrimSpace(scope.Job.RunningRunID),
+				)
+				if runID != "" {
+					job, err = svc.RecoverTaskRunningRun(scope.Context, scope.JobID, runID)
+					if err != nil {
+						return render.Error(err), nil
+					}
+				}
+			}
 			return render.JSON(render.DecorateTimes(job, job.Schedule.Timezone)), nil
 		},
 	}
+}
+
+func normalizeUpdateCancellation(args map[string]any) error {
+	cancelActiveRun := argx.Bool(args, "cancel_active_run", false)
+	if !cancelActiveRun {
+		if strings.TrimSpace(argx.String(args, "run_id")) != "" {
+			return errors.New("run_id requires cancel_active_run=true")
+		}
+		return nil
+	}
+	if raw, ok := args["enabled"]; ok && argx.ParseBool(raw) {
+		return errors.New("cancel_active_run cannot be combined with enabled=true")
+	}
+	args["enabled"] = false
+	return nil
+}
+
+func firstNonEmptyString(values ...string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
 }
 
 // buildUpdateInput 把工具入参映射成底层 UpdateJobInput（仅设置出现的字段）。

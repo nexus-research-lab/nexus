@@ -193,7 +193,7 @@ func TestScheduledTaskDeliveryRecoveryHTTP(t *testing.T) {
 	}
 	if len(report.Data.Tasks) != 1 ||
 		!containsString(report.Data.Tasks[0].Signals, "delivery_attention") ||
-		!containsString(report.Data.Tasks[0].SuggestedTools, "retry_scheduled_task_delivery") ||
+		!containsString(report.Data.Tasks[0].SuggestedTools, "repair_scheduled_task") ||
 		!containsString(report.Data.Tasks[0].ManualRedeliveryRunIDs, runID) {
 		t.Fatalf("日报应暴露失败投递的可恢复信号: %+v", report.Data.Tasks)
 	}

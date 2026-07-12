@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	"github.com/nexus-research-lab/nexus/internal/mcp/automation/contract"
 )
@@ -72,22 +73,21 @@ func (s *stubService) UpdateTask(_ context.Context, jobID string, input automati
 		AgentID:  "agent-1",
 		Schedule: automationdomain.Schedule{Timezone: "Asia/Shanghai"},
 	}
+	for _, current := range s.jobs {
+		if current.JobID == jobID {
+			job = current
+			break
+		}
+	}
+	if input.Enabled != nil {
+		s.statusJobID = jobID
+		s.statusEnabled = *input.Enabled
+		job.Enabled = *input.Enabled
+	}
 	if input.Delivery != nil {
 		job.Delivery = *input.Delivery
 	}
 	return &job, nil
-}
-
-func (s *stubService) UpdateTaskStatus(_ context.Context, jobID string, enabled bool) (*automationdomain.ScheduledTask, error) {
-	s.statusJobID = jobID
-	s.statusEnabled = enabled
-	for _, job := range s.jobs {
-		if job.JobID == jobID {
-			job.Enabled = enabled
-			return &job, nil
-		}
-	}
-	return &automationdomain.ScheduledTask{JobID: jobID, Enabled: enabled, Schedule: automationdomain.Schedule{Timezone: "Asia/Shanghai"}}, nil
 }
 
 func (s *stubService) DeleteTask(_ context.Context, jobID string) (*automationdomain.DeleteJobResult, error) {
@@ -129,7 +129,44 @@ func (s *stubService) ListTaskEvents(_ context.Context, jobID string, _ int) ([]
 
 func (s *stubService) SearchTaskHistory(_ context.Context, input automationdomain.ScheduledTaskHistorySearchInput) ([]automationdomain.ScheduledTaskHistoryItem, error) {
 	s.historyInput = input
-	return s.historyItems, nil
+	s.listAgentID = input.AgentID
+	if s.listErr != nil {
+		return nil, s.listErr
+	}
+	items := make([]automationdomain.ScheduledTaskHistoryItem, 0, len(s.jobs)+len(s.historyItems))
+	if input.IncludeActive {
+		for _, job := range s.jobs {
+			if input.AgentID != "" && job.AgentID != input.AgentID {
+				continue
+			}
+			if input.Query != "" && !automationexec.ScheduledTaskMatchesQuery(job, input.Query) {
+				continue
+			}
+			enabled := job.Enabled
+			items = append(items, automationdomain.ScheduledTaskHistoryItem{
+				JobID:              job.JobID,
+				Name:               job.Name,
+				AgentID:            job.AgentID,
+				Enabled:            &enabled,
+				Running:            job.Running,
+				NextRunAt:          job.NextRunAt,
+				LastRunAt:          job.LastRunAt,
+				LastRunStatus:      job.LastRunStatus,
+				LastDeliveryStatus: job.LastDeliveryStatus,
+			})
+		}
+	}
+	if input.IncludeDeleted {
+		for _, item := range s.historyItems {
+			if item.Deleted {
+				items = append(items, item)
+			}
+		}
+	}
+	if input.Limit > 0 && len(items) > input.Limit {
+		items = items[:input.Limit]
+	}
+	return items, nil
 }
 
 func (s *stubService) GetTaskStatus(_ context.Context, jobID string, _ int, _ int) (*automationdomain.ScheduledTaskStatus, error) {
@@ -304,11 +341,24 @@ func dailySchedule(hhmm string) map[string]any {
 
 func TestToolsListIncludesSearchHints(t *testing.T) {
 	tools := listTools(t, &stubService{}, contract.ServerContext{})
-	if len(tools) == 0 {
-		t.Fatal("expected automation tools")
+	wantNames := []string{
+		"create_scheduled_task",
+		"find_scheduled_tasks",
+		"update_scheduled_task",
+		"delete_scheduled_task",
+		"inspect_scheduled_task",
+		"get_scheduled_task_report",
+		"run_scheduled_task",
+		"repair_scheduled_task",
 	}
-	for _, tool := range tools {
+	if len(tools) != len(wantNames) {
+		t.Fatalf("tools count = %d, want %d", len(tools), len(wantNames))
+	}
+	for index, tool := range tools {
 		name, _ := tool["name"].(string)
+		if name != wantNames[index] {
+			t.Fatalf("tool[%d] = %q, want %q", index, name, wantNames[index])
+		}
 		meta, ok := tool["_meta"].(map[string]any)
 		if !ok {
 			t.Fatalf("%s missing _meta", name)

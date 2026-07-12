@@ -391,7 +391,22 @@ task 的控制请求由 task item 的 `host_agent_id` 路由到实际承载该 s
 | GET | `/capability/scheduled/tasks/{job_id}/events` | 事件列表 | — |
 | POST | `/capability/scheduled/tasks/{job_id}/runs/{run_id}/delivery/retry` | 重试投递 | `retryScheduledTaskRunDeliveryApi` |
 
+运行时通过 `nexus_automation` MCP 暴露 8 个意图级工具，底层 HTTP 和 Service 接口不受模型工具粒度约束：
+
+| 工具 | 说明 |
+|------|------|
+| `create_scheduled_task` | 创建任务 |
+| `find_scheduled_tasks` | 查找当前或已删除任务；历史查询使用 `include_deleted=true` |
+| `update_scheduled_task` | 修改任务以及通过 `enabled` 启停任务 |
+| `delete_scheduled_task` | 删除任务 |
+| `inspect_scheduled_task` | 通过 `view=status|runs|events` 检查状态、运行历史或审计 |
+| `get_scheduled_task_report` | 按日期聚合运行和投递情况 |
+| `run_scheduled_task` | 立即执行一次，不改变后续排程 |
+| `repair_scheduled_task` | 通过 `action=recover|retry_delivery` 恢复卡住运行或补发失败投递 |
+
 创建和更新任务可传 `expires_at`（RFC3339）。到期后任务自动停用，但不会中断已经开始的 run；更新时传 `clear_expires_at: true` 可清除截止时间。
+
+运行记录的 `trigger_kind` 使用 `scheduled`、`misfire`、`manual` 区分正常到点、错过窗口处理和手动执行。`cron` 只用于 `schedule.kind`，不再表示整个任务系统。
 
 调度策略由服务端环境变量控制：
 

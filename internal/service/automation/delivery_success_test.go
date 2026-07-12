@@ -316,13 +316,13 @@ func TestAutomationMCPCreateRunAndInspectDeliversToAgentInbox(t *testing.T) {
 	assertDeliveredAgentMessage(t, workspacePath, *sessionValue, "今日新闻摘要", "MCP 智能体收件箱")
 	assertRunDeliveredToContext(t, ownerCtx, service, created.JobID, "explicit:internal:"+inboxKey)
 
-	statusResult, isError := callAutomationMCPTool(t, service, sctx, "get_scheduled_task_status", map[string]any{
+	statusResult, isError := callAutomationMCPTool(t, service, sctx, "inspect_scheduled_task", map[string]any{
 		"query":       "新闻投递到智能体",
 		"run_limit":   5,
 		"event_limit": 5,
 	})
 	if isError {
-		t.Fatalf("get_scheduled_task_status by query 不应失败: %s", automationMCPToolText(t, statusResult))
+		t.Fatalf("inspect_scheduled_task by query 不应失败: %s", automationMCPToolText(t, statusResult))
 	}
 	status := decodeAutomationMCPJSON[automationdomain.ScheduledTaskStatus](t, statusResult)
 	if status.Job.JobID != created.JobID || status.Job.LastDeliveryStatus != automationdomain.DeliveryStatusSucceeded {

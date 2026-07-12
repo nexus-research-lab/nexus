@@ -39,7 +39,7 @@ func (s *Service) describeScheduledTasksSection(ctx context.Context, agentID str
 		lines = append(lines, formatScheduledTaskLine(job))
 	}
 	if len(jobs) > limit {
-		lines = append(lines, fmt.Sprintf("(+%d more, use list_scheduled_tasks for full list)", len(jobs)-limit))
+		lines = append(lines, fmt.Sprintf("(+%d more, use find_scheduled_tasks for full list)", len(jobs)-limit))
 	}
 	return "Scheduled tasks (you can manage these via the nexus_automation tools):\n- " + strings.Join(lines, "\n- ")
 }

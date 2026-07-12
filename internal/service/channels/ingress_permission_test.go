@@ -12,7 +12,7 @@ import (
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
 
-func TestIngressServiceFeishuAllowsScheduledTaskSkillWithRestrictiveAgentTools(t *testing.T) {
+func TestIngressServiceFeishuAllowsManagedToolsWithRestrictiveAgentTools(t *testing.T) {
 	cfg := newIngressTestConfig(t)
 	db := migrateIngressSQLite(t, cfg.DatabaseURL)
 	defer func() { _ = db.Close() }()
@@ -39,19 +39,8 @@ func TestIngressServiceFeishuAllowsScheduledTaskSkillWithRestrictiveAgentTools(t
 		t.Fatalf("未下发带权限处理器的请求: %+v", handler.requests)
 	}
 
-	skillDecision, err := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{
-		ToolName: "Skill",
-		Input:    map[string]any{"name": "scheduled-task-manager"},
-	})
-	if err != nil {
-		t.Fatalf("Skill 权限处理失败: %v", err)
-	}
-	if skillDecision.Behavior != sdkpermission.BehaviorAllow {
-		t.Fatalf("限制 allowlist 时仍应允许加载托管定时任务 skill: %+v", skillDecision)
-	}
-
 	reportDecision, err := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{
-		ToolName: "mcp__nexus_automation__get_scheduled_task_daily_report",
+		ToolName: "mcp__nexus_automation__get_scheduled_task_report",
 		Input:    map[string]any{"date": "today"},
 	})
 	if err != nil {
@@ -194,7 +183,7 @@ func TestIngressServiceAutoApproveToolsCanAllowNexusAutomationServer(t *testing.
 		t.Fatalf("未下发带权限处理器的请求: %+v", handler.requests)
 	}
 	decision, err := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{
-		ToolName: "mcp__nexus_automation__disable_scheduled_task",
+		ToolName: "mcp__nexus_automation__update_scheduled_task",
 		Input:    map[string]any{"job_id": "job-1"},
 	})
 	if err != nil {
@@ -204,7 +193,7 @@ func TestIngressServiceAutoApproveToolsCanAllowNexusAutomationServer(t *testing.
 		t.Fatalf("auto_approve_tools=nexus_automation 应允许 MCP 前缀工具: %+v", decision)
 	}
 	historyDecision, err := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{
-		ToolName: "mcp__nexus_automation__search_scheduled_task_history",
+		ToolName: "mcp__nexus_automation__find_scheduled_tasks",
 		Input:    map[string]any{"query": "每日新闻"},
 	})
 	if err != nil {

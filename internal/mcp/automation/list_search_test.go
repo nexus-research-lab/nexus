@@ -18,7 +18,7 @@ func TestListPassesAgentID(t *testing.T) {
 			Kind: "every", IntervalSeconds: newInterval(300), Timezone: "Asia/Shanghai",
 		}}},
 	}
-	result, isError := callTool(t, svc, contract.ServerContext{IsMainAgent: true}, "list_scheduled_tasks", map[string]any{"agent_id": "agent-1"})
+	result, isError := callTool(t, svc, contract.ServerContext{IsMainAgent: true}, "find_scheduled_tasks", map[string]any{"agent_id": "agent-1"})
 	if isError {
 		t.Fatalf("unexpected error: %s", extractText(t, result))
 	}
@@ -53,7 +53,7 @@ func TestListCanFilterCandidatesByQueryAndEnabled(t *testing.T) {
 			},
 		},
 	}
-	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "list_scheduled_tasks", map[string]any{
+	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "find_scheduled_tasks", map[string]any{
 		"query":   "新闻",
 		"enabled": true,
 	})
@@ -69,6 +69,33 @@ func TestListCanFilterCandidatesByQueryAndEnabled(t *testing.T) {
 	}
 	if len(decoded) != 1 || decoded[0]["job_id"] != "job-news" {
 		t.Fatalf("expected only enabled news task, got %+v", decoded)
+	}
+}
+
+func TestFindFiltersEnabledBeforeApplyingLimit(t *testing.T) {
+	svc := &stubService{
+		jobs: []automationdomain.ScheduledTask{
+			{JobID: "job-disabled-1", AgentID: "agent-1", Enabled: false},
+			{JobID: "job-disabled-2", AgentID: "agent-1", Enabled: false},
+			{JobID: "job-enabled", AgentID: "agent-1", Enabled: true},
+		},
+	}
+	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "find_scheduled_tasks", map[string]any{
+		"enabled": true,
+		"limit":   1,
+	})
+	if isError {
+		t.Fatalf("unexpected error: %s", extractText(t, result))
+	}
+	if svc.historyInput.Limit != 50 {
+		t.Fatalf("启用状态过滤应先读取完整候选集，实际 limit=%d", svc.historyInput.Limit)
+	}
+	var decoded []map[string]any
+	if err := json.Unmarshal([]byte(extractText(t, result)), &decoded); err != nil {
+		t.Fatalf("find response 不是 JSON 数组: %v", err)
+	}
+	if len(decoded) != 1 || decoded[0]["job_id"] != "job-enabled" {
+		t.Fatalf("expected enabled task after filtering, got %+v", decoded)
 	}
 }
 
@@ -108,7 +135,7 @@ func TestListCanFilterCandidatesByDeliveryChannelAndState(t *testing.T) {
 			},
 		},
 	}
-	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "list_scheduled_tasks", map[string]any{
+	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "find_scheduled_tasks", map[string]any{
 		"query": "飞书群",
 	})
 	if isError {
@@ -122,7 +149,7 @@ func TestListCanFilterCandidatesByDeliveryChannelAndState(t *testing.T) {
 		t.Fatalf("expected feishu task by delivery alias, got %+v", decoded)
 	}
 
-	result, isError = callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "list_scheduled_tasks", map[string]any{
+	result, isError = callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "find_scheduled_tasks", map[string]any{
 		"query": "running",
 	})
 	if isError {
@@ -182,7 +209,7 @@ func TestListCanFilterCandidatesByCurrentExternalGroupQuery(t *testing.T) {
 	result, isError := callTool(t, svc, contract.ServerContext{
 		CurrentAgentID:    "agent-1",
 		CurrentSessionKey: "agent:agent-1:fs:group:oc_group_123",
-	}, "list_scheduled_tasks", map[string]any{
+	}, "find_scheduled_tasks", map[string]any{
 		"query": "这个群",
 	})
 	if isError {
@@ -206,7 +233,7 @@ func TestListCanFilterCandidatesByCurrentExternalGroupQuery(t *testing.T) {
 	result, isError = callTool(t, svc, contract.ServerContext{
 		CurrentAgentID:    "agent-1",
 		CurrentSessionKey: "agent:agent-1:fs:group:oc_group_123",
-	}, "list_scheduled_tasks", map[string]any{
+	}, "find_scheduled_tasks", map[string]any{
 		"query": "新闻",
 	})
 	if isError {
@@ -266,7 +293,7 @@ func TestListDefaultsToCurrentExternalGroupWithoutQuery(t *testing.T) {
 	result, isError := callTool(t, svc, contract.ServerContext{
 		CurrentAgentID:    "agent-1",
 		CurrentSessionKey: "agent:agent-1:fs:group:oc_group_123",
-	}, "list_scheduled_tasks", map[string]any{})
+	}, "find_scheduled_tasks", map[string]any{})
 	if isError {
 		t.Fatalf("unexpected error: %s", extractText(t, result))
 	}
@@ -286,7 +313,7 @@ func TestListDefaultsToCurrentExternalGroupWithoutQuery(t *testing.T) {
 	result, isError = callTool(t, svc, contract.ServerContext{
 		CurrentAgentID:    "agent-1",
 		CurrentSessionKey: "agent:agent-1:fs:group:oc_group_123",
-	}, "list_scheduled_tasks", map[string]any{
+	}, "find_scheduled_tasks", map[string]any{
 		"enabled": false,
 	})
 	if isError {
@@ -303,7 +330,7 @@ func TestListDefaultsToCurrentExternalGroupWithoutQuery(t *testing.T) {
 
 func TestListPropagatesError(t *testing.T) {
 	svc := &stubService{listErr: errors.New("boom")}
-	result, isError := callTool(t, svc, contract.ServerContext{IsMainAgent: true}, "list_scheduled_tasks", nil)
+	result, isError := callTool(t, svc, contract.ServerContext{IsMainAgent: true}, "find_scheduled_tasks", nil)
 	if !isError {
 		t.Fatalf("expected error result")
 	}
@@ -328,9 +355,10 @@ func TestSearchScheduledTaskHistoryReturnsDeletedCandidates(t *testing.T) {
 			},
 		},
 	}
-	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "search_scheduled_task_history", map[string]any{
-		"query": "新闻",
-		"limit": 5,
+	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "find_scheduled_tasks", map[string]any{
+		"query":           "新闻",
+		"include_deleted": true,
+		"limit":           5,
 	})
 	if isError {
 		t.Fatalf("unexpected error: %s", extractText(t, result))
@@ -424,9 +452,10 @@ func TestSearchScheduledTaskHistoryCanFilterCurrentExternalGroupQuery(t *testing
 	result, isError := callTool(t, svc, contract.ServerContext{
 		CurrentAgentID:    "agent-1",
 		CurrentSessionKey: "agent:agent-1:fs:group:oc_group_123",
-	}, "search_scheduled_task_history", map[string]any{
-		"query": "这个群的新闻任务",
-		"limit": 10,
+	}, "find_scheduled_tasks", map[string]any{
+		"query":           "这个群的新闻任务",
+		"include_deleted": true,
+		"limit":           10,
 	})
 	if isError {
 		t.Fatalf("unexpected error: %s", extractText(t, result))
@@ -449,9 +478,10 @@ func TestSearchScheduledTaskHistoryCanFilterCurrentExternalGroupQuery(t *testing
 	result, isError = callTool(t, svc, contract.ServerContext{
 		CurrentAgentID:    "agent-1",
 		CurrentSessionKey: "agent:agent-1:fs:group:oc_group_123",
-	}, "search_scheduled_task_history", map[string]any{
-		"query": "新闻任务",
-		"limit": 10,
+	}, "find_scheduled_tasks", map[string]any{
+		"query":           "新闻任务",
+		"include_deleted": true,
+		"limit":           10,
 	})
 	if isError {
 		t.Fatalf("unexpected error without explicit current group terms: %s", extractText(t, result))
@@ -541,9 +571,10 @@ func TestSearchScheduledTaskHistoryCanFilterCurrentInternalConversationQuery(t *
 	result, isError := callTool(t, svc, contract.ServerContext{
 		CurrentAgentID:    "agent-1",
 		CurrentSessionKey: currentSessionKey,
-	}, "search_scheduled_task_history", map[string]any{
-		"query": "当前会话的新闻任务",
-		"limit": 10,
+	}, "find_scheduled_tasks", map[string]any{
+		"query":           "当前会话的新闻任务",
+		"include_deleted": true,
+		"limit":           10,
 	})
 	if isError {
 		t.Fatalf("unexpected error: %s", extractText(t, result))

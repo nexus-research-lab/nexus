@@ -122,41 +122,19 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	if err = os.WriteFile(staleImagegenScript, []byte("stale"), 0o644); err != nil {
 		t.Fatalf("写入 stale imagegen 脚本失败: %v", err)
 	}
+	retiredScheduledSkillDirs := []string{
+		filepath.Join(agentValue.WorkspacePath, ".agents", "skills", "scheduled-task-manager"),
+		filepath.Join(agentValue.WorkspacePath, ".claude", "skills", "scheduled-task-manager"),
+	}
 	if err = EnsureInitialized(agentValue.AgentID, agentValue.Name, agentValue.WorkspacePath, agentValue.IsMain, agentValue.CreatedAt); err != nil {
 		t.Fatalf("重新初始化 workspace 失败: %v", err)
 	}
 	if _, err = os.Stat(staleImagegenScript); !os.IsNotExist(err) {
 		t.Fatalf("系统托管 skill 同步后应删除已移除脚本: %v", err)
 	}
-	scheduledTaskSkillPath := filepath.Join(agentValue.WorkspacePath, ".agents", "skills", "scheduled-task-manager", "SKILL.md")
-	if _, err = os.Stat(scheduledTaskSkillPath); err != nil {
-		t.Fatalf("系统托管 scheduled-task-manager skill 未部署: %v", err)
-	}
-	scheduledTaskSkill, err := os.ReadFile(scheduledTaskSkillPath)
-	if err != nil {
-		t.Fatalf("读取 scheduled-task-manager skill 失败: %v", err)
-	}
-	for _, expected := range []string{
-		"get_scheduled_task_daily_report",
-		"get_scheduled_task_status",
-		"retry_scheduled_task_delivery",
-		"reply_mode\": \"channel\"",
-		"reply_mode\": \"agent\"",
-		"larksuite/lark-openapi-mcp",
-	} {
-		if !strings.Contains(string(scheduledTaskSkill), expected) {
-			t.Fatalf("scheduled-task-manager skill 缺少 %q", expected)
-		}
-	}
-	legacySkillEntry := filepath.Join(agentValue.WorkspacePath, ".claude", "skills", "scheduled-task-manager")
-	if info, statErr := os.Lstat(legacySkillEntry); statErr != nil {
-		t.Fatalf("scheduled-task-manager skill 的 legacy 入口未生成: %v", statErr)
-	} else if info.Mode()&os.ModeSymlink == 0 {
-		if !info.IsDir() {
-			t.Fatalf("scheduled-task-manager skill 的 legacy 入口应为符号链接或镜像目录: %s", legacySkillEntry)
-		}
-		if _, err = os.Stat(filepath.Join(legacySkillEntry, "SKILL.md")); err != nil {
-			t.Fatalf("scheduled-task-manager skill 的 legacy 镜像目录缺少 SKILL.md: %v", err)
+	for _, skillDir := range retiredScheduledSkillDirs {
+		if _, statErr := os.Lstat(skillDir); !os.IsNotExist(statErr) {
+			t.Fatalf("workspace 初始化后仍保留已退役定时任务 skill %s: %v", skillDir, statErr)
 		}
 	}
 	goalSkillPath := filepath.Join(agentValue.WorkspacePath, ".agents", "skills", "goal-manager", "SKILL.md")

@@ -125,7 +125,7 @@ func TestServiceDailyReportAggregatesExecutionAndDelivery(t *testing.T) {
 	}
 	dailyTask := report.Tasks[0]
 	if !slices.Contains(dailyTask.Signals, "delivery_attention") ||
-		!slices.Contains(dailyTask.SuggestedTools, "retry_scheduled_task_delivery") {
+		!slices.Contains(dailyTask.SuggestedTools, "repair_scheduled_task") {
 		t.Fatalf("日报任务应直接提示投递补救动作: %+v", dailyTask)
 	}
 	if !slices.Contains(dailyTask.Signals, "recent_execution_failed") ||
@@ -229,7 +229,7 @@ func TestServiceDailyReportAndRunsSurviveDeletedTask(t *testing.T) {
 		t.Fatalf("删除任务日报未保留任务快照: %+v", dailyTask)
 	}
 	if !slices.Contains(dailyTask.Signals, "deleted") ||
-		!slices.Contains(dailyTask.SuggestedTools, "get_scheduled_task_events") {
+		!slices.Contains(dailyTask.SuggestedTools, "inspect_scheduled_task") {
 		t.Fatalf("删除任务日报应提示查询审计事件: %+v", dailyTask)
 	}
 	if len(dailyTask.Runs) != 1 || dailyTask.Runs[0].RunID != "run-before-delete" {
@@ -303,7 +303,7 @@ func TestServiceDailyReportIncludesRecoveryRunID(t *testing.T) {
 		t.Fatalf("日报任务应直接给出可恢复 run_id: %+v", dailyTask)
 	}
 	if !slices.Contains(dailyTask.Signals, "running") ||
-		!slices.Contains(dailyTask.SuggestedTools, "recover_scheduled_task") {
+		!slices.Contains(dailyTask.SuggestedTools, "repair_scheduled_task") {
 		t.Fatalf("日报任务应直接提示恢复动作: %+v", dailyTask)
 	}
 }

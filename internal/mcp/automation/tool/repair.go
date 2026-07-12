@@ -14,26 +14,37 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/mcp/automation/internal/render"
 )
 
-func redeliver(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
+func repair(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 	return sdktool.Tool{
-		Name:        "retry_scheduled_task_delivery",
-		Description: "按 job_id 或 query 只重试某次 run 的结果投递，不重新执行任务本身。适合处理“任务已跑完但飞书/IM 发送失败”。run_id 可显式传入；没传时会从任务健康摘要里自动选择唯一可手动补投递的失败 run，多候选会要求用户确认。query 只在当前权限范围内唯一命中当前未删除任务时才会执行。普通 agent 只能操作自己名下任务。",
-		SearchHint:  searchHintRetryDelivery,
-		InputSchema: runIDSchema(),
+		Name:        "repair_scheduled_task",
+		Description: "修复定时任务运行或投递。action=recover 会中断并释放卡住的 active run；action=retry_delivery 只补发已完成 run 的失败投递，不重新执行任务。",
+		SearchHint:  searchHintRepairTask,
+		InputSchema: repairSchema(),
 		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
 			scope, err := requireOwnedTaskScope(ctx, svc, sctx, args)
 			if err != nil {
 				return render.Error(err), nil
 			}
-			runID, err := resolveRetryDeliveryRunID(scope.Context, svc, scope, argx.String(args, "run_id"))
-			if err != nil {
-				return render.Error(err), nil
+			switch strings.ToLower(strings.TrimSpace(argx.String(args, "action"))) {
+			case "recover":
+				job, recoverErr := svc.RecoverTaskRunningRun(scope.Context, scope.JobID, argx.String(args, "run_id"))
+				if recoverErr != nil {
+					return render.Error(recoverErr), nil
+				}
+				return render.JSON(render.DecorateTimes(job, job.Schedule.Timezone)), nil
+			case "retry_delivery":
+				runID, resolveErr := resolveRetryDeliveryRunID(scope.Context, svc, scope, argx.String(args, "run_id"))
+				if resolveErr != nil {
+					return render.Error(resolveErr), nil
+				}
+				run, retryErr := svc.RetryRunDelivery(scope.Context, scope.JobID, runID)
+				if retryErr != nil {
+					return render.Error(retryErr), nil
+				}
+				return render.JSON(render.DecorateTimes(run, "")), nil
+			default:
+				return render.Error(errors.New("repair_scheduled_task action must be one of recover, retry_delivery")), nil
 			}
-			run, err := svc.RetryRunDelivery(scope.Context, scope.JobID, runID)
-			if err != nil {
-				return render.Error(err), nil
-			}
-			return render.JSON(render.DecorateTimes(run, "")), nil
 		},
 	}
 }

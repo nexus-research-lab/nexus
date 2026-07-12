@@ -1,0 +1,41 @@
+-- +goose Up
+ALTER TABLE automation_cron_jobs RENAME TO automation_scheduled_tasks;
+ALTER TABLE automation_cron_runs RENAME TO automation_task_runs;
+
+ALTER INDEX IF EXISTS idx_automation_cron_jobs_agent RENAME TO idx_automation_scheduled_tasks_agent;
+ALTER INDEX IF EXISTS idx_automation_cron_jobs_created RENAME TO idx_automation_scheduled_tasks_created;
+ALTER INDEX IF EXISTS idx_automation_cron_jobs_agent_created RENAME TO idx_automation_scheduled_tasks_agent_created;
+ALTER INDEX IF EXISTS idx_automation_cron_jobs_enabled_agent RENAME TO idx_automation_scheduled_tasks_enabled_agent;
+ALTER INDEX IF EXISTS idx_automation_cron_jobs_owner_created RENAME TO idx_automation_scheduled_tasks_owner_created;
+ALTER INDEX IF EXISTS idx_automation_cron_jobs_owner_agent_created RENAME TO idx_automation_scheduled_tasks_owner_agent_created;
+ALTER INDEX IF EXISTS idx_automation_cron_jobs_owner_enabled_agent RENAME TO idx_automation_scheduled_tasks_owner_enabled_agent;
+ALTER INDEX IF EXISTS idx_automation_cron_jobs_runtime_due RENAME TO idx_automation_scheduled_tasks_runtime_due;
+ALTER INDEX IF EXISTS idx_automation_cron_jobs_runtime_running RENAME TO idx_automation_scheduled_tasks_runtime_running;
+ALTER INDEX IF EXISTS idx_automation_cron_jobs_expires_at RENAME TO idx_automation_scheduled_tasks_expires_at;
+ALTER INDEX IF EXISTS idx_automation_cron_runs_job RENAME TO idx_automation_task_runs_job;
+ALTER INDEX IF EXISTS idx_automation_cron_runs_status RENAME TO idx_automation_task_runs_status;
+ALTER INDEX IF EXISTS idx_automation_cron_runs_job_created RENAME TO idx_automation_task_runs_job_created;
+ALTER INDEX IF EXISTS idx_automation_cron_runs_owner_job_created RENAME TO idx_automation_task_runs_owner_job_created;
+
+UPDATE automation_task_runs SET trigger_kind = 'scheduled' WHERE trigger_kind = 'cron';
+
+-- +goose Down
+UPDATE automation_task_runs SET trigger_kind = 'cron' WHERE trigger_kind = 'scheduled';
+
+ALTER INDEX IF EXISTS idx_automation_task_runs_owner_job_created RENAME TO idx_automation_cron_runs_owner_job_created;
+ALTER INDEX IF EXISTS idx_automation_task_runs_job_created RENAME TO idx_automation_cron_runs_job_created;
+ALTER INDEX IF EXISTS idx_automation_task_runs_status RENAME TO idx_automation_cron_runs_status;
+ALTER INDEX IF EXISTS idx_automation_task_runs_job RENAME TO idx_automation_cron_runs_job;
+ALTER INDEX IF EXISTS idx_automation_scheduled_tasks_expires_at RENAME TO idx_automation_cron_jobs_expires_at;
+ALTER INDEX IF EXISTS idx_automation_scheduled_tasks_runtime_running RENAME TO idx_automation_cron_jobs_runtime_running;
+ALTER INDEX IF EXISTS idx_automation_scheduled_tasks_runtime_due RENAME TO idx_automation_cron_jobs_runtime_due;
+ALTER INDEX IF EXISTS idx_automation_scheduled_tasks_owner_enabled_agent RENAME TO idx_automation_cron_jobs_owner_enabled_agent;
+ALTER INDEX IF EXISTS idx_automation_scheduled_tasks_owner_agent_created RENAME TO idx_automation_cron_jobs_owner_agent_created;
+ALTER INDEX IF EXISTS idx_automation_scheduled_tasks_owner_created RENAME TO idx_automation_cron_jobs_owner_created;
+ALTER INDEX IF EXISTS idx_automation_scheduled_tasks_enabled_agent RENAME TO idx_automation_cron_jobs_enabled_agent;
+ALTER INDEX IF EXISTS idx_automation_scheduled_tasks_agent_created RENAME TO idx_automation_cron_jobs_agent_created;
+ALTER INDEX IF EXISTS idx_automation_scheduled_tasks_created RENAME TO idx_automation_cron_jobs_created;
+ALTER INDEX IF EXISTS idx_automation_scheduled_tasks_agent RENAME TO idx_automation_cron_jobs_agent;
+
+ALTER TABLE automation_task_runs RENAME TO automation_cron_runs;
+ALTER TABLE automation_scheduled_tasks RENAME TO automation_cron_jobs;

@@ -34,7 +34,7 @@ func TestScheduledTaskPermissionHandlerApprovesAgentAllowedTools(t *testing.T) {
 		t.Fatalf("WebSearch 授权应匹配常见搜索 MCP 工具名: %+v", wrappedSearchDecision)
 	}
 
-	wrappedDecision, err := handler(context.Background(), sdkpermission.Request{ToolName: "mcp__nexus_automation__get_scheduled_task_daily_report"})
+	wrappedDecision, err := handler(context.Background(), sdkpermission.Request{ToolName: "mcp__nexus_automation__get_scheduled_task_report"})
 	if err != nil {
 		t.Fatalf("包装后的 nexus_automation 工具权限处理失败: %v", err)
 	}

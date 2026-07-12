@@ -64,7 +64,7 @@ func (s *Service) applyScheduledTaskStateHealth(
 		if job.RunningStartedAt != nil {
 			health.RunningForSeconds = int64(s.nowFn().UTC().Sub(job.RunningStartedAt.UTC()).Seconds())
 		}
-		addTaskHealthSuggestedTool(health, "recover_scheduled_task")
+		addTaskHealthSuggestedTool(health, "repair_scheduled_task")
 	}
 	if stringPointerHasText(job.LastError) || job.FailureStreak > 0 || isFailedRunStatus(job.LastRunStatus) {
 		addTaskHealthSignal(health, "execution_attention")
@@ -114,7 +114,7 @@ func finalizeScheduledTaskHealth(health *automationdomain.ScheduledTaskHealth) {
 	}
 	if health.DeliveryFailedRunCount > 0 || health.DeliveryDeadLetterCount > 0 {
 		addTaskHealthSignal(health, "delivery_attention")
-		addTaskHealthSuggestedTool(health, "retry_scheduled_task_delivery")
+		addTaskHealthSuggestedTool(health, "repair_scheduled_task")
 		markScheduledTaskHealthAttention(health)
 	}
 	if health.DeliveryPendingRunCount > 0 {

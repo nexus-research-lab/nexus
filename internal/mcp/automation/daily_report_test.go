@@ -36,7 +36,7 @@ func TestDailyReportUsesServiceObservability(t *testing.T) {
 					JobID:                    "job-1",
 					Name:                     "新闻日报",
 					Signals:                  []string{"delivery_attention"},
-					SuggestedTools:           []string{"retry_scheduled_task_delivery", "update_scheduled_task", "run_scheduled_task"},
+					SuggestedTools:           []string{"repair_scheduled_task", "update_scheduled_task", "run_scheduled_task"},
 					LatestExecutionError:     &executionError,
 					LatestDeliveryError:      &deliveryError,
 					ExecutionFailedRunIDs:    []string{"run-exec-failed"},
@@ -48,7 +48,7 @@ func TestDailyReportUsesServiceObservability(t *testing.T) {
 			},
 		},
 	}
-	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "get_scheduled_task_daily_report", map[string]any{
+	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "get_scheduled_task_report", map[string]any{
 		"date":     "2026-05-21",
 		"timezone": "Asia/Shanghai",
 	})
@@ -86,7 +86,7 @@ func TestDailyReportUsesServiceObservability(t *testing.T) {
 		t.Fatalf("daily report task 不是 object: %+v", tasks[0])
 	}
 	if firstString(task["signals"]) != "delivery_attention" ||
-		!stringSliceContains(task["suggested_tools"], "retry_scheduled_task_delivery") ||
+		!stringSliceContains(task["suggested_tools"], "repair_scheduled_task") ||
 		!stringSliceContains(task["suggested_tools"], "update_scheduled_task") ||
 		!stringSliceContains(task["suggested_tools"], "run_scheduled_task") ||
 		task["latest_execution_error"] != "WebSearch permission denied" ||
@@ -131,7 +131,7 @@ func TestDailyReportAllowsDeletedOwnedTaskHistory(t *testing.T) {
 			}},
 		},
 	}
-	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "get_scheduled_task_daily_report", map[string]any{
+	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "get_scheduled_task_report", map[string]any{
 		"job_id": "job-deleted",
 	})
 	if isError {
@@ -189,7 +189,7 @@ func TestDailyReportCanResolveDeletedTaskByQuery(t *testing.T) {
 			}},
 		},
 	}
-	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "get_scheduled_task_daily_report", map[string]any{
+	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "get_scheduled_task_report", map[string]any{
 		"query": "旧新闻",
 	})
 	if isError {
@@ -250,7 +250,7 @@ func TestDailyReportCanResolveCurrentExternalGroupQuery(t *testing.T) {
 		CurrentAgentID:    "agent-1",
 		CurrentSessionKey: "agent:agent-1:fs:group:oc_group_123",
 		DefaultTimezone:   "Asia/Shanghai",
-	}, "get_scheduled_task_daily_report", map[string]any{
+	}, "get_scheduled_task_report", map[string]any{
 		"query": "这个群的新闻任务",
 		"date":  "2026-05-22",
 	})
@@ -317,7 +317,7 @@ func TestDailyReportDefaultsToCurrentExternalGroupWithoutQuery(t *testing.T) {
 		CurrentAgentID:    "agent-1",
 		CurrentSessionKey: "agent:agent-1:fs:group:oc_group_123",
 		DefaultTimezone:   "Asia/Shanghai",
-	}, "get_scheduled_task_daily_report", map[string]any{
+	}, "get_scheduled_task_report", map[string]any{
 		"date": "2026-05-22",
 	})
 	if isError {
@@ -365,7 +365,7 @@ func TestDailyReportDefaultsToEmptyCurrentExternalGroup(t *testing.T) {
 		CurrentAgentID:    "agent-1",
 		CurrentSessionKey: "agent:agent-1:fs:group:oc_group_123",
 		DefaultTimezone:   "Asia/Shanghai",
-	}, "get_scheduled_task_daily_report", map[string]any{
+	}, "get_scheduled_task_report", map[string]any{
 		"date": "2026-05-22",
 	})
 	if isError {
@@ -462,7 +462,7 @@ func TestDailyReportAggregatesCurrentExternalGroupGenericQuery(t *testing.T) {
 		CurrentAgentID:    "agent-1",
 		CurrentSessionKey: sessionKey,
 		DefaultTimezone:   "Asia/Shanghai",
-	}, "get_scheduled_task_daily_report", map[string]any{
+	}, "get_scheduled_task_report", map[string]any{
 		"query": "这个群的定时任务发送情况",
 		"date":  "2026-05-22",
 	})
@@ -563,7 +563,7 @@ func TestDailyReportAggregatesCurrentInternalConversationGenericQuery(t *testing
 		CurrentAgentID:    "agent-1",
 		CurrentSessionKey: currentSessionKey,
 		DefaultTimezone:   "Asia/Shanghai",
-	}, "get_scheduled_task_daily_report", map[string]any{
+	}, "get_scheduled_task_report", map[string]any{
 		"query": "当前会话的定时任务发送情况",
 		"date":  "2026-05-22",
 	})
@@ -623,7 +623,7 @@ func TestDailyReportCurrentInternalConversationGenericQueryCanReturnEmptyReport(
 		CurrentAgentID:    "agent-1",
 		CurrentSessionKey: currentSessionKey,
 		DefaultTimezone:   "Asia/Shanghai",
-	}, "get_scheduled_task_daily_report", map[string]any{
+	}, "get_scheduled_task_report", map[string]any{
 		"query": "当前会话的定时任务发送情况",
 		"date":  "2026-05-22",
 	})
@@ -716,7 +716,7 @@ func TestDailyReportCanResolveDeletedCurrentExternalGroupQuery(t *testing.T) {
 		CurrentAgentID:    "agent-1",
 		CurrentSessionKey: "agent:agent-1:fs:group:oc_group_123",
 		DefaultTimezone:   "Asia/Shanghai",
-	}, "get_scheduled_task_daily_report", map[string]any{
+	}, "get_scheduled_task_report", map[string]any{
 		"query": "这个群的旧新闻任务",
 		"date":  "2026-05-22",
 	})

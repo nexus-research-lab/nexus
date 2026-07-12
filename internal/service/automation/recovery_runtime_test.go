@@ -191,7 +191,7 @@ func TestServiceRecoverTaskRunningRunReleasesStuckRuntime(t *testing.T) {
 	}
 	interrupts := dm.Interrupts()
 	if len(interrupts) != 1 {
-		t.Fatalf("recover_scheduled_task 应中断真实 DM 运行，实际 interrupts=%+v", interrupts)
+		t.Fatalf("repair_scheduled_task 应中断真实 DM 运行，实际 interrupts=%+v", interrupts)
 	}
 	if interrupts[0].SessionKey != sessionKey || interrupts[0].RoundID != roundID {
 		t.Fatalf("DM 中断请求不正确: %+v", interrupts[0])
@@ -295,7 +295,7 @@ func TestServiceRecoverTaskRunningRunInterruptsRoomRuntime(t *testing.T) {
 	}
 	interrupts := room.Interrupts()
 	if len(interrupts) != 1 || interrupts[0].SessionKey != sessionKey {
-		t.Fatalf("recover_scheduled_task 应中断真实 Room 运行，实际 interrupts=%+v", interrupts)
+		t.Fatalf("repair_scheduled_task 应中断真实 Room 运行，实际 interrupts=%+v", interrupts)
 	}
 }
 

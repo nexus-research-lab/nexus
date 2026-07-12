@@ -3,6 +3,7 @@ package tool
 import (
 	"context"
 	"errors"
+	"strings"
 
 	sdktool "github.com/nexus-research-lab/nexus/internal/mcp/sdktool"
 
@@ -13,31 +14,83 @@ import (
 
 func inspectTask(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 	return sdktool.Tool{
-		Name:        "get_scheduled_task_status",
-		Description: "按 job_id 或 query 查看单个定时任务的当前配置、健康状态、最近运行记录和最近管理事件。适合回答“这个任务现在怎么样/今天有没有发送失败/要不要修正执行失败、恢复或重投递”。query 只在当前权限范围内唯一命中当前未删除任务时才会查询。普通 agent 只能查看自己名下任务。",
-		SearchHint:  searchHintGetTaskStatus,
-		InputSchema: taskStatusSchema(),
+		Name:        "inspect_scheduled_task",
+		Description: "检查单个定时任务。view=status 返回当前配置、健康摘要和最近观测；view=runs 返回运行历史；view=events 返回管理审计。runs/events 支持已删除任务。",
+		SearchHint:  searchHintInspectTask,
+		InputSchema: inspectSchema(),
 		Annotations: &sdktool.ToolAnnotations{
 			ReadOnly: true,
 		},
 		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
-			scope, err := requireOwnedTaskScope(ctx, svc, sctx, args)
-			if err != nil {
-				return render.Error(err), nil
+			switch strings.ToLower(strings.TrimSpace(argx.String(args, "view"))) {
+			case "", "status":
+				return inspectTaskStatus(ctx, svc, sctx, args)
+			case "runs":
+				return inspectTaskRuns(ctx, svc, sctx, args)
+			case "events":
+				return inspectTaskEvents(ctx, svc, sctx, args)
+			default:
+				return render.Error(errors.New("inspect_scheduled_task view must be one of status, runs, events")), nil
 			}
-			payload, err := svc.GetTaskStatus(
-				scope.Context,
-				scope.JobID,
-				argx.Int(args["run_limit"]),
-				argx.Int(args["event_limit"]),
-			)
-			if err != nil {
-				return render.Error(err), nil
-			}
-			if payload == nil {
-				return render.Error(errors.New("scheduled task not found")), nil
-			}
-			return render.JSON(render.DecorateTimes(payload, payload.Job.Schedule.Timezone)), nil
 		},
 	}
+}
+
+func inspectTaskStatus(ctx context.Context, svc contract.Service, sctx contract.ServerContext, args map[string]any) (sdktool.ToolResult, error) {
+	scope, err := requireOwnedTaskScope(ctx, svc, sctx, args)
+	if err != nil {
+		return render.Error(err), nil
+	}
+	payload, err := svc.GetTaskStatus(
+		scope.Context,
+		scope.JobID,
+		argx.Int(args["run_limit"]),
+		argx.Int(args["event_limit"]),
+	)
+	if err != nil {
+		return render.Error(err), nil
+	}
+	if payload == nil {
+		return render.Error(errors.New("scheduled task not found")), nil
+	}
+	return render.JSON(render.DecorateTimes(payload, payload.Job.Schedule.Timezone)), nil
+}
+
+func inspectTaskRuns(ctx context.Context, svc contract.Service, sctx contract.ServerContext, args map[string]any) (sdktool.ToolResult, error) {
+	scope, err := requireOwnedTaskHistoryScope(ctx, svc, sctx, args)
+	if err != nil {
+		return render.Error(err), nil
+	}
+	runs, err := svc.ListTaskRuns(scope.Context, scope.JobID)
+	if err != nil {
+		return render.Error(err), nil
+	}
+	runs = limitSlice(runs, boundedInspectLimit(argx.Int(args["run_limit"])))
+	return render.JSON(render.DecorateTimes(runs, "")), nil
+}
+
+func inspectTaskEvents(ctx context.Context, svc contract.Service, sctx contract.ServerContext, args map[string]any) (sdktool.ToolResult, error) {
+	scope, err := requireOwnedTaskHistoryScope(ctx, svc, sctx, args)
+	if err != nil {
+		return render.Error(err), nil
+	}
+	events, err := svc.ListTaskEvents(scope.Context, scope.JobID, boundedInspectLimit(argx.Int(args["event_limit"])))
+	if err != nil {
+		return render.Error(err), nil
+	}
+	return render.JSON(render.DecorateTimes(events, "")), nil
+}
+
+func boundedInspectLimit(limit int) int {
+	if limit <= 0 {
+		return 10
+	}
+	return min(limit, 50)
+}
+
+func limitSlice[T any](items []T, limit int) []T {
+	if len(items) <= limit {
+		return items
+	}
+	return items[:limit]
 }

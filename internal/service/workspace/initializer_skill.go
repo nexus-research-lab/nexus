@@ -12,10 +12,9 @@ import (
 )
 
 var (
-	baseSkillNames        = []string{"imagegen", "scheduled-task-manager", "goal-manager"}
-	retiredBaseSkillNames = []string{"room-collaboration"}
-	mainAgentSkillNames   = []string{"nexus-manager"}
-	createSymlink         = os.Symlink
+	baseSkillNames      = []string{"imagegen", "goal-manager"}
+	mainAgentSkillNames = []string{"nexus-manager"}
+	createSymlink       = os.Symlink
 )
 
 // BuildSkillRenderContext 构建 skill 模板渲染上下文。

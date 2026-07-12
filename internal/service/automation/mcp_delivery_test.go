@@ -137,13 +137,13 @@ func TestAutomationMCPReportAndRetryFailedDeliveryToAgentInbox(t *testing.T) {
 		t.Fatalf("飞书发送失败应记录投递尝试并安排重试: %+v", failedRun)
 	}
 
-	reportResult, isError := callAutomationMCPTool(t, fixture.Service, fixture.ServerContext, "get_scheduled_task_daily_report", map[string]any{
+	reportResult, isError := callAutomationMCPTool(t, fixture.Service, fixture.ServerContext, "get_scheduled_task_report", map[string]any{
 		"query":    "飞书新闻投递",
 		"date":     "2026-05-22",
 		"timezone": "UTC",
 	})
 	if isError {
-		t.Fatalf("get_scheduled_task_daily_report by query 不应失败: %s", automationMCPToolText(t, reportResult))
+		t.Fatalf("get_scheduled_task_report by query 不应失败: %s", automationMCPToolText(t, reportResult))
 	}
 	report := decodeAutomationMCPJSON[automationdomain.ScheduledTaskDailyReport](t, reportResult)
 	if len(report.Tasks) != 1 {
@@ -151,7 +151,7 @@ func TestAutomationMCPReportAndRetryFailedDeliveryToAgentInbox(t *testing.T) {
 	}
 	taskReport := report.Tasks[0]
 	if !slices.Contains(taskReport.Signals, "delivery_attention") ||
-		!slices.Contains(taskReport.SuggestedTools, "retry_scheduled_task_delivery") ||
+		!slices.Contains(taskReport.SuggestedTools, "repair_scheduled_task") ||
 		!slices.Contains(taskReport.ManualRedeliveryRunIDs, runID) {
 		t.Fatalf("日报应直接指出失败投递 run 和补救工具: %+v", taskReport)
 	}
@@ -175,12 +175,13 @@ func TestAutomationMCPReportAndRetryFailedDeliveryToAgentInbox(t *testing.T) {
 		t.Fatalf("应把失败任务投递目标修正到 agent-2 收件箱: %+v", updated.Delivery)
 	}
 
-	retryResult, isError := callAutomationMCPTool(t, fixture.Service, fixture.ServerContext, "retry_scheduled_task_delivery", map[string]any{
+	retryResult, isError := callAutomationMCPTool(t, fixture.Service, fixture.ServerContext, "repair_scheduled_task", map[string]any{
+		"action": "retry_delivery",
 		"query":  "飞书新闻投递",
 		"run_id": runID,
 	})
 	if isError {
-		t.Fatalf("retry_scheduled_task_delivery by query 不应失败: %s", automationMCPToolText(t, retryResult))
+		t.Fatalf("repair_scheduled_task by query 不应失败: %s", automationMCPToolText(t, retryResult))
 	}
 	redelivered := decodeAutomationMCPJSON[automationdomain.ScheduledTaskRun](t, retryResult)
 	if redelivered.RunID != runID ||
@@ -203,12 +204,12 @@ func TestAutomationMCPReportAndRetryFailedDeliveryToAgentInbox(t *testing.T) {
 	}
 	assertDeliveredAgentMessage(t, fixture.WorkspacePath, *sessionValue, "今日新闻摘要", "重投递智能体收件箱")
 
-	statusResult, isError := callAutomationMCPTool(t, fixture.Service, fixture.ServerContext, "get_scheduled_task_status", map[string]any{
+	statusResult, isError := callAutomationMCPTool(t, fixture.Service, fixture.ServerContext, "inspect_scheduled_task", map[string]any{
 		"query":     "飞书新闻投递",
 		"run_limit": 3,
 	})
 	if isError {
-		t.Fatalf("重投递后 get_scheduled_task_status 不应失败: %s", automationMCPToolText(t, statusResult))
+		t.Fatalf("重投递后 inspect_scheduled_task 不应失败: %s", automationMCPToolText(t, statusResult))
 	}
 	status := decodeAutomationMCPJSON[automationdomain.ScheduledTaskStatus](t, statusResult)
 	if status.Job.LastDeliveryStatus != automationdomain.DeliveryStatusSucceeded ||
@@ -270,13 +271,13 @@ func TestAutomationMCPDeletedTaskReportDoesNotSuggestRedelivery(t *testing.T) {
 		t.Fatalf("delete_scheduled_task 应删除原任务: %+v", deleted)
 	}
 
-	reportResult, isError := callAutomationMCPTool(t, fixture.Service, fixture.ServerContext, "get_scheduled_task_daily_report", map[string]any{
+	reportResult, isError := callAutomationMCPTool(t, fixture.Service, fixture.ServerContext, "get_scheduled_task_report", map[string]any{
 		"query":    "已删飞书新闻投递",
 		"date":     "2026-05-22",
 		"timezone": "UTC",
 	})
 	if isError {
-		t.Fatalf("get_scheduled_task_daily_report by query 不应失败: %s", automationMCPToolText(t, reportResult))
+		t.Fatalf("get_scheduled_task_report by query 不应失败: %s", automationMCPToolText(t, reportResult))
 	}
 	report := decodeAutomationMCPJSON[automationdomain.ScheduledTaskDailyReport](t, reportResult)
 	if len(report.Tasks) != 1 {
@@ -288,8 +289,8 @@ func TestAutomationMCPDeletedTaskReportDoesNotSuggestRedelivery(t *testing.T) {
 		!slices.Contains(taskReport.Signals, "delivery_attention") ||
 		!slices.Contains(taskReport.DeliveryDeadLetterRunIDs, runID) ||
 		slices.Contains(taskReport.ManualRedeliveryRunIDs, runID) ||
-		!slices.Contains(taskReport.SuggestedTools, "get_scheduled_task_events") ||
-		slices.Contains(taskReport.SuggestedTools, "retry_scheduled_task_delivery") {
+		!slices.Contains(taskReport.SuggestedTools, "inspect_scheduled_task") ||
+		slices.Contains(taskReport.SuggestedTools, "repair_scheduled_task") {
 		t.Fatalf("已删任务日报应保留失败诊断但不建议补发: %+v", taskReport)
 	}
 }

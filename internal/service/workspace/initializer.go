@@ -125,11 +125,6 @@ func (i *workspaceInitializer) removeGeneratedMainFile(targetPath string) error 
 }
 
 func (i *workspaceInitializer) ensureSkills() error {
-	for _, skillName := range retiredBaseSkillNames {
-		if err := UndeploySkill(i.root, skillName); err != nil {
-			return err
-		}
-	}
 	for _, skillName := range managedSkillNames(i.isMain) {
 		if err := deployManagedSkill(skillName, i.root, i.context); err != nil {
 			return err

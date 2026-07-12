@@ -65,34 +65,36 @@ func TestAutomationMCPManageTaskLifecycleByQuery(t *testing.T) {
 		t.Fatalf("update 未把投递目标切到 agent-3 收件箱: %+v", updated.Delivery)
 	}
 
-	disableResult, isError := callAutomationMCPTool(t, fixture.Service, fixture.ServerContext, "disable_scheduled_task", map[string]any{
-		"query": "AI 新闻投递到智能体",
+	disableResult, isError := callAutomationMCPTool(t, fixture.Service, fixture.ServerContext, "update_scheduled_task", map[string]any{
+		"query":   "AI 新闻投递到智能体",
+		"enabled": false,
 	})
 	if isError {
-		t.Fatalf("disable_scheduled_task by query 不应失败: %s", automationMCPToolText(t, disableResult))
+		t.Fatalf("update_scheduled_task by query 不应失败: %s", automationMCPToolText(t, disableResult))
 	}
 	disabled := decodeAutomationMCPJSON[automationdomain.ScheduledTask](t, disableResult)
 	if disabled.JobID != created.JobID || disabled.Enabled {
 		t.Fatalf("disable query 应停用原任务，实际 %+v", disabled)
 	}
 
-	enableResult, isError := callAutomationMCPTool(t, fixture.Service, fixture.ServerContext, "enable_scheduled_task", map[string]any{
-		"query": "AI 新闻投递到智能体",
+	enableResult, isError := callAutomationMCPTool(t, fixture.Service, fixture.ServerContext, "update_scheduled_task", map[string]any{
+		"query":   "AI 新闻投递到智能体",
+		"enabled": true,
 	})
 	if isError {
-		t.Fatalf("enable_scheduled_task by query 不应失败: %s", automationMCPToolText(t, enableResult))
+		t.Fatalf("update_scheduled_task by query 不应失败: %s", automationMCPToolText(t, enableResult))
 	}
 	enabled := decodeAutomationMCPJSON[automationdomain.ScheduledTask](t, enableResult)
 	if enabled.JobID != created.JobID || !enabled.Enabled {
 		t.Fatalf("enable query 应重新启用原任务，实际 %+v", enabled)
 	}
 
-	statusResult, isError := callAutomationMCPTool(t, fixture.Service, fixture.ServerContext, "get_scheduled_task_status", map[string]any{
+	statusResult, isError := callAutomationMCPTool(t, fixture.Service, fixture.ServerContext, "inspect_scheduled_task", map[string]any{
 		"query":       "AI 新闻投递到智能体",
 		"event_limit": 5,
 	})
 	if isError {
-		t.Fatalf("get_scheduled_task_status by query 不应失败: %s", automationMCPToolText(t, statusResult))
+		t.Fatalf("inspect_scheduled_task by query 不应失败: %s", automationMCPToolText(t, statusResult))
 	}
 	status := decodeAutomationMCPJSON[automationdomain.ScheduledTaskStatus](t, statusResult)
 	if status.Job.JobID != created.JobID || !status.Job.Enabled {
@@ -164,12 +166,12 @@ func TestAutomationMCPDisableCanStopActiveRunByQuery(t *testing.T) {
 		return err == nil && task != nil && task.Running && task.RunningRunID == runID
 	})
 
-	disableResult, isError := callAutomationMCPTool(t, fixture.Service, fixture.ServerContext, "disable_scheduled_task", map[string]any{
+	disableResult, isError := callAutomationMCPTool(t, fixture.Service, fixture.ServerContext, "update_scheduled_task", map[string]any{
 		"query":             "正在运行的新闻任务",
 		"cancel_active_run": true,
 	})
 	if isError {
-		t.Fatalf("disable_scheduled_task cancel_active_run 不应失败: %s", automationMCPToolText(t, disableResult))
+		t.Fatalf("update_scheduled_task cancel_active_run 不应失败: %s", automationMCPToolText(t, disableResult))
 	}
 	stopped := decodeAutomationMCPJSON[automationdomain.ScheduledTask](t, disableResult)
 	if stopped.Enabled || stopped.Running || stopped.RunningRunID != "" {
@@ -243,8 +245,9 @@ func TestAutomationMCPTaskEventsRecordCurrentActorAgent(t *testing.T) {
 	mainCtx.IsMainAgent = true
 	mainCtx.SourceContextID = "nexus"
 	mainCtx.SourceContextLabel = "主智能体"
-	disableResult, isError := callAutomationMCPTool(t, fixture.Service, mainCtx, "disable_scheduled_task", map[string]any{
-		"job_id": created.JobID,
+	disableResult, isError := callAutomationMCPTool(t, fixture.Service, mainCtx, "update_scheduled_task", map[string]any{
+		"job_id":  created.JobID,
+		"enabled": false,
 	})
 	if isError {
 		t.Fatalf("主智能体停用子智能体任务不应失败: %s", automationMCPToolText(t, disableResult))

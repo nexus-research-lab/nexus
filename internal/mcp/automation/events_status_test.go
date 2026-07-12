@@ -30,8 +30,9 @@ func TestGetScheduledTaskEventsReturnsAuditTrail(t *testing.T) {
 			},
 		},
 	}
-	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "get_scheduled_task_events", map[string]any{
+	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "inspect_scheduled_task", map[string]any{
 		"job_id": "job-1",
+		"view":   "events",
 	})
 	if isError {
 		t.Fatalf("unexpected error: %s", extractText(t, result))
@@ -93,8 +94,9 @@ func TestGetScheduledTaskEventsCanResolveDeletedCurrentExternalGroupQuery(t *tes
 	result, isError := callTool(t, svc, contract.ServerContext{
 		CurrentAgentID:    "agent-1",
 		CurrentSessionKey: "agent:agent-1:fs:group:oc_group_123",
-	}, "get_scheduled_task_events", map[string]any{
+	}, "inspect_scheduled_task", map[string]any{
 		"query": "这个群的旧新闻任务",
+		"view":  "events",
 	})
 	if isError {
 		t.Fatalf("unexpected error: %s", extractText(t, result))
@@ -122,8 +124,9 @@ func TestGetScheduledTaskEventsAllowsDeletedOwnedTask(t *testing.T) {
 			},
 		},
 	}
-	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "get_scheduled_task_events", map[string]any{
+	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "inspect_scheduled_task", map[string]any{
 		"job_id": "job-deleted",
+		"view":   "events",
 	})
 	if isError {
 		t.Fatalf("unexpected error: %s", extractText(t, result))
@@ -147,8 +150,9 @@ func TestGetScheduledTaskEventsRejectsDeletedOtherAgentTask(t *testing.T) {
 			},
 		},
 	}
-	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "get_scheduled_task_events", map[string]any{
+	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "inspect_scheduled_task", map[string]any{
 		"job_id": "job-deleted",
+		"view":   "events",
 	})
 	if !isError {
 		t.Fatalf("expected error, got %+v", result)
@@ -185,7 +189,7 @@ func TestGetScheduledTaskStatusReturnsHealthRunsAndEvents(t *testing.T) {
 			Health: automationdomain.ScheduledTaskHealth{
 				State:                     "attention",
 				Signals:                   []string{"delivery_attention"},
-				SuggestedTools:            []string{"retry_scheduled_task_delivery"},
+				SuggestedTools:            []string{"repair_scheduled_task"},
 				ManualRedeliveryAvailable: true,
 				DeliveryFailedRunCount:    1,
 				ManualRedeliveryRunIDs:    []string{"run-delivery-failed"},
@@ -217,14 +221,14 @@ func TestGetScheduledTaskStatusReturnsHealthRunsAndEvents(t *testing.T) {
 			},
 		},
 	}
-	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "get_scheduled_task_status", map[string]any{
+	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "inspect_scheduled_task", map[string]any{
 		"job_id": "job-1",
 	})
 	if isError {
 		t.Fatalf("unexpected error: %s", extractText(t, result))
 	}
 	text := extractText(t, result)
-	for _, want := range []string{"delivery_attention", "retry_scheduled_task_delivery", "run-delivery-failed", deliveryError, automationdomain.TaskEventActionUpdate} {
+	for _, want := range []string{"delivery_attention", "repair_scheduled_task", "run-delivery-failed", deliveryError, automationdomain.TaskEventActionUpdate} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("status response missing %q: %s", want, text)
 		}

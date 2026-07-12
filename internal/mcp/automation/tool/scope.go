@@ -265,7 +265,7 @@ func scopedToolContext(ctx context.Context, sctx contract.ServerContext) context
 	})
 }
 
-// resolveListAgentID 决定 list_scheduled_tasks 的过滤条件。
+// resolveListAgentID 决定 find_scheduled_tasks 的过滤条件。
 // 主智能体支持显式过滤或全部列出；普通 agent 强制限定为自己。
 func resolveListAgentID(sctx contract.ServerContext, requested string) (string, error) {
 	requested = strings.TrimSpace(requested)

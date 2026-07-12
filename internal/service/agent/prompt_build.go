@@ -104,14 +104,6 @@ func buildManagedSkillUsageSection(workspacePath string) string {
 		return ""
 	}
 	sections := []string{}
-	if hasManagedSkill(trimmedWorkspacePath, "scheduled-task-manager") {
-		sections = append(sections, strings.Join([]string{
-			"## Managed Skill Usage",
-			"- For scheduled tasks, reminders, recurring checks, reports, or delivery work, load scheduled-task-manager first and then call nexus_automation.",
-			"- User-visible reminders and scheduled tasks must be persisted through Nexus scheduled tasks; do not promise user-facing reminders through temporary wakeups.",
-			"- To inspect delivery, recover stuck tasks, retry failed deliveries, change delivery targets, stop tasks, or re-enable paused tasks, follow the scheduled-task-manager tool flow.",
-		}, "\n"))
-	}
 	if hasManagedSkill(trimmedWorkspacePath, "goal-manager") {
 		sections = append(sections, strings.Join([]string{
 			"## Goal Skill 使用要求",

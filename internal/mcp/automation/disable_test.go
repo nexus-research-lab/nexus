@@ -19,8 +19,9 @@ func TestDisableScheduledTaskKeepsTaskAndPassesStatus(t *testing.T) {
 			Schedule: automationdomain.Schedule{Timezone: "Asia/Shanghai"},
 		}},
 	}
-	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "disable_scheduled_task", map[string]any{
-		"job_id": "job-1",
+	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "update_scheduled_task", map[string]any{
+		"enabled": false,
+		"job_id":  "job-1",
 	})
 	if isError {
 		t.Fatalf("unexpected error: %s", extractText(t, result))
@@ -44,8 +45,9 @@ func TestDisableScheduledTaskReportsPreservedActiveRun(t *testing.T) {
 			Schedule:     automationdomain.Schedule{Timezone: "Asia/Shanghai"},
 		}},
 	}
-	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "disable_scheduled_task", map[string]any{
-		"job_id": "job-1",
+	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "update_scheduled_task", map[string]any{
+		"enabled": false,
+		"job_id":  "job-1",
 	})
 	if isError {
 		t.Fatalf("unexpected error: %s", extractText(t, result))
@@ -70,7 +72,8 @@ func TestDisableScheduledTaskCanCancelActiveRun(t *testing.T) {
 			Schedule:     automationdomain.Schedule{Timezone: "Asia/Shanghai"},
 		}},
 	}
-	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "disable_scheduled_task", map[string]any{
+	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "update_scheduled_task", map[string]any{
+		"enabled":           false,
 		"job_id":            "job-1",
 		"cancel_active_run": true,
 	})
@@ -111,8 +114,9 @@ func TestDisableScheduledTaskCanResolveUniqueQuery(t *testing.T) {
 			},
 		},
 	}
-	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "disable_scheduled_task", map[string]any{
-		"query": "飞书群",
+	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "update_scheduled_task", map[string]any{
+		"enabled": false,
+		"query":   "飞书群",
 	})
 	if isError {
 		t.Fatalf("unexpected error: %s", extractText(t, result))
@@ -156,8 +160,9 @@ func TestDisableScheduledTaskCanResolveCurrentExternalGroupQuery(t *testing.T) {
 	result, isError := callTool(t, svc, contract.ServerContext{
 		CurrentAgentID:    "agent-1",
 		CurrentSessionKey: "agent:agent-1:fs:group:oc_group_123",
-	}, "disable_scheduled_task", map[string]any{
-		"query": "这个群的新闻任务",
+	}, "update_scheduled_task", map[string]any{
+		"enabled": false,
+		"query":   "这个群的新闻任务",
 	})
 	if isError {
 		t.Fatalf("unexpected error: %s", extractText(t, result))
@@ -170,8 +175,9 @@ func TestDisableScheduledTaskCanResolveCurrentExternalGroupQuery(t *testing.T) {
 	result, isError = callTool(t, svc, contract.ServerContext{
 		CurrentAgentID:    "agent-1",
 		CurrentSessionKey: "agent:agent-1:fs:group:oc_group_123",
-	}, "disable_scheduled_task", map[string]any{
-		"query": "每日新闻",
+	}, "update_scheduled_task", map[string]any{
+		"enabled": false,
+		"query":   "每日新闻",
 	})
 	if isError {
 		t.Fatalf("unexpected error without explicit current group terms: %s", extractText(t, result))
@@ -223,8 +229,9 @@ func TestDisableScheduledTaskCanResolveCurrentInternalConversationQuery(t *testi
 	result, isError := callTool(t, svc, contract.ServerContext{
 		CurrentAgentID:    "agent-1",
 		CurrentSessionKey: currentSessionKey,
-	}, "disable_scheduled_task", map[string]any{
-		"query": "当前会话的新闻任务",
+	}, "update_scheduled_task", map[string]any{
+		"enabled": false,
+		"query":   "当前会话的新闻任务",
 	})
 	if isError {
 		t.Fatalf("unexpected error: %s", extractText(t, result))
@@ -237,8 +244,9 @@ func TestDisableScheduledTaskCanResolveCurrentInternalConversationQuery(t *testi
 	result, isError = callTool(t, svc, contract.ServerContext{
 		CurrentAgentID:    "agent-1",
 		CurrentSessionKey: currentSessionKey,
-	}, "disable_scheduled_task", map[string]any{
-		"query": "每日新闻",
+	}, "update_scheduled_task", map[string]any{
+		"enabled": false,
+		"query":   "每日新闻",
 	})
 	if isError {
 		t.Fatalf("unexpected error without explicit current conversation terms: %s", extractText(t, result))
@@ -251,8 +259,9 @@ func TestDisableScheduledTaskCanResolveCurrentInternalConversationQuery(t *testi
 	result, isError = callTool(t, svc, contract.ServerContext{
 		CurrentAgentID:    "agent-1",
 		CurrentSessionKey: currentSessionKey,
-	}, "disable_scheduled_task", map[string]any{
-		"query": "这个任务",
+	}, "update_scheduled_task", map[string]any{
+		"enabled": false,
+		"query":   "这个任务",
 	})
 	if isError {
 		t.Fatalf("unexpected error for current task shorthand: %s", extractText(t, result))
@@ -271,8 +280,9 @@ func TestRegularAgentCannotDisableAnotherAgentsTask(t *testing.T) {
 			Schedule: automationdomain.Schedule{Timezone: "Asia/Shanghai"},
 		}},
 	}
-	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "disable_scheduled_task", map[string]any{
-		"job_id": "job-1",
+	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "update_scheduled_task", map[string]any{
+		"enabled": false,
+		"job_id":  "job-1",
 	})
 	if !isError {
 		t.Fatalf("expected ownership error, got %+v", result)

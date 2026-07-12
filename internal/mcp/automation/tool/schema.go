@@ -89,6 +89,8 @@ func updateSchema() map[string]any {
 			"reply_account_id":           map[string]any{"type": "string"},
 			"reply_thread_id":            map[string]any{"type": "string"},
 			"enabled":                    map[string]any{"type": "boolean"},
+			"cancel_active_run":          map[string]any{"type": "boolean", "description": "停用任务时是否同时中断当前 active run；true 会隐含 enabled=false"},
+			"run_id":                     map[string]any{"type": "string", "description": "配合 cancel_active_run 使用；传当前 running_run_id 可避免误取消旧 run"},
 		},
 	}
 }
@@ -104,37 +106,35 @@ func jobIDSchema() map[string]any {
 	}
 }
 
-func taskHistoryJobIDSchema() map[string]any {
+func findSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"job_id":   map[string]any{"type": "string", "description": "任务 id；也可改传 query 定位唯一当前或已删除任务"},
-			"query":    map[string]any{"type": "string", "description": "可选。没有 job_id 时按名称、内容、投递目标或审计 detail 定位唯一当前或已删除任务；当前 DM/Room/IM 群里会优先当前会话匹配，写“这里/当前会话/这个群/当前频道”会强制限定"},
-			"agent_id": map[string]any{"type": "string", "description": "主智能体可填：把 query 限定到某个智能体；普通 agent 会被强制限定为自己"},
+			"query":           map[string]any{"type": "string", "description": "按任务 id、名称、内容、投递目标、来源、状态或审计内容查询；当前会话中的查询优先匹配当前会话任务"},
+			"agent_id":        map[string]any{"type": "string", "description": "主智能体可限定目标智能体；普通 agent 始终限定为自己"},
+			"include_active":  map[string]any{"type": "boolean", "description": "是否包含当前任务，缺省 true"},
+			"include_deleted": map[string]any{"type": "boolean", "description": "是否包含已删除任务，缺省 false"},
+			"enabled":         map[string]any{"type": "boolean", "description": "可选，只返回匹配启用状态的当前任务；已删除任务会被排除"},
+			"limit":           map[string]any{"type": "integer", "description": "返回条数，缺省 20，最大 50"},
 		},
 	}
 }
 
-func disableSchema() map[string]any {
+func inspectSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"job_id":   map[string]any{"type": "string", "description": "任务 id；也可改传 query 让工具在当前权限范围内定位唯一当前未删除任务"},
-			"query":    map[string]any{"type": "string", "description": "可选。没有 job_id 时按名称、内容、投递目标或状态定位唯一当前未删除任务；当前 DM/Room/IM 群里会优先当前会话匹配，写“这里/当前会话/这个群/当前频道”会强制限定；多候选时不会停用"},
-			"agent_id": map[string]any{"type": "string", "description": "主智能体可填：把 query 限定到某个智能体；普通 agent 会被强制限定为自己"},
-			"cancel_active_run": map[string]any{
-				"type":        "boolean",
-				"description": "可选。true 表示停用后同时中断并取消当前 running_run_id；false 只阻止后续触发。",
-			},
-			"run_id": map[string]any{
-				"type":        "string",
-				"description": "可选。配合 cancel_active_run 使用，传入当前 running_run_id 可避免误取消刷新前看到的旧 run。",
-			},
+			"job_id":      map[string]any{"type": "string", "description": "任务 id；也可改传 query 定位唯一任务"},
+			"query":       map[string]any{"type": "string", "description": "按名称、内容、投递目标或状态定位唯一任务；runs/events 可检查已删除任务"},
+			"agent_id":    map[string]any{"type": "string", "description": "主智能体可限定目标智能体；普通 agent 始终限定为自己"},
+			"view":        map[string]any{"type": "string", "enum": []string{"status", "runs", "events"}, "description": "status=配置与健康摘要；runs=运行历史；events=管理审计。缺省 status"},
+			"run_limit":   map[string]any{"type": "integer", "description": "status/runs 返回条数，缺省 10，最大 50"},
+			"event_limit": map[string]any{"type": "integer", "description": "status/events 返回条数，缺省 10，最大 50"},
 		},
 	}
 }
 
-func dailyReportSchema() map[string]any {
+func reportSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
@@ -147,57 +147,16 @@ func dailyReportSchema() map[string]any {
 	}
 }
 
-func recoverSchema() map[string]any {
+func repairSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"job_id": map[string]any{"type": "string", "description": "任务 id；也可改传 query 让工具定位唯一当前未删除任务"},
-			"query":  map[string]any{"type": "string", "description": "可选。没有 job_id 时按名称、内容、投递目标或状态定位唯一当前未删除任务；当前 DM/Room/IM 群里会优先当前会话匹配，写“这里/当前会话/这个群/当前频道”会强制限定；多候选时不会恢复"},
-			"agent_id": map[string]any{
-				"type":        "string",
-				"description": "主智能体可填：把 query 限定到某个智能体；普通 agent 会被强制限定为自己",
-			},
-			"run_id": map[string]any{
-				"type":        "string",
-				"description": "可选。传入当前 running_run_id 可避免误释放刷新前看到的旧 run。",
-			},
+			"action":   map[string]any{"type": "string", "enum": []string{"recover", "retry_delivery"}, "description": "recover=释放卡住的执行；retry_delivery=只补发已完成 run 的失败投递"},
+			"job_id":   map[string]any{"type": "string", "description": "任务 id；也可改传 query 定位唯一当前任务"},
+			"query":    map[string]any{"type": "string", "description": "按名称、内容、投递目标或状态定位唯一当前任务"},
+			"agent_id": map[string]any{"type": "string", "description": "主智能体可限定目标智能体；普通 agent 始终限定为自己"},
+			"run_id":   map[string]any{"type": "string", "description": "可选。recover 时用于避免误释放旧 run；retry_delivery 时指定要补投递的失败 run"},
 		},
-	}
-}
-
-func runIDSchema() map[string]any {
-	return map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"job_id":   map[string]any{"type": "string", "description": "任务 id；也可改传 query 让工具定位唯一当前未删除任务"},
-			"query":    map[string]any{"type": "string", "description": "可选。没有 job_id 时按名称、内容、投递目标或状态定位唯一当前未删除任务；当前 DM/Room/IM 群里会优先当前会话匹配，写“这里/当前会话/这个群/当前频道”会强制限定"},
-			"agent_id": map[string]any{"type": "string", "description": "主智能体可填：把 query 限定到某个智能体；普通 agent 会被强制限定为自己"},
-			"run_id":   map[string]any{"type": "string", "description": "可选。要补投递的失败 run；不传时会自动选择唯一可手动补投递的失败 run，多候选会要求确认"},
-		},
-	}
-}
-
-func taskEventsSchema() map[string]any {
-	return map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"job_id":   map[string]any{"type": "string", "description": "任务 id；也可改传 query 定位唯一当前或已删除任务"},
-			"query":    map[string]any{"type": "string", "description": "可选。没有 job_id 时按名称、内容、投递目标或审计 detail 定位唯一当前或已删除任务；当前 DM/Room/IM 群里会优先当前会话匹配，写“这里/当前会话/这个群/当前频道”会强制限定"},
-			"agent_id": map[string]any{"type": "string", "description": "主智能体可填：把 query 限定到某个智能体；普通 agent 会被强制限定为自己"},
-			"limit":    map[string]any{"type": "integer", "description": "返回条数，缺省 50，最大 100"},
-		},
-	}
-}
-
-func taskStatusSchema() map[string]any {
-	return map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"job_id":      map[string]any{"type": "string", "description": "任务 id；也可改传 query 让工具在当前权限范围内定位唯一当前未删除任务"},
-			"query":       map[string]any{"type": "string", "description": "可选。没有 job_id 时按名称、内容、投递目标或状态定位唯一当前未删除任务；当前 DM/Room/IM 群里会优先当前会话匹配，写“这里/当前会话/这个群/当前频道”会强制限定；多候选时不会继续查询"},
-			"agent_id":    map[string]any{"type": "string", "description": "主智能体可填：把 query 限定到某个智能体；普通 agent 会被强制限定为自己"},
-			"run_limit":   map[string]any{"type": "integer", "description": "recent_runs 返回条数，缺省 10，最大 50"},
-			"event_limit": map[string]any{"type": "integer", "description": "recent_events 返回条数，缺省 10，最大 50"},
-		},
+		"required": []string{"action"},
 	}
 }

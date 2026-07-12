@@ -49,8 +49,8 @@ func TestServiceImportsAndInstallsSkill(t *testing.T) {
 	if !containsSkill(items, "imagegen") {
 		t.Fatalf("图片生成系统 skill 未暴露: %+v", items)
 	}
-	if !containsSkill(items, "scheduled-task-manager") {
-		t.Fatalf("定时任务系统 skill 未暴露: %+v", items)
+	if containsSkill(items, "scheduled-task-manager") {
+		t.Fatalf("定时任务已由 nexus_automation 工具承载，不应再暴露重复 skill: %+v", items)
 	}
 	if !containsSkill(items, "goal-manager") {
 		t.Fatalf("Goal 系统 skill 未暴露: %+v", items)
@@ -81,9 +81,6 @@ func TestServiceImportsAndInstallsSkill(t *testing.T) {
 	}
 	if _, err = service.InstallSkill(ctx, agentValue.AgentID, "room-playbook"); err == nil {
 		t.Fatal("room scope skill 不应允许安装到 agent")
-	}
-	if _, err = service.InstallSkill(ctx, agentValue.AgentID, "scheduled-task-manager"); err == nil {
-		t.Fatal("系统托管 scheduled-task-manager skill 不应允许手动安装")
 	}
 	if _, err = service.InstallSkill(ctx, agentValue.AgentID, "goal-manager"); err == nil {
 		t.Fatal("系统托管 goal-manager skill 不应允许手动安装")

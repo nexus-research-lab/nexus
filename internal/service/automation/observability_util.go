@@ -76,7 +76,7 @@ func addDailyReportTaskRunSignals(task *automationdomain.ScheduledTaskDailyRepor
 	case automationdomain.DeliveryStatusFailed:
 		addDailyReportTaskSignal(task, "delivery_attention")
 		if !task.Deleted {
-			addDailyReportTaskSuggestedTool(task, "retry_scheduled_task_delivery")
+			addDailyReportTaskSuggestedTool(task, "repair_scheduled_task")
 			addUniqueString(&task.ManualRedeliveryRunIDs, run.RunID)
 		}
 		setFirstStringPointer(&task.LatestDeliveryError, preferredDeliveryError(run))
@@ -90,7 +90,7 @@ func addDailyReportTaskRunSignals(task *automationdomain.ScheduledTaskDailyRepor
 	if run.DeliveryDeadLetterAt != nil {
 		addDailyReportTaskSignal(task, "delivery_attention")
 		if !task.Deleted {
-			addDailyReportTaskSuggestedTool(task, "retry_scheduled_task_delivery")
+			addDailyReportTaskSuggestedTool(task, "repair_scheduled_task")
 		}
 		addUniqueString(&task.DeliveryDeadLetterRunIDs, run.RunID)
 		setFirstStringPointer(&task.LatestDeliveryError, preferredDeliveryError(run))
