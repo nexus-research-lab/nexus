@@ -74,10 +74,6 @@ function createOfficePreviewRenderer(
   };
 }
 
-function EmptyPreview() {
-  return null;
-}
-
 const TEXT_PREVIEW_RENDERER = TextPreviewRenderer;
 const PREVIEW_RENDERERS: Record<WorkspaceFilePreviewKind, PreviewRenderer> = {
   binary: createDirectPreviewRenderer(BinaryFilePlaceholder),
@@ -96,7 +92,6 @@ const PREVIEW_RENDERERS: Record<WorkspaceFilePreviewKind, PreviewRenderer> = {
     SpreadsheetFilePreview,
   ),
   text: TEXT_PREVIEW_RENDERER,
-  unknown: EmptyPreview,
 };
 
 /** 文件类型路由由完整描述表维护，新增预览类型不再修改面板分支。 */

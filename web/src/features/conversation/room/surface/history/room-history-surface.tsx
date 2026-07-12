@@ -51,10 +51,7 @@ export function RoomHistorySurface({
       <WorkspaceSurfaceView
         bodyClassName="px-4 py-3.5 sm:px-5 xl:px-6"
         contentClassName="space-y-1.5"
-        eyebrow={t("room.history")}
         maxWidthClassName="max-w-none"
-        showEyebrow={false}
-        showTitle={false}
         title={currentRoomType === "dm" ? t("room.history_view_title_dm") : t("room.history_view_title")}
       >
         {entries.length > 0 ? (

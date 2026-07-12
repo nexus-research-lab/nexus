@@ -5,7 +5,6 @@ import { ChevronLeft, ChevronRight, Eye, FileText, FileWarning, LoaderCircle } f
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { cn } from "@/shared/ui/class-name";
-import { ConversationResizeHandle } from "../conversation-resize-handle";
 import { fetchOfficePreviewBuffer } from "../office-preview-resource";
 import { parsePptx } from "./presentation-pptx-parser";
 import {
@@ -22,12 +21,10 @@ import {
 import type { WorkspaceFilePreviewProps } from "../workspace-file-preview-types";
 
 export function PresentationFilePreview({
-  agentId: agentId,
-  embedded,
-  fileName: fileName,
-  isPreviewFocused: isPreviewFocused,
-  onResizeStart: onResizeStart,
-  onTogglePreviewFocus: onTogglePreviewFocus,
+  agentId,
+  fileName,
+  isPreviewFocused,
+  onTogglePreviewFocus,
   path,
 }: WorkspaceFilePreviewProps) {
   const cleanupUrlsRef = useRef<() => void>(() => undefined);
@@ -98,14 +95,6 @@ export function PresentationFilePreview({
 
   return (
     <>
-      {!embedded ? (
-        <ConversationResizeHandle
-          ariaLabel="调整编辑器宽度"
-          className="flex"
-          onMouseDown={onResizeStart}
-        />
-      ) : null}
-
       <WorkspaceFilePreviewHeader
         actions={(
           <>
@@ -116,7 +105,6 @@ export function PresentationFilePreview({
             />
           </>
         )}
-        embedded={embedded}
         meta={(
           <>
             <span className="flex items-center gap-1">

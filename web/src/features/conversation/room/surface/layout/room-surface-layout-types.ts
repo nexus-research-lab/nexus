@@ -37,11 +37,10 @@ export interface RoomSurfaceLayoutProps {
   activeSurfaceTab: RoomSurfaceTabKey;
   initialDraft?: string | null;
   onInitialDraftConsumed?: () => void;
-  isEditorOpen: boolean;
-  editorWidthPercent: number;
-  isResizingEditor: boolean;
+  sidePanelWidthPercent: number;
+  isResizingSidePanel: boolean;
   currentTodos: TodoItem[];
-  workspaceSplitRef: RefObject<HTMLElement | null>;
+  surfaceSplitRef: RefObject<HTMLElement | null>;
   onReplayTour?: () => void;
   onChangeSurfaceTab: (tab: RoomSurfaceTabKey) => void;
   onCreateConversation: (title?: string) => Promise<string | null>;
@@ -68,7 +67,7 @@ export interface RoomSurfaceLayoutProps {
     path: string | null,
     workspaceAgentId?: string | null,
   ) => void;
-  onStartEditorResize: () => void;
+  onStartSidePanelResize: () => void;
   onTodosChange: (todos: TodoItem[]) => void;
   onConversationSnapshotChange: (
     snapshot: ConversationSnapshotPayload,

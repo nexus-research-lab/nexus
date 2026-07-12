@@ -6,7 +6,7 @@ import { cn } from "@/shared/ui/class-name";
 import {
   useMarkdownCurrentAgentID,
   useMarkdownFileResolver,
-} from "@/shared/ui/markdown/workspace/markdown-workspace-artifacts";
+} from "@/shared/ui/markdown/workspace/use-markdown-workspace-files";
 import type { ImageContent } from "@/types/conversation/message/content";
 
 import { WorkspaceArtifactExternalActionButton } from "../workspace-artifact-external-action";

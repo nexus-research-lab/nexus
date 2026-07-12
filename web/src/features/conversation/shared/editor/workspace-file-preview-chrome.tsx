@@ -17,64 +17,39 @@ const WORKSPACE_FILE_TOOLBAR_BUTTON_CLASS_NAME = cn(
 
 export function WorkspaceFilePreviewHeader({
   actions,
-  embedded,
   meta,
   title,
 }: {
   actions: ReactNode;
-  embedded?: boolean;
   meta?: ReactNode;
   title: string;
 }) {
-  if (embedded) {
-    return (
-      <div className="overflow-hidden border-b divider-subtle px-3 pt-0 pb-2">
-        <div className="flex min-w-0 items-center justify-between gap-3">
-          <p
-            className="min-w-0 flex-1 truncate text-xs font-semibold uppercase leading-5 tracking-[0.16em] text-muted-foreground"
-            title={title}
-          >
-            {title}
-          </p>
-          <div className="flex shrink-0 items-center gap-2 self-start">
-            {actions}
-          </div>
-        </div>
-        {meta ? (
-          <div className="mt-1 flex min-w-0 items-center gap-2 text-[10px] text-muted-foreground">
-            {meta}
-          </div>
-        ) : null}
-      </div>
-    );
-  }
-
   return (
-    <div className="flex h-14 min-w-0 items-center justify-between overflow-hidden border-b divider-subtle px-4">
-      <div className="min-w-0 flex-1 overflow-hidden pr-3">
+    <div className="overflow-hidden border-b divider-subtle px-3 pt-0 pb-2">
+      <div className="flex min-w-0 items-center justify-between gap-3">
         <p
-          className="w-full truncate text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground"
+          className="min-w-0 flex-1 truncate text-xs font-semibold uppercase leading-5 tracking-[0.16em] text-muted-foreground"
           title={title}
         >
           {title}
         </p>
-        {meta ? (
-          <div className="mt-1 flex min-w-0 items-center gap-2 text-[10px] text-muted-foreground">
-            {meta}
-          </div>
-        ) : null}
+        <div className="flex shrink-0 items-center gap-2 self-start">
+          {actions}
+        </div>
       </div>
-      <div className="flex shrink-0 items-center gap-2">
-        {actions}
-      </div>
+      {meta ? (
+        <div className="mt-1 flex min-w-0 items-center gap-2 text-[10px] text-muted-foreground">
+          {meta}
+        </div>
+      ) : null}
     </div>
   );
 }
 
 export function WorkspaceFileDownloadButton({
-  agentId: agentId,
+  agentId,
   path,
-  fileName: fileName,
+  fileName,
   label,
 }: {
   agentId: string;
@@ -111,7 +86,7 @@ export function WorkspaceFileDownloadButton({
 export function WorkspaceFileToolbarButton({
   children,
   disabled = false,
-  onClick: onClick,
+  onClick,
   title,
 }: {
   children: ReactNode;
@@ -134,16 +109,12 @@ export function WorkspaceFileToolbarButton({
 }
 
 export function WorkspaceFilePreviewFocusButton({
-  isPreviewFocused: isPreviewFocused = false,
-  onTogglePreviewFocus: onTogglePreviewFocus,
+  isPreviewFocused,
+  onTogglePreviewFocus,
 }: {
-  isPreviewFocused?: boolean;
-  onTogglePreviewFocus?: () => void;
+  isPreviewFocused: boolean;
+  onTogglePreviewFocus: () => void;
 }) {
-  if (!onTogglePreviewFocus) {
-    return null;
-  }
-
   return (
     <WorkspaceFileToolbarButton
       onClick={onTogglePreviewFocus}

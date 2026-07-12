@@ -26,13 +26,13 @@ import {
   COMPOSER_PRIMARY_ACTION_BUTTON_CLASS_NAME,
   COMPOSER_SHELL_CLASS_NAME,
 } from "@/features/conversation/shared/composer/composer-styles";
-import { ConversationResizeHandle } from "@/features/conversation/shared/editor/conversation-resize-handle";
 import { MessageItem } from "@/features/conversation/shared/message/item/message-item";
 import { cn } from "@/shared/ui/class-name";
 import { UiAgentAvatar, UiRoomAvatar } from "@/shared/ui/display/avatar";
 import { UiBadge, UiCounterBadge } from "@/shared/ui/display/badge";
 import { UiSearchInput } from "@/shared/ui/form/form-control";
 import { UiListRow } from "@/shared/ui/list/list-row";
+import { PanelResizeHandle } from "@/shared/ui/layout/panel-resize-handle";
 import { WorkspaceConversationTabs } from "@/shared/ui/workspace/controls/workspace-conversation-tabs";
 import { WorkspaceFileTree } from "@/shared/ui/workspace/tree/workspace-file-tree";
 import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
@@ -255,9 +255,9 @@ function LandingWorkbenchMain() {
         <div className="landing-real-main-body">
           <LandingWorkbenchChat />
           <section className="landing-real-aux-panel">
-            <ConversationResizeHandle
+            <PanelResizeHandle
               ariaLabel="调整右侧面板宽度"
-              onMouseDown={() => undefined}
+              onResizeStart={() => undefined}
             />
             <LandingWorkbenchFiles />
           </section>
@@ -276,18 +276,20 @@ function LandingWorkbenchFiles() {
   return (
     <aside className="landing-real-workspace">
       <WorkspaceSurfaceView
-        action={(
-          <WorkspaceSurfaceToolbarAction>
-            <X className="h-3.5 w-3.5" />
-            关闭
-          </WorkspaceSurfaceToolbarAction>
-        )}
         bodyClassName="px-3 py-2 sm:px-3 xl:px-4"
         bodyScrollable={false}
         contentClassName="landing-real-workspace-content"
-        eyebrow="Workspace"
+        header={{
+          action: (
+            <WorkspaceSurfaceToolbarAction>
+              <X className="h-3.5 w-3.5" />
+              关闭
+            </WorkspaceSurfaceToolbarAction>
+          ),
+          eyebrow: "Workspace",
+          kind: "page",
+        }}
         maxWidthClassName="max-w-none"
-        showEyebrow={false}
         title="Workspace"
       >
         <div className="landing-real-workspace-split">

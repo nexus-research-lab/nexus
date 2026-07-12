@@ -26,10 +26,9 @@ export function RoomSurfaceContent({
   currentRoomTitle,
   currentRoomType,
   currentTodos,
-  editorWidthPercent,
+  sidePanelWidthPercent,
   initialDraft = null,
-  isEditorOpen,
-  isResizingEditor,
+  isResizingSidePanel,
   isThreadPanelOpen,
   onChangeSurfaceTab,
   onCloseConversation,
@@ -44,7 +43,7 @@ export function RoomSurfaceContent({
   onRoomEvent,
   onSaveAgentOptions,
   onSelectConversation,
-  onStartEditorResize,
+  onStartSidePanelResize,
   onTodosChange,
   onUpdateConversationTitle,
   onValidateAgentName,
@@ -55,7 +54,7 @@ export function RoomSurfaceContent({
   roomMembers,
   roomPrivateMessagesEnabled,
   roomSkillNames,
-  workspaceSplitRef,
+  surfaceSplitRef,
 }: RoomSurfaceContentProps) {
   const isDm = currentRoomType === "dm";
   const layout = useRoomSurfaceLayoutController({
@@ -71,10 +70,10 @@ export function RoomSurfaceContent({
 
   return (
     <section
-      ref={workspaceSplitRef}
+      ref={surfaceSplitRef}
       className={cn(
         "flex min-h-0 min-w-0 flex-1",
-        isResizingEditor && "cursor-col-resize select-none",
+        isResizingSidePanel && "cursor-col-resize select-none",
       )}
     >
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
@@ -143,16 +142,15 @@ export function RoomSurfaceContent({
                 conversations={currentRoomConversations}
                 currentAgent={currentAgent}
                 currentRoomType={currentRoomType}
-                editorWidthPercent={editorWidthPercent}
+                sidePanelWidthPercent={sidePanelWidthPercent}
                 isDm={isDm}
-                isEditorOpen={isEditorOpen}
                 onClose={layout.handleCloseAuxiliaryPanel}
                 onCreateConversation={onCreateConversation}
                 onDeleteConversation={onDeleteConversation}
                 onOpenWorkspaceFile={onOpenWorkspaceFile}
                 onSaveAgentOptions={onSaveAgentOptions}
                 onSelectConversation={onSelectConversation}
-                onStartEditorResize={onStartEditorResize}
+                onStartSidePanelResize={onStartSidePanelResize}
                 onUpdateConversationTitle={onUpdateConversationTitle}
                 onValidateAgentName={onValidateAgentName}
                 roomId={roomId}
@@ -163,8 +161,8 @@ export function RoomSurfaceContent({
               <RoomThreadInlinePanel
                 activeSurfaceTab={activeSurfaceTab}
                 className="hidden lg:flex"
-                editorWidthPercent={editorWidthPercent}
-                onStartEditorResize={onStartEditorResize}
+                sidePanelWidthPercent={sidePanelWidthPercent}
+                onStartSidePanelResize={onStartSidePanelResize}
               />
             ) : null}
           </div>

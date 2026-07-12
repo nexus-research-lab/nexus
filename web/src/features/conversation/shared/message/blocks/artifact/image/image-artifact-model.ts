@@ -1,5 +1,5 @@
 import { getWorkspaceFilePreviewUrl } from "@/lib/api/agent/agent-api";
-import { resolveWorkspaceArtifactPath } from "@/shared/ui/markdown/workspace/markdown-workspace-artifacts";
+import { resolveWorkspaceArtifactPath } from "@/shared/ui/markdown/workspace/markdown-workspace-artifact-model";
 import type { ImageContent } from "@/types/conversation/message/content";
 
 import {

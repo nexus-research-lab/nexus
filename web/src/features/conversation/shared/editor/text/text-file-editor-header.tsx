@@ -23,13 +23,12 @@ interface IconProps {
 
 interface TextFileEditorHeaderProps {
   agentId: string;
-  embedded?: boolean;
   fileName: string;
   fileType: WorkspaceFilePreviewKind;
-  isPreviewFocused?: boolean;
+  isPreviewFocused: boolean;
   onSave: () => void;
   onToggleEditing: () => void;
-  onTogglePreviewFocus?: () => void;
+  onTogglePreviewFocus: () => void;
   path: string;
   presentation: TextFileEditorPresentation;
 }
@@ -82,7 +81,6 @@ function TextEditorSyncStatus({
 
 export function TextFileEditorHeader({
   agentId,
-  embedded,
   fileName,
   fileType,
   isPreviewFocused,
@@ -123,7 +121,6 @@ export function TextFileEditorHeader({
           </WorkspaceFileToolbarButton>
         </>
       )}
-      embedded={embedded}
       meta={(
         <>
           <span className="flex items-center gap-1">

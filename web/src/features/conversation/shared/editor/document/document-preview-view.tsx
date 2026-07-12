@@ -46,10 +46,9 @@ const DOCUMENT_PREVIEW_STYLES = `
 interface DocumentPreviewViewProps {
   agentId: string;
   containerRef: RefObject<HTMLDivElement | null>;
-  embedded?: boolean;
   fileName: string;
-  isPreviewFocused?: boolean;
-  onTogglePreviewFocus?: () => void;
+  isPreviewFocused: boolean;
+  onTogglePreviewFocus: () => void;
   path: string;
   previewScale: number;
   status: DocumentPreviewStatus;
@@ -60,7 +59,6 @@ interface DocumentPreviewViewProps {
 export function DocumentPreviewView({
   agentId,
   containerRef,
-  embedded,
   fileName,
   isPreviewFocused,
   onTogglePreviewFocus,
@@ -74,7 +72,6 @@ export function DocumentPreviewView({
     <>
       <DocumentPreviewHeader
         agentId={agentId}
-        embedded={embedded}
         fileName={fileName}
         isPreviewFocused={isPreviewFocused}
         onTogglePreviewFocus={onTogglePreviewFocus}
@@ -94,17 +91,15 @@ export function DocumentPreviewView({
 
 interface DocumentPreviewHeaderProps {
   agentId: string;
-  embedded?: boolean;
   fileName: string;
-  isPreviewFocused?: boolean;
-  onTogglePreviewFocus?: () => void;
+  isPreviewFocused: boolean;
+  onTogglePreviewFocus: () => void;
   path: string;
   status: DocumentPreviewStatus;
 }
 
 function DocumentPreviewHeader({
   agentId,
-  embedded,
   fileName,
   isPreviewFocused,
   onTogglePreviewFocus,
@@ -126,7 +121,6 @@ function DocumentPreviewHeader({
           />
         </>
       )}
-      embedded={embedded}
       meta={(
         <>
           <span className="flex items-center gap-1">

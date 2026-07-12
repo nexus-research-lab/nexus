@@ -1,7 +1,6 @@
 import type { ComponentType } from "react";
 import { FileSpreadsheet, FileText, LoaderCircle } from "lucide-react";
 
-import { ConversationResizeHandle } from "./conversation-resize-handle";
 import {
   WorkspaceFileDownloadButton,
   WorkspaceFilePreviewFocusButton,
@@ -43,11 +42,9 @@ const OFFICE_PREVIEW_DESCRIPTORS: Record<
 
 export function OfficePreviewFallback({
   agentId,
-  embedded,
   fileName,
   isPreviewFocused,
   kind,
-  onResizeStart,
   onTogglePreviewFocus,
   path,
 }: WorkspaceFilePreviewProps & { kind: OfficePreviewKind }) {
@@ -55,13 +52,6 @@ export function OfficePreviewFallback({
   const Icon = descriptor.icon;
   return (
     <>
-      {!embedded ? (
-        <ConversationResizeHandle
-          ariaLabel="调整编辑器宽度"
-          className="flex"
-          onMouseDown={onResizeStart}
-        />
-      ) : null}
       <WorkspaceFilePreviewHeader
         actions={(
           <>
@@ -76,7 +66,6 @@ export function OfficePreviewFallback({
             />
           </>
         )}
-        embedded={embedded}
         meta={(
           <>
             <span className="flex items-center gap-1">

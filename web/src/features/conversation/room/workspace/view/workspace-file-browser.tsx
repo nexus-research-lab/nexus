@@ -1,8 +1,8 @@
 import type { MouseEvent } from "react";
 import { FilePlus, FolderOpen, FolderPlus, FolderTree, LoaderCircle, Upload } from "lucide-react";
 
-import { ConversationResizeHandle } from "@/features/conversation/shared/editor/conversation-resize-handle";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { PanelResizeHandle } from "@/shared/ui/layout/panel-resize-handle";
 import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-toolbar-action";
 import { WorkspaceFileTree } from "@/shared/ui/workspace/tree/workspace-file-tree";
 import type { WorkspaceFileEntry } from "@/types/agent/agent";
@@ -132,7 +132,7 @@ export function WorkspaceFileBrowser({
       className="relative flex min-h-0 shrink-0 flex-col border-l divider-subtle pl-4"
       style={{width: `${width}px`}}
     >
-      <ConversationResizeHandle ariaLabel="调整文件列表宽度" onMouseDown={onResizeStart} />
+      <PanelResizeHandle ariaLabel="调整文件列表宽度" onResizeStart={onResizeStart} />
 
       <div className="mb-2 inline-flex min-w-0 items-center gap-1.5 rounded-[7px] border border-(--divider-subtle-color) px-2.5 py-1 text-[11px] text-(--text-default)">
         {controller.focusedDirectoryPath ? (

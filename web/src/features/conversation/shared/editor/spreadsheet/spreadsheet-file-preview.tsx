@@ -3,7 +3,6 @@
 import type { ReactNode } from "react";
 import { Eye, FileSpreadsheet, FileWarning, LoaderCircle } from "lucide-react";
 
-import { ConversationResizeHandle } from "../conversation-resize-handle";
 import {
   WorkspaceFileDownloadButton,
   WorkspaceFilePreviewFocusButton,
@@ -18,23 +17,14 @@ import {
 
 export function SpreadsheetFilePreview({
   agentId,
-  embedded,
   fileName,
   isPreviewFocused,
-  onResizeStart,
   onTogglePreviewFocus,
   path,
 }: WorkspaceFilePreviewProps) {
   const preview = useSpreadsheetPreview(agentId, path);
   return (
     <>
-      {!embedded ? (
-        <ConversationResizeHandle
-          ariaLabel="调整编辑器宽度"
-          className="flex"
-          onMouseDown={onResizeStart}
-        />
-      ) : null}
       <WorkspaceFilePreviewHeader
         actions={(
           <>
@@ -49,7 +39,6 @@ export function SpreadsheetFilePreview({
             />
           </>
         )}
-        embedded={embedded}
         meta={<SpreadsheetPreviewMeta status={preview.status} />}
         title={fileName}
       />

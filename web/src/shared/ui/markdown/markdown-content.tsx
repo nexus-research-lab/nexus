@@ -17,9 +17,11 @@ import {
 } from "./core/markdown-renderer-shared";
 import {
   type ResolveWorkspaceFilePath,
+} from "./workspace/markdown-workspace-artifact-model";
+import {
   useMarkdownCurrentAgentID,
   useMarkdownFileResolver,
-} from "./workspace/markdown-workspace-artifacts";
+} from "./workspace/use-markdown-workspace-files";
 import {
   StableMarkdownText,
   StreamingMarkdownText,

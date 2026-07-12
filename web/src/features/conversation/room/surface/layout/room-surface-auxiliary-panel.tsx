@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 
-import { ConversationResizeHandle } from "@/features/conversation/shared/editor/conversation-resize-handle";
 import { SubagentTaskSurface } from "@/features/conversation/shared/subagent/subagent-task-surface";
 import { cn } from "@/shared/ui/class-name";
+import { PanelResizeHandle } from "@/shared/ui/layout/panel-resize-handle";
 import type {
   Agent,
   AgentIdentityDraft,
@@ -31,9 +31,8 @@ interface RoomSurfaceAuxiliaryPanelProps {
   conversations: RoomConversationView[];
   currentAgent: Agent;
   currentRoomType: string;
-  editorWidthPercent: number;
+  sidePanelWidthPercent: number;
   isDm: boolean;
-  isEditorOpen: boolean;
   onClose: () => void;
   onCreateConversation: (title?: string) => Promise<string | null>;
   onDeleteConversation: (conversationId: string) => Promise<string | null>;
@@ -48,7 +47,7 @@ interface RoomSurfaceAuxiliaryPanelProps {
     identity: AgentIdentityDraft,
   ) => Promise<void>;
   onSelectConversation: (conversationId: string) => void;
-  onStartEditorResize: () => void;
+  onStartSidePanelResize: () => void;
   onUpdateConversationTitle: (
     conversationId: string,
     title: string,
@@ -70,16 +69,15 @@ export function RoomSurfaceAuxiliaryPanel({
   conversations,
   currentAgent,
   currentRoomType,
-  editorWidthPercent,
+  sidePanelWidthPercent,
   isDm,
-  isEditorOpen,
   onClose,
   onCreateConversation,
   onDeleteConversation,
   onOpenWorkspaceFile,
   onSaveAgentOptions,
   onSelectConversation,
-  onStartEditorResize,
+  onStartSidePanelResize,
   onUpdateConversationTitle,
   onValidateAgentName,
   roomId,
@@ -111,7 +109,6 @@ export function RoomSurfaceAuxiliaryPanel({
           activeWorkspacePath={activeWorkspacePath}
           agentId={currentAgent.agent_id}
           isDm={isDm}
-          isEditorOpen={isEditorOpen}
           roomMembers={roomMembers}
           onOpenWorkspaceFile={onOpenWorkspaceFile}
         />
@@ -140,13 +137,13 @@ export function RoomSurfaceAuxiliaryPanel({
     <section
       className="relative ml-2 flex min-h-0 min-w-0 shrink-0 flex-col overflow-hidden border-l divider-subtle bg-transparent shadow-none"
       style={{
-        width: `${editorWidthPercent}%`,
+        width: `${sidePanelWidthPercent}%`,
         ...AUXILIARY_PANEL_WIDTH_LIMITS,
       }}
     >
-      <ConversationResizeHandle
+      <PanelResizeHandle
         ariaLabel="调整右侧面板宽度"
-        onMouseDown={onStartEditorResize}
+        onResizeStart={onStartSidePanelResize}
       />
 
       {persistentPanels.map((panel) => (

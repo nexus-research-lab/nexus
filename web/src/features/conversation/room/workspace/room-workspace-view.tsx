@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 
-import { EditorPanel } from "@/features/conversation/shared/editor/editor-panel";
+import { WorkspaceFilePreviewPanel } from "@/features/conversation/shared/editor/workspace-file-preview-panel";
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -19,7 +19,6 @@ interface RoomWorkspaceViewProps {
   activeWorkspacePath: string | null;
   agentId: string;
   isDm: boolean;
-  isEditorOpen: boolean;
   roomMembers: Agent[];
   onOpenWorkspaceFile: (path: string | null) => void;
 }
@@ -28,7 +27,6 @@ export function RoomWorkspaceView({
   activeWorkspacePath,
   agentId,
   isDm,
-  isEditorOpen,
   roomMembers,
   onOpenWorkspaceFile,
 }: RoomWorkspaceViewProps) {
@@ -74,12 +72,12 @@ export function RoomWorkspaceView({
         bodyClassName="px-2 pt-1 pb-0 sm:px-2 xl:px-4"
         bodyScrollable={false}
         contentClassName="flex h-full min-h-0 min-w-0 gap-4"
-        eyebrow={t("room.workspace")}
+        header={agentSwitcher ? {
+          kind: "overlay",
+          leading: agentSwitcher,
+        } : undefined}
         maxWidthClassName="max-w-none"
-        showEyebrow={false}
-        showTitle={false}
         title={t("room.workspace_title")}
-        titleTrailing={agentSwitcher}
       >
         <div
           ref={fileListLayout.panelRef}
@@ -89,16 +87,12 @@ export function RoomWorkspaceView({
           )}
         >
           <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
-            <EditorPanel
+            <WorkspaceFilePreviewPanel
               agentId={controller.agent.viewAgentId}
               className="h-full w-full"
-              embedded
-              isOpen={isEditorOpen}
               isPreviewFocused={isPreviewFocused}
-              onResizeStart={() => undefined}
-              onTogglePreviewFocus={activeWorkspacePath ? togglePreviewFocus : undefined}
+              onTogglePreviewFocus={togglePreviewFocus}
               path={activeWorkspacePath}
-              widthPercent={100}
             />
           </div>
 

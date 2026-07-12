@@ -50,23 +50,23 @@ export function SubagentTaskList({
 
   return (
     <WorkspaceSurfaceView
-      action={showTitle ? (
-        <WorkspaceSurfaceToolbarAction
-          ariaLabel={t("common.close")}
-          onClick={onClose}
-          title={t("common.close")}
-        >
-          <X className="h-3.5 w-3.5" />
-          {t("common.close")}
-        </WorkspaceSurfaceToolbarAction>
-      ) : undefined}
       bodyClassName="px-3.5 pb-5 pt-4 sm:px-4"
       bodyScrollable
       contentClassName="min-h-full"
-      eyebrow={t("subagents.panel_title")}
+      header={showTitle ? {
+        action: (
+          <WorkspaceSurfaceToolbarAction
+            ariaLabel={t("common.close")}
+            onClick={onClose}
+            title={t("common.close")}
+          >
+            <X className="h-3.5 w-3.5" />
+            {t("common.close")}
+          </WorkspaceSurfaceToolbarAction>
+        ),
+        kind: "page",
+      } : undefined}
       maxWidthClassName="max-w-none"
-      showEyebrow={false}
-      showTitle={showTitle}
       title={t("subagents.panel_title")}
     >
       <div>

@@ -58,10 +58,9 @@ function ActiveRoomPage({
         currentAgentSessionIdentity={agent.sessionIdentity}
         conversationId={conversation.selectedId}
         currentTodos={workspace.currentTodos}
-        editorWidthPercent={workspace.editorWidthPercent}
+        sidePanelWidthPercent={workspace.sidePanelWidthPercent}
         initialDraft={navigation.initialDraft}
-        isEditorOpen={workspace.isEditorOpen}
-        isResizingEditor={workspace.isResizingEditor}
+        isResizingSidePanel={workspace.isResizingSidePanel}
         onReplayTour={onReplayTour}
         onManageRoom={actions.manageRoom}
         onOpenMemberManager={actions.prepareAgentCatalog}
@@ -75,10 +74,10 @@ function ActiveRoomPage({
         onSelectConversation={navigation.selectConversation}
         onConversationSnapshotChange={conversation.handleSnapshotChange}
         onInitialDraftConsumed={navigation.consumeInitialDraft}
-        onStartEditorResize={workspace.handleStartEditorResize}
+        onStartSidePanelResize={workspace.handleStartSidePanelResize}
         onTodosChange={workspace.setCurrentTodos}
         onValidateAgentName={actions.validateAgentName}
-        workspaceSplitRef={workspace.workspaceSplitRef}
+        surfaceSplitRef={workspace.surfaceSplitRef}
         onRoomEvent={handleRoomEvent}
       />
     </WorkspacePageFrame>

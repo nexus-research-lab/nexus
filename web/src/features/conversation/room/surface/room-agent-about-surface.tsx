@@ -98,12 +98,12 @@ export function RoomAgentAboutSurface({
       bodyClassName="flex min-h-0 flex-1 flex-col px-0 py-0"
       bodyScrollable={false}
       contentClassName="flex h-full min-h-0 flex-1 flex-col"
-      eyebrow={t("room.about")}
+      header={titleTrailing ? {
+        kind: "overlay",
+        leading: titleTrailing,
+      } : undefined}
       maxWidthClassName="max-w-none"
-      showEyebrow={false}
-      showTitle={false}
       title={t("room.about")}
-      titleTrailing={titleTrailing}
     >
       <div className="flex h-full min-h-0 flex-1 flex-col">
         <RoomAgentPanelTabs

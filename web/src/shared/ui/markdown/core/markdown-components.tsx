@@ -10,7 +10,7 @@ import { WorkspaceFileButton } from "../workspace/markdown-workspace-file-button
 import {
   resolveWorkspaceArtifactPath,
   type ResolveWorkspaceFilePath,
-} from "../workspace/markdown-workspace-artifacts";
+} from "../workspace/markdown-workspace-artifact-model";
 import {
   compactExternalUrlLabel,
   getPlainTextFromChildren,

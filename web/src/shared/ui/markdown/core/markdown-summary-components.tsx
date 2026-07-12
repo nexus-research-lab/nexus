@@ -2,7 +2,7 @@
 
 import type { Components } from "react-markdown";
 
-import type { ResolveWorkspaceFilePath } from "../workspace/markdown-workspace-artifacts";
+import type { ResolveWorkspaceFilePath } from "../workspace/markdown-workspace-artifact-model";
 import { createMarkdownComponents } from "./markdown-components";
 
 interface CreateMarkdownSummaryComponentsOptions {

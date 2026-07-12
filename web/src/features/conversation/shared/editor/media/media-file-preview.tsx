@@ -14,7 +14,6 @@ import {
   getWorkspaceFilePreviewUrl,
 } from "@/lib/api/agent/agent-api";
 import { getWorkspaceFileExternalActionCopy } from "@/lib/workspace-file-action";
-import { ConversationResizeHandle } from "../conversation-resize-handle";
 import {
   WorkspaceFileDownloadButton,
   WorkspaceFilePreviewFocusButton,
@@ -23,27 +22,17 @@ import {
 import type { WorkspaceFilePreviewProps } from "../workspace-file-preview-types";
 
 export function PdfPreview({
-  agentId: agentId,
+  agentId,
   path,
-  fileName: fileName,
-  isPreviewFocused: isPreviewFocused,
-  onTogglePreviewFocus: onTogglePreviewFocus,
-  onResizeStart: onResizeStart,
-  embedded,
+  fileName,
+  isPreviewFocused,
+  onTogglePreviewFocus,
 }: WorkspaceFilePreviewProps) {
   const [isLoaded, setIsLoaded] = useState(false);
   const previewUrl = getWorkspaceFilePreviewUrl(agentId, path);
 
   return (
     <>
-      {!embedded ? (
-        <ConversationResizeHandle
-          ariaLabel="调整编辑器宽度"
-          className="flex"
-          onMouseDown={onResizeStart}
-        />
-      ) : null}
-
       <WorkspaceFilePreviewHeader
         actions={(
           <>
@@ -54,7 +43,6 @@ export function PdfPreview({
             />
           </>
         )}
-        embedded={embedded}
         meta={(
           <>
             <span className="flex items-center gap-1">
@@ -91,13 +79,11 @@ export function PdfPreview({
 }
 
 export function ImagePreview({
-  agentId: agentId,
+  agentId,
   path,
-  fileName: fileName,
-  isPreviewFocused: isPreviewFocused,
-  onTogglePreviewFocus: onTogglePreviewFocus,
-  onResizeStart: onResizeStart,
-  embedded,
+  fileName,
+  isPreviewFocused,
+  onTogglePreviewFocus,
 }: WorkspaceFilePreviewProps) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
@@ -106,14 +92,6 @@ export function ImagePreview({
 
   return (
     <>
-      {!embedded ? (
-        <ConversationResizeHandle
-          ariaLabel="调整编辑器宽度"
-          className="flex"
-          onMouseDown={onResizeStart}
-        />
-      ) : null}
-
       <WorkspaceFilePreviewHeader
         actions={(
           <>
@@ -124,7 +102,6 @@ export function ImagePreview({
             />
           </>
         )}
-        embedded={embedded}
         meta={(
           <>
             <span className="flex items-center gap-1">
@@ -179,12 +156,11 @@ export function ImagePreview({
 }
 
 export function BinaryFilePlaceholder({
-  agentId: agentId,
+  agentId,
   path,
-  fileName: fileName,
-  isPreviewFocused: isPreviewFocused,
-  onTogglePreviewFocus: onTogglePreviewFocus,
-  embedded,
+  fileName,
+  isPreviewFocused,
+  onTogglePreviewFocus,
 }: WorkspaceFilePreviewProps) {
   const fileActionCopy = getWorkspaceFileExternalActionCopy(fileName);
   const actionDescription = fileActionCopy.mode === "reveal"
@@ -202,7 +178,6 @@ export function BinaryFilePlaceholder({
             />
           </>
         )}
-        embedded={embedded}
         meta={(
           <span className="flex items-center gap-1">
             <FileWarning className="h-3 w-3" />

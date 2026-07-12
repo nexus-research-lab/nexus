@@ -1,6 +1,5 @@
 "use client";
 
-import { ConversationResizeHandle } from "../conversation-resize-handle";
 import type { WorkspaceFilePreviewKind } from "../workspace-file-preview-kind";
 import type { WorkspaceFilePreviewProps } from "../workspace-file-preview-types";
 import { TextFileEditorBody } from "./text-file-editor-body";
@@ -10,11 +9,9 @@ import { useTextFileEditor } from "./use-text-file-editor";
 
 export function TextFileEditor({
   agentId,
-  embedded,
   fileName,
   fileType,
   isPreviewFocused,
-  onResizeStart,
   onTogglePreviewFocus,
   path,
 }: WorkspaceFilePreviewProps & { fileType: WorkspaceFilePreviewKind }) {
@@ -30,16 +27,8 @@ export function TextFileEditor({
 
   return (
     <>
-      {!embedded ? (
-        <ConversationResizeHandle
-          ariaLabel="调整编辑器宽度"
-          className="flex"
-          onMouseDown={onResizeStart}
-        />
-      ) : null}
       <TextFileEditorHeader
         agentId={agentId}
-        embedded={embedded}
         fileName={fileName}
         fileType={fileType}
         isPreviewFocused={isPreviewFocused}

@@ -1,6 +1,6 @@
-import { ConversationResizeHandle } from "@/features/conversation/shared/editor/conversation-resize-handle";
 import { ConversationThreadPanel } from "@/features/conversation/shared/thread/conversation-thread-panel";
 import { cn } from "@/shared/ui/class-name";
+import { PanelResizeHandle } from "@/shared/ui/layout/panel-resize-handle";
 import type { RoomSurfaceTabKey } from "@/features/conversation/room/surface/header/room-header-tabs";
 
 import { useGroupThread } from "../../group/thread/group-thread-state";
@@ -9,15 +9,15 @@ import { useRoomThreadPanel } from "../../group/thread/live/use-room-thread-pane
 interface RoomThreadInlinePanelProps {
   activeSurfaceTab: RoomSurfaceTabKey;
   className?: string;
-  editorWidthPercent: number;
-  onStartEditorResize: () => void;
+  sidePanelWidthPercent: number;
+  onStartSidePanelResize: () => void;
 }
 
 export function RoomThreadInlinePanel({
   activeSurfaceTab,
   className,
-  editorWidthPercent,
-  onStartEditorResize,
+  sidePanelWidthPercent,
+  onStartSidePanelResize,
 }: RoomThreadInlinePanelProps) {
   const { activeThread, closeThread } = useGroupThread();
   const threadPanelData = useRoomThreadPanel();
@@ -33,14 +33,14 @@ export function RoomThreadInlinePanel({
         className,
       )}
       style={{
-        width: `${editorWidthPercent}%`,
+        width: `${sidePanelWidthPercent}%`,
         minWidth: "360px",
         maxWidth: "560px",
       }}
     >
-      <ConversationResizeHandle
+      <PanelResizeHandle
         ariaLabel="调整 Thread 面板宽度"
-        onMouseDown={onStartEditorResize}
+        onResizeStart={onStartSidePanelResize}
       />
 
       <ConversationThreadPanel

@@ -21,9 +21,11 @@ import {
   type MarkdownContentSegment,
   type ResolveWorkspaceFilePath,
   splitMarkdownFileArtifacts,
+} from "@/shared/ui/markdown/workspace/markdown-workspace-artifact-model";
+import {
   useMarkdownCurrentAgentID,
   useMarkdownFileResolver,
-} from "@/shared/ui/markdown/workspace/markdown-workspace-artifacts";
+} from "@/shared/ui/markdown/workspace/use-markdown-workspace-files";
 
 import "katex/dist/katex.min.css";
 

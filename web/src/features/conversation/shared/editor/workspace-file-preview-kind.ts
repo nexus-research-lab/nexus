@@ -8,8 +8,7 @@ export type WorkspaceFilePreviewKind =
   | "spreadsheet"
   | "document"
   | "presentation"
-  | "binary"
-  | "unknown";
+  | "binary";
 
 const textExtensions = new Set([
   "txt",

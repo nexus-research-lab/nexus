@@ -19,7 +19,7 @@ import { remarkInlineHtmlTags, remarkMarkdownBreaks } from "./markdown-text-plug
 import {
   resolveWorkspaceArtifactPath,
   type ResolveWorkspaceFilePath,
-} from "../workspace/markdown-workspace-artifacts";
+} from "../workspace/markdown-workspace-artifact-model";
 
 interface NormalizeMarkdownContentOptions {
   is_streaming?: boolean;
