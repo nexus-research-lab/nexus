@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { type Components } from "react-markdown";
 
 import { getWorkspaceFilePreviewUrl } from "@/lib/api/agent/agent-api";
@@ -12,18 +13,12 @@ import {
   type ResolveWorkspaceFilePath,
 } from "../workspace/markdown-workspace-artifact-model";
 import {
-  compactExternalUrlLabel,
-  getPlainTextFromChildren,
-  normalizeExternalMarkdownHref,
-  splitTrailingUrlPunctuation,
+  buildMarkdownLinkPresentation,
 } from "./markdown-link-model";
-
-type MarkdownNodeLike = {
-  position?: {
-    start?: { line?: number };
-    end?: { line?: number };
-  };
-};
+import {
+  buildMarkdownCodePresentation,
+  type MarkdownCodeNode,
+} from "./markdown-code-model";
 
 interface CreateMarkdownComponentsOptions {
   compactMermaid?: boolean;
@@ -32,18 +27,89 @@ interface CreateMarkdownComponentsOptions {
   streamMermaid?: boolean;
 }
 
-function isBlockCode(node: MarkdownNodeLike | null | undefined, className: string | undefined, value: string): boolean {
-  if (className && /language-\w+/.test(className)) {
-    return true;
-  }
+interface MarkdownLinkProps {
+  children: ReactNode;
+  currentAgentId?: string | null;
+  href?: string;
+  onOpenWorkspaceFile?: (
+    path: string,
+    workspaceAgentId?: string | null,
+  ) => void;
+  resolveFilePath: ResolveWorkspaceFilePath;
+}
 
-  if (value.includes("\n")) {
-    return true;
-  }
+type OpenWorkspaceFile = NonNullable<
+  MarkdownLinkProps["onOpenWorkspaceFile"]
+>;
 
-  const startLine = node?.position?.start?.line;
-  const endLine = node?.position?.end?.line;
-  return typeof startLine === "number" && typeof endLine === "number" && startLine !== endLine;
+function requireWorkspaceFileCommand(
+  command: MarkdownLinkProps["onOpenWorkspaceFile"],
+): OpenWorkspaceFile {
+  if (!command) {
+    throw new Error("工作区链接缺少文件打开命令");
+  }
+  return command;
+}
+
+function assertNever(value: never): never {
+  throw new Error(`未处理的 Markdown 链接状态: ${String(value)}`);
+}
+
+function renderMarkdownLink({
+  children,
+  currentAgentId,
+  href,
+  onOpenWorkspaceFile,
+  resolveFilePath,
+}: MarkdownLinkProps): ReactNode {
+  const rawHref = String(href ?? "").trim();
+  const workspacePath = onOpenWorkspaceFile
+    ? resolveWorkspaceArtifactPath(rawHref, resolveFilePath)
+    : null;
+  const presentation = buildMarkdownLinkPresentation(
+    href,
+    children,
+    workspacePath,
+  );
+
+  switch (presentation.kind) {
+    case "text":
+      return <span className="text-primary">{children}</span>;
+    case "workspace":
+      return (
+        <WorkspaceFileButton
+          label={children}
+          onOpenWorkspaceFile={requireWorkspaceFileCommand(onOpenWorkspaceFile)}
+          path={presentation.path}
+          workspaceAgentId={currentAgentId}
+        />
+      );
+    case "anchor":
+      return (
+        <a
+          className="inline max-w-full text-primary transition-all decoration-primary/30 underline-offset-4 break-words hover:underline"
+          href={presentation.href}
+        >
+          {children}
+        </a>
+      );
+    case "external":
+      return (
+        <>
+          <a
+            className="inline max-w-full text-primary transition-all decoration-primary/30 underline-offset-4 break-words hover:underline"
+            href={presentation.href}
+            rel="noopener noreferrer"
+            target={presentation.openInNewTab ? "_blank" : undefined}
+            title={presentation.href}
+          >
+            {presentation.compactLabel ?? children}
+          </a>
+          {presentation.trailingText}
+        </>
+      );
+  }
+  return assertNever(presentation);
 }
 
 export function createMarkdownComponents(
@@ -57,27 +123,39 @@ export function createMarkdownComponents(
       return <div className="my-2 w-full min-w-0 max-w-full overflow-hidden">{children}</div>;
     },
     code({ children, className, node }) {
-      const value = String(children).replace(/\n$/, "");
-      if (isBlockCode(node as MarkdownNodeLike | undefined, className, value)) {
-        const language = /language-(\w+)/.exec(className || "")?.[1] || "text";
-        if (language.toLowerCase() === "mermaid" || language.toLowerCase() === "mmd") {
-          return (
-            <LazyMermaidView
-              chart={value}
-              compact={options.compactMermaid ?? true}
-              isStreaming={options.streamMermaid}
-              showHeader={options.showMermaidHeader}
-            />
-          );
-        }
-        return <CodeBlock language={language} value={value} isStreaming={options.streamCodeBlocks} />;
+      const presentation = buildMarkdownCodePresentation(
+        node as MarkdownCodeNode | undefined,
+        className,
+        children,
+      );
+      if (presentation.kind === "mermaid") {
+        return (
+          <LazyMermaidView
+            chart={presentation.value}
+            compact={options.compactMermaid ?? true}
+            isStreaming={options.streamMermaid}
+            showHeader={options.showMermaidHeader}
+          />
+        );
+      }
+      if (presentation.kind === "block") {
+        return (
+          <CodeBlock
+            isStreaming={options.streamCodeBlocks}
+            language={presentation.language}
+            value={presentation.value}
+          />
+        );
       }
 
-      const resolvedPath = resolveWorkspaceArtifactPath(value, resolveFilePath);
+      const resolvedPath = resolveWorkspaceArtifactPath(
+        presentation.value,
+        resolveFilePath,
+      );
       if (resolvedPath && onOpenWorkspaceFile) {
         return (
           <WorkspaceFileButton
-            label={value}
+            label={presentation.value}
             path={resolvedPath}
             onOpenWorkspaceFile={onOpenWorkspaceFile}
             workspaceAgentId={currentAgentId}
@@ -87,7 +165,9 @@ export function createMarkdownComponents(
 
       return (
         <span className="message-cjk-code-font mx-0.5 inline-flex max-w-full overflow-hidden rounded-[5px] border border-primary/20 bg-primary/10 px-2 py-0.3 align-middle text-[0.9em] text-primary">
-          <span className="max-w-full whitespace-pre-wrap break-words">{value}</span>
+          <span className="max-w-full whitespace-pre-wrap break-words">
+            {presentation.value}
+          </span>
         </span>
       );
     },
@@ -115,67 +195,13 @@ export function createMarkdownComponents(
       );
     },
     a({ href, children }) {
-      const rawHref = String(href ?? "").trim();
-      if (!rawHref) {
-        return <span className="text-primary">{children}</span>;
-      }
-
-      const resolvedPath = resolveWorkspaceArtifactPath(rawHref, resolveFilePath);
-      if (resolvedPath && onOpenWorkspaceFile) {
-        return (
-          <WorkspaceFileButton
-            label={children}
-            path={resolvedPath}
-            onOpenWorkspaceFile={onOpenWorkspaceFile}
-            workspaceAgentId={currentAgentId}
-          />
-        );
-      }
-
-      if (rawHref.startsWith("#")) {
-        return (
-          <a
-            className="inline max-w-full text-primary transition-all decoration-primary/30 underline-offset-4 break-words hover:underline"
-            href={rawHref}
-          >
-            {children}
-          </a>
-        );
-      }
-
-      const { href: hrefWithoutTrailing, trailingText: trailingText } = splitTrailingUrlPunctuation(rawHref);
-      const externalHref = normalizeExternalMarkdownHref(hrefWithoutTrailing);
-      if (!externalHref) {
-        return <span className="text-primary">{children}</span>;
-      }
-
-      const plainText = getPlainTextFromChildren(children);
-      const plainTextHref = plainText
-        ? normalizeExternalMarkdownHref(splitTrailingUrlPunctuation(plainText).href)
-        : null;
-      const linkChildren = plainText && (
-        plainText === rawHref ||
-        plainText === hrefWithoutTrailing ||
-        plainText === externalHref ||
-        plainTextHref === externalHref
-      )
-        ? compactExternalUrlLabel(externalHref)
-        : children;
-
-      return (
-        <>
-          <a
-            className="inline max-w-full text-primary transition-all decoration-primary/30 underline-offset-4 break-words hover:underline"
-            href={externalHref}
-            rel="noopener noreferrer"
-            target={externalHref.startsWith("mailto:") ? undefined : "_blank"}
-            title={externalHref}
-          >
-            {linkChildren}
-          </a>
-          {trailingText}
-        </>
-      );
+      return renderMarkdownLink({
+        children,
+        currentAgentId,
+        href,
+        onOpenWorkspaceFile,
+        resolveFilePath,
+      });
     },
     img({ alt, src }) {
       const rawSrc = String(src || "").trim();

@@ -1,29 +1,26 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { listProviderOptionsApi } from "@/lib/api/settings/provider-api";
+import { getErrorMessage } from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import type { ProviderOption } from "@/types/capability/provider";
 import type {
   AgentRuntimeKind,
   UserPreferences,
 } from "@/types/settings/preferences";
 
 import {
+  EMPTY_DEFAULT_MODEL_CATALOG,
+  type DefaultModelCatalog,
   type DefaultModelPreferenceRole,
-  type DefaultModelSelection,
   applyDefaultModelSelection,
-  buildDefaultModelOptions,
+  buildDefaultModelCatalog,
+  buildDefaultModelPreferencesView,
   decodeDefaultModelValue,
-  encodeOptionalModelSelection,
-} from "./model/settings-preferences-model";
+} from "./model/default-model-preferences-model";
 
 interface ProviderCatalogState {
-  agentDefault: DefaultModelSelection | null;
-  agentOptions: ProviderOption[];
-  backgroundOptions: ProviderOption[];
+  catalog: DefaultModelCatalog;
   feedback: string | null;
-  imageDefault: DefaultModelSelection | null;
-  imageOptions: ProviderOption[];
   loading: boolean;
 }
 
@@ -38,22 +35,10 @@ interface UseDefaultModelPreferencesOptions {
 }
 
 const EMPTY_CATALOG: ProviderCatalogState = {
-  agentDefault: null,
-  agentOptions: [],
-  backgroundOptions: [],
+  catalog: EMPTY_DEFAULT_MODEL_CATALOG,
   feedback: null,
-  imageDefault: null,
-  imageOptions: [],
   loading: true,
 };
-
-function buildSelection(provider?: string | null, model?: string | null) {
-  const normalizedProvider = provider?.trim();
-  const normalizedModel = model?.trim();
-  return normalizedProvider && normalizedModel
-    ? { provider: normalizedProvider, model: normalizedModel }
-    : null;
-}
 
 export function useDefaultModelPreferences({
   agentRuntimeKind,
@@ -66,42 +51,27 @@ export function useDefaultModelPreferences({
   const [catalog, setCatalog] = useState(EMPTY_CATALOG);
   const [savingRole, setSavingRole] =
     useState<DefaultModelPreferenceRole | null>(null);
-  const requestSequenceRef = useRef(0);
 
   useEffect(() => {
-    const sequence = requestSequenceRef.current + 1;
-    requestSequenceRef.current = sequence;
     let cancelled = false;
     setCatalog((current) => ({ ...current, feedback: null, loading: true }));
 
     void listProviderOptionsApi(agentRuntimeKind)
       .then((result) => {
-        if (cancelled || requestSequenceRef.current !== sequence) {
+        if (cancelled) {
           return;
         }
         setCatalog({
-          agentDefault: buildSelection(
-            result.default_provider,
-            result.default_model,
-          ),
-          agentOptions: result.items ?? [],
-          backgroundOptions: result.background_items ?? result.items ?? [],
+          catalog: buildDefaultModelCatalog(result),
           feedback: null,
-          imageDefault: buildSelection(
-            result.default_image_provider,
-            result.default_image_model,
-          ),
-          imageOptions: result.image_items ?? [],
           loading: false,
         });
       })
       .catch((error: unknown) => {
-        if (!cancelled && requestSequenceRef.current === sequence) {
+        if (!cancelled) {
           setCatalog((current) => ({
             ...current,
-            feedback: error instanceof Error
-              ? error.message
-              : "默认对话模型加载失败",
+            feedback: getErrorMessage(error, "默认对话模型加载失败"),
             loading: false,
           }));
         }
@@ -112,28 +82,11 @@ export function useDefaultModelPreferences({
   }, [agentRuntimeKind]);
 
   const subscriptionLabel = t("settings.providers.subscription_badge");
-  const options = useMemo(() => ({
-    agent: buildDefaultModelOptions(catalog.agentOptions, subscriptionLabel),
-    background: buildDefaultModelOptions(
-      catalog.backgroundOptions,
-      subscriptionLabel,
-    ),
-    image: buildDefaultModelOptions(catalog.imageOptions, subscriptionLabel),
-  }), [catalog, subscriptionLabel]);
-  const values = {
-    agent: encodeOptionalModelSelection(
-      preferences.default_agent_options.provider || catalog.agentDefault?.provider,
-      preferences.default_agent_options.model || catalog.agentDefault?.model,
-    ),
-    background: encodeOptionalModelSelection(
-      preferences.default_background_model_selection?.provider,
-      preferences.default_background_model_selection?.model,
-    ),
-    image: encodeOptionalModelSelection(
-      preferences.default_image_model_selection?.provider || catalog.imageDefault?.provider,
-      preferences.default_image_model_selection?.model || catalog.imageDefault?.model,
-    ),
-  };
+  const view = useMemo(() => buildDefaultModelPreferencesView(
+    catalog.catalog,
+    preferences,
+    subscriptionLabel,
+  ), [catalog.catalog, preferences, subscriptionLabel]);
 
   const handleChange = useCallback((
     value: string,
@@ -154,9 +107,7 @@ export function useDefaultModelPreferences({
       .catch((error: unknown) => {
         setCatalog((current) => ({
           ...current,
-          feedback: error instanceof Error
-            ? error.message
-            : "默认对话模型保存失败",
+          feedback: getErrorMessage(error, "默认对话模型保存失败"),
         }));
       })
       .finally(() => setSavingRole(null));
@@ -171,8 +122,8 @@ export function useDefaultModelPreferences({
     feedbackMessage: catalog.feedback,
     handleChange,
     loading: catalog.loading,
-    options,
+    options: view.options,
     savingRole,
-    values,
+    values: view.values,
   };
 }

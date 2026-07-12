@@ -1,12 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { ExternalLink, PackageOpen } from "lucide-react";
 
-import {
-  getSystemVersionApi,
-  type SystemVersionInfo,
-} from "@/lib/api/settings/system-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
 
 import {
@@ -20,59 +15,11 @@ import {
   SETTINGS_SECTION_TITLE_CLASS_NAME,
   SETTINGS_TEXT_ROW_CLASS_NAME,
 } from "../../shared/settings-panel-ui";
-
-const DEFAULT_RELEASE_PAGE_URL =
-  "https://github.com/nexus-research-lab/nexus/releases/latest";
+import { useSystemSettings } from "../use-system-settings";
 
 export function SettingsSystemSection() {
   const { t } = useI18n();
-  const [systemVersion, setSystemVersion] =
-    useState<SystemVersionInfo | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [feedbackMessage, setFeedbackMessage] = useState<string | null>(
-    null,
-  );
-
-  useEffect(() => {
-    let cancelled = false;
-    const loadSystemVersion = async () => {
-      try {
-        setLoading(true);
-        const result = await getSystemVersionApi();
-        if (cancelled) {
-          return;
-        }
-        setSystemVersion(result);
-        setFeedbackMessage(null);
-      } catch (error) {
-        if (!cancelled) {
-          setFeedbackMessage(
-            error instanceof Error
-              ? error.message
-              : t("settings.system.version_failed"),
-          );
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    };
-    void loadSystemVersion();
-    return () => {
-      cancelled = true;
-    };
-  }, [t]);
-
-  const releasePageUrl =
-    systemVersion?.release_url || DEFAULT_RELEASE_PAGE_URL;
-  const versionDescription = systemVersion
-    ? t("settings.system.version_value")
-      .replace("{version}", systemVersion.version)
-      .replace("{target}", systemVersion.target)
-    : loading
-      ? t("settings.system.version_loading")
-      : t("settings.system.version_unavailable");
+  const controller = useSystemSettings();
 
   return (
     <section className="space-y-2.5">
@@ -80,9 +27,9 @@ export function SettingsSystemSection() {
         <h2 className={SETTINGS_SECTION_TITLE_CLASS_NAME}>
           {t("settings.system.section_title")}
         </h2>
-        {feedbackMessage ? (
+        {controller.feedbackMessage ? (
           <span className="min-w-0 truncate text-[11px] text-(--text-soft)">
-            {feedbackMessage}
+            {controller.feedbackMessage}
           </span>
         ) : null}
       </div>
@@ -97,13 +44,13 @@ export function SettingsSystemSection() {
                 {t("settings.system.version_title")}
               </h3>
               <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
-                {versionDescription}
+                {controller.versionDescription}
               </p>
             </div>
           </div>
           <a
             className={`${SETTINGS_CONTROL_HEIGHT_CLASS_NAME} inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[10px] border border-(--divider-subtle-color) bg-transparent px-2.5 ${SETTINGS_CONTROL_TEXT_CLASS_NAME} text-(--text-default) transition-[background,color,transform] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)`}
-            href={releasePageUrl}
+            href={controller.releasePageUrl}
             rel="noreferrer"
             target="_blank"
           >

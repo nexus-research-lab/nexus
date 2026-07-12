@@ -4,24 +4,13 @@ import {
   normalizeModelSelectionPreference,
 } from "@/lib/settings/preferences-normalization";
 import {
-  formatProviderOptionLabel,
-  type ProviderOption,
-} from "@/types/capability/provider";
-import {
   normalizeAgentRuntimeKind,
   type UpdateUserPreferencesParams,
   type UserPreferences,
 } from "@/types/settings/preferences";
 
-export type DefaultModelPreferenceRole = "agent_runtime" | "image_generation" | "background_task";
-
 export interface PreferenceFeedback {
   message: string;
-}
-
-export interface DefaultModelSelection {
-  model: string;
-  provider: string;
 }
 
 export function buildPreferencesUpdatePayload(
@@ -85,86 +74,4 @@ function resolveDiagnosticsEnabled(
     return fallback.agent_sdk_diagnostics_enabled === true;
   }
   return preferences.agent_sdk_diagnostics_enabled === true;
-}
-
-function encodeDefaultModelValue(provider: string, model: string): string {
-  return JSON.stringify([provider, model]);
-}
-
-export function decodeDefaultModelValue(value: string): { provider: string; model: string } | null {
-  try {
-    const parsed = JSON.parse(value) as unknown;
-    if (!isDefaultModelTuple(parsed)) {
-      return null;
-    }
-    const [provider, model] = parsed;
-    const selection = normalizeModelSelectionPreference({ provider, model });
-    return selection ?? null;
-  } catch {
-    return null;
-  }
-}
-
-function isDefaultModelTuple(value: unknown): value is [string, string] {
-  return Array.isArray(value)
-    && value.length === 2
-    && value.every((item) => typeof item === "string");
-}
-
-const DEFAULT_MODEL_UPDATERS: Record<
-  DefaultModelPreferenceRole,
-  (preferences: UserPreferences, selection: DefaultModelSelection) => UserPreferences
-> = {
-  agent_runtime: (preferences, selection) => ({
-    ...preferences,
-    default_agent_options: {
-      ...preferences.default_agent_options,
-      model: selection.model,
-      provider: selection.provider,
-    },
-  }),
-  image_generation: (preferences, selection) => ({
-    ...preferences,
-    default_image_model_selection: selection,
-  }),
-  background_task: (preferences, selection) => ({
-    ...preferences,
-    default_background_model_selection: selection,
-  }),
-};
-
-export function applyDefaultModelSelection(
-  preferences: UserPreferences,
-  role: DefaultModelPreferenceRole,
-  selection: DefaultModelSelection,
-): UserPreferences {
-  return normalizePreferences(DEFAULT_MODEL_UPDATERS[role](preferences, selection));
-}
-
-export function encodeOptionalModelSelection(
-  provider?: string | null,
-  model?: string | null,
-): string {
-  const normalizedProvider = provider?.trim();
-  const normalizedModel = model?.trim();
-  if (!normalizedProvider || !normalizedModel) {
-    return "";
-  }
-  return encodeDefaultModelValue(normalizedProvider, normalizedModel);
-}
-
-export function buildDefaultModelOptions(
-  providerOptions: ProviderOption[],
-  subscriptionLabel: string,
-) {
-  return providerOptions.flatMap((provider) => (
-    provider.models.map((model) => {
-      const providerLabel = formatProviderOptionLabel(provider, subscriptionLabel);
-      const modelLabel = model.display_name || model.model_id;
-      return {
-        value: encodeDefaultModelValue(provider.provider, model.model_id),
-        label: `${providerLabel} / ${modelLabel}`,
-      };
-    })
-  ));
 }

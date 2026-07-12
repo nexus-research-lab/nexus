@@ -13,8 +13,17 @@ import { UiBadge } from "@/shared/ui/display/badge";
 import { UiListActionButton } from "@/shared/ui/list/list-action";
 import { UiListRow } from "@/shared/ui/list/list-row";
 import { ChannelIcon } from "../channel-icon";
-import { isChannelPlanned } from "../channel-model";
-import { describeChannel } from "./channel-catalog-model";
+import {
+  buildChannelCardModel,
+  type ChannelCardModel,
+  type ChannelCardStatIcon,
+} from "./channel-catalog-model";
+
+const CHANNEL_STAT_ICONS: Record<ChannelCardStatIcon, typeof Send> = {
+  group: UsersRound,
+  pending: Clock3,
+  user: UserRound,
+};
 
 function ChannelStatPill({
   icon: Icon,
@@ -43,6 +52,94 @@ function ChannelStatPill({
   );
 }
 
+function ChannelCardActions({
+  action,
+  onConfigure,
+}: {
+  action: ChannelCardModel["action"];
+  onConfigure: () => void;
+}) {
+  if (action.kind === "planned") {
+    return (
+      <span className="flex h-8 w-8 items-center justify-center text-(--icon-muted)">
+        <Clock3 className="h-3.5 w-3.5" />
+      </span>
+    );
+  }
+
+  return (
+    <div className="flex shrink-0 items-center gap-1.5">
+      {action.docsUrl ? (
+        <UiListActionButton
+          onClick={() => window.open(action.docsUrl, "_blank", "noopener,noreferrer")}
+          size="sm"
+          stopPropagation
+          title="查看接入文档"
+        >
+          <ExternalLink className="h-3 w-3" />
+        </UiListActionButton>
+      ) : null}
+      <UiListActionButton
+        className="text-(--primary)"
+        onClick={onConfigure}
+        size="sm"
+        stopPropagation
+        title="设置机器人"
+        visibility="visible"
+      >
+        <Settings2 className="h-3 w-3" />
+      </UiListActionButton>
+    </div>
+  );
+}
+
+function ChannelCardContent({
+  model,
+  title,
+}: {
+  model: ChannelCardModel;
+  title: string;
+}) {
+  return (
+    <div className="min-w-0 flex-1">
+      <div className="flex min-w-0 items-center gap-2">
+        <span className="truncate text-[15px] font-semibold tracking-[-0.02em] text-(--text-strong)">
+          {title}
+        </span>
+        {model.badges.map((badge) => (
+          <UiBadge key={badge.label} size="xs" tone={badge.tone}>
+            {badge.label}
+          </UiBadge>
+        ))}
+      </div>
+      <div className="mt-0.5 truncate text-[13px] leading-5 text-(--text-muted)">
+        {model.description}
+      </div>
+      <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-[11px] leading-4 text-(--text-soft)">
+        {model.metadata.map((value) => (
+          <span className="min-w-0 truncate" key={value}>{value}</span>
+        ))}
+      </div>
+      <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1.5">
+        {model.stats.map((stat) => (
+          <ChannelStatPill
+            icon={CHANNEL_STAT_ICONS[stat.icon]}
+            key={stat.icon}
+            label={stat.label}
+            tone={stat.tone}
+            value={stat.value}
+          />
+        ))}
+      </div>
+      {model.runtimeNote ? (
+        <div className="mt-0.5 truncate text-[11px] leading-4 text-(--text-soft)">
+          {model.runtimeNote}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function ChannelCard({
   item,
   onConfigure,
@@ -50,9 +147,9 @@ export function ChannelCard({
   item: ChannelConfigView;
   onConfigure: (item: ChannelConfigView) => void;
 }) {
-  const planned = isChannelPlanned(item);
-  const description = describeChannel(item);
-  const handlerLabel = item.configured ? item.agent_name || "已绑定" : "未绑定";
+  const model = buildChannelCardModel(item);
+  const planned = model.action.kind === "planned";
+  const configure = () => onConfigure(item);
 
   return (
     <UiListRow
@@ -61,73 +158,12 @@ export function ChannelCard({
         planned && "cursor-default opacity-70",
       )}
       leading={<ChannelIcon type={item.channel_type} />}
-      onClick={planned ? undefined : () => onConfigure(item)}
+      onClick={planned ? undefined : configure}
       right={(
-        <div className="flex shrink-0 items-center gap-1.5">
-          {!planned && item.docs_url ? (
-            <UiListActionButton
-              onClick={() => window.open(item.docs_url, "_blank", "noopener,noreferrer")}
-              size="sm"
-              stopPropagation
-              title="查看接入文档"
-            >
-              <ExternalLink className="h-3 w-3" />
-            </UiListActionButton>
-          ) : null}
-          {!planned ? (
-            <UiListActionButton
-              className="text-(--primary)"
-              onClick={() => onConfigure(item)}
-              size="sm"
-              stopPropagation
-              title="设置机器人"
-              visibility="visible"
-            >
-              <Settings2 className="h-3 w-3" />
-            </UiListActionButton>
-          ) : (
-            <span className="flex h-8 w-8 items-center justify-center text-(--icon-muted)">
-              <Clock3 className="h-3.5 w-3.5" />
-            </span>
-          )}
-        </div>
+        <ChannelCardActions action={model.action} onConfigure={configure} />
       )}
     >
-      <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="truncate text-[15px] font-semibold tracking-[-0.02em] text-(--text-strong)">
-            {item.title}
-          </span>
-          {item.runtime_status === "external_adapter" ? (
-            <UiBadge size="xs" tone="warning">外部适配器</UiBadge>
-          ) : null}
-        </div>
-        <div className="mt-0.5 truncate text-[13px] leading-5 text-(--text-muted)">
-          {description}
-        </div>
-        <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-[11px] leading-4 text-(--text-soft)">
-          <span className="min-w-0 truncate">机器人：{item.bot_label}</span>
-          <span className="min-w-0 truncate">处理：{handlerLabel}</span>
-          {!item.supports_group ? <span className="shrink-0">仅私聊</span> : null}
-        </div>
-        <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1.5">
-          <ChannelStatPill icon={UserRound} label="用户" value={item.stats.paired_user_count} />
-          {item.supports_group ? (
-            <ChannelStatPill icon={UsersRound} label="群聊" value={item.stats.paired_group_count} />
-          ) : null}
-          <ChannelStatPill
-            icon={Clock3}
-            label="待审"
-            tone={item.stats.pending_count > 0 ? "warning" : "default"}
-            value={item.stats.pending_count}
-          />
-        </div>
-        {item.runtime_note ? (
-          <div className="mt-0.5 truncate text-[11px] leading-4 text-(--text-soft)">
-            {item.runtime_note}
-          </div>
-        ) : null}
-      </div>
+      <ChannelCardContent model={model} title={item.title} />
     </UiListRow>
   );
 }

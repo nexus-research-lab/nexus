@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 
 import { getNxsRuntimeStatusApi } from "@/lib/api/settings/runtime-api";
 import { DEFAULT_AGENT_PERMISSION_MODE } from "@/lib/agent-options";
+import { getErrorMessage } from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { useOnboardingTour } from "@/shared/ui/onboarding/use-onboarding-tour";
 import type { AgentConversationDefaultDeliveryPolicy } from "@/types/agent/agent-conversation";
@@ -79,9 +80,10 @@ export function useGeneralSettingsController() {
       });
     } catch (error) {
       setFeedback({
-        message: error instanceof Error
-          ? error.message
-          : t("settings.general.agent_runtime_check_failed"),
+        message: getErrorMessage(
+          error,
+          t("settings.general.agent_runtime_check_failed"),
+        ),
       });
     } finally {
       setNxsRuntimeChecking(false);

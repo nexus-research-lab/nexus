@@ -31,7 +31,7 @@ import {
   SETTINGS_TEXT_ROW_CLASS_NAME,
   SettingsSegmentedControl,
 } from "../../shared/settings-panel-ui";
-import type { DefaultModelPreferenceRole } from "../model/settings-preferences-model";
+import type { DefaultModelPreferenceRole } from "../model/default-model-preferences-model";
 import { SettingsOnboardingRow } from "../components/settings-onboarding-row";
 
 interface SettingsGeneralBehaviorSectionProps {

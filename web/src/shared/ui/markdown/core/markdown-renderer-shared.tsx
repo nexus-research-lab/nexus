@@ -15,6 +15,7 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 
 import { findOpenMarkdownFenceLanguage, readMarkdownFenceMarker } from "./markdown-fence";
+import { stabilizeStreamingMarkdownUrlTail } from "./markdown-link-model";
 import { remarkInlineHtmlTags, remarkMarkdownBreaks } from "./markdown-text-plugins";
 import {
   resolveWorkspaceArtifactPath,
@@ -27,9 +28,6 @@ interface NormalizeMarkdownContentOptions {
 
 const WORKSPACE_FILE_PATTERN = /([A-Za-z0-9_./-]+\.[A-Za-z0-9]{1,10})/g;
 const MARKDOWN_IDENTIFIER_ASTERISK_BEFORE_BRACKET_PATTERN = /(?<=[\p{L}\p{N}_./-])\*(?=[(\[（［])/gu;
-const STREAMING_URL_TAIL_PATTERN = /(?:https?:\/\/|www\.|mailto:)[^\s<>"'，。；！？]*$/iu;
-const STREAMING_MARKDOWN_LINK_DESTINATION_TAIL_PATTERN = /(\[[^\]\n]{0,180}\]\()((?:https?:\/\/|www\.|mailto:)[^\s)]*)$/iu;
-const STREAMING_AUTOLINK_TAIL_PATTERN = /<((?:https?:\/\/|www\.|mailto:)[^\s>]*)$/iu;
 
 // 数学语法必须先于 GFM 表格解析，避免公式里的 `|` 被误判为列分隔符。
 export const MARKDOWN_PLUGINS = [
@@ -49,9 +47,11 @@ export function normalizeMarkdownContent(
   onOpenWorkspaceFile?: (path: string) => void,
   options: NormalizeMarkdownContentOptions = {},
 ): string {
-  const normalizedContent = stabilizeStreamingUrlTail(
-    escapeIdentifierAsterisksBeforeBrackets(content),
+  const escapedContent = escapeIdentifierAsterisksBeforeBrackets(content);
+  const normalizedContent = stabilizeStreamingMarkdownUrlTail(
+    escapedContent,
     Boolean(options.is_streaming),
+    (offset) => isInsideMarkdownProtectedRegion(escapedContent, offset),
   );
   return normalizedContent.replace(WORKSPACE_FILE_PATTERN, (match, offset: number) => {
     if (
@@ -63,45 +63,6 @@ export function normalizeMarkdownContent(
     const resolvedPath = resolveWorkspaceArtifactPath(match, resolveFilePath);
     return resolvedPath && onOpenWorkspaceFile ? `\`${match}\`` : match;
   });
-}
-
-function stabilizeStreamingUrlTail(content: string, isStreaming: boolean): string {
-  if (!isStreaming || !content) {
-    return content;
-  }
-
-  const markdownLinkMatch = STREAMING_MARKDOWN_LINK_DESTINATION_TAIL_PATTERN.exec(content);
-  if (markdownLinkMatch?.[1] && markdownLinkMatch[2]) {
-    const urlOffset = content.length - markdownLinkMatch[2].length;
-    if (!isInsideMarkdownProtectedRegion(content, urlOffset)) {
-      return `${content.slice(0, urlOffset)}${escapeMarkdownUrlTail(markdownLinkMatch[2])}`;
-    }
-  }
-
-  const autolinkMatch = STREAMING_AUTOLINK_TAIL_PATTERN.exec(content);
-  if (autolinkMatch?.[1]) {
-    const urlOffset = content.length - autolinkMatch[1].length;
-    if (!isInsideMarkdownProtectedRegion(content, urlOffset)) {
-      return `${content.slice(0, urlOffset - 1)}&lt;${escapeMarkdownUrlTail(autolinkMatch[1])}`;
-    }
-  }
-
-  const urlMatch = STREAMING_URL_TAIL_PATTERN.exec(content);
-  if (!urlMatch?.[0]) {
-    return content;
-  }
-
-  const urlOffset = content.length - urlMatch[0].length;
-  if (isInsideMarkdownProtectedRegion(content, urlOffset)) {
-    return content;
-  }
-
-  // 中文注释：流式尾巴上的 URL 大概率还没写完，先打断 GFM 自动链接，等空白/换行收尾后再恢复为真实链接。
-  return `${content.slice(0, urlOffset)}${escapeMarkdownUrlTail(urlMatch[0])}`;
-}
-
-function escapeMarkdownUrlTail(value: string): string {
-  return value.replace(/([.:\u003c\u003e()[\]])/g, "\\$1");
 }
 
 function escapeIdentifierAsterisksBeforeBrackets(content: string): string {

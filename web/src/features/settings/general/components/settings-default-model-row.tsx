@@ -8,7 +8,7 @@ import type { TranslationKey } from "@/shared/i18n/messages";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import type { UiSelectMenuOption } from "@/shared/ui/menu/select-menu-model";
 
-import type { DefaultModelPreferenceRole } from "../model/settings-preferences-model";
+import type { DefaultModelPreferenceRole } from "../model/default-model-preferences-model";
 import {
   SETTINGS_CONTROL_HEIGHT_CLASS_NAME,
   SETTINGS_CONTROL_LABEL_CLASS_NAME,

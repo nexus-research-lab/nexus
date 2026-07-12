@@ -2,8 +2,62 @@ import type { ReactNode } from "react";
 
 const URL_TRAILING_PUNCTUATION_PATTERN = /[.,;:!?，。；：！？、]+$/u;
 const ALLOWED_MARKDOWN_LINK_PROTOCOLS = new Set(["http:", "https:", "mailto:"]);
+const STREAMING_URL_TAIL_PATTERN = /(?:https?:\/\/|www\.|mailto:)[^\s<>"'，。；！？]*$/iu;
+const STREAMING_MARKDOWN_LINK_DESTINATION_TAIL_PATTERN = /(\[[^\]\n]{0,180}\]\()((?:https?:\/\/|www\.|mailto:)[^\s)]*)$/iu;
+const STREAMING_AUTOLINK_TAIL_PATTERN = /<((?:https?:\/\/|www\.|mailto:)[^\s>]*)$/iu;
 
-export function getPlainTextFromChildren(children: ReactNode): string | null {
+export type MarkdownLinkPresentation =
+  | { kind: "text" }
+  | { href: string; kind: "anchor" }
+  | { kind: "workspace"; path: string }
+  | {
+      compactLabel: string | null;
+      href: string;
+      kind: "external";
+      openInNewTab: boolean;
+      trailingText: string;
+    };
+
+interface MarkdownLinkContext {
+  rawHref: string;
+  workspacePath: string | null;
+}
+
+type ImmediateMarkdownLinkPresentation = Exclude<
+  MarkdownLinkPresentation,
+  { kind: "external" }
+>;
+
+type ImmediateMarkdownLinkRule = (
+  context: MarkdownLinkContext,
+) => ImmediateMarkdownLinkPresentation | null;
+
+const IMMEDIATE_MARKDOWN_LINK_RULES: ImmediateMarkdownLinkRule[] = [
+  ({ rawHref }) => rawHref.length === 0 ? { kind: "text" } : null,
+  ({ workspacePath }) => workspacePath === null
+    ? null
+    : { kind: "workspace", path: workspacePath },
+  ({ rawHref }) => rawHref.startsWith("#")
+    ? { href: rawHref, kind: "anchor" }
+    : null,
+];
+
+interface StreamingUrlTail {
+  prefix: string;
+  replaceOffset: number;
+  url: string;
+  urlOffset: number;
+}
+
+type StreamingUrlTailMatcher = (content: string) => StreamingUrlTail | null;
+
+const STREAMING_URL_TAIL_MATCHERS: StreamingUrlTailMatcher[] = [
+  matchMarkdownLinkDestinationTail,
+  matchMarkdownAutolinkTail,
+  matchBareUrlTail,
+];
+
+function getPlainTextFromChildren(children: ReactNode): string | null {
   if (typeof children === "string" || typeof children === "number") {
     return String(children);
   }
@@ -31,7 +85,7 @@ function countChar(value: string, char: string): number {
   return Array.from(value).filter((item) => item === char).length;
 }
 
-export function splitTrailingUrlPunctuation(value: string): {
+function splitTrailingUrlPunctuation(value: string): {
   href: string;
   trailingText: string;
 } {
@@ -68,7 +122,7 @@ export function splitTrailingUrlPunctuation(value: string): {
   return { href, trailingText };
 }
 
-export function normalizeExternalMarkdownHref(href: string): string | null {
+function normalizeExternalMarkdownHref(href: string): string | null {
   const trimmed = href.trim();
   if (!trimmed) {
     return null;
@@ -83,7 +137,7 @@ export function normalizeExternalMarkdownHref(href: string): string | null {
   }
 }
 
-export function compactExternalUrlLabel(href: string): string {
+function compactExternalUrlLabel(href: string): string {
   if (href.startsWith("mailto:")) {
     return href.slice("mailto:".length);
   }
@@ -97,4 +151,122 @@ export function compactExternalUrlLabel(href: string): string {
   } catch {
     return href;
   }
+}
+
+function shouldCompactExternalLabel(
+  plainText: string | null,
+  context: MarkdownLinkContext,
+  hrefWithoutTrailing: string,
+  externalHref: string,
+): boolean {
+  if (!plainText) {
+    return false;
+  }
+  const equivalentLabels = new Set([
+    context.rawHref,
+    hrefWithoutTrailing,
+    externalHref,
+  ]);
+  const normalizedPlainTextHref = normalizeExternalMarkdownHref(
+    splitTrailingUrlPunctuation(plainText).href,
+  );
+  return equivalentLabels.has(plainText)
+    || normalizedPlainTextHref === externalHref;
+}
+
+function buildExternalLinkPresentation(
+  context: MarkdownLinkContext,
+  children: ReactNode,
+): MarkdownLinkPresentation {
+  const { href: hrefWithoutTrailing, trailingText } =
+    splitTrailingUrlPunctuation(context.rawHref);
+  const externalHref = normalizeExternalMarkdownHref(hrefWithoutTrailing);
+  if (!externalHref) {
+    return { kind: "text" };
+  }
+
+  const plainText = getPlainTextFromChildren(children);
+  return {
+    compactLabel: shouldCompactExternalLabel(
+      plainText,
+      context,
+      hrefWithoutTrailing,
+      externalHref,
+    )
+      ? compactExternalUrlLabel(externalHref)
+      : null,
+    href: externalHref,
+    kind: "external",
+    openInNewTab: !externalHref.startsWith("mailto:"),
+    trailingText,
+  };
+}
+
+export function buildMarkdownLinkPresentation(
+  href: string | undefined,
+  children: ReactNode,
+  workspacePath: string | null,
+): MarkdownLinkPresentation {
+  const context: MarkdownLinkContext = {
+    rawHref: String(href ?? "").trim(),
+    workspacePath,
+  };
+  const immediatePresentation = IMMEDIATE_MARKDOWN_LINK_RULES
+    .map((build) => build(context))
+    .find((candidate) => candidate !== null);
+  return immediatePresentation
+    ?? buildExternalLinkPresentation(context, children);
+}
+
+function matchMarkdownLinkDestinationTail(
+  content: string,
+): StreamingUrlTail | null {
+  const match = STREAMING_MARKDOWN_LINK_DESTINATION_TAIL_PATTERN.exec(content);
+  const url = match?.[2];
+  if (!url) {
+    return null;
+  }
+  const urlOffset = content.length - url.length;
+  return { prefix: "", replaceOffset: urlOffset, url, urlOffset };
+}
+
+function matchMarkdownAutolinkTail(content: string): StreamingUrlTail | null {
+  const url = STREAMING_AUTOLINK_TAIL_PATTERN.exec(content)?.[1];
+  if (!url) {
+    return null;
+  }
+  const urlOffset = content.length - url.length;
+  return { prefix: "&lt;", replaceOffset: urlOffset - 1, url, urlOffset };
+}
+
+function matchBareUrlTail(content: string): StreamingUrlTail | null {
+  const url = STREAMING_URL_TAIL_PATTERN.exec(content)?.[0];
+  if (!url) {
+    return null;
+  }
+  const urlOffset = content.length - url.length;
+  return { prefix: "", replaceOffset: urlOffset, url, urlOffset };
+}
+
+function escapeMarkdownUrlTail(value: string): string {
+  return value.replace(/([.:\u003c\u003e()[\]])/g, "\\$1");
+}
+
+export function stabilizeStreamingMarkdownUrlTail(
+  content: string,
+  isStreaming: boolean,
+  isProtectedOffset: (offset: number) => boolean,
+): string {
+  if (!isStreaming || !content) {
+    return content;
+  }
+  const tail = STREAMING_URL_TAIL_MATCHERS
+    .map((match) => match(content))
+    .find((candidate): candidate is StreamingUrlTail => candidate !== null);
+  if (!tail || isProtectedOffset(tail.urlOffset)) {
+    return content;
+  }
+
+  // 流式 URL 在收尾前先打断自动链接，出现空白或换行后再恢复真实链接。
+  return `${content.slice(0, tail.replaceOffset)}${tail.prefix}${escapeMarkdownUrlTail(tail.url)}`;
 }

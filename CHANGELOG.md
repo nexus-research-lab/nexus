@@ -32,6 +32,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Centralized Goal form and controller projections, unified confirmation rendering, and split command transactions into explicit lifecycle phases.
 - Split Memory summary and document body states into narrow views, and made save scope snapshots and draft-merge rules explicit.
 - Centralized Skill catalog source, install-state, and update-check projections, removed a forwarding badge wrapper, and turned Markdown deduplication into an ordered model pipeline.
+- Centralized Channel card and QR-login state projections, replacing duplicated JSX conditionals with discriminated actions and session views.
+- Separated General Settings resource controllers from Sections, split default-model catalog projection from preference normalization, removed obsolete provider-response fallbacks, and made desktop version failures leave loading state.
+- Centralized Markdown code, link, and streaming URL-tail semantics into ordered pure models, leaving renderers to route discriminated presentation states.
 - Removed render-phase Thinking expansion mutations and separated image-source normalization, user-attachment capability projection, and embedded tool-error parsing into short owned phases.
 - Moved message ordering, system-event, permission, result, and final-response projection into an owned controller subdomain, reusing the single ordered-entry projection and replacing content-mode branches with exhaustive strategies.
 - Split message content rendering into entry selection, structured orchestration, exhaustive block routing, and tool interaction phases, while consolidating the shared AskUserQuestion tool identifier.

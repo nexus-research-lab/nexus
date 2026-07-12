@@ -5,6 +5,7 @@ import {
   getUserPreferencesApi,
   updateUserPreferencesApi,
 } from "@/lib/api/settings/preferences-api";
+import { getErrorMessage } from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { UserPreferences } from "@/types/settings/preferences";
 
@@ -50,9 +51,10 @@ export function useUserPreferences() {
       .catch((error: unknown) => {
         if (!cancelled) {
           setFeedback({
-            message: error instanceof Error
-              ? error.message
-              : t("settings.general.preferences_load_failed"),
+            message: getErrorMessage(
+              error,
+              t("settings.general.preferences_load_failed"),
+            ),
           });
         }
       })
