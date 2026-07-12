@@ -5,6 +5,10 @@ import {
   DEFAULT_AGENT_ALLOWED_TOOLS,
   DEFAULT_AGENT_PERMISSION_MODE,
 } from "@/lib/agent-options";
+import {
+  mergeAgentOptions,
+  normalizeModelSelectionPreference,
+} from "@/lib/settings/preferences-normalization";
 
 let DEFAULT_AGENT_ID = "";
 let DEFAULT_AGENT_AVATAR = "";
@@ -41,11 +45,11 @@ function setDefaultAgentAvatar(avatar?: string | null): void {
 }
 
 export function getInitialAgentOptions(): Partial<AgentOptions> {
-  return cloneAgentOptions(DEFAULT_AGENT_OPTIONS);
+  return mergeAgentOptions({}, DEFAULT_AGENT_OPTIONS);
 }
 
 export function getDefaultChatDeliveryPolicy(): AgentConversationDefaultDeliveryPolicy {
-	return DEFAULT_CHAT_DELIVERY_POLICY;
+  return DEFAULT_CHAT_DELIVERY_POLICY;
 }
 
 export function getDefaultAgentRuntimeKind(): AgentRuntimeKind {
@@ -64,20 +68,52 @@ export function getUserPreferences(): UserPreferences {
 }
 
 export function setUserPreferences(preferences?: Partial<UserPreferences> | null): void {
+  applyDeliveryPolicy(preferences);
+  applyRuntimeKind(preferences);
+  applyDiagnosticsPreference(preferences);
+  applyModelSelections(preferences);
+  DEFAULT_AGENT_OPTIONS = normalizeRuntimeAgentOptions(
+    preferences?.default_agent_options,
+  );
+  notifyUserPreferencesChanged();
+}
+
+function applyDeliveryPolicy(
+  preferences?: Partial<UserPreferences> | null,
+): void {
   const policy = preferences?.chat_default_delivery_policy;
   if (policy !== undefined) {
     DEFAULT_CHAT_DELIVERY_POLICY = policy;
   }
+}
+
+function applyRuntimeKind(
+  preferences?: Partial<UserPreferences> | null,
+): void {
   if (preferences?.agent_runtime_kind !== undefined) {
     DEFAULT_AGENT_RUNTIME_KIND = normalizeAgentRuntimeKind(preferences.agent_runtime_kind);
   }
-  if (preferences !== undefined && preferences !== null) {
-    DEFAULT_AGENT_SDK_DIAGNOSTICS_ENABLED = preferences.agent_sdk_diagnostics_enabled === true;
+}
+
+function applyDiagnosticsPreference(
+  preferences?: Partial<UserPreferences> | null,
+): void {
+  if (preferences == null) {
+    return;
   }
-  DEFAULT_IMAGE_MODEL_SELECTION = normalizeModelSelectionPreference(preferences?.default_image_model_selection);
-  DEFAULT_BACKGROUND_MODEL_SELECTION = normalizeModelSelectionPreference(preferences?.default_background_model_selection);
-  DEFAULT_AGENT_OPTIONS = normalizeAgentOptions(preferences?.default_agent_options);
-  notifyUserPreferencesChanged();
+  DEFAULT_AGENT_SDK_DIAGNOSTICS_ENABLED =
+    preferences.agent_sdk_diagnostics_enabled === true;
+}
+
+function applyModelSelections(
+  preferences?: Partial<UserPreferences> | null,
+): void {
+  DEFAULT_IMAGE_MODEL_SELECTION = normalizeModelSelectionPreference(
+    preferences?.default_image_model_selection,
+  );
+  DEFAULT_BACKGROUND_MODEL_SELECTION = normalizeModelSelectionPreference(
+    preferences?.default_background_model_selection,
+  );
 }
 
 export function isMainAgent(agentId?: string | null): boolean {
@@ -101,35 +137,19 @@ export function applyRuntimeOptions(
   setUserPreferences(source.preferences);
 }
 
-function cloneAgentOptions(options: Partial<AgentOptions>): Partial<AgentOptions> {
-  return {
-    ...options,
-    allowed_tools: [...(options.allowed_tools ?? [])],
-    disallowed_tools: [...(options.disallowed_tools ?? [])],
-    setting_sources: [...(options.setting_sources ?? ["project"])],
-  };
-}
-
-function normalizeAgentOptions(options?: Partial<AgentOptions> | null): Partial<AgentOptions> {
+function normalizeRuntimeAgentOptions(
+  options?: Partial<AgentOptions> | null,
+): Partial<AgentOptions> {
   const source = options ?? {};
-  return {
+  return mergeAgentOptions({
+    permission_mode: DEFAULT_AGENT_PERMISSION_MODE,
+    allowed_tools: [...DEFAULT_AGENT_ALLOWED_TOOLS],
+    disallowed_tools: [],
+    setting_sources: ["project"],
+  }, {
     ...source,
     permission_mode: source.permission_mode?.trim() || DEFAULT_AGENT_PERMISSION_MODE,
-    allowed_tools: [...(source.allowed_tools ?? DEFAULT_AGENT_ALLOWED_TOOLS)],
-    disallowed_tools: [...(source.disallowed_tools ?? [])],
-    setting_sources: [...(source.setting_sources ?? ["project"])],
-  };
-}
-
-function normalizeModelSelectionPreference(
-  selection?: UserPreferences["default_image_model_selection"] | null,
-): UserPreferences["default_image_model_selection"] {
-  const provider = selection?.provider?.trim();
-  const model = selection?.model?.trim();
-  if (!provider || !model) {
-    return undefined;
-  }
-  return { provider, model };
+  });
 }
 
 function notifyUserPreferencesChanged(): void {

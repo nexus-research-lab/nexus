@@ -24,20 +24,20 @@ const SUPPORTED_IMAGE_API_FORMATS = new Set<ProviderApiFormat>([
 const CONFIGURABLE_NON_RUNTIME_PRESET_KEYS = new Set(["custom", "openai"]);
 const PROVIDER_KIND_ORDER: ProviderKind[] = ["llm", "image_generation"];
 
-const PRESET_PROVIDER_KEYS: Record<string, string> = {
-  anthropic: "anthropic",
-  openai: "openai",
-  deepseek: "deepseek",
-  "qwen-token-plan": "qwen-token-plan",
-  "minimax-token-plan": "minimax-token-plan",
-  "glm-coding-plan": "glm-coding-plan",
-  "kimi-code": "kimi-code",
-  "volcengine-coding-plan": "volcengine-coding-plan",
-  doubao: "doubao",
-  dashscope: "dashscope",
-  modelscope: "modelscope",
-  azure: "azure",
-};
+const SUPPORTED_PRESET_PROVIDER_KEYS = new Set([
+  "anthropic",
+  "openai",
+  "deepseek",
+  "qwen-token-plan",
+  "minimax-token-plan",
+  "glm-coding-plan",
+  "kimi-code",
+  "volcengine-coding-plan",
+  "doubao",
+  "dashscope",
+  "modelscope",
+  "azure",
+]);
 
 function apiFormatSupportedForKind(
   providerKind: ProviderKind,
@@ -152,24 +152,74 @@ export function buildProviderDraft(
   presets: ProviderPreset[],
   presetKey = "anthropic",
 ): ProviderDraft {
-  const preset = presets.find((item) => item.preset_key === presetKey)
-    ?? presets[0]
-    ?? null;
-  const providerKind = preset?.provider_kind ?? "llm";
-  const format = getSupportedPresetFormat(preset, providerKind)
-    ?? getPresetFormat(preset);
-  const isCustom = preset?.preset_key === "custom";
+  const preset = resolveDraftPreset(presets, presetKey);
+  const providerKind = resolveDraftProviderKind(preset);
+  const identity = projectDraftIdentity(preset);
+  const format = resolveDraftFormat(preset, providerKind);
+  const formatFields = projectDraftFormat(preset, format);
   return {
     provider_kind: providerKind,
-    provider: isCustom ? "" : PRESET_PROVIDER_KEYS[preset?.preset_key ?? ""] ?? "",
-    preset_key: preset?.preset_key ?? "custom",
-    api_format: format?.api_format
-      ?? preset?.default_api_format
-      ?? DEFAULT_AGENT_API_FORMAT,
-    display_name: isCustom ? "" : preset?.display_name ?? "",
+    ...identity,
+    ...formatFields,
     auth_token: "",
-    base_url: format?.base_url ?? "",
-    models_path: format?.models_path ?? "",
     enabled: false,
   };
+}
+
+function resolveDraftPreset(
+  presets: ProviderPreset[],
+  presetKey: string,
+): ProviderPreset | null {
+  return presets.find((item) => item.preset_key === presetKey)
+    ?? presets[0]
+    ?? null;
+}
+
+function resolveDraftProviderKind(preset: ProviderPreset | null): ProviderKind {
+  return preset?.provider_kind ?? "llm";
+}
+
+function projectDraftIdentity(
+  preset: ProviderPreset | null,
+): Pick<ProviderDraft, "provider" | "preset_key" | "display_name"> {
+  const presetKey = preset?.preset_key ?? "custom";
+  if (presetKey === "custom") {
+    return { provider: "", preset_key: presetKey, display_name: "" };
+  }
+  return {
+    provider: SUPPORTED_PRESET_PROVIDER_KEYS.has(presetKey) ? presetKey : "",
+    preset_key: presetKey,
+    display_name: preset?.display_name ?? "",
+  };
+}
+
+function resolveDraftFormat(
+  preset: ProviderPreset | null,
+  providerKind: ProviderKind,
+): ProviderPresetFormat | null {
+  return getSupportedPresetFormat(preset, providerKind) ?? getPresetFormat(preset);
+}
+
+function projectDraftFormat(
+  preset: ProviderPreset | null,
+  format: ProviderPresetFormat | null,
+): Pick<ProviderDraft, "api_format" | "base_url" | "models_path"> {
+  return {
+    api_format: resolveDraftApiFormat(preset, format),
+    base_url: valueOrEmpty(format?.base_url),
+    models_path: valueOrEmpty(format?.models_path),
+  };
+}
+
+function resolveDraftApiFormat(
+  preset: ProviderPreset | null,
+  format: ProviderPresetFormat | null,
+): ProviderApiFormat {
+  return format?.api_format
+    ?? preset?.default_api_format
+    ?? DEFAULT_AGENT_API_FORMAT;
+}
+
+function valueOrEmpty(value?: string): string {
+  return value ?? "";
 }

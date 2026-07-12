@@ -9,10 +9,10 @@ import type {
 
 import type { ProviderSettingsApi } from "../../provider-settings-api";
 import {
+  buildProviderCreatePayload,
   buildProviderEnabledPayload,
-  buildProviderPayloadFromDraft,
+  buildProviderUpdatePayload,
   getProviderDraftError,
-  providerDraftHasChanges,
 } from "../../model/provider-config-model";
 import { buildProviderErrorFeedback } from "../../model/provider-feedback-model";
 import type {
@@ -20,10 +20,16 @@ import type {
   ProviderDraft,
 } from "../../model/provider-settings-types";
 import type { RunProviderCommand } from "../use-provider-command";
+import {
+  type ProviderPersistResult,
+  type ProviderPersistenceSnapshot,
+  type ProviderPersistenceStop,
+  resolveProviderPersistenceStop,
+} from "./provider-persistence-plan";
 
-interface ProviderPersistResult {
-  changed: boolean;
-  record: ProviderConfigRecord;
+interface ProviderPersistenceApi {
+  createConfig: ProviderSettingsApi["createConfig"];
+  updateConfig: ProviderSettingsApi["updateConfig"];
 }
 
 export type PersistProvider = (options?: {
@@ -36,7 +42,7 @@ interface UseProviderPersistenceOptions {
   isCreating: boolean;
   isEditing: boolean;
   isEmptyMode: boolean;
-  providerApi: ProviderSettingsApi;
+  providerApi: ProviderPersistenceApi;
   refreshAll: (preferredProvider?: string | null) => Promise<void>;
   runCommand: RunProviderCommand;
   selectedCanManage: boolean;
@@ -70,59 +76,28 @@ export function useProviderPersistence({
   ), [currentPreset, draft, isCreating, isEmptyMode, selectedCanManage, t]);
 
   const persistProvider = useCallback<PersistProvider>(async (options) => {
-    if (isEmptyMode) {
-      return null;
-    }
-    if (isEditing && selectedRecord?.can_manage === false) {
-      return { changed: false, record: selectedRecord };
-    }
-    const validationError = getProviderDraftError(
-      draft,
+    const snapshot: ProviderPersistenceSnapshot = {
       currentPreset,
+      draft,
       isCreating,
-      t,
-    );
-    if (validationError) {
-      if (options?.showError ?? true) {
-        setFeedback({
-          tone: "error",
-          title: t("settings.providers.config_incomplete_title"),
-          message: validationError,
-        });
-      }
-      return null;
-    }
-    if (
-      isEditing
-      && !providerDraftHasChanges(draft, selectedRecord, currentPreset)
-    ) {
-      return selectedRecord ? { changed: false, record: selectedRecord } : null;
+      isEditing,
+      isEmptyMode,
+      selectedRecord,
+    };
+    const showError = options?.showError ?? true;
+    const stop = resolveProviderPersistenceStop(snapshot, t);
+    if (stop) {
+      return resolvePersistenceStop(stop, showError, setFeedback, t);
     }
 
     try {
-      const payload = buildProviderPayloadFromDraft(draft, currentPreset);
-      const authToken = draft.auth_token.trim();
-      if (authToken) {
-        payload.auth_token = authToken;
-      }
-      const result = isEditing && selectedRecord
-        ? await providerApi.updateConfig(selectedRecord.provider, payload)
-        : await providerApi.createConfig({
-          ...payload,
-          provider: draft.provider.trim(),
-          visibility: visibilityScope,
-          auth_token: authToken,
-          provider_kind: draft.provider_kind,
-        });
-      return { changed: true, record: result };
+      return await executeProviderPersistence(
+        snapshot,
+        providerApi,
+        visibilityScope,
+      );
     } catch (error) {
-      if (options?.showError ?? true) {
-        setFeedback(buildProviderErrorFeedback(
-          error,
-          t("settings.providers.save_failed_title"),
-          t("settings.providers.check_config_retry"),
-        ));
-      }
+      reportPersistenceFailure(error, showError, setFeedback, t);
       return null;
     }
   }, [
@@ -192,4 +167,57 @@ export function useProviderPersistence({
     handleProviderFieldBlur,
     persistProvider,
   };
+}
+
+function resolvePersistenceStop(
+  stop: ProviderPersistenceStop,
+  showError: boolean,
+  setFeedback: Dispatch<SetStateAction<FeedbackState | null>>,
+  translate: I18nContextValue["t"],
+): ProviderPersistResult | null {
+  if (stop.kind === "return") {
+    return stop.result;
+  }
+  if (showError) {
+    setFeedback({
+      tone: "error",
+      title: translate("settings.providers.config_incomplete_title"),
+      message: stop.message,
+    });
+  }
+  return null;
+}
+
+async function executeProviderPersistence(
+  snapshot: ProviderPersistenceSnapshot,
+  providerApi: ProviderPersistenceApi,
+  visibility: ProviderConfigRecord["visibility"],
+): Promise<ProviderPersistResult> {
+  const record = snapshot.isEditing && snapshot.selectedRecord
+    ? await providerApi.updateConfig(
+      snapshot.selectedRecord.provider,
+      buildProviderUpdatePayload(snapshot.draft, snapshot.currentPreset),
+    )
+    : await providerApi.createConfig(buildProviderCreatePayload(
+      snapshot.draft,
+      snapshot.currentPreset,
+      visibility,
+    ));
+  return { changed: true, record };
+}
+
+function reportPersistenceFailure(
+  error: unknown,
+  showError: boolean,
+  setFeedback: Dispatch<SetStateAction<FeedbackState | null>>,
+  translate: I18nContextValue["t"],
+): void {
+  if (!showError) {
+    return;
+  }
+  setFeedback(buildProviderErrorFeedback(
+    error,
+    translate("settings.providers.save_failed_title"),
+    translate("settings.providers.check_config_retry"),
+  ));
 }

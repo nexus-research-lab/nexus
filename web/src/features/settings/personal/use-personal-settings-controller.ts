@@ -12,7 +12,7 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 
 import {
   EMPTY_PASSWORD_DRAFT,
-  getPasswordValidationKey,
+  buildPersonalControllerPresentation,
   hasPasswordDraftInput,
   updatePasswordDraft,
   type PasswordDraft,
@@ -29,11 +29,21 @@ export function usePersonalSettingsController() {
   const [isSubmittingPassword, setIsSubmittingPassword] = useState(false);
   const [isSavingAvatar, setIsSavingAvatar] = useState(false);
   const [feedback, setFeedback] = useState<PersonalSettingsFeedback | null>(null);
-  const validationKey = useMemo(() => getPasswordValidationKey({
-    canChangePassword: Boolean(profile?.can_change_password),
-    draft: passwordDraft,
-  }), [passwordDraft, profile?.can_change_password]);
-  const validationError = validationKey ? t(validationKey) : null;
+  const presentation = useMemo(() => buildPersonalControllerPresentation(
+    profile,
+    passwordDraft,
+    isLoading,
+    isSavingAvatar,
+    isSubmittingPassword,
+    t,
+  ), [
+    isLoading,
+    isSavingAvatar,
+    isSubmittingPassword,
+    passwordDraft,
+    profile,
+    t,
+  ]);
 
   useEffect(() => {
     let isCurrent = true;
@@ -96,10 +106,10 @@ export function usePersonalSettingsController() {
   }, [isSavingAvatar, profile, refreshStatus, t]);
 
   const submitPassword = useCallback(async () => {
-    if (validationError || isSubmittingPassword) {
-      if (validationError) {
+    if (presentation.validationError || isSubmittingPassword) {
+      if (presentation.validationError) {
         setFeedback({
-          message: validationError,
+          message: presentation.validationError,
           title: t("settings.personal.save_failed_title"),
           tone: "error",
         });
@@ -129,7 +139,13 @@ export function usePersonalSettingsController() {
     } finally {
       setIsSubmittingPassword(false);
     }
-  }, [isSubmittingPassword, passwordDraft, refreshStatus, t, validationError]);
+  }, [
+    isSubmittingPassword,
+    passwordDraft,
+    presentation.validationError,
+    refreshStatus,
+    t,
+  ]);
 
   const setPasswordField = useCallback((field: PasswordField, value: string) => {
     setPasswordDraft((current) => updatePasswordDraft(current, field, value));
@@ -137,24 +153,24 @@ export function usePersonalSettingsController() {
 
   return {
     avatar: {
-      canUpdate: Boolean(profile?.can_update_profile) && !isSavingAvatar,
+      canUpdate: presentation.avatarCanUpdate,
       isSaving: isSavingAvatar,
       save: saveAvatar,
-      value: profile?.user.avatar ?? "",
+      value: presentation.avatarValue,
     },
     feedback: {
       dismiss: () => setFeedback(null),
       value: feedback,
     },
     password: {
-      canChange: Boolean(profile?.can_change_password),
-      canSubmit: !validationError && !isSubmittingPassword && !isLoading,
+      canChange: presentation.canChangePassword,
+      canSubmit: presentation.canSubmitPassword,
       draft: passwordDraft,
       hasInput: hasPasswordDraftInput(passwordDraft),
       isSubmitting: isSubmittingPassword,
       setField: setPasswordField,
       submit: submitPassword,
-      validationError,
+      validationError: presentation.validationError,
     },
     profile: {
       isLoading,

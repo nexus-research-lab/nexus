@@ -1,5 +1,6 @@
 import type { TranslationKey } from "@/shared/i18n/messages";
 import type {
+  ProviderConfigPayload,
   ProviderConfigRecord,
   ProviderPreset,
   UpdateProviderConfigPayload,
@@ -68,7 +69,7 @@ export function getEffectiveModelsPath(
     ?? draft.models_path;
 }
 
-export function buildProviderPayloadFromDraft(
+function buildProviderBasePayload(
   draft: ProviderDraft,
   preset: ProviderPreset | null,
 ): UpdateProviderConfigPayload {
@@ -80,6 +81,29 @@ export function buildProviderPayloadFromDraft(
     base_url: getEffectiveBaseUrl(draft, preset).trim(),
     models_path: getEffectiveModelsPath(draft, preset).trim(),
     enabled: draft.enabled,
+  };
+}
+
+export function buildProviderUpdatePayload(
+  draft: ProviderDraft,
+  preset: ProviderPreset | null,
+): UpdateProviderConfigPayload {
+  const payload = buildProviderBasePayload(draft, preset);
+  const authToken = draft.auth_token.trim();
+  return authToken ? { ...payload, auth_token: authToken } : payload;
+}
+
+export function buildProviderCreatePayload(
+  draft: ProviderDraft,
+  preset: ProviderPreset | null,
+  visibility: ProviderConfigRecord["visibility"],
+): ProviderConfigPayload {
+  return {
+    ...buildProviderBasePayload(draft, preset),
+    provider: draft.provider.trim(),
+    visibility,
+    auth_token: draft.auth_token.trim(),
+    provider_kind: draft.provider_kind,
   };
 }
 
@@ -135,14 +159,56 @@ export function providerDraftHasChanges(
   if (!record || draft.auth_token.trim()) {
     return true;
   }
-  return draft.preset_key !== (record.preset_key || "custom")
-    || draft.api_format !== record.api_format
-    || (draft.display_name.trim() || draft.provider.trim())
-      !== getProviderTitle(record)
-    || getEffectiveBaseUrl(draft, preset).trim() !== record.base_url
-    || getEffectiveModelsPath(draft, preset).trim()
-      !== (record.models_path || "")
-    || draft.enabled !== record.enabled;
+  const draftValues = projectComparableDraft(draft, preset);
+  const recordValues = projectComparableRecord(record);
+  return PROVIDER_COMPARISON_FIELDS.some(
+    (field) => draftValues[field] !== recordValues[field],
+  );
+}
+
+interface ComparableProviderConfig {
+  apiFormat: ProviderConfigRecord["api_format"];
+  baseUrl: string;
+  displayName: string;
+  enabled: boolean;
+  modelsPath: string;
+  presetKey: string;
+}
+
+const PROVIDER_COMPARISON_FIELDS: readonly (keyof ComparableProviderConfig)[] = [
+  "presetKey",
+  "apiFormat",
+  "displayName",
+  "baseUrl",
+  "modelsPath",
+  "enabled",
+];
+
+function projectComparableDraft(
+  draft: ProviderDraft,
+  preset: ProviderPreset | null,
+): ComparableProviderConfig {
+  return {
+    presetKey: draft.preset_key,
+    apiFormat: draft.api_format,
+    displayName: draft.display_name.trim() || draft.provider.trim(),
+    baseUrl: getEffectiveBaseUrl(draft, preset).trim(),
+    modelsPath: getEffectiveModelsPath(draft, preset).trim(),
+    enabled: draft.enabled,
+  };
+}
+
+function projectComparableRecord(
+  record: ProviderConfigRecord,
+): ComparableProviderConfig {
+  return {
+    presetKey: record.preset_key || "custom",
+    apiFormat: record.api_format,
+    displayName: getProviderTitle(record),
+    baseUrl: record.base_url,
+    modelsPath: record.models_path || "",
+    enabled: record.enabled,
+  };
 }
 
 export function providerHasActiveConfig(

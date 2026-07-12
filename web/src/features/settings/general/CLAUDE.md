@@ -8,7 +8,7 @@ L4 | 父级: web/src/features/settings
 - `use-general-settings-controller.ts`: 行为、运行时与权限动作编排
 - `use-user-preferences.ts`: 用户偏好加载、乐观保存和失败回滚
 - `use-default-model-preferences.ts`: Provider 模型目录与默认模型选择
-- `model/`: 偏好归一化、载荷、选项和模型选择纯函数
+- `model/`: 组装完整偏好、载荷、选项和模型选择纯函数；跨 Config 的值清洗规则归 `lib/settings/`
 - `sections/`: 系统、外观、行为、工作区、权限和桌面设置视图
 - `components/`: 默认模型与引导复位行
 

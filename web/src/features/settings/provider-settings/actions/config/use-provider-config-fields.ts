@@ -12,24 +12,16 @@ import {
   normalizeCustomProviderKey,
 } from "../../model/provider-config-model";
 import {
-  DEFAULT_AGENT_API_FORMAT,
-  formatSupportsProviderKind,
-  getPresetFormat,
-  getSupportedPresetFormat,
   presetAllowsNonRuntimeConfig,
 } from "../../model/provider-preset-model";
 import type {
   FeedbackState,
   ProviderDraft,
 } from "../../model/provider-settings-types";
-
-const DEFAULT_FORMAT_BY_PROVIDER_KIND: Record<
-  ProviderKind,
-  ProviderApiFormat
-> = {
-  image_generation: "chat_completions",
-  llm: DEFAULT_AGENT_API_FORMAT,
-};
+import {
+  buildProviderFormatTransition,
+  buildProviderKindPatch,
+} from "./provider-config-field-model";
 
 interface UseProviderConfigFieldsOptions {
   currentPreset: ProviderPreset | null;
@@ -62,27 +54,18 @@ export function useProviderConfigFields({
 
   const handleProviderKindChange = useCallback((value: string) => {
     const providerKind = value as ProviderKind;
-    const currentFormat = getPresetFormat(currentPreset, draft.api_format);
-    const format = currentFormat
-      && formatSupportsProviderKind(currentFormat, providerKind)
-      ? currentFormat
-      : getSupportedPresetFormat(currentPreset, providerKind);
-    updateDraft({
-      provider_kind: providerKind,
-      api_format:
-        format?.api_format ?? DEFAULT_FORMAT_BY_PROVIDER_KIND[providerKind],
-      base_url: format?.base_url ?? draft.base_url,
-      models_path: format?.models_path ?? draft.models_path,
-    });
+    updateDraft(buildProviderKindPatch(draft, currentPreset, providerKind));
   }, [currentPreset, draft, updateDraft]);
 
   const handleApiFormatChange = useCallback((value: string) => {
     const apiFormat = value as ProviderApiFormat;
-    const format = getPresetFormat(currentPreset, apiFormat);
-    const supported = Boolean(
-      format && formatSupportsProviderKind(format, draft.provider_kind),
+    const transition = buildProviderFormatTransition(
+      draft,
+      currentPreset,
+      apiFormat,
+      canSelectNonRuntimeFormat,
     );
-    if (!supported && !canSelectNonRuntimeFormat) {
+    if (transition.kind === "reject") {
       setFeedback({
         tone: "error",
         title: t("settings.providers.api_format_unsupported_title"),
@@ -90,17 +73,11 @@ export function useProviderConfigFields({
       });
       return;
     }
-    updateDraft({
-      api_format: apiFormat,
-      base_url: format?.base_url ?? draft.base_url,
-      models_path: format?.models_path ?? draft.models_path,
-    });
+    updateDraft(transition.patch);
   }, [
     canSelectNonRuntimeFormat,
     currentPreset,
-    draft.base_url,
-    draft.models_path,
-    draft.provider_kind,
+    draft,
     setFeedback,
     t,
     updateDraft,

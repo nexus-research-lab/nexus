@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import type { LucideIcon } from "lucide-react";
 import {
   Database,
   Gauge,
@@ -13,19 +14,35 @@ import type { TokenUsageSummary } from "@/lib/api/account/auth-api";
 import { cn } from "@/shared/ui/class-name";
 import { formatTokens } from "@/lib/format/token-count";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import type { TranslationKey } from "@/shared/i18n/messages";
 
-function formatUpdatedAt(value: string, locale: "zh" | "en"): string {
-  const date = new Date(value);
-  if (!Number.isFinite(date.getTime())) {
-    return "--";
-  }
-  return date.toLocaleString(locale === "zh" ? "zh-CN" : "en-US", {
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+import {
+  buildTokenUsagePresentation,
+  type TokenUsageMetricKey,
+  type TokenUsageValueKey,
+} from "./personal-settings-model";
+
+interface UsageMetricDefinition {
+  icon: LucideIcon;
+  key: TokenUsageMetricKey;
+  labelKey: TranslationKey;
 }
+
+const USAGE_METRIC_DEFINITIONS: readonly UsageMetricDefinition[] = [
+  { key: "quota", icon: ShieldCheck, labelKey: "settings.personal.quota_limit" },
+  { key: "input", icon: KeyRound, labelKey: "settings.personal.input_tokens" },
+  { key: "output", icon: LockKeyhole, labelKey: "settings.personal.output_tokens" },
+  { key: "cache", icon: Database, labelKey: "settings.personal.cache_tokens" },
+];
+
+const TOKEN_CHART_DEFINITIONS: readonly {
+  className: string;
+  key: TokenUsageValueKey;
+}[] = [
+  { key: "input", className: "bg-primary" },
+  { key: "output", className: "bg-sky-500" },
+  { key: "cache", className: "bg-amber-500" },
+];
 
 export function PersonalTokenUsageSection({
   usage,
@@ -33,9 +50,7 @@ export function PersonalTokenUsageSection({
   usage: TokenUsageSummary | undefined;
 }) {
   const { locale, t } = useI18n();
-  const quotaText = usage?.quota_limit_tokens == null
-    ? t("settings.personal.quota_unset")
-    : `${formatTokens(usage.total_tokens)} / ${formatTokens(usage.quota_limit_tokens)}`;
+  const presentation = buildTokenUsagePresentation(usage, locale, t);
 
   return (
     <section className="order-last overflow-hidden rounded-[12px] border border-(--divider-subtle-color) bg-transparent">
@@ -50,14 +65,14 @@ export function PersonalTokenUsageSection({
             </h3>
             <p className="mt-1 text-[12px] leading-5 text-(--text-soft)">
               {t("settings.personal.updated_at", {
-                value: usage ? formatUpdatedAt(usage.updated_at, locale) : "--",
+                value: presentation.updatedAt,
               })}
             </p>
           </div>
         </div>
         <div className="text-left lg:text-right">
           <div className="text-[24px] font-semibold tracking-tight text-(--text-strong)">
-            {formatTokens(usage?.total_tokens ?? 0)}
+            {presentation.totalTokens}
           </div>
           <div className="mt-1 text-[11px] font-medium text-(--text-soft)">
             {t("settings.personal.total_tokens")}
@@ -68,34 +83,23 @@ export function PersonalTokenUsageSection({
       <div className="mx-3 border-t border-(--divider-subtle-color)" />
 
       <div className="grid gap-2 px-3 py-3 sm:grid-cols-2">
-        <UsageMetric
-          icon={<ShieldCheck className="h-3.5 w-3.5" />}
-          label={t("settings.personal.quota_limit")}
-          value={quotaText}
-        />
-        <UsageMetric
-          icon={<KeyRound className="h-3.5 w-3.5" />}
-          label={t("settings.personal.input_tokens")}
-          value={formatTokens(usage?.input_tokens ?? 0)}
-        />
-        <UsageMetric
-          icon={<LockKeyhole className="h-3.5 w-3.5" />}
-          label={t("settings.personal.output_tokens")}
-          value={formatTokens(usage?.output_tokens ?? 0)}
-        />
-        <UsageMetric
-          icon={<Database className="h-3.5 w-3.5" />}
-          label={t("settings.personal.cache_tokens")}
-          value={formatTokens(
-            (usage?.cache_creation_input_tokens ?? 0) + (usage?.cache_read_input_tokens ?? 0),
-          )}
-        />
+        {USAGE_METRIC_DEFINITIONS.map((definition) => {
+          const Icon = definition.icon;
+          return (
+            <UsageMetric
+              icon={<Icon className="h-3.5 w-3.5" />}
+              key={definition.key}
+              label={t(definition.labelKey)}
+              value={presentation.metrics[definition.key]}
+            />
+          );
+        })}
       </div>
 
       <div className="mx-3 border-t border-(--divider-subtle-color)" />
 
       <TokenUsageChart
-        usage={usage}
+        values={presentation.tokenValues}
         labels={{
           input: t("settings.personal.input_tokens"),
           output: t("settings.personal.output_tokens"),
@@ -106,8 +110,8 @@ export function PersonalTokenUsageSection({
       <div className="mx-3 border-t border-(--divider-subtle-color)" />
 
       <div className="grid gap-2 px-3 py-2.5 text-[11px] text-(--text-soft) sm:grid-cols-2">
-        <span>{t("settings.personal.session_count", { count: usage?.session_count ?? 0 })}</span>
-        <span>{t("settings.personal.message_count", { count: usage?.message_count ?? 0 })}</span>
+        <span>{t("settings.personal.session_count", { count: presentation.sessionCount })}</span>
+        <span>{t("settings.personal.message_count", { count: presentation.messageCount })}</span>
       </div>
     </section>
   );
@@ -140,40 +144,18 @@ function UsageMetric({
 }
 
 function TokenUsageChart({
-  usage,
+  values,
   labels,
 }: {
-  usage: TokenUsageSummary | undefined;
-  labels: {
-    input: string;
-    output: string;
-    cache: string;
-  };
+  values: Record<TokenUsageValueKey, number>;
+  labels: Record<TokenUsageValueKey, string>;
 }) {
-  const inputTokens = usage?.input_tokens ?? 0;
-  const outputTokens = usage?.output_tokens ?? 0;
-  const cacheTokens = (usage?.cache_creation_input_tokens ?? 0) + (usage?.cache_read_input_tokens ?? 0);
-  const total = Math.max(inputTokens + outputTokens + cacheTokens, 1);
-  const items = [
-    {
-      key: "input",
-      label: labels.input,
-      value: inputTokens,
-      className: "bg-primary",
-    },
-    {
-      key: "output",
-      label: labels.output,
-      value: outputTokens,
-      className: "bg-sky-500",
-    },
-    {
-      key: "cache",
-      label: labels.cache,
-      value: cacheTokens,
-      className: "bg-amber-500",
-    },
-  ];
+  const total = Math.max(Object.values(values).reduce((sum, value) => sum + value, 0), 1);
+  const items = TOKEN_CHART_DEFINITIONS.map((definition) => ({
+    ...definition,
+    label: labels[definition.key],
+    value: values[definition.key],
+  }));
 
   return (
     <div className="px-3 py-3">

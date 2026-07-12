@@ -71,21 +71,7 @@ export function PersonalPasswordSection({
   return (
     <section className="overflow-hidden rounded-[12px] border border-(--divider-subtle-color) bg-transparent">
       <form className="grid gap-3 px-3 py-3" onSubmit={handleSubmit}>
-        <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[16px] bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-primary">
-            <LockKeyhole className="h-3.5 w-3.5" />
-          </div>
-          <div className="min-w-0">
-            <h3 className="text-[15px] font-semibold tracking-tight text-(--text-strong)">
-              {t("settings.personal.password_title")}
-            </h3>
-            {!canChange ? (
-              <p className="mt-1 text-[12px] leading-5 text-(--text-soft)">
-                {t("settings.personal.password_disabled")}
-              </p>
-            ) : null}
-          </div>
-        </div>
+        <PasswordSectionHeader canChange={canChange} />
 
         <div className="grid gap-3 md:grid-cols-3">
           {PASSWORD_INPUTS.map((input) => (
@@ -105,25 +91,79 @@ export function PersonalPasswordSection({
           ))}
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="min-w-0 text-[11px] text-(--text-soft)">
-            {validationError && canChange && hasInput
-              ? validationError
-              : t("settings.personal.password_rule")}
-          </p>
-          <button
-            className={cn(
-              canSubmit ? PRIMARY_BUTTON_CLASS_NAME : SECONDARY_BUTTON_CLASS_NAME,
-              "min-w-28",
-            )}
-            disabled={!canSubmit}
-            type="submit"
-          >
-            {isSubmitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-            {isSubmitting ? t("common.saving") : t("settings.personal.change_password")}
-          </button>
-        </div>
+        <PasswordSubmitActions
+          canChange={canChange}
+          canSubmit={canSubmit}
+          hasInput={hasInput}
+          isSubmitting={isSubmitting}
+          validationError={validationError}
+        />
       </form>
     </section>
   );
+}
+
+function PasswordSectionHeader({ canChange }: { canChange: boolean }) {
+  const { t } = useI18n();
+  return (
+    <div className="flex items-center gap-3">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[16px] bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-primary">
+        <LockKeyhole className="h-3.5 w-3.5" />
+      </div>
+      <div className="min-w-0">
+        <h3 className="text-[15px] font-semibold tracking-tight text-(--text-strong)">
+          {t("settings.personal.password_title")}
+        </h3>
+        {!canChange ? (
+          <p className="mt-1 text-[12px] leading-5 text-(--text-soft)">
+            {t("settings.personal.password_disabled")}
+          </p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function PasswordSubmitActions({
+  canChange,
+  canSubmit,
+  hasInput,
+  isSubmitting,
+  validationError,
+}: Pick<
+  PersonalPasswordSectionProps,
+  "canChange" | "canSubmit" | "hasInput" | "isSubmitting" | "validationError"
+>) {
+  const { t } = useI18n();
+  const helperText = resolvePasswordHelperText(
+    validationError,
+    canChange,
+    hasInput,
+    t("settings.personal.password_rule"),
+  );
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <p className="min-w-0 text-[11px] text-(--text-soft)">{helperText}</p>
+      <button
+        className={cn(
+          canSubmit ? PRIMARY_BUTTON_CLASS_NAME : SECONDARY_BUTTON_CLASS_NAME,
+          "min-w-28",
+        )}
+        disabled={!canSubmit}
+        type="submit"
+      >
+        {isSubmitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+        {isSubmitting ? t("common.saving") : t("settings.personal.change_password")}
+      </button>
+    </div>
+  );
+}
+
+function resolvePasswordHelperText(
+  validationError: string | null,
+  canChange: boolean,
+  hasInput: boolean,
+  fallback: string,
+): string {
+  return validationError && canChange && hasInput ? validationError : fallback;
 }

@@ -10,8 +10,7 @@ import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 import { IconPicker } from "@/shared/ui/icon-picker/icon-picker";
 
 import {
-  getAuthMethodLabelKey,
-  getRoleLabelKey,
+  buildPersonalProfilePresentation,
 } from "./personal-settings-model";
 
 interface PersonalProfileSectionProps {
@@ -30,10 +29,7 @@ export function PersonalProfileSection({
   profile,
 }: PersonalProfileSectionProps) {
   const { t } = useI18n();
-  const role = profile?.user.role ?? "";
-  const roleLabelKey = getRoleLabelKey(role);
-  const roleLabel = roleLabelKey ? t(roleLabelKey) : role || "--";
-  const authMethodLabel = t(getAuthMethodLabelKey(profile?.user.auth_method ?? ""));
+  const presentation = buildPersonalProfilePresentation(profile, t);
 
   return (
     <section className="overflow-hidden rounded-[12px] border border-(--divider-subtle-color) bg-transparent">
@@ -43,20 +39,20 @@ export function PersonalProfileSection({
             <UiAgentAvatar
               avatar={avatar}
               className="h-12 w-12 rounded-[16px]"
-              name={profile?.user.display_name || profile?.user.username || t("settings.personal.avatar_alt")}
+              name={presentation.avatarName}
               shape="rounded"
             />
             <div className="min-w-0">
               <h3 className="truncate text-[15px] font-semibold tracking-tight text-(--text-strong)">
-                {profile?.user.display_name || profile?.user.username || "--"}
+                {presentation.displayName}
               </h3>
               <p className="mt-1 flex min-w-0 items-center gap-1.5 text-[12px] leading-5 text-(--text-soft)">
-                <span className="min-w-0 truncate">{profile?.user.username || "--"}</span>
-                {profile?.subscription ? (
+                <span className="min-w-0 truncate">{presentation.username}</span>
+                {presentation.subscriptionPlanName !== null ? (
                   <>
                     <span className="shrink-0 text-(--text-muted)">·</span>
                     <span className="shrink-0 rounded-full border border-(--divider-subtle-color) px-2 py-0.5 text-[11px] font-semibold text-(--text-muted)">
-                      {profile.subscription.plan_name}
+                      {presentation.subscriptionPlanName}
                     </span>
                   </>
                 ) : null}
@@ -65,10 +61,10 @@ export function PersonalProfileSection({
           </div>
           <div className="grid gap-2 text-[11px] text-(--text-soft) sm:grid-cols-2">
             <span className="rounded-[10px] border border-(--divider-subtle-color) bg-transparent px-3 py-2">
-              {t("settings.personal.role")}: {roleLabel}
+              {t("settings.personal.role")}: {presentation.roleLabel}
             </span>
             <span className="rounded-[10px] border border-(--divider-subtle-color) bg-transparent px-3 py-2">
-              {t("settings.personal.auth_method")}: {authMethodLabel}
+              {t("settings.personal.auth_method")}: {presentation.authMethodLabel}
             </span>
           </div>
         </div>
@@ -98,7 +94,7 @@ export function PersonalProfileSection({
             startIconId={AGENT_ICON_ID_START}
             value={avatar}
           />
-          {!profile?.can_update_profile ? (
+          {!presentation.canUpdateProfile ? (
             <p className="mt-2 text-[11px] text-(--text-soft)">
               {t("settings.personal.avatar_disabled")}
             </p>
