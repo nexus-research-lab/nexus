@@ -92,19 +92,3 @@ export interface SkillMarketplaceController {
   setDiscoveryMode: (mode: DiscoveryMode) => void;
   sources: ExternalSkillSourcesController;
 }
-
-export function externalSkillKey(item: ExternalSkillSearchItem): string {
-  return `${item.source_key || item.package_spec}@@${item.skill_slug}`;
-}
-
-export function getExternalSkillImportState(
-  item: ExternalSkillSearchItem,
-  importedSources: Map<string, Set<string>>,
-): { alreadyImported: boolean; nameConflict: boolean } {
-  const sources = importedSources.get(item.skill_slug);
-  const alreadyImported = sources?.has(item.package_spec) ?? false;
-  return {
-    alreadyImported,
-    nameConflict: Boolean(sources) && !alreadyImported,
-  };
-}

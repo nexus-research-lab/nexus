@@ -13,15 +13,15 @@ import type {
 } from "@/types/capability/connector";
 
 import { getConnectorCategoryLabel } from "../catalog/connectors-categories";
-import {
-  getConnectorAuthLabel,
-  type ConnectorDetailState,
-  type ConnectorStatusTone,
-} from "./connector-detail-model";
+import type {
+  ConnectorState,
+  ConnectorStatusTone,
+} from "../model/connector-state-model";
+import { getConnectorAuthLabel } from "./connector-detail-model";
 
 const STATUS_BADGE: Record<
   ConnectorStatusTone,
-  (state: ConnectorDetailState) => ReactNode
+  (state: ConnectorState) => ReactNode
 > = {
   connected: () => (
     <UiBadge tone="success">
@@ -43,7 +43,7 @@ function ConnectorStatusBadges({
   state,
 }: {
   detail: ConnectorDetail;
-  state: ConnectorDetailState;
+  state: ConnectorState;
 }) {
   const { t } = useI18n();
   return (
@@ -146,7 +146,7 @@ export function ConnectorDetailContent({
   detail: ConnectorDetail;
   features: ConnectorFeatureDetail[];
   onSelectFeature: (featureName: string) => void;
-  state: ConnectorDetailState;
+  state: ConnectorState;
 }) {
   return (
     <div className="mt-8 space-y-6">

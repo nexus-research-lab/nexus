@@ -9,6 +9,7 @@ import type {
   ExternalSkillSourceStatus,
 } from "@/types/capability/skill";
 
+import { isExternalSkillPreviewUnavailable } from "../external/external-skill-model";
 import type { ExternalSkillSearchController } from "./skill-marketplace-controller";
 
 const MIN_EXTERNAL_SEARCH_LENGTH = 2;
@@ -108,10 +109,8 @@ export function useExternalSkillSearch({
   const preview = useCallback(async (item: ExternalSkillSearchItem) => {
     const requestId = ++previewRequestRef.current;
     setPreviewItem(item);
-    const builtInPreviewUnavailable =
-      item.source_kind === "skills_sh" || item.import_mode === "skills_sh";
     const previewUrl = item.raw_url || item.detail_url;
-    if (builtInPreviewUnavailable || item.readme_markdown || !previewUrl) {
+    if (isExternalSkillPreviewUnavailable(item) || item.readme_markdown || !previewUrl) {
       setPreviewLoading(false);
       return;
     }

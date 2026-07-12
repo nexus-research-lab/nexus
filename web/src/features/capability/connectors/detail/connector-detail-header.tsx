@@ -13,10 +13,10 @@ import type { ConnectorDetail } from "@/types/capability/connector";
 
 import { ConnectorIcon } from "../connector-icon";
 import type {
-  ConnectorDetailState,
   ConnectorOauthClientAction,
   ConnectorPrimaryAction,
-} from "./connector-detail-model";
+  ConnectorState,
+} from "../model/connector-state-model";
 
 interface ConnectorActionContext {
   busy: boolean;
@@ -170,7 +170,7 @@ export function ConnectorDetailHeader({
   state,
 }: ConnectorActionContext & {
   onConfigureOauthClient: (detail: ConnectorDetail) => void;
-  state: ConnectorDetailState;
+  state: ConnectorState;
 }) {
   const primaryAction = PRIMARY_ACTION[state.primaryAction]({
     busy,

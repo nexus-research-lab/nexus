@@ -3,50 +3,40 @@
 import { Check, Clock3, KeyRound, Loader2, Plus, Settings2 } from "lucide-react";
 import { type KeyboardEvent, type MouseEvent } from "react";
 
-import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiBadge } from "@/shared/ui/display/badge";
 import { UiIconButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
+import { UiBadge } from "@/shared/ui/display/badge";
 import type { ConnectorInfo } from "@/types/capability/connector";
 
-import { isDirectCredentialAuth } from "../auth/connector-auth";
 import { ConnectorIcon } from "../connector-icon";
+import {
+  buildConnectorCardModel,
+  type ConnectorCardBadgeModel,
+  type ConnectorCardTrailingModel,
+} from "./connector-card-model";
 import { getConnectorCategoryLabel } from "./connectors-categories";
 
 interface ConnectorCardProps {
-  connector: ConnectorInfo;
   busy?: boolean;
-  onSelect: () => void;
+  connector: ConnectorInfo;
   onConnect?: () => void;
+  onSelect: () => void;
 }
 
-/** 连接器行 —— 学习 Codex 插件目录的轻量列表结构。 */
 export function ConnectorCard({
-  connector,
   busy = false,
-  onSelect,
+  connector,
   onConnect,
+  onSelect,
 }: ConnectorCardProps) {
   const { t } = useI18n();
-  const {
-    title,
-    description,
-    icon,
-    status,
-    connection_state: connectionState,
-    is_configured: isConfigured,
-    category,
-    oauth_client_config_required: oauthClientConfigRequired,
-  } = connector;
-  const isConnected = connectionState === "connected";
-  const isComingSoon = status === "coming_soon";
-  const requiresDirectCredential = isDirectCredentialAuth(connector.auth_type);
-  const shouldConfigure = !isConfigured && oauthClientConfigRequired;
-  const canConnect = !busy && !isConnected && !isComingSoon && isConfigured;
+  const model = buildConnectorCardModel(connector, busy);
 
   const handleActionClick = (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
-    if (canConnect && !requiresDirectCredential) {
+    if (model.trailing.kind !== "action") return;
+    if (model.trailing.action === "connect") {
       onConnect?.();
       return;
     }
@@ -54,12 +44,8 @@ export function ConnectorCard({
   };
 
   const handleRowKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.target !== event.currentTarget) {
-      return;
-    }
-    if (event.key !== "Enter" && event.key !== " ") {
-      return;
-    }
+    if (event.target !== event.currentTarget) return;
+    if (event.key !== "Enter" && event.key !== " ") return;
     event.preventDefault();
     onSelect();
   };
@@ -76,55 +62,69 @@ export function ConnectorCard({
       role="button"
       tabIndex={0}
     >
-      <ConnectorIcon icon={icon} title={title} />
-
+      <ConnectorIcon icon={connector.icon} title={connector.title} />
       <span className="min-w-0 flex-1">
         <span className="flex min-w-0 items-center gap-2">
-          <span className="truncate text-[15px] font-semibold tracking-[-0.02em] text-(--text-strong)">
-            {title}
+          <span className="truncate text-[15px] font-semibold text-(--text-strong)">
+            {connector.title}
           </span>
-          {isComingSoon ? (
-            <UiBadge size="xs">
-              即将推出
-            </UiBadge>
-          ) : shouldConfigure ? (
-            <UiBadge size="xs" tone="warning">
-              待配置
-            </UiBadge>
-          ) : null}
+          <ConnectorCardBadge badge={model.badge} />
         </span>
         <span className="mt-0.5 block truncate text-[13px] leading-5 text-(--text-muted)">
-          {description}
+          {connector.description}
         </span>
         <span className="mt-0.5 block text-[11px] leading-4 text-(--text-soft)">
-          {getConnectorCategoryLabel(category, t)}
+          {getConnectorCategoryLabel(connector.category, t)}
         </span>
       </span>
-
       <span className="flex h-9 w-9 shrink-0 items-center justify-center">
-        {busy ? (
-          <Loader2 className="h-4 w-4 animate-spin text-(--icon-default)" />
-        ) : isConnected ? (
-          <Check className="h-4 w-4 text-(--icon-muted)" />
-        ) : isComingSoon ? (
-          <Clock3 className="h-4 w-4 text-(--icon-muted)" />
-        ) : (
-          <UiIconButton
-            aria-label={shouldConfigure || requiresDirectCredential ? `配置 ${title}` : `连接 ${title}`}
-            onClick={handleActionClick}
-            size="md"
-            type="button"
-          >
-            {shouldConfigure ? (
-              <Settings2 className="h-4 w-4" />
-            ) : requiresDirectCredential ? (
-              <KeyRound className="h-4 w-4" />
-            ) : (
-              <Plus className="h-4 w-4" />
-            )}
-          </UiIconButton>
-        )}
+        <ConnectorCardTrailing
+          model={model.trailing}
+          onAction={handleActionClick}
+        />
       </span>
     </div>
+  );
+}
+
+function ConnectorCardBadge({
+  badge,
+}: {
+  badge: ConnectorCardBadgeModel | null;
+}) {
+  if (!badge) return null;
+  return <UiBadge size="xs" tone={badge.tone}>{badge.label}</UiBadge>;
+}
+
+const ACTION_ICON = {
+  connect: Plus,
+  credential: KeyRound,
+  "oauth-client": Settings2,
+} as const;
+
+const STATIC_TRAILING = {
+  busy: () => <Loader2 className="h-4 w-4 animate-spin text-(--icon-default)" />,
+  connected: () => <Check className="h-4 w-4 text-(--icon-muted)" />,
+  "coming-soon": () => <Clock3 className="h-4 w-4 text-(--icon-muted)" />,
+} as const;
+
+function ConnectorCardTrailing({
+  model,
+  onAction,
+}: {
+  model: ConnectorCardTrailingModel;
+  onAction: (event: MouseEvent<HTMLButtonElement>) => void;
+}) {
+  if (model.kind !== "action") return STATIC_TRAILING[model.kind]();
+  const Icon = ACTION_ICON[model.icon];
+  return (
+    <UiIconButton
+      aria-label={model.ariaLabel}
+      onClick={onAction}
+      size="md"
+      type="button"
+    >
+      <Icon className="h-4 w-4" />
+    </UiIconButton>
   );
 }

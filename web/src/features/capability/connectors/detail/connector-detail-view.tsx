@@ -9,15 +9,13 @@ import type {
   ConnectorFeatureDetail,
 } from "@/types/capability/connector";
 
+import { getConnectorState } from "../model/connector-state-model";
 import { ConnectorDetailContent } from "./connector-detail-content";
 import {
   ConnectorDetailBreadcrumb,
   ConnectorDetailHeader,
 } from "./connector-detail-header";
-import {
-  getConnectorDetailState,
-  getConnectorFeatureDetails,
-} from "./connector-detail-model";
+import { getConnectorFeatureDetails } from "./connector-detail-model";
 import { ConnectorFeatureDialog } from "./connector-feature-dialog";
 
 interface ConnectorDetailViewProps {
@@ -101,7 +99,7 @@ export function ConnectorDetailView({
     return <ConnectorDetailMissing onBack={onBack} />;
   }
 
-  const state = getConnectorDetailState(detail);
+  const state = getConnectorState(detail);
   const features = getConnectorFeatureDetails(detail);
   return (
     <div className={WORKSPACE_DETAIL_PAGE_CLASS_NAME}>

@@ -1,30 +1,23 @@
-import { Download, Loader2, Puzzle } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiBadge } from "@/shared/ui/display/badge";
-import { UiListActionButton } from "@/shared/ui/list/list-action";
-import { UiListRow } from "@/shared/ui/list/list-row";
+import { cn } from "@/shared/ui/class-name";
 import type {
   ExternalSkillSearchItem,
   ExternalSkillSourceInfo,
   ExternalSkillSourceStatus,
 } from "@/types/capability/skill";
 
+import { ExternalResultRow } from "./external-result-row";
 import {
-  externalSkillKey,
-  getExternalSkillImportState,
-} from "../controller/skill-marketplace-controller";
-import { SkillStatePill } from "../catalog/skill-state-pill";
-import {
-  compareExternalItems,
-  externalItemSourceKey,
-  groupExternalResultsBySource,
+  buildExternalResultsModel,
   sourceGroupEmptyMessage,
   sourceGroupSummaryLabel,
+  type ExternalResultGroup,
+  type ExternalResultsModel,
 } from "./external-results-model";
-import { formatInstalls } from "./skills-helpers";
+import { externalSkillKey } from "./external-skill-model";
 
 interface SkillsExternalResultsProps {
   busyExternalKeys: ReadonlySet<string>;
@@ -49,35 +42,46 @@ export function SkillsExternalResults({
   sources,
   submittedQuery,
 }: SkillsExternalResultsProps) {
-  const { t } = useI18n();
   const [activeSourceKey, setActiveSourceKey] = useState<string | null>(null);
-  const sourceGroups = useMemo(
-    () => {
-      if (!submittedQuery.trim() && !results.length) {
-        return [];
-      }
-      return groupExternalResultsBySource(
-        results,
-        sourceStatuses,
-        sources,
-      );
-    },
-    [results, sourceStatuses, sources, submittedQuery],
-  );
-  const selectedSourceKey = sourceGroups.some((group) => group.key === activeSourceKey)
-    ? activeSourceKey
-    : null;
-  const selectedSource = selectedSourceKey
-    ? sourceGroups.find((group) => group.key === selectedSourceKey)
-    : null;
-  const visibleResults = useMemo(
-    () => [...results]
-      .filter((item) => !selectedSourceKey || externalItemSourceKey(item) === selectedSourceKey)
-      .sort(compareExternalItems),
-    [results, selectedSourceKey],
+  const model = useMemo(
+    () => buildExternalResultsModel({
+      activeSourceKey,
+      items: results,
+      loading,
+      sources,
+      statuses: sourceStatuses,
+      submittedQuery,
+    }),
+    [activeSourceKey, loading, results, sourceStatuses, sources, submittedQuery],
   );
 
-  if (loading) {
+  return (
+    <ExternalResultsStage
+      busyExternalKeys={busyExternalKeys}
+      importedExternalSources={importedExternalSources}
+      model={model}
+      onImport={onImport}
+      onPreview={onPreview}
+      onSelectSource={setActiveSourceKey}
+      totalCount={results.length}
+    />
+  );
+}
+
+interface ExternalResultsStageProps {
+  busyExternalKeys: ReadonlySet<string>;
+  importedExternalSources: Map<string, Set<string>>;
+  model: ExternalResultsModel;
+  onImport: (item: ExternalSkillSearchItem) => void;
+  onPreview: (item: ExternalSkillSearchItem) => void;
+  onSelectSource: (key: string | null) => void;
+  totalCount: number;
+}
+
+function ExternalResultsStage(props: ExternalResultsStageProps) {
+  const { t } = useI18n();
+  if (props.model.phase === "hidden") return null;
+  if (props.model.phase === "loading") {
     return (
       <div className="flex items-center justify-center gap-2 py-12 text-sm text-(--text-soft)">
         <Loader2 className="h-4 w-4 animate-spin" />
@@ -85,66 +89,47 @@ export function SkillsExternalResults({
       </div>
     );
   }
-
-  if (submittedQuery && !results.length && !sourceGroups.length) {
+  if (props.model.phase === "empty") {
     return (
       <div className="rounded-[12px] border border-dashed border-(--divider-subtle-color) px-5 py-8 text-center text-sm text-(--text-soft)">
         {t("capability.skills_external_empty")}
       </div>
     );
   }
+  return <ExternalResultsReady {...props} />;
+}
 
-  if (!results.length && !sourceGroups.length) return null;
-
+function ExternalResultsReady({
+  busyExternalKeys,
+  importedExternalSources,
+  model,
+  onImport,
+  onPreview,
+  onSelectSource,
+  totalCount,
+}: ExternalResultsStageProps) {
+  const { t } = useI18n();
   return (
     <section>
       <div className="mb-3 flex items-end justify-between border-b border-(--divider-subtle-color) pb-2">
-        <h2 className="text-[18px] font-medium tracking-[-0.025em] text-(--text-strong)">
+        <h2 className="text-[18px] font-medium text-(--text-strong)">
           {t("capability.search_results")}
         </h2>
         <span className="text-[12px] font-medium text-(--text-soft)">
-          {t("capability.result_count", { count: visibleResults.length })}
+          {t("capability.result_count", { count: model.visibleItems.length })}
         </span>
       </div>
-      <div className="mb-4 flex flex-wrap gap-2">
-        <button
-          className={cn(
-            "inline-flex max-w-full items-center gap-1.5 rounded-[8px] border px-2.5 py-1 text-left text-[11px] transition",
-            !selectedSourceKey
-              ? "border-(--primary) bg-[color:color-mix(in_srgb,var(--primary)_12%,transparent)] text-(--primary)"
-              : "border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-panel-background)_72%,transparent)] text-(--text-muted) hover:border-(--primary)",
-          )}
-          onClick={() => setActiveSourceKey(null)}
-          type="button"
-        >
-          <span className="truncate font-medium text-(--text-strong)">全部来源</span>
-          <span className="shrink-0">{results.length} 个</span>
-        </button>
-        {sourceGroups.map((group) => (
-          <button
-            key={group.key}
-            className={cn(
-              "inline-flex max-w-full items-center gap-1.5 rounded-[8px] border px-2.5 py-1 text-left text-[11px] transition",
-              selectedSourceKey === group.key
-                ? "border-(--primary) bg-[color:color-mix(in_srgb,var(--primary)_12%,transparent)] text-(--primary)"
-                : "border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-panel-background)_72%,transparent)] text-(--text-muted) hover:border-(--primary)",
-            )}
-            onClick={() => setActiveSourceKey((current) => current === group.key ? null : group.key)}
-            title={group.error || group.label}
-            type="button"
-          >
-            <span className="truncate font-medium text-(--text-strong)">
-              {group.label}
-            </span>
-            <span className="shrink-0">{sourceGroupSummaryLabel(group)}</span>
-          </button>
-        ))}
-      </div>
-      {visibleResults.length ? (
+      <ExternalSourceFilters
+        groups={model.groups}
+        onSelect={onSelectSource}
+        selectedSourceKey={model.selectedSourceKey}
+        totalCount={totalCount}
+      />
+      {model.visibleItems.length ? (
         <div className="grid grid-cols-1 gap-x-12 gap-y-4 md:grid-cols-2">
-          {visibleResults.map((item: ExternalSkillSearchItem) => (
+          {model.visibleItems.map((item) => (
             <ExternalResultRow
-              key={`${item.source_key || item.package_spec}@${item.skill_slug}`}
+              key={externalSkillKey(item)}
               busyExternalKeys={busyExternalKeys}
               importedExternalSources={importedExternalSources}
               item={item}
@@ -155,88 +140,79 @@ export function SkillsExternalResults({
         </div>
       ) : (
         <div className="rounded-[12px] border border-dashed border-(--divider-subtle-color) px-3 py-2 text-[12px] text-(--text-soft)">
-          {selectedSource ? sourceGroupEmptyMessage(selectedSource) : t("capability.skills_external_empty")}
+          {model.selectedGroup
+            ? sourceGroupEmptyMessage(model.selectedGroup)
+            : t("capability.skills_external_empty")}
         </div>
       )}
     </section>
   );
 }
 
-/* ── 外部结果行 ─────────────────────────────── */
-
-interface ExternalResultRowProps {
-  item: ExternalSkillSearchItem;
-  busyExternalKeys: ReadonlySet<string>;
-  importedExternalSources: Map<string, Set<string>>;
-  onPreview: () => void;
-  onImport: () => void;
+interface ExternalSourceFiltersProps {
+  groups: ExternalResultGroup[];
+  onSelect: (key: string | null) => void;
+  selectedSourceKey: string | null;
+  totalCount: number;
 }
 
-function ExternalResultRow({
-  item,
-  busyExternalKeys,
-  importedExternalSources,
-  onPreview: onPreview,
-  onImport: onImport,
-}: ExternalResultRowProps) {
-  const { alreadyImported, nameConflict: hasNameConflict } =
-    getExternalSkillImportState(item, importedExternalSources);
-  const isBusy = busyExternalKeys.has(externalSkillKey(item));
-  const stateLabel = alreadyImported ? "已导入" : hasNameConflict ? "同名冲突" : "可导入";
-  const stateTone = alreadyImported ? "success" : hasNameConflict ? "warning" : "neutral";
-  const sourceLabel = item.source_name || item.source_kind || "社区";
-  const sourceRef = item.package_spec || item.git_url || item.raw_url || item.source;
-
+function ExternalSourceFilters({
+  groups,
+  onSelect,
+  selectedSourceKey,
+  totalCount,
+}: ExternalSourceFiltersProps) {
   return (
-    <UiListRow
-      className="min-h-[72px] rounded-[14px] px-2 py-1.5"
-      leading={(
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[12px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_70%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_9%,var(--surface-panel-background))] text-sky-600 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-          <Puzzle className="h-4 w-4" />
-        </span>
+    <div className="mb-4 flex flex-wrap gap-2">
+      <ExternalSourceFilter
+        label="全部来源"
+        onClick={() => onSelect(null)}
+        selected={!selectedSourceKey}
+        summary={`${totalCount} 个`}
+      />
+      {groups.map((group) => (
+        <ExternalSourceFilter
+          key={group.key}
+          label={group.label}
+          onClick={() => onSelect(selectedSourceKey === group.key ? null : group.key)}
+          selected={selectedSourceKey === group.key}
+          summary={sourceGroupSummaryLabel(group)}
+          title={group.error || group.label}
+        />
+      ))}
+    </div>
+  );
+}
+
+interface ExternalSourceFilterProps {
+  label: string;
+  onClick: () => void;
+  selected: boolean;
+  summary: string;
+  title?: string;
+}
+
+function ExternalSourceFilter({
+  label,
+  onClick,
+  selected,
+  summary,
+  title,
+}: ExternalSourceFilterProps) {
+  return (
+    <button
+      className={cn(
+        "inline-flex max-w-full items-center gap-1.5 rounded-[8px] border px-2.5 py-1 text-left text-[11px] transition",
+        selected
+          ? "border-(--primary) bg-[color:color-mix(in_srgb,var(--primary)_12%,transparent)] text-(--primary)"
+          : "border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-panel-background)_72%,transparent)] text-(--text-muted) hover:border-(--primary)",
       )}
-      onClick={onPreview}
-      right={(
-        <div className="flex shrink-0 items-center gap-1.5">
-          <SkillStatePill tone={stateTone}>
-            {stateLabel}
-          </SkillStatePill>
-          {!alreadyImported && !hasNameConflict ? (
-            <UiListActionButton
-              className="text-(--primary) hover:text-(--primary)"
-              disabled={isBusy || hasNameConflict}
-              onClick={onImport}
-              size="sm"
-              stopPropagation
-              title="导入到技能库"
-              visibility="visible"
-            >
-              {isBusy ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : (
-                <Download className="h-3 w-3" />
-              )}
-            </UiListActionButton>
-          ) : null}
-        </div>
-      )}
+      onClick={onClick}
+      title={title}
+      type="button"
     >
-      <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="truncate text-[15px] font-semibold tracking-[-0.02em] text-(--text-strong)">
-            {item.title || item.skill_slug}
-          </span>
-          <UiBadge size="xs">{sourceLabel}</UiBadge>
-        </div>
-        <div className="mt-0.5 truncate text-[13px] leading-5 text-(--text-muted)">
-          {item.description || item.readme_markdown || "暂无描述"}
-        </div>
-        <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] leading-4 text-(--text-soft)">
-          <span className="truncate">{sourceRef}</span>
-          <span className="shrink-0">·</span>
-          <span className="shrink-0">{formatInstalls(item.installs)} 次安装</span>
-        </div>
-      </div>
-    </UiListRow>
+      <span className="truncate font-medium text-(--text-strong)">{label}</span>
+      <span className="shrink-0">{summary}</span>
+    </button>
   );
 }

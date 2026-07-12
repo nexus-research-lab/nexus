@@ -4,10 +4,13 @@ import { useEffect, useState } from "react";
 
 import { getErrorMessage } from "@/lib/error-message";
 
-export interface DialogResource<T> {
+export interface DialogResourceStatus {
   error: string | null;
-  items: T[];
   loading: boolean;
+}
+
+export interface DialogResource<T> extends DialogResourceStatus {
+  items: T[];
 }
 
 interface ResourceSnapshot<T> extends DialogResource<T> {

@@ -19,8 +19,8 @@ import { getErrorMessage } from "@/lib/error-message";
 import type { ExternalSkillSearchItem, SkillInfo } from "@/types/capability/skill";
 
 import { formatDeployFailureMessage } from "../detail/skill-deploy-failures";
+import { externalSkillKey } from "../external/external-skill-model";
 import {
-  externalSkillKey,
   type SkillImportDialogMode,
   type SkillMarketplaceFeedbackActions,
   type SkillOperationsController,

@@ -12,7 +12,48 @@ export interface ExternalResultGroup {
   status: string;
 }
 
-export function groupExternalResultsBySource(
+type ExternalResultsPhase = "empty" | "hidden" | "loading" | "ready";
+
+export interface ExternalResultsModel {
+  groups: ExternalResultGroup[];
+  phase: ExternalResultsPhase;
+  selectedGroup: ExternalResultGroup | null;
+  selectedSourceKey: string | null;
+  visibleItems: ExternalSkillSearchItem[];
+}
+
+interface BuildExternalResultsModelOptions {
+  activeSourceKey: string | null;
+  items: ExternalSkillSearchItem[];
+  loading: boolean;
+  statuses: ExternalSkillSourceStatus[];
+  sources: ExternalSkillSourceInfo[];
+  submittedQuery: string;
+}
+
+export function buildExternalResultsModel({
+  activeSourceKey,
+  items,
+  loading,
+  statuses,
+  sources,
+  submittedQuery,
+}: BuildExternalResultsModelOptions): ExternalResultsModel {
+  const groups = hasResultContext(items, submittedQuery)
+    ? groupExternalResultsBySource(items, statuses, sources)
+    : [];
+  const selectedGroup = groups.find((group) => group.key === activeSourceKey) ?? null;
+  const selectedSourceKey = selectedGroup?.key ?? null;
+  return {
+    groups,
+    phase: resolveExternalResultsPhase(loading, submittedQuery, items, groups),
+    selectedGroup,
+    selectedSourceKey,
+    visibleItems: filterAndSortExternalItems(items, selectedSourceKey),
+  };
+}
+
+function groupExternalResultsBySource(
   items: ExternalSkillSearchItem[],
   statuses: ExternalSkillSourceStatus[],
   sources: ExternalSkillSourceInfo[],
@@ -91,15 +132,42 @@ export function sourceGroupSummaryLabel(group: ExternalResultGroup): string {
   return labels[group.status] ?? labels.ok;
 }
 
-export function externalItemSourceKey(item: ExternalSkillSearchItem): string {
+function externalItemSourceKey(item: ExternalSkillSearchItem): string {
   return item.source_key || item.source_name || item.source_kind || "community";
 }
 
-export function compareExternalItems(
+function compareExternalItems(
   left: ExternalSkillSearchItem,
   right: ExternalSkillSearchItem,
 ): number {
   if (left.installs !== right.installs) return right.installs - left.installs;
   const sourceOrder = (left.source_name || "").localeCompare(right.source_name || "");
   return sourceOrder || (left.title || left.name).localeCompare(right.title || right.name);
+}
+
+function hasResultContext(
+  items: ExternalSkillSearchItem[],
+  submittedQuery: string,
+): boolean {
+  return Boolean(submittedQuery.trim()) || items.length > 0;
+}
+
+function resolveExternalResultsPhase(
+  loading: boolean,
+  submittedQuery: string,
+  items: ExternalSkillSearchItem[],
+  groups: ExternalResultGroup[],
+): ExternalResultsPhase {
+  if (loading) return "loading";
+  if (items.length || groups.length) return "ready";
+  return submittedQuery ? "empty" : "hidden";
+}
+
+function filterAndSortExternalItems(
+  items: ExternalSkillSearchItem[],
+  sourceKey: string | null,
+): ExternalSkillSearchItem[] {
+  return [...items]
+    .filter((item) => !sourceKey || externalItemSourceKey(item) === sourceKey)
+    .sort(compareExternalItems);
 }

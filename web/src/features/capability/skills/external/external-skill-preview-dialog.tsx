@@ -16,44 +16,23 @@ import {
 import type { ExternalSkillSearchItem } from "@/types/capability/skill";
 
 import { SkillMarkdown } from "../detail/skill-markdown";
+import type {
+  ExternalSkillImportModel,
+  ExternalSkillPreviewModel,
+} from "./external-skill-model";
 
 interface ExternalSkillPreviewDialogProps {
-  item: ExternalSkillSearchItem | null;
-  isOpen: boolean;
-  busy: boolean;
-  previewLoading: boolean;
-  nameConflict?: boolean;
-  alreadyImported: boolean;
+  model: ExternalSkillPreviewModel | null;
   onClose: () => void;
-  onImportOnly: () => void;
-}
-
-function formatInstalls(installs: number): string {
-  if (installs >= 1000) {
-    return `${(installs / 1000).toFixed(installs >= 100000 ? 0 : 1)}K`;
-  }
-  return `${installs}`;
+  onImport: (item: ExternalSkillSearchItem) => void;
 }
 
 export function ExternalSkillPreviewDialog({
-  item,
-  isOpen,
-  busy,
-  previewLoading,
-  nameConflict = false,
-  alreadyImported,
+  model,
   onClose,
-  onImportOnly,
+  onImport,
 }: ExternalSkillPreviewDialogProps) {
-  if (!isOpen || !item) return null;
-  const isSkillsSh = item.source_kind === "skills_sh" || item.import_mode === "skills_sh";
-  const previewMarkdown = previewLoading && !item.readme_markdown
-    ? "正在加载预览内容..."
-    : isSkillsSh
-      ? "skills.sh 暂不提供内置预览，请打开原始页面查看。"
-      : (item.readme_markdown || item.description || "暂无预览内容");
-  const sourceLabel = item.source_name || item.source_kind || "社区";
-  const sourceRef = item.package_spec || item.git_url || item.raw_url || item.source;
+  if (!model) return null;
 
   return (
     <UiDialogPortal>
@@ -62,30 +41,26 @@ export function ExternalSkillPreviewDialog({
           <UiDialogHeader
             icon={<Puzzle className="h-4 w-4" />}
             onClose={onClose}
-            subtitle={`${sourceRef} · ${formatInstalls(item.installs)} 次安装`}
-            title={item.title || item.skill_slug}
+            subtitle={model.subtitle}
+            title={model.title}
           />
           <UiDialogBody scrollable>
             <div className="mb-5 flex flex-wrap gap-2">
-              <UiBadge size="xs">{sourceLabel}</UiBadge>
-              {alreadyImported ? (
-                <UiBadge size="xs" tone="success">已导入</UiBadge>
-              ) : nameConflict ? (
-                <UiBadge size="xs" tone="warning">同名冲突</UiBadge>
-              ) : null}
+              <UiBadge size="xs">{model.sourceLabel}</UiBadge>
+              <ExternalSkillImportBadge importState={model.importState} />
             </div>
             <SkillMarkdown
-              description={item.description}
-              markdown={previewMarkdown}
-              title={item.title || item.skill_slug}
+              description={model.item.description}
+              markdown={model.markdown}
+              title={model.title}
             />
           </UiDialogBody>
 
           <UiDialogFooter className="flex-wrap justify-between gap-3">
-            {item.detail_url ? (
+            {model.detailUrl ? (
               <a
                 className={getUiButtonClassName({ size: "sm", variant: "text" }, "w-fit")}
-                href={item.detail_url}
+                href={model.detailUrl}
                 rel="noreferrer"
                 target="_blank"
               >
@@ -95,14 +70,16 @@ export function ExternalSkillPreviewDialog({
             ) : <span />}
             <div className="flex flex-wrap items-center gap-2">
               <UiButton
-                disabled={busy || alreadyImported || nameConflict}
-                onClick={onImportOnly}
+                disabled={model.importState.busy || !model.importState.canImport}
+                onClick={() => onImport(model.item)}
                 size="sm"
                 tone="primary"
                 type="button"
                 variant="solid"
               >
-                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <PackagePlus className="h-4 w-4" />}
+                {model.importState.busy
+                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  : <PackagePlus className="h-4 w-4" />}
                 导入到技能库
               </UiButton>
             </div>
@@ -110,5 +87,25 @@ export function ExternalSkillPreviewDialog({
         </UiDialogShell>
       </UiDialogBackdrop>
     </UiDialogPortal>
+  );
+}
+
+interface ExternalSkillImportBadgeProps {
+  importState: ExternalSkillImportModel;
+}
+
+const IMPORT_BADGE_TONES = {
+  conflict: "warning",
+  imported: "success",
+} as const;
+
+function ExternalSkillImportBadge({
+  importState,
+}: ExternalSkillImportBadgeProps) {
+  if (importState.kind === "available") return null;
+  return (
+    <UiBadge size="xs" tone={IMPORT_BADGE_TONES[importState.kind]}>
+      {importState.label}
+    </UiBadge>
   );
 }

@@ -15,13 +15,12 @@ import type { SkillsRouteParams } from "@/types/app/route";
 import { SkillsCatalogGrid } from "./catalog/skills-catalog-grid";
 import { SkillsUpdateHighlight } from "./catalog/skills-update-highlight";
 import {
-  externalSkillKey,
-  getExternalSkillImportState,
   type SkillMarketplaceFeedback,
 } from "./controller/skill-marketplace-controller";
 import { useSkillMarketplace } from "./controller/use-skill-marketplace";
 import { SkillDetailRoute } from "./detail/skill-detail-route";
 import { ExternalSkillPreviewDialog } from "./external/external-skill-preview-dialog";
+import { buildExternalSkillPreviewModel } from "./external/external-skill-model";
 import { SkillSourceManagerDialog } from "./external/skill-source-manager-dialog";
 import { SkillsExternalResults } from "./external/skills-external-results";
 import { SkillImportDialog } from "./import/skill-import-dialog";
@@ -57,12 +56,12 @@ export function SkillsDirectory({ onReplayTour }: SkillsDirectoryProps) {
   const backToSkills = useCallback(() => {
     navigate(AppRouteBuilders.skills());
   }, [navigate]);
-  const previewImportState = external.previewItem
-    ? getExternalSkillImportState(
-        external.previewItem,
-        catalog.importedExternalSources,
-      )
-    : { alreadyImported: false, nameConflict: false };
+  const previewModel = buildExternalSkillPreviewModel(
+    external.previewItem,
+    catalog.importedExternalSources,
+    operations.busyExternalKeys,
+    external.previewLoading,
+  );
   const feedbackItem = buildFeedbackItem(feedback);
 
   return (
@@ -187,19 +186,9 @@ export function SkillsDirectory({ onReplayTour }: SkillsDirectoryProps) {
       />
 
       <ExternalSkillPreviewDialog
-        alreadyImported={previewImportState.alreadyImported}
-        nameConflict={previewImportState.nameConflict}
-        busy={
-          !!external.previewItem &&
-          operations.busyExternalKeys.has(externalSkillKey(external.previewItem))
-        }
-        isOpen={!!external.previewItem}
-        item={external.previewItem}
-        previewLoading={external.previewLoading}
+        model={previewModel}
         onClose={external.closePreview}
-        onImportOnly={() => {
-          if (external.previewItem) void operations.importExternal(external.previewItem);
-        }}
+        onImport={(item) => void operations.importExternal(item)}
       />
 
       <SkillSourceManagerDialog
