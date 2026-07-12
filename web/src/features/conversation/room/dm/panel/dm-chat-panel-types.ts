@@ -6,11 +6,11 @@ import type { SessionSnapshotPayload } from "@/types/conversation/conversation";
 import type { TodoItem } from "@/types/conversation/todo";
 
 export interface DmChatPanelProps {
-  currentAgentName?: string | null;
-  currentAgentAvatar?: string | null;
-  currentAgentPermissionMode?: string | null;
+  currentAgentName: string | null;
+  currentAgentAvatar: string | null;
+  currentAgentPermissionMode: string | null;
   sessionIdentity: AgentConversationIdentity | null;
-  layout?: "desktop" | "mobile";
+  layout: "desktop" | "mobile";
   initialDraft?: string | null;
   onInitialDraftConsumed?: () => void;
   onOpenAgentContact?: (agentId: string) => void;

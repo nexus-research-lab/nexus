@@ -5,10 +5,8 @@ import {
   ConversationPanelFloatingControls,
   ConversationPanelLayout,
   ConversationPanelViewport,
-  type ConversationScrollToLatestModel,
-  type ConversationViewportModel,
 } from "@/features/conversation/shared/conversation-panel-layout";
-import type { ConversationNavigatorModel } from "@/features/conversation/shared/conversation-panel-model";
+import type { ConversationPanelFrameModel } from "@/features/conversation/shared/conversation-panel-model";
 import { ConversationSessionNavigator } from "@/features/conversation/shared/session-navigator/conversation-session-navigator";
 
 import { GroupConversationFeed } from "../../feed/group-conversation-feed";
@@ -29,18 +27,12 @@ type GoalPanelModel = Omit<
   "isMobileLayout"
 >;
 
-export interface GroupChatPanelViewModel {
+export interface GroupChatPanelViewModel extends ConversationPanelFrameModel {
   composer: GroupChatComposerModel;
   feed: GroupConversationFeedProps;
   goalLead: RoomGoalLeadControlProps;
   goalPanel: GoalPanelModel;
-  isMobileLayout: boolean;
-  navigator: ConversationNavigatorModel;
   onCreateConversation: (title?: string) => void | Promise<string | null>;
-  providerWarningVisible: boolean;
-  scrollToLatest: ConversationScrollToLatestModel;
-  sessionKey: string | null;
-  viewport: ConversationViewportModel;
 }
 
 export function GroupChatPanelView({

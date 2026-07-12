@@ -1,8 +1,7 @@
 import { useMemo } from "react";
 
-import { useProviderAvailability } from "@/hooks/capability/use-provider-availability";
+import { useConversationPanelEnvironment } from "@/features/conversation/shared/use-conversation-panel-environment";
 import { buildRoomSharedSessionKey } from "@/lib/conversation/session-key";
-import { useAuth } from "@/shared/auth/auth-context";
 import type { Agent } from "@/types/agent/agent";
 
 import { useRoomThreadSource } from "../../../thread/live/use-room-thread-source";
@@ -19,22 +18,23 @@ import { useRoomGoalComposer } from "./use-room-goal-composer";
 export function useGroupChatPanelModel({
   agentId,
   conversationId,
-  currentAgentAvatar = null,
-  currentAgentName = null,
-  initialDraft = null,
-  layout = "desktop",
+  currentAgentAvatar,
+  currentAgentName,
+  initialDraft,
+  layout,
   onConversationSnapshotChange,
-  onCreateConversation = () => {},
+  onCreateConversation,
   onInitialDraftConsumed,
   onOpenAgentContact,
   onOpenWorkspaceFile,
   onRoomEvent,
   onTodosChange,
-  roomHostAgentId = null,
-  roomHostAutoReplyEnabled = false,
-  roomId = null,
+  roomHostAgentId,
+  roomHostAutoReplyEnabled,
+  roomId,
   roomMembers,
 }: GroupChatPanelProps): GroupChatPanelViewModel {
+  const environment = useConversationPanelEnvironment(layout);
   const sessionKey = conversationId
     ? buildRoomSharedSessionKey(conversationId)
     : null;
@@ -54,16 +54,11 @@ export function useGroupChatPanelModel({
     sessionKey,
   });
   const directory = useRoomAgentDirectory(roomMembers);
-  const { status: authStatus } = useAuth();
-  const currentUserAvatar = authStatus?.avatar ?? null;
-  const { hasAvailableProvider, isReady: providerReady } =
-    useProviderAvailability();
-  const isMobileLayout = layout === "mobile";
   const composer = useGroupChatComposerModel({
     conversation: session.conversation,
     conversationId,
     goal,
-    initialDraft,
+    initialDraft: initialDraft ?? null,
     onInitialDraftConsumed,
     roomId,
     roomMembers,
@@ -75,7 +70,7 @@ export function useGroupChatPanelModel({
     agentAvatarMap: directory.avatars,
     agentNameMap: directory.names,
     conversationId,
-    currentUserAvatar,
+    currentUserAvatar: environment.currentUserAvatar,
     messageGroups: session.timeline.message_groups,
     onOpenWorkspaceFile,
     onStopMessage: session.conversation.stop_generation,
@@ -88,14 +83,12 @@ export function useGroupChatPanelModel({
     composer,
     currentAgentAvatar,
     currentAgentName,
-    currentUserAvatar,
     directory,
+    environment,
     goal,
-    isMobileLayout,
     onCreateConversation,
     onOpenAgentContact,
     onOpenWorkspaceFile,
-    providerWarningVisible: providerReady && !hasAvailableProvider,
     roomHostAgentId,
     roomHostAutoReplyEnabled,
     roomMembers,
@@ -108,9 +101,6 @@ function useRoomAgentDirectory(roomMembers: Agent[]): RoomAgentDirectory {
 }
 
 function buildRoomAgentDirectory(roomMembers: Agent[]): RoomAgentDirectory {
-  if (roomMembers.length === 0) {
-    return {};
-  }
   const avatars: Record<string, string | null> = {};
   const names: Record<string, string> = {};
   for (const member of roomMembers) {

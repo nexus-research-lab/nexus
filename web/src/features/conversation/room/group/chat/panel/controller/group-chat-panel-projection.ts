@@ -1,9 +1,8 @@
 import type { RefObject } from "react";
 
 import {
-  buildConversationNavigatorModel,
-  buildConversationScrollToLatestModel,
-  buildConversationViewportModel,
+  buildConversationPanelFrameModel,
+  type ConversationPanelEnvironment,
   type ConversationPanelSessionSource,
 } from "@/features/conversation/shared/conversation-panel-model";
 import { buildGoalActivityKey } from "@/features/conversation/shared/goal/goal-model";
@@ -18,8 +17,8 @@ import type {
 import type { RoomGoalComposerModel } from "./use-room-goal-composer";
 
 export interface RoomAgentDirectory {
-  avatars?: Record<string, string | null>;
-  names?: Record<string, string>;
+  avatars: Record<string, string | null>;
+  names: Record<string, string>;
 }
 
 type GroupChatSession = Omit<
@@ -46,16 +45,14 @@ interface BuildGroupChatPanelViewModelOptions {
   composer: GroupChatComposerModel;
   currentAgentAvatar: string | null;
   currentAgentName: string | null;
-  currentUserAvatar: string | null;
   directory: RoomAgentDirectory;
+  environment: ConversationPanelEnvironment;
   goal: RoomGoalComposerModel;
-  isMobileLayout: boolean;
   onCreateConversation: (
     title?: string,
   ) => void | Promise<string | null>;
   onOpenAgentContact?: (agentId: string) => void;
   onOpenWorkspaceFile?: (path: string) => void;
-  providerWarningVisible: boolean;
   roomHostAgentId: string | null;
   roomHostAutoReplyEnabled: boolean;
   roomMembers: Agent[];
@@ -66,27 +63,25 @@ export function buildGroupChatPanelViewModel({
   composer,
   currentAgentAvatar,
   currentAgentName,
-  currentUserAvatar,
   directory,
+  environment,
   goal,
-  isMobileLayout,
   onCreateConversation,
   onOpenAgentContact,
   onOpenWorkspaceFile,
-  providerWarningVisible,
   roomHostAgentId,
   roomHostAutoReplyEnabled,
   roomMembers,
   session,
 }: BuildGroupChatPanelViewModelOptions): GroupChatPanelViewModel {
   return {
+    ...buildConversationPanelFrameModel(session, environment),
     composer,
     feed: buildFeedModel({
       currentAgentAvatar,
       currentAgentName,
-      currentUserAvatar,
       directory,
-      isMobileLayout,
+      environment,
       onOpenAgentContact,
       onOpenWorkspaceFile,
       session,
@@ -99,22 +94,15 @@ export function buildGroupChatPanelViewModel({
       roomMembers,
       session,
     }),
-    isMobileLayout,
-    navigator: buildConversationNavigatorModel(session),
     onCreateConversation,
-    providerWarningVisible,
-    scrollToLatest: buildConversationScrollToLatestModel(session),
-    sessionKey: session.sessionKey,
-    viewport: buildConversationViewportModel(session),
   };
 }
 
 function buildFeedModel({
   currentAgentAvatar,
   currentAgentName,
-  currentUserAvatar,
   directory,
-  isMobileLayout,
+  environment,
   onOpenAgentContact,
   onOpenWorkspaceFile,
   session,
@@ -122,9 +110,8 @@ function buildFeedModel({
   BuildGroupChatPanelViewModelOptions,
   | "currentAgentAvatar"
   | "currentAgentName"
-  | "currentUserAvatar"
   | "directory"
-  | "isMobileLayout"
+  | "environment"
   | "onOpenAgentContact"
   | "onOpenWorkspaceFile"
   | "session"
@@ -132,7 +119,7 @@ function buildFeedModel({
   const { conversation, roundIndexItems, roundScrollRef, scroll, timeline } =
     session;
   return {
-    isMobileLayout,
+    isMobileLayout: environment.isMobileLayout,
     refs: {
       bottomAnchorRef: scroll.bottomAnchorRef,
       feedRef: scroll.feedRef,
@@ -144,7 +131,7 @@ function buildFeedModel({
       agentNameMap: directory.names,
       currentAgentAvatar,
       currentAgentName,
-      currentUserAvatar,
+      currentUserAvatar: environment.currentUserAvatar,
       isLastRoundPendingPermissions: conversation.pending_permissions,
       onOpenAgentContact,
       onOpenWorkspaceFile,

@@ -35,6 +35,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Centralized Channel card and QR-login state projections, replacing duplicated JSX conditionals with discriminated actions and session views.
 - Separated General Settings resource controllers from Sections, split default-model catalog projection from preference normalization, removed obsolete provider-response fallbacks, and made desktop version failures leave loading state.
 - Centralized Markdown code, link, and streaming URL-tail semantics into ordered pure models, leaving renderers to route discriminated presentation states.
+- Split conversation navigation into explicit round snapshots, visible DOM candidates, and an owned frame-landing runtime; centralized timeline visibility and scroll-content identity rules.
+- Unified DM and Group Chat panel environment, frame, and activity-snapshot projections, tightening their single-consumer contracts and removing empty command and layout defaults.
 - Removed render-phase Thinking expansion mutations and separated image-source normalization, user-attachment capability projection, and embedded tool-error parsing into short owned phases.
 - Moved message ordering, system-event, permission, result, and final-response projection into an owned controller subdomain, reusing the single ordered-entry projection and replacing content-mode branches with exhaustive strategies.
 - Split message content rendering into entry selection, structured orchestration, exhaustive block routing, and tool interaction phases, while consolidating the shared AskUserQuestion tool identifier.

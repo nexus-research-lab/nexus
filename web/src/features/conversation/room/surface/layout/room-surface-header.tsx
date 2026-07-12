@@ -24,7 +24,7 @@ interface RoomSurfaceHeaderProps {
   onReplayTour?: () => void;
   onSelectConversation: (conversationId: string) => void;
   roomAvatar?: string | null;
-  roomHostAgentId?: string | null;
+  roomHostAgentId: string | null;
   roomHostAutoReplyEnabled: boolean;
   roomId: string | null;
   roomMembers: Agent[];

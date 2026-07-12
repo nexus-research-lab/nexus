@@ -26,7 +26,7 @@ interface ConversationPanelScrollSource {
   showScrollToBottom: boolean;
 }
 
-export interface ConversationNavigatorSessionSource {
+interface ConversationNavigatorSessionSource {
   conversation: Pick<
     UseAgentConversationReturn,
     "load_round_window"
@@ -40,7 +40,7 @@ export interface ConversationNavigatorSessionSource {
   timeline: ConversationTimeline;
 }
 
-export interface ConversationScrollToLatestSessionSource {
+interface ConversationScrollToLatestSessionSource {
   conversation: Pick<UseAgentConversationReturn, "is_loading">;
   scroll: Pick<
     ConversationPanelScrollSource,
@@ -48,7 +48,7 @@ export interface ConversationScrollToLatestSessionSource {
   >;
 }
 
-export interface ConversationViewportSessionSource {
+interface ConversationViewportSessionSource {
   conversation: Pick<
     UseAgentConversationReturn,
     "error" | "is_history_loading"
@@ -71,12 +71,41 @@ export type ConversationPanelSessionSource =
   & ConversationScrollToLatestSessionSource
   & ConversationViewportSessionSource;
 
-export type ConversationNavigatorModel = Omit<
+type ConversationNavigatorModel = Omit<
   ComponentProps<typeof ConversationSessionNavigator>,
   "className"
 >;
 
-export function buildConversationNavigatorModel(
+export interface ConversationPanelEnvironment {
+  currentUserAvatar: string | null;
+  isMobileLayout: boolean;
+  providerWarningVisible: boolean;
+}
+
+export interface ConversationPanelFrameModel {
+  isMobileLayout: boolean;
+  navigator: ConversationNavigatorModel;
+  providerWarningVisible: boolean;
+  scrollToLatest: ConversationScrollToLatestModel;
+  sessionKey: string | null;
+  viewport: ConversationViewportModel;
+}
+
+export function buildConversationPanelFrameModel(
+  session: ConversationPanelSessionSource,
+  environment: ConversationPanelEnvironment,
+): ConversationPanelFrameModel {
+  return {
+    isMobileLayout: environment.isMobileLayout,
+    navigator: buildConversationNavigatorModel(session),
+    providerWarningVisible: environment.providerWarningVisible,
+    scrollToLatest: buildConversationScrollToLatestModel(session),
+    sessionKey: session.sessionKey,
+    viewport: buildConversationViewportModel(session),
+  };
+}
+
+function buildConversationNavigatorModel(
   session: ConversationNavigatorSessionSource,
 ): ConversationNavigatorModel {
   const { conversation, roundScrollRef, scroll, sessionKey, timeline } = session;
@@ -90,7 +119,7 @@ export function buildConversationNavigatorModel(
   };
 }
 
-export function buildConversationScrollToLatestModel(
+function buildConversationScrollToLatestModel(
   session: ConversationScrollToLatestSessionSource,
 ): ConversationScrollToLatestModel {
   return {
@@ -100,7 +129,7 @@ export function buildConversationScrollToLatestModel(
   };
 }
 
-export function buildConversationViewportModel(
+function buildConversationViewportModel(
   session: ConversationViewportSessionSource,
 ): ConversationViewportModel {
   const { conversation, history, scroll } = session;

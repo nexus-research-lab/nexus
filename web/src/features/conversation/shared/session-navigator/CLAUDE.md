@@ -5,9 +5,9 @@ L4 | 父级: web/src/features/conversation/shared
 ## 职责
 
 - `conversation-session-navigator.tsx`: 会话刻度与预览面板渲染
-- `session-navigator-model.ts`: 将已加载消息或索引记录解析为统一来源，再投影为导航项
+- `session-navigator-model.ts`: 先把用户、Assistant 和结果摘要解析为轮次快照，再将已加载快照或索引记录投影为导航项
 - `session-navigator-ruler-model.ts`: 刻度尺寸、波形、颜色分段和讲者文案的纯视觉模型
-- `navigation-dom.ts`: 可见轮定位和滚动目标解析，不持有 React 状态
+- `navigation-dom.ts`: 将可见轮元素投影为带焦点距离的候选，再按包含焦点、最近距离顺序选择，不持有 React 状态
 - `use-active-round.ts`: 当前可见轮同步和用户滚动中断
 - `jump/`: 分离作用域化目标、缺失窗口加载队列、逐帧落点确认和跳转入口
 - `use-conversation-session-navigation.ts`: 只组合展示状态和两个控制器

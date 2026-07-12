@@ -115,6 +115,7 @@ export function RoomSurfaceContent({
                 currentAgentSessionIdentity={currentAgentSessionIdentity}
                 currentRoomType={currentRoomType}
                 initialDraft={initialDraft}
+                layout="desktop"
                 onConversationSnapshotChange={onConversationSnapshotChange}
                 onCreateConversation={onCreateConversation}
                 onInitialDraftConsumed={onInitialDraftConsumed}

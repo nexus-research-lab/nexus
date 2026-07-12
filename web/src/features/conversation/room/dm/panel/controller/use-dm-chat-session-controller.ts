@@ -3,6 +3,7 @@ import { useCallback, useEffect } from "react";
 import { useConversationSession } from "@/features/conversation/shared/session/use-conversation-session";
 import { useConversationTodos } from "@/features/conversation/shared/todos/use-conversation-todos";
 import {
+  buildConversationActivityPatch,
   useConversationSnapshotReporter,
   type ConversationSnapshotBuildInput,
 } from "@/features/conversation/shared/use-conversation-snapshot-reporter";
@@ -87,16 +88,37 @@ function buildDmSnapshot(
   input: ConversationSnapshotBuildInput,
   identity: AgentConversationIdentity | null,
 ): SessionSnapshotPayload {
+  const snapshotIdentity = projectDmSnapshotIdentity(identity);
   return {
-    agent_id: identity?.agent_id ?? null,
-    conversation_id: identity?.conversation_id ?? null,
-    room_id: identity?.room_id ?? null,
-    room_session_id: identity?.room_session_id ?? null,
+    ...snapshotIdentity,
+    ...buildConversationActivityPatch(input),
     session_id: input.last_message.session_id ?? null,
     session_key: input.scope_key,
-    ...(input.should_report_last_activity &&
-    input.latest_reply_timestamp !== null
-      ? { last_activity_at: input.latest_reply_timestamp }
-      : {}),
+  };
+}
+
+type DmSnapshotIdentity = Pick<
+  SessionSnapshotPayload,
+  "agent_id" | "conversation_id" | "room_id" | "room_session_id"
+>;
+
+const EMPTY_DM_SNAPSHOT_IDENTITY: DmSnapshotIdentity = {
+  agent_id: null,
+  conversation_id: null,
+  room_id: null,
+  room_session_id: null,
+};
+
+function projectDmSnapshotIdentity(
+  identity: AgentConversationIdentity | null,
+): DmSnapshotIdentity {
+  if (!identity) {
+    return EMPTY_DM_SNAPSHOT_IDENTITY;
+  }
+  return {
+    agent_id: identity.agent_id ?? null,
+    conversation_id: identity.conversation_id ?? null,
+    room_id: identity.room_id ?? null,
+    room_session_id: identity.room_session_id ?? null,
   };
 }

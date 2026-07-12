@@ -22,7 +22,7 @@ interface RoomSurfaceShellProps {
   availableRoomAgents: Agent[];
   currentRoomTitle: string;
   roomSkillNames: string[];
-  roomHostAgentId?: string | null;
+  roomHostAgentId: string | null;
   roomHostAutoReplyEnabled: boolean;
   roomPrivateMessagesEnabled: boolean;
   currentRoomConversation: RoomConversationView | null;

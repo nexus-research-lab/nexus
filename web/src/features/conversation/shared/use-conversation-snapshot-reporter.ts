@@ -1,9 +1,6 @@
 import { useEffect, useRef } from "react";
 
-import type {
-  AssistantMessage,
-  Message,
-} from "@/types/conversation/message/entity";
+import type { Message } from "@/types/conversation/message/entity";
 
 interface ConversationActivitySnapshot {
   scopeKey: string;
@@ -12,20 +9,28 @@ interface ConversationActivitySnapshot {
 
 function getLatestReplyTimestamp(messages: Message[]): number | null {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index];
-    if (message.role !== "assistant") {
-      continue;
-    }
-    const assistant = message as AssistantMessage;
-    const timestamp =
-      assistant.result_summary?.timestamp ?? assistant.timestamp;
-    if (Number.isFinite(timestamp) && timestamp > 0) {
+    const timestamp = getAssistantReplyTimestamp(messages[index]);
+    if (timestamp !== null) {
       return timestamp;
     }
   }
-  const lastTimestamp = messages[messages.length - 1]?.timestamp;
-  return lastTimestamp && Number.isFinite(lastTimestamp) && lastTimestamp > 0
-    ? lastTimestamp
+  return normalizeConversationTimestamp(messages.at(-1)?.timestamp);
+}
+
+function getAssistantReplyTimestamp(message: Message): number | null {
+  if (message.role !== "assistant") {
+    return null;
+  }
+  return normalizeConversationTimestamp(
+    message.result_summary?.timestamp ?? message.timestamp,
+  );
+}
+
+function normalizeConversationTimestamp(
+  timestamp: number | undefined,
+): number | null {
+  return timestamp !== undefined && Number.isFinite(timestamp) && timestamp > 0
+    ? timestamp
     : null;
 }
 
@@ -47,6 +52,23 @@ export interface ConversationSnapshotBuildInput {
   last_message: Message;
   latest_reply_timestamp: number | null;
   should_report_last_activity: boolean;
+}
+
+interface ConversationActivityPatch {
+  last_activity_at?: number;
+}
+
+export function buildConversationActivityPatch({
+  latest_reply_timestamp: latestReplyTimestamp,
+  should_report_last_activity: shouldReportLastActivity,
+}: Pick<
+  ConversationSnapshotBuildInput,
+  "latest_reply_timestamp" | "should_report_last_activity"
+>): ConversationActivityPatch {
+  if (!shouldReportLastActivity || latestReplyTimestamp === null) {
+    return {};
+  }
+  return { last_activity_at: latestReplyTimestamp };
 }
 
 interface UseConversationSnapshotReporterOptions<TSnapshot> {

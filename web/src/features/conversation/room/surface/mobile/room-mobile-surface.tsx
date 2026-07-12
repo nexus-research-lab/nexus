@@ -42,7 +42,7 @@ interface RoomMobileSurfaceProps {
   onRoomEvent?: (eventType: string, data: RoomEventPayload) => void;
   onSelectConversation: (conversationId: string) => void;
   onTodosChange: (todos: TodoItem[]) => void;
-  roomHostAgentId?: string | null;
+  roomHostAgentId: string | null;
   roomHostAutoReplyEnabled: boolean;
   roomId: string | null;
   roomMembers: Agent[];

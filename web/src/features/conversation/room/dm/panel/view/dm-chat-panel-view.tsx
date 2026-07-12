@@ -5,10 +5,8 @@ import {
   ConversationPanelFloatingControls,
   ConversationPanelLayout,
   ConversationPanelViewport,
-  type ConversationScrollToLatestModel,
-  type ConversationViewportModel,
 } from "@/features/conversation/shared/conversation-panel-layout";
-import type { ConversationNavigatorModel } from "@/features/conversation/shared/conversation-panel-model";
+import type { ConversationPanelFrameModel } from "@/features/conversation/shared/conversation-panel-model";
 import { ConversationFeed } from "@/features/conversation/shared/feed/conversation-feed";
 import { GoalPanel } from "@/features/conversation/shared/goal/goal-panel";
 import { ConversationSessionNavigator } from "@/features/conversation/shared/session-navigator/conversation-session-navigator";
@@ -21,16 +19,10 @@ export type DmChatComposerModel = Omit<
 type FeedModel = ComponentProps<typeof ConversationFeed>;
 type GoalPanelModel = Omit<ComponentProps<typeof GoalPanel>, "compact">;
 
-export interface DmChatPanelViewModel {
+export interface DmChatPanelViewModel extends ConversationPanelFrameModel {
   composer: DmChatComposerModel;
   feed: FeedModel;
   goalPanel: GoalPanelModel;
-  isMobileLayout: boolean;
-  navigator: ConversationNavigatorModel;
-  providerWarningVisible: boolean;
-  scrollToLatest: ConversationScrollToLatestModel;
-  sessionKey: string | null;
-  viewport: ConversationViewportModel;
 }
 
 export function DmChatPanelView({

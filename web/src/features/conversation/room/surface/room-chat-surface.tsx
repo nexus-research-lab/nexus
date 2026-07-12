@@ -19,7 +19,7 @@ interface RoomChatSurfaceProps {
   currentAgentSessionIdentity: AgentConversationIdentity | null;
   conversationId: string | null;
   initialDraft?: string | null;
-  layout?: "desktop" | "mobile";
+  layout: "desktop" | "mobile";
   onInitialDraftConsumed?: () => void;
   onConversationSnapshotChange: (snapshot: ConversationSnapshotPayload) => void;
   onCreateConversation: (title?: string) => Promise<string | null>;
@@ -27,7 +27,7 @@ interface RoomChatSurfaceProps {
   onOpenWorkspaceFile?: (path: string, workspaceAgentId?: string | null) => void;
   onRoomEvent?: (eventType: string, data: RoomEventPayload) => void;
   onTodosChange: (todos: TodoItem[]) => void;
-  roomHostAgentId?: string | null;
+  roomHostAgentId: string | null;
   roomHostAutoReplyEnabled: boolean;
   roomId: string | null;
   roomMembers: Agent[];
@@ -39,7 +39,7 @@ export function RoomChatSurface({
   currentAgentSessionIdentity: currentAgentSessionIdentity,
   conversationId: conversationId,
   initialDraft: initialDraft,
-  layout: layout = "desktop",
+  layout: layout,
   onInitialDraftConsumed: onInitialDraftConsumed,
   onConversationSnapshotChange: onConversationSnapshotChange,
   onCreateConversation: onCreateConversation,

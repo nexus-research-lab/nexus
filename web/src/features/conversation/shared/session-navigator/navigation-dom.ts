@@ -11,6 +11,13 @@ import {
 
 const SCROLL_BOUNDARY_EPSILON_PX = 2;
 
+interface VisibleRoundCandidate {
+  containsFocus: boolean;
+  distance: number;
+  roundId: string;
+  top: number;
+}
+
 function estimateRoundIndex(
   scrollElement: HTMLDivElement,
   roundIds: string[],
@@ -59,31 +66,59 @@ function findFocusedVisibleRoundId(
   const containerRect = scrollElement.getBoundingClientRect();
   const focusY =
     containerRect.top + getConversationRoundFocusOffset(scrollElement);
-  let closestRoundId: string | null = null;
-  let closestDistance = Number.POSITIVE_INFINITY;
-  let containingRoundId: string | null = null;
-  let containingTop = Number.NEGATIVE_INFINITY;
+  const candidates = elements
+    .map((element) => projectVisibleRoundCandidate(
+      element,
+      containerRect,
+      focusY,
+      roundIdSet,
+    ))
+    .filter((candidate): candidate is VisibleRoundCandidate => (
+      candidate !== null
+    ));
+  const containing = selectBestCandidate(
+    candidates.filter((candidate) => candidate.containsFocus),
+    (candidate) => candidate.top,
+  );
+  const closest = selectBestCandidate(
+    candidates,
+    (candidate) => -candidate.distance,
+  );
+  return containing?.roundId ?? closest?.roundId ?? null;
+}
 
-  for (const element of elements) {
-    const roundId = element.dataset.conversationRoundId;
-    if (!roundId || !roundIdSet.has(roundId)) {
-      continue;
-    }
-    const rect = element.getBoundingClientRect();
-    if (rect.bottom < containerRect.top || rect.top > containerRect.bottom) {
-      continue;
-    }
-    if (rect.top <= focusY && rect.bottom >= focusY && rect.top > containingTop) {
-      containingTop = rect.top;
-      containingRoundId = roundId;
-    }
-    const distance = Math.abs(rect.top - focusY);
-    if (distance < closestDistance) {
-      closestDistance = distance;
-      closestRoundId = roundId;
-    }
+function projectVisibleRoundCandidate(
+  element: HTMLElement,
+  containerRect: DOMRect,
+  focusY: number,
+  roundIdSet: Set<string>,
+): VisibleRoundCandidate | null {
+  const roundId = element.dataset.conversationRoundId;
+  if (!roundId || !roundIdSet.has(roundId)) {
+    return null;
   }
-  return containingRoundId ?? closestRoundId;
+  const rect = element.getBoundingClientRect();
+  if (rect.bottom < containerRect.top || rect.top > containerRect.bottom) {
+    return null;
+  }
+  return {
+    containsFocus: rect.top <= focusY && rect.bottom >= focusY,
+    distance: Math.abs(rect.top - focusY),
+    roundId,
+    top: rect.top,
+  };
+}
+
+function selectBestCandidate(
+  candidates: VisibleRoundCandidate[],
+  getScore: (candidate: VisibleRoundCandidate) => number,
+): VisibleRoundCandidate | null {
+  return candidates.reduce<VisibleRoundCandidate | null>(
+    (best, candidate) => (
+      !best || getScore(candidate) > getScore(best) ? candidate : best
+    ),
+    null,
+  );
 }
 
 export function resolveVisibleRoundId(

@@ -1,9 +1,8 @@
 import type { RefObject } from "react";
 
 import {
-  buildConversationNavigatorModel,
-  buildConversationScrollToLatestModel,
-  buildConversationViewportModel,
+  buildConversationPanelFrameModel,
+  type ConversationPanelEnvironment,
   type ConversationPanelSessionSource,
 } from "@/features/conversation/shared/conversation-panel-model";
 import { buildGoalActivityKey } from "@/features/conversation/shared/goal/goal-model";
@@ -43,14 +42,12 @@ interface BuildDmChatPanelViewModelOptions {
   composer: DmChatComposerModel;
   currentAgentAvatar: string | null;
   currentAgentName: string | null;
-  currentUserAvatar: string | null;
+  environment: ConversationPanelEnvironment;
   goal: DmGoalProjection;
   goalScopeLabel: string;
-  isMobileLayout: boolean;
   onEditLastUserMessage: (messageId: string, content: string) => void;
   onOpenAgentContact?: (agentId: string) => void;
   onOpenWorkspaceFile?: (path: string) => void;
-  providerWarningVisible: boolean;
   session: DmChatSession;
   workspaceAgentId: string | null;
 }
@@ -59,24 +56,22 @@ export function buildDmChatPanelViewModel({
   composer,
   currentAgentAvatar,
   currentAgentName,
-  currentUserAvatar,
+  environment,
   goal,
   goalScopeLabel,
-  isMobileLayout,
   onEditLastUserMessage,
   onOpenAgentContact,
   onOpenWorkspaceFile,
-  providerWarningVisible,
   session,
   workspaceAgentId,
 }: BuildDmChatPanelViewModelOptions): DmChatPanelViewModel {
   return {
+    ...buildConversationPanelFrameModel(session, environment),
     composer,
     feed: buildDmFeedModel({
       currentAgentAvatar,
       currentAgentName,
-      currentUserAvatar,
-      isMobileLayout,
+      environment,
       onEditLastUserMessage,
       onOpenAgentContact,
       onOpenWorkspaceFile,
@@ -84,20 +79,13 @@ export function buildDmChatPanelViewModel({
       workspaceAgentId,
     }),
     goalPanel: buildDmGoalPanelModel(goal, goalScopeLabel, session),
-    isMobileLayout,
-    navigator: buildConversationNavigatorModel(session),
-    providerWarningVisible,
-    scrollToLatest: buildConversationScrollToLatestModel(session),
-    sessionKey: session.sessionKey,
-    viewport: buildConversationViewportModel(session),
   };
 }
 
 function buildDmFeedModel({
   currentAgentAvatar,
   currentAgentName,
-  currentUserAvatar,
-  isMobileLayout,
+  environment,
   onEditLastUserMessage,
   onOpenAgentContact,
   onOpenWorkspaceFile,
@@ -107,8 +95,7 @@ function buildDmFeedModel({
   BuildDmChatPanelViewModelOptions,
   | "currentAgentAvatar"
   | "currentAgentName"
-  | "currentUserAvatar"
-  | "isMobileLayout"
+  | "environment"
   | "onEditLastUserMessage"
   | "onOpenAgentContact"
   | "onOpenWorkspaceFile"
@@ -118,7 +105,7 @@ function buildDmFeedModel({
   const { conversation, roundIndexItems, roundScrollRef, scroll, timeline } =
     session;
   return {
-    isMobileLayout,
+    isMobileLayout: environment.isMobileLayout,
     refs: {
       bottomAnchorRef: scroll.bottomAnchorRef,
       feedRef: scroll.feedRef,
@@ -128,7 +115,7 @@ function buildDmFeedModel({
     renderer: {
       currentAgentAvatar,
       currentAgentName,
-      currentUserAvatar,
+      currentUserAvatar: environment.currentUserAvatar,
       onEditLastUserMessage,
       onOpenAgentContact,
       onOpenWorkspaceFile,

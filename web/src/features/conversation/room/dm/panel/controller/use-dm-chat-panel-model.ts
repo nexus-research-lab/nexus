@@ -1,7 +1,6 @@
 import { useCallback } from "react";
 
-import { useProviderAvailability } from "@/hooks/capability/use-provider-availability";
-import { useAuth } from "@/shared/auth/auth-context";
+import { useConversationPanelEnvironment } from "@/features/conversation/shared/use-conversation-panel-environment";
 import { useI18n } from "@/shared/i18n/i18n-context";
 
 import type { DmChatPanelProps } from "../dm-chat-panel-types";
@@ -12,11 +11,11 @@ import { useDmChatSessionController } from "./use-dm-chat-session-controller";
 import { useDmGoalController } from "./use-dm-goal-controller";
 
 export function useDmChatPanelModel({
-  currentAgentAvatar = null,
-  currentAgentName = null,
-  currentAgentPermissionMode = null,
-  initialDraft = null,
-  layout = "desktop",
+  currentAgentAvatar,
+  currentAgentName,
+  currentAgentPermissionMode,
+  initialDraft,
+  layout,
   onConversationSnapshotChange,
   onInitialDraftConsumed,
   onOpenAgentContact,
@@ -26,6 +25,7 @@ export function useDmChatPanelModel({
   sessionIdentity,
 }: DmChatPanelProps): DmChatPanelViewModel {
   const { t } = useI18n();
+  const environment = useConversationPanelEnvironment(layout);
   const sessionKey = sessionIdentity?.session_key ?? null;
   const goal = useDmGoalController({
     agentName: currentAgentName,
@@ -44,7 +44,7 @@ export function useDmChatPanelModel({
     agentId: sessionIdentity?.agent_id ?? null,
     conversation: session.conversation,
     goalScopeLabel,
-    initialDraft,
+    initialDraft: initialDraft ?? null,
     onCreateGoal: goal.createGoal,
     onInitialDraftConsumed,
     scrollToBottom: session.scroll.scrollToBottom,
@@ -57,22 +57,16 @@ export function useDmChatPanelModel({
     },
     [rewriteLastUserMessage],
   );
-  const { status: authStatus } = useAuth();
-  const { hasAvailableProvider, isReady: providerReady } =
-    useProviderAvailability();
-
   return buildDmChatPanelViewModel({
     composer,
     currentAgentAvatar,
     currentAgentName,
-    currentUserAvatar: authStatus?.avatar ?? null,
+    environment,
     goal,
     goalScopeLabel,
-    isMobileLayout: layout === "mobile",
     onEditLastUserMessage: handleEditLastUserMessage,
     onOpenAgentContact,
     onOpenWorkspaceFile,
-    providerWarningVisible: providerReady && !hasAvailableProvider,
     session,
     workspaceAgentId: sessionIdentity?.agent_id ?? null,
   });

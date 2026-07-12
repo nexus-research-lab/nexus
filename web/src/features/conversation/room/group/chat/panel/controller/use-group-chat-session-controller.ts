@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo } from "react";
 import { useConversationSession } from "@/features/conversation/shared/session/use-conversation-session";
 import { useConversationTodos } from "@/features/conversation/shared/todos/use-conversation-todos";
 import {
+  buildConversationActivityPatch,
   useConversationSnapshotReporter,
   type ConversationSnapshotBuildInput,
 } from "@/features/conversation/shared/use-conversation-snapshot-reporter";
@@ -105,11 +106,8 @@ function buildRoomSnapshot(
   input: ConversationSnapshotBuildInput,
 ): RoomConversationSnapshotPayload {
   return {
+    ...buildConversationActivityPatch(input),
     conversation_id: input.scope_key,
-    ...(input.should_report_last_activity &&
-    input.latest_reply_timestamp !== null
-      ? { last_activity_at: input.latest_reply_timestamp }
-      : {}),
     session_id: input.last_message.session_id ?? null,
   };
 }

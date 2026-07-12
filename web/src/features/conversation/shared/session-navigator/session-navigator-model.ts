@@ -2,6 +2,7 @@ import { formatRelativeTime } from "@/lib/format/relative-time";
 import type {
   AssistantMessage,
   Message,
+  ResultSummary,
   UserMessage,
 } from "@/types/conversation/message/entity";
 import type { SessionRoundIndexItem } from "@/types/conversation/room";
@@ -44,6 +45,41 @@ interface NavigationItemSource {
   title: string;
 }
 
+interface UserRoundSnapshot {
+  hasUserMessage: boolean;
+  timestamp: number | null;
+  title: string;
+}
+
+interface AssistantRoundSnapshot {
+  agentIds: string[];
+  durationMs: number | null;
+  firstText: string;
+  result: string;
+  status: ResultSummary["subtype"] | null;
+  timestamp: number | null;
+}
+
+interface ResultSummarySnapshot {
+  durationMs: number | null;
+  result: string;
+  status: ResultSummary["subtype"] | null;
+  timestamp: number | null;
+}
+
+const EMPTY_USER_ROUND_SNAPSHOT: UserRoundSnapshot = {
+  hasUserMessage: false,
+  timestamp: null,
+  title: "",
+};
+
+const EMPTY_RESULT_SUMMARY_SNAPSHOT: ResultSummarySnapshot = {
+  durationMs: null,
+  result: "",
+  status: null,
+  timestamp: null,
+};
+
 const DURATION_FORMAT_RULES = [
   {
     matches: (totalSeconds: number) => totalSeconds < 60,
@@ -79,6 +115,49 @@ function isAssistantMessage(message: Message): message is AssistantMessage {
   return message.role === "assistant";
 }
 
+function projectUserRoundSnapshot(
+  message: UserMessage | undefined,
+): UserRoundSnapshot {
+  if (!message) {
+    return EMPTY_USER_ROUND_SNAPSHOT;
+  }
+  return {
+    hasUserMessage: true,
+    timestamp: message.timestamp,
+    title: message.content,
+  };
+}
+
+function projectResultSummary(
+  summary: ResultSummary | undefined,
+): ResultSummarySnapshot {
+  if (!summary) {
+    return EMPTY_RESULT_SUMMARY_SNAPSHOT;
+  }
+  return {
+    durationMs: summary.duration_ms,
+    result: summary.result ?? "",
+    status: summary.subtype,
+    timestamp: summary.timestamp ?? null,
+  };
+}
+
+function projectAssistantRoundSnapshot(
+  messages: AssistantMessage[],
+): AssistantRoundSnapshot {
+  const firstAssistant = messages[0];
+  const lastAssistant = messages.at(-1);
+  const resultSummary = projectResultSummary(lastAssistant?.result_summary);
+  return {
+    agentIds: messages.map((message) => message.agent_id),
+    durationMs: resultSummary.durationMs,
+    firstText: extractTextFromContentBlocks(firstAssistant?.content),
+    result: resultSummary.result,
+    status: resultSummary.status,
+    timestamp: firstAssistant?.timestamp ?? resultSummary.timestamp,
+  };
+}
+
 function formatDuration(durationMs: number | null | undefined): string | null {
   if (!durationMs || durationMs <= 0) {
     return null;
@@ -105,32 +184,22 @@ function resolveLoadedNavigationSource(
   messages: Message[],
   liveRoundIds: Set<string>,
 ): NavigationItemSource {
-  const userMessage = messages.find(isUserMessage);
-  const assistantMessages = messages.filter(isAssistantMessage);
-  const firstAssistant = assistantMessages[0];
-  const lastAssistant = assistantMessages[assistantMessages.length - 1];
-  const resultSummary = lastAssistant?.result_summary;
+  const user = projectUserRoundSnapshot(messages.find(isUserMessage));
+  const assistant = projectAssistantRoundSnapshot(
+    messages.filter(isAssistantMessage),
+  );
   const isLive = liveRoundIds.has(roundId);
-  const assistantText = firstAssistant
-    ? extractTextFromContentBlocks(firstAssistant.content)
-    : "";
   return {
-    agentIds: assistantMessages.map((message) => message.agent_id ?? ""),
-    durationMs: resultSummary?.duration_ms,
-    hasUserMessage: Boolean(userMessage),
+    agentIds: assistant.agentIds,
+    durationMs: assistant.durationMs,
+    hasUserMessage: user.hasUserMessage,
     isLive,
     roundId,
-    status: formatStatus(
-      resultSummary?.subtype === "error" ? "error" : null,
-      isLive,
-    ),
-    summary: resultSummary?.result ?? assistantText,
+    status: formatStatus(assistant.status, isLive),
+    summary: assistant.result || assistant.firstText,
     summaryFallback: "尚无回复内容",
-    timestamp:
-      userMessage?.timestamp ??
-      firstAssistant?.timestamp ??
-      resultSummary?.timestamp,
-    title: userMessage?.content ?? "",
+    timestamp: user.timestamp ?? assistant.timestamp,
+    title: user.title,
   };
 }
 
