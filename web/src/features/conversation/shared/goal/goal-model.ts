@@ -1,10 +1,54 @@
+import { formatTokens } from "@/lib/format/token-count";
 import type { Goal, GoalStatus } from "@/types/conversation/goal";
+import type { GoalContinuationHold } from "./goal-continuation-hold";
 
 interface GoalStatusTone {
   badge: string;
   icon: string;
   meter: string;
   text: string;
+}
+
+export type GoalStatusAction =
+  | "refresh"
+  | "edit"
+  | "pause"
+  | "resume"
+  | "clear";
+
+export interface GoalStatusStripModel {
+  actions: GoalStatusAction[];
+  attentionMessage: string | null;
+  budgetLabel: string | null;
+  isExecuting: boolean;
+  statusLabel: string;
+  statusTitle: string;
+  tone: GoalStatusTone;
+  usagePercent: number | null;
+}
+
+interface GoalStatusProjectionInput {
+  canResume: boolean;
+  continuationHold: GoalContinuationHold | null;
+  error: string | null;
+  goal: Goal;
+  isGenerating: boolean;
+}
+
+interface VisibleGoalStatus {
+  label: string;
+  status: GoalStatus;
+}
+
+interface GoalStatusOverride {
+  label: string;
+  matches: (input: GoalStatusProjectionInput) => boolean;
+  status: GoalStatus;
+}
+
+interface GoalActionRule {
+  action: GoalStatusAction;
+  visible: (input: GoalStatusProjectionInput) => boolean;
 }
 
 export const GOAL_PANEL_STRIP_CLASS_NAME =
@@ -24,7 +68,7 @@ export const GOAL_PANEL_LEADING_ICON_CLASS_NAME =
 export const GOAL_PANEL_BADGE_CLASS_NAME =
   "inline-flex shrink-0 items-center rounded-[7px] border px-1.5 py-0.5 text-[10px] font-semibold leading-none text-(--text-soft)";
 
-export const GOAL_STATUS_LABEL: Record<GoalStatus, string> = {
+const GOAL_STATUS_LABEL: Record<GoalStatus, string> = {
   active: "运行中",
   blocked: "已阻塞",
   budget_limited: "预算耗尽",
@@ -70,11 +114,36 @@ const GOAL_STATUS_TONE: Record<GoalStatus, GoalStatusTone> = {
   usage_limited: LIMITED_TONE,
 };
 
-export function goalUsageTotal(goal: Goal | null): number {
+const ACTIVE_STATUS_OVERRIDES: GoalStatusOverride[] = [
+  {
+    label: "需处理",
+    matches: ({ goal }) => Boolean(goal.last_error),
+    status: "blocked",
+  },
+  {
+    label: "待继续",
+    matches: ({ continuationHold, goal }) =>
+      continuationHold !== null || (goal.empty_progress_count ?? 0) > 0,
+    status: "paused",
+  },
+];
+
+const GOAL_ACTION_RULES: GoalActionRule[] = [
+  { action: "refresh", visible: () => true },
+  { action: "edit", visible: () => true },
+  {
+    action: "pause",
+    visible: ({ goal }) => goal.status === "active",
+  },
+  { action: "resume", visible: ({ canResume }) => canResume },
+  { action: "clear", visible: () => true },
+];
+
+function goalUsageTotal(goal: Goal | null): number {
   return goal?.usage?.total_tokens ?? 0;
 }
 
-export function goalBudgetPercent(goal: Goal | null): number | null {
+function goalBudgetPercent(goal: Goal | null): number | null {
   const budget = goal?.token_budget ?? null;
   if (!budget || budget <= 0) {
     return null;
@@ -82,8 +151,55 @@ export function goalBudgetPercent(goal: Goal | null): number | null {
   return Math.min(100, Math.round((goalUsageTotal(goal) / budget) * 100));
 }
 
-export function goalStatusTone(status: GoalStatus): GoalStatusTone {
+function goalStatusTone(status: GoalStatus): GoalStatusTone {
   return GOAL_STATUS_TONE[status];
+}
+
+export function buildGoalStatusStripModel(
+  input: GoalStatusProjectionInput,
+): GoalStatusStripModel {
+  const activeContinuationHold =
+    input.goal.status === "active" ? input.continuationHold : null;
+  const activeInput = { ...input, continuationHold: activeContinuationHold };
+  const visibleStatus = resolveVisibleGoalStatus(activeInput);
+
+  return {
+    actions: GOAL_ACTION_RULES.filter((rule) => rule.visible(activeInput)).map(
+      (rule) => rule.action,
+    ),
+    attentionMessage: input.error ?? input.goal.last_error ?? null,
+    budgetLabel: buildGoalBudgetLabel(input.goal),
+    isExecuting: input.isGenerating && input.goal.status === "active",
+    statusLabel: visibleStatus.label,
+    statusTitle: activeContinuationHold?.detail ?? visibleStatus.label,
+    tone: goalStatusTone(visibleStatus.status),
+    usagePercent: goalBudgetPercent(input.goal),
+  };
+}
+
+function resolveVisibleGoalStatus(
+  input: GoalStatusProjectionInput,
+): VisibleGoalStatus {
+  const override = isIdleActiveGoal(input)
+    ? ACTIVE_STATUS_OVERRIDES.find((candidate) => candidate.matches(input))
+    : null;
+  return {
+    label: override?.label ?? GOAL_STATUS_LABEL[input.goal.status],
+    status: override?.status ?? input.goal.status,
+  };
+}
+
+function isIdleActiveGoal(input: GoalStatusProjectionInput): boolean {
+  return input.goal.status === "active" && !input.isGenerating;
+}
+
+function buildGoalBudgetLabel(goal: Goal): string | null {
+  const usageTotal = goalUsageTotal(goal);
+  const budget = goal.token_budget ?? null;
+  if (budget && budget > 0) {
+    return `${formatTokens(usageTotal)} / ${formatTokens(budget)}`;
+  }
+  return usageTotal > 0 ? formatTokens(usageTotal) : null;
 }
 
 export function buildGoalActivityKey(

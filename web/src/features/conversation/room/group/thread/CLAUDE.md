@@ -4,7 +4,7 @@
 
 - `group-thread-state.ts` 与 `group-thread-context.tsx` 只维护当前 Thread 目标和开关命令。
 - `live/` 独占实时会话切片、纯面板投影与生产消费 Hook。
-- `group-round-card-model.ts` 一次完成用户消息、Agent 身份、权限和完成状态投影。
+- `group-round-card-model.ts` 一次完成用户消息、Agent 身份、权限和完成状态投影；状态摘要来源与色调由完整规则表定义。
 - `group-round-card-group.tsx` 只编排主时间线卡片，完成回复和 Thread 动作使用独立视图。
 - `group-agent-status-card.tsx` 只渲染进行中 Agent 状态，不重复筛选轮次数据。
 
@@ -14,3 +14,4 @@
 - 实时 Store 属于 Thread 私有实现，不从全局 `store/` 暴露协议。
 - 桌面与移动端只消费同一个面板模型，不重复补全 Agent 身份或动作能力。
 - Thread 开关按钮和展示文案只保留一个实现，状态卡片不得复制样式或字符串。
+- 等待权限是摘要覆盖态；取消和错误优先结果文本，其余状态优先消息预览。

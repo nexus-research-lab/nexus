@@ -15,6 +15,12 @@ interface UiChoiceStyleOptions {
   variant?: UiChoiceVariant;
 }
 
+type ResolvedUiChoiceStyleOptions = Required<UiChoiceStyleOptions>;
+type ChoiceClassList = Array<string | false>;
+type ChoiceVariantClassResolver = (
+  options: ResolvedUiChoiceStyleOptions,
+) => ChoiceClassList;
+
 const CHOICE_BASE_CLASS_NAME =
   "inline-flex items-center justify-center gap-1.5 border font-semibold transition-[background,border-color,color,box-shadow] duration-(--motion-duration-fast) disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_24%,transparent)]";
 
@@ -62,45 +68,77 @@ const CALENDAR_CHOICE_ACTIVE_CLASS_NAME =
 const CALENDAR_CHOICE_INACTIVE_CLASS_NAME =
   "border-transparent bg-transparent text-(--text-default) hover:bg-(--surface-interactive-hover-background)";
 
+const CHOICE_VARIANT_CLASS_RESOLVER: Record<
+  UiChoiceVariant,
+  ChoiceVariantClassResolver
+> = {
+  calendar: resolveCalendarChoiceClasses,
+  picker: resolvePickerChoiceClasses,
+  surface: resolveSurfaceChoiceClasses,
+};
+
 export function getUiChoiceClassName(
-  options: UiChoiceStyleOptions = {},
+  options: UiChoiceStyleOptions,
   className?: string,
 ): string {
-  const {
-    active = false,
-    disabled = false,
-    muted = false,
-    shape = "rounded",
-    size = "md",
-    tone = "primary",
-    variant = "surface",
-  } = options;
+  const resolved = resolveChoiceStyleOptions(options);
+  return cn(...CHOICE_VARIANT_CLASS_RESOLVER[resolved.variant](resolved), className);
+}
 
-  if (variant === "picker") {
-    return cn(
-      PICKER_CHOICE_BASE_CLASS_NAME,
-      active ? PICKER_CHOICE_ACTIVE_CLASS_NAME : PICKER_CHOICE_INACTIVE_CLASS_NAME,
-      disabled && "pointer-events-none",
-      className,
-    );
-  }
+function resolveChoiceStyleOptions(
+  options: UiChoiceStyleOptions,
+): ResolvedUiChoiceStyleOptions {
+  return {
+    active: optionOrDefault(options.active, false),
+    disabled: optionOrDefault(options.disabled, false),
+    muted: optionOrDefault(options.muted, false),
+    shape: optionOrDefault(options.shape, "rounded"),
+    size: optionOrDefault(options.size, "md"),
+    tone: optionOrDefault(options.tone, "primary"),
+    variant: optionOrDefault(options.variant, "surface"),
+  };
+}
 
-  if (variant === "calendar") {
-    return cn(
-      CALENDAR_CHOICE_BASE_CLASS_NAME,
-      active ? CALENDAR_CHOICE_ACTIVE_CLASS_NAME : CALENDAR_CHOICE_INACTIVE_CLASS_NAME,
-      muted && !active && "text-(--text-soft)",
-      disabled && "pointer-events-none text-(--text-soft)",
-      className,
-    );
-  }
-
-  return cn(
+function resolveSurfaceChoiceClasses({
+  active,
+  disabled,
+  shape,
+  size,
+  tone,
+}: ResolvedUiChoiceStyleOptions): ChoiceClassList {
+  return [
     CHOICE_BASE_CLASS_NAME,
     SURFACE_CHOICE_SIZE_CLASS_MAP[size],
     shape === "pill" ? "rounded-full" : SURFACE_CHOICE_ROUNDED_CLASS_MAP[size],
     active ? CHOICE_ACTIVE_CLASS_MAP[tone] : CHOICE_INACTIVE_CLASS_NAME,
     disabled && "pointer-events-none",
-    className,
-  );
+  ];
+}
+
+function resolvePickerChoiceClasses({
+  active,
+  disabled,
+}: ResolvedUiChoiceStyleOptions): ChoiceClassList {
+  return [
+    PICKER_CHOICE_BASE_CLASS_NAME,
+    active ? PICKER_CHOICE_ACTIVE_CLASS_NAME : PICKER_CHOICE_INACTIVE_CLASS_NAME,
+    disabled && "pointer-events-none",
+  ];
+}
+
+function resolveCalendarChoiceClasses({
+  active,
+  disabled,
+  muted,
+}: ResolvedUiChoiceStyleOptions): ChoiceClassList {
+  return [
+    CALENDAR_CHOICE_BASE_CLASS_NAME,
+    active ? CALENDAR_CHOICE_ACTIVE_CLASS_NAME : CALENDAR_CHOICE_INACTIVE_CLASS_NAME,
+    muted && !active && "text-(--text-soft)",
+    disabled && "pointer-events-none text-(--text-soft)",
+  ];
+}
+
+function optionOrDefault<T>(value: T | undefined, fallback: T): T {
+  return value === undefined ? fallback : value;
 }

@@ -1,20 +1,25 @@
 "use client";
 
-import { ArrowLeft, Bot, X } from "lucide-react";
 import { type ReactNode, useMemo } from "react";
 
-import { MessageItem } from "@/features/conversation/shared/message/item/message-item";
-import { MessageAvatar } from "@/features/conversation/shared/message/ui/message-avatar";
-import { ScrollToLatestButton } from "@/features/conversation/shared/scroll-to-latest-button";
+import { buildConversationScrollContentKey } from "@/features/conversation/shared/timeline/scroll/follow-scroll-model";
 import { useFollowScroll } from "@/features/conversation/shared/timeline/scroll/use-follow-scroll";
-import {
-  buildConversationScrollContentKey,
-} from "@/features/conversation/shared/timeline/scroll/follow-scroll-model";
-import { cn } from "@/shared/ui/class-name";
+import type {
+  PendingPermission,
+  PermissionDecisionPayload,
+} from "@/types/conversation/interaction/permission";
 import type { Message } from "@/types/conversation/message/entity";
-import type { PendingPermission, PermissionDecisionPayload } from "@/types/conversation/interaction/permission";
 
-import type { ConversationThreadRound } from "./conversation-thread-model";
+import {
+  buildConversationThreadModel,
+  type ConversationThreadLayout,
+  type ConversationThreadNavigation,
+  type ConversationThreadRound,
+} from "./conversation-thread-model";
+import {
+  ConversationThreadView,
+  type ConversationThreadMessageContext,
+} from "./conversation-thread-view";
 
 interface ConversationThreadPanelProps {
   roundId: string;
@@ -33,9 +38,9 @@ interface ConversationThreadPanelProps {
   onOpenWorkspaceFile?: (path: string) => void;
   isLoading?: boolean;
   /** mobile 模式下使用全屏样式。 */
-  layout?: "desktop" | "mobile";
+  layout?: ConversationThreadLayout;
   /** 默认按布局选择返回或关闭，也可由复用方显式指定。 */
-  navigation?: "auto" | "back" | "close";
+  navigation?: ConversationThreadNavigation;
   /** 覆盖默认头像，用于没有持久化头像的稳定视觉身份。 */
   headerAvatar?: ReactNode;
   /** undefined 使用 Thread，null 隐藏副标题。 */
@@ -48,9 +53,10 @@ interface ConversationThreadPanelProps {
   workspaceAgentId?: string | null;
 }
 
+const EMPTY_PENDING_PERMISSIONS: PendingPermission[] = [];
+
 /**
- * Thread 详情面板：群聊回复与子智能体都复用同一个完整过程渲染器。
- * 上游只负责提供消息轮次和能力动作，这里统一处理思考、工具、文件与滚动状态。
+ * Thread 面板只编排共享消息轨道；会话来源负责提供已过滤数据和领域动作。
  */
 export function ConversationThreadPanel({
   roundId,
@@ -60,14 +66,14 @@ export function ConversationThreadPanel({
   userAvatar,
   messages,
   rounds,
-  pendingPermissions = [],
+  pendingPermissions,
   onPermissionResponse,
   onClose,
   onStopMessage,
   onOpenWorkspaceFile,
-  isLoading = false,
-  layout = "desktop",
-  navigation = "auto",
+  isLoading,
+  layout,
+  navigation,
   headerAvatar,
   headerSubtitle,
   headerAction,
@@ -77,149 +83,96 @@ export function ConversationThreadPanel({
   sessionKey,
   workspaceAgentId,
 }: ConversationThreadPanelProps) {
-  const isMobile = layout === "mobile";
-  const resolvedRounds = useMemo<ConversationThreadRound[]>(
-    () => rounds ?? [{ roundId, messages }],
-    [messages, roundId, rounds],
+  const resolvedAgentAvatar = valueOrDefault(agentAvatar, null);
+  const resolvedUserAvatar = valueOrDefault(userAvatar, null);
+  const resolvedPendingPermissions = valueOrDefault(
+    pendingPermissions,
+    EMPTY_PENDING_PERMISSIONS,
   );
-  const allMessages = useMemo(
-    () => resolvedRounds.flatMap((round) => round.messages),
-    [resolvedRounds],
-  );
-  const threadSessionKey = useMemo(
-    () => sessionKey ?? `${roundId}:${agentId}`,
-    [agentId, roundId, sessionKey],
+  const resolvedIsLoading = valueOrDefault(isLoading, false);
+  const resolvedLayout = valueOrDefault(layout, "desktop");
+  const resolvedNavigation = valueOrDefault(navigation, "auto");
+  const model = useMemo(
+    () =>
+      buildConversationThreadModel({
+        agentId,
+        isLoading: resolvedIsLoading,
+        layout: resolvedLayout,
+        messages,
+        navigation: resolvedNavigation,
+        pendingPermissions: resolvedPendingPermissions,
+        roundId,
+        rounds,
+        sessionKey,
+        workspaceAgentId,
+      }),
+    [
+      agentId,
+      messages,
+      resolvedIsLoading,
+      resolvedLayout,
+      resolvedNavigation,
+      resolvedPendingPermissions,
+      roundId,
+      rounds,
+      sessionKey,
+      workspaceAgentId,
+    ],
   );
   const scrollContentKey = useMemo(
-    () => buildConversationScrollContentKey(threadSessionKey, allMessages),
-    [allMessages, threadSessionKey],
+    () => buildConversationScrollContentKey(model.sessionKey, model.allMessages),
+    [model.allMessages, model.sessionKey],
   );
-  const {
-    scrollRef,
-    feedRef,
-    bottomAnchorRef,
-    onScroll,
-    onTouchEnd,
-    onTouchMove,
-    onTouchStart,
-    onWheel,
-    showScrollToBottom,
-    scrollToBottom,
-  } = useFollowScroll({
-    // Thread 和 DM 实时态一样，需要在过程消息、权限确认和 loading 变化时持续跟随到底部。
-    messageCount: allMessages.length,
-    auxiliaryBlockCount: pendingPermissions.length,
+  const followScroll = useFollowScroll({
+    // Thread 和 DM 共享实时跟随语义，权限确认也必须纳入内容高度变化。
+    messageCount: model.allMessages.length,
+    auxiliaryBlockCount: resolvedPendingPermissions.length,
     contentKey: scrollContentKey,
-    isLoading,
-    sessionKey: threadSessionKey,
+    isLoading: resolvedIsLoading,
+    sessionKey: model.sessionKey,
   });
-  const showBack = navigation === "back" || (navigation === "auto" && isMobile);
-  const showClose = navigation === "close" || (navigation === "auto" && !isMobile);
-  const subtitle = headerSubtitle === undefined ? "Thread" : headerSubtitle;
+  const messageContext: ConversationThreadMessageContext = {
+    agentAvatar: resolvedAgentAvatar,
+    agentName,
+    onOpenWorkspaceFile,
+    onPermissionResponse,
+    onStopMessage,
+    userAvatar: resolvedUserAvatar,
+    workspaceAgentId: model.workspaceAgentId,
+  };
 
   return (
-    <div
-      className={cn(
-        "relative flex h-full min-w-0 w-full flex-1 flex-col overflow-hidden",
-        isMobile ? "bg-(--surface-panel-background)" : "bg-transparent",
-      )}
-    >
-      <header className="flex shrink-0 items-center gap-2 border-b border-(--divider-subtle-color) px-3 py-3">
-        {showBack ? (
-          <button
-            aria-label="返回"
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-(--icon-default) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)"
-            onClick={onClose}
-            title="返回"
-            type="button"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </button>
-        ) : null}
-
-        {headerAvatar ?? (
-          <MessageAvatar
-            avatarUrl={agentAvatar}
-            className="h-8 w-8 shrink-0 rounded-xl"
-            size="full"
-          >
-            {!agentAvatar && <Bot className="h-3.5 w-3.5" />}
-          </MessageAvatar>
-        )}
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-(--text-strong)">
-            {agentName}
-          </p>
-          {subtitle ? <div className="text-xs text-(--text-soft)">{subtitle}</div> : null}
-        </div>
-
-        {headerAction}
-        {showClose ? (
-          <button
-            aria-label="关闭 Thread"
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-(--icon-default) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)"
-            onClick={onClose}
-            title="关闭 Thread"
-            type="button"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        ) : null}
-      </header>
-
-      {notice}
-
-      <div
-        className="soft-scrollbar min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 py-3"
-        onScroll={onScroll}
-        onTouchEnd={onTouchEnd}
-        onTouchMove={onTouchMove}
-        onTouchStart={onTouchStart}
-        onWheel={onWheel}
-        ref={scrollRef}
-      >
-        <div ref={feedRef}>
-          {resolvedRounds.length === 0 ? emptyContent : resolvedRounds.map((round, index) => {
-            const isLastRound = index === resolvedRounds.length - 1;
-            return (
-              <MessageItem
-                assistantContentMode="room_thread"
-                className={cn(
-                  "max-w-full overflow-x-hidden",
-                  !isLastRound && "border-b border-(--divider-subtle-color)",
-                )}
-                compact
-                currentAgentAvatar={agentAvatar ?? null}
-                currentAgentName={agentName}
-                currentUserAvatar={userAvatar ?? null}
-                defaultProcessExpanded
-                isLastRound={isLastRound}
-                isLoading={isLastRound && isLoading}
-                key={round.roundId}
-                messages={round.messages}
-                onOpenWorkspaceFile={onOpenWorkspaceFile}
-                onPermissionResponse={onPermissionResponse}
-                onStopMessage={onStopMessage}
-                pendingPermissions={isLastRound ? pendingPermissions : []}
-                roundId={round.roundId}
-                workspaceAgentId={workspaceAgentId ?? agentId}
-              />
-            );
-          })}
-          <div className="h-px w-full" ref={bottomAnchorRef} />
-        </div>
-      </div>
-
-      {showScrollToBottom ? (
-        <ScrollToLatestButton
-          isLoading={isLoading}
-          isMobileLayout={isMobile}
-          onClick={() => scrollToBottom("smooth")}
-          placement="panel"
-        />
-      ) : null}
-
-      {footer}
-    </div>
+    <ConversationThreadView
+      agentAvatar={resolvedAgentAvatar}
+      agentName={agentName}
+      bottomAnchorRef={followScroll.bottomAnchorRef}
+      emptyContent={valueOrDefault(emptyContent, null)}
+      feedRef={followScroll.feedRef}
+      footer={footer}
+      headerAction={headerAction}
+      headerAvatar={headerAvatar}
+      isLoading={resolvedIsLoading}
+      messageContext={messageContext}
+      model={model}
+      notice={notice}
+      onClose={onClose}
+      onScroll={followScroll.onScroll}
+      onScrollToLatest={() => followScroll.scrollToBottom("smooth")}
+      onTouchEnd={followScroll.onTouchEnd}
+      onTouchMove={followScroll.onTouchMove}
+      onTouchStart={followScroll.onTouchStart}
+      onWheel={followScroll.onWheel}
+      scrollRef={followScroll.scrollRef}
+      showScrollToLatest={followScroll.showScrollToBottom}
+      subtitle={resolveThreadSubtitle(headerSubtitle)}
+    />
   );
+}
+
+function valueOrDefault<T>(value: T | undefined, fallback: T): T {
+  return value === undefined ? fallback : value;
+}
+
+function resolveThreadSubtitle(subtitle: ReactNode | undefined): ReactNode {
+  return subtitle === undefined ? "Thread" : subtitle;
 }

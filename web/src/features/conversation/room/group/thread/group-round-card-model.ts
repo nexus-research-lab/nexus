@@ -37,7 +37,7 @@ export type AgentStatusSummaryTone =
   | "stopped"
   | "waiting";
 
-export interface GroupAgentStatusLabels {
+interface GroupAgentStatusLabels {
   failed: string;
   preparing: string;
   replying: string;
@@ -58,6 +58,34 @@ export interface GroupAgentStatusModel {
   timestamp: number;
 }
 
+interface BuildGroupAgentStatusModelOptions {
+  labels: GroupAgentStatusLabels;
+  messages: AssistantMessage[];
+  pendingPermissions: PendingPermission[];
+  pendingSlot?: RoomPendingAgentSlotState;
+  resultSummary?: ResultSummary;
+  status: AgentRoundStatus;
+}
+
+type GroupAgentStatusLabelKey = Exclude<
+  keyof GroupAgentStatusLabels,
+  "waitingPermission"
+>;
+type AgentSummarySource = "fallback" | "preview" | "result";
+
+interface AgentStatusPresentationRule {
+  fallbackLabel: GroupAgentStatusLabelKey | null;
+  renderPreview: boolean;
+  summaryOrder: AgentSummarySource[];
+  tone: AgentStatusSummaryTone;
+}
+
+interface AgentStatusSummaryModel {
+  shouldRenderMarkdown: boolean;
+  text: string;
+  tone: AgentStatusSummaryTone;
+}
+
 interface BuildGroupRoundCardModelOptions {
   agentAvatarMap?: Record<string, string | null>;
   agentNameMap?: Record<string, string>;
@@ -65,6 +93,42 @@ interface BuildGroupRoundCardModelOptions {
   pendingPermissions: PendingPermission[];
   pendingSlots: RoomPendingAgentSlotState[];
 }
+
+const AGENT_STATUS_PRESENTATION: Record<
+  AgentRoundStatus,
+  AgentStatusPresentationRule
+> = {
+  cancelled: {
+    fallbackLabel: "stopped",
+    renderPreview: false,
+    summaryOrder: ["result", "fallback"],
+    tone: "stopped",
+  },
+  done: {
+    fallbackLabel: null,
+    renderPreview: true,
+    summaryOrder: ["preview", "fallback"],
+    tone: "default",
+  },
+  error: {
+    fallbackLabel: "failed",
+    renderPreview: false,
+    summaryOrder: ["result", "fallback"],
+    tone: "error",
+  },
+  pending: {
+    fallbackLabel: "preparing",
+    renderPreview: true,
+    summaryOrder: ["preview", "fallback"],
+    tone: "default",
+  },
+  streaming: {
+    fallbackLabel: "replying",
+    renderPreview: true,
+    summaryOrder: ["preview", "fallback"],
+    tone: "default",
+  },
+};
 
 export function buildGroupRoundCardModel({
   agentAvatarMap,
@@ -93,7 +157,7 @@ export function buildGroupRoundCardModel({
     completedEntries,
     pendingEntries,
     userMessage,
-    userWorkspaceAgentId: userMessage?.attachments?.[0]?.workspace_agent_id ?? null,
+    userWorkspaceAgentId: resolveUserWorkspaceAgentId(userMessage),
   };
 }
 
@@ -104,98 +168,144 @@ export function buildGroupAgentStatusModel({
   pendingSlot,
   resultSummary,
   status,
-}: {
-  labels: GroupAgentStatusLabels;
-  messages: AssistantMessage[];
-  pendingPermissions: PendingPermission[];
-  pendingSlot?: RoomPendingAgentSlotState;
-  resultSummary?: ResultSummary;
-  status: AgentRoundStatus;
-}): GroupAgentStatusModel {
+}: BuildGroupAgentStatusModelOptions): GroupAgentStatusModel {
   const preview = extractAgentPreviewText(messages);
-  const primaryPendingPermission = pendingPermissions[0];
   const isActive = isAgentRoundActive(status);
-  const isWaitingPermission = pendingPermissions.length > 0 && isActive;
-  const isQuestionPending = Boolean(
-    primaryPendingPermission
-    && (
-      primaryPendingPermission.interaction_mode === "question"
-      || primaryPendingPermission.tool_name === ASK_USER_QUESTION_TOOL_NAME
-    ),
-  );
+  const permission = buildAgentPermissionState(pendingPermissions, isActive);
   const lastMessage = messages[messages.length - 1];
-  const statusFallbacks: Partial<Record<AgentRoundStatus, string>> = {
-    cancelled: labels.stopped,
-    error: labels.failed,
-    pending: labels.preparing,
-    streaming: labels.replying,
-  };
+  const presentation = AGENT_STATUS_PRESENTATION[status];
+  const summary = buildAgentStatusSummary({
+    labels,
+    permission,
+    presentation,
+    preview,
+    resultText: resultSummaryText(resultSummary),
+  });
 
   return {
     isActive,
-    isQuestionPending,
-    isWaitingPermission,
-    model: lastMessage?.model ?? null,
+    isQuestionPending: permission.isQuestionPending,
+    isWaitingPermission: permission.isWaiting,
+    model: lastMessageModel(lastMessage),
     preview,
-    primaryPendingPermission,
-    shouldRenderMarkdownSummary: Boolean(
-      preview
-      && !isWaitingPermission
-      && status !== "cancelled"
-      && status !== "error",
-    ),
-    summaryText: resolveSummaryText({
-      isWaitingPermission,
-      permissionSummary: primaryPendingPermission?.summary,
-      preview,
-      resultText: resultSummary?.result,
-      status,
-      statusFallbacks,
-      waitingPermissionText: labels.waitingPermission,
-    }),
-    summaryTone: isWaitingPermission
-      ? "waiting"
-      : (SUMMARY_TONE_BY_STATUS[status] ?? "default"),
-    timestamp:
-      lastMessage?.timestamp
-      ?? resultSummary?.timestamp
-      ?? pendingSlot?.timestamp
-      ?? 0,
+    primaryPendingPermission: permission.primary,
+    shouldRenderMarkdownSummary: summary.shouldRenderMarkdown,
+    summaryText: summary.text,
+    summaryTone: summary.tone,
+    timestamp: resolveAgentTimestamp(lastMessage, resultSummary, pendingSlot),
   };
 }
 
-const SUMMARY_TONE_BY_STATUS: Partial<
-  Record<AgentRoundStatus, AgentStatusSummaryTone>
-> = {
-  cancelled: "stopped",
-  error: "error",
-};
+interface AgentPermissionState {
+  isQuestionPending: boolean;
+  isWaiting: boolean;
+  primary?: PendingPermission;
+}
 
-function resolveSummaryText({
-  isWaitingPermission,
-  permissionSummary,
+function buildAgentPermissionState(
+  pendingPermissions: PendingPermission[],
+  isActive: boolean,
+): AgentPermissionState {
+  const primary = pendingPermissions[0];
+  return {
+    isQuestionPending: Boolean(
+      primary &&
+        (primary.interaction_mode === "question" ||
+          primary.tool_name === ASK_USER_QUESTION_TOOL_NAME),
+    ),
+    isWaiting: primary !== undefined && isActive,
+    primary,
+  };
+}
+
+function buildAgentSummaryText({
+  fallbackText,
+  labels,
+  permission,
+  presentation,
   preview,
   resultText,
-  status,
-  statusFallbacks,
-  waitingPermissionText,
 }: {
-  isWaitingPermission: boolean;
-  permissionSummary?: string;
+  fallbackText: string;
+  labels: GroupAgentStatusLabels;
+  permission: AgentPermissionState;
+  presentation: AgentStatusPresentationRule;
   preview: string;
   resultText?: string;
-  status: AgentRoundStatus;
-  statusFallbacks: Partial<Record<AgentRoundStatus, string>>;
-  waitingPermissionText: string;
 }): string {
-  if (isWaitingPermission) {
-    return permissionSummary || waitingPermissionText;
+  if (permission.isWaiting) {
+    return permission.primary?.summary || labels.waitingPermission;
   }
-  const normalizedResult = resultText?.trim() ?? "";
-  if (status === "cancelled" || status === "error") {
-    return normalizedResult || statusFallbacks[status] || "";
-  }
-  return preview || statusFallbacks[status] || "";
+  const sources: Record<AgentSummarySource, string> = {
+    fallback: fallbackText,
+    preview,
+    result: resultText?.trim() ?? "",
+  };
+  return (
+    presentation.summaryOrder
+      .map((source) => sources[source])
+      .find(Boolean) ?? ""
+  );
+}
+
+function buildAgentStatusSummary({
+  labels,
+  permission,
+  presentation,
+  preview,
+  resultText,
+}: {
+  labels: GroupAgentStatusLabels;
+  permission: AgentPermissionState;
+  presentation: AgentStatusPresentationRule;
+  preview: string;
+  resultText?: string;
+}): AgentStatusSummaryModel {
+  return {
+    shouldRenderMarkdown: Boolean(
+      preview && !permission.isWaiting && presentation.renderPreview,
+    ),
+    text: buildAgentSummaryText({
+      fallbackText: statusFallbackText(labels, presentation.fallbackLabel),
+      labels,
+      permission,
+      presentation,
+      preview,
+      resultText,
+    }),
+    tone: permission.isWaiting ? "waiting" : presentation.tone,
+  };
+}
+
+function statusFallbackText(
+  labels: GroupAgentStatusLabels,
+  labelKey: GroupAgentStatusLabelKey | null,
+): string {
+  return labelKey ? labels[labelKey] : "";
+}
+
+function lastMessageModel(message?: AssistantMessage): string | null {
+  return message?.model ?? null;
+}
+
+function resultSummaryText(summary?: ResultSummary): string | undefined {
+  return summary?.result;
+}
+
+function resolveAgentTimestamp(
+  lastMessage?: AssistantMessage,
+  resultSummary?: ResultSummary,
+  pendingSlot?: RoomPendingAgentSlotState,
+): number {
+  return firstDefinedNumber([
+    lastMessage?.timestamp,
+    resultSummary?.timestamp,
+    pendingSlot?.timestamp,
+  ]);
+}
+
+function firstDefinedNumber(values: Array<number | undefined>): number {
+  return values.find((value) => value !== undefined) ?? 0;
 }
 
 function buildAgentCard(
@@ -206,14 +316,38 @@ function buildAgentCard(
 ): GroupRoundAgentCardModel {
   return {
     ...entry,
-    agentAvatar: agentAvatarMap?.[entry.agent_id] ?? null,
-    agentName: agentNameMap?.[entry.agent_id] ?? entry.agent_id,
+    agentAvatar: resolveAgentAvatar(agentAvatarMap, entry.agent_id),
+    agentName: resolveAgentName(agentNameMap, entry.agent_id),
     pendingPermissions: permissionGroups.get(entry.agent_id) ?? [],
-    stopMessageId:
-      entry.pending_slot && isAgentRoundActive(entry.status)
-        ? entry.pending_slot.agent_round_id
-        : null,
+    stopMessageId: resolveStopMessageId(entry),
   };
+}
+
+function resolveAgentAvatar(
+  avatarMap: Record<string, string | null> | undefined,
+  agentId: string,
+): string | null {
+  return avatarMap?.[agentId] ?? null;
+}
+
+function resolveAgentName(
+  nameMap: Record<string, string> | undefined,
+  agentId: string,
+): string {
+  return nameMap?.[agentId] ?? agentId;
+}
+
+function resolveStopMessageId(entry: RoomAgentRoundEntry): string | null {
+  if (!entry.pending_slot || !isAgentRoundActive(entry.status)) {
+    return null;
+  }
+  return entry.pending_slot.agent_round_id;
+}
+
+function resolveUserWorkspaceAgentId(
+  userMessage: UserMessage | null,
+): string | null {
+  return userMessage?.attachments?.[0]?.workspace_agent_id ?? null;
 }
 
 function buildPermissionGroups(
