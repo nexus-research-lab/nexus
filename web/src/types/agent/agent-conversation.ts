@@ -21,7 +21,10 @@ export type AgentConversationRuntimePhase =
   | 'sending'
   | 'running'
   | 'streaming'
+  | 'compacting'
   | 'awaiting_permission';
+
+export type AgentConversationRuntimeStatus = 'compacting' | null;
 
 /** Room Agent 尚未落成消息的运行态占位，不属于持久化消息协议。 */
 export interface RoomPendingAgentSlotState {

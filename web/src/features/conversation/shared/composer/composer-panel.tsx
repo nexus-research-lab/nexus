@@ -111,14 +111,12 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
           activeError={state.activeError}
           canCreateGoal={state.canCreateGoal}
           canUseLoop={state.canUseLoop}
-          canStopGeneration={state.canStopGeneration}
           charCount={state.charCount}
           goalModeExtra={props.goalModeExtra ?? null}
           goalScopeLabel={props.goalScopeLabel}
           historyIndex={state.historyIndex}
           inputHistoryLength={state.inputHistoryLength}
           isActionMenuOpen={state.isActionMenuOpen}
-          isDispatching={state.isDispatching}
           isGoalCreating={state.isGoalCreating}
           isGoalMode={state.isGoalMode}
           isNearLimit={state.isNearLimit}
@@ -133,6 +131,7 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
           onCancelGoal={actions.cancelGoalInput}
           onGoalToggle={actions.toggleGoalInput}
           onLoopSelect={actions.openLoopPicker}
+          runtimeActivity={state.runtimeActivity}
         />
       </div>
     </section>

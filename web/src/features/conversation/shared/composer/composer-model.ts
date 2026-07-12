@@ -45,6 +45,11 @@ export interface ComposerPanelProps {
 }
 
 export type ComposerInputMode = "message" | "goal";
+export type ComposerRuntimeActivity =
+  | "sending"
+  | "compacting"
+  | "replying"
+  | null;
 
 export type ComposerNativeKeyboardEvent = globalThis.KeyboardEvent & {
   keyCode?: number;

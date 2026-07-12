@@ -12,7 +12,10 @@ import type {
 } from "@/types/conversation/message/entity";
 import type { ChatAckData } from "@/types/conversation/message/event";
 import type { RoundLifecycleStatus } from "@/types/conversation/message/event";
-import type { AgentConversationChatType } from "@/types/agent/agent-conversation";
+import type {
+  AgentConversationChatType,
+  AgentConversationRuntimeStatus,
+} from "@/types/agent/agent-conversation";
 
 import { AgentConversationRuntimeMachine } from "../model/agent-conversation-runtime-machine";
 
@@ -59,6 +62,12 @@ export function useConversationRuntimeMachine(
   const setPendingPermissionCount = useCallback(
     (count: number): void => {
       transition((machine) => machine.setPendingPermissionCount(count));
+    },
+    [transition],
+  );
+  const setRuntimeStatus = useCallback(
+    (status: AgentConversationRuntimeStatus): void => {
+      transition((machine) => machine.setRuntimeStatus(status));
     },
     [transition],
   );
@@ -113,6 +122,7 @@ export function useConversationRuntimeMachine(
     reconcileFromSnapshot,
     reset,
     setPendingPermissionCount,
+    setRuntimeStatus,
     snapshot,
     syncRunningRounds,
     trackAssistantMessage,

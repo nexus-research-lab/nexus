@@ -71,7 +71,6 @@ export function buildComposerViewState(
   return {
     activeError: modeState.activeError,
     canCreateGoal: options.canCreateGoal,
-    canStopGeneration: runtimeState.canStopGeneration,
     canUseLoop: options.canUseLoop,
     charCount: inputState.charCount,
     composerInputRowPaddingClass: getComposerInputRowPaddingClass(
@@ -84,7 +83,6 @@ export function buildComposerViewState(
     inputHistoryLength: options.historyItemCount,
     inlineEnterLabel: modeState.enterLabel,
     isActionMenuOpen: options.isActionMenuOpen,
-    isDispatching: runtimeState.isDispatching,
     isGoalCreating: options.isGoalCreating,
     isGoalMode: modeState.isGoalMode,
     isLoopPickerOpen: options.isLoopPickerOpen,
@@ -94,6 +92,7 @@ export function buildComposerViewState(
     isSendDisabled: actionState.isSendDisabled,
     isTextareaLocked: actionState.isTextareaLocked,
     resolvedPlaceholder: modeState.placeholder,
+    runtimeActivity: runtimeState.activity,
     sendButtonLabel: modeState.sendButtonLabel,
     shouldShowInlineShortcuts: actionState.shouldShowInlineShortcuts,
     shouldShowStopButton: actionState.shouldShowStopButton,

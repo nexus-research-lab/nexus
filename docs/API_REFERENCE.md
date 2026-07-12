@@ -530,11 +530,12 @@ task 的控制请求由 task item 的 `host_agent_id` 路由到实际承载该 s
 - `pong` — 心跳响应。
 - `chat_ack` — 消息发送确认（含 `session_key`、`req_id`、`round_id`、空 `items[]` 表示失败）。
 - `round_status` — 轮次状态变更（`running` / `completed` / `error` 等）。
+- `runtime_status` — Runtime 瞬时阶段；`status: "compacting"` 表示正在压缩上下文，`status: null` 清除该阶段。
 - `gateway_error` — 网关错误（`error_type` 含 `chat_error` / `interrupt_error` / `input_queue_error` / `not_implemented` / `unknown_message_type` / `permission_request_not_found` 等）。
 - Room / Workspace / App Event 订阅渠道推送的实时事件（房间消息、工作区文件变更、应用级事件）。
 - Goal 事件广播（经 `goal_event_broadcaster` 推送到 `goalRPCSubs`）。
 
-事件模型在 `internal/protocol/model_event.go` 定义，前端类型见 `web/src/types/generated/protocol.ts`（由 `tools/protocol-tsgen` 生成）。
+事件模型在 `internal/protocol/event.go` 定义，前端类型见 `web/src/types/generated/protocol.ts`（由 `tools/protocol-tsgen` 生成）。
 
 ---
 

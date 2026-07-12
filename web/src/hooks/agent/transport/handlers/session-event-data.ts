@@ -11,6 +11,7 @@ import {
 import type {
   InputQueueEventPayload,
   InputQueueItem,
+  AgentConversationRuntimeStatus,
 } from "@/types/agent/agent-conversation";
 import type {
   AgentRoundStatusEventPayload,
@@ -18,13 +19,19 @@ import type {
   RoundLifecycleStatus,
   RoundStatusEventPayload,
 } from "@/types/conversation/message/event";
-import type { SessionStatusData } from "@/types/generated/protocol";
+import type {
+  RuntimeStatusData,
+  SessionStatusData,
+} from "@/types/generated/protocol";
 
 const ROUND_STATUSES = new Set<RoundLifecycleStatus>([
   "error",
   "finished",
   "interrupted",
   "running",
+]);
+const RUNTIME_STATUSES = new Set<Exclude<AgentConversationRuntimeStatus, null>>([
+  "compacting",
 ]);
 const INPUT_QUEUE_SCOPES = new Set<InputQueueItem["scope"]>(["dm", "room"]);
 const INPUT_QUEUE_SOURCES = new Set<InputQueueItem["source"]>([
@@ -75,6 +82,16 @@ export function parseSessionStatusData(
       ? { running_round_ids: data.running_round_ids }
       : {}),
   };
+}
+
+export function parseRuntimeStatusData(
+  data: UnknownRecord,
+): RuntimeStatusData | null {
+  if (data.status === null) {
+    return {status: null};
+  }
+  const status = readStringFromSet(data, "status", RUNTIME_STATUSES);
+  return status ? {status} : null;
 }
 
 function isInputQueueItem(value: unknown): value is InputQueueItem {

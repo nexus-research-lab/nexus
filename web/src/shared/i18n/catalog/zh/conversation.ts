@@ -241,6 +241,7 @@ export const zhConversationMessages = {
   "composer.remove_attachment": "移除附件",
   "composer.stop_generation": "停止生成",
   "composer.esc_stop": "ESC 停止",
+  "composer.compacting_context": "正在压缩上下文",
   "composer.send_message": "发送消息",
   "composer.attachment_format_unsupported": "附件格式不受支持：{name}",
   "composer.attachment_too_large": "附件超过 20MB：{name}",

@@ -8,6 +8,7 @@ import type { RoundLifecycleStatus } from "@/types/conversation/message/event";
 import type {
   AgentConversationChatType,
   AgentConversationRuntimePhase,
+  AgentConversationRuntimeStatus,
 } from "@/types/agent/agent-conversation";
 
 import {
@@ -95,6 +96,8 @@ export class AgentConversationRuntimeMachine {
 
   private pendingPermissionCount = 0;
 
+  private runtimeStatus: AgentConversationRuntimeStatus = null;
+
   private listeners = new Set<() => void>();
 
   private snapshotCache: AgentConversationRuntimeSnapshot | null = null;
@@ -133,6 +136,7 @@ export class AgentConversationRuntimeMachine {
     this.terminalRoundIds.clear();
     this.activeMessageTrackers.clear();
     this.pendingPermissionCount = 0;
+    this.runtimeStatus = null;
   }
 
   /** 发送中状态按 client_request_id 追踪，ack 后转为 canonical round。 */
@@ -240,6 +244,10 @@ export class AgentConversationRuntimeMachine {
     this.pendingPermissionCount = Math.max(0, count);
   }
 
+  public setRuntimeStatus(status: AgentConversationRuntimeStatus): void {
+    this.runtimeStatus = status;
+  }
+
   public reconcileFromSnapshot(messages: Message[]): void {
     const isRoundTerminal = (roundId: string) => this.isRoundTerminal(roundId);
     const nextTrackers = preserveActiveMessageTrackers(
@@ -286,6 +294,10 @@ export class AgentConversationRuntimeMachine {
   }
 
   private resolvePhase(): AgentConversationRuntimePhase {
+    if (this.runtimeStatus === "compacting") {
+      return "compacting";
+    }
+
     if (this.pendingPermissionCount > 0) {
       return "awaiting_permission";
     }

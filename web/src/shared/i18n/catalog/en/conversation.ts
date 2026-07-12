@@ -244,6 +244,7 @@ export const enConversationMessages = {
   "composer.remove_attachment": "Remove attachment",
   "composer.stop_generation": "Stop generation",
   "composer.esc_stop": "ESC to stop",
+  "composer.compacting_context": "Compacting context",
   "composer.send_message": "Send message",
   "composer.attachment_format_unsupported": "Unsupported attachment format: {name}",
   "composer.attachment_too_large": "Attachment exceeds 20MB: {name}",

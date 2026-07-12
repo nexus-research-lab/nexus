@@ -14,6 +14,7 @@ L4 | 父级: web/src/features/conversation/shared
 - `components/`: 输入行、提交动作、Footer、待发送队列和 Loop 选择器
 
 输入、运行时、模式和动作状态先在控制器中分别投影，再组装为扁平视图契约；面板不得重新解释发送条件和提示文案。
+运行时投影必须保留明确的发送、回复和上下文压缩阶段，Footer 不从通用 loading 状态猜测压缩行为。
 发送目标先投影为 `send/enqueue + delivery policy`，消息提交按资格判断、附件准备、投递和收尾分阶段执行。
 中文输入法的 composition 保护属于控制器边界，键盘命令执行前必须按顺序经过 composition、Safari 补发 Enter 和 Mention 导航守卫。
 输入区 Props 由 DM/Room 的真实消费面定义，不保留无调用者的兼容参数。

@@ -13,6 +13,7 @@ import {
   parseChatAckData,
   parseInputQueueEventPayload,
   parseRoundStatusEventPayload,
+  parseRuntimeStatusData,
   parseSessionStatusData,
 } from "./session-event-data";
 
@@ -54,6 +55,13 @@ const handleSessionStatus = withCurrentSessionEvent((event, context) => {
   const payload = parseSessionStatusData(event.data);
   if (payload) {
     context.runtime.syncSessionStatus(payload);
+  }
+});
+
+const handleRuntimeStatus = withCurrentSessionEvent((event, context) => {
+  const payload = parseRuntimeStatusData(event.data);
+  if (payload) {
+    context.runtime.setRuntimeStatus(payload.status);
   }
 });
 
@@ -119,6 +127,7 @@ export const AGENT_SESSION_EVENT_HANDLERS: AgentEventHandlerMap = {
   goal_updated: handleGoalEvent,
   input_queue: handleInputQueue,
   round_status: handleRoundStatus,
+  runtime_status: handleRuntimeStatus,
   session_status: handleSessionStatus,
   stream_cancelled: createMessageStatusHandler("cancelled"),
   stream_end: createMessageStatusHandler("done"),

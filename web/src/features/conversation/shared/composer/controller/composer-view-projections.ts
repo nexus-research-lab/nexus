@@ -2,6 +2,7 @@ import type { AgentConversationRuntimePhase } from "@/types/agent/agent-conversa
 
 import {
   type ComposerInputMode,
+  type ComposerRuntimeActivity,
   MAX_COMPOSER_INPUT_LENGTH,
 } from "../composer-model";
 
@@ -25,9 +26,17 @@ export interface ComposerInputProjection {
 
 export interface ComposerRuntimeProjection {
   canStopGeneration: boolean;
-  isDispatching: boolean;
+  activity: ComposerRuntimeActivity;
   sessionBusy: boolean;
 }
+
+const RUNTIME_ACTIVITY_BY_PHASE: Partial<Record<
+  AgentConversationRuntimePhase,
+  Exclude<ComposerRuntimeActivity, null>
+>> = {
+  compacting: "compacting",
+  sending: "sending",
+};
 
 export interface ComposerModeProjection {
   activeError: string | null;
@@ -70,8 +79,10 @@ export function projectComposerRuntime({
 }): ComposerRuntimeProjection {
   const isDispatching = [isLoading, runtimePhase === "sending"].every(Boolean);
   return {
+    activity: isLoading
+      ? RUNTIME_ACTIVITY_BY_PHASE[runtimePhase ?? "idle"] ?? "replying"
+      : null,
     canStopGeneration: [isLoading, !isDispatching].every(Boolean),
-    isDispatching,
     sessionBusy: [isLoading, queueItemCount > 0].some(Boolean),
   };
 }

@@ -50,6 +50,13 @@ func (m *EventMapper) Map(incoming sdkprotocol.ReceivedMessage, interruptReason 
 
 	events := make([]protocol.EventMessage, 0, len(output.StreamEvents)+len(output.DurableMessages)+len(output.EphemeralMessages)+2)
 	durableMessages := make([]protocol.Message, 0, len(output.DurableMessages))
+	if status, observed := projectRuntimeStatus(incoming.System); observed {
+		events = append(events, m.wrapEvent(
+			protocol.EventTypeRuntimeStatus,
+			runtimeStatusEventData(status),
+			"",
+		))
+	}
 	if m.includeStreamLifecycle && output.StreamStarted {
 		events = append(events, m.wrapEvent(protocol.EventTypeStreamStart, map[string]any{
 			"msg_id":   m.processor.CurrentMessageID(),
@@ -80,6 +87,13 @@ func (m *EventMapper) Map(incoming sdkprotocol.ReceivedMessage, interruptReason 
 		TerminalStatus:  output.TerminalStatus,
 		ResultSubtype:   output.ResultSubtype,
 	}, nil
+}
+
+func runtimeStatusEventData(status protocol.RuntimeStatus) map[string]any {
+	if status == "" {
+		return map[string]any{"status": nil}
+	}
+	return map[string]any{"status": status}
 }
 
 // CurrentMessageID 返回当前 assistant message_id。

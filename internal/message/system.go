@@ -138,6 +138,20 @@ func (p *Processor) buildVisibleSystemMessage(message *sdkprotocol.SystemMessage
 	return &messageValue, ephemeral
 }
 
+// projectRuntimeStatus 只接受 SDK 的公开状态集合；null 由空字符串表示并用于结束状态。
+func projectRuntimeStatus(message *sdkprotocol.SystemMessage) (protocol.RuntimeStatus, bool) {
+	if message == nil || strings.TrimSpace(message.Subtype) != "status" || message.Status == nil {
+		return "", false
+	}
+	status := protocol.RuntimeStatus(strings.TrimSpace(message.Status.Status))
+	switch status {
+	case protocol.RuntimeStatusCompacting, "":
+		return status, true
+	default:
+		return "", false
+	}
+}
+
 // memorySavedContent 把 runtime 动词收口成稳定的产品文案。
 func memorySavedContent(verb string) string {
 	if strings.EqualFold(strings.TrimSpace(verb), "Improved") {

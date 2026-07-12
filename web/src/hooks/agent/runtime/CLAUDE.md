@@ -2,7 +2,7 @@
 
 L4 | 父级: ../CLAUDE.md
 
-负责维护后端运行态在前端的唯一投影，包括轮次状态、权限、Room slot 和发送中的请求。
+负责维护后端运行态在前端的唯一投影，包括轮次状态、权限、Room slot、发送中的请求和 runtime 瞬时阶段。
 
 - `model/`: 无 React、无浏览器状态的运行模型、消息迁移与权限策略
 - `snapshot/`: 易失会话投影和 `sessionStorage` 边界

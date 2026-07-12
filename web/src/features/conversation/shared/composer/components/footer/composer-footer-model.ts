@@ -1,18 +1,18 @@
 import type { ReactNode, RefObject } from "react";
 
+import type { ComposerRuntimeActivity } from "../../composer-model";
+
 export interface ComposerFooterProps {
   actionButtonRef: RefObject<HTMLButtonElement | null>;
   activeError: string | null;
   canCreateGoal: boolean;
   canUseLoop: boolean;
-  canStopGeneration: boolean;
   charCount: number;
   goalModeExtra: ReactNode;
   goalScopeLabel: string;
   historyIndex: number;
   inputHistoryLength: number;
   isActionMenuOpen: boolean;
-  isDispatching: boolean;
   isGoalCreating: boolean;
   isGoalMode: boolean;
   isNearLimit: boolean;
@@ -25,9 +25,11 @@ export interface ComposerFooterProps {
   onCancelGoal: () => void;
   onGoalToggle: (checked: boolean) => void;
   onLoopSelect: () => void;
+  runtimeActivity: ComposerRuntimeActivity;
 }
 
 export interface ComposerFooterStatusCopy {
+  compacting: string;
   goalCreating: string;
   preparingAttachments: string;
   replying: string;
@@ -43,70 +45,76 @@ export interface ComposerFooterStatusProjection {
   messageClassName: string;
 }
 
-interface FooterStatusCandidate {
-  active: boolean;
-  status: ComposerFooterStatusProjection;
-}
-
 const ACTIVE_FRAMES = ["✽", "✻", "✶", "✢", "·"];
 const PREPARING_FRAMES = ["·", "◦", "•", "◦"];
 
+const RUNTIME_STATUS_DEFINITIONS: Record<
+  Exclude<ComposerRuntimeActivity, null>,
+  {copyKey: "compacting" | "replying" | "sending"; showStopHint: boolean}
+> = {
+  compacting: {copyKey: "compacting", showStopHint: true},
+  replying: {copyKey: "replying", showStopHint: true},
+  sending: {copyKey: "sending", showStopHint: false},
+};
+
 export function projectComposerFooterStatus({
   activeError,
-  canStopGeneration,
   copy,
-  isDispatching,
   isGoalCreating,
   isPreparingAttachments,
+  runtimeActivity,
 }: {
   activeError: string | null;
-  canStopGeneration: boolean;
   copy: ComposerFooterStatusCopy;
-  isDispatching: boolean;
   isGoalCreating: boolean;
   isPreparingAttachments: boolean;
+  runtimeActivity: ComposerRuntimeActivity;
 }): ComposerFooterStatusProjection | null {
-  const candidates: FooterStatusCandidate[] = [
-    {
-      active: isDispatching,
-      status: buildActiveStatus(copy.sending, null),
-    },
-    {
-      active: canStopGeneration,
-      status: buildActiveStatus(`${copy.replying}…`, copy.stopHint),
-    },
-    {
-      active: isPreparingAttachments,
-      status: {
+  const candidates: Array<ComposerFooterStatusProjection | null> = [
+    projectRuntimeActivityStatus(runtimeActivity, copy),
+    isPreparingAttachments
+      ? {
         className: "text-(--text-default)",
         frames: PREPARING_FRAMES,
         hint: null,
         message: copy.preparingAttachments,
         messageClassName: "",
-      },
-    },
-    {
-      active: isGoalCreating,
-      status: {
+      }
+      : null,
+    isGoalCreating
+      ? {
         className: "text-(--primary)",
         frames: PREPARING_FRAMES,
         hint: null,
         message: copy.goalCreating,
         messageClassName: "animate-pulse",
-      },
-    },
-    {
-      active: Boolean(activeError),
-      status: {
+      }
+      : null,
+    activeError
+      ? {
         className: "text-(--destructive)",
         frames: null,
         hint: null,
-        message: activeError ?? "",
+        message: activeError,
         messageClassName: "",
-      },
-    },
+      }
+      : null,
   ];
-  return candidates.find((candidate) => candidate.active)?.status ?? null;
+  return candidates.find((candidate) => candidate !== null) ?? null;
+}
+
+function projectRuntimeActivityStatus(
+  activity: ComposerRuntimeActivity,
+  copy: ComposerFooterStatusCopy,
+): ComposerFooterStatusProjection | null {
+  if (!activity) {
+    return null;
+  }
+  const definition = RUNTIME_STATUS_DEFINITIONS[activity];
+  return buildActiveStatus(
+    `${copy[definition.copyKey]}${activity === "sending" ? "" : "…"}`,
+    definition.showStopHint ? copy.stopHint : null,
+  );
 }
 
 function buildActiveStatus(

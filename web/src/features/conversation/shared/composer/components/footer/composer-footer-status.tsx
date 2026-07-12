@@ -3,6 +3,7 @@ import { Target, X } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { LoadingOrb } from "@/shared/ui/feedback/loading-orb";
+import type { ComposerRuntimeActivity } from "../../composer-model";
 
 import {
   type ComposerFooterStatusProjection,
@@ -49,31 +50,29 @@ export function ComposerGoalModeIndicator({
 
 export function ComposerFooterStatus({
   activeError,
-  canStopGeneration,
-  isDispatching,
   isGoalCreating,
   isPreparingAttachments,
+  runtimeActivity,
 }: {
   activeError: string | null;
-  canStopGeneration: boolean;
-  isDispatching: boolean;
   isGoalCreating: boolean;
   isPreparingAttachments: boolean;
+  runtimeActivity: ComposerRuntimeActivity;
 }) {
   const { t } = useI18n();
   const status = projectComposerFooterStatus({
     activeError,
-    canStopGeneration,
     copy: {
+      compacting: t("composer.compacting_context"),
       goalCreating: t("composer.goal_normalizing"),
       preparingAttachments: t("composer.preparing_attachments"),
       replying: t("status.replying"),
       sending: t("status.sending"),
       stopHint: `[${t("composer.esc_stop")}]`,
     },
-    isDispatching,
     isGoalCreating,
     isPreparingAttachments,
+    runtimeActivity,
   });
   if (!status) {
     return null;

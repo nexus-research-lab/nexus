@@ -34,10 +34,9 @@ export function ComposerFooter(props: ComposerFooterProps) {
         />
         <ComposerFooterStatus
           activeError={props.activeError}
-          canStopGeneration={props.canStopGeneration}
-          isDispatching={props.isDispatching}
           isGoalCreating={props.isGoalCreating}
           isPreparingAttachments={props.isPreparingAttachments}
+          runtimeActivity={props.runtimeActivity}
         />
       </div>
       <ComposerFooterMetadata

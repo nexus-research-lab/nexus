@@ -16,6 +16,7 @@ import type {
   SessionStatusData,
 } from "@/types/generated/protocol";
 import type {
+  AgentConversationRuntimeStatus,
   InputQueueItem,
   RoomEventPayload,
 } from "@/types/agent/agent-conversation";
@@ -64,6 +65,7 @@ interface AgentEventRuntime {
   rejectChatAck: (clientRequestId: string, reason: string) => boolean;
   removeRewrittenRound: (roundId: string) => void;
   syncSessionStatus: (payload: SessionStatusData) => void;
+  setRuntimeStatus: (status: AgentConversationRuntimeStatus) => void;
   trackAssistantMessage: (message: AssistantMessage) => void;
   trackChatAck: (ack: ChatAckData) => void;
   updateMessageStatus: (

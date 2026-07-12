@@ -13,3 +13,4 @@ L5 | 父级: web/src/features/conversation/shared/composer
 - `composer-controller-model.ts`: 组装各状态投影为视图消费契约
 
 控制器只编排窄接口，不自行复制子领域状态。视图可见状态必须由模型纯函数派生，异步动作不得塞回视图组件；状态投影之间只传递明确结果，不读取彼此的实现条件。
+运行状态投影把 `compacting` 作为独立活动传给 Footer，同时继续独立计算停止按钮资格。
