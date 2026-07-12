@@ -1,9 +1,7 @@
-import type { CSSProperties } from "react";
 import type { VirtualItem } from "@tanstack/react-virtual";
 
 import type {
   SpreadsheetPreviewCellData,
-  SpreadsheetPreviewBorderSide,
   SpreadsheetPreviewSheetData,
 } from "./spreadsheet-preview-model";
 
@@ -221,53 +219,4 @@ export function columnIndexToLabel(index: number): string {
     value = Math.floor(value / 26);
   }
   return label;
-}
-
-export function createSpreadsheetCellStyle(
-  sheet: SpreadsheetPreviewSheetData,
-  cell?: SpreadsheetPreviewCellData,
-): CSSProperties {
-  const previewStyle = cell?.style !== undefined
-    ? sheet.styles[cell.style]
-    : undefined;
-  if (!previewStyle) {
-    return {};
-  }
-
-  const textDecoration = [
-    previewStyle.underline ? "underline" : "",
-    previewStyle.strike ? "line-through" : "",
-  ].filter(Boolean).join(" ") || undefined;
-  return {
-    backgroundColor: previewStyle.bgcolor,
-    borderTop: createBorderCss(previewStyle.border?.top),
-    borderRight: createBorderCss(previewStyle.border?.right),
-    borderBottom: createBorderCss(previewStyle.border?.bottom),
-    borderLeft: createBorderCss(previewStyle.border?.left),
-    color: previewStyle.color,
-    fontFamily: previewStyle.font?.name,
-    fontSize: previewStyle.font?.size
-      ? Math.max(10, previewStyle.font.size)
-      : undefined,
-    fontStyle: previewStyle.font?.italic ? "italic" : undefined,
-    fontWeight: previewStyle.font?.bold ? 700 : undefined,
-    textAlign: previewStyle.align,
-    textDecoration,
-    verticalAlign: previewStyle.valign,
-    whiteSpace: previewStyle.textwrap ? "pre-wrap" : "nowrap",
-  };
-}
-
-function createBorderCss(
-  border?: SpreadsheetPreviewBorderSide,
-): string | undefined {
-  if (!border) {
-    return undefined;
-  }
-  const [kind, color] = border;
-  const lineStyle = ["dashed", "dotted", "double"].includes(kind)
-    ? kind
-    : "solid";
-  const width = kind === "medium" || kind === "thick" ? 2 : 1;
-  return `${width}px ${lineStyle} ${color}`;
 }

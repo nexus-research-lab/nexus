@@ -6,10 +6,6 @@ import {
 } from "./spreadsheet-cell-style";
 import { getSpreadsheetCellText } from "./spreadsheet-cell-value";
 
-export type {
-  SpreadsheetPreviewBorderSide,
-} from "./spreadsheet-cell-style";
-
 const MIN_SHEET_ROWS = 1;
 const MIN_SHEET_COLS = 1;
 const EXCEL_COLUMN_WIDTH_TO_PX = 6;

@@ -21,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Made the selected workspace path the single preview state, removed unreachable standalone preview and resize modes, and moved the shared panel resize handle under layout ownership.
 - Replaced the shared workspace surface header boolean matrix with explicit page, overlay, and accessibility-only modes, removing unsupported title-slot combinations.
 - Split Markdown workspace artifact parsing from Agent store hooks, indexed file lookups once per file set, and preserved surrounding message text when projecting absolute file paths.
+- Replaced branch-heavy Markdown text AST mutation with ordered stateless break and inline-HTML conversion rules, removing shared regular-expression state.
+- Consolidated DrawingML transform rectangles, group bounds, geometry presets, and fill-color sources under presentation-owned readers with explicit validity rules.
+- Split PPTX slide inheritance, shape resolution, and preview filtering into explicit phases, restoring placeholder stroke-width fallback when a shape has no local line definition.
+- Moved spreadsheet CSS projection out of the virtual grid model and into the cell-style domain, removing an unused border-type forwarding surface.
 - Removed render-phase Thinking expansion mutations and separated image-source normalization, user-attachment capability projection, and embedded tool-error parsing into short owned phases.
 - Moved message ordering, system-event, permission, result, and final-response projection into an owned controller subdomain, reusing the single ordered-entry projection and replacing content-mode branches with exhaustive strategies.
 - Split message content rendering into entry selection, structured orchestration, exhaustive block routing, and tool interaction phases, while consolidating the shared AskUserQuestion tool identifier.

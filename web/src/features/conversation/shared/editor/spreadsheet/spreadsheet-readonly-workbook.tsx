@@ -5,12 +5,12 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 
 import { cn } from "@/shared/ui/class-name";
 
+import { createSpreadsheetCellStyle } from "./spreadsheet-cell-style";
 import {
   columnIndexToLabel,
   createColumnSizeTable,
   createRenderedSpreadsheetCells,
   createRowSizeTable,
-  createSpreadsheetCellStyle,
   SPREADSHEET_GRID_DIMENSIONS,
 } from "./spreadsheet-grid-model";
 import type {
@@ -181,7 +181,10 @@ function SpreadsheetReadonlySheet({
               key={`${cell.rowIndex}:${cell.columnIndex}`}
               role="gridcell"
               style={{
-                ...createSpreadsheetCellStyle(sheet, cell.cell),
+                ...createSpreadsheetCellStyle(
+                  sheet.styles,
+                  cell.cell?.style,
+                ),
                 height: cell.height,
                 transform:
                   `translate(${cell.columnStart}px, ${cell.rowStart}px)`,

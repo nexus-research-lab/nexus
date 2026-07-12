@@ -12,34 +12,53 @@ import {
   firstDescendantByLocalName,
 } from "./presentation-xml-utils";
 
+type SolidFillColorReader = (solidFill: Element) => string | undefined;
+
+const SHAPE_GEOMETRY_BY_PRESET: Record<string, PresentationShapeGeometry> = {
+  diamond: "diamond",
+  ellipse: "ellipse",
+  line: "line",
+  rect: "rect",
+  roundRect: "roundRect",
+  rtTriangle: "triangle",
+  triangle: "triangle",
+};
+
+const PRESET_FILL_COLORS: Record<string, string> = {
+  black: "#000000",
+  white: "#ffffff",
+};
+
+const SOLID_FILL_COLOR_READERS: SolidFillColorReader[] = [
+  readSrgbFillColor,
+  readSystemFillColor,
+  readPresetFillColor,
+  readSchemeFillColor,
+];
+
 export function readGroupTransform(element: Element): PresentationGroupTransform | null {
   const groupProperties = firstChildByLocalName(element, "grpSpPr");
   const transform = firstChildByLocalName(groupProperties, "xfrm");
-  const offset = firstChildByLocalName(transform, "off");
-  const extent = firstChildByLocalName(transform, "ext");
-  const childOffset = firstChildByLocalName(transform, "chOff");
-  const childExtent = firstChildByLocalName(transform, "chExt");
-  if (!offset || !extent || !childOffset || !childExtent) {
+  const groupRect = readTransformRect(transform);
+  const childRectElements = readRequiredChildren(transform, ["chOff", "chExt"]);
+  if (!groupRect || !childRectElements) {
     return null;
   }
 
-  const childWidth = emuToPixel(Number(childExtent.getAttribute("cx") || 0));
-  const childHeight = emuToPixel(Number(childExtent.getAttribute("cy") || 0));
-  const width = emuToPixel(Number(extent.getAttribute("cx") || 0));
-  const height = emuToPixel(Number(extent.getAttribute("cy") || 0));
-  if (childWidth <= 0 || childHeight <= 0 || width <= 0 || height <= 0) {
+  const childRect = createTransformRect(
+    childRectElements[0],
+    childRectElements[1],
+  );
+  if (!hasPositiveArea(groupRect) || !hasPositiveArea(childRect)) {
     return null;
   }
 
   return {
-    childHeight,
-    childWidth,
-    childX: emuToPixel(Number(childOffset.getAttribute("x") || 0)),
-    childY: emuToPixel(Number(childOffset.getAttribute("y") || 0)),
-    height,
-    width,
-    x: emuToPixel(Number(offset.getAttribute("x") || 0)),
-    y: emuToPixel(Number(offset.getAttribute("y") || 0)),
+    ...groupRect,
+    childHeight: childRect.height,
+    childWidth: childRect.width,
+    childX: childRect.x,
+    childY: childRect.y,
   };
 }
 
@@ -76,8 +95,8 @@ export function mapGroupPlaceholderStyles(
   placeholderStyles: Map<string, PresentationPlaceholderStyle>,
   groupTransform: PresentationGroupTransform,
 ): Map<string, PresentationPlaceholderStyle> {
+  const scale = groupScale(groupTransform);
   return new Map(Array.from(placeholderStyles.entries()).map(([key, style]) => {
-    const scale = groupScale(groupTransform);
     return [key, {
       ...style,
       strokeWidth: style.strokeWidth * scale,
@@ -108,19 +127,51 @@ function groupScale(groupTransform: PresentationGroupTransform): number {
 }
 
 export function readTransform(shapeProperties: Element | null): PresentationTransform | null {
-  const transform = firstChildByLocalName(shapeProperties, "xfrm") || firstDescendantByLocalName(shapeProperties, "xfrm");
-  const offset = firstChildByLocalName(transform, "off");
-  const extent = firstChildByLocalName(transform, "ext");
-  if (!offset || !extent) {
-    return null;
-  }
+  const transform = firstChildByLocalName(shapeProperties, "xfrm")
+    ?? firstDescendantByLocalName(shapeProperties, "xfrm");
+  return readTransformRect(transform);
+}
 
+function readTransformRect(transform: Element | null): PresentationTransform | null {
+  const rectElements = readRequiredChildren(transform, ["off", "ext"]);
+  return rectElements
+    ? createTransformRect(rectElements[0], rectElements[1])
+    : null;
+}
+
+function readRequiredChildren(
+  parent: Element | null,
+  localNames: readonly string[],
+): Element[] | null {
+  const children: Element[] = [];
+  for (const localName of localNames) {
+    const child = firstChildByLocalName(parent, localName);
+    if (!child) {
+      return null;
+    }
+    children.push(child);
+  }
+  return children;
+}
+
+function createTransformRect(
+  offset: Element,
+  extent: Element,
+): PresentationTransform {
   return {
-    height: emuToPixel(Number(extent.getAttribute("cy") || 0)),
-    width: emuToPixel(Number(extent.getAttribute("cx") || 0)),
-    x: emuToPixel(Number(offset.getAttribute("x") || 0)),
-    y: emuToPixel(Number(offset.getAttribute("y") || 0)),
+    height: readEmuAttribute(extent, "cy"),
+    width: readEmuAttribute(extent, "cx"),
+    x: readEmuAttribute(offset, "x"),
+    y: readEmuAttribute(offset, "y"),
   };
+}
+
+function readEmuAttribute(element: Element, name: string): number {
+  return emuToPixel(Number(element.getAttribute(name) ?? 0));
+}
+
+function hasPositiveArea(transform: PresentationTransform): boolean {
+  return transform.width > 0 && transform.height > 0;
 }
 
 export function readShapeGeometry(
@@ -134,23 +185,10 @@ export function readShapeGeometry(
 
   const presetGeometry = firstChildByLocalName(shapeProperties, "prstGeom");
   const preset = presetGeometry?.getAttribute("prst");
-  switch (preset) {
-    case "diamond":
-      return "diamond";
-    case "ellipse":
-      return "ellipse";
-    case "line":
-      return "line";
-    case "rect":
-      return "rect";
-    case "roundRect":
-      return "roundRect";
-    case "triangle":
-    case "rtTriangle":
-      return "triangle";
-    default:
-      return fallbackGeometry || "unsupported";
-  }
+  const geometry = preset === null || preset === undefined
+    ? undefined
+    : SHAPE_GEOMETRY_BY_PRESET[preset];
+  return geometry ?? fallbackGeometry ?? "unsupported";
 }
 
 export function readSlideBackground(slideDoc: Document): string | undefined {
@@ -168,30 +206,38 @@ export function readFillColor(element: Element | null): string | undefined {
     return undefined;
   }
 
-  const srgbColor = firstChildByLocalName(solidFill, "srgbClr");
-  const srgbValue = srgbColor?.getAttribute("val");
-  if (srgbValue) {
-    return applyColorLuminance(`#${srgbValue}`, srgbColor);
+  for (const readColor of SOLID_FILL_COLOR_READERS) {
+    const color = readColor(solidFill);
+    if (color) {
+      return color;
+    }
   }
+  return undefined;
+}
 
-  const systemColor = firstChildByLocalName(solidFill, "sysClr");
-  const systemValue = systemColor?.getAttribute("lastClr");
-  if (systemValue) {
-    return `#${systemValue}`;
-  }
+function readSrgbFillColor(solidFill: Element): string | undefined {
+  const colorElement = firstChildByLocalName(solidFill, "srgbClr");
+  const value = colorElement?.getAttribute("val");
+  return value ? applyColorLuminance(`#${value}`, colorElement) : undefined;
+}
 
-  const presetColor = firstChildByLocalName(solidFill, "prstClr");
-  const presetValue = presetColor?.getAttribute("val");
-  if (presetValue === "white") {
-    return "#ffffff";
-  }
-  if (presetValue === "black") {
-    return "#000000";
-  }
+function readSystemFillColor(solidFill: Element): string | undefined {
+  const colorElement = firstChildByLocalName(solidFill, "sysClr");
+  const value = colorElement?.getAttribute("lastClr");
+  return value ? `#${value}` : undefined;
+}
 
-  const schemeColor = firstChildByLocalName(solidFill, "schemeClr");
-  const schemeValue = schemeColor?.getAttribute("val");
-  return schemeValue ? applyColorLuminance(SCHEME_COLORS[schemeValue], schemeColor) : undefined;
+function readPresetFillColor(solidFill: Element): string | undefined {
+  const value = firstChildByLocalName(solidFill, "prstClr")?.getAttribute("val");
+  return value ? PRESET_FILL_COLORS[value] : undefined;
+}
+
+function readSchemeFillColor(solidFill: Element): string | undefined {
+  const colorElement = firstChildByLocalName(solidFill, "schemeClr");
+  const value = colorElement?.getAttribute("val");
+  return value
+    ? applyColorLuminance(SCHEME_COLORS[value], colorElement)
+    : undefined;
 }
 
 function applyColorLuminance(color: string | undefined, colorElement: Element | null): string | undefined {
@@ -199,8 +245,8 @@ function applyColorLuminance(color: string | undefined, colorElement: Element | 
     return undefined;
   }
 
-  const lumMod = Number(firstChildByLocalName(colorElement, "lumMod")?.getAttribute("val") || 100000);
-  const lumOff = Number(firstChildByLocalName(colorElement, "lumOff")?.getAttribute("val") || 0);
+  const lumMod = readColorAdjustment(colorElement, "lumMod", 100000);
+  const lumOff = readColorAdjustment(colorElement, "lumOff", 0);
   if (lumMod === 100000 && lumOff === 0) {
     return color;
   }
@@ -214,6 +260,15 @@ function applyColorLuminance(color: string | undefined, colorElement: Element | 
     (channel * lumMod / 100000) + (255 * lumOff / 100000),
   ));
   return `#${channels.map((channel) => channel.toString(16).padStart(2, "0")).join("")}`;
+}
+
+function readColorAdjustment(
+  colorElement: Element | null,
+  localName: string,
+  fallback: number,
+): number {
+  const value = firstChildByLocalName(colorElement, localName)?.getAttribute("val");
+  return Number(value ?? fallback);
 }
 
 function parseHexColor(color: string): [number, number, number] | null {
@@ -238,11 +293,16 @@ export function readStrokeColor(shapeProperties: Element | null): string | undef
   if (!line || firstChildByLocalName(line, "noFill")) {
     return undefined;
   }
-  return readFillColor(line) || "#64748b";
+  return readFillColor(line) ?? "#64748b";
 }
 
-export function readStrokeWidth(shapeProperties: Element | null): number {
+export function readStrokeWidth(
+  shapeProperties: Element | null,
+): number | undefined {
   const line = firstChildByLocalName(shapeProperties, "ln");
-  const width = Number(line?.getAttribute("w") || 0);
+  if (!line) {
+    return undefined;
+  }
+  const width = Number(line.getAttribute("w") ?? 0);
   return width > 0 ? Math.max(emuToPixel(width), 1) : 1;
 }

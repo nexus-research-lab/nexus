@@ -6,6 +6,7 @@ import type {
   Fill,
   Font,
 } from "exceljs";
+import type { CSSProperties } from "react";
 
 const EXCEL_ROW_HEIGHT_TO_PX = 4 / 3;
 const THEME_COLORS = [
@@ -26,7 +27,7 @@ const INDEXED_COLORS = [
   "#993300", "#993366", "#333399", "#333333", "#000000",
 ];
 
-export type SpreadsheetPreviewBorderSide = [string, string];
+type SpreadsheetPreviewBorderSide = [string, string];
 
 export interface SpreadsheetPreviewCellStyle {
   align?: "left" | "center" | "right";
@@ -71,31 +72,133 @@ const VERTICAL_ALIGNMENT: Partial<Record<
   top: "top",
 };
 
+const BORDER_LINE_STYLE: Record<string, string> = {
+  dashed: "dashed",
+  dotted: "dotted",
+  double: "double",
+};
+const WIDE_BORDER_KINDS = new Set(["medium", "thick"]);
+
+export function createSpreadsheetCellStyle(
+  styles: readonly SpreadsheetPreviewCellStyle[],
+  styleIndex?: number,
+): CSSProperties {
+  const previewStyle = resolvePreviewStyle(styles, styleIndex);
+  if (!previewStyle) {
+    return {};
+  }
+
+  return {
+    backgroundColor: previewStyle.bgcolor,
+    ...createBorderStyles(previewStyle.border),
+    color: previewStyle.color,
+    ...createFontCss(previewStyle),
+    textAlign: previewStyle.align,
+    textDecoration: createTextDecoration(previewStyle),
+    verticalAlign: previewStyle.valign,
+    whiteSpace: previewStyle.textwrap ? "pre-wrap" : "nowrap",
+  };
+}
+
+function resolvePreviewStyle(
+  styles: readonly SpreadsheetPreviewCellStyle[],
+  styleIndex?: number,
+): SpreadsheetPreviewCellStyle | undefined {
+  return styleIndex === undefined ? undefined : styles[styleIndex];
+}
+
+function createBorderStyles(
+  border?: SpreadsheetPreviewCellStyle["border"],
+): CSSProperties {
+  return {
+    borderTop: createBorderCss(border?.top),
+    borderRight: createBorderCss(border?.right),
+    borderBottom: createBorderCss(border?.bottom),
+    borderLeft: createBorderCss(border?.left),
+  };
+}
+
+function createFontCss(
+  previewStyle: SpreadsheetPreviewCellStyle,
+): CSSProperties {
+  const font = previewStyle.font;
+  if (!font) {
+    return {};
+  }
+  return {
+    fontFamily: font.name,
+    fontSize: font.size ? Math.max(10, font.size) : undefined,
+    fontStyle: font.italic ? "italic" : undefined,
+    fontWeight: font.bold ? 700 : undefined,
+  };
+}
+
+function createTextDecoration(
+  previewStyle: SpreadsheetPreviewCellStyle,
+): string | undefined {
+  return [
+    previewStyle.underline ? "underline" : "",
+    previewStyle.strike ? "line-through" : "",
+  ].filter(Boolean).join(" ") || undefined;
+}
+
+function createBorderCss(
+  border?: SpreadsheetPreviewBorderSide,
+): string | undefined {
+  if (!border) {
+    return undefined;
+  }
+  const [kind, color] = border;
+  const lineStyle = BORDER_LINE_STYLE[kind] ?? "solid";
+  const width = WIDE_BORDER_KINDS.has(kind) ? 2 : 1;
+  return `${width}px ${lineStyle} ${color}`;
+}
+
 /** ExcelJS 样式在此转换，预览模型不依赖运行时渲染字段细节。 */
 export function getSpreadsheetCellStyle(
   cell: Cell,
 ): SpreadsheetPreviewCellStyle | undefined {
   const font = getFontStyle(cell.font);
   const style: SpreadsheetPreviewCellStyle = {
-    align: cell.alignment?.horizontal
-      ? HORIZONTAL_ALIGNMENT[cell.alignment.horizontal]
-      : undefined,
+    align: getHorizontalAlignment(cell.alignment),
     bgcolor: getFillColor(cell.fill),
     border: getBorderStyle(cell.border),
     color: getExcelColor(cell.font?.color),
     font,
-    strike: cell.font?.strike || undefined,
-    textwrap: cell.alignment?.wrapText || undefined,
-    underline: Boolean(
-      cell.font?.underline && cell.font.underline !== "none",
-    ) || undefined,
-    valign: cell.alignment?.vertical
-      ? VERTICAL_ALIGNMENT[cell.alignment.vertical]
-      : undefined,
+    strike: enabledStyle(cell.font?.strike),
+    textwrap: enabledStyle(cell.alignment?.wrapText),
+    underline: getUnderlineStyle(cell.font),
+    valign: getVerticalAlignment(cell.alignment),
   };
   return Object.values(style).some((value) => value !== undefined)
     ? style
     : undefined;
+}
+
+function getHorizontalAlignment(
+  alignment?: Partial<Alignment>,
+): SpreadsheetPreviewCellStyle["align"] {
+  const value = alignment?.horizontal;
+  return value ? HORIZONTAL_ALIGNMENT[value] : undefined;
+}
+
+function getVerticalAlignment(
+  alignment?: Partial<Alignment>,
+): SpreadsheetPreviewCellStyle["valign"] {
+  const value = alignment?.vertical;
+  return value ? VERTICAL_ALIGNMENT[value] : undefined;
+}
+
+function enabledStyle(value?: boolean): true | undefined {
+  return value ? true : undefined;
+}
+
+function getUnderlineStyle(font?: Partial<Font>): true | undefined {
+  const underline = font?.underline;
+  if (!underline || underline === "none") {
+    return undefined;
+  }
+  return true;
 }
 
 function getFontStyle(
@@ -105,9 +208,9 @@ function getFontStyle(
     return undefined;
   }
   const result: NonNullable<SpreadsheetPreviewCellStyle["font"]> = {
-    bold: font.bold || undefined,
-    italic: font.italic || undefined,
-    name: font.name || undefined,
+    bold: enabledStyle(font.bold),
+    italic: enabledStyle(font.italic),
+    name: font.name ?? undefined,
     size: font.size
       ? Math.round(font.size / EXCEL_ROW_HEIGHT_TO_PX)
       : undefined,

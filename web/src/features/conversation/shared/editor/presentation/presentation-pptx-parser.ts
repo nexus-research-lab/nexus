@@ -20,6 +20,7 @@ import {
   type PresentationShapeTreeContext,
   type PresentationShapeTreeResult,
   type PresentationSlide,
+  type PresentationTransform,
 } from "./presentation-preview-model";
 import {
   applyGroupTransformToElement,
@@ -45,6 +46,48 @@ import {
   resolveRelationshipTarget,
   revokeObjectUrls,
 } from "./presentation-xml-utils";
+
+interface PresentationSlideParts {
+  layoutPart: PresentationPart | null;
+  masterPart: PresentationPart | null;
+  slideDoc: Document;
+  slideRels: Record<string, PresentationRelationship>;
+}
+
+interface ParsedPresentationShape {
+  isPlaceholder: boolean;
+  placeholderStyle: PresentationPlaceholderStyle | null;
+  shape: PresentationShapeElement | null;
+}
+
+interface ResolvedPresentationShape {
+  fill?: string;
+  geometry: PresentationShapeGeometry;
+  paragraphs: PresentationParagraph[];
+  stroke?: string;
+  strokeWidth: number;
+  textAnchor: PresentationShapeElement["textAnchor"];
+  transform: PresentationTransform;
+}
+
+interface ShapePreviewRuleContext {
+  fill?: string;
+  geometry: PresentationShapeGeometry;
+  height: number;
+  paragraphs: PresentationParagraph[];
+  stroke?: string;
+  width: number;
+}
+
+type ShapeSkipRule = (context: ShapePreviewRuleContext) => boolean;
+
+// 只隐藏能够明确识别的降级装饰或背景，未知组合仍交给预览层呈现。
+const SHAPE_SKIP_RULES: ShapeSkipRule[] = [
+  isUnsupportedEmptyShape,
+  isInvisibleEmptyShape,
+  isDecorationFallbackShape,
+  isBackgroundFallbackShape,
+];
 
 export async function parsePptx(buffer: ArrayBuffer): Promise<PresentationParseResult> {
   const { default: JSZipConstructor } = await import("jszip");
@@ -117,31 +160,93 @@ async function parseSlide(
   height: number,
   objectUrls: string[],
 ): Promise<PresentationSlide> {
+  const parts = await readPresentationSlideParts(zip, slidePath, objectUrls);
+  const inheritedPlaceholders = mergePlaceholderStyles(
+    parts.masterPart?.placeholderStyles,
+    parts.layoutPart?.placeholderStyles,
+  );
+  const slideResult = await parseSlideShapeTree(
+    zip,
+    slidePath,
+    parts,
+    objectUrls,
+    index,
+    inheritedPlaceholders,
+  );
+
+  return {
+    background: resolveSlideBackground(parts),
+    elements: collectSlideElements(parts, slideResult),
+    height,
+    id: `slide-${index + 1}`,
+    title: readSlideTitle(slideResult.elements, index),
+    width,
+  };
+}
+
+async function readPresentationSlideParts(
+  zip: JSZip,
+  slidePath: string,
+  objectUrls: string[],
+): Promise<PresentationSlideParts> {
   const slideXml = await readZipText(zip, slidePath);
   const slideDoc = parseXml(slideXml);
   const slideRels = await readRelationships(zip, slidePath);
   const layoutPath = resolveRelatedPartPath(slidePath, slideRels, SLIDE_LAYOUT_RELATIONSHIP_TYPE);
-  const layoutRels = layoutPath ? await readRelationships(zip, layoutPath) : {};
-  const masterPath = layoutPath
-    ? resolveRelatedPartPath(layoutPath, layoutRels, SLIDE_MASTER_RELATIONSHIP_TYPE)
-    : null;
-  const masterPart = masterPath ? await parsePresentationPart(zip, masterPath, objectUrls) : null;
-  const layoutPart = layoutPath
-    ? await parsePresentationPart(zip, layoutPath, objectUrls, masterPart?.placeholderStyles)
-    : null;
-  const inheritedPlaceholders = mergePlaceholderStyles(
-    masterPart?.placeholderStyles,
-    layoutPart?.placeholderStyles,
+  const layoutRels = await readOptionalRelationships(zip, layoutPath);
+  const masterPath = resolveRelatedPartPath(
+    layoutPath ?? "",
+    layoutRels,
+    SLIDE_MASTER_RELATIONSHIP_TYPE,
   );
-  const background = readSlideBackground(slideDoc)
-    || layoutPart?.background
-    || masterPart?.background
-    || "#ffffff";
-  const shapeTree = firstDescendantByLocalName(slideDoc, "spTree");
-  const slideResult = shapeTree ? await parseShapeTree(
+  const masterPart = await parseOptionalPresentationPart(
+    zip,
+    masterPath,
+    objectUrls,
+  );
+  const layoutPart = await parseOptionalPresentationPart(
+    zip,
+    layoutPath,
+    objectUrls,
+    masterPart?.placeholderStyles,
+  );
+  return { layoutPart, masterPart, slideDoc, slideRels };
+}
+
+async function readOptionalRelationships(
+  zip: JSZip,
+  partPath: string | null,
+): Promise<Record<string, PresentationRelationship>> {
+  return partPath ? readRelationships(zip, partPath) : {};
+}
+
+async function parseOptionalPresentationPart(
+  zip: JSZip,
+  partPath: string | null,
+  objectUrls: string[],
+  fallbackPlaceholders?: Map<string, PresentationPlaceholderStyle>,
+): Promise<PresentationPart | null> {
+  return partPath
+    ? parsePresentationPart(zip, partPath, objectUrls, fallbackPlaceholders)
+    : null;
+}
+
+async function parseSlideShapeTree(
+  zip: JSZip,
+  slidePath: string,
+  parts: PresentationSlideParts,
+  objectUrls: string[],
+  index: number,
+  inheritedPlaceholders: Map<string, PresentationPlaceholderStyle>,
+): Promise<PresentationShapeTreeResult> {
+  const shapeTree = firstDescendantByLocalName(parts.slideDoc, "spTree");
+  if (!shapeTree) {
+    return emptyShapeTreeResult();
+  }
+  return parseShapeTree(
     zip,
     slidePath,
-    slideRels,
+    parts.slideRels,
     shapeTree,
     objectUrls,
     {
@@ -150,25 +255,47 @@ async function parseSlide(
       idPrefix: `slide-${index + 1}`,
       includePlaceholderShapes: true,
     },
-  ) : { elements: [], placeholderStyles: new Map<string, PresentationPlaceholderStyle>() };
-  const elements = [
-    ...(masterPart?.elements ?? []),
-    ...(layoutPart?.elements ?? []),
+  );
+}
+
+function emptyShapeTreeResult(): PresentationShapeTreeResult {
+  return {
+    elements: [],
+    placeholderStyles: new Map<string, PresentationPlaceholderStyle>(),
+  };
+}
+
+function resolveSlideBackground(parts: PresentationSlideParts): string {
+  return readSlideBackground(parts.slideDoc)
+    ?? parts.layoutPart?.background
+    ?? parts.masterPart?.background
+    ?? "#ffffff";
+}
+
+function collectSlideElements(
+  parts: PresentationSlideParts,
+  slideResult: PresentationShapeTreeResult,
+): PresentationElement[] {
+  return [
+    ...readPartElements(parts.masterPart),
+    ...readPartElements(parts.layoutPart),
     ...slideResult.elements,
   ];
-  const firstText = slideResult.elements
+}
+
+function readPartElements(part: PresentationPart | null): PresentationElement[] {
+  return part?.elements ?? [];
+}
+
+function readSlideTitle(
+  elements: PresentationElement[],
+  index: number,
+): string {
+  const firstText = elements
     .flatMap((element) => element.type === "shape" ? element.paragraphs : [])
     .map((paragraph) => paragraph.text.trim())
     .find(Boolean);
-
-  return {
-    background,
-    elements,
-    height,
-    id: `slide-${index + 1}`,
-    title: firstText || `幻灯片 ${index + 1}`,
-    width,
-  };
+  return firstText ?? `幻灯片 ${index + 1}`;
 }
 
 async function parsePresentationPart(
@@ -190,7 +317,7 @@ async function parsePresentationPart(
     fallbackPlaceholders: fallbackPlaceholders,
     idPrefix: partPath.replace(/[^a-z0-9]+/gi, "-"),
     includePlaceholderShapes: false,
-  }) : { elements: [], placeholderStyles: new Map<string, PresentationPlaceholderStyle>() };
+  }) : emptyShapeTreeResult();
 
   return {
     background: readSlideBackground(partDoc),
@@ -299,104 +426,195 @@ function parseShape(
   element: Element,
   id: string,
   context: PresentationShapeTreeContext,
-): {
-  isPlaceholder: boolean;
-  placeholderStyle: PresentationPlaceholderStyle | null;
-  shape: PresentationShapeElement | null;
-} {
+): ParsedPresentationShape {
   const shapeProperties = firstChildByLocalName(element, "spPr");
   const placeholderKey = readPlaceholderKey(element);
-  const fallbackPlaceholder = placeholderKey ? context.fallbackPlaceholders?.get(placeholderKey) : undefined;
-  const transform = readTransform(shapeProperties) || fallbackPlaceholder?.transform || null;
+  const fallbackPlaceholder = resolveFallbackPlaceholder(
+    context,
+    placeholderKey,
+  );
+  const resolvedShape = resolvePresentationShape(
+    element,
+    shapeProperties,
+    fallbackPlaceholder,
+  );
+  const isPlaceholder = placeholderKey !== undefined;
+  if (!resolvedShape) {
+    return { isPlaceholder, placeholderStyle: null, shape: null };
+  }
+
+  const placeholderStyle = createPlaceholderStyle(
+    placeholderKey,
+    resolvedShape,
+  );
+  const shape = shouldSkipShapePreview(resolvedShape)
+    ? null
+    : createShapeElement(id, resolvedShape);
+  return { isPlaceholder, placeholderStyle, shape };
+}
+
+function resolveFallbackPlaceholder(
+  context: PresentationShapeTreeContext,
+  placeholderKey?: string,
+): PresentationPlaceholderStyle | undefined {
+  return placeholderKey
+    ? context.fallbackPlaceholders?.get(placeholderKey)
+    : undefined;
+}
+
+function resolvePresentationShape(
+  element: Element,
+  shapeProperties: Element | null,
+  fallbackPlaceholder?: PresentationPlaceholderStyle,
+): ResolvedPresentationShape | null {
+  const transform = resolveShapeTransform(shapeProperties, fallbackPlaceholder);
   if (!transform) {
-    return {
-      isPlaceholder: !!placeholderKey,
-      placeholderStyle: null,
-      shape: null,
-    };
+    return null;
   }
 
   const textBody = firstChildByLocalName(element, "txBody");
-  const paragraphs = parseTextBody(textBody, transform.width);
-  const textAnchor = readTextAnchor(firstChildByLocalName(textBody, "bodyPr"));
-  const fill = readFillColor(shapeProperties) || fallbackPlaceholder?.fill;
-  const stroke = readStrokeColor(shapeProperties) || fallbackPlaceholder?.stroke;
-  const strokeWidth = readStrokeWidth(shapeProperties) || fallbackPlaceholder?.strokeWidth || 1;
-  const geometry = readShapeGeometry(shapeProperties, element.localName === "cxnSp", fallbackPlaceholder?.geometry);
-  const placeholderStyle = placeholderKey ? {
-    fill,
-    geometry,
-    key: placeholderKey,
-    stroke,
-    strokeWidth,
-    transform,
-  } : null;
-
-  if (shouldSkipShapePreview({ fill, geometry, height: transform.height, paragraphs, stroke, width: transform.width })) {
-    return {
-      isPlaceholder: !!placeholderKey,
-      placeholderStyle,
-      shape: null,
-    };
-  }
-
   return {
-    isPlaceholder: !!placeholderKey,
-    placeholderStyle,
-    shape: {
-      ...transform,
-      fill,
-      geometry,
-      id,
-      paragraphs,
-      stroke,
-      strokeWidth,
-      textAnchor,
-      type: "shape",
-    },
+    fill: resolveShapeFill(shapeProperties, fallbackPlaceholder),
+    geometry: resolveShapeGeometry(
+      element,
+      shapeProperties,
+      fallbackPlaceholder,
+    ),
+    paragraphs: parseTextBody(textBody, transform.width),
+    stroke: resolveShapeStroke(shapeProperties, fallbackPlaceholder),
+    strokeWidth: resolveShapeStrokeWidth(shapeProperties, fallbackPlaceholder),
+    textAnchor: readTextAnchor(firstChildByLocalName(textBody, "bodyPr")),
+    transform,
   };
 }
 
-function shouldSkipShapePreview({
-  fill,
-  geometry,
-  height,
-  paragraphs,
-  stroke,
-  width,
-}: {
-  fill?: string;
-  geometry: PresentationShapeGeometry;
-  height: number;
-  paragraphs: PresentationParagraph[];
-  stroke?: string;
-  width: number;
-}): boolean {
-  if (geometry === "line") {
+function resolveShapeTransform(
+  shapeProperties: Element | null,
+  fallbackPlaceholder?: PresentationPlaceholderStyle,
+): PresentationTransform | null {
+  return readTransform(shapeProperties)
+    ?? fallbackPlaceholder?.transform
+    ?? null;
+}
+
+function resolveShapeFill(
+  shapeProperties: Element | null,
+  fallbackPlaceholder?: PresentationPlaceholderStyle,
+): string | undefined {
+  return readFillColor(shapeProperties) ?? fallbackPlaceholder?.fill;
+}
+
+function resolveShapeStroke(
+  shapeProperties: Element | null,
+  fallbackPlaceholder?: PresentationPlaceholderStyle,
+): string | undefined {
+  return readStrokeColor(shapeProperties) ?? fallbackPlaceholder?.stroke;
+}
+
+function resolveShapeStrokeWidth(
+  shapeProperties: Element | null,
+  fallbackPlaceholder?: PresentationPlaceholderStyle,
+): number {
+  return readStrokeWidth(shapeProperties)
+    ?? fallbackPlaceholder?.strokeWidth
+    ?? 1;
+}
+
+function resolveShapeGeometry(
+  element: Element,
+  shapeProperties: Element | null,
+  fallbackPlaceholder?: PresentationPlaceholderStyle,
+): PresentationShapeGeometry {
+  return readShapeGeometry(
+    shapeProperties,
+    element.localName === "cxnSp",
+    fallbackPlaceholder?.geometry,
+  );
+}
+
+function createPlaceholderStyle(
+  placeholderKey: string | undefined,
+  resolvedShape: ResolvedPresentationShape,
+): PresentationPlaceholderStyle | null {
+  if (!placeholderKey) {
+    return null;
+  }
+  return {
+    fill: resolvedShape.fill,
+    geometry: resolvedShape.geometry,
+    key: placeholderKey,
+    stroke: resolvedShape.stroke,
+    strokeWidth: resolvedShape.strokeWidth,
+    transform: resolvedShape.transform,
+  };
+}
+
+function createShapeElement(
+  id: string,
+  resolvedShape: ResolvedPresentationShape,
+): PresentationShapeElement {
+  return {
+    ...resolvedShape.transform,
+    fill: resolvedShape.fill,
+    geometry: resolvedShape.geometry,
+    id,
+    paragraphs: resolvedShape.paragraphs,
+    stroke: resolvedShape.stroke,
+    strokeWidth: resolvedShape.strokeWidth,
+    textAnchor: resolvedShape.textAnchor,
+    type: "shape",
+  };
+}
+
+function shouldSkipShapePreview(
+  resolvedShape: ResolvedPresentationShape,
+): boolean {
+  const context = createShapePreviewRuleContext(resolvedShape);
+  if (context.geometry === "line") {
     return false;
   }
-  if (geometry === "unsupported" && paragraphs.length === 0) {
-    return true;
-  }
-  if (!fill && !stroke && paragraphs.length === 0) {
-    return true;
-  }
+  return SHAPE_SKIP_RULES.some((rule) => rule(context));
+}
 
-  // 中文注释：PPT 里有些装饰点/图标会以复杂几何降级成小描边矩形。
-  // 预览无法高保真还原时，隐藏它比显示误导性的半成品更接近系统预览体验。
-  return (
-    geometry === "rect" &&
-    !fill &&
-    !!stroke &&
-    paragraphs.length === 0 &&
-    Math.min(width, height) <= MIN_DECORATION_SHAPE_SIZE
-  ) || (
-    geometry === "roundRect" &&
-    isPlainWhiteFill(fill) &&
-    !stroke &&
-    paragraphs.length === 0 &&
-    Math.min(width, height) >= MIN_BACKGROUND_LIKE_SHAPE_SIZE
-  );
+function createShapePreviewRuleContext(
+  resolvedShape: ResolvedPresentationShape,
+): ShapePreviewRuleContext {
+  return {
+    fill: resolvedShape.fill,
+    geometry: resolvedShape.geometry,
+    height: resolvedShape.transform.height,
+    paragraphs: resolvedShape.paragraphs,
+    stroke: resolvedShape.stroke,
+    width: resolvedShape.transform.width,
+  };
+}
+
+function isUnsupportedEmptyShape(context: ShapePreviewRuleContext): boolean {
+  return context.geometry === "unsupported" && hasNoShapeText(context);
+}
+
+function isInvisibleEmptyShape(context: ShapePreviewRuleContext): boolean {
+  return !context.fill && !context.stroke && hasNoShapeText(context);
+}
+
+function isDecorationFallbackShape(context: ShapePreviewRuleContext): boolean {
+  return context.geometry === "rect"
+    && !context.fill
+    && !!context.stroke
+    && hasNoShapeText(context)
+    && Math.min(context.width, context.height) <= MIN_DECORATION_SHAPE_SIZE;
+}
+
+function isBackgroundFallbackShape(context: ShapePreviewRuleContext): boolean {
+  return context.geometry === "roundRect"
+    && isPlainWhiteFill(context.fill)
+    && !context.stroke
+    && hasNoShapeText(context)
+    && Math.min(context.width, context.height) >= MIN_BACKGROUND_LIKE_SHAPE_SIZE;
+}
+
+function hasNoShapeText(context: ShapePreviewRuleContext): boolean {
+  return context.paragraphs.length === 0;
 }
 
 function isPlainWhiteFill(fill?: string): boolean {
