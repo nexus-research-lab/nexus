@@ -13,11 +13,13 @@ import {
 } from "./browser-notification";
 import {
   buildChatNotificationDirectoryIndex,
+  getRoomSessionTargetKeys,
+} from "./chat-notification-directory";
+import {
   buildMessageNotificationTarget,
   buildNotificationContent,
   getNotificationMessageId,
   toChatNotificationTargetState,
-  type ChatNotificationDirectoryIndex,
 } from "./chat-notification-model";
 import {
   getActiveChatTargetFromPath,
@@ -108,11 +110,4 @@ export function useChatCompletionNotifications(): void {
     [directory.rooms],
   );
   useChatNotificationSocket({ onCompletedMessage: handleCompletedMessage, roomIdsKey });
-}
-
-function getRoomSessionTargetKeys(
-  index: ChatNotificationDirectoryIndex,
-  roomId: string,
-): string[] {
-  return index.sessionTargetKeysByRoomId.get(roomId) ?? [];
 }

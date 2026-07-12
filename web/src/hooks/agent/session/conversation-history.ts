@@ -1,192 +1,201 @@
-import { Dispatch, MutableRefObject, RefObject, SetStateAction } from "react";
-import { getMessageHistoryRoundPageSize } from "@/config/conversation-policy";
-import { getSessionMessagesApi } from "@/lib/api/conversation/session-api";
+import type {
+  Dispatch,
+  MutableRefObject,
+  RefObject,
+  SetStateAction,
+} from "react";
+
 import { getRoomConversationMessages } from "@/lib/api/conversation/room-resource-api";
+import { getSessionMessagesApi } from "@/lib/api/conversation/session-api";
+import type { AgentConversationIdentity } from "@/types/agent/agent-conversation";
 import type { Message } from "@/types/conversation/message/entity";
-import { AgentConversationIdentity } from "@/types/agent/agent-conversation";
+import type { RoomConversationMessagePage } from "@/types/conversation/room";
+
 import {
   mergeLoadedMessages,
   sortMessages,
 } from "../message/message-collection-model";
+import {
+  planOlderHistoryRequest,
+  planRoundWindowHistoryRequest,
+  type AgentConversationHistoryCursor,
+  type ConversationHistoryRequest,
+} from "./conversation-history-model";
 
-const TARGET_ROUND_WINDOW_RADIUS = 1;
-
-export interface AgentConversationHistoryCursor {
-  before_round_id: string | null;
-  before_round_timestamp: number | null;
-}
-
-export interface LoadOlderAgentConversationMessagesParams {
-  active_session_key_ref: RefObject<string | null>;
+interface AgentConversationHistoryContext {
+  activeSessionKeyRef: RefObject<string | null>;
+  historyCursorRef: MutableRefObject<AgentConversationHistoryCursor>;
   identity: AgentConversationIdentity | null;
-  history_cursor_ref: MutableRefObject<AgentConversationHistoryCursor>;
-  has_more_history_ref: RefObject<boolean>;
-  is_history_loading_ref: RefObject<boolean>;
-  set_history_loading: (nextValue: boolean) => void;
-  set_has_more_history: (nextValue: boolean) => void;
-  set_history_prepend_token: Dispatch<SetStateAction<number>>;
-  set_messages: Dispatch<SetStateAction<Message[]>>;
-  set_error: Dispatch<SetStateAction<string | null>>;
+  setError: Dispatch<SetStateAction<string | null>>;
+  setHasMoreHistory: (nextValue: boolean) => void;
+  setMessages: Dispatch<SetStateAction<Message[]>>;
 }
 
-export async function loadOlderAgentConversationMessages({
-  active_session_key_ref: activeSessionKeyRef,
-  identity,
-  history_cursor_ref: historyCursorRef,
-  has_more_history_ref: hasMoreHistoryRef,
-  is_history_loading_ref: isHistoryLoadingRef,
-  set_history_loading: setHistoryLoading,
-  set_has_more_history: setHasMoreHistory,
-  set_history_prepend_token: setHistoryPrependToken,
-  set_messages: setMessages,
-  set_error: setError,
-}: LoadOlderAgentConversationMessagesParams): Promise<boolean> {
-  const activeSessionKey = activeSessionKeyRef.current;
-  const currentRoomId = identity?.room_id?.trim() ?? "";
-  const currentConversationId = identity?.conversation_id?.trim() ?? "";
-  const beforeRoundId = historyCursorRef.current.before_round_id;
-  const beforeRoundTimestamp =
-    historyCursorRef.current.before_round_timestamp;
+interface LoadOlderAgentConversationMessagesParams
+  extends AgentConversationHistoryContext {
+  hasMoreHistoryRef: RefObject<boolean>;
+  isHistoryLoadingRef: RefObject<boolean>;
+  setHistoryLoading: (nextValue: boolean) => void;
+  setHistoryPrependToken: Dispatch<SetStateAction<number>>;
+}
 
-  if (
-    !activeSessionKey ||
-    !hasMoreHistoryRef.current ||
-    isHistoryLoadingRef.current ||
-    !beforeRoundTimestamp
-  ) {
-    return false;
-  }
+interface LoadRoundWindowMessagesParams
+  extends AgentConversationHistoryContext {
+  isRoundWindowLoadingRef: MutableRefObject<boolean>;
+  roundId: string;
+}
 
-  setHistoryLoading(true);
-  try {
-    const page = currentRoomId && currentConversationId
-      ? await getRoomConversationMessages(
-          currentRoomId,
-          currentConversationId,
-          {
-            limit: getMessageHistoryRoundPageSize(),
-            before_round_id: beforeRoundId,
-            before_round_timestamp: beforeRoundTimestamp,
-          },
-        )
-      : await getSessionMessagesApi(activeSessionKey, {
-          limit: getMessageHistoryRoundPageSize(),
-          before_round_id: beforeRoundId,
-          before_round_timestamp: beforeRoundTimestamp,
-        });
-    if (activeSessionKeyRef.current !== activeSessionKey) {
-      return false;
-    }
-
-    const sortedMessages = sortMessages(page.items ?? []);
-    if (sortedMessages.length === 0) {
-      historyCursorRef.current = {
-        before_round_id: null,
-        before_round_timestamp: null,
-      };
-      setHasMoreHistory(false);
-      return false;
-    }
-
-    setMessages((currentMessages) =>
-      mergeLoadedMessages(sortedMessages, currentMessages),
+async function requestHistoryPage(
+  request: ConversationHistoryRequest,
+): Promise<RoomConversationMessagePage> {
+  if (request.source.kind === "room") {
+    return getRoomConversationMessages(
+      request.source.roomId,
+      request.source.conversationId,
+      request.query,
     );
-    historyCursorRef.current = {
-      before_round_id: page.next_before_round_id ?? null,
-      before_round_timestamp: page.next_before_round_timestamp ?? null,
+  }
+  return getSessionMessagesApi(request.source.sessionKey, request.query);
+}
+
+function isCurrentHistoryRequest(
+  request: ConversationHistoryRequest,
+  activeSessionKeyRef: RefObject<string | null>,
+): boolean {
+  return activeSessionKeyRef.current === request.activeSessionKey;
+}
+
+function updateHistoryCursor(
+  cursorRef: MutableRefObject<AgentConversationHistoryCursor>,
+  page: RoomConversationMessagePage,
+): void {
+  cursorRef.current = {
+    before_round_id: page.next_before_round_id,
+    before_round_timestamp: page.next_before_round_timestamp,
+  };
+}
+
+function commitOlderHistoryPage(
+  page: RoomConversationMessagePage,
+  context: LoadOlderAgentConversationMessagesParams,
+): boolean {
+  const sortedMessages = sortMessages(page.items);
+  if (sortedMessages.length === 0) {
+    context.historyCursorRef.current = {
+      before_round_id: null,
+      before_round_timestamp: null,
     };
-    setHasMoreHistory(page.has_more ?? false);
-    setHistoryPrependToken((currentToken) => currentToken + 1);
-    return true;
-  } catch (err) {
-    if (activeSessionKeyRef.current !== activeSessionKey) {
+    context.setHasMoreHistory(false);
+    return false;
+  }
+
+  context.setMessages((currentMessages) =>
+    mergeLoadedMessages(sortedMessages, currentMessages),
+  );
+  updateHistoryCursor(context.historyCursorRef, page);
+  context.setHasMoreHistory(page.has_more);
+  context.setHistoryPrependToken((currentToken) => currentToken + 1);
+  return true;
+}
+
+function commitRoundWindowHistoryPage(
+  page: RoomConversationMessagePage,
+  context: LoadRoundWindowMessagesParams,
+): boolean {
+  const sortedMessages = sortMessages(page.items);
+  if (sortedMessages.length === 0) {
+    return false;
+  }
+
+  context.setMessages((currentMessages) =>
+    mergeLoadedMessages(sortedMessages, currentMessages),
+  );
+  if (page.next_before_round_timestamp) {
+    updateHistoryCursor(context.historyCursorRef, page);
+    context.setHasMoreHistory(page.has_more);
+  }
+  return true;
+}
+
+function reportHistoryLoadError(
+  error: unknown,
+  context: AgentConversationHistoryContext,
+  logMessage: string,
+  fallbackMessage: string,
+): void {
+  console.error(logMessage, error);
+  context.setError(error instanceof Error ? error.message : fallbackMessage);
+}
+
+export async function loadOlderAgentConversationMessages(
+  context: LoadOlderAgentConversationMessagesParams,
+): Promise<boolean> {
+  const request = planOlderHistoryRequest({
+    activeSessionKey: context.activeSessionKeyRef.current,
+    cursor: context.historyCursorRef.current,
+    hasMore: context.hasMoreHistoryRef.current,
+    identity: context.identity,
+    isLoading: context.isHistoryLoadingRef.current,
+  });
+  if (!request) {
+    return false;
+  }
+
+  context.setHistoryLoading(true);
+  try {
+    const page = await requestHistoryPage(request);
+    return isCurrentHistoryRequest(request, context.activeSessionKeyRef)
+      ? commitOlderHistoryPage(page, context)
+      : false;
+  } catch (error) {
+    if (!isCurrentHistoryRequest(request, context.activeSessionKeyRef)) {
       return false;
     }
-    console.error("[useAgentConversation] 加载更早消息失败:", err);
-    setError(
-      err instanceof Error ? err.message : "Failed to load older messages",
+    reportHistoryLoadError(
+      error,
+      context,
+      "[useAgentConversation] 加载更早消息失败:",
+      "Failed to load older messages",
     );
     return false;
   } finally {
-    if (activeSessionKeyRef.current === activeSessionKey) {
-      setHistoryLoading(false);
+    if (isCurrentHistoryRequest(request, context.activeSessionKeyRef)) {
+      context.setHistoryLoading(false);
     }
   }
 }
 
-export async function loadAgentConversationMessagesAroundRound({
-  active_session_key_ref: activeSessionKeyRef,
-  identity,
-  history_cursor_ref: historyCursorRef,
-  is_round_window_loading_ref: isRoundWindowLoadingRef,
-  round_id: roundId,
-  set_has_more_history: setHasMoreHistory,
-  set_messages: setMessages,
-  set_error: setError,
-}: Omit<
-  LoadOlderAgentConversationMessagesParams,
-  | "has_more_history_ref"
-  | "is_history_loading_ref"
-  | "set_history_loading"
-  | "set_history_prepend_token"
-> & {
-  is_round_window_loading_ref: MutableRefObject<boolean>;
-  round_id: string;
-}): Promise<boolean> {
-  const activeSessionKey = activeSessionKeyRef.current;
-  const currentRoomId = identity?.room_id?.trim() ?? "";
-  const currentConversationId = identity?.conversation_id?.trim() ?? "";
-  const targetRoundId = roundId.trim();
-
-  if (!activeSessionKey || !targetRoundId || isRoundWindowLoadingRef.current) {
+export async function loadAgentConversationMessagesAroundRound(
+  context: LoadRoundWindowMessagesParams,
+): Promise<boolean> {
+  const request = planRoundWindowHistoryRequest({
+    activeSessionKey: context.activeSessionKeyRef.current,
+    identity: context.identity,
+    isLoading: context.isRoundWindowLoadingRef.current,
+    roundId: context.roundId,
+  });
+  if (!request) {
     return false;
   }
 
-  isRoundWindowLoadingRef.current = true;
+  context.isRoundWindowLoadingRef.current = true;
   try {
-    const page = currentRoomId && currentConversationId
-      ? await getRoomConversationMessages(
-          currentRoomId,
-          currentConversationId,
-          {
-            around_round_id: targetRoundId,
-            around_limit: TARGET_ROUND_WINDOW_RADIUS,
-          },
-        )
-      : await getSessionMessagesApi(activeSessionKey, {
-          around_round_id: targetRoundId,
-          around_limit: TARGET_ROUND_WINDOW_RADIUS,
-        });
-    if (activeSessionKeyRef.current !== activeSessionKey) {
+    const page = await requestHistoryPage(request);
+    return isCurrentHistoryRequest(request, context.activeSessionKeyRef)
+      ? commitRoundWindowHistoryPage(page, context)
+      : false;
+  } catch (error) {
+    if (!isCurrentHistoryRequest(request, context.activeSessionKeyRef)) {
       return false;
     }
-
-    const sortedMessages = sortMessages(page.items ?? []);
-    if (sortedMessages.length === 0) {
-      return false;
-    }
-
-    setMessages((currentMessages) =>
-      mergeLoadedMessages(sortedMessages, currentMessages),
-    );
-    if (page.next_before_round_timestamp) {
-      historyCursorRef.current = {
-        before_round_id: page.next_before_round_id ?? null,
-        before_round_timestamp: page.next_before_round_timestamp,
-      };
-      setHasMoreHistory(page.has_more ?? false);
-    }
-    return true;
-  } catch (err) {
-    if (activeSessionKeyRef.current !== activeSessionKey) {
-      return false;
-    }
-    console.error("[useAgentConversation] 加载目标轮次附近消息失败:", err);
-    setError(
-      err instanceof Error ? err.message : "Failed to load target messages",
+    reportHistoryLoadError(
+      error,
+      context,
+      "[useAgentConversation] 加载目标轮次附近消息失败:",
+      "Failed to load target messages",
     );
     return false;
   } finally {
-    isRoundWindowLoadingRef.current = false;
+    context.isRoundWindowLoadingRef.current = false;
   }
 }

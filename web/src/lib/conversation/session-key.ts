@@ -31,35 +31,194 @@ export interface ParsedSessionKey {
   conversation_id: string | null;
 }
 
+interface AgentRefParts {
+  account_id: string | null;
+  error: string | null;
+  ref_start: number;
+}
+
+interface ParsedAgentReference {
+  account_id: string | null;
+  ref: string | null;
+  thread_id: string | null;
+}
+
+interface SessionKeyRule {
+  parse: (sessionKey: string, isStructured: boolean) => ParsedSessionKey;
+  prefix: string;
+  validate: (sessionKey: string) => string | null;
+}
+
+function createParsedSessionKey(raw: string): ParsedSessionKey {
+  return {
+    raw,
+    kind: "unknown",
+    is_structured: false,
+    is_shared: false,
+    agent_id: null,
+    channel: null,
+    chat_type: null,
+    account_id: null,
+    ref: null,
+    thread_id: null,
+    conversation_id: null,
+  };
+}
+
 function findTopicIndex(parts: string[], minIndex: number): number {
-  return parts.findIndex((part, index) => part === TOPIC_SEGMENT && index >= minIndex);
+  return parts.findIndex(
+    (part, index) => part === TOPIC_SEGMENT && index >= minIndex,
+  );
 }
 
 function agentSessionKeyShapeError(): string {
   return "session_key must match agent:<agent_id>:<channel>:<chat_type>[:acct:<account_id>]:<ref>[:topic:<thread_id>]";
 }
 
-function splitAgentRefParts(parts: string[]): {
-  account_id: string | null;
-  ref_start: number;
-  error: string | null;
-} {
-  if (parts[4] === ACCOUNT_SEGMENT) {
-    if (parts.length < 7) {
-      return { account_id: null, ref_start: 0, error: agentSessionKeyShapeError() };
-    }
-    const accountId = parts[5]?.trim() ?? "";
-    if (!accountId) {
-      return { account_id: null, ref_start: 0, error: "session_key account_id is required after acct segment" };
-    }
-    return { account_id: accountId, ref_start: 6, error: null };
+function splitAgentRefParts(parts: string[]): AgentRefParts {
+  if (parts[4] !== ACCOUNT_SEGMENT) {
+    return { account_id: null, error: null, ref_start: 4 };
   }
-  return { account_id: null, ref_start: 4, error: null };
+  if (parts.length < 7) {
+    return {
+      account_id: null,
+      error: agentSessionKeyShapeError(),
+      ref_start: 0,
+    };
+  }
+  const accountId = parts[5]?.trim() ?? "";
+  return accountId
+    ? { account_id: accountId, error: null, ref_start: 6 }
+    : {
+        account_id: null,
+        error: "session_key account_id is required after acct segment",
+        ref_start: 0,
+      };
 }
 
-/**
- * 中文注释：前后端共享同一套 sessionKey 语义，前端不要再散落手拼字符串。
- */
+function parseAgentReference(parts: string[]): ParsedAgentReference {
+  const split = splitAgentRefParts(parts);
+  if (split.error) {
+    return { account_id: null, ref: null, thread_id: null };
+  }
+
+  // `:topic:` 是协议边界，ref 内部仍可包含冒号。
+  const topicIndex = findTopicIndex(parts, split.ref_start);
+  const hasTopic = topicIndex >= 0;
+  const refEnd = hasTopic ? topicIndex : parts.length;
+  return {
+    account_id: split.account_id,
+    ref: parts.slice(split.ref_start, refEnd).join(":") || null,
+    thread_id: hasTopic
+      ? parts.slice(topicIndex + 1).join(":") || null
+      : null,
+  };
+}
+
+function hasAgentSessionHeader(parts: string[]): boolean {
+  return parts.length >= 5 && parts.slice(1, 4).every(Boolean);
+}
+
+function validateAgentReference(
+  parts: string[],
+  refStart: number,
+): string | null {
+  const topicIndex = findTopicIndex(parts, refStart);
+  if (topicIndex < 0) {
+    return parts.slice(refStart).join(":").trim()
+      ? null
+      : agentSessionKeyShapeError();
+  }
+  const ref = parts.slice(refStart, topicIndex).join(":").trim();
+  const threadId = parts.slice(topicIndex + 1).join(":").trim();
+  return ref && threadId ? null : agentSessionKeyShapeError();
+}
+
+function validateAgentSessionKey(sessionKey: string): string | null {
+  const parts = sessionKey.split(":");
+  if (!hasAgentSessionHeader(parts)) {
+    return agentSessionKeyShapeError();
+  }
+
+  const split = splitAgentRefParts(parts);
+  if (split.error) {
+    return split.error;
+  }
+  return validateAgentReference(parts, split.ref_start);
+}
+
+function parseAgentSessionKey(
+  sessionKey: string,
+  isStructured: boolean,
+): ParsedSessionKey {
+  const parts = sessionKey.split(":");
+  return {
+    ...createParsedSessionKey(sessionKey),
+    ...parseAgentReference(parts),
+    kind: "agent",
+    is_structured: isStructured,
+    agent_id: resolveAgentId(parts[1]),
+    channel: parts[2] || null,
+    chat_type: parts[3] || "dm",
+  };
+}
+
+function validateRoomSessionKey(sessionKey: string): string | null {
+  const parts = sessionKey.split(":");
+  const conversationId = parts.slice(2).join(":").trim();
+  return parts.length >= 3 && parts[1] === "group" && conversationId
+    ? null
+    : "session_key must match room:group:<conversation_id>";
+}
+
+function parseRoomSessionKey(
+  sessionKey: string,
+  isStructured: boolean,
+): ParsedSessionKey {
+  const parts = sessionKey.split(":");
+  const conversationId = parts.slice(2).join(":").trim() || null;
+  return {
+    ...createParsedSessionKey(sessionKey),
+    kind: "room",
+    is_structured: isStructured,
+    is_shared: isStructured,
+    chat_type: parts[1] || "group",
+    ref: conversationId,
+    conversation_id: conversationId,
+  };
+}
+
+const SESSION_KEY_RULES: SessionKeyRule[] = [
+  {
+    parse: parseAgentSessionKey,
+    prefix: `${AGENT_SESSION_PREFIX}:`,
+    validate: validateAgentSessionKey,
+  },
+  {
+    parse: parseRoomSessionKey,
+    prefix: `${ROOM_SESSION_PREFIX}:`,
+    validate: validateRoomSessionKey,
+  },
+];
+
+function findSessionKeyRule(sessionKey: string): SessionKeyRule | undefined {
+  return SESSION_KEY_RULES.find((rule) => sessionKey.startsWith(rule.prefix));
+}
+
+function getSessionKeyValidationError(
+  sessionKey: string | null | undefined,
+): string | null {
+  const normalizedKey = (sessionKey ?? "").trim();
+  if (!normalizedKey) {
+    return "session_key is required";
+  }
+  const rule = findSessionKeyRule(normalizedKey);
+  return rule
+    ? rule.validate(normalizedKey)
+    : "session_key must use structured gateway format";
+}
+
+/** 前后端必须共用协议构造入口，避免业务层手拼身份。 */
 export function buildSessionKey({
   channel,
   chat_type: chatType,
@@ -68,18 +227,22 @@ export function buildSessionKey({
   account_id: accountId,
   thread_id: threadId,
 }: BuildSessionKeyOptions): string {
-  const resolvedAgentId = resolveAgentId(agentId);
-  const resolvedChannel = channel.trim();
-  const resolvedChatType = chatType.trim();
-  const resolvedRef = ref.trim();
-  const resolvedAccountId = accountId?.trim() ?? "";
-  let key = resolvedAccountId
-    ? `${AGENT_SESSION_PREFIX}:${resolvedAgentId}:${resolvedChannel}:${resolvedChatType}:${ACCOUNT_SEGMENT}:${resolvedAccountId}:${resolvedRef}`
-    : `${AGENT_SESSION_PREFIX}:${resolvedAgentId}:${resolvedChannel}:${resolvedChatType}:${resolvedRef}`;
-  if (threadId?.trim()) {
-    key += `:${TOPIC_SEGMENT}:${threadId.trim()}`;
+  const segments = [
+    AGENT_SESSION_PREFIX,
+    resolveAgentId(agentId),
+    channel.trim(),
+    chatType.trim(),
+  ];
+  const resolvedAccountId = accountId?.trim();
+  if (resolvedAccountId) {
+    segments.push(ACCOUNT_SEGMENT, resolvedAccountId);
   }
-  return key;
+  segments.push(ref.trim());
+  const resolvedThreadId = threadId?.trim();
+  if (resolvedThreadId) {
+    segments.push(TOPIC_SEGMENT, resolvedThreadId);
+  }
+  return segments.join(":");
 }
 
 export function buildRoomSharedSessionKey(conversationId: string): string {
@@ -99,48 +262,13 @@ export function buildRoomAgentSessionKey(
   });
 }
 
-function getSessionKeyValidationError(sessionKey: string | null | undefined): string | null {
-  const normalizedKey = (sessionKey ?? "").trim();
-  if (!normalizedKey) {
-    return "session_key is required";
-  }
-
-  if (normalizedKey.startsWith(`${AGENT_SESSION_PREFIX}:`)) {
-    const parts = normalizedKey.split(":");
-    if (parts.length < 5 || !parts[1] || !parts[2] || !parts[3]) {
-      return agentSessionKeyShapeError();
-    }
-
-    const split = splitAgentRefParts(parts);
-    if (split.error) {
-      return split.error;
-    }
-    const topicIndex = findTopicIndex(parts, split.ref_start);
-    if (topicIndex >= 0) {
-      const ref = parts.slice(split.ref_start, topicIndex).join(":").trim();
-      const threadId = parts.slice(topicIndex + 1).join(":").trim();
-      return ref && threadId ? null : agentSessionKeyShapeError();
-    }
-
-    return parts.slice(split.ref_start).join(":").trim() ? null : agentSessionKeyShapeError();
-  }
-
-  if (normalizedKey.startsWith(`${ROOM_SESSION_PREFIX}:`)) {
-    const parts = normalizedKey.split(":");
-    const conversationId = parts.slice(2).join(":").trim();
-    return parts.length >= 3 && parts[1] === "group" && conversationId
-      ? null
-      : "session_key must match room:group:<conversation_id>";
-  }
-
-  return "session_key must use structured gateway format";
-}
-
 export function isStructuredSessionKey(sessionKey: string): boolean {
   return getSessionKeyValidationError(sessionKey) === null;
 }
 
-export function assertStructuredSessionKey(sessionKey: string | null | undefined): string {
+export function assertStructuredSessionKey(
+  sessionKey: string | null | undefined,
+): string {
   const errorMessage = getSessionKeyValidationError(sessionKey);
   if (errorMessage) {
     throw new Error(errorMessage);
@@ -148,73 +276,28 @@ export function assertStructuredSessionKey(sessionKey: string | null | undefined
   return (sessionKey ?? "").trim();
 }
 
-
-export function parseSessionKey(sessionKey: string | null | undefined): ParsedSessionKey {
+export function parseSessionKey(
+  sessionKey: string | null | undefined,
+): ParsedSessionKey {
   const normalizedKey = (sessionKey ?? "").trim();
-  const validationError = getSessionKeyValidationError(normalizedKey);
-  const result: ParsedSessionKey = {
-    raw: normalizedKey,
-    kind: "unknown",
-    is_structured: false,
-    is_shared: false,
-    agent_id: null,
-    channel: null,
-    chat_type: null,
-    account_id: null,
-    ref: null,
-    thread_id: null,
-    conversation_id: null,
-  };
-
-  if (normalizedKey.startsWith(`${AGENT_SESSION_PREFIX}:`)) {
-    const parts = normalizedKey.split(":");
-    result.kind = "agent";
-    result.is_structured = validationError === null;
-    result.agent_id = resolveAgentId(parts[1]);
-    result.channel = parts[2] || null;
-    result.chat_type = parts[3] || "dm";
-
-    // `:topic:` 是协议保留边界，ref 中允许冒号，但不能跨过该边界。
-    const split = splitAgentRefParts(parts);
-    if (split.error) {
-      return result;
-    }
-    result.account_id = split.account_id;
-    const topicIndex = findTopicIndex(parts, split.ref_start);
-    if (topicIndex >= 0) {
-      result.ref = parts.slice(split.ref_start, topicIndex).join(":") || null;
-      result.thread_id = parts.slice(topicIndex + 1).join(":") || null;
-    } else {
-      result.ref = parts.slice(split.ref_start).join(":") || null;
-    }
-    return result;
-  }
-
-  if (normalizedKey.startsWith(`${ROOM_SESSION_PREFIX}:`)) {
-    const parts = normalizedKey.split(":");
-    const conversationId = parts.slice(2).join(":").trim();
-    result.kind = "room";
-    result.is_structured = validationError === null;
-    result.is_shared = validationError === null;
-    result.chat_type = parts[1] || "group";
-    result.ref = conversationId || null;
-    result.conversation_id = conversationId || null;
-  }
-
-  return result;
+  const rule = findSessionKeyRule(normalizedKey);
+  return rule
+    ? rule.parse(normalizedKey, rule.validate(normalizedKey) === null)
+    : createParsedSessionKey(normalizedKey);
 }
 
-export function getSessionKeyIdentity(sessionKey: string | null | undefined): string | null {
+export function getSessionKeyIdentity(
+  sessionKey: string | null | undefined,
+): string | null {
   const parsed = parseSessionKey(sessionKey);
   if (!parsed.raw) {
     return null;
   }
 
-  // Room 键比较时只认 conversationId，避免未来 alias 演进时前端错判。
+  // Room 身份只认 conversationId，避免别名演进影响前端比较。
   if (parsed.kind === "room" && parsed.conversation_id) {
     return `${ROOM_SESSION_PREFIX}:${parsed.conversation_id}`;
   }
-
   return parsed.raw;
 }
 

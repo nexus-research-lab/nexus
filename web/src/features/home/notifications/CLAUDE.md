@@ -5,7 +5,8 @@
 ## 职责边界
 
 - `chat-notification-target.ts` 统一路由、Room、Conversation 与 Session 的通知目标身份。
-- `chat-notification-model.ts` 只做目录索引、完成事件判定和通知内容纯投影。
+- `chat-notification-directory.ts` 只建立共享目录索引并提供目标查询。
+- `chat-notification-model.ts` 只做完成事件判定、目标和通知内容纯投影。
 - `browser-notification.ts` 封装浏览器可见性、权限和系统通知副作用。
 - `use-chat-notification-socket.ts` 只处理 Room 协议订阅、序列游标和事件分类。
 - `use-chat-completion-notifications.ts` 编排当前页面、未读 Store 与通知策略。

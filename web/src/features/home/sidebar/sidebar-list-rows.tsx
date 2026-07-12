@@ -60,22 +60,32 @@ export function SidebarListLoadingRows({ count = 4 }: { count?: number }) {
   );
 }
 
-export function ConversationRow({
-  item,
-  isActive: isActive,
-  onClick: onClick,
-  onDelete: onDelete,
-}: {
-  item: SidebarConversationItem;
+interface ConversationRowProps {
   isActive: boolean;
+  item: SidebarConversationItem;
   onClick: () => void;
   onDelete?: () => void;
+}
+
+function ConversationRowLeading({
+  isWorking,
+  item,
+}: {
+  isWorking: boolean;
+  item: SidebarConversationItem;
 }) {
-  const { t } = useI18n();
-  const isWorking = item.runningTaskCount > 0;
-  const leading = item.kind === "room" ? (
-    <UiRoomAvatar avatar={item.avatar} members={item.members} roomId={item.roomId} size="sm" title={item.title} />
-  ) : (
+  if (item.kind === "room") {
+    return (
+      <UiRoomAvatar
+        avatar={item.avatar}
+        members={item.members}
+        roomId={item.roomId}
+        size="sm"
+        title={item.title}
+      />
+    );
+  }
+  return (
     <UiAgentAvatar
       avatar={(item.members[0]?.avatar ?? item.avatar) ?? undefined}
       isWorking={isWorking}
@@ -83,16 +93,30 @@ export function ConversationRow({
       size="sm"
     />
   );
-  const meta = item.timeLabel || onDelete ? (
+}
+
+function ConversationRowMeta({
+  deleteLabel,
+  onDelete,
+  timeLabel,
+}: {
+  deleteLabel: string;
+  onDelete?: () => void;
+  timeLabel: string;
+}) {
+  if (!timeLabel && !onDelete) {
+    return null;
+  }
+  return (
     <span className="relative flex h-7 w-10 shrink-0 items-center justify-end">
-      {item.timeLabel ? (
+      {timeLabel ? (
         <span
           className={cn(
             "text-[11px] tabular-nums text-(--text-soft) transition-opacity duration-(--motion-duration-fast)",
             onDelete && "group-hover/item:opacity-0",
           )}
         >
-          {item.timeLabel}
+          {timeLabel}
         </span>
       ) : null}
       {onDelete ? (
@@ -103,7 +127,7 @@ export function ConversationRow({
             onDelete();
           }}
           size="sm"
-          title={t("common.delete")}
+          title={deleteLabel}
           tone="danger"
           type="button"
           variant="ghost"
@@ -112,37 +136,74 @@ export function ConversationRow({
         </UiIconButton>
       ) : null}
     </span>
-  ) : null;
-  const status = (
+  );
+}
+
+function ConversationRowStatus({
+  isWorking,
+  unreadCount,
+  workingLabel,
+}: {
+  isWorking: boolean;
+  unreadCount: number;
+  workingLabel: string;
+}) {
+  return (
     <>
       {isWorking ? (
         <UiBadge size="xs" tone="primary">
-          {t("status.working")}
+          {workingLabel}
         </UiBadge>
       ) : null}
-      <UiCounterBadge count={item.unreadCount ?? 0} />
+      <UiCounterBadge count={unreadCount} />
     </>
   );
+}
+
+function ConversationRowSummary({ item }: { item: SidebarConversationItem }) {
+  return (
+    <UiMarkdownContent
+      className="truncate text-[12px] leading-5 text-(--text-muted) [&_*]:leading-5"
+      content={item.summary}
+      mermaidShowHeader={false}
+      summaryMonochrome
+      summaryStrongAsText
+      variant="summary"
+      workspaceAgentId={item.kind === "dm" ? item.agentId : undefined}
+    />
+  );
+}
+
+export function ConversationRow({
+  item,
+  isActive: isActive,
+  onClick: onClick,
+  onDelete: onDelete,
+}: ConversationRowProps) {
+  const { t } = useI18n();
+  const isWorking = item.runningTaskCount > 0;
 
   return (
     <UiListRow
       active={isActive}
       className="min-h-[58px] gap-2.5 rounded-[13px] px-2.5 py-2"
-      description={item.summary ? (
-        <UiMarkdownContent
-          className="truncate text-[12px] leading-5 text-(--text-muted) [&_*]:leading-5"
-          content={item.summary}
-          mermaidShowHeader={false}
-          summaryMonochrome
-          summaryStrongAsText
-          variant="summary"
-          workspaceAgentId={item.kind === "dm" ? item.agentId : undefined}
+      description={item.summary ? <ConversationRowSummary item={item} /> : undefined}
+      leading={<ConversationRowLeading isWorking={isWorking} item={item} />}
+      meta={item.timeLabel || onDelete ? (
+        <ConversationRowMeta
+          deleteLabel={t("common.delete")}
+          onDelete={onDelete}
+          timeLabel={item.timeLabel}
         />
-      ) : undefined}
-      leading={leading}
-      meta={meta}
+      ) : null}
       onClick={onClick}
-      subtitleTrailing={status}
+      subtitleTrailing={(
+        <ConversationRowStatus
+          isWorking={isWorking}
+          unreadCount={item.unreadCount ?? 0}
+          workingLabel={t("status.working")}
+        />
+      )}
       title={item.title}
     />
   );

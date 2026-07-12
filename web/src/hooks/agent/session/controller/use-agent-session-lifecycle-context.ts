@@ -10,7 +10,7 @@ import type {
 import type { PendingPermission } from "@/types/conversation/interaction/permission";
 
 import type { AgentConversationLifecycleContext } from "../conversation-lifecycle";
-import type { AgentConversationHistoryCursor } from "../conversation-history";
+import type { AgentConversationHistoryCursor } from "../conversation-history-model";
 
 interface UseAgentSessionLifecycleContextOptions {
   activeSessionKeyRef: RefObject<string | null>;

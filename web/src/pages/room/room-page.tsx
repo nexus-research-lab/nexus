@@ -4,12 +4,124 @@ import { GroupRouteEntry } from "@/features/conversation/room/group/group-route-
 import { RoomSurfaceShell } from "@/features/conversation/room/surface/room-surface-shell";
 import { WorkspaceLoadingState } from "@/shared/ui/workspace/frame/workspace-loading-state";
 import { WorkspacePageFrame } from "@/shared/ui/workspace/frame/workspace-page-frame";
+import type { RoomEventPayload } from "@/types/agent/agent-conversation";
 import type { RoomRouteParams } from "@/types/app/route";
 
 import { useRoomPageController } from "./controller/use-room-page-controller";
 import { useRoomPageEvents } from "./orchestration/use-room-page-events";
 import { useRoomPageNavigation } from "./orchestration/use-room-page-navigation";
 import { useRoomPageTour } from "./orchestration/use-room-page-tour";
+
+type RoomPageController = ReturnType<typeof useRoomPageController>;
+type RoomPageNavigation = ReturnType<typeof useRoomPageNavigation>;
+
+interface RoomPageContentProps {
+  controller: RoomPageController;
+  handleRoomEvent: (eventType: string, data: RoomEventPayload) => void;
+  navigation: RoomPageNavigation;
+  onReplayTour?: () => void;
+  routeConversationId?: string;
+  routeRoomId?: string;
+}
+
+interface ActiveRoomPageProps extends RoomPageContentProps {
+  currentAgent: NonNullable<RoomPageController["agent"]["current"]>;
+  currentRoom: NonNullable<RoomPageController["room"]["current"]>;
+}
+
+function ActiveRoomPage({
+  controller,
+  currentAgent,
+  currentRoom,
+  handleRoomEvent,
+  navigation,
+  onReplayTour,
+}: ActiveRoomPageProps) {
+  const { actions, agent, conversation, room, workspace } = controller;
+  return (
+    <WorkspacePageFrame contentPaddingClassName="p-0">
+      <RoomSurfaceShell
+        activeWorkspacePath={workspace.activeWorkspacePath}
+        availableRoomAgents={room.availableAgents}
+        currentAgent={currentAgent}
+        roomId={room.routeId}
+        currentRoomType={room.type}
+        roomAvatar={currentRoom.avatar ?? null}
+        roomMembers={room.members}
+        currentRoomTitle={room.title}
+        roomSkillNames={room.skillNames}
+        roomHostAgentId={currentRoom.host_agent_id ?? null}
+        roomHostAutoReplyEnabled={currentRoom.host_auto_reply_enabled}
+        roomPrivateMessagesEnabled={currentRoom.private_messages_enabled}
+        currentRoomConversations={conversation.items}
+        currentRoomConversation={conversation.current}
+        currentAgentSessionIdentity={agent.sessionIdentity}
+        conversationId={conversation.selectedId}
+        currentTodos={workspace.currentTodos}
+        editorWidthPercent={workspace.editorWidthPercent}
+        initialDraft={navigation.initialDraft}
+        isEditorOpen={workspace.isEditorOpen}
+        isResizingEditor={workspace.isResizingEditor}
+        onReplayTour={onReplayTour}
+        onManageRoom={actions.manageRoom}
+        onOpenMemberManager={actions.prepareAgentCatalog}
+        onBackToDirectory={navigation.backToLauncher}
+        onCloseConversation={actions.closeConversation}
+        onDeleteConversation={navigation.deleteConversation}
+        onCreateConversation={navigation.createConversation}
+        onOpenWorkspaceFile={workspace.handleOpenWorkspaceFile}
+        onSaveAgentOptions={actions.saveAgentOptions}
+        onUpdateConversationTitle={actions.updateConversationTitle}
+        onSelectConversation={navigation.selectConversation}
+        onConversationSnapshotChange={conversation.handleSnapshotChange}
+        onInitialDraftConsumed={navigation.consumeInitialDraft}
+        onStartEditorResize={workspace.handleStartEditorResize}
+        onTodosChange={workspace.setCurrentTodos}
+        onValidateAgentName={actions.validateAgentName}
+        workspaceSplitRef={workspace.workspaceSplitRef}
+        onRoomEvent={handleRoomEvent}
+      />
+    </WorkspacePageFrame>
+  );
+}
+
+function RoomPageContent(props: RoomPageContentProps) {
+  const { agent, conversation, room, status } = props.controller;
+  if (!status.isHydrated) {
+    return (
+      <WorkspacePageFrame contentPaddingClassName="p-0">
+        <WorkspaceLoadingState label="加载对话..." />
+      </WorkspacePageFrame>
+    );
+  }
+  if (!room.current || !agent.current) {
+    return (
+      <WorkspacePageFrame>
+        <GroupRouteEntry
+          agents={room.members}
+          conversations={conversation.items}
+          conversationId={props.routeConversationId}
+          roomId={props.routeRoomId}
+        />
+      </WorkspacePageFrame>
+    );
+  }
+  return (
+    <ActiveRoomPage
+      {...props}
+      currentAgent={agent.current}
+      currentRoom={room.current}
+    />
+  );
+}
+
+function getCurrentRoomId(controller: RoomPageController): string | null {
+  return controller.room.current?.id ?? null;
+}
+
+function getCurrentRoomType(controller: RoomPageController): string | null {
+  return controller.room.current?.room_type ?? null;
+}
 
 export function RoomPage() {
   const params = useParams<RoomRouteParams>();
@@ -18,91 +130,36 @@ export function RoomPage() {
     conversationId: params.conversationId,
     sessionKey: params.sessionKey,
   });
+  const { actions, conversation, room, status } = controller;
   const navigation = useRoomPageNavigation({
     roomId: params.roomId,
     routeConversationId: params.conversationId,
     routeSessionKey: params.sessionKey,
-    currentRoomId: controller.currentRoom?.id ?? null,
-    selectedConversationId: controller.conversationId,
-    isHydrated: controller.isHydrated,
-    createConversation: controller.handleCreateConversation,
-    deleteConversation: controller.handleDeleteConversation,
+    currentRoomId: getCurrentRoomId(controller),
+    selectedConversationId: conversation.selectedId,
+    isHydrated: status.isHydrated,
+    createConversation: actions.createConversation,
+    deleteConversation: actions.deleteConversation,
   });
-  const {startCurrentTour} = useRoomPageTour({
-    roomType: controller.currentRoom?.room_type ?? null,
-    hasConversation: Boolean(controller.currentRoomConversation),
-    enabled: controller.isHydrated && Boolean(controller.currentRoom),
+  const { startCurrentTour } = useRoomPageTour({
+    roomType: getCurrentRoomType(controller),
+    hasConversation: Boolean(conversation.current),
+    enabled: status.isHydrated && Boolean(room.current),
   });
   const handleRoomEvent = useRoomPageEvents({
     roomId: params.roomId,
-    roomType: controller.currentRoomType,
-    refreshRoomState: controller.handleRefreshRoomState,
+    roomType: room.type,
+    refreshRoomState: actions.refreshRoomState,
   });
 
-  if (!controller.isHydrated) {
-    return (
-      <WorkspacePageFrame contentPaddingClassName="p-0">
-        <WorkspaceLoadingState label="加载对话..." />
-      </WorkspacePageFrame>
-    );
-  }
-
-  if (controller.currentRoom && controller.currentAgent) {
-    return (
-      <WorkspacePageFrame contentPaddingClassName="p-0">
-        <RoomSurfaceShell
-          activeWorkspacePath={controller.activeWorkspacePath}
-          availableRoomAgents={controller.availableRoomAgents}
-          currentAgent={controller.currentAgent}
-          roomId={controller.routeRoomId}
-          currentRoomType={controller.currentRoomType}
-          roomAvatar={controller.currentRoom.avatar ?? null}
-          roomMembers={controller.roomMembers}
-          currentRoomTitle={controller.currentRoomTitle}
-          roomSkillNames={controller.currentRoomSkillNames}
-          roomHostAgentId={controller.currentRoom.host_agent_id ?? null}
-          roomHostAutoReplyEnabled={controller.currentRoom.host_auto_reply_enabled ?? false}
-          roomPrivateMessagesEnabled={controller.currentRoom.private_messages_enabled ?? false}
-          currentRoomConversations={controller.currentRoomConversations}
-          currentRoomConversation={controller.currentRoomConversation}
-          currentAgentSessionIdentity={controller.currentAgentSessionIdentity}
-          conversationId={controller.conversationId}
-          currentTodos={controller.currentTodos}
-          editorWidthPercent={controller.editorWidthPercent}
-          initialDraft={navigation.initialDraft}
-          isEditorOpen={controller.isEditorOpen}
-          isResizingEditor={controller.isResizingEditor}
-          onReplayTour={startCurrentTour}
-          onManageRoom={controller.handleManageRoom}
-          onOpenMemberManager={controller.handlePrepareRoomAgentCatalog}
-          onBackToDirectory={navigation.backToLauncher}
-          onCloseConversation={controller.handleCloseConversation}
-          onDeleteConversation={navigation.deleteConversation}
-          onCreateConversation={navigation.createConversation}
-          onOpenWorkspaceFile={controller.handleOpenWorkspaceFile}
-          onSaveAgentOptions={controller.handleSaveExistingAgentOptions}
-          onUpdateConversationTitle={controller.handleUpdateConversationTitle}
-          onSelectConversation={navigation.selectConversation}
-          onConversationSnapshotChange={controller.handleConversationSnapshotChange}
-          onInitialDraftConsumed={navigation.consumeInitialDraft}
-          onStartEditorResize={controller.handleStartEditorResize}
-          onTodosChange={controller.setCurrentTodos}
-          onValidateAgentName={controller.handleValidateAgentNameForAgent}
-          workspaceSplitRef={controller.workspaceSplitRef}
-          onRoomEvent={handleRoomEvent}
-        />
-      </WorkspacePageFrame>
-    );
-  }
-
   return (
-    <WorkspacePageFrame>
-      <GroupRouteEntry
-        agents={controller.roomMembers}
-        conversations={controller.currentRoomConversations}
-        conversationId={params.conversationId}
-        roomId={params.roomId}
-      />
-    </WorkspacePageFrame>
+    <RoomPageContent
+      controller={controller}
+      handleRoomEvent={handleRoomEvent}
+      navigation={navigation}
+      onReplayTour={startCurrentTour}
+      routeConversationId={params.conversationId}
+      routeRoomId={params.roomId}
+    />
   );
 }

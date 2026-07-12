@@ -1,6 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type Dispatch,
+  type RefObject,
+  type SetStateAction,
+} from "react";
 
 import { getRoomContexts } from "@/lib/api/conversation/room-resource-api";
 import type { RoomContextAggregate } from "@/types/conversation/room";
@@ -13,7 +21,6 @@ interface RoomPageDataState {
   scopeKey: string;
   isRoomLoading: boolean;
   roomContexts: RoomContextAggregate[];
-  roomError: string | null;
 }
 
 function createRoomPageDataState(scopeKey: string, isLoading: boolean): RoomPageDataState {
@@ -21,8 +28,43 @@ function createRoomPageDataState(scopeKey: string, isLoading: boolean): RoomPage
     scopeKey,
     isRoomLoading: isLoading,
     roomContexts: [],
-    roomError: null,
   };
+}
+
+function isActiveRoomScope(
+  scopeRef: RefObject<string>,
+  scopeKey: string,
+): boolean {
+  return Boolean(scopeKey) && scopeRef.current === scopeKey;
+}
+
+function isCurrentRoomRequest(
+  scopeRef: RefObject<string>,
+  requestSequenceRef: RefObject<number>,
+  scopeKey: string,
+  requestId: number,
+): boolean {
+  return scopeRef.current === scopeKey
+    && requestSequenceRef.current === requestId;
+}
+
+function beginRoomRequest(
+  current: RoomPageDataState,
+  scopeKey: string,
+): RoomPageDataState {
+  if (current.scopeKey === scopeKey) {
+    return current;
+  }
+  return createRoomPageDataState(scopeKey, true);
+}
+
+function finishRoomRequest(
+  current: RoomPageDataState,
+  scopeKey: string,
+): RoomPageDataState {
+  return current.scopeKey === scopeKey
+    ? { ...current, isRoomLoading: false }
+    : current;
 }
 
 export function useRoomPageData({roomId}: UseRoomPageDataOptions) {
@@ -52,38 +94,36 @@ export function useRoomPageData({roomId}: UseRoomPageDataOptions) {
   );
 
   const refreshRoomContexts = useCallback(async (): Promise<RoomContextAggregate[]> => {
-    if (!scopeKey || scopeRef.current !== scopeKey) {
+    if (!isActiveRoomScope(scopeRef, scopeKey)) {
       return [];
     }
 
     const requestId = ++requestSequenceRef.current;
-    setState((current) => ({
-      scopeKey,
-      isRoomLoading: current.scopeKey === scopeKey ? current.isRoomLoading : true,
-      roomContexts: current.scopeKey === scopeKey ? current.roomContexts : [],
-      roomError: null,
-    }));
+    setState((current) => beginRoomRequest(current, scopeKey));
 
     try {
       const contexts = await getRoomContexts(scopeKey);
-      if (scopeRef.current === scopeKey && requestSequenceRef.current === requestId) {
+      if (isCurrentRoomRequest(
+        scopeRef,
+        requestSequenceRef,
+        scopeKey,
+        requestId,
+      )) {
         setState({
           scopeKey,
           isRoomLoading: false,
           roomContexts: contexts,
-          roomError: null,
         });
       }
       return contexts;
     } catch (error) {
-      if (scopeRef.current === scopeKey && requestSequenceRef.current === requestId) {
-        setState((current) => current.scopeKey === scopeKey
-          ? {
-              ...current,
-              isRoomLoading: false,
-              roomError: error instanceof Error ? error.message : "加载 room 失败",
-            }
-          : current);
+      if (isCurrentRoomRequest(
+        scopeRef,
+        requestSequenceRef,
+        scopeKey,
+        requestId,
+      )) {
+        setState((current) => finishRoomRequest(current, scopeKey));
       }
       throw error;
     }
@@ -100,10 +140,8 @@ export function useRoomPageData({roomId}: UseRoomPageDataOptions) {
     : createRoomPageDataState(scopeKey, Boolean(scopeKey));
 
   return {
-    isBootstrapped: true,
     roomContexts: currentState.roomContexts,
     setRoomContexts,
-    roomError: currentState.roomError,
     isRoomLoading: currentState.isRoomLoading,
     refreshRoomContexts,
   };

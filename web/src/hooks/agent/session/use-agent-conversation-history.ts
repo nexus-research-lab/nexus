@@ -13,8 +13,8 @@ import type { Message } from "@/types/conversation/message/entity";
 import {
   loadAgentConversationMessagesAroundRound,
   loadOlderAgentConversationMessages,
-  type AgentConversationHistoryCursor,
 } from "./conversation-history";
+import type { AgentConversationHistoryCursor } from "./conversation-history-model";
 
 interface UseAgentConversationHistoryParams {
   activeSessionKeyRef: RefObject<string | null>;
@@ -70,16 +70,16 @@ export function useAgentConversationHistory({
 
   const loadOlderMessages = useCallback(async (): Promise<boolean> => {
     return loadOlderAgentConversationMessages({
-      active_session_key_ref: activeSessionKeyRef,
+      activeSessionKeyRef,
+      hasMoreHistoryRef,
+      historyCursorRef,
       identity,
-      history_cursor_ref: historyCursorRef,
-      has_more_history_ref: hasMoreHistoryRef,
-      is_history_loading_ref: isHistoryLoadingRef,
-      set_history_loading: setHistoryLoading,
-      set_has_more_history: setHasMoreHistory,
-      set_history_prepend_token: setHistoryPrependToken,
-      set_messages: setMessages,
-      set_error: setError,
+      isHistoryLoadingRef,
+      setError,
+      setHasMoreHistory,
+      setHistoryLoading,
+      setHistoryPrependToken,
+      setMessages,
     });
   }, [
     activeSessionKeyRef,
@@ -92,14 +92,14 @@ export function useAgentConversationHistory({
 
   const loadRoundWindow = useCallback(async (roundId: string): Promise<boolean> => {
     return loadAgentConversationMessagesAroundRound({
-      active_session_key_ref: activeSessionKeyRef,
+      activeSessionKeyRef,
+      historyCursorRef,
       identity,
-      history_cursor_ref: historyCursorRef,
-      is_round_window_loading_ref: isRoundWindowLoadingRef,
-      round_id: roundId,
-      set_has_more_history: setHasMoreHistory,
-      set_messages: setMessages,
-      set_error: setError,
+      isRoundWindowLoadingRef,
+      roundId,
+      setError,
+      setHasMoreHistory,
+      setMessages,
     });
   }, [
     activeSessionKeyRef,

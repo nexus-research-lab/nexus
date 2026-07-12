@@ -6,6 +6,7 @@ L4 | 父级: ../CLAUDE.md
 
 - `controller/` 分离身份切换、后台/易失快照、生命周期上下文和总装配。
 - `use-agent-conversation-history.ts` 只持有历史分页状态与加载互斥。
+- `conversation-history-model.ts` 统一 Room/Session 历史源选择和请求规划，加载器只执行副作用。
 - `use-agent-conversation-session.ts` 只暴露开始、加载、绑定、清空和重置命令。
 
 [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
