@@ -12,6 +12,50 @@ import {
   isEphemeralMessage,
 } from "./conversation-runtime-state";
 
+type MessageReconciliationAction =
+  | { kind: "keep" }
+  | { kind: "remove" }
+  | {
+      kind: "update_status";
+      message: AssistantMessage;
+      status: AssistantMessageStatus;
+    };
+
+const KEEP_MESSAGE: MessageReconciliationAction = { kind: "keep" };
+const REMOVE_MESSAGE: MessageReconciliationAction = { kind: "remove" };
+const TERMINAL_ASSISTANT_STATUSES = new Set<AssistantMessageStatus>([
+  "cancelled",
+  "done",
+  "error",
+]);
+
+function reconcileMessages(
+  messages: Message[],
+  resolveAction: (message: Message) => MessageReconciliationAction,
+): Message[] {
+  let hasChanges = false;
+  const nextMessages: Message[] = [];
+  for (const message of messages) {
+    const action = resolveAction(message);
+    if (action.kind === "keep") {
+      nextMessages.push(message);
+      continue;
+    }
+    hasChanges = true;
+    if (action.kind === "update_status") {
+      nextMessages.push({ ...action.message, stream_status: action.status });
+    }
+  }
+  return hasChanges ? nextMessages : messages;
+}
+
+function updateAssistantStatus(
+  message: AssistantMessage,
+  status: AssistantMessageStatus,
+): MessageReconciliationAction {
+  return { kind: "update_status", message, status };
+}
+
 export function filterRoundPendingAgentSlots(
   slots: RoomPendingAgentSlotState[],
   roundId: string,
@@ -129,39 +173,20 @@ export function reconcileStoppedSessionMessages(
   terminalRoundIds: string[],
 ): Message[] {
   const terminalRoundSet = new Set(terminalRoundIds);
-  const isTerminalRound = (roundId: string) => terminalRoundSet.has(roundId);
-
-  let hasChanges = false;
-  const nextMessages: Message[] = [];
-  for (const message of messages) {
+  return reconcileMessages(messages, (message) => {
     if (isEphemeralMessage(message)) {
-      hasChanges = true;
-      continue;
-    }
-    if (message.role !== "assistant") {
-      nextMessages.push(message);
-      continue;
-    }
-    if (isTerminalRound(message.round_id)) {
-      nextMessages.push(message);
-      continue;
+      return REMOVE_MESSAGE;
     }
     if (
+      message.role !== "assistant" ||
+      terminalRoundSet.has(message.round_id) ||
       message.stop_reason ||
-      message.stream_status === "done" ||
-      message.stream_status === "cancelled" ||
-      message.stream_status === "error"
+      TERMINAL_ASSISTANT_STATUSES.has(message.stream_status ?? "pending")
     ) {
-      nextMessages.push(message);
-      continue;
+      return KEEP_MESSAGE;
     }
-    hasChanges = true;
-    nextMessages.push({
-      ...message,
-      stream_status: "cancelled" as const,
-    });
-  }
-  return hasChanges ? nextMessages : messages;
+    return updateAssistantStatus(message, "cancelled");
+  });
 }
 
 export function updateAssistantMessageStatus(
@@ -215,36 +240,19 @@ export function applyTerminalRoundMessageStatus(
   status: RoundLifecycleStatus,
 ): Message[] {
   const terminalStatus = getTerminalMessageStatus(status);
-  let hasChanges = false;
-  const nextMessages: Message[] = [];
-
-  for (const message of messages) {
-    if (message.round_id === roundId && isEphemeralMessage(message)) {
-      hasChanges = true;
-      continue;
-    }
-    if (message.role !== "assistant") {
-      nextMessages.push(message);
-      continue;
-    }
+  return reconcileMessages(messages, (message) => {
     if (message.round_id !== roundId) {
-      nextMessages.push(message);
-      continue;
+      return KEEP_MESSAGE;
+    }
+    if (isEphemeralMessage(message)) {
+      return REMOVE_MESSAGE;
     }
     if (
-      message.stream_status === terminalStatus ||
-      message.stream_status === "cancelled" ||
-      message.stream_status === "error" ||
-      message.stream_status === "done"
+      message.role !== "assistant" ||
+      TERMINAL_ASSISTANT_STATUSES.has(message.stream_status ?? "pending")
     ) {
-      nextMessages.push(message);
-      continue;
+      return KEEP_MESSAGE;
     }
-    hasChanges = true;
-    nextMessages.push({
-      ...message,
-      stream_status: terminalStatus,
-    });
-  }
-  return hasChanges ? nextMessages : messages;
+    return updateAssistantStatus(message, terminalStatus);
+  });
 }

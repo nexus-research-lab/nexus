@@ -5,6 +5,7 @@
 ## 职责边界
 
 - `subagent-task-model.ts` 只做服务端任务数据的归一化与纯派生。
+- `subagent-task-list-model.ts` 单次分组并排序列表任务，同时投影加载与 runtime 支持状态。
 - `use-scoped-resource.ts` 统一来源/任务作用域、请求代次和原子快照提交，不解释业务状态。
 - `use-subagent-tasks.ts` 只管理来源级列表加载和活动任务轮询。
 - `thread/` 按纯投影、transcript 资源、命令和视图拆分单任务线程。
@@ -15,4 +16,5 @@
 - 所有异步资源统一通过作用域资源原语提交，旧作用域不得写回新页面。
 - 发送与停止共用单一命令锁；同一任务不允许两个动作并发。
 - 动作开放只依据服务端 capabilities，runtime kind 仅用于差异文案。
+- capabilities 归一化由统一字段表驱动；新增能力时不得在返回对象中复制逐字段回退。
 - 切换来源必须重建选择状态，不保留上一个来源的任务详情。

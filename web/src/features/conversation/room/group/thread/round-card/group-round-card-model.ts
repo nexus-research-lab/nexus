@@ -15,7 +15,7 @@ import {
   isAgentRoundActive,
   type AgentRoundStatus,
   type RoomAgentRoundEntry,
-} from "../round/round-agent-model";
+} from "../../round/round-agent-model";
 
 export interface GroupRoundAgentCardModel extends RoomAgentRoundEntry {
   agentAvatar: string | null;
@@ -87,8 +87,8 @@ interface AgentStatusSummaryModel {
 }
 
 interface BuildGroupRoundCardModelOptions {
-  agentAvatarMap?: Record<string, string | null>;
-  agentNameMap?: Record<string, string>;
+  agentAvatarMap: Record<string, string | null>;
+  agentNameMap: Record<string, string>;
   messages: Message[];
   pendingPermissions: PendingPermission[];
   pendingSlots: RoomPendingAgentSlotState[];
@@ -310,8 +310,8 @@ function firstDefinedNumber(values: Array<number | undefined>): number {
 
 function buildAgentCard(
   entry: RoomAgentRoundEntry,
-  agentAvatarMap: Record<string, string | null> | undefined,
-  agentNameMap: Record<string, string> | undefined,
+  agentAvatarMap: Record<string, string | null>,
+  agentNameMap: Record<string, string>,
   permissionGroups: Map<string, PendingPermission[]>,
 ): GroupRoundAgentCardModel {
   return {
@@ -324,17 +324,17 @@ function buildAgentCard(
 }
 
 function resolveAgentAvatar(
-  avatarMap: Record<string, string | null> | undefined,
+  avatarMap: Record<string, string | null>,
   agentId: string,
 ): string | null {
-  return avatarMap?.[agentId] ?? null;
+  return avatarMap[agentId] ?? null;
 }
 
 function resolveAgentName(
-  nameMap: Record<string, string> | undefined,
+  nameMap: Record<string, string>,
   agentId: string,
 ): string {
-  return nameMap?.[agentId] ?? agentId;
+  return nameMap[agentId] ?? agentId;
 }
 
 function resolveStopMessageId(entry: RoomAgentRoundEntry): string | null {

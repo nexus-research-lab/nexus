@@ -8,8 +8,8 @@ import type {
 } from "@/types/conversation/interaction/permission";
 
 export interface RoomThreadLiveSource {
-  agentAvatarMap?: Record<string, string | null>;
-  agentNameMap?: Record<string, string>;
+  agentAvatarMap: Record<string, string | null>;
+  agentNameMap: Record<string, string>;
   currentUserAvatar: string | null;
   messageGroups: Map<string, Message[]>;
   onOpenWorkspaceFile?: (path: string) => void;

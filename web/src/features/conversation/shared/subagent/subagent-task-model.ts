@@ -22,6 +22,13 @@ const EMPTY_CAPABILITIES: SubagentTaskCapabilities = {
   send_message: false,
   resume: false,
 };
+const SUBAGENT_CAPABILITY_KEYS = [
+  "observe",
+  "transcript",
+  "stop",
+  "send_message",
+  "resume",
+] as const satisfies readonly (keyof SubagentTaskCapabilities)[];
 
 const SUBAGENT_AVATAR_PALETTE = [
   "#9b87e8",
@@ -151,13 +158,11 @@ function normalizeSubagentTaskCapabilities(
   value?: Partial<SubagentTaskCapabilities> | null,
   fallback: SubagentTaskCapabilities = EMPTY_CAPABILITIES,
 ): SubagentTaskCapabilities {
-  return {
-    observe: value?.observe ?? fallback.observe,
-    transcript: value?.transcript ?? fallback.transcript,
-    stop: value?.stop ?? fallback.stop,
-    send_message: value?.send_message ?? fallback.send_message,
-    resume: value?.resume ?? fallback.resume,
-  };
+  const capabilities = { ...fallback };
+  for (const key of SUBAGENT_CAPABILITY_KEYS) {
+    capabilities[key] = value?.[key] ?? fallback[key];
+  }
+  return capabilities;
 }
 
 export function subagentTaskTimestamp(task: SubagentTask): number {

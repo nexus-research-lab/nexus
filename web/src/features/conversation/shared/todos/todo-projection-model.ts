@@ -20,6 +20,26 @@ interface MutableTodoRound {
   latestSummary: {isError: boolean} | null;
 }
 
+type TodoRoundProjectionKind = "hidden" | "plan" | "runtime";
+
+interface TodoRoundProjection {
+  completeRuntimeTasks: boolean;
+  kind: TodoRoundProjectionKind;
+  plan: TodoItem[];
+  runtimeTasks: TodoItem[];
+}
+
+const TODO_ROUND_PROJECTORS: Record<
+  TodoRoundProjectionKind,
+  (projection: TodoRoundProjection) => TodoItem[]
+> = {
+  hidden: () => [],
+  plan: ({ plan, runtimeTasks }) =>
+    mergeTodoPlanWithRuntimeTasks(plan, runtimeTasks),
+  runtime: ({ completeRuntimeTasks, runtimeTasks }) =>
+    completeOrphanRuntimeTasks(runtimeTasks, completeRuntimeTasks),
+};
+
 function createTodoRound(): MutableTodoRound {
   return {
     plan: null,
@@ -117,6 +137,56 @@ function hasLaterConversationRound(
   ));
 }
 
+function findLatestTodoRound(
+  rounds: Map<string, MutableTodoRound>,
+): [string, MutableTodoRound] | null {
+  let latest: [string, MutableTodoRound] | null = null;
+  for (const entry of rounds) {
+    const round = entry[1];
+    if (
+      round.latestTaskEventIndex >= 0 &&
+      (!latest || round.latestTaskEventIndex > latest[1].latestTaskEventIndex)
+    ) {
+      latest = entry;
+    }
+  }
+  return latest;
+}
+
+function buildTodoRoundProjection(
+  messages: Message[],
+  sessionKey: string,
+  roundId: string,
+  round: MutableTodoRound,
+): TodoRoundProjection {
+  const runtimeTasks = [...round.runtimeTasksById.values()];
+  if (!round.plan) {
+    return {
+      completeRuntimeTasks: round.latestSummary?.isError === false,
+      kind: "runtime",
+      plan: [],
+      runtimeTasks,
+    };
+  }
+
+  const shouldHidePlan =
+    round.plan.length === 0 ||
+    round.latestSummary?.isError === true ||
+    (!round.latestSummary &&
+      hasLaterConversationRound(
+        messages,
+        sessionKey,
+        round.planMessageIndex,
+        roundId,
+      ));
+  return {
+    completeRuntimeTasks: false,
+    kind: shouldHidePlan ? "hidden" : "plan",
+    plan: round.plan,
+    runtimeTasks,
+  };
+}
+
 export function projectConversationTodos(
   messages: Message[],
   sessionKey: string | null,
@@ -126,38 +196,19 @@ export function projectConversationTodos(
   }
 
   const roundIndex = buildTodoRoundIndex(messages, sessionKey);
-  const activeRoundEntry = [...roundIndex.entries()]
-    .filter(([, round]) => round.latestTaskEventIndex >= 0)
-    .sort((left, right) => (
-      right[1].latestTaskEventIndex - left[1].latestTaskEventIndex
-    ))[0];
+  const activeRoundEntry = findLatestTodoRound(roundIndex);
   if (!activeRoundEntry) {
     return [];
   }
 
   const [roundId, activeRound] = activeRoundEntry;
-  const runtimeTasks = [...activeRound.runtimeTasksById.values()];
-  if (!activeRound.plan) {
-    return completeOrphanRuntimeTasks(
-      runtimeTasks,
-      Boolean(activeRound.latestSummary && !activeRound.latestSummary.isError),
-    );
-  }
-  if (activeRound.plan.length === 0 || activeRound.latestSummary?.isError) {
-    return [];
-  }
-  if (
-    !activeRound.latestSummary
-    && hasLaterConversationRound(
-      messages,
-      sessionKey,
-      activeRound.planMessageIndex,
-      roundId,
-    )
-  ) {
-    return [];
-  }
-  return mergeTodoPlanWithRuntimeTasks(activeRound.plan, runtimeTasks);
+  const projection = buildTodoRoundProjection(
+    messages,
+    sessionKey,
+    roundId,
+    activeRound,
+  );
+  return TODO_ROUND_PROJECTORS[projection.kind](projection);
 }
 
 export function areTodoListsEqual(left: TodoItem[], right: TodoItem[]): boolean {

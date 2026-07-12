@@ -29,18 +29,18 @@ export interface GroupConversationRoundSource {
 }
 
 export interface GroupConversationRoundRenderer {
-  agentAvatarMap?: Record<string, string | null>;
-  agentNameMap?: Record<string, string>;
+  agentAvatarMap: Record<string, string | null>;
+  agentNameMap: Record<string, string>;
   compact?: boolean;
-  currentAgentAvatar?: string | null;
+  currentAgentAvatar: string | null;
   currentAgentName: string | null;
-  currentUserAvatar?: string | null;
+  currentUserAvatar: string | null;
   isLastRoundPendingPermissions: PendingPermission[];
   onOpenAgentContact?: (agentId: string) => void;
   onOpenWorkspaceFile?: (path: string) => void;
   onPermissionResponse: (payload: PermissionDecisionPayload) => boolean;
-  onStopMessage?: (msgId: string) => void;
-  runtimePhase?: AgentConversationRuntimePhase | null;
+  onStopMessage: (msgId: string) => void;
+  runtimePhase: AgentConversationRuntimePhase | null;
 }
 
 export interface GroupConversationFeedProps {
@@ -124,11 +124,11 @@ export function resolveRoundAgent(
   const id = resolveRoundAgentId(messages);
   return {
     avatar: id
-      ? renderer.agentAvatarMap?.[id] ?? renderer.currentAgentAvatar
+      ? renderer.agentAvatarMap[id] ?? renderer.currentAgentAvatar
       : renderer.currentAgentAvatar,
     id,
     name: id
-      ? renderer.agentNameMap?.[id] ?? renderer.currentAgentName
+      ? renderer.agentNameMap[id] ?? renderer.currentAgentName
       : renderer.currentAgentName,
   };
 }

@@ -31,6 +31,11 @@ const MESSAGE_STATUS_PRIORITY: readonly AgentRoundStatus[] = [
   "cancelled",
   "done",
 ];
+const RESULT_STATUS: Record<ResultSummary["subtype"], AgentRoundStatus> = {
+  error: "error",
+  interrupted: "cancelled",
+  success: "done",
+};
 const ACTIVE_STATUSES = new Set<AgentRoundStatus>(["pending", "streaming"]);
 
 export function hasRoomAgentRoundEntries(
@@ -110,15 +115,25 @@ function getAgentRoundStatus(
   resultSummary?: ResultSummary,
   pendingSlot?: RoomPendingAgentSlotState,
 ): AgentRoundStatus {
-  if (resultSummary) {
-    if (resultSummary.subtype === "error" || resultSummary.is_error) {
-      return "error";
-    }
-    return resultSummary.subtype === "interrupted" ? "cancelled" : "done";
+  return (
+    resolveResultStatus(resultSummary) ??
+    pendingSlot?.status ??
+    resolveMessageStatus(messages)
+  );
+}
+
+function resolveResultStatus(
+  summary?: ResultSummary,
+): AgentRoundStatus | null {
+  if (!summary) {
+    return null;
   }
-  if (pendingSlot) {
-    return pendingSlot.status;
-  }
+  return summary.is_error ? "error" : RESULT_STATUS[summary.subtype];
+}
+
+function resolveMessageStatus(
+  messages: AssistantMessage[],
+): AgentRoundStatus {
   if (messages.length === 0) {
     return "pending";
   }

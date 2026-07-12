@@ -13,19 +13,19 @@ import type {
 import { GroupAgentStatusCard } from "./group-agent-status-card";
 import { GroupCompletedReply } from "./group-completed-reply";
 import { buildGroupRoundCardModel } from "./group-round-card-model";
-import { useGroupThread } from "./group-thread-state";
+import { useGroupThread } from "../group-thread-state";
 
 interface GroupRoundCardGroupProps {
-  agentAvatarMap?: Record<string, string | null>;
-  agentNameMap?: Record<string, string>;
-  currentUserAvatar?: string | null;
+  agentAvatarMap: Record<string, string | null>;
+  agentNameMap: Record<string, string>;
+  currentUserAvatar: string | null;
   messages: Message[];
   onOpenAgentContact?: (agentId: string) => void;
   onOpenWorkspaceFile?: (path: string) => void;
-  onPermissionResponse?: (payload: PermissionDecisionPayload) => boolean;
-  onStopMessage?: (msgId: string) => void;
-  pendingPermissions?: PendingPermission[];
-  pendingSlots?: RoomPendingAgentSlotState[];
+  onPermissionResponse: (payload: PermissionDecisionPayload) => boolean;
+  onStopMessage: (msgId: string) => void;
+  pendingPermissions: PendingPermission[];
+  pendingSlots: RoomPendingAgentSlotState[];
   roundId: string;
 }
 
@@ -38,8 +38,8 @@ function GroupRoundCardGroupInner({
   onOpenWorkspaceFile,
   onPermissionResponse,
   onStopMessage,
-  pendingPermissions = [],
-  pendingSlots = [],
+  pendingPermissions,
+  pendingSlots,
   roundId,
 }: GroupRoundCardGroupProps) {
   const { activeThread, closeThread, openThread } = useGroupThread();
@@ -119,7 +119,7 @@ function GroupRoundCardGroupInner({
                   onOpenAgentContact={onOpenAgentContact}
                   onPermissionResponse={onPermissionResponse}
                   onStopMessage={
-                    stopMessageId && onStopMessage
+                    stopMessageId
                       ? () => onStopMessage(stopMessageId)
                       : undefined
                   }

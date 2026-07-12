@@ -4,6 +4,7 @@ import { X } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import type { TranslationKey } from "@/shared/i18n/messages";
 import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-toolbar-action";
 import { WorkspaceSurfaceView } from "@/shared/ui/workspace/surface/workspace-surface-view";
 import type {
@@ -17,6 +18,31 @@ import {
   subagentTaskTimestamp,
   subagentTaskTitle,
 } from "./subagent-task-model";
+import {
+  buildSubagentTaskListModel,
+  type SubagentTaskListEmptyState,
+  type SubagentTaskSupportNotice,
+} from "./subagent-task-list-model";
+
+const ACTIVE_EMPTY_LABEL: Record<
+  SubagentTaskListEmptyState,
+  TranslationKey
+> = {
+  empty: "subagents.no_active",
+  loading: "subagents.loading",
+};
+const SUPPORT_NOTICE_LABEL: Record<
+  Exclude<SubagentTaskSupportNotice, null>,
+  TranslationKey
+> = {
+  claude: "subagents.cc_unsupported_description",
+  generic: "subagents.unsupported_description",
+};
+const ELAPSED_TIME_UNITS = [
+  { milliseconds: 86_400_000, suffix: { en: "d", zh: " 天" } },
+  { milliseconds: 3_600_000, suffix: { en: "h", zh: " 小时" } },
+  { milliseconds: 60_000, suffix: { en: "m", zh: " 分钟" } },
+] as const;
 
 interface SubagentTaskListProps {
   data: SubagentTaskListResponse | null;
@@ -40,13 +66,7 @@ export function SubagentTaskList({
   tasks,
 }: SubagentTaskListProps) {
   const { t } = useI18n();
-  const activeTasks = tasks
-    .filter(isSubagentTaskActive)
-    .sort(compareTasksByRecentActivity);
-  const completedTasks = tasks
-    .filter((task) => !isSubagentTaskActive(task))
-    .sort(compareTasksByRecentActivity);
-  const isUnsupported = Boolean(data && !data.capabilities.observe);
+  const model = buildSubagentTaskListModel({ data, isLoading, tasks });
 
   return (
     <WorkspaceSurfaceView
@@ -71,12 +91,10 @@ export function SubagentTaskList({
     >
       <div>
         <SubagentTaskSection
-          emptyText={isLoading && !data
-            ? t("subagents.loading")
-            : t("subagents.no_active")}
+          emptyText={t(ACTIVE_EMPTY_LABEL[model.activeEmptyState])}
           label={t("subagents.active_section")}
           onSelectTask={onSelectTask}
-          tasks={isUnsupported ? [] : activeTasks}
+          tasks={model.activeTasks}
         />
 
         {error ? (
@@ -92,11 +110,9 @@ export function SubagentTaskList({
           </div>
         ) : null}
 
-        {isUnsupported ? (
+        {model.supportNotice ? (
           <p className="mt-3 max-w-[420px] text-[13px] leading-6 text-(--text-muted)">
-            {data?.runtime_kind === "claude"
-              ? t("subagents.cc_unsupported_description")
-              : t("subagents.unsupported_description")}
+            {t(SUPPORT_NOTICE_LABEL[model.supportNotice])}
           </p>
         ) : null}
 
@@ -105,7 +121,7 @@ export function SubagentTaskList({
             countInLabel
             label={t("subagents.completed_section")}
             onSelectTask={onSelectTask}
-            tasks={isUnsupported ? [] : completedTasks}
+            tasks={model.completedTasks}
           />
         </div>
       </div>
@@ -160,10 +176,9 @@ function SubagentTaskRow({
 }) {
   const { locale, t } = useI18n();
   const timestamp = subagentTaskTimestamp(task);
-  const summary = task.summary?.trim()
-    || task.description?.trim()
-    || task.last_tool_name?.trim()
-    || t("subagents.no_description");
+  const summary = [task.summary, task.description, task.last_tool_name]
+    .map((value) => value?.trim() ?? "")
+    .find(Boolean) ?? t("subagents.no_description");
 
   return (
     <button
@@ -229,24 +244,14 @@ export function SubagentTaskAvatar({
   );
 }
 
-function compareTasksByRecentActivity(left: SubagentTask, right: SubagentTask): number {
-  return subagentTaskTimestamp(right) - subagentTaskTimestamp(left);
-}
-
 function formatCompactElapsedTime(timestamp: number, locale: string): string {
   const elapsedMs = Math.max(0, Date.now() - timestamp);
-  const minutes = Math.floor(elapsedMs / 60_000);
-  const hours = Math.floor(minutes / 60);
-  const days = Math.floor(hours / 24);
-
-  if (locale === "en") {
-    if (days > 0) return `${days}d`;
-    if (hours > 0) return `${hours}h`;
-    if (minutes > 0) return `${minutes}m`;
-    return "now";
+  const unit = ELAPSED_TIME_UNITS.find(
+    ({ milliseconds }) => elapsedMs >= milliseconds,
+  );
+  if (!unit) {
+    return locale === "en" ? "now" : "刚刚";
   }
-  if (days > 0) return `${days} 天`;
-  if (hours > 0) return `${hours} 小时`;
-  if (minutes > 0) return `${minutes} 分钟`;
-  return "刚刚";
+  const value = Math.floor(elapsedMs / unit.milliseconds);
+  return `${value}${locale === "en" ? unit.suffix.en : unit.suffix.zh}`;
 }

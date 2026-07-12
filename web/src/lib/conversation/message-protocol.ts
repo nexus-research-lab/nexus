@@ -1,4 +1,11 @@
-import { asUnknownRecord, readNumber, readString } from "@/lib/unknown-value";
+import {
+  asUnknownRecord,
+  hasFiniteNumberFields,
+  hasNonEmptyStringFields,
+  readString,
+  readStringFromSet,
+  type UnknownRecord,
+} from "@/lib/unknown-value";
 import type { Message } from "@/types/conversation/message/entity";
 import type { StreamMessage } from "@/types/conversation/message/event";
 
@@ -10,6 +17,12 @@ const STREAM_MESSAGE_TYPES = new Set([
   "message_delta",
   "message_stop",
 ]);
+const MESSAGE_IDENTITY_STRING_FIELDS = [
+  "agent_id",
+  "message_id",
+  "round_id",
+] as const;
+const MESSAGE_TIMESTAMP_FIELDS = ["timestamp"] as const;
 
 interface MessageEnvelopeProjection {
   deliveryMode?: string;
@@ -18,6 +31,13 @@ interface MessageEnvelopeProjection {
 
 function hasMessageContent(role: string, content: unknown): boolean {
   return role === "assistant" ? Array.isArray(content) : typeof content === "string";
+}
+
+function hasMessageIdentity(record: UnknownRecord): boolean {
+  return (
+    hasNonEmptyStringFields(record, MESSAGE_IDENTITY_STRING_FIELDS) &&
+    hasFiniteNumberFields(record, MESSAGE_TIMESTAMP_FIELDS)
+  );
 }
 
 function readDeliveryMode(
@@ -36,16 +56,12 @@ export function parseConversationMessage(
   if (!record) {
     return null;
   }
-  const role = readString(record, "role");
+  const role = readStringFromSet(record, "role", MESSAGE_ROLES);
   const sessionKey = readString(record, "session_key") ?? envelope.sessionKey ?? null;
   if (
     !role
-    || !MESSAGE_ROLES.has(role)
     || !sessionKey
-    || !readString(record, "message_id")
-    || !readString(record, "agent_id")
-    || !readString(record, "round_id")
-    || readNumber(record, "timestamp") === null
+    || !hasMessageIdentity(record)
     || !hasMessageContent(role, record.content)
   ) {
     return null;
@@ -69,15 +85,11 @@ export function parseStreamMessage(
     return null;
   }
   const sessionKey = readString(record, "session_key") ?? fallbackSessionKey ?? null;
-  const type = readString(record, "type");
+  const type = readStringFromSet(record, "type", STREAM_MESSAGE_TYPES);
   if (
     !sessionKey
     || !type
-    || !STREAM_MESSAGE_TYPES.has(type)
-    || !readString(record, "message_id")
-    || !readString(record, "agent_id")
-    || !readString(record, "round_id")
-    || readNumber(record, "timestamp") === null
+    || !hasMessageIdentity(record)
   ) {
     return null;
   }

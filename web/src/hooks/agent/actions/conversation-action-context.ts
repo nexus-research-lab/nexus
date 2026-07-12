@@ -50,28 +50,63 @@ const CONVERSATION_CONTEXT_ERRORS: Record<
   missing_session: "请先选择或创建会话",
 };
 
+interface ConversationContextGuard {
+  rejects: (candidate: ConversationContextCandidate) => boolean;
+  reason: ConversationContextFailure;
+}
+
+interface ConversationContextCandidate {
+  sessionKey: string;
+  wsState: WebSocketState;
+}
+
+const CONVERSATION_CONTEXT_GUARDS: readonly ConversationContextGuard[] = [
+  {
+    reason: "missing_session",
+    rejects: ({ sessionKey }) => sessionKey === "",
+  },
+  {
+    reason: "invalid_session",
+    rejects: ({ sessionKey }) => !isStructuredSessionKey(sessionKey),
+  },
+  {
+    reason: "disconnected",
+    rejects: ({ wsState }) => wsState !== "connected",
+  },
+];
+
+function buildResolvedConversationActionContext(
+  context: AgentConversationActionContext,
+  sessionKey: string,
+): ResolvedConversationActionContext {
+  return {
+    agentId: resolveAgentId(context.identity?.agent_id),
+    chatType: context.identity?.chat_type ?? "dm",
+    conversationId: context.identity?.conversation_id ?? null,
+    roomId: context.identity?.room_id ?? null,
+    sessionKey,
+  };
+}
+
 export function resolveConversationActionContext(
   context: AgentConversationActionContext,
 ): ConversationContextResult {
-  const sessionKey = context.sessionKey || context.activeSessionKeyRef.current;
-  if (!sessionKey) {
-    return { ok: false, reason: "missing_session" };
-  }
-  if (!isStructuredSessionKey(sessionKey)) {
-    return { ok: false, reason: "invalid_session" };
-  }
-  if (context.wsState !== "connected") {
-    return { ok: false, reason: "disconnected" };
+  const candidate: ConversationContextCandidate = {
+    sessionKey: context.sessionKey || context.activeSessionKeyRef.current || "",
+    wsState: context.wsState,
+  };
+  const failedGuard = CONVERSATION_CONTEXT_GUARDS.find(({ rejects }) =>
+    rejects(candidate),
+  );
+  if (failedGuard) {
+    return { ok: false, reason: failedGuard.reason };
   }
   return {
     ok: true,
-    value: {
-      agentId: resolveAgentId(context.identity?.agent_id),
-      chatType: context.identity?.chat_type ?? "dm",
-      conversationId: context.identity?.conversation_id ?? null,
-      roomId: context.identity?.room_id ?? null,
-      sessionKey,
-    },
+    value: buildResolvedConversationActionContext(
+      context,
+      candidate.sessionKey,
+    ),
   };
 }
 

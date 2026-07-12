@@ -1,4 +1,5 @@
 import type { EventMessage } from "@/types/generated/protocol";
+import type { WebSocketMessage } from "@/types/system/websocket";
 
 import {
   buildRoomSubscriptionMessage,
@@ -9,6 +10,40 @@ import type {
   AgentEventHandlerMap,
 } from "../agent-event-context";
 
+interface SequenceCursor {
+  current: number;
+}
+
+function advanceSequenceCursor(cursor: SequenceCursor, value: unknown): void {
+  if (typeof value === "number") {
+    cursor.current = Math.max(cursor.current, value);
+  }
+}
+
+function reloadAndResubscribe(
+  context: AgentEventContext,
+  buildMessage: () => WebSocketMessage | null,
+): void {
+  void context.transport.reloadCurrentSession().finally(() => {
+    if (context.transport.wsStateRef.current !== "connected") {
+      return;
+    }
+    const message = buildMessage();
+    if (message) {
+      context.transport.wsSendRef.current(message);
+    }
+  });
+}
+
+function rewrittenRoundId(event: EventMessage): string | null {
+  const reason = event.data?.reason;
+  const targetRoundId = event.data?.target_round_id;
+  if (reason !== "history_rewrite" || typeof targetRoundId !== "string") {
+    return null;
+  }
+  return targetRoundId.trim() || null;
+}
+
 function handleRoomResync(
   event: EventMessage,
   context: AgentEventContext,
@@ -18,26 +53,20 @@ function handleRoomResync(
     return;
   }
 
-  const latestRoomSeq = event.data?.latest_room_seq;
-  if (typeof latestRoomSeq === "number") {
-    context.transport.roomSeqCursorRef.current = Math.max(
-      context.transport.roomSeqCursorRef.current,
-      latestRoomSeq,
-    );
-  }
+  advanceSequenceCursor(
+    context.transport.roomSeqCursorRef,
+    event.data?.latest_room_seq,
+  );
   context.callbacks.onRoomEvent(event.event_type, event.data ?? {});
 
-  void context.transport.reloadCurrentSession().finally(() => {
-    if (!roomId || context.transport.wsStateRef.current !== "connected") {
-      return;
-    }
-    context.transport.wsSendRef.current(buildRoomSubscriptionMessage({
+  reloadAndResubscribe(context, () => roomId
+    ? buildRoomSubscriptionMessage({
       type: "subscribe_room",
       room_id: roomId,
       conversation_id: conversationId,
       last_seen_room_seq: context.transport.roomSeqCursorRef.current,
-    }));
-  });
+    })
+    : null);
 }
 
 function handleSessionResync(
@@ -52,36 +81,25 @@ function handleSessionResync(
     return;
   }
 
-  const latestSessionSeq = event.data?.latest_session_seq;
-  if (typeof latestSessionSeq === "number") {
-    context.transport.sessionSeqCursorRef.current = Math.max(
-      context.transport.sessionSeqCursorRef.current,
-      latestSessionSeq,
-    );
-  }
-  const reason = typeof event.data?.reason === "string"
-    ? event.data.reason
-    : "";
-  const targetRoundId = typeof event.data?.target_round_id === "string"
-    ? event.data.target_round_id.trim()
-    : "";
-  if (reason === "history_rewrite" && targetRoundId) {
+  advanceSequenceCursor(
+    context.transport.sessionSeqCursorRef,
+    event.data?.latest_session_seq,
+  );
+  const targetRoundId = rewrittenRoundId(event);
+  if (targetRoundId) {
     context.runtime.removeRewrittenRound(targetRoundId);
   }
   context.callbacks.onRoomEvent(event.event_type, event.data ?? {});
 
-  void context.transport.reloadCurrentSession().finally(() => {
+  reloadAndResubscribe(context, () => {
     const { agentId, conversationId, roomId, sessionKey } = context.scope;
-    if (!sessionKey || context.transport.wsStateRef.current !== "connected") {
-      return;
-    }
-    context.transport.wsSendRef.current(buildSessionBindMessage({
+    return sessionKey ? buildSessionBindMessage({
       session_key: sessionKey,
       last_seen_session_seq: context.transport.sessionSeqCursorRef.current,
       agent_id: agentId,
       room_id: roomId,
       conversation_id: conversationId,
-    }));
+    }) : null;
   });
 }
 

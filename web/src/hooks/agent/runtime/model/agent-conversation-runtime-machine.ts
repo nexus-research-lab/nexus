@@ -20,6 +20,8 @@ interface ActiveMessageTracker {
   status: AssistantMessageStatus;
 }
 
+type IsRoundTerminal = (roundId: string) => boolean;
+
 function isTerminalAssistantStatus(status?: AssistantMessageStatus): boolean {
   return status === "done" || status === "cancelled" || status === "error";
 }
@@ -28,6 +30,56 @@ function hasTerminalAssistantProjection(message: AssistantMessage): boolean {
   return Boolean(message.result_summary)
     || Boolean(message.stop_reason)
     || isTerminalAssistantStatus(message.stream_status);
+}
+
+function collectTerminalMessageIds(messages: Message[]): Set<string> {
+  const terminalMessageIds = new Set<string>();
+  for (const message of messages) {
+    if (
+      message.role === "assistant" &&
+      hasTerminalAssistantProjection(message)
+    ) {
+      terminalMessageIds.add(message.message_id);
+    }
+  }
+  return terminalMessageIds;
+}
+
+function preserveActiveMessageTrackers(
+  trackers: Map<string, ActiveMessageTracker>,
+  terminalMessageIds: Set<string>,
+  isRoundTerminal: IsRoundTerminal,
+): Map<string, ActiveMessageTracker> {
+  const nextTrackers = new Map<string, ActiveMessageTracker>();
+  for (const [messageId, tracker] of trackers) {
+    if (
+      !terminalMessageIds.has(messageId) &&
+      !isRoundTerminal(tracker.roundId)
+    ) {
+      nextTrackers.set(messageId, tracker);
+    }
+  }
+  return nextTrackers;
+}
+
+function appendSnapshotMessageTrackers(
+  trackers: Map<string, ActiveMessageTracker>,
+  messages: Message[],
+  isRoundTerminal: IsRoundTerminal,
+): void {
+  for (const message of messages) {
+    if (
+      message.role !== "assistant" ||
+      hasTerminalAssistantProjection(message) ||
+      isRoundTerminal(message.round_id)
+    ) {
+      continue;
+    }
+    trackers.set(message.message_id, {
+      roundId: message.round_id,
+      status: message.stream_status ?? "streaming",
+    });
+  }
 }
 
 export class AgentConversationRuntimeMachine {
@@ -189,44 +241,19 @@ export class AgentConversationRuntimeMachine {
   }
 
   public reconcileFromSnapshot(messages: Message[]): void {
-    const terminalMessageIds = new Set<string>();
-
-    for (const message of messages) {
-      if (message.role !== "assistant") {
-        continue;
-      }
-
-      if (hasTerminalAssistantProjection(message)) {
-        terminalMessageIds.add(message.message_id);
-      }
+    const isRoundTerminal = (roundId: string) => this.isRoundTerminal(roundId);
+    const nextTrackers = preserveActiveMessageTrackers(
+      this.activeMessageTrackers,
+      collectTerminalMessageIds(messages),
+      isRoundTerminal,
+    );
+    if (this.chatType === "dm") {
+      appendSnapshotMessageTrackers(
+        nextTrackers,
+        messages,
+        isRoundTerminal,
+      );
     }
-
-    const nextTrackers = new Map<string, ActiveMessageTracker>();
-    for (const [messageId, tracker] of this.activeMessageTrackers.entries()) {
-      if (terminalMessageIds.has(messageId) || this.isRoundTerminal(tracker.roundId)) {
-        continue;
-      }
-      nextTrackers.set(messageId, tracker);
-    }
-
-    if (this.chatType !== "group") {
-      for (const message of messages) {
-        if (message.role !== "assistant") {
-          continue;
-        }
-        if (
-          hasTerminalAssistantProjection(message) ||
-          this.isRoundTerminal(message.round_id)
-        ) {
-          continue;
-        }
-        nextTrackers.set(message.message_id, {
-          roundId: message.round_id,
-          status: message.stream_status ?? "streaming",
-        });
-      }
-    }
-
     this.activeMessageTrackers = nextTrackers;
   }
 

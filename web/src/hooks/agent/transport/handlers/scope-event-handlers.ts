@@ -1,8 +1,9 @@
 import { parseAgentRuntimeStatus } from "@/lib/agent-runtime-status";
 import {
   asUnknownRecord,
-  readNumber,
-  readString,
+  hasFiniteNumberFields,
+  hasNonEmptyStringFields,
+  readStringFromSet,
 } from "@/lib/unknown-value";
 import type { RoomEventPayload } from "@/types/agent/agent-conversation";
 import type { WorkspaceEventPayload } from "@/types/app/workspace-live";
@@ -24,23 +25,25 @@ const WORKSPACE_EVENT_SOURCES = new Set<WorkspaceEventPayload["source"]>([
   "system",
   "unknown",
 ]);
+const WORKSPACE_EVENT_REQUIRED_STRING_FIELDS = [
+  "agent_id",
+  "path",
+  "timestamp",
+] as const;
+const WORKSPACE_EVENT_REQUIRED_NUMBER_FIELDS = ["version"] as const;
 
 function parseWorkspaceEventPayload(value: unknown): WorkspaceEventPayload | null {
   const record = asUnknownRecord(value);
   if (!record) {
     return null;
   }
-  const type = readString(record, "type") as WorkspaceEventPayload["type"] | null;
-  const source = readString(record, "source") as WorkspaceEventPayload["source"] | null;
+  const type = readStringFromSet(record, "type", WORKSPACE_EVENT_TYPES);
+  const source = readStringFromSet(record, "source", WORKSPACE_EVENT_SOURCES);
   if (
     !type
-    || !WORKSPACE_EVENT_TYPES.has(type)
     || !source
-    || !WORKSPACE_EVENT_SOURCES.has(source)
-    || !readString(record, "agent_id")
-    || !readString(record, "path")
-    || readNumber(record, "version") === null
-    || !readString(record, "timestamp")
+    || !hasNonEmptyStringFields(record, WORKSPACE_EVENT_REQUIRED_STRING_FIELDS)
+    || !hasFiniteNumberFields(record, WORKSPACE_EVENT_REQUIRED_NUMBER_FIELDS)
   ) {
     return null;
   }

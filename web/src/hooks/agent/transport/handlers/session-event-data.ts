@@ -1,8 +1,11 @@
 import {
   asUnknownRecord,
+  hasFiniteNumberFields,
+  hasNonEmptyStringFields,
   isStringArray,
   readNumber,
   readString,
+  readStringFromSet,
   type UnknownRecord,
 } from "@/lib/unknown-value";
 import type {
@@ -23,20 +26,35 @@ const ROUND_STATUSES = new Set<RoundLifecycleStatus>([
   "interrupted",
   "running",
 ]);
-const INPUT_QUEUE_SCOPES = new Set(["dm", "room"]);
-const INPUT_QUEUE_SOURCES = new Set([
+const INPUT_QUEUE_SCOPES = new Set<InputQueueItem["scope"]>(["dm", "room"]);
+const INPUT_QUEUE_SOURCES = new Set<InputQueueItem["source"]>([
   "agent_public_mention",
   "agent_room_directed_message",
   "user",
 ]);
-const DELIVERY_POLICIES = new Set(["auto", "guide", "interrupt", "queue"]);
+const DELIVERY_POLICIES = new Set<InputQueueItem["delivery_policy"]>([
+  "auto",
+  "guide",
+  "interrupt",
+  "queue",
+]);
 const ASSISTANT_MESSAGE_STATUSES = new Set<
   ChatAckData["pending"][number]["status"]
 >(["cancelled", "done", "error", "pending", "streaming"]);
+const INPUT_QUEUE_REQUIRED_STRING_FIELDS = ["id", "session_key"] as const;
+const INPUT_QUEUE_REQUIRED_NUMBER_FIELDS = [
+  "created_at",
+  "updated_at",
+] as const;
+const CHAT_ACK_SLOT_REQUIRED_STRING_FIELDS = [
+  "agent_id",
+  "agent_round_id",
+  "msg_id",
+] as const;
+const CHAT_ACK_SLOT_REQUIRED_NUMBER_FIELDS = ["index", "timestamp"] as const;
 
 function readRoundStatus(record: UnknownRecord): RoundLifecycleStatus | null {
-  const status = readString(record, "status") as RoundLifecycleStatus | null;
-  return status && ROUND_STATUSES.has(status) ? status : null;
+  return readStringFromSet(record, "status", ROUND_STATUSES);
 }
 
 export function parseSessionStatusData(
@@ -61,38 +79,38 @@ export function parseSessionStatusData(
 
 function isInputQueueItem(value: unknown): value is InputQueueItem {
   const record = asUnknownRecord(value);
-  const scope = record ? readString(record, "scope") : null;
-  const source = record ? readString(record, "source") : null;
-  const deliveryPolicy = record ? readString(record, "delivery_policy") : null;
+  if (!record) {
+    return false;
+  }
+  const scope = readStringFromSet(record, "scope", INPUT_QUEUE_SCOPES);
+  const source = readStringFromSet(record, "source", INPUT_QUEUE_SOURCES);
+  const deliveryPolicy = readStringFromSet(
+    record,
+    "delivery_policy",
+    DELIVERY_POLICIES,
+  );
   return Boolean(
-    record
-    && scope
-    && INPUT_QUEUE_SCOPES.has(scope)
+    scope
     && source
-    && INPUT_QUEUE_SOURCES.has(source)
     && deliveryPolicy
-    && DELIVERY_POLICIES.has(deliveryPolicy)
-    && readString(record, "id")
-    && readString(record, "session_key")
     && typeof record.content === "string"
-    && readNumber(record, "created_at") !== null
-    && readNumber(record, "updated_at") !== null,
+    && hasNonEmptyStringFields(record, INPUT_QUEUE_REQUIRED_STRING_FIELDS)
+    && hasFiniteNumberFields(record, INPUT_QUEUE_REQUIRED_NUMBER_FIELDS),
   );
 }
 
 export function parseInputQueueEventPayload(
   data: UnknownRecord,
 ): InputQueueEventPayload | null {
-  const scope = readString(data, "scope");
+  const scope = readStringFromSet(data, "scope", INPUT_QUEUE_SCOPES);
   if (
     !scope
-    || !INPUT_QUEUE_SCOPES.has(scope)
     || !Array.isArray(data.items)
     || !data.items.every(isInputQueueItem)
   ) {
     return null;
   }
-  return { scope: scope as InputQueueEventPayload["scope"], items: data.items };
+  return { scope, items: data.items };
 }
 
 export function parseRoundStatusEventPayload(
@@ -141,18 +159,18 @@ function isChatAckPendingSlot(
   value: unknown,
 ): value is ChatAckData["pending"][number] {
   const record = asUnknownRecord(value);
-  const status = record ? readString(record, "status") : null;
+  if (!record) {
+    return false;
+  }
+  const status = readStringFromSet(
+    record,
+    "status",
+    ASSISTANT_MESSAGE_STATUSES,
+  );
   return Boolean(
-    record
-    && readString(record, "agent_id")
-    && readString(record, "agent_round_id")
-    && readString(record, "msg_id")
-    && status
-    && ASSISTANT_MESSAGE_STATUSES.has(
-      status as ChatAckData["pending"][number]["status"],
-    )
-    && readNumber(record, "timestamp") !== null
-    && readNumber(record, "index") !== null,
+    status
+    && hasNonEmptyStringFields(record, CHAT_ACK_SLOT_REQUIRED_STRING_FIELDS)
+    && hasFiniteNumberFields(record, CHAT_ACK_SLOT_REQUIRED_NUMBER_FIELDS),
   );
 }
 

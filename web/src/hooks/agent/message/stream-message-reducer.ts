@@ -11,6 +11,14 @@ import type { StreamMessage } from "@/types/conversation/message/event";
 
 type StreamRenderableBlock = TextContent | ThinkingContent | ImageContent;
 
+interface StreamMetadataProjection {
+  is_complete?: boolean;
+  model?: string;
+  stop_reason?: AssistantMessage["stop_reason"];
+  stream_status: AssistantMessage["stream_status"];
+  usage?: AssistantMessage["usage"];
+}
+
 export function applyStreamMessage(
   messages: Message[],
   event: StreamMessage,
@@ -60,22 +68,31 @@ function applyStreamEvent(
   currentMessage: AssistantMessage,
   event: StreamMessage,
 ): AssistantMessage {
-  const stopReason = event.message?.stop_reason || currentMessage.stop_reason;
-  const isTerminal = event.type === "message_stop" || Boolean(stopReason);
   const nextMessage: AssistantMessage = {
     ...currentMessage,
     content: [...currentMessage.content],
-    is_complete: isTerminal ? true : currentMessage.is_complete,
-    model: event.message?.model || currentMessage.model,
-    stop_reason: stopReason,
-    stream_status: isTerminal ? "done" : "streaming",
-    usage: event.usage || currentMessage.usage,
+    ...projectStreamMetadata(currentMessage, event),
   };
 
   const contentChanged = applyStreamContentBlock(nextMessage, event);
   return contentChanged || hasMetadataChanged(currentMessage, nextMessage)
     ? nextMessage
     : currentMessage;
+}
+
+function projectStreamMetadata(
+  currentMessage: AssistantMessage,
+  event: StreamMessage,
+): StreamMetadataProjection {
+  const stopReason = event.message?.stop_reason || currentMessage.stop_reason;
+  const isTerminal = event.type === "message_stop" || Boolean(stopReason);
+  return {
+    is_complete: isTerminal ? true : currentMessage.is_complete,
+    model: event.message?.model || currentMessage.model,
+    stop_reason: stopReason,
+    stream_status: isTerminal ? "done" : "streaming",
+    usage: event.usage || currentMessage.usage,
+  };
 }
 
 function applyStreamContentBlock(

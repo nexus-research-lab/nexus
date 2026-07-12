@@ -5,7 +5,7 @@ import { MessageItem } from "@/features/conversation/shared/message/item/message
 import type { SessionRoundIndexItem } from "@/types/conversation/room";
 
 import { hasRoomAgentRoundEntries } from "../../round/round-agent-model";
-import { GroupRoundCardGroup } from "../../thread/group-round-card-group";
+import { GroupRoundCardGroup } from "../../thread/round-card/group-round-card-group";
 import {
   resolveRoundAgent,
   type GroupConversationRoundRenderer,

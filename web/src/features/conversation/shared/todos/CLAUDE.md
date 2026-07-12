@@ -6,7 +6,7 @@
 
 - `todo-status-model.ts` 将 SDK/system 状态与 task progress 文本归一为 `TodoItem.status`。
 - `runtime-task-model.ts` 将不同消息源投影为统一任务候选，再通过单一入口归并到任务 Map。
-- `todo-projection-model.ts` 单次扫描消息建立轮次索引，再投影当前任务条。
+- `todo-projection-model.ts` 单次扫描消息建立轮次索引，选择最新任务轮次后按显式展示策略投影任务条。
 - `use-conversation-todos.ts` 只负责 React memo 与结果引用稳定。
 
 ## 不变量
@@ -15,3 +15,4 @@
 - 同一轮 TodoWrite 计划与 runtime task 始终合并，不根据消息 role 改变规则。
 - 消息源只解析身份、内容候选和状态；旧内容、旧表单与 Map 写入规则不得重复实现。
 - 状态别名用数据表维护，不在视图或轮次扫描中复制分支。
+- 无计划 runtime、有效计划和隐藏计划使用统一策略表；轮次选择不参与展示规则判断。

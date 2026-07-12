@@ -31,8 +31,8 @@ export function buildRoomThreadPanelModel(
   );
 
   return {
-    agentAvatar: source.agentAvatarMap?.[target.agentId] ?? null,
-    agentName: source.agentNameMap?.[target.agentId] ?? target.agentId,
+    agentAvatar: source.agentAvatarMap[target.agentId] ?? null,
+    agentName: source.agentNameMap[target.agentId] ?? target.agentId,
     isLoading: Boolean(entry && isAgentRoundActive(entry.status)),
     messages: getRoomThreadMessages(roundMessages, target.agentId),
     onOpenWorkspaceFile: source.onOpenWorkspaceFile,

@@ -5,7 +5,6 @@ import {
   useState,
 } from "react";
 
-import { getAgentWsUrl } from "@/config/runtime-endpoints";
 import { useAgentStore } from "@/store/agent";
 import { useWorkspaceLiveStore } from "@/store/workspace-live";
 import type {
@@ -28,19 +27,25 @@ import { useAgentSessionController } from "./session/controller/use-agent-sessio
 import { useAgentConversationSocket } from "./transport/use-agent-conversation-socket";
 import { useAgentEventDispatcher } from "./transport/use-agent-event-dispatcher";
 import { useConversationStreamBuffer } from "./transport/use-conversation-stream-buffer";
+import {
+  buildAgentConversationResult,
+  resolveAgentConversationConfig,
+} from "./agent-conversation-model";
 
 export function useAgentConversation(
   options: UseAgentConversationOptions = {},
 ): UseAgentConversationReturn {
-  const wsUrl = options.ws_url || getAgentWsUrl();
-  const identity = options.identity ?? null;
-  const agentId = identity?.agent_id ?? null;
-  const roomId = identity?.room_id ?? null;
-  const conversationId = identity?.conversation_id ?? null;
-  const chatType = identity?.chat_type ?? "dm";
-  const identitySessionKey = identity?.session_key?.trim() || null;
-  const onError = options.on_error;
-  const onRoomEventCallback = options.on_room_event;
+  const {
+    agentId,
+    chatType,
+    conversationId,
+    identity,
+    identitySessionKey,
+    onError,
+    onRoomEvent: onRoomEventCallback,
+    roomId,
+    wsUrl,
+  } = resolveAgentConversationConfig(options);
   const applyWorkspaceEvent = useWorkspaceLiveStore(
     (state) => state.apply_event,
   );
@@ -229,40 +234,16 @@ export function useAgentConversation(
     waitForChatAck,
   });
 
-  return {
+  return buildAgentConversationResult({
+    actions,
     error,
     messages,
-    session_key: session.sessionKey,
-    ws_state: wsState,
-    is_loading: runtimeSnapshot.isLoading,
-    live_round_ids: runtimeSnapshot.liveRoundIds,
-    is_session_loading: session.isSessionLoading,
-    is_history_loading: session.isHistoryLoading,
-    has_more_history: session.hasMoreHistory,
-    history_prepend_token: session.historyPrependToken,
-    runtime_phase: runtimeSnapshot.phase,
-    pending_agent_slots: pendingAgentSlots,
-    input_queue_items: session.inputQueueItems,
-    pending_permissions: pendingPermissions,
-    send_message: actions.sendMessage,
-    rewrite_last_user_message: actions.rewriteLastMessage,
-    enqueue_input_queue_message: actions.enqueueQueueMessage,
-    delete_input_queue_message: actions.deleteQueueMessage,
-    guide_input_queue_message: actions.guideQueueMessage,
-    reorder_input_queue_messages: actions.reorderQueueMessages,
-    bind_session_key: session.bindSessionKey,
-    start_session: session.startSession,
-    load_session: session.loadSession,
-    load_older_messages: session.loadOlderMessages,
-    load_round_window: session.loadRoundWindow,
-    clear_session: session.clearSession,
-    reset_session: session.resetSession,
-    stop_generation: actions.stopGeneration,
-    send_permission_response: actions.sendPermissionResponse,
-  };
+    runtime: {
+      pendingAgentSlots,
+      pendingPermissions,
+      snapshot: runtimeSnapshot,
+    },
+    session,
+    wsState,
+  });
 }
-
-export type {
-  UseAgentConversationOptions,
-  UseAgentConversationReturn,
-} from "@/types/agent/agent-conversation";

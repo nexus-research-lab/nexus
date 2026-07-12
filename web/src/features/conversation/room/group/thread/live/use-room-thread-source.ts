@@ -14,8 +14,8 @@ import {
 } from "./room-thread-live-store";
 
 interface UseRoomThreadSourceOptions {
-  agentAvatarMap?: Record<string, string | null>;
-  agentNameMap?: Record<string, string>;
+  agentAvatarMap: Record<string, string | null>;
+  agentNameMap: Record<string, string>;
   conversationId: string | null;
   currentUserAvatar: string | null;
   messageGroups: Map<string, Message[]>;

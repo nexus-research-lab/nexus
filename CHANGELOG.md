@@ -37,6 +37,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Centralized Markdown code, link, and streaming URL-tail semantics into ordered pure models, leaving renderers to route discriminated presentation states.
 - Split conversation navigation into explicit round snapshots, visible DOM candidates, and an owned frame-landing runtime; centralized timeline visibility and scroll-content identity rules.
 - Unified DM and Group Chat panel environment, frame, and activity-snapshot projections, tightening their single-consumer contracts and removing empty command and layout defaults.
+- Separated Room round-card views from Thread state and live data, made Agent directories concrete end to end, and replaced branch-heavy round and error status classification with ordered rules.
+- Moved Subagent list grouping and support state plus Todo round display decisions into pure projections, replacing repeated filtering, capability fallback fields, and branch-heavy task selection.
+- Unified required-field and enum decoding across conversation, Session, ACK, and Workspace payloads, and consolidated Resync cursor advancement plus reload-before-resubscribe lifecycle.
+- Replaced conversation action validation with ordered guards, separated stream metadata from content updates, and unified runtime snapshot and terminal-message reconciliation phases.
+- Moved Agent conversation option normalization and public result projection out of the assembly Hook, using a default identity sentinel and removing its unused type-forwarding surface.
 - Removed render-phase Thinking expansion mutations and separated image-source normalization, user-attachment capability projection, and embedded tool-error parsing into short owned phases.
 - Moved message ordering, system-event, permission, result, and final-response projection into an owned controller subdomain, reusing the single ordered-entry projection and replacing content-mode branches with exhaustive strategies.
 - Split message content rendering into entry selection, structured orchestration, exhaustive block routing, and tool interaction phases, while consolidating the shared AskUserQuestion tool identifier.
