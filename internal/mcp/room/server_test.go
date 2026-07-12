@@ -78,8 +78,8 @@ func TestToolsListIncludesPublicToolByDefault(t *testing.T) {
 		if hint, _ := meta["anthropic/searchHint"].(string); strings.TrimSpace(hint) == "" {
 			t.Fatalf("%s missing searchHint", name)
 		}
-		if alwaysLoad, _ := meta["anthropic/alwaysLoad"].(bool); !alwaysLoad {
-			t.Fatalf("%s should always load", name)
+		if _, ok := meta["anthropic/alwaysLoad"]; ok {
+			t.Fatalf("%s should stay deferred", name)
 		}
 	}
 	if !names["publish_public_message"] {

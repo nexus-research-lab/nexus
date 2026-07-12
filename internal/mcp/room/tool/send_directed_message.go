@@ -20,7 +20,6 @@ func sendDirectedMessage(svc contract.Service, sctx contract.ServerContext) sdkt
 		Name:        "send_directed_message",
 		Description: sendDirectedMessageDescription,
 		SearchHint:  "Room 私聊 私信 小范围讨论 directed message hidden private reply_route wake_policy",
-		AlwaysLoad:  true,
 		InputSchema: sendDirectedMessageSchema(),
 		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
 			if svc == nil {

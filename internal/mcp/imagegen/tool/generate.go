@@ -17,7 +17,6 @@ func generate(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 		Name:        "generate_image",
 		Description: generateDescription,
 		SearchHint:  searchHintGenerateImage,
-		AlwaysLoad:  true,
 		InputSchema: generateSchema(),
 		Annotations: &sdktool.ToolAnnotations{OpenWorld: true},
 		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {

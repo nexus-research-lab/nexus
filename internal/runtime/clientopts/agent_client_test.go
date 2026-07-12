@@ -219,7 +219,7 @@ func TestAnthropicRuntimeEnvLeavesToolSearchUnsetForCompatibleProviders(t *testi
 	for _, test := range tests {
 		env := anthropicRuntimeEnvFromConfig(&test)
 		if _, ok := env[enableToolSearchEnvName]; ok {
-			t.Fatalf("Anthropic-compatible runtime 不应注入 tool search 开关，应交给 SDK 按 CC 规则判断: %+v", env)
+			t.Fatalf("Anthropic-compatible runtime 不应注入 tool search 开关，应交给 SDK 的默认开启策略: %+v", env)
 		}
 	}
 }

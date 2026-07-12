@@ -26,11 +26,11 @@ func TestBuildAllExposesCodexGoalToolSet(t *testing.T) {
 	}
 }
 
-func TestBuildAllKeepsGoalToolsModelVisible(t *testing.T) {
+func TestBuildAllKeepsGoalToolsDiscoverable(t *testing.T) {
 	tools := BuildAll(nil, contract.ServerContext{CurrentSessionKey: "agent:nexus:ws:dm:chat"})
 	for _, item := range tools {
-		if !item.AlwaysLoad {
-			t.Fatalf("%s should be always loaded like Codex built-in Goal tools", item.Name)
+		if item.AlwaysLoad {
+			t.Fatalf("%s should stay deferred behind ToolSearch", item.Name)
 		}
 		if strings.TrimSpace(item.SearchHint) == "" {
 			t.Fatalf("%s missing search hint", item.Name)

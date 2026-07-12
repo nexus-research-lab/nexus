@@ -40,8 +40,8 @@ func TestToolsListIncludesModelVisibleMetadata(t *testing.T) {
 		if strings.TrimSpace(hint) == "" {
 			t.Fatalf("%s missing anthropic/searchHint", name)
 		}
-		if alwaysLoad, _ := meta["anthropic/alwaysLoad"].(bool); !alwaysLoad {
-			t.Fatalf("%s should be anthropic/alwaysLoad", name)
+		if _, ok := meta["anthropic/alwaysLoad"]; ok {
+			t.Fatalf("%s should stay deferred", name)
 		}
 		schema, ok := tool["inputSchema"].(map[string]any)
 		if !ok {
