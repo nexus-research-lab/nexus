@@ -35,8 +35,13 @@ func mergeSessions(fileSessions []protocol.Session, roomSessions []protocol.Sess
 	for _, item := range merged {
 		result = append(result, item)
 	}
+	// 同秒级时间戳的成员 session 很常见（同事务写入）；排序必须确定，
+	// 否则“每个 room 的第一条 session”这类消费口径会在刷新间随机漂移。
 	slices.SortFunc(result, func(left protocol.Session, right protocol.Session) int {
-		return right.LastActivity.Compare(left.LastActivity)
+		if compared := right.LastActivity.Compare(left.LastActivity); compared != 0 {
+			return compared
+		}
+		return strings.Compare(left.SessionKey, right.SessionKey)
 	})
 	return result
 }

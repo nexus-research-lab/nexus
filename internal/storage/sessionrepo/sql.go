@@ -91,6 +91,7 @@ SELECT
     COALESCE(s.sdk_session_id, ''),
     s.status,
     s.last_activity_at,
+    c.last_activity_at,
     s.created_at,
     c.id,
     COALESCE(c.title, ''),
@@ -122,12 +123,13 @@ func scanRoomSessions(rows *sql.Rows) ([]protocol.Session, error) {
 
 func scanRoomSession(scanner interface{ Scan(...any) error }) (protocol.Session, error) {
 	var (
-		roomSessionID  string
-		agentID        string
-		sdkSessionID   string
-		status         string
-		lastActivity   time.Time
-		createdAt      time.Time
+		roomSessionID        string
+		agentID              string
+		sdkSessionID         string
+		status               string
+		lastActivity         time.Time
+		conversationActivity sql.NullTime
+		createdAt            time.Time
 		conversationID string
 		title          string
 		roomID         string
@@ -141,6 +143,7 @@ func scanRoomSession(scanner interface{ Scan(...any) error }) (protocol.Session,
 		&sdkSessionID,
 		&status,
 		&lastActivity,
+		&conversationActivity,
 		&createdAt,
 		&conversationID,
 		&title,
@@ -152,6 +155,10 @@ func scanRoomSession(scanner interface{ Scan(...any) error }) (protocol.Session,
 		return protocol.Session{}, err
 	}
 	resolvedTitle := firstNonEmptyString(title, roomName, "New Chat")
+	// sessions.last_activity_at 建行后没有写入方推进；conversation 级活跃时间才是持续维护的真相。
+	if conversationActivity.Valid && conversationActivity.Time.After(lastActivity) {
+		lastActivity = conversationActivity.Time
+	}
 	return protocol.Session{
 		SessionKey:     protocol.BuildRoomAgentSessionKey(conversationID, agentID, roomType),
 		AgentID:        agentID,

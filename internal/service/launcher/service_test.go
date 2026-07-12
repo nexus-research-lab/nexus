@@ -280,3 +280,29 @@ func launcherMigrationDir(t *testing.T) string {
 	}
 	return filepath.Join(filepath.Dir(file), "..", "..", "..", "db", "migrations", "sqlite")
 }
+
+func TestPreviewSessionKeyRoutesGroupToSharedHistory(t *testing.T) {
+	memberKey := protocol.BuildRoomAgentSessionKey("conversation-1", "amy", "room")
+	group := BootstrapConversation{
+		SessionKey:     memberKey,
+		RoomType:       "room",
+		ConversationID: "conversation-1",
+	}
+	if got := previewSessionKey(group); got != protocol.BuildRoomSharedSessionKey("conversation-1") {
+		t.Fatalf("previewSessionKey(group) = %q, want room shared key", got)
+	}
+
+	dm := BootstrapConversation{
+		SessionKey:     protocol.BuildRoomAgentSessionKey("conversation-2", "amy", "dm"),
+		RoomType:       protocol.RoomTypeDM,
+		ConversationID: "conversation-2",
+	}
+	if got := previewSessionKey(dm); got != dm.SessionKey {
+		t.Fatalf("previewSessionKey(dm) = %q, want member key", got)
+	}
+
+	missingConversation := BootstrapConversation{SessionKey: memberKey, RoomType: "room"}
+	if got := previewSessionKey(missingConversation); got != memberKey {
+		t.Fatalf("previewSessionKey(no conversation) = %q, want fallback to member key", got)
+	}
+}
