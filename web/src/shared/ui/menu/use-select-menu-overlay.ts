@@ -24,6 +24,23 @@ const SELECTION_DIRECTION_BY_KEY: Record<string, 1 | -1> = {
 
 const TOGGLE_KEYS = new Set(["Enter", " "]);
 
+function handleSelectionKey({
+  event,
+  moveSelection,
+  openMenu,
+}: {
+  event: KeyboardEvent<HTMLButtonElement>;
+  moveSelection?: MoveSelection;
+  openMenu: () => void;
+}) {
+  const direction = SELECTION_DIRECTION_BY_KEY[event.key];
+  if (!direction || !moveSelection?.(direction)) {
+    return;
+  }
+  event.preventDefault();
+  openMenu();
+}
+
 /** Select 家族共用内部开关与键盘协议，选项变化语义仍由消费者决定。 */
 export function useSelectMenuOverlay({
   disabled,
@@ -75,7 +92,10 @@ export function useSelectMenuOverlay({
       return;
     }
     if (event.key === "Escape") {
-      closeMenu();
+      if (isOpen) {
+        event.preventDefault();
+        closeMenu();
+      }
       return;
     }
     if (TOGGLE_KEYS.has(event.key)) {
@@ -83,12 +103,8 @@ export function useSelectMenuOverlay({
       toggleMenu();
       return;
     }
-    const direction = SELECTION_DIRECTION_BY_KEY[event.key];
-    if (direction && moveSelection?.(direction)) {
-      event.preventDefault();
-      openMenu();
-    }
-  }, [closeMenu, disabled, openMenu, toggleMenu]);
+    handleSelectionKey({ event, moveSelection, openMenu });
+  }, [closeMenu, disabled, isOpen, openMenu, toggleMenu]);
 
   return {
     buttonRef,

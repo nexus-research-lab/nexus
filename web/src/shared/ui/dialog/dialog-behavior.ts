@@ -16,6 +16,7 @@ import {
   registerDialogModal,
   unregisterDialogModal,
 } from "@/shared/ui/dialog/dialog-modal-runtime";
+import { OPEN_OVERLAY_SELECTOR } from "@/shared/ui/overlay/overlay-contract";
 
 interface DialogModalBehaviorOptions<T extends HTMLElement> {
   enabled?: boolean;
@@ -25,7 +26,7 @@ interface DialogModalBehaviorOptions<T extends HTMLElement> {
 }
 
 function hasOpenOverlayControl(): boolean {
-  return Boolean(document.querySelector("[data-ui-select-menu-open='true']"));
+  return Boolean(document.querySelector(OPEN_OVERLAY_SELECTOR));
 }
 
 interface DialogKeyboardActionContext {

@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 
 import { useAnchoredOverlayLayer } from "@/shared/ui/overlay/anchored-overlay-layer";
 import { resolveAnchoredOverlayPosition } from "@/shared/ui/overlay/anchored-overlay-model";
+import { OPEN_OVERLAY_DATA_ATTRIBUTES } from "@/shared/ui/overlay/overlay-contract";
 
 import { PICKER_POPOVER_CLASS_NAME } from "./picker-styles";
 
@@ -41,6 +42,7 @@ export function PickerPopover({
     portalContainer,
   } = useAnchoredOverlayLayer({
     anchorRef,
+    disabled: false,
     estimatePosition,
     isOpen,
     onClose,
@@ -62,6 +64,7 @@ export function PickerPopover({
         backdropFilter: "blur(18px)",
         WebkitBackdropFilter: "blur(18px)",
       }}
+      {...OPEN_OVERLAY_DATA_ATTRIBUTES}
     >
       {children}
     </div>,

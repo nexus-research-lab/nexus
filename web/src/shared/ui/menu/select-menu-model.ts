@@ -9,6 +9,26 @@ import {
 export type UiSelectMenuPlacement = UiAnchoredOverlayPlacement;
 export type UiSelectMenuSize = "xs" | "sm" | "md";
 export type UiSelectMenuSurface = "surface" | "dialog";
+export type UiSelectMenuSelectionDirection = -1 | 1;
+
+export interface UiSelectMenuOption {
+  value: string;
+  label: string;
+  disabled?: boolean;
+}
+
+export interface SelectMenuPresentation {
+  activeLabel: string;
+  estimatedOptionHeight: number;
+  heightClassName: string;
+  optionButtonLayoutClassName: string;
+  optionHeightClassName: string;
+  optionLabelClassName: string;
+  roundedClassName: string;
+  textClassName: string;
+  triggerLabelClassName: string;
+}
+
 const SELECT_MENU_MAX_HEIGHT = 280;
 
 export const SELECT_MENU_SEARCH_ROW_HEIGHT = 44;
@@ -43,6 +63,26 @@ const SELECT_MENU_SIZE_CONFIG: Record<UiSelectMenuSize, {
   },
 };
 
+const SELECT_MENU_LABEL_LAYOUT_CONFIG = {
+  singleLine: {
+    minimumOptionHeight: 0,
+    optionButtonLayoutClassName: "items-center",
+    optionLabelClassName: "truncate",
+    triggerLabelClassName: "truncate",
+  },
+  wrap: {
+    minimumOptionHeight: 46,
+    optionButtonLayoutClassName: "items-start py-2",
+    optionLabelClassName: "whitespace-normal break-words leading-snug",
+    triggerLabelClassName: "whitespace-normal break-words text-left leading-snug",
+  },
+} as const;
+
+const UNKNOWN_SELECTION_INDEX_BY_DIRECTION: Record<UiSelectMenuSelectionDirection, number> = {
+  [-1]: 0,
+  [1]: -1,
+};
+
 const SELECT_MENU_BUTTON_SURFACE_CLASS_NAMES: Record<UiSelectMenuSurface, string> = {
   dialog: "dialog-input shadow-none hover:border-[color:color-mix(in_srgb,var(--primary)_24%,var(--modal-input-border))] hover:bg-[color:color-mix(in_srgb,var(--modal-input-focus-background)_72%,transparent)] focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_14%,transparent)]",
   surface: "border border-[color:color-mix(in_srgb,var(--primary)_22%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--background)_94%,white)] shadow-[0_1px_2px_rgba(15,23,42,0.04)] hover:border-[color:color-mix(in_srgb,var(--primary)_38%,var(--divider-subtle-color))] focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_18%,transparent)]",
@@ -69,6 +109,63 @@ const SELECT_MENU_OPTION_STATE_CLASS_NAMES: Record<
 
 export function getSelectMenuSizeConfig(size: UiSelectMenuSize) {
   return SELECT_MENU_SIZE_CONFIG[size];
+}
+
+export function buildSelectMenuPresentation({
+  allowLabelWrap,
+  options,
+  placeholder,
+  size,
+  value,
+}: {
+  allowLabelWrap: boolean;
+  options: UiSelectMenuOption[];
+  placeholder: string;
+  size: UiSelectMenuSize;
+  value: string;
+}): SelectMenuPresentation {
+  const sizeConfig = getSelectMenuSizeConfig(size);
+  const labelLayout = SELECT_MENU_LABEL_LAYOUT_CONFIG[
+    allowLabelWrap ? "wrap" : "singleLine"
+  ];
+
+  return {
+    activeLabel: options.find((option) => option.value === value)?.label ?? placeholder,
+    estimatedOptionHeight: Math.max(
+      sizeConfig.estimatedOptionHeight,
+      labelLayout.minimumOptionHeight,
+    ),
+    heightClassName: sizeConfig.heightClassName,
+    optionButtonLayoutClassName: labelLayout.optionButtonLayoutClassName,
+    optionHeightClassName: sizeConfig.optionHeightClassName,
+    optionLabelClassName: labelLayout.optionLabelClassName,
+    roundedClassName: sizeConfig.roundedClassName,
+    textClassName: sizeConfig.textClassName,
+    triggerLabelClassName: labelLayout.triggerLabelClassName,
+  };
+}
+
+/** 未命中当前值时，以方向对应的边界作为游标，确保首次移动不会跳过选项。 */
+export function resolveNextSelectMenuValue({
+  direction,
+  options,
+  value,
+}: {
+  direction: UiSelectMenuSelectionDirection;
+  options: UiSelectMenuOption[];
+  value: string;
+}): string | null {
+  const enabledOptions = options.filter((option) => !option.disabled);
+  if (enabledOptions.length === 0) {
+    return null;
+  }
+
+  const selectedIndex = enabledOptions.findIndex((option) => option.value === value);
+  const currentIndex = selectedIndex >= 0
+    ? selectedIndex
+    : UNKNOWN_SELECTION_INDEX_BY_DIRECTION[direction];
+  const nextIndex = (currentIndex + direction + enabledOptions.length) % enabledOptions.length;
+  return enabledOptions[nextIndex].value;
 }
 
 export function estimateSelectMenuHeight(optionCount: number, optionHeight: number, extraHeight = 8): number {

@@ -15,16 +15,39 @@ import type { UiAnchoredOverlayPosition } from "./anchored-overlay-model";
 
 interface AnchoredOverlayLayerOptions<T extends HTMLElement> {
   anchorRef: RefObject<T | null>;
-  disabled?: boolean;
+  disabled: boolean;
   estimatePosition: (anchor: T) => UiAnchoredOverlayPosition;
   isOpen: boolean;
   onClose: () => void;
 }
 
+function buildOverlayStyle(
+  position: UiAnchoredOverlayPosition | null,
+): CSSProperties {
+  if (!position) {
+    return { visibility: "hidden" };
+  }
+  return {
+    bottom: position.bottom,
+    left: position.left,
+    maxHeight: position.maxHeight,
+    top: position.top,
+    visibility: "visible",
+    width: position.width,
+  };
+}
+
+function resolvePortalContainer(anchor: HTMLElement | null): Element | null {
+  if (typeof document === "undefined") {
+    return null;
+  }
+  return anchor?.closest("[data-modal-root='true']") ?? document.body;
+}
+
 /** 统一锚定浮层的浏览器生命周期，消费者只负责交互语义和内容。 */
 export function useAnchoredOverlayLayer<T extends HTMLElement>({
   anchorRef,
-  disabled = false,
+  disabled,
   estimatePosition,
   isOpen,
   onClose,
@@ -56,7 +79,7 @@ export function useAnchoredOverlayLayer<T extends HTMLElement>({
       onClose();
     };
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (event.key !== "Escape") {
+      if (event.key !== "Escape" || event.defaultPrevented) {
         return;
       }
       onClose();
@@ -81,17 +104,8 @@ export function useAnchoredOverlayLayer<T extends HTMLElement>({
     }
   }, [disabled, isOpen, updatePosition]);
 
-  const overlayStyle: CSSProperties = {
-    bottom: position?.bottom,
-    left: position?.left,
-    maxHeight: position?.maxHeight,
-    top: position?.top,
-    visibility: position ? "visible" : "hidden",
-    width: position?.width,
-  };
-  const portalContainer = typeof document === "undefined"
-    ? null
-    : anchorRef.current?.closest("[data-modal-root='true']") ?? document.body;
+  const overlayStyle = buildOverlayStyle(position);
+  const portalContainer = resolvePortalContainer(anchorRef.current);
 
   return {
     overlayId,

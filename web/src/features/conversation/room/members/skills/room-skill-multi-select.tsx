@@ -320,7 +320,6 @@ export function RoomSkillMultiSelect({
   ), [options.length]);
   const overlay = useSelectMenuOverlay({ disabled, estimatePosition });
   const selectionStyle = triggerSelectionStyle(value);
-  const openState = overlay.isOpen ? "true" : undefined;
   const controlledMenuId = overlay.isOpen ? overlay.menuId : undefined;
 
   const toggleValue = (nextValue: string) => {
@@ -338,7 +337,6 @@ export function RoomSkillMultiSelect({
   return (
     <div
       className={cn("relative w-full", selectionStyle.rootClassName)}
-      data-ui-select-menu-open={openState}
     >
       <button
         aria-controls={controlledMenuId}

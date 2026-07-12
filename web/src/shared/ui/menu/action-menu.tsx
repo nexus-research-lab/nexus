@@ -14,6 +14,7 @@ import {
   resolveAnchoredOverlayPosition,
   type UiAnchoredOverlayPlacement,
 } from "../overlay/anchored-overlay-model";
+import { OPEN_OVERLAY_DATA_ATTRIBUTES } from "../overlay/overlay-contract";
 
 export interface UiActionMenuItem {
   value: string;
@@ -130,6 +131,7 @@ export function UiActionMenu({
     portalContainer,
   } = useAnchoredOverlayLayer({
     anchorRef,
+    disabled: false,
     estimatePosition,
     isOpen,
     onClose,
@@ -154,6 +156,7 @@ export function UiActionMenu({
       data-state="open"
       role="menu"
       style={menuStyle}
+      {...OPEN_OVERLAY_DATA_ATTRIBUTES}
     >
       {items.map((item) => (
         <div

@@ -5,7 +5,8 @@ import { Loader2 } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
-import { UiSelectMenu, type UiSelectMenuOption } from "@/shared/ui/menu/select-menu";
+import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
+import type { UiSelectMenuOption } from "@/shared/ui/menu/select-menu-model";
 
 import type { DefaultModelPreferenceRole } from "../model/settings-preferences-model";
 import {

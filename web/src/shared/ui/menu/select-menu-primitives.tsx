@@ -8,6 +8,7 @@ import { ChevronDown } from "lucide-react";
 import { cn } from "@/shared/ui/class-name";
 
 import type { UiAnchoredOverlayPosition } from "../overlay/anchored-overlay-model";
+import { OPEN_OVERLAY_DATA_ATTRIBUTES } from "../overlay/overlay-contract";
 import {
   getSelectMenuPanelSurfaceClassName,
   type UiSelectMenuSurface,
@@ -84,10 +85,10 @@ export function SelectMenuPanel({
       data-placement={placement ?? "bottom"}
       data-state="open"
       data-surface={surface}
-      data-ui-select-menu-open="true"
       id={id}
       role="listbox"
       style={style}
+      {...OPEN_OVERLAY_DATA_ATTRIBUTES}
     >
       {children}
     </div>

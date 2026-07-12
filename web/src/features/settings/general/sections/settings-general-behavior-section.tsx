@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
-import type { UiSelectMenuOption } from "@/shared/ui/menu/select-menu";
+import type { UiSelectMenuOption } from "@/shared/ui/menu/select-menu-model";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 import type { AgentConversationDefaultDeliveryPolicy } from "@/types/agent/agent-conversation";
 import type { AgentRuntimeKind } from "@/types/settings/preferences";
