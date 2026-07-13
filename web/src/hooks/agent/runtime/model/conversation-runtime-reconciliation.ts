@@ -1,3 +1,8 @@
+/**
+ * [INPUT]: WebSocket ack/生命周期事件、已加载消息与本地临时运行态。
+ * [OUTPUT]: 对话消息、权限和 Room agent slot 的确定性归并结果。
+ * [POS]: Agent conversation runtime 的纯状态协调层。
+ */
 import type {
   AssistantMessage,
   AssistantMessageStatus,
@@ -222,7 +227,6 @@ export function mergeChatAckPendingSlots(
   slots: RoomPendingAgentSlotState[],
   ack: ChatAckData,
 ): RoomPendingAgentSlotState[] {
-  const preservedSlots = slots.filter((slot) => slot.round_id !== ack.round_id);
   const nextSlots = ack.pending.map((slot) => ({
     agent_id: slot.agent_id,
     agent_round_id: slot.agent_round_id,
@@ -231,6 +235,10 @@ export function mergeChatAckPendingSlots(
     status: slot.status,
     timestamp: slot.timestamp,
   }));
+  if (ack.pending_snapshot) {
+    return nextSlots;
+  }
+  const preservedSlots = slots.filter((slot) => slot.round_id !== ack.round_id);
   return [...preservedSlots, ...nextSlots];
 }
 

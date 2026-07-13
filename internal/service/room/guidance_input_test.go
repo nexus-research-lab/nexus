@@ -92,6 +92,63 @@ func TestRoomSlotGuidanceHookConsumesInputQueueGuidance(t *testing.T) {
 	}
 }
 
+func TestConsumedRoomGuidanceMovesUserMessageIntoReplyRound(t *testing.T) {
+	storeRoot := t.TempDir()
+	roomHistory := workspacestore.NewRoomHistoryStore(storeRoot)
+	conversationID := "conversation-guidance-order"
+	if err := roomHistory.AppendInlineMessage(conversationID, protocol.Message{
+		"message_id":      "guided-user-message",
+		"session_key":     protocol.BuildRoomSharedSessionKey(conversationID),
+		"room_id":         "room-1",
+		"conversation_id": conversationID,
+		"round_id":        "guidance-source-round",
+		"role":            "user",
+		"content":         "然后评价一下",
+		"delivery_policy": string(protocol.ChatDeliveryPolicyGuide),
+		"timestamp":       int64(200),
+	}); err != nil {
+		t.Fatalf("写入 Room 引导用户消息失败: %v", err)
+	}
+
+	service := &RealtimeService{
+		permission:  permissionctx.NewContext(),
+		roomHistory: roomHistory,
+	}
+	contextValue := &protocol.ConversationContextAggregate{
+		Room:         protocol.RoomRecord{ID: "room-1"},
+		Conversation: protocol.ConversationRecord{ID: conversationID, RoomID: "room-1"},
+	}
+	service.syncQueuedPublicMessageDeliveryPolicy(
+		context.Background(),
+		protocol.BuildRoomSharedSessionKey(conversationID),
+		contextValue,
+		protocol.InputQueueItem{
+			SourceMessageID: "guidance-source-round",
+			DeliveryPolicy:  protocol.ChatDeliveryPolicyGuide,
+		},
+		"goal-reply-round",
+	)
+
+	messages, err := roomHistory.ReadMessages(conversationID, nil)
+	if err != nil {
+		t.Fatalf("读取 Room 引导历史失败: %v", err)
+	}
+	var message protocol.Message
+	for _, candidate := range messages {
+		if candidate["message_id"] == "guided-user-message" {
+			message = candidate
+			break
+		}
+	}
+	if message == nil {
+		t.Fatalf("Room 历史缺少已消费引导消息: %+v", messages)
+	}
+	if protocol.MessageRoundID(message) != "goal-reply-round" ||
+		message["source_round_id"] != "guidance-source-round" {
+		t.Fatalf("已消费引导未归入模型回复 round: %+v", message)
+	}
+}
+
 func TestRoomSlotGuidanceHookKeepsUnanchoredQueueItemWithPublicDelta(t *testing.T) {
 	storeRoot := t.TempDir()
 	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(storeRoot, ".nexus"))

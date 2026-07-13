@@ -94,6 +94,7 @@ export interface ChatAckData {
   round_id: string;
   user_message_id: string;
   pending: ChatAckPendingSlot[];
+  pending_snapshot: boolean;
   ack_timeout_ms: number;
 }
 

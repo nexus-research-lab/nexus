@@ -1,3 +1,6 @@
+// [INPUT]: 依赖 append-only overlay JSONL 与当前活跃 round 集合。
+// [OUTPUT]: 对外提供遵循 message_id 最后写入语义的轻量 round 导航索引。
+// [POS]: workspace history 的 DM/Room 共享 round index 投影。
 package workspace
 
 import (
@@ -21,6 +24,7 @@ type roundIndexOverlayJSONRow struct {
 	Content        json.RawMessage              `json:"content"`
 	DurationMS     json.RawMessage              `json:"duration_ms"`
 	HiddenFromUser bool                         `json:"hidden_from_user"`
+	MessageID      string                       `json:"message_id"`
 	OverlayKind    string                       `json:"nexus_overlay_kind"`
 	ResultSummary  *roundIndexJSONResultSummary `json:"result_summary"`
 	Role           string                       `json:"role"`
@@ -79,17 +83,30 @@ func readRoundIndexFromJSONL(
 	defer file.Close()
 
 	decoder := json.NewDecoder(file)
-	entries := make(map[string]*sessionRoundIndexAccumulator)
+	rows := make([]roundIndexOverlayJSONRow, 0)
+	latestByMessageID := make(map[string]int)
 	for {
 		var row roundIndexOverlayJSONRow
 		if err := decoder.Decode(&row); err != nil {
 			if errors.Is(err, io.EOF) {
-				return buildSessionRoundIndex(entries), nil
+				break
 			}
 			return protocol.SessionRoundIndex{}, err
 		}
+		rows = append(rows, row)
+		if messageID := strings.TrimSpace(row.MessageID); messageID != "" {
+			latestByMessageID[messageID] = len(rows) - 1
+		}
+	}
+
+	entries := make(map[string]*sessionRoundIndexAccumulator)
+	for index, row := range rows {
+		if messageID := strings.TrimSpace(row.MessageID); messageID != "" && latestByMessageID[messageID] != index {
+			continue
+		}
 		row.applyToIndex(entries, activeRoundIDs, collapseRoomAgentRounds, defaultAgentID)
 	}
+	return buildSessionRoundIndex(entries), nil
 }
 
 func (row roundIndexOverlayJSONRow) applyToIndex(
