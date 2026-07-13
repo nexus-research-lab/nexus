@@ -3,7 +3,7 @@
 // L2 | 父级: internal/storage（L1 见 AGENTS.md）
 //
 // 成员清单：
-//   - history_*.go：分阶段历史投影（compact / normalize / order / pagination / round_index /
+//   - history_*.go：分阶段历史投影（compact / normalize / order / pagination / last-write round_index /
 //     turn projector / rewrite_tail / result_summary / external_delivery / unfinished_round）。
 //   - agent_history*.go：Agent 历史门面、读取、overlay 与共享模型。
 //   - transcript_*.go：transcript cache、reader、path、session、project、marker 与 guidance。
