@@ -72,20 +72,23 @@ function GroupRoundCardGroupInner({
 
   return (
     <div className="w-full min-w-0 animate-in fade-in slide-in-from-bottom-2 duration-300">
-      {model.userMessage ? (
-        <div className="border-b border-(--divider-subtle-color)">
+      {model.userMessages.map(({ message, workspaceAgentId }) => (
+        <div
+          className="border-b border-(--divider-subtle-color)"
+          key={message.message_id}
+        >
           {/* 用户消息沿用通用样式，但不渲染尚未出现的助手区域。 */}
           <MessageItem
             className="border-b-0"
             currentUserAvatar={currentUserAvatar}
             isLastRound={false}
-            messages={[model.userMessage]}
+            messages={[message]}
             onOpenWorkspaceFile={onOpenWorkspaceFile}
             roundId={roundId}
-            workspaceAgentId={model.userWorkspaceAgentId}
+            workspaceAgentId={workspaceAgentId}
           />
         </div>
-      ) : null}
+      ))}
 
       {model.completedEntries.map((entry) => (
         <GroupCompletedReply

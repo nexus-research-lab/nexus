@@ -5,7 +5,8 @@
 // 成员清单：
 //   - handler.go / connection.go / dispatch.go / control.go / error.go / values.go：
 //     连接生命周期、消息分发、控制动作表、错误与取值。
-//   - room_subscription_handler.go / session_binding.go / broadcast.go：房间订阅、会话绑定与广播。
+//   - room_subscription_handler.go / session_binding.go / broadcast.go：
+//     房间订阅（含权威空 slot 快照清理）、会话绑定与广播。
 //   - goal_rpc_handler.go / goal_rpc_registry.go / goal_event_broadcaster.go：
 //     Codex app-server Goal RPC、pending call 注册与事件广播。
 //   - app_event_subscription.go / room_subscription_registry.go / workspace_*.go：

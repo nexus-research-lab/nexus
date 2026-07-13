@@ -1,3 +1,6 @@
+// INPUT: 运行中 Room slot、内存引导和持久化 guide 队列。
+// OUTPUT: PostToolUse additionalContext，并把已消费引导归入实际回复 round。
+// POS: Room 轮内插话的唯一消费入口。
 package room
 
 import (
@@ -93,6 +96,7 @@ func (e *roomGuidanceExecution) run() (sdkhook.Output, error) {
 	if err = e.buildInputs(); err != nil {
 		return sdkhook.Output{}, err
 	}
+	e.syncConsumedPublicMessages()
 	e.broadcastGuidanceMessages()
 	return sdkhook.Output{
 		SpecificOutput: &sdkhook.SpecificOutput{
@@ -100,6 +104,22 @@ func (e *roomGuidanceExecution) run() (sdkhook.Output, error) {
 			AdditionalContext: runtimectx.FormatGuidanceAdditionalContext(e.inputs),
 		},
 	}, nil
+}
+
+func (e *roomGuidanceExecution) syncConsumedPublicMessages() {
+	if e.round == nil || e.round.Context == nil {
+		return
+	}
+	rootRoundID := roomRootRoundID(e.round)
+	for _, input := range e.queuedInputs {
+		e.service.syncQueuedPublicMessageDeliveryPolicy(e.ctx, e.round.SessionKey, e.round.Context, protocol.InputQueueItem{
+			SourceMessageID: input.RoundID,
+			DeliveryPolicy:  protocol.ChatDeliveryPolicyGuide,
+		}, rootRoundID)
+	}
+	for _, item := range e.queueItems {
+		e.service.syncQueuedPublicMessageDeliveryPolicy(e.ctx, e.round.SessionKey, e.round.Context, item, rootRoundID)
+	}
 }
 
 func (e *roomGuidanceExecution) loadInputs() (bool, error) {

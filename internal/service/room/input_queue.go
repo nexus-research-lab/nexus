@@ -213,7 +213,7 @@ func (s *RealtimeService) guideInputQueueItem(
 			return err
 		}
 		entry.Item.DeliveryPolicy = protocol.ChatDeliveryPolicyQueue
-		s.syncQueuedPublicMessageDeliveryPolicy(ctx, sessionKey, contextValue, entry.Item)
+		s.syncQueuedPublicMessageDeliveryPolicy(ctx, sessionKey, contextValue, entry.Item, "")
 		if err = s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue); err != nil {
 			return err
 		}
@@ -233,7 +233,7 @@ func (s *RealtimeService) guideInputQueueItem(
 		return err
 	}
 	entry.Item.DeliveryPolicy = protocol.ChatDeliveryPolicyGuide
-	s.syncQueuedPublicMessageDeliveryPolicy(ctx, sessionKey, contextValue, entry.Item)
+	s.syncQueuedPublicMessageDeliveryPolicy(ctx, sessionKey, contextValue, entry.Item, "")
 	return s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue)
 }
 
@@ -242,6 +242,7 @@ func (s *RealtimeService) syncQueuedPublicMessageDeliveryPolicy(
 	sessionKey string,
 	contextValue *protocol.ConversationContextAggregate,
 	item protocol.InputQueueItem,
+	rootRoundID string,
 ) {
 	roundID := strings.TrimSpace(item.SourceMessageID)
 	if roundID == "" || contextValue == nil {
@@ -259,6 +260,10 @@ func (s *RealtimeService) syncQueuedPublicMessageDeliveryPolicy(
 		}
 		updated := protocol.Clone(message)
 		updated["delivery_policy"] = string(item.DeliveryPolicy)
+		if rootRoundID = strings.TrimSpace(rootRoundID); rootRoundID != "" && rootRoundID != roundID {
+			updated["source_round_id"] = roundID
+			updated["round_id"] = rootRoundID
+		}
 		if err = s.persistSharedInlineMessage(contextValue.Conversation.ID, updated); err != nil {
 			s.loggerFor(ctx).Warn("持久化 Room 输入策略失败", "error", err, "round_id", roundID)
 			return
@@ -267,7 +272,7 @@ func (s *RealtimeService) syncQueuedPublicMessageDeliveryPolicy(
 			contextValue.Room.ID,
 			contextValue.Conversation.ID,
 			updated,
-			roundID,
+			protocol.MessageRoundID(updated),
 		))
 		return
 	}

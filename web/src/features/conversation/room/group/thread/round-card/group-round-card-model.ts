@@ -27,8 +27,10 @@ export interface GroupRoundAgentCardModel extends RoomAgentRoundEntry {
 export interface GroupRoundCardModel {
   completedEntries: GroupRoundAgentCardModel[];
   pendingEntries: GroupRoundAgentCardModel[];
-  userMessage: UserMessage | null;
-  userWorkspaceAgentId: string | null;
+  userMessages: Array<{
+    message: UserMessage;
+    workspaceAgentId: string | null;
+  }>;
 }
 
 export type AgentStatusSummaryTone =
@@ -150,12 +152,17 @@ export function buildGroupRoundCardModel({
   }
   completedEntries.sort((left, right) => left.timestamp - right.timestamp);
 
-  const userMessage = messages.find(isVisibleUserMessage) ?? null;
+  const userMessages = messages
+    .filter(isVisibleUserMessage)
+    .sort((left, right) => left.timestamp - right.timestamp)
+    .map((message) => ({
+      message,
+      workspaceAgentId: resolveUserWorkspaceAgentId(message),
+    }));
   return {
     completedEntries,
     pendingEntries,
-    userMessage,
-    userWorkspaceAgentId: resolveUserWorkspaceAgentId(userMessage),
+    userMessages,
   };
 }
 
@@ -343,7 +350,7 @@ function resolveStopMessageId(entry: RoomAgentRoundEntry): string | null {
 }
 
 function resolveUserWorkspaceAgentId(
-  userMessage: UserMessage | null,
+  userMessage: UserMessage,
 ): string | null {
   return userMessage?.attachments?.[0]?.workspace_agent_id ?? null;
 }

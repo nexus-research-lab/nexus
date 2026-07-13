@@ -97,7 +97,7 @@ func (s *RealtimeService) releaseUndeliveredRoomGuidance(
 			continue
 		}
 		entry.Item.DeliveryPolicy = protocol.ChatDeliveryPolicyQueue
-		s.syncQueuedPublicMessageDeliveryPolicy(ctx, sessionKey, contextValue, entry.Item)
+		s.syncQueuedPublicMessageDeliveryPolicy(ctx, sessionKey, contextValue, entry.Item, "")
 		changed = true
 	}
 	if changed {

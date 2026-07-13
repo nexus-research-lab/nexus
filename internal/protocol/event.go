@@ -1,3 +1,6 @@
+// [INPUT]: 依赖会话/运行时跨边界状态与时间戳。
+// [OUTPUT]: 对外提供统一事件类型、普通 chat ack 与权威 pending slot 快照事件。
+// [POS]: protocol 包的 WebSocket 事件真相源。
 package protocol
 
 import (
@@ -164,9 +167,18 @@ func NewChatAckEvent(sessionKey string, clientRequestID string, clientMessageID 
 		"round_id":          roundID,
 		"user_message_id":   userMessageID,
 		"pending":           pending,
+		"pending_snapshot":  false,
 		"ack_timeout_ms":    ChatAckTimeoutMS,
 	})
 	event.SessionKey = sessionKey
+	return event
+}
+
+// NewChatPendingSnapshotEvent 构造订阅恢复时的权威 Room slot 快照。
+// 前端必须用 pending 整体替换本地恢复值；空数组同样有意义，用于清除陈旧占位。
+func NewChatPendingSnapshotEvent(sessionKey string, roundID string, pending []ChatAckPendingSlot) EventMessage {
+	event := NewChatAckEvent(sessionKey, "", "", roundID, "", pending)
+	event.Data["pending_snapshot"] = true
 	return event
 }
 
