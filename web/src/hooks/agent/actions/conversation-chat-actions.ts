@@ -94,7 +94,6 @@ export async function sendSessionMessage(
     "消息未发送到后端，请检查连接后重试",
   );
   context.setMessages((messages) => upsertMessage(messages, optimisticMessage));
-  context.setPendingPermissions([]);
   return request;
 }
 

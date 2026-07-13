@@ -27,6 +27,7 @@ export interface ComposerInputProjection {
 export interface ComposerRuntimeProjection {
   canStopGeneration: boolean;
   activity: ComposerRuntimeActivity;
+  isAwaitingPermission: boolean;
   sessionBusy: boolean;
 }
 
@@ -83,6 +84,7 @@ export function projectComposerRuntime({
       ? RUNTIME_ACTIVITY_BY_PHASE[runtimePhase ?? "idle"] ?? "replying"
       : null,
     canStopGeneration: [isLoading, !isDispatching].every(Boolean),
+    isAwaitingPermission: runtimePhase === "awaiting_permission",
     sessionBusy: [isLoading, queueItemCount > 0].some(Boolean),
   };
 }
@@ -198,6 +200,7 @@ export function projectComposerActions({
     inputState.isInputEmpty,
     inputState.isOverLimit,
     isPreparingAttachments,
+    runtimeState.isAwaitingPermission,
   ].some(Boolean);
   return {
     isSendDisabled: isGoalMode ? goalSendDisabled : messageSendDisabled,

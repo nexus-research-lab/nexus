@@ -3,6 +3,7 @@ import { useCallback } from "react";
 import type {
   AgentConversationDefaultDeliveryPolicy,
   AgentConversationDeliveryPolicy,
+  AgentConversationRuntimePhase,
 } from "@/types/agent/agent-conversation";
 import type { MessageAttachment } from "@/types/conversation/message/attachment";
 
@@ -30,6 +31,7 @@ interface UseComposerMessageSubmitOptions {
   recordHistory: (value: string) => void;
   resetInput: () => void;
   resetTextareaHeight: () => void;
+  runtimePhase: AgentConversationRuntimePhase | null;
 }
 
 interface ComposerMessageSubmission {
@@ -55,6 +57,7 @@ export function useComposerMessageSubmit(
     recordHistory,
     resetInput,
     resetTextareaHeight,
+    runtimePhase,
   }: UseComposerMessageSubmitOptions,
 ) {
   return useCallback(
@@ -74,6 +77,7 @@ export function useComposerMessageSubmit(
       recordHistory,
       resetInput,
       resetTextareaHeight,
+      runtimePhase,
     }),
     [
       attachmentCount,
@@ -91,6 +95,7 @@ export function useComposerMessageSubmit(
       recordHistory,
       resetInput,
       resetTextareaHeight,
+      runtimePhase,
     ],
   );
 }
@@ -145,7 +150,11 @@ function canStartMessageSubmission(
   const hasContent = [Boolean(content), options.attachmentCount > 0].some(
     Boolean,
   );
-  return [hasContent, !options.isPreparingAttachments].every(Boolean);
+  return [
+    hasContent,
+    !options.isPreparingAttachments,
+    options.runtimePhase !== "awaiting_permission",
+  ].every(Boolean);
 }
 
 function completeMessageSubmission(

@@ -105,6 +105,7 @@ export function useComposerController({
     recordHistory: history.record,
     resetInput,
     resetTextareaHeight,
+    runtimePhase,
   });
   const goal = useComposerGoalActions({
     closeMention: mention.closeMention,

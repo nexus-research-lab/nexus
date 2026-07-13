@@ -179,6 +179,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Prevented Composer Enter and send actions from replacing an active permission request, and stopped ordinary chat sends from clearing permission state locally.
 - Kept Room Agent slots visible without empty preparing or replying labels, and prevented pending client request IDs from being rendered as canonical rounds while chat ACKs are still in flight.
 - Restored Select menu defaults when callers pass optional presentation props as `undefined`, preventing Contacts and other Agent identity views from failing during render.
 - Made Room user input deterministically outrank Goal and Loop continuations, persisted guide state in the public timeline, and converted guidance that misses the final tool hook back into a normal queued turn.
