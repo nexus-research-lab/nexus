@@ -135,6 +135,18 @@ export function resolveWorkspaceArtifactPath(
   return null;
 }
 
+export function resolveWorkspaceImagePath(
+  path: string,
+  resolveFilePath: ResolveWorkspaceFilePath,
+): string | null {
+  if (!isWorkspaceImagePath(path)) {
+    return null;
+  }
+  return resolveWorkspaceArtifactPath(path, resolveFilePath, {
+    allowUnlistedRelativePath: true,
+  });
+}
+
 function resolveAbsoluteArtifactPath(
   context: ArtifactPathContext,
 ): string | null {

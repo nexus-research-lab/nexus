@@ -8,6 +8,7 @@ L2 | 父级: web/CLAUDE.md
 - `conversation/`: 会话内容合并、轮次索引、Session 加载和虚拟列表高度估算
 - `room-page-controller/`: Room 页面编排；数据资源、纯投影、Room 命令、会话快照和现有 Agent 配置各自管理作用域
 - `launcher/`: Launcher 目录资源和选择命令；不承载无入口的 Agent 编辑弹窗状态
+- `settings/`: 将用户偏好的默认发送策略与 Agent 内核投影为响应式 Hook
 - `use-initialize-conversations.ts`: 初始化对话列表的 Hook（hydration 控制）
 - `use-conversation-loader.ts`: 响应式对话加载 Hook
 

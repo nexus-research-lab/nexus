@@ -251,5 +251,6 @@ export const zhConversationMessages = {
   "composer.enter_queue": "入队",
   "composer.shift_enter_newline": "换行",
   "composer.history_position": "历史 {current}/{total}",
+  "composer.current_runtime": "当前内核：{runtime}",
   "message.max_tokens_warning": "大模型输出已达上限。",
 } as const;

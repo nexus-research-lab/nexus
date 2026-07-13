@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Removed the workspace-panel preload dependency from generated image rendering, resolving relative workspace image paths directly through the authenticated preview endpoint.
+- Displayed NXS attribution in the Composer footer when the conversation uses the NXS runtime.
 - Surfaced live context-compaction status from Claude Code and nxs in the conversation Composer while retaining the completed compact boundary in history.
 - Enabled Tool Search across Providers through native references or SDK schema promotion, kept interaction and web tools inline, and deferred all Nexus MCP schemas behind discovery.
 - Consolidated the scheduled-task MCP surface from fourteen backend-shaped tools into eight intent-level tools, removed the duplicate scheduled-task Skill through the shared one-time workspace migration ledger, and made models discover the tools directly through Tool Search.

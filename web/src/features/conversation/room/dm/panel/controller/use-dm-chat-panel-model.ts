@@ -22,6 +22,7 @@ export function useDmChatPanelModel({
   onOpenWorkspaceFile,
   onRoomEvent,
   onTodosChange,
+  runtimeKind,
   sessionIdentity,
 }: DmChatPanelProps): DmChatPanelViewModel {
   const { t } = useI18n();
@@ -49,6 +50,7 @@ export function useDmChatPanelModel({
     onInitialDraftConsumed,
     scrollToBottom: session.scroll.scrollToBottom,
     sessionKey,
+    runtimeKind,
   });
   const rewriteLastUserMessage = session.conversation.rewrite_last_user_message;
   const handleEditLastUserMessage = useCallback(

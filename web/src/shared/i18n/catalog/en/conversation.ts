@@ -254,5 +254,6 @@ export const enConversationMessages = {
   "composer.enter_queue": "Queue",
   "composer.shift_enter_newline": "New line",
   "composer.history_position": "History {current}/{total}",
+  "composer.current_runtime": "Current runtime: {runtime}",
   "message.max_tokens_warning": "The model output has reached its limit and the reply may be incomplete",
 } satisfies MessageSegment<typeof zhConversationMessages>;

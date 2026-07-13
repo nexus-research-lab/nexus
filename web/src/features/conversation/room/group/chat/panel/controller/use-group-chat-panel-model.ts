@@ -33,6 +33,7 @@ export function useGroupChatPanelModel({
   roomHostAutoReplyEnabled,
   roomId,
   roomMembers,
+  runtimeKind,
 }: GroupChatPanelProps): GroupChatPanelViewModel {
   const environment = useConversationPanelEnvironment(layout);
   const sessionKey = conversationId
@@ -64,6 +65,7 @@ export function useGroupChatPanelModel({
     roomMembers,
     scrollToBottom: session.scroll.scrollToBottom,
     sessionKey: session.sessionKey,
+    runtimeKind,
   });
 
   useRoomThreadSource({
