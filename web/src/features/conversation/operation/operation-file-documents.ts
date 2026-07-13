@@ -21,7 +21,7 @@ interface OperationFileContext {
   workspace_items: NexusOperationSnapshot["workspace_events"];
 }
 
-export function collect_operation_file_context(
+export function collectOperationFileContext(
   event: NexusOperationEvent,
   snapshot: NexusOperationSnapshot | null,
   round_events: NexusOperationEvent[],
@@ -61,7 +61,7 @@ export function collect_operation_file_context(
   };
 }
 
-export function window_kind_for_file_target(
+export function windowKindForFileTarget(
   target?: string | null,
   fallback: StageWindowKind = "code_editor",
 ): StageWindowKind {
@@ -90,7 +90,7 @@ export function window_kind_for_file_target(
   return fallback;
 }
 
-export function fallback_window_kind_for_file_event(event: NexusOperationEvent): StageWindowKind {
+export function fallbackWindowKindForFileEvent(event: NexusOperationEvent): StageWindowKind {
   if (
     event.kind === "workspace_read" ||
     event.kind === "workspace_edit" ||

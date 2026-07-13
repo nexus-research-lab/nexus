@@ -18,71 +18,16 @@ import (
 func (h *Handlers) HandleConversationMessages(writer http.ResponseWriter, request *http.Request) {
 	roomID := chi.URLParam(request, "room_id")
 	conversationID := chi.URLParam(request, "conversation_id")
-	limit := 0
-	if rawLimit := strings.TrimSpace(request.URL.Query().Get("limit")); rawLimit != "" {
-		parsedLimit, parseErr := strconv.Atoi(rawLimit)
-		if parseErr != nil || parsedLimit <= 0 {
-			h.api.WriteFailure(writer, http.StatusBadRequest, "limit 参数错误")
-			return
-		}
-		limit = parsedLimit
-	}
-	beforeRoundID := strings.TrimSpace(request.URL.Query().Get("before_round_id"))
-	beforeRoundTimestamp := int64(0)
-	if rawBeforeTimestamp := strings.TrimSpace(request.URL.Query().Get("before_round_timestamp")); rawBeforeTimestamp != "" {
-		parsedBeforeTimestamp, parseErr := strconv.ParseInt(rawBeforeTimestamp, 10, 64)
-		if parseErr != nil || parsedBeforeTimestamp <= 0 {
-			h.api.WriteFailure(writer, http.StatusBadRequest, "before_round_timestamp 参数错误")
-			return
-		}
-		beforeRoundTimestamp = parsedBeforeTimestamp
-	}
-	aroundRoundID := strings.TrimSpace(request.URL.Query().Get("around_round_id"))
-	aroundLimit := 0
-	if rawAroundLimit := strings.TrimSpace(request.URL.Query().Get("around_limit")); rawAroundLimit != "" {
-		parsedAroundLimit, parseErr := strconv.Atoi(rawAroundLimit)
-		if parseErr != nil || parsedAroundLimit <= 0 {
-			h.api.WriteFailure(writer, http.StatusBadRequest, "around_limit 参数错误")
-			return
-		}
-		aroundLimit = parsedAroundLimit
-	}
-
-	contextValue, err := h.roomService.GetConversationContext(request.Context(), conversationID)
-	if errors.Is(err, roompkg.ErrConversationNotFound) {
-		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
-		return
-	}
+	pageRequest, err := conversationMessagePageRequest(request)
 	if err != nil {
-		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
 		return
 	}
-	if contextValue.Room.ID != roomID {
-		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+	sessionKey, ok := h.resolveConversationSessionKey(writer, request, roomID, conversationID)
+	if !ok {
 		return
 	}
-
-	sessionKey := protocol.BuildRoomSharedSessionKey(conversationID)
-	if contextValue.Room.RoomType == protocol.RoomTypeDM {
-		primarySession := findPrimaryConversationSession(contextValue.Sessions)
-		if primarySession == nil || strings.TrimSpace(primarySession.AgentID) == "" {
-			h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
-			return
-		}
-		sessionKey = protocol.BuildRoomAgentSessionKey(
-			conversationID,
-			strings.TrimSpace(primarySession.AgentID),
-			protocol.RoomTypeDM,
-		)
-	}
-
-	items, err := h.sessions.GetSessionMessagesPage(request.Context(), sessionKey, sessionpkg.MessagePageRequest{
-		Limit:                limit,
-		BeforeRoundID:        beforeRoundID,
-		BeforeRoundTimestamp: beforeRoundTimestamp,
-		AroundRoundID:        aroundRoundID,
-		AroundLimit:          aroundLimit,
-	})
+	items, err := h.sessions.GetSessionMessagesPage(request.Context(), sessionKey, pageRequest)
 	if handlershared.IsStructuredSessionKeyError(err) {
 		h.api.WriteFailure(writer, http.StatusUnprocessableEntity, err.Error())
 		return
@@ -94,18 +39,60 @@ func (h *Handlers) HandleConversationMessages(writer http.ResponseWriter, reques
 	h.api.WriteSuccess(writer, items)
 }
 
+func conversationMessagePageRequest(request *http.Request) (sessionpkg.MessagePageRequest, error) {
+	limit, err := positiveQueryInt(request, "limit")
+	if err != nil {
+		return sessionpkg.MessagePageRequest{}, err
+	}
+	beforeRoundTimestamp, err := positiveQueryInt64(request, "before_round_timestamp")
+	if err != nil {
+		return sessionpkg.MessagePageRequest{}, err
+	}
+	aroundLimit, err := positiveQueryInt(request, "around_limit")
+	if err != nil {
+		return sessionpkg.MessagePageRequest{}, err
+	}
+	return sessionpkg.MessagePageRequest{
+		Limit:                limit,
+		BeforeRoundID:        strings.TrimSpace(request.URL.Query().Get("before_round_id")),
+		BeforeRoundTimestamp: beforeRoundTimestamp,
+		AroundRoundID:        strings.TrimSpace(request.URL.Query().Get("around_round_id")),
+		AroundLimit:          aroundLimit,
+	}, nil
+}
+
+func positiveQueryInt(request *http.Request, name string) (int, error) {
+	raw := strings.TrimSpace(request.URL.Query().Get(name))
+	if raw == "" {
+		return 0, nil
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil || value <= 0 {
+		return 0, errors.New(name + " 参数错误")
+	}
+	return value, nil
+}
+
+func positiveQueryInt64(request *http.Request, name string) (int64, error) {
+	raw := strings.TrimSpace(request.URL.Query().Get(name))
+	if raw == "" {
+		return 0, nil
+	}
+	value, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || value <= 0 {
+		return 0, errors.New(name + " 参数错误")
+	}
+	return value, nil
+}
+
 // HandleConversationTurns 返回 Room conversation 的 ConversationTurn 分页。
 func (h *Handlers) HandleConversationTurns(writer http.ResponseWriter, request *http.Request) {
 	roomID := chi.URLParam(request, "room_id")
 	conversationID := chi.URLParam(request, "conversation_id")
-	limit := 0
-	if rawLimit := strings.TrimSpace(request.URL.Query().Get("limit")); rawLimit != "" {
-		parsedLimit, parseErr := strconv.Atoi(rawLimit)
-		if parseErr != nil || parsedLimit <= 0 {
-			h.api.WriteFailure(writer, http.StatusBadRequest, "limit 参数错误")
-			return
-		}
-		limit = parsedLimit
+	limit, err := positiveQueryInt(request, "limit")
+	if err != nil {
+		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+		return
 	}
 
 	sessionKey, ok := h.resolveConversationSessionKey(writer, request, roomID, conversationID)

@@ -6,7 +6,7 @@ import type {
   OperationPhase,
 } from "./operation-types";
 
-export function filter_workspace_events_for_stage(
+export function filterWorkspaceEventsForStage(
   workspace_events: WorkspaceActivityItem[],
   session_key: string | null,
   projected_events: NexusOperationEvent[],
@@ -29,7 +29,7 @@ export function filter_workspace_events_for_stage(
   });
 }
 
-export function pick_operation_active_event(events: NexusOperationEvent[]): NexusOperationEvent | null {
+export function pickOperationActiveEvent(events: NexusOperationEvent[]): NexusOperationEvent | null {
   if (!events.length) {
     return null;
   }
@@ -64,7 +64,7 @@ export function pick_operation_active_event(events: NexusOperationEvent[]): Nexu
   return round_events.at(-1) ?? latest_event;
 }
 
-export function resolve_workspace_event_round_id(
+export function resolveWorkspaceEventRoundId(
   event: WorkspaceActivityItem,
   projected_events: NexusOperationEvent[],
 ): string {
@@ -81,7 +81,7 @@ export function resolve_workspace_event_round_id(
   return event.session_key ?? event.id;
 }
 
-export function collect_recent_operation_evidence(
+export function collectRecentOperationEvidence(
   events: NexusOperationEvent[],
   max_evidence: number,
 ): OperationEvidence[] {

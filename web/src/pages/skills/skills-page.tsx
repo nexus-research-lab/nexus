@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 
 import { SkillsDirectory } from "@/features/capability/skills/skills-directory";
-import { buildSkillsTour } from "@/features/capability/skills/skills-tour";
+import { buildSkillsTour } from "@/features/onboarding/tours/skills-tour";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { usePageOnboardingTour } from "@/shared/ui/onboarding/use-page-onboarding-tour";
 

@@ -1,8 +1,8 @@
 export function verify_html_artifact_opens_browser_srcdoc({
   assert,
   now,
-  plan_operation_desktop,
-  project_operation_snapshot,
+  planOperationDesktop,
+  projectOperationSnapshot,
 }) {
   const html_content = "<html><body><main>gomoku board</main></body></html>";
   const messages = [{
@@ -54,7 +54,7 @@ export function verify_html_artifact_opens_browser_srcdoc({
     updated_at: now - 700,
   }];
 
-  const snapshot = project_operation_snapshot({
+  const snapshot = projectOperationSnapshot({
     key: "session:stage-browser",
     session_key: "session:stage-browser",
     agent_id: "agent-stage",
@@ -63,7 +63,7 @@ export function verify_html_artifact_opens_browser_srcdoc({
     live_round_ids: [],
     workspace_events,
   });
-  const desktop = plan_operation_desktop({
+  const desktop = planOperationDesktop({
     event: snapshot.active_event,
     snapshot,
   });
@@ -95,7 +95,7 @@ export function verify_html_artifact_opens_browser_srcdoc({
     events: [...snapshot.events, terminal_event],
     updated_at: now,
   };
-  const opened_desktop = plan_operation_desktop({
+  const opened_desktop = planOperationDesktop({
     event: terminal_event,
     snapshot: opened_snapshot,
   });

@@ -17,7 +17,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
-	sqliterepo "github.com/nexus-research-lab/nexus/internal/storage/sqlite"
+	"github.com/nexus-research-lab/nexus/internal/storage/agentrepo"
 
 	"github.com/pressly/goose/v3"
 	_ "modernc.org/sqlite"
@@ -32,7 +32,7 @@ func TestServiceImportsAndInstallsSkill(t *testing.T) {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}
 	defer func() { _ = db.Close() }()
-	agentService := agentsvc.NewService(cfg, sqliterepo.NewAgentRepository(db))
+	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
 	workspaceService := workspacepkg.NewService(cfg, agentService)
 	service := NewService(cfg, agentService, workspaceService)
 	ctx := context.Background()
@@ -46,14 +46,11 @@ func TestServiceImportsAndInstallsSkill(t *testing.T) {
 	if err != nil {
 		t.Fatalf("读取 agent 技能失败: %v", err)
 	}
-	if !containsSkill(items, "memory-manager") {
-		t.Fatalf("系统托管 skill 未暴露: %+v", items)
-	}
 	if !containsSkill(items, "imagegen") {
 		t.Fatalf("图片生成系统 skill 未暴露: %+v", items)
 	}
-	if !containsSkill(items, "scheduled-task-manager") {
-		t.Fatalf("定时任务系统 skill 未暴露: %+v", items)
+	if containsSkill(items, "scheduled-task-manager") {
+		t.Fatalf("定时任务已由 nexus_automation 工具承载，不应再暴露重复 skill: %+v", items)
 	}
 	if !containsSkill(items, "goal-manager") {
 		t.Fatalf("Goal 系统 skill 未暴露: %+v", items)
@@ -84,9 +81,6 @@ func TestServiceImportsAndInstallsSkill(t *testing.T) {
 	}
 	if _, err = service.InstallSkill(ctx, agentValue.AgentID, "room-playbook"); err == nil {
 		t.Fatal("room scope skill 不应允许安装到 agent")
-	}
-	if _, err = service.InstallSkill(ctx, agentValue.AgentID, "scheduled-task-manager"); err == nil {
-		t.Fatal("系统托管 scheduled-task-manager skill 不应允许手动安装")
 	}
 	if _, err = service.InstallSkill(ctx, agentValue.AgentID, "goal-manager"); err == nil {
 		t.Fatal("系统托管 goal-manager skill 不应允许手动安装")
@@ -261,7 +255,7 @@ func TestUpdateSingleSkillReportsRedeployFailureAndContinues(t *testing.T) {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}
 	defer func() { _ = db.Close() }()
-	agentService := agentsvc.NewService(cfg, sqliterepo.NewAgentRepository(db))
+	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
 	workspaceService := workspacepkg.NewService(cfg, agentService)
 	service := NewServiceWithDB(cfg, db, agentService, workspaceService)
 	ctx := context.Background()

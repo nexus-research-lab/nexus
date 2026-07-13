@@ -12,9 +12,9 @@ import {
   CapabilityPageLayout,
   CapabilitySectionHeader,
 } from "@/features/capability/shared/capability-page-layout";
-import { listLoopsApi } from "@/lib/api/loop-api";
+import { listLoopsApi } from "@/lib/api/capability/loop-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiIconButton } from "@/shared/ui/button";
+import { UiIconButton } from "@/shared/ui/button/button";
 import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 import type { LoopCatalogItem } from "@/types/capability/loop";
@@ -107,7 +107,6 @@ export function LoopsDirectory() {
       header={(
         <WorkspaceSurfaceHeader
           badge={headerBadge}
-          density="compact"
           leading={<Repeat2 className="h-4 w-4" />}
           subtitle={t("capability.loops_intro_description")}
           title={t("capability.loops")}

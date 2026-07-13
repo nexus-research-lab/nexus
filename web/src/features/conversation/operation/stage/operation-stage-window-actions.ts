@@ -14,7 +14,7 @@ export interface OperationStageWindowKeyboardInput {
   shiftKey?: boolean;
 }
 
-export function resolve_operation_window_keyboard_action(
+export function resolveOperationWindowKeyboardAction(
   input: OperationStageWindowKeyboardInput,
 ): OperationStageWindowKeyboardAction | null {
   if (input.altKey) {
@@ -53,7 +53,7 @@ export function resolve_operation_window_keyboard_action(
   return null;
 }
 
-export function should_handle_stage_desktop_keyboard_action(
+export function shouldHandleStageDesktopKeyboardAction(
   action: OperationStageWindowKeyboardAction,
 ): boolean {
   return action !== "focus";

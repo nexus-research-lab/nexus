@@ -1,6 +1,6 @@
 import type { WorkspaceActivityItem } from "@/types/app/workspace-live";
 
-export function resolve_finder_selected_item(
+export function resolveFinderSelectedItem(
   items: WorkspaceActivityItem[],
   selected_path: string,
 ): WorkspaceActivityItem | null {
@@ -11,7 +11,7 @@ export function resolve_finder_selected_item(
     ?? null;
 }
 
-export function finder_file_kind_label(path: string): string {
+export function finderFileKindLabel(path: string): string {
   if (/\.(tsx?|jsx?)$/i.test(path)) {
     return "JavaScript 源代码";
   }
@@ -36,7 +36,7 @@ export function finder_file_kind_label(path: string): string {
   return path.endsWith("/") ? "文件夹" : "文件";
 }
 
-export function finder_preview_lines(item: WorkspaceActivityItem | null, max_lines = 7): string[] {
+export function finderPreviewLines(item: WorkspaceActivityItem | null, max_lines = 7): string[] {
   if (!item?.live_content) {
     return [];
   }

@@ -7,9 +7,205 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added durable scheduler leadership leases, deterministic recurring jitter, configurable misfire handling, per-user enabled-task limits, and explicit task expiration with audit events.
+- Added per-Agent non-secret nxs settings projection, including enabled Summary/AutoMemory/AutoDream defaults, and a host memory-maintenance coordinator that resolves owner provider credentials and background models before waking AutoDream.
+- Preserved native `system/memory_saved` events and AutoDream written paths through the bridge and Nexus message projection.
+- Added a file-backed Memory view to Agent contact details, with `MEMORY.md` index navigation, typed topic memories, daily logs, index coverage, freshness warnings, search, and direct Markdown editing.
+- Added a capability-driven subagent inspector for DM and Room conversations, with active/completed task visibility, multi-round transcripts, stopping, follow-up messaging, same-task resume, and explicit `nxs`/Claude Code support boundaries.
+
+### Changed
+
+- Surfaced live context-compaction status from Claude Code and nxs in the conversation Composer while retaining the completed compact boundary in history.
+- Enabled Tool Search across Providers through native references or SDK schema promotion, kept interaction and web tools inline, and deferred all Nexus MCP schemas behind discovery.
+- Consolidated the scheduled-task MCP surface from fourteen backend-shaped tools into eight intent-level tools, removed the duplicate scheduled-task Skill through the shared one-time workspace migration ledger, and made models discover the tools directly through Tool Search.
+- Split the shared Select menu into pure presentation, controller, and view ownership; removed stale memoization and type forwarding, fixed unknown-value keyboard traversal, and made nested overlays consume Escape before parent dialogs.
+- Made the selected workspace path the single preview state, removed unreachable standalone preview and resize modes, and moved the shared panel resize handle under layout ownership.
+- Replaced the shared workspace surface header boolean matrix with explicit page, overlay, and accessibility-only modes, removing unsupported title-slot combinations.
+- Split Markdown workspace artifact parsing from Agent store hooks, indexed file lookups once per file set, and preserved surrounding message text when projecting absolute file paths.
+- Replaced branch-heavy Markdown text AST mutation with ordered stateless break and inline-HTML conversion rules, removing shared regular-expression state.
+- Consolidated DrawingML transform rectangles, group bounds, geometry presets, and fill-color sources under presentation-owned readers with explicit validity rules.
+- Split PPTX slide inheritance, shape resolution, and preview filtering into explicit phases, restoring placeholder stroke-width fallback when a shape has no local line definition.
+- Moved spreadsheet CSS projection out of the virtual grid model and into the cell-style domain, removing an unused border-type forwarding surface.
+- Replaced PPTX shape-tree branching with node handlers, privatized parser-only state, and split spreadsheet virtual-grid projection into explicit viewport, cell, merge, and layout phases.
+- Split Agent Options skill loading states and list sections into narrow views, and separated scoped skill command creation, mutation, stale-result rejection, and cleanup phases.
+- Replaced Agent Options mode and optional-initial-value matrices with explicit create/edit sources, reused one Agent projection across Contacts and Room, and split Skill refresh lifecycle phases into pure state transitions.
+- Replaced Agent identity name-validation JSX candidates with ordered semantic feedback rules and a single tone renderer.
+- Consolidated Provider Settings presentation rules, removed duplicate custom-provider state, added icon fallbacks, and split configuration, header, model-row, capability, and toggle rendering responsibilities.
+- Centralized Goal form and controller projections, unified confirmation rendering, and split command transactions into explicit lifecycle phases.
+- Split Memory summary and document body states into narrow views, and made save scope snapshots and draft-merge rules explicit.
+- Unified Memory Agent and document scope guards, projected catalog sections and document actions from pure models, and moved `MEMORY.md` index parsing into its owned subdomain.
+- Centralized Skill catalog source, install-state, and update-check projections, removed a forwarding badge wrapper, and turned Markdown deduplication into an ordered model pipeline.
+- Centralized Channel card and QR-login state projections, replacing duplicated JSX conditionals with discriminated actions and session views.
+- Separated General Settings resource controllers from Sections, split default-model catalog projection from preference normalization, removed obsolete provider-response fallbacks, and made desktop version failures leave loading state.
+- Centralized Markdown code, link, and streaming URL-tail semantics into ordered pure models, leaving renderers to route discriminated presentation states.
+- Split conversation navigation into explicit round snapshots, visible DOM candidates, and an owned frame-landing runtime; centralized timeline visibility and scroll-content identity rules.
+- Unified DM and Group Chat panel environment, frame, and activity-snapshot projections, tightening their single-consumer contracts and removing empty command and layout defaults.
+- Separated Room round-card views from Thread state and live data, made Agent directories concrete end to end, and replaced branch-heavy round and error status classification with ordered rules.
+- Moved Subagent list grouping and support state plus Todo round display decisions into pure projections, replacing repeated filtering, capability fallback fields, and branch-heavy task selection.
+- Unified required-field and enum decoding across conversation, Session, ACK, and Workspace payloads, and consolidated Resync cursor advancement plus reload-before-resubscribe lifecycle.
+- Replaced conversation action validation with ordered guards, separated stream metadata from content updates, and unified runtime snapshot and terminal-message reconciliation phases.
+- Moved Agent conversation option normalization and public result projection out of the assembly Hook, using a default identity sentinel and removing its unused type-forwarding surface.
+- Replaced the branch-heavy Assistant image identity fallback chain with an explicit ordered resolver table while preserving snapshot merge priority.
+- Unified virtual-feed height inputs into one role and content-block projection, removing duplicate message scans and obsolete string-content compatibility branches.
+- Centralized Room Session key strategy and snapshot field fallback in pure models, leaving the snapshot Hook responsible only for applying projected effects.
+- Moved shared message history and round-index contracts out of Room types, unified Room and Session pagination serialization and response normalization, and separated Session HTTP calls from response transforms.
+- Moved Room dialog defaults, remount identity, and mode labels into a pure model so the dialog view consumes one concrete content contract.
+- Replaced conditional rail and panel primary-tab rendering with one button structure driven by an explicit presentation table.
+- Replaced branch-heavy chat notification target and route resolution with ordered identity rules while preserving Room fallback and Session isolation.
+- Split workspace conversation-tab reconciliation into explicit retain, append, and fallback phases, and moved single-tab state styling into a pure presentation model.
+- Split scheduled-task source and submit transactions into explicit phases, made daily Cron parsing reject partially invalid expressions, and centralized run actions plus list-item state in ordered presentation models.
+- Centralized Icon Picker, List Row, Glass Switch, and Workspace Tree Row presentation and interaction rules in shared models and Hooks, removing duplicated disabled guards and render-level state matrices.
+- Replaced Contacts page optional-field assembly and Agent private-thread render branches with explicit page-state and density-aware thread-list projections.
+- Moved connector Device Flow polling into an owned cancellable state machine, and serialized subscription loading plus mutations while centralizing feedback and view projections.
+- Split login redirect policy, Auth orchestration, and form rendering into owned layers, rejecting external and login-loop redirects while consolidating desktop render snapshot sentinels.
+- Split presentation text rendering into shape, paragraph, and run stages, and centralized Launcher recent-entry type styling in a dedicated presentation model.
+- Split PPTX package orchestration from Shape Tree parsing, caching shared layout and master parts so repeated slides reuse inherited elements and image resources.
+- Removed render-phase Thinking expansion mutations and separated image-source normalization, user-attachment capability projection, and embedded tool-error parsing into short owned phases.
+- Moved message ordering, system-event, permission, result, and final-response projection into an owned controller subdomain, reusing the single ordered-entry projection and replacing content-mode branches with exhaustive strategies.
+- Split message content rendering into entry selection, structured orchestration, exhaustive block routing, and tool interaction phases, while consolidating the shared AskUserQuestion tool identifier.
+- Moved message activity state out of UI primitives, consolidated round and content activity rules under an owned pure domain, and separated process summaries and question timeout detection from the controller aggregate.
+- Split the mixed message UI primitive aggregate into directly owned avatar, action, activity-status, and message-item shell responsibilities, consolidating activity presentation under one exhaustive state table.
+- Replaced branch-heavy message result and usage formatting with ordered display and numeric-range rules plus independent duration, token, cost, and cache projections.
+- Consolidated modal stacking, body scroll locking, focus discovery, focus cycling, and Escape handling under shared Dialog ownership; removed duplicate business-level keyboard listeners and migrated Agent Options, Mermaid preview, and scheduled-task run history off their private modal shells.
+- Moved Confirm and Prompt dialogs into an owned decision subdomain, sharing one modal frame and action bar while replacing Prompt focus/reset effects with mount-scoped state and ordered keyboard rules.
+- Moved Guide Center modal ownership into Onboarding, replaced interactive Article cards with semantic actions, and made Shopify domain input a controlled Auth transaction instead of a temporary React Root.
+- Separated scheduled-task run diagnostics from history status and action rules, using ordered definitions for detail rows, output sections, and copied diagnostic fields instead of repeated conditional assembly.
+- Moved ExcelJS cell-value classification and text formatting into an owned Spreadsheet value model, replacing the branch-heavy `unknown` object probe chain with ordered rules over the real closed `CellValue` union.
+- Split Room history items into pure activity/action projection and mode-driven reading/editing views, replacing repeated active, capability, metadata, and title-state conditions in the item entry component.
+- Split Skill import into a thin dialog shell, Git draft controller, mode-driven source views, static authoring guide, and Footer commands, replacing the branch-heavy component that mixed focus, submission, upload, documentation, and presentation state.
+- Removed the single-consumer shared MultiSelect abstraction and moved Room skill loading, filtering, multi-selection, search, and asynchronous menu states into an owned `members/skills` domain while retaining only reusable overlay and listbox infrastructure in shared UI.
+- Moved the Agent private-domain timeline into an owned subdomain with exclusive body states, typed direction styling, and pure event/header projection; tightened private direction and scope contracts to the backend's closed enums and removed the ambiguous shared presentation model.
+- Split the text file editor into pure mode and toolbar projection, Header, and Body ownership, separating external-write status, renderer selection, element sizing, and textarea focus from entry orchestration.
+- Reworked scheduled-task edit initialization into execution, target, and reply projections, normalizing hidden fields that are invalid for Script or Room tasks instead of carrying stale combinations into the form draft.
+- Moved capability navigation into an owned sidebar domain with table-driven item projection and consolidated summary revalidation, removing an unused shared row API and the duplicate scheduled-task mutation event.
+- Split User message presentation into density projection, header actions, identity, content, and editing composition, while preserving concrete role types through assistant-content merging, separating deduplication phases, and removing unconsumed text projections.
+- Replaced the unused multi-banner Stack contract with a single feedback viewport and table-driven tone presentation, resetting auto-dismiss timing when feedback content changes.
+- Split message file and image artifacts into scoped source and presentation models, consolidating path parsing and browser-download or desktop-reveal behavior into one Artifact-owned action.
+- Split Composer input, submit, Footer, pending-queue, Loop-picker, and attachment-paste responsibilities into scoped models, controllers, and views; removed optional handlers unsupported by its real DM and Room consumers.
+- Split Composer state derivation into input, runtime, mode, and action projections; separated message submission phases and ordered IME, Safari, and Mention keyboard guards while keeping the panel contract flat.
+- Moved permission event decoding into its own transport subdomain, replacing repeated optional-field branches with typed enum, scope, suggestion, and default-interaction projections before handlers mutate Session state.
+- Split AskUserQuestion cards and control flow into scoped presentation, draft restoration, interaction state, and submission transaction modules, removing branch-heavy JSX and preserving stale-scope submission isolation.
+- Split Assistant message rendering into scoped layout, header, content, process, and permission views; unmatched permission requests now render exactly once instead of borrowing or duplicating process content placement.
+- Split tool execution blocks into scoped interaction control, a single status model, and header projection/actions, removing mirrored running/waiting flags and branch-heavy JSX state interpretation.
+- Replaced the optional-mode Agent Options editor with explicit inline and dialog shells, removed the unconsumed inline navigation path, and separated tab content, footer actions, and scoped save transactions from controller assembly.
+- Split Connector detail state, header actions, status content, and feature selection into owned modules, replacing eager JSX action matrices and repeated OAuth/configuration conditions with explicit state rules.
+- Split the scheduled-task basics form into target/session presentation, reusable choice fields, and small advanced-setting sections instead of maintaining one branch-heavy component with repeated selectors and inline copy rules.
+- Split Skill detail routing, scoped resource loading, presentation projection, and pure rendering, while reusing marketplace update/delete commands with explicit success results instead of duplicating API and feedback transactions inside the view.
+- Removed the unused stacked Workspace Header mode and trailing-tab contract, standardized its shared single-row height, and separated identity, navigation, and toolbar action ownership instead of maintaining an optional-prop layout matrix.
+- Moved shared tool activity labels and input summaries out of the concrete Tool Block model, removed unused view-model state, and returned permission labels, status styles, and detail scrolling to their owning projections and views.
+- Moved subscription operations under the Settings domain to remove the top-level Settings/Operations dependency cycle, consolidated tab metadata and content selection into one definition table, and promoted shared Agent Options rules out of the editor Feature so Config and sibling Features depend only on the base library.
+- Replaced the mixed runtime options entry with separate endpoint, conversation-policy, scoped-snapshot, and application-resource modules, and moved authentication transactions out of the shared Context layer.
+- Removed the remaining TypeScript import cycles by moving Agent conversation identity projection out of protocol types and separating Onboarding contracts from the Context and Provider implementation.
+- Organized frontend API clients by Agent, Account, Capability, Conversation, Settings, and Core ownership, renamed the ambiguous conversation `agent-api` to `session-api`, merged duplicate runtime settings clients, split Room queries, commands, projections, directory events, and navigation recovery to remove the API-to-Store dependency cycle, removed unused app-update declarations and the dead bulk Skill update client, and made file-private declarations stop leaking as public exports.
+- Split the core HTTP transport into request preparation, response projection, error types, authentication events, and fetch orchestration, removed forwarding imports, and guaranteed abort-listener cleanup when response parsing fails.
+- Organized shared UI primitives by button, form, display, list, and navigation ownership instead of keeping unrelated controls in one flat root.
+- Split oversized Chinese and English message catalogs into typed domain segments with per-segment key parity checks.
+- Removed matching and presentation logic from conversation type declarations, consolidating permission matching and returning question, system-event, and Surface Tab rules to their owning domains.
+- Consolidated identical cross-feature error-message wrappers into one stateless library projection while keeping domain feedback composition local.
+- Split scheduled-task types into task and run contracts, removing unused status, event, health, and daily-report declarations instead of preserving speculative API mirrors.
+- Split conversation messages into attachment, content, entity, and event contracts, removed the root type barrel and unused message declarations, reused generated WebSocket envelopes, and added owner-specific decoding for previously unchecked event data.
+- Removed the frontend utility grab bag, routing class-name composition directly to its UI primitive while separating relative-time, token-count, and avatar rules into owned modules with data-driven projections.
+- Separated Liquid Glass capability, interaction, animation cleanup, and SVG filter ownership, removed render-phase state writes, and deleted message and shared-UI forwarding barrels in favor of direct responsibility imports.
+- Removed the remaining frontend protocol `any` escapes and dead SDK aliases, sharing unknown tool inputs across messages and permissions while validating AskUserQuestion payloads inside the owning feature.
+- Consolidated Composer attachment classification, accept filters, rejection localization, and Agent/Room upload preparation into one data-driven pipeline that validates whole batches before side effects.
+- Split channel QR login state, polling, status projection, and verification UI from channel configuration transactions while preserving one shared command lock; separated the connection dialog shell, fields, footer, and presentation projections behind consumer-defined contracts; and removed the single-export Agent Hook forwarding entry.
+- Consolidated Select and MultiSelect overlay state, trigger keyboard behavior, listbox framing, and data-driven size/surface projections while preserving their distinct selection semantics.
+- Replaced inferred Conversation Session and Room label Hook types with consumer-defined navigator, viewport, feed, and translation contracts, and reduced visible-window revisions to their explicit count inputs.
+- Split the scheduled-task directory and run history into scoped resources, mutation commands, overview, dialog shell, and narrow list/detail/action views, reusing the shared anchored action menu for task actions.
+- Consolidated action, select, and multi-select menus under shared menu ownership, and unified scheduled-task time columns and anchored overlay behavior across pickers.
+- Split the Home ASCII Hero into presentation, React lifecycle, Canvas scene, and particle-model modules.
+- Made Nexus the sole owner of scheduled-task state and timing, exposed automation to runtimes through the injected MCP server, and simplified task creation, list actions, and run diagnostics around progressive disclosure.
+- Renamed the product scheduling domain and storage from Cron jobs to scheduled tasks; Cron now denotes only the `schedule.kind=cron` expression mode.
+- Moved Room page state into page-owned scoped data, projection, command, snapshot, and existing-Agent option controllers, while separating URL navigation, one-shot drafts, server events, and Tours from the view entry.
+- Split Contacts into page-owned Agent resource/editor commands and URL navigation, replacing three conflicting dialog states with one tagged state and reusing the shared Agent Options mutation boundary across Contacts and Room.
+- Split root bootstrap into startup orchestration, React root rendering, shared failure presentation, chunk/auth recovery, reload guards, and blank-render watchdog modules.
+- Split Room conversation history into pure entry projection, a single-state title editor, item and empty-state views, while moving its private delete policy out of the shared conversation protocol layer.
+- Split Workspace Catalog shared UI into card frames, content primitives, actions, and icon media instead of exposing unrelated controls from one aggregate module.
+- Collapsed Room member management into one page-scoped command and split the Group header's member stack and guide menu into narrow presentation modules.
+- Unified DM/Group header tabs and guide actions, and split the mobile Room surface into header, conversation sheet, thread, subagent, and shared chat modules.
+- Split Group Chat Panel orchestration into session, composer, Goal, projection, and view modules while removing its constant control flag and display-string duplication.
+- Moved the Room Thread live bridge out of Chat and the global store into a private Thread domain with separate source, projection, producer, and consumer modules.
+- Split Room round cards into one-pass projection and narrow reply/action views, removing dead feed props, repeated permission scans, and duplicated Thread controls.
+- Split the DM Chat Panel into Goal, session, Composer, projection, and view modules while sharing identical navigator, viewport, and scroll-control projection with Room.
+- Moved the Workspace file tree to its shared owner, split hierarchy and row projection, replaced extension branches with a visual lookup table, and rendered context-menu commands from action data.
+- Split Room Workspace interaction state, path navigation, and entry transactions from its orchestrator, replacing the flat controller surface and leaked state setters with consumer-owned controls.
+- Split Room Workspace orchestration into Agent scope, file resource, path model, command, layout, file-browser, and dialog modules.
+- Split conversation Todo projection into round indexing, runtime-task merging, status inference, and a stable shared hook used by both DM and Room panels.
+- Consolidated conversation scrolling under the timeline domain, separating smooth animation, user interactions, history-prepend anchoring, local expansion anchoring, and round navigation protocols.
+- Split Agent message processing into Assistant content identity, message collection, and stream reducer models instead of sharing one cross-layer helper module.
+- Split Agent conversation runtime into pure models, volatile snapshot storage, and narrow React state controllers, removing the state type cycle and unused runtime surface.
+- Split WebSocket transport into connection policy, heartbeat, client, shared-channel registry, and React lifecycle modules, with shared identity derived from the complete effective configuration.
+- Split Workspace conversation tabs into pure ordering/layout models, a browser-style tab transaction controller, and a presentation-only tab item.
+- Split Agent memory browsing and document editing into scoped resource controllers, with a presentation-only catalog and explicit live SDK content precedence.
+- Consolidated Agent Options identity, model, and permission fields into one scoped draft, with dedicated Provider, name-validation, and save-feedback controllers.
+- Split Agent identity presentation into profile, vibe-tag, model-selector, and layout modules, removed duplicate dialog/inline form trees, and reset pending tag input across editor scopes.
+- Split Agent skill configuration into scoped resource, command, search projection, and presentation modules, cancelling stale list requests and serializing writes per Agent.
+- Split AskUserQuestion into an atomic answer model, tool-scoped interaction controller, and status-driven presentation, preventing duplicate submissions and stale result hydration.
+- Replaced the message-item support grab bag with owned content, time, projection, activity, and timeline modules, and converted message ordering into an explicit staged pipeline.
+- Removed the flat message-item state contract, grouping User and Assistant state by visual responsibility while letting each view define its own narrow input contract.
+- Split message-item display projection and process-expansion lifecycle from controller assembly, replacing the inferred projection-hook dependency with a consumer-defined structural contract.
+- Split conversation navigation into timeline data projection and ruler presentation models, unifying loaded and indexed rounds behind one navigation-item projection.
+- Decomposed round jumping into scoped target, serialized window-loading, and DOM landing controllers, preventing stale requests from affecting newer navigation.
+- Split visible timeline window loading into candidate selection, retry runtime, and scheduling controllers while keeping its opportunistic strategy distinct from explicit round jumps.
+- Split Provider configuration actions into field linkage, persistence, enablement, and deletion controllers, exposing only a narrow persistence command to model and connectivity-test actions.
+- Split Provider model actions into scoped state, sync, add, update, and test commands, centralizing persisted-request orchestration and default-model protection.
+- Split Provider workspace state transitions from resource loading and added request-generation guards so stale refreshes cannot overwrite the active visibility scope or selection.
+- Moved Provider catalog, format, title, and capability presentation into a pure projection and returned custom-provider name/key linkage to the configuration field controller.
+- Moved Agent message collection, chat-ack failure, and event-dispatch lifecycles out of the public conversation hook, while keeping public actions stable against streaming state updates.
+- Split Agent session orchestration into identity migration, background/volatile snapshots, lifecycle context, and command composition, removing a redundant input-queue setter wrapper.
+- Split Agent WebSocket handlers by message, permission, resync, session, and scope event families, centralizing current-session guards and rejecting duplicate event ownership during router registration.
+- Split subagent threads into scoped transcript resources, serialized commands, and pure presentation, while promoting the Room-specific Thread panel into a shared conversation boundary.
+- Moved application Tours and guide-center navigation out of shared Sidebar UI, and split the wide Sidebar into an app-navigation controller, pure projection, resize behavior, and presentation views.
+- Removed the remaining base-layer dependencies on Features by relocating the app shell and Agent Options dialog to their owners and centralizing external-session protocol and labels under `lib/conversation`.
+- Unified sidebar and chat-notification bootstrap data behind one queued Home directory resource, and split notification projection, browser effects, and Room WebSocket protocol into dedicated modules.
+- Consolidated Home chat and contact sidebar code into one domain, separating Room/DM catalog projection, unread aggregation, directory subscriptions, Room commands, and presentation-only panels.
+- Split Personal settings into a scoped profile resource and command controller, data-driven password validation, and presentation-only profile, password, and token-usage sections.
+- Moved General settings sections and pure option/preference models into their owning domain, while relocating settings-style UI shared with Operations to an explicit shared layer.
+- Replaced the global chat sidebar with a shared, grouped settings navigation while the settings route is active, removed the duplicate settings header tabs, reused the same navigation in the standalone desktop settings window, and moved role-gated operations into the settings management group.
+- Reorganized Markdown rendering into core, streaming, workspace, and Mermaid domains, separating link normalization, summary components, SVG rendering, and preview interaction state.
+- Split message item rendering into content, Assistant, and User domains, centralized structured tool/result projection, and removed an incomplete custom memo comparator that could retain stale action callbacks.
+- Split document preview loading, DOM normalization, and presentation into dedicated modules, while unifying Office preview downloads and payload-size validation behind one resource boundary.
+- Split onboarding tour overlays into target/card observation, position strategies, sticker selection, and card presentation, with target highlights now tracking element resize as well as viewport movement.
+- Split subagent task inspection into scoped list/thread resources, a serialized command controller, and a presentation-only thread view.
+- Split the DM chat panel into entry, model, and view layers, and unified DM/Room session orchestration and conversation surface layout behind shared controllers.
+- Consolidated conversation timeline grouping and Room Agent round projection into their domain models, removing the shared conversation utility catch-all.
+- Moved long-term memory fully out of the product backend and into the SDK subprocess: removed the legacy memory engine, configuration, HTTP/CLI contracts, entry-management surfaces, and product-side DM/Room injection. The runtime now owns file-based recall and storage through each Agent workspace's `MEMORY.md` index and `memory/` topic directory, while Nexus only projects and edits the underlying workspace files.
+- Unified Room and DM auxiliary panels on one shared width policy, removed per-surface headers, and moved panel dismissal onto the active surface tab beside its label.
+
 ### Fixed
 
 - Rebuilt the Operation Stage terminal around the real `Bash` and `KillShell` lifecycle, preserving command output, permission waits, duration, exit status, and background task termination without synthesized shell data or duplicate control commands.
+- Accepted Skill zip archives whose entries use Windows backslash separators, allowing preview and import to find nested `SKILL.md` files.
+- Computed group-chat sidebar previews from the room's shared history instead of an arbitrary member session, surfaced conversation-level activity on room sessions so the newest topic sorts first, and made equal-timestamp session ordering deterministic.
+- Restored conversation task-strip updates for runtimes using `TaskCreate`, `TaskList`, and `TaskUpdate`, including structured history replay and legacy text fallback.
+- Removed unused Heartbeat requests and dead automation controller surfaces from the scheduled-task page, stopped task toggles from issuing duplicate list refreshes, routed mutation notifications through each task's owning Agent, and propagated failed history commands instead of reporting false success.
+- Prevented stale Home Hero font and resize rebuilds from starting duplicate animation loops, and kept scheduled-task picker overlays within the available viewport.
+- Prevented stale Room context refreshes, snapshot setters, and mutation results from crossing route Room boundaries.
+- Redirected immediately from rooms confirmed deleted by the server instead of racing a stale page snapshot against a second refresh.
+- Refreshed authoritative Room context after failed mutations, while reducing multi-member management from one refresh per write to one refresh per submission.
+- Reset chat render errors when the active conversation identity changes and localized the shared desktop/mobile fallback view.
+- Prevented stale Workspace file refreshes and mutation completions from crossing Agent boundaries, and consumed one-shot file-open Agent signals in both DM and Room views.
+- Unified TodoWrite plans and runtime task events through one chronological round projection, preventing message-role-specific task lists and repeated full-message scans.
+- Ensured incoming message snapshots remain authoritative even when the existing in-memory collection already contains duplicate message IDs, and ignored invalid negative stream block indexes.
+- Prevented queued WebSocket control-message flushes from looping after send failures, reset reconnect budgets for explicit recovery, discarded stale queues on intentional disconnect, and rebuilt sockets whose OPEN transport can no longer send.
+- Prevented stale Agent memory snapshots, document loads, and save completions from crossing Agent or file boundaries, while preserving newer edits when a save finishes.
+- Prevented delayed Agent name checks and save completions from updating another Agent or closing an editor whose draft changed while the request was running.
+- Prevented unchanged Home directory snapshots from repeatedly resubscribing every Room notification channel, and removed duplicate bootstrap refresh listeners from the notification path.
+- Prevented stale subagent list, transcript, and command completions from crossing source/task boundaries, and stopped background polling from hiding command failures.
+- Removed unreachable Room and Launcher Agent-option dialogs, their delete flow, empty conversation-selection callback, and unused member-selection state.
+- Preserved terminal Room slot states in the shared Agent round projection instead of treating a completed slot without messages as pending.
+- Fixed conversation navigation so stale round-window requests and removed navigation targets cannot mutate or block the active session after switching conversations.
+- Fixed visible conversation window loading to reject stale session completions, handle rejected requests, and retry transient failures without permanently suppressing a round.
+- Fixed Goal panels so stale refresh responses cannot replace a newer session or completed mutation, and serialized edit, pause, resume, and clear commands behind one controller.
+- Fixed scheduled-task editing to preserve future single-run times, load only the resources required by the active execution mode, and enforce Room member-bound execution consistently in the form and payload.
+- Fixed IM pairing Agent reassignment to send the backend `agent_id` field, serialized channel/pairing mutations, and rejected stale list responses so completed writes cannot be overwritten by older directory snapshots.
+- Hid redundant Agent/Room names and the DM badge from desktop chat headers while the sidebar is expanded, restored names when it is collapsed, and removed the persistent processed-duration label below the conversation navigator ruler.
+- Changed chat sidebar subtitles to show the latest visible reply from each Room's newest session, rendered as compact single-line Markdown instead of repeating the conversation title or exposing raw Markdown markers.
+- Preserved subagent thread identity and progress metadata across SDK events, routed Room task controls to the owning Agent runtime, and projected Claude Code child transcript symlinks as full conversation threads instead of raw JSONL output.
+- Unified conversation, capability, settings, operations, and contact headers on the shared fixed 52px single-row layout, preserving core tabs in narrow containers and restoring aligned sidebar separators.
+- Moved conversation task progress out of the fixed header into a compact, low-radius process list that defaults to a minimal collapsed control and expands on demand.
 - Disabled reasoning on `anthropic_messages` title-generation requests and raised the title token budget to 1024, so always-thinking models (e.g. Kimi) no longer exhaust the output cap before emitting the title and leave conversations untitled.
 - Kept a round's user message visible in the conversation timeline even when the assistant reply is blank (failed or tool-only rounds), instead of hiding the whole round and swallowing the user's own message.
 - Removed old DM rewrite rounds from the SDK transcript, Nexus overlay history, and the active frontend timeline before regenerating the replacement answer.
@@ -17,8 +213,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Preserved SDK process wait errors when a DM runtime message stream closes before a terminal result, so round failure logs include the underlying runtime exit reason.
 - Cleared stale macOS and Windows desktop WebView caches after app version/build changes and stopped serving HTML fallbacks for missing asset chunks, preventing updated desktop apps from rendering the error screen with stale web resources.
 - Added a manual desktop menu action to clear WebView caches and reload the current interface when troubleshooting stale web assets.
+- Sized macOS and Windows desktop launch windows against the current screen work area so packaged apps fit smaller displays instead of opening at a fixed resolution.
 - Restored chat feed auto-follow when switching between conversations or thread panels with the same message count, and moved the smaller, less transparent floating scroll-to-latest button to the center of the chat feed.
 - Made the conversation navigator's active-round status hide based on the chat container width instead of viewport width, preventing overlap when the workspace panel is open.
+- Lowered the conversation navigator ruler's top anchor inside the chat container, preventing the first tick and preview from sitting under the header on shorter MacBook screens.
+- Stopped generic markdown document paths from being treated as Agent workspace artifacts unless they resolve in the workspace file tree, preventing non-workspace links from opening a 404 workspace preview.
 
 ## [0.1.26] - 2026-07-08
 

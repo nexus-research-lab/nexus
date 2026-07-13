@@ -165,7 +165,19 @@ func (c *sdkClientAdapter) SendTaskMessage(ctx context.Context, taskID string, m
 }
 
 func (c *sdkClientAdapter) RemoveMessages(ctx context.Context, uuids []string) error {
-	return nil
+	session, err := c.currentSession()
+	if err != nil {
+		return err
+	}
+	// v0.1.18 尚未暴露 remove_messages；用能力接口兼容已发布 bridge，
+	// 同时让 go.work 下的新 bridge 继续走原生控制面。
+	remover, ok := any(session.Control()).(interface {
+		RemoveMessages(context.Context, []string) error
+	})
+	if !ok {
+		return agentclient.ErrUnsupportedCapability
+	}
+	return remover.RemoveMessages(ctx, uuids)
 }
 
 func (c *sdkClientAdapter) SetPermissionMode(ctx context.Context, mode sdkpermission.Mode) error {
@@ -285,12 +297,6 @@ func (c *sdkClientAdapter) Wait() error {
 		return nil
 	}
 	return session.Wait()
-}
-
-func (c *sdkClientAdapter) setStreamError(err error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.streamErr = err
 }
 
 func (c *sdkClientAdapter) markDisconnected(session *agentclient.Session, err error) bool {

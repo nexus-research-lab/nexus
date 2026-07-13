@@ -18,7 +18,6 @@ func publishPublicMessage(svc contract.Service, sctx contract.ServerContext) sdk
 		Name:        "publish_public_message",
 		Description: publishPublicMessageDescription,
 		SearchHint:  "Room public feed publish broadcast 公开 广播",
-		AlwaysLoad:  true,
 		InputSchema: publishPublicMessageSchema(),
 		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
 			if svc == nil {

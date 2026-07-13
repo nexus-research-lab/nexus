@@ -15,7 +15,7 @@ import (
 
 func (s *Service) writeRunArtifact(
 	ctx context.Context,
-	job automationdomain.CronJob,
+	job automationdomain.ScheduledTask,
 	runID string,
 	roundID string,
 	sessionKey string,
@@ -76,7 +76,7 @@ func safeArtifactSegment(value string, fallback string) string {
 }
 
 func renderRunArtifact(
-	job automationdomain.CronJob,
+	job automationdomain.ScheduledTask,
 	runID string,
 	roundID string,
 	sessionKey string,

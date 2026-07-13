@@ -5,23 +5,28 @@ import { useNavigate, useParams } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { FeedbackBannerStack, type FeedbackBannerItem } from "@/shared/ui/feedback/feedback-banner-stack";
+import type { FeedbackBannerProps } from "@/shared/ui/feedback/feedback-banner";
+import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
 import { WORKSPACE_DETAIL_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 
-import { useSkillMarketplace } from "@/hooks/capability/use-skill-marketplace";
 import type { SkillsRouteParams } from "@/types/app/route";
 
-import { ExternalSkillPreviewDialog } from "./external-skill-preview-dialog";
-import { SkillDetailView } from "./skill-detail-view";
-import { SkillImportDialog } from "./skill-import-dialog";
-import { SkillSourceManagerDialog } from "./skill-source-manager-dialog";
-import { SkillsCatalogGrid } from "./skills-catalog-grid";
-import { SkillsExternalResults } from "./skills-external-results";
+import { SkillsCatalogGrid } from "./catalog/skills-catalog-grid";
+import { SkillsUpdateHighlight } from "./catalog/skills-update-highlight";
+import {
+  type SkillMarketplaceFeedback,
+} from "./controller/skill-marketplace-controller";
+import { useSkillMarketplace } from "./controller/use-skill-marketplace";
+import { SkillDetailRoute } from "./detail/skill-detail-route";
+import { ExternalSkillPreviewDialog } from "./external/external-skill-preview-dialog";
+import { buildExternalSkillPreviewModel } from "./external/external-skill-model";
+import { SkillSourceManagerDialog } from "./external/skill-source-manager-dialog";
+import { SkillsExternalResults } from "./external/skills-external-results";
+import { SkillImportDialog } from "./import/skill-import-dialog";
 import { SkillsHeader } from "./skills-header";
 import { SkillsSearchBar } from "./skills-search-bar";
-import { SKILLS_TOUR_ANCHORS } from "./skills-tour";
-import { SkillsUpdateHighlight } from "./skills-update-highlight";
+import { SKILLS_TOUR_ANCHORS } from "@/features/onboarding/tours/skills-tour";
 
 /* ── Skills 页面主编排组件 ────────────────────── */
 
@@ -31,7 +36,15 @@ interface SkillsDirectoryProps {
 
 export function SkillsDirectory({ onReplayTour }: SkillsDirectoryProps) {
   const { t } = useI18n();
-  const ctrl = useSkillMarketplace();
+  const {
+    catalog,
+    discoveryMode,
+    external,
+    feedback,
+    operations,
+    setDiscoveryMode,
+    sources,
+  } = useSkillMarketplace();
   const navigate = useNavigate();
   const { skillName } = useParams<SkillsRouteParams>();
   const openSkillPage = useCallback(
@@ -43,43 +56,13 @@ export function SkillsDirectory({ onReplayTour }: SkillsDirectoryProps) {
   const backToSkills = useCallback(() => {
     navigate(AppRouteBuilders.skills());
   }, [navigate]);
-  const handleSkillDeleted = useCallback(async () => {
-    await ctrl.refreshMarketplace();
-    navigate(AppRouteBuilders.skills());
-  }, [ctrl, navigate]);
-  const operationPending = ctrl.checkingUpdates ||
-    ctrl.importingSkill ||
-    Boolean(ctrl.busyExternalKey) ||
-    Boolean(ctrl.busySkillName);
-
-  const feedbackItems: FeedbackBannerItem[] = [];
-  if (ctrl.statusMessage) {
-    feedbackItems.push({
-      key: "status",
-      message: ctrl.statusMessage,
-      onDismiss: operationPending ? undefined : () => ctrl.setStatusMessage(null),
-      title: operationPending ? "处理中" : "已完成",
-      tone: operationPending ? "warning" : "success",
-    });
-  }
-  if (ctrl.warningMessage) {
-    feedbackItems.push({
-      key: "warning",
-      message: ctrl.warningMessage,
-      onDismiss: () => ctrl.setWarningMessage(null),
-      title: "部分完成",
-      tone: "warning",
-    });
-  }
-  if (ctrl.errorMessage) {
-    feedbackItems.push({
-      key: "error",
-      message: ctrl.errorMessage,
-      onDismiss: () => ctrl.setErrorMessage(null),
-      title: "操作失败",
-      tone: "error",
-    });
-  }
+  const previewModel = buildExternalSkillPreviewModel(
+    external.previewItem,
+    catalog.importedExternalSources,
+    operations.busyExternalKeys,
+    external.previewLoading,
+  );
+  const feedbackItem = buildFeedbackItem(feedback);
 
   return (
     <>
@@ -87,13 +70,13 @@ export function SkillsDirectory({ onReplayTour }: SkillsDirectoryProps) {
       <input
         accept=".zip,application/zip"
         className="hidden"
-        disabled={ctrl.importingSkill}
+        disabled={operations.importing}
         onChange={(e) => {
           const file = e.target.files?.[0];
-          if (file) void ctrl.handleLocalImport(file);
+          if (file) void operations.importLocal(file);
           e.currentTarget.value = "";
         }}
-        ref={ctrl.fileInputRef}
+        ref={operations.fileInputRef}
         type="file"
       />
 
@@ -101,17 +84,29 @@ export function SkillsDirectory({ onReplayTour }: SkillsDirectoryProps) {
         bodyScrollable
         header={(
           <div data-tour-anchor={SKILLS_TOUR_ANCHORS.header}>
-            <SkillsHeader ctrl={ctrl} onReplayTour={onReplayTour} />
+            <SkillsHeader
+              catalogCount={catalog.catalogCount}
+              checkingUpdates={operations.checkingUpdates}
+              discoveryMode={discoveryMode}
+              importing={operations.importing}
+              onChangeDiscoveryMode={setDiscoveryMode}
+              onCheckUpdates={() => void operations.checkUpdates()}
+              onOpenImport={operations.setImportDialogMode}
+              onOpenSources={sources.openManager}
+              onReplayTour={onReplayTour}
+            />
           </div>
         )}
         stableGutter
       >
         {skillName ? (
-          <SkillDetailView
+          <SkillDetailRoute
+            deleteSkill={operations.deleteSkill}
+            key={skillName}
             skillName={skillName}
             onBack={backToSkills}
-            onDeleted={handleSkillDeleted}
-            onRefreshed={ctrl.refreshMarketplace}
+            onDeleted={backToSkills}
+            updateSkill={operations.updateSkill}
           />
         ) : (
           <div className={WORKSPACE_DETAIL_PAGE_CLASS_NAME}>
@@ -125,15 +120,53 @@ export function SkillsDirectory({ onReplayTour }: SkillsDirectoryProps) {
             </div>
 
             <div data-tour-anchor={SKILLS_TOUR_ANCHORS.search}>
-              <SkillsSearchBar ctrl={ctrl} />
+              <SkillsSearchBar
+                activeCategory={catalog.activeCategory}
+                catalogQuery={catalog.query}
+                categories={catalog.categories}
+                discoveryMode={discoveryMode}
+                externalLoading={external.loading}
+                externalQuery={external.query}
+                onChangeCategory={catalog.setActiveCategory}
+                onChangeCatalogQuery={catalog.setQuery}
+                onChangeExternalQuery={external.setQuery}
+                onSubmitExternalSearch={external.submit}
+              />
             </div>
 
             <div data-tour-anchor={SKILLS_TOUR_ANCHORS.catalog}>
-              {ctrl.discoveryMode === "external" && <SkillsExternalResults ctrl={ctrl} />}
-              {ctrl.discoveryMode === "catalog" && (
+              {discoveryMode === "external" && (
+                <SkillsExternalResults
+                  busyExternalKeys={operations.busyExternalKeys}
+                  importedExternalSources={catalog.importedExternalSources}
+                  loading={external.loading}
+                  onImport={(item) => void operations.importExternal(item)}
+                  onPreview={(item) => void external.preview(item)}
+                  results={external.results}
+                  sourceStatuses={external.sourceStatuses}
+                  sources={sources.items}
+                  submittedQuery={external.submittedQuery}
+                />
+              )}
+              {discoveryMode === "catalog" && (
                 <>
-                  <SkillsUpdateHighlight ctrl={ctrl} onOpenSkill={openSkillPage} />
-                  <SkillsCatalogGrid ctrl={ctrl} onOpenSkill={openSkillPage} />
+                  <SkillsUpdateHighlight
+                    busySkillNames={operations.busySkillNames}
+                    checkUpdateMessage={operations.checkUpdateMessage}
+                    checkingUpdates={operations.checkingUpdates}
+                    lastUpdateCheckedAt={operations.lastUpdateCheckedAt}
+                    onCheckUpdates={() => void operations.checkUpdates()}
+                    onOpenSkill={openSkillPage}
+                    onUpdateSkill={(name) => void operations.updateSkill(name)}
+                    updates={catalog.updateAvailableSkills}
+                  />
+                  <SkillsCatalogGrid
+                    busySkillNames={operations.busySkillNames}
+                    groupedSkills={catalog.groupedSkills}
+                    loading={catalog.loading}
+                    onDeleteSkill={(skill) => void operations.deleteSkill(skill)}
+                    onOpenSkill={openSkillPage}
+                  />
                 </>
               )}
             </div>
@@ -141,38 +174,47 @@ export function SkillsDirectory({ onReplayTour }: SkillsDirectoryProps) {
         )}
       </WorkspaceSurfaceScaffold>
 
-      <FeedbackBannerStack items={feedbackItems} />
+      <FeedbackBannerViewport item={feedbackItem} />
 
-      <SkillImportDialog ctrl={ctrl} />
-
-      <ExternalSkillPreviewDialog
-        alreadyImported={
-          !!ctrl.previewExternalItem &&
-          !!ctrl.importedExternalSources
-            .get(ctrl.previewExternalItem.skill_slug)
-            ?.has(ctrl.previewExternalItem.package_spec)
-        }
-        nameConflict={
-          !!ctrl.previewExternalItem &&
-          !!ctrl.importedExternalSources.get(ctrl.previewExternalItem.skill_slug) &&
-          !ctrl.importedExternalSources
-            .get(ctrl.previewExternalItem.skill_slug)
-            ?.has(ctrl.previewExternalItem.package_spec)
-        }
-        busy={
-          !!ctrl.previewExternalItem &&
-          ctrl.busyExternalKey === `${ctrl.previewExternalItem.source_key || ctrl.previewExternalItem.package_spec}@@${ctrl.previewExternalItem.skill_slug}`
-        }
-        isOpen={!!ctrl.previewExternalItem}
-        item={ctrl.previewExternalItem}
-        previewLoading={ctrl.externalPreviewLoading}
-        onClose={() => ctrl.setPreviewExternalItem(null)}
-        onImportOnly={() => {
-          if (ctrl.previewExternalItem) void ctrl.handleImportExternal(ctrl.previewExternalItem);
-        }}
+      <SkillImportDialog
+        fileInputRef={operations.fileInputRef}
+        importing={operations.importing}
+        mode={operations.importDialogMode}
+        onClose={() => operations.setImportDialogMode(null)}
+        onImportGit={(url, branch, path) => void operations.importGit(url, branch, path)}
+        onSelectMode={operations.setImportDialogMode}
       />
 
-      <SkillSourceManagerDialog ctrl={ctrl} />
+      <ExternalSkillPreviewDialog
+        model={previewModel}
+        onClose={external.closePreview}
+        onImport={(item) => void operations.importExternal(item)}
+      />
+
+      <SkillSourceManagerDialog
+        isOpen={sources.managerOpen}
+        loading={sources.loading}
+        onClose={sources.closeManager}
+        onToggle={(source, enabled) => void sources.toggle(source, enabled)}
+        sources={sources.items}
+      />
     </>
   );
+}
+
+function buildFeedbackItem(
+  feedback: SkillMarketplaceFeedback | null,
+): FeedbackBannerProps | null {
+  if (!feedback) return null;
+  const titles = {
+    error: "操作失败",
+    success: "已完成",
+    warning: feedback.pending ? "处理中" : "部分完成",
+  } as const;
+  return {
+    message: feedback.message,
+    onDismiss: feedback.pending ? undefined : feedback.dismiss,
+    title: titles[feedback.tone],
+    tone: feedback.tone,
+  };
 }

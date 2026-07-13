@@ -29,7 +29,7 @@ const LANGUAGE_LABELS: Record<string, string> = {
   yml: "YAML",
 };
 
-export function build_code_editor_session_view({
+export function buildCodeEditorSessionView({
   diff_stats,
   lines,
   title,

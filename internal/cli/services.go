@@ -10,7 +10,7 @@ import (
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 )
 
-// cliServiceProvider 按命令域延迟创建服务，避免 nexusctl help/memory 等命令启动全量后端依赖。
+// cliServiceProvider 按命令域延迟创建服务，避免 nexusctl help 等命令启动全量后端依赖。
 type cliServiceProvider struct {
 	cfg config.Config
 

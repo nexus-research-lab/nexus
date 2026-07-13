@@ -2,6 +2,11 @@ import AppKit
 
 @MainActor
 final class WindowManager: NSObject, NSWindowDelegate {
+  private static let preferredWindowSize = NSSize(width: 1280, height: 820)
+  private static let preferredMinimumWindowSize = NSSize(width: 1120, height: 640)
+  private static let compactMinimumWindowSize = NSSize(width: 720, height: 520)
+  private static let screenPadding: CGFloat = 48
+
   private let runtime: SidecarRuntimeConfig
   private let startupTimeline: DesktopStartupTimeline
   private let globalShortcutStatusProvider: () -> [String: Any]
@@ -145,8 +150,9 @@ final class WindowManager: NSObject, NSWindowDelegate {
         globalShortcutAcceleratorUpdater: globalShortcutAcceleratorUpdater,
         globalShortcutAcceleratorResetter: globalShortcutAcceleratorResetter
       )
+      let windowSizing = Self.initialWindowSizing()
       let window = NSWindow(
-        contentRect: NSRect(x: 0, y: 0, width: 1280, height: 820),
+        contentRect: windowSizing.frame,
         styleMask: [.titled, .closable, .miniaturizable, .resizable],
         backing: .buffered,
         defer: false
@@ -155,14 +161,13 @@ final class WindowManager: NSObject, NSWindowDelegate {
       window.titleVisibility = .hidden
       window.titlebarAppearsTransparent = true
       window.styleMask.insert(.fullSizeContentView)
-      window.minSize = NSSize(width: 1120, height: 640)
+      window.minSize = windowSizing.minimumSize
       window.isReleasedWhenClosed = false
       window.delegate = self
       window.backgroundColor = .clear
       window.isOpaque = false
       window.isMovableByWindowBackground = true
       window.alphaValue = 0
-      window.center()
       window.contentView = DesktopWindowSurface(
         webContentView: host.webView,
         material: .windowBackground
@@ -170,7 +175,11 @@ final class WindowManager: NSObject, NSWindowDelegate {
       window.makeKeyAndOrderFront(nil)
       NSApp.activate()
       startupTimeline.mark("main_window.created", metadata: [
+        "height": Self.metadataDimension(windowSizing.frame.height),
         "material": "windowBackground",
+        "min_height": Self.metadataDimension(windowSizing.minimumSize.height),
+        "min_width": Self.metadataDimension(windowSizing.minimumSize.width),
+        "width": Self.metadataDimension(windowSizing.frame.width),
       ])
       host.load((route ?? defaultMainRoute()).url(runtime: runtime))
 
@@ -186,6 +195,44 @@ final class WindowManager: NSObject, NSWindowDelegate {
 
   private func defaultMainRoute() -> DesktopWebRoute {
     DesktopWebRoute(path: "/launcher", entry: .app)
+  }
+
+  private static func initialWindowSizing(screen: NSScreen? = NSScreen.main) -> (frame: NSRect, minimumSize: NSSize) {
+    guard let visibleFrame = screen?.visibleFrame else {
+      return (
+        NSRect(origin: .zero, size: preferredWindowSize),
+        preferredMinimumWindowSize
+      )
+    }
+
+    let maxWidth = max(320, visibleFrame.width - screenPadding)
+    let maxHeight = max(320, visibleFrame.height - screenPadding)
+    let width = min(preferredWindowSize.width, maxWidth)
+    let height = min(preferredWindowSize.height, maxHeight)
+    let frame = NSRect(
+      x: visibleFrame.minX + (visibleFrame.width - width) / 2,
+      y: visibleFrame.minY + (visibleFrame.height - height) / 2,
+      width: width,
+      height: height
+    )
+    return (
+      frame,
+      NSSize(
+        width: adaptiveMinimum(preferred: preferredMinimumWindowSize.width, compact: compactMinimumWindowSize.width, current: width),
+        height: adaptiveMinimum(preferred: preferredMinimumWindowSize.height, compact: compactMinimumWindowSize.height, current: height)
+      )
+    )
+  }
+
+  private static func adaptiveMinimum(preferred: CGFloat, compact: CGFloat, current: CGFloat) -> CGFloat {
+    if current >= preferred {
+      return preferred
+    }
+    return min(current, compact)
+  }
+
+  private static func metadataDimension(_ value: CGFloat) -> String {
+    String(Int(value.rounded()))
   }
 
   private func surfaceName(for window: NSWindow) -> String? {

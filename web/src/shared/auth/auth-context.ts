@@ -11,7 +11,7 @@
 
 import { createContext, useContext } from "react";
 
-import { AuthStatus } from "@/lib/api/auth-api";
+import { AuthStatus } from "@/lib/api/account/auth-api";
 
 export interface AuthContextValue {
   status: AuthStatus | null;

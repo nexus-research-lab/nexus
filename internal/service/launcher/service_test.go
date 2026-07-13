@@ -14,7 +14,9 @@ import (
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
 	sessionsvc "github.com/nexus-research-lab/nexus/internal/service/session"
-	sqliterepo "github.com/nexus-research-lab/nexus/internal/storage/sqlite"
+	"github.com/nexus-research-lab/nexus/internal/storage/agentrepo"
+	"github.com/nexus-research-lab/nexus/internal/storage/roomrepo"
+	"github.com/nexus-research-lab/nexus/internal/storage/sessionrepo"
 
 	"github.com/pressly/goose/v3"
 	_ "modernc.org/sqlite"
@@ -29,9 +31,9 @@ func TestLauncherQueryAndSuggestions(t *testing.T) {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}
 	defer func() { _ = db.Close() }()
-	agentService := agentsvc.NewService(cfg, sqliterepo.NewAgentRepository(db))
-	roomService := roomsvc.NewService(cfg, agentService, sqliterepo.NewRoomRepository(db))
-	sessionService := sessionsvc.NewService(cfg, agentService, sqliterepo.NewSessionRepository(db))
+	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
+	roomService := roomsvc.NewService(cfg, agentService, roomrepo.NewSQLRepository("sqlite", db))
+	sessionService := sessionsvc.NewService(cfg, agentService, sessionrepo.NewSQLRepository("sqlite", db))
 	service := NewService(cfg, agentService, roomService, sessionService)
 
 	ctx := context.Background()
@@ -277,4 +279,30 @@ func launcherMigrationDir(t *testing.T) string {
 		t.Fatal("定位测试文件失败")
 	}
 	return filepath.Join(filepath.Dir(file), "..", "..", "..", "db", "migrations", "sqlite")
+}
+
+func TestPreviewSessionKeyRoutesGroupToSharedHistory(t *testing.T) {
+	memberKey := protocol.BuildRoomAgentSessionKey("conversation-1", "amy", "room")
+	group := BootstrapConversation{
+		SessionKey:     memberKey,
+		RoomType:       "room",
+		ConversationID: "conversation-1",
+	}
+	if got := previewSessionKey(group); got != protocol.BuildRoomSharedSessionKey("conversation-1") {
+		t.Fatalf("previewSessionKey(group) = %q, want room shared key", got)
+	}
+
+	dm := BootstrapConversation{
+		SessionKey:     protocol.BuildRoomAgentSessionKey("conversation-2", "amy", "dm"),
+		RoomType:       protocol.RoomTypeDM,
+		ConversationID: "conversation-2",
+	}
+	if got := previewSessionKey(dm); got != dm.SessionKey {
+		t.Fatalf("previewSessionKey(dm) = %q, want member key", got)
+	}
+
+	missingConversation := BootstrapConversation{SessionKey: memberKey, RoomType: "room"}
+	if got := previewSessionKey(missingConversation); got != memberKey {
+		t.Fatalf("previewSessionKey(no conversation) = %q, want fallback to member key", got)
+	}
 }

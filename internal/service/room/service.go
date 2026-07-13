@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	"github.com/nexus-research-lab/nexus/internal/storage/roomrepo"
@@ -51,6 +52,10 @@ type runtimeSessionCloser interface {
 	CloseSession(context.Context, string) error
 }
 
+type quotaChecker interface {
+	EnsureQuotaAvailable(context.Context, string) error
+}
+
 // Service 提供 Room 编排能力。
 type Service struct {
 	config     config.Config
@@ -82,4 +87,16 @@ func (s *Service) SetGoalCleaner(cleaner goalCleaner) {
 // SetRuntimeManager 注入运行时管理器，用于关闭 Room conversation 对应的后台 client。
 func (s *Service) SetRuntimeManager(runtimeManager runtimeSessionCloser) {
 	s.runtime = runtimeManager
+}
+
+// SetQuotaChecker 注入订阅额度检查器。
+func (s *RealtimeService) SetQuotaChecker(checker quotaChecker) {
+	s.quota = checker
+}
+
+func (s *RealtimeService) ensureQuotaAvailable(ctx context.Context) error {
+	if s.quota == nil {
+		return nil
+	}
+	return s.quota.EnsureQuotaAvailable(ctx, authctx.OwnerUserID(ctx))
 }

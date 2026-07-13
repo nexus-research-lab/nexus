@@ -1,74 +1,44 @@
-import type { UiBadgeTone } from "@/shared/ui/badge-styles";
+import type { MemoryDocument } from "@/types/memory/memory";
 
-export type MemoryLayerFilter = "all" | "agent" | "dm_session" | "room";
+const FRONTMATTER_PATTERN = /^---\r?\n[\s\S]*?\r?\n---\r?\n?/;
 
-export function memoryLayerKey(scope?: string): MemoryLayerFilter {
-  if (!scope) {
-    return "agent";
-  }
-  if (scope.startsWith("dm_session:")) {
-    return "dm_session";
-  }
-  if (scope.startsWith("room_shared:") || scope.startsWith("room_agent_session:")) {
-    return "room";
-  }
-  return "agent";
+export const MEMORY_STALE_AFTER_DAYS = 1;
+
+export function isIndexedMemoryTopic(document: MemoryDocument): boolean {
+  return document.indexed && document.kind === "topic";
 }
 
-function memoryLayerLabel(scope?: string): string {
-  const key = memoryLayerKey(scope);
-  switch (key) {
-  case "dm_session":
-    return "DM";
-  case "room":
-    return "Room";
-  default:
-    return "Agent";
-  }
+export function stripMemoryFrontmatter(content: string): string {
+  return content.replace(FRONTMATTER_PATTERN, "").trim();
 }
 
-export function memoryScopeLabel(scope?: string): string {
-  if (!scope) {
-    return "Agent";
+export function memoryAgeDays(modifiedAt: string, now = Date.now()): number {
+  const timestamp = Date.parse(modifiedAt);
+  if (!Number.isFinite(timestamp)) {
+    return 0;
   }
-  if (scope.startsWith("user:")) {
-    return "User";
-  }
-  return memoryLayerLabel(scope);
+  return Math.max(0, Math.floor((now - timestamp) / 86_400_000));
 }
 
-export function formatMemoryScore(score: number): string {
-  return `score ${score.toFixed(2)}`;
-}
-
-export function formatMemoryTime(value?: string): string {
-  if (!value) {
-    return "";
+export function formatMemoryModifiedTime(modifiedAt: string, locale: string): string {
+  const timestamp = Date.parse(modifiedAt);
+  if (!Number.isFinite(timestamp)) {
+    return "-";
   }
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return "";
-  }
-  return new Intl.DateTimeFormat("zh-CN", {
-    month: "2-digit",
-    day: "2-digit",
+  return new Intl.DateTimeFormat(locale === "zh" ? "zh-CN" : "en-US", {
+    month: "short",
+    day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
-  }).format(date);
+  }).format(timestamp);
 }
 
-export function memoryStatusTone(status: string): UiBadgeTone {
-  switch (status) {
-  case "promoted":
-  case "active":
-  case "auto":
-    return "success";
-  case "candidate":
-    return "warning";
-  case "ignored":
-  case "deleted":
-    return "idle";
-  default:
-    return "default";
+export function formatMemoryFileSize(size: number): string {
+  if (size < 1024) {
+    return `${size} B`;
   }
+  if (size < 1024 * 1024) {
+    return `${(size / 1024).toFixed(size < 10 * 1024 ? 1 : 0)} KB`;
+  }
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 }

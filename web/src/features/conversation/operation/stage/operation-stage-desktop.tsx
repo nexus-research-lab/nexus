@@ -1,32 +1,31 @@
 import type { KeyboardEvent, ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 
-import type { PermissionDecisionPayload } from "@/types/conversation/permission";
+import type { PermissionDecisionPayload } from "@/types/conversation/interaction/permission";
 
 import { StageWindowContent } from "../apps/operation-app-renderers";
 import type { StageWindowState } from "../operation-desktop-types";
-import type { StageWindowKind } from "../operation-desktop-types";
 import {
-  plan_operation_desktop,
-  resolve_operation_event_window_id,
+  planOperationDesktop,
+  resolveOperationEventWindowId,
 } from "../operation-scene-planner";
 import type {
   NexusOperationEvent,
   NexusOperationSnapshot,
 } from "../operation-types";
 import {
-  build_stage_narrative,
-  collect_narrative_events,
-  count_desktop_reveal_events,
-  icon_for_window_kind,
-  is_stage_desktop_window_kind,
-  is_stage_manager_background_window,
-  minimum_revealed_window_count,
-  order_windows_for_reveal,
-  position_for_window,
-  stage_app_label_for_window_kind,
+  buildStageNarrative,
+  collectNarrativeEvents,
+  countDesktopRevealEvents,
+  iconForWindowKind,
+  isStageDesktopWindowKind,
+  isStageManagerBackgroundWindow,
+  minimumRevealedWindowCount,
+  orderWindowsForReveal,
+  positionForWindow,
+  stageAppLabelForWindowKind,
   useRevealedWindowCount,
-  window_content_mode_for_kind,
+  windowContentModeForKind,
 } from "./operation-stage-helpers";
 import type {
   StageWindowOverride,
@@ -35,42 +34,42 @@ import { StageMacMenuBar, StageDesktopIcons } from "./operation-stage-mac-shell"
 import { DynamicStageFrame } from "./operation-stage-frame";
 import { OperationStageWindow } from "./operation-stage-window";
 import {
-  resolve_operation_window_keyboard_action,
-  should_handle_stage_desktop_keyboard_action,
+  resolveOperationWindowKeyboardAction,
+  shouldHandleStageDesktopKeyboardAction,
 } from "./operation-stage-window-actions";
-import { should_ignore_stage_desktop_keyboard_target } from "./operation-stage-keyboard-target";
+import { shouldIgnoreStageDesktopKeyboardTarget } from "./operation-stage-keyboard-target";
 import {
   StageWindowDock,
 } from "./operation-stage-window-controls";
 import {
-  resolve_cycled_window_focus,
-  resolve_next_window_focus,
+  resolveCycledWindowFocus,
+  resolveNextWindowFocus,
 } from "./operation-stage-window-focus";
 import {
-  is_meaningful_stage_window_drag,
-  normalize_stage_window_drag_offset,
-  normalize_stage_window_resize_size,
+  isMeaningfulStageWindowDrag,
+  normalizeStageWindowDragOffset,
+  normalizeStageWindowResizeSize,
 } from "./operation-stage-window-drag";
-import { build_stage_window_launch_state } from "./operation-stage-window-launch";
+import { buildStageWindowLaunchState } from "./operation-stage-window-launch";
 import { OperationStageIdleDesktop } from "./operation-stage-idle-desktop";
 import { OperationStagePermissionToast } from "./operation-stage-permission-toast";
 
 export function OperationStageDesktop({
   event,
-  header_action,
-  on_permission_response,
+  headerAction,
+  onPermissionResponse,
   snapshot,
 }: {
   event: NexusOperationEvent;
-  header_action?: ReactNode;
-  on_permission_response?: (payload: PermissionDecisionPayload) => boolean;
+  headerAction?: ReactNode;
+  onPermissionResponse?: (payload: PermissionDecisionPayload) => boolean;
   snapshot: NexusOperationSnapshot | null;
 }) {
   const [focused_window_id, set_focused_window_id] = useState<string | null>(null);
   const [replay_event_id, set_replay_event_id] = useState<string | null>(null);
   const [window_overrides, set_window_overrides] = useState<Record<string, StageWindowOverride>>({});
-  const narrative = useMemo(() => build_stage_narrative(event, snapshot), [event, snapshot]);
-  const narrative_events = useMemo(() => collect_narrative_events(event, snapshot), [event, snapshot]);
+  const narrative = useMemo(() => buildStageNarrative(event, snapshot), [event, snapshot]);
+  const narrative_events = useMemo(() => collectNarrativeEvents(event, snapshot), [event, snapshot]);
   const active_narrative_event_id = useMemo(() => (
     replay_event_id && narrative_events.some((item) => item.id === replay_event_id)
       ? replay_event_id
@@ -80,10 +79,10 @@ export function OperationStageDesktop({
     narrative_events.find((item) => item.id === active_narrative_event_id) ?? event
   ), [active_narrative_event_id, event, narrative_events]);
   const desktop = useMemo(() => (
-    plan_operation_desktop({ event: active_narrative_event, snapshot })
+    planOperationDesktop({ event: active_narrative_event, snapshot })
   ), [active_narrative_event, snapshot]);
   const desktop_windows = useMemo(() => (
-    desktop.windows.filter((window) => is_stage_desktop_window_kind(window.kind))
+    desktop.windows.filter((window) => isStageDesktopWindowKind(window.kind))
   ), [desktop.windows]);
   const stage_windows = useMemo(() => (
     desktop_windows
@@ -101,14 +100,14 @@ export function OperationStageDesktop({
       : stage_windows[0]?.id ?? null
   ), [desktop.active_window_id, desktop_windows, focused_window_id, stage_windows]);
   const windows_for_reveal = useMemo(() => (
-    order_windows_for_reveal(stage_windows, desktop_active_window_id)
+    orderWindowsForReveal(stage_windows, desktop_active_window_id)
   ), [desktop_active_window_id, stage_windows]);
   const reveal_event_count = useMemo(() => (
-    count_desktop_reveal_events(narrative_events)
+    countDesktopRevealEvents(narrative_events)
   ), [narrative_events]);
   const revealed_window_count = useRevealedWindowCount({
     event_key: `${active_narrative_event.round_id}:${active_narrative_event.id}:${active_narrative_event.phase}`,
-    minimum_count: minimum_revealed_window_count({
+    minimum_count: minimumRevealedWindowCount({
       phase: narrative.phase,
       reveal_event_count,
       window_count: windows_for_reveal.length,
@@ -192,7 +191,7 @@ export function OperationStageDesktop({
   ), [active_window_id, visible_windows]);
   const has_maximized_window = visible_windows.some((window) => window_overrides[window.id]?.maximized);
   const close_window = (window_id: string) => {
-    set_focused_window_id((current) => resolve_next_window_focus({
+    set_focused_window_id((current) => resolveNextWindowFocus({
       current_focus_id: current,
       hidden_window_id: window_id,
       windows: window_states,
@@ -218,7 +217,7 @@ export function OperationStageDesktop({
   };
 
   const minimize_window = (window_id: string) => {
-    set_focused_window_id((current) => resolve_next_window_focus({
+    set_focused_window_id((current) => resolveNextWindowFocus({
       current_focus_id: current,
       hidden_window_id: window_id,
       windows: window_states,
@@ -233,13 +232,13 @@ export function OperationStageDesktop({
   };
 
   const move_window = (window_id: string, offset: { x: number; y: number }) => {
-    const normalized_offset = normalize_stage_window_drag_offset(offset);
+    const normalized_offset = normalizeStageWindowDragOffset(offset);
     set_focused_window_id(window_id);
     set_window_overrides((current) => ({
       ...current,
       [window_id]: {
         ...current[window_id],
-        maximized: is_meaningful_stage_window_drag(normalized_offset) ? false : current[window_id]?.maximized,
+        maximized: isMeaningfulStageWindowDrag(normalized_offset) ? false : current[window_id]?.maximized,
         minimized: false,
         offset_x: normalized_offset.x,
         offset_y: normalized_offset.y,
@@ -248,7 +247,7 @@ export function OperationStageDesktop({
   };
 
   const resize_window = (window_id: string, size: { height: number; width: number }) => {
-    const normalized_size = normalize_stage_window_resize_size(size);
+    const normalized_size = normalizeStageWindowResizeSize(size);
     set_focused_window_id(window_id);
     set_window_overrides((current) => ({
       ...current,
@@ -282,7 +281,7 @@ export function OperationStageDesktop({
   };
 
   const cycle_window_focus = (direction: "next" | "previous") => {
-    set_focused_window_id((current) => resolve_cycled_window_focus({
+    set_focused_window_id((current) => resolveCycledWindowFocus({
       current_focus_id: current ?? active_window_id,
       direction,
       windows: window_states,
@@ -293,8 +292,8 @@ export function OperationStageDesktop({
     if (is_text_entry_keyboard_target(keyboard_event.target)) {
       return;
     }
-    const action = resolve_operation_window_keyboard_action(keyboard_event);
-    if (!action || !should_handle_stage_desktop_keyboard_action(action)) {
+    const action = resolveOperationWindowKeyboardAction(keyboard_event);
+    if (!action || !shouldHandleStageDesktopKeyboardAction(action)) {
       return;
     }
     keyboard_event.preventDefault();
@@ -339,7 +338,7 @@ export function OperationStageDesktop({
   };
 
   const focus_event_window = (target_event: NexusOperationEvent) => {
-    const target_window_id = resolve_operation_event_window_id(target_event, desktop_windows)
+    const target_window_id = resolveOperationEventWindowId(target_event, desktop_windows)
       ?? desktop_active_window_id
       ?? desktop_windows[0]?.id
       ?? null;
@@ -353,7 +352,7 @@ export function OperationStageDesktop({
   if (!stage_windows.length && !active_narrative_event.permission_request_id) {
     return (
       <OperationStageIdleDesktop
-        header_action={header_action}
+        headerAction={headerAction}
         presentation="stage"
       />
     );
@@ -363,82 +362,82 @@ export function OperationStageDesktop({
     <DynamicStageFrame
       event={event}
       narrative={narrative}
-      on_key_down_capture={handle_desktop_key_down}
+      onKeyDownCapture={handle_desktop_key_down}
     >
       <StageMacMenuBar
-        active_event={active_narrative_event}
-        active_window={active_window}
+        activeEvent={active_narrative_event}
+        activeWindow={active_window}
         events={narrative_events}
-        header_action={header_action}
-        on_focus_event={focus_event_window}
+        headerAction={headerAction}
+        onFocusEvent={focus_event_window}
         windows={window_states}
       />
-      <StageDesktopIcons windows={window_states} on_restore={restore_window} />
+      <StageDesktopIcons windows={window_states} onRestore={restore_window} />
       <OperationStagePermissionToast
         event={active_narrative_event}
         events={narrative_events}
-        onPermissionResponse={on_permission_response}
+        onPermissionResponse={onPermissionResponse}
       />
       {visible_windows.length ? visible_windows.map((window, index) => {
         const window_override = window_overrides[window.id];
         const is_active = active_window_id === window.id && window.phase !== "minimized";
         const is_maximized = Boolean(window_override?.maximized);
         const background_window_index = visible_windows
-          .filter((item) => is_stage_manager_background_window(item, narrative.phase))
+          .filter((item) => isStageManagerBackgroundWindow(item, narrative.phase))
           .findIndex((item) => item.id === window.id);
-        const is_stage_manager_preview = is_stage_manager_background_window(window, narrative.phase);
-        const launch = build_stage_window_launch_state({ index, is_active, window });
+        const is_stage_manager_preview = isStageManagerBackgroundWindow(window, narrative.phase);
+        const launch = buildStageWindowLaunchState({ index, is_active, window });
         return (
           <OperationStageWindow
-            app_label={stage_app_label_for_window_kind(window.kind)}
-            delay_ms={launch.delay_ms}
+            appLabel={stageAppLabelForWindowKind(window.kind)}
+            delayMs={launch.delay_ms}
             dimmed={!is_active && window.phase !== "minimized"}
-            drag_offset={is_maximized ? { x: 0, y: 0 } : {
+            dragOffset={is_maximized ? { x: 0, y: 0 } : {
               x: window_override?.offset_x ?? 0,
               y: window_override?.offset_y ?? 0,
             }}
             focus={is_active}
-            icon={icon_for_window_kind(window.kind)}
+            icon={iconForWindowKind(window.kind)}
             key={window.id}
-            content_mode={window_content_mode_for_kind(window.kind)}
-            launch_origin={launch.origin}
+            contentMode={windowContentModeForKind(window.kind)}
+            launchOrigin={launch.origin}
             maximized={is_maximized}
-            mobile_hidden={!is_active}
+            mobileHidden={!is_active}
             minimized={window.phase === "minimized"}
-            on_close={() => close_window(window.id)}
-            on_drag={(offset) => move_window(window.id, offset)}
-            on_focus={() => focus_window(window.id)}
-            on_minimize={() => minimize_window(window.id)}
-            on_resize={(size) => resize_window(window.id, size)}
-            on_zoom={() => toggle_zoom_window(window.id)}
-            on_cycle_focus={cycle_window_focus}
-            position_class_name={is_maximized
+            onClose={() => close_window(window.id)}
+            onDrag={(offset) => move_window(window.id, offset)}
+            onFocus={() => focus_window(window.id)}
+            onMinimize={() => minimize_window(window.id)}
+            onResize={(size) => resize_window(window.id, size)}
+            onZoom={() => toggle_zoom_window(window.id)}
+            onCycleFocus={cycle_window_focus}
+            positionClassName={is_maximized
               ? "inset-x-4 top-14 bottom-0 h-auto w-auto"
-              : position_for_window(window, narrative.phase, background_window_index)}
-            preview_mode={is_stage_manager_preview ? "stage-manager" : undefined}
-            resize_size={!is_maximized && window_override?.resize_width && window_override.resize_height ? {
+              : positionForWindow(window, narrative.phase, background_window_index)}
+            previewMode={is_stage_manager_preview ? "stage-manager" : undefined}
+            resizeSize={!is_maximized && window_override?.resize_width && window_override.resize_height ? {
               height: window_override.resize_height,
               width: window_override.resize_width,
             } : undefined}
-            restore_token={window_override?.restore_token}
+            restoreToken={window_override?.restore_token}
             title={window.title}
             tone={window.kind === "terminal" ? "terminal" : "default"}
-            z_index={is_active ? 44 : 8 + index}
+            zIndex={is_active ? 44 : 8 + index}
           >
             <StageWindowContent
               window={window}
-              on_focus_event={is_active ? focus_event_window : undefined}
-              on_permission_response={on_permission_response}
+              onFocusEvent={is_active ? focus_event_window : undefined}
+              onPermissionResponse={onPermissionResponse}
             />
           </OperationStageWindow>
         );
       }) : null}
       {has_maximized_window ? null : (
         <StageWindowDock
-          active_window_id={active_window_id}
-          on_restore_all={restore_all_windows}
+          activeWindowId={active_window_id}
+          onRestoreAll={restore_all_windows}
           windows={window_states}
-          on_restore={restore_window}
+          onRestore={restore_window}
         />
       )}
     </DynamicStageFrame>
@@ -449,7 +448,7 @@ function is_text_entry_keyboard_target(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) {
     return false;
   }
-  if (should_ignore_stage_desktop_keyboard_target({
+  if (shouldIgnoreStageDesktopKeyboardTarget({
     content_editable: target.getAttribute("contenteditable"),
     is_content_editable: target.isContentEditable,
     tag_name: target.tagName,

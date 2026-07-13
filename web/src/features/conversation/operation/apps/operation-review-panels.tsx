@@ -17,41 +17,44 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 import type {
-  AskUserQuestionInput,
   UserQuestion,
   UserQuestionAnswer,
-} from "@/types/conversation/ask-user-question";
-import type { PermissionDecisionPayload } from "@/types/conversation/permission";
+} from "@/types/conversation/interaction/ask-user-question";
+import type { PermissionDecisionPayload } from "@/types/conversation/interaction/permission";
 
 import {
-  build_operation_input_rows,
+  buildOperationInputRows,
   PHASE_LABELS,
-  resolve_operation_tool_profile,
+  resolveOperationToolProfile,
 } from "../operation-tool-catalog";
-import { format_operation_time, safe_json_stringify } from "../operation-preview";
+import { formatOperationTime, safeJsonStringify } from "../operation-preview";
 import type {
   NexusOperationEvent,
   NexusOperationSnapshot,
   OperationEvidence,
 } from "../operation-types";
 
+interface AskUserQuestionInput {
+  questions: UserQuestion[];
+}
+
 export function PermissionCheckpointPanel({
   compact = false,
   event,
   evidence: payload_evidence,
-  on_permission_response,
+  onPermissionResponse,
   snapshot,
 }: {
   compact?: boolean;
   event: NexusOperationEvent;
   evidence?: OperationEvidence[];
-  on_permission_response?: (payload: PermissionDecisionPayload) => boolean;
+  onPermissionResponse?: (payload: PermissionDecisionPayload) => boolean;
   snapshot: NexusOperationSnapshot | null;
 }) {
-  const profile = resolve_operation_tool_profile(event.tool_name, event.kind, event.surface);
-  const rows = build_operation_input_rows(event.input_preview, profile.target_keys, compact ? 4 : 8);
+  const profile = resolveOperationToolProfile(event.tool_name, event.kind, event.surface);
+  const rows = buildOperationInputRows(event.input_preview, profile.target_keys, compact ? 4 : 8);
   const evidence = dedupe_evidence([
     ...(payload_evidence ?? []),
     ...(event.evidence ?? []),
@@ -68,7 +71,7 @@ export function PermissionCheckpointPanel({
   const questions = question_input?.questions ?? [];
   const [submitted_decision, set_submitted_decision] = useState<PermissionDecisionPayload["decision"] | null>(null);
   const [question_answers, set_question_answers] = useState<Record<number, string[]>>({});
-  const can_send_response = Boolean(request_id && on_permission_response);
+  const can_send_response = Boolean(request_id && onPermissionResponse);
   const can_allow = can_send_response && !is_question && !submitted_decision;
   const can_deny = can_send_response && !submitted_decision;
   const can_submit_question_answer = Boolean(
@@ -84,7 +87,7 @@ export function PermissionCheckpointPanel({
         ? is_question ? "已提交" : "已允许"
         : submitted_decision === "deny"
           ? "已拒绝"
-          : !on_permission_response
+          : !onPermissionResponse
             ? "等待连接"
             : is_question
               ? "需回答"
@@ -97,10 +100,10 @@ export function PermissionCheckpointPanel({
   }, [request_id]);
 
   const submit_permission_response = (decision: PermissionDecisionPayload["decision"]) => {
-    if (!request_id || !on_permission_response) {
+    if (!request_id || !onPermissionResponse) {
       return false;
     }
-    const submitted = on_permission_response({
+    const submitted = onPermissionResponse({
       request_id,
       decision,
       message: decision === "deny" ? "User denied permission from Operation Stage" : undefined,
@@ -111,14 +114,14 @@ export function PermissionCheckpointPanel({
     return submitted;
   };
   const submit_question_answers = () => {
-    if (!request_id || !on_permission_response || !can_submit_question_answer) {
+    if (!request_id || !onPermissionResponse || !can_submit_question_answer) {
       return false;
     }
     const user_answers: UserQuestionAnswer[] = questions.map((_, index) => ({
       question_index: index,
       selected_options: question_answers[index] ?? [],
     }));
-    const submitted = on_permission_response({
+    const submitted = onPermissionResponse({
       request_id,
       decision: "allow",
       user_answers,
@@ -212,7 +215,7 @@ export function PermissionCheckpointPanel({
                 questions.length ? (
                   <StageQuestionAnswerList
                     disabled={Boolean(submitted_decision)}
-                    on_change={set_question_answers}
+                    onChange={set_question_answers}
                     questions={questions}
                     selections={question_answers}
                   />
@@ -267,7 +270,7 @@ export function PermissionCheckpointPanel({
             {[
               { label: "暂停点", value: "权限确认", Icon: Clock3 },
               { label: "工具", value: profile.title, Icon: Play },
-              { label: "更新", value: format_operation_time(event.updated_at), Icon: RefreshCw },
+              { label: "更新", value: formatOperationTime(event.updated_at), Icon: RefreshCw },
             ].map((item) => (
               <div className="min-w-0 rounded-[11px] border border-white/64 bg-white/62 px-2.5 py-2" key={item.label}>
                 <div className="flex items-center gap-1.5 text-(--text-soft)">
@@ -325,12 +328,12 @@ export function PermissionCheckpointPanel({
 
 function StageQuestionAnswerList({
   disabled,
-  on_change,
+  onChange,
   questions,
   selections,
 }: {
   disabled: boolean;
-  on_change: (next: Record<number, string[]>) => void;
+  onChange: (next: Record<number, string[]>) => void;
   questions: UserQuestion[];
   selections: Record<number, string[]>;
 }) {
@@ -339,13 +342,13 @@ function StageQuestionAnswerList({
       return;
     }
     const selected = selections[question_index] ?? [];
-    const multi_select = question.multi_select ?? question.multiSelect ?? false;
+    const multi_select = question.multi_select ?? false;
     const next_selected = multi_select
       ? selected.includes(option_label)
         ? selected.filter((item) => item !== option_label)
         : [...selected, option_label]
       : [option_label];
-    on_change({
+    onChange({
       ...selections,
       [question_index]: next_selected,
     });
@@ -355,7 +358,7 @@ function StageQuestionAnswerList({
     <div className="mt-3 space-y-2">
       {questions.map((question, question_index) => {
         const selected = selections[question_index] ?? [];
-        const multi_select = question.multi_select ?? question.multiSelect ?? false;
+        const multi_select = question.multi_select ?? false;
         return (
           <div
             className="rounded-[11px] border border-(--divider-subtle-color) bg-white/74 px-3 py-2"
@@ -435,13 +438,13 @@ export function OperationReviewPanel({
   mode: "evidence" | "permission";
   snapshot: NexusOperationSnapshot | null;
 }) {
-  const profile = resolve_operation_tool_profile(event.tool_name, event.kind, event.surface);
+  const profile = resolveOperationToolProfile(event.tool_name, event.kind, event.surface);
   const evidence = dedupe_evidence([
     ...(payload_evidence ?? []),
     ...(event.evidence ?? []),
     ...(snapshot?.recent_evidence ?? []),
   ]).slice(0, compact ? 4 : 8);
-  const rows = build_operation_input_rows(event.input_preview, profile.target_keys, compact ? 3 : 6);
+  const rows = buildOperationInputRows(event.input_preview, profile.target_keys, compact ? 3 : 6);
   const waiting = event.phase === "waiting" || mode === "permission";
   const lead = event.summary ?? event.title ?? event.target ?? event.tool_name ?? "诊断信息";
 
@@ -503,7 +506,7 @@ export function OperationReviewPanel({
                     </div>
                     {item.preview != null ? (
                       <pre className="mt-1 max-h-16 overflow-hidden whitespace-pre-wrap break-words rounded-[8px] bg-[rgba(18,28,42,0.05)] px-2 py-1.5 font-mono text-[10px] leading-4 text-(--text-soft)">
-                        {safe_json_stringify(item.preview)}
+                        {safeJsonStringify(item.preview)}
                       </pre>
                     ) : null}
                   </div>
@@ -538,7 +541,7 @@ export function OperationReviewPanel({
             </div>
           ) : null}
           <div className="mt-2 rounded-[9px] bg-white/70 px-2 py-1.5 text-[10px] text-(--text-muted)">
-            更新于 {format_operation_time(event.updated_at)}
+            更新于 {formatOperationTime(event.updated_at)}
           </div>
         </aside>
       </div>
@@ -577,8 +580,11 @@ function parse_user_question(value: unknown): UserQuestion | null {
   return {
     question: value.question,
     header: typeof value.header === "string" ? value.header : undefined,
-    multi_select: typeof value.multi_select === "boolean" ? value.multi_select : undefined,
-    multiSelect: typeof value.multiSelect === "boolean" ? value.multiSelect : undefined,
+    multi_select: typeof value.multi_select === "boolean"
+      ? value.multi_select
+      : typeof value.multiSelect === "boolean"
+        ? value.multiSelect
+        : undefined,
     options,
   };
 }

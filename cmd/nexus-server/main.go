@@ -18,6 +18,8 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/infra/syslimit"
+	"github.com/nexus-research-lab/nexus/internal/migration"
+	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	"github.com/nexus-research-lab/nexus/internal/storage"
 
@@ -193,6 +195,11 @@ func runServer() error {
 	// 自动运行 schema migrations，确保首次启动或升级时数据库 schema 就绪。
 	if err := runMigrations(cfg, logger); err != nil {
 		logger.Error("数据库迁移失败", "err", err)
+		_, _ = fmt.Fprintln(os.Stderr, err)
+		return err
+	}
+	if err := migration.RunWorkspaceFiles(appfs.ConfigDir(), agentsvc.WorkspaceBasePath(cfg), logger); err != nil {
+		logger.Error("工作区文件迁移失败", "err", err)
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		return err
 	}

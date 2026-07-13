@@ -1,294 +1,134 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import type { ComponentProps } from "react";
 
-import { AppRouteBuilders } from "@/app/router/route-paths";
+import { AgentOptionsDialog } from "@/features/agents/options/dialog/agent-options-dialog";
 import { ContactsAgentDetail } from "@/features/contacts/contacts-agent-detail";
 import { ContactsDirectory } from "@/features/contacts/contacts-directory";
-import { validateAgentNameApi } from "@/lib/api/agent-manage-api";
-import { createRoom, ensureDirectRoom } from "@/lib/api/room-api";
-import { AgentOptions } from "@/shared/ui/dialog/agent-options";
-import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
+import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import { WorkspaceLoadingState } from "@/shared/ui/workspace/frame/workspace-loading-state";
 import { WorkspacePageFrame } from "@/shared/ui/workspace/frame/workspace-page-frame";
-import { useAgentStore } from "@/store/agent";
+
+import { useContactsPageController } from "./controller/use-contacts-page-controller";
 import {
-  AgentIdentityDraft,
-  AgentOptions as AgentConfigOptions,
-} from "@/types/agent/agent";
-import { getInitialAgentOptions, isMainAgent } from "@/config/options";
-import { buildAgentOptionsSavePayload } from "@/features/agents/options/agent-options-constants";
+  getContactsPagePresentation,
+  type ContactsPageContentState,
+} from "./contacts-page-model";
+import { useContactsPageNavigation } from "./orchestration/use-contacts-page-navigation";
+
+type ContactsAgentDetailActions = Omit<
+  ComponentProps<typeof ContactsAgentDetail>,
+  "agent"
+>;
+
+type ContactsDirectoryActions = Omit<
+  ComponentProps<typeof ContactsDirectory>,
+  "agents"
+>;
+
+interface ContactsPageActions extends
+  ContactsAgentDetailActions,
+  ContactsDirectoryActions {}
 
 export function ContactsPage() {
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const agents = useAgentStore((state) => state.agents);
-  const createAgent = useAgentStore((state) => state.create_agent);
-  const updateAgent = useAgentStore((state) => state.update_agent);
-  const deleteAgent = useAgentStore((state) => state.delete_agent);
-  const loadAgentsFromServer = useAgentStore(
-    (state) => state.load_agents_from_server,
-  );
-  const loading = useAgentStore((state) => state.loading);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [dialogMode, setDialogMode] = useState<"create" | "edit">("create");
-  const [editingAgentId, setEditingAgentId] = useState<string | null>(
-    null,
-  );
-  const [pendingDeleteAgent, setPendingDeleteAgent] = useState<{
-    id: string;
-    name: string;
-  } | null>(null);
-  const regularAgents = useMemo(
-    () => agents.filter((agent) => !isMainAgent(agent.agent_id)),
-    [agents],
-  );
-  const selectedAgentId = searchParams.get("agent");
+  const controller = useContactsPageController();
+  const navigation = useContactsPageNavigation({
+    agents: controller.contactAgents,
+    loading: controller.loading,
+    confirmDeleteAgent: controller.confirmDeleteAgent,
+  });
 
-  const editingAgent = useMemo(
-    () =>
-      regularAgents.find((agent) => agent.agent_id === editingAgentId) ??
-      null,
-    [editingAgentId, regularAgents],
-  );
-  const selectedAgent = useMemo(
-    () =>
-      selectedAgentId
-        ? regularAgents.find((agent) => agent.agent_id === selectedAgentId) ?? null
-        : null,
-    [regularAgents, selectedAgentId],
-  );
-  const dialogInitialTitle = useMemo(
-    () => (dialogMode === "edit" ? editingAgent?.name : undefined),
-    [dialogMode, editingAgent?.name],
-  );
-  const dialogInitialOptions = useMemo(() => {
-    if (dialogMode !== "edit" || !editingAgent) {
-      return getInitialAgentOptions();
-    }
+  const presentation = getContactsPagePresentation({
+    contactCount: controller.contactAgents.length,
+    loading: controller.loading,
+    pendingDeleteAgent: controller.pendingDeleteAgent,
+    selectedAgent: navigation.selectedAgent,
+  });
+  const actions: ContactsPageActions = {
+    onBack: navigation.backToDirectory,
+    onCreateAgent: controller.editor.openCreate,
+    onCreateTeam: navigation.createTeam,
+    onDeleteAgent: controller.requestDeleteAgent,
+    onEditAgent: controller.editor.openEdit,
+    onOpenDirectRoom: navigation.openDirectRoom,
+    onSaveAgentOptions: controller.saveAgentOptions,
+    onValidateAgentName: controller.validateAgentName,
+  };
 
-    return {
-      provider: editingAgent.options.provider,
-      model: editingAgent.options.model,
-      permission_mode: editingAgent.options.permission_mode,
-      allowed_tools: editingAgent.options.allowed_tools,
-      disallowed_tools: editingAgent.options.disallowed_tools,
-      max_turns: editingAgent.options.max_turns,
-      max_thinking_tokens: editingAgent.options.max_thinking_tokens,
-      mcp_servers: editingAgent.options.mcp_servers,
-      setting_sources: editingAgent.options.setting_sources,
-    };
-  }, [dialogMode, editingAgent]);
-
-  // 💬 Chat → ensureDirectRoom 发起 DM
-  const handleOpenDirectRoom = useCallback(
-    (agentId: string) => {
-      void ensureDirectRoom(agentId).then((context) => {
-        navigate(
-          AppRouteBuilders.roomConversation(
-            context.room.id,
-            context.conversation.id,
-          ),
-        );
-      });
-    },
-    [navigate],
-  );
-
-  // 👥 Create Team → 用该 Agent 创建单人成员 Room
-  const handleCreateTeam = useCallback(
-    (agentId: string) => {
-      void createRoom({ agent_ids: [agentId] }).then((context) => {
-        navigate(
-          AppRouteBuilders.roomConversation(
-            context.room.id,
-            context.conversation.id,
-          ),
-        );
-      });
-    },
-    [navigate],
-  );
-
-  // 新建 Agent → 打开 AgentOptions 对话框（create 模式）
-  const handleOpenCreateAgent = useCallback(() => {
-    setDialogMode("create");
-    setEditingAgentId(null);
-    setIsDialogOpen(true);
-  }, []);
-
-  // 点击卡片 → 打开 AgentOptions 对话框（edit 模式）
-  const handleOpenEditAgent = useCallback((agentId: string) => {
-    setDialogMode("edit");
-    setEditingAgentId(agentId);
-    setIsDialogOpen(true);
-  }, []);
-
-  const handleValidateAgentName = useCallback(
-    async (name: string) => {
-      const excludeAgentId =
-        dialogMode === "edit" ? (editingAgentId ?? undefined) : undefined;
-      return validateAgentNameApi(name, excludeAgentId);
-    },
-    [dialogMode, editingAgentId],
-  );
-
-  const handleSaveAgent = useCallback(
-    async (
-      title: string,
-      options: AgentConfigOptions,
-      identity: AgentIdentityDraft,
-    ) => {
-      const nextOptions = buildAgentOptionsSavePayload(options);
-
-      if (dialogMode === "create") {
-        await createAgent({
-          name: title,
-          options: nextOptions,
-          avatar: identity.avatar,
-          description: identity.description,
-          vibe_tags: identity.vibe_tags,
-        });
-        return;
-      }
-
-      if (dialogMode === "edit" && editingAgentId) {
-        await updateAgent(editingAgentId, {
-          name: title,
-          options: nextOptions,
-          avatar: identity.avatar,
-          description: identity.description,
-          vibe_tags: identity.vibe_tags,
-        });
-      }
-    },
-    [createAgent, dialogMode, editingAgentId, updateAgent],
-  );
-
-  const handleSaveAgentOptions = useCallback(
-    async (
-      agentId: string,
-      title: string,
-      options: AgentConfigOptions,
-      identity: AgentIdentityDraft,
-    ) => {
-      await updateAgent(agentId, {
-        name: title,
-        options: buildAgentOptionsSavePayload(options),
-        avatar: identity.avatar,
-        description: identity.description,
-        vibe_tags: identity.vibe_tags,
-      });
-    },
-    [updateAgent],
-  );
-
-  const handleValidateAgentDetailName = useCallback(
-    async (name: string, agentId?: string) => {
-      return validateAgentNameApi(name, agentId);
-    },
-    [],
-  );
-
-  const handleConfirmDeleteAgent = useCallback(async () => {
-    if (!pendingDeleteAgent) {
-      return;
-    }
-
-    const deletedAgentId = pendingDeleteAgent.id;
-    await deleteAgent(deletedAgentId);
-    setPendingDeleteAgent(null);
-    if (selectedAgentId === deletedAgentId) {
-      navigate(AppRouteBuilders.contacts(), { replace: true });
-    }
-  }, [deleteAgent, navigate, pendingDeleteAgent, selectedAgentId]);
-
-  const handleRequestDeleteAgent = useCallback(
-    (agentId: string) => {
-      const targetAgent = agents.find((agent) => agent.agent_id === agentId);
-      if (!targetAgent || isMainAgent(targetAgent.agent_id)) {
-        return;
-      }
-      setIsDialogOpen(false);
-      setPendingDeleteAgent({
-        id: agentId,
-        name: targetAgent?.name ?? "该 Agent",
-      });
-    },
-    [agents],
-  );
-
-  useEffect(() => {
-    void loadAgentsFromServer();
-  }, [loadAgentsFromServer]);
-
-  useEffect(() => {
-    if (!selectedAgentId || loading) {
-      return;
-    }
-    if (!regularAgents.some((agent) => agent.agent_id === selectedAgentId)) {
-      navigate(AppRouteBuilders.contacts(), { replace: true });
-    }
-  }, [loading, navigate, regularAgents, selectedAgentId]);
-
-  // 加载中 — 内联 loading，外层布局由路由层提供
-  if (loading && !regularAgents.length) {
-    return (
-      <WorkspacePageFrame contentPaddingClassName="p-0">
-        <WorkspaceLoadingState label="加载成员..." />
-      </WorkspacePageFrame>
-    );
+  if (presentation.content.kind === "loading") {
+    return <ContactsPageContent actions={actions} agents={controller.contactAgents} state={presentation.content} />;
   }
 
   return (
     <>
-      <WorkspacePageFrame contentPaddingClassName="p-0">
-        {selectedAgent ? (
-          <ContactsAgentDetail
-            agent={selectedAgent}
-            onBack={() => navigate(AppRouteBuilders.contacts())}
-            onCreateTeam={handleCreateTeam}
-            onDeleteAgent={handleRequestDeleteAgent}
-            onOpenDirectRoom={handleOpenDirectRoom}
-            onSaveAgentOptions={handleSaveAgentOptions}
-            onValidateAgentName={handleValidateAgentDetailName}
-          />
-        ) : (
-          <ContactsDirectory
-            agents={regularAgents}
-            onCreateAgent={handleOpenCreateAgent}
-            onCreateTeam={handleCreateTeam}
-            onEditAgent={handleOpenEditAgent}
-            onOpenDirectRoom={handleOpenDirectRoom}
-          />
-        )}
-      </WorkspacePageFrame>
+      <ContactsPageContent
+        actions={actions}
+        agents={controller.contactAgents}
+        state={presentation.content}
+      />
 
-      <AgentOptions
-        agentId={editingAgentId ?? undefined}
-        initialOptions={dialogInitialOptions}
-        initialAvatar={editingAgent?.avatar ?? ""}
-        initialDescription={editingAgent?.description ?? ""}
-        initialTitle={dialogInitialTitle}
-        initialVibeTags={editingAgent?.vibe_tags ?? []}
-        isOpen={isDialogOpen}
-        mode={dialogMode}
-        onClose={() => setIsDialogOpen(false)}
-        onDelete={handleRequestDeleteAgent}
-        onSave={handleSaveAgent}
-        onValidateName={handleValidateAgentName}
+      <AgentOptionsDialog
+        onClose={controller.editor.close}
+        onDelete={controller.requestDeleteAgent}
+        onSave={controller.editor.save}
+        onValidateName={controller.editor.validateName}
+        state={controller.editor.dialogState}
       />
 
       <ConfirmDialog
         confirmText="删除成员"
-        isOpen={Boolean(pendingDeleteAgent)}
-        message={`删除「${pendingDeleteAgent?.name ?? "该 Agent"}」后，该成员将不再出现在 Contacts 中。已有历史协作不会自动删除。`}
-        onCancel={() => setPendingDeleteAgent(null)}
+        isOpen={presentation.deleteDialog.isOpen}
+        message={presentation.deleteDialog.message}
+        onCancel={controller.cancelDeleteAgent}
         onConfirm={() => {
-          void handleConfirmDeleteAgent();
+          void navigation.confirmDelete();
         }}
         title="删除成员"
         variant="danger"
       />
     </>
   );
+}
+
+function ContactsPageContent({
+  actions,
+  agents,
+  state,
+}: {
+  actions: ContactsPageActions;
+  agents: ComponentProps<typeof ContactsDirectory>["agents"];
+  state: ContactsPageContentState;
+}) {
+  switch (state.kind) {
+    case "loading":
+      return (
+        <WorkspacePageFrame contentPaddingClassName="p-0">
+          <WorkspaceLoadingState label="加载成员..." />
+        </WorkspacePageFrame>
+      );
+    case "detail":
+      return (
+        <WorkspacePageFrame contentPaddingClassName="p-0">
+          <ContactsAgentDetail
+            agent={state.agent}
+            onBack={actions.onBack}
+            onCreateTeam={actions.onCreateTeam}
+            onDeleteAgent={actions.onDeleteAgent}
+            onOpenDirectRoom={actions.onOpenDirectRoom}
+            onSaveAgentOptions={actions.onSaveAgentOptions}
+            onValidateAgentName={actions.onValidateAgentName}
+          />
+        </WorkspacePageFrame>
+      );
+    case "directory":
+      return (
+        <WorkspacePageFrame contentPaddingClassName="p-0">
+          <ContactsDirectory
+            agents={agents}
+            onCreateAgent={actions.onCreateAgent}
+            onCreateTeam={actions.onCreateTeam}
+            onEditAgent={actions.onEditAgent}
+            onOpenDirectRoom={actions.onOpenDirectRoom}
+          />
+        </WorkspacePageFrame>
+      );
+  }
 }

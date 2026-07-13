@@ -13,7 +13,7 @@ export type StageTransitionIntent =
   | "terminal"
   | "workspace";
 
-export function surface_meta_for_transition(
+export function surfaceMetaForTransition(
   event: NexusOperationEvent,
   intent: StageTransitionIntent,
 ): SurfaceMeta {
@@ -41,7 +41,7 @@ export function surface_meta_for_transition(
   return SURFACE_META.summary;
 }
 
-export function build_stage_transition_style(intent: StageTransitionIntent): CSSProperties {
+export function buildStageTransitionStyle(intent: StageTransitionIntent): CSSProperties {
   const map: Record<StageTransitionIntent, Record<string, string>> = {
     browser: {
       "--operation-scene-enter-x": "28px",

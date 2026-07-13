@@ -4,10 +4,6 @@
   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
   xmlns:webview="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
   Title="Nexus"
-  Width="1280"
-  Height="820"
-  MinWidth="1120"
-  MinHeight="640"
   Background="#F0F1EF"
   WindowStartupLocation="CenterScreen">
   <Grid x:Name="WebViewContainer" Background="Transparent">

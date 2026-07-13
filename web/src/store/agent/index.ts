@@ -3,7 +3,7 @@
  *
  * 使用 Zustand 管理 Agent 状态
  *
- * [INPUT]: 依赖 @/lib/api/agent-manage-api 的 Agent API
+ * [INPUT]: 依赖 @/lib/api/agent/agent-api 的 Agent API
  * [OUTPUT]: 对外提供 useAgentStore
  * [POS]: store 模块的 Agent 管理，被侧边栏和 Agent 设置页消费
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -23,7 +23,7 @@ import {
   createAgentApi,
   updateAgentApi,
   deleteAgentApi,
-} from "@/lib/api/agent-manage-api";
+} from "@/lib/api/agent/agent-api";
 
 export const AGENT_LIST_UPDATED_EVENT_NAME = "nexus:agent-list-updated";
 

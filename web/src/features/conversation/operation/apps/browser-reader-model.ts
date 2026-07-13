@@ -5,11 +5,11 @@ export interface BrowserReaderParagraph {
   text: string;
 }
 
-export function is_web_fetch_event(event: NexusOperationEvent): boolean {
-  return event.tool_name === "WebFetch" || Boolean(read_browser_input_string(event, ["url", "uri", "link"]));
+export function isWebFetchEvent(event: NexusOperationEvent): boolean {
+  return event.tool_name === "WebFetch" || Boolean(readBrowserInputString(event, ["url", "uri", "link"]));
 }
 
-export function build_browser_reader_paragraphs({
+export function buildBrowserReaderParagraphs({
   fallback,
   lines,
   markers,
@@ -33,7 +33,7 @@ export function build_browser_reader_paragraphs({
   }));
 }
 
-export function read_browser_input_string(event: NexusOperationEvent, keys: string[]): string | null {
+export function readBrowserInputString(event: NexusOperationEvent, keys: string[]): string | null {
   const input = event.input_preview;
   if (!input) {
     return null;
@@ -47,7 +47,7 @@ export function read_browser_input_string(event: NexusOperationEvent, keys: stri
   return null;
 }
 
-export function format_browser_origin(value: string): string {
+export function formatBrowserOrigin(value: string): string {
   try {
     return new URL(value).hostname;
   } catch {
@@ -55,7 +55,7 @@ export function format_browser_origin(value: string): string {
   }
 }
 
-export function looks_like_url(value: string): boolean {
+export function looksLikeUrl(value: string): boolean {
   return /^https?:\/\//i.test(value);
 }
 

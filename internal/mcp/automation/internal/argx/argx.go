@@ -106,16 +106,3 @@ func FirstNonEmpty(values ...string) string {
 	}
 	return ""
 }
-
-// HasObject 判断 args[key] 是否是 JSON object。
-func HasObject(args map[string]any, key string) bool {
-	if args == nil {
-		return false
-	}
-	v, ok := args[key]
-	if !ok {
-		return false
-	}
-	_, isMap := v.(map[string]any)
-	return isMap
-}

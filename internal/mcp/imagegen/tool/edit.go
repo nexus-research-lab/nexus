@@ -20,7 +20,6 @@ func edit(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 		Name:        "edit_image",
 		Description: editDescription,
 		SearchHint:  searchHintEditImage,
-		AlwaysLoad:  true,
 		InputSchema: editSchema(),
 		Annotations: &sdktool.ToolAnnotations{OpenWorld: true},
 		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {

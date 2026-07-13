@@ -3,7 +3,7 @@ import type {
   PermissionDecision,
   PermissionInteractionMode,
   PermissionRiskLevel,
-} from "@/types/conversation/permission";
+} from "@/types/conversation/interaction/permission";
 
 import type { OperationPhase } from "./operation-types";
 

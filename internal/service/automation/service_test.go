@@ -255,8 +255,8 @@ func TestBuildHeartbeatInstructionFallsBackToEventTypeWhenTextMissing(t *testing
 		[]automationdomain.SystemEvent{
 			{
 				EventID:    "evt-1",
-				EventType:  "cron.trigger",
-				SourceType: "cron",
+				EventType:  "scheduled_task.trigger",
+				SourceType: "scheduled_task",
 				SourceID:   "agent-1",
 				Payload:    string(payload),
 			},
@@ -270,7 +270,7 @@ func TestBuildHeartbeatInstructionFallsBackToEventTypeWhenTextMissing(t *testing
 	if strings.Contains(instruction, "do not read this") {
 		t.Fatalf("不应读取 instruction 字段: %s", instruction)
 	}
-	if !strings.Contains(instruction, "cron.trigger") {
+	if !strings.Contains(instruction, "scheduled_task.trigger") {
 		t.Fatalf("缺少 event_type 回退: %s", instruction)
 	}
 }
@@ -571,8 +571,8 @@ func TestHeartbeatDispatchClaimsEventsByPayloadAgentID(t *testing.T) {
 	if err := service.repository.InsertSystemEvent(
 		context.Background(),
 		"evt_payload_agent",
-		"cron.trigger",
-		"cron",
+		"scheduled_task.trigger",
+		"scheduled_task",
 		"job-unknown",
 		map[string]any{
 			"agent_id": "agent-1",

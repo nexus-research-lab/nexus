@@ -81,44 +81,69 @@ func Contains(approved map[string]struct{}, toolName string) bool {
 
 // MatchesItem 处理 mcp__server__tool / server.tool / server/tool 这类包装名。
 func MatchesItem(toolName string, approved string) bool {
-	toolName = strings.TrimSpace(toolName)
-	approved = strings.TrimSpace(approved)
-	if toolName == "" || approved == "" {
+	pair := toolNamePair{
+		actual:   strings.TrimSpace(toolName),
+		approved: strings.TrimSpace(approved),
+	}
+	if pair.actual == "" || pair.approved == "" {
 		return false
 	}
-	if strings.HasSuffix(toolName, "__"+approved) ||
-		strings.HasSuffix(toolName, "."+approved) ||
-		strings.HasSuffix(toolName, "/"+approved) {
-		return true
+	for _, matcher := range toolNameMatchers {
+		if matcher(pair) {
+			return true
+		}
 	}
-	if canonicalToolName(toolName) == canonicalToolName(approved) {
-		return true
+	return false
+}
+
+type toolNamePair struct {
+	actual   string
+	approved string
+}
+
+type toolNameMatcher func(toolNamePair) bool
+
+var toolNameMatchers = []toolNameMatcher{
+	matchesWrappedToolName,
+	matchesCanonicalToolName,
+	matchesCanonicalToolLeaf,
+	matchesKnownToolAlias,
+	matchesManagedToolFamily,
+}
+
+var managedToolFamilyPrefixes = map[string][]string{
+	"nexus_automation": {"mcp__nexus_automation__", "nexus_automation__", "nexus_automation."},
+	"nexus_goal":       {"mcp__nexus_goal__", "nexus_goal__", "nexus_goal."},
+	"nexus_room":       {"mcp__nexus_room__", "nexus_room__", "nexus_room."},
+	"nexus_imagegen":   {"mcp__nexus_imagegen__", "nexus_imagegen__", "nexus_imagegen."},
+}
+
+func matchesWrappedToolName(pair toolNamePair) bool {
+	for _, separator := range []string{"__", ".", "/"} {
+		if strings.HasSuffix(pair.actual, separator+pair.approved) {
+			return true
+		}
 	}
-	if canonicalToolName(toolNameLeaf(toolName)) == canonicalToolName(approved) {
-		return true
-	}
-	if matchesKnownAlias(toolName, approved) {
-		return true
-	}
-	if approved == "nexus_automation" {
-		return strings.HasPrefix(toolName, "mcp__nexus_automation__") ||
-			strings.HasPrefix(toolName, "nexus_automation__") ||
-			strings.HasPrefix(toolName, "nexus_automation.")
-	}
-	if approved == "nexus_goal" {
-		return strings.HasPrefix(toolName, "mcp__nexus_goal__") ||
-			strings.HasPrefix(toolName, "nexus_goal__") ||
-			strings.HasPrefix(toolName, "nexus_goal.")
-	}
-	if approved == "nexus_room" {
-		return strings.HasPrefix(toolName, "mcp__nexus_room__") ||
-			strings.HasPrefix(toolName, "nexus_room__") ||
-			strings.HasPrefix(toolName, "nexus_room.")
-	}
-	if approved == "nexus_imagegen" {
-		return strings.HasPrefix(toolName, "mcp__nexus_imagegen__") ||
-			strings.HasPrefix(toolName, "nexus_imagegen__") ||
-			strings.HasPrefix(toolName, "nexus_imagegen.")
+	return false
+}
+
+func matchesCanonicalToolName(pair toolNamePair) bool {
+	return canonicalToolName(pair.actual) == canonicalToolName(pair.approved)
+}
+
+func matchesCanonicalToolLeaf(pair toolNamePair) bool {
+	return canonicalToolName(toolNameLeaf(pair.actual)) == canonicalToolName(pair.approved)
+}
+
+func matchesKnownToolAlias(pair toolNamePair) bool {
+	return matchesKnownAlias(pair.actual, pair.approved)
+}
+
+func matchesManagedToolFamily(pair toolNamePair) bool {
+	for _, prefix := range managedToolFamilyPrefixes[pair.approved] {
+		if strings.HasPrefix(pair.actual, prefix) {
+			return true
+		}
 	}
 	return false
 }

@@ -79,73 +79,115 @@ func (s *ExecutionSink) SendEvent(_ context.Context, event protocol.EventMessage
 }
 
 func (s *ExecutionSink) WaitForRound(ctx context.Context, roundID string) ExecutionObservation {
-	normalizedRoundID := strings.TrimSpace(roundID)
-	observation := ExecutionObservation{Status: types.RunStatusRunning}
+	observer := roundObserver{
+		roundID: strings.TrimSpace(roundID),
+		result:  ExecutionObservation{Status: types.RunStatusRunning},
+	}
 	for {
 		select {
 		case <-ctx.Done():
-			message := ctx.Err().Error()
-			observation.Status = types.RunStatusCancelled
-			observation.ErrorMessage = &message
-			return observation
+			return observer.cancel(ctx.Err())
 		case event := <-s.events:
-			switch event.EventType {
-			case protocol.EventTypeMessage:
-				payload := event.Data
-				if strings.TrimSpace(anyString(payload["round_id"])) != normalizedRoundID {
-					continue
-				}
-				observation.MessageCount++
-				if sessionID := strings.TrimSpace(anyString(payload["session_id"])); sessionID != "" {
-					observation.SessionID = &sessionID
-				}
-				role := strings.TrimSpace(anyString(payload["role"]))
-				if role == "assistant" {
-					if text := strings.TrimSpace(extractTextContent(payload["content"])); text != "" {
-						observation.AssistantText = text
-					}
-					if summary, ok := payload["result_summary"].(map[string]any); ok {
-						applyResultPayload(&observation, summary)
-					}
-				} else if role == "result" {
-					applyResultPayload(&observation, payload)
-				}
-			case protocol.EventTypeError:
-				message := strings.TrimSpace(anyString(event.Data["message"]))
-				if message != "" {
-					observation.ErrorMessage = &message
-				}
-				observation.Status = types.RunStatusFailed
-				return observation
-			case protocol.EventTypeRoundStatus:
-				payload := event.Data
-				if strings.TrimSpace(anyString(payload["round_id"])) != normalizedRoundID {
-					continue
-				}
-				if !anyBool(payload["is_terminal"]) {
-					continue
-				}
-				status := strings.TrimSpace(anyString(payload["status"]))
-				switch status {
-				case "finished":
-					if observation.Status == types.RunStatusRunning {
-						observation.Status = types.RunStatusSucceeded
-					}
-				case "interrupted":
-					observation.Status = types.RunStatusCancelled
-				default:
-					observation.Status = types.RunStatusFailed
-					if observation.ErrorMessage == nil {
-						message := strings.TrimSpace(anyString(payload["result_subtype"]))
-						if message != "" {
-							observation.ErrorMessage = &message
-						}
-					}
-				}
-				return observation
+			if observer.observe(event) {
+				return observer.result
 			}
 		}
 	}
+}
+
+type roundObserver struct {
+	roundID string
+	result  ExecutionObservation
+}
+
+func (o *roundObserver) observe(event protocol.EventMessage) bool {
+	switch event.EventType {
+	case protocol.EventTypeMessage:
+		o.observeMessage(event.Data)
+		return false
+	case protocol.EventTypeError:
+		o.observeError(event.Data)
+		return true
+	case protocol.EventTypeRoundStatus:
+		return o.observeRoundStatus(event.Data)
+	default:
+		return false
+	}
+}
+
+func (o *roundObserver) observeMessage(payload map[string]any) {
+	if !o.matchesRound(payload) {
+		return
+	}
+	o.result.MessageCount++
+	if sessionID := strings.TrimSpace(anyString(payload["session_id"])); sessionID != "" {
+		o.result.SessionID = &sessionID
+	}
+	switch strings.TrimSpace(anyString(payload["role"])) {
+	case "assistant":
+		o.observeAssistantMessage(payload)
+	case "result":
+		applyResultPayload(&o.result, payload)
+	}
+}
+
+func (o *roundObserver) observeAssistantMessage(payload map[string]any) {
+	if text := strings.TrimSpace(extractTextContent(payload["content"])); text != "" {
+		o.result.AssistantText = text
+	}
+	if summary, ok := payload["result_summary"].(map[string]any); ok {
+		applyResultPayload(&o.result, summary)
+	}
+}
+
+func (o *roundObserver) observeError(payload map[string]any) {
+	if message := strings.TrimSpace(anyString(payload["message"])); message != "" {
+		o.result.ErrorMessage = &message
+	}
+	o.result.Status = types.RunStatusFailed
+}
+
+func (o *roundObserver) observeRoundStatus(payload map[string]any) bool {
+	if !o.matchesRound(payload) || !anyBool(payload["is_terminal"]) {
+		return false
+	}
+	status := strings.TrimSpace(anyString(payload["status"]))
+	if status == "finished" && o.result.Status != types.RunStatusRunning {
+		return true
+	}
+	runStatus, known := roundTerminalRunStatuses[status]
+	if known {
+		o.result.Status = runStatus
+		return true
+	}
+	o.result.Status = types.RunStatusFailed
+	o.captureTerminalError(payload)
+	return true
+}
+
+var roundTerminalRunStatuses = map[string]string{
+	"finished":    types.RunStatusSucceeded,
+	"interrupted": types.RunStatusCancelled,
+}
+
+func (o *roundObserver) captureTerminalError(payload map[string]any) {
+	if o.result.ErrorMessage != nil {
+		return
+	}
+	if message := strings.TrimSpace(anyString(payload["result_subtype"])); message != "" {
+		o.result.ErrorMessage = &message
+	}
+}
+
+func (o *roundObserver) matchesRound(payload map[string]any) bool {
+	return strings.TrimSpace(anyString(payload["round_id"])) == o.roundID
+}
+
+func (o *roundObserver) cancel(err error) ExecutionObservation {
+	message := err.Error()
+	o.result.Status = types.RunStatusCancelled
+	o.result.ErrorMessage = &message
+	return o.result
 }
 
 func applyResultPayload(observation *ExecutionObservation, payload map[string]any) {

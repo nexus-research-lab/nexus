@@ -3,7 +3,7 @@ import type {
   NexusOperationSnapshot,
 } from "./operation-types";
 
-export function collect_round_events(
+export function collectRoundEvents(
   event: NexusOperationEvent,
   snapshot: NexusOperationSnapshot | null,
 ): NexusOperationEvent[] {
@@ -19,7 +19,7 @@ export function collect_round_events(
   return sorted.slice(0, active_index + 1);
 }
 
-export function normalize_window_id(value: string): string {
+export function normalizeWindowId(value: string): string {
   return value.replace(/[^a-zA-Z0-9._-]+/g, "-").slice(-80);
 }
 
@@ -30,15 +30,15 @@ export function basename(value?: string | null): string {
   return value.split("/").filter(Boolean).at(-1) ?? value;
 }
 
-export function looks_like_url(value: string): boolean {
+export function looksLikeUrl(value: string): boolean {
   return /^https?:\/\//i.test(value);
 }
 
-export function preview_lines(value: unknown, max_lines: number): string[] {
+export function previewLines(value: unknown, max_lines: number): string[] {
   if (value == null) {
     return [];
   }
-  const text = typeof value === "string" ? value : safe_json_stringify(value);
+  const text = typeof value === "string" ? value : safeJsonStringify(value);
   return text
     .split(/\r?\n/)
     .map((line) => line.trimEnd())
@@ -46,7 +46,7 @@ export function preview_lines(value: unknown, max_lines: number): string[] {
     .slice(0, max_lines);
 }
 
-export function read_input_string(
+export function readInputString(
   input: Record<string, unknown> | null | undefined,
   keys: string[],
 ): string | null {
@@ -62,7 +62,7 @@ export function read_input_string(
   return null;
 }
 
-function safe_json_stringify(value: unknown): string {
+function safeJsonStringify(value: unknown): string {
   try {
     return JSON.stringify(value, null, 2);
   } catch {

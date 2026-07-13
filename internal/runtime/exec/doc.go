@@ -3,7 +3,7 @@
 // L2 | 父级: internal/runtime（L1 见 AGENTS.md）
 //
 // 成员清单：
-//   - round.go：ExecuteRound 主链与轮次装配。
+//   - round.go：ExecuteRound 阶段编排与单轮接收状态。
 //   - model.go：RoundExecutionRequest/Result、RoundMapper、RoundMapResult、ErrRoundInterrupted。
 //   - stream_diagnostics.go / stream_error.go：流停止诊断、流关闭与空闲超时错误。
 //   - terminal.go：终态判定与终态结果构造。

@@ -1,24 +1,21 @@
 import type { WorkspaceActivityItem } from "@/types/app/workspace-live";
 import type {
-  Message,
   SystemEventContent,
   TaskProgressContent,
   ToolResultContent,
   ToolUseContent,
-} from "@/types/conversation/message";
-import type {
-  PendingPermission,
-  PendingPermissionMatchResult,
-} from "@/types/conversation/permission";
+} from "@/types/conversation/message/content";
+import type { Message } from "@/types/conversation/message/entity";
+import type { PendingPermission } from "@/types/conversation/interaction/permission";
 
-import type { OperationPhase } from "./operation-types";
+import type { PendingPermissionMatchResult } from "./operation-pending-permissions";
 import type { OperationRuntimeEvent } from "./operation-runtime-types";
 import {
-  redact_projected_value,
-  redact_projected_terminal_value,
-  summarize_projected_value,
+  redactProjectedValue,
+  redactProjectedTerminalValue,
+  summarizeProjectedValue,
 } from "./operation-projection-preview";
-import { project_result_summary_event } from "./operation-summary-events";
+import { projectResultSummaryEvent } from "./operation-summary-events";
 
 const MAX_RUNTIME_EVENTS = 80;
 
@@ -31,7 +28,7 @@ export interface BuildOperationMessageRuntimeEventsParams {
   tool_results: Map<string, ToolResultContent>;
 }
 
-export function build_operation_message_runtime_events({
+export function buildOperationMessageRuntimeEvents({
   agent_id,
   live_round_ids,
   messages,
@@ -80,7 +77,7 @@ export function build_operation_message_runtime_events({
             task_id: block.task_id,
             last_tool_name: block.last_tool_name ?? null,
           },
-          delta: redact_projected_value(block),
+          delta: redactProjectedValue(block),
         });
         continue;
       }
@@ -97,7 +94,7 @@ export function build_operation_message_runtime_events({
       }
     }
 
-    const summary_event = project_result_summary_event({
+    const summary_event = projectResultSummaryEvent({
       message,
       projected_messages: messages,
     });
@@ -132,10 +129,10 @@ export function build_operation_message_runtime_events({
     }));
   }
 
-  return sort_operation_runtime_events(runtime_events);
+  return sortOperationRuntimeEvents(runtime_events);
 }
 
-export function build_workspace_runtime_event({
+export function buildWorkspaceRuntimeEvent({
   round_id,
   session_key,
   workspace_event,
@@ -178,7 +175,7 @@ export function build_workspace_runtime_event({
   };
 }
 
-export function sort_operation_runtime_events(
+export function sortOperationRuntimeEvents(
   runtime_events: OperationRuntimeEvent[],
 ): OperationRuntimeEvent[] {
   return runtime_events
@@ -203,7 +200,7 @@ function build_tool_runtime_events({
   session_key: string | null;
   is_live_round: boolean;
 }): OperationRuntimeEvent[] {
-  const input = redact_projected_value(as_record(block.input)) as Record<string, unknown>;
+  const input = redactProjectedValue(as_record(block.input)) as Record<string, unknown>;
   const durationMs = readProgressDurationMs(progress);
   const runtime_events: OperationRuntimeEvent[] = [{
     id: `runtime:${message.message_id}:${block.id}:start`,
@@ -336,7 +333,7 @@ function build_permission_runtime_event({
     tool_name: permission.tool_name,
     phase: "waiting",
     timestamp: timestamp ?? resolve_permission_timestamp(permission),
-    input: redact_projected_value(permission.tool_input) as Record<string, unknown>,
+    input: redactProjectedValue(permission.tool_input) as Record<string, unknown>,
     delta: {
       summary: permission.summary ?? null,
       risk_label: permission.risk_label ?? null,
@@ -388,8 +385,8 @@ function readProgressDurationMs(progress?: TaskProgressContent): number | null {
 function build_runtime_result(result: ToolResultContent, toolName: string): unknown {
   const isTerminal = toolName === "Bash" || toolName === "KillShell";
   const redacted_content = isTerminal
-    ? redact_projected_terminal_value(result.content)
-    : redact_projected_value(result.content);
+    ? redactProjectedTerminalValue(result.content)
+    : redactProjectedValue(result.content);
   if (isTerminal) {
     return {
       content: redacted_content,
@@ -410,7 +407,7 @@ function build_runtime_result(result: ToolResultContent, toolName: string): unkn
   return {
     content: redacted_content,
     is_error: false,
-    summary: summarize_projected_value(result.content),
+    summary: summarizeProjectedValue(result.content),
   };
 }
 

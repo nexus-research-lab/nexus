@@ -1,6 +1,6 @@
 import type { KeyboardEventHandler, ReactNode } from "react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 
 import type { NexusOperationEvent } from "../operation-types";
 import type { StageNarrativeState } from "./operation-stage-model";
@@ -9,12 +9,12 @@ export function DynamicStageFrame({
   event,
   narrative,
   children,
-  on_key_down_capture,
+  onKeyDownCapture,
 }: {
   event: NexusOperationEvent;
   narrative: StageNarrativeState;
   children: ReactNode;
-  on_key_down_capture?: KeyboardEventHandler<HTMLDivElement>;
+  onKeyDownCapture?: KeyboardEventHandler<HTMLDivElement>;
 }) {
   return (
     <div
@@ -24,8 +24,8 @@ export function DynamicStageFrame({
         `operation-stage-narrative-${narrative.phase}`,
       )}
       data-stage-experience-phase={narrative.phase}
-      onKeyDownCapture={on_key_down_capture}
-      tabIndex={0}
+      onKeyDownCapture={onKeyDownCapture}
+      role="application"
     >
       <div className="operation-desktop-wallpaper pointer-events-none absolute inset-0" data-surface={event.surface} />
       <div className="operation-desktop-shadow" />

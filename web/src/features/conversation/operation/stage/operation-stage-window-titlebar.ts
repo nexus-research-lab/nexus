@@ -11,7 +11,7 @@ export interface StageWindowTitlebarState {
   zoom_title: string;
 }
 
-export function build_stage_window_titlebar_state({
+export function buildStageWindowTitlebarState({
   app_label,
   focused,
   maximized,

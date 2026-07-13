@@ -11,6 +11,23 @@ var (
 	ErrGoalVersionStale = errors.New("goal version stale")
 )
 
+var expectedMutationErrors = []error{
+	ErrGoalDisabled,
+	ErrGoalNotFound,
+	ErrGoalInvalidState,
+	ErrGoalVersionStale,
+}
+
+// IsExpectedMutationError 识别并发推进和功能关闭产生的可预期结果，调用方无需重复维护哨兵集合。
+func IsExpectedMutationError(err error) bool {
+	for _, target := range expectedMutationErrors {
+		if errors.Is(err, target) {
+			return true
+		}
+	}
+	return false
+}
+
 type goalInvalidInputError struct {
 	message string
 }

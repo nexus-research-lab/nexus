@@ -31,10 +31,10 @@ const FLUSH_CONTENT_WINDOW_KINDS = new Set<StageWindowKind>([
   "word_reader",
 ]);
 
-export function is_stage_desktop_window_kind(kind: StageWindowKind): boolean {
+export function isStageDesktopWindowKind(kind: StageWindowKind): boolean {
   return DESKTOP_WINDOW_KINDS.has(kind);
 }
 
-export function window_content_mode_for_kind(kind: StageWindowKind): "flush" | "inset" {
+export function windowContentModeForKind(kind: StageWindowKind): "flush" | "inset" {
   return FLUSH_CONTENT_WINDOW_KINDS.has(kind) ? "flush" : "inset";
 }

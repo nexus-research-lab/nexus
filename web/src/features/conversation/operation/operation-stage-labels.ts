@@ -1,6 +1,6 @@
 import type { NexusOperationEvent } from "./operation-types";
 
-export function is_low_signal_stage_label(value: string | null | undefined): value is string {
+export function isLowSignalStageLabel(value: string | null | undefined): value is string {
   if (!value) {
     return true;
   }
@@ -16,7 +16,7 @@ export function is_low_signal_stage_label(value: string | null | undefined): val
   );
 }
 
-export function fallback_stage_event_object_label(
+export function fallbackStageEventObjectLabel(
   event: NexusOperationEvent | null,
   surface_label?: string,
 ): string {
@@ -29,7 +29,7 @@ export function fallback_stage_event_object_label(
   return event.tool_name ?? `${surface_label ?? "Nexus"}窗口`;
 }
 
-export function fallback_stage_event_target_label(
+export function fallbackStageEventTargetLabel(
   event: NexusOperationEvent,
   surface_label?: string,
 ): string {
@@ -39,24 +39,24 @@ export function fallback_stage_event_target_label(
   return "等待应用输入";
 }
 
-export function display_stage_event_title(
+export function displayStageEventTitle(
   event: NexusOperationEvent,
   surface_label?: string,
 ): string {
   const candidate = event.tool_name ?? event.title;
-  if (event.kind === "round_summary" || is_low_signal_stage_label(candidate)) {
-    return fallback_stage_event_object_label(event, surface_label);
+  if (event.kind === "round_summary" || isLowSignalStageLabel(candidate)) {
+    return fallbackStageEventObjectLabel(event, surface_label);
   }
   return candidate;
 }
 
-export function display_stage_event_target(
+export function displayStageEventTarget(
   event: NexusOperationEvent,
   surface_label?: string,
 ): string {
   const candidate = event.target ?? event.summary ?? event.title;
-  if (event.kind === "round_summary" || is_low_signal_stage_label(candidate)) {
-    return fallback_stage_event_target_label(event, surface_label);
+  if (event.kind === "round_summary" || isLowSignalStageLabel(candidate)) {
+    return fallbackStageEventTargetLabel(event, surface_label);
   }
   return candidate;
 }

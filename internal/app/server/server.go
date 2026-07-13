@@ -20,7 +20,7 @@ type Server struct {
 	handlers handlerSet
 }
 
-// New 创建 HTTP server。
+// New 使用默认日志配置创建 HTTP server。
 func New(cfg config.Config) (*Server, error) {
 	return NewWithLogger(cfg, nil)
 }

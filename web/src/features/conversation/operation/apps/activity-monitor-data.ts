@@ -1,6 +1,6 @@
 import type { OperationPhase } from "../operation-types";
 
-export function activity_cpu_load(running_count: number, finished_count: number): {
+export function activityCpuLoad(running_count: number, finished_count: number): {
   system: number;
   total: number;
   user: number;
@@ -14,7 +14,7 @@ export function activity_cpu_load(running_count: number, finished_count: number)
   };
 }
 
-export function activity_pid_label(id: string): string {
+export function activityPidLabel(id: string): string {
   let hash = 0;
   for (let index = 0; index < id.length; index += 1) {
     hash = (hash * 33 + id.charCodeAt(index)) >>> 0;
@@ -22,7 +22,7 @@ export function activity_pid_label(id: string): string {
   return String(120 + (hash % 8800));
 }
 
-export function activity_cpu_label(phase: OperationPhase, index: number): string {
+export function activityCpuLabel(phase: OperationPhase, index: number): string {
   if (phase === "running") {
     return `${(12 + index * 3.7).toFixed(1)}`;
   }

@@ -8,19 +8,6 @@ type SDKMessageLogOptions struct {
 	IncludeSnapshotData bool
 }
 
-// DefaultSDKMessageLogOptions 返回兼容历史行为的 SDK 消息日志选项。
-func DefaultSDKMessageLogOptions() SDKMessageLogOptions {
-	return SDKMessageLogOptions{
-		IncludeStreamEvent:  true,
-		IncludeSnapshotData: true,
-	}
-}
-
-// BuildSDKMessageLogFields 生成 SDK 消息调试日志字段。
-func BuildSDKMessageLogFields(message sdkprotocol.ReceivedMessage) []any {
-	return BuildSDKMessageLogFieldsWithOptions(message, DefaultSDKMessageLogOptions())
-}
-
 // BuildSDKMessageLogFieldsWithOptions 按选项生成 SDK 消息调试日志字段。
 func BuildSDKMessageLogFieldsWithOptions(
 	message sdkprotocol.ReceivedMessage,

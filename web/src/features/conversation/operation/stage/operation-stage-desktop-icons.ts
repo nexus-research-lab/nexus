@@ -12,7 +12,7 @@ export interface StageDesktopIconItem {
   window: StageWindowState;
 }
 
-export function build_stage_desktop_icon_items(windows: StageWindowState[]): StageDesktopIconItem[] {
+export function buildStageDesktopIconItems(windows: StageWindowState[]): StageDesktopIconItem[] {
   return windows
     .filter(is_desktop_artifact_window)
     .slice(0, 5)

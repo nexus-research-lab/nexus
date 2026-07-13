@@ -11,7 +11,6 @@ func (s *Server) mountRoutes() {
 	s.mountRoomRoutes()
 	s.mountCapabilityRoutes()
 	s.mountGoalRoutes()
-	s.mountOperationRoutes()
 	s.mountPlaceholderRoutes()
 	s.mountWebAppRoutes()
 }
@@ -86,6 +85,7 @@ func (s *Server) mountAgentRoutes() {
 	s.router.Get(s.prefixPath("/agents/{agent_id}/workspace/files"), s.handlers.workspace.HandleWorkspaceFiles)
 	s.router.Get(s.prefixPath("/agents/{agent_id}/workspace/file/raw"), s.handlers.workspace.HandleRawWorkspaceFile)
 	s.router.Get(s.prefixPath("/agents/{agent_id}/workspace/file/meta"), s.handlers.workspace.HandleWorkspaceFileMeta)
+	s.router.Get(s.prefixPath("/agents/{agent_id}/workspace/memory"), s.handlers.workspace.HandleWorkspaceMemory)
 	s.router.Get(s.prefixPath("/agents/{agent_id}/workspace/file"), s.handlers.workspace.HandleWorkspaceFile)
 	s.router.Put(s.prefixPath("/agents/{agent_id}/workspace/file"), s.handlers.workspace.HandleUpdateWorkspaceFile)
 	s.router.Post(s.prefixPath("/agents/{agent_id}/workspace/upload"), s.handlers.workspace.HandleUploadWorkspaceFile)
@@ -94,32 +94,9 @@ func (s *Server) mountAgentRoutes() {
 	s.router.Post(s.prefixPath("/agents/{agent_id}/workspace/entry"), s.handlers.workspace.HandleCreateWorkspaceEntry)
 	s.router.Patch(s.prefixPath("/agents/{agent_id}/workspace/entry"), s.handlers.workspace.HandleRenameWorkspaceEntry)
 	s.router.Delete(s.prefixPath("/agents/{agent_id}/workspace/entry"), s.handlers.workspace.HandleDeleteWorkspaceEntry)
-	s.router.Get(s.prefixPath("/agents/{agent_id}/memory/items"), s.handlers.memory.HandleListMemory)
-	s.router.Get(s.prefixPath("/agents/{agent_id}/memory/search"), s.handlers.memory.HandleSearchMemory)
-	s.router.Post(s.prefixPath("/agents/{agent_id}/memory/recall"), s.handlers.memory.HandleRecallMemory)
-	s.router.Post(s.prefixPath("/agents/{agent_id}/memory/items"), s.handlers.memory.HandleAddMemory)
-	s.router.Patch(s.prefixPath("/agents/{agent_id}/memory/items/{entry_id}"), s.handlers.memory.HandleUpdateMemory)
-	s.router.Delete(s.prefixPath("/agents/{agent_id}/memory/items/{entry_id}"), s.handlers.memory.HandleDeleteMemory)
-	s.router.Post(s.prefixPath("/agents/{agent_id}/memory/items/{entry_id}/promote"), s.handlers.memory.HandlePromoteMemory)
-	s.router.Post(s.prefixPath("/agents/{agent_id}/memory/items/{entry_id}/ignore"), s.handlers.memory.HandleIgnoreMemory)
-	s.router.Get(s.prefixPath("/agents/{agent_id}/memory/stats"), s.handlers.memory.HandleMemoryStats)
-	s.router.Post(s.prefixPath("/agents/{agent_id}/memory/cleanup"), s.handlers.memory.HandleCleanupMemory)
-	s.router.Get(s.prefixPath("/agents/{agent_id}/memory/session-summary"), s.handlers.memory.HandleMemorySessionSummary)
 	s.router.Get(s.prefixPath("/agents/{agent_id}/skills"), s.handlers.skill.HandleAgentSkills)
 	s.router.Post(s.prefixPath("/agents/{agent_id}/skills"), s.handlers.skill.HandleInstallAgentSkill)
 	s.router.Delete(s.prefixPath("/agents/{agent_id}/skills/{skill_name}"), s.handlers.skill.HandleUninstallAgentSkill)
-
-	s.router.Get(s.prefixPath("/memory/items"), s.handlers.memory.HandleListMemory)
-	s.router.Get(s.prefixPath("/memory/search"), s.handlers.memory.HandleSearchMemory)
-	s.router.Post(s.prefixPath("/memory/recall"), s.handlers.memory.HandleRecallMemory)
-	s.router.Post(s.prefixPath("/memory/items"), s.handlers.memory.HandleAddMemory)
-	s.router.Patch(s.prefixPath("/memory/items/{entry_id}"), s.handlers.memory.HandleUpdateMemory)
-	s.router.Delete(s.prefixPath("/memory/items/{entry_id}"), s.handlers.memory.HandleDeleteMemory)
-	s.router.Post(s.prefixPath("/memory/items/{entry_id}/promote"), s.handlers.memory.HandlePromoteMemory)
-	s.router.Post(s.prefixPath("/memory/items/{entry_id}/ignore"), s.handlers.memory.HandleIgnoreMemory)
-	s.router.Get(s.prefixPath("/memory/stats"), s.handlers.memory.HandleMemoryStats)
-	s.router.Post(s.prefixPath("/memory/cleanup"), s.handlers.memory.HandleCleanupMemory)
-	s.router.Get(s.prefixPath("/memory/session-summary"), s.handlers.memory.HandleMemorySessionSummary)
 
 	s.router.Get(s.prefixPath("/sessions"), s.handlers.agent.HandleListSessions)
 	s.router.Post(s.prefixPath("/sessions"), s.handlers.agent.HandleCreateSession)
@@ -261,12 +238,6 @@ func (s *Server) mountGoalRoutes() {
 	s.router.Post(s.prefixPath("/app-server/thread/goal/set"), s.handlers.goal.HandleThreadGoalSet)
 	s.router.Post(s.prefixPath("/app-server/thread/goal/get"), s.handlers.goal.HandleThreadGoalGet)
 	s.router.Post(s.prefixPath("/app-server/thread/goal/clear"), s.handlers.goal.HandleThreadGoalClear)
-}
-
-// mountOperationRoutes 挂载操作舞台相关路由。
-func (s *Server) mountOperationRoutes() {
-	s.router.Get(s.prefixPath("/operation/stage/snapshot"), s.handlers.operation.HandleGetStageSnapshot)
-	s.router.Put(s.prefixPath("/operation/stage/snapshot"), s.handlers.operation.HandleSaveStageSnapshot)
 }
 
 // mountPlaceholderRoutes 挂载保留占位路由。

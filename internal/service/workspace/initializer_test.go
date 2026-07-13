@@ -78,13 +78,12 @@ func TestEnsureInitializedWritesPromptLayerTemplates(t *testing.T) {
 	for fileName, expected := range map[string]string{
 		"AGENTS.md": "Follow the injected Agent Identity, Agent Profile",
 		"USER.md":   "replace this entire file with a configured profile",
-		"MEMORY.md": "Long-Term Memory",
 		"SOUL.md":   "## Emotion",
 		"TOOLS.md":  "## Tool Notes",
 	} {
 		assertWorkspaceFileContains(t, root, fileName, expected)
 	}
-	for _, fileName := range []string{"RUNBOOK.md"} {
+	for _, fileName := range []string{"MEMORY.md", "RUNBOOK.md"} {
 		if _, err := os.Stat(filepath.Join(root, fileName)); !os.IsNotExist(err) {
 			t.Fatalf("普通 agent 不应默认生成 %s: %v", fileName, err)
 		}
@@ -120,8 +119,7 @@ func TestEnsureInitializedWritesPromptLayerTemplates(t *testing.T) {
 	}
 	assertWorkspaceFileContains(t, mainRoot, "USER.md", "setup_status: unconfigured")
 	assertWorkspaceFileContains(t, mainRoot, "USER.md", "Replace this template instead of appending below it")
-	assertWorkspaceFileContains(t, mainRoot, "MEMORY.md", "Long-Term Memory")
-	for _, fileName := range []string{"SOUL.md", "TOOLS.md", "RUNBOOK.md"} {
+	for _, fileName := range []string{"MEMORY.md", "SOUL.md", "TOOLS.md", "RUNBOOK.md"} {
 		if _, err := os.Stat(filepath.Join(mainRoot, fileName)); !os.IsNotExist(err) {
 			t.Fatalf("main agent 不应默认生成 %s: %v", fileName, err)
 		}

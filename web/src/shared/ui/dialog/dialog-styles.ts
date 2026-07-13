@@ -1,10 +1,10 @@
 import { CSSProperties } from "react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 import {
   getUiButtonClassName,
   getUiIconButtonClassName,
-} from "@/shared/ui/button-styles";
+} from "@/shared/ui/button/button-styles";
 
 export const DIALOG_HEADER_LEADING_CLASS_NAME = "flex min-w-0 items-center gap-2.5";
 
@@ -23,12 +23,6 @@ export const DIALOG_ICON_BUTTON_CLASS_NAME = getUiIconButtonClassName({
   size: "md",
   variant: "ghost",
 });
-
-const DIALOG_EMPTY_CLASS_NAME =
-  "flex items-center justify-center rounded-[12px] px-4 py-4 text-[13px] text-(--text-muted)";
-
-const DIALOG_TAG_CLASS_NAME =
-  "inline-flex items-center gap-1 rounded-[6px] border border-(--divider-subtle-color) bg-transparent px-2 py-0.5 text-[11px] font-medium text-(--text-muted)";
 
 export function getDialogActionClassName(
   tone: "default" | "primary" | "danger",

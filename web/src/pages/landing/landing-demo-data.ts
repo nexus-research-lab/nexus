@@ -10,7 +10,7 @@ import {
 
 import type { WorkspaceFileEntry } from "@/types/agent/agent";
 import type { RoomConversationView } from "@/types/conversation/conversation";
-import type { Message } from "@/types/conversation/message";
+import type { Message } from "@/types/conversation/message/entity";
 import type { TodoItem } from "@/types/conversation/todo";
 
 export interface LandingCapabilityItem {
@@ -53,8 +53,8 @@ export const capabilityItems: LandingCapabilityItem[] = [
   },
   {
     title: "Memory",
-    copy: "Long-term context that can be reviewed and curated.",
-    meta: "candidate · promoted · ignored",
+    copy: "Runtime-managed long-term context stored as workspace files.",
+    meta: "MEMORY.md · topics · auto recall",
     Icon: Brain,
   },
 ];

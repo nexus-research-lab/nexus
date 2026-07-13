@@ -4,7 +4,7 @@
 //
 // 成员清单：
 //   - handlers.go：Handlers 及核心路由。
-//   - preferences_imagegen_default.go：图片生成默认偏好 handler。
+//   - imagegen_defaults.go：图片生成默认偏好 handler。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package core

@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 
 import type { StageHandoffSummary } from "../operation-desktop-types";
 import type {
@@ -17,52 +17,52 @@ import type {
   NexusOperationSnapshot,
   OperationEvidence,
 } from "../operation-types";
-import { build_operation_event_io_summary } from "../operation-event-io";
+import { buildOperationEventIoSummary } from "../operation-event-io";
 import {
-  display_stage_event_target,
-  display_stage_event_title,
+  displayStageEventTarget,
+  displayStageEventTitle,
 } from "../operation-stage-labels";
-import { resolve_operation_tool_profile } from "../operation-tool-catalog";
+import { resolveOperationToolProfile } from "../operation-tool-catalog";
 import { ACTION_ICON } from "./operation-action-style";
 import {
-  console_event_level,
-  console_event_subsystem,
+  consoleEventLevel,
+  consoleEventSubsystem,
 } from "./run-manifest-console";
 import {
-  collect_manifest_artifacts,
-  extract_manifest_event_output,
-  extract_manifest_result_text,
-  format_manifest_duration,
-  icon_for_manifest_artifact,
+  collectManifestArtifacts,
+  extractManifestEventOutput,
+  extractManifestResultText,
+  formatManifestDuration,
+  iconForManifestArtifact,
   PHASE_LABEL,
 } from "./run-manifest-data";
-import { collect_manifest_log_sources } from "./run-manifest-sources";
+import { collectManifestLogSources } from "./run-manifest-sources";
 
 export function RunManifestSurface({
   event,
   evidence,
-  handoff_summary,
-  on_focus_event,
-  related_events,
+  handoffSummary,
+  onFocusEvent,
+  relatedEvents,
   snapshot,
 }: {
   event: NexusOperationEvent;
   evidence: OperationEvidence[];
-  handoff_summary?: StageHandoffSummary;
-  on_focus_event?: (event: NexusOperationEvent) => void;
-  related_events: NexusOperationEvent[];
+  handoffSummary?: StageHandoffSummary;
+  onFocusEvent?: (event: NexusOperationEvent) => void;
+  relatedEvents: NexusOperationEvent[];
   snapshot: NexusOperationSnapshot | null;
 }) {
-  const source_events = related_events.length ? related_events : [event];
+  const source_events = relatedEvents.length ? relatedEvents : [event];
   const events = source_events.filter(should_show_manifest_event);
   const manifest_events = events.length ? events : [event];
-  const artifacts = collect_manifest_artifacts(event, source_events, snapshot, evidence);
+  const artifacts = collectManifestArtifacts(event, source_events, snapshot, evidence);
   const terminal_events = manifest_events.filter((item) => item.surface === "terminal");
   const failed_count = manifest_events.filter((item) => item.phase === "error" || item.phase === "cancelled").length;
   const completed_count = manifest_events.filter((item) => item.phase === "done").length;
-  const duration = format_manifest_duration(manifest_events);
-  const result_text = extract_manifest_result_text(event);
-  const log_sources = collect_manifest_log_sources(manifest_events);
+  const duration = formatManifestDuration(manifest_events);
+  const result_text = extractManifestResultText(event);
+  const log_sources = collectManifestLogSources(manifest_events);
 
   return (
     <div className="flex h-full min-h-[330px] min-w-0 overflow-hidden bg-[#f6f8fb] text-(--text-default) max-md:flex-col">
@@ -100,7 +100,7 @@ export function RunManifestSurface({
               value: event.target ?? event.title,
               type: "status" as const,
             }]).slice(0, 6).map((artifact) => {
-              const Icon = icon_for_manifest_artifact(artifact.type, artifact.value);
+              const Icon = iconForManifestArtifact(artifact.type, artifact.value);
               return (
                 <div
                   className="flex min-w-0 items-center gap-2 rounded-[11px] border border-white/52 bg-white/42 px-2.5 py-2"
@@ -142,7 +142,7 @@ export function RunManifestSurface({
           <div className="min-w-0">
             <p className="truncate text-[12px] font-black text-(--text-strong)">所有消息 · Nexus</p>
             <p className="truncate text-[10px] text-(--text-soft)">
-              {result_text || event.summary || handoff_summary?.resume_prompt || "执行日志已保留，可用于回放。"}
+              {result_text || event.summary || handoffSummary?.resume_prompt || "执行日志已保留，可用于回放。"}
             </p>
           </div>
           <span className="shrink-0 font-mono text-[10px] text-(--text-soft)">{PHASE_LABEL[event.phase]}</span>
@@ -158,15 +158,15 @@ export function RunManifestSurface({
               <span>状态</span>
             </div>
             {manifest_events.map((item, index) => {
-              const profile = resolve_operation_tool_profile(item.tool_name, item.kind, item.surface);
+              const profile = resolveOperationToolProfile(item.tool_name, item.kind, item.surface);
               const Icon = ACTION_ICON[profile.action];
-              const can_focus_event = Boolean(on_focus_event);
-              const io_summary = build_operation_event_io_summary(item);
+              const can_focus_event = Boolean(onFocusEvent);
+              const io_summary = buildOperationEventIoSummary(item);
               const input_label = io_summary.input_detail;
-              const output_label = extract_manifest_event_output(item);
-              const event_title = display_stage_event_title(item, profile.action_label);
-              const event_target = display_stage_event_target(item, profile.action_label);
-              const level_label = console_event_level(item.phase);
+              const output_label = extractManifestEventOutput(item);
+              const event_title = displayStageEventTitle(item, profile.action_label);
+              const event_target = displayStageEventTarget(item, profile.action_label);
+              const level_label = consoleEventLevel(item.phase);
               return (
                 <button
                   aria-label={`查看执行步骤 ${index + 1}：${profile.action_label} ${event_title}`}
@@ -178,7 +178,7 @@ export function RunManifestSurface({
                       : "bg-transparent",
                   )}
                   key={item.id}
-                  onClick={() => on_focus_event?.(item)}
+                  onClick={() => onFocusEvent?.(item)}
                   title={`${profile.action_label} · ${event_title}`}
                   type="button"
                 >
@@ -197,7 +197,7 @@ export function RunManifestSurface({
                     <span className="truncate">{level_label}</span>
                   </span>
                   <span className="truncate text-[10px] font-semibold text-(--text-muted) max-md:hidden">
-                    {console_event_subsystem(item)}
+                    {consoleEventSubsystem(item)}
                   </span>
                   <span className="min-w-0 text-[10.5px]">
                     <span className="block truncate font-black text-(--text-strong)">
@@ -279,7 +279,7 @@ function ManifestEventIOPill({ label, value }: { label: string; value: string })
   );
 }
 
-function ManifestSourceList({ sources }: { sources: ReturnType<typeof collect_manifest_log_sources> }) {
+function ManifestSourceList({ sources }: { sources: ReturnType<typeof collectManifestLogSources> }) {
   if (!sources.length) {
     return null;
   }

@@ -9,12 +9,12 @@ import (
 
 func TestRootPrefersConfiguredBundleRoot(t *testing.T) {
 	bundleRoot := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(bundleRoot, "skills", "scheduled-task-manager"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(bundleRoot, "skills", "imagegen"), 0o755); err != nil {
 		t.Fatalf("创建 skills 目录失败: %v", err)
 	}
 	if err := os.WriteFile(
-		filepath.Join(bundleRoot, "skills", "scheduled-task-manager", "SKILL.md"),
-		[]byte("---\nname: scheduled-task-manager\n---\n"),
+		filepath.Join(bundleRoot, "skills", "imagegen", "SKILL.md"),
+		[]byte("---\nname: imagegen\n---\n"),
 		0o644,
 	); err != nil {
 		t.Fatalf("写入 SKILL.md 失败: %v", err)

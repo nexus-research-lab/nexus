@@ -1,32 +1,32 @@
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 
 import type { StageWindowState } from "../operation-desktop-types";
 import {
-  display_stage_event_title,
+  displayStageEventTitle,
 } from "../operation-stage-labels";
 import {
-  icon_for_window_kind,
-  is_low_signal_director_value,
-  stage_app_label_for_window_kind,
+  iconForWindowKind,
+  isLowSignalDirectorValue,
+  stageAppLabelForWindowKind,
 } from "./operation-stage-helpers";
-import { build_stage_minimized_window_tile } from "./operation-stage-minimized-window";
+import { buildStageMinimizedWindowTile } from "./operation-stage-minimized-window";
 import {
-  build_dock_app_slots,
-  group_dock_windows_by_app,
-  resolve_dock_slot_presentation,
+  buildDockAppSlots,
+  groupDockWindowsByApp,
+  resolveDockSlotPresentation,
 } from "./operation-stage-dock-model";
-import { dock_icon_skin_for_kind } from "./operation-stage-app-identity";
+import { dockIconSkinForKind } from "./operation-stage-app-identity";
 
 export function StageWindowDock({
-  active_window_id,
-  on_restore_all,
+  activeWindowId,
+  onRestoreAll,
   windows,
-  on_restore,
+  onRestore,
 }: {
-  active_window_id: string | null;
-  on_restore_all: () => void;
+  activeWindowId: string | null;
+  onRestoreAll: () => void;
   windows: StageWindowState[];
-  on_restore: (window_id: string) => void;
+  onRestore: (window_id: string) => void;
 }) {
   if (!windows.length) {
     return null;
@@ -36,14 +36,14 @@ export function StageWindowDock({
     window.phase !== "closed" && window.phase !== "minimized"
   ));
   const minimized_windows = windows.filter((window) => window.phase === "minimized");
-  const dock_apps = build_dock_app_slots(
-    group_dock_windows_by_app(windows, active_window_id, stage_app_label_for_window_kind),
+  const dock_apps = buildDockAppSlots(
+    groupDockWindowsByApp(windows, activeWindowId, stageAppLabelForWindowKind),
   );
-  const active_window = running_windows.find((window) => window.id === active_window_id)
+  const active_window = running_windows.find((window) => window.id === activeWindowId)
     ?? running_windows[0]
     ?? minimized_windows[0]
     ?? null;
-  const active_app_label = active_window ? stage_app_label_for_window_kind(active_window.kind) : "Nexus";
+  const active_app_label = active_window ? stageAppLabelForWindowKind(active_window.kind) : "Nexus";
 
   return (
     <div className="absolute inset-x-4 bottom-5 z-30 flex justify-center max-md:relative max-md:inset-x-auto max-md:bottom-auto max-md:mt-3">
@@ -52,7 +52,7 @@ export function StageWindowDock({
           <button
             aria-label="恢复 Nexus 工作现场"
             className="grid h-9 w-9 shrink-0 place-items-center rounded-[12px] border border-white/62 bg-[rgba(20,28,38,0.88)] text-[12px] font-black text-white shadow-[0_8px_18px_rgba(18,28,42,0.14)] transition hover:bg-[rgba(20,28,38,0.94)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(91,114,255,0.42)]"
-            onClick={on_restore_all}
+            onClick={onRestoreAll}
             title={active_window ? `${active_app_label} · ${display_window_title(active_window)}` : "Nexus"}
             type="button"
           >
@@ -60,9 +60,9 @@ export function StageWindowDock({
           </button>
           <div className="h-8 w-px shrink-0 bg-white/56" />
         {dock_apps.map(({ app_label, count, is_active, is_running, kind, window }) => {
-          const Icon = icon_for_window_kind(window?.kind ?? kind);
+          const Icon = iconForWindowKind(window?.kind ?? kind);
           const window_title = window ? display_window_title(window) : "等待工具调用";
-          const presentation = resolve_dock_slot_presentation({
+          const presentation = resolveDockSlotPresentation({
             app_label,
             count,
             is_active,
@@ -85,7 +85,7 @@ export function StageWindowDock({
               disabled={!window || presentation.is_disabled}
               onClick={() => {
                 if (window) {
-                  on_restore(window.id);
+                  onRestore(window.id);
                 }
               }}
               title={presentation.title}
@@ -93,7 +93,7 @@ export function StageWindowDock({
             >
               <span className={cn(
                 "relative grid h-7 w-7 shrink-0 place-items-center rounded-[11px] border shadow-[inset_0_1px_0_rgba(255,255,255,0.62),0_7px_16px_rgba(18,28,42,0.10)]",
-                dock_icon_skin_for_kind(window?.kind ?? kind),
+                dockIconSkinForKind(window?.kind ?? kind),
 	                is_active ? "ring-2 ring-[rgba(91,114,255,0.26)]" : is_running ? "ring-1 ring-white/46" : "ring-0",
               )}>
                 <Icon className="h-4 w-4" />
@@ -132,10 +132,10 @@ export function StageWindowDock({
           <>
             <div className="h-8 w-px shrink-0 bg-white/56" />
             {minimized_windows.map((window) => {
-              const Icon = icon_for_window_kind(window.kind);
-              const app_label = stage_app_label_for_window_kind(window.kind);
+              const Icon = iconForWindowKind(window.kind);
+              const app_label = stageAppLabelForWindowKind(window.kind);
               const window_title = display_window_title(window);
-              const tile = build_stage_minimized_window_tile({
+              const tile = buildStageMinimizedWindowTile({
                 app_label,
                 title: window_title,
               });
@@ -144,7 +144,7 @@ export function StageWindowDock({
                   aria-label={tile.aria_label}
 	                  className="operation-window-dock-minimized group relative grid h-9 w-12 shrink-0 place-items-center overflow-hidden rounded-[11px] border border-[rgba(223,157,46,0.24)] bg-[rgba(255,249,236,0.58)] text-(--icon-muted) shadow-[inset_0_1px_0_rgba(255,255,255,0.70)] transition duration-150 ease-out hover:-translate-y-1 hover:bg-white/72 hover:text-(--text-strong) focus-visible:-translate-y-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(91,114,255,0.42)]"
                   key={window.id}
-                  onClick={() => on_restore(window.id)}
+                  onClick={() => onRestore(window.id)}
                   title={tile.title}
                   type="button"
                 >
@@ -167,8 +167,8 @@ export function StageWindowDock({
 }
 
 function display_window_title(window: StageWindowState): string {
-  if (!is_low_signal_director_value(window.title)) {
+  if (!isLowSignalDirectorValue(window.title)) {
     return window.title;
   }
-  return display_stage_event_title(window.payload.event, stage_app_label_for_window_kind(window.kind));
+  return displayStageEventTitle(window.payload.event, stageAppLabelForWindowKind(window.kind));
 }

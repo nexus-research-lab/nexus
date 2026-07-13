@@ -14,10 +14,10 @@
 import { SettingsPanel } from "@/features/settings/settings-panel";
 import { WorkspacePageFrame } from "@/shared/ui/workspace/frame/workspace-page-frame";
 
-export function SettingsPage() {
+export function SettingsPage({ standalone = false }: { standalone?: boolean }) {
   return (
     <WorkspacePageFrame contentPaddingClassName="p-0">
-      <SettingsPanel />
+      <SettingsPanel standalone={standalone} />
     </WorkspacePageFrame>
   );
 }

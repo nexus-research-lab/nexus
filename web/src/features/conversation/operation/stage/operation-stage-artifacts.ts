@@ -3,7 +3,7 @@ import type {
   NexusOperationSnapshot,
 } from "../operation-types";
 
-export function collect_completion_workspace_artifacts(
+export function collectCompletionWorkspaceArtifacts(
   event: NexusOperationEvent,
   snapshot: NexusOperationSnapshot | null,
 ): NexusOperationSnapshot["workspace_events"] {

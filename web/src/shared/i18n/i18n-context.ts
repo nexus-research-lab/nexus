@@ -1,19 +1,10 @@
-/**
- * =====================================================
- * @File   : i18n-context.ts
- * @Date   : 2026-04-04 17:22
- * @Author : leemysw
- * 2026-04-04 17:22   Create
- * =====================================================
- */
-
 "use client";
 
 import { createContext, useContext } from "react";
 
-import { Locale, TranslationKey } from "./messages";
+import type { Locale, TranslationKey } from "./messages";
 
-interface TranslateParams {
+export interface TranslateParams {
   [key: string]: string | number;
 }
 

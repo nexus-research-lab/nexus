@@ -19,7 +19,7 @@ import (
 	connectorsvc "github.com/nexus-research-lab/nexus/internal/service/connectors"
 	skillspkg "github.com/nexus-research-lab/nexus/internal/service/skills"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
-	sqliterepo "github.com/nexus-research-lab/nexus/internal/storage/sqlite"
+	"github.com/nexus-research-lab/nexus/internal/storage/agentrepo"
 )
 
 func TestHandleCapabilitySummaryScopesCountsByOwner(t *testing.T) {
@@ -29,7 +29,7 @@ func TestHandleCapabilitySummaryScopesCountsByOwner(t *testing.T) {
 	db := handlertest.OpenSQLite(t, cfg.DatabaseURL)
 	defer func() { _ = db.Close() }()
 
-	agentService := agentsvc.NewService(cfg, sqliterepo.NewAgentRepository(db))
+	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
 	workspaceService := workspacepkg.NewService(cfg, agentService)
 	skillService := skillspkg.NewService(cfg, agentService, workspaceService)
 	connectorService := connectorsvc.NewService(cfg, db)

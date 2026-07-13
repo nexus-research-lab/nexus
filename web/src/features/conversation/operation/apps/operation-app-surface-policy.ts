@@ -2,7 +2,7 @@ import type { StageWindowKind } from "../operation-desktop-types";
 
 export type OperationAppSurfaceKind = "document" | "specialized";
 
-export function app_surface_for_window_kind(kind: StageWindowKind): OperationAppSurfaceKind {
+export function appSurfaceForWindowKind(kind: StageWindowKind): OperationAppSurfaceKind {
   if (
     kind === "code_editor" ||
     kind === "markdown_reader" ||

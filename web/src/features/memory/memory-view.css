@@ -1,0 +1,60 @@
+.nexus-memory-view {
+  container-name: nexus-memory-view;
+  container-type: inline-size;
+}
+
+.nexus-memory-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+}
+
+.nexus-memory-compact-only {
+  display: none;
+}
+
+@container nexus-memory-view (max-width: 760px) {
+  .nexus-memory-layout {
+    display: block;
+    height: 100%;
+  }
+
+  .nexus-memory-document {
+    display: none;
+    height: 100%;
+  }
+
+  .nexus-memory-catalog {
+    height: 100%;
+  }
+
+  .nexus-memory-view[data-document-open="true"] .nexus-memory-catalog {
+    display: none;
+  }
+
+  .nexus-memory-view[data-document-open="true"] .nexus-memory-document {
+    display: flex;
+  }
+
+  .nexus-memory-compact-only {
+    display: inline-flex;
+  }
+}
+
+@container nexus-memory-view (max-width: 520px) {
+  .nexus-memory-summary {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .nexus-memory-agent-switcher {
+    max-width: none;
+    min-width: 0;
+  }
+
+  .nexus-memory-metrics {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-content: space-between;
+    width: 100%;
+  }
+}

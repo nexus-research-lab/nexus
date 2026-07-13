@@ -5,8 +5,8 @@ import { useCallback, useEffect, useState } from "react";
 import {
   getDefaultAgentRuntimeKind,
   USER_PREFERENCES_CHANGED_EVENT,
-} from "@/config/options";
-import { listProviderOptionsApi } from "@/lib/api/provider-config-api";
+} from "@/config/runtime-options";
+import { listProviderOptionsApi } from "@/lib/api/settings/provider-api";
 import type { AgentRuntimeKind } from "@/types/settings/preferences";
 
 interface ProviderAvailabilityState {

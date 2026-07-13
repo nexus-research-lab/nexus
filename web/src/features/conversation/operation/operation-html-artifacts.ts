@@ -2,14 +2,14 @@ import type {
   NexusOperationEvent,
   NexusOperationSnapshot,
 } from "./operation-types";
-import { read_browser_open_target_from_terminal_command } from "./operation-desktop-intents";
+import { readBrowserOpenTargetFromTerminalCommand } from "./operation-desktop-intents";
 
 export interface OperationHtmlArtifact {
   path: string;
   live_content: string | null;
 }
 
-export function find_operation_html_artifact(
+export function findOperationHtmlArtifact(
   snapshot: NexusOperationSnapshot | null,
   events: NexusOperationEvent[],
 ): OperationHtmlArtifact | null {
@@ -61,7 +61,7 @@ export function find_operation_html_artifact(
 }
 
 function read_event_html_target(event: NexusOperationEvent): string | null {
-  const open_target = read_browser_open_target_from_terminal_command(event);
+  const open_target = readBrowserOpenTargetFromTerminalCommand(event);
   if (open_target?.target && looks_like_html_path(open_target.target)) {
     return open_target.target;
   }
@@ -72,13 +72,13 @@ function read_event_html_target(event: NexusOperationEvent): string | null {
 }
 
 function read_event_html_content(event: NexusOperationEvent): string | null {
-  return read_input_string(event.input_preview, ["content", "text", "body"])
+  return readInputString(event.input_preview, ["content", "text", "body"])
     ?? (typeof event.result_preview === "string" && looks_like_html_content(event.result_preview)
       ? event.result_preview
       : null);
 }
 
-function read_input_string(
+function readInputString(
   input: Record<string, unknown> | null | undefined,
   keys: string[],
 ): string | null {

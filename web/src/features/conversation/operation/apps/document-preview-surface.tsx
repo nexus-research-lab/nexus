@@ -12,44 +12,44 @@ import {
   Package,
 } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 
 import {
   getWorkspaceFilePreviewUrl,
-} from "@/lib/api/agent-manage-api";
+} from "@/lib/api/agent/agent-api";
 import {
   basename,
-  detect_preview_kind,
-  get_preview_lines,
-  safe_json_stringify,
+  detectPreviewKind,
+  getPreviewLines,
+  safeJsonStringify,
 } from "../operation-preview";
-import { resolve_operation_tool_visual_contract } from "../operation-tool-visual-contract";
+import { resolveOperationToolVisualContract } from "../operation-tool-visual-contract";
 import type {
   NexusOperationEvent,
   OperationPhase,
 } from "../operation-types";
-import { build_code_editor_session_view } from "./code-editor-session";
+import { buildCodeEditorSessionView } from "./code-editor-session";
 
 export function DocumentPreview({
   target,
   summary,
   value,
-  fallback_lines,
-  diff_stats,
-  operation_event,
+  fallbackLines,
+  diffStats,
+  operationEvent,
 }: {
   target?: string | null;
   summary?: string | null;
   value: unknown;
-  fallback_lines?: string[];
-  diff_stats?: { additions: number; deletions: number } | null;
-  operation_event?: NexusOperationEvent;
+  fallbackLines?: string[];
+  diffStats?: { additions: number; deletions: number } | null;
+  operationEvent?: NexusOperationEvent;
 }) {
-  const kind = detect_preview_kind(target);
+  const kind = detectPreviewKind(target);
   const raw_lines = get_document_preview_lines(value, kind === "code" || kind === "text" ? 80 : 18, {
     preserve_blank_lines: kind === "code" || kind === "text",
   });
-  const lines = raw_lines.length ? raw_lines : (fallback_lines ?? []);
+  const lines = raw_lines.length ? raw_lines : (fallbackLines ?? []);
   const display_title = basename(target) || summary || "未命名";
 
   if (kind === "markdown") {
@@ -60,7 +60,7 @@ export function DocumentPreview({
             <p className="truncate text-[13px] font-black tracking-[-0.02em] text-(--text-strong)">{display_title}</p>
             <p className="truncate text-[11px] text-(--text-soft)">{summary ?? "Markdown 文稿"}</p>
           </div>
-          {diff_stats ? <DiffStatPill additions={diff_stats.additions} deletions={diff_stats.deletions} /> : null}
+          {diffStats ? <DiffStatPill additions={diffStats.additions} deletions={diffStats.deletions} /> : null}
         </div>
         <div className="space-y-2.5 text-[12px] leading-5 text-(--text-default)">
           {(lines.length ? lines : ["# Markdown", "等待内容写入..."]).map((line, index) => (
@@ -111,7 +111,7 @@ export function DocumentPreview({
             <p className="truncate text-[10px] text-(--text-soft)">工作表 1 · {rows.length} 行</p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            {diff_stats ? <DiffStatPill additions={diff_stats.additions} deletions={diff_stats.deletions} /> : null}
+            {diffStats ? <DiffStatPill additions={diffStats.additions} deletions={diffStats.deletions} /> : null}
             <FileSpreadsheet className="h-4 w-4 text-(--icon-muted)" />
           </div>
         </div>
@@ -159,7 +159,7 @@ export function DocumentPreview({
   }
 
   if (kind === "image") {
-    const image_src = resolve_document_image_src(operation_event, target);
+    const image_src = resolve_document_image_src(operationEvent, target);
     return (
       <div className="flex h-full min-h-[240px] flex-col overflow-hidden bg-[#eef2f6]">
         <div className="flex items-center justify-between gap-3 border-b border-(--divider-subtle-color) bg-white/62 px-4 py-2.5">
@@ -168,7 +168,7 @@ export function DocumentPreview({
             <p className="truncate text-[10px] text-(--text-soft)">图像 · {image_format_label(display_title)}</p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            {diff_stats ? <DiffStatPill additions={diff_stats.additions} deletions={diff_stats.deletions} /> : null}
+            {diffStats ? <DiffStatPill additions={diffStats.additions} deletions={diffStats.deletions} /> : null}
             <ImageIcon className="h-4 w-4 text-(--icon-muted)" />
           </div>
         </div>
@@ -205,10 +205,10 @@ export function DocumentPreview({
 
   return (
     <EditorSurface
-      diff_stats={diff_stats}
-      lines={lines.length ? lines : (fallback_lines ?? [summary ?? "暂无预览"])}
-      operation_event={operation_event}
-      phase_label={summary ?? "预览"}
+      diffStats={diffStats}
+      lines={lines.length ? lines : (fallbackLines ?? [summary ?? "暂无预览"])}
+      operationEvent={operationEvent}
+      phaseLabel={summary ?? "预览"}
       title={display_title}
     />
   );
@@ -228,25 +228,25 @@ function resolve_document_image_src(
 }
 
 function EditorSurface({
-  diff_stats,
-  phase_label,
+  diffStats,
+  phaseLabel,
   title,
   lines,
-  operation_event,
+  operationEvent,
 }: {
-  diff_stats?: { additions: number; deletions: number } | null;
-  phase_label: string;
+  diffStats?: { additions: number; deletions: number } | null;
+  phaseLabel: string;
   title: string;
   lines: string[];
-  operation_event?: NexusOperationEvent;
+  operationEvent?: NexusOperationEvent;
 }) {
-  const session = build_code_editor_session_view({ diff_stats, lines, title });
-  const activity = build_editor_activity(operation_event);
+  const session = buildCodeEditorSessionView({ diff_stats: diffStats, lines, title });
+  const activity = build_editor_activity(operationEvent);
   const ActivityIcon = activity.Icon;
   const visual_lines = lines.length ? lines : [""];
   const display_lines = useEditorTypewriterLines({
     enabled: activity.type_lines,
-    event_key: operation_event?.id ?? title,
+    event_key: operationEvent?.id ?? title,
     lines: visual_lines,
   });
   const last_line_index = Math.max(display_lines.length - 1, 0);
@@ -307,10 +307,10 @@ function EditorSurface({
         <div className="soft-scrollbar relative min-w-0 flex-1 overflow-auto p-3 font-mono text-[11px] leading-5">
           {activity.show_scan ? <span className="operation-scan-line" /> : null}
           <div className="mb-2 flex min-w-0 items-center gap-2 border-b border-white/10 pb-2 text-[10px] text-[rgba(220,232,238,0.52)]">
-            <span className="truncate">{activity.status_label ?? phase_label}</span>
-            {diff_stats ? (
+            <span className="truncate">{activity.status_label ?? phaseLabel}</span>
+            {diffStats ? (
               <span className="shrink-0 rounded bg-[#10271e] px-1.5 py-px text-[#8de0ad]">
-                +{diff_stats.additions} -{diff_stats.deletions}
+                +{diffStats.additions} -{diffStats.deletions}
               </span>
             ) : null}
           </div>
@@ -388,7 +388,7 @@ function build_editor_activity(event?: NexusOperationEvent): {
     };
   }
 
-  const visual_contract = resolve_operation_tool_visual_contract(event);
+  const visual_contract = resolveOperationToolVisualContract(event);
   const is_live = event.phase === "running" || event.phase === "queued" || event.phase === "waiting";
   if (visual_contract.group === "workspace_writer" && visual_contract.action === "create") {
     return {
@@ -473,12 +473,12 @@ function get_document_preview_lines(
   }
 
   if (!options?.preserve_blank_lines) {
-    return get_preview_lines(value, max_lines);
+    return getPreviewLines(value, max_lines);
   }
 
   const text = typeof value === "string"
     ? value
-    : safe_json_stringify(value);
+    : safeJsonStringify(value);
 
   return text
     .split(/\r?\n/)

@@ -96,92 +96,92 @@ copyFileSync(join(operation_dir, "apps/run-manifest-console.js"), join(operation
 copyFileSync(join(operation_dir, "apps/run-manifest-sources.js"), join(operation_dir, "apps/run-manifest-sources"));
 copyFileSync(join(operation_dir, "apps/activity-monitor-data.js"), join(operation_dir, "apps/activity-monitor-data"));
 
-const { project_operation_snapshot } = await import(pathToFileURL(join(operation_dir, "operation-projector.js")));
-const { resolve_operation_tool_profile } = await import(pathToFileURL(join(operation_dir, "operation-tool-catalog.js")));
+const { projectOperationSnapshot } = await import(pathToFileURL(join(operation_dir, "operation-projector.js")));
+const { resolveOperationToolProfile } = await import(pathToFileURL(join(operation_dir, "operation-tool-catalog.js")));
 const {
-  plan_operation_desktop,
-  resolve_operation_event_window_id,
+  planOperationDesktop,
+  resolveOperationEventWindowId,
 } = await import(pathToFileURL(join(operation_dir, "operation-scene-planner.js")));
 const {
-  derive_stage_desktop_intents,
-  derive_stage_desktop_intents_from_runtime_event,
-  read_browser_open_target_from_terminal_command,
-  stage_app_session_id_for_intent,
+  deriveStageDesktopIntents,
+  deriveStageDesktopIntentsFromRuntimeEvent,
+  readBrowserOpenTargetFromTerminalCommand,
+  stageAppSessionIdForIntent,
 } = await import(pathToFileURL(join(operation_dir, "operation-desktop-intents.js")));
 const {
-  build_operation_continuation_brief,
-  build_operation_live_episode,
-  derive_operation_stage_experience_phase,
-  merge_operation_stage_snapshots_for_restore,
+  buildOperationContinuationBrief,
+  buildOperationLiveEpisode,
+  deriveOperationStageExperiencePhase,
+  mergeOperationStageSnapshotsForRestore,
 } = await import(pathToFileURL(join(operation_dir, "operation-stage-experience.js")));
 const {
-  build_operation_stage_key,
+  buildOperationStageKey,
 } = await import(pathToFileURL(join(operation_dir, "operation-stage-key.js")));
 const {
-  fallback_stage_event_object_label,
-  fallback_stage_event_target_label,
-  is_low_signal_stage_label,
+  fallbackStageEventObjectLabel,
+  fallbackStageEventTargetLabel,
+  isLowSignalStageLabel,
 } = await import(pathToFileURL(join(operation_dir, "operation-stage-labels.js")));
 const {
   OPERATION_TOOL_VISUAL_GROUPS,
-  resolve_operation_tool_visual_contract,
+  resolveOperationToolVisualContract,
 } = await import(pathToFileURL(join(operation_dir, "operation-tool-visual-contract.js")));
 const {
-  is_stage_desktop_window_kind,
-  window_content_mode_for_kind,
+  isStageDesktopWindowKind,
+  windowContentModeForKind,
 } = await import(pathToFileURL(join(operation_dir, "stage/operation-stage-window-kinds.js")));
 const {
-  build_dock_app_slots,
-  group_dock_windows_by_app,
-  resolve_dock_slot_presentation,
+  buildDockAppSlots,
+  groupDockWindowsByApp,
+  resolveDockSlotPresentation,
 } = await import(pathToFileURL(join(operation_dir, "stage/operation-stage-dock-model.js")));
 const {
-  resolve_operation_window_keyboard_action,
-  should_handle_stage_desktop_keyboard_action,
+  resolveOperationWindowKeyboardAction,
+  shouldHandleStageDesktopKeyboardAction,
 } = await import(pathToFileURL(join(operation_dir, "stage/operation-stage-window-actions.js")));
 const {
-  count_desktop_reveal_events,
-  initial_revealed_window_count,
+  countDesktopRevealEvents,
+  initialRevealedWindowCount,
 } = await import(pathToFileURL(join(operation_dir, "stage/operation-stage-window-reveal.js")));
 const {
-  summarize_hidden_stage_windows,
+  summarizeHiddenStageWindows,
 } = await import(pathToFileURL(join(operation_dir, "stage/operation-stage-hidden-windows.js")));
 const {
-  dock_icon_skin_for_kind,
+  dockIconSkinForKind,
 } = await import(pathToFileURL(join(operation_dir, "stage/operation-stage-app-identity.js")));
 const {
-  resolve_next_window_focus,
-  resolve_cycled_window_focus,
+  resolveNextWindowFocus,
+  resolveCycledWindowFocus,
 } = await import(pathToFileURL(join(operation_dir, "stage/operation-stage-window-focus.js")));
 const {
-  should_ignore_stage_desktop_keyboard_target,
+  shouldIgnoreStageDesktopKeyboardTarget,
 } = await import(pathToFileURL(join(operation_dir, "stage/operation-stage-keyboard-target.js")));
 const {
-  build_stage_menu_status,
+  buildStageMenuStatus,
 } = await import(pathToFileURL(join(operation_dir, "stage/operation-stage-menu-model.js")));
 const {
-  build_stage_window_titlebar_state,
+  buildStageWindowTitlebarState,
 } = await import(pathToFileURL(join(operation_dir, "stage/operation-stage-window-titlebar.js")));
 const {
-  build_stage_desktop_icon_items,
+  buildStageDesktopIconItems,
 } = await import(pathToFileURL(join(operation_dir, "stage/operation-stage-desktop-icons.js")));
 const {
-  build_stage_minimized_window_tile,
+  buildStageMinimizedWindowTile,
 } = await import(pathToFileURL(join(operation_dir, "stage/operation-stage-minimized-window.js")));
 const {
-  is_meaningful_stage_window_drag,
-  normalize_stage_window_drag_offset,
-  normalize_stage_window_resize_size,
+  isMeaningfulStageWindowDrag,
+  normalizeStageWindowDragOffset,
+  normalizeStageWindowResizeSize,
 } = await import(pathToFileURL(join(operation_dir, "stage/operation-stage-window-drag.js")));
 const {
-  build_stage_window_launch_state,
+  buildStageWindowLaunchState,
 } = await import(pathToFileURL(join(operation_dir, "stage/operation-stage-window-launch.js")));
 const {
-  is_stage_manager_background_window,
-  position_for_window,
+  isStageManagerBackgroundWindow,
+  positionForWindow,
 } = await import(pathToFileURL(join(operation_dir, "stage/operation-stage-window-position.js")));
 const {
-  build_stage_live_strip_state,
+  buildStageLiveStripState,
 } = await import(pathToFileURL(join(operation_dir, "stage/operation-stage-live-strip.js")));
 const {
   buildTerminalSession,
@@ -190,43 +190,43 @@ const {
   parseTerminalResult,
 } = await import(pathToFileURL(join(operation_dir, "apps/terminal-result-model.js")));
 const {
-  app_surface_for_window_kind,
+  appSurfaceForWindowKind,
 } = await import(pathToFileURL(join(operation_dir, "apps/operation-app-surface-policy.js")));
 const {
-  resolve_file_preview_value,
+  resolveFilePreviewValue,
 } = await import(pathToFileURL(join(operation_dir, "apps/file-preview-value.js")));
 const {
-  build_code_editor_session_view,
+  buildCodeEditorSessionView,
 } = await import(pathToFileURL(join(operation_dir, "apps/code-editor-session.js")));
 const {
-  build_browser_result_items,
+  buildBrowserResultItems,
 } = await import(pathToFileURL(join(operation_dir, "apps/browser-result-items.js")));
 const {
-  build_browser_reader_paragraphs,
+  buildBrowserReaderParagraphs,
 } = await import(pathToFileURL(join(operation_dir, "apps/browser-reader-model.js")));
 const {
-  build_browser_session_view,
+  buildBrowserSessionView,
 } = await import(pathToFileURL(join(operation_dir, "apps/browser-session.js")));
 const {
-  finder_file_kind_label,
-  finder_preview_lines,
-  resolve_finder_selected_item,
+  finderFileKindLabel,
+  finderPreviewLines,
+  resolveFinderSelectedItem,
 } = await import(pathToFileURL(join(operation_dir, "apps/finder-item-details.js")));
 const {
-  build_finder_session_view,
-  workspace_status_label,
+  buildFinderSessionView,
+  workspaceStatusLabel,
 } = await import(pathToFileURL(join(operation_dir, "apps/finder-session.js")));
 const {
-  console_event_level,
-  console_event_subsystem,
+  consoleEventLevel,
+  consoleEventSubsystem,
 } = await import(pathToFileURL(join(operation_dir, "apps/run-manifest-console.js")));
 const {
-  collect_manifest_log_sources,
+  collectManifestLogSources,
 } = await import(pathToFileURL(join(operation_dir, "apps/run-manifest-sources.js")));
 const {
-  activity_cpu_label,
-  activity_cpu_load,
-  activity_pid_label,
+  activityCpuLabel,
+  activityCpuLoad,
+  activityPidLabel,
 } = await import(pathToFileURL(join(operation_dir, "apps/activity-monitor-data.js")));
 const now = Date.now();
 
@@ -278,14 +278,14 @@ verify_completed_manifest_keeps_terminal_window_identity(now);
 verify_completed_round_replay_uses_event_slice({
   assert,
   now,
-  plan_operation_desktop,
-  project_operation_snapshot,
+  planOperationDesktop,
+  projectOperationSnapshot,
 });
 verify_html_artifact_opens_browser_srcdoc({
   assert,
   now,
-  plan_operation_desktop,
-  project_operation_snapshot,
+  planOperationDesktop,
+  projectOperationSnapshot,
 });
 verify_pending_permissions_are_scoped_and_precise(now);
 verify_live_round_without_tool_events_stays_hidden(now);
@@ -310,15 +310,15 @@ function verify_desktop_window_kind_contract() {
     "word_reader",
   ];
   for (const kind of expected_desktop_apps) {
-    assert(is_stage_desktop_window_kind(kind), `${kind} should be rendered as a desktop app window`);
+    assert(isStageDesktopWindowKind(kind), `${kind} should be rendered as a desktop app window`);
   }
   for (const kind of ["evidence", "summary"]) {
-    assert(!is_stage_desktop_window_kind(kind), `${kind} should not render as a standalone desktop app window`);
+    assert(!isStageDesktopWindowKind(kind), `${kind} should not render as a standalone desktop app window`);
   }
   for (const kind of expected_desktop_apps.filter((kind) => kind !== "permission_wait")) {
-    assert(window_content_mode_for_kind(kind) === "flush", `${kind} should fill its app window content area`);
+    assert(windowContentModeForKind(kind) === "flush", `${kind} should fill its app window content area`);
   }
-  assert(window_content_mode_for_kind("permission_wait") === "inset", "permission wait should keep inset content as a system prompt");
+  assert(windowContentModeForKind("permission_wait") === "inset", "permission wait should keep inset content as a system prompt");
 }
 
 function verify_dock_model_groups_windows_by_mac_app() {
@@ -335,7 +335,7 @@ function verify_dock_model_groups_windows_by_mac_app() {
     mock_stage_window({ id: "code:a", kind: "code_editor", phase: "closed" }),
     mock_stage_window({ id: "preview:a", kind: "markdown_reader", phase: "minimized" }),
   ];
-  const groups = group_dock_windows_by_app(windows, "browser:b", app_label_for_kind);
+  const groups = groupDockWindowsByApp(windows, "browser:b", app_label_for_kind);
   const Navi_group = groups.find((group) => group.app_label === "Navi");
   assert(Navi_group?.count === 2, `Dock should group Navi windows, got ${Navi_group?.count}`);
   assert(Navi_group?.is_active, "Dock Navi group should be active when one Navi window is focused");
@@ -344,63 +344,63 @@ function verify_dock_model_groups_windows_by_mac_app() {
   assert(code_group?.count === 0, `Dock should not count closed Code windows as running, got ${code_group?.count}`);
   assert(!code_group?.is_running, "Dock should mark closed Code window as not running");
 
-  const slots = build_dock_app_slots(groups);
+  const slots = buildDockAppSlots(groups);
   assert(!slots.some((slot) => slot.window === null), "Dock should only show apps backed by real tool windows");
   assert(slots[0].app_label === "Navi" && slots[0].count === 2, "Dock Navi slot should reflect grouped running windows");
   assert(slots[1].app_label === "Code" && slots[1].window?.id === "code:a", "Dock Code slot should keep recoverable closed window");
   assert(slots.at(-1)?.app_label === "预览", `Dock should append unpinned running apps, got ${slots.at(-1)?.app_label}`);
 
-  const Navi_presentation = resolve_dock_slot_presentation(slots[0], "Search");
+  const Navi_presentation = resolveDockSlotPresentation(slots[0], "Search");
   assert(Navi_presentation.state === "active", `Dock active Navi slot should present as active, got ${Navi_presentation.state}`);
   assert(Navi_presentation.title === "Navi · 2 个窗口 · 当前", `Dock active Navi title should summarize grouped windows, got ${Navi_presentation.title}`);
-  const code_presentation = resolve_dock_slot_presentation(slots[1], "app.ts");
+  const code_presentation = resolveDockSlotPresentation(slots[1], "app.ts");
   assert(code_presentation.state === "recoverable", `Dock closed Code slot should be recoverable, got ${code_presentation.state}`);
   assert(!code_presentation.is_disabled, "Dock closed Code slot should remain clickable for restore");
   const preview_slot = slots.at(-1);
   assert(preview_slot, "Dock should keep the minimized Preview app slot");
-  const preview_presentation = resolve_dock_slot_presentation(preview_slot, "README.md");
+  const preview_presentation = resolveDockSlotPresentation(preview_slot, "README.md");
   assert(preview_presentation.state === "minimized", `Dock minimized Preview slot should present as minimized, got ${preview_presentation.state}`);
 }
 
 function verify_window_keyboard_actions_match_mac_window_controls() {
-  assert(resolve_operation_window_keyboard_action({ key: "Enter" }) === "focus", "Enter should focus a desktop window");
-  assert(resolve_operation_window_keyboard_action({ key: " " }) === "focus", "Space should focus a desktop window");
-  assert(resolve_operation_window_keyboard_action({ key: "Escape" }) === "minimize", "Escape should minimize the focused window");
-  assert(resolve_operation_window_keyboard_action({ key: "w", metaKey: true }) === "close", "Cmd+W should close the focused window");
-  assert(resolve_operation_window_keyboard_action({ key: "M", metaKey: true }) === "minimize", "Cmd+M should minimize the focused window");
-  assert(resolve_operation_window_keyboard_action({ key: "f", metaKey: true, ctrlKey: true }) === "zoom", "Ctrl+Cmd+F should zoom the focused window");
-  assert(resolve_operation_window_keyboard_action({ key: "Enter", metaKey: true }) === "zoom", "Cmd+Enter should zoom the focused window");
-  assert(resolve_operation_window_keyboard_action({ key: "`", metaKey: true }) === "cycle_next", "Cmd+` should cycle to the next desktop window");
-  assert(resolve_operation_window_keyboard_action({ key: "`", metaKey: true, shiftKey: true }) === "cycle_previous", "Cmd+Shift+` should cycle to the previous desktop window");
-  assert(resolve_operation_window_keyboard_action({ key: "w", metaKey: true, shiftKey: true }) === null, "Modified Cmd+W should not trigger the simple close action");
-  assert(resolve_operation_window_keyboard_action({ key: "a", metaKey: true }) === null, "Unrelated shortcuts should stay with the app content");
-  assert(!should_handle_stage_desktop_keyboard_action("focus"), "Desktop-level shortcuts should not hijack Enter or Space focus behavior");
-  assert(should_handle_stage_desktop_keyboard_action("cycle_next"), "Desktop-level shortcuts should handle window cycling");
-  assert(should_handle_stage_desktop_keyboard_action("close"), "Desktop-level shortcuts should handle active window closing");
+  assert(resolveOperationWindowKeyboardAction({ key: "Enter" }) === "focus", "Enter should focus a desktop window");
+  assert(resolveOperationWindowKeyboardAction({ key: " " }) === "focus", "Space should focus a desktop window");
+  assert(resolveOperationWindowKeyboardAction({ key: "Escape" }) === "minimize", "Escape should minimize the focused window");
+  assert(resolveOperationWindowKeyboardAction({ key: "w", metaKey: true }) === "close", "Cmd+W should close the focused window");
+  assert(resolveOperationWindowKeyboardAction({ key: "M", metaKey: true }) === "minimize", "Cmd+M should minimize the focused window");
+  assert(resolveOperationWindowKeyboardAction({ key: "f", metaKey: true, ctrlKey: true }) === "zoom", "Ctrl+Cmd+F should zoom the focused window");
+  assert(resolveOperationWindowKeyboardAction({ key: "Enter", metaKey: true }) === "zoom", "Cmd+Enter should zoom the focused window");
+  assert(resolveOperationWindowKeyboardAction({ key: "`", metaKey: true }) === "cycle_next", "Cmd+` should cycle to the next desktop window");
+  assert(resolveOperationWindowKeyboardAction({ key: "`", metaKey: true, shiftKey: true }) === "cycle_previous", "Cmd+Shift+` should cycle to the previous desktop window");
+  assert(resolveOperationWindowKeyboardAction({ key: "w", metaKey: true, shiftKey: true }) === null, "Modified Cmd+W should not trigger the simple close action");
+  assert(resolveOperationWindowKeyboardAction({ key: "a", metaKey: true }) === null, "Unrelated shortcuts should stay with the app content");
+  assert(!shouldHandleStageDesktopKeyboardAction("focus"), "Desktop-level shortcuts should not hijack Enter or Space focus behavior");
+  assert(shouldHandleStageDesktopKeyboardAction("cycle_next"), "Desktop-level shortcuts should handle window cycling");
+  assert(shouldHandleStageDesktopKeyboardAction("close"), "Desktop-level shortcuts should handle active window closing");
 }
 
 function verify_initial_window_reveal_avoids_desktop_clutter_flash() {
-  assert(count_desktop_reveal_events([
+  assert(countDesktopRevealEvents([
     { id: "wake", surface: "conversation" },
     { id: "write", surface: "editor", tool_use_id: "tool-write" },
     { id: "open", surface: "terminal", tool_use_id: "tool-open" },
   ]) === 2, "Desktop reveal should count tool/application events instead of the initial empty desktop wake event");
-  assert(initial_revealed_window_count({
+  assert(initialRevealedWindowCount({
     minimum_count: 1,
     phase: "running",
     window_count: 5,
   }) === 1, "Running stage should reveal only the first window on the first paint");
-  assert(initial_revealed_window_count({
+  assert(initialRevealedWindowCount({
     minimum_count: 2,
     phase: "awakening",
     window_count: 5,
   }) === 2, "Awakening stage should respect the minimum narrative window count");
-  assert(initial_revealed_window_count({
+  assert(initialRevealedWindowCount({
     minimum_count: 1,
     phase: "completed",
     window_count: 5,
   }) === 5, "Completed stage should reveal the full review desktop immediately");
-  assert(initial_revealed_window_count({
+  assert(initialRevealedWindowCount({
     minimum_count: 1,
     phase: "running",
     window_count: 0,
@@ -408,14 +408,14 @@ function verify_initial_window_reveal_avoids_desktop_clutter_flash() {
 }
 
 function verify_hidden_stage_uses_desktop_state_instead_of_mission_control() {
-  const minimized_summary = summarize_hidden_stage_windows([
+  const minimized_summary = summarizeHiddenStageWindows([
     mock_stage_window({ id: "hidden:terminal", kind: "terminal", phase: "minimized" }),
     mock_stage_window({ id: "hidden:browser", kind: "browser", phase: "minimized" }),
   ]);
   assert(minimized_summary.hidden_count === 2, `Hidden summary should count hidden windows, got ${minimized_summary.hidden_count}`);
   assert(minimized_summary.label === "2 个窗口在 Dock", `Minimized desktop should point users to Dock, got ${minimized_summary.label}`);
 
-  const mixed_summary = summarize_hidden_stage_windows([
+  const mixed_summary = summarizeHiddenStageWindows([
     mock_stage_window({ id: "hidden:terminal", kind: "terminal", phase: "minimized" }),
     mock_stage_window({ id: "hidden:browser", kind: "browser", phase: "closed" }),
   ]);
@@ -442,7 +442,7 @@ function verify_unclassified_tool_activity_does_not_open_window(now) {
     },
     updated_at: now,
   };
-  const desktop = plan_operation_desktop({
+  const desktop = planOperationDesktop({
     event,
     snapshot: {
       key: "session:stage",
@@ -496,7 +496,7 @@ function verify_current_unclassified_tool_does_not_steal_existing_app_focus(now)
     },
     updated_at: now,
   };
-  const desktop = plan_operation_desktop({
+  const desktop = planOperationDesktop({
     event: generic_event,
     snapshot: {
       key: "session:stage",
@@ -535,7 +535,7 @@ function verify_result_artifact_opens_preview_instead_of_unclassified_window(now
     },
     updated_at: now,
   };
-  const desktop = plan_operation_desktop({
+  const desktop = planOperationDesktop({
     event,
     snapshot: {
       key: "session:stage",
@@ -553,7 +553,7 @@ function verify_result_artifact_opens_preview_instead_of_unclassified_window(now
   assert(preview_window.target === "output/imagegen/cute-kitten.png", `Preview should target the generated image, got ${preview_window?.target}`);
   assert(desktop.windows.length === 1, `Result-backed artifact tools should only open the preview app, got ${desktop.windows.length} windows`);
   assert(desktop.active_window_id === preview_window.id, "Generated image Preview window should become active");
-  assert(resolve_operation_event_window_id(event, desktop.windows) === preview_window.id, "Original image tool event should focus its Preview window");
+  assert(resolveOperationEventWindowId(event, desktop.windows) === preview_window.id, "Original image tool event should focus its Preview window");
 }
 
 function verify_task_planner_opens_activity_monitor(now) {
@@ -574,7 +574,7 @@ function verify_task_planner_opens_activity_monitor(now) {
     },
     updated_at: now,
   };
-  const desktop = plan_operation_desktop({
+  const desktop = planOperationDesktop({
     event,
     snapshot: {
       key: "session:stage",
@@ -617,10 +617,10 @@ function verify_desktop_intents_drive_app_session_windows(now) {
     },
     updated_at: now,
   };
-  const terminal_intents = derive_stage_desktop_intents(terminal_event);
+  const terminal_intents = deriveStageDesktopIntents(terminal_event);
   assert(terminal_intents.some((intent) => intent.app === "terminal" && intent.action === "run_command"), "Bash should derive a Terminal desktop intent");
   assert(terminal_intents.some((intent) => intent.app === "browser" && intent.action === "preview_artifact"), "Bash open html should derive a Navi preview intent");
-  const waiting_intents = derive_stage_desktop_intents({
+  const waiting_intents = deriveStageDesktopIntents({
     ...terminal_event,
     phase: "waiting",
     permission_request_id: "permission-open-html",
@@ -632,7 +632,7 @@ function verify_desktop_intents_drive_app_session_windows(now) {
     phase: "waiting",
     permission_request_id: "permission-open-html",
   };
-  const waiting_desktop = plan_operation_desktop({
+  const waiting_desktop = planOperationDesktop({
     event: waiting_event,
     snapshot: {
       key: "session:stage",
@@ -647,10 +647,10 @@ function verify_desktop_intents_drive_app_session_windows(now) {
   });
   assert(waiting_desktop.windows.find((window) => window.kind === "terminal")?.phase === "focused", "Waiting Bash should keep Terminal focused");
   assert(!waiting_desktop.windows.some((window) => window.kind === "browser"), "Waiting Bash must not create a browser window");
-  const open_target = read_browser_open_target_from_terminal_command(terminal_event);
+  const open_target = readBrowserOpenTargetFromTerminalCommand(terminal_event);
   assert(open_target?.target === "gomoku.html", `open html command should expose the artifact target, got ${open_target?.target}`);
   assert(
-    read_browser_open_target_from_terminal_command({
+    readBrowserOpenTargetFromTerminalCommand({
       ...terminal_event,
       input_preview: { command: "cat gomoku.html" },
       target: "cat gomoku.html",
@@ -658,7 +658,7 @@ function verify_desktop_intents_drive_app_session_windows(now) {
     "Mentioning an html file in a non-open command should not launch Navi",
   );
 
-  const terminal_session_id = stage_app_session_id_for_intent(
+  const terminal_session_id = stageAppSessionIdForIntent(
     terminal_event.round_id,
     terminal_intents.find((intent) => intent.app === "terminal"),
     (value) => value,
@@ -694,7 +694,7 @@ function verify_desktop_intents_drive_app_session_windows(now) {
     },
     updated_at: now + 1,
   };
-  const desktop = plan_operation_desktop({
+  const desktop = planOperationDesktop({
     event: web_fetch_event,
     snapshot: {
       key: "session:stage",
@@ -783,16 +783,16 @@ function verify_runtime_events_drive_app_session_windows(now) {
   ];
 
   for (const test_case of runtime_cases) {
-    const intents = derive_stage_desktop_intents_from_runtime_event(test_case.event);
+    const intents = deriveStageDesktopIntentsFromRuntimeEvent(test_case.event);
     const intent = intents.find((item) => item.app === test_case.expected_app);
     assert(intent, `${test_case.event.event_type}:${test_case.event.tool_name} should derive ${test_case.expected_app} intent`);
-    const session_id = stage_app_session_id_for_intent(test_case.event.round_id, intent, (value) => value);
+    const session_id = stageAppSessionIdForIntent(test_case.event.round_id, intent, (value) => value);
     assert(session_id === test_case.expected_session, `Runtime event should map to stable ${test_case.expected_app} session, got ${session_id}`);
   }
 }
 
 function verify_runtime_event_projection(now) {
-  const snapshot = project_operation_snapshot({
+  const snapshot = projectOperationSnapshot({
     key: "session:stage",
     session_key: "session:stage",
     agent_id: "agent-stage",
@@ -937,10 +937,10 @@ function verify_tool_visual_contract_inventory(now) {
   for (const tool_name of current_tools) {
     assert(grouped_tools.has(tool_name), `${tool_name} should be assigned to a visual tool group`);
   }
-  assert(resolve_operation_tool_profile("functions.Bash").action === "run", "Wrapped Bash should map to Terminal exactly");
-  assert(resolve_operation_tool_profile("functions.KillShell").action === "stop", "Wrapped KillShell should map to Terminal exactly");
-  assert(resolve_operation_tool_profile("cancel_booking").action === "generic", "Unrelated cancel tools must not map to KillShell");
-  assert(resolve_operation_tool_profile("terminal_status").action === "generic", "Terminal-like names must not map to Bash");
+  assert(resolveOperationToolProfile("functions.Bash").action === "run", "Wrapped Bash should map to Terminal exactly");
+  assert(resolveOperationToolProfile("functions.KillShell").action === "stop", "Wrapped KillShell should map to Terminal exactly");
+  assert(resolveOperationToolProfile("cancel_booking").action === "generic", "Unrelated cancel tools must not map to KillShell");
+  assert(resolveOperationToolProfile("terminal_status").action === "generic", "Terminal-like names must not map to Bash");
 
   const base_event = {
     agent_id: "agent-stage",
@@ -964,7 +964,7 @@ function verify_tool_visual_contract_inventory(now) {
   ];
 
   for (const test_case of cases) {
-    const contract = resolve_operation_tool_visual_contract({
+    const contract = resolveOperationToolVisualContract({
       ...base_event,
       kind: test_case.kind,
       surface: test_case.surface,
@@ -975,7 +975,7 @@ function verify_tool_visual_contract_inventory(now) {
     assert(contract.common_controls.includes("window_drag"), `${test_case.tool_name} should keep shared window drag control`);
   }
 
-  const gate_contract = resolve_operation_tool_visual_contract({
+  const gate_contract = resolveOperationToolVisualContract({
     ...base_event,
     kind: "human_gate",
     surface: "conversation",
@@ -983,7 +983,7 @@ function verify_tool_visual_contract_inventory(now) {
   });
   assert(gate_contract.common_controls.includes("confirm"), "human gate should expose confirm control");
   assert(gate_contract.common_controls.includes("deny"), "human gate should expose deny control");
-  const gate_intents = derive_stage_desktop_intents({
+  const gate_intents = deriveStageDesktopIntents({
     ...base_event,
     kind: "human_gate",
     surface: "conversation",
@@ -999,32 +999,32 @@ function verify_window_focus_moves_to_next_visible_window() {
     mock_stage_window({ id: "terminal", kind: "terminal", phase: "background", z: 24 }),
     mock_stage_window({ id: "code", kind: "code_editor", phase: "minimized", z: 36 }),
   ];
-  assert(resolve_next_window_focus({
+  assert(resolveNextWindowFocus({
     current_focus_id: "terminal",
     hidden_window_id: "browser",
     windows,
   }) === "terminal", "Hiding another window should preserve the current focused window");
-  assert(resolve_next_window_focus({
+  assert(resolveNextWindowFocus({
     current_focus_id: "browser",
     hidden_window_id: "browser",
     windows,
   }) === "terminal", "Hiding the focused window should focus the topmost visible replacement");
-  assert(resolve_next_window_focus({
+  assert(resolveNextWindowFocus({
     current_focus_id: "browser",
     hidden_window_id: "terminal",
     windows: windows.map((window) => window.id === "browser" ? { ...window, phase: "minimized" } : window),
   }) === "finder", "Focus fallback should skip minimized windows");
-  assert(resolve_cycled_window_focus({
+  assert(resolveCycledWindowFocus({
     current_focus_id: "browser",
     direction: "next",
     windows,
   }) === "terminal", "Window cycle should move to the next visible window by z order");
-  assert(resolve_cycled_window_focus({
+  assert(resolveCycledWindowFocus({
     current_focus_id: "browser",
     direction: "previous",
     windows,
   }) === "finder", "Reverse window cycle should wrap to the previous visible window by z order");
-  assert(resolve_cycled_window_focus({
+  assert(resolveCycledWindowFocus({
     current_focus_id: null,
     direction: "next",
     windows,
@@ -1032,11 +1032,11 @@ function verify_window_focus_moves_to_next_visible_window() {
 }
 
 function verify_desktop_keyboard_target_policy() {
-  assert(should_ignore_stage_desktop_keyboard_target({ tag_name: "input" }), "Desktop shortcuts should ignore text inputs");
-  assert(should_ignore_stage_desktop_keyboard_target({ tag_name: "textarea" }), "Desktop shortcuts should ignore textareas");
-  assert(should_ignore_stage_desktop_keyboard_target({ tag_name: "div", is_content_editable: true }), "Desktop shortcuts should ignore contenteditable areas");
-  assert(!should_ignore_stage_desktop_keyboard_target({ tag_name: "button" }), "Desktop shortcuts should still work from window controls and desktop buttons");
-  assert(!should_ignore_stage_desktop_keyboard_target({ tag_name: "div" }), "Desktop shortcuts should work from the desktop frame");
+  assert(shouldIgnoreStageDesktopKeyboardTarget({ tag_name: "input" }), "Desktop shortcuts should ignore text inputs");
+  assert(shouldIgnoreStageDesktopKeyboardTarget({ tag_name: "textarea" }), "Desktop shortcuts should ignore textareas");
+  assert(shouldIgnoreStageDesktopKeyboardTarget({ tag_name: "div", is_content_editable: true }), "Desktop shortcuts should ignore contenteditable areas");
+  assert(!shouldIgnoreStageDesktopKeyboardTarget({ tag_name: "button" }), "Desktop shortcuts should still work from window controls and desktop buttons");
+  assert(!shouldIgnoreStageDesktopKeyboardTarget({ tag_name: "div" }), "Desktop shortcuts should work from the desktop frame");
 }
 
 function verify_stage_menu_status_tracks_desktop_windows() {
@@ -1046,7 +1046,7 @@ function verify_stage_menu_status_tracks_desktop_windows() {
     mock_stage_window({ id: "code", kind: "code_editor", phase: "minimized" }),
     mock_stage_window({ id: "finder", kind: "finder", phase: "closed" }),
   ];
-  const status = build_stage_menu_status(windows, windows[0], (window) => ({
+  const status = buildStageMenuStatus(windows, windows[0], (window) => ({
     browser: "Navi",
     code_editor: "Code",
     finder: "访达",
@@ -1058,7 +1058,7 @@ function verify_stage_menu_status_tracks_desktop_windows() {
   assert(status.window_label === "2 个窗口", `Menu bar should count visible app windows, got ${status.window_label}`);
   assert(status.dock_label === "1 个在 Dock", `Menu bar should count minimized windows, got ${status.dock_label}`);
 
-  const idle_status = build_stage_menu_status([], null, () => "Nexus");
+  const idle_status = buildStageMenuStatus([], null, () => "Nexus");
   assert(idle_status.active_window_label === null, `Idle menu bar should not expose a window title, got ${idle_status.active_window_label}`);
   assert(idle_status.activity_label === "桌面待命", `Idle menu bar should report standby, got ${idle_status.activity_label}`);
   assert(idle_status.window_label === "0 个窗口", `Idle menu bar should report zero windows, got ${idle_status.window_label}`);
@@ -1066,7 +1066,7 @@ function verify_stage_menu_status_tracks_desktop_windows() {
 }
 
 function verify_stage_window_titlebar_state() {
-  const focused = build_stage_window_titlebar_state({
+  const focused = buildStageWindowTitlebarState({
     app_label: "Navi",
     focused: true,
     maximized: false,
@@ -1079,7 +1079,7 @@ function verify_stage_window_titlebar_state() {
   assert(focused.status_label === "前台", `Focused titlebar should report foreground status, got ${focused.status_label}`);
   assert(focused.zoom_label === "缩放 gomoku.html", `Focused titlebar should expose zoom action, got ${focused.zoom_label}`);
 
-  const background = build_stage_window_titlebar_state({
+  const background = buildStageWindowTitlebarState({
     focused: false,
     maximized: true,
     minimized: false,
@@ -1091,7 +1091,7 @@ function verify_stage_window_titlebar_state() {
   assert(background.status_label === "后台", `Background titlebar should report background status, got ${background.status_label}`);
   assert(background.zoom_title === "还原窗口", `Maximized titlebar should offer restore, got ${background.zoom_title}`);
 
-  const minimized = build_stage_window_titlebar_state({
+  const minimized = buildStageWindowTitlebarState({
     app_label: "Code",
     focused: false,
     maximized: false,
@@ -1111,7 +1111,7 @@ function verify_stage_desktop_icon_items() {
     mock_stage_window({ id: "preview", kind: "code_editor", phase: "background", target: "preview" }),
     mock_stage_window({ id: "png", kind: "image_viewer", phase: "closed", target: "/workspace/screen.png" }),
   ];
-  const icons = build_stage_desktop_icon_items(windows);
+  const icons = buildStageDesktopIconItems(windows);
   assert(icons.length === 2, `Desktop should expose only background artifact file windows, got ${icons.length}`);
   assert(icons[0].label === "notes.md", `Desktop icon should skip the foreground file and use basename label, got ${icons[0].label}`);
   assert(icons[0].extension_label === "MD", `Desktop icon should expose a file extension badge, got ${icons[0].extension_label}`);
@@ -1124,7 +1124,7 @@ function verify_stage_desktop_icon_items() {
 }
 
 function verify_stage_minimized_window_tile() {
-  const tile = build_stage_minimized_window_tile({
+  const tile = buildStageMinimizedWindowTile({
     app_label: "Navi",
     title: "gomoku.html",
   });
@@ -1166,19 +1166,19 @@ function mock_stage_window({
 }
 
 function verify_stage_window_drag_model() {
-  const clamped = normalize_stage_window_drag_offset({ x: 9999, y: -9999 });
+  const clamped = normalizeStageWindowDragOffset({ x: 9999, y: -9999 });
   assert(clamped.x === 520, `Window drag x should be clamped, got ${clamped.x}`);
   assert(clamped.y === -260, `Window drag y should be clamped, got ${clamped.y}`);
-  assert(!is_meaningful_stage_window_drag({ x: 1, y: -1 }), "Sub-pixel window drag should not leave maximized mode");
-  assert(is_meaningful_stage_window_drag({ x: 12, y: 0 }), "Visible window drag should be meaningful");
-  const invalid = normalize_stage_window_drag_offset({ x: Number.NaN, y: Infinity });
+  assert(!isMeaningfulStageWindowDrag({ x: 1, y: -1 }), "Sub-pixel window drag should not leave maximized mode");
+  assert(isMeaningfulStageWindowDrag({ x: 12, y: 0 }), "Visible window drag should be meaningful");
+  const invalid = normalizeStageWindowDragOffset({ x: Number.NaN, y: Infinity });
   assert(invalid.x === 0 && invalid.y === 0, `Invalid drag offsets should reset to zero, got ${invalid.x}, ${invalid.y}`);
-  const resized = normalize_stage_window_resize_size({ height: 9999, width: 10 });
+  const resized = normalizeStageWindowResizeSize({ height: 9999, width: 10 });
   assert(resized.height === 1000 && resized.width === 320, `Window resize should clamp to usable bounds, got ${resized.width}x${resized.height}`);
 }
 
 function verify_stage_window_launch_model() {
-  const active = build_stage_window_launch_state({
+  const active = buildStageWindowLaunchState({
     index: 2,
     is_active: true,
     window: mock_stage_window({ id: "terminal", kind: "terminal", phase: "focused" }),
@@ -1186,7 +1186,7 @@ function verify_stage_window_launch_model() {
   assert(active.delay_ms === 0, `Active window should launch immediately, got ${active.delay_ms}`);
   assert(active.origin === "dock", `Active app windows should launch from Dock, got ${active.origin}`);
 
-  const browser = build_stage_window_launch_state({
+  const browser = buildStageWindowLaunchState({
     index: 1,
     is_active: false,
     window: mock_stage_window({ id: "browser", kind: "browser", phase: "background" }),
@@ -1194,7 +1194,7 @@ function verify_stage_window_launch_model() {
   assert(browser.origin === "dock", `App windows should launch from Dock, got ${browser.origin}`);
   assert(browser.delay_ms === 250, `Background app window should stagger after active window, got ${browser.delay_ms}`);
 
-  const finder = build_stage_window_launch_state({
+  const finder = buildStageWindowLaunchState({
     index: 3,
     is_active: true,
     window: { ...mock_stage_window({ id: "finder", kind: "finder", phase: "focused" }), layout: "secondary" },
@@ -1205,50 +1205,50 @@ function verify_stage_window_launch_model() {
 
 function verify_stage_window_position_model() {
   const background_code = mock_stage_window({ id: "code", kind: "code_editor", phase: "background" });
-  const code_position = position_for_window(
+  const code_position = positionForWindow(
     background_code,
     "running",
   );
   assert(code_position.includes("left-[3.5%]"), `Background Code should collapse into the left Stage Manager strip, got ${code_position}`);
   assert(code_position.includes("w-[10%]"), `Background Code thumbnail should remain readable in the Stage Manager strip, got ${code_position}`);
-  assert(is_stage_manager_background_window(background_code, "running"), "Running background windows should render as Stage Manager thumbnails");
+  assert(isStageManagerBackgroundWindow(background_code, "running"), "Running background windows should render as Stage Manager thumbnails");
 
-  const browser_position = position_for_window(
+  const browser_position = positionForWindow(
     mock_stage_window({ id: "browser", kind: "browser", phase: "background" }),
     "running",
     2,
   );
   assert(browser_position.includes("top-[50%]"), `Background Navi should use a distinct Stage Manager slot, got ${browser_position}`);
 
-  const terminal_position = position_for_window(
+  const terminal_position = positionForWindow(
     { ...mock_stage_window({ id: "terminal", kind: "terminal", phase: "focused" }), layout: "terminal" },
     "running",
   );
   assert(terminal_position.includes("w-[84%]"), `Focused terminal should use the available desktop width, got ${terminal_position}`);
   assert(terminal_position.includes("h-[64%]"), `Focused terminal should keep output readable above the Dock, got ${terminal_position}`);
 
-  const focused_code_position = position_for_window(
+  const focused_code_position = positionForWindow(
     mock_stage_window({ id: "code-focused", kind: "code_editor", phase: "focused" }),
     "running",
   );
   assert(focused_code_position.includes("w-[61%]"), `Focused Code should leave the Activity Center rail visible, got ${focused_code_position}`);
   assert(focused_code_position.includes("h-[61%]"), `Focused Code should keep a visible desktop gap above the Dock, got ${focused_code_position}`);
 
-  const permission_position = position_for_window(
+  const permission_position = positionForWindow(
     mock_stage_window({ id: "permission", kind: "permission_wait", phase: "focused" }),
     "running",
   );
   assert(permission_position.includes("h-[62%]"), `Permission window should have enough System Settings height, got ${permission_position}`);
   assert(permission_position.includes("w-[56%]"), `Permission window should read like a System Settings window, got ${permission_position}`);
 
-  const handoff_position = position_for_window(
+  const handoff_position = positionForWindow(
     mock_stage_window({ id: "handoff", kind: "handoff", phase: "focused" }),
     "completed",
   );
   assert(handoff_position.includes("h-[61%]"), `Focused handoff window should not collide with the Dock, got ${handoff_position}`);
 
-  assert(is_stage_manager_background_window(background_code, "completed"), "Completed review should keep prior windows as Stage Manager thumbnails instead of crowding the desktop");
-  assert(is_stage_manager_background_window(
+  assert(isStageManagerBackgroundWindow(background_code, "completed"), "Completed review should keep prior windows as Stage Manager thumbnails instead of crowding the desktop");
+  assert(isStageManagerBackgroundWindow(
     mock_stage_window({ id: "opening-code", kind: "code_editor", phase: "opening" }),
     "running",
   ), "Opening non-focused windows should collapse into Stage Manager thumbnails instead of crowding the desktop");
@@ -1281,7 +1281,7 @@ function verify_stage_live_strip_tracks_current_tool() {
     target: "npm test",
     updated_at: 2,
   };
-  const strip = build_stage_live_strip_state({
+  const strip = buildStageLiveStripState({
     active_event: bash_event,
     active_window: mock_stage_window({
       id: "terminal",
@@ -1297,7 +1297,7 @@ function verify_stage_live_strip_tracks_current_tool() {
   assert(strip.detail === "运行 · npm test", `Live strip should describe current tool target, got ${strip.detail}`);
   assert(strip.tone === "active", `Running live strip should be active, got ${strip.tone}`);
 
-  const done_strip = build_stage_live_strip_state({
+  const done_strip = buildStageLiveStripState({
     active_event: { ...bash_event, phase: "done" },
     active_window: null,
     events: [read_event, bash_event],
@@ -1313,15 +1313,15 @@ function verify_operation_stage_key_is_session_scoped() {
     session_key: "agent:agent-a:websocket:group:runtime-session-a",
   };
   assert(
-    build_operation_stage_key(identity) === "session:agent:agent-a:websocket:group:runtime-session-a",
-    `Stage key should prefer runtime session over conversation, got ${build_operation_stage_key(identity)}`,
+    buildOperationStageKey(identity) === "session:agent:agent-a:websocket:group:runtime-session-a",
+    `Stage key should prefer runtime session over conversation, got ${buildOperationStageKey(identity)}`,
   );
   assert(
-    build_operation_stage_key({ ...identity, room_session_id: "room-session-a" }) === "room-session:room-session-a",
+    buildOperationStageKey({ ...identity, room_session_id: "room-session-a" }) === "room-session:room-session-a",
     "Stage key should keep explicit room_session_id as the strongest isolation key",
   );
   assert(
-    build_operation_stage_key({ ...identity, session_key: null }) === "room-conversation:conversation-1",
+    buildOperationStageKey({ ...identity, session_key: null }) === "room-conversation:conversation-1",
     "Stage key should fall back to conversation only when runtime session identity is missing",
   );
 }
@@ -1338,29 +1338,29 @@ function verify_stage_experience_state_machine(now) {
     updated_at: now,
   };
   assert(
-    derive_operation_stage_experience_phase(null, null) === "idle",
+    deriveOperationStageExperiencePhase(null, null) === "idle",
     "missing active event should keep stage in idle phase",
   );
   assert(
-    derive_operation_stage_experience_phase({ ...base_event, phase: "queued" }, null) === "awakening",
+    deriveOperationStageExperiencePhase({ ...base_event, phase: "queued" }, null) === "awakening",
     "queued event should enter awakening phase",
   );
   assert(
-    derive_operation_stage_experience_phase({ ...base_event, phase: "running" }, null) === "running",
+    deriveOperationStageExperiencePhase({ ...base_event, phase: "running" }, null) === "running",
     "running event should enter running phase",
   );
   assert(
-    derive_operation_stage_experience_phase({ ...base_event, phase: "waiting" }, null) === "running",
+    deriveOperationStageExperiencePhase({ ...base_event, phase: "waiting" }, null) === "running",
     "waiting event should remain in running phase with a checkpoint surface",
   );
   assert(
-    derive_operation_stage_experience_phase({ ...base_event, phase: "error" }, null) === "settling",
+    deriveOperationStageExperiencePhase({ ...base_event, phase: "error" }, null) === "settling",
     "error event should settle into review phase",
   );
 
   const single_done_event = { ...base_event, phase: "done" };
   assert(
-    derive_operation_stage_experience_phase(single_done_event, {
+    deriveOperationStageExperiencePhase(single_done_event, {
       key: "session:stage",
       session_key: "session:stage",
       active_event: single_done_event,
@@ -1383,7 +1383,7 @@ function verify_stage_experience_state_machine(now) {
     updated_at: now - 100,
   };
   assert(
-    derive_operation_stage_experience_phase(single_done_event, {
+    deriveOperationStageExperiencePhase(single_done_event, {
       key: "session:stage",
       session_key: "session:stage",
       active_event: single_done_event,
@@ -1439,7 +1439,7 @@ function verify_live_episode_narrates_running_round(now) {
     target: "open gomoku.html",
     updated_at: now - 100,
   };
-  const episode = build_operation_live_episode(
+  const episode = buildOperationLiveEpisode(
     terminal_event,
     [read_event, write_event, terminal_event],
     {
@@ -1482,7 +1482,7 @@ function verify_api_retry_runtime_projection(now) {
     }],
   }];
 
-  const snapshot = project_operation_snapshot({
+  const snapshot = projectOperationSnapshot({
     key: "session:retry",
     session_key: "session:retry",
     agent_id: "agent-stage",
@@ -1495,7 +1495,7 @@ function verify_api_retry_runtime_projection(now) {
   assert(active_event?.title === "API 正在重试", `api retry should become explicit stage title, got ${active_event?.title}`);
   assert(active_event?.target === "模型请求暂未成功，正在重试", `api retry should preserve retry detail, got ${active_event?.target}`);
   assert(active_event?.evidence?.some((item) => item.label === "api_retry"), "api retry event should carry retry evidence");
-  const episode = build_operation_live_episode(active_event, snapshot.events, snapshot);
+  const episode = buildOperationLiveEpisode(active_event, snapshot.events, snapshot);
   assert(episode.status_label === "API 重试中", `api retry should narrate as retrying, got ${episode.status_label}`);
   assert(episode.next_label.includes("模型响应"), `api retry should wait for model response, got ${episode.next_label}`);
 }
@@ -1540,7 +1540,7 @@ function verify_active_event_stays_with_latest_round(now) {
     },
   }];
 
-  const snapshot = project_operation_snapshot({
+  const snapshot = projectOperationSnapshot({
     key: "session:stage",
     session_key: "session:stage",
     agent_id: "agent-stage",
@@ -1604,11 +1604,11 @@ function verify_error_summary_settles_live_handoff(now) {
     updated_at: now,
   };
 
-  const merged = merge_operation_stage_snapshots_for_restore(current, next);
+  const merged = mergeOperationStageSnapshotsForRestore(current, next);
   const settled_handoff = merged.events.find((event) => event.id === live_handoff.id);
   assert(merged.active_event?.id === error_summary.id, "error summary should remain active after merge");
   assert(settled_handoff?.phase === "error", `stale live handoff should be settled as error, got ${settled_handoff?.phase}`);
-  const brief = build_operation_continuation_brief(merged.active_event, merged.events, merged);
+  const brief = buildOperationContinuationBrief(merged.active_event, merged.events, merged);
   assert(brief.checkpoints.every((item) => !String(item.value).includes("个活动")), "error completion brief should not report active running windows");
 }
 
@@ -1684,7 +1684,7 @@ function verify_stage_restore_merge_preserves_round_context(now) {
     updated_at: now,
   };
 
-  const merged = merge_operation_stage_snapshots_for_restore(current, next);
+  const merged = mergeOperationStageSnapshotsForRestore(current, next);
   assert(merged.active_event?.id === "projected-summary", "restore merge should keep projected active event");
   assert(merged.events.some((event) => event.id === "restored-read"), "restore merge should preserve earlier read event from restored stage snapshot");
   assert(merged.events.some((event) => event.id === "restored-write"), "restore merge should preserve earlier write event from restored stage snapshot");
@@ -1761,7 +1761,7 @@ function verify_workspace_live_stays_in_tool_round(now) {
     updated_at: now - 200,
   }];
 
-  const snapshot = project_operation_snapshot({
+  const snapshot = projectOperationSnapshot({
     key: "session:stage",
     session_key: "session:stage",
     agent_id: "agent-stage",
@@ -1777,13 +1777,13 @@ function verify_workspace_live_stays_in_tool_round(now) {
   assert(!snapshot.events.some((event) => event.target === "stale-session.md"), "workspace events from another session should not be projected as current stage events");
   assert(workspace_event.round_id === "round-stage", `workspace live event should stay in tool round, got ${workspace_event.round_id}`);
   assert(snapshot.active_event?.kind === "round_summary", `completed stage should focus round summary, got ${snapshot.active_event?.kind}`);
-  const desktop = plan_operation_desktop({
+  const desktop = planOperationDesktop({
     event: snapshot.active_event,
     snapshot,
   });
   assert(desktop.active_window_id?.includes(":browser"), `completed stage should keep the artifact browser focused, got ${desktop.active_window_id}`);
   assert(!desktop.windows.some((window) => window.kind === "handoff"), "completed stage with real app windows should not render a handoff app window");
-  const continuation_brief = build_operation_continuation_brief(snapshot.active_event, snapshot.events, snapshot);
+  const continuation_brief = buildOperationContinuationBrief(snapshot.active_event, snapshot.events, snapshot);
   assert(continuation_brief.status_label === "可继续", `completed stage continuation brief should be ready, got ${continuation_brief.status_label}`);
   assert(continuation_brief.primary_artifact === "gomoku.html", `completed stage continuation brief should point to current artifact, got ${continuation_brief.primary_artifact}`);
   assert(continuation_brief.resume_prompt.includes("gomoku.html"), "completed stage continuation prompt should point to current artifact");
@@ -1798,9 +1798,9 @@ function verify_workspace_live_stays_in_tool_round(now) {
   assert(!desktop.windows.some((window) => window.target === "stale-session.md"), "completed stage should not render stale workspace windows");
   const write_event = snapshot.events.find((event) => event.tool_use_id === "tool-write");
   assert(write_event, "write tool event should be projected");
-  const write_window_id = resolve_operation_event_window_id(write_event, desktop.windows);
+  const write_window_id = resolveOperationEventWindowId(write_event, desktop.windows);
   assert(write_window_id?.includes(":document:gomoku.html"), `write event should focus gomoku document window, got ${write_window_id}`);
-  const summary_window_id = resolve_operation_event_window_id(snapshot.active_event, desktop.windows);
+  const summary_window_id = resolveOperationEventWindowId(snapshot.active_event, desktop.windows);
   assert(summary_window_id?.includes(":browser"), `summary event should resolve to the focused app window, got ${summary_window_id}`);
 }
 
@@ -1881,7 +1881,7 @@ function verify_multi_file_windows_keep_event_identity(now) {
     updated_at: now - 500,
   }];
 
-  const snapshot = project_operation_snapshot({
+  const snapshot = projectOperationSnapshot({
     key: "session:stage",
     session_key: "session:stage",
     agent_id: "agent-stage",
@@ -1890,7 +1890,7 @@ function verify_multi_file_windows_keep_event_identity(now) {
     live_round_ids: [],
     workspace_events,
   });
-  const desktop = plan_operation_desktop({
+  const desktop = planOperationDesktop({
     event: snapshot.active_event,
     snapshot,
   });
@@ -1900,23 +1900,23 @@ function verify_multi_file_windows_keep_event_identity(now) {
   const css_event = snapshot.events.find((event) => event.tool_use_id === "tool-css");
   assert(html_event, "html write event should exist");
   assert(css_event, "css write event should exist");
-  const html_window_id = resolve_operation_event_window_id(html_event, desktop.windows);
-  const css_window_id = resolve_operation_event_window_id(css_event, desktop.windows);
+  const html_window_id = resolveOperationEventWindowId(html_event, desktop.windows);
+  const css_window_id = resolveOperationEventWindowId(css_event, desktop.windows);
   assert(html_window_id?.includes(":document:gomoku.html"), `html event should focus gomoku window, got ${html_window_id}`);
   assert(css_window_id?.includes(":document:style.css"), `css event should focus style window, got ${css_window_id}`);
   assert(
-    resolve_file_preview_value(html_event, null) === "<html><body>board</body></html>",
+    resolveFilePreviewValue(html_event, null) === "<html><body>board</body></html>",
     "html write window should render file content before tool result text",
   );
   assert(
-    resolve_file_preview_value(css_event, null) === "body { margin: 0; }",
+    resolveFilePreviewValue(css_event, null) === "body { margin: 0; }",
     "css write window should render file content before tool result text",
   );
   assert(
-    resolve_file_preview_value(html_event, "<html><body>live board</body></html>") === "<html><body>live board</body></html>",
+    resolveFilePreviewValue(html_event, "<html><body>live board</body></html>") === "<html><body>live board</body></html>",
     "workspace live content should override stale write input in Code window",
   );
-  const active_css_desktop = plan_operation_desktop({
+  const active_css_desktop = planOperationDesktop({
     event: css_event,
     snapshot,
   });
@@ -1948,14 +1948,14 @@ function verify_extensionless_workspace_file_opens_code_app(now) {
     workspace_events: [],
     updated_at: now,
   };
-  const desktop = plan_operation_desktop({
+  const desktop = planOperationDesktop({
     event: read_event,
     snapshot,
   });
   const document_window = desktop.windows.find((window) => window.target === "Makefile");
   assert(document_window, "extensionless workspace file should still open a document window");
   assert(document_window.kind === "code_editor", `extensionless workspace file should open in Code, got ${document_window.kind}`);
-  assert(app_surface_for_window_kind(document_window.kind) === "document", "extensionless workspace file should render as document content");
+  assert(appSurfaceForWindowKind(document_window.kind) === "document", "extensionless workspace file should render as document content");
 }
 
 function verify_code_writer_preview_uses_real_content(now) {
@@ -1983,7 +1983,7 @@ function verify_code_writer_preview_uses_real_content(now) {
     },
   };
   assert(
-    resolve_file_preview_value(write_event, write_event.input_preview) === "export const app = true;\n",
+    resolveFilePreviewValue(write_event, write_event.input_preview) === "export const app = true;\n",
     "Write preview should render the file content instead of the tool input JSON",
   );
 
@@ -1997,7 +1997,7 @@ function verify_code_writer_preview_uses_real_content(now) {
       new_string: "export const app = true;",
     },
   };
-  const edit_preview = resolve_file_preview_value(edit_event, edit_event.input_preview);
+  const edit_preview = resolveFilePreviewValue(edit_event, edit_event.input_preview);
   assert(
     edit_preview === "- export const app = false;\n+ export const app = true;",
     `Edit preview should render a real old/new text hunk, got ${edit_preview}`,
@@ -2016,7 +2016,7 @@ function verify_code_writer_preview_uses_real_content(now) {
       ],
     },
   };
-  const multi_edit_preview = resolve_file_preview_value(multi_edit_event, multi_edit_event.input_preview);
+  const multi_edit_preview = resolveFilePreviewValue(multi_edit_event, multi_edit_event.input_preview);
   assert(
     typeof multi_edit_preview === "string" &&
       multi_edit_preview.includes("- const a = 1;") &&
@@ -2024,7 +2024,7 @@ function verify_code_writer_preview_uses_real_content(now) {
     `MultiEdit preview should render real edit hunks, got ${multi_edit_preview}`,
   );
 
-  const desktop = plan_operation_desktop({
+  const desktop = planOperationDesktop({
     event: edit_event,
     snapshot: {
       key: "session:stage",
@@ -2072,7 +2072,7 @@ function verify_code_writer_preview_uses_real_content(now) {
 }
 
 function verify_code_editor_session_view() {
-  const ts_view = build_code_editor_session_view({
+  const ts_view = buildCodeEditorSessionView({
     diff_stats: { additions: 3, deletions: 1 },
     lines: ["export const answer = 42;"],
     title: "stage-preview.tsx",
@@ -2083,7 +2083,7 @@ function verify_code_editor_session_view() {
   assert(ts_view.status_label.includes("+3 -1"), `Code status should include diff stats, got ${ts_view.status_label}`);
   assert(ts_view.cursor_label === "Ln 1, Col 1", `Code cursor should track line count, got ${ts_view.cursor_label}`);
 
-  const text_view = build_code_editor_session_view({
+  const text_view = buildCodeEditorSessionView({
     lines: [],
     title: "Makefile",
   });
@@ -2130,7 +2130,7 @@ function verify_terminal_result_envelope(now) {
     ],
   }];
 
-  const snapshot = project_operation_snapshot({
+  const snapshot = projectOperationSnapshot({
     key: "session:stage",
     session_key: "session:stage",
     agent_id: "agent-stage",
@@ -2306,7 +2306,7 @@ function verify_terminal_entries_render_real_command_result(now) {
     round_id: "round-terminal-stop",
     updated_at: now,
   };
-  const cross_round_desktop = plan_operation_desktop({
+  const cross_round_desktop = planOperationDesktop({
     event: cross_round_stop,
     snapshot: {
       key: "terminal-cross-round",
@@ -2350,7 +2350,7 @@ function verify_browser_fallback_builds_search_results(now) {
     updated_at: now,
   };
 
-  const items = build_browser_result_items({
+  const items = buildBrowserResultItems({
     event,
     query: "nexus stage mac desktop",
     lines: [
@@ -2376,7 +2376,7 @@ function verify_browser_fallback_builds_search_results(now) {
 }
 
 function verify_browser_reader_highlights_tool_hits() {
-  const paragraphs = build_browser_reader_paragraphs({
+  const paragraphs = buildBrowserReaderParagraphs({
     fallback: "fallback",
     lines: [
       "\"Pomodoro timers alternate focus intervals and short breaks.\",",
@@ -2389,7 +2389,7 @@ function verify_browser_reader_highlights_tool_hits() {
   assert(paragraphs.every((item) => item.highlighted), "Tool-returned WebFetch lines should be highlighted as matched page excerpts");
   assert(!paragraphs[0].text.includes("\"") && !paragraphs[0].text.endsWith(","), `Reader should strip JSON string noise, got ${paragraphs[0].text}`);
 
-  const fallback = build_browser_reader_paragraphs({
+  const fallback = buildBrowserReaderParagraphs({
     fallback: "页面内容已抓取",
     lines: [],
     markers: [],
@@ -2397,7 +2397,7 @@ function verify_browser_reader_highlights_tool_hits() {
   });
   assert(fallback[0].text === "页面内容已抓取", `Reader should show fallback when no body is available, got ${fallback[0].text}`);
 
-  const noisy = build_browser_reader_paragraphs({
+  const noisy = buildBrowserReaderParagraphs({
     fallback: "抓取失败",
     lines: [
       "content: \"<html><body><script>window.onload=setTimeout('lw(12)', 200); var q=[0x95,0x40,0xcc,0xcb,0xc0,0xc5,0x59]</script>\"",
@@ -2424,7 +2424,7 @@ function verify_browser_session_view(now) {
     target: "gomoku.html",
     updated_at: now,
   };
-  const srcdoc_view = build_browser_session_view({
+  const srcdoc_view = buildBrowserSessionView({
     event: base_event,
     preview: "<html><head><title>Gomoku Board</title></head><body>board</body></html>",
     query: "gomoku.html",
@@ -2437,7 +2437,7 @@ function verify_browser_session_view(now) {
   assert(srcdoc_view.source_label === "内嵌页面", `Inline html source should be embedded page, got ${srcdoc_view.source_label}`);
   assert(srcdoc_view.tab_title === "Gomoku Board", `Inline html tab should use document title, got ${srcdoc_view.tab_title}`);
 
-  const workspace_view = build_browser_session_view({
+  const workspace_view = buildBrowserSessionView({
     event: base_event,
     preview: null,
     query: "gomoku.html",
@@ -2448,7 +2448,7 @@ function verify_browser_session_view(now) {
   assert(workspace_view.source_label === "工作区", `Workspace html source should be workspace, got ${workspace_view.source_label}`);
   assert(workspace_view.tab_title === "gomoku.html", `Workspace html tab should use basename, got ${workspace_view.tab_title}`);
 
-  const remote_view = build_browser_session_view({
+  const remote_view = buildBrowserSessionView({
     event: { ...base_event, phase: "running", target: "https://example.com" },
     preview: null,
     query: "https://example.com",
@@ -2459,7 +2459,7 @@ function verify_browser_session_view(now) {
   assert(remote_view.status.label === "正在加载", `Running URL should report tool loading, got ${remote_view.status.label}`);
   assert(remote_view.tab_title === "example.com", `Remote URL tab should use hostname, got ${remote_view.tab_title}`);
 
-  const search_view = build_browser_session_view({
+  const search_view = buildBrowserSessionView({
     event: { ...base_event, target: "nexus mac stage" },
     preview: null,
     query: "nexus mac stage",
@@ -2495,13 +2495,13 @@ function verify_finder_details_reflect_selected_workspace_item(now) {
     updated_at: now,
   }];
 
-  const selected = resolve_finder_selected_item(items, "src/gomoku.html");
+  const selected = resolveFinderSelectedItem(items, "src/gomoku.html");
   assert(selected?.path === "src/gomoku.html", `Finder should resolve selected file, got ${selected?.path}`);
-  assert(finder_file_kind_label("src/gomoku.html") === "网页文件", "Finder should label html files as web files");
-  assert(finder_file_kind_label("src/app.tsx") === "JavaScript 源代码", "Finder should label tsx files as JavaScript source");
-  const preview_lines = finder_preview_lines(selected);
-  assert(preview_lines.length === 3, `Finder preview should preserve non-empty live content lines, got ${preview_lines.length}`);
-  assert(preview_lines[1].includes("Gomoku"), `Finder preview should include selected file content, got ${preview_lines[1]}`);
+  assert(finderFileKindLabel("src/gomoku.html") === "网页文件", "Finder should label html files as web files");
+  assert(finderFileKindLabel("src/app.tsx") === "JavaScript 源代码", "Finder should label tsx files as JavaScript source");
+  const previewLines = finderPreviewLines(selected);
+  assert(previewLines.length === 3, `Finder preview should preserve non-empty live content lines, got ${previewLines.length}`);
+  assert(previewLines[1].includes("Gomoku"), `Finder preview should include selected file content, got ${previewLines[1]}`);
 }
 
 function verify_finder_session_view(now) {
@@ -2554,7 +2554,7 @@ function verify_finder_session_view(now) {
     updated_at: now,
   }];
 
-  const view = build_finder_session_view({
+  const view = buildFinderSessionView({
     active_path: "src/gomoku.html",
     event: base_event,
     items,
@@ -2562,13 +2562,13 @@ function verify_finder_session_view(now) {
   assert(view.item_count === 3, `Finder session should expose item count, got ${view.item_count}`);
   assert(view.changed_count === 2, `Finder session should count updated and writing items, got ${view.changed_count}`);
   assert(view.selected_item?.path === "src/gomoku.html", `Finder session should resolve selected item, got ${view.selected_item?.path}`);
-  assert(view.preview_lines[1].includes("Gomoku"), `Finder session preview should use selected live content, got ${view.preview_lines[1]}`);
+  assert(view.previewLines[1].includes("Gomoku"), `Finder session preview should use selected live content, got ${view.previewLines[1]}`);
   assert(view.path_parts.join("/") === "src/gomoku.html", `Finder session should expose path parts, got ${view.path_parts.join("/")}`);
   assert(view.rows.some((row) => row.path === "src" && row.type === "folder"), "Finder session should include workspace folder rows");
   assert(view.rows.some((row) => row.path === "src/styles/main.css" && row.depth === 2), "Finder session should include nested file rows");
-  assert(workspace_status_label("writing") === "写入中", "Finder session should label writing files");
+  assert(workspaceStatusLabel("writing") === "写入中", "Finder session should label writing files");
 
-  const fallback = build_finder_session_view({
+  const fallback = buildFinderSessionView({
     active_path: null,
     event: { ...base_event, target: "workspace/untitled.html" },
     items: [],
@@ -2590,16 +2590,16 @@ function verify_console_events_use_mac_app_subsystems(now) {
     updated_at: now,
   };
 
-  assert(console_event_level({ ...base_event, phase: "done" }.phase) === "INFO", "Console should map done events to INFO");
-  assert(console_event_level({ ...base_event, phase: "running" }.phase) === "INFO", "Console should map running events to INFO");
-  assert(console_event_level({ ...base_event, phase: "waiting" }.phase) === "NOTICE", "Console should map waiting events to NOTICE");
-  assert(console_event_level({ ...base_event, phase: "error" }.phase) === "ERROR", "Console should map error events to ERROR");
-  assert(console_event_subsystem({ ...base_event, surface: "terminal" }) === "Terminal", "Console subsystem should use Terminal for command events");
-  assert(console_event_subsystem({ ...base_event, surface: "web" }) === "Navi", "Console subsystem should use Navi for web events");
-  assert(console_event_subsystem({ ...base_event, surface: "workspace" }) === "Finder", "Console subsystem should use Finder for workspace events");
-  assert(console_event_subsystem({ ...base_event, surface: "editor" }) === "Code", "Console subsystem should use Code for editor events");
+  assert(consoleEventLevel({ ...base_event, phase: "done" }.phase) === "INFO", "Console should map done events to INFO");
+  assert(consoleEventLevel({ ...base_event, phase: "running" }.phase) === "INFO", "Console should map running events to INFO");
+  assert(consoleEventLevel({ ...base_event, phase: "waiting" }.phase) === "NOTICE", "Console should map waiting events to NOTICE");
+  assert(consoleEventLevel({ ...base_event, phase: "error" }.phase) === "ERROR", "Console should map error events to ERROR");
+  assert(consoleEventSubsystem({ ...base_event, surface: "terminal" }) === "Terminal", "Console subsystem should use Terminal for command events");
+  assert(consoleEventSubsystem({ ...base_event, surface: "web" }) === "Navi", "Console subsystem should use Navi for web events");
+  assert(consoleEventSubsystem({ ...base_event, surface: "workspace" }) === "Finder", "Console subsystem should use Finder for workspace events");
+  assert(consoleEventSubsystem({ ...base_event, surface: "editor" }) === "Code", "Console subsystem should use Code for editor events");
 
-  const sources = collect_manifest_log_sources([
+  const sources = collectManifestLogSources([
     { ...base_event, id: "terminal", surface: "terminal" },
     { ...base_event, id: "web", surface: "web" },
     { ...base_event, id: "editor", surface: "editor" },
@@ -2612,15 +2612,15 @@ function verify_console_events_use_mac_app_subsystems(now) {
 }
 
 function verify_activity_monitor_process_metrics() {
-  assert(activity_pid_label("task-one") === activity_pid_label("task-one"), "Activity Monitor PID should be deterministic");
-  assert(activity_pid_label("task-one") !== activity_pid_label("task-two"), "Activity Monitor PID should vary per process id");
-  assert(activity_cpu_label("running", 0) === "12.0", `running task CPU should start at 12.0, got ${activity_cpu_label("running", 0)}`);
-  assert(activity_cpu_label("waiting", 2) === "1.2", `waiting task CPU should stay low, got ${activity_cpu_label("waiting", 2)}`);
-  assert(activity_cpu_label("done", 1) === "0.0", `completed task CPU should be idle, got ${activity_cpu_label("done", 1)}`);
-  const active_load = activity_cpu_load(2, 0);
+  assert(activityPidLabel("task-one") === activityPidLabel("task-one"), "Activity Monitor PID should be deterministic");
+  assert(activityPidLabel("task-one") !== activityPidLabel("task-two"), "Activity Monitor PID should vary per process id");
+  assert(activityCpuLabel("running", 0) === "12.0", `running task CPU should start at 12.0, got ${activityCpuLabel("running", 0)}`);
+  assert(activityCpuLabel("waiting", 2) === "1.2", `waiting task CPU should stay low, got ${activityCpuLabel("waiting", 2)}`);
+  assert(activityCpuLabel("done", 1) === "0.0", `completed task CPU should be idle, got ${activityCpuLabel("done", 1)}`);
+  const active_load = activityCpuLoad(2, 0);
   assert(active_load.total > active_load.system, "Activity Monitor total CPU should include system and user load");
   assert(active_load.total <= 96, `Activity Monitor total CPU should be capped, got ${active_load.total}`);
-  const idle_load = activity_cpu_load(0, 2);
+  const idle_load = activityCpuLoad(0, 2);
   assert(idle_load.total < active_load.total, "Activity Monitor idle CPU should be lower than active CPU");
 }
 
@@ -2660,7 +2660,7 @@ function verify_completed_manifest_keeps_terminal_window_identity(now) {
     },
   }];
 
-  const snapshot = project_operation_snapshot({
+  const snapshot = projectOperationSnapshot({
     key: "session:stage",
     session_key: "session:stage",
     agent_id: "agent-stage",
@@ -2669,7 +2669,7 @@ function verify_completed_manifest_keeps_terminal_window_identity(now) {
     live_round_ids: [],
     workspace_events: [],
   });
-  const desktop = plan_operation_desktop({
+  const desktop = planOperationDesktop({
     event: snapshot.active_event,
     snapshot,
   });
@@ -2708,7 +2708,7 @@ function verify_pending_permissions_are_scoped_and_precise(now) {
     ],
   }];
 
-  const snapshot = project_operation_snapshot({
+  const snapshot = projectOperationSnapshot({
     key: "session:stage",
     session_key: "session:stage",
     agent_id: "agent-stage",
@@ -2779,7 +2779,7 @@ function verify_live_round_without_tool_events_stays_hidden(now) {
     content: "写一个五子棋小游戏",
   }];
 
-  const snapshot = project_operation_snapshot({
+  const snapshot = projectOperationSnapshot({
     key: "session:stage",
     session_key: "session:stage",
     agent_id: "agent-stage",
@@ -2824,7 +2824,7 @@ function verify_synthetic_error_summary(now) {
     },
   }];
 
-  const snapshot = project_operation_snapshot({
+  const snapshot = projectOperationSnapshot({
     key: "session:stage",
     session_key: "session:stage",
     agent_id: "agent-stage",

@@ -26,7 +26,7 @@ const NEW_CONTENT_KEYS = [
   "replacement",
 ] as const;
 
-export function resolve_file_preview_value(
+export function resolveFilePreviewValue(
   event: NexusOperationEvent,
   payload_preview: unknown,
 ): unknown {

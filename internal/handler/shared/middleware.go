@@ -90,7 +90,7 @@ func (r *responseRecorder) HeaderWritten() bool {
 	return r.wroteHeader
 }
 
-// RequestContextMiddleware 注入 request_id 和 request logger。
+// RequestContextMiddleware 注入携带 request_id 的请求 logger。
 func RequestContextMiddleware(baseLogger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -101,8 +101,7 @@ func RequestContextMiddleware(baseLogger *slog.Logger) func(http.Handler) http.H
 			writer.Header().Set("X-Request-ID", requestID)
 
 			requestLogger := baseLogger.With("request_id", requestID)
-			ctx := logx.WithRequestID(request.Context(), requestID)
-			ctx = logx.WithLogger(ctx, requestLogger)
+			ctx := logx.WithLogger(request.Context(), requestLogger)
 			next.ServeHTTP(writer, request.WithContext(ctx))
 		})
 	}

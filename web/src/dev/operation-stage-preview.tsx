@@ -11,7 +11,7 @@ import type {
 import type { OperationRuntimeEvent } from "@/features/conversation/operation/operation-runtime-types";
 import { applyTheme, detectInitialTheme } from "@/shared/theme/theme-context";
 import type { WorkspaceActivityItem } from "@/types/app/workspace-live";
-import type { PermissionDecisionPayload } from "@/types/conversation/permission";
+import type { PermissionDecisionPayload } from "@/types/conversation/interaction/permission";
 
 const now = Date.now();
 const round_id = "round-preview-gomoku";
@@ -834,12 +834,12 @@ export function OperationStagePreview() {
       <section className="flex min-h-[620px] flex-1 overflow-hidden rounded-[24px] border border-white/70 bg-white/46 p-2 shadow-[0_28px_90px_rgba(18,28,42,0.16)]">
         <OperationStageDesktop
           event={step.event}
-          header_action={(
+          headerAction={(
             <button aria-label="退出操作舞台预览" onClick={() => undefined} type="button">
               退出
             </button>
           )}
-          on_permission_response={handle_permission_response}
+          onPermissionResponse={handle_permission_response}
           snapshot={snapshot}
         />
       </section>

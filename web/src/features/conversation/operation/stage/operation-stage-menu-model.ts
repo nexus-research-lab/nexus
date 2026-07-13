@@ -8,7 +8,7 @@ export interface StageMenuStatus {
   window_label: string;
 }
 
-export function build_stage_menu_status(
+export function buildStageMenuStatus(
   windows: StageWindowState[],
   active_window: StageWindowState | null,
   app_label_for_window: (window: StageWindowState) => string,

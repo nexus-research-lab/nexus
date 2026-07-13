@@ -1,11 +1,10 @@
 import type {
-  NexusOperationEvent,
   OperationEvidence,
   OperationKind,
   OperationPhase,
   OperationSurface,
 } from "./operation-types";
-import { infer_operation_tool_profile } from "./operation-tool-inference";
+import { inferOperationToolProfile } from "./operation-tool-inference";
 
 export type OperationActionKind =
   | "read"
@@ -268,7 +267,7 @@ export const PHASE_LABELS: Record<OperationPhase, string> = {
   cancelled: "已中断",
 };
 
-export function resolve_operation_tool_profile(
+export function resolveOperationToolProfile(
   tool_name?: string | null,
   kind?: OperationKind,
   surface?: OperationSurface,
@@ -278,7 +277,7 @@ export function resolve_operation_tool_profile(
     return OPERATION_TOOL_PROFILES[normalized_tool_name];
   }
   const inferred_profile = normalized_tool_name
-    ? infer_operation_tool_profile(normalized_tool_name, OPERATION_TOOL_PROFILES, DEFAULT_TARGET_KEYS)
+    ? inferOperationToolProfile(normalized_tool_name, OPERATION_TOOL_PROFILES, DEFAULT_TARGET_KEYS)
     : null;
   if (inferred_profile) {
     return inferred_profile;
@@ -354,7 +353,7 @@ export function resolve_operation_tool_profile(
   };
 }
 
-export function extract_operation_input_value(
+export function extractOperationInputValue(
   input: Record<string, unknown> | null | undefined,
   keys: readonly string[],
 ): { key: string; value: string } | null {
@@ -364,7 +363,7 @@ export function extract_operation_input_value(
 
   for (const key of keys) {
     const value = input[key];
-    const formatted = format_operation_value(value);
+    const formatted = formatOperationValue(value);
     if (formatted) {
       return { key, value: formatted };
     }
@@ -372,7 +371,7 @@ export function extract_operation_input_value(
   return null;
 }
 
-export function build_operation_input_rows(
+export function buildOperationInputRows(
   input: Record<string, unknown> | null | undefined,
   keys: readonly string[],
   limit = 4,
@@ -387,14 +386,14 @@ export function build_operation_input_rows(
 
   return ordered_keys
     .map((key) => {
-      const value = format_operation_value(input[key]);
+      const value = formatOperationValue(input[key]);
       return value ? { key, label: FIELD_LABELS[key] ?? key, value } : null;
     })
     .filter((item): item is { key: string; label: string; value: string } => Boolean(item))
     .slice(0, limit);
 }
 
-export function format_operation_value(value: unknown): string | null {
+export function formatOperationValue(value: unknown): string | null {
   if (value == null || value === "") {
     return null;
   }
@@ -405,7 +404,7 @@ export function format_operation_value(value: unknown): string | null {
     return String(value);
   }
   if (Array.isArray(value)) {
-    const rendered = value.map((item) => format_operation_value(item)).filter(Boolean).join(", ");
+    const rendered = value.map((item) => formatOperationValue(item)).filter(Boolean).join(", ");
     return rendered || null;
   }
   try {

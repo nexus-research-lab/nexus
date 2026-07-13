@@ -1,11 +1,13 @@
 # Liquid Glass 资产说明
 
-这个目录里的 `glass-switch`、`glass-magnifier` 和 `liquid-glass-engine` 共享同一套液态玻璃思路：
+这个目录里的 `glass-switch` 和 `glass-magnifier` 使用同一套液态玻璃资源。浏览器能力、React 启用生命周期、交互动画和两套 SVG 滤镜各自独立，组件只组合几何与视图：
 
 - 几何参数先定义玻璃曲面
 - 位移图负责折射方向
 - 高光图负责 specular / rim light
 - 最终通过 SVG filter 的 `feDisplacementMap + feBlend` 落到浏览器里
+
+位移图和高光图只由离线脚本生成。运行时不再创建 Canvas 贴图，避免重复计算和无界缓存。
 
 ## 1. 那两张 PNG 是干什么的
 
@@ -105,4 +107,6 @@ pnpm run export:liquid-glass -- \
 - Chrome / Safari 都会尝试这条 SVG filter 路线
 - Firefox 仍然不走 true liquid glass
 - Safari 即使支持，也可能和 Chrome 视觉上不完全一致
+- 首次渲染统一使用降级材质，挂载后再按宿主能力启用滤镜
+- Web Animation 资源由专用 Hook 持有并在卸载时取消
 - 如果要做完全一致的跨浏览器折射，下一层方案是 Canvas / WebGL，而不是继续堆 CSS

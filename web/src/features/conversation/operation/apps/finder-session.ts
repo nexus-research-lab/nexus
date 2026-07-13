@@ -2,8 +2,8 @@ import type { WorkspaceActivityItem } from "@/types/app/workspace-live";
 
 import type { NexusOperationEvent } from "../operation-types";
 import {
-  finder_preview_lines,
-  resolve_finder_selected_item,
+  finderPreviewLines,
+  resolveFinderSelectedItem,
 } from "./finder-item-details";
 
 export interface FinderTreeRow {
@@ -20,13 +20,13 @@ export interface FinderSessionView {
   display_items: WorkspaceActivityItem[];
   item_count: number;
   path_parts: string[];
-  preview_lines: string[];
+  previewLines: string[];
   rows: FinderTreeRow[];
   selected_item: WorkspaceActivityItem | null;
   selected_path: string;
 }
 
-export function build_finder_session_view({
+export function buildFinderSessionView({
   active_path,
   event,
   items,
@@ -37,15 +37,15 @@ export function build_finder_session_view({
 }): FinderSessionView {
   const display_items = items.length ? items : [fallback_workspace_item(active_path, event)];
   const selected_path = active_path ?? event.target ?? display_items[0]?.path ?? "workspace";
-  const selected_item = resolve_finder_selected_item(display_items, selected_path);
+  const selected_item = resolveFinderSelectedItem(display_items, selected_path);
 
   return {
     changed_count: display_items.filter((item) => item.status === "updated" || item.status === "writing").length,
     display_items,
     item_count: display_items.length,
     path_parts: selected_path.split("/").filter(Boolean),
-    preview_lines: finder_preview_lines(selected_item),
-    rows: workspace_tree_rows(display_items.map((item) => item.path)),
+    previewLines: finderPreviewLines(selected_item),
+    rows: workspaceTreeRows(display_items.map((item) => item.path)),
     selected_item,
     selected_path,
   };
@@ -67,7 +67,7 @@ function fallback_workspace_item(
   };
 }
 
-export function workspace_tree_rows(paths: string[]): FinderTreeRow[] {
+export function workspaceTreeRows(paths: string[]): FinderTreeRow[] {
   const rows = new Map<string, FinderTreeRow>();
   paths.forEach((path) => {
     const parts = path.split("/").filter(Boolean);
@@ -96,7 +96,7 @@ export function workspace_tree_rows(paths: string[]): FinderTreeRow[] {
   });
 }
 
-export function workspace_status_label(status: FinderWorkspaceStatus): string {
+export function workspaceStatusLabel(status: FinderWorkspaceStatus): string {
   if (status === "writing") {
     return "写入中";
   }

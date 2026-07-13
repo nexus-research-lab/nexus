@@ -1,7 +1,7 @@
 import type { NexusOperationEvent } from "./operation-types";
 import {
-  build_operation_input_rows,
-  resolve_operation_tool_profile,
+  buildOperationInputRows,
+  resolveOperationToolProfile,
 } from "./operation-tool-catalog";
 
 export interface OperationEventIOSummary {
@@ -11,19 +11,19 @@ export interface OperationEventIOSummary {
   output_label: string | null;
 }
 
-export function build_operation_event_io_summary(event: NexusOperationEvent): OperationEventIOSummary {
-  const profile = resolve_operation_tool_profile(event.tool_name, event.kind, event.surface);
-  const input_row = build_operation_input_rows(event.input_preview, profile.target_keys, 1)[0] ?? null;
+export function buildOperationEventIoSummary(event: NexusOperationEvent): OperationEventIOSummary {
+  const profile = resolveOperationToolProfile(event.tool_name, event.kind, event.surface);
+  const input_row = buildOperationInputRows(event.input_preview, profile.target_keys, 1)[0] ?? null;
   const fallback_input = event.target ?? event.summary ?? event.title;
   return {
     action_label: profile.action_label,
     input_detail: input_row ? `${input_row.label}: ${input_row.value}` : null,
     input_label: input_row ? `${input_row.label}: ${input_row.value}` : fallback_input,
-    output_label: resolve_operation_event_output_label(event),
+    output_label: resolveOperationEventOutputLabel(event),
   };
 }
 
-export function resolve_operation_event_output_label(event: NexusOperationEvent): string | null {
+export function resolveOperationEventOutputLabel(event: NexusOperationEvent): string | null {
   if (event.kind === "round_summary") {
     return event.summary ?? compact_operation_result(event.result_preview);
   }

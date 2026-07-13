@@ -1,12 +1,12 @@
 import type { WorkspaceActivityItem } from "@/types/app/workspace-live";
 import type {
-  Message,
   SystemEventContent,
   TaskProgressContent,
   ToolResultContent,
   ToolUseContent,
-} from "@/types/conversation/message";
-import type { PendingPermission } from "@/types/conversation/permission";
+} from "@/types/conversation/message/content";
+import type { Message } from "@/types/conversation/message/entity";
+import type { PendingPermission } from "@/types/conversation/interaction/permission";
 
 import type {
   NexusOperationEvent,
@@ -15,34 +15,34 @@ import type {
   OperationPhase,
 } from "./operation-types";
 import {
-  collect_recent_operation_evidence,
-  filter_workspace_events_for_stage,
-  pick_operation_active_event,
-  resolve_workspace_event_round_id,
+  collectRecentOperationEvidence,
+  filterWorkspaceEventsForStage,
+  pickOperationActiveEvent,
+  resolveWorkspaceEventRoundId,
 } from "./operation-projection-timeline";
 import {
-  build_operation_message_runtime_events,
-  build_workspace_runtime_event,
-  sort_operation_runtime_events,
+  buildOperationMessageRuntimeEvents,
+  buildWorkspaceRuntimeEvent,
+  sortOperationRuntimeEvents,
 } from "./operation-runtime-event-stream";
 import {
   DEFAULT_TARGET_KEYS,
-  extract_operation_input_value,
-  resolve_operation_tool_profile,
+  extractOperationInputValue,
+  resolveOperationToolProfile,
 } from "./operation-tool-catalog";
 import {
-  collect_unresolved_tool_use_candidates,
-  filter_pending_permissions_for_stage,
-  match_pending_permissions_to_tool_uses,
+  collectUnresolvedToolUseCandidates,
+  filterPendingPermissionsForStage,
+  matchPendingPermissionsToToolUses,
 } from "./operation-pending-permissions";
 import {
   OPERATION_MAX_TEXT_PREVIEW,
-  redact_projected_value,
-  redact_projected_terminal_value,
-  summarize_projected_value,
-  truncate_projected_text,
+  redactProjectedValue,
+  redactProjectedTerminalValue,
+  summarizeProjectedValue,
+  truncateProjectedText,
 } from "./operation-projection-preview";
-import { project_result_summary_event } from "./operation-summary-events";
+import { projectResultSummaryEvent } from "./operation-summary-events";
 
 const MAX_EVENTS = 24;
 const MAX_EVIDENCE = 8;
@@ -58,7 +58,7 @@ interface ProjectOperationSnapshotParams {
   workspace_events: WorkspaceActivityItem[];
 }
 
-export function project_operation_snapshot({
+export function projectOperationSnapshot({
   key,
   session_key,
   agent_id,
@@ -71,15 +71,15 @@ export function project_operation_snapshot({
   const tool_results = collect_tool_results(projected_messages);
   const tool_progress = collect_tool_progress(projected_messages);
   const live_round_id_set = new Set(live_round_ids);
-  const relevant_pending_permissions = filter_pending_permissions_for_stage(
+  const relevant_pending_permissions = filterPendingPermissionsForStage(
     pending_permissions,
     session_key,
     agent_id,
     projected_messages,
   );
-  const pending_permission_matches = match_pending_permissions_to_tool_uses(
+  const pending_permission_matches = matchPendingPermissionsToToolUses(
     relevant_pending_permissions,
-    collect_unresolved_tool_use_candidates(projected_messages),
+    collectUnresolvedToolUseCandidates(projected_messages),
   );
   const agent_workspace_events = agent_id
     ? workspace_events.filter((event) => event.agent_id === agent_id)
@@ -122,7 +122,7 @@ export function project_operation_snapshot({
           phase: live_round_id_set.has(message.round_id) ? "running" : "done",
           title: block.description || "子任务进度",
           target: block.last_tool_name ?? block.task_id,
-          summary: summarize_projected_value(block.usage),
+          summary: summarizeProjectedValue(block.usage),
           input_preview: {
             task_id: block.task_id,
             last_tool_name: block.last_tool_name ?? null,
@@ -148,7 +148,7 @@ export function project_operation_snapshot({
       }
     }
 
-    const summary_event = project_result_summary_event({
+    const summary_event = projectResultSummaryEvent({
       message,
       projected_messages,
     });
@@ -165,7 +165,7 @@ export function project_operation_snapshot({
     events.push(project_unmatched_permission(permission, session_key, agent_id));
   }
 
-  const relevant_workspace_events = filter_workspace_events_for_stage(
+  const relevant_workspace_events = filterWorkspaceEventsForStage(
     agent_workspace_events,
     session_key,
     events,
@@ -175,15 +175,15 @@ export function project_operation_snapshot({
     events.push(project_workspace_event(
       workspace_event,
       session_key,
-      resolve_workspace_event_round_id(workspace_event, events),
+      resolveWorkspaceEventRoundId(workspace_event, events),
     ));
   }
 
   const sorted_events = events
     .sort((left, right) => (left.updated_at || 0) - (right.updated_at || 0))
     .slice(-MAX_EVENTS);
-  const runtime_events = sort_operation_runtime_events([
-    ...build_operation_message_runtime_events({
+  const runtime_events = sortOperationRuntimeEvents([
+    ...buildOperationMessageRuntimeEvents({
       agent_id,
       live_round_ids: live_round_id_set,
       messages: projected_messages,
@@ -191,14 +191,14 @@ export function project_operation_snapshot({
       session_key,
       tool_results,
     }),
-    ...relevant_workspace_events.map((workspace_event) => build_workspace_runtime_event({
-      round_id: resolve_workspace_event_round_id(workspace_event, events),
+    ...relevant_workspace_events.map((workspace_event) => buildWorkspaceRuntimeEvent({
+      round_id: resolveWorkspaceEventRoundId(workspace_event, events),
       session_key,
       workspace_event,
     })),
   ]);
-  const active_event = pick_operation_active_event(sorted_events);
-  const recent_evidence = collect_recent_operation_evidence(sorted_events, MAX_EVIDENCE);
+  const active_event = pickOperationActiveEvent(sorted_events);
+  const recent_evidence = collectRecentOperationEvidence(sorted_events, MAX_EVIDENCE);
 
   return {
     key,
@@ -329,8 +329,8 @@ function project_tool_use({
   pending_permission?: PendingPermission | null;
   is_live_round: boolean;
 }): NexusOperationEvent {
-  const projection = resolve_operation_tool_profile(block.name);
-  const input_preview = redact_projected_value(as_record(block.input)) as Record<string, unknown>;
+  const projection = resolveOperationToolProfile(block.name);
+  const input_preview = redactProjectedValue(as_record(block.input)) as Record<string, unknown>;
   const target = extract_target(input_preview, projection.target_keys) ?? block.name;
   const phase = resolve_tool_phase(result, pending_permission, is_live_round, message.is_complete);
   const evidence = build_tool_evidence(block.name, target, result, pending_permission);
@@ -389,7 +389,7 @@ function build_tool_evidence(
   result: ToolResultContent | undefined,
   pending_permission: PendingPermission | null | undefined,
 ): OperationEvidence[] {
-  const profile = resolve_operation_tool_profile(tool_name);
+  const profile = resolveOperationToolProfile(tool_name);
   const evidence: OperationEvidence[] = [];
   if (target) {
     evidence.push({ type: profile.evidence_type, label: profile.action_label, value: target });
@@ -402,9 +402,9 @@ function build_tool_evidence(
     });
   }
   if (result?.is_error) {
-    evidence.push({ type: "error", label: "error", value: summarize_projected_value(result.content) });
+    evidence.push({ type: "error", label: "error", value: summarizeProjectedValue(result.content) });
   } else if (result) {
-    evidence.push({ type: "status", label: "result", value: summarize_projected_value(result.content) });
+    evidence.push({ type: "status", label: "result", value: summarizeProjectedValue(result.content) });
   }
   return evidence;
 }
@@ -417,10 +417,10 @@ function build_tool_result_preview(
     return null;
   }
 
-  const redacted_content = redact_projected_value(result.content);
+  const redacted_content = redactProjectedValue(result.content);
   if (kind === "command_run" || kind === "command_stop") {
     return {
-      content: redact_projected_terminal_value(result.content),
+      content: redactProjectedTerminalValue(result.content),
       error_code: result.error_code ?? null,
       is_error: Boolean(result.is_error),
     };
@@ -433,9 +433,9 @@ function project_unmatched_permission(
   session_key: string | null,
   agent_id?: string | null,
 ): NexusOperationEvent {
-  const profile = resolve_operation_tool_profile(permission.tool_name);
+  const profile = resolveOperationToolProfile(permission.tool_name);
   const target = extract_target(
-    redact_projected_value(permission.tool_input) as Record<string, unknown>,
+    redactProjectedValue(permission.tool_input) as Record<string, unknown>,
     profile.target_keys,
   ) ?? permission.tool_name;
   return {
@@ -451,7 +451,7 @@ function project_unmatched_permission(
     title: permission.interaction_mode === "question" ? "等待用户回答" : "等待权限确认",
     target,
     summary: permission.summary ?? permission.risk_label ?? null,
-    input_preview: redact_projected_value(permission.tool_input) as Record<string, unknown>,
+    input_preview: redactProjectedValue(permission.tool_input) as Record<string, unknown>,
     evidence: [
       { type: "permission", label: permission.risk_label || "waiting", value: permission.summary ?? permission.tool_name },
     ],
@@ -486,7 +486,7 @@ function project_workspace_event(
     summary: event.diff_stats
       ? `+${event.diff_stats.additions} -${event.diff_stats.deletions}`
       : null,
-    result_preview: event.live_content ? truncate_projected_text(event.live_content, OPERATION_MAX_TEXT_PREVIEW) : null,
+    result_preview: event.live_content ? truncateProjectedText(event.live_content, OPERATION_MAX_TEXT_PREVIEW) : null,
     evidence: [
       { type: "file", label: event.status, value: event.path },
       ...(event.diff_stats ? [{
@@ -500,19 +500,19 @@ function project_workspace_event(
 }
 
 function extract_target(input: Record<string, unknown>, keys: readonly string[]): string | null {
-  const primary = extract_operation_input_value(input, keys);
+  const primary = extractOperationInputValue(input, keys);
   if (primary?.value) {
-    return truncate_projected_text(primary.value, 96);
+    return truncateProjectedText(primary.value, 96);
   }
-  const fallback = extract_operation_input_value(input, DEFAULT_TARGET_KEYS);
-  return fallback?.value ? truncate_projected_text(fallback.value, 96) : null;
+  const fallback = extractOperationInputValue(input, DEFAULT_TARGET_KEYS);
+  return fallback?.value ? truncateProjectedText(fallback.value, 96) : null;
 }
 
 function summarize_result(result?: ToolResultContent): string | null {
   if (!result) {
     return null;
   }
-  return summarize_projected_value(result.content);
+  return summarizeProjectedValue(result.content);
 }
 
 function as_record(value: unknown): Record<string, unknown> {

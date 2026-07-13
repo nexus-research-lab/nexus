@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, LockKeyhole, ShieldCheck, ShieldX, X } from "lucide-react";
 
-import { cn } from "@/lib/utils";
-import type { PermissionDecisionPayload } from "@/types/conversation/permission";
+import { cn } from "@/shared/ui/class-name";
+import type { PermissionDecisionPayload } from "@/types/conversation/interaction/permission";
 
 import type { NexusOperationEvent } from "../operation-types";
 

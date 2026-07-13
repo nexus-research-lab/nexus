@@ -7,7 +7,7 @@ export interface BrowserResultItem {
   kind: "link" | "summary";
 }
 
-export function build_browser_result_items({
+export function buildBrowserResultItems({
   event,
   lines,
   query,
@@ -115,7 +115,7 @@ function clean_browser_result_line(line: string): string {
 
 function normalize_browser_result_line(line: string, query: string, index: number): BrowserResultItem {
   const trimmed = line.trim();
-  if (looks_like_url(trimmed)) {
+  if (looksLikeUrl(trimmed)) {
     return {
       title: readable_url_title(trimmed),
       url: trimmed,
@@ -163,6 +163,6 @@ function readable_url_title(url: string): string {
   }
 }
 
-function looks_like_url(value: string): boolean {
+function looksLikeUrl(value: string): boolean {
   return /^https?:\/\//i.test(value);
 }

@@ -17,31 +17,31 @@ import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 
 import type { StageWindowState } from "../operation-desktop-types";
 import type { NexusOperationEvent } from "../operation-types";
 import { PHASE_LABELS } from "../operation-tool-catalog";
-import { finder_file_kind_label } from "./finder-item-details";
+import { finderFileKindLabel } from "./finder-item-details";
 import {
-  build_finder_session_view,
-  workspace_status_label,
+  buildFinderSessionView,
+  workspaceStatusLabel,
 } from "./finder-session";
 
 export function WorkspaceFinder({
-  active_path,
+  activePath,
   event,
   items,
 }: {
-  active_path?: string | null;
+  activePath?: string | null;
   event: NexusOperationEvent;
   items: NonNullable<StageWindowState["payload"]["workspace_items"]>;
 }) {
   const root_ref = useRef<HTMLDivElement | null>(null);
   const [selected_path, set_selected_path] = useState<string | null>(null);
   const [container_width, set_container_width] = useState(0);
-  const finder_session = build_finder_session_view({
-    active_path: selected_path ?? active_path,
+  const finder_session = buildFinderSessionView({
+    active_path: selected_path ?? activePath,
     event,
     items,
   });
@@ -94,7 +94,7 @@ export function WorkspaceFinder({
           </div>
           <div className="hidden min-w-0 flex-1 items-center rounded-[8px] border border-(--divider-subtle-color) bg-white/72 px-2 py-1 text-[10px] text-(--text-soft) md:flex">
             <Search className="mr-1.5 h-3 w-3 shrink-0" />
-            <span className="truncate">{active_path ?? event.target ?? "搜索工作区"}</span>
+            <span className="truncate">{activePath ?? event.target ?? "搜索工作区"}</span>
           </div>
           <FinderSyncIndicator phase={event.phase} />
           <FinderToolbarButton label="分组">
@@ -118,7 +118,7 @@ export function WorkspaceFinder({
                 item={finder_session.display_items.find((item) => item.path === row.path)}
                 key={row.path}
                 label={row.label}
-                on_select={() => set_selected_path(row.path)}
+                onSelect={() => set_selected_path(row.path)}
                 path={row.path}
                 type={row.type}
               />
@@ -139,17 +139,17 @@ export function WorkspaceFinder({
               {basename(finder_session.selected_path)}
             </p>
             <p className="truncate text-[10px] text-(--text-soft)">
-              {finder_file_kind_label(finder_session.selected_path)}
+              {finderFileKindLabel(finder_session.selected_path)}
             </p>
             <div className="mt-4 space-y-2 border-t border-(--divider-subtle-color) pt-3">
-              <FinderInspectorRow label="状态" value={finder_session.selected_item ? workspace_status_label(finder_session.selected_item.status) : "未选择"} />
+              <FinderInspectorRow label="状态" value={finder_session.selected_item ? workspaceStatusLabel(finder_session.selected_item.status) : "未选择"} />
               <FinderInspectorRow label="位置" value={finder_session.selected_path} />
               <FinderInspectorRow label="修改时间" value={finder_session.selected_item ? format_workspace_time(finder_session.selected_item.updated_at) : "--"} />
               <FinderInspectorRow label="版本" value={finder_session.selected_item ? `v${finder_session.selected_item.version}` : "--"} />
             </div>
-            {finder_session.preview_lines.length ? (
+            {finder_session.previewLines.length ? (
               <div className="mt-4 overflow-hidden rounded-[11px] border border-(--divider-subtle-color) bg-[#101820] p-2 font-mono text-[10px] leading-4 text-[#dce8ee]">
-                {finder_session.preview_lines.map((line, index) => (
+                {finder_session.previewLines.map((line, index) => (
                   <div className="flex min-w-0 gap-2" key={`${index}:${line}`}>
                     <span className="w-5 shrink-0 select-none text-right text-[#6f8190]">{index + 1}</span>
                     <span className="min-w-0 truncate">{line}</span>
@@ -164,9 +164,9 @@ export function WorkspaceFinder({
           </aside>
         </div>
         <FinderPathBar
-          changed_count={finder_session.changed_count}
-          item_count={finder_session.item_count}
-          path_parts={finder_session.path_parts}
+          changedCount={finder_session.changed_count}
+          itemCount={finder_session.item_count}
+          pathParts={finder_session.path_parts}
         />
       </div>
     </div>
@@ -256,7 +256,7 @@ function WorkspaceTreeRow({
   depth,
   item,
   label,
-  on_select,
+  onSelect,
   path,
   type,
 }: {
@@ -264,7 +264,7 @@ function WorkspaceTreeRow({
   depth: number;
   item?: NonNullable<StageWindowState["payload"]["workspace_items"]>[number];
   label: string;
-  on_select: () => void;
+  onSelect: () => void;
   path: string;
   type: "folder" | "file";
 }) {
@@ -277,7 +277,7 @@ function WorkspaceTreeRow({
         "grid w-full grid-cols-[auto_auto_auto_minmax(0,1fr)_72px_86px] items-center gap-2 rounded-[9px] px-2 py-1.5 text-left text-[11px] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(91,114,255,0.32)]",
         active ? "bg-[rgba(91,114,255,0.12)] text-[color:var(--primary)]" : "text-(--text-muted) hover:bg-white/70",
       )}
-      onClick={on_select}
+      onClick={onSelect}
       title={path}
       type="button"
     >
@@ -300,7 +300,7 @@ function WorkspaceTreeRow({
             status === "deleted" && "text-[color:var(--destructive)]",
             status === "idle" && "text-(--icon-muted)",
           )} />
-          {workspace_status_label(status)}
+          {workspaceStatusLabel(status)}
         </span>
       ) : <span />}
       <span className="truncate text-[9px] text-(--text-soft)">
@@ -311,20 +311,20 @@ function WorkspaceTreeRow({
 }
 
 function FinderPathBar({
-  changed_count,
-  item_count,
-  path_parts,
+  changedCount,
+  itemCount,
+  pathParts,
 }: {
-  changed_count: number;
-  item_count: number;
-  path_parts: string[];
+  changedCount: number;
+  itemCount: number;
+  pathParts: string[];
 }) {
   return (
     <div className="flex min-h-8 items-center justify-between gap-3 border-t border-(--divider-subtle-color) bg-white/58 px-3 py-1.5 text-[10px] text-(--text-soft)">
       <div className="flex min-w-0 items-center gap-1.5">
         <FolderOpen className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)" />
         <span className="shrink-0 font-semibold text-(--text-strong)">workspace</span>
-        {path_parts.map((part, index) => (
+        {pathParts.map((part, index) => (
           <span className="flex min-w-0 items-center gap-1.5" key={`${index}:${part}`}>
             <ChevronRight className="h-3 w-3 shrink-0 text-(--icon-muted)" />
             <span className="max-w-[120px] truncate">{part}</span>
@@ -332,7 +332,7 @@ function FinderPathBar({
         ))}
       </div>
       <span className="shrink-0">
-        {item_count} 个项目 · {changed_count ? `${changed_count} 个变更` : "没有变更"}
+        {itemCount} 个项目 · {changedCount ? `${changedCount} 个变更` : "没有变更"}
       </span>
     </div>
   );

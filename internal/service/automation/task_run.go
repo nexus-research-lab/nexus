@@ -1,0 +1,208 @@
+package automation
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"strings"
+
+	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
+	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"
+)
+
+// RunTaskNow 立即触发一次任务。
+func (s *Service) RunTaskNow(ctx context.Context, jobID string) (*automationdomain.ExecutionResult, error) {
+	if err := s.ensureReady(ctx); err != nil {
+		return nil, err
+	}
+	ownerUserID, _ := scopedOwnerUserID(ctx)
+	job, err := s.repository.GetScheduledTask(ctx, ownerUserID, strings.TrimSpace(jobID))
+	if err != nil {
+		return nil, err
+	}
+	if job == nil {
+		return nil, automationdomain.ErrJobNotFound
+	}
+	s.loggerFor(ctx).Info("手动触发自动化任务",
+		"job_id", job.JobID,
+		"agent_id", job.AgentID,
+	)
+	result, err := s.startJobExecution(ctx, *job, automationdomain.TriggerKindManual, s.nowFn())
+	if err == nil {
+		runID := ""
+		if result != nil && result.RunID != nil {
+			runID = *result.RunID
+		}
+		s.recordTaskEvent(ctx, automationdomain.TaskEventActionRunNow, *job, runID, map[string]any{"status": anyExecutionStatus(result)})
+	}
+	return result, err
+}
+
+// ListTaskRuns 返回任务运行历史。
+func (s *Service) ListTaskRuns(ctx context.Context, jobID string) ([]automationdomain.ScheduledTaskRun, error) {
+	if err := s.ensureReady(ctx); err != nil {
+		return nil, err
+	}
+	ownerUserID, _ := scopedOwnerUserID(ctx)
+	normalizedJobID := strings.TrimSpace(jobID)
+	job, err := s.repository.GetScheduledTask(ctx, ownerUserID, normalizedJobID)
+	if err != nil {
+		return nil, err
+	}
+	runs, err := s.repository.ListRunsByJob(ctx, ownerUserID, normalizedJobID)
+	if err != nil {
+		return nil, err
+	}
+	if job != nil {
+		return runs, nil
+	}
+	events, err := s.repository.ListTaskEventsByJob(ctx, ownerUserID, normalizedJobID, 1)
+	if err != nil {
+		return nil, err
+	}
+	if len(runs) == 0 && len(events) == 0 {
+		return nil, automationdomain.ErrJobNotFound
+	}
+	return runs, nil
+}
+
+// RetryRunDelivery 只重试某次 run 的结果投递，不重新执行任务本身。
+func (s *Service) RetryRunDelivery(ctx context.Context, jobID string, runID string) (*automationdomain.ScheduledTaskRun, error) {
+	return s.retryRunDelivery(ctx, jobID, runID, true)
+}
+
+func (s *Service) retryRunDelivery(ctx context.Context, jobID string, runID string, recordEvent bool) (*automationdomain.ScheduledTaskRun, error) {
+	if err := s.ensureReady(ctx); err != nil {
+		return nil, err
+	}
+	ownerUserID, _ := scopedOwnerUserID(ctx)
+	job, run, err := s.loadDeliveryRetry(ctx, ownerUserID, jobID, runID)
+	if err != nil {
+		return nil, err
+	}
+	if err = validateDeliveryRetry(*run); err != nil {
+		return nil, err
+	}
+	update, deliveryStatus := s.buildDeliveryRetryUpdate(ctx, *job, *run)
+	if err = s.repository.MarkRunDelivery(ctx, update); err != nil {
+		return nil, err
+	}
+	s.updateJobLastDeliveryStatus(*job, deliveryStatus)
+
+	updated, err := s.loadRetriedRun(ctx, ownerUserID, job.JobID, run.RunID)
+	if err != nil {
+		return nil, err
+	}
+	if recordEvent && updated != nil {
+		s.recordTaskEvent(ctx, automationdomain.TaskEventActionRetryDelivery, *job, run.RunID, deliveryRetryTaskEventDetail(*updated))
+	}
+	return updated, nil
+}
+
+func (s *Service) loadDeliveryRetry(ctx context.Context, ownerUserID string, jobID string, runID string) (*automationdomain.ScheduledTask, *automationdomain.ScheduledTaskRun, error) {
+	job, err := s.repository.GetScheduledTask(ctx, ownerUserID, strings.TrimSpace(jobID))
+	if err != nil {
+		return nil, nil, err
+	}
+	if job == nil {
+		return nil, nil, automationdomain.ErrJobNotFound
+	}
+	run, err := s.repository.GetRun(ctx, ownerUserID, job.JobID, strings.TrimSpace(runID))
+	if errors.Is(err, sql.ErrNoRows) || (err == nil && run == nil) {
+		return nil, nil, automationdomain.ErrRunNotFound
+	}
+	return job, run, err
+}
+
+func validateDeliveryRetry(run automationdomain.ScheduledTaskRun) error {
+	runStatus := strings.TrimSpace(run.Status)
+	if runStatus == automationdomain.RunStatusPending || runStatus == automationdomain.RunStatusRunning {
+		return errors.New("run is not finished")
+	}
+	deliveryStatus := strings.TrimSpace(run.DeliveryStatus)
+	if deliveryStatus != automationdomain.DeliveryStatusFailed {
+		return fmt.Errorf("run delivery_status must be failed before retrying delivery, got %q", deliveryStatus)
+	}
+	return nil
+}
+
+func (s *Service) buildDeliveryRetryUpdate(ctx context.Context, job automationdomain.ScheduledTask, run automationdomain.ScheduledTaskRun) (automationstore.RunDeliveryUpdateInput, string) {
+	observation := automationexec.ExecutionObservation{
+		Status:        automationdomain.RunStatusSucceeded,
+		SessionID:     run.SessionID,
+		MessageCount:  run.MessageCount,
+		ResultText:    anyStringPointer(run.ResultText),
+		AssistantText: anyStringPointer(run.AssistantText),
+	}
+	deliveryResult := s.deliverJobObservation(contextForJobOwner(ctx, job), job, run.SessionKey, observation)
+	deliveryStatus := deliveryResult.Status
+	deliveryError := deliveryResult.Error
+	deliveryTo := deliveryResult.deliveryTo(job.Delivery)
+	now := s.nowFn()
+	deliveredAt := deliveredAtForStatus(deliveryStatus, now)
+	attempted := deliveryAttempted(deliveryStatus)
+	attemptsAfter := run.DeliveryAttempts
+	if attempted {
+		attemptsAfter++
+	}
+	nextDeliveryAttemptAt, deliveryDeadLetterAt := deliveryRetrySchedule(deliveryStatus, attemptsAfter, now)
+	return automationstore.RunDeliveryUpdateInput{
+		RunID:                 run.RunID,
+		DeliveryMode:          strings.TrimSpace(job.Delivery.Mode),
+		DeliveryTo:            deliveryTo,
+		DeliveryStatus:        deliveryStatus,
+		DeliveryError:         deliveryError,
+		DeliveredAt:           deliveredAt,
+		DeliveryAttempted:     attempted,
+		DeliveryNextAttemptAt: nextDeliveryAttemptAt,
+		DeliveryDeadLetterAt:  deliveryDeadLetterAt,
+	}, deliveryStatus
+}
+
+func (s *Service) loadRetriedRun(ctx context.Context, ownerUserID string, jobID string, runID string) (*automationdomain.ScheduledTaskRun, error) {
+	updated, err := s.repository.GetRun(ctx, ownerUserID, jobID, runID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, automationdomain.ErrRunNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return updated, nil
+}
+
+// RecoverTaskRunningRun 手动释放任务当前运行占用，并把未完成 run 标记为取消。
+func (s *Service) RecoverTaskRunningRun(ctx context.Context, jobID string, runID string) (*automationdomain.ScheduledTask, error) {
+	current, err := s.GetTask(ctx, jobID)
+	if err != nil {
+		return nil, err
+	}
+	if current == nil {
+		return nil, automationdomain.ErrJobNotFound
+	}
+	currentRunID := strings.TrimSpace(current.RunningRunID)
+	if currentRunID == "" {
+		return current, nil
+	}
+	expectedRunID := strings.TrimSpace(runID)
+	if expectedRunID != "" && expectedRunID != currentRunID {
+		return nil, errors.New("运行记录不一致，请刷新任务后重试")
+	}
+	message := "用户手动释放运行占用，已将未完成 run 标记为 cancelled"
+	if err = s.interruptActiveRunExecution(ctx, *current, currentRunID, message); err != nil {
+		return nil, err
+	}
+	recovered := s.recoverJobRuntimeAsCancelled(ctx, *current, message)
+	state := s.replaceJobRuntimeState(recovered)
+	result := scheduledTaskWithRuntime(recovered, state)
+	s.recordTaskEvent(ctx, automationdomain.TaskEventActionRecover, result, currentRunID, map[string]any{"recovered_run_id": currentRunID})
+	return &result, nil
+}
+
+func anyExecutionStatus(result *automationdomain.ExecutionResult) string {
+	if result == nil {
+		return ""
+	}
+	return strings.TrimSpace(result.Status)
+}

@@ -1,70 +1,71 @@
+/* eslint-disable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex -- A stage window is a focusable desktop composite with nested native controls. */
 import type { CSSProperties, MouseEvent, PointerEvent, ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import { Maximize2, Minimize2, Minus, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-import { cn } from "@/lib/utils";
-import { resolve_operation_window_keyboard_action } from "./operation-stage-window-actions";
-import { build_stage_window_titlebar_state } from "./operation-stage-window-titlebar";
+import { cn } from "@/shared/ui/class-name";
+import { resolveOperationWindowKeyboardAction } from "./operation-stage-window-actions";
+import { buildStageWindowTitlebarState } from "./operation-stage-window-titlebar";
 
 interface OperationStageWindowProps {
   title: string;
   icon: LucideIcon;
   children: ReactNode;
-  position_class_name: string;
-  app_label?: string;
-  delay_ms?: number;
+  positionClassName: string;
+  appLabel?: string;
+  delayMs?: number;
   focus?: boolean;
-  launch_origin?: "active" | "desktop" | "dock";
+  launchOrigin?: "active" | "desktop" | "dock";
   maximized?: boolean;
   minimized?: boolean;
   dimmed?: boolean;
-  drag_offset?: { x: number; y: number };
-  resize_size?: { height: number; width: number };
-  mobile_hidden?: boolean;
-  content_mode?: "flush" | "inset";
-  preview_mode?: "stage-manager";
-  restore_token?: number;
-  z_index?: number;
+  dragOffset?: { x: number; y: number };
+  resizeSize?: { height: number; width: number };
+  mobileHidden?: boolean;
+  contentMode?: "flush" | "inset";
+  previewMode?: "stage-manager";
+  restoreToken?: number;
+  zIndex?: number;
   tone?: "default" | "terminal";
-  on_close?: () => void;
-  on_drag?: (offset: { x: number; y: number }) => void;
-  on_focus?: () => void;
-  on_minimize?: () => void;
-  on_resize?: (size: { height: number; width: number }) => void;
-  on_zoom?: () => void;
-  on_cycle_focus?: (direction: "next" | "previous") => void;
+  onClose?: () => void;
+  onDrag?: (offset: { x: number; y: number }) => void;
+  onFocus?: () => void;
+  onMinimize?: () => void;
+  onResize?: (size: { height: number; width: number }) => void;
+  onZoom?: () => void;
+  onCycleFocus?: (direction: "next" | "previous") => void;
 }
 
 export function OperationStageWindow({
   title,
   icon: Icon,
   children,
-  position_class_name,
-  app_label,
-  delay_ms = 0,
+  positionClassName,
+  appLabel,
+  delayMs = 0,
   focus = false,
-  launch_origin = "active",
+  launchOrigin = "active",
   maximized = false,
   minimized = false,
   dimmed = false,
-  drag_offset = { x: 0, y: 0 },
-  resize_size,
-  mobile_hidden = false,
-  content_mode = "inset",
-  preview_mode,
-  restore_token,
-  z_index,
+  dragOffset = { x: 0, y: 0 },
+  resizeSize,
+  mobileHidden = false,
+  contentMode = "inset",
+  previewMode,
+  restoreToken,
+  zIndex,
   tone = "default",
-  on_close,
-  on_drag,
-  on_focus,
-  on_minimize,
-  on_resize,
-  on_zoom,
-  on_cycle_focus,
+  onClose,
+  onDrag,
+  onFocus,
+  onMinimize,
+  onResize,
+  onZoom,
+  onCycleFocus,
 }: OperationStageWindowProps) {
-  const window_ref = useRef<HTMLDivElement | null>(null);
+  const window_ref = useRef<HTMLDialogElement | null>(null);
   const drag_state_ref = useRef<{
     pointer_id: number;
     start_x: number;
@@ -83,8 +84,8 @@ export function OperationStageWindow({
   const cleanup_mouse_drag_ref = useRef<(() => void) | null>(null);
   const [is_dragging, set_is_dragging] = useState(false);
   const [is_restoring, set_is_restoring] = useState(false);
-  const titlebar = build_stage_window_titlebar_state({
-    app_label,
+  const titlebar = buildStageWindowTitlebarState({
+    app_label: appLabel,
     focused: focus,
     maximized,
     minimized,
@@ -99,18 +100,18 @@ export function OperationStageWindow({
       return;
     }
     if (typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches) {
-      on_focus?.();
+      onFocus?.();
       return;
     }
     event.preventDefault();
     event.stopPropagation();
-    on_focus?.();
+    onFocus?.();
     drag_state_ref.current = {
       pointer_id,
       start_x: event.clientX,
       start_y: event.clientY,
-      origin_x: drag_offset.x,
-      origin_y: drag_offset.y,
+      origin_x: dragOffset.x,
+      origin_y: dragOffset.y,
     };
     set_is_dragging(true);
   };
@@ -136,7 +137,7 @@ export function OperationStageWindow({
         return;
       }
       mouse_event.preventDefault();
-      on_drag?.({
+      onDrag?.({
         x: drag_state.origin_x + mouse_event.clientX - drag_state.start_x,
         y: drag_state.origin_y + mouse_event.clientY - drag_state.start_y,
       });
@@ -167,13 +168,13 @@ export function OperationStageWindow({
   }, []);
 
   useEffect(() => {
-    if (!restore_token) {
+    if (!restoreToken) {
       return;
     }
     set_is_restoring(true);
     const timeout = window.setTimeout(() => set_is_restoring(false), 360);
     return () => window.clearTimeout(timeout);
-  }, [restore_token]);
+  }, [restoreToken]);
 
   const move_drag = (event: PointerEvent<HTMLDivElement>) => {
     const drag_state = drag_state_ref.current;
@@ -181,7 +182,7 @@ export function OperationStageWindow({
       return;
     }
     event.preventDefault();
-    on_drag?.({
+    onDrag?.({
       x: drag_state.origin_x + event.clientX - drag_state.start_x,
       y: drag_state.origin_y + event.clientY - drag_state.start_y,
     });
@@ -200,7 +201,7 @@ export function OperationStageWindow({
   };
 
   const start_resize = (
-    event: PointerEvent<HTMLDivElement>,
+    event: PointerEvent<HTMLElement>,
     edge: "bottom" | "corner" | "right",
   ) => {
     if (event.button !== 0 || minimized || maximized || resize_state_ref.current) {
@@ -212,11 +213,11 @@ export function OperationStageWindow({
     }
     event.preventDefault();
     event.stopPropagation();
-    on_focus?.();
+    onFocus?.();
     resize_state_ref.current = {
       edge,
-      origin_height: resize_size?.height ?? rect.height,
-      origin_width: resize_size?.width ?? rect.width,
+      origin_height: resizeSize?.height ?? rect.height,
+      origin_width: resizeSize?.width ?? rect.width,
       pointer_id: event.pointerId,
       start_x: event.clientX,
       start_y: event.clientY,
@@ -225,13 +226,13 @@ export function OperationStageWindow({
     set_is_dragging(true);
   };
 
-  const move_resize = (event: PointerEvent<HTMLDivElement>) => {
+  const move_resize = (event: PointerEvent<HTMLElement>) => {
     const resize_state = resize_state_ref.current;
     if (!resize_state || resize_state.pointer_id !== event.pointerId) {
       return;
     }
     event.preventDefault();
-    on_resize?.({
+    onResize?.({
       height: resize_state.edge === "right"
         ? resize_state.origin_height
         : resize_state.origin_height + event.clientY - resize_state.start_y,
@@ -241,7 +242,7 @@ export function OperationStageWindow({
     });
   };
 
-  const end_resize = (event: PointerEvent<HTMLDivElement>) => {
+  const end_resize = (event: PointerEvent<HTMLElement>) => {
     const resize_state = resize_state_ref.current;
     if (!resize_state || resize_state.pointer_id !== event.pointerId) {
       return;
@@ -253,63 +254,63 @@ export function OperationStageWindow({
     set_is_dragging(false);
   };
 
-  const show_resize_handles = !maximized && !minimized && preview_mode !== "stage-manager";
+  const show_resize_handles = !maximized && !minimized && previewMode !== "stage-manager";
 
   return (
-    <div
+    <dialog
       ref={window_ref}
       aria-label={titlebar.aria_label}
       aria-roledescription="window"
       className={cn(
-        "operation-stage-window absolute flex min-h-0 min-w-0 cursor-default flex-col overflow-hidden rounded-[14px] border backdrop-blur-xl outline-none transition-[left,top,width,height,opacity,filter,box-shadow,border-radius] duration-300 ease-[cubic-bezier(.2,.82,.2,1)] focus-visible:ring-2 focus-visible:ring-[rgba(91,114,255,0.42)] focus-visible:ring-offset-2 focus-visible:ring-offset-transparent max-md:!relative max-md:!inset-auto max-md:!h-auto max-md:!min-h-[180px] max-md:!w-full max-md:max-w-full",
+        "operation-stage-window absolute m-0 flex min-h-0 min-w-0 cursor-default flex-col overflow-hidden rounded-[14px] border p-0 backdrop-blur-xl outline-none transition-[left,top,width,height,opacity,filter,box-shadow,border-radius] duration-300 ease-[cubic-bezier(.2,.82,.2,1)] focus-visible:ring-2 focus-visible:ring-[rgba(91,114,255,0.42)] focus-visible:ring-offset-2 focus-visible:ring-offset-transparent max-md:!relative max-md:!inset-auto max-md:!h-auto max-md:!min-h-[180px] max-md:!w-full max-md:max-w-full",
         tone === "terminal"
           ? "border-white/14 bg-[#0d151e]/95 text-[#d8e8e2] shadow-[0_30px_76px_rgba(0,8,16,0.34)]"
           : "border-white/60 bg-[rgba(250,252,253,0.96)] text-(--text-strong) shadow-[0_28px_72px_rgba(18,28,42,0.24)]",
         focus && "operation-stage-window-focus",
-        launch_origin === "dock" && "operation-stage-window-launch-dock",
-        launch_origin === "desktop" && "operation-stage-window-launch-desktop",
+        launchOrigin === "dock" && "operation-stage-window-launch-dock",
+        launchOrigin === "desktop" && "operation-stage-window-launch-desktop",
         maximized && "operation-stage-window-maximized rounded-[18px]",
         dimmed && "opacity-[0.62] saturate-[0.82]",
         is_dragging && "operation-stage-window-dragging select-none",
         is_restoring && "operation-stage-window-restoring",
-        preview_mode === "stage-manager" && "operation-stage-window-stage-manager rounded-[18px]",
+        previewMode === "stage-manager" && "operation-stage-window-stage-manager rounded-[18px]",
         minimized && "min-h-0",
-        mobile_hidden && "max-md:hidden",
-        position_class_name,
+        mobileHidden && "max-md:hidden",
+        positionClassName,
       )}
       onKeyDown={(keyboard_event) => {
         if (keyboard_event.currentTarget !== keyboard_event.target) {
           return;
         }
-        const action = resolve_operation_window_keyboard_action(keyboard_event);
+        const action = resolveOperationWindowKeyboardAction(keyboard_event);
         if (!action) {
           return;
         }
         keyboard_event.preventDefault();
         if (action === "focus") {
-          on_focus?.();
+          onFocus?.();
         } else if (action === "close") {
-          on_close?.();
+          onClose?.();
         } else if (action === "minimize") {
-          on_minimize?.();
+          onMinimize?.();
         } else if (action === "cycle_next") {
-          on_cycle_focus?.("next");
+          onCycleFocus?.("next");
         } else if (action === "cycle_previous") {
-          on_cycle_focus?.("previous");
+          onCycleFocus?.("previous");
         } else {
-          on_zoom?.();
+          onZoom?.();
         }
       }}
-      onMouseDown={on_focus}
-      role="group"
+      onMouseDown={onFocus}
+      open
       style={{
-        "--operation-delay": `${delay_ms}ms`,
-        "--operation-window-drag-x": `${drag_offset.x}px`,
-        "--operation-window-drag-y": `${drag_offset.y}px`,
-        height: resize_size && !maximized ? `${resize_size.height}px` : undefined,
-        zIndex: z_index,
-        translate: `${drag_offset.x}px ${drag_offset.y}px`,
-        width: resize_size && !maximized ? `${resize_size.width}px` : undefined,
+        "--operation-delay": `${delayMs}ms`,
+        "--operation-window-drag-x": `${dragOffset.x}px`,
+        "--operation-window-drag-y": `${dragOffset.y}px`,
+        height: resizeSize && !maximized ? `${resizeSize.height}px` : undefined,
+        zIndex: zIndex,
+        translate: `${dragOffset.x}px ${dragOffset.y}px`,
+        width: resizeSize && !maximized ? `${resizeSize.width}px` : undefined,
       } as CSSProperties}
       tabIndex={0}
     >
@@ -326,12 +327,13 @@ export function OperationStageWindow({
         onDoubleClick={(event) => {
           event.preventDefault();
           event.stopPropagation();
-          on_zoom?.();
+          onZoom?.();
         }}
         onMouseDown={start_mouse_drag}
         onPointerDown={start_pointer_drag}
         onPointerMove={move_drag}
         onPointerUp={end_drag}
+        role="toolbar"
       >
         <div className="operation-window-traffic flex items-center gap-1.5">
           <button
@@ -345,7 +347,7 @@ export function OperationStageWindow({
             onMouseDown={(event) => event.stopPropagation()}
             onClick={(event) => {
               event.stopPropagation();
-              on_close?.();
+              onClose?.();
             }}
             title="关闭窗口"
             type="button"
@@ -363,7 +365,7 @@ export function OperationStageWindow({
             onMouseDown={(event) => event.stopPropagation()}
             onClick={(event) => {
               event.stopPropagation();
-              on_minimize?.();
+              onMinimize?.();
             }}
             title="最小化窗口"
             type="button"
@@ -381,7 +383,7 @@ export function OperationStageWindow({
             onMouseDown={(event) => event.stopPropagation()}
             onClick={(event) => {
               event.stopPropagation();
-              on_zoom?.();
+              onZoom?.();
             }}
             title={titlebar.zoom_title}
             type="button"
@@ -425,34 +427,34 @@ export function OperationStageWindow({
         "soft-scrollbar relative min-h-0 flex-1",
         tone === "terminal"
           ? "overflow-hidden bg-[#090e14] p-0"
-          : content_mode === "flush"
+          : contentMode === "flush"
             ? "overflow-hidden p-0"
             : "overflow-auto p-4",
         minimized && "hidden",
       )}>
-        {preview_mode === "stage-manager" ? (
+        {previewMode === "stage-manager" ? (
           <button
             aria-label={`切换到 ${titlebar.title_label}`}
             className="group h-full w-full overflow-hidden bg-[linear-gradient(145deg,rgba(255,255,255,0.82),rgba(239,244,249,0.68))] p-2 text-left outline-none"
             onClick={(event) => {
               event.stopPropagation();
-              on_focus?.();
+              onFocus?.();
             }}
             type="button"
           >
             <StageManagerWindowPreview
-              app_label={app_label ?? "Nexus"}
+              appLabel={appLabel ?? "Nexus"}
               icon={Icon}
               title={titlebar.title_label}
               tone={tone}
             />
           </button>
-        ) : tone !== "terminal" && content_mode !== "flush" ? (
+        ) : tone !== "terminal" && contentMode !== "flush" ? (
           <div className="pointer-events-none absolute bottom-3 right-3 flex h-8 w-8 items-center justify-center rounded-[10px] border border-(--divider-subtle-color) bg-white/72 text-(--icon-muted) opacity-30">
             <Icon className="h-3.5 w-3.5" />
           </div>
         ) : null}
-        {preview_mode === "stage-manager" ? null : children}
+        {previewMode === "stage-manager" ? null : children}
       </div>
       {show_resize_handles ? (
         <>
@@ -474,35 +476,47 @@ export function OperationStageWindow({
             onPointerMove={move_resize}
             onPointerUp={end_resize}
           />
-          <div
+          <button
             aria-label="调整窗口大小"
             className="absolute bottom-1 right-1 z-30 h-5 w-5 cursor-nwse-resize rounded-[8px] border border-white/50 bg-white/42 opacity-0 transition-opacity hover:opacity-80 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(91,114,255,0.34)]"
+            onKeyDown={(event) => {
+              if (!onResize || !["ArrowDown", "ArrowLeft", "ArrowRight", "ArrowUp"].includes(event.key)) {
+                return;
+              }
+              event.preventDefault();
+              const step = event.shiftKey ? 24 : 12;
+              const currentWidth = resizeSize?.width ?? window_ref.current?.offsetWidth ?? 0;
+              const currentHeight = resizeSize?.height ?? window_ref.current?.offsetHeight ?? 0;
+              onResize({
+                width: currentWidth + (event.key === "ArrowRight" ? step : event.key === "ArrowLeft" ? -step : 0),
+                height: currentHeight + (event.key === "ArrowDown" ? step : event.key === "ArrowUp" ? -step : 0),
+              });
+            }}
             onPointerCancel={end_resize}
             onLostPointerCapture={end_resize}
             onPointerDown={(event) => start_resize(event, "corner")}
             onPointerMove={move_resize}
             onPointerUp={end_resize}
-            role="separator"
-            tabIndex={0}
+            type="button"
           />
         </>
       ) : null}
-    </div>
+    </dialog>
   );
 }
 
 function StageManagerWindowPreview({
-  app_label,
+  appLabel,
   icon: Icon,
   title,
   tone,
 }: {
-  app_label: string;
+  appLabel: string;
   icon: LucideIcon;
   title: string;
   tone: "default" | "terminal";
 }) {
-  const skin = stage_manager_preview_skin(app_label, tone);
+  const skin = stage_manager_preview_skin(appLabel, tone);
   return (
     <div className={cn(
       "flex h-full min-h-0 flex-col overflow-hidden rounded-[12px] border shadow-[inset_0_1px_0_rgba(255,255,255,0.62)] transition group-hover:brightness-[1.03]",
@@ -514,7 +528,7 @@ function StageManagerWindowPreview({
         <span className="h-1.5 w-1.5 rounded-full bg-[rgba(47,184,132,0.72)]" />
         <span className="ml-auto flex min-w-0 items-center gap-1 text-[7px] font-black">
           <Icon className="h-2.5 w-2.5 shrink-0" />
-          <span className="truncate">{app_label}</span>
+          <span className="truncate">{appLabel}</span>
         </span>
       </div>
       <div className="min-h-0 flex-1 p-2">
@@ -523,7 +537,7 @@ function StageManagerWindowPreview({
           {skin.lines.map((line, index) => (
             <span
               className={cn("block h-1.5 rounded-full", line)}
-              key={`${app_label}-${index}`}
+              key={`${appLabel}-${index}`}
             />
           ))}
         </div>

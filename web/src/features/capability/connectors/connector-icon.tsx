@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 
 import { getConnectorLetter } from "./connector-icons";
 
@@ -67,7 +67,7 @@ export function ConnectorIcon({
   icon,
   title,
   size = "md",
-  className: className,
+  className,
 }: ConnectorIconProps) {
   const staticIconSrc = getStaticConnectorIconSrc(icon);
   const letter = getConnectorLetter(icon, title);

@@ -11,10 +11,10 @@ import {
 import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 import { useState } from "react";
 
-import { format_operation_time } from "../operation-preview";
+import { formatOperationTime } from "../operation-preview";
 import type {
   NexusOperationEvent,
   NexusOperationSnapshot,
@@ -22,9 +22,9 @@ import type {
 } from "../operation-types";
 import { PHASE_LABELS } from "../operation-tool-catalog";
 import {
-  activity_cpu_label,
-  activity_cpu_load,
-  activity_pid_label,
+  activityCpuLabel,
+  activityCpuLoad,
+  activityPidLabel,
 } from "./activity-monitor-data";
 
 const PHASE_LABEL: Record<OperationPhase, string> = {
@@ -40,12 +40,12 @@ export function ActivityMonitorSurface({
   event,
   snapshot,
   lines,
-  on_focus_event,
+  onFocusEvent,
 }: {
   event: NexusOperationEvent;
   snapshot: NexusOperationSnapshot | null;
   lines: string[];
-  on_focus_event?: (event: NexusOperationEvent) => void;
+  onFocusEvent?: (event: NexusOperationEvent) => void;
 }) {
   const [selected_event_id, set_selected_event_id] = useState<string | null>(null);
   const task_events = collect_task_events(event, snapshot);
@@ -62,7 +62,7 @@ export function ActivityMonitorSurface({
   const preview_value = lines.join("\n") || event.result_preview || event.input_preview || event.summary;
   const finished_count = task_events.filter((item) => item.phase === "done").length;
   const running_count = task_events.filter((item) => item.phase === "running" || item.phase === "waiting").length;
-  const cpu_load = activity_cpu_load(running_count, finished_count);
+  const cpu_load = activityCpuLoad(running_count, finished_count);
   const active_step = steps[inspected_index] ?? steps[0];
 
   return (
@@ -99,8 +99,8 @@ export function ActivityMonitorSurface({
           {steps.map((step, index) => {
             const Icon = icon_for_task_phase(step.event.phase);
             const active = index === active_index;
-            const pid_label = activity_pid_label(step.event.id);
-            const cpu_label = activity_cpu_label(step.event.phase, index);
+            const pid_label = activityPidLabel(step.event.id);
+            const cpu_label = activityCpuLabel(step.event.phase, index);
             return (
               <button
                 aria-label={`查看进程 ${step.label}`}
@@ -127,7 +127,7 @@ export function ActivityMonitorSurface({
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-bold">{step.label}</p>
                   <p className="mt-0.5 truncate text-[10px] text-(--text-soft)">
-                    {step.status} · {format_operation_time(step.event.updated_at)}
+                    {step.status} · {formatOperationTime(step.event.updated_at)}
                   </p>
                 </div>
                 <span className="shrink-0 font-mono text-[9px] text-(--text-soft)">{pid_label}</span>
@@ -162,9 +162,9 @@ export function ActivityMonitorSurface({
         </div>
       </section>
       <ActivityProcessInspector
-        active_index={inspected_index}
-        on_focus_event={on_focus_event}
-        preview_value={preview_value}
+        activeIndex={inspected_index}
+        onFocusEvent={onFocusEvent}
+        previewValue={preview_value}
         step={active_step}
       />
     </div>
@@ -237,14 +237,14 @@ function icon_for_task_phase(phase: OperationPhase): LucideIcon {
 }
 
 function ActivityProcessInspector({
-  active_index,
-  on_focus_event,
-  preview_value,
+  activeIndex,
+  onFocusEvent,
+  previewValue,
   step,
 }: {
-  active_index: number;
-  on_focus_event?: (event: NexusOperationEvent) => void;
-  preview_value: unknown;
+  activeIndex: number;
+  onFocusEvent?: (event: NexusOperationEvent) => void;
+  previewValue: unknown;
   step?: { event: NexusOperationEvent; label: string; status: string };
 }) {
   if (!step) {
@@ -255,9 +255,9 @@ function ActivityProcessInspector({
     );
   }
 
-  const output_lines = format_process_output(preview_value);
-  const cpu_label = activity_cpu_label(step.event.phase, active_index);
-  const pid_label = activity_pid_label(step.event.id);
+  const output_lines = format_process_output(previewValue);
+  const cpu_label = activityCpuLabel(step.event.phase, activeIndex);
+  const pid_label = activityPidLabel(step.event.id);
 
   return (
     <section className="soft-scrollbar min-h-0 min-w-0 flex-1 overflow-auto bg-white/74 p-4">
@@ -280,10 +280,10 @@ function ActivityProcessInspector({
           )}>
             {cpu_label}% CPU
           </span>
-          {on_focus_event ? (
+          {onFocusEvent ? (
             <button
               className="h-7 rounded-[9px] border border-(--divider-subtle-color) bg-white/76 px-2.5 text-[10px] font-black text-(--text-strong) transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(91,114,255,0.32)]"
-              onClick={() => on_focus_event(step.event)}
+              onClick={() => onFocusEvent(step.event)}
               type="button"
             >
               跳到窗口
@@ -294,7 +294,7 @@ function ActivityProcessInspector({
 
       <div className="grid grid-cols-3 gap-2 text-[10px] max-sm:grid-cols-1">
         <ActivityDetailTile label="状态" value={PHASE_LABELS[step.event.phase]} />
-        <ActivityDetailTile label="更新" value={format_operation_time(step.event.updated_at)} />
+        <ActivityDetailTile label="更新" value={formatOperationTime(step.event.updated_at)} />
         <ActivityDetailTile label="来源" value={step.event.tool_name ?? step.event.surface} />
       </div>
 

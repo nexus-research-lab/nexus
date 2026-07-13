@@ -20,7 +20,7 @@ export interface BrowserSessionView {
   url: string | null;
 }
 
-export function build_browser_session_view({
+export function buildBrowserSessionView({
   event,
   preview,
   query,
@@ -35,7 +35,7 @@ export function build_browser_session_view({
 }): BrowserSessionView {
   const srcdoc = typeof preview === "string" && looks_like_html(preview) ? preview : null;
   const raw_url = build_workspace_raw_url(event.agent_id, target ?? event.target, raw_url_builder);
-  const url = looks_like_url(query) ? query : null;
+  const url = looksLikeUrl(query) ? query : null;
   const iframe_url = srcdoc ? null : raw_url;
   const has_live_view = Boolean(srcdoc || iframe_url);
   const display_url = browser_display_url({ iframe_url, query, srcdoc, target });
@@ -113,7 +113,7 @@ function browser_page_kind({
   if (display_url === "about:blank") {
     return "start";
   }
-  if (looks_like_url(display_url)) {
+  if (looksLikeUrl(display_url)) {
     return "web";
   }
   return "search";
@@ -170,7 +170,7 @@ function extract_html_title(value: string): string | null {
 }
 
 function readable_url_title(value: string): string | null {
-  if (!looks_like_url(value)) {
+  if (!looksLikeUrl(value)) {
     return null;
   }
   try {
@@ -183,7 +183,7 @@ function readable_url_title(value: string): string | null {
 
 function basename(value?: string | null): string | null {
   const trimmed = value?.trim();
-  if (!trimmed || looks_like_url(trimmed)) {
+  if (!trimmed || looksLikeUrl(trimmed)) {
     return null;
   }
   return trimmed.split(/[\\/]/).filter(Boolean).at(-1) ?? trimmed;
@@ -198,7 +198,7 @@ function looks_like_html(value: string): boolean {
   return /<!doctype html|<html[\s>]|<body[\s>]|<script[\s>]/i.test(value);
 }
 
-function looks_like_url(value: string): boolean {
+function looksLikeUrl(value: string): boolean {
   return /^https?:\/\//i.test(value);
 }
 
@@ -216,7 +216,7 @@ function build_workspace_raw_url(
 
 function normalize_workspace_relative_path(target?: string | null): string | null {
   const path = target?.trim();
-  if (!path || looks_like_url(path) || path.startsWith("/") || path.includes("..")) {
+  if (!path || looksLikeUrl(path) || path.startsWith("/") || path.includes("..")) {
     return null;
   }
   const normalized = path.replace(/^\.\/+/, "");

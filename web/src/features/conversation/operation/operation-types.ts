@@ -2,7 +2,7 @@ import type { WorkspaceActivityItem } from "@/types/app/workspace-live";
 import type {
   PermissionDecision,
   PermissionInteractionMode,
-} from "@/types/conversation/permission";
+} from "@/types/conversation/interaction/permission";
 
 import type { OperationRuntimeEvent } from "./operation-runtime-types";
 

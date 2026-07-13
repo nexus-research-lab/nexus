@@ -1,4 +1,4 @@
-import { format_operation_time as formatOperationTime } from "../operation-preview";
+import { formatOperationTime as formatOperationTime } from "../operation-preview";
 import {
   isTerminalCommandEvent,
   isTerminalControlEvent,

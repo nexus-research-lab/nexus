@@ -4,7 +4,7 @@ export interface StageKeyboardTargetDescriptor {
   tag_name?: string | null;
 }
 
-export function should_ignore_stage_desktop_keyboard_target(
+export function shouldIgnoreStageDesktopKeyboardTarget(
   target: StageKeyboardTargetDescriptor,
 ): boolean {
   if (target.is_content_editable || target.content_editable === "true") {

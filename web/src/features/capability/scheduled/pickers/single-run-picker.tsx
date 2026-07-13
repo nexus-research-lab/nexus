@@ -5,15 +5,17 @@ import { type RefObject } from "react";
 import { PickerPopover } from "./picker-popover";
 import {
   HOUR_12_OPTIONS,
+  MERIDIEM_LABELS,
+  MERIDIEM_OPTIONS,
   MINUTE_OPTIONS,
   SECOND_OPTIONS,
   type Meridiem,
 } from "./picker-types";
 import {
-  getPickerColumnButtonClassName,
   getPickerDateButtonClassName,
   PICKER_TRIGGER_CLASS_NAME,
 } from "./picker-styles";
+import { TimePickerColumn } from "./time-picker-column";
 
 interface CalendarDay {
   label: string;
@@ -50,30 +52,30 @@ interface SingleRunPickerProps {
 
 export function SingleRunPicker(props: SingleRunPickerProps) {
   const {
-    anchorRef: anchorRef,
+    anchorRef,
     display,
     hour12,
-    isDateDisabled: isDateDisabled,
-    isHourDisabled: isHourDisabled,
-    isOpen: isOpen,
-    isMeridiemDisabled: isMeridiemDisabled,
-    isMinuteDisabled: isMinuteDisabled,
-    isSecondDisabled: isSecondDisabled,
+    isDateDisabled,
+    isHourDisabled,
+    isOpen,
+    isMeridiemDisabled,
+    isMinuteDisabled,
+    isSecondDisabled,
     meridiem,
     minute,
-    monthLabel: monthLabel,
-    onClose: onClose,
-    onDateSelect: onDateSelect,
-    onHourSelect: onHourSelect,
-    onMeridiemSelect: onMeridiemSelect,
-    onMinuteSelect: onMinuteSelect,
-    onNextMonth: onNextMonth,
-    onPrevMonth: onPrevMonth,
-    onSecondSelect: onSecondSelect,
-    onToggle: onToggle,
+    monthLabel,
+    onClose,
+    onDateSelect,
+    onHourSelect,
+    onMeridiemSelect,
+    onMinuteSelect,
+    onNextMonth,
+    onPrevMonth,
+    onSecondSelect,
+    onToggle,
     second,
-    selectedDate: selectedDate,
-    visibleDays: visibleDays,
+    selectedDate,
+    visibleDays,
   } = props;
 
   return (
@@ -120,78 +122,31 @@ export function SingleRunPicker(props: SingleRunPickerProps) {
             </div>
           </div>
           <div className="grid grid-cols-4 gap-2">
-            <div className="max-h-[240px] space-y-2 overflow-y-auto pr-1">
-              {([{ key: "am", label: "上午" }, { key: "pm", label: "下午" }] as const).map((option) => (
-                (() => {
-                  const isDisabled = isMeridiemDisabled(option.key);
-                  return (
-                  <button
-                    className={getPickerColumnButtonClassName(meridiem === option.key, isDisabled)}
-                    disabled={isDisabled}
-                    key={option.key}
-                    onClick={() => onMeridiemSelect(option.key)}
-                    type="button"
-                  >
-                    {option.label}
-                  </button>
-                  );
-                })()
-              ))}
-            </div>
-            <div className="max-h-[240px] space-y-2 overflow-y-auto pr-1">
-              {HOUR_12_OPTIONS.map((option) => (
-                (() => {
-                  const isDisabled = isHourDisabled(option);
-                  return (
-                <button
-                  className={getPickerColumnButtonClassName(hour12 === option, isDisabled)}
-                  disabled={isDisabled}
-                  key={option}
-                  onClick={() => onHourSelect(option)}
-                  type="button"
-                >
-                  {option}
-                </button>
-                  );
-                })()
-              ))}
-            </div>
-            <div className="max-h-[240px] space-y-2 overflow-y-auto pr-1">
-              {MINUTE_OPTIONS.map((option) => (
-                (() => {
-                  const isDisabled = isMinuteDisabled(option);
-                  return (
-                <button
-                  className={getPickerColumnButtonClassName(minute === option, isDisabled)}
-                  disabled={isDisabled}
-                  key={option}
-                  onClick={() => onMinuteSelect(option)}
-                  type="button"
-                >
-                  {option}
-                </button>
-                  );
-                })()
-              ))}
-            </div>
-            <div className="max-h-[240px] space-y-2 overflow-y-auto pr-1">
-              {SECOND_OPTIONS.map((option) => (
-                (() => {
-                  const isDisabled = isSecondDisabled(option);
-                  return (
-                <button
-                  className={getPickerColumnButtonClassName(second === option, isDisabled)}
-                  disabled={isDisabled}
-                  key={option}
-                  onClick={() => onSecondSelect(option)}
-                  type="button"
-                >
-                  {option}
-                </button>
-                  );
-                })()
-              ))}
-            </div>
+            <TimePickerColumn
+              getLabel={(value) => MERIDIEM_LABELS[value]}
+              isDisabled={isMeridiemDisabled}
+              onSelect={onMeridiemSelect}
+              options={MERIDIEM_OPTIONS}
+              value={meridiem}
+            />
+            <TimePickerColumn
+              isDisabled={isHourDisabled}
+              onSelect={onHourSelect}
+              options={HOUR_12_OPTIONS}
+              value={hour12}
+            />
+            <TimePickerColumn
+              isDisabled={isMinuteDisabled}
+              onSelect={onMinuteSelect}
+              options={MINUTE_OPTIONS}
+              value={minute}
+            />
+            <TimePickerColumn
+              isDisabled={isSecondDisabled}
+              onSelect={onSecondSelect}
+              options={SECOND_OPTIONS}
+              value={second}
+            />
           </div>
         </div>
       </PickerPopover>

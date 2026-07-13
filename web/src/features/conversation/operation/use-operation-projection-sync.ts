@@ -3,21 +3,21 @@ import { useEffect, useMemo, useRef } from "react";
 import { areEquivalentSessionKeys } from "@/lib/conversation/session-key";
 import { useWorkspaceLiveStore } from "@/store/workspace-live";
 import type { AgentConversationIdentity } from "@/types/agent/agent-conversation";
-import type { Message } from "@/types/conversation/message";
+import type { Message } from "@/types/conversation/message/entity";
 import type {
   PendingPermission,
   PermissionDecisionPayload,
-} from "@/types/conversation/permission";
+} from "@/types/conversation/interaction/permission";
 
 import {
-  get_operation_stage_snapshot_api,
-  save_operation_stage_snapshot_api,
+  getOperationStageSnapshotApi,
+  saveOperationStageSnapshotApi,
 } from "./operation-stage-api";
-import { project_operation_snapshot } from "./operation-projector";
-import { merge_operation_stage_snapshots_for_restore } from "./operation-stage-experience";
+import { projectOperationSnapshot } from "./operation-projector";
+import { mergeOperationStageSnapshotsForRestore } from "./operation-stage-experience";
 import {
-  build_operation_stage_key,
-  compact_operation_snapshot_for_persistence,
+  buildOperationStageKey,
+  compactOperationSnapshotForPersistence,
   useOperationStageStore,
 } from "./operation-store";
 
@@ -36,7 +36,7 @@ export function useOperationProjectionSync({
   live_round_ids,
   on_permission_response,
 }: UseOperationProjectionSyncParams): void {
-  const key = build_operation_stage_key(identity);
+  const key = buildOperationStageKey(identity);
   const recent_workspace_events = useWorkspaceLiveStore((state) => state.recent_events);
   const set_snapshot = useOperationStageStore((state) => state.set_snapshot);
   const set_permission_response_handler = useOperationStageStore((state) => state.set_permission_response_handler);
@@ -82,7 +82,7 @@ export function useOperationProjectionSync({
       return null;
     }
 
-    return project_operation_snapshot({
+    return projectOperationSnapshot({
       key,
       session_key: identity?.session_key ?? null,
       agent_id: identity?.agent_id ?? null,
@@ -107,12 +107,12 @@ export function useOperationProjectionSync({
     }
 
     let cancelled = false;
-    void get_operation_stage_snapshot_api(key).then((remote_snapshot) => {
+    void getOperationStageSnapshotApi(key).then((remote_snapshot) => {
       if (!cancelled && remote_snapshot) {
         const current_snapshot = useOperationStageStore.getState().snapshots[key];
         set_snapshot(
           key,
-          merge_operation_stage_snapshots_for_restore(current_snapshot, remote_snapshot),
+          mergeOperationStageSnapshotsForRestore(current_snapshot, remote_snapshot),
         );
       }
     });
@@ -127,10 +127,10 @@ export function useOperationProjectionSync({
     }
 
     const current_snapshot = useOperationStageStore.getState().snapshots[key];
-    const merged_snapshot = merge_operation_stage_snapshots_for_restore(current_snapshot, snapshot);
+    const merged_snapshot = mergeOperationStageSnapshotsForRestore(current_snapshot, snapshot);
 
     set_snapshot(key, merged_snapshot);
-    const compact_snapshot = compact_operation_snapshot_for_persistence(merged_snapshot);
+    const compact_snapshot = compactOperationSnapshotForPersistence(merged_snapshot);
     const signature = build_snapshot_signature(compact_snapshot);
     if (!signature || last_saved_signature_ref.current === signature) {
       return;
@@ -138,13 +138,13 @@ export function useOperationProjectionSync({
 
     last_saved_signature_ref.current = signature;
     const timer = window.setTimeout(() => {
-      void save_operation_stage_snapshot_api(key, compact_snapshot);
+      void saveOperationStageSnapshotApi(key, compact_snapshot);
     }, 650);
     return () => window.clearTimeout(timer);
   }, [key, set_snapshot, snapshot]);
 }
 
-type CompactOperationSnapshot = ReturnType<typeof compact_operation_snapshot_for_persistence>;
+type CompactOperationSnapshot = ReturnType<typeof compactOperationSnapshotForPersistence>;
 
 function build_snapshot_signature(snapshot: CompactOperationSnapshot): string | null {
   const runtime_events = snapshot.runtime_events ?? [];

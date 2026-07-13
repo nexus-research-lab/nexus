@@ -1,0 +1,137 @@
+"use client";
+
+import { type FormEvent, useRef } from "react";
+import { Loader2, Target } from "lucide-react";
+
+import {
+  UiDialogBackdrop,
+  UiDialogBody,
+  UiDialogFooter,
+  UiDialogFormShell,
+  UiDialogHeader,
+  UiDialogPortal,
+} from "@/shared/ui/dialog/dialog";
+import { getDialogActionClassName } from "@/shared/ui/dialog/dialog-styles";
+import { UiField, UiInput, UiTextarea } from "@/shared/ui/form/form-control";
+
+import { buildGoalDraftFormModel } from "./goal-model";
+
+interface GoalDraftFormProps {
+  budget: string;
+  disabled: boolean;
+  error: string | null;
+  isLoading: boolean;
+  loadingLabel?: string | null;
+  objective: string;
+  onBudgetChange: (value: string) => void;
+  onCancel: () => void;
+  onObjectiveChange: (value: string) => void;
+  onSubmit: (event: FormEvent) => void;
+}
+
+export function GoalDraftForm({
+  budget,
+  disabled,
+  error,
+  isLoading,
+  loadingLabel = null,
+  objective,
+  onBudgetChange,
+  onCancel,
+  onObjectiveChange,
+  onSubmit,
+}: GoalDraftFormProps) {
+  const objectiveRef = useRef<HTMLTextAreaElement | null>(null);
+  const model = buildGoalDraftFormModel({
+    disabled,
+    isLoading,
+    loadingLabel,
+    objective,
+  });
+
+  return (
+    <UiDialogPortal>
+      <UiDialogBackdrop
+        className="z-[9998]"
+        initialFocusRef={objectiveRef}
+        labelledBy="goal-edit-dialog-title"
+        onClose={model.canClose ? onCancel : undefined}
+      >
+        <UiDialogFormShell
+          className="pointer-events-auto"
+          size="md"
+          onSubmit={onSubmit}
+        >
+          <UiDialogHeader
+            icon={<Target className="h-4 w-4" />}
+            iconClassName="text-(--primary)"
+            title="编辑 Goal"
+            titleId="goal-edit-dialog-title"
+            onClose={model.canClose ? onCancel : undefined}
+          />
+
+          <UiDialogBody className="flex flex-col gap-4">
+            <UiField
+              error={error}
+              htmlFor="goal-objective-input"
+              label="目标"
+            >
+              <UiTextarea
+                ref={objectiveRef}
+                className="min-h-[128px]"
+                data-autofocus="true"
+                disabled={model.fieldsDisabled}
+                id="goal-objective-input"
+                placeholder="输入长期目标"
+                value={objective}
+                variant="dialog"
+                onChange={(event) => onObjectiveChange(event.target.value)}
+              />
+            </UiField>
+
+            <UiField
+              htmlFor="goal-budget-input"
+              label="Token 预算"
+            >
+              <UiInput
+                className="max-w-[180px]"
+                disabled={model.fieldsDisabled}
+                id="goal-budget-input"
+                inputMode="numeric"
+                placeholder="不限制"
+                value={budget}
+                variant="dialog"
+                onChange={(event) => onBudgetChange(event.target.value)}
+              />
+            </UiField>
+          </UiDialogBody>
+
+          <UiDialogFooter className="justify-end gap-3">
+            <button
+              className={getDialogActionClassName("default")}
+              disabled={model.fieldsDisabled}
+              type="button"
+              onClick={onCancel}
+            >
+              取消
+            </button>
+            <button
+              className={getDialogActionClassName(model.submitTone)}
+              disabled={model.submitDisabled}
+              type="submit"
+            >
+              {model.isLoading ? (
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  {model.submitLabel}
+                </span>
+              ) : (
+                model.submitLabel
+              )}
+            </button>
+          </UiDialogFooter>
+        </UiDialogFormShell>
+      </UiDialogBackdrop>
+    </UiDialogPortal>
+  );
+}

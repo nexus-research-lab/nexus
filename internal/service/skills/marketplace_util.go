@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"unicode/utf8"
@@ -18,12 +19,16 @@ func unzipArchive(payload []byte, targetDir string) error {
 		return errors.New("上传文件不是合法 zip 包")
 	}
 	for _, file := range reader.File {
-		targetPath := filepath.Join(targetDir, file.Name)
+		entryName, cleanErr := cleanZipEntryName(file.Name)
+		if cleanErr != nil {
+			return cleanErr
+		}
+		targetPath := filepath.Join(targetDir, filepath.FromSlash(entryName))
 		cleanTarget := filepath.Clean(targetPath)
 		if !strings.HasPrefix(cleanTarget, filepath.Clean(targetDir)+string(os.PathSeparator)) {
 			return errors.New("zip 包含非法路径")
 		}
-		if file.FileInfo().IsDir() {
+		if file.FileInfo().IsDir() || zipEntryIsDir(file.Name) {
 			if err = os.MkdirAll(cleanTarget, 0o755); err != nil {
 				return err
 			}
@@ -55,6 +60,38 @@ func unzipArchive(payload []byte, targetDir string) error {
 		}
 	}
 	return nil
+}
+
+func cleanZipEntryName(name string) (string, error) {
+	normalized := strings.ReplaceAll(name, "\\", "/")
+	if strings.ContainsRune(normalized, '\x00') || path.IsAbs(normalized) || hasWindowsVolumePrefix(normalized) {
+		return "", errors.New("zip 包含非法路径")
+	}
+	cleaned := path.Clean(normalized)
+	if cleaned == "." || cleaned == ".." || strings.HasPrefix(cleaned, "../") {
+		return "", errors.New("zip 包含非法路径")
+	}
+	return cleaned, nil
+}
+
+func zipEntryBase(name string) string {
+	cleaned, err := cleanZipEntryName(name)
+	if err != nil {
+		return ""
+	}
+	return path.Base(cleaned)
+}
+
+func zipEntryIsDir(name string) bool {
+	return strings.HasSuffix(strings.ReplaceAll(name, "\\", "/"), "/")
+}
+
+func hasWindowsVolumePrefix(name string) bool {
+	if len(name) < 3 || name[1] != ':' || name[2] != '/' {
+		return false
+	}
+	letter := name[0]
+	return letter >= 'A' && letter <= 'Z' || letter >= 'a' && letter <= 'z'
 }
 
 func isZipPayload(targetURL string, contentType string, payload []byte) bool {

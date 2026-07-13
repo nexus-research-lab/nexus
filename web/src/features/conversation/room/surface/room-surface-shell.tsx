@@ -3,15 +3,15 @@
 import { useCallback, useState } from "react";
 
 import { useMediaQuery } from "@/hooks/ui/use-media-query";
+import type { RoomDialogSubmission } from "@/features/conversation/room/members/create-room-dialog";
 import { Agent, AgentIdentityDraft, AgentNameValidationResult, AgentOptions } from "@/types/agent/agent";
 import { AgentConversationIdentity } from "@/types/agent/agent-conversation";
 import { ConversationSnapshotPayload, RoomConversationView } from "@/types/conversation/conversation";
-import { RoomSurfaceTabKey } from "@/types/conversation/room-surface";
+import type { RoomSurfaceTabKey } from "@/features/conversation/room/surface/header/room-header-tabs";
 import { TodoItem } from "@/types/conversation/todo";
-import { UpdateRoomParams } from "@/types/conversation/room";
 
-import { RoomMobileSurface } from "./room-mobile-surface";
-import { RoomSurfaceLayout } from "./room-surface-layout";
+import { RoomMobileSurface } from "./mobile/room-mobile-surface";
+import { RoomSurfaceLayout } from "./layout/room-surface-layout";
 
 interface RoomSurfaceShellProps {
   currentAgent: Agent;
@@ -22,7 +22,7 @@ interface RoomSurfaceShellProps {
   availableRoomAgents: Agent[];
   currentRoomTitle: string;
   roomSkillNames: string[];
-  roomHostAgentId?: string | null;
+  roomHostAgentId: string | null;
   roomHostAutoReplyEnabled: boolean;
   roomPrivateMessagesEnabled: boolean;
   currentRoomConversation: RoomConversationView | null;
@@ -32,88 +32,70 @@ interface RoomSurfaceShellProps {
   activeWorkspacePath: string | null;
   initialDraft?: string | null;
   onInitialDraftConsumed?: () => void;
-  isEditorOpen: boolean;
-  editorWidthPercent: number;
-  isResizingEditor: boolean;
-  isConversationBusy: boolean;
+  sidePanelWidthPercent: number;
+  isResizingSidePanel: boolean;
   currentTodos: TodoItem[];
-  workspaceSplitRef: React.RefObject<HTMLElement | null>;
+  surfaceSplitRef: React.RefObject<HTMLElement | null>;
   onReplayTour?: () => void;
   onBackToDirectory: () => void;
   onCreateConversation: (title?: string) => Promise<string | null>;
   onSelectConversation: (conversationId: string) => void;
   onCloseConversation: (conversationId: string) => Promise<void>;
   onDeleteConversation: (conversationId: string) => Promise<string | null>;
-  onAddRoomMember: (agentId: string) => Promise<void>;
-  onRemoveRoomMember: (agentId: string) => Promise<void>;
+  onManageRoom: (submission: RoomDialogSubmission) => Promise<void>;
   onOpenMemberManager: () => Promise<void>;
   onSaveAgentOptions: (agentId: string, title: string, options: AgentOptions, identity: AgentIdentityDraft) => Promise<void>;
   onValidateAgentName: (name: string, agentId?: string) => Promise<AgentNameValidationResult>;
-  onUpdateRoom: (roomId: string, params: UpdateRoomParams) => Promise<void>;
   onUpdateConversationTitle: (conversationId: string, title: string) => Promise<void>;
-  onOpenWorkspaceFile: (path: string | null) => void;
-  onStartEditorResize: () => void;
-  onLoadingChange: (isLoading: boolean) => void;
+  onOpenWorkspaceFile: (path: string | null, workspaceAgentId?: string | null) => void;
+  onStartSidePanelResize: () => void;
   onTodosChange: (todos: TodoItem[]) => void;
   onConversationSnapshotChange: (snapshot: ConversationSnapshotPayload) => void;
   onRoomEvent?: (eventType: string, data: import("@/types/agent/agent-conversation").RoomEventPayload) => void;
 }
 
 export function RoomSurfaceShell({
-  currentAgent: currentAgent,
-  currentRoomType: currentRoomType,
-  roomId: roomId,
-  roomAvatar: roomAvatar,
-  roomMembers: roomMembers,
-  availableRoomAgents: availableRoomAgents,
-  currentRoomTitle: currentRoomTitle,
-  roomSkillNames: roomSkillNames,
-  roomHostAgentId: roomHostAgentId,
-  roomHostAutoReplyEnabled: roomHostAutoReplyEnabled,
-  roomPrivateMessagesEnabled: roomPrivateMessagesEnabled,
-  currentRoomConversation: currentRoomConversation,
-  currentAgentSessionIdentity: currentAgentSessionIdentity,
-  conversationId: conversationId,
-  currentRoomConversations: currentRoomConversations,
-  activeWorkspacePath: activeWorkspacePath,
-  initialDraft: initialDraft,
-  onInitialDraftConsumed: onInitialDraftConsumed,
-  isEditorOpen: isEditorOpen,
-  editorWidthPercent: editorWidthPercent,
-  isResizingEditor: isResizingEditor,
-  isConversationBusy: isConversationBusy,
-  currentTodos: currentTodos,
-  workspaceSplitRef: workspaceSplitRef,
-  onReplayTour: onReplayTour,
-  onBackToDirectory: onBackToDirectory,
-  onCreateConversation: onCreateConversation,
-  onSelectConversation: onSelectConversation,
-  onCloseConversation: onCloseConversation,
-  onDeleteConversation: onDeleteConversation,
-  onAddRoomMember: onAddRoomMember,
-  onRemoveRoomMember: onRemoveRoomMember,
-  onOpenMemberManager: onOpenMemberManager,
-  onSaveAgentOptions: onSaveAgentOptions,
-  onValidateAgentName: onValidateAgentName,
-  onUpdateRoom: onUpdateRoom,
-  onUpdateConversationTitle: onUpdateConversationTitle,
-  onOpenWorkspaceFile: onOpenWorkspaceFile,
-  onStartEditorResize: onStartEditorResize,
-  onLoadingChange: onLoadingChange,
-  onTodosChange: onTodosChange,
-  onConversationSnapshotChange: onConversationSnapshotChange,
-  onRoomEvent: onRoomEvent,
+  currentAgent,
+  currentRoomType,
+  roomId,
+  roomAvatar,
+  roomMembers,
+  availableRoomAgents,
+  currentRoomTitle,
+  roomSkillNames,
+  roomHostAgentId,
+  roomHostAutoReplyEnabled,
+  roomPrivateMessagesEnabled,
+  currentRoomConversation,
+  currentAgentSessionIdentity,
+  conversationId,
+  currentRoomConversations,
+  activeWorkspacePath,
+  initialDraft,
+  onInitialDraftConsumed,
+  sidePanelWidthPercent,
+  isResizingSidePanel,
+  currentTodos,
+  surfaceSplitRef,
+  onReplayTour,
+  onBackToDirectory,
+  onCreateConversation,
+  onSelectConversation,
+  onCloseConversation,
+  onDeleteConversation,
+  onManageRoom,
+  onOpenMemberManager,
+  onSaveAgentOptions,
+  onValidateAgentName,
+  onUpdateConversationTitle,
+  onOpenWorkspaceFile,
+  onStartSidePanelResize,
+  onTodosChange,
+  onConversationSnapshotChange,
+  onRoomEvent,
 }: RoomSurfaceShellProps) {
   const isMobile = useMediaQuery("(max-width: 767px)");
   const [activeSurfaceTab, setActiveSurfaceTab] = useState<RoomSurfaceTabKey>(() => readInitialSurfaceTab());
-
-  const handleSelectConversationInShell = useCallback((conversationId: string) => {
-    onSelectConversation(conversationId);
-  }, [onSelectConversation]);
-
-  const handleChangeSurfaceTab = useCallback((nextTab: RoomSurfaceTabKey) => {
-    setActiveSurfaceTab(nextTab);
-  }, []);
 
   const handleCreateConversationInShell = useCallback(async (title?: string) => {
     const nextConversationId = await onCreateConversation(title);
@@ -121,8 +103,8 @@ export function RoomSurfaceShell({
     return nextConversationId;
   }, [onCreateConversation]);
 
-  const handleOpenWorkspaceFileInShell = useCallback((path: string | null) => {
-    onOpenWorkspaceFile(path);
+  const handleOpenWorkspaceFileInShell = useCallback((path: string | null, workspaceAgentId?: string | null) => {
+    onOpenWorkspaceFile(path, workspaceAgentId);
     if (path) {
       setActiveSurfaceTab("workspace");
     }
@@ -131,6 +113,7 @@ export function RoomSurfaceShell({
   if (isMobile) {
     return (
       <RoomMobileSurface
+        key={roomId ?? currentAgent.agent_id}
         currentAgent={currentAgent}
         currentRoomType={currentRoomType}
         roomId={roomId}
@@ -142,14 +125,17 @@ export function RoomSurfaceShell({
         conversationId={conversationId}
         currentRoomConversations={currentRoomConversations}
         currentRoomTitle={currentRoomTitle}
+        currentTodos={currentTodos}
         initialDraft={initialDraft}
         onInitialDraftConsumed={onInitialDraftConsumed}
         onBackToDirectory={onBackToDirectory}
         onConversationSnapshotChange={onConversationSnapshotChange}
         onCreateConversation={handleCreateConversationInShell}
-        onLoadingChange={onLoadingChange}
+        onOpenWorkspaceFile={(path, workspaceAgentId) =>
+          onOpenWorkspaceFile(path, workspaceAgentId)}
         onRoomEvent={onRoomEvent}
-        onSelectConversation={handleSelectConversationInShell}
+        onSelectConversation={onSelectConversation}
+        onTodosChange={onTodosChange}
       />
     );
   }
@@ -175,29 +161,24 @@ export function RoomSurfaceShell({
       initialDraft={initialDraft}
       onInitialDraftConsumed={onInitialDraftConsumed}
       currentTodos={currentTodos}
-      editorWidthPercent={editorWidthPercent}
-      isEditorOpen={isEditorOpen}
-      isResizingEditor={isResizingEditor}
-      isConversationBusy={isConversationBusy}
+      sidePanelWidthPercent={sidePanelWidthPercent}
+      isResizingSidePanel={isResizingSidePanel}
       onReplayTour={onReplayTour}
-      onAddRoomMember={onAddRoomMember}
+      onManageRoom={onManageRoom}
       onOpenMemberManager={onOpenMemberManager}
-      onRemoveRoomMember={onRemoveRoomMember}
       onSaveAgentOptions={onSaveAgentOptions}
       onValidateAgentName={onValidateAgentName}
-      onChangeSurfaceTab={handleChangeSurfaceTab}
+      onChangeSurfaceTab={setActiveSurfaceTab}
       onConversationSnapshotChange={onConversationSnapshotChange}
       onCreateConversation={handleCreateConversationInShell}
       onCloseConversation={onCloseConversation}
       onDeleteConversation={onDeleteConversation}
-      onLoadingChange={onLoadingChange}
       onOpenWorkspaceFile={handleOpenWorkspaceFileInShell}
-      onUpdateRoom={onUpdateRoom}
       onUpdateConversationTitle={onUpdateConversationTitle}
-      onSelectConversation={handleSelectConversationInShell}
-      onStartEditorResize={onStartEditorResize}
+      onSelectConversation={onSelectConversation}
+      onStartSidePanelResize={onStartSidePanelResize}
       onTodosChange={onTodosChange}
-      workspaceSplitRef={workspaceSplitRef}
+      surfaceSplitRef={surfaceSplitRef}
       onRoomEvent={onRoomEvent}
     />
   );

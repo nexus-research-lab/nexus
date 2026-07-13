@@ -28,8 +28,32 @@ const (
 
 var errEmptyGeneratedTitle = errors.New("标题生成返回空结果")
 
+type generatedTitleTargets struct {
+	session      bool
+	conversation bool
+	roomID       string
+}
+
 func (s *Service) generateAndApply(ctx context.Context, request Request) {
-	sessionEligible := false
+	targets := s.resolveGeneratedTitleTargets(ctx, request)
+	if !targets.session && !targets.conversation {
+		s.logIneligibleTitleTargets(request, targets)
+		return
+	}
+	title, err := s.generateTitle(ctx, request, request.Content)
+	if err != nil {
+		s.logTitleGenerationError(request, err)
+		return
+	}
+	if title == "" || !s.applyGeneratedTitle(ctx, request, targets, title) {
+		return
+	}
+	request.ConversationRoomID = targets.roomID
+	s.broadcastResync(ctx, request)
+}
+
+func (s *Service) resolveGeneratedTitleTargets(ctx context.Context, request Request) generatedTitleTargets {
+	targets := generatedTitleTargets{roomID: strings.TrimSpace(request.ConversationRoomID)}
 	if request.shouldCheckSessionTitle() {
 		ok, err := s.canAutoUpdateSession(ctx, request.SessionKey, request.FallbackTitle)
 		if err != nil {
@@ -38,11 +62,9 @@ func (s *Service) generateAndApply(ctx context.Context, request Request) {
 				"err", err,
 			)
 		} else {
-			sessionEligible = ok
+			targets.session = ok
 		}
 	}
-	conversationEligible := false
-	resolvedRoomID := strings.TrimSpace(request.ConversationRoomID)
 	if request.shouldCheckConversationTitle() {
 		ok, roomID, err := s.canAutoUpdateConversation(
 			ctx,
@@ -57,53 +79,50 @@ func (s *Service) generateAndApply(ctx context.Context, request Request) {
 				"err", err,
 			)
 		} else {
-			conversationEligible = ok
+			targets.conversation = ok
 			if roomID != "" {
-				resolvedRoomID = roomID
+				targets.roomID = roomID
 			}
 		}
 	}
-	if !sessionEligible && !conversationEligible {
-		s.logger.Info("跳过标题生成：目标当前不可自动更新",
-			"session_key", request.SessionKey,
-			"conversation_id", request.ConversationID,
-			"session_title", request.SessionTitle,
-			"conversation_title", request.ConversationTitle,
-			"conversation_room_name", request.ConversationRoomName,
-			"fallback_title", request.FallbackTitle,
-			"session_eligible", sessionEligible,
-			"conversation_eligible", conversationEligible,
-		)
-		return
-	}
+	return targets
+}
 
-	title, err := s.generateTitle(ctx, request, request.Content)
-	if err != nil {
-		if errors.Is(err, errEmptyGeneratedTitle) {
-			s.logger.Warn("生成会话标题返回空结果",
-				"session_key", request.SessionKey,
-				"conversation_id", request.ConversationID,
-				"provider", strings.TrimSpace(request.Provider),
-				"model", strings.TrimSpace(request.Model),
-				"err", err,
-			)
-			return
-		}
-		s.logger.Warn("生成会话标题失败",
-			"session_key", request.SessionKey,
-			"conversation_id", request.ConversationID,
-			"provider", strings.TrimSpace(request.Provider),
-			"model", strings.TrimSpace(request.Model),
-			"err", err,
-		)
-		return
-	}
-	if title == "" {
-		return
-	}
+func (s *Service) logIneligibleTitleTargets(request Request, targets generatedTitleTargets) {
+	s.logger.Info("跳过标题生成：目标当前不可自动更新",
+		"session_key", request.SessionKey,
+		"conversation_id", request.ConversationID,
+		"session_title", request.SessionTitle,
+		"conversation_title", request.ConversationTitle,
+		"conversation_room_name", request.ConversationRoomName,
+		"fallback_title", request.FallbackTitle,
+		"session_eligible", targets.session,
+		"conversation_eligible", targets.conversation,
+	)
+}
 
+func (s *Service) logTitleGenerationError(request Request, err error) {
+	message := "生成会话标题失败"
+	if errors.Is(err, errEmptyGeneratedTitle) {
+		message = "生成会话标题返回空结果"
+	}
+	s.logger.Warn(message,
+		"session_key", request.SessionKey,
+		"conversation_id", request.ConversationID,
+		"provider", strings.TrimSpace(request.Provider),
+		"model", strings.TrimSpace(request.Model),
+		"err", err,
+	)
+}
+
+func (s *Service) applyGeneratedTitle(
+	ctx context.Context,
+	request Request,
+	targets generatedTitleTargets,
+	title string,
+) bool {
 	updated := false
-	if sessionEligible {
+	if targets.session {
 		ok, err := s.applySessionTitle(ctx, request.SessionKey, title, request.FallbackTitle)
 		if err != nil {
 			s.logger.Warn("更新 session 标题失败",
@@ -119,11 +138,11 @@ func (s *Service) generateAndApply(ctx context.Context, request Request) {
 			)
 		}
 	}
-	if conversationEligible {
+	if targets.conversation {
 		ok, err := s.applyConversationTitle(
 			ctx,
 			request.ConversationID,
-			resolvedRoomID,
+			targets.roomID,
 			title,
 			request.FallbackTitle,
 		)
@@ -143,10 +162,7 @@ func (s *Service) generateAndApply(ctx context.Context, request Request) {
 			)
 		}
 	}
-	if updated {
-		request.ConversationRoomID = resolvedRoomID
-		s.broadcastResync(ctx, request)
-	}
+	return updated
 }
 
 func (s *Service) generateTitle(

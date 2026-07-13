@@ -145,7 +145,7 @@ func ChatAttachmentFromMap(value map[string]any) ChatAttachment {
 		Scope:            ChatAttachmentScope(chatAttachmentStringFromAny(value["scope"])),
 		Kind:             ChatAttachmentKind(chatAttachmentStringFromAny(value["kind"])),
 		MIMEType:         chatAttachmentStringFromAny(value["mime_type"]),
-		Size:             chatAttachmentInt64FromAny(value["size"]),
+		Size:             Int64FromAny(value["size"]),
 	}
 }
 
@@ -157,18 +157,5 @@ func chatAttachmentStringFromAny(value any) string {
 		return strings.TrimSpace(string(typed))
 	default:
 		return ""
-	}
-}
-
-func chatAttachmentInt64FromAny(value any) int64 {
-	switch typed := value.(type) {
-	case int64:
-		return typed
-	case int:
-		return int64(typed)
-	case float64:
-		return int64(typed)
-	default:
-		return 0
 	}
 }

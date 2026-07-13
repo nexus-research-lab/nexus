@@ -46,14 +46,7 @@ func TestToolsListIncludesDeferredMetadata(t *testing.T) {
 		if strings.TrimSpace(hint) == "" {
 			t.Fatalf("%s missing anthropic/searchHint", name)
 		}
-		alwaysLoad, hasAlwaysLoad := meta["anthropic/alwaysLoad"].(bool)
-		if name == "connector_list" {
-			if !hasAlwaysLoad || !alwaysLoad {
-				t.Fatalf("%s should be always loaded", name)
-			}
-			continue
-		}
-		if hasAlwaysLoad {
+		if _, hasAlwaysLoad := meta["anthropic/alwaysLoad"]; hasAlwaysLoad {
 			t.Fatalf("%s should stay deferred", name)
 		}
 	}

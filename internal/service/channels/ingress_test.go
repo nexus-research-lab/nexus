@@ -2,21 +2,74 @@ package channels
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
-	sqliterepo "github.com/nexus-research-lab/nexus/internal/storage/sqlite"
+	"github.com/nexus-research-lab/nexus/internal/storage/agentrepo"
 
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
+
+func TestIngressServiceDeduplicatesReqID(t *testing.T) {
+	cfg := newIngressTestConfig(t)
+	db := migrateIngressSQLite(t, cfg.DatabaseURL)
+	defer func() { _ = db.Close() }()
+
+	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
+	handler := &fakeIngressDMHandler{}
+	router := NewRouter(cfg, db, agentService, permissionctx.NewContext())
+	control := NewControlService(cfg, db, agentService, router)
+	service := NewIngressService(cfg, agentService, handler, router)
+	service.SetControlService(control)
+
+	request := IngressRequest{Channel: "internal", Ref: "chat", Content: "创建每天九点的新闻定时任务", RoundID: "evt-1", ReqID: "message-1"}
+	first, err := service.Accept(context.Background(), request)
+	if err != nil {
+		t.Fatalf("第一次 Accept 失败: %v", err)
+	}
+	second, err := service.Accept(context.Background(), request)
+	if err != nil {
+		t.Fatalf("重复 Accept 不应失败: %v", err)
+	}
+	if len(handler.requests) != 1 || second == nil || !second.Duplicate {
+		t.Fatalf("重复 req_id 应复用原结果: requests=%d result=%+v", len(handler.requests), second)
+	}
+	if second.SessionKey != first.SessionKey || second.RoundID != first.RoundID || second.ReqID != first.ReqID {
+		t.Fatalf("重复消息返回的原始结果不一致: first=%+v second=%+v", first, second)
+	}
+}
+
+func TestIngressServiceRetriesFailedReqID(t *testing.T) {
+	cfg := newIngressTestConfig(t)
+	db := migrateIngressSQLite(t, cfg.DatabaseURL)
+	defer func() { _ = db.Close() }()
+
+	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
+	handler := &fakeIngressDMHandler{err: errors.New("dm temporarily unavailable")}
+	router := NewRouter(cfg, db, agentService, permissionctx.NewContext())
+	control := NewControlService(cfg, db, agentService, router)
+	service := NewIngressService(cfg, agentService, handler, router)
+	service.SetControlService(control)
+
+	request := IngressRequest{Channel: "internal", Ref: "chat", Content: "停止每日新闻定时任务", RoundID: "evt-1", ReqID: "message-1"}
+	if _, err := service.Accept(context.Background(), request); err == nil {
+		t.Fatal("第一次 DM 失败应返回错误")
+	}
+	handler.err = nil
+	result, err := service.Accept(context.Background(), request)
+	if err != nil || result == nil || result.Duplicate {
+		t.Fatalf("失败后的同 req_id 应允许重试: result=%+v err=%v", result, err)
+	}
+}
 
 func TestIngressServiceAcceptInternalBuildsSessionAndRemembersRoute(t *testing.T) {
 	cfg := newIngressTestConfig(t)
 	db := migrateIngressSQLite(t, cfg.DatabaseURL)
 	defer func() { _ = db.Close() }()
 
-	agentService := agentsvc.NewService(cfg, sqliterepo.NewAgentRepository(db))
+	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
 	handler := &fakeIngressDMHandler{}
 	notifier := &fakeExternalSessionNotifier{}
 	router := NewRouter(cfg, db, agentService, permissionctx.NewContext())
@@ -86,7 +139,7 @@ func TestIngressServiceAcceptFeishuBuildsSessionAndRemembersRoute(t *testing.T) 
 	db := migrateIngressSQLite(t, cfg.DatabaseURL)
 	defer func() { _ = db.Close() }()
 
-	agentService := agentsvc.NewService(cfg, sqliterepo.NewAgentRepository(db))
+	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
 	handler := &fakeIngressDMHandler{}
 	notifier := &fakeExternalSessionNotifier{}
 	router := NewRouter(cfg, db, agentService, permissionctx.NewContext())
@@ -147,7 +200,7 @@ func TestIngressServiceAcceptFeishuThreadUsesGroupPairing(t *testing.T) {
 	db := migrateIngressSQLite(t, cfg.DatabaseURL)
 	defer func() { _ = db.Close() }()
 
-	agentService := agentsvc.NewService(cfg, sqliterepo.NewAgentRepository(db))
+	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
 	defaultAgent, err := agentService.GetDefaultAgent(context.Background())
 	if err != nil {
 		t.Fatalf("初始化默认 Agent 失败: %v", err)
@@ -208,7 +261,7 @@ func TestIngressServiceAcceptPassesChannelOwnerToDM(t *testing.T) {
 	db := migrateIngressSQLite(t, cfg.DatabaseURL)
 	defer func() { _ = db.Close() }()
 
-	agentService := agentsvc.NewService(cfg, sqliterepo.NewAgentRepository(db))
+	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
 	ownerCtx := ingressTestOwnerContext("owner-a")
 	ownerAgent, err := agentService.GetDefaultAgent(ownerCtx)
 	if err != nil {

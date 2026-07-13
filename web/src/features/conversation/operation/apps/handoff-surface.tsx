@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 
 import type { StageHandoffSummary } from "../operation-desktop-types";
 import type {
@@ -19,44 +19,44 @@ import type {
   NexusOperationSnapshot,
   OperationEvidence,
 } from "../operation-types";
-import { display_stage_event_title } from "../operation-stage-labels";
-import { resolve_operation_tool_profile } from "../operation-tool-catalog";
-import { build_operation_event_io_summary } from "../operation-event-io";
+import { displayStageEventTitle } from "../operation-stage-labels";
+import { resolveOperationToolProfile } from "../operation-tool-catalog";
+import { buildOperationEventIoSummary } from "../operation-event-io";
 import {
-  collect_manifest_artifacts,
-  format_manifest_duration,
-  icon_for_manifest_artifact,
+  collectManifestArtifacts,
+  formatManifestDuration,
+  iconForManifestArtifact,
   PHASE_LABEL,
 } from "./run-manifest-data";
 
 export function HandoffSurface({
   event,
   evidence,
-  handoff_summary,
-  on_focus_event,
-  related_events,
+  handoffSummary,
+  onFocusEvent,
+  relatedEvents,
   snapshot,
 }: {
   event: NexusOperationEvent;
   evidence: OperationEvidence[];
-  handoff_summary?: StageHandoffSummary;
-  on_focus_event?: (event: NexusOperationEvent) => void;
-  related_events: NexusOperationEvent[];
+  handoffSummary?: StageHandoffSummary;
+  onFocusEvent?: (event: NexusOperationEvent) => void;
+  relatedEvents: NexusOperationEvent[];
   snapshot: NexusOperationSnapshot | null;
 }) {
-  const source_events = related_events.length ? related_events : [event];
+  const source_events = relatedEvents.length ? relatedEvents : [event];
   const tool_events = source_events.filter((item) => item.surface !== "conversation");
   const completed_count = tool_events.filter((item) => item.phase === "done").length;
-  const artifacts = collect_manifest_artifacts(event, source_events, snapshot, evidence);
-  const duration = format_manifest_duration(tool_events.length ? tool_events : source_events);
-  const resume_prompt = handoff_summary?.resume_prompt ?? event.summary ?? "本轮执行已经归档，可以继续打开产物或回看工具现场。";
+  const artifacts = collectManifestArtifacts(event, source_events, snapshot, evidence);
+  const duration = formatManifestDuration(tool_events.length ? tool_events : source_events);
+  const resume_prompt = handoffSummary?.resume_prompt ?? event.summary ?? "本轮执行已经归档，可以继续打开产物或回看工具现场。";
   const primary_artifact = artifacts[0] ?? {
     id: "summary",
     label: "执行摘要",
     value: event.target ?? event.title,
     type: "status" as const,
   };
-  const PrimaryArtifactIcon = icon_for_manifest_artifact(primary_artifact.type, primary_artifact.value);
+  const PrimaryArtifactIcon = iconForManifestArtifact(primary_artifact.type, primary_artifact.value);
   const primary_related_event = source_events.find((item) => item.target === primary_artifact.value)
     ?? tool_events.find((item) => item.target === primary_artifact.value)
     ?? null;
@@ -84,14 +84,14 @@ export function HandoffSurface({
         <div className="mt-3 px-1 text-[9px] font-black uppercase tracking-[0.12em] text-(--text-soft)">文件</div>
         <div className="mt-1.5 space-y-1">
           {[primary_artifact, ...artifacts.filter((artifact) => artifact.id !== primary_artifact.id)].slice(0, 7).map((artifact) => {
-            const Icon = icon_for_manifest_artifact(artifact.type, artifact.value);
+            const Icon = iconForManifestArtifact(artifact.type, artifact.value);
             const related_event = source_events.find((item) => item.target === artifact.value);
             return (
               <button
                 className="flex w-full min-w-0 items-center gap-2 rounded-[8px] px-2 py-1.5 text-left transition hover:bg-white/66 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(47,184,132,0.32)]"
-                disabled={!related_event || !on_focus_event}
+                disabled={!related_event || !onFocusEvent}
                 key={artifact.id}
-                onClick={() => related_event && on_focus_event?.(related_event)}
+                onClick={() => related_event && onFocusEvent?.(related_event)}
                 title={artifact.value}
                 type="button"
               >
@@ -152,16 +152,16 @@ export function HandoffSurface({
                 <span className="text-right">状态</span>
               </div>
             {tool_events.slice(-5).map((item, index) => {
-              const profile = resolve_operation_tool_profile(item.tool_name, item.kind, item.surface);
-              const io_summary = build_operation_event_io_summary(item);
+              const profile = resolveOperationToolProfile(item.tool_name, item.kind, item.surface);
+              const io_summary = buildOperationEventIoSummary(item);
               return (
                 <button
                   className={cn(
                     "grid w-full grid-cols-[28px_minmax(0,1fr)_88px] items-center gap-3 border-b border-(--divider-subtle-color) px-3 py-2 text-left transition last:border-b-0",
-                    on_focus_event && "hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(91,114,255,0.32)]",
+                    onFocusEvent && "hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(91,114,255,0.32)]",
                   )}
                   key={item.id}
-                  onClick={() => on_focus_event?.(item)}
+                  onClick={() => onFocusEvent?.(item)}
                   type="button"
                 >
                   <span className="grid h-7 w-7 place-items-center rounded-[9px] bg-[rgba(47,184,132,0.10)] text-[color:var(--success)]">
@@ -169,7 +169,7 @@ export function HandoffSurface({
                   </span>
                   <span className="min-w-0">
                     <span className="block truncate text-[12px] font-black text-(--text-strong)">
-                      {display_stage_event_title(item, profile.action_label)}
+                      {displayStageEventTitle(item, profile.action_label)}
                     </span>
                     <span className="mt-0.5 block truncate text-[10.5px] text-(--text-soft)">
                       {io_summary.output_label || io_summary.input_detail || item.summary || item.target || profile.action_label}
@@ -189,8 +189,8 @@ export function HandoffSurface({
           <span className="truncate">现场已收束，历史应用保留在左侧缩略片与 Dock 中。</span>
           <button
             className="inline-flex h-7 items-center gap-1.5 rounded-full border border-(--divider-subtle-color) bg-white/62 px-3 text-(--text-strong) transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(91,114,255,0.32)] disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={!on_focus_event || !replay_event}
-            onClick={() => on_focus_event?.(replay_event)}
+            disabled={!onFocusEvent || !replay_event}
+            onClick={() => onFocusEvent?.(replay_event)}
             type="button"
           >
             <RotateCcw className="h-3.5 w-3.5" />
@@ -198,8 +198,8 @@ export function HandoffSurface({
           </button>
           <button
             className="inline-flex h-7 items-center gap-1.5 rounded-full bg-[color:var(--primary)] px-3 text-white transition hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(91,114,255,0.34)] disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={!on_focus_event || !primary_related_event}
-            onClick={() => primary_related_event && on_focus_event?.(primary_related_event)}
+            disabled={!onFocusEvent || !primary_related_event}
+            onClick={() => primary_related_event && onFocusEvent?.(primary_related_event)}
             type="button"
           >
             <FileText className="h-3.5 w-3.5" />

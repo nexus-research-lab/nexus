@@ -1,6 +1,6 @@
 import type { OperationToolProfile } from "./operation-tool-catalog";
 
-export function infer_operation_tool_profile(
+export function inferOperationToolProfile(
   tool_name: string,
   profiles: Record<string, OperationToolProfile>,
   default_target_keys: readonly string[],

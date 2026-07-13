@@ -2,9 +2,9 @@ import type { NexusOperationEvent } from "./operation-types";
 import type { OperationRuntimeEvent } from "./operation-runtime-types";
 import {
   DEFAULT_TARGET_KEYS,
-  resolve_operation_tool_profile,
+  resolveOperationToolProfile,
 } from "./operation-tool-catalog";
-import { resolve_operation_tool_visual_contract } from "./operation-tool-visual-contract";
+import { resolveOperationToolVisualContract } from "./operation-tool-visual-contract";
 
 export type StageDesktopIntent =
   | { app: "finder"; action: "inspect_files"; event_id: string; target?: string | null }
@@ -21,8 +21,8 @@ export interface BrowserOpenTarget {
   url: string | null;
 }
 
-export function derive_stage_desktop_intents(event: NexusOperationEvent): StageDesktopIntent[] {
-  const visual_contract = resolve_operation_tool_visual_contract(event);
+export function deriveStageDesktopIntents(event: NexusOperationEvent): StageDesktopIntent[] {
+  const visual_contract = resolveOperationToolVisualContract(event);
   const intents: StageDesktopIntent[] = [];
 
   if (visual_contract.group === "workspace_navigation") {
@@ -55,7 +55,7 @@ export function derive_stage_desktop_intents(event: NexusOperationEvent): StageD
       event_id: event.id,
       target: event.target,
     });
-    const open_target = read_browser_open_target_from_terminal_command(event);
+    const open_target = readBrowserOpenTargetFromTerminalCommand(event);
     if (open_target && (event.phase === "running" || event.phase === "done")) {
       intents.push({
         app: "browser",
@@ -67,14 +67,14 @@ export function derive_stage_desktop_intents(event: NexusOperationEvent): StageD
       });
     }
   } else if (visual_contract.group === "web_browser") {
-    const query = read_stage_browser_query(event);
+    const query = readStageBrowserQuery(event);
     intents.push({
       app: "browser",
       action: "browse",
       event_id: event.id,
       query,
       target: event.target,
-      url: query && looks_like_url(query) ? query : null,
+      url: query && looksLikeUrl(query) ? query : null,
     });
   } else if (visual_contract.group === "task_planner") {
     intents.push({
@@ -121,16 +121,16 @@ export function derive_stage_desktop_intents(event: NexusOperationEvent): StageD
   return intents;
 }
 
-export function derive_stage_desktop_intents_from_runtime_event(
+export function deriveStageDesktopIntentsFromRuntimeEvent(
   runtime_event: OperationRuntimeEvent,
 ): StageDesktopIntent[] {
-  return derive_stage_desktop_intents(operation_event_from_runtime_event(runtime_event));
+  return deriveStageDesktopIntents(operationEventFromRuntimeEvent(runtime_event));
 }
 
-export function operation_event_from_runtime_event(
+export function operationEventFromRuntimeEvent(
   runtime_event: OperationRuntimeEvent,
 ): NexusOperationEvent {
-  const profile = resolve_operation_tool_profile(runtime_event.tool_name);
+  const profile = resolveOperationToolProfile(runtime_event.tool_name);
   const target = runtime_event.artifact?.path
     ?? read_stage_input_string(runtime_event.input, profile.target_keys)
     ?? read_stage_input_string(runtime_event.input, DEFAULT_TARGET_KEYS)
@@ -187,7 +187,7 @@ export function operation_event_from_runtime_event(
   };
 }
 
-export function stage_app_session_id_for_intent(
+export function stageAppSessionIdForIntent(
   round_id: string,
   intent: StageDesktopIntent,
   normalize_id: (value: string) => string,
@@ -219,20 +219,20 @@ export function stage_app_session_id_for_intent(
   return `${round_id}:desktop`;
 }
 
-export function find_stage_desktop_intent(
+export function findStageDesktopIntent(
   event: NexusOperationEvent,
   app: StageDesktopIntent["app"],
 ): StageDesktopIntent | null {
-  return derive_stage_desktop_intents(event).find((intent) => intent.app === app) ?? null;
+  return deriveStageDesktopIntents(event).find((intent) => intent.app === app) ?? null;
 }
 
-export function read_stage_browser_query(event: NexusOperationEvent): string | null {
+export function readStageBrowserQuery(event: NexusOperationEvent): string | null {
   return read_stage_input_string(event.input_preview, ["url", "query", "q", "search_query", "prompt"])
     ?? event.target
     ?? null;
 }
 
-export function read_browser_open_target_from_terminal_command(event: NexusOperationEvent): BrowserOpenTarget | null {
+export function readBrowserOpenTargetFromTerminalCommand(event: NexusOperationEvent): BrowserOpenTarget | null {
   const command = read_stage_input_string(event.input_preview, ["command", "cmd", "description"]) ?? event.target;
   if (!command) {
     return null;
@@ -245,7 +245,7 @@ export function read_browser_open_target_from_terminal_command(event: NexusOpera
 
   return {
     target,
-    url: looks_like_url(target) ? target : null,
+    url: looksLikeUrl(target) ? target : null,
   };
 }
 
@@ -260,7 +260,7 @@ function extract_open_command_target(command: string): string | null {
   if (!candidate || candidate.startsWith("-")) {
     return null;
   }
-  if (!looks_like_url(candidate) && !looks_like_html_target(candidate)) {
+  if (!looksLikeUrl(candidate) && !looks_like_html_target(candidate)) {
     return null;
   }
   return candidate.replace(/^file:\/\//i, "");
@@ -311,6 +311,6 @@ function looks_like_html_target(value: string): boolean {
   return /\.(html?|xhtml)(?:[?#].*)?$/i.test(value);
 }
 
-function looks_like_url(value: string): boolean {
+function looksLikeUrl(value: string): boolean {
   return /^https?:\/\//i.test(value);
 }

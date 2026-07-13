@@ -3,8 +3,8 @@
 // L2 | 父级: internal/storage（L1 见 AGENTS.md）
 //
 // 成员清单：
-//   - repository.go / repository_user.go / repository_session.go / repository_password.go /
-//     repository_state.go / repository_value.go：各认证实体读写。
+//   - repository.go：仓储入口与事务边界。
+//   - user.go / session.go / password.go / state.go / value.go：各认证实体读写。
 //   - model_auth.go：认证持久化模型。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）

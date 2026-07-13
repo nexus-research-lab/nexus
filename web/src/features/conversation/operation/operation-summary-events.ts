@@ -1,15 +1,15 @@
 import type {
   Message,
   ResultSummary,
-} from "@/types/conversation/message";
+} from "@/types/conversation/message/entity";
 
 import type { NexusOperationEvent } from "./operation-types";
 import {
   OPERATION_MAX_TEXT_PREVIEW,
-  redact_projected_value,
+  redactProjectedValue,
 } from "./operation-projection-preview";
 
-export function project_result_summary_event({
+export function projectResultSummaryEvent({
   message,
   projected_messages,
 }: {
@@ -66,7 +66,7 @@ function build_summary_result_preview(
   is_error: boolean,
   summary_text: string | null,
 ): unknown {
-  const redacted = redact_projected_value(summary) as Record<string, unknown>;
+  const redacted = redactProjectedValue(summary) as Record<string, unknown>;
   if (!is_error) {
     return redacted;
   }

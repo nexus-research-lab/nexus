@@ -2,7 +2,7 @@
 
 import { type ReactNode } from "react";
 
-import { UiBadge } from "@/shared/ui/badge";
+import { UiBadge } from "@/shared/ui/display/badge";
 
 interface WorkspaceStatusBadgeProps {
   label: string;

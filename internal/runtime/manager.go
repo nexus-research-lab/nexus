@@ -4,6 +4,8 @@ import (
 	"context"
 	"sync"
 	"time"
+
+	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 )
 
 type sessionState struct {
@@ -18,6 +20,8 @@ type sessionState struct {
 	GuidedInputs             []GuidedInput
 	IdleMessageCancel        context.CancelFunc
 	IdleMessageDrainID       int64
+	RuntimeKind              agentclient.RuntimeKind
+	HasSubagentHistory       bool
 	LastUsedAt               time.Time
 }
 

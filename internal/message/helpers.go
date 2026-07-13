@@ -112,70 +112,13 @@ func firstNonNilMap(values ...map[string]any) map[string]any {
 func normalizeContentBlocks(blocks []sdkprotocol.ContentBlock) []map[string]any {
 	result := make([]map[string]any, 0, len(blocks))
 	for _, block := range blocks {
-		payload := cloneBlockPayload(block)
+		payload := cloneMap(block.RawPayload())
 		if len(payload) == 0 {
 			payload = map[string]any{}
 		}
 		payload["type"] = normalizeBlockType(string(block.Type()))
 		mergeNormalizedBlockPayload(payload, block)
 		result = append(result, payload)
-	}
-	return result
-}
-
-func cloneBlockPayload(block sdkprotocol.ContentBlock) map[string]any {
-	result := cloneMap(block.RawPayload())
-	if result == nil {
-		result = map[string]any{}
-	}
-	if value, ok := sdkprotocol.AsTextBlock(block); ok {
-		if text := strings.TrimSpace(value.Text); text != "" {
-			result["text"] = text
-		}
-	}
-	if value, ok := sdkprotocol.AsThinkingBlock(block); ok {
-		if thinking := strings.TrimSpace(value.Thinking); thinking != "" {
-			result["thinking"] = thinking
-		}
-		if signature := strings.TrimSpace(value.Signature); signature != "" {
-			result["signature"] = signature
-		}
-	}
-	if value, ok := sdkprotocol.AsImageBlock(block); ok {
-		if data := strings.TrimSpace(value.Data); data != "" {
-			result["data"] = data
-		}
-		if mimeType := strings.TrimSpace(value.MIMEType); mimeType != "" {
-			result["mime_type"] = mimeType
-		}
-	}
-	if value, ok := sdkprotocol.AsToolUseBlock(block); ok {
-		if id := strings.TrimSpace(value.ID); id != "" {
-			result["id"] = id
-		}
-		if name := strings.TrimSpace(value.Name); name != "" {
-			result["name"] = name
-		}
-		if input := decodeRawJSON(value.Input); input != nil {
-			result["input"] = input
-		}
-	}
-	if value, ok := sdkprotocol.AsToolResultBlock(block); ok {
-		if toolUseID := strings.TrimSpace(value.ToolUseID); toolUseID != "" {
-			result["tool_use_id"] = toolUseID
-		}
-		if content := decodeRawJSON(value.Content); content != nil {
-			result["content"] = content
-		}
-		if value.IsError {
-			result["is_error"] = true
-		}
-		if mimeType := strings.TrimSpace(value.MimeType); mimeType != "" {
-			result["mime_type"] = mimeType
-		}
-	}
-	if len(result) == 0 {
-		return nil
 	}
 	return result
 }

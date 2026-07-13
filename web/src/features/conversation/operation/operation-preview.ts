@@ -11,14 +11,14 @@ export type PreviewKind =
   | "folder"
   | "text";
 
-export function get_preview_lines(value: unknown, max_lines: number): string[] {
+export function getPreviewLines(value: unknown, max_lines: number): string[] {
   if (value == null) {
     return [];
   }
 
   const text = typeof value === "string"
     ? value
-    : safe_json_stringify(value);
+    : safeJsonStringify(value);
 
   return text
     .split(/\r?\n/)
@@ -27,7 +27,7 @@ export function get_preview_lines(value: unknown, max_lines: number): string[] {
     .slice(0, max_lines);
 }
 
-export function detect_preview_kind(target?: string | null): PreviewKind {
+export function detectPreviewKind(target?: string | null): PreviewKind {
   if (!target) {
     return "text";
   }
@@ -81,8 +81,8 @@ export function detect_preview_kind(target?: string | null): PreviewKind {
   return "text";
 }
 
-export function build_editor_preview_lines(
-  event: NexusOperationEvent,
+export function buildEditorPreviewLines(
+  _event: NexusOperationEvent,
   lines: string[],
 ): string[] {
   if (lines.length) {
@@ -100,7 +100,7 @@ export function basename(value?: string | null): string {
   return normalized.at(-1) ?? value;
 }
 
-export function format_operation_time(timestamp: number): string {
+export function formatOperationTime(timestamp: number): string {
   const normalized = timestamp < 1_000_000_000_000 ? timestamp * 1000 : timestamp;
   return new Intl.DateTimeFormat("zh-CN", {
     hour: "2-digit",
@@ -109,7 +109,7 @@ export function format_operation_time(timestamp: number): string {
   }).format(normalized);
 }
 
-export function safe_json_stringify(value: unknown): string {
+export function safeJsonStringify(value: unknown): string {
   try {
     return JSON.stringify(value, null, 2);
   } catch {

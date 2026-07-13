@@ -3,7 +3,7 @@ export interface StageMinimizedWindowTile {
   title: string;
 }
 
-export function build_stage_minimized_window_tile({
+export function buildStageMinimizedWindowTile({
   app_label,
   title,
 }: {

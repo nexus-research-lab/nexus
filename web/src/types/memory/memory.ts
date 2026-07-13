@@ -1,58 +1,24 @@
-export interface MemoryField {
-  key: string;
-  value: string;
-}
+export type MemoryDocumentKind = "index" | "topic" | "daily_log";
 
-export interface MemoryItem {
-  entry_id: string;
+export type MemoryDocumentType = "user" | "feedback" | "project" | "reference" | "";
+
+export type MemoryLayout = "empty" | "topic" | "daily_log" | "mixed";
+
+export interface MemoryDocument {
+  description?: string;
+  indexed: boolean;
+  kind: MemoryDocumentKind;
+  modified_at: string;
+  name?: string;
   path: string;
-  kind: string;
-  category?: string;
+  size: number;
   title: string;
-  content: string;
-  status: string;
-  priority?: string;
-  source?: string;
-  scope?: string;
-  session_key?: string;
-  round_id?: string;
-  access_count: number;
-  score?: number;
-  created_at: string;
-  fields?: MemoryField[];
+  type?: MemoryDocumentType;
 }
 
-export interface MemoryStats {
-  total: number;
-  by_status: Record<string, number>;
-  by_kind: Record<string, number>;
-  by_scope: Record<string, number>;
-  candidate: number;
-  accessed: number;
-  checkpointed: number;
-}
-
-export interface MemoryCleanupResult {
-  removed_session_files: number;
-  removed_checkpoints: number;
-  removed_empty_diaries: number;
-  removed_files?: string[];
-}
-
-export interface MemoryInjection {
-  stable_system_context?: string;
-  dynamic_user_context?: string;
-  items: MemoryItem[];
-}
-
-export interface MemoryWriteInput {
-  kind?: string;
-  category?: string;
-  title?: string;
-  content?: string;
-  status?: string;
-  priority?: string;
-  source?: string;
-  scope?: string;
-  fields?: MemoryField[];
+export interface MemorySnapshot {
+  documents: MemoryDocument[];
+  index?: MemoryDocument | null;
+  layout: MemoryLayout;
+  truncated: boolean;
 }

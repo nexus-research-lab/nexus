@@ -15,7 +15,7 @@ import type {
   OperationEvidence,
   OperationPhase,
 } from "../operation-types";
-import { resolve_operation_event_output_label } from "../operation-event-io";
+import { resolveOperationEventOutputLabel } from "../operation-event-io";
 
 export const PHASE_LABEL: Record<OperationPhase, string> = {
   queued: "排队中",
@@ -33,7 +33,7 @@ export interface ManifestArtifact {
   type: OperationEvidence["type"];
 }
 
-export function collect_manifest_artifacts(
+export function collectManifestArtifacts(
   event: NexusOperationEvent,
   events: NexusOperationEvent[],
   snapshot: NexusOperationSnapshot | null,
@@ -104,7 +104,7 @@ export function collect_manifest_artifacts(
   return [...artifacts.values()].slice(0, 8);
 }
 
-export function format_manifest_duration(events: NexusOperationEvent[]): string {
+export function formatManifestDuration(events: NexusOperationEvent[]): string {
   const started = events
     .map((item) => item.started_at ?? item.updated_at)
     .filter((value): value is number => Number.isFinite(value));
@@ -123,7 +123,7 @@ export function format_manifest_duration(events: NexusOperationEvent[]): string 
   return `${minutes}m ${seconds}s`;
 }
 
-export function extract_manifest_result_text(event: NexusOperationEvent): string | null {
+export function extractManifestResultText(event: NexusOperationEvent): string | null {
   if (typeof event.result_preview === "string" && event.result_preview.trim()) {
     return event.result_preview.trim();
   }
@@ -139,11 +139,11 @@ export function extract_manifest_result_text(event: NexusOperationEvent): string
   return null;
 }
 
-export function extract_manifest_event_output(event: NexusOperationEvent): string | null {
-  return resolve_operation_event_output_label(event);
+export function extractManifestEventOutput(event: NexusOperationEvent): string | null {
+  return resolveOperationEventOutputLabel(event);
 }
 
-export function icon_for_manifest_artifact(type: OperationEvidence["type"], value: string): LucideIcon {
+export function iconForManifestArtifact(type: OperationEvidence["type"], value: string): LucideIcon {
   if (type === "terminal") {
     return Terminal;
   }

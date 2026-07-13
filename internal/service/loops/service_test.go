@@ -15,7 +15,7 @@ func TestServiceLocalizesDisplayFieldsAndKeepsKickoffPrompt(t *testing.T) {
 	if got := len(rawItems); got != 40 {
 		t.Fatalf("原始 loop catalog 数量不正确: got=%d", got)
 	}
-	if got := svc.CountLoops(context.Background()); got != 27 {
+	if got := len(svc.items); got != 27 {
 		t.Fatalf("可见 loop catalog 数量不正确: got=%d", got)
 	}
 	item, err := svc.GetLoop(context.Background(), "test-until-green", "zh-CN")

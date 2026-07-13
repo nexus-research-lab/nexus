@@ -3,7 +3,7 @@
 // L2 | 父级: internal/runtime（L1 见 AGENTS.md）
 //
 // 成员清单：
-//   - options_agent_client.go / options_runtime_env.go / options_runtime_profile.go：client 选项、环境、profile。
+//   - agent_client.go / runtime_env.go / runtime_profile.go：client 选项、环境与 profile。
 //   - model_provider.go：ResolvedRuntimeProvider 等 provider 解析。
 //   - log_runtime.go：runtime 日志选项。
 //

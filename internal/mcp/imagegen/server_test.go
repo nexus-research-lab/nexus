@@ -72,8 +72,8 @@ func TestToolsListIncludesImagegenTools(t *testing.T) {
 		if hint, _ := meta["anthropic/searchHint"].(string); strings.TrimSpace(hint) == "" {
 			t.Fatalf("%s missing search hint", name)
 		}
-		if alwaysLoad, _ := meta["anthropic/alwaysLoad"].(bool); !alwaysLoad {
-			t.Fatalf("%s should always load", name)
+		if _, ok := meta["anthropic/alwaysLoad"]; ok {
+			t.Fatalf("%s should stay deferred", name)
 		}
 	}
 	for _, name := range []string{"generate_image", "edit_image"} {

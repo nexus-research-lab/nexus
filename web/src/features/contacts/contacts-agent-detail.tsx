@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 import {
   ArrowLeft,
   Album,
@@ -13,17 +13,18 @@ import {
 } from "lucide-react";
 
 import { AgentPrivateDomainView } from "@/features/agents/private-domain/agent-private-domain-view";
-import { AgentOptionsEditor } from "@/features/agents/options/agent-options-editor";
-import type { TabKey } from "@/features/agents/options/components/agent-options-nav";
-import { ContactsAgentMemoryTab } from "@/features/contacts/contacts-agent-memory-tab";
+import { AgentOptionsInlineEditor } from "@/features/agents/options/agent-options-editor";
+import {
+  buildAgentOptionsEditSource,
+  type AgentOptionsTabKey,
+} from "@/features/agents/options/agent-options-editor-model";
+import { AgentMemoryView } from "@/features/memory/agent-memory-view";
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiAgentAvatar } from "@/shared/ui/avatar";
+import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 import { WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
-import {
-  WorkspaceSurfaceHeader,
-  WorkspaceSurfaceToolbarAction,
-} from "@/shared/ui/workspace/surface/workspace-surface-header";
+import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
+import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-toolbar-action";
 import type {
   Agent,
   AgentIdentityDraft,
@@ -49,17 +50,17 @@ interface ContactsAgentDetailProps {
   ) => Promise<AgentNameValidationResult>;
 }
 
-type ContactDetailTabKey = TabKey | "private_domain" | "memory";
+type ContactDetailTabKey = AgentOptionsTabKey | "private_domain" | "memory";
 
 /** 侧边栏联系人进入的内嵌 Agent 页面。 */
 export function ContactsAgentDetail({
   agent,
-  onBack: onBack,
-  onCreateTeam: onCreateTeam,
-  onDeleteAgent: onDeleteAgent,
-  onOpenDirectRoom: onOpenDirectRoom,
-  onSaveAgentOptions: onSaveAgentOptions,
-  onValidateAgentName: onValidateAgentName,
+  onBack,
+  onCreateTeam,
+  onDeleteAgent,
+  onOpenDirectRoom,
+  onSaveAgentOptions,
+  onValidateAgentName,
 }: ContactsAgentDetailProps) {
   const { t } = useI18n();
   const [activeTab, setActiveTab] = useResettableState<ContactDetailTabKey>(
@@ -70,10 +71,10 @@ export function ContactsAgentDetail({
   const configTabs = useMemo(
     () => [
       { key: "private_domain" as ContactDetailTabKey, label: "联络", icon: Handshake },
-      { key: "memory" as ContactDetailTabKey, label: "记忆", icon: Brain },
-      { key: "identity" as TabKey, label: t("agent_options.nav.identity"), icon: UserPen },
-      { key: "advanced" as TabKey, label: t("agent_options.nav.tools"), icon: ToolCase },
-      { key: "skills" as TabKey, label: t("agent_options.nav.skills"), icon: Album },
+      { key: "memory" as ContactDetailTabKey, label: t("capability.memory"), icon: Brain },
+      { key: "identity" as AgentOptionsTabKey, label: t("agent_options.nav.identity"), icon: UserPen },
+      { key: "advanced" as AgentOptionsTabKey, label: t("agent_options.nav.tools"), icon: ToolCase },
+      { key: "skills" as AgentOptionsTabKey, label: t("agent_options.nav.skills"), icon: Album },
     ],
     [t],
   );
@@ -84,29 +85,9 @@ export function ContactsAgentDetail({
       .filter(Boolean);
   }, [agent.vibe_tags]);
 
-  const initialOptions = useMemo(
-    () => ({
-      provider: agent.options.provider,
-      model: agent.options.model,
-      permission_mode: agent.options.permission_mode,
-      allowed_tools: agent.options.allowed_tools,
-      disallowed_tools: agent.options.disallowed_tools,
-      max_turns: agent.options.max_turns,
-      max_thinking_tokens: agent.options.max_thinking_tokens,
-      mcp_servers: agent.options.mcp_servers,
-      setting_sources: agent.options.setting_sources,
-    }),
-    [
-      agent.options.allowed_tools,
-      agent.options.disallowed_tools,
-      agent.options.max_thinking_tokens,
-      agent.options.max_turns,
-      agent.options.mcp_servers,
-      agent.options.model,
-      agent.options.permission_mode,
-      agent.options.provider,
-      agent.options.setting_sources,
-    ],
+  const editorSource = useMemo(
+    () => buildAgentOptionsEditSource(agent),
+    [agent],
   );
 
   const handleSave = useCallback(
@@ -165,7 +146,6 @@ export function ContactsAgentDetail({
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <WorkspaceSurfaceHeader
         activeTab={activeTab}
-        density="compact"
         leading={<UiAgentAvatar avatar={agent.avatar} className="h-full w-full border-0 shadow-none" name={agent.name} size="sm" />}
         onChangeTab={setActiveTab}
         tabs={configTabs}
@@ -177,27 +157,18 @@ export function ContactsAgentDetail({
       {activeTab === "private_domain" ? (
         <AgentPrivateDomainView agent={agent} />
       ) : activeTab === "memory" ? (
-        <ContactsAgentMemoryTab agent={agent} />
+        <AgentMemoryView agent={agent} />
       ) : (
-        <AgentOptionsEditor
+        <AgentOptionsInlineEditor
           activeTab={activeTab}
-          agentId={agent.agent_id}
           contentMaxWidthClassName={WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME}
-          hideInlineNav
-          initialAvatar={agent.avatar ?? ""}
-          initialDescription={agent.description ?? ""}
-          initialOptions={initialOptions}
-          initialTitle={agent.name}
-          initialVibeTags={agent.vibe_tags ?? []}
           isActive
-          mode="edit"
           onDelete={onDeleteAgent}
           onSave={handleSave}
           onTabChange={setActiveTab}
           onValidateName={handleValidateName}
-          showCancelButton={false}
           showDeleteButton
-          variant="inline"
+          source={editorSource}
         />
       )}
     </div>

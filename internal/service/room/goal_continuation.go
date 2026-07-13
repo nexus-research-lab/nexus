@@ -182,12 +182,20 @@ func (s *RealtimeService) dispatchGoalContinuation(ctx context.Context, roundVal
 	if !ok {
 		return
 	}
-	plan, err := planner.PlanContinuationForSession(ctx, roundValue.SessionKey, roundValue.RoundID)
+	plan, err := goalsvc.PrepareContinuationForDispatch(
+		ctx,
+		planner,
+		roundValue.SessionKey,
+		roundValue.RoundID,
+		func(plan protocol.GoalContinuation) bool {
+			return s.ShouldDeferGoalContinuation(ctx, plan.Goal.SessionKey)
+		},
+	)
 	if err != nil {
-		if errors.Is(err, goalsvc.ErrGoalDisabled) || errors.Is(err, goalsvc.ErrGoalNotFound) || errors.Is(err, goalsvc.ErrGoalVersionStale) {
+		if goalsvc.IsExpectedMutationError(err) {
 			return
 		}
-		s.loggerFor(ctx).Warn("规划 Room Goal 自动续跑失败",
+		s.loggerFor(ctx).Warn("准备 Room Goal 自动续跑失败",
 			"session_key", roundValue.SessionKey,
 			"round_id", roundValue.RoundID,
 			"err", err,
@@ -195,31 +203,6 @@ func (s *RealtimeService) dispatchGoalContinuation(ctx context.Context, roundVal
 		return
 	}
 	if plan == nil {
-		return
-	}
-	if s.ShouldDeferGoalContinuation(ctx, plan.Goal.SessionKey) {
-		if releaser, ok := s.goals.(goalContinuationPlanReleaser); ok {
-			_, _ = releaser.ReleaseContinuationPlan(ctx, *plan, "Goal continuation deferred before dispatch")
-		}
-		return
-	}
-	current, err := planner.GoalContinuationStillCurrent(ctx, *plan)
-	if err != nil {
-		if errors.Is(err, goalsvc.ErrGoalDisabled) || errors.Is(err, goalsvc.ErrGoalNotFound) || errors.Is(err, goalsvc.ErrGoalVersionStale) {
-			return
-		}
-		s.loggerFor(ctx).Warn("校验 Room Goal 自动续跑状态失败",
-			"session_key", roundValue.SessionKey,
-			"round_id", plan.RoundID,
-			"goal_id", plan.Goal.ID,
-			"err", err,
-		)
-		return
-	}
-	if !current {
-		if releaser, ok := s.goals.(goalContinuationPlanReleaser); ok {
-			_, _ = releaser.ReleaseContinuationPlan(ctx, *plan, "Goal continuation stale before dispatch")
-		}
 		return
 	}
 	if err := s.DispatchGoalContinuation(ctx, *plan); err != nil {
@@ -276,15 +259,6 @@ func (s *RealtimeService) DispatchGoalContinuation(ctx context.Context, plan pro
 		Internal:       true,
 		InputOptions:   goalContinuationInputOptions(plan),
 	})
-}
-
-func (s *RealtimeService) goalContinuationTargetAgentIDs(
-	ctx context.Context,
-	conversationID string,
-	goal protocol.Goal,
-) []string {
-	targetAgentIDs, _ := s.goalContinuationDispatchTarget(ctx, conversationID, goal)
-	return targetAgentIDs
 }
 
 func (s *RealtimeService) goalContinuationDispatchTarget(

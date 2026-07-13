@@ -1,0 +1,356 @@
+import type {
+  QuestionOption,
+  UserQuestion,
+  UserQuestionAnswer,
+} from "@/types/conversation/interaction/ask-user-question";
+import type { ToolResultContent } from "@/types/conversation/message/content";
+import {
+  asUnknownRecord,
+  readBoolean,
+  readString,
+} from "@/lib/unknown-value";
+
+interface QuestionAnswerDraft {
+  customAnswer: string;
+  selectedOptions: ReadonlySet<string>;
+}
+
+export type QuestionDraft = QuestionAnswerDraft[];
+
+export type QuestionInteractionStatus =
+  | "active"
+  | "failed"
+  | "observer"
+  | "submitted"
+  | "timed_out";
+
+const TERMINAL_QUESTION_STATUSES = new Set<QuestionInteractionStatus>([
+  "failed",
+  "submitted",
+  "timed_out",
+]);
+
+interface QuestionStatusInput {
+  failed: boolean;
+  interactionDisabled: boolean;
+  submitted: boolean;
+  timedOut: boolean;
+}
+
+function parseQuestionOption(value: unknown): QuestionOption | null {
+  const record = asUnknownRecord(value);
+  if (!record) {
+    return null;
+  }
+  const label = readString(record, "label")?.trim();
+  if (!label) {
+    return null;
+  }
+  const description = readString(record, "description")?.trim();
+  return {
+    label,
+    ...optionalDescription(description),
+  };
+}
+
+function optionalDescription(description?: string) {
+  return description ? { description } : {};
+}
+
+function parseUserQuestion(value: unknown): UserQuestion | null {
+  const record = asUnknownRecord(value);
+  if (!record) {
+    return null;
+  }
+  const question = readString(record, "question")?.trim();
+  if (!question) {
+    return null;
+  }
+
+  const header = readString(record, "header")?.trim();
+  return {
+    question,
+    ...optionalHeader(header),
+    // camelCase 只在协议入口兼容，内部统一使用 snake_case。
+    multi_select: readMultiSelect(record),
+    options: readQuestionOptions(record.options),
+  };
+}
+
+function optionalHeader(header?: string) {
+  return header ? { header } : {};
+}
+
+function readMultiSelect(record: Record<string, unknown>): boolean {
+  return readBoolean(record, "multi_select")
+    ?? readBoolean(record, "multiSelect")
+    ?? false;
+}
+
+function readQuestionOptions(value: unknown): QuestionOption[] {
+  const options = Array.isArray(value) ? value : [];
+  return options
+    .map(parseQuestionOption)
+    .filter((option): option is QuestionOption => option !== null);
+}
+
+export function parseAskUserQuestions(input: unknown): UserQuestion[] {
+  const record = asUnknownRecord(input);
+  if (!record || !Array.isArray(record.questions)) {
+    return [];
+  }
+  return record.questions
+    .map(parseUserQuestion)
+    .filter((question): question is UserQuestion => question !== null);
+}
+
+export function createEmptyQuestionDraft(questionCount: number): QuestionDraft {
+  return Array.from({ length: questionCount }, () => ({
+    customAnswer: "",
+    selectedOptions: new Set<string>(),
+  }));
+}
+
+function extractAnswerPairs(content: string): Map<string, string> {
+  const pairs = new Map<string, string>();
+  const matcher = /"([^"]+)"="([^"]*)"/g;
+  let match = matcher.exec(content);
+  while (match) {
+    pairs.set(match[1], match[2]);
+    match = matcher.exec(content);
+  }
+  return pairs;
+}
+
+function restoreQuestionAnswer(
+  question: UserQuestion,
+  answerText: string,
+): QuestionAnswerDraft {
+  const optionLabels = new Set(question.options.map((option) => option.label));
+  if (!question.multi_select) {
+    return optionLabels.has(answerText)
+      ? { customAnswer: "", selectedOptions: new Set([answerText]) }
+      : { customAnswer: answerText, selectedOptions: new Set() };
+  }
+
+  const answerItems = answerText
+    .split(", ")
+    .map((item) => item.trim())
+    .filter(Boolean);
+  return {
+    customAnswer: answerItems
+      .filter((item) => !optionLabels.has(item))
+      .join(", "),
+    selectedOptions: new Set(
+      answerItems.filter((item) => optionLabels.has(item)),
+    ),
+  };
+}
+
+export function buildSubmittedQuestionDraft(
+  questions: UserQuestion[],
+  toolResult?: ToolResultContent,
+): QuestionDraft {
+  const emptyDraft = createEmptyQuestionDraft(questions.length);
+  if (!hasRecoverableQuestionResult(toolResult)) {
+    return emptyDraft;
+  }
+
+  const answerPairs = extractAnswerPairs(toolResult.content);
+  return questions.map((question, index) => {
+    const answerText = answerPairs.get(question.question);
+    return answerText
+      ? restoreQuestionAnswer(question, answerText)
+      : emptyDraft[index];
+  });
+}
+
+function hasRecoverableQuestionResult(
+  toolResult?: ToolResultContent,
+): toolResult is ToolResultContent & { content: string } {
+  return [
+    Boolean(toolResult),
+    !toolResult?.is_error,
+    typeof toolResult?.content === "string",
+  ].every(Boolean);
+}
+
+export function hasQuestionDraftContent(draft: QuestionDraft): boolean {
+  return draft.some(
+    (answer) => answer.selectedOptions.size > 0 || answer.customAnswer.trim(),
+  );
+}
+
+export function toggleQuestionOption(
+  draft: QuestionDraft,
+  questionIndex: number,
+  optionLabel: string,
+  multiSelect: boolean,
+): QuestionDraft {
+  const answer = draft[questionIndex];
+  if (!answer) {
+    return draft;
+  }
+
+  return replaceQuestionAnswer(draft, questionIndex, {
+    customAnswer: resolveOptionCustomAnswer(answer, multiSelect),
+    selectedOptions: resolveSelectedOptions(
+      answer.selectedOptions,
+      optionLabel,
+      multiSelect,
+    ),
+  });
+}
+
+function resolveSelectedOptions(
+  selectedOptions: ReadonlySet<string>,
+  optionLabel: string,
+  multiSelect: boolean,
+): Set<string> {
+  return multiSelect
+    ? toggleOption(selectedOptions, optionLabel)
+    : new Set([optionLabel]);
+}
+
+function resolveOptionCustomAnswer(
+  answer: QuestionAnswerDraft,
+  multiSelect: boolean,
+): string {
+  return multiSelect ? answer.customAnswer : "";
+}
+
+function toggleOption(
+  selectedOptions: ReadonlySet<string>,
+  optionLabel: string,
+): Set<string> {
+  const nextOptions = new Set(selectedOptions);
+  if (nextOptions.has(optionLabel)) {
+    nextOptions.delete(optionLabel);
+  } else {
+    nextOptions.add(optionLabel);
+  }
+  return nextOptions;
+}
+
+export function updateQuestionCustomAnswer(
+  draft: QuestionDraft,
+  questionIndex: number,
+  customAnswer: string,
+  multiSelect: boolean,
+): QuestionDraft {
+  const answer = draft[questionIndex];
+  if (!answer) {
+    return draft;
+  }
+
+  return replaceQuestionAnswer(draft, questionIndex, {
+    customAnswer,
+    selectedOptions: resolveCustomAnswerSelection(
+      answer.selectedOptions,
+      customAnswer,
+      multiSelect,
+    ),
+  });
+}
+
+function resolveCustomAnswerSelection(
+  selectedOptions: ReadonlySet<string>,
+  customAnswer: string,
+  multiSelect: boolean,
+): ReadonlySet<string> {
+  const replacesSelection = [!multiSelect, Boolean(customAnswer.trim())].every(
+    Boolean,
+  );
+  return replacesSelection ? new Set() : selectedOptions;
+}
+
+function replaceQuestionAnswer(
+  draft: QuestionDraft,
+  questionIndex: number,
+  answer: QuestionAnswerDraft,
+): QuestionDraft {
+  const nextDraft = [...draft];
+  nextDraft[questionIndex] = answer;
+  return nextDraft;
+}
+
+export function isQuestionDraftComplete(
+  questions: UserQuestion[],
+  draft: QuestionDraft,
+): boolean {
+  return questions.every((_, index) => {
+    const answer = draft[index];
+    return Boolean(
+      answer
+      && (answer.selectedOptions.size > 0 || answer.customAnswer.trim()),
+    );
+  });
+}
+
+export function buildQuestionAnswers(
+  draft: QuestionDraft,
+): UserQuestionAnswer[] {
+  return draft.map((answer, questionIndex) => ({
+    question_index: questionIndex,
+    selected_options: [
+      ...answer.selectedOptions,
+      ...(answer.customAnswer.trim() ? [answer.customAnswer.trim()] : []),
+    ],
+  }));
+}
+
+export function countQuestionAnswers(draft: QuestionDraft): number {
+  return draft.reduce(
+    (count, answer) => count
+      + answer.selectedOptions.size
+      + (answer.customAnswer.trim() ? 1 : 0),
+    0,
+  );
+}
+
+export function summarizeQuestionAnswers(
+  draft: QuestionDraft,
+  limit = 3,
+): string {
+  const values = draft.flatMap((answer) => [
+    ...answer.selectedOptions,
+    ...(answer.customAnswer.trim() ? [answer.customAnswer.trim()] : []),
+  ]);
+  return values.slice(0, limit).join("、") + (values.length > limit ? "..." : "");
+}
+
+export function resolveQuestionInteractionStatus({
+  failed,
+  interactionDisabled,
+  submitted,
+  timedOut,
+}: QuestionStatusInput): QuestionInteractionStatus {
+  const candidates: Array<{
+    active: boolean;
+    status: QuestionInteractionStatus;
+  }> = [
+    { active: timedOut, status: "timed_out" },
+    { active: failed, status: "failed" },
+    { active: submitted, status: "submitted" },
+    { active: interactionDisabled, status: "observer" },
+  ];
+  return candidates.find((candidate) => candidate.active)?.status ?? "active";
+}
+
+export function isQuestionStatusTerminal(
+  status: QuestionInteractionStatus,
+): boolean {
+  return TERMINAL_QUESTION_STATUSES.has(status);
+}
+
+export function createQuestionScopeKey(
+  toolUseId: string,
+  questions: UserQuestion[],
+): string {
+  const questionIdentity = questions.map((question) => [
+    question.question,
+    question.multi_select,
+    question.options.map((option) => option.label),
+  ]);
+  return JSON.stringify([toolUseId, questionIdentity]);
+}

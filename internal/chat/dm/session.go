@@ -37,14 +37,6 @@ func StringPointerValue(value *string) string {
 	return strings.TrimSpace(*value)
 }
 
-// PreferSessionID 在 next 非空时优先使用 next。
-func PreferSessionID(current *string, next string) *string {
-	if strings.TrimSpace(next) != "" {
-		return &next
-	}
-	return current
-}
-
 // NormalizeString 返回 any 中的字符串值。
 func NormalizeString(value any) string {
 	typed, ok := value.(string)

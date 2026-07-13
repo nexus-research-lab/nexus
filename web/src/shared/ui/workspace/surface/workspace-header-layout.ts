@@ -1,4 +1,2 @@
-/** 中文注释：共享 workspace header 的高度基线，侧边栏与主内容区必须使用同一组值。 */
-export const COMPACT_WORKSPACE_HEADER_PRIMARY_HEIGHT_CLASS = "h-[45px]";
-export const COMPACT_WORKSPACE_HEADER_SECONDARY_HEIGHT_CLASS = "h-[32px]";
-export const COMPACT_WORKSPACE_HEADER_TOTAL_HEIGHT_CLASS = "h-[78px]";
+/** 侧边栏与主内容区共用同一高度基线，避免分栏边界在布局切换时错位。 */
+export const WORKSPACE_HEADER_HEIGHT_CLASS = "h-[52px]";

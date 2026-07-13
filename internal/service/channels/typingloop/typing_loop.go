@@ -27,77 +27,107 @@ type LoopOptions struct {
 	OnError           func(active bool, err error)
 }
 
+type loop struct {
+	ctx           context.Context
+	cancel        context.CancelFunc
+	done          chan struct{}
+	signal        SignalFunc
+	options       LoopOptions
+	activeStarted atomic.Bool
+	stopSent      atomic.Bool
+}
+
 // Start 在慢回复时延迟打开 typing，并按 IM 平台常见 TTL 周期续租。
 func Start(ctx context.Context, signal SignalFunc, options LoopOptions) func() {
 	if signal == nil {
 		return func() {}
 	}
-	options = normalizedOptions(options)
+	loop := newLoop(ctx, signal, normalizedOptions(options))
+	go loop.run()
+	return loop.stop
+}
+
+func newLoop(ctx context.Context, signal SignalFunc, options LoopOptions) *loop {
 	typingCtx, cancel := context.WithCancel(ctx)
-	done := make(chan struct{})
-	activeStarted := atomic.Bool{}
-	stopSent := atomic.Bool{}
-
-	sendStop := func() {
-		if !activeStarted.Load() || !stopSent.CompareAndSwap(false, true) {
-			return
-		}
-		callSignal(context.Background(), signal, options, false)
+	return &loop{
+		ctx:     typingCtx,
+		cancel:  cancel,
+		done:    make(chan struct{}),
+		signal:  signal,
+		options: options,
 	}
+}
 
-	go func() {
-		defer close(done)
-		timer := time.NewTimer(options.StartDelay)
-		defer timer.Stop()
+func (l *loop) run() {
+	defer close(l.done)
+	if !l.waitForStart() {
+		return
+	}
+	l.activeStarted.Store(true)
+	failures, keepGoing := l.sendActive(0)
+	if !keepGoing {
+		l.sendStop()
+		return
+	}
+	l.runKeepalive(failures)
+}
+
+func (l *loop) waitForStart() bool {
+	timer := time.NewTimer(l.options.StartDelay)
+	defer timer.Stop()
+	select {
+	case <-l.ctx.Done():
+		return false
+	case <-timer.C:
+		return true
+	}
+}
+
+func (l *loop) runKeepalive(failures int) {
+	ticker := time.NewTicker(l.options.KeepaliveInterval)
+	defer ticker.Stop()
+	maxDuration := time.NewTimer(l.options.MaxDuration)
+	defer maxDuration.Stop()
+	for {
 		select {
-		case <-typingCtx.Done():
+		case <-l.ctx.Done():
 			return
-		case <-timer.C:
-		}
-
-		activeStarted.Store(true)
-		failures := 0
-		if !callSignal(typingCtx, signal, options, true) {
-			failures++
-			if failures >= options.MaxFailures {
-				sendStop()
+		case <-maxDuration.C:
+			l.sendStop()
+			return
+		case <-ticker.C:
+			var keepGoing bool
+			failures, keepGoing = l.sendActive(failures)
+			if !keepGoing {
+				l.sendStop()
 				return
 			}
 		}
-
-		ticker := time.NewTicker(options.KeepaliveInterval)
-		defer ticker.Stop()
-		maxDuration := time.NewTimer(options.MaxDuration)
-		defer maxDuration.Stop()
-		for {
-			select {
-			case <-typingCtx.Done():
-				return
-			case <-maxDuration.C:
-				sendStop()
-				return
-			case <-ticker.C:
-				if callSignal(typingCtx, signal, options, true) {
-					failures = 0
-					continue
-				}
-				failures++
-				if failures >= options.MaxFailures {
-					sendStop()
-					return
-				}
-			}
-		}
-	}()
-
-	return func() {
-		cancel()
-		select {
-		case <-done:
-		case <-time.After(options.StopWait):
-		}
-		sendStop()
 	}
+}
+
+func (l *loop) sendActive(failures int) (int, bool) {
+	if callSignal(l.ctx, l.signal, l.options, true) {
+		return 0, true
+	}
+	failures++
+	return failures, failures < l.options.MaxFailures
+}
+
+func (l *loop) stop() {
+	l.cancel()
+	select {
+	case <-l.done:
+	case <-time.After(l.options.StopWait):
+	}
+	l.sendStop()
+}
+
+func (l *loop) sendStop() {
+	if !l.activeStarted.Load() || !l.stopSent.CompareAndSwap(false, true) {
+		return
+	}
+	callSignal(context.Background(), l.signal, l.options, false)
 }
 
 func normalizedOptions(options LoopOptions) LoopOptions {

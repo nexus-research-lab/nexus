@@ -18,25 +18,25 @@ const TERMINAL_PREVIEW_LIMITS: ProjectionPreviewLimits = {
   textLength: OPERATION_MAX_TERMINAL_PREVIEW,
 };
 
-export function summarize_projected_value(value: unknown): string {
+export function summarizeProjectedValue(value: unknown): string {
   if (value == null) {
     return "";
   }
   if (typeof value === "string") {
-    return truncate_projected_text(value.replace(SECRET_VALUE_PATTERN, "[REDACTED]"), 180);
+    return truncateProjectedText(value.replace(SECRET_VALUE_PATTERN, "[REDACTED]"), 180);
   }
   try {
-    return truncate_projected_text(JSON.stringify(redact_projected_value(value)), 180);
+    return truncateProjectedText(JSON.stringify(redactProjectedValue(value)), 180);
   } catch {
-    return truncate_projected_text(String(value), 180);
+    return truncateProjectedText(String(value), 180);
   }
 }
 
-export function redact_projected_value(value: unknown, depth = 0): unknown {
+export function redactProjectedValue(value: unknown, depth = 0): unknown {
   return redact_projected_value_with_limits(value, depth, DEFAULT_PREVIEW_LIMITS);
 }
 
-export function redact_projected_terminal_value(value: unknown): unknown {
+export function redactProjectedTerminalValue(value: unknown): unknown {
   return redact_projected_value_with_limits(value, 0, TERMINAL_PREVIEW_LIMITS);
 }
 
@@ -49,7 +49,7 @@ function redact_projected_value_with_limits(
     return "[Truncated]";
   }
   if (typeof value === "string") {
-    return truncate_projected_text(value.replace(SECRET_VALUE_PATTERN, "[REDACTED]"), limits.textLength);
+    return truncateProjectedText(value.replace(SECRET_VALUE_PATTERN, "[REDACTED]"), limits.textLength);
   }
   if (Array.isArray(value)) {
     return value.slice(0, limits.arrayLength).map((item) => (
@@ -64,7 +64,7 @@ function redact_projected_value_with_limits(
         continue;
       }
       if (typeof item === "string" && key === "content" && looks_like_runnable_artifact(item)) {
-        next[key] = truncate_projected_text(
+        next[key] = truncateProjectedText(
           item.replace(SECRET_VALUE_PATTERN, "[REDACTED]"),
           OPERATION_MAX_RUNNABLE_ARTIFACT_PREVIEW,
         );
@@ -77,7 +77,7 @@ function redact_projected_value_with_limits(
   return value;
 }
 
-export function truncate_projected_text(value: string, max_length: number): string {
+export function truncateProjectedText(value: string, max_length: number): string {
   if (value.length <= max_length) {
     return value;
   }

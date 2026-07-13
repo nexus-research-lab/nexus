@@ -7,7 +7,7 @@ export interface StageHiddenWindowSummary {
   minimized_count: number;
 }
 
-export function summarize_hidden_stage_windows(windows: StageWindowState[]): StageHiddenWindowSummary {
+export function summarizeHiddenStageWindows(windows: StageWindowState[]): StageHiddenWindowSummary {
   const minimized_count = windows.filter((window) => window.phase === "minimized").length;
   const closed_count = windows.filter((window) => window.phase === "closed").length;
   const hidden_count = minimized_count + closed_count;

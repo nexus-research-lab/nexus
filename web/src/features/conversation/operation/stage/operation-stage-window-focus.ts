@@ -2,7 +2,7 @@ import type { StageWindowState } from "../operation-desktop-types";
 
 export type StageWindowFocusCycleDirection = "next" | "previous";
 
-export function resolve_next_window_focus({
+export function resolveNextWindowFocus({
   current_focus_id,
   hidden_window_id,
   windows,
@@ -30,7 +30,7 @@ export function resolve_next_window_focus({
     .sort((left, right) => right.z - left.z)[0]?.id ?? null;
 }
 
-export function resolve_cycled_window_focus({
+export function resolveCycledWindowFocus({
   current_focus_id,
   direction,
   windows,

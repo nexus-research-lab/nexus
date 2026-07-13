@@ -1,6 +1,6 @@
 import type { NexusOperationEvent } from "../operation-types";
 
-export function console_event_level(phase: NexusOperationEvent["phase"]): "ERROR" | "INFO" | "NOTICE" {
+export function consoleEventLevel(phase: NexusOperationEvent["phase"]): "ERROR" | "INFO" | "NOTICE" {
   if (phase === "error" || phase === "cancelled") {
     return "ERROR";
   }
@@ -10,7 +10,7 @@ export function console_event_level(phase: NexusOperationEvent["phase"]): "ERROR
   return "INFO";
 }
 
-export function console_event_subsystem(event: NexusOperationEvent): string {
+export function consoleEventSubsystem(event: NexusOperationEvent): string {
   if (event.surface === "terminal") {
     return "Terminal";
   }

@@ -13,7 +13,7 @@ type Repository struct {
 	db                         *sql.DB
 	isPostgres                 bool
 	dialect                    storage.SQLDialect
-	upsertCronJobQuery         string
+	upsertScheduledTaskQuery   string
 	insertRunPendingQuery      string
 	markRunRunningQuery        string
 	markRunFinishedQuery       string
@@ -22,8 +22,8 @@ type Repository struct {
 	markSystemEventStatusQuery string
 }
 
-const upsertCronJobQueryTemplate = `
-INSERT INTO automation_cron_jobs (
+const upsertScheduledTaskQueryTemplate = `
+INSERT INTO automation_scheduled_tasks (
     job_id,
     owner_user_id,
     name,
@@ -52,6 +52,7 @@ INSERT INTO automation_cron_jobs (
     source_session_key,
     source_session_label,
     overlap_policy,
+    expires_at,
     enabled,
     created_at,
     updated_at
@@ -86,6 +87,7 @@ ON CONFLICT(job_id) DO UPDATE SET
     source_session_key = EXCLUDED.source_session_key,
     source_session_label = EXCLUDED.source_session_label,
     overlap_policy = EXCLUDED.overlap_policy,
+    expires_at = EXCLUDED.expires_at,
     enabled = EXCLUDED.enabled,
     updated_at = CURRENT_TIMESTAMP`
 
@@ -96,9 +98,9 @@ func NewRepository(cfg config.Config, db *sql.DB) *Repository {
 		isPostgres: storage.NormalizeSQLDriver(cfg.DatabaseDriver) == "pgx",
 		dialect:    storage.NewSQLDialect(cfg.DatabaseDriver),
 	}
-	repository.upsertCronJobQuery = fmt.Sprintf(upsertCronJobQueryTemplate, repository.bindList(29))
+	repository.upsertScheduledTaskQuery = fmt.Sprintf(upsertScheduledTaskQueryTemplate, repository.bindList(30))
 	repository.insertRunPendingQuery = fmt.Sprintf(
-		`INSERT INTO automation_cron_runs (
+		`INSERT INTO automation_task_runs (
     run_id,
     job_id,
     owner_user_id,
@@ -117,7 +119,7 @@ func NewRepository(cfg config.Config, db *sql.DB) *Repository {
 		repository.bindList(12),
 	)
 	repository.markRunRunningQuery = fmt.Sprintf(
-		`UPDATE automation_cron_runs
+		`UPDATE automation_task_runs
 SET status = %s,
     started_at = %s,
     attempts = attempts + 1,
@@ -126,7 +128,7 @@ WHERE run_id = %s`,
 		repository.bind(1), repository.bind(2), repository.bind(3),
 	)
 	repository.markRunFinishedQuery = fmt.Sprintf(
-		`UPDATE automation_cron_runs
+		`UPDATE automation_task_runs
 SET status = %s,
     finished_at = %s,
     error_message = %s,

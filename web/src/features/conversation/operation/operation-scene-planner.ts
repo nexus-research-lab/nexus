@@ -3,11 +3,11 @@ import type {
   NexusOperationSnapshot,
 } from "./operation-types";
 import {
-  derive_stage_desktop_intents,
-  find_stage_desktop_intent,
-  read_browser_open_target_from_terminal_command,
-  read_stage_browser_query,
-  stage_app_session_id_for_intent,
+  deriveStageDesktopIntents,
+  findStageDesktopIntent,
+  readBrowserOpenTargetFromTerminalCommand,
+  readStageBrowserQuery,
+  stageAppSessionIdForIntent,
 } from "./operation-desktop-intents";
 import type {
   OperationDesktopState,
@@ -19,37 +19,37 @@ import type {
   StageWindowState,
 } from "./operation-desktop-types";
 import {
-  collect_operation_file_context,
-  fallback_window_kind_for_file_event,
-  window_kind_for_file_target,
+  collectOperationFileContext,
+  fallbackWindowKindForFileEvent,
+  windowKindForFileTarget,
 } from "./operation-file-documents";
-import { find_operation_html_artifact } from "./operation-html-artifacts";
-import { build_operation_continuation_brief } from "./operation-stage-experience";
+import { findOperationHtmlArtifact } from "./operation-html-artifacts";
+import { buildOperationContinuationBrief } from "./operation-stage-experience";
 import {
   basename,
-  collect_round_events,
-  looks_like_url,
-  normalize_window_id,
-  preview_lines,
+  collectRoundEvents,
+  looksLikeUrl,
+  normalizeWindowId,
+  previewLines,
 } from "./operation-scene-planner-helpers";
 import {
-  build_operation_terminal_lines,
-  read_terminal_command,
+  buildOperationTerminalLines,
+  readTerminalCommand,
 } from "./operation-terminal-lines";
 import { collectTerminalSessionEvents } from "./operation-terminal-session-events";
 import {
-  is_desktop_tool_activity_event,
-  is_round_review_event,
-  should_open_finder_window,
-  should_open_html_browser_window,
-  supporting_window_phase,
+  isDesktopToolActivityEvent,
+  isRoundReviewEvent,
+  shouldOpenFinderWindow,
+  shouldOpenHtmlBrowserWindow,
+  supportingWindowPhase,
 } from "./operation-scene-window-policy";
 import {
-  fallback_stage_event_object_label,
-  fallback_stage_event_target_label,
-  is_low_signal_stage_label,
+  fallbackStageEventObjectLabel,
+  fallbackStageEventTargetLabel,
+  isLowSignalStageLabel,
 } from "./operation-stage-labels";
-export function plan_operation_desktop({
+export function planOperationDesktop({
   event,
   snapshot,
 }: {
@@ -77,7 +77,7 @@ function resolve_active_window(windows: StageWindowState[]): StageWindowState | 
   return [...focused_windows].sort((left, right) => right.z - left.z)[0] ?? null;
 }
 
-export function resolve_operation_event_window_id(
+export function resolveOperationEventWindowId(
   event: NexusOperationEvent,
   windows: StageWindowState[],
 ): string | null {
@@ -136,18 +136,18 @@ function build_windows(
   event: NexusOperationEvent,
   snapshot: NexusOperationSnapshot | null,
 ): StageWindowState[] {
-  const round_events = collect_round_events(event, snapshot);
+  const round_events = collectRoundEvents(event, snapshot);
   const terminal_events = collectTerminalSessionEvents(event, snapshot, round_events);
   const web_events = round_events.filter((item) => item.surface === "web");
   const task_events = round_events.filter((item) => item.surface === "task");
-  const tool_activity_events = round_events.filter(is_desktop_tool_activity_event);
-  const file_context = collect_operation_file_context(event, snapshot, round_events);
-  const html_artifact = find_operation_html_artifact(snapshot, round_events);
-  const active_intents = derive_stage_desktop_intents(event);
+  const tool_activity_events = round_events.filter(isDesktopToolActivityEvent);
+  const file_context = collectOperationFileContext(event, snapshot, round_events);
+  const html_artifact = findOperationHtmlArtifact(snapshot, round_events);
+  const active_intents = deriveStageDesktopIntents(event);
   const open_browser_target = active_intents.some((intent) => intent.app === "browser")
-    ? read_browser_open_target_from_terminal_command(event)
+    ? readBrowserOpenTargetFromTerminalCommand(event)
     : null;
-  const is_review_event = is_round_review_event(event);
+  const is_review_event = isRoundReviewEvent(event);
   const focus_target = resolve_focus_target(event, {
     has_file: Boolean(file_context.latest_file_target),
     has_html_artifact: Boolean(html_artifact || open_browser_target),
@@ -163,7 +163,7 @@ function build_windows(
   }
 
   if (
-    should_open_finder_window(event, {
+    shouldOpenFinderWindow(event, {
       file_document_count: file_context.file_documents.length,
       workspace_item_count: file_context.workspace_items.length,
     }) && (
@@ -172,16 +172,16 @@ function build_windows(
       file_context.latest_file_target
     )
   ) {
-    const finder_intent = find_stage_desktop_intent(file_context.latest_file_event ?? event, "finder");
+    const finder_intent = findStageDesktopIntent(file_context.latest_file_event ?? event, "finder");
     windows.push(window_state(file_context.latest_file_event ?? event, snapshot, {
       id: "finder",
       session_id: finder_intent
-        ? stage_app_session_id_for_intent(event.round_id, finder_intent, normalize_window_id)
+        ? stageAppSessionIdForIntent(event.round_id, finder_intent, normalizeWindowId)
         : `${event.round_id}:finder`,
       kind: "finder",
       title: "工作区",
       layout: "secondary",
-      phase: supporting_window_phase("finder", focus_target === "finder", {
+      phase: supportingWindowPhase("finder", focus_target === "finder", {
         has_browser_artifact: Boolean(html_artifact),
         is_review_event,
       }),
@@ -200,23 +200,23 @@ function build_windows(
       document.target === file_context.latest_file_target ||
       document.event.id === event.id
     );
-    const document_kind = window_kind_for_file_target(
+    const document_kind = windowKindForFileTarget(
       document.target,
-      fallback_window_kind_for_file_event(document.event),
+      fallbackWindowKindForFileEvent(document.event),
     );
-    const document_intent = find_stage_desktop_intent(document.event, "code") ?? {
+    const document_intent = findStageDesktopIntent(document.event, "code") ?? {
       app: "code" as const,
       action: "inspect_file" as const,
       event_id: document.event.id,
       target: document.target,
     };
     windows.push(window_state(document.event, snapshot, {
-      id: `document:${normalize_window_id(document.target)}`,
-      session_id: stage_app_session_id_for_intent(event.round_id, document_intent, normalize_window_id),
+      id: `document:${normalizeWindowId(document.target)}`,
+      session_id: stageAppSessionIdForIntent(event.round_id, document_intent, normalizeWindowId),
       kind: document_kind,
       title: document.target,
       layout: "primary",
-      phase: supporting_window_phase(document_kind, is_focused_document, {
+      phase: supportingWindowPhase(document_kind, is_focused_document, {
         has_browser_artifact: Boolean(html_artifact),
         is_review_event,
       }),
@@ -236,18 +236,18 @@ function build_windows(
     const terminal_command_event = [...terminal_events].reverse().find((item) => (
       item.tool_name === "Bash" || item.kind === "command_run"
     )) ?? terminal_event;
-    const terminal_command = read_terminal_command(terminal_command_event);
-    const terminal_intent = find_stage_desktop_intent(terminal_event, "terminal");
-    const terminal_lines = build_operation_terminal_lines(terminal_events);
+    const terminal_command = readTerminalCommand(terminal_command_event);
+    const terminal_intent = findStageDesktopIntent(terminal_event, "terminal");
+    const terminal_lines = buildOperationTerminalLines(terminal_events);
     windows.push(window_state(terminal_event, snapshot, {
       id: "terminal",
       session_id: terminal_intent
-        ? stage_app_session_id_for_intent(event.round_id, terminal_intent, normalize_window_id)
+        ? stageAppSessionIdForIntent(event.round_id, terminal_intent, normalizeWindowId)
         : `${event.round_id}:terminal`,
       kind: "terminal",
       title: terminal_command || terminal_event.target || "终端",
       layout: "terminal",
-      phase: supporting_window_phase("terminal", focus_target === "terminal", {
+      phase: supportingWindowPhase("terminal", focus_target === "terminal", {
         has_browser_artifact: Boolean(html_artifact),
         is_review_event,
       }),
@@ -260,10 +260,10 @@ function build_windows(
     }));
   }
 
-  if (web_events.length > 0 || should_open_html_browser_window(event, Boolean(html_artifact)) || open_browser_target) {
+  if (web_events.length > 0 || shouldOpenHtmlBrowserWindow(event, Boolean(html_artifact)) || open_browser_target) {
     const web_event = web_events.at(-1) ?? event;
     const browser_target = html_artifact?.path ?? open_browser_target?.target ?? web_event.target;
-    const browser_intent = find_stage_desktop_intent(web_event, "browser") ?? (
+    const browser_intent = findStageDesktopIntent(web_event, "browser") ?? (
       browser_target
         ? {
           app: "browser" as const,
@@ -278,18 +278,18 @@ function build_windows(
     const query = html_artifact
       ? basename(html_artifact.path)
       : open_browser_target?.target
-        ?? read_stage_browser_query(web_event)
+        ?? readStageBrowserQuery(web_event)
         ?? "web";
-    const lines = preview_lines(web_event.result_preview ?? web_event.summary, 8);
+    const lines = previewLines(web_event.result_preview ?? web_event.summary, 8);
     windows.push(window_state(web_event, snapshot, {
-      id: html_artifact ? `browser:${normalize_window_id(html_artifact.path)}` : "browser",
+      id: html_artifact ? `browser:${normalizeWindowId(html_artifact.path)}` : "browser",
       session_id: browser_intent
-        ? stage_app_session_id_for_intent(event.round_id, browser_intent, normalize_window_id)
+        ? stageAppSessionIdForIntent(event.round_id, browser_intent, normalizeWindowId)
         : `${event.round_id}:browser`,
       kind: "browser",
       title: html_artifact ? basename(html_artifact.path) : query,
       layout: "primary",
-      phase: supporting_window_phase("browser", focus_target === "browser", {
+      phase: supportingWindowPhase("browser", focus_target === "browser", {
         has_browser_artifact: Boolean(html_artifact),
         is_review_event,
       }),
@@ -301,18 +301,18 @@ function build_windows(
         related_events: web_events,
         srcdoc: html_artifact?.live_content ?? null,
         target: browser_target,
-        url: open_browser_target?.url ?? (looks_like_url(query) ? query : null),
+        url: open_browser_target?.url ?? (looksLikeUrl(query) ? query : null),
       },
     }));
   }
 
   if (event.surface === "knowledge") {
     windows.push(window_state(event, snapshot, {
-      id: `knowledge:${normalize_window_id(event.target ?? event.tool_name ?? event.title)}`,
+      id: `knowledge:${normalizeWindowId(event.target ?? event.tool_name ?? event.title)}`,
       kind: "markdown_reader",
       title: event.target ?? event.tool_name ?? event.title,
       layout: "primary",
-      phase: supporting_window_phase("markdown_reader", focus_target === "document", {
+      phase: supportingWindowPhase("markdown_reader", focus_target === "document", {
         has_browser_artifact: Boolean(html_artifact),
         is_review_event,
       }),
@@ -328,22 +328,22 @@ function build_windows(
 
   if (task_events.length > 0) {
     const task_event = task_events.at(-1) ?? event;
-    const task_intent = find_stage_desktop_intent(task_event, "activity");
+    const task_intent = findStageDesktopIntent(task_event, "activity");
     windows.push(window_state(task_event, snapshot, {
       id: "task-board",
       session_id: task_intent
-        ? stage_app_session_id_for_intent(event.round_id, task_intent, normalize_window_id)
+        ? stageAppSessionIdForIntent(event.round_id, task_intent, normalizeWindowId)
         : `${event.round_id}:task-board`,
       kind: "task_board",
       title: task_event.target ?? task_event.tool_name ?? "Task",
       layout: "primary",
-      phase: supporting_window_phase("task_board", focus_target === "task", {
+      phase: supportingWindowPhase("task_board", focus_target === "task", {
         has_browser_artifact: Boolean(html_artifact),
         is_review_event,
       }),
       z: focus_target === "task" ? 36 : 17,
       payload: {
-        lines: preview_lines(task_event.result_preview ?? task_event.input_preview ?? task_event.summary, 8),
+        lines: previewLines(task_event.result_preview ?? task_event.input_preview ?? task_event.summary, 8),
         related_events: task_events,
       },
     }));
@@ -420,14 +420,14 @@ function window_state(
 }
 
 function normalize_stage_window_title(event: NexusOperationEvent, title: string): string {
-  if (!is_low_signal_stage_label(title)) {
+  if (!isLowSignalStageLabel(title)) {
     return title;
   }
-  return fallback_stage_event_object_label(event);
+  return fallbackStageEventObjectLabel(event);
 }
 
 function normalize_stage_window_subtitle(event: NexusOperationEvent): string | null {
-  if (!event.summary || is_low_signal_stage_label(event.summary)) {
+  if (!event.summary || isLowSignalStageLabel(event.summary)) {
     return null;
   }
   return event.summary;
@@ -441,10 +441,10 @@ function normalize_stage_window_target(
   if (!candidate) {
     return null;
   }
-  if (!is_low_signal_stage_label(candidate)) {
+  if (!isLowSignalStageLabel(candidate)) {
     return candidate;
   }
-  return fallback_stage_event_target_label(event);
+  return fallbackStageEventTargetLabel(event);
 }
 
 function build_handoff_summary(
@@ -452,7 +452,7 @@ function build_handoff_summary(
   events: NexusOperationEvent[],
   snapshot: NexusOperationSnapshot | null,
 ): StageHandoffSummary {
-  return build_operation_continuation_brief(event, events, snapshot);
+  return buildOperationContinuationBrief(event, events, snapshot);
 }
 
 function resolve_focus_target(

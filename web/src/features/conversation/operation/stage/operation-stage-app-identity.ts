@@ -1,6 +1,6 @@
 import type { StageWindowKind } from "../operation-desktop-types";
 
-export function dock_icon_skin_for_kind(kind: StageWindowKind): string {
+export function dockIconSkinForKind(kind: StageWindowKind): string {
   if (kind === "finder") {
     return "border-[rgba(72,152,224,0.42)] bg-[linear-gradient(135deg,#5ac8fa_0%,#e8f5ff_48%,#ffffff_49%,#7dd3fc_100%)] text-[#14517a]";
   }

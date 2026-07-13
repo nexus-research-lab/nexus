@@ -85,59 +85,101 @@ func (p *Processor) Process(message sdkprotocol.ReceivedMessage) Output {
 	if updated != "" {
 		output.RegisteredSessionID = updated
 	}
-
-	switch message.Type {
-	case sdkprotocol.MessageTypeStreamEvent:
-		return p.processStreamEvent(message, output)
-	case sdkprotocol.MessageTypeAssistant:
-		if durable := p.processAssistantAPIError(message); durable != nil {
-			output.DurableMessages = append(output.DurableMessages, *durable)
-			output.ResultSubtype = "error"
-			output.TerminalStatus = "error"
-			return output
-		}
-		if durable := p.processAssistantMessage(message); durable != nil {
-			output.DurableMessages = append(output.DurableMessages, *durable)
-			if (*durable)["is_complete"] == true {
-				output.AssistantCompleted = true
-			}
-		}
-	case sdkprotocol.MessageTypeSystem:
-		durableMessages, ephemeralMessages := p.processSystemMessage(message)
-		output.DurableMessages = append(output.DurableMessages, durableMessages...)
-		output.EphemeralMessages = append(output.EphemeralMessages, ephemeralMessages...)
-	case sdkprotocol.MessageTypeResult:
-		subtype := normalizeResultSubtype(message.Result)
-		output.DurableMessages = append(output.DurableMessages, p.buildResultMessage(message, subtype))
-		output.ResultSubtype = subtype
-		output.TerminalStatus = statusFromResultSubtype(subtype)
-	case sdkprotocol.MessageTypeTaskStarted:
-		if messageValue := p.processTaskStartedMessage(message); messageValue != nil {
-			output.DurableMessages = append(output.DurableMessages, *messageValue)
-		}
-	case sdkprotocol.MessageTypeTaskProgress:
-		if messageValue := p.processTaskProgressMessage(message); messageValue != nil {
-			output.DurableMessages = append(output.DurableMessages, *messageValue)
-		}
-	case sdkprotocol.MessageTypeToolProgress:
-		if messageValue := p.processToolProgressMessage(message); messageValue != nil {
-			output.DurableMessages = append(output.DurableMessages, *messageValue)
-		}
-	case sdkprotocol.MessageTypeTaskNotification:
-		if messageValue := p.processTaskNotificationMessage(message); messageValue != nil {
-			output.DurableMessages = append(output.DurableMessages, *messageValue)
-		}
-	case sdkprotocol.MessageTypeUser:
-		if durable := p.processToolResultMessage(message); durable != nil {
-			output.DurableMessages = append(output.DurableMessages, *durable)
-			output.AssistantCompleted = true
-		}
-	case sdkprotocol.MessageTypeStreamRequestStart,
-		sdkprotocol.MessageTypeToolUseSummary,
-		sdkprotocol.MessageTypeRateLimitEvent,
-		sdkprotocol.MessageTypePromptSuggestion,
-		sdkprotocol.MessageTypeAuthStatus:
+	handler := messageHandlers[message.Type]
+	if handler == nil {
 		return output
+	}
+	return handler(p, message, output)
+}
+
+type messageHandler func(*Processor, sdkprotocol.ReceivedMessage, Output) Output
+
+var messageHandlers = map[sdkprotocol.MessageType]messageHandler{
+	sdkprotocol.MessageTypeStreamEvent:      handleStreamEvent,
+	sdkprotocol.MessageTypeAssistant:        handleAssistant,
+	sdkprotocol.MessageTypeSystem:           handleSystem,
+	sdkprotocol.MessageTypeResult:           handleResult,
+	sdkprotocol.MessageTypeTaskStarted:      handleTaskStarted,
+	sdkprotocol.MessageTypeTaskProgress:     handleTaskProgress,
+	sdkprotocol.MessageTypeToolProgress:     handleToolProgress,
+	sdkprotocol.MessageTypeTaskNotification: handleTaskNotification,
+	sdkprotocol.MessageTypeUser:             handleUser,
+}
+
+type streamEventHandler func(*Processor, map[string]any, Output) Output
+
+var streamEventHandlers = map[string]streamEventHandler{
+	"message_start":       handleMessageStartStream,
+	"content_block_start": handleContentBlockStartStream,
+	"content_block_delta": handleContentBlockDeltaStream,
+	"message_delta":       handleMessageDeltaStream,
+	"message_stop":        handleMessageStopStream,
+}
+
+func handleStreamEvent(p *Processor, message sdkprotocol.ReceivedMessage, output Output) Output {
+	return p.processStreamEvent(message, output)
+}
+
+func handleAssistant(p *Processor, message sdkprotocol.ReceivedMessage, output Output) Output {
+	if durable := p.processAssistantAPIError(message); durable != nil {
+		output.DurableMessages = append(output.DurableMessages, *durable)
+		output.ResultSubtype = "error"
+		output.TerminalStatus = "error"
+		return output
+	}
+	durable := p.processAssistantMessage(message)
+	if durable == nil {
+		return output
+	}
+	output.DurableMessages = append(output.DurableMessages, *durable)
+	output.AssistantCompleted = (*durable)["is_complete"] == true
+	return output
+}
+
+func handleSystem(p *Processor, message sdkprotocol.ReceivedMessage, output Output) Output {
+	durable, ephemeral := p.processSystemMessage(message)
+	output.DurableMessages = append(output.DurableMessages, durable...)
+	output.EphemeralMessages = append(output.EphemeralMessages, ephemeral...)
+	return output
+}
+
+func handleResult(p *Processor, message sdkprotocol.ReceivedMessage, output Output) Output {
+	subtype := normalizeResultSubtype(message.Result)
+	output.DurableMessages = append(output.DurableMessages, p.buildResultMessage(message, subtype))
+	output.ResultSubtype = subtype
+	output.TerminalStatus = statusFromResultSubtype(subtype)
+	return output
+}
+
+func handleTaskStarted(p *Processor, message sdkprotocol.ReceivedMessage, output Output) Output {
+	return appendDurableMessage(output, p.processTaskStartedMessage(message))
+}
+
+func handleTaskProgress(p *Processor, message sdkprotocol.ReceivedMessage, output Output) Output {
+	return appendDurableMessage(output, p.processTaskProgressMessage(message))
+}
+
+func handleToolProgress(p *Processor, message sdkprotocol.ReceivedMessage, output Output) Output {
+	return appendDurableMessage(output, p.processToolProgressMessage(message))
+}
+
+func handleTaskNotification(p *Processor, message sdkprotocol.ReceivedMessage, output Output) Output {
+	return appendDurableMessage(output, p.processTaskNotificationMessage(message))
+}
+
+func handleUser(p *Processor, message sdkprotocol.ReceivedMessage, output Output) Output {
+	durable := p.processToolResultMessage(message)
+	if durable == nil {
+		return output
+	}
+	output.DurableMessages = append(output.DurableMessages, *durable)
+	output.AssistantCompleted = true
+	return output
+}
+
+func appendDurableMessage(output Output, message *protocol.Message) Output {
+	if message != nil {
+		output.DurableMessages = append(output.DurableMessages, *message)
 	}
 	return output
 }
@@ -151,81 +193,87 @@ func (p *Processor) processStreamEvent(message sdkprotocol.ReceivedMessage, outp
 		payload = message.Stream.Data
 	}
 	eventType := normalizeString(payload["type"])
-	if eventType == "" {
+	handler := streamEventHandlers[eventType]
+	if handler == nil {
 		return output
 	}
+	return handler(p, payload, output)
+}
 
-	switch eventType {
-	case "message_start":
-		messagePayload, _ := payload["message"].(map[string]any)
-		usage, _ := messagePayload["usage"].(map[string]any)
-		p.segment.Start(
-			normalizeString(messagePayload["id"]),
-			normalizeString(messagePayload["model"]),
-			usage,
-			time.Now().UnixMilli(),
-		)
-		p.streamStarted = true
-		p.streamTerminalObserved = false
-		p.lastDurableAssistantSnapshot = nil
-		output.StreamStarted = true
-		streamPayload := p.buildStreamPayload("message_start")
-		streamPayload.Data["message"] = map[string]any{
-			"model": emptyToNil(p.segment.Model()),
-		}
-		streamPayload.Data["usage"] = p.segment.Usage()
-		output.StreamEvents = append(output.StreamEvents, streamPayload)
-	case "content_block_start":
-		index := normalizeInt(payload["index"])
-		block := normalizeContentBlock(payload["content_block"])
-		if len(block) == 0 {
-			return output
-		}
-		logicalIndex := p.segment.ApplyBlock(index, block)
-		if normalizeString(block["type"]) == "tool_use" {
-			return output
-		}
+func handleMessageStartStream(p *Processor, payload map[string]any, output Output) Output {
+	messagePayload, _ := payload["message"].(map[string]any)
+	usage, _ := messagePayload["usage"].(map[string]any)
+	p.segment.Start(
+		normalizeString(messagePayload["id"]),
+		normalizeString(messagePayload["model"]),
+		usage,
+		time.Now().UnixMilli(),
+	)
+	p.streamStarted = true
+	p.streamTerminalObserved = false
+	p.lastDurableAssistantSnapshot = nil
+	output.StreamStarted = true
+	streamPayload := p.buildStreamPayload("message_start")
+	streamPayload.Data["message"] = map[string]any{"model": emptyToNil(p.segment.Model())}
+	streamPayload.Data["usage"] = p.segment.Usage()
+	output.StreamEvents = append(output.StreamEvents, streamPayload)
+	return output
+}
+
+func handleContentBlockStartStream(p *Processor, payload map[string]any, output Output) Output {
+	block := normalizeContentBlock(payload["content_block"])
+	if len(block) == 0 {
+		return output
+	}
+	logicalIndex := p.segment.ApplyBlock(normalizeInt(payload["index"]), block)
+	if normalizeString(block["type"]) != "tool_use" {
 		output.StreamEvents = append(output.StreamEvents, p.buildBlockStreamPayload("content_block_start", logicalIndex, block))
-	case "content_block_delta":
-		index := normalizeInt(payload["index"])
-		delta, _ := payload["delta"].(map[string]any)
-		logicalIndex, applied := p.segment.ApplyDelta(index, delta)
-		if !applied {
-			return output
-		}
-		block := p.segment.CurrentBlock(logicalIndex)
-		if normalizeString(block["type"]) == "tool_use" {
-			return output
-		}
-		output.StreamEvents = append(output.StreamEvents, p.buildBlockStreamPayload("content_block_delta", logicalIndex, block))
-	case "message_delta":
-		delta, _ := payload["delta"].(map[string]any)
-		usage, _ := payload["usage"].(map[string]any)
-		p.segment.UpdateMeta("", usage, normalizeString(delta["stop_reason"]))
-		streamPayload := p.buildStreamPayload("message_delta")
-		streamPayload.Data["message"] = map[string]any{
-			"model":       emptyToNil(p.segment.Model()),
-			"stop_reason": emptyToNil(p.segment.StopReason()),
-		}
-		streamPayload.Data["usage"] = p.segment.Usage()
-		output.StreamEvents = append(output.StreamEvents, streamPayload)
-		if p.segment.HasContent() && strings.TrimSpace(p.segment.StopReason()) != "" {
-			p.streamTerminalObserved = true
-			if durable := p.buildAssistantDurableMessage(true, true, ""); durable != nil {
-				output.DurableMessages = append(output.DurableMessages, *durable)
-				output.AssistantCompleted = true
-			}
-		}
-	case "message_stop":
-		streamPayload := p.buildStreamPayload("message_stop")
-		streamPayload.Data["message"] = map[string]any{
-			"model":       emptyToNil(p.segment.Model()),
-			"stop_reason": emptyToNil(p.segment.StopReason()),
-		}
-		streamPayload.Data["usage"] = p.segment.Usage()
-		output.StreamEvents = append(output.StreamEvents, streamPayload)
 	}
 	return output
+}
+
+func handleContentBlockDeltaStream(p *Processor, payload map[string]any, output Output) Output {
+	delta, _ := payload["delta"].(map[string]any)
+	logicalIndex, applied := p.segment.ApplyDelta(normalizeInt(payload["index"]), delta)
+	if !applied {
+		return output
+	}
+	block := p.segment.CurrentBlock(logicalIndex)
+	if normalizeString(block["type"]) != "tool_use" {
+		output.StreamEvents = append(output.StreamEvents, p.buildBlockStreamPayload("content_block_delta", logicalIndex, block))
+	}
+	return output
+}
+
+func handleMessageDeltaStream(p *Processor, payload map[string]any, output Output) Output {
+	delta, _ := payload["delta"].(map[string]any)
+	usage, _ := payload["usage"].(map[string]any)
+	p.segment.UpdateMeta("", usage, normalizeString(delta["stop_reason"]))
+	output.StreamEvents = append(output.StreamEvents, p.buildMessageMetaStreamPayload("message_delta"))
+	if !p.segment.HasContent() || strings.TrimSpace(p.segment.StopReason()) == "" {
+		return output
+	}
+	p.streamTerminalObserved = true
+	if durable := p.buildAssistantDurableMessage(true, true, ""); durable != nil {
+		output.DurableMessages = append(output.DurableMessages, *durable)
+		output.AssistantCompleted = true
+	}
+	return output
+}
+
+func handleMessageStopStream(p *Processor, _ map[string]any, output Output) Output {
+	output.StreamEvents = append(output.StreamEvents, p.buildMessageMetaStreamPayload("message_stop"))
+	return output
+}
+
+func (p *Processor) buildMessageMetaStreamPayload(eventType string) StreamPayload {
+	payload := p.buildStreamPayload(eventType)
+	payload.Data["message"] = map[string]any{
+		"model":       emptyToNil(p.segment.Model()),
+		"stop_reason": emptyToNil(p.segment.StopReason()),
+	}
+	payload.Data["usage"] = p.segment.Usage()
+	return payload
 }
 
 func (p *Processor) processAssistantMessage(message sdkprotocol.ReceivedMessage) *protocol.Message {

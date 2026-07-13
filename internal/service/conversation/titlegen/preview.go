@@ -19,48 +19,59 @@ func (s *Service) FillEmptyPreviewFromGoal(ctx context.Context, sessionKey strin
 		return nil
 	}
 	parsed := protocol.ParseSessionKey(sessionKey)
-	updated := false
-	resolvedRoomID := ""
-	switch parsed.Kind {
-	case protocol.SessionKeyKindRoom:
-		if s.rooms == nil || strings.TrimSpace(parsed.ConversationID) == "" {
-			return nil
-		}
-		current, err := s.rooms.GetConversationContext(ctx, parsed.ConversationID)
-		if err != nil {
-			return err
-		}
-		if current != nil && isDefaultConversationTitle(current.Conversation.Title, current.Room.Name) {
-			resolvedRoomID = current.Room.ID
-			if _, err = s.rooms.UpdateConversationTitle(ctx, current.Room.ID, current.Conversation.ID, nextTitle); err != nil {
-				return err
-			}
-			updated = true
-		}
-	default:
-		if s.sessions == nil {
-			return nil
-		}
-		current, err := s.sessions.GetSession(ctx, sessionKey)
-		if err != nil {
-			return err
-		}
-		if current != nil && isDefaultSessionTitle(current.Title) {
-			if _, err = s.sessions.UpdateSessionTitle(ctx, sessionKey, nextTitle); err != nil {
-				return err
-			}
-			updated = true
-		}
+	updated, roomID, err := s.fillGoalPreview(ctx, parsed, sessionKey, nextTitle)
+	if err != nil || !updated {
+		return err
 	}
-	if updated {
-		s.broadcastResync(ctx, Request{
-			SessionKey:           sessionKey,
-			ConversationID:       parsed.ConversationID,
-			ConversationRoomID:   resolvedRoomID,
-			ConversationRoomName: "",
-		})
-	}
+	s.broadcastResync(ctx, Request{
+		SessionKey:         sessionKey,
+		ConversationID:     parsed.ConversationID,
+		ConversationRoomID: roomID,
+	})
 	return nil
+}
+
+func (s *Service) fillGoalPreview(
+	ctx context.Context,
+	parsed protocol.SessionKey,
+	sessionKey string,
+	title string,
+) (bool, string, error) {
+	if parsed.Kind == protocol.SessionKeyKindRoom {
+		return s.fillRoomGoalPreview(ctx, parsed.ConversationID, title)
+	}
+	updated, err := s.fillSessionGoalPreview(ctx, sessionKey, title)
+	return updated, "", err
+}
+
+func (s *Service) fillRoomGoalPreview(ctx context.Context, conversationID string, title string) (bool, string, error) {
+	if s.rooms == nil || strings.TrimSpace(conversationID) == "" {
+		return false, "", nil
+	}
+	current, err := s.rooms.GetConversationContext(ctx, conversationID)
+	if err != nil || current == nil {
+		return false, "", err
+	}
+	if !isDefaultConversationTitle(current.Conversation.Title, current.Room.Name) {
+		return false, "", nil
+	}
+	_, err = s.rooms.UpdateConversationTitle(ctx, current.Room.ID, current.Conversation.ID, title)
+	return err == nil, current.Room.ID, err
+}
+
+func (s *Service) fillSessionGoalPreview(ctx context.Context, sessionKey string, title string) (bool, error) {
+	if s.sessions == nil {
+		return false, nil
+	}
+	current, err := s.sessions.GetSession(ctx, sessionKey)
+	if err != nil || current == nil {
+		return false, err
+	}
+	if !isDefaultSessionTitle(current.Title) {
+		return false, nil
+	}
+	_, err = s.sessions.UpdateSessionTitle(ctx, sessionKey, title)
+	return err == nil, err
 }
 
 // ScheduleGoalTitleFromGoal 复用首条消息标题生成器，为 Goal 启动的新会话补标题总结。

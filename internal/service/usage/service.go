@@ -4,13 +4,12 @@ import (
 	"cmp"
 	"context"
 	"database/sql"
-	"encoding/json"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 	usagestore "github.com/nexus-research-lab/nexus/internal/storage/usage"
 )
 
@@ -65,12 +64,12 @@ func (s *Service) buildRecord(input RecordInput) (usagestore.Record, bool) {
 		return usagestore.Record{}, false
 	}
 
-	inputTokens := int64FromAny(input.Usage["input_tokens"])
-	outputTokens := int64FromAny(input.Usage["output_tokens"])
-	cacheCreationTokens := int64FromAny(input.Usage["cache_creation_input_tokens"])
-	cacheReadTokens := int64FromAny(input.Usage["cache_read_input_tokens"])
+	inputTokens := protocol.Int64FromAny(input.Usage["input_tokens"])
+	outputTokens := protocol.Int64FromAny(input.Usage["output_tokens"])
+	cacheCreationTokens := protocol.Int64FromAny(input.Usage["cache_creation_input_tokens"])
+	cacheReadTokens := protocol.Int64FromAny(input.Usage["cache_read_input_tokens"])
 	totalTokens := firstPositiveInt64(
-		int64FromAny(input.Usage["total_tokens"]),
+		protocol.Int64FromAny(input.Usage["total_tokens"]),
 		inputTokens+outputTokens+cacheCreationTokens+cacheReadTokens,
 	)
 	if totalTokens <= 0 {
@@ -125,69 +124,12 @@ func buildUsageKey(sessionKey string, messageID string, roundID string) string {
 	return sessionKey + ":" + roundID
 }
 
-func int64FromAny(value any) int64 {
-	switch typed := value.(type) {
-	case int:
-		return int64(typed)
-	case int8:
-		return int64(typed)
-	case int16:
-		return int64(typed)
-	case int32:
-		return int64(typed)
-	case int64:
-		return typed
-	case uint:
-		return int64(typed)
-	case uint8:
-		return int64(typed)
-	case uint16:
-		return int64(typed)
-	case uint32:
-		return int64(typed)
-	case uint64:
-		if typed > uint64(^uint64(0)>>1) {
-			return 0
-		}
-		return int64(typed)
-	case float32:
-		return int64(typed)
-	case float64:
-		return int64(typed)
-	case json.Number:
-		if parsed, err := typed.Int64(); err == nil {
-			return parsed
-		}
-		if parsed, err := strconv.ParseFloat(typed.String(), 64); err == nil {
-			return int64(parsed)
-		}
-	case string:
-		parsed, err := strconv.ParseInt(strings.TrimSpace(typed), 10, 64)
-		if err == nil {
-			return parsed
-		}
-	}
-	return 0
-}
-
 func timestampFromAny(value any) time.Time {
-	switch typed := value.(type) {
-	case int64:
-		return time.UnixMilli(typed).UTC()
-	case int:
-		return time.UnixMilli(int64(typed)).UTC()
-	case float64:
-		return time.UnixMilli(int64(typed)).UTC()
-	case json.Number:
-		if parsed, err := typed.Int64(); err == nil {
-			return time.UnixMilli(parsed).UTC()
-		}
-	case string:
-		if parsed, err := strconv.ParseInt(strings.TrimSpace(typed), 10, 64); err == nil {
-			return time.UnixMilli(parsed).UTC()
-		}
+	timestamp := protocol.Int64FromAny(value)
+	if timestamp == 0 {
+		return time.Time{}
 	}
-	return time.Time{}
+	return time.UnixMilli(timestamp).UTC()
 }
 
 // MessageRecordInput 从消息 map 构造可写 ledger 的输入。
@@ -213,11 +155,11 @@ func MessageHasUsage(message map[string]any) bool {
 	if len(usage) == 0 {
 		return false
 	}
-	return int64FromAny(usage["input_tokens"]) > 0 ||
-		int64FromAny(usage["output_tokens"]) > 0 ||
-		int64FromAny(usage["cache_creation_input_tokens"]) > 0 ||
-		int64FromAny(usage["cache_read_input_tokens"]) > 0 ||
-		int64FromAny(usage["total_tokens"]) > 0
+	return protocol.Int64FromAny(usage["input_tokens"]) > 0 ||
+		protocol.Int64FromAny(usage["output_tokens"]) > 0 ||
+		protocol.Int64FromAny(usage["cache_creation_input_tokens"]) > 0 ||
+		protocol.Int64FromAny(usage["cache_read_input_tokens"]) > 0 ||
+		protocol.Int64FromAny(usage["total_tokens"]) > 0
 }
 
 func stringValue(value any) string {

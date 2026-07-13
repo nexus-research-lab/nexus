@@ -2,6 +2,7 @@ package automation
 
 import (
 	"fmt"
+	"hash/fnv"
 	"strings"
 	"time"
 
@@ -47,6 +48,38 @@ func ComputeNextRunAt(schedule types.Schedule, now time.Time) (*time.Time, error
 	default:
 		return nil, fmt.Errorf("unsupported schedule kind: %s", normalized.Kind)
 	}
+}
+
+// ComputeJitteredNextRunAt 为循环任务附加稳定延迟，分散整点触发压力。
+func ComputeJitteredNextRunAt(
+	schedule types.Schedule,
+	now time.Time,
+	stableKey string,
+	maxJitter time.Duration,
+) (*time.Time, error) {
+	next, err := ComputeNextRunAt(schedule, now)
+	if err != nil || next == nil || maxJitter <= 0 || schedule.Normalized().Kind == types.ScheduleKindAt {
+		return next, err
+	}
+	second, err := ComputeNextRunAt(schedule, *next)
+	if err != nil || second == nil {
+		return next, err
+	}
+	window := second.Sub(*next) / 10
+	if window > maxJitter {
+		window = maxJitter
+	}
+	if window <= 0 {
+		return next, nil
+	}
+	result := next.Add(stableJitterOffset(stableKey, window))
+	return &result, nil
+}
+
+func stableJitterOffset(key string, window time.Duration) time.Duration {
+	hash := fnv.New32a()
+	_, _ = hash.Write([]byte(strings.TrimSpace(key)))
+	return time.Duration(float64(window) * float64(hash.Sum32()) / float64(^uint32(0)))
 }
 
 func parseRunAt(raw string, timezoneName string) (time.Time, error) {

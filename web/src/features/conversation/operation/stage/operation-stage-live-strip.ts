@@ -1,8 +1,8 @@
 import type { StageWindowKind, StageWindowState } from "../operation-desktop-types";
 import type { NexusOperationEvent } from "../operation-types";
-import { display_stage_event_target, display_stage_event_title } from "../operation-stage-labels";
-import { resolve_operation_tool_profile } from "../operation-tool-catalog";
-import { event_sequence_label } from "./operation-stage-event-sequence";
+import { displayStageEventTarget, displayStageEventTitle } from "../operation-stage-labels";
+import { resolveOperationToolProfile } from "../operation-tool-catalog";
+import { eventSequenceLabel } from "./operation-stage-event-sequence";
 
 export interface StageActivityItem {
   app_label: string;
@@ -28,7 +28,7 @@ export interface StageActivityCenterState {
 
 const MAX_ACTIVITY_ITEMS = 5;
 
-export function build_stage_live_strip_state({
+export function buildStageLiveStripState({
   active_event,
   active_window,
   events,
@@ -45,11 +45,11 @@ export function build_stage_live_strip_state({
     .sort((left, right) => activity_priority(right, active_event.id) - activity_priority(left, active_event.id))
     .slice(0, MAX_ACTIVITY_ITEMS);
   const items = candidates.map((event): StageActivityItem => {
-    const profile = resolve_operation_tool_profile(event.tool_name, event.kind, event.surface);
+    const profile = resolveOperationToolProfile(event.tool_name, event.kind, event.surface);
     const window = event_window_by_id.get(event.id) ?? (event.id === active_event.id ? active_window : null);
     const app_label = window ? live_strip_app_label_for_kind(window.kind) : profile.title;
-    const title = display_stage_event_title(event, profile.action_label);
-    const target = display_stage_event_target(event, profile.action_label)
+    const title = displayStageEventTitle(event, profile.action_label);
+    const target = displayStageEventTarget(event, profile.action_label)
       || window?.target
       || window?.payload.target
       || profile.action_label;
@@ -59,7 +59,7 @@ export function build_stage_live_strip_state({
       detail: `${profile.action_label} · ${target}`,
       event,
       key: event.id,
-      step_label: event_sequence_label(event, events),
+      step_label: eventSequenceLabel(event, events),
       title,
       tone: live_strip_tone_for_event(event),
     };

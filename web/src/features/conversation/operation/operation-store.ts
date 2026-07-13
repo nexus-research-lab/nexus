@@ -2,9 +2,9 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 import { createBrowserJsonStorage } from "@/lib/storage/browser-storage";
-import type { PermissionDecisionPayload } from "@/types/conversation/permission";
+import type { PermissionDecisionPayload } from "@/types/conversation/interaction/permission";
 
-export { build_operation_stage_key } from "./operation-stage-key";
+export { buildOperationStageKey } from "./operation-stage-key";
 import type { NexusOperationSnapshot } from "./operation-types";
 
 const MAX_PERSISTED_STAGE_SNAPSHOTS = 12;
@@ -101,7 +101,7 @@ function prune_snapshot_record(
   );
 }
 
-export function compact_operation_snapshot_for_persistence(snapshot: NexusOperationSnapshot): NexusOperationSnapshot {
+export function compactOperationSnapshotForPersistence(snapshot: NexusOperationSnapshot): NexusOperationSnapshot {
   return compact_snapshot(snapshot);
 }
 

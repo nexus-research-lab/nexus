@@ -1,5 +1,5 @@
 import type { NexusOperationEvent } from "../operation-types";
-import { console_event_subsystem } from "./run-manifest-console";
+import { consoleEventSubsystem } from "./run-manifest-console";
 
 export interface ManifestLogSource {
   id: string;
@@ -8,7 +8,7 @@ export interface ManifestLogSource {
   count: number;
 }
 
-export function collect_manifest_log_sources(events: NexusOperationEvent[]): ManifestLogSource[] {
+export function collectManifestLogSources(events: NexusOperationEvent[]): ManifestLogSource[] {
   const groups = new Map<string, ManifestLogSource>();
 
   groups.set("mac", {
@@ -25,7 +25,7 @@ export function collect_manifest_log_sources(events: NexusOperationEvent[]): Man
   });
 
   for (const event of events) {
-    const subsystem = console_event_subsystem(event);
+    const subsystem = consoleEventSubsystem(event);
     const id = subsystem.toLowerCase().replace(/\s+/g, "-");
     const current = groups.get(id);
     if (current) {

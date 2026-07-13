@@ -17,7 +17,6 @@ export const APP_ROUTE_PATHS = {
   scheduledTasks: "/capability/scheduled-tasks",
   channels: "/capability/channels",
   pairings: "/capability/pairings",
-  memory: "/memory",
   operations: "/operations",
   settings: "/settings",
 } as const;
@@ -44,9 +43,9 @@ export const AppRouteBuilders = {
   scheduledTasks: () => APP_ROUTE_PATHS.scheduledTasks,
   channels: () => APP_ROUTE_PATHS.channels,
   pairings: () => APP_ROUTE_PATHS.pairings,
-  memory: () => APP_ROUTE_PATHS.memory,
   operations: () => APP_ROUTE_PATHS.operations,
-  settings: () => APP_ROUTE_PATHS.settings,
+  settings: (section?: string) =>
+    section
+      ? `${APP_ROUTE_PATHS.settings}?section=${encodeURIComponent(section)}`
+      : APP_ROUTE_PATHS.settings,
 } as const;
-
-type AppRoutePathKey = keyof typeof APP_ROUTE_PATHS;

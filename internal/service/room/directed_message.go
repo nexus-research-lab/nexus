@@ -192,49 +192,62 @@ func normalizeRoomReplyRouteDepth(
 	}
 	switch mode {
 	case protocol.RoomReplyRoutePublic:
-		if route.NextReplyRoute != nil {
-			return protocol.RoomReplyRoute{}, errors.New("next_reply_route 仅支持 reply_route=private")
-		}
-		return protocol.RoomReplyRoute{Mode: protocol.RoomReplyRoutePublic}, nil
+		return normalizeTerminalRoomReplyRoute(route, protocol.RoomReplyRoutePublic)
 	case protocol.RoomReplyRouteNone:
-		if route.NextReplyRoute != nil {
-			return protocol.RoomReplyRoute{}, errors.New("next_reply_route 仅支持 reply_route=private")
-		}
-		return protocol.RoomReplyRoute{Mode: protocol.RoomReplyRouteNone}, nil
+		return normalizeTerminalRoomReplyRoute(route, protocol.RoomReplyRouteNone)
 	case protocol.RoomReplyRoutePrivate:
-		recipients := normalizeRoomDirectedMessageRecipients(route.Recipients)
-		if len(recipients) == 0 {
-			return protocol.RoomReplyRoute{}, errors.New("reply_route private requires recipients")
-		}
-		if err := validateRoomDirectedMessageRecipients(recipients, memberAgentIDs); err != nil {
-			return protocol.RoomReplyRoute{}, err
-		}
-		wakePolicy := route.WakePolicy
-		if wakePolicy == "" {
-			wakePolicy = protocol.RoomWakePolicyNone
-		}
-		if wakePolicy != protocol.RoomWakePolicyNone && wakePolicy != protocol.RoomWakePolicyImmediate {
-			return protocol.RoomReplyRoute{}, errors.New("reply_route private wake_policy must be none or immediate")
-		}
-		normalized := protocol.RoomReplyRoute{
-			Mode:       protocol.RoomReplyRoutePrivate,
-			Recipients: recipients,
-			WakePolicy: wakePolicy,
-		}
-		if route.NextReplyRoute != nil {
-			if wakePolicy != protocol.RoomWakePolicyImmediate {
-				return protocol.RoomReplyRoute{}, errors.New("next_reply_route requires reply_route private wake_policy=immediate")
-			}
-			nextReplyRoute, err := normalizeRoomReplyRouteDepth(*route.NextReplyRoute, memberAgentIDs, depth+1)
-			if err != nil {
-				return protocol.RoomReplyRoute{}, err
-			}
-			normalized.NextReplyRoute = &nextReplyRoute
-		}
-		return normalized, nil
+		return normalizePrivateRoomReplyRoute(route, memberAgentIDs, depth)
 	default:
 		return protocol.RoomReplyRoute{}, errors.New("reply_route mode 不支持")
 	}
+}
+
+func normalizeTerminalRoomReplyRoute(
+	route protocol.RoomReplyRoute,
+	mode protocol.RoomReplyRouteMode,
+) (protocol.RoomReplyRoute, error) {
+	if route.NextReplyRoute != nil {
+		return protocol.RoomReplyRoute{}, errors.New("next_reply_route 仅支持 reply_route=private")
+	}
+	return protocol.RoomReplyRoute{Mode: mode}, nil
+}
+
+func normalizePrivateRoomReplyRoute(
+	route protocol.RoomReplyRoute,
+	memberAgentIDs []string,
+	depth int,
+) (protocol.RoomReplyRoute, error) {
+	recipients := normalizeRoomDirectedMessageRecipients(route.Recipients)
+	if len(recipients) == 0 {
+		return protocol.RoomReplyRoute{}, errors.New("reply_route private requires recipients")
+	}
+	if err := validateRoomDirectedMessageRecipients(recipients, memberAgentIDs); err != nil {
+		return protocol.RoomReplyRoute{}, err
+	}
+	wakePolicy := route.WakePolicy
+	if wakePolicy == "" {
+		wakePolicy = protocol.RoomWakePolicyNone
+	}
+	if wakePolicy != protocol.RoomWakePolicyNone && wakePolicy != protocol.RoomWakePolicyImmediate {
+		return protocol.RoomReplyRoute{}, errors.New("reply_route private wake_policy must be none or immediate")
+	}
+	normalized := protocol.RoomReplyRoute{
+		Mode:       protocol.RoomReplyRoutePrivate,
+		Recipients: recipients,
+		WakePolicy: wakePolicy,
+	}
+	if route.NextReplyRoute == nil {
+		return normalized, nil
+	}
+	if wakePolicy != protocol.RoomWakePolicyImmediate {
+		return protocol.RoomReplyRoute{}, errors.New("next_reply_route requires reply_route private wake_policy=immediate")
+	}
+	nextReplyRoute, err := normalizeRoomReplyRouteDepth(*route.NextReplyRoute, memberAgentIDs, depth+1)
+	if err != nil {
+		return protocol.RoomReplyRoute{}, err
+	}
+	normalized.NextReplyRoute = &nextReplyRoute
+	return normalized, nil
 }
 
 func validateRoomDirectedMessageWakePolicy(wakePolicy protocol.RoomWakePolicy) error {

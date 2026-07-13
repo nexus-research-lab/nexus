@@ -5,6 +5,14 @@ import (
 	"strings"
 )
 
+type scheduleValidator func(Schedule) error
+
+var scheduleValidators = map[string]scheduleValidator{
+	ScheduleKindEvery: validateEverySchedule,
+	ScheduleKindAt:    validateAtSchedule,
+	ScheduleKindCron:  validateCronSchedule,
+}
+
 // Schedule 表示结构化调度定义。
 type Schedule struct {
 	Kind            string  `json:"kind"`
@@ -16,38 +24,40 @@ type Schedule struct {
 
 // Validate 校验调度形状。
 func (s Schedule) Validate() error {
-	kind := strings.TrimSpace(s.Kind)
-	timezoneName := strings.TrimSpace(s.Timezone)
-	if timezoneName == "" {
-		timezoneName = "Asia/Shanghai"
-	}
-	switch kind {
-	case ScheduleKindEvery:
-		if s.IntervalSeconds == nil || *s.IntervalSeconds <= 0 {
-			return errors.New("interval_seconds must be greater than 0 when kind is every")
-		}
-		if s.RunAt != nil || s.CronExpression != nil {
-			return errors.New("run_at and cron_expression must be empty when kind is every")
-		}
-	case ScheduleKindAt:
-		if s.RunAt == nil || strings.TrimSpace(*s.RunAt) == "" {
-			return errors.New("run_at is required when kind is at")
-		}
-		if s.IntervalSeconds != nil || s.CronExpression != nil {
-			return errors.New("interval_seconds and cron_expression must be empty when kind is at")
-		}
-	case ScheduleKindCron:
-		if s.CronExpression == nil || strings.TrimSpace(*s.CronExpression) == "" {
-			return errors.New("cron_expression is required when kind is cron")
-		}
-		if s.RunAt != nil || s.IntervalSeconds != nil {
-			return errors.New("run_at and interval_seconds must be empty when kind is cron")
-		}
-	default:
+	normalized := s.Normalized()
+	validate := scheduleValidators[normalized.Kind]
+	if validate == nil {
 		return errors.New("schedule.kind must be one of every, cron, at")
 	}
-	if strings.TrimSpace(timezoneName) == "" {
-		return errors.New("timezone is required")
+	return validate(normalized)
+}
+
+func validateEverySchedule(schedule Schedule) error {
+	if schedule.IntervalSeconds == nil || *schedule.IntervalSeconds <= 0 {
+		return errors.New("interval_seconds must be greater than 0 when kind is every")
+	}
+	if schedule.RunAt != nil || schedule.CronExpression != nil {
+		return errors.New("run_at and cron_expression must be empty when kind is every")
+	}
+	return nil
+}
+
+func validateAtSchedule(schedule Schedule) error {
+	if schedule.RunAt == nil || *schedule.RunAt == "" {
+		return errors.New("run_at is required when kind is at")
+	}
+	if schedule.IntervalSeconds != nil || schedule.CronExpression != nil {
+		return errors.New("interval_seconds and cron_expression must be empty when kind is at")
+	}
+	return nil
+}
+
+func validateCronSchedule(schedule Schedule) error {
+	if schedule.CronExpression == nil || *schedule.CronExpression == "" {
+		return errors.New("cron_expression is required when kind is cron")
+	}
+	if schedule.RunAt != nil || schedule.IntervalSeconds != nil {
+		return errors.New("run_at and interval_seconds must be empty when kind is cron")
 	}
 	return nil
 }

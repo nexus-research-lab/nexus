@@ -5,7 +5,7 @@ export interface StageWindowLaunchState {
   origin: "active" | "desktop" | "dock";
 }
 
-export function build_stage_window_launch_state({
+export function buildStageWindowLaunchState({
   index,
   is_active,
   window,

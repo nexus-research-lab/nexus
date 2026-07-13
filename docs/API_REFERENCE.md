@@ -11,18 +11,17 @@
 - [4. Agent 管理](#4-agent-管理)
 - [5. Session 会话与消息](#5-session-会话与消息)
 - [6. Workspace 工作区](#6-workspace-工作区)
-- [7. Memory 记忆](#7-memory-记忆)
-- [8. Skill 技能](#8-skill-技能)
-- [9. Room 房间与对话](#9-room-房间与对话)
-- [10. Launcher 启动器](#10-launcher-启动器)
-- [11. Capability 能力总览与 Loop](#11-capability-能力总览与-loop)
-- [12. Connector 连接器](#12-connector-连接器)
-- [13. Channel 通道与配对](#13-channel-通道与配对)
-- [14. Scheduled Tasks 定时任务](#14-scheduled-tasks-定时任务)
-- [15. Heartbeat 心跳自动化](#15-heartbeat-心跳自动化)
-- [16. Goal 目标](#16-goal-目标)
-- [17. Admin 订阅管理](#17-admin-订阅管理)
-- [18. WebSocket 实时通信](#18-websocket-实时通信)
+- [7. Skill 技能](#7-skill-技能)
+- [8. Room 房间与对话](#8-room-房间与对话)
+- [9. Launcher 启动器](#9-launcher-启动器)
+- [10. Capability 能力总览与 Loop](#10-capability-能力总览与-loop)
+- [11. Connector 连接器](#11-connector-连接器)
+- [12. Channel 通道与配对](#12-channel-通道与配对)
+- [13. Scheduled Tasks 定时任务](#13-scheduled-tasks-定时任务)
+- [14. Heartbeat 心跳自动化](#14-heartbeat-心跳自动化)
+- [15. Goal 目标](#15-goal-目标)
+- [16. Admin 订阅管理](#16-admin-订阅管理)
+- [17. WebSocket 实时通信](#17-websocket-实时通信)
 - [附：路径前缀与别名](#附路径前缀与别名)
 
 ---
@@ -181,6 +180,17 @@
 | POST | `/sessions/{session_key}/tasks/{task_id}/messages` | 向任务发送消息 |
 | POST | `/sessions/{session_key}/tasks/{task_id}/stop` | 停止任务 |
 
+列表响应的 `data` 为 `{ runtime_kind, capabilities, items }`。每个 item 也携带自身的
+`runtime_kind` 与 `{ observe, transcript, stop, send_message, resume }`，历史记录与当前
+会话 runtime 不一致时以前者为准。`nxs` 支持观察、完整 thread、停止、续聊与同 task
+恢复；Claude Code 支持观察、完整 thread 与停止，不支持宿主侧续聊/恢复；未知 runtime
+只开放观察和 transcript。向不支持续聊的 runtime 发送消息会返回 HTTP 409，错误码为
+`subagent_operation_unsupported`。
+
+task 消息优先投影 `transcript_path`。Claude Code 的 `local_agent` 若只提供指向 child
+JSONL 的 `output_file`，服务端也会将它投影成与主会话一致的富消息 thread；普通文本
+`output_file` 则保留为 output 摘要。
+
 > Room 会话下的对应接口见 [Room 对话子任务](#对话-conversation)。
 
 ---
@@ -192,6 +202,7 @@
 | 方法 | 路径 | 说明 | 请求体 / 参数 | 前端函数 |
 |------|------|------|---------------|---------|
 | GET | `/agents/{agent_id}/workspace/files` | 文件树 | — | `getWorkspaceFilesApi` |
+| GET | `/agents/{agent_id}/workspace/memory` | SDK 文件式记忆投影（索引、主题、日志及 frontmatter 元数据） | — | `getAgentMemorySnapshotApi` |
 | GET | `/agents/{agent_id}/workspace/file` | 读文件内容 | query: `path` | `getWorkspaceFileContentApi` |
 | PUT | `/agents/{agent_id}/workspace/file` | 写文件内容 | `{ path, content }` | `updateWorkspaceFileContentApi` |
 | POST | `/agents/{agent_id}/workspace/upload` | 上传文件 | FormData: `file`, `path?` | `uploadWorkspaceFileApi` |
@@ -203,29 +214,11 @@
 
 桌面端调用 `reveal`；浏览器端通过 `download` 接口下载文件。
 
----
-
-## 7. Memory 记忆
-
-记忆接口同时提供 **Agent 作用域**（`/agents/{agent_id}/memory/*`）与 **用户全局作用域**（`/memory/*`）两套等价路径。
-
-| 方法 | 路径（Agent / 全局） | 说明 | 前端函数 |
-|------|----------------------|------|---------|
-| GET | `.../memory/items` | 记忆条目列表（query: `limit`,`status`,`scope`） | `listMemoryItemsApi` / `listUserMemoryItemsApi` |
-| GET | `.../memory/search` | 搜索（query: `q`,`limit`） | `searchMemoryItemsApi` / `searchUserMemoryItemsApi` |
-| POST | `.../memory/recall` | 召回注入 | — |
-| POST | `.../memory/items` | 新增条目 | `addUserMemoryItemApi` |
-| PATCH | `.../memory/items/{entry_id}` | 更新条目 | `updateUserMemoryItemApi` |
-| DELETE | `.../memory/items/{entry_id}` | 删除条目 | `deleteMemoryItemApi` / `deleteUserMemoryItemApi` |
-| POST | `.../memory/items/{entry_id}/promote` | 提升为持久记忆（body: `{ target }`） | `promoteUserMemoryItemApi` |
-| POST | `.../memory/items/{entry_id}/ignore` | 忽略（body: `{ note }`） | `ignoreUserMemoryItemApi` |
-| GET | `.../memory/stats` | 统计 | `getMemoryStatsApi` / `getUserMemoryStatsApi` |
-| POST | `.../memory/cleanup` | 清理 | `cleanupMemoryApi` / `cleanupUserMemoryApi` |
-| GET | `.../memory/session-summary` | 会话摘要 | — |
+长期记忆由内置 `nxs` SDK 子进程维护为 Agent 工作区中的 `MEMORY.md` 索引与 `memory/` 主题文件。Nexus 不参与提取或召回；只提供只读工作区投影供 Web 展示，正文编辑仍使用通用工作区文件接口。
 
 ---
 
-## 8. Skill 技能
+## 7. Skill 技能
 
 ### 全局技能市场
 
@@ -249,7 +242,7 @@
 
 ---
 
-## 9. Room 房间与对话
+## 8. Room 房间与对话
 
 ### 房间管理
 
@@ -290,9 +283,12 @@
 | POST | `.../tasks/{task_id}/messages` | 发送任务消息 |
 | POST | `.../tasks/{task_id}/stop` | 停止任务 |
 
+响应结构、runtime capability 与 transcript 投影规则同 Session 子 Agent 接口。Room
+task 的控制请求由 task item 的 `host_agent_id` 路由到实际承载该 subagent 的 Agent slot。
+
 ---
 
-## 10. Launcher 启动器
+## 9. Launcher 启动器
 
 | 方法 | 路径 | 说明 | 请求体 | 前端函数 |
 |------|------|------|--------|---------|
@@ -304,7 +300,7 @@
 
 ---
 
-## 11. Capability 能力总览与 Loop
+## 10. Capability 能力总览与 Loop
 
 | 方法 | 路径 | 说明 | 前端函数 |
 |------|------|------|---------|
@@ -314,7 +310,7 @@
 
 ---
 
-## 12. Connector 连接器
+## 11. Connector 连接器
 
 | 方法 | 路径 | 说明 | 请求体 / 参数 | 前端函数 |
 |------|------|------|---------------|---------|
@@ -333,7 +329,7 @@
 
 ---
 
-## 13. Channel 通道与配对
+## 12. Channel 通道与配对
 
 ### 通道配置（`/capability/channels`）
 
@@ -376,7 +372,7 @@
 
 ---
 
-## 14. Scheduled Tasks 定时任务
+## 13. Scheduled Tasks 定时任务
 
 定时任务同时提供 **结构化路径**（`/capability/scheduled/tasks`）与 **扁平别名**（`/scheduled/tasks`），接口等价。前端统一使用结构化路径。
 
@@ -395,9 +391,36 @@
 | GET | `/capability/scheduled/tasks/{job_id}/events` | 事件列表 | — |
 | POST | `/capability/scheduled/tasks/{job_id}/runs/{run_id}/delivery/retry` | 重试投递 | `retryScheduledTaskRunDeliveryApi` |
 
+运行时通过 `nexus_automation` MCP 暴露 8 个意图级工具，底层 HTTP 和 Service 接口不受模型工具粒度约束：
+
+| 工具 | 说明 |
+|------|------|
+| `create_scheduled_task` | 创建任务 |
+| `find_scheduled_tasks` | 查找当前或已删除任务；历史查询使用 `include_deleted=true` |
+| `update_scheduled_task` | 修改任务以及通过 `enabled` 启停任务 |
+| `delete_scheduled_task` | 删除任务 |
+| `inspect_scheduled_task` | 通过 `view=status|runs|events` 检查状态、运行历史或审计 |
+| `get_scheduled_task_report` | 按日期聚合运行和投递情况 |
+| `run_scheduled_task` | 立即执行一次，不改变后续排程 |
+| `repair_scheduled_task` | 通过 `action=recover|retry_delivery` 恢复卡住运行或补发失败投递 |
+
+创建和更新任务可传 `expires_at`（RFC3339）。到期后任务自动停用，但不会中断已经开始的 run；更新时传 `clear_expires_at: true` 可清除截止时间。
+
+运行记录的 `trigger_kind` 使用 `scheduled`、`misfire`、`manual` 区分正常到点、错过窗口处理和手动执行。`cron` 只用于 `schedule.kind`，不再表示整个任务系统。
+
+调度策略由服务端环境变量控制：
+
+| 配置项 | 默认值 | 说明 |
+|------|------|------|
+| `AUTOMATION_SCHEDULER_LEASE_SECONDS` | `30` | 多实例 leader 租约时长 |
+| `AUTOMATION_RECURRING_JITTER_MAX_SECONDS` | `900` | 循环任务稳定 jitter 上限 |
+| `AUTOMATION_MISFIRE_POLICY` | `run_once` | 恢复时补跑一次；可设为 `skip` |
+| `AUTOMATION_MISFIRE_GRACE_SECONDS` | `60` | `skip` 策略允许的延迟窗口 |
+| `AUTOMATION_MAX_ENABLED_TASKS_PER_USER` | `100` | 单用户已启用任务上限 |
+
 ---
 
-## 15. Heartbeat 心跳自动化
+## 14. Heartbeat 心跳自动化
 
 | 方法 | 路径 | 说明 | 请求体 | 前端函数 |
 |------|------|------|--------|---------|
@@ -409,7 +432,7 @@
 
 ---
 
-## 16. Goal 目标
+## 15. Goal 目标
 
 | 方法 | 路径 | 说明 | 请求体 | 前端函数 |
 |------|------|------|--------|---------|
@@ -431,7 +454,7 @@
 
 ---
 
-## 17. Admin 订阅管理
+## 16. Admin 订阅管理
 
 > 仅管理员可见。
 
@@ -461,7 +484,7 @@
 
 ---
 
-## 18. WebSocket 实时通信
+## 17. WebSocket 实时通信
 
 ### 连接
 
@@ -507,11 +530,12 @@
 - `pong` — 心跳响应。
 - `chat_ack` — 消息发送确认（含 `session_key`、`req_id`、`round_id`、空 `items[]` 表示失败）。
 - `round_status` — 轮次状态变更（`running` / `completed` / `error` 等）。
+- `runtime_status` — Runtime 瞬时阶段；`status: "compacting"` 表示正在压缩上下文，`status: null` 清除该阶段。
 - `gateway_error` — 网关错误（`error_type` 含 `chat_error` / `interrupt_error` / `input_queue_error` / `not_implemented` / `unknown_message_type` / `permission_request_not_found` 等）。
 - Room / Workspace / App Event 订阅渠道推送的实时事件（房间消息、工作区文件变更、应用级事件）。
 - Goal 事件广播（经 `goal_event_broadcaster` 推送到 `goalRPCSubs`）。
 
-事件模型在 `internal/protocol/model_event.go` 定义，前端类型见 `web/src/types/generated/protocol.ts`（由 `tools/protocol-tsgen` 生成）。
+事件模型在 `internal/protocol/event.go` 定义，前端类型见 `web/src/types/generated/protocol.ts`（由 `tools/protocol-tsgen` 生成）。
 
 ---
 
@@ -519,5 +543,4 @@
 
 - **API 前缀**：所有路径默认带 `/nexus/v1` 前缀。下表以外，后端还为部分能力提供等价的别名路径，前端优先使用结构化路径：
   - `/capability/scheduled/*` ↔ `/scheduled/*`（定时任务扁平别名）
-  - `/agents/{id}/memory/*` ↔ `/memory/*`（Agent 作用域 ↔ 用户全局作用域）
 - **静态资源**：`mountWebAppRoutes` 托管 Vite 构建产物，`/assets/*` 长缓存（immutable），HTML 文件 `no-cache`；非 API 路径回退到 `index.html` / `app.html` / `settings.html` / `oauth-callback.html`。

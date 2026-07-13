@@ -12,13 +12,13 @@ const PRIMARY_WORKSPACE = "left-[14%] top-[6%] h-[61%] w-[61%]";
 const PRIMARY_REVIEW_WORKSPACE = "left-[14%] top-[6%] h-[60%] w-[59%]";
 const COMPACT_REVIEW_WORKSPACE = "left-[22%] top-[9%] h-[54%] w-[58%]";
 
-export function position_for_window(
+export function positionForWindow(
   window: StageWindowState,
   narrative_phase: StageNarrativePhase,
   background_index = 0,
 ): string {
   const is_review_layout = narrative_phase === "completed";
-  if (is_stage_manager_background_window(window, narrative_phase)) {
+  if (isStageManagerBackgroundWindow(window, narrative_phase)) {
     return STAGE_MANAGER_BACKGROUND_POSITIONS[
       Math.min(background_index, STAGE_MANAGER_BACKGROUND_POSITIONS.length - 1)
     ];
@@ -78,7 +78,7 @@ export function position_for_window(
   return is_review_layout ? PRIMARY_REVIEW_WORKSPACE : PRIMARY_WORKSPACE;
 }
 
-export function is_stage_manager_background_window(
+export function isStageManagerBackgroundWindow(
   window: StageWindowState,
   _narrative_phase: StageNarrativePhase,
 ): boolean {

@@ -438,7 +438,8 @@
 
 .landing-real-sidebar-header {
   display: grid;
-  min-height: 78px;
+  height: 52px;
+  min-height: 52px;
   grid-template-columns: 58px minmax(0, 1fr);
   align-items: center;
   gap: 8px;
@@ -450,7 +451,7 @@
 .landing-real-nexus-button {
   display: flex;
   width: 58px;
-  height: 48px;
+  height: 42px;
   align-items: center;
   justify-content: center;
   border: 0;
@@ -469,7 +470,7 @@
   min-width: 0;
   font-size: 21px;
   font-weight: 280;
-  letter-spacing: 0.08em;
+  letter-spacing: 0;
 }
 
 .landing-real-sidebar-tabs {
@@ -581,6 +582,7 @@
 }
 
 .landing-real-chat {
+  position: relative;
   display: flex;
   min-width: 0;
   flex: 1;

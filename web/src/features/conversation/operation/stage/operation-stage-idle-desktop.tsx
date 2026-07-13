@@ -1,13 +1,13 @@
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 
 export function OperationStageIdleDesktop({
-  header_action,
+  headerAction,
   presentation,
 }: {
-  header_action?: ReactNode;
+  headerAction?: ReactNode;
   presentation: "panel" | "stage";
 }) {
   const [now, set_now] = useState(() => new Date());
@@ -53,7 +53,7 @@ export function OperationStageIdleDesktop({
             等待工具调用
           </span>
           <span className="font-mono text-[10px] text-(--text-strong)">{time_label}</span>
-          {header_action ? <div className="ml-1">{header_action}</div> : null}
+          {headerAction ? <div className="ml-1">{headerAction}</div> : null}
         </div>
       </div>
 

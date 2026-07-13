@@ -4,7 +4,7 @@ import { AlertTriangle } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { APP_ROUTE_PATHS } from "@/app/router/route-paths";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 
 interface ProviderUnavailableBannerProps {
   compact?: boolean;

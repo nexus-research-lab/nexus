@@ -1,15 +1,6 @@
-/**
- * =====================================================
- * @File   : room-agent-about-surface.tsx
- * @Date   : 2026-04-15 15:08
- * @Author : leemysw
- * 2026-04-15 15:08   Create
- * =====================================================
- */
-
 "use client";
 
-import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Album,
   Handshake,
@@ -19,22 +10,25 @@ import {
 } from "lucide-react";
 
 import { AgentPrivateDomainView } from "@/features/agents/private-domain/agent-private-domain-view";
-import { AgentOptionsEditor } from "@/features/agents/options/agent-options-editor";
-import type { TabKey } from "@/features/agents/options/components/agent-options-nav";
-import { UiUnderlineTabs } from "@/shared/ui/tabs";
-import { WorkspaceSurfaceView } from "@/shared/ui/workspace/surface/workspace-surface-view";
-import { AgentIdentityDraft, AgentNameValidationResult, AgentOptions, Agent } from "@/types/agent/agent";
+import { AgentOptionsInlineEditor } from "@/features/agents/options/agent-options-editor";
+import {
+  buildAgentOptionsEditSource,
+  type AgentOptionsTabKey,
+} from "@/features/agents/options/agent-options-editor-model";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiUnderlineTabs } from "@/shared/ui/navigation/tabs";
+import { WorkspaceSurfaceView } from "@/shared/ui/workspace/surface/workspace-surface-view";
+import type { Agent, AgentIdentityDraft, AgentNameValidationResult, AgentOptions } from "@/types/agent/agent";
+
 import { RoomAgentSwitcher } from "./room-agent-switcher";
 
-type RoomAgentPanelTabKey = TabKey | "private_domain";
+type RoomAgentPanelTabKey = AgentOptionsTabKey | "private_domain";
 
 interface RoomAgentAboutSurfaceProps {
   agent: Agent;
   roomId: string | null;
   conversationId: string | null;
   roomMembers: Agent[];
-  headerAction?: ReactNode;
   isVisible: boolean;
   requestedAgentId?: string | null;
   requestedTab?: RoomAgentPanelTabKey;
@@ -53,16 +47,15 @@ interface RoomAgentAboutSurfaceProps {
 
 export function RoomAgentAboutSurface({
   agent,
-  roomId: roomId,
-  conversationId: conversationId,
-  roomMembers: roomMembers,
-  headerAction: headerAction,
-  isVisible: isVisible,
-  requestedAgentId: requestedAgentId,
-  requestedTab: requestedTab,
-  requestKey: requestKey,
-  onSaveAgentOptions: onSaveAgentOptions,
-  onValidateAgentName: onValidateAgentName,
+  roomId,
+  conversationId,
+  roomMembers,
+  isVisible,
+  requestedAgentId,
+  requestedTab,
+  requestKey,
+  onSaveAgentOptions,
+  onValidateAgentName,
 }: RoomAgentAboutSurfaceProps) {
   const { t } = useI18n();
   const [selectedAgentId, setSelectedAgentId] = useState(agent.agent_id);
@@ -77,27 +70,10 @@ export function RoomAgentAboutSurface({
     return roomMembers.find((member) => member.agent_id === selectedAgentId) ?? agent;
   }, [agent, roomMembers, selectedAgentId]);
 
-  const initialOptions = useMemo(() => ({
-    provider: selectedAgent.options.provider,
-    model: selectedAgent.options.model,
-    permission_mode: selectedAgent.options.permission_mode,
-    allowed_tools: selectedAgent.options.allowed_tools,
-    disallowed_tools: selectedAgent.options.disallowed_tools,
-    max_turns: selectedAgent.options.max_turns,
-    max_thinking_tokens: selectedAgent.options.max_thinking_tokens,
-    mcp_servers: selectedAgent.options.mcp_servers,
-    setting_sources: selectedAgent.options.setting_sources,
-  }), [
-    selectedAgent.options.allowed_tools,
-    selectedAgent.options.disallowed_tools,
-    selectedAgent.options.max_thinking_tokens,
-    selectedAgent.options.max_turns,
-    selectedAgent.options.mcp_servers,
-    selectedAgent.options.model,
-    selectedAgent.options.permission_mode,
-    selectedAgent.options.provider,
-    selectedAgent.options.setting_sources,
-  ]);
+  const editorSource = useMemo(
+    () => buildAgentOptionsEditSource(selectedAgent),
+    [selectedAgent],
+  );
 
   const handleSave = useCallback(async (
     title: string,
@@ -121,15 +97,15 @@ export function RoomAgentAboutSurface({
 
   return (
     <WorkspaceSurfaceView
-      action={headerAction}
       bodyClassName="flex min-h-0 flex-1 flex-col px-0 py-0"
       bodyScrollable={false}
       contentClassName="flex h-full min-h-0 flex-1 flex-col"
-      eyebrow={t("room.about")}
+      header={titleTrailing ? {
+        kind: "overlay",
+        leading: titleTrailing,
+      } : undefined}
       maxWidthClassName="max-w-none"
-      showEyebrow={false}
       title={t("room.about")}
-      titleTrailing={titleTrailing}
     >
       <div className="flex h-full min-h-0 flex-1 flex-col">
         <RoomAgentPanelTabs
@@ -144,24 +120,15 @@ export function RoomAgentAboutSurface({
             variant="preview"
           />
         ) : (
-          <AgentOptionsEditor
+          <AgentOptionsInlineEditor
             activeTab={activeTab}
-            agentId={selectedAgent.agent_id}
             contentMaxWidthClassName="max-w-[860px]"
-            hideInlineNav
-            initialAvatar={selectedAgent.avatar ?? ""}
-            initialDescription={selectedAgent.description ?? ""}
-            initialOptions={initialOptions}
-            initialTitle={selectedAgent.name}
-            initialVibeTags={selectedAgent.vibe_tags ?? []}
             isActive={isVisible}
-            mode="edit"
             onSave={handleSave}
             onTabChange={setActiveTab}
             onValidateName={handleValidateName}
-            showCancelButton={false}
             showDeleteButton={false}
-            variant="inline"
+            source={editorSource}
           />
         )}
       </div>

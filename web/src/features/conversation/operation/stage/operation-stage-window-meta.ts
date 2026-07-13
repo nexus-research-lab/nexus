@@ -23,11 +23,11 @@ import type {
 } from "../operation-desktop-types";
 import type { OperationKind } from "../operation-types";
 export {
-  is_stage_manager_background_window,
-  position_for_window,
+  isStageManagerBackgroundWindow,
+  positionForWindow,
 } from "./operation-stage-window-position";
 
-export function icon_for_artifact_path(path: string): LucideIcon {
+export function iconForArtifactPath(path: string): LucideIcon {
   if (/\.(tsx?|jsx?|json|ya?ml|toml|css|scss|html?)$/i.test(path)) {
     return FileCode2;
   }
@@ -40,7 +40,7 @@ export function icon_for_artifact_path(path: string): LucideIcon {
   return FileText;
 }
 
-export function icon_for_operation_kind(kind: OperationKind): LucideIcon {
+export function iconForOperationKind(kind: OperationKind): LucideIcon {
   if (kind === "workspace_inspect") {
     return ListTree;
   }
@@ -68,7 +68,7 @@ export function icon_for_operation_kind(kind: OperationKind): LucideIcon {
   return CheckCircle2;
 }
 
-export function icon_for_window_kind(kind: StageWindowKind): LucideIcon {
+export function iconForWindowKind(kind: StageWindowKind): LucideIcon {
   if (kind === "finder") {
     return FolderTree;
   }
@@ -105,7 +105,7 @@ export function icon_for_window_kind(kind: StageWindowKind): LucideIcon {
   return FileText;
 }
 
-export function stage_app_label_for_window_kind(kind: StageWindowKind): string {
+export function stageAppLabelForWindowKind(kind: StageWindowKind): string {
   if (kind === "finder") {
     return "访达";
   }

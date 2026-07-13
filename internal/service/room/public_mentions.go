@@ -13,6 +13,13 @@ import (
 
 const roomMaxWakeHops = 16
 
+type pendingPublicMentionSlot struct {
+	wake          publicMentionWake
+	targetAgentID string
+	sessionRecord protocol.SessionRecord
+	agentValue    *protocol.Agent
+}
+
 func (s *RealtimeService) collectPublicMentionWakes(
 	ctx context.Context,
 	roundValue *activeRoomRound,
@@ -123,13 +130,7 @@ func (s *RealtimeService) startPublicMentionRound(
 		return err
 	}
 	if len(wakes) == 0 {
-		s.loggerFor(ctx).Info("Room 公区 @ 目标均已进入队列",
-			"s", sessionKey,
-			"r", contextValue.Room.ID,
-			"c", contextValue.Conversation.ID,
-			"parent", parentRound.RoundID,
-			"root", roomRootRoundID(parentRound),
-		)
+		s.logQueuedPublicMentionWakes(ctx, parentRound, sessionKey)
 		return nil
 	}
 	agentNameByID, agentByID, err := s.buildAgentDirectory(ctx, contextValue)
@@ -140,29 +141,47 @@ func (s *RealtimeService) startPublicMentionRound(
 	if err != nil {
 		return err
 	}
-
+	pendingSlots := buildPendingPublicMentionSlots(contextValue, wakes, agentByID)
+	if len(pendingSlots) == 0 {
+		s.logMissingPublicMentionSlots(ctx, sessionKey, contextValue, len(wakes))
+		return nil
+	}
 	roundID := roomWakeRoundID(wakes)
-	rootRoundID := cmp.Or(roomRootRoundID(parentRound), roundID)
-	activeRound := &activeRoomRound{
-		SessionKey:     sessionKey,
-		RoomID:         contextValue.Room.ID,
-		ConversationID: contextValue.Conversation.ID,
-		RoomType:       contextValue.Room.RoomType,
-		Context:        contextValue,
-		RoundID:        roundID,
-		RootRoundID:    rootRoundID,
-		HopIndex:       parentRound.HopIndex + 1,
-		OwnerUserID:    parentRound.OwnerUserID,
-		Slots:          make(map[string]*activeRoomSlot),
-		Done:           make(chan struct{}),
-	}
+	activeRound := newPublicMentionRound(parentRound, sessionKey, roundID)
+	targetAgentIDs, pending := addPublicMentionSlots(activeRound, contextValue, pendingSlots)
+	s.launchPublicMentionRound(
+		ctx,
+		activeRound,
+		wakes,
+		pendingSlots,
+		targetAgentIDs,
+		pending,
+		publicHistory,
+		agentNameByID,
+		agentByID,
+	)
+	return nil
+}
 
-	type pendingPublicMentionSlot struct {
-		wake          publicMentionWake
-		targetAgentID string
-		sessionRecord protocol.SessionRecord
-		agentValue    *protocol.Agent
-	}
+func (s *RealtimeService) logQueuedPublicMentionWakes(
+	ctx context.Context,
+	parentRound *activeRoomRound,
+	sessionKey string,
+) {
+	s.loggerFor(ctx).Info("Room 公区 @ 目标均已进入队列",
+		"s", sessionKey,
+		"r", parentRound.Context.Room.ID,
+		"c", parentRound.Context.Conversation.ID,
+		"parent", parentRound.RoundID,
+		"root", roomRootRoundID(parentRound),
+	)
+}
+
+func buildPendingPublicMentionSlots(
+	contextValue *protocol.ConversationContextAggregate,
+	wakes []publicMentionWake,
+	agentByID map[string]*protocol.Agent,
+) []pendingPublicMentionSlot {
 	pendingSlots := make([]pendingPublicMentionSlot, 0, len(wakes))
 	targetSeen := make(map[string]struct{}, len(wakes))
 	for _, wake := range wakes {
@@ -175,37 +194,59 @@ func (s *RealtimeService) startPublicMentionRound(
 		}
 		targetSeen[targetAgentID] = struct{}{}
 		sessionRecord, ok := findRoomSessionForAgent(contextValue.Sessions, targetAgentID)
-		if !ok {
-			continue
-		}
-		agentValue := agentByID[targetAgentID]
-		if agentValue == nil {
+		if !ok || agentByID[targetAgentID] == nil {
 			continue
 		}
 		pendingSlots = append(pendingSlots, pendingPublicMentionSlot{
 			wake:          wake,
 			targetAgentID: targetAgentID,
 			sessionRecord: sessionRecord,
-			agentValue:    agentValue,
+			agentValue:    agentByID[targetAgentID],
 		})
 	}
-	if len(pendingSlots) == 0 {
-		s.loggerFor(ctx).Warn("Room 公区 @ 没有可启动的目标 slot",
-			"s", sessionKey,
-			"r", contextValue.Room.ID,
-			"c", contextValue.Conversation.ID,
-			"wakes", len(wakes),
-		)
-		return nil
-	}
+	return pendingSlots
+}
 
+func (s *RealtimeService) logMissingPublicMentionSlots(
+	ctx context.Context,
+	sessionKey string,
+	contextValue *protocol.ConversationContextAggregate,
+	wakeCount int,
+) {
+	s.loggerFor(ctx).Warn("Room 公区 @ 没有可启动的目标 slot",
+		"s", sessionKey,
+		"r", contextValue.Room.ID,
+		"c", contextValue.Conversation.ID,
+		"wakes", wakeCount,
+	)
+}
+
+func newPublicMentionRound(parentRound *activeRoomRound, sessionKey string, roundID string) *activeRoomRound {
+	contextValue := parentRound.Context
+	return &activeRoomRound{
+		SessionKey:     sessionKey,
+		RoomID:         contextValue.Room.ID,
+		ConversationID: contextValue.Conversation.ID,
+		RoomType:       contextValue.Room.RoomType,
+		Context:        contextValue,
+		RoundID:        roundID,
+		RootRoundID:    cmp.Or(roomRootRoundID(parentRound), roundID),
+		HopIndex:       parentRound.HopIndex + 1,
+		OwnerUserID:    parentRound.OwnerUserID,
+		Slots:          make(map[string]*activeRoomSlot),
+		Done:           make(chan struct{}),
+	}
+}
+
+func addPublicMentionSlots(
+	activeRound *activeRoomRound,
+	contextValue *protocol.ConversationContextAggregate,
+	pendingSlots []pendingPublicMentionSlot,
+) ([]string, []protocol.ChatAckPendingSlot) {
 	targetAgentIDs := make([]string, 0, len(pendingSlots))
-	for _, pendingSlot := range pendingSlots {
-		targetAgentIDs = append(targetAgentIDs, pendingSlot.targetAgentID)
-	}
-
 	pending := make([]protocol.ChatAckPendingSlot, 0, len(pendingSlots))
 	for index, pendingSlot := range pendingSlots {
+		targetAgentIDs = append(targetAgentIDs, pendingSlot.targetAgentID)
 		msgID := newRealtimeID()
 		agentRoundID := protocol.NewAgentRoundID()
 		slotIndex := index
@@ -227,7 +268,23 @@ func (s *RealtimeService) startPublicMentionRound(
 			Index:        slotIndex,
 		})
 	}
+	return targetAgentIDs, pending
+}
 
+func (s *RealtimeService) launchPublicMentionRound(
+	ctx context.Context,
+	activeRound *activeRoomRound,
+	wakes []publicMentionWake,
+	pendingSlots []pendingPublicMentionSlot,
+	targetAgentIDs []string,
+	pending []protocol.ChatAckPendingSlot,
+	publicHistory []protocol.Message,
+	agentNameByID map[string]string,
+	agentByID map[string]*protocol.Agent,
+) {
+	sessionKey := activeRound.SessionKey
+	contextValue := activeRound.Context
+	roundID := activeRound.RoundID
 	roundCtx, cancel := context.WithCancel(context.Background())
 	activeRound.Cancel = cancel
 	s.registerRound(activeRound)
@@ -253,7 +310,6 @@ func (s *RealtimeService) startPublicMentionRound(
 	}
 	s.broadcastSessionStatus(ctx, sessionKey)
 	go s.runRound(roundCtx, activeRound, publicHistory, agentNameByID, agentByID)
-	return nil
 }
 
 func buildPublicMentionSlot(

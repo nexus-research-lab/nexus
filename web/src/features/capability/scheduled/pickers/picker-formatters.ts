@@ -1,13 +1,4 @@
-/**
- * =====================================================
- * @File   : picker-formatters.ts
- * @Date   : 2026-04-16 14:28
- * @Author : leemysw
- * 2026-04-16 14:28   Create
- * =====================================================
- */
-
-import { type Meridiem } from "./picker-types";
+import type { Meridiem } from "./picker-types";
 
 export function formatTimeLocalInput(date: Date): string {
   const hour = `${date.getHours()}`.padStart(2, "0");

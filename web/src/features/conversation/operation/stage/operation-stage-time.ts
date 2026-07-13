@@ -1,4 +1,4 @@
-export function format_elapsed(
+export function formatElapsed(
   started_at: number | undefined,
   ended_at: number | null | undefined,
   updated_at: number,

@@ -30,64 +30,96 @@ func pickScope(fields []field) (string, []field) {
 
 // pickAccess 识别 method/status/path 都齐的 HTTP access log，折叠成 accessLog。
 func pickAccess(fields []field) (*accessLog, []field) {
-	var method, path, durationMs, bytesWritten, remoteIP string
-	var status int
-	hasMethod, hasStatus, hasPath := false, false, false
+	candidate := accessCandidate{}
 	rest := make([]field, 0, len(fields))
 	for _, f := range fields {
-		switch f.key {
-		case "method":
-			method = f.value
-			hasMethod = true
-		case "status":
-			if value, err := strconv.Atoi(f.value); err == nil {
-				status = value
-				hasStatus = true
-			} else {
-				rest = append(rest, f)
-			}
-		case "path":
-			path = f.value
-			hasPath = true
-		case "duration_ms":
-			durationMs = f.value
-		case "bytes":
-			bytesWritten = f.value
-		case "remote_ip":
-			remoteIP = f.value
-		default:
+		setter := accessFieldSetters[f.key]
+		if setter == nil || !setter(&candidate, f.value) {
 			rest = append(rest, f)
 		}
 	}
-	if !(hasMethod && hasStatus && hasPath) {
-		// 不是 access log，把抽出来的字段补回去。
-		if method != "" {
-			rest = append(rest, field{key: "method", value: method})
-		}
-		if path != "" {
-			rest = append(rest, field{key: "path", value: path})
-		}
-		if durationMs != "" {
-			rest = append(rest, field{key: "duration_ms", value: durationMs})
-		}
-		if bytesWritten != "" {
-			rest = append(rest, field{key: "bytes", value: bytesWritten})
-		}
-		if remoteIP != "" {
-			rest = append(rest, field{key: "remote_ip", value: remoteIP})
-		}
-		return nil, rest
+	if !candidate.complete() {
+		// 不完整的访问字段仍是普通日志上下文，保持原顺序交给通用渲染器。
+		return nil, fields
 	}
-	if remoteIP != "" && remoteIP != "127.0.0.1" && remoteIP != "::1" {
-		rest = append(rest, field{key: "ip", value: remoteIP})
+	if candidate.hasRemoteAddress() {
+		rest = append(rest, field{key: "ip", value: candidate.remoteIP})
 	}
 	return &accessLog{
-		method:   method,
-		status:   status,
-		duration: formatDuration(durationMs),
-		bytes:    formatBytes(bytesWritten),
-		path:     path,
+		method:   candidate.method,
+		status:   candidate.status,
+		duration: formatDuration(candidate.durationMs),
+		bytes:    formatBytes(candidate.bytesWritten),
+		path:     candidate.path,
 	}, rest
+}
+
+type accessCandidate struct {
+	method       string
+	path         string
+	durationMs   string
+	bytesWritten string
+	remoteIP     string
+	status       int
+	hasMethod    bool
+	hasStatus    bool
+	hasPath      bool
+}
+
+type accessFieldSetter func(*accessCandidate, string) bool
+
+var accessFieldSetters = map[string]accessFieldSetter{
+	"method":      setAccessMethod,
+	"status":      setAccessStatus,
+	"path":        setAccessPath,
+	"duration_ms": setAccessDuration,
+	"bytes":       setAccessBytes,
+	"remote_ip":   setAccessRemoteIP,
+}
+
+func setAccessMethod(candidate *accessCandidate, value string) bool {
+	candidate.method = value
+	candidate.hasMethod = true
+	return true
+}
+
+func setAccessStatus(candidate *accessCandidate, value string) bool {
+	status, err := strconv.Atoi(value)
+	if err != nil {
+		return false
+	}
+	candidate.status = status
+	candidate.hasStatus = true
+	return true
+}
+
+func setAccessPath(candidate *accessCandidate, value string) bool {
+	candidate.path = value
+	candidate.hasPath = true
+	return true
+}
+
+func setAccessDuration(candidate *accessCandidate, value string) bool {
+	candidate.durationMs = value
+	return true
+}
+
+func setAccessBytes(candidate *accessCandidate, value string) bool {
+	candidate.bytesWritten = value
+	return true
+}
+
+func setAccessRemoteIP(candidate *accessCandidate, value string) bool {
+	candidate.remoteIP = value
+	return true
+}
+
+func (c accessCandidate) complete() bool {
+	return c.hasMethod && c.hasStatus && c.hasPath
+}
+
+func (c accessCandidate) hasRemoteAddress() bool {
+	return c.remoteIP != "" && c.remoteIP != "127.0.0.1" && c.remoteIP != "::1"
 }
 
 func pickRequestID(fields []field) (string, []field) {

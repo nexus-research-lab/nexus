@@ -24,90 +24,101 @@ func ProjectConversationTurns(
 	collapseRoomAgentRounds bool,
 	activeRoundIDs []string,
 ) []protocol.ConversationTurn {
-	active := normalizeActiveRoundIDs(activeRoundIDs)
-	order := make([]string, 0)
-	accumulators := make(map[string]*turnAccumulator)
-
+	projector := newConversationTurnProjector(collapseRoomAgentRounds, activeRoundIDs)
 	for _, row := range rows {
-		rawRoundID := strings.TrimSpace(stringFromAny(row["round_id"]))
-		rootRoundID := rawRoundID
-		agentID := strings.TrimSpace(stringFromAny(row["agent_id"]))
-		if collapseRoomAgentRounds {
-			rootRoundID = normalizeRoomHistoryRoundID(rawRoundID, agentID)
-		}
-		rootRoundID = firstNonEmpty(rootRoundID, stringFromAny(row["message_id"]))
-		if rootRoundID == "" {
-			continue
-		}
-		agentRoundID := strings.TrimSpace(stringFromAny(row["agent_round_id"]))
-		if agentRoundID == "" && rawRoundID != rootRoundID {
-			// 旧后缀值直接当稳定 agent_round_id 用，避免重放时 id 漂移。
-			agentRoundID = rawRoundID
-		}
-
-		acc := accumulators[rootRoundID]
-		if acc == nil {
-			acc = &turnAccumulator{
-				turn: protocol.ConversationTurn{
-					RoundID:      rootRoundID,
-					Status:       "finished",
-					AgentSlots:   []protocol.AgentTurnSlot{},
-					SystemEvents: []protocol.ConversationMessage{},
-					IsLoaded:     true,
-				},
-				slots: make(map[string]*protocol.AgentTurnSlot),
-			}
-			accumulators[rootRoundID] = acc
-			order = append(order, rootRoundID)
-		}
-
-		converted := convertTurnMessage(row, rootRoundID, agentRoundID, agentID)
-		timestamp := converted.Timestamp
-		if acc.turn.CreatedAt == 0 || (timestamp > 0 && timestamp < acc.turn.CreatedAt) {
-			acc.turn.CreatedAt = timestamp
-		}
-		if timestamp > acc.turn.UpdatedAt {
-			acc.turn.UpdatedAt = timestamp
-		}
-
-		switch strings.TrimSpace(stringFromAny(row["role"])) {
-		case "user":
-			if acc.turn.UserMessage == nil {
-				message := converted
-				acc.turn.UserMessage = &message
-			} else {
-				acc.turn.SystemEvents = append(acc.turn.SystemEvents, converted)
-			}
-		case "assistant":
-			slot := acc.ensureSlot(agentID, agentRoundID)
-			slot.AssistantMessages = append(slot.AssistantMessages, converted)
-			if slot.StartedAt == nil && timestamp > 0 {
-				startedAt := timestamp
-				slot.StartedAt = &startedAt
-			}
-			if summary, ok := row["result_summary"].(map[string]any); ok && len(summary) > 0 {
-				applySlotResultSummary(slot, summary, timestamp)
-			}
-		case "result":
-			slot := acc.ensureSlot(agentID, agentRoundID)
-			applySlotResultSummary(slot, buildResultSummaryFromRow(row), timestamp)
-		default:
-			acc.turn.SystemEvents = append(acc.turn.SystemEvents, converted)
-		}
+		projector.add(row)
 	}
+	return projector.turns()
+}
 
-	turns := make([]protocol.ConversationTurn, 0, len(order))
-	for _, roundID := range order {
-		acc := accumulators[roundID]
-		for _, key := range acc.slotOrder {
-			acc.turn.AgentSlots = append(acc.turn.AgentSlots, *acc.slots[key])
-		}
-		acc.turn.Status = resolveTurnStatus(acc.turn, active)
-		for index := range acc.turn.AgentSlots {
-			if _, isActive := active[roundID]; isActive && !protocol.IsTerminalRoundStatus(acc.turn.AgentSlots[index].Status) {
-				acc.turn.AgentSlots[index].Status = "running"
-			}
-		}
+type conversationTurnProjector struct {
+	collapseRoomAgentRounds bool
+	active                  map[string]struct{}
+	order                   []string
+	accumulators            map[string]*turnAccumulator
+}
+
+type projectedTurnRow struct {
+	source       protocol.Message
+	rootRoundID  string
+	agentRoundID string
+	agentID      string
+	message      protocol.ConversationMessage
+}
+
+func newConversationTurnProjector(
+	collapseRoomAgentRounds bool,
+	activeRoundIDs []string,
+) *conversationTurnProjector {
+	return &conversationTurnProjector{
+		collapseRoomAgentRounds: collapseRoomAgentRounds,
+		active:                  normalizeActiveRoundIDs(activeRoundIDs),
+		order:                   make([]string, 0),
+		accumulators:            make(map[string]*turnAccumulator),
+	}
+}
+
+func (p *conversationTurnProjector) add(source protocol.Message) {
+	row, ok := p.projectRow(source)
+	if !ok {
+		return
+	}
+	acc := p.ensureAccumulator(row.rootRoundID)
+	acc.observeTimestamp(row.message.Timestamp)
+	acc.addRow(row)
+}
+
+func (p *conversationTurnProjector) projectRow(source protocol.Message) (projectedTurnRow, bool) {
+	rawRoundID := strings.TrimSpace(stringFromAny(source["round_id"]))
+	agentID := strings.TrimSpace(stringFromAny(source["agent_id"]))
+	rootRoundID := rawRoundID
+	if p.collapseRoomAgentRounds {
+		rootRoundID = normalizeRoomHistoryRoundID(rawRoundID, agentID)
+	}
+	rootRoundID = firstNonEmpty(rootRoundID, stringFromAny(source["message_id"]))
+	if rootRoundID == "" {
+		return projectedTurnRow{}, false
+	}
+	agentRoundID := strings.TrimSpace(stringFromAny(source["agent_round_id"]))
+	if agentRoundID == "" && rawRoundID != rootRoundID {
+		// 旧后缀值直接作为稳定 agent_round_id，避免重放时生成新标识。
+		agentRoundID = rawRoundID
+	}
+	return projectedTurnRow{
+		source:       source,
+		rootRoundID:  rootRoundID,
+		agentRoundID: agentRoundID,
+		agentID:      agentID,
+		message:      convertTurnMessage(source, rootRoundID, agentRoundID, agentID),
+	}, true
+}
+
+func (p *conversationTurnProjector) ensureAccumulator(roundID string) *turnAccumulator {
+	if acc := p.accumulators[roundID]; acc != nil {
+		return acc
+	}
+	acc := &turnAccumulator{
+		turn: protocol.ConversationTurn{
+			RoundID:      roundID,
+			Status:       "finished",
+			AgentSlots:   []protocol.AgentTurnSlot{},
+			SystemEvents: []protocol.ConversationMessage{},
+			IsLoaded:     true,
+		},
+		slots: make(map[string]*protocol.AgentTurnSlot),
+	}
+	p.accumulators[roundID] = acc
+	p.order = append(p.order, roundID)
+	return acc
+}
+
+func (p *conversationTurnProjector) turns() []protocol.ConversationTurn {
+	turns := make([]protocol.ConversationTurn, 0, len(p.order))
+	for _, roundID := range p.order {
+		acc := p.accumulators[roundID]
+		acc.finalizeSlots()
+		acc.turn.Status = resolveTurnStatus(acc.turn, p.active)
+		markActiveTurnSlots(acc.turn.AgentSlots, roundID, p.active)
 		turns = append(turns, acc.turn)
 	}
 	sort.SliceStable(turns, func(left, right int) bool {
@@ -117,6 +128,70 @@ func ProjectConversationTurns(
 		return turns[left].RoundID < turns[right].RoundID
 	})
 	return turns
+}
+
+func (acc *turnAccumulator) observeTimestamp(timestamp int64) {
+	if acc.turn.CreatedAt == 0 || (timestamp > 0 && timestamp < acc.turn.CreatedAt) {
+		acc.turn.CreatedAt = timestamp
+	}
+	if timestamp > acc.turn.UpdatedAt {
+		acc.turn.UpdatedAt = timestamp
+	}
+}
+
+func (acc *turnAccumulator) addRow(row projectedTurnRow) {
+	switch strings.TrimSpace(stringFromAny(row.source["role"])) {
+	case "user":
+		if acc.turn.UserMessage == nil {
+			message := row.message
+			acc.turn.UserMessage = &message
+			return
+		}
+		acc.turn.SystemEvents = append(acc.turn.SystemEvents, row.message)
+	case "assistant":
+		acc.addAssistantRow(row)
+	case "result":
+		applySlotResultSummary(
+			acc.ensureSlot(row.agentID, row.agentRoundID),
+			buildResultSummaryFromRow(row.source),
+			row.message.Timestamp,
+		)
+	default:
+		acc.turn.SystemEvents = append(acc.turn.SystemEvents, row.message)
+	}
+}
+
+func (acc *turnAccumulator) addAssistantRow(row projectedTurnRow) {
+	slot := acc.ensureSlot(row.agentID, row.agentRoundID)
+	slot.AssistantMessages = append(slot.AssistantMessages, row.message)
+	if slot.StartedAt == nil && row.message.Timestamp > 0 {
+		startedAt := row.message.Timestamp
+		slot.StartedAt = &startedAt
+	}
+	if summary, ok := row.source["result_summary"].(map[string]any); ok && len(summary) > 0 {
+		applySlotResultSummary(slot, summary, row.message.Timestamp)
+	}
+}
+
+func (acc *turnAccumulator) finalizeSlots() {
+	for _, key := range acc.slotOrder {
+		acc.turn.AgentSlots = append(acc.turn.AgentSlots, *acc.slots[key])
+	}
+}
+
+func markActiveTurnSlots(
+	slots []protocol.AgentTurnSlot,
+	roundID string,
+	active map[string]struct{},
+) {
+	if _, isActive := active[roundID]; !isActive {
+		return
+	}
+	for index := range slots {
+		if !protocol.IsTerminalRoundStatus(slots[index].Status) {
+			slots[index].Status = "running"
+		}
+	}
 }
 
 func (acc *turnAccumulator) ensureSlot(agentID string, agentRoundID string) *protocol.AgentTurnSlot {
@@ -170,7 +245,7 @@ func buildResultSummaryFromRow(row protocol.Message) map[string]any {
 	summary := map[string]any{
 		"subtype": stringFromAny(row["subtype"]),
 	}
-	if duration := int64FromAny(row["duration_ms"]); duration > 0 {
+	if duration := protocol.Int64FromAny(row["duration_ms"]); duration > 0 {
 		summary["duration_ms"] = duration
 	}
 	if result := strings.TrimSpace(stringFromAny(row["result"])); result != "" {

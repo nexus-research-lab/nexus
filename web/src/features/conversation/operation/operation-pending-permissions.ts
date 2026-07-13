@@ -1,8 +1,6 @@
-import type {
-  Message,
-  ToolUseContent,
-} from "@/types/conversation/message";
-import type { PendingPermission } from "@/types/conversation/permission";
+import type { ToolUseContent } from "@/types/conversation/message/content";
+import type { Message } from "@/types/conversation/message/entity";
+import type { PendingPermission } from "@/types/conversation/interaction/permission";
 
 export interface PendingPermissionToolUseCandidate {
   tool_use_id: string;
@@ -11,7 +9,13 @@ export interface PendingPermissionToolUseCandidate {
   message_id: string;
 }
 
-export function collect_unresolved_tool_use_candidates(
+export interface PendingPermissionMatchResult {
+  matched_permissions_by_tool_use_id: Map<string, PendingPermission>;
+  matched_request_ids: Set<string>;
+  unmatched_permissions: PendingPermission[];
+}
+
+export function collectUnresolvedToolUseCandidates(
   messages: Message[],
 ): PendingPermissionToolUseCandidate[] {
   const ordered_candidates: PendingPermissionToolUseCandidate[] = [];
@@ -45,14 +49,10 @@ export function collect_unresolved_tool_use_candidates(
   return ordered_candidates.filter((candidate) => !resolved_tool_use_ids.has(candidate.tool_use_id));
 }
 
-export function match_pending_permissions_to_tool_uses(
+export function matchPendingPermissionsToToolUses(
   pending_permissions: PendingPermission[],
   candidates: PendingPermissionToolUseCandidate[],
-): {
-  matched_permissions_by_tool_use_id: Map<string, PendingPermission>;
-  matched_request_ids: Set<string>;
-  unmatched_permissions: PendingPermission[];
-} {
+): PendingPermissionMatchResult {
   const matched_permissions_by_tool_use_id = new Map<string, PendingPermission>();
   const matched_request_ids = new Set<string>();
   const candidate_queue_by_message_id = new Map<string, PendingPermissionToolUseCandidate[]>();
@@ -98,7 +98,7 @@ export function match_pending_permissions_to_tool_uses(
   };
 }
 
-export function filter_pending_permissions_for_stage(
+export function filterPendingPermissionsForStage(
   permissions: PendingPermission[],
   session_key: string | null,
   agent_id: string | null | undefined,

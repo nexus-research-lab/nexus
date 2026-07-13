@@ -3,29 +3,29 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 import { WorkspaceSurfaceView } from "@/shared/ui/workspace/surface/workspace-surface-view";
 import type { AgentConversationIdentity } from "@/types/agent/agent-conversation";
-import type { PermissionDecisionPayload } from "@/types/conversation/permission";
+import type { PermissionDecisionPayload } from "@/types/conversation/interaction/permission";
 
 import {
-  build_operation_stage_key,
+  buildOperationStageKey,
   useOperationStageStore,
 } from "./operation-store";
 import {
-  operation_event_from_runtime_event,
+  operationEventFromRuntimeEvent,
 } from "./operation-desktop-intents";
 import {
-  plan_operation_desktop,
+  planOperationDesktop,
 } from "./operation-scene-planner";
 import {
-  derive_operation_stage_experience_phase,
+  deriveOperationStageExperiencePhase,
 } from "./operation-stage-experience";
 import {
   PHASE_META,
 } from "./operation-stage-panel-style";
 import {
-  build_stage_transition_style,
+  buildStageTransitionStyle,
 } from "./operation-stage-transition";
 import type { StageTransitionIntent } from "./operation-stage-transition";
 import { OperationStageMotionStyles } from "./operation-stage-motion-styles";
@@ -37,8 +37,7 @@ import type {
 
 interface OperationStagePanelProps {
   identity: AgentConversationIdentity | null;
-  agent_name?: string | null;
-  header_action?: ReactNode;
+  headerAction?: ReactNode;
   presentation?: "panel" | "stage";
 }
 
@@ -52,11 +51,10 @@ interface StageTransitionState {
 
 export function OperationStagePanel({
   identity,
-  agent_name,
-  header_action,
+  headerAction,
   presentation = "panel",
 }: OperationStagePanelProps) {
-  const stage_key = build_operation_stage_key(identity);
+  const stage_key = buildOperationStageKey(identity);
   const snapshot = useOperationStageStore((state) => (
     stage_key ? state.snapshots[stage_key] : null
   ));
@@ -65,11 +63,11 @@ export function OperationStagePanel({
   ));
   const runtime_display_event = useMemo(() => {
     const runtime_event = (snapshot?.runtime_events ?? []).at(-1) ?? null;
-    return runtime_event ? operation_event_from_runtime_event(runtime_event) : null;
+    return runtime_event ? operationEventFromRuntimeEvent(runtime_event) : null;
   }, [snapshot?.runtime_events]);
   const display_event_candidate = runtime_display_event ?? snapshot?.active_event ?? snapshot?.events.at(-1) ?? null;
   const display_event = useMemo(() => (
-    display_event_candidate && plan_operation_desktop({
+    display_event_candidate && planOperationDesktop({
       event: display_event_candidate,
       snapshot: snapshot ?? null,
     }).windows.length > 0
@@ -82,9 +80,9 @@ export function OperationStagePanel({
     <>
       <OperationStageMotionStyles />
       <StageSurface
-        active_event={display_event}
-        header_action={presentation === "stage" ? header_action : undefined}
-        on_permission_response={permission_response_handler}
+        activeEvent={display_event}
+        headerAction={presentation === "stage" ? headerAction : undefined}
+        onPermissionResponse={permission_response_handler}
         presentation={presentation}
         snapshot={snapshot ?? null}
       />
@@ -97,23 +95,26 @@ export function OperationStagePanel({
 
   return (
     <WorkspaceSurfaceView
-      action={header_action}
       bodyClassName="px-2 py-2 sm:px-3 xl:px-4"
       bodyScrollable={false}
       contentClassName="flex h-full min-h-0 max-w-none"
-      eyebrow="操作"
+      header={{
+        kind: "page",
+        action: phase_meta && PhaseIcon ? (
+          <div className="flex items-center gap-2">
+            <span className={cn(
+              "inline-flex h-6 items-center gap-1.5 rounded-full border px-2 text-[10px] font-semibold",
+              phase_meta.class_name,
+            )}>
+              <PhaseIcon className={cn("h-3.5 w-3.5", display_event?.phase === "running" && "animate-spin")} />
+              {phase_meta.label}
+            </span>
+            {headerAction}
+          </div>
+        ) : headerAction,
+      }}
       maxWidthClassName="max-w-none"
-      showEyebrow={false}
       title="操作舞台"
-      titleTrailing={phase_meta && PhaseIcon ? (
-        <span className={cn(
-          "inline-flex h-6 items-center gap-1.5 rounded-full border px-2 text-[10px] font-semibold",
-          phase_meta.class_name,
-        )}>
-          <PhaseIcon className={cn("h-3.5 w-3.5", display_event?.phase === "running" && "animate-spin")} />
-          {phase_meta.label}
-        </span>
-      ) : null}
     >
       {stage_surface}
     </WorkspaceSurfaceView>
@@ -121,23 +122,23 @@ export function OperationStagePanel({
 }
 
 function StageSurface({
-  active_event,
+  activeEvent,
   snapshot,
   presentation,
-  header_action,
-  on_permission_response,
+  headerAction,
+  onPermissionResponse,
 }: {
-  active_event: NexusOperationEvent | null;
+  activeEvent: NexusOperationEvent | null;
   snapshot: NexusOperationSnapshot | null;
   presentation: "panel" | "stage";
-  header_action?: ReactNode;
-  on_permission_response?: (payload: PermissionDecisionPayload) => boolean;
+  headerAction?: ReactNode;
+  onPermissionResponse?: (payload: PermissionDecisionPayload) => boolean;
 }) {
   const is_stage = presentation === "stage";
-  const stage_transition = useStageTransition(active_event);
+  const stage_transition = useStageTransition(activeEvent);
   const is_scene_entering = stage_transition.phase === "priming" || stage_transition.phase === "materializing";
-  const experience_phase = derive_operation_stage_experience_phase(active_event, snapshot);
-  const transition_style = build_stage_transition_style(stage_transition.intent);
+  const experience_phase = deriveOperationStageExperiencePhase(activeEvent, snapshot);
+  const transition_style = buildStageTransitionStyle(stage_transition.intent);
 
   return (
     <section className={cn(
@@ -157,7 +158,7 @@ function StageSurface({
             "relative h-full min-h-[300px] min-w-0 max-w-full overflow-hidden border border-white/60 bg-[rgba(245,248,252,0.86)] shadow-[inset_0_1px_0_rgba(255,255,255,0.84),0_30px_76px_rgba(55,70,90,0.14)]",
             is_stage ? "rounded-[20px]" : "rounded-[22px]",
           )}>
-            {active_event ? (
+            {activeEvent ? (
               <>
                 <div
                   className={cn("h-full min-h-0", is_scene_entering && "operation-stage-scene-enter")}
@@ -165,9 +166,9 @@ function StageSurface({
                   style={is_scene_entering ? transition_style : undefined}
                 >
                   <StageScene
-                    event={active_event}
-                    header_action={header_action}
-                    on_permission_response={on_permission_response}
+                    event={activeEvent}
+                    headerAction={headerAction}
+                    onPermissionResponse={onPermissionResponse}
                     snapshot={snapshot}
                   />
                 </div>
@@ -176,8 +177,8 @@ function StageSurface({
               <div className="h-full min-h-0">
                 <OperationStageDesktop
                   event={build_idle_stage_event(snapshot)}
-                  header_action={header_action}
-                  on_permission_response={on_permission_response}
+                  headerAction={headerAction}
+                  onPermissionResponse={onPermissionResponse}
                   snapshot={snapshot}
                 />
               </div>
@@ -206,20 +207,20 @@ function build_idle_stage_event(snapshot: NexusOperationSnapshot | null): NexusO
 
 function StageScene({
   event,
-  header_action,
-  on_permission_response,
+  headerAction,
+  onPermissionResponse,
   snapshot,
 }: {
   event: NexusOperationEvent;
-  header_action?: ReactNode;
-  on_permission_response?: (payload: PermissionDecisionPayload) => boolean;
+  headerAction?: ReactNode;
+  onPermissionResponse?: (payload: PermissionDecisionPayload) => boolean;
   snapshot: NexusOperationSnapshot | null;
 }) {
   return (
     <OperationStageDesktop
       event={event}
-      header_action={header_action}
-      on_permission_response={on_permission_response}
+      headerAction={headerAction}
+      onPermissionResponse={onPermissionResponse}
       snapshot={snapshot}
     />
   );

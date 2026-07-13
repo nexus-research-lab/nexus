@@ -16,23 +16,23 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { HtmlFilePreview } from "@/features/conversation/shared/editor/html-file-preview";
-import { getWorkspaceFilePreviewUrl } from "@/lib/api/agent-manage-api";
-import { cn } from "@/lib/utils";
+import { HtmlFilePreview } from "@/features/conversation/shared/editor/media/html-file-preview";
+import { getWorkspaceFilePreviewUrl } from "@/lib/api/agent/agent-api";
+import { cn } from "@/shared/ui/class-name";
 
 import type {
   NexusOperationEvent,
   OperationPhase,
 } from "../operation-types";
 import {
-  build_browser_reader_paragraphs,
-  format_browser_origin,
-  is_web_fetch_event,
-  looks_like_url,
-  read_browser_input_string,
+  buildBrowserReaderParagraphs,
+  formatBrowserOrigin,
+  isWebFetchEvent,
+  looksLikeUrl,
+  readBrowserInputString,
 } from "./browser-reader-model";
-import { build_browser_result_items } from "./browser-result-items";
-import { build_browser_session_view } from "./browser-session";
+import { buildBrowserResultItems } from "./browser-result-items";
+import { buildBrowserSessionView } from "./browser-session";
 
 const PHASE_LABEL: Record<OperationPhase, string> = {
   queued: "排队中",
@@ -56,7 +56,7 @@ export function BrowserSurface({
   query: string;
   target?: string | null;
 }) {
-  const session = build_browser_session_view({
+  const session = buildBrowserSessionView({
     event,
     preview,
     query,
@@ -67,18 +67,18 @@ export function BrowserSurface({
   return (
     <div className="flex min-h-0 min-w-0 max-w-full flex-1 flex-col overflow-hidden bg-[#f7f9fc] shadow-[inset_0_1px_0_rgba(255,255,255,0.82)]">
       <BrowserChromeHeader
-        display_url={session.display_url}
+        displayUrl={session.display_url}
         event={event}
-        source_label={session.source_label}
+        sourceLabel={session.source_label}
         status={session.status}
-        tab_title={session.tab_title}
+        tabTitle={session.tab_title}
       />
 
       <BrowserViewport
         event={event}
-        iframe_url={session.iframe_url}
+        iframeUrl={session.iframe_url}
         lines={lines}
-        page_kind={session.page_kind}
+        pageKind={session.page_kind}
         preview={preview}
         query={query}
         srcdoc={session.srcdoc}
@@ -89,24 +89,24 @@ export function BrowserSurface({
 }
 
 function BrowserChromeHeader({
-  display_url,
+  displayUrl,
   event,
-  source_label,
+  sourceLabel,
   status,
-  tab_title,
+  tabTitle,
 }: {
-  display_url: string;
+  displayUrl: string;
   event: NexusOperationEvent;
-  source_label: string;
+  sourceLabel: string;
   status: { label: string; tone: "loading" | "ready" | "error" | "idle" };
-  tab_title: string;
+  tabTitle: string;
 }) {
   return (
     <div className="border-b border-(--divider-subtle-color) bg-[rgba(248,250,253,0.88)]">
       <div className="flex min-w-0 items-end gap-1.5 px-3 pt-2">
         <div className="flex min-w-0 max-w-[52%] items-center gap-1.5 rounded-t-[10px] border border-b-0 border-(--divider-subtle-color) bg-white/72 px-3 py-1.5 text-[10px] font-bold text-(--text-strong)">
           <Globe2 className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)" />
-          <span className="truncate">{tab_title}</span>
+          <span className="truncate">{tabTitle}</span>
         </div>
       </div>
       <div className="flex min-w-0 items-center gap-2 px-3 py-2">
@@ -128,8 +128,8 @@ function BrowserChromeHeader({
         </div>
         <div className="flex min-w-0 flex-1 items-center gap-2 rounded-[9px] border border-(--divider-subtle-color) bg-white/88 px-2.5 py-1.5 text-[11px] text-(--text-default) shadow-[inset_0_1px_0_rgba(255,255,255,0.76)]">
           <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-[color:var(--success)]" />
-          <span className="min-w-0 flex-1 truncate font-medium">{display_url}</span>
-          <NaviLoadDot source_label={source_label} status={status} />
+          <span className="min-w-0 flex-1 truncate font-medium">{displayUrl}</span>
+          <NaviLoadDot sourceLabel={sourceLabel} status={status} />
         </div>
         <NaviToolbarButton label="共享">
           <Share2 className="h-3.5 w-3.5" />
@@ -159,15 +159,15 @@ function NaviToolbarButton({ children, label }: { children: ReactNode; label: st
 }
 
 function NaviLoadDot({
-  source_label,
+  sourceLabel,
   status,
 }: {
-  source_label: string;
+  sourceLabel: string;
   status: { label: string; tone: "loading" | "ready" | "error" | "idle" };
 }) {
   return (
     <span
-      aria-label={`${status.label} · ${source_label}`}
+      aria-label={`${status.label} · ${sourceLabel}`}
       className={cn(
         "grid h-4 w-4 shrink-0 place-items-center rounded-full",
         status.tone === "loading" && "text-[color:var(--primary)]",
@@ -175,7 +175,7 @@ function NaviLoadDot({
         status.tone === "error" && "text-[color:var(--destructive)]",
         status.tone === "idle" && "text-(--icon-muted)",
       )}
-      title={`${status.label} · ${source_label}`}
+      title={`${status.label} · ${sourceLabel}`}
     >
       {status.tone === "loading" ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
       {status.tone === "error" ? <AlertTriangle className="h-3 w-3" /> : null}
@@ -188,18 +188,18 @@ function NaviLoadDot({
 
 function BrowserViewport({
   event,
-  iframe_url,
+  iframeUrl,
   lines,
-  page_kind,
+  pageKind,
   preview,
   query,
   srcdoc,
   target,
 }: {
   event: NexusOperationEvent;
-  iframe_url: string | null;
+  iframeUrl: string | null;
   lines: string[];
-  page_kind: "embedded" | "workspace" | "web" | "search" | "start";
+  pageKind: "embedded" | "workspace" | "web" | "search" | "start";
   preview: unknown;
   query: string;
   srcdoc: string | null;
@@ -215,20 +215,20 @@ function BrowserViewport({
     );
   }
 
-  if (iframe_url) {
+  if (iframeUrl) {
     return (
       <BrowserIframeViewport
-        sourceUrl={iframe_url}
+        sourceUrl={iframeUrl}
         title={target ?? query}
       />
     );
   }
 
-  if (page_kind === "start") {
+  if (pageKind === "start") {
     return <NaviStartPage event={event} />;
   }
 
-  if (is_web_fetch_event(event)) {
+  if (isWebFetchEvent(event)) {
     return (
       <BrowserReaderPage
         event={event}
@@ -313,7 +313,7 @@ function BrowserSearchResults({
   lines: string[];
   query: string;
 }) {
-  const result_items = build_browser_result_items({ event, lines, query });
+  const result_items = buildBrowserResultItems({ event, lines, query });
 
   return (
     <div className="soft-scrollbar min-h-0 flex-1 overflow-auto bg-white">
@@ -370,16 +370,16 @@ function BrowserReaderPage({
   preview: unknown;
   query: string;
 }) {
-  const url = read_browser_input_string(event, ["url", "uri", "link"]) ?? (looks_like_url(query) ? query : null);
-  const prompt = read_browser_input_string(event, ["prompt", "question", "query"]) ?? event.summary ?? "";
-  const paragraphs = build_browser_reader_paragraphs({
+  const url = readBrowserInputString(event, ["url", "uri", "link"]) ?? (looksLikeUrl(query) ? query : null);
+  const prompt = readBrowserInputString(event, ["prompt", "question", "query"]) ?? event.summary ?? "";
+  const paragraphs = buildBrowserReaderParagraphs({
     fallback: event.summary ?? prompt,
     lines,
     markers: [event.summary, prompt],
     preview,
   });
   const highlighted_count = paragraphs.filter((paragraph) => paragraph.highlighted).length;
-  const origin = url ? format_browser_origin(url) : format_browser_origin(query);
+  const origin = url ? formatBrowserOrigin(url) : formatBrowserOrigin(query);
   const title = event.title && event.title !== "抓取网页" ? event.title : origin;
 
   return (

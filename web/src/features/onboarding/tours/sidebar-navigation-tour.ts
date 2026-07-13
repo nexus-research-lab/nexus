@@ -1,0 +1,87 @@
+import type { I18nContextValue } from "@/shared/i18n/i18n-context";
+import type { OnboardingTourDefinition } from "@/shared/ui/onboarding/tour-contract";
+
+export const SIDEBAR_NAVIGATION_TOUR_ID = "sidebar-navigation";
+
+export const SIDEBAR_TOUR_ANCHORS = {
+  nexus_agent: "sidebar-nexus-agent-entry",
+  launcher: "sidebar-launcher-entry",
+  chat_tab: "sidebar-chat-tab",
+  contacts_tab: "sidebar-contacts-tab",
+  capabilities_tab: "sidebar-capabilities-tab",
+  chat_list: "sidebar-chat-list",
+  contacts_list: "sidebar-contacts-list",
+  capabilities_list: "sidebar-capabilities-list",
+  restart: "sidebar-restart-button",
+} as const;
+
+export function buildSidebarNavigationTour(
+  t: I18nContextValue["t"],
+): OnboardingTourDefinition {
+  return {
+    id: SIDEBAR_NAVIGATION_TOUR_ID,
+    steps: [
+      {
+        id: "intro",
+        title: t("sidebar.tour_intro_title"),
+        description: t("sidebar.tour_intro_description"),
+        placement: "center",
+        image: "/nexus/welcome.png",
+        items: [
+          { icon: "bot", text: t("sidebar.guide_nexus_agent") },
+          { icon: "hash", text: t("sidebar.guide_chats") },
+          { icon: "users", text: t("sidebar.guide_contacts") },
+          { icon: "puzzle", text: t("sidebar.guide_capabilities") },
+        ],
+      },
+      {
+        id: "nexus-agent",
+        title: t("sidebar.tour_nexus_agent_title"),
+        description: t("sidebar.tour_nexus_agent_description"),
+        target: SIDEBAR_TOUR_ANCHORS.nexus_agent,
+        placement: "right",
+        image: "/nexus/listening.png",
+      },
+      {
+        id: "launcher",
+        title: t("sidebar.tour_launcher_title"),
+        description: t("sidebar.tour_launcher_description"),
+        target: SIDEBAR_TOUR_ANCHORS.launcher,
+        placement: "right",
+        image: "/nexus/stickers/pointing.png",
+      },
+      {
+        id: "chat",
+        title: t("sidebar.tour_chat_title"),
+        description: t("sidebar.tour_chat_description"),
+        target: SIDEBAR_TOUR_ANCHORS.chat_tab,
+        placement: "right",
+        image: "/nexus/in-room.png",
+      },
+      {
+        id: "contacts",
+        title: t("sidebar.tour_contacts_title"),
+        description: t("sidebar.tour_contacts_description"),
+        target: SIDEBAR_TOUR_ANCHORS.contacts_tab,
+        placement: "right",
+        image: "/nexus/running.png",
+      },
+      {
+        id: "capabilities",
+        title: t("sidebar.tour_capabilities_title"),
+        description: t("sidebar.tour_capabilities_description"),
+        target: SIDEBAR_TOUR_ANCHORS.capabilities_tab,
+        placement: "right",
+        image: "/nexus/working.png",
+      },
+      {
+        id: "restart",
+        title: t("sidebar.tour_restart_title"),
+        description: t("sidebar.tour_restart_description"),
+        target: SIDEBAR_TOUR_ANCHORS.restart,
+        placement: "right",
+        image: "/nexus/completed.png",
+      },
+    ],
+  };
+}

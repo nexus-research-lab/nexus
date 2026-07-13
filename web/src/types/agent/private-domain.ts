@@ -1,7 +1,7 @@
 import type { RoomReplyRoute, RoomWakePolicy } from "./agent-conversation";
 
-export type AgentPrivateScope = "direct" | "audience" | "self" | string;
-export type AgentPrivateDirection = "incoming" | "outgoing" | "self" | string;
+export type AgentPrivateScope = "direct" | "audience" | "self";
+export type AgentPrivateDirection = "incoming" | "outgoing" | "self";
 
 export interface AgentPrivateParticipant {
   agent_id: string;

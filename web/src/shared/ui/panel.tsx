@@ -2,7 +2,7 @@
 
 import { type HTMLAttributes, type ReactNode } from "react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 
 type UiPanelPadding = "none" | "sm" | "md" | "lg";
 type UiPanelRadius = "sm" | "md" | "lg";
@@ -14,15 +14,6 @@ interface UiPanelProps extends HTMLAttributes<HTMLElement> {
   padding?: UiPanelPadding;
   radius?: UiPanelRadius;
   variant?: UiPanelVariant;
-}
-
-interface UiSectionHeaderProps extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {
-  action?: ReactNode;
-  children?: ReactNode;
-  className?: string;
-  description?: ReactNode;
-  icon?: ReactNode;
-  title: ReactNode;
 }
 
 const PANEL_PADDING_CLASS_MAP: Record<UiPanelPadding, string> = {
@@ -65,38 +56,5 @@ export function UiPanel({
     >
       {children}
     </section>
-  );
-}
-
-function UiSectionHeader({
-  action,
-  children,
-  className,
-  description,
-  icon,
-  title,
-  ...props
-}: UiSectionHeaderProps) {
-  return (
-    <div className={cn("flex items-start justify-between gap-3", className)} {...props}>
-      {children ?? (
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            {icon ? <span className="shrink-0 text-(--icon-default)">{icon}</span> : null}
-            <div className="min-w-0">
-              <h2 className="text-[15px] font-semibold tracking-[-0.03em] text-(--text-strong)">
-                {title}
-              </h2>
-              {description ? (
-                <p className="text-xs leading-5 text-(--text-default)">
-                  {description}
-                </p>
-              ) : null}
-            </div>
-          </div>
-        </div>
-      )}
-      {action}
-    </div>
   );
 }

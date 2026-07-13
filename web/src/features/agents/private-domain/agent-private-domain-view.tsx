@@ -1,20 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
-import { PrivateEventTimeline } from "@/features/agents/private-domain/agent-private-domain-timeline";
+import { PrivateEventTimeline } from "@/features/agents/private-domain/timeline/agent-private-domain-timeline";
 import { PrivateDomainToolbar } from "@/features/agents/private-domain/agent-private-domain-toolbar";
 import { PrivateThreadList } from "@/features/agents/private-domain/agent-private-domain-thread-list";
 import {
   AgentPrivateDomainQuery,
   listAgentPrivateEventsApi,
   listAgentPrivateThreadsApi,
-} from "@/lib/api/agent-private-domain-api";
-import { isExternalSessionConversationId } from "@/features/conversation/external-session-labels";
-import {
-  cn,
-} from "@/lib/utils";
+} from "@/lib/api/agent/private-domain-api";
+import { isExternalSessionConversationId } from "@/lib/conversation/external-session";
+import { cn } from "@/shared/ui/class-name";
 import { WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
 import { Agent } from "@/types/agent/agent";
 import {

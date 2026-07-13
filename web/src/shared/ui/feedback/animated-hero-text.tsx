@@ -2,7 +2,7 @@
 
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { prepareWithSegments } from "@chenglou/pretext";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 
 // ─── AnimatedHeroText ────────────────────────────────────────────────────────
 // Uses pretext to split text into grapheme clusters (handles CJK + emoji + bidi)
@@ -117,15 +117,13 @@ export function AnimatedHeroText({
   );
 }
 
-// ─── FadeSlideIn ─────────────────────────────────────────────────────────────
-// General-purpose entrance animation for any element.
-// Fades + slides up on mount, with configurable delay.
+// 通用容器只负责挂载时的淡入上移动画，延迟和时长由消费者决定。
 
 interface FadeSlideInProps {
   children: React.ReactNode;
   delayMs?: number;
   durationMs?: number;
-  /** translateY distance to start from (px). Negative = slide down. */
+  /** 初始纵向偏移；负值表示从下方向上归位。 */
   yOffset?: number;
   className?: string;
   style?: CSSProperties;
@@ -133,10 +131,10 @@ interface FadeSlideInProps {
 
 export function FadeSlideIn({
   children,
-  delayMs: delayMs = 0,
-  durationMs: durationMs = 420,
-  yOffset: yOffset = 10,
-  className: className,
+  delayMs = 0,
+  durationMs = 420,
+  yOffset = 10,
+  className,
   style,
 }: FadeSlideInProps) {
   const [visible, setVisible] = useState(false);

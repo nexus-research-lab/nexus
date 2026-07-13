@@ -179,6 +179,46 @@ func TestPreviewAndImportSkillURLSupportZipPayloadWithoutZipSuffix(t *testing.T)
 	}
 }
 
+func TestPreviewAndImportSkillURLSupportBackslashZipEntries(t *testing.T) {
+	mux := http.NewServeMux()
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+
+	archive := buildTestSkillZipEntry(t, "target-industry-customer-analysis\\SKILL.md", "target-industry-customer-analysis", "Target Industry Customer Analysis", "target-industry-customer-analysis\\assets\\", "target-industry-customer-analysis\\assets\\templates\\research-notes.schema.json")
+	mux.HandleFunc("/target-industry-customer-analysis.zip", func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set("Content-Type", "application/zip")
+		_, _ = writer.Write(archive)
+	})
+
+	cfg := newSkillsTestConfig(t)
+	cfg.SkillsDefaultSourcesEnabled = false
+	cfg.SkillsSourceURLs = "Local Zip|" + server.URL + "/target-industry-customer-analysis.zip"
+	migrateSkillsSQLite(t, cfg.DatabaseURL)
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+	service := NewServiceWithDB(cfg, db, nil, nil)
+	downloadURL := server.URL + "/target-industry-customer-analysis.zip"
+
+	preview, err := service.GetExternalSkillPreview(context.Background(), downloadURL)
+	if err != nil {
+		t.Fatalf("反斜杠 zip 预览失败: %v", err)
+	}
+	if !strings.Contains(preview.ReadmeMarkdown, "# Target Industry Customer Analysis") {
+		t.Fatalf("反斜杠 zip 预览内容不正确: %+v", preview)
+	}
+
+	detail, err := service.ImportSkillURL(context.Background(), downloadURL, externalManifest{})
+	if err != nil {
+		t.Fatalf("反斜杠 zip URL 导入失败: %v", err)
+	}
+	if detail.Name != "target-industry-customer-analysis" || detail.Title != "Target Industry Customer Analysis" {
+		t.Fatalf("反斜杠 zip URL 导入详情不正确: %+v", detail.Info)
+	}
+}
+
 func TestSkillsShSearchBuildsPreviewURLFromSourceAndSkillID(t *testing.T) {
 	mux := http.NewServeMux()
 	server := httptest.NewServer(mux)
@@ -591,9 +631,20 @@ func stringSliceContainsPrefix(items []string, prefix string) bool {
 func buildTestSkillZip(t *testing.T, name string, title string) []byte {
 	t.Helper()
 
+	return buildTestSkillZipEntry(t, "skills/"+name+"/SKILL.md", name, title)
+}
+
+func buildTestSkillZipEntry(t *testing.T, entryName string, name string, title string, extraEntries ...string) []byte {
+	t.Helper()
+
 	var buffer bytes.Buffer
 	writer := zip.NewWriter(&buffer)
-	file, err := writer.Create("skills/" + name + "/SKILL.md")
+	for _, extraEntry := range extraEntries {
+		if _, err := writer.Create(extraEntry); err != nil {
+			t.Fatalf("创建测试 zip 附加条目失败: %v", err)
+		}
+	}
+	file, err := writer.Create(entryName)
 	if err != nil {
 		t.Fatalf("创建测试 zip 条目失败: %v", err)
 	}

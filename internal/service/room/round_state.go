@@ -31,8 +31,10 @@ type activeRoomSlot struct {
 	GoalLastAssistant  protocol.Message
 	GoalToolProgress   bool
 	SubagentTasks      map[string]struct{}
+	SubagentHistory    bool
 	resultUsageWritten bool
 	WorkspacePath      string
+	RuntimeKind        string
 	Client             runtimectx.Client
 	Cancel             context.CancelFunc
 	Status             string

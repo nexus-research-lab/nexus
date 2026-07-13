@@ -22,9 +22,18 @@ type fakeRuntimeClient struct {
 	reconfigureErr   error
 	disconnectCalls  int
 	stoppedTasks     []string
+	taskMessages     []fakeTaskMessage
 	stopTaskErr      error
 	permissionModes  []sdkpermission.Mode
 	messages         <-chan sdkprotocol.ReceivedMessage
+	receiveStarted   chan struct{}
+	receiveStopped   chan struct{}
+}
+
+type fakeTaskMessage struct {
+	TaskID  string
+	Message string
+	Summary string
 }
 
 func (c *fakeRuntimeClient) Connect(context.Context) error { return nil }
@@ -32,6 +41,12 @@ func (c *fakeRuntimeClient) Connect(context.Context) error { return nil }
 func (c *fakeRuntimeClient) Query(context.Context, string) error { return nil }
 
 func (c *fakeRuntimeClient) ReceiveMessages(ctx context.Context) <-chan sdkprotocol.ReceivedMessage {
+	if c.receiveStarted != nil {
+		select {
+		case c.receiveStarted <- struct{}{}:
+		default:
+		}
+	}
 	if c.messages == nil {
 		closed := make(chan sdkprotocol.ReceivedMessage)
 		close(closed)
@@ -40,6 +55,14 @@ func (c *fakeRuntimeClient) ReceiveMessages(ctx context.Context) <-chan sdkproto
 	out := make(chan sdkprotocol.ReceivedMessage)
 	go func() {
 		defer close(out)
+		defer func() {
+			if c.receiveStopped != nil {
+				select {
+				case c.receiveStopped <- struct{}{}:
+				default:
+				}
+			}
+		}()
 		for {
 			select {
 			case <-ctx.Done():
@@ -73,7 +96,8 @@ func (c *fakeRuntimeClient) StopTask(_ context.Context, taskID string) error {
 	return c.stopTaskErr
 }
 
-func (c *fakeRuntimeClient) SendTaskMessage(context.Context, string, string, string) error {
+func (c *fakeRuntimeClient) SendTaskMessage(_ context.Context, taskID string, message string, summary string) error {
+	c.taskMessages = append(c.taskMessages, fakeTaskMessage{TaskID: taskID, Message: message, Summary: summary})
 	return nil
 }
 
@@ -182,6 +206,48 @@ func TestManagerGetOrCreateReconfiguresExistingClient(t *testing.T) {
 	}
 }
 
+func TestManagerGetOrCreateWithFactoryUsesRoomSlotFactory(t *testing.T) {
+	defaultClient := &fakeRuntimeClient{}
+	slotClient := &fakeRuntimeClient{}
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: defaultClient})
+	sessionKey := "agent:host:ws:group:conversation-1"
+
+	got, err := manager.GetOrCreateWithFactory(
+		context.Background(),
+		sessionKey,
+		agentclient.Options{Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeClaude}},
+		&fakeRuntimeFactory{client: slotClient},
+	)
+	if err != nil {
+		t.Fatalf("GetOrCreateWithFactory() error = %v", err)
+	}
+	if got != slotClient {
+		t.Fatalf("client = %#v, want Room slot factory client", got)
+	}
+	if kind := manager.RuntimeKind(sessionKey); kind != agentclient.RuntimeClaude {
+		t.Fatalf("RuntimeKind() = %q, want claude", kind)
+	}
+	manager.MarkSubagentHistory(sessionKey)
+	if !manager.HasSubagentHistory(sessionKey) {
+		t.Fatal("Room slot 的 subagent history 标记未保留")
+	}
+}
+
+func TestManagerKeepsUnknownRuntimeKindConservative(t *testing.T) {
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: &fakeRuntimeClient{}})
+	sessionKey := "agent:host:ws:dm:unknown-runtime"
+	if _, err := manager.GetOrCreate(
+		context.Background(),
+		sessionKey,
+		agentclient.Options{Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeKind("custom")}},
+	); err != nil {
+		t.Fatalf("GetOrCreate() error = %v", err)
+	}
+	if kind := manager.RuntimeKind(sessionKey); kind != "" {
+		t.Fatalf("unknown RuntimeKind() = %q, want empty conservative kind", kind)
+	}
+}
+
 func TestManagerStopTaskForwardsToRuntimeClient(t *testing.T) {
 	client := &fakeRuntimeClient{}
 	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: client})
@@ -195,6 +261,36 @@ func TestManagerStopTaskForwardsToRuntimeClient(t *testing.T) {
 	}
 	if len(client.stoppedTasks) != 1 || client.stoppedTasks[0] != "task-1" {
 		t.Fatalf("stoppedTasks = %+v, want task-1", client.stoppedTasks)
+	}
+}
+
+func TestManagerTaskControlsRefreshIdleDeadline(t *testing.T) {
+	now := time.Date(2026, 7, 10, 12, 0, 0, 0, time.UTC)
+	client := &fakeRuntimeClient{}
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: client})
+	manager.now = func() time.Time { return now }
+	sessionKey := "agent:nexus:ws:dm:task-control-touch"
+	if _, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{}); err != nil {
+		t.Fatalf("创建 runtime client 失败: %v", err)
+	}
+
+	now = now.Add(5 * time.Minute)
+	if err := manager.StopTask(context.Background(), sessionKey, "task-1"); err != nil {
+		t.Fatalf("StopTask() error = %v", err)
+	}
+	if got := manager.sessions[sessionKey].LastUsedAt; !got.Equal(now) {
+		t.Fatalf("StopTask LastUsedAt = %s, want %s", got, now)
+	}
+
+	now = now.Add(3 * time.Minute)
+	if err := manager.SendTaskMessage(context.Background(), sessionKey, "task-1", "继续", "继续"); err != nil {
+		t.Fatalf("SendTaskMessage() error = %v", err)
+	}
+	if got := manager.sessions[sessionKey].LastUsedAt; !got.Equal(now) {
+		t.Fatalf("SendTaskMessage LastUsedAt = %s, want %s", got, now)
+	}
+	if len(client.taskMessages) != 1 || client.taskMessages[0].TaskID != "task-1" {
+		t.Fatalf("taskMessages = %+v, want task-1", client.taskMessages)
 	}
 }
 
@@ -728,6 +824,40 @@ func TestManagerCloseIdleSessionsClosesOnlyIdleClients(t *testing.T) {
 	}
 	if got := manager.GetRunningRoundIDs(activeKey); len(got) != 1 || got[0] != "round-active" {
 		t.Fatalf("active round 不应被清理: %+v", got)
+	}
+}
+
+func TestManagerCloseIdleSessionsCancelsSubagentMessageDrain(t *testing.T) {
+	now := time.Date(2026, 7, 10, 15, 0, 0, 0, time.UTC)
+	messages := make(chan sdkprotocol.ReceivedMessage)
+	client := &fakeRuntimeClient{
+		messages:       messages,
+		receiveStarted: make(chan struct{}, 1),
+		receiveStopped: make(chan struct{}, 1),
+	}
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: client})
+	manager.now = func() time.Time { return now }
+	sessionKey := "agent:nexus:ws:dm:idle-subagent-drain"
+	if _, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{}); err != nil {
+		t.Fatalf("创建 runtime client 失败: %v", err)
+	}
+	manager.MarkSubagentHistory(sessionKey)
+	manager.StartIdleMessageDrain(sessionKey, func(context.Context, sdkprotocol.ReceivedMessage) bool { return true })
+	select {
+	case <-client.receiveStarted:
+	case <-time.After(time.Second):
+		t.Fatal("idle message drain 未启动")
+	}
+
+	now = now.Add(11 * time.Minute)
+	closed, err := manager.CloseIdleSessions(context.Background(), 10*time.Minute)
+	if err != nil || closed != 1 {
+		t.Fatalf("CloseIdleSessions() closed=%d err=%v", closed, err)
+	}
+	select {
+	case <-client.receiveStopped:
+	case <-time.After(time.Second):
+		t.Fatal("idle reaper 未取消 subagent message drain")
 	}
 }
 

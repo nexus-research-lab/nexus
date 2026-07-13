@@ -1,14 +1,14 @@
 import type { StageNarrativePhase } from "./operation-stage-model";
 import type { NexusOperationEvent } from "../operation-types";
 
-export function count_desktop_reveal_events(events: NexusOperationEvent[]): number {
+export function countDesktopRevealEvents(events: NexusOperationEvent[]): number {
   return events.filter((event) => (
     Boolean(event.tool_use_id) ||
     event.surface !== "conversation"
   )).length;
 }
 
-export function initial_revealed_window_count({
+export function initialRevealedWindowCount({
   minimum_count,
   phase,
   window_count,

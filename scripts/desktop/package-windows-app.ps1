@@ -421,6 +421,16 @@ if (-not $SkipSigning) {
   }
 }
 $signingEnabled = -not [string]::IsNullOrWhiteSpace($signingCertificateResolvedPath)
+if (-not $signingEnabled) {
+  # 未签名的安装器会触发浏览器下载拦截与 360 QVM 启发式报毒；必须喊出来，不能静默产出。
+  $unsignedMessage = "Windows installer will be UNSIGNED: no signing certificate configured " +
+    "(set NEXUS_WINDOWS_SIGNING_CERT_PFX_BASE64 / NEXUS_WINDOWS_SIGNING_CERT_PASSWORD). " +
+    "Unsigned installers trigger browser download blocking and antivirus heuristics (e.g. 360 HEUR/QVM202)."
+  Write-Warning $unsignedMessage
+  if ($env:GITHUB_ACTIONS -eq "true") {
+    Write-Host "::warning title=Unsigned Windows installer::$unsignedMessage"
+  }
+}
 
 if ((-not $SkipBuild) -and $env:NEXUS_DESKTOP_PACKAGE_SKIP_BUILD -ne "1") {
   & (Join-Path $rootDir "scripts/desktop/build-windows-app.ps1") `

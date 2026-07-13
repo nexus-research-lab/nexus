@@ -24,25 +24,23 @@ import {
 import {
   COMPOSER_ACTION_BUTTON_CLASS_NAME,
   COMPOSER_PRIMARY_ACTION_BUTTON_CLASS_NAME,
-  getComposerShellClassName,
-} from "@/features/conversation/shared/composer-styles";
-import { ConversationResizeHandle } from "@/features/conversation/shared/editor/conversation-resize-handle";
-import { MessageItem } from "@/features/conversation/shared/message";
-import { WorkspaceFileTree } from "@/features/conversation/room/workspace/workspace-file-tree";
-import { cn } from "@/lib/utils";
-import { UiAgentAvatar, UiRoomAvatar } from "@/shared/ui/avatar";
-import { UiBadge, UiCounterBadge } from "@/shared/ui/badge";
-import { UiSearchInput } from "@/shared/ui/form-control";
-import { UiListRow } from "@/shared/ui/list-row";
+  COMPOSER_SHELL_CLASS_NAME,
+} from "@/features/conversation/shared/composer/composer-styles";
+import { MessageItem } from "@/features/conversation/shared/message/item/message-item";
+import { cn } from "@/shared/ui/class-name";
+import { UiAgentAvatar, UiRoomAvatar } from "@/shared/ui/display/avatar";
+import { UiBadge, UiCounterBadge } from "@/shared/ui/display/badge";
+import { UiSearchInput } from "@/shared/ui/form/form-control";
+import { UiListRow } from "@/shared/ui/list/list-row";
+import { PanelResizeHandle } from "@/shared/ui/layout/panel-resize-handle";
 import { WorkspaceConversationTabs } from "@/shared/ui/workspace/controls/workspace-conversation-tabs";
-import {
-  WorkspaceSurfaceHeader,
-  WorkspaceSurfaceToolbarAction,
-  WorkspaceTaskStrip,
-} from "@/shared/ui/workspace/surface/workspace-surface-header";
+import { WorkspaceFileTree } from "@/shared/ui/workspace/tree/workspace-file-tree";
+import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
+import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-toolbar-action";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
+import { WorkspaceTaskPanel } from "@/shared/ui/workspace/surface/workspace-task-strip";
 import { WorkspaceSurfaceView } from "@/shared/ui/workspace/surface/workspace-surface-view";
-import type { RoomSurfaceTabKey } from "@/types/conversation/room-surface";
+import type { RoomSurfaceTabKey } from "@/features/conversation/room/surface/header/room-header-tabs";
 
 import {
   demoConversations,
@@ -203,7 +201,7 @@ function LandingWorkbenchChat() {
       </div>
 
       <div className="landing-real-composer">
-        <div className={cn(getComposerShellClassName(false), "landing-real-composer-shell")}>
+        <div className={cn(COMPOSER_SHELL_CLASS_NAME, "landing-real-composer-shell")}>
           <button className={COMPOSER_ACTION_BUTTON_CLASS_NAME} type="button">
             <Paperclip className="h-4 w-4" />
           </button>
@@ -215,6 +213,7 @@ function LandingWorkbenchChat() {
           </button>
         </div>
       </div>
+      <WorkspaceTaskPanel todos={demoTodos} />
     </section>
   );
 }
@@ -229,8 +228,6 @@ function LandingWorkbenchMain() {
         header={(
           <WorkspaceSurfaceHeader
             activeTab={activeTab}
-            badge="DM"
-            density="compact"
             leading={<UiAgentAvatar avatar="/icon/agent/8.png" className="h-full w-full border-0 shadow-none" name="Amy" size="sm" />}
             onChangeTab={setActiveTab}
             tabs={[
@@ -246,8 +243,6 @@ function LandingWorkbenchMain() {
                 onSelectConversation={() => undefined}
               />
             )}
-            tabsTrailing={<WorkspaceTaskStrip todos={demoTodos} />}
-            title="Amy"
             trailing={(
               <WorkspaceSurfaceToolbarAction>
                 <Compass className="h-3.5 w-3.5" />
@@ -260,9 +255,9 @@ function LandingWorkbenchMain() {
         <div className="landing-real-main-body">
           <LandingWorkbenchChat />
           <section className="landing-real-aux-panel">
-            <ConversationResizeHandle
+            <PanelResizeHandle
               ariaLabel="调整右侧面板宽度"
-              onMouseDown={() => undefined}
+              onResizeStart={() => undefined}
             />
             <LandingWorkbenchFiles />
           </section>
@@ -281,18 +276,20 @@ function LandingWorkbenchFiles() {
   return (
     <aside className="landing-real-workspace">
       <WorkspaceSurfaceView
-        action={(
-          <WorkspaceSurfaceToolbarAction>
-            <X className="h-3.5 w-3.5" />
-            关闭
-          </WorkspaceSurfaceToolbarAction>
-        )}
         bodyClassName="px-3 py-2 sm:px-3 xl:px-4"
         bodyScrollable={false}
         contentClassName="landing-real-workspace-content"
-        eyebrow="Workspace"
+        header={{
+          action: (
+            <WorkspaceSurfaceToolbarAction>
+              <X className="h-3.5 w-3.5" />
+              关闭
+            </WorkspaceSurfaceToolbarAction>
+          ),
+          eyebrow: "Workspace",
+          kind: "page",
+        }}
         maxWidthClassName="max-w-none"
-        showEyebrow={false}
         title="Workspace"
       >
         <div className="landing-real-workspace-split">

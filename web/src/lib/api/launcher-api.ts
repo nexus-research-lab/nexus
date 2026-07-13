@@ -2,8 +2,8 @@
  * Launcher API 客户端
  */
 
-import { getAgentApiBaseUrl } from "@/config/options";
-import { requestApi } from "@/lib/api/http";
+import { getAgentApiBaseUrl } from "@/config/runtime-endpoints";
+import { requestApi } from "@/lib/api/core/http";
 import type { LauncherBootstrapResponse } from "@/types/app/launcher";
 
 export interface LauncherQueryParams {

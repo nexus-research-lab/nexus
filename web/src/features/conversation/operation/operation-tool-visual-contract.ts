@@ -1,5 +1,5 @@
 import type { OperationActionKind } from "./operation-tool-catalog";
-import { resolve_operation_tool_profile } from "./operation-tool-catalog";
+import { resolveOperationToolProfile } from "./operation-tool-catalog";
 import type { NexusOperationEvent } from "./operation-types";
 
 export type OperationToolVisualGroup =
@@ -132,10 +132,10 @@ export const OPERATION_TOOL_VISUAL_GROUPS: Record<OperationToolVisualGroup, Oper
   },
 };
 
-export function resolve_operation_tool_visual_contract(
+export function resolveOperationToolVisualContract(
   event: NexusOperationEvent,
 ): OperationToolVisualContract {
-  const profile = resolve_operation_tool_profile(event.tool_name, event.kind, event.surface);
+  const profile = resolveOperationToolProfile(event.tool_name, event.kind, event.surface);
   const group = resolve_visual_group(event, profile.action);
   const spec = OPERATION_TOOL_VISUAL_GROUPS[group];
   return {

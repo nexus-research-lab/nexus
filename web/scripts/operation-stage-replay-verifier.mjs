@@ -1,8 +1,8 @@
 export function verify_completed_round_replay_uses_event_slice({
   assert,
   now,
-  plan_operation_desktop,
-  project_operation_snapshot,
+  planOperationDesktop,
+  projectOperationSnapshot,
 }) {
   const messages = [{
     role: "assistant",
@@ -67,7 +67,7 @@ export function verify_completed_round_replay_uses_event_slice({
     updated_at: now - 700,
   }];
 
-  const snapshot = project_operation_snapshot({
+  const snapshot = projectOperationSnapshot({
     key: "session:stage-replay",
     session_key: "session:stage-replay",
     agent_id: "agent-stage",
@@ -78,7 +78,7 @@ export function verify_completed_round_replay_uses_event_slice({
   });
   assert(snapshot.active_event?.kind === "round_summary", `completed replay fixture should finish on summary, got ${snapshot.active_event?.kind}`);
 
-  const final_desktop = plan_operation_desktop({
+  const final_desktop = planOperationDesktop({
     event: snapshot.active_event,
     snapshot,
   });
@@ -91,7 +91,7 @@ export function verify_completed_round_replay_uses_event_slice({
 
   const bash_event = snapshot.events.find((event) => event.tool_use_id === "tool-bash");
   assert(bash_event, "replay fixture should project Bash event");
-  const replay_desktop = plan_operation_desktop({
+  const replay_desktop = planOperationDesktop({
     event: bash_event,
     snapshot,
   });

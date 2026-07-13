@@ -44,7 +44,7 @@ export interface OperationLiveEpisode {
   }>;
 }
 
-export function derive_operation_stage_experience_phase(
+export function deriveOperationStageExperiencePhase(
   event: NexusOperationEvent | null,
   snapshot: NexusOperationSnapshot | null,
 ): OperationStageExperiencePhase {
@@ -56,7 +56,7 @@ export function derive_operation_stage_experience_phase(
     (
       event.surface === "conversation" &&
       (event.phase === "running" || event.phase === "waiting") &&
-      count_round_events(event, snapshot) <= 1
+      countRoundEvents(event, snapshot) <= 1
     )
   ) {
     return "awakening";
@@ -65,12 +65,12 @@ export function derive_operation_stage_experience_phase(
     return "running";
   }
   if (event.phase === "done" || event.phase === "cancelled") {
-    return count_round_events(event, snapshot) > 1 ? "completed" : "settling";
+    return countRoundEvents(event, snapshot) > 1 ? "completed" : "settling";
   }
   return "settling";
 }
 
-export function count_round_events(
+export function countRoundEvents(
   event: NexusOperationEvent,
   snapshot: NexusOperationSnapshot | null,
 ): number {
@@ -80,7 +80,7 @@ export function count_round_events(
     : round_events.length + 1;
 }
 
-export function build_operation_continuation_brief(
+export function buildOperationContinuationBrief(
   event: NexusOperationEvent,
   events: NexusOperationEvent[],
   snapshot: NexusOperationSnapshot | null,
@@ -136,7 +136,7 @@ export function build_operation_continuation_brief(
   };
 }
 
-export function build_operation_live_episode(
+export function buildOperationLiveEpisode(
   event: NexusOperationEvent,
   events: NexusOperationEvent[],
   snapshot: NexusOperationSnapshot | null,
@@ -239,7 +239,7 @@ function is_runtime_retry_event(event: NexusOperationEvent): boolean {
     && (event.evidence ?? []).some((item) => item.label === "api_retry");
 }
 
-export function merge_operation_stage_snapshots_for_restore(
+export function mergeOperationStageSnapshotsForRestore(
   current: NexusOperationSnapshot | null | undefined,
   next: NexusOperationSnapshot,
 ): NexusOperationSnapshot {

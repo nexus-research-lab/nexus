@@ -314,7 +314,7 @@ func roundIndexInt64FromRaw(raw json.RawMessage) int64 {
 	if err := json.Unmarshal(raw, &value); err != nil {
 		return 0
 	}
-	return int64FromAny(value)
+	return protocol.Int64FromAny(value)
 }
 
 func roundIndexTextFromBlocks(blocks []map[string]any) string {

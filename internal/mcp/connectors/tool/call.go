@@ -84,6 +84,30 @@ func parseCallInput(args map[string]any) (callInput, error) {
 }
 
 func executeCall(ctx context.Context, apiBaseURL, accessToken, shopDomain string, extra map[string]string, input callInput) (map[string]any, error) {
+	fullURL, err := resolveConnectorCallURL(apiBaseURL, shopDomain, extra, input)
+	if err != nil {
+		return nil, err
+	}
+	requestCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	request, err := newConnectorCallRequest(requestCtx, fullURL, accessToken, input)
+	if err != nil {
+		return nil, err
+	}
+	response, err := connectorCallHTTPClient.Do(request)
+	if err != nil {
+		return nil, err
+	}
+	defer response.Body.Close()
+	return readConnectorCallResponse(response)
+}
+
+func resolveConnectorCallURL(
+	apiBaseURL string,
+	shopDomain string,
+	extra map[string]string,
+	input callInput,
+) (*url.URL, error) {
 	base := strings.TrimSpace(apiBaseURL)
 	shop := cmp.Or(
 		strings.TrimSpace(shopDomain),
@@ -109,7 +133,15 @@ func executeCall(ctx context.Context, apiBaseURL, accessToken, shopDomain string
 		query.Set(key, value)
 	}
 	fullURL.RawQuery = query.Encode()
+	return fullURL, nil
+}
 
+func newConnectorCallRequest(
+	ctx context.Context,
+	fullURL *url.URL,
+	accessToken string,
+	input callInput,
+) (*http.Request, error) {
 	var body io.Reader
 	if input.Body != nil {
 		payload, err := json.Marshal(input.Body)
@@ -118,28 +150,25 @@ func executeCall(ctx context.Context, apiBaseURL, accessToken, shopDomain string
 		}
 		body = bytes.NewReader(payload)
 	}
-	requestCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
-	defer cancel()
-	req, err := http.NewRequestWithContext(requestCtx, input.Method, fullURL.String(), body)
+	request, err := http.NewRequestWithContext(ctx, input.Method, fullURL.String(), body)
 	if err != nil {
 		return nil, err
 	}
 	if input.Body != nil {
-		req.Header.Set("Content-Type", "application/json")
+		request.Header.Set("Content-Type", "application/json")
 	}
 	for key, value := range input.Headers {
 		if strings.EqualFold(key, "Authorization") {
 			continue
 		}
-		req.Header.Set(key, value)
+		request.Header.Set(key, value)
 	}
-	req.Header.Set("Authorization", "Bearer "+accessToken)
-	resp, err := connectorCallHTTPClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	limited := io.LimitReader(resp.Body, maxResponseBytes+1)
+	request.Header.Set("Authorization", "Bearer "+accessToken)
+	return request, nil
+}
+
+func readConnectorCallResponse(response *http.Response) (map[string]any, error) {
+	limited := io.LimitReader(response.Body, maxResponseBytes+1)
 	payload, err := io.ReadAll(limited)
 	if err != nil {
 		return nil, err
@@ -149,8 +178,8 @@ func executeCall(ctx context.Context, apiBaseURL, accessToken, shopDomain string
 		payload = payload[:maxResponseBytes]
 	}
 	return map[string]any{
-		"status":     resp.StatusCode,
-		"headers":    responseHeaders(resp.Header),
+		"status":     response.StatusCode,
+		"headers":    responseHeaders(response.Header),
 		"body":       string(payload),
 		"_truncated": truncated,
 	}, nil

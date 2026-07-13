@@ -26,7 +26,7 @@ export interface DockSlotPresentation {
   title: string;
 }
 
-export function build_dock_app_slots(
+export function buildDockAppSlots(
   app_groups: DockAppGroup[],
 ): DockAppSlot[] {
   return app_groups.map((group): DockAppSlot => (
@@ -41,7 +41,7 @@ export function build_dock_app_slots(
   ));
 }
 
-export function resolve_dock_slot_presentation(
+export function resolveDockSlotPresentation(
   slot: DockAppSlot,
   window_title: string,
 ): DockSlotPresentation {
@@ -61,7 +61,7 @@ export function resolve_dock_slot_presentation(
   };
 }
 
-export function group_dock_windows_by_app(
+export function groupDockWindowsByApp(
   windows: StageWindowState[],
   active_window_id: string | null,
   app_label_for_kind: (kind: StageWindowKind) => string,

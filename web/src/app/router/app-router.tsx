@@ -11,7 +11,7 @@ const AuthenticatedAppSessionRoot = lazy(() =>
   })),
 );
 const AppLayout = lazy(() =>
-  import("@/shared/ui/layout/app-layout").then((m) => ({ default: m.AppLayout })),
+  import("@/app/layout/app-layout").then((m) => ({ default: m.AppLayout })),
 );
 
 // 懒加载页面组件 — 首次导航时按需加载
@@ -61,9 +61,6 @@ const SettingsPage = lazy(() =>
 );
 const OperationsPage = lazy(() =>
   import("@/pages/operations/operations-page").then((m) => ({ default: m.OperationsPage })),
-);
-const MemoryPage = lazy(() =>
-  import("@/pages/memory/memory-page").then((m) => ({ default: m.MemoryPage })),
 );
 
 /** 页面加载占位 */
@@ -123,7 +120,6 @@ export function AppRouter() {
                   <Route element={<ScheduledTasksPage />} path={APP_ROUTE_PATHS.scheduledTasks} />
                   <Route element={<ChannelsPage />} path={APP_ROUTE_PATHS.channels} />
                   <Route element={<PairingsPage />} path={APP_ROUTE_PATHS.pairings} />
-                  <Route element={<MemoryPage />} path={APP_ROUTE_PATHS.memory} />
 
                   {/* 其他占位路由 */}
                   <Route element={<OperationsPage />} path={APP_ROUTE_PATHS.operations} />

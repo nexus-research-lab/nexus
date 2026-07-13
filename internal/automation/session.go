@@ -13,7 +13,7 @@ import (
 )
 
 // ResolveSessionKey 解析自动化任务的真实执行会话。
-func ResolveSessionKey(job types.CronJob, runID *string) (string, error) {
+func ResolveSessionKey(job types.ScheduledTask, runID *string) (string, error) {
 	switch strings.TrimSpace(job.SessionTarget.Kind) {
 	case types.SessionTargetMain:
 		return BuildMainSessionKey(job.AgentID), nil
@@ -25,7 +25,7 @@ func ResolveSessionKey(job types.CronJob, runID *string) (string, error) {
 		if runID == nil || strings.TrimSpace(*runID) == "" {
 			return "", errors.New("isolated target requires run_id")
 		}
-		ref := fmt.Sprintf("cron:%s:%s", job.JobID, strings.TrimSpace(*runID))
+		ref := fmt.Sprintf("scheduled-task:%s:%s", job.JobID, strings.TrimSpace(*runID))
 		return protocol.BuildAgentSessionKey(job.AgentID, "automation", "dm", ref, ""), nil
 	}
 }

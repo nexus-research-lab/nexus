@@ -4,7 +4,7 @@ import type {
 } from "./operation-desktop-types";
 import type { NexusOperationEvent } from "./operation-types";
 
-export function should_open_finder_window(
+export function shouldOpenFinderWindow(
   event: NexusOperationEvent,
   context: {
     file_document_count: number;
@@ -16,13 +16,13 @@ export function should_open_finder_window(
       event.kind === "workspace_search" ||
       context.file_document_count === 0;
   }
-  if (is_round_review_event(event)) {
+  if (isRoundReviewEvent(event)) {
     return context.workspace_item_count > 0;
   }
   return false;
 }
 
-export function should_open_html_browser_window(
+export function shouldOpenHtmlBrowserWindow(
   event: NexusOperationEvent,
   has_html_artifact: boolean,
 ): boolean {
@@ -37,7 +37,7 @@ export function should_open_html_browser_window(
     || event.kind === "round_summary";
 }
 
-export function supporting_window_phase(
+export function supportingWindowPhase(
   kind: StageWindowKind,
   is_focused: boolean,
   context: {
@@ -60,12 +60,12 @@ export function supporting_window_phase(
   return "minimized";
 }
 
-export function is_desktop_tool_activity_event(event: NexusOperationEvent): boolean {
+export function isDesktopToolActivityEvent(event: NexusOperationEvent): boolean {
   return event.surface !== "conversation"
     && event.kind !== "round_summary";
 }
 
-export function is_round_review_event(event: NexusOperationEvent): boolean {
+export function isRoundReviewEvent(event: NexusOperationEvent): boolean {
   return event.kind === "round_summary" ||
     (event.surface === "summary" && (
       event.phase === "done" ||

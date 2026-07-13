@@ -2,7 +2,7 @@
 
 import { type ReactNode } from "react";
 
-import { UiSearchInput } from "@/shared/ui/form-control";
+import { UiSearchInput } from "@/shared/ui/form/form-control";
 
 interface WorkspaceSearchInputProps {
   value: string;

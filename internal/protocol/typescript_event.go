@@ -14,6 +14,7 @@ export type EventType =
   | 'round_status'
   | 'agent_round_status'
   | 'session_status'
+  | 'runtime_status'
   | 'goal_created'
   | 'goal_updated'
   | 'goal_status_changed'
@@ -76,6 +77,10 @@ export interface AgentRoundStatusData {
 export interface SessionStatusData {
   is_generating: boolean;
   running_round_ids?: string[];
+}
+
+export interface RuntimeStatusData {
+  status: 'compacting' | null;
 }
 
 export interface ChatAckPendingSlot {

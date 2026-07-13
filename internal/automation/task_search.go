@@ -11,22 +11,22 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
-// CronJobMatchesQuery 判断定时任务是否匹配用户口头描述。
-func CronJobMatchesQuery(job types.CronJob, query string) bool {
-	return CronJobMatchScore(job, query) > 0
+// ScheduledTaskMatchesQuery 判断定时任务是否匹配用户口头描述。
+func ScheduledTaskMatchesQuery(job types.ScheduledTask, query string) bool {
+	return ScheduledTaskMatchScore(job, query) > 0
 }
 
-// BestMatchingCronJobs 返回分数最高的一组候选。
+// BestMatchingScheduledTasks 返回分数最高的一组候选。
 // list/search 场景可以继续宽松召回；启停、删除、修改这类直接执行工具应使用最高分候选，
 // 避免“飞书群暂停新闻”被宽泛别名同时匹配到所有飞书任务和所有暂停任务。
-func BestMatchingCronJobs(jobs []types.CronJob, query string) []types.CronJob {
+func BestMatchingScheduledTasks(jobs []types.ScheduledTask, query string) []types.ScheduledTask {
 	if strings.TrimSpace(query) == "" {
 		return jobs
 	}
 	bestScore := 0
-	matches := make([]types.CronJob, 0, len(jobs))
+	matches := make([]types.ScheduledTask, 0, len(jobs))
 	for _, job := range jobs {
-		score := CronJobMatchScore(job, query)
+		score := ScheduledTaskMatchScore(job, query)
 		if score <= 0 {
 			continue
 		}
@@ -41,13 +41,13 @@ func BestMatchingCronJobs(jobs []types.CronJob, query string) []types.CronJob {
 	return matches
 }
 
-// CronJobMatchScore 计算任务与自然语言 query 的匹配强度。
-func CronJobMatchScore(job types.CronJob, query string) int {
+// ScheduledTaskMatchScore 计算任务与自然语言 query 的匹配强度。
+func ScheduledTaskMatchScore(job types.ScheduledTask, query string) int {
 	variants := QueryVariants(query)
 	if len(variants) == 0 || (len(variants) == 1 && variants[0] == "") {
 		return 1
 	}
-	haystack := strings.ToLower(strings.Join(CronJobSearchTerms(job), "\n"))
+	haystack := strings.ToLower(strings.Join(ScheduledTaskSearchTerms(job), "\n"))
 	score := 0
 	base := strings.ToLower(strings.TrimSpace(query))
 	if strings.Contains(haystack, base) {
@@ -66,8 +66,8 @@ func CronJobMatchScore(job types.CronJob, query string) int {
 	return score
 }
 
-// CronJobSearchTerms 返回一个定时任务可被自然语言定位的稳定字段集合。
-func CronJobSearchTerms(job types.CronJob) []string {
+// ScheduledTaskSearchTerms 返回一个定时任务可被自然语言定位的稳定字段集合。
+func ScheduledTaskSearchTerms(job types.ScheduledTask) []string {
 	terms := []string{
 		job.JobID,
 		job.Name,

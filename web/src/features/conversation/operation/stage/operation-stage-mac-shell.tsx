@@ -5,24 +5,24 @@ import {
   Power,
 } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 
 import type { StageWindowState } from "../operation-desktop-types";
 import {
-  display_stage_event_target,
-  display_stage_event_title,
+  displayStageEventTarget,
+  displayStageEventTitle,
 } from "../operation-stage-labels";
-import { resolve_operation_tool_profile } from "../operation-tool-catalog";
+import { resolveOperationToolProfile } from "../operation-tool-catalog";
 import type { NexusOperationEvent, OperationPhase } from "../operation-types";
 import {
-  icon_for_artifact_path,
-  stage_app_label_for_window_kind,
+  iconForArtifactPath,
+  stageAppLabelForWindowKind,
 } from "./operation-stage-window-meta";
-import { build_stage_desktop_icon_items } from "./operation-stage-desktop-icons";
-import { build_stage_menu_status } from "./operation-stage-menu-model";
+import { buildStageDesktopIconItems } from "./operation-stage-desktop-icons";
+import { buildStageMenuStatus } from "./operation-stage-menu-model";
 import {
-  event_sequence_label,
-  icon_for_operation_kind,
+  eventSequenceLabel,
+  iconForOperationKind,
 } from "./operation-stage-helpers";
 
 interface StageExecutionPathItem {
@@ -35,27 +35,27 @@ interface StageExecutionPathItem {
 }
 
 export function StageMacMenuBar({
-  active_event,
-  active_window,
+  activeEvent,
+  activeWindow,
   events,
-  header_action,
-  on_focus_event,
+  headerAction,
+  onFocusEvent,
   windows,
 }: {
-  active_event: NexusOperationEvent;
-  active_window: StageWindowState | null;
+  activeEvent: NexusOperationEvent;
+  activeWindow: StageWindowState | null;
   events: NexusOperationEvent[];
-  header_action?: ReactNode;
-  on_focus_event: (event: NexusOperationEvent) => void;
+  headerAction?: ReactNode;
+  onFocusEvent: (event: NexusOperationEvent) => void;
   windows: StageWindowState[];
 }) {
-  const app_name = active_window ? stage_app_label_for_window_kind(active_window.kind) : "Nexus";
+  const app_name = activeWindow ? stageAppLabelForWindowKind(activeWindow.kind) : "Nexus";
   const menu_status = useMemo(() => (
-    build_stage_menu_status(windows, active_window, (window) => stage_app_label_for_window_kind(window.kind))
-  ), [active_window, windows]);
+    buildStageMenuStatus(windows, activeWindow, (window) => stageAppLabelForWindowKind(window.kind))
+  ), [activeWindow, windows]);
   const execution_path_items = useMemo(() => (
-    build_stage_execution_path_items(events, active_event)
-  ), [active_event, events]);
+    build_stage_execution_path_items(events, activeEvent)
+  ), [activeEvent, events]);
   const [current_time, set_current_time] = useState(() => new Date());
   const time_label = useMemo(() => (
     new Intl.DateTimeFormat("zh-CN", {
@@ -90,7 +90,7 @@ export function StageMacMenuBar({
       <div className="flex shrink-0 items-center gap-2 text-(--text-soft)">
         <StageExecutionPathMenu
           items={execution_path_items}
-          on_focus_event={on_focus_event}
+          onFocusEvent={onFocusEvent}
         />
         <span className="hidden max-w-[220px] truncate rounded-full border border-white/66 bg-white/52 px-2 py-1 text-[9px] font-black text-(--text-strong) lg:inline">
           {menu_status.activity_label}
@@ -104,8 +104,8 @@ export function StageMacMenuBar({
           </span>
         ) : null}
         <span className="font-mono text-[10px] text-(--text-strong)">{time_label}</span>
-        {header_action ? (
-          <StagePowerAction>{header_action}</StagePowerAction>
+        {headerAction ? (
+          <StagePowerAction>{headerAction}</StagePowerAction>
         ) : null}
       </div>
     </div>
@@ -114,10 +114,10 @@ export function StageMacMenuBar({
 
 function StageExecutionPathMenu({
   items,
-  on_focus_event,
+  onFocusEvent,
 }: {
   items: StageExecutionPathItem[];
-  on_focus_event: (event: NexusOperationEvent) => void;
+  onFocusEvent: (event: NexusOperationEvent) => void;
 }) {
   const [is_open, set_is_open] = useState(false);
 
@@ -156,7 +156,7 @@ function StageExecutionPathMenu({
           </div>
           <div className="soft-scrollbar mt-2 grid max-h-[360px] gap-1 overflow-auto pr-1">
             {items.map((item) => {
-              const Icon = icon_for_operation_kind(item.event.kind);
+              const Icon = iconForOperationKind(item.event.kind);
               return (
                 <button
                   aria-label={`查看${item.step_label}：${item.title}`}
@@ -168,7 +168,7 @@ function StageExecutionPathMenu({
                   )}
                   key={item.event.id}
                   onClick={() => {
-                    on_focus_event(item.event);
+                    onFocusEvent(item.event);
                     set_is_open(false);
                   }}
                   title={`${item.step_label} · ${item.action_label} · ${item.title} · ${item.target}`}
@@ -238,14 +238,14 @@ function build_stage_execution_path_items(events: NexusOperationEvent[], active_
   ));
 
   return ordered_events.map((event) => {
-    const profile = resolve_operation_tool_profile(event.tool_name, event.kind, event.surface);
+    const profile = resolveOperationToolProfile(event.tool_name, event.kind, event.surface);
     return {
       action_label: profile.action_label,
       active: event.id === active_event.id,
       event,
-      step_label: event_sequence_label(event, ordered_events),
-      target: display_stage_event_target(event, profile.action_label),
-      title: display_stage_event_title(event, profile.action_label),
+      step_label: eventSequenceLabel(event, ordered_events),
+      target: displayStageEventTarget(event, profile.action_label),
+      title: displayStageEventTitle(event, profile.action_label),
     };
   });
 }
@@ -300,13 +300,13 @@ function phase_badge_class(phase: OperationPhase): string {
 }
 
 export function StageDesktopIcons({
-  on_restore,
+  onRestore,
   windows,
 }: {
-  on_restore: (window_id: string) => void;
+  onRestore: (window_id: string) => void;
   windows: StageWindowState[];
 }) {
-  const desktop_items = build_stage_desktop_icon_items(windows);
+  const desktop_items = buildStageDesktopIconItems(windows);
 
   if (!desktop_items.length) {
     return null;
@@ -315,13 +315,13 @@ export function StageDesktopIcons({
   return (
     <div className="absolute right-5 top-28 z-10 hidden grid-cols-1 gap-3 md:grid">
       {desktop_items.map((window) => {
-        const Icon = icon_for_artifact_path(window.target);
+        const Icon = iconForArtifactPath(window.target);
         return (
           <button
             aria-label={window.aria_label}
             className="group flex w-[72px] flex-col items-center gap-1 text-center outline-none"
             key={window.window.id}
-            onClick={() => on_restore(window.window.id)}
+            onClick={() => onRestore(window.window.id)}
             title={window.title}
             type="button"
           >

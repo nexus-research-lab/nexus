@@ -67,14 +67,6 @@ func StaticCount() int {
 	return len(visibleLoops(items))
 }
 
-// CountLoops 返回内置 catalog 数量。
-func (s *Service) CountLoops(context.Context) int {
-	if s == nil {
-		return 0
-	}
-	return len(s.items)
-}
-
 // ListLoops 返回按语言本地化后的 loop 列表。
 func (s *Service) ListLoops(_ context.Context, locale string) []Loop {
 	if s == nil {

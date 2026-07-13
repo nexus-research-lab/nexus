@@ -1,6 +1,6 @@
 import type { AgentConversationIdentity } from "@/types/agent/agent-conversation";
 
-export function build_operation_stage_key(
+export function buildOperationStageKey(
   identity: AgentConversationIdentity | null | undefined,
 ): string | null {
   if (!identity) {

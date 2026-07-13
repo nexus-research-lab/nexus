@@ -14,7 +14,7 @@ func currentConversationDailyReport(
 	svc contract.Service,
 	sctx contract.ServerContext,
 	args map[string]any,
-) (*automationdomain.CronDailyReport, bool, error) {
+) (*automationdomain.ScheduledTaskDailyReport, bool, error) {
 	if !shouldUseCurrentConversationDailyReport(sctx, args) {
 		return nil, false, nil
 	}
@@ -31,7 +31,7 @@ func currentConversationDailyReport(
 	if err != nil {
 		return nil, true, err
 	}
-	matches := filterCronJobsByCurrentContext(jobs, current)
+	matches := filterScheduledTasksByCurrentContext(jobs, current)
 	if len(matches) == 0 {
 		payload, emptyErr := emptyCurrentConversationDailyReport(scopedCtx, svc, sctx, args, agentID)
 		return payload, true, emptyErr
@@ -49,8 +49,8 @@ func emptyCurrentConversationDailyReport(
 	sctx contract.ServerContext,
 	args map[string]any,
 	agentID string,
-) (*automationdomain.CronDailyReport, error) {
-	report, err := svc.GetDailyReport(ctx, automationdomain.CronDailyReportInput{
+) (*automationdomain.ScheduledTaskDailyReport, error) {
+	report, err := svc.GetDailyReport(ctx, automationdomain.ScheduledTaskDailyReportInput{
 		Date:     argx.String(args, "date"),
 		Timezone: argx.FirstNonEmpty(argx.String(args, "timezone"), sctx.DefaultTimezone),
 		AgentID:  agentID,
@@ -59,15 +59,15 @@ func emptyCurrentConversationDailyReport(
 		return nil, err
 	}
 	if report == nil {
-		return &automationdomain.CronDailyReport{
+		return &automationdomain.ScheduledTaskDailyReport{
 			Timezone: argx.FirstNonEmpty(argx.String(args, "timezone"), sctx.DefaultTimezone, "Asia/Shanghai"),
 			AgentID:  agentID,
-			Tasks:    []automationdomain.CronDailyReportTask{},
+			Tasks:    []automationdomain.ScheduledTaskDailyReportItem{},
 		}, nil
 	}
 	report.JobID = ""
-	report.Totals = automationdomain.CronDailyReportTotals{}
-	report.Tasks = []automationdomain.CronDailyReportTask{}
+	report.Totals = automationdomain.ScheduledTaskDailyReportTotals{}
+	report.Tasks = []automationdomain.ScheduledTaskDailyReportItem{}
 	return report, nil
 }
 
@@ -118,14 +118,14 @@ func buildCurrentConversationDailyReport(
 	svc contract.Service,
 	sctx contract.ServerContext,
 	args map[string]any,
-	jobs []automationdomain.CronJob,
-) (*automationdomain.CronDailyReport, error) {
-	result := &automationdomain.CronDailyReport{
+	jobs []automationdomain.ScheduledTask,
+) (*automationdomain.ScheduledTaskDailyReport, error) {
+	result := &automationdomain.ScheduledTaskDailyReport{
 		Timezone: argx.FirstNonEmpty(argx.String(args, "timezone"), sctx.DefaultTimezone),
-		Tasks:    []automationdomain.CronDailyReportTask{},
+		Tasks:    []automationdomain.ScheduledTaskDailyReportItem{},
 	}
 	for _, job := range jobs {
-		report, err := svc.GetDailyReport(ctx, automationdomain.CronDailyReportInput{
+		report, err := svc.GetDailyReport(ctx, automationdomain.ScheduledTaskDailyReportInput{
 			Date:     argx.String(args, "date"),
 			Timezone: result.Timezone,
 			JobID:    job.JobID,
@@ -144,7 +144,7 @@ func buildCurrentConversationDailyReport(
 	return result, nil
 }
 
-func mergeCurrentConversationDailyReport(target *automationdomain.CronDailyReport, source *automationdomain.CronDailyReport) {
+func mergeCurrentConversationDailyReport(target *automationdomain.ScheduledTaskDailyReport, source *automationdomain.ScheduledTaskDailyReport) {
 	if target.Date == "" {
 		target.Date = source.Date
 	}

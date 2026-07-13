@@ -13,6 +13,43 @@ import (
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
+func TestRouterRegisterAndStartLetsNewChannelAdoptReplaced(t *testing.T) {
+	db := newChannelTestDB(t)
+	router := NewRouter(config.Config{DatabaseDriver: "sqlite"}, db, nil, nil)
+	if err := router.Start(context.Background()); err != nil {
+		t.Fatalf("启动 router 失败: %v", err)
+	}
+	defer router.Stop(context.Background())
+
+	replaced := &recordingDeliveryChannel{channelType: ChannelTypeWeixinPersonal}
+	if err := router.RegisterAndStartForOwner(context.Background(), "owner-a", replaced); err != nil {
+		t.Fatalf("注册旧通道失败: %v", err)
+	}
+	next := &adoptingDeliveryChannel{recordingDeliveryChannel: recordingDeliveryChannel{channelType: ChannelTypeWeixinPersonal}}
+	if err := router.RegisterAndStartForOwner(context.Background(), "owner-a", next); err != nil {
+		t.Fatalf("注册新通道失败: %v", err)
+	}
+
+	if next.adopted != replaced || replaced.stops != 0 || next.starts != 1 {
+		t.Fatalf("通道接管状态不正确: adopted=%T stops=%d starts=%d", next.adopted, replaced.stops, next.starts)
+	}
+}
+
+func TestNewRouterHonorsChannelEnabledFlags(t *testing.T) {
+	db := newChannelTestDB(t)
+	router := NewRouter(config.Config{
+		DatabaseDriver: "sqlite", DiscordEnabled: false, DiscordBotToken: "discord-token",
+		TelegramEnabled: false, TelegramBotToken: "telegram-token",
+	}, db, nil, nil)
+
+	if router.GetForOwner("", ChannelTypeDiscord) != nil || router.GetForOwner("", ChannelTypeTelegram) != nil {
+		t.Fatal("禁用的外部通道不应注册")
+	}
+	if router.GetForOwner("", ChannelTypeWebSocket) == nil || router.GetForOwner("", ChannelTypeInternal) == nil {
+		t.Fatal("内置通道不应受外部通道开关影响")
+	}
+}
+
 func TestRouterDeliverMessageUsesOwnerScopedChannel(t *testing.T) {
 	db := newChannelTestDB(t)
 	resolver := &stubAgentResolver{

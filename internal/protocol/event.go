@@ -21,6 +21,7 @@ const (
 	EventTypeRoundStatus                 EventType = "round_status"
 	EventTypeAgentRoundStatus            EventType = "agent_round_status"
 	EventTypeSessionStatus               EventType = "session_status"
+	EventTypeRuntimeStatus               EventType = "runtime_status"
 	EventTypeGoalCreated                 EventType = "goal_created"
 	EventTypeGoalUpdated                 EventType = "goal_updated"
 	EventTypeGoalStatusChanged           EventType = "goal_status_changed"
@@ -85,6 +86,18 @@ type RoundStatusData struct {
 type SessionStatusData struct {
 	IsGenerating    bool     `json:"is_generating"`
 	RunningRoundIDs []string `json:"running_round_ids,omitempty"`
+}
+
+// RuntimeStatus 表示当前会话内由 Agent runtime 主动上报的瞬时阶段。
+type RuntimeStatus string
+
+const (
+	RuntimeStatusCompacting RuntimeStatus = "compacting"
+)
+
+// RuntimeStatusData 使用 nil 明确结束上一状态，避免客户端依赖轮次事件猜测。
+type RuntimeStatusData struct {
+	Status *RuntimeStatus `json:"status"`
 }
 
 // NewEvent 构造通用事件。

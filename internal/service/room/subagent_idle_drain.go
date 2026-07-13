@@ -14,11 +14,7 @@ func (s *RealtimeService) startIdleSubagentNotificationDrains(ctx context.Contex
 		return
 	}
 	for _, slot := range roundValue.Slots {
-		if slot == nil || !slot.hasRunningSubagentTask() {
-			continue
-		}
-		client := slot.getClient()
-		if client == nil {
+		if slot == nil || !s.runtime.HasSubagentHistory(slot.RuntimeSessionKey) {
 			continue
 		}
 		mapper := roomdomain.NewSlotMessageMapper(
@@ -31,29 +27,18 @@ func (s *RealtimeService) startIdleSubagentNotificationDrains(ctx context.Contex
 			slot.AgentRoundID,
 			slot.WorkspacePath,
 		)
-		go s.drainIdleSubagentNotifications(ctx, roundValue, slot, mapper, client.ReceiveMessages(ctx))
-	}
-}
-
-func (s *RealtimeService) drainIdleSubagentNotifications(
-	ctx context.Context,
-	roundValue *activeRoomRound,
-	slot *activeRoomSlot,
-	mapper *roomdomain.SlotMessageMapper,
-	messageCh <-chan sdkprotocol.ReceivedMessage,
-) {
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case incoming, ok := <-messageCh:
-			if !ok {
-				return
-			}
-			if !s.handleIdleSubagentMessage(ctx, roundValue, slot, mapper, incoming) {
-				return
-			}
-		}
+		s.runtime.StartIdleMessageDrain(
+			slot.RuntimeSessionKey,
+			func(drainCtx context.Context, incoming sdkprotocol.ReceivedMessage) bool {
+				return s.handleIdleSubagentMessage(
+					contextWithQueueOwner(drainCtx, roundValue.OwnerUserID),
+					roundValue,
+					slot,
+					mapper,
+					incoming,
+				)
+			},
+		)
 	}
 }
 
@@ -100,7 +85,8 @@ func (s *RealtimeService) handleIdleSubagentMessage(
 		return true
 	}
 	s.releaseRoundSubagentWait(roundValue)
-	return false
+	// task 完成后仍保留 drain，nxs 可从 UI follow-up 用同一 task ID 再次唤醒。
+	return true
 }
 
 func (s *RealtimeService) handleIdleSubagentDurableMessage(
@@ -110,6 +96,9 @@ func (s *RealtimeService) handleIdleSubagentDurableMessage(
 	messageValue protocol.Message,
 ) error {
 	slot.rememberSubagentTaskMessage(messageValue)
+	if slot.hasSubagentHistory() {
+		s.runtime.MarkSubagentHistory(slot.RuntimeSessionKey)
+	}
 	if !roomSlotPublishesPublicOutput(slot) {
 		if !protocol.IsTranscriptNativeMessage(messageValue) {
 			if err := s.persistPrivateOverlayMessage(slot, cloneMessageWithSessionKey(messageValue, slot.RuntimeSessionKey)); err != nil {

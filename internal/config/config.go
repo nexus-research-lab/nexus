@@ -10,77 +10,85 @@ import (
 
 // Config 承载 Go 服务运行时配置。
 type Config struct {
-	Host                           string
-	Port                           int
-	Debug                          bool
-	ProjectName                    string
-	LogLevel                       string
-	LogFormat                      string
-	LogPath                        string
-	LogStdout                      bool
-	LogNoColor                     bool
-	LogFileEnabled                 bool
-	LogRotateDaily                 bool
-	LogMaxSizeMB                   int
-	LogMaxAgeDays                  int
-	LogMaxBackups                  int
-	LogCompress                    bool
-	MessageDebugStreamEvent        bool
-	APIPrefix                      string
-	WebSocketPath                  string
-	DefaultAgentID                 string
-	DefaultTimezone                string
-	WorkspacePath                  string
-	CacheFileDir                   string
-	WebDistDir                     string
-	AppMode                        string
-	DesktopSessionToken            string
-	SkillsAPIURL                   string
-	SkillsSourceURLs               string
-	SkillsDefaultSourcesEnabled    bool
-	SkillsAPISearchLimit           int
-	DatabaseDriver                 string
-	DatabaseURL                    string
-	AccessToken                    string
-	AuthSessionCookieName          string
-	AuthCookieSameSite             string
-	AuthCookieSecure               bool
-	AuthSessionTTLHours            int
-	BaseSystemPrompt               string
-	MainAgentSystemPrompt          string
-	MemoryEnabled                  bool
-	MemoryAutoRecall               bool
-	MemoryAutoExtract              bool
-	MemoryMaxResults               int
-	MemoryScoreThreshold           float64
-	DiscordEnabled                 bool
-	DiscordBotToken                string
-	TelegramEnabled                bool
-	TelegramBotToken               string
-	ConnectorOAuthRedirectURI      string
-	ConnectorOAuthAllowedOrigins   []string
-	AllowedWebSocketOrigins        []string
-	ConnectorOAuthStateTTLSeconds  int
-	GoalEnabled                    bool
-	GoalAutoContinueEnabled        bool
-	GoalMaxContinuationsPerRun     int
-	AutomationRunTimeoutSeconds    int
-	RuntimeRoundIdleTimeoutSeconds int
-	RuntimeIdleSessionTTLSeconds   int
-	RuntimeIdleSessionSweepSeconds int
-	ConnectorCredentialsKey        string
-	ConnectorGitHubClientID        string
-	ConnectorGitHubClientSecret    string
-	ConnectorGoogleClientID        string
-	ConnectorGoogleClientSecret    string
-	ConnectorLinkedInClientID      string
-	ConnectorLinkedInClientSecret  string
-	ConnectorTwitterClientID       string
-	ConnectorTwitterClientSecret   string
-	ConnectorInstagramClientID     string
-	ConnectorInstagramClientSecret string
-	ConnectorShopifyClientID       string
-	ConnectorShopifyClientSecret   string
+	Host                             string
+	Port                             int
+	Debug                            bool
+	ProjectName                      string
+	LogLevel                         string
+	LogFormat                        string
+	LogPath                          string
+	LogStdout                        bool
+	LogNoColor                       bool
+	LogFileEnabled                   bool
+	LogRotateDaily                   bool
+	LogMaxSizeMB                     int
+	LogMaxAgeDays                    int
+	LogMaxBackups                    int
+	LogCompress                      bool
+	MessageDebugStreamEvent          bool
+	APIPrefix                        string
+	WebSocketPath                    string
+	DefaultAgentID                   string
+	DefaultTimezone                  string
+	WorkspacePath                    string
+	CacheFileDir                     string
+	WebDistDir                       string
+	AppMode                          string
+	DesktopSessionToken              string
+	SkillsAPIURL                     string
+	SkillsSourceURLs                 string
+	SkillsDefaultSourcesEnabled      bool
+	SkillsAPISearchLimit             int
+	DatabaseDriver                   string
+	DatabaseURL                      string
+	AccessToken                      string
+	AuthSessionCookieName            string
+	AuthCookieSameSite               string
+	AuthCookieSecure                 bool
+	AuthSessionTTLHours              int
+	BaseSystemPrompt                 string
+	MainAgentSystemPrompt            string
+	MemoryMaintenance                MemoryMaintenanceConfig
+	DiscordEnabled                   bool
+	DiscordBotToken                  string
+	TelegramEnabled                  bool
+	TelegramBotToken                 string
+	ConnectorOAuthRedirectURI        string
+	ConnectorOAuthAllowedOrigins     []string
+	AllowedWebSocketOrigins          []string
+	ConnectorOAuthStateTTLSeconds    int
+	GoalEnabled                      bool
+	GoalAutoContinueEnabled          bool
+	GoalMaxContinuationsPerRun       int
+	AutomationRunTimeoutSeconds      int
+	AutomationRecurringJitterSeconds int
+	AutomationSchedulerLeaseSeconds  int
+	AutomationMaxEnabledTasksPerUser int
+	AutomationMisfirePolicy          string
+	AutomationMisfireGraceSeconds    int
+	RuntimeRoundIdleTimeoutSeconds   int
+	RuntimeIdleSessionTTLSeconds     int
+	RuntimeIdleSessionSweepSeconds   int
+	ConnectorCredentialsKey          string
+	ConnectorGitHubClientID          string
+	ConnectorGitHubClientSecret      string
+	ConnectorGoogleClientID          string
+	ConnectorGoogleClientSecret      string
+	ConnectorLinkedInClientID        string
+	ConnectorLinkedInClientSecret    string
+	ConnectorTwitterClientID         string
+	ConnectorTwitterClientSecret     string
+	ConnectorInstagramClientID       string
+	ConnectorInstagramClientSecret   string
+	ConnectorShopifyClientID         string
+	ConnectorShopifyClientSecret     string
+}
+
+// MemoryMaintenanceConfig 描述 Nexus 唤醒 nxs 记忆维护任务的宿主策略。
+type MemoryMaintenanceConfig struct {
+	MaxConcurrent int
+	RunTimeout    time.Duration
+	SweepInterval time.Duration
 }
 
 // Address 返回 http 服务监听地址。
@@ -111,77 +119,82 @@ func Load() Config {
 	}
 	workspacePath := configuredWorkspacePath(getEnv("WORKSPACE_PATH", ""))
 	return Config{
-		Host:                           getEnv("HOST", "0.0.0.0"),
-		Port:                           parseIntEnv(getEnv("PORT", "8010"), 8010),
-		Debug:                          debug,
-		ProjectName:                    getEnv("PROJECT_NAME", "nexus"),
-		LogLevel:                       logLevel,
-		LogFormat:                      logFormat,
-		LogPath:                        getEnv("LOG_PATH", "~/.nexus/logs/logger.log"),
-		LogStdout:                      mustBool(getEnv("LOG_STDOUT", "true")),
-		LogNoColor:                     mustBool(getEnv("LOG_NO_COLOR", "false")),
-		LogFileEnabled:                 mustBool(getEnv("LOG_FILE_ENABLED", "true")),
-		LogRotateDaily:                 mustBool(getEnv("LOG_ROTATE_DAILY", "true")),
-		LogMaxSizeMB:                   parseIntEnv(getEnv("LOG_MAX_SIZE_MB", "10"), 10),
-		LogMaxAgeDays:                  parseIntEnv(getEnv("LOG_MAX_AGE_DAYS", "7"), 7),
-		LogMaxBackups:                  parseIntEnv(getEnv("LOG_MAX_BACKUPS", "7"), 7),
-		LogCompress:                    mustBool(getEnv("LOG_COMPRESS", "true")),
-		MessageDebugStreamEvent:        mustBool(getEnv("MESSAGE_DEBUG_STREAM_EVENT", "false")),
-		APIPrefix:                      getEnv("API_PREFIX", "/nexus/v1"),
-		WebSocketPath:                  getEnv("WEBSOCKET_PATH", "/nexus/v1/chat/ws"),
-		DefaultAgentID:                 getEnv("DEFAULT_AGENT_ID", "nexus"),
-		DefaultTimezone:                getEnv("DEFAULT_TIMEZONE", "Asia/Shanghai"),
-		WorkspacePath:                  workspacePath,
-		CacheFileDir:                   cacheDir,
-		WebDistDir:                     getEnv("WEB_DIST_DIR", ""),
-		AppMode:                        getEnv("NEXUS_APP_MODE", ""),
-		DesktopSessionToken:            getEnv("NEXUS_DESKTOP_SESSION_TOKEN", ""),
-		SkillsAPIURL:                   getEnv("SKILLS_API_URL", "https://skills.sh"),
-		SkillsSourceURLs:               getEnv("SKILLS_SOURCE_URLS", ""),
-		SkillsDefaultSourcesEnabled:    mustBool(getEnv("SKILLS_DEFAULT_SOURCES_ENABLED", "true")),
-		SkillsAPISearchLimit:           parseIntEnv(getEnv("SKILLS_API_SEARCH_LIMIT", "20"), 20),
-		DatabaseDriver:                 getEnv("DATABASE_DRIVER", "sqlite"),
-		DatabaseURL:                    getEnv("DATABASE_URL", "~/.nexus/data/nexus.db"),
-		AccessToken:                    getEnv("ACCESS_TOKEN", ""),
-		AuthSessionCookieName:          getEnv("AUTH_SESSION_COOKIE_NAME", "nexus_session"),
-		AuthCookieSameSite:             getEnv("AUTH_COOKIE_SAMESITE", "lax"),
-		AuthCookieSecure:               mustBool(getEnv("AUTH_COOKIE_SECURE", "false")),
-		AuthSessionTTLHours:            parseIntEnv(getEnv("AUTH_SESSION_TTL_HOURS", "24"), 24),
-		BaseSystemPrompt:               getEnv("BASE_SYSTEM_PROMPT", ""),
-		MainAgentSystemPrompt:          getEnv("MAIN_AGENT_SYSTEM_PROMPT", ""),
-		MemoryEnabled:                  mustBool(getEnv("MEMORY_ENABLED", "true")),
-		MemoryAutoRecall:               mustBool(getEnv("MEMORY_AUTO_RECALL", "true")),
-		MemoryAutoExtract:              mustBool(getEnv("MEMORY_AUTO_EXTRACT", "true")),
-		MemoryMaxResults:               parseIntEnv(getEnv("MEMORY_MAX_RESULTS", "5"), 5),
-		MemoryScoreThreshold:           mustFloat(getEnv("MEMORY_SCORE_THRESHOLD", "0.08")),
-		DiscordEnabled:                 mustBool(getEnv("DISCORD_ENABLED", "true")),
-		DiscordBotToken:                getEnv("DISCORD_BOT_TOKEN", ""),
-		TelegramEnabled:                mustBool(getEnv("TELEGRAM_ENABLED", "true")),
-		TelegramBotToken:               getEnv("TELEGRAM_BOT_TOKEN", ""),
-		ConnectorOAuthRedirectURI:      getEnv("CONNECTOR_OAUTH_REDIRECT_URI", "http://localhost:3000/capability/connectors/oauth/callback"),
-		ConnectorOAuthAllowedOrigins:   mustStringList(getEnv("CONNECTOR_OAUTH_ALLOWED_ORIGINS", "http://localhost:3000")),
-		AllowedWebSocketOrigins:        mustStringList(getEnv("ALLOWED_WEBSOCKET_ORIGINS", "")),
-		ConnectorOAuthStateTTLSeconds:  parseIntEnv(getEnv("CONNECTOR_OAUTH_STATE_TTL_SECONDS", "600"), 600),
-		GoalEnabled:                    mustBool(getEnv("NEXUS_GOAL_ENABLED", "true")),
-		GoalAutoContinueEnabled:        mustBool(getEnv("NEXUS_GOAL_AUTO_CONTINUE_ENABLED", "true")),
-		GoalMaxContinuationsPerRun:     parseIntEnv(getEnv("NEXUS_GOAL_MAX_CONTINUATIONS_PER_RUN", "20"), 20),
-		AutomationRunTimeoutSeconds:    parseIntEnv(getEnv("AUTOMATION_RUN_TIMEOUT_SECONDS", "21600"), 21600),
-		RuntimeRoundIdleTimeoutSeconds: parseIntEnv(getEnv("RUNTIME_ROUND_IDLE_TIMEOUT_SECONDS", "1200"), 1200),
-		RuntimeIdleSessionTTLSeconds:   parseIntEnv(getEnv("RUNTIME_IDLE_SESSION_TTL_SECONDS", "600"), 600),
-		RuntimeIdleSessionSweepSeconds: parseIntEnv(getEnv("RUNTIME_IDLE_SESSION_SWEEP_SECONDS", "120"), 120),
-		ConnectorCredentialsKey:        getEnv("CONNECTOR_CREDENTIALS_KEY", ""),
-		ConnectorGitHubClientID:        getEnv("CONNECTOR_GITHUB_CLIENT_ID", ""),
-		ConnectorGitHubClientSecret:    getEnv("CONNECTOR_GITHUB_CLIENT_SECRET", ""),
-		ConnectorGoogleClientID:        getEnv("CONNECTOR_GOOGLE_CLIENT_ID", ""),
-		ConnectorGoogleClientSecret:    getEnv("CONNECTOR_GOOGLE_CLIENT_SECRET", ""),
-		ConnectorLinkedInClientID:      getEnv("CONNECTOR_LINKEDIN_CLIENT_ID", ""),
-		ConnectorLinkedInClientSecret:  getEnv("CONNECTOR_LINKEDIN_CLIENT_SECRET", ""),
-		ConnectorTwitterClientID:       getEnv("CONNECTOR_TWITTER_CLIENT_ID", ""),
-		ConnectorTwitterClientSecret:   getEnv("CONNECTOR_TWITTER_CLIENT_SECRET", ""),
-		ConnectorInstagramClientID:     getEnv("CONNECTOR_INSTAGRAM_CLIENT_ID", ""),
-		ConnectorInstagramClientSecret: getEnv("CONNECTOR_INSTAGRAM_CLIENT_SECRET", ""),
-		ConnectorShopifyClientID:       getEnv("CONNECTOR_SHOPIFY_CLIENT_ID", ""),
-		ConnectorShopifyClientSecret:   getEnv("CONNECTOR_SHOPIFY_CLIENT_SECRET", ""),
+		Host:                        getEnv("HOST", "0.0.0.0"),
+		Port:                        parseIntEnv(getEnv("PORT", "8010"), 8010),
+		Debug:                       debug,
+		ProjectName:                 getEnv("PROJECT_NAME", "nexus"),
+		LogLevel:                    logLevel,
+		LogFormat:                   logFormat,
+		LogPath:                     getEnv("LOG_PATH", "~/.nexus/logs/logger.log"),
+		LogStdout:                   mustBool(getEnv("LOG_STDOUT", "true")),
+		LogNoColor:                  mustBool(getEnv("LOG_NO_COLOR", "false")),
+		LogFileEnabled:              mustBool(getEnv("LOG_FILE_ENABLED", "true")),
+		LogRotateDaily:              mustBool(getEnv("LOG_ROTATE_DAILY", "true")),
+		LogMaxSizeMB:                parseIntEnv(getEnv("LOG_MAX_SIZE_MB", "10"), 10),
+		LogMaxAgeDays:               parseIntEnv(getEnv("LOG_MAX_AGE_DAYS", "7"), 7),
+		LogMaxBackups:               parseIntEnv(getEnv("LOG_MAX_BACKUPS", "7"), 7),
+		LogCompress:                 mustBool(getEnv("LOG_COMPRESS", "true")),
+		MessageDebugStreamEvent:     mustBool(getEnv("MESSAGE_DEBUG_STREAM_EVENT", "false")),
+		APIPrefix:                   getEnv("API_PREFIX", "/nexus/v1"),
+		WebSocketPath:               getEnv("WEBSOCKET_PATH", "/nexus/v1/chat/ws"),
+		DefaultAgentID:              getEnv("DEFAULT_AGENT_ID", "nexus"),
+		DefaultTimezone:             getEnv("DEFAULT_TIMEZONE", "Asia/Shanghai"),
+		WorkspacePath:               workspacePath,
+		CacheFileDir:                cacheDir,
+		WebDistDir:                  getEnv("WEB_DIST_DIR", ""),
+		AppMode:                     getEnv("NEXUS_APP_MODE", ""),
+		DesktopSessionToken:         getEnv("NEXUS_DESKTOP_SESSION_TOKEN", ""),
+		SkillsAPIURL:                getEnv("SKILLS_API_URL", "https://skills.sh"),
+		SkillsSourceURLs:            getEnv("SKILLS_SOURCE_URLS", ""),
+		SkillsDefaultSourcesEnabled: mustBool(getEnv("SKILLS_DEFAULT_SOURCES_ENABLED", "true")),
+		SkillsAPISearchLimit:        parseIntEnv(getEnv("SKILLS_API_SEARCH_LIMIT", "20"), 20),
+		DatabaseDriver:              getEnv("DATABASE_DRIVER", "sqlite"),
+		DatabaseURL:                 getEnv("DATABASE_URL", "~/.nexus/data/nexus.db"),
+		AccessToken:                 getEnv("ACCESS_TOKEN", ""),
+		AuthSessionCookieName:       getEnv("AUTH_SESSION_COOKIE_NAME", "nexus_session"),
+		AuthCookieSameSite:          getEnv("AUTH_COOKIE_SAMESITE", "lax"),
+		AuthCookieSecure:            mustBool(getEnv("AUTH_COOKIE_SECURE", "false")),
+		AuthSessionTTLHours:         parseIntEnv(getEnv("AUTH_SESSION_TTL_HOURS", "24"), 24),
+		BaseSystemPrompt:            getEnv("BASE_SYSTEM_PROMPT", ""),
+		MainAgentSystemPrompt:       getEnv("MAIN_AGENT_SYSTEM_PROMPT", ""),
+		MemoryMaintenance: MemoryMaintenanceConfig{
+			MaxConcurrent: parseIntEnv(getEnv("MEMORY_MAINTENANCE_MAX_CONCURRENT", "2"), 2),
+			RunTimeout:    time.Duration(parseIntEnv(getEnv("MEMORY_MAINTENANCE_RUN_TIMEOUT_SECONDS", "3600"), 3600)) * time.Second,
+			SweepInterval: time.Duration(parseIntEnv(getEnv("MEMORY_MAINTENANCE_SWEEP_SECONDS", "600"), 600)) * time.Second,
+		},
+		DiscordEnabled:                   mustBool(getEnv("DISCORD_ENABLED", "true")),
+		DiscordBotToken:                  getEnv("DISCORD_BOT_TOKEN", ""),
+		TelegramEnabled:                  mustBool(getEnv("TELEGRAM_ENABLED", "true")),
+		TelegramBotToken:                 getEnv("TELEGRAM_BOT_TOKEN", ""),
+		ConnectorOAuthRedirectURI:        getEnv("CONNECTOR_OAUTH_REDIRECT_URI", "http://localhost:3000/capability/connectors/oauth/callback"),
+		ConnectorOAuthAllowedOrigins:     mustStringList(getEnv("CONNECTOR_OAUTH_ALLOWED_ORIGINS", "http://localhost:3000")),
+		AllowedWebSocketOrigins:          mustStringList(getEnv("ALLOWED_WEBSOCKET_ORIGINS", "")),
+		ConnectorOAuthStateTTLSeconds:    parseIntEnv(getEnv("CONNECTOR_OAUTH_STATE_TTL_SECONDS", "600"), 600),
+		GoalEnabled:                      mustBool(getEnv("NEXUS_GOAL_ENABLED", "true")),
+		GoalAutoContinueEnabled:          mustBool(getEnv("NEXUS_GOAL_AUTO_CONTINUE_ENABLED", "true")),
+		GoalMaxContinuationsPerRun:       parseIntEnv(getEnv("NEXUS_GOAL_MAX_CONTINUATIONS_PER_RUN", "20"), 20),
+		AutomationRunTimeoutSeconds:      parseIntEnv(getEnv("AUTOMATION_RUN_TIMEOUT_SECONDS", "21600"), 21600),
+		AutomationRecurringJitterSeconds: parseIntEnv(getEnv("AUTOMATION_RECURRING_JITTER_MAX_SECONDS", "900"), 900),
+		AutomationSchedulerLeaseSeconds:  parseIntEnv(getEnv("AUTOMATION_SCHEDULER_LEASE_SECONDS", "30"), 30),
+		AutomationMaxEnabledTasksPerUser: parseIntEnv(getEnv("AUTOMATION_MAX_ENABLED_TASKS_PER_USER", "100"), 100),
+		AutomationMisfirePolicy:          getEnv("AUTOMATION_MISFIRE_POLICY", "run_once"),
+		AutomationMisfireGraceSeconds:    parseIntEnv(getEnv("AUTOMATION_MISFIRE_GRACE_SECONDS", "60"), 60),
+		RuntimeRoundIdleTimeoutSeconds:   parseIntEnv(getEnv("RUNTIME_ROUND_IDLE_TIMEOUT_SECONDS", "1200"), 1200),
+		RuntimeIdleSessionTTLSeconds:     parseIntEnv(getEnv("RUNTIME_IDLE_SESSION_TTL_SECONDS", "600"), 600),
+		RuntimeIdleSessionSweepSeconds:   parseIntEnv(getEnv("RUNTIME_IDLE_SESSION_SWEEP_SECONDS", "120"), 120),
+		ConnectorCredentialsKey:          getEnv("CONNECTOR_CREDENTIALS_KEY", ""),
+		ConnectorGitHubClientID:          getEnv("CONNECTOR_GITHUB_CLIENT_ID", ""),
+		ConnectorGitHubClientSecret:      getEnv("CONNECTOR_GITHUB_CLIENT_SECRET", ""),
+		ConnectorGoogleClientID:          getEnv("CONNECTOR_GOOGLE_CLIENT_ID", ""),
+		ConnectorGoogleClientSecret:      getEnv("CONNECTOR_GOOGLE_CLIENT_SECRET", ""),
+		ConnectorLinkedInClientID:        getEnv("CONNECTOR_LINKEDIN_CLIENT_ID", ""),
+		ConnectorLinkedInClientSecret:    getEnv("CONNECTOR_LINKEDIN_CLIENT_SECRET", ""),
+		ConnectorTwitterClientID:         getEnv("CONNECTOR_TWITTER_CLIENT_ID", ""),
+		ConnectorTwitterClientSecret:     getEnv("CONNECTOR_TWITTER_CLIENT_SECRET", ""),
+		ConnectorInstagramClientID:       getEnv("CONNECTOR_INSTAGRAM_CLIENT_ID", ""),
+		ConnectorInstagramClientSecret:   getEnv("CONNECTOR_INSTAGRAM_CLIENT_SECRET", ""),
+		ConnectorShopifyClientID:         getEnv("CONNECTOR_SHOPIFY_CLIENT_ID", ""),
+		ConnectorShopifyClientSecret:     getEnv("CONNECTOR_SHOPIFY_CLIENT_SECRET", ""),
 	}
 }
 
@@ -228,14 +241,6 @@ func mustBool(raw string) bool {
 	value, err := strconv.ParseBool(raw)
 	if err != nil {
 		return false
-	}
-	return value
-}
-
-func mustFloat(raw string) float64 {
-	value, err := strconv.ParseFloat(raw, 64)
-	if err != nil {
-		return 0
 	}
 	return value
 }

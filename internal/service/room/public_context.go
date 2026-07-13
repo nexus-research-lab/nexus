@@ -39,7 +39,7 @@ func (s *RealtimeService) buildSlotVisibleContext(
 		AgentNameByID:  agentNameByID,
 		TargetAgentID:  slot.AgentID,
 	})
-	return s.prependRoomMemoryContext(ctx, roundValue, slot, agentValue, base), nil
+	return base, nil
 }
 
 func (s *RealtimeService) buildSlotGuidedPublicContext(

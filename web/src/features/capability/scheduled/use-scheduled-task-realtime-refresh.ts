@@ -3,14 +3,24 @@
 import { useCallback, useEffect } from "react";
 
 import { getDesktopWebsocketProtocols } from "@/config/desktop-runtime";
-import { getAgentWsUrl } from "@/config/options";
+import { getAgentWsUrl } from "@/config/runtime-endpoints";
 import { useAppEventSubscription, useWebSocket } from "@/lib/websocket";
-import type { EventMessage } from "@/types/conversation/message";
+import { parseEventMessage } from "@/lib/websocket/protocol/event-message";
 
-import { notifyScheduledTasksMutated } from "../scheduled-task-events";
+import { notifyCapabilitySummaryMutated } from "../capability-summary-events";
 
 const RUNNING_TASK_FALLBACK_POLL_INTERVAL_MS = 30000;
 const ENABLED_TASK_FALLBACK_POLL_INTERVAL_MS = 120000;
+
+function getFallbackPollInterval(enabledCount: number, runningCount: number): number {
+  if (runningCount > 0) {
+    return RUNNING_TASK_FALLBACK_POLL_INTERVAL_MS;
+  }
+  if (enabledCount > 0) {
+    return ENABLED_TASK_FALLBACK_POLL_INTERVAL_MS;
+  }
+  return 0;
+}
 
 interface ScheduledTaskRealtimeRefreshOptions {
   enabledCount: number;
@@ -26,11 +36,14 @@ export function useScheduledTaskRealtimeRefresh({
   const wsUrl = getAgentWsUrl();
 
   const handleRealtimeMessage = useCallback((rawMessage: unknown) => {
-    const event = rawMessage as EventMessage;
-    if (event.event_type !== "scheduled_task_changed") {
+    const event = parseEventMessage(rawMessage);
+    if (!event || event.event_type !== "scheduled_task_changed") {
       return;
     }
-    notifyScheduledTasksMutated(event.agent_id ?? "");
+    notifyCapabilitySummaryMutated({
+      agent_id: event.agent_id ?? "",
+      source: "scheduled_tasks",
+    });
     if (typeof document !== "undefined" && document.visibilityState !== "visible") {
       return;
     }
@@ -80,9 +93,7 @@ export function useScheduledTaskRealtimeRefresh({
     if (wsState === "connected") {
       return;
     }
-    const pollIntervalMs = runningCount > 0
-      ? RUNNING_TASK_FALLBACK_POLL_INTERVAL_MS
-      : enabledCount > 0 ? ENABLED_TASK_FALLBACK_POLL_INTERVAL_MS : 0;
+    const pollIntervalMs = getFallbackPollInterval(enabledCount, runningCount);
     if (!pollIntervalMs) {
       return;
     }

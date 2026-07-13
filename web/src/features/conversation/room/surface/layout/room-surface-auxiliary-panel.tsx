@@ -1,0 +1,192 @@
+import type { ReactNode } from "react";
+
+import { OperationStagePanel } from "@/features/conversation/operation/operation-stage-panel";
+import { SubagentTaskSurface } from "@/features/conversation/shared/subagent/subagent-task-surface";
+import { cn } from "@/shared/ui/class-name";
+import { PanelResizeHandle } from "@/shared/ui/layout/panel-resize-handle";
+import type {
+  Agent,
+  AgentIdentityDraft,
+  AgentNameValidationResult,
+  AgentOptions,
+} from "@/types/agent/agent";
+import type { RoomConversationView } from "@/types/conversation/conversation";
+import type { AgentConversationIdentity } from "@/types/agent/agent-conversation";
+import type { RoomSurfaceTabKey } from "@/features/conversation/room/surface/header/room-header-tabs";
+import type { SubagentTaskSource } from "@/types/conversation/subagent-task";
+
+import { RoomAgentAboutSurface } from "../room-agent-about-surface";
+import { RoomHistorySurface } from "../history/room-history-surface";
+import { RoomWorkspaceView } from "../../workspace/room-workspace-view";
+import type { RoomAgentAboutRequest } from "./room-surface-layout-types";
+
+const AUXILIARY_PANEL_WIDTH_LIMITS = {
+  minWidth: "min(520px, 46vw)",
+  maxWidth: "min(860px, 54vw)",
+};
+const OPERATION_STAGE_PANEL_WIDTH_PERCENT = 64;
+const OPERATION_STAGE_PANEL_WIDTH_LIMITS = {
+  minWidth: "min(680px, 58vw)",
+  maxWidth: "min(1280px, 68vw)",
+};
+
+interface RoomSurfaceAuxiliaryPanelProps {
+  aboutRequest: RoomAgentAboutRequest;
+  activeSurfaceTab: RoomSurfaceTabKey;
+  activeWorkspacePath: string | null;
+  conversationId: string | null;
+  conversations: RoomConversationView[];
+  currentAgent: Agent;
+  currentRoomType: string;
+  operationStageIdentity: AgentConversationIdentity | null;
+  sidePanelWidthPercent: number;
+  isDm: boolean;
+  onClose: () => void;
+  onCreateConversation: (title?: string) => Promise<string | null>;
+  onDeleteConversation: (conversationId: string) => Promise<string | null>;
+  onOpenWorkspaceFile: (
+    path: string | null,
+    workspaceAgentId?: string | null,
+  ) => void;
+  onSaveAgentOptions: (
+    agentId: string,
+    title: string,
+    options: AgentOptions,
+    identity: AgentIdentityDraft,
+  ) => Promise<void>;
+  onSelectConversation: (conversationId: string) => void;
+  onStartSidePanelResize: () => void;
+  onUpdateConversationTitle: (
+    conversationId: string,
+    title: string,
+  ) => Promise<void>;
+  onValidateAgentName: (
+    name: string,
+    agentId?: string,
+  ) => Promise<AgentNameValidationResult>;
+  roomId: string | null;
+  roomMembers: Agent[];
+  subagentTaskSource: SubagentTaskSource | null;
+}
+
+export function RoomSurfaceAuxiliaryPanel({
+  aboutRequest,
+  activeSurfaceTab,
+  activeWorkspacePath,
+  conversationId,
+  conversations,
+  currentAgent,
+  currentRoomType,
+  operationStageIdentity,
+  sidePanelWidthPercent,
+  isDm,
+  onClose,
+  onCreateConversation,
+  onDeleteConversation,
+  onOpenWorkspaceFile,
+  onSaveAgentOptions,
+  onSelectConversation,
+  onStartSidePanelResize,
+  onUpdateConversationTitle,
+  onValidateAgentName,
+  roomId,
+  roomMembers,
+  subagentTaskSource,
+}: RoomSurfaceAuxiliaryPanelProps) {
+  const isOperationStageOpen = activeSurfaceTab === "operation";
+  const persistentPanels: Array<{
+    content: ReactNode;
+    key: "history" | "workspace" | "operation" | "about";
+  }> = [
+    {
+      key: "history",
+      content: (
+        <RoomHistorySurface
+          conversations={conversations}
+          conversationId={conversationId}
+          currentRoomType={currentRoomType}
+          onCreateConversation={onCreateConversation}
+          onDeleteConversation={onDeleteConversation}
+          onSelectConversation={onSelectConversation}
+          onUpdateConversationTitle={onUpdateConversationTitle}
+        />
+      ),
+    },
+    {
+      key: "workspace",
+      content: (
+        <RoomWorkspaceView
+          activeWorkspacePath={activeWorkspacePath}
+          agentId={currentAgent.agent_id}
+          isDm={isDm}
+          roomMembers={roomMembers}
+          onOpenWorkspaceFile={onOpenWorkspaceFile}
+        />
+      ),
+    },
+    {
+      key: "operation",
+      content: (
+        <OperationStagePanel identity={operationStageIdentity} />
+      ),
+    },
+    {
+      key: "about",
+      content: (
+        <RoomAgentAboutSurface
+          agent={currentAgent}
+          conversationId={conversationId}
+          roomId={roomId}
+          roomMembers={roomMembers}
+          isVisible={activeSurfaceTab === "about"}
+          requestedAgentId={aboutRequest.agent_id}
+          requestedTab={aboutRequest.tab}
+          requestKey={aboutRequest.key}
+          onSaveAgentOptions={onSaveAgentOptions}
+          onValidateAgentName={onValidateAgentName}
+        />
+      ),
+    },
+  ];
+
+  return (
+    <section
+      className="relative ml-2 flex min-h-0 min-w-0 shrink-0 flex-col overflow-hidden border-l divider-subtle bg-transparent shadow-none"
+      style={{
+        width: `${isOperationStageOpen
+          ? Math.max(sidePanelWidthPercent, OPERATION_STAGE_PANEL_WIDTH_PERCENT)
+          : sidePanelWidthPercent}%`,
+        ...(isOperationStageOpen
+          ? OPERATION_STAGE_PANEL_WIDTH_LIMITS
+          : AUXILIARY_PANEL_WIDTH_LIMITS),
+      }}
+    >
+      <PanelResizeHandle
+        ariaLabel="调整右侧面板宽度"
+        onResizeStart={onStartSidePanelResize}
+      />
+
+      {persistentPanels.map((panel) => (
+        <div
+          key={panel.key}
+          className={cn(
+            "flex h-full min-h-0 min-w-0 flex-1 flex-col",
+            activeSurfaceTab !== panel.key && "hidden",
+          )}
+        >
+          {panel.content}
+        </div>
+      ))}
+
+      {activeSurfaceTab === "subagents" && subagentTaskSource ? (
+        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
+          <SubagentTaskSurface
+            onClose={onClose}
+            onOpenWorkspaceFile={onOpenWorkspaceFile}
+            source={subagentTaskSource}
+          />
+        </div>
+      ) : null}
+    </section>
+  );
+}

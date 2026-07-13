@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 import type { StageWindowState } from "../operation-desktop-types";
-import { derive_operation_stage_experience_phase } from "../operation-stage-experience";
+import { deriveOperationStageExperiencePhase } from "../operation-stage-experience";
 import type {
   NexusOperationEvent,
   NexusOperationSnapshot,
@@ -10,13 +10,12 @@ import type {
   StageNarrativePhase,
   StageNarrativeState,
 } from "./operation-stage-model";
-import { event_sequence_label } from "./operation-stage-event-sequence";
 import {
-  count_desktop_reveal_events,
-  initial_revealed_window_count,
+  countDesktopRevealEvents,
+  initialRevealedWindowCount,
 } from "./operation-stage-window-reveal";
 
-export function order_windows_for_reveal(
+export function orderWindowsForReveal(
   windows: StageWindowState[],
   active_window_id: string | null,
 ): StageWindowState[] {
@@ -49,7 +48,7 @@ function window_reveal_rank(window: StageWindowState, active_window_id: string |
   return 2;
 }
 
-export function is_low_signal_director_value(value: string | null | undefined): value is string {
+export function isLowSignalDirectorValue(value: string | null | undefined): value is string {
   if (!value) {
     return true;
   }
@@ -84,7 +83,7 @@ export function useRevealedWindowCount({
   phase: StageNarrativePhase;
   window_count: number;
 }): number {
-  const [revealed_count, set_revealed_count] = useState(() => initial_revealed_window_count({
+  const [revealed_count, set_revealed_count] = useState(() => initialRevealedWindowCount({
     minimum_count,
     phase,
     window_count,
@@ -116,7 +115,7 @@ export function useRevealedWindowCount({
   return Math.min(revealed_count, window_count);
 }
 
-export function minimum_revealed_window_count({
+export function minimumRevealedWindowCount({
   reveal_event_count,
   phase,
   window_count,
@@ -134,14 +133,14 @@ export function minimum_revealed_window_count({
   return Math.min(window_count, Math.max(1, reveal_event_count));
 }
 
-export { count_desktop_reveal_events };
+export { countDesktopRevealEvents };
 
-export function build_stage_narrative(
+export function buildStageNarrative(
   event: NexusOperationEvent,
   snapshot: NexusOperationSnapshot | null,
 ): StageNarrativeState {
-  const events = collect_narrative_events(event, snapshot);
-  const phase = derive_operation_stage_experience_phase(event, snapshot);
+  const events = collectNarrativeEvents(event, snapshot);
+  const phase = deriveOperationStageExperiencePhase(event, snapshot);
   if (phase === "awakening") {
     return {
       phase: "awakening",
@@ -189,7 +188,7 @@ export function build_stage_narrative(
   };
 }
 
-export function collect_narrative_events(
+export function collectNarrativeEvents(
   event: NexusOperationEvent,
   snapshot: NexusOperationSnapshot | null,
 ): NexusOperationEvent[] {

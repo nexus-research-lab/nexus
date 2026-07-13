@@ -1,5 +1,5 @@
-import { cn } from "@/lib/utils";
-import type { PermissionDecisionPayload } from "@/types/conversation/permission";
+import { cn } from "@/shared/ui/class-name";
+import type { PermissionDecisionPayload } from "@/types/conversation/interaction/permission";
 
 import type { StageWindowState } from "../operation-desktop-types";
 import type {
@@ -7,22 +7,21 @@ import type {
 } from "../operation-types";
 import type { OperationToolProfile } from "../operation-tool-catalog";
 import {
-  build_operation_input_rows,
-  extract_operation_input_value,
+  buildOperationInputRows,
+  extractOperationInputValue,
   PHASE_LABELS,
-  resolve_operation_tool_profile,
+  resolveOperationToolProfile,
 } from "../operation-tool-catalog";
 import {
-  build_editor_preview_lines,
-  format_operation_time,
-  get_preview_lines,
+  buildEditorPreviewLines,
+  getPreviewLines,
 } from "../operation-preview";
 import { ACTION_ICON, ACTION_TONE_CLASS } from "./operation-action-style";
-import { app_surface_for_window_kind } from "./operation-app-surface-policy";
+import { appSurfaceForWindowKind } from "./operation-app-surface-policy";
 import { ActivityMonitorSurface } from "./activity-monitor-surface";
 import { BrowserSurface } from "./browser-surface";
 import { DocumentPreview } from "./document-preview-surface";
-import { resolve_file_preview_value } from "./file-preview-value";
+import { resolveFilePreviewValue } from "./file-preview-value";
 import { OperationReviewPanel, PermissionCheckpointPanel } from "./operation-review-panels";
 import { HandoffSurface } from "./handoff-surface";
 import { RunManifestSurface } from "./run-manifest-surface";
@@ -31,22 +30,22 @@ import { WorkspaceFinder } from "./workspace-finder-surface";
 
 export function StageWindowContent({
   window,
-  on_focus_event,
-  on_permission_response,
+  onFocusEvent,
+  onPermissionResponse,
 }: {
   window: StageWindowState;
-  on_focus_event?: (event: NexusOperationEvent) => void;
-  on_permission_response?: (payload: PermissionDecisionPayload) => boolean;
+  onFocusEvent?: (event: NexusOperationEvent) => void;
+  onPermissionResponse?: (payload: PermissionDecisionPayload) => boolean;
 }) {
   const { event, snapshot } = window.payload;
-  const profile = resolve_operation_tool_profile(event.tool_name, event.kind, event.surface);
+  const profile = resolveOperationToolProfile(event.tool_name, event.kind, event.surface);
 
   if (window.kind === "finder") {
     const workspace_items = window.payload.workspace_items ?? [];
     return (
       <div className="flex h-full min-h-[240px] flex-col">
         <WorkspaceFinder
-          active_path={window.payload.target ?? event.target}
+          activePath={window.payload.target ?? event.target}
           event={event}
           items={workspace_items}
         />
@@ -65,7 +64,7 @@ export function StageWindowContent({
 
   if (window.kind === "browser") {
     const query = window.payload.query ?? event.target ?? "web";
-    const lines = window.payload.lines ?? get_preview_lines(event.result_preview ?? event.summary, 7);
+    const lines = window.payload.lines ?? getPreviewLines(event.result_preview ?? event.summary, 7);
     return (
       <div className="flex h-full min-h-[280px] min-w-0 max-w-full flex-col">
         <BrowserSurface
@@ -84,7 +83,7 @@ export function StageWindowContent({
       <ActivityMonitorSurface
         event={event}
         lines={window.payload.lines ?? []}
-        on_focus_event={on_focus_event}
+        onFocusEvent={onFocusEvent}
         snapshot={snapshot}
       />
     );
@@ -95,9 +94,9 @@ export function StageWindowContent({
       <RunManifestSurface
         event={event}
         evidence={window.payload.evidence ?? []}
-        handoff_summary={window.payload.handoff_summary}
-        on_focus_event={on_focus_event}
-        related_events={window.payload.related_events ?? []}
+        handoffSummary={window.payload.handoff_summary}
+        onFocusEvent={onFocusEvent}
+        relatedEvents={window.payload.related_events ?? []}
         snapshot={snapshot}
       />
     );
@@ -108,9 +107,9 @@ export function StageWindowContent({
       <HandoffSurface
         event={event}
         evidence={window.payload.evidence ?? []}
-        handoff_summary={window.payload.handoff_summary}
-        on_focus_event={on_focus_event}
-        related_events={window.payload.related_events ?? []}
+        handoffSummary={window.payload.handoff_summary}
+        onFocusEvent={onFocusEvent}
+        relatedEvents={window.payload.related_events ?? []}
         snapshot={snapshot}
       />
     );
@@ -123,7 +122,7 @@ export function StageWindowContent({
           compact={window.phase === "minimized"}
           event={event}
           evidence={window.payload.evidence}
-          on_permission_response={on_permission_response}
+          onPermissionResponse={onPermissionResponse}
           snapshot={snapshot}
         />
       );
@@ -154,15 +153,15 @@ export function StageWindowContent({
     );
   }
 
-  if (app_surface_for_window_kind(window.kind) === "document") {
+  if (appSurfaceForWindowKind(window.kind) === "document") {
     return (
       <DocumentPreview
-        diff_stats={window.payload.diff_stats}
-        fallback_lines={build_editor_preview_lines(event, get_preview_lines(window.payload.preview, 12))}
-        operation_event={event}
+        diffStats={window.payload.diff_stats}
+        fallbackLines={buildEditorPreviewLines(event, getPreviewLines(window.payload.preview, 12))}
+        operationEvent={event}
         summary={window.payload.summary ?? event.summary ?? event.title}
         target={window.payload.target ?? window.target ?? event.target}
-        value={resolve_file_preview_value(event, window.payload.preview)}
+        value={resolveFilePreviewValue(event, window.payload.preview)}
       />
     );
   }
@@ -176,12 +175,12 @@ export function StageWindowContent({
       />
       <div className="min-h-0 flex-1">
         <DocumentPreview
-          diff_stats={window.payload.diff_stats}
-          fallback_lines={build_editor_preview_lines(event, get_preview_lines(window.payload.preview, 12))}
-          operation_event={event}
+          diffStats={window.payload.diff_stats}
+          fallbackLines={buildEditorPreviewLines(event, getPreviewLines(window.payload.preview, 12))}
+          operationEvent={event}
           summary={window.payload.summary ?? event.summary ?? event.title}
           target={window.payload.target ?? window.target ?? event.target}
-          value={resolve_file_preview_value(event, window.payload.preview)}
+          value={resolveFilePreviewValue(event, window.payload.preview)}
         />
       </div>
     </div>
@@ -200,8 +199,8 @@ function ToolActionHeader({
   tone?: "default" | "terminal";
 }) {
   const Icon = ACTION_ICON[profile.action];
-  const primary = extract_operation_input_value(event.input_preview, profile.target_keys);
-  const rows = build_operation_input_rows(event.input_preview, profile.target_keys, 3);
+  const primary = extractOperationInputValue(event.input_preview, profile.target_keys);
+  const rows = buildOperationInputRows(event.input_preview, profile.target_keys, 3);
   const display_target = primary?.value ?? target ?? event.target ?? event.summary ?? event.title;
   const is_terminal = tone === "terminal";
 

@@ -235,11 +235,11 @@ func TestGoalCompatMigrationRunsAfterAppliedVersion36(t *testing.T) {
 	)`); err != nil {
 		t.Fatal(err)
 	}
-
 	if err := goose.SetDialect("sqlite3"); err != nil {
 		t.Fatal(err)
 	}
-	if err := goose.Up(db, "../../../db/migrations/sqlite"); err != nil {
+	// 该测试只验证 00037 能接续已标记为 version 36 的历史库，避免被后续领域迁移的夹具要求污染。
+	if err := goose.UpTo(db, "../../../db/migrations/sqlite", 37); err != nil {
 		t.Fatal(err)
 	}
 	assertGoalTablesExist(t, db)
@@ -248,8 +248,8 @@ func TestGoalCompatMigrationRunsAfterAppliedVersion36(t *testing.T) {
 	if err := db.QueryRow("SELECT MAX(version_id) FROM goose_db_version WHERE is_applied = 1").Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != 46 {
-		t.Fatalf("goose version = %d, want 46", version)
+	if version != 37 {
+		t.Fatalf("goose version = %d, want 37", version)
 	}
 }
 

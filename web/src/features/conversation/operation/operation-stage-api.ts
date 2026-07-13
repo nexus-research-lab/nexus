@@ -1,5 +1,6 @@
-import { getAgentApiBaseUrl } from "@/config/options";
-import { ApiRequestError, requestApi } from "@/lib/api/http";
+import { getAgentApiBaseUrl } from "@/config/runtime-endpoints";
+import { requestApi } from "@/lib/api/core/http";
+import { ApiRequestError } from "@/lib/api/core/http-error";
 
 import type { NexusOperationSnapshot } from "./operation-types";
 
@@ -11,7 +12,7 @@ interface OperationStageSnapshotEnvelope {
   updated_at: string;
 }
 
-export async function get_operation_stage_snapshot_api(
+export async function getOperationStageSnapshotApi(
   key: string,
 ): Promise<NexusOperationSnapshot | null> {
   const query = new URLSearchParams({ key });
@@ -33,7 +34,7 @@ export async function get_operation_stage_snapshot_api(
   }
 }
 
-export async function save_operation_stage_snapshot_api(
+export async function saveOperationStageSnapshotApi(
   key: string,
   snapshot: NexusOperationSnapshot,
 ): Promise<void> {

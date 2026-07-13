@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"strings"
 	"time"
-
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 func nullString(value string) any {
@@ -34,14 +32,6 @@ func marshalMap(value map[string]any) string {
 	if value == nil {
 		value = map[string]any{}
 	}
-	payload, err := json.Marshal(value)
-	if err != nil {
-		return "{}"
-	}
-	return string(payload)
-}
-
-func marshalUsage(value protocol.GoalUsage) string {
 	payload, err := json.Marshal(value)
 	if err != nil {
 		return "{}"

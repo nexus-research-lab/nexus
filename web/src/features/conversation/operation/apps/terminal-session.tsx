@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { CircleStop, LoaderCircle } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 
 import type { NexusOperationEvent } from "../operation-types";
 import {

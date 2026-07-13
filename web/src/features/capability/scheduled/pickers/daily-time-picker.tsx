@@ -5,13 +5,15 @@ import { type RefObject } from "react";
 import { PickerPopover } from "./picker-popover";
 import {
   HOUR_12_OPTIONS,
+  MERIDIEM_LABELS,
+  MERIDIEM_OPTIONS,
   MINUTE_OPTIONS,
   type Meridiem,
 } from "./picker-types";
 import {
-  getPickerColumnButtonClassName,
   PICKER_TRIGGER_CLASS_NAME,
 } from "./picker-styles";
+import { TimePickerColumn } from "./time-picker-column";
 
 interface DailyTimePickerProps {
   anchorRef: RefObject<HTMLButtonElement | null>;
@@ -29,17 +31,17 @@ interface DailyTimePickerProps {
 
 export function DailyTimePicker(props: DailyTimePickerProps) {
   const {
-    anchorRef: anchorRef,
+    anchorRef,
     display,
     hour12,
-    isOpen: isOpen,
+    isOpen,
     meridiem,
     minute,
-    onClose: onClose,
-    onHourSelect: onHourSelect,
-    onMeridiemSelect: onMeridiemSelect,
-    onMinuteSelect: onMinuteSelect,
-    onToggle: onToggle,
+    onClose,
+    onHourSelect,
+    onMeridiemSelect,
+    onMinuteSelect,
+    onToggle,
   } = props;
 
   return (
@@ -55,42 +57,22 @@ export function DailyTimePicker(props: DailyTimePickerProps) {
       </button>
       <PickerPopover anchorRef={anchorRef} isOpen={isOpen} onClose={onClose}>
         <div className="grid grid-cols-3 gap-2">
-          <div className="max-h-[240px] space-y-2 overflow-y-auto pr-1">
-            {([{ key: "am", label: "上午" }, { key: "pm", label: "下午" }] as const).map((option) => (
-              <button
-                className={getPickerColumnButtonClassName(meridiem === option.key)}
-                key={option.key}
-                onClick={() => onMeridiemSelect(option.key)}
-                type="button"
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-          <div className="max-h-[240px] space-y-2 overflow-y-auto pr-1">
-            {HOUR_12_OPTIONS.map((option) => (
-              <button
-                className={getPickerColumnButtonClassName(hour12 === option)}
-                key={option}
-                onClick={() => onHourSelect(option)}
-                type="button"
-              >
-                {option}
-              </button>
-            ))}
-          </div>
-          <div className="max-h-[240px] space-y-2 overflow-y-auto pr-1">
-            {MINUTE_OPTIONS.map((option) => (
-              <button
-                className={getPickerColumnButtonClassName(minute === option)}
-                key={option}
-                onClick={() => onMinuteSelect(option)}
-                type="button"
-              >
-                {option}
-              </button>
-            ))}
-          </div>
+          <TimePickerColumn
+            getLabel={(value) => MERIDIEM_LABELS[value]}
+            onSelect={onMeridiemSelect}
+            options={MERIDIEM_OPTIONS}
+            value={meridiem}
+          />
+          <TimePickerColumn
+            onSelect={onHourSelect}
+            options={HOUR_12_OPTIONS}
+            value={hour12}
+          />
+          <TimePickerColumn
+            onSelect={onMinuteSelect}
+            options={MINUTE_OPTIONS}
+            value={minute}
+          />
         </div>
       </PickerPopover>
     </div>
