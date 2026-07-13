@@ -39,8 +39,6 @@ export type AgentStatusSummaryTone =
 
 interface GroupAgentStatusLabels {
   failed: string;
-  preparing: string;
-  replying: string;
   stopped: string;
   waitingPermission: string;
 }
@@ -117,13 +115,13 @@ const AGENT_STATUS_PRESENTATION: Record<
     tone: "error",
   },
   pending: {
-    fallbackLabel: "preparing",
+    fallbackLabel: null,
     renderPreview: true,
     summaryOrder: ["preview", "fallback"],
     tone: "default",
   },
   streaming: {
-    fallbackLabel: "replying",
+    fallbackLabel: null,
     renderPreview: true,
     summaryOrder: ["preview", "fallback"],
     tone: "default",

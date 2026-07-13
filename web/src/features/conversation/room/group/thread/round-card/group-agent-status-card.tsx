@@ -68,8 +68,6 @@ function GroupAgentStatusCardInner({
   const statusModel = useMemo(() => buildGroupAgentStatusModel({
     labels: {
       failed: t("room.agent_status_failed"),
-      preparing: t("room.agent_status_preparing"),
-      replying: t("room.agent_status_replying"),
       stopped: t("room.agent_status_stopped"),
       waitingPermission: t("room.agent_status_waiting_permission"),
     },
@@ -297,6 +295,10 @@ function GroupAgentStatusSummary({
   agentId: string;
   model: GroupAgentStatusModel;
 }) {
+  if (!model.shouldRenderMarkdownSummary && !model.summaryText) {
+    return null;
+  }
+
   return (
     <div className="min-w-0 pt-1">
       {model.shouldRenderMarkdownSummary ? (

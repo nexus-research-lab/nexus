@@ -71,17 +71,12 @@ function StandaloneConversationRound({
       currentAgentName={agent.name}
       currentUserAvatar={renderer.currentUserAvatar}
       isLastRound={state.isLast}
-      isLoading={state.isLive}
       messages={state.messages}
       onOpenAgentContact={renderer.onOpenAgentContact}
       onOpenWorkspaceFile={renderer.onOpenWorkspaceFile}
       onPermissionResponse={renderer.onPermissionResponse}
       onStopMessage={renderer.onStopMessage}
-      pendingPermissions={
-        state.isLive ? renderer.isLastRoundPendingPermissions : []
-      }
       roundId={state.roundId}
-      runtimePhase={state.isLive ? renderer.runtimePhase : null}
       workspaceAgentId={agent.id}
     />
   );

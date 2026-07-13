@@ -79,7 +79,6 @@ function GroupRoundCardGroupInner({
             className="border-b-0"
             currentUserAvatar={currentUserAvatar}
             isLastRound={false}
-            isLoading
             messages={[model.userMessage]}
             onOpenWorkspaceFile={onOpenWorkspaceFile}
             roundId={roundId}

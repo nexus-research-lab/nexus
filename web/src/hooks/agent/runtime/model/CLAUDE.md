@@ -6,6 +6,7 @@ L5 | 父级: ../CLAUDE.md
 
 - Snapshot reconcile 按终态收集、旧 tracker 保留和 DM tracker 补建三个阶段执行；Room 不从历史消息反推活跃 tracker。
 - 消息终态迁移统一解析为保留、移除或更新状态三种动作，调用方只定义作用域规则。
+- 待 ACK 的 `client_request_id` 只决定发送阶段，不进入 canonical round 集合；时间线活动仅来自后端 round 与 Assistant tracker。
 - Runtime 瞬时状态优先于轮次推断；`compacting` 进入独立阶段，显式 null 或会话重置负责清除。
 
 [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md

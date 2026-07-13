@@ -179,6 +179,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Kept Room Agent slots visible without empty preparing or replying labels, and prevented pending client request IDs from being rendered as canonical rounds while chat ACKs are still in flight.
 - Restored Select menu defaults when callers pass optional presentation props as `undefined`, preventing Contacts and other Agent identity views from failing during render.
 - Accepted Skill zip archives whose entries use Windows backslash separators, allowing preview and import to find nested `SKILL.md` files.
 - Computed group-chat sidebar previews from the room's shared history instead of an arbitrary member session, surfaced conversation-level activity on room sessions so the newest topic sorts first, and made equal-timestamp session ordering deterministic.
