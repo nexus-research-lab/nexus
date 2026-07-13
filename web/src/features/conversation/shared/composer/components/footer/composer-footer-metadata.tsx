@@ -1,4 +1,5 @@
 import { useI18n } from "@/shared/i18n/i18n-context";
+import type { AgentRuntimeKind } from "@/types/settings/preferences";
 
 import { getCharacterCountClassName } from "./composer-footer-model";
 
@@ -9,6 +10,7 @@ export function ComposerFooterMetadata({
   isNearLimit,
   isOverLimit,
   maxLength,
+  runtimeKind,
 }: {
   charCount: number;
   historyIndex: number;
@@ -16,6 +18,7 @@ export function ComposerFooterMetadata({
   isNearLimit: boolean;
   isOverLimit: boolean;
   maxLength: number;
+  runtimeKind: AgentRuntimeKind;
 }) {
   return (
     <div className="flex items-center gap-3 text-[10px] tabular-nums">
@@ -29,7 +32,26 @@ export function ComposerFooterMetadata({
         historyIndex={historyIndex}
         inputHistoryLength={inputHistoryLength}
       />
+      <ComposerRuntimeKind runtimeKind={runtimeKind} />
     </div>
+  );
+}
+
+function ComposerRuntimeKind({
+  runtimeKind,
+}: {
+  runtimeKind: AgentRuntimeKind;
+}) {
+  const { t } = useI18n();
+  const label = runtimeKind === "claude" ? "Claude Code" : "NXS";
+  return (
+    <span
+      aria-label={t("composer.current_runtime", { runtime: label })}
+      className="text-(--text-soft)"
+      title={t("composer.current_runtime", { runtime: label })}
+    >
+     Power By {label}
+    </span>
   );
 }
 

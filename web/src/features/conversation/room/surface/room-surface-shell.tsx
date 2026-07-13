@@ -3,10 +3,12 @@
 import { useCallback, useState } from "react";
 
 import { useMediaQuery } from "@/hooks/ui/use-media-query";
+import { useDefaultAgentRuntimeKind } from "@/hooks/settings/use-default-agent-runtime-kind";
 import type { RoomDialogSubmission } from "@/features/conversation/room/members/create-room-dialog";
 import { Agent, AgentIdentityDraft, AgentNameValidationResult, AgentOptions } from "@/types/agent/agent";
 import { AgentConversationIdentity } from "@/types/agent/agent-conversation";
 import { ConversationSnapshotPayload, RoomConversationView } from "@/types/conversation/conversation";
+import { normalizeAgentRuntimeKind } from "@/types/settings/preferences";
 import type { RoomSurfaceTabKey } from "@/features/conversation/room/surface/header/room-header-tabs";
 import { TodoItem } from "@/types/conversation/todo";
 
@@ -95,7 +97,12 @@ export function RoomSurfaceShell({
   onRoomEvent,
 }: RoomSurfaceShellProps) {
   const isMobile = useMediaQuery("(max-width: 767px)");
+  const defaultRuntimeKind = useDefaultAgentRuntimeKind();
   const [activeSurfaceTab, setActiveSurfaceTab] = useState<RoomSurfaceTabKey>("chat");
+  const storedRuntimeKind = currentRoomConversation?.options.runtime_kind;
+  const runtimeKind = typeof storedRuntimeKind === "string"
+    ? normalizeAgentRuntimeKind(storedRuntimeKind)
+    : defaultRuntimeKind;
 
   const handleCreateConversationInShell = useCallback(async (title?: string) => {
     const nextConversationId = await onCreateConversation(title);
@@ -125,6 +132,7 @@ export function RoomSurfaceShell({
         conversationId={conversationId}
         currentRoomConversations={currentRoomConversations}
         currentRoomTitle={currentRoomTitle}
+        runtimeKind={runtimeKind}
         currentTodos={currentTodos}
         initialDraft={initialDraft}
         onInitialDraftConsumed={onInitialDraftConsumed}
@@ -151,6 +159,7 @@ export function RoomSurfaceShell({
       roomAvatar={roomAvatar}
       roomMembers={roomMembers}
       currentRoomTitle={currentRoomTitle}
+      runtimeKind={runtimeKind}
       roomSkillNames={roomSkillNames}
       roomHostAgentId={roomHostAgentId}
       roomHostAutoReplyEnabled={roomHostAutoReplyEnabled}

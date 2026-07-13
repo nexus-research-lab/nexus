@@ -46,6 +46,7 @@ export function ComposerFooter(props: ComposerFooterProps) {
         isNearLimit={props.isNearLimit}
         isOverLimit={props.isOverLimit}
         maxLength={props.maxLength}
+        runtimeKind={props.runtimeKind}
       />
     </div>
   );

@@ -10,6 +10,7 @@ import { LazyMermaidView } from "../mermaid/lazy-mermaid-view";
 import { WorkspaceFileButton } from "../workspace/markdown-workspace-file-button";
 import {
   resolveWorkspaceArtifactPath,
+  resolveWorkspaceImagePath,
   type ResolveWorkspaceFilePath,
 } from "../workspace/markdown-workspace-artifact-model";
 import {
@@ -205,7 +206,7 @@ export function createMarkdownComponents(
     },
     img({ alt, src }) {
       const rawSrc = String(src || "").trim();
-      const resolvedPath = resolveWorkspaceArtifactPath(rawSrc, resolveFilePath);
+      const resolvedPath = resolveWorkspaceImagePath(rawSrc, resolveFilePath);
       const imageSrc = resolvedPath && currentAgentId
         ? getWorkspaceFilePreviewUrl(currentAgentId, resolvedPath)
         : rawSrc;

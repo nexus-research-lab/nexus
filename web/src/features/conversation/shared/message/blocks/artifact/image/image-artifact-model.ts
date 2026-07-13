@@ -1,5 +1,5 @@
 import { getWorkspaceFilePreviewUrl } from "@/lib/api/agent/agent-api";
-import { resolveWorkspaceArtifactPath } from "@/shared/ui/markdown/workspace/markdown-workspace-artifact-model";
+import { resolveWorkspaceImagePath } from "@/shared/ui/markdown/workspace/markdown-workspace-artifact-model";
 import type { ImageContent } from "@/types/conversation/message/content";
 
 import {
@@ -173,7 +173,7 @@ function resolveWorkspaceImageSource(
   if (!context.rawPath || !context.currentAgentId) {
     return null;
   }
-  const workspacePath = resolveWorkspaceArtifactPath(
+  const workspacePath = resolveWorkspaceImagePath(
     context.rawPath,
     context.resolveFilePath,
   );
