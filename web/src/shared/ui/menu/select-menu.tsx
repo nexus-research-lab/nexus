@@ -56,8 +56,14 @@ type ResolvedUiSelectMenuProps = Omit<UiSelectMenuProps, SelectMenuDefaultProp>
 /** 共享自定义下拉菜单，避免业务侧重复实现原生 select 无法控制的弹层定位。 */
 export function UiSelectMenu(props: UiSelectMenuProps) {
   const resolvedProps: ResolvedUiSelectMenuProps = {
-    ...SELECT_MENU_DEFAULT_PROPS,
     ...props,
+    allowLabelWrap:
+      props.allowLabelWrap ?? SELECT_MENU_DEFAULT_PROPS.allowLabelWrap,
+    disabled: props.disabled ?? SELECT_MENU_DEFAULT_PROPS.disabled,
+    placement: props.placement ?? SELECT_MENU_DEFAULT_PROPS.placement,
+    placeholder: props.placeholder ?? SELECT_MENU_DEFAULT_PROPS.placeholder,
+    size: props.size ?? SELECT_MENU_DEFAULT_PROPS.size,
+    surface: props.surface ?? SELECT_MENU_DEFAULT_PROPS.surface,
   };
   return <UiSelectMenuController {...resolvedProps} />;
 }
