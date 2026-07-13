@@ -1,3 +1,6 @@
+// INPUT: Room 服务依赖、runtime 事件与实时会话请求。
+// OUTPUT: Room round、队列和共享事件的进程内编排状态。
+// POS: Room 实时服务装配与共享状态定义。
 package room
 
 import (
@@ -113,6 +116,8 @@ type RealtimeService struct {
 
 	mu           sync.Mutex
 	activeRounds map[string]*activeRoomRound
+	// ponytail: one global queue handoff lock; split per conversation only if contention becomes measurable.
+	inputQueueDispatchMu sync.Mutex
 }
 
 type roomTitleScheduler interface {

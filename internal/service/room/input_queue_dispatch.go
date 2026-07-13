@@ -1,3 +1,6 @@
+// INPUT: Room 队列项、目标 Agent 运行态与 conversation 上下文。
+// OUTPUT: 串行队列接力，或把未消费 guide 恢复为下一轮输入。
+// POS: Room 用户输入队列的数据面与 round 交接点。
 package room
 
 import (
@@ -14,6 +17,9 @@ func (s *RealtimeService) dispatchNextInputQueueItem(ctx context.Context, sessio
 	if strings.TrimSpace(sessionKey) == "" {
 		return
 	}
+	s.inputQueueDispatchMu.Lock()
+	defer s.inputQueueDispatchMu.Unlock()
+
 	contextValue, err := s.rooms.GetConversationContext(ctx, conversationID)
 	if err != nil || contextValue == nil {
 		if err != nil {
@@ -61,6 +67,44 @@ func (s *RealtimeService) dispatchNextInputQueueItem(ctx context.Context, sessio
 		s.loggerFor(ctx).Warn("广播恢复后的 Room 待发送队列快照失败", "session_key", sessionKey, "err", snapshotErr)
 	}
 	s.broadcastSharedEvent(ctx, sessionKey, roomID, roomdomain.NewErrorEvent(sessionKey, roomID, conversationID, "input_queue_error", "待发送消息派发失败", entry.Item.ID))
+}
+
+// releaseUndeliveredRoomGuidance 把错过最后一个 PostToolUse 的引导恢复成普通队列输入。
+func (s *RealtimeService) releaseUndeliveredRoomGuidance(
+	ctx context.Context,
+	sessionKey string,
+	contextValue *protocol.ConversationContextAggregate,
+) {
+	if contextValue == nil {
+		return
+	}
+	s.inputQueueDispatchMu.Lock()
+	defer s.inputQueueDispatchMu.Unlock()
+
+	entries, err := s.roomInputQueueEntries(ctx, contextValue)
+	if err != nil {
+		s.loggerFor(ctx).Error("读取 Room 未消费引导失败", "session_key", sessionKey, "err", err)
+		return
+	}
+	changed := false
+	for _, entry := range entries {
+		if !protocol.ShouldGuideRunningRound(entry.Item.DeliveryPolicy) ||
+			len(s.findActiveDeliverySlots(sessionKey, contextValue.Conversation.ID, inputQueueTargetAgentIDs(entry.Item))) > 0 {
+			continue
+		}
+		if _, err = s.inputQueue.UpdateDeliveryPolicy(entry.Location, entry.Item.ID, protocol.ChatDeliveryPolicyQueue); err != nil {
+			s.loggerFor(ctx).Error("恢复 Room 未消费引导失败", "session_key", sessionKey, "item_id", entry.Item.ID, "err", err)
+			continue
+		}
+		entry.Item.DeliveryPolicy = protocol.ChatDeliveryPolicyQueue
+		s.syncQueuedPublicMessageDeliveryPolicy(ctx, sessionKey, contextValue, entry.Item)
+		changed = true
+	}
+	if changed {
+		if err = s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue); err != nil {
+			s.loggerFor(ctx).Warn("广播 Room 未消费引导恢复快照失败", "session_key", sessionKey, "err", err)
+		}
+	}
 }
 
 func (s *RealtimeService) dispatchInputQueueItem(

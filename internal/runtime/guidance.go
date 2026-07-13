@@ -1,3 +1,6 @@
+// INPUT: 运行中 round 的用户引导与内部上下文。
+// OUTPUT: PostToolUse 可消费的 SDK additionalContext。
+// POS: runtime 层统一的轮内引导队列与格式化入口。
 package runtime
 
 import (
@@ -163,7 +166,7 @@ func FormatGuidanceAdditionalContext(inputs []GuidedInput) string {
 func renderUserGuidanceBlock(inputs []GuidedInput) string {
 	lines := []string{
 		"<nexus_guidance>",
-		"用户在你执行当前 round 时补充了以下引导。请在继续下一步前结合这些要求；如果与原任务冲突，以最新引导为准。",
+		"用户在你执行当前 round 时补充了以下引导。请在继续下一步前结合这些要求；如果与原任务冲突，以最新引导为准；最终可见回复必须明确回应最新用户引导。",
 	}
 	count := 0
 	for _, input := range inputs {

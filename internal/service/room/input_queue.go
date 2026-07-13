@@ -1,3 +1,6 @@
+// INPUT: Room 输入队列控制请求与持久化队列快照。
+// OUTPUT: 队列变更、guide 状态同步和共享快照事件。
+// POS: Room 用户输入队列的控制面。
 package room
 
 import (
@@ -5,6 +8,7 @@ import (
 	"errors"
 	"strings"
 
+	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
@@ -115,6 +119,10 @@ func (s *RealtimeService) HandleInputQueue(ctx context.Context, request InputQue
 	}
 
 	action := strings.TrimSpace(request.Action)
+	if action != "" && action != "enqueue" {
+		s.inputQueueDispatchMu.Lock()
+		defer s.inputQueueDispatchMu.Unlock()
+	}
 	switch action {
 	case "enqueue", "":
 		content := strings.TrimSpace(request.Content)
@@ -204,6 +212,8 @@ func (s *RealtimeService) guideInputQueueItem(
 		if _, err = s.inputQueue.UpdateDeliveryPolicy(entry.Location, entry.Item.ID, protocol.ChatDeliveryPolicyQueue); err != nil {
 			return err
 		}
+		entry.Item.DeliveryPolicy = protocol.ChatDeliveryPolicyQueue
+		s.syncQueuedPublicMessageDeliveryPolicy(ctx, sessionKey, contextValue, entry.Item)
 		if err = s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue); err != nil {
 			return err
 		}
@@ -222,5 +232,43 @@ func (s *RealtimeService) guideInputQueueItem(
 	if _, err = s.inputQueue.UpdateDeliveryPolicy(entry.Location, entry.Item.ID, protocol.ChatDeliveryPolicyGuide); err != nil {
 		return err
 	}
+	entry.Item.DeliveryPolicy = protocol.ChatDeliveryPolicyGuide
+	s.syncQueuedPublicMessageDeliveryPolicy(ctx, sessionKey, contextValue, entry.Item)
 	return s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue)
+}
+
+func (s *RealtimeService) syncQueuedPublicMessageDeliveryPolicy(
+	ctx context.Context,
+	sessionKey string,
+	contextValue *protocol.ConversationContextAggregate,
+	item protocol.InputQueueItem,
+) {
+	roundID := strings.TrimSpace(item.SourceMessageID)
+	if roundID == "" || contextValue == nil {
+		return
+	}
+	messages, err := s.roomHistory.ReadMessages(contextValue.Conversation.ID, nil)
+	if err != nil {
+		s.loggerFor(ctx).Warn("读取 Room 公区历史以同步输入策略失败", "error", err, "round_id", roundID)
+		return
+	}
+	for index := len(messages) - 1; index >= 0; index-- {
+		message := messages[index]
+		if protocol.MessageRole(message) != "user" || protocol.MessageRoundID(message) != roundID {
+			continue
+		}
+		updated := protocol.Clone(message)
+		updated["delivery_policy"] = string(item.DeliveryPolicy)
+		if err = s.persistSharedInlineMessage(contextValue.Conversation.ID, updated); err != nil {
+			s.loggerFor(ctx).Warn("持久化 Room 输入策略失败", "error", err, "round_id", roundID)
+			return
+		}
+		s.broadcastSharedEvent(ctx, sessionKey, contextValue.Room.ID, roomdomain.WrapMessageEvent(
+			contextValue.Room.ID,
+			contextValue.Conversation.ID,
+			updated,
+			roundID,
+		))
+		return
+	}
 }

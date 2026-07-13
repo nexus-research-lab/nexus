@@ -128,6 +128,148 @@ func TestRealtimeServiceDispatchesRoomUserQueueForIdleTargetWhileAnotherAgentRun
 	})
 }
 
+func TestRealtimeServiceDispatchesLateRoomGuidanceAfterRoundFinishes(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	agentValue := createTestAgent(t, agentService, context.Background(), "助手甲")
+	roomContext, err := roomService.CreateRoom(context.Background(), protocol.CreateRoomRequest{
+		AgentIDs: []string{agentValue.AgentID},
+		Name:     "末尾引导接力房间",
+		Title:    "主对话",
+	})
+	if err != nil {
+		t.Fatalf("创建 room 失败: %v", err)
+	}
+
+	firstClient := newFakeRoomClient()
+	firstClient.onQuery = func(_ context.Context, _ string) error { return nil }
+	secondClient := newFakeRoomClient()
+	secondPrompt := make(chan string, 1)
+	secondClient.onQuery = func(_ context.Context, prompt string) error {
+		secondPrompt <- prompt
+		go sendFakeAssistantResult(secondClient, "assistant-late-guide", "已处理补充要求")
+		return nil
+	}
+
+	permission := permissionctx.NewContext()
+	service := NewRealtimeServiceWithFactory(
+		cfg,
+		roomService,
+		agentService,
+		runtimectx.NewManager(),
+		permission,
+		&fakeRoomFactory{clients: []*fakeRoomClient{firstClient, secondClient}},
+	)
+	ctx := context.Background()
+	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
+	sender := newRealtimeTestSender("room-sender-late-guide")
+	permission.BindSession(sharedSessionKey, sender)
+
+	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
+		SessionKey:     sharedSessionKey,
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
+		Content:        "@助手甲 先完成当前任务",
+		RoundID:        "room-round-late-guide-1",
+	}); err != nil {
+		t.Fatalf("启动第一轮失败: %v", err)
+	}
+	_ = collectRoomEventsUntil(t, sender.events, func(events []protocol.EventMessage, event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeStreamStart && event.AgentID == agentValue.AgentID
+	})
+
+	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
+		SessionKey:     sharedSessionKey,
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
+		Content:        "@助手甲 然后想想还能怎么优化",
+		RoundID:        "room-round-late-guide-2",
+	}); err != nil {
+		t.Fatalf("写入补充消息失败: %v", err)
+	}
+	_ = collectRoomEventsUntil(t, sender.events, func(events []protocol.EventMessage, event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeChatAck && event.Data["round_id"] == "room-round-late-guide-2"
+	})
+
+	queueLocation := workspacestore.InputQueueLocation{
+		Scope:          protocol.InputQueueScopeRoom,
+		WorkspacePath:  agentValue.WorkspacePath,
+		SessionKey:     protocol.BuildRoomAgentSessionKey(roomContext.Conversation.ID, agentValue.AgentID, roomContext.Room.RoomType),
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
+	}
+	queueStore := workspacestore.NewInputQueueStore(cfg.WorkspacePath)
+	items, err := queueStore.Snapshot(queueLocation)
+	if err != nil || len(items) != 1 {
+		t.Fatalf("读取补充消息队列失败: items=%+v err=%v", items, err)
+	}
+	if err = service.HandleInputQueue(ctx, roomsvc.InputQueueRequest{
+		SessionKey:     sharedSessionKey,
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
+		Action:         "guide",
+		ItemID:         items[0].ID,
+	}); err != nil {
+		t.Fatalf("将补充消息切换为引导失败: %v", err)
+	}
+
+	roomHistory := workspacestore.NewRoomHistoryStore(cfg.WorkspacePath)
+	messages, err := roomHistory.ReadMessages(roomContext.Conversation.ID, nil)
+	if err != nil {
+		t.Fatalf("读取 Room 历史失败: %v", err)
+	}
+	assertRoomUserMessageDeliveryPolicy(t, messages, "room-round-late-guide-2", protocol.ChatDeliveryPolicyGuide)
+
+	// 模拟当前 round 已无后续 PostToolUse：引导没有机会注入，直接收到最终 result。
+	go sendFakeAssistantResult(firstClient, "assistant-first-round", "第一轮完成")
+	select {
+	case prompt := <-secondPrompt:
+		if !strings.Contains(prompt, "然后想想还能怎么优化") {
+			t.Fatalf("恢复后的下一轮缺少补充要求: %s", prompt)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("错过最后一次工具钩子的引导未在 round 结束后接力派发")
+	}
+
+	items, err = queueStore.Snapshot(queueLocation)
+	if err != nil {
+		t.Fatalf("读取派发后队列失败: %v", err)
+	}
+	if len(items) != 0 {
+		t.Fatalf("补充消息接力派发后不应残留队列项: %+v", items)
+	}
+	messages, err = roomHistory.ReadMessages(roomContext.Conversation.ID, nil)
+	if err != nil {
+		t.Fatalf("重新读取 Room 历史失败: %v", err)
+	}
+	assertRoomUserMessageDeliveryPolicy(t, messages, "room-round-late-guide-2", protocol.ChatDeliveryPolicyQueue)
+}
+
+func assertRoomUserMessageDeliveryPolicy(
+	t *testing.T,
+	messages []protocol.Message,
+	roundID string,
+	want protocol.ChatDeliveryPolicy,
+) {
+	t.Helper()
+	for _, message := range messages {
+		if protocol.MessageRole(message) != "user" || protocol.MessageRoundID(message) != roundID {
+			continue
+		}
+		if got, _ := message["delivery_policy"].(string); got != string(want) {
+			t.Fatalf("Room 用户消息 delivery_policy=%q, want=%q: %+v", got, want, message)
+		}
+		return
+	}
+	t.Fatalf("Room 历史缺少 round %q 的用户消息: %+v", roundID, messages)
+}
+
 func TestRealtimeServiceNewMessageKeepsOtherAgentRoundRunning(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)

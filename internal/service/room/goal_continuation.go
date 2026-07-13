@@ -1,3 +1,6 @@
+// INPUT: Room Goal 状态、显式输入队列与上一轮执行结果。
+// OUTPUT: 用户输入优先约束下的隐藏 Goal continuation。
+// POS: Room 与 Goal 状态机之间的续跑适配层。
 package room
 
 import (
@@ -42,9 +45,12 @@ func (s *RealtimeService) ShouldDeferGoalContinuation(ctx context.Context, sessi
 		s.loggerFor(ctx).Warn("读取 Room Goal 续跑待发送队列失败", "session_key", sessionKey, "err", err)
 		return false
 	}
+	if len(entries) == 0 {
+		return s.shouldDeferGoalContinuationForTargetState(ctx, sessionKey, contextValue)
+	}
 	entry, ok := s.findDispatchableInputQueueEntry(sessionKey, parsed.ConversationID, entries)
 	if !ok {
-		return s.shouldDeferGoalContinuationForTargetState(ctx, sessionKey, contextValue)
+		return true
 	}
 	s.dispatchNextInputQueueItem(
 		contextWithQueueOwner(ctx, entry.Item.OwnerUserID),

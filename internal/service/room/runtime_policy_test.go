@@ -11,6 +11,7 @@ import (
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
@@ -257,6 +258,59 @@ func TestRealtimeServiceGoalContinuationDefersInPlanMode(t *testing.T) {
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(dmContext.Conversation.ID)
 	if !service.ShouldDeferGoalContinuation(ctx, sharedSessionKey) {
 		t.Fatal("Room Goal continuation should defer while the target agent is in plan mode")
+	}
+}
+
+func TestRealtimeServiceGoalContinuationDefersBehindPendingUserGuidance(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	ctx := context.Background()
+	memberAgent := createTestAgent(t, agentService, ctx, "用户输入优先助手")
+	roomContext, err := roomService.EnsureDirectRoom(ctx, memberAgent.AgentID)
+	if err != nil {
+		t.Fatalf("创建直聊 room 失败: %v", err)
+	}
+
+	location := workspacestore.InputQueueLocation{
+		Scope:          protocol.InputQueueScopeRoom,
+		WorkspacePath:  memberAgent.WorkspacePath,
+		SessionKey:     protocol.BuildRoomAgentSessionKey(roomContext.Conversation.ID, memberAgent.AgentID, roomContext.Room.RoomType),
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
+	}
+	if _, err = workspacestore.NewInputQueueStore(cfg.WorkspacePath).Enqueue(location, protocol.InputQueueItem{
+		Scope:           protocol.InputQueueScopeRoom,
+		SessionKey:      location.SessionKey,
+		RoomID:          roomContext.Room.ID,
+		ConversationID:  roomContext.Conversation.ID,
+		AgentID:         memberAgent.AgentID,
+		TargetAgentIDs:  []string{memberAgent.AgentID},
+		Source:          protocol.InputQueueSourceUser,
+		Content:         "先处理用户刚补充的要求",
+		DeliveryPolicy:  protocol.ChatDeliveryPolicyGuide,
+		SourceMessageID: "room-pending-guidance",
+	}); err != nil {
+		t.Fatalf("写入待处理用户引导失败: %v", err)
+	}
+
+	service := NewRealtimeServiceWithFactory(
+		cfg,
+		roomService,
+		agentService,
+		runtimectx.NewManager(),
+		permissionctx.NewContext(),
+		&fakeRoomFactory{},
+	)
+	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
+	if !service.ShouldDeferGoalContinuation(ctx, sharedSessionKey) {
+		t.Fatal("Room Goal continuation should defer while explicit user guidance is pending")
 	}
 }
 

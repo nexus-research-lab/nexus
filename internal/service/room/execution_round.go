@@ -1,3 +1,6 @@
+// INPUT: 已构造的 Room round、历史与 Agent 目录。
+// OUTPUT: slot 终态、共享事件，以及用户队列优先的后续工作接力。
+// POS: Room round 生命周期的唯一收尾编排入口。
 package room
 
 import (
@@ -52,6 +55,9 @@ func (s *RealtimeService) runRound(
 		mapTerminalSubtype(finalStatus),
 	))
 	s.broadcastSessionStatus(ctx, roundValue.SessionKey)
+	// 显式用户输入先于 Agent 唤醒和 Goal 隐藏续跑；错过 hook 的 guide 自动退回下一轮。
+	s.releaseUndeliveredRoomGuidance(ctx, roundValue.SessionKey, roundValue.Context)
+	s.dispatchNextInputQueueItem(ctx, roundValue.SessionKey, roundValue.RoomID, roundValue.ConversationID)
 	// 只要 slot runtime 留有 subagent history 就继续接管消息；终态 task 也可能被 UI follow-up 唤醒。
 	s.startIdleSubagentNotificationDrains(contextWithQueueOwner(context.Background(), roundValue.OwnerUserID), roundValue)
 	if finalStatus == "finished" {
