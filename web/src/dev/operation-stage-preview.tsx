@@ -350,7 +350,7 @@ const web_fetch_event: NexusOperationEvent = {
     "Pomodoro timers alternate focus intervals and short breaks.",
     "Users expect start, pause, reset, and session counters.",
   ],
-  summary: "Safari 显示真实 URL 和抓取结果片段。",
+  summary: "Navi 显示真实 URL 和抓取结果片段。",
   updated_at: now - 5_500,
 };
 
@@ -375,7 +375,7 @@ const open_event: NexusOperationEvent = {
     command: "open gomoku.html",
   },
   result_preview: {
-    content: "Opening gomoku.html\nSafari preview launched\n",
+    content: "Opening gomoku.html\nNavi preview launched\n",
     exit_code: 0,
     is_error: false,
   },
@@ -410,8 +410,76 @@ const terminal_event: NexusOperationEvent = {
     exit_code: 0,
     is_error: false,
   },
+  duration_ms: 1840,
   summary: "终端显示真实命令输出和退出码。",
   updated_at: now - 4_800,
+};
+
+const background_terminal_event: NexusOperationEvent = {
+  agent_id,
+  evidence: [
+    { type: "terminal", label: "运行", value: "pnpm dev" },
+    { type: "status", label: "进程", value: "shell-42" },
+  ],
+  id: "tool-terminal-background",
+  kind: "command_run",
+  message_id: "message-assistant",
+  phase: "done",
+  round_id,
+  session_key,
+  surface: "terminal",
+  target: "pnpm dev",
+  title: "运行开发服务",
+  tool_name: "Bash",
+  tool_use_id: "tool-terminal-background",
+  input_preview: {
+    command: "pnpm dev",
+    cwd: "/private/tmp/nexus-operation-stage",
+    run_in_background: true,
+  },
+  result_preview: {
+    content: {
+      message: "Command started in background",
+      task_id: "shell-42",
+    },
+    is_error: false,
+  },
+  duration_ms: 920,
+  updated_at: now - 4_700,
+};
+
+const kill_shell_event: NexusOperationEvent = {
+  agent_id,
+  evidence: [
+    { type: "terminal", label: "终止", value: "shell-42" },
+    { type: "status", label: "进程", value: "pnpm dev" },
+  ],
+  id: "tool-kill-shell",
+  kind: "command_stop",
+  message_id: "message-assistant",
+  phase: "done",
+  round_id,
+  session_key,
+  surface: "terminal",
+  target: "shell-42",
+  title: "终止运行中的命令",
+  tool_name: "KillShell",
+  tool_use_id: "tool-kill-shell",
+  input_preview: {
+    shell_id: "shell-42",
+  },
+  result_preview: {
+    content: {
+      command: "pnpm dev",
+      message: "Successfully stopped task: shell-42",
+      task_id: "shell-42",
+      task_type: "local_bash",
+    },
+    is_error: false,
+  },
+  duration_ms: 130,
+  summary: "终止仍在运行的 shell 进程。",
+  updated_at: now - 4_500,
 };
 
 const permission_event: NexusOperationEvent = {
@@ -552,6 +620,7 @@ const PREVIEW_STEPS = [
   { id: "permission", label: "权限确认", event: permission_event, events: [live_event, write_event, permission_event] },
   { id: "question", label: "用户问题", event: question_event, events: [live_event, task_event, question_event] },
   { id: "terminal", label: "终端输出", event: terminal_event, events: [live_event, terminal_event] },
+  { id: "kill-shell", label: "终止命令", event: kill_shell_event, events: [live_event, background_terminal_event, kill_shell_event] },
   { id: "open", label: "打开预览", event: open_event, events: [live_event, write_event, open_event] },
   { id: "done", label: "完成收束", event: summary_event, events: [live_event, write_event, open_event, summary_event] },
   {
@@ -567,6 +636,7 @@ const PREVIEW_STEPS = [
       write_event,
       edit_event,
       terminal_event,
+      kill_shell_event,
       web_search_event,
       web_fetch_event,
       permission_event,

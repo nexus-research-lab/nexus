@@ -1,252 +1,184 @@
-import {
-  Loader2,
-  SplitSquareHorizontal,
-  TerminalSquare,
-} from "lucide-react";
+import { useEffect, useMemo, useRef } from "react";
+import { CircleStop, LoaderCircle } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
 import type { NexusOperationEvent } from "../operation-types";
 import {
-  build_terminal_entries,
-  summarize_terminal_entries,
-  TERMINAL_PHASE_LABEL,
-  terminal_cwd_label,
-  terminal_shell_title,
+  buildTerminalSession,
 } from "./terminal-session-model";
-import type { TerminalEntry, TerminalTranscriptRow } from "./terminal-session-model";
+import type {
+  TerminalControlEvent,
+  TerminalEntry,
+} from "./terminal-session-model";
+import type { TerminalOutputRow } from "./terminal-result-model";
 
 export function TerminalSession({
-  command,
   event,
-  lines,
-  related_events,
+  relatedEvents,
 }: {
-  command: string;
   event: NexusOperationEvent;
-  lines: string[];
-  related_events: NexusOperationEvent[];
+  relatedEvents: NexusOperationEvent[];
 }) {
-  const entries = build_terminal_entries({
-    command,
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const session = useMemo(() => buildTerminalSession({
     event,
-    fallback_lines: lines,
-    related_events,
-  });
-  const has_running_entry = entries.some((entry) => entry.phase === "running");
-  const session_summary = summarize_terminal_entries(entries, event);
-  const session_label = event.agent_id ? `${event.agent_id.slice(0, 6)}@nexus` : "agent@nexus";
-  const cwd_label = terminal_cwd_label(event);
-  const shell_title = terminal_shell_title(entries[0]?.command ?? command);
+    relatedEvents,
+  }), [event, relatedEvents]);
+  const transcriptVersion = session.entries.map((entry) => (
+    `${entry.id}:${entry.phase}:${entry.result.rows.map((row) => `${row.stream}:${row.text}`).join("\n")}:${entry.controls.map((control) => `${control.id}:${control.phase}:${control.resultRows.map((row) => row.text).join("\n")}`).join("|")}`
+  )).join("|");
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (viewport) {
+      viewport.scrollTop = viewport.scrollHeight;
+    }
+  }, [transcriptVersion]);
 
   return (
-    <div className="flex h-full min-h-[240px] min-w-0 flex-col overflow-hidden bg-[#080d12] font-mono text-[11px] leading-5 text-[#d9ffe5]">
-      <TerminalTitleBar
-        cwd_label={cwd_label}
-        event={event}
-        has_running_entry={has_running_entry}
-        session_summary={session_summary}
-        session_label={session_label}
-        shell_title={shell_title}
-      />
-      <div className="soft-scrollbar min-h-0 flex-1 overflow-auto bg-[radial-gradient(70%_36%_at_50%_0%,rgba(141,224,173,0.055),transparent_70%),#080d12] px-3 py-2">
-        <div className="mb-2 flex min-w-0 items-start gap-2 text-[#526875]">
-          <span className="select-none">Last login:</span>
-          <span className="min-w-0 break-words">{session_summary.started_label} on nexus-session</span>
-        </div>
-        {entries.map((entry, entry_index) => (
-          <div className={entry_index > 0 ? "mt-4 border-t border-white/8 pt-3" : undefined} key={entry.id}>
-            {entry_index > 0 ? <TerminalCommandSeparator entry={entry} /> : null}
-            <div className="space-y-0.5">
-              {entry.rows.map((row) => (
-                <TerminalTranscriptLine
-                  cwd_label={cwd_label}
-                  key={row.id}
-                  row={row}
-                  session_label={session_label}
-                />
-              ))}
-              {entry.phase === "running" ? (
-                <TerminalPromptLine cwd_label={cwd_label} session_label={session_label} />
-              ) : null}
-            </div>
-            {entry.phase === "running" ? null : (
-              <div className="mt-2 flex min-w-0 items-center gap-2 text-[10px] text-[#526875]">
-                <span className="h-px flex-1 bg-white/8" />
-                <span>{entry.exit_label}</span>
-              </div>
-            )}
-          </div>
+    <div
+      aria-label="终端会话"
+      aria-live="polite"
+      className="soft-scrollbar h-full min-h-[220px] min-w-0 overflow-auto bg-[#2b3948] px-3 py-3 font-mono text-[12px] leading-[1.65] text-[#9de6d7] sm:px-4 sm:py-3.5 sm:text-[13px]"
+      ref={viewportRef}
+      role="log"
+    >
+      <div className="w-full min-w-0">
+        {session.entries.map((entry, index) => (
+          <TerminalProcess
+            entry={entry}
+            key={entry.id}
+            separated={index > 0}
+          />
         ))}
+        {!session.hasActiveProcess ? <TerminalPrompt cwdLabel={lastKnownCwd(session.entries)} /> : null}
       </div>
     </div>
   );
 }
 
-function TerminalTitleBar({
-  cwd_label,
-  event,
-  has_running_entry,
-  session_summary,
-  session_label,
-  shell_title,
+function TerminalProcess({
+  entry,
+  separated,
 }: {
-  cwd_label: string;
-  event: NexusOperationEvent;
-  has_running_entry: boolean;
-  session_summary: ReturnType<typeof summarize_terminal_entries>;
-  session_label: string;
-  shell_title: string;
+  entry: TerminalEntry;
+  separated: boolean;
 }) {
   return (
-    <div className="border-b border-white/10 bg-[#111922] text-[10px] text-[#88a19a]">
-      <div className="flex min-h-0 items-end gap-1.5 px-2 pt-1.5">
-        <div className="flex min-w-0 max-w-[70%] items-center gap-2 rounded-t-[8px] border border-b-0 border-white/10 bg-[#080d12] px-3 py-1.5 text-[#c8d8d1] shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]">
-          <span className="grid h-4 w-4 shrink-0 place-items-center text-[#8de0ad]">
-            {has_running_entry
-              ? <Loader2 className="h-3 w-3 animate-spin" />
-              : <TerminalSquare className="h-3 w-3" />}
-          </span>
-          <span className="min-w-0 truncate">{shell_title}</span>
-        </div>
-        <span className="mb-1 hidden min-w-0 truncate text-[#536873] sm:block">
-          {session_label}
-        </span>
-      </div>
-      <div className="grid min-h-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-t border-white/[0.035] px-3 py-1.5">
-        <span className="flex min-w-0 items-center gap-1.5 truncate text-[#536873]">
-          <SplitSquareHorizontal className="h-3 w-3 shrink-0" />
-          <span className="truncate">{cwd_label}</span>
-        </span>
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="hidden shrink-0 text-[#536873] sm:inline">{session_summary.duration_label}</span>
-          <span className={cn(
-            "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold",
-            event.phase === "running" && "bg-[#8de0ad]/10 text-[#8de0ad]",
-            event.phase === "done" && "bg-[#8de0ad]/10 text-[#8de0ad]",
-            event.phase === "error" && "bg-[#ff9d9d]/10 text-[#ff9d9d]",
-            (event.phase === "queued" || event.phase === "waiting" || event.phase === "cancelled") && "bg-white/[0.04] text-[#8aa09b]",
-          )}>
-            {TERMINAL_PHASE_LABEL[event.phase]} · {session_summary.exit_label}
-          </span>
-        </div>
-      </div>
-    </div>
+    <section className={cn("min-w-0", separated && "mt-3 border-t border-white/8 pt-3")}>
+      {entry.command ? (
+        <TerminalCommand command={entry.command} cwdLabel={entry.cwdLabel} />
+      ) : null}
+
+      {entry.result.rows.map((row) => (
+        <TerminalOutput key={row.id} row={row} />
+      ))}
+
+      {entry.controls.map((control) => (
+        <TerminalControl control={control} key={control.id} />
+      ))}
+
+      <TerminalStatus entry={entry} />
+    </section>
   );
 }
 
-function TerminalPromptLine({
-  cwd_label,
-  session_label,
-}: {
-  cwd_label: string;
-  session_label: string;
-}) {
+function TerminalPrompt({ cwdLabel }: { cwdLabel: string | null }) {
   return (
-    <div className="flex min-w-0 flex-wrap items-start gap-x-2">
-      <span className="select-none text-[#6f827d]">{session_label}</span>
-      <span className="select-none text-[#526875]">{cwd_label}</span>
-      <span className="select-none text-[#8de0ad]">%</span>
-      <span className="operation-terminal-caret ml-2 mt-[3px] shrink-0" />
+    <div className="mt-1 flex min-w-0 items-start gap-2">
+      <TerminalCwd cwdLabel={cwdLabel} />
+      <span className="shrink-0 select-none text-[#ff5ec7]">❯</span>
+      <span className="operation-terminal-caret mt-[5px] shrink-0 bg-[#c9f7ef]" />
     </div>
   );
 }
 
-function TerminalCommandLine({
+function TerminalCommand({
   command,
-  cwd_label,
-  session_label,
+  cwdLabel,
 }: {
   command: string;
-  cwd_label: string;
-  session_label: string;
+  cwdLabel: string | null;
 }) {
   return (
-    <div className="flex min-w-0 flex-wrap items-start gap-x-2">
-      <span className="select-none text-[#6f827d]">{session_label}</span>
-      <span className="select-none text-[#526875]">{cwd_label}</span>
-      <span className="select-none text-[#8de0ad]">%</span>
-      <span className="ml-2 min-w-0 break-words text-[#f1fff7]">{command}</span>
+    <div className="flex min-w-0 items-start gap-2 text-[#dce8f1]">
+      <TerminalCwd cwdLabel={cwdLabel} />
+      <span className="shrink-0 select-none text-[#ff5ec7]">❯</span>
+      <span className="min-w-0 whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{command}</span>
     </div>
   );
 }
 
-function TerminalTranscriptLine({
-  cwd_label,
-  row,
-  session_label,
-}: {
-  cwd_label: string;
-  row: TerminalTranscriptRow;
-  session_label: string;
-}) {
-  if (row.stream === "system") {
-    return (
-      <div className="flex min-w-0 items-start gap-2 text-[#526875]">
-        <span className="select-none">#</span>
-        <span className="min-w-0 break-words whitespace-pre-wrap">{row.text}</span>
-      </div>
-    );
+function TerminalOutput({ row }: { row: TerminalOutputRow }) {
+  if (row.text === "") {
+    return <div aria-hidden="true" className="h-[1.65em]" />;
   }
-  if (row.stream === "command") {
-    return (
-      <TerminalCommandLine command={row.text} cwd_label={cwd_label} session_label={session_label} />
-    );
-  }
-  if (row.stream === "exit") {
-    return (
-      <div className="flex min-w-0 items-start gap-2 text-[#526875]">
-        <span className="select-none">#</span>
-        <span className="min-w-0 break-words whitespace-pre-wrap">{row.text}</span>
-      </div>
-    );
-  }
-  return <TerminalOutputLine line={row.text} stream={row.stream} />;
-}
-
-function TerminalOutputLine({
-  line,
-  stream = "output",
-}: {
-  line: string;
-  stream?: "stdout" | "stderr" | "output";
-}) {
-  if (line === "") {
-    return <div className="h-5" />;
-  }
-
-  const prompt_match = line.match(/^(\s*[$>]\s?)(.*)$/);
-  if (prompt_match) {
-    return (
-      <div className="flex min-w-0 items-start gap-2 pl-5">
-        <span className="select-none text-[#526875]">{prompt_match[1].trim()}</span>
-        <span className="ml-2 min-w-0 break-words text-[#d9ffe5]">{prompt_match[2]}</span>
-      </div>
-    );
-  }
-
-  const is_error = /\b(error|failed|panic|exception|denied)\b/i.test(line);
-  const is_success = /^(✓|done|success|passed)\b/i.test(line);
-
   return (
-    <div className="flex min-w-0 items-start pl-5">
+    <div className="min-w-0">
       <span className={cn(
-        "min-w-0 break-words whitespace-pre-wrap",
-        stream === "stderr" || is_error ? "text-[#ff8f8f]" : is_success ? "text-[#8de0ad]" : "text-[#b7cbc5]",
+        "min-w-0 whitespace-pre-wrap break-words [overflow-wrap:anywhere]",
+        row.stream === "stderr" ? "text-[#ff9b9b]" : row.stream === "stdout" ? "text-[#a7eadc]" : "text-[#b8c7d4]",
       )}>
-        {line}
+        {row.text}
       </span>
     </div>
   );
 }
 
-function TerminalCommandSeparator({ entry }: { entry: TerminalEntry }) {
+function TerminalControl({ control }: { control: TerminalControlEvent }) {
+  const isActive = control.phase === "queued" || control.phase === "running" || control.phase === "waiting";
   return (
-    <div className="mb-2 flex min-w-0 items-center gap-2 text-[10px] text-[#526875]">
-      <span className="h-px flex-1 bg-white/8" />
-      <span className="shrink-0">
-        {entry.started_label} · {entry.duration_label}
-      </span>
+    <div className="my-1.5 min-w-0 border-l-2 border-[#ffcc66]/55 pl-2.5 text-[#d8c79e]">
+      <div className="flex min-w-0 items-start gap-1.5">
+        {isActive
+          ? <LoaderCircle className="mt-[3px] h-3.5 w-3.5 shrink-0 animate-spin" />
+          : <CircleStop className="mt-[3px] h-3.5 w-3.5 shrink-0" />}
+        <span className="min-w-0 break-words">
+          KillShell · {control.statusLabel} · {control.targetLabel ?? "目标未知"}
+          {control.durationLabel ? ` · ${control.durationLabel}` : ""}
+        </span>
+      </div>
+      {control.resultRows.map((row) => (
+        <TerminalOutput key={`${control.id}:${row.id}`} row={row} />
+      ))}
     </div>
   );
+}
+
+function TerminalCwd({ cwdLabel }: { cwdLabel: string | null }) {
+  return (
+    <span className={cn(
+      "shrink-0 select-none",
+      cwdLabel ? "text-[#65c7f7]" : "text-[#7f90a3]",
+    )}>
+      {cwdLabel ?? "cwd ?"}
+    </span>
+  );
+}
+
+function TerminalStatus({ entry }: { entry: TerminalEntry }) {
+  const isActive = entry.phase === "queued" || entry.phase === "running" || entry.phase === "waiting";
+  const details = [entry.statusLabel, entry.durationLabel].filter(Boolean).join(" · ");
+  return (
+    <div className={cn(
+      "mt-0.5 flex min-w-0 items-start gap-2 text-[#7f90a3]",
+      entry.statusTone === "error" && "text-[#ff9b9b]",
+      entry.statusTone === "success" && "text-[#91d6b5]",
+      isActive && "text-[#d8c79e]",
+    )}>
+      <span className="shrink-0 select-none">#</span>
+      <span className="min-w-0 break-words">{details}</span>
+      {isActive ? <span className="operation-terminal-caret mt-[5px] shrink-0 bg-current" /> : null}
+    </div>
+  );
+}
+
+function lastKnownCwd(entries: TerminalEntry[]): string | null {
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    if (entries[index].cwdLabel) {
+      return entries[index].cwdLabel;
+    }
+  }
+  return null;
 }

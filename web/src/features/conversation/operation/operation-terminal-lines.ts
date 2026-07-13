@@ -4,6 +4,9 @@ export function build_operation_terminal_lines(events: NexusOperationEvent[]): s
   return events.flatMap((event) => {
     const command = read_terminal_command(event);
     const result_lines = terminal_result_lines(event).filter((line) => !terminal_line_matches_command(line, command));
+    if (event.kind === "command_stop" || event.tool_name === "KillShell") {
+      return result_lines;
+    }
     return [
       `$ ${command}`,
       ...result_lines,
@@ -15,7 +18,7 @@ export function read_terminal_command(event: NexusOperationEvent): string {
   return read_input_string(event.input_preview, ["command", "description"])
     ?? event.target
     ?? event.tool_name
-    ?? "command";
+    ?? "";
 }
 
 function terminal_result_lines(event: NexusOperationEvent): string[] {
@@ -25,9 +28,6 @@ function terminal_result_lines(event: NexusOperationEvent): string[] {
   }
   if (event.summary) {
     return split_terminal_text(event.summary).slice(0, 8);
-  }
-  if (event.phase === "running") {
-    return ["waiting for output..."];
   }
   return [];
 }

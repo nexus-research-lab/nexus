@@ -47,7 +47,7 @@ function subsystem_source_detail(subsystem: string): string {
   if (subsystem === "Terminal") {
     return "命令与进程";
   }
-  if (subsystem === "Safari") {
+  if (subsystem === "Navi") {
     return "网页与预览";
   }
   if (subsystem === "Finder") {

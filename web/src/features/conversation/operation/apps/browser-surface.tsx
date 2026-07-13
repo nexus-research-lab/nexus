@@ -4,6 +4,7 @@ import {
   ArrowRight,
   BookOpen,
   ExternalLink,
+  FileText,
   Globe2,
   Loader2,
   PanelLeft,
@@ -23,6 +24,13 @@ import type {
   NexusOperationEvent,
   OperationPhase,
 } from "../operation-types";
+import {
+  build_browser_reader_paragraphs,
+  format_browser_origin,
+  is_web_fetch_event,
+  looks_like_url,
+  read_browser_input_string,
+} from "./browser-reader-model";
 import { build_browser_result_items } from "./browser-result-items";
 import { build_browser_session_view } from "./browser-session";
 
@@ -67,13 +75,14 @@ export function BrowserSurface({
       />
 
       <BrowserViewport
+        event={event}
         iframe_url={session.iframe_url}
+        lines={lines}
         page_kind={session.page_kind}
+        preview={preview}
         query={query}
         srcdoc={session.srcdoc}
         target={target}
-        event={event}
-        lines={lines}
       />
     </div>
   );
@@ -102,41 +111,41 @@ function BrowserChromeHeader({
       </div>
       <div className="flex min-w-0 items-center gap-2 px-3 py-2">
         <div className="flex shrink-0 items-center gap-1 text-(--icon-muted)">
-          <SafariToolbarButton label="显示边栏">
+          <NaviToolbarButton label="显示边栏">
             <PanelLeft className="h-3.5 w-3.5" />
-          </SafariToolbarButton>
-          <SafariToolbarButton label="后退">
+          </NaviToolbarButton>
+          <NaviToolbarButton label="后退">
             <ArrowLeft className="h-3.5 w-3.5" />
-          </SafariToolbarButton>
-          <SafariToolbarButton label="前进">
+          </NaviToolbarButton>
+          <NaviToolbarButton label="前进">
             <ArrowRight className="h-3.5 w-3.5" />
-          </SafariToolbarButton>
-          <SafariToolbarButton label={event.phase === "running" ? "正在加载" : "重新载入"}>
+          </NaviToolbarButton>
+          <NaviToolbarButton label={event.phase === "running" ? "正在加载" : "重新载入"}>
             {event.phase === "running"
               ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
               : <RefreshCw className="h-3.5 w-3.5" />}
-          </SafariToolbarButton>
+          </NaviToolbarButton>
         </div>
         <div className="flex min-w-0 flex-1 items-center gap-2 rounded-[9px] border border-(--divider-subtle-color) bg-white/88 px-2.5 py-1.5 text-[11px] text-(--text-default) shadow-[inset_0_1px_0_rgba(255,255,255,0.76)]">
           <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-[color:var(--success)]" />
           <span className="min-w-0 flex-1 truncate font-medium">{display_url}</span>
-          <SafariLoadDot source_label={source_label} status={status} />
+          <NaviLoadDot source_label={source_label} status={status} />
         </div>
-        <SafariToolbarButton label="共享">
+        <NaviToolbarButton label="共享">
           <Share2 className="h-3.5 w-3.5" />
-        </SafariToolbarButton>
-        <SafariToolbarButton label="新建标签页">
+        </NaviToolbarButton>
+        <NaviToolbarButton label="新建标签页">
           <Plus className="h-3.5 w-3.5" />
-        </SafariToolbarButton>
-        <SafariToolbarButton label="在浏览器中打开">
+        </NaviToolbarButton>
+        <NaviToolbarButton label="在浏览器中打开">
           <ExternalLink className="h-3.5 w-3.5" />
-        </SafariToolbarButton>
+        </NaviToolbarButton>
       </div>
     </div>
   );
 }
 
-function SafariToolbarButton({ children, label }: { children: ReactNode; label: string }) {
+function NaviToolbarButton({ children, label }: { children: ReactNode; label: string }) {
   return (
     <button
       aria-label={label}
@@ -149,7 +158,7 @@ function SafariToolbarButton({ children, label }: { children: ReactNode; label: 
   );
 }
 
-function SafariLoadDot({
+function NaviLoadDot({
   source_label,
   status,
 }: {
@@ -182,6 +191,7 @@ function BrowserViewport({
   iframe_url,
   lines,
   page_kind,
+  preview,
   query,
   srcdoc,
   target,
@@ -190,6 +200,7 @@ function BrowserViewport({
   iframe_url: string | null;
   lines: string[];
   page_kind: "embedded" | "workspace" | "web" | "search" | "start";
+  preview: unknown;
   query: string;
   srcdoc: string | null;
   target?: string | null;
@@ -214,7 +225,18 @@ function BrowserViewport({
   }
 
   if (page_kind === "start") {
-    return <SafariStartPage event={event} />;
+    return <NaviStartPage event={event} />;
+  }
+
+  if (is_web_fetch_event(event)) {
+    return (
+      <BrowserReaderPage
+        event={event}
+        lines={lines}
+        preview={preview}
+        query={query}
+      />
+    );
   }
 
   return <BrowserSearchResults event={event} lines={lines} query={query} />;
@@ -237,7 +259,7 @@ function BrowserIframeViewport({
   );
 }
 
-function SafariStartPage({
+function NaviStartPage({
   event,
 }: {
   event: NexusOperationEvent;
@@ -253,13 +275,13 @@ function SafariStartPage({
           <span className="min-w-0 flex-1 text-left text-(--text-soft)">搜索或输入网站名称</span>
         </div>
         <p className="mt-3 text-[11px] text-(--text-soft)">
-          Safari 起始页 · Nexus 待命 · {PHASE_LABEL[event.phase]}
+          Navi 起始页 · Nexus 待命 · {PHASE_LABEL[event.phase]}
         </p>
 
         <div className="mt-8 grid w-full grid-cols-3 gap-2 max-md:grid-cols-1">
-          <SafariSummaryTile label="收藏" value="工作区预览" />
-          <SafariSummaryTile label="阅读列表" value="空" />
-          <SafariSummaryTile label="隐私报告" value="已启用" />
+          <NaviSummaryTile label="收藏" value="工作区预览" />
+          <NaviSummaryTile label="阅读列表" value="空" />
+          <NaviSummaryTile label="隐私报告" value="已启用" />
         </div>
 
         <div className="mt-4 grid w-full grid-cols-3 gap-3 max-md:grid-cols-1">
@@ -292,57 +314,42 @@ function BrowserSearchResults({
   query: string;
 }) {
   const result_items = build_browser_result_items({ event, lines, query });
-  const has_link_results = result_items.some((item) => item.kind === "link");
-  const result_label = has_link_results ? "搜索结果" : "工具返回摘要";
 
   return (
-    <div className="soft-scrollbar min-h-0 flex-1 overflow-auto bg-[radial-gradient(70%_42%_at_50%_0%,rgba(91,114,255,0.055),transparent_70%),#fbfcfe]">
-      <div className="min-h-full px-6 py-6">
-        <div className="mx-auto max-w-[860px]">
-          <div className="mb-5 text-center">
-            <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-[18px] bg-white/82 text-[color:var(--primary)] shadow-[0_18px_42px_rgba(18,28,42,0.10),inset_0_1px_0_rgba(255,255,255,0.84)]">
-              <Globe2 className="h-6 w-6" />
-            </div>
-            <div className="mx-auto flex max-w-[640px] min-w-0 items-center gap-2 rounded-[18px] border border-(--divider-subtle-color) bg-white px-4 py-3 text-[13px] text-(--text-strong) shadow-[0_16px_42px_rgba(18,28,42,0.08),inset_0_1px_0_rgba(255,255,255,0.82)]">
+    <div className="soft-scrollbar min-h-0 flex-1 overflow-auto bg-white">
+      <div className="min-h-full px-8 py-7">
+        <div className="max-w-[760px]">
+          <div className="mb-7">
+            <div className="flex min-w-0 items-center gap-2 rounded-full border border-(--divider-subtle-color) bg-white px-4 py-2.5 text-[14px] text-(--text-strong) shadow-[0_3px_16px_rgba(18,28,42,0.08)]">
               <Search className="h-4 w-4 shrink-0 text-(--icon-muted)" />
               <span className="min-w-0 flex-1 truncate">{query}</span>
               {event.phase === "running" ? <Loader2 className="h-4 w-4 shrink-0 animate-spin text-[color:var(--primary)]" /> : null}
             </div>
-            <p className="mt-3 text-[11px] text-(--text-soft)">
-              Safari {has_link_results ? "搜索" : "阅读"} · {PHASE_LABEL[event.phase]} · {result_items.length} 条记录
-            </p>
             {event.phase === "running" ? (
-              <div className="operation-web-loading mx-auto mt-3 h-1.5 max-w-[420px] overflow-hidden rounded-full bg-[rgba(91,114,255,0.10)]" />
+              <div className="operation-web-loading mt-3 h-1 max-w-[420px] overflow-hidden rounded-full bg-[rgba(91,114,255,0.10)]" />
             ) : null}
           </div>
 
-          <div className="mb-3 grid grid-cols-3 gap-2 max-md:grid-cols-1">
-            <SafariSummaryTile label="来源" value={format_browser_origin(query)} />
-            <SafariSummaryTile label="状态" value={PHASE_LABEL[event.phase]} />
-            <SafariSummaryTile label="记录" value={`${result_items.length} 条`} />
-          </div>
-
-          <div className="overflow-hidden rounded-[16px] border border-(--divider-subtle-color) bg-white/74 shadow-[0_18px_54px_rgba(18,28,42,0.075)]">
-            <div className="grid grid-cols-[22px_minmax(0,1fr)_auto] items-center gap-2 border-b border-(--divider-subtle-color) bg-[#f4f6fa] px-4 py-2 text-[10px] font-black text-(--text-soft)">
-              <BookOpen className="h-3.5 w-3.5" />
-              <span>{result_label}</span>
-              <span>Safari</span>
-            </div>
+          <div className="space-y-6">
             {result_items.map((item) => (
               <article
-                className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 border-b border-(--divider-subtle-color) px-4 py-3 last:border-b-0"
+                className="grid grid-cols-[minmax(0,1fr)_auto] gap-3"
                 key={`${item.kind}:${item.url ?? item.title}:${item.snippet}`}
               >
                 <div className="min-w-0">
-                  <p className="truncate text-[11px] font-semibold text-[color:var(--success)]">
-                    {item.url ?? "工具输出摘要"}
+                  {item.url ? (
+                    <>
+                      <p className="truncate text-[12px] leading-5 text-[#137333]">{item.url}</p>
+                      <h3 className="mt-0.5 line-clamp-2 text-[18px] font-medium leading-6 tracking-normal text-[#1a0dab]">
+                        {item.title}
+                      </h3>
+                    </>
+                  ) : null}
+                  <p className={cn("line-clamp-3 text-[#4d5156]", item.url ? "mt-1 text-[13px] leading-5" : "text-[13px] leading-5")}>
+                    {item.snippet}
                   </p>
-                  <h3 className="mt-1 line-clamp-2 text-[14px] font-black tracking-normal text-(--text-strong)">
-                    {item.title}
-                  </h3>
-                  <p className="mt-1.5 line-clamp-2 text-[12px] leading-5 text-(--text-default)">{item.snippet}</p>
                 </div>
-                {item.url ? <ExternalLink className="mt-1 h-4 w-4 shrink-0 text-(--icon-muted)" /> : null}
+                {item.url ? <ExternalLink className="mt-6 h-4 w-4 shrink-0 text-(--icon-muted)" /> : null}
               </article>
             ))}
           </div>
@@ -352,19 +359,84 @@ function BrowserSearchResults({
   );
 }
 
-function SafariSummaryTile({ label, value }: { label: string; value: string }) {
+function BrowserReaderPage({
+  event,
+  lines,
+  preview,
+  query,
+}: {
+  event: NexusOperationEvent;
+  lines: string[];
+  preview: unknown;
+  query: string;
+}) {
+  const url = read_browser_input_string(event, ["url", "uri", "link"]) ?? (looks_like_url(query) ? query : null);
+  const prompt = read_browser_input_string(event, ["prompt", "question", "query"]) ?? event.summary ?? "";
+  const paragraphs = build_browser_reader_paragraphs({
+    fallback: event.summary ?? prompt,
+    lines,
+    markers: [event.summary, prompt],
+    preview,
+  });
+  const highlighted_count = paragraphs.filter((paragraph) => paragraph.highlighted).length;
+  const origin = url ? format_browser_origin(url) : format_browser_origin(query);
+  const title = event.title && event.title !== "抓取网页" ? event.title : origin;
+
+  return (
+    <div className="soft-scrollbar min-h-0 flex-1 overflow-auto bg-[linear-gradient(180deg,#fbfcfe,#f3f6fb)]">
+      <article className="mx-auto min-h-full max-w-[820px] px-7 py-7">
+        <header className="border-b border-(--divider-subtle-color) pb-5">
+          <div className="mb-4 flex items-center gap-2 text-[11px] font-semibold text-(--text-soft)">
+            <span className="grid h-7 w-7 place-items-center rounded-[10px] bg-white text-[color:var(--primary)] shadow-[inset_0_1px_0_rgba(255,255,255,0.82)]">
+              <FileText className="h-3.5 w-3.5" />
+            </span>
+            <span className="truncate">{url ?? query}</span>
+          </div>
+          <h1 className="text-[22px] font-black leading-7 tracking-normal text-(--text-strong)">
+            {title}
+          </h1>
+          {prompt ? (
+            <p className="mt-3 rounded-[12px] border border-(--divider-subtle-color) bg-white/72 px-3 py-2 text-[12px] leading-5 text-(--text-default)">
+              {prompt}
+            </p>
+          ) : null}
+          <div className="mt-4 flex flex-wrap gap-2 text-[10px] font-black text-(--text-soft)">
+            <span className="rounded-full bg-white/72 px-2.5 py-1">Reader</span>
+            <span className="rounded-full bg-white/72 px-2.5 py-1">{PHASE_LABEL[event.phase]}</span>
+            <span className="rounded-full bg-white/72 px-2.5 py-1">{paragraphs.length} 段</span>
+            {highlighted_count > 0 ? (
+              <span className="rounded-full bg-[rgba(91,114,255,0.10)] px-2.5 py-1 text-[color:var(--primary)]">
+                命中 {highlighted_count}
+              </span>
+            ) : null}
+          </div>
+        </header>
+
+        <div className="space-y-4 py-5 text-[13px] leading-6 text-(--text-default)">
+          {paragraphs.map((paragraph, index) => (
+            <p
+              className={cn(
+                "whitespace-pre-wrap break-words rounded-[12px] px-3 py-2",
+                paragraph.highlighted
+                  ? "border border-[rgba(91,114,255,0.18)] bg-[rgba(91,114,255,0.07)] text-(--text-strong)"
+                  : "border border-transparent",
+              )}
+              key={`${index}:${paragraph.text.slice(0, 20)}`}
+            >
+              {paragraph.text}
+            </p>
+          ))}
+        </div>
+      </article>
+    </div>
+  );
+}
+
+function NaviSummaryTile({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-[12px] border border-(--divider-subtle-color) bg-white/66 px-3 py-2 text-left shadow-[0_10px_26px_rgba(18,28,42,0.045)]">
       <p className="text-[9px] font-black text-(--text-soft)">{label}</p>
       <p className="mt-0.5 truncate text-[11px] font-black text-(--text-strong)">{value}</p>
     </div>
   );
-}
-
-function format_browser_origin(value: string): string {
-  try {
-    return new URL(value).hostname;
-  } catch {
-    return "工作区预览";
-  }
 }

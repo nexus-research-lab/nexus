@@ -55,18 +55,10 @@ export function StageWindowContent({
   }
 
   if (window.kind === "terminal") {
-    const lines = window.payload.lines?.length
-      ? window.payload.lines
-      : [
-        window.payload.command ? `$ ${window.payload.command}` : "$",
-        ...get_preview_lines(event.result_preview ?? event.summary, 10),
-      ];
     return (
       <TerminalSession
-        command={window.payload.command ?? event.target ?? ""}
         event={event}
-        lines={lines}
-        related_events={window.payload.related_events ?? []}
+        relatedEvents={window.payload.related_events ?? []}
       />
     );
   }

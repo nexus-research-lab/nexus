@@ -26,11 +26,11 @@ export function position_for_window(
   if (window.layout === "terminal") {
     if (is_review_layout) {
       return window.phase === "focused"
-        ? "left-[14%] top-[19%] h-[50%] w-[60%]"
+        ? "left-[10%] top-[14%] h-[56%] w-[80%]"
         : "left-[15%] bottom-[18%] h-[18%] w-[60%]";
     }
     return window.phase === "focused"
-      ? "left-[15%] top-[22%] h-[44%] w-[60%]"
+      ? "left-[8%] top-[12%] h-[64%] w-[84%]"
       : "left-[14%] bottom-[18%] h-[18%] w-[58%]";
   }
   if (window.layout === "inspector") {

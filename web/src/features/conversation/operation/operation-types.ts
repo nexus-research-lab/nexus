@@ -79,6 +79,7 @@ export interface NexusOperationEvent {
   permission_request_id?: string | null;
   permission_decision?: PermissionDecision | null;
   permission_interaction_mode?: PermissionInteractionMode | null;
+  duration_ms?: number | null;
   started_at?: number;
   updated_at: number;
   ended_at?: number | null;

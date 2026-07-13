@@ -62,7 +62,7 @@ export function collect_manifest_artifacts(
     }
     add_artifact({
       id: `event:${item.target}`,
-      label: item.surface === "web" ? "Safari 页面" : item.surface === "task" ? "活动记录" : "工作区文件",
+      label: item.surface === "web" ? "Navi 页面" : item.surface === "task" ? "活动记录" : "工作区文件",
       value: item.target,
       type: item.surface === "web" ? "url" : item.surface === "task" ? "task" : "file",
     });

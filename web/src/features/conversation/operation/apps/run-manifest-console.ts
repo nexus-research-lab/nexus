@@ -15,7 +15,7 @@ export function console_event_subsystem(event: NexusOperationEvent): string {
     return "Terminal";
   }
   if (event.surface === "web") {
-    return "Safari";
+    return "Navi";
   }
   if (event.surface === "workspace") {
     return "Finder";

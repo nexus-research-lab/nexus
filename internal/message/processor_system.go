@@ -2,6 +2,7 @@ package message
 
 import (
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -78,25 +79,41 @@ func (p *Processor) processToolProgressMessage(message sdkprotocol.ReceivedMessa
 	}
 	progress := message.ToolProgress
 	data := mapValue(progress.Additional["data"])
-	if normalizeString(data["type"]) != "agent_progress" {
+	if normalizeString(data["type"]) == "agent_progress" {
+		taskID := firstNonEmpty(
+			strings.TrimSpace(progress.TaskID),
+			normalizeString(data["agent_id"]),
+			strings.TrimSpace(progress.ToolUseID),
+		)
+		description := firstNonEmpty(
+			normalizeString(data["description"]),
+			normalizeString(data["agent_type"]),
+			"子 Agent 正在执行",
+		)
+		return p.buildTaskProgressMessage(
+			taskID,
+			description,
+			firstNonEmpty(normalizePointerString(progress.ParentToolUseID), strings.TrimSpace(progress.ToolUseID)),
+			firstNonEmpty(agentProgressLastToolName(data), strings.TrimSpace(progress.ToolName)),
+			mapValue(data["usage"]),
+		)
+	}
+
+	toolUseID := strings.TrimSpace(progress.ToolUseID)
+	toolName := strings.TrimSpace(progress.ToolName)
+	if toolUseID == "" || (toolName != "Bash" && toolName != "KillShell") {
 		return nil
 	}
-	taskID := firstNonEmpty(
-		strings.TrimSpace(progress.TaskID),
-		normalizeString(data["agent_id"]),
-		strings.TrimSpace(progress.ToolUseID),
-	)
-	description := firstNonEmpty(
-		normalizeString(data["description"]),
-		normalizeString(data["agent_type"]),
-		"子 Agent 正在执行",
-	)
+	usage := map[string]any{}
+	if progress.ElapsedTimeSeconds > 0 {
+		usage["duration_ms"] = int64(math.Round(progress.ElapsedTimeSeconds * 1000))
+	}
 	return p.buildTaskProgressMessage(
-		taskID,
-		description,
-		firstNonEmpty(normalizePointerString(progress.ParentToolUseID), strings.TrimSpace(progress.ToolUseID)),
-		firstNonEmpty(agentProgressLastToolName(data), strings.TrimSpace(progress.ToolName)),
-		mapValue(data["usage"]),
+		toolUseID,
+		toolName+" 正在执行",
+		toolUseID,
+		toolName,
+		usage,
 	)
 }
 

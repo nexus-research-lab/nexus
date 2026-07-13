@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Rebuilt the Operation Stage terminal around the real `Bash` and `KillShell` lifecycle, preserving command output, permission waits, duration, exit status, and background task termination without synthesized shell data or duplicate control commands.
 - Disabled reasoning on `anthropic_messages` title-generation requests and raised the title token budget to 1024, so always-thinking models (e.g. Kimi) no longer exhaust the output cap before emitting the title and leave conversations untitled.
 - Kept a round's user message visible in the conversation timeline even when the assistant reply is blank (failed or tool-only rounds), instead of hiding the whole round and swallowing the user's own message.
 - Removed old DM rewrite rounds from the SDK transcript, Nexus overlay history, and the active frontend timeline before regenerating the replacement answer.

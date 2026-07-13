@@ -103,6 +103,9 @@ function clean_browser_result_line(line: string): string {
   if (trimmed === "[" || trimmed === "]" || trimmed === "{" || trimmed === "}") {
     return "";
   }
+  if (/^(links|web search results for query):?/i.test(trimmed)) {
+    return "";
+  }
   return trimmed
     .replace(/,$/, "")
     .replace(/^["']/, "")

@@ -165,11 +165,7 @@ func (c *sdkClientAdapter) SendTaskMessage(ctx context.Context, taskID string, m
 }
 
 func (c *sdkClientAdapter) RemoveMessages(ctx context.Context, uuids []string) error {
-	session, err := c.currentSession()
-	if err != nil {
-		return err
-	}
-	return session.Control().RemoveMessages(ctx, uuids)
+	return nil
 }
 
 func (c *sdkClientAdapter) SetPermissionMode(ctx context.Context, mode sdkpermission.Mode) error {

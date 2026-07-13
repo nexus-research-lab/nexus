@@ -57,6 +57,7 @@ copyFileSync(join(operation_dir, "operation-stage-labels.js"), join(operation_di
 copyFileSync(join(operation_dir, "operation-stage-experience.js"), join(operation_dir, "operation-stage-experience"));
 copyFileSync(join(operation_dir, "operation-stage-key.js"), join(operation_dir, "operation-stage-key"));
 copyFileSync(join(operation_dir, "operation-terminal-lines.js"), join(operation_dir, "operation-terminal-lines"));
+copyFileSync(join(operation_dir, "operation-terminal-session-events.js"), join(operation_dir, "operation-terminal-session-events"));
 copyFileSync(join(operation_dir, "operation-summary-events.js"), join(operation_dir, "operation-summary-events"));
 copyFileSync(join(operation_dir, "operation-event-io.js"), join(operation_dir, "operation-event-io"));
 copyFileSync(join(operation_dir, "operation-runtime-event-stream.js"), join(operation_dir, "operation-runtime-event-stream"));
@@ -81,10 +82,12 @@ copyFileSync(join(operation_dir, "stage/operation-stage-window-launch.js"), join
 copyFileSync(join(operation_dir, "stage/operation-stage-window-position.js"), join(operation_dir, "stage/operation-stage-window-position"));
 copyFileSync(join(operation_dir, "stage/operation-stage-live-strip.js"), join(operation_dir, "stage/operation-stage-live-strip"));
 mkdirSync(join(operation_dir, "apps"), { recursive: true });
+copyFileSync(join(operation_dir, "apps/terminal-result-model.js"), join(operation_dir, "apps/terminal-result-model"));
 copyFileSync(join(operation_dir, "apps/terminal-session-model.js"), join(operation_dir, "apps/terminal-session-model"));
 copyFileSync(join(operation_dir, "apps/operation-app-surface-policy.js"), join(operation_dir, "apps/operation-app-surface-policy"));
 copyFileSync(join(operation_dir, "apps/file-preview-value.js"), join(operation_dir, "apps/file-preview-value"));
 copyFileSync(join(operation_dir, "apps/code-editor-session.js"), join(operation_dir, "apps/code-editor-session"));
+copyFileSync(join(operation_dir, "apps/browser-reader-model.js"), join(operation_dir, "apps/browser-reader-model"));
 copyFileSync(join(operation_dir, "apps/browser-result-items.js"), join(operation_dir, "apps/browser-result-items"));
 copyFileSync(join(operation_dir, "apps/browser-session.js"), join(operation_dir, "apps/browser-session"));
 copyFileSync(join(operation_dir, "apps/finder-item-details.js"), join(operation_dir, "apps/finder-item-details"));
@@ -94,6 +97,7 @@ copyFileSync(join(operation_dir, "apps/run-manifest-sources.js"), join(operation
 copyFileSync(join(operation_dir, "apps/activity-monitor-data.js"), join(operation_dir, "apps/activity-monitor-data"));
 
 const { project_operation_snapshot } = await import(pathToFileURL(join(operation_dir, "operation-projector.js")));
+const { resolve_operation_tool_profile } = await import(pathToFileURL(join(operation_dir, "operation-tool-catalog.js")));
 const {
   plan_operation_desktop,
   resolve_operation_event_window_id,
@@ -180,8 +184,11 @@ const {
   build_stage_live_strip_state,
 } = await import(pathToFileURL(join(operation_dir, "stage/operation-stage-live-strip.js")));
 const {
-  build_terminal_entries,
+  buildTerminalSession,
 } = await import(pathToFileURL(join(operation_dir, "apps/terminal-session-model.js")));
+const {
+  parseTerminalResult,
+} = await import(pathToFileURL(join(operation_dir, "apps/terminal-result-model.js")));
 const {
   app_surface_for_window_kind,
 } = await import(pathToFileURL(join(operation_dir, "apps/operation-app-surface-policy.js")));
@@ -194,6 +201,9 @@ const {
 const {
   build_browser_result_items,
 } = await import(pathToFileURL(join(operation_dir, "apps/browser-result-items.js")));
+const {
+  build_browser_reader_paragraphs,
+} = await import(pathToFileURL(join(operation_dir, "apps/browser-reader-model.js")));
 const {
   build_browser_session_view,
 } = await import(pathToFileURL(join(operation_dir, "apps/browser-session.js")));
@@ -258,6 +268,7 @@ verify_code_editor_session_view();
 verify_terminal_result_envelope(now);
 verify_terminal_entries_render_real_command_result(now);
 verify_browser_fallback_builds_search_results(now);
+verify_browser_reader_highlights_tool_hits();
 verify_browser_session_view(now);
 verify_finder_details_reflect_selected_workspace_item(now);
 verify_finder_session_view(now);
@@ -312,7 +323,7 @@ function verify_desktop_window_kind_contract() {
 
 function verify_dock_model_groups_windows_by_mac_app() {
   const app_label_for_kind = (kind) => ({
-    browser: "Safari",
+    browser: "Navi",
     code_editor: "Code",
     finder: "访达",
     markdown_reader: "预览",
@@ -325,23 +336,23 @@ function verify_dock_model_groups_windows_by_mac_app() {
     mock_stage_window({ id: "preview:a", kind: "markdown_reader", phase: "minimized" }),
   ];
   const groups = group_dock_windows_by_app(windows, "browser:b", app_label_for_kind);
-  const safari_group = groups.find((group) => group.app_label === "Safari");
-  assert(safari_group?.count === 2, `Dock should group Safari windows, got ${safari_group?.count}`);
-  assert(safari_group?.is_active, "Dock Safari group should be active when one Safari window is focused");
-  assert(safari_group?.window.id === "browser:b", `Dock should keep the focused Safari window, got ${safari_group?.window.id}`);
+  const Navi_group = groups.find((group) => group.app_label === "Navi");
+  assert(Navi_group?.count === 2, `Dock should group Navi windows, got ${Navi_group?.count}`);
+  assert(Navi_group?.is_active, "Dock Navi group should be active when one Navi window is focused");
+  assert(Navi_group?.window.id === "browser:b", `Dock should keep the focused Navi window, got ${Navi_group?.window.id}`);
   const code_group = groups.find((group) => group.app_label === "Code");
   assert(code_group?.count === 0, `Dock should not count closed Code windows as running, got ${code_group?.count}`);
   assert(!code_group?.is_running, "Dock should mark closed Code window as not running");
 
   const slots = build_dock_app_slots(groups);
   assert(!slots.some((slot) => slot.window === null), "Dock should only show apps backed by real tool windows");
-  assert(slots[0].app_label === "Safari" && slots[0].count === 2, "Dock Safari slot should reflect grouped running windows");
+  assert(slots[0].app_label === "Navi" && slots[0].count === 2, "Dock Navi slot should reflect grouped running windows");
   assert(slots[1].app_label === "Code" && slots[1].window?.id === "code:a", "Dock Code slot should keep recoverable closed window");
   assert(slots.at(-1)?.app_label === "预览", `Dock should append unpinned running apps, got ${slots.at(-1)?.app_label}`);
 
-  const safari_presentation = resolve_dock_slot_presentation(slots[0], "Search");
-  assert(safari_presentation.state === "active", `Dock active Safari slot should present as active, got ${safari_presentation.state}`);
-  assert(safari_presentation.title === "Safari · 2 个窗口 · 当前", `Dock active Safari title should summarize grouped windows, got ${safari_presentation.title}`);
+  const Navi_presentation = resolve_dock_slot_presentation(slots[0], "Search");
+  assert(Navi_presentation.state === "active", `Dock active Navi slot should present as active, got ${Navi_presentation.state}`);
+  assert(Navi_presentation.title === "Navi · 2 个窗口 · 当前", `Dock active Navi title should summarize grouped windows, got ${Navi_presentation.title}`);
   const code_presentation = resolve_dock_slot_presentation(slots[1], "app.ts");
   assert(code_presentation.state === "recoverable", `Dock closed Code slot should be recoverable, got ${code_presentation.state}`);
   assert(!code_presentation.is_disabled, "Dock closed Code slot should remain clickable for restore");
@@ -600,7 +611,7 @@ function verify_desktop_intents_drive_app_session_windows(now) {
       command: "open gomoku.html",
     },
     result_preview: {
-      content: "Opening gomoku.html\nSafari preview launched\n",
+      content: "Opening gomoku.html\nNavi preview launched\n",
       exit_code: 0,
       is_error: false,
     },
@@ -608,9 +619,44 @@ function verify_desktop_intents_drive_app_session_windows(now) {
   };
   const terminal_intents = derive_stage_desktop_intents(terminal_event);
   assert(terminal_intents.some((intent) => intent.app === "terminal" && intent.action === "run_command"), "Bash should derive a Terminal desktop intent");
-  assert(terminal_intents.some((intent) => intent.app === "browser" && intent.action === "preview_artifact"), "Bash open html should derive a Safari preview intent");
+  assert(terminal_intents.some((intent) => intent.app === "browser" && intent.action === "preview_artifact"), "Bash open html should derive a Navi preview intent");
+  const waiting_intents = derive_stage_desktop_intents({
+    ...terminal_event,
+    phase: "waiting",
+    permission_request_id: "permission-open-html",
+  });
+  assert(waiting_intents.some((intent) => intent.app === "terminal"), "Waiting Bash should keep the Terminal intent");
+  assert(!waiting_intents.some((intent) => intent.app === "browser"), "Waiting Bash must not launch Navi before approval");
+  const waiting_event = {
+    ...terminal_event,
+    phase: "waiting",
+    permission_request_id: "permission-open-html",
+  };
+  const waiting_desktop = plan_operation_desktop({
+    event: waiting_event,
+    snapshot: {
+      key: "session:stage",
+      session_key: "session:stage",
+      active_event: waiting_event,
+      events: [waiting_event],
+      runtime_events: [],
+      recent_evidence: [],
+      workspace_events: [],
+      updated_at: now,
+    },
+  });
+  assert(waiting_desktop.windows.find((window) => window.kind === "terminal")?.phase === "focused", "Waiting Bash should keep Terminal focused");
+  assert(!waiting_desktop.windows.some((window) => window.kind === "browser"), "Waiting Bash must not create a browser window");
   const open_target = read_browser_open_target_from_terminal_command(terminal_event);
   assert(open_target?.target === "gomoku.html", `open html command should expose the artifact target, got ${open_target?.target}`);
+  assert(
+    read_browser_open_target_from_terminal_command({
+      ...terminal_event,
+      input_preview: { command: "cat gomoku.html" },
+      target: "cat gomoku.html",
+    }) === null,
+    "Mentioning an html file in a non-open command should not launch Navi",
+  );
 
   const terminal_session_id = stage_app_session_id_for_intent(
     terminal_event.round_id,
@@ -627,14 +673,14 @@ function verify_desktop_intents_drive_app_session_windows(now) {
     kind: "web_research",
     surface: "web",
     title: "搜索资料",
-    target: "macOS Safari window chrome",
+    target: "macOS Navi window chrome",
     input_preview: {
-      query: "macOS Safari window chrome",
+      query: "macOS Navi window chrome",
     },
     result_preview: [{
-      title: "Safari browser chrome",
-      url: "https://example.com/safari",
-      snippet: "Safari keeps a focused address field and toolbar.",
+      title: "Navi browser chrome",
+      url: "https://example.com/navi",
+      snippet: "Navi keeps a focused address field and toolbar.",
     }],
   };
   const web_fetch_event = {
@@ -642,9 +688,9 @@ function verify_desktop_intents_drive_app_session_windows(now) {
     id: "tool-web-fetch",
     tool_use_id: "tool-web-fetch",
     tool_name: "fetch",
-    target: "https://example.com/safari",
+    target: "https://example.com/navi",
     input_preview: {
-      url: "https://example.com/safari",
+      url: "https://example.com/navi",
     },
     updated_at: now + 1,
   };
@@ -662,9 +708,9 @@ function verify_desktop_intents_drive_app_session_windows(now) {
     },
   });
   const browser_window = desktop.windows.find((window) => window.kind === "browser");
-  assert(browser_window?.id === "round-intents:browser", `Safari should use one stable browser app session, got ${browser_window?.id}`);
-  assert(browser_window.payload.related_events.length === 2, `Safari session should keep web_search and fetch history, got ${browser_window.payload.related_events.length}`);
-  assert(browser_window.phase === "focused", `Latest web event should focus Safari, got ${browser_window.phase}`);
+  assert(browser_window?.id === "round-intents:browser", `Navi should use one stable browser app session, got ${browser_window?.id}`);
+  assert(browser_window.payload.related_events.length === 2, `Navi session should keep web_search and fetch history, got ${browser_window.payload.related_events.length}`);
+  assert(browser_window.phase === "focused", `Latest web event should focus Navi, got ${browser_window.phase}`);
 }
 
 function verify_runtime_events_drive_app_session_windows(now) {
@@ -808,12 +854,18 @@ function verify_runtime_event_projection(now) {
             input: { file_path: "report.html" },
           },
           {
+            type: "tool_use",
+            id: "tool-bash-running",
+            name: "Bash",
+            input: { command: "sleep 2" },
+          },
+          {
             type: "task_progress",
-            task_id: "task-1",
-            tool_use_id: "tool-bash",
+            task_id: "tool-bash-running",
+            tool_use_id: "tool-bash-running",
             last_tool_name: "Bash",
-            description: "打开浏览器预览",
-            usage: { status: "running" },
+            description: "Bash 正在执行",
+            usage: { duration_ms: 1200 },
           },
         ],
       },
@@ -885,6 +937,10 @@ function verify_tool_visual_contract_inventory(now) {
   for (const tool_name of current_tools) {
     assert(grouped_tools.has(tool_name), `${tool_name} should be assigned to a visual tool group`);
   }
+  assert(resolve_operation_tool_profile("functions.Bash").action === "run", "Wrapped Bash should map to Terminal exactly");
+  assert(resolve_operation_tool_profile("functions.KillShell").action === "stop", "Wrapped KillShell should map to Terminal exactly");
+  assert(resolve_operation_tool_profile("cancel_booking").action === "generic", "Unrelated cancel tools must not map to KillShell");
+  assert(resolve_operation_tool_profile("terminal_status").action === "generic", "Terminal-like names must not map to Bash");
 
   const base_event = {
     agent_id: "agent-stage",
@@ -991,7 +1047,7 @@ function verify_stage_menu_status_tracks_desktop_windows() {
     mock_stage_window({ id: "finder", kind: "finder", phase: "closed" }),
   ];
   const status = build_stage_menu_status(windows, windows[0], (window) => ({
-    browser: "Safari",
+    browser: "Navi",
     code_editor: "Code",
     finder: "访达",
     terminal: "终端",
@@ -1011,14 +1067,14 @@ function verify_stage_menu_status_tracks_desktop_windows() {
 
 function verify_stage_window_titlebar_state() {
   const focused = build_stage_window_titlebar_state({
-    app_label: "Safari",
+    app_label: "Navi",
     focused: true,
     maximized: false,
     minimized: false,
     title: "gomoku.html",
   });
-  assert(focused.aria_label === "Safari window: gomoku.html", `Focused titlebar should expose app window label, got ${focused.aria_label}`);
-  assert(focused.proxy_label === "Safari", `Focused titlebar should expose a macOS proxy label, got ${focused.proxy_label}`);
+  assert(focused.aria_label === "Navi window: gomoku.html", `Focused titlebar should expose app window label, got ${focused.aria_label}`);
+  assert(focused.proxy_label === "Navi", `Focused titlebar should expose a macOS proxy label, got ${focused.proxy_label}`);
   assert(focused.state_dot_tone === "active", `Focused titlebar should use active state dot, got ${focused.state_dot_tone}`);
   assert(focused.status_label === "前台", `Focused titlebar should report foreground status, got ${focused.status_label}`);
   assert(focused.zoom_label === "缩放 gomoku.html", `Focused titlebar should expose zoom action, got ${focused.zoom_label}`);
@@ -1069,11 +1125,11 @@ function verify_stage_desktop_icon_items() {
 
 function verify_stage_minimized_window_tile() {
   const tile = build_stage_minimized_window_tile({
-    app_label: "Safari",
+    app_label: "Navi",
     title: "gomoku.html",
   });
   assert(tile.aria_label === "从 Dock 恢复：gomoku.html", `Minimized Dock tile should expose restore action, got ${tile.aria_label}`);
-  assert(tile.title === "Safari · gomoku.html · 已最小化", `Minimized Dock tile title should include app and state, got ${tile.title}`);
+  assert(tile.title === "Navi · gomoku.html · 已最小化", `Minimized Dock tile title should include app and state, got ${tile.title}`);
 }
 
 function mock_stage_window({
@@ -1162,14 +1218,14 @@ function verify_stage_window_position_model() {
     "running",
     2,
   );
-  assert(browser_position.includes("top-[50%]"), `Background Safari should use a distinct Stage Manager slot, got ${browser_position}`);
+  assert(browser_position.includes("top-[50%]"), `Background Navi should use a distinct Stage Manager slot, got ${browser_position}`);
 
   const terminal_position = position_for_window(
     { ...mock_stage_window({ id: "terminal", kind: "terminal", phase: "focused" }), layout: "terminal" },
     "running",
   );
-  assert(terminal_position.includes("w-[60%]"), `Focused terminal should leave the Activity Center rail visible, got ${terminal_position}`);
-  assert(terminal_position.includes("h-[44%]"), `Focused terminal should keep clear of the Dock safe area, got ${terminal_position}`);
+  assert(terminal_position.includes("w-[84%]"), `Focused terminal should use the available desktop width, got ${terminal_position}`);
+  assert(terminal_position.includes("h-[64%]"), `Focused terminal should keep output readable above the Dock, got ${terminal_position}`);
 
   const focused_code_position = position_for_window(
     mock_stage_window({ id: "code-focused", kind: "code_editor", phase: "focused" }),
@@ -1738,7 +1794,7 @@ function verify_workspace_live_stays_in_tool_round(now) {
     assert(terminal_window.phase === "minimized", `completed terminal should return to Dock, got ${terminal_window.phase}`);
   }
   const code_window = desktop.windows.find((window) => window.kind === "code_editor");
-  assert(code_window?.phase === "minimized", `completed source editor should return to Dock when Safari shows the artifact, got ${code_window?.phase}`);
+  assert(code_window?.phase === "minimized", `completed source editor should return to Dock when Navi shows the artifact, got ${code_window?.phase}`);
   assert(!desktop.windows.some((window) => window.target === "stale-session.md"), "completed stage should not render stale workspace windows");
   const write_event = snapshot.events.find((event) => event.tool_use_id === "tool-write");
   assert(write_event, "write tool event should be projected");
@@ -2055,6 +2111,16 @@ function verify_terminal_result_envelope(now) {
         },
       },
       {
+        type: "task_progress",
+        task_id: "tool-bash",
+        tool_use_id: "tool-bash",
+        last_tool_name: "Bash",
+        description: "Bash 正在执行",
+        usage: {
+          duration_ms: 2350,
+        },
+      },
+      {
         type: "tool_result",
         tool_use_id: "tool-bash",
         content: "1\n2\n",
@@ -2079,6 +2145,8 @@ function verify_terminal_result_envelope(now) {
   assert(terminal_event.surface === "terminal", `terminal surface should be terminal, got ${terminal_event.surface}`);
   assert(terminal_event.result_preview?.content === "1\n2\n", "terminal output content should be preserved");
   assert(terminal_event.result_preview?.is_error === false, "terminal success state should be preserved");
+  assert(terminal_event.duration_ms === 2350, `terminal should preserve SDK progress duration, got ${terminal_event.duration_ms}`);
+  assert(!snapshot.events.some((event) => event.kind === "task_progress"), "Bash tool_progress must not create an Activity Monitor event");
 }
 
 function verify_terminal_entries_render_real_command_result(now) {
@@ -2098,10 +2166,13 @@ function verify_terminal_entries_render_real_command_result(now) {
       cwd: "/Users/berhand/.nexus/workspace/Miles",
     },
     result_preview: {
-      content: "1\n2\n",
+      content: {
+        stdout: "1\n2\n",
+        exit_code: 0,
+      },
       is_error: false,
-      exit_code: 0,
     },
+    duration_ms: 2350,
     updated_at: now,
   };
   const error_event = {
@@ -2116,39 +2187,151 @@ function verify_terminal_entries_render_real_command_result(now) {
     result_preview: {
       content: "cat: missing.txt: No such file or directory\n",
       is_error: true,
-      exit_status: 1,
+      exit_code: 1,
     },
   };
+  const background_event = {
+    ...success_event,
+    id: "terminal-background",
+    phase: "done",
+    target: "pnpm dev",
+    tool_use_id: "tool-background",
+    input_preview: {
+      command: "pnpm dev",
+    },
+    result_preview: {
+      content: {
+        task_id: "shell-42",
+      },
+      is_error: false,
+    },
+  };
+  const stop_event = {
+    ...success_event,
+    id: "terminal-stop",
+    kind: "command_stop",
+    tool_name: "KillShell",
+    phase: "done",
+    title: "终止命令",
+    target: "shell-42",
+    input_preview: {
+      shell_id: "shell-42",
+    },
+    result_preview: {
+      content: {
+        message: "Successfully stopped task: shell-42",
+        task_id: "shell-42",
+      },
+      is_error: false,
+    },
+    duration_ms: 130,
+    updated_at: now + 1,
+  };
 
-  const [success_entry] = build_terminal_entries({
-    command: "",
+  const [success_entry] = buildTerminalSession({
     event: success_event,
-    fallback_lines: [],
-    related_events: [],
+    relatedEvents: [],
+  }).entries;
+  const permission_completion_event = {
+    ...success_event,
+    id: "permission:terminal-success",
+    kind: "human_gate",
+    surface: "conversation",
+    phase: "done",
+    tool_use_id: null,
+    permission_request_id: "permission-terminal-success",
+    result_preview: null,
+    updated_at: now + 1,
+  };
+  const success_with_permission = buildTerminalSession({
+    event: permission_completion_event,
+    relatedEvents: [success_event, permission_completion_event],
   });
-  const [error_entry] = build_terminal_entries({
-    command: "",
+  const [stopped_entry] = buildTerminalSession({
+    event: stop_event,
+    relatedEvents: [background_event, stop_event],
+  }).entries;
+  const background_session = buildTerminalSession({
+    event: background_event,
+    relatedEvents: [background_event],
+  });
+  const [error_entry] = buildTerminalSession({
     event: error_event,
-    fallback_lines: [],
-    related_events: [],
-  });
+    relatedEvents: [],
+  }).entries;
+  const [unknown_entry] = buildTerminalSession({
+    event: {
+      ...success_event,
+      id: "terminal-unknown-status",
+      input_preview: { command: "echo ok" },
+      result_preview: { content: "ok", is_error: false },
+      duration_ms: null,
+    },
+    relatedEvents: [],
+  }).entries;
 
   assert(success_entry.command === "printf \"1\\n2\\n\"", `terminal entry should preserve command, got ${success_entry.command}`);
-  assert(success_entry.stdout.join("\n") === "1\n2", `terminal success content should become stdout, got ${success_entry.stdout.join("\\n")}`);
-  assert(success_entry.stderr.length === 0, `terminal success should not populate stderr, got ${success_entry.stderr.length}`);
-  assert(success_entry.exit_label === "退出 0", `terminal success should show exit 0, got ${success_entry.exit_label}`);
-  assert(success_entry.exit_tone === "success", `terminal success should use success tone, got ${success_entry.exit_tone}`);
-  assert(
-    success_entry.rows.map((row) => row.stream).join(",") === "command,stdout,stdout,exit",
-    `terminal success should render as continuous transcript rows, got ${success_entry.rows.map((row) => row.stream).join(",")}`,
-  );
-  assert(success_entry.rows[0].text === "printf \"1\\n2\\n\"", `terminal transcript should include the command row, got ${success_entry.rows[0].text}`);
-  assert(error_entry.stderr.join("\n").includes("missing.txt"), `terminal error content should become stderr, got ${error_entry.stderr.join("\\n")}`);
-  assert(error_entry.stdout.length === 0, `terminal error should not populate stdout, got ${error_entry.stdout.length}`);
-  assert(error_entry.exit_label === "退出 1", `terminal error should show exit 1, got ${error_entry.exit_label}`);
-  assert(error_entry.exit_tone === "error", `terminal error should use error tone, got ${error_entry.exit_tone}`);
-  assert(error_entry.rows.some((row) => row.stream === "stderr" && row.text.includes("missing.txt")), "terminal error transcript should keep stderr rows");
-  assert(error_entry.rows.at(-1).text.includes("command failed"), `terminal error transcript should expose failed process status, got ${error_entry.rows.at(-1).text}`);
+  assert(success_entry.result.stdout.join("\n") === "1\n2", `terminal success content should preserve stdout, got ${success_entry.result.stdout.join("\\n")}`);
+  assert(success_entry.result.stderr.length === 0, `terminal success should not populate stderr, got ${success_entry.result.stderr.length}`);
+  assert(success_entry.statusLabel === "退出 0", `terminal success should show explicit exit 0, got ${success_entry.statusLabel}`);
+  assert(success_entry.statusTone === "success", `terminal success should use success tone, got ${success_entry.statusTone}`);
+  assert(success_entry.durationLabel === "2.4s", `terminal should use SDK duration, got ${success_entry.durationLabel}`);
+  assert(success_with_permission.entries.length === 1, `completed Bash permission events must not duplicate the command, got ${success_with_permission.entries.length}`);
+  assert(error_entry.result.stderr.some((row) => row.includes("missing.txt")), "terminal error transcript should keep stderr rows");
+  assert(error_entry.statusLabel === "退出 1", `terminal error should show explicit exit 1, got ${error_entry.statusLabel}`);
+  assert(error_entry.statusTone === "error", `terminal error should use error tone, got ${error_entry.statusTone}`);
+  assert(unknown_entry.statusLabel === "已完成 · 退出码未知", `missing exit code must be explicit, got ${unknown_entry.statusLabel}`);
+  assert(unknown_entry.durationLabel === "耗时未知", `missing duration must be explicit, got ${unknown_entry.durationLabel}`);
+  assert(unknown_entry.cwdLabel === null, `missing cwd must stay unknown, got ${unknown_entry.cwdLabel}`);
+  assert(background_session.hasActiveProcess, "completed Bash startup with a task id should keep the background process active");
+  assert(background_session.entries[0].statusLabel === "后台运行中", `background Bash should stay active, got ${background_session.entries[0].statusLabel}`);
+  assert(background_session.entries[0].durationLabel === "启动 2.4s", `background Bash should label startup duration, got ${background_session.entries[0].durationLabel}`);
+  assert(stopped_entry.command === "pnpm dev", `KillShell should keep the Bash command, got ${stopped_entry.command}`);
+  assert(stopped_entry.statusLabel === "已终止", `KillShell should update the Bash process state, got ${stopped_entry.statusLabel}`);
+  assert(stopped_entry.controls.length === 1, `KillShell should attach one control event, got ${stopped_entry.controls.length}`);
+  assert(stopped_entry.controls[0].targetLabel === "shell-42", `KillShell should keep its real target, got ${stopped_entry.controls[0].targetLabel}`);
+  assert(stopped_entry.controls[0].durationLabel === "130ms", `KillShell should keep its own duration, got ${stopped_entry.controls[0].durationLabel}`);
+  assert(stopped_entry.controls[0].resultRows.some((row) => row.text.includes("Successfully stopped task")), "KillShell should only render its real result");
+  assert(!JSON.stringify(stopped_entry).includes("kill-shell shell-42"), "KillShell must not fabricate a shell command");
+
+  const cross_round_background = {
+    ...background_event,
+    id: "terminal-background-prior-round",
+    round_id: "round-terminal-background",
+    updated_at: now - 100,
+  };
+  const cross_round_stop = {
+    ...stop_event,
+    id: "terminal-stop-next-round",
+    round_id: "round-terminal-stop",
+    updated_at: now,
+  };
+  const cross_round_desktop = plan_operation_desktop({
+    event: cross_round_stop,
+    snapshot: {
+      key: "terminal-cross-round",
+      session_key: "session:terminal-cross-round",
+      active_event: cross_round_stop,
+      events: [cross_round_background, cross_round_stop],
+      runtime_events: [],
+      recent_evidence: [],
+      workspace_events: [],
+      updated_at: now,
+    },
+  });
+  const cross_round_terminal = cross_round_desktop.windows.find((window) => window.kind === "terminal");
+  assert(cross_round_terminal, "cross-round KillShell should still open Terminal");
+  const cross_round_session = buildTerminalSession({
+    event: cross_round_stop,
+    relatedEvents: cross_round_terminal.payload.related_events ?? [],
+  });
+  assert(cross_round_session.entries.length === 1, `cross-round KillShell should restore one Bash session, got ${cross_round_session.entries.length}`);
+  assert(cross_round_session.entries[0].command === "pnpm dev", "cross-round KillShell should restore the exact prior Bash command");
+  assert(cross_round_session.entries[0].statusLabel === "已终止", "cross-round KillShell should terminate the restored Bash session");
+  assert(cross_round_session.entries[0].controls.length === 1, "cross-round KillShell should attach to the restored Bash session");
+
+  const plainResult = parseTerminalResult({ content: "plain tool output", is_error: false });
+  assert(plainResult.output[0] === "plain tool output", "plain tool content should stay generic output instead of fake stdout");
 }
 
 function verify_browser_fallback_builds_search_results(now) {
@@ -2190,6 +2373,41 @@ function verify_browser_fallback_builds_search_results(now) {
   assert(items[3].url === null, `plain text result should not invent a URL, got ${items[3].url}`);
   assert(items[3].kind === "summary", `plain text result should become a summary row, got ${items[3].kind}`);
   assert(items[3].snippet === "Local summary without a URL", `plain text result should preserve snippet, got ${items[3].snippet}`);
+}
+
+function verify_browser_reader_highlights_tool_hits() {
+  const paragraphs = build_browser_reader_paragraphs({
+    fallback: "fallback",
+    lines: [
+      "\"Pomodoro timers alternate focus intervals and short breaks.\",",
+      "\"Users expect start, pause, reset, and session counters.\"",
+    ],
+    markers: ["Pomodoro timers"],
+    preview: null,
+  });
+  assert(paragraphs.length === 2, `Reader should keep tool-returned paragraphs, got ${paragraphs.length}`);
+  assert(paragraphs.every((item) => item.highlighted), "Tool-returned WebFetch lines should be highlighted as matched page excerpts");
+  assert(!paragraphs[0].text.includes("\"") && !paragraphs[0].text.endsWith(","), `Reader should strip JSON string noise, got ${paragraphs[0].text}`);
+
+  const fallback = build_browser_reader_paragraphs({
+    fallback: "页面内容已抓取",
+    lines: [],
+    markers: [],
+    preview: null,
+  });
+  assert(fallback[0].text === "页面内容已抓取", `Reader should show fallback when no body is available, got ${fallback[0].text}`);
+
+  const noisy = build_browser_reader_paragraphs({
+    fallback: "抓取失败",
+    lines: [
+      "content: \"<html><body><script>window.onload=setTimeout('lw(12)', 200); var q=[0x95,0x40,0xcc,0xcb,0xc0,0xc5,0x59]</script>\"",
+      "error_code: null",
+      "is_error: true",
+    ],
+    markers: [],
+    preview: null,
+  });
+  assert(noisy.length === 1 && noisy[0].text === "抓取失败", `Reader should hide html/error envelope noise, got ${noisy.map((item) => item.text).join(" | ")}`);
 }
 
 function verify_browser_session_view(now) {
@@ -2377,7 +2595,7 @@ function verify_console_events_use_mac_app_subsystems(now) {
   assert(console_event_level({ ...base_event, phase: "waiting" }.phase) === "NOTICE", "Console should map waiting events to NOTICE");
   assert(console_event_level({ ...base_event, phase: "error" }.phase) === "ERROR", "Console should map error events to ERROR");
   assert(console_event_subsystem({ ...base_event, surface: "terminal" }) === "Terminal", "Console subsystem should use Terminal for command events");
-  assert(console_event_subsystem({ ...base_event, surface: "web" }) === "Safari", "Console subsystem should use Safari for web events");
+  assert(console_event_subsystem({ ...base_event, surface: "web" }) === "Navi", "Console subsystem should use Navi for web events");
   assert(console_event_subsystem({ ...base_event, surface: "workspace" }) === "Finder", "Console subsystem should use Finder for workspace events");
   assert(console_event_subsystem({ ...base_event, surface: "editor" }) === "Code", "Console subsystem should use Code for editor events");
 
@@ -2389,7 +2607,7 @@ function verify_console_events_use_mac_app_subsystems(now) {
   assert(sources[0]?.label === "这台 Mac", `Console source list should begin with this Mac, got ${sources[0]?.label}`);
   assert(sources.some((source) => source.label === "Nexus" && source.count === 3), "Console source list should include Nexus desktop source");
   assert(sources.some((source) => source.label === "Terminal"), "Console source list should include Terminal source");
-  assert(sources.some((source) => source.label === "Safari"), "Console source list should include Safari source");
+  assert(sources.some((source) => source.label === "Navi"), "Console source list should include Navi source");
   assert(sources.some((source) => source.label === "Code"), "Console source list should include Code source");
 }
 

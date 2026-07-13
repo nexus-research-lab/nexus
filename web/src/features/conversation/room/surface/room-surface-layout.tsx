@@ -37,6 +37,11 @@ const WIDE_AUXILIARY_PANEL_WIDTH_LIMITS = {
   minWidth: "min(520px, 46vw)",
   maxWidth: "min(860px, 54vw)",
 };
+const OPERATION_STAGE_PANEL_WIDTH_PERCENT = 64;
+const OPERATION_STAGE_PANEL_WIDTH_LIMITS = {
+  minWidth: "min(680px, 58vw)",
+  maxWidth: "min(1280px, 68vw)",
+};
 const AUXILIARY_PANEL_WIDTH_LIMITS = {
   minWidth: "min(420px, 40vw)",
   maxWidth: "min(600px, 48vw)",
@@ -177,6 +182,7 @@ function RoomSurfaceLayoutInner({
   isThreadPanelOpen: isThreadPanelOpen,
 }: RoomSurfaceLayoutInnerProps) {
   const isDm = currentRoomType === "dm";
+  const isOperationStageOpen = activeSurfaceTab === "operation";
   const isAuxiliaryPanelOpen = activeSurfaceTab !== "chat";
   const isRightPanelOpen = isAuxiliaryPanelOpen || isThreadPanelOpen;
   const isWideAuxiliaryPanel =
@@ -184,6 +190,14 @@ function RoomSurfaceLayoutInner({
     activeSurfaceTab === "workspace" ||
     activeSurfaceTab === "operation" ||
     activeSurfaceTab === "about";
+  const auxiliaryPanelWidthPercent = isOperationStageOpen
+    ? Math.max(editorWidthPercent, OPERATION_STAGE_PANEL_WIDTH_PERCENT)
+    : editorWidthPercent;
+  const auxiliaryPanelWidthLimits = isOperationStageOpen
+    ? OPERATION_STAGE_PANEL_WIDTH_LIMITS
+    : isWideAuxiliaryPanel
+      ? WIDE_AUXILIARY_PANEL_WIDTH_LIMITS
+      : AUXILIARY_PANEL_WIDTH_LIMITS;
   const operationStageIdentity: AgentConversationIdentity | null = isDm
     ? currentAgentSessionIdentity
     : conversationId
@@ -205,7 +219,7 @@ function RoomSurfaceLayoutInner({
     key: 0,
   });
 
-  useWidePanelAutoCollapseForRightPanel(isRightPanelOpen);
+  useWidePanelAutoCollapseForRightPanel(isRightPanelOpen, isOperationStageOpen);
 
   const handleOpenWorkspaceFile = useCallback((path: string | null) => {
     onOpenWorkspaceFile(path);
@@ -327,10 +341,8 @@ function RoomSurfaceLayoutInner({
               <section
                 className="relative ml-2 flex min-h-0 min-w-0 shrink-0 flex-col overflow-hidden border-l divider-subtle bg-transparent shadow-none"
                 style={{
-                  width: `${editorWidthPercent}%`,
-                  ...(isWideAuxiliaryPanel
-                    ? WIDE_AUXILIARY_PANEL_WIDTH_LIMITS
-                    : AUXILIARY_PANEL_WIDTH_LIMITS),
+                  width: `${auxiliaryPanelWidthPercent}%`,
+                  ...auxiliaryPanelWidthLimits,
                 }}
               >
                 <ConversationResizeHandle
@@ -406,13 +418,13 @@ function RoomSurfaceLayoutInner({
   );
 }
 
-function useWidePanelAutoCollapseForRightPanel(isPanelOpen: boolean) {
+function useWidePanelAutoCollapseForRightPanel(isPanelOpen: boolean, forceCollapse: boolean) {
   const shouldAutoCollapseSidebar = useMediaQuery(RIGHT_PANEL_AUTO_COLLAPSE_SIDEBAR_QUERY);
   const collapseWidePanelForRightPanel = useSidebarStore((s) => s.collapse_wide_panel_for_right_panel);
   const expandWidePanelAfterRightPanel = useSidebarStore((s) => s.expand_wide_panel_after_right_panel);
 
   useEffect(() => {
-    if (isPanelOpen && shouldAutoCollapseSidebar) {
+    if (isPanelOpen && (shouldAutoCollapseSidebar || forceCollapse)) {
       collapseWidePanelForRightPanel();
       return;
     }
@@ -420,6 +432,7 @@ function useWidePanelAutoCollapseForRightPanel(isPanelOpen: boolean) {
   }, [
     collapseWidePanelForRightPanel,
     expandWidePanelAfterRightPanel,
+    forceCollapse,
     isPanelOpen,
     shouldAutoCollapseSidebar,
   ]);

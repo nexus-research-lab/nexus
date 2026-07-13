@@ -1,427 +1,320 @@
-import { format_operation_time, safe_json_stringify } from "../operation-preview";
+import { format_operation_time as formatOperationTime } from "../operation-preview";
+import {
+  isTerminalCommandEvent,
+  isTerminalControlEvent,
+  readTerminalCommandSessionId,
+  readTerminalControlSessionId,
+} from "../operation-terminal-session-events";
 import type { NexusOperationEvent, OperationPhase } from "../operation-types";
+import {
+  parseTerminalResult,
+  readTerminalResultString,
+} from "./terminal-result-model";
+import type {
+  TerminalOutputRow,
+  TerminalResultView,
+} from "./terminal-result-model";
 
-export const TERMINAL_PHASE_LABEL: Record<OperationPhase, string> = {
-  queued: "排队中",
-  running: "执行中",
-  waiting: "等待确认",
-  done: "已完成",
-  error: "失败",
-  cancelled: "已中断",
-};
+export interface TerminalControlEvent {
+  durationLabel: string | null;
+  id: string;
+  phase: OperationPhase;
+  resultRows: TerminalOutputRow[];
+  statusLabel: string;
+  targetLabel: string | null;
+}
 
 export interface TerminalEntry {
+  command: string | null;
+  controls: TerminalControlEvent[];
+  cwdLabel: string | null;
+  durationLabel: string | null;
   id: string;
-  command: string;
-  duration_label: string;
-  started_label: string;
-  exit_label: string;
-  exit_tone: "success" | "error" | "running" | "muted";
   phase: OperationPhase;
-  stdout: string[];
-  stderr: string[];
-  other: string[];
-  rows: TerminalTranscriptRow[];
+  result: TerminalResultView;
+  shellId: string | null;
+  startedLabel: string;
+  statusLabel: string;
+  statusTone: "success" | "error" | "running" | "muted";
+  toolUseId: string | null;
 }
 
-export interface TerminalSessionSummary {
-  duration_label: string;
-  exit_label: string;
-  exit_tone: TerminalEntry["exit_tone"];
-  phase: OperationPhase;
-  started_label: string;
+export interface TerminalSessionView {
+  entries: TerminalEntry[];
+  hasActiveProcess: boolean;
 }
 
-export interface TerminalTranscriptRow {
-  id: string;
-  text: string;
-  stream: "stdout" | "stderr" | "output" | "command" | "system" | "exit";
-}
-
-export function build_terminal_entries({
-  command,
+export function buildTerminalSession({
   event,
-  fallback_lines,
-  related_events,
+  relatedEvents,
 }: {
-  command: string;
   event: NexusOperationEvent;
-  fallback_lines: string[];
-  related_events: NexusOperationEvent[];
-}): TerminalEntry[] {
-  const terminal_events = related_events.length ? related_events : [event];
-  const entries = terminal_events.map((item, index) => {
-    const resolved_command = read_terminal_command(item, command, fallback_lines) || `command-${index + 1}`;
-    const streams = extract_terminal_streams(item.result_preview);
-    const fallback_output = fallback_lines
-      .filter((line) => !terminal_line_matches_command(line, resolved_command))
-      .slice(0, 24);
-    const other = streams.other.length || streams.stdout.length || streams.stderr.length
-      ? streams.other
-      : item.summary
-        ? split_terminal_text(item.summary).slice(0, 8)
-        : fallback_output;
-    const exit_code = read_exit_code(item.result_preview);
-    const duration_label = format_terminal_duration(item);
-    const exit_tone = terminal_exit_tone(item, exit_code);
-    const exit_label = terminal_exit_label(item, exit_code);
-    const rows = build_terminal_transcript_rows({
-      command: resolved_command,
-      duration_label,
-      exit_label,
-      exit_tone,
-      id: item.id,
-      phase: item.phase,
-      started_label: format_operation_time(item.started_at ?? item.updated_at),
-      streams,
-      fallback_other: other,
-    });
-    return {
-      id: item.id,
-      command: resolved_command,
-      duration_label,
-      started_label: format_operation_time(item.started_at ?? item.updated_at),
-      exit_label,
-      exit_tone,
-      phase: item.phase,
-      stdout: streams.stdout,
-      stderr: streams.stderr,
-      other,
-      rows,
-    };
-  });
+  relatedEvents: NexusOperationEvent[];
+}): TerminalSessionView {
+  const terminalEvents = dedupeTerminalEvents(
+    (relatedEvents.length ? relatedEvents : [event])
+      .filter(isTerminalEvent)
+      .sort(compareTerminalEvents),
+  );
+  const commandEntries = terminalEvents
+    .filter(isTerminalCommandEvent)
+    .map(buildCommandEntry);
+  const controls = terminalEvents
+    .filter(isTerminalControlEvent)
+    .map(buildControlEvent);
+  const orphanControls: TerminalControlEvent[] = [];
 
-  return entries.length ? entries : [{
+  for (const control of controls) {
+    const targetIndex = findControlTargetIndex(commandEntries, control, terminalEvents);
+    if (targetIndex < 0) {
+      orphanControls.push(control);
+      continue;
+    }
+    commandEntries[targetIndex].controls.push(control);
+    applyControlState(commandEntries[targetIndex], control);
+  }
+
+  const entries = [
+    ...commandEntries,
+    ...orphanControls.map((control) => buildOrphanControlEntry(control, terminalEvents)),
+  ].sort((left, right) => compareTerminalEntries(left, right, terminalEvents));
+
+  return {
+    entries,
+    hasActiveProcess: entries.some((entry) => (
+      entry.phase === "queued" || entry.phase === "running" || entry.phase === "waiting"
+    )),
+  };
+}
+
+export function readTerminalCommand(event: NexusOperationEvent): string | null {
+  return readInputString(event.input_preview, ["command", "cmd"])
+    ?? readEventTarget(event, "Bash");
+}
+
+export function terminalCwdLabel(event: NexusOperationEvent): string | null {
+  const cwd = readInputString(event.input_preview, ["cwd", "working_directory", "workdir"])
+    ?? readTerminalResultString(event.result_preview, ["cwd", "working_directory", "workdir"]);
+  return cwd ? compactTerminalPath(cwd) : null;
+}
+
+function buildCommandEntry(event: NexusOperationEvent): TerminalEntry {
+  const result = parseTerminalResult(event.result_preview);
+  const shellId = readTerminalCommandSessionId(event);
+  const backgroundProcess = isBackgroundProcess(event, shellId, result.exitCode);
+  const phase = backgroundProcess
+    ? "running"
+    : event.phase;
+  const measuredDuration = formatTerminalDuration(readTerminalDurationMs(event));
+  const durationLabel = measuredDuration
+    ? backgroundProcess ? `启动 ${measuredDuration}` : measuredDuration
+    : isFinalPhase(phase) ? "耗时未知" : null;
+  return {
+    command: readTerminalCommand(event),
+    controls: [],
+    cwdLabel: terminalCwdLabel(event),
+    durationLabel,
     id: event.id,
-    command: command.trim() || event.target || event.title,
-    duration_label: format_terminal_duration(event),
-    started_label: format_operation_time(event.started_at ?? event.updated_at),
-    exit_label: event.phase === "running" ? "运行中" : "无输出",
-    exit_tone: event.phase === "running" ? "running" : "muted",
+    phase,
+    result,
+    shellId,
+    startedLabel: formatOperationTime(event.started_at ?? event.updated_at),
+    statusLabel: phase === "running" && event.phase === "done" ? "后台运行中" : terminalStatusLabel(phase, result.exitCode),
+    statusTone: terminalStatusTone(phase, result.exitCode),
+    toolUseId: event.tool_use_id ?? null,
+  };
+}
+
+function buildControlEvent(event: NexusOperationEvent): TerminalControlEvent {
+  const result = parseTerminalResult(event.result_preview);
+  return {
+    durationLabel: formatTerminalDuration(readTerminalDurationMs(event))
+      ?? (isFinalPhase(event.phase) ? "耗时未知" : null),
+    id: event.id,
     phase: event.phase,
-    stdout: [],
-    stderr: [],
-    other: fallback_lines,
-    rows: build_terminal_transcript_rows({
-      command: command.trim() || event.target || event.title,
-      duration_label: format_terminal_duration(event),
-      exit_label: event.phase === "running" ? "运行中" : "无输出",
-      exit_tone: event.phase === "running" ? "running" : "muted",
-      id: event.id,
-      phase: event.phase,
-      started_label: format_operation_time(event.started_at ?? event.updated_at),
-      streams: empty_terminal_streams(),
-      fallback_other: fallback_lines,
-    }),
-  }];
-}
-
-export function summarize_terminal_entries(entries: TerminalEntry[], event: NexusOperationEvent): TerminalSessionSummary {
-  const last_entry = entries.at(-1);
-  return {
-    duration_label: last_entry?.duration_label ?? format_terminal_duration(event),
-    exit_label: last_entry?.exit_label ?? terminal_exit_label(event, read_exit_code(event.result_preview)),
-    exit_tone: last_entry?.exit_tone ?? terminal_exit_tone(event, read_exit_code(event.result_preview)),
-    phase: last_entry?.phase ?? event.phase,
-    started_label: entries[0]?.started_label ?? format_operation_time(event.started_at ?? event.updated_at),
+    resultRows: result.rows,
+    statusLabel: terminalControlStatusLabel(event.phase),
+    targetLabel: readTerminalControlSessionId(event),
   };
 }
 
-export function read_terminal_command(event: NexusOperationEvent, fallback_command: string, fallback_lines: string[]): string {
-  return extract_terminal_input_string(event.input_preview, ["command", "cmd", "description"])
-    ?? event.target
-    ?? fallback_command.trim()
-    ?? strip_terminal_prompt(fallback_lines[0] ?? "")
-    ?? event.title;
-}
-
-export function terminal_shell_title(command: string): string {
-  const trimmed = command.trim();
-  if (!trimmed) {
-    return "zsh";
-  }
-  const first_token = trimmed.split(/\s+/)[0] ?? "zsh";
-  return `zsh — ${first_token}`;
-}
-
-export function terminal_cwd_label(event: NexusOperationEvent): string {
-  const command = read_terminal_command(event, "", []);
-  const cwd = extract_terminal_input_string(event.input_preview, ["cwd", "working_directory", "workdir"]);
-  if (cwd) {
-    return compact_terminal_path(cwd);
-  }
-  if (command.includes("pnpm --dir web") || command.includes("cd web")) {
-    return "~/workspace/web";
-  }
-  return "~/workspace";
-}
-
-function build_terminal_transcript_rows({
-  command,
-  duration_label,
-  exit_label,
-  exit_tone,
-  id,
-  phase,
-  started_label,
-  streams,
-  fallback_other,
-}: {
-  command: string;
-  duration_label: string;
-  exit_label: string;
-  exit_tone: TerminalEntry["exit_tone"];
-  id: string;
-  phase: OperationPhase;
-  started_label: string;
-  streams: TerminalStreams;
-  fallback_other: string[];
-}): TerminalTranscriptRow[] {
-  const output_rows = streams.rows.length
-    ? streams.rows
-    : fallback_other.map((text, index) => ({
-      id: `${id}:fallback:${index}`,
-      stream: "output" as const,
-      text,
-    }));
-  return [
-    {
-      id: `${id}:command`,
-      stream: "command",
-      text: command,
-    },
-    ...output_rows,
-    {
-      id: `${id}:exit`,
-      stream: "exit",
-      text: `${exit_label} · ${duration_label}${phase === "running" ? " · process attached" : exit_tone === "error" ? " · command failed" : ""}`,
-    },
-  ];
-}
-
-interface TerminalStreams {
-  stdout: string[];
-  stderr: string[];
-  other: string[];
-  rows: TerminalTranscriptRow[];
-}
-
-function extract_terminal_streams(value: unknown): TerminalStreams {
-  if (value == null) {
-    return empty_terminal_streams();
-  }
-  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
-    const other = split_terminal_text(String(value)).slice(0, 24);
-    return {
-      stdout: [],
-      stderr: [],
-      other,
-      rows: terminal_rows_from_lines("result", "output", other),
-    };
-  }
-  if (Array.isArray(value)) {
-    const parts = value.map((item) => extract_terminal_streams(item));
-    const stdout = parts.flatMap((item) => item.stdout).slice(0, 24);
-    const stderr = parts.flatMap((item) => item.stderr).slice(0, 24);
-    const other = parts.flatMap((item) => item.other).slice(0, 24);
-    return {
-      stdout,
-      stderr,
-      other,
-      rows: parts.flatMap((item) => item.rows).slice(0, 48),
-    };
-  }
-  if (typeof value !== "object") {
-    return {
-      stdout: [],
-      stderr: [],
-      other: [String(value)],
-      rows: terminal_rows_from_lines("result", "output", [String(value)]),
-    };
-  }
-
-  const record = value as Record<string, unknown>;
-  const stdout = extract_terminal_text_fields(record, ["stdout", "out"]);
-  const stderr = extract_terminal_text_fields(record, ["stderr", "err", "error"]);
-  const content_lines = extract_terminal_text_fields(record, ["content"]);
-  const content_is_error = record.is_error === true || record.subtype === "error";
-  const other_lines = extract_terminal_text_fields(record, ["output", "text", "result", "message"]);
-  if (stdout.length || stderr.length || other_lines.length) {
-    const stdout_rows = terminal_rows_from_lines("stdout", "stdout", [...stdout, ...(content_is_error ? [] : content_lines)].slice(0, 24));
-    const stderr_rows = terminal_rows_from_lines("stderr", "stderr", [...stderr, ...(content_is_error ? content_lines : [])].slice(0, 24));
-    const other_rows = terminal_rows_from_lines("other", "output", other_lines.slice(0, 24));
-    return {
-      stdout: stdout_rows.map((row) => row.text),
-      stderr: stderr_rows.map((row) => row.text),
-      other: other_lines.slice(0, 24),
-      rows: [...stdout_rows, ...stderr_rows, ...other_rows].slice(0, 48),
-    };
-  }
-  if (content_lines.length) {
-    const stream = content_is_error ? "stderr" : "stdout";
-    const rows = terminal_rows_from_lines("content", stream, content_lines.slice(0, 24));
-    return {
-      stdout: content_is_error ? [] : rows.map((row) => row.text),
-      stderr: content_is_error ? rows.map((row) => row.text) : [],
-      other: [],
-      rows,
-    };
-  }
-  const serialized_other = split_terminal_text(safe_json_stringify(value)).slice(0, 24);
+function buildOrphanControlEntry(
+  control: TerminalControlEvent,
+  events: NexusOperationEvent[],
+): TerminalEntry {
+  const source = events.find((event) => event.id === control.id);
   return {
-    stdout: [],
-    stderr: [],
-    other: serialized_other,
-    rows: terminal_rows_from_lines("json", "output", serialized_other),
+    command: null,
+    controls: [control],
+    cwdLabel: null,
+    durationLabel: source
+      ? formatTerminalDuration(readTerminalDurationMs(source)) ?? (isFinalPhase(source.phase) ? "耗时未知" : null)
+      : "耗时未知",
+    id: control.id,
+    phase: control.phase,
+    result: parseTerminalResult(null),
+    shellId: control.targetLabel,
+    startedLabel: source ? formatOperationTime(source.started_at ?? source.updated_at) : "",
+    statusLabel: control.statusLabel,
+    statusTone: terminalStatusTone(control.phase, null),
+    toolUseId: source?.tool_use_id ?? null,
   };
 }
 
-function empty_terminal_streams(): TerminalStreams {
-  return { stdout: [], stderr: [], other: [], rows: [] };
+function applyControlState(entry: TerminalEntry, control: TerminalControlEvent): void {
+  if (control.phase === "running") {
+    entry.phase = "running";
+    entry.statusLabel = "终止中";
+    entry.statusTone = "running";
+    return;
+  }
+  if (control.phase === "done") {
+    entry.phase = "cancelled";
+    entry.statusLabel = "已终止";
+    entry.statusTone = "muted";
+    entry.durationLabel ??= "启动耗时未知";
+  }
 }
 
-function terminal_rows_from_lines(
-  prefix: string,
-  stream: TerminalTranscriptRow["stream"],
-  lines: string[],
-): TerminalTranscriptRow[] {
-  return lines.map((text, index) => ({
-    id: `${prefix}:${index}:${text.slice(0, 16)}`,
-    stream,
-    text,
-  }));
+function findControlTargetIndex(
+  entries: TerminalEntry[],
+  control: TerminalControlEvent,
+  events: NexusOperationEvent[],
+): number {
+  const exactShellIndex = control.targetLabel
+    ? entries.findIndex((entry) => entry.shellId === control.targetLabel)
+    : -1;
+  if (exactShellIndex >= 0) {
+    return exactShellIndex;
+  }
+
+  const controlEvent = events.find((event) => event.id === control.id);
+  const controlCommand = controlEvent
+    ? readInputString(controlEvent.input_preview, ["command", "cmd"])
+    : null;
+  if (controlCommand) {
+    const commandIndex = entries.findIndex((entry) => entry.command === controlCommand);
+    if (commandIndex >= 0) {
+      return commandIndex;
+    }
+  }
+
+  const controlTime = controlEvent?.started_at ?? controlEvent?.updated_at ?? Number.POSITIVE_INFINITY;
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const entryEvent = events.find((event) => event.id === entries[index].id);
+    const entryTime = entryEvent?.started_at ?? entryEvent?.updated_at ?? 0;
+    if (entryTime <= controlTime) {
+      return index;
+    }
+  }
+  return -1;
 }
 
-function extract_terminal_text_fields(record: Record<string, unknown>, keys: string[]): string[] {
-  return keys.flatMap((key) => extract_terminal_text(record[key]));
-}
-
-function extract_terminal_text(value: unknown): string[] {
-  if (value == null) {
-    return [];
+function readTerminalDurationMs(event: NexusOperationEvent): number | null {
+  if (typeof event.duration_ms === "number" && Number.isFinite(event.duration_ms)) {
+    return Math.max(0, event.duration_ms);
   }
-  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
-    return split_terminal_text(String(value));
-  }
-  if (Array.isArray(value)) {
-    return value.flatMap((item) => extract_terminal_text(item));
-  }
-  if (typeof value === "object") {
-    const record = value as Record<string, unknown>;
-    return extract_terminal_text(record.text ?? record.content ?? record.value);
-  }
-  return [String(value)];
-}
-
-function read_exit_code(value: unknown): number | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return null;
-  }
-  const record = value as Record<string, unknown>;
-  const raw = record.exit_code
-    ?? record.exitCode
-    ?? record.exit_status
-    ?? record.exitStatus
-    ?? record.return_code
-    ?? record.returnCode
-    ?? record.error_code
-    ?? record.errorCode
-    ?? record.code
-    ?? record.status;
-  if (typeof raw === "number") {
-    return raw;
-  }
-  if (typeof raw === "string" && /^-?\d+$/.test(raw.trim())) {
+  const raw = readTerminalResultString(event.result_preview, [
+    "duration_ms",
+    "durationMs",
+    "elapsed_ms",
+    "elapsedMs",
+  ]);
+  if (raw && /^\d+(?:\.\d+)?$/.test(raw)) {
     return Number(raw);
-  }
-  if (record.is_error === false) {
-    return 0;
   }
   return null;
 }
 
-function terminal_exit_tone(event: NexusOperationEvent, exit_code: number | null): TerminalEntry["exit_tone"] {
-  if (event.phase === "running") {
+function terminalStatusLabel(phase: OperationPhase, exitCode: number | null): string {
+  if (phase === "waiting") {
+    return "等待确认";
+  }
+  if (phase === "queued") {
+    return "排队中";
+  }
+  if (phase === "running") {
+    return "运行中";
+  }
+  if (phase === "cancelled") {
+    return exitCode == null ? "已中断 · 退出码未知" : `已中断 · 退出 ${exitCode}`;
+  }
+  if (phase === "error") {
+    return exitCode == null ? "执行失败 · 退出码未知" : `退出 ${exitCode}`;
+  }
+  return exitCode == null ? "已完成 · 退出码未知" : `退出 ${exitCode}`;
+}
+
+function terminalControlStatusLabel(phase: OperationPhase): string {
+  if (phase === "waiting") {
+    return "等待确认终止";
+  }
+  if (phase === "queued") {
+    return "终止请求排队中";
+  }
+  if (phase === "running") {
+    return "正在终止";
+  }
+  if (phase === "error") {
+    return "终止失败";
+  }
+  if (phase === "cancelled") {
+    return "终止请求已取消";
+  }
+  return "终止请求已完成";
+}
+
+function terminalStatusTone(
+  phase: OperationPhase,
+  exitCode: number | null,
+): TerminalEntry["statusTone"] {
+  if (phase === "running") {
     return "running";
   }
-  if (event.phase === "error" || (exit_code != null && exit_code !== 0)) {
+  if (phase === "error" || (exitCode != null && exitCode !== 0)) {
     return "error";
   }
-  if (event.phase === "done" || exit_code === 0) {
+  if (phase === "done") {
     return "success";
   }
   return "muted";
 }
 
-function terminal_exit_label(event: NexusOperationEvent, exit_code: number | null): string {
-  if (event.phase === "running") {
-    return "运行中";
+function formatTerminalDuration(durationMs: number | null): string | null {
+  if (durationMs == null) {
+    return null;
   }
-  if (event.phase === "error") {
-    return exit_code == null ? "执行失败" : `退出 ${exit_code}`;
+  if (durationMs < 1000) {
+    return `${Math.round(durationMs)}ms`;
   }
-  if (event.phase === "cancelled") {
-    return "已中断";
-  }
-  if (exit_code != null) {
-    return `退出 ${exit_code}`;
-  }
-  return event.phase === "done" ? "退出 0" : TERMINAL_PHASE_LABEL[event.phase];
+  const seconds = durationMs / 1000;
+  return `${seconds.toFixed(seconds < 10 ? 1 : 0)}s`;
 }
 
-function format_terminal_duration(event: NexusOperationEvent): string {
-  const started_at = normalize_terminal_timestamp(event.started_at ?? event.updated_at);
-  const ended_at = normalize_terminal_timestamp(event.ended_at ?? event.updated_at);
-  const ms = Math.max(0, ended_at - started_at);
-  if (ms < 1000) {
-    return `${ms}ms`;
-  }
-  return `${(ms / 1000).toFixed(ms < 10_000 ? 1 : 0)}s`;
+function isFinalPhase(phase: OperationPhase): boolean {
+  return phase === "done" || phase === "error" || phase === "cancelled";
 }
 
-function normalize_terminal_timestamp(timestamp: number): number {
-  return timestamp < 1_000_000_000_000 ? timestamp * 1000 : timestamp;
+function isBackgroundProcess(
+  event: NexusOperationEvent,
+  shellId: string | null,
+  exitCode: number | null,
+): boolean {
+  if (event.phase !== "done") {
+    return false;
+  }
+  if (
+    event.input_preview?.run_in_background === true
+    || event.input_preview?.runInBackground === true
+  ) {
+    return true;
+  }
+  return Boolean(shellId && exitCode == null);
 }
 
-function terminal_line_matches_command(line: string, command: string): boolean {
-  return line.replace(/^\s*[$>]\s?/, "").trim() === command.trim();
-}
-
-function strip_terminal_prompt(line: string): string {
-  return line.replace(/^\s*[$>]\s?/, "").trim();
-}
-
-function compact_terminal_path(path: string): string {
-  const trimmed = path.trim();
-  if (!trimmed) {
-    return "~/workspace";
-  }
-  const workspace_index = trimmed.lastIndexOf("/workspace/");
-  if (workspace_index >= 0) {
-    return `~${trimmed.slice(workspace_index)}`;
-  }
-  const parts = trimmed.split("/").filter(Boolean);
-  if (parts.length <= 2) {
-    return trimmed;
-  }
-  return `.../${parts.slice(-2).join("/")}`;
-}
-
-function split_terminal_text(value: string): string[] {
-  const normalized = value.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-  if (!normalized.trim()) {
-    return [];
-  }
-  const lines = normalized.split("\n").map((line) => line.trimEnd());
-  while (lines.at(-1) === "") {
-    lines.pop();
-  }
-  return lines;
-}
-
-function extract_terminal_input_string(
+function readInputString(
   input: Record<string, unknown> | null | undefined,
-  keys: string[],
+  keys: readonly string[],
 ): string | null {
   if (!input) {
     return null;
@@ -431,9 +324,71 @@ function extract_terminal_input_string(
     if (typeof value === "string" && value.trim()) {
       return value.trim();
     }
-    if (typeof value === "number" || typeof value === "boolean") {
+    if (typeof value === "number" && Number.isFinite(value)) {
       return String(value);
     }
   }
   return null;
+}
+
+function readEventTarget(event: NexusOperationEvent, ignoredTarget: string): string | null {
+  const target = event.target?.trim();
+  return target && target !== ignoredTarget ? target : null;
+}
+
+function compactTerminalPath(path: string): string {
+  const trimmed = path.trim().replace(/\/$/, "");
+  const workspaceIndex = trimmed.lastIndexOf("/workspace");
+  if (workspaceIndex >= 0) {
+    return `~${trimmed.slice(workspaceIndex)}`;
+  }
+  const parts = trimmed.split("/").filter(Boolean);
+  return parts.length > 3 ? `…/${parts.slice(-2).join("/")}` : trimmed;
+}
+
+function isTerminalEvent(event: NexusOperationEvent): boolean {
+  return isTerminalCommandEvent(event) || isTerminalControlEvent(event);
+}
+
+function compareTerminalEvents(left: NexusOperationEvent, right: NexusOperationEvent): number {
+  return (left.started_at ?? left.updated_at) - (right.started_at ?? right.updated_at);
+}
+
+function dedupeTerminalEvents(events: NexusOperationEvent[]): NexusOperationEvent[] {
+  const byToolUse = new Map<string, NexusOperationEvent>();
+  for (const event of events) {
+    const key = event.tool_use_id
+      ? `${event.kind}:${event.tool_use_id}`
+      : event.id;
+    const current = byToolUse.get(key);
+    if (!current) {
+      byToolUse.set(key, event);
+      continue;
+    }
+    byToolUse.set(key, {
+      ...current,
+      ...event,
+      duration_ms: event.duration_ms ?? current.duration_ms ?? null,
+      input_preview: event.input_preview ?? current.input_preview,
+      permission_request_id: event.permission_request_id ?? current.permission_request_id,
+      result_preview: event.result_preview ?? current.result_preview,
+      started_at: Math.min(
+        current.started_at ?? current.updated_at,
+        event.started_at ?? event.updated_at,
+      ),
+      updated_at: Math.max(current.updated_at, event.updated_at),
+    });
+  }
+  return [...byToolUse.values()].sort(compareTerminalEvents);
+}
+
+function compareTerminalEntries(
+  left: TerminalEntry,
+  right: TerminalEntry,
+  events: NexusOperationEvent[],
+): number {
+  const leftEvent = events.find((event) => event.id === left.id);
+  const rightEvent = events.find((event) => event.id === right.id);
+  return (leftEvent?.started_at ?? leftEvent?.updated_at ?? 0)
+    - (rightEvent?.started_at ?? rightEvent?.updated_at ?? 0);
 }

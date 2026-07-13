@@ -251,6 +251,57 @@ func TestProcessorMapsAgentToolProgressToTaskProgress(t *testing.T) {
 	}
 }
 
+func TestProcessorPreservesTerminalToolProgress(t *testing.T) {
+	testCases := []struct {
+		name             string
+		toolName         string
+		toolUseID        string
+		elapsedSeconds   float64
+		expectedDuration int64
+	}{
+		{name: "Bash", toolName: "Bash", toolUseID: "tool-bash-1", elapsedSeconds: 2.35, expectedDuration: 2350},
+		{name: "KillShell", toolName: "KillShell", toolUseID: "tool-kill-shell-1", elapsedSeconds: 0.42, expectedDuration: 420},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			processor := NewProcessor(MessageContext{
+				SessionKey: "agent:nexus:ws:dm:test",
+				AgentID:    "nexus",
+				RoundID:    "round-terminal-progress",
+				ParentID:   "round-terminal-progress",
+			}, "sdk-session-terminal-progress")
+
+			output := processor.Process(sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeToolProgress,
+				SessionID: "sdk-session-terminal-progress",
+				ToolProgress: &sdkprotocol.ToolProgressMessage{
+					ToolUseID:          testCase.toolUseID,
+					ToolName:           testCase.toolName,
+					ElapsedTimeSeconds: testCase.elapsedSeconds,
+				},
+			})
+			if len(output.DurableMessages) != 1 {
+				t.Fatalf("%s tool_progress 未并入 assistant durable 消息: %+v", testCase.toolName, output)
+			}
+			content, _ := output.DurableMessages[0]["content"].([]map[string]any)
+			if len(content) != 1 || content[0]["type"] != "task_progress" {
+				t.Fatalf("%s tool_progress 内容块不正确: %+v", testCase.toolName, output.DurableMessages[0])
+			}
+			if content[0]["task_id"] != testCase.toolUseID || content[0]["tool_use_id"] != testCase.toolUseID {
+				t.Fatalf("%s tool_progress 工具标识不正确: %+v", testCase.toolName, content[0])
+			}
+			if content[0]["last_tool_name"] != testCase.toolName {
+				t.Fatalf("%s tool_progress 工具名不正确: %+v", testCase.toolName, content[0])
+			}
+			usage, _ := content[0]["usage"].(map[string]any)
+			if usage["duration_ms"] != testCase.expectedDuration {
+				t.Fatalf("%s tool_progress 时长不正确: %+v", testCase.toolName, content[0])
+			}
+		})
+	}
+}
+
 func TestProcessorMergesSequentialAssistantToolUseSnapshots(t *testing.T) {
 	processor := NewProcessor(MessageContext{
 		SessionKey: "agent:nexus:ws:dm:test",

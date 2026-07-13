@@ -80,7 +80,7 @@ export function build_stage_live_strip_state({
 
 function live_strip_app_label_for_kind(kind: StageWindowKind): string {
   if (kind === "browser") {
-    return "Safari";
+    return "Navi";
   }
   if (kind === "terminal") {
     return "终端";

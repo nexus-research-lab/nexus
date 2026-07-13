@@ -56,7 +56,7 @@ export function derive_stage_desktop_intents(event: NexusOperationEvent): StageD
       target: event.target,
     });
     const open_target = read_browser_open_target_from_terminal_command(event);
-    if (open_target) {
+    if (open_target && (event.phase === "running" || event.phase === "done")) {
       intents.push({
         app: "browser",
         action: looks_like_html_target(open_target.target) ? "preview_artifact" : "browse",
@@ -179,6 +179,10 @@ export function operation_event_from_runtime_event(
     permission_request_id: runtime_event.permission_request_id ?? null,
     permission_decision: runtime_event.permission_decision ?? null,
     permission_interaction_mode: runtime_event.permission_interaction_mode ?? null,
+    duration_ms: runtime_event.duration_ms ?? null,
+    started_at: runtime_event.duration_ms == null
+      ? runtime_event.timestamp
+      : runtime_event.timestamp - runtime_event.duration_ms,
     updated_at: runtime_event.timestamp,
   };
 }
@@ -251,10 +255,8 @@ function extract_open_command_target(command: string): string | null {
     return null;
   }
 
-  const direct_url = normalized.match(/\bhttps?:\/\/[^\s'"`]+/i)?.[0]?.replace(/[),.;]+$/, "");
-  const direct_html = normalized.match(/(?:^|\s)([^\s'"`]+\.x?html?)(?:\s|$)/i)?.[1]?.replace(/[),.;]+$/, "");
   const open_match = normalized.match(/\b(?:open|xdg-open|start)\b\s+(?:-[^\s]+\s+(?:"[^"]+"\s+|'[^']+'\s+)?)*["']?([^"'\s]+)["']?/i);
-  const candidate = open_match?.[1] ?? direct_url ?? direct_html ?? null;
+  const candidate = open_match?.[1]?.replace(/[),.;]+$/, "") ?? null;
   if (!candidate || candidate.startsWith("-")) {
     return null;
   }

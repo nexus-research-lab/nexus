@@ -36,6 +36,7 @@ import {
   build_operation_terminal_lines,
   read_terminal_command,
 } from "./operation-terminal-lines";
+import { collectTerminalSessionEvents } from "./operation-terminal-session-events";
 import {
   is_desktop_tool_activity_event,
   is_round_review_event,
@@ -136,14 +137,16 @@ function build_windows(
   snapshot: NexusOperationSnapshot | null,
 ): StageWindowState[] {
   const round_events = collect_round_events(event, snapshot);
-  const terminal_events = round_events.filter((item) => item.surface === "terminal");
+  const terminal_events = collectTerminalSessionEvents(event, snapshot, round_events);
   const web_events = round_events.filter((item) => item.surface === "web");
   const task_events = round_events.filter((item) => item.surface === "task");
   const tool_activity_events = round_events.filter(is_desktop_tool_activity_event);
   const file_context = collect_operation_file_context(event, snapshot, round_events);
   const html_artifact = find_operation_html_artifact(snapshot, round_events);
   const active_intents = derive_stage_desktop_intents(event);
-  const open_browser_target = read_browser_open_target_from_terminal_command(event);
+  const open_browser_target = active_intents.some((intent) => intent.app === "browser")
+    ? read_browser_open_target_from_terminal_command(event)
+    : null;
   const is_review_event = is_round_review_event(event);
   const focus_target = resolve_focus_target(event, {
     has_file: Boolean(file_context.latest_file_target),
@@ -230,6 +233,10 @@ function build_windows(
 
   if (terminal_events.length > 0) {
     const terminal_event = terminal_events.at(-1) ?? event;
+    const terminal_command_event = [...terminal_events].reverse().find((item) => (
+      item.tool_name === "Bash" || item.kind === "command_run"
+    )) ?? terminal_event;
+    const terminal_command = read_terminal_command(terminal_command_event);
     const terminal_intent = find_stage_desktop_intent(terminal_event, "terminal");
     const terminal_lines = build_operation_terminal_lines(terminal_events);
     windows.push(window_state(terminal_event, snapshot, {
@@ -238,7 +245,7 @@ function build_windows(
         ? stage_app_session_id_for_intent(event.round_id, terminal_intent, normalize_window_id)
         : `${event.round_id}:terminal`,
       kind: "terminal",
-      title: terminal_event.target ?? "终端",
+      title: terminal_command || terminal_event.target || "终端",
       layout: "terminal",
       phase: supporting_window_phase("terminal", focus_target === "terminal", {
         has_browser_artifact: Boolean(html_artifact),
@@ -246,7 +253,7 @@ function build_windows(
       }),
       z: focus_target === "terminal" ? 36 : 18,
       payload: {
-        command: read_terminal_command(terminal_event),
+        command: terminal_command,
         lines: terminal_lines,
         related_events: terminal_events,
       },
@@ -342,30 +349,7 @@ function build_windows(
     }));
   }
 
-  if (event.phase === "waiting") {
-    const system_intent = find_stage_desktop_intent(event, "system");
-    windows.push(window_state(event, snapshot, {
-      id: "permission-checkpoint",
-      session_id: system_intent
-        ? stage_app_session_id_for_intent(event.round_id, system_intent, normalize_window_id)
-        : `${event.round_id}:system-gate`,
-      kind: "permission_wait",
-      title: event.title || "权限确认",
-      layout: "artifact",
-      phase: "focused",
-      z: 44,
-      payload: {
-        evidence: [
-          ...(event.evidence ?? []),
-          ...(snapshot?.recent_evidence ?? []),
-        ].slice(0, 6),
-        preview: event.input_preview ?? event.summary ?? event.target,
-        related_events: round_events,
-        summary: event.summary,
-        target: "permission-checkpoint.md",
-      },
-    }));
-  } else if (event.surface === "summary" || event.surface === "conversation" || (event.surface === "fallback" && windows.length === 0)) {
+  if (event.surface === "summary" || event.surface === "conversation" || (event.surface === "fallback" && windows.length === 0)) {
     if (windows.length === 0 && (
       event.kind === "round_summary" ||
       event.phase === "done" ||
@@ -482,6 +466,9 @@ function resolve_focus_target(
     opens_browser: boolean;
   },
 ): "browser" | "document" | "finder" | "manifest" | "summary" | "task" | "terminal" {
+  if (event.phase === "waiting" && event.surface === "terminal" && context.has_terminal) {
+    return "terminal";
+  }
   if (event.phase === "waiting" || event.surface === "conversation") {
     return "summary";
   }

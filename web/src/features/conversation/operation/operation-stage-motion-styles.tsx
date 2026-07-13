@@ -133,6 +133,15 @@ export function OperationStageMotionStyles() {
           transform-origin: 88% 20%;
         }
 
+        .operation-stage-desktop-plane {
+          --operation-stage-scale: .92;
+          height: calc(100% / var(--operation-stage-scale));
+          min-height: calc(520px / var(--operation-stage-scale));
+          transform: scale(var(--operation-stage-scale));
+          transform-origin: 0 0;
+          width: calc(100% / var(--operation-stage-scale));
+        }
+
         .operation-stage-window-focus {
           box-shadow:
             0 32px 82px rgba(34,48,72,.18),
@@ -355,6 +364,13 @@ export function OperationStageMotionStyles() {
         }
 
         @media (max-width: 767px) {
+          .operation-stage-desktop-plane {
+            height: auto;
+            min-height: 0;
+            transform: none;
+            width: 100%;
+          }
+
           .operation-stage-mobile-panel {
             left: auto !important;
             right: auto !important;

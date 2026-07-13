@@ -53,6 +53,7 @@ import {
 } from "./operation-stage-window-drag";
 import { build_stage_window_launch_state } from "./operation-stage-window-launch";
 import { OperationStageIdleDesktop } from "./operation-stage-idle-desktop";
+import { OperationStagePermissionToast } from "./operation-stage-permission-toast";
 
 export function OperationStageDesktop({
   event,
@@ -349,7 +350,7 @@ export function OperationStageDesktop({
     restore_window(target_window_id);
   };
 
-  if (!stage_windows.length) {
+  if (!stage_windows.length && !active_narrative_event.permission_request_id) {
     return (
       <OperationStageIdleDesktop
         header_action={header_action}
@@ -373,6 +374,11 @@ export function OperationStageDesktop({
         windows={window_states}
       />
       <StageDesktopIcons windows={window_states} on_restore={restore_window} />
+      <OperationStagePermissionToast
+        event={active_narrative_event}
+        events={narrative_events}
+        onPermissionResponse={on_permission_response}
+      />
       {visible_windows.length ? visible_windows.map((window, index) => {
         const window_override = window_overrides[window.id];
         const is_active = active_window_id === window.id && window.phase !== "minimized";

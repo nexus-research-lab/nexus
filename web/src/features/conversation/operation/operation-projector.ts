@@ -2,6 +2,7 @@ import type { WorkspaceActivityItem } from "@/types/app/workspace-live";
 import type {
   Message,
   SystemEventContent,
+  TaskProgressContent,
   ToolResultContent,
   ToolUseContent,
 } from "@/types/conversation/message";
@@ -37,6 +38,7 @@ import {
 import {
   OPERATION_MAX_TEXT_PREVIEW,
   redact_projected_value,
+  redact_projected_terminal_value,
   summarize_projected_value,
   truncate_projected_text,
 } from "./operation-projection-preview";
@@ -67,6 +69,7 @@ export function project_operation_snapshot({
 }: ProjectOperationSnapshotParams): NexusOperationSnapshot {
   const projected_messages = messages.slice(-MAX_PROJECTED_MESSAGES);
   const tool_results = collect_tool_results(projected_messages);
+  const tool_progress = collect_tool_progress(projected_messages);
   const live_round_id_set = new Set(live_round_ids);
   const relevant_pending_permissions = filter_pending_permissions_for_stage(
     pending_permissions,
@@ -95,6 +98,7 @@ export function project_operation_snapshot({
           message,
           session_key,
           result: tool_results.get(block.id),
+          progress: tool_progress.get(block.id),
           pending_permission: pending_permission_matches.matched_permissions_by_tool_use_id.get(block.id) ?? null,
           is_live_round: live_round_id_set.has(message.round_id),
         }));
@@ -102,6 +106,9 @@ export function project_operation_snapshot({
       }
 
       if (block.type === "task_progress") {
+        if (is_terminal_tool_progress(block)) {
+          continue;
+        }
         events.push({
           id: `${message.message_id}:task-progress:${block.task_id}`,
           session_key: message.session_key,
@@ -275,11 +282,42 @@ function collect_tool_results(messages: Message[]): Map<string, ToolResultConten
   return results;
 }
 
+function collect_tool_progress(messages: Message[]): Map<string, TaskProgressContent> {
+  const progressByToolUseId = new Map<string, TaskProgressContent>();
+  for (const message of messages) {
+    if (message.role !== "assistant") {
+      continue;
+    }
+    for (const block of message.content) {
+      if (block.type === "task_progress" && block.tool_use_id) {
+        progressByToolUseId.set(block.tool_use_id, block);
+      }
+    }
+  }
+  return progressByToolUseId;
+}
+
+function is_terminal_tool_progress(block: TaskProgressContent): boolean {
+  return block.last_tool_name === "Bash" || block.last_tool_name === "KillShell";
+}
+
+function read_progress_duration_ms(progress?: TaskProgressContent): number | null {
+  const raw = progress?.usage?.duration_ms;
+  if (typeof raw === "number" && Number.isFinite(raw)) {
+    return Math.max(0, raw);
+  }
+  if (typeof raw === "string" && /^\d+(?:\.\d+)?$/.test(raw.trim())) {
+    return Number(raw);
+  }
+  return null;
+}
+
 function project_tool_use({
   block,
   message,
   session_key,
   result,
+  progress,
   pending_permission,
   is_live_round,
 }: {
@@ -287,6 +325,7 @@ function project_tool_use({
   message: Extract<Message, { role: "assistant" }>;
   session_key: string | null;
   result?: ToolResultContent;
+  progress?: TaskProgressContent;
   pending_permission?: PendingPermission | null;
   is_live_round: boolean;
 }): NexusOperationEvent {
@@ -295,6 +334,7 @@ function project_tool_use({
   const target = extract_target(input_preview, projection.target_keys) ?? block.name;
   const phase = resolve_tool_phase(result, pending_permission, is_live_round, message.is_complete);
   const evidence = build_tool_evidence(block.name, target, result, pending_permission);
+  const duration_ms = read_progress_duration_ms(progress);
 
   return {
     id: `${message.message_id}:${block.id}`,
@@ -315,9 +355,10 @@ function project_tool_use({
     evidence,
     permission_request_id: pending_permission?.request_id ?? null,
     permission_interaction_mode: pending_permission?.interaction_mode ?? null,
+    duration_ms,
     started_at: message.timestamp,
     updated_at: message.timestamp,
-    ended_at: result ? message.timestamp : null,
+    ended_at: result && duration_ms != null ? message.timestamp + duration_ms : null,
   };
 }
 
@@ -379,7 +420,7 @@ function build_tool_result_preview(
   const redacted_content = redact_projected_value(result.content);
   if (kind === "command_run" || kind === "command_stop") {
     return {
-      content: redacted_content,
+      content: redact_projected_terminal_value(result.content),
       error_code: result.error_code ?? null,
       is_error: Boolean(result.is_error),
     };

@@ -12,7 +12,7 @@ export const HOME_SIDEBAR_PADDING_CLASS = `pl-1 pr-1.5 ${HOME_STAGE_VERTICAL_PAD
 
 export const HOME_EDITOR_DEFAULT_WIDTH_PERCENT = 56;
 const HOME_EDITOR_MIN_WIDTH_PERCENT = 30;
-const HOME_EDITOR_MAX_WIDTH_PERCENT = 56;
+const HOME_EDITOR_MAX_WIDTH_PERCENT = 68;
 
 export function clampHomeEditorWidthPercent(widthPercent: number): number {
   return Math.min(

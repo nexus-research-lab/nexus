@@ -546,7 +546,7 @@ function stage_manager_preview_skin(app_label: string, tone: "default" | "termin
       titlebar: "border-white/8 bg-white/[0.04] text-[#8aa09b]",
     };
   }
-  if (app_label === "Safari") {
+  if (app_label === "Navi") {
     return {
       body: "bg-white/60",
       frame: "border-white/70 bg-[#eef5fb] text-(--text-soft)",

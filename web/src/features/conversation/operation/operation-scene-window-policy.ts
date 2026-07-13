@@ -29,8 +29,10 @@ export function should_open_html_browser_window(
   if (!has_html_artifact) {
     return false;
   }
+  if (event.surface === "terminal") {
+    return event.phase === "running" || event.phase === "done";
+  }
   return event.surface === "web"
-    || event.surface === "terminal"
     || event.surface === "summary"
     || event.kind === "round_summary";
 }

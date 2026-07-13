@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -9,14 +10,23 @@ export function OperationStageIdleDesktop({
   header_action?: ReactNode;
   presentation: "panel" | "stage";
 }) {
-  const now = new Date();
-  const time_label = new Intl.DateTimeFormat("zh-CN", {
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(now);
-  const second_label = new Intl.DateTimeFormat("zh-CN", {
-    second: "2-digit",
-  }).format(now);
+  const [now, set_now] = useState(() => new Date());
+  const time_label = useMemo(() => (
+    new Intl.DateTimeFormat("zh-CN", {
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(now)
+  ), [now]);
+  const second_label = useMemo(() => (
+    new Intl.DateTimeFormat("zh-CN", {
+      second: "2-digit",
+    }).format(now)
+  ), [now]);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => set_now(new Date()), 1_000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   return (
     <div
@@ -59,9 +69,6 @@ export function OperationStageIdleDesktop({
             <span className="pb-1 font-mono text-[24px] font-light text-(--text-soft) max-md:text-[18px]">
               :{second_label}
             </span>
-          </div>
-          <div className="mt-5 max-w-[520px] rounded-[18px] border border-white/62 bg-white/38 px-4 py-3 text-[12px] font-semibold text-(--text-soft) shadow-[0_18px_54px_rgba(18,28,42,0.08),inset_0_1px_0_rgba(255,255,255,0.72)] backdrop-blur-xl">
-            Nexus 桌面已就绪。第一个工具调用出现时，会打开对应应用窗口并进入执行现场。
           </div>
         </div>
       </div>

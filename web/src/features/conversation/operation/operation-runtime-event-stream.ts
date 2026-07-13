@@ -2,6 +2,7 @@ import type { WorkspaceActivityItem } from "@/types/app/workspace-live";
 import type {
   Message,
   SystemEventContent,
+  TaskProgressContent,
   ToolResultContent,
   ToolUseContent,
 } from "@/types/conversation/message";
@@ -14,6 +15,7 @@ import type { OperationPhase } from "./operation-types";
 import type { OperationRuntimeEvent } from "./operation-runtime-types";
 import {
   redact_projected_value,
+  redact_projected_terminal_value,
   summarize_projected_value,
 } from "./operation-projection-preview";
 import { project_result_summary_event } from "./operation-summary-events";
@@ -38,6 +40,7 @@ export function build_operation_message_runtime_events({
   tool_results,
 }: BuildOperationMessageRuntimeEventsParams): OperationRuntimeEvent[] {
   const runtime_events: OperationRuntimeEvent[] = [];
+  const toolProgressByUseId = collectToolProgress(messages);
 
   for (const message of messages) {
     if (message.role !== "assistant") {
@@ -50,6 +53,7 @@ export function build_operation_message_runtime_events({
           block,
           message,
           pending_permission: pending_permission_matches.matched_permissions_by_tool_use_id.get(block.id) ?? null,
+          progress: toolProgressByUseId.get(block.id),
           result: tool_results.get(block.id),
           session_key,
           is_live_round: live_round_ids.has(message.round_id),
@@ -58,6 +62,9 @@ export function build_operation_message_runtime_events({
       }
 
       if (block.type === "task_progress") {
+        if (isTerminalToolProgress(block)) {
+          continue;
+        }
         runtime_events.push({
           id: `runtime:${message.message_id}:task-progress:${block.task_id}:delta`,
           event_type: "tool_delta",
@@ -183,6 +190,7 @@ function build_tool_runtime_events({
   block,
   message,
   pending_permission,
+  progress,
   result,
   session_key,
   is_live_round,
@@ -190,11 +198,13 @@ function build_tool_runtime_events({
   block: ToolUseContent;
   message: Extract<Message, { role: "assistant" }>;
   pending_permission: PendingPermission | null;
+  progress?: TaskProgressContent;
   result?: ToolResultContent;
   session_key: string | null;
   is_live_round: boolean;
 }): OperationRuntimeEvent[] {
   const input = redact_projected_value(as_record(block.input)) as Record<string, unknown>;
+  const durationMs = readProgressDurationMs(progress);
   const runtime_events: OperationRuntimeEvent[] = [{
     id: `runtime:${message.message_id}:${block.id}:start`,
     event_type: "tool_start",
@@ -206,6 +216,7 @@ function build_tool_runtime_events({
     tool_name: block.name,
     phase: pending_permission ? "waiting" : "running",
     timestamp: message.timestamp,
+    duration_ms: durationMs,
     input,
   }];
 
@@ -231,10 +242,12 @@ function build_tool_runtime_events({
       tool_use_id: block.id,
       tool_name: block.name,
       phase: "running",
-      timestamp: message.timestamp + 1,
+      timestamp: durationMs == null ? message.timestamp : message.timestamp + durationMs,
+      duration_ms: durationMs,
       input,
       delta: {
         status: "running",
+        ...(durationMs == null ? {} : { duration_ms: durationMs }),
       },
     });
   }
@@ -250,9 +263,10 @@ function build_tool_runtime_events({
       tool_use_id: block.id,
       tool_name: block.name,
       phase: result.is_error ? "error" : "done",
-      timestamp: message.timestamp + 2,
+      timestamp: durationMs == null ? message.timestamp : message.timestamp + durationMs,
+      duration_ms: durationMs,
       input,
-      result: build_runtime_result(result),
+      result: build_runtime_result(result, block.name),
     });
   }
 
@@ -341,8 +355,48 @@ function resolve_permission_timestamp(permission: PendingPermission): number {
   return Number.isFinite(expires_at_ms) ? expires_at_ms : 0;
 }
 
-function build_runtime_result(result: ToolResultContent): unknown {
-  const redacted_content = redact_projected_value(result.content);
+function collectToolProgress(messages: Message[]): Map<string, TaskProgressContent> {
+  const progressByToolUseId = new Map<string, TaskProgressContent>();
+  for (const message of messages) {
+    if (message.role !== "assistant") {
+      continue;
+    }
+    for (const block of message.content) {
+      if (block.type === "task_progress" && block.tool_use_id) {
+        progressByToolUseId.set(block.tool_use_id, block);
+      }
+    }
+  }
+  return progressByToolUseId;
+}
+
+function isTerminalToolProgress(progress: TaskProgressContent): boolean {
+  return progress.last_tool_name === "Bash" || progress.last_tool_name === "KillShell";
+}
+
+function readProgressDurationMs(progress?: TaskProgressContent): number | null {
+  const raw = progress?.usage?.duration_ms;
+  if (typeof raw === "number" && Number.isFinite(raw)) {
+    return Math.max(0, raw);
+  }
+  if (typeof raw === "string" && /^\d+(?:\.\d+)?$/.test(raw.trim())) {
+    return Number(raw);
+  }
+  return null;
+}
+
+function build_runtime_result(result: ToolResultContent, toolName: string): unknown {
+  const isTerminal = toolName === "Bash" || toolName === "KillShell";
+  const redacted_content = isTerminal
+    ? redact_projected_terminal_value(result.content)
+    : redact_projected_value(result.content);
+  if (isTerminal) {
+    return {
+      content: redacted_content,
+      error_code: result.error_code ?? null,
+      is_error: Boolean(result.is_error),
+    };
+  }
   if (result.error_code || result.is_error) {
     return {
       content: redacted_content,

@@ -20,20 +20,10 @@ export function infer_operation_tool_profile(
   if (tokens.has("task") || tokens.has("agent")) {
     return profiles.Task;
   }
-  if (matches_any(normalized, ["killshell", "kill_shell", "stopcommand", "stop_command", "cancel"])) {
+  if (normalized === "killshell" || normalized === "kill_shell") {
     return profiles.KillShell;
   }
-  if (matches_any(normalized, [
-    "bash",
-    "shell",
-    "terminal",
-    "execcommand",
-    "exec_command",
-    "runcommand",
-    "run_command",
-    "writestdin",
-    "write_stdin",
-  ])) {
+  if (normalized === "bash") {
     return profiles.Bash;
   }
   if (matches_any(normalized, ["websearch", "web_search", "searchquery", "search_query", "bravesearch"])) {

@@ -113,7 +113,7 @@ export function stage_app_label_for_window_kind(kind: StageWindowKind): string {
     return "终端";
   }
   if (kind === "browser") {
-    return "Safari";
+    return "Navi";
   }
   if (kind === "task_board") {
     return "活动监视器";

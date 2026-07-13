@@ -89,7 +89,7 @@ export const OPERATION_TOOL_VISUAL_GROUPS: Record<OperationToolVisualGroup, Oper
     tools: ["Bash", "KillShell"],
   },
   web_browser: {
-    app_label: "Safari",
+    app_label: "Navi",
     component: "browser",
     interaction_label: "加载搜索结果、网页内容或本地 HTML 预览",
     label: "网页浏览",

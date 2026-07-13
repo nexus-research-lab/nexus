@@ -36,6 +36,7 @@ export interface OperationRuntimeEvent {
   tool_name?: string | null;
   phase: OperationPhase;
   timestamp: number;
+  duration_ms?: number | null;
   input?: Record<string, unknown> | null;
   delta?: unknown;
   result?: unknown;
