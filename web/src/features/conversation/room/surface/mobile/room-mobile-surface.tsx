@@ -15,6 +15,7 @@ import type {
 } from "@/types/conversation/conversation";
 import type { SubagentTaskSource } from "@/types/conversation/subagent-task";
 import type { TodoItem } from "@/types/conversation/todo";
+import type { AgentRuntimeKind } from "@/types/settings/preferences";
 
 import { GroupThreadContextProvider } from "../../group/thread/group-thread-context";
 import { RoomChatSurface } from "../room-chat-surface";
@@ -46,6 +47,7 @@ interface RoomMobileSurfaceProps {
   roomHostAutoReplyEnabled: boolean;
   roomId: string | null;
   roomMembers: Agent[];
+  runtimeKind: AgentRuntimeKind;
 }
 
 export function RoomMobileSurface({
@@ -70,6 +72,7 @@ export function RoomMobileSurface({
   roomHostAutoReplyEnabled,
   roomId,
   roomMembers,
+  runtimeKind,
 }: RoomMobileSurfaceProps) {
   const { t } = useI18n();
   const [isConversationSheetOpen, setIsConversationSheetOpen] = useState(false);
@@ -104,6 +107,7 @@ export function RoomMobileSurface({
       roomHostAutoReplyEnabled={roomHostAutoReplyEnabled}
       roomId={roomId}
       roomMembers={roomMembers}
+      runtimeKind={runtimeKind}
     />
   );
 

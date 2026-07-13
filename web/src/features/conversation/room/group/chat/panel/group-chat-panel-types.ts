@@ -2,6 +2,7 @@ import type { Agent } from "@/types/agent/agent";
 import type { RoomEventPayload } from "@/types/agent/agent-conversation";
 import type { RoomConversationSnapshotPayload } from "@/types/conversation/conversation";
 import type { TodoItem } from "@/types/conversation/todo";
+import type { AgentRuntimeKind } from "@/types/settings/preferences";
 
 export interface GroupChatPanelProps {
   agentId: string | null;
@@ -23,4 +24,5 @@ export interface GroupChatPanelProps {
   roomHostAutoReplyEnabled: boolean;
   roomId: string | null;
   roomMembers: Agent[];
+  runtimeKind: AgentRuntimeKind;
 }

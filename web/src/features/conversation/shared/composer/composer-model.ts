@@ -9,11 +9,13 @@ import type {
 } from "@/types/agent/agent-conversation";
 import type { LoopCatalogItem } from "@/types/capability/loop";
 import type { MessageAttachment } from "@/types/conversation/message/attachment";
+import type { AgentRuntimeKind } from "@/types/settings/preferences";
 
 export interface ComposerPanelProps {
   compact: boolean;
   isLoading: boolean;
   runtimePhase: AgentConversationRuntimePhase | null;
+  runtimeKind: AgentRuntimeKind;
   onSendMessage: (
     content: string,
     deliveryPolicy: AgentConversationDeliveryPolicy,

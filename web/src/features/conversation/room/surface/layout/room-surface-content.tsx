@@ -25,6 +25,7 @@ export function RoomSurfaceContent({
   currentRoomConversations,
   currentRoomTitle,
   currentRoomType,
+  runtimeKind,
   currentTodos,
   sidePanelWidthPercent,
   initialDraft = null,
@@ -127,6 +128,7 @@ export function RoomSurfaceContent({
                 roomHostAutoReplyEnabled={roomHostAutoReplyEnabled}
                 roomId={roomId}
                 roomMembers={roomMembers}
+                runtimeKind={runtimeKind}
               />
               <WorkspaceTaskPanel
                 key={conversationId ?? "conversation-tasks"}

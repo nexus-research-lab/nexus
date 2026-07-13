@@ -132,6 +132,7 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
           onGoalToggle={actions.toggleGoalInput}
           onLoopSelect={actions.openLoopPicker}
           runtimeActivity={state.runtimeActivity}
+          runtimeKind={props.runtimeKind}
         />
       </div>
     </section>

@@ -10,6 +10,7 @@ import type {
 } from "@/types/agent/agent-conversation";
 import type { ConversationSnapshotPayload } from "@/types/conversation/conversation";
 import type { TodoItem } from "@/types/conversation/todo";
+import type { AgentRuntimeKind } from "@/types/settings/preferences";
 
 import { RoomChatErrorBoundary } from "./room-chat-error-boundary";
 
@@ -31,6 +32,7 @@ interface RoomChatSurfaceProps {
   roomHostAutoReplyEnabled: boolean;
   roomId: string | null;
   roomMembers: Agent[];
+  runtimeKind: AgentRuntimeKind;
 }
 
 export function RoomChatSurface({
@@ -51,6 +53,7 @@ export function RoomChatSurface({
   roomHostAutoReplyEnabled: roomHostAutoReplyEnabled,
   roomId: roomId,
   roomMembers: roomMembers,
+  runtimeKind: runtimeKind,
 }: RoomChatSurfaceProps) {
   const isDm = currentRoomType === "dm";
   const identityKey = getAgentConversationIdentityKey(currentAgentSessionIdentity)
@@ -72,6 +75,7 @@ export function RoomChatSurface({
           onRoomEvent={onRoomEvent}
           onTodosChange={onTodosChange}
           sessionIdentity={currentAgentSessionIdentity}
+          runtimeKind={runtimeKind}
         />
       ) : (
         <GroupChatPanel
@@ -92,6 +96,7 @@ export function RoomChatSurface({
           roomHostAutoReplyEnabled={roomHostAutoReplyEnabled}
           roomId={roomId}
           roomMembers={roomMembers}
+          runtimeKind={runtimeKind}
         />
       )}
     </RoomChatErrorBoundary>

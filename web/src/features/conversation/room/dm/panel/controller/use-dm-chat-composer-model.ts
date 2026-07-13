@@ -6,6 +6,7 @@ import { CONVERSATION_TOUR_ANCHORS } from "@/features/onboarding/tours/conversat
 import { useDefaultChatDeliveryPolicy } from "@/hooks/settings/use-default-chat-delivery-policy";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { UseAgentConversationReturn } from "@/types/agent/agent-conversation";
+import type { AgentRuntimeKind } from "@/types/settings/preferences";
 
 import type { DmChatComposerModel } from "../view/dm-chat-panel-view";
 
@@ -31,6 +32,7 @@ interface UseDmChatComposerModelOptions {
   onInitialDraftConsumed?: () => void;
   scrollToBottom: (behavior?: ScrollBehavior) => void;
   sessionKey: string | null;
+  runtimeKind: AgentRuntimeKind;
 }
 
 export function useDmChatComposerModel({
@@ -42,6 +44,7 @@ export function useDmChatComposerModel({
   onInitialDraftConsumed,
   scrollToBottom,
   sessionKey,
+  runtimeKind,
 }: UseDmChatComposerModelOptions): DmChatComposerModel {
   const { t } = useI18n();
   const defaultDeliveryPolicy = useDefaultChatDeliveryPolicy();
@@ -79,6 +82,7 @@ export function useDmChatComposerModel({
     onSendMessage: handlers.handleSendMessage,
     onStop: conversation.stop_generation,
     runtimePhase: conversation.runtime_phase,
+    runtimeKind,
     tourAnchor: CONVERSATION_TOUR_ANCHORS.composer,
   };
 }

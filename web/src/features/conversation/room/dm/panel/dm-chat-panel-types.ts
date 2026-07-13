@@ -4,12 +4,14 @@ import type {
 } from "@/types/agent/agent-conversation";
 import type { SessionSnapshotPayload } from "@/types/conversation/conversation";
 import type { TodoItem } from "@/types/conversation/todo";
+import type { AgentRuntimeKind } from "@/types/settings/preferences";
 
 export interface DmChatPanelProps {
   currentAgentName: string | null;
   currentAgentAvatar: string | null;
   currentAgentPermissionMode: string | null;
   sessionIdentity: AgentConversationIdentity | null;
+  runtimeKind: AgentRuntimeKind;
   layout: "desktop" | "mobile";
   initialDraft?: string | null;
   onInitialDraftConsumed?: () => void;

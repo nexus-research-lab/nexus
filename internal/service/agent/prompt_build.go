@@ -274,7 +274,6 @@ func buildRuntimeEmotionSection(agentValue *protocol.Agent, view RuntimeEmotionV
 	}
 	lines := []string{
 		"## Emotion State",
-		"Context ID: " + view.ContextID,
 		fmt.Sprintf("Base: %s (energy %d/10, valence %d/10) - %s", view.Base.Mood, view.Base.Energy, view.Base.Valence, view.Base.Description),
 	}
 	if view.Context != nil {

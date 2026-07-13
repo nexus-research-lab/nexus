@@ -4,4 +4,4 @@
 - `use-markdown-workspace-files.ts` 将当前 Agent 与文件 Store 适配为稳定的索引查询函数。
 - `markdown-workspace-file-button.tsx` 把已解析路径适配为文件打开命令。
 
-路径解析必须绑定当前 Agent；歧义 basename 不得猜测。附件识别不得丢弃路径前后的正文，视图只消费已归一化结果。
+路径解析必须绑定当前 Agent；歧义 basename 不得猜测。工作区相对图片路径不依赖文件树预加载，存在性与越界由文件接口校验。附件识别不得丢弃路径前后的正文，视图只消费已归一化结果。

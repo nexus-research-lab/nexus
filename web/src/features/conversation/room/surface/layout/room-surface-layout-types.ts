@@ -17,6 +17,7 @@ import type {
 } from "@/types/conversation/conversation";
 import type { RoomSurfaceTabKey } from "@/features/conversation/room/surface/header/room-header-tabs";
 import type { TodoItem } from "@/types/conversation/todo";
+import type { AgentRuntimeKind } from "@/types/settings/preferences";
 
 export interface RoomSurfaceLayoutProps {
   currentAgent: Agent;
@@ -26,6 +27,7 @@ export interface RoomSurfaceLayoutProps {
   roomMembers: Agent[];
   availableRoomAgents: Agent[];
   currentRoomTitle: string;
+  runtimeKind: AgentRuntimeKind;
   roomSkillNames: string[];
   roomHostAgentId: string | null;
   roomHostAutoReplyEnabled: boolean;

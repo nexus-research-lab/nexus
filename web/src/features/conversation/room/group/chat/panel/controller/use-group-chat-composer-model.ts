@@ -8,6 +8,7 @@ import { useDefaultChatDeliveryPolicy } from "@/hooks/settings/use-default-chat-
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { Agent } from "@/types/agent/agent";
 import type { UseAgentConversationReturn } from "@/types/agent/agent-conversation";
+import type { AgentRuntimeKind } from "@/types/settings/preferences";
 
 import type { GroupChatComposerModel } from "../view/group-chat-panel-view";
 import type { RoomGoalComposerModel } from "./use-room-goal-composer";
@@ -35,6 +36,7 @@ interface UseGroupChatComposerModelOptions {
   roomMembers: Agent[];
   scrollToBottom: (behavior?: ScrollBehavior) => void;
   sessionKey: string | null;
+  runtimeKind: AgentRuntimeKind;
 }
 
 export function useGroupChatComposerModel({
@@ -47,6 +49,7 @@ export function useGroupChatComposerModel({
   roomMembers,
   scrollToBottom,
   sessionKey,
+  runtimeKind,
 }: UseGroupChatComposerModelOptions): GroupChatComposerModel {
   const { t } = useI18n();
   const defaultDeliveryPolicy = useDefaultChatDeliveryPolicy();
@@ -90,6 +93,7 @@ export function useGroupChatComposerModel({
     queueWhenSessionBusy: false,
     roomMembers,
     runtimePhase: conversation.runtime_phase,
+    runtimeKind,
     tourAnchor: CONVERSATION_TOUR_ANCHORS.composer,
   };
 }
