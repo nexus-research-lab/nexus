@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"path/filepath"
 	"strings"
 	"sync"
 )
@@ -100,7 +99,7 @@ func extractSkillMarkdownFromZip(payload []byte) (string, error) {
 	bestPath := ""
 	var bestFile *zip.File
 	for _, file := range reader.File {
-		if file.FileInfo().IsDir() || filepath.Base(file.Name) != "SKILL.md" {
+		if file.FileInfo().IsDir() || zipEntryIsDir(file.Name) || zipEntryBase(file.Name) != "SKILL.md" {
 			continue
 		}
 		if bestFile == nil || len(file.Name) < len(bestPath) {
