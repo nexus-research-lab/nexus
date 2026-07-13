@@ -26,7 +26,7 @@ interface NormalizeMarkdownContentOptions {
   is_streaming?: boolean;
 }
 
-const WORKSPACE_FILE_PATTERN = /([A-Za-z0-9_./-]+\.[A-Za-z0-9]{1,10})/g;
+const WORKSPACE_FILE_PATTERN = /[A-Za-z0-9_./-]+\.[A-Za-z0-9]{1,10}/g;
 const MARKDOWN_IDENTIFIER_ASTERISK_BEFORE_BRACKET_PATTERN = /(?<=[\p{L}\p{N}_./-])\*(?=[(\[（［])/gu;
 
 // 数学语法必须先于 GFM 表格解析，避免公式里的 `|` 被误判为列分隔符。

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed Markdown image destinations being wrapped as inline code, restoring relative workspace image previews in historical conversations.
+
 ### Added
 
 - Added durable scheduler leadership leases, deterministic recurring jitter, configurable misfire handling, per-user enabled-task limits, and explicit task expiration with audit events.
