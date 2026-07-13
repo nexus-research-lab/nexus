@@ -88,7 +88,7 @@ function UserMessageIdentity({
       {presentation.guided ? (
         <span className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-(--text-muted)">
           <CornerDownRight className="h-3.5 w-3.5" />
-          已引导对话
+          已引导上方对话
         </span>
       ) : null}
       <span className="nexus-chat-author shrink-0 text-sm font-bold text-(--text-strong)">
