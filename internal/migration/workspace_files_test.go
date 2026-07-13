@@ -1,5 +1,5 @@
 // INPUT: 带历史记忆与退役 Skill 的临时 workspace。
-// OUTPUT: 验证三项迁移、全局标记和一次性执行语义。
+// OUTPUT: 验证四项迁移、全局标记和一次性执行语义。
 // POS: 工作区文件迁移账本的回归测试。
 package migration
 
@@ -104,6 +104,46 @@ func TestRunWorkspaceFilesRemovesRetiredManagedSkillsOnce(t *testing.T) {
 	}
 	if content, err := os.ReadFile(customSkill); err != nil || string(content) != "custom\n" {
 		t.Fatalf("已完成迁移后不应重复删除同名自定义 Skill: content=%q err=%v", content, err)
+	}
+}
+
+func TestRunWorkspaceFilesRemovesOnlyLegacyMemoryManagerSkill(t *testing.T) {
+	root := t.TempDir()
+	configRoot := filepath.Join(root, ".nexus")
+	workspaceRoot := filepath.Join(configRoot, "workspace")
+	managedWorkspace := filepath.Join(workspaceRoot, "user_demo", "Amy")
+	managedRoom := filepath.Join(configRoot, "rooms", "room-demo")
+	customWorkspace := filepath.Join(workspaceRoot, "user_demo", "Bob")
+
+	legacyContent := "---\nname: memory-manager\n---\n\n# memory-manager\n\n真正的记忆能力已经沉到 `nexusctl memory`。\n"
+	for _, workspacePath := range []string{managedWorkspace, managedRoom} {
+		for _, entryPath := range deployedSkillEntries(workspacePath, legacyMemoryManagerSkillName) {
+			writeMigrationTestFile(t, filepath.Join(entryPath, "SKILL.md"), legacyContent)
+		}
+	}
+	customSkill := filepath.Join(customWorkspace, ".agents", "skills", legacyMemoryManagerSkillName, "SKILL.md")
+	writeMigrationTestFile(t, customSkill, "---\nname: memory-manager\n---\n\n# 用户自建记忆工具\n")
+
+	if err := RunWorkspaceFiles(configRoot, workspaceRoot, discardMigrationLogger()); err != nil {
+		t.Fatalf("执行旧版记忆 Skill 迁移失败: %v", err)
+	}
+	for _, workspacePath := range []string{managedWorkspace, managedRoom} {
+		for _, entryPath := range deployedSkillEntries(workspacePath, legacyMemoryManagerSkillName) {
+			assertMigrationPathMissing(t, entryPath)
+		}
+	}
+	if content, err := os.ReadFile(customSkill); err != nil || string(content) != "---\nname: memory-manager\n---\n\n# 用户自建记忆工具\n" {
+		t.Fatalf("不应删除用户自建的同名 Skill: content=%q err=%v", content, err)
+	}
+	assertCompletedMigrationMarker(t, configRoot, legacyMemoryManagerMigrationName)
+
+	recreatedSkill := filepath.Join(managedWorkspace, ".agents", "skills", legacyMemoryManagerSkillName, "SKILL.md")
+	writeMigrationTestFile(t, recreatedSkill, "custom-after-migration\n")
+	if err := RunWorkspaceFiles(configRoot, workspaceRoot, discardMigrationLogger()); err != nil {
+		t.Fatalf("重复执行旧版记忆 Skill 迁移失败: %v", err)
+	}
+	if content, err := os.ReadFile(recreatedSkill); err != nil || string(content) != "custom-after-migration\n" {
+		t.Fatalf("已完成迁移后不应再次删除同名 Skill: content=%q err=%v", content, err)
 	}
 }
 

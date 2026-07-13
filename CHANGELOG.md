@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Added a dedicated one-time workspace migration to remove legacy Nexus-managed `memory-manager` Skill deployments after memory moved into `nxs`, while preserving user-authored Skills with the same name.
 - Removed the workspace-panel preload dependency from generated image rendering, resolving relative workspace image paths directly through the authenticated preview endpoint.
 - Displayed the effective Agent runtime in the Composer footer, preferring the conversation runtime over the current default.
 - Surfaced live context-compaction status from Claude Code and nxs in the conversation Composer while retaining the completed compact boundary in history.

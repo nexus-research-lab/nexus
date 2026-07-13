@@ -314,7 +314,7 @@ func TestReadSubagentTaskThreadUsesCCOutputSymlinkAsTranscript(t *testing.T) {
 	transcriptPath := filepath.Join(root, "child.jsonl")
 	transcript := "" +
 		`{"type":"user","uuid":"user-1","parentUuid":null,"isSidechain":true,"agentId":"child-1","timestamp":"2026-07-10T10:00:00Z","message":{"role":"user","content":"检查实现"}}` + "\n" +
-		`{"type":"attachment","uuid":"attachment-1","parentUuid":"user-1","isSidechain":true,"agentId":"child-1","timestamp":"2026-07-10T10:00:00.500Z","attachment":{"type":"skill_listing","content":"- memory-manager"}}` + "\n" +
+		`{"type":"attachment","uuid":"attachment-1","parentUuid":"user-1","isSidechain":true,"agentId":"child-1","timestamp":"2026-07-10T10:00:00.500Z","attachment":{"type":"skill_listing","content":"- nexus-manager"}}` + "\n" +
 		`{"type":"assistant","uuid":"assistant-thinking","parentUuid":"attachment-1","isSidechain":true,"agentId":"child-1","timestamp":"2026-07-10T10:00:01Z","message":{"role":"assistant","id":"assistant-message","model":"claude","content":[{"type":"thinking","thinking":"先阅读核心代码"}],"stop_reason":null}}` + "\n" +
 		`{"type":"assistant","uuid":"assistant-final","parentUuid":"assistant-thinking","isSidechain":true,"agentId":"child-1","timestamp":"2026-07-10T10:00:02Z","message":{"role":"assistant","id":"assistant-message","model":"claude","content":[{"type":"text","text":"检查完成"}],"stop_reason":"end_turn"}}` + "\n"
 	if err := os.WriteFile(transcriptPath, []byte(transcript), 0o600); err != nil {
