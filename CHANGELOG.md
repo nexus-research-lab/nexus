@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Recovered orphaned Room guidance as queued follow-up after backend restarts, made equal-timestamp active-root routing follow registration order, and added timeline behavior tests to the default validation gate.
 - Passed each model card's context window to nxs so automatic and reactive compaction use the configured Provider limit instead of relying on model-name inference.
 - Allowed custom Provider display names to use Chinese and other Unicode characters without losing their internal key, and surfaced actionable subscription Token quota errors in Web conversations and queued delivery.
 - Fixed DM and Room guidance delivery so in-flight user corrections stay durable until the intended reply confirms consumption, failed hooks continue as the next turn, and timeline order follows durable reparenting.

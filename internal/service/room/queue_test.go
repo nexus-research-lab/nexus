@@ -129,6 +129,96 @@ func TestRealtimeServiceDispatchesRoomUserQueueForIdleTargetWhileAnotherAgentRun
 	})
 }
 
+func TestRealtimeServiceRecoversOrphanedGuidanceOnQueueSnapshot(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	ctx := context.Background()
+	agentValue := createTestAgent(t, agentService, ctx, "恢复助手")
+	roomContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
+		AgentIDs: []string{agentValue.AgentID},
+		Name:     "引导恢复房间",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	queuedPrompt := make(chan string, 1)
+	client := newFakeRoomClient()
+	client.onQuery = func(_ context.Context, prompt string) error {
+		queuedPrompt <- prompt
+		go sendFakeAssistantResult(client, "assistant-recovered-guide", "已继续处理")
+		return nil
+	}
+	permission := permissionctx.NewContext()
+	service := NewRealtimeServiceWithFactory(
+		cfg,
+		roomService,
+		agentService,
+		runtimectx.NewManager(),
+		permission,
+		&fakeRoomFactory{clients: []*fakeRoomClient{client}},
+	)
+	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
+	sender := newRealtimeTestSender("room-sender-orphaned-guide")
+	permission.BindSession(sharedSessionKey, sender)
+
+	location := workspacestore.InputQueueLocation{
+		Scope:          protocol.InputQueueScopeRoom,
+		WorkspacePath:  agentValue.WorkspacePath,
+		SessionKey:     protocol.BuildRoomAgentSessionKey(roomContext.Conversation.ID, agentValue.AgentID, roomContext.Room.RoomType),
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
+	}
+	queueStore := workspacestore.NewInputQueueStore(cfg.WorkspacePath)
+	if _, err = queueStore.Enqueue(location, protocol.InputQueueItem{
+		ID:             "orphaned-guide",
+		Scope:          protocol.InputQueueScopeRoom,
+		SessionKey:     location.SessionKey,
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
+		AgentID:        agentValue.AgentID,
+		TargetAgentIDs: []string{agentValue.AgentID},
+		Source:         protocol.InputQueueSourceUser,
+		Content:        "重启后继续处理这条补充要求",
+		DeliveryPolicy: protocol.ChatDeliveryPolicyGuide,
+		RootRoundID:    "agent-round-before-restart",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	event, err := service.InputQueueSnapshotEvent(ctx, roomContext.Room.ID, roomContext.Conversation.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	items, ok := event.Data["items"].([]protocol.InputQueueItem)
+	if !ok || len(items) != 1 {
+		t.Fatalf("恢复快照缺少 orphan guide: %+v", event.Data["items"])
+	}
+	if items[0].DeliveryPolicy != protocol.ChatDeliveryPolicyQueue || items[0].RootRoundID != "" {
+		t.Fatalf("失去目标 slot 的 guide 必须恢复为普通 queue: %+v", items[0])
+	}
+
+	select {
+	case prompt := <-queuedPrompt:
+		if !strings.Contains(prompt, "重启后继续处理这条补充要求") {
+			t.Fatalf("恢复后的接力 prompt 不正确: %s", prompt)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("后端重启后 orphan guide 未自动接力")
+	}
+	_ = collectRoomEventsUntil(t, sender.events, func(_ []protocol.EventMessage, event protocol.EventMessage) bool {
+		roundID, _ := event.Data["round_id"].(string)
+		return event.EventType == protocol.EventTypeRoundStatus &&
+			strings.HasPrefix(roundID, "queue_orphaned-guide") && event.Data["status"] == "finished"
+	})
+}
+
 func TestRealtimeServiceDispatchesLateRoomGuidanceAfterRoundFinishes(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)

@@ -114,6 +114,7 @@ type activeRoomRound struct {
 	Context               *protocol.ConversationContextAggregate
 	RoundID               string
 	RootRoundID           string
+	registrationSequence  uint64
 	HopIndex              int
 	OwnerUserID           string
 	Internal              bool

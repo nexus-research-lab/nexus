@@ -119,10 +119,11 @@ type RealtimeService struct {
 	mcpServers       MCPServerBuilder
 	titles           roomTitleScheduler
 
-	mu           sync.Mutex
-	activeRounds map[string]*activeRoomRound
-	guidanceMu   sync.Mutex
-	guidance     map[*activeRoomSlot]pendingRoomGuidance
+	mu                  sync.Mutex
+	activeRounds        map[string]*activeRoomRound
+	activeRoundSequence uint64
+	guidanceMu          sync.Mutex
+	guidance            map[*activeRoomSlot]pendingRoomGuidance
 	// ponytail: one global input/round handoff lock; split per conversation only if contention becomes measurable.
 	inputQueueDispatchMu sync.Mutex
 	wakeTimers           *roomWakeTimerRegistry

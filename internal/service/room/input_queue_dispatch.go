@@ -28,6 +28,7 @@ func (s *RealtimeService) dispatchNextInputQueueItem(ctx context.Context, sessio
 		}
 		return
 	}
+	s.releaseUndeliveredRoomGuidanceLocked(ctx, sessionKey, contextValue)
 	entries, err := s.roomInputQueueEntries(ctx, contextValue)
 	if err != nil {
 		s.loggerFor(ctx).Error("读取 Room 待发送队列失败", "session_key", sessionKey, "err", err)
@@ -138,7 +139,16 @@ func (s *RealtimeService) releaseUndeliveredRoomGuidance(
 	}
 	s.inputQueueDispatchMu.Lock()
 	defer s.inputQueueDispatchMu.Unlock()
+	s.releaseUndeliveredRoomGuidanceLocked(ctx, sessionKey, contextValue)
+}
 
+// releaseUndeliveredRoomGuidanceLocked 统一恢复已失去目标 slot 的持久化引导。
+// 调用方必须持有 inputQueueDispatchMu，避免恢复与新 round 启动交错。
+func (s *RealtimeService) releaseUndeliveredRoomGuidanceLocked(
+	ctx context.Context,
+	sessionKey string,
+	contextValue *protocol.ConversationContextAggregate,
+) {
 	entries, err := s.roomInputQueueEntries(ctx, contextValue)
 	if err != nil {
 		s.loggerFor(ctx).Error("读取 Room 未消费引导失败", "session_key", sessionKey, "err", err)
