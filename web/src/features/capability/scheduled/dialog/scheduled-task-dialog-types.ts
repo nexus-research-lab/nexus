@@ -60,6 +60,13 @@ export interface TaskDialogInitialState {
   schedule: TaskScheduleDraft;
 }
 
+export interface TaskDialogCreatePreset {
+  dailyTime: string;
+  instruction: string;
+  selectedWeekdays: Weekday[];
+  taskName: string;
+}
+
 export interface TaskDialogRefs {
   dailyPickerAnchorRef: RefObject<HTMLButtonElement | null>;
   nameRef: RefObject<HTMLInputElement | null>;

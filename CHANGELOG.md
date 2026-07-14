@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Replaced independent Room history limits with a model-window-aware context budget, product-owned cold-start anchors, prioritized public/private deltas, and checkpoints that advance only through actually consumed content.
 - Kept Room runtimes warm until the shared idle reaper closes them, reduced Room communication tool acknowledgements and system prompt size, and made Room Skills inject explicit runtime instructions instead of full README bodies.
+- Reworked scheduled tasks into a full-height status-driven board with independently scrolling columns, concise task cards, and guided presets for the empty state.
 - Added a dedicated one-time workspace migration to remove legacy Nexus-managed `memory-manager` Skill deployments after memory moved into `nxs`, while preserving user-authored Skills with the same name.
 - Removed the workspace-panel preload dependency from generated image rendering, resolving relative workspace image paths directly through the authenticated preview endpoint.
 - Displayed the effective Agent runtime in the Composer footer, preferring the conversation runtime over the current default.
