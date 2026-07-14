@@ -14,8 +14,8 @@ type remoteModel struct {
 	MaxOutputTokens *int
 }
 
-func defaultModelCard() (ModelCapabilities, string, *int, *int) {
-	return ModelCapabilities{}, "chat", nil, nil
+func defaultModelCard(modelID string) (ModelCapabilities, string, *int, *int) {
+	return ModelCapabilities{}, "chat", contextWindowOrKnown(modelID, nil), nil
 }
 
 func (model remoteModel) modelCard() (ModelCapabilities, string, *int, *int) {
@@ -23,18 +23,41 @@ func (model remoteModel) modelCard() (ModelCapabilities, string, *int, *int) {
 	if category == "" {
 		category = "chat"
 	}
-	return model.Capabilities, category, model.ContextWindow, model.MaxOutputTokens
+	contextWindow := contextWindowOrKnown(model.ID, model.ContextWindow)
+	return model.Capabilities, category, contextWindow, model.MaxOutputTokens
 }
 
 func remoteModelFromCard(card map[string]any) remoteModel {
 	capabilities := modelCapabilitiesFromCard(card)
 	return remoteModel{
-		ID:              firstStringField(card, "id", "model", "name"),
-		DisplayName:     firstStringField(card, "display_name", "displayName", "name"),
-		Category:        modelCategoryFromCard(card, capabilities),
-		Capabilities:    capabilities,
-		ContextWindow:   firstIntField(card, "context_length", "context_window", "max_context_length", "input_token_limit", "max_input_tokens"),
-		MaxOutputTokens: firstIntField(card, "max_output_tokens", "output_token_limit", "max_tokens", "max_completion_tokens"),
+		ID:           firstStringField(card, "id", "model", "name"),
+		DisplayName:  firstStringField(card, "display_name", "displayName", "name"),
+		Category:     modelCategoryFromCard(card, capabilities),
+		Capabilities: capabilities,
+		ContextWindow: firstIntField(
+			card,
+			"context_length",
+			"contextLength",
+			"context_window",
+			"contextWindow",
+			"max_context_length",
+			"maxContextLength",
+			"input_token_limit",
+			"inputTokenLimit",
+			"max_input_tokens",
+			"maxInputTokens",
+		),
+		MaxOutputTokens: firstIntField(
+			card,
+			"max_output_tokens",
+			"maxOutputTokens",
+			"output_token_limit",
+			"outputTokenLimit",
+			"max_tokens",
+			"maxTokens",
+			"max_completion_tokens",
+			"maxCompletionTokens",
+		),
 	}
 }
 

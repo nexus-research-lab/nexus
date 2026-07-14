@@ -186,8 +186,12 @@ func (s *Service) llmConfigFromTarget(
 
 // modelContextWindow 把模型卡的可选值投影为运行时零值语义。
 func modelContextWindow(model *providerstore.ModelEntity) int {
-	if model == nil || model.ContextWindow == nil || *model.ContextWindow <= 0 {
+	if model == nil {
 		return 0
 	}
-	return *model.ContextWindow
+	contextWindow := contextWindowOrKnown(model.ModelID, model.ContextWindow)
+	if contextWindow == nil || *contextWindow <= 0 {
+		return 0
+	}
+	return *contextWindow
 }
