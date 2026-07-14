@@ -327,7 +327,7 @@ func TestServiceObjectiveRevisionIgnoresUsageVersionBumps(t *testing.T) {
 	}
 }
 
-func TestServiceRetargetByModelRejectsInvalidOrNonActiveGoal(t *testing.T) {
+func TestServiceRetargetByModelReplacesPausedGoalWithoutResume(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{GoalEnabled: true}, repo)
 	service.nowFn = fixedClock()
@@ -347,10 +347,50 @@ func TestServiceRetargetByModelRejectsInvalidOrNonActiveGoal(t *testing.T) {
 	if _, err := service.Pause(ctx, created.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := service.RetargetByModel(ctx, created.SessionKey, protocol.RetargetGoalRequest{Objective: "New"}); !errors.Is(err, ErrGoalInvalidState) {
-		t.Fatalf("paused goal error = %v, want ErrGoalInvalidState", err)
+	retargeted, err := service.RetargetByModel(ctx, created.SessionKey, protocol.RetargetGoalRequest{Objective: "New"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if retargeted.ID != created.ID || retargeted.Objective != "New" || retargeted.Status != protocol.GoalStatusActive {
+		t.Fatalf("retargeted = %#v, want same active Goal with replacement objective", retargeted)
 	}
 	if _, err := service.RetargetByModel(ctx, created.SessionKey, protocol.RetargetGoalRequest{}); !errors.Is(err, ErrGoalInvalidInput) {
 		t.Fatalf("empty objective error = %v, want ErrGoalInvalidInput", err)
+	}
+}
+
+func TestServiceRetargetByModelDoesNotBypassExhaustedBudget(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+	budget := int64(10)
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey:  "agent:nexus:ws:dm:budget-limited-retarget",
+		Objective:   "Original",
+		TokenBudget: &budget,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	limited, err := service.RecordUsageForSession(ctx, created.SessionKey, protocol.GoalUsage{TotalTokens: budget}, "round-budget")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if limited.Status != protocol.GoalStatusBudgetLimited {
+		t.Fatalf("status = %q, want budget_limited", limited.Status)
+	}
+
+	if _, err = service.RetargetByModel(ctx, created.SessionKey, protocol.RetargetGoalRequest{Objective: "Replacement"}); !errors.Is(err, ErrGoalInvalidState) {
+		t.Fatalf("retarget error = %v, want ErrGoalInvalidState", err)
+	}
+	current, err := service.Current(ctx, created.SessionKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current.Objective != created.Objective || current.Status != protocol.GoalStatusBudgetLimited {
+		t.Fatalf("current = %#v, want unchanged budget-limited Goal", current)
 	}
 }

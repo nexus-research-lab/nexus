@@ -58,17 +58,29 @@ func (s *Service) Create(ctx context.Context, request protocol.CreateGoalRequest
 	if err != nil {
 		return nil, err
 	}
-	objective, metadata := s.rewriteCreateObjective(ctx, request, objective)
-	if metadata != nil {
-		metadata = cloneMap(metadata)
-		delete(metadata, protocol.GoalMetadataObjectiveRevision)
-	}
 	current, err := s.repo.GetCurrentGoal(ctx, sessionKey)
 	if err != nil {
 		return nil, err
 	}
 	if current != nil {
-		return nil, ErrGoalConflict
+		if !request.ReplaceExisting {
+			return nil, ErrGoalConflict
+		}
+		metadata := request.Metadata
+		if metadata == nil {
+			metadata = map[string]any{}
+		}
+		return s.Update(ctx, current.ID, protocol.UpdateGoalRequest{
+			Objective:   &objective,
+			TokenBudget: protocol.OptionalInt64{Present: true, Value: request.TokenBudget},
+			OwnerUserID: request.OwnerUserID,
+			Metadata:    metadata,
+		})
+	}
+	objective, metadata := s.rewriteCreateObjective(ctx, request, objective)
+	if metadata != nil {
+		metadata = cloneMap(metadata)
+		delete(metadata, protocol.GoalMetadataObjectiveRevision)
 	}
 
 	now := s.nowFn()
@@ -218,6 +230,7 @@ func (s *Service) applyGoalObjectiveUpdate(
 		return nil
 	}
 	item.Objective = objective
+	resetGoalContinuationForObjectiveReplacement(item)
 	mutation.changed = true
 	mutation.payload["objective_updated"] = true
 	return nil

@@ -83,6 +83,32 @@ test("deferred ACK cannot remove an already applied canonical user message", asy
   );
 });
 
+test("blocked goals stay inline instead of opening a resume confirmation", async () => {
+  const { buildGoalControllerProjection } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/goal/goal-model.ts",
+  );
+  const goal = {
+    continuation_count: 1,
+    created_at: "2026-07-14T00:00:00Z",
+    empty_progress_count: 3,
+    id: "goal-1",
+    objective: "Replace this objective directly",
+    session_key: "room:group:conversation-1",
+    status: "blocked",
+    updated_at: "2026-07-14T00:01:00Z",
+    version: 2,
+  };
+  const projection = buildGoalControllerProjection({
+    dialog: { goal, kind: "resume" },
+    draft: null,
+    goal,
+    phase: null,
+  });
+
+  assert.equal(projection.canResume, true);
+  assert.deepEqual(projection.dialog, { kind: "none" });
+});
+
 test("Room no-reply control markers never become visible assistant blocks", async () => {
   const { buildVisibleOrderedAssistantEntries } = await server.ssrLoadModule(
     "/src/features/conversation/shared/message/item/controller/projection/message-item-ordering.ts",

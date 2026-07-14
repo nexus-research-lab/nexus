@@ -105,6 +105,34 @@ func advanceObjectiveRevision(item *protocol.Goal) {
 	item.Metadata[protocol.GoalMetadataObjectiveRevision] = item.ObjectiveRevision() + 1
 }
 
+func resetGoalContinuationForObjectiveReplacement(item *protocol.Goal) {
+	if item == nil {
+		return
+	}
+	item.ContinuationCount = 0
+	item.EmptyProgressCount = 0
+	item.Metadata = clearContinuationReservations(clearCompletionToolRetryMetadata(item.Metadata))
+	if protocol.IsRoomSharedSessionKey(item.SessionKey) {
+		item.Metadata = cloneMap(item.Metadata)
+		delete(item.Metadata, protocol.GoalMetadataRoomGoalCollaborationObserved)
+		delete(item.Metadata, protocol.GoalMetadataRoomGoalCollaborationAgentID)
+		delete(item.Metadata, protocol.GoalMetadataRoomGoalCollaborationRoundID)
+		delete(item.Metadata, protocol.GoalMetadataRoomGoalCollaborationObservedAt)
+	}
+}
+
+func canRetargetGoalStatus(status protocol.GoalStatus) bool {
+	switch protocol.NormalizeGoalStatus(status) {
+	case protocol.GoalStatusActive,
+		protocol.GoalStatusPaused,
+		protocol.GoalStatusBlocked,
+		protocol.GoalStatusUsageLimited:
+		return true
+	default:
+		return false
+	}
+}
+
 func objectiveRevisionMatches(item protocol.Goal, expected int64) bool {
 	return expected <= 0 || item.ObjectiveRevision() == expected
 }

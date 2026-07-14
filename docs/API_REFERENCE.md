@@ -441,7 +441,7 @@ task 的控制请求由 task item 的 `host_agent_id` 路由到实际承载该 s
 | 方法 | 路径 | 说明 | 请求体 | 前端函数 |
 |------|------|------|--------|---------|
 | GET | `/goals/current` | 当前目标（query: `session_key`） | — | `getCurrentGoalApi` |
-| POST | `/goals` | 创建目标 | `{ session_key, objective, token_budget?, metadata? }` | `createGoalApi` |
+| POST | `/goals` | 创建目标；UI 可显式原位替换当前目标 | `{ session_key, objective, token_budget?, replace_existing?, metadata? }` | `createGoalApi` |
 | PATCH | `/goals/{goal_id}` | 更新目标 | `{ objective?, token_budget?, metadata? }` | `updateGoalApi` |
 | POST | `/goals/{goal_id}/pause` | 暂停 | — | `pauseGoalApi` |
 | POST | `/goals/{goal_id}/resume` | 恢复 | — | `resumeGoalApi` |

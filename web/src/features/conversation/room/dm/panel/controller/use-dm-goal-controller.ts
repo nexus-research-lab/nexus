@@ -41,6 +41,7 @@ export function useDmGoalController({
       }
       await createGoalApi({
         objective,
+        replace_existing: true,
         session_key: sessionKey,
         token_budget: null,
       });

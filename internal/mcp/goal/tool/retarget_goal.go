@@ -1,6 +1,6 @@
-// INPUT: 用户明确纠正后的 objective，以及 MCP server 绑定的当前 session/round/objective revision。
-// OUTPUT: 同一 Goal 身份下更新后的 objective 与模型可读工具结果。
-// POS: 用户插话纠正 active Goal 时的模型工具入口；完成/阻塞生命周期仍只走 update_goal。
+// INPUT: 用户明确替换后的 objective，以及 MCP server 绑定的当前 session/round/objective revision。
+// OUTPUT: 同一 Goal 身份下直接激活的新 objective 与模型可读工具结果。
+// POS: 用户明确替换当前 Goal 时的模型工具入口；无需先恢复旧目标。
 package tool
 
 import (
@@ -15,8 +15,9 @@ type retargetGoalInput struct {
 	Objective string `json:"objective"`
 }
 
-const retargetGoalDescription = "Retarget the existing active goal only when the user explicitly corrects or replaces its objective.\n" +
+const retargetGoalDescription = "Retarget the existing current goal only when the user explicitly corrects or replaces its objective.\n" +
 	"Keep the same goal identity and accumulated usage. Never complete the old goal and create a new one for a correction.\n" +
+	"If the current goal is paused, blocked, or usage-limited, the explicit replacement activates the new objective directly without a separate resume confirmation. A budget-limited goal still requires a budget change.\n" +
 	"Do not infer a retarget from ordinary follow-up requests, your own judgment, or incidental scope details."
 
 func retargetGoal(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
@@ -25,7 +26,7 @@ func retargetGoal(svc contract.Service, sctx contract.ServerContext) sdktool.Too
 		Description: retargetGoalDescription,
 		SearchHint:  searchHintRetargetGoal,
 		InputSchema: objectSchema(map[string]any{
-			"objective": stringProperty("Required. The corrected objective explicitly requested by the user for the existing active goal."),
+			"objective": stringProperty("Required. The replacement objective explicitly requested by the user for the existing current goal."),
 		}, "objective"),
 		Handler: func(ctx context.Context, input map[string]any) (sdktool.ToolResult, error) {
 			expectedRevision := sctx.ExpectedGoalObjectiveRevision()
@@ -41,7 +42,7 @@ func retargetGoal(svc contract.Service, sctx contract.ServerContext) sdktool.Too
 			})
 			if err != nil {
 				if isGoalNotFoundError(err) {
-					return errorResultText("cannot retarget goal because this thread has no active goal"), nil
+					return errorResultText("cannot retarget goal because this thread has no current goal"), nil
 				}
 				return errorResult(err), nil
 			}

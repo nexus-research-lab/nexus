@@ -114,7 +114,7 @@ func TestRetargetGoalSchemaRequiresOnlyObjective(t *testing.T) {
 	if !ok || !slices.Equal(required, []string{"objective"}) {
 		t.Fatalf("required = %#v, want [objective]", tool.InputSchema["required"])
 	}
-	for _, want := range []string{"user explicitly corrects", "same goal identity", "Never complete the old goal"} {
+	for _, want := range []string{"user explicitly corrects", "same goal identity", "Never complete the old goal", "without a separate resume confirmation"} {
 		if !strings.Contains(tool.Description, want) {
 			t.Fatalf("tool description missing %q: %s", want, tool.Description)
 		}

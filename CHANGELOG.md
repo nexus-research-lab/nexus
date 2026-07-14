@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Removed the automatic Goal resume confirmation; explicit objective replacements now reactivate paused, blocked, or usage-limited Goals directly while budget-limited Goals still require a budget change and the inline Resume action remains available for unchanged Goals.
 - Passed each model card's context window to nxs so automatic and reactive compaction use the configured Provider limit instead of relying on model-name inference.
 - Allowed custom Provider display names to use Chinese and other Unicode characters without losing their internal key, and surfaced actionable subscription Token quota errors in Web conversations and queued delivery.
 - Prevented Room's internal no-reply marker and synthetic result-only reply from leaking into public messages, streaming previews, or result summaries while preserving terminal usage accounting.

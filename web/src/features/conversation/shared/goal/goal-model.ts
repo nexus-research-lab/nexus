@@ -11,7 +11,7 @@ export interface GoalDraft {
 }
 
 export type GoalDialog =
-  | { kind: "clear" | "resume"; goal: Goal }
+  | { kind: "clear"; goal: Goal }
   | { kind: "none" };
 
 export interface GoalControllerProjection {
@@ -271,20 +271,18 @@ export function buildGoalDraftFormModel({
 
 export function buildGoalControllerProjection({
   dialog,
-  disabled,
   draft,
   goal,
   phase,
 }: {
   dialog: GoalDialog;
-  disabled: boolean;
   draft: GoalDraft | null;
   goal: Goal | null;
   phase: GoalCommandPhase | null;
 }): GoalControllerProjection {
   return {
     canResume: goal ? canResumeGoal(goal) : false,
-    dialog: visibleGoalDialog(dialog, goal, disabled),
+    dialog: visibleGoalDialog(dialog, goal),
     draft: draft?.goalId === goal?.id ? draft : null,
     loadingLabel: phase === "updating" ? "正在更新目标" : null,
   };
@@ -308,14 +306,6 @@ export function nextGoalBudgetInput(
   return goal.token_budget ? null : undefined;
 }
 
-export function shouldPromptResumeGoal(status: GoalStatus): boolean {
-  return status === "blocked" || status === "usage_limited";
-}
-
-export function goalResumePromptKey(goal: Goal): string {
-  return `${goal.id}:${goal.status}:${goal.updated_at}`;
-}
-
 function normalizeGoalBudget(value: string): number | null {
   const parsed = Number.parseInt(value.trim(), 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
@@ -329,10 +319,9 @@ function canResumeGoal(goal: Goal): boolean {
 function visibleGoalDialog(
   dialog: GoalDialog,
   goal: Goal | null,
-  disabled: boolean,
 ): GoalDialog {
-  if (dialog.kind === "none" || !goal || dialog.goal.id !== goal.id) {
+  if (dialog.kind !== "clear" || !goal || dialog.goal.id !== goal.id) {
     return EMPTY_GOAL_DIALOG;
   }
-  return disabled && dialog.kind === "resume" ? EMPTY_GOAL_DIALOG : dialog;
+  return dialog;
 }

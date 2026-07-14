@@ -249,13 +249,14 @@ type GoalContinuation struct {
 
 // CreateGoalRequest 表示创建 Goal 的请求。
 type CreateGoalRequest struct {
-	SessionKey  string         `json:"session_key"`
-	Objective   string         `json:"objective"`
-	TokenBudget *int64         `json:"token_budget,omitempty"`
-	CreatedBy   string         `json:"created_by,omitempty"`
-	RoundID     string         `json:"round_id,omitempty"`
-	OwnerUserID string         `json:"owner_user_id,omitempty"`
-	Metadata    map[string]any `json:"metadata,omitempty"`
+	SessionKey      string         `json:"session_key"`
+	Objective       string         `json:"objective"`
+	TokenBudget     *int64         `json:"token_budget,omitempty"`
+	ReplaceExisting bool           `json:"replace_existing,omitempty"`
+	CreatedBy       string         `json:"created_by,omitempty"`
+	RoundID         string         `json:"round_id,omitempty"`
+	OwnerUserID     string         `json:"owner_user_id,omitempty"`
+	Metadata        map[string]any `json:"metadata,omitempty"`
 }
 
 // UpdateGoalRequest 表示更新 Goal 的请求。
