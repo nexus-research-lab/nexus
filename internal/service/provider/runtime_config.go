@@ -173,12 +173,21 @@ func (s *Service) llmConfigFromTarget(
 		return nil, fmt.Errorf("provider=%s 配置不完整: %s", target.Provider, strings.Join(missing, ", "))
 	}
 	return &clientopts.RuntimeConfig{
-		Provider:    target.Provider,
-		DisplayName: target.DisplayName,
-		AuthToken:   target.AuthToken,
-		BaseURL:     target.BaseURL,
-		Model:       normalizeModelID(modelRecord.ModelID),
-		APIFormat:   target.APIFormat,
-		Reasoning:   modelHasReasoningCapability(*modelRecord),
+		Provider:      target.Provider,
+		DisplayName:   target.DisplayName,
+		AuthToken:     target.AuthToken,
+		BaseURL:       target.BaseURL,
+		Model:         normalizeModelID(modelRecord.ModelID),
+		APIFormat:     target.APIFormat,
+		Reasoning:     modelHasReasoningCapability(*modelRecord),
+		ContextWindow: modelContextWindow(modelRecord),
 	}, nil
+}
+
+// modelContextWindow 把模型卡的可选值投影为运行时零值语义。
+func modelContextWindow(model *providerstore.ModelEntity) int {
+	if model == nil || model.ContextWindow == nil || *model.ContextWindow <= 0 {
+		return 0
+	}
+	return *model.ContextWindow
 }

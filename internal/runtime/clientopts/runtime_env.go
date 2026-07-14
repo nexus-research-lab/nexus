@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
@@ -32,6 +33,7 @@ const enableToolSearchEnvName = "ENABLE_TOOL_SEARCH"
 const firstPartyAnthropicAPIHost = "api.anthropic.com"
 const nexusDisableProjectInstructionsEnvName = "NEXUS_DISABLE_PROJECT_INSTRUCTIONS"
 const nexusCachedMicrocompactEnvName = "NEXUS_CACHED_MICROCOMPACT"
+const nexusMaxContextTokensEnvName = "NEXUS_MAX_CONTEXT_TOKENS"
 
 // NexusRuntimeProviderEnvName 表示当前 SDK runtime 实际解析出的 provider key。
 const NexusRuntimeProviderEnvName = "NEXUS_RUNTIME_PROVIDER"
@@ -49,15 +51,27 @@ func runtimeEnvFromConfig(runtimeConfig *RuntimeConfig, runtimeKind string) map[
 		return nil
 	}
 	profile := resolveRuntimeProfile(runtimeKind, os.Getenv)
+	var env map[string]string
 	switch strings.TrimSpace(runtimeConfig.APIFormat) {
 	case "", apiFormatAnthropicMessages:
-		return anthropicRuntimeEnvFromConfig(runtimeConfig)
+		env = anthropicRuntimeEnvFromConfig(runtimeConfig)
 	case apiFormatChatCompletions:
 		if profile.isNXS() {
-			return openAIRuntimeEnvFromConfig(runtimeConfig)
+			env = openAIRuntimeEnvFromConfig(runtimeConfig)
 		}
 	}
-	return nil
+	if profile.isNXS() {
+		applyNXSModelLimitsEnv(env, runtimeConfig)
+	}
+	return env
+}
+
+// applyNXSModelLimitsEnv 把产品模型卡中的已知上限交给 nxs，不让运行时按模型名猜测。
+func applyNXSModelLimitsEnv(env map[string]string, runtimeConfig *RuntimeConfig) {
+	if len(env) == 0 || runtimeConfig == nil || runtimeConfig.ContextWindow <= 0 {
+		return
+	}
+	env[nexusMaxContextTokensEnvName] = strconv.Itoa(runtimeConfig.ContextWindow)
 }
 
 func anthropicRuntimeEnvFromConfig(runtimeConfig *RuntimeConfig) map[string]string {

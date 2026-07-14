@@ -3,8 +3,8 @@
 // L2 | 父级: internal/runtime（L1 见 AGENTS.md）
 //
 // 成员清单：
-//   - agent_client.go / runtime_env.go / runtime_profile.go：client 选项、环境与 profile。
-//   - model_provider.go：ResolvedRuntimeProvider 等 provider 解析。
+//   - agent_client.go / runtime_env.go / runtime_profile.go：client 选项、模型上限环境与 profile。
+//   - model_provider.go：运行时 Provider、模型能力与上下文上限解析结果。
 //   - log_runtime.go：runtime 日志选项。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）

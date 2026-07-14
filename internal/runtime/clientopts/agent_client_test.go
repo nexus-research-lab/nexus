@@ -62,12 +62,14 @@ func (r *fakeRuntimeConfigForRuntimeResolver) ResolveRuntimeConfigForRuntime(
 func TestBuildAgentClientOptionsUsesProviderRuntimeEnv(t *testing.T) {
 	thinkingTokens := 2048
 	maxTurns := 8
+	contextWindow := 300000
 	resolveCalls := 0
 	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{
 		config: &RuntimeConfig{
-			AuthToken: "token-1",
-			BaseURL:   "https://provider.example.com",
-			Model:     "kimi-k2",
+			AuthToken:     "token-1",
+			BaseURL:       "https://provider.example.com",
+			Model:         "kimi-k2",
+			ContextWindow: contextWindow,
 		},
 		calls: &resolveCalls,
 	}, AgentClientOptionsInput{
@@ -113,6 +115,9 @@ func TestBuildAgentClientOptionsUsesProviderRuntimeEnv(t *testing.T) {
 	}
 	if options.Env[nexusAutoCompactPctOverrideEnvName] != defaultClaudeAutoCompactPctOverride {
 		t.Fatalf("默认自动压缩阈值未注入: %+v", options.Env)
+	}
+	if options.Env[nexusMaxContextTokensEnvName] != "300000" {
+		t.Fatalf("模型卡 context window 未注入 nxs: %+v", options.Env)
 	}
 	if options.Session.ResumeID != "sdk-session-1" {
 		t.Fatalf("resume session_id 不正确: %+v", options)
@@ -415,11 +420,12 @@ func TestBuildAgentClientOptionsPassesExplicitNXSDebugEnv(t *testing.T) {
 func TestBuildAgentClientOptionsDefaultsToNXSChatCompletionsProviderEnv(t *testing.T) {
 	resolver := &fakeRuntimeConfigForRuntimeResolver{
 		config: &RuntimeConfig{
-			Provider:  "openai",
-			AuthToken: "openai-token",
-			BaseURL:   "https://api.openai.com/v1",
-			Model:     "gpt-4o",
-			APIFormat: apiFormatChatCompletions,
+			Provider:      "openai",
+			AuthToken:     "openai-token",
+			BaseURL:       "https://api.openai.com/v1",
+			Model:         "gpt-4o",
+			APIFormat:     apiFormatChatCompletions,
+			ContextWindow: 128000,
 		},
 	}
 	options, err := BuildAgentClientOptions(context.Background(), resolver, AgentClientOptionsInput{})
@@ -433,12 +439,13 @@ func TestBuildAgentClientOptionsDefaultsToNXSChatCompletionsProviderEnv(t *testi
 		t.Fatalf("未启用 nxs runtime: %+v", options.Runtime)
 	}
 	wantEnv := map[string]string{
-		"OPENAI_API_KEY":            "openai-token",
-		"OPENAI_BASE_URL":           "https://api.openai.com/v1",
-		"OPENAI_MODEL":              "gpt-4o",
-		"NEXUS_SUBAGENT_MODEL":      "gpt-4o",
-		NexusRuntimeProviderEnvName: "openai",
-		nexusAPIProviderEnvName:     "openai",
+		"OPENAI_API_KEY":             "openai-token",
+		"OPENAI_BASE_URL":            "https://api.openai.com/v1",
+		"OPENAI_MODEL":               "gpt-4o",
+		"NEXUS_SUBAGENT_MODEL":       "gpt-4o",
+		NexusRuntimeProviderEnvName:  "openai",
+		nexusAPIProviderEnvName:      "openai",
+		nexusMaxContextTokensEnvName: "128000",
 	}
 	for key, want := range wantEnv {
 		if options.Env[key] != want {
