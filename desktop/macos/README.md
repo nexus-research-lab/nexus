@@ -89,6 +89,23 @@ make app-dmg
 
 `build-macos-app.sh` 在 Developer ID 签名时默认启用 hardened runtime 和 timestamp；`package-macos-app.sh` 会先提交 `.app` 公证并 staple，再生成 dmg。dmg 默认也会提交并 staple；如果只想公证包内 `.app`，可设置 `NEXUS_DESKTOP_NOTARIZE_DMG=0`。如果用证书 SHA-1 而不是完整名称作为签名 identity，同时设置 `NEXUS_DESKTOP_CODESIGN_DEVELOPER_ID=1`。
 
+GitHub Actions 的 `macOS Desktop Build` workflow 会在 PR/main 上构建、smoke 并生成 ad-hoc dmg 验证打包路径，但不会使用 Apple 证书或上传 Release。`Publish Release` workflow 会在 macOS job 中导入 Developer ID `.p12` 到临时 keychain，并把公证后的 dmg、sha256、metadata 上传到 Release。仓库需要配置：
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `MACOS_DEVELOPER_ID_APPLICATION` | Repository variable 或 secret | `Developer ID Application: Your Name (TEAMID)` |
+| `MACOS_DEVELOPER_ID_CERTIFICATE_BASE64` | Secret | Developer ID Application `.p12` 的 base64 内容 |
+| `MACOS_DEVELOPER_ID_CERTIFICATE_PASSWORD` | Secret | 导出 `.p12` 时设置的密码 |
+| `APPLE_NOTARY_APPLE_ID` | Secret | Apple Developer 账号邮箱 |
+| `APPLE_NOTARY_TEAM_ID` | Secret | Team ID |
+| `APPLE_NOTARY_PASSWORD` | Secret | Apple ID App 专用密码 |
+
+导出 `.p12` 后可用下面命令生成 secret 内容：
+
+```bash
+base64 -i DeveloperIDApplication.p12 | pbcopy
+```
+
 打包默认从 bridge runtime release 的 `nxs-stable` 通道下载并预置当前平台的 `nxs` runtime。可通过 `NEXUS_DESKTOP_NXS_RELEASE` 固定到某个 `nxs-v*` 版本。如目标 release 不是公开可匿名下载，需配置 `NEXUS_DESKTOP_NXS_DOWNLOAD_TOKEN`，或在 GitHub Actions 中配置 `NEXUS_NXS_RUNTIME_RELEASE_TOKEN` secret。临时关闭预置 runtime 可设置 `NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME=0`，此时运行时必须通过 `NEXUS_NXS_COMMAND_PATH` 指向可执行的 `nxs`。
 
 默认输出到 `desktop/macos/.build/package/`：

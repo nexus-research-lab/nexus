@@ -38,11 +38,10 @@ env:
 
 jobs:
   build:
-    name: Validate macOS desktop build and smoke
+    name: Validate macOS desktop build, smoke, and package
     runs-on: macos-latest
     env:
       NEXUS_DESKTOP_GITHUB_CLIENT_ID: ${{ vars.NEXUS_DESKTOP_GITHUB_CLIENT_ID }}
-      NEXUS_DESKTOP_SKIP_CODESIGN: "1"
       NEXUS_DESKTOP_SMOKE_ALLOW_FALLBACK: "1"
       NEXUS_DESKTOP_SMOKE_MAIN_TIMEOUT_SECONDS: "45"
       NEXUS_DESKTOP_SMOKE_LAUNCHER_TIMEOUT_SECONDS: "30"
@@ -71,3 +70,33 @@ jobs:
       - name: Build and smoke test macOS app
         run: |
           scripts/desktop/smoke-macos-app.sh
+
+      - name: Package macOS DMG without release signing
+        env:
+          NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME: "0"
+          NEXUS_DESKTOP_PACKAGE_FORMAT: dmg
+          NEXUS_DESKTOP_PACKAGE_OUTPUT_DIR: ${{ runner.temp }}/macos-package-check
+          NEXUS_DESKTOP_PACKAGE_SKIP_BUILD: "1"
+          NEXUS_DESKTOP_PACKAGE_SKIP_SMOKE: "1"
+        run: |
+          scripts/desktop/package-macos-app.sh
+          shasum -a 256 -c "${RUNNER_TEMP}"/macos-package-check/Nexus-macos-*.dmg.sha256
+          node - <<'NODE'
+          const fs = require("fs");
+          const path = require("path");
+
+          const outputDir = path.join(process.env.RUNNER_TEMP, "macos-package-check");
+          const metadataPath = fs.readdirSync(outputDir)
+            .find((name) => /^Nexus-macos-.*\.dmg\.metadata\.json$/.test(name));
+          if (!metadataPath) {
+            throw new Error(`missing macOS package metadata in ${outputDir}`);
+          }
+
+          const metadata = JSON.parse(fs.readFileSync(path.join(outputDir, metadataPath), "utf8"));
+          if (metadata.signing?.kind !== "ad-hoc") {
+            throw new Error(`expected ad-hoc CI package, got ${metadata.signing?.kind ?? "unknown"}`);
+          }
+          if (metadata.signing?.developer_id || metadata.signing?.notarized) {
+            throw new Error("CI package validation must not produce Developer ID notarized metadata");
+          }
+          NODE
