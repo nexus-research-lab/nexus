@@ -66,7 +66,11 @@ func (s *RealtimeService) dispatchNextInputQueueItem(ctx context.Context, sessio
 	} else if snapshotErr := s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue); snapshotErr != nil {
 		s.loggerFor(ctx).Warn("广播恢复后的 Room 待发送队列快照失败", "session_key", sessionKey, "err", snapshotErr)
 	}
-	s.broadcastSharedEvent(ctx, sessionKey, roomID, roomdomain.NewErrorEvent(sessionKey, roomID, conversationID, "input_queue_error", "待发送消息派发失败", entry.Item.ID))
+	message := "待发送消息派发失败"
+	if clientMessage, ok := protocol.ClientErrorMessage(err); ok {
+		message = clientMessage
+	}
+	s.broadcastSharedEvent(ctx, sessionKey, roomID, roomdomain.NewErrorEvent(sessionKey, roomID, conversationID, "input_queue_error", message, entry.Item.ID))
 }
 
 // releaseUndeliveredRoomGuidance 把错过最后一个 PostToolUse 的引导恢复成普通队列输入。

@@ -221,6 +221,10 @@ export function normalizeCustomProviderKey(value: string): string {
   return value
     .trim()
     .toLowerCase()
+    // Provider key 是不可见的稳定标识；按码点保留非 ASCII 名称，避免合法显示名被归一化为空。
+    .replace(/[^\u0000-\u007f]/gu, (character) => (
+      `-u${(character.codePointAt(0) ?? 0).toString(16)}-`
+    ))
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
 }

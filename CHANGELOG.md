@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Allowed custom Provider display names to use Chinese and other Unicode characters without losing their internal key, and surfaced actionable subscription Token quota errors in Web conversations and queued delivery.
 - Fixed Markdown image destinations being wrapped as inline code, restoring relative workspace image previews in historical conversations.
 
 ### Added

@@ -20,6 +20,24 @@ var (
 
 var planKeyPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$`)
 
+// QuotaExceededError 保留诊断用量，同时只向客户端暴露可行动的提示。
+type QuotaExceededError struct {
+	UsedTokens  int64
+	LimitTokens int64
+}
+
+func (e QuotaExceededError) Error() string {
+	return fmt.Sprintf("%s: used %d of %d monthly tokens", ErrQuotaExceeded, e.UsedTokens, e.LimitTokens)
+}
+
+func (e QuotaExceededError) Unwrap() error {
+	return ErrQuotaExceeded
+}
+
+func (e QuotaExceededError) ClientMessage() string {
+	return "本月订阅套餐 Token 额度已用完，请升级套餐或等待下个计费周期重置。"
+}
+
 type Service struct {
 	repository *storagesubscription.Repository
 	now        func() time.Time
@@ -82,7 +100,10 @@ func (s *Service) EnsureQuotaAvailable(ctx context.Context, ownerUserID string) 
 		return err
 	}
 	if account.UsedTokens >= *account.MonthlyTokenLimit {
-		return fmt.Errorf("%w: used %d of %d monthly tokens", ErrQuotaExceeded, account.UsedTokens, *account.MonthlyTokenLimit)
+		return QuotaExceededError{
+			UsedTokens:  account.UsedTokens,
+			LimitTokens: *account.MonthlyTokenLimit,
+		}
 	}
 	return nil
 }

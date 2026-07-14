@@ -305,7 +305,7 @@ export const zhSettingsMessages = {
   "settings.providers.delete_failed_message": "删除 Provider 失败",
   "settings.providers.delete_confirm_title": "删除 Provider",
   "settings.providers.delete_confirm_message": "确定删除「{name}」吗？此操作不可恢复。",
-  "settings.providers.validation_provider_name_required": "Provider Name 需要包含英文或数字",
+  "settings.providers.validation_provider_name_required": "Provider Name 不能为空",
   "settings.providers.validation_provider_required": "Provider 不能为空",
   "settings.providers.validation_base_url_required": "base_url 不能为空",
   "settings.providers.validation_api_format_required": "api_format 不能为空",

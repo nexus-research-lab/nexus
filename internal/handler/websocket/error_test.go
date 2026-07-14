@@ -4,7 +4,19 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	subscriptionsvc "github.com/nexus-research-lab/nexus/internal/service/subscription"
 )
+
+func TestChatErrorDetailExplainsSubscriptionQuota(t *testing.T) {
+	message := chatErrorDetail(subscriptionsvc.QuotaExceededError{
+		UsedTokens:  200000,
+		LimitTokens: 200000,
+	})
+	if !strings.Contains(message, "Token 额度已用完") || !strings.Contains(message, "升级套餐") {
+		t.Fatalf("额度错误提示不明确: %q", message)
+	}
+}
 
 func TestChatErrorDetailExplainsRuntimeFailures(t *testing.T) {
 	tests := []struct {

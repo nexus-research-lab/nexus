@@ -4,6 +4,7 @@
 package protocol
 
 import (
+	"errors"
 	"strings"
 	"time"
 )
@@ -75,6 +76,20 @@ type EventMessage struct {
 type InboundWebSocketMessage struct {
 	Type       string `json:"type"`
 	SessionKey string `json:"session_key,omitempty"`
+}
+
+type clientMessageError interface {
+	ClientMessage() string
+}
+
+// ClientErrorMessage 只读取业务错误显式声明的安全文案，未知内部错误不得穿透到客户端。
+func ClientErrorMessage(err error) (string, bool) {
+	var target clientMessageError
+	if !errors.As(err, &target) {
+		return "", false
+	}
+	message := strings.TrimSpace(target.ClientMessage())
+	return message, message != ""
 }
 
 // RoundStatusData 表示 round 生命周期事件。

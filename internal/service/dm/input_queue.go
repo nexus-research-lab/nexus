@@ -197,7 +197,11 @@ func (s *Service) dispatchNextInputQueueItemAtLocation(
 	} else {
 		s.broadcastInputQueueSnapshot(ctx, normalizedSessionKey, restored)
 	}
-	s.broadcastEventWithTimeout(ctx, normalizedSessionKey, protocol.NewErrorEvent(normalizedSessionKey, "待发送消息派发失败"))
+	message := "待发送消息派发失败"
+	if clientMessage, ok := protocol.ClientErrorMessage(err); ok {
+		message = clientMessage
+	}
+	s.broadcastEventWithTimeout(ctx, normalizedSessionKey, protocol.NewErrorEvent(normalizedSessionKey, message))
 	return false
 }
 

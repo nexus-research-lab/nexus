@@ -24,6 +24,15 @@ interface ErrorPresentationRule extends ErrorPresentation {
 const ERROR_PRESENTATION_RULES: readonly ErrorPresentationRule[] = [
   {
     detail:
+      "当前订阅套餐的本月 Token 额度已用完。请升级套餐，或等待下个计费周期重置后继续使用。",
+    markers: [
+      "本月订阅套餐 token 额度已用完",
+      "subscription token quota exceeded",
+    ],
+    title: "Token 额度已用完",
+  },
+  {
+    detail:
       "当前 LLM Provider 返回限流或过载。请稍后重试；如果持续失败，临时切换到可用 Provider 或模型。",
     markers: [
       "provider_error=server_overload",

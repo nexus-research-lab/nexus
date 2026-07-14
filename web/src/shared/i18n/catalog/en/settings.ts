@@ -308,7 +308,7 @@ export const enSettingsMessages = {
   "settings.providers.delete_failed_message": "Failed to delete provider",
   "settings.providers.delete_confirm_title": "Delete provider",
   "settings.providers.delete_confirm_message": "Delete \"{name}\"? This action cannot be undone.",
-  "settings.providers.validation_provider_name_required": "Provider Name must contain letters or numbers",
+  "settings.providers.validation_provider_name_required": "Provider Name is required",
   "settings.providers.validation_provider_required": "Provider is required",
   "settings.providers.validation_base_url_required": "base_url is required",
   "settings.providers.validation_api_format_required": "api_format is required",
