@@ -22,7 +22,16 @@ export interface PairingFilters {
   agentId: string;
   channel: ImChannelType | "";
   query: string;
-  status: ImPairingStatus | "";
+  status: PairingStatusFilter;
+}
+
+export type PairingStatusFilter = "" | "pending" | "active" | "inactive";
+
+export interface PairingStatusCounts {
+  active: number;
+  all: number;
+  inactive: number;
+  pending: number;
 }
 
 export interface CreatePairingDraft {
@@ -70,15 +79,23 @@ export function buildCreatePairingPayload(
 
 export function filterPairings(
   items: PairingView[],
-  query: string,
+  filters: PairingFilters,
 ): PairingView[] {
-  const normalizedQuery = query.trim().toLowerCase();
-  if (!normalizedQuery) {
-    return items;
-  }
-  return items.filter((item) => pairingSearchValues(item).some(
-    (value) => value.toLowerCase().includes(normalizedQuery),
-  ));
+  const normalizedQuery = filters.query.trim().toLowerCase();
+  return items.filter((item) => {
+    if (filters.agentId && item.agent_id !== filters.agentId) {
+      return false;
+    }
+    if (filters.channel && item.channel_type !== filters.channel) {
+      return false;
+    }
+    if (!matchesStatusFilter(item.status, filters.status)) {
+      return false;
+    }
+    return !normalizedQuery || pairingSearchValues(item).some(
+      (value) => value.toLowerCase().includes(normalizedQuery),
+    );
+  });
 }
 
 export function groupPairings(
@@ -109,6 +126,18 @@ export function countPairingStatus(
   status: ImPairingStatus,
 ): number {
   return items.filter((item) => item.status === status).length;
+}
+
+export function countPairingStatuses(
+  items: PairingView[],
+): PairingStatusCounts {
+  return {
+    active: countPairingStatus(items, "active"),
+    all: items.length,
+    inactive: countPairingStatus(items, "disabled")
+      + countPairingStatus(items, "rejected"),
+    pending: countPairingStatus(items, "pending"),
+  };
 }
 
 export function pairingDisplayName(item: PairingView): string {
@@ -144,4 +173,17 @@ function pairingSearchValues(item: PairingView): string[] {
     item.agent_name ?? "",
     CHANNEL_LABELS[item.channel_type] ?? item.channel_type,
   ];
+}
+
+function matchesStatusFilter(
+  status: ImPairingStatus,
+  filter: PairingStatusFilter,
+): boolean {
+  if (!filter) {
+    return true;
+  }
+  if (filter === "inactive") {
+    return status === "disabled" || status === "rejected";
+  }
+  return status === filter;
 }
