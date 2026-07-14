@@ -132,6 +132,7 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 		t.Fatalf("期望发送 1 条 Room runtime query，实际 %d", len(queryPrompts))
 	}
 	for _, expected := range []string{
+		"<public_anchor>",
 		"<public_feed>",
 		"<latest_trigger>",
 		"<nexus_runtime_context>",
@@ -167,10 +168,9 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 		"Each user turn includes <public_feed>",
 		"Private Room directed message sending is disabled",
 		`nexus_room.publish_public_message`,
-		"Small-group discussion is just a directed message with multiple recipients",
-		`latest_trigger says "room host default takeover"`,
-		"When you receive a directed message, answer in this turn's final reply",
-		"Never restate directed message content",
+		`"room host default takeover"`,
+		"When a directed message wakes you, answer once in the final reply",
+		"The final reply may be persisted or projected verbatim",
 		"# Nexus Room Member Directory",
 		"<room_member_directory>",
 		"- name=单聊助手 agent_id=" + memberAgent.AgentID,

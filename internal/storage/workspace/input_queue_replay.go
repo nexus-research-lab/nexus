@@ -2,6 +2,7 @@ package workspace
 
 import (
 	"strings"
+	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
@@ -95,9 +96,13 @@ func (r *inputQueueReplay) update(row map[string]any) {
 
 func (r *inputQueueReplay) items() []protocol.InputQueueItem {
 	result := make([]protocol.InputQueueItem, 0, len(r.order))
+	now := time.Now().UnixMilli()
 	for _, id := range r.order {
 		item, ok := r.itemsByID[id]
 		if !ok {
+			continue
+		}
+		if item.ExpiresAt > 0 && item.ExpiresAt <= now {
 			continue
 		}
 		result = append(result, item)

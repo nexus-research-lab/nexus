@@ -180,11 +180,6 @@ func (s *RealtimeService) runSlot(
 	s.runtime.StartRound(slot.RuntimeSessionKey, slot.AgentRoundID, cancel)
 	defer func() {
 		s.runtime.MarkRoundFinished(slot.RuntimeSessionKey, slot.AgentRoundID)
-		if !s.runtime.HasSubagentHistory(slot.RuntimeSessionKey) {
-			if closeErr := s.runtime.CloseSession(context.Background(), slot.RuntimeSessionKey); closeErr != nil && !runtimectx.IsRuntimeTransportClosedError(closeErr) {
-				logger.Warn("关闭无 subagent 历史的 Room runtime 返回错误", "err", closeErr)
-			}
-		}
 	}()
 	cleanupGoalRuntime := s.registerSlotGoalRuntime(slot)
 	defer cleanupGoalRuntime()
@@ -260,7 +255,7 @@ func (e *slotExecution) executeRound(client runtimectx.Client) (exec.RoundExecut
 }
 
 func (e *slotExecution) prepareDispatchPayload() (any, error) {
-	dispatchPrompt, err := e.service.buildSlotVisibleContext(e.ctx, e.round, e.slot, e.history, e.agentNameByID, e.agent)
+	dispatchPrompt, err := e.service.buildSlotVisibleContext(e.ctx, e.round, e.slot, e.history, e.agentNameByID)
 	if err != nil {
 		return nil, err
 	}

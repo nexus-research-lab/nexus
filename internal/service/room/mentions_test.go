@@ -130,24 +130,25 @@ func TestRealtimeServiceAllowsReciprocalPublicMentionChain(t *testing.T) {
 
 	amyFirstClient := newFakeRoomClient()
 	devinClient := newFakeRoomClient()
-	amySecondClient := newFakeRoomClient()
 	amySecondPrompt := make(chan string, 1)
-	factory := &fakeRoomFactory{clients: []*fakeRoomClient{amyFirstClient, devinClient, amySecondClient}}
+	factory := &fakeRoomFactory{clients: []*fakeRoomClient{amyFirstClient, devinClient}}
 	permission := permissionctx.NewContext()
 	runtimeManager := runtimectx.NewManager()
 	service := NewRealtimeServiceWithFactory(cfg, roomService, agentService, runtimeManager, permission, factory)
 
-	amyFirstClient.onQuery = func(_ context.Context, _ string) error {
-		go sendFakeAssistantResult(amyFirstClient, "amy-public-mention-chain-1", "@Devin 请接下一联。")
+	amyQueryCount := 0
+	amyFirstClient.onQuery = func(_ context.Context, prompt string) error {
+		amyQueryCount++
+		if amyQueryCount == 1 {
+			go sendFakeAssistantResult(amyFirstClient, "amy-public-mention-chain-1", "@Devin 请接下一联。")
+			return nil
+		}
+		amySecondPrompt <- prompt
+		go sendFakeAssistantResult(amyFirstClient, "amy-public-mention-chain-2", "收到，继续接力。")
 		return nil
 	}
 	devinClient.onQuery = func(_ context.Context, _ string) error {
 		go sendFakeAssistantResult(devinClient, "devin-public-mention-chain-1", "@Amy 我接完了，你继续。")
-		return nil
-	}
-	amySecondClient.onQuery = func(_ context.Context, prompt string) error {
-		amySecondPrompt <- prompt
-		go sendFakeAssistantResult(amySecondClient, "amy-public-mention-chain-2", "收到，继续接力。")
 		return nil
 	}
 
@@ -214,18 +215,19 @@ func TestRealtimeServiceQueuesPublicMentionWhenTargetRunning(t *testing.T) {
 
 	devinCurrentClient := newFakeRoomClient()
 	amyClient := newFakeRoomClient()
-	devinQueuedClient := newFakeRoomClient()
 	devinQueuedPrompt := make(chan string, 1)
-	devinCurrentClient.onQuery = func(_ context.Context, _ string) error {
+	devinQueryCount := 0
+	devinCurrentClient.onQuery = func(_ context.Context, prompt string) error {
+		devinQueryCount++
+		if devinQueryCount == 1 {
+			return nil
+		}
+		devinQueuedPrompt <- prompt
+		go sendFakeAssistantResult(devinCurrentClient, "devin-public-mention-after-busy", "天气任务已处理。")
 		return nil
 	}
 	amyClient.onQuery = func(_ context.Context, _ string) error {
 		go sendFakeAssistantResult(amyClient, "amy-public-mention-busy", "@Devin 当前天气任务交给你。")
-		return nil
-	}
-	devinQueuedClient.onQuery = func(_ context.Context, prompt string) error {
-		devinQueuedPrompt <- prompt
-		go sendFakeAssistantResult(devinQueuedClient, "devin-public-mention-after-busy", "天气任务已处理。")
 		return nil
 	}
 
@@ -236,7 +238,7 @@ func TestRealtimeServiceQueuesPublicMentionWhenTargetRunning(t *testing.T) {
 		agentService,
 		runtimectx.NewManager(),
 		permission,
-		&fakeRoomFactory{clients: []*fakeRoomClient{devinCurrentClient, amyClient, devinQueuedClient}},
+		&fakeRoomFactory{clients: []*fakeRoomClient{devinCurrentClient, amyClient}},
 	)
 
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)

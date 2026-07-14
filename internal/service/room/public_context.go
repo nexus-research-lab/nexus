@@ -16,9 +16,8 @@ func (s *RealtimeService) buildSlotVisibleContext(
 	slot *activeRoomSlot,
 	publicHistory []protocol.Message,
 	agentNameByID map[string]string,
-	agentValue *protocol.Agent,
 ) (string, error) {
-	batch, err := s.publicInputBatchForSlot(ctx, roundValue, slot, publicHistory, agentNameByID, roomdomain.PublicCursor{})
+	batch, err := s.publicInputBatchForSlot(ctx, roundValue, slot, publicHistory, roomdomain.PublicCursor{}, false)
 	if err != nil {
 		return "", err
 	}
@@ -26,20 +25,26 @@ func (s *RealtimeService) buildSlotVisibleContext(
 	if err != nil {
 		return "", err
 	}
-	slot.PublicCursorID = batch.LastMessageID
-	slot.PublicCursorTS = batch.LastTimestamp
 	privateMessages, err := s.roomDirectedMessagesForSlot(roundValue, slot)
 	if err != nil {
 		return "", err
 	}
-	base := roomdomain.BuildVisibleContext(roomdomain.VisibleContextInput{
-		PublicMessages: runtimeMessages,
-		RoomMessages:   privateMessages,
-		LatestTrigger:  slot.Trigger,
-		AgentNameByID:  agentNameByID,
-		TargetAgentID:  slot.AgentID,
+	plan := roomdomain.BuildVisibleContextPlan(roomdomain.VisibleContextInput{
+		PublicMessages:      runtimeMessages,
+		RoomMessages:        privateMessages,
+		LatestTrigger:       slot.Trigger,
+		AgentNameByID:       agentNameByID,
+		TargetAgentID:       slot.AgentID,
+		ContextWindowTokens: slot.ContextWindow,
+		ColdStart:           batch.ColdStart,
+		PublicAnchor:        roomPublicAnchorMetadata(roundValue),
 	})
-	return base, nil
+	slot.PublicCursorID = plan.PublicBoundary.MessageID
+	slot.PublicCursorTS = plan.PublicBoundary.Timestamp
+	slot.MessageCursorID = plan.PrivateBoundary.MessageID
+	slot.MessageCursorTS = plan.PrivateBoundary.Timestamp
+	s.logRoomContextUsage(ctx, roundValue, slot, plan.Usage)
+	return plan.Text, nil
 }
 
 func (s *RealtimeService) buildSlotGuidedPublicContext(
@@ -54,7 +59,7 @@ func (s *RealtimeService) buildSlotGuidedPublicContext(
 		LastMessageID: strings.TrimSpace(slot.PublicCursorID),
 		LastTimestamp: slot.PublicCursorTS,
 	}
-	batch, err := s.publicInputBatchForSlot(ctx, roundValue, slot, publicHistory, agentNameByID, baseCursor)
+	batch, err := s.publicInputBatchForSlot(ctx, roundValue, slot, publicHistory, baseCursor, true)
 	if err != nil {
 		return "", err
 	}
@@ -62,19 +67,24 @@ func (s *RealtimeService) buildSlotGuidedPublicContext(
 	if err != nil {
 		return "", err
 	}
-	if strings.TrimSpace(batch.LastMessageID) != "" || batch.LastTimestamp > 0 {
-		slot.PublicCursorID = batch.LastMessageID
-		slot.PublicCursorTS = batch.LastTimestamp
-		if err = s.recordRoomPublicCursor(slot, roundValue, batch.LastMessageID, batch.LastTimestamp); err != nil {
+	plan := roomdomain.BuildGuidedPublicInputContextPlan(roomdomain.VisibleContextInput{
+		PublicMessages:      runtimeMessages,
+		LatestTrigger:       trigger,
+		AgentNameByID:       agentNameByID,
+		TargetAgentID:       slot.AgentID,
+		ContextWindowTokens: slot.ContextWindow,
+		ColdStart:           batch.ColdStart,
+		PublicAnchor:        roomPublicAnchorMetadata(roundValue),
+	})
+	if strings.TrimSpace(plan.PublicBoundary.MessageID) != "" || plan.PublicBoundary.Timestamp > 0 {
+		slot.PublicCursorID = plan.PublicBoundary.MessageID
+		slot.PublicCursorTS = plan.PublicBoundary.Timestamp
+		if err = s.recordRoomPublicCursor(slot, roundValue, plan.PublicBoundary.MessageID, plan.PublicBoundary.Timestamp); err != nil {
 			return "", err
 		}
 	}
-	return roomdomain.BuildGuidedPublicInputContext(roomdomain.VisibleContextInput{
-		PublicMessages: runtimeMessages,
-		LatestTrigger:  trigger,
-		AgentNameByID:  agentNameByID,
-		TargetAgentID:  slot.AgentID,
-	}), nil
+	s.logRoomContextUsage(ctx, roundValue, slot, plan.Usage)
+	return plan.Text, nil
 }
 
 func (s *RealtimeService) publicInputBatchForSlot(
@@ -82,11 +92,13 @@ func (s *RealtimeService) publicInputBatchForSlot(
 	roundValue *activeRoomRound,
 	slot *activeRoomSlot,
 	publicHistory []protocol.Message,
-	agentNameByID map[string]string,
 	overrideCursor roomdomain.PublicCursor,
+	overrideKnown bool,
 ) (roomdomain.PublicInputBatch, error) {
 	cursor := overrideCursor
-	if strings.TrimSpace(cursor.LastMessageID) == "" && cursor.LastTimestamp == 0 && s.history != nil {
+	cursorKnown := overrideKnown || (!slot.ContextColdStart &&
+		(strings.TrimSpace(cursor.LastMessageID) != "" || cursor.LastTimestamp > 0))
+	if !cursorKnown && !slot.ContextColdStart && s.history != nil {
 		stored, ok, err := s.history.ReadRoomPublicCursor(
 			slot.WorkspacePath,
 			slot.RuntimeSessionKey,
@@ -101,14 +113,51 @@ func (s *RealtimeService) publicInputBatchForSlot(
 				LastMessageID: stored.LastPublicMessageID,
 				LastTimestamp: stored.LastPublicTimestamp,
 			}
+			cursorKnown = true
 		}
 	}
 	return roomdomain.BuildPublicInputBatch(roomdomain.PublicInputBatchInput{
 		PublicHistory: publicHistory,
 		Cursor:        cursor,
-		AgentNameByID: agentNameByID,
-		TargetAgentID: slot.AgentID,
+		CursorKnown:   cursorKnown,
 	}), nil
+}
+
+func roomPublicAnchorMetadata(roundValue *activeRoomRound) roomdomain.PublicAnchorMetadata {
+	if roundValue == nil || roundValue.Context == nil {
+		return roomdomain.PublicAnchorMetadata{}
+	}
+	return roomdomain.PublicAnchorMetadata{
+		RoomName:          roundValue.Context.Room.Name,
+		RoomDescription:   roundValue.Context.Room.Description,
+		ConversationTitle: roundValue.Context.Conversation.Title,
+	}
+}
+
+func (s *RealtimeService) logRoomContextUsage(
+	ctx context.Context,
+	roundValue *activeRoomRound,
+	slot *activeRoomSlot,
+	usage roomdomain.RoomContextUsage,
+) {
+	if roundValue == nil || slot == nil {
+		return
+	}
+	s.loggerFor(ctx).Debug("Room 可见上下文预算已应用",
+		"room_id", roundValue.RoomID,
+		"conversation_id", roundValue.ConversationID,
+		"agent_id", slot.AgentID,
+		"agent_round_id", slot.AgentRoundID,
+		"context_window_tokens", usage.ContextWindowTokens,
+		"budget_tokens", usage.BudgetTokens,
+		"used_tokens", usage.UsedTokens,
+		"current_message_tokens", usage.CurrentMessageTokens,
+		"trigger_tokens", usage.TriggerTokens,
+		"public_delta_tokens", usage.PublicDeltaTokens,
+		"private_delta_tokens", usage.PrivateDeltaTokens,
+		"public_anchor_tokens", usage.PublicAnchorTokens,
+		"cold_start", usage.ColdStart,
+	)
 }
 
 func (s *RealtimeService) recordRoomPublicCursor(slot *activeRoomSlot, roundValue *activeRoomRound, messageID string, timestamp int64) error {
@@ -167,14 +216,22 @@ func (s *RealtimeService) roomDirectedMessagesForSlot(
 	if err != nil {
 		return nil, err
 	}
-	messages, err := s.directedMessages.ReadContextMessagesAfterCursor(roundValue.ConversationID, slot.AgentID, cursor)
+	if slot.ContextColdStart {
+		cursor = workspacestore.RoomDirectedMessageCursor{}
+	}
+	var messages []protocol.RoomDirectedMessageRecord
+	if slot.Trigger.TriggerType == roomDirectedMessageTriggerType {
+		messages, err = s.directedMessages.ReadContextMessagesThrough(
+			roundValue.ConversationID,
+			slot.AgentID,
+			cursor,
+			slot.ReplySourceMessage,
+		)
+	} else {
+		messages, err = s.directedMessages.ReadContextMessagesAfterCursor(roundValue.ConversationID, slot.AgentID, cursor)
+	}
 	if err != nil {
 		return nil, err
-	}
-	if len(messages) > 0 {
-		lastMessage := messages[len(messages)-1]
-		slot.MessageCursorID = lastMessage.MessageID
-		slot.MessageCursorTS = lastMessage.Timestamp
 	}
 	return messages, nil
 }

@@ -131,7 +131,7 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 	if err != nil {
 		return preparedSlotRuntime{}, err
 	}
-	options, err := clientopts.BuildAgentClientOptions(e.ctx, e.service.providers, clientopts.AgentClientOptionsInput{
+	options, runtimeConfig, err := clientopts.BuildAgentClientOptionsWithConfig(e.ctx, e.service.providers, clientopts.AgentClientOptionsInput{
 		WorkspacePath:              e.agent.WorkspacePath,
 		RuntimeKind:                selection.RuntimeKind,
 		Provider:                   selection.Provider,
@@ -152,6 +152,9 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 	if err != nil {
 		return preparedSlotRuntime{}, err
 	}
+	if runtimeConfig != nil {
+		e.slot.ContextWindow = runtimeConfig.ContextWindow
+	}
 
 	e.slot.setRuntimeKind(string(options.Runtime.Kind))
 	options = e.applyRuntimeHooks(options)
@@ -167,6 +170,7 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 		return preparedSlotRuntime{}, err
 	}
 	options.Session.ResumeID = resumeID
+	e.slot.ContextColdStart = resumeID == ""
 	return preparedSlotRuntime{options: options, selection: selection, provider: runtimeProvider}, nil
 }
 

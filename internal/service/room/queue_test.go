@@ -148,12 +148,15 @@ func TestRealtimeServiceDispatchesLateRoomGuidanceAfterRoundFinishes(t *testing.
 	}
 
 	firstClient := newFakeRoomClient()
-	firstClient.onQuery = func(_ context.Context, _ string) error { return nil }
-	secondClient := newFakeRoomClient()
 	secondPrompt := make(chan string, 1)
-	secondClient.onQuery = func(_ context.Context, prompt string) error {
+	queryCount := 0
+	firstClient.onQuery = func(_ context.Context, prompt string) error {
+		queryCount++
+		if queryCount == 1 {
+			return nil
+		}
 		secondPrompt <- prompt
-		go sendFakeAssistantResult(secondClient, "assistant-late-guide", "已处理补充要求")
+		go sendFakeAssistantResult(firstClient, "assistant-late-guide", "已处理补充要求")
 		return nil
 	}
 
@@ -164,7 +167,7 @@ func TestRealtimeServiceDispatchesLateRoomGuidanceAfterRoundFinishes(t *testing.
 		agentService,
 		runtimectx.NewManager(),
 		permission,
-		&fakeRoomFactory{clients: []*fakeRoomClient{firstClient, secondClient}},
+		&fakeRoomFactory{clients: []*fakeRoomClient{firstClient}},
 	)
 	ctx := context.Background()
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)

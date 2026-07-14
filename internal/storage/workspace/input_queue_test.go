@@ -1,8 +1,10 @@
 package workspace
 
 import (
+	"errors"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
@@ -77,6 +79,48 @@ func TestInputQueueStoreReplayAppendReorderDispatchAndDelete(t *testing.T) {
 	}
 	if len(items) != 0 {
 		t.Fatalf("重放删除/派发事件后队列应为空: %#v", items)
+	}
+}
+
+func TestInputQueueStoreBoundedEnqueueDeduplicatesAndExpires(t *testing.T) {
+	root := t.TempDir()
+	location := InputQueueLocation{
+		Scope:         protocol.InputQueueScopeRoom,
+		WorkspacePath: filepath.Join(root, "agent"),
+		SessionKey:    "room:conversation-1:agent-1",
+	}
+	store := NewInputQueueStore(root)
+	item := protocol.InputQueueItem{
+		AgentID:         "agent-1",
+		Source:          protocol.InputQueueSourceAgentRoomMessage,
+		SourceMessageID: "message-1",
+		Content:         "runtime trigger",
+		DeliveryPolicy:  protocol.ChatDeliveryPolicyQueue,
+		ExpiresAt:       time.Now().Add(time.Hour).UnixMilli(),
+	}
+	items, inserted, err := store.EnqueueBounded(location, item, 1)
+	if err != nil || !inserted || len(items) != 1 {
+		t.Fatalf("有界入队失败: items=%+v inserted=%v err=%v", items, inserted, err)
+	}
+	items, inserted, err = store.EnqueueBounded(location, item, 1)
+	if err != nil || inserted || len(items) != 1 {
+		t.Fatalf("重复自动唤醒应被折叠: items=%+v inserted=%v err=%v", items, inserted, err)
+	}
+	item.SourceMessageID = "message-2"
+	if _, _, err = store.EnqueueBounded(location, item, 1); !errors.Is(err, ErrInputQueueCapacity) {
+		t.Fatalf("超出容量应返回 ErrInputQueueCapacity: %v", err)
+	}
+	if _, err = store.DispatchMany(location, []string{items[0].ID}); err != nil {
+		t.Fatalf("消费有界队列失败: %v", err)
+	}
+	item.SourceMessageID = "message-expired"
+	item.ExpiresAt = time.Now().Add(-time.Second).UnixMilli()
+	if _, _, err = store.EnqueueBounded(location, item, 1); err != nil {
+		t.Fatalf("写入过期队列项失败: %v", err)
+	}
+	items, err = store.Snapshot(location)
+	if err != nil || len(items) != 0 {
+		t.Fatalf("过期队列项不应出现在快照中: items=%+v err=%v", items, err)
 	}
 }
 

@@ -39,6 +39,7 @@ type InputQueueItem struct {
 	RootRoundID     string             `json:"root_round_id,omitempty"`
 	HopIndex        int                `json:"hop_index,omitempty"`
 	QueueOrder      int64              `json:"queue_order,omitempty"`
+	ExpiresAt       int64              `json:"expires_at,omitempty"`
 	CreatedAt       int64              `json:"created_at"`
 	UpdatedAt       int64              `json:"updated_at"`
 }

@@ -17,8 +17,7 @@ type PublicCursor struct {
 type PublicInputBatchInput struct {
 	PublicHistory []protocol.Message
 	Cursor        PublicCursor
-	AgentNameByID map[string]string
-	TargetAgentID string
+	CursorKnown   bool
 }
 
 // PublicInputBatch 是一次要投递给目标成员的公区消息批次。
@@ -26,25 +25,16 @@ type PublicInputBatch struct {
 	Messages      []protocol.Message
 	LastMessageID string
 	LastTimestamp int64
+	ColdStart     bool
 }
 
 // BuildPublicInputBatch 根据目标成员 cursor 选择本次公区输入批次。
 func BuildPublicInputBatch(input PublicInputBatchInput) PublicInputBatch {
 	candidates := publicMessagesAfterCursor(input.PublicHistory, input.Cursor)
-	if len(candidates) > roomMaxHistoryMessages {
-		candidates = candidates[len(candidates)-roomMaxHistoryMessages:]
+	batch := PublicInputBatch{
+		Messages:  candidates,
+		ColdStart: !input.CursorKnown,
 	}
-	candidates = trimPublicBatchByChars(candidates, input.AgentNameByID)
-
-	messages := make([]protocol.Message, 0, len(candidates))
-	for _, message := range candidates {
-		if !isVisiblePublicInputMessage(message, input.TargetAgentID) {
-			continue
-		}
-		messages = append(messages, message)
-	}
-
-	batch := PublicInputBatch{Messages: messages}
 	if len(candidates) > 0 {
 		boundary := candidates[len(candidates)-1]
 		batch.LastMessageID = normalizeAnyString(boundary["message_id"])
@@ -74,34 +64,6 @@ func publicMessagesAfterCursor(history []protocol.Message, cursor PublicCursor) 
 		return nil
 	}
 	return slices.Clone(history)
-}
-
-func trimPublicBatchByChars(messages []protocol.Message, agentNameByID map[string]string) []protocol.Message {
-	if len(messages) == 0 {
-		return nil
-	}
-	totalChars := 0
-	start := len(messages)
-	for index := len(messages) - 1; index >= 0; index-- {
-		line := formatHistoryLine(messages[index], agentNameByID)
-		lineChars := len(line)
-		nextChars := totalChars
-		if lineChars > 0 {
-			nextChars += lineChars
-			if totalChars > 0 {
-				nextChars++
-			}
-		}
-		if nextChars > roomMaxHistoryChars && start < len(messages) {
-			break
-		}
-		start = index
-		totalChars = nextChars
-		if nextChars > roomMaxHistoryChars {
-			break
-		}
-	}
-	return slices.Clone(messages[start:])
 }
 
 func isVisiblePublicInputMessage(message protocol.Message, targetAgentID string) bool {

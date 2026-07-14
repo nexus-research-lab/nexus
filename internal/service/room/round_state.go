@@ -35,6 +35,8 @@ type activeRoomSlot struct {
 	resultUsageWritten bool
 	WorkspacePath      string
 	RuntimeKind        string
+	ContextWindow      int
+	ContextColdStart   bool
 	Client             runtimectx.Client
 	Cancel             context.CancelFunc
 	Status             string

@@ -157,7 +157,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		connectorBuilder,
 		goalBuilder,
 		contextOnlyMCPBuilder(imagegenBuilder),
-		contextOnlyMCPBuilder(roomBuilder),
+		roomBuilder,
 	)
 	dmService.SetMCPServerBuilder(mcpBuilder)
 	roomRealtime.SetMCPServerBuilder(mcpBuilder)

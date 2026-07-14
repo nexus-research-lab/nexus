@@ -130,23 +130,36 @@ func (s *RealtimeService) buildRoomDirectedMessageRecord(
 	if err := validateRoomDirectedMessageDelay(wakePolicy, request.DelaySeconds); err != nil {
 		return nil, err
 	}
+	wakeTargets, err := normalizeRoomDirectedMessageWakeTargets(request.WakeTargets, recipients, wakePolicy)
+	if err != nil {
+		return nil, err
+	}
 	replyRoute, err := normalizeRoomReplyRoute(request.ReplyRoute, memberAgentIDs)
 	if err != nil {
 		return nil, err
 	}
 
+	rootRoundID, causedByRoundID, hopIndex := s.resolveRoomMessageCausality(
+		contextValue.Conversation.ID,
+		sourceAgentID,
+		request.RootRoundID,
+	)
 	return &protocol.RoomDirectedMessageRecord{
-		MessageID:      newRealtimeID(),
-		RoomID:         contextValue.Room.ID,
-		ConversationID: contextValue.Conversation.ID,
-		SourceAgentID:  sourceAgentID,
-		Recipients:     recipients,
-		Content:        content,
-		WakePolicy:     wakePolicy,
-		ReplyRoute:     replyRoute,
-		DelaySeconds:   request.DelaySeconds,
-		CorrelationID:  strings.TrimSpace(request.CorrelationID),
-		Timestamp:      time.Now().UnixMilli(),
+		MessageID:       newRealtimeID(),
+		RoomID:          contextValue.Room.ID,
+		ConversationID:  contextValue.Conversation.ID,
+		SourceAgentID:   sourceAgentID,
+		Recipients:      recipients,
+		WakeTargets:     wakeTargets,
+		Content:         content,
+		WakePolicy:      wakePolicy,
+		ReplyRoute:      replyRoute,
+		DelaySeconds:    request.DelaySeconds,
+		CorrelationID:   strings.TrimSpace(request.CorrelationID),
+		RootRoundID:     rootRoundID,
+		CausedByRoundID: causedByRoundID,
+		HopIndex:        hopIndex,
+		Timestamp:       time.Now().UnixMilli(),
 	}, nil
 }
 
@@ -169,6 +182,29 @@ func validateRoomDirectedMessageRecipients(recipients []string, memberAgentIDs [
 		}
 	}
 	return nil
+}
+
+func normalizeRoomDirectedMessageWakeTargets(
+	values []string,
+	recipients []string,
+	wakePolicy protocol.RoomWakePolicy,
+) ([]string, error) {
+	targets := normalizeRoomDirectedMessageRecipients(values)
+	if wakePolicy == protocol.RoomWakePolicyNone {
+		if len(targets) > 0 {
+			return nil, errors.New("wake_targets 仅支持会触发运行的 wake_policy")
+		}
+		return nil, nil
+	}
+	if len(targets) == 0 {
+		return slices.Clone(recipients), nil
+	}
+	for _, target := range targets {
+		if !slices.Contains(recipients, target) {
+			return nil, errors.New("wake_targets must be a subset of recipients")
+		}
+	}
+	return targets, nil
 }
 
 func normalizeRoomReplyRoute(
@@ -277,14 +313,18 @@ func validateRoomDirectedMessageDelay(wakePolicy protocol.RoomWakePolicy, delayS
 
 func newRoomDirectedMessageEvent(message protocol.RoomDirectedMessageRecord) protocol.EventMessage {
 	data := map[string]any{
-		"message_id":      message.MessageID,
-		"event_kind":      "created",
-		"room_id":         message.RoomID,
-		"conversation_id": message.ConversationID,
-		"source_agent_id": message.SourceAgentID,
-		"recipients":      slices.Clone(message.Recipients),
-		"reply_route":     message.ReplyRoute,
-		"content_chars":   utf8.RuneCountInString(message.Content),
+		"message_id":         message.MessageID,
+		"event_kind":         "created",
+		"room_id":            message.RoomID,
+		"conversation_id":    message.ConversationID,
+		"source_agent_id":    message.SourceAgentID,
+		"recipients":         slices.Clone(message.Recipients),
+		"wake_targets":       slices.Clone(message.WakeTargets),
+		"reply_route":        message.ReplyRoute,
+		"content_chars":      utf8.RuneCountInString(message.Content),
+		"root_round_id":      message.RootRoundID,
+		"caused_by_round_id": message.CausedByRoundID,
+		"hop_index":          message.HopIndex,
 	}
 	if message.WakePolicy != "" {
 		data["wake_policy"] = string(message.WakePolicy)
@@ -338,6 +378,7 @@ func newRoomDirectedMessageScheduledWakeEvent(message protocol.RoomDirectedMessa
 		"conversation_id": message.ConversationID,
 		"source_agent_id": message.SourceAgentID,
 		"recipients":      slices.Clone(message.Recipients),
+		"wake_targets":    slices.Clone(message.WakeTargets),
 		"reply_route":     message.ReplyRoute,
 		"wake_policy":     string(message.WakePolicy),
 		"delay_seconds":   message.DelaySeconds,

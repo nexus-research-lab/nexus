@@ -10,8 +10,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
-const roomDirectedMessageContextLimit = 20
-
 // RoomDirectedMessageCursor 记录某个 Room agent 已消费到的 directed message 位置。
 type RoomDirectedMessageCursor struct {
 	RoomID               string
@@ -94,8 +92,29 @@ func (s *RoomDirectedMessageStore) ReadContextMessagesAfterCursor(
 		return nil, err
 	}
 	visible = roomDirectedMessagesAfterCursor(visible, cursor)
-	if len(visible) > roomDirectedMessageContextLimit {
-		visible = visible[len(visible)-roomDirectedMessageContextLimit:]
+	return visible, nil
+}
+
+// ReadContextMessagesThrough 读取 cursor 之后、不超过指定触发消息的私域上下文。
+func (s *RoomDirectedMessageStore) ReadContextMessagesThrough(
+	conversationID string,
+	agentID string,
+	cursor RoomDirectedMessageCursor,
+	lastMessageID string,
+) ([]protocol.RoomDirectedMessageRecord, error) {
+	visible, err := s.ReadVisibleMessages(conversationID, agentID)
+	if err != nil {
+		return nil, err
+	}
+	visible = roomDirectedMessagesAfterCursor(visible, cursor)
+	boundary := strings.TrimSpace(lastMessageID)
+	if boundary != "" {
+		for index, message := range visible {
+			if strings.TrimSpace(message.MessageID) == boundary {
+				visible = visible[:index+1]
+				break
+			}
+		}
 	}
 	return visible, nil
 }
@@ -198,6 +217,9 @@ func roomDirectedMessageToRow(message protocol.RoomDirectedMessageRecord) map[st
 		"reply_route":     message.ReplyRoute,
 		"timestamp":       message.Timestamp,
 	}
+	if len(message.WakeTargets) > 0 {
+		row["wake_targets"] = slices.Clone(message.WakeTargets)
+	}
 	if message.WakePolicy != "" {
 		row["wake_policy"] = string(message.WakePolicy)
 	}
@@ -206,6 +228,15 @@ func roomDirectedMessageToRow(message protocol.RoomDirectedMessageRecord) map[st
 	}
 	if strings.TrimSpace(message.CorrelationID) != "" {
 		row["correlation_id"] = strings.TrimSpace(message.CorrelationID)
+	}
+	if strings.TrimSpace(message.RootRoundID) != "" {
+		row["root_round_id"] = strings.TrimSpace(message.RootRoundID)
+	}
+	if strings.TrimSpace(message.CausedByRoundID) != "" {
+		row["caused_by_round_id"] = strings.TrimSpace(message.CausedByRoundID)
+	}
+	if message.HopIndex > 0 {
+		row["hop_index"] = message.HopIndex
 	}
 	if strings.TrimSpace(message.Content) != "" {
 		row["content"] = message.Content
@@ -239,17 +270,21 @@ func roomDirectedMessageCursorFromRow(row map[string]any) RoomDirectedMessageCur
 
 func roomDirectedMessageFromRow(row map[string]any) protocol.RoomDirectedMessageRecord {
 	return protocol.RoomDirectedMessageRecord{
-		MessageID:      stringFromAny(row["message_id"]),
-		RoomID:         stringFromAny(row["room_id"]),
-		ConversationID: stringFromAny(row["conversation_id"]),
-		SourceAgentID:  stringFromAny(row["source_agent_id"]),
-		Recipients:     stringSliceFromAny(row["recipients"]),
-		Content:        stringFromAny(row["content"]),
-		WakePolicy:     protocol.RoomWakePolicy(stringFromAny(row["wake_policy"])),
-		ReplyRoute:     roomReplyRouteFromAny(row["reply_route"]),
-		DelaySeconds:   int(protocol.Int64FromAny(row["delay_seconds"])),
-		CorrelationID:  stringFromAny(row["correlation_id"]),
-		Timestamp:      protocol.Int64FromAny(row["timestamp"]),
+		MessageID:       stringFromAny(row["message_id"]),
+		RoomID:          stringFromAny(row["room_id"]),
+		ConversationID:  stringFromAny(row["conversation_id"]),
+		SourceAgentID:   stringFromAny(row["source_agent_id"]),
+		Recipients:      stringSliceFromAny(row["recipients"]),
+		WakeTargets:     stringSliceFromAny(row["wake_targets"]),
+		Content:         stringFromAny(row["content"]),
+		WakePolicy:      protocol.RoomWakePolicy(stringFromAny(row["wake_policy"])),
+		ReplyRoute:      roomReplyRouteFromAny(row["reply_route"]),
+		DelaySeconds:    int(protocol.Int64FromAny(row["delay_seconds"])),
+		CorrelationID:   stringFromAny(row["correlation_id"]),
+		RootRoundID:     stringFromAny(row["root_round_id"]),
+		CausedByRoundID: stringFromAny(row["caused_by_round_id"]),
+		HopIndex:        int(protocol.Int64FromAny(row["hop_index"])),
+		Timestamp:       protocol.Int64FromAny(row["timestamp"]),
 	}
 }
 

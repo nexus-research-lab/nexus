@@ -4,70 +4,22 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-	"unicode/utf8"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
-
-const roomHistoryTruncatedSuffix = "\n...(truncated)"
-
-func contextPublicMessages(messages []protocol.Message, trigger Trigger) []protocol.Message {
-	triggerMessageID := strings.TrimSpace(trigger.MessageID)
-	if triggerMessageID == "" || len(messages) == 0 {
-		return messages
-	}
-	filtered := make([]protocol.Message, 0, len(messages))
-	for _, message := range messages {
-		if strings.TrimSpace(normalizeAnyString(message["message_id"])) == triggerMessageID {
-			continue
-		}
-		filtered = append(filtered, message)
-	}
-	return filtered
-}
 
 func buildHistoryLines(history []protocol.Message, agentNameByID map[string]string) []string {
 	if len(history) == 0 {
 		return nil
 	}
-
-	start := 0
-	if len(history) > roomMaxHistoryMessages {
-		start = len(history) - roomMaxHistoryMessages
-	}
-
-	formatted := make([]string, 0, len(history)-start)
-	for _, message := range history[start:] {
+	formatted := make([]string, 0, len(history))
+	for _, message := range history {
 		line := formatHistoryLine(message, agentNameByID)
 		if line != "" {
 			formatted = append(formatted, line)
 		}
 	}
-
-	lines := make([]string, 0, len(formatted))
-	totalChars := 0
-	for index := len(formatted) - 1; index >= 0; index-- {
-		line := formatted[index]
-		nextChars := totalChars + len(line)
-		if totalChars > 0 {
-			nextChars++
-		}
-		if nextChars > roomMaxHistoryChars {
-			if len(lines) == 0 {
-				truncated := truncateHistoryText(line, roomMaxHistoryChars)
-				if truncated != "" {
-					lines = append(lines, truncated)
-				}
-			}
-			break
-		}
-		lines = append(lines, line)
-		totalChars = nextChars
-	}
-	for left, right := 0, len(lines)-1; left < right; left, right = left+1, right-1 {
-		lines[left], lines[right] = lines[right], lines[left]
-	}
-	return lines
+	return formatted
 }
 
 func formatHistoryLine(message protocol.Message, agentNameByID map[string]string) string {
@@ -156,40 +108,4 @@ func normalizeHistoryContentBlocks(content any) []map[string]any {
 	default:
 		return nil
 	}
-}
-
-func truncateHistoryText(value string, maxBytes int) string {
-	trimmed := strings.TrimSpace(value)
-	if maxBytes <= 0 || len(trimmed) <= maxBytes {
-		return trimmed
-	}
-	if maxBytes <= len(roomHistoryTruncatedSuffix) {
-		return trimStringByBytes(trimmed, maxBytes)
-	}
-	body := trimStringByBytes(trimmed, maxBytes-len(roomHistoryTruncatedSuffix))
-	if body == "" {
-		return trimStringByBytes(trimmed, maxBytes)
-	}
-	return strings.TrimSpace(body) + roomHistoryTruncatedSuffix
-}
-
-func trimStringByBytes(value string, maxBytes int) string {
-	if maxBytes <= 0 {
-		return ""
-	}
-	if len(value) <= maxBytes {
-		return strings.TrimSpace(value)
-	}
-	end := 0
-	for index, currentRune := range value {
-		width := utf8.RuneLen(currentRune)
-		if width <= 0 {
-			width = 1
-		}
-		if index+width > maxBytes {
-			break
-		}
-		end = index + width
-	}
-	return strings.TrimSpace(value[:end])
 }

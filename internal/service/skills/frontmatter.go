@@ -6,16 +6,17 @@ import (
 )
 
 type frontmatterData struct {
-	Name           string
-	Title          string
-	Description    string
-	Scope          string
-	Tags           []string
-	Version        string
-	CategoryKey    string
-	CategoryName   string
-	Recommendation string
-	ReadmeMarkdown string
+	Name                string
+	Title               string
+	Description         string
+	Scope               string
+	Tags                []string
+	Version             string
+	CategoryKey         string
+	CategoryName        string
+	Recommendation      string
+	RuntimeInstructions string
+	ReadmeMarkdown      string
 }
 
 func parseSkillFrontmatter(content string, fallbackName string) frontmatterData {
@@ -226,6 +227,8 @@ func assignFrontmatterValue(target *frontmatterData, key string, value any) {
 		target.CategoryName = toString(value)
 	case "recommendation":
 		target.Recommendation = toString(value)
+	case "runtime_instructions":
+		target.RuntimeInstructions = toString(value)
 	}
 }
 

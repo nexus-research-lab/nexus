@@ -42,19 +42,21 @@ func TestBuildHistoryLinesSkipsRuntimeResultMessages(t *testing.T) {
 	}
 }
 
-func TestBuildHistoryLinesKeepsNewestMessagesWithinBudget(t *testing.T) {
+func TestBuildVisibleContextPlanKeepsNewestColdStartMessagesWithinBudget(t *testing.T) {
 	history := []protocol.Message{
 		{"role": "user", "content": "@Amy 先开始"},
-		roomAssistantResult("agent-amy", strings.Repeat("旧消息", roomMaxHistoryChars)),
+		roomAssistantResult("agent-amy", strings.Repeat("旧消息", 8_000)),
 		{"role": "user", "content": "@Amy 李家村，有一娃"},
 		roomAssistantResult("agent-amy", "罗家巷，有一郎，磨磨唧唧，又啰又怂"),
 		{"role": "user", "content": "@sam 你觉得呢"},
 	}
-
-	lines := buildHistoryLines(history, map[string]string{
-		"agent-amy": "Amy",
+	plan := BuildVisibleContextPlan(VisibleContextInput{
+		PublicMessages:      history,
+		AgentNameByID:       map[string]string{"agent-amy": "Amy"},
+		ContextWindowTokens: 8_192,
+		ColdStart:           true,
 	})
-	got := strings.Join(lines, "\n")
+	got := plan.Text
 
 	for _, expected := range []string{
 		"User: @Amy 李家村，有一娃",
@@ -65,8 +67,8 @@ func TestBuildHistoryLinesKeepsNewestMessagesWithinBudget(t *testing.T) {
 			t.Fatalf("公区历史应优先保留最新消息 %q:\n%s", expected, got)
 		}
 	}
-	if strings.Contains(got, "旧消息") {
-		t.Fatalf("公区历史预算不足时不应让旧长消息挤掉新消息:\n%s", got)
+	if !strings.Contains(got, "<public_anchor>") || plan.Usage.UsedTokens > plan.Usage.BudgetTokens {
+		t.Fatalf("冷启动应生成预算内 anchor: usage=%+v\n%s", plan.Usage, got)
 	}
 }
 
@@ -136,23 +138,18 @@ func TestBuildRoomVisibleContextKeepsPublicRoomContract(t *testing.T) {
 	for _, expected := range []string{
 		"# Nexus Room",
 		"You are a member in a multi-member Nexus Room",
-		"outside inline code or fenced code is an execution trigger",
-		"Never @ multiple candidates",
+		"A non-code @member means \"act now\"",
+		"Wake one member unless",
 		"<nexus_room_no_reply/>",
-		"target turns, current turn, next member, and stop condition",
-		"create a Room directed message",
+		"Track multi-turn handoffs, stop conditions",
 		`nexus_room.publish_public_message`,
 		`nexus_room.send_directed_message`,
-		`recipients: string[]`,
-		`reply_route: { mode: public|private|none`,
-		`next_reply_route`,
-		"Small-group discussion is just a directed message with multiple recipients",
-		`latest_trigger says "room host default takeover"`,
-		"When you receive a directed message, answer in this turn's final reply",
-		"Never restate directed message content",
-		"Do not use Bash, nexusctl, Skill tools, or files",
-		"secrets, codes",
-		"Final summaries must not @ anyone",
+		"recipients controls visibility",
+		"wake_targets is the recipients subset",
+		"Runtime routes the recipient's single final reply by reply_route",
+		`"room host default takeover"`,
+		"Never expose private content publicly",
+		"a completed summary must not @ anyone",
 	} {
 		if !strings.Contains(systemPrompt, expected) {
 			t.Fatalf("Room system prompt 缺少片段 %q:\n%s", expected, systemPrompt)
@@ -163,6 +160,8 @@ func TestBuildRoomVisibleContextKeepsPublicRoomContract(t *testing.T) {
 		"agent-devin",
 		"<room_member_directory>",
 		"<current_room_member>",
+		"recipients: string[]",
+		"next_reply_route: {...}",
 	} {
 		if strings.Contains(systemPrompt, unexpected) {
 			t.Fatalf("Room system prompt 不应包含动态变量 %q:\n%s", unexpected, systemPrompt)
@@ -329,18 +328,125 @@ func TestBuildPublicInputBatchUsesCursorAndSkipsTargetOwnReply(t *testing.T) {
 			LastMessageID: "m2",
 			LastTimestamp: 2,
 		},
+		CursorKnown: true,
+	})
+
+	if batch.LastMessageID != "m5" || batch.LastTimestamp != 5 {
+		t.Fatalf("batch 应推进到最新公区边界: %+v", batch)
+	}
+	plan := BuildVisibleContextPlan(VisibleContextInput{
+		PublicMessages: batch.Messages,
 		AgentNameByID: map[string]string{
 			"agent-amy":   "Amy",
 			"agent-devin": "Devin",
 		},
 		TargetAgentID: "agent-devin",
 	})
-
-	if batch.LastMessageID != "m5" || batch.LastTimestamp != 5 {
-		t.Fatalf("batch 应推进到最新公区边界: %+v", batch)
+	if strings.Contains(plan.Text, "Devin 自己刚说过的话") || strings.Contains(plan.Text, "运行结果噪声") ||
+		!strings.Contains(plan.Text, "@Devin 你怎么看") {
+		t.Fatalf("预算投影应跳过目标自己的公开回复和 result，只保留新用户消息: %s", plan.Text)
 	}
-	if len(batch.Messages) != 1 || normalizeAnyString(batch.Messages[0]["message_id"]) != "m4" {
-		t.Fatalf("batch 应跳过目标自己的公开回复，只保留新用户消息: %+v", batch.Messages)
+	if plan.PublicBoundary.MessageID != "m5" || plan.PublicBoundary.Timestamp != 5 {
+		t.Fatalf("不可见控制消息也应安全推进 cursor: %+v", plan.PublicBoundary)
+	}
+}
+
+func TestRoomContextBudgetScalesWithModelWindow(t *testing.T) {
+	small := NewRoomContextBudget(8_192)
+	medium := NewRoomContextBudget(128_000)
+	large := NewRoomContextBudget(1_000_000)
+	unknown := NewRoomContextBudget(0)
+
+	if small.TotalTokens != minRoomContextBudgetTokens {
+		t.Fatalf("小窗口预算 = %d, want %d", small.TotalTokens, minRoomContextBudgetTokens)
+	}
+	if medium.TotalTokens <= small.TotalTokens || medium.TotalTokens >= maxRoomContextBudgetTokens {
+		t.Fatalf("中等窗口预算未按模型窗口缩放: %+v", medium)
+	}
+	if large.TotalTokens != maxRoomContextBudgetTokens {
+		t.Fatalf("大窗口预算 = %d, want %d", large.TotalTokens, maxRoomContextBudgetTokens)
+	}
+	if unknown.ContextWindowTokens != defaultRoomContextWindowTokens {
+		t.Fatalf("未知窗口应使用保守默认值: %+v", unknown)
+	}
+}
+
+func TestBuildVisibleContextPlanPrioritizesCurrentDirectedMessageWithoutSkippingPrivateCheckpoint(t *testing.T) {
+	currentContent := "当前私信" + strings.Repeat("甲", 900)
+	plan := BuildVisibleContextPlan(VisibleContextInput{
+		PublicMessages: []protocol.Message{
+			{"message_id": "public-1", "role": "user", "content": strings.Repeat("公", 1_200), "timestamp": int64(1)},
+		},
+		RoomMessages: []protocol.RoomDirectedMessageRecord{
+			{MessageID: "private-old", SourceAgentID: "agent-amy", Recipients: []string{"agent-devin"}, Content: "较早私信" + strings.Repeat("乙", 600), Timestamp: 1},
+			{MessageID: "private-current", SourceAgentID: "agent-amy", Recipients: []string{"agent-devin"}, Content: currentContent, Timestamp: 2},
+		},
+		LatestTrigger: Trigger{
+			TriggerType:   "room_directed_message",
+			Content:       strings.Repeat("触", 500),
+			MessageID:     "private-current",
+			SourceAgentID: "agent-amy",
+			TargetAgentID: "agent-devin",
+		},
+		AgentNameByID:       map[string]string{"agent-amy": "Amy", "agent-devin": "Devin"},
+		TargetAgentID:       "agent-devin",
+		ContextWindowTokens: 8_192,
+	})
+
+	if !strings.Contains(plan.Text, "当前私信") {
+		t.Fatalf("当前 directed message 必须优先进入上下文:\n%s", plan.Text)
+	}
+	if strings.Contains(plan.Text, "较早私信") {
+		t.Fatalf("预算不足时较低优先级 private delta 不应挤掉当前消息:\n%s", plan.Text)
+	}
+	if plan.PrivateBoundary != (ContextBoundary{}) {
+		t.Fatalf("未消费较早私信时不能越过它推进 private checkpoint: %+v", plan.PrivateBoundary)
+	}
+	if plan.Usage.UsedTokens > plan.Usage.BudgetTokens {
+		t.Fatalf("Room 上下文超出预算: %+v", plan.Usage)
+	}
+}
+
+func TestBuildVisibleContextPlanAdvancesWarmPublicCheckpointOnlyThroughConsumedPrefix(t *testing.T) {
+	plan := BuildVisibleContextPlan(VisibleContextInput{
+		PublicMessages: []protocol.Message{
+			{"message_id": "public-1", "role": "user", "content": "第一条" + strings.Repeat("甲", 1_500), "timestamp": int64(1)},
+			{"message_id": "public-2", "role": "user", "content": "第二条不能被跳过", "timestamp": int64(2)},
+		},
+		LatestTrigger:       Trigger{TriggerType: "system_recovery", Content: "继续处理"},
+		ContextWindowTokens: 8_192,
+	})
+
+	if plan.PublicBoundary.MessageID != "public-1" || plan.PublicBoundary.Timestamp != 1 {
+		t.Fatalf("warm delta 只能推进到实际消费的连续前缀: %+v", plan.PublicBoundary)
+	}
+	if strings.Contains(plan.Text, "第二条不能被跳过") {
+		t.Fatalf("超出本轮预算的后续消息应留给下一轮:\n%s", plan.Text)
+	}
+}
+
+func TestBuildVisibleContextPlanColdStartUsesAnchorAndCrossesHistoricalBoundary(t *testing.T) {
+	plan := BuildVisibleContextPlan(VisibleContextInput{
+		PublicMessages: []protocol.Message{
+			{"message_id": "public-old", "role": "user", "content": "早期讨论" + strings.Repeat("旧", 2_000), "timestamp": int64(1)},
+			{"message_id": "public-recent", "role": "user", "content": "最近结论", "timestamp": int64(2)},
+		},
+		ContextWindowTokens: 8_192,
+		ColdStart:           true,
+		PublicAnchor: PublicAnchorMetadata{
+			RoomName:          "架构评审",
+			ConversationTitle: "Room 消息优化",
+		},
+	})
+
+	if !strings.Contains(plan.Text, "<public_anchor>") || !strings.Contains(plan.Text, "最近结论") {
+		t.Fatalf("冷启动应使用产品侧 anchor + recent delta:\n%s", plan.Text)
+	}
+	if plan.PublicBoundary.MessageID != "public-recent" || plan.PublicBoundary.Timestamp != 2 {
+		t.Fatalf("冷启动压缩后应跨过历史边界: %+v", plan.PublicBoundary)
+	}
+	if !plan.Usage.ColdStart || plan.Usage.PublicAnchorTokens == 0 {
+		t.Fatalf("冷启动预算诊断不完整: %+v", plan.Usage)
 	}
 }
 

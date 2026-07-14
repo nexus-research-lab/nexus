@@ -135,6 +135,32 @@ func TestBuildAgentClientOptionsUsesProviderRuntimeEnv(t *testing.T) {
 	}
 }
 
+func TestBuildAgentClientOptionsWithConfigReturnsSingleResolvedModelCard(t *testing.T) {
+	resolveCalls := 0
+	configured := &RuntimeConfig{
+		Provider:      "glm",
+		Model:         "glm-5.2",
+		ContextWindow: 128_000,
+	}
+	options, resolved, err := BuildAgentClientOptionsWithConfig(
+		context.Background(),
+		fakeRuntimeConfigResolver{config: configured, calls: &resolveCalls},
+		AgentClientOptionsInput{},
+	)
+	if err != nil {
+		t.Fatalf("BuildAgentClientOptionsWithConfig 失败: %v", err)
+	}
+	if resolveCalls != 1 {
+		t.Fatalf("模型配置应只解析一次: got=%d want=1", resolveCalls)
+	}
+	if resolved != configured || resolved.ContextWindow != 128_000 {
+		t.Fatalf("未返回同一次解析的模型卡: %+v", resolved)
+	}
+	if options.Model != "glm-5.2" {
+		t.Fatalf("SDK options 未使用已解析模型: %+v", options)
+	}
+}
+
 func TestBuildAgentClientOptionsUsesOfficialAnthropicAPIKeyEnv(t *testing.T) {
 	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{
 		config: &RuntimeConfig{

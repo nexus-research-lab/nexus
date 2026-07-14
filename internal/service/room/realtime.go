@@ -104,6 +104,7 @@ type RealtimeService struct {
 	history          *workspacestore.AgentHistoryStore
 	roomHistory      *workspacestore.RoomHistoryStore
 	directedMessages *workspacestore.RoomDirectedMessageStore
+	directedWakes    *workspacestore.RoomDirectedMessageWakeStore
 	inputQueue       *workspacestore.InputQueueStore
 	usage            usageRecorder
 	quota            quotaChecker
@@ -118,6 +119,7 @@ type RealtimeService struct {
 	activeRounds map[string]*activeRoomRound
 	// ponytail: one global queue handoff lock; split per conversation only if contention becomes measurable.
 	inputQueueDispatchMu sync.Mutex
+	wakeTimers           *roomWakeTimerRegistry
 }
 
 type roomTitleScheduler interface {
@@ -182,10 +184,12 @@ func NewRealtimeServiceWithFactory(
 		history:          workspacestore.NewAgentHistoryStore(cfg.WorkspacePath),
 		roomHistory:      workspacestore.NewRoomHistoryStore(cfg.WorkspacePath),
 		directedMessages: workspacestore.NewRoomDirectedMessageStore(cfg.WorkspacePath),
+		directedWakes:    workspacestore.NewRoomDirectedMessageWakeStore(cfg.WorkspacePath),
 		inputQueue:       workspacestore.NewInputQueueStore(cfg.WorkspacePath),
 		factory:          factory,
 		logger:           logx.NewDiscardLogger(),
 		activeRounds:     make(map[string]*activeRoomRound),
+		wakeTimers:       newRoomWakeTimerRegistry(),
 	}
 }
 

@@ -8,8 +8,8 @@
 //   - agent_history*.go：Agent 历史门面、读取、overlay 与共享模型。
 //   - transcript_*.go：transcript cache、reader、path、session、project、marker 与 guidance。
 //   - input_queue.go / input_queue_codec.go / input_queue_replay.go：输入队列存取、编解码与事件重放。
-//   - room_history.go / room_directed_message.go / session_file.go / jsonl.go：
-//     房间历史、定向消息、会话文件与 JSONL。
+//   - room_history.go / room_directed_message.go / room_directed_message_wake.go / session_file.go / jsonl.go：
+//     房间历史、定向消息、延迟唤醒、会话文件与 JSONL。
 //   - paths.go / transcript_project_hash.go / value_coerce.go：路径、工程 hash、值转换。
 //
 // 历史投影与持久化共享未导出模型；在形成稳定边界前保留同包，避免为拆目录暴露内部状态。

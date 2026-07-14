@@ -7,6 +7,7 @@ import (
 	"cmp"
 	"context"
 	"errors"
+	"reflect"
 	"strings"
 
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
@@ -36,14 +37,20 @@ func (s *RealtimeService) dispatchNextInputQueueItem(ctx context.Context, sessio
 	if len(entries) == 0 || !ok {
 		return
 	}
-	if _, err = s.inputQueue.Dispatch(entry.Location, entry.Item.ID); err != nil {
+	batch := coalesceRoomDirectedWakeEntries(entry, entries)
+	itemIDs := make([]string, 0, len(batch))
+	for _, candidate := range batch {
+		itemIDs = append(itemIDs, candidate.Item.ID)
+	}
+	if _, err = s.inputQueue.DispatchMany(entry.Location, itemIDs); err != nil {
 		s.loggerFor(ctx).Error("弹出 Room 待发送队列失败", "session_key", sessionKey, "err", err)
 		return
 	}
+	dispatchedItem := mergeRoomDirectedWakeBatch(batch)
 	if err = s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue); err != nil {
 		s.loggerFor(ctx).Warn("广播 Room 待发送队列快照失败", "session_key", sessionKey, "err", err)
 	}
-	err = s.dispatchInputQueueItem(ctx, sessionKey, roomID, conversationID, entry.Item)
+	err = s.dispatchInputQueueItem(ctx, sessionKey, roomID, conversationID, dispatchedItem)
 	if err == nil {
 		if s.canDispatchMoreInputQueueItems(ctx, sessionKey, conversationID) {
 			go s.dispatchNextInputQueueItem(ctx, sessionKey, roomID, conversationID)
@@ -54,23 +61,70 @@ func (s *RealtimeService) dispatchNextInputQueueItem(ctx context.Context, sessio
 		"session_key", sessionKey,
 		"room_id", roomID,
 		"conversation_id", conversationID,
-		"item_id", entry.Item.ID,
+		"item_id", dispatchedItem.ID,
 		"err", err,
 	)
-	if _, restoreErr := s.inputQueue.Enqueue(entry.Location, entry.Item); restoreErr != nil {
-		s.loggerFor(ctx).Error("恢复 Room 待发送队列项失败",
-			"session_key", sessionKey,
-			"item_id", entry.Item.ID,
-			"err", restoreErr,
-		)
-	} else if snapshotErr := s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue); snapshotErr != nil {
+	for _, candidate := range batch {
+		if _, restoreErr := s.inputQueue.Enqueue(candidate.Location, candidate.Item); restoreErr != nil {
+			s.loggerFor(ctx).Error("恢复 Room 待发送队列项失败",
+				"session_key", sessionKey,
+				"item_id", candidate.Item.ID,
+				"err", restoreErr,
+			)
+		}
+	}
+	if snapshotErr := s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue); snapshotErr != nil {
 		s.loggerFor(ctx).Warn("广播恢复后的 Room 待发送队列快照失败", "session_key", sessionKey, "err", snapshotErr)
 	}
 	message := "待发送消息派发失败"
 	if clientMessage, ok := protocol.ClientErrorMessage(err); ok {
 		message = clientMessage
 	}
-	s.broadcastSharedEvent(ctx, sessionKey, roomID, roomdomain.NewErrorEvent(sessionKey, roomID, conversationID, "input_queue_error", message, entry.Item.ID))
+	s.broadcastSharedEvent(ctx, sessionKey, roomID, roomdomain.NewErrorEvent(sessionKey, roomID, conversationID, "input_queue_error", message, dispatchedItem.ID))
+}
+
+const roomDirectedWakeBatchLimit = 8
+
+func coalesceRoomDirectedWakeEntries(
+	selected roomInputQueueEntry,
+	entries []roomInputQueueEntry,
+) []roomInputQueueEntry {
+	batch := []roomInputQueueEntry{selected}
+	if selected.Item.Source != protocol.InputQueueSourceAgentRoomMessage {
+		return batch
+	}
+	selectedSeen := false
+	for _, candidate := range entries {
+		if candidate.Item.ID == selected.Item.ID {
+			selectedSeen = true
+			continue
+		}
+		if !selectedSeen || inputQueueLocationKey(candidate.Location) != inputQueueLocationKey(selected.Location) {
+			continue
+		}
+		if len(batch) >= roomDirectedWakeBatchLimit ||
+			candidate.Item.Source != selected.Item.Source ||
+			strings.TrimSpace(candidate.Item.AgentID) != strings.TrimSpace(selected.Item.AgentID) ||
+			strings.TrimSpace(candidate.Item.RootRoundID) != strings.TrimSpace(selected.Item.RootRoundID) ||
+			candidate.Item.HopIndex != selected.Item.HopIndex ||
+			!reflect.DeepEqual(candidate.Item.ReplyRoute, selected.Item.ReplyRoute) {
+			break
+		}
+		batch = append(batch, candidate)
+	}
+	return batch
+}
+
+func mergeRoomDirectedWakeBatch(batch []roomInputQueueEntry) protocol.InputQueueItem {
+	if len(batch) == 0 {
+		return protocol.InputQueueItem{}
+	}
+	merged := batch[0].Item
+	last := batch[len(batch)-1].Item
+	merged.SourceMessageID = last.SourceMessageID
+	merged.SourceAgentID = last.SourceAgentID
+	merged.UpdatedAt = last.UpdatedAt
+	return merged
 }
 
 // releaseUndeliveredRoomGuidance 把错过最后一个 PostToolUse 的引导恢复成普通队列输入。

@@ -23,6 +23,9 @@ const (
 	inputQueueActionUpdate   = "update"
 )
 
+// ErrInputQueueCapacity 表示目标队列已达安全上限。
+var ErrInputQueueCapacity = errors.New("input queue capacity exceeded")
+
 // InputQueueLocation 描述待发送队列的物理位置。
 type InputQueueLocation struct {
 	Scope          protocol.InputQueueScope
@@ -203,6 +206,45 @@ func (s *InputQueueStore) Enqueue(
 	return s.snapshotLocked(location)
 }
 
+// EnqueueBounded 在同一把锁内完成去重、容量检查与入队。
+func (s *InputQueueStore) EnqueueBounded(
+	location InputQueueLocation,
+	item protocol.InputQueueItem,
+	capacity int,
+) ([]protocol.InputQueueItem, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	now := time.Now().UnixMilli()
+	item = normalizeInputQueueItem(location, item, now)
+	items, err := s.snapshotLocked(location)
+	if err != nil {
+		return nil, false, err
+	}
+	for _, existing := range items {
+		if existing.Source == item.Source &&
+			strings.TrimSpace(existing.SourceMessageID) == strings.TrimSpace(item.SourceMessageID) &&
+			strings.TrimSpace(existing.AgentID) == strings.TrimSpace(item.AgentID) {
+			return items, false, nil
+		}
+	}
+	if capacity > 0 && len(items) >= capacity {
+		return items, false, ErrInputQueueCapacity
+	}
+	if item.ID == "" {
+		item.ID = NewInputQueueID()
+	}
+	item.CreatedAt = now
+	item.UpdatedAt = now
+	if err = s.appendActionLocked(location, map[string]any{
+		"action": inputQueueActionEnqueue, "item": item, "timestamp": now,
+	}); err != nil {
+		return nil, false, err
+	}
+	items, err = s.snapshotLocked(location)
+	return items, true, err
+}
+
 // Delete 删除指定队列项并返回最新快照。
 func (s *InputQueueStore) Delete(location InputQueueLocation, itemID string) ([]protocol.InputQueueItem, error) {
 	s.mu.Lock()
@@ -314,6 +356,28 @@ func (s *InputQueueStore) Dispatch(
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.removeLocked(location, itemID, inputQueueActionDispatch)
+}
+
+// DispatchMany 原子弹出一批已合并为同一轮的队列项。
+func (s *InputQueueStore) DispatchMany(
+	location InputQueueLocation,
+	itemIDs []string,
+) ([]protocol.InputQueueItem, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	now := time.Now().UnixMilli()
+	for _, itemID := range itemIDs {
+		itemID = strings.TrimSpace(itemID)
+		if itemID == "" {
+			continue
+		}
+		if err := s.appendActionLocked(location, map[string]any{
+			"action": inputQueueActionDispatch, "item_id": itemID, "timestamp": now,
+		}); err != nil {
+			return nil, err
+		}
+	}
+	return s.snapshotLocked(location)
 }
 
 // DispatchGuidance 弹出所有等待 hook 引导的队列项。

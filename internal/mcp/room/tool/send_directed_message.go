@@ -9,10 +9,8 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/mcp/room/contract"
 )
 
-const sendDirectedMessageDescription = "发送 Room 私域 directed message。用于单人私聊、小范围讨论、私域记录和隐藏信息收集。" +
-	"recipients 填 Room 成员 agent_id；content 不进入 public feed。" +
-	"wake_policy=none 只记录，immediate 立即唤醒 recipients，delayed 需要 delay_seconds。" +
-	"reply_route 决定被唤醒成员本轮 final reply 投到 public、private recipients，或不投递。" +
+const sendDirectedMessageDescription = "发送 Room 私域消息。recipients 决定谁可见，wake_targets 决定唤醒谁；正文不进入 public feed。" +
+	"reply_route 决定被唤醒成员的 final reply 投递位置。" +
 	"如果要私下回给主持人并让主持人随后自然公开推进，用 reply_route={mode:private,recipients:[host],wake_policy:immediate,next_reply_route:{mode:public}}。"
 
 func sendDirectedMessage(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
@@ -31,7 +29,9 @@ func sendDirectedMessage(svc contract.Service, sctx contract.ServerContext) sdkt
 			}
 			request := protocol.CreateRoomDirectedMessageRequest{
 				SourceAgentID: sourceAgentID,
+				RootRoundID:   sctx.CurrentRoundID,
 				Recipients:    stringListArg(args, "recipients"),
+				WakeTargets:   stringListArg(args, "wake_targets"),
 				Content:       stringArg(args, "content"),
 				WakePolicy:    protocol.RoomWakePolicy(stringArg(args, "wake_policy")),
 				ReplyRoute:    roomReplyRouteArg(objectArg(args, "reply_route")),
@@ -42,11 +42,7 @@ func sendDirectedMessage(svc contract.Service, sctx contract.ServerContext) sdkt
 			if err != nil {
 				return errorResult(err), nil
 			}
-			return jsonResult(map[string]any{
-				"domain": "room",
-				"action": "send_directed_message",
-				"item":   directedMessageOutput(item),
-			}), nil
+			return jsonResult(directedMessageOutput(item)), nil
 		},
 	}
 }
@@ -69,17 +65,11 @@ func directedMessageOutput(message *protocol.RoomDirectedMessageRecord) map[stri
 	if message == nil {
 		return map[string]any{}
 	}
-	return map[string]any{
-		"message_id":      message.MessageID,
-		"room_id":         message.RoomID,
-		"conversation_id": message.ConversationID,
-		"source_agent_id": message.SourceAgentID,
-		"recipients":      message.Recipients,
-		"wake_policy":     message.WakePolicy,
-		"reply_route":     message.ReplyRoute,
-		"delay_seconds":   message.DelaySeconds,
-		"correlation_id":  message.CorrelationID,
-		"timestamp":       message.Timestamp,
-		"content_chars":   len([]rune(message.Content)),
+	status := "recorded"
+	if message.WakePolicy == protocol.RoomWakePolicyImmediate {
+		status = "queued"
+	} else if message.WakePolicy == protocol.RoomWakePolicyDelayed {
+		status = "scheduled"
 	}
+	return map[string]any{"message_id": message.MessageID, "status": status}
 }

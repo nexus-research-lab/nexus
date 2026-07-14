@@ -22,6 +22,14 @@ Room Skill 适合定义多人协作规则，例如：
 - 私下收到的信息不能自动公开。需要公开时，应只公开必要结论，不要原样转述敏感上下文。
 - 协作规则应该让人看得懂：谁负责发起、谁负责响应、谁负责汇总、什么时候结束。
 
+## 上下文怎样进入 Agent
+
+Nexus 不会在每次唤醒时把整个 Room 历史重新塞给 Agent。可见上下文由五部分组成，优先保留当前私信、当前用户消息、公区增量、私域增量，最后才是较早公区内容的 anchor。
+
+Agent runtime 能恢复时，只发送上次 checkpoint 之后的增量；runtime 无法恢复时，由 Nexus 用 `public anchor + recent delta` 重建公区背景。anchor 是 Room conversation 的产品数据，不属于某个 Agent 的记忆，也不会把一个成员的私域内容带给其他成员。
+
+超出模型窗口预算的增量不会被静默标记为已读。warm session 只推进到实际消费的位置，剩余内容留到后续轮次；因此 Room Skill 不需要自己重复历史或维护“读到哪里”。
+
 ## 可用工具
 
 Room 中常用的专用协作工具有两个。普通公开回复不需要调用工具，直接回复即可。
@@ -38,6 +46,7 @@ Room 中常用的专用协作工具有两个。普通公开回复不需要调用
 用于私下发送消息。常用参数：
 
 - `recipients`：接收成员的 `agent_id` 列表。
+- `wake_targets`：需要实际运行的 recipients 子集；省略时默认唤醒全部 recipients。
 - `content`：私下消息正文。
 - `wake_policy`：是否让接收成员处理这条消息。
 - `delay_seconds`：延迟处理时使用。
@@ -51,7 +60,7 @@ Room 中常用的专用协作工具有两个。普通公开回复不需要调用
 | 只做私下记录，不打扰对方 | `wake_policy: "none"`，`reply_route: { "mode": "none" }` |
 | 请某个成员公开回答 | `wake_policy: "immediate"`，`reply_route: { "mode": "public" }` |
 | 请某个成员私下回给主持人 | `wake_policy: "immediate"`，`reply_route: { "mode": "private", "recipients": ["主持人agent_id"], "wake_policy": "immediate" }` |
-| 让多个成员先私下提供意见 | `recipients` 填多个成员，`reply_route` 按是否需要公开或回给主持人来定 |
+| 让多个成员看到私域背景，只让一人汇总 | `recipients` 填多个成员，`wake_targets` 只填汇总人，`reply_route` 按结果去向设定 |
 
 ### `publish_public_message`
 
@@ -67,6 +76,15 @@ Room 中常用的专用协作工具有两个。普通公开回复不需要调用
 - 公开消息里只有真正需要对方行动时才写 `@成员`。
 
 ## 写 Room Skill 时要说明什么
+
+Room Skill 的 frontmatter 必须有一段精炼的运行时指令：
+
+```yaml
+runtime_instructions: |
+  写入每个 Room 成员每次运行都必须遵守的最小规则。
+```
+
+运行时只注入 `runtime_instructions`，不注入完整 README。详细例子、背景和人类教程放在正文；角色、阶段、隐私、交接和停止条件收敛到这个字段。
 
 建议在 `SKILL.md` 中按下面结构写：
 
@@ -120,6 +138,7 @@ Room 中常用的专用协作工具有两个。普通公开回复不需要调用
 
 要求：
 - 只写这个 Room Skill 的协作规则。
+- 在 frontmatter 增加 `runtime_instructions: |`，只保留运行必需规则。
 - 说明适用场景、成员分工、公开发言规则、私下协作规则、工具使用规则、交接和收口规则。
 - 明确什么时候需要 @成员，什么时候不要 @成员。
 - 明确什么时候用 `send_directed_message`，什么时候用 `publish_public_message`，什么时候直接公开回复。
@@ -132,6 +151,7 @@ Room 中常用的专用协作工具有两个。普通公开回复不需要调用
 发布前确认：
 
 - `scope: room` 已写清楚。
+- `runtime_instructions` 存在，且不复制完整 README。
 - 成员分工明确。
 - 公开消息和私下消息的边界明确。
 - `@成员` 的使用条件明确。

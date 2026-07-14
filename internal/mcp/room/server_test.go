@@ -109,6 +109,7 @@ func TestSendDirectedMessageUsesInjectedRoomScope(t *testing.T) {
 	result, isError := callRoomTool(t, svc, contract.ServerContext{
 		OwnerUserID:            "user-1",
 		CurrentAgentID:         "agent-host",
+		CurrentRoundID:         "round-root-1",
 		RoomID:                 "room-1",
 		ConversationID:         "conversation-1",
 		SourceContextType:      "room",
@@ -138,6 +139,9 @@ func TestSendDirectedMessageUsesInjectedRoomScope(t *testing.T) {
 	if svc.directedRequest.SourceAgentID != "agent-host" {
 		t.Fatalf("source agent 不应来自工具入参: %+v", svc.directedRequest)
 	}
+	if svc.directedRequest.RootRoundID != "round-root-1" {
+		t.Fatalf("root round 应由运行时注入: %+v", svc.directedRequest)
+	}
 	if svc.directedRequest.ReplyRoute.NextReplyRoute == nil ||
 		svc.directedRequest.ReplyRoute.NextReplyRoute.Mode != protocol.RoomReplyRoutePublic {
 		t.Fatalf("next_reply_route 未解析: %+v", svc.directedRequest.ReplyRoute)
@@ -146,9 +150,11 @@ func TestSendDirectedMessageUsesInjectedRoomScope(t *testing.T) {
 	if err := json.Unmarshal([]byte(extractRoomText(t, result)), &payload); err != nil {
 		t.Fatalf("工具输出不是 JSON: %v", err)
 	}
-	item := payload["item"].(map[string]any)
-	if item["content"] != nil {
-		t.Fatalf("工具输出不应泄漏 directed message 正文: %+v", item)
+	if payload["message_id"] == nil || payload["status"] != "queued" {
+		t.Fatalf("工具应只返回最小确认: %+v", payload)
+	}
+	if payload["content"] != nil || payload["item"] != nil {
+		t.Fatalf("工具输出不应泄漏 directed message 正文: %+v", payload)
 	}
 }
 
@@ -157,6 +163,7 @@ func TestPublishPublicMessageUsesInjectedSource(t *testing.T) {
 	result, isError := callRoomTool(t, svc, contract.ServerContext{
 		OwnerUserID:       "user-1",
 		CurrentAgentID:    "agent-host",
+		CurrentRoundID:    "round-root-1",
 		RoomID:            "room-1",
 		ConversationID:    "conversation-1",
 		SourceContextType: "room",
@@ -168,6 +175,9 @@ func TestPublishPublicMessageUsesInjectedSource(t *testing.T) {
 	}
 	if svc.publicRequest.SourceAgentID != "agent-host" || svc.publicRequest.Content != "天亮了 @Amy" {
 		t.Fatalf("public message 请求不正确: %+v", svc.publicRequest)
+	}
+	if svc.publicRequest.RootRoundID != "round-root-1" {
+		t.Fatalf("public message root round 未由运行时注入: %+v", svc.publicRequest)
 	}
 }
 

@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added durable Room delayed wakes, causal message metadata, separated visibility and wake targets, bounded per-Agent wake queues, and compatible short-window wake batching.
 - Added durable scheduler leadership leases, deterministic recurring jitter, configurable misfire handling, per-user enabled-task limits, and explicit task expiration with audit events.
 - Added per-Agent non-secret nxs settings projection, including enabled Summary/AutoMemory/AutoDream defaults, and a host memory-maintenance coordinator that resolves owner provider credentials and background models before waking AutoDream.
 - Preserved native `system/memory_saved` events and AutoDream written paths through the bridge and Nexus message projection.
@@ -23,6 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Replaced independent Room history limits with a model-window-aware context budget, product-owned cold-start anchors, prioritized public/private deltas, and checkpoints that advance only through actually consumed content.
+- Kept Room runtimes warm until the shared idle reaper closes them, reduced Room communication tool acknowledgements and system prompt size, and made Room Skills inject explicit runtime instructions instead of full README bodies.
 - Added a dedicated one-time workspace migration to remove legacy Nexus-managed `memory-manager` Skill deployments after memory moved into `nxs`, while preserving user-authored Skills with the same name.
 - Removed the workspace-panel preload dependency from generated image rendering, resolving relative workspace image paths directly through the authenticated preview endpoint.
 - Displayed the effective Agent runtime in the Composer footer, preferring the conversation runtime over the current default.

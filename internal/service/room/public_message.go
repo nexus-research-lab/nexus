@@ -39,6 +39,17 @@ func (s *RealtimeService) HandlePublicMessage(
 
 	messageID := newRealtimeID()
 	roundID := protocol.NewRoundID()
+	rootRoundID, causedByRoundID, hopIndex := s.resolveRoomMessageCausality(
+		contextValue.Conversation.ID,
+		sourceAgentID,
+		request.RootRoundID,
+	)
+	if rootRoundID == "" {
+		rootRoundID = messageID
+	}
+	if causedByRoundID == "" {
+		causedByRoundID = messageID
+	}
 	sessionKey := protocol.BuildRoomSharedSessionKey(contextValue.Conversation.ID)
 	message := protocol.Message{
 		"message_id":      messageID,
@@ -55,6 +66,9 @@ func (s *RealtimeService) HandlePublicMessage(
 		"stop_reason":           "room_public_message",
 		"room_message_source":   "nexus_room.publish_public_message",
 		"room_message_protocol": "public_feed",
+		"root_round_id":         rootRoundID,
+		"caused_by_round_id":    causedByRoundID,
+		"hop_index":             hopIndex,
 		"timestamp":             time.Now().UnixMilli(),
 	}
 	if correlationID := strings.TrimSpace(request.CorrelationID); correlationID != "" {
@@ -76,7 +90,7 @@ func (s *RealtimeService) HandlePublicMessage(
 		"source_agent_id", sourceAgentID,
 		"content_chars", utf8.RuneCountInString(content),
 	)
-	if err = s.startPublicMessageMentionWakes(ctx, contextValue, sourceAgentID, messageID, content); err != nil {
+	if err = s.startPublicMessageMentionWakes(ctx, contextValue, sourceAgentID, messageID, content, rootRoundID, hopIndex); err != nil {
 		return nil, err
 	}
 	return message, nil
@@ -88,6 +102,8 @@ func (s *RealtimeService) startPublicMessageMentionWakes(
 	sourceAgentID string,
 	messageID string,
 	content string,
+	rootRoundID string,
+	hopIndex int,
 ) error {
 	targetAgentIDs := roomdomain.ResolveMentionAgentIDs(content, roomdomain.BuildMentionAliases(contextValue))
 	if len(targetAgentIDs) == 0 {
@@ -100,7 +116,8 @@ func (s *RealtimeService) startPublicMessageMentionWakes(
 		RoomType:       contextValue.Room.RoomType,
 		Context:        contextValue,
 		RoundID:        messageID,
-		RootRoundID:    messageID,
+		RootRoundID:    rootRoundID,
+		HopIndex:       hopIndex,
 		OwnerUserID:    authctx.OwnerUserID(ctx),
 	}
 	wakes := make([]publicMentionWake, 0, len(targetAgentIDs))

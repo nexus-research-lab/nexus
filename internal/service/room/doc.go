@@ -5,11 +5,12 @@
 // 文件按职责前缀分组：
 //   - service.go / crud.go / conversation_crud.go / member.go / query.go：服务装配与房间数据操作。
 //   - chat.go / chat_*：Room 输入受理、Agent 目录、标题生成、投递策略与 round 构造。
-//   - directed_message_* / public_*：定向消息、公区消息和唤醒逻辑。
+//   - directed_message_* / message_causality.go / wake_timer_registry.go / public_*：定向消息、因果链、持久化唤醒队列、计时调度和公区消息。
 //   - execution.go：slot 生命周期、round mapper、runtime 消息、事件投递与 usage 写入。
 //   - execution_runtime_*：runtime prompt、选项、连接、session 恢复与诊断。
 //   - execution_slot_status.go / interrupt / slot_* / round_*：完成结算、状态、中断与 round 状态机。
 //   - input_queue.go / input_queue_* / guidance_input.go：输入队列、round 终态确定性接力、运行时补充上下文与已消费引导归组。
+//   - public_context.go：按 runtime resume 状态装配预算化 anchor/delta，并提交真实消费 cursor。
 //   - attachments.go：Room 公共附件上传、归一化与运行时路径解析。
 //   - goal_*：Room 实时运行里的 goal 集成。
 //   - privateview/：Agent 私域 thread/event 投影。

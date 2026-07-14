@@ -59,10 +59,21 @@ func BuildAgentClientOptions(
 	resolver RuntimeConfigResolver,
 	input AgentClientOptionsInput,
 ) (agentclient.Options, error) {
+	options, _, err := BuildAgentClientOptionsWithConfig(ctx, resolver, input)
+	return options, err
+}
+
+// BuildAgentClientOptionsWithConfig 构建 SDK options，并返回同一次解析得到的模型配置。
+// 调用方需要模型窗口等宿主侧元数据时应使用此入口，避免重复解析 Provider。
+func BuildAgentClientOptionsWithConfig(
+	ctx context.Context,
+	resolver RuntimeConfigResolver,
+	input AgentClientOptionsInput,
+) (agentclient.Options, *RuntimeConfig, error) {
 	effectiveRuntimeKind := resolveRuntimeKind(input.RuntimeKind, os.Getenv)
 	runtimeConfig, err := resolveRuntimeConfig(ctx, resolver, input.Provider, input.Model, effectiveRuntimeKind)
 	if err != nil {
-		return agentclient.Options{}, err
+		return agentclient.Options{}, nil, err
 	}
 	runtimeEnv := defaultRuntimeEnv()
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, nxsHostManagedRuntimeEnv(effectiveRuntimeKind))
@@ -116,7 +127,7 @@ func BuildAgentClientOptions(
 	if len(input.MCPServers) > 0 {
 		options.MCP.Servers = cloneMCPServers(input.MCPServers)
 	}
-	return options, nil
+	return options, runtimeConfig, nil
 }
 
 func agentRuntimeKind(runtimeKind string) agentclient.RuntimeKind {

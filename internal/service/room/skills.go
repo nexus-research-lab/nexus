@@ -77,20 +77,11 @@ func (s *Service) BuildRoomSkillPrompt(ctx context.Context, skillNames []string)
 		builder.WriteString(" (`")
 		builder.WriteString(detail.Name)
 		builder.WriteString("`)\n\n")
-		builder.WriteString(strings.TrimSpace(stripSkillFrontmatter(detail.ReadmeMarkdown)))
+		runtimeInstructions := strings.TrimSpace(detail.RuntimeInstructions)
+		if runtimeInstructions == "" {
+			return "", fmt.Errorf("room skill 缺少 runtime_instructions: %s", detail.Name)
+		}
+		builder.WriteString(runtimeInstructions)
 	}
 	return builder.String(), nil
-}
-
-func stripSkillFrontmatter(content string) string {
-	normalized := strings.TrimPrefix(content, "\ufeff")
-	if !strings.HasPrefix(normalized, "---") {
-		return normalized
-	}
-	rest := strings.TrimPrefix(normalized, "---")
-	_, body, ok := strings.Cut(rest, "\n---")
-	if !ok {
-		return normalized
-	}
-	return strings.TrimLeft(body, "\r\n")
 }

@@ -40,6 +40,9 @@ func normalizeInputQueueItem(
 	if item.QueueOrder == 0 {
 		item.QueueOrder = item.CreatedAt
 	}
+	if item.ExpiresAt < 0 {
+		item.ExpiresAt = 0
+	}
 	return item
 }
 
@@ -67,6 +70,7 @@ func inputQueueItemFromAny(value any) (protocol.InputQueueItem, bool) {
 			RootRoundID:     stringFromAny(typed["root_round_id"]),
 			HopIndex:        intFromAny(typed["hop_index"]),
 			QueueOrder:      protocol.Int64FromAny(typed["queue_order"]),
+			ExpiresAt:       protocol.Int64FromAny(typed["expires_at"]),
 			CreatedAt:       protocol.Int64FromAny(typed["created_at"]),
 			UpdatedAt:       protocol.Int64FromAny(typed["updated_at"]),
 		}, true

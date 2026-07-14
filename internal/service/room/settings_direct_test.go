@@ -28,7 +28,8 @@ func TestRoomServicePersistsRoomSkills(t *testing.T) {
 				Title: "协作房间规则",
 				Scope: skillspkg.ScopeRoom,
 			},
-			ReadmeMarkdown: "---\nname: room-playbook\n---\n\n# 协作房间规则\n\n房间规则正文",
+			ReadmeMarkdown:      "---\nname: room-playbook\n---\n\n# 协作房间规则\n\n完整文档正文",
+			RuntimeInstructions: "房间规则正文",
 		},
 		"agent-only": {
 			Info: skillspkg.Info{
@@ -59,7 +60,9 @@ func TestRoomServicePersistsRoomSkills(t *testing.T) {
 	if err != nil {
 		t.Fatalf("构造 room skill prompt 失败: %v", err)
 	}
-	if !strings.Contains(prompt, "房间规则正文") || strings.Contains(prompt, "name: room-playbook") {
+	if !strings.Contains(prompt, "房间规则正文") ||
+		strings.Contains(prompt, "name: room-playbook") ||
+		strings.Contains(prompt, "完整文档正文") {
 		t.Fatalf("room skill prompt 内容不正确: %s", prompt)
 	}
 

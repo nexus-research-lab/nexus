@@ -51,15 +51,19 @@ func (s *RealtimeService) recordRoomDirectedMessageReply(
 	}
 
 	message := protocol.RoomDirectedMessageRecord{
-		MessageID:      newRealtimeID(),
-		RoomID:         roundValue.RoomID,
-		ConversationID: roundValue.ConversationID,
-		SourceAgentID:  strings.TrimSpace(slot.AgentID),
-		Recipients:     recipients,
-		Content:        content,
-		WakePolicy:     protocol.RoomWakePolicyNone,
-		ReplyRoute:     roomReplyRouteAfterPrivateHandback(replyRoute),
-		Timestamp:      time.Now().UnixMilli(),
+		MessageID:       newRealtimeID(),
+		RoomID:          roundValue.RoomID,
+		ConversationID:  roundValue.ConversationID,
+		SourceAgentID:   strings.TrimSpace(slot.AgentID),
+		Recipients:      recipients,
+		WakeTargets:     nil,
+		Content:         content,
+		WakePolicy:      protocol.RoomWakePolicyNone,
+		ReplyRoute:      roomReplyRouteAfterPrivateHandback(replyRoute),
+		RootRoundID:     roomRootRoundID(roundValue),
+		CausedByRoundID: strings.TrimSpace(roundValue.RoundID),
+		HopIndex:        roundValue.HopIndex,
+		Timestamp:       time.Now().UnixMilli(),
 	}
 	if err := s.directedMessages.AppendMessage(message); err != nil {
 		return err
@@ -68,6 +72,7 @@ func (s *RealtimeService) recordRoomDirectedMessageReply(
 	if replyRoute.WakePolicy == protocol.RoomWakePolicyImmediate {
 		wakeMessage := message
 		wakeMessage.WakePolicy = protocol.RoomWakePolicyImmediate
+		wakeMessage.WakeTargets = slices.Clone(recipients)
 		return s.runRoomDirectedMessageWake(ctx, roundValue.Context, wakeMessage)
 	}
 	return nil

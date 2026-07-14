@@ -123,6 +123,14 @@ func (s *RealtimeService) startPublicMentionRound(
 	if parentRound == nil || parentRound.Context == nil || len(wakes) == 0 {
 		return nil
 	}
+	if parentRound.HopIndex >= roomMaxWakeHops {
+		s.loggerFor(ctx).Warn("Room 唤醒达到跳数上限",
+			"r", parentRound.RoomID,
+			"c", parentRound.ConversationID,
+			"root", roomRootRoundID(parentRound),
+		)
+		return nil
+	}
 	sessionKey := protocol.BuildRoomSharedSessionKey(parentRound.ConversationID)
 	contextValue := parentRound.Context
 	wakes, err := s.queueBusyPublicMentionWakes(ctx, parentRound, sessionKey, wakes)

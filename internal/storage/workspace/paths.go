@@ -77,6 +77,11 @@ func (s *Store) RoomConversationMessageCursorsPath(conversationID string) string
 	return filepath.Join(s.RoomConversationDir(conversationID), "directed_message_cursors.jsonl")
 }
 
+// RoomDirectedMessageWakesPath 返回全局 Room 延迟唤醒日志路径。
+func (s *Store) RoomDirectedMessageWakesPath() string {
+	return filepath.Join(s.RoomConversationRoot(), "directed_message_wakes.jsonl")
+}
+
 func encodeSessionDirName(value string) string {
 	parsed := protocol.ParseSessionKey(value)
 	switch parsed.Kind {
