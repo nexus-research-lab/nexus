@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added Developer ID signing, notarization, and signed metadata support to macOS desktop packaging so trusted releases can pass Gatekeeper and automatic-update checks.
 - Added durable Room delayed wakes, causal message metadata, separated visibility and wake targets, bounded per-Agent wake queues, and compatible short-window wake batching.
 - Added durable scheduler leadership leases, deterministic recurring jitter, configurable misfire handling, per-user enabled-task limits, and explicit task expiration with audit events.
 - Added per-Agent non-secret nxs settings projection, including enabled Summary/AutoMemory/AutoDream defaults, and a host memory-maintenance coordinator that resolves owner provider credentials and background models before waking AutoDream.

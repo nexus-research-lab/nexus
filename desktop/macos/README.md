@@ -57,11 +57,37 @@ NEXUS_DESKTOP_KEYCHAIN_MODE=keychain scripts/desktop/run-macos-app.sh
 
 ## App 打包
 
-没有 Developer ID 时，当前包仍是 ad-hoc 签名且未公证：
+本地测试包默认使用 ad-hoc 签名且不公证：
 
 ```bash
 make app-dmg
 ```
+
+正式对外分发时，使用 Apple Developer 账号下的 `Developer ID Application` 证书签名，并通过 Apple notary service 公证。先在钥匙串确认本机已有证书：
+
+```bash
+security find-identity -v -p codesigning | grep "Developer ID Application"
+```
+
+首次配置公证凭据时，把 Apple ID、Team ID 和 App 专用密码存进本机钥匙串 profile：
+
+```bash
+xcrun notarytool store-credentials nexus-notary \
+  --apple-id "you@example.com" \
+  --team-id "TEAMID" \
+  --password "app-specific-password"
+```
+
+正式打包命令：
+
+```bash
+export NEXUS_DESKTOP_CODESIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)"
+export NEXUS_DESKTOP_NOTARIZE=1
+export NEXUS_DESKTOP_NOTARY_PROFILE=nexus-notary
+make app-dmg
+```
+
+`build-macos-app.sh` 在 Developer ID 签名时默认启用 hardened runtime 和 timestamp；`package-macos-app.sh` 会先提交 `.app` 公证并 staple，再生成 dmg。dmg 默认也会提交并 staple；如果只想公证包内 `.app`，可设置 `NEXUS_DESKTOP_NOTARIZE_DMG=0`。如果用证书 SHA-1 而不是完整名称作为签名 identity，同时设置 `NEXUS_DESKTOP_CODESIGN_DEVELOPER_ID=1`。
 
 打包默认从 bridge runtime release 的 `nxs-stable` 通道下载并预置当前平台的 `nxs` runtime。可通过 `NEXUS_DESKTOP_NXS_RELEASE` 固定到某个 `nxs-v*` 版本。如目标 release 不是公开可匿名下载，需配置 `NEXUS_DESKTOP_NXS_DOWNLOAD_TOKEN`，或在 GitHub Actions 中配置 `NEXUS_NXS_RUNTIME_RELEASE_TOKEN` secret。临时关闭预置 runtime 可设置 `NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME=0`，此时运行时必须通过 `NEXUS_NXS_COMMAND_PATH` 指向可执行的 `nxs`。
 
@@ -78,7 +104,7 @@ cd desktop/macos/.build/package
 shasum -a 256 -c Nexus-macos-<version>-<build>.dmg.sha256
 ```
 
-打开 dmg 后，把 `Nexus.app` 拖到同一窗口里的 `Applications`。因为当前包是 ad-hoc 签名且未公证，macOS 可能拦截首次打开；可信构建优先用 Finder 右键 Open。仅本地测试机器可在校验 sha256 后清理 quarantine：
+打开 dmg 后，把 `Nexus.app` 拖到同一窗口里的 `Applications`。ad-hoc 本地测试包可能被 macOS 拦截首次打开；可信构建优先用 Finder 右键 Open。仅本地测试机器可在校验 sha256 后清理 quarantine：
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/Nexus.app
@@ -93,6 +119,6 @@ xattr -dr com.apple.quarantine /Applications/Nexus.app
 
 ## 当前边界
 
-- 还没有 Developer ID 签名、公证和 Sparkle；当前 macOS 包是 ad-hoc 签名，自动更新器只会提示打开下载页手动处理，首次打开仍可能受 Gatekeeper 策略影响。
+- 还没有 Sparkle；内置自动更新器依赖 Release metadata、sha256、Developer ID 签名、公证和 Gatekeeper 本地校验。
 - 还没有由 Go 协议真相源生成的 desktop bridge schema。
 - 还没有更完整的快捷键冲突引导、逐项 secret 级 Keychain API、occlusion 长时间/异常路径验证和多窗口生命周期细化。

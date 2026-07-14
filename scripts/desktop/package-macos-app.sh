@@ -28,6 +28,12 @@ CREATED_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 COMMIT_SHA="$(git -C "${ROOT_DIR}" rev-parse HEAD 2>/dev/null || echo unknown)"
 COMMIT_SHORT="$(git -C "${ROOT_DIR}" rev-parse --short HEAD 2>/dev/null || echo unknown)"
 SOURCE_DIRTY=false
+PACKAGE_SIGNING_KIND="unsigned"
+PACKAGE_SIGNING_DEVELOPER_ID=false
+PACKAGE_SIGNING_NOTARIZED=false
+PACKAGE_SIGNING_TEAM_ID=""
+PACKAGE_KEYCHAIN_EXPECTED_STORAGE="file"
+PACKAGE_KEYCHAIN_EXPECTED_REASON="ad_hoc_signature"
 
 is_enabled() {
   case "$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')" in
@@ -38,6 +44,108 @@ is_enabled() {
       return 1
       ;;
   esac
+}
+
+detect_app_signature() {
+  if ! command -v codesign >/dev/null 2>&1; then
+    return 0
+  fi
+
+  local signature_details
+  signature_details="$(codesign -dv --verbose=4 "${APP_BUNDLE}" 2>&1 || true)"
+  if printf '%s\n' "${signature_details}" | grep -q '^Authority=Developer ID Application:'; then
+    PACKAGE_SIGNING_KIND="developer-id"
+    PACKAGE_SIGNING_DEVELOPER_ID=true
+    PACKAGE_KEYCHAIN_EXPECTED_STORAGE="keychain"
+    PACKAGE_KEYCHAIN_EXPECTED_REASON="signed_auto"
+  elif printf '%s\n' "${signature_details}" | grep -q '^Signature=adhoc'; then
+    PACKAGE_SIGNING_KIND="ad-hoc"
+  elif printf '%s\n' "${signature_details}" | grep -q '^Authority='; then
+    PACKAGE_SIGNING_KIND="custom"
+  fi
+
+  PACKAGE_SIGNING_TEAM_ID="$(
+    printf '%s\n' "${signature_details}" |
+      awk -F= '/^TeamIdentifier=/ { print $2; exit }'
+  )"
+  if [[ "${PACKAGE_SIGNING_TEAM_ID}" == "not set" ]]; then
+    PACKAGE_SIGNING_TEAM_ID=""
+  fi
+}
+
+submit_for_notarization() {
+  local package_path="$1"
+  local label="$2"
+  local auth_args=()
+
+  if [[ -n "${NEXUS_DESKTOP_NOTARY_PROFILE:-}" ]]; then
+    auth_args+=(--keychain-profile "${NEXUS_DESKTOP_NOTARY_PROFILE}")
+  else
+    if [[ -z "${NEXUS_DESKTOP_NOTARY_APPLE_ID:-}" ||
+      -z "${NEXUS_DESKTOP_NOTARY_TEAM_ID:-}" ||
+      -z "${NEXUS_DESKTOP_NOTARY_PASSWORD:-}" ]]; then
+      echo "missing notarization credentials" >&2
+      echo "set NEXUS_DESKTOP_NOTARY_PROFILE, or set NEXUS_DESKTOP_NOTARY_APPLE_ID/NEXUS_DESKTOP_NOTARY_TEAM_ID/NEXUS_DESKTOP_NOTARY_PASSWORD" >&2
+      exit 1
+    fi
+    auth_args+=(
+      --apple-id "${NEXUS_DESKTOP_NOTARY_APPLE_ID}"
+      --team-id "${NEXUS_DESKTOP_NOTARY_TEAM_ID}"
+      --password "${NEXUS_DESKTOP_NOTARY_PASSWORD}"
+    )
+  fi
+
+  echo "==> Notarizing ${label}"
+  xcrun notarytool submit "${package_path}" "${auth_args[@]}" --wait
+}
+
+staple_notarization_ticket() {
+  local package_path="$1"
+  echo "==> Stapling notarization ticket: ${package_path}"
+  xcrun stapler staple "${package_path}" >/dev/null
+  xcrun stapler validate "${package_path}" >/dev/null
+}
+
+notarize_app_bundle() {
+  if ! is_enabled "${NEXUS_DESKTOP_NOTARIZE:-0}"; then
+    return 0
+  fi
+  if [[ "${PACKAGE_SIGNING_DEVELOPER_ID}" != "true" ]]; then
+    echo "NEXUS_DESKTOP_NOTARIZE=1 requires a Developer ID Application signature" >&2
+    echo "set NEXUS_DESKTOP_CODESIGN_IDENTITY='Developer ID Application: Your Name (TEAMID)'" >&2
+    exit 1
+  fi
+  if ! command -v xcrun >/dev/null 2>&1; then
+    echo "xcrun is required for notarization" >&2
+    exit 1
+  fi
+  if ! command -v ditto >/dev/null 2>&1; then
+    echo "ditto is required to create the notarization archive" >&2
+    exit 1
+  fi
+
+  local notary_zip_path="${OUTPUT_DIR}/${DIST_NAME}-notary.zip"
+  rm -f "${notary_zip_path}"
+  echo "==> Creating notarization archive"
+  (
+    cd "$(dirname "${APP_BUNDLE}")"
+    COPYFILE_DISABLE=1 ditto -c -k --keepParent "$(basename "${APP_BUNDLE}")" "${notary_zip_path}"
+  )
+  submit_for_notarization "${notary_zip_path}" "${APP_NAME}.app"
+  staple_notarization_ticket "${APP_BUNDLE}"
+  spctl --assess --type execute --verbose "${APP_BUNDLE}" >/dev/null
+  PACKAGE_SIGNING_NOTARIZED=true
+}
+
+notarize_dmg_artifact() {
+  if [[ "${ARTIFACT_FORMAT}" != "dmg" || "${PACKAGE_SIGNING_NOTARIZED}" != "true" ]]; then
+    return 0
+  fi
+  if ! is_enabled "${NEXUS_DESKTOP_NOTARIZE_DMG:-1}"; then
+    return 0
+  fi
+  submit_for_notarization "${ARTIFACT_PATH}" "${ARTIFACT_FORMAT} artifact"
+  staple_notarization_ticket "${ARTIFACT_PATH}"
 }
 
 case "${ARTIFACT_FORMAT}" in
@@ -81,11 +189,16 @@ if command -v codesign >/dev/null 2>&1; then
   codesign --verify --deep --strict "${APP_BUNDLE}" >/dev/null
 fi
 
+detect_app_signature
+
 if [[ "${NEXUS_DESKTOP_PACKAGE_SKIP_SMOKE:-0}" != "1" ]]; then
-  NEXUS_DESKTOP_SMOKE_EXPECTED_CREDENTIALS_STORAGE="${NEXUS_DESKTOP_SMOKE_EXPECTED_CREDENTIALS_STORAGE:-file}" \
+  NEXUS_DESKTOP_SMOKE_EXPECTED_CREDENTIALS_STORAGE="${NEXUS_DESKTOP_SMOKE_EXPECTED_CREDENTIALS_STORAGE:-${PACKAGE_KEYCHAIN_EXPECTED_STORAGE}}" \
     NEXUS_DESKTOP_SMOKE_EXPECT_NXS_RUNTIME="${NEXUS_DESKTOP_SMOKE_EXPECT_NXS_RUNTIME:-${NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME}}" \
     "${ROOT_DIR}/scripts/desktop/smoke-macos-app.sh"
 fi
+
+mkdir -p "${OUTPUT_DIR}"
+notarize_app_bundle
 
 rm -rf "${STAGING_DIR}" "${DMG_DIR}" "${ARTIFACT_PATH}" "${SHA256_PATH}" "${METADATA_EXPORT_PATH}"
 mkdir -p "${STAGING_DIR}" "${OUTPUT_DIR}"
@@ -102,11 +215,19 @@ fi
   printf 'Build: %s\n' "${BUILD_NUMBER}"
   printf 'Commit: %s\n' "${COMMIT_SHORT}"
   printf 'Created: %s\n\n' "${CREATED_AT}"
-  printf 'This package is ad-hoc signed and not notarized.\n'
-  printf 'After verifying the sha256 file, drag %s.app to /Applications.\n' "${APP_NAME}"
-  printf 'If macOS blocks the app because it is not notarized, use Finder right-click Open for trusted builds.\n'
-  printf 'For local test machines only, quarantine can also be removed with:\n'
-  printf '  xattr -dr com.apple.quarantine /Applications/%s.app\n\n' "${APP_NAME}"
+  if [[ "${PACKAGE_SIGNING_DEVELOPER_ID}" == "true" && "${PACKAGE_SIGNING_NOTARIZED}" == "true" ]]; then
+    printf 'This package is Developer ID signed and notarized.\n'
+    if [[ -n "${PACKAGE_SIGNING_TEAM_ID}" ]]; then
+      printf 'Developer Team: %s\n' "${PACKAGE_SIGNING_TEAM_ID}"
+    fi
+    printf 'After verifying the sha256 file, drag %s.app to /Applications.\n\n' "${APP_NAME}"
+  else
+    printf 'This package is %s signed and not notarized.\n' "${PACKAGE_SIGNING_KIND}"
+    printf 'After verifying the sha256 file, drag %s.app to /Applications.\n' "${APP_NAME}"
+    printf 'If macOS blocks the app because it is not notarized, use Finder right-click Open for trusted builds.\n'
+    printf 'For local test machines only, quarantine can also be removed with:\n'
+    printf '  xattr -dr com.apple.quarantine /Applications/%s.app\n\n' "${APP_NAME}"
+  fi
   printf 'Data directory: ~/.nexus\n'
   printf 'Log directory: ~/.nexus/logs\n'
   printf 'To reset app data, quit Nexus first, then remove ~/.nexus.\n'
@@ -125,6 +246,12 @@ PACKAGE_DIST_NAME="${DIST_NAME}" \
 PACKAGE_ARTIFACT_FORMAT="${ARTIFACT_FORMAT}" \
 PACKAGE_NXS_RUNTIME_BUNDLED="${NXS_RUNTIME_BUNDLED}" \
 PACKAGE_NXS_RUNTIME_RELEASE="${NEXUS_DESKTOP_NXS_RELEASE:-${NEXUS_NXS_RUNTIME_RELEASE:-nxs-stable}}" \
+PACKAGE_SIGNING_KIND="${PACKAGE_SIGNING_KIND}" \
+PACKAGE_SIGNING_DEVELOPER_ID="${PACKAGE_SIGNING_DEVELOPER_ID}" \
+PACKAGE_SIGNING_NOTARIZED="${PACKAGE_SIGNING_NOTARIZED}" \
+PACKAGE_SIGNING_TEAM_ID="${PACKAGE_SIGNING_TEAM_ID}" \
+PACKAGE_KEYCHAIN_EXPECTED_STORAGE="${PACKAGE_KEYCHAIN_EXPECTED_STORAGE}" \
+PACKAGE_KEYCHAIN_EXPECTED_REASON="${PACKAGE_KEYCHAIN_EXPECTED_REASON}" \
 node - "${METADATA_PATH}" <<'NODE'
 const fs = require("fs");
 
@@ -144,13 +271,14 @@ const metadata = {
     dirty: env.PACKAGE_SOURCE_DIRTY === "true",
   },
   signing: {
-    kind: "ad-hoc",
-    developer_id: false,
-    notarized: false,
+    kind: env.PACKAGE_SIGNING_KIND,
+    developer_id: env.PACKAGE_SIGNING_DEVELOPER_ID === "true",
+    notarized: env.PACKAGE_SIGNING_NOTARIZED === "true",
+    team_id: env.PACKAGE_SIGNING_TEAM_ID || null,
   },
   keychain: {
-    expected_storage: "file",
-    expected_reason: "ad_hoc_signature",
+    expected_storage: env.PACKAGE_KEYCHAIN_EXPECTED_STORAGE,
+    expected_reason: env.PACKAGE_KEYCHAIN_EXPECTED_REASON,
   },
   runtime: {
     nxs: {
@@ -166,7 +294,7 @@ const metadata = {
   validation: {
     build_script: "scripts/desktop/build-macos-app.sh",
     smoke_script: "scripts/desktop/smoke-macos-app.sh",
-    expected_credentials_storage: "file",
+    expected_credentials_storage: env.PACKAGE_KEYCHAIN_EXPECTED_STORAGE,
   },
 };
 
@@ -199,6 +327,8 @@ case "${ARTIFACT_FORMAT}" in
     ;;
 esac
 
+notarize_dmg_artifact
+
 ARTIFACT_SHA256="$(shasum -a 256 "${ARTIFACT_PATH}" | awk '{print $1}')"
 printf '%s  %s\n' "${ARTIFACT_SHA256}" "$(basename "${ARTIFACT_PATH}")" > "${SHA256_PATH}"
 cp "${METADATA_PATH}" "${METADATA_EXPORT_PATH}"
@@ -206,3 +336,4 @@ cp "${METADATA_PATH}" "${METADATA_EXPORT_PATH}"
 echo "macOS ${ARTIFACT_FORMAT}: ${ARTIFACT_PATH}"
 echo "sha256: ${SHA256_PATH}"
 echo "metadata: ${METADATA_EXPORT_PATH}"
+echo "signing: ${PACKAGE_SIGNING_KIND}, notarized: ${PACKAGE_SIGNING_NOTARIZED}"
