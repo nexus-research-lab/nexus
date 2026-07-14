@@ -33,11 +33,15 @@ export interface AgentPrivateEvent {
   direction: AgentPrivateDirection;
   source_agent_id: string;
   recipients: string[];
+  wake_targets?: string[] | null;
   content?: string | null;
   reply_route: RoomReplyRoute;
   wake_policy?: RoomWakePolicy | null;
   delay_seconds?: number | null;
   correlation_id?: string | null;
+  root_round_id?: string | null;
+  caused_by_round_id?: string | null;
+  hop_index?: number | null;
   room_id?: string | null;
   room_name?: string | null;
   room_type?: string | null;
