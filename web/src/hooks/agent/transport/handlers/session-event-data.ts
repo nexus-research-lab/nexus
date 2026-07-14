@@ -197,6 +197,7 @@ export function parseChatAckData(data: UnknownRecord): ChatAckData | null {
     || !readString(data, "client_message_id")
     || !readString(data, "round_id")
     || !readString(data, "user_message_id")
+    || typeof data.user_message_committed !== "boolean"
     || !Array.isArray(data.pending)
     || !data.pending.every(isChatAckPendingSlot)
     || readNumber(data, "ack_timeout_ms") === null

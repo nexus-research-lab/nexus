@@ -106,6 +106,36 @@ func TestRoomSlotGuidanceTransportFailureKeepsDurableInput(t *testing.T) {
 	}
 }
 
+func TestRoomGuidanceAppliedAckDoesNotConsumeNewerBatch(t *testing.T) {
+	storeRoot := t.TempDir()
+	store := workspacestore.NewInputQueueStore(storeRoot)
+	location := workspacestore.InputQueueLocation{
+		Scope:         protocol.InputQueueScopeRoom,
+		WorkspacePath: storeRoot,
+		SessionKey:    protocol.BuildRoomAgentSessionKey("conversation-ack-race", "agent-1", protocol.RoomTypeGroup),
+	}
+	items, err := store.Enqueue(location, protocol.InputQueueItem{
+		ID: "same-item", Content: "new batch", Source: protocol.InputQueueSourceUser,
+		DeliveryPolicy: protocol.ChatDeliveryPolicyGuide, RootRoundID: "agent-round-1",
+	})
+	if err != nil || len(items) != 1 {
+		t.Fatalf("enqueue newer batch: items=%+v err=%v", items, err)
+	}
+	service := &RealtimeService{inputQueue: store}
+	slot := &activeRoomSlot{AgentRoundID: "agent-round-1"}
+	service.rememberRoomSlotGuidance(slot, location, items)
+	stale := pendingRoomGuidance{location: location, items: []protocol.InputQueueItem{{
+		ID: "same-item", Content: "old batch", UpdatedAt: items[0].UpdatedAt - 1,
+	}}}
+	if err = service.acknowledgeRoomSlotGuidance(context.Background(), nil, slot, &stale); err != nil {
+		t.Fatal(err)
+	}
+	remaining, err := store.Snapshot(location)
+	if err != nil || len(remaining) != 1 || remaining[0].Content != "new batch" {
+		t.Fatalf("stale ACK consumed newer Room batch: items=%+v err=%v", remaining, err)
+	}
+}
+
 func TestEnqueueActiveAgentSlotsBatchIsAllOrNoneAndIdempotent(t *testing.T) {
 	root := t.TempDir()
 	conversationID := "conversation-queue-batch"
@@ -127,11 +157,17 @@ func TestEnqueueActiveAgentSlotsBatchIsAllOrNoneAndIdempotent(t *testing.T) {
 	service := &RealtimeService{
 		inputQueue: store,
 		activeRounds: map[string]*activeRoomRound{
-			"active": {
+			"active-a": {
 				SessionKey:     sharedSessionKey,
 				ConversationID: conversationID,
 				Slots: map[string]*activeRoomSlot{
-					validSlot.AgentID:   validSlot,
+					validSlot.AgentID: validSlot,
+				},
+			},
+			"active-b": {
+				SessionKey:     sharedSessionKey,
+				ConversationID: conversationID,
+				Slots: map[string]*activeRoomSlot{
 					invalidSlot.AgentID: invalidSlot,
 				},
 			},
@@ -139,7 +175,7 @@ func TestEnqueueActiveAgentSlotsBatchIsAllOrNoneAndIdempotent(t *testing.T) {
 	}
 	queued, err := service.enqueueForActiveAgentSlots(
 		context.Background(), sharedSessionKey, "room-queue-batch", conversationID,
-		[]string{validSlot.AgentID, invalidSlot.AgentID}, "完成后继续处理", nil, "room-queue-batch", "owner",
+		[]string{validSlot.AgentID, invalidSlot.AgentID}, "完成后继续处理", nil, "room-queue-batch", "msg-room-queue-batch", "owner",
 	)
 	if err == nil || len(queued) != 0 {
 		t.Fatalf("任一目标位置无效时批量 queue 必须整体失败: queued=%+v err=%v", queued, err)
@@ -160,10 +196,10 @@ func TestEnqueueActiveAgentSlotsBatchIsAllOrNoneAndIdempotent(t *testing.T) {
 	for attempt := 0; attempt < 2; attempt++ {
 		queued, err = service.enqueueForActiveAgentSlots(
 			context.Background(), sharedSessionKey, "room-queue-batch", conversationID,
-			[]string{validSlot.AgentID, invalidSlot.AgentID}, "完成后继续处理", nil, "room-queue-batch", "owner",
+			[]string{validSlot.AgentID, invalidSlot.AgentID}, "完成后继续处理", nil, "room-queue-batch", "msg-room-queue-batch", "owner",
 		)
 		if err != nil || len(queued) != 2 {
-			t.Fatalf("批量 Room queue 登记失败: queued=%+v err=%v", queued, err)
+			t.Fatalf("跨 root 的目标必须分别进入各自 Agent queue: queued=%+v err=%v", queued, err)
 		}
 	}
 	for _, slot := range []*activeRoomSlot{validSlot, invalidSlot} {
@@ -213,7 +249,10 @@ func TestGuideActiveAgentSlotsBatchIsAllOrNoneAndIdempotent(t *testing.T) {
 	}
 	guided, err := service.guideActiveAgentSlots(
 		context.Background(), sharedSessionKey, "room-batch", "conversation-batch",
-		[]string{validSlot.AgentID, invalidSlot.AgentID}, "同时插话", nil, "room-guide-batch", "owner",
+		[]string{validSlot.AgentID, invalidSlot.AgentID}, protocol.InputQueueItem{
+			ID: "room-guide-batch", SourceMessageID: "msg-room-guide-batch", Source: protocol.InputQueueSourceUser,
+			Content: "同时插话", OwnerUserID: "owner",
+		},
 	)
 	if err == nil || len(guided) != 0 {
 		t.Fatalf("任一目标位置无效时批量登记必须整体失败: guided=%+v err=%v", guided, err)
@@ -234,7 +273,10 @@ func TestGuideActiveAgentSlotsBatchIsAllOrNoneAndIdempotent(t *testing.T) {
 	for attempt := 0; attempt < 2; attempt++ {
 		guided, err = service.guideActiveAgentSlots(
 			context.Background(), sharedSessionKey, "room-batch", "conversation-batch",
-			[]string{validSlot.AgentID, invalidSlot.AgentID}, "同时插话", nil, "room-guide-batch", "owner",
+			[]string{validSlot.AgentID, invalidSlot.AgentID}, protocol.InputQueueItem{
+				ID: "room-guide-batch", SourceMessageID: "msg-room-guide-batch", Source: protocol.InputQueueSourceUser,
+				Content: "同时插话", OwnerUserID: "owner",
+			},
 		)
 		if err != nil || len(guided) != 2 {
 			t.Fatalf("批量 Room guide 登记失败: guided=%+v err=%v", guided, err)
@@ -299,7 +341,10 @@ func TestGuideActiveAgentSlotsDoesNotSplitPublicMessageAcrossRoots(t *testing.T)
 	targets := []string{slotA.AgentID, slotB.AgentID}
 	guided, err := service.guideActiveAgentSlots(
 		context.Background(), sharedSessionKey, "room-common-root", conversationID,
-		targets, "同一条多目标插话", nil, "guide-cross-root", "owner",
+		targets, protocol.InputQueueItem{
+			ID: "guide-cross-root", SourceMessageID: "msg-guide-cross-root", Source: protocol.InputQueueSourceUser,
+			Content: "同一条多目标插话", OwnerUserID: "owner",
+		},
 	)
 	if err != nil || len(guided) != 0 {
 		t.Fatalf("跨 root 的多目标插话不应部分注入: guided=%+v err=%v", guided, err)
@@ -331,7 +376,10 @@ func TestGuideActiveAgentSlotsDoesNotSplitPublicMessageAcrossRoots(t *testing.T)
 	}
 	guided, err = service.guideActiveAgentSlots(
 		context.Background(), sharedSessionKey, "room-common-root", conversationID,
-		targets, "同一条多目标插话", nil, "guide-shared-root", "owner",
+		targets, protocol.InputQueueItem{
+			ID: "guide-shared-root", SourceMessageID: "msg-guide-shared-root", Source: protocol.InputQueueSourceUser,
+			Content: "同一条多目标插话", OwnerUserID: "owner",
+		},
 	)
 	if err != nil || len(guided) != len(targets) {
 		t.Fatalf("同 root 多目标应整体注入: guided=%+v err=%v", guided, err)
@@ -437,9 +485,10 @@ func TestConsumedRoomGuidanceMovesUserMessageIntoReplyRound(t *testing.T) {
 		t.Fatalf("写入 Room 引导用户消息失败: %v", err)
 	}
 	if _, err := store.Enqueue(location, protocol.InputQueueItem{
-		ID:              "guided-user-message",
+		ID:              "guidance-source-round",
 		AgentID:         agentID,
-		SourceMessageID: "guidance-source-round",
+		SourceMessageID: "guided-user-message",
+		Source:          protocol.InputQueueSourceUser,
 		Content:         "然后评价一下",
 		DeliveryPolicy:  protocol.ChatDeliveryPolicyGuide,
 		RootRoundID:     "agent-reply-round",

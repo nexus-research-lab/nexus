@@ -129,7 +129,8 @@ func hookOutputIsEmpty(output sdkhook.Output) bool {
 		output.SystemMessage == "" &&
 		output.Reason == "" &&
 		output.SpecificOutput == nil &&
-		len(output.RawSpecificOutput) == 0
+		len(output.RawSpecificOutput) == 0 &&
+		output.OnApplied == nil
 }
 
 func (m *Manager) postToolUseGuidanceHook(sessionKey string) sdkhook.Callback {
@@ -142,18 +143,45 @@ func (m *Manager) postToolUseGuidanceHook(sessionKey string) sdkhook.Callback {
 			return sdkhook.Output{}, nil
 		}
 		additionalContext := FormatGuidanceAdditionalContext(inputs)
-		for _, item := range inputs {
-			if item.onConsumed != nil {
-				item.onConsumed()
+		markConsumed := func() {
+			for _, item := range inputs {
+				if item.onConsumed != nil {
+					item.onConsumed()
+				}
 			}
 		}
-		return sdkhook.Output{
+		output := sdkhook.Output{
 			SpecificOutput: &sdkhook.SpecificOutput{
 				HookEventName:     sdkhook.EventPostToolUse,
 				AdditionalContext: additionalContext,
 			},
-		}, nil
+		}
+		if m.SupportsHookResponseAck(sessionKey) {
+			output.OnApplied = func(sdkhook.AppliedAck) { markConsumed() }
+		} else {
+			// 旧 runtime 无 applied ACK，只能保留既有的 callback-return 语义。
+			markConsumed()
+		}
+		return output, nil
 	}
+}
+
+// SupportsHookResponseAck 报告当前 session 是否协商了 hook 输出应用确认。
+func (m *Manager) SupportsHookResponseAck(sessionKey string) bool {
+	if m == nil {
+		return false
+	}
+	m.mu.RLock()
+	state := m.sessions[sessionKey]
+	var runtimeClient Client
+	if state != nil {
+		runtimeClient = state.Client
+	}
+	m.mu.RUnlock()
+	client, ok := runtimeClient.(interface {
+		Supports(agentclient.Capability) bool
+	})
+	return ok && client.Supports(agentclient.CapabilityHookResponseAck)
 }
 
 func (m *Manager) drainGuidanceInputs(sessionKey string) []GuidedInput {

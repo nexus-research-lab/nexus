@@ -307,7 +307,7 @@ func (s *RealtimeService) launchPublicMentionRound(
 	)
 	s.broadcastSharedEvent(ctx, sessionKey, contextValue.Room.ID, roomdomain.WrapRoundStatusEvent(sessionKey, contextValue.Room.ID, contextValue.Conversation.ID, roundID, "running", ""))
 	// 公区 @ 唤醒由后端发起，没有前端请求，client 关联字段留空。
-	s.broadcastSharedEvent(ctx, sessionKey, contextValue.Room.ID, roomdomain.WrapChatAckEvent(sessionKey, contextValue.Room.ID, contextValue.Conversation.ID, "", "", roundID, "", pending))
+	s.broadcastSharedEvent(ctx, sessionKey, contextValue.Room.ID, roomdomain.WrapChatAckEvent(sessionKey, contextValue.Room.ID, contextValue.Conversation.ID, "", "", roundID, "", false, pending))
 	for _, pendingSlot := range pendingSlots {
 		if normalizeWakeQueueSource(pendingSlot.wake) != protocol.InputQueueSourceAgentRoomMessage {
 			continue

@@ -208,7 +208,7 @@ func (s *RealtimeService) runSlot(
 		return
 	}
 	if result.TerminalStatus == "finished" && (result.ResultSubtype == "" || result.ResultSubtype == "success") {
-		if ackErr := s.acknowledgeRoomSlotGuidance(slotCtx, roundValue, slot); ackErr != nil {
+		if ackErr := s.acknowledgeRoomSlotGuidance(slotCtx, roundValue, slot, nil); ackErr != nil {
 			logger.Warn("确认 Room 引导消费失败，保留为后续队列输入", "err", ackErr)
 		}
 	}
@@ -318,7 +318,7 @@ func (e *slotExecution) handleDurableMessage(messageValue protocol.Message) erro
 	resultSubtype = strings.TrimSpace(resultSubtype)
 	if messageRole == "assistant" || (messageRole == "result" && messageValue["is_error"] != true &&
 		(resultSubtype == "" || resultSubtype == "success")) {
-		if err := e.service.acknowledgeRoomSlotGuidance(e.ctx, e.round, e.slot); err != nil {
+		if err := e.service.acknowledgeRoomSlotGuidance(e.ctx, e.round, e.slot, nil); err != nil {
 			return err
 		}
 	}
@@ -333,7 +333,7 @@ func (e *slotExecution) handleDurableMessage(messageValue protocol.Message) erro
 	if messageRole == "assistant" {
 		e.slot.rememberGoalAssistantMessage(messageValue)
 	}
-	if messageRole == "assistant" && roomdomain.IsNoReplyAssistantMessage(messageValue) {
+	if roomdomain.IsNoReplyOutputMessage(messageValue) {
 		e.slot.suppressOutput()
 		return nil
 	}

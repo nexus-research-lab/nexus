@@ -1,6 +1,6 @@
 // INPUT: Room 请求里的显式目标、@mention、默认投递策略与当前活跃 round。
-// OUTPUT: 保持显式路由优先，并为无目标 follow-up 选择最近活跃 root round 的稳定 slot 列表。
-// POS: Room 用户输入目标解析的唯一真相源；活跃 round 默认优先于 room host。
+// OUTPUT: 保持显式/房主路由优先，并为仍无目标的 follow-up 选择最近活跃 root round。
+// POS: Room 用户输入目标解析的唯一真相源；目标 Agent 的 slot 状态决定立即启动或排队。
 package room
 
 import (

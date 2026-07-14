@@ -1,5 +1,5 @@
-// INPUT: DM / Room 待发送项、投递策略与预检过的 guidance 版本。
-// OUTPUT: append-only 队列快照、串行派发和全有或全无的 guidance 认领。
+// INPUT: DM / Room 待发送项、投递策略与预检过的 guidance 语义版本。
+// OUTPUT: append-only 队列快照、串行派发和忽略排序时间戳的全有或全无 guidance 认领。
 // POS: 会话输入队列的持久化真相源；业务服务不得自行删除已预检项。
 package workspace
 
@@ -564,6 +564,10 @@ func matchingGuidanceItems(items []protocol.InputQueueItem, rootRoundIDs []strin
 }
 
 func samePreparedGuidanceItem(current protocol.InputQueueItem, expected protocol.InputQueueItem) bool {
+	current.QueueOrder = 0
+	current.UpdatedAt = 0
+	expected.QueueOrder = 0
+	expected.UpdatedAt = 0
 	return reflect.DeepEqual(current, expected)
 }
 

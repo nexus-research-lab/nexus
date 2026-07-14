@@ -172,7 +172,15 @@ type ChatAckPendingSlot struct {
 
 // NewChatAckEvent 构造 chat_ack 事件。round_id / user_message_id 由后端 mint，
 // client_request_id / client_message_id 原样回传供前端关联。
-func NewChatAckEvent(sessionKey string, clientRequestID string, clientMessageID string, roundID string, userMessageID string, pending []ChatAckPendingSlot) EventMessage {
+func NewChatAckEvent(
+	sessionKey string,
+	clientRequestID string,
+	clientMessageID string,
+	roundID string,
+	userMessageID string,
+	userMessageCommitted bool,
+	pending []ChatAckPendingSlot,
+) EventMessage {
 	if pending == nil {
 		pending = []ChatAckPendingSlot{}
 	}
@@ -181,6 +189,7 @@ func NewChatAckEvent(sessionKey string, clientRequestID string, clientMessageID 
 		"client_message_id": clientMessageID,
 		"round_id":          roundID,
 		"user_message_id":   userMessageID,
+		"user_message_committed": userMessageCommitted,
 		"pending":           pending,
 		"pending_snapshot":  false,
 		"ack_timeout_ms":    ChatAckTimeoutMS,
@@ -192,7 +201,7 @@ func NewChatAckEvent(sessionKey string, clientRequestID string, clientMessageID 
 // NewChatPendingSnapshotEvent 构造订阅恢复时的权威 Room slot 快照。
 // 前端必须用 pending 整体替换本地恢复值；空数组同样有意义，用于清除陈旧占位。
 func NewChatPendingSnapshotEvent(sessionKey string, roundID string, pending []ChatAckPendingSlot) EventMessage {
-	event := NewChatAckEvent(sessionKey, "", "", roundID, "", pending)
+	event := NewChatAckEvent(sessionKey, "", "", roundID, "", false, pending)
 	event.Data["pending_snapshot"] = true
 	return event
 }

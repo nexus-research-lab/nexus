@@ -236,7 +236,7 @@ func (r *roundRunner) confirmInputQueueGuidance(ctx context.Context) error {
 		Scope:         protocol.InputQueueScopeDM,
 		WorkspacePath: r.workspacePath,
 		SessionKey:    r.sessionKey,
-	}, r.roundID)
+	}, r.roundID, nil)
 }
 
 func (r *roundRunner) dispatchNextInputQueueItem() {

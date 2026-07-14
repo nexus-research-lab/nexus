@@ -32,6 +32,11 @@ func (s *RealtimeService) runRound(
 		go func(currentSlot *activeRoomSlot) {
 			defer waitGroup.Done()
 			s.runSlot(ctx, roundValue, currentSlot, history, agentNameByID, agentByID[currentSlot.AgentID])
+			// 每个 Agent 独立串行。当前 slot 已终态且 runtime 清理完成后，
+			// 立即释放它错过的 guide 并派发其队列，不等待同 root 的其他成员。
+			dispatchCtx := contextWithQueueOwner(context.Background(), roundValue.OwnerUserID)
+			s.releaseUndeliveredRoomGuidance(dispatchCtx, roundValue.SessionKey, roundValue.Context)
+			s.dispatchNextInputQueueItem(dispatchCtx, roundValue.SessionKey, roundValue.RoomID, roundValue.ConversationID)
 		}(slot)
 	}
 	waitGroup.Wait()

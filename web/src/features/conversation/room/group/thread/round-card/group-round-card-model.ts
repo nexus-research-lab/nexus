@@ -1,6 +1,6 @@
 /**
  * INPUT: Room 根轮次内的 user / assistant 消息、slot 与权限状态。
- * OUTPUT: root-global user，以及贴近单一消费 Agent 的 guided user 卡片模型。
+ * OUTPUT: root-global user，以及不含 Room 控制标记的 Agent 卡片摘要。
  * POS: Group round feed 的唯一展示归组入口。
  */
 import { isAutomationTriggerUserMessage } from "@/types/conversation/automation-message";
@@ -14,6 +14,7 @@ import type { RoomPendingAgentSlotState } from "@/types/agent/agent-conversation
 import type { PendingPermission } from "@/types/conversation/interaction/permission";
 
 import { ASK_USER_QUESTION_TOOL_NAME } from "@/features/conversation/shared/message/message-tool-names";
+import { stripRoomControlMarkers } from "@/features/conversation/shared/message/message-content-model";
 import {
   buildRoomAgentRoundEntries,
   extractAgentPreviewText,
@@ -320,7 +321,8 @@ function lastMessageModel(message?: AssistantMessage): string | null {
 }
 
 function resultSummaryText(summary?: ResultSummary): string | undefined {
-  return summary?.result;
+  const result = stripRoomControlMarkers(summary?.result ?? "");
+  return result || undefined;
 }
 
 function resolveAgentTimestamp(

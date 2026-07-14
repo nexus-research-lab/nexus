@@ -25,6 +25,7 @@ type fakeRuntimeClient struct {
 	taskMessages     []fakeTaskMessage
 	stopTaskErr      error
 	permissionModes  []sdkpermission.Mode
+	hookResponseAck  bool
 	messages         <-chan sdkprotocol.ReceivedMessage
 	receiveStarted   chan struct{}
 	receiveStopped   chan struct{}
@@ -120,6 +121,10 @@ func (c *fakeRuntimeClient) Reconfigure(_ context.Context, options agentclient.O
 		return c.reconfigureErr
 	}
 	return nil
+}
+
+func (c *fakeRuntimeClient) Supports(capability agentclient.Capability) bool {
+	return c.hookResponseAck && capability == agentclient.CapabilityHookResponseAck
 }
 
 func (c *fakeRuntimeClient) SessionID() string { return "" }
@@ -811,6 +816,36 @@ func TestManagerContextualGuidanceRunsConsumedCallbackOnlyAtPostToolUse(t *testi
 	}
 	if !consumed {
 		t.Fatal("callback did not run when PostToolUse consumed guidance")
+	}
+}
+
+func TestManagerContextualGuidanceWaitsForRuntimeAppliedAck(t *testing.T) {
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: &fakeRuntimeClient{hookResponseAck: true}})
+	sessionKey := "agent:nexus:ws:group:goal-retarget-ack"
+	if _, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{}); err != nil {
+		t.Fatal(err)
+	}
+	manager.StartRound(sessionKey, "round-recipient", func() {})
+	consumed := false
+	if _, err := manager.QueueContextualGuidanceInputOnConsumed(
+		context.Background(), sessionKey, "goal-event-retarget", "goal", "The objective changed.", func() { consumed = true },
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	options := manager.WithGuidanceHook(agentclient.Options{}, sessionKey)
+	output, err := options.Hooks.Matchers[sdkhook.EventPostToolUse][0].Hooks[0](
+		context.Background(), sdkhook.Input{EventName: sdkhook.EventPostToolUse}, "tool-before-retarget",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if consumed || output.OnApplied == nil {
+		t.Fatalf("consumed=%v OnApplied=%v, want callback deferred until applied ACK", consumed, output.OnApplied != nil)
+	}
+	output.OnApplied(sdkhook.AppliedAck{RequestID: "hook-request-1"})
+	if !consumed {
+		t.Fatal("callback did not run after runtime applied ACK")
 	}
 }
 

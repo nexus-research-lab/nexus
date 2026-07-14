@@ -1,6 +1,6 @@
 /**
  * INPUT: Room 根轮次消息与尚未结束的 agent slot。
- * OUTPUT: 按 agent 聚合、按 agent_round_id 对齐当前执行的回复卡片。
+ * OUTPUT: 按 agent 聚合、按 agent_round_id 对齐且不含 Room 控制标记的回复卡片。
  * POS: Room feed 与 thread 共用的 Agent 执行轮次投影。
  */
 import type {
@@ -10,6 +10,7 @@ import type {
   ResultSummary,
 } from "@/types/conversation/message/entity";
 import type { RoomPendingAgentSlotState } from "@/types/agent/agent-conversation";
+import { stripRoomControlMarkers } from "@/features/conversation/shared/message/message-content-model";
 
 export type AgentRoundStatus = AssistantMessageStatus;
 
@@ -264,7 +265,7 @@ export function getRoomAgentRoundEntry(
 }
 
 function normalizePreviewText(text: string, maxLength: number): string {
-  const normalizedText = text.replace(/\s+/g, " ").trim();
+  const normalizedText = stripRoomControlMarkers(text).replace(/\s+/g, " ").trim();
   if (!normalizedText) {
     return "";
   }

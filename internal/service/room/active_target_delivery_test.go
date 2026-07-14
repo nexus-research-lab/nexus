@@ -13,11 +13,9 @@ import (
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
-
-	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
 )
 
-func TestRealtimeServiceUnmentionedInterjectionKeepsActiveRootTargets(t *testing.T) {
+func TestRealtimeServiceHostConsumesQueuedInputAsSoonAsItsSlotFinishes(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
@@ -43,20 +41,29 @@ func TestRealtimeServiceUnmentionedInterjectionKeepsActiveRootTargets(t *testing
 		t.Fatal(err)
 	}
 
-	activeClient := newFakeRoomClient()
-	queuedPrompt := make(chan string, 1)
-	queryCount := 0
-	activeClient.onQuery = func(_ context.Context, prompt string) error {
-		queryCount++
-		if queryCount == 1 {
+	type followUpQuery struct {
+		client *fakeRoomClient
+		prompt string
+	}
+	hostFollowUpPrompt := make(chan followUpQuery, 1)
+	newReusableClient := func() *fakeRoomClient {
+		client := newFakeRoomClient()
+		queryCount := 0
+		client.onQuery = func(_ context.Context, prompt string) error {
+			queryCount++
+			if queryCount == 1 {
+				return nil
+			}
+			hostFollowUpPrompt <- followUpQuery{client: client, prompt: prompt}
+			go sendFakeAssistantResult(client, "assistant-host-follow-up", "已处理补充要求")
 			return nil
 		}
-		queuedPrompt <- prompt
-		go sendFakeAssistantResult(activeClient, "assistant-active-target-queue", "已处理补充要求")
-		return nil
+		return client
 	}
+	firstClient := newReusableClient()
+	secondClient := newReusableClient()
 	permission := permissionctx.NewContext()
-	factory := &fakeRoomFactory{clients: []*fakeRoomClient{activeClient}}
+	factory := &fakeRoomFactory{clients: []*fakeRoomClient{firstClient, secondClient}}
 	service := NewRealtimeServiceWithFactory(
 		cfg,
 		roomService,
@@ -73,105 +80,100 @@ func TestRealtimeServiceUnmentionedInterjectionKeepsActiveRootTargets(t *testing
 		SessionKey:     sharedSessionKey,
 		RoomID:         roomContext.Room.ID,
 		ConversationID: roomContext.Conversation.ID,
-		Content:        "@Worker 先处理当前任务",
-		RoundID:        "room-round-active-worker",
+		Content:        "@Host @Worker 同时处理当前任务",
+		RoundID:        "room-round-active-host-worker",
 	}); err != nil {
-		t.Fatalf("启动活跃 Worker round 失败: %v", err)
+		t.Fatalf("启动 Host/Worker shared round 失败: %v", err)
 	}
+	started := map[string]bool{}
 	_ = collectRoomEventsUntil(t, sender.events, func(_ []protocol.EventMessage, event protocol.EventMessage) bool {
-		return event.EventType == protocol.EventTypeStreamStart && event.AgentID == worker.AgentID
+		if event.EventType == protocol.EventTypeStreamStart {
+			started[event.AgentID] = true
+		}
+		return started[worker.AgentID] && started[host.AgentID]
 	})
+	options := factory.Options()
+	if len(options) != 2 {
+		t.Fatalf("shared round runtime 数量 = %d, want 2", len(options))
+	}
+	hostClient := firstClient
+	workerClient := secondClient
+	if options[1].CWD == host.WorkspacePath {
+		hostClient, workerClient = secondClient, firstClient
+	} else if options[0].CWD != host.WorkspacePath {
+		t.Fatalf("无法按 workspace 识别 Host runtime: %+v", options)
+	}
 
 	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
 		SessionKey:     sharedSessionKey,
 		RoomID:         roomContext.Room.ID,
 		ConversationID: roomContext.Conversation.ID,
 		Content:        "然后重点检查一下边界条件",
-		RoundID:        "room-round-unmentioned-guide",
-		DeliveryPolicy: protocol.ChatDeliveryPolicyGuide,
-	}); err != nil {
-		t.Fatalf("发送无 @ 直接插话失败: %v", err)
-	}
-	_ = collectRoomEventsUntil(t, sender.events, func(_ []protocol.EventMessage, event protocol.EventMessage) bool {
-		return event.EventType == protocol.EventTypeChatAck && event.Data["round_id"] == "room-round-unmentioned-guide"
-	})
-	additionalContext := ""
-	for _, matcher := range factory.LastOptions().Hooks.Matchers[sdkhook.EventPostToolUse] {
-		for _, hook := range matcher.Hooks {
-			output, hookErr := hook(ctx, sdkhook.Input{EventName: sdkhook.EventPostToolUse}, "tool-active-target")
-			if hookErr != nil {
-				t.Fatalf("消费无 @ 直接插话失败: %v", hookErr)
-			}
-			if output.SpecificOutput != nil {
-				additionalContext += output.SpecificOutput.AdditionalContext
-			}
-		}
-	}
-	if !strings.Contains(additionalContext, "然后重点检查一下边界条件") {
-		t.Fatalf("无 @ 直接插话没有进入活跃 Worker slot: %q", additionalContext)
-	}
-
-	if err = service.HandleInputQueue(ctx, roomsvc.InputQueueRequest{
-		SessionKey:     sharedSessionKey,
-		RoomID:         roomContext.Room.ID,
-		ConversationID: roomContext.Conversation.ID,
-		Action:         "enqueue",
-		Content:        "完成后再给一个简短结论",
+		RoundID:        "room-round-unmentioned-host-queue",
+		UserMessageID:  "msg-unmentioned-host-queue",
 		DeliveryPolicy: protocol.ChatDeliveryPolicyQueue,
 	}); err != nil {
-		t.Fatalf("发送无 @ input queue 插话失败: %v", err)
+		t.Fatalf("发送无 @ Host 队列输入失败: %v", err)
 	}
-	queueStore := workspacestore.NewInputQueueStore(cfg.WorkspacePath)
-	workerLocation := workspacestore.InputQueueLocation{
-		Scope:          protocol.InputQueueScopeRoom,
-		WorkspacePath:  worker.WorkspacePath,
-		SessionKey:     protocol.BuildRoomAgentSessionKey(roomContext.Conversation.ID, worker.AgentID, roomContext.Room.RoomType),
-		RoomID:         roomContext.Room.ID,
-		ConversationID: roomContext.Conversation.ID,
-	}
-	workerItems, err := queueStore.Snapshot(workerLocation)
-	if err != nil {
-		t.Fatal(err)
-	}
-	foundQueuedFollowUp := false
-	for _, item := range workerItems {
-		if item.Content == "完成后再给一个简短结论" &&
-			item.DeliveryPolicy == protocol.ChatDeliveryPolicyQueue &&
-			len(item.TargetAgentIDs) == 1 && item.TargetAgentIDs[0] == worker.AgentID {
-			foundQueuedFollowUp = true
+	events := collectRoomEventsUntil(t, sender.events, func(_ []protocol.EventMessage, event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeChatAck && event.Data["round_id"] == "room-round-unmentioned-host-queue"
+	})
+	for _, event := range events {
+		if event.EventType == protocol.EventTypeChatAck && event.Data["round_id"] == "room-round-unmentioned-host-queue" {
+			if committed, _ := event.Data["user_message_committed"].(bool); committed {
+				t.Fatalf("Host 尚未消费时用户消息不应提交: %+v", event.Data)
+			}
 		}
 	}
-	if !foundQueuedFollowUp {
-		t.Fatalf("无 @ input queue 应绑定活跃 Worker slot: %+v", workerItems)
-	}
-	hostItems, err := queueStore.Snapshot(workspacestore.InputQueueLocation{
+
+	queueStore := workspacestore.NewInputQueueStore(cfg.WorkspacePath)
+	hostLocation := workspacestore.InputQueueLocation{
 		Scope:          protocol.InputQueueScopeRoom,
 		WorkspacePath:  host.WorkspacePath,
 		SessionKey:     protocol.BuildRoomAgentSessionKey(roomContext.Conversation.ID, host.AgentID, roomContext.Room.RoomType),
 		RoomID:         roomContext.Room.ID,
 		ConversationID: roomContext.Conversation.ID,
+	}
+	hostItems, err := queueStore.Snapshot(hostLocation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hostItems) != 1 || hostItems[0].SourceMessageID != "msg-unmentioned-host-queue" ||
+		len(hostItems[0].TargetAgentIDs) != 1 || hostItems[0].TargetAgentIDs[0] != host.AgentID {
+		t.Fatalf("无 @ 输入应只进入 Host 消费队列: %+v", hostItems)
+	}
+	workerItems, err := queueStore.Snapshot(workspacestore.InputQueueLocation{
+		Scope:          protocol.InputQueueScopeRoom,
+		WorkspacePath:  worker.WorkspacePath,
+		SessionKey:     protocol.BuildRoomAgentSessionKey(roomContext.Conversation.ID, worker.AgentID, roomContext.Room.RoomType),
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(hostItems) != 0 {
-		t.Fatalf("活跃 Worker 存在时不应先把无 @ input queue 交给 Host: %+v", hostItems)
+	if len(workerItems) != 0 {
+		t.Fatalf("无 @ 输入不应被运行中的 Worker 抢走: %+v", workerItems)
 	}
 
-	go sendFakeAssistantResult(activeClient, "assistant-active-worker", "第一轮完成")
+	go sendFakeAssistantResult(hostClient, "assistant-host-current", "Host 当前任务完成")
 	select {
-	case prompt := <-queuedPrompt:
-		if !strings.Contains(prompt, "完成后再给一个简短结论") || strings.Contains(prompt, "room host default takeover") {
-			t.Fatalf("input queue 接力目标或 prompt 不正确: %s", prompt)
+	case followUp := <-hostFollowUpPrompt:
+		if followUp.client != hostClient {
+			t.Fatal("Host 队列输入被其他 Agent runtime 消费")
+		}
+		if !strings.Contains(followUp.prompt, "然后重点检查一下边界条件") {
+			t.Fatalf("Host follow-up prompt 缺少队列输入: %s", followUp.prompt)
 		}
 	case <-time.After(2 * time.Second):
-		t.Fatal("活跃 Worker 完成后，无 @ input queue 未接力派发")
+		t.Fatal("Host slot 结束后未立即消费队列，仍在等待 Worker")
 	}
-	events := collectRoomEventsUntil(t, sender.events, func(_ []protocol.EventMessage, event protocol.EventMessage) bool {
-		roundID, _ := event.Data["round_id"].(string)
-		return event.EventType == protocol.EventTypeRoundStatus && strings.HasPrefix(roundID, "queue_") && event.Data["status"] == "finished"
+	if service.CountRunningTasks(worker.AgentID) == 0 {
+		t.Fatal("测试前提失效：Host 接力时 Worker 应仍在运行")
+	}
+	go sendFakeAssistantResult(workerClient, "assistant-worker-current", "Worker 当前任务完成")
+	collectRoomEventsUntil(t, sender.events, func(_ []protocol.EventMessage, event protocol.EventMessage) bool {
+		generating, _ := event.Data["is_generating"].(bool)
+		return event.EventType == protocol.EventTypeSessionStatus && !generating
 	})
-	if !hasChatAckPendingAgent(events, worker.AgentID) || hasChatAckPendingAgent(events, host.AgentID) {
-		t.Fatalf("input queue 接力应继续由 Worker 回复，而不是 Host: %+v", events)
-	}
 }

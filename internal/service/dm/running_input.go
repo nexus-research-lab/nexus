@@ -1,5 +1,5 @@
 // INPUT: 运行中 DM round 与用户 queue/guide 输入。
-// OUTPUT: 注入当前 runtime，并把 durable 用户输入归入实际消费它的 root round。
+// OUTPUT: queue 持久等待下一轮，guide 等 runtime applied ACK 后归入实际消费它的 root round。
 // POS: DM 轮内插话的唯一受理入口。
 package dm
 
@@ -19,72 +19,49 @@ func (s *Service) queueRunningInput(
 	ctx context.Context,
 	sessionKey string,
 	agentValue *protocol.Agent,
-	sessionItem protocol.Session,
 	request Request,
-	initialMessageCount int,
 ) (bool, error) {
 	content := strings.TrimSpace(request.Content)
 	attachments := s.normalizeChatAttachments(request.Attachments, agentValue.AgentID)
-	runtimeContent, err := s.renderRuntimeContentWithAttachments(ctx, content, attachments)
-	if err != nil {
-		return false, err
-	}
-	// 轮内注入不带 runtime context（情绪态）：避免逐步污染 prompt 前缀缓存。
-	runningRoundIDs, err := s.runtime.SendContentToRunningRound(ctx, sessionKey, runtimeContent.Payload())
-	if err != nil {
-		return false, err
-	}
+	runningRoundIDs := s.runtime.GetRunningRoundIDs(sessionKey)
 	if len(runningRoundIDs) == 0 {
 		return false, runtimectx.ErrNoRunningRound
 	}
-	// 一个 DM runtime 同时只承载一个顶层 round；使用投递瞬间返回的 id，避免预读运行态的竞态。
-	targetRoundID := strings.TrimSpace(runningRoundIDs[0])
-	if targetRoundID == "" {
-		return false, runtimectx.ErrNoRunningRound
+	location := workspacestore.InputQueueLocation{
+		Scope:         protocol.InputQueueScopeDM,
+		WorkspacePath: agentValue.WorkspacePath,
+		SessionKey:    sessionKey,
 	}
-	if err := s.recordRoundMarkerWithOptions(agentValue.WorkspacePath, sessionItem, targetRoundID, content, workspacestore.RoundMarkerOptions{
-		UserMessageID:  request.UserMessageID,
-		AgentRoundID:   request.AgentRoundID,
-		SourceRoundID:  request.RoundID,
-		DeliveryPolicy: string(protocol.ChatDeliveryPolicyQueue),
-		Attachments:    attachments,
-	}); err != nil {
-		s.loggerFor(ctx).Error("DM 排队消息持久化失败",
-			"session_key", sessionKey,
-			"agent_id", agentValue.AgentID,
-			"round_id", request.RoundID,
-			"err", err,
-		)
+	items, err := s.inputQueue.Enqueue(location, protocol.InputQueueItem{
+		ID:              request.RoundID,
+		Scope:           protocol.InputQueueScopeDM,
+		SessionKey:      sessionKey,
+		AgentID:         agentValue.AgentID,
+		SourceMessageID: request.UserMessageID,
+		Source:          protocol.InputQueueSourceUser,
+		Content:         content,
+		Attachments:     attachments,
+		DeliveryPolicy:  protocol.ChatDeliveryPolicyQueue,
+		OwnerUserID:     authctx.OwnerUserID(ctx),
+	})
+	if err != nil {
 		return false, err
 	}
-	if _, err := s.refreshSessionMetaAfterRoundMarker(agentValue.WorkspacePath, sessionItem); err != nil {
-		s.loggerFor(ctx).Error("DM 排队消息刷新 session meta 失败",
-			"session_key", sessionKey,
-			"agent_id", agentValue.AgentID,
-			"round_id", request.RoundID,
-			"err", err,
-		)
-		return false, err
-	}
-	runtimeProvider, runtimeModel := runtimeSelectionFromSession(sessionItem)
-	s.scheduleTitleGeneration(ctx, protocol.ParseSessionKey(sessionKey), sessionItem, content, initialMessageCount, runtimeProvider, runtimeModel)
+	s.broadcastInputQueueSnapshot(ctx, sessionKey, items)
 	s.broadcastEventWithTimeout(ctx, sessionKey, protocol.NewChatAckEvent(
 		sessionKey,
 		request.ClientRequestID,
 		request.ClientMessageID,
 		request.RoundID,
 		request.UserMessageID,
+		false,
 		nil,
 	))
-	if request.BroadcastUserMessage {
-		s.broadcastUserRoundMarker(ctx, sessionItem, targetRoundID, request.RoundID, request.UserMessageID, content, protocol.ChatDeliveryPolicyQueue, attachments)
-	}
 	s.broadcastSessionStatus(ctx, sessionKey)
-	s.loggerFor(ctx).Info("排队 DM 消息到运行中 round",
+	s.loggerFor(ctx).Info("持久化 DM 消息等待当前 round 结束后接力",
 		"session_key", sessionKey,
 		"agent_id", agentValue.AgentID,
 		"round_id", request.RoundID,
-		"target_round_id", targetRoundID,
 		"running_round_ids", runningRoundIDs,
 		"content_chars", utf8.RuneCountInString(content),
 		"content_preview", logx.PreviewText(content, 240),
@@ -140,6 +117,7 @@ func (s *Service) guideRunningInput(
 		request.ClientMessageID,
 		request.RoundID,
 		request.UserMessageID,
+		false,
 		nil,
 	))
 	s.broadcastSessionStatus(ctx, sessionKey)

@@ -67,6 +67,9 @@ func (s *Service) HandleInputQueue(ctx context.Context, request InputQueueReques
 		)
 		return nil
 	case "delete":
+		if s.hasInFlightInputQueueGuidance(request.ItemID) {
+			return errors.New("该引导已发送给智能体，不能再删除")
+		}
 		items, err := s.inputQueue.Delete(location, request.ItemID)
 		if err != nil {
 			return err
@@ -74,6 +77,11 @@ func (s *Service) HandleInputQueue(ctx context.Context, request InputQueueReques
 		s.broadcastInputQueueSnapshot(ctx, sessionKey, items)
 		return nil
 	case "reorder":
+		for _, itemID := range request.OrderedIDs {
+			if s.hasInFlightInputQueueGuidance(itemID) {
+				return errors.New("已发送给智能体的引导不能重排")
+			}
+		}
 		items, err := s.inputQueue.Reorder(location, request.OrderedIDs)
 		if err != nil {
 			return err
@@ -81,6 +89,9 @@ func (s *Service) HandleInputQueue(ctx context.Context, request InputQueueReques
 		s.broadcastInputQueueSnapshot(ctx, sessionKey, items)
 		return nil
 	case "guide":
+		if s.hasInFlightInputQueueGuidance(request.ItemID) {
+			return errors.New("该引导正在等待智能体确认，不能更改投递方式")
+		}
 		return s.guideInputQueueItem(ctx, sessionKey, location, request.ItemID)
 	default:
 		return errors.New("unsupported input_queue action")

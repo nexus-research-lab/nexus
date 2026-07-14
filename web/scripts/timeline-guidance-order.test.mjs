@@ -18,6 +18,124 @@ test.after(async () => {
   await server.close();
 });
 
+test("deferred input ACK keeps queued user text out of the timeline", async () => {
+  const { replaceOptimisticUserMessage } = await server.ssrLoadModule(
+    "/src/hooks/agent/runtime/model/conversation-runtime-reconciliation.ts",
+  );
+  const optimistic = userMessage({
+    content: "这条还没有被智能体消费",
+    messageId: "local-message",
+    roundId: "local-message",
+    timestamp: 1,
+  });
+
+  assert.deepEqual(
+    replaceOptimisticUserMessage(
+      [optimistic],
+      "local-message",
+      "user-message",
+      "round-message",
+      false,
+    ),
+    [],
+    "a queued ACK must remove the optimistic timeline message",
+  );
+  assert.deepEqual(
+    replaceOptimisticUserMessage(
+      [optimistic],
+      "local-message",
+      "user-message",
+      "round-message",
+      true,
+    ).map(({ message_id, round_id }) => ({ message_id, round_id })),
+    [{ message_id: "user-message", round_id: "round-message" }],
+    "a committed ACK still canonicalizes normal user messages",
+  );
+});
+
+test("deferred ACK cannot remove an already applied canonical user message", async () => {
+  const { replaceOptimisticUserMessage } = await server.ssrLoadModule(
+    "/src/hooks/agent/runtime/model/conversation-runtime-reconciliation.ts",
+  );
+  const optimistic = userMessage({
+    content: "这条正在等待 ACK",
+    messageId: "local-message",
+    roundId: "local-message",
+    timestamp: 1,
+  });
+  const canonical = userMessage({
+    content: "这条已经被智能体消费",
+    messageId: "user-message",
+    roundId: "round-message",
+    timestamp: 2,
+  });
+
+  assert.deepEqual(
+    replaceOptimisticUserMessage(
+      [optimistic, canonical],
+      "local-message",
+      "user-message",
+      "round-message",
+      false,
+    ).map(({ message_id, round_id }) => ({ message_id, round_id })),
+    [{ message_id: "user-message", round_id: "round-message" }],
+    "a late deferred ACK must remove only the optimistic copy",
+  );
+});
+
+test("Room no-reply control markers never become visible assistant blocks", async () => {
+  const { buildVisibleOrderedAssistantEntries } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/controller/projection/message-item-ordering.ts",
+  );
+  const entries = buildVisibleOrderedAssistantEntries({
+    hiddenToolNames: new Set(),
+    hiddenToolUseIds: new Set(),
+    isLoading: false,
+    mergedContent: [{ type: "text", text: "<nexus_room_no_reply/>" }],
+    mergedContentSourceMessageIds: ["assistant-no-reply"],
+    sourceMessageOrderById: new Map([["assistant-no-reply", 0]]),
+    systemEventBlocks: [],
+  });
+
+  assert.deepEqual(entries, []);
+});
+
+test("Room no-reply control markers stay out of previews and result summaries", async () => {
+  const { extractAgentPreviewText } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/round/round-agent-model.ts",
+  );
+  const { buildGroupAgentStatusModel } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/thread/round-card/group-round-card-model.ts",
+  );
+  const marker = "<nexus_room_no_reply/>";
+
+  assert.equal(
+    extractAgentPreviewText([assistantMessage({ text: marker, timestamp: 1 })]),
+    "",
+  );
+
+  const status = buildGroupAgentStatusModel({
+    labels: {
+      failed: "Failed",
+      stopped: "Stopped",
+      waitingPermission: "Waiting",
+    },
+    messages: [],
+    pendingPermissions: [],
+    resultSummary: {
+      duration_api_ms: 0,
+      duration_ms: 0,
+      is_error: false,
+      num_turns: 1,
+      result: marker,
+      subtype: "interrupted",
+      timestamp: 1,
+    },
+    status: "cancelled",
+  });
+  assert.equal(status.summaryText, "Stopped");
+});
+
 test("consumed Room guide update moves beside its running assistant", async () => {
   const { parseConversationMessage } = await server.ssrLoadModule(
     "/src/lib/conversation/message-protocol.ts",

@@ -23,7 +23,7 @@ func (s *RealtimeService) queueBusyPublicMentionWakes(
 			targetAgentIDs = append(targetAgentIDs, targetAgentID)
 		}
 	}
-	busySlots := s.findActiveDeliverySlots(sessionKey, parentRound.ConversationID, targetAgentIDs)
+	busySlots := s.findActiveDeliverySlotsByAgent(sessionKey, parentRound.ConversationID, targetAgentIDs)
 	if len(busySlots) == 0 {
 		return wakes, nil
 	}

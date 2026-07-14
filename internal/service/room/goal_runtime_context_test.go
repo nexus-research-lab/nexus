@@ -113,6 +113,7 @@ func TestRegisterSlotGoalRuntimeMakesGoalGuidanceQueueable(t *testing.T) {
 		RuntimeSessionKey: "agent:nexus:ws:room:conversation-1:agent-1",
 		AgentRoundID:      "room-round-1:agent-1",
 	}
+	manager.StartRound(slot.RuntimeSessionKey, slot.AgentRoundID, nil)
 
 	cleanup := service.registerSlotGoalRuntime(slot)
 	roundIDs, err := manager.QueueGuidanceInput(context.Background(), slot.RuntimeSessionKey, "goal-event-1", "budget reached")
@@ -131,6 +132,7 @@ func TestRegisterSlotGoalRuntimeMakesGoalGuidanceQueueable(t *testing.T) {
 	}
 
 	cleanup()
+	manager.MarkRoundFinished(slot.RuntimeSessionKey, slot.AgentRoundID)
 	if _, err := manager.QueueGuidanceInput(context.Background(), slot.RuntimeSessionKey, "goal-event-2", "late guidance"); !errors.Is(err, runtimectx.ErrNoRunningRound) {
 		t.Fatalf("QueueGuidanceInput() after cleanup error = %v, want ErrNoRunningRound", err)
 	}
@@ -146,20 +148,25 @@ func TestRegisterSlotGoalRuntimeUsesGoalSessionKey(t *testing.T) {
 	}
 
 	cleanup := service.registerSlotGoalRuntime(slot)
-	roundIDs, err := manager.QueueGuidanceInput(context.Background(), slot.GoalSessionKey, "goal-event-1", "budget reached")
-	if err != nil {
-		t.Fatalf("QueueGuidanceInput() error = %v", err)
+	if roundIDs := manager.GetRunningRoundIDs(slot.GoalSessionKey); len(roundIDs) != 0 {
+		t.Fatalf("Goal accounting 不应伪造 shared running round: %#v", roundIDs)
 	}
-	if len(roundIDs) != 1 || roundIDs[0] != slot.AgentRoundID {
-		t.Fatalf("roundIDs = %#v, want slot round", roundIDs)
+	if roundIDs, err := manager.FlushGoalAccounting(context.Background(), slot.GoalSessionKey); err != nil || len(roundIDs) != 1 || roundIDs[0] != slot.AgentRoundID {
+		t.Fatalf("FlushGoalAccounting() = %#v, %v, want slot accounting", roundIDs, err)
 	}
-	if count := manager.PendingGuidanceCount(slot.GoalSessionKey); count != 1 {
-		t.Fatalf("PendingGuidanceCount = %d, want 1", count)
+	if roundIDs := manager.ClearGoalAccounting(slot.GoalSessionKey); len(roundIDs) != 1 || roundIDs[0] != slot.AgentRoundID {
+		t.Fatalf("ClearGoalAccounting() = %#v, want slot accounting", roundIDs)
+	}
+	if roundIDs, err := manager.ActivateGoalAccounting(context.Background(), slot.GoalSessionKey); err != nil || len(roundIDs) != 1 || roundIDs[0] != slot.AgentRoundID {
+		t.Fatalf("ActivateGoalAccounting() = %#v, %v, want slot accounting", roundIDs, err)
+	}
+	if _, err := manager.QueueGuidanceInput(context.Background(), slot.GoalSessionKey, "goal-event-1", "budget reached"); !errors.Is(err, runtimectx.ErrNoRunningRound) {
+		t.Fatalf("shared Goal accounting 不应伪装 guidance runtime: %v", err)
 	}
 
 	cleanup()
-	if _, err := manager.QueueGuidanceInput(context.Background(), slot.GoalSessionKey, "goal-event-2", "late guidance"); !errors.Is(err, runtimectx.ErrNoRunningRound) {
-		t.Fatalf("QueueGuidanceInput() after cleanup error = %v, want ErrNoRunningRound", err)
+	if roundIDs, err := manager.FlushGoalAccounting(context.Background(), slot.GoalSessionKey); err != nil || len(roundIDs) != 0 {
+		t.Fatalf("cleanup 后 FlushGoalAccounting() = %#v, %v", roundIDs, err)
 	}
 }
 

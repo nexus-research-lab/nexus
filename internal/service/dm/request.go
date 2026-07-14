@@ -149,9 +149,7 @@ func (e *dmChatExecution) routeRunningInput() (bool, error) {
 			e.ctx,
 			e.sessionKey,
 			e.agent,
-			e.session,
 			e.request,
-			e.initialMessageCount,
 		)
 		if queueErr != nil && !errors.Is(queueErr, runtimectx.ErrNoRunningRound) {
 			return false, queueErr
@@ -436,6 +434,7 @@ func (e *dmChatExecution) broadcastAck() {
 		e.request.ClientMessageID,
 		e.request.RoundID,
 		e.request.UserMessageID,
+		true,
 		dmChatAckPendingSlots(e.agent.AgentID, e.request.AgentRoundID),
 	))
 }

@@ -11,7 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Passed each model card's context window to nxs so automatic and reactive compaction use the configured Provider limit instead of relying on model-name inference.
 - Allowed custom Provider display names to use Chinese and other Unicode characters without losing their internal key, and surfaced actionable subscription Token quota errors in Web conversations and queued delivery.
-- Fixed DM and Room guidance delivery so in-flight user corrections stay durable until the intended reply confirms consumption, failed hooks continue as the next turn, and timeline order follows durable reparenting.
+- Prevented Room's internal no-reply marker and synthetic result-only reply from leaking into public messages, streaming previews, or result summaries while preserving terminal usage accounting.
+- Fixed DM and Room queue/guide delivery so user corrections stay hidden and deletable until consumed, hook-applied ACKs commit only their exact batch, DM queues continue as durable next turns, and each Room Agent immediately consumes its own queue without waiting for peers.
 - Fixed DM and Room Goal retargeting so corrected objectives reach active runtimes, revisions advance only after guidance consumption, stale continuations cannot launch or mutate corrected Goals, and continuation reserve/claim/release accounting remains exact across duplicate dispatches.
 - Fixed Markdown image destinations being wrapped as inline code, restoring relative workspace image previews in historical conversations.
 

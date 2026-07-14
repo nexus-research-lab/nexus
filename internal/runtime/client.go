@@ -260,6 +260,13 @@ func (c *sdkClientAdapter) SessionID() string {
 	return c.session.ID()
 }
 
+func (c *sdkClientAdapter) Supports(capability agentclient.Capability) bool {
+	c.mu.Lock()
+	session := c.session
+	c.mu.Unlock()
+	return session != nil && session.Supports(capability)
+}
+
 func (c *sdkClientAdapter) SendContent(ctx context.Context, content any, parentToolUseID *string, sessionID string) error {
 	return c.SendContentWithOptions(ctx, content, parentToolUseID, sessionID, sdkprotocol.OutboundMessageOptions{})
 }

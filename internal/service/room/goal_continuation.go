@@ -27,15 +27,14 @@ func (s *RealtimeService) shouldDeferGoalContinuation(ctx context.Context, sessi
 	if s == nil || sessionKey == "" {
 		return false
 	}
-	if s.runtime != nil && len(s.runtime.GetRunningRoundIDs(sessionKey)) > 0 {
-		return true
-	}
 	parsed := protocol.ParseSessionKey(sessionKey)
 	if parsed.Kind != protocol.SessionKeyKindRoom || strings.TrimSpace(parsed.ConversationID) == "" {
-		return false
+		return s.runtime != nil && len(s.runtime.GetRunningRoundIDs(sessionKey)) > 0
 	}
 	if s.rooms == nil {
-		return false
+		// Tests and reduced embeddings may not configure the Room repository. In
+		// that case the shared runtime is the only safe source of busy state.
+		return s.runtime != nil && len(s.runtime.GetRunningRoundIDs(sessionKey)) > 0
 	}
 	ctx, contextValue, err := s.internalConversationContext(ctx, parsed.ConversationID, true)
 	if err != nil || contextValue == nil {
@@ -82,6 +81,13 @@ func (s *RealtimeService) shouldDeferGoalContinuationForTargetState(
 	}
 	targetAgentID := goalContinuationTargetAgentID(contextValue, agentNameByID, s.currentRoomGoalForSession(ctx, sessionKey))
 	if targetAgentID == "" {
+		return true
+	}
+	if len(s.findActiveDeliverySlotsByAgent(
+		sessionKey,
+		contextValue.Conversation.ID,
+		[]string{targetAgentID},
+	)) > 0 {
 		return true
 	}
 	agentValue := agentByID[targetAgentID]
