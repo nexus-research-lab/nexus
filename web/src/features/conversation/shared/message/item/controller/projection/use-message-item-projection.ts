@@ -1,14 +1,17 @@
+/**
+ * INPUT: 一个 root round 的消息、权限与 runtime 状态。
+ * OUTPUT: MessageItem 所需的 user 列表、assistant 内容与展示状态。
+ * POS: 会话消息实体到单轮视图模型的投影边界。
+ */
 import { useMemo } from "react";
 
 import { useAssistantContentMerge } from "@/hooks/conversation/use-assistant-content-merge";
 import type { AgentConversationRuntimePhase } from "@/types/agent/agent-conversation";
-import type { MessageAttachment } from "@/types/conversation/message/attachment";
 import type { ContentBlock } from "@/types/conversation/message/content";
 import type {
   AssistantMessage,
   Message,
   ResultSummary,
-  UserMessage,
 } from "@/types/conversation/message/entity";
 import type { PendingPermission } from "@/types/conversation/interaction/permission";
 
@@ -53,14 +56,6 @@ interface AssistantIdentityProjection {
   streamStatus: string | null;
 }
 
-interface UserContentProjection {
-  userAttachments: MessageAttachment[];
-  userContent: string;
-  userMessage: UserMessage | undefined;
-}
-
-const EMPTY_USER_ATTACHMENTS: MessageAttachment[] = [];
-
 export function useMessageItemProjection({
   assistantContentMode,
   hiddenToolNames,
@@ -87,7 +82,7 @@ export function useMessageItemProjection({
       orderedProjection: orderedContent.orderedProjection,
       resultSummary: contentMerge.resultSummary,
       roundId,
-      userMessageId: getUserMessageId(contentMerge.userMessage),
+      userMessageId: contentMerge.userMessages.at(0)?.message_id ?? null,
       streamingBlockIndexes: contentMerge.streamingBlockIndexes,
       visibleAssistantTurns: orderedContent.visibleAssistantTurns,
       visibleOrderedAssistantEntries:
@@ -98,7 +93,7 @@ export function useMessageItemProjection({
       contentMerge.assistantMessages,
       contentMerge.resultSummary,
       contentMerge.streamingBlockIndexes,
-      contentMerge.userMessage,
+      contentMerge.userMessages,
       orderedContent.orderedProjection,
       orderedContent.visibleAssistantTurns,
       orderedContent.visibleOrderedAssistantEntries,
@@ -136,8 +131,6 @@ export function useMessageItemProjection({
     }),
     [pendingPermissions.length, finalProjection.processProjection.content],
   );
-  const userContent = projectUserContent(contentMerge.userMessage);
-
   return {
     assistantMessages: contentMerge.assistantMessages,
     mergedContent: contentMerge.mergedContent,
@@ -146,7 +139,7 @@ export function useMessageItemProjection({
     ...assistantIdentity,
     ...finalProjection,
     ...permissionMatch,
-    ...userContent,
+    userMessages: contentMerge.userMessages,
     liveActivityState,
     processSummary,
     stats: buildMessageStats(contentMerge.resultSummary),
@@ -279,27 +272,6 @@ function projectAssistantIdentity(
     stopReason: firstAssistant.stop_reason ?? null,
     streamStatus: firstAssistant.stream_status ?? null,
   };
-}
-
-function projectUserContent(
-  userMessage: UserMessage | undefined,
-): UserContentProjection {
-  if (!userMessage) {
-    return {
-      userAttachments: EMPTY_USER_ATTACHMENTS,
-      userContent: "",
-      userMessage: undefined,
-    };
-  }
-  return {
-    userAttachments: userMessage.attachments ?? EMPTY_USER_ATTACHMENTS,
-    userContent: userMessage.content,
-    userMessage,
-  };
-}
-
-function getUserMessageId(userMessage: UserMessage | undefined): string | null {
-  return userMessage?.message_id ?? null;
 }
 
 function resolveMessageTimestamp(

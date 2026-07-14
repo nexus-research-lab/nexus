@@ -2,7 +2,9 @@ package dm
 
 import (
 	"context"
+	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -13,6 +15,67 @@ import (
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
+
+func TestRoundRunnerGoalMutationsUseBoundObjectiveRevision(t *testing.T) {
+	for _, testCase := range []struct {
+		name string
+		run  func(*roundRunner)
+	}{
+		{
+			name: "continuation failure",
+			run: func(runner *roundRunner) {
+				runner.inputOptions.Purpose = "goal_continuation"
+				runner.recordGoalContinuationProgress(exec.RoundExecutionResult{TerminalStatus: "error", ErrorMessage: "runtime failed"})
+			},
+		},
+		{
+			name: "explicit activity",
+			run: func(runner *roundRunner) {
+				runner.recordGoalContinuationProgress(exec.RoundExecutionResult{})
+			},
+		},
+		{
+			name: "completion tool miss",
+			run: func(runner *roundRunner) {
+				runner.inputOptions.Purpose = "goal_continuation"
+				runner.rememberGoalAssistantMessage(goalCompletionToolMissAssistantMessage())
+				runner.recordGoalContinuationProgress(exec.RoundExecutionResult{})
+			},
+		},
+		{
+			name: "continuation progress",
+			run: func(runner *roundRunner) {
+				runner.inputOptions.Purpose = "goal_continuation"
+				runner.recordGoalContinuationProgress(exec.RoundExecutionResult{})
+			},
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			provider := &fakeGoalContextProvider{}
+			revision := &atomic.Int64{}
+			revision.Store(7)
+			runner := &roundRunner{
+				service:               &Service{goals: provider},
+				sessionKey:            "agent:nexus:ws:dm:revision",
+				roundID:               "round-revision",
+				goalIDForUsage:        "goal-revision",
+				goalObjectiveRevision: revision,
+			}
+
+			testCase.run(runner)
+
+			provider.mu.Lock()
+			revisions := append([]int64(nil), provider.progressRevisions...)
+			revisions = append(revisions, provider.failureRevisions...)
+			revisions = append(revisions, provider.completionRevisions...)
+			revisions = append(revisions, provider.activityRevisions...)
+			provider.mu.Unlock()
+			if !slices.Equal(revisions, []int64{7}) {
+				t.Fatalf("mutation revisions = %v, want [7]", revisions)
+			}
+		})
+	}
+}
 
 func TestRoundRunnerRecordsGoalUsageAtToolCompletion(t *testing.T) {
 	goalProvider := &fakeGoalContextProvider{}

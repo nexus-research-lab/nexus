@@ -1,3 +1,8 @@
+/**
+ * INPUT: 会话历史、运行态、权限与 round 索引。
+ * OUTPUT: feed、navigator 与当前轮次共享的 session 视图状态。
+ * POS: 会话页面消费统一时间线模型的 React 装配入口。
+ */
 import { useCallback, useMemo, useRef } from "react";
 
 import { useAgentConversation } from "@/hooks/agent/use-agent-conversation";
@@ -64,15 +69,16 @@ export function useConversationSession({
     session_key: sessionKey,
   });
 
-  const roundIndexItems = useSessionRoundIndex(sessionKey);
+  const rawRoundIndexItems = useSessionRoundIndex(sessionKey);
   const timeline = useConversationTimeline({
     chat_type: chatType,
     live_round_ids: conversation.live_round_ids,
     messages: conversation.messages,
     pending_agent_slots: conversation.pending_agent_slots,
     pending_permissions: conversation.pending_permissions,
-    round_index_items: roundIndexItems,
+    round_index_items: rawRoundIndexItems,
   });
+  const roundIndexItems = timeline.round_index_items;
   const useIndexedTimeline = roundIndexItems.length > 0;
   useVisibleRoundWindowLoader({
     enabled: useIndexedTimeline,

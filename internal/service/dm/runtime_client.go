@@ -1,3 +1,6 @@
+// INPUT: DM session、Agent runtime 配置与 guidance 队列位置。
+// OUTPUT: 可复用并带诊断、权限和 PostToolUse hooks 的 runtime client。
+// POS: DM 服务的 runtime client 装配边界。
 package dm
 
 import (
@@ -5,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync/atomic"
 
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -30,7 +34,7 @@ func (s *Service) ensureClient(
 	agentValue *protocol.Agent,
 	sessionItem protocol.Session,
 	request Request,
-) (runtimectx.Client, string, string, string, string, string, sdkpermission.Mode, error) {
+) (runtimectx.Client, string, string, string, string, string, *atomic.Int64, sdkpermission.Mode, error) {
 	permissionMode := resolvePermissionMode(request.PermissionMode, agentValue.Options.PermissionMode)
 	permissionHandler := request.PermissionHandler
 	if permissionHandler == nil {
@@ -47,30 +51,43 @@ func (s *Service) ensureClient(
 		agentValue.IsMain,
 		agentValue.CreatedAt,
 	); err != nil {
-		return nil, "", "", "", "", "", permissionMode, err
+		return nil, "", "", "", "", "", nil, permissionMode, err
 	}
 	appendSystemPrompt, err := s.agents.BuildRuntimePrompt(ctx, agentValue)
 	if err != nil {
-		return nil, "", "", "", "", "", permissionMode, err
+		return nil, "", "", "", "", "", nil, permissionMode, err
 	}
-	goalContext, goalIDForUsage := "", ""
+	goalContext, goalIDForUsage, objectiveRevision := "", "", int64(0)
 	if !goalsvc.ShouldIgnoreRuntimeForPermissionMode(string(permissionMode)) {
-		goalContext, goalIDForUsage = s.goalRuntimeContext(ctx, sessionKey)
+		goalContext, goalIDForUsage, objectiveRevision = s.goalRuntimeContext(ctx, sessionKey)
 	}
+	if request.Internal && request.GoalObjectiveRevision > 0 {
+		boundGoalID := strings.TrimSpace(request.GoalID)
+		boundObjectiveRevision := request.GoalObjectiveRevision
+		if strings.TrimSpace(goalIDForUsage) != boundGoalID || objectiveRevision != boundObjectiveRevision {
+			return nil, "", "", "", "", "", nil, permissionMode, goalsvc.ErrGoalRevisionStale
+		}
+		if boundGoalID != "" {
+			goalIDForUsage = boundGoalID
+		}
+		objectiveRevision = boundObjectiveRevision
+	}
+	goalObjectiveRevision := &atomic.Int64{}
+	goalObjectiveRevision.Store(objectiveRevision)
 	mcpServers := map[string]sdkmcp.ServerConfig(nil)
 	if s.mcpServers != nil {
-		mcpServers = s.mcpServers(agentValue.AgentID, sessionKey, request.RoundID, "agent", agentValue.AgentID, agentValue.Name)
+		mcpServers = s.mcpServers(agentValue.AgentID, sessionKey, request.RoundID, "agent", agentValue.AgentID, agentValue.Name, goalObjectiveRevision)
 	}
 	runtimeSelection, err := s.resolveAgentRuntimeSelection(ctx, agentValue)
 	if err != nil {
-		return nil, "", "", "", "", "", permissionMode, err
+		return nil, "", "", "", "", "", nil, permissionMode, err
 	}
 	if err = agentsvc.EnsureRuntimeVisionSettingsProjection(
 		agentValue.WorkspacePath,
 		runtimeSelection.VisionProvider,
 		runtimeSelection.VisionModel,
 	); err != nil {
-		return nil, "", "", "", "", "", permissionMode, err
+		return nil, "", "", "", "", "", nil, permissionMode, err
 	}
 	options, err := clientopts.BuildAgentClientOptions(ctx, s.providers, clientopts.AgentClientOptionsInput{
 		WorkspacePath:              agentValue.WorkspacePath,
@@ -92,14 +109,14 @@ func (s *Service) ensureClient(
 		AgentSDKDiagnosticsEnabled: runtimeSelection.AgentSDKDiagnosticsEnabled,
 	})
 	if err != nil {
-		return nil, "", "", "", "", "", permissionMode, err
+		return nil, "", "", "", "", "", nil, permissionMode, err
 	}
 	options = s.runtime.WithGuidanceHook(options, sessionKey)
 	options = s.withInputQueueGuidanceHook(options, sessionKey, workspacestore.InputQueueLocation{
 		Scope:         protocol.InputQueueScopeDM,
 		WorkspacePath: agentValue.WorkspacePath,
 		SessionKey:    sessionKey,
-	}, sessionItem)
+	})
 	options = s.withRuntimeDiagnosticsLogger(options, sessionKey, agentValue.AgentID)
 	runtimeProvider := clientopts.ResolvedRuntimeProvider(runtimeSelection.Provider, options)
 	options.Session.ResumeID = s.resolveReusableSDKSessionID(ctx, agentValue.WorkspacePath, sessionItem, runtimeProvider, options)
@@ -116,7 +133,7 @@ func (s *Service) ensureClient(
 	client, err := s.acquireRuntimeClient(ctx, sessionKey, options)
 	if err != nil {
 		if strings.TrimSpace(options.Session.ResumeID) == "" || !runtimectx.IsRuntimeTransportClosedError(err) {
-			return nil, "", "", "", "", "", permissionMode, err
+			return nil, "", "", "", "", "", nil, permissionMode, err
 		}
 		s.loggerFor(ctx).Warn("DM SDK session resume 失效，清除后重试",
 			"session_key", sessionKey,
@@ -125,18 +142,18 @@ func (s *Service) ensureClient(
 			"err", err,
 		)
 		if closeErr := s.runtime.CloseSession(ctx, sessionKey); closeErr != nil && !runtimectx.IsRuntimeTransportClosedError(closeErr) {
-			return nil, "", "", "", "", "", permissionMode, closeErr
+			return nil, "", "", "", "", "", nil, permissionMode, closeErr
 		}
 		if _, clearErr := s.clearReusableSDKSessionID(ctx, agentValue.WorkspacePath, sessionItem); clearErr != nil {
-			return nil, "", "", "", "", "", permissionMode, clearErr
+			return nil, "", "", "", "", "", nil, permissionMode, clearErr
 		}
 		options.Session.ResumeID = ""
 		client, err = s.acquireRuntimeClient(ctx, sessionKey, options)
 		if err != nil {
-			return nil, "", "", "", "", "", permissionMode, err
+			return nil, "", "", "", "", "", nil, permissionMode, err
 		}
 	}
-	return client, strings.TrimSpace(string(options.Runtime.Kind)), runtimeProvider, strings.TrimSpace(options.Model), goalIDForUsage, goalContext, permissionMode, nil
+	return client, strings.TrimSpace(string(options.Runtime.Kind)), runtimeProvider, strings.TrimSpace(options.Model), goalIDForUsage, goalContext, goalObjectiveRevision, permissionMode, nil
 }
 
 func resolvePermissionMode(requestMode sdkpermission.Mode, agentMode string) sdkpermission.Mode {
@@ -149,26 +166,28 @@ func resolvePermissionMode(requestMode sdkpermission.Mode, agentMode string) sdk
 	return sdkpermission.ModeDefault
 }
 
-func (s *Service) goalRuntimeContext(ctx context.Context, sessionKey string) (string, string) {
+func (s *Service) goalRuntimeContext(ctx context.Context, sessionKey string) (string, string, int64) {
 	if s.goals == nil {
-		return "", ""
+		return "", "", 0
 	}
 	goalContext, goal, err := s.goals.RuntimeContext(ctx, sessionKey)
 	if err != nil {
 		if errors.Is(err, goalsvc.ErrGoalDisabled) || errors.Is(err, goalsvc.ErrGoalNotFound) {
-			return "", ""
+			return "", "", 0
 		}
 		s.loggerFor(ctx).Warn("读取 Goal runtime context 失败", "session_key", sessionKey, "err", err)
-		return "", ""
+		return "", "", 0
 	}
 	goalID := ""
+	objectiveRevision := int64(0)
 	if goal != nil {
 		goalID = strings.TrimSpace(goal.ID)
+		objectiveRevision = goal.ObjectiveRevision()
 	}
 	if strings.TrimSpace(goalContext) == "" {
-		return "", goalID
+		return "", goalID, objectiveRevision
 	}
-	return strings.TrimSpace(goalContext), goalID
+	return strings.TrimSpace(goalContext), goalID, objectiveRevision
 }
 
 func (s *Service) resolveAgentRuntimeSelection(

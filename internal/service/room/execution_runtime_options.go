@@ -1,3 +1,6 @@
+// INPUT: Room round/slot、Agent 配置、Goal context 与 runtime provider。
+// OUTPUT: revision 绑定且带 MCP/hooks 的 slot runtime options。
+// POS: Room slot 执行前的 runtime 装配边界。
 package room
 
 import (
@@ -202,8 +205,19 @@ func (e *slotExecution) buildRuntimePrompt() (string, sdkpermission.Mode, error)
 		permissionMode = e.round.PermissionMode
 	}
 	e.slot.GoalRuntimeIgnored = goalsvc.ShouldIgnoreRuntimeForPermissionMode(string(permissionMode))
+	currentGoalID, currentObjectiveRevision := "", int64(0)
 	if !e.slot.GoalRuntimeIgnored {
-		prompt, e.slot.GoalContext, e.slot.GoalIDForUsage, e.slot.GoalSessionKey = e.service.resolveGoalRuntimeContextForSlot(e.ctx, e.round, e.slot, prompt)
+		prompt, e.slot.GoalContext, e.slot.GoalIDForUsage, e.slot.GoalSessionKey, currentObjectiveRevision = e.service.resolveGoalRuntimeContextForSlot(e.ctx, e.round, e.slot, prompt)
+		currentGoalID = strings.TrimSpace(e.slot.GoalIDForUsage)
+	}
+	if e.round.Internal && e.round.GoalObjectiveRevision > 0 {
+		boundGoalID := strings.TrimSpace(e.round.GoalID)
+		if currentGoalID != boundGoalID || currentObjectiveRevision != e.round.GoalObjectiveRevision {
+			return "", "", goalsvc.ErrGoalRevisionStale
+		}
+		e.slot.GoalIDForUsage = boundGoalID
+		e.slot.GoalSessionKey = strings.TrimSpace(e.round.SessionKey)
+		e.slot.ensureGoalObjectiveRevision(e.round.GoalObjectiveRevision)
 	}
 	if override := strings.TrimSpace(e.round.GoalContext); e.round.Internal && override != "" {
 		e.slot.GoalContext = override
@@ -222,6 +236,7 @@ func (e *slotExecution) runtimeMCPServers() map[string]sdkmcp.ServerConfig {
 		"room",
 		e.round.RoomID,
 		roomSourceContextLabel(e.round),
+		e.slot.ensureGoalObjectiveRevision(0),
 	)
 }
 

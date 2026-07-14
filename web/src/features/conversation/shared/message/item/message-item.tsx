@@ -1,3 +1,8 @@
+/**
+ * INPUT: 一个根轮次的 durable 消息与运行态。
+ * OUTPUT: 所有用户补充按时间排列，其后仅渲染一次 assistant 输出。
+ * POS: DM / Room 共用轮次视图，用户消息数量不在调用方分支处理。
+ */
 import { memo } from "react";
 
 import { cn } from "@/shared/ui/class-name";
@@ -55,14 +60,21 @@ function MessageItemInner({
         className,
       )}
     >
-      <MessageUserSection
-        compact={compact}
-        currentUserAvatar={currentUserAvatar}
-        onEditUserMessage={onEditUserMessage}
-        onOpenWorkspaceFile={onOpenWorkspaceFile}
-        user={state.user}
-        workspaceAgentId={workspaceAgentId}
-      />
+      {state.userMessages.map((message) => (
+        <MessageUserSection
+          compact={compact}
+          currentUserAvatar={currentUserAvatar}
+          key={message.message_id}
+          message={message}
+          onEditUserMessage={
+            state.userMessages.length === 1
+              ? onEditUserMessage
+              : undefined
+          }
+          onOpenWorkspaceFile={onOpenWorkspaceFile}
+          workspaceAgentId={workspaceAgentId}
+        />
+      ))}
 
       <MessageAssistantSection
         compact={compact}

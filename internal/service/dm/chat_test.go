@@ -121,7 +121,6 @@ func TestServiceHandleChatPersistsMessages(t *testing.T) {
 		"你好",
 		"<nexus_runtime_context>",
 		"## Emotion State",
-		"Context ID: dm:" + sessionKey,
 		"Base: focused",
 	} {
 		if !strings.Contains(queryPrompts[0], expected) {

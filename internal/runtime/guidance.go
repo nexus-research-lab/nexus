@@ -1,5 +1,5 @@
 // INPUT: 运行中 round 的用户引导与内部上下文。
-// OUTPUT: PostToolUse 可消费的 SDK additionalContext。
+// OUTPUT: PostToolUse 可消费的 SDK additionalContext，以及消费后回调。
 // POS: runtime 层统一的轮内引导队列与格式化入口。
 package runtime
 
@@ -20,19 +20,32 @@ type GuidedInput struct {
 	RoundID     string
 	Content     string
 	ContextName string
+	onConsumed  func()
 }
 
 // QueueGuidanceInput 把用户引导暂存到运行中 session，等待 PostToolUse hook 消费。
 func (m *Manager) QueueGuidanceInput(_ context.Context, sessionKey string, roundID string, content string) ([]string, error) {
-	return m.queueGuidanceInput(sessionKey, roundID, content, "")
+	return m.queueGuidanceInput(sessionKey, roundID, content, "", nil)
 }
 
 // QueueContextualGuidanceInput 把运行时拥有的上下文暂存到运行中 session。
 func (m *Manager) QueueContextualGuidanceInput(_ context.Context, sessionKey string, roundID string, contextName string, content string) ([]string, error) {
-	return m.queueGuidanceInput(sessionKey, roundID, content, contextName)
+	return m.queueGuidanceInput(sessionKey, roundID, content, contextName, nil)
 }
 
-func (m *Manager) queueGuidanceInput(sessionKey string, roundID string, content string, contextName string) ([]string, error) {
+// QueueContextualGuidanceInputOnConsumed 暂存内部上下文，并在 PostToolUse 真正取走该上下文后执行回调。
+func (m *Manager) QueueContextualGuidanceInputOnConsumed(
+	_ context.Context,
+	sessionKey string,
+	roundID string,
+	contextName string,
+	content string,
+	onConsumed func(),
+) ([]string, error) {
+	return m.queueGuidanceInput(sessionKey, roundID, content, contextName, onConsumed)
+}
+
+func (m *Manager) queueGuidanceInput(sessionKey string, roundID string, content string, contextName string, onConsumed func()) ([]string, error) {
 	content = strings.TrimSpace(content)
 	if content == "" {
 		return nil, nil
@@ -50,6 +63,7 @@ func (m *Manager) queueGuidanceInput(sessionKey string, roundID string, content 
 		RoundID:     strings.TrimSpace(roundID),
 		Content:     content,
 		ContextName: normalizeGuidanceContextName(contextName),
+		onConsumed:  onConsumed,
 	})
 	m.touchStateLocked(state)
 	return roundIDs, nil
@@ -127,10 +141,16 @@ func (m *Manager) postToolUseGuidanceHook(sessionKey string) sdkhook.Callback {
 		if len(inputs) == 0 {
 			return sdkhook.Output{}, nil
 		}
+		additionalContext := FormatGuidanceAdditionalContext(inputs)
+		for _, item := range inputs {
+			if item.onConsumed != nil {
+				item.onConsumed()
+			}
+		}
 		return sdkhook.Output{
 			SpecificOutput: &sdkhook.SpecificOutput{
 				HookEventName:     sdkhook.EventPostToolUse,
-				AdditionalContext: FormatGuidanceAdditionalContext(inputs),
+				AdditionalContext: additionalContext,
 			},
 		}, nil
 	}

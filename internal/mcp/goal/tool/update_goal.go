@@ -1,3 +1,6 @@
+// INPUT: active Goal 的 complete/blocked 状态变更与工具调用起点的 objective revision。
+// OUTPUT: 审计后的 Goal 终态工具结果。
+// POS: Goal MCP 生命周期入口；objective 纠正由 retarget_goal 负责。
 package tool
 
 import (
@@ -16,6 +19,7 @@ type updateGoalInput struct {
 
 const updateGoalDescription = "Update the existing goal.\n" +
 	"Use this tool only to mark the goal achieved or genuinely blocked.\n" +
+	"Do not use this tool to change the objective; use retarget_goal only when the user explicitly corrects the existing active goal.\n" +
 	"Set status to `complete` only when the objective has actually been achieved and no required work remains.\n" +
 	"Set status to `blocked` only when the same blocking condition has repeated for at least three consecutive goal turns, counting the original/user-triggered turn and any automatic continuations, and the agent cannot make meaningful progress without user input or an external-state change.\n" +
 	"If the user resumes a goal that was previously marked `blocked`, treat the resumed run as a fresh blocked audit. If the same blocking condition then repeats for at least three consecutive resumed goal turns, set status to `blocked` again.\n" +
@@ -36,6 +40,7 @@ func updateGoal(svc contract.Service, sctx contract.ServerContext) sdktool.Tool 
 			"status": enumStringProperty(updateGoalStatusDescription, string(protocol.GoalStatusComplete), string(protocol.GoalStatusBlocked)),
 		}, "status"),
 		Handler: func(ctx context.Context, input map[string]any) (sdktool.ToolResult, error) {
+			expectedRevision := sctx.ExpectedGoalObjectiveRevision()
 			var parsed updateGoalInput
 			if err := decodeInput(input, &parsed); err != nil {
 				return errorResult(err), nil
@@ -48,7 +53,7 @@ func updateGoal(svc contract.Service, sctx contract.ServerContext) sdktool.Tool 
 			if err != nil {
 				return updateGoalCurrentErrorResult(err), nil
 			}
-			item, err := updateGoalStatus(ctx, svc, current.ID, status, sctx.CurrentRoundID)
+			item, err := updateGoalStatus(ctx, svc, current.ID, status, sctx.CurrentRoundID, expectedRevision)
 			if err != nil {
 				return errorResult(err), nil
 			}
@@ -74,12 +79,12 @@ func isGoalNotFoundError(err error) bool {
 	return strings.Contains(err.Error(), "goal not found")
 }
 
-func updateGoalStatus(ctx context.Context, svc contract.Service, goalID string, status protocol.GoalStatus, roundID string) (*protocol.Goal, error) {
+func updateGoalStatus(ctx context.Context, svc contract.Service, goalID string, status protocol.GoalStatus, roundID string, expectedRevision int64) (*protocol.Goal, error) {
 	switch status {
 	case protocol.GoalStatusComplete:
-		return svc.CompleteByModel(ctx, goalID, protocol.CompleteGoalRequest{RoundID: roundID})
+		return svc.CompleteByModel(ctx, goalID, protocol.CompleteGoalRequest{RoundID: roundID, ExpectedObjectiveRevision: expectedRevision})
 	case protocol.GoalStatusBlocked:
-		return svc.BlockByModel(ctx, goalID, protocol.BlockGoalRequest{RoundID: roundID})
+		return svc.BlockByModel(ctx, goalID, protocol.BlockGoalRequest{RoundID: roundID, ExpectedObjectiveRevision: expectedRevision})
 	default:
 		return nil, fmt.Errorf("the Goal update tool can only mark the existing goal complete or blocked; pause, resume, budget-limited, and usage-limited status changes are controlled by the user or system")
 	}

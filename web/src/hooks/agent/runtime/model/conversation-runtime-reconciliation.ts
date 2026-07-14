@@ -145,6 +145,17 @@ export function replaceOptimisticUserMessage(
   userMessageId: string,
   roundId: string,
 ): Message[] {
+  const hasCanonicalMessage = messages.some(
+    (message) => message.message_id === userMessageId,
+  );
+  // Room 会先广播 durable user，再返回 ACK；已有 canonical 时只移除本地副本。
+  if (hasCanonicalMessage && clientMessageId !== userMessageId) {
+    const next = messages.filter(
+      (message) => message.message_id !== clientMessageId,
+    );
+    return next.length === messages.length ? messages : next;
+  }
+
   let hasChanges = false;
   const next = messages.map((message) => {
     if (message.role !== "user" || message.message_id !== clientMessageId) {

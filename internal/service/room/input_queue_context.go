@@ -1,3 +1,6 @@
+// INPUT: Room queue 请求、成员会话、@mention 与当前活跃 root round。
+// OUTPUT: 显式 @ 优先、否则绑定最近活跃 slots 的队列存储位置与目标列表。
+// POS: Room input queue 入队目标解析入口；与直接 chat 共享活跃 round 优先语义。
 package room
 
 import (
@@ -47,6 +50,12 @@ func (s *RealtimeService) resolveRoomInputQueuePrimaryLocation(
 		return workspacestore.InputQueueLocation{}, nil, err
 	}
 	targetAgentIDs := roomdomain.ResolveMentionAgentIDs(content, roomdomain.BuildMentionAliases(contextValue))
+	if len(targetAgentIDs) == 0 {
+		targetAgentIDs = s.latestActiveRootRoundAgentIDs(
+			protocol.BuildRoomSharedSessionKey(contextValue.Conversation.ID),
+			contextValue.Conversation.ID,
+		)
+	}
 	if len(targetAgentIDs) == 0 && len(locationsByAgentID) == 1 {
 		for agentID := range locationsByAgentID {
 			targetAgentIDs = []string{agentID}

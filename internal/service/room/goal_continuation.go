@@ -1,5 +1,5 @@
 // INPUT: Room Goal 状态、显式输入队列与上一轮执行结果。
-// OUTPUT: 用户输入优先约束下的隐藏 Goal continuation。
+// OUTPUT: 用户输入优先约束下经原子 claim 后启动的隐藏 Goal continuation。
 // POS: Room 与 Goal 状态机之间的续跑适配层。
 package room
 
@@ -19,6 +19,10 @@ import (
 
 // ShouldDeferGoalContinuation 避免隐藏 Goal 续跑抢占显式输入，并按 Codex 语义跳过 Plan 模式续跑。
 func (s *RealtimeService) ShouldDeferGoalContinuation(ctx context.Context, sessionKey string) bool {
+	return s.shouldDeferGoalContinuation(ctx, sessionKey, true)
+}
+
+func (s *RealtimeService) shouldDeferGoalContinuation(ctx context.Context, sessionKey string, dispatchQueuedInput bool) bool {
 	sessionKey = strings.TrimSpace(sessionKey)
 	if s == nil || sessionKey == "" {
 		return false
@@ -52,12 +56,14 @@ func (s *RealtimeService) ShouldDeferGoalContinuation(ctx context.Context, sessi
 	if !ok {
 		return true
 	}
-	s.dispatchNextInputQueueItem(
-		contextWithQueueOwner(ctx, entry.Item.OwnerUserID),
-		sessionKey,
-		contextValue.Room.ID,
-		contextValue.Conversation.ID,
-	)
+	if dispatchQueuedInput {
+		s.dispatchNextInputQueueItem(
+			contextWithQueueOwner(ctx, entry.Item.OwnerUserID),
+			sessionKey,
+			contextValue.Room.ID,
+			contextValue.Conversation.ID,
+		)
+	}
 	return true
 }
 
@@ -212,6 +218,9 @@ func (s *RealtimeService) dispatchGoalContinuation(ctx context.Context, roundVal
 		return
 	}
 	if err := s.DispatchGoalContinuation(ctx, *plan); err != nil {
+		if goalsvc.IsExpectedMutationError(err) {
+			return
+		}
 		s.recordGoalContinuationDispatchFailure(ctx, *plan, err)
 		s.loggerFor(ctx).Warn("启动 Room Goal 自动续跑失败",
 			"session_key", roundValue.SessionKey,
@@ -230,7 +239,8 @@ func (s *RealtimeService) recordGoalContinuationDispatchFailure(ctx context.Cont
 	if reason == "" {
 		reason = "Goal continuation dispatch failed before runtime start"
 	}
-	if _, err := s.goals.RecordContinuationFailure(ctx, plan.Goal.ID, plan.RoundID, reason); err != nil {
+	if _, err := s.goals.RecordContinuationFailure(ctx, plan.Goal.ID, plan.RoundID, reason, plan.Goal.ObjectiveRevision()); err != nil &&
+		!goalsvc.IsExpectedMutationError(err) {
 		s.loggerFor(ctx).Warn("记录 Room Goal 续跑投递失败原因失败",
 			"session_key", plan.Goal.SessionKey,
 			"goal_id", plan.Goal.ID,
@@ -245,6 +255,34 @@ func (s *RealtimeService) DispatchGoalContinuation(ctx context.Context, plan pro
 	if s == nil {
 		return errors.New("room goal continuation dispatcher is not configured")
 	}
+	planner, ok := s.goals.(goalContinuationProvider)
+	if !ok {
+		return errors.New("room goal continuation provider is not configured")
+	}
+	s.inputQueueDispatchMu.Lock()
+	defer s.inputQueueDispatchMu.Unlock()
+
+	validated, err := goalsvc.ValidateContinuationForDispatch(
+		ctx,
+		planner,
+		plan,
+		func(candidate protocol.GoalContinuation) bool {
+			return s.shouldDeferGoalContinuation(ctx, candidate.Goal.SessionKey, false)
+		},
+	)
+	if err != nil || validated == nil {
+		return err
+	}
+	if _, err = planner.ClaimContinuationPlan(ctx, *validated); err != nil {
+		return err
+	}
+	if err := s.dispatchPreparedGoalContinuation(ctx, *validated); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *RealtimeService) dispatchPreparedGoalContinuation(ctx context.Context, plan protocol.GoalContinuation) error {
 	sessionKey := strings.TrimSpace(plan.Goal.SessionKey)
 	parsed := protocol.ParseSessionKey(sessionKey)
 	if parsed.Kind != protocol.SessionKeyKindRoom || strings.TrimSpace(parsed.ConversationID) == "" {
@@ -255,15 +293,17 @@ func (s *RealtimeService) DispatchGoalContinuation(ctx context.Context, plan pro
 	if collaborationContext != "" {
 		s.recordRoomGoalCollaborationRequired(ctx, plan.Goal.ID, plan.RoundID)
 	}
-	return s.HandleChat(ctx, ChatRequest{
-		SessionKey:     sessionKey,
-		ConversationID: parsed.ConversationID,
-		GoalContext:    goalContext,
-		TargetAgentIDs: targetAgentIDs,
-		RoundID:        plan.RoundID,
-		DeliveryPolicy: protocol.ChatDeliveryPolicyQueue,
-		Internal:       true,
-		InputOptions:   goalContinuationInputOptions(plan),
+	return s.handleChat(ctx, ChatRequest{
+		SessionKey:            sessionKey,
+		ConversationID:        parsed.ConversationID,
+		GoalContext:           goalContext,
+		GoalID:                plan.Goal.ID,
+		GoalObjectiveRevision: plan.Goal.ObjectiveRevision(),
+		TargetAgentIDs:        targetAgentIDs,
+		RoundID:               plan.RoundID,
+		DeliveryPolicy:        protocol.ChatDeliveryPolicyQueue,
+		Internal:              true,
+		InputOptions:          goalContinuationInputOptions(plan),
 	})
 }
 

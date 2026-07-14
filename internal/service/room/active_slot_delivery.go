@@ -1,13 +1,17 @@
+// INPUT: Room 消息目标、活跃 round slot 与持久化输入队列。
+// OUTPUT: 把单目标输入投递到最新 slot，并把多目标输入原子投递到同一 active root。
+// POS: Room 活跃执行目标解析与输入登记的数据面。
 package room
 
 import (
 	"context"
+	"maps"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	conversationsvc "github.com/nexus-research-lab/nexus/internal/service/conversation"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
@@ -24,7 +28,9 @@ func (s *RealtimeService) enqueueForActiveAgentSlots(
 ) (map[string]struct{}, error) {
 	slotsByAgentID := s.findActiveDeliverySlots(sessionKey, conversationID, targetAgentIDs)
 	queuedAgentIDs := make(map[string]struct{}, len(slotsByAgentID))
-	for agentID, slot := range slotsByAgentID {
+	entries := make([]workspacestore.InputQueueEnqueue, 0, len(slotsByAgentID))
+	for _, agentID := range slices.Sorted(maps.Keys(slotsByAgentID)) {
+		slot := slotsByAgentID[agentID]
 		if slot == nil {
 			continue
 		}
@@ -35,23 +41,32 @@ func (s *RealtimeService) enqueueForActiveAgentSlots(
 			RoomID:         roomID,
 			ConversationID: conversationID,
 		}
-		if _, err := s.inputQueue.Enqueue(location, protocol.InputQueueItem{
-			Scope:           protocol.InputQueueScopeRoom,
-			SessionKey:      slot.RuntimeSessionKey,
-			RoomID:          roomID,
-			ConversationID:  conversationID,
-			AgentID:         agentID,
-			SourceMessageID: strings.TrimSpace(roundID),
-			TargetAgentIDs:  []string{agentID},
-			Source:          protocol.InputQueueSourceUser,
-			Content:         strings.TrimSpace(content),
-			Attachments:     protocol.NormalizeChatAttachments(attachments, agentID),
-			DeliveryPolicy:  protocol.ChatDeliveryPolicyQueue,
-			OwnerUserID:     strings.TrimSpace(ownerUserID),
-			RootRoundID:     strings.TrimSpace(roundID),
-		}); err != nil {
-			return queuedAgentIDs, err
-		}
+		entries = append(entries, workspacestore.InputQueueEnqueue{
+			Location: location,
+			Item: protocol.InputQueueItem{
+				ID:              strings.TrimSpace(roundID),
+				Scope:           protocol.InputQueueScopeRoom,
+				SessionKey:      slot.RuntimeSessionKey,
+				RoomID:          roomID,
+				ConversationID:  conversationID,
+				AgentID:         agentID,
+				SourceMessageID: strings.TrimSpace(roundID),
+				TargetAgentIDs:  []string{agentID},
+				Source:          protocol.InputQueueSourceUser,
+				Content:         strings.TrimSpace(content),
+				Attachments:     protocol.NormalizeChatAttachments(attachments, agentID),
+				DeliveryPolicy:  protocol.ChatDeliveryPolicyQueue,
+				OwnerUserID:     strings.TrimSpace(ownerUserID),
+				RootRoundID:     strings.TrimSpace(roundID),
+			},
+		})
+	}
+	if err := s.inputQueue.EnqueueBatch(entries); err != nil {
+		return queuedAgentIDs, err
+	}
+	for _, entry := range entries {
+		agentID := entry.Item.AgentID
+		slot := slotsByAgentID[agentID]
 		queuedAgentIDs[agentID] = struct{}{}
 		s.loggerFor(ctx).Info("Room 公区消息写入目标 agent 待处理队列",
 			"session_key", sessionKey,
@@ -86,12 +101,22 @@ func (s *RealtimeService) findActiveDeliverySlots(
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	result := make(map[string]*activeRoomSlot, len(targets))
-	for _, roundValue := range s.activeRounds {
+	// 一条公区用户消息只能归属一个 root round。多目标若分散在不同
+	// root，返回空集合，让上层为全部目标创建新的共享 root，避免各 slot
+	// 确认后反复改写同一 public message 的 round_id。
+	slotsByRoot := make(map[string]map[string]*activeRoomSlot)
+	latestTimestampByRoot := make(map[string]int64)
+	for roundKey, roundValue := range s.activeRounds {
 		if roundValue == nil ||
 			roundValue.SessionKey != sessionKey ||
 			roundValue.ConversationID != conversationID {
 			continue
+		}
+		rootRoundID := roomRootRoundID(roundValue)
+		if rootRoundID == "" {
+			// 生产 round 始终有 ID；此 fallback 只用于保持构造中状态和单元测试
+			// 的同一 activeRoomRound 边界。
+			rootRoundID = "active_round:" + roundKey
 		}
 		for _, slot := range roundValue.Slots {
 			if slot == nil || !isActiveDeliverySlot(slot) {
@@ -100,13 +125,38 @@ func (s *RealtimeService) findActiveDeliverySlots(
 			if _, ok := targets[slot.AgentID]; !ok {
 				continue
 			}
-			current := result[slot.AgentID]
+			slots := slotsByRoot[rootRoundID]
+			if slots == nil {
+				slots = make(map[string]*activeRoomSlot, len(targets))
+				slotsByRoot[rootRoundID] = slots
+			}
+			current := slots[slot.AgentID]
 			if current == nil || slot.TimestampMS > current.TimestampMS {
-				result[slot.AgentID] = slot
+				slots[slot.AgentID] = slot
+			}
+			if slot.TimestampMS > latestTimestampByRoot[rootRoundID] {
+				latestTimestampByRoot[rootRoundID] = slot.TimestampMS
 			}
 		}
 	}
-	return result
+
+	selectedRoot := ""
+	var selectedTimestamp int64
+	for rootRoundID, slots := range slotsByRoot {
+		if len(slots) != len(targets) {
+			continue
+		}
+		timestamp := latestTimestampByRoot[rootRoundID]
+		if selectedRoot == "" || timestamp > selectedTimestamp ||
+			(timestamp == selectedTimestamp && rootRoundID < selectedRoot) {
+			selectedRoot = rootRoundID
+			selectedTimestamp = timestamp
+		}
+	}
+	if selectedRoot == "" {
+		return map[string]*activeRoomSlot{}
+	}
+	return slotsByRoot[selectedRoot]
 }
 
 func isActiveDeliverySlot(slot *activeRoomSlot) bool {
@@ -142,22 +192,53 @@ func (s *RealtimeService) guideActiveAgentSlots(
 	conversationID string,
 	targetAgentIDs []string,
 	content string,
-	runtimeContent string,
+	attachments []protocol.ChatAttachment,
 	roundID string,
+	ownerUserID string,
 ) (map[string]struct{}, error) {
 	slotsByAgentID := s.findActiveDeliverySlots(sessionKey, conversationID, targetAgentIDs)
 	guidedAgentIDs := make(map[string]struct{}, len(slotsByAgentID))
-	for agentID, slot := range slotsByAgentID {
+	entries := make([]workspacestore.InputQueueEnqueue, 0, len(slotsByAgentID))
+	for _, agentID := range slices.Sorted(maps.Keys(slotsByAgentID)) {
+		slot := slotsByAgentID[agentID]
 		if slot == nil {
 			continue
 		}
-		// 轮内引导注入不带 runtime context（情绪态）：避免逐步污染 prompt 前缀缓存。
-		runtimeText := conversationsvc.NewRuntimeTextContent(runtimeContent)
-		slot.enqueueGuidedInput(roundID, runtimeText.PlainText())
-		guidanceMessage := buildRoomGuidanceMessage(sessionKey, roomID, conversationID, slot, roundID, content)
-		s.broadcastSlotGuidanceMessage(ctx, sessionKey, roomID, conversationID, roundID, guidanceMessage)
+		location := workspacestore.InputQueueLocation{
+			Scope:          protocol.InputQueueScopeRoom,
+			WorkspacePath:  slot.WorkspacePath,
+			SessionKey:     slot.RuntimeSessionKey,
+			RoomID:         roomID,
+			ConversationID: conversationID,
+		}
+		entries = append(entries, workspacestore.InputQueueEnqueue{
+			Location: location,
+			Item: protocol.InputQueueItem{
+				ID:              strings.TrimSpace(roundID),
+				Scope:           protocol.InputQueueScopeRoom,
+				SessionKey:      slot.RuntimeSessionKey,
+				RoomID:          roomID,
+				ConversationID:  conversationID,
+				AgentID:         agentID,
+				SourceMessageID: strings.TrimSpace(roundID),
+				TargetAgentIDs:  []string{agentID},
+				Source:          protocol.InputQueueSourceUser,
+				Content:         strings.TrimSpace(content),
+				Attachments:     protocol.NormalizeChatAttachments(attachments, agentID),
+				DeliveryPolicy:  protocol.ChatDeliveryPolicyGuide,
+				OwnerUserID:     strings.TrimSpace(ownerUserID),
+				RootRoundID:     slot.AgentRoundID,
+			},
+		})
+	}
+	if err := s.inputQueue.EnqueueBatch(entries); err != nil {
+		return guidedAgentIDs, err
+	}
+	for _, entry := range entries {
+		agentID := entry.Item.AgentID
+		slot := slotsByAgentID[agentID]
 		guidedAgentIDs[agentID] = struct{}{}
-		s.loggerFor(ctx).Info("登记 Room 引导消息等待 PostToolUse 注入",
+		s.loggerFor(ctx).Info("持久化 Room 引导消息等待 PostToolUse 注入",
 			"session_key", sessionKey,
 			"room_id", roomID,
 			"runtime_session_key", slot.RuntimeSessionKey,

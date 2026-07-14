@@ -1,3 +1,6 @@
+// INPUT: durable active Goals、continuation dispatcher 与恢复节拍。
+// OUTPUT: 经最终校验投递的隐藏续跑及可停止的自动恢复循环。
+// POS: Goal 进程恢复和 idle 自动续跑的调度入口。
 package goal
 
 import (
@@ -144,11 +147,17 @@ func (s *Service) dispatchPreparedContinuation(
 	if err == nil {
 		return nil
 	}
+	if IsExpectedMutationError(err) {
+		return nil
+	}
 	if errors.Is(err, ErrGoalContinuationTargetMissing) {
 		_, cleanupErr := s.deleteGoal(ctx, plan.Goal, protocol.GoalUpdateSourceSystem)
 		return cleanupErr
 	}
-	_, failureErr := s.RecordContinuationFailure(ctx, plan.Goal.ID, plan.RoundID, err.Error())
+	_, failureErr := s.RecordContinuationFailure(ctx, plan.Goal.ID, plan.RoundID, err.Error(), plan.Goal.ObjectiveRevision())
+	if IsExpectedMutationError(failureErr) {
+		return nil
+	}
 	return failureErr
 }
 

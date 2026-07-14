@@ -27,6 +27,22 @@ func TestResolveChatTargetAgentIDsUsesExplicitTargets(t *testing.T) {
 	}
 }
 
+func TestNewRoomUserMessagePersistsResolvedTargets(t *testing.T) {
+	message := newRoomUserMessage(
+		ChatRequest{RoundID: "round-targets", UserMessageID: "message-targets", Content: "只调整 Agent1 的回复"},
+		"room:group:conversation-targets",
+		"room-targets",
+		"conversation-targets",
+		nil,
+		[]string{"agent-1"},
+		protocol.ChatDeliveryPolicyGuide,
+	)
+	targets, ok := message["target_agent_ids"].([]string)
+	if !ok || len(targets) != 1 || targets[0] != "agent-1" {
+		t.Fatalf("target_agent_ids = %#v, want resolved target", message["target_agent_ids"])
+	}
+}
+
 func TestResolveChatTargetAgentIDsRejectsNonMemberTarget(t *testing.T) {
 	contextValue := &protocol.ConversationContextAggregate{
 		Members: []protocol.MemberRecord{

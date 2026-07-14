@@ -250,10 +250,12 @@ type fakeGuidanceDispatcher struct {
 }
 
 type fakeGuidanceItem struct {
-	sessionKey  string
-	roundID     string
-	contextName string
-	content     string
+	sessionKey        string
+	roundID           string
+	contextName       string
+	content           string
+	excludedAgentID   string
+	objectiveRevision int64
 }
 
 func (d *fakeGuidanceDispatcher) QueueGuidanceInput(_ context.Context, sessionKey string, roundID string, content string) ([]string, error) {
@@ -265,12 +267,25 @@ func (d *fakeGuidanceDispatcher) QueueGuidanceInput(_ context.Context, sessionKe
 	return []string{"round-running"}, nil
 }
 
-func (d *fakeGuidanceDispatcher) QueueContextualGuidanceInput(_ context.Context, sessionKey string, roundID string, contextName string, content string) ([]string, error) {
+func (d *fakeGuidanceDispatcher) QueueContextualGuidanceInput(_ context.Context, sessionKey string, roundID string, contextName string, content string, objectiveRevision int64) ([]string, error) {
 	d.items = append(d.items, fakeGuidanceItem{
-		sessionKey:  sessionKey,
-		roundID:     roundID,
-		contextName: contextName,
-		content:     content,
+		sessionKey:        sessionKey,
+		roundID:           roundID,
+		contextName:       contextName,
+		content:           content,
+		objectiveRevision: objectiveRevision,
+	})
+	return []string{"round-running"}, nil
+}
+
+func (d *fakeGuidanceDispatcher) QueueRoomContextualGuidanceInput(_ context.Context, sessionKey string, roundID string, contextName string, content string, excludedAgentID string, objectiveRevision int64) ([]string, error) {
+	d.items = append(d.items, fakeGuidanceItem{
+		sessionKey:        sessionKey,
+		roundID:           roundID,
+		contextName:       contextName,
+		content:           content,
+		excludedAgentID:   excludedAgentID,
+		objectiveRevision: objectiveRevision,
 	})
 	return []string{"round-running"}, nil
 }
@@ -320,6 +335,7 @@ type fakeContinuationDispatcher struct {
 	dispatchErr     error
 	deferCalls      int
 	onShouldDefer   func(call int, sessionKey string)
+	onDispatch      func(protocol.GoalContinuation) error
 }
 
 func (d *fakeContinuationDispatcher) ShouldDeferGoalContinuation(_ context.Context, sessionKey string) bool {
@@ -336,5 +352,8 @@ func (d *fakeContinuationDispatcher) GoalContinuationTargetMissing(_ context.Con
 
 func (d *fakeContinuationDispatcher) DispatchGoalContinuation(_ context.Context, plan protocol.GoalContinuation) error {
 	d.plans = append(d.plans, plan)
+	if d.onDispatch != nil {
+		return d.onDispatch(plan)
+	}
 	return d.dispatchErr
 }

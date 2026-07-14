@@ -7,12 +7,14 @@ import (
 	"testing"
 	"time"
 
+	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
+	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
+	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
+
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
-
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
 func TestRecordGoalUsageForRoomSlotUsesToolCompletionDelta(t *testing.T) {
@@ -161,6 +163,130 @@ func TestRegisterSlotGoalRuntimeUsesGoalSessionKey(t *testing.T) {
 	}
 }
 
+func TestQueueRoomContextualGuidanceTargetsEveryActiveSlotExceptCaller(t *testing.T) {
+	manager := runtimectx.NewManager()
+	sessionKey := "room:group:conversation-1"
+	lead := &activeRoomSlot{
+		AgentID:           "agent-lead",
+		AgentRoundID:      "round-root:agent-lead",
+		RuntimeSessionKey: "agent:lead:ws:group:conversation-1",
+	}
+	caller := &activeRoomSlot{
+		AgentID:           "agent-peer",
+		AgentRoundID:      "round-root:agent-peer",
+		RuntimeSessionKey: "agent:peer:ws:group:conversation-1",
+	}
+	manager.StartRound(lead.RuntimeSessionKey, lead.AgentRoundID, nil)
+	manager.StartRound(caller.RuntimeSessionKey, caller.AgentRoundID, nil)
+	service := &RealtimeService{
+		runtime: manager,
+		activeRounds: map[string]*activeRoomRound{
+			"round-root": {
+				SessionKey:  sessionKey,
+				RoundID:     "round-root",
+				RootRoundID: "round-root",
+				Slots: map[string]*activeRoomSlot{
+					lead.AgentID:   lead,
+					caller.AgentID: caller,
+				},
+			},
+		},
+	}
+	revision := service.GoalObjectiveRevisionState(sessionKey, "round-root", lead.AgentID, 1)
+	if revision == nil || revision.Load() != 1 {
+		t.Fatalf("initial revision = %v, want shared state at 1", revision)
+	}
+
+	roundIDs, err := service.QueueRoomContextualGuidanceInput(
+		context.Background(),
+		sessionKey,
+		"goal-event-1",
+		"goal",
+		"The objective changed.",
+		caller.AgentID,
+		2,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(roundIDs) != 1 || roundIDs[0] != lead.AgentRoundID {
+		t.Fatalf("roundIDs = %#v, want lead only", roundIDs)
+	}
+	if got := manager.PendingGuidanceCount(lead.RuntimeSessionKey); got != 1 {
+		t.Fatalf("lead pending guidance = %d, want 1", got)
+	}
+	if got := manager.PendingGuidanceCount(caller.RuntimeSessionKey); got != 0 {
+		t.Fatalf("caller pending guidance = %d, want 0", got)
+	}
+	if got := revision.Load(); got != 1 {
+		t.Fatalf("revision before guidance consumption = %d, want 1", got)
+	}
+	options := manager.WithGuidanceHook(agentclient.Options{}, lead.RuntimeSessionKey)
+	if _, err := options.Hooks.Matchers[sdkhook.EventPostToolUse][0].Hooks[0](
+		context.Background(),
+		sdkhook.Input{EventName: sdkhook.EventPostToolUse},
+		"tool-before-retarget",
+	); err != nil {
+		t.Fatal(err)
+	}
+	if got := revision.Load(); got != 2 || lead.currentGoalObjectiveRevision() != 2 {
+		t.Fatalf("revision after guidance consumption = pointer:%d slot:%d, want 2", got, lead.currentGoalObjectiveRevision())
+	}
+	lead.adoptGoalObjectiveRevision(1)
+	if got := revision.Load(); got != 2 {
+		t.Fatalf("an older guidance callback regressed revision to %d, want 2", got)
+	}
+}
+
+func TestQueueRoomContextualGuidanceContinuesAfterUnavailableTarget(t *testing.T) {
+	manager := runtimectx.NewManager()
+	sessionKey := "room:group:conversation-best-effort"
+	unavailable := &activeRoomSlot{
+		AgentID:           "agent-unavailable",
+		AgentRoundID:      "round-root:agent-unavailable",
+		RuntimeSessionKey: "agent:a-unavailable:ws:group:conversation-best-effort",
+	}
+	active := &activeRoomSlot{
+		AgentID:           "agent-active",
+		AgentRoundID:      "round-root:agent-active",
+		RuntimeSessionKey: "agent:b-active:ws:group:conversation-best-effort",
+	}
+	manager.StartRound(active.RuntimeSessionKey, active.AgentRoundID, nil)
+	service := &RealtimeService{
+		runtime: manager,
+		activeRounds: map[string]*activeRoomRound{
+			"round-root": {
+				SessionKey:  sessionKey,
+				RoundID:     "round-root",
+				RootRoundID: "round-root",
+				Slots: map[string]*activeRoomSlot{
+					unavailable.AgentID: unavailable,
+					active.AgentID:      active,
+				},
+			},
+		},
+	}
+
+	roundIDs, err := service.QueueRoomContextualGuidanceInput(
+		context.Background(),
+		sessionKey,
+		"goal-event-2",
+		"goal",
+		"Use the corrected objective.",
+		"",
+		2,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(roundIDs) != 1 || roundIDs[0] != active.AgentRoundID {
+		t.Fatalf("roundIDs = %#v, want active recipient despite earlier unavailable target", roundIDs)
+	}
+	if got := manager.PendingGuidanceCount(active.RuntimeSessionKey); got != 1 {
+		t.Fatalf("active pending guidance = %d, want 1", got)
+	}
+}
+
 func TestResolveGoalRuntimeContextForSlotPrefersSharedRoomGoal(t *testing.T) {
 	sharedSessionKey := "room:group:conversation-1"
 	runtimeSessionKey := "agent:nexus:ws:group:conversation-1"
@@ -174,6 +300,7 @@ func TestResolveGoalRuntimeContextForSlotPrefersSharedRoomGoal(t *testing.T) {
 				ID:         "goal-shared",
 				SessionKey: sharedSessionKey,
 				Status:     protocol.GoalStatusActive,
+				Metadata:   map[string]any{protocol.GoalMetadataObjectiveRevision: int64(4)},
 			},
 			runtimeSessionKey: {
 				ID:         "goal-runtime",
@@ -184,7 +311,7 @@ func TestResolveGoalRuntimeContextForSlotPrefersSharedRoomGoal(t *testing.T) {
 	}}
 	slot := &activeRoomSlot{RuntimeSessionKey: runtimeSessionKey}
 
-	prompt, goalContext, goalID, goalSessionKey := service.resolveGoalRuntimeContextForSlot(
+	prompt, goalContext, goalID, goalSessionKey, _ := service.resolveGoalRuntimeContextForSlot(
 		context.Background(),
 		&activeRoomRound{SessionKey: sharedSessionKey},
 		slot,
@@ -193,6 +320,9 @@ func TestResolveGoalRuntimeContextForSlotPrefersSharedRoomGoal(t *testing.T) {
 
 	if goalID != "goal-shared" || goalSessionKey != sharedSessionKey {
 		t.Fatalf("goalID=%q goalSessionKey=%q, want shared goal", goalID, goalSessionKey)
+	}
+	if got := slot.currentGoalObjectiveRevision(); got != 4 {
+		t.Fatalf("slot objective revision = %d, want 4", got)
 	}
 	if prompt != "base prompt" {
 		t.Fatalf("prompt = %q, want unchanged system prompt", prompt)
@@ -224,7 +354,7 @@ func TestResolveGoalRuntimeContextForSlotKeepsBudgetLimitedSharedGoalTarget(t *t
 	}}
 	slot := &activeRoomSlot{RuntimeSessionKey: runtimeSessionKey}
 
-	prompt, goalContext, goalID, goalSessionKey := service.resolveGoalRuntimeContextForSlot(
+	prompt, goalContext, goalID, goalSessionKey, _ := service.resolveGoalRuntimeContextForSlot(
 		context.Background(),
 		&activeRoomRound{SessionKey: sharedSessionKey},
 		slot,
@@ -259,7 +389,7 @@ func TestResolveGoalRuntimeContextForSlotDoesNotFallBackFromSharedRoomToRuntimeG
 	}}
 	slot := &activeRoomSlot{RuntimeSessionKey: runtimeSessionKey}
 
-	prompt, goalContext, goalID, goalSessionKey := service.resolveGoalRuntimeContextForSlot(
+	prompt, goalContext, goalID, goalSessionKey, _ := service.resolveGoalRuntimeContextForSlot(
 		context.Background(),
 		&activeRoomRound{SessionKey: sharedSessionKey},
 		slot,
@@ -294,7 +424,7 @@ func TestResolveGoalRuntimeContextForSlotFallsBackToRuntimeGoalForLegacyRound(t 
 	}}
 	slot := &activeRoomSlot{RuntimeSessionKey: runtimeSessionKey}
 
-	prompt, goalContext, goalID, goalSessionKey := service.resolveGoalRuntimeContextForSlot(
+	prompt, goalContext, goalID, goalSessionKey, _ := service.resolveGoalRuntimeContextForSlot(
 		context.Background(),
 		&activeRoomRound{SessionKey: legacySessionKey},
 		slot,
@@ -318,7 +448,7 @@ func TestResolveGoalRuntimeContextForSlotKeepsSharedSessionForFutureRoomGoal(t *
 	service := &RealtimeService{goals: &fakeRoomGoalContextProvider{}}
 	slot := &activeRoomSlot{RuntimeSessionKey: runtimeSessionKey}
 
-	prompt, goalContext, goalID, goalSessionKey := service.resolveGoalRuntimeContextForSlot(
+	prompt, goalContext, goalID, goalSessionKey, _ := service.resolveGoalRuntimeContextForSlot(
 		context.Background(),
 		&activeRoomRound{SessionKey: sharedSessionKey},
 		slot,

@@ -37,7 +37,11 @@ func (s *RealtimeService) runRound(
 	waitGroup.Wait()
 
 	roundValue.RunningSubagents.Store(roundValue.hasRunningSubagentTasks())
+	// Interrupt 只等待执行体结束；queue/guide 交接仍在下方锁内收口。
+	roundValue.doneOnce.Do(func() { close(roundValue.Done) })
+	s.inputQueueDispatchMu.Lock()
 	s.finishRound(roundValue)
+	s.inputQueueDispatchMu.Unlock()
 
 	finalStatus := "finished"
 	if roundValue.allSlotsCancelled() {

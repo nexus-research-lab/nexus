@@ -1,3 +1,6 @@
+// INPUT: SDK bridge client、会话控制请求与子进程关闭态错误。
+// OUTPUT: Nexus runtime 所需的最小 Client 能力和稳定的关闭语义。
+// POS: runtime Manager 与具体 SDK bridge 之间的适配边界。
 package runtime
 
 import (
@@ -372,6 +375,7 @@ func IsRuntimeTransportClosedError(err error) bool {
 		strings.Contains(message, "broken pipe") ||
 		strings.Contains(message, "stream closed") ||
 		strings.Contains(message, "file already closed") ||
+		strings.Contains(message, "stdin unavailable") ||
 		strings.Contains(message, "client: not connected")
 }
 

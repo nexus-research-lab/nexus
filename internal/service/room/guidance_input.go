@@ -1,62 +1,36 @@
-// INPUT: 运行中 Room slot、内存引导和持久化 guide 队列。
+// INPUT: 运行中 Room slot 与持久化 guide 队列。
 // OUTPUT: PostToolUse additionalContext，并把已消费引导归入实际回复 round。
 // POS: Room 轮内插话的唯一消费入口。
 package room
 
 import (
 	"context"
+	"errors"
+	"slices"
 	"strings"
+	"sync"
 
 	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
 
-	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
-
-func buildRoomGuidanceMessage(
-	sessionKey string,
-	roomID string,
-	conversationID string,
-	slot *activeRoomSlot,
-	sourceRoundID string,
-	content string,
-) protocol.Message {
-	if slot == nil {
-		return protocol.Message{}
-	}
-	return roomdomain.BuildGuidanceMessage(roomdomain.GuidanceMessageInput{
-		SessionKey:     sessionKey,
-		RoomID:         roomID,
-		ConversationID: conversationID,
-		AgentID:        slot.AgentID,
-		AgentRoundID:   slot.AgentRoundID,
-		SourceRoundID:  sourceRoundID,
-		Content:        content,
-		SDKSessionID:   slot.getSDKSessionID(),
-	})
-}
-
-func (s *RealtimeService) broadcastSlotGuidanceMessage(
-	_ context.Context,
-	_ string,
-	_ string,
-	_ string,
-	_ string,
-	_ protocol.Message,
-) {
-	// 引导消息只进入运行中 slot 的执行链路，不能作为公区输出事件展示。
-}
 
 func (s *RealtimeService) roomSlotGuidanceHook(
 	roundValue *activeRoomRound,
 	slot *activeRoomSlot,
 	location workspacestore.InputQueueLocation,
 ) sdkhook.Callback {
+	var hookMu sync.Mutex
 	return func(ctx context.Context, input sdkhook.Input, _ string) (sdkhook.Output, error) {
+		hookMu.Lock()
+		defer hookMu.Unlock()
 		if input.EventName != "" && input.EventName != sdkhook.EventPostToolUse {
 			return sdkhook.Output{}, nil
+		}
+		if err := s.acknowledgeRoomSlotGuidance(ctx, roundValue, slot); err != nil {
+			return sdkhook.Output{}, err
 		}
 		execution := roomGuidanceExecution{
 			service:  s,
@@ -75,7 +49,6 @@ type roomGuidanceExecution struct {
 	round             *activeRoomRound
 	slot              *activeRoomSlot
 	location          workspacestore.InputQueueLocation
-	queuedInputs      []roomQueuedInput
 	queueItems        []protocol.InputQueueItem
 	runtimeQueueItems []protocol.InputQueueItem
 	sourceRoundID     string
@@ -83,21 +56,25 @@ type roomGuidanceExecution struct {
 	inputs            []runtimectx.GuidedInput
 }
 
+// ponytail: bridge 没有 control_response post-send ack；下一次 hook/result 才确认，进程崩溃窗口允许安全重投。
+type pendingRoomGuidance struct {
+	location workspacestore.InputQueueLocation
+	items    []protocol.InputQueueItem
+}
+
 func (e *roomGuidanceExecution) run() (sdkhook.Output, error) {
 	hasInput, err := e.loadInputs()
 	if err != nil || !hasInput {
 		return sdkhook.Output{}, err
 	}
-	e.broadcastQueueSnapshot()
 	if err = e.renderQueueItems(); err != nil {
 		return sdkhook.Output{}, err
 	}
-	e.sourceRoundID, e.triggerContent = latestGuidanceTrigger(e.queuedInputs, e.runtimeQueueItems)
+	e.sourceRoundID, e.triggerContent = latestGuidanceTrigger(e.runtimeQueueItems)
 	if err = e.buildInputs(); err != nil {
 		return sdkhook.Output{}, err
 	}
-	e.syncConsumedPublicMessages()
-	e.broadcastGuidanceMessages()
+	e.service.rememberRoomSlotGuidance(e.slot, e.location, e.queueItems)
 	return sdkhook.Output{
 		SpecificOutput: &sdkhook.SpecificOutput{
 			HookEventName:     sdkhook.EventPostToolUse,
@@ -106,45 +83,103 @@ func (e *roomGuidanceExecution) run() (sdkhook.Output, error) {
 	}, nil
 }
 
-func (e *roomGuidanceExecution) syncConsumedPublicMessages() {
-	if e.round == nil || e.round.Context == nil {
+func (s *RealtimeService) rememberRoomSlotGuidance(
+	slot *activeRoomSlot,
+	location workspacestore.InputQueueLocation,
+	items []protocol.InputQueueItem,
+) {
+	if slot == nil || len(items) == 0 {
 		return
 	}
-	rootRoundID := roomRootRoundID(e.round)
-	for _, input := range e.queuedInputs {
-		e.service.syncQueuedPublicMessageDeliveryPolicy(e.ctx, e.round.SessionKey, e.round.Context, protocol.InputQueueItem{
-			SourceMessageID: input.RoundID,
-			DeliveryPolicy:  protocol.ChatDeliveryPolicyGuide,
-		}, rootRoundID)
+	s.guidanceMu.Lock()
+	defer s.guidanceMu.Unlock()
+	if s.guidance == nil {
+		s.guidance = make(map[*activeRoomSlot]pendingRoomGuidance)
 	}
-	for _, item := range e.queueItems {
-		e.service.syncQueuedPublicMessageDeliveryPolicy(e.ctx, e.round.SessionKey, e.round.Context, item, rootRoundID)
-	}
+	s.guidance[slot] = pendingRoomGuidance{location: location, items: slices.Clone(items)}
 }
 
 func (e *roomGuidanceExecution) loadInputs() (bool, error) {
-	e.queuedInputs = e.slot.drainGuidedInputs()
-	queueItems, _, err := e.service.inputQueue.DispatchGuidance(e.location, e.slot.AgentRoundID)
+	queueItems, err := e.service.inputQueue.SnapshotGuidance(e.location, e.slot.AgentRoundID)
 	if err != nil {
 		return false, err
 	}
 	e.queueItems = queueItems
-	return len(e.queuedInputs) > 0 || len(e.queueItems) > 0, nil
+	return len(e.queueItems) > 0, nil
 }
 
-func (e *roomGuidanceExecution) broadcastQueueSnapshot() {
-	if len(e.queueItems) == 0 || e.round == nil || e.round.Context == nil {
+func (s *RealtimeService) acknowledgeRoomSlotGuidance(
+	ctx context.Context,
+	roundValue *activeRoomRound,
+	slot *activeRoomSlot,
+) error {
+	if slot == nil {
+		return nil
+	}
+	s.guidanceMu.Lock()
+	pending, ok := s.guidance[slot]
+	if !ok {
+		s.guidanceMu.Unlock()
+		return nil
+	}
+	claimed, _, err := s.inputQueue.DispatchPreparedGuidance(pending.location, pending.items, slot.AgentRoundID)
+	if err != nil {
+		s.guidanceMu.Unlock()
+		return err
+	}
+	if len(claimed) != len(pending.items) {
+		delete(s.guidance, slot)
+		s.guidanceMu.Unlock()
+		return nil
+	}
+	if roundValue != nil && roundValue.Context != nil {
+		rootRoundID := roomRootRoundID(roundValue)
+		for _, item := range claimed {
+			if err = s.syncQueuedPublicMessageDeliveryPolicy(ctx, roundValue.SessionKey, roundValue.Context, item, rootRoundID); err != nil {
+				restored, restoreErr := s.restoreRoomSlotGuidance(pending.location, claimed)
+				if restoreErr == nil {
+					pending.items = restored
+					s.guidance[slot] = pending
+				}
+				s.guidanceMu.Unlock()
+				return errors.Join(err, restoreErr)
+			}
+		}
+	}
+	delete(s.guidance, slot)
+	s.guidanceMu.Unlock()
+	if roundValue != nil && roundValue.Context != nil {
+		if err = s.broadcastRoomInputQueueSnapshot(ctx, roundValue.SessionKey, roundValue.Context); err != nil {
+			s.loggerFor(ctx).Warn("广播 Room 引导队列消费快照失败",
+				"session_key", roundValue.SessionKey,
+				"room_id", roundValue.RoomID,
+				"conversation_id", roundValue.ConversationID,
+				"agent_id", slot.AgentID,
+				"err", err,
+			)
+		}
+	}
+	return nil
+}
+
+func (s *RealtimeService) restoreRoomSlotGuidance(
+	location workspacestore.InputQueueLocation,
+	items []protocol.InputQueueItem,
+) ([]protocol.InputQueueItem, error) {
+	entries := make([]workspacestore.InputQueueEnqueue, 0, len(items))
+	for _, item := range items {
+		entries = append(entries, workspacestore.InputQueueEnqueue{Location: location, Item: item})
+	}
+	return s.inputQueue.EnqueueBatchWithItems(entries)
+}
+
+func (s *RealtimeService) forgetRoomSlotGuidance(slot *activeRoomSlot) {
+	if slot == nil {
 		return
 	}
-	if err := e.service.broadcastRoomInputQueueSnapshot(e.ctx, e.round.SessionKey, e.round.Context); err != nil {
-		e.service.loggerFor(e.ctx).Warn("广播 Room 引导队列消费快照失败",
-			"session_key", e.round.SessionKey,
-			"room_id", e.round.RoomID,
-			"conversation_id", e.round.ConversationID,
-			"agent_id", e.slot.AgentID,
-			"err", err,
-		)
-	}
+	s.guidanceMu.Lock()
+	delete(s.guidance, slot)
+	s.guidanceMu.Unlock()
 }
 
 func (e *roomGuidanceExecution) renderQueueItems() error {
@@ -162,7 +197,7 @@ func (e *roomGuidanceExecution) renderQueueItems() error {
 }
 
 func (e *roomGuidanceExecution) buildInputs() error {
-	e.inputs = make([]runtimectx.GuidedInput, 0, 1+len(e.queuedInputs)+len(e.queueItems))
+	e.inputs = make([]runtimectx.GuidedInput, 0, 1+len(e.queueItems))
 	if err := e.appendPublicContext(); err != nil {
 		return err
 	}
@@ -201,39 +236,11 @@ func (e *roomGuidanceExecution) appendPublicContext() error {
 }
 
 func (e *roomGuidanceExecution) appendFallbackInputs() {
-	for _, item := range e.queuedInputs {
-		e.inputs = append(e.inputs, runtimectx.GuidedInput{RoundID: item.RoundID, Content: item.Content})
-	}
 	for _, item := range e.runtimeQueueItems {
 		e.inputs = append(e.inputs, runtimectx.GuidedInput{
 			RoundID: "queue_" + strings.TrimSpace(item.ID),
 			Content: item.Content,
 		})
-	}
-}
-
-func (e *roomGuidanceExecution) broadcastGuidanceMessages() {
-	if e.round == nil {
-		return
-	}
-	for _, item := range e.queueItems {
-		sourceRoundID := "queue_" + strings.TrimSpace(item.ID)
-		guidanceMessage := buildRoomGuidanceMessage(
-			e.round.SessionKey,
-			e.round.RoomID,
-			e.round.ConversationID,
-			e.slot,
-			sourceRoundID,
-			item.Content,
-		)
-		e.service.broadcastSlotGuidanceMessage(
-			e.ctx,
-			e.round.SessionKey,
-			e.round.RoomID,
-			e.round.ConversationID,
-			sourceRoundID,
-			guidanceMessage,
-		)
 	}
 }
 
@@ -257,17 +264,9 @@ func appendUnanchoredGuidanceQueueItems(
 	return inputs
 }
 
-func latestGuidanceTrigger(queuedInputs []roomQueuedInput, queueItems []protocol.InputQueueItem) (string, string) {
+func latestGuidanceTrigger(queueItems []protocol.InputQueueItem) (string, string) {
 	roundID := ""
 	content := ""
-	for _, item := range queuedInputs {
-		if strings.TrimSpace(item.RoundID) != "" {
-			roundID = strings.TrimSpace(item.RoundID)
-		}
-		if strings.TrimSpace(item.Content) != "" {
-			content = strings.TrimSpace(item.Content)
-		}
-	}
 	for _, item := range queueItems {
 		if strings.TrimSpace(item.ID) != "" {
 			roundID = "queue_" + strings.TrimSpace(item.ID)

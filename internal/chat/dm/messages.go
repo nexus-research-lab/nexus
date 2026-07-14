@@ -1,10 +1,12 @@
+// INPUT: DM session、root/source round 身份与用户输入。
+// OUTPUT: 可持久化和广播的 DM 用户消息及事件封装。
+// POS: DM 用户消息协议形状的领域构造入口。
 package dm
 
 import (
 	"strings"
 	"time"
 
-	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -12,6 +14,7 @@ import (
 func BuildUserRoundMarker(
 	sessionValue protocol.Session,
 	roundID string,
+	sourceRoundID string,
 	userMessageID string,
 	content string,
 	deliveryPolicy protocol.ChatDeliveryPolicy,
@@ -26,6 +29,9 @@ func BuildUserRoundMarker(
 		"content":     strings.TrimSpace(content),
 		"timestamp":   time.Now().UnixMilli(),
 	}
+	if sourceRoundID = strings.TrimSpace(sourceRoundID); sourceRoundID != "" && sourceRoundID != strings.TrimSpace(roundID) {
+		messageValue["source_round_id"] = sourceRoundID
+	}
 	if strings.TrimSpace(string(deliveryPolicy)) != "" {
 		messageValue["delivery_policy"] = string(protocol.NormalizeChatDeliveryPolicy(string(deliveryPolicy)))
 	}
@@ -33,25 +39,6 @@ func BuildUserRoundMarker(
 		messageValue["attachments"] = normalizedAttachments
 	}
 	return messageValue
-}
-
-// BuildGuidanceMessage 构建 DM 引导消息。
-func BuildGuidanceMessage(
-	sessionValue protocol.Session,
-	targetRoundID string,
-	sourceRoundID string,
-	content string,
-	timestamp int64,
-) protocol.Message {
-	return message.NewGuidedInputMessage(message.GuidedInputMessageInput{
-		SessionKey:    sessionValue.SessionKey,
-		AgentID:       sessionValue.AgentID,
-		RoundID:       targetRoundID,
-		SourceRoundID: sourceRoundID,
-		Content:       content,
-		SessionID:     StringPointerValue(sessionValue.SessionID),
-		Timestamp:     timestamp,
-	})
 }
 
 // WrapSessionMessageEvent 构建 DM 会话消息事件。roundID 为空时回退到消息自身的 round_id。

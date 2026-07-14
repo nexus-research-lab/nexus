@@ -1,3 +1,6 @@
+// INPUT: Goal 当前状态、目标状态、来源与可选 objective revision。
+// OUTPUT: CAS 持久化后的状态迁移和审计事件。
+// POS: Goal 状态机持久化的唯一入口。
 package goal
 
 import (
@@ -17,6 +20,7 @@ func (s *Service) changeStatus(
 	eventType string,
 	roundID string,
 	payload map[string]any,
+	expectedRevision ...int64,
 ) (*protocol.Goal, error) {
 	if source == protocol.GoalUpdateSourceModel {
 		ctx = withBudgetLimitSteeringSuppressed(ctx)
@@ -25,6 +29,9 @@ func (s *Service) changeStatus(
 	item, err := s.loadMutableGoal(ctx, goalID)
 	if err != nil {
 		return nil, err
+	}
+	if !objectiveRevisionMatches(*item, firstExpectedObjectiveRevision(expectedRevision)) {
+		return nil, ErrGoalRevisionStale
 	}
 	return s.persistTransition(ctx, *item, status, source, eventType, roundID, payload)
 }
@@ -92,7 +99,7 @@ func (s *Service) persistTransitionWithOptions(
 	if resetCountersForActiveTransition(source, status) {
 		item.EmptyProgressCount = 0
 		item.ContinuationCount = 0
-		item.Metadata = clearCompletionToolRetryMetadata(item.Metadata)
+		item.Metadata = clearContinuationReservations(clearCompletionToolRetryMetadata(item.Metadata))
 	}
 	item.Version++
 	item.UpdatedAt = now

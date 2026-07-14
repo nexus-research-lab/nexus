@@ -1,8 +1,12 @@
+// INPUT: automation 服务、Agent 身份与 runtime source context。
+// OUTPUT: DM/Room 共用的 nexus_automation MCP builder。
+// POS: automation MCP 的应用装配入口。
 package server
 
 import (
 	"context"
 	"strings"
+	"sync/atomic"
 
 	automationmcp "github.com/nexus-research-lab/nexus/internal/mcp/automation"
 	automationmcpcontract "github.com/nexus-research-lab/nexus/internal/mcp/automation/contract"
@@ -20,7 +24,7 @@ func newAutomationMCPBuilder(
 	svc automationmcpcontract.Service,
 	agents *agent.Service,
 	defaultTimezone string,
-) func(string, string, string, string, string, string) map[string]sdkmcp.ServerConfig {
+) func(string, string, string, string, string, string, *atomic.Int64) map[string]sdkmcp.ServerConfig {
 	return func(
 		agentID string,
 		sessionKey string,
@@ -28,6 +32,7 @@ func newAutomationMCPBuilder(
 		sourceContextType string,
 		sourceContextID string,
 		sourceContextLabel string,
+		_ *atomic.Int64,
 	) map[string]sdkmcp.ServerConfig {
 		sctx := automationmcpcontract.ServerContext{
 			CurrentAgentID:      agentID,

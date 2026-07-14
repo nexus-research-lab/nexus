@@ -3,6 +3,7 @@ package workspace
 import (
 	"testing"
 
+	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -356,5 +357,49 @@ func TestNormalizeHistoryRowsFiltersInternalTransportRows(t *testing.T) {
 	}
 	if normalized[1]["role"] != "assistant" {
 		t.Fatalf("结果应继续收口到 assistant: %+v", normalized)
+	}
+}
+
+func TestNormalizeHistoryRowsSuppressesTranscriptGuidanceWhenDurableUserExists(t *testing.T) {
+	rows := []protocol.Message{
+		{
+			"message_id":      "source-round",
+			"session_key":     "agent:nexus:ws:dm:test",
+			"agent_id":        "nexus",
+			"round_id":        "root-round",
+			"role":            "system",
+			"content":         "然后给点建议",
+			"timestamp":       1000,
+			"delivery_policy": string(protocol.ChatDeliveryPolicyGuide),
+			"metadata": map[string]any{
+				"subtype":         message.SystemMessageSubtypeGuidedInput,
+				"source_round_id": "source-round",
+			},
+		},
+		{
+			"message_id":      "user-source-round",
+			"session_key":     "agent:nexus:ws:dm:test",
+			"agent_id":        "nexus",
+			"round_id":        "root-round",
+			"source_round_id": "source-round",
+			"role":            "user",
+			"content":         "然后给点建议",
+			"timestamp":       1001,
+			"delivery_policy": string(protocol.ChatDeliveryPolicyGuide),
+		},
+	}
+
+	normalized := normalizeHistoryRows(rows, nil)
+	userCount := 0
+	for _, row := range normalized {
+		if row["role"] == "system" {
+			t.Fatalf("同一引导不应保留 transcript system 投影: %+v", normalized)
+		}
+		if row["role"] == "user" && row["source_round_id"] == "source-round" {
+			userCount++
+		}
+	}
+	if userCount != 1 {
+		t.Fatalf("同一引导应只保留一条 durable user 投影: %+v", normalized)
 	}
 }

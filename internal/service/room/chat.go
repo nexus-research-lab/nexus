@@ -1,3 +1,6 @@
+// INPUT: Room 用户输入、内部触发与当前 round/queue 状态。
+// OUTPUT: 持久化的共享消息，或串行接力的 Room round。
+// POS: Room 输入从受理到 runtime 启动的原子交接边界。
 package room
 
 import (
@@ -117,6 +120,15 @@ func resolveTitleRuntimeTarget(
 
 // HandleChat 处理 Room 主对话消息。
 func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) error {
+	if request.Internal {
+		return s.handleChat(ctx, request)
+	}
+	s.inputQueueDispatchMu.Lock()
+	defer s.inputQueueDispatchMu.Unlock()
+	return s.handleChat(ctx, request)
+}
+
+func (s *RealtimeService) handleChat(ctx context.Context, request ChatRequest) error {
 	execution, err := s.prepareRoomChat(ctx, request)
 	if err != nil {
 		return err
@@ -164,6 +176,15 @@ func (s *RealtimeService) prepareRoomChat(ctx context.Context, request ChatReque
 	if err != nil {
 		return nil, err
 	}
+	deliveryPolicy := protocol.NormalizeChatDeliveryPolicy(string(request.DeliveryPolicy))
+	if !request.Internal {
+		targetAgentIDs, targetResolution = s.resolveActiveRoomTargets(
+			sessionKey,
+			conversationID,
+			targetAgentIDs,
+			targetResolution,
+		)
+	}
 	targetAgentIDs, targetResolution = resolveDefaultRoomTargets(
 		contextValue,
 		agentNameByID,
@@ -176,7 +197,6 @@ func (s *RealtimeService) prepareRoomChat(ctx context.Context, request ChatReque
 		}
 	}
 
-	deliveryPolicy := protocol.NormalizeChatDeliveryPolicy(string(request.DeliveryPolicy))
 	s.logAcceptedRoomChat(
 		ctx,
 		request,
@@ -208,7 +228,7 @@ func (s *RealtimeService) prepareRoomChat(ctx context.Context, request ChatReque
 		targetResolution:   targetResolution,
 		deliveryPolicy:     deliveryPolicy,
 		history:            history,
-		userMessage:        newRoomUserMessage(request, sessionKey, roomID, conversationID, attachments, deliveryPolicy),
+		userMessage:        newRoomUserMessage(request, sessionKey, roomID, conversationID, attachments, targetAgentIDs, deliveryPolicy),
 	}, nil
 }
 
@@ -272,6 +292,7 @@ func newRoomUserMessage(
 	roomID string,
 	conversationID string,
 	attachments []protocol.ChatAttachment,
+	targetAgentIDs []string,
 	deliveryPolicy protocol.ChatDeliveryPolicy,
 ) protocol.Message {
 	result := protocol.Message{
@@ -285,6 +306,9 @@ func newRoomUserMessage(
 		"content":         strings.TrimSpace(request.Content),
 		"timestamp":       time.Now().UnixMilli(),
 		"delivery_policy": string(deliveryPolicy),
+	}
+	if len(targetAgentIDs) > 0 {
+		result["target_agent_ids"] = slices.Clone(targetAgentIDs)
 	}
 	if len(attachments) > 0 {
 		result["attachments"] = attachments
@@ -435,16 +459,24 @@ func (e *roomChatExecution) queueActiveSlots() (map[string]struct{}, error) {
 }
 
 func (e *roomChatExecution) guideActiveSlots() (map[string]struct{}, error) {
-	return e.service.guideActiveAgentSlots(
+	handledAgentIDs, err := e.service.guideActiveAgentSlots(
 		e.ctx,
 		e.sessionKey,
 		e.roomID,
 		e.conversationID,
 		e.targetAgentIDs,
 		strings.TrimSpace(e.request.Content),
-		e.runtimeTriggerText,
+		e.attachments,
 		e.request.RoundID,
+		authctx.OwnerUserID(e.ctx),
 	)
+	if err != nil || len(handledAgentIDs) == 0 {
+		return handledAgentIDs, err
+	}
+	if err = e.service.broadcastRoomInputQueueSnapshot(e.ctx, e.sessionKey, e.contextValue); err != nil {
+		return nil, err
+	}
+	return handledAgentIDs, nil
 }
 
 func (e *roomChatExecution) buildRound() (*activeRoomRound, []protocol.ChatAckPendingSlot) {
@@ -459,22 +491,24 @@ func (e *roomChatExecution) buildRound() (*activeRoomRound, []protocol.ChatAckPe
 		MessageID:   e.request.UserMessageID,
 	}
 	activeRound := &activeRoomRound{
-		SessionKey:        e.sessionKey,
-		RoomID:            e.roomID,
-		ConversationID:    e.conversationID,
-		RoomType:          e.contextValue.Room.RoomType,
-		Context:           e.contextValue,
-		RoundID:           e.request.RoundID,
-		RootRoundID:       e.request.RoundID,
-		OwnerUserID:       authctx.OwnerUserID(e.ctx),
-		Internal:          e.request.Internal,
-		InputOptions:      e.request.InputOptions,
-		PermissionMode:    e.request.PermissionMode,
-		PermissionHandler: e.request.PermissionHandler,
-		EventObserver:     e.request.EventObserver,
-		GoalContext:       strings.TrimSpace(e.request.GoalContext),
-		Slots:             make(map[string]*activeRoomSlot),
-		Done:              make(chan struct{}),
+		SessionKey:            e.sessionKey,
+		RoomID:                e.roomID,
+		ConversationID:        e.conversationID,
+		RoomType:              e.contextValue.Room.RoomType,
+		Context:               e.contextValue,
+		RoundID:               e.request.RoundID,
+		RootRoundID:           e.request.RoundID,
+		OwnerUserID:           authctx.OwnerUserID(e.ctx),
+		Internal:              e.request.Internal,
+		InputOptions:          e.request.InputOptions,
+		PermissionMode:        e.request.PermissionMode,
+		PermissionHandler:     e.request.PermissionHandler,
+		EventObserver:         e.request.EventObserver,
+		GoalContext:           strings.TrimSpace(e.request.GoalContext),
+		GoalID:                strings.TrimSpace(e.request.GoalID),
+		GoalObjectiveRevision: e.request.GoalObjectiveRevision,
+		Slots:                 make(map[string]*activeRoomSlot),
+		Done:                  make(chan struct{}),
 	}
 
 	pending := make([]protocol.ChatAckPendingSlot, 0, len(e.targetAgentIDs))
@@ -488,7 +522,7 @@ func (e *roomChatExecution) buildRound() (*activeRoomRound, []protocol.ChatAckPe
 		agentRoundID := protocol.NewAgentRoundID()
 		slotTrigger := initialTrigger
 		slotTrigger.TargetAgentID = agentID
-		activeRound.Slots[msgID] = &activeRoomSlot{
+		slot := &activeRoomSlot{
 			RoomSessionID:      sessionRecord.ID,
 			SDKSessionID:       strings.TrimSpace(sessionRecord.SDKSessionID),
 			AgentID:            agentID,
@@ -503,6 +537,12 @@ func (e *roomChatExecution) buildRound() (*activeRoomRound, []protocol.ChatAckPe
 			TriggerAttachments: e.attachments,
 			Done:               make(chan struct{}),
 		}
+		if activeRound.GoalID != "" && activeRound.GoalObjectiveRevision > 0 {
+			slot.GoalSessionKey = activeRound.SessionKey
+			slot.GoalIDForUsage = activeRound.GoalID
+			slot.ensureGoalObjectiveRevision(activeRound.GoalObjectiveRevision)
+		}
+		activeRound.Slots[msgID] = slot
 		pending = append(pending, protocol.ChatAckPendingSlot{
 			AgentID:      agentID,
 			AgentRoundID: agentRoundID,

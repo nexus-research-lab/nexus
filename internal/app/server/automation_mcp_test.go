@@ -17,6 +17,7 @@ func TestAutomationMCPBuilderInjectsHostToolServer(t *testing.T) {
 		"agent",
 		"agent-1",
 		"主会话",
+		nil,
 	)
 	config, ok := servers[automationmcpcontract.ServerName]
 	if !ok {

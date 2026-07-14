@@ -1,3 +1,6 @@
+// INPUT: transcript、overlay 与 round marker 状态。
+// OUTPUT: 规范化并保留 source round 的 Agent 历史消息。
+// POS: workspace Agent 历史读取与物化入口。
 package workspace
 
 import (
@@ -153,6 +156,9 @@ func materializeRoundMarkerMessages(
 		}
 		if agentRoundID := strings.TrimSpace(marker.AgentRoundID); agentRoundID != "" {
 			row["agent_round_id"] = agentRoundID
+		}
+		if sourceRoundID := strings.TrimSpace(marker.SourceRoundID); sourceRoundID != "" {
+			row["source_round_id"] = sourceRoundID
 		}
 		if strings.TrimSpace(marker.DeliveryPolicy) != "" {
 			row["delivery_policy"] = string(protocol.NormalizeChatDeliveryPolicy(marker.DeliveryPolicy))

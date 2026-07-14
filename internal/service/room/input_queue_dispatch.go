@@ -146,8 +146,12 @@ func (s *RealtimeService) releaseUndeliveredRoomGuidance(
 	}
 	changed := false
 	for _, entry := range entries {
-		if !protocol.ShouldGuideRunningRound(entry.Item.DeliveryPolicy) ||
-			len(s.findActiveDeliverySlots(sessionKey, contextValue.Conversation.ID, inputQueueTargetAgentIDs(entry.Item))) > 0 {
+		if !protocol.ShouldGuideRunningRound(entry.Item.DeliveryPolicy) {
+			continue
+		}
+		activeSlot := s.inputQueueGuidanceTargetSlot(sessionKey, contextValue.Conversation.ID, entry)
+		boundRoundID := strings.TrimSpace(entry.Item.RootRoundID)
+		if activeSlot != nil && (boundRoundID == "" || boundRoundID == strings.TrimSpace(activeSlot.AgentRoundID)) {
 			continue
 		}
 		if _, err = s.inputQueue.UpdateDeliveryPolicy(entry.Location, entry.Item.ID, protocol.ChatDeliveryPolicyQueue); err != nil {
@@ -155,7 +159,13 @@ func (s *RealtimeService) releaseUndeliveredRoomGuidance(
 			continue
 		}
 		entry.Item.DeliveryPolicy = protocol.ChatDeliveryPolicyQueue
-		s.syncQueuedPublicMessageDeliveryPolicy(ctx, sessionKey, contextValue, entry.Item, "")
+		if syncErr := s.syncQueuedPublicMessageDeliveryPolicy(ctx, sessionKey, contextValue, entry.Item, ""); syncErr != nil {
+			s.loggerFor(ctx).Error("同步 Room 未消费引导展示状态失败",
+				"session_key", sessionKey,
+				"item_id", entry.Item.ID,
+				"err", syncErr,
+			)
+		}
 		changed = true
 	}
 	if changed {
@@ -192,12 +202,14 @@ func (s *RealtimeService) dispatchInputQueueItem(
 			item,
 		)
 	}
-	return s.HandleChat(contextWithQueueOwner(ctx, item.OwnerUserID), ChatRequest{
+	// dispatchNextInputQueueItem 已持有 inputQueueDispatchMu。
+	return s.handleChat(contextWithQueueOwner(ctx, item.OwnerUserID), ChatRequest{
 		SessionKey:     sessionKey,
 		RoomID:         roomID,
 		ConversationID: conversationID,
 		Content:        item.Content,
 		Attachments:    item.Attachments,
+		TargetAgentIDs: inputQueueTargetAgentIDs(item),
 		RoundID:        "queue_" + item.ID,
 		DeliveryPolicy: protocol.NormalizeChatDeliveryPolicy(string(item.DeliveryPolicy)),
 	})
@@ -261,23 +273,32 @@ func (s *RealtimeService) dispatchAgentWakeQueueItem(
 	if content == "" {
 		return errors.New("content is required")
 	}
+	contextValue, err := s.rooms.GetConversationContext(ctx, conversationID)
+	if err != nil {
+		return err
+	}
 	if protocol.ShouldGuideRunningRound(deliveryPolicy) {
-		runtimeContent, renderErr := s.renderRuntimeContentWithAttachments(ctx, content, item.Attachments)
-		if renderErr != nil {
-			return renderErr
-		}
-		guidedAgentIDs, err := s.guideActiveAgentSlots(ctx, sessionKey, roomID, conversationID, targetAgentIDs, content, runtimeContent.PlainText(), "queue_"+item.ID)
+		guidedAgentIDs, err := s.guideActiveAgentSlots(
+			ctx,
+			sessionKey,
+			roomID,
+			conversationID,
+			targetAgentIDs,
+			content,
+			item.Attachments,
+			"queue_"+item.ID,
+			item.OwnerUserID,
+		)
 		if err != nil {
 			return err
 		}
 		if len(guidedAgentIDs) > 0 {
+			if err = s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue); err != nil {
+				return err
+			}
 			s.broadcastSessionStatus(ctx, sessionKey)
 			return nil
 		}
-	}
-	contextValue, err := s.rooms.GetConversationContext(ctx, conversationID)
-	if err != nil {
-		return err
 	}
 	wakes := make([]publicMentionWake, 0, len(targetAgentIDs))
 	for _, targetAgentID := range targetAgentIDs {

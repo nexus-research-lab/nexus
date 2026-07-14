@@ -1,3 +1,6 @@
+// INPUT: 已准备的 DM round、runtime 消息与终态结果。
+// OUTPUT: durable 历史、Goal 结算及用户队列优先的后续派发。
+// POS: DM 单轮执行生命周期的主状态机。
 package dm
 
 import (
@@ -6,6 +9,7 @@ import (
 	"log/slog"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
@@ -70,6 +74,7 @@ type roundRunner struct {
 	externalReplyTarget         *ExternalReplyTarget
 	goalContext                 string
 	goalIDForUsage              string
+	goalObjectiveRevision       *atomic.Int64
 	goalUsage                   *goalsvc.RuntimeUsageAccumulator
 	goalUsageStarted            time.Time
 	goalUsageMu                 sync.Mutex
@@ -83,6 +88,7 @@ type roundRunner struct {
 }
 
 func (r *roundRunner) run(ctx context.Context) {
+	defer r.service.clearPendingInputQueueGuidance(r.sessionKey, r.roundID)
 	logger := r.service.loggerFor(ctx).With(
 		"session_key", r.sessionKey,
 		"agent_id", r.agent.AgentID,
@@ -99,6 +105,12 @@ func (r *roundRunner) run(ctx context.Context) {
 		}
 		r.failRound(err)
 		return
+	}
+	if result.TerminalStatus == "finished" && (result.ResultSubtype == "" || result.ResultSubtype == "success") {
+		if err := r.confirmInputQueueGuidance(context.Background()); err != nil {
+			r.failRound(err)
+			return
+		}
 	}
 
 	r.service.loggerFor(context.Background()).Info("DM round 结束",
@@ -193,6 +205,13 @@ func (r *roundRunner) executeRound(
 }
 
 func (r *roundRunner) handleDurableMessage(message protocol.Message) error {
+	role := protocol.MessageRole(message)
+	if role == "assistant" || (role == "result" && message["is_error"] != true &&
+		(dmdomain.NormalizeString(message["subtype"]) == "" || dmdomain.NormalizeString(message["subtype"]) == "success")) {
+		if err := r.confirmInputQueueGuidance(context.Background()); err != nil {
+			return err
+		}
+	}
 	r.annotateSubagentTaskRuntimeKind(message)
 	if err := r.persistMessage(message); err != nil {
 		return err
@@ -212,18 +231,25 @@ func (r *roundRunner) handleDurableMessage(message protocol.Message) error {
 	return nil
 }
 
+func (r *roundRunner) confirmInputQueueGuidance(ctx context.Context) error {
+	return r.service.confirmPendingInputQueueGuidance(ctx, r.sessionKey, workspacestore.InputQueueLocation{
+		Scope:         protocol.InputQueueScopeDM,
+		WorkspacePath: r.workspacePath,
+		SessionKey:    r.sessionKey,
+	}, r.roundID)
+}
+
 func (r *roundRunner) dispatchNextInputQueueItem() {
 	location := workspacestore.InputQueueLocation{
 		Scope:         protocol.InputQueueScopeDM,
 		WorkspacePath: r.workspacePath,
 		SessionKey:    r.sessionKey,
 	}
-	go r.service.dispatchNextInputQueueItemAtLocation(
-		contextWithQueueOwner(context.Background(), r.ownerUserID),
-		r.sessionKey,
-		r.agent.AgentID,
-		location,
-	)
+	go func() {
+		ctx := contextWithQueueOwner(context.Background(), r.ownerUserID)
+		r.service.releaseUndeliveredInputQueueGuidance(ctx, r.sessionKey, location, r.roundID)
+		r.service.dispatchNextInputQueueItemAtLocation(ctx, r.sessionKey, r.agent.AgentID, location)
+	}()
 }
 
 func (r *roundRunner) dispatchPostRoundWork() {
@@ -234,6 +260,7 @@ func (r *roundRunner) dispatchPostRoundWork() {
 	}
 	go func() {
 		ctx := contextWithQueueOwner(context.Background(), r.ownerUserID)
+		r.service.releaseUndeliveredInputQueueGuidance(ctx, r.sessionKey, location, r.roundID)
 		if r.service.dispatchNextInputQueueItemAtLocation(ctx, r.sessionKey, r.agent.AgentID, location) {
 			return
 		}

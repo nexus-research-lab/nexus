@@ -1,3 +1,6 @@
+// INPUT: session/round 标识、取消函数与权限模式更新。
+// OUTPUT: round 注册、完成清理、查询与 Agent 级权限同步。
+// POS: runtime Manager 的 round 生命周期入口。
 package runtime
 
 import (
@@ -49,6 +52,7 @@ func (m *Manager) MarkRoundFinished(sessionKey string, roundID string) {
 	delete(state.GoalAccountingFlushers, roundID)
 	delete(state.GoalAccountingClearers, roundID)
 	delete(state.GoalAccountingActivators, roundID)
+	delete(state.GoalObjectiveRevisions, roundID)
 	m.touchStateLocked(state)
 	if len(state.RunningRounds) == 0 {
 		state.GuidedInputs = nil

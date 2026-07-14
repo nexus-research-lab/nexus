@@ -6,6 +6,7 @@ package room
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
@@ -119,10 +120,8 @@ func (s *RealtimeService) HandleInputQueue(ctx context.Context, request InputQue
 	}
 
 	action := strings.TrimSpace(request.Action)
-	if action != "" && action != "enqueue" {
-		s.inputQueueDispatchMu.Lock()
-		defer s.inputQueueDispatchMu.Unlock()
-	}
+	s.inputQueueDispatchMu.Lock()
+	defer s.inputQueueDispatchMu.Unlock()
 	switch action {
 	case "enqueue", "":
 		content := strings.TrimSpace(request.Content)
@@ -213,7 +212,9 @@ func (s *RealtimeService) guideInputQueueItem(
 			return err
 		}
 		entry.Item.DeliveryPolicy = protocol.ChatDeliveryPolicyQueue
-		s.syncQueuedPublicMessageDeliveryPolicy(ctx, sessionKey, contextValue, entry.Item, "")
+		if err = s.syncQueuedPublicMessageDeliveryPolicy(ctx, sessionKey, contextValue, entry.Item, ""); err != nil {
+			return err
+		}
 		if err = s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue); err != nil {
 			return err
 		}
@@ -229,11 +230,19 @@ func (s *RealtimeService) guideInputQueueItem(
 	if activeSlot == nil {
 		return s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue)
 	}
-	if _, err = s.inputQueue.UpdateDeliveryPolicy(entry.Location, entry.Item.ID, protocol.ChatDeliveryPolicyGuide); err != nil {
+	if _, err = s.inputQueue.UpdateDeliveryPolicy(
+		entry.Location,
+		entry.Item.ID,
+		protocol.ChatDeliveryPolicyGuide,
+		activeSlot.AgentRoundID,
+	); err != nil {
 		return err
 	}
 	entry.Item.DeliveryPolicy = protocol.ChatDeliveryPolicyGuide
-	s.syncQueuedPublicMessageDeliveryPolicy(ctx, sessionKey, contextValue, entry.Item, "")
+	entry.Item.RootRoundID = activeSlot.AgentRoundID
+	if err = s.syncQueuedPublicMessageDeliveryPolicy(ctx, sessionKey, contextValue, entry.Item, ""); err != nil {
+		return err
+	}
 	return s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue)
 }
 
@@ -243,30 +252,45 @@ func (s *RealtimeService) syncQueuedPublicMessageDeliveryPolicy(
 	contextValue *protocol.ConversationContextAggregate,
 	item protocol.InputQueueItem,
 	rootRoundID string,
-) {
+) error {
 	roundID := strings.TrimSpace(item.SourceMessageID)
 	if roundID == "" || contextValue == nil {
-		return
+		return nil
 	}
 	messages, err := s.roomHistory.ReadMessages(contextValue.Conversation.ID, nil)
 	if err != nil {
-		s.loggerFor(ctx).Warn("读取 Room 公区历史以同步输入策略失败", "error", err, "round_id", roundID)
-		return
+		return err
 	}
 	for index := len(messages) - 1; index >= 0; index-- {
 		message := messages[index]
-		if protocol.MessageRole(message) != "user" || protocol.MessageRoundID(message) != roundID {
+		messageRoundID := protocol.MessageRoundID(message)
+		sourceRoundID, _ := message["source_round_id"].(string)
+		if protocol.MessageRole(message) != "user" ||
+			(messageRoundID != roundID && strings.TrimSpace(sourceRoundID) != roundID) {
 			continue
 		}
 		updated := protocol.Clone(message)
 		updated["delivery_policy"] = string(item.DeliveryPolicy)
+		messageTargets := roomMessageTargetAgentIDs(message["target_agent_ids"])
+		updatedTargets := mergeRoomMessageTargetAgentIDs(messageTargets, inputQueueTargetAgentIDs(item))
+		if len(updatedTargets) > 0 {
+			updated["target_agent_ids"] = updatedTargets
+		}
 		if rootRoundID = strings.TrimSpace(rootRoundID); rootRoundID != "" && rootRoundID != roundID {
 			updated["source_round_id"] = roundID
 			updated["round_id"] = rootRoundID
 		}
+		messagePolicy, _ := message["delivery_policy"].(string)
+		updatedPolicy, _ := updated["delivery_policy"].(string)
+		updatedSourceRoundID, _ := updated["source_round_id"].(string)
+		if protocol.MessageRoundID(updated) == messageRoundID &&
+			strings.TrimSpace(messagePolicy) == strings.TrimSpace(updatedPolicy) &&
+			strings.TrimSpace(sourceRoundID) == strings.TrimSpace(updatedSourceRoundID) &&
+			slices.Equal(messageTargets, updatedTargets) {
+			return nil
+		}
 		if err = s.persistSharedInlineMessage(contextValue.Conversation.ID, updated); err != nil {
-			s.loggerFor(ctx).Warn("持久化 Room 输入策略失败", "error", err, "round_id", roundID)
-			return
+			return err
 		}
 		s.broadcastSharedEvent(ctx, sessionKey, contextValue.Room.ID, roomdomain.WrapMessageEvent(
 			contextValue.Room.ID,
@@ -274,6 +298,41 @@ func (s *RealtimeService) syncQueuedPublicMessageDeliveryPolicy(
 			updated,
 			protocol.MessageRoundID(updated),
 		))
-		return
+		return nil
 	}
+	return nil
+}
+
+func roomMessageTargetAgentIDs(value any) []string {
+	result := make([]string, 0)
+	switch typed := value.(type) {
+	case []string:
+		result = append(result, typed...)
+	case []any:
+		for _, item := range typed {
+			if agentID, ok := item.(string); ok {
+				result = append(result, agentID)
+			}
+		}
+	}
+	return mergeRoomMessageTargetAgentIDs(nil, result)
+}
+
+func mergeRoomMessageTargetAgentIDs(current []string, incoming []string) []string {
+	result := make([]string, 0, len(current)+len(incoming))
+	seen := make(map[string]struct{}, len(current)+len(incoming))
+	for _, values := range [][]string{current, incoming} {
+		for _, agentID := range values {
+			agentID = strings.TrimSpace(agentID)
+			if agentID == "" {
+				continue
+			}
+			if _, ok := seen[agentID]; ok {
+				continue
+			}
+			seen[agentID] = struct{}{}
+			result = append(result, agentID)
+		}
+	}
+	return result
 }
