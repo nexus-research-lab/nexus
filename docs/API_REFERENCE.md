@@ -107,6 +107,8 @@
 | PATCH | `/settings/preferences` | 更新用户偏好 |
 | GET | `/settings/runtime/nxs/status` | NXS 运行时状态（前端 `getNxsRuntimeStatusApi`，超时 8s） |
 
+模型偏好使用 `{ provider, model }` 结构。主会话、后台、图片生成和视觉模型分别保存在 `default_model_selection`、`default_background_model_selection`、`default_image_generation_model_selection` 与 `default_vision_model_selection`。主链无法承载图片时，nxs 才把这个视觉模型作为 `ViewImage` 的按需分析入口。
+
 ### Provider 配置（`/settings/providers`）
 
 | 方法 | 路径 | 说明 | 前端函数 |
@@ -122,6 +124,8 @@
 | POST | `/settings/providers/{provider}/models/{model_id}/default` | 设为默认模型 | — |
 | POST | `/settings/providers/{provider}/test` | 测试 Provider 配置 | `testProviderConfigApi` |
 | POST | `/settings/providers/{provider}/models/{model_id}/test` | 测试单个模型 | `testProviderModelApi` |
+
+`GET /settings/providers/options` 返回按用途过滤的模型列表，包括 `chat_items`、`background_items`、`image_generation_items` 和 `vision_items`。`vision_items` 只包含模型卡明确声明支持图片输入的已启用模型；能力未知的模型不会自动进入该列表。
 
 ---
 

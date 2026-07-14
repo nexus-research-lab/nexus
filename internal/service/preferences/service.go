@@ -55,6 +55,9 @@ func (s *Service) Update(ctx context.Context, ownerUserID string, request Update
 	if request.DefaultImageModelSelection != nil {
 		current.DefaultImageModelSelection = *request.DefaultImageModelSelection
 	}
+	if request.DefaultVisionModelSelection != nil {
+		current.DefaultVisionModelSelection = *request.DefaultVisionModelSelection
+	}
 	if request.DefaultBackgroundModelSelection != nil {
 		current.DefaultBackgroundModelSelection = *request.DefaultBackgroundModelSelection
 	}

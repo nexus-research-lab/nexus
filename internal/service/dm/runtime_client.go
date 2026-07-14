@@ -10,6 +10,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
+	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 	runtimeselectionsvc "github.com/nexus-research-lab/nexus/internal/service/runtimeselection"
@@ -64,11 +65,20 @@ func (s *Service) ensureClient(
 	if err != nil {
 		return nil, "", "", "", "", "", permissionMode, err
 	}
+	if err = agentsvc.EnsureRuntimeVisionSettingsProjection(
+		agentValue.WorkspacePath,
+		runtimeSelection.VisionProvider,
+		runtimeSelection.VisionModel,
+	); err != nil {
+		return nil, "", "", "", "", "", permissionMode, err
+	}
 	options, err := clientopts.BuildAgentClientOptions(ctx, s.providers, clientopts.AgentClientOptionsInput{
 		WorkspacePath:              agentValue.WorkspacePath,
 		RuntimeKind:                runtimeSelection.RuntimeKind,
 		Provider:                   runtimeSelection.Provider,
 		Model:                      runtimeSelection.Model,
+		VisionProvider:             runtimeSelection.VisionProvider,
+		VisionModel:                runtimeSelection.VisionModel,
 		PermissionMode:             permissionMode,
 		PermissionHandler:          permissionHandler,
 		AllowedTools:               toolpolicy.WithManagedRuntimeAllowedTools(agentValue.Options.AllowedTools, s.runtimeImagegenDefaultEnabled(ctx)),

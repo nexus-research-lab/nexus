@@ -5,6 +5,7 @@ import {
   Image,
   MessageSquareText,
   MonitorCog,
+  ScanEye,
   Sparkles,
   Terminal,
 } from "lucide-react";
@@ -42,6 +43,8 @@ interface SettingsGeneralBehaviorSectionProps {
   defaultBackgroundModelValue: string;
   defaultImageModelOptions: UiSelectMenuOption[];
   defaultImageModelValue: string;
+  defaultVisionModelOptions: UiSelectMenuOption[];
+  defaultVisionModelValue: string;
   defaultModelFeedbackMessage?: string | null;
   defaultModelOptions: UiSelectMenuOption[];
   defaultModelSavingRole: DefaultModelPreferenceRole | null;
@@ -70,6 +73,8 @@ export function SettingsGeneralBehaviorSection({
   defaultBackgroundModelValue,
   defaultImageModelOptions,
   defaultImageModelValue,
+  defaultVisionModelOptions,
+  defaultVisionModelValue,
   defaultModelFeedbackMessage,
   defaultModelOptions,
   defaultModelSavingRole,
@@ -186,6 +191,22 @@ export function SettingsGeneralBehaviorSection({
           savingRole={defaultModelSavingRole}
           titleKey="settings.general.default_image_model_title"
           value={defaultImageModelValue}
+        />
+
+        <div className="border-t border-(--divider-subtle-color)" />
+
+        <SettingsDefaultModelRow
+          disabled={preferencesSaving}
+          descriptionKey="settings.general.default_vision_model_description"
+          emptyPlaceholderKey="settings.general.default_vision_model_empty"
+          icon={<ScanEye className="h-3.5 w-3.5" />}
+          onChange={onDefaultModelChange}
+          options={defaultVisionModelOptions}
+          providerOptionsLoading={providerOptionsLoading}
+          modelCategory="vision_understanding"
+          savingRole={defaultModelSavingRole}
+          titleKey="settings.general.default_vision_model_title"
+          value={defaultVisionModelValue}
         />
 
         <div className="border-t border-(--divider-subtle-color)" />

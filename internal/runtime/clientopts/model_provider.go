@@ -9,5 +9,6 @@ type RuntimeConfig struct {
 	Model         string
 	APIFormat     string
 	Reasoning     bool
+	Vision        bool
 	ContextWindow int
 }

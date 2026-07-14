@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added a dedicated visual-model preference and nxs runtime projection, allowing text-only chat models to call an independently configured vision provider on demand while native vision models keep the direct image path.
 - Added Developer ID signing, notarization, GitHub Actions release and CI package validation wiring, and signed metadata support to macOS desktop packaging so trusted releases can pass Gatekeeper and automatic-update checks.
 - Added durable Room delayed wakes, causal message metadata, separated visibility and wake targets, bounded per-Agent wake queues, and compatible short-window wake batching.
 - Added durable scheduler leadership leases, deterministic recurring jitter, configurable misfire handling, per-user enabled-task limits, and explicit task expiration with audit events.

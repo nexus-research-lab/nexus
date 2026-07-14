@@ -136,6 +136,36 @@ var knownModelContexts = []knownModelContext{
 	{Family: "mimo-v2.5-pro", Tokens: 1_000_000},
 }
 
+// knownVisionCapability 只补齐已经稳定支持图片输入的常见模型族。
+//
+// 返回 nil 表示未知，而不是不支持。远端模型卡和用户覆盖值始终优先。
+func knownVisionCapability(modelID string) *bool {
+	normalized := normalizeCatalogModelID(modelID)
+	switch {
+	case modelIDMatchesGeneration(normalized, "gpt-5"),
+		modelIDMatchesGeneration(normalized, "gpt-4.1"),
+		modelIDMatchesGeneration(normalized, "gpt-4o"),
+		modelIDMatchesGeneration(normalized, "claude-3"),
+		modelIDMatchesGeneration(normalized, "claude-opus-4"),
+		modelIDMatchesGeneration(normalized, "claude-sonnet-4"),
+		modelIDMatchesGeneration(normalized, "claude-haiku-4"),
+		modelIDMatchesGeneration(normalized, "claude-mythos-5"),
+		modelIDMatchesGeneration(normalized, "claude-fable-5"),
+		modelIDMatchesGeneration(normalized, "claude-sonnet-5"),
+		modelIDMatchesGeneration(normalized, "gemini"),
+		modelIDMatchesGeneration(normalized, "kimi-for-coding"):
+		return boolPointer(true)
+	case strings.Contains(normalized, "qwen") && strings.Contains(normalized, "vl"):
+		return boolPointer(true)
+	case modelIDMatchesGeneration(normalized, "glm-4v"),
+		modelIDMatchesGeneration(normalized, "pixtral"),
+		modelIDMatchesGeneration(normalized, "llava"):
+		return boolPointer(true)
+	default:
+		return nil
+	}
+}
+
 func knownContextWindow(modelID string) *int {
 	normalized := normalizeCatalogModelID(modelID)
 	for _, item := range knownModelContexts {
@@ -179,4 +209,16 @@ func modelIDMatchesFamily(modelID string, family string) bool {
 	}
 	version := suffix[1:]
 	return version == "latest" || version[0] >= '0' && version[0] <= '9'
+}
+
+// modelIDMatchesGeneration 匹配一个稳定代际及其点版本、变体和日期快照。
+func modelIDMatchesGeneration(modelID string, generation string) bool {
+	if modelID == generation {
+		return true
+	}
+	suffix, matched := strings.CutPrefix(modelID, generation)
+	if !matched || suffix == "" {
+		return false
+	}
+	return suffix[0] == '-' || suffix[0] == '.'
 }

@@ -17,6 +17,7 @@ let DEFAULT_CHAT_DELIVERY_POLICY: AgentConversationDefaultDeliveryPolicy = "queu
 let DEFAULT_AGENT_RUNTIME_KIND: AgentRuntimeKind = "nxs";
 let DEFAULT_AGENT_SDK_DIAGNOSTICS_ENABLED = false;
 let DEFAULT_IMAGE_MODEL_SELECTION: UserPreferences["default_image_model_selection"];
+let DEFAULT_VISION_MODEL_SELECTION: UserPreferences["default_vision_model_selection"];
 let DEFAULT_BACKGROUND_MODEL_SELECTION: UserPreferences["default_background_model_selection"];
 let DEFAULT_AGENT_OPTIONS: Partial<AgentOptions> = {
   permission_mode: DEFAULT_AGENT_PERMISSION_MODE,
@@ -63,6 +64,7 @@ export function getUserPreferences(): UserPreferences {
     agent_sdk_diagnostics_enabled: DEFAULT_AGENT_SDK_DIAGNOSTICS_ENABLED,
     default_agent_options: getInitialAgentOptions(),
     default_image_model_selection: DEFAULT_IMAGE_MODEL_SELECTION,
+    default_vision_model_selection: DEFAULT_VISION_MODEL_SELECTION,
     default_background_model_selection: DEFAULT_BACKGROUND_MODEL_SELECTION,
   };
 }
@@ -110,6 +112,9 @@ function applyModelSelections(
 ): void {
   DEFAULT_IMAGE_MODEL_SELECTION = normalizeModelSelectionPreference(
     preferences?.default_image_model_selection,
+  );
+  DEFAULT_VISION_MODEL_SELECTION = normalizeModelSelectionPreference(
+    preferences?.default_vision_model_selection,
   );
   DEFAULT_BACKGROUND_MODEL_SELECTION = normalizeModelSelectionPreference(
     preferences?.default_background_model_selection,

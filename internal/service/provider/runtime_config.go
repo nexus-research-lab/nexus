@@ -180,6 +180,7 @@ func (s *Service) llmConfigFromTarget(
 		Model:         normalizeModelID(modelRecord.ModelID),
 		APIFormat:     target.APIFormat,
 		Reasoning:     modelHasReasoningCapability(*modelRecord),
+		Vision:        modelHasVisionCapability(*modelRecord),
 		ContextWindow: modelContextWindow(modelRecord),
 	}, nil
 }

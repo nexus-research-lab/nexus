@@ -15,6 +15,7 @@ type Preferences struct {
 	AgentSDKDiagnosticsEnabled      bool                        `json:"agent_sdk_diagnostics_enabled,omitempty"`
 	DefaultAgentOptions             protocol.Options            `json:"default_agent_options"`
 	DefaultImageModelSelection      ModelSelection              `json:"default_image_model_selection,omitempty"`
+	DefaultVisionModelSelection     ModelSelection              `json:"default_vision_model_selection,omitempty"`
 	DefaultBackgroundModelSelection ModelSelection              `json:"default_background_model_selection,omitempty"`
 	UpdatedAt                       string                      `json:"updated_at,omitempty"`
 }
@@ -26,6 +27,7 @@ type UpdateRequest struct {
 	AgentSDKDiagnosticsEnabled      *bool                        `json:"agent_sdk_diagnostics_enabled,omitempty"`
 	DefaultAgentOptions             *protocol.Options            `json:"default_agent_options,omitempty"`
 	DefaultImageModelSelection      *ModelSelection              `json:"default_image_model_selection,omitempty"`
+	DefaultVisionModelSelection     *ModelSelection              `json:"default_vision_model_selection,omitempty"`
 	DefaultBackgroundModelSelection *ModelSelection              `json:"default_background_model_selection,omitempty"`
 }
 
@@ -81,6 +83,7 @@ func normalizePreferences(item Preferences) Preferences {
 		AgentSDKDiagnosticsEnabled:      item.AgentSDKDiagnosticsEnabled,
 		DefaultAgentOptions:             options,
 		DefaultImageModelSelection:      normalizeModelSelection(item.DefaultImageModelSelection),
+		DefaultVisionModelSelection:     normalizeModelSelection(item.DefaultVisionModelSelection),
 		DefaultBackgroundModelSelection: normalizeModelSelection(item.DefaultBackgroundModelSelection),
 		UpdatedAt:                       strings.TrimSpace(item.UpdatedAt),
 	}

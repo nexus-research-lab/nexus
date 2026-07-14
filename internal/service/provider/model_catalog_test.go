@@ -51,6 +51,38 @@ func TestKnownContextWindow(t *testing.T) {
 	}
 }
 
+func TestKnownVisionCapability(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		modelID string
+		want    bool
+	}{
+		{modelID: "gpt-5.4-mini-2026-03-17", want: true},
+		{modelID: "claude-sonnet-4-6-20260217", want: true},
+		{modelID: "models/gemini-3.1-pro-preview", want: true},
+		{modelID: "qwen3-vl-plus", want: true},
+		{modelID: "glm-4v-plus", want: true},
+		{modelID: "kimi-for-coding", want: true},
+		{modelID: "kimi-k2", want: false},
+		{modelID: "private-model-v1", want: false},
+		{modelID: "deepseek-v4", want: false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.modelID, func(t *testing.T) {
+			t.Parallel()
+			got := knownVisionCapability(test.modelID)
+			if test.want && (got == nil || !*got) {
+				t.Fatalf("knownVisionCapability(%q) = %v, want true", test.modelID, got)
+			}
+			if !test.want && got != nil {
+				t.Fatalf("knownVisionCapability(%q) = %v, want unknown", test.modelID, *got)
+			}
+		})
+	}
+}
+
 func TestRemoteModelCardPrefersProviderContextWindow(t *testing.T) {
 	t.Parallel()
 
@@ -59,6 +91,33 @@ func TestRemoteModelCardPrefersProviderContextWindow(t *testing.T) {
 	_, _, contextWindow, _ := model.modelCard()
 	if contextWindow == nil || *contextWindow != providerValue {
 		t.Fatalf("Provider context_window 应覆盖内置目录: %v", contextWindow)
+	}
+}
+
+func TestRemoteModelCardPrefersProviderVisionCapability(t *testing.T) {
+	t.Parallel()
+
+	unsupported := false
+	model := remoteModel{
+		ID:           "gpt-5.4",
+		Capabilities: ModelCapabilities{Vision: &unsupported},
+	}
+	capabilities, _, _, _ := model.modelCard()
+	if capabilities.Vision == nil || *capabilities.Vision {
+		t.Fatalf("Provider vision=false 应覆盖内置目录: %v", capabilities.Vision)
+	}
+}
+
+func TestModelVisionOverrideWinsKnownCatalog(t *testing.T) {
+	t.Parallel()
+
+	model := providerstore.ModelEntity{
+		ModelID:                  "gpt-5.4",
+		CapabilitiesAutoJSON:     `{"vision":true}`,
+		CapabilitiesOverrideJSON: `{"vision":false}`,
+	}
+	if modelHasVisionCapability(model) {
+		t.Fatal("用户 vision=false 覆盖应优先于 Provider 与内置模型卡")
 	}
 }
 

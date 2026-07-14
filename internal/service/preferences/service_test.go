@@ -55,6 +55,10 @@ func TestServiceUpdatePersistsUserPreferences(t *testing.T) {
 			Provider: "image-provider",
 			Model:    "image-model",
 		},
+		DefaultVisionModelSelection: &ModelSelection{
+			Provider: "vision-provider",
+			Model:    "vision-model",
+		},
 		DefaultBackgroundModelSelection: &ModelSelection{
 			Provider: "background-provider",
 			Model:    "background-model",
@@ -84,6 +88,9 @@ func TestServiceUpdatePersistsUserPreferences(t *testing.T) {
 	if prefs.DefaultImageModelSelection.Provider != "image-provider" || prefs.DefaultImageModelSelection.Model != "image-model" {
 		t.Fatalf("默认生图模型未持久化: %+v", prefs.DefaultImageModelSelection)
 	}
+	if prefs.DefaultVisionModelSelection.Provider != "vision-provider" || prefs.DefaultVisionModelSelection.Model != "vision-model" {
+		t.Fatalf("视觉模型未持久化: %+v", prefs.DefaultVisionModelSelection)
+	}
 	if prefs.DefaultBackgroundModelSelection.Provider != "background-provider" || prefs.DefaultBackgroundModelSelection.Model != "background-model" {
 		t.Fatalf("后台任务模型未持久化: %+v", prefs.DefaultBackgroundModelSelection)
 	}
@@ -98,7 +105,7 @@ func TestServiceUpdatePersistsUserPreferences(t *testing.T) {
 		loaded.DefaultAgentOptions.PermissionMode != "default" {
 		t.Fatalf("读取结果不正确: %+v", loaded)
 	}
-	if loaded.DefaultImageModelSelection.Model != "image-model" || loaded.DefaultBackgroundModelSelection.Model != "background-model" {
+	if loaded.DefaultImageModelSelection.Model != "image-model" || loaded.DefaultVisionModelSelection.Model != "vision-model" || loaded.DefaultBackgroundModelSelection.Model != "background-model" {
 		t.Fatalf("读取默认模型选择不正确: %+v", loaded)
 	}
 	if _, statErr := os.Stat(filepath.Join(root, "workspace", "user_1", ".settings", "preferences.json")); statErr != nil {

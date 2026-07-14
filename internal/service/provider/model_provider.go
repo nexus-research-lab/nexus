@@ -92,6 +92,7 @@ type OptionsResponse struct {
 	DefaultImageProvider  *string         `json:"default_image_provider"`
 	DefaultImageModel     *string         `json:"default_image_model"`
 	DefaultImageSelection *ModelSelection `json:"default_image_selection"`
+	VisionItems           []Option        `json:"vision_items"`
 	Items                 []Option        `json:"items"`
 	BackgroundItems       []Option        `json:"background_items"`
 	ImageItems            []Option        `json:"image_items"`

@@ -38,6 +38,7 @@ export interface UserPreferences {
   agent_sdk_diagnostics_enabled?: boolean;
   default_agent_options: Partial<AgentOptions>;
   default_image_model_selection?: ModelSelectionPreference;
+  default_vision_model_selection?: ModelSelectionPreference;
   default_background_model_selection?: ModelSelectionPreference;
   updated_at?: string;
 }
@@ -48,5 +49,6 @@ export interface UpdateUserPreferencesParams {
   agent_sdk_diagnostics_enabled?: boolean;
   default_agent_options?: Partial<AgentOptions>;
   default_image_model_selection?: ModelSelectionPreference;
+  default_vision_model_selection?: ModelSelectionPreference;
   default_background_model_selection?: ModelSelectionPreference;
 }

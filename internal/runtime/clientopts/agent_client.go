@@ -2,6 +2,7 @@ package clientopts
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"os"
@@ -39,6 +40,8 @@ type AgentClientOptionsInput struct {
 	RuntimeKind                string
 	Provider                   string
 	Model                      string
+	VisionProvider             string
+	VisionModel                string
 	PermissionMode             sdkpermission.Mode
 	PermissionHandler          sdkpermission.Handler
 	AllowedTools               []string
@@ -80,6 +83,11 @@ func BuildAgentClientOptionsWithConfig(
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, nxsDiagnosticsRuntimeEnv(effectiveRuntimeKind, input.AgentSDKDiagnosticsEnabled))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, explicitNXSProcessRuntimeEnv(effectiveRuntimeKind))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, runtimeEnvFromConfig(runtimeConfig, effectiveRuntimeKind))
+	visionConfig, err := resolveVisionRuntimeConfig(ctx, resolver, input, effectiveRuntimeKind)
+	if err != nil {
+		return agentclient.Options{}, nil, err
+	}
+	runtimeEnv = mergeRuntimeEnv(runtimeEnv, visionRuntimeEnvFromConfig(visionConfig))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, workspaceRuntimeEnv(input.WorkspacePath))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, buildScopedRuntimeEnv(ctx))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, input.ExtraEnv)
@@ -128,6 +136,34 @@ func BuildAgentClientOptionsWithConfig(
 		options.MCP.Servers = cloneMCPServers(input.MCPServers)
 	}
 	return options, runtimeConfig, nil
+}
+
+// resolveVisionRuntimeConfig 只为 nxs 解析用户明确选择的辅助视觉模型。
+func resolveVisionRuntimeConfig(
+	ctx context.Context,
+	resolver RuntimeConfigResolver,
+	input AgentClientOptionsInput,
+	runtimeKind string,
+) (*RuntimeConfig, error) {
+	if !runtimeProfileForKind(runtimeKind).isNXS() {
+		return nil, nil
+	}
+	providerName := strings.TrimSpace(input.VisionProvider)
+	model := strings.TrimSpace(input.VisionModel)
+	if providerName == "" && model == "" {
+		return nil, nil
+	}
+	if providerName == "" || model == "" {
+		return nil, errors.New("视觉模型必须同时配置 provider 和 model")
+	}
+	config, err := resolveRuntimeConfig(ctx, resolver, providerName, model, runtimeKind)
+	if err != nil {
+		return nil, fmt.Errorf("解析视觉模型: %w", err)
+	}
+	if config == nil || !config.Vision {
+		return nil, fmt.Errorf("视觉模型 %s/%s 未声明 vision 能力", providerName, model)
+	}
+	return config, nil
 }
 
 func agentRuntimeKind(runtimeKind string) agentclient.RuntimeKind {

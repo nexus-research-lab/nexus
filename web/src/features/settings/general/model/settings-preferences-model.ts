@@ -22,6 +22,7 @@ export function buildPreferencesUpdatePayload(
     agent_sdk_diagnostics_enabled: preferences.agent_sdk_diagnostics_enabled,
     default_agent_options: preferences.default_agent_options,
     default_image_model_selection: preferences.default_image_model_selection,
+    default_vision_model_selection: preferences.default_vision_model_selection,
     default_background_model_selection:
       preferences.default_background_model_selection,
   };
@@ -50,6 +51,12 @@ export function normalizePreferences(preferences: UserPreferences | null): UserP
       preferDefined(
         source.default_image_model_selection,
         fallback.default_image_model_selection,
+      ),
+    ),
+    default_vision_model_selection: normalizeModelSelectionPreference(
+      preferDefined(
+        source.default_vision_model_selection,
+        fallback.default_vision_model_selection,
       ),
     ),
     default_background_model_selection: normalizeModelSelectionPreference(

@@ -34,6 +34,10 @@ const firstPartyAnthropicAPIHost = "api.anthropic.com"
 const nexusDisableProjectInstructionsEnvName = "NEXUS_DISABLE_PROJECT_INSTRUCTIONS"
 const nexusCachedMicrocompactEnvName = "NEXUS_CACHED_MICROCOMPACT"
 const nexusMaxContextTokensEnvName = "NEXUS_MAX_CONTEXT_TOKENS"
+const nexusModelSupportsVisionEnvName = "NEXUS_MODEL_SUPPORTS_VISION"
+const nexusMultimodalUserContentEnvName = "NEXUS_MULTIMODAL_USER_CONTENT"
+const nexusMultimodalToolResultEnvName = "NEXUS_MULTIMODAL_TOOL_RESULT"
+const nexusRemoteImageURLEnvName = "NEXUS_REMOTE_IMAGE_URL"
 
 // NexusRuntimeProviderEnvName 表示当前 SDK runtime 实际解析出的 provider key。
 const NexusRuntimeProviderEnvName = "NEXUS_RUNTIME_PROVIDER"
@@ -61,17 +65,45 @@ func runtimeEnvFromConfig(runtimeConfig *RuntimeConfig, runtimeKind string) map[
 		}
 	}
 	if profile.isNXS() {
-		applyNXSModelLimitsEnv(env, runtimeConfig)
+		applyNXSModelMetadataEnv(env, runtimeConfig)
 	}
 	return env
 }
 
-// applyNXSModelLimitsEnv 把产品模型卡中的已知上限交给 nxs，不让运行时按模型名猜测。
-func applyNXSModelLimitsEnv(env map[string]string, runtimeConfig *RuntimeConfig) {
-	if len(env) == 0 || runtimeConfig == nil || runtimeConfig.ContextWindow <= 0 {
+// applyNXSModelMetadataEnv 把产品模型卡和 API format 能力交给 nxs，不让运行时按模型名猜测。
+func applyNXSModelMetadataEnv(env map[string]string, runtimeConfig *RuntimeConfig) {
+	if len(env) == 0 || runtimeConfig == nil {
 		return
 	}
-	env[nexusMaxContextTokensEnvName] = strconv.Itoa(runtimeConfig.ContextWindow)
+	if runtimeConfig.ContextWindow > 0 {
+		env[nexusMaxContextTokensEnvName] = strconv.Itoa(runtimeConfig.ContextWindow)
+	}
+	env[nexusModelSupportsVisionEnvName] = strconv.FormatBool(runtimeConfig.Vision)
+	apiFormat := strings.TrimSpace(runtimeConfig.APIFormat)
+	if apiFormat == "" || apiFormat == apiFormatAnthropicMessages || apiFormat == apiFormatChatCompletions {
+		env[nexusMultimodalUserContentEnvName] = "1"
+		env[nexusMultimodalToolResultEnvName] = "1"
+	}
+}
+
+// visionRuntimeEnvFromConfig 为辅助视觉模型生成独立命名空间，避免覆盖主模型路由。
+func visionRuntimeEnvFromConfig(runtimeConfig *RuntimeConfig) map[string]string {
+	if runtimeConfig == nil {
+		return nil
+	}
+	providerType := "anthropic-compatible"
+	if strings.TrimSpace(runtimeConfig.APIFormat) == apiFormatChatCompletions {
+		providerType = "openai"
+	}
+	env := map[string]string{
+		"NEXUS_VISION_PROVIDER_REF":            runtimeConfig.Provider,
+		"NEXUS_VISION_API_PROVIDER":            providerType,
+		"NEXUS_VISION_BASE_URL":                runtimeConfig.BaseURL,
+		"NEXUS_VISION_API_KEY":                 runtimeConfig.AuthToken,
+		"NEXUS_VISION_MODEL":                   runtimeConfig.Model,
+		"NEXUS_VISION_MULTIMODAL_USER_CONTENT": "1",
+	}
+	return env
 }
 
 func anthropicRuntimeEnvFromConfig(runtimeConfig *RuntimeConfig) map[string]string {

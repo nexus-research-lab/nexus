@@ -13,6 +13,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
+	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 	"github.com/nexus-research-lab/nexus/internal/service/room/runtimepolicy"
@@ -131,11 +132,20 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 	if err != nil {
 		return preparedSlotRuntime{}, err
 	}
+	if err = agentsvc.EnsureRuntimeVisionSettingsProjection(
+		e.agent.WorkspacePath,
+		selection.VisionProvider,
+		selection.VisionModel,
+	); err != nil {
+		return preparedSlotRuntime{}, err
+	}
 	options, runtimeConfig, err := clientopts.BuildAgentClientOptionsWithConfig(e.ctx, e.service.providers, clientopts.AgentClientOptionsInput{
 		WorkspacePath:              e.agent.WorkspacePath,
 		RuntimeKind:                selection.RuntimeKind,
 		Provider:                   selection.Provider,
 		Model:                      selection.Model,
+		VisionProvider:             selection.VisionProvider,
+		VisionModel:                selection.VisionModel,
 		PermissionMode:             permissionMode,
 		PermissionHandler:          e.runtimePermissionHandler(),
 		AllowedTools:               toolpolicy.WithManagedRuntimeAllowedTools(runtimepolicy.AllowedTools(e.agent.Options.AllowedTools, e.round.Context.Room.PrivateMessagesEnabled), e.service.runtimeImagegenDefaultEnabled(e.ctx)),

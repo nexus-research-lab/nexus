@@ -119,6 +119,8 @@ export function useGeneralSettingsController() {
       defaultBackgroundModelValue: defaultModels.values.background,
       defaultImageModelOptions: defaultModels.options.image,
       defaultImageModelValue: defaultModels.values.image,
+      defaultVisionModelOptions: defaultModels.options.vision,
+      defaultVisionModelValue: defaultModels.values.vision,
       defaultModelFeedbackMessage: defaultModels.feedbackMessage,
       defaultModelOptions: defaultModels.options.agent,
       defaultModelSavingRole: defaultModels.savingRole,
