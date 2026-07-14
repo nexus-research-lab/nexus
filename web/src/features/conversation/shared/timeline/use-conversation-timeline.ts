@@ -1,3 +1,8 @@
+/**
+ * INPUT: 当前已加载消息、运行态与原始 round 索引。
+ * OUTPUT: feed、navigator 共用的记忆化 ConversationTimeline。
+ * POS: React 装配层；轮次过滤与排序规则留在 timeline-model。
+ */
 import { useMemo } from "react";
 
 import type { Message } from "@/types/conversation/message/entity";
@@ -9,6 +14,7 @@ import type { AgentConversationChatType } from "@/types/agent/agent-conversation
 import {
   buildIndexedTimelineRoundIds,
   buildTimelineRoundIds,
+  filterSupersededRoundIndexItems,
   groupMessagesByRound,
   groupPendingPermissionsByRound,
   groupPendingSlotsByRound,
@@ -63,9 +69,13 @@ export function useConversationTimeline({
       ]),
     [liveRoundIds, messageGroups, pendingPermissionGroups, pendingSlotGroups],
   );
+  const visibleRoundIndexItems = useMemo(
+    () => filterSupersededRoundIndexItems(roundIndexItems, messages),
+    [messages, roundIndexItems],
+  );
   const feedRoundIds = useMemo(
-    () => buildIndexedTimelineRoundIds(roundIndexItems, loadedRoundIds),
-    [loadedRoundIds, roundIndexItems],
+    () => buildIndexedTimelineRoundIds(visibleRoundIndexItems, loadedRoundIds),
+    [loadedRoundIds, visibleRoundIndexItems],
   );
 
   return useMemo(
@@ -75,7 +85,7 @@ export function useConversationTimeline({
       pending_permission_groups: pendingPermissionGroups,
       loaded_round_ids: loadedRoundIds,
       feed_round_ids: feedRoundIds,
-      round_index_items: roundIndexItems,
+      round_index_items: visibleRoundIndexItems,
       live_round_ids: liveRoundIds,
     }),
     [
@@ -85,7 +95,7 @@ export function useConversationTimeline({
       messageGroups,
       pendingPermissionGroups,
       pendingSlotGroups,
-      roundIndexItems,
+      visibleRoundIndexItems,
     ],
   );
 }

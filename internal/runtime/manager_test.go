@@ -556,6 +556,7 @@ func TestIsRuntimeTransportClosedError(t *testing.T) {
 		errors.New("write payload failed: file already closed"),
 		errors.New("broken pipe"),
 		errors.New("Error in hook callback hook_1: Stream closed"),
+		errors.New("client: send control response failed: process: stdin unavailable"),
 	}
 	for _, err := range cases {
 		if !IsRuntimeTransportClosedError(err) {
@@ -771,6 +772,45 @@ func TestManagerGuidanceHookInjectsContextualAdditionalContext(t *testing.T) {
 	}
 	if strings.Contains(additionalContext, "<nexus_guidance>") {
 		t.Fatalf("Goal context 不应包在 nexus_guidance 中: %q", additionalContext)
+	}
+}
+
+func TestManagerContextualGuidanceRunsConsumedCallbackOnlyAtPostToolUse(t *testing.T) {
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: &fakeRuntimeClient{}})
+	sessionKey := "agent:nexus:ws:group:goal-retarget"
+	if _, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{}); err != nil {
+		t.Fatal(err)
+	}
+	manager.StartRound(sessionKey, "round-recipient", func() {})
+	consumed := false
+	if _, err := manager.QueueContextualGuidanceInputOnConsumed(
+		context.Background(),
+		sessionKey,
+		"goal-event-retarget",
+		"goal",
+		"The objective changed.",
+		func() { consumed = true },
+	); err != nil {
+		t.Fatal(err)
+	}
+	if consumed {
+		t.Fatal("callback ran while guidance was only queued")
+	}
+
+	options := manager.WithGuidanceHook(agentclient.Options{}, sessionKey)
+	output, err := options.Hooks.Matchers[sdkhook.EventPostToolUse][0].Hooks[0](
+		context.Background(),
+		sdkhook.Input{EventName: sdkhook.EventPostToolUse},
+		"tool-before-retarget",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if output.SpecificOutput == nil || !strings.Contains(output.SpecificOutput.AdditionalContext, "The objective changed.") {
+		t.Fatalf("output = %#v, want retarget context", output)
+	}
+	if !consumed {
+		t.Fatal("callback did not run when PostToolUse consumed guidance")
 	}
 }
 

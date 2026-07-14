@@ -13,6 +13,7 @@ import (
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
+	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 	_ "modernc.org/sqlite"
 )
@@ -180,9 +181,18 @@ func TestRealtimeServiceDispatchesLateRoomGuidanceAfterRoundFinishes(t *testing.
 	}); err != nil {
 		t.Fatalf("启动第一轮失败: %v", err)
 	}
-	_ = collectRoomEventsUntil(t, sender.events, func(events []protocol.EventMessage, event protocol.EventMessage) bool {
+	startEvents := collectRoomEventsUntil(t, sender.events, func(events []protocol.EventMessage, event protocol.EventMessage) bool {
 		return event.EventType == protocol.EventTypeStreamStart && event.AgentID == agentValue.AgentID
 	})
+	activeAgentRoundID := ""
+	for _, event := range startEvents {
+		if event.EventType == protocol.EventTypeStreamStart && event.AgentID == agentValue.AgentID {
+			activeAgentRoundID = event.AgentRoundID
+		}
+	}
+	if activeAgentRoundID == "" {
+		t.Fatalf("缺少活跃 Agent round id: %+v", startEvents)
+	}
 
 	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
 		SessionKey:     sharedSessionKey,
@@ -217,6 +227,10 @@ func TestRealtimeServiceDispatchesLateRoomGuidanceAfterRoundFinishes(t *testing.
 		ItemID:         items[0].ID,
 	}); err != nil {
 		t.Fatalf("将补充消息切换为引导失败: %v", err)
+	}
+	items, err = queueStore.Snapshot(queueLocation)
+	if err != nil || len(items) != 1 || items[0].RootRoundID != activeAgentRoundID {
+		t.Fatalf("队列 guide 必须绑定切换时的精确 Agent round: items=%+v active=%q err=%v", items, activeAgentRoundID, err)
 	}
 
 	roomHistory := workspacestore.NewRoomHistoryStore(cfg.WorkspacePath)
@@ -526,13 +540,14 @@ func TestRealtimeServiceGuidesRunningRoomSlotAsLiveSystemContext(t *testing.T) {
 	}
 
 	permission := permissionctx.NewContext()
+	factory := &fakeRoomFactory{clients: []*fakeRoomClient{client}}
 	service := NewRealtimeServiceWithFactory(
 		cfg,
 		roomService,
 		agentService,
 		runtimectx.NewManager(),
 		permission,
-		&fakeRoomFactory{clients: []*fakeRoomClient{client}},
+		factory,
 	)
 
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
@@ -578,6 +593,27 @@ func TestRealtimeServiceGuidesRunningRoomSlotAsLiveSystemContext(t *testing.T) {
 	if !foundGuideAck {
 		t.Fatalf("Room 引导消息缺少 chat_ack: %+v", guidanceEvents)
 	}
+	targetQueueLocation := workspacestore.InputQueueLocation{
+		Scope:          protocol.InputQueueScopeRoom,
+		WorkspacePath:  agentValue.WorkspacePath,
+		SessionKey:     protocol.BuildRoomAgentSessionKey(roomContext.Conversation.ID, agentValue.AgentID, roomContext.Room.RoomType),
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
+	}
+	targetQueueStore := workspacestore.NewInputQueueStore(cfg.WorkspacePath)
+	queuedGuidance, err := targetQueueStore.Snapshot(targetQueueLocation)
+	if err != nil {
+		t.Fatalf("读取待注入 Room 引导队列失败: %v", err)
+	}
+	if len(queuedGuidance) != 1 ||
+		queuedGuidance[0].ID != "room-round-guide-2" ||
+		queuedGuidance[0].SourceMessageID != "room-round-guide-2" ||
+		queuedGuidance[0].DeliveryPolicy != protocol.ChatDeliveryPolicyGuide ||
+		strings.TrimSpace(queuedGuidance[0].RootRoundID) == "" ||
+		len(queuedGuidance[0].TargetAgentIDs) != 1 ||
+		queuedGuidance[0].TargetAgentIDs[0] != agentValue.AgentID {
+		t.Fatalf("Room 引导应在 hook 前持久化并锚定当前 Agent round: %+v", queuedGuidance)
+	}
 
 	client.mu.Lock()
 	sentContents := append([]string(nil), client.sentContents...)
@@ -589,6 +625,59 @@ func TestRealtimeServiceGuidesRunningRoomSlotAsLiveSystemContext(t *testing.T) {
 	if len(sentContents) != 0 {
 		t.Fatalf("Room 引导不应走普通 streaming input: %+v", sentContents)
 	}
+	var additionalContext string
+	for _, matcher := range factory.LastOptions().Hooks.Matchers[sdkhook.EventPostToolUse] {
+		for _, hook := range matcher.Hooks {
+			output, hookErr := hook(ctx, sdkhook.Input{EventName: sdkhook.EventPostToolUse}, "tool-1")
+			if hookErr != nil {
+				t.Fatalf("执行 Room PostToolUse 引导 hook 失败: %v", hookErr)
+			}
+			if output.SpecificOutput != nil {
+				additionalContext += output.SpecificOutput.AdditionalContext
+			}
+		}
+	}
+	if !strings.Contains(additionalContext, "等工具结果回来后优先看错误日志") {
+		t.Fatalf("Room PostToolUse 未注入引导上下文: %q", additionalContext)
+	}
+	queuedGuidance, err = targetQueueStore.Snapshot(targetQueueLocation)
+	if err != nil || len(queuedGuidance) != 1 {
+		t.Fatalf("hook control response 尚未确认前应保留 Room 引导: items=%+v err=%v", queuedGuidance, err)
+	}
+	client.messages <- sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeAssistant,
+		SessionID: client.sessionID,
+		Assistant: &sdkprotocol.AssistantMessage{Message: sdkprotocol.ConversationEnvelope{
+			ID:      "assistant-room-guide-confirmed",
+			Model:   "sonnet",
+			Content: []sdkprotocol.ContentBlock{sdkprotocol.TextBlock{Text: "我会优先看错误日志。"}},
+		}},
+	}
+	confirmedEvents := collectRoomEventsUntil(t, sender.events, func(events []protocol.EventMessage, event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeMessage && event.Data["role"] == "assistant"
+	})
+	guidedUserIndex, assistantIndex := -1, -1
+	for index, event := range confirmedEvents {
+		if event.EventType != protocol.EventTypeMessage {
+			continue
+		}
+		if event.Data["role"] == "user" && event.Data["source_round_id"] == "room-round-guide-2" {
+			guidedUserIndex = index
+		}
+		if event.Data["role"] == "assistant" {
+			assistantIndex = index
+		}
+	}
+	if guidedUserIndex < 0 || assistantIndex < 0 || guidedUserIndex > assistantIndex {
+		t.Fatalf("已确认 Room 插话必须先于模型 continuation 广播: %+v", confirmedEvents)
+	}
+	queuedGuidance, err = targetQueueStore.Snapshot(targetQueueLocation)
+	if err != nil {
+		t.Fatalf("读取已消费 Room 引导队列失败: %v", err)
+	}
+	if len(queuedGuidance) != 0 {
+		t.Fatalf("PostToolUse 注入后应消费 Room 引导队列: %+v", queuedGuidance)
+	}
 
 	roomHistory := workspacestore.NewRoomHistoryStore(cfg.WorkspacePath)
 	sharedMessages, err := roomHistory.ReadMessages(roomContext.Conversation.ID, nil)
@@ -597,13 +686,14 @@ func TestRealtimeServiceGuidesRunningRoomSlotAsLiveSystemContext(t *testing.T) {
 	}
 	foundGuidedPublicMessage := false
 	for _, message := range sharedMessages {
-		if message["round_id"] != "room-round-guide-2" || message["role"] != "user" {
+		if message["source_round_id"] != "room-round-guide-2" || message["role"] != "user" {
 			continue
 		}
 		if message["role"] != "user" ||
+			message["round_id"] != "room-round-guide-1" ||
 			message["content"] != "@助手甲 等工具结果回来后优先看错误日志" ||
 			message["delivery_policy"] != string(protocol.ChatDeliveryPolicyGuide) {
-			t.Fatalf("Room 引导用户消息应作为公区事实历史: %+v", message)
+			t.Fatalf("Room 引导用户消息应归入实际回复 round: %+v", message)
 		}
 		foundGuidedPublicMessage = true
 	}

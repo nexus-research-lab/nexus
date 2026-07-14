@@ -1,3 +1,6 @@
+// INPUT: Goal objective 更新或系统预算限制事件。
+// OUTPUT: DM 当前 round 或 Room 各非 caller slot 可消费的内部 Goal 上下文。
+// POS: Goal 状态事件到 runtime guidance 的唯一投影入口。
 package goal
 
 import (
@@ -20,7 +23,11 @@ type guidanceDispatcher interface {
 }
 
 type contextualGuidanceDispatcher interface {
-	QueueContextualGuidanceInput(context.Context, string, string, string, string) ([]string, error)
+	QueueContextualGuidanceInput(context.Context, string, string, string, string, int64) ([]string, error)
+}
+
+type roomContextualGuidanceDispatcher interface {
+	QueueRoomContextualGuidanceInput(context.Context, string, string, string, string, string, int64) ([]string, error)
 }
 
 type budgetSteeringSuppressionKey struct{}
@@ -45,7 +52,10 @@ func (s *Service) queueGoalSteering(ctx context.Context, item protocol.Goal, eve
 	}
 	prompt := ""
 	switch {
-	case event.EventType == "updated" && eventPayloadBool(event.Payload, "objective_updated") && protocol.NormalizeGoalStatus(item.Status) == protocol.GoalStatusActive:
+	case event.EventType == "updated" &&
+		eventPayloadBool(event.Payload, "objective_updated") &&
+		protocol.NormalizeGoalStatus(item.Status) == protocol.GoalStatusActive &&
+		(event.Source != protocol.GoalUpdateSourceModel || protocol.IsRoomSharedSessionKey(item.SessionKey)):
 		prompt = buildObjectiveUpdatedPrompt(item)
 	case event.EventType == "budget_limited":
 		if budgetLimitSteeringSuppressed(ctx) {
@@ -56,8 +66,20 @@ func (s *Service) queueGoalSteering(ctx context.Context, item protocol.Goal, eve
 	if strings.TrimSpace(prompt) == "" {
 		return
 	}
+	if dispatcher, ok := s.guidance.(roomContextualGuidanceDispatcher); ok && protocol.IsRoomSharedSessionKey(item.SessionKey) {
+		_, _ = dispatcher.QueueRoomContextualGuidanceInput(
+			ctx,
+			item.SessionKey,
+			event.ID,
+			"goal",
+			prompt,
+			protocol.GoalMetadataString(event.Payload, "source_agent_id"),
+			item.ObjectiveRevision(),
+		)
+		return
+	}
 	if dispatcher, ok := s.guidance.(contextualGuidanceDispatcher); ok {
-		_, _ = dispatcher.QueueContextualGuidanceInput(ctx, item.SessionKey, event.ID, "goal", prompt)
+		_, _ = dispatcher.QueueContextualGuidanceInput(ctx, item.SessionKey, event.ID, "goal", prompt, item.ObjectiveRevision())
 		return
 	}
 	_, _ = s.guidance.QueueGuidanceInput(ctx, item.SessionKey, event.ID, prompt)

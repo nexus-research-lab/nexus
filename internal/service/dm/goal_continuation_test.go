@@ -2,19 +2,56 @@ package dm
 
 import (
 	"context"
+	"errors"
+	"slices"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
+	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 
 	_ "modernc.org/sqlite"
 
+	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
+
+type blockingDMQuotaChecker struct {
+	entered chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func (q *blockingDMQuotaChecker) EnsureQuotaAvailable(ctx context.Context, _ string) error {
+	q.once.Do(func() { close(q.entered) })
+	select {
+	case <-q.release:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+type observedDMGoalProvider struct {
+	*fakeGoalContextProvider
+	validated chan struct{}
+	once      sync.Once
+}
+
+func (p *observedDMGoalProvider) GoalContinuationStillCurrent(
+	ctx context.Context,
+	plan protocol.GoalContinuation,
+) (bool, error) {
+	current, err := p.fakeGoalContextProvider.GoalContinuationStillCurrent(ctx, plan)
+	p.once.Do(func() { close(p.validated) })
+	return current, err
+}
 
 func TestServiceHandleChatSchedulesHiddenGoalContinuation(t *testing.T) {
 	cfg := newDMTestConfig(t)
@@ -64,20 +101,30 @@ func TestServiceHandleChatSchedulesHiddenGoalContinuation(t *testing.T) {
 	factory := &fakeDMFactory{client: client}
 	runtimeManager := runtimectx.NewManagerWithFactory(factory)
 	service := NewService(cfg, agentService, runtimeManager, permission)
-	service.SetGoalContextProvider(&fakeGoalContextProvider{plan: &protocol.GoalContinuation{
-		Goal: protocol.Goal{
-			ID:         "goal-1",
-			SessionKey: "agent:nexus:ws:dm:test-goal-continuation",
-			Objective:  "finish work",
-			Status:     protocol.GoalStatusActive,
+	goal := protocol.Goal{
+		ID:         "goal-1",
+		SessionKey: "agent:nexus:ws:dm:test-goal-continuation",
+		Objective:  "finish work",
+		Status:     protocol.GoalStatusActive,
+	}
+	service.SetGoalContextProvider(&fakeGoalContextProvider{
+		runtimeContext: "finish work",
+		runtimeGoal:    &goal,
+		plan: &protocol.GoalContinuation{
+			Goal: protocol.Goal{
+				ID:         "goal-1",
+				SessionKey: "agent:nexus:ws:dm:test-goal-continuation",
+				Objective:  "finish work",
+				Status:     protocol.GoalStatusActive,
+			},
+			RoundID:        "goal_continuation_1",
+			Prompt:         "hidden continuation prompt",
+			HiddenFromUser: true,
+			Synthetic:      true,
+			Purpose:        "goal_continuation",
+			Metadata:       map[string]string{"goal_id": "goal-1"},
 		},
-		RoundID:        "goal_continuation_1",
-		Prompt:         "hidden continuation prompt",
-		HiddenFromUser: true,
-		Synthetic:      true,
-		Purpose:        "goal_continuation",
-		Metadata:       map[string]string{"goal_id": "goal-1"},
-	}})
+	})
 	sender := newDMTestSender("sender-goal-continuation")
 	sessionKey := "agent:nexus:ws:dm:test-goal-continuation"
 	permission.BindSession(sessionKey, sender)
@@ -159,6 +206,115 @@ func TestServiceHandleChatSchedulesHiddenGoalContinuation(t *testing.T) {
 	}
 }
 
+func TestServiceGoalContinuationFinalDispatchDefersToConcurrentExplicitInput(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+
+	agentService := newDMAgentService(t, cfg)
+	agentValue, err := agentService.GetAgent(context.Background(), cfg.DefaultAgentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := newFakeDMClient()
+	queryStarted := make(chan string, 1)
+	client.onQuery = func(_ context.Context, prompt string) {
+		queryStarted <- prompt
+	}
+	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{client: client})
+	service := NewService(cfg, agentService, runtimeManager, permissionctx.NewContext())
+	quota := &blockingDMQuotaChecker{
+		entered: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+	service.SetQuotaChecker(quota)
+	sessionKey := "agent:nexus:ws:dm:test-goal-final-dispatch-race"
+	goalProvider := &observedDMGoalProvider{
+		fakeGoalContextProvider: &fakeGoalContextProvider{plan: &protocol.GoalContinuation{
+			Goal: protocol.Goal{
+				ID:         "goal-final-dispatch-race",
+				SessionKey: sessionKey,
+				Objective:  "finish after explicit input",
+				Status:     protocol.GoalStatusActive,
+			},
+			RoundID:        "goal_continuation_race",
+			Prompt:         "hidden continuation must defer",
+			HiddenFromUser: true,
+			Synthetic:      true,
+			Purpose:        "goal_continuation",
+		}},
+		validated: make(chan struct{}),
+	}
+	service.SetGoalContextProvider(goalProvider)
+
+	explicitDone := make(chan error, 1)
+	go func() {
+		explicitDone <- service.HandleChat(context.Background(), Request{
+			SessionKey: sessionKey,
+			Content:    "explicit user input wins the dispatch boundary",
+			RoundID:    "round-explicit",
+		})
+	}()
+	select {
+	case <-quota.entered:
+	case <-time.After(2 * time.Second):
+		t.Fatal("explicit input did not enter the serialized dispatch boundary")
+	}
+
+	continuationDone := make(chan struct{})
+	go func() {
+		(&roundRunner{
+			service:    service,
+			agent:      agentValue,
+			sessionKey: sessionKey,
+			roundID:    "round-before-race",
+		}).dispatchGoalContinuation(context.Background())
+		close(continuationDone)
+	}()
+	select {
+	case <-goalProvider.validated:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Goal continuation did not reach its pre-dispatch validation")
+	}
+
+	close(quota.release)
+	if err := <-explicitDone; err != nil {
+		t.Fatalf("explicit HandleChat() error = %v", err)
+	}
+	select {
+	case prompt := <-queryStarted:
+		if !strings.Contains(prompt, "explicit user input wins the dispatch boundary") {
+			t.Fatalf("runtime prompt = %q, want explicit input", prompt)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("explicit input did not start runtime")
+	}
+	select {
+	case <-continuationDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Goal continuation did not finish its final dispatch check")
+	}
+
+	client.mu.Lock()
+	queryPrompts := append([]string(nil), client.queryPrompts...)
+	client.mu.Unlock()
+	if len(queryPrompts) != 1 || strings.Contains(queryPrompts[0], "hidden continuation must defer") {
+		t.Fatalf("runtime queries = %#v, want only the explicit input", queryPrompts)
+	}
+
+	client.messages <- sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeResult,
+		SessionID: client.sessionID,
+		UUID:      "result-explicit-race",
+		Result: &sdkprotocol.ResultMessage{
+			Subtype:    "success",
+			DurationMS: 1,
+			NumTurns:   1,
+			Result:     "done",
+		},
+	}
+	waitForDMRuntimeIdle(t, runtimeManager, sessionKey)
+}
+
 func TestServiceEnsureClientSkipsGoalRuntimeContextInPlanMode(t *testing.T) {
 	cfg := newDMTestConfig(t)
 	migrateDMSQLite(t, cfg.DatabaseURL)
@@ -189,7 +345,7 @@ func TestServiceEnsureClientSkipsGoalRuntimeContextInPlanMode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("初始化 session 失败: %v", err)
 	}
-	_, _, _, _, goalID, goalContext, permissionMode, err := service.ensureClient(context.Background(), sessionKey, agentValue, sessionItem, Request{
+	_, _, _, _, goalID, goalContext, _, permissionMode, err := service.ensureClient(context.Background(), sessionKey, agentValue, sessionItem, Request{
 		SessionKey:     sessionKey,
 		PermissionMode: sdkpermission.ModePlan,
 	})
@@ -236,7 +392,7 @@ func TestServiceEnsureClientKeepsBudgetLimitedGoalUsageTarget(t *testing.T) {
 	if err != nil {
 		t.Fatalf("初始化 session 失败: %v", err)
 	}
-	_, _, _, _, goalID, goalContext, _, err := service.ensureClient(context.Background(), sessionKey, agentValue, sessionItem, Request{
+	_, _, _, _, goalID, goalContext, _, _, err := service.ensureClient(context.Background(), sessionKey, agentValue, sessionItem, Request{
 		SessionKey:     sessionKey,
 		PermissionMode: sdkpermission.ModeDefault,
 	})
@@ -245,6 +401,239 @@ func TestServiceEnsureClientKeepsBudgetLimitedGoalUsageTarget(t *testing.T) {
 	}
 	if goalID != "goal-budget-limited" || goalContext != "" {
 		t.Fatalf("budget_limited goal runtime = (%q, %q), want usage target without context", goalID, goalContext)
+	}
+}
+
+func TestServiceDuplicateGoalContinuationDispatchKeepsClaimedCount(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+	agentService := newDMAgentService(t, cfg)
+	client := newFakeDMClient()
+	queryStarted := make(chan struct{}, 1)
+	client.onQuery = func(context.Context, string) {
+		queryStarted <- struct{}{}
+	}
+	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{client: client})
+	service := NewService(cfg, agentService, runtimeManager, permissionctx.NewContext())
+	sessionKey := "agent:nexus:ws:dm:duplicate-goal-continuation"
+	plan := protocol.GoalContinuation{
+		Goal: protocol.Goal{
+			ID:         "goal-duplicate-dispatch",
+			SessionKey: sessionKey,
+			Status:     protocol.GoalStatusActive,
+		},
+		RoundID:        "goal_continuation_duplicate",
+		Prompt:         "continue once",
+		HiddenFromUser: true,
+		Synthetic:      true,
+		Purpose:        "goal_continuation",
+	}
+	goalProvider := &fakeGoalContextProvider{
+		reservation:       true,
+		continuationCount: 1,
+		runtimeContext:    "continue once",
+		runtimeGoal:       &plan.Goal,
+	}
+	service.SetGoalContextProvider(goalProvider)
+
+	if err := service.DispatchGoalContinuation(context.Background(), plan); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-queryStarted:
+	case <-time.After(2 * time.Second):
+		t.Fatal("first continuation did not start runtime")
+	}
+	if err := service.DispatchGoalContinuation(context.Background(), plan); err != nil {
+		t.Fatal(err)
+	}
+	goalProvider.mu.Lock()
+	claimCalls := goalProvider.claimCalls
+	releaseCalls := goalProvider.releaseCalls
+	count := goalProvider.continuationCount
+	reserved := goalProvider.reservation
+	goalProvider.mu.Unlock()
+	if claimCalls != 1 || releaseCalls != 1 || count != 1 || reserved {
+		t.Fatalf("claim=%d release=%d count=%d reserved=%v, want one claimed start and duplicate no-op release", claimCalls, releaseCalls, count, reserved)
+	}
+
+	client.messages <- sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeResult,
+		SessionID: client.sessionID,
+		UUID:      "result-goal-continuation-duplicate",
+		Result: &sdkprotocol.ResultMessage{
+			Subtype:    "success",
+			DurationMS: 1,
+			NumTurns:   1,
+			Result:     "done",
+		},
+	}
+	waitForDMRuntimeIdle(t, runtimeManager, sessionKey)
+}
+
+func TestServiceGoalContinuationClaimsBeforeLaunchAndBindsPlanRevision(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+	agentService := newDMAgentService(t, cfg)
+	client := newFakeDMClient()
+	queryStarted := make(chan struct{}, 1)
+	client.onQuery = func(context.Context, string) {
+		queryStarted <- struct{}{}
+	}
+	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{client: client})
+	service := NewService(cfg, agentService, runtimeManager, permissionctx.NewContext())
+	sessionKey := "agent:nexus:ws:dm:claim-before-launch"
+	plan := protocol.GoalContinuation{
+		Goal: protocol.Goal{
+			ID:         "goal-claim-before-launch",
+			SessionKey: sessionKey,
+			Objective:  "old objective",
+			Status:     protocol.GoalStatusActive,
+			Metadata:   map[string]any{protocol.GoalMetadataObjectiveRevision: int64(1)},
+		},
+		RoundID:        "goal_continuation_claim_before_launch",
+		Prompt:         "continue the old objective",
+		HiddenFromUser: true,
+		Synthetic:      true,
+		Purpose:        "goal_continuation",
+	}
+	goalProvider := &fakeGoalContextProvider{
+		reservation:       true,
+		continuationCount: 1,
+		runtimeContext:    "old objective runtime context",
+		runtimeGoal: &protocol.Goal{
+			ID:         plan.Goal.ID,
+			SessionKey: sessionKey,
+			Objective:  plan.Goal.Objective,
+			Status:     protocol.GoalStatusActive,
+			Metadata:   map[string]any{protocol.GoalMetadataObjectiveRevision: int64(1)},
+		},
+	}
+	service.SetGoalContextProvider(goalProvider)
+	revisionState := make(chan *atomic.Int64, 1)
+	service.SetMCPServerBuilder(func(_ string, _ string, _ string, _ string, _ string, _ string, revision *atomic.Int64) map[string]sdkmcp.ServerConfig {
+		goalProvider.mu.Lock()
+		claimCalls := goalProvider.claimCalls
+		goalProvider.mu.Unlock()
+		if claimCalls != 1 {
+			t.Errorf("MCP builder observed claimCalls=%d, want claim before launch", claimCalls)
+		}
+		revisionState <- revision
+		return nil
+	})
+
+	if err := service.DispatchGoalContinuation(context.Background(), plan); err != nil {
+		t.Fatal(err)
+	}
+	var state *atomic.Int64
+	select {
+	case state = <-revisionState:
+	case <-time.After(2 * time.Second):
+		t.Fatal("runtime did not build MCP servers")
+	}
+	if state == nil || state.Load() != plan.Goal.ObjectiveRevision() {
+		t.Fatalf("runtime revision = %v, want plan revision %d", state, plan.Goal.ObjectiveRevision())
+	}
+	select {
+	case <-queryStarted:
+	case <-time.After(2 * time.Second):
+		t.Fatal("claimed continuation did not start runtime")
+	}
+	client.messages <- sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeResult,
+		SessionID: client.sessionID,
+		UUID:      "result-claim-before-launch",
+		Result: &sdkprotocol.ResultMessage{
+			Subtype:    "success",
+			DurationMS: 1,
+			NumTurns:   1,
+			Result:     "done",
+		},
+	}
+	waitForDMRuntimeIdle(t, runtimeManager, sessionKey)
+	goalProvider.mu.Lock()
+	progressRevisions := append([]int64(nil), goalProvider.progressRevisions...)
+	goalProvider.mu.Unlock()
+	if !slices.Equal(progressRevisions, []int64{plan.Goal.ObjectiveRevision()}) {
+		t.Fatalf("progress revisions = %v, want plan revision", progressRevisions)
+	}
+}
+
+func TestServiceGoalContinuationRejectsRetargetAfterClaimBeforeRuntimeLaunch(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+	agentService := newDMAgentService(t, cfg)
+	client := newFakeDMClient()
+	queryStarted := make(chan struct{}, 1)
+	client.onQuery = func(context.Context, string) {
+		queryStarted <- struct{}{}
+	}
+	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{client: client})
+	service := NewService(cfg, agentService, runtimeManager, permissionctx.NewContext())
+	sessionKey := "agent:nexus:ws:dm:retarget-after-claim"
+	plan := protocol.GoalContinuation{
+		Goal: protocol.Goal{
+			ID:         "goal-retarget-after-claim",
+			SessionKey: sessionKey,
+			Objective:  "old objective",
+			Status:     protocol.GoalStatusActive,
+			Metadata:   map[string]any{protocol.GoalMetadataObjectiveRevision: int64(1)},
+		},
+		RoundID:        "goal_continuation_retarget_after_claim",
+		Prompt:         "continue the old objective",
+		HiddenFromUser: true,
+		Synthetic:      true,
+		Purpose:        "goal_continuation",
+	}
+	goalProvider := &fakeGoalContextProvider{
+		reservation:       true,
+		continuationCount: 1,
+		runtimeContext:    "old objective runtime context",
+		runtimeGoal: &protocol.Goal{
+			ID:         plan.Goal.ID,
+			SessionKey: sessionKey,
+			Objective:  plan.Goal.Objective,
+			Status:     protocol.GoalStatusActive,
+			Metadata:   map[string]any{protocol.GoalMetadataObjectiveRevision: int64(1)},
+		},
+	}
+	goalProvider.onClaim = func() {
+		goalProvider.mu.Lock()
+		goalProvider.runtimeGoal.Objective = "new objective"
+		goalProvider.runtimeGoal.Metadata[protocol.GoalMetadataObjectiveRevision] = int64(2)
+		goalProvider.mu.Unlock()
+	}
+	service.SetGoalContextProvider(goalProvider)
+	mcpBuilt := make(chan struct{}, 1)
+	service.SetMCPServerBuilder(func(_ string, _ string, _ string, _ string, _ string, _ string, _ *atomic.Int64) map[string]sdkmcp.ServerConfig {
+		mcpBuilt <- struct{}{}
+		return nil
+	})
+
+	err := service.DispatchGoalContinuation(context.Background(), plan)
+	if !errors.Is(err, goalsvc.ErrGoalRevisionStale) {
+		t.Fatalf("DispatchGoalContinuation() error = %v, want ErrGoalRevisionStale", err)
+	}
+	goalProvider.mu.Lock()
+	claimCalls := goalProvider.claimCalls
+	failures := append([]string(nil), goalProvider.failures...)
+	progress := append([]bool(nil), goalProvider.progress...)
+	goalProvider.mu.Unlock()
+	if claimCalls != 1 {
+		t.Fatalf("claim calls = %d, want 1", claimCalls)
+	}
+	if len(failures) != 0 || len(progress) != 0 {
+		t.Fatalf("stale launch mutated retargeted Goal: failures=%v progress=%v", failures, progress)
+	}
+	select {
+	case <-mcpBuilt:
+		t.Fatal("retargeted continuation must stop before MCP/runtime setup")
+	default:
+	}
+	select {
+	case <-queryStarted:
+		t.Fatal("retargeted continuation must stop before querying the model")
+	default:
 	}
 }
 

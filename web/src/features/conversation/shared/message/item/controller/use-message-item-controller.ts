@@ -1,3 +1,8 @@
+/**
+ * INPUT: MessageItem 投影参数与用户交互回调。
+ * OUTPUT: 用户消息列表、assistant 展示状态及复制/展开动作。
+ * POS: 单轮消息视图的 controller 装配层。
+ */
 import { useCallback } from "react";
 
 import { useScrollAnchoredState } from "@/features/conversation/shared/timeline/scroll/use-scroll-anchored-state";
@@ -36,7 +41,6 @@ export function useMessageItemController({
   roundId,
   runtimePhase,
 }: MessageItemControllerOptions) {
-  const { copied: copiedUser, copy: copyUser } = useCopyToClipboard();
   const { copied: copiedAssistant, copy: copyAssistant } = useCopyToClipboard();
   const {
     isOpen: isProcessExpanded,
@@ -73,11 +77,6 @@ export function useMessageItemController({
     setIsProcessExpanded,
   });
 
-  const handleCopyUser = useCallback(async () => {
-    if (projection.userContent) {
-      await copyUser(projection.userContent);
-    }
-  }, [copyUser, projection.userContent]);
   const handleCopyAssistant = useCallback(async () => {
     if (projection.finalAssistantText) {
       await copyAssistant(projection.finalAssistantText);
@@ -96,13 +95,7 @@ export function useMessageItemController({
   });
 
   return {
-    user: {
-      attachments: projection.userAttachments,
-      content: projection.userContent,
-      copied: copiedUser,
-      copy: handleCopyUser,
-      message: projection.userMessage,
-    },
+    userMessages: projection.userMessages,
     assistant: {
       hidden: display.hidden,
       header: {

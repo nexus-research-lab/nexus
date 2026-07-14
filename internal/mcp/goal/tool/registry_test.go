@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/mcp/goal/contract"
+	sdktool "github.com/nexus-research-lab/nexus/internal/mcp/sdktool"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -20,7 +21,7 @@ func TestBuildAllExposesCodexGoalToolSet(t *testing.T) {
 		names = append(names, item.Name)
 	}
 
-	want := []string{"get_goal", "create_goal", "update_goal"}
+	want := []string{"get_goal", "create_goal", "retarget_goal", "update_goal"}
 	if !slices.Equal(names, want) {
 		t.Fatalf("tool names = %#v, want %#v", names, want)
 	}
@@ -97,6 +98,146 @@ func TestUpdateGoalSchemaMatchesCodexStatusOnlyShape(t *testing.T) {
 		if !strings.Contains(tool.Description, want) {
 			t.Fatalf("tool description missing %q: %s", want, tool.Description)
 		}
+	}
+}
+
+func TestRetargetGoalSchemaRequiresOnlyObjective(t *testing.T) {
+	tool := retargetGoal(nil, contract.ServerContext{CurrentSessionKey: "agent:nexus:ws:dm:chat"})
+	properties, ok := tool.InputSchema["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("properties = %#v, want map", tool.InputSchema["properties"])
+	}
+	if names := slices.Sorted(maps.Keys(properties)); !slices.Equal(names, []string{"objective"}) {
+		t.Fatalf("properties = %#v, want objective-only schema", names)
+	}
+	required, ok := tool.InputSchema["required"].([]string)
+	if !ok || !slices.Equal(required, []string{"objective"}) {
+		t.Fatalf("required = %#v, want [objective]", tool.InputSchema["required"])
+	}
+	for _, want := range []string{"user explicitly corrects", "same goal identity", "Never complete the old goal"} {
+		if !strings.Contains(tool.Description, want) {
+			t.Fatalf("tool description missing %q: %s", want, tool.Description)
+		}
+	}
+}
+
+func TestRetargetGoalBindsCurrentSessionAndRound(t *testing.T) {
+	revision := contract.NewGoalObjectiveRevision(7)
+	svc := &fakeRetargetGoalService{retargeted: &protocol.Goal{
+		ID:         "goal-1",
+		SessionKey: "agent:nexus:ws:dm:chat",
+		Objective:  "Analyze M4 and M5",
+		Status:     protocol.GoalStatusActive,
+	}}
+	tool := retargetGoal(svc, contract.ServerContext{
+		CurrentSessionKey:     "agent:nexus:ws:dm:chat",
+		CurrentRoundID:        "round-correction",
+		CurrentAgentID:        "agent-1",
+		GoalObjectiveRevision: revision,
+	})
+
+	result, err := tool.Handler(context.Background(), map[string]any{"objective": "Analyze M4 and M5"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.IsError {
+		t.Fatalf("result = %#v, want success", result)
+	}
+	if svc.sessionKey != "agent:nexus:ws:dm:chat" ||
+		svc.request.Objective != "Analyze M4 and M5" ||
+		svc.request.RoundID != "round-correction" ||
+		svc.request.AgentID != "agent-1" ||
+		svc.request.ExpectedObjectiveRevision != 7 {
+		t.Fatalf("retarget call = session:%q request:%#v", svc.sessionKey, svc.request)
+	}
+}
+
+func TestRetargetGoalRefreshesRevisionForFollowingUpdateInSameServer(t *testing.T) {
+	revision := contract.NewGoalObjectiveRevision(1)
+	otherSlotRevision := contract.NewGoalObjectiveRevision(1)
+	svc := &fakeRetargetGoalService{
+		current: &protocol.Goal{ID: "goal-1", SessionKey: "room:group:chat", Status: protocol.GoalStatusActive},
+		retargeted: &protocol.Goal{
+			ID:         "goal-1",
+			SessionKey: "room:group:chat",
+			Objective:  "Corrected objective",
+			Status:     protocol.GoalStatusActive,
+			Metadata:   map[string]any{protocol.GoalMetadataObjectiveRevision: int64(2)},
+		},
+		completed: &protocol.Goal{ID: "goal-1", SessionKey: "room:group:chat", Status: protocol.GoalStatusComplete},
+	}
+	sctx := contract.ServerContext{
+		CurrentSessionKey:     "room:group:chat",
+		CurrentRoundID:        "round-correction",
+		CurrentAgentID:        "agent-1",
+		GoalObjectiveRevision: revision,
+	}
+	if result, err := retargetGoal(svc, sctx).Handler(context.Background(), map[string]any{"objective": "Corrected objective"}); err != nil || result.IsError {
+		t.Fatalf("retarget result = %#v err=%v", result, err)
+	}
+	sctx.StoreGoalObjectiveRevision(1)
+	if got := revision.Load(); got != 2 {
+		t.Fatalf("revision regressed to %d after an older adoption, want 2", got)
+	}
+	if result, err := updateGoal(svc, sctx).Handler(context.Background(), map[string]any{"status": "complete"}); err != nil || result.IsError {
+		t.Fatalf("update result = %#v err=%v", result, err)
+	}
+	if svc.completedRequest.ExpectedObjectiveRevision != 2 {
+		t.Fatalf("expected revision = %d, want 2 after retarget", svc.completedRequest.ExpectedObjectiveRevision)
+	}
+	if otherSlotRevision.Load() != 1 {
+		t.Fatalf("other slot revision = %d, want unchanged 1", otherSlotRevision.Load())
+	}
+}
+
+func TestUpdateGoalKeepsInFlightRevisionAndUsesAdoptedRevisionNext(t *testing.T) {
+	revision := contract.NewGoalObjectiveRevision(1)
+	sctx := contract.ServerContext{
+		CurrentSessionKey:     "room:group:chat",
+		CurrentRoundID:        "round-recipient",
+		CurrentAgentID:        "agent-recipient",
+		GoalObjectiveRevision: revision,
+	}
+	started := make(chan struct{})
+	release := make(chan struct{})
+	oldCall := &fakeUpdateGoalService{
+		current:          &protocol.Goal{ID: "goal-1", SessionKey: "room:group:chat", Status: protocol.GoalStatusActive},
+		completed:        &protocol.Goal{ID: "goal-1", SessionKey: "room:group:chat", Status: protocol.GoalStatusComplete},
+		requiredRevision: 2,
+		currentStarted:   started,
+		currentRelease:   release,
+	}
+	type handlerResult struct {
+		result sdktool.ToolResult
+		err    error
+	}
+	resultCh := make(chan handlerResult, 1)
+	go func() {
+		result, err := updateGoal(oldCall, sctx).Handler(context.Background(), map[string]any{"status": "complete"})
+		resultCh <- handlerResult{result: result, err: err}
+	}()
+	<-started
+	revision.Store(2)
+	close(release)
+	oldResult := <-resultCh
+	if oldResult.err != nil || !oldResult.result.IsError {
+		t.Fatalf("old in-flight result = %#v err=%v, want revision error", oldResult.result, oldResult.err)
+	}
+	if got := oldCall.completedRequest.ExpectedObjectiveRevision; got != 1 {
+		t.Fatalf("old in-flight expected revision = %d, want captured 1", got)
+	}
+
+	newCall := &fakeUpdateGoalService{
+		current:          &protocol.Goal{ID: "goal-1", SessionKey: "room:group:chat", Status: protocol.GoalStatusActive},
+		completed:        &protocol.Goal{ID: "goal-1", SessionKey: "room:group:chat", Status: protocol.GoalStatusComplete},
+		requiredRevision: 2,
+	}
+	newResult, err := updateGoal(newCall, sctx).Handler(context.Background(), map[string]any{"status": "complete"})
+	if err != nil || newResult.IsError {
+		t.Fatalf("post-adoption result = %#v err=%v, want success", newResult, err)
+	}
+	if got := newCall.completedRequest.ExpectedObjectiveRevision; got != 2 {
+		t.Fatalf("post-adoption expected revision = %d, want 2", got)
 	}
 }
 
@@ -245,7 +386,12 @@ func TestCreateGoalSchemaMatchesCodexBudgetShape(t *testing.T) {
 
 func TestCreateGoalPassesCurrentRoundID(t *testing.T) {
 	svc := &fakeCreateGoalService{}
-	tool := createGoal(svc, contract.ServerContext{CurrentSessionKey: "agent:nexus:ws:dm:chat", CurrentRoundID: "round-create"})
+	revision := contract.NewGoalObjectiveRevision(0)
+	tool := createGoal(svc, contract.ServerContext{
+		CurrentSessionKey:     "agent:nexus:ws:dm:chat",
+		CurrentRoundID:        "round-create",
+		GoalObjectiveRevision: revision,
+	})
 
 	result, err := tool.Handler(context.Background(), map[string]any{"objective": "Ship parity"})
 	if err != nil {
@@ -258,6 +404,9 @@ func TestCreateGoalPassesCurrentRoundID(t *testing.T) {
 		svc.createInput.CreatedBy != "model" ||
 		svc.createInput.RoundID != "round-create" {
 		t.Fatalf("create input = %#v, want current session and round", svc.createInput)
+	}
+	if got := revision.Load(); got != 1 {
+		t.Fatalf("revision after create = %d, want 1", got)
 	}
 }
 
@@ -317,6 +466,10 @@ func (fakeGoalService) CurrentOptional(context.Context, string) (*protocol.Goal,
 	return nil, nil
 }
 
+func (fakeGoalService) RetargetByModel(context.Context, string, protocol.RetargetGoalRequest) (*protocol.Goal, error) {
+	return nil, nil
+}
+
 func (fakeGoalService) CompleteByModel(context.Context, string, protocol.CompleteGoalRequest) (*protocol.Goal, error) {
 	return nil, nil
 }
@@ -351,6 +504,10 @@ func (s *fakeCreateGoalService) CurrentOptional(context.Context, string) (*proto
 	return nil, errors.New("CurrentOptional should not be called by create_goal")
 }
 
+func (s *fakeCreateGoalService) RetargetByModel(context.Context, string, protocol.RetargetGoalRequest) (*protocol.Goal, error) {
+	return nil, errors.New("RetargetByModel should not be called by create_goal")
+}
+
 func (s *fakeCreateGoalService) CompleteByModel(context.Context, string, protocol.CompleteGoalRequest) (*protocol.Goal, error) {
 	return nil, errors.New("CompleteByModel should not be called by create_goal")
 }
@@ -371,6 +528,10 @@ type fakeUpdateGoalService struct {
 	blockedGoalID    string
 	completedRoundID string
 	blockedRoundID   string
+	completedRequest protocol.CompleteGoalRequest
+	requiredRevision int64
+	currentStarted   chan<- struct{}
+	currentRelease   <-chan struct{}
 }
 
 func (s *fakeUpdateGoalService) Create(context.Context, protocol.CreateGoalRequest) (*protocol.Goal, error) {
@@ -379,6 +540,12 @@ func (s *fakeUpdateGoalService) Create(context.Context, protocol.CreateGoalReque
 
 func (s *fakeUpdateGoalService) Current(context.Context, string) (*protocol.Goal, error) {
 	s.currentCalls++
+	if s.currentStarted != nil {
+		s.currentStarted <- struct{}{}
+	}
+	if s.currentRelease != nil {
+		<-s.currentRelease
+	}
 	if s.currentErr != nil {
 		return nil, s.currentErr
 	}
@@ -392,10 +559,18 @@ func (s *fakeUpdateGoalService) CurrentOptional(context.Context, string) (*proto
 	return s.current, nil
 }
 
+func (s *fakeUpdateGoalService) RetargetByModel(context.Context, string, protocol.RetargetGoalRequest) (*protocol.Goal, error) {
+	return nil, errors.New("RetargetByModel should not be called by update_goal")
+}
+
 func (s *fakeUpdateGoalService) CompleteByModel(_ context.Context, goalID string, request protocol.CompleteGoalRequest) (*protocol.Goal, error) {
 	s.completeCalls++
 	s.completedGoalID = goalID
 	s.completedRoundID = request.RoundID
+	s.completedRequest = request
+	if s.requiredRevision > 0 && request.ExpectedObjectiveRevision != s.requiredRevision {
+		return nil, errors.New("goal objective changed after this tool call started")
+	}
 	if s.completed == nil {
 		return nil, errors.New("completed goal not configured")
 	}
@@ -410,4 +585,47 @@ func (s *fakeUpdateGoalService) BlockByModel(_ context.Context, goalID string, r
 		return nil, errors.New("blocked goal not configured")
 	}
 	return s.blocked, nil
+}
+
+type fakeRetargetGoalService struct {
+	sessionKey       string
+	request          protocol.RetargetGoalRequest
+	retargeted       *protocol.Goal
+	current          *protocol.Goal
+	completed        *protocol.Goal
+	completedRequest protocol.CompleteGoalRequest
+	err              error
+}
+
+func (s *fakeRetargetGoalService) Create(context.Context, protocol.CreateGoalRequest) (*protocol.Goal, error) {
+	return nil, errors.New("Create should not be called by retarget_goal")
+}
+
+func (s *fakeRetargetGoalService) Current(context.Context, string) (*protocol.Goal, error) {
+	if s.current != nil {
+		return s.current, nil
+	}
+	return nil, errors.New("Current should not be called by retarget_goal")
+}
+
+func (s *fakeRetargetGoalService) CurrentOptional(context.Context, string) (*protocol.Goal, error) {
+	return nil, errors.New("CurrentOptional should not be called by retarget_goal")
+}
+
+func (s *fakeRetargetGoalService) RetargetByModel(_ context.Context, sessionKey string, request protocol.RetargetGoalRequest) (*protocol.Goal, error) {
+	s.sessionKey = sessionKey
+	s.request = request
+	return s.retargeted, s.err
+}
+
+func (s *fakeRetargetGoalService) CompleteByModel(_ context.Context, _ string, request protocol.CompleteGoalRequest) (*protocol.Goal, error) {
+	if s.completed != nil {
+		s.completedRequest = request
+		return s.completed, nil
+	}
+	return nil, errors.New("CompleteByModel should not be called by retarget_goal")
+}
+
+func (s *fakeRetargetGoalService) BlockByModel(context.Context, string, protocol.BlockGoalRequest) (*protocol.Goal, error) {
+	return nil, errors.New("BlockByModel should not be called by retarget_goal")
 }

@@ -1,8 +1,12 @@
+// INPUT: DM 待发送项、当前运行 round 与队列控制动作。
+// OUTPUT: 串行派发、round 锚定的 guide 或错过 hook 后的下一轮接力。
+// POS: DM 输入队列控制面与派发边界。
 package dm
 
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
@@ -29,6 +33,8 @@ func (s *Service) HandleInputQueue(ctx context.Context, request InputQueueReques
 	if err != nil {
 		return err
 	}
+	s.inputQueueDispatchMu.Lock()
+	defer s.inputQueueDispatchMu.Unlock()
 
 	action := strings.TrimSpace(request.Action)
 	switch action {
@@ -137,12 +143,38 @@ func (s *Service) guideInputQueueItem(
 		s.broadcastInputQueueSnapshot(ctx, sessionKey, items)
 		return nil
 	}
-	items, err = s.inputQueue.UpdateDeliveryPolicy(location, selected.ID, protocol.ChatDeliveryPolicyGuide)
+	targetRoundID := strings.TrimSpace(runningRoundIDs[0])
+	items, err = s.inputQueue.UpdateDeliveryPolicy(location, selected.ID, protocol.ChatDeliveryPolicyGuide, targetRoundID)
+	if err != nil {
+		return err
+	}
+	items, recovered, err := s.recoverStaleInputQueueGuidance(location, selected.ID, targetRoundID, items)
 	if err != nil {
 		return err
 	}
 	s.broadcastInputQueueSnapshot(ctx, sessionKey, items)
+	if recovered {
+		go s.dispatchNextInputQueueItemAtLocation(
+			contextWithQueueOwner(context.Background(), selected.OwnerUserID),
+			sessionKey,
+			selected.AgentID,
+			location,
+		)
+	}
 	return nil
+}
+
+func (s *Service) recoverStaleInputQueueGuidance(
+	location workspacestore.InputQueueLocation,
+	itemID string,
+	targetRoundID string,
+	items []protocol.InputQueueItem,
+) ([]protocol.InputQueueItem, bool, error) {
+	if slices.Contains(s.runtime.GetRunningRoundIDs(location.SessionKey), strings.TrimSpace(targetRoundID)) {
+		return items, false, nil
+	}
+	recovered, err := s.inputQueue.UpdateDeliveryPolicy(location, itemID, protocol.ChatDeliveryPolicyQueue)
+	return recovered, err == nil, err
 }
 
 func (s *Service) dispatchNextInputQueueItemAtLocation(
@@ -151,6 +183,9 @@ func (s *Service) dispatchNextInputQueueItemAtLocation(
 	agentID string,
 	location workspacestore.InputQueueLocation,
 ) bool {
+	s.inputQueueDispatchMu.Lock()
+	defer s.inputQueueDispatchMu.Unlock()
+
 	if strings.TrimSpace(normalizedSessionKey) == "" || len(s.runtime.GetRunningRoundIDs(normalizedSessionKey)) > 0 {
 		return false
 	}
@@ -163,12 +198,13 @@ func (s *Service) dispatchNextInputQueueItemAtLocation(
 		return false
 	}
 	s.broadcastInputQueueSnapshot(ctx, normalizedSessionKey, items)
-	err = s.HandleChat(contextWithQueueOwner(ctx, item.OwnerUserID), Request{
+	err = s.handleChat(contextWithQueueOwner(ctx, item.OwnerUserID), Request{
 		SessionKey:           normalizedSessionKey,
 		AgentID:              dmdomain.FirstNonEmpty(item.AgentID, inputQueueLocationAgentID(location)),
 		Content:              item.Content,
 		Attachments:          item.Attachments,
-		RoundID:              "queue_" + item.ID,
+		RoundID:              inputQueueItemRoundID(*item),
+		UserMessageID:        item.SourceMessageID,
 		DeliveryPolicy:       protocol.NormalizeChatDeliveryPolicy(string(item.DeliveryPolicy)),
 		BroadcastUserMessage: true,
 	})
@@ -199,6 +235,48 @@ func (s *Service) dispatchNextInputQueueItemAtLocation(
 	}
 	s.broadcastEventWithTimeout(ctx, normalizedSessionKey, protocol.NewErrorEvent(normalizedSessionKey, "待发送消息派发失败"))
 	return false
+}
+
+func inputQueueItemRoundID(item protocol.InputQueueItem) string {
+	itemID := strings.TrimSpace(item.ID)
+	if strings.TrimSpace(item.SourceMessageID) != "" ||
+		strings.HasPrefix(itemID, "round_") ||
+		strings.HasPrefix(itemID, "queue_") {
+		return itemID
+	}
+	return "queue_" + itemID
+}
+
+func (s *Service) releaseUndeliveredInputQueueGuidance(
+	ctx context.Context,
+	sessionKey string,
+	location workspacestore.InputQueueLocation,
+	roundID string,
+) {
+	items, err := s.inputQueue.Snapshot(location)
+	if err != nil {
+		s.loggerFor(ctx).Warn("读取 DM 未消费引导失败", "session_key", sessionKey, "err", err)
+		return
+	}
+	changed := false
+	for _, item := range items {
+		if !protocol.ShouldGuideRunningRound(item.DeliveryPolicy) {
+			continue
+		}
+		rootRoundID := strings.TrimSpace(item.RootRoundID)
+		if rootRoundID != "" && rootRoundID != strings.TrimSpace(roundID) {
+			continue
+		}
+		items, err = s.inputQueue.UpdateDeliveryPolicy(location, item.ID, protocol.ChatDeliveryPolicyQueue)
+		if err != nil {
+			s.loggerFor(ctx).Warn("恢复 DM 未消费引导失败", "session_key", sessionKey, "item_id", item.ID, "err", err)
+			continue
+		}
+		changed = true
+	}
+	if changed {
+		s.broadcastInputQueueSnapshot(ctx, sessionKey, items)
+	}
 }
 
 func (s *Service) resolveInputQueueLocation(

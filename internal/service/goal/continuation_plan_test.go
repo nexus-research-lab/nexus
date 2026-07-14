@@ -2,6 +2,7 @@ package goal
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -169,6 +170,199 @@ func TestServicePlanContinuationRetriesVersionStale(t *testing.T) {
 	}
 }
 
+func TestServiceReleaseConcurrentContinuationReservationsExactlyOnce(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{
+		GoalEnabled:                true,
+		GoalAutoContinueEnabled:    true,
+		GoalMaxContinuationsPerRun: 3,
+	}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:chat",
+		Objective:  "Finish the audit",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := service.PlanContinuationForSession(ctx, created.SessionKey, "round-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := service.PlanContinuationForSession(ctx, created.SessionKey, "round-2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first == nil || second == nil || second.Goal.ContinuationCount != 2 {
+		t.Fatalf("plans = %#v / %#v, want two reservations", first, second)
+	}
+
+	if _, err := service.ReleaseContinuationPlan(ctx, *first, "explicit input won"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.ReleaseContinuationPlan(ctx, *second, "explicit input won"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.ReleaseContinuationPlan(ctx, *first, "duplicate release"); err != nil {
+		t.Fatal(err)
+	}
+	current, err := service.Current(ctx, created.SessionKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current.ContinuationCount != 0 || len(continuationReservations(current.Metadata)) != 0 {
+		t.Fatalf("current = %#v, want both reservations released exactly once", current)
+	}
+}
+
+func TestServiceClaimContinuationKeepsCountAndMakesReleaseNoop(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{
+		GoalEnabled:                true,
+		GoalAutoContinueEnabled:    true,
+		GoalMaxContinuationsPerRun: 3,
+	}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:claim",
+		Objective:  "Finish exactly once",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := service.PlanContinuationForSession(ctx, created.SessionKey, "round-before")
+	if err != nil || plan == nil {
+		t.Fatalf("plan = %#v err=%v", plan, err)
+	}
+	if _, err := service.ClaimContinuationPlan(ctx, *plan); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.ClaimContinuationPlan(ctx, *plan); !errors.Is(err, ErrGoalRevisionStale) {
+		t.Fatalf("duplicate claim error = %v, want ErrGoalRevisionStale", err)
+	}
+	if _, err := service.ReleaseContinuationPlan(ctx, *plan, "duplicate dispatch saw runtime running"); err != nil {
+		t.Fatal(err)
+	}
+	current, err := service.Current(ctx, created.SessionKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current.ContinuationCount != 1 || len(continuationReservations(current.Metadata)) != 0 {
+		t.Fatalf("current = %#v, want claimed continuation counted once without pending reservation", current)
+	}
+	startedEvents := 0
+	deferredEvents := 0
+	for _, event := range repo.events {
+		switch event.EventType {
+		case "continuation_started":
+			startedEvents++
+		case "continuation_deferred":
+			deferredEvents++
+		}
+	}
+	if startedEvents != 1 || deferredEvents != 0 {
+		t.Fatalf("started=%d deferred=%d, want idempotent claim and no deferred event", startedEvents, deferredEvents)
+	}
+}
+
+func TestServiceClaimContinuationRejectsRetargetAfterValidation(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{
+		GoalEnabled:             true,
+		GoalAutoContinueEnabled: true,
+	}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:claim-retarget",
+		Objective:  "Analyze M3 and M4",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := service.PlanContinuationForSession(ctx, created.SessionKey, "round-before")
+	if err != nil || plan == nil {
+		t.Fatalf("plan = %#v err=%v", plan, err)
+	}
+	current, err := service.GoalContinuationStillCurrent(ctx, *plan)
+	if err != nil || !current {
+		t.Fatalf("pre-claim validation = %v err=%v, want current", current, err)
+	}
+	retargeted, err := service.RetargetByModel(ctx, created.SessionKey, protocol.RetargetGoalRequest{
+		Objective:                 "Analyze M4 and M5",
+		RoundID:                   "round-correction",
+		ExpectedObjectiveRevision: plan.Goal.ObjectiveRevision(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.ClaimContinuationPlan(ctx, *plan); !errors.Is(err, ErrGoalRevisionStale) {
+		t.Fatalf("claim after retarget error = %v, want ErrGoalRevisionStale", err)
+	}
+	currentGoal, err := service.Current(ctx, created.SessionKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if currentGoal.Objective != retargeted.Objective || currentGoal.ObjectiveRevision() != retargeted.ObjectiveRevision() ||
+		currentGoal.ContinuationCount != 0 || len(continuationReservations(currentGoal.Metadata)) != 0 {
+		t.Fatalf("current = %#v, want retargeted Goal without stale reservation", currentGoal)
+	}
+	for _, event := range repo.events {
+		if event.EventType == "continuation_started" && event.RoundID == plan.RoundID {
+			t.Fatalf("stale continuation emitted started event: %#v", event)
+		}
+	}
+}
+
+func TestServiceClaimContinuationAllowsSameObjectiveVersionBump(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{
+		GoalEnabled:             true,
+		GoalAutoContinueEnabled: true,
+	}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:claim-version",
+		Objective:  "Preserve usage while starting",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := service.PlanContinuationForSession(ctx, created.SessionKey, "round-before")
+	if err != nil || plan == nil {
+		t.Fatalf("plan = %#v err=%v", plan, err)
+	}
+	used, err := service.RecordUsageForGoal(ctx, created.ID, protocol.GoalUsage{InputTokens: 4, OutputTokens: 1}, "round-usage")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if used.Version == plan.Goal.Version || used.ObjectiveRevision() != plan.Goal.ObjectiveRevision() {
+		t.Fatalf("usage versions = goal:%d->%d objective:%d->%d", plan.Goal.Version, used.Version, plan.Goal.ObjectiveRevision(), used.ObjectiveRevision())
+	}
+	current, err := service.GoalContinuationStillCurrent(ctx, *plan)
+	if err != nil || !current {
+		t.Fatalf("validation after usage bump = %v err=%v, want current", current, err)
+	}
+	claimed, err := service.ClaimContinuationPlan(ctx, *plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if claimed.Usage.InputTokens != 4 || claimed.ContinuationCount != 1 || len(continuationReservations(claimed.Metadata)) != 0 {
+		t.Fatalf("claimed = %#v, want usage preserved and reservation consumed", claimed)
+	}
+}
+
 func TestServiceGoalContinuationStillCurrentRejectsStaleGoal(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{
@@ -196,6 +390,19 @@ func TestServiceGoalContinuationStillCurrentRejectsStaleGoal(t *testing.T) {
 	}
 	if !current {
 		t.Fatal("GoalContinuationStillCurrent() = false, want true for current active goal")
+	}
+	if _, err = service.RetargetByModel(ctx, created.SessionKey, protocol.RetargetGoalRequest{
+		Objective: "Use the corrected objective",
+		RoundID:   "round-correction",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	current, err = service.GoalContinuationStillCurrent(ctx, *plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current {
+		t.Fatal("GoalContinuationStillCurrent() = true, want false after same Goal was retargeted")
 	}
 
 	stale := repo.goals[created.ID]

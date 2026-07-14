@@ -1,3 +1,8 @@
+/**
+ * INPUT: Room 根轮次消息与尚未结束的 agent slot。
+ * OUTPUT: 按 agent 聚合、按 agent_round_id 对齐当前执行的回复卡片。
+ * POS: Room feed 与 thread 共用的 Agent 执行轮次投影。
+ */
 import type {
   AssistantMessage,
   AssistantMessageStatus,
@@ -21,7 +26,6 @@ interface RoomAgentRoundIndex {
   agentIds: Set<string>;
   messageGroups: Map<string, AssistantMessage[]>;
   pendingSlots: Map<string, RoomPendingAgentSlotState>;
-  resultSummaries: Map<string, ResultSummary>;
 }
 
 const MESSAGE_STATUS_PRIORITY: readonly AgentRoundStatus[] = [
@@ -68,27 +72,29 @@ function buildMessageGroups(
   return groups;
 }
 
-function buildResultSummaries(messages: Message[]): Map<string, ResultSummary> {
-  const summaries = new Map<string, ResultSummary>();
+function getLatestResultSummary(
+  messages: AssistantMessage[],
+): ResultSummary | undefined {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
-    if (
-      message.role !== "assistant" ||
-      !message.agent_id ||
-      !message.result_summary ||
-      summaries.has(message.agent_id)
-    ) {
-      continue;
+    if (message.result_summary) {
+      return message.result_summary;
     }
-    summaries.set(message.agent_id, message.result_summary);
   }
-  return summaries;
+  return undefined;
 }
 
 function buildPendingSlots(
   slots: RoomPendingAgentSlotState[],
 ): Map<string, RoomPendingAgentSlotState> {
-  return new Map(slots.map((slot) => [slot.agent_id, slot]));
+  const pendingSlots = new Map<string, RoomPendingAgentSlotState>();
+  for (const slot of slots) {
+    const current = pendingSlots.get(slot.agent_id);
+    if (!current || slot.timestamp >= current.timestamp) {
+      pendingSlots.set(slot.agent_id, slot);
+    }
+  }
+  return pendingSlots;
 }
 
 function buildRoomAgentRoundIndex(
@@ -96,18 +102,43 @@ function buildRoomAgentRoundIndex(
   slots: RoomPendingAgentSlotState[],
 ): RoomAgentRoundIndex {
   const messageGroups = buildMessageGroups(messages);
-  const resultSummaries = buildResultSummaries(messages);
   const pendingSlots = buildPendingSlots(slots);
   return {
     agentIds: new Set([
       ...messageGroups.keys(),
-      ...resultSummaries.keys(),
       ...pendingSlots.keys(),
     ]),
     messageGroups,
     pendingSlots,
-    resultSummaries,
   };
+}
+
+function selectCurrentAgentRoundMessages(
+  messages: AssistantMessage[],
+  pendingSlot?: RoomPendingAgentSlotState,
+): AssistantMessage[] {
+  const agentRoundId = pendingSlot?.agent_round_id?.trim();
+  if (!agentRoundId) {
+    return messages;
+  }
+  const matchingMessages = messages.filter(
+    (message) => message.agent_round_id?.trim() === agentRoundId,
+  );
+  if (matchingMessages.length > 0) {
+    return matchingMessages;
+  }
+  if (messages.some((message) => message.agent_round_id?.trim())) {
+    return [];
+  }
+  // 旧历史没有 agent_round_id；活跃 slot 只继承仍在流式的 legacy 消息，
+  // 不能让同 Agent 的旧 result 把新执行投影成 done。
+  return messages.filter(isLegacyActiveAssistantMessage);
+}
+
+function isLegacyActiveAssistantMessage(message: AssistantMessage): boolean {
+  const status = message.stream_status
+    ?? (message.stop_reason || message.is_complete ? "done" : "streaming");
+  return !message.result_summary && ACTIVE_STATUSES.has(status);
 }
 
 function getAgentRoundStatus(
@@ -115,6 +146,11 @@ function getAgentRoundStatus(
   resultSummary?: ResultSummary,
   pendingSlot?: RoomPendingAgentSlotState,
 ): AgentRoundStatus {
+  if (pendingSlot && ACTIVE_STATUSES.has(pendingSlot.status)) {
+    return resolveMessageStatus(messages) === "streaming"
+      ? "streaming"
+      : pendingSlot.status;
+  }
   return (
     resolveResultStatus(resultSummary) ??
     pendingSlot?.status ??
@@ -174,9 +210,12 @@ function buildRoomAgentRoundEntry(
   index: RoomAgentRoundIndex,
   agentId: string,
 ): RoomAgentRoundEntry | null {
-  const assistantMessages = index.messageGroups.get(agentId) ?? [];
-  const resultSummary = index.resultSummaries.get(agentId);
   const pendingSlot = index.pendingSlots.get(agentId);
+  const assistantMessages = selectCurrentAgentRoundMessages(
+    index.messageGroups.get(agentId) ?? [],
+    pendingSlot,
+  );
+  const resultSummary = getLatestResultSummary(assistantMessages);
   if (assistantMessages.length === 0 && !resultSummary && !pendingSlot) {
     return null;
   }

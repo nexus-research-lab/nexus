@@ -1,3 +1,6 @@
+// INPUT: Room Agent slot 的 runtime、状态与轮内普通排队输入。
+// OUTPUT: 并发安全的 slot 状态快照、普通输入 drain 与客户端绑定。
+// POS: 单个 Room Agent 执行槽的内存状态所有者。
 package room
 
 import (
@@ -13,6 +16,7 @@ func (s *RealtimeService) finishSlot(slot *activeRoomSlot) {
 	if slot == nil {
 		return
 	}
+	s.forgetRoomSlotGuidance(slot)
 	slot.doneOnce.Do(func() {
 		close(slot.Done)
 	})
@@ -92,32 +96,6 @@ func (slot *activeRoomSlot) drainQueuedInputs() []roomQueuedInput {
 	}
 	inputs := slices.Clone(slot.QueuedInputs)
 	slot.QueuedInputs = nil
-	return inputs
-}
-
-func (slot *activeRoomSlot) enqueueGuidedInput(roundID string, content string) {
-	if slot == nil || strings.TrimSpace(content) == "" {
-		return
-	}
-	slot.inputMu.Lock()
-	defer slot.inputMu.Unlock()
-	slot.GuidedInputs = append(slot.GuidedInputs, roomQueuedInput{
-		RoundID: strings.TrimSpace(roundID),
-		Content: strings.TrimSpace(content),
-	})
-}
-
-func (slot *activeRoomSlot) drainGuidedInputs() []roomQueuedInput {
-	if slot == nil {
-		return nil
-	}
-	slot.inputMu.Lock()
-	defer slot.inputMu.Unlock()
-	if len(slot.GuidedInputs) == 0 {
-		return nil
-	}
-	inputs := slices.Clone(slot.GuidedInputs)
-	slot.GuidedInputs = nil
 	return inputs
 }
 

@@ -1,3 +1,8 @@
+/**
+ * INPUT: WebSocket message / stream 的未知协议载荷与信封回退字段。
+ * OUTPUT: 校验后的 Conversation Message 或 Stream Message。
+ * POS: 前端消息协议入口；Room user 可无 agent_id，assistant/stream 必须有 agent_id。
+ */
 import {
   asUnknownRecord,
   hasFiniteNumberFields,
@@ -18,7 +23,6 @@ const STREAM_MESSAGE_TYPES = new Set([
   "message_stop",
 ]);
 const MESSAGE_IDENTITY_STRING_FIELDS = [
-  "agent_id",
   "message_id",
   "round_id",
 ] as const;
@@ -33,10 +37,12 @@ function hasMessageContent(role: string, content: unknown): boolean {
   return role === "assistant" ? Array.isArray(content) : typeof content === "string";
 }
 
-function hasMessageIdentity(record: UnknownRecord): boolean {
+function hasMessageIdentity(record: UnknownRecord, role: string): boolean {
   return (
     hasNonEmptyStringFields(record, MESSAGE_IDENTITY_STRING_FIELDS) &&
-    hasFiniteNumberFields(record, MESSAGE_TIMESTAMP_FIELDS)
+    hasFiniteNumberFields(record, MESSAGE_TIMESTAMP_FIELDS) &&
+    typeof record.agent_id === "string" &&
+    (role !== "assistant" || record.agent_id.length > 0)
   );
 }
 
@@ -61,7 +67,7 @@ export function parseConversationMessage(
   if (
     !role
     || !sessionKey
-    || !hasMessageIdentity(record)
+    || !hasMessageIdentity(record, role)
     || !hasMessageContent(role, record.content)
   ) {
     return null;
@@ -89,7 +95,7 @@ export function parseStreamMessage(
   if (
     !sessionKey
     || !type
-    || !hasMessageIdentity(record)
+    || !hasMessageIdentity(record, "assistant")
   ) {
     return null;
   }

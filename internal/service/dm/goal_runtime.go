@@ -1,3 +1,6 @@
+// INPUT: DM round 的模型结果、assistant 快照、usage 与 objective revision。
+// OUTPUT: revision 安全的 Goal usage、进展和终态回调。
+// POS: DM runtime 结果到 Goal 状态机的结算投影层。
 package dm
 
 import (
@@ -138,14 +141,14 @@ func (r *roundRunner) recordGoalContinuationProgress(result exec.RoundExecutionR
 			"Goal continuation runtime failed",
 		)
 		r.recordGoalMutation("记录 Goal 续跑失败原因失败", func() error {
-			_, err := r.service.goals.RecordContinuationFailure(context.Background(), r.goalIDForUsage, r.roundID, reason)
+			_, err := r.service.goals.RecordContinuationFailure(context.Background(), r.goalIDForUsage, r.roundID, reason, r.currentGoalObjectiveRevision())
 			return err
 		})
 		return
 	}
 	if strings.TrimSpace(r.inputOptions.Purpose) != "goal_continuation" {
 		r.recordGoalMutation("记录 Goal 显式活动失败", func() error {
-			_, err := r.service.goals.RecordGoalActivity(context.Background(), r.goalIDForUsage, r.roundID)
+			_, err := r.service.goals.RecordGoalActivity(context.Background(), r.goalIDForUsage, r.roundID, r.currentGoalObjectiveRevision())
 			return err
 		})
 		return
@@ -153,7 +156,7 @@ func (r *roundRunner) recordGoalContinuationProgress(result exec.RoundExecutionR
 	if messageutil.AssistantMissedGoalCompletionTool(r.lastGoalAssistantMessage()) {
 		reason := "assistant claimed goal completion but did not call mcp__nexus_goal__update_goal"
 		r.recordGoalMutation("记录 Goal 完成工具漏调用失败", func() error {
-			_, err := r.service.goals.RecordCompletionToolMiss(context.Background(), r.goalIDForUsage, r.roundID, reason)
+			_, err := r.service.goals.RecordCompletionToolMiss(context.Background(), r.goalIDForUsage, r.roundID, reason, r.currentGoalObjectiveRevision())
 			return err
 		})
 		return
@@ -163,9 +166,16 @@ func (r *roundRunner) recordGoalContinuationProgress(result exec.RoundExecutionR
 		return
 	}
 	r.recordGoalMutation("记录 Goal 续跑进展失败", func() error {
-		_, err := r.service.goals.RecordContinuationProgress(context.Background(), r.goalIDForUsage, r.roundID, progressed)
+		_, err := r.service.goals.RecordContinuationProgress(context.Background(), r.goalIDForUsage, r.roundID, progressed, r.currentGoalObjectiveRevision())
 		return err
 	}, "progressed", progressed)
+}
+
+func (r *roundRunner) currentGoalObjectiveRevision() int64 {
+	if r == nil || r.goalObjectiveRevision == nil {
+		return 0
+	}
+	return r.goalObjectiveRevision.Load()
 }
 
 func (r *roundRunner) recordGoalMutation(logMessage string, mutation func() error, fields ...any) {

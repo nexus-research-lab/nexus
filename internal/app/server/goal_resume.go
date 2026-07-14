@@ -1,3 +1,6 @@
+// INPUT: Goal continuation plan 与 DM/Room dispatcher。
+// OUTPUT: 目标存在性、延迟判断和经最终校验的运行时派发。
+// POS: app server 的 Goal 恢复装配层，不承载会话启动规则。
 package server
 
 import (
@@ -12,14 +15,12 @@ import (
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
-
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
 type goalContinuationDM interface {
 	ShouldDeferGoalContinuation(context.Context, string, string) bool
 	GoalContinuationTargetMissing(context.Context, string, string) (bool, error)
-	HandleChat(context.Context, dmsvc.Request) error
+	DispatchGoalContinuation(context.Context, protocol.GoalContinuation) error
 }
 
 type goalContinuationRoom interface {
@@ -109,22 +110,7 @@ func (d *goalContinuationDispatcher) DispatchGoalContinuation(ctx context.Contex
 		if strings.TrimSpace(parsed.AgentID) == "" || d.dm == nil {
 			return errors.New("goal continuation requires an agent session dispatcher")
 		}
-		err := d.dm.HandleChat(ctx, dmsvc.Request{
-			SessionKey:           sessionKey,
-			AgentID:              parsed.AgentID,
-			GoalContext:          plan.Prompt,
-			RoundID:              plan.RoundID,
-			DeliveryPolicy:       protocol.ChatDeliveryPolicyQueue,
-			BroadcastUserMessage: false,
-			Internal:             true,
-			InputOptions: sdkprotocol.OutboundMessageOptions{
-				Synthetic:      plan.Synthetic,
-				HiddenFromUser: plan.HiddenFromUser,
-				Purpose:        plan.Purpose,
-				Priority:       "internal",
-				Metadata:       plan.Metadata,
-			},
-		})
+		err := d.dm.DispatchGoalContinuation(ctx, plan)
 		if errors.Is(err, agentsvc.ErrAgentNotFound) {
 			return fmt.Errorf("%w: %v", goalsvc.ErrGoalContinuationTargetMissing, err)
 		}

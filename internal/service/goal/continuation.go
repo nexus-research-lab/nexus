@@ -1,3 +1,6 @@
+// INPUT: active Goal、上一轮结果与当前 session 可调度状态。
+// OUTPUT: 带版本约束的 continuation plan 或明确的延迟/终止决定。
+// POS: Goal 自动续跑计划与最终有效性校验的唯一入口。
 package goal
 
 import (
@@ -69,7 +72,10 @@ func releaseContinuationPlan(ctx context.Context, provider ContinuationPlanProvi
 	}
 }
 
-const goalContinuationPurpose = "goal_continuation"
+const (
+	goalContinuationPurpose                 = "goal_continuation"
+	goalContinuationReservationsMetadataKey = "continuation_reservation_round_ids"
+)
 
 //go:embed templates/continuation.md
 var continuationPromptTemplate string
@@ -138,6 +144,7 @@ func (s *Service) planContinuationForLoadedGoal(ctx context.Context, item *proto
 	roundID := s.idFactory("goal_continuation")
 	expectedVersion := item.Version
 	now := s.nowFn()
+	item.Metadata = addContinuationReservation(item.Metadata, roundID)
 	item.ContinuationCount++
 	item.Version++
 	item.UpdatedAt = now
@@ -171,7 +178,7 @@ func (s *Service) planContinuationForLoadedGoal(ctx context.Context, item *proto
 	}, nil
 }
 
-// GoalContinuationStillCurrent 判断已生成的隐藏续跑是否仍指向当前 active Goal。
+// GoalContinuationStillCurrent 判断已生成的隐藏续跑是否仍持有当前 objective 的待启动 reservation。
 func (s *Service) GoalContinuationStillCurrent(ctx context.Context, plan protocol.GoalContinuation) (bool, error) {
 	if err := s.ensureEnabled(); err != nil {
 		return false, err
@@ -198,18 +205,17 @@ func (s *Service) GoalContinuationStillCurrent(ctx context.Context, plan protoco
 	if item == nil || protocol.NormalizeGoalStatus(item.Status) != protocol.GoalStatusActive {
 		return false, nil
 	}
-	return item.ID == goalID, nil
+	return item.ID == goalID &&
+		objectiveRevisionMatches(*item, plan.Goal.ObjectiveRevision()) &&
+		hasContinuationReservation(item.Metadata, plan.RoundID), nil
 }
 
-// ReleaseContinuationPlan 撤销尚未启动的隐藏续跑计划，避免未执行的 candidate 消耗续跑次数。
-func (s *Service) ReleaseContinuationPlan(ctx context.Context, plan protocol.GoalContinuation, reason string) (*protocol.Goal, error) {
+// ClaimContinuationPlan 原子取得隐藏续跑的唯一启动权；后续 runtime 启动失败必须另记 continuation_failed。
+func (s *Service) ClaimContinuationPlan(ctx context.Context, plan protocol.GoalContinuation) (*protocol.Goal, error) {
 	if err := s.ensureEnabled(); err != nil {
 		return nil, err
 	}
-	goalID := strings.TrimSpace(plan.Goal.ID)
-	if goalID == "" && plan.Metadata != nil {
-		goalID = strings.TrimSpace(plan.Metadata["goal_id"])
-	}
+	goalID := continuationPlanGoalID(plan)
 	if goalID == "" {
 		return nil, fmt.Errorf("%w: continuation plan missing goal identity", ErrGoalInvalidInput)
 	}
@@ -220,11 +226,83 @@ func (s *Service) ReleaseContinuationPlan(ctx context.Context, plan protocol.Goa
 	if item == nil {
 		return nil, ErrGoalNotFound
 	}
-	if item.ContinuationCount != plan.Goal.ContinuationCount ||
-		item.ContinuationCount <= 0 {
+	expectedRevision := plan.Goal.ObjectiveRevision()
+	return s.retryGoalMutation(ctx, item, func(current *protocol.Goal) (*protocol.Goal, error) {
+		if !objectiveRevisionMatches(*current, expectedRevision) {
+			return nil, ErrGoalRevisionStale
+		}
+		return s.claimContinuationPlanForLoadedGoal(ctx, current, plan.RoundID)
+	})
+}
+
+func (s *Service) claimContinuationPlanForLoadedGoal(ctx context.Context, item *protocol.Goal, roundID string) (*protocol.Goal, error) {
+	if protocol.NormalizeGoalStatus(item.Status) != protocol.GoalStatusActive {
+		return nil, ErrGoalInvalidState
+	}
+	metadata, found := removeContinuationReservation(item.Metadata, roundID)
+	if !found {
+		return nil, ErrGoalRevisionStale
+	}
+	expectedVersion := item.Version
+	item.Metadata = metadata
+	item.Version++
+	item.UpdatedAt = s.nowFn()
+	updated, err := s.repo.UpdateGoal(ctx, *item, expectedVersion)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrGoalVersionStale
+	}
+	if err != nil {
+		return nil, err
+	}
+	if err := s.appendEvent(ctx, *updated, "continuation_started", protocol.GoalUpdateSourceSystem, roundID, map[string]any{
+		"continuation_count": updated.ContinuationCount,
+	}); err != nil {
+		return nil, err
+	}
+	return updated, nil
+}
+
+// ReleaseContinuationPlan 撤销尚未启动的隐藏续跑计划，避免未执行的 candidate 消耗续跑次数。
+func (s *Service) ReleaseContinuationPlan(ctx context.Context, plan protocol.GoalContinuation, reason string) (*protocol.Goal, error) {
+	if err := s.ensureEnabled(); err != nil {
+		return nil, err
+	}
+	goalID := continuationPlanGoalID(plan)
+	if goalID == "" {
+		return nil, fmt.Errorf("%w: continuation plan missing goal identity", ErrGoalInvalidInput)
+	}
+	item, err := s.repo.GetGoal(ctx, goalID)
+	if err != nil {
+		return nil, err
+	}
+	if item == nil {
+		return nil, ErrGoalNotFound
+	}
+	return s.retryGoalMutation(ctx, item, func(current *protocol.Goal) (*protocol.Goal, error) {
+		return s.releaseContinuationPlanForLoadedGoal(ctx, current, plan.RoundID, reason)
+	})
+}
+
+func continuationPlanGoalID(plan protocol.GoalContinuation) string {
+	goalID := strings.TrimSpace(plan.Goal.ID)
+	if goalID == "" && plan.Metadata != nil {
+		goalID = strings.TrimSpace(plan.Metadata["goal_id"])
+	}
+	return goalID
+}
+
+func (s *Service) releaseContinuationPlanForLoadedGoal(
+	ctx context.Context,
+	item *protocol.Goal,
+	roundID string,
+	reason string,
+) (*protocol.Goal, error) {
+	metadata, found := removeContinuationReservation(item.Metadata, roundID)
+	if !found || item.ContinuationCount <= 0 {
 		return item, nil
 	}
 	expectedVersion := item.Version
+	item.Metadata = metadata
 	item.ContinuationCount--
 	item.Version++
 	item.UpdatedAt = s.nowFn()
@@ -239,13 +317,83 @@ func (s *Service) ReleaseContinuationPlan(ctx context.Context, plan protocol.Goa
 	if reason == "" {
 		reason = "Goal continuation deferred before dispatch"
 	}
-	if err := s.appendEvent(ctx, *updated, "continuation_deferred", protocol.GoalUpdateSourceSystem, plan.RoundID, map[string]any{
+	if err := s.appendEvent(ctx, *updated, "continuation_deferred", protocol.GoalUpdateSourceSystem, roundID, map[string]any{
 		"continuation_count": updated.ContinuationCount,
 		"reason":             reason,
 	}); err != nil {
 		return nil, err
 	}
 	return updated, nil
+}
+
+func continuationReservations(metadata map[string]any) []string {
+	if metadata == nil {
+		return nil
+	}
+	values := make([]string, 0)
+	switch typed := metadata[goalContinuationReservationsMetadataKey].(type) {
+	case []string:
+		values = append(values, typed...)
+	case []any:
+		for _, value := range typed {
+			if text, ok := value.(string); ok {
+				values = append(values, text)
+			}
+		}
+	}
+	return values
+}
+
+func addContinuationReservation(metadata map[string]any, roundID string) map[string]any {
+	metadata = cloneMap(metadata)
+	if metadata == nil {
+		metadata = map[string]any{}
+	}
+	reservations := continuationReservations(metadata)
+	reservations = append(reservations, strings.TrimSpace(roundID))
+	metadata[goalContinuationReservationsMetadataKey] = reservations
+	return metadata
+}
+
+func hasContinuationReservation(metadata map[string]any, roundID string) bool {
+	roundID = strings.TrimSpace(roundID)
+	for _, candidate := range continuationReservations(metadata) {
+		if strings.TrimSpace(candidate) == roundID {
+			return true
+		}
+	}
+	return false
+}
+
+func removeContinuationReservation(metadata map[string]any, roundID string) (map[string]any, bool) {
+	roundID = strings.TrimSpace(roundID)
+	reservations := continuationReservations(metadata)
+	for index, candidate := range reservations {
+		if strings.TrimSpace(candidate) != roundID {
+			continue
+		}
+		metadata = cloneMap(metadata)
+		reservations = append(reservations[:index:index], reservations[index+1:]...)
+		if len(reservations) == 0 {
+			delete(metadata, goalContinuationReservationsMetadataKey)
+		} else {
+			metadata[goalContinuationReservationsMetadataKey] = reservations
+		}
+		return metadata, true
+	}
+	return metadata, false
+}
+
+func clearContinuationReservations(metadata map[string]any) map[string]any {
+	if len(continuationReservations(metadata)) == 0 {
+		return metadata
+	}
+	metadata = cloneMap(metadata)
+	delete(metadata, goalContinuationReservationsMetadataKey)
+	if len(metadata) == 0 {
+		return nil
+	}
+	return metadata
 }
 
 func (s *Service) goalBudgetExhausted(item protocol.Goal) bool {

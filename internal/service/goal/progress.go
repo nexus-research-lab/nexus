@@ -1,3 +1,6 @@
+// INPUT: runtime round 进展、失败与 objective revision fence。
+// OUTPUT: CAS 重试后的 Goal 进展状态和审计事件。
+// POS: Goal round 结果回写的唯一入口。
 package goal
 
 import (
@@ -15,7 +18,7 @@ const (
 )
 
 // RecordContinuationProgress 记录上一轮 Goal 续跑是否产生了可计入的自主进展。
-func (s *Service) RecordContinuationProgress(ctx context.Context, goalID string, roundID string, progressed bool) (*protocol.Goal, error) {
+func (s *Service) RecordContinuationProgress(ctx context.Context, goalID string, roundID string, progressed bool, expectedRevision ...int64) (*protocol.Goal, error) {
 	if err := s.ensureEnabled(); err != nil {
 		return nil, err
 	}
@@ -26,11 +29,11 @@ func (s *Service) RecordContinuationProgress(ctx context.Context, goalID string,
 	if item == nil {
 		return nil, ErrGoalNotFound
 	}
-	return s.recordContinuationProgressForGoal(ctx, item, strings.TrimSpace(roundID), progressed)
+	return s.recordContinuationProgressForGoal(ctx, item, strings.TrimSpace(roundID), progressed, firstExpectedObjectiveRevision(expectedRevision))
 }
 
 // RecordContinuationFailure 记录 Goal 续跑的 runtime 失败原因，并暂停后续空转续跑。
-func (s *Service) RecordContinuationFailure(ctx context.Context, goalID string, roundID string, reason string) (*protocol.Goal, error) {
+func (s *Service) RecordContinuationFailure(ctx context.Context, goalID string, roundID string, reason string, expectedRevision ...int64) (*protocol.Goal, error) {
 	if err := s.ensureEnabled(); err != nil {
 		return nil, err
 	}
@@ -41,11 +44,11 @@ func (s *Service) RecordContinuationFailure(ctx context.Context, goalID string, 
 	if item == nil {
 		return nil, ErrGoalNotFound
 	}
-	return s.recordContinuationFailureForGoal(ctx, item, strings.TrimSpace(roundID), reason)
+	return s.recordContinuationFailureForGoal(ctx, item, strings.TrimSpace(roundID), reason, firstExpectedObjectiveRevision(expectedRevision))
 }
 
 // RecordCompletionToolMiss 记录模型已声称目标完成但漏调 Goal 完成工具，并安排一次收尾重试。
-func (s *Service) RecordCompletionToolMiss(ctx context.Context, goalID string, roundID string, reason string) (*protocol.Goal, error) {
+func (s *Service) RecordCompletionToolMiss(ctx context.Context, goalID string, roundID string, reason string, expectedRevision ...int64) (*protocol.Goal, error) {
 	if err := s.ensureEnabled(); err != nil {
 		return nil, err
 	}
@@ -56,11 +59,11 @@ func (s *Service) RecordCompletionToolMiss(ctx context.Context, goalID string, r
 	if item == nil {
 		return nil, ErrGoalNotFound
 	}
-	return s.recordCompletionToolMissForGoal(ctx, item, strings.TrimSpace(roundID), reason)
+	return s.recordCompletionToolMissForGoal(ctx, item, strings.TrimSpace(roundID), reason, firstExpectedObjectiveRevision(expectedRevision))
 }
 
 // RecordGoalActivity 记录显式用户/外部活动，让自动续跑 run 从当前轮重新开始计数。
-func (s *Service) RecordGoalActivity(ctx context.Context, goalID string, roundID string) (*protocol.Goal, error) {
+func (s *Service) RecordGoalActivity(ctx context.Context, goalID string, roundID string, expectedRevision ...int64) (*protocol.Goal, error) {
 	if err := s.ensureEnabled(); err != nil {
 		return nil, err
 	}
@@ -71,34 +74,46 @@ func (s *Service) RecordGoalActivity(ctx context.Context, goalID string, roundID
 	if item == nil {
 		return nil, ErrGoalNotFound
 	}
-	return s.recordGoalActivityForGoal(ctx, item, strings.TrimSpace(roundID))
+	return s.recordGoalActivityForGoal(ctx, item, strings.TrimSpace(roundID), firstExpectedObjectiveRevision(expectedRevision))
 }
 
-func (s *Service) recordContinuationProgressForGoal(ctx context.Context, item *protocol.Goal, roundID string, progressed bool) (*protocol.Goal, error) {
-	return s.retryGoalProgressMutation(ctx, item, func(current *protocol.Goal) (*protocol.Goal, error) {
+func (s *Service) recordContinuationProgressForGoal(ctx context.Context, item *protocol.Goal, roundID string, progressed bool, expectedRevision int64) (*protocol.Goal, error) {
+	return s.retryGoalMutation(ctx, item, func(current *protocol.Goal) (*protocol.Goal, error) {
+		if !objectiveRevisionMatches(*current, expectedRevision) {
+			return nil, ErrGoalRevisionStale
+		}
 		return s.recordContinuationProgressForLoadedGoal(ctx, current, roundID, progressed)
 	})
 }
 
-func (s *Service) recordContinuationFailureForGoal(ctx context.Context, item *protocol.Goal, roundID string, reason string) (*protocol.Goal, error) {
-	return s.retryGoalProgressMutation(ctx, item, func(current *protocol.Goal) (*protocol.Goal, error) {
+func (s *Service) recordContinuationFailureForGoal(ctx context.Context, item *protocol.Goal, roundID string, reason string, expectedRevision int64) (*protocol.Goal, error) {
+	return s.retryGoalMutation(ctx, item, func(current *protocol.Goal) (*protocol.Goal, error) {
+		if !objectiveRevisionMatches(*current, expectedRevision) {
+			return nil, ErrGoalRevisionStale
+		}
 		return s.recordContinuationFailureForLoadedGoal(ctx, current, roundID, reason)
 	})
 }
 
-func (s *Service) recordCompletionToolMissForGoal(ctx context.Context, item *protocol.Goal, roundID string, reason string) (*protocol.Goal, error) {
-	return s.retryGoalProgressMutation(ctx, item, func(current *protocol.Goal) (*protocol.Goal, error) {
+func (s *Service) recordCompletionToolMissForGoal(ctx context.Context, item *protocol.Goal, roundID string, reason string, expectedRevision int64) (*protocol.Goal, error) {
+	return s.retryGoalMutation(ctx, item, func(current *protocol.Goal) (*protocol.Goal, error) {
+		if !objectiveRevisionMatches(*current, expectedRevision) {
+			return nil, ErrGoalRevisionStale
+		}
 		return s.recordCompletionToolMissForLoadedGoal(ctx, current, roundID, reason)
 	})
 }
 
-func (s *Service) recordGoalActivityForGoal(ctx context.Context, item *protocol.Goal, roundID string) (*protocol.Goal, error) {
-	return s.retryGoalProgressMutation(ctx, item, func(current *protocol.Goal) (*protocol.Goal, error) {
+func (s *Service) recordGoalActivityForGoal(ctx context.Context, item *protocol.Goal, roundID string, expectedRevision int64) (*protocol.Goal, error) {
+	return s.retryGoalMutation(ctx, item, func(current *protocol.Goal) (*protocol.Goal, error) {
+		if !objectiveRevisionMatches(*current, expectedRevision) {
+			return nil, ErrGoalRevisionStale
+		}
 		return s.recordGoalActivityForLoadedGoal(ctx, current, roundID)
 	})
 }
 
-func (s *Service) retryGoalProgressMutation(ctx context.Context, item *protocol.Goal, mutate func(*protocol.Goal) (*protocol.Goal, error)) (*protocol.Goal, error) {
+func (s *Service) retryGoalMutation(ctx context.Context, item *protocol.Goal, mutate func(*protocol.Goal) (*protocol.Goal, error)) (*protocol.Goal, error) {
 	current := item
 	for attempt := 0; attempt < goalUpdateMaxAttempts; attempt++ {
 		updated, err := mutate(current)
@@ -227,7 +242,7 @@ func (s *Service) recordGoalActivityForLoadedGoal(ctx context.Context, item *pro
 	item.EmptyProgressCount = 0
 	item.ContinuationCount = 0
 	item.LastError = ""
-	item.Metadata = clearCompletionToolRetryMetadata(item.Metadata)
+	item.Metadata = clearContinuationReservations(clearCompletionToolRetryMetadata(item.Metadata))
 	item.Version++
 	item.UpdatedAt = s.nowFn()
 	updated, err := s.repo.UpdateGoal(ctx, *item, expectedVersion)

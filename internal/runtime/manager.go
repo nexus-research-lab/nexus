@@ -1,8 +1,12 @@
+// INPUT: SDK client factory 与 session/round 生命周期状态。
+// OUTPUT: 并发安全的 runtime session 状态管理器。
+// POS: runtime client、round、guidance 与 Goal accounting 的共享状态根。
 package runtime
 
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
@@ -17,6 +21,7 @@ type sessionState struct {
 	GoalAccountingFlushers   map[string]GoalAccountingFlush
 	GoalAccountingClearers   map[string]GoalAccountingClear
 	GoalAccountingActivators map[string]GoalAccountingActivate
+	GoalObjectiveRevisions   map[string]*atomic.Int64
 	GuidedInputs             []GuidedInput
 	IdleMessageCancel        context.CancelFunc
 	IdleMessageDrainID       int64
@@ -61,6 +66,7 @@ func (m *Manager) ensureStateLocked(sessionKey string) *sessionState {
 			GoalAccountingFlushers:   make(map[string]GoalAccountingFlush),
 			GoalAccountingClearers:   make(map[string]GoalAccountingClear),
 			GoalAccountingActivators: make(map[string]GoalAccountingActivate),
+			GoalObjectiveRevisions:   make(map[string]*atomic.Int64),
 		}
 		m.sessions[sessionKey] = state
 	}

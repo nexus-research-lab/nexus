@@ -1,3 +1,6 @@
+// INPUT: 模型 complete/blocked 请求、usage 与 objective revision。
+// OUTPUT: 受状态机和 revision fence 保护的 Goal 工具结果。
+// POS: Goal 模型生命周期工具的服务层入口。
 package goal
 
 import (
@@ -12,14 +15,14 @@ import (
 
 // CompleteByModel 允许模型工具把 active Goal 标记为完成。
 func (s *Service) CompleteByModel(ctx context.Context, goalID string, request protocol.CompleteGoalRequest) (*protocol.Goal, error) {
-	if err := s.ensureRoomGoalCollaborationComplete(ctx, goalID); err != nil {
+	if err := s.ensureRoomGoalCollaborationComplete(ctx, goalID, request.ExpectedObjectiveRevision); err != nil {
 		return nil, err
 	}
 	payload := map[string]any{}
 	if summary := strings.TrimSpace(request.Summary); summary != "" {
 		payload["summary"] = summary
 	}
-	return s.changeStatus(ctx, goalID, protocol.GoalStatusComplete, protocol.GoalUpdateSourceModel, "completed", request.RoundID, payload)
+	return s.changeStatus(ctx, goalID, protocol.GoalStatusComplete, protocol.GoalUpdateSourceModel, "completed", request.RoundID, payload, request.ExpectedObjectiveRevision)
 }
 
 // BlockByModel 允许模型工具把 active Goal 标记为阻塞。
@@ -32,10 +35,10 @@ func (s *Service) BlockByModel(ctx context.Context, goalID string, request proto
 	if neededInput := strings.TrimSpace(request.NeededInput); neededInput != "" {
 		payload["needed_input"] = neededInput
 	}
-	return s.changeStatus(ctx, goalID, protocol.GoalStatusBlocked, protocol.GoalUpdateSourceModel, "blocked", request.RoundID, payload)
+	return s.changeStatus(ctx, goalID, protocol.GoalStatusBlocked, protocol.GoalUpdateSourceModel, "blocked", request.RoundID, payload, request.ExpectedObjectiveRevision)
 }
 
-func (s *Service) ensureRoomGoalCollaborationComplete(ctx context.Context, goalID string) error {
+func (s *Service) ensureRoomGoalCollaborationComplete(ctx context.Context, goalID string, expectedRevision int64) error {
 	if err := s.ensureEnabled(); err != nil {
 		return err
 	}
@@ -45,6 +48,9 @@ func (s *Service) ensureRoomGoalCollaborationComplete(ctx context.Context, goalI
 	}
 	if item == nil {
 		return ErrGoalNotFound
+	}
+	if !objectiveRevisionMatches(*item, expectedRevision) {
+		return ErrGoalRevisionStale
 	}
 	if roomGoalCompletionRequiresCollaboration(*item) {
 		return fmt.Errorf("%w: multi-member Room Goal requires a room-visible non-lead collaboration reply before completion", ErrGoalInvalidState)

@@ -1,7 +1,12 @@
+/**
+ * INPUT: 单条 durable user message 与编辑、复制、附件回调。
+ * OUTPUT: 可独立渲染的用户消息区块。
+ * POS: DM / Room 共用的 user message 视图。
+ */
 import { useCallback } from "react";
 
 import { cn } from "@/shared/ui/class-name";
-import type { MessageAttachment } from "@/types/conversation/message/attachment";
+import { useCopyToClipboard } from "@/hooks/ui/use-copy-to-clipboard";
 import type { UserMessage } from "@/types/conversation/message/entity";
 
 import { UserMessageContent } from "./user-message-content";
@@ -13,46 +18,34 @@ import {
 } from "./user-message-model";
 import { useUserMessageEditor } from "./use-user-message-editor";
 
-interface MessageUserState {
-  attachments: MessageAttachment[];
-  content: string;
-  copied: boolean;
-  copy: () => Promise<void>;
-  message: UserMessage | undefined;
-}
-
 interface MessageUserSectionProps {
   compact: boolean;
   currentUserAvatar?: string | null;
+  message: UserMessage;
   onEditUserMessage?: (messageId: string, newContent: string) => void;
   onOpenWorkspaceFile?: (path: string, workspaceAgentId?: string | null) => void;
-  user: MessageUserState;
   workspaceAgentId?: string | null;
 }
 
-export function MessageUserSection(props: MessageUserSectionProps) {
-  const message = props.user.message;
-  if (!message) {
-    return null;
-  }
-  return <MessageUserSectionContent {...props} message={message} />;
-}
-
-function MessageUserSectionContent({
+export function MessageUserSection({
   compact,
   currentUserAvatar,
   message,
   onEditUserMessage,
   onOpenWorkspaceFile,
-  user,
   workspaceAgentId,
-}: MessageUserSectionProps & { message: UserMessage }) {
+}: MessageUserSectionProps) {
+  const { copied, copy } = useCopyToClipboard();
+  const attachments = message.attachments ?? [];
+  const handleCopy = useCallback(async () => {
+    await copy(message.content);
+  }, [copy, message.content]);
   const submitEditedContent = useCallback((content: string) => {
     onEditUserMessage?.(message.round_id, content);
   }, [message.round_id, onEditUserMessage]);
   const editor = useUserMessageEditor({
     compact,
-    content: user.content,
+    content: message.content,
     onSubmit: projectAvailableUserMessageAction(
       Boolean(onEditUserMessage),
       submitEditedContent,
@@ -60,7 +53,7 @@ function MessageUserSectionContent({
   });
   const presentation = projectUserMessagePresentation(
     compact,
-    user.content,
+    message.content,
     message,
   );
 
@@ -91,9 +84,9 @@ function MessageUserSectionContent({
             ) : (
               <>
                 <UserMessageHeader
-                  copied={user.copied}
+                  copied={copied}
                   currentUserAvatar={currentUserAvatar}
-                  onCopy={user.copy}
+                  onCopy={handleCopy}
                   onEdit={projectAvailableUserMessageAction(
                     Boolean(onEditUserMessage),
                     editor.start,
@@ -101,8 +94,8 @@ function MessageUserSectionContent({
                   presentation={presentation}
                 />
                 <UserMessageContent
-                  attachments={user.attachments}
-                  content={user.content}
+                  attachments={attachments}
+                  content={message.content}
                   onOpenWorkspaceFile={onOpenWorkspaceFile}
                   presentation={presentation}
                   workspaceAgentId={workspaceAgentId}

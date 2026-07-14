@@ -1,3 +1,6 @@
+// INPUT: DM / Room 待发送项、投递策略与预检过的 guidance 版本。
+// OUTPUT: append-only 队列快照、串行派发和全有或全无的 guidance 认领。
+// POS: 会话输入队列的持久化真相源；业务服务不得自行删除已预检项。
 package workspace
 
 import (
@@ -7,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -30,6 +34,18 @@ type InputQueueLocation struct {
 	SessionKey     string
 	RoomID         string
 	ConversationID string
+}
+
+// InputQueueEnqueue 把一个待登记项与它的物理队列位置绑定。
+type InputQueueEnqueue struct {
+	Location InputQueueLocation
+	Item     protocol.InputQueueItem
+}
+
+type preparedInputQueueEnqueue struct {
+	location InputQueueLocation
+	item     protocol.InputQueueItem
+	previous *protocol.InputQueueItem
 }
 
 // InputQueueStore 负责待发送队列的 append-only JSONL 存储。
@@ -203,6 +219,95 @@ func (s *InputQueueStore) Enqueue(
 	return s.snapshotLocked(location)
 }
 
+// EnqueueBatch 预检并登记整批队列项；写入失败时恢复本次写入前的状态。
+func (s *InputQueueStore) EnqueueBatch(entries []InputQueueEnqueue) error {
+	_, err := s.EnqueueBatchWithItems(entries)
+	return err
+}
+
+// EnqueueBatchWithItems 原子登记整批队列项，并返回实际提交的规范化版本。
+// 调用方可直接用返回值继续做 prepared CAS，无需在恢复后再次读取快照。
+func (s *InputQueueStore) EnqueueBatchWithItems(entries []InputQueueEnqueue) ([]protocol.InputQueueItem, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	now := time.Now().UnixMilli()
+	prepared := make([]preparedInputQueueEnqueue, 0, len(entries))
+	seen := make(map[string]struct{}, len(entries))
+	for _, entry := range entries {
+		path, err := s.pathForLocation(entry.Location)
+		if err != nil {
+			return nil, err
+		}
+		item := normalizeInputQueueItem(entry.Location, entry.Item, now)
+		if item.ID == "" {
+			item.ID = NewInputQueueID()
+		}
+		key := path + "\x00" + item.ID
+		if _, exists := seen[key]; exists {
+			return nil, fmt.Errorf("duplicate input queue item in batch: %s", item.ID)
+		}
+		seen[key] = struct{}{}
+		if item.CreatedAt == 0 {
+			item.CreatedAt = now
+		}
+		item.UpdatedAt = now
+
+		current, err := s.snapshotLocked(entry.Location)
+		if err != nil {
+			return nil, err
+		}
+		var previous *protocol.InputQueueItem
+		for _, existing := range current {
+			if existing.ID == item.ID {
+				copyItem := existing
+				previous = &copyItem
+				break
+			}
+		}
+		prepared = append(prepared, preparedInputQueueEnqueue{location: entry.Location, item: item, previous: previous})
+	}
+
+	committed := make([]preparedInputQueueEnqueue, 0, len(prepared))
+	for _, entry := range prepared {
+		if err := s.appendActionLocked(entry.location, map[string]any{
+			"action":    inputQueueActionEnqueue,
+			"item":      entry.item,
+			"timestamp": now,
+		}); err != nil {
+			rollbackErr := s.rollbackEnqueueBatchLocked(committed, now)
+			return nil, errors.Join(err, rollbackErr)
+		}
+		committed = append(committed, entry)
+	}
+	items := make([]protocol.InputQueueItem, 0, len(committed))
+	for _, entry := range committed {
+		items = append(items, entry.item)
+	}
+	return items, nil
+}
+
+func (s *InputQueueStore) rollbackEnqueueBatchLocked(entries []preparedInputQueueEnqueue, now int64) error {
+	var rollbackErr error
+	for index := len(entries) - 1; index >= 0; index-- {
+		entry := entries[index]
+		row := map[string]any{
+			"action":    inputQueueActionDelete,
+			"item_id":   entry.item.ID,
+			"timestamp": now,
+		}
+		if entry.previous != nil {
+			row = map[string]any{
+				"action":    inputQueueActionEnqueue,
+				"item":      *entry.previous,
+				"timestamp": now,
+			}
+		}
+		rollbackErr = errors.Join(rollbackErr, s.appendActionLocked(entry.location, row))
+	}
+	return rollbackErr
+}
+
 // Delete 删除指定队列项并返回最新快照。
 func (s *InputQueueStore) Delete(location InputQueueLocation, itemID string) ([]protocol.InputQueueItem, error) {
 	s.mu.Lock()
@@ -316,7 +421,56 @@ func (s *InputQueueStore) Dispatch(
 	return s.removeLocked(location, itemID, inputQueueActionDispatch)
 }
 
-// DispatchGuidance 弹出所有等待 hook 引导的队列项。
+// SnapshotGuidance 返回当前可由指定 round 消费的引导项，但不改变队列。
+func (s *InputQueueStore) SnapshotGuidance(
+	location InputQueueLocation,
+	rootRoundIDs ...string,
+) ([]protocol.InputQueueItem, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	items, err := s.snapshotLocked(location)
+	if err != nil {
+		return nil, err
+	}
+	return matchingGuidanceItems(items, rootRoundIDs), nil
+}
+
+// DispatchPreparedGuidance 仅在预检项仍保持原版本时原子消费整批引导。
+// 任一项已变化时不消费任何内容，让调用方在下一次 hook 重新预检。
+func (s *InputQueueStore) DispatchPreparedGuidance(
+	location InputQueueLocation,
+	prepared []protocol.InputQueueItem,
+	rootRoundIDs ...string,
+) ([]protocol.InputQueueItem, []protocol.InputQueueItem, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	items, err := s.snapshotLocked(location)
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(prepared) == 0 {
+		return nil, items, nil
+	}
+	currentByID := make(map[string]protocol.InputQueueItem, len(items))
+	for _, item := range items {
+		currentByID[item.ID] = item
+	}
+	claimed := make([]protocol.InputQueueItem, 0, len(prepared))
+	for _, expected := range prepared {
+		current, ok := currentByID[expected.ID]
+		if !ok || !samePreparedGuidanceItem(current, expected) ||
+			!protocol.ShouldGuideRunningRound(current.DeliveryPolicy) ||
+			!matchesInputQueueGuidanceTarget(current, rootRoundIDs) {
+			return nil, items, nil
+		}
+		claimed = append(claimed, current)
+	}
+	return s.dispatchGuidanceItemsLocked(location, items, claimed)
+}
+
+// DispatchGuidance 原子弹出所有等待 hook 引导的队列项。
 func (s *InputQueueStore) DispatchGuidance(
 	location InputQueueLocation,
 	rootRoundIDs ...string,
@@ -328,27 +482,53 @@ func (s *InputQueueStore) DispatchGuidance(
 	if err != nil {
 		return nil, nil, err
 	}
+	guidanceItems := matchingGuidanceItems(items, rootRoundIDs)
+	if len(guidanceItems) == 0 {
+		return nil, items, nil
+	}
+	return s.dispatchGuidanceItemsLocked(location, items, guidanceItems)
+}
+
+func matchingGuidanceItems(items []protocol.InputQueueItem, rootRoundIDs []string) []protocol.InputQueueItem {
 	guidanceItems := make([]protocol.InputQueueItem, 0)
 	for _, item := range items {
 		if protocol.ShouldGuideRunningRound(item.DeliveryPolicy) && matchesInputQueueGuidanceTarget(item, rootRoundIDs) {
 			guidanceItems = append(guidanceItems, item)
 		}
 	}
-	if len(guidanceItems) == 0 {
-		return nil, items, nil
-	}
+	return guidanceItems
+}
+
+func samePreparedGuidanceItem(current protocol.InputQueueItem, expected protocol.InputQueueItem) bool {
+	return reflect.DeepEqual(current, expected)
+}
+
+func (s *InputQueueStore) dispatchGuidanceItemsLocked(
+	location InputQueueLocation,
+	currentItems []protocol.InputQueueItem,
+	guidanceItems []protocol.InputQueueItem,
+) ([]protocol.InputQueueItem, []protocol.InputQueueItem, error) {
 	now := time.Now().UnixMilli()
+	itemIDs := make([]string, 0, len(guidanceItems))
+	dispatchedIDs := make(map[string]struct{}, len(guidanceItems))
 	for _, item := range guidanceItems {
-		if err = s.appendActionLocked(location, map[string]any{
-			"action":    inputQueueActionDispatch,
-			"item_id":   item.ID,
-			"timestamp": now,
-		}); err != nil {
-			return nil, nil, err
-		}
+		itemIDs = append(itemIDs, item.ID)
+		dispatchedIDs[item.ID] = struct{}{}
 	}
-	next, err := s.snapshotLocked(location)
-	if err != nil {
+	// next 由已持锁读取的快照计算；dispatch commit 成功后不再做可失败的读，
+	// 否则调用方会丢失已经 durable dispatch 的 claimed items，无法回滚。
+	next := make([]protocol.InputQueueItem, 0, len(currentItems))
+	for _, item := range currentItems {
+		if _, dispatched := dispatchedIDs[item.ID]; dispatched {
+			continue
+		}
+		next = append(next, item)
+	}
+	if err := s.appendActionLocked(location, map[string]any{
+		"action":    inputQueueActionDispatch,
+		"item_ids":  itemIDs,
+		"timestamp": now,
+	}); err != nil {
 		return nil, nil, err
 	}
 	return guidanceItems, next, nil

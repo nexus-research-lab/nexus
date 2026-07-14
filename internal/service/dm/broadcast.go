@@ -1,8 +1,10 @@
+// INPUT: DM domain 消息、round/session 状态与广播上下文。
+// OUTPUT: 带超时边界的 DM WebSocket 事件。
+// POS: DM service 到实时事件总线的唯一广播出口。
 package dm
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
@@ -28,24 +30,13 @@ func (s *Service) broadcastUserRoundMarker(
 	ctx context.Context,
 	sessionValue protocol.Session,
 	roundID string,
+	sourceRoundID string,
 	userMessageID string,
 	content string,
 	deliveryPolicy protocol.ChatDeliveryPolicy,
 	attachments []protocol.ChatAttachment,
 ) {
-	message := dmdomain.BuildUserRoundMarker(sessionValue, roundID, userMessageID, content, deliveryPolicy, attachments)
+	message := dmdomain.BuildUserRoundMarker(sessionValue, roundID, sourceRoundID, userMessageID, content, deliveryPolicy, attachments)
 	event := dmdomain.WrapSessionMessageEvent(sessionValue, message, "durable", roundID)
-	s.broadcastEventWithTimeout(ctx, sessionValue.SessionKey, event)
-}
-
-func (s *Service) broadcastGuidanceMessage(
-	ctx context.Context,
-	sessionValue protocol.Session,
-	targetRoundID string,
-	sourceRoundID string,
-	content string,
-) {
-	message := dmdomain.BuildGuidanceMessage(sessionValue, targetRoundID, sourceRoundID, content, time.Now().UnixMilli())
-	event := dmdomain.WrapSessionMessageEvent(sessionValue, message, "ephemeral", strings.TrimSpace(sourceRoundID))
 	s.broadcastEventWithTimeout(ctx, sessionValue.SessionKey, event)
 }

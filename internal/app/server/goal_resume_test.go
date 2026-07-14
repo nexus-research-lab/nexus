@@ -5,13 +5,12 @@ import (
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
 )
 
 type fakeGoalContinuationDM struct {
 	deferResult bool
 	missing     bool
-	requests    []dmsvc.Request
+	plans       []protocol.GoalContinuation
 }
 
 func (f *fakeGoalContinuationDM) ShouldDeferGoalContinuation(context.Context, string, string) bool {
@@ -22,8 +21,8 @@ func (f *fakeGoalContinuationDM) GoalContinuationTargetMissing(context.Context, 
 	return f.missing, nil
 }
 
-func (f *fakeGoalContinuationDM) HandleChat(_ context.Context, request dmsvc.Request) error {
-	f.requests = append(f.requests, request)
+func (f *fakeGoalContinuationDM) DispatchGoalContinuation(_ context.Context, plan protocol.GoalContinuation) error {
+	f.plans = append(f.plans, plan)
 	return nil
 }
 
@@ -106,11 +105,8 @@ func TestGoalContinuationDispatcherKeepsAgentDispatch(t *testing.T) {
 	if err := dispatcher.DispatchGoalContinuation(context.Background(), plan); err != nil {
 		t.Fatalf("DispatchGoalContinuation() error = %v", err)
 	}
-	if len(dm.requests) != 1 || !dm.requests[0].Internal || !dm.requests[0].InputOptions.HiddenFromUser {
-		t.Fatalf("dm requests = %#v, want hidden internal continuation", dm.requests)
-	}
-	if dm.requests[0].Content != "" || dm.requests[0].GoalContext != plan.Prompt {
-		t.Fatalf("dm request prompt routing = %#v, want goal context only", dm.requests[0])
+	if len(dm.plans) != 1 || dm.plans[0].RoundID != plan.RoundID || !dm.plans[0].HiddenFromUser {
+		t.Fatalf("dm plans = %#v, want hidden continuation plan", dm.plans)
 	}
 }
 

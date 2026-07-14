@@ -1,3 +1,6 @@
+// INPUT: 跨 HTTP/WS/runtime 的 Goal 状态、请求与 continuation 数据。
+// OUTPUT: Goal 领域协议及归一化常量。
+// POS: Goal 前后端与运行时共享的协议真相源。
 package protocol
 
 import (
@@ -41,6 +44,7 @@ const (
 	GoalMetadataRoomGoalCollaborationRoundID          = "room_goal_collaboration_round_id"
 	GoalMetadataRoomGoalCollaborationObservedAt       = "room_goal_collaboration_observed_at"
 	GoalMetadataRoomGoalCollaborationRequirementRound = "room_goal_collaboration_requirement_round_id"
+	GoalMetadataObjectiveRevision                     = "objective_revision"
 )
 
 // GoalUsage 记录 Goal 长程执行累计用量。
@@ -156,6 +160,37 @@ func GoalMetadataBool(metadata map[string]any, key string) bool {
 	}
 }
 
+// GoalMetadataInt64 从 Goal metadata 中读取 JSON 兼容的整数值。
+func GoalMetadataInt64(metadata map[string]any, key string) int64 {
+	value, ok := metadata[strings.TrimSpace(key)]
+	if !ok {
+		return 0
+	}
+	switch typed := value.(type) {
+	case int:
+		return int64(typed)
+	case int32:
+		return int64(typed)
+	case int64:
+		return typed
+	case float32:
+		return int64(typed)
+	case float64:
+		return int64(typed)
+	default:
+		return 0
+	}
+}
+
+// ObjectiveRevision 返回只随 objective 变化的 revision；旧数据从 1 起算。
+func (g Goal) ObjectiveRevision() int64 {
+	revision := GoalMetadataInt64(g.Metadata, GoalMetadataObjectiveRevision)
+	if revision > 0 {
+		return revision
+	}
+	return 1
+}
+
 // RemainingTokens 返回剩余 token 预算；没有预算时返回 nil。
 func (g Goal) RemainingTokens() *int64 {
 	if g.TokenBudget == nil || *g.TokenBudget <= 0 {
@@ -231,17 +266,27 @@ type UpdateGoalRequest struct {
 	Metadata    map[string]any `json:"metadata,omitempty"`
 }
 
+// RetargetGoalRequest 表示模型基于用户明确纠正重定向当前 active Goal。
+type RetargetGoalRequest struct {
+	Objective                 string `json:"objective"`
+	RoundID                   string `json:"round_id,omitempty"`
+	AgentID                   string `json:"-"`
+	ExpectedObjectiveRevision int64  `json:"-"`
+}
+
 // CompleteGoalRequest 表示完成 Goal 的请求。
 type CompleteGoalRequest struct {
-	Summary string `json:"summary,omitempty"`
-	RoundID string `json:"round_id,omitempty"`
+	Summary                   string `json:"summary,omitempty"`
+	RoundID                   string `json:"round_id,omitempty"`
+	ExpectedObjectiveRevision int64  `json:"-"`
 }
 
 // BlockGoalRequest 表示阻塞 Goal 的请求。
 type BlockGoalRequest struct {
-	Reason      string `json:"reason"`
-	NeededInput string `json:"needed_input,omitempty"`
-	RoundID     string `json:"round_id,omitempty"`
+	Reason                    string `json:"reason"`
+	NeededInput               string `json:"needed_input,omitempty"`
+	RoundID                   string `json:"round_id,omitempty"`
+	ExpectedObjectiveRevision int64  `json:"-"`
 }
 
 // GoalEventEnvelope 构造 WebSocket Goal 事件。

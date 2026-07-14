@@ -1,9 +1,13 @@
+// INPUT: DM 用户请求、内部 Goal 续跑与当前会话运行态。
+// OUTPUT: 恰好一次的运行中投递、持久队列登记或新 round 启动。
+// POS: DM 输入受理与 runtime 启动的串行交接边界。
 package dm
 
 import (
 	"context"
 	"errors"
 	"strings"
+	"sync/atomic"
 	"time"
 	"unicode/utf8"
 
@@ -20,8 +24,15 @@ import (
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
 
-// HandleChat 处理一条 DM 写请求。
+// HandleChat 处理一条 DM 写请求。显式输入与队列交接、Goal 续跑共享同一个启动边界。
 func (s *Service) HandleChat(ctx context.Context, request Request) error {
+	s.inputQueueDispatchMu.Lock()
+	defer s.inputQueueDispatchMu.Unlock()
+	return s.handleChat(ctx, request)
+}
+
+// handleChat 要求调用方已为显式输入持有 inputQueueDispatchMu；内部输入由各调度器自行保证互斥。
+func (s *Service) handleChat(ctx context.Context, request Request) error {
 	execution, err := s.prepareChatExecution(ctx, request)
 	if err != nil {
 		return err
@@ -55,14 +66,15 @@ type dmChatExecution struct {
 }
 
 type dmRuntimePreparation struct {
-	content         conversationsvc.RuntimeContent
-	client          runtimectx.Client
-	runtimeKind     string
-	runtimeProvider string
-	runtimeModel    string
-	goalIDForUsage  string
-	goalContext     string
-	permissionMode  sdkpermission.Mode
+	content               conversationsvc.RuntimeContent
+	client                runtimectx.Client
+	runtimeKind           string
+	runtimeProvider       string
+	runtimeModel          string
+	goalIDForUsage        string
+	goalContext           string
+	goalObjectiveRevision *atomic.Int64
+	permissionMode        sdkpermission.Mode
 }
 
 func (s *Service) prepareChatExecution(ctx context.Context, request Request) (*dmChatExecution, error) {
@@ -122,7 +134,7 @@ func (e *dmChatExecution) routeRunningInput() (bool, error) {
 		return false, nil
 	}
 	if protocol.ShouldGuideRunningRound(e.deliveryPolicy) {
-		delivered, guideErr := e.service.guideRunningInput(e.ctx, e.sessionKey, e.agent, e.session, e.request)
+		delivered, guideErr := e.service.guideRunningInput(e.ctx, e.sessionKey, e.agent, e.request)
 		if guideErr != nil && !errors.Is(guideErr, runtimectx.ErrNoRunningRound) {
 			return false, guideErr
 		}
@@ -187,7 +199,7 @@ func (e *dmChatExecution) prepareRuntime() (dmRuntimePreparation, error) {
 			"dm:"+strings.TrimSpace(e.sessionKey),
 		))
 	}
-	client, runtimeKind, runtimeProvider, runtimeModel, goalIDForUsage, goalContext, permissionMode, err := e.service.ensureClient(
+	client, runtimeKind, runtimeProvider, runtimeModel, goalIDForUsage, goalContext, goalObjectiveRevision, permissionMode, err := e.service.ensureClient(
 		e.ctx,
 		e.sessionKey,
 		e.agent,
@@ -205,50 +217,55 @@ func (e *dmChatExecution) prepareRuntime() (dmRuntimePreparation, error) {
 	}
 	if override := strings.TrimSpace(e.request.GoalContext); e.request.Internal && override != "" {
 		goalContext = override
+		if goalID := strings.TrimSpace(e.request.GoalID); goalID != "" {
+			goalIDForUsage = goalID
+		}
 	}
 	if err = e.applyHistoryRewrite(client); err != nil {
 		return dmRuntimePreparation{}, err
 	}
 	return dmRuntimePreparation{
-		content:         runtimeContent,
-		client:          client,
-		runtimeKind:     runtimeKind,
-		runtimeProvider: runtimeProvider,
-		runtimeModel:    runtimeModel,
-		goalIDForUsage:  goalIDForUsage,
-		goalContext:     goalContext,
-		permissionMode:  permissionMode,
+		content:               runtimeContent,
+		client:                client,
+		runtimeKind:           runtimeKind,
+		runtimeProvider:       runtimeProvider,
+		runtimeModel:          runtimeModel,
+		goalIDForUsage:        goalIDForUsage,
+		goalContext:           goalContext,
+		goalObjectiveRevision: goalObjectiveRevision,
+		permissionMode:        permissionMode,
 	}, nil
 }
 
 func (e *dmChatExecution) newRoundRunner(preparation dmRuntimePreparation) *roundRunner {
 	return &roundRunner{
-		service:             e.service,
-		workspacePath:       e.agent.WorkspacePath,
-		session:             e.session,
-		agent:               e.agent,
-		sessionKey:          e.sessionKey,
-		roundID:             e.request.RoundID,
-		agentRoundID:        e.request.AgentRoundID,
-		userMessageID:       e.request.UserMessageID,
-		clientRequestID:     e.request.ClientRequestID,
-		content:             strings.TrimSpace(e.request.Content),
-		runtimeContent:      preparation.content,
-		client:              preparation.client,
-		runtimeKind:         preparation.runtimeKind,
-		runtimeProvider:     preparation.runtimeProvider,
-		runtimeModel:        preparation.runtimeModel,
-		ownerUserID:         authctx.OwnerUserID(e.ctx),
-		mapper:              dmdomain.NewMessageMapper(e.sessionKey, e.agent.AgentID, e.request.RoundID, e.request.AgentRoundID, e.request.UserMessageID, e.agent.WorkspacePath),
-		inputOptions:        e.request.InputOptions,
-		internal:            e.request.Internal,
-		externalReplyTarget: e.request.ExternalReplyTarget,
-		goalContext:         preparation.goalContext,
-		goalIDForUsage:      preparation.goalIDForUsage,
-		goalUsage:           goalsvc.NewRuntimeUsageAccumulator(strings.TrimSpace(preparation.goalIDForUsage) != ""),
-		goalUsageStarted:    time.Now(),
-		permissionMode:      preparation.permissionMode,
-		permissionHandler:   e.request.PermissionHandler,
+		service:               e.service,
+		workspacePath:         e.agent.WorkspacePath,
+		session:               e.session,
+		agent:                 e.agent,
+		sessionKey:            e.sessionKey,
+		roundID:               e.request.RoundID,
+		agentRoundID:          e.request.AgentRoundID,
+		userMessageID:         e.request.UserMessageID,
+		clientRequestID:       e.request.ClientRequestID,
+		content:               strings.TrimSpace(e.request.Content),
+		runtimeContent:        preparation.content,
+		client:                preparation.client,
+		runtimeKind:           preparation.runtimeKind,
+		runtimeProvider:       preparation.runtimeProvider,
+		runtimeModel:          preparation.runtimeModel,
+		ownerUserID:           authctx.OwnerUserID(e.ctx),
+		mapper:                dmdomain.NewMessageMapper(e.sessionKey, e.agent.AgentID, e.request.RoundID, e.request.AgentRoundID, e.request.UserMessageID, e.agent.WorkspacePath),
+		inputOptions:          e.request.InputOptions,
+		internal:              e.request.Internal,
+		externalReplyTarget:   e.request.ExternalReplyTarget,
+		goalContext:           preparation.goalContext,
+		goalIDForUsage:        preparation.goalIDForUsage,
+		goalObjectiveRevision: preparation.goalObjectiveRevision,
+		goalUsage:             goalsvc.NewRuntimeUsageAccumulator(strings.TrimSpace(preparation.goalIDForUsage) != ""),
+		goalUsageStarted:      time.Now(),
+		permissionMode:        preparation.permissionMode,
+		permissionHandler:     e.request.PermissionHandler,
 	}
 }
 
@@ -310,6 +327,7 @@ func (e *dmChatExecution) registerRunner() {
 	e.service.runtime.RegisterGoalAccountingFlush(e.sessionKey, e.request.RoundID, e.runner.flushGoalUsage)
 	e.service.runtime.RegisterGoalAccountingClear(e.sessionKey, e.request.RoundID, e.runner.clearGoalUsage)
 	e.service.runtime.RegisterGoalAccountingActivate(e.sessionKey, e.request.RoundID, e.runner.activateGoalUsage)
+	e.service.runtime.RegisterGoalObjectiveRevision(e.sessionKey, e.request.RoundID, e.runner.goalObjectiveRevision)
 	e.service.loggerFor(e.ctx).Info("受理 DM 会话消息",
 		"session_key", e.sessionKey,
 		"agent_id", e.agent.AgentID,
@@ -396,6 +414,7 @@ func (e *dmChatExecution) launch() {
 			e.ctx,
 			e.runner.session,
 			e.runner.roundID,
+			"",
 			e.request.UserMessageID,
 			e.runner.content,
 			e.deliveryPolicy,

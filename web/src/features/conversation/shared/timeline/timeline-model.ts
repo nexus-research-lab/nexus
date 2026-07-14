@@ -1,3 +1,8 @@
+/**
+ * INPUT: 会话消息、运行轮次与服务端 round 索引。
+ * OUTPUT: DM / Room 共用的根轮次分组、索引去重与 feed 顺序纯投影。
+ * POS: 时间线顺序的唯一真相源，feed 与 navigator 不得自行修正轮次。
+ */
 import type {
   AssistantMessage,
   Message,
@@ -57,6 +62,75 @@ export function groupPendingSlotsByRound(
   slots: RoomPendingAgentSlotState[],
 ): Map<string, RoomPendingAgentSlotState[]> {
   return groupByRound(slots, (slot) => slot.round_id);
+}
+
+/** 删除已被加载消息迁入其他根轮次的原始 round 索引。 */
+export function filterSupersededRoundIndexItems(
+  roundIndexItems: SessionRoundIndexItem[],
+  messages: Message[],
+): SessionRoundIndexItem[] {
+  const targetRoundIdsBySource = new Map<string, Set<string>>();
+  const loadedRoundIds = new Set<string>();
+  for (const message of messages) {
+    const roundId = message.round_id.trim();
+    if (roundId) {
+      loadedRoundIds.add(roundId);
+    }
+    const sourceRoundId = getMessageSourceRoundId(message);
+    if (!sourceRoundId || !roundId || sourceRoundId === roundId) {
+      continue;
+    }
+    const targetRoundIds = targetRoundIdsBySource.get(sourceRoundId)
+      ?? new Set<string>();
+    targetRoundIds.add(roundId);
+    targetRoundIdsBySource.set(sourceRoundId, targetRoundIds);
+  }
+  if (targetRoundIdsBySource.size === 0) {
+    return roundIndexItems;
+  }
+
+  const indexedRoundIds = new Set(
+    roundIndexItems.map((item) => item.roundId.trim()).filter(Boolean),
+  );
+  return roundIndexItems.filter((item) => {
+    const roundId = item.roundId.trim();
+    const targetRoundIds = targetRoundIdsBySource.get(roundId);
+    if (!targetRoundIds) {
+      return true;
+    }
+    // 部分 Room 成员可被引导、其他成员仍在 source round 回复；这类 round
+    // 有正文/运行态证据，不能随迁入旧 root 的用户消息一起从导航删除。
+    if (
+      loadedRoundIds.has(roundId)
+      || item.isLive
+      || item.agentIds.length > 0
+      || item.status !== null
+      || item.durationMs !== null
+    ) {
+      return true;
+    }
+    // 目标 root 尚未进入索引时保留 source，避免 navigator 出现空洞。
+    return !Array.from(targetRoundIds).some((targetRoundId) => (
+      indexedRoundIds.has(targetRoundId)
+    ));
+  });
+}
+
+function getMessageSourceRoundId(message: Message): string {
+  const directSourceRoundId = message.source_round_id?.trim();
+  if (directSourceRoundId) {
+    return directSourceRoundId;
+  }
+  if (
+    message.role !== "system"
+    || message.metadata?.subtype !== "guided_input"
+  ) {
+    return "";
+  }
+  const metadataSourceRoundId = message.metadata.source_round_id;
+  return typeof metadataSourceRoundId === "string"
+    ? metadataSourceRoundId.trim()
+    : "";
 }
 
 // 终态轮次里 assistant 仅剩无回复标记（剥离后无文本、无工具/图片等块）时，

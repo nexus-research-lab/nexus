@@ -6,8 +6,8 @@
 //   - history_*.go：分阶段历史投影（compact / normalize / order / pagination / last-write round_index /
 //     turn projector / rewrite_tail / result_summary / external_delivery / unfinished_round）。
 //   - agent_history*.go：Agent 历史门面、读取、overlay 与共享模型。
-//   - transcript_*.go：transcript cache、reader、path、session、project、marker 与 guidance。
-//   - input_queue.go / input_queue_codec.go / input_queue_replay.go：输入队列存取、编解码与事件重放。
+//   - transcript_*.go：transcript cache、reader、path、session、project、marker 与 root/source round 投影。
+//   - input_queue.go / input_queue_codec.go / input_queue_replay.go：输入队列存取、可返回规范化提交的原子批量登记、预检版本一致的整批 guidance 认领、编解码与事件重放。
 //   - room_history.go / room_directed_message.go / session_file.go / jsonl.go：
 //     房间历史、定向消息、会话文件与 JSONL。
 //   - paths.go / transcript_project_hash.go / value_coerce.go：路径、工程 hash、值转换。

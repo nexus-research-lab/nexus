@@ -1,9 +1,13 @@
+// INPUT: connector 服务、Agent 身份与 runtime source context。
+// OUTPUT: DM/Room 共用的 connector MCP builder。
+// POS: connector MCP 的应用装配入口。
 package server
 
 import (
 	"context"
 	"net/url"
 	"strings"
+	"sync/atomic"
 
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 
@@ -17,7 +21,7 @@ import (
 func newConnectorMCPBuilder(
 	svc connectormcpcontract.Service,
 	agents *agent.Service,
-) func(string, string, string, string, string, string) map[string]sdkmcp.ServerConfig {
+) func(string, string, string, string, string, string, *atomic.Int64) map[string]sdkmcp.ServerConfig {
 	return func(
 		agentID string,
 		sessionKey string,
@@ -25,6 +29,7 @@ func newConnectorMCPBuilder(
 		sourceContextType string,
 		sourceContextID string,
 		sourceContextLabel string,
+		_ *atomic.Int64,
 	) map[string]sdkmcp.ServerConfig {
 		if svc == nil || agents == nil || strings.TrimSpace(agentID) == "" {
 			return nil
@@ -190,8 +195,8 @@ func loadConnectorMCPSnapshot(
 }
 
 func combinedMCPBuilder(
-	builders ...func(string, string, string, string, string, string) map[string]sdkmcp.ServerConfig,
-) func(string, string, string, string, string, string) map[string]sdkmcp.ServerConfig {
+	builders ...func(string, string, string, string, string, string, *atomic.Int64) map[string]sdkmcp.ServerConfig,
+) func(string, string, string, string, string, string, *atomic.Int64) map[string]sdkmcp.ServerConfig {
 	return func(
 		agentID string,
 		sessionKey string,
@@ -199,13 +204,14 @@ func combinedMCPBuilder(
 		sourceContextType string,
 		sourceContextID string,
 		sourceContextLabel string,
+		goalObjectiveRevision *atomic.Int64,
 	) map[string]sdkmcp.ServerConfig {
 		merged := map[string]sdkmcp.ServerConfig{}
 		for _, builder := range builders {
 			if builder == nil {
 				continue
 			}
-			for name, server := range builder(agentID, sessionKey, roundID, sourceContextType, sourceContextID, sourceContextLabel) {
+			for name, server := range builder(agentID, sessionKey, roundID, sourceContextType, sourceContextID, sourceContextLabel, goalObjectiveRevision) {
 				merged[name] = server
 			}
 		}
@@ -215,7 +221,7 @@ func combinedMCPBuilder(
 
 func contextOnlyMCPBuilder(
 	builder func(string, string, string, string, string) map[string]sdkmcp.ServerConfig,
-) func(string, string, string, string, string, string) map[string]sdkmcp.ServerConfig {
+) func(string, string, string, string, string, string, *atomic.Int64) map[string]sdkmcp.ServerConfig {
 	return func(
 		agentID string,
 		sessionKey string,
@@ -223,6 +229,7 @@ func contextOnlyMCPBuilder(
 		sourceContextType string,
 		sourceContextID string,
 		sourceContextLabel string,
+		_ *atomic.Int64,
 	) map[string]sdkmcp.ServerConfig {
 		if builder == nil {
 			return nil

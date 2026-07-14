@@ -1,11 +1,78 @@
 package workspace
 
 import (
+	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
+
+func TestInputQueueStoreEnqueueBatchRollsBackEarlierFiles(t *testing.T) {
+	root := t.TempDir()
+	store := NewInputQueueStore(root)
+	validLocation := InputQueueLocation{
+		Scope:         protocol.InputQueueScopeRoom,
+		WorkspacePath: filepath.Join(root, "agent-a"),
+		SessionKey:    "agent:agent-a:ws:group:conversation-batch",
+	}
+	blockedWorkspace := filepath.Join(root, "blocked")
+	if err := os.WriteFile(blockedWorkspace, []byte("not a directory"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	err := store.EnqueueBatch([]InputQueueEnqueue{
+		{Location: validLocation, Item: protocol.InputQueueItem{ID: "guide-a", Content: "first"}},
+		{
+			Location: InputQueueLocation{
+				Scope:         protocol.InputQueueScopeRoom,
+				WorkspacePath: blockedWorkspace,
+				SessionKey:    "agent:agent-b:ws:group:conversation-batch",
+			},
+			Item: protocol.InputQueueItem{ID: "guide-b", Content: "second"},
+		},
+	})
+	if err == nil {
+		t.Fatal("第二个队列文件不可写时批量登记应失败")
+	}
+	items, snapshotErr := NewInputQueueStore(root).Snapshot(validLocation)
+	if snapshotErr != nil || len(items) != 0 {
+		t.Fatalf("批量写入失败后第一目标必须回滚: items=%+v err=%v", items, snapshotErr)
+	}
+}
+
+func TestInputQueueStoreEnqueueBatchWithItemsReturnsCommittedVersions(t *testing.T) {
+	root := t.TempDir()
+	store := NewInputQueueStore(root)
+	location := InputQueueLocation{
+		Scope:         protocol.InputQueueScopeDM,
+		WorkspacePath: filepath.Join(root, "agent"),
+		SessionKey:    "agent:alpha:ws:dm:batch-versions",
+	}
+	committed, err := store.EnqueueBatchWithItems([]InputQueueEnqueue{{
+		Location: location,
+		Item: protocol.InputQueueItem{
+			ID:             "guide-versioned",
+			Content:        "恢复后继续确认",
+			DeliveryPolicy: protocol.ChatDeliveryPolicyGuide,
+			CreatedAt:      1,
+			UpdatedAt:      1,
+		},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(committed) != 1 || committed[0].UpdatedAt <= 1 {
+		t.Fatalf("committed items must contain the normalized CAS version: %+v", committed)
+	}
+	snapshot, err := store.Snapshot(location)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(snapshot, committed) {
+		t.Fatalf("returned committed items differ from durable snapshot: committed=%+v snapshot=%+v", committed, snapshot)
+	}
+}
 
 func TestInputQueueStoreReplayAppendReorderDispatchAndDelete(t *testing.T) {
 	root := t.TempDir()
@@ -137,6 +204,150 @@ func TestInputQueueStoreGuidanceWaitsForMatchingRound(t *testing.T) {
 	}
 	if len(guidanceItems) != 1 || guidanceItems[0].ID != "item-b" || len(items) != 0 {
 		t.Fatalf("匹配 round 应消费引导: guidance=%+v items=%+v", guidanceItems, items)
+	}
+}
+
+func TestInputQueueStoreDispatchPreparedGuidanceIsAllOrNone(t *testing.T) {
+	root := t.TempDir()
+	location := InputQueueLocation{
+		Scope:         protocol.InputQueueScopeDM,
+		WorkspacePath: filepath.Join(root, "agent"),
+		SessionKey:    "agent:alpha:ws:dm:prepared-guidance",
+	}
+	store := NewInputQueueStore(root)
+	for _, item := range []protocol.InputQueueItem{
+		{
+			ID:             "item-a",
+			Content:        "第一条引导",
+			DeliveryPolicy: protocol.ChatDeliveryPolicyGuide,
+			Source:         protocol.InputQueueSourceUser,
+			RootRoundID:    "round-running",
+		},
+		{
+			ID:             "item-b",
+			Content:        "第二条引导",
+			DeliveryPolicy: protocol.ChatDeliveryPolicyGuide,
+			Source:         protocol.InputQueueSourceUser,
+			RootRoundID:    "round-running",
+		},
+	} {
+		if _, err := store.Enqueue(location, item); err != nil {
+			t.Fatalf("写入引导队列失败: %v", err)
+		}
+	}
+
+	prepared, err := store.SnapshotGuidance(location, "round-running")
+	if err != nil {
+		t.Fatalf("预检引导队列失败: %v", err)
+	}
+	if len(prepared) != 2 {
+		t.Fatalf("预检应返回两条引导: %+v", prepared)
+	}
+	if _, err = store.UpdateDeliveryPolicy(location, "item-b", protocol.ChatDeliveryPolicyQueue); err != nil {
+		t.Fatalf("模拟预检后队列变化失败: %v", err)
+	}
+
+	claimed, snapshot, err := store.DispatchPreparedGuidance(location, prepared, "round-running")
+	if err != nil {
+		t.Fatalf("提交预检引导失败: %v", err)
+	}
+	if len(claimed) != 0 {
+		t.Fatalf("任一预检项变化时不应消费任何引导: %+v", claimed)
+	}
+	if len(snapshot) != 2 || snapshot[0].ID != "item-a" || snapshot[1].ID != "item-b" {
+		t.Fatalf("预检冲突后应保留整批队列项: %+v", snapshot)
+	}
+
+	reloaded, err := NewInputQueueStore(root).Snapshot(location)
+	if err != nil {
+		t.Fatalf("重放预检冲突后的持久队列失败: %v", err)
+	}
+	if len(reloaded) != 2 ||
+		reloaded[0].ID != "item-a" || reloaded[0].DeliveryPolicy != protocol.ChatDeliveryPolicyGuide ||
+		reloaded[1].ID != "item-b" || reloaded[1].DeliveryPolicy != protocol.ChatDeliveryPolicyQueue {
+		t.Fatalf("预检冲突不应留下部分消费事件: %+v", reloaded)
+	}
+
+	if _, err = store.UpdateDeliveryPolicy(location, "item-b", protocol.ChatDeliveryPolicyGuide); err != nil {
+		t.Fatalf("恢复第二条引导失败: %v", err)
+	}
+	prepared, err = store.SnapshotGuidance(location, "round-running")
+	if err != nil {
+		t.Fatalf("重新预检引导失败: %v", err)
+	}
+	claimed, snapshot, err = store.DispatchPreparedGuidance(location, prepared, "round-running")
+	if err != nil || len(claimed) != 2 || len(snapshot) != 0 {
+		t.Fatalf("整批引导消费失败: claimed=%+v snapshot=%+v err=%v", claimed, snapshot, err)
+	}
+	reloaded, err = NewInputQueueStore(root).Snapshot(location)
+	if err != nil || len(reloaded) != 0 {
+		t.Fatalf("批量 dispatch 事件重放后队列应为空: items=%+v err=%v", reloaded, err)
+	}
+}
+
+func TestInputQueueStoreGuidanceDispatchDoesNotReadAfterCommit(t *testing.T) {
+	root := t.TempDir()
+	location := InputQueueLocation{
+		Scope:         protocol.InputQueueScopeDM,
+		WorkspacePath: filepath.Join(root, "agent"),
+		SessionKey:    "agent:alpha:ws:dm:no-post-commit-read",
+	}
+	store := NewInputQueueStore(root)
+	for _, item := range []protocol.InputQueueItem{
+		{
+			ID:             "guide-a",
+			Content:        "需要确认的引导",
+			DeliveryPolicy: protocol.ChatDeliveryPolicyGuide,
+			RootRoundID:    "round-running",
+		},
+		{
+			ID:             "queue-b",
+			Content:        "仍应留在队列",
+			DeliveryPolicy: protocol.ChatDeliveryPolicyQueue,
+		},
+	} {
+		if _, err := store.Enqueue(location, item); err != nil {
+			t.Fatal(err)
+		}
+	}
+	current, err := store.Snapshot(location)
+	if err != nil {
+		t.Fatal(err)
+	}
+	guidanceItems := matchingGuidanceItems(current, []string{"round-running"})
+	if len(guidanceItems) != 1 || guidanceItems[0].ID != "guide-a" {
+		t.Fatalf("unexpected prepared guidance: %+v", guidanceItems)
+	}
+
+	path, err := store.pathForLocation(location)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.Chmod(path, 0o200); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.Chmod(path, 0o600) }()
+	if file, openErr := os.Open(path); openErr == nil {
+		_ = file.Close()
+		t.Skip("platform does not enforce write-only test permissions")
+	}
+
+	store.mu.Lock()
+	claimed, next, err := store.dispatchGuidanceItemsLocked(location, current, guidanceItems)
+	store.mu.Unlock()
+	if err != nil {
+		t.Fatalf("dispatch commit must not depend on a post-commit read: %v", err)
+	}
+	if len(claimed) != 1 || claimed[0].ID != "guide-a" || len(next) != 1 || next[0].ID != "queue-b" {
+		t.Fatalf("unexpected dispatch result: claimed=%+v next=%+v", claimed, next)
+	}
+
+	if err = os.Chmod(path, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	replayed, err := NewInputQueueStore(root).Snapshot(location)
+	if err != nil || len(replayed) != 1 || replayed[0].ID != "queue-b" {
+		t.Fatalf("returned snapshot must match durable replay: items=%+v err=%v", replayed, err)
 	}
 }
 

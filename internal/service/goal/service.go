@@ -1,3 +1,6 @@
+// INPUT: Goal 创建、读取与用户更新请求。
+// OUTPUT: 持久化 Goal、审计事件与后续 runtime 决策。
+// POS: Goal 应用服务主入口。
 package goal
 
 import (
@@ -56,6 +59,10 @@ func (s *Service) Create(ctx context.Context, request protocol.CreateGoalRequest
 		return nil, err
 	}
 	objective, metadata := s.rewriteCreateObjective(ctx, request, objective)
+	if metadata != nil {
+		metadata = cloneMap(metadata)
+		delete(metadata, protocol.GoalMetadataObjectiveRevision)
+	}
 	current, err := s.repo.GetCurrentGoal(ctx, sessionKey)
 	if err != nil {
 		return nil, err
@@ -162,6 +169,7 @@ func (s *Service) buildGoalUpdateMutation(
 	item *protocol.Goal,
 	request protocol.UpdateGoalRequest,
 ) (goalUpdateMutation, error) {
+	objectiveRevision := item.ObjectiveRevision()
 	mutation := goalUpdateMutation{
 		objectiveRequested: request.Objective != nil,
 		payload:            make(map[string]any),
@@ -174,8 +182,20 @@ func (s *Service) buildGoalUpdateMutation(
 	}
 	if request.Metadata != nil {
 		item.Metadata = cloneMap(request.Metadata)
+		delete(item.Metadata, protocol.GoalMetadataObjectiveRevision)
+		if objectiveRevision > 1 {
+			item.Metadata[protocol.GoalMetadataObjectiveRevision] = objectiveRevision
+		}
 		mutation.changed = true
 		mutation.payload["metadata_updated"] = true
+	}
+	if eventPayloadBool(mutation.payload, "objective_updated") {
+		item.Metadata = cloneMap(item.Metadata)
+		if item.Metadata == nil {
+			item.Metadata = map[string]any{}
+		}
+		item.Metadata[protocol.GoalMetadataObjectiveRevision] = objectiveRevision + 1
+		mutation.payload["objective_revision"] = objectiveRevision + 1
 	}
 	return mutation, nil
 }

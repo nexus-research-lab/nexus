@@ -1,3 +1,6 @@
+// INPUT: 应用配置、数据库与基础服务依赖。
+// OUTPUT: 完整 AppServices 依赖图及跨域 runtime 装配。
+// POS: Nexus server 服务装配根。
 package server
 
 import (
@@ -98,7 +101,6 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	goalObjectiveService := goalobjectivesvc.NewService(providerService, preferencesService)
 	goalObjectiveService.SetConversationResolvers(core.Agent, core.Room)
 	goalService.SetObjectiveRewriter(goalObjectiveService)
-	goalService.SetGuidanceDispatcher(runtimeManager)
 	goalService.SetExternalMutationAccountant(runtimeManager)
 	core.Agent.SetGoalCleaner(goalService)
 	core.Room.SetGoalCleaner(goalService)
@@ -129,6 +131,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	roomRealtime.SetQuotaChecker(subscriptionService)
 	roomRealtime.SetGoalContextProvider(goalService)
 	roomRealtime.SetTitleGenerator(titleService)
+	goalService.SetGuidanceDispatcher(goalGuidanceDispatcher{runtime: runtimeManager, room: roomRealtime})
 	goalService.SetRuntimeInterrupter(newGoalInterruptDispatcher(dmService, roomRealtime))
 	automationService := automationsvc.NewService(
 		cfg,
@@ -149,7 +152,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	// 把内置自动化、连接器、图片生成和 Room 通讯 MCP server 注入 DM/Room runtime。
 	automationBuilder := newAutomationMCPBuilder(automationService, core.Agent, cfg.DefaultTimezone)
 	connectorBuilder := newConnectorMCPBuilder(connectorService, core.Agent)
-	goalBuilder := newGoalMCPBuilder(cfg, goalService)
+	goalBuilder := newGoalMCPBuilder(cfg, goalService, roomRealtime)
 	imagegenBuilder := newImagegenMCPBuilder(imagegenService, core.Agent)
 	roomBuilder := newRoomMCPBuilder(roomRealtime, core.Agent, core.Room.GetRoom)
 	mcpBuilder := combinedMCPBuilder(
