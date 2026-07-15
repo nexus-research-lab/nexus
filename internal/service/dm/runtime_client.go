@@ -107,6 +107,7 @@ func (s *Service) ensureClient(
 		MaxTurns:                   agentValue.Options.MaxTurns,
 		MCPServers:                 mcpServers,
 		AgentSDKDiagnosticsEnabled: runtimeSelection.AgentSDKDiagnosticsEnabled,
+		ToolSearchEnabled:          runtimeSelection.ToolSearchEnabled,
 	})
 	if err != nil {
 		return nil, "", "", "", "", "", nil, permissionMode, err

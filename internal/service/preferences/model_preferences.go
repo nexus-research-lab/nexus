@@ -13,6 +13,7 @@ type Preferences struct {
 	ChatDefaultDeliveryPolicy       protocol.ChatDeliveryPolicy `json:"chat_default_delivery_policy"`
 	AgentRuntimeKind                string                      `json:"agent_runtime_kind,omitempty"`
 	AgentSDKDiagnosticsEnabled      bool                        `json:"agent_sdk_diagnostics_enabled,omitempty"`
+	RuntimeSettings                 RuntimeSettings             `json:"runtime_settings"`
 	DefaultAgentOptions             protocol.Options            `json:"default_agent_options"`
 	DefaultImageModelSelection      ModelSelection              `json:"default_image_model_selection,omitempty"`
 	DefaultVisionModelSelection     ModelSelection              `json:"default_vision_model_selection,omitempty"`
@@ -25,10 +26,20 @@ type UpdateRequest struct {
 	ChatDefaultDeliveryPolicy       *protocol.ChatDeliveryPolicy `json:"chat_default_delivery_policy,omitempty"`
 	AgentRuntimeKind                *string                      `json:"agent_runtime_kind,omitempty"`
 	AgentSDKDiagnosticsEnabled      *bool                        `json:"agent_sdk_diagnostics_enabled,omitempty"`
+	RuntimeSettings                 *RuntimeSettings             `json:"runtime_settings,omitempty"`
 	DefaultAgentOptions             *protocol.Options            `json:"default_agent_options,omitempty"`
 	DefaultImageModelSelection      *ModelSelection              `json:"default_image_model_selection,omitempty"`
 	DefaultVisionModelSelection     *ModelSelection              `json:"default_vision_model_selection,omitempty"`
 	DefaultBackgroundModelSelection *ModelSelection              `json:"default_background_model_selection,omitempty"`
+}
+
+// RuntimeSettings 保存按 runtime 隔离的设置。
+// 新增 runtime 设置时只扩展对应 runtime 的字段，不把内核差异摊平成全局开关。
+type RuntimeSettings map[string]RuntimeSettingsForKind
+
+// RuntimeSettingsForKind 表示一个 runtime 当前可配置的选项。
+type RuntimeSettingsForKind struct {
+	ToolSearch bool `json:"tool_search"`
 }
 
 // ModelSelection 表示一个 Provider + Model 选择。
@@ -42,6 +53,9 @@ func DefaultPreferences() Preferences {
 	return normalizePreferences(Preferences{
 		ChatDefaultDeliveryPolicy: protocol.ChatDeliveryPolicyQueue,
 		AgentRuntimeKind:          "nxs",
+		RuntimeSettings: RuntimeSettings{
+			runtimeprovider.RuntimeKindNXS: {},
+		},
 		DefaultAgentOptions: protocol.Options{
 			PermissionMode:  "default",
 			AllowedTools:    []string{},
@@ -81,12 +95,45 @@ func normalizePreferences(item Preferences) Preferences {
 		ChatDefaultDeliveryPolicy:       policy,
 		AgentRuntimeKind:                runtimeKind,
 		AgentSDKDiagnosticsEnabled:      item.AgentSDKDiagnosticsEnabled,
+		RuntimeSettings:                 normalizeRuntimeSettings(item.RuntimeSettings),
 		DefaultAgentOptions:             options,
 		DefaultImageModelSelection:      normalizeModelSelection(item.DefaultImageModelSelection),
 		DefaultVisionModelSelection:     normalizeModelSelection(item.DefaultVisionModelSelection),
 		DefaultBackgroundModelSelection: normalizeModelSelection(item.DefaultBackgroundModelSelection),
 		UpdatedAt:                       strings.TrimSpace(item.UpdatedAt),
 	}
+}
+
+func normalizeRuntimeSettings(settings RuntimeSettings) RuntimeSettings {
+	result := make(RuntimeSettings, len(settings)+1)
+	result[runtimeprovider.RuntimeKindNXS] = RuntimeSettingsForKind{}
+	for kind, item := range settings {
+		normalizedKind := normalizeRuntimeSettingKind(kind)
+		if normalizedKind == "" {
+			continue
+		}
+		result[normalizedKind] = item
+	}
+	return result
+}
+
+func normalizeRuntimeSettingKind(kind string) string {
+	switch strings.ToLower(strings.TrimSpace(kind)) {
+	case runtimeprovider.RuntimeKindNXS:
+		return runtimeprovider.RuntimeKindNXS
+	case runtimeprovider.RuntimeKindClaude:
+		return runtimeprovider.RuntimeKindClaude
+	default:
+		return ""
+	}
+}
+
+// ToolSearchEnabledForRuntime 返回指定 runtime 是否启用 ToolSearch。
+func (p Preferences) ToolSearchEnabledForRuntime(runtimeKind string) bool {
+	if normalizeRuntimeSettingKind(runtimeKind) != runtimeprovider.RuntimeKindNXS {
+		return false
+	}
+	return p.RuntimeSettings[runtimeprovider.RuntimeKindNXS].ToolSearch
 }
 
 func normalizeModelSelection(selection ModelSelection) ModelSelection {

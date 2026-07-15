@@ -32,10 +32,19 @@ export interface ModelSelectionPreference {
   model?: string;
 }
 
+export interface RuntimeSettingsForKind {
+  tool_search?: boolean;
+}
+
+export type RuntimeSettings = Partial<
+  Record<AgentRuntimeKind, RuntimeSettingsForKind>
+>;
+
 export interface UserPreferences {
   chat_default_delivery_policy: AgentConversationDefaultDeliveryPolicy;
   agent_runtime_kind?: AgentRuntimeKind;
   agent_sdk_diagnostics_enabled?: boolean;
+  runtime_settings?: RuntimeSettings;
   default_agent_options: Partial<AgentOptions>;
   default_image_model_selection?: ModelSelectionPreference;
   default_vision_model_selection?: ModelSelectionPreference;
@@ -47,6 +56,7 @@ export interface UpdateUserPreferencesParams {
   chat_default_delivery_policy?: AgentConversationDefaultDeliveryPolicy;
   agent_runtime_kind?: AgentRuntimeKind;
   agent_sdk_diagnostics_enabled?: boolean;
+  runtime_settings?: RuntimeSettings;
   default_agent_options?: Partial<AgentOptions>;
   default_image_model_selection?: ModelSelectionPreference;
   default_vision_model_selection?: ModelSelectionPreference;

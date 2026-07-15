@@ -54,6 +54,7 @@ type AgentClientOptionsInput struct {
 	MCPServers                 map[string]sdkmcp.ServerConfig
 	ExtraEnv                   map[string]string
 	AgentSDKDiagnosticsEnabled bool
+	ToolSearchEnabled          bool
 }
 
 // BuildAgentClientOptions 构建统一的 SDK client options。
@@ -83,6 +84,7 @@ func BuildAgentClientOptionsWithConfig(
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, nxsDiagnosticsRuntimeEnv(effectiveRuntimeKind, input.AgentSDKDiagnosticsEnabled))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, explicitNXSProcessRuntimeEnv(effectiveRuntimeKind))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, runtimeEnvFromConfig(runtimeConfig, effectiveRuntimeKind))
+	runtimeEnv = mergeRuntimeEnv(runtimeEnv, toolSearchRuntimeEnv(effectiveRuntimeKind, input.ToolSearchEnabled))
 	visionConfig, err := resolveVisionRuntimeConfig(ctx, resolver, input, effectiveRuntimeKind)
 	if err != nil {
 		return agentclient.Options{}, nil, err

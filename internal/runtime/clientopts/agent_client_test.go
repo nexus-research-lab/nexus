@@ -110,8 +110,8 @@ func TestBuildAgentClientOptionsUsesProviderRuntimeEnv(t *testing.T) {
 	if options.Model != "kimi-k2" {
 		t.Fatalf("运行时模型未写入 SDK options: %+v", options)
 	}
-	if _, ok := options.Env[enableToolSearchEnvName]; ok {
-		t.Fatalf("宿主不应注入 tool search 开关，应交给 SDK 按 CC 规则判断: %+v", options.Env)
+	if options.Env[enableToolSearchEnvName] != "0" || options.Env[nexusEnableToolSearchEnvName] != "0" {
+		t.Fatalf("nxs ToolSearch 默认应关闭并显式投影到兼容环境变量: %+v", options.Env)
 	}
 	if options.Env[nexusAutoCompactPctOverrideEnvName] != defaultClaudeAutoCompactPctOverride {
 		t.Fatalf("默认自动压缩阈值未注入: %+v", options.Env)
@@ -252,6 +252,30 @@ func TestAnthropicRuntimeEnvLeavesToolSearchUnsetForCompatibleProviders(t *testi
 		if _, ok := env[enableToolSearchEnvName]; ok {
 			t.Fatalf("Anthropic-compatible runtime 不应注入 tool search 开关，应交给 SDK 的默认开启策略: %+v", env)
 		}
+	}
+}
+
+func TestBuildAgentClientOptionsProjectsToolSearchByRuntime(t *testing.T) {
+	nxsOptions, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
+		RuntimeKind:       runtimeKindNXS,
+		ToolSearchEnabled: true,
+	})
+	if err != nil {
+		t.Fatalf("构建 nxs options 失败: %v", err)
+	}
+	if nxsOptions.Env[enableToolSearchEnvName] != "1" || nxsOptions.Env[nexusEnableToolSearchEnvName] != "1" {
+		t.Fatalf("nxs ToolSearch 开关未投影: %+v", nxsOptions.Env)
+	}
+
+	claudeOptions, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
+		RuntimeKind:       runtimeKindClaude,
+		ToolSearchEnabled: true,
+	})
+	if err != nil {
+		t.Fatalf("构建 Claude options 失败: %v", err)
+	}
+	if _, ok := claudeOptions.Env[enableToolSearchEnvName]; ok {
+		t.Fatalf("Claude runtime 不应接收 nxs ToolSearch 设置: %+v", claudeOptions.Env)
 	}
 }
 
@@ -486,6 +510,37 @@ func TestBuildAgentClientOptionsDefaultsToNXSChatCompletionsProviderEnv(t *testi
 	}
 	if options.Model != "gpt-4o" {
 		t.Fatalf("运行时模型未写入 SDK options: %+v", options)
+	}
+}
+
+func TestBuildAgentClientOptionsInjectsWebSearchConfigForNXS(t *testing.T) {
+	for key, value := range map[string]string{
+		"NEXUS_WEBSEARCH_PROVIDER":          "brave",
+		"NEXUS_WEBSEARCH_API_KEY":           "search-key",
+		"NEXUS_WEBSEARCH_COUNT":             "8",
+		"NEXUS_WEBSEARCH_COUNTRY":           "CN",
+		"NEXUS_WEBSEARCH_LANGUAGE":          "zh-CN",
+		"NEXUS_WEBSEARCH_SEARCH_LANG":       "zh",
+		"NEXUS_WEBSEARCH_CACHE_TTL_SECONDS": "900",
+	} {
+		t.Setenv(key, value)
+	}
+	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{})
+	if err != nil {
+		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
+	}
+	for key, want := range map[string]string{
+		"NEXUS_WEBSEARCH_PROVIDER":          "brave",
+		"NEXUS_WEBSEARCH_API_KEY":           "search-key",
+		"NEXUS_WEBSEARCH_COUNT":             "8",
+		"NEXUS_WEBSEARCH_COUNTRY":           "CN",
+		"NEXUS_WEBSEARCH_LANGUAGE":          "zh-CN",
+		"NEXUS_WEBSEARCH_SEARCH_LANG":       "zh",
+		"NEXUS_WEBSEARCH_CACHE_TTL_SECONDS": "900",
+	} {
+		if options.Env[key] != want {
+			t.Fatalf("%s=%q, want %q; env=%+v", key, options.Env[key], want, options.Env)
+		}
 	}
 }
 

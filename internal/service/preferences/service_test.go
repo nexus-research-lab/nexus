@@ -24,6 +24,9 @@ func TestDefaultPreferencesAskByDefault(t *testing.T) {
 	if prefs.AgentSDKDiagnosticsEnabled {
 		t.Fatalf("Agent SDK diagnostics 默认应关闭: %+v", prefs)
 	}
+	if prefs.ToolSearchEnabledForRuntime("nxs") {
+		t.Fatalf("nxs ToolSearch 默认应关闭: %+v", prefs)
+	}
 
 	normalized := normalizePreferences(Preferences{})
 	if normalized.DefaultAgentOptions.PermissionMode != "default" {
@@ -35,6 +38,9 @@ func TestDefaultPreferencesAskByDefault(t *testing.T) {
 	if normalized.AgentSDKDiagnosticsEnabled {
 		t.Fatalf("空偏好归一化后 Agent SDK diagnostics 应关闭: %+v", normalized)
 	}
+	if normalized.ToolSearchEnabledForRuntime("nxs") {
+		t.Fatalf("空偏好归一化后 nxs ToolSearch 应关闭: %+v", normalized)
+	}
 }
 
 func TestServiceUpdatePersistsUserPreferences(t *testing.T) {
@@ -45,6 +51,10 @@ func TestServiceUpdatePersistsUserPreferences(t *testing.T) {
 		ChatDefaultDeliveryPolicy:  policyPointer(protocol.ChatDeliveryPolicyQueue),
 		AgentRuntimeKind:           stringPointer("nxs"),
 		AgentSDKDiagnosticsEnabled: boolPointer(true),
+		RuntimeSettings: &RuntimeSettings{
+			"nxs":    {ToolSearch: true},
+			"claude": {ToolSearch: true},
+		},
 		DefaultAgentOptions: &protocol.Options{
 			PermissionMode: "default",
 			Provider:       "glm-coding-plan",
@@ -76,6 +86,9 @@ func TestServiceUpdatePersistsUserPreferences(t *testing.T) {
 	if !prefs.AgentSDKDiagnosticsEnabled {
 		t.Fatalf("Agent SDK diagnostics 偏好未持久化: %+v", prefs)
 	}
+	if !prefs.ToolSearchEnabledForRuntime("nxs") || prefs.ToolSearchEnabledForRuntime("claude") {
+		t.Fatalf("ToolSearch 应只在 nxs runtime 生效: %+v", prefs.RuntimeSettings)
+	}
 	if prefs.DefaultAgentOptions.PermissionMode != "default" {
 		t.Fatalf("权限模式未持久化: %+v", prefs.DefaultAgentOptions)
 	}
@@ -102,6 +115,7 @@ func TestServiceUpdatePersistsUserPreferences(t *testing.T) {
 	if loaded.ChatDefaultDeliveryPolicy != protocol.ChatDeliveryPolicyQueue ||
 		loaded.AgentRuntimeKind != "nxs" ||
 		!loaded.AgentSDKDiagnosticsEnabled ||
+		!loaded.ToolSearchEnabledForRuntime("nxs") ||
 		loaded.DefaultAgentOptions.PermissionMode != "default" {
 		t.Fatalf("读取结果不正确: %+v", loaded)
 	}

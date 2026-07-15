@@ -1,21 +1,14 @@
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 
-import { getNxsRuntimeStatusApi } from "@/lib/api/settings/runtime-api";
 import { DEFAULT_AGENT_PERMISSION_MODE } from "@/lib/agent-options";
-import { getErrorMessage } from "@/lib/error-message";
-import { useI18n } from "@/shared/i18n/i18n-context";
 import { useOnboardingTour } from "@/shared/ui/onboarding/use-onboarding-tour";
 import type { AgentConversationDefaultDeliveryPolicy } from "@/types/agent/agent-conversation";
-import {
-  normalizeAgentRuntimeKind,
-  type AgentRuntimeKind,
-} from "@/types/settings/preferences";
+import { normalizeAgentRuntimeKind } from "@/types/settings/preferences";
 
 import { useDefaultModelPreferences } from "./use-default-model-preferences";
 import { useUserPreferences } from "./use-user-preferences";
 
 export function useGeneralSettingsController() {
-  const { t } = useI18n();
   const { resetAllTours } = useOnboardingTour();
   const preferencesStore = useUserPreferences();
   const {
@@ -25,11 +18,9 @@ export function useGeneralSettingsController() {
     persistPreferences,
     preferences,
     saving,
-    setFeedback,
     updatePreferences,
   } = preferencesStore;
-  const [nxsRuntimeChecking, setNxsRuntimeChecking] = useState(false);
-  const preferencesBusy = saving || nxsRuntimeChecking;
+  const preferencesBusy = saving;
   const agentRuntimeKind = normalizeAgentRuntimeKind(
     preferences.agent_runtime_kind,
   );
@@ -59,46 +50,6 @@ export function useGeneralSettingsController() {
     },
     [updatePreferences],
   );
-  const selectRuntime = useCallback((value: AgentRuntimeKind) => {
-    updatePreferences((current) => ({
-      ...current,
-      agent_runtime_kind: value,
-    }));
-  }, [updatePreferences]);
-  const verifyAndSelectNxs = useCallback(async () => {
-    setNxsRuntimeChecking(true);
-    setFeedback(null);
-    try {
-      const status = await getNxsRuntimeStatusApi();
-      if (status.available) {
-        selectRuntime("nxs");
-        return;
-      }
-      setFeedback({
-        message: status.message
-          || t("settings.general.agent_runtime_nxs_unavailable"),
-      });
-    } catch (error) {
-      setFeedback({
-        message: getErrorMessage(
-          error,
-          t("settings.general.agent_runtime_check_failed"),
-        ),
-      });
-    } finally {
-      setNxsRuntimeChecking(false);
-    }
-  }, [selectRuntime, setFeedback, t]);
-  const handleAgentRuntimeKindChange = useCallback((value: AgentRuntimeKind) => {
-    if (value === agentRuntimeKind) {
-      return;
-    }
-    if (value === "nxs") {
-      void verifyAndSelectNxs();
-      return;
-    }
-    selectRuntime(value);
-  }, [agentRuntimeKind, selectRuntime, verifyAndSelectNxs]);
   const handlePermissionModeChange = useCallback((value: string) => {
     updatePreferences((current) => ({
       ...current,
@@ -111,7 +62,6 @@ export function useGeneralSettingsController() {
 
   return {
     behavior: {
-      agentRuntimeKind,
       agentSdkDiagnosticsEnabled:
         preferences.agent_sdk_diagnostics_enabled === true,
       chatDefaultDeliveryPolicy: preferences.chat_default_delivery_policy,
@@ -125,8 +75,6 @@ export function useGeneralSettingsController() {
       defaultModelOptions: defaultModels.options.agent,
       defaultModelSavingRole: defaultModels.savingRole,
       defaultModelValue: defaultModels.values.agent,
-      nxsRuntimeChecking,
-      onAgentRuntimeKindChange: handleAgentRuntimeKindChange,
       onAgentSdkDiagnosticsChange: handleAgentSdkDiagnosticsChange,
       onDefaultDeliveryPolicyChange: handleDeliveryPolicyChange,
       onDefaultModelChange: defaultModels.handleChange,

@@ -20,6 +20,7 @@ export function buildPreferencesUpdatePayload(
     chat_default_delivery_policy: preferences.chat_default_delivery_policy,
     agent_runtime_kind: preferences.agent_runtime_kind,
     agent_sdk_diagnostics_enabled: preferences.agent_sdk_diagnostics_enabled,
+    runtime_settings: preferences.runtime_settings,
     default_agent_options: preferences.default_agent_options,
     default_image_model_selection: preferences.default_image_model_selection,
     default_vision_model_selection: preferences.default_vision_model_selection,
@@ -42,6 +43,10 @@ export function normalizePreferences(preferences: UserPreferences | null): UserP
     agent_sdk_diagnostics_enabled: resolveDiagnosticsEnabled(
       preferences,
       fallback,
+    ),
+    runtime_settings: normalizeRuntimeSettings(
+      source.runtime_settings,
+      fallback.runtime_settings,
     ),
     default_agent_options: mergeAgentOptions(
       fallback.default_agent_options,
@@ -66,6 +71,23 @@ export function normalizePreferences(preferences: UserPreferences | null): UserP
       ),
     ),
     updated_at: source.updated_at,
+  };
+}
+
+function normalizeRuntimeSettings(
+  settings: UserPreferences["runtime_settings"],
+  fallback: UserPreferences["runtime_settings"],
+): UserPreferences["runtime_settings"] {
+  return {
+    ...fallback,
+    ...settings,
+    nxs: {
+      ...fallback?.nxs,
+      ...settings?.nxs,
+      tool_search: settings?.nxs?.tool_search
+        ?? fallback?.nxs?.tool_search
+        ?? false,
+    },
   };
 }
 

@@ -30,6 +30,7 @@ const anthropicAPIKeyEnvName = "ANTHROPIC_API_KEY"
 const anthropicAuthTokenEnvName = "ANTHROPIC_AUTH_TOKEN"
 const anthropicModelEnvName = "ANTHROPIC_MODEL"
 const enableToolSearchEnvName = "ENABLE_TOOL_SEARCH"
+const nexusEnableToolSearchEnvName = "NEXUS_ENABLE_TOOL_SEARCH"
 const firstPartyAnthropicAPIHost = "api.anthropic.com"
 const nexusDisableProjectInstructionsEnvName = "NEXUS_DISABLE_PROJECT_INSTRUCTIONS"
 const nexusCachedMicrocompactEnvName = "NEXUS_CACHED_MICROCOMPACT"
@@ -68,6 +69,22 @@ func runtimeEnvFromConfig(runtimeConfig *RuntimeConfig, runtimeKind string) map[
 		applyNXSModelMetadataEnv(env, runtimeConfig)
 	}
 	return env
+}
+
+// toolSearchRuntimeEnv 把 Nexus 设置投影到 nxs 的两个兼容环境变量。
+// 同时写入旧别名，避免宿主进程遗留的 ENABLE_TOOL_SEARCH 覆盖显式设置。
+func toolSearchRuntimeEnv(runtimeKind string, enabled bool) map[string]string {
+	if !runtimeProfileForKind(runtimeKind).isNXS() {
+		return nil
+	}
+	value := "0"
+	if enabled {
+		value = "1"
+	}
+	return map[string]string{
+		enableToolSearchEnvName:      value,
+		nexusEnableToolSearchEnvName: value,
+	}
 }
 
 // applyNXSModelMetadataEnv 把产品模型卡和 API format 能力交给 nxs，不让运行时按模型名猜测。

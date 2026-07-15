@@ -71,12 +71,13 @@ func (r *runtimeDreamRunner) tryAutoDream(ctx context.Context, agentValue protoc
 		return agentclient.AutoDreamResult{}, err
 	}
 	options, err := clientopts.BuildAgentClientOptions(ownerContext, r.providers, clientopts.AgentClientOptionsInput{
-		WorkspacePath:  agentValue.WorkspacePath,
-		RuntimeKind:    selection.RuntimeKind,
-		Provider:       provider,
-		Model:          model,
-		PermissionMode: sdkpermission.ModeAcceptEdits,
-		SettingSources: ensureProjectSettingsSource(agentValue.Options.SettingSources),
+		WorkspacePath:     agentValue.WorkspacePath,
+		RuntimeKind:       selection.RuntimeKind,
+		Provider:          provider,
+		Model:             model,
+		PermissionMode:    sdkpermission.ModeAcceptEdits,
+		SettingSources:    ensureProjectSettingsSource(agentValue.Options.SettingSources),
+		ToolSearchEnabled: selection.ToolSearchEnabled,
 		ExtraEnv: map[string]string{
 			autoDreamWakeModeEnv:     autoDreamWakeModeHost,
 			providerManagedByHostEnv: "1",

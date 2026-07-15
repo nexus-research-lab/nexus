@@ -12,6 +12,7 @@ import { canUseOperations } from "./operations/operations-access";
 import { OperationsPanel } from "./operations/operations-panel";
 import { ProviderSettingsPanel } from "./provider-settings/provider-settings-panel";
 import { SettingsGeneralSection } from "./general/settings-general-section";
+import { SettingsRuntimeSection } from "./runtime/settings-runtime-section";
 import type { SettingsSectionKey } from "./settings-navigation-model";
 import { SettingsSidebarNavigation } from "./settings-sidebar-navigation";
 import { useSettingsNavigation } from "./use-settings-navigation";
@@ -70,6 +71,9 @@ function SettingsSectionContent({
   }
   if (section === "providers") {
     return <ProviderSettingsPanel embedded />;
+  }
+  if (section === "runtime") {
+    return <SettingsRuntimeSection />;
   }
   return <SettingsGeneralSection section={section} />;
 }

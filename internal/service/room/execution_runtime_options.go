@@ -161,6 +161,7 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 		MCPServers:                 e.runtimeMCPServers(),
 		ExtraEnv:                   e.service.roomRuntimeEnv(e.round, e.slot),
 		AgentSDKDiagnosticsEnabled: selection.AgentSDKDiagnosticsEnabled,
+		ToolSearchEnabled:          selection.ToolSearchEnabled,
 	})
 	if err != nil {
 		return preparedSlotRuntime{}, err
