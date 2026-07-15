@@ -7,7 +7,7 @@
 //   - continuation.go / progress.go / resume.go / steering.go：续跑 reserve/claim/release、revision 安全的进展记录、恢复、DM/Room runtime 导向。
 //   - context.go / runtime.go / runtime_*.go：运行时上下文、accounting、wall clock。
 //   - objective.go / preview.go / appserver.go：目标改写、预览填充、Codex app-server 语义。
-//   - room_collaboration.go / tool.go / retarget.go / event.go / cleanup.go / helpers.go：revision 安全的 Room 协作证据、模型工具状态更新与同 ID 目标替换、事件广播、清理、辅助。
+//   - room_metadata.go / room_collaboration.go / tool.go / retarget.go / event.go / cleanup.go / helpers.go：Room creator/lead 权限、revision 安全的协作证据、模型工具状态更新与同 ID 目标替换、事件广播、清理、辅助。
 //   - errors.go / repository.go：跨调用方统一的错误分类与持久化契约。
 //
 // Codex app-server 协议模型见子包 appserver/。

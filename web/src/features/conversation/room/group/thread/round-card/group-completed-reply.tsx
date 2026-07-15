@@ -1,3 +1,8 @@
+/**
+ * INPUT: 已完成 agent round 卡片、身份和 Thread 操作。
+ * OUTPUT: 以精确 entry_id 隔离 MessageItem 状态的 Room 最终回复。
+ * POS: Room 主 Feed 的完成态 Agent 回复视图。
+ */
 import { MessageItem } from "@/features/conversation/shared/message/item/message-item";
 
 import type { GroupRoundAgentCardModel } from "./group-round-card-model";
@@ -38,7 +43,7 @@ export function GroupCompletedReply({
         messages={entry.assistant_messages}
         onOpenAgentContact={onOpenAgentContact}
         onOpenWorkspaceFile={onOpenWorkspaceFile}
-        roundId={`${roundId}:${entry.agent_id}`}
+        roundId={`${roundId}:${entry.entry_id}`}
         workspaceAgentId={entry.agent_id}
       />
     </div>

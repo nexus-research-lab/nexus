@@ -176,6 +176,9 @@ func (s *RealtimeService) prepareRoomChat(ctx context.Context, request ChatReque
 	if err != nil {
 		return nil, err
 	}
+	if err = s.reconcileRoomGoalLead(ctx, sessionKey, contextValue, agentNameByID); err != nil {
+		return nil, err
+	}
 	targetAgentIDs, targetResolution, err := resolveChatTargetAgentIDs(request, contextValue, agentNameByID)
 	if err != nil {
 		return nil, err

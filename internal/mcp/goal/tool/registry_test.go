@@ -185,6 +185,9 @@ func TestRetargetGoalRefreshesRevisionForFollowingUpdateInSameServer(t *testing.
 	if svc.completedRequest.ExpectedObjectiveRevision != 2 {
 		t.Fatalf("expected revision = %d, want 2 after retarget", svc.completedRequest.ExpectedObjectiveRevision)
 	}
+	if svc.completedRequest.AgentID != "agent-1" {
+		t.Fatalf("completed agent = %q, want agent-1", svc.completedRequest.AgentID)
+	}
 	if otherSlotRevision.Load() != 1 {
 		t.Fatalf("other slot revision = %d, want unchanged 1", otherSlotRevision.Load())
 	}
@@ -320,7 +323,7 @@ func TestUpdateGoalBlocksCurrentGoal(t *testing.T) {
 			Status:     protocol.GoalStatusBlocked,
 		},
 	}
-	tool := updateGoal(svc, contract.ServerContext{CurrentSessionKey: "agent:nexus:ws:dm:chat", CurrentRoundID: "round-2"})
+	tool := updateGoal(svc, contract.ServerContext{CurrentSessionKey: "agent:nexus:ws:dm:chat", CurrentRoundID: "round-2", CurrentAgentID: "agent-2"})
 
 	result, err := tool.Handler(context.Background(), map[string]any{"status": "blocked"})
 	if err != nil {
@@ -331,6 +334,9 @@ func TestUpdateGoalBlocksCurrentGoal(t *testing.T) {
 	}
 	if svc.currentCalls != 1 || svc.blockCalls != 1 || svc.blockedGoalID != "goal-1" || svc.blockedRoundID != "round-2" {
 		t.Fatalf("calls = current:%d block:%d goal:%q round:%q", svc.currentCalls, svc.blockCalls, svc.blockedGoalID, svc.blockedRoundID)
+	}
+	if svc.blockedRequest.AgentID != "agent-2" {
+		t.Fatalf("blocked agent = %q, want agent-2", svc.blockedRequest.AgentID)
 	}
 	goal, ok := result.StructuredContent["goal"].(map[string]any)
 	if !ok || goal["status"] != "blocked" {
@@ -390,6 +396,7 @@ func TestCreateGoalPassesCurrentRoundID(t *testing.T) {
 	tool := createGoal(svc, contract.ServerContext{
 		CurrentSessionKey:     "agent:nexus:ws:dm:chat",
 		CurrentRoundID:        "round-create",
+		CurrentAgentID:        "agent-1",
 		GoalObjectiveRevision: revision,
 	})
 
@@ -402,7 +409,8 @@ func TestCreateGoalPassesCurrentRoundID(t *testing.T) {
 	}
 	if svc.createInput.SessionKey != "agent:nexus:ws:dm:chat" ||
 		svc.createInput.CreatedBy != "model" ||
-		svc.createInput.RoundID != "round-create" {
+		svc.createInput.RoundID != "round-create" ||
+		svc.createInput.AgentID != "agent-1" {
 		t.Fatalf("create input = %#v, want current session and round", svc.createInput)
 	}
 	if got := revision.Load(); got != 1 {
@@ -529,6 +537,7 @@ type fakeUpdateGoalService struct {
 	completedRoundID string
 	blockedRoundID   string
 	completedRequest protocol.CompleteGoalRequest
+	blockedRequest   protocol.BlockGoalRequest
 	requiredRevision int64
 	currentStarted   chan<- struct{}
 	currentRelease   <-chan struct{}
@@ -581,6 +590,7 @@ func (s *fakeUpdateGoalService) BlockByModel(_ context.Context, goalID string, r
 	s.blockCalls++
 	s.blockedGoalID = goalID
 	s.blockedRoundID = request.RoundID
+	s.blockedRequest = request
 	if s.blocked == nil {
 		return nil, errors.New("blocked goal not configured")
 	}

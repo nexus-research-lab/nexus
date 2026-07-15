@@ -11,6 +11,7 @@ var (
 	ErrGoalConflict      = errors.New("current goal already exists")
 	ErrGoalInvalidInput  = errors.New("goal invalid input")
 	ErrGoalInvalidState  = errors.New("goal invalid state")
+	ErrGoalForbidden     = errors.New("goal mutation is not allowed for this agent")
 	ErrGoalVersionStale  = errors.New("goal version stale")
 	ErrGoalRevisionStale = errors.New("goal objective changed after this round started; this round cannot update the retargeted goal")
 )
@@ -19,6 +20,7 @@ var expectedMutationErrors = []error{
 	ErrGoalDisabled,
 	ErrGoalNotFound,
 	ErrGoalInvalidState,
+	ErrGoalForbidden,
 	ErrGoalVersionStale,
 	ErrGoalRevisionStale,
 }

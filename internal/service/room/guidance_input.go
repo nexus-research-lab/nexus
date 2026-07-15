@@ -1,4 +1,4 @@
-// INPUT: 运行中 Room slot 与持久化 guide 队列。
+// INPUT: 运行中 Room slot 与保留来源语义的持久化 guide 队列。
 // OUTPUT: 原子预留的 PostToolUse additionalContext，并在 applied ACK 后归入实际回复 round。
 // POS: Room 轮内插话的唯一消费入口；预留与队列编辑共用派发锁。
 package room
@@ -30,7 +30,7 @@ func (s *RealtimeService) roomSlotGuidanceHook(
 		if input.EventName != "" && input.EventName != sdkhook.EventPostToolUse {
 			return sdkhook.Output{}, nil
 		}
-		if s.runtime == nil || !s.runtime.SupportsHookResponseAck(slot.RuntimeSessionKey) {
+		if s.shouldConfirmRoomGuidanceByFallback(slot) {
 			if err := s.acknowledgeRoomSlotGuidance(ctx, roundValue, slot, nil); err != nil {
 				return sdkhook.Output{}, err
 			}
@@ -49,6 +49,11 @@ func (s *RealtimeService) roomSlotGuidanceHook(
 	}
 }
 
+func (s *RealtimeService) shouldConfirmRoomGuidanceByFallback(slot *activeRoomSlot) bool {
+	return s == nil || s.runtime == nil || slot == nil ||
+		!s.runtime.SupportsHookResponseAck(slot.RuntimeSessionKey)
+}
+
 type roomGuidanceExecution struct {
 	service           *RealtimeService
 	ctx               context.Context
@@ -58,7 +63,7 @@ type roomGuidanceExecution struct {
 	queueItems        []protocol.InputQueueItem
 	runtimeQueueItems []protocol.InputQueueItem
 	sourceRoundID     string
-	triggerContent    string
+	trigger           roomTrigger
 	inputs            []runtimectx.GuidedInput
 }
 
@@ -78,7 +83,7 @@ func (e *roomGuidanceExecution) run() (sdkhook.Output, error) {
 	if err = e.renderQueueItems(); err != nil {
 		return sdkhook.Output{}, err
 	}
-	e.sourceRoundID, e.triggerContent = latestGuidanceTrigger(e.runtimeQueueItems)
+	e.sourceRoundID, e.trigger = latestGuidanceTrigger(e.runtimeQueueItems)
 	if err = e.buildInputs(); err != nil {
 		return sdkhook.Output{}, err
 	}
@@ -263,12 +268,22 @@ func (e *roomGuidanceExecution) appendPublicContext() error {
 	if err != nil {
 		return err
 	}
-	publicContext, err := e.service.buildSlotGuidedPublicContext(e.ctx, e.round, e.slot, publicHistory, agentNameByID, roomTrigger{
-		TriggerType:   "public_chat",
-		Content:       e.triggerContent,
-		MessageID:     strings.TrimSpace(e.sourceRoundID),
-		TargetAgentID: e.slot.AgentID,
-	})
+	trigger := e.trigger
+	if strings.TrimSpace(trigger.TriggerType) == "" {
+		trigger.TriggerType = "public_chat"
+	}
+	if strings.TrimSpace(trigger.MessageID) == "" {
+		trigger.MessageID = strings.TrimSpace(e.sourceRoundID)
+	}
+	trigger.TargetAgentID = e.slot.AgentID
+	publicContext, err := e.service.buildSlotGuidedPublicContext(
+		e.ctx,
+		e.round,
+		e.slot,
+		publicHistory,
+		agentNameByID,
+		trigger,
+	)
 	if err != nil {
 		return err
 	}
@@ -307,16 +322,34 @@ func appendUnanchoredGuidanceQueueItems(
 	return inputs
 }
 
-func latestGuidanceTrigger(queueItems []protocol.InputQueueItem) (string, string) {
+func latestGuidanceTrigger(queueItems []protocol.InputQueueItem) (string, roomTrigger) {
 	roundID := ""
-	content := ""
+	trigger := roomTrigger{}
 	for _, item := range queueItems {
 		if strings.TrimSpace(item.ID) != "" {
 			roundID = "queue_" + strings.TrimSpace(item.ID)
 		}
 		if strings.TrimSpace(item.Content) != "" {
-			content = strings.TrimSpace(item.Content)
+			trigger = roomTrigger{
+				TriggerType:   guidanceTriggerType(item.Source),
+				Content:       strings.TrimSpace(item.Content),
+				MessageID:     firstNonEmptyString(item.SourceMessageID, roundID),
+				SourceAgentID: strings.TrimSpace(item.SourceAgentID),
+				TargetAgentID: strings.TrimSpace(item.AgentID),
+				ReplyRoute:    item.ReplyRoute,
+			}
 		}
 	}
-	return roundID, content
+	return roundID, trigger
+}
+
+func guidanceTriggerType(source protocol.InputQueueSource) string {
+	switch source {
+	case protocol.InputQueueSourceAgentPublicMention:
+		return "public_mention"
+	case protocol.InputQueueSourceAgentRoomMessage:
+		return "room_directed_message"
+	default:
+		return "public_chat"
+	}
 }

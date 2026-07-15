@@ -1,3 +1,6 @@
+// INPUT: Room trigger、成员目录与回复路由。
+// OUTPUT: 供单个成员消费的动态唤醒文本；公区提及明确区分已公开 source 与新增交付。
+// POS: Room 可见上下文中 latest_trigger 的唯一格式化入口。
 package room
 
 import (
@@ -39,6 +42,9 @@ func formatRoomTrigger(trigger Trigger, agentNameByID map[string]string) string 
 	}
 	if triggerType == "room_host_default" {
 		line += "\nroom host default takeover: the user did not @ any member, and Room settings require you as host to handle this turn. You may answer directly or @ exactly one member to delegate."
+	}
+	if triggerType == "public_mention" {
+		line += "\nThis source message is already published in the Room. Do not repeat, quote, paraphrase, summarize, acknowledge, or confirm it. Output only the new deliverable concretely assigned to you. If it assigns no concrete new work, output exactly <nexus_room_no_reply/>."
 	}
 	if projection := formatRoomReplyProjection(trigger, agentNameByID); projection != "" {
 		line += "\n" + projection

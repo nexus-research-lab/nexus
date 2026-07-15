@@ -63,6 +63,32 @@ func TestBuildSyntheticAssistantFromResultMapsStopReasonBySubtype(t *testing.T) 
 	}
 }
 
+func TestBuildSyntheticAssistantFromResultPreservesExecutionIdentity(t *testing.T) {
+	synthetic := BuildSyntheticAssistantFromResult(protocol.Message{
+		"message_id":     "result-1",
+		"session_key":    "room:group:conversation-1",
+		"agent_id":       "agent-1",
+		"round_id":       "round-root",
+		"agent_round_id": "agent-round-1",
+		"parent_id":      "slot-message-1",
+		"model":          "kimi-for-coding",
+		"role":           "result",
+		"subtype":        "success",
+		"result":         "完成",
+		"timestamp":      int64(1000),
+	})
+
+	for key, expected := range map[string]string{
+		"agent_round_id": "agent-round-1",
+		"parent_id":      "slot-message-1",
+		"model":          "kimi-for-coding",
+	} {
+		if actual := normalizeString(synthetic[key]); actual != expected {
+			t.Fatalf("synthetic assistant 未保留 %s: got=%q want=%q synthetic=%+v", key, actual, expected, synthetic)
+		}
+	}
+}
+
 func TestAttachResultSummaryMarksAssistantComplete(t *testing.T) {
 	assistant := protocol.Message{
 		"message_id":  "assistant-1",
@@ -96,6 +122,30 @@ func TestAttachResultSummaryMarksAssistantComplete(t *testing.T) {
 	}
 	if _, ok := merged["result_summary"].(map[string]any); !ok {
 		t.Fatalf("assistant 应保留 result_summary: %+v", merged)
+	}
+}
+
+func TestAttachResultSummaryRejectsDifferentAgentRound(t *testing.T) {
+	assistant := protocol.Message{
+		"message_id":     "assistant-1",
+		"agent_id":       "agent-1",
+		"round_id":       "round-root",
+		"agent_round_id": "agent-round-1",
+		"role":           "assistant",
+		"content":        []map[string]any{{"type": "text", "text": "Agent1"}},
+	}
+	result := protocol.Message{
+		"message_id":     "result-2",
+		"agent_id":       "agent-2",
+		"round_id":       "round-root",
+		"agent_round_id": "agent-round-2",
+		"role":           "result",
+		"subtype":        "success",
+		"result":         "Agent2",
+	}
+
+	if _, ok := AttachResultSummary(assistant, result); ok {
+		t.Fatalf("不同 Agent 执行轮的 result 不应挂到 assistant")
 	}
 }
 

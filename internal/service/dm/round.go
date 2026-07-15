@@ -1,5 +1,5 @@
 // INPUT: 已准备的 DM round、runtime 消息与终态结果。
-// OUTPUT: durable 历史、Goal 结算及用户队列优先的后续派发。
+// OUTPUT: durable 历史、ACK 门控的引导确认、Goal 结算及用户队列优先的后续派发。
 // POS: DM 单轮执行生命周期的主状态机。
 package dm
 
@@ -107,7 +107,7 @@ func (r *roundRunner) run(ctx context.Context) {
 		return
 	}
 	if result.TerminalStatus == "finished" && (result.ResultSubtype == "" || result.ResultSubtype == "success") {
-		if err := r.confirmInputQueueGuidance(context.Background()); err != nil {
+		if err := r.confirmInputQueueGuidanceFallback(context.Background()); err != nil {
 			r.failRound(err)
 			return
 		}
@@ -208,7 +208,7 @@ func (r *roundRunner) handleDurableMessage(message protocol.Message) error {
 	role := protocol.MessageRole(message)
 	if role == "assistant" || (role == "result" && message["is_error"] != true &&
 		(dmdomain.NormalizeString(message["subtype"]) == "" || dmdomain.NormalizeString(message["subtype"]) == "success")) {
-		if err := r.confirmInputQueueGuidance(context.Background()); err != nil {
+		if err := r.confirmInputQueueGuidanceFallback(context.Background()); err != nil {
 			return err
 		}
 	}
@@ -237,6 +237,13 @@ func (r *roundRunner) confirmInputQueueGuidance(ctx context.Context) error {
 		WorkspacePath: r.workspacePath,
 		SessionKey:    r.sessionKey,
 	}, r.roundID, nil)
+}
+
+func (r *roundRunner) confirmInputQueueGuidanceFallback(ctx context.Context) error {
+	if r.service.runtime != nil && r.service.runtime.SupportsHookResponseAck(r.sessionKey) {
+		return nil
+	}
+	return r.confirmInputQueueGuidance(ctx)
 }
 
 func (r *roundRunner) dispatchNextInputQueueItem() {

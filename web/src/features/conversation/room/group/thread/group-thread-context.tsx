@@ -1,3 +1,8 @@
+/**
+ * INPUT: Room Thread 子树、打开回调与精确执行轮目标。
+ * OUTPUT: 仅保存当前 Thread 选择态的轻量 Context Provider。
+ * POS: Room Thread 选择态的 React 生命周期边界。
+ */
 "use client";
 
 import { useCallback, useMemo, useState, type ReactNode } from "react";
@@ -19,12 +24,18 @@ export function GroupThreadContextProvider({
 }) {
   const [activeThread, setActiveThread] = useState<ThreadTarget | null>(null);
 
-  const openThread = useCallback((roundId: string, agentId: string) => {
+  const openThread = useCallback((
+    roundId: string,
+    agentId: string,
+    agentRoundId: string | null = null,
+  ) => {
     onOpenThread?.();
     setActiveThread((current) => (
-      current?.roundId === roundId && current.agentId === agentId
+      current?.roundId === roundId
+        && current.agentId === agentId
+        && current.agentRoundId === agentRoundId
         ? current
-        : { roundId, agentId }
+        : { roundId, agentId, agentRoundId }
     ));
   }, [onOpenThread]);
 

@@ -474,7 +474,7 @@ func TestServiceCompleteByModelRequiresRoomGoalCollaborationEvidence(t *testing.
 		t.Fatal(err)
 	}
 
-	if _, err = service.CompleteByModel(ctx, created.ID, protocol.CompleteGoalRequest{RoundID: "round-lead"}); !errors.Is(err, ErrGoalInvalidState) {
+	if _, err = service.CompleteByModel(ctx, created.ID, protocol.CompleteGoalRequest{RoundID: "round-lead", AgentID: "agent-lead"}); !errors.Is(err, ErrGoalInvalidState) {
 		t.Fatalf("CompleteByModel error = %v, want ErrGoalInvalidState before collaborator evidence", err)
 	}
 	current, err := service.Current(ctx, created.SessionKey)
@@ -488,7 +488,7 @@ func TestServiceCompleteByModelRequiresRoomGoalCollaborationEvidence(t *testing.
 	if _, err = service.RecordRoomGoalCollaborationEvidence(ctx, created.ID, "round-peer", "agent-peer"); err != nil {
 		t.Fatal(err)
 	}
-	completed, err := service.CompleteByModel(ctx, created.ID, protocol.CompleteGoalRequest{RoundID: "round-lead-final"})
+	completed, err := service.CompleteByModel(ctx, created.ID, protocol.CompleteGoalRequest{RoundID: "round-lead-final", AgentID: "agent-lead"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -497,6 +497,34 @@ func TestServiceCompleteByModelRequiresRoomGoalCollaborationEvidence(t *testing.
 	}
 	if !RoomCollaborationObserved(*completed) {
 		t.Fatalf("metadata = %#v, want collaboration observed", completed.Metadata)
+	}
+}
+
+func TestServiceCompleteByModelRetriesConcurrentGoalVersion(t *testing.T) {
+	repo := &staleOnceUsageRepository{
+		memoryRepository: newMemoryRepository(),
+		concurrentUsage:  protocol.GoalUsage{TotalTokens: 7},
+	}
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: protocol.BuildRoomSharedSessionKey("complete-version-race"),
+		Objective:  "Complete after concurrent usage",
+		CreatedBy:  "model",
+		AgentID:    "agent-lead",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo.staleGoalID = created.ID
+	completed, err := service.CompleteByModel(ctx, created.ID, protocol.CompleteGoalRequest{AgentID: "agent-lead"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !repo.injected || completed.Status != protocol.GoalStatusComplete || completed.Usage.Total() != 7 {
+		t.Fatalf("completed = %#v injected=%v, want retried terminal mutation", completed, repo.injected)
 	}
 }
 

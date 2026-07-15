@@ -139,6 +139,10 @@ func TestBuildRoomVisibleContextKeepsPublicRoomContract(t *testing.T) {
 		"# Nexus Room",
 		"You are a member in a multi-member Nexus Room",
 		"A non-code @member means \"act now\"",
+		"already-published source message for activation context",
+		"never repeat, quote, paraphrase, summarize, acknowledge, or confirm",
+		"output only the new deliverable concretely assigned to you",
+		"If it assigns no concrete new work, output exactly <nexus_room_no_reply/>",
 		"Wake one member unless",
 		"<nexus_room_no_reply/>",
 		"Track multi-turn handoffs, stop conditions",
@@ -184,6 +188,10 @@ func TestBuildRoomVisibleContextKeepsPublicRoomContract(t *testing.T) {
 		"<public_feed>",
 		"Amy: @Devin @sam 谁先来？",
 		"Assistant(Amy): 第一轮开始",
+		"This source message is already published in the Room.",
+		"Do not repeat, quote, paraphrase, summarize, acknowledge, or confirm it.",
+		"Output only the new deliverable concretely assigned to you.",
+		"If it assigns no concrete new work, output exactly <nexus_room_no_reply/>.",
 	} {
 		if !strings.Contains(contextValue, expected) {
 			t.Fatalf("Room 动态输入缺少片段 %q:\n%s", expected, contextValue)
@@ -194,7 +202,6 @@ func TestBuildRoomVisibleContextKeepsPublicRoomContract(t *testing.T) {
 		"<current_room_member>",
 		"<room_member_directory>",
 		"@ is an execution trigger",
-		"<nexus_room_no_reply/>",
 		"User: @Devin @sam 谁先来？",
 		"trigger_type",
 		"message_id",
@@ -215,6 +222,40 @@ func TestBuildRoomVisibleContextKeepsPublicRoomContract(t *testing.T) {
 	if strings.Contains(contextValue, "private_context") ||
 		strings.Contains(contextValue, "collaboration_actions") {
 		t.Fatalf("Room 公区 prompt 不应注入私聊或协作动作实现:\n%s", contextValue)
+	}
+}
+
+func TestBuildRoomVisibleContextIncludesPublicMentionSourceOnlyOnce(t *testing.T) {
+	const source = "已有完整结论。@Devin 只补充一个新增风险。"
+	contextValue := BuildVisibleContext(VisibleContextInput{
+		PublicMessages: []protocol.Message{
+			roomAssistantResultWithID("public-mention-source", "agent-amy", source, 1),
+		},
+		LatestTrigger: Trigger{
+			TriggerType:   "public_mention",
+			Content:       source,
+			MessageID:     "public-mention-source",
+			SourceAgentID: "agent-amy",
+			TargetAgentID: "agent-devin",
+		},
+		AgentNameByID: map[string]string{
+			"agent-amy":   "Amy",
+			"agent-devin": "Devin",
+		},
+		TargetAgentID: "agent-devin",
+	})
+
+	if count := strings.Count(contextValue, source); count != 1 {
+		t.Fatalf("public mention source should appear exactly once, got %d:\n%s", count, contextValue)
+	}
+	for _, expected := range []string{
+		"This source message is already published in the Room.",
+		"Output only the new deliverable concretely assigned to you.",
+		"If it assigns no concrete new work, output exactly <nexus_room_no_reply/>.",
+	} {
+		if !strings.Contains(contextValue, expected) {
+			t.Fatalf("public mention contract missing %q:\n%s", expected, contextValue)
+		}
 	}
 }
 

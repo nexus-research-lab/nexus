@@ -1,6 +1,6 @@
 /**
  * INPUT: 一个 root round 的消息、权限与 runtime 状态。
- * OUTPUT: MessageItem 所需的 user 列表、assistant 内容与展示状态。
+ * OUTPUT: MessageItem 所需的 user 列表、assistant 内容及最终执行身份展示状态。
  * POS: 会话消息实体到单轮视图模型的投影边界。
  */
 import { useMemo } from "react";
@@ -73,8 +73,13 @@ export function useMessageItemProjection({
     messages,
   });
   const { contentMerge } = orderedContent;
-  const firstAssistant = contentMerge.assistantMessages[0];
-  const assistantIdentity = projectAssistantIdentity(firstAssistant);
+  const identityAssistant = selectAssistantIdentity(
+    contentMerge.assistantMessages,
+  );
+  const assistantIdentity = projectAssistantIdentity(
+    contentMerge.assistantMessages,
+    identityAssistant,
+  );
   const finalProjection = useMemo(
     () => resolveMessageItemFinalProjection({
       assistantContentMode,
@@ -144,7 +149,7 @@ export function useMessageItemProjection({
     processSummary,
     stats: buildMessageStats(contentMerge.resultSummary),
     timestamp: resolveMessageTimestamp(
-      firstAssistant,
+      identityAssistant,
       orderedContent.firstSystemEventTimestamp,
       contentMerge.resultSummary,
     ),
@@ -254,9 +259,10 @@ function shouldIncludeTransientSystemEvents(
 }
 
 function projectAssistantIdentity(
-  firstAssistant: AssistantMessage | undefined,
+  messages: AssistantMessage[],
+  identityAssistant: AssistantMessage | undefined,
 ): AssistantIdentityProjection {
-  if (!firstAssistant) {
+  if (!identityAssistant) {
     return {
       assistantAgentId: null,
       firstAssistantMessageId: null,
@@ -266,20 +272,48 @@ function projectAssistantIdentity(
     };
   }
   return {
-    assistantAgentId: firstAssistant.agent_id ?? null,
-    firstAssistantMessageId: firstAssistant.message_id,
-    model: firstAssistant.model,
-    stopReason: firstAssistant.stop_reason ?? null,
-    streamStatus: firstAssistant.stream_status ?? null,
+    assistantAgentId: identityAssistant.agent_id ?? null,
+    firstAssistantMessageId: messages[0]?.message_id ?? null,
+    model: resolveAssistantModel(messages, identityAssistant),
+    stopReason: identityAssistant.stop_reason ?? null,
+    streamStatus: identityAssistant.stream_status ?? null,
   };
 }
 
+function selectAssistantIdentity(
+  messages: AssistantMessage[],
+): AssistantMessage | undefined {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message.result_summary || message.stop_reason || message.is_complete) {
+      return message;
+    }
+  }
+  return messages.at(-1);
+}
+
+function resolveAssistantModel(
+  messages: AssistantMessage[],
+  identity: AssistantMessage,
+): string | undefined {
+  if (identity.model?.trim()) {
+    return identity.model;
+  }
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const model = messages[index].model?.trim();
+    if (model) {
+      return model;
+    }
+  }
+  return undefined;
+}
+
 function resolveMessageTimestamp(
-  firstAssistant: AssistantMessage | undefined,
+  identityAssistant: AssistantMessage | undefined,
   firstSystemEventTimestamp: number | undefined,
   resultSummary: ResultSummary | undefined,
 ): number | undefined {
-  return firstAssistant?.timestamp
-    ?? firstSystemEventTimestamp
-    ?? resultSummary?.timestamp;
+  return resultSummary?.timestamp
+    ?? identityAssistant?.timestamp
+    ?? firstSystemEventTimestamp;
 }

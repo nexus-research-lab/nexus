@@ -22,7 +22,7 @@ Use English commit messages with an emoji prefix, for example `:sparkles: Switch
 cmd/        - 可执行入口（nexus-server 服务 + 自动迁移；nexusctl 命令行）
 web/        - React 前端（features / store / shared / lib，见 web/CLAUDE.md）
 internal/   - 后端核心（各子包 L2 见其 doc.go）:
-  protocol/   - 跨 HTTP/WS/前端/运行时的协议真相源（会话/房间/Goal 模型、事件、枚举、TS codegen 输入）
+  protocol/   - 跨 HTTP/WS/前端/运行时的协议真相源（会话/房间/Goal 模型与 Room creator/lead 身份、事件、枚举、TS codegen 输入）
   runtime/    - nxs/Claude Code 共用宿主主链（bridge client、manager 会话/round 生命周期）
   service/    - 业务服务（agent / dm / room / session / workspace / skills / connectors / automation / llm ...）
   chat/       - 对话领域（dm / room）

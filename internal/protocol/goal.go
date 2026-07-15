@@ -1,5 +1,5 @@
 // INPUT: 跨 HTTP/WS/runtime 的 Goal 状态、请求与 continuation 数据。
-// OUTPUT: Goal 领域协议及归一化常量。
+// OUTPUT: Goal 领域协议、Room creator/lead 权限身份及归一化常量。
 // POS: Goal 前后端与运行时共享的协议真相源。
 package protocol
 
@@ -34,6 +34,7 @@ const (
 
 const (
 	GoalMetadataRoomGoalScope                         = "room_goal_scope"
+	GoalMetadataRoomGoalCreatorAgentID                = "room_goal_creator_agent_id"
 	GoalMetadataRoomGoalLeadAgentID                   = "room_goal_lead_agent_id"
 	GoalMetadataRoomGoalLeadAgentName                 = "room_goal_lead_agent_name"
 	GoalMetadataRoomGoalLoopSlug                      = "room_goal_loop_slug"
@@ -256,6 +257,7 @@ type CreateGoalRequest struct {
 	CreatedBy       string         `json:"created_by,omitempty"`
 	RoundID         string         `json:"round_id,omitempty"`
 	OwnerUserID     string         `json:"owner_user_id,omitempty"`
+	AgentID         string         `json:"-"`
 	Metadata        map[string]any `json:"metadata,omitempty"`
 }
 
@@ -279,6 +281,7 @@ type RetargetGoalRequest struct {
 type CompleteGoalRequest struct {
 	Summary                   string `json:"summary,omitempty"`
 	RoundID                   string `json:"round_id,omitempty"`
+	AgentID                   string `json:"-"`
 	ExpectedObjectiveRevision int64  `json:"-"`
 }
 
@@ -287,6 +290,7 @@ type BlockGoalRequest struct {
 	Reason                    string `json:"reason"`
 	NeededInput               string `json:"needed_input,omitempty"`
 	RoundID                   string `json:"round_id,omitempty"`
+	AgentID                   string `json:"-"`
 	ExpectedObjectiveRevision int64  `json:"-"`
 }
 

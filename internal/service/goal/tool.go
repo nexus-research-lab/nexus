@@ -1,5 +1,5 @@
-// INPUT: 模型 complete/blocked 请求、usage 与 objective revision。
-// OUTPUT: 受状态机和 revision fence 保护的 Goal 工具结果。
+// INPUT: 模型 complete/blocked 请求、Room lead 身份、usage 与 objective revision。
+// OUTPUT: 受负责人权限、状态机和 revision fence 保护的 Goal 工具结果。
 // POS: Goal 模型生命周期工具的服务层入口。
 package goal
 
@@ -15,14 +15,14 @@ import (
 
 // CompleteByModel 允许模型工具把 active Goal 标记为完成。
 func (s *Service) CompleteByModel(ctx context.Context, goalID string, request protocol.CompleteGoalRequest) (*protocol.Goal, error) {
-	if err := s.ensureRoomGoalCollaborationComplete(ctx, goalID, request.ExpectedObjectiveRevision); err != nil {
-		return nil, err
-	}
 	payload := map[string]any{}
 	if summary := strings.TrimSpace(request.Summary); summary != "" {
 		payload["summary"] = summary
 	}
-	return s.changeStatus(ctx, goalID, protocol.GoalStatusComplete, protocol.GoalUpdateSourceModel, "completed", request.RoundID, payload, request.ExpectedObjectiveRevision)
+	if agentID := strings.TrimSpace(request.AgentID); agentID != "" {
+		payload["source_agent_id"] = agentID
+	}
+	return s.changeStatusByModel(ctx, goalID, request.AgentID, protocol.GoalStatusComplete, "completed", request.RoundID, payload, request.ExpectedObjectiveRevision, true)
 }
 
 // BlockByModel 允许模型工具把 active Goal 标记为阻塞。
@@ -35,27 +35,51 @@ func (s *Service) BlockByModel(ctx context.Context, goalID string, request proto
 	if neededInput := strings.TrimSpace(request.NeededInput); neededInput != "" {
 		payload["needed_input"] = neededInput
 	}
-	return s.changeStatus(ctx, goalID, protocol.GoalStatusBlocked, protocol.GoalUpdateSourceModel, "blocked", request.RoundID, payload, request.ExpectedObjectiveRevision)
+	if agentID := strings.TrimSpace(request.AgentID); agentID != "" {
+		payload["source_agent_id"] = agentID
+	}
+	return s.changeStatusByModel(ctx, goalID, request.AgentID, protocol.GoalStatusBlocked, "blocked", request.RoundID, payload, request.ExpectedObjectiveRevision, false)
 }
 
-func (s *Service) ensureRoomGoalCollaborationComplete(ctx context.Context, goalID string, expectedRevision int64) error {
-	if err := s.ensureEnabled(); err != nil {
-		return err
-	}
-	item, err := s.repo.GetGoal(ctx, strings.TrimSpace(goalID))
+func (s *Service) changeStatusByModel(
+	ctx context.Context,
+	goalID string,
+	agentID string,
+	status protocol.GoalStatus,
+	eventType string,
+	roundID string,
+	payload map[string]any,
+	expectedRevision int64,
+	requireRoomCollaboration bool,
+) (*protocol.Goal, error) {
+	item, err := s.loadMutableGoal(ctx, goalID)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if item == nil {
-		return ErrGoalNotFound
+	if err = authorizeRoomGoalModelMutation(*item, agentID); err != nil {
+		return nil, err
 	}
-	if !objectiveRevisionMatches(*item, expectedRevision) {
-		return ErrGoalRevisionStale
+	ctx = withBudgetLimitSteeringSuppressed(ctx)
+	s.prepareExternalMutation(ctx, strings.TrimSpace(goalID))
+	item, err = s.loadMutableGoal(ctx, goalID)
+	if err != nil {
+		return nil, err
 	}
-	if roomGoalCompletionRequiresCollaboration(*item) {
-		return fmt.Errorf("%w: multi-member Room Goal requires a room-visible non-lead collaboration reply before completion", ErrGoalInvalidState)
-	}
-	return nil
+	return s.retryGoalMutation(ctx, item, func(current *protocol.Goal) (*protocol.Goal, error) {
+		if !protocol.IsCurrentGoalStatus(current.Status) {
+			return nil, ErrGoalInvalidState
+		}
+		if authErr := authorizeRoomGoalModelMutation(*current, agentID); authErr != nil {
+			return nil, authErr
+		}
+		if !objectiveRevisionMatches(*current, expectedRevision) {
+			return nil, ErrGoalRevisionStale
+		}
+		if requireRoomCollaboration && roomGoalCompletionRequiresCollaboration(*current) {
+			return nil, fmt.Errorf("%w: multi-member Room Goal requires a room-visible non-lead collaboration reply before completion", ErrGoalInvalidState)
+		}
+		return s.persistTransition(ctx, *current, status, protocol.GoalUpdateSourceModel, eventType, roundID, payload)
+	})
 }
 
 // Events 返回 Goal 审计事件。

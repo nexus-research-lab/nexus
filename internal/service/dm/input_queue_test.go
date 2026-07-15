@@ -343,6 +343,137 @@ func TestServiceHandleChatGuidePolicyQueuesHookGuidance(t *testing.T) {
 	})
 }
 
+func TestServiceAckRuntimeGuidanceWaitsForAppliedAckAcrossAssistantAndTerminal(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+
+	agentService := newDMAgentService(t, cfg)
+	permission := permissionctx.NewContext()
+	client := newFakeDMClient()
+	client.hookResponseAck = true
+	fallbackStarted := make(chan string, 1)
+	client.onQuery = func(_ context.Context, prompt string) {
+		if !strings.Contains(prompt, "ACK 后才能消费") {
+			return
+		}
+		fallbackStarted <- prompt
+		go func() {
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: client.sessionID,
+				UUID:      "result-ack-guidance-fallback",
+				Result: &sdkprotocol.ResultMessage{
+					Subtype:    "success",
+					DurationMS: 1,
+					NumTurns:   1,
+				},
+			}
+		}()
+	}
+	factory := &fakeDMFactory{client: client}
+	runtimeManager := runtimectx.NewManagerWithFactory(factory)
+	service := NewService(cfg, agentService, runtimeManager, permission)
+	sender := newDMTestSender("sender-ack-guidance")
+	sessionKey := "agent:nexus:ws:dm:test-ack-guidance"
+	permission.BindSession(sessionKey, sender)
+
+	if err := service.HandleChat(context.Background(), Request{
+		SessionKey: sessionKey,
+		Content:    "先执行当前任务",
+		RoundID:    "round-ack-guidance-1",
+	}); err != nil {
+		t.Fatalf("启动 DM round 失败: %v", err)
+	}
+	waitForEvent(t, sender.events, protocol.EventTypeRoundStatus, "running")
+	if err := service.HandleChat(context.Background(), Request{
+		SessionKey:     sessionKey,
+		Content:        "ACK 后才能消费",
+		RoundID:        "round-ack-guidance-2",
+		UserMessageID:  "msg-user-ack-guidance-2",
+		DeliveryPolicy: protocol.ChatDeliveryPolicyGuide,
+	}); err != nil {
+		t.Fatalf("写入 DM 引导失败: %v", err)
+	}
+	_, location, err := service.resolveInputQueueLocation(context.Background(), sessionKey, "")
+	if err != nil {
+		t.Fatalf("解析 DM 队列位置失败: %v", err)
+	}
+	output, err := service.inputQueueGuidanceHook(sessionKey, location)(
+		context.Background(),
+		sdkhook.Input{EventName: sdkhook.EventPostToolUse},
+		"tool-ack",
+	)
+	if err != nil || output.SpecificOutput == nil || output.OnApplied == nil {
+		t.Fatalf("ACK runtime 应返回待确认引导: output=%+v err=%v", output, err)
+	}
+
+	client.messages <- sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeAssistant,
+		SessionID: client.sessionID,
+		Assistant: &sdkprotocol.AssistantMessage{Message: sdkprotocol.ConversationEnvelope{
+			ID:      "assistant-before-guidance-ack",
+			Model:   "sonnet",
+			Content: []sdkprotocol.ContentBlock{sdkprotocol.TextBlock{Text: "当前任务已完成。"}},
+		}},
+	}
+	collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeMessage &&
+			event.Data["message_id"] == "assistant-before-guidance-ack"
+	})
+	items, err := service.inputQueue.Snapshot(location)
+	if err != nil || len(items) != 1 {
+		t.Fatalf("assistant 输出不能代替 applied ACK: items=%+v err=%v", items, err)
+	}
+
+	service.inputQueueDispatchMu.Lock()
+	dispatchLocked := true
+	defer func() {
+		if dispatchLocked {
+			service.inputQueueDispatchMu.Unlock()
+		}
+	}()
+	client.messages <- sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeResult,
+		SessionID: client.sessionID,
+		UUID:      "result-before-guidance-ack",
+		Result: &sdkprotocol.ResultMessage{
+			Subtype:    "success",
+			DurationMS: 1,
+			NumTurns:   1,
+		},
+	}
+	collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus &&
+			event.Data["round_id"] == "round-ack-guidance-1" &&
+			event.Data["status"] == "finished"
+	})
+	items, err = service.inputQueue.Snapshot(location)
+	if err != nil || len(items) != 1 {
+		t.Fatalf("result 与终态不能代替 applied ACK: items=%+v err=%v", items, err)
+	}
+	for _, row := range readDMSessionHistory(t, cfg, service, sessionKey) {
+		if row["message_id"] == "msg-user-ack-guidance-2" {
+			t.Fatalf("未 applied ACK 的引导不应写入当前 round: %+v", row)
+		}
+	}
+	service.inputQueueDispatchMu.Unlock()
+	dispatchLocked = false
+
+	select {
+	case prompt := <-fallbackStarted:
+		if !strings.Contains(prompt, "ACK 后才能消费") {
+			t.Fatalf("未确认引导的下一轮缺少原内容: %q", prompt)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("未确认引导没有作为下一轮继续")
+	}
+	collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus &&
+			event.Data["round_id"] == "round-ack-guidance-2" &&
+			event.Data["status"] == "finished"
+	})
+}
+
 func TestServiceGuidancePreflightFailureKeepsQueuedInput(t *testing.T) {
 	cfg := newDMTestConfig(t)
 	migrateDMSQLite(t, cfg.DatabaseURL)

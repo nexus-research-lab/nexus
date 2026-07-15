@@ -1,5 +1,5 @@
-// INPUT: Goal 创建、读取与用户更新请求。
-// OUTPUT: 持久化 Goal、审计事件与后续 runtime 决策。
+// INPUT: Goal 创建、读取、Room creator/lead 身份与用户更新请求。
+// OUTPUT: 持久化 Goal、不可变 creator/可转移 lead 审计身份与后续 runtime 决策。
 // POS: Goal 应用服务主入口。
 package goal
 
@@ -58,6 +58,9 @@ func (s *Service) Create(ctx context.Context, request protocol.CreateGoalRequest
 	if err != nil {
 		return nil, err
 	}
+	if protocol.IsRoomSharedSessionKey(sessionKey) && strings.TrimSpace(request.CreatedBy) == "model" && strings.TrimSpace(request.AgentID) == "" {
+		return nil, newGoalInvalidInputError("model-created Room Goal requires the current agent identity")
+	}
 	current, err := s.repo.GetCurrentGoal(ctx, sessionKey)
 	if err != nil {
 		return nil, err
@@ -82,6 +85,7 @@ func (s *Service) Create(ctx context.Context, request protocol.CreateGoalRequest
 		metadata = cloneMap(metadata)
 		delete(metadata, protocol.GoalMetadataObjectiveRevision)
 	}
+	metadata = initializeRoomGoalOwnershipMetadata(sessionKey, metadata, request.AgentID)
 
 	now := s.nowFn()
 	tokenBudget, err := normalizeCreateBudget(request.TokenBudget)
@@ -193,7 +197,7 @@ func (s *Service) buildGoalUpdateMutation(
 		return goalUpdateMutation{}, err
 	}
 	if request.Metadata != nil {
-		item.Metadata = cloneMap(request.Metadata)
+		item.Metadata = preserveRoomGoalOwnershipMetadata(*item, request.Metadata)
 		delete(item.Metadata, protocol.GoalMetadataObjectiveRevision)
 		if objectiveRevision > 1 {
 			item.Metadata[protocol.GoalMetadataObjectiveRevision] = objectiveRevision

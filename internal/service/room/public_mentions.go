@@ -1,3 +1,6 @@
+// INPUT: 已完成 Agent 输出中的公区 @ 与目标 Agent 当前执行态。
+// OUTPUT: 同 Agent 串行的 public mention guide/新轮唤醒。
+// POS: Room Agent 间公开协作的唤醒编排入口。
 package room
 
 import (
@@ -120,6 +123,9 @@ func (s *RealtimeService) startPublicMentionRound(
 	parentRound *activeRoomRound,
 	wakes []publicMentionWake,
 ) error {
+	s.publicMentionDispatchMu.Lock()
+	defer s.publicMentionDispatchMu.Unlock()
+
 	if parentRound == nil || parentRound.Context == nil || len(wakes) == 0 {
 		return nil
 	}

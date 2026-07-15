@@ -1,5 +1,5 @@
 // INPUT: 用户明确替换后的 objective，以及 MCP server 绑定的当前 session/round/objective revision。
-// OUTPUT: 同一 Goal 身份下直接激活的新 objective 与模型可读工具结果。
+// OUTPUT: 经 Room lead 授权后，同一 Goal 身份下直接激活的新 objective 与模型可读工具结果。
 // POS: 用户明确替换当前 Goal 时的模型工具入口；无需先恢复旧目标。
 package tool
 
@@ -16,6 +16,7 @@ type retargetGoalInput struct {
 }
 
 const retargetGoalDescription = "Retarget the existing current goal only when the user explicitly corrects or replaces its objective.\n" +
+	"For a shared Room Goal, only the assigned lead agent may retarget it; other agents must send their proposal to the lead instead.\n" +
 	"Keep the same goal identity and accumulated usage. Never complete the old goal and create a new one for a correction.\n" +
 	"If the current goal is paused, blocked, or usage-limited, the explicit replacement activates the new objective directly without a separate resume confirmation. A budget-limited goal still requires a budget change.\n" +
 	"Do not infer a retarget from ordinary follow-up requests, your own judgment, or incidental scope details."

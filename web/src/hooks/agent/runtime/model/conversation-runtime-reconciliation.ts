@@ -252,6 +252,7 @@ export function mergeChatAckPendingSlots(
     round_id: ack.round_id,
     status: slot.status,
     timestamp: slot.timestamp,
+    index: slot.index,
   }));
   if (ack.pending_snapshot) {
     return nextSlots;

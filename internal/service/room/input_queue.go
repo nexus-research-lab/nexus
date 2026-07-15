@@ -1,5 +1,5 @@
 // INPUT: Room 输入队列控制请求与持久化队列快照。
-// OUTPUT: 队列变更、guide 状态同步和共享快照事件。
+// OUTPUT: 队列变更、guide 消费轮身份同步和共享快照事件。
 // POS: Room 用户输入队列的控制面。
 package room
 
@@ -271,6 +271,11 @@ func (s *RealtimeService) syncQueuedPublicUserMessage(
 	}
 	sourceRoundID := roomInputQueueSourceRoundID(item)
 	rootRoundID = strings.TrimSpace(rootRoundID)
+	targetAgentIDs := inputQueueTargetAgentIDs(item)
+	consumingAgentRoundID := ""
+	if materialize && protocol.ShouldGuideRunningRound(item.DeliveryPolicy) && len(targetAgentIDs) == 1 {
+		consumingAgentRoundID = strings.TrimSpace(item.RootRoundID)
+	}
 	userMessageID := strings.TrimSpace(item.SourceMessageID)
 	if userMessageID == "" {
 		userMessageID = "msg_user_" + sourceRoundID
@@ -291,9 +296,16 @@ func (s *RealtimeService) syncQueuedPublicUserMessage(
 		updated := protocol.Clone(message)
 		updated["delivery_policy"] = string(item.DeliveryPolicy)
 		messageTargets := roomMessageTargetAgentIDs(message["target_agent_ids"])
-		updatedTargets := mergeRoomMessageTargetAgentIDs(messageTargets, inputQueueTargetAgentIDs(item))
+		updatedTargets := mergeRoomMessageTargetAgentIDs(messageTargets, targetAgentIDs)
 		if len(updatedTargets) > 0 {
 			updated["target_agent_ids"] = updatedTargets
+		}
+		messageAgentRoundID, _ := message["agent_round_id"].(string)
+		messageAgentRoundID = strings.TrimSpace(messageAgentRoundID)
+		if len(updatedTargets) > 1 {
+			delete(updated, "agent_round_id")
+		} else if consumingAgentRoundID != "" && messageAgentRoundID == "" {
+			updated["agent_round_id"] = consumingAgentRoundID
 		}
 		// 第一位消费者确定公开用户消息的归组；其他 root 只聚合消费目标，
 		// 不能让同一条消息在时间线中随最后完成的 Agent 来回移动。
@@ -306,9 +318,12 @@ func (s *RealtimeService) syncQueuedPublicUserMessage(
 		messagePolicy, _ := message["delivery_policy"].(string)
 		updatedPolicy, _ := updated["delivery_policy"].(string)
 		updatedSourceRoundID, _ := updated["source_round_id"].(string)
+		updatedAgentRoundID, _ := updated["agent_round_id"].(string)
+		updatedAgentRoundID = strings.TrimSpace(updatedAgentRoundID)
 		if protocol.MessageRoundID(updated) == messageRoundID &&
 			strings.TrimSpace(messagePolicy) == strings.TrimSpace(updatedPolicy) &&
 			strings.TrimSpace(messageSourceRoundID) == strings.TrimSpace(updatedSourceRoundID) &&
+			messageAgentRoundID == updatedAgentRoundID &&
 			slices.Equal(messageTargets, updatedTargets) {
 			return nil
 		}
@@ -344,8 +359,11 @@ func (s *RealtimeService) syncQueuedPublicUserMessage(
 		messageValue["source_round_id"] = sourceRoundID
 		messageValue["round_id"] = rootRoundID
 	}
-	if targets := inputQueueTargetAgentIDs(item); len(targets) > 0 {
-		messageValue["target_agent_ids"] = targets
+	if consumingAgentRoundID != "" {
+		messageValue["agent_round_id"] = consumingAgentRoundID
+	}
+	if len(targetAgentIDs) > 0 {
+		messageValue["target_agent_ids"] = targetAgentIDs
 	}
 	if attachments := protocol.NormalizeChatAttachments(item.Attachments, ""); len(attachments) > 0 {
 		messageValue["attachments"] = attachments

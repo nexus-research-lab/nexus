@@ -1,5 +1,5 @@
-// INPUT: 当前 session、用户明确替换后的 objective、消费该替换的 round 与工具入口的 objective revision。
-// OUTPUT: 保留身份和累计用量并直接恢复 active 的 Goal、刷新后的预览与 objective_updated 审计事件。
+// INPUT: 当前 session、用户明确替换后的 objective、当前 Agent 身份、round 与 objective revision。
+// OUTPUT: 经 Room lead 授权、保留身份和累计用量并直接恢复 active 的 Goal 与审计事件。
 // POS: 模型重定向当前 Goal 的唯一服务入口；不需要先恢复 blocked/paused/limited Goal。
 package goal
 
@@ -31,6 +31,9 @@ func (s *Service) RetargetByModel(ctx context.Context, sessionKey string, reques
 	if current == nil {
 		return nil, ErrGoalNotFound
 	}
+	if err := authorizeRoomGoalModelMutation(*current, request.AgentID); err != nil {
+		return nil, err
+	}
 	if !canRetargetGoalStatus(current.Status) {
 		return nil, ErrGoalInvalidState
 	}
@@ -59,6 +62,9 @@ func (s *Service) retargetLoadedGoal(
 	objective string,
 	request protocol.RetargetGoalRequest,
 ) (*protocol.Goal, error) {
+	if err := authorizeRoomGoalModelMutation(*current, request.AgentID); err != nil {
+		return nil, err
+	}
 	if !canRetargetGoalStatus(current.Status) {
 		return nil, ErrGoalInvalidState
 	}

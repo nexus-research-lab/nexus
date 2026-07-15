@@ -3,14 +3,17 @@ package room
 import (
 	"context"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
-func TestQueueBusyPublicMentionWakesQueuesEachBusyRootAndLeavesIdleTargetReady(t *testing.T) {
+func TestQueueBusyPublicMentionWakesGuidesEachBusyRootAndLeavesIdleTargetReady(t *testing.T) {
 	root := t.TempDir()
 	conversationID := "conversation-public-mention-mixed-roots"
 	roomID := "room-public-mention-mixed-roots"
@@ -78,13 +81,45 @@ func TestQueueBusyPublicMentionWakesQueuesEachBusyRootAndLeavesIdleTargetReady(t
 		t.Fatalf("只有空闲目标应立即启动: %+v", ready)
 	}
 	for _, slot := range []*activeRoomSlot{slotA, slotB} {
-		items, snapshotErr := store.Snapshot(workspacestore.InputQueueLocation{
+		location := workspacestore.InputQueueLocation{
 			Scope: protocol.InputQueueScopeRoom, WorkspacePath: slot.WorkspacePath,
 			SessionKey: slot.RuntimeSessionKey, RoomID: roomID, ConversationID: conversationID,
-		})
+		}
+		items, snapshotErr := store.Snapshot(location)
 		if snapshotErr != nil || len(items) != 1 || items[0].AgentID != slot.AgentID {
 			t.Fatalf("不同 root 的忙碌目标都必须进入自己的队列: agent=%s items=%+v err=%v", slot.AgentID, items, snapshotErr)
 		}
+		if items[0].DeliveryPolicy != protocol.ChatDeliveryPolicyGuide || items[0].RootRoundID != slot.AgentRoundID {
+			t.Fatalf("busy 公区 @ 必须绑定目标当前 slot 的 guide: agent=%s item=%+v", slot.AgentID, items[0])
+		}
+	}
+
+	locationA := workspacestore.InputQueueLocation{
+		Scope: protocol.InputQueueScopeRoom, WorkspacePath: slotA.WorkspacePath,
+		SessionKey: slotA.RuntimeSessionKey, RoomID: roomID, ConversationID: conversationID,
+	}
+	output, err := service.roomSlotGuidanceHook(service.activeRounds["root-a"], slotA, locationA)(
+		context.Background(),
+		sdkhook.Input{EventName: sdkhook.EventPostToolUse},
+		"tool-before-public-mention",
+	)
+	if err != nil {
+		t.Fatalf("busy 目标消费公区 @ guide 失败: %v", err)
+	}
+	if output.SpecificOutput == nil || !strings.Contains(output.SpecificOutput.AdditionalContext, "@A") {
+		t.Fatalf("当前 slot 未收到公区 @ additionalContext: %+v", output)
+	}
+	if output.OnApplied == nil {
+		t.Fatal("公区 @ guide 缺少 runtime applied ACK 回调")
+	}
+	items, err := store.Snapshot(locationA)
+	if err != nil || len(items) != 1 {
+		t.Fatalf("applied ACK 前必须保留 durable 公区 @: items=%+v err=%v", items, err)
+	}
+	output.OnApplied(sdkhook.AppliedAck{RequestID: "public-mention-applied"})
+	items, err = store.Snapshot(locationA)
+	if err != nil || len(items) != 0 {
+		t.Fatalf("applied ACK 后应只消费已注入的公区 @: items=%+v err=%v", items, err)
 	}
 }
 
@@ -109,12 +144,14 @@ func TestSyncQueuedPublicUserMessageKeepsFirstReplyRootAndMergesTargets(t *testi
 	first := baseItem
 	first.AgentID = "agent-a"
 	first.TargetAgentIDs = []string{"agent-a"}
+	first.RootRoundID = "agent-round-a"
 	if err := service.syncQueuedPublicUserMessage(context.Background(), sharedSessionKey, contextValue, first, "reply-root-a", true); err != nil {
 		t.Fatal(err)
 	}
 	second := baseItem
 	second.AgentID = "agent-b"
 	second.TargetAgentIDs = []string{"agent-b"}
+	second.RootRoundID = "agent-round-b"
 	if err := service.syncQueuedPublicUserMessage(context.Background(), sharedSessionKey, contextValue, second, "reply-root-b", true); err != nil {
 		t.Fatal(err)
 	}
@@ -135,6 +172,9 @@ func TestSyncQueuedPublicUserMessageKeepsFirstReplyRootAndMergesTargets(t *testi
 	message := userMessages[0]
 	if protocol.MessageRoundID(message) != "reply-root-a" || message["source_round_id"] != "source-round" {
 		t.Fatalf("后续消费者不能覆盖首个回复归组: %+v", message)
+	}
+	if message["agent_round_id"] != nil {
+		t.Fatalf("多目标公开消息不应归入任一单独 Agent round: %+v", message)
 	}
 	targets := roomMessageTargetAgentIDs(message["target_agent_ids"])
 	if len(targets) != 2 || targets[0] != "agent-a" || targets[1] != "agent-b" {

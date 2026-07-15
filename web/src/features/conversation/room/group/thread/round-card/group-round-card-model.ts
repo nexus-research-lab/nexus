@@ -1,6 +1,6 @@
 /**
  * INPUT: Room 根轮次内的 user / assistant 消息、slot 与权限状态。
- * OUTPUT: root-global user，以及不含 Room 控制标记的 Agent 卡片摘要。
+ * OUTPUT: root-global user，以及按精确消费 agent_round_id 和时序排列的 Agent 卡片摘要。
  * POS: Group round feed 的唯一展示归组入口。
  */
 import { isAutomationTriggerUserMessage } from "@/types/conversation/automation-message";
@@ -37,8 +37,7 @@ export interface GroupRoundAgentCardModel extends RoomAgentRoundEntry {
 }
 
 export interface GroupRoundCardModel {
-  completedEntries: GroupRoundAgentCardModel[];
-  pendingEntries: GroupRoundAgentCardModel[];
+  entries: GroupRoundAgentCardModel[];
   userMessages: GroupRoundUserMessageModel[];
 }
 
@@ -103,6 +102,11 @@ interface BuildGroupRoundCardModelOptions {
   pendingSlots: RoomPendingAgentSlotState[];
 }
 
+interface PermissionGroups {
+  byAgent: Map<string, PendingPermission[]>;
+  byAgentRound: Map<string, PendingPermission[]>;
+}
+
 const AGENT_STATUS_PRESENTATION: Record<
   AgentRoundStatus,
   AgentStatusPresentationRule
@@ -146,13 +150,11 @@ export function buildGroupRoundCardModel({
   pendingPermissions,
   pendingSlots,
 }: BuildGroupRoundCardModelOptions): GroupRoundCardModel {
-  const permissionGroups = buildPermissionGroups(pendingPermissions);
-  const completedEntries: GroupRoundAgentCardModel[] = [];
-  const pendingEntries: GroupRoundAgentCardModel[] = [];
   const entries = buildRoomAgentRoundEntries(messages, pendingSlots);
-  const entryAgentIds = new Set(entries.map((entry) => entry.agent_id));
+  const permissionGroups = buildPermissionGroups(pendingPermissions);
+  const entriesByAgent = groupEntriesByAgent(entries);
   const userMessages: GroupRoundUserMessageModel[] = [];
-  const guidedUserMessagesByAgent = new Map<
+  const guidedUserMessagesByEntry = new Map<
     string,
     GroupRoundUserMessageModel[]
   >();
@@ -165,30 +167,28 @@ export function buildGroupRoundCardModel({
       workspaceAgentId: resolveUserWorkspaceAgentId(message),
     };
     const targetAgentId = resolveGuidedTargetAgentId(message);
-    if (!targetAgentId || !entryAgentIds.has(targetAgentId)) {
+    const targetEntry = targetAgentId
+      ? resolveGuidedTargetEntry(entriesByAgent.get(targetAgentId) ?? [], message)
+      : null;
+    if (!targetEntry) {
       userMessages.push(item);
       continue;
     }
-    const guidedMessages = guidedUserMessagesByAgent.get(targetAgentId) ?? [];
+    const guidedMessages = guidedUserMessagesByEntry.get(targetEntry.entry_id) ?? [];
     guidedMessages.push(item);
-    guidedUserMessagesByAgent.set(targetAgentId, guidedMessages);
+    guidedUserMessagesByEntry.set(targetEntry.entry_id, guidedMessages);
   }
 
-  for (const entry of entries) {
-    const card = buildAgentCard(
-      entry,
-      agentAvatarMap,
-      agentNameMap,
-      permissionGroups,
-      guidedUserMessagesByAgent.get(entry.agent_id) ?? [],
-    );
-    (entry.status === "done" ? completedEntries : pendingEntries).push(card);
-  }
-  completedEntries.sort((left, right) => left.timestamp - right.timestamp);
+  const cards = entries.map((entry) => buildAgentCard(
+    entry,
+    agentAvatarMap,
+    agentNameMap,
+    permissionsForEntry(entry, entriesByAgent, permissionGroups),
+    guidedUserMessagesByEntry.get(entry.entry_id) ?? [],
+  )).sort(compareAgentCards);
 
   return {
-    completedEntries,
-    pendingEntries,
+    entries: cards,
     userMessages,
   };
 }
@@ -218,7 +218,7 @@ export function buildGroupAgentStatusModel({
     isActive,
     isQuestionPending: permission.isQuestionPending,
     isWaitingPermission: permission.isWaiting,
-    model: lastMessageModel(lastMessage),
+    model: lastMessageModel(messages),
     preview,
     primaryPendingPermission: permission.primary,
     shouldRenderMarkdownSummary: summary.shouldRenderMarkdown,
@@ -316,8 +316,14 @@ function statusFallbackText(
   return labelKey ? labels[labelKey] : "";
 }
 
-function lastMessageModel(message?: AssistantMessage): string | null {
-  return message?.model ?? null;
+function lastMessageModel(messages: AssistantMessage[]): string | null {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const model = messages[index].model?.trim();
+    if (model) {
+      return model;
+    }
+  }
+  return null;
 }
 
 function resultSummaryText(summary?: ResultSummary): string | undefined {
@@ -331,8 +337,8 @@ function resolveAgentTimestamp(
   pendingSlot?: RoomPendingAgentSlotState,
 ): number {
   return firstDefinedNumber([
-    lastMessage?.timestamp,
     resultSummary?.timestamp,
+    lastMessage?.timestamp,
     pendingSlot?.timestamp,
   ]);
 }
@@ -345,7 +351,7 @@ function buildAgentCard(
   entry: RoomAgentRoundEntry,
   agentAvatarMap: Record<string, string | null>,
   agentNameMap: Record<string, string>,
-  permissionGroups: Map<string, PendingPermission[]>,
+  pendingPermissions: PendingPermission[],
   guidedUserMessages: GroupRoundUserMessageModel[],
 ): GroupRoundAgentCardModel {
   return {
@@ -353,7 +359,7 @@ function buildAgentCard(
     agentAvatar: resolveAgentAvatar(agentAvatarMap, entry.agent_id),
     agentName: resolveAgentName(agentNameMap, entry.agent_id),
     guidedUserMessages,
-    pendingPermissions: permissionGroups.get(entry.agent_id) ?? [],
+    pendingPermissions,
     stopMessageId: resolveStopMessageId(entry),
   };
 }
@@ -402,19 +408,84 @@ function resolveGuidedTargetAgentId(message: UserMessage): string | null {
   return targets.length === 1 ? targets[0] : null;
 }
 
-function buildPermissionGroups(
-  permissions: PendingPermission[],
-): Map<string, PendingPermission[]> {
-  const groups = new Map<string, PendingPermission[]>();
+function buildPermissionGroups(permissions: PendingPermission[]): PermissionGroups {
+  const byAgent = new Map<string, PendingPermission[]>();
+  const byAgentRound = new Map<string, PendingPermission[]>();
   for (const permission of permissions) {
     if (!permission.agent_id) {
       continue;
     }
-    const group = groups.get(permission.agent_id) ?? [];
+    const agentRoundId = permission.agent_round_id?.trim();
+    const groups = agentRoundId ? byAgentRound : byAgent;
+    const key = agentRoundId || permission.agent_id;
+    const group = groups.get(key) ?? [];
     group.push(permission);
-    groups.set(permission.agent_id, group);
+    groups.set(key, group);
+  }
+  return { byAgent, byAgentRound };
+}
+
+function permissionsForEntry(
+  entry: RoomAgentRoundEntry,
+  entriesByAgent: Map<string, RoomAgentRoundEntry[]>,
+  groups: PermissionGroups,
+): PendingPermission[] {
+  const exact = entry.agent_round_id
+    ? groups.byAgentRound.get(entry.agent_round_id) ?? []
+    : [];
+  const agentEntries = entriesByAgent.get(entry.agent_id) ?? [];
+  const legacyTarget = agentEntries
+    .filter((candidate) => isAgentRoundActive(candidate.status))
+    .at(-1) ?? agentEntries.at(-1);
+  const legacy = legacyTarget?.entry_id === entry.entry_id
+    ? groups.byAgent.get(entry.agent_id) ?? []
+    : [];
+  return [...exact, ...legacy];
+}
+
+function groupEntriesByAgent(
+  entries: RoomAgentRoundEntry[],
+): Map<string, RoomAgentRoundEntry[]> {
+  const groups = new Map<string, RoomAgentRoundEntry[]>();
+  for (const entry of entries) {
+    const group = groups.get(entry.agent_id) ?? [];
+    group.push(entry);
+    groups.set(entry.agent_id, group);
   }
   return groups;
+}
+
+function resolveGuidedTargetEntry(
+  entries: RoomAgentRoundEntry[],
+  message: UserMessage,
+): RoomAgentRoundEntry | null {
+  const agentRoundId = message.agent_round_id?.trim();
+  if (agentRoundId) {
+    return entries.find(
+      (entry) => entry.agent_round_id === agentRoundId,
+    ) ?? null;
+  }
+  const active = entries.filter((entry) => isAgentRoundActive(entry.status));
+  return active.at(-1)
+    ?? entries.find((entry) => entry.timestamp >= message.timestamp)
+    ?? entries.at(-1)
+    ?? null;
+}
+
+function compareAgentCards(
+  left: GroupRoundAgentCardModel,
+  right: GroupRoundAgentCardModel,
+): number {
+  return cardDisplayTimestamp(left) - cardDisplayTimestamp(right)
+    || left.display_order - right.display_order
+    || left.entry_id.localeCompare(right.entry_id);
+}
+
+function cardDisplayTimestamp(entry: GroupRoundAgentCardModel): number {
+  return Math.max(
+    entry.timestamp,
+    ...entry.guidedUserMessages.map(({ message }) => message.timestamp),
+  );
 }
 
 function isVisibleUserMessage(message: Message): message is UserMessage {

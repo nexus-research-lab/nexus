@@ -1,5 +1,5 @@
 // INPUT: create_goal 的 objective/token budget 与当前 session。
-// OUTPUT: 新 Goal，或指向 retarget_goal 的冲突提示。
+// OUTPUT: 新 Goal（Room 中记录创建 Agent 并设为 lead），或指向 retarget_goal 的冲突提示。
 // POS: Goal MCP 创建入口；已有 active Goal 不在此处改写。
 package tool
 
@@ -37,6 +37,7 @@ func createGoal(svc contract.Service, sctx contract.ServerContext) sdktool.Tool 
 				TokenBudget: parsed.TokenBudget,
 				CreatedBy:   "model",
 				RoundID:     sctx.CurrentRoundID,
+				AgentID:     sctx.CurrentAgentID,
 				Metadata: map[string]any{
 					"created_via": "goal_tool",
 				},
@@ -51,6 +52,7 @@ func createGoal(svc contract.Service, sctx contract.ServerContext) sdktool.Tool 
 }
 
 const createGoalDescription = "Create a goal only when explicitly requested by the user or system/developer instructions; do not infer goals from ordinary tasks.\n" +
+	"In a shared Room, the creating agent becomes the Goal lead and is responsible for later model-side retarget, complete, or blocked updates.\n" +
 	"Set token_budget only when an explicit token budget is requested. Fails if a goal exists. If the user explicitly corrects the existing active objective, retarget that same goal; use the visible Goal update tool only for status."
 
 const createGoalConflictMessage = "cannot create a new goal because this thread already has a goal; if the user explicitly corrected its objective, use retarget_goal on that same goal"
