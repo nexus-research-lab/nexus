@@ -131,6 +131,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	roomRealtime.SetQuotaChecker(subscriptionService)
 	roomRealtime.SetGoalContextProvider(goalService)
 	roomRealtime.SetTitleGenerator(titleService)
+	goalService.SetRoomGoalCompletionReadiness(roomRealtime)
 	goalService.SetGuidanceDispatcher(goalGuidanceDispatcher{runtime: runtimeManager, room: roomRealtime})
 	goalService.SetRuntimeInterrupter(newGoalInterruptDispatcher(dmService, roomRealtime))
 	automationService := automationsvc.NewService(

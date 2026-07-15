@@ -157,6 +157,7 @@ export function useAgentSessionController({
     loadRoundWindow: history.loadRoundWindow,
     onBackgroundMessage: snapshots.onBackgroundMessage,
     reloadCurrentSession,
+    resolvedHistoryRoundIds: history.resolvedHistoryRoundIds,
     sessionKey,
     setInputQueueItems,
   };

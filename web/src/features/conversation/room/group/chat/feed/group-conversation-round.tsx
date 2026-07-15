@@ -1,8 +1,6 @@
 import type { Ref } from "react";
 
-import { ConversationRoundPlaceholder } from "@/features/conversation/shared/timeline/round-placeholder";
 import { MessageItem } from "@/features/conversation/shared/message/item/message-item";
-import type { SessionRoundIndexItem } from "@/types/conversation/history";
 
 import { hasRoomAgentRoundEntries } from "../../round/round-agent-model";
 import { GroupRoundCardGroup } from "../../thread/round-card/group-round-card-group";
@@ -13,19 +11,25 @@ import {
 } from "./group-conversation-feed-model";
 
 interface GroupConversationRoundProps {
-  indexItem?: SessionRoundIndexItem;
   measureRef?: Ref<HTMLDivElement>;
   renderer: GroupConversationRoundRenderer;
   state: GroupConversationRoundState;
 }
 
 export function GroupConversationRound({
-  indexItem,
   measureRef,
   renderer,
   state,
 }: GroupConversationRoundProps) {
-  const { index, isLoaded, messages, pendingPermissions, pendingSlots, roundId } = state;
+  const {
+    index,
+    isLoaded,
+    messages,
+    pendingPermissions,
+    pendingSlots,
+    rootRoundId,
+    roundId,
+  } = state;
   const hasRoomEntries = hasRoomAgentRoundEntries(messages, pendingSlots);
 
   return (
@@ -33,12 +37,13 @@ export function GroupConversationRound({
       ref={measureRef}
       data-index={measureRef ? index : undefined}
       data-conversation-round-id={roundId}
+      data-conversation-root-round-id={
+        rootRoundId === roundId ? undefined : rootRoundId
+      }
       data-conversation-round-index={index}
       data-conversation-round-loaded={isLoaded ? "true" : "false"}
     >
-      {!isLoaded ? (
-        <ConversationRoundPlaceholder indexItem={indexItem} roundId={roundId} />
-      ) : hasRoomEntries ? (
+      {!isLoaded ? null : hasRoomEntries ? (
         <GroupRoundCardGroup
           agentAvatarMap={renderer.agentAvatarMap}
           agentNameMap={renderer.agentNameMap}
@@ -50,7 +55,7 @@ export function GroupConversationRound({
           onStopMessage={renderer.onStopMessage}
           pendingPermissions={pendingPermissions}
           pendingSlots={pendingSlots}
-          roundId={roundId}
+          roundId={rootRoundId}
         />
       ) : (
         <StandaloneConversationRound renderer={renderer} state={state} />

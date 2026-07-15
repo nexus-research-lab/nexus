@@ -9,7 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Kept completed Room replies in completion order and active Agent cards in a stable tail, preventing consumed guidance and streaming updates from reshuffling the conversation.
+- Hid unresolved history rounds while retaining their load anchors, and removed resolved history entries that contain no user-visible messages.
+- Prevented Room Goals from automatically continuing or completing while collaborator slots, subagents, queued input, public mentions, or delayed directed wakes still have outstanding work.
+- Projected every Room `agent_round` as a stable first-class feed node, using a stable start time while active and the result completion time once terminal so replies follow their real execution order without losing canonical Thread causality.
 - Hid Agent-to-Agent Room guidance from the user pending queue while keeping it durable for the target Agent to consume.
 - Removed the automatic Goal resume confirmation; explicit objective replacements now reactivate paused, blocked, or usage-limited Goals directly while budget-limited Goals still require a budget change and the inline Resume action remains available for unchanged Goals.
 - Recovered orphaned Room guidance as queued follow-up after backend restarts, made equal-timestamp active-root routing follow registration order, and added timeline behavior tests to the default validation gate.

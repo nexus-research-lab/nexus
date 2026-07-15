@@ -338,3 +338,30 @@ func TestRealtimeServicePostRoundWorkRecordsRoomGoalFailureWhenDispatchFails(t *
 		t.Fatalf("releaseCalls=%d, want failed continuation retained as failed", goalProvider.releaseCalls)
 	}
 }
+
+func TestShouldDeferGoalContinuationWhileCollaboratorSlotIsActive(t *testing.T) {
+	const conversationID = "conversation-active-collaborator"
+	sessionKey := protocol.BuildRoomSharedSessionKey(conversationID)
+	peerSlot := &activeRoomSlot{AgentID: "agent-peer", Status: "running"}
+	service := &RealtimeService{
+		activeRounds: map[string]*activeRoomRound{
+			"peer-round": {
+				SessionKey:     sessionKey,
+				ConversationID: conversationID,
+				RoundID:        "round-peer",
+				Slots:          map[string]*activeRoomSlot{"peer": peerSlot},
+			},
+		},
+	}
+	contextValue := &protocol.ConversationContextAggregate{
+		Conversation: protocol.ConversationRecord{ID: conversationID},
+	}
+
+	if !service.shouldDeferGoalContinuationForTargetState(context.Background(), sessionKey, contextValue) {
+		t.Fatal("continuation should defer while a collaborator slot is active")
+	}
+	peerSlot.setStatus("finished")
+	if service.shouldDeferGoalContinuationForTargetState(context.Background(), sessionKey, contextValue) {
+		t.Fatal("continuation should not defer on target state after collaborator slot becomes terminal")
+	}
+}

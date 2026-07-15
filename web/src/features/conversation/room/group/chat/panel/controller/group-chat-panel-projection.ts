@@ -18,6 +18,7 @@ import type {
   GroupChatPanelViewModel,
 } from "../view/group-chat-panel-view";
 import type { RoomGoalComposerModel } from "./use-room-goal-composer";
+import { projectGroupAgentTimeline } from "../../feed/group-agent-timeline-model";
 
 export interface RoomAgentDirectory {
   avatars: Record<string, string | null>;
@@ -127,6 +128,13 @@ function buildFeedModel({
 >): GroupChatPanelViewModel["feed"] {
   const { conversation, roundIndexItems, roundScrollRef, scroll, timeline } =
     session;
+  const feedTimeline = projectGroupAgentTimeline({
+    messageGroups: timeline.message_groups,
+    pendingPermissionGroups: timeline.pending_permission_groups,
+    pendingSlotGroups: timeline.pending_slot_groups,
+    roundIds: timeline.feed_round_ids,
+    roundIndexItems,
+  });
   return {
     isMobileLayout: environment.isMobileLayout,
     refs: {
@@ -150,10 +158,11 @@ function buildFeedModel({
     },
     source: {
       liveRoundIds: conversation.live_round_ids,
-      messageGroups: timeline.message_groups,
-      pendingPermissionGroups: timeline.pending_permission_groups,
-      pendingSlotGroups: timeline.pending_slot_groups,
-      roundIds: timeline.feed_round_ids,
+      messageGroups: feedTimeline.messageGroups,
+      pendingPermissionGroups: feedTimeline.pendingPermissionGroups,
+      pendingSlotGroups: feedTimeline.pendingSlotGroups,
+      rootRoundIds: feedTimeline.rootRoundIds,
+      roundIds: feedTimeline.roundIds,
       roundIndexItems,
     },
   };

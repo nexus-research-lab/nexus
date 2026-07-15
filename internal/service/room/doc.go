@@ -12,7 +12,7 @@
 //   - input_queue.go / input_queue_* / guidance_input.go：按 Agent 串行队列、round 终态确定性接力、逐批 applied ACK、transport/错过 hook 回退、运行时补充上下文与已消费引导归组。
 //   - public_context.go：按 runtime resume 状态装配预算化 anchor/delta，并提交真实消费 cursor。
 //   - attachments.go：Room 公共附件上传、归一化与运行时路径解析。
-//   - goal_*：Room 实时运行里的 Goal lead/成员目录对齐、逐 slot objective steering、消费后 revision adoption/fencing、续跑启动 claim 与最终校验。
+//   - goal_*：Room 实时运行里的 Goal lead/成员目录对齐、逐 slot objective steering、消费后 revision adoption/fencing、续跑启动 claim 与 active/queued/wake completion readiness。
 //   - privateview/：Agent 私域 thread/event 投影。
 //   - runtimepolicy/：Room MCP 工具白名单和权限策略。
 //

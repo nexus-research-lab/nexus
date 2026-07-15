@@ -24,6 +24,7 @@ export interface GroupConversationRoundSource {
   messageGroups: Map<string, Message[]>;
   pendingPermissionGroups: Map<string, PendingPermission[]>;
   pendingSlotGroups: Map<string, RoomPendingAgentSlotState[]>;
+  rootRoundIds?: Map<string, string>;
   roundIds: string[];
   roundIndexItems?: SessionRoundIndexItem[];
 }
@@ -59,16 +60,7 @@ export interface GroupConversationRoundState {
   pendingPermissions: PendingPermission[];
   pendingSlots: RoomPendingAgentSlotState[];
   roundId: string;
-}
-
-export function buildRoundIndexItemMap(
-  items: SessionRoundIndexItem[] | undefined,
-): Map<string, SessionRoundIndexItem> {
-  return new Map(
-    (items ?? [])
-      .filter((item) => item.roundId.trim() !== "")
-      .map((item) => [item.roundId, item]),
-  );
+  rootRoundId: string;
 }
 
 export function resolveGroupConversationRound(
@@ -76,12 +68,13 @@ export function resolveGroupConversationRound(
   index: number,
 ): GroupConversationRoundState {
   const roundId = source.roundIds[index];
+  const rootRoundId = source.rootRoundIds?.get(roundId) ?? roundId;
   const messages = source.messageGroups.get(roundId) ?? [];
   const pendingPermissions =
     source.pendingPermissionGroups.get(roundId) ?? [];
   const pendingSlots = source.pendingSlotGroups.get(roundId) ?? [];
   const isLast = index === source.roundIds.length - 1;
-  const isLive = isLast && source.liveRoundIds.includes(roundId);
+  const isLive = isLast && source.liveRoundIds.includes(rootRoundId);
 
   return {
     index,
@@ -96,7 +89,22 @@ export function resolveGroupConversationRound(
     pendingPermissions,
     pendingSlots,
     roundId,
+    rootRoundId,
   };
+}
+
+/** canonical root 导航到它保留的 root node；无 root 正文时落到首个 Agent node。 */
+export function buildGroupConversationRoundAliases(
+  source: GroupConversationRoundSource,
+): Map<string, string> {
+  const aliases = new Map<string, string>();
+  for (const nodeId of source.roundIds) {
+    const rootRoundId = source.rootRoundIds?.get(nodeId) ?? nodeId;
+    if (!aliases.has(rootRoundId) || nodeId === rootRoundId) {
+      aliases.set(rootRoundId, nodeId);
+    }
+  }
+  return aliases;
 }
 
 function resolveRoundAgentId(messages: Message[]): string | null {

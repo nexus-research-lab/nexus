@@ -76,6 +76,7 @@ export function useConversationSession({
     messages: conversation.messages,
     pending_agent_slots: conversation.pending_agent_slots,
     pending_permissions: conversation.pending_permissions,
+    resolved_history_round_ids: conversation.resolved_history_round_ids,
     round_index_items: rawRoundIndexItems,
   });
   const roundIndexItems = timeline.round_index_items;

@@ -42,6 +42,7 @@ interface LoadOlderAgentConversationMessagesParams
 interface LoadRoundWindowMessagesParams
   extends AgentConversationHistoryContext {
   isRoundWindowLoadingRef: MutableRefObject<boolean>;
+  onRoundResolved: (roundId: string) => void;
   roundId: string;
 }
 
@@ -181,9 +182,11 @@ export async function loadAgentConversationMessagesAroundRound(
   context.isRoundWindowLoadingRef.current = true;
   try {
     const page = await requestHistoryPage(request);
-    return isCurrentHistoryRequest(request, context.activeSessionKeyRef)
-      ? commitRoundWindowHistoryPage(page, context)
-      : false;
+    if (!isCurrentHistoryRequest(request, context.activeSessionKeyRef)) {
+      return false;
+    }
+    context.onRoundResolved(context.roundId);
+    return commitRoundWindowHistoryPage(page, context);
   } catch (error) {
     if (!isCurrentHistoryRequest(request, context.activeSessionKeyRef)) {
       return false;

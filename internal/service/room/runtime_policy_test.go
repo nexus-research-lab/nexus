@@ -411,7 +411,7 @@ func TestRealtimeServiceGoalContinuationDefersWhenRoomHasNoDefaultTarget(t *test
 	}
 }
 
-func TestRealtimeServiceGoalContinuationIgnoresBusyNonLeadMember(t *testing.T) {
+func TestRealtimeServiceGoalContinuationDefersForBusyNonLeadMember(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
@@ -464,8 +464,8 @@ func TestRealtimeServiceGoalContinuationIgnoresBusyNonLeadMember(t *testing.T) {
 		t.Fatal("非 lead 成员未进入运行态")
 	}
 
-	if service.ShouldDeferGoalContinuation(ctx, sharedSessionKey) {
-		t.Fatal("非 lead 成员运行不应阻塞空闲 Host 的 Room Goal continuation")
+	if !service.ShouldDeferGoalContinuation(ctx, sharedSessionKey) {
+		t.Fatal("非 lead 成员仍在运行时应阻止 Host 提前启动 Room Goal continuation")
 	}
 	go sendFakeAssistantResult(peerClient, "assistant-busy-non-lead", "已完成")
 }
