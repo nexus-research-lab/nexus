@@ -47,6 +47,7 @@ func (h *Handler) handleControlMessage(
 	ctx context.Context,
 	sender *handlershared.WebSocketSender,
 	inbound map[string]any,
+	dispatcher *controlMessageDispatcher,
 ) {
 	sessionKey, parsed, ok := h.validateSessionKey(ctx, sender, inbound)
 	if !ok {
@@ -61,6 +62,10 @@ func (h *Handler) handleControlMessage(
 		sessionKey: sessionKey,
 		parsed:     parsed,
 		msgType:    handlershared.StringValue(inbound["type"]),
+	}
+	if dispatcher != nil {
+		dispatcher.enqueue(&message)
+		return
 	}
 	message.dispatch()
 }
