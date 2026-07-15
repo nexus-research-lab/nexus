@@ -11,6 +11,7 @@ import type { UseAgentConversationReturn } from "@/types/agent/agent-conversatio
 import type { AgentRuntimeKind } from "@/types/settings/preferences";
 
 import type { GroupChatComposerModel } from "../view/group-chat-panel-view";
+import { projectRoomPendingInputQueueItems } from "./group-chat-panel-projection";
 import type { RoomGoalComposerModel } from "./use-room-goal-composer";
 
 type ComposerConversation = Pick<
@@ -79,7 +80,9 @@ export function useGroupChatComposerModel({
     enableLoops: true,
     goalCreateDisabledReason: goal.createDisabledReason,
     goalScopeLabel: ROOM_GOAL_SCOPE_LABEL,
-    inputQueueItems: conversation.input_queue_items,
+    inputQueueItems: projectRoomPendingInputQueueItems(
+      conversation.input_queue_items,
+    ),
     isLoading: conversation.is_loading,
     onCreateGoal: sessionKey ? goal.onCreateGoal : undefined,
     onCreateLoopGoal: sessionKey ? goal.onCreateLoopGoal : undefined,

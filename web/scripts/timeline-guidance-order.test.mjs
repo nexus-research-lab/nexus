@@ -103,6 +103,22 @@ test("Room pending slot keeps the backend display index", async () => {
   assert.equal(slots[0]?.index, 7);
 });
 
+test("Room pending queue shows only user-authored guidance", async () => {
+  const { projectRoomPendingInputQueueItems } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/chat/panel/controller/group-chat-panel-projection.ts",
+  );
+  const items = [
+    { id: "user", source: "user" },
+    { id: "public-mention", source: "agent_public_mention" },
+    { id: "directed-message", source: "agent_room_directed_message" },
+  ];
+
+  assert.deepEqual(
+    projectRoomPendingInputQueueItems(items).map((item) => item.id),
+    ["user"],
+  );
+});
+
 test("blocked goals stay inline instead of opening a resume confirmation", async () => {
   const { buildGoalControllerProjection } = await server.ssrLoadModule(
     "/src/features/conversation/shared/goal/goal-model.ts",

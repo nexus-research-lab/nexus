@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Hid Agent-to-Agent Room guidance from the user pending queue while keeping it durable for the target Agent to consume.
 - Removed the automatic Goal resume confirmation; explicit objective replacements now reactivate paused, blocked, or usage-limited Goals directly while budget-limited Goals still require a budget change and the inline Resume action remains available for unchanged Goals.
 - Recovered orphaned Room guidance as queued follow-up after backend restarts, made equal-timestamp active-root routing follow registration order, and added timeline behavior tests to the default validation gate.
 - Passed each model card's context window to nxs so automatic and reactive compaction use the configured Provider limit instead of relying on model-name inference.
