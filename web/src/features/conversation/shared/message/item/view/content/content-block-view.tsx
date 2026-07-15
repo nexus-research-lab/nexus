@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import type { ContentBlock } from "@/types/conversation/message/content";
+import type { AgentMention } from "@/types/conversation/message/entity";
 import type {
   PendingPermission,
   PermissionDecisionPayload,
@@ -18,6 +19,7 @@ import {
 import { ContentSystemEvent } from "./content-system-event";
 import { ContentToolBlock } from "./content-tool-block";
 import { TimelineBlock } from "./content-renderer-timeline";
+import type { AgentMentionDirectory } from "../../../agent-mention-chip";
 
 export interface ContentBlockRenderContext {
   canRespondToPermissions: boolean;
@@ -28,6 +30,9 @@ export interface ContentBlockRenderContext {
   permissionReadOnlyReason?: string;
   projection: StructuredContentProjection;
   workspaceAgentId?: string | null;
+  agentMentions?: AgentMention[];
+  agentMentionDirectory?: AgentMentionDirectory;
+  onOpenAgentContact?: (agentId: string) => void;
 }
 
 type ContentBlockType = ContentBlock["type"];
@@ -39,6 +44,7 @@ type ContentBlockRenderer<Type extends ContentBlockType> = (
   block: ContentBlockOf<Type>,
   context: ContentBlockRenderContext,
   streaming: boolean,
+  blockIndex: number,
 ) => ReactNode;
 type ContentBlockRendererMap = {
   [Type in ContentBlockType]: ContentBlockRenderer<Type>;
@@ -47,6 +53,7 @@ type ErasedContentBlockRenderer = (
   block: ContentBlock,
   context: ContentBlockRenderContext,
   streaming: boolean,
+  blockIndex: number,
 ) => ReactNode;
 
 const CONTENT_BLOCK_RENDERERS = {
@@ -66,17 +73,19 @@ export function ContentBlockView({
   context,
   showTimelineDots,
   streaming,
+  blockIndex,
 }: {
   block: ContentBlock;
   context: ContentBlockRenderContext;
   showTimelineDots: boolean;
   streaming: boolean;
+  blockIndex: number;
 }) {
   // 判别字段同时决定注册表索引和参数类型，类型擦除只发生在这个穷尽边界。
   const renderer = CONTENT_BLOCK_RENDERERS[
     block.type
   ] as ErasedContentBlockRenderer;
-  const node = renderer(block, context, streaming);
+  const node = renderer(block, context, streaming, blockIndex);
   if (node === null || node === undefined || node === false) {
     return null;
   }
@@ -90,6 +99,7 @@ function renderTextBlock(
   block: ContentBlockOf<"text">,
   context: ContentBlockRenderContext,
   streaming: boolean,
+  blockIndex: number,
 ) {
   if (!block.text.trim()) {
     return null;
@@ -100,6 +110,11 @@ function renderTextBlock(
       isStreaming={streaming}
       onOpenWorkspaceFile={context.onOpenWorkspaceFile}
       workspaceAgentId={context.workspaceAgentId}
+      agentMentions={context.agentMentions
+        ?.filter((mention) => mention.content_block_index === blockIndex)
+        .map((mention) => ({ ...mention, content_block_index: 0 }))}
+      agentMentionDirectory={context.agentMentionDirectory}
+      onOpenAgentContact={context.onOpenAgentContact}
     />
   );
 }

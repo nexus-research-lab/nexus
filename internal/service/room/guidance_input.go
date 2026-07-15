@@ -193,6 +193,17 @@ func (s *RealtimeService) acknowledgeRoomSlotGuidance(
 				return errors.Join(err, restoreErr)
 			}
 		}
+		for _, item := range claimed {
+			if err = s.markRoomQueueHandoffTerminal(roundValue.ConversationID, item); err != nil {
+				restored, restoreErr := s.restoreRoomSlotGuidance(pending.location, claimed)
+				if restoreErr == nil {
+					pending.items = restored
+					s.guidance[slot] = pending
+				}
+				s.guidanceMu.Unlock()
+				return errors.Join(err, restoreErr)
+			}
+		}
 	}
 	delete(s.guidance, slot)
 	s.guidanceMu.Unlock()

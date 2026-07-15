@@ -30,13 +30,18 @@ import {
 import "katex/dist/katex.min.css";
 
 import { FileArtifactBlock } from "./blocks/artifact/file/file-artifact-block";
+import type { AgentMention } from "@/types/conversation/message/entity";
+import type { AgentMentionDirectory } from "./agent-mention-chip";
 
 interface MarkdownRendererProps {
   content: string;
   className?: string;
   isStreaming?: boolean;
   onOpenWorkspaceFile?: (path: string) => void;
-  workspaceAgentId?: string | null;
+	workspaceAgentId?: string | null;
+	agentMentions?: AgentMention[];
+	agentMentionDirectory?: AgentMentionDirectory;
+	onOpenAgentContact?: (agentId: string) => void;
 }
 
 export function MarkdownRenderer({
@@ -44,7 +49,10 @@ export function MarkdownRenderer({
   className,
   isStreaming = false,
   onOpenWorkspaceFile,
-  workspaceAgentId,
+	workspaceAgentId,
+	agentMentions = [],
+	agentMentionDirectory,
+	onOpenAgentContact,
 }: MarkdownRendererProps) {
   const resolveFilePath = useMarkdownFileResolver(workspaceAgentId);
   const currentAgentId = useMarkdownCurrentAgentID(workspaceAgentId);
@@ -56,15 +64,21 @@ export function MarkdownRenderer({
         resolveFilePath,
         onOpenWorkspaceFile,
         currentAgentId,
+        { agentMentionDirectory, onOpenAgentContact },
       ),
       streaming: createMarkdownComponents(
         resolveFilePath,
         onOpenWorkspaceFile,
         currentAgentId,
-        { streamCodeBlocks: true, streamMermaid: true },
+        {
+          agentMentionDirectory,
+          onOpenAgentContact,
+          streamCodeBlocks: true,
+          streamMermaid: true,
+        },
       ),
     }),
-    [currentAgentId, onOpenWorkspaceFile, resolveFilePath],
+    [agentMentionDirectory, currentAgentId, onOpenAgentContact, onOpenWorkspaceFile, resolveFilePath],
   );
   const contentSegments = useMemo(
     () => onOpenWorkspaceFile
@@ -86,6 +100,7 @@ export function MarkdownRenderer({
           components={components.stable}
           key={`${segment.type}:${index}`}
           onOpenWorkspaceFile={onOpenWorkspaceFile}
+          agentMentions={agentMentions}
           resolveFilePath={resolveFilePath}
           segment={segment}
           shouldStream={shouldStream}
@@ -98,7 +113,8 @@ export function MarkdownRenderer({
 }
 
 interface MessageMarkdownSegmentProps {
-  components: Components;
+	agentMentions: AgentMention[];
+	components: Components;
   onOpenWorkspaceFile?: (path: string) => void;
   resolveFilePath: ResolveWorkspaceFilePath;
   segment: MarkdownContentSegment;
@@ -108,7 +124,8 @@ interface MessageMarkdownSegmentProps {
 }
 
 function MessageMarkdownSegment({
-  components,
+	agentMentions,
+	components,
   onOpenWorkspaceFile,
   resolveFilePath,
   segment,
@@ -134,7 +151,7 @@ function MessageMarkdownSegment({
   const sharedProps = {
     components,
     content: normalizeMarkdownContent(
-      segment.text,
+      decorateMarkdownMentions(segment.text, agentMentions),
       resolveFilePath,
       onOpenWorkspaceFile,
       { is_streaming: shouldStream },
@@ -150,4 +167,29 @@ function MessageMarkdownSegment({
   ) : (
     <StableMarkdownText {...sharedProps} />
   );
+}
+
+function decorateMarkdownMentions(content: string, mentions: AgentMention[]): string {
+  const matches = mentions
+    .filter((mention) => mention.content_block_index === 0)
+    .filter((mention) => mention.end_rune > mention.start_rune)
+    .sort((left, right) => left.start_rune - right.start_rune);
+  if (matches.length === 0) {
+    return content;
+  }
+  const runes = Array.from(content);
+  let cursor = 0;
+  let result = "";
+  for (const mention of matches) {
+    const start = Math.max(cursor, Math.min(mention.start_rune, runes.length));
+    const end = Math.max(start, Math.min(mention.end_rune, runes.length));
+    if (end <= start) {
+      continue;
+    }
+    result += runes.slice(cursor, start).join("");
+    const label = runes.slice(start, end).join("").replaceAll("\\", "\\\\").replaceAll("]", "\\]");
+    result += `[${label}](agent-mention://${encodeURIComponent(mention.agent_id)})`;
+    cursor = end;
+  }
+  return result + runes.slice(cursor).join("");
 }

@@ -4,6 +4,10 @@ import type { ReactNode } from "react";
 import { type Components } from "react-markdown";
 
 import { getWorkspaceFilePreviewUrl } from "@/lib/api/agent/agent-api";
+import {
+  AgentMentionChip,
+  type AgentMentionDirectory,
+} from "@/features/conversation/shared/message/agent-mention-chip";
 
 import { CodeBlock } from "../code/code-block";
 import { LazyMermaidView } from "../mermaid/lazy-mermaid-view";
@@ -26,6 +30,8 @@ interface CreateMarkdownComponentsOptions {
   showMermaidHeader?: boolean;
   streamCodeBlocks?: boolean;
   streamMermaid?: boolean;
+  agentMentionDirectory?: AgentMentionDirectory;
+  onOpenAgentContact?: (agentId: string) => void;
 }
 
 interface MarkdownLinkProps {
@@ -62,8 +68,25 @@ function renderMarkdownLink({
   href,
   onOpenWorkspaceFile,
   resolveFilePath,
-}: MarkdownLinkProps): ReactNode {
+  agentMentionDirectory,
+  onOpenAgentContact,
+}: MarkdownLinkProps & {
+  agentMentionDirectory?: AgentMentionDirectory;
+  onOpenAgentContact?: (agentId: string) => void;
+}): ReactNode {
   const rawHref = String(href ?? "").trim();
+  if (rawHref.startsWith("agent-mention://")) {
+    const agentID = decodeURIComponent(rawHref.slice("agent-mention://".length));
+    return (
+      <AgentMentionChip
+        agentId={agentID}
+        directory={agentMentionDirectory}
+        onOpenAgentContact={onOpenAgentContact}
+      >
+        {children}
+      </AgentMentionChip>
+    );
+  }
   const workspacePath = onOpenWorkspaceFile
     ? resolveWorkspaceArtifactPath(rawHref, resolveFilePath)
     : null;
@@ -202,6 +225,8 @@ export function createMarkdownComponents(
         href,
         onOpenWorkspaceFile,
         resolveFilePath,
+        agentMentionDirectory: options.agentMentionDirectory,
+        onOpenAgentContact: options.onOpenAgentContact,
       });
     },
     img({ alt, src }) {

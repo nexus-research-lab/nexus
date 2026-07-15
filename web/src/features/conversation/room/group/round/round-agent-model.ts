@@ -83,7 +83,12 @@ function buildMessageGroups(
     } else {
       groups.set(entryId, [message]);
     }
-    orders.set(entryId, order);
+    const displayOrder = message.display_order;
+    if (typeof displayOrder === "number" && Number.isFinite(displayOrder)) {
+      orders.set(entryId, displayOrder);
+    } else if (!orders.has(entryId)) {
+      orders.set(entryId, order);
+    }
   });
   return { groups, orders };
 }

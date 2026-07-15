@@ -264,13 +264,16 @@ func (s *RealtimeService) guideActiveAgentSlots(
 				AgentID:         agentID,
 				SourceAgentID:   strings.TrimSpace(sourceItem.SourceAgentID),
 				SourceMessageID: strings.TrimSpace(sourceItem.SourceMessageID),
+				HandoffID:       strings.TrimSpace(sourceItem.HandoffID),
 				TargetAgentIDs:  []string{agentID},
 				Source:          protocol.NormalizeInputQueueSource(string(sourceItem.Source)),
 				Content:         strings.TrimSpace(sourceItem.Content),
 				Attachments:     protocol.NormalizeChatAttachments(sourceItem.Attachments, agentID),
 				DeliveryPolicy:  protocol.ChatDeliveryPolicyGuide,
+				ReplyRoute:      sourceItem.ReplyRoute,
 				OwnerUserID:     strings.TrimSpace(sourceItem.OwnerUserID),
 				RootRoundID:     slot.AgentRoundID,
+				HopIndex:        sourceItem.HopIndex,
 			},
 		})
 	}

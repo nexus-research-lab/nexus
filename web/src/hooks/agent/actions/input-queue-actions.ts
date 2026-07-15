@@ -28,6 +28,7 @@ export function enqueueInputQueueMessage(
   context: AgentConversationActionContext,
   deliveryPolicy: AgentConversationDeliveryPolicy = "queue",
   attachments: AgentConversationSendOptions["attachments"] = [],
+  targetAgentIDs: string[] = [],
 ): void {
   if (!content.trim() && attachments.length === 0) {
     return;
@@ -37,6 +38,7 @@ export function enqueueInputQueueMessage(
     content,
     delivery_policy: deliveryPolicy,
     ...(attachments.length > 0 ? { attachments } : {}),
+    ...(targetAgentIDs.length > 0 ? { target_agent_ids: targetAgentIDs } : {}),
   });
 }
 

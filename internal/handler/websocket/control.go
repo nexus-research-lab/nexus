@@ -114,6 +114,7 @@ func (m *controlMessage) handleChat() {
 			ConversationID:    m.stringValue("conversation_id"),
 			AttachmentAgentID: m.stringValue("agent_id"),
 			Content:           m.stringValue("content"),
+			TargetAgentIDs:    stringSliceValue(m.inbound["target_agent_ids"]),
 			Attachments:       m.attachments(),
 			ClientRequestID:   clientRequestID,
 			ClientMessageID:   clientMessageID,
@@ -180,6 +181,7 @@ func (m *controlMessage) handleInputQueue() {
 			ItemID:         m.stringValue("item_id"),
 			Content:        m.stringValue("content"),
 			Attachments:    m.attachments(),
+			TargetAgentIDs: stringSliceValue(m.inbound["target_agent_ids"]),
 			OrderedIDs:     stringSliceValue(m.inbound["ordered_ids"]),
 			DeliveryPolicy: m.deliveryPolicy(),
 		})

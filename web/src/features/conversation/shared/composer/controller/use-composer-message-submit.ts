@@ -13,6 +13,7 @@ type DeliverMessage = (
   content: string,
   deliveryPolicy: AgentConversationDeliveryPolicy,
   attachments?: MessageAttachment[],
+  targetAgentIDs?: string[],
 ) => void | Promise<void>;
 
 interface UseComposerMessageSubmitOptions {
@@ -32,6 +33,8 @@ interface UseComposerMessageSubmitOptions {
   resetInput: () => void;
   resetTextareaHeight: () => void;
   runtimePhase: AgentConversationRuntimePhase | null;
+  targetAgentIDs: string[];
+  clearSelectedTargetIDs: () => void;
 }
 
 interface ComposerMessageSubmission {
@@ -58,6 +61,8 @@ export function useComposerMessageSubmit(
     resetInput,
     resetTextareaHeight,
     runtimePhase,
+    targetAgentIDs,
+    clearSelectedTargetIDs,
   }: UseComposerMessageSubmitOptions,
 ) {
   return useCallback(
@@ -78,6 +83,8 @@ export function useComposerMessageSubmit(
       resetInput,
       resetTextareaHeight,
       runtimePhase,
+      targetAgentIDs,
+      clearSelectedTargetIDs,
     }),
     [
       attachmentCount,
@@ -96,6 +103,8 @@ export function useComposerMessageSubmit(
       resetInput,
       resetTextareaHeight,
       runtimePhase,
+      targetAgentIDs,
+      clearSelectedTargetIDs,
     ],
   );
 }
@@ -116,8 +125,10 @@ async function runComposerMessageSubmission(
       submission.content,
       submission.policy,
       attachments,
+      options.targetAgentIDs,
     );
     completeMessageSubmission(options, submission.content);
+    options.clearSelectedTargetIDs();
   } catch (error) {
     console.error("发送消息失败:", error);
   }

@@ -251,6 +251,7 @@ func (s *RealtimeService) dispatchRoomPublicTriggerQueueItem(
 	wakes := make([]publicMentionWake, 0, len(targetAgentIDs))
 	for _, targetAgentID := range targetAgentIDs {
 		wakes = append(wakes, publicMentionWake{
+			HandoffID:     strings.TrimSpace(item.HandoffID),
 			SourceAgentID: strings.TrimSpace(item.SourceAgentID),
 			TargetAgentID: targetAgentID,
 			Content:       content,
@@ -306,6 +307,9 @@ func (s *RealtimeService) dispatchAgentWakeQueueItem(
 			return err
 		}
 		if len(guidedAgentIDs) > 0 {
+			if err = s.markRoomQueueHandoffTerminal(conversationID, item); err != nil {
+				return err
+			}
 			if err = s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue); err != nil {
 				return err
 			}
@@ -316,6 +320,7 @@ func (s *RealtimeService) dispatchAgentWakeQueueItem(
 	wakes := make([]publicMentionWake, 0, len(targetAgentIDs))
 	for _, targetAgentID := range targetAgentIDs {
 		wakes = append(wakes, publicMentionWake{
+			HandoffID:     strings.TrimSpace(item.HandoffID),
 			TriggerType:   inputQueueWakeTriggerType(item),
 			QueueSource:   protocol.NormalizeInputQueueSource(string(item.Source)),
 			SourceAgentID: strings.TrimSpace(item.SourceAgentID),

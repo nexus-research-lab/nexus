@@ -222,6 +222,8 @@ func (s *RealtimeService) prepareRoomChat(ctx context.Context, request ChatReque
 		return nil, err
 	}
 
+	userMessage := newRoomUserMessage(request, sessionKey, roomID, conversationID, attachments, targetAgentIDs, deliveryPolicy)
+	annotateRoomUserMessage(contextValue, userMessage)
 	return &roomChatExecution{
 		service:            s,
 		ctx:                ctx,
@@ -238,7 +240,7 @@ func (s *RealtimeService) prepareRoomChat(ctx context.Context, request ChatReque
 		targetResolution:   targetResolution,
 		deliveryPolicy:     deliveryPolicy,
 		history:            history,
-		userMessage:        newRoomUserMessage(request, sessionKey, roomID, conversationID, attachments, targetAgentIDs, deliveryPolicy),
+		userMessage:        userMessage,
 	}, nil
 }
 

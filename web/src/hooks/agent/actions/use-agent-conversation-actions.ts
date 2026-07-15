@@ -124,12 +124,14 @@ export function useAgentConversationActions({
       content: string,
       deliveryPolicy: AgentConversationDeliveryPolicy = "queue",
       attachments: AgentConversationSendOptions["attachments"] = [],
+      targetAgentIDs: string[] = [],
     ): Promise<void> => {
       enqueueInputQueueMessage(
         content,
         actionContextRef.current,
         deliveryPolicy,
         attachments,
+        targetAgentIDs,
       );
     },
     [],

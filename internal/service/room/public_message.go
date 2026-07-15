@@ -11,6 +11,7 @@ import (
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
 // HandlePublicMessage 处理 Room 成员通过受控工具主动发布的公区消息。
@@ -71,10 +72,19 @@ func (s *RealtimeService) HandlePublicMessage(
 		"hop_index":             hopIndex,
 		"timestamp":             time.Now().UnixMilli(),
 	}
+	if mentions := buildPublicMessageMentionAnnotations(contextValue, sourceAgentID, messageID, content); len(mentions) > 0 {
+		message["agent_mentions"] = mentions
+	}
 	if correlationID := strings.TrimSpace(request.CorrelationID); correlationID != "" {
 		message["correlation_id"] = correlationID
 	}
+	if err = s.detectPublicMessageHandoffs(contextValue, sourceAgentID, messageID, content, rootRoundID, hopIndex); err != nil {
+		return nil, err
+	}
 	if err = s.persistSharedInlineMessage(contextValue.Conversation.ID, message); err != nil {
+		if s.publicHandoffs != nil {
+			_ = s.publicHandoffs.CancelForSource(contextValue.Conversation.ID, messageID, "error")
+		}
 		return nil, err
 	}
 	s.broadcastSharedEventWithTimeout(
@@ -131,6 +141,9 @@ func (s *RealtimeService) startPublicMessageMentionWakes(
 	if len(targetAgentIDs) == 0 {
 		return nil
 	}
+	if err := s.detectPublicMessageHandoffs(contextValue, sourceAgentID, messageID, content, rootRoundID, hopIndex); err != nil {
+		return err
+	}
 	parentRound := &activeRoomRound{
 		SessionKey:     protocol.BuildRoomSharedSessionKey(contextValue.Conversation.ID),
 		RoomID:         contextValue.Room.ID,
@@ -151,7 +164,14 @@ func (s *RealtimeService) startPublicMessageMentionWakes(
 		if !roomdomain.IsMemberAgent(contextValue.Members, targetAgentID) {
 			continue
 		}
+		handoffID := roomPublicHandoffID(contextValue.Conversation.ID, messageID, targetAgentID)
+		if s.publicHandoffs != nil {
+			if err := s.publicHandoffs.MarkSourceFinished(contextValue.Conversation.ID, handoffID); err != nil {
+				return err
+			}
+		}
 		wakes = append(wakes, publicMentionWake{
+			HandoffID:     handoffID,
 			SourceAgentID: strings.TrimSpace(sourceAgentID),
 			TargetAgentID: targetAgentID,
 			Content:       strings.TrimSpace(content),
@@ -159,4 +179,68 @@ func (s *RealtimeService) startPublicMessageMentionWakes(
 		})
 	}
 	return s.startPublicMentionRound(ctx, parentRound, wakes)
+}
+
+func (s *RealtimeService) detectPublicMessageHandoffs(
+	contextValue *protocol.ConversationContextAggregate,
+	sourceAgentID string,
+	messageID string,
+	content string,
+	rootRoundID string,
+	hopIndex int,
+) error {
+	if s.publicHandoffs == nil || contextValue == nil {
+		return nil
+	}
+	for _, targetAgentID := range roomdomain.ResolveMentionAgentIDs(content, roomdomain.BuildMentionAliases(contextValue)) {
+		targetAgentID = strings.TrimSpace(targetAgentID)
+		if targetAgentID == "" || targetAgentID == strings.TrimSpace(sourceAgentID) ||
+			!roomdomain.IsMemberAgent(contextValue.Members, targetAgentID) {
+			continue
+		}
+		handoffID := roomPublicHandoffID(contextValue.Conversation.ID, messageID, targetAgentID)
+		if _, _, err := s.publicHandoffs.Detect(workspacestore.RoomPublicHandoff{
+			HandoffID:          handoffID,
+			ConversationID:     contextValue.Conversation.ID,
+			RoomID:             contextValue.Room.ID,
+			RootRoundID:        rootRoundID,
+			SourceAgentRoundID: messageID,
+			SourceMessageID:    messageID,
+			SourceAgentID:      strings.TrimSpace(sourceAgentID),
+			TargetAgentID:      targetAgentID,
+			Content:            strings.TrimSpace(content),
+			HopIndex:           hopIndex,
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func buildPublicMessageMentionAnnotations(
+	contextValue *protocol.ConversationContextAggregate,
+	sourceAgentID string,
+	messageID string,
+	content string,
+) []protocol.AgentMention {
+	if contextValue == nil {
+		return nil
+	}
+	result := make([]protocol.AgentMention, 0)
+	for _, match := range roomdomain.ResolveMentionMatches(content, roomdomain.BuildMentionAliases(contextValue)) {
+		targetAgentID := strings.TrimSpace(match.AgentID)
+		if targetAgentID == "" || targetAgentID == strings.TrimSpace(sourceAgentID) ||
+			!roomdomain.IsMemberAgent(contextValue.Members, targetAgentID) {
+			continue
+		}
+		result = append(result, protocol.AgentMention{
+			AgentID:           targetAgentID,
+			Label:             strings.TrimSpace(match.Label),
+			ContentBlockIndex: 0,
+			StartRune:         match.StartRune,
+			EndRune:           match.EndRune,
+			HandoffID:         roomPublicHandoffID(contextValue.Conversation.ID, messageID, targetAgentID),
+		})
+	}
+	return result
 }

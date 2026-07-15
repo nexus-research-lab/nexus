@@ -109,6 +109,7 @@ type RealtimeService struct {
 	roomHistory      *workspacestore.RoomHistoryStore
 	directedMessages *workspacestore.RoomDirectedMessageStore
 	directedWakes    *workspacestore.RoomDirectedMessageWakeStore
+	publicHandoffs   *workspacestore.RoomPublicHandoffStore
 	inputQueue       *workspacestore.InputQueueStore
 	usage            usageRecorder
 	quota            quotaChecker
@@ -195,6 +196,7 @@ func NewRealtimeServiceWithFactory(
 		roomHistory:      workspacestore.NewRoomHistoryStore(cfg.WorkspacePath),
 		directedMessages: workspacestore.NewRoomDirectedMessageStore(cfg.WorkspacePath),
 		directedWakes:    workspacestore.NewRoomDirectedMessageWakeStore(cfg.WorkspacePath),
+		publicHandoffs:   workspacestore.NewRoomPublicHandoffStore(cfg.WorkspacePath),
 		inputQueue:       workspacestore.NewInputQueueStore(cfg.WorkspacePath),
 		factory:          factory,
 		logger:           logx.NewDiscardLogger(),

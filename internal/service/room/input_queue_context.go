@@ -7,6 +7,7 @@ import (
 	"cmp"
 	"context"
 	"errors"
+	"fmt"
 	"sort"
 	"strings"
 
@@ -44,12 +45,25 @@ func (s *RealtimeService) resolveRoomInputQueuePrimaryLocation(
 	ctx context.Context,
 	contextValue *protocol.ConversationContextAggregate,
 	content string,
+	explicitTargetAgentIDs []string,
 ) (workspacestore.InputQueueLocation, []string, error) {
 	locationsByAgentID, err := s.roomInputQueueLocationsByAgent(ctx, contextValue)
 	if err != nil {
 		return workspacestore.InputQueueLocation{}, nil, err
 	}
-	targetAgentIDs := roomdomain.ResolveMentionAgentIDs(content, roomdomain.BuildMentionAliases(contextValue))
+	targetAgentIDs := normalizeExplicitTargetAgentIDs(explicitTargetAgentIDs)
+	if len(explicitTargetAgentIDs) > 0 {
+		if len(targetAgentIDs) == 0 {
+			return workspacestore.InputQueueLocation{}, nil, errors.New("target_agent_ids must not be empty")
+		}
+		for _, agentID := range targetAgentIDs {
+			if !roomdomain.IsMemberAgent(contextValue.Members, agentID) {
+				return workspacestore.InputQueueLocation{}, nil, fmt.Errorf("target_agent_id is not a room member: %s", agentID)
+			}
+		}
+	} else {
+		targetAgentIDs = roomdomain.ResolveMentionAgentIDs(content, roomdomain.BuildMentionAliases(contextValue))
+	}
 	if len(targetAgentIDs) == 0 && len(locationsByAgentID) == 1 {
 		for agentID := range locationsByAgentID {
 			targetAgentIDs = []string{agentID}

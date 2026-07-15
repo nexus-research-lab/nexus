@@ -20,12 +20,14 @@ export interface ComposerPanelProps {
     content: string,
     deliveryPolicy: AgentConversationDeliveryPolicy,
     attachments?: MessageAttachment[],
+    targetAgentIDs?: string[],
   ) => void | Promise<void>;
   inputQueueItems: InputQueueItem[];
   onEnqueueMessage: (
     content: string,
     deliveryPolicy: AgentConversationDeliveryPolicy,
     attachments?: MessageAttachment[],
+    targetAgentIDs?: string[],
   ) => void | Promise<void>;
   onDeleteQueuedMessage: (itemId: string) => void | Promise<void>;
   onGuideQueuedMessage: (itemId: string) => void | Promise<void>;

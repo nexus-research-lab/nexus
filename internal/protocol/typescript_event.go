@@ -120,8 +120,19 @@ export interface ConversationMessage {
   parent_id?: string;
   content: unknown;
   timestamp: number;
+  display_order?: number;
   stream_status?: 'pending' | 'streaming' | 'done' | 'cancelled' | 'error';
   result_summary?: Record<string, unknown>;
+  agent_mentions?: AgentMention[];
+}
+
+export interface AgentMention {
+  agent_id: string;
+  label: string;
+  content_block_index: number;
+  start_rune: number;
+  end_rune: number;
+  handoff_id?: string;
 }
 
 export interface TurnPendingPermission {

@@ -27,6 +27,9 @@ func (s *RealtimeService) startIdleSubagentNotificationDrains(ctx context.Contex
 			slot.AgentRoundID,
 			slot.WorkspacePath,
 		)
+		mapper.SetDurableMessageTransformer(func(message protocol.Message) protocol.Message {
+			return s.transformRoomDurableMessage(roundValue, slot, message)
+		})
 		s.runtime.StartIdleMessageDrain(
 			slot.RuntimeSessionKey,
 			func(drainCtx context.Context, incoming sdkprotocol.ReceivedMessage) bool {

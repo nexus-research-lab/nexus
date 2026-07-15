@@ -59,6 +59,7 @@ func (s *Server) startBackgroundServices(ctx context.Context) (func(), error) {
 		s.startChannels,
 		s.startAutomation,
 		s.startRoomDelayedWakes,
+		s.startRoomPublicHandoffs,
 		s.startMemoryMaintenance,
 		s.startGoalResume,
 	}
@@ -77,6 +78,19 @@ func (s *Server) startBackgroundServices(ctx context.Context) (func(), error) {
 	}
 
 	return stopAll, nil
+}
+
+func (s *Server) startRoomPublicHandoffs(ctx context.Context) (func(), error) {
+	if s.services == nil || s.services.RoomRealtime == nil {
+		return nil, nil
+	}
+	s.api.BaseLogger().Info("启动 Room 公区 handoff 恢复器")
+	stop, err := s.services.RoomRealtime.StartPublicHandoffReconciler(ctx)
+	if err != nil {
+		s.api.BaseLogger().Error("启动 Room 公区 handoff 恢复器失败", "err", err)
+		return nil, err
+	}
+	return stop, nil
 }
 
 func (s *Server) startRoomDelayedWakes(ctx context.Context) (func(), error) {

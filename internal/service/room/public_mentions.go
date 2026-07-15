@@ -32,38 +32,105 @@ func (s *RealtimeService) collectPublicMentionWakes(
 	if roundValue == nil || roundValue.Context == nil || slot == nil {
 		return nil
 	}
-	messageID := strings.TrimSpace(anyString(message["message_id"]))
 	if !roomdomain.IsFinalPublicAssistantMessage(message) {
+		return nil
+	}
+	if slot.getStatus() != "finished" {
+		// 只有 source slot 成功收尾才允许创建 target handoff。
 		return nil
 	}
 	content := strings.TrimSpace(roomdomain.ExtractAssistantResultText(message))
 	if content == "" {
 		return nil
 	}
-	targetAgentIDs := roomdomain.ResolveMentionAgentIDs(content, roomdomain.BuildMentionAliases(roundValue.Context))
-	if len(targetAgentIDs) == 0 {
+	if _, exists := message["agent_mentions"]; !exists {
+		if err := s.annotatePublicAssistantMessage(roundValue, slot, message); err != nil {
+			return err
+		}
+	}
+	wakes := publicMentionWakesFromMessage(roundValue, slot, message, content)
+	if len(wakes) == 0 {
 		return nil
 	}
+	for _, wake := range wakes {
+		if s.publicHandoffs != nil {
+			if err := s.publicHandoffs.MarkSourceFinished(roundValue.ConversationID, wake.HandoffID); err != nil {
+				return err
+			}
+		}
+		s.enqueuePublicMentionWake(roundValue, wake)
+	}
+	// source slot 完成即触发，不等待同一 root 的其他 slot。
+	s.startQueuedPublicMentionWakes(ctx, roundValue)
+	return nil
+}
 
-	for _, targetAgentID := range targetAgentIDs {
-		targetAgentID = strings.TrimSpace(targetAgentID)
-		if targetAgentID == "" {
+func publicMentionWakesFromMessage(
+	roundValue *activeRoomRound,
+	slot *activeRoomSlot,
+	message protocol.Message,
+	content string,
+) []publicMentionWake {
+	messageID := strings.TrimSpace(anyString(message["message_id"]))
+	if messageID == "" || roundValue == nil || slot == nil {
+		return nil
+	}
+	seen := make(map[string]struct{})
+	result := make([]publicMentionWake, 0)
+	for _, mention := range protocolAgentMentions(message["agent_mentions"]) {
+		targetAgentID := strings.TrimSpace(mention.AgentID)
+		if targetAgentID == "" || targetAgentID == strings.TrimSpace(slot.AgentID) ||
+			!roomdomain.IsMemberAgent(roundValue.Context.Members, targetAgentID) {
 			continue
 		}
-		if targetAgentID == slot.AgentID {
+		handoffID := strings.TrimSpace(mention.HandoffID)
+		if handoffID == "" {
+			handoffID = roomPublicHandoffID(roundValue.ConversationID, messageID, targetAgentID)
+		}
+		if _, exists := seen[targetAgentID]; exists {
 			continue
 		}
-		if !roomdomain.IsMemberAgent(roundValue.Context.Members, targetAgentID) {
-			continue
-		}
-		s.enqueuePublicMentionWake(roundValue, publicMentionWake{
-			SourceAgentID: slot.AgentID,
+		seen[targetAgentID] = struct{}{}
+		result = append(result, publicMentionWake{
+			HandoffID:     handoffID,
+			TriggerType:   "public_mention",
+			QueueSource:   protocol.InputQueueSourceAgentPublicMention,
+			SourceAgentID: strings.TrimSpace(slot.AgentID),
 			TargetAgentID: targetAgentID,
 			Content:       content,
 			MessageID:     messageID,
 		})
 	}
-	return nil
+	return result
+}
+
+func protocolAgentMentions(value any) []protocol.AgentMention {
+	result := make([]protocol.AgentMention, 0)
+	switch typed := value.(type) {
+	case []protocol.AgentMention:
+		return append(result, typed...)
+	case []map[string]any:
+		for _, payload := range typed {
+			result = append(result, protocol.AgentMention{
+				AgentID:   strings.TrimSpace(anyString(payload["agent_id"])),
+				Label:     strings.TrimSpace(anyString(payload["label"])),
+				HandoffID: strings.TrimSpace(anyString(payload["handoff_id"])),
+			})
+		}
+	case []any:
+		for _, item := range typed {
+			payload, ok := item.(map[string]any)
+			if !ok {
+				continue
+			}
+			result = append(result, protocol.AgentMention{
+				AgentID:   strings.TrimSpace(anyString(payload["agent_id"])),
+				Label:     strings.TrimSpace(anyString(payload["label"])),
+				HandoffID: strings.TrimSpace(anyString(payload["handoff_id"])),
+			})
+		}
+	}
+	return result
 }
 
 func (s *RealtimeService) enqueuePublicMentionWake(roundValue *activeRoomRound, wake publicMentionWake) {
@@ -99,6 +166,7 @@ func (s *RealtimeService) startQueuedPublicMentionWakes(ctx context.Context, rou
 		return false
 	}
 	if roundValue.HopIndex >= roomMaxWakeHops {
+		s.terminalizePublicMentionWakes(ctx, roundValue.ConversationID, wakes, "error")
 		s.loggerFor(ctx).Warn("Room 公区 @ 唤醒达到跳数上限",
 			"r", roundValue.RoomID,
 			"c", roundValue.ConversationID,
@@ -130,6 +198,7 @@ func (s *RealtimeService) startPublicMentionRound(
 		return nil
 	}
 	if parentRound.HopIndex >= roomMaxWakeHops {
+		s.terminalizePublicMentionWakes(ctx, parentRound.ConversationID, wakes, "error")
 		s.loggerFor(ctx).Warn("Room 唤醒达到跳数上限",
 			"r", parentRound.RoomID,
 			"c", parentRound.ConversationID,
@@ -147,6 +216,24 @@ func (s *RealtimeService) startPublicMentionRound(
 		s.logQueuedPublicMentionWakes(ctx, parentRound, sessionKey)
 		return nil
 	}
+	claimedWakes := make([]publicMentionWake, 0, len(wakes))
+	for _, wake := range wakes {
+		if s.publicHandoffs == nil || strings.TrimSpace(wake.HandoffID) == "" {
+			claimedWakes = append(claimedWakes, wake)
+			continue
+		}
+		_, claimed, claimErr := s.publicHandoffs.Claim(parentRound.ConversationID, wake.HandoffID)
+		if claimErr != nil {
+			return claimErr
+		}
+		if claimed {
+			claimedWakes = append(claimedWakes, wake)
+		}
+	}
+	wakes = claimedWakes
+	if len(wakes) == 0 {
+		return nil
+	}
 	agentNameByID, agentByID, err := s.buildAgentDirectory(ctx, contextValue)
 	if err != nil {
 		return err
@@ -156,6 +243,19 @@ func (s *RealtimeService) startPublicMentionRound(
 		return err
 	}
 	pendingSlots := buildPendingPublicMentionSlots(contextValue, wakes, agentByID)
+	availableTargets := make(map[string]struct{}, len(pendingSlots))
+	for _, pendingSlot := range pendingSlots {
+		availableTargets[pendingSlot.targetAgentID] = struct{}{}
+	}
+	for _, wake := range wakes {
+		if _, ok := availableTargets[strings.TrimSpace(wake.TargetAgentID)]; ok ||
+			s.publicHandoffs == nil || strings.TrimSpace(wake.HandoffID) == "" {
+			continue
+		}
+		if err := s.publicHandoffs.MarkTerminal(parentRound.ConversationID, wake.HandoffID, "error"); err != nil {
+			s.loggerFor(ctx).Warn("目标 Agent 不可用，收口 Room handoff 失败", "handoff_id", wake.HandoffID, "err", err)
+		}
+	}
 	if len(pendingSlots) == 0 {
 		s.logMissingPublicMentionSlots(ctx, sessionKey, contextValue, len(wakes))
 		return nil
@@ -174,7 +274,44 @@ func (s *RealtimeService) startPublicMentionRound(
 		agentNameByID,
 		agentByID,
 	)
+	if s.publicHandoffs != nil {
+		for _, wake := range wakes {
+			if strings.TrimSpace(wake.HandoffID) == "" {
+				continue
+			}
+			if err := s.publicHandoffs.MarkStarted(activeRound.ConversationID, wake.HandoffID, roundID); err != nil {
+				s.loggerFor(ctx).Warn("记录 Room handoff 启动状态失败", "handoff_id", wake.HandoffID, "err", err)
+			}
+		}
+	}
 	return nil
+}
+
+// terminalizePublicMentionWakes 收口因平台护栏被拒绝的 handoff，避免
+// 已经从内存 pending 列表取出的边在 ledger 中永久停留为 source_finished。
+func (s *RealtimeService) terminalizePublicMentionWakes(
+	ctx context.Context,
+	conversationID string,
+	wakes []publicMentionWake,
+	status string,
+) {
+	if s == nil || s.publicHandoffs == nil {
+		return
+	}
+	for _, wake := range wakes {
+		handoffID := strings.TrimSpace(wake.HandoffID)
+		if handoffID == "" {
+			continue
+		}
+		if err := s.publicHandoffs.MarkTerminal(conversationID, handoffID, status); err != nil {
+			s.loggerFor(ctx).Warn("收口受护栏拒绝的 Room handoff 失败",
+				"conversation_id", conversationID,
+				"handoff_id", handoffID,
+				"status", status,
+				"err", err,
+			)
+		}
+	}
 }
 
 func (s *RealtimeService) logQueuedPublicMentionWakes(
@@ -362,6 +499,7 @@ func buildPublicMentionSlot(
 		ReplyRoute:         wake.ReplyRoute,
 		ReplySourceMessage: strings.TrimSpace(wake.MessageID),
 		ReplySourceAgent:   strings.TrimSpace(wake.SourceAgentID),
+		HandoffID:          strings.TrimSpace(wake.HandoffID),
 		Done:               make(chan struct{}),
 	}
 }

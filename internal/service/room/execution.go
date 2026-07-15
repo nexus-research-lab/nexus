@@ -147,6 +147,9 @@ func (s *RealtimeService) runSlot(
 		slot.AgentRoundID,
 		agentValue.WorkspacePath,
 	)
+	mapper.SetDurableMessageTransformer(func(message protocol.Message) protocol.Message {
+		return s.transformRoomDurableMessage(roundValue, slot, message)
+	})
 	execution := &slotExecution{
 		service:       s,
 		ctx:           slotCtx,

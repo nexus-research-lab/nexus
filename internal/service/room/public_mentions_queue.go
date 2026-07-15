@@ -70,7 +70,7 @@ func (s *RealtimeService) queueBusyPublicMentionWakes(
 			rootRoundID = strings.TrimSpace(busySlot.AgentRoundID)
 		}
 		queuedItemID := workspacestore.NewInputQueueID()
-		if _, err := s.inputQueue.Enqueue(location.Location, protocol.InputQueueItem{
+		queuedItem := protocol.InputQueueItem{
 			ID:              queuedItemID,
 			Scope:           protocol.InputQueueScopeRoom,
 			SessionKey:      location.Location.SessionKey,
@@ -79,6 +79,7 @@ func (s *RealtimeService) queueBusyPublicMentionWakes(
 			AgentID:         targetAgentID,
 			SourceAgentID:   strings.TrimSpace(wake.SourceAgentID),
 			SourceMessageID: strings.TrimSpace(wake.MessageID),
+			HandoffID:       strings.TrimSpace(wake.HandoffID),
 			TargetAgentIDs:  []string{targetAgentID},
 			Source:          queueSource,
 			Content:         strings.TrimSpace(wake.Content),
@@ -87,8 +88,27 @@ func (s *RealtimeService) queueBusyPublicMentionWakes(
 			OwnerUserID:     parentRound.OwnerUserID,
 			RootRoundID:     rootRoundID,
 			HopIndex:        parentRound.HopIndex,
-		}); err != nil {
+		}
+		queueItems, inserted, err := s.inputQueue.EnqueueBounded(location.Location, queuedItem, 0)
+		if err != nil {
 			return nil, err
+		}
+		if !inserted {
+			for _, existing := range queueItems {
+				if strings.TrimSpace(existing.HandoffID) == strings.TrimSpace(wake.HandoffID) ||
+					(existing.Source == queuedItem.Source &&
+						strings.TrimSpace(existing.SourceMessageID) == strings.TrimSpace(queuedItem.SourceMessageID) &&
+						strings.TrimSpace(existing.AgentID) == strings.TrimSpace(queuedItem.AgentID)) {
+					queuedItem = existing
+					queuedItemID = existing.ID
+					break
+				}
+			}
+		}
+		if s.publicHandoffs != nil && strings.TrimSpace(wake.HandoffID) != "" {
+			if err := s.publicHandoffs.MarkQueued(parentRound.ConversationID, wake.HandoffID, queuedItemID); err != nil {
+				return nil, err
+			}
 		}
 		if deliveryPolicy == protocol.ChatDeliveryPolicyGuide && !isActiveDeliverySlot(busySlot) {
 			if _, err := s.inputQueue.UpdateDeliveryPolicy(

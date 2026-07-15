@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed DM and Room Goal retargeting so corrected objectives reach active runtimes, revisions advance only after guidance consumption, stale continuations cannot launch or mutate corrected Goals, and continuation reserve/claim/release accounting remains exact across duplicate dispatches.
 - Fixed Markdown image destinations being wrapped as inline code, restoring relative workspace image previews in historical conversations.
 - Fixed Room public reply duplication by limiting `publish_public_message` to private/tool-driven flows and making runtime suppress the same slot's default final reply after a successful broadcast.
+- Fixed Room Agent `@` handoffs so source-slot completion dispatches immediately, busy targets use durable guide/queue delivery, restart recovery is idempotent, and message mentions render as clickable Agent avatar chips with stable timeline ordering.
 
 ### Added
 

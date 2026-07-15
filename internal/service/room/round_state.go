@@ -55,6 +55,7 @@ type activeRoomSlot struct {
 	ReplyRoute             protocol.RoomReplyRoute
 	ReplySourceMessage     string
 	ReplySourceAgent       string
+	HandoffID              string
 	InterruptReason        string
 	QueuedInputs           []roomQueuedInput
 	GuidedInputs           []roomQueuedInput
@@ -137,6 +138,7 @@ type activeRoomRound struct {
 type roomTrigger = roomdomain.Trigger
 
 type publicMentionWake struct {
+	HandoffID     string
 	TriggerType   string
 	QueueSource   protocol.InputQueueSource
 	SourceAgentID string

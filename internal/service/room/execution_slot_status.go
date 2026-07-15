@@ -135,6 +135,7 @@ func (e *slotExecution) complete(result exec.RoundExecutionResult) error {
 	if err := e.persistCompletionOutput(lastAssistant); err != nil {
 		return err
 	}
+	e.service.markPublicHandoffTerminal(e.ctx, e.round, e.slot, e.slot.getStatus())
 	if e.slot.getStatus() != "finished" {
 		return nil
 	}
@@ -187,6 +188,8 @@ func (s *RealtimeService) handleSlotFailure(ctx context.Context, roundValue *act
 		TerminalStatus: "error",
 		ErrorMessage:   err.Error(),
 	}, slot.lastGoalAssistantMessage())
+	s.cancelSourcePublicHandoffs(ctx, roundValue, slot, "error")
+	s.markPublicHandoffTerminal(ctx, roundValue, slot, "error")
 	slot.setStatus("error")
 	s.broadcastAgentRoundStatus(ctx, roundValue, slot, "error")
 	resultMessage := protocol.Message{
@@ -297,6 +300,8 @@ func (s *RealtimeService) handleSlotCancelled(ctx context.Context, roundValue *a
 	if mapper != nil {
 		s.recordGoalUsageForSlot(ctx, slot, exec.RoundExecutionResult{}, slot.lastGoalAssistantMessage())
 	}
+	s.cancelSourcePublicHandoffs(ctx, roundValue, slot, "interrupted")
+	s.markPublicHandoffTerminal(ctx, roundValue, slot, "interrupted")
 	s.emitInterruptedSlotResult(roundValue, slot, mapper, "")
 	s.broadcastSlotCancelled(ctx, roundValue, slot)
 }

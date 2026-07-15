@@ -8,6 +8,8 @@
 - 历史消息怎么落盘和读取
 - 前端为什么按 round 展示和分页
 
+本文同时定义消息进入时间线后的稳定展示顺序、并发 Agent 的快慢处理、guide/queue 控制消息的投影，以及消息正文与状态信息的密度边界。它不定义 Room 业务流程；Room handoff 的通信语义见 [Room 协作协议](./room-collaboration-spec.md)。
+
 ## 2. 核心对象
 
 ### 2.1 stream event
@@ -49,6 +51,8 @@
 
 - stream：增量展示过程
 - durable message：写入最终消息列表
+
+同一个 `message_id` 的 durable snapshot 必须更新同一条消息投影，不能按 snapshot 数量追加多条气泡。`round_status`、`agent_round_status`、input queue 和 handoff 事件只更新状态投影，不直接变成正文消息。
 
 round 结束只由 terminal `round_status` 定义，前端不再自己猜测。
 
@@ -168,6 +172,59 @@ Room shared 不再保存完整正文副本，而是：
 - 未完成 round 的物化产物直接是 `assistant + stop_reason: cancelled + result_summary.subtype: interrupted`
 - 不再经过 `role: result` 的中间态
 
+### 6.1 公区时间线顺序
+
+时间线同时满足“事实顺序”和“因果顺序”：
+
+1. 同一 root round 的 primary user message 在最前，只展示一份；被定向到某个执行槽的 guide user message 属于该槽的附着输入，按 6.3 的规则紧贴目标卡片，不在顶部重复一份。
+2. 已发布的 Agent final reply 按服务端公区发布时间升序展示；同一时间使用 root round 内由后端在 slot 创建时分配的稳定 `display_order`，再以 `agent_round_id` 兜底。不得按客户端收到事件的先后重排历史。
+3. source message 必须先于它触发的 handoff 状态和 target reply；handoff child 可以在 sibling slot 仍运行时出现，但不能插入 source 之前。
+4. 仍处于 pending、streaming、等待权限或等待 guide ACK 的 slot 不是公区事实，统一放在已完成回复之后，按 slot 启动顺序排列。
+5. 同一 slot 的流式更新只更新该 slot 的状态卡；slot 进入终态后再替换为最终回复，不重复追加一张卡。
+
+回复顺序不由 Agent 名称、`@` 书写顺序或 Skill 自己的预期决定。并行 slot 谁先完成谁先进入已发布回复区；慢 slot 只保留一个紧凑的活动状态。
+
+示例：A 先启动但较慢，B 后启动且先完成：
+
+```text
+用户消息
+├─ B 的最终回复
+└─ A：执行中（紧凑状态）
+
+A 完成后：
+用户消息
+├─ B 的最终回复
+└─ A 的最终回复
+```
+
+活动卡从“活动区”进入“已完成区”是唯一允许的结构变化；已经发布的回复之间不因后续 stream 或 guide 而互换位置。
+
+### 6.2 实时与历史的一致性
+
+- 实时订阅使用 `room_seq` 做事件重放和缺口检测；它是传输序号，不是历史排序真相源。
+- 历史使用持久化的公区发布时间、稳定 display order 和因果关联归一化；公区发布时间由服务端在消息进入 shared overlay 时确定，不使用 runtime 开始时间，也不能直接重放 WebSocket 到达顺序。
+- 如果多个并发消息落在同一时间粒度，持久化层必须提供稳定 tie-breaker；恢复后不能因为进程重启改变已有回复的相对顺序。
+- 目标 Agent 的状态事件可以先于它的 final reply 展示，但不能先于 source public message。
+
+### 6.3 guide、queue 与 handoff 的展示
+
+- `delivery_policy=guide` 是投递策略，不是新的 assistant 消息。
+- 单目标 guide：用户消息在时间线上只保留一份，以紧凑的“补充要求”样式紧贴目标 Agent 卡片之前；不在全局位置和目标卡片各渲染一份正文。
+- 多目标或无法安全归组的 guide：用户消息保留在原始公区位置，旁边只显示目标 Agent 头像/名称摘要，不为每个目标复制正文。
+- guide 的 ACK、fallback、`guided_input` 等控制事件合并为目标卡片的一行轻量状态；详细过程放入 Thread，不生成独立大气泡。
+- 尚未消费的用户 queue item 只出现在 composer 的待发送队列；消费后才进入时间线，且只进入一次。
+- Agent public handoff 的 `detected/queued/running` 不生成“系统发言”气泡。源消息中的 `@Agent` chip 是唯一的交接正文，目标卡片只显示排队/运行状态；目标 final reply 到达后才显示完整回复。
+- no-reply、空 assistant、纯 result 和重复 wake 不占用独立时间线行。
+
+### 6.4 消息渲染的密度边界
+
+- 一份正文只渲染一次；状态、路由和耗时附着在消息头、轻量状态行或 Thread 中。
+- 用户消息和 Agent final reply 是主内容；thinking、tool、permission、guide 过程默认折叠或摘要化。
+- 连续的状态事件合并为最新状态，不逐条堆叠“已发送/已排队/已启动/等待中”。需要审计时在 Thread 查看完整事件。
+- Agent 头像只出现在消息头、Agent mention chip 和必要的状态卡，不为每条控制事件重复放大头像。
+- `@Agent` 渲染为小头像 + 可点击名称；点击打开 Agent 资料，不触发第二次 handoff。头像 URL 不写入消息，历史按当前成员目录解析。
+- 主 Feed 显示事实和一行状态摘要，Thread 显示过程细节；两者使用同一消息注解和同一 Agent 身份映射。
+
 ## 7. API 约束
 
 Room / DM 历史读取统一走 room conversation 语义：
@@ -189,10 +246,12 @@ GET /nexus/v1/rooms/{room_id}/conversations/{conversation_id}/messages
 
 ## 9. 当前前端展示规则
 
-- 历史时间线按 round 组织
-- 中间过程默认折叠
-- 工具 / thinking / AskUserQuestion 都是 block
-- 用户消息和结果消息都走 Markdown 渲染链
+- 历史时间线按 round 组织；同一 root round 内按本节定义的事实/因果顺序展示。
+- 同一 Agent 的 active slot 使用 `agent_round_id` 归组；慢 Agent 不阻塞已完成回复，也不制造空白占位消息。
+- guide 只保留一份用户正文，单目标时紧贴目标卡片，多目标时保留在全局位置并显示目标摘要。
+- 中间过程默认折叠；工具、thinking、AskUserQuestion 和 guide 控制事件属于过程层，不与 final reply 平铺竞争。
+- 用户消息和 final reply 都走 Markdown 渲染链；`agent_mentions` 由共享渲染器转成可点击 Agent chip。
+- 主 Feed 不显示独立 wake/queue 系统气泡；状态使用轻量行或 badge，详细事件进入 Thread。
 
 ## 10. 一句话总结
 
@@ -202,3 +261,5 @@ GET /nexus/v1/rooms/{room_id}/conversations/{conversation_id}/messages
 - 历史态：transcript / overlay 归一化结果
 - 分页单位：round
 - 对外终态：统一为 `assistant + result_summary`
+- 展示顺序：user → 已发布 final reply → 活动 slot 状态
+- 控制消息：正文只出现一次，状态合并到目标卡片或 Thread

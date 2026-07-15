@@ -203,11 +203,19 @@ func buildRoomTranscriptReference(
 	}
 	copyRoomTranscriptReferenceIdentity(row, message, "agent_round_id")
 	copyRoomTranscriptReferenceIdentity(row, message, "parent_id")
+	copyRoomTranscriptReferenceValue(row, message, "agent_mentions")
+	copyRoomTranscriptReferenceValue(row, message, "display_order")
 	return row
 }
 
 func copyRoomTranscriptReferenceIdentity(target map[string]any, source protocol.Message, key string) {
 	if value := stringFromAny(source[key]); value != "" {
+		target[key] = value
+	}
+}
+
+func copyRoomTranscriptReferenceValue(target map[string]any, source protocol.Message, key string) {
+	if value, exists := source[key]; exists && value != nil {
 		target[key] = value
 	}
 }
@@ -243,6 +251,11 @@ func overrideRoomTranscriptFields(target protocol.Message, source protocol.Messa
 		"parent_id",
 	} {
 		if value := stringFromAny(source[key]); value != "" {
+			target[key] = value
+		}
+	}
+	for _, key := range []string{"agent_mentions", "display_order"} {
+		if value, exists := source[key]; exists && value != nil {
 			target[key] = value
 		}
 	}
