@@ -1,6 +1,11 @@
 import type { AgentOptions } from "@/types/agent/agent";
 import type { AgentConversationDefaultDeliveryPolicy } from "@/types/agent/agent-conversation";
-import { normalizeAgentRuntimeKind, type AgentRuntimeKind, type UserPreferences } from "@/types/settings/preferences";
+import {
+  DEFAULT_WEB_SEARCH_PROVIDER,
+  normalizeAgentRuntimeKind,
+  type AgentRuntimeKind,
+  type UserPreferences,
+} from "@/types/settings/preferences";
 import {
   DEFAULT_AGENT_ALLOWED_TOOLS,
   DEFAULT_AGENT_PERMISSION_MODE,
@@ -20,13 +25,8 @@ let DEFAULT_RUNTIME_SETTINGS: UserPreferences["runtime_settings"] = {
   nxs: { tool_search: false },
 };
 let DEFAULT_WEB_SEARCH: UserPreferences["web_search"] = {
-  enabled: false,
-  provider: "brave",
-  default_count: 5,
-  timeout_seconds: 20,
-  cache_ttl_seconds: 900,
-  search_depth: "basic",
-  extract_depth: "basic",
+  enabled: true,
+  provider: DEFAULT_WEB_SEARCH_PROVIDER,
 };
 let DEFAULT_IMAGE_MODEL_SELECTION: UserPreferences["default_image_model_selection"];
 let DEFAULT_VISION_MODEL_SELECTION: UserPreferences["default_vision_model_selection"];

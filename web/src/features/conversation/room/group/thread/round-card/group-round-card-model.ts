@@ -1,6 +1,6 @@
 /**
  * INPUT: Room 根轮次内的 user / assistant 消息、slot 与权限状态。
- * OUTPUT: root-global user，以及贴近单一消费 Agent 的 guided user 卡片模型。
+ * OUTPUT: root-global user，以及 Agent 回复卡片模型。
  * POS: Group round feed 的唯一展示归组入口。
  */
 import { isAutomationTriggerUserMessage } from "@/types/conversation/automation-message";
@@ -30,7 +30,6 @@ export interface GroupRoundUserMessageModel {
 export interface GroupRoundAgentCardModel extends RoomAgentRoundEntry {
   agentAvatar: string | null;
   agentName: string;
-  guidedUserMessages: GroupRoundUserMessageModel[];
   pendingPermissions: PendingPermission[];
   stopMessageId: string | null;
 }
@@ -148,29 +147,23 @@ export function buildGroupRoundCardModel({
   const permissionGroups = buildPermissionGroups(pendingPermissions);
   const completedEntries: GroupRoundAgentCardModel[] = [];
   const pendingEntries: GroupRoundAgentCardModel[] = [];
-  const entries = buildRoomAgentRoundEntries(messages, pendingSlots);
-  const entryAgentIds = new Set(entries.map((entry) => entry.agent_id));
+  const entries = buildRoomAgentRoundEntries(
+    filterNonTargetAgentReplies(messages),
+    pendingSlots,
+  );
   const userMessages: GroupRoundUserMessageModel[] = [];
-  const guidedUserMessagesByAgent = new Map<
-    string,
-    GroupRoundUserMessageModel[]
-  >();
 
   for (const message of messages
     .filter(isVisibleUserMessage)
     .sort((left, right) => left.timestamp - right.timestamp)) {
+    if (message.delivery_policy === "guide") {
+      continue;
+    }
     const item = {
       message,
       workspaceAgentId: resolveUserWorkspaceAgentId(message),
     };
-    const targetAgentId = resolveGuidedTargetAgentId(message);
-    if (!targetAgentId || !entryAgentIds.has(targetAgentId)) {
-      userMessages.push(item);
-      continue;
-    }
-    const guidedMessages = guidedUserMessagesByAgent.get(targetAgentId) ?? [];
-    guidedMessages.push(item);
-    guidedUserMessagesByAgent.set(targetAgentId, guidedMessages);
+    userMessages.push(item);
   }
 
   for (const entry of entries) {
@@ -179,7 +172,6 @@ export function buildGroupRoundCardModel({
       agentAvatarMap,
       agentNameMap,
       permissionGroups,
-      guidedUserMessagesByAgent.get(entry.agent_id) ?? [],
     );
     (entry.status === "done" ? completedEntries : pendingEntries).push(card);
   }
@@ -190,6 +182,28 @@ export function buildGroupRoundCardModel({
     pendingEntries,
     userMessages,
   };
+}
+
+function filterNonTargetAgentReplies(messages: Message[]): Message[] {
+  const guidedTargetAgentIds = new Set(
+    messages
+      .filter(
+        (message): message is UserMessage =>
+          message.role === "user" && message.delivery_policy === "guide",
+      )
+      .flatMap((message) => message.target_agent_ids ?? [])
+      .filter(Boolean),
+  );
+  if (guidedTargetAgentIds.size === 0) {
+    return messages;
+  }
+
+  // 引导是定向输入；公区只展示被引导 Agent 的最终回复，避免把其他执行链投影成同一轮结果。
+  return messages.filter(
+    (message) =>
+      message.role !== "assistant" ||
+      guidedTargetAgentIds.has(message.agent_id),
+  );
 }
 
 export function buildGroupAgentStatusModel({
@@ -344,13 +358,11 @@ function buildAgentCard(
   agentAvatarMap: Record<string, string | null>,
   agentNameMap: Record<string, string>,
   permissionGroups: Map<string, PendingPermission[]>,
-  guidedUserMessages: GroupRoundUserMessageModel[],
 ): GroupRoundAgentCardModel {
   return {
     ...entry,
     agentAvatar: resolveAgentAvatar(agentAvatarMap, entry.agent_id),
     agentName: resolveAgentName(agentNameMap, entry.agent_id),
-    guidedUserMessages,
     pendingPermissions: permissionGroups.get(entry.agent_id) ?? [],
     stopMessageId: resolveStopMessageId(entry),
   };
@@ -381,23 +393,6 @@ function resolveUserWorkspaceAgentId(
   userMessage: UserMessage,
 ): string | null {
   return userMessage?.attachments?.[0]?.workspace_agent_id ?? null;
-}
-
-function resolveGuidedTargetAgentId(message: UserMessage): string | null {
-  if (
-    message.delivery_policy !== "guide"
-    || !message.source_round_id?.trim()
-    || !Array.isArray(message.target_agent_ids)
-  ) {
-    return null;
-  }
-  const targets = Array.from(new Set(
-    message.target_agent_ids
-      .filter((value): value is string => typeof value === "string")
-      .map((value) => value.trim())
-      .filter(Boolean),
-  ));
-  return targets.length === 1 ? targets[0] : null;
 }
 
 function buildPermissionGroups(

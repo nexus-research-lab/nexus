@@ -84,7 +84,8 @@ test("consumed Room guide update moves beside its running assistant", async () =
   });
   assert.deepEqual(
     model.userMessages.map(({ message }) => message.message_id),
-    ["user-root", "user-guide"],
+    ["user-root"],
+    "Room 主时间线不渲染已重挂的引导消息",
   );
   assert.equal(model.pendingEntries.length, 1);
   assert.equal(model.pendingEntries[0]?.agent_id, "agent-1");
@@ -375,37 +376,28 @@ test("single-target Room guidance moves only its consuming agent", async () => {
 
   assert.deepEqual(
     model.userMessages.map(({ message }) => message.message_id),
-    ["user-root-target-order", "user-guide-legacy", "user-guide-multi"],
+    ["user-root-target-order"],
+    "Room 主时间线不渲染任何 guide 消息",
   );
   assert.deepEqual(
     model.completedEntries.map((entry) => entry.agent_id),
     ["agent-2"],
   );
-  assert.deepEqual(model.completedEntries[0]?.guidedUserMessages, []);
   assert.deepEqual(
     model.pendingEntries.map((entry) => entry.agent_id),
     ["agent-1"],
   );
   assert.deepEqual(
-    model.pendingEntries[0]?.guidedUserMessages.map(
-      ({ message }) => message.message_id,
-    ),
-    ["user-guide-agent-1"],
-  );
-  assert.deepEqual(
     flattenGroupRoundRenderOrder(model),
     [
       "user:user-root-target-order",
-      "user:user-guide-legacy",
-      "user:user-guide-multi",
       "agent:agent-2",
-      "user:user-guide-agent-1",
       "agent:agent-1",
     ],
   );
 });
 
-test("single-target Room guidance also attaches to a completed agent", async () => {
+test("single-target Room guidance stays out of the completed agent main card", async () => {
   const { buildGroupRoundCardModel } = await server.ssrLoadModule(
     "/src/features/conversation/room/group/thread/round-card/group-round-card-model.ts",
   );
@@ -458,7 +450,6 @@ test("single-target Room guidance also attaches to a completed agent", async () 
     flattenGroupRoundRenderOrder(model),
     [
       "user:user-root-completed",
-      "user:user-guide-completed",
       "agent:agent-2",
     ],
   );
@@ -522,9 +513,6 @@ function flattenGroupRoundRenderOrder(model) {
     ...model.completedEntries,
     ...model.pendingEntries,
   ]) {
-    order.push(...entry.guidedUserMessages.map(
-      ({ message }) => `user:${message.message_id}`,
-    ));
     order.push(`agent:${entry.agent_id}`);
   }
   return order;

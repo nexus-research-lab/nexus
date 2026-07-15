@@ -5,6 +5,7 @@ import {
 } from "@/lib/settings/preferences-normalization";
 import {
   normalizeAgentRuntimeKind,
+  DEFAULT_WEB_SEARCH_PROVIDER,
   type UpdateUserPreferencesParams,
   type UserPreferences,
 } from "@/types/settings/preferences";
@@ -85,13 +86,8 @@ function normalizeWebSearch(
   return {
     ...fallback,
     ...settings,
-    enabled: settings?.enabled === true,
-    provider: settings?.provider ?? fallback?.provider ?? "brave",
-    default_count: settings?.default_count ?? fallback?.default_count ?? 5,
-    timeout_seconds: settings?.timeout_seconds ?? fallback?.timeout_seconds ?? 20,
-    cache_ttl_seconds: settings?.cache_ttl_seconds ?? fallback?.cache_ttl_seconds ?? 900,
-    search_depth: settings?.search_depth ?? fallback?.search_depth ?? "basic",
-    extract_depth: settings?.extract_depth ?? fallback?.extract_depth ?? "basic",
+    enabled: settings?.enabled ?? fallback?.enabled ?? true,
+    provider: settings?.provider ?? fallback?.provider ?? DEFAULT_WEB_SEARCH_PROVIDER,
   };
 }
 

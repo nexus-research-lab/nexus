@@ -179,7 +179,7 @@ function resolveMessageStatus(
     if (message.stream_status) {
       statuses.add(message.stream_status);
     }
-    if (message.stop_reason) {
+    if (message.is_complete || message.stop_reason) {
       statuses.add("done");
     }
   }

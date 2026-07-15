@@ -44,6 +44,8 @@ export type WebSearchProvider =
   | "searxng"
   | "anysearch";
 
+export const DEFAULT_WEB_SEARCH_PROVIDER: WebSearchProvider = "anysearch";
+
 export interface AnySearchSettings {
   domain?: string;
   tag?: string;
@@ -68,6 +70,7 @@ export interface WebSearchSettings {
   extract_depth?: "basic" | "advanced";
   anysearch?: AnySearchSettings;
   api_key_configured?: boolean;
+  api_key_masked?: string;
 }
 
 export type RuntimeSettings = Partial<

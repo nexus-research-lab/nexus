@@ -1,6 +1,6 @@
 /**
  * INPUT: 一个 Room root 的展示模型与交互回调。
- * OUTPUT: global user、每个 Agent 紧前的定向 guided user、Agent 回复卡片。
+ * OUTPUT: global user、Agent 回复卡片。
  * POS: Group round 卡片的渲染顺序真相源。
  */
 "use client";
@@ -92,15 +92,6 @@ function GroupRoundCardGroupInner({
 
       {model.completedEntries.map((entry) => (
         <Fragment key={entry.agent_id}>
-          {entry.guidedUserMessages.map((item) => (
-            <GroupUserMessage
-              currentUserAvatar={currentUserAvatar}
-              item={item}
-              key={item.message.message_id}
-              onOpenWorkspaceFile={onOpenWorkspaceFile}
-              roundId={roundId}
-            />
-          ))}
           <GroupCompletedReply
             entry={entry}
             isThreadActive={activeAgentId === entry.agent_id}
@@ -116,15 +107,6 @@ function GroupRoundCardGroupInner({
         const stopMessageId = entry.stopMessageId;
         return (
           <Fragment key={entry.agent_id}>
-            {entry.guidedUserMessages.map((item) => (
-              <GroupUserMessage
-                currentUserAvatar={currentUserAvatar}
-                item={item}
-                key={item.message.message_id}
-                onOpenWorkspaceFile={onOpenWorkspaceFile}
-                roundId={roundId}
-              />
-            ))}
             <div className="border-b border-(--divider-subtle-color)">
               <div className="w-full px-2 sm:px-3">
                 <div className="mx-auto w-full max-w-[980px]">

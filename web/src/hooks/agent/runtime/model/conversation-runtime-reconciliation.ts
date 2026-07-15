@@ -238,6 +238,10 @@ export function mergeChatAckPendingSlots(
   slots: RoomPendingAgentSlotState[],
   ack: ChatAckData,
 ): RoomPendingAgentSlotState[] {
+  // 普通 ACK 的空 pending 只表示本次没有新 slot，不能清空当前运行中的 slot。
+  if (!ack.pending_snapshot && ack.pending.length === 0) {
+    return slots;
+  }
   const nextSlots = ack.pending.map((slot) => ({
     agent_id: slot.agent_id,
     agent_round_id: slot.agent_round_id,

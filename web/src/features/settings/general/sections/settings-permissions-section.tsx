@@ -11,7 +11,6 @@ import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import {
   SETTINGS_CARD_CLASS_NAME,
   SETTINGS_CONTROL_HEIGHT_CLASS_NAME,
-  SETTINGS_CONTROL_LABEL_CLASS_NAME,
   SETTINGS_ICON_CLASS_NAME,
   SETTINGS_ITEM_DESCRIPTION_CLASS_NAME,
   SETTINGS_ITEM_TITLE_CLASS_NAME,
@@ -67,9 +66,6 @@ export function SettingsPermissionsSection({
             </div>
           </div>
           <div className="relative flex min-w-0 flex-col gap-1.5">
-            <label className={SETTINGS_CONTROL_LABEL_CLASS_NAME} htmlFor="default-permission-mode">
-              {t("settings.general.default_permission_mode")}
-            </label>
             <UiSelectMenu
               ariaLabel={t("settings.general.default_permission_mode")}
               buttonClassName={SETTINGS_SELECT_BUTTON_CLASS_NAME}
@@ -82,7 +78,7 @@ export function SettingsPermissionsSection({
                 value: mode.value,
                 label: t(mode.labelKey),
               }))}
-              placement="top"
+              placement="bottom"
               size="xs"
               value={permissionMode}
             />
