@@ -520,7 +520,7 @@ test("Room canonical assistant replaces its temporary synthetic result", async (
   assert.equal(entries[0]?.assistant_messages[0]?.model, "canonical-model");
 });
 
-test("Room final reply moves after a later guide without status buckets", async () => {
+test("Room final replies stay in completion order around a guide", async () => {
   const { buildGroupRoundCardModel } = await server.ssrLoadModule(
     "/src/features/conversation/room/group/thread/round-card/group-round-card-model.ts",
   );
@@ -613,7 +613,160 @@ test("Room final reply moves after a later guide without status buckets", async 
   );
 });
 
-test("single-target Room guidance moves only its consuming agent", async () => {
+test("late Room guidance does not reorder completed Agent cards", async () => {
+  const { buildGroupRoundCardModel } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/thread/round-card/group-round-card-model.ts",
+  );
+  const model = buildGroupRoundCardModel({
+    agentAvatarMap: {},
+    agentNameMap: { "agent-1": "Agent1", "agent-2": "Agent2" },
+    messages: [
+      userMessage({
+        content: "一起分析",
+        messageId: "user-root-stable-completed",
+        roundId: "round-root",
+        timestamp: 1,
+      }),
+      assistantMessage({
+        agentId: "agent-1",
+        agentRoundId: "agent-1-completed",
+        isComplete: true,
+        messageId: "assistant-agent-1-completed",
+        status: "done",
+        stopReason: "end_turn",
+        text: "Agent1 先完成",
+        timestamp: 2,
+      }),
+      assistantMessage({
+        agentId: "agent-2",
+        agentRoundId: "agent-2-completed",
+        isComplete: true,
+        messageId: "assistant-agent-2-completed",
+        status: "done",
+        stopReason: "end_turn",
+        text: "Agent2 后完成",
+        timestamp: 4,
+      }),
+      userMessage({
+        agentRoundId: "agent-1-completed",
+        content: "这是 Agent1 实际消费的补充",
+        deliveryPolicy: "guide",
+        messageId: "user-guide-stable-completed",
+        roundId: "round-root",
+        sourceRoundId: "round-guide-stable-completed",
+        targetAgentIds: ["agent-1"],
+        timestamp: 5,
+      }),
+    ],
+    pendingPermissions: [],
+    pendingSlots: [],
+  });
+
+  assert.deepEqual(
+    model.entries.map(({ agent_id }) => agent_id),
+    ["agent-1", "agent-2"],
+  );
+  assert.deepEqual(
+    flattenGroupRoundRenderOrder(model),
+    [
+      "user:user-root-stable-completed",
+      "user:user-guide-stable-completed",
+      "agent:agent-1",
+      "agent:agent-2",
+    ],
+  );
+});
+
+test("Room keeps active Agent cards at the stable tail", async () => {
+  const { buildGroupRoundCardModel } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/thread/round-card/group-round-card-model.ts",
+  );
+  const model = buildGroupRoundCardModel({
+    agentAvatarMap: {},
+    agentNameMap: {
+      "agent-1": "Agent1",
+      "agent-2": "Agent2",
+      "agent-3": "Agent3",
+    },
+    messages: [
+      assistantMessage({
+        agentId: "agent-1",
+        agentRoundId: "agent-1-active",
+        messageId: "assistant-agent-1-latest",
+        text: "Agent1 流式内容更新得更晚",
+        timestamp: 20,
+      }),
+      assistantMessage({
+        agentId: "agent-2",
+        agentRoundId: "agent-2-active",
+        messageId: "assistant-agent-2-earlier",
+        text: "Agent2 仍在运行",
+        timestamp: 10,
+      }),
+      assistantMessage({
+        agentId: "agent-3",
+        agentRoundId: "agent-3-completed",
+        isComplete: true,
+        messageId: "assistant-agent-3-completed",
+        status: "done",
+        stopReason: "end_turn",
+        text: "Agent3 已完成",
+        timestamp: 30,
+      }),
+      userMessage({
+        agentRoundId: "agent-1-active",
+        content: "Agent1 继续补充",
+        deliveryPolicy: "guide",
+        messageId: "user-guide-active-stable",
+        roundId: "round-root",
+        sourceRoundId: "round-guide-active-stable",
+        targetAgentIds: ["agent-1"],
+        timestamp: 40,
+      }),
+    ],
+    pendingPermissions: [],
+    pendingSlots: [
+      {
+        agent_id: "agent-1",
+        agent_round_id: "agent-1-active",
+        index: 0,
+        msg_id: "slot-agent-1",
+        round_id: "round-root",
+        status: "streaming",
+        timestamp: 2,
+      },
+      {
+        agent_id: "agent-2",
+        agent_round_id: "agent-2-active",
+        index: 1,
+        msg_id: "slot-agent-2",
+        round_id: "round-root",
+        status: "streaming",
+        timestamp: 3,
+      },
+    ],
+  });
+
+  assert.deepEqual(
+    model.entries.map(({ agent_id, status }) => ({ agent_id, status })),
+    [
+      { agent_id: "agent-3", status: "done" },
+      { agent_id: "agent-1", status: "streaming" },
+      { agent_id: "agent-2", status: "streaming" },
+    ],
+  );
+  assert.deepEqual(
+    flattenGroupRoundRenderOrder(model),
+    [
+      "agent:agent-3",
+      "user:user-guide-active-stable",
+      "agent:agent-1",
+      "agent:agent-2",
+    ],
+  );
+});
+
+test("single-target Room guidance attaches only to its consuming agent", async () => {
   const { buildGroupRoundCardModel } = await server.ssrLoadModule(
     "/src/features/conversation/room/group/thread/round-card/group-round-card-model.ts",
   );

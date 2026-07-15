@@ -1,6 +1,6 @@
 /**
  * INPUT: Room 根轮次内的 user / assistant 消息、slot 与权限状态。
- * OUTPUT: root-global user，以及按精确消费 agent_round_id 和时序排列的 Agent 卡片摘要。
+ * OUTPUT: root-global user，以及按精确消费 agent_round_id、终态时序和稳定活动槽排列的 Agent 卡片摘要。
  * POS: Group round feed 的唯一展示归组入口。
  */
 import { isAutomationTriggerUserMessage } from "@/types/conversation/automation-message";
@@ -476,16 +476,26 @@ function compareAgentCards(
   left: GroupRoundAgentCardModel,
   right: GroupRoundAgentCardModel,
 ): number {
-  return cardDisplayTimestamp(left) - cardDisplayTimestamp(right)
-    || left.display_order - right.display_order
+  const leftActive = isAgentRoundActive(left.status);
+  const rightActive = isAgentRoundActive(right.status);
+  if (leftActive !== rightActive) {
+    return leftActive ? 1 : -1;
+  }
+  if (!leftActive) {
+    return left.timestamp - right.timestamp
+      || left.display_order - right.display_order
+      || left.entry_id.localeCompare(right.entry_id);
+  }
+  return activeCardStartTimestamp(left) - activeCardStartTimestamp(right)
+    || (left.pending_slot?.index ?? Number.MAX_SAFE_INTEGER)
+      - (right.pending_slot?.index ?? Number.MAX_SAFE_INTEGER)
     || left.entry_id.localeCompare(right.entry_id);
 }
 
-function cardDisplayTimestamp(entry: GroupRoundAgentCardModel): number {
-  return Math.max(
-    entry.timestamp,
-    ...entry.guidedUserMessages.map(({ message }) => message.timestamp),
-  );
+function activeCardStartTimestamp(entry: GroupRoundAgentCardModel): number {
+  return entry.pending_slot?.timestamp
+    ?? entry.assistant_messages[0]?.timestamp
+    ?? entry.timestamp;
 }
 
 function isVisibleUserMessage(message: Message): message is UserMessage {
