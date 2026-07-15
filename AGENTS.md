@@ -2,7 +2,7 @@
 
 ## Build & Validation Commands
 - `make dev`：同时启动 Go 后端（8010）和前端（3000）
-- `make check`：运行 `go test ./...`、前端 lint、前端 typecheck
+- `make check`：运行 `go test ./...`、前端 lint、前端时间线行为测试、前端 typecheck
 - `make check-backend`：Go 后端校验，等价于 `make check-go`
 - `make install`：执行 `go mod tidy` 并安装前端依赖
 

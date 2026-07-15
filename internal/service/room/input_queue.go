@@ -197,7 +197,10 @@ func (s *RealtimeService) InputQueueSnapshotEvent(
 	if contextValue == nil {
 		return protocol.EventMessage{}, errors.New("room conversation not found")
 	}
+	s.inputQueueDispatchMu.Lock()
+	s.releaseUndeliveredRoomGuidanceLocked(ctx, sessionKey, contextValue)
 	items, err := s.roomInputQueueItems(ctx, contextValue)
+	s.inputQueueDispatchMu.Unlock()
 	if err != nil {
 		return protocol.EventMessage{}, err
 	}

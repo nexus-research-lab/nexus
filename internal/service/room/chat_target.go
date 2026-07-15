@@ -48,6 +48,7 @@ func (s *RealtimeService) latestActiveRootRoundAgentIDs(sessionKey string, conve
 
 	slotsByRoot := make(map[string][]activeRoomTargetSlot)
 	latestTimestampByRoot := make(map[string]int64)
+	latestSequenceByRoot := make(map[string]uint64)
 	for _, roundValue := range s.activeRounds {
 		if roundValue == nil ||
 			roundValue.SessionKey != sessionKey ||
@@ -57,6 +58,9 @@ func (s *RealtimeService) latestActiveRootRoundAgentIDs(sessionKey string, conve
 		rootRoundID := roomRootRoundID(roundValue)
 		if rootRoundID == "" {
 			continue
+		}
+		if roundValue.registrationSequence > latestSequenceByRoot[rootRoundID] {
+			latestSequenceByRoot[rootRoundID] = roundValue.registrationSequence
 		}
 		for _, slot := range roundValue.Slots {
 			if !isActiveDeliverySlot(slot) {
@@ -76,14 +80,18 @@ func (s *RealtimeService) latestActiveRootRoundAgentIDs(sessionKey string, conve
 
 	selectedRoot := ""
 	var selectedTimestamp int64
+	var selectedSequence uint64
 	for rootRoundID, slots := range slotsByRoot {
 		if len(slots) == 0 {
 			continue
 		}
+		sequence := latestSequenceByRoot[rootRoundID]
 		timestamp := latestTimestampByRoot[rootRoundID]
-		if selectedRoot == "" || timestamp > selectedTimestamp ||
-			(timestamp == selectedTimestamp && rootRoundID < selectedRoot) {
+		if selectedRoot == "" || sequence > selectedSequence ||
+			(sequence == selectedSequence && timestamp > selectedTimestamp) ||
+			(sequence == selectedSequence && timestamp == selectedTimestamp && rootRoundID < selectedRoot) {
 			selectedRoot = rootRoundID
+			selectedSequence = sequence
 			selectedTimestamp = timestamp
 		}
 	}
