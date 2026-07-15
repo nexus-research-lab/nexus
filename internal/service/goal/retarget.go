@@ -1,6 +1,6 @@
-// INPUT: 当前 session、用户明确纠正后的 objective、消费该纠正的 round 与工具入口的 objective revision。
-// OUTPUT: 保留身份和累计用量的 active Goal、刷新后的预览，以及 model 来源的 objective_updated 审计事件。
-// POS: 模型重定向当前 Goal 的唯一服务入口；不承担用户面板的通用 Goal 编辑。
+// INPUT: 当前 session、用户明确替换后的 objective、当前 Agent 身份、round 与 objective revision。
+// OUTPUT: 经 Room lead 授权、保留身份和累计用量并直接恢复 active 的 Goal 与审计事件。
+// POS: 模型重定向当前 Goal 的唯一服务入口；不需要先恢复 blocked/paused/limited Goal。
 package goal
 
 import (
@@ -11,7 +11,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
-// RetargetByModel 按用户明确纠正重定向当前 session 的 active Goal。
+// RetargetByModel 按用户明确纠正替换当前 session 的 Goal objective。
 func (s *Service) RetargetByModel(ctx context.Context, sessionKey string, request protocol.RetargetGoalRequest) (*protocol.Goal, error) {
 	if err := s.ensureEnabled(); err != nil {
 		return nil, err
@@ -31,7 +31,10 @@ func (s *Service) RetargetByModel(ctx context.Context, sessionKey string, reques
 	if current == nil {
 		return nil, ErrGoalNotFound
 	}
-	if protocol.NormalizeGoalStatus(current.Status) != protocol.GoalStatusActive {
+	if err := authorizeRoomGoalModelMutation(*current, request.AgentID); err != nil {
+		return nil, err
+	}
+	if !canRetargetGoalStatus(current.Status) {
 		return nil, ErrGoalInvalidState
 	}
 	if !objectiveRevisionMatches(*current, request.ExpectedObjectiveRevision) {
@@ -59,7 +62,10 @@ func (s *Service) retargetLoadedGoal(
 	objective string,
 	request protocol.RetargetGoalRequest,
 ) (*protocol.Goal, error) {
-	if protocol.NormalizeGoalStatus(current.Status) != protocol.GoalStatusActive {
+	if err := authorizeRoomGoalModelMutation(*current, request.AgentID); err != nil {
+		return nil, err
+	}
+	if !canRetargetGoalStatus(current.Status) {
 		return nil, ErrGoalInvalidState
 	}
 	if current.Objective == objective {
@@ -68,16 +74,7 @@ func (s *Service) retargetLoadedGoal(
 
 	current.Objective = objective
 	advanceObjectiveRevision(current)
-	current.ContinuationCount = 0
-	current.EmptyProgressCount = 0
-	current.Metadata = clearContinuationReservations(clearCompletionToolRetryMetadata(current.Metadata))
-	if protocol.IsRoomSharedSessionKey(current.SessionKey) {
-		current.Metadata = cloneMap(current.Metadata)
-		delete(current.Metadata, protocol.GoalMetadataRoomGoalCollaborationObserved)
-		delete(current.Metadata, protocol.GoalMetadataRoomGoalCollaborationAgentID)
-		delete(current.Metadata, protocol.GoalMetadataRoomGoalCollaborationRoundID)
-		delete(current.Metadata, protocol.GoalMetadataRoomGoalCollaborationObservedAt)
-	}
+	resetGoalContinuationForObjectiveReplacement(current)
 	payload := map[string]any{
 		"objective":          objective,
 		"objective_updated":  true,

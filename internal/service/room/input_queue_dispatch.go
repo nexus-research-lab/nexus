@@ -169,7 +169,7 @@ func (s *RealtimeService) releaseUndeliveredRoomGuidanceLocked(
 			continue
 		}
 		entry.Item.DeliveryPolicy = protocol.ChatDeliveryPolicyQueue
-		if syncErr := s.syncQueuedPublicMessageDeliveryPolicy(ctx, sessionKey, contextValue, entry.Item, ""); syncErr != nil {
+		if syncErr := s.syncQueuedPublicUserMessage(ctx, sessionKey, contextValue, entry.Item, "", false); syncErr != nil {
 			s.loggerFor(ctx).Error("同步 Room 未消费引导展示状态失败",
 				"session_key", sessionKey,
 				"item_id", entry.Item.ID,
@@ -244,6 +244,10 @@ func (s *RealtimeService) dispatchRoomPublicTriggerQueueItem(
 	if err != nil {
 		return err
 	}
+	if err = s.syncQueuedPublicUserMessage(ctx, sessionKey, contextValue, item, "", true); err != nil {
+		return err
+	}
+	sourceRoundID := roomInputQueueSourceRoundID(item)
 	wakes := make([]publicMentionWake, 0, len(targetAgentIDs))
 	for _, targetAgentID := range targetAgentIDs {
 		wakes = append(wakes, publicMentionWake{
@@ -259,8 +263,8 @@ func (s *RealtimeService) dispatchRoomPublicTriggerQueueItem(
 		ConversationID: conversationID,
 		RoomType:       contextValue.Room.RoomType,
 		Context:        contextValue,
-		RoundID:        strings.TrimSpace(item.SourceMessageID),
-		RootRoundID:    cmp.Or(strings.TrimSpace(item.RootRoundID), strings.TrimSpace(item.SourceMessageID)),
+		RoundID:        sourceRoundID,
+		RootRoundID:    cmp.Or(strings.TrimSpace(item.RootRoundID), sourceRoundID),
 		HopIndex:       item.HopIndex,
 		OwnerUserID:    strings.TrimSpace(item.OwnerUserID),
 	}
@@ -288,16 +292,15 @@ func (s *RealtimeService) dispatchAgentWakeQueueItem(
 		return err
 	}
 	if protocol.ShouldGuideRunningRound(deliveryPolicy) {
+		guidedItem := item
+		guidedItem.ID = "queue_" + item.ID
 		guidedAgentIDs, err := s.guideActiveAgentSlots(
 			ctx,
 			sessionKey,
 			roomID,
 			conversationID,
 			targetAgentIDs,
-			content,
-			item.Attachments,
-			"queue_"+item.ID,
-			item.OwnerUserID,
+			guidedItem,
 		)
 		if err != nil {
 			return err
@@ -349,7 +352,7 @@ func (s *RealtimeService) canDispatchInputQueueItem(sessionKey string, conversat
 	}
 	targetAgentIDs := inputQueueTargetAgentIDs(item)
 	if len(targetAgentIDs) > 0 {
-		return len(s.findActiveDeliverySlots(sessionKey, conversationID, targetAgentIDs)) == 0
+		return len(s.findActiveDeliverySlotsByAgent(sessionKey, conversationID, targetAgentIDs)) == 0
 	}
 	return len(s.runtime.GetRunningRoundIDs(sessionKey)) == 0
 }

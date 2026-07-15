@@ -1,5 +1,5 @@
 // INPUT: Room slot、运行时消息流、实时插话确认与 Goal 执行上下文。
-// OUTPUT: 单个 Room Agent round 的事件、持久化快照、用量与终态。
+// OUTPUT: 单个 Room Agent round 的 ACK 门控事件、持久化快照、用量与终态。
 // POS: Room 实时编排中把 runtime 输出投影为产品语义的执行主链。
 package room
 
@@ -207,8 +207,10 @@ func (s *RealtimeService) runSlot(
 		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
 		return
 	}
-	if result.TerminalStatus == "finished" && (result.ResultSubtype == "" || result.ResultSubtype == "success") {
-		if ackErr := s.acknowledgeRoomSlotGuidance(slotCtx, roundValue, slot); ackErr != nil {
+	if s.shouldConfirmRoomGuidanceByFallback(slot) &&
+		result.TerminalStatus == "finished" &&
+		(result.ResultSubtype == "" || result.ResultSubtype == "success") {
+		if ackErr := s.acknowledgeRoomSlotGuidance(slotCtx, roundValue, slot, nil); ackErr != nil {
 			logger.Warn("确认 Room 引导消费失败，保留为后续队列输入", "err", ackErr)
 		}
 	}
@@ -316,9 +318,10 @@ func (e *slotExecution) handleDurableMessage(messageValue protocol.Message) erro
 	messageRole := protocol.MessageRole(messageValue)
 	resultSubtype, _ := messageValue["subtype"].(string)
 	resultSubtype = strings.TrimSpace(resultSubtype)
-	if messageRole == "assistant" || (messageRole == "result" && messageValue["is_error"] != true &&
-		(resultSubtype == "" || resultSubtype == "success")) {
-		if err := e.service.acknowledgeRoomSlotGuidance(e.ctx, e.round, e.slot); err != nil {
+	if e.service.shouldConfirmRoomGuidanceByFallback(e.slot) &&
+		(messageRole == "assistant" || (messageRole == "result" && messageValue["is_error"] != true &&
+			(resultSubtype == "" || resultSubtype == "success"))) {
+		if err := e.service.acknowledgeRoomSlotGuidance(e.ctx, e.round, e.slot, nil); err != nil {
 			return err
 		}
 	}
@@ -333,7 +336,7 @@ func (e *slotExecution) handleDurableMessage(messageValue protocol.Message) erro
 	if messageRole == "assistant" {
 		e.slot.rememberGoalAssistantMessage(messageValue)
 	}
-	if messageRole == "assistant" && roomdomain.IsNoReplyAssistantMessage(messageValue) {
+	if roomdomain.IsNoReplyOutputMessage(messageValue) {
 		e.slot.suppressOutput()
 		return nil
 	}

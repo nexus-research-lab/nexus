@@ -254,8 +254,13 @@ func TestRealtimeServiceQueuesPublicMentionWhenTargetRunning(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("启动 Devin 长任务失败: %v", err)
 	}
+	devinActiveRoundID := ""
 	_ = collectRoomEventsUntil(t, sender.events, func(events []protocol.EventMessage, event protocol.EventMessage) bool {
-		return event.EventType == protocol.EventTypeStreamStart && event.AgentID == devin.AgentID
+		if event.EventType == protocol.EventTypeStreamStart && event.AgentID == devin.AgentID {
+			devinActiveRoundID = event.AgentRoundID
+			return true
+		}
+		return false
 	})
 
 	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
@@ -284,7 +289,9 @@ func TestRealtimeServiceQueuesPublicMentionWhenTargetRunning(t *testing.T) {
 	if queuedItem.SourceMessageID != "amy-public-mention-busy" ||
 		queuedItem.SourceAgentID != amy.AgentID ||
 		len(queuedItem.TargetAgentIDs) != 1 ||
-		queuedItem.TargetAgentIDs[0] != devin.AgentID {
+		queuedItem.TargetAgentIDs[0] != devin.AgentID ||
+		queuedItem.DeliveryPolicy != protocol.ChatDeliveryPolicyGuide ||
+		queuedItem.RootRoundID != devinActiveRoundID {
 		t.Fatalf("公区 @ 队列项缺少来源或目标: %+v", queuedItem)
 	}
 	targetQueueLocation := workspacestore.InputQueueLocation{
@@ -298,7 +305,9 @@ func TestRealtimeServiceQueuesPublicMentionWhenTargetRunning(t *testing.T) {
 	if err != nil {
 		t.Fatalf("读取目标 agent session 队列失败: %v", err)
 	}
-	if len(targetQueueItems) != 1 || targetQueueItems[0].ID != queuedItem.ID {
+	if len(targetQueueItems) != 1 || targetQueueItems[0].ID != queuedItem.ID ||
+		targetQueueItems[0].DeliveryPolicy != protocol.ChatDeliveryPolicyGuide ||
+		targetQueueItems[0].RootRoundID != devinActiveRoundID {
 		t.Fatalf("Room 队列未落到目标 agent session: event=%+v stored=%+v", queuedItem, targetQueueItems)
 	}
 

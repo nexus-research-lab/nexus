@@ -1,6 +1,6 @@
 /**
  * INPUT: Room 根轮次内的 user / assistant 消息、slot 与权限状态。
- * OUTPUT: root-global user，以及 Agent 回复卡片模型。
+ * OUTPUT: root-global user，以及按精确消费 agent_round_id、终态时序和稳定活动槽排列的 Agent 卡片摘要。
  * POS: Group round feed 的唯一展示归组入口。
  */
 import { isAutomationTriggerUserMessage } from "@/types/conversation/automation-message";
@@ -14,6 +14,7 @@ import type { RoomPendingAgentSlotState } from "@/types/agent/agent-conversation
 import type { PendingPermission } from "@/types/conversation/interaction/permission";
 
 import { ASK_USER_QUESTION_TOOL_NAME } from "@/features/conversation/shared/message/message-tool-names";
+import { stripRoomControlMarkers } from "@/features/conversation/shared/message/message-content-model";
 import {
   buildRoomAgentRoundEntries,
   extractAgentPreviewText,
@@ -30,14 +31,18 @@ export interface GroupRoundUserMessageModel {
 export interface GroupRoundAgentCardModel extends RoomAgentRoundEntry {
   agentAvatar: string | null;
   agentName: string;
+  guidedUserMessages: GroupRoundUserMessageModel[];
   pendingPermissions: PendingPermission[];
   stopMessageId: string | null;
 }
 
 export interface GroupRoundCardModel {
-  completedEntries: GroupRoundAgentCardModel[];
-  pendingEntries: GroupRoundAgentCardModel[];
+  entries: GroupRoundAgentCardModel[];
   userMessages: GroupRoundUserMessageModel[];
+  /** 兼容旧版时间线消费者，统一模型仍以 entries 为唯一真相。 */
+  completedEntries: GroupRoundAgentCardModel[];
+  /** 兼容旧版时间线消费者，统一模型仍以 entries 为唯一真相。 */
+  pendingEntries: GroupRoundAgentCardModel[];
 }
 
 export type AgentStatusSummaryTone =
@@ -101,6 +106,11 @@ interface BuildGroupRoundCardModelOptions {
   pendingSlots: RoomPendingAgentSlotState[];
 }
 
+interface PermissionGroups {
+  byAgent: Map<string, PendingPermission[]>;
+  byAgentRound: Map<string, PendingPermission[]>;
+}
+
 const AGENT_STATUS_PRESENTATION: Record<
   AgentRoundStatus,
   AgentStatusPresentationRule
@@ -144,65 +154,89 @@ export function buildGroupRoundCardModel({
   pendingPermissions,
   pendingSlots,
 }: BuildGroupRoundCardModelOptions): GroupRoundCardModel {
+  const entries = buildRoomAgentRoundEntries(messages, pendingSlots);
   const permissionGroups = buildPermissionGroups(pendingPermissions);
-  const completedEntries: GroupRoundAgentCardModel[] = [];
-  const pendingEntries: GroupRoundAgentCardModel[] = [];
-  const entries = buildRoomAgentRoundEntries(
-    filterNonTargetAgentReplies(messages),
-    pendingSlots,
-  );
+  const entriesByAgent = groupEntriesByAgent(entries);
   const userMessages: GroupRoundUserMessageModel[] = [];
+  const guidedUserMessagesByEntry = new Map<
+    string,
+    GroupRoundUserMessageModel[]
+  >();
 
   for (const message of messages
     .filter(isVisibleUserMessage)
     .sort((left, right) => left.timestamp - right.timestamp)) {
-    if (message.delivery_policy === "guide") {
-      continue;
-    }
     const item = {
       message,
       workspaceAgentId: resolveUserWorkspaceAgentId(message),
     };
-    userMessages.push(item);
+    const targetEntry = resolveGuidedTargetEntryForMessage(
+      entriesByAgent,
+      entries,
+      message,
+    );
+    if (!targetEntry) {
+      userMessages.push(item);
+      continue;
+    }
+    const guidedMessages = guidedUserMessagesByEntry.get(targetEntry.entry_id) ?? [];
+    guidedMessages.push(item);
+    guidedUserMessagesByEntry.set(targetEntry.entry_id, guidedMessages);
   }
 
-  for (const entry of entries) {
-    const card = buildAgentCard(
-      entry,
-      agentAvatarMap,
-      agentNameMap,
-      permissionGroups,
-    );
-    (entry.status === "done" ? completedEntries : pendingEntries).push(card);
-  }
-  completedEntries.sort((left, right) => left.timestamp - right.timestamp);
+  const cards = entries.map((entry) => buildAgentCard(
+    entry,
+    agentAvatarMap,
+    agentNameMap,
+    permissionsForEntry(entry, entriesByAgent, permissionGroups),
+    guidedUserMessagesByEntry.get(entry.entry_id) ?? [],
+  )).sort(compareAgentCards);
+  const compatibilityEntryIds = new Set(
+    buildRoomAgentRoundEntries(
+      filterNonTargetAgentReplies(messages),
+      pendingSlots,
+    ).map((entry) => entry.entry_id),
+  );
+  const completedEntries = cards.filter(
+    (entry) => compatibilityEntryIds.has(entry.entry_id)
+      && entry.status === "done",
+  );
+  const pendingEntries = cards.filter(
+    (entry) => compatibilityEntryIds.has(entry.entry_id)
+      && entry.status !== "done",
+  );
 
   return {
+    entries: cards,
+    userMessages,
     completedEntries,
     pendingEntries,
-    userMessages,
   };
 }
 
 function filterNonTargetAgentReplies(messages: Message[]): Message[] {
-  const guidedTargetAgentIds = new Set(
-    messages
-      .filter(
-        (message): message is UserMessage =>
-          message.role === "user" && message.delivery_policy === "guide",
-      )
-      .flatMap((message) => message.target_agent_ids ?? [])
-      .filter(Boolean),
-  );
-  if (guidedTargetAgentIds.size === 0) {
-    return messages;
+  const guidedTargetAgentIds = new Set<string>();
+  let hasMultiTargetGuide = false;
+
+  for (const message of messages) {
+    if (message.role !== "user" || message.delivery_policy !== "guide") {
+      continue;
+    }
+    const targets = normalizedTargetAgentIds(message);
+    if (targets.length > 1) {
+      hasMultiTargetGuide = true;
+    }
+    targets.forEach((target) => guidedTargetAgentIds.add(target));
   }
 
-  // 引导是定向输入；公区只展示被引导 Agent 的最终回复，避免把其他执行链投影成同一轮结果。
+  if (hasMultiTargetGuide || guidedTargetAgentIds.size !== 1) {
+    return messages;
+  }
+  const [targetAgentId] = guidedTargetAgentIds;
+  // 单目标引导的公区只展示被引导 Agent，避免把其他执行链误投影到同一轮。
   return messages.filter(
     (message) =>
-      message.role !== "assistant" ||
-      guidedTargetAgentIds.has(message.agent_id),
+      message.role !== "assistant" || message.agent_id === targetAgentId,
   );
 }
 
@@ -231,7 +265,7 @@ export function buildGroupAgentStatusModel({
     isActive,
     isQuestionPending: permission.isQuestionPending,
     isWaitingPermission: permission.isWaiting,
-    model: lastMessageModel(lastMessage),
+    model: lastMessageModel(messages),
     preview,
     primaryPendingPermission: permission.primary,
     shouldRenderMarkdownSummary: summary.shouldRenderMarkdown,
@@ -329,12 +363,19 @@ function statusFallbackText(
   return labelKey ? labels[labelKey] : "";
 }
 
-function lastMessageModel(message?: AssistantMessage): string | null {
-  return message?.model ?? null;
+function lastMessageModel(messages: AssistantMessage[]): string | null {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const model = messages[index].model?.trim();
+    if (model) {
+      return model;
+    }
+  }
+  return null;
 }
 
 function resultSummaryText(summary?: ResultSummary): string | undefined {
-  return summary?.result;
+  const result = stripRoomControlMarkers(summary?.result ?? "");
+  return result || undefined;
 }
 
 function resolveAgentTimestamp(
@@ -343,8 +384,8 @@ function resolveAgentTimestamp(
   pendingSlot?: RoomPendingAgentSlotState,
 ): number {
   return firstDefinedNumber([
-    lastMessage?.timestamp,
     resultSummary?.timestamp,
+    lastMessage?.timestamp,
     pendingSlot?.timestamp,
   ]);
 }
@@ -357,13 +398,15 @@ function buildAgentCard(
   entry: RoomAgentRoundEntry,
   agentAvatarMap: Record<string, string | null>,
   agentNameMap: Record<string, string>,
-  permissionGroups: Map<string, PendingPermission[]>,
+  pendingPermissions: PendingPermission[],
+  guidedUserMessages: GroupRoundUserMessageModel[],
 ): GroupRoundAgentCardModel {
   return {
     ...entry,
     agentAvatar: resolveAgentAvatar(agentAvatarMap, entry.agent_id),
     agentName: resolveAgentName(agentNameMap, entry.agent_id),
-    pendingPermissions: permissionGroups.get(entry.agent_id) ?? [],
+    guidedUserMessages,
+    pendingPermissions,
     stopMessageId: resolveStopMessageId(entry),
   };
 }
@@ -395,19 +438,142 @@ function resolveUserWorkspaceAgentId(
   return userMessage?.attachments?.[0]?.workspace_agent_id ?? null;
 }
 
-function buildPermissionGroups(
-  permissions: PendingPermission[],
-): Map<string, PendingPermission[]> {
-  const groups = new Map<string, PendingPermission[]>();
+function resolveGuidedTargetAgentId(message: UserMessage): string | null {
+  if (
+    message.delivery_policy !== "guide"
+    || !message.source_round_id?.trim()
+    || !Array.isArray(message.target_agent_ids)
+  ) {
+    return null;
+  }
+  const targets = normalizedTargetAgentIds(message);
+  return targets.length === 1 ? targets[0] : null;
+}
+
+function normalizedTargetAgentIds(message: UserMessage): string[] {
+  if (!Array.isArray(message.target_agent_ids)) {
+    return [];
+  }
+  return Array.from(new Set(
+    message.target_agent_ids
+      .filter((value): value is string => typeof value === "string")
+      .map((value) => value.trim())
+      .filter(Boolean),
+  ));
+}
+
+function buildPermissionGroups(permissions: PendingPermission[]): PermissionGroups {
+  const byAgent = new Map<string, PendingPermission[]>();
+  const byAgentRound = new Map<string, PendingPermission[]>();
   for (const permission of permissions) {
     if (!permission.agent_id) {
       continue;
     }
-    const group = groups.get(permission.agent_id) ?? [];
+    const agentRoundId = permission.agent_round_id?.trim();
+    const groups = agentRoundId ? byAgentRound : byAgent;
+    const key = agentRoundId || permission.agent_id;
+    const group = groups.get(key) ?? [];
     group.push(permission);
-    groups.set(permission.agent_id, group);
+    groups.set(key, group);
+  }
+  return { byAgent, byAgentRound };
+}
+
+function permissionsForEntry(
+  entry: RoomAgentRoundEntry,
+  entriesByAgent: Map<string, RoomAgentRoundEntry[]>,
+  groups: PermissionGroups,
+): PendingPermission[] {
+  const exact = entry.agent_round_id
+    ? groups.byAgentRound.get(entry.agent_round_id) ?? []
+    : [];
+  const agentEntries = entriesByAgent.get(entry.agent_id) ?? [];
+  const legacyTarget = agentEntries
+    .filter((candidate) => isAgentRoundActive(candidate.status))
+    .at(-1) ?? agentEntries.at(-1);
+  const legacy = legacyTarget?.entry_id === entry.entry_id
+    ? groups.byAgent.get(entry.agent_id) ?? []
+    : [];
+  return [...exact, ...legacy];
+}
+
+function groupEntriesByAgent(
+  entries: RoomAgentRoundEntry[],
+): Map<string, RoomAgentRoundEntry[]> {
+  const groups = new Map<string, RoomAgentRoundEntry[]>();
+  for (const entry of entries) {
+    const group = groups.get(entry.agent_id) ?? [];
+    group.push(entry);
+    groups.set(entry.agent_id, group);
   }
   return groups;
+}
+
+function resolveGuidedTargetEntry(
+  entries: RoomAgentRoundEntry[],
+  message: UserMessage,
+): RoomAgentRoundEntry | null {
+  const agentRoundId = message.agent_round_id?.trim();
+  if (agentRoundId) {
+    return entries.find(
+      (entry) => entry.agent_round_id === agentRoundId,
+    ) ?? null;
+  }
+  const active = entries.filter((entry) => isAgentRoundActive(entry.status));
+  return active.at(-1)
+    ?? entries.find((entry) => entry.timestamp >= message.timestamp)
+    ?? entries.at(-1)
+    ?? null;
+}
+
+function resolveGuidedTargetEntryForMessage(
+  entriesByAgent: Map<string, RoomAgentRoundEntry[]>,
+  entries: RoomAgentRoundEntry[],
+  message: UserMessage,
+): RoomAgentRoundEntry | null {
+  const targetAgentId = resolveGuidedTargetAgentId(message);
+  if (targetAgentId) {
+    return resolveGuidedTargetEntry(
+      entriesByAgent.get(targetAgentId) ?? [],
+      message,
+    );
+  }
+
+  // 旧协议的重挂引导没有 target_agent_ids；只有当前根轮次唯一对应一个执行卡片时才能安全归组。
+  if (
+    message.delivery_policy === "guide"
+    && message.source_round_id?.trim()
+    && entries.length === 1
+  ) {
+    return resolveGuidedTargetEntry(entries, message);
+  }
+  return null;
+}
+
+function compareAgentCards(
+  left: GroupRoundAgentCardModel,
+  right: GroupRoundAgentCardModel,
+): number {
+  const leftActive = isAgentRoundActive(left.status);
+  const rightActive = isAgentRoundActive(right.status);
+  if (leftActive !== rightActive) {
+    return leftActive ? 1 : -1;
+  }
+  if (!leftActive) {
+    return left.timestamp - right.timestamp
+      || left.display_order - right.display_order
+      || left.entry_id.localeCompare(right.entry_id);
+  }
+  return activeCardStartTimestamp(left) - activeCardStartTimestamp(right)
+    || (left.pending_slot?.index ?? Number.MAX_SAFE_INTEGER)
+      - (right.pending_slot?.index ?? Number.MAX_SAFE_INTEGER)
+    || left.entry_id.localeCompare(right.entry_id);
+}
+
+function activeCardStartTimestamp(entry: GroupRoundAgentCardModel): number {
+  return entry.pending_slot?.timestamp
+    ?? entry.assistant_messages[0]?.timestamp
+    ?? entry.timestamp;
 }
 
 function isVisibleUserMessage(message: Message): message is UserMessage {

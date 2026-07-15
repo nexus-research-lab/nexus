@@ -18,6 +18,186 @@ test.after(async () => {
   await server.close();
 });
 
+test("deferred input ACK keeps queued user text out of the timeline", async () => {
+  const { replaceOptimisticUserMessage } = await server.ssrLoadModule(
+    "/src/hooks/agent/runtime/model/conversation-runtime-reconciliation.ts",
+  );
+  const optimistic = userMessage({
+    content: "这条还没有被智能体消费",
+    messageId: "local-message",
+    roundId: "local-message",
+    timestamp: 1,
+  });
+
+  assert.deepEqual(
+    replaceOptimisticUserMessage(
+      [optimistic],
+      "local-message",
+      "user-message",
+      "round-message",
+      false,
+    ),
+    [],
+    "a queued ACK must remove the optimistic timeline message",
+  );
+  assert.deepEqual(
+    replaceOptimisticUserMessage(
+      [optimistic],
+      "local-message",
+      "user-message",
+      "round-message",
+      true,
+    ).map(({ message_id, round_id }) => ({ message_id, round_id })),
+    [{ message_id: "user-message", round_id: "round-message" }],
+    "a committed ACK still canonicalizes normal user messages",
+  );
+});
+
+test("deferred ACK cannot remove an already applied canonical user message", async () => {
+  const { replaceOptimisticUserMessage } = await server.ssrLoadModule(
+    "/src/hooks/agent/runtime/model/conversation-runtime-reconciliation.ts",
+  );
+  const optimistic = userMessage({
+    content: "这条正在等待 ACK",
+    messageId: "local-message",
+    roundId: "local-message",
+    timestamp: 1,
+  });
+  const canonical = userMessage({
+    content: "这条已经被智能体消费",
+    messageId: "user-message",
+    roundId: "round-message",
+    timestamp: 2,
+  });
+
+  assert.deepEqual(
+    replaceOptimisticUserMessage(
+      [optimistic, canonical],
+      "local-message",
+      "user-message",
+      "round-message",
+      false,
+    ).map(({ message_id, round_id }) => ({ message_id, round_id })),
+    [{ message_id: "user-message", round_id: "round-message" }],
+    "a late deferred ACK must remove only the optimistic copy",
+  );
+});
+
+test("Room pending slot keeps the backend display index", async () => {
+  const { mergeChatAckPendingSlots } = await server.ssrLoadModule(
+    "/src/hooks/agent/runtime/model/conversation-runtime-reconciliation.ts",
+  );
+  const slots = mergeChatAckPendingSlots([], {
+    pending: [{
+      agent_id: "agent-1",
+      agent_round_id: "agent-round-1",
+      index: 7,
+      msg_id: "slot-1",
+      status: "streaming",
+      timestamp: 10,
+    }],
+    pending_snapshot: true,
+    round_id: "round-root",
+  });
+
+  assert.equal(slots[0]?.index, 7);
+});
+
+test("Room pending queue shows only user-authored guidance", async () => {
+  const { projectRoomPendingInputQueueItems } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/chat/panel/controller/group-chat-panel-projection.ts",
+  );
+  const items = [
+    { id: "user", source: "user" },
+    { id: "public-mention", source: "agent_public_mention" },
+    { id: "directed-message", source: "agent_room_directed_message" },
+  ];
+
+  assert.deepEqual(
+    projectRoomPendingInputQueueItems(items).map((item) => item.id),
+    ["user"],
+  );
+});
+
+test("blocked goals stay inline instead of opening a resume confirmation", async () => {
+  const { buildGoalControllerProjection } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/goal/goal-model.ts",
+  );
+  const goal = {
+    continuation_count: 1,
+    created_at: "2026-07-14T00:00:00Z",
+    empty_progress_count: 3,
+    id: "goal-1",
+    objective: "Replace this objective directly",
+    session_key: "room:group:conversation-1",
+    status: "blocked",
+    updated_at: "2026-07-14T00:01:00Z",
+    version: 2,
+  };
+  const projection = buildGoalControllerProjection({
+    dialog: { goal, kind: "resume" },
+    draft: null,
+    goal,
+    phase: null,
+  });
+
+  assert.equal(projection.canResume, true);
+  assert.deepEqual(projection.dialog, { kind: "none" });
+});
+
+test("Room no-reply control markers never become visible assistant blocks", async () => {
+  const { buildVisibleOrderedAssistantEntries } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/controller/projection/message-item-ordering.ts",
+  );
+  const entries = buildVisibleOrderedAssistantEntries({
+    hiddenToolNames: new Set(),
+    hiddenToolUseIds: new Set(),
+    isLoading: false,
+    mergedContent: [{ type: "text", text: "<nexus_room_no_reply/>" }],
+    mergedContentSourceMessageIds: ["assistant-no-reply"],
+    sourceMessageOrderById: new Map([["assistant-no-reply", 0]]),
+    systemEventBlocks: [],
+  });
+
+  assert.deepEqual(entries, []);
+});
+
+test("Room no-reply control markers stay out of previews and result summaries", async () => {
+  const { extractAgentPreviewText } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/round/round-agent-model.ts",
+  );
+  const { buildGroupAgentStatusModel } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/thread/round-card/group-round-card-model.ts",
+  );
+  const marker = "<nexus_room_no_reply/>";
+
+  assert.equal(
+    extractAgentPreviewText([assistantMessage({ text: marker, timestamp: 1 })]),
+    "",
+  );
+
+  const status = buildGroupAgentStatusModel({
+    labels: {
+      failed: "Failed",
+      stopped: "Stopped",
+      waitingPermission: "Waiting",
+    },
+    messages: [],
+    pendingPermissions: [],
+    resultSummary: {
+      duration_api_ms: 0,
+      duration_ms: 0,
+      is_error: false,
+      num_turns: 1,
+      result: marker,
+      subtype: "interrupted",
+      timestamp: 1,
+    },
+    status: "cancelled",
+  });
+  assert.equal(status.summaryText, "Stopped");
+});
+
 test("consumed Room guide update moves beside its running assistant", async () => {
   const { parseConversationMessage } = await server.ssrLoadModule(
     "/src/lib/conversation/message-protocol.ts",
@@ -87,8 +267,8 @@ test("consumed Room guide update moves beside its running assistant", async () =
     ["user-root"],
     "Room 主时间线不渲染已重挂的引导消息",
   );
-  assert.equal(model.pendingEntries.length, 1);
-  assert.equal(model.pendingEntries[0]?.agent_id, "agent-1");
+  assert.equal(model.entries.length, 1);
+  assert.equal(model.entries[0]?.agent_id, "agent-1");
 
   const sourceIndex = roundIndexItem("round-guide", {
     hasUserMessage: true,
@@ -216,7 +396,7 @@ test("late history cannot roll an assistant snapshot backward", async () => {
   assert.equal(afterCanonicalHistory[0]?.timestamp, 30);
 });
 
-test("Room active slot ignores an older result from the same agent", async () => {
+test("Room keeps separate agent_round entries for the same agent", async () => {
   const { buildRoomAgentRoundEntries } = await server.ssrLoadModule(
     "/src/features/conversation/room/group/round/round-agent-model.ts",
   );
@@ -247,10 +427,15 @@ test("Room active slot ignores an older result from the same agent", async () =>
   };
 
   let entries = buildRoomAgentRoundEntries([oldResult], [activeSlot]);
-  assert.equal(entries.length, 1);
-  assert.equal(entries[0]?.status, "streaming");
-  assert.equal(entries[0]?.result_summary, undefined);
-  assert.deepEqual(entries[0]?.assistant_messages, []);
+  assert.equal(entries.length, 2);
+  assert.deepEqual(
+    entries.map(({ agent_round_id, status }) => ({ agent_round_id, status })),
+    [
+      { agent_round_id: "agent-round-old", status: "done" },
+      { agent_round_id: "agent-round-new", status: "streaming" },
+    ],
+  );
+  assert.deepEqual(entries[1]?.assistant_messages, []);
 
   const currentStream = assistantMessage({
     agentRoundId: "agent-round-new",
@@ -263,9 +448,9 @@ test("Room active slot ignores an older result from the same agent", async () =>
     [oldResult, currentStream],
     [activeSlot],
   );
-  assert.equal(entries[0]?.status, "streaming");
+  assert.equal(entries[1]?.status, "streaming");
   assert.deepEqual(
-    entries[0]?.assistant_messages.map((message) => message.message_id),
+    entries[1]?.assistant_messages.map((message) => message.message_id),
     ["assistant-new"],
   );
 
@@ -282,15 +467,307 @@ test("Room active slot ignores an older result from the same agent", async () =>
     ],
     [activeSlot],
   );
-  assert.equal(entries[0]?.status, "streaming");
-  assert.equal(entries[0]?.result_summary, undefined);
+  assert.equal(entries[1]?.status, "streaming");
+  assert.equal(entries[1]?.result_summary, undefined);
   assert.deepEqual(
-    entries[0]?.assistant_messages.map((message) => message.message_id),
+    entries[1]?.assistant_messages.map((message) => message.message_id),
     ["assistant-legacy-new"],
   );
 });
 
-test("single-target Room guidance moves only its consuming agent", async () => {
+test("Room canonical assistant replaces its temporary synthetic result", async () => {
+  const { buildRoomAgentRoundEntries } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/round/round-agent-model.ts",
+  );
+  const canonical = assistantMessage({
+    agentRoundId: "agent-round-1",
+    messageId: "assistant-canonical",
+    model: "canonical-model",
+    status: "streaming",
+    text: "已完成过程处理",
+    timestamp: 10,
+  });
+  const synthetic = assistantMessage({
+    agentRoundId: "agent-round-1",
+    isComplete: true,
+    messageId: "assistant_result-1",
+    resultSummary: {
+      duration_api_ms: 20,
+      duration_ms: 30,
+      is_error: false,
+      message_id: "result-1",
+      num_turns: 2,
+      subtype: "success",
+      timestamp: 30,
+    },
+    status: "done",
+    stopReason: "end_turn",
+    text: "最终模型回复",
+    timestamp: 30,
+  });
+
+  const entries = buildRoomAgentRoundEntries([canonical, synthetic]);
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0]?.status, "done");
+  assert.equal(entries[0]?.timestamp, 30);
+  assert.deepEqual(
+    entries[0]?.assistant_messages.map((message) => message.message_id),
+    ["assistant-canonical"],
+  );
+  assert.equal(
+    entries[0]?.assistant_messages[0]?.result_summary?.result,
+    "最终模型回复",
+  );
+  assert.equal(entries[0]?.assistant_messages[0]?.model, "canonical-model");
+});
+
+test("Room final replies stay in completion order around a guide", async () => {
+  const { buildGroupRoundCardModel } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/thread/round-card/group-round-card-model.ts",
+  );
+  const rootUser = userMessage({
+    content: "一起分析",
+    messageId: "user-root-display-order",
+    roundId: "round-root",
+    timestamp: 1,
+  });
+  const agent1Partial = assistantMessage({
+    agentId: "agent-1",
+    agentRoundId: "agent-1-round",
+    messageId: "assistant-agent-1-partial",
+    text: "Agent1 正在处理",
+    timestamp: 2,
+  });
+  const agent2Done = assistantMessage({
+    agentId: "agent-2",
+    agentRoundId: "agent-2-round",
+    isComplete: true,
+    messageId: "assistant-agent-2-done",
+    resultSummary: {
+      duration_api_ms: 10,
+      duration_ms: 20,
+      is_error: false,
+      num_turns: 1,
+      result: "Agent2 完成",
+      subtype: "success",
+      timestamp: 4,
+    },
+    status: "done",
+    stopReason: "end_turn",
+    text: "Agent2 完成",
+    timestamp: 4,
+  });
+  const guide = userMessage({
+    content: "Agent1 再补充结论",
+    deliveryPolicy: "guide",
+    messageId: "user-guide-display-order",
+    roundId: "round-root",
+    sourceRoundId: "round-guide-display-order",
+    targetAgentIds: ["agent-1"],
+    timestamp: 5,
+  });
+  const agent1Done = assistantMessage({
+    agentId: "agent-1",
+    agentRoundId: "agent-1-round",
+    isComplete: true,
+    messageId: "assistant-agent-1-done",
+    resultSummary: {
+      duration_api_ms: 20,
+      duration_ms: 30,
+      is_error: false,
+      num_turns: 2,
+      result: "Agent1 补充完成",
+      subtype: "success",
+      timestamp: 6,
+    },
+    status: "done",
+    stopReason: "end_turn",
+    text: "Agent1 补充完成",
+    timestamp: 6,
+  });
+  const model = buildGroupRoundCardModel({
+    agentAvatarMap: {},
+    agentNameMap: { "agent-1": "Agent1", "agent-2": "Agent2" },
+    messages: [rootUser, agent1Partial, agent2Done, guide, agent1Done],
+    pendingPermissions: [],
+    pendingSlots: [],
+  });
+
+  assert.deepEqual(
+    model.entries.map(({ agent_id, agent_round_id }) => ({
+      agent_id,
+      agent_round_id,
+    })),
+    [
+      { agent_id: "agent-2", agent_round_id: "agent-2-round" },
+      { agent_id: "agent-1", agent_round_id: "agent-1-round" },
+    ],
+  );
+  assert.deepEqual(
+    flattenGroupRoundRenderOrder(model),
+    [
+      "user:user-root-display-order",
+      "agent:agent-2",
+      "user:user-guide-display-order",
+      "agent:agent-1",
+    ],
+  );
+});
+
+test("late Room guidance does not reorder completed Agent cards", async () => {
+  const { buildGroupRoundCardModel } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/thread/round-card/group-round-card-model.ts",
+  );
+  const model = buildGroupRoundCardModel({
+    agentAvatarMap: {},
+    agentNameMap: { "agent-1": "Agent1", "agent-2": "Agent2" },
+    messages: [
+      userMessage({
+        content: "一起分析",
+        messageId: "user-root-stable-completed",
+        roundId: "round-root",
+        timestamp: 1,
+      }),
+      assistantMessage({
+        agentId: "agent-1",
+        agentRoundId: "agent-1-completed",
+        isComplete: true,
+        messageId: "assistant-agent-1-completed",
+        status: "done",
+        stopReason: "end_turn",
+        text: "Agent1 先完成",
+        timestamp: 2,
+      }),
+      assistantMessage({
+        agentId: "agent-2",
+        agentRoundId: "agent-2-completed",
+        isComplete: true,
+        messageId: "assistant-agent-2-completed",
+        status: "done",
+        stopReason: "end_turn",
+        text: "Agent2 后完成",
+        timestamp: 4,
+      }),
+      userMessage({
+        agentRoundId: "agent-1-completed",
+        content: "这是 Agent1 实际消费的补充",
+        deliveryPolicy: "guide",
+        messageId: "user-guide-stable-completed",
+        roundId: "round-root",
+        sourceRoundId: "round-guide-stable-completed",
+        targetAgentIds: ["agent-1"],
+        timestamp: 5,
+      }),
+    ],
+    pendingPermissions: [],
+    pendingSlots: [],
+  });
+
+  assert.deepEqual(
+    model.entries.map(({ agent_id }) => agent_id),
+    ["agent-1", "agent-2"],
+  );
+  assert.deepEqual(
+    flattenGroupRoundRenderOrder(model),
+    [
+      "user:user-root-stable-completed",
+      "user:user-guide-stable-completed",
+      "agent:agent-1",
+      "agent:agent-2",
+    ],
+  );
+});
+
+test("Room keeps active Agent cards at the stable tail", async () => {
+  const { buildGroupRoundCardModel } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/thread/round-card/group-round-card-model.ts",
+  );
+  const model = buildGroupRoundCardModel({
+    agentAvatarMap: {},
+    agentNameMap: {
+      "agent-1": "Agent1",
+      "agent-2": "Agent2",
+      "agent-3": "Agent3",
+    },
+    messages: [
+      assistantMessage({
+        agentId: "agent-1",
+        agentRoundId: "agent-1-active",
+        messageId: "assistant-agent-1-latest",
+        text: "Agent1 流式内容更新得更晚",
+        timestamp: 20,
+      }),
+      assistantMessage({
+        agentId: "agent-2",
+        agentRoundId: "agent-2-active",
+        messageId: "assistant-agent-2-earlier",
+        text: "Agent2 仍在运行",
+        timestamp: 10,
+      }),
+      assistantMessage({
+        agentId: "agent-3",
+        agentRoundId: "agent-3-completed",
+        isComplete: true,
+        messageId: "assistant-agent-3-completed",
+        status: "done",
+        stopReason: "end_turn",
+        text: "Agent3 已完成",
+        timestamp: 30,
+      }),
+      userMessage({
+        agentRoundId: "agent-1-active",
+        content: "Agent1 继续补充",
+        deliveryPolicy: "guide",
+        messageId: "user-guide-active-stable",
+        roundId: "round-root",
+        sourceRoundId: "round-guide-active-stable",
+        targetAgentIds: ["agent-1"],
+        timestamp: 40,
+      }),
+    ],
+    pendingPermissions: [],
+    pendingSlots: [
+      {
+        agent_id: "agent-1",
+        agent_round_id: "agent-1-active",
+        index: 0,
+        msg_id: "slot-agent-1",
+        round_id: "round-root",
+        status: "streaming",
+        timestamp: 2,
+      },
+      {
+        agent_id: "agent-2",
+        agent_round_id: "agent-2-active",
+        index: 1,
+        msg_id: "slot-agent-2",
+        round_id: "round-root",
+        status: "streaming",
+        timestamp: 3,
+      },
+    ],
+  });
+
+  assert.deepEqual(
+    model.entries.map(({ agent_id, status }) => ({ agent_id, status })),
+    [
+      { agent_id: "agent-3", status: "done" },
+      { agent_id: "agent-1", status: "streaming" },
+      { agent_id: "agent-2", status: "streaming" },
+    ],
+  );
+  assert.deepEqual(
+    flattenGroupRoundRenderOrder(model),
+    [
+      "agent:agent-3",
+      "user:user-guide-active-stable",
+      "agent:agent-1",
+      "agent:agent-2",
+    ],
+  );
+});
+
+test("single-target Room guidance attaches only to its consuming agent", async () => {
   const { buildGroupRoundCardModel } = await server.ssrLoadModule(
     "/src/features/conversation/room/group/thread/round-card/group-round-card-model.ts",
   );
@@ -376,28 +853,41 @@ test("single-target Room guidance moves only its consuming agent", async () => {
 
   assert.deepEqual(
     model.userMessages.map(({ message }) => message.message_id),
-    ["user-root-target-order"],
-    "Room 主时间线不渲染任何 guide 消息",
+    ["user-root-target-order", "user-guide-legacy", "user-guide-multi"],
   );
   assert.deepEqual(
-    model.completedEntries.map((entry) => entry.agent_id),
+    model.entries
+      .filter((entry) => entry.status === "done")
+      .map((entry) => entry.agent_id),
     ["agent-2"],
   );
+  assert.deepEqual(model.entries[0]?.guidedUserMessages, []);
   assert.deepEqual(
-    model.pendingEntries.map((entry) => entry.agent_id),
+    model.entries
+      .filter((entry) => entry.status !== "done")
+      .map((entry) => entry.agent_id),
     ["agent-1"],
+  );
+  assert.deepEqual(
+    model.entries[1]?.guidedUserMessages.map(
+      ({ message }) => message.message_id,
+    ),
+    ["user-guide-agent-1"],
   );
   assert.deepEqual(
     flattenGroupRoundRenderOrder(model),
     [
       "user:user-root-target-order",
+      "user:user-guide-legacy",
+      "user:user-guide-multi",
       "agent:agent-2",
+      "user:user-guide-agent-1",
       "agent:agent-1",
     ],
   );
 });
 
-test("single-target Room guidance stays out of the completed agent main card", async () => {
+test("single-target Room guidance also attaches to a completed agent", async () => {
   const { buildGroupRoundCardModel } = await server.ssrLoadModule(
     "/src/features/conversation/room/group/thread/round-card/group-round-card-model.ts",
   );
@@ -450,12 +940,82 @@ test("single-target Room guidance stays out of the completed agent main card", a
     flattenGroupRoundRenderOrder(model),
     [
       "user:user-root-completed",
+      "user:user-guide-completed",
       "agent:agent-2",
     ],
   );
 });
 
+test("Room guidance stays on its exact consumed agent round", async () => {
+  const { buildGroupRoundCardModel } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/thread/round-card/group-round-card-model.ts",
+  );
+  const guide = userMessage({
+    agentRoundId: "agent-1-old-round",
+    content: "这是旧执行轮实际消费的插话",
+    deliveryPolicy: "guide",
+    messageId: "user-guide-exact-round",
+    roundId: "round-root",
+    sourceRoundId: "round-guide-exact",
+    targetAgentIds: ["agent-1"],
+    timestamp: 11,
+  });
+  const oldResult = assistantMessage({
+    agentRoundId: "agent-1-old-round",
+    isComplete: true,
+    messageId: "assistant-agent-1-old",
+    resultSummary: {
+      duration_api_ms: 10,
+      duration_ms: 20,
+      is_error: false,
+      num_turns: 1,
+      result: "旧轮按插话完成",
+      subtype: "success",
+      timestamp: 12,
+    },
+    status: "done",
+    stopReason: "end_turn",
+    text: "旧轮按插话完成",
+    timestamp: 12,
+  });
+  const newStream = assistantMessage({
+    agentRoundId: "agent-1-new-round",
+    messageId: "assistant-agent-1-new",
+    text: "新轮正在处理",
+    timestamp: 13,
+  });
+  const model = buildGroupRoundCardModel({
+    agentAvatarMap: {},
+    agentNameMap: { "agent-1": "Agent1" },
+    messages: [guide, oldResult, newStream],
+    pendingPermissions: [],
+    pendingSlots: [{
+      agent_id: "agent-1",
+      agent_round_id: "agent-1-new-round",
+      msg_id: "slot-agent-1-new",
+      round_id: "round-root",
+      status: "streaming",
+      timestamp: 13,
+    }],
+  });
+
+  assert.deepEqual(
+    model.entries.map((entry) => ({
+      agentRoundId: entry.agent_round_id,
+      guides: entry.guidedUserMessages.map(({ message }) => message.message_id),
+    })),
+    [
+      {
+        agentRoundId: "agent-1-old-round",
+        guides: ["user-guide-exact-round"],
+      },
+      { agentRoundId: "agent-1-new-round", guides: [] },
+    ],
+  );
+});
+
 function userMessage({
+  agentRoundId,
   content,
   deliveryPolicy,
   messageId,
@@ -466,6 +1026,7 @@ function userMessage({
 }) {
   return {
     agent_id: "",
+    ...(agentRoundId ? { agent_round_id: agentRoundId } : {}),
     content,
     ...(deliveryPolicy ? { delivery_policy: deliveryPolicy } : {}),
     message_id: messageId,
@@ -483,6 +1044,7 @@ function assistantMessage({
   agentRoundId,
   isComplete = false,
   messageId = "assistant-root",
+  model,
   resultSummary,
   status = "streaming",
   stopReason,
@@ -495,6 +1057,7 @@ function assistantMessage({
     content: [{ type: "text", text }],
     is_complete: isComplete,
     message_id: messageId,
+    ...(model ? { model } : {}),
     ...(resultSummary ? { result_summary: resultSummary } : {}),
     role: "assistant",
     round_id: "round-root",
@@ -509,10 +1072,10 @@ function flattenGroupRoundRenderOrder(model) {
   const order = model.userMessages.map(
     ({ message }) => `user:${message.message_id}`,
   );
-  for (const entry of [
-    ...model.completedEntries,
-    ...model.pendingEntries,
-  ]) {
+  for (const entry of model.entries) {
+    order.push(...entry.guidedUserMessages.map(
+      ({ message }) => `user:${message.message_id}`,
+    ));
     order.push(`agent:${entry.agent_id}`);
   }
   return order;

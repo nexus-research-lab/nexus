@@ -1,11 +1,12 @@
-// INPUT: 运行中 Room slot 与持久化 guide 队列。
-// OUTPUT: PostToolUse additionalContext，并把已消费引导归入实际回复 round。
-// POS: Room 轮内插话的唯一消费入口。
+// INPUT: 运行中 Room slot 与保留来源语义的持久化 guide 队列。
+// OUTPUT: 原子预留的 PostToolUse additionalContext，并在 applied ACK 后归入实际回复 round。
+// POS: Room 轮内插话的唯一消费入口；预留与队列编辑共用派发锁。
 package room
 
 import (
 	"context"
 	"errors"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -29,8 +30,13 @@ func (s *RealtimeService) roomSlotGuidanceHook(
 		if input.EventName != "" && input.EventName != sdkhook.EventPostToolUse {
 			return sdkhook.Output{}, nil
 		}
-		if err := s.acknowledgeRoomSlotGuidance(ctx, roundValue, slot); err != nil {
-			return sdkhook.Output{}, err
+		if s.shouldConfirmRoomGuidanceByFallback(slot) {
+			if err := s.acknowledgeRoomSlotGuidance(ctx, roundValue, slot, nil); err != nil {
+				return sdkhook.Output{}, err
+			}
+		}
+		if s.hasPendingRoomSlotGuidance(slot) {
+			return sdkhook.Output{}, nil
 		}
 		execution := roomGuidanceExecution{
 			service:  s,
@@ -43,6 +49,11 @@ func (s *RealtimeService) roomSlotGuidanceHook(
 	}
 }
 
+func (s *RealtimeService) shouldConfirmRoomGuidanceByFallback(slot *activeRoomSlot) bool {
+	return s == nil || s.runtime == nil || slot == nil ||
+		!s.runtime.SupportsHookResponseAck(slot.RuntimeSessionKey)
+}
+
 type roomGuidanceExecution struct {
 	service           *RealtimeService
 	ctx               context.Context
@@ -52,17 +63,19 @@ type roomGuidanceExecution struct {
 	queueItems        []protocol.InputQueueItem
 	runtimeQueueItems []protocol.InputQueueItem
 	sourceRoundID     string
-	triggerContent    string
+	trigger           roomTrigger
 	inputs            []runtimectx.GuidedInput
 }
 
-// ponytail: bridge 没有 control_response post-send ack；下一次 hook/result 才确认，进程崩溃窗口允许安全重投。
+// ponytail: 旧 runtime 没有 applied ACK；下一次 hook/result 仍作为兼容确认，进程崩溃窗口允许安全重投。
 type pendingRoomGuidance struct {
 	location workspacestore.InputQueueLocation
 	items    []protocol.InputQueueItem
 }
 
 func (e *roomGuidanceExecution) run() (sdkhook.Output, error) {
+	e.service.inputQueueDispatchMu.Lock()
+	defer e.service.inputQueueDispatchMu.Unlock()
 	hasInput, err := e.loadInputs()
 	if err != nil || !hasInput {
 		return sdkhook.Output{}, err
@@ -70,15 +83,21 @@ func (e *roomGuidanceExecution) run() (sdkhook.Output, error) {
 	if err = e.renderQueueItems(); err != nil {
 		return sdkhook.Output{}, err
 	}
-	e.sourceRoundID, e.triggerContent = latestGuidanceTrigger(e.runtimeQueueItems)
+	e.sourceRoundID, e.trigger = latestGuidanceTrigger(e.runtimeQueueItems)
 	if err = e.buildInputs(); err != nil {
 		return sdkhook.Output{}, err
 	}
-	e.service.rememberRoomSlotGuidance(e.slot, e.location, e.queueItems)
+	pending := e.service.rememberRoomSlotGuidance(e.slot, e.location, e.queueItems)
 	return sdkhook.Output{
 		SpecificOutput: &sdkhook.SpecificOutput{
 			HookEventName:     sdkhook.EventPostToolUse,
 			AdditionalContext: runtimectx.FormatGuidanceAdditionalContext(e.inputs),
+		},
+		OnApplied: func(sdkhook.AppliedAck) {
+			ctx := contextWithQueueOwner(context.Background(), e.round.OwnerUserID)
+			if ackErr := e.service.acknowledgeRoomSlotGuidance(ctx, e.round, e.slot, &pending); ackErr != nil {
+				e.service.loggerFor(ctx).Warn("确认 Room 引导 applied ACK 失败，保留为后续队列输入", "err", ackErr)
+			}
 		},
 	}, nil
 }
@@ -87,16 +106,40 @@ func (s *RealtimeService) rememberRoomSlotGuidance(
 	slot *activeRoomSlot,
 	location workspacestore.InputQueueLocation,
 	items []protocol.InputQueueItem,
-) {
+) pendingRoomGuidance {
 	if slot == nil || len(items) == 0 {
-		return
+		return pendingRoomGuidance{}
 	}
+	pending := pendingRoomGuidance{location: location, items: slices.Clone(items)}
 	s.guidanceMu.Lock()
 	defer s.guidanceMu.Unlock()
 	if s.guidance == nil {
 		s.guidance = make(map[*activeRoomSlot]pendingRoomGuidance)
 	}
-	s.guidance[slot] = pendingRoomGuidance{location: location, items: slices.Clone(items)}
+	s.guidance[slot] = pending
+	return pending
+}
+
+func (s *RealtimeService) hasPendingRoomSlotGuidance(slot *activeRoomSlot) bool {
+	s.guidanceMu.Lock()
+	defer s.guidanceMu.Unlock()
+	_, ok := s.guidance[slot]
+	return ok
+}
+
+func (s *RealtimeService) hasInFlightRoomGuidance(itemID string) bool {
+	itemID = strings.TrimSpace(itemID)
+	if itemID == "" {
+		return false
+	}
+	s.guidanceMu.Lock()
+	defer s.guidanceMu.Unlock()
+	for _, pending := range s.guidance {
+		if slices.ContainsFunc(pending.items, func(item protocol.InputQueueItem) bool { return item.ID == itemID }) {
+			return true
+		}
+	}
+	return false
 }
 
 func (e *roomGuidanceExecution) loadInputs() (bool, error) {
@@ -112,6 +155,7 @@ func (s *RealtimeService) acknowledgeRoomSlotGuidance(
 	ctx context.Context,
 	roundValue *activeRoomRound,
 	slot *activeRoomSlot,
+	expected *pendingRoomGuidance,
 ) error {
 	if slot == nil {
 		return nil
@@ -119,6 +163,10 @@ func (s *RealtimeService) acknowledgeRoomSlotGuidance(
 	s.guidanceMu.Lock()
 	pending, ok := s.guidance[slot]
 	if !ok {
+		s.guidanceMu.Unlock()
+		return nil
+	}
+	if expected != nil && !reflect.DeepEqual(pending, *expected) {
 		s.guidanceMu.Unlock()
 		return nil
 	}
@@ -135,7 +183,7 @@ func (s *RealtimeService) acknowledgeRoomSlotGuidance(
 	if roundValue != nil && roundValue.Context != nil {
 		rootRoundID := roomRootRoundID(roundValue)
 		for _, item := range claimed {
-			if err = s.syncQueuedPublicMessageDeliveryPolicy(ctx, roundValue.SessionKey, roundValue.Context, item, rootRoundID); err != nil {
+			if err = s.syncQueuedPublicUserMessage(ctx, roundValue.SessionKey, roundValue.Context, item, rootRoundID, true); err != nil {
 				restored, restoreErr := s.restoreRoomSlotGuidance(pending.location, claimed)
 				if restoreErr == nil {
 					pending.items = restored
@@ -220,12 +268,22 @@ func (e *roomGuidanceExecution) appendPublicContext() error {
 	if err != nil {
 		return err
 	}
-	publicContext, err := e.service.buildSlotGuidedPublicContext(e.ctx, e.round, e.slot, publicHistory, agentNameByID, roomTrigger{
-		TriggerType:   "public_chat",
-		Content:       e.triggerContent,
-		MessageID:     strings.TrimSpace(e.sourceRoundID),
-		TargetAgentID: e.slot.AgentID,
-	})
+	trigger := e.trigger
+	if strings.TrimSpace(trigger.TriggerType) == "" {
+		trigger.TriggerType = "public_chat"
+	}
+	if strings.TrimSpace(trigger.MessageID) == "" {
+		trigger.MessageID = strings.TrimSpace(e.sourceRoundID)
+	}
+	trigger.TargetAgentID = e.slot.AgentID
+	publicContext, err := e.service.buildSlotGuidedPublicContext(
+		e.ctx,
+		e.round,
+		e.slot,
+		publicHistory,
+		agentNameByID,
+		trigger,
+	)
 	if err != nil {
 		return err
 	}
@@ -264,16 +322,34 @@ func appendUnanchoredGuidanceQueueItems(
 	return inputs
 }
 
-func latestGuidanceTrigger(queueItems []protocol.InputQueueItem) (string, string) {
+func latestGuidanceTrigger(queueItems []protocol.InputQueueItem) (string, roomTrigger) {
 	roundID := ""
-	content := ""
+	trigger := roomTrigger{}
 	for _, item := range queueItems {
 		if strings.TrimSpace(item.ID) != "" {
 			roundID = "queue_" + strings.TrimSpace(item.ID)
 		}
 		if strings.TrimSpace(item.Content) != "" {
-			content = strings.TrimSpace(item.Content)
+			trigger = roomTrigger{
+				TriggerType:   guidanceTriggerType(item.Source),
+				Content:       strings.TrimSpace(item.Content),
+				MessageID:     firstNonEmptyString(item.SourceMessageID, roundID),
+				SourceAgentID: strings.TrimSpace(item.SourceAgentID),
+				TargetAgentID: strings.TrimSpace(item.AgentID),
+				ReplyRoute:    item.ReplyRoute,
+			}
 		}
 	}
-	return roundID, content
+	return roundID, trigger
+}
+
+func guidanceTriggerType(source protocol.InputQueueSource) string {
+	switch source {
+	case protocol.InputQueueSourceAgentPublicMention:
+		return "public_mention"
+	case protocol.InputQueueSourceAgentRoomMessage:
+		return "room_directed_message"
+	default:
+		return "public_chat"
+	}
 }

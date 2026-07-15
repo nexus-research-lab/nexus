@@ -143,10 +143,5 @@ func statusAfterUserGoalUpdate(status protocol.GoalStatus, objectiveUpdated bool
 	if !objectiveUpdated {
 		return normalized
 	}
-	switch normalized {
-	case protocol.GoalStatusBudgetLimited, protocol.GoalStatusComplete:
-		return protocol.GoalStatusActive
-	default:
-		return normalized
-	}
+	return protocol.GoalStatusActive
 }

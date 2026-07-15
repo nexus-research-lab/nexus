@@ -1,6 +1,6 @@
 # 消息投影
 
-- `use-message-item-projection.ts`: 按内容排序、最终回复、权限、活动和输出组装阶段编排纯投影。
+- `use-message-item-projection.ts`: 按内容排序、最终回复、权限、活动和输出组装阶段编排纯投影；header 身份取最终 assistant/result，不从首条过程消息误取。
 - `message-item-ordering.ts`: 投影可见内容块，关联系统事件并保持消息源顺序。
 - `message-item-system-events.ts`: 过滤系统消息并映射稳定展示元数据。
 - `message-item-final-projection.ts`: 按内容模式策略选择直接内容、过程和最终回复。

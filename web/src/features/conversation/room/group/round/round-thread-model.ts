@@ -1,3 +1,8 @@
+/**
+ * INPUT: Room root 消息、目标 Agent 与可选 agent_round_id。
+ * OUTPUT: 目标执行轮的用户上下文、引导事件和 assistant 过程链。
+ * POS: Room Agent Thread 的消息筛选真相源。
+ */
 import { isAutomationTriggerUserMessage } from "@/types/conversation/automation-message";
 import type { Message } from "@/types/conversation/message/entity";
 import type { ContentBlock } from "@/types/conversation/message/content";
@@ -8,13 +13,30 @@ import { stripRoomControlMarkers } from "@/features/conversation/shared/message/
 export function getRoomThreadMessages(
   messages: Message[],
   agentId: string,
+  agentRoundId?: string | null,
 ): Message[] {
+  const normalizedAgentRoundId = agentRoundId?.trim();
+  const hasExactAssistant = Boolean(normalizedAgentRoundId) && messages.some(
+    (message) => message.role === "assistant"
+      && message.agent_id === agentId
+      && message.agent_round_id?.trim() === normalizedAgentRoundId,
+  );
   return messages
-    .filter((message) => isRoomThreadMessage(message, agentId))
+    .filter((message) => isRoomThreadMessage(
+      message,
+      agentId,
+      normalizedAgentRoundId,
+      hasExactAssistant,
+    ))
     .map(projectRoomThreadMessage);
 }
 
-function isRoomThreadMessage(message: Message, agentId: string): boolean {
+function isRoomThreadMessage(
+  message: Message,
+  agentId: string,
+  agentRoundId: string | undefined,
+  hasExactAssistant: boolean,
+): boolean {
   if (message.role === "user") {
     if (isAutomationTriggerUserMessage(message)) {
       return false;
@@ -26,17 +48,21 @@ function isRoomThreadMessage(message: Message, agentId: string): boolean {
   if (message.agent_id !== agentId) {
     return false;
   }
-  return message.role === "assistant" ||
-    (message.role === "system" && message.metadata?.subtype === "guided_input");
+  if (message.role === "system") {
+    return message.metadata?.subtype === "guided_input";
+  }
+  return !agentRoundId
+    || message.agent_round_id?.trim() === agentRoundId
+    || (!hasExactAssistant && !message.agent_round_id?.trim());
 }
 
 function projectRoomThreadMessage(message: Message): Message {
-	if (message.role === "assistant") {
-		return {
-			...message,
-			content: message.content.map(stripContentBlockRoomMarkers),
-		};
-	}
+  if (message.role === "assistant") {
+    return {
+      ...message,
+      content: message.content.map(stripContentBlockRoomMarkers),
+    };
+  }
 
 	return {
 		...message,

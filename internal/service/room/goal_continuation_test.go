@@ -172,6 +172,55 @@ func TestGoalContinuationTargetAgentIDUsesHostWithoutAutoReply(t *testing.T) {
 	}
 }
 
+type fakeRoomGoalLeadReconciler struct {
+	*fakeRoomGoalContextProvider
+	current           *protocol.Goal
+	assignedGoalID    string
+	assignedAgentID   string
+	assignedAgentName string
+}
+
+func (f *fakeRoomGoalLeadReconciler) CurrentOptional(context.Context, string) (*protocol.Goal, error) {
+	return f.current, nil
+}
+
+func (f *fakeRoomGoalLeadReconciler) SetRoomGoalLead(_ context.Context, goalID string, agentID string, agentName string) (*protocol.Goal, error) {
+	f.assignedGoalID = goalID
+	f.assignedAgentID = agentID
+	f.assignedAgentName = agentName
+	return f.current, nil
+}
+
+func TestReconcileRoomGoalLeadUsesValidRoomHost(t *testing.T) {
+	goalProvider := &fakeRoomGoalLeadReconciler{
+		fakeRoomGoalContextProvider: &fakeRoomGoalContextProvider{},
+		current: &protocol.Goal{
+			ID:         "goal-room",
+			SessionKey: protocol.BuildRoomSharedSessionKey("conversation-1"),
+			Status:     protocol.GoalStatusActive,
+			Metadata: map[string]any{
+				protocol.GoalMetadataRoomGoalLeadAgentID: "agent-removed",
+			},
+		},
+	}
+	service := &RealtimeService{goals: goalProvider}
+	contextValue := &protocol.ConversationContextAggregate{
+		Room: protocol.RoomRecord{HostAgentID: "agent-host"},
+	}
+	err := service.reconcileRoomGoalLead(
+		context.Background(),
+		protocol.BuildRoomSharedSessionKey("conversation-1"),
+		contextValue,
+		map[string]string{"agent-host": "Host", "agent-peer": "Peer"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if goalProvider.assignedGoalID != "goal-room" || goalProvider.assignedAgentID != "agent-host" || goalProvider.assignedAgentName != "Host" {
+		t.Fatalf("lead assignment = goal:%q agent:%q name:%q", goalProvider.assignedGoalID, goalProvider.assignedAgentID, goalProvider.assignedAgentName)
+	}
+}
+
 func TestRealtimeServicePostRoundWorkPlansRoomGoalContinuation(t *testing.T) {
 	goalProvider := &fakeRoomGoalContextProvider{}
 	service := &RealtimeService{

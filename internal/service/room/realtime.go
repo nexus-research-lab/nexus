@@ -126,7 +126,9 @@ type RealtimeService struct {
 	guidance            map[*activeRoomSlot]pendingRoomGuidance
 	// ponytail: one global input/round handoff lock; split per conversation only if contention becomes measurable.
 	inputQueueDispatchMu sync.Mutex
-	wakeTimers           *roomWakeTimerRegistry
+	// ponytail: one global Agent wake admission lock; split per conversation only if contention becomes measurable.
+	publicMentionDispatchMu sync.Mutex
+	wakeTimers              *roomWakeTimerRegistry
 }
 
 type roomTitleScheduler interface {

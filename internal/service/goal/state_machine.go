@@ -10,6 +10,13 @@ func canTransition(source protocol.GoalUpdateSource, from protocol.GoalStatus, t
 	}
 	switch source {
 	case protocol.GoalUpdateSourceModel:
+		if to == protocol.GoalStatusActive {
+			// 模型只能通过 RetargetByModel 到达 active；该入口已验证这是用户明确
+			// 替换 objective，而不是让模型自行恢复原目标。
+			return from == protocol.GoalStatusPaused ||
+				from == protocol.GoalStatusBlocked ||
+				from == protocol.GoalStatusUsageLimited
+		}
 		return (from == protocol.GoalStatusActive || from == protocol.GoalStatusBudgetLimited) &&
 			(to == protocol.GoalStatusComplete || to == protocol.GoalStatusBlocked)
 	case protocol.GoalUpdateSourceSystem:

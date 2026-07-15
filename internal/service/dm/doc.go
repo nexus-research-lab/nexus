@@ -4,7 +4,7 @@
 //
 // 成员清单：
 //   - service.go / request.go / round*.go：写请求阶段状态与运行时轮次编排。
-//   - input_queue.go / running_input.go / guidance_input.go / interrupt.go：队列、运行中输入、continuation 确认后消费引导、错过 hook 的下一轮接力与中断。
+//   - input_queue.go / running_input.go / guidance_input.go / interrupt.go：durable 下一轮队列、hook applied ACK 后消费引导、错过 hook 的接力与中断。
 //   - goal_continuation.go / goal_context.go / goal_runtime.go：Goal 续跑启动 claim、上下文、消费后 revision adoption 与 fenced 结算。
 //   - history.go / rewrite.go / title.go：历史、SDK session/fingerprint 同步、重写、标题。
 //   - attachments.go / broadcast.go / external_reply.go：附件、广播、外部回复。

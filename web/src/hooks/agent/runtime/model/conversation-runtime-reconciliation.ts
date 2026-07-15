@@ -144,7 +144,14 @@ export function replaceOptimisticUserMessage(
   clientMessageId: string,
   userMessageId: string,
   roundId: string,
+  userMessageCommitted: boolean,
 ): Message[] {
+  if (!userMessageCommitted) {
+    const next = messages.filter(
+      (message) => message.message_id !== clientMessageId,
+    );
+    return next.length === messages.length ? messages : next;
+  }
   const hasCanonicalMessage = messages.some(
     (message) => message.message_id === userMessageId,
   );
@@ -249,6 +256,7 @@ export function mergeChatAckPendingSlots(
     round_id: ack.round_id,
     status: slot.status,
     timestamp: slot.timestamp,
+    index: slot.index,
   }));
   if (ack.pending_snapshot) {
     return nextSlots;

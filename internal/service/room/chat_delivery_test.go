@@ -502,10 +502,21 @@ func TestRealtimeServiceSuppressesNoReplyMarkerProjection(t *testing.T) {
 					},
 				},
 			}
-			sendFakeAssistantResultWithUsage(client, "amy-no-reply", "<nexus_room_no_reply/>", map[string]any{
-				"input_tokens":  7,
-				"output_tokens": 2,
-			})
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: client.sessionID,
+				UUID:      "amy-no-reply-result",
+				Result: &sdkprotocol.ResultMessage{
+					Subtype:    "success",
+					Result:     "<nexus_room_no_reply/>",
+					NumTurns:   1,
+					DurationMS: 1,
+					Usage: map[string]any{
+						"input_tokens":  7,
+						"output_tokens": 2,
+					},
+				},
+			}
 		}()
 		return nil
 	}

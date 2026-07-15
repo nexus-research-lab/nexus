@@ -30,17 +30,6 @@ func (s *RealtimeService) registerSlotGoalRuntime(slot *activeRoomSlot) func() {
 	if sessionKey == "" || roundID == "" {
 		return func() {}
 	}
-	// execution.go 会先登记 slot runtime；独立调用本 helper 的测试/工具路径仍需自行占用 round。
-	ownRound := true
-	for _, runningRoundID := range s.runtime.GetRunningRoundIDs(sessionKey) {
-		if runningRoundID == roundID {
-			ownRound = false
-			break
-		}
-	}
-	if ownRound {
-		s.runtime.StartRound(sessionKey, roundID, nil)
-	}
 	s.runtime.RegisterGoalAccountingFlush(sessionKey, roundID, func(ctx context.Context) error {
 		return s.flushGoalUsageForSlot(ctx, slot)
 	})
@@ -55,9 +44,6 @@ func (s *RealtimeService) registerSlotGoalRuntime(slot *activeRoomSlot) func() {
 		s.runtime.RegisterGoalAccountingFlush(sessionKey, roundID, nil)
 		s.runtime.RegisterGoalAccountingClear(sessionKey, roundID, nil)
 		s.runtime.RegisterGoalAccountingActivate(sessionKey, roundID, nil)
-		if ownRound {
-			s.runtime.MarkRoundFinished(sessionKey, roundID)
-		}
 	}
 }
 

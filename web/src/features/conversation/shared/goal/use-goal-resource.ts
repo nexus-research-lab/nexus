@@ -35,7 +35,6 @@ interface GoalCommandTransaction {
 }
 
 interface GoalResourceOptions {
-  onGoalResolved: (goal: Goal | null) => void;
   sessionKey: string | null;
 }
 
@@ -54,7 +53,6 @@ function hasStatus(error: unknown, status: number): boolean {
 }
 
 export function useGoalResource({
-  onGoalResolved,
   sessionKey,
 }: GoalResourceOptions) {
   const [snapshot, setSnapshot] = useState<GoalSnapshot>(() => (
@@ -106,7 +104,6 @@ export function useGoalResource({
         loading: false,
         sessionKey,
       });
-      onGoalResolved(current);
     } catch (error) {
       if (requestVersionRef.current !== requestVersion) {
         return;
@@ -120,7 +117,6 @@ export function useGoalResource({
           loading: false,
           sessionKey,
         });
-        onGoalResolved(null);
         return;
       }
       setSnapshot((current) => current.sessionKey === sessionKey
@@ -131,7 +127,7 @@ export function useGoalResource({
           }
         : current);
     }
-  }, [onGoalResolved, sessionKey]);
+  }, [sessionKey]);
 
   const beginCommand = useCallback((
     phase: GoalCommandPhase,
@@ -174,9 +170,8 @@ export function useGoalResource({
       loading: false,
       sessionKey: transaction.command.sessionKey,
     });
-    onGoalResolved(updated);
     return true;
-  }, [onGoalResolved]);
+  }, []);
 
   const rejectCommand = useCallback((
     transaction: GoalCommandTransaction,

@@ -331,7 +331,11 @@ func TestRealtimeServiceDispatchesLateRoomGuidanceAfterRoundFinishes(t *testing.
 	if err != nil {
 		t.Fatalf("读取 Room 历史失败: %v", err)
 	}
-	assertRoomUserMessageDeliveryPolicy(t, messages, "room-round-late-guide-2", protocol.ChatDeliveryPolicyGuide)
+	for _, message := range messages {
+		if protocol.MessageRoundID(message) == "room-round-late-guide-2" || message["source_round_id"] == "room-round-late-guide-2" {
+			t.Fatalf("未消费的 Room guide 不应进入公区历史: %+v", message)
+		}
+	}
 
 	// 模拟当前 round 已无后续 PostToolUse：引导没有机会注入，直接收到最终 result。
 	go sendFakeAssistantResult(firstClient, "assistant-first-round", "第一轮完成")
@@ -546,6 +550,7 @@ func TestRealtimeServiceAppendsRunningTargetByDefault(t *testing.T) {
 		ConversationID: roomContext.Conversation.ID,
 		Content:        "@助手甲 这是补充要求",
 		RoundID:        "room-round-queue-2",
+		UserMessageID:  "msg-room-queue-2",
 	}); err != nil {
 		t.Fatalf("第二条 Room 排队消息失败: %v", err)
 	}
@@ -576,9 +581,18 @@ func TestRealtimeServiceAppendsRunningTargetByDefault(t *testing.T) {
 	}
 	if len(targetQueueItems) != 1 ||
 		targetQueueItems[0].AgentID != agentValue.AgentID ||
-		targetQueueItems[0].SourceMessageID != "room-round-queue-2" ||
+		targetQueueItems[0].SourceMessageID != "msg-room-queue-2" ||
 		targetQueueItems[0].Content != "@助手甲 这是补充要求" {
 		t.Fatalf("Room 运行中公区消息未写入目标 agent 队列: %+v", targetQueueItems)
+	}
+	queuedHistory, err := workspacestore.NewRoomHistoryStore(cfg.WorkspacePath).ReadMessages(roomContext.Conversation.ID, nil)
+	if err != nil {
+		t.Fatalf("读取排队中的 Room 公区历史失败: %v", err)
+	}
+	for _, messageValue := range queuedHistory {
+		if messageValue["message_id"] == "msg-room-queue-2" {
+			t.Fatalf("尚未派发的 Room queue 不应提前进入公区历史: %+v", messageValue)
+		}
 	}
 	if _, err = workspacestore.NewInputQueueStore(cfg.WorkspacePath).Dispatch(targetQueueLocation, targetQueueItems[0].ID); err != nil {
 		t.Fatalf("清理测试队列项失败: %v", err)
@@ -666,6 +680,7 @@ func TestRealtimeServiceGuidesRunningRoomSlotAsLiveSystemContext(t *testing.T) {
 		ConversationID: roomContext.Conversation.ID,
 		Content:        "@助手甲 等工具结果回来后优先看错误日志",
 		RoundID:        "room-round-guide-2",
+		UserMessageID:  "msg-room-guide-2",
 		DeliveryPolicy: protocol.ChatDeliveryPolicyGuide,
 	}); err != nil {
 		t.Fatalf("Room 引导消息失败: %v", err)
@@ -700,13 +715,26 @@ func TestRealtimeServiceGuidesRunningRoomSlotAsLiveSystemContext(t *testing.T) {
 	}
 	if len(queuedGuidance) != 1 ||
 		queuedGuidance[0].ID != "room-round-guide-2" ||
-		queuedGuidance[0].SourceMessageID != "room-round-guide-2" ||
+		queuedGuidance[0].SourceMessageID != "msg-room-guide-2" ||
 		queuedGuidance[0].DeliveryPolicy != protocol.ChatDeliveryPolicyGuide ||
 		strings.TrimSpace(queuedGuidance[0].RootRoundID) == "" ||
 		len(queuedGuidance[0].TargetAgentIDs) != 1 ||
 		queuedGuidance[0].TargetAgentIDs[0] != agentValue.AgentID {
 		t.Fatalf("Room 引导应在 hook 前持久化并锚定当前 Agent round: %+v", queuedGuidance)
 	}
+	roomHistory := workspacestore.NewRoomHistoryStore(cfg.WorkspacePath)
+	assertGuidanceHidden := func(stage string) {
+		messages, historyErr := roomHistory.ReadMessages(roomContext.Conversation.ID, nil)
+		if historyErr != nil {
+			t.Fatalf("%s 读取 Room 公区历史失败: %v", stage, historyErr)
+		}
+		for _, messageValue := range messages {
+			if messageValue["message_id"] == "msg-room-guide-2" {
+				t.Fatalf("%s 未确认消费的 Room guide 不应进入公区历史: %+v", stage, messageValue)
+			}
+		}
+	}
+	assertGuidanceHidden("hook 前")
 
 	client.mu.Lock()
 	sentContents := append([]string(nil), client.sentContents...)
@@ -719,6 +747,7 @@ func TestRealtimeServiceGuidesRunningRoomSlotAsLiveSystemContext(t *testing.T) {
 		t.Fatalf("Room 引导不应走普通 streaming input: %+v", sentContents)
 	}
 	var additionalContext string
+	var onApplied func(sdkhook.AppliedAck)
 	for _, matcher := range factory.LastOptions().Hooks.Matchers[sdkhook.EventPostToolUse] {
 		for _, hook := range matcher.Hooks {
 			output, hookErr := hook(ctx, sdkhook.Input{EventName: sdkhook.EventPostToolUse}, "tool-1")
@@ -727,6 +756,9 @@ func TestRealtimeServiceGuidesRunningRoomSlotAsLiveSystemContext(t *testing.T) {
 			}
 			if output.SpecificOutput != nil {
 				additionalContext += output.SpecificOutput.AdditionalContext
+			}
+			if output.OnApplied != nil {
+				onApplied = output.OnApplied
 			}
 		}
 	}
@@ -737,6 +769,20 @@ func TestRealtimeServiceGuidesRunningRoomSlotAsLiveSystemContext(t *testing.T) {
 	if err != nil || len(queuedGuidance) != 1 {
 		t.Fatalf("hook control response 尚未确认前应保留 Room 引导: items=%+v err=%v", queuedGuidance, err)
 	}
+	assertGuidanceHidden("control response 确认前")
+	if onApplied == nil {
+		t.Fatal("Room guide output 缺少 runtime applied ACK callback")
+	}
+	if err = service.HandleInputQueue(ctx, roomsvc.InputQueueRequest{
+		SessionKey:     sharedSessionKey,
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
+		Action:         "reorder",
+		OrderedIDs:     []string{"room-round-guide-2"},
+	}); err == nil {
+		t.Fatal("已返回给 runtime 但尚未 applied ACK 的 Room 引导不应允许重排")
+	}
+	onApplied(sdkhook.AppliedAck{RequestID: "room-guide-applied-1"})
 	client.messages <- sdkprotocol.ReceivedMessage{
 		Type:      sdkprotocol.MessageTypeAssistant,
 		SessionID: client.sessionID,
@@ -772,7 +818,6 @@ func TestRealtimeServiceGuidesRunningRoomSlotAsLiveSystemContext(t *testing.T) {
 		t.Fatalf("PostToolUse 注入后应消费 Room 引导队列: %+v", queuedGuidance)
 	}
 
-	roomHistory := workspacestore.NewRoomHistoryStore(cfg.WorkspacePath)
 	sharedMessages, err := roomHistory.ReadMessages(roomContext.Conversation.ID, nil)
 	if err != nil {
 		t.Fatalf("读取 Room 公区历史失败: %v", err)
@@ -792,6 +837,36 @@ func TestRealtimeServiceGuidesRunningRoomSlotAsLiveSystemContext(t *testing.T) {
 	}
 	if !foundGuidedPublicMessage {
 		t.Fatalf("Room 引导用户消息应写入公区历史: %+v", sharedMessages)
+	}
+
+	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
+		SessionKey:     sharedSessionKey,
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
+		Content:        "@助手甲 这条写错了",
+		RoundID:        "room-round-guide-deleted",
+		UserMessageID:  "msg-room-guide-deleted",
+		DeliveryPolicy: protocol.ChatDeliveryPolicyGuide,
+	}); err != nil {
+		t.Fatalf("登记待删除 Room 引导失败: %v", err)
+	}
+	if err = service.HandleInputQueue(ctx, roomsvc.InputQueueRequest{
+		SessionKey:     sharedSessionKey,
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
+		Action:         "delete",
+		ItemID:         "room-round-guide-deleted",
+	}); err != nil {
+		t.Fatalf("删除未消费 Room 引导失败: %v", err)
+	}
+	sharedMessages, err = roomHistory.ReadMessages(roomContext.Conversation.ID, nil)
+	if err != nil {
+		t.Fatalf("读取删除后的 Room 公区历史失败: %v", err)
+	}
+	for _, messageValue := range sharedMessages {
+		if messageValue["message_id"] == "msg-room-guide-deleted" {
+			t.Fatalf("已删除且未消费的 Room guide 不应进入公区历史: %+v", messageValue)
+		}
 	}
 
 	if err = service.HandleInterrupt(ctx, roomsvc.InterruptRequest{SessionKey: sharedSessionKey}); err != nil {

@@ -9,6 +9,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
 	_ "modernc.org/sqlite"
 
@@ -23,21 +24,8 @@ func TestServiceHandleChatQueuesRunningRoundByDefault(t *testing.T) {
 	agentService := newDMAgentService(t, cfg)
 	permission := permissionctx.NewContext()
 	client := newFakeDMClient()
-	client.onQuery = func(_ context.Context, _ string) {}
-	client.onInterrupt = func(_ context.Context) {
-		go func() {
-			client.messages <- sdkprotocol.ReceivedMessage{
-				Type:      sdkprotocol.MessageTypeResult,
-				SessionID: client.sessionID,
-				UUID:      "result-queue-cleanup",
-				Result: &sdkprotocol.ResultMessage{
-					Subtype:    "interrupted",
-					DurationMS: 1,
-					NumTurns:   1,
-				},
-			}
-		}()
-	}
+	queryPrompts := make(chan string, 2)
+	client.onQuery = func(_ context.Context, prompt string) { queryPrompts <- prompt }
 
 	factory := &fakeDMFactory{client: client}
 	runtimeManager := runtimectx.NewManagerWithFactory(factory)
@@ -56,6 +44,7 @@ func TestServiceHandleChatQueuesRunningRoundByDefault(t *testing.T) {
 		t.Fatalf("第一轮 HandleChat 失败: %v", err)
 	}
 	waitForEvent(t, sender.events, protocol.EventTypeRoundStatus, "running")
+	<-queryPrompts
 
 	if err := service.HandleChat(context.Background(), Request{
 		SessionKey:           sessionKey,
@@ -66,62 +55,122 @@ func TestServiceHandleChatQueuesRunningRoundByDefault(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("第二条排队消息 HandleChat 失败: %v", err)
 	}
-	collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
+	ackEvents := collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
 		return event.EventType == protocol.EventTypeChatAck && event.Data["round_id"] == "round-queue-2"
 	})
+	for _, event := range ackEvents {
+		if event.EventType == protocol.EventTypeChatAck && event.Data["round_id"] == "round-queue-2" && event.Data["user_message_committed"] != false {
+			t.Fatalf("未消费的 DM queue 不应提交用户消息: %+v", event.Data)
+		}
+	}
+
+	rows := readDMSessionHistory(t, cfg, service, sessionKey)
+	for _, row := range rows {
+		if row["message_id"] == "msg-user-queue-2" {
+			t.Fatalf("当前 round 结束前 DM queue 不应进入历史: %+v", row)
+		}
+	}
+	_, location, err := service.resolveInputQueueLocation(context.Background(), sessionKey, cfg.DefaultAgentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	items, err := service.inputQueue.Snapshot(location)
+	if err != nil || len(items) != 1 || items[0].SourceMessageID != "msg-user-queue-2" {
+		t.Fatalf("运行中 DM 输入应留在 durable queue: items=%+v err=%v", items, err)
+	}
+	select {
+	case prompt := <-queryPrompts:
+		t.Fatalf("当前 round 结束前不应启动 queue 输入: %q", prompt)
+	default:
+	}
+	client.mu.Lock()
+	sentContents := append([]string(nil), client.sentContents...)
+	interruptCalls := client.interruptCalls
+	client.mu.Unlock()
+	if interruptCalls != 0 || len(sentContents) != 0 {
+		t.Fatalf("DM queue 不应中断或直写运行中 runtime: interrupts=%d sent=%+v", interruptCalls, sentContents)
+	}
+
+	client.messages <- sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeResult,
+		SessionID: client.sessionID,
+		UUID:      "result-queue-first",
+		Result:    &sdkprotocol.ResultMessage{Subtype: "success", DurationMS: 1, NumTurns: 1},
+	}
+	select {
+	case prompt := <-queryPrompts:
+		if !strings.Contains(prompt, "这是补充要求") {
+			t.Fatalf("接力 round 缺少排队输入: %q", prompt)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("当前 round 结束后未立即消费 DM queue")
+	}
 	messageEvents := collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
 		return event.EventType == protocol.EventTypeMessage && event.Data["message_id"] == "msg-user-queue-2"
 	})
 	queuedMessage := messageEvents[len(messageEvents)-1].Data
-	if queuedMessage["round_id"] != "round-queue-1" || queuedMessage["source_round_id"] != "round-queue-2" {
-		t.Fatalf("运行中 DM 输入应归入实际回复 round: %+v", queuedMessage)
+	if queuedMessage["round_id"] != "round-queue-2" {
+		t.Fatalf("已消费的 DM queue 应成为独立下一轮: %+v", queuedMessage)
+	}
+	items, err = service.inputQueue.Snapshot(location)
+	if err != nil || len(items) != 0 {
+		t.Fatalf("已消费的 DM queue 不应残留: items=%+v err=%v", items, err)
 	}
 
-	rows := readDMSessionHistory(t, cfg, service, sessionKey)
-	var persisted protocol.Message
+	client.messages <- sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeResult,
+		SessionID: client.sessionID,
+		UUID:      "result-queue-second",
+		Result:    &sdkprotocol.ResultMessage{Subtype: "success", DurationMS: 1, NumTurns: 1},
+	}
+	collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
+		generating, _ := event.Data["is_generating"].(bool)
+		return event.EventType == protocol.EventTypeSessionStatus && !generating
+	})
+	rows = readDMSessionHistory(t, cfg, service, sessionKey)
+	found := false
 	for _, row := range rows {
-		if row["message_id"] == "msg-user-queue-2" {
-			persisted = row
-			break
+		if row["message_id"] == "msg-user-queue-2" && row["round_id"] == "round-queue-2" {
+			found = true
 		}
 	}
-	if persisted == nil || persisted["round_id"] != "round-queue-1" || persisted["source_round_id"] != "round-queue-2" {
-		t.Fatalf("运行中 DM 输入历史归组不正确: %+v", rows)
+	if !found {
+		t.Fatalf("已消费的 DM queue 应写入下一轮历史: %+v", rows)
 	}
-	agentValue, err := agentService.GetAgent(context.Background(), cfg.DefaultAgentID)
-	if err != nil {
-		t.Fatalf("读取测试 Agent 失败: %v", err)
-	}
-	sessionItem, err := service.ensureSession(context.Background(), agentValue, protocol.ParseSessionKey(sessionKey), sessionKey)
-	if err != nil {
-		t.Fatalf("读取测试 session 失败: %v", err)
-	}
-	index, err := service.history.ReadRoundIndex(agentValue.WorkspacePath, sessionItem, nil)
-	if err != nil {
-		t.Fatalf("读取 DM round 索引失败: %v", err)
-	}
-	if len(index.Items) != 1 || index.Items[0].RoundID != "round-queue-1" {
-		t.Fatalf("运行中 DM 输入不应生成空 source round: %+v", index.Items)
-	}
+}
 
-	client.mu.Lock()
-	interruptCalls := client.interruptCalls
-	sentContents := append([]string(nil), client.sentContents...)
-	client.mu.Unlock()
-	if interruptCalls != 0 {
-		t.Fatalf("默认排队不应中断运行中 DM round: interruptCalls=%d", interruptCalls)
+func TestDMGuidanceAppliedAckDoesNotConsumeNewerBatch(t *testing.T) {
+	storeRoot := t.TempDir()
+	store := workspacestore.NewInputQueueStore(storeRoot)
+	location := workspacestore.InputQueueLocation{
+		Scope: protocol.InputQueueScopeDM, WorkspacePath: storeRoot, SessionKey: "agent:nexus:ws:dm:ack-race",
 	}
-	// 轮内排队注入不再带 runtime context（情绪态），避免污染前缀缓存。
-	if len(sentContents) != 1 ||
-		!strings.Contains(sentContents[0], "这是补充要求") {
-		t.Fatalf("运行中 DM round 未收到排队输入: %+v", sentContents)
+	items, err := store.Enqueue(location, protocol.InputQueueItem{
+		ID: "same-item", Content: "new batch", Source: protocol.InputQueueSourceUser,
+		DeliveryPolicy: protocol.ChatDeliveryPolicyGuide, RootRoundID: "round-1",
+	})
+	if err != nil || len(items) != 1 {
+		t.Fatalf("enqueue newer batch: items=%+v err=%v", items, err)
 	}
-	if len(factory.options) != 1 {
-		t.Fatalf("排队输入不应创建新 runtime client: got=%d want=1", len(factory.options))
+	current := preparedDMGuidance{item: items[0], sourceRoundID: "new", targetRoundID: "round-1", content: "new batch"}
+	service := &Service{
+		inputQueue: store,
+		inputQueueGuidancePending: map[string][]preparedDMGuidance{
+			pendingDMGuidanceKey(location.SessionKey, "round-1"): {current},
+		},
 	}
-
-	if err := service.HandleInterrupt(context.Background(), InterruptRequest{SessionKey: sessionKey}); err != nil {
-		t.Fatalf("清理运行中 round 失败: %v", err)
+	stale := current
+	stale.item.Content = "old batch"
+	stale.item.UpdatedAt--
+	stale.content = "old batch"
+	if err = service.confirmPendingInputQueueGuidance(
+		context.Background(), location.SessionKey, location, "round-1", []preparedDMGuidance{stale},
+	); err != nil {
+		t.Fatal(err)
+	}
+	remaining, err := store.Snapshot(location)
+	if err != nil || len(remaining) != 1 || remaining[0].Content != "new batch" {
+		t.Fatalf("stale ACK consumed newer DM batch: items=%+v err=%v", remaining, err)
 	}
 }
 
@@ -291,6 +340,137 @@ func TestServiceHandleChatGuidePolicyQueuesHookGuidance(t *testing.T) {
 	}
 	collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
 		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
+	})
+}
+
+func TestServiceAckRuntimeGuidanceWaitsForAppliedAckAcrossAssistantAndTerminal(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+
+	agentService := newDMAgentService(t, cfg)
+	permission := permissionctx.NewContext()
+	client := newFakeDMClient()
+	client.hookResponseAck = true
+	fallbackStarted := make(chan string, 1)
+	client.onQuery = func(_ context.Context, prompt string) {
+		if !strings.Contains(prompt, "ACK 后才能消费") {
+			return
+		}
+		fallbackStarted <- prompt
+		go func() {
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: client.sessionID,
+				UUID:      "result-ack-guidance-fallback",
+				Result: &sdkprotocol.ResultMessage{
+					Subtype:    "success",
+					DurationMS: 1,
+					NumTurns:   1,
+				},
+			}
+		}()
+	}
+	factory := &fakeDMFactory{client: client}
+	runtimeManager := runtimectx.NewManagerWithFactory(factory)
+	service := NewService(cfg, agentService, runtimeManager, permission)
+	sender := newDMTestSender("sender-ack-guidance")
+	sessionKey := "agent:nexus:ws:dm:test-ack-guidance"
+	permission.BindSession(sessionKey, sender)
+
+	if err := service.HandleChat(context.Background(), Request{
+		SessionKey: sessionKey,
+		Content:    "先执行当前任务",
+		RoundID:    "round-ack-guidance-1",
+	}); err != nil {
+		t.Fatalf("启动 DM round 失败: %v", err)
+	}
+	waitForEvent(t, sender.events, protocol.EventTypeRoundStatus, "running")
+	if err := service.HandleChat(context.Background(), Request{
+		SessionKey:     sessionKey,
+		Content:        "ACK 后才能消费",
+		RoundID:        "round-ack-guidance-2",
+		UserMessageID:  "msg-user-ack-guidance-2",
+		DeliveryPolicy: protocol.ChatDeliveryPolicyGuide,
+	}); err != nil {
+		t.Fatalf("写入 DM 引导失败: %v", err)
+	}
+	_, location, err := service.resolveInputQueueLocation(context.Background(), sessionKey, "")
+	if err != nil {
+		t.Fatalf("解析 DM 队列位置失败: %v", err)
+	}
+	output, err := service.inputQueueGuidanceHook(sessionKey, location)(
+		context.Background(),
+		sdkhook.Input{EventName: sdkhook.EventPostToolUse},
+		"tool-ack",
+	)
+	if err != nil || output.SpecificOutput == nil || output.OnApplied == nil {
+		t.Fatalf("ACK runtime 应返回待确认引导: output=%+v err=%v", output, err)
+	}
+
+	client.messages <- sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeAssistant,
+		SessionID: client.sessionID,
+		Assistant: &sdkprotocol.AssistantMessage{Message: sdkprotocol.ConversationEnvelope{
+			ID:      "assistant-before-guidance-ack",
+			Model:   "sonnet",
+			Content: []sdkprotocol.ContentBlock{sdkprotocol.TextBlock{Text: "当前任务已完成。"}},
+		}},
+	}
+	collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeMessage &&
+			event.Data["message_id"] == "assistant-before-guidance-ack"
+	})
+	items, err := service.inputQueue.Snapshot(location)
+	if err != nil || len(items) != 1 {
+		t.Fatalf("assistant 输出不能代替 applied ACK: items=%+v err=%v", items, err)
+	}
+
+	service.inputQueueDispatchMu.Lock()
+	dispatchLocked := true
+	defer func() {
+		if dispatchLocked {
+			service.inputQueueDispatchMu.Unlock()
+		}
+	}()
+	client.messages <- sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeResult,
+		SessionID: client.sessionID,
+		UUID:      "result-before-guidance-ack",
+		Result: &sdkprotocol.ResultMessage{
+			Subtype:    "success",
+			DurationMS: 1,
+			NumTurns:   1,
+		},
+	}
+	collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus &&
+			event.Data["round_id"] == "round-ack-guidance-1" &&
+			event.Data["status"] == "finished"
+	})
+	items, err = service.inputQueue.Snapshot(location)
+	if err != nil || len(items) != 1 {
+		t.Fatalf("result 与终态不能代替 applied ACK: items=%+v err=%v", items, err)
+	}
+	for _, row := range readDMSessionHistory(t, cfg, service, sessionKey) {
+		if row["message_id"] == "msg-user-ack-guidance-2" {
+			t.Fatalf("未 applied ACK 的引导不应写入当前 round: %+v", row)
+		}
+	}
+	service.inputQueueDispatchMu.Unlock()
+	dispatchLocked = false
+
+	select {
+	case prompt := <-fallbackStarted:
+		if !strings.Contains(prompt, "ACK 后才能消费") {
+			t.Fatalf("未确认引导的下一轮缺少原内容: %q", prompt)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("未确认引导没有作为下一轮继续")
+	}
+	collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus &&
+			event.Data["round_id"] == "round-ack-guidance-2" &&
+			event.Data["status"] == "finished"
 	})
 }
 
@@ -607,6 +787,7 @@ func TestServiceInputQueueGuideWaitsForPostToolUse(t *testing.T) {
 	}
 
 	var additionalContext string
+	var onApplied func(sdkhook.AppliedAck)
 	for _, matcher := range factory.options[0].Hooks.Matchers[sdkhook.EventPostToolUse] {
 		for _, hook := range matcher.Hooks {
 			output, hookErr := hook(context.Background(), sdkhook.Input{
@@ -618,6 +799,9 @@ func TestServiceInputQueueGuideWaitsForPostToolUse(t *testing.T) {
 			if output.SpecificOutput != nil && output.SpecificOutput.AdditionalContext != "" {
 				text := output.SpecificOutput.AdditionalContext
 				additionalContext = text
+			}
+			if output.OnApplied != nil {
+				onApplied = output.OnApplied
 			}
 		}
 	}
@@ -632,6 +816,17 @@ func TestServiceInputQueueGuideWaitsForPostToolUse(t *testing.T) {
 	if len(items) != 1 {
 		t.Fatalf("首次 hook 返回后必须等待后续可观察行为确认: %+v", items)
 	}
+	if onApplied == nil {
+		t.Fatal("DM guide output 缺少 runtime applied ACK callback")
+	}
+	if err = service.HandleInputQueue(context.Background(), InputQueueRequest{
+		SessionKey: sessionKey,
+		Action:     "reorder",
+		OrderedIDs: []string{itemID},
+	}); err == nil {
+		t.Fatal("已返回给 runtime 但尚未 applied ACK 的 DM 引导不应允许重排")
+	}
+	onApplied(sdkhook.AppliedAck{RequestID: "dm-guide-applied-1"})
 	var confirmationContext string
 	for _, matcher := range factory.options[0].Hooks.Matchers[sdkhook.EventPostToolUse] {
 		for _, hook := range matcher.Hooks {

@@ -1,3 +1,6 @@
+// INPUT: 已完成 Agent 输出中的公区 @ 与目标 Agent 当前执行态。
+// OUTPUT: 同 Agent 串行的 public mention guide/新轮唤醒。
+// POS: Room Agent 间公开协作的唤醒编排入口。
 package room
 
 import (
@@ -120,6 +123,9 @@ func (s *RealtimeService) startPublicMentionRound(
 	parentRound *activeRoomRound,
 	wakes []publicMentionWake,
 ) error {
+	s.publicMentionDispatchMu.Lock()
+	defer s.publicMentionDispatchMu.Unlock()
+
 	if parentRound == nil || parentRound.Context == nil || len(wakes) == 0 {
 		return nil
 	}
@@ -307,7 +313,7 @@ func (s *RealtimeService) launchPublicMentionRound(
 	)
 	s.broadcastSharedEvent(ctx, sessionKey, contextValue.Room.ID, roomdomain.WrapRoundStatusEvent(sessionKey, contextValue.Room.ID, contextValue.Conversation.ID, roundID, "running", ""))
 	// 公区 @ 唤醒由后端发起，没有前端请求，client 关联字段留空。
-	s.broadcastSharedEvent(ctx, sessionKey, contextValue.Room.ID, roomdomain.WrapChatAckEvent(sessionKey, contextValue.Room.ID, contextValue.Conversation.ID, "", "", roundID, "", pending))
+	s.broadcastSharedEvent(ctx, sessionKey, contextValue.Room.ID, roomdomain.WrapChatAckEvent(sessionKey, contextValue.Room.ID, contextValue.Conversation.ID, "", "", roundID, "", false, pending))
 	for _, pendingSlot := range pendingSlots {
 		if normalizeWakeQueueSource(pendingSlot.wake) != protocol.InputQueueSourceAgentRoomMessage {
 			continue

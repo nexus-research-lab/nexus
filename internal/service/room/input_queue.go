@@ -1,5 +1,5 @@
 // INPUT: Room 输入队列控制请求与持久化队列快照。
-// OUTPUT: 队列变更、guide 状态同步和共享快照事件。
+// OUTPUT: 队列变更、guide 消费轮身份同步和共享快照事件。
 // POS: Room 用户输入队列的控制面。
 package room
 
@@ -8,6 +8,7 @@ import (
 	"errors"
 	"slices"
 	"strings"
+	"time"
 
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
@@ -155,16 +156,27 @@ func (s *RealtimeService) HandleInputQueue(ctx context.Context, request InputQue
 		go s.dispatchNextInputQueueItem(contextWithQueueOwner(context.Background(), ownerUserID), sessionKey, contextValue.Room.ID, contextValue.Conversation.ID)
 		return nil
 	case "delete":
+		if s.hasInFlightRoomGuidance(request.ItemID) {
+			return errors.New("该引导已发送给智能体，不能再删除")
+		}
 		if err = s.deleteRoomInputQueueItem(ctx, contextValue, request.ItemID); err != nil {
 			return err
 		}
 		return s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue)
 	case "reorder":
+		for _, itemID := range request.OrderedIDs {
+			if s.hasInFlightRoomGuidance(itemID) {
+				return errors.New("已发送给智能体的引导不能重排")
+			}
+		}
 		if err = s.reorderRoomInputQueueItems(ctx, contextValue, request.OrderedIDs); err != nil {
 			return err
 		}
 		return s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue)
 	case "guide":
+		if s.hasInFlightRoomGuidance(request.ItemID) {
+			return errors.New("该引导正在等待智能体确认，不能更改投递方式")
+		}
 		return s.guideInputQueueItem(ctx, sessionKey, contextValue, request.ItemID)
 	default:
 		return errors.New("unsupported input_queue action")
@@ -215,7 +227,7 @@ func (s *RealtimeService) guideInputQueueItem(
 			return err
 		}
 		entry.Item.DeliveryPolicy = protocol.ChatDeliveryPolicyQueue
-		if err = s.syncQueuedPublicMessageDeliveryPolicy(ctx, sessionKey, contextValue, entry.Item, ""); err != nil {
+		if err = s.syncQueuedPublicUserMessage(ctx, sessionKey, contextValue, entry.Item, "", false); err != nil {
 			return err
 		}
 		if err = s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue); err != nil {
@@ -243,22 +255,33 @@ func (s *RealtimeService) guideInputQueueItem(
 	}
 	entry.Item.DeliveryPolicy = protocol.ChatDeliveryPolicyGuide
 	entry.Item.RootRoundID = activeSlot.AgentRoundID
-	if err = s.syncQueuedPublicMessageDeliveryPolicy(ctx, sessionKey, contextValue, entry.Item, ""); err != nil {
+	if err = s.syncQueuedPublicUserMessage(ctx, sessionKey, contextValue, entry.Item, "", false); err != nil {
 		return err
 	}
 	return s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue)
 }
 
-func (s *RealtimeService) syncQueuedPublicMessageDeliveryPolicy(
+func (s *RealtimeService) syncQueuedPublicUserMessage(
 	ctx context.Context,
 	sessionKey string,
 	contextValue *protocol.ConversationContextAggregate,
 	item protocol.InputQueueItem,
 	rootRoundID string,
+	materialize bool,
 ) error {
-	roundID := strings.TrimSpace(item.SourceMessageID)
-	if roundID == "" || contextValue == nil {
+	if contextValue == nil || s.roomHistory == nil {
 		return nil
+	}
+	sourceRoundID := roomInputQueueSourceRoundID(item)
+	rootRoundID = strings.TrimSpace(rootRoundID)
+	targetAgentIDs := inputQueueTargetAgentIDs(item)
+	consumingAgentRoundID := ""
+	if materialize && protocol.ShouldGuideRunningRound(item.DeliveryPolicy) && len(targetAgentIDs) == 1 {
+		consumingAgentRoundID = strings.TrimSpace(item.RootRoundID)
+	}
+	userMessageID := strings.TrimSpace(item.SourceMessageID)
+	if userMessageID == "" {
+		userMessageID = "msg_user_" + sourceRoundID
 	}
 	messages, err := s.roomHistory.ReadMessages(contextValue.Conversation.ID, nil)
 	if err != nil {
@@ -267,28 +290,43 @@ func (s *RealtimeService) syncQueuedPublicMessageDeliveryPolicy(
 	for index := len(messages) - 1; index >= 0; index-- {
 		message := messages[index]
 		messageRoundID := protocol.MessageRoundID(message)
-		sourceRoundID, _ := message["source_round_id"].(string)
+		messageSourceRoundID, _ := message["source_round_id"].(string)
 		if protocol.MessageRole(message) != "user" ||
-			(messageRoundID != roundID && strings.TrimSpace(sourceRoundID) != roundID) {
+			(message["message_id"] != userMessageID && messageRoundID != sourceRoundID &&
+				strings.TrimSpace(messageSourceRoundID) != sourceRoundID) {
 			continue
 		}
 		updated := protocol.Clone(message)
 		updated["delivery_policy"] = string(item.DeliveryPolicy)
 		messageTargets := roomMessageTargetAgentIDs(message["target_agent_ids"])
-		updatedTargets := mergeRoomMessageTargetAgentIDs(messageTargets, inputQueueTargetAgentIDs(item))
+		updatedTargets := mergeRoomMessageTargetAgentIDs(messageTargets, targetAgentIDs)
 		if len(updatedTargets) > 0 {
 			updated["target_agent_ids"] = updatedTargets
 		}
-		if rootRoundID = strings.TrimSpace(rootRoundID); rootRoundID != "" && rootRoundID != roundID {
-			updated["source_round_id"] = roundID
+		messageAgentRoundID, _ := message["agent_round_id"].(string)
+		messageAgentRoundID = strings.TrimSpace(messageAgentRoundID)
+		if len(updatedTargets) > 1 {
+			delete(updated, "agent_round_id")
+		} else if consumingAgentRoundID != "" && messageAgentRoundID == "" {
+			updated["agent_round_id"] = consumingAgentRoundID
+		}
+		// 第一位消费者确定公开用户消息的归组；其他 root 只聚合消费目标，
+		// 不能让同一条消息在时间线中随最后完成的 Agent 来回移动。
+		if rootRoundID != "" && rootRoundID != sourceRoundID &&
+			strings.TrimSpace(messageSourceRoundID) == "" &&
+			(messageRoundID == "" || messageRoundID == sourceRoundID) {
+			updated["source_round_id"] = sourceRoundID
 			updated["round_id"] = rootRoundID
 		}
 		messagePolicy, _ := message["delivery_policy"].(string)
 		updatedPolicy, _ := updated["delivery_policy"].(string)
 		updatedSourceRoundID, _ := updated["source_round_id"].(string)
+		updatedAgentRoundID, _ := updated["agent_round_id"].(string)
+		updatedAgentRoundID = strings.TrimSpace(updatedAgentRoundID)
 		if protocol.MessageRoundID(updated) == messageRoundID &&
 			strings.TrimSpace(messagePolicy) == strings.TrimSpace(updatedPolicy) &&
-			strings.TrimSpace(sourceRoundID) == strings.TrimSpace(updatedSourceRoundID) &&
+			strings.TrimSpace(messageSourceRoundID) == strings.TrimSpace(updatedSourceRoundID) &&
+			messageAgentRoundID == updatedAgentRoundID &&
 			slices.Equal(messageTargets, updatedTargets) {
 			return nil
 		}
@@ -303,7 +341,56 @@ func (s *RealtimeService) syncQueuedPublicMessageDeliveryPolicy(
 		))
 		return nil
 	}
+	if !materialize || item.Source != protocol.InputQueueSourceUser || sourceRoundID == "" {
+		return nil
+	}
+	messageRoundID := sourceRoundID
+	messageValue := protocol.Message{
+		"message_id":      userMessageID,
+		"session_key":     strings.TrimSpace(sessionKey),
+		"room_id":         contextValue.Room.ID,
+		"conversation_id": contextValue.Conversation.ID,
+		"agent_id":        "",
+		"round_id":        sourceRoundID,
+		"role":            "user",
+		"content":         strings.TrimSpace(item.Content),
+		"timestamp":       time.Now().UnixMilli(),
+		"delivery_policy": string(item.DeliveryPolicy),
+	}
+	if rootRoundID != "" && rootRoundID != sourceRoundID {
+		messageRoundID = rootRoundID
+		messageValue["source_round_id"] = sourceRoundID
+		messageValue["round_id"] = rootRoundID
+	}
+	if consumingAgentRoundID != "" {
+		messageValue["agent_round_id"] = consumingAgentRoundID
+	}
+	if len(targetAgentIDs) > 0 {
+		messageValue["target_agent_ids"] = targetAgentIDs
+	}
+	if attachments := protocol.NormalizeChatAttachments(item.Attachments, ""); len(attachments) > 0 {
+		messageValue["attachments"] = attachments
+	}
+	if err = s.persistSharedInlineMessage(contextValue.Conversation.ID, messageValue); err != nil {
+		return err
+	}
+	s.broadcastSharedEvent(ctx, sessionKey, contextValue.Room.ID, roomdomain.WrapMessageEvent(
+		contextValue.Room.ID,
+		contextValue.Conversation.ID,
+		messageValue,
+		messageRoundID,
+	))
 	return nil
+}
+
+func roomInputQueueSourceRoundID(item protocol.InputQueueItem) string {
+	if itemID := strings.TrimSpace(item.ID); itemID != "" {
+		if strings.TrimSpace(item.SourceMessageID) != "" {
+			return itemID
+		}
+		return "queue_" + itemID
+	}
+	return strings.TrimSpace(item.SourceMessageID)
 }
 
 func roomMessageTargetAgentIDs(value any) []string {

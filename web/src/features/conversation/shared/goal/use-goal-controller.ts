@@ -4,7 +4,6 @@ import {
   type FormEvent,
   useCallback,
   useEffect,
-  useRef,
   useState,
 } from "react";
 
@@ -20,9 +19,7 @@ import {
   buildGoalControllerProjection,
   createGoalDraft,
   EMPTY_GOAL_DIALOG,
-  goalResumePromptKey,
   nextGoalBudgetInput,
-  shouldPromptResumeGoal,
   type GoalDialog,
   type GoalDraft,
 } from "./goal-model";
@@ -50,25 +47,8 @@ export function useGoalController({
 }: GoalControllerOptions) {
   const [draft, setDraft] = useState<GoalDraft | null>(null);
   const [dialog, setDialog] = useState<GoalDialog>(EMPTY_GOAL_DIALOG);
-  const resumePromptKeyRef = useRef<string | null>(null);
-
-  const syncResumeDialog = useCallback((current: Goal | null) => {
-    if (!current || disabled || !shouldPromptResumeGoal(current.status)) {
-      setDialog((value) => value.kind === "resume" ? EMPTY_GOAL_DIALOG : value);
-      return;
-    }
-    const key = goalResumePromptKey(current);
-    if (resumePromptKeyRef.current === key) {
-      return;
-    }
-    resumePromptKeyRef.current = key;
-    setDialog((value) => value.kind === "clear"
-      ? value
-      : { goal: current, kind: "resume" });
-  }, [disabled]);
 
   const resource = useGoalResource({
-    onGoalResolved: syncResumeDialog,
     sessionKey,
   });
   const {
@@ -82,7 +62,6 @@ export function useGoalController({
   } = resource;
   const projection = buildGoalControllerProjection({
     dialog,
-    disabled,
     draft,
     goal,
     phase,
@@ -130,10 +109,7 @@ export function useGoalController({
     if (currentDialog.kind === "clear") {
       void clearGoal();
     }
-    if (currentDialog.kind === "resume") {
-      void runCommand("resuming", resumeGoalApi, "Goal 操作失败");
-    }
-  }, [clearGoal, projection.dialog, runCommand]);
+  }, [clearGoal, projection.dialog]);
 
   useEffect(() => {
     void refresh();

@@ -93,6 +93,13 @@ func TestServiceRetargetByModelRetriesVersionStaleAndPreservesConcurrentUsage(t 
 	service.nowFn = fixedClock()
 	service.idFactory = sequentialID()
 	ctx := context.Background()
+	if _, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: protocol.BuildRoomSharedSessionKey("missing-model-agent"),
+		Objective:  "Ownerless model Goal",
+		CreatedBy:  "model",
+	}); !errors.Is(err, ErrGoalInvalidInput) {
+		t.Fatalf("ownerless model create error = %v, want ErrGoalInvalidInput", err)
+	}
 
 	created, err := service.Create(ctx, protocol.CreateGoalRequest{
 		SessionKey: "agent:nexus:ws:dm:chat",
@@ -254,7 +261,7 @@ func TestServiceRetargetByModelRequiresFreshRoomCollaboration(t *testing.T) {
 	updated, err := service.RetargetByModel(ctx, created.SessionKey, protocol.RetargetGoalRequest{
 		Objective: "Analyze M4 and M5",
 		RoundID:   "round-correction",
-		AgentID:   "agent-peer",
+		AgentID:   "agent-lead",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -262,7 +269,7 @@ func TestServiceRetargetByModelRequiresFreshRoomCollaboration(t *testing.T) {
 	if !RoomCollaborationRequired(*updated) || RoomCollaborationObserved(*updated) {
 		t.Fatalf("collaboration metadata = %#v, want required without stale evidence", updated.Metadata)
 	}
-	if len(dispatcher.items) != 1 || dispatcher.items[0].excludedAgentID != "agent-peer" || dispatcher.items[0].contextName != "goal" || dispatcher.items[0].objectiveRevision != updated.ObjectiveRevision() {
+	if len(dispatcher.items) != 1 || dispatcher.items[0].excludedAgentID != "agent-lead" || dispatcher.items[0].contextName != "goal" || dispatcher.items[0].objectiveRevision != updated.ObjectiveRevision() {
 		t.Fatalf("guidance = %#v, want Room retarget propagated except caller", dispatcher.items)
 	}
 	for _, key := range []string{
@@ -275,7 +282,7 @@ func TestServiceRetargetByModelRequiresFreshRoomCollaboration(t *testing.T) {
 			t.Fatalf("collaboration metadata retained stale %q: %#v", key, updated.Metadata)
 		}
 	}
-	if _, err := service.CompleteByModel(ctx, created.ID, protocol.CompleteGoalRequest{}); !errors.Is(err, ErrGoalInvalidState) {
+	if _, err := service.CompleteByModel(ctx, created.ID, protocol.CompleteGoalRequest{AgentID: "agent-lead"}); !errors.Is(err, ErrGoalInvalidState) {
 		t.Fatalf("completion without fresh collaboration error = %v, want ErrGoalInvalidState", err)
 	}
 	if _, err := service.RecordRoomGoalCollaborationEvidence(ctx, created.ID, "round-peer-stale", "agent-peer", created.ObjectiveRevision()); !errors.Is(err, ErrGoalRevisionStale) {
@@ -284,11 +291,106 @@ func TestServiceRetargetByModelRequiresFreshRoomCollaboration(t *testing.T) {
 	if _, err := service.RecordRoomGoalCollaborationEvidence(ctx, created.ID, "round-peer-new", "agent-peer", updated.ObjectiveRevision()); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := service.CompleteByModel(ctx, created.ID, protocol.CompleteGoalRequest{ExpectedObjectiveRevision: created.ObjectiveRevision()}); !errors.Is(err, ErrGoalRevisionStale) {
+	if _, err := service.CompleteByModel(ctx, created.ID, protocol.CompleteGoalRequest{AgentID: "agent-lead", ExpectedObjectiveRevision: created.ObjectiveRevision()}); !errors.Is(err, ErrGoalRevisionStale) {
 		t.Fatalf("stale completion error = %v, want ErrGoalRevisionStale", err)
 	}
-	if _, err := service.CompleteByModel(ctx, created.ID, protocol.CompleteGoalRequest{ExpectedObjectiveRevision: updated.ObjectiveRevision()}); err != nil {
+	if _, err := service.CompleteByModel(ctx, created.ID, protocol.CompleteGoalRequest{AgentID: "agent-lead", ExpectedObjectiveRevision: updated.ObjectiveRevision()}); err != nil {
 		t.Fatalf("completion with fresh collaboration error = %v", err)
+	}
+}
+
+func TestServiceRoomGoalModelMutationsRequireLeadAgent(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: protocol.BuildRoomSharedSessionKey("ownership"),
+		Objective:  "Original objective",
+		CreatedBy:  "model",
+		AgentID:    "agent-lead",
+		Metadata: map[string]any{
+			protocol.GoalMetadataRoomGoalLeadAgentID:   "agent-spoof",
+			protocol.GoalMetadataRoomGoalLeadAgentName: "Spoof",
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := protocol.GoalMetadataString(created.Metadata, protocol.GoalMetadataRoomGoalCreatorAgentID); got != "agent-lead" {
+		t.Fatalf("creator agent = %q, want agent-lead", got)
+	}
+	if got := RoomLeadAgentID(*created); got != "agent-lead" {
+		t.Fatalf("lead agent = %q, want agent-lead", got)
+	}
+	if got := RoomLeadAgentName(*created); got != "" {
+		t.Fatalf("model-created lead name = %q, want directory reconciliation", got)
+	}
+	accountant := &fakeExternalMutationAccountant{service: service}
+	service.SetExternalMutationAccountant(accountant)
+	if _, err = service.RetargetByModel(ctx, created.SessionKey, protocol.RetargetGoalRequest{Objective: "Peer replacement", AgentID: "agent-peer"}); !errors.Is(err, ErrGoalForbidden) {
+		t.Fatalf("peer retarget error = %v, want ErrGoalForbidden", err)
+	}
+	if _, err = service.BlockByModel(ctx, created.ID, protocol.BlockGoalRequest{AgentID: "agent-peer"}); !errors.Is(err, ErrGoalForbidden) {
+		t.Fatalf("peer block error = %v, want ErrGoalForbidden", err)
+	}
+	if _, err = service.CompleteByModel(ctx, created.ID, protocol.CompleteGoalRequest{AgentID: "agent-peer"}); !errors.Is(err, ErrGoalForbidden) {
+		t.Fatalf("peer complete error = %v, want ErrGoalForbidden", err)
+	}
+	if len(accountant.sessionKeys) != 0 {
+		t.Fatalf("forbidden mutation flushed accounting for %v", accountant.sessionKeys)
+	}
+	updated, err := service.RetargetByModel(ctx, created.SessionKey, protocol.RetargetGoalRequest{Objective: "Lead replacement", AgentID: "agent-lead"})
+	if err != nil || updated.Objective != "Lead replacement" {
+		t.Fatalf("lead retarget = %#v err=%v", updated, err)
+	}
+	replaced, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey:      created.SessionKey,
+		Objective:       "User replacement",
+		ReplaceExisting: true,
+	})
+	if err != nil || RoomLeadAgentID(*replaced) != "agent-lead" || protocol.GoalMetadataString(replaced.Metadata, protocol.GoalMetadataRoomGoalCreatorAgentID) != "agent-lead" {
+		t.Fatalf("user replacement ownership = %#v err=%v", replaced, err)
+	}
+	reassigned, err := service.SetRoomGoalLead(ctx, replaced.ID, "agent-peer", "Peer")
+	if err != nil || RoomLeadAgentID(*reassigned) != "agent-peer" || RoomLeadAgentName(*reassigned) != "Peer" || protocol.GoalMetadataString(reassigned.Metadata, protocol.GoalMetadataRoomGoalCreatorAgentID) != "agent-lead" {
+		t.Fatalf("reassigned ownership = %#v err=%v", reassigned, err)
+	}
+	legacy, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: protocol.BuildRoomSharedSessionKey("legacy-ownership"),
+		Objective:  "Legacy objective",
+		Metadata: map[string]any{
+			protocol.GoalMetadataRoomGoalCreatorAgentID: "agent-spoof",
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, exists := legacy.Metadata[protocol.GoalMetadataRoomGoalCreatorAgentID]; exists {
+		t.Fatalf("user-created Goal accepted spoofed creator: %#v", legacy.Metadata)
+	}
+	if _, err = service.RetargetByModel(ctx, legacy.SessionKey, protocol.RetargetGoalRequest{Objective: "Claimed objective", AgentID: "agent-host"}); !errors.Is(err, ErrGoalForbidden) {
+		t.Fatalf("ownerless legacy retarget error = %v, want ErrGoalForbidden", err)
+	}
+	if _, err = service.SetRoomGoalLead(ctx, legacy.ID, "agent-host", "Host"); err != nil {
+		t.Fatal(err)
+	}
+	metadataUpdated, err := service.Update(ctx, legacy.ID, protocol.UpdateGoalRequest{Metadata: map[string]any{
+		protocol.GoalMetadataRoomGoalCreatorAgentID: "agent-spoof",
+		protocol.GoalMetadataRoomGoalLeadAgentID:    "agent-host",
+		protocol.GoalMetadataRoomGoalLeadAgentName:  "Host",
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, exists := metadataUpdated.Metadata[protocol.GoalMetadataRoomGoalCreatorAgentID]; exists {
+		t.Fatalf("metadata update injected creator: %#v", metadataUpdated.Metadata)
+	}
+	claimed, err := service.RetargetByModel(ctx, legacy.SessionKey, protocol.RetargetGoalRequest{Objective: "Claimed objective", AgentID: "agent-host"})
+	if err != nil || RoomLeadAgentID(*claimed) != "agent-host" {
+		t.Fatalf("reconciled legacy retarget = %#v err=%v, want host lead", claimed, err)
 	}
 }
 
@@ -327,7 +429,7 @@ func TestServiceObjectiveRevisionIgnoresUsageVersionBumps(t *testing.T) {
 	}
 }
 
-func TestServiceRetargetByModelRejectsInvalidOrNonActiveGoal(t *testing.T) {
+func TestServiceRetargetByModelReplacesPausedGoalWithoutResume(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{GoalEnabled: true}, repo)
 	service.nowFn = fixedClock()
@@ -347,10 +449,50 @@ func TestServiceRetargetByModelRejectsInvalidOrNonActiveGoal(t *testing.T) {
 	if _, err := service.Pause(ctx, created.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := service.RetargetByModel(ctx, created.SessionKey, protocol.RetargetGoalRequest{Objective: "New"}); !errors.Is(err, ErrGoalInvalidState) {
-		t.Fatalf("paused goal error = %v, want ErrGoalInvalidState", err)
+	retargeted, err := service.RetargetByModel(ctx, created.SessionKey, protocol.RetargetGoalRequest{Objective: "New"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if retargeted.ID != created.ID || retargeted.Objective != "New" || retargeted.Status != protocol.GoalStatusActive {
+		t.Fatalf("retargeted = %#v, want same active Goal with replacement objective", retargeted)
 	}
 	if _, err := service.RetargetByModel(ctx, created.SessionKey, protocol.RetargetGoalRequest{}); !errors.Is(err, ErrGoalInvalidInput) {
 		t.Fatalf("empty objective error = %v, want ErrGoalInvalidInput", err)
+	}
+}
+
+func TestServiceRetargetByModelDoesNotBypassExhaustedBudget(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+	budget := int64(10)
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey:  "agent:nexus:ws:dm:budget-limited-retarget",
+		Objective:   "Original",
+		TokenBudget: &budget,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	limited, err := service.RecordUsageForSession(ctx, created.SessionKey, protocol.GoalUsage{TotalTokens: budget}, "round-budget")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if limited.Status != protocol.GoalStatusBudgetLimited {
+		t.Fatalf("status = %q, want budget_limited", limited.Status)
+	}
+
+	if _, err = service.RetargetByModel(ctx, created.SessionKey, protocol.RetargetGoalRequest{Objective: "Replacement"}); !errors.Is(err, ErrGoalInvalidState) {
+		t.Fatalf("retarget error = %v, want ErrGoalInvalidState", err)
+	}
+	current, err := service.Current(ctx, created.SessionKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current.Objective != created.Objective || current.Status != protocol.GoalStatusBudgetLimited {
+		t.Fatalf("current = %#v, want unchanged budget-limited Goal", current)
 	}
 }

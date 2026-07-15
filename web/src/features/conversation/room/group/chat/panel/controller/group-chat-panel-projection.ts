@@ -7,7 +7,10 @@ import {
 } from "@/features/conversation/shared/conversation-panel-model";
 import { buildGoalActivityKey } from "@/features/conversation/shared/goal/goal-model";
 import type { Agent } from "@/types/agent/agent";
-import type { UseAgentConversationReturn } from "@/types/agent/agent-conversation";
+import type {
+  InputQueueItem,
+  UseAgentConversationReturn,
+} from "@/types/agent/agent-conversation";
 import type { SessionRoundIndexItem } from "@/types/conversation/history";
 
 import type {
@@ -19,6 +22,12 @@ import type { RoomGoalComposerModel } from "./use-room-goal-composer";
 export interface RoomAgentDirectory {
   avatars: Record<string, string | null>;
   names: Record<string, string>;
+}
+
+export function projectRoomPendingInputQueueItems(
+  items: InputQueueItem[],
+): InputQueueItem[] {
+  return items.filter((item) => item.source === "user");
 }
 
 type GroupChatSession = Omit<

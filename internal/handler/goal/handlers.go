@@ -107,6 +107,8 @@ func (h *Handlers) writeGoalError(writer http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, goalsvc.ErrGoalDisabled):
 		h.api.WriteFailure(writer, http.StatusForbidden, "Goal 功能未启用")
+	case errors.Is(err, goalsvc.ErrGoalForbidden):
+		h.api.WriteFailure(writer, http.StatusForbidden, "当前智能体无权修改该 Goal")
 	case errors.Is(err, goalsvc.ErrGoalNotFound):
 		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
 	case errors.Is(err, goalsvc.ErrGoalConflict), errors.Is(err, goalsvc.ErrGoalVersionStale):

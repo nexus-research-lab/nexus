@@ -329,6 +329,35 @@ func TestInputQueueStoreDispatchPreparedGuidanceIsAllOrNone(t *testing.T) {
 	}
 }
 
+func TestInputQueueStoreDispatchPreparedGuidanceIgnoresReorderMetadata(t *testing.T) {
+	root := t.TempDir()
+	location := InputQueueLocation{
+		Scope:         protocol.InputQueueScopeDM,
+		WorkspacePath: filepath.Join(root, "agent"),
+		SessionKey:    "agent:alpha:ws:dm:prepared-guidance-reorder",
+	}
+	store := NewInputQueueStore(root)
+	for _, item := range []protocol.InputQueueItem{
+		{ID: "item-a", Content: "第一条引导", DeliveryPolicy: protocol.ChatDeliveryPolicyGuide, RootRoundID: "round-running"},
+		{ID: "item-b", Content: "第二条引导", DeliveryPolicy: protocol.ChatDeliveryPolicyGuide, RootRoundID: "round-running"},
+	} {
+		if _, err := store.Enqueue(location, item); err != nil {
+			t.Fatal(err)
+		}
+	}
+	prepared, err := store.SnapshotGuidance(location, "round-running")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.Reorder(location, []string{"item-b", "item-a"}); err != nil {
+		t.Fatal(err)
+	}
+	claimed, remaining, err := store.DispatchPreparedGuidance(location, prepared, "round-running")
+	if err != nil || len(claimed) != 2 || len(remaining) != 0 {
+		t.Fatalf("排序元数据变化不应使已应用引导重复注入: claimed=%+v remaining=%+v err=%v", claimed, remaining, err)
+	}
+}
+
 func TestInputQueueStoreGuidanceDispatchDoesNotReadAfterCommit(t *testing.T) {
 	root := t.TempDir()
 	location := InputQueueLocation{

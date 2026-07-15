@@ -1,6 +1,6 @@
-// INPUT: Room Goal 状态、显式输入队列与上一轮执行结果。
-// OUTPUT: 用户输入优先约束下经原子 claim 后启动的隐藏 Goal continuation。
-// POS: Room 与 Goal 状态机之间的续跑适配层。
+// INPUT: Room Goal 状态/lead、成员目录、显式输入队列与上一轮执行结果。
+// OUTPUT: 启动 slot 前对齐的有效 lead，以及用户输入优先约束下经原子 claim 的隐藏 continuation。
+// POS: Room 与 Goal 权限/状态机之间的续跑适配层。
 package room
 
 import (
@@ -27,15 +27,14 @@ func (s *RealtimeService) shouldDeferGoalContinuation(ctx context.Context, sessi
 	if s == nil || sessionKey == "" {
 		return false
 	}
-	if s.runtime != nil && len(s.runtime.GetRunningRoundIDs(sessionKey)) > 0 {
-		return true
-	}
 	parsed := protocol.ParseSessionKey(sessionKey)
 	if parsed.Kind != protocol.SessionKeyKindRoom || strings.TrimSpace(parsed.ConversationID) == "" {
-		return false
+		return s.runtime != nil && len(s.runtime.GetRunningRoundIDs(sessionKey)) > 0
 	}
 	if s.rooms == nil {
-		return false
+		// Tests and reduced embeddings may not configure the Room repository. In
+		// that case the shared runtime is the only safe source of busy state.
+		return s.runtime != nil && len(s.runtime.GetRunningRoundIDs(sessionKey)) > 0
 	}
 	ctx, contextValue, err := s.internalConversationContext(ctx, parsed.ConversationID, true)
 	if err != nil || contextValue == nil {
@@ -82,6 +81,13 @@ func (s *RealtimeService) shouldDeferGoalContinuationForTargetState(
 	}
 	targetAgentID := goalContinuationTargetAgentID(contextValue, agentNameByID, s.currentRoomGoalForSession(ctx, sessionKey))
 	if targetAgentID == "" {
+		return true
+	}
+	if len(s.findActiveDeliverySlotsByAgent(
+		sessionKey,
+		contextValue.Conversation.ID,
+		[]string{targetAgentID},
+	)) > 0 {
 		return true
 	}
 	agentValue := agentByID[targetAgentID]
@@ -155,6 +161,40 @@ func goalContinuationTargetAgentID(
 
 type currentGoalProvider interface {
 	CurrentOptional(context.Context, string) (*protocol.Goal, error)
+}
+
+type roomGoalLeadSetter interface {
+	SetRoomGoalLead(context.Context, string, string, string) (*protocol.Goal, error)
+}
+
+func (s *RealtimeService) reconcileRoomGoalLead(
+	ctx context.Context,
+	sessionKey string,
+	contextValue *protocol.ConversationContextAggregate,
+	agentNameByID map[string]string,
+) error {
+	provider, hasProvider := s.goals.(currentGoalProvider)
+	setter, hasSetter := s.goals.(roomGoalLeadSetter)
+	if !hasProvider || !hasSetter || contextValue == nil {
+		return nil
+	}
+	goal, err := provider.CurrentOptional(ctx, sessionKey)
+	if err != nil {
+		return err
+	}
+	if goal == nil {
+		return nil
+	}
+	leadAgentID := goalContinuationTargetAgentID(contextValue, agentNameByID, goal)
+	if leadAgentID == "" {
+		return fmt.Errorf("Room Goal %s has no valid lead; assign a Room host or Goal lead before continuing", goal.ID)
+	}
+	leadName := strings.TrimSpace(agentNameByID[leadAgentID])
+	if goalsvc.RoomLeadAgentID(*goal) == leadAgentID && goalsvc.RoomLeadAgentName(*goal) == leadName {
+		return nil
+	}
+	_, err = setter.SetRoomGoalLead(ctx, goal.ID, leadAgentID, leadName)
+	return err
 }
 
 func (s *RealtimeService) currentRoomGoalForSession(ctx context.Context, sessionKey string) *protocol.Goal {
