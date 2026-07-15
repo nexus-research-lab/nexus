@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
@@ -27,6 +28,9 @@ func TestDefaultPreferencesAskByDefault(t *testing.T) {
 	if prefs.ToolSearchEnabledForRuntime("nxs") {
 		t.Fatalf("nxs ToolSearch 默认应关闭: %+v", prefs)
 	}
+	if prefs.WebSearch.Provider != "brave" {
+		t.Fatalf("WebSearch 默认 provider 应为 brave: %+v", prefs.WebSearch)
+	}
 
 	normalized := normalizePreferences(Preferences{})
 	if normalized.DefaultAgentOptions.PermissionMode != "default" {
@@ -40,6 +44,9 @@ func TestDefaultPreferencesAskByDefault(t *testing.T) {
 	}
 	if normalized.ToolSearchEnabledForRuntime("nxs") {
 		t.Fatalf("空偏好归一化后 nxs ToolSearch 应关闭: %+v", normalized)
+	}
+	if normalized.WebSearch.Provider != "brave" {
+		t.Fatalf("空偏好归一化后 WebSearch provider 应为 brave: %+v", normalized.WebSearch)
 	}
 }
 
@@ -124,6 +131,87 @@ func TestServiceUpdatePersistsUserPreferences(t *testing.T) {
 	}
 	if _, statErr := os.Stat(filepath.Join(root, "workspace", "user_1", ".settings", "preferences.json")); statErr != nil {
 		t.Fatalf("偏好文件未写入安全路径: %v", statErr)
+	}
+}
+
+func TestServiceStoresWebSearchAPIKeySeparately(t *testing.T) {
+	root := t.TempDir()
+	service := NewService(config.Config{WorkspacePath: filepath.Join(root, "workspace")})
+	apiKey := "secret-search-key"
+	_, err := service.Update(context.Background(), "user/1", UpdateRequest{
+		WebSearch: &WebSearchSettings{
+			Enabled:  true,
+			Provider: "brave",
+		},
+		WebSearchAPIKey: &apiKey,
+	})
+	if err != nil {
+		t.Fatalf("更新 WebSearch 偏好失败: %v", err)
+	}
+	preferencesPath := filepath.Join(root, "workspace", "user_1", ".settings", "preferences.json")
+	content, err := os.ReadFile(preferencesPath)
+	if err != nil {
+		t.Fatalf("读取偏好文件失败: %v", err)
+	}
+	if string(content) == "" || strings.Contains(string(content), apiKey) {
+		t.Fatalf("偏好文件不应包含 API key: %s", content)
+	}
+	loaded, err := service.Get(context.Background(), "user/1")
+	if err != nil {
+		t.Fatalf("读取 WebSearch 偏好失败: %v", err)
+	}
+	if loaded.WebSearch.Provider != "brave" || !loaded.WebSearch.APIKeyConfigured || loaded.WebSearchAPIKey() != apiKey {
+		t.Fatalf("WebSearch 凭据未恢复: %+v", loaded.WebSearch)
+	}
+	keyPath := filepath.Join(root, "workspace", "user_1", ".settings", "web-search-api-key")
+	if info, err := os.Stat(keyPath); err != nil || info.Mode().Perm() != 0o600 {
+		t.Fatalf("API key 文件权限不正确: info=%v err=%v", info, err)
+	}
+
+	empty := ""
+	if _, err := service.Update(context.Background(), "user/1", UpdateRequest{WebSearchAPIKey: &empty}); err != nil {
+		t.Fatalf("清除 WebSearch API key 失败: %v", err)
+	}
+	loaded, err = service.Get(context.Background(), "user/1")
+	if err != nil {
+		t.Fatalf("读取清除后的 WebSearch 偏好失败: %v", err)
+	}
+	if loaded.WebSearch.APIKeyConfigured || loaded.WebSearchAPIKey() != "" {
+		t.Fatalf("WebSearch API key 未清除: %+v", loaded.WebSearch)
+	}
+}
+
+func TestServicePersistsAnySearchSettings(t *testing.T) {
+	root := t.TempDir()
+	service := NewService(config.Config{WorkspacePath: filepath.Join(root, "workspace")})
+
+	prefs, err := service.Update(context.Background(), "user/1", UpdateRequest{
+		WebSearch: &WebSearchSettings{
+			Enabled:  true,
+			Provider: "anysearch",
+			AnySearch: AnySearchSettings{
+				Domain:       " code ",
+				Tag:          " code.doc ",
+				ContentTypes: []string{"web", " web ", "news"},
+				Params:       map[string]any{"language": "go"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("更新 AnySearch 偏好失败: %v", err)
+	}
+	if prefs.WebSearch.Provider != "anysearch" || prefs.WebSearch.AnySearch.Domain != "code" || prefs.WebSearch.AnySearch.Tag != "code.doc" {
+		t.Fatalf("AnySearch 基础配置未归一化: %+v", prefs.WebSearch)
+	}
+	if len(prefs.WebSearch.AnySearch.ContentTypes) != 2 || prefs.WebSearch.AnySearch.ContentTypes[0] != "web" || prefs.WebSearch.AnySearch.ContentTypes[1] != "news" {
+		t.Fatalf("AnySearch content_types 未归一化: %+v", prefs.WebSearch.AnySearch.ContentTypes)
+	}
+	loaded, err := service.Get(context.Background(), "user/1")
+	if err != nil {
+		t.Fatalf("读取 AnySearch 偏好失败: %v", err)
+	}
+	if loaded.WebSearch.AnySearch.Params["language"] != "go" {
+		t.Fatalf("AnySearch params 未持久化: %+v", loaded.WebSearch.AnySearch.Params)
 	}
 }
 

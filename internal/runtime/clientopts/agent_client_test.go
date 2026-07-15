@@ -9,6 +9,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
@@ -514,33 +515,40 @@ func TestBuildAgentClientOptionsDefaultsToNXSChatCompletionsProviderEnv(t *testi
 }
 
 func TestBuildAgentClientOptionsInjectsWebSearchConfigForNXS(t *testing.T) {
-	for key, value := range map[string]string{
-		"NEXUS_WEBSEARCH_PROVIDER":          "brave",
-		"NEXUS_WEBSEARCH_API_KEY":           "search-key",
-		"NEXUS_WEBSEARCH_COUNT":             "8",
-		"NEXUS_WEBSEARCH_COUNTRY":           "CN",
-		"NEXUS_WEBSEARCH_LANGUAGE":          "zh-CN",
-		"NEXUS_WEBSEARCH_SEARCH_LANG":       "zh",
-		"NEXUS_WEBSEARCH_CACHE_TTL_SECONDS": "900",
-	} {
-		t.Setenv(key, value)
-	}
-	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{})
+	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
+		WebSearch: preferencessvc.WebSearchSettings{
+			Enabled:         true,
+			Provider:        "brave",
+			DefaultCount:    8,
+			Country:         "CN",
+			Language:        "zh-CN",
+			SearchLanguage:  "zh",
+			CacheTTLSeconds: 900,
+			AnySearch: preferencessvc.AnySearchSettings{
+				Domain:       "code",
+				Tag:          "code.doc",
+				ContentTypes: []string{"web"},
+				Params:       map[string]any{"language": "go"},
+			},
+		}.WithWebSearchAPIKey("search-key"),
+	})
 	if err != nil {
 		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
 	}
-	for key, want := range map[string]string{
-		"NEXUS_WEBSEARCH_PROVIDER":          "brave",
-		"NEXUS_WEBSEARCH_API_KEY":           "search-key",
-		"NEXUS_WEBSEARCH_COUNT":             "8",
-		"NEXUS_WEBSEARCH_COUNTRY":           "CN",
-		"NEXUS_WEBSEARCH_LANGUAGE":          "zh-CN",
-		"NEXUS_WEBSEARCH_SEARCH_LANG":       "zh",
-		"NEXUS_WEBSEARCH_CACHE_TTL_SECONDS": "900",
-	} {
-		if options.Env[key] != want {
-			t.Fatalf("%s=%q, want %q; env=%+v", key, options.Env[key], want, options.Env)
+	if options.Env["NEXUS_WEBSEARCH_API_KEY"] != "search-key" {
+		t.Fatalf("API key 未投影: %+v", options.Env)
+	}
+	for _, want := range []string{`"provider":"brave"`, `"default_count":8`, `"country":"CN"`, `"language":"zh-CN"`, `"search_language":"zh"`, `"cache_ttl_seconds":900`, `"anysearch":{"domain":"code","tag":"code.doc","content_types":["web"],"params":{"language":"go"}}`} {
+		if !strings.Contains(options.Env["NEXUS_WEBSEARCH_CONFIG"], want) {
+			t.Fatalf("配置缺少 %q: %s", want, options.Env["NEXUS_WEBSEARCH_CONFIG"])
 		}
+	}
+	zeroCacheEnv := BuildWebSearchRuntimeEnv(runtimeKindNXS, preferencessvc.WebSearchSettings{
+		Provider:        "brave",
+		CacheTTLSeconds: 0,
+	})
+	if !strings.Contains(zeroCacheEnv["NEXUS_WEBSEARCH_CONFIG"], `"cache_ttl_seconds":0`) {
+		t.Fatalf("cache_ttl_seconds=0 不应被 JSON 丢弃: %s", zeroCacheEnv["NEXUS_WEBSEARCH_CONFIG"])
 	}
 }
 

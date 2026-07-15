@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"maps"
 	"os"
 	"strings"
 	"sync"
@@ -200,6 +201,37 @@ func (c *sdkClientAdapter) SetPermissionMode(ctx context.Context, mode sdkpermis
 		}
 		return err
 	}
+	return nil
+}
+
+// UpdateEnvironment 将运行期环境增量推送给 nxs，不重启当前会话。
+func (c *sdkClientAdapter) UpdateEnvironment(ctx context.Context, environment map[string]string) error {
+	if len(environment) == 0 {
+		return nil
+	}
+	c.mu.Lock()
+	options := c.options
+	if options.Env == nil {
+		options.Env = map[string]string{}
+	} else {
+		options.Env = maps.Clone(options.Env)
+	}
+	for key, value := range environment {
+		options.Env[key] = value
+	}
+	session := c.session
+	c.mu.Unlock()
+	if session != nil {
+		if err := session.Control().UpdateEnvironment(ctx, environment); err != nil {
+			if IsRuntimeTransportClosedError(err) && c.markDisconnected(session, err) {
+				closeSDKSession(session)
+			}
+			return err
+		}
+	}
+	c.mu.Lock()
+	c.options = options
+	c.mu.Unlock()
 	return nil
 }
 

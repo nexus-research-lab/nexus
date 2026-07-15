@@ -6,6 +6,7 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import {
   normalizeAgentRuntimeKind,
   type AgentRuntimeKind,
+  type WebSearchSettings,
 } from "@/types/settings/preferences";
 
 import { useUserPreferences } from "../general/use-user-preferences";
@@ -81,14 +82,46 @@ export function useRuntimeSettingsController() {
     }));
   }, [updatePreferences]);
 
+  const onWebSearchChange = useCallback((checked: boolean) => {
+    updatePreferences((current) => ({
+      ...current,
+      web_search: {
+        ...(current.web_search ?? { enabled: false, provider: "brave" }),
+        enabled: checked,
+      },
+    }));
+  }, [updatePreferences]);
+
+  const onWebSearchPatch = useCallback((patch: Partial<WebSearchSettings>) => {
+    updatePreferences((current) => ({
+      ...current,
+      web_search: {
+        ...(current.web_search ?? { enabled: false, provider: "brave" }),
+        ...patch,
+      },
+    }));
+  }, [updatePreferences]);
+
+  const onWebSearchAPIKeyChange = useCallback((value: string) => {
+    updatePreferences((current) => ({
+      ...current,
+      web_search_api_key: value,
+    }));
+  }, [updatePreferences]);
+
   return {
     feedbackMessage: feedback?.message,
     loading,
     nxsRuntimeChecking,
     onRuntimeKindChange,
     onToolSearchChange,
+    onWebSearchAPIKeyChange,
+    onWebSearchChange,
+    onWebSearchPatch,
     preferencesBusy,
     runtimeKind,
     toolSearchEnabled: preferences.runtime_settings?.nxs?.tool_search === true,
+    webSearch: preferences.web_search,
+    webSearchAPIKey: preferences.web_search_api_key ?? "",
   };
 }

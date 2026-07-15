@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Added runtime-scoped settings with an nxs-only ToolSearch switch, defaulting to off and projecting the choice to both supported SDK environment names without affecting Claude runtime.
+- Added Nexus-to-nxs WebSearch provider configuration, including AnySearch vertical domain, tag, content-type, and parameter settings, with the SDK owning provider execution while Nexus injects the selected provider, endpoint, credentials, locale, freshness, timeout, and cache settings.
 - Added a dedicated visual-model preference and nxs runtime projection, allowing text-only chat models to call an independently configured vision provider on demand while native vision models keep the direct image path.
 - Added Developer ID signing, notarization, GitHub Actions release and CI package validation wiring, and signed metadata support to macOS desktop packaging so trusted releases can pass Gatekeeper and automatic-update checks.
 - Added durable Room delayed wakes, causal message metadata, separated visibility and wake targets, bounded per-Agent wake queues, and compatible short-window wake batching.

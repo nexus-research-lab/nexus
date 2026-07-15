@@ -21,6 +21,8 @@ export function buildPreferencesUpdatePayload(
     agent_runtime_kind: preferences.agent_runtime_kind,
     agent_sdk_diagnostics_enabled: preferences.agent_sdk_diagnostics_enabled,
     runtime_settings: preferences.runtime_settings,
+    web_search: preferences.web_search,
+    web_search_api_key: preferences.web_search_api_key,
     default_agent_options: preferences.default_agent_options,
     default_image_model_selection: preferences.default_image_model_selection,
     default_vision_model_selection: preferences.default_vision_model_selection,
@@ -48,6 +50,8 @@ export function normalizePreferences(preferences: UserPreferences | null): UserP
       source.runtime_settings,
       fallback.runtime_settings,
     ),
+    web_search: normalizeWebSearch(source.web_search, fallback.web_search),
+    web_search_api_key: source.web_search_api_key,
     default_agent_options: mergeAgentOptions(
       fallback.default_agent_options,
       source.default_agent_options,
@@ -71,6 +75,23 @@ export function normalizePreferences(preferences: UserPreferences | null): UserP
       ),
     ),
     updated_at: source.updated_at,
+  };
+}
+
+function normalizeWebSearch(
+  settings: UserPreferences["web_search"],
+  fallback: UserPreferences["web_search"],
+): UserPreferences["web_search"] {
+  return {
+    ...fallback,
+    ...settings,
+    enabled: settings?.enabled === true,
+    provider: settings?.provider ?? fallback?.provider ?? "brave",
+    default_count: settings?.default_count ?? fallback?.default_count ?? 5,
+    timeout_seconds: settings?.timeout_seconds ?? fallback?.timeout_seconds ?? 20,
+    cache_ttl_seconds: settings?.cache_ttl_seconds ?? fallback?.cache_ttl_seconds ?? 900,
+    search_depth: settings?.search_depth ?? fallback?.search_depth ?? "basic",
+    extract_depth: settings?.extract_depth ?? fallback?.extract_depth ?? "basic",
   };
 }
 

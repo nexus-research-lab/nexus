@@ -12,6 +12,7 @@ import (
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
+	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 )
 
 const askUserQuestionToolName = "AskUserQuestion"
@@ -55,6 +56,7 @@ type AgentClientOptionsInput struct {
 	ExtraEnv                   map[string]string
 	AgentSDKDiagnosticsEnabled bool
 	ToolSearchEnabled          bool
+	WebSearch                  preferencessvc.WebSearchSettings
 }
 
 // BuildAgentClientOptions 构建统一的 SDK client options。
@@ -92,6 +94,7 @@ func BuildAgentClientOptionsWithConfig(
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, visionRuntimeEnvFromConfig(visionConfig))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, workspaceRuntimeEnv(input.WorkspacePath))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, buildScopedRuntimeEnv(ctx))
+	runtimeEnv = mergeRuntimeEnv(runtimeEnv, webSearchRuntimeEnv(effectiveRuntimeKind, input.WebSearch))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, input.ExtraEnv)
 	// Claude 仍内置 Cron，调用方不得通过 ExtraEnv 重新开启第二套调度器。
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, hostManagedScheduleRuntimeEnv(effectiveRuntimeKind))

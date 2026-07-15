@@ -19,6 +19,15 @@ let DEFAULT_AGENT_SDK_DIAGNOSTICS_ENABLED = false;
 let DEFAULT_RUNTIME_SETTINGS: UserPreferences["runtime_settings"] = {
   nxs: { tool_search: false },
 };
+let DEFAULT_WEB_SEARCH: UserPreferences["web_search"] = {
+  enabled: false,
+  provider: "brave",
+  default_count: 5,
+  timeout_seconds: 20,
+  cache_ttl_seconds: 900,
+  search_depth: "basic",
+  extract_depth: "basic",
+};
 let DEFAULT_IMAGE_MODEL_SELECTION: UserPreferences["default_image_model_selection"];
 let DEFAULT_VISION_MODEL_SELECTION: UserPreferences["default_vision_model_selection"];
 let DEFAULT_BACKGROUND_MODEL_SELECTION: UserPreferences["default_background_model_selection"];
@@ -66,6 +75,7 @@ export function getUserPreferences(): UserPreferences {
     agent_runtime_kind: DEFAULT_AGENT_RUNTIME_KIND,
     agent_sdk_diagnostics_enabled: DEFAULT_AGENT_SDK_DIAGNOSTICS_ENABLED,
     runtime_settings: cloneRuntimeSettings(DEFAULT_RUNTIME_SETTINGS),
+    web_search: DEFAULT_WEB_SEARCH ? { ...DEFAULT_WEB_SEARCH } : undefined,
     default_agent_options: getInitialAgentOptions(),
     default_image_model_selection: DEFAULT_IMAGE_MODEL_SELECTION,
     default_vision_model_selection: DEFAULT_VISION_MODEL_SELECTION,
@@ -78,6 +88,7 @@ export function setUserPreferences(preferences?: Partial<UserPreferences> | null
   applyRuntimeKind(preferences);
   applyDiagnosticsPreference(preferences);
   applyRuntimeSettings(preferences);
+  applyWebSearch(preferences);
   applyModelSelections(preferences);
   DEFAULT_AGENT_OPTIONS = normalizeRuntimeAgentOptions(
     preferences?.default_agent_options,
@@ -121,6 +132,17 @@ function applyRuntimeSettings(
   DEFAULT_RUNTIME_SETTINGS = normalizeRuntimeSettings(
     preferences.runtime_settings,
   );
+}
+
+function applyWebSearch(
+  preferences?: Partial<UserPreferences> | null,
+): void {
+  if (preferences?.web_search === undefined) {
+    return;
+  }
+  DEFAULT_WEB_SEARCH = preferences.web_search
+    ? { ...preferences.web_search }
+    : undefined;
 }
 
 function normalizeRuntimeSettings(
