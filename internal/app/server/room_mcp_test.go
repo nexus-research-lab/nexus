@@ -26,7 +26,11 @@ func (stubRoomMCPService) HandlePublicMessage(
 	string,
 	protocol.CreateRoomPublicMessageRequest,
 ) (protocol.Message, error) {
-	return protocol.Message{}, nil
+	return protocol.Message{"message_id": "public-1"}, nil
+}
+
+func (stubRoomMCPService) MarkPublicMessagePublished(context.Context, string, string, string) error {
+	return nil
 }
 
 func TestRoomMCPBuilderOnlyAddsServerForRoomRuntime(t *testing.T) {
@@ -76,5 +80,8 @@ func TestRoomMCPBuilderUsesRoomPrivateMessageSetting(t *testing.T) {
 	}
 	if !names["send_directed_message"] {
 		t.Fatalf("Room 开启私信时应暴露 send_directed_message: %+v", tools)
+	}
+	if !names["publish_public_message"] {
+		t.Fatalf("Room 开启私信时应暴露特殊流程的 publish_public_message: %+v", tools)
 	}
 }

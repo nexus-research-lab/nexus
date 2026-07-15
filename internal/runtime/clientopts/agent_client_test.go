@@ -2,6 +2,7 @@ package clientopts
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -519,17 +520,10 @@ func TestBuildAgentClientOptionsInjectsWebSearchConfigForNXS(t *testing.T) {
 		WebSearch: preferencessvc.WebSearchSettings{
 			Enabled:         true,
 			Provider:        "brave",
-			DefaultCount:    8,
+			DefaultCount:    7,
+			TimeoutSeconds:  30,
+			CacheTTLSeconds: 60,
 			Country:         "CN",
-			Language:        "zh-CN",
-			SearchLanguage:  "zh",
-			CacheTTLSeconds: 900,
-			AnySearch: preferencessvc.AnySearchSettings{
-				Domain:       "code",
-				Tag:          "code.doc",
-				ContentTypes: []string{"web"},
-				Params:       map[string]any{"language": "go"},
-			},
 		}.WithWebSearchAPIKey("search-key"),
 	})
 	if err != nil {
@@ -538,17 +532,32 @@ func TestBuildAgentClientOptionsInjectsWebSearchConfigForNXS(t *testing.T) {
 	if options.Env["NEXUS_WEBSEARCH_API_KEY"] != "search-key" {
 		t.Fatalf("API key 未投影: %+v", options.Env)
 	}
-	for _, want := range []string{`"provider":"brave"`, `"default_count":8`, `"country":"CN"`, `"language":"zh-CN"`, `"search_language":"zh"`, `"cache_ttl_seconds":900`, `"anysearch":{"domain":"code","tag":"code.doc","content_types":["web"],"params":{"language":"go"}}`} {
-		if !strings.Contains(options.Env["NEXUS_WEBSEARCH_CONFIG"], want) {
-			t.Fatalf("配置缺少 %q: %s", want, options.Env["NEXUS_WEBSEARCH_CONFIG"])
-		}
+	var config map[string]any
+	if err := json.Unmarshal([]byte(options.Env["NEXUS_WEBSEARCH_CONFIG"]), &config); err != nil {
+		t.Fatalf("解析 WebSearch 配置失败: %v", err)
 	}
-	zeroCacheEnv := BuildWebSearchRuntimeEnv(runtimeKindNXS, preferencessvc.WebSearchSettings{
-		Provider:        "brave",
-		CacheTTLSeconds: 0,
+	if config["enabled"] != true || config["provider"] != "brave" || config["default_count"] != float64(7) || config["timeout_seconds"] != float64(30) || config["cache_ttl_seconds"] != float64(60) || config["country"] != "CN" {
+		t.Fatalf("Nexus 未完整投影 WebSearch 配置: %#v", config)
+	}
+
+	searXNGEnv := BuildWebSearchRuntimeEnv(runtimeKindNXS, preferencessvc.WebSearchSettings{
+		Enabled:  true,
+		Provider: "searxng",
+		BaseURL:  "https://search.example.com",
 	})
-	if !strings.Contains(zeroCacheEnv["NEXUS_WEBSEARCH_CONFIG"], `"cache_ttl_seconds":0`) {
-		t.Fatalf("cache_ttl_seconds=0 不应被 JSON 丢弃: %s", zeroCacheEnv["NEXUS_WEBSEARCH_CONFIG"])
+	if err := json.Unmarshal([]byte(searXNGEnv["NEXUS_WEBSEARCH_CONFIG"]), &config); err != nil {
+		t.Fatalf("解析 SearXNG 配置失败: %v", err)
+	}
+	if config["enabled"] != true || config["provider"] != "searxng" || config["base_url"] != "https://search.example.com" {
+		t.Fatalf("SearXNG 必须投影 Base URL: %#v", config)
+	}
+
+	anySearchEnv := BuildWebSearchRuntimeEnv(runtimeKindNXS, preferencessvc.WebSearchSettings{
+		Enabled:  true,
+		Provider: "anysearch",
+	}.WithWebSearchAPIKey("anysearch-key"))
+	if anySearchEnv["NEXUS_WEBSEARCH_API_KEY"] != "anysearch-key" {
+		t.Fatalf("AnySearch API key 未投影: %+v", anySearchEnv)
 	}
 }
 
@@ -740,7 +749,7 @@ func TestBuildAgentClientOptionsInjectsSingleUserScopeEnv(t *testing.T) {
 	}
 }
 
-func TestBuildAgentClientOptionsBypassKeepsQuestionChannel(t *testing.T) {
+func TestBuildAgentClientOptionsBypassKeepsPermissionHandler(t *testing.T) {
 	var handledTools []string
 	handler := func(_ context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
 		handledTools = append(handledTools, request.ToolName)
@@ -783,24 +792,6 @@ func TestBuildAgentClientOptionsBypassKeepsQuestionChannel(t *testing.T) {
 		t.Fatalf("AskUserQuestion 未保留用户答案: %+v", questionDecision)
 	}
 
-	bypassDecision, err := options.Callbacks.PermissionHandler(context.Background(), sdkpermission.Request{
-		ToolName: "Bash",
-		Input: map[string]any{
-			"command": "pwd",
-		},
-	})
-	if err != nil {
-		t.Fatalf("bypass 工具自动放行失败: %v", err)
-	}
-	if len(handledTools) != 1 {
-		t.Fatalf("非提问工具不应进入交互处理器: tools=%+v", handledTools)
-	}
-	if bypassDecision.Behavior != sdkpermission.BehaviorAllow {
-		t.Fatalf("bypass 工具应自动放行: %+v", bypassDecision)
-	}
-	if bypassDecision.UpdatedInput["command"] != "pwd" {
-		t.Fatalf("bypass 工具输入未原样保留: %+v", bypassDecision.UpdatedInput)
-	}
 }
 
 func containsTool(tools []string, expected string) bool {

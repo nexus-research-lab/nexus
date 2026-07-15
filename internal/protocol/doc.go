@@ -7,7 +7,7 @@
 //
 // 成员清单（按域，本包整体即协议模型，故文件不再加 model_ 前缀）：
 //   - session*.go：Session / Message / SessionKey 统一会话模型。
-//   - room*.go：房间、成员、directed message、创建请求。
+//   - room*.go：房间、成员、directed message。
 //   - conversation_turn.go / event.go / goal.go / input_queue.go：
 //     对话投影、统一事件类型与权威 runtime slot 快照、Goal 生命周期/objective revision、输入队列面。
 //   - chat_attachment.go / workspace_file_artifact.go / delivery_policy.go：

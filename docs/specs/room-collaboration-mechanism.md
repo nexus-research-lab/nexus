@@ -32,14 +32,14 @@ Agent runtime 能恢复时，只发送上次 checkpoint 之后的增量；runtim
 
 ## 可用工具
 
-Room 中常用的专用协作工具有两个。普通公开回复不需要调用工具，直接回复即可。
+Room 中的专用协作工具默认只负责私域协作。普通公开回复不需要调用工具，直接回复即可；开启私域协作能力的特殊 tool-driven 流程，才可以用主动广播工具发布额外的公区事实。
 
 | 工具 | 用途 | 什么时候用 |
 | --- | --- | --- |
 | `send_directed_message` | 给指定成员发送私下消息 | 私下补充背景、点名某个成员处理、小范围收集意见、记录不需要公开的信息 |
-| `publish_public_message` | 主动发布一条公开消息 | 当前在私下流程里，但需要把必要结论或进展同步给全体成员 |
+| `publish_public_message` | 主动发布一条公区事实 | 仅私域/tool-driven 流程需要额外广播时使用；普通公区发言直接 final reply |
 
-有些运行环境会把工具显示成完整名称，例如 `mcp__nexus_room__send_directed_message` 和 `mcp__nexus_room__publish_public_message`。写 Skill 时可以写短名，同时说明它们是 Room 工具。
+普通 Room 不注册这两个工具；启用私域协作能力后，运行时才注册并自动授权。工具可能显示成完整名称，例如 `mcp__nexus_room__send_directed_message` 或 `mcp__nexus_room__publish_public_message`。写 Skill 时可以写短名，同时说明它是 Room 工具。
 
 ### `send_directed_message`
 
@@ -53,6 +53,12 @@ Room 中常用的专用协作工具有两个。普通公开回复不需要调用
 - `reply_route`：接收成员处理后，回复应该去哪里。
 - `correlation_id`：可选，用于把一组协作动作关联起来。
 
+### `publish_public_message`
+
+只用于私域或 tool-driven 流程需要把一个明确的公开事实立即广播到 Room 的场景。普通公区发言必须直接使用 final reply，不要绕过正常回复链路调用它。
+
+工具成功后，运行时会把“本轮已主动广播”写入当前 Agent slot，并压制该 slot 后续的默认 final reply；因此一次主动广播不会再产生第二条重复公区消息。这个约束由运行时保证，不依赖模型自行输出控制标记。
+
 常见写法：
 
 | 目的 | 推荐参数 |
@@ -61,19 +67,6 @@ Room 中常用的专用协作工具有两个。普通公开回复不需要调用
 | 请某个成员公开回答 | `wake_policy: "immediate"`，`reply_route: { "mode": "public" }` |
 | 请某个成员私下回给主持人 | `wake_policy: "immediate"`，`reply_route: { "mode": "private", "recipients": ["主持人agent_id"], "wake_policy": "immediate" }` |
 | 让多个成员看到私域背景，只让一人汇总 | `recipients` 填多个成员，`wake_targets` 只填汇总人，`reply_route` 按结果去向设定 |
-
-### `publish_public_message`
-
-用于主动发布公开消息。常用参数：
-
-- `content`：公开消息正文。
-- `correlation_id`：可选，用于把一组协作动作关联起来。
-
-注意：
-
-- 普通公开发言不要调用这个工具，直接回复即可。
-- 只有在私下流程、工具流程或汇总流程中，需要额外把信息同步给全体成员时才使用。
-- 公开消息里只有真正需要对方行动时才写 `@成员`。
 
 ## 写 Room Skill 时要说明什么
 
@@ -141,7 +134,8 @@ runtime_instructions: |
 - 在 frontmatter 增加 `runtime_instructions: |`，只保留运行必需规则。
 - 说明适用场景、成员分工、公开发言规则、私下协作规则、工具使用规则、交接和收口规则。
 - 明确什么时候需要 @成员，什么时候不要 @成员。
-- 明确什么时候用 `send_directed_message`，什么时候用 `publish_public_message`，什么时候直接公开回复。
+- 明确什么时候用 `send_directed_message`，什么时候直接公开回复。
+- 只有特殊 tool-driven 流程需要额外广播时才用 `publish_public_message`，普通公区发言直接公开回复。
 - 私下信息转公开时，只公开必要结论。
 - 内容面向实际使用者，简洁、可执行、不要堆技术细节。
 ```

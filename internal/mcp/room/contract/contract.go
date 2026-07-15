@@ -41,4 +41,10 @@ type Service interface {
 		conversationID string,
 		request protocol.CreateRoomPublicMessageRequest,
 	) (protocol.Message, error)
+	MarkPublicMessagePublished(
+		ctx context.Context,
+		sessionKey string,
+		roundID string,
+		agentID string,
+	) error
 }

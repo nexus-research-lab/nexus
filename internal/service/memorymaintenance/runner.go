@@ -78,6 +78,7 @@ func (r *runtimeDreamRunner) tryAutoDream(ctx context.Context, agentValue protoc
 		PermissionMode:    sdkpermission.ModeAcceptEdits,
 		SettingSources:    ensureProjectSettingsSource(agentValue.Options.SettingSources),
 		ToolSearchEnabled: selection.ToolSearchEnabled,
+		WebSearch:         selection.WebSearch,
 		ExtraEnv: map[string]string{
 			autoDreamWakeModeEnv:     autoDreamWakeModeHost,
 			providerManagedByHostEnv: "1",

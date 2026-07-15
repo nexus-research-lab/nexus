@@ -35,6 +35,14 @@ func publishPublicMessage(svc contract.Service, sctx contract.ServerContext) sdk
 			if err != nil {
 				return errorResult(err), nil
 			}
+			if err := svc.MarkPublicMessagePublished(
+				scopedToolContext(ctx, sctx),
+				sctx.CurrentSessionKey,
+				sctx.CurrentRoundID,
+				sctx.CurrentAgentID,
+			); err != nil {
+				return errorResult(err), nil
+			}
 			return jsonResult(publicMessageOutput(item)), nil
 		},
 	}

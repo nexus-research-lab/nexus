@@ -133,6 +133,9 @@ func (s *RealtimeService) handleChat(ctx context.Context, request ChatRequest) e
 	if err != nil {
 		return err
 	}
+	if err = s.cancelActiveRoomGoalForUser(execution.ctx, execution.sessionKey, request.Content); err != nil {
+		return err
+	}
 	if err = execution.persistInput(); err != nil {
 		return err
 	}

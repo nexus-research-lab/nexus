@@ -1,11 +1,13 @@
 package preferences
 
 import (
-	"maps"
+	"fmt"
 	"strings"
 	"time"
 
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	runtimepermission "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	runtimeprovider "github.com/nexus-research-lab/nexus/internal/runtime/provider"
 )
 
@@ -47,7 +49,7 @@ type RuntimeSettingsForKind struct {
 }
 
 // WebSearchSettings 描述 SDK 内置 WebSearch 的可持久化配置。
-// API key 不进入该结构的 JSON；它只在服务端内存中短暂参与 runtime 装配。
+// 原始 API key 不进入 JSON；仅返回安全的脱敏摘要，并在服务端内存中参与 runtime 装配。
 type WebSearchSettings struct {
 	Enabled             bool              `json:"enabled"`
 	Provider            string            `json:"provider,omitempty"`
@@ -65,15 +67,33 @@ type WebSearchSettings struct {
 	ExtractDepth        string            `json:"extract_depth,omitempty"`
 	AnySearch           AnySearchSettings `json:"anysearch,omitempty"`
 	APIKeyConfigured    bool              `json:"api_key_configured,omitempty"`
+	APIKeyMasked        string            `json:"api_key_masked,omitempty"`
 	apiKey              string
 }
 
-// AnySearchSettings 描述 AnySearch provider 的垂直搜索配置。
+// AnySearchSettings 描述 AnySearch 的垂直搜索参数。
 type AnySearchSettings struct {
 	Domain       string         `json:"domain,omitempty"`
 	Tag          string         `json:"tag,omitempty"`
 	ContentTypes []string       `json:"content_types,omitempty"`
 	Params       map[string]any `json:"params,omitempty"`
+}
+
+type webSearchProviderRequirement struct {
+	requiresAPIKey  bool
+	requiresBaseURL bool
+	supportsAPIKey  bool
+}
+
+const defaultWebSearchProvider = "anysearch"
+
+var webSearchProviderRequirements = map[string]webSearchProviderRequirement{
+	"anysearch": {supportsAPIKey: true},
+	"brave":     {requiresAPIKey: true, supportsAPIKey: true},
+	"exa":       {requiresAPIKey: true, supportsAPIKey: true},
+	"firecrawl": {requiresAPIKey: true, supportsAPIKey: true},
+	"searxng":   {requiresBaseURL: true},
+	"tavily":    {requiresAPIKey: true, supportsAPIKey: true},
 }
 
 // WebSearchAPIKey 返回当前用户的 WebSearch 凭据，仅供服务端 runtime 装配使用。
@@ -88,9 +108,24 @@ func (s WebSearchSettings) WebSearchAPIKey() string {
 
 // WithWebSearchAPIKey 为服务端 runtime 装配构造带凭据的配置副本。
 func (s WebSearchSettings) WithWebSearchAPIKey(apiKey string) WebSearchSettings {
-	s.apiKey = strings.TrimSpace(apiKey)
+	s.apiKey = ""
+	if webSearchProviderAcceptsAPIKey(s.Provider) {
+		s.apiKey = strings.TrimSpace(apiKey)
+	}
 	s.APIKeyConfigured = s.apiKey != ""
+	s.APIKeyMasked = maskWebSearchAPIKey(s.apiKey)
 	return s
+}
+
+func maskWebSearchAPIKey(apiKey string) string {
+	trimmed := strings.TrimSpace(apiKey)
+	if trimmed == "" {
+		return ""
+	}
+	if len(trimmed) <= 10 {
+		return strings.Repeat("*", len(trimmed))
+	}
+	return trimmed[:5] + strings.Repeat("*", 24) + trimmed[len(trimmed)-5:]
 }
 
 // ModelSelection 表示一个 Provider + Model 选择。
@@ -107,7 +142,7 @@ func DefaultPreferences() Preferences {
 		RuntimeSettings: RuntimeSettings{
 			runtimeprovider.RuntimeKindNXS: {},
 		},
-		WebSearch: WebSearchSettings{},
+		WebSearch: WebSearchSettings{Enabled: true},
 		DefaultAgentOptions: protocol.Options{
 			PermissionMode:  "default",
 			AllowedTools:    []string{},
@@ -127,7 +162,7 @@ func normalizePreferences(item Preferences) Preferences {
 	if strings.TrimSpace(options.PermissionMode) == "" {
 		options.PermissionMode = "default"
 	}
-	options.PermissionMode = strings.TrimSpace(options.PermissionMode)
+	options.PermissionMode = string(runtimepermission.NormalizeMode(sdkpermission.Mode(options.PermissionMode)))
 	options.Provider = strings.TrimSpace(options.Provider)
 	options.Model = strings.TrimSpace(options.Model)
 	options.AllowedTools = normalizeStringSlice(options.AllowedTools)
@@ -144,8 +179,11 @@ func normalizePreferences(item Preferences) Preferences {
 		options.SettingSources = normalizeStringSlice(options.SettingSources)
 	}
 	webSearch := normalizeWebSearchSettings(item.WebSearch)
-	webSearch.apiKey = strings.TrimSpace(item.WebSearch.apiKey)
+	if webSearchProviderAcceptsAPIKey(webSearch.Provider) {
+		webSearch.apiKey = strings.TrimSpace(item.WebSearch.apiKey)
+	}
 	webSearch.APIKeyConfigured = webSearch.apiKey != ""
+	webSearch.APIKeyMasked = maskWebSearchAPIKey(webSearch.apiKey)
 	return Preferences{
 		ChatDefaultDeliveryPolicy:       policy,
 		AgentRuntimeKind:                runtimeKind,
@@ -163,7 +201,7 @@ func normalizePreferences(item Preferences) Preferences {
 func normalizeWebSearchSettings(settings WebSearchSettings) WebSearchSettings {
 	settings.Provider = strings.ToLower(strings.TrimSpace(settings.Provider))
 	if settings.Provider == "" {
-		settings.Provider = "brave"
+		settings.Provider = defaultWebSearchProvider
 	}
 	settings.BaseURL = strings.TrimSpace(settings.BaseURL)
 	settings.Country = strings.TrimSpace(settings.Country)
@@ -172,19 +210,23 @@ func normalizeWebSearchSettings(settings WebSearchSettings) WebSearchSettings {
 	settings.Freshness = strings.ToLower(strings.TrimSpace(settings.Freshness))
 	settings.SearchDepth = normalizeWebSearchDepth(settings.SearchDepth)
 	settings.ExtractDepth = normalizeWebSearchDepth(settings.ExtractDepth)
-	settings.AnySearch = normalizeAnySearchSettings(settings.AnySearch)
-	settings.APIKeyConfigured = false
-	settings.apiKey = ""
-	return settings
-}
-
-func normalizeAnySearchSettings(settings AnySearchSettings) AnySearchSettings {
-	settings.Domain = strings.TrimSpace(settings.Domain)
-	settings.Tag = strings.TrimSpace(settings.Tag)
-	settings.ContentTypes = normalizeStringSlice(settings.ContentTypes)
-	if settings.Params != nil {
-		settings.Params = maps.Clone(settings.Params)
+	if settings.DefaultCount <= 0 {
+		settings.DefaultCount = 5
 	}
+	settings.DefaultCount = minInt(maxInt(settings.DefaultCount, 1), 20)
+	if settings.TimeoutSeconds <= 0 {
+		settings.TimeoutSeconds = 20
+	}
+	if settings.CacheTTLSeconds < 0 {
+		settings.CacheTTLSeconds = 0
+	}
+	settings.AnySearch = normalizeAnySearchSettings(settings.AnySearch)
+	if settings.Provider == defaultWebSearchProvider || (settings.Provider == "searxng" && settings.BaseURL != "") {
+		settings.Enabled = true
+	}
+	settings.APIKeyConfigured = false
+	settings.APIKeyMasked = ""
+	settings.apiKey = ""
 	return settings
 }
 
@@ -193,6 +235,61 @@ func normalizeWebSearchDepth(value string) string {
 		return "advanced"
 	}
 	return "basic"
+}
+
+func normalizeAnySearchSettings(settings AnySearchSettings) AnySearchSettings {
+	settings.Domain = strings.TrimSpace(settings.Domain)
+	settings.Tag = strings.TrimSpace(settings.Tag)
+	settings.ContentTypes = normalizeStringSlice(settings.ContentTypes)
+	if settings.Params != nil {
+		params := make(map[string]any, len(settings.Params))
+		for key, value := range settings.Params {
+			params[strings.TrimSpace(key)] = value
+		}
+		settings.Params = params
+	}
+	return settings
+}
+
+func minInt(left, right int) int {
+	if left < right {
+		return left
+	}
+	return right
+}
+
+func maxInt(left, right int) int {
+	if left > right {
+		return left
+	}
+	return right
+}
+
+func webSearchProviderRequiresAPIKey(provider string) bool {
+	requirement, exists := webSearchProviderRequirements[strings.ToLower(strings.TrimSpace(provider))]
+	return exists && requirement.requiresAPIKey
+}
+
+func webSearchProviderAcceptsAPIKey(provider string) bool {
+	requirement, exists := webSearchProviderRequirements[strings.ToLower(strings.TrimSpace(provider))]
+	return exists && requirement.supportsAPIKey
+}
+
+func validateWebSearchSettings(settings WebSearchSettings) error {
+	if !settings.Enabled {
+		return nil
+	}
+	requirement, exists := webSearchProviderRequirements[settings.Provider]
+	if !exists {
+		return fmt.Errorf("WebSearch provider 不支持: %s", settings.Provider)
+	}
+	if requirement.requiresAPIKey && settings.WebSearchAPIKey() == "" {
+		return fmt.Errorf("WebSearch provider %s 缺少 API key", settings.Provider)
+	}
+	if requirement.requiresBaseURL && settings.BaseURL == "" {
+		return fmt.Errorf("WebSearch provider %s 缺少 Base URL", settings.Provider)
+	}
+	return nil
 }
 
 func normalizeRuntimeSettings(settings RuntimeSettings) RuntimeSettings {

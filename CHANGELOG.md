@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Aligned Agent permission modes with runtime validation, including `dontAsk` pre-authorized-only behavior and a safe default for unknown modes.
 - Prevented stop commands from being dropped on stale-but-writable WebSocket connections and allowed interrupt requests to bypass a blocked chat dispatch, restoring prompt termination from the conversation Composer.
 - Recovered orphaned Room guidance as queued follow-up after backend restarts, made equal-timestamp active-root routing follow registration order, and added timeline behavior tests to the default validation gate.
 - Passed each model card's context window to nxs so automatic and reactive compaction use the configured Provider limit instead of relying on model-name inference.
@@ -16,11 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed DM and Room guidance delivery so in-flight user corrections stay durable until the intended reply confirms consumption, failed hooks continue as the next turn, and timeline order follows durable reparenting.
 - Fixed DM and Room Goal retargeting so corrected objectives reach active runtimes, revisions advance only after guidance consumption, stale continuations cannot launch or mutate corrected Goals, and continuation reserve/claim/release accounting remains exact across duplicate dispatches.
 - Fixed Markdown image destinations being wrapped as inline code, restoring relative workspace image previews in historical conversations.
+- Fixed Room public reply duplication by limiting `publish_public_message` to private/tool-driven flows and making runtime suppress the same slot's default final reply after a successful broadcast.
 
 ### Added
 
 - Added runtime-scoped settings with an nxs-only ToolSearch switch, defaulting to off and projecting the choice to both supported SDK environment names without affecting Claude runtime.
-- Added Nexus-to-nxs WebSearch provider configuration, including AnySearch vertical domain, tag, content-type, and parameter settings, with the SDK owning provider execution while Nexus injects the selected provider, endpoint, credentials, locale, freshness, timeout, and cache settings.
+- Added Nexus-to-nxs WebSearch provider configuration with AnySearch enabled by default, moving provider selection into the WebSearch header, keeping required fields compact and layout-stable, and placing SDK-supported search, cache, network, extraction, and AnySearch parameters behind a More settings section with direct API key setup links where needed.
 - Added a dedicated visual-model preference and nxs runtime projection, allowing text-only chat models to call an independently configured vision provider on demand while native vision models keep the direct image path.
 - Added Developer ID signing, notarization, GitHub Actions release and CI package validation wiring, and signed metadata support to macOS desktop packaging so trusted releases can pass Gatekeeper and automatic-update checks.
 - Added durable Room delayed wakes, causal message metadata, separated visibility and wake targets, bounded per-Agent wake queues, and compatible short-window wake batching.

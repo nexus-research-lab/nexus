@@ -16,9 +16,7 @@ type stubRoomService struct {
 	directedConversationID string
 	directedRequest        protocol.CreateRoomDirectedMessageRequest
 	directedOwnerUserID    string
-	publicRoomID           string
-	publicConversationID   string
-	publicRequest          protocol.CreateRoomPublicMessageRequest
+	publicMessagePublished bool
 }
 
 func (s *stubRoomService) HandleDirectedMessage(
@@ -47,25 +45,20 @@ func (s *stubRoomService) HandleDirectedMessage(
 }
 
 func (s *stubRoomService) HandlePublicMessage(
-	_ context.Context,
-	roomID string,
-	conversationID string,
-	request protocol.CreateRoomPublicMessageRequest,
+	context.Context,
+	string,
+	string,
+	protocol.CreateRoomPublicMessageRequest,
 ) (protocol.Message, error) {
-	s.publicRoomID = roomID
-	s.publicConversationID = conversationID
-	s.publicRequest = request
-	return protocol.Message{
-		"message_id":      "pub-1",
-		"room_id":         roomID,
-		"conversation_id": conversationID,
-		"agent_id":        request.SourceAgentID,
-		"content":         []map[string]any{{"type": "text", "text": request.Content}},
-		"timestamp":       int64(456),
-	}, nil
+	return protocol.Message{"message_id": "public-1"}, nil
 }
 
-func TestToolsListIncludesPublicToolByDefault(t *testing.T) {
+func (s *stubRoomService) MarkPublicMessagePublished(context.Context, string, string, string) error {
+	s.publicMessagePublished = true
+	return nil
+}
+
+func TestToolsListOmitsPublicToolByDefault(t *testing.T) {
 	tools := listRoomTools(t, &stubRoomService{}, contract.ServerContext{})
 	names := map[string]bool{}
 	for _, item := range tools {
@@ -82,8 +75,8 @@ func TestToolsListIncludesPublicToolByDefault(t *testing.T) {
 			t.Fatalf("%s should stay deferred", name)
 		}
 	}
-	if !names["publish_public_message"] {
-		t.Fatalf("missing room tool publish_public_message: %+v", tools)
+	if names["publish_public_message"] {
+		t.Fatalf("Room 普通运行时不应暴露 publish_public_message: %+v", tools)
 	}
 	if names["send_directed_message"] {
 		t.Fatalf("Room 未开启私信时不应暴露 send_directed_message: %+v", tools)
@@ -97,10 +90,11 @@ func TestToolsListIncludesDirectedToolWhenEnabled(t *testing.T) {
 		name, _ := item["name"].(string)
 		names[name] = true
 	}
-	for _, name := range []string{"send_directed_message", "publish_public_message"} {
-		if !names[name] {
-			t.Fatalf("missing room tool %s: %+v", name, tools)
-		}
+	if !names["send_directed_message"] {
+		t.Fatalf("missing room tool send_directed_message: %+v", tools)
+	}
+	if !names["publish_public_message"] {
+		t.Fatalf("Room 特殊流程应暴露 publish_public_message: %+v", tools)
 	}
 }
 
@@ -155,29 +149,6 @@ func TestSendDirectedMessageUsesInjectedRoomScope(t *testing.T) {
 	}
 	if payload["content"] != nil || payload["item"] != nil {
 		t.Fatalf("工具输出不应泄漏 directed message 正文: %+v", payload)
-	}
-}
-
-func TestPublishPublicMessageUsesInjectedSource(t *testing.T) {
-	svc := &stubRoomService{}
-	result, isError := callRoomTool(t, svc, contract.ServerContext{
-		OwnerUserID:       "user-1",
-		CurrentAgentID:    "agent-host",
-		CurrentRoundID:    "round-root-1",
-		RoomID:            "room-1",
-		ConversationID:    "conversation-1",
-		SourceContextType: "room",
-	}, "publish_public_message", map[string]any{
-		"content": "天亮了 @Amy",
-	})
-	if isError {
-		t.Fatalf("publish_public_message 不应失败: %s", extractRoomText(t, result))
-	}
-	if svc.publicRequest.SourceAgentID != "agent-host" || svc.publicRequest.Content != "天亮了 @Amy" {
-		t.Fatalf("public message 请求不正确: %+v", svc.publicRequest)
-	}
-	if svc.publicRequest.RootRoundID != "round-root-1" {
-		t.Fatalf("public message root round 未由运行时注入: %+v", svc.publicRequest)
 	}
 }
 

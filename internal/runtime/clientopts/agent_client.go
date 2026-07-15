@@ -12,10 +12,9 @@ import (
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
+	runtimepermission "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 )
-
-const askUserQuestionToolName = "AskUserQuestion"
 
 var agentSessionDeniedTools = []string{
 	"EnterPlanMode",
@@ -99,11 +98,7 @@ func BuildAgentClientOptionsWithConfig(
 	// Claude 仍内置 Cron，调用方不得通过 ExtraEnv 重新开启第二套调度器。
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, hostManagedScheduleRuntimeEnv(effectiveRuntimeKind))
 
-	permissionMode := input.PermissionMode
-	if permissionMode == "" {
-		permissionMode = sdkpermission.ModeDefault
-	}
-	permissionHandler := permissionHandlerForMode(permissionMode, input.PermissionHandler)
+	permissionMode := runtimepermission.NormalizeMode(input.PermissionMode)
 	options := agentclient.Options{
 		CWD:                    strings.TrimSpace(input.WorkspacePath),
 		SettingSources:         slices.Clone(input.SettingSources),
@@ -122,7 +117,7 @@ func BuildAgentClientOptionsWithConfig(
 			AllowDangerouslySkipPermissions: true,
 		},
 		Callbacks: agentclient.CallbackOptions{
-			PermissionHandler: permissionHandler,
+			PermissionHandler: input.PermissionHandler,
 		},
 	}
 	if runtimeConfig != nil {
@@ -193,28 +188,6 @@ func appendDistinctTools(base []string, extra ...string) []string {
 		result = append(result, normalized)
 	}
 	return result
-}
-
-func permissionHandlerForMode(
-	permissionMode sdkpermission.Mode,
-	handler sdkpermission.Handler,
-) sdkpermission.Handler {
-	if permissionMode != sdkpermission.ModeBypassPermissions || handler == nil {
-		return handler
-	}
-	return func(ctx context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
-		if strings.TrimSpace(request.ToolName) == askUserQuestionToolName {
-			return handler(ctx, request)
-		}
-		return sdkpermission.Allow(clonePermissionInput(request.Input), nil), nil
-	}
-}
-
-func clonePermissionInput(input map[string]any) map[string]any {
-	if len(input) == 0 {
-		return nil
-	}
-	return maps.Clone(input)
 }
 
 func resolveRuntimeConfig(

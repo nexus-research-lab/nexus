@@ -167,7 +167,6 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 		"You are a member in a multi-member Nexus Room",
 		"Each user turn includes <public_feed>",
 		"Private Room directed message sending is disabled",
-		`nexus_room.publish_public_message`,
 		`"room host default takeover"`,
 		"When a directed message wakes you, answer once in the final reply",
 		"The final reply may be persisted or projected verbatim",

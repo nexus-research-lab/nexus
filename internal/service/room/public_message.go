@@ -96,6 +96,28 @@ func (s *RealtimeService) HandlePublicMessage(
 	return message, nil
 }
 
+// MarkPublicMessagePublished 将主动广播写入当前 slot 的运行时状态。
+// 后续 assistant/result 事件仍可被 SDK 发送，但不会再次投影到公区。
+func (s *RealtimeService) MarkPublicMessagePublished(
+	_ context.Context,
+	sessionKey string,
+	roundID string,
+	agentID string,
+) error {
+	roundValue := s.findActiveRoundByRoundID(strings.TrimSpace(sessionKey), strings.TrimSpace(roundID))
+	if roundValue == nil {
+		return errors.New("active Room round not found")
+	}
+	agentID = strings.TrimSpace(agentID)
+	for _, slot := range roundValue.Slots {
+		if slot != nil && strings.TrimSpace(slot.AgentID) == agentID {
+			slot.markPublicMessagePublished()
+			return nil
+		}
+	}
+	return errors.New("active Room slot not found")
+}
+
 func (s *RealtimeService) startPublicMessageMentionWakes(
 	ctx context.Context,
 	contextValue *protocol.ConversationContextAggregate,

@@ -5,7 +5,7 @@
 // 文件按职责前缀分组：
 //   - service.go / crud.go / conversation_crud.go / member.go / query.go：服务装配与房间数据操作。
 //   - chat.go / chat_*：Room 输入受理、最近活跃 root slot 默认目标、Agent 目录、标题生成、投递策略与 round 构造。
-//   - directed_message_* / message_causality.go / wake_timer_registry.go / public_*：定向消息、因果链、持久化唤醒队列、计时调度和公区消息。
+//   - directed_message_* / message_causality.go / wake_timer_registry.go / public_*：定向消息、因果链、持久化唤醒队列、计时调度和公区 @ 唤醒。
 //   - execution.go：slot 生命周期、round mapper、runtime 消息、事件投递与 usage 写入。
 //   - execution_runtime_*：runtime prompt、选项、连接、session 恢复与诊断。
 //   - execution_slot_status.go / interrupt / slot_* / round_*：完成结算、状态、中断与 round 状态机。

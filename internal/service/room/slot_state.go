@@ -184,6 +184,18 @@ func (slot *activeRoomSlot) suppressOutput() {
 	slot.stateMu.Unlock()
 }
 
+func (slot *activeRoomSlot) markPublicMessagePublished() {
+	if slot == nil {
+		return
+	}
+	slot.stateMu.Lock()
+	slot.PublicMessagePublished = true
+	slot.SuppressOutput = true
+	slot.PendingStream = nil
+	slot.NoReplyCandidate = false
+	slot.stateMu.Unlock()
+}
+
 func (slot *activeRoomSlot) shouldSuppressOutput() bool {
 	if slot == nil {
 		return false

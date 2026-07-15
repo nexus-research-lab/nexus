@@ -45,6 +45,7 @@ func (s *Service) Update(ctx context.Context, ownerUserID string, request Update
 	if err != nil {
 		return Preferences{}, err
 	}
+	webSearchAPIKeyChanged := request.WebSearchAPIKey != nil
 	if request.ChatDefaultDeliveryPolicy != nil {
 		current.ChatDefaultDeliveryPolicy = *request.ChatDefaultDeliveryPolicy
 	}
@@ -58,16 +59,28 @@ func (s *Service) Update(ctx context.Context, ownerUserID string, request Update
 		current.RuntimeSettings = *request.RuntimeSettings
 	}
 	if request.WebSearch != nil {
+		previousProvider := current.WebSearch.Provider
 		apiKey := current.WebSearchAPIKey()
 		current.WebSearch = *request.WebSearch
-		current.WebSearch.APIKeyConfigured = apiKey != ""
 		current.WebSearch = normalizeWebSearchSettings(current.WebSearch)
+		if current.WebSearch.Provider != previousProvider || !webSearchProviderAcceptsAPIKey(current.WebSearch.Provider) {
+			apiKey = ""
+			webSearchAPIKeyChanged = true
+		}
 		current.WebSearch.apiKey = apiKey
 		current.WebSearch.APIKeyConfigured = apiKey != ""
+		current.WebSearch.APIKeyMasked = maskWebSearchAPIKey(apiKey)
 	}
 	if request.WebSearchAPIKey != nil {
-		current.WebSearch.apiKey = strings.TrimSpace(*request.WebSearchAPIKey)
+		current.WebSearch.apiKey = ""
+		if webSearchProviderAcceptsAPIKey(current.WebSearch.Provider) {
+			current.WebSearch.apiKey = strings.TrimSpace(*request.WebSearchAPIKey)
+			if current.WebSearch.apiKey == "" && webSearchProviderRequiresAPIKey(current.WebSearch.Provider) {
+				current.WebSearch.Enabled = false
+			}
+		}
 		current.WebSearch.APIKeyConfigured = current.WebSearch.apiKey != ""
+		current.WebSearch.APIKeyMasked = maskWebSearchAPIKey(current.WebSearch.apiKey)
 	}
 	if request.DefaultAgentOptions != nil {
 		current.DefaultAgentOptions = *request.DefaultAgentOptions
@@ -83,10 +96,13 @@ func (s *Service) Update(ctx context.Context, ownerUserID string, request Update
 	}
 	current.UpdatedAt = nowRFC3339()
 	current = normalizePreferences(current)
+	if err = validateWebSearchSettings(current.WebSearch); err != nil {
+		return Preferences{}, err
+	}
 	if err = s.write(ownerUserID, current); err != nil {
 		return Preferences{}, err
 	}
-	if request.WebSearchAPIKey != nil {
+	if webSearchAPIKeyChanged {
 		if err = s.writeWebSearchAPIKey(ownerUserID, current.WebSearchAPIKey()); err != nil {
 			return Preferences{}, err
 		}
@@ -128,12 +144,19 @@ func (s *Service) webSearchAPIKeyPath(ownerUserID string) string {
 }
 
 func (s *Service) withWebSearchAPIKey(ownerUserID string, item Preferences) Preferences {
+	if !webSearchProviderAcceptsAPIKey(item.WebSearch.Provider) {
+		return item
+	}
 	apiKey, err := os.ReadFile(s.webSearchAPIKeyPath(ownerUserID))
 	if err != nil {
 		return item
 	}
 	item.WebSearch.apiKey = strings.TrimSpace(string(apiKey))
 	item.WebSearch.APIKeyConfigured = item.WebSearch.apiKey != ""
+	item.WebSearch.APIKeyMasked = maskWebSearchAPIKey(item.WebSearch.apiKey)
+	if item.WebSearch.APIKeyConfigured {
+		item.WebSearch.Enabled = true
+	}
 	return item
 }
 

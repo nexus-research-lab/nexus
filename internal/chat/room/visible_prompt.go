@@ -10,7 +10,7 @@ import (
 func BuildSystemPrompt(privateMessagesEnabled ...bool) string {
 	privateRule := "6. Private Room directed message sending is disabled for this member. Do not simulate it with Bash, nexusctl, skills, or files. When a directed message wakes you, answer once in the final reply and let runtime route it."
 	if len(privateMessagesEnabled) > 0 && privateMessagesEnabled[0] {
-		privateRule = "6. Use nexus_room.send_directed_message for private facts. recipients controls visibility; wake_targets is the recipients subset that should run. Runtime routes the recipient's single final reply by reply_route, so do not send a second message merely to answer. Never expose private content publicly unless the task explicitly requires disclosure."
+		privateRule = "6. Use nexus_room.send_directed_message for private facts. recipients controls visibility; wake_targets is the recipients subset that should run. Runtime routes the recipient's single final reply by reply_route, so do not send a second message merely to answer. Never expose private content publicly unless the task explicitly requires disclosure. Only in a private or tool-driven flow that needs an additional public fact, use nexus_room.publish_public_message once; after it succeeds, runtime suppresses this slot's default final reply for the same round. Normal public speech still uses the final reply directly."
 	}
 
 	return fmt.Sprintf(`# Nexus Room
@@ -19,7 +19,7 @@ You are a member in a multi-member Nexus Room. Each user turn includes <public_f
 
 Rules:
 1. Only <public_feed> is authoritative public history. Incomplete, cancelled, or errored replies are not facts.
-2. Normal public speech is the final reply. Do not call Room tools for it. Use nexus_room.publish_public_message only for an extra broadcast from a private/tool-driven turn; afterwards output <nexus_room_no_reply/> unless reply_route requires a final reply.
+2. Normal public speech is the final reply. Do not call Room tools for public speech. Private work becomes public only through the runtime reply route.
 3. A non-code @member means "act now" and wakes that member after this round. Use it only for a real handoff. Future plans, examples, summaries, acknowledgements, and candidate lists must use names without @; literal examples belong in code spans.
 4. Wake one member unless the source explicitly requests simultaneous work from all named members. In candidate or first-responder cases only the first target answers; the others output exactly <nexus_room_no_reply/>.
 5. Act only when <latest_trigger> asks you to. "room host default takeover" authorizes the host to answer or delegate once. If it is not your turn, output exactly <nexus_room_no_reply/>.

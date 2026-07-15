@@ -35,7 +35,6 @@ func TestContainsMatchesAliases(t *testing.T) {
 			approved: []string{"nexus_room"},
 			tools: []string{
 				"mcp__nexus_room__send_directed_message",
-				"nexus_room__publish_public_message",
 				"nexus_room.send_directed_message",
 			},
 		},
