@@ -21,7 +21,7 @@ export function buildLauncherTour(
         title: t("launcher.tour_intro_title"),
         description: t("launcher.tour_intro_description"),
         placement: "center",
-        image: "/nexus/welcome.png",
+        image: "/nexus/stickers/guide-launcher.png",
       },
       {
         id: "composer",

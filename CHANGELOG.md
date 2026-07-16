@@ -53,6 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Consolidated the frontend visual rules into the root `design.md` and removed the duplicate frontend design specification.
 - Simplified the onboarding guide center and tour cards by removing repeated mascot art, ornamental stickers, nested illustration frames, gradients, and pill-heavy controls while preserving target highlighting and tour navigation.
+- Replaced onboarding tour intro art with transparent composite Nexus scenes generated from canonical mascot references, and removed the superseded unused tour artwork.
 - Cleaned the primary workbench surfaces: removed decorative rainbow/glass treatment, flattened conversation tabs and Composer, tightened sidebar rows and message rhythm, normalized Room avatars, session actions, and capability navigation, and kept active/hover feedback semantic and visible.
 - Harmonized the desktop rail with the themed page background by removing its opaque fill, allowing the shared triangle pattern to continue through the navigation area.
 - Set the light page background to the near-white `#fcfdfc` while retaining the original blue interaction colors.

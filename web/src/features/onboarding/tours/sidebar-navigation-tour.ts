@@ -26,7 +26,7 @@ export function buildSidebarNavigationTour(
         title: t("sidebar.tour_intro_title"),
         description: t("sidebar.tour_intro_description"),
         placement: "center",
-        image: "/nexus/welcome.png",
+        image: "/nexus/stickers/guide-sidebar.png",
         items: [
           { icon: "bot", text: t("sidebar.guide_nexus_agent") },
           { icon: "hash", text: t("sidebar.guide_chats") },

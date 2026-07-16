@@ -28,7 +28,7 @@ export function buildDmConversationTour(
         id: "intro",
         title: t("room.tour_dm_intro_title"),
         description: t("room.tour_dm_intro_description"),
-        image: "/nexus/listening.png",
+        image: "/nexus/stickers/guide-dm.png",
         placement: "center",
       },
       {
@@ -87,7 +87,7 @@ export function buildRoomConversationTour(
         id: "intro",
         title: t("room.tour_group_intro_title"),
         description: t("room.tour_group_intro_description"),
-        image: "/nexus/in-room.png",
+        image: "/nexus/stickers/guide-room.png",
         placement: "center",
       },
       {
@@ -153,7 +153,7 @@ export function buildRoomEmptyConversationTour(
         id: "intro",
         title: t("room.tour_group_empty_intro_title"),
         description: t("room.tour_group_empty_intro_description"),
-        image: "/nexus/in-room.png",
+        image: "/nexus/stickers/guide-room.png",
         placement: "center",
       },
       {

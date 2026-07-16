@@ -23,7 +23,7 @@ export function buildSkillsTour(
         id: "intro",
         title: t("capability.skills_tour_intro_title"),
         description: t("capability.skills_tour_intro_description"),
-        image: "/nexus/working.png",
+        image: "/nexus/stickers/guide-skills.png",
         placement: "center",
       },
       {
