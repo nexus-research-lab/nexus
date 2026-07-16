@@ -14,6 +14,7 @@ import {
   MARKDOWN_PLUGINS,
   normalizeMarkdownContent,
   REHYPE_PLUGINS,
+  transformMarkdownUrl,
 } from "./core/markdown-renderer-shared";
 import {
   type ResolveWorkspaceFilePath,
@@ -86,6 +87,7 @@ export function UiMarkdownContent({
     content: normalizedContent,
     rehypePlugins: REHYPE_PLUGINS,
     remarkPlugins: MARKDOWN_PLUGINS,
+    urlTransform: transformMarkdownUrl,
   };
 
   return (

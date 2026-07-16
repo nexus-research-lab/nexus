@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import ReactMarkdown from "react-markdown";
 
 import { createServer } from "vite";
 
@@ -16,6 +19,31 @@ const server = await createServer({
 
 test.after(async () => {
   await server.close();
+});
+
+test("Room mention Markdown keeps the internal URL for the avatar chip", async () => {
+  const { transformMarkdownUrl } = await server.ssrLoadModule(
+    "/src/shared/ui/markdown/core/markdown-renderer-shared.tsx",
+  );
+  const components = {
+    a: ({ href, children }) => React.createElement("a", { href }, children),
+  };
+  const html = renderToStaticMarkup(React.createElement(
+    ReactMarkdown,
+    { components, urlTransform: transformMarkdownUrl },
+    "[Tom](agent-mention://tom)",
+  ));
+
+  assert.match(
+    html,
+    /href="agent-mention:\/\/tom"/,
+    "mention 协议不能被 react-markdown 默认 URL 清理器吞掉",
+  );
+  assert.equal(
+    transformMarkdownUrl("javascript:alert(1)"),
+    "",
+    "危险协议仍必须被默认白名单拦截",
+  );
 });
 
 test("real Room cancellation guidance is projected once into Amy Thread", async () => {

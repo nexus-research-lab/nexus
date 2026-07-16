@@ -11,6 +11,7 @@ import {
   MARKDOWN_PLUGINS,
   normalizeMarkdownContent,
   REHYPE_PLUGINS,
+  transformMarkdownUrl,
 } from "@/shared/ui/markdown/core/markdown-renderer-shared";
 import {
   StableMarkdownText,
@@ -158,6 +159,7 @@ function MessageMarkdownSegment({
     ),
     rehypePlugins: REHYPE_PLUGINS,
     remarkPlugins: MARKDOWN_PLUGINS,
+    urlTransform: transformMarkdownUrl,
   };
   return shouldStream ? (
     <StreamingMarkdownText

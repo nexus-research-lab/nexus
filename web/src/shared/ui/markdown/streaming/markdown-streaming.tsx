@@ -16,6 +16,7 @@ interface MarkdownTextBlockProps {
   components: ReactMarkdownProps["components"];
   rehypePlugins: ReactMarkdownProps["rehypePlugins"];
   remarkPlugins: ReactMarkdownProps["remarkPlugins"];
+  urlTransform: ReactMarkdownProps["urlTransform"];
 }
 
 interface StreamingMarkdownTextProps extends MarkdownTextBlockProps {
@@ -28,6 +29,7 @@ const MarkdownTextBlock = memo(
     components,
     rehypePlugins: rehypePlugins,
     remarkPlugins: remarkPlugins,
+    urlTransform,
   }: MarkdownTextBlockProps) {
     if (!content.trim()) {
       return null;
@@ -38,6 +40,7 @@ const MarkdownTextBlock = memo(
         components={components}
         rehypePlugins={rehypePlugins}
         remarkPlugins={remarkPlugins}
+        urlTransform={urlTransform}
       >
         {content}
       </ReactMarkdown>
@@ -47,7 +50,8 @@ const MarkdownTextBlock = memo(
     prev.content === next.content &&
     prev.components === next.components &&
     prev.rehypePlugins === next.rehypePlugins &&
-    prev.remarkPlugins === next.remarkPlugins,
+    prev.remarkPlugins === next.remarkPlugins &&
+    prev.urlTransform === next.urlTransform,
 );
 
 export function StableMarkdownText(props: MarkdownTextBlockProps) {
@@ -60,6 +64,7 @@ export function StreamingMarkdownText({
   streamingComponents: streamingComponents,
   rehypePlugins: rehypePlugins,
   remarkPlugins: remarkPlugins,
+  urlTransform,
 }: StreamingMarkdownTextProps) {
   const blocks = useMemo(() => splitStreamingMarkdownBlocks(content), [content]);
 
@@ -73,6 +78,7 @@ export function StreamingMarkdownText({
             components={block.state === "streaming" ? streamingComponents : components}
             rehypePlugins={rehypePlugins}
             remarkPlugins={remarkPlugins}
+            urlTransform={urlTransform}
           />
         );
       })}
