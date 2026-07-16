@@ -86,8 +86,11 @@ function GroupRoundCardGroupInner({
     <div className="w-full min-w-0 animate-in fade-in slide-in-from-bottom-2 duration-300">
       {model.userMessages.map((item) => (
         <GroupUserMessage
+          agentAvatarMap={agentAvatarMap}
+          agentNameMap={agentNameMap}
           currentUserAvatar={currentUserAvatar}
           item={item}
+          onOpenAgentContact={onOpenAgentContact}
           key={item.message.message_id}
           onOpenWorkspaceFile={onOpenWorkspaceFile}
           roundId={roundId}
@@ -107,8 +110,11 @@ function GroupRoundCardGroupInner({
           <Fragment key={entry.entry_id}>
             {entry.guidedUserMessages.map((item) => (
               <GroupUserMessage
+                agentAvatarMap={agentAvatarMap}
+                agentNameMap={agentNameMap}
                 currentUserAvatar={currentUserAvatar}
                 item={item}
+                onOpenAgentContact={onOpenAgentContact}
                 key={item.message.message_id}
                 onOpenWorkspaceFile={onOpenWorkspaceFile}
                 roundId={roundId}
@@ -121,6 +127,7 @@ function GroupRoundCardGroupInner({
                 onClickThread={toggleEntryThread}
                 onOpenAgentContact={onOpenAgentContact}
                 onOpenWorkspaceFile={onOpenWorkspaceFile}
+                agentMentionDirectory={{ avatars: agentAvatarMap, names: agentNameMap }}
                 roundId={roundId}
               />
             ) : (
@@ -158,13 +165,19 @@ function GroupRoundCardGroupInner({
 }
 
 function GroupUserMessage({
+  agentAvatarMap,
+  agentNameMap,
   currentUserAvatar,
   item,
+  onOpenAgentContact,
   onOpenWorkspaceFile,
   roundId,
 }: {
+  agentAvatarMap: Record<string, string | null>;
+  agentNameMap: Record<string, string>;
   currentUserAvatar: string | null;
   item: GroupRoundUserMessageModel;
+  onOpenAgentContact?: (agentId: string) => void;
   onOpenWorkspaceFile?: (path: string) => void;
   roundId: string;
 }) {
@@ -174,8 +187,10 @@ function GroupUserMessage({
       <MessageItem
         className="border-b-0"
         currentUserAvatar={currentUserAvatar}
+        agentMentionDirectory={{ avatars: agentAvatarMap, names: agentNameMap }}
         isLastRound={false}
         messages={[item.message]}
+        onOpenAgentContact={onOpenAgentContact}
         onOpenWorkspaceFile={onOpenWorkspaceFile}
         roundId={roundId}
         workspaceAgentId={item.workspaceAgentId}

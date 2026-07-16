@@ -14,6 +14,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
+	runtimepermission "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
@@ -107,6 +108,8 @@ func (s *Service) ensureClient(
 		MaxTurns:                   agentValue.Options.MaxTurns,
 		MCPServers:                 mcpServers,
 		AgentSDKDiagnosticsEnabled: runtimeSelection.AgentSDKDiagnosticsEnabled,
+		ToolSearchEnabled:          runtimeSelection.ToolSearchEnabled,
+		WebSearch:                  runtimeSelection.WebSearch,
 	})
 	if err != nil {
 		return nil, "", "", "", "", "", nil, permissionMode, err
@@ -158,10 +161,10 @@ func (s *Service) ensureClient(
 
 func resolvePermissionMode(requestMode sdkpermission.Mode, agentMode string) sdkpermission.Mode {
 	if requestMode != "" {
-		return requestMode
+		return runtimepermission.NormalizeMode(requestMode)
 	}
 	if agentMode != "" {
-		return sdkpermission.Mode(agentMode)
+		return runtimepermission.NormalizeMode(sdkpermission.Mode(agentMode))
 	}
 	return sdkpermission.ModeDefault
 }

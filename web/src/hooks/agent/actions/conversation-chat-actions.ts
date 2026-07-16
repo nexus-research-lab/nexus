@@ -44,6 +44,7 @@ function buildOptimisticUserMessage(
     timestamp: Date.now(),
     delivery_policy: options.delivery_policy ?? "queue",
     ...(attachments.length > 0 ? { attachments } : {}),
+    ...(options.target_agent_ids?.length ? { target_agent_ids: options.target_agent_ids } : {}),
     ...(actionContext.chatType === "group"
       ? {
           room_id: actionContext.roomId ?? undefined,
@@ -68,6 +69,7 @@ function buildChatCommand(
     client_message_id: request.client_message_id,
     delivery_policy: options.delivery_policy ?? "queue",
     ...(attachments.length > 0 ? { attachments } : {}),
+    ...(options.target_agent_ids?.length ? { target_agent_ids: options.target_agent_ids } : {}),
   } as WebSocketMessage;
 }
 

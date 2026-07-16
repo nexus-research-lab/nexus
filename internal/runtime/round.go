@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 
+	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
 
@@ -113,6 +114,37 @@ func (m *Manager) SetPermissionModeForAgent(ctx context.Context, agentID string,
 	m.mu.RUnlock()
 	for _, client := range clients {
 		if err := client.SetPermissionMode(ctx, mode); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+type environmentUpdater interface {
+	UpdateEnvironment(context.Context, map[string]string) error
+}
+
+// UpdateEnvironmentForAgent 将 WebSearch 等运行期环境同步到指定 Agent 的 nxs 会话。
+func (m *Manager) UpdateEnvironmentForAgent(ctx context.Context, agentID string, environment map[string]string) error {
+	agentID = strings.TrimSpace(agentID)
+	if agentID == "" || len(environment) == 0 {
+		return nil
+	}
+	prefix := "agent:" + agentID + ":"
+	clients := make([]environmentUpdater, 0)
+	m.mu.RLock()
+	for sessionKey, state := range m.sessions {
+		if state == nil || state.Client == nil || state.RuntimeKind != agentclient.RuntimeNXS || !strings.HasPrefix(sessionKey, prefix) {
+			continue
+		}
+		updater, ok := state.Client.(environmentUpdater)
+		if ok {
+			clients = append(clients, updater)
+		}
+	}
+	m.mu.RUnlock()
+	for _, client := range clients {
+		if err := client.UpdateEnvironment(ctx, environment); err != nil {
 			return err
 		}
 	}

@@ -74,7 +74,7 @@ func publishPublicMessageSchema() map[string]any {
 		"properties": map[string]any{
 			"content": map[string]any{
 				"type":        "string",
-				"description": "要主动发布到 Room public feed 的公开正文；普通公区回复应直接用 final reply，不要调用此工具",
+				"description": "要发布到 Room 公区的事实；普通公区回复不要使用此工具。",
 			},
 			"correlation_id": map[string]any{
 				"type":        "string",

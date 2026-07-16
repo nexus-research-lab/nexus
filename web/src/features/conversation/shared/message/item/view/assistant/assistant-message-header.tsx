@@ -50,7 +50,7 @@ export function AssistantMessageHeader({
         onOpenContact={onOpenContact}
         visible={compact}
       />
-      <span className="nexus-chat-author shrink-0 text-sm font-bold text-(--text-strong)">
+      <span className="nexus-chat-author shrink-0 text-sm font-medium text-(--text-strong)">
         {displayName}
       </span>
       <AssistantTimestamp timestamp={timestamp} />

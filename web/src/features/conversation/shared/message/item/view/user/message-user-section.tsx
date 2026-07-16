@@ -8,6 +8,7 @@ import { useCallback } from "react";
 import { cn } from "@/shared/ui/class-name";
 import { useCopyToClipboard } from "@/hooks/ui/use-copy-to-clipboard";
 import type { UserMessage } from "@/types/conversation/message/entity";
+import type { AgentMentionDirectory } from "../../../agent-mention-chip";
 
 import { UserMessageContent } from "./user-message-content";
 import { UserMessageEditor } from "./user-message-editor";
@@ -21,8 +22,10 @@ import { useUserMessageEditor } from "./use-user-message-editor";
 interface MessageUserSectionProps {
   compact: boolean;
   currentUserAvatar?: string | null;
+  agentMentionDirectory?: AgentMentionDirectory;
   message: UserMessage;
   onEditUserMessage?: (messageId: string, newContent: string) => void;
+  onOpenAgentContact?: (agentId: string) => void;
   onOpenWorkspaceFile?: (path: string, workspaceAgentId?: string | null) => void;
   workspaceAgentId?: string | null;
 }
@@ -30,8 +33,10 @@ interface MessageUserSectionProps {
 export function MessageUserSection({
   compact,
   currentUserAvatar,
+  agentMentionDirectory,
   message,
   onEditUserMessage,
+  onOpenAgentContact,
   onOpenWorkspaceFile,
   workspaceAgentId,
 }: MessageUserSectionProps) {
@@ -94,8 +99,11 @@ export function MessageUserSection({
                   presentation={presentation}
                 />
                 <UserMessageContent
+                  agentMentions={message.agent_mentions}
+                  agentMentionDirectory={agentMentionDirectory}
                   attachments={attachments}
                   content={message.content}
+                  onOpenAgentContact={onOpenAgentContact}
                   onOpenWorkspaceFile={onOpenWorkspaceFile}
                   presentation={presentation}
                   workspaceAgentId={workspaceAgentId}

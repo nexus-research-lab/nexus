@@ -6,9 +6,11 @@ import (
 	"strings"
 	"testing"
 
+	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
@@ -49,8 +51,17 @@ func TestQueueBusyPublicMentionWakesGuidesEachBusyRootAndLeavesIdleTargetReady(t
 	slotA := newSlot(agents[0], "agent-round-a")
 	slotB := newSlot(agents[1], "agent-round-b")
 	store := workspacestore.NewInputQueueStore(root)
+	runtimeManager := runtimectx.NewManagerWithFactory(roomGuidanceRuntimeFactory{
+		client: &permissionModeTestClient{hookResponseAck: true},
+	})
+	for _, slot := range []*activeRoomSlot{slotA, slotB} {
+		if _, err := runtimeManager.GetOrCreate(context.Background(), slot.RuntimeSessionKey, agentclient.Options{}); err != nil {
+			t.Fatalf("创建 ACK runtime 失败: %v", err)
+		}
+	}
 	service := &RealtimeService{
 		inputQueue: store,
+		runtime:    runtimeManager,
 		permission: permissionctx.NewContext(),
 		activeRounds: map[string]*activeRoomRound{
 			"root-a": {

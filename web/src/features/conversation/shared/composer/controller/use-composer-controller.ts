@@ -106,6 +106,8 @@ export function useComposerController({
     resetInput,
     resetTextareaHeight,
     runtimePhase,
+    targetAgentIDs: mention.selectedTargetIDs,
+    clearSelectedTargetIDs: mention.clearSelectedTargetIDs,
   });
   const goal = useComposerGoalActions({
     closeMention: mention.closeMention,

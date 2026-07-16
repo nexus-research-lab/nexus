@@ -75,6 +75,7 @@ function StandaloneConversationRound({
       currentAgentAvatar={agent.avatar}
       currentAgentName={agent.name}
       currentUserAvatar={renderer.currentUserAvatar}
+      agentMentionDirectory={{ avatars: renderer.agentAvatarMap, names: renderer.agentNameMap }}
       isLastRound={state.isLast}
       messages={state.messages}
       onOpenAgentContact={renderer.onOpenAgentContact}

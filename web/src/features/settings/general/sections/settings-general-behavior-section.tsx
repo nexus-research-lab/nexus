@@ -7,20 +7,15 @@ import {
   MonitorCog,
   ScanEye,
   Sparkles,
-  Terminal,
 } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { UiSelectMenuOption } from "@/shared/ui/menu/select-menu-model";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 import type { AgentConversationDefaultDeliveryPolicy } from "@/types/agent/agent-conversation";
-import type { AgentRuntimeKind } from "@/types/settings/preferences";
 
 import { SettingsDefaultModelRow } from "../components/settings-default-model-row";
-import {
-  AGENT_RUNTIME_KIND_OPTIONS,
-  DELIVERY_POLICY_OPTIONS,
-} from "../model/settings-options";
+import { DELIVERY_POLICY_OPTIONS } from "../model/settings-options";
 import {
   SETTINGS_CARD_CLASS_NAME,
   SETTINGS_CONTROL_LABEL_CLASS_NAME,
@@ -36,7 +31,6 @@ import type { DefaultModelPreferenceRole } from "../model/default-model-preferen
 import { SettingsOnboardingRow } from "../components/settings-onboarding-row";
 
 interface SettingsGeneralBehaviorSectionProps {
-  agentRuntimeKind: AgentRuntimeKind;
   agentSdkDiagnosticsEnabled: boolean;
   chatDefaultDeliveryPolicy: AgentConversationDefaultDeliveryPolicy;
   defaultBackgroundModelOptions: UiSelectMenuOption[];
@@ -49,8 +43,6 @@ interface SettingsGeneralBehaviorSectionProps {
   defaultModelOptions: UiSelectMenuOption[];
   defaultModelSavingRole: DefaultModelPreferenceRole | null;
   defaultModelValue: string;
-  nxsRuntimeChecking: boolean;
-  onAgentRuntimeKindChange: (value: AgentRuntimeKind) => void;
   onAgentSdkDiagnosticsChange: (checked: boolean) => void;
   onDefaultDeliveryPolicyChange: (
     value: AgentConversationDefaultDeliveryPolicy,
@@ -66,7 +58,6 @@ interface SettingsGeneralBehaviorSectionProps {
 }
 
 export function SettingsGeneralBehaviorSection({
-  agentRuntimeKind,
   agentSdkDiagnosticsEnabled,
   chatDefaultDeliveryPolicy,
   defaultBackgroundModelOptions,
@@ -79,8 +70,6 @@ export function SettingsGeneralBehaviorSection({
   defaultModelOptions,
   defaultModelSavingRole,
   defaultModelValue,
-  nxsRuntimeChecking,
-  onAgentRuntimeKindChange,
   onAgentSdkDiagnosticsChange,
   onDefaultDeliveryPolicyChange,
   onDefaultModelChange,
@@ -97,43 +86,6 @@ export function SettingsGeneralBehaviorSection({
         {t("settings.general.section_general")}
       </h2>
       <div className={SETTINGS_CARD_CLASS_NAME}>
-        <div className={SETTINGS_ROW_CLASS_NAME}>
-          <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
-            <div className={SETTINGS_ICON_CLASS_NAME}>
-              <Terminal className="h-3.5 w-3.5" />
-            </div>
-            <div className="min-w-0">
-              <h3 className={SETTINGS_ITEM_TITLE_CLASS_NAME}>
-                {t("settings.general.agent_runtime_title")}
-              </h3>
-              <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
-                {t("settings.general.agent_runtime_description")}
-              </p>
-            </div>
-          </div>
-          <div className="flex min-w-0 flex-col gap-1.5">
-            <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
-              {t("settings.general.agent_runtime_label")}
-            </span>
-            <SettingsSegmentedControl
-              ariaLabel={t("settings.general.agent_runtime_label")}
-              disabled={
-                preferencesLoading ||
-                preferencesSaving ||
-                nxsRuntimeChecking
-              }
-              onChange={onAgentRuntimeKindChange}
-              options={AGENT_RUNTIME_KIND_OPTIONS.map((option) => ({
-                value: option.value,
-                label: t(option.labelKey),
-              }))}
-              value={agentRuntimeKind}
-            />
-          </div>
-        </div>
-
-        <div className="border-t border-(--divider-subtle-color)" />
-
         <div className={SETTINGS_ROW_CLASS_NAME}>
           <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
             <div className={SETTINGS_ICON_CLASS_NAME}>

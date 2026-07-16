@@ -25,6 +25,11 @@ export const AGENT_PERMISSION_MODES = [
     labelKey: "agent_options.advanced.permission.bypass.label",
     descriptionKey: "agent_options.advanced.permission.bypass.description",
   },
+  {
+    value: "dontAsk",
+    labelKey: "agent_options.advanced.permission.dont_ask.label",
+    descriptionKey: "agent_options.advanced.permission.dont_ask.description",
+  },
 ] as const;
 
 export const AVAILABLE_AGENT_TOOLS = [

@@ -39,6 +39,9 @@ export function StructuredContentRenderer(
     showTimelineDots,
     streamingBlockIndexes,
     workspaceAgentId,
+    agentMentions,
+    agentMentionDirectory,
+    onOpenAgentContact,
   } = normalizeStructuredContentRendererProps(props);
   const projection = projectStructuredContent(content);
   const hiddenToolNameSet = new Set(hiddenToolNames);
@@ -60,6 +63,9 @@ export function StructuredContentRenderer(
     permissionReadOnlyReason,
     projection,
     workspaceAgentId,
+    agentMentions,
+    agentMentionDirectory,
+    onOpenAgentContact,
   };
 
   return (
@@ -78,6 +84,7 @@ export function StructuredContentRenderer(
           renderContext={renderContext}
           showTimelineDots={showTimelineDots}
           streaming={streamingBlockIndexes?.has(index) ?? false}
+          blockIndex={index}
         />
       ))}
       {activityState ? (
@@ -102,12 +109,14 @@ function normalizeStructuredContentRendererProps(
 
 function StructuredContentBlock({
   block,
+  blockIndex,
   consumed,
   renderContext,
   showTimelineDots,
   streaming,
 }: {
   block: ContentBlock;
+  blockIndex: number;
   consumed: boolean;
   renderContext: ContentBlockRenderContext;
   showTimelineDots: boolean;
@@ -122,6 +131,7 @@ function StructuredContentBlock({
       context={renderContext}
       showTimelineDots={showTimelineDots}
       streaming={streaming}
+      blockIndex={blockIndex}
     />
   );
 }

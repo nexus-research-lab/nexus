@@ -30,6 +30,7 @@ export function MessageAssistantSection({
   onPermissionResponse,
   permissionReadOnlyReason,
   workspaceAgentId,
+  agentMentionDirectory,
 }: MessageAssistantSectionProps) {
   const layout = resolveAssistantMessageLayout(compact);
   const scope = resolveAssistantMessageScope({
@@ -93,6 +94,8 @@ export function MessageAssistantSection({
                   onPermissionResponse,
                   permissionReadOnlyReason,
                   workspaceAgentId: scope.contentWorkspaceAgentId,
+                  agentMentionDirectory,
+                  onOpenAgentContact,
                 }}
                 final={assistant.final}
                 permissions={assistant.permissions}

@@ -108,6 +108,8 @@ function AssistantDirectContent({
       showTimelineDots
       streamingBlockIndexes={direct.projection.streamingIndexes}
       workspaceAgentId={environment.workspaceAgentId}
+      agentMentionDirectory={environment.agentMentionDirectory}
+      onOpenAgentContact={environment.onOpenAgentContact}
     />
   );
 }
@@ -132,6 +134,9 @@ function AssistantFinalContent({
       onOpenWorkspaceFile={environment.onOpenWorkspaceFile}
       streamingBlockIndexes={final.streamingIndexes}
       workspaceAgentId={environment.workspaceAgentId}
+      agentMentions={final.mentions}
+      agentMentionDirectory={environment.agentMentionDirectory}
+      onOpenAgentContact={environment.onOpenAgentContact}
     />
   );
 }

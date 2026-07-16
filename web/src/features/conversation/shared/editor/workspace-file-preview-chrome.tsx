@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode } from "react";
+import { createContext, type ReactNode, useContext } from "react";
 import { Download, FolderOpen, Maximize2, Minimize2 } from "lucide-react";
 
 import { downloadWorkspaceFileApi } from "@/lib/api/agent/agent-api";
@@ -8,12 +8,28 @@ import { getWorkspaceFileExternalActionCopy } from "@/lib/workspace-file-action"
 import { cn } from "@/shared/ui/class-name";
 
 const WORKSPACE_FILE_TOOLBAR_BUTTON_CLASS_NAME = cn(
-  "inline-flex h-8 items-center justify-center gap-1.5 rounded-[10px] border px-2.5 text-[11px] font-semibold leading-none transition-colors",
+  "inline-flex h-6 items-center justify-center gap-1.5 rounded-[6px] border px-1.5 text-[9px] font-semibold leading-none transition-colors",
   "border-(--divider-subtle-color) bg-(--surface-panel-background) text-(--text-default)",
   "hover:border-primary/30 hover:bg-primary/8 hover:text-primary",
   "disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) disabled:hover:border-(--divider-subtle-color) disabled:hover:bg-(--surface-panel-background) disabled:hover:text-(--text-default)",
   "max-xl:w-8 max-xl:px-0 max-xl:gap-0",
 );
+
+const WorkspaceFilePreviewHeaderLeadingContext = createContext<ReactNode>(null);
+
+export function WorkspaceFilePreviewHeaderProvider({
+  children,
+  leading,
+}: {
+  children: ReactNode;
+  leading?: ReactNode;
+}) {
+  return (
+    <WorkspaceFilePreviewHeaderLeadingContext.Provider value={leading}>
+      {children}
+    </WorkspaceFilePreviewHeaderLeadingContext.Provider>
+  );
+}
 
 export function WorkspaceFilePreviewHeader({
   actions,
@@ -24,15 +40,19 @@ export function WorkspaceFilePreviewHeader({
   meta?: ReactNode;
   title: string;
 }) {
+  const leading = useContext(WorkspaceFilePreviewHeaderLeadingContext);
   return (
     <div className="overflow-hidden border-b divider-subtle px-3 pt-0 pb-2">
       <div className="flex min-w-0 items-center justify-between gap-3">
-        <p
-          className="min-w-0 flex-1 truncate text-xs font-semibold uppercase leading-5 tracking-[0.16em] text-muted-foreground"
-          title={title}
-        >
-          {title}
-        </p>
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          {leading ? <div className="shrink-0">{leading}</div> : null}
+          <p
+            className="min-w-0 flex-1 truncate text-xs font-semibold uppercase leading-5 tracking-[0.16em] text-muted-foreground"
+            title={title}
+          >
+            {title}
+          </p>
+        </div>
         <div className="flex shrink-0 items-center gap-2 self-start">
           {actions}
         </div>

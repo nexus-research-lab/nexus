@@ -230,6 +230,7 @@ func convertTurnMessage(
 		ParentID:     strings.TrimSpace(stringFromAny(row["parent_id"])),
 		Content:      row["content"],
 		Timestamp:    messageTimestamp(row),
+		DisplayOrder: protocol.Int64FromAny(row["display_order"]),
 		StreamStatus: strings.TrimSpace(stringFromAny(row["stream_status"])),
 	}
 	if converted.Role == "result" {
@@ -238,7 +239,43 @@ func convertTurnMessage(
 	if summary, ok := row["result_summary"].(map[string]any); ok && len(summary) > 0 {
 		converted.ResultSummary = summary
 	}
+	converted.AgentMentions = agentMentionsFromAny(row["agent_mentions"])
 	return converted
+}
+
+func agentMentionsFromAny(value any) []protocol.AgentMention {
+	result := make([]protocol.AgentMention, 0)
+	switch typed := value.(type) {
+	case []protocol.AgentMention:
+		return append(result, typed...)
+	case []map[string]any:
+		for _, payload := range typed {
+			result = append(result, protocol.AgentMention{
+				AgentID:           strings.TrimSpace(stringFromAny(payload["agent_id"])),
+				Label:             strings.TrimSpace(stringFromAny(payload["label"])),
+				ContentBlockIndex: int(protocol.Int64FromAny(payload["content_block_index"])),
+				StartRune:         int(protocol.Int64FromAny(payload["start_rune"])),
+				EndRune:           int(protocol.Int64FromAny(payload["end_rune"])),
+				HandoffID:         strings.TrimSpace(stringFromAny(payload["handoff_id"])),
+			})
+		}
+	case []any:
+		for _, item := range typed {
+			payload, ok := item.(map[string]any)
+			if !ok {
+				continue
+			}
+			result = append(result, protocol.AgentMention{
+				AgentID:           strings.TrimSpace(stringFromAny(payload["agent_id"])),
+				Label:             strings.TrimSpace(stringFromAny(payload["label"])),
+				ContentBlockIndex: int(protocol.Int64FromAny(payload["content_block_index"])),
+				StartRune:         int(protocol.Int64FromAny(payload["start_rune"])),
+				EndRune:           int(protocol.Int64FromAny(payload["end_rune"])),
+				HandoffID:         strings.TrimSpace(stringFromAny(payload["handoff_id"])),
+			})
+		}
+	}
+	return result
 }
 
 func buildResultSummaryFromRow(row protocol.Message) map[string]any {

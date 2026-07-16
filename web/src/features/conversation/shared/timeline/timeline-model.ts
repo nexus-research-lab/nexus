@@ -270,9 +270,9 @@ function isLatestLoadedWindow(
 /**
  * 用完整索引确定 feed 顺序，但正文只渲染已加载窗口。
  *
- * 最新历史页不插入未加载占位，避免新打开旧 session 时因为全量索引
- * 直接产生很长的空滚动；非最新窗口保留相邻占位，让点击定位后还能
- * 继续通过正常滚动触发局部加载。
+ * 最新历史页不插入未加载哨兵，避免新打开旧 session 时因为全量索引
+ * 直接产生很长的空滚动；非最新窗口保留相邻哨兵，让点击定位后还能
+ * 继续通过正常滚动触发局部加载。哨兵不渲染任何用户可见状态。
  */
 export function buildIndexedTimelineRoundIds(
   roundIndexItems: SessionRoundIndexItem[],

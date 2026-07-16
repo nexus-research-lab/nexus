@@ -107,7 +107,7 @@ func TestServicePlanContinuationForRoomGoalIncludesLeadPrompt(t *testing.T) {
 		"Room Goal lead:",
 		"主持人 (agent-host)",
 		"This is a shared Room Goal",
-		"publish a normal public Room message that @mentions exactly that member",
+		"make the final reply a normal public Room message that @mentions exactly that member",
 		"Public @ delegation is visible to the user",
 		"visible collaboration is part of completion",
 		"@ exactly one non-lead member",

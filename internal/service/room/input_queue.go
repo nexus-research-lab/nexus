@@ -25,6 +25,7 @@ type InputQueueRequest struct {
 	ItemID         string
 	Content        string
 	Attachments    []protocol.ChatAttachment
+	TargetAgentIDs []string
 	OrderedIDs     []string
 	DeliveryPolicy protocol.ChatDeliveryPolicy
 }
@@ -130,7 +131,12 @@ func (s *RealtimeService) HandleInputQueue(ctx context.Context, request InputQue
 		if !protocol.HasChatInput(content, attachments) {
 			return errors.New("content is required")
 		}
-		location, targetAgentIDs, err := s.resolveRoomInputQueuePrimaryLocation(ctx, contextValue, content)
+		location, targetAgentIDs, err := s.resolveRoomInputQueuePrimaryLocation(
+			ctx,
+			contextValue,
+			content,
+			request.TargetAgentIDs,
+		)
 		if err != nil {
 			return err
 		}
@@ -310,6 +316,7 @@ func (s *RealtimeService) syncQueuedPublicUserMessage(
 		} else if consumingAgentRoundID != "" && messageAgentRoundID == "" {
 			updated["agent_round_id"] = consumingAgentRoundID
 		}
+		annotateRoomUserMessage(contextValue, updated)
 		// 第一位消费者确定公开用户消息的归组；其他 root 只聚合消费目标，
 		// 不能让同一条消息在时间线中随最后完成的 Agent 来回移动。
 		if rootRoundID != "" && rootRoundID != sourceRoundID &&
@@ -368,6 +375,7 @@ func (s *RealtimeService) syncQueuedPublicUserMessage(
 	if len(targetAgentIDs) > 0 {
 		messageValue["target_agent_ids"] = targetAgentIDs
 	}
+	annotateRoomUserMessage(contextValue, messageValue)
 	if attachments := protocol.NormalizeChatAttachments(item.Attachments, ""); len(attachments) > 0 {
 		messageValue["attachments"] = attachments
 	}

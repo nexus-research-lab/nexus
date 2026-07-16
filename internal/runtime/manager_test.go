@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"maps"
 	"strings"
 	"testing"
 	"time"
@@ -16,19 +17,20 @@ import (
 )
 
 type fakeRuntimeClient struct {
-	reconfigureCalls int
-	lastOptions      agentclient.Options
-	sentContents     []string
-	reconfigureErr   error
-	disconnectCalls  int
-	stoppedTasks     []string
-	taskMessages     []fakeTaskMessage
-	stopTaskErr      error
-	permissionModes  []sdkpermission.Mode
-	hookResponseAck  bool
-	messages         <-chan sdkprotocol.ReceivedMessage
-	receiveStarted   chan struct{}
-	receiveStopped   chan struct{}
+	reconfigureCalls   int
+	lastOptions        agentclient.Options
+	sentContents       []string
+	reconfigureErr     error
+	disconnectCalls    int
+	stoppedTasks       []string
+	taskMessages       []fakeTaskMessage
+	stopTaskErr        error
+	permissionModes    []sdkpermission.Mode
+	environmentUpdates []map[string]string
+	hookResponseAck    bool
+	messages           <-chan sdkprotocol.ReceivedMessage
+	receiveStarted     chan struct{}
+	receiveStopped     chan struct{}
 }
 
 type fakeTaskMessage struct {
@@ -123,6 +125,11 @@ func (c *fakeRuntimeClient) Reconfigure(_ context.Context, options agentclient.O
 	return nil
 }
 
+func (c *fakeRuntimeClient) UpdateEnvironment(_ context.Context, environment map[string]string) error {
+	c.environmentUpdates = append(c.environmentUpdates, maps.Clone(environment))
+	return nil
+}
+
 func (c *fakeRuntimeClient) Supports(capability agentclient.Capability) bool {
 	return c.hookResponseAck && capability == agentclient.CapabilityHookResponseAck
 }
@@ -174,6 +181,36 @@ func TestManagerSetPermissionModeForAgentUpdatesMatchingClients(t *testing.T) {
 	}
 	if len(other.permissionModes) != 0 {
 		t.Fatalf("other permission modes = %#v，期望空", other.permissionModes)
+	}
+}
+
+func TestManagerUpdateEnvironmentForAgentUpdatesMatchingNXSClients(t *testing.T) {
+	manager := NewManager()
+	matching := &fakeRuntimeClient{}
+	otherRuntime := &fakeRuntimeClient{}
+	otherAgent := &fakeRuntimeClient{}
+	manager.sessions["agent:agent-a:conversation:1"] = &sessionState{
+		Client:      matching,
+		RuntimeKind: agentclient.RuntimeNXS,
+	}
+	manager.sessions["agent:agent-a:conversation:2"] = &sessionState{
+		Client:      otherRuntime,
+		RuntimeKind: agentclient.RuntimeClaude,
+	}
+	manager.sessions["agent:agent-b:conversation:1"] = &sessionState{
+		Client:      otherAgent,
+		RuntimeKind: agentclient.RuntimeNXS,
+	}
+
+	environment := map[string]string{"NEXUS_WEBSEARCH_CONFIG": `{"enabled":false}`}
+	if err := manager.UpdateEnvironmentForAgent(context.Background(), "agent-a", environment); err != nil {
+		t.Fatalf("UpdateEnvironmentForAgent() error = %v", err)
+	}
+	if len(matching.environmentUpdates) != 1 || matching.environmentUpdates[0]["NEXUS_WEBSEARCH_CONFIG"] == "" {
+		t.Fatalf("matching environment updates = %#v", matching.environmentUpdates)
+	}
+	if len(otherRuntime.environmentUpdates) != 0 || len(otherAgent.environmentUpdates) != 0 {
+		t.Fatalf("non-matching clients were updated: runtime=%#v other=%#v", otherRuntime.environmentUpdates, otherAgent.environmentUpdates)
 	}
 }
 

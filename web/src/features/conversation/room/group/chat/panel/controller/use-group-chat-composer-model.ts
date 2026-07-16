@@ -93,7 +93,7 @@ export function useGroupChatComposerModel({
     onReorderQueueMessages: conversation.reorder_input_queue_messages,
     onSendMessage: handlers.handleSendMessage,
     onStop: conversation.stop_generation,
-    queueWhenSessionBusy: false,
+    queueWhenSessionBusy: true,
     roomMembers,
     runtimePhase: conversation.runtime_phase,
     runtimeKind,

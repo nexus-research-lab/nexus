@@ -3,6 +3,7 @@
 import {
   ArrowLeft,
   Cable,
+  Cpu,
   FolderKanban,
   Palette,
   Settings2,
@@ -26,6 +27,7 @@ import { useSettingsNavigation } from "./use-settings-navigation";
 const SETTINGS_SECTION_ICONS: Record<SettingsSectionKey, LucideIcon> = {
   appearance: Palette,
   general: Settings2,
+  runtime: Cpu,
   operations: ShieldCheck,
   permissions: ShieldCheck,
   personal: UserRound,

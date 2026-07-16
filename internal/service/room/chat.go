@@ -133,6 +133,9 @@ func (s *RealtimeService) handleChat(ctx context.Context, request ChatRequest) e
 	if err != nil {
 		return err
 	}
+	if err = s.cancelActiveRoomGoalForUser(execution.ctx, execution.sessionKey, request.Content); err != nil {
+		return err
+	}
 	if len(execution.targetAgentIDs) == 0 {
 		if err = execution.persistInput(); err != nil {
 			return err
@@ -219,6 +222,8 @@ func (s *RealtimeService) prepareRoomChat(ctx context.Context, request ChatReque
 		return nil, err
 	}
 
+	userMessage := newRoomUserMessage(request, sessionKey, roomID, conversationID, attachments, targetAgentIDs, deliveryPolicy)
+	annotateRoomUserMessage(contextValue, userMessage)
 	return &roomChatExecution{
 		service:            s,
 		ctx:                ctx,
@@ -235,7 +240,7 @@ func (s *RealtimeService) prepareRoomChat(ctx context.Context, request ChatReque
 		targetResolution:   targetResolution,
 		deliveryPolicy:     deliveryPolicy,
 		history:            history,
-		userMessage:        newRoomUserMessage(request, sessionKey, roomID, conversationID, attachments, targetAgentIDs, deliveryPolicy),
+		userMessage:        userMessage,
 	}, nil
 }
 

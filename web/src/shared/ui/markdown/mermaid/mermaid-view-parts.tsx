@@ -56,7 +56,7 @@ export function MermaidSourceView({
         getMermaidBodyClassName(compact, constrainHeight),
       )}
     >
-      <pre className="message-cjk-code-font min-w-full whitespace-pre px-4 py-3.5 text-[13px] leading-[1.6] text-(--text-strong)">
+      <pre className="message-code-font min-w-full whitespace-pre px-3 py-2.5 text-[12px] leading-[1.5] text-(--text-strong)">
         {chart}
       </pre>
     </div>

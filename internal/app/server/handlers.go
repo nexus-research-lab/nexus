@@ -46,15 +46,17 @@ func newHandlerSet(
 	websocketHandler *handlerwebsocket.Handler,
 	cfg config.Config,
 ) handlerSet {
+	core := corehandler.New(
+		cfg,
+		api,
+		services.Core.Agent,
+		services.Provider,
+		services.Preferences,
+	)
+	core.SetRuntimeManager(services.Runtime)
 	return handlerSet{
 		auth: authhandler.New(api, services.Auth, services.Usage, services.Subscription),
-		core: corehandler.New(
-			cfg,
-			api,
-			services.Core.Agent,
-			services.Provider,
-			services.Preferences,
-		),
+		core: core,
 		agent: agenthandler.New(
 			api,
 			services.Core.Agent,

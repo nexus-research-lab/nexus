@@ -103,7 +103,7 @@ func TestRealtimeServiceWakesMentionedAgentFromPublicAssistantReply(t *testing.T
 	}
 }
 
-func TestRealtimeServiceAllowsReciprocalPublicMentionChain(t *testing.T) {
+func TestRealtimeServiceBlocksReciprocalPublicMentionChain(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
@@ -166,14 +166,6 @@ func TestRealtimeServiceAllowsReciprocalPublicMentionChain(t *testing.T) {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}
 
-	select {
-	case prompt := <-amySecondPrompt:
-		if !strings.Contains(prompt, "<latest_trigger>\nDevin: @Amy 我接完了，你继续。") {
-			t.Fatalf("Amy 第二次 prompt 缺少 Devin 触发上下文: %s", prompt)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("Devin @Amy 后未继续触发 Amy")
-	}
 	finishedMentionRounds := 0
 	_ = collectRoomEventsUntil(t, sender.events, func(_ []protocol.EventMessage, event protocol.EventMessage) bool {
 		if event.EventType != protocol.EventTypeRoundStatus {
@@ -184,8 +176,13 @@ func TestRealtimeServiceAllowsReciprocalPublicMentionChain(t *testing.T) {
 		if strings.HasPrefix(roundID, "room_mention_") && status == "finished" {
 			finishedMentionRounds++
 		}
-		return finishedMentionRounds >= 2
+		return finishedMentionRounds >= 1
 	})
+	select {
+	case prompt := <-amySecondPrompt:
+		t.Fatalf("root cycle 不应再次唤醒 Amy: %s", prompt)
+	case <-time.After(300 * time.Millisecond):
+	}
 }
 
 func TestRealtimeServiceQueuesPublicMentionWhenTargetRunning(t *testing.T) {
@@ -290,8 +287,8 @@ func TestRealtimeServiceQueuesPublicMentionWhenTargetRunning(t *testing.T) {
 		queuedItem.SourceAgentID != amy.AgentID ||
 		len(queuedItem.TargetAgentIDs) != 1 ||
 		queuedItem.TargetAgentIDs[0] != devin.AgentID ||
-		queuedItem.DeliveryPolicy != protocol.ChatDeliveryPolicyGuide ||
-		queuedItem.RootRoundID != devinActiveRoundID {
+		queuedItem.DeliveryPolicy != protocol.ChatDeliveryPolicyQueue ||
+		queuedItem.RootRoundID == devinActiveRoundID {
 		t.Fatalf("公区 @ 队列项缺少来源或目标: %+v", queuedItem)
 	}
 	targetQueueLocation := workspacestore.InputQueueLocation{
@@ -306,8 +303,8 @@ func TestRealtimeServiceQueuesPublicMentionWhenTargetRunning(t *testing.T) {
 		t.Fatalf("读取目标 agent session 队列失败: %v", err)
 	}
 	if len(targetQueueItems) != 1 || targetQueueItems[0].ID != queuedItem.ID ||
-		targetQueueItems[0].DeliveryPolicy != protocol.ChatDeliveryPolicyGuide ||
-		targetQueueItems[0].RootRoundID != devinActiveRoundID {
+		targetQueueItems[0].DeliveryPolicy != protocol.ChatDeliveryPolicyQueue ||
+		targetQueueItems[0].RootRoundID == devinActiveRoundID {
 		t.Fatalf("Room 队列未落到目标 agent session: event=%+v stored=%+v", queuedItem, targetQueueItems)
 	}
 

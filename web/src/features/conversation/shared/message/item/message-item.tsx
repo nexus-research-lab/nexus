@@ -37,6 +37,7 @@ function MessageItemInner({
   assistantHeaderAction,
   assistantContentMode = "dm_archived",
   className,
+  agentMentionDirectory,
 }: MessageItemProps) {
   const state = useMessageItemController({
     roundId,
@@ -64,6 +65,7 @@ function MessageItemInner({
         <MessageUserSection
           compact={compact}
           currentUserAvatar={currentUserAvatar}
+          agentMentionDirectory={agentMentionDirectory}
           key={message.message_id}
           message={message}
           onEditUserMessage={
@@ -72,6 +74,7 @@ function MessageItemInner({
               : undefined
           }
           onOpenWorkspaceFile={onOpenWorkspaceFile}
+          onOpenAgentContact={onOpenAgentContact}
           workspaceAgentId={workspaceAgentId}
         />
       ))}
@@ -89,6 +92,7 @@ function MessageItemInner({
         hiddenToolNames={hiddenToolNames}
         assistantHeaderAction={assistantHeaderAction}
         assistantContentMode={assistantContentMode}
+        agentMentionDirectory={agentMentionDirectory}
         assistant={state.assistant}
       />
     </div>

@@ -39,6 +39,10 @@ export interface GroupRoundAgentCardModel extends RoomAgentRoundEntry {
 export interface GroupRoundCardModel {
   entries: GroupRoundAgentCardModel[];
   userMessages: GroupRoundUserMessageModel[];
+  /** 兼容旧版时间线消费者，统一模型仍以 entries 为唯一真相。 */
+  completedEntries: GroupRoundAgentCardModel[];
+  /** 兼容旧版时间线消费者，统一模型仍以 entries 为唯一真相。 */
+  pendingEntries: GroupRoundAgentCardModel[];
 }
 
 export type AgentStatusSummaryTone =
@@ -166,10 +170,11 @@ export function buildGroupRoundCardModel({
       message,
       workspaceAgentId: resolveUserWorkspaceAgentId(message),
     };
-    const targetAgentId = resolveGuidedTargetAgentId(message);
-    const targetEntry = targetAgentId
-      ? resolveGuidedTargetEntry(entriesByAgent.get(targetAgentId) ?? [], message)
-      : null;
+    const targetEntry = resolveGuidedTargetEntryForMessage(
+      entriesByAgent,
+      entries,
+      message,
+    );
     if (!targetEntry) {
       userMessages.push(item);
       continue;
@@ -186,11 +191,53 @@ export function buildGroupRoundCardModel({
     permissionsForEntry(entry, entriesByAgent, permissionGroups),
     guidedUserMessagesByEntry.get(entry.entry_id) ?? [],
   )).sort(compareAgentCards);
+  const compatibilityEntryIds = new Set(
+    buildRoomAgentRoundEntries(
+      filterNonTargetAgentReplies(messages),
+      pendingSlots,
+    ).map((entry) => entry.entry_id),
+  );
+  const completedEntries = cards.filter(
+    (entry) => compatibilityEntryIds.has(entry.entry_id)
+      && entry.status === "done",
+  );
+  const pendingEntries = cards.filter(
+    (entry) => compatibilityEntryIds.has(entry.entry_id)
+      && entry.status !== "done",
+  );
 
   return {
     entries: cards,
     userMessages,
+    completedEntries,
+    pendingEntries,
   };
+}
+
+function filterNonTargetAgentReplies(messages: Message[]): Message[] {
+  const guidedTargetAgentIds = new Set<string>();
+  let hasMultiTargetGuide = false;
+
+  for (const message of messages) {
+    if (message.role !== "user" || message.delivery_policy !== "guide") {
+      continue;
+    }
+    const targets = normalizedTargetAgentIds(message);
+    if (targets.length > 1) {
+      hasMultiTargetGuide = true;
+    }
+    targets.forEach((target) => guidedTargetAgentIds.add(target));
+  }
+
+  if (hasMultiTargetGuide || guidedTargetAgentIds.size !== 1) {
+    return messages;
+  }
+  const [targetAgentId] = guidedTargetAgentIds;
+  // 单目标引导的公区只展示被引导 Agent，避免把其他执行链误投影到同一轮。
+  return messages.filter(
+    (message) =>
+      message.role !== "assistant" || message.agent_id === targetAgentId,
+  );
 }
 
 export function buildGroupAgentStatusModel({
@@ -382,13 +429,20 @@ function resolveGuidedTargetAgentId(message: UserMessage): string | null {
   ) {
     return null;
   }
-  const targets = Array.from(new Set(
+  const targets = normalizedTargetAgentIds(message);
+  return targets.length === 1 ? targets[0] : null;
+}
+
+function normalizedTargetAgentIds(message: UserMessage): string[] {
+  if (!Array.isArray(message.target_agent_ids)) {
+    return [];
+  }
+  return Array.from(new Set(
     message.target_agent_ids
       .filter((value): value is string => typeof value === "string")
       .map((value) => value.trim())
       .filter(Boolean),
   ));
-  return targets.length === 1 ? targets[0] : null;
 }
 
 function buildPermissionGroups(permissions: PendingPermission[]): PermissionGroups {
@@ -453,6 +507,30 @@ function resolveGuidedTargetEntry(
     ?? entries.find((entry) => entry.timestamp >= message.timestamp)
     ?? entries.at(-1)
     ?? null;
+}
+
+function resolveGuidedTargetEntryForMessage(
+  entriesByAgent: Map<string, RoomAgentRoundEntry[]>,
+  entries: RoomAgentRoundEntry[],
+  message: UserMessage,
+): RoomAgentRoundEntry | null {
+  const targetAgentId = resolveGuidedTargetAgentId(message);
+  if (targetAgentId) {
+    return resolveGuidedTargetEntry(
+      entriesByAgent.get(targetAgentId) ?? [],
+      message,
+    );
+  }
+
+  // 旧协议的重挂引导没有 target_agent_ids；只有当前根轮次唯一对应一个执行卡片时才能安全归组。
+  if (
+    message.delivery_policy === "guide"
+    && message.source_round_id?.trim()
+    && entries.length === 1
+  ) {
+    return resolveGuidedTargetEntry(entries, message);
+  }
+  return null;
 }
 
 function compareAgentCards(

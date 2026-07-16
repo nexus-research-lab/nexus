@@ -19,52 +19,54 @@ import (
 )
 
 type activeRoomSlot struct {
-	RoomSessionID         string
-	SDKSessionID          string
-	AgentID               string
-	AgentRoundID          string
-	MsgID                 string
-	RuntimeSessionKey     string
-	GoalSessionKey        string
-	GoalContext           string
-	GoalIDForUsage        string
-	goalObjectiveRevision *atomic.Int64
-	GoalRuntimeIgnored    bool
-	GoalUsage             *goalsvc.RuntimeUsageAccumulator
-	GoalUsageStartedAt    time.Time
-	GoalLastAssistant     protocol.Message
-	GoalToolProgress      bool
-	SubagentTasks         map[string]struct{}
-	SubagentHistory       bool
-	resultUsageWritten    bool
-	WorkspacePath         string
-	RuntimeKind           string
-	ContextWindow         int
-	ContextColdStart      bool
-	Client                runtimectx.Client
-	Cancel                context.CancelFunc
-	Status                string
-	Index                 int
-	TimestampMS           int64
-	Trigger               roomTrigger
-	TriggerAttachments    []protocol.ChatAttachment
-	PublicCursorID        string
-	PublicCursorTS        int64
-	MessageCursorID       string
-	MessageCursorTS       int64
-	ReplyRoute            protocol.RoomReplyRoute
-	ReplySourceMessage    string
-	ReplySourceAgent      string
-	InterruptReason       string
-	QueuedInputs          []roomQueuedInput
-	GuidedInputs          []roomQueuedInput
-	SuppressOutput        bool
-	NoReplyCandidate      bool
-	PendingStream         []protocol.EventMessage
-	Done                  chan struct{}
-	stateMu               sync.RWMutex
-	inputMu               sync.Mutex
-	doneOnce              sync.Once
+	RoomSessionID          string
+	SDKSessionID           string
+	AgentID                string
+	AgentRoundID           string
+	MsgID                  string
+	RuntimeSessionKey      string
+	GoalSessionKey         string
+	GoalContext            string
+	GoalIDForUsage         string
+	goalObjectiveRevision  *atomic.Int64
+	GoalRuntimeIgnored     bool
+	GoalUsage              *goalsvc.RuntimeUsageAccumulator
+	GoalUsageStartedAt     time.Time
+	GoalLastAssistant      protocol.Message
+	GoalToolProgress       bool
+	SubagentTasks          map[string]struct{}
+	SubagentHistory        bool
+	resultUsageWritten     bool
+	WorkspacePath          string
+	RuntimeKind            string
+	ContextWindow          int
+	ContextColdStart       bool
+	Client                 runtimectx.Client
+	Cancel                 context.CancelFunc
+	Status                 string
+	Index                  int
+	TimestampMS            int64
+	Trigger                roomTrigger
+	TriggerAttachments     []protocol.ChatAttachment
+	PublicCursorID         string
+	PublicCursorTS         int64
+	MessageCursorID        string
+	MessageCursorTS        int64
+	ReplyRoute             protocol.RoomReplyRoute
+	ReplySourceMessage     string
+	ReplySourceAgent       string
+	HandoffID              string
+	InterruptReason        string
+	QueuedInputs           []roomQueuedInput
+	GuidedInputs           []roomQueuedInput
+	SuppressOutput         bool
+	PublicMessagePublished bool
+	NoReplyCandidate       bool
+	PendingStream          []protocol.EventMessage
+	Done                   chan struct{}
+	stateMu                sync.RWMutex
+	inputMu                sync.Mutex
+	doneOnce               sync.Once
 }
 
 func (s *activeRoomSlot) ensureGoalObjectiveRevision(initial int64) *atomic.Int64 {
@@ -136,6 +138,7 @@ type activeRoomRound struct {
 type roomTrigger = roomdomain.Trigger
 
 type publicMentionWake struct {
+	HandoffID     string
 	TriggerType   string
 	QueueSource   protocol.InputQueueSource
 	SourceAgentID string

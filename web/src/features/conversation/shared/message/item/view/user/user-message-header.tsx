@@ -91,7 +91,7 @@ function UserMessageIdentity({
           补充要求
         </span>
       ) : null}
-      <span className="nexus-chat-author shrink-0 text-sm font-bold text-(--text-strong)">
+      <span className="nexus-chat-author shrink-0 text-sm font-medium text-(--text-strong)">
         你
       </span>
       <MessageAvatar

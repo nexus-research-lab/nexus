@@ -44,9 +44,21 @@ export function useComposerMention({
   );
 
   const [mentionMatch, setMentionMatch] = useState<MentionTextMatch | null>(null);
+  const [selectedTargetIDs, setSelectedTargetIDs] = useState<string[]>([]);
+  const activeSelectedTargetIDs = useMemo(
+    () => selectedTargetIDs.filter((agentID) => {
+      const label = mentionTargetItems.find((item) => item.id === agentID)?.label;
+      return label ? hasComposerMention(input, label) : false;
+    }),
+    [input, mentionTargetItems, selectedTargetIDs],
+  );
 
   const closeMention = useCallback(() => {
     setMentionMatch(null);
+  }, []);
+
+  const clearSelectedTargetIDs = useCallback(() => {
+    setSelectedTargetIDs([]);
   }, []);
 
   const updateMentionForInput = useCallback((value: string) => {
@@ -73,6 +85,7 @@ export function useComposerMention({
     const cursorPos = textareaRef.current?.selectionStart ?? input.length;
     const insertion = insertMentionTarget(input, cursorPos, mentionMatch, item.label);
     setInput(insertion.value);
+    setSelectedTargetIDs((current) => current.includes(item.id) ? current : [...current, item.id]);
     setMentionMatch(null);
 
     requestAnimationFrame(() => {
@@ -94,7 +107,17 @@ export function useComposerMention({
     mentionActive: Boolean(mentionMatch),
     mentionFilter: mentionMatch?.filter ?? "",
     mentionTargetItems,
+    selectedTargetIDs: activeSelectedTargetIDs,
+    clearSelectedTargetIDs,
     selectMentionItem,
     updateMentionForInput,
   };
+}
+
+function hasComposerMention(input: string, label: string): boolean {
+  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(
+    `(?:^|\\s)@${escaped}(?=$|\\s|[，。！？、,.!?;:：；])`,
+    "iu",
+  ).test(input);
 }

@@ -8,6 +8,7 @@ import type {
 } from "@/types/conversation/interaction/permission";
 
 import type { AssistantContentMode } from "./message-item-projection";
+import type { AgentMentionDirectory } from "../agent-mention-chip";
 
 export interface MessageItemProps {
   compact?: boolean;
@@ -33,4 +34,5 @@ export interface MessageItemProps {
   assistantHeaderAction?: ReactNode;
   assistantContentMode?: AssistantContentMode;
   className?: string;
+  agentMentionDirectory?: AgentMentionDirectory;
 }

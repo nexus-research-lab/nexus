@@ -11,45 +11,43 @@ import (
 )
 
 const (
-	PublishPublicMessageTool = "mcp__nexus_room__publish_public_message"
 	SendDirectedMessageTool  = "mcp__nexus_room__send_directed_message"
+	PublishPublicMessageTool = "mcp__nexus_room__publish_public_message"
 )
 
 func AllowedTools(values []string, privateMessagesEnabled bool) []string {
 	if len(toolpolicy.NormalizeSet(values)) == 0 {
 		return values
 	}
-	extra := []string{PublishPublicMessageTool}
+	var extra []string
 	if privateMessagesEnabled {
-		extra = append(extra, SendDirectedMessageTool)
+		extra = append(extra, SendDirectedMessageTool, PublishPublicMessageTool)
 	}
 	return appendDistinctTools(values, extra...)
 }
 
 func DisallowedTools(values []string, privateMessagesEnabled bool) []string {
-	result := make([]string, 0, len(values)+1)
+	result := make([]string, 0, len(values)+2)
 	for _, value := range values {
-		if isPublicMessageTool(value) ||
-			strings.TrimSpace(value) == "nexus_room" ||
-			(privateMessagesEnabled && isPrivateMessageTool(value)) {
+		if strings.TrimSpace(value) == "nexus_room" ||
+			(privateMessagesEnabled && isRoomCommunicationTool(value)) {
 			continue
 		}
 		result = append(result, value)
 	}
 	if !privateMessagesEnabled {
-		result = appendDistinctTools(result, SendDirectedMessageTool)
+		result = appendDistinctTools(result, SendDirectedMessageTool, PublishPublicMessageTool)
 	}
 	return result
 }
 
 func PermissionHandler(next sdkpermission.Handler, privateMessagesEnabled bool) sdkpermission.Handler {
 	return func(ctx context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
-		if isPublicMessageTool(request.ToolName) ||
-			(isPrivateMessageTool(request.ToolName) && privateMessagesEnabled) {
+		if isRoomCommunicationTool(request.ToolName) && privateMessagesEnabled {
 			return sdkpermission.Allow(request.Input, nil), nil
 		}
-		if isPrivateMessageTool(request.ToolName) {
-			return sdkpermission.Deny("Room private messages are disabled", false), nil
+		if isRoomCommunicationTool(request.ToolName) {
+			return sdkpermission.Deny("Room communication tools are disabled", false), nil
 		}
 		if next == nil {
 			return sdkpermission.Allow(request.Input, nil), nil
@@ -75,12 +73,16 @@ func appendDistinctTools(values []string, extra ...string) []string {
 	return result
 }
 
+func isPrivateMessageTool(toolName string) bool {
+	return isRoomTool(toolName, "send_directed_message")
+}
+
 func isPublicMessageTool(toolName string) bool {
 	return isRoomTool(toolName, "publish_public_message")
 }
 
-func isPrivateMessageTool(toolName string) bool {
-	return isRoomTool(toolName, "send_directed_message")
+func isRoomCommunicationTool(toolName string) bool {
+	return isPrivateMessageTool(toolName) || isPublicMessageTool(toolName)
 }
 
 func isRoomTool(toolName string, leaf string) bool {

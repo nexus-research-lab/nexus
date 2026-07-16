@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	agentpkg "github.com/nexus-research-lab/nexus/internal/service/agent"
@@ -26,12 +27,16 @@ func (s *Service) Get(_ context.Context, ownerUserID string) (Preferences, error
 	path := s.preferencesPath(ownerUserID)
 	content, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
-		return DefaultPreferences(), nil
+		return s.withWebSearchAPIKey(ownerUserID, DefaultPreferences()), nil
 	}
 	if err != nil {
 		return Preferences{}, err
 	}
-	return decodePreferences(content)
+	item, err := decodePreferences(content)
+	if err != nil {
+		return Preferences{}, err
+	}
+	return s.withWebSearchAPIKey(ownerUserID, item), nil
 }
 
 // Update 合并并写入用户偏好。
@@ -40,6 +45,7 @@ func (s *Service) Update(ctx context.Context, ownerUserID string, request Update
 	if err != nil {
 		return Preferences{}, err
 	}
+	webSearchAPIKeyChanged := request.WebSearchAPIKey != nil
 	if request.ChatDefaultDeliveryPolicy != nil {
 		current.ChatDefaultDeliveryPolicy = *request.ChatDefaultDeliveryPolicy
 	}
@@ -48,6 +54,33 @@ func (s *Service) Update(ctx context.Context, ownerUserID string, request Update
 	}
 	if request.AgentSDKDiagnosticsEnabled != nil {
 		current.AgentSDKDiagnosticsEnabled = *request.AgentSDKDiagnosticsEnabled
+	}
+	if request.RuntimeSettings != nil {
+		current.RuntimeSettings = *request.RuntimeSettings
+	}
+	if request.WebSearch != nil {
+		previousProvider := current.WebSearch.Provider
+		apiKey := current.WebSearchAPIKey()
+		current.WebSearch = *request.WebSearch
+		current.WebSearch = normalizeWebSearchSettings(current.WebSearch)
+		if current.WebSearch.Provider != previousProvider || !webSearchProviderAcceptsAPIKey(current.WebSearch.Provider) {
+			apiKey = ""
+			webSearchAPIKeyChanged = true
+		}
+		current.WebSearch.apiKey = apiKey
+		current.WebSearch.APIKeyConfigured = apiKey != ""
+		current.WebSearch.APIKeyMasked = maskWebSearchAPIKey(apiKey)
+	}
+	if request.WebSearchAPIKey != nil {
+		current.WebSearch.apiKey = ""
+		if webSearchProviderAcceptsAPIKey(current.WebSearch.Provider) {
+			current.WebSearch.apiKey = strings.TrimSpace(*request.WebSearchAPIKey)
+			if current.WebSearch.apiKey == "" && webSearchProviderRequiresAPIKey(current.WebSearch.Provider) {
+				current.WebSearch.Enabled = false
+			}
+		}
+		current.WebSearch.APIKeyConfigured = current.WebSearch.apiKey != ""
+		current.WebSearch.APIKeyMasked = maskWebSearchAPIKey(current.WebSearch.apiKey)
 	}
 	if request.DefaultAgentOptions != nil {
 		current.DefaultAgentOptions = *request.DefaultAgentOptions
@@ -63,8 +96,16 @@ func (s *Service) Update(ctx context.Context, ownerUserID string, request Update
 	}
 	current.UpdatedAt = nowRFC3339()
 	current = normalizePreferences(current)
+	if err = validateWebSearchSettings(current.WebSearch); err != nil {
+		return Preferences{}, err
+	}
 	if err = s.write(ownerUserID, current); err != nil {
 		return Preferences{}, err
+	}
+	if webSearchAPIKeyChanged {
+		if err = s.writeWebSearchAPIKey(ownerUserID, current.WebSearchAPIKey()); err != nil {
+			return Preferences{}, err
+		}
 	}
 	return current, nil
 }
@@ -92,6 +133,52 @@ func (s *Service) preferencesPath(ownerUserID string) string {
 		".settings",
 		"preferences.json",
 	)
+}
+
+func (s *Service) webSearchAPIKeyPath(ownerUserID string) string {
+	return filepath.Join(
+		agentpkg.UserWorkspaceBasePath(s.config, ownerUserID),
+		".settings",
+		"web-search-api-key",
+	)
+}
+
+func (s *Service) withWebSearchAPIKey(ownerUserID string, item Preferences) Preferences {
+	if !webSearchProviderAcceptsAPIKey(item.WebSearch.Provider) {
+		return item
+	}
+	apiKey, err := os.ReadFile(s.webSearchAPIKeyPath(ownerUserID))
+	if err != nil {
+		return item
+	}
+	item.WebSearch.apiKey = strings.TrimSpace(string(apiKey))
+	item.WebSearch.APIKeyConfigured = item.WebSearch.apiKey != ""
+	item.WebSearch.APIKeyMasked = maskWebSearchAPIKey(item.WebSearch.apiKey)
+	if item.WebSearch.APIKeyConfigured {
+		item.WebSearch.Enabled = true
+	}
+	return item
+}
+
+func (s *Service) writeWebSearchAPIKey(ownerUserID string, apiKey string) error {
+	path := s.webSearchAPIKeyPath(ownerUserID)
+	if apiKey == "" {
+		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	tmpPath := path + ".tmp"
+	if err := os.WriteFile(tmpPath, []byte(apiKey+"\n"), 0o600); err != nil {
+		return err
+	}
+	if err := os.Chmod(tmpPath, 0o600); err != nil {
+		return err
+	}
+	return os.Rename(tmpPath, path)
 }
 
 func decodePreferences(content []byte) (Preferences, error) {

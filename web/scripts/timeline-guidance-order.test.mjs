@@ -308,7 +308,8 @@ test("consumed Room guide update moves beside its running assistant", async () =
   });
   assert.deepEqual(
     model.userMessages.map(({ message }) => message.message_id),
-    ["user-root", "user-guide"],
+    ["user-root"],
+    "Room 主时间线不渲染已重挂的引导消息",
   );
   assert.equal(model.entries.length, 1);
   assert.equal(model.entries[0]?.agent_id, "agent-1");

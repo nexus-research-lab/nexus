@@ -5,6 +5,7 @@ import {
 } from "@/lib/settings/preferences-normalization";
 import {
   normalizeAgentRuntimeKind,
+  DEFAULT_WEB_SEARCH_PROVIDER,
   type UpdateUserPreferencesParams,
   type UserPreferences,
 } from "@/types/settings/preferences";
@@ -20,6 +21,9 @@ export function buildPreferencesUpdatePayload(
     chat_default_delivery_policy: preferences.chat_default_delivery_policy,
     agent_runtime_kind: preferences.agent_runtime_kind,
     agent_sdk_diagnostics_enabled: preferences.agent_sdk_diagnostics_enabled,
+    runtime_settings: preferences.runtime_settings,
+    web_search: preferences.web_search,
+    web_search_api_key: preferences.web_search_api_key,
     default_agent_options: preferences.default_agent_options,
     default_image_model_selection: preferences.default_image_model_selection,
     default_vision_model_selection: preferences.default_vision_model_selection,
@@ -43,6 +47,12 @@ export function normalizePreferences(preferences: UserPreferences | null): UserP
       preferences,
       fallback,
     ),
+    runtime_settings: normalizeRuntimeSettings(
+      source.runtime_settings,
+      fallback.runtime_settings,
+    ),
+    web_search: normalizeWebSearch(source.web_search, fallback.web_search),
+    web_search_api_key: source.web_search_api_key,
     default_agent_options: mergeAgentOptions(
       fallback.default_agent_options,
       source.default_agent_options,
@@ -66,6 +76,35 @@ export function normalizePreferences(preferences: UserPreferences | null): UserP
       ),
     ),
     updated_at: source.updated_at,
+  };
+}
+
+function normalizeWebSearch(
+  settings: UserPreferences["web_search"],
+  fallback: UserPreferences["web_search"],
+): UserPreferences["web_search"] {
+  return {
+    ...fallback,
+    ...settings,
+    enabled: settings?.enabled ?? fallback?.enabled ?? true,
+    provider: settings?.provider ?? fallback?.provider ?? DEFAULT_WEB_SEARCH_PROVIDER,
+  };
+}
+
+function normalizeRuntimeSettings(
+  settings: UserPreferences["runtime_settings"],
+  fallback: UserPreferences["runtime_settings"],
+): UserPreferences["runtime_settings"] {
+  return {
+    ...fallback,
+    ...settings,
+    nxs: {
+      ...fallback?.nxs,
+      ...settings?.nxs,
+      tool_search: settings?.nxs?.tool_search
+        ?? fallback?.nxs?.tool_search
+        ?? false,
+    },
   };
 }
 

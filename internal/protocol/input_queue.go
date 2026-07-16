@@ -29,6 +29,7 @@ type InputQueueItem struct {
 	AgentID         string             `json:"agent_id,omitempty"`
 	SourceAgentID   string             `json:"source_agent_id,omitempty"`
 	SourceMessageID string             `json:"source_message_id,omitempty"`
+	HandoffID       string             `json:"handoff_id,omitempty"`
 	TargetAgentIDs  []string           `json:"target_agent_ids,omitempty"`
 	Source          InputQueueSource   `json:"source"`
 	Content         string             `json:"content"`

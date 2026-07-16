@@ -7,6 +7,7 @@ import type {
 import type { WebSocketMessage } from "@/types/system/websocket";
 
 import {
+  conversationContextError,
   resolveConversationActionContext,
   type AgentConversationActionContext,
 } from "./conversation-action-context";
@@ -27,9 +28,7 @@ export function stopSessionGeneration(
 ): void {
   const result = resolveConversationActionContext(context);
   if (!result.ok) {
-    if (result.reason === "invalid_session") {
-      context.setError("当前会话的 session_key 非法，无法中断");
-    }
+    context.setError(conversationContextError(result.reason));
     return;
   }
 

@@ -146,8 +146,8 @@ func TestBuildRoomVisibleContextKeepsPublicRoomContract(t *testing.T) {
 		"Wake one member unless",
 		"<nexus_room_no_reply/>",
 		"Track multi-turn handoffs, stop conditions",
-		`nexus_room.publish_public_message`,
 		`nexus_room.send_directed_message`,
+		`nexus_room.publish_public_message`,
 		"recipients controls visibility",
 		"wake_targets is the recipients subset",
 		"Runtime routes the recipient's single final reply by reply_route",
@@ -488,6 +488,25 @@ func TestBuildVisibleContextPlanColdStartUsesAnchorAndCrossesHistoricalBoundary(
 	}
 	if !plan.Usage.ColdStart || plan.Usage.PublicAnchorTokens == 0 {
 		t.Fatalf("冷启动预算诊断不完整: %+v", plan.Usage)
+	}
+}
+
+func TestBuildVisibleContextPlanReflowsUnusedPrivateBudgetToPublicFeed(t *testing.T) {
+	messages := make([]protocol.Message, 0, 80)
+	for index := 0; index < 80; index++ {
+		messages = append(messages, protocol.Message{
+			"message_id": string(rune('a' + index)),
+			"role":       "user",
+			"content":    strings.Repeat("a", 56),
+		})
+	}
+	plan := BuildVisibleContextPlan(VisibleContextInput{
+		PublicMessages:      messages,
+		ContextWindowTokens: 8_192,
+	})
+	budget := NewRoomContextBudget(8_192)
+	if plan.Usage.PublicDeltaTokens <= budget.publicDeltaLimit() {
+		t.Fatalf("私域为空时剩余预算应回流 public feed: usage=%+v budget=%+v", plan.Usage, budget)
 	}
 }
 

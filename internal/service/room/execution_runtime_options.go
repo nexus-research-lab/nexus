@@ -16,6 +16,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
+	runtimepermission "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
@@ -161,6 +162,8 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 		MCPServers:                 e.runtimeMCPServers(),
 		ExtraEnv:                   e.service.roomRuntimeEnv(e.round, e.slot),
 		AgentSDKDiagnosticsEnabled: selection.AgentSDKDiagnosticsEnabled,
+		ToolSearchEnabled:          selection.ToolSearchEnabled,
+		WebSearch:                  selection.WebSearch,
 	})
 	if err != nil {
 		return preparedSlotRuntime{}, err
@@ -200,9 +203,9 @@ func (e *slotExecution) buildRuntimePrompt() (string, sdkpermission.Mode, error)
 	prompt = appendPromptSection(prompt, roomSkillPrompt)
 	prompt = appendPromptSection(prompt, roomdomain.BuildMemberDirectoryPrompt(e.agentNameByID))
 
-	permissionMode := sdkpermission.Mode(e.agent.Options.PermissionMode)
+	permissionMode := runtimepermission.NormalizeMode(sdkpermission.Mode(e.agent.Options.PermissionMode))
 	if e.round.PermissionMode != "" {
-		permissionMode = e.round.PermissionMode
+		permissionMode = runtimepermission.NormalizeMode(e.round.PermissionMode)
 	}
 	e.slot.GoalRuntimeIgnored = goalsvc.ShouldIgnoreRuntimeForPermissionMode(string(permissionMode))
 	currentGoalID, currentObjectiveRevision := "", int64(0)

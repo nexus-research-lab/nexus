@@ -10,13 +10,18 @@
 "use client";
 
 import rehypeKatex from "rehype-katex";
+import { defaultUrlTransform } from "react-markdown";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 
 import { findOpenMarkdownFenceLanguage, readMarkdownFenceMarker } from "./markdown-fence";
 import { stabilizeStreamingMarkdownUrlTail } from "./markdown-link-model";
-import { remarkInlineHtmlTags, remarkMarkdownBreaks } from "./markdown-text-plugins";
+import {
+  remarkInlineHtmlTags,
+  remarkMarkdownBreaks,
+  remarkMixedScript,
+} from "./markdown-text-plugins";
 import {
   resolveWorkspaceArtifactPath,
   type ResolveWorkspaceFilePath,
@@ -35,11 +40,18 @@ export const MARKDOWN_PLUGINS = [
   remarkGfm,
   remarkMarkdownBreaks,
   remarkInlineHtmlTags,
+  remarkMixedScript,
   remarkBreaks,
 ];
 export const REHYPE_PLUGINS = [rehypeKatex];
-export const MARKDOWN_BODY_CLASS_NAME = "nexus-chat-markdown message-cjk-font w-full min-w-0 max-w-full overflow-x-hidden text-[15px] leading-7 text-(--text-strong) [&_strong]:font-semibold [&_strong]:text-(--text-strong) [&_em]:italic [&_hr]:my-4 [&_hr]:border-(--divider-subtle-color)";
-export const MARKDOWN_SUMMARY_CLASS_NAME = "nexus-chat-markdown message-cjk-font w-full min-w-0 max-w-full overflow-hidden text-[15px] leading-7 text-(--text-strong) [&_strong]:font-semibold [&_strong]:text-(--text-strong) [&_em]:italic";
+
+// mention 使用内部协议，必须显式加入白名单，否则 react-markdown 会把 href 清空成普通文本链接。
+export function transformMarkdownUrl(value: string): string {
+  return value.startsWith("agent-mention://") ? value : defaultUrlTransform(value);
+}
+
+export const MARKDOWN_BODY_CLASS_NAME = "nexus-chat-markdown message-cjk-font w-full min-w-0 max-w-full overflow-x-hidden text-[15px] leading-[1.5] text-(--text-strong) [&_strong]:font-medium [&_strong]:text-(--text-strong) [&_em]:italic [&_hr]:my-3 [&_hr]:border-(--divider-subtle-color)";
+export const MARKDOWN_SUMMARY_CLASS_NAME = "nexus-chat-markdown message-cjk-font w-full min-w-0 max-w-full overflow-hidden text-[15px] leading-[1.5] text-(--text-strong) [&_strong]:font-medium [&_strong]:text-(--text-strong) [&_em]:italic";
 
 export function normalizeMarkdownContent(
   content: string,

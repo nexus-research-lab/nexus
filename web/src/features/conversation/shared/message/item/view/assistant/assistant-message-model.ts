@@ -5,6 +5,7 @@ import type {
 } from "react";
 
 import type { ContentBlock } from "@/types/conversation/message/content";
+import type { AgentMention } from "@/types/conversation/message/entity";
 import type {
   PendingPermission,
   PermissionDecisionPayload,
@@ -26,7 +27,8 @@ export interface AssistantDirectState {
 }
 
 export interface AssistantFinalState {
-  content: string | ContentBlock[] | null;
+	content: string | ContentBlock[] | null;
+	mentions: AgentMention[];
   isStreaming: boolean;
   streamingIndexes: ReadonlySet<number>;
   visible: boolean;
@@ -93,7 +95,9 @@ export interface AssistantContentEnvironment {
   onOpenWorkspaceFile?: (path: string) => void;
   onPermissionResponse?: (payload: PermissionDecisionPayload) => boolean;
   permissionReadOnlyReason?: string;
-  workspaceAgentId?: string | null;
+	workspaceAgentId?: string | null;
+	agentMentionDirectory?: import("../../../agent-mention-chip").AgentMentionDirectory;
+	onOpenAgentContact?: (agentId: string) => void;
 }
 
 export interface MessageAssistantSectionProps {
@@ -110,6 +114,7 @@ export interface MessageAssistantSectionProps {
   onPermissionResponse?: (payload: PermissionDecisionPayload) => boolean;
   permissionReadOnlyReason?: string;
   workspaceAgentId?: string | null;
+  agentMentionDirectory?: import("../../../agent-mention-chip").AgentMentionDirectory;
 }
 
 interface AssistantMessageScopeOptions {

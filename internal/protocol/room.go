@@ -131,6 +131,16 @@ type CreateRoomDirectedMessageRequest struct {
 	CorrelationID string         `json:"correlation_id,omitempty"`
 }
 
+// CreateRoomPublicMessageRequest 表示受控运行时主动发布公区消息的请求。
+type CreateRoomPublicMessageRequest struct {
+	// SourceAgentID 只能由受控运行时注入，不能从 JSON body 写入。
+	SourceAgentID string `json:"-"`
+	// RootRoundID 由受控运行时注入，用于保证主动广播属于当前 slot 轮次。
+	RootRoundID   string `json:"-"`
+	Content       string `json:"content"`
+	CorrelationID string `json:"correlation_id,omitempty"`
+}
+
 // RoomDirectedMessageRecord 表示 Room directed message 的 append-only 持久化记录。
 type RoomDirectedMessageRecord struct {
 	MessageID       string         `json:"message_id"`
@@ -148,14 +158,4 @@ type RoomDirectedMessageRecord struct {
 	CausedByRoundID string         `json:"caused_by_round_id,omitempty"`
 	HopIndex        int            `json:"hop_index,omitempty"`
 	Timestamp       int64          `json:"timestamp"`
-}
-
-// CreateRoomPublicMessageRequest 表示 Room 成员主动发布公区消息的请求。
-type CreateRoomPublicMessageRequest struct {
-	// SourceAgentID 只能由受控运行时注入，不能从 JSON body 写入。
-	SourceAgentID string `json:"-"`
-	// RootRoundID 由受控运行时注入，用于让公区工具消息继承当前因果链。
-	RootRoundID   string `json:"-"`
-	Content       string `json:"content"`
-	CorrelationID string `json:"correlation_id,omitempty"`
 }

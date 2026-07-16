@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Hid unresolved history rounds while retaining their load anchors, and removed resolved history entries that contain no user-visible messages.
 - Prevented Room Goals from automatically continuing or completing while collaborator slots, subagents, queued input, public mentions, or delayed directed wakes still have outstanding work.
 - Projected every Room `agent_round` as a stable first-class feed node, using a stable start time while active and the result completion time once terminal so replies follow their real execution order without losing canonical Thread causality.
+- Contacts and room intro panels now open on the Identity tab by default instead of the private-domain/contact tab.
+- Aligned Agent permission modes with runtime validation, including `dontAsk` pre-authorized-only behavior and a safe default for unknown modes.
+- Prevented stop commands from being dropped on stale-but-writable WebSocket connections and allowed interrupt requests to bypass a blocked chat dispatch, restoring prompt termination from the conversation Composer.
+- Kept completed Room replies in completion order and active Agent cards in a stable tail, preventing consumed guidance and streaming updates from reshuffling the conversation.
 - Hid Agent-to-Agent Room guidance from the user pending queue while keeping it durable for the target Agent to consume.
 - Removed the automatic Goal resume confirmation; explicit objective replacements now reactivate paused, blocked, or usage-limited Goals directly while budget-limited Goals still require a budget change and the inline Resume action remains available for unchanged Goals.
 - Recovered orphaned Room guidance as queued follow-up after backend restarts, made equal-timestamp active-root routing follow registration order, and added timeline behavior tests to the default validation gate.
@@ -23,9 +27,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed DM and Room queue/guide delivery so user corrections stay hidden and deletable until consumed, ACK-capable runtimes commit only the exact post-send applied batch, legacy fallback cannot preempt that ACK, DM queues continue as durable next turns, each Room Agent immediately consumes its own queue without waiting for peers, and public @ mentions guide a busy target's current turn before reliably falling back to its next turn.
 - Fixed DM and Room Goal retargeting so corrected objectives reach active runtimes, revisions advance only after guidance consumption, stale continuations cannot launch or mutate corrected Goals, and continuation reserve/claim/release accounting remains exact across duplicate dispatches.
 - Fixed Markdown image destinations being wrapped as inline code, restoring relative workspace image previews in historical conversations.
+- Fixed Room public reply duplication by limiting `publish_public_message` to private/tool-driven flows and making runtime suppress the same slot's default final reply after a successful broadcast.
+- Fixed Room Agent `@` handoffs so source-slot completion dispatches immediately, busy targets use durable guide/queue delivery, restart recovery is idempotent, and message mentions render as clickable Agent avatar chips with stable timeline ordering.
 
 ### Added
 
+- Added runtime-scoped settings with an nxs-only ToolSearch switch, defaulting to off and projecting the choice to both supported SDK environment names without affecting Claude runtime.
+- Added Nexus-to-nxs WebSearch provider configuration with AnySearch enabled by default, moving provider selection into the WebSearch header, keeping required fields compact and layout-stable, and placing SDK-supported search, cache, network, extraction, and AnySearch parameters behind a More settings section with direct API key setup links where needed.
 - Added a dedicated visual-model preference and nxs runtime projection, allowing text-only chat models to call an independently configured vision provider on demand while native vision models keep the direct image path.
 - Added Developer ID signing, notarization, GitHub Actions release and CI package validation wiring, and signed metadata support to macOS desktop packaging so trusted releases can pass Gatekeeper and automatic-update checks.
 - Added durable Room delayed wakes, causal message metadata, separated visibility and wake targets, bounded per-Agent wake queues, and compatible short-window wake batching.
@@ -37,6 +45,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- 将 Agent 详情页的 Agent 切换器并入身份、工具、技能、联络导航行，并将工作区选择器并入文件预览 Header，避免额外占用布局空间。
+- Refined conversation and workspace Markdown contrast, font roles, scale, and spacing while keeping emphasis only one weight step above regular text.
+- Tightened conversation Markdown sizing, line height, and block spacing for denser reading without collapsing hierarchy.
+- Reduced conversation Markdown list indentation and item spacing for faster scanning.
+- Increased conversation Markdown body text to 15px while retaining the compact reading rhythm.
+- Separated CJK and Latin Markdown typography and reduced inline/fenced code treatment for clearer mixed-script reading.
+- Kept the dedicated monospace face for code while using proportional Latin text in Markdown prose for calmer mixed-script rhythm.
+- Kept left-sidebar DM and Room summaries on the navigation font instead of the conversation CJK face.
 - Refined IM pairing management with pending-first status views, accurate local filtering, action-oriented empty states, and collapsible technical details.
 - Filled missing context windows for commonly used model families from a maintained model-card catalog while preserving Provider-reported values as authoritative.
 - Replaced independent Room history limits with a model-window-aware context budget, product-owned cold-start anchors, prioritized public/private deltas, and checkpoints that advance only through actually consumed content.

@@ -87,7 +87,7 @@ export function MermaidView({
     >
       {showHeader ? (
         <div className="flex shrink-0 items-center justify-between gap-2 border-b border-(--divider-subtle-color) bg-(--surface-panel-background) px-2 py-1.5">
-          <div className="message-cjk-code-font min-w-0 truncate text-[11px] uppercase text-(--text-muted)">
+          <div className="message-code-font min-w-0 truncate text-[11px] uppercase text-(--text-muted)">
             Mermaid
           </div>
           <div className="flex shrink-0 items-center gap-1">

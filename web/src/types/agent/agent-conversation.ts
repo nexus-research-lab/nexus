@@ -72,7 +72,7 @@ export interface UseAgentConversationReturn {
   send_message: (
     content: string,
     options?: AgentConversationSendOptions,
-  ) => Promise<void>;
+	  ) => Promise<void>;
   rewrite_last_user_message: (
     targetRoundId: string,
     content: string,
@@ -81,6 +81,7 @@ export interface UseAgentConversationReturn {
     content: string,
     deliveryPolicy?: AgentConversationDeliveryPolicy,
     attachments?: MessageAttachment[],
+    targetAgentIDs?: string[],
   ) => Promise<void>;
   delete_input_queue_message: (itemId: string) => Promise<void>;
   guide_input_queue_message: (itemId: string) => Promise<void>;
@@ -121,6 +122,7 @@ export interface InputQueueItem {
   agent_id?: string;
   source_agent_id?: string;
   source_message_id?: string;
+  handoff_id?: string;
   target_agent_ids?: string[];
   source: InputQueueSource;
   content: string;
@@ -142,6 +144,8 @@ export interface InputQueueEventPayload {
 export interface AgentConversationSendOptions {
   delivery_policy?: AgentConversationDeliveryPolicy;
   attachments?: MessageAttachment[];
+  /** Composer 已选中的 Room 目标；服务端仍会再次校验当前成员归属。 */
+  target_agent_ids?: string[];
 }
 
 export interface ConversationSnapshot {

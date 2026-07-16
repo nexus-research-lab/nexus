@@ -29,6 +29,8 @@ type Selection struct {
 	VisionProvider             string
 	VisionModel                string
 	AgentSDKDiagnosticsEnabled bool
+	ToolSearchEnabled          bool
+	WebSearch                  preferencessvc.WebSearchSettings
 }
 
 // Request 表示一次 Agent runtime 选择请求。
@@ -58,6 +60,8 @@ func (s *Service) Resolve(ctx context.Context, request Request) (Selection, erro
 	if ok {
 		selection.RuntimeKind = runtimeprovider.NormalizeRuntimeKind(prefs.AgentRuntimeKind)
 		selection.AgentSDKDiagnosticsEnabled = prefs.AgentSDKDiagnosticsEnabled
+		selection.ToolSearchEnabled = prefs.ToolSearchEnabledForRuntime(selection.RuntimeKind)
+		selection.WebSearch = prefs.WebSearch
 		selection.VisionProvider = strings.TrimSpace(prefs.DefaultVisionModelSelection.Provider)
 		selection.VisionModel = strings.TrimSpace(prefs.DefaultVisionModelSelection.Model)
 		if selection.Provider == "" || selection.Model == "" {

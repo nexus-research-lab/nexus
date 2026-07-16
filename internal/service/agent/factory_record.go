@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"strings"
 
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	runtimepermission "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	"github.com/nexus-research-lab/nexus/internal/storage/agentrepo"
 )
 
@@ -95,8 +97,9 @@ func mergeOptions(base protocol.Options, incoming protocol.Options) protocol.Opt
 	result.Provider = strings.TrimSpace(incoming.Provider)
 	result.Model = strings.TrimSpace(incoming.Model)
 	if incoming.PermissionMode != "" {
-		result.PermissionMode = incoming.PermissionMode
+		result.PermissionMode = string(runtimepermission.NormalizeMode(sdkpermission.Mode(incoming.PermissionMode)))
 	}
+	result.PermissionMode = string(runtimepermission.NormalizeMode(sdkpermission.Mode(result.PermissionMode)))
 	if incoming.AllowedTools != nil {
 		result.AllowedTools = incoming.AllowedTools
 	}

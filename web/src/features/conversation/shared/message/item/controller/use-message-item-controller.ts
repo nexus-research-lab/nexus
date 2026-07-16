@@ -123,6 +123,7 @@ export function useMessageItemController({
       },
       final: {
         content: projection.finalAssistantContent,
+        mentions: projection.finalAssistantMentions,
         isStreaming: display.finalStreaming,
         streamingIndexes: projection.finalAssistantStreamingIndexes,
         visible: display.finalVisible,

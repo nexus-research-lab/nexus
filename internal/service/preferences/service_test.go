@@ -2,8 +2,10 @@ package preferences
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
@@ -24,6 +26,12 @@ func TestDefaultPreferencesAskByDefault(t *testing.T) {
 	if prefs.AgentSDKDiagnosticsEnabled {
 		t.Fatalf("Agent SDK diagnostics 默认应关闭: %+v", prefs)
 	}
+	if prefs.ToolSearchEnabledForRuntime("nxs") {
+		t.Fatalf("nxs ToolSearch 默认应关闭: %+v", prefs)
+	}
+	if !prefs.WebSearch.Enabled || prefs.WebSearch.Provider != "anysearch" {
+		t.Fatalf("WebSearch 默认 provider 应为 anysearch: %+v", prefs.WebSearch)
+	}
 
 	normalized := normalizePreferences(Preferences{})
 	if normalized.DefaultAgentOptions.PermissionMode != "default" {
@@ -35,6 +43,12 @@ func TestDefaultPreferencesAskByDefault(t *testing.T) {
 	if normalized.AgentSDKDiagnosticsEnabled {
 		t.Fatalf("空偏好归一化后 Agent SDK diagnostics 应关闭: %+v", normalized)
 	}
+	if normalized.ToolSearchEnabledForRuntime("nxs") {
+		t.Fatalf("空偏好归一化后 nxs ToolSearch 应关闭: %+v", normalized)
+	}
+	if !normalized.WebSearch.Enabled || normalized.WebSearch.Provider != "anysearch" {
+		t.Fatalf("空偏好归一化后 WebSearch provider 应为 anysearch: %+v", normalized.WebSearch)
+	}
 }
 
 func TestServiceUpdatePersistsUserPreferences(t *testing.T) {
@@ -45,6 +59,10 @@ func TestServiceUpdatePersistsUserPreferences(t *testing.T) {
 		ChatDefaultDeliveryPolicy:  policyPointer(protocol.ChatDeliveryPolicyQueue),
 		AgentRuntimeKind:           stringPointer("nxs"),
 		AgentSDKDiagnosticsEnabled: boolPointer(true),
+		RuntimeSettings: &RuntimeSettings{
+			"nxs":    {ToolSearch: true},
+			"claude": {ToolSearch: true},
+		},
 		DefaultAgentOptions: &protocol.Options{
 			PermissionMode: "default",
 			Provider:       "glm-coding-plan",
@@ -76,6 +94,9 @@ func TestServiceUpdatePersistsUserPreferences(t *testing.T) {
 	if !prefs.AgentSDKDiagnosticsEnabled {
 		t.Fatalf("Agent SDK diagnostics 偏好未持久化: %+v", prefs)
 	}
+	if !prefs.ToolSearchEnabledForRuntime("nxs") || prefs.ToolSearchEnabledForRuntime("claude") {
+		t.Fatalf("ToolSearch 应只在 nxs runtime 生效: %+v", prefs.RuntimeSettings)
+	}
 	if prefs.DefaultAgentOptions.PermissionMode != "default" {
 		t.Fatalf("权限模式未持久化: %+v", prefs.DefaultAgentOptions)
 	}
@@ -102,6 +123,7 @@ func TestServiceUpdatePersistsUserPreferences(t *testing.T) {
 	if loaded.ChatDefaultDeliveryPolicy != protocol.ChatDeliveryPolicyQueue ||
 		loaded.AgentRuntimeKind != "nxs" ||
 		!loaded.AgentSDKDiagnosticsEnabled ||
+		!loaded.ToolSearchEnabledForRuntime("nxs") ||
 		loaded.DefaultAgentOptions.PermissionMode != "default" {
 		t.Fatalf("读取结果不正确: %+v", loaded)
 	}
@@ -110,6 +132,175 @@ func TestServiceUpdatePersistsUserPreferences(t *testing.T) {
 	}
 	if _, statErr := os.Stat(filepath.Join(root, "workspace", "user_1", ".settings", "preferences.json")); statErr != nil {
 		t.Fatalf("偏好文件未写入安全路径: %v", statErr)
+	}
+}
+
+func TestServiceStoresWebSearchAPIKeySeparately(t *testing.T) {
+	root := t.TempDir()
+	service := NewService(config.Config{WorkspacePath: filepath.Join(root, "workspace")})
+	apiKey := "secret-search-key"
+	_, err := service.Update(context.Background(), "user/1", UpdateRequest{
+		WebSearch: &WebSearchSettings{
+			Enabled:  true,
+			Provider: "brave",
+		},
+		WebSearchAPIKey: &apiKey,
+	})
+	if err != nil {
+		t.Fatalf("更新 WebSearch 偏好失败: %v", err)
+	}
+	preferencesPath := filepath.Join(root, "workspace", "user_1", ".settings", "preferences.json")
+	content, err := os.ReadFile(preferencesPath)
+	if err != nil {
+		t.Fatalf("读取偏好文件失败: %v", err)
+	}
+	if string(content) == "" || strings.Contains(string(content), apiKey) {
+		t.Fatalf("偏好文件不应包含 API key: %s", content)
+	}
+	loaded, err := service.Get(context.Background(), "user/1")
+	if err != nil {
+		t.Fatalf("读取 WebSearch 偏好失败: %v", err)
+	}
+	if loaded.WebSearch.Provider != "brave" || !loaded.WebSearch.APIKeyConfigured || loaded.WebSearchAPIKey() != apiKey {
+		t.Fatalf("WebSearch 凭据未恢复: %+v", loaded.WebSearch)
+	}
+	keyPath := filepath.Join(root, "workspace", "user_1", ".settings", "web-search-api-key")
+	if info, err := os.Stat(keyPath); err != nil || info.Mode().Perm() != 0o600 {
+		t.Fatalf("API key 文件权限不正确: info=%v err=%v", info, err)
+	}
+
+	empty := ""
+	if _, err := service.Update(context.Background(), "user/1", UpdateRequest{WebSearchAPIKey: &empty}); err != nil {
+		t.Fatalf("清除 WebSearch API key 失败: %v", err)
+	}
+	loaded, err = service.Get(context.Background(), "user/1")
+	if err != nil {
+		t.Fatalf("读取清除后的 WebSearch 偏好失败: %v", err)
+	}
+	if loaded.WebSearch.APIKeyConfigured || loaded.WebSearchAPIKey() != "" {
+		t.Fatalf("WebSearch API key 未清除: %+v", loaded.WebSearch)
+	}
+}
+
+func TestServicePersistsWebSearchSettings(t *testing.T) {
+	root := t.TempDir()
+	service := NewService(config.Config{WorkspacePath: filepath.Join(root, "workspace")})
+	apiKey := "secret-search-key"
+
+	if _, err := service.Update(context.Background(), "user/1", UpdateRequest{
+		WebSearch: &WebSearchSettings{
+			Enabled:  true,
+			Provider: "brave",
+		},
+		WebSearchAPIKey: &apiKey,
+	}); err != nil {
+		t.Fatalf("写入 WebSearch 凭据失败: %v", err)
+	}
+
+	prefs, err := service.Update(context.Background(), "user/1", UpdateRequest{
+		WebSearch: &WebSearchSettings{
+			Enabled:  true,
+			Provider: "anysearch",
+			BaseURL:  " https://ignored.example.com ",
+		},
+	})
+	if err != nil {
+		t.Fatalf("切换 AnySearch 失败: %v", err)
+	}
+	if prefs.WebSearch.Provider != "anysearch" || prefs.WebSearch.BaseURL != "https://ignored.example.com" || prefs.WebSearch.APIKeyConfigured || prefs.WebSearchAPIKey() != "" {
+		t.Fatalf("AnySearch 配置未正确归一化: %+v", prefs.WebSearch)
+	}
+	keyPath := filepath.Join(root, "workspace", "user_1", ".settings", "web-search-api-key")
+	if _, err := os.Stat(keyPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("切换无凭据 provider 后应删除旧 API key: %v", err)
+	}
+
+	prefs, err = service.Update(context.Background(), "user/1", UpdateRequest{
+		WebSearch: &WebSearchSettings{
+			Enabled:  true,
+			Provider: "searxng",
+			BaseURL:  " https://search.example.com ",
+		},
+		WebSearchAPIKey: &apiKey,
+	})
+	if err != nil {
+		t.Fatalf("更新 SearXNG 配置失败: %v", err)
+	}
+	if prefs.WebSearch.BaseURL != "https://search.example.com" || prefs.WebSearch.APIKeyConfigured || prefs.WebSearchAPIKey() != "" {
+		t.Fatalf("SearXNG 应只保留 Base URL: %+v", prefs.WebSearch)
+	}
+}
+
+func TestServiceStoresOptionalAnySearchAPIKey(t *testing.T) {
+	root := t.TempDir()
+	service := NewService(config.Config{WorkspacePath: filepath.Join(root, "workspace")})
+	apiKey := "anysearch-key"
+
+	prefs, err := service.Update(context.Background(), "user/1", UpdateRequest{
+		WebSearch:       &WebSearchSettings{Enabled: true, Provider: "anysearch"},
+		WebSearchAPIKey: &apiKey,
+	})
+	if err != nil {
+		t.Fatalf("写入 AnySearch API key 失败: %v", err)
+	}
+	if !prefs.WebSearch.Enabled || !prefs.WebSearch.APIKeyConfigured || prefs.WebSearchAPIKey() != apiKey || prefs.WebSearch.APIKeyMasked != "anyse************************h-key" {
+		t.Fatalf("AnySearch API key 未保存: %+v", prefs.WebSearch)
+	}
+
+	loaded, err := service.Get(context.Background(), "user/1")
+	if err != nil {
+		t.Fatalf("读取 AnySearch API key 失败: %v", err)
+	}
+	if !loaded.WebSearch.APIKeyConfigured || loaded.WebSearchAPIKey() != apiKey || loaded.WebSearch.APIKeyMasked != "anyse************************h-key" {
+		t.Fatalf("AnySearch API key 未恢复: %+v", loaded.WebSearch)
+	}
+
+	content, err := os.ReadFile(filepath.Join(root, "workspace", "user_1", ".settings", "preferences.json"))
+	if err != nil {
+		t.Fatalf("读取偏好文件失败: %v", err)
+	}
+	if strings.Contains(string(content), apiKey) {
+		t.Fatalf("AnySearch API key 不应写入偏好文件: %s", content)
+	}
+}
+
+func TestServiceClearsWebSearchAPIKeyWhenProviderChanges(t *testing.T) {
+	root := t.TempDir()
+	service := NewService(config.Config{WorkspacePath: filepath.Join(root, "workspace")})
+	apiKey := "brave-key"
+	if _, err := service.Update(context.Background(), "user/1", UpdateRequest{
+		WebSearch:       &WebSearchSettings{Enabled: true, Provider: "brave"},
+		WebSearchAPIKey: &apiKey,
+	}); err != nil {
+		t.Fatalf("写入 Brave 配置失败: %v", err)
+	}
+
+	prefs, err := service.Update(context.Background(), "user/1", UpdateRequest{
+		WebSearch: &WebSearchSettings{Provider: "tavily"},
+	})
+	if err != nil {
+		t.Fatalf("切换 Tavily 失败: %v", err)
+	}
+	if prefs.WebSearch.APIKeyConfigured || prefs.WebSearchAPIKey() != "" {
+		t.Fatalf("切换 provider 后不应复用旧 API key: %+v", prefs.WebSearch)
+	}
+	keyPath := filepath.Join(root, "workspace", "user_1", ".settings", "web-search-api-key")
+	if _, err := os.Stat(keyPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("切换 provider 后应删除旧 API key: %v", err)
+	}
+}
+
+func TestServiceRejectsIncompleteWebSearchSettings(t *testing.T) {
+	service := NewService(config.Config{WorkspacePath: t.TempDir()})
+	tests := []WebSearchSettings{
+		{Enabled: true, Provider: "brave"},
+		{Enabled: true, Provider: "searxng"},
+		{Enabled: true, Provider: "unsupported"},
+	}
+	for _, settings := range tests {
+		if _, err := service.Update(context.Background(), "user/1", UpdateRequest{WebSearch: &settings}); err == nil {
+			t.Fatalf("无效 WebSearch 配置应被拒绝: %+v", settings)
+		}
 	}
 }
 
