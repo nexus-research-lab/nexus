@@ -105,7 +105,8 @@ func TestEnsureQuotaAvailableBlocksAtMonthlyLimit(t *testing.T) {
 		t.Fatalf("达到额度应返回 ErrQuotaExceeded，实际: %v", err)
 	}
 	message, ok := protocol.ClientErrorMessage(err)
-	if !ok || !strings.Contains(message, "Token 额度已用完") {
+	if !ok || !strings.Contains(message, "当前账号本月的订阅额度已全部用尽") ||
+		!strings.Contains(message, "新的 Agent 请求") {
 		t.Fatalf("额度错误缺少客户端提示: %q", message)
 	}
 }

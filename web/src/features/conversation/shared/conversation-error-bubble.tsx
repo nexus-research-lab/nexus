@@ -24,12 +24,15 @@ interface ErrorPresentationRule extends ErrorPresentation {
 const ERROR_PRESENTATION_RULES: readonly ErrorPresentationRule[] = [
   {
     detail:
-      "当前订阅套餐的本月 Token 额度已用完。请升级套餐，或等待下个计费周期重置后继续使用。",
+      "当前账号本月的订阅额度已全部用尽，暂时无法发起新的 Agent 请求。这是账号级月度额度，不是单条回复的输出长度限制。请升级套餐，或等待下个计费周期重置后再继续使用。",
     markers: [
+      "当前账号本月的订阅额度已全部用尽",
+      "账号本月额度已耗尽",
+      "账号本月额度已用完",
       "本月订阅套餐 token 额度已用完",
       "subscription token quota exceeded",
     ],
-    title: "Token 额度已用完",
+    title: "账号本月额度已耗尽",
   },
   {
     detail:
