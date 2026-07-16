@@ -188,7 +188,7 @@ export function createMarkdownComponents(
       }
 
       return (
-        <span className="message-cjk-code-font mx-0.5 inline-flex max-w-full overflow-hidden rounded-[5px] border border-primary/20 bg-primary/10 px-2 py-0.3 align-middle text-[0.9em] text-primary">
+        <span className="message-code-font mx-0.5 inline-flex max-w-full overflow-hidden rounded-[4px] border border-primary/20 bg-primary/10 px-1.5 py-0.5 align-baseline text-[0.86em] leading-[1.25] text-primary">
           <span className="max-w-full whitespace-pre-wrap break-words">
             {presentation.value}
           </span>
@@ -260,16 +260,16 @@ export function createMarkdownComponents(
       return image;
     },
     h1({ children }) {
-      return <h1 data-markdown-anchor className="mb-4 mt-6 max-w-full break-words text-2xl font-bold text-foreground first:mt-0">{children}</h1>;
+      return <h1 data-markdown-anchor className="mb-4 mt-6 max-w-full break-words text-2xl font-medium text-foreground first:mt-0">{children}</h1>;
     },
     h2({ children }) {
-      return <h2 data-markdown-anchor className="mb-3 mt-5 max-w-full break-words text-xl font-bold text-foreground">{children}</h2>;
+      return <h2 data-markdown-anchor className="mb-3 mt-5 max-w-full break-words text-xl font-medium text-foreground">{children}</h2>;
     },
     h3({ children }) {
-      return <h3 data-markdown-anchor className="mb-2 mt-4 max-w-full break-words text-lg font-bold text-foreground">{children}</h3>;
+      return <h3 data-markdown-anchor className="mb-2 mt-4 max-w-full break-words text-lg font-medium text-foreground">{children}</h3>;
     },
     kbd({ children }) {
-      return <kbd className="message-cjk-code-font mx-0.5 inline-flex items-center rounded-[5px] border border-(--divider-subtle-color) bg-(--surface-panel-background) px-1.5 py-0.5 align-baseline text-[0.82em] font-medium text-(--text-strong) shadow-[inset_0_-1px_0_rgba(15,23,42,0.08)]">{children}</kbd>;
+      return <kbd className="message-code-font mx-0.5 inline-flex items-center rounded-[4px] border border-(--divider-subtle-color) bg-(--surface-panel-background) px-1.5 py-0.5 align-baseline text-[0.82em] font-medium text-(--text-strong) shadow-[inset_0_-1px_0_rgba(15,23,42,0.08)]">{children}</kbd>;
     },
     mark({ children }) {
       return <mark className="rounded-[4px] bg-amber-200/55 px-1 text-inherit">{children}</mark>;
@@ -284,7 +284,7 @@ export function createMarkdownComponents(
       return <table className="my-4 block w-max max-w-full overflow-x-auto overflow-y-hidden rounded-[8px] border border-(--divider-subtle-color) border-collapse text-left text-sm">{children}</table>;
     },
     thead({ children }) {
-      return <thead className="uppercase text-(--text-muted) font-semibold" style={{ background: "color-mix(in srgb, var(--surface-panel-background) 68%, var(--divider-subtle-color))" }}>{children}</thead>;
+      return <thead className="uppercase text-(--text-muted) font-medium" style={{ background: "color-mix(in srgb, var(--surface-panel-background) 68%, var(--divider-subtle-color))" }}>{children}</thead>;
     },
     tbody({ children }) {
       return <tbody className="align-top">{children}</tbody>;
@@ -293,7 +293,7 @@ export function createMarkdownComponents(
       return <tr className="align-top">{children}</tr>;
     },
     th({ children }) {
-      return <th data-markdown-anchor className="min-w-[120px] border-b px-3 py-2 text-start font-semibold whitespace-normal break-words sm:px-4 sm:py-3" style={{ borderColor: "var(--divider-subtle-color)" }}>{children}</th>;
+      return <th data-markdown-anchor className="min-w-[120px] border-b px-3 py-2 text-start font-medium whitespace-normal break-words sm:px-4 sm:py-3" style={{ borderColor: "var(--divider-subtle-color)" }}>{children}</th>;
     },
     td({ children }) {
       return <td data-markdown-anchor className="min-w-[120px] border-t border-b px-3 py-2 text-start align-top whitespace-normal break-words sm:px-4 sm:py-3" style={{ borderColor: "var(--divider-subtle-color)" }}>{children}</td>;

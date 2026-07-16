@@ -29,9 +29,6 @@ func (s *RealtimeService) transformRoomDurableMessage(
 	if !roomShouldAnnotatePublicMessage(roundValue, slot, message) {
 		return message
 	}
-	if _, exists := message["agent_mentions"]; exists {
-		return message
-	}
 	if err := s.annotatePublicAssistantMessage(roundValue, slot, message); err != nil {
 		s.loggerFor(context.Background()).Warn("Room 公区 @ 标注写入 handoff ledger 失败",
 			"conversation_id", roundValue.ConversationID,
@@ -75,6 +72,18 @@ func (s *RealtimeService) annotatePublicAssistantMessage(
 	slot *activeRoomSlot,
 	message protocol.Message,
 ) error {
+	// 控制标记只参与路由决策，不进入持久化正文；清理后重新计算 span，
+	// 确保前端偏移始终对应用户实际看到的文本。
+	fanout := roomdomain.HasFanoutMarker(message)
+	cleaned := roomdomain.StripFanoutMarker(message)
+	// agent_mentions 是服务端派生字段，不能信任 runtime 传入的旧 handoff_id。
+	delete(cleaned, "agent_mentions")
+	for key := range message {
+		delete(message, key)
+	}
+	for key, value := range cleaned {
+		message[key] = value
+	}
 	blocks := roomMentionTextBlocks(message["content"])
 	if len(blocks) == 0 {
 		if content := roomdomain.ExtractAssistantResultText(message); content != "" {
@@ -92,8 +101,12 @@ func (s *RealtimeService) annotatePublicAssistantMessage(
 	if messageID == "" {
 		return nil
 	}
-	mentionValues := make([]protocol.AgentMention, 0)
-	handoffByAgent := make(map[string]string)
+	type resolvedMention struct {
+		block roomMentionTextBlock
+		match roomdomain.MentionMatch
+	}
+	resolved := make([]resolvedMention, 0)
+	selectedTargets := make(map[string]struct{})
 	for _, block := range blocks {
 		for _, match := range roomdomain.ResolveMentionMatches(block.text, aliases) {
 			targetAgentID := strings.TrimSpace(match.AgentID)
@@ -101,7 +114,25 @@ func (s *RealtimeService) annotatePublicAssistantMessage(
 				!roomdomain.IsMemberAgent(roundValue.Context.Members, targetAgentID) {
 				continue
 			}
-			handoffID := handoffByAgent[targetAgentID]
+			resolved = append(resolved, resolvedMention{block: block, match: match})
+			if fanout || len(selectedTargets) == 0 {
+				selectedTargets[targetAgentID] = struct{}{}
+			}
+		}
+	}
+	if len(resolved) == 0 {
+		return nil
+	}
+	mentionValues := make([]protocol.AgentMention, 0, len(resolved))
+	handoffByAgent := make(map[string]string)
+	for _, item := range resolved {
+		block := item.block
+		match := item.match
+		targetAgentID := strings.TrimSpace(match.AgentID)
+		_, isHandoff := selectedTargets[targetAgentID]
+		handoffID := ""
+		if isHandoff {
+			handoffID = handoffByAgent[targetAgentID]
 			if handoffID == "" {
 				handoffID = roomPublicHandoffID(roundValue.ConversationID, messageID, targetAgentID)
 				handoffByAgent[targetAgentID] = handoffID
@@ -123,15 +154,16 @@ func (s *RealtimeService) annotatePublicAssistantMessage(
 					}
 				}
 			}
-			mentionValues = append(mentionValues, protocol.AgentMention{
-				AgentID:           targetAgentID,
-				Label:             strings.TrimSpace(match.Label),
-				ContentBlockIndex: block.index,
-				StartRune:         match.StartRune,
-				EndRune:           match.EndRune,
-				HandoffID:         handoffID,
-			})
 		}
+		mention := protocol.AgentMention{
+			AgentID:           targetAgentID,
+			Label:             strings.TrimSpace(match.Label),
+			ContentBlockIndex: block.index,
+			StartRune:         match.StartRune,
+			EndRune:           match.EndRune,
+			HandoffID:         handoffID,
+		}
+		mentionValues = append(mentionValues, mention)
 	}
 	if len(mentionValues) > 0 {
 		message["agent_mentions"] = mentionValues

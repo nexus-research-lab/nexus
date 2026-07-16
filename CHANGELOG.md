@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Contacts and room intro panels now open on the Identity tab by default instead of the private-domain/contact tab.
 - Aligned Agent permission modes with runtime validation, including `dontAsk` pre-authorized-only behavior and a safe default for unknown modes.
 - Prevented stop commands from being dropped on stale-but-writable WebSocket connections and allowed interrupt requests to bypass a blocked chat dispatch, restoring prompt termination from the conversation Composer.
 - Kept completed Room replies in completion order and active Agent cards in a stable tail, preventing consumed guidance and streaming updates from reshuffling the conversation.
@@ -42,6 +43,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - 将 Agent 详情页的 Agent 切换器并入身份、工具、技能、联络导航行，并将工作区选择器并入文件预览 Header，避免额外占用布局空间。
+- Refined conversation and workspace Markdown contrast, font roles, scale, and spacing while keeping emphasis only one weight step above regular text.
+- Tightened conversation Markdown sizing, line height, and block spacing for denser reading without collapsing hierarchy.
+- Reduced conversation Markdown list indentation and item spacing for faster scanning.
+- Increased conversation Markdown body text to 15px while retaining the compact reading rhythm.
+- Separated CJK and Latin Markdown typography and reduced inline/fenced code treatment for clearer mixed-script reading.
+- Kept the dedicated monospace face for code while using proportional Latin text in Markdown prose for calmer mixed-script rhythm.
+- Kept left-sidebar DM and Room summaries on the navigation font instead of the conversation CJK face.
 - Refined IM pairing management with pending-first status views, accurate local filtering, action-oriented empty states, and collapsible technical details.
 - Filled missing context windows for commonly used model families from a maintained model-card catalog while preserving Provider-reported values as authoritative.
 - Replaced independent Room history limits with a model-window-aware context budget, product-owned cold-start anchors, prioritized public/private deltas, and checkpoints that advance only through actually consumed content.

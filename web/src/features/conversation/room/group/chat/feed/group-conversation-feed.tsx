@@ -1,7 +1,6 @@
-import { memo, useMemo, useRef } from "react";
+import { memo, useRef } from "react";
 
 import {
-  buildRoundIndexItemMap,
   resolveGroupConversationRound,
   type GroupConversationFeedProps,
 } from "./group-conversation-feed-model";
@@ -43,10 +42,6 @@ function StaticGroupConversationFeed({
   renderer,
   source,
 }: GroupConversationFeedProps) {
-  const roundIndexItemById = useMemo(
-    () => buildRoundIndexItemMap(source.roundIndexItems),
-    [source.roundIndexItems],
-  );
   const unavailableScrollRef = useRef<HTMLDivElement>(null);
   useConversationRoundNavigation({
     roundIds: source.roundIds,
@@ -68,7 +63,6 @@ function StaticGroupConversationFeed({
         return (
           <GroupConversationRound
             key={roundId}
-            indexItem={roundIndexItemById.get(roundId)}
             renderer={renderer}
             state={state}
           />

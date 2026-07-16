@@ -183,7 +183,12 @@ func (s *RealtimeService) acknowledgeRoomSlotGuidance(
 	if roundValue != nil && roundValue.Context != nil {
 		rootRoundID := roomRootRoundID(roundValue)
 		for _, item := range claimed {
-			if err = s.syncQueuedPublicUserMessage(ctx, roundValue.SessionKey, roundValue.Context, item, rootRoundID, true); err != nil {
+			logicalRootRoundID := s.logicalPublicHandoffRootRoundID(
+				roundValue.ConversationID,
+				item,
+				rootRoundID,
+			)
+			if err = s.syncQueuedPublicUserMessage(ctx, roundValue.SessionKey, roundValue.Context, item, logicalRootRoundID, true); err != nil {
 				restored, restoreErr := s.restoreRoomSlotGuidance(pending.location, claimed)
 				if restoreErr == nil {
 					pending.items = restored

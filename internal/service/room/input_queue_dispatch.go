@@ -317,6 +317,7 @@ func (s *RealtimeService) dispatchAgentWakeQueueItem(
 			return nil
 		}
 	}
+	rootRoundID := s.logicalPublicHandoffRootRoundID(conversationID, item, item.RootRoundID)
 	wakes := make([]publicMentionWake, 0, len(targetAgentIDs))
 	for _, targetAgentID := range targetAgentIDs {
 		wakes = append(wakes, publicMentionWake{
@@ -337,11 +338,30 @@ func (s *RealtimeService) dispatchAgentWakeQueueItem(
 		RoomType:       contextValue.Room.RoomType,
 		Context:        contextValue,
 		RoundID:        cmp.Or(strings.TrimSpace(item.SourceMessageID), "queue_"+item.ID),
-		RootRoundID:    strings.TrimSpace(item.RootRoundID),
+		RootRoundID:    cmp.Or(rootRoundID, strings.TrimSpace(item.SourceMessageID), "queue_"+item.ID),
 		HopIndex:       item.HopIndex,
 		OwnerUserID:    strings.TrimSpace(item.OwnerUserID),
 	}
 	return s.startPublicMentionRound(ctx, parentRound, wakes)
+}
+
+// logicalPublicHandoffRootRoundID 从 ledger 取回稳定 root；InputQueue 的
+// RootRoundID 在 guide 期间可能暂时被改成目标 busy slot 的绑定 round。
+func (s *RealtimeService) logicalPublicHandoffRootRoundID(
+	conversationID string,
+	item protocol.InputQueueItem,
+	fallback string,
+) string {
+	rootRoundID := strings.TrimSpace(fallback)
+	if item.Source != protocol.InputQueueSourceAgentPublicMention ||
+		s == nil || s.publicHandoffs == nil || strings.TrimSpace(item.HandoffID) == "" {
+		return rootRoundID
+	}
+	handoff, ok, err := s.publicHandoffs.Get(conversationID, item.HandoffID)
+	if err == nil && ok && strings.TrimSpace(handoff.RootRoundID) != "" {
+		return strings.TrimSpace(handoff.RootRoundID)
+	}
+	return rootRoundID
 }
 
 func inputQueueWakeTriggerType(item protocol.InputQueueItem) string {

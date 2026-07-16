@@ -133,3 +133,45 @@ func TestRoomPublicHandoffStoreClaimsQueuedDelivery(t *testing.T) {
 		t.Fatalf("terminal handoff 不应继续 pending: %+v", pending)
 	}
 }
+
+func TestRoomPublicHandoffStoreListsAndCancelsRoot(t *testing.T) {
+	root := t.TempDir()
+	conversationID := "conversation-root-cancel"
+	store := NewRoomPublicHandoffStore(root)
+	store.paths.HomeRoot = root
+	for _, handoff := range []RoomPublicHandoff{
+		{
+			HandoffID: "rh-root-a", ConversationID: conversationID, RootRoundID: "root-1",
+			SourceMessageID: "message-a", SourceAgentID: "agent-a", TargetAgentID: "agent-b",
+		},
+		{
+			HandoffID: "rh-root-b", ConversationID: conversationID, RootRoundID: "root-1",
+			SourceMessageID: "message-b", SourceAgentID: "agent-b", TargetAgentID: "agent-c",
+		},
+		{
+			HandoffID: "rh-other", ConversationID: conversationID, RootRoundID: "root-2",
+			SourceMessageID: "message-c", SourceAgentID: "agent-a", TargetAgentID: "agent-d",
+		},
+	} {
+		if _, _, err := store.Detect(handoff); err != nil {
+			t.Fatal(err)
+		}
+		if err := store.MarkSourceFinished(conversationID, handoff.HandoffID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	edges, err := store.ListRoot(conversationID, "root-1")
+	if err != nil || len(edges) != 2 {
+		t.Fatalf("root snapshot 不正确: edges=%+v err=%v", edges, err)
+	}
+	if err := store.CancelForRoot(conversationID, "root-1", "interrupted"); err != nil {
+		t.Fatal(err)
+	}
+	pending, err := store.Pending(conversationID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pending) != 1 || pending[0].HandoffID != "rh-other" {
+		t.Fatalf("取消 root 后只应保留其他 root: %+v", pending)
+	}
+}

@@ -2,7 +2,6 @@ import type { Ref } from "react";
 
 import { ConversationRoundPlaceholder } from "@/features/conversation/shared/timeline/round-placeholder";
 import { MessageItem } from "@/features/conversation/shared/message/item/message-item";
-import type { SessionRoundIndexItem } from "@/types/conversation/history";
 
 import { hasRoomAgentRoundEntries } from "../../round/round-agent-model";
 import { GroupRoundCardGroup } from "../../thread/round-card/group-round-card-group";
@@ -13,14 +12,12 @@ import {
 } from "./group-conversation-feed-model";
 
 interface GroupConversationRoundProps {
-  indexItem?: SessionRoundIndexItem;
   measureRef?: Ref<HTMLDivElement>;
   renderer: GroupConversationRoundRenderer;
   state: GroupConversationRoundState;
 }
 
 export function GroupConversationRound({
-  indexItem,
   measureRef,
   renderer,
   state,
@@ -37,7 +34,7 @@ export function GroupConversationRound({
       data-conversation-round-loaded={isLoaded ? "true" : "false"}
     >
       {!isLoaded ? (
-        <ConversationRoundPlaceholder indexItem={indexItem} roundId={roundId} />
+        <ConversationRoundPlaceholder />
       ) : hasRoomEntries ? (
         <GroupRoundCardGroup
           agentAvatarMap={renderer.agentAvatarMap}

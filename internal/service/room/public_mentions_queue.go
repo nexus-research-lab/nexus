@@ -62,12 +62,16 @@ func (s *RealtimeService) queueBusyPublicMentionWakes(
 		queueSource := normalizeWakeQueueSource(wake)
 		deliveryPolicy := protocol.ChatDeliveryPolicyQueue
 		rootRoundID := roomRootRoundID(parentRound)
-		if queueSource == protocol.InputQueueSourceAgentPublicMention {
+		if queueSource == protocol.InputQueueSourceAgentPublicMention && s.supportsRoomGuidanceAck(busySlot) {
 			// 公区 @ 已经是目标 Agent 可见的新上下文。目标忙碌时先绑定它
 			// 当前 slot 的 PostToolUse hook；只有 hook 没有消费，slot 收尾才会
 			// 把它降级为普通 queue 并续开下一轮，避免同 Agent 并发第二个 slot。
 			deliveryPolicy = protocol.ChatDeliveryPolicyGuide
 			rootRoundID = strings.TrimSpace(busySlot.AgentRoundID)
+		} else if queueSource == protocol.InputQueueSourceAgentPublicMention {
+			// 没有 applied ACK 时，不能把 queue item 从 durable 真相源中
+			// 提前移走；直接排队，等当前 slot 终态后再启动下一轮。
+			rootRoundID = roomRootRoundID(parentRound)
 		}
 		queuedItemID := workspacestore.NewInputQueueID()
 		queuedItem := protocol.InputQueueItem{
@@ -152,4 +156,12 @@ func (s *RealtimeService) queueBusyPublicMentionWakes(
 		)
 	}
 	return ready, nil
+}
+
+// supportsRoomGuidanceAck 只允许已经协商 applied ACK 的 runtime 使用 guide。
+// nil runtime、旧 runtime 和未知能力都必须走持久化 queue，避免“已返回 hook
+// 但实际没有应用”的崩溃窗口造成消息丢失。
+func (s *RealtimeService) supportsRoomGuidanceAck(slot *activeRoomSlot) bool {
+	return s != nil && s.runtime != nil && slot != nil &&
+		s.runtime.SupportsHookResponseAck(slot.RuntimeSessionKey)
 }

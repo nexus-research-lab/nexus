@@ -1,7 +1,6 @@
 import type { Ref } from "react";
 
 import { MessageItem } from "@/features/conversation/shared/message/item/message-item";
-import type { SessionRoundIndexItem } from "@/types/conversation/history";
 
 import { ConversationRoundPlaceholder } from "../timeline/round-placeholder";
 import {
@@ -12,7 +11,6 @@ import {
 } from "./conversation-feed-model";
 
 interface ConversationRoundProps {
-  indexItem?: SessionRoundIndexItem;
   measureRef?: Ref<HTMLDivElement>;
   renderer: ConversationRoundRenderer;
   source: ConversationRoundSource;
@@ -20,7 +18,6 @@ interface ConversationRoundProps {
 }
 
 export function ConversationRound({
-  indexItem,
   measureRef,
   renderer,
   source,
@@ -63,10 +60,7 @@ export function ConversationRound({
           workspaceAgentId={workspaceAgentId}
         />
       ) : (
-        <ConversationRoundPlaceholder
-          indexItem={indexItem}
-          roundId={state.roundId}
-        />
+        <ConversationRoundPlaceholder />
       )}
     </div>
   );

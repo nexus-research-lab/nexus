@@ -8,7 +8,7 @@ import { getWorkspaceFileExternalActionCopy } from "@/lib/workspace-file-action"
 import { cn } from "@/shared/ui/class-name";
 
 const WORKSPACE_FILE_TOOLBAR_BUTTON_CLASS_NAME = cn(
-  "inline-flex h-8 items-center justify-center gap-1.5 rounded-[10px] border px-2.5 text-[11px] font-semibold leading-none transition-colors",
+  "inline-flex h-6 items-center justify-center gap-1.5 rounded-[6px] border px-1.5 text-[9px] font-semibold leading-none transition-colors",
   "border-(--divider-subtle-color) bg-(--surface-panel-background) text-(--text-default)",
   "hover:border-primary/30 hover:bg-primary/8 hover:text-primary",
   "disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) disabled:hover:border-(--divider-subtle-color) disabled:hover:bg-(--surface-panel-background) disabled:hover:text-(--text-default)",

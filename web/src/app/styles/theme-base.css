@@ -109,7 +109,13 @@
     font: inherit;
   }
 
+  /* 中文注释：聊天正文让英文使用比例字体，中文片段再单独回到京华老宋体；等宽字体只留给代码。 */
   .message-cjk-font {
+    font-family: var(--font-sans);
+    font-synthesis: style;
+  }
+
+  .message-cjk-text {
     font-family:
       "KingHwaOldSong",
       "PingFang SC",
@@ -117,6 +123,12 @@
       "Source Han Serif SC",
       "Songti SC",
       serif;
+    font-synthesis: style;
+  }
+
+  .message-code-font {
+    font-family: var(--font-mono);
+    font-synthesis: none;
   }
 
   .message-cjk-code-font {

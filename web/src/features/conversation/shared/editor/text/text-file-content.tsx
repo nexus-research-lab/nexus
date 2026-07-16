@@ -20,7 +20,7 @@ interface TextFileContentProps extends TextRendererProps {
 function MarkdownContent({ content }: TextRendererProps) {
   return (
     <UiMarkdownContent
-      className="min-h-full"
+      className="nexus-workspace-file-markdown min-h-full"
       content={content}
       mermaidShowHeader={false}
     />
@@ -50,7 +50,7 @@ function HtmlContent({ content, fileName, isStreaming }: TextRendererProps) {
 
 function PlainTextContent({ content }: TextRendererProps) {
   return (
-    <pre className="message-cjk-code-font min-h-full whitespace-pre-wrap break-words text-sm leading-6 text-(--text-default)">
+    <pre className="message-code-font min-h-full whitespace-pre-wrap break-words text-[13px] leading-[1.6] text-(--text-strong)">
       {content}
     </pre>
   );

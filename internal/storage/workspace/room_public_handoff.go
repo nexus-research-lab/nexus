@@ -187,6 +187,68 @@ func (s *RoomPublicHandoffStore) CancelForSource(conversationID string, sourceAg
 	return nil
 }
 
+// ListRoot 返回同一 conversation/root 下已经记录过的全部 handoff 边。
+// 调度层用它做 root 级去环、fanout 和取消判断；返回值是重放后的当前快照。
+func (s *RoomPublicHandoffStore) ListRoot(conversationID string, rootRoundID string) ([]RoomPublicHandoff, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	all, err := s.replayLocked(conversationID)
+	if err != nil {
+		return nil, err
+	}
+	rootRoundID = strings.TrimSpace(rootRoundID)
+	result := make([]RoomPublicHandoff, 0)
+	for _, value := range all {
+		if strings.TrimSpace(value.RootRoundID) != rootRoundID {
+			continue
+		}
+		result = append(result, value)
+	}
+	sort.SliceStable(result, func(i int, j int) bool {
+		if result[i].CreatedAt != result[j].CreatedAt {
+			return result[i].CreatedAt < result[j].CreatedAt
+		}
+		return result[i].HandoffID < result[j].HandoffID
+	})
+	return result, nil
+}
+
+// Get 返回指定 handoff 的当前快照，供队列恢复时重新取回逻辑 root。
+func (s *RoomPublicHandoffStore) Get(conversationID string, handoffID string) (RoomPublicHandoff, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	all, err := s.replayLocked(conversationID)
+	if err != nil {
+		return RoomPublicHandoff{}, false, err
+	}
+	value, ok := all[strings.TrimSpace(handoffID)]
+	return value, ok, nil
+}
+
+// CancelForRoot 收口 root 下尚未完成的 handoff，供用户停止整轮时传播取消。
+func (s *RoomPublicHandoffStore) CancelForRoot(conversationID string, rootRoundID string, status string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	all, err := s.replayLocked(conversationID)
+	if err != nil {
+		return err
+	}
+	status = normalizeRoomPublicHandoffTerminalStatus(status)
+	rootRoundID = strings.TrimSpace(rootRoundID)
+	for _, value := range all {
+		if strings.TrimSpace(value.RootRoundID) != rootRoundID || !roomPublicHandoffCanCancelRoot(value) {
+			continue
+		}
+		value.Status = status
+		value.ClaimedAt = 0
+		value.UpdatedAt = time.Now().UnixMilli()
+		if err := s.appendLocked(conversationID, roomPublicHandoffActionCancelled, value); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Pending 返回需要恢复或观察的 handoff。queued 仍然返回，调用方需要先确认
 // 对应 InputQueue item 是否还在；若队列项已丢失，才能把它重新交给实时派发。
 func (s *RoomPublicHandoffStore) Pending(conversationID string) ([]RoomPublicHandoff, error) {
@@ -372,6 +434,19 @@ func roomPublicHandoffCanCancelSource(value RoomPublicHandoff) bool {
 		roomPublicHandoffActionSourceFinished,
 		roomPublicHandoffActionQueued,
 		roomPublicHandoffActionClaimed:
+		return true
+	default:
+		return false
+	}
+}
+
+func roomPublicHandoffCanCancelRoot(value RoomPublicHandoff) bool {
+	switch value.Status {
+	case roomPublicHandoffActionDetected,
+		roomPublicHandoffActionSourceFinished,
+		roomPublicHandoffActionQueued,
+		roomPublicHandoffActionClaimed,
+		roomPublicHandoffActionStarted:
 		return true
 	default:
 		return false

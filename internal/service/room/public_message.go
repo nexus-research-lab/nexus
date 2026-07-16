@@ -25,7 +25,7 @@ func (s *RealtimeService) HandlePublicMessage(
 	if err != nil {
 		return nil, err
 	}
-	content := strings.TrimSpace(request.Content)
+	content := roomdomain.StripFanoutMarkerText(request.Content)
 	if content == "" {
 		return nil, errors.New("content is required")
 	}
@@ -72,13 +72,16 @@ func (s *RealtimeService) HandlePublicMessage(
 		"hop_index":             hopIndex,
 		"timestamp":             time.Now().UnixMilli(),
 	}
-	if mentions := buildPublicMessageMentionAnnotations(contextValue, sourceAgentID, messageID, content); len(mentions) > 0 {
+	fanout := roomdomain.HasFanoutMarker(protocol.Message{"content": request.Content})
+	mentions := buildPublicMessageMentionAnnotations(contextValue, sourceAgentID, messageID, content, fanout)
+	targetAgentIDs := handoffTargetAgentIDs(mentions)
+	if len(mentions) > 0 {
 		message["agent_mentions"] = mentions
 	}
 	if correlationID := strings.TrimSpace(request.CorrelationID); correlationID != "" {
 		message["correlation_id"] = correlationID
 	}
-	if err = s.detectPublicMessageHandoffs(contextValue, sourceAgentID, messageID, content, rootRoundID, hopIndex); err != nil {
+	if err = s.detectPublicMessageHandoffs(contextValue, sourceAgentID, messageID, content, rootRoundID, hopIndex, targetAgentIDs); err != nil {
 		return nil, err
 	}
 	if err = s.persistSharedInlineMessage(contextValue.Conversation.ID, message); err != nil {
@@ -100,7 +103,7 @@ func (s *RealtimeService) HandlePublicMessage(
 		"source_agent_id", sourceAgentID,
 		"content_chars", utf8.RuneCountInString(content),
 	)
-	if err = s.startPublicMessageMentionWakes(ctx, contextValue, sourceAgentID, messageID, content, rootRoundID, hopIndex); err != nil {
+	if err = s.startPublicMessageMentionWakes(ctx, contextValue, sourceAgentID, messageID, content, rootRoundID, hopIndex, targetAgentIDs); err != nil {
 		return nil, err
 	}
 	return message, nil
@@ -136,14 +139,13 @@ func (s *RealtimeService) startPublicMessageMentionWakes(
 	content string,
 	rootRoundID string,
 	hopIndex int,
+	targetAgentIDs []string,
 ) error {
-	targetAgentIDs := roomdomain.ResolveMentionAgentIDs(content, roomdomain.BuildMentionAliases(contextValue))
 	if len(targetAgentIDs) == 0 {
 		return nil
 	}
-	if err := s.detectPublicMessageHandoffs(contextValue, sourceAgentID, messageID, content, rootRoundID, hopIndex); err != nil {
-		return err
-	}
+	// HandlePublicMessage 已在 source 持久化前完成 Detect；这里仅负责把
+	// 已记录的 handoff 送入统一 admission/queue/slot 路径，避免重复重放 ledger。
 	parentRound := &activeRoomRound{
 		SessionKey:     protocol.BuildRoomSharedSessionKey(contextValue.Conversation.ID),
 		RoomID:         contextValue.Room.ID,
@@ -188,11 +190,12 @@ func (s *RealtimeService) detectPublicMessageHandoffs(
 	content string,
 	rootRoundID string,
 	hopIndex int,
+	targetAgentIDs []string,
 ) error {
 	if s.publicHandoffs == nil || contextValue == nil {
 		return nil
 	}
-	for _, targetAgentID := range roomdomain.ResolveMentionAgentIDs(content, roomdomain.BuildMentionAliases(contextValue)) {
+	for _, targetAgentID := range targetAgentIDs {
 		targetAgentID = strings.TrimSpace(targetAgentID)
 		if targetAgentID == "" || targetAgentID == strings.TrimSpace(sourceAgentID) ||
 			!roomdomain.IsMemberAgent(contextValue.Members, targetAgentID) {
@@ -222,16 +225,34 @@ func buildPublicMessageMentionAnnotations(
 	sourceAgentID string,
 	messageID string,
 	content string,
+	fanout bool,
 ) []protocol.AgentMention {
 	if contextValue == nil {
 		return nil
 	}
 	result := make([]protocol.AgentMention, 0)
-	for _, match := range roomdomain.ResolveMentionMatches(content, roomdomain.BuildMentionAliases(contextValue)) {
+	selectedTargets := make(map[string]struct{})
+	matches := roomdomain.ResolveMentionMatches(content, roomdomain.BuildMentionAliases(contextValue))
+	for _, match := range matches {
 		targetAgentID := strings.TrimSpace(match.AgentID)
 		if targetAgentID == "" || targetAgentID == strings.TrimSpace(sourceAgentID) ||
 			!roomdomain.IsMemberAgent(contextValue.Members, targetAgentID) {
 			continue
+		}
+		if fanout || len(selectedTargets) == 0 {
+			selectedTargets[targetAgentID] = struct{}{}
+		}
+	}
+	for _, match := range matches {
+		targetAgentID := strings.TrimSpace(match.AgentID)
+		if targetAgentID == "" || targetAgentID == strings.TrimSpace(sourceAgentID) ||
+			!roomdomain.IsMemberAgent(contextValue.Members, targetAgentID) {
+			continue
+		}
+		_, isHandoff := selectedTargets[targetAgentID]
+		handoffID := ""
+		if isHandoff {
+			handoffID = roomPublicHandoffID(contextValue.Conversation.ID, messageID, targetAgentID)
 		}
 		result = append(result, protocol.AgentMention{
 			AgentID:           targetAgentID,
@@ -239,8 +260,28 @@ func buildPublicMessageMentionAnnotations(
 			ContentBlockIndex: 0,
 			StartRune:         match.StartRune,
 			EndRune:           match.EndRune,
-			HandoffID:         roomPublicHandoffID(contextValue.Conversation.ID, messageID, targetAgentID),
+			HandoffID:         handoffID,
 		})
+	}
+	return result
+}
+
+func handoffTargetAgentIDs(mentions []protocol.AgentMention) []string {
+	result := make([]string, 0, len(mentions))
+	seen := make(map[string]struct{}, len(mentions))
+	for _, mention := range mentions {
+		if strings.TrimSpace(mention.HandoffID) == "" {
+			continue
+		}
+		agentID := strings.TrimSpace(mention.AgentID)
+		if agentID == "" {
+			continue
+		}
+		if _, ok := seen[agentID]; ok {
+			continue
+		}
+		seen[agentID] = struct{}{}
+		result = append(result, agentID)
 	}
 	return result
 }

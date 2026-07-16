@@ -59,11 +59,11 @@ export function RoomAgentAboutSurface({
 }: RoomAgentAboutSurfaceProps) {
   const { t } = useI18n();
   const [selectedAgentId, setSelectedAgentId] = useState(agent.agent_id);
-  const [activeTab, setActiveTab] = useState<RoomAgentPanelTabKey>("private_domain");
+  const [activeTab, setActiveTab] = useState<RoomAgentPanelTabKey>("identity");
 
   useEffect(() => {
     setSelectedAgentId(requestedAgentId ?? agent.agent_id);
-    setActiveTab(requestedTab ?? "private_domain");
+    setActiveTab(requestedTab ?? "identity");
   }, [agent.agent_id, requestKey, requestedAgentId, requestedTab]);
 
   const selectedAgent = useMemo(() => {
@@ -138,10 +138,10 @@ const ROOM_AGENT_PANEL_TABS: Array<{
   label: string;
   icon: LucideIcon;
 }> = [
-  { key: "private_domain", label: "联络", icon: Handshake },
   { key: "identity", label: "身份", icon: UserPen },
   { key: "advanced", label: "工具", icon: ToolCase },
   { key: "skills", label: "技能", icon: Album },
+  { key: "private_domain", label: "联络", icon: Handshake },
 ];
 
 function RoomAgentPanelTabs({

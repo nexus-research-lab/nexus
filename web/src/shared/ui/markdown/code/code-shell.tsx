@@ -32,11 +32,11 @@ export function CodeShell({
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-[10px] border",
+        "relative overflow-hidden rounded-[8px] border",
         className,
       )}
       style={{
-        background: "color-mix(in srgb, var(--surface-panel-background) 90%, transparent)",
+        background: "color-mix(in srgb, var(--surface-panel-background) 82%, transparent)",
         borderColor: "color-mix(in srgb, var(--surface-panel-subtle-border) 80%, transparent)",
       }}
     >
@@ -46,7 +46,7 @@ export function CodeShell({
           style={{ borderColor: "var(--divider-subtle-color)" }}
         >
           <span
-            className="message-cjk-code-font truncate text-[10px] lowpercase tracking-[0.12em]"
+            className="message-code-font truncate text-[10px] lowpercase tracking-[0.08em]"
             style={{ color: "var(--text-muted)" }}
           >
             {language || "text"}

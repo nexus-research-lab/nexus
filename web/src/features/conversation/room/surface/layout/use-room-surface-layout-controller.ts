@@ -35,7 +35,7 @@ export function useRoomSurfaceLayoutController({
 }: RoomSurfaceLayoutControllerOptions) {
   const [aboutRequest, setAboutRequest] = useState<RoomAgentAboutRequest>({
     agent_id: null,
-    tab: "private_domain",
+    tab: "identity",
     key: 0,
   });
   const isAuxiliaryPanelOpen = activeSurfaceTab !== "chat";
@@ -54,7 +54,7 @@ export function useRoomSurfaceLayoutController({
   const requestAboutPanel = useCallback((agentId: string) => {
     setAboutRequest((current) => ({
       agent_id: agentId,
-      tab: "private_domain",
+      tab: "identity",
       key: current.key + 1,
     }));
   }, []);

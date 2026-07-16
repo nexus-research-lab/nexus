@@ -107,6 +107,7 @@ func buildVisibleContextPlan(input VisibleContextInput, guided bool) VisibleCont
 	} else {
 		publicSelection = selectContextPrefix(publicLines, publicLimit, nil)
 	}
+	publicSelectionWasTruncated := contextSelectionWasTruncated(publicLines, publicSelection)
 	remaining -= publicSelection.tokens
 
 	excludedPrivate := make(map[int]struct{}, 1)
@@ -119,6 +120,25 @@ func buildVisibleContextPlan(input VisibleContextInput, guided bool) VisibleCont
 		excludedPrivate,
 	)
 	remaining -= privateSelection.tokens
+	if !publicSelectionWasTruncated && !hasPrivateContextDelta(privateLines, excludedPrivate) && remaining > 0 {
+		// 私域为空时，把原本预留给 private delta 的空间回流给公区；
+		// 不让“空分区”白白吞掉 public feed 的可见事实。
+		previousPublicTokens := publicSelection.tokens
+		extraPublicTokens := remaining
+		if input.ColdStart {
+			// 冷启动仍保留最小 anchor 空间，避免只剩一段 delta 而丢掉
+			// 产品侧的历史定位信息。
+			extraPublicTokens = max(0, extraPublicTokens-budget.publicAnchorLimit())
+		}
+		expandedPublicLimit := publicSelection.tokens + extraPublicTokens
+		if input.ColdStart {
+			publicSelection = selectContextSuffix(publicLines, expandedPublicLimit, nil)
+			anchorCandidates = unselectedContextLines(publicLines, publicSelection.texts)
+		} else {
+			publicSelection = selectContextPrefix(publicLines, expandedPublicLimit, nil)
+		}
+		remaining -= max(0, publicSelection.tokens-previousPublicTokens)
+	}
 
 	anchorText := ""
 	anchorTokens := 0
@@ -207,6 +227,30 @@ func currentDirectedMessageIndex(input VisibleContextInput, lines []contextLine)
 		}
 	}
 	return -1
+}
+
+func hasPrivateContextDelta(lines []contextLine, excluded map[int]struct{}) bool {
+	for index, line := range lines {
+		if _, skip := excluded[index]; skip {
+			continue
+		}
+		if strings.TrimSpace(line.text) != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func contextSelectionWasTruncated(lines []contextLine, selection contextSelection) bool {
+	for index, text := range selection.texts {
+		if strings.TrimSpace(text) == "" || index < 0 || index >= len(lines) {
+			continue
+		}
+		if strings.TrimSpace(text) != strings.TrimSpace(lines[index].text) {
+			return true
+		}
+	}
+	return false
 }
 
 func selectContextPrefix(lines []contextLine, maxTokens int, excluded map[int]struct{}) contextSelection {
