@@ -128,6 +128,17 @@ export function isImeKeyboardEvent(
   ].some(Boolean);
 }
 
+export function isWithinCompositionEndEnterGuard(
+  eventTime: number,
+  compositionEndTime: number,
+): boolean {
+  return [
+    compositionEndTime > 0,
+    eventTime >= compositionEndTime,
+    eventTime - compositionEndTime <= COMPOSITION_END_ENTER_GUARD_MS,
+  ].every(Boolean);
+}
+
 export function resolveComposerDelivery(
   busy: boolean,
   queueWhenSessionBusy: boolean,

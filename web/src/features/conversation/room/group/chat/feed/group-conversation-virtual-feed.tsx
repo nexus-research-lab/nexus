@@ -6,6 +6,7 @@ import { useConversationVirtualMetrics } from "@/features/conversation/shared/fe
 import { estimateRoundHeights } from "@/hooks/conversation/use-message-height";
 
 import {
+  buildGroupConversationRoundAliases,
   resolveGroupConversationRound,
   type GroupConversationFeedProps,
 } from "./group-conversation-feed-model";
@@ -24,6 +25,10 @@ export function GroupConversationVirtualFeed({
   source,
 }: GroupConversationVirtualFeedProps) {
   const metrics = useConversationVirtualMetrics(refs.scrollRef);
+  const roundIdAliases = useMemo(
+    () => buildGroupConversationRoundAliases(source),
+    [source],
+  );
 
   const heightMap = useMemo(
     () =>
@@ -37,6 +42,7 @@ export function GroupConversationVirtualFeed({
   const virtualizer = useVirtualizer({
     count: source.roundIds.length,
     estimateSize: (index) => heightMap.get(source.roundIds[index]) ?? 200,
+    getItemKey: (index) => source.roundIds[index],
     getScrollElement: () => refs.scrollRef.current,
     measureElement: (element) => element.getBoundingClientRect().height,
     overscan: 5,
@@ -61,6 +67,7 @@ export function GroupConversationVirtualFeed({
   useConversationRoundNavigation({
     fallbackScrollToIndex: scrollToIndex,
     roundIds: source.roundIds,
+    roundIdAliases,
     roundScrollRef: refs.roundScrollRef,
     scrollRef: refs.scrollRef,
   });

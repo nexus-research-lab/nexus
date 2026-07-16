@@ -2,7 +2,7 @@
  * useAgentConversation Hook 类型定义
  *
  * [INPUT]: 依赖会话消息和权限协议
- * [OUTPUT]: 对外提供 UseAgentConversationOptions, UseAgentConversationReturn
+ * [OUTPUT]: 对外提供 UseAgentConversationOptions, UseAgentConversationReturn 与历史窗口解析状态
  * [POS]: types 模块的对话交互类型
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -64,6 +64,7 @@ export interface UseAgentConversationReturn {
   is_history_loading: boolean;
   has_more_history: boolean;
   history_prepend_token: number;
+  resolved_history_round_ids: string[];
   runtime_phase: AgentConversationRuntimePhase;
   error: string | null;
   pending_agent_slots: RoomPendingAgentSlotState[];

@@ -1,5 +1,5 @@
 // INPUT: 已完成 Agent 输出中的公区 @ 与目标 Agent 当前执行态。
-// OUTPUT: 同 Agent 串行的 public mention guide/新轮唤醒。
+// OUTPUT: 同 Agent 串行的 public mention guide/新轮唤醒，以及 pending wake 到 active slot 的原子交接。
 // POS: Room Agent 间公开协作的唤醒编排入口。
 package room
 
@@ -173,11 +173,13 @@ func (s *RealtimeService) takePublicMentionWakes(roundValue *activeRoomRound) []
 }
 
 func (s *RealtimeService) startQueuedPublicMentionWakes(ctx context.Context, roundValue *activeRoomRound) bool {
+	s.publicMentionDispatchMu.Lock()
+	defer s.publicMentionDispatchMu.Unlock()
 	wakes := s.takePublicMentionWakes(roundValue)
 	if len(wakes) == 0 {
 		return false
 	}
-	if err := s.startPublicMentionRound(ctx, roundValue, wakes); err != nil {
+	if err := s.startPublicMentionRoundLocked(ctx, roundValue, wakes); err != nil {
 		s.loggerFor(ctx).Error("启动 Room 公区 @ 唤醒失败",
 			"r", roundValue.RoomID,
 			"c", roundValue.ConversationID,
@@ -196,7 +198,14 @@ func (s *RealtimeService) startPublicMentionRound(
 ) error {
 	s.publicMentionDispatchMu.Lock()
 	defer s.publicMentionDispatchMu.Unlock()
+	return s.startPublicMentionRoundLocked(ctx, parentRound, wakes)
+}
 
+func (s *RealtimeService) startPublicMentionRoundLocked(
+	ctx context.Context,
+	parentRound *activeRoomRound,
+	wakes []publicMentionWake,
+) error {
 	if parentRound == nil || parentRound.Context == nil || len(wakes) == 0 {
 		return nil
 	}

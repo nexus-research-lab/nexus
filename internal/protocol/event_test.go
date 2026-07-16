@@ -50,3 +50,39 @@ func TestChatAckEventDoesNotReplaceUnrelatedPendingSlots(t *testing.T) {
 		t.Fatalf("user_message_committed = %#v, want true", event.Data["user_message_committed"])
 	}
 }
+
+func TestInputQueueAckEventConfirmsDurableAcceptance(t *testing.T) {
+	event := NewInputQueueAckEvent(
+		"room:group:conversation-1",
+		"request-queue-1",
+		"client-queue-1",
+		InputQueueMutationResult{
+			Action:    " enqueue ",
+			ItemID:    " queue-item-1 ",
+			Duplicate: true,
+		},
+	)
+
+	if event.EventType != EventTypeInputQueueAck || event.DeliveryMode != "ephemeral" {
+		t.Fatalf("unexpected ack envelope: %+v", event)
+	}
+	if event.SessionKey != "room:group:conversation-1" {
+		t.Fatalf("session_key = %q", event.SessionKey)
+	}
+	for key, want := range map[string]any{
+		"accepted":          true,
+		"duplicate":         true,
+		"action":            "enqueue",
+		"item_id":           "queue-item-1",
+		"client_request_id": "request-queue-1",
+		"client_message_id": "client-queue-1",
+		"ack_timeout_ms":    RequestAckTimeoutMS,
+	} {
+		if got := event.Data[key]; got != want {
+			t.Fatalf("data[%q] = %#v, want %#v", key, got, want)
+		}
+	}
+	if ChatAckTimeoutMS != RequestAckTimeoutMS {
+		t.Fatalf("chat ack alias drifted: chat=%d request=%d", ChatAckTimeoutMS, RequestAckTimeoutMS)
+	}
+}

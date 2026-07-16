@@ -18,6 +18,78 @@ test.after(async () => {
   await server.close();
 });
 
+test("scroll events only resume following near the bottom", async () => {
+  const { isNearScrollBottom } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/timeline/scroll/follow-scroll-model.ts",
+  );
+
+  assert.equal(
+    isNearScrollBottom(
+      { clientHeight: 500, scrollHeight: 5_000, scrollTop: 2_000 },
+    ),
+    false,
+    "an intermediate downward animation frame must not disable following",
+  );
+  assert.equal(
+    isNearScrollBottom(
+      { clientHeight: 500, scrollHeight: 5_000, scrollTop: 1_800 },
+    ),
+    false,
+    "Room layout movement must not be mistaken for user upward scrolling",
+  );
+  assert.equal(
+    isNearScrollBottom(
+      { clientHeight: 500, scrollHeight: 5_000, scrollTop: 4_450 },
+    ),
+    true,
+    "scrolling back near the bottom must restore following",
+  );
+});
+
+test("resolved history rounds remain only when visible content was projected", async () => {
+  const {
+    buildIndexedTimelineRoundIds,
+    filterResolvedEmptyRoundIndexItems,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/timeline/timeline-model.ts",
+  );
+  const visible = roundIndexItem("round-visible");
+  const internal = roundIndexItem("goal_continuation_private");
+
+  const unresolvedItems = filterResolvedEmptyRoundIndexItems(
+    [visible, internal],
+    [visible.roundId],
+    [],
+  );
+  assert.deepEqual(
+    buildIndexedTimelineRoundIds(unresolvedItems, [visible.roundId]),
+    [visible.roundId, internal.roundId],
+    "an unresolved neighbor remains as an invisible history load anchor",
+  );
+
+  const resolvedEmptyItems = filterResolvedEmptyRoundIndexItems(
+    [visible, internal],
+    [visible.roundId],
+    [internal.roundId],
+  );
+  assert.deepEqual(
+    resolvedEmptyItems.map((item) => item.roundId),
+    [visible.roundId],
+    "a resolved round with no visible content must leave no placeholder",
+  );
+
+  const resolvedVisibleItems = filterResolvedEmptyRoundIndexItems(
+    [visible, internal],
+    [visible.roundId, internal.roundId],
+    [internal.roundId],
+  );
+  assert.deepEqual(
+    resolvedVisibleItems.map((item) => item.roundId),
+    [visible.roundId, internal.roundId],
+    "a resolved round with visible content stays for the real message card",
+  );
+});
+
 test("deferred input ACK keeps queued user text out of the timeline", async () => {
   const { replaceOptimisticUserMessage } = await server.ssrLoadModule(
     "/src/hooks/agent/runtime/model/conversation-runtime-reconciliation.ts",
@@ -764,6 +836,265 @@ test("Room keeps active Agent cards at the stable tail", async () => {
       "agent:agent-1",
       "agent:agent-2",
     ],
+  );
+});
+
+test("Room places pending Agent cards before streaming output", async () => {
+  const { buildGroupRoundCardModel } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/thread/round-card/group-round-card-model.ts",
+  );
+  const {
+    buildGroupAgentTimelineNodeId,
+    projectGroupAgentTimeline,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/chat/feed/group-agent-timeline-model.ts",
+  );
+  const stream = assistantMessage({
+    agentId: "agent-streaming",
+    agentRoundId: "round-streaming",
+    messageId: "assistant-streaming",
+    text: "正在输出正文",
+    timestamp: 5,
+  });
+  const slots = [
+    {
+      agent_id: "agent-streaming",
+      agent_round_id: "round-streaming",
+      index: 0,
+      msg_id: "slot-streaming",
+      round_id: "round-root",
+      status: "streaming",
+      timestamp: 1,
+    },
+    {
+      agent_id: "agent-pending",
+      agent_round_id: "round-pending",
+      index: 1,
+      msg_id: "slot-pending",
+      round_id: "round-root",
+      status: "pending",
+      timestamp: 2,
+    },
+  ];
+
+  const model = buildGroupRoundCardModel({
+    agentAvatarMap: {},
+    agentNameMap: {},
+    messages: [stream],
+    pendingPermissions: [],
+    pendingSlots: slots,
+  });
+  assert.deepEqual(
+    model.entries.map(({ agent_id, status }) => ({ agent_id, status })),
+    [
+      { agent_id: "agent-pending", status: "pending" },
+      { agent_id: "agent-streaming", status: "streaming" },
+    ],
+  );
+
+  const projection = projectGroupAgentTimeline({
+    messageGroups: new Map([["round-root", [stream]]]),
+    pendingPermissionGroups: new Map(),
+    pendingSlotGroups: new Map([["round-root", slots]]),
+    roundIds: ["round-root"],
+  });
+  assert.deepEqual(projection.roundIds, [
+    buildGroupAgentTimelineNodeId(
+      "round-root",
+      "agent-pending:agent-round:round-pending",
+    ),
+    buildGroupAgentTimelineNodeId(
+      "round-root",
+      "agent-streaming:agent-round:round-streaming",
+    ),
+  ]);
+});
+
+test("Room Agent timestamp stays on start while active and switches to finish at terminal", async () => {
+  const { buildRoomAgentRoundEntries } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/round/round-agent-model.ts",
+  );
+  const { buildGroupAgentStatusModel } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/thread/round-card/group-round-card-model.ts",
+  );
+  const slot = {
+    agent_id: "agent-1",
+    agent_round_id: "agent-round-stable-time",
+    msg_id: "slot-stable-time",
+    round_id: "round-root",
+    status: "streaming",
+    timestamp: 2,
+  };
+  const stream = assistantMessage({
+    agentRoundId: "agent-round-stable-time",
+    messageId: "assistant-stable-time",
+    text: "流式快照更新时间不能改 header",
+    timestamp: 20,
+  });
+  const active = buildRoomAgentRoundEntries([stream], [slot])[0];
+  assert.equal(active?.timestamp, 2);
+  assert.equal(buildGroupAgentStatusModel({
+    labels: {
+      failed: "Failed",
+      stopped: "Stopped",
+      waitingPermission: "Waiting",
+    },
+    messages: active.assistant_messages,
+    pendingPermissions: [],
+    status: active.status,
+    timestamp: active.timestamp,
+  }).timestamp, 2);
+
+  const result = assistantMessage({
+    agentRoundId: "agent-round-stable-time",
+    isComplete: true,
+    messageId: "assistant-stable-time",
+    resultSummary: {
+      duration_api_ms: 10,
+      duration_ms: 20,
+      is_error: false,
+      num_turns: 1,
+      result: "最终回复",
+      subtype: "success",
+      timestamp: 30,
+    },
+    status: "done",
+    stopReason: "end_turn",
+    text: "最终回复",
+    timestamp: 25,
+  });
+  const terminal = buildRoomAgentRoundEntries([result])[0];
+  assert.equal(terminal?.timestamp, 30);
+});
+
+test("Room projects every agent_round as a stable chronological feed node", async () => {
+  const {
+    buildGroupAgentTimelineNodeId,
+    projectGroupAgentTimeline,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/chat/feed/group-agent-timeline-model.ts",
+  );
+  const rootUser = userMessage({
+    content: "一起分析",
+    messageId: "user-agent-node-root",
+    roundId: "round-root",
+    timestamp: 1,
+  });
+  const completed = assistantMessage({
+    agentId: "agent-2",
+    agentRoundId: "agent-2-node",
+    isComplete: true,
+    messageId: "assistant-agent-2-node",
+    resultSummary: {
+      duration_api_ms: 10,
+      duration_ms: 20,
+      is_error: false,
+      num_turns: 1,
+      result: "Agent2 完成",
+      subtype: "success",
+      timestamp: 4,
+    },
+    status: "done",
+    stopReason: "end_turn",
+    text: "Agent2 完成",
+    timestamp: 4,
+  });
+  const activeStream = assistantMessage({
+    agentId: "agent-1",
+    agentRoundId: "agent-1-node",
+    messageId: "assistant-agent-1-node",
+    text: "Agent1 仍在继续",
+    timestamp: 7,
+  });
+  const consumedGuide = userMessage({
+    agentRoundId: "agent-1-node",
+    content: "Agent1 再补充一个维度",
+    deliveryPolicy: "guide",
+    messageId: "user-guide-agent-node",
+    roundId: "round-root",
+    sourceRoundId: "round-guide-agent-node",
+    targetAgentIds: ["agent-1"],
+    timestamp: 6,
+  });
+  const laterUser = userMessage({
+    content: "另一个后续问题",
+    messageId: "user-later-root",
+    roundId: "round-later",
+    timestamp: 5,
+  });
+  const activeSlot = {
+    agent_id: "agent-1",
+    agent_round_id: "agent-1-node",
+    index: 0,
+    msg_id: "slot-agent-1-node",
+    round_id: "round-root",
+    status: "streaming",
+    timestamp: 2,
+  };
+  const activeProjection = projectGroupAgentTimeline({
+    messageGroups: new Map([
+      ["round-root", [rootUser, completed, activeStream, consumedGuide]],
+      ["round-later", [laterUser]],
+    ]),
+    pendingPermissionGroups: new Map(),
+    pendingSlotGroups: new Map([["round-root", [activeSlot]]]),
+    roundIds: ["round-root", "round-later"],
+  });
+  const agent1NodeId = buildGroupAgentTimelineNodeId(
+    "round-root",
+    "agent-1:agent-round:agent-1-node",
+  );
+  const agent2NodeId = buildGroupAgentTimelineNodeId(
+    "round-root",
+    "agent-2:agent-round:agent-2-node",
+  );
+  assert.deepEqual(activeProjection.roundIds, [
+    "round-root",
+    agent2NodeId,
+    "round-later",
+    agent1NodeId,
+  ]);
+  assert.deepEqual(
+    activeProjection.messageGroups.get(agent1NodeId)?.map(
+      (message) => message.message_id,
+    ),
+    ["user-guide-agent-node", "assistant-agent-1-node"],
+  );
+  assert.equal(activeProjection.rootRoundIds.get(agent1NodeId), "round-root");
+
+  const terminal = assistantMessage({
+    agentId: "agent-1",
+    agentRoundId: "agent-1-node",
+    isComplete: true,
+    messageId: "assistant-agent-1-node",
+    resultSummary: {
+      duration_api_ms: 20,
+      duration_ms: 30,
+      is_error: false,
+      num_turns: 2,
+      result: "Agent1 完成",
+      subtype: "success",
+      timestamp: 8,
+    },
+    status: "done",
+    stopReason: "end_turn",
+    text: "Agent1 完成",
+    timestamp: 8,
+  });
+  const terminalProjection = projectGroupAgentTimeline({
+    messageGroups: new Map([
+      ["round-root", [rootUser, completed, terminal, consumedGuide]],
+      ["round-later", [laterUser]],
+    ]),
+    pendingPermissionGroups: new Map(),
+    pendingSlotGroups: new Map(),
+    roundIds: ["round-root", "round-later"],
+  });
+  assert.equal(terminalProjection.roundIds.at(-1), agent1NodeId);
+  assert.equal(
+    terminalProjection.roundIds.includes(agent1NodeId),
+    true,
+    "pending -> terminal must not change the visual node identity",
   );
 });
 

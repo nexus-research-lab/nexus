@@ -76,6 +76,7 @@ interface AgentConversationPublicSession {
   loadOlderMessages: UseAgentConversationReturn["load_older_messages"];
   loadRoundWindow: UseAgentConversationReturn["load_round_window"];
   loadSession: UseAgentConversationReturn["load_session"];
+  resolvedHistoryRoundIds: string[];
   resetSession: UseAgentConversationReturn["reset_session"];
   sessionKey: string | null;
   startSession: UseAgentConversationReturn["start_session"];
@@ -118,6 +119,7 @@ export function buildAgentConversationResult({
     messages,
     pending_agent_slots: runtime.pendingAgentSlots,
     pending_permissions: runtime.pendingPermissions,
+    resolved_history_round_ids: session.resolvedHistoryRoundIds,
     reorder_input_queue_messages: actions.reorderQueueMessages,
     reset_session: session.resetSession,
     rewrite_last_user_message: actions.rewriteLastMessage,

@@ -1,6 +1,7 @@
-import { memo, useRef } from "react";
+import { memo, useMemo, useRef } from "react";
 
 import {
+  buildGroupConversationRoundAliases,
   resolveGroupConversationRound,
   type GroupConversationFeedProps,
 } from "./group-conversation-feed-model";
@@ -42,9 +43,14 @@ function StaticGroupConversationFeed({
   renderer,
   source,
 }: GroupConversationFeedProps) {
+  const roundIdAliases = useMemo(
+    () => buildGroupConversationRoundAliases(source),
+    [source],
+  );
   const unavailableScrollRef = useRef<HTMLDivElement>(null);
   useConversationRoundNavigation({
     roundIds: source.roundIds,
+    roundIdAliases,
     roundScrollRef: refs.roundScrollRef,
     scrollRef: refs.scrollRef ?? unavailableScrollRef,
   });

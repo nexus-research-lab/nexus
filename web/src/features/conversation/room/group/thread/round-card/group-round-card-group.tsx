@@ -1,6 +1,6 @@
 /**
- * INPUT: 一个 Room root 的展示模型与交互回调。
- * OUTPUT: global user、每个 agent round 紧前的定向 guided user、时序回复卡片。
+ * INPUT: 一个 Room feed 节点的 root/agent_round 子集与交互回调。
+ * OUTPUT: global user、目标 agent round 紧前的定向 guided user、对应回复卡片。
  * POS: Group round 卡片的渲染顺序真相源。
  */
 "use client";
@@ -149,9 +149,9 @@ function GroupRoundCardGroupInner({
                           : undefined
                       }
                       pendingPermissions={entry.pendingPermissions}
-                      pendingSlot={entry.pending_slot}
                       resultSummary={entry.result_summary}
                       status={entry.status}
+                      timestamp={entry.timestamp}
                     />
                   </div>
                 </div>

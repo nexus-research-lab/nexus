@@ -1,5 +1,5 @@
-// INPUT: Goal 创建、读取、Room creator/lead 身份与用户更新请求。
-// OUTPUT: 持久化 Goal、不可变 creator/可转移 lead 审计身份与后续 runtime 决策。
+// INPUT: Goal 创建、读取、Room creator/lead 身份、用户更新请求与 Room 终态 readiness。
+// OUTPUT: 持久化 Goal、不可变 creator/可转移 lead 审计身份与受运行中工作保护的后续 runtime 决策。
 // POS: Goal 应用服务主入口。
 package goal
 
@@ -32,6 +32,7 @@ type Service struct {
 	rewriter         objectiveRewriter
 	externalMutation externalMutationAccountant
 	runtimeInterrupt runtimeInterrupter
+	roomCompletion   roomGoalCompletionReadiness
 	continuations    ContinuationDispatcher
 	wallClock        *goalWallClockAccounting
 	nowFn            func() time.Time

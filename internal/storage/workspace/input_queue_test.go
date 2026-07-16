@@ -149,6 +149,159 @@ func TestInputQueueStoreReplayAppendReorderDispatchAndDelete(t *testing.T) {
 	}
 }
 
+func TestInputQueueStoreIdempotentEnqueueSurvivesDispatch(t *testing.T) {
+	root := t.TempDir()
+	location := InputQueueLocation{
+		Scope:         protocol.InputQueueScopeDM,
+		WorkspacePath: filepath.Join(root, "agent"),
+		SessionKey:    "agent:alpha:ws:dm:idempotent",
+	}
+	store := NewInputQueueStore(root)
+	intent := protocol.InputQueueItem{
+		Content:        " 继续分析 M5 ",
+		DeliveryPolicy: protocol.ChatDeliveryPolicyQueue,
+		TargetAgentIDs: []string{"agent-b", "agent-a", "agent-b"},
+		Source:         protocol.InputQueueSourceUser,
+		OwnerUserID:    "owner-1",
+		CreatedAt:      1,
+		UpdatedAt:      1,
+	}
+
+	first, err := store.EnqueueIdempotent(location, intent, "client-message-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.Duplicate || first.Item.ID == "" || len(first.Items) != 1 {
+		t.Fatalf("unexpected first acceptance: %+v", first)
+	}
+	acceptedID := first.Item.ID
+
+	dispatched, remaining, err := store.DispatchNext(location)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dispatched == nil || dispatched.ID != acceptedID || len(remaining) != 0 {
+		t.Fatalf("unexpected dispatch: item=%+v remaining=%+v", dispatched, remaining)
+	}
+
+	found, ok, err := NewInputQueueStore(root).FindAcceptedEnqueue(location, "client-message-1")
+	if err != nil || !ok || found.ID != acceptedID {
+		t.Fatalf("accepted enqueue must survive dispatch: item=%+v ok=%v err=%v", found, ok, err)
+	}
+	retry := intent
+	retry.ID = "ignored-retry-id"
+	retry.CreatedAt = 999
+	retry.UpdatedAt = 999
+	retry.TargetAgentIDs = []string{"agent-a", "agent-b"}
+	duplicate, err := store.EnqueueIdempotent(location, retry, "client-message-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !duplicate.Duplicate || duplicate.Item.ID != acceptedID || len(duplicate.Items) != 0 {
+		t.Fatalf("retry must reuse durable acceptance without requeueing: %+v", duplicate)
+	}
+
+	path, err := store.pathForLocation(location)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows, err := store.files.readJSONL(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	enqueueRows := 0
+	for _, row := range rows {
+		if stringFromAny(row["action"]) == inputQueueActionEnqueue {
+			enqueueRows++
+			if stringFromAny(row["client_message_id"]) != "client-message-1" {
+				t.Fatalf("enqueue row lost client_message_id: %+v", row)
+			}
+		}
+	}
+	if enqueueRows != 1 {
+		t.Fatalf("idempotent retry appended %d enqueue rows, want 1", enqueueRows)
+	}
+}
+
+func TestInputQueueStoreIdempotencyConflictDoesNotAppend(t *testing.T) {
+	root := t.TempDir()
+	location := InputQueueLocation{
+		Scope:         protocol.InputQueueScopeRoom,
+		WorkspacePath: filepath.Join(root, "agent"),
+		SessionKey:    "agent:alpha:ws:group:idempotent-conflict",
+	}
+	store := NewInputQueueStore(root)
+	original := protocol.InputQueueItem{
+		Content:        "分析 M4",
+		DeliveryPolicy: protocol.ChatDeliveryPolicyQueue,
+		TargetAgentIDs: []string{"agent-a"},
+		Source:         protocol.InputQueueSourceUser,
+		OwnerUserID:    "owner-1",
+	}
+	if _, err := store.EnqueueIdempotent(location, original, "client-message-conflict"); err != nil {
+		t.Fatal(err)
+	}
+	conflicting := original
+	conflicting.Content = "分析 M5"
+	if _, err := store.EnqueueIdempotent(location, conflicting, "client-message-conflict"); !errors.Is(err, ErrInputQueueIdempotencyConflict) {
+		t.Fatalf("same key with different intent must conflict: %v", err)
+	}
+
+	path, err := store.pathForLocation(location)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows, err := store.files.readJSONL(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("conflict must not append a log row: %+v", rows)
+	}
+}
+
+func TestMatchesInputQueueEnqueueIntentIgnoresPhysicalLocation(t *testing.T) {
+	existing := protocol.InputQueueItem{
+		ID:             "item-a",
+		Scope:          protocol.InputQueueScopeRoom,
+		SessionKey:     "agent:a:ws:group:conversation",
+		RoomID:         "room-a",
+		ConversationID: "conversation-a",
+		AgentID:        "agent-a",
+		Content:        " 协作分析 ",
+		DeliveryPolicy: protocol.ChatDeliveryPolicyQueue,
+		TargetAgentIDs: []string{"agent-b", "agent-a"},
+		Source:         protocol.InputQueueSourceUser,
+		OwnerUserID:    " owner ",
+		CreatedAt:      1,
+		UpdatedAt:      2,
+		QueueOrder:     3,
+	}
+	candidate := existing
+	candidate.ID = "item-b"
+	candidate.SessionKey = "agent:b:ws:group:conversation"
+	candidate.RoomID = "room-b"
+	candidate.ConversationID = "conversation-b"
+	candidate.AgentID = "agent-b"
+	candidate.TargetAgentIDs = []string{"agent-a", "agent-b", "agent-a"}
+	candidate.CreatedAt = 100
+	candidate.UpdatedAt = 200
+	candidate.QueueOrder = 300
+
+	if !MatchesInputQueueEnqueueIntent(existing, candidate) {
+		t.Fatal("physical location, ID, time and target order must not change logical intent")
+	}
+	candidate.OwnerUserID = "other-owner"
+	if MatchesInputQueueEnqueueIntent(existing, candidate) {
+		t.Fatal("owner change must be an idempotency conflict")
+	}
+	candidate.OwnerUserID = existing.OwnerUserID
+	candidate.TargetAgentIDs = []string{"agent-a"}
+	if MatchesInputQueueEnqueueIntent(existing, candidate) {
+		t.Fatal("resolved target set change must be an idempotency conflict")
+	}
+}
+
 func TestInputQueueStoreBoundedEnqueueDeduplicatesAndExpires(t *testing.T) {
 	root := t.TempDir()
 	location := InputQueueLocation{

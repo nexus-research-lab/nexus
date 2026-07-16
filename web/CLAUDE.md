@@ -107,7 +107,7 @@ src/
 - Message item 的结构化内容关联只由 `view/content/content-renderer-model.ts` 建立；Assistant/User 视图不得再次扫描整轮内容或手写不完整的 Props 比较器
 - Office 预览下载与载荷上限只由 `conversation/shared/editor/office-preview-resource.ts` 管理；文档预览的加载生命周期、DOM 归一化与视图分别归属 `document/` 下的 Hook、DOM 模型和视图模块
 - DM/Room 虚拟消息流共用 `features/conversation/shared/feed/` 的容器测量与轮次导航协议；高度估算必须响应容器宽度变化
-- DM/Room 时间线只从 `features/conversation/shared/timeline/timeline-model.ts` 派生轮次顺序；`timeline/window-loader/` 分离候选选择、有限重试账本和调度，窗口加载必须用会话代次隔离在途请求
+- DM/Room canonical 根轮次只从 `features/conversation/shared/timeline/timeline-model.ts` 派生；Room Feed 再由 `room/group/chat/feed/group-agent-timeline-model.ts` 把各 `agent_round` 投影为保留根因果关系的稳定时间线节点，Thread 仍使用 canonical root；`timeline/window-loader/` 分离候选选择、有限重试账本和调度，窗口加载必须用会话代次隔离在途请求
 - 对话滚动只通过 `features/conversation/shared/timeline/scroll/` 协调；面板不得复制底部阈值、RAF 动画、历史前插锚点或轮次 DOM 标记
 - DM/Room Todo 只从 `features/conversation/shared/todos/` 的单遍轮次投影派生；计划、运行时任务和状态别名不得在面板中重复推导
 - 会话导航由 `shared/session-navigator/` 分离时间线数据投影、刻度视觉模型、纯 DOM 定位和活动轮同步，`session-navigator/jump/` 分离目标、串行加载与落点确认；缺失窗口加载必须绑定会话键和请求代次，失效目标不得产生副作用

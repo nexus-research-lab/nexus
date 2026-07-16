@@ -274,21 +274,26 @@ function resolveMessageStatus(
   );
 }
 
-function getAgentRoundTimestamp(
+/**
+ * Agent 卡片的时间语义只由执行状态决定：运行态保持启动时间稳定，
+ * 终态使用 result 的完成时间。feed 排序和卡片 header 必须复用该值。
+ */
+export function resolveRoomAgentRoundTimestamp(
+  status: AgentRoundStatus,
   messages: AssistantMessage[],
   resultSummary?: ResultSummary,
   pendingSlot?: RoomPendingAgentSlotState,
 ): number {
-  if (resultSummary?.timestamp) {
-    return resultSummary.timestamp;
+  if (isAgentRoundActive(status)) {
+    return pendingSlot?.timestamp
+      ?? messages[0]?.timestamp
+      ?? resultSummary?.timestamp
+      ?? 0;
   }
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const timestamp = messages[index]?.timestamp;
-    if (timestamp) {
-      return timestamp;
-    }
-  }
-  return pendingSlot?.timestamp ?? 0;
+  return resultSummary?.timestamp
+    ?? messages.at(-1)?.timestamp
+    ?? pendingSlot?.timestamp
+    ?? 0;
 }
 
 function buildRoomAgentRoundEntry(
@@ -311,6 +316,11 @@ function buildRoomAgentRoundEntry(
   const agentRoundId = pendingSlot?.agent_round_id?.trim()
     || identity?.agent_round_id?.trim()
     || null;
+  const status = getAgentRoundStatus(
+    assistantMessages,
+    resultSummary,
+    pendingSlot,
+  );
   return {
     entry_id: entryId,
     agent_id: agentId,
@@ -318,12 +328,9 @@ function buildRoomAgentRoundEntry(
     assistant_messages: assistantMessages,
     result_summary: resultSummary,
     pending_slot: pendingSlot,
-    status: getAgentRoundStatus(
-      assistantMessages,
-      resultSummary,
-      pendingSlot,
-    ),
-    timestamp: getAgentRoundTimestamp(
+    status,
+    timestamp: resolveRoomAgentRoundTimestamp(
+      status,
       assistantMessages,
       resultSummary,
       pendingSlot,
@@ -337,6 +344,12 @@ function buildRoomAgentRoundEntry(
 
 export function isAgentRoundActive(status: AgentRoundStatus): boolean {
   return ACTIVE_STATUSES.has(status);
+}
+
+export function getActiveAgentRoundSortOrder(
+  status: AgentRoundStatus,
+): number {
+  return status === "pending" ? 0 : 1;
 }
 
 export function buildRoomAgentRoundEntries(

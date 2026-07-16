@@ -1,5 +1,5 @@
-// INPUT: Room Goal 状态/lead、成员目录、显式输入队列与上一轮执行结果。
-// OUTPUT: 启动 slot 前对齐的有效 lead，以及用户输入优先约束下经原子 claim 的隐藏 continuation。
+// INPUT: Room Goal 状态/lead、成员目录、协作者 active slot、显式输入队列与上一轮执行结果。
+// OUTPUT: 启动 slot 前对齐的有效 lead，以及所有同 Goal 工作收敛后经原子 claim 的隐藏 continuation。
 // POS: Room 与 Goal 权限/状态机之间的续跑适配层。
 package room
 
@@ -71,7 +71,16 @@ func (s *RealtimeService) shouldDeferGoalContinuationForTargetState(
 	sessionKey string,
 	contextValue *protocol.ConversationContextAggregate,
 ) bool {
-	if s == nil || s.agents == nil || contextValue == nil {
+	if s == nil || contextValue == nil {
+		return false
+	}
+	s.publicMentionDispatchMu.Lock()
+	activeBlocker := s.activeRoomGoalBlocker(sessionKey, contextValue.Conversation.ID, "", "")
+	s.publicMentionDispatchMu.Unlock()
+	if activeBlocker != "" {
+		return true
+	}
+	if s.agents == nil {
 		return false
 	}
 	agentNameByID, agentByID, err := s.buildAgentDirectory(ctx, contextValue)

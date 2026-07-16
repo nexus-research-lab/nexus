@@ -7,7 +7,7 @@
 //     turn projector / rewrite_tail / 按 Agent 执行轮配对的 result_summary / external_delivery / unfinished_round）。
 //   - agent_history*.go：Agent 历史门面、读取、overlay 与共享模型。
 //   - transcript_*.go：transcript cache、reader、path、session、project、marker、guidance 与 root/source round 投影。
-//   - input_queue.go / input_queue_codec.go / input_queue_replay.go：输入队列存取、可返回规范化提交的原子批量登记、预检版本一致的整批 guidance 认领、编解码与事件重放。
+//   - input_queue.go / input_queue_codec.go / input_queue_replay.go：输入队列存取、跨派发持久幂等入队、可返回规范化提交的原子批量登记、预检版本一致的整批 guidance 认领、编解码与事件重放。
 //   - room_history.go / room_directed_message.go / room_directed_message_wake.go / session_file.go / jsonl.go：
 //     保留 Agent 执行身份的房间历史、定向消息、延迟唤醒、会话文件与 JSONL。
 //   - paths.go / transcript_project_hash.go / value_coerce.go：路径、工程 hash、值转换。

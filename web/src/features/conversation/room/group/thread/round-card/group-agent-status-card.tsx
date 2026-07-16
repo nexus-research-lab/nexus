@@ -11,7 +11,6 @@ import type {
   AssistantMessage,
   ResultSummary,
 } from "@/types/conversation/message/entity";
-import type { RoomPendingAgentSlotState } from "@/types/agent/agent-conversation";
 import type {
   PendingPermission,
   PermissionDecisionPayload,
@@ -36,9 +35,9 @@ interface GroupAgentStatusCardProps {
   onPermissionResponse: (payload: PermissionDecisionPayload) => boolean;
   onStopMessage?: () => void;
   pendingPermissions: PendingPermission[];
-  pendingSlot?: RoomPendingAgentSlotState;
   resultSummary?: ResultSummary;
   status: AgentRoundStatus;
+  timestamp: number;
 }
 
 const ACTIVATION_KEYS = new Set(["Enter", " "]);
@@ -60,9 +59,9 @@ function GroupAgentStatusCardInner({
   onPermissionResponse,
   onStopMessage,
   pendingPermissions,
-  pendingSlot,
   resultSummary,
   status,
+  timestamp,
 }: GroupAgentStatusCardProps) {
   const { locale, t } = useI18n();
   const statusModel = useMemo(() => buildGroupAgentStatusModel({
@@ -73,10 +72,10 @@ function GroupAgentStatusCardInner({
     },
     messages,
     pendingPermissions,
-    pendingSlot,
     resultSummary,
     status,
-  }), [messages, pendingPermissions, pendingSlot, resultSummary, status, t]);
+    timestamp,
+  }), [messages, pendingPermissions, resultSummary, status, t, timestamp]);
   const contactLabel = t("room.agent_contact_open", { name: agentName });
 
   const handleStop = useCallback((event: React.MouseEvent) => {

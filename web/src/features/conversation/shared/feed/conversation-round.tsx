@@ -2,7 +2,6 @@ import type { Ref } from "react";
 
 import { MessageItem } from "@/features/conversation/shared/message/item/message-item";
 
-import { ConversationRoundPlaceholder } from "../timeline/round-placeholder";
 import {
   resolveRoundWorkspaceAgentId,
   type ConversationRoundRenderer,
@@ -59,9 +58,7 @@ export function ConversationRound({
           runtimePhase={state.isLive ? source.runtimePhase : null}
           workspaceAgentId={workspaceAgentId}
         />
-      ) : (
-        <ConversationRoundPlaceholder />
-      )}
+      ) : null}
     </div>
   );
 }

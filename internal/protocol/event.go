@@ -1,5 +1,5 @@
 // [INPUT]: 依赖会话/运行时跨边界状态与时间戳。
-// [OUTPUT]: 对外提供统一事件类型、普通 chat ack 与权威 pending slot 快照事件。
+// [OUTPUT]: 对外提供统一事件类型、请求 ACK 与权威 pending slot 快照事件。
 // [POS]: protocol 包的 WebSocket 事件真相源。
 package protocol
 
@@ -12,16 +12,20 @@ import (
 // EventType 表示统一事件类型。
 type EventType string
 
-// ChatAckTimeoutMS 是客户端等待 chat_ack 的上限（毫秒）。
+// RequestAckTimeoutMS 是客户端等待请求 ACK 的上限（毫秒）。
 // 服务端不强制该窗口，但承诺在此之前回 ack；
 // 前端据此设置本地超时，两侧同源避免漂移。
-const ChatAckTimeoutMS = 10000
+const RequestAckTimeoutMS = 10000
+
+// ChatAckTimeoutMS 保留 chat_ack 的兼容名称；所有请求 ACK 共用同一超时契约。
+const ChatAckTimeoutMS = RequestAckTimeoutMS
 
 const (
 	EventTypeMessage                     EventType = "message"
 	EventTypeStream                      EventType = "stream"
 	EventTypeChatAck                     EventType = "chat_ack"
 	EventTypeInputQueue                  EventType = "input_queue"
+	EventTypeInputQueueAck               EventType = "input_queue_ack"
 	EventTypeRoundStatus                 EventType = "round_status"
 	EventTypeAgentRoundStatus            EventType = "agent_round_status"
 	EventTypeSessionStatus               EventType = "session_status"
@@ -185,14 +189,14 @@ func NewChatAckEvent(
 		pending = []ChatAckPendingSlot{}
 	}
 	event := NewEvent(EventTypeChatAck, map[string]any{
-		"client_request_id": clientRequestID,
-		"client_message_id": clientMessageID,
-		"round_id":          roundID,
-		"user_message_id":   userMessageID,
+		"client_request_id":      clientRequestID,
+		"client_message_id":      clientMessageID,
+		"round_id":               roundID,
+		"user_message_id":        userMessageID,
 		"user_message_committed": userMessageCommitted,
-		"pending":           pending,
-		"pending_snapshot":  false,
-		"ack_timeout_ms":    ChatAckTimeoutMS,
+		"pending":                pending,
+		"pending_snapshot":       false,
+		"ack_timeout_ms":         ChatAckTimeoutMS,
 	})
 	event.SessionKey = sessionKey
 	return event

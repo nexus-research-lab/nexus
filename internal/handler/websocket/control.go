@@ -171,33 +171,65 @@ func (m *controlMessage) handleInterrupt() {
 
 func (m *controlMessage) handleInputQueue() {
 	action := firstStringValue(m.inbound["action"], m.inbound["action_type"])
-	var err error
+	if action == "" {
+		action = "enqueue"
+	}
+	clientRequestID, clientMessageID := m.clientIDs()
+	itemID := m.stringValue("item_id")
+	var (
+		result protocol.InputQueueMutationResult
+		err    error
+	)
 	if m.usesRoomRuntime() {
-		err = m.handler.roomRealtime.HandleInputQueue(m.ctx, roompkg.InputQueueRequest{
-			SessionKey:     m.sessionKey,
-			RoomID:         m.stringValue("room_id"),
-			ConversationID: m.stringValue("conversation_id"),
-			Action:         action,
-			ItemID:         m.stringValue("item_id"),
-			Content:        m.stringValue("content"),
-			Attachments:    m.attachments(),
-			TargetAgentIDs: stringSliceValue(m.inbound["target_agent_ids"]),
-			OrderedIDs:     stringSliceValue(m.inbound["ordered_ids"]),
-			DeliveryPolicy: m.deliveryPolicy(),
+		result, err = m.handler.roomRealtime.HandleInputQueue(m.ctx, roompkg.InputQueueRequest{
+			SessionKey:      m.sessionKey,
+			RoomID:          m.stringValue("room_id"),
+			ConversationID:  m.stringValue("conversation_id"),
+			ClientMessageID: clientMessageID,
+			Action:          action,
+			ItemID:          itemID,
+			Content:         m.stringValue("content"),
+			Attachments:     m.attachments(),
+			TargetAgentIDs:  stringSliceValue(m.inbound["target_agent_ids"]),
+			OrderedIDs:      stringSliceValue(m.inbound["ordered_ids"]),
+			DeliveryPolicy:  m.deliveryPolicy(),
 		})
 	} else {
-		err = m.handler.dm.HandleInputQueue(m.ctx, dmsvc.InputQueueRequest{
-			SessionKey:     m.sessionKey,
-			AgentID:        m.stringValue("agent_id"),
-			Action:         action,
-			ItemID:         m.stringValue("item_id"),
-			Content:        m.stringValue("content"),
-			Attachments:    m.attachments(),
-			OrderedIDs:     stringSliceValue(m.inbound["ordered_ids"]),
-			DeliveryPolicy: m.deliveryPolicy(),
+		result, err = m.handler.dm.HandleInputQueue(m.ctx, dmsvc.InputQueueRequest{
+			SessionKey:      m.sessionKey,
+			AgentID:         m.stringValue("agent_id"),
+			ClientMessageID: clientMessageID,
+			Action:          action,
+			ItemID:          itemID,
+			Content:         m.stringValue("content"),
+			Attachments:     m.attachments(),
+			OrderedIDs:      stringSliceValue(m.inbound["ordered_ids"]),
+			DeliveryPolicy:  m.deliveryPolicy(),
 		})
 	}
-	m.reportGatewayFailure("input_queue_error", err, map[string]any{"type": m.msgType, "action": action})
+	if err != nil {
+		m.reportGatewayFailure("input_queue_error", err, map[string]any{
+			"type":              m.msgType,
+			"action":            action,
+			"item_id":           itemID,
+			"client_request_id": clientRequestID,
+			"client_message_id": clientMessageID,
+		})
+		return
+	}
+	if ackErr := m.sender.SendEvent(
+		m.ctx,
+		protocol.NewInputQueueAckEvent(m.sessionKey, clientRequestID, clientMessageID, result),
+	); ackErr != nil {
+		logx.Resolve(m.ctx, m.handler.api.BaseLogger()).Warn("WebSocket input_queue ACK 发送失败",
+			"session_key", m.sessionKey,
+			"action", result.Action,
+			"item_id", result.ItemID,
+			"client_request_id", clientRequestID,
+			"client_message_id", clientMessageID,
+			"err", ackErr,
+		)
+	}
 }
 
 func (m *controlMessage) handlePermissionResponse() {

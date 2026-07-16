@@ -18,6 +18,7 @@ import { stripRoomControlMarkers } from "@/features/conversation/shared/message/
 import {
   buildRoomAgentRoundEntries,
   extractAgentPreviewText,
+  getActiveAgentRoundSortOrder,
   isAgentRoundActive,
   type AgentRoundStatus,
   type RoomAgentRoundEntry,
@@ -74,9 +75,9 @@ interface BuildGroupAgentStatusModelOptions {
   labels: GroupAgentStatusLabels;
   messages: AssistantMessage[];
   pendingPermissions: PendingPermission[];
-  pendingSlot?: RoomPendingAgentSlotState;
   resultSummary?: ResultSummary;
   status: AgentRoundStatus;
+  timestamp: number;
 }
 
 type GroupAgentStatusLabelKey = Exclude<
@@ -244,14 +245,13 @@ export function buildGroupAgentStatusModel({
   labels,
   messages,
   pendingPermissions,
-  pendingSlot,
   resultSummary,
   status,
+  timestamp,
 }: BuildGroupAgentStatusModelOptions): GroupAgentStatusModel {
   const preview = extractAgentPreviewText(messages);
   const isActive = isAgentRoundActive(status);
   const permission = buildAgentPermissionState(pendingPermissions, isActive);
-  const lastMessage = messages[messages.length - 1];
   const presentation = AGENT_STATUS_PRESENTATION[status];
   const summary = buildAgentStatusSummary({
     labels,
@@ -271,7 +271,7 @@ export function buildGroupAgentStatusModel({
     shouldRenderMarkdownSummary: summary.shouldRenderMarkdown,
     summaryText: summary.text,
     summaryTone: summary.tone,
-    timestamp: resolveAgentTimestamp(lastMessage, resultSummary, pendingSlot),
+    timestamp,
   };
 }
 
@@ -376,22 +376,6 @@ function lastMessageModel(messages: AssistantMessage[]): string | null {
 function resultSummaryText(summary?: ResultSummary): string | undefined {
   const result = stripRoomControlMarkers(summary?.result ?? "");
   return result || undefined;
-}
-
-function resolveAgentTimestamp(
-  lastMessage?: AssistantMessage,
-  resultSummary?: ResultSummary,
-  pendingSlot?: RoomPendingAgentSlotState,
-): number {
-  return firstDefinedNumber([
-    resultSummary?.timestamp,
-    lastMessage?.timestamp,
-    pendingSlot?.timestamp,
-  ]);
-}
-
-function firstDefinedNumber(values: Array<number | undefined>): number {
-  return values.find((value) => value !== undefined) ?? 0;
 }
 
 function buildAgentCard(
@@ -564,16 +548,12 @@ function compareAgentCards(
       || left.display_order - right.display_order
       || left.entry_id.localeCompare(right.entry_id);
   }
-  return activeCardStartTimestamp(left) - activeCardStartTimestamp(right)
+  return getActiveAgentRoundSortOrder(left.status)
+      - getActiveAgentRoundSortOrder(right.status)
+    || left.timestamp - right.timestamp
     || (left.pending_slot?.index ?? Number.MAX_SAFE_INTEGER)
       - (right.pending_slot?.index ?? Number.MAX_SAFE_INTEGER)
     || left.entry_id.localeCompare(right.entry_id);
-}
-
-function activeCardStartTimestamp(entry: GroupRoundAgentCardModel): number {
-  return entry.pending_slot?.timestamp
-    ?? entry.assistant_messages[0]?.timestamp
-    ?? entry.timestamp;
 }
 
 function isVisibleUserMessage(message: Message): message is UserMessage {

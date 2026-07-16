@@ -43,7 +43,10 @@
 - 前端通过 WebSocket `chat` 发起一轮执行
 - 后端创建 / 复用 runtime client
 - runtime 返回 stream / durable message / round status
-- `chat_ack` 上限 10 秒（常量 `protocol.ChatAckTimeoutMS`），超时视为发送失败
+- `chat_ack` 与用户 `input_queue enqueue` 的受理 ACK 共用 10 秒上限（常量 `protocol.RequestAckTimeoutMS`）
+- `client_request_id` 标识一次传输尝试；`client_message_id` 标识同一条逻辑输入，ACK 未知后重试必须复用后者
+- `input_queue` 快照只表达共享队列当前状态，不能充当请求回执；后端完成持久化后必须向请求连接单播 `input_queue_ack`
+- ACK 超时表示“后端受理状态未知”，前端必须保留输入并允许用同一 `client_message_id` 重试，不能把超时当作已确认失败后直接清空草稿
 
 ### 3.2 前端展示
 
@@ -213,6 +216,7 @@ A 完成后：
 - 多目标或无法安全归组的 guide：用户消息保留在原始公区位置，旁边只显示目标 Agent 头像/名称摘要，不为每个目标复制正文。
 - guide 的 ACK、fallback、`guided_input` 等控制事件合并为目标卡片的一行轻量状态；详细过程放入 Thread，不生成独立大气泡。
 - 尚未消费的用户 queue item 只出现在 composer 的待发送队列；消费后才进入时间线，且只进入一次。
+- 用户入队请求只有在收到 `input_queue_ack` 后才能清空 composer；队列项即使在 ACK 前后被立即派发，重试也必须由持久化幂等记录返回原 `item_id`，不得创建第二轮。
 - Agent public handoff 的 `detected/queued/running` 不生成“系统发言”气泡。源消息中的 `@Agent` chip 是唯一的交接正文，目标卡片只显示排队/运行状态；目标 final reply 到达后才显示完整回复。
 - no-reply、空 assistant、纯 result 和重复 wake 不占用独立时间线行。
 

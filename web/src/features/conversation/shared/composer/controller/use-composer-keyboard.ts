@@ -7,12 +7,12 @@ import {
 import type { KeyboardEvent } from "react";
 
 import {
-  COMPOSITION_END_ENTER_GUARD_MS,
   MENTION_NAVIGATION_KEYS,
   type ComposerNativeKeyboardEvent,
   isCaretOnFirstLine,
   isCaretOnLastLine,
   isImeKeyboardEvent,
+  isWithinCompositionEndEnterGuard,
 } from "../composer-model";
 
 interface UseComposerKeyboardOptions {
@@ -117,12 +117,14 @@ function shouldIgnoreKeyboardEvent(
   mentionActive: boolean,
 ): boolean {
   // Safari 可能在中文候选词确认后补发一个不带 composing 标记的 Enter。
-  const guards = [
-    () => isCompositionEvent(event, compositionState),
-    () => consumeCompositionEnterGuard(event, compositionState),
-    () => isMentionNavigationEvent(event, mentionActive),
-  ];
-  return guards.some((guard) => guard());
+  if (isCompositionEvent(event, compositionState)) {
+    return true;
+  }
+  if (consumeCompositionEnterGuard(event, compositionState)) {
+    event.preventDefault();
+    return true;
+  }
+  return isMentionNavigationEvent(event, mentionActive);
 }
 
 function isCompositionEvent(
@@ -147,20 +149,10 @@ function consumeCompositionEnterGuard(
     return false;
   }
   compositionState.ignoreNextEnterRef.current = false;
-  return isWithinCompositionGuard(
+  return isWithinCompositionEndEnterGuard(
     event.timeStamp,
     compositionState.lastCompositionEndAtRef.current,
   );
-}
-
-function isWithinCompositionGuard(
-  eventTime: number,
-  compositionEndTime: number,
-): boolean {
-  return [
-    compositionEndTime > 0,
-    eventTime - compositionEndTime <= COMPOSITION_END_ENTER_GUARD_MS,
-  ].every(Boolean);
 }
 
 function isMentionNavigationEvent(

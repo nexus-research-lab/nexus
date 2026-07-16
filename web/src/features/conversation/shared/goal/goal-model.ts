@@ -163,7 +163,10 @@ const GOAL_ACTION_RULES: GoalActionRule[] = [
     action: "pause",
     visible: ({ goal }) => goal.status === "active",
   },
-  { action: "resume", visible: ({ canResume }) => canResume },
+  {
+    action: "resume",
+    visible: ({ canResume, isGenerating }) => canResume && !isGenerating,
+  },
   { action: "clear", visible: () => true },
 ];
 

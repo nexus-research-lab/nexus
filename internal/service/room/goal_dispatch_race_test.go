@@ -160,13 +160,15 @@ func TestRoomExplicitInputWinsGoalContinuationDispatchRace(t *testing.T) {
 
 	enqueueResult := make(chan error, 1)
 	go func() {
-		enqueueResult <- service.HandleInputQueue(ctx, roomsvc.InputQueueRequest{
-			SessionKey:     sessionKey,
-			RoomID:         roomContext.Room.ID,
-			ConversationID: roomContext.Conversation.ID,
-			Action:         "enqueue",
-			Content:        "排队的用户指令",
+		_, enqueueErr := service.HandleInputQueue(ctx, roomsvc.InputQueueRequest{
+			SessionKey:      sessionKey,
+			RoomID:          roomContext.Room.ID,
+			ConversationID:  roomContext.Conversation.ID,
+			ClientMessageID: "client-message-goal-dispatch-race",
+			Action:          "enqueue",
+			Content:         "排队的用户指令",
 		})
+		enqueueResult <- enqueueErr
 	}()
 	<-broadcaster.entered
 

@@ -74,6 +74,31 @@ func (s *RealtimeService) findRoomInputQueueEntry(
 	return roomInputQueueEntry{}, false, nil
 }
 
+func (s *RealtimeService) findAcceptedRoomInputQueueEnqueue(
+	ctx context.Context,
+	contextValue *protocol.ConversationContextAggregate,
+	clientMessageID string,
+) (roomInputQueueEntry, bool, error) {
+	clientMessageID = strings.TrimSpace(clientMessageID)
+	if clientMessageID == "" {
+		return roomInputQueueEntry{}, false, nil
+	}
+	locations, err := s.roomInputQueueLocations(ctx, contextValue)
+	if err != nil {
+		return roomInputQueueEntry{}, false, err
+	}
+	for _, location := range locations {
+		item, accepted, findErr := s.inputQueue.FindAcceptedEnqueue(location.Location, clientMessageID)
+		if findErr != nil {
+			return roomInputQueueEntry{}, false, findErr
+		}
+		if accepted {
+			return roomInputQueueEntry{Item: item, Location: location.Location}, true, nil
+		}
+	}
+	return roomInputQueueEntry{}, false, nil
+}
+
 func (s *RealtimeService) deleteRoomInputQueueItem(ctx context.Context, contextValue *protocol.ConversationContextAggregate, itemID string) error {
 	entry, ok, err := s.findRoomInputQueueEntry(ctx, contextValue, itemID)
 	if err != nil || !ok {

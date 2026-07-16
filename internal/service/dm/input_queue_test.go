@@ -139,6 +139,79 @@ func TestServiceHandleChatQueuesRunningRoundByDefault(t *testing.T) {
 	}
 }
 
+func TestServiceInputQueueRetryAfterImmediateDispatchIsIdempotent(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+
+	agentService := newDMAgentService(t, cfg)
+	permission := permissionctx.NewContext()
+	client := newFakeDMClient()
+	queryPrompts := make(chan string, 1)
+	client.onQuery = func(_ context.Context, prompt string) {
+		queryPrompts <- prompt
+		go func() {
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: client.sessionID,
+				UUID:      "result-input-queue-idempotent",
+				Result:    &sdkprotocol.ResultMessage{Subtype: "success", DurationMS: 1, NumTurns: 1},
+			}
+		}()
+	}
+	service := NewService(
+		cfg,
+		agentService,
+		runtimectx.NewManagerWithFactory(&fakeDMFactory{client: client}),
+		permission,
+	)
+	sessionKey := "agent:nexus:ws:dm:test-input-queue-idempotent"
+	sender := newDMTestSender("sender-input-queue-idempotent")
+	permission.BindSession(sessionKey, sender)
+
+	first, err := service.HandleInputQueue(context.Background(), InputQueueRequest{
+		SessionKey:      sessionKey,
+		ClientMessageID: "client-message-dm-input-queue-idempotent",
+		Action:          "enqueue",
+		Content:         "立即执行一次",
+	})
+	if err != nil {
+		t.Fatalf("首次写入 DM input_queue 失败: %v", err)
+	}
+	if first.ItemID == "" || first.Duplicate {
+		t.Fatalf("首次 DM input_queue 受理结果异常: %+v", first)
+	}
+	select {
+	case prompt := <-queryPrompts:
+		if !strings.Contains(prompt, "立即执行一次") {
+			t.Fatalf("首次 DM input_queue prompt 异常: %q", prompt)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("空闲 DM input_queue 未即时派发")
+	}
+	collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
+		status, _ := event.Data["status"].(string)
+		return event.EventType == protocol.EventTypeRoundStatus && status == "finished"
+	})
+
+	retry, err := service.HandleInputQueue(context.Background(), InputQueueRequest{
+		SessionKey:      sessionKey,
+		ClientMessageID: "client-message-dm-input-queue-idempotent",
+		Action:          "enqueue",
+		Content:         "立即执行一次",
+	})
+	if err != nil {
+		t.Fatalf("重试已即时派发的 DM input_queue 失败: %v", err)
+	}
+	if !retry.Duplicate || retry.ItemID != first.ItemID {
+		t.Fatalf("重试应确认原始 DM 队列受理结果: first=%+v retry=%+v", first, retry)
+	}
+	select {
+	case prompt := <-queryPrompts:
+		t.Fatalf("相同 client_message_id 重试不应触发第二轮: %q", prompt)
+	case <-time.After(200 * time.Millisecond):
+	}
+}
+
 func TestDMGuidanceAppliedAckDoesNotConsumeNewerBatch(t *testing.T) {
 	storeRoot := t.TempDir()
 	store := workspacestore.NewInputQueueStore(storeRoot)
@@ -747,11 +820,12 @@ func TestServiceInputQueueGuideWaitsForPostToolUse(t *testing.T) {
 	}
 	waitForEvent(t, sender.events, protocol.EventTypeRoundStatus, "running")
 
-	if err := service.HandleInputQueue(context.Background(), InputQueueRequest{
-		SessionKey:     sessionKey,
-		Action:         "enqueue",
-		Content:        "路径发给我吧",
-		DeliveryPolicy: protocol.ChatDeliveryPolicyQueue,
+	if _, err := service.HandleInputQueue(context.Background(), InputQueueRequest{
+		SessionKey:      sessionKey,
+		ClientMessageID: "client-message-guide-input-queue",
+		Action:          "enqueue",
+		Content:         "路径发给我吧",
+		DeliveryPolicy:  protocol.ChatDeliveryPolicyQueue,
 	}); err != nil {
 		t.Fatalf("写入 DM 待发送队列失败: %v", err)
 	}
@@ -768,7 +842,7 @@ func TestServiceInputQueueGuideWaitsForPostToolUse(t *testing.T) {
 	}
 	itemID := items[0].ID
 
-	if err := service.HandleInputQueue(context.Background(), InputQueueRequest{
+	if _, err := service.HandleInputQueue(context.Background(), InputQueueRequest{
 		SessionKey: sessionKey,
 		Action:     "guide",
 		ItemID:     itemID,
@@ -819,7 +893,7 @@ func TestServiceInputQueueGuideWaitsForPostToolUse(t *testing.T) {
 	if onApplied == nil {
 		t.Fatal("DM guide output 缺少 runtime applied ACK callback")
 	}
-	if err = service.HandleInputQueue(context.Background(), InputQueueRequest{
+	if _, err = service.HandleInputQueue(context.Background(), InputQueueRequest{
 		SessionKey: sessionKey,
 		Action:     "reorder",
 		OrderedIDs: []string{itemID},

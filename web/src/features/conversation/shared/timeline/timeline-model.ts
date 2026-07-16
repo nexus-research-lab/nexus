@@ -1,6 +1,6 @@
 /**
  * INPUT: 会话消息、运行轮次与服务端 round 索引。
- * OUTPUT: DM / Room 共用的根轮次分组、索引去重与 feed 顺序纯投影。
+ * OUTPUT: DM / Room 共用的根轮次分组、历史窗口可见性与 feed 顺序纯投影。
  * POS: 时间线顺序的唯一真相源，feed 与 navigator 不得自行修正轮次。
  */
 import type {
@@ -113,6 +113,31 @@ export function filterSupersededRoundIndexItems(
     return !Array.from(targetRoundIds).some((targetRoundId) => (
       indexedRoundIds.has(targetRoundId)
     ));
+  });
+}
+
+/**
+ * 目标窗口请求成功后，只保留实际投影出用户可见内容的已解析轮次。
+ * 未解析轮次仍保留短暂占位，避免请求完成前导航与 feed 出现空洞。
+ */
+export function filterResolvedEmptyRoundIndexItems(
+  roundIndexItems: SessionRoundIndexItem[],
+  visibleRoundIds: string[],
+  resolvedRoundIds: string[],
+): SessionRoundIndexItem[] {
+  if (resolvedRoundIds.length === 0) {
+    return roundIndexItems;
+  }
+
+  const visible = new Set(
+    visibleRoundIds.map((roundId) => roundId.trim()).filter(Boolean),
+  );
+  const resolved = new Set(
+    resolvedRoundIds.map((roundId) => roundId.trim()).filter(Boolean),
+  );
+  return roundIndexItems.filter((item) => {
+    const roundId = item.roundId.trim();
+    return !resolved.has(roundId) || visible.has(roundId);
   });
 }
 
