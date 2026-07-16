@@ -51,7 +51,7 @@ export function ContactsAgentCard({
       <div className="pointer-events-none relative z-10 flex w-full flex-col items-center">
         <UiAgentAvatar
           avatar={agent.avatar}
-          className="mx-auto transition-all duration-300 group-hover:scale-105"
+          className="mx-auto"
           name={agent.name}
           size="lg"
         />

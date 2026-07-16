@@ -129,7 +129,7 @@ function WorkspaceSurfaceTitle({
   return (
     <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-x-1.5">
       {title ? (
-        <div className="truncate text-[18px] font-black tracking-normal text-(--text-strong)">
+        <div className="truncate text-[17px] font-semibold leading-5 tracking-normal text-(--text-strong)">
           {title}
         </div>
       ) : null}

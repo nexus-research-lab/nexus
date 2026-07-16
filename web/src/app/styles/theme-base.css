@@ -86,10 +86,10 @@
     position: relative;
     background-color: var(--background);
     background-image: var(--surface-body-background);
-    background-attachment: fixed, fixed;
-    background-position: top left, center top;
-    background-repeat: repeat, no-repeat;
-    background-size: var(--ambient-page-pattern-size), 100% 100%;
+    background-attachment: fixed;
+    background-position: top left;
+    background-repeat: repeat;
+    background-size: var(--ambient-page-pattern-size);
     color: var(--foreground);
     font-family: var(--font-sans);
     line-height: 1.5;

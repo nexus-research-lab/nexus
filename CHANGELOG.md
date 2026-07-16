@@ -42,6 +42,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Harmonized the desktop rail with the themed page background by removing its opaque fill, allowing the shared triangle pattern to continue through the navigation area.
+- Set the light page background to the near-white `#fcfdfc` while retaining the original blue interaction colors.
+- Added a restrained cool-gray underlay to the light triangle pattern for a clearer embossed edge.
+- Increased the light-theme hover contrast with a cool-gray surface and boundary while leaving active states unchanged.
+- Flattened the page ambient background to the theme color while restoring a restrained Launcher-only radial hero aura; the existing triangle pattern and functional surface treatments remain intact.
+- Removed unused `ambient-stage-*` plus orphaned inset/card/dialog-surface material gradients; public Landing material-shell gradients now use the existing card fill, while functional popover, input, and canvas surfaces keep their theme recipes.
+- Simplified the working-surface visual language: reduced heading weight and oversized title scale, flattened empty-state cards into a compact capability list, removed decorative activity shimmer and card lift, reduced rail/panel blur, and aligned semantic status colors with the existing theme tokens.
+- Made the UI font contract deterministic by using the platform sans stack for non-content UI while keeping KingHwaOldSong scoped to message CJK text and monospace reserved for code.
+- Kept shared list-row hover/active behavior aligned with the original light-theme interaction tokens.
 - 将 Agent 详情页的 Agent 切换器并入身份、工具、技能、联络导航行，并将工作区选择器并入文件预览 Header，避免额外占用布局空间。
 - Refined conversation and workspace Markdown contrast, font roles, scale, and spacing while keeping emphasis only one weight step above regular text.
 - Tightened conversation Markdown sizing, line height, and block spacing for denser reading without collapsing hierarchy.

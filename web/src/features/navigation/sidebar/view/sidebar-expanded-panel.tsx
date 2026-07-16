@@ -101,7 +101,7 @@ export function SidebarExpandedPanel({
       >
         <SidebarNexusButton {...nexus} variant="panel" />
         <Link
-          className="block min-w-0 transition-transform duration-(--motion-duration-normal) hover:translate-y-[-0.5px]"
+          className="block min-w-0"
           data-tour-anchor={SIDEBAR_TOUR_ANCHORS.launcher}
           title={launcherLabel}
           to={AppRouteBuilders.launcher()}

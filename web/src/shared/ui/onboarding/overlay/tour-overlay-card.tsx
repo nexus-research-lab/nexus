@@ -86,7 +86,7 @@ export const TourOverlayCard = forwardRef<
         </span>
         <div className="flex items-center gap-2">
           <button
-            className="rounded-full border border-(--divider-subtle-color) px-3 py-1.5 text-[11px] font-medium text-(--text-default) transition-[background,color,transform] duration-(--motion-duration-fast) hover:-translate-y-[1px] hover:bg-(--surface-interactive-hover-background) disabled:pointer-events-none disabled:opacity-(--disabled-opacity)"
+            className="rounded-full border border-(--divider-subtle-color) px-3 py-1.5 text-[11px] font-medium text-(--text-default) transition-[background,color] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) disabled:pointer-events-none disabled:opacity-(--disabled-opacity)"
             disabled={stepIndex === 0}
             onClick={onPrevious}
             type="button"
@@ -94,7 +94,7 @@ export const TourOverlayCard = forwardRef<
             {t("common.back")}
           </button>
           <button
-            className="rounded-full bg-(--primary) px-3 py-1.5 text-[11px] font-medium text-white transition-[transform,opacity] duration-(--motion-duration-fast) hover:-translate-y-[1px] hover:opacity-92"
+            className="rounded-full bg-(--primary) px-3 py-1.5 text-[11px] font-medium text-white transition-opacity duration-(--motion-duration-fast) hover:opacity-92"
             onClick={isLastStep ? () => onClose({ completed: true }) : onNext}
             type="button"
           >

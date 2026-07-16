@@ -286,7 +286,6 @@ function LandingWorkbenchFiles() {
               关闭
             </WorkspaceSurfaceToolbarAction>
           ),
-          eyebrow: "Workspace",
           kind: "page",
         }}
         maxWidthClassName="max-w-none"

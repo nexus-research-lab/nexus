@@ -159,7 +159,7 @@ function ScheduledTaskSuggestions({
           const SuggestionIcon = SUGGESTION_ICONS[suggestion.icon];
           return (
             <button
-              className="group flex min-h-[118px] items-start gap-3 rounded-[8px] border border-(--divider-subtle-color) bg-transparent p-4 text-left transition-[background,border-color,transform] duration-(--motion-duration-fast) hover:-translate-y-px hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_24%,transparent)]"
+              className="group flex min-h-[118px] items-start gap-3 rounded-[8px] border border-(--divider-subtle-color) bg-transparent p-4 text-left transition-[background,border-color] duration-(--motion-duration-fast) hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_24%,transparent)]"
               key={suggestion.title}
               onClick={() => onSelect(suggestion.preset)}
               type="button"

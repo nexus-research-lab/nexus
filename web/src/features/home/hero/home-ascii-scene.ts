@@ -45,7 +45,7 @@ interface HomeAsciiClock {
 const INITIAL_VIEWPORT: HomeAsciiViewport = {
   charset: DESKTOP_CHARSET,
   dpr: 1,
-  glyphFont: '500 6px "IBM Plex Mono", monospace',
+  glyphFont: '500 6px "PT Mono", monospace',
   height: 80,
   influenceForce: 3.5,
   influenceRadius: 110,
@@ -183,7 +183,7 @@ export class HomeAsciiScene {
     this.viewport = {
       charset: isMobile ? MOBILE_CHARSET : DESKTOP_CHARSET,
       dpr: Math.min(window.devicePixelRatio || 1, 2),
-      glyphFont: `500 ${glyphSize}px "IBM Plex Mono", monospace`,
+      glyphFont: `500 ${glyphSize}px "PT Mono", monospace`,
       height: Math.round(Math.max(this.section.clientHeight, 80)),
       influenceForce: isMobile ? 5 : 3.5,
       influenceRadius: isMobile ? 50 : 110,
@@ -206,8 +206,8 @@ export class HomeAsciiScene {
     this.clock = {
       ...this.clock,
       bigSize,
-      fontBig: `200 ${bigSize}px "IBM Plex Mono", monospace`,
-      fontSmall: `200 ${smallSize}px "IBM Plex Mono", monospace`,
+      fontBig: `200 ${bigSize}px "PT Mono", monospace`,
+      fontSmall: `200 ${smallSize}px "PT Mono", monospace`,
       padX: isMobile ? 14 : 22,
       padY: isMobile ? 12 : 18,
       smallSize,
@@ -232,7 +232,7 @@ export class HomeAsciiScene {
     if (!metricsContext) {
       return null;
     }
-    metricsContext.font = '600 80px "IBM Plex Mono", monospace';
+    metricsContext.font = '600 80px "PT Mono", monospace';
     const measuredWidth = metricsContext.measureText(HOME_HERO_LABEL).width || width;
     const fontSize = Math.min(
       Math.floor((80 * width) / measuredWidth * 0.92),
@@ -246,7 +246,7 @@ export class HomeAsciiScene {
     if (!context) {
       return null;
     }
-    context.font = `600 ${fontSize}px "IBM Plex Mono", monospace`;
+    context.font = `600 ${fontSize}px "PT Mono", monospace`;
     const textWidth = context.measureText(HOME_HERO_LABEL).width;
     context.fillStyle = "#fff";
     context.textBaseline = "middle";

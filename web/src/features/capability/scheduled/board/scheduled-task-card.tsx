@@ -91,7 +91,7 @@ export function ScheduledTaskCard({
   return (
     <article
       className={cn(
-        "group rounded-[8px] border bg-(--surface-raised-background) p-3.5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-[border-color,box-shadow,transform] duration-(--motion-duration-fast) hover:-translate-y-px hover:border-(--surface-interactive-hover-border) hover:shadow-[0_8px_22px_rgba(15,23,42,0.07)]",
+        "group rounded-[8px] border bg-(--surface-raised-background) p-3.5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-[border-color,background-color] duration-(--motion-duration-fast) hover:border-(--surface-interactive-hover-border)",
         presentation.columnId === "attention"
           ? "border-[color:color-mix(in_srgb,var(--warning)_30%,var(--divider-subtle-color))]"
           : "border-(--divider-subtle-color)",

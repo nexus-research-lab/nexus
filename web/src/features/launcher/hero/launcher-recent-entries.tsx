@@ -48,7 +48,7 @@ function LauncherRecentEntryChip({
         ) : null}
         <button
           aria-label={presentation.ariaLabel}
-          className="inline-flex items-center gap-1 rounded-full px-2 py-1.5 text-xs font-medium transition duration-150 ease-out hover:-translate-y-0.5 sm:text-sm"
+          className="inline-flex items-center gap-1 rounded-full px-2 py-1.5 text-xs font-medium transition-colors duration-150 ease-out hover:text-(--launcher-handoff-hover-color) sm:text-sm"
           onClick={(event) => {
             event.stopPropagation();
             onOpen(presentation.entry);

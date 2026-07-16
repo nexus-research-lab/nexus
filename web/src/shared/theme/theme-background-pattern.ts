@@ -8,7 +8,7 @@
  *   - rain ：深色轻描边（etched）—— 内敛、沉静
  *
  * 统一几何骨架 + 纯色 alpha 变体，
- * 线条与背景色差 ≈2%，"感觉得到但看不见"。
+ * 线条保持低对比，但要在纯色底上可感知，不抢正文阅读层级。
  */
 
 type BackgroundTheme = "light" | "dark" | "sunny" | "rain";
@@ -47,9 +47,9 @@ function buildGridSvg(strokeColor: string, strokeWidth: number): string {
   ].join("");
 }
 
-/* Light — 白色 embossed 描边，在 #ededec 上形成 ≈2% 亮度差 */
+/* Light — 白色高光叠加极淡冷灰底线，形成克制的 embossed 浮雕边缘。 */
 function buildLightSvg(): string {
-  return buildGridSvg("rgba(255,255,255,0.38)", 0.6);
+  return buildGridSvg("rgba(148,163,184,0.068)", 0.6);
 }
 
 /* Dark — 深色 engraved 描边，在 #131316 上形成微弱阴刻质感 */
@@ -83,7 +83,7 @@ function resolveVariant(theme: BackgroundTheme): PatternVariant {
 }
 
 const BACKGROUNDS: Record<PatternVariant, string> = {
-  light: "#f0f1ef",
+  light: "#fcfdfc",
   dark: "#131316",
   rain: "#39424d",
 };

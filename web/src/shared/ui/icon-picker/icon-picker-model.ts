@@ -43,7 +43,7 @@ const ICON_SIZE_CLASS_NAMES: Record<IconPickerSize, string> = {
 };
 
 const ICON_STATE_CLASS_NAMES = {
-  idle: "border border-(--surface-inset-border) bg-transparent hover:bg-(--surface-interactive-hover-background) hover:-translate-y-[1px]",
+  idle: "border border-(--surface-inset-border) bg-transparent hover:bg-(--surface-interactive-hover-background)",
   selected: "bg-[color:color-mix(in_srgb,var(--primary)_12%,transparent)] border border-(--primary) shadow-[0_0_0_1px_color-mix(in_srgb,var(--primary)_16%,transparent)]",
 } as const;
 
@@ -54,7 +54,7 @@ function buildIconPickerItem(
   const state = options.value === iconId ? "selected" : "idle";
   return {
     className: cn(
-      "relative inline-flex cursor-pointer items-center justify-center overflow-hidden rounded-[12px] transition-[background,transform,border-color,box-shadow] duration-(--motion-duration-fast)",
+      "relative inline-flex cursor-pointer items-center justify-center overflow-hidden rounded-[12px] transition-[background,border-color,box-shadow] duration-(--motion-duration-fast)",
       ICON_SIZE_CLASS_NAMES[options.iconSize],
       options.layout === "row" && "shrink-0",
       ICON_STATE_CLASS_NAMES[state],

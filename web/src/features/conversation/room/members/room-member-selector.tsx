@@ -92,7 +92,7 @@ function RoomMemberOption({
       </p>
       <div
         className={cn(
-          "pointer-events-none flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-all",
+          "pointer-events-none flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-[background-color,border-color,color] duration-(--motion-duration-fast)",
           selected
             ? "bg-primary text-white"
             : "border border-(--surface-interactive-hover-border) text-(--text-soft)",

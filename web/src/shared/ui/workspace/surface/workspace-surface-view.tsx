@@ -6,7 +6,6 @@ import { WorkspaceSurfaceScaffold } from "./workspace-surface-scaffold";
 
 interface WorkspaceSurfacePageHeader {
   action?: ReactNode;
-  eyebrow?: string;
   kind: "page";
 }
 
@@ -74,24 +73,16 @@ function WorkspaceSurfacePageHeader({
   title: string;
 }) {
   return (
-    <div className={cn("px-5 xl:px-6", header.eyebrow ? "py-3" : "py-2.5")}>
+    <div className="px-5 py-2.5 xl:px-6">
       <div className={cn("mx-auto flex w-full items-center justify-between gap-3", maxWidthClassName)}>
         <div className="min-w-0 flex-1">
-          {header.eyebrow ? (
-            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-(--text-soft)">
-              {header.eyebrow}
-            </p>
-          ) : null}
-          <h2 className={cn(
-            "truncate text-[17px] font-black tracking-[-0.045em] text-(--text-strong)",
-            header.eyebrow && "mt-1",
-          )}>
+          <h2 className="truncate text-[16px] font-semibold leading-5 tracking-normal text-(--text-strong)">
             {title}
           </h2>
         </div>
         {header.action}
       </div>
-      <div className={cn("mx-auto w-full", maxWidthClassName, header.eyebrow ? "mt-3" : "mt-2")}>
+      <div className={cn("mx-auto mt-2 w-full", maxWidthClassName)}>
         <div className="h-px w-full rounded-full bg-(--divider-subtle-color)" />
       </div>
     </div>

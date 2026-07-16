@@ -24,37 +24,37 @@ const PRESENTATION_BY_KEY: Readonly<Record<MemoryPresentationKey, MemoryDocument
   index: {
     icon: BookOpenText,
     labelKey: "capability.memory_index",
-    tone: "bg-sky-500/10 text-sky-600 dark:text-sky-400",
+    tone: "bg-(--surface-panel-subtle-background) text-(--text-default)",
   },
   daily_log: {
     icon: History,
     labelKey: "capability.memory_type_daily_log",
-    tone: "bg-zinc-500/10 text-zinc-600 dark:text-zinc-400",
+    tone: "bg-(--surface-panel-subtle-background) text-(--text-muted)",
   },
   user: {
     icon: UserRound,
     labelKey: "capability.memory_type_user",
-    tone: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+    tone: "bg-[color:color-mix(in_srgb,var(--accent)_10%,transparent)] text-(--accent)",
   },
   feedback: {
     icon: MessageSquareWarning,
     labelKey: "capability.memory_type_feedback",
-    tone: "bg-amber-500/10 text-amber-700 dark:text-amber-400",
+    tone: "bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] text-(--warning)",
   },
   project: {
     icon: FolderKanban,
     labelKey: "capability.memory_type_project",
-    tone: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
+    tone: "bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-(--primary)",
   },
   reference: {
     icon: Link2,
     labelKey: "capability.memory_type_reference",
-    tone: "bg-rose-500/10 text-rose-600 dark:text-rose-400",
+    tone: "bg-(--surface-panel-subtle-background) text-(--text-muted)",
   },
   topic: {
     icon: FileText,
     labelKey: "capability.memory_type_topic",
-    tone: "bg-zinc-500/10 text-zinc-600 dark:text-zinc-400",
+    tone: "bg-(--surface-panel-subtle-background) text-(--text-muted)",
   },
 };
 

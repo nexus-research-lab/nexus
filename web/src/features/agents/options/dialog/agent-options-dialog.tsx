@@ -66,7 +66,7 @@ export function AgentOptionsDialog({
               </div>
               <div className="min-w-0">
                 <h2
-                  className="dialog-title truncate text-[22px] font-black"
+                  className="dialog-title truncate text-[20px] font-semibold"
                   id="agent-options-dialog-title"
                 >
                   {header.title}

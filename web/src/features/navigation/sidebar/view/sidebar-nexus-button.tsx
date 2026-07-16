@@ -27,7 +27,7 @@ function RailNexusButton({
     <button
       aria-label="Nexus"
       className={cn(
-        "flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-[10px] font-semibold uppercase text-(--text-subtle) shadow-(--surface-avatar-shadow) transition-(transform,border-color,box-shadow) duration-(--motion-duration-fast) hover:-translate-y-px hover:border-(--surface-interactive-hover-border)",
+        "flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-[10px] font-semibold uppercase text-(--text-subtle) shadow-(--surface-avatar-shadow) transition-[border-color,box-shadow] duration-(--motion-duration-fast) hover:border-(--surface-interactive-hover-border)",
         active &&
           "border-(--surface-interactive-active-border) shadow-[0_8px_20px_color-mix(in_srgb,var(--primary)_10%,transparent)]",
       )}

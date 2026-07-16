@@ -41,7 +41,7 @@ const SIDEBAR_PRIMARY_TAB_VARIANTS = {
   rail: {
     badgeClassName: "absolute -right-1 -top-1 h-4 min-w-4 px-1 text-[10px] shadow-[0_2px_6px_rgba(255,76,84,0.28)]",
     buttonActiveClassName: "bg-(--surface-interactive-active-background) text-(--primary)",
-    buttonBaseClassName: "relative flex h-9 w-9 items-center justify-center rounded-full text-(--icon-default) transition-(background,color,transform) duration-(--motion-duration-fast) hover:-translate-y-px hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
+    buttonBaseClassName: "relative flex h-9 w-9 items-center justify-center rounded-full text-(--icon-default) transition-[background,color] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
     buttonInactiveClassName: "",
     containerClassName: "mt-1 flex flex-col items-center gap-1.5",
     iconBaseClassName: "h-4 w-4",

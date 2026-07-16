@@ -38,7 +38,6 @@ function buildLauncherSurfaceThemeStyle(
   config: LauncherSurfaceConfig,
 ): LauncherSurfaceThemeStyle {
   return {
-    "--launcher-stage-background": "var(--ambient-page-background)",
     "--launcher-stage-pattern": "var(--ambient-page-pattern)",
     "--launcher-divider-color": config.dividerColor,
     "--launcher-hero-aura": config.heroAura,
@@ -66,13 +65,12 @@ function buildLauncherSurfaceThemeStyle(
     "--launcher-meta-text": config.metaText,
     "--launcher-handoff-color": config.accentColor,
     "--launcher-handoff-hover-color": config.accentHoverColor,
-    backgroundAttachment: "fixed, fixed",
+    backgroundAttachment: "fixed",
     backgroundColor: "var(--background)",
-    backgroundImage:
-      "var(--launcher-stage-pattern), var(--launcher-stage-background)",
-    backgroundPosition: "top left, center top",
-    backgroundRepeat: "repeat, no-repeat",
-    backgroundSize: "var(--ambient-page-pattern-size), 100% 100%",
+    backgroundImage: "var(--launcher-stage-pattern)",
+    backgroundPosition: "top left",
+    backgroundRepeat: "repeat",
+    backgroundSize: "var(--ambient-page-pattern-size)",
   };
 }
 

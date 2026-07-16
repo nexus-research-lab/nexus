@@ -6,7 +6,7 @@ import type {
 
 import { cn } from "@/shared/ui/class-name";
 
-type CatalogCardSize = "compact" | "catalog" | "comfort" | "panel" | "hero" | "stat";
+type CatalogCardSize = "compact" | "catalog" | "comfort" | "panel";
 type CatalogCardAlign = "start" | "center";
 
 const CATALOG_CARD_SIZE_CLASSES: Record<CatalogCardSize, string> = {
@@ -14,8 +14,6 @@ const CATALOG_CARD_SIZE_CLASSES: Record<CatalogCardSize, string> = {
   catalog: "min-h-[170px] rounded-[12px] px-5 py-4",
   comfort: "rounded-[14px] px-6 py-6",
   panel: "rounded-[14px] px-5 py-5 sm:px-6 sm:py-6",
-  hero: "rounded-[14px] px-6 py-7 sm:px-8 sm:py-8",
-  stat: "rounded-[12px] px-4 py-4",
 };
 
 export function WorkspaceCatalogCard({

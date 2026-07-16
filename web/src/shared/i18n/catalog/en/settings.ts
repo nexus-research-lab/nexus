@@ -13,7 +13,6 @@ export const enSettingsMessages = {
   "settings.navigation.workspace": "Workspace",
   "settings.navigation.permissions": "Permissions",
   "settings.navigation.management": "Management",
-  "settings.general.eyebrow": "Basics",
   "settings.general.title": "General settings",
   "settings.general.description": "Manage theme and interface language in one place. Changes apply immediately across navigation, conversations, and tool panels.",
   "settings.general.header_description": "Manage theme, language, and core interface preferences.",

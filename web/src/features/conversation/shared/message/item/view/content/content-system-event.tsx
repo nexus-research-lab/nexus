@@ -34,7 +34,7 @@ const SYSTEM_EVENT_STYLES: Record<
   },
   warning: {
     iconClassName: "text-(--warning)",
-    labelClassName: "text-amber-800/80",
+    labelClassName: "text-(--warning)",
   },
 };
 

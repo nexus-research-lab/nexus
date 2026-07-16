@@ -20,7 +20,7 @@ export function CapabilitySidebarItemView({
 
   return (
     <button
-      className="group/item relative box-border flex w-full min-w-0 cursor-pointer items-center gap-2.5 rounded-[12px] px-2.5 py-[7px] text-left text-[14px] text-(--text-default) transition-[background,color,transform] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) data-[active=true]:bg-[color:color-mix(in_srgb,var(--surface-interactive-active-background)_72%,transparent)] data-[active=true]:font-medium data-[active=true]:text-(--text-strong)"
+      className="group/item relative box-border flex w-full min-w-0 cursor-pointer items-center gap-2.5 rounded-[12px] px-2.5 py-[7px] text-left text-[14px] text-(--text-default) transition-[background,color] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) data-[active=true]:bg-[color:color-mix(in_srgb,var(--surface-interactive-active-background)_72%,transparent)] data-[active=true]:font-medium data-[active=true]:text-(--text-strong)"
       data-active={String(active)}
       onClick={handleClick}
       type="button"
