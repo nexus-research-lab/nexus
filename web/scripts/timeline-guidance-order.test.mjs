@@ -18,6 +18,34 @@ test.after(async () => {
   await server.close();
 });
 
+test("scroll events only resume following near the bottom", async () => {
+  const { isNearScrollBottom } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/timeline/scroll/follow-scroll-model.ts",
+  );
+
+  assert.equal(
+    isNearScrollBottom(
+      { clientHeight: 500, scrollHeight: 5_000, scrollTop: 2_000 },
+    ),
+    false,
+    "an intermediate downward animation frame must not disable following",
+  );
+  assert.equal(
+    isNearScrollBottom(
+      { clientHeight: 500, scrollHeight: 5_000, scrollTop: 1_800 },
+    ),
+    false,
+    "Room layout movement must not be mistaken for user upward scrolling",
+  );
+  assert.equal(
+    isNearScrollBottom(
+      { clientHeight: 500, scrollHeight: 5_000, scrollTop: 4_450 },
+    ),
+    true,
+    "scrolling back near the bottom must restore following",
+  );
+});
+
 test("resolved history rounds remain only when visible content was projected", async () => {
   const {
     buildIndexedTimelineRoundIds,
