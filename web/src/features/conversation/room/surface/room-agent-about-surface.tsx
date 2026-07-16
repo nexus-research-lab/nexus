@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Album,
   Handshake,
@@ -87,7 +87,7 @@ export function RoomAgentAboutSurface({
     return onValidateAgentName(name, selectedAgent.agent_id);
   }, [onValidateAgentName, selectedAgent.agent_id]);
 
-  const titleTrailing = roomMembers.length > 1 ? (
+  const agentSwitcher = roomMembers.length > 1 ? (
     <RoomAgentSwitcher
       members={roomMembers}
       selectedId={selectedAgent.agent_id}
@@ -100,16 +100,13 @@ export function RoomAgentAboutSurface({
       bodyClassName="flex min-h-0 flex-1 flex-col px-0 py-0"
       bodyScrollable={false}
       contentClassName="flex h-full min-h-0 flex-1 flex-col"
-      header={titleTrailing ? {
-        kind: "overlay",
-        leading: titleTrailing,
-      } : undefined}
       maxWidthClassName="max-w-none"
       title={t("room.about")}
     >
       <div className="flex h-full min-h-0 flex-1 flex-col">
         <RoomAgentPanelTabs
           activeTab={activeTab}
+          leading={agentSwitcher}
           onChange={setActiveTab}
         />
         {activeTab === "private_domain" ? (
@@ -149,17 +146,24 @@ const ROOM_AGENT_PANEL_TABS: Array<{
 
 function RoomAgentPanelTabs({
   activeTab: activeTab,
+  leading: leading,
   onChange: onChange,
 }: {
   activeTab: RoomAgentPanelTabKey;
+  leading?: ReactNode;
   onChange: (tab: RoomAgentPanelTabKey) => void;
 }) {
   return (
     <div className="flex h-[41px] min-w-0 items-center border-b dialog-divider px-6">
+      {leading ? (
+        <div className="mr-5 shrink-0">
+          {leading}
+        </div>
+      ) : null}
       <UiUnderlineTabs
         activeValue={activeTab}
         ariaLabel="Agent 面板切换"
-        className="-mx-0.5 flex-1 px-0.5"
+        className="-mx-0.5 min-w-0 flex-1 px-0.5"
         itemClassName="h-full"
         onChange={onChange}
         options={ROOM_AGENT_PANEL_TABS.map((item) => ({

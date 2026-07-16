@@ -72,10 +72,6 @@ export function RoomWorkspaceView({
         bodyClassName="px-2 pt-1 pb-0 sm:px-2 xl:px-4"
         bodyScrollable={false}
         contentClassName="flex h-full min-h-0 min-w-0 gap-4"
-        header={agentSwitcher ? {
-          kind: "overlay",
-          leading: agentSwitcher,
-        } : undefined}
         maxWidthClassName="max-w-none"
         title={t("room.workspace_title")}
       >
@@ -90,6 +86,7 @@ export function RoomWorkspaceView({
             <WorkspaceFilePreviewPanel
               agentId={controller.agent.viewAgentId}
               className="h-full w-full"
+              headerLeading={agentSwitcher}
               isPreviewFocused={isPreviewFocused}
               onTogglePreviewFocus={togglePreviewFocus}
               path={activeWorkspacePath}

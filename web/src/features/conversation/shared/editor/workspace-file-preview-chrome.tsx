@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode } from "react";
+import { createContext, type ReactNode, useContext } from "react";
 import { Download, FolderOpen, Maximize2, Minimize2 } from "lucide-react";
 
 import { downloadWorkspaceFileApi } from "@/lib/api/agent/agent-api";
@@ -15,6 +15,22 @@ const WORKSPACE_FILE_TOOLBAR_BUTTON_CLASS_NAME = cn(
   "max-xl:w-8 max-xl:px-0 max-xl:gap-0",
 );
 
+const WorkspaceFilePreviewHeaderLeadingContext = createContext<ReactNode>(null);
+
+export function WorkspaceFilePreviewHeaderProvider({
+  children,
+  leading,
+}: {
+  children: ReactNode;
+  leading?: ReactNode;
+}) {
+  return (
+    <WorkspaceFilePreviewHeaderLeadingContext.Provider value={leading}>
+      {children}
+    </WorkspaceFilePreviewHeaderLeadingContext.Provider>
+  );
+}
+
 export function WorkspaceFilePreviewHeader({
   actions,
   meta,
@@ -24,15 +40,19 @@ export function WorkspaceFilePreviewHeader({
   meta?: ReactNode;
   title: string;
 }) {
+  const leading = useContext(WorkspaceFilePreviewHeaderLeadingContext);
   return (
     <div className="overflow-hidden border-b divider-subtle px-3 pt-0 pb-2">
       <div className="flex min-w-0 items-center justify-between gap-3">
-        <p
-          className="min-w-0 flex-1 truncate text-xs font-semibold uppercase leading-5 tracking-[0.16em] text-muted-foreground"
-          title={title}
-        >
-          {title}
-        </p>
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          {leading ? <div className="shrink-0">{leading}</div> : null}
+          <p
+            className="min-w-0 flex-1 truncate text-xs font-semibold uppercase leading-5 tracking-[0.16em] text-muted-foreground"
+            title={title}
+          >
+            {title}
+          </p>
+        </div>
         <div className="flex shrink-0 items-center gap-2 self-start">
           {actions}
         </div>

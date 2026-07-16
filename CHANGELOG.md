@@ -41,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- 将 Agent 详情页的 Agent 切换器并入身份、工具、技能、联络导航行，并将工作区选择器并入文件预览 Header，避免额外占用布局空间。
 - Refined IM pairing management with pending-first status views, accurate local filtering, action-oriented empty states, and collapsible technical details.
 - Filled missing context windows for commonly used model families from a maintained model-card catalog while preserving Provider-reported values as authoritative.
 - Replaced independent Room history limits with a model-window-aware context budget, product-owned cold-start anchors, prioritized public/private deltas, and checkpoints that advance only through actually consumed content.
