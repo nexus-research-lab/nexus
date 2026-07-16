@@ -49,7 +49,7 @@ function buildGridSvg(strokeColor: string, strokeWidth: number): string {
 
 /* Light — 白色高光叠加极淡冷灰底线，形成克制的 embossed 浮雕边缘。 */
 function buildLightSvg(): string {
-  return buildGridSvg("rgba(148,163,184,0.068)", 0.6);
+  return buildGridSvg("rgba(148,163,184,0.078)", 0.5);
 }
 
 /* Dark — 深色 engraved 描边，在 #131316 上形成微弱阴刻质感 */

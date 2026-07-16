@@ -1,6 +1,7 @@
 import type { RoomConversationView } from "@/types/conversation/conversation";
 
-const CREATE_CONVERSATION_BUTTON_SPACE = 88;
+// 中文注释：新会话入口为 76px 加 4px 左间距，宽度模型与实际布局保持一致。
+const CREATE_CONVERSATION_BUTTON_SPACE = 80;
 const TRACK_HORIZONTAL_PADDING = 2;
 
 export const ACTIVE_TAB_MIN_WIDTH = 142;

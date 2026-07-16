@@ -144,7 +144,7 @@ export function SidebarExpandedPanel({
 function CapabilityPanel() {
   return (
     <div
-      className="flex min-h-0 flex-1 flex-col px-2"
+      className="flex min-h-0 flex-1 flex-col"
       data-tour-anchor={SIDEBAR_TOUR_ANCHORS.capabilities_list}
     >
       <CapabilitySidebarPanel />

@@ -5,12 +5,12 @@ import { CreateRoomDialog } from "@/features/conversation/room/members/create-ro
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import { SidebarEmptyGuide } from "@/shared/ui/sidebar/sidebar-empty-guide";
+import { SidebarSearchField } from "@/shared/ui/form/sidebar-search-field";
 import { SIDEBAR_TOUR_ANCHORS } from "@/features/onboarding/tours/sidebar-navigation-tour";
 
 import {
   ConversationRow,
   SidebarListLoadingRows,
-  SidebarSearchField,
 } from "./sidebar-list-rows";
 import { useChatSidebarController } from "./use-chat-sidebar-controller";
 
@@ -39,7 +39,7 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
       <SidebarSearchField
         action={(
           <button
-            className="flex h-9 w-9 items-center justify-center rounded-[12px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_76%,transparent)] bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_70%,transparent)] text-(--icon-muted) transition-[background,color] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default)"
+            className="flex h-8 w-8 items-center justify-center rounded-[8px] border border-transparent bg-transparent text-(--icon-muted) transition-[background,color] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default)"
             onClick={controller.create.open}
             title={t("home.create_room")}
             type="button"

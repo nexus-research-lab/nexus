@@ -6,7 +6,7 @@ import {
 } from "./conversation-tabs-model";
 
 const TAB_BASE_CLASS_NAME =
-  "group relative inline-flex h-6.5 flex-none items-center overflow-hidden rounded-[13px] border text-[11px] font-semibold transition-[width,background-color,border-color,color,box-shadow] duration-[145ms] ease-[cubic-bezier(0.25,0.1,0.25,1)]";
+  "group relative inline-flex h-7 flex-none items-center overflow-hidden rounded-[6px] border border-transparent text-[11px] font-medium transition-[width,background-color,border-color,color] duration-[145ms] ease-[cubic-bezier(0.25,0.1,0.25,1)]";
 const TAB_SEPARATOR_CLASS_NAME =
   "before:pointer-events-none before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-px before:bg-[color:color-mix(in_srgb,var(--divider-subtle-color)_72%,transparent)] before:content-['']";
 const TAB_CLOSE_BASE_CLASS_NAME =
@@ -22,15 +22,15 @@ interface WorkspaceConversationTabStatePresentation {
 const TAB_STATE_PRESENTATIONS = {
   active: {
     closeClassName: "opacity-100",
-    indicatorClassName: "bg-(--primary) shadow-[0_0_0_2px_color-mix(in_srgb,var(--primary)_14%,transparent)]",
+    indicatorClassName: "bg-(--primary)",
     minWidth: ACTIVE_TAB_MIN_WIDTH,
-    rootClassName: "z-10 border-[color:color-mix(in_srgb,var(--primary)_18%,var(--divider-subtle-color)_82%)] bg-(--surface-interactive-active-background) text-(--text-strong) shadow-[inset_0_1px_0_color-mix(in_srgb,var(--foreground)_6%,transparent)] hover:border-[color:color-mix(in_srgb,var(--primary)_22%,var(--divider-subtle-color)_78%)] hover:bg-(--surface-interactive-hover-background) hover:shadow-[inset_0_1px_0_color-mix(in_srgb,var(--foreground)_5%,transparent)]",
+    rootClassName: "z-10 border-b border-b-[color:color-mix(in_srgb,var(--primary)_42%,var(--divider-subtle-color)_58%)] bg-transparent text-(--text-strong) shadow-none hover:bg-(--surface-interactive-hover-background)",
   },
   inactive: {
     closeClassName: "opacity-70 group-hover:opacity-100",
     indicatorClassName: "border border-[color:color-mix(in_srgb,var(--icon-muted)_72%,transparent)] bg-transparent group-hover:border-(--icon-default) group-hover:bg-[color:color-mix(in_srgb,var(--icon-default)_28%,transparent)]",
     minWidth: INACTIVE_TAB_MIN_WIDTH,
-    rootClassName: "border-transparent bg-transparent text-(--text-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) hover:shadow-[inset_0_1px_0_color-mix(in_srgb,var(--foreground)_5%,transparent)]",
+    rootClassName: "border-transparent bg-transparent text-(--text-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
   },
 } as const satisfies Record<
   "active" | "inactive",
@@ -71,7 +71,7 @@ export function resolveWorkspaceConversationTabPresentation({
     ariaCurrent: isActive ? "page" : undefined,
     closeClassName: cn(TAB_CLOSE_BASE_CLASS_NAME, state.closeClassName),
     indicatorClassName: cn(
-      "absolute left-2.5 top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full transition-[background-color,border-color,box-shadow] duration-(--motion-duration-fast)",
+      "absolute left-2.5 top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full transition-[background-color,border-color] duration-(--motion-duration-fast)",
       state.indicatorClassName,
     ),
     rootClassName: cn(

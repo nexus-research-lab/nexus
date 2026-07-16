@@ -79,6 +79,22 @@
     box-shadow: 0 0 0 1px color-mix(in srgb, var(--input-shell-focus-border, var(--material-input-focus-border)) 32%, transparent);
   }
 
+  /* 中文注释：主工作台输入区只保留实色面和细边界，避免把功能控件做成一块玻璃。 */
+  .workbench-input-shell {
+    background: var(--surface-panel-background);
+    border-color: var(--surface-panel-border);
+  }
+
+  .workbench-input-shell:hover {
+    background: var(--surface-panel-background);
+  }
+
+  .workbench-input-shell:focus-within {
+    background: var(--surface-panel-background);
+    border-color: var(--surface-interactive-active-border);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--surface-interactive-active-border) 32%, transparent);
+  }
+
   .surface-popover {
     background: var(--surface-popover-background);
     border: 1px solid var(--surface-popover-border);

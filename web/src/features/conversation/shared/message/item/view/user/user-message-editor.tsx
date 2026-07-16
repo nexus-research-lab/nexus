@@ -35,7 +35,7 @@ export function UserMessageEditor({
   };
 
   return (
-    <div className="input-shell ml-auto flex w-full max-w-full flex-col overflow-hidden rounded-[18px]">
+    <div className="input-shell workbench-input-shell ml-auto flex w-full max-w-full flex-col overflow-hidden rounded-[10px]">
       <textarea
         aria-label="编辑消息内容"
         className={cn(

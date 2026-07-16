@@ -7,6 +7,7 @@ import { buildChatNotificationTargetKey } from "@/features/home/notifications/ch
 import { resolveDirectRoomNavigationTarget } from "@/features/navigation/direct-room/direct-room-navigation";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { SidebarEmptyGuide } from "@/shared/ui/sidebar/sidebar-empty-guide";
+import { SidebarSearchField } from "@/shared/ui/form/sidebar-search-field";
 import { SIDEBAR_TOUR_ANCHORS } from "@/features/onboarding/tours/sidebar-navigation-tour";
 import { useAgentStore } from "@/store/agent";
 import { useSidebarStore } from "@/store/sidebar";
@@ -16,7 +17,6 @@ import { useSidebarDirectory } from "./sidebar-directory";
 import {
   ContactRow,
   SidebarListLoadingRows,
-  SidebarSearchField,
 } from "./sidebar-list-rows";
 
 export const ContactsSidebarPanelContent = memo(function ContactsSidebarPanelContent() {
@@ -70,7 +70,7 @@ export const ContactsSidebarPanelContent = memo(function ContactsSidebarPanelCon
       <SidebarSearchField
         action={(
           <button
-            className="flex h-9 w-9 items-center justify-center rounded-[12px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_76%,transparent)] bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_70%,transparent)] text-(--icon-muted) transition-[background,color] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default)"
+            className="flex h-8 w-8 items-center justify-center rounded-[8px] border border-transparent bg-transparent text-(--icon-muted) transition-[background,color] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default)"
             onClick={openContacts}
             title={t("sidebar.manage_contacts")}
             type="button"

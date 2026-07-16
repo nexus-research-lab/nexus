@@ -7,10 +7,13 @@
  * =====================================================
  */
 
-import { getUiIconButtonClassName } from "@/shared/ui/button/button-styles";
+import {
+  getUiButtonClassName,
+  getUiIconButtonClassName,
+} from "@/shared/ui/button/button-styles";
 
 export const COMPOSER_ATTACHMENT_CLASS_NAME =
-  "chip-default group relative inline-flex items-center gap-2 rounded-[14px] px-3 py-[0.45rem]";
+  "chip-default group relative inline-flex items-center gap-2 rounded-[8px] px-2.5 py-1.5";
 
 export const COMPOSER_ATTACHMENT_ROW_CLASS_NAME =
   "flex flex-wrap gap-2 border-b border-(--divider-subtle-color) px-2.5 py-2";
@@ -22,13 +25,13 @@ export const COMPOSER_ACTION_BUTTON_CLASS_NAME =
   getUiIconButtonClassName({ size: "lg", variant: "surface" }, "shrink-0");
 
 export const COMPOSER_PRIMARY_ACTION_BUTTON_CLASS_NAME =
-  getUiIconButtonClassName({ size: "lg", tone: "primary", variant: "solid" }, "shrink-0");
+  getUiButtonClassName({ size: "sm", tone: "primary", variant: "solid" }, "shrink-0");
 
 export const COMPOSER_DANGER_ACTION_BUTTON_CLASS_NAME =
   getUiIconButtonClassName({ size: "lg", tone: "danger", variant: "surface" }, "shrink-0");
 
 export const COMPOSER_SHELL_CLASS_NAME =
-  "input-shell overflow-hidden rounded-[18px]";
+  "input-shell workbench-input-shell overflow-hidden rounded-[10px]";
 
 export const COMPOSER_FOOTER_CLASS_NAME =
   "flex items-center justify-between gap-3 border-t border-(--divider-subtle-color) px-2.5 py-1.5 text-(--text-soft)";

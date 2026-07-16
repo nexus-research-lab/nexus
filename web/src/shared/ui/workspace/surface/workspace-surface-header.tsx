@@ -28,6 +28,7 @@ type WorkspaceSurfaceHeaderProps<TTabKey extends string> = {
   badge?: string;
   dismissActiveTabLabel?: string;
   leading?: ReactNode;
+  leadingClassName?: string;
   onChangeTab?: (tab: TTabKey) => void;
   onDismissActiveTab?: (tab: TTabKey) => void;
   tabs?: WorkspaceSurfaceHeaderTab<TTabKey>[];
@@ -42,6 +43,7 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
   badge,
   dismissActiveTabLabel,
   leading,
+  leadingClassName,
   onChangeTab,
   onDismissActiveTab,
   subtitle,
@@ -64,6 +66,7 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
         <WorkspaceSurfaceIdentity
           badge={badge}
           leading={leading}
+          leadingClassName={leadingClassName}
           title={title}
           titleTrailing={titleTrailing}
         />
@@ -88,11 +91,13 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
 function WorkspaceSurfaceIdentity({
   badge,
   leading,
+  leadingClassName,
   title,
   titleTrailing,
 }: {
   badge?: string;
   leading?: ReactNode;
+  leadingClassName?: string;
   title?: string;
   titleTrailing?: ReactNode;
 }) {
@@ -101,7 +106,10 @@ function WorkspaceSurfaceIdentity({
   return (
     <div className="workspace-surface-header-title flex min-w-0 shrink items-center gap-2.5">
       {leading ? (
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-(--icon-default) shadow-(--surface-avatar-shadow)">
+        <div className={cn(
+          "flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-(--icon-default) shadow-(--surface-avatar-shadow)",
+          leadingClassName,
+        )}>
           {leading}
         </div>
       ) : null}

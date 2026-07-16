@@ -8,8 +8,8 @@ interface UiListRowPresentation {
 }
 
 const LIST_ROW_STATE_CLASS_NAMES = {
-  active: "bg-[color:color-mix(in_srgb,var(--primary)_10%,var(--surface-elevated-background))] text-(--text-strong) shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--primary)_12%,transparent)]",
-  idle: "text-(--text-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) hover:shadow-[inset_0_-1px_0_var(--surface-interactive-hover-border)]",
+  active: "bg-[color:color-mix(in_srgb,var(--primary)_9%,transparent)] text-(--text-strong)",
+  idle: "text-(--text-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
 } as const;
 
 export function getUiListRowPresentation({
@@ -24,7 +24,7 @@ export function getUiListRowPresentation({
   const state = active ? "active" : "idle";
   return {
     className: cn(
-      "group/item relative flex min-h-[68px] w-full items-center gap-3 rounded-[14px] px-3 py-2.5 text-left transition-[background,color,box-shadow] duration-(--motion-duration-fast)",
+      "group/item relative flex min-h-[64px] w-full items-center gap-3 rounded-[8px] px-2.5 py-2 text-left transition-[background,color] duration-(--motion-duration-fast)",
       interactive && "cursor-pointer",
       LIST_ROW_STATE_CLASS_NAMES[state],
       className,

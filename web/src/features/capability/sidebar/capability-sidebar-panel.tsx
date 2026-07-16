@@ -4,7 +4,7 @@ import { memo, useCallback, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiSearchInput } from "@/shared/ui/form/form-control";
+import { SidebarSearchField } from "@/shared/ui/form/sidebar-search-field";
 import { useSidebarStore } from "@/store/sidebar";
 
 import { CapabilitySidebarItemView } from "./capability-sidebar-item";
@@ -36,17 +36,13 @@ export const CapabilitySidebarPanel = memo(function CapabilitySidebarPanel() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="pb-2">
-        <UiSearchInput
-          className="w-full"
-          inputClassName="text-[13px]"
-          onChange={setQuery}
-          placeholder={t("sidebar.search_capabilities")}
-          value={query}
-        />
-      </div>
+      <SidebarSearchField
+        onChange={setQuery}
+        placeholder={t("sidebar.search_capabilities")}
+        value={query}
+      />
 
-      <div className="flex min-h-0 flex-1 flex-col gap-1">
+      <div className="flex min-h-0 flex-1 flex-col gap-0.5 px-2 pb-2">
         {items.length > 0 ? items.map((item) => (
           <CapabilitySidebarItemView
             active={activeItemId === item.id}

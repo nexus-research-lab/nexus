@@ -19,7 +19,7 @@ interface WorkspaceConversationTabsProps {
 }
 
 const TRACK_CLASS_NAME =
-  "soft-scrollbar scrollbar-hide flex h-[30px] w-full min-w-0 items-center gap-0 overflow-x-auto rounded-[15px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_66%,transparent)] bg-[color:color-mix(in_srgb,var(--surface-panel-background)_72%,transparent)] px-px py-px shadow-[inset_0_1px_0_color-mix(in_srgb,var(--foreground)_5%,transparent)]";
+  "soft-scrollbar scrollbar-hide flex h-8 w-full min-w-0 items-center gap-0 overflow-x-auto border-b border-(--divider-subtle-color) px-0 py-0";
 
 export function WorkspaceConversationTabs({
   conversations,
@@ -78,7 +78,7 @@ export function WorkspaceConversationTabs({
       {onCreateConversation ? (
         <button
           aria-label={t("room.new_conversation")}
-          className="relative ml-1 inline-flex h-6.5 w-[84px] shrink-0 items-center justify-start rounded-[13px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_70%,transparent)] bg-[color:color-mix(in_srgb,var(--surface-panel-background)_76%,transparent)] pl-[22px] pr-2 text-left text-[11px] font-semibold leading-none text-(--text-default) shadow-[inset_0_1px_0_color-mix(in_srgb,var(--foreground)_5%,transparent)] transition-[background-color,border-color,color,box-shadow] duration-(--motion-duration-fast) ease-out hover:border-[color:color-mix(in_srgb,var(--success)_24%,var(--divider-subtle-color)_76%)] hover:bg-(--surface-interactive-hover-background) hover:text-(--success) hover:shadow-[inset_0_1px_0_color-mix(in_srgb,var(--success)_8%,transparent)] disabled:opacity-60"
+          className="relative ml-1 inline-flex h-7 min-w-[76px] shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-[6px] border border-[color:color-mix(in_srgb,var(--primary)_22%,var(--divider-subtle-color)_78%)] bg-[color:color-mix(in_srgb,var(--primary)_7%,transparent)] px-2.5 text-left text-[11px] font-medium leading-none text-(--primary) transition-[background-color,border-color,color] duration-(--motion-duration-fast) ease-out hover:border-[color:color-mix(in_srgb,var(--primary)_36%,var(--divider-subtle-color)_64%)] hover:bg-[color:color-mix(in_srgb,var(--primary)_12%,transparent)] hover:text-(--primary) disabled:opacity-60"
           disabled={controller.isCreating}
           onClick={() => {
             void controller.createConversation();
@@ -87,7 +87,7 @@ export function WorkspaceConversationTabs({
           type="button"
         >
           <Plus className={cn(
-            "absolute left-[7px] top-1/2 h-3 w-3 -translate-y-1/2",
+            "h-3.5 w-3.5 shrink-0",
             controller.isCreating && "animate-spin",
           )} />
           <span className="min-w-0 truncate">{t("room.new_conversation")}</span>

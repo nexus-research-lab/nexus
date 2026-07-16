@@ -28,18 +28,18 @@ const ACTIVE_ICON_CLASS_NAME = "fill-(--primary) stroke-(--primary)";
 
 const SIDEBAR_PRIMARY_TAB_VARIANTS = {
   panel: {
-    badgeClassName: "absolute -right-2.5 -top-2 h-4 min-w-4 px-1 text-[10px] shadow-[0_2px_6px_rgba(255,76,84,0.28)]",
-    buttonActiveClassName: "bg-[color:color-mix(in_srgb,var(--primary)_14%,var(--surface-elevated-background))] text-(--primary) shadow-[0_8px_22px_color-mix(in_srgb,var(--primary)_10%,transparent)]",
-    buttonBaseClassName: "flex h-9 items-center justify-center gap-1.5 rounded-[11px] text-[13px] font-medium transition-[background,color,box-shadow] duration-(--motion-duration-fast)",
+    badgeClassName: "absolute -right-2.5 -top-2 h-4 min-w-4 px-1 text-[10px]",
+    buttonActiveClassName: "bg-[color:color-mix(in_srgb,var(--primary)_8%,transparent)] text-(--primary)",
+    buttonBaseClassName: "flex h-9 items-center justify-center gap-1.5 rounded-[8px] text-[13px] font-medium transition-[background,color] duration-(--motion-duration-fast)",
     buttonInactiveClassName: "text-(--text-muted) hover:text-(--text-strong)",
-    containerClassName: "grid grid-cols-3 gap-1 rounded-[14px] bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_58%,transparent)] p-1",
+    containerClassName: "grid grid-cols-3 gap-0 bg-transparent",
     iconBaseClassName: "h-3.5 w-3.5",
     iconFrameClassName: "relative flex h-4 w-4 items-center justify-center",
     showLabel: true,
     useAriaLabel: false,
   },
   rail: {
-    badgeClassName: "absolute -right-1 -top-1 h-4 min-w-4 px-1 text-[10px] shadow-[0_2px_6px_rgba(255,76,84,0.28)]",
+    badgeClassName: "absolute -right-1 -top-1 h-4 min-w-4 px-1 text-[10px]",
     buttonActiveClassName: "bg-(--surface-interactive-active-background) text-(--primary)",
     buttonBaseClassName: "relative flex h-9 w-9 items-center justify-center rounded-full text-(--icon-default) transition-[background,color] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
     buttonInactiveClassName: "",
