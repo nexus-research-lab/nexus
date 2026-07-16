@@ -29,7 +29,6 @@ export function buildLauncherTour(
         description: t("launcher.tour_composer_description"),
         target: LAUNCHER_TOUR_ANCHORS.composer,
         placement: "bottom",
-        image: "/nexus/writing.png",
       },
       {
         id: "recent",
@@ -37,7 +36,6 @@ export function buildLauncherTour(
         description: t("launcher.tour_recent_description"),
         target: LAUNCHER_TOUR_ANCHORS.recent,
         placement: "bottom",
-        image: "/nexus/reading.png",
       },
       {
         id: "handoff",
@@ -45,7 +43,6 @@ export function buildLauncherTour(
         description: t("launcher.tour_handoff_description"),
         target: LAUNCHER_TOUR_ANCHORS.handoff,
         placement: "bottom",
-        image: "/nexus/assigning.png",
       },
       {
         id: "enter_app",
@@ -53,7 +50,6 @@ export function buildLauncherTour(
         description: t("launcher.tour_enter_app_description"),
         target: LAUNCHER_TOUR_ANCHORS.enter_app,
         placement: "bottom",
-        image: "/nexus/stickers/pointing.png",
       },
     ],
   };

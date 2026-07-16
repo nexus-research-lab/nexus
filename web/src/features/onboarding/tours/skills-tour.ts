@@ -31,7 +31,6 @@ export function buildSkillsTour(
         title: t("capability.skills_tour_modes_title"),
         description: t("capability.skills_tour_modes_description"),
         target: SKILLS_TOUR_ANCHORS.modes,
-        image: "/nexus/stickers/pointing.png",
         placement: "bottom",
       },
       {
@@ -39,7 +38,6 @@ export function buildSkillsTour(
         title: t("capability.skills_tour_import_title"),
         description: t("capability.skills_tour_import_description"),
         target: SKILLS_TOUR_ANCHORS.import_skill,
-        image: "/nexus/stickers/pointing.png",
         placement: "bottom",
       },
       {
@@ -47,7 +45,6 @@ export function buildSkillsTour(
         title: t("capability.skills_tour_update_title"),
         description: t("capability.skills_tour_update_description"),
         target: SKILLS_TOUR_ANCHORS.update_library,
-        image: "/nexus/working.png",
         placement: "bottom",
       },
       {
@@ -55,7 +52,6 @@ export function buildSkillsTour(
         title: t("capability.skills_tour_search_title"),
         description: t("capability.skills_tour_search_description"),
         target: SKILLS_TOUR_ANCHORS.search,
-        image: "/nexus/reading.png",
         placement: "bottom",
       },
       {
@@ -63,7 +59,6 @@ export function buildSkillsTour(
         title: t("capability.skills_tour_categories_title"),
         description: t("capability.skills_tour_categories_description"),
         target: SKILLS_TOUR_ANCHORS.categories,
-        image: "/nexus/reviewing.png",
         placement: "bottom",
       },
       {
@@ -71,7 +66,6 @@ export function buildSkillsTour(
         title: t("capability.skills_tour_catalog_title"),
         description: t("capability.skills_tour_catalog_description"),
         target: SKILLS_TOUR_ANCHORS.catalog,
-        image: "/nexus/reviewing.png",
         placement: "top",
       },
     ],

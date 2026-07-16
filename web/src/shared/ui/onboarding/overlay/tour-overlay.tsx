@@ -9,11 +9,6 @@ import {
   getPopoverPosition,
   resolveTourPlacement,
 } from "./tour-overlay-geometry";
-import {
-  getStickerTopClearance,
-  resolveTourSticker,
-} from "./tour-overlay-sticker";
-import { TourStepSticker } from "./tour-step-sticker";
 import { useTourOverlayLayout } from "./use-tour-overlay-layout";
 
 interface OnboardingTourOverlayProps {
@@ -49,20 +44,19 @@ export function OnboardingTourOverlay({
   }
 
   const placement = resolveTourPlacement(step);
-  const sticker = resolveTourSticker(stepIndex, placement);
   const position = getPopoverPosition(
     placement,
     targetRect,
     window.innerWidth,
     window.innerHeight,
     popoverSize,
-    getStickerTopClearance(sticker),
+    16,
   );
 
   return createPortal(
     <div className="fixed inset-0 z-[11000]">
       <div
-        className="absolute inset-0 bg-[rgba(11,16,24,0.46)] backdrop-blur-[1px]"
+        className="absolute inset-0 bg-[rgba(11,16,24,0.42)]"
         onClick={() => onClose()}
         role="presentation"
       />
@@ -71,20 +65,17 @@ export function OnboardingTourOverlay({
         className="absolute"
         style={{ left: position.left, top: position.top }}
       >
-        <div className="relative">
-          <TourStepSticker sticker={sticker} />
-          <TourOverlayCard
-            isLastStep={stepIndex >= tour.steps.length - 1}
-            onClose={onClose}
-            onNext={onNext}
-            onPrevious={onPrevious}
-            placement={placement}
-            ref={cardRef}
-            step={step}
-            stepCount={tour.steps.length}
-            stepIndex={stepIndex}
-          />
-        </div>
+        <TourOverlayCard
+          isLastStep={stepIndex >= tour.steps.length - 1}
+          onClose={onClose}
+          onNext={onNext}
+          onPrevious={onPrevious}
+          placement={placement}
+          ref={cardRef}
+          step={step}
+          stepCount={tour.steps.length}
+          stepIndex={stepIndex}
+        />
       </div>
     </div>,
     document.body,
@@ -94,7 +85,7 @@ export function OnboardingTourOverlay({
 function TourTargetHighlight({ targetRect }: { targetRect: DOMRect }) {
   return (
     <div
-      className="pointer-events-none absolute rounded-[12px] border border-[color:color-mix(in_srgb,var(--primary)_34%,white)] shadow-[0_0_0_9999px_rgba(11,16,24,0.22),0_18px_42px_color-mix(in_srgb,var(--primary)_14%,transparent)] transition-[top,left,width,height] duration-(--motion-duration-fast)"
+      className="pointer-events-none absolute rounded-[10px] border border-[color:color-mix(in_srgb,var(--primary)_38%,white)] shadow-[0_0_0_9999px_rgba(11,16,24,0.16)] transition-[top,left,width,height] duration-(--motion-duration-fast)"
       style={{
         height: targetRect.height + 12,
         left: targetRect.left - 6,

@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { getUiButtonClassName } from "@/shared/ui/button/button-styles";
 import { cn } from "@/shared/ui/class-name";
 import type {
   OnboardingTourStep,
@@ -50,7 +51,7 @@ export const TourOverlayCard = forwardRef<
 
   return (
     <div
-      className="surface-popover relative max-h-[calc(100vh-80px)] w-[min(344px,calc(100vw-32px))] overflow-y-auto rounded-[12px] border px-4 py-3.5 shadow-[0_14px_32px_color-mix(in_srgb,var(--shadow-color)_14%,transparent)]"
+      className="surface-popover relative max-h-[calc(100vh-64px)] w-[min(336px,calc(100vw-32px))] overflow-y-auto rounded-[10px] px-4 py-3 shadow-[0_10px_24px_color-mix(in_srgb,var(--shadow-color)_12%,transparent)]"
       ref={ref}
     >
       {step.image ? (
@@ -62,11 +63,11 @@ export const TourOverlayCard = forwardRef<
       ) : null}
 
       <div className="flex items-start justify-between gap-4">
-        <h3 className="mt-0.5 min-w-0 text-[18px] font-semibold tracking-tight text-(--text-strong)">
+        <h3 className="mt-0.5 min-w-0 text-[16px] font-semibold tracking-tight text-(--text-strong)">
           {step.title}
         </h3>
         <button
-          className="shrink-0 rounded-full px-2 py-1 text-[11px] font-medium text-(--text-muted) transition-[background,color] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
+          className="shrink-0 px-1 py-0.5 text-[11px] font-medium text-(--text-muted) transition-colors duration-(--motion-duration-fast) hover:text-(--text-strong)"
           onClick={() => onClose({ completed: true })}
           type="button"
         >
@@ -74,19 +75,22 @@ export const TourOverlayCard = forwardRef<
         </button>
       </div>
 
-      <p className="mt-2.5 text-[13px] leading-6 text-(--text-default)">
+      <p className="mt-2 text-[12px] leading-5 text-(--text-default)">
         {step.description}
       </p>
 
       {step.items?.length ? <TourStepItems items={step.items} /> : null}
 
-      <div className="mt-3.5 flex items-center justify-between gap-3">
+      <div className="mt-3 border-t border-(--divider-subtle-color) pt-3 flex items-center justify-between gap-3">
         <span className="text-[11px] font-medium tabular-nums text-(--text-muted)">
           {stepIndex + 1} / {stepCount}
         </span>
         <div className="flex items-center gap-2">
           <button
-            className="rounded-full border border-(--divider-subtle-color) px-3 py-1.5 text-[11px] font-medium text-(--text-default) transition-[background,color] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) disabled:pointer-events-none disabled:opacity-(--disabled-opacity)"
+            className={getUiButtonClassName(
+              { size: "xs", tone: "default", variant: "text" },
+              "font-medium",
+            )}
             disabled={stepIndex === 0}
             onClick={onPrevious}
             type="button"
@@ -94,7 +98,10 @@ export const TourOverlayCard = forwardRef<
             {t("common.back")}
           </button>
           <button
-            className="rounded-full bg-(--primary) px-3 py-1.5 text-[11px] font-medium text-white transition-opacity duration-(--motion-duration-fast) hover:opacity-92"
+            className={getUiButtonClassName(
+              { size: "xs", tone: "primary", variant: "surface" },
+              "font-medium",
+            )}
             onClick={isLastStep ? () => onClose({ completed: true }) : onNext}
             type="button"
           >
@@ -116,36 +123,31 @@ function TourStepIllustration({
   title: string;
 }) {
   return (
-    <div className="mb-3 rounded-[12px] border border-(--divider-subtle-color) bg-transparent p-2.5">
-      <div className="relative overflow-hidden rounded-[10px] border border-(--divider-subtle-color) bg-transparent">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_18%,rgba(255,255,255,0.76),transparent_36%),radial-gradient(circle_at_82%_84%,rgba(132,146,255,0.12),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.18),transparent_68%)]" />
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-[linear-gradient(180deg,transparent,rgba(132,146,255,0.06))]" />
-        <img
-          alt={title}
-          className={cn(
-            "relative z-10 mx-auto w-full object-contain px-2 py-2.5 [image-rendering:auto]",
-            "drop-shadow-[0_10px_18px_rgba(87,98,173,0.10)] mix-blend-multiply",
-            centered ? "h-[132px]" : "h-[112px]",
-          )}
-          src={src}
-        />
-      </div>
+    <div className="mb-3 flex items-center justify-center border-b border-(--divider-subtle-color) pb-3">
+      <img
+        alt={title}
+        className={cn(
+          "w-auto object-contain [image-rendering:auto]",
+          centered ? "h-[104px]" : "h-[84px]",
+        )}
+        src={src}
+      />
     </div>
   );
 }
 
 function TourStepItems({ items }: { items: OnboardingTourStepItem[] }) {
   return (
-    <div className="mt-2.5 flex flex-col gap-1.5">
+    <div className="mt-2.5 divide-y divide-(--divider-subtle-color) border-y border-(--divider-subtle-color)">
       {items.map((item) => {
         const Icon = TOUR_ITEM_ICONS[item.icon];
         return (
           <div
-            className="flex items-center gap-2 rounded-[10px] bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_58%,transparent)] px-2.5 py-1.5"
+            className="flex items-center gap-2 py-2"
             key={item.text}
           >
             <Icon className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)" />
-            <span className="text-[12px] leading-5 text-(--text-muted)">
+            <span className="text-[12px] leading-5 text-(--text-default)">
               {item.text}
             </span>
           </div>

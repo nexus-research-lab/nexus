@@ -40,7 +40,6 @@ export function buildSidebarNavigationTour(
         description: t("sidebar.tour_nexus_agent_description"),
         target: SIDEBAR_TOUR_ANCHORS.nexus_agent,
         placement: "right",
-        image: "/nexus/listening.png",
       },
       {
         id: "launcher",
@@ -48,7 +47,6 @@ export function buildSidebarNavigationTour(
         description: t("sidebar.tour_launcher_description"),
         target: SIDEBAR_TOUR_ANCHORS.launcher,
         placement: "right",
-        image: "/nexus/stickers/pointing.png",
       },
       {
         id: "chat",
@@ -56,7 +54,6 @@ export function buildSidebarNavigationTour(
         description: t("sidebar.tour_chat_description"),
         target: SIDEBAR_TOUR_ANCHORS.chat_tab,
         placement: "right",
-        image: "/nexus/in-room.png",
       },
       {
         id: "contacts",
@@ -64,7 +61,6 @@ export function buildSidebarNavigationTour(
         description: t("sidebar.tour_contacts_description"),
         target: SIDEBAR_TOUR_ANCHORS.contacts_tab,
         placement: "right",
-        image: "/nexus/running.png",
       },
       {
         id: "capabilities",
@@ -72,7 +68,6 @@ export function buildSidebarNavigationTour(
         description: t("sidebar.tour_capabilities_description"),
         target: SIDEBAR_TOUR_ANCHORS.capabilities_tab,
         placement: "right",
-        image: "/nexus/working.png",
       },
       {
         id: "restart",
@@ -80,7 +75,6 @@ export function buildSidebarNavigationTour(
         description: t("sidebar.tour_restart_description"),
         target: SIDEBAR_TOUR_ANCHORS.restart,
         placement: "right",
-        image: "/nexus/completed.png",
       },
     ],
   };
