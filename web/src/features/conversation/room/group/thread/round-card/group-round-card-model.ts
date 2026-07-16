@@ -18,6 +18,7 @@ import { stripRoomControlMarkers } from "@/features/conversation/shared/message/
 import {
   buildRoomAgentRoundEntries,
   extractAgentPreviewText,
+  getActiveAgentRoundSortOrder,
   isAgentRoundActive,
   type AgentRoundStatus,
   type RoomAgentRoundEntry,
@@ -547,7 +548,9 @@ function compareAgentCards(
       || left.display_order - right.display_order
       || left.entry_id.localeCompare(right.entry_id);
   }
-  return left.timestamp - right.timestamp
+  return getActiveAgentRoundSortOrder(left.status)
+      - getActiveAgentRoundSortOrder(right.status)
+    || left.timestamp - right.timestamp
     || (left.pending_slot?.index ?? Number.MAX_SAFE_INTEGER)
       - (right.pending_slot?.index ?? Number.MAX_SAFE_INTEGER)
     || left.entry_id.localeCompare(right.entry_id);

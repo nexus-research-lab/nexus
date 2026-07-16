@@ -15,7 +15,7 @@ import {
 
 interface UseAgentConversationSessionParams {
   activeSessionKeyRef: RefObject<string | null>;
-  cancelPendingChatAcks: (reason: string) => void;
+  cancelPendingRequestAcks: (reason: string) => void;
   clearLiveSessionState: () => void;
   lifecycleContext: AgentConversationLifecycleContext;
   resetHistoryPagination: () => void;
@@ -29,7 +29,7 @@ type SessionTransition = (context: AgentConversationLifecycleContext) => void;
 /** 管理会话键切换，并统一清理依附于旧会话的瞬时状态。 */
 export function useAgentConversationSession({
   activeSessionKeyRef,
-  cancelPendingChatAcks,
+  cancelPendingRequestAcks,
   clearLiveSessionState,
   lifecycleContext,
   resetHistoryPagination,
@@ -39,13 +39,13 @@ export function useAgentConversationSession({
 }: UseAgentConversationSessionParams) {
   const runSessionTransition = useCallback(
     (reason: string, transition: SessionTransition): void => {
-      cancelPendingChatAcks(reason);
+      cancelPendingRequestAcks(reason);
       transition(lifecycleContext);
       resetHistoryPagination();
       resetRuntimeMachine();
     },
     [
-      cancelPendingChatAcks,
+      cancelPendingRequestAcks,
       lifecycleContext,
       resetHistoryPagination,
       resetRuntimeMachine,
@@ -81,7 +81,7 @@ export function useAgentConversationSession({
       }
 
       activeSessionKeyRef.current = normalizedKey;
-      cancelPendingChatAcks("会话已切换，未确认的消息发送已取消");
+      cancelPendingRequestAcks("会话已切换，未确认的消息发送已取消");
       resetHistoryPagination();
       setSessionKey((currentKey) => (
         currentKey === normalizedKey ? currentKey : normalizedKey
@@ -96,7 +96,7 @@ export function useAgentConversationSession({
     },
     [
       activeSessionKeyRef,
-      cancelPendingChatAcks,
+      cancelPendingRequestAcks,
       clearLiveSessionState,
       resetHistoryPagination,
       resetRuntimeMachine,

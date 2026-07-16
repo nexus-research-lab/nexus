@@ -33,7 +33,7 @@ import { useConversationVolatileState } from "./state/use-conversation-volatile-
 interface UseAgentConversationRuntimeParams {
   agentId: string | null;
   chatType: AgentConversationChatType;
-  clearPendingChatAck: (clientRequestId?: string | null) => boolean;
+  resolvePendingRequestAck: (clientRequestId?: string | null) => boolean;
   setMessages: Dispatch<SetStateAction<Message[]>>;
   settleAgentWorkspaceWrites: (agentId: string) => void;
 }
@@ -53,7 +53,7 @@ function getRunningRoundIds(payload: SessionStatusData): string[] {
 export function useAgentConversationRuntime({
   agentId,
   chatType,
-  clearPendingChatAck,
+  resolvePendingRequestAck,
   setMessages,
   settleAgentWorkspaceWrites,
 }: UseAgentConversationRuntimeParams) {
@@ -167,7 +167,7 @@ export function useAgentConversationRuntime({
 
   const trackChatAck = useCallback((ack: ChatAckData): void => {
     trackRuntimeChatAck(ack);
-    clearPendingChatAck(ack.client_request_id);
+    resolvePendingRequestAck(ack.client_request_id);
     if (ack.client_message_id && ack.user_message_id) {
       setMessages((messages) => replaceOptimisticUserMessage(
         messages,
@@ -179,7 +179,7 @@ export function useAgentConversationRuntime({
     }
     setPendingAgentSlots((slots) => mergeChatAckPendingSlots(slots, ack));
   }, [
-    clearPendingChatAck,
+    resolvePendingRequestAck,
     setMessages,
     setPendingAgentSlots,
     trackRuntimeChatAck,

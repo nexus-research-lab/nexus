@@ -1,5 +1,5 @@
 // INPUT: DM 待发送项、当前运行 round 与队列控制动作。
-// OUTPUT: 串行派发、round 锚定的 guide 或错过 hook 后的下一轮接力。
+// OUTPUT: 幂等受理结果、串行派发、round 锚定的 guide 或错过 hook 后的下一轮接力。
 // POS: DM 输入队列控制面与派发边界。
 package dm
 
@@ -17,35 +17,48 @@ import (
 
 // InputQueueRequest 表示 DM 待发送队列控制请求。
 type InputQueueRequest struct {
-	SessionKey     string
-	AgentID        string
-	Action         string
-	ItemID         string
-	Content        string
-	Attachments    []protocol.ChatAttachment
-	OrderedIDs     []string
-	DeliveryPolicy protocol.ChatDeliveryPolicy
+	SessionKey      string
+	AgentID         string
+	ClientMessageID string
+	Action          string
+	ItemID          string
+	Content         string
+	Attachments     []protocol.ChatAttachment
+	OrderedIDs      []string
+	DeliveryPolicy  protocol.ChatDeliveryPolicy
 }
 
 // HandleInputQueue 处理 DM 待发送队列控制消息。
-func (s *Service) HandleInputQueue(ctx context.Context, request InputQueueRequest) error {
+func (s *Service) HandleInputQueue(
+	ctx context.Context,
+	request InputQueueRequest,
+) (protocol.InputQueueMutationResult, error) {
 	sessionKey, location, err := s.resolveInputQueueLocation(ctx, request.SessionKey, request.AgentID)
 	if err != nil {
-		return err
+		return protocol.InputQueueMutationResult{}, err
 	}
 	s.inputQueueDispatchMu.Lock()
 	defer s.inputQueueDispatchMu.Unlock()
 
 	action := strings.TrimSpace(request.Action)
+	if action == "" {
+		action = "enqueue"
+	}
 	switch action {
-	case "enqueue", "":
+	case "enqueue":
 		content := strings.TrimSpace(request.Content)
 		attachments := protocol.NormalizeChatAttachments(request.Attachments, request.AgentID)
 		if !protocol.HasChatInput(content, attachments) {
-			return errors.New("content is required")
+			return protocol.InputQueueMutationResult{}, errors.New("content is required")
+		}
+		clientMessageID := strings.TrimSpace(request.ClientMessageID)
+		if clientMessageID == "" {
+			// 兼容尚未发送 ACK 关联字段的旧客户端；新客户端必须自行保持该 ID，
+			// 才能在受理状态未知时获得跨重试幂等。
+			clientMessageID = "legacy_" + workspacestore.NewInputQueueID()
 		}
 		ownerUserID := authctx.OwnerUserID(ctx)
-		items, err := s.inputQueue.Enqueue(location, protocol.InputQueueItem{
+		enqueueResult, err := s.inputQueue.EnqueueIdempotent(location, protocol.InputQueueItem{
 			Scope:          protocol.InputQueueScopeDM,
 			SessionKey:     sessionKey,
 			AgentID:        inputQueueLocationAgentID(location),
@@ -54,47 +67,56 @@ func (s *Service) HandleInputQueue(ctx context.Context, request InputQueueReques
 			Attachments:    attachments,
 			DeliveryPolicy: protocol.NormalizeChatDeliveryPolicy(string(request.DeliveryPolicy)),
 			OwnerUserID:    ownerUserID,
-		})
+		}, clientMessageID)
 		if err != nil {
-			return err
+			return protocol.InputQueueMutationResult{}, err
 		}
-		s.broadcastInputQueueSnapshot(ctx, sessionKey, items)
-		go s.dispatchNextInputQueueItemAtLocation(
-			contextWithQueueOwner(context.Background(), ownerUserID),
-			sessionKey,
-			request.AgentID,
-			location,
-		)
-		return nil
+		if !enqueueResult.Duplicate {
+			s.broadcastInputQueueSnapshot(ctx, sessionKey, enqueueResult.Items)
+			go s.dispatchNextInputQueueItemAtLocation(
+				contextWithQueueOwner(context.Background(), ownerUserID),
+				sessionKey,
+				request.AgentID,
+				location,
+			)
+		}
+		return protocol.InputQueueMutationResult{
+			Action:    action,
+			ItemID:    enqueueResult.Item.ID,
+			Duplicate: enqueueResult.Duplicate,
+		}, nil
 	case "delete":
 		if s.hasInFlightInputQueueGuidance(request.ItemID) {
-			return errors.New("该引导已发送给智能体，不能再删除")
+			return protocol.InputQueueMutationResult{}, errors.New("该引导已发送给智能体，不能再删除")
 		}
 		items, err := s.inputQueue.Delete(location, request.ItemID)
 		if err != nil {
-			return err
+			return protocol.InputQueueMutationResult{}, err
 		}
 		s.broadcastInputQueueSnapshot(ctx, sessionKey, items)
-		return nil
+		return protocol.InputQueueMutationResult{Action: action, ItemID: strings.TrimSpace(request.ItemID)}, nil
 	case "reorder":
 		for _, itemID := range request.OrderedIDs {
 			if s.hasInFlightInputQueueGuidance(itemID) {
-				return errors.New("已发送给智能体的引导不能重排")
+				return protocol.InputQueueMutationResult{}, errors.New("已发送给智能体的引导不能重排")
 			}
 		}
 		items, err := s.inputQueue.Reorder(location, request.OrderedIDs)
 		if err != nil {
-			return err
+			return protocol.InputQueueMutationResult{}, err
 		}
 		s.broadcastInputQueueSnapshot(ctx, sessionKey, items)
-		return nil
+		return protocol.InputQueueMutationResult{Action: action}, nil
 	case "guide":
 		if s.hasInFlightInputQueueGuidance(request.ItemID) {
-			return errors.New("该引导正在等待智能体确认，不能更改投递方式")
+			return protocol.InputQueueMutationResult{}, errors.New("该引导正在等待智能体确认，不能更改投递方式")
 		}
-		return s.guideInputQueueItem(ctx, sessionKey, location, request.ItemID)
+		if err = s.guideInputQueueItem(ctx, sessionKey, location, request.ItemID); err != nil {
+			return protocol.InputQueueMutationResult{}, err
+		}
+		return protocol.InputQueueMutationResult{Action: action, ItemID: strings.TrimSpace(request.ItemID)}, nil
 	default:
-		return errors.New("unsupported input_queue action")
+		return protocol.InputQueueMutationResult{}, errors.New("unsupported input_queue action")
 	}
 }
 

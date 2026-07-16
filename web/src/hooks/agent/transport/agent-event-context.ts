@@ -62,7 +62,11 @@ interface AgentEventRuntime {
     roundId: string,
     status: RoundLifecycleStatus,
   ) => void;
-  rejectChatAck: (clientRequestId: string, reason: string) => boolean;
+  rejectPendingRequestAck: (
+    clientRequestId: string,
+    reason: string,
+  ) => boolean;
+  resolvePendingRequestAck: (clientRequestId?: string | null) => boolean;
   removeRewrittenRound: (roundId: string) => void;
   syncSessionStatus: (payload: SessionStatusData) => void;
   setRuntimeStatus: (status: AgentConversationRuntimeStatus) => void;

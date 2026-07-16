@@ -1,3 +1,6 @@
+// INPUT: protocol 包的事件、ACK 与会话投影契约。
+// OUTPUT: 生成前端共享 TypeScript 类型的单一文本定义。
+// POS: Go 协议模型到 web 类型面的代码生成输入。
 package protocol
 
 // TypeScriptDefinitions 返回生成前端类型定义所需内容。
@@ -11,6 +14,7 @@ export type EventType =
   | 'stream'
   | 'chat_ack'
   | 'input_queue'
+  | 'input_queue_ack'
   | 'round_status'
   | 'agent_round_status'
   | 'session_status'
@@ -100,6 +104,16 @@ export interface ChatAckData {
   user_message_committed: boolean;
   pending: ChatAckPendingSlot[];
   pending_snapshot: boolean;
+  ack_timeout_ms: number;
+}
+
+export interface InputQueueAckData {
+  accepted: boolean;
+  duplicate: boolean;
+  action: string;
+  item_id: string;
+  client_request_id: string;
+  client_message_id: string;
   ack_timeout_ms: number;
 }
 

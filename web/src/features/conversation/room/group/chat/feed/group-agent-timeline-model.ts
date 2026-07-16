@@ -12,7 +12,10 @@ import {
   buildGroupRoundCardModel,
   type GroupRoundAgentCardModel,
 } from "../../thread/round-card/group-round-card-model";
-import { isAgentRoundActive } from "../../round/round-agent-model";
+import {
+  getActiveAgentRoundSortOrder,
+  isAgentRoundActive,
+} from "../../round/round-agent-model";
 
 interface ProjectGroupAgentTimelineOptions {
   messageGroups: Map<string, Message[]>;
@@ -32,6 +35,7 @@ export interface GroupAgentTimelineProjection {
 
 interface TimelineNode {
   active: boolean;
+  activeSortOrder: number;
   kind: "agent" | "root";
   messages: Message[];
   nodeId: string;
@@ -184,6 +188,7 @@ function buildRootTimelineNodes({
   }
   nodes.push(...model.entries.map((entry, entryOrder) => ({
     active: isAgentRoundActive(entry.status),
+    activeSortOrder: getActiveAgentRoundSortOrder(entry.status),
     kind: "agent" as const,
     messages: [
       ...entry.guidedUserMessages.map(({ message }) => message),
@@ -209,6 +214,7 @@ function buildRootNode(
 ): TimelineNode {
   return {
     active: false,
+    activeSortOrder: -1,
     kind: "root",
     messages,
     nodeId: rootRoundId,
@@ -266,6 +272,12 @@ function buildSlotKey(
 function compareTimelineNodes(left: TimelineNode, right: TimelineNode): number {
   if (left.active !== right.active) {
     return left.active ? 1 : -1;
+  }
+  if (left.active && right.active) {
+    const statusOrder = left.activeSortOrder - right.activeSortOrder;
+    if (statusOrder !== 0) {
+      return statusOrder;
+    }
   }
   return left.timestamp - right.timestamp
     || (left.kind === right.kind ? 0 : left.kind === "root" ? -1 : 1)

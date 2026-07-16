@@ -4,7 +4,7 @@
 //
 // 成员清单：
 //   - handler.go / connection.go / dispatch.go / control.go / error.go / values.go：
-//     连接生命周期、消息分发、控制动作表、错误与取值。
+//     连接生命周期、消息分发、带请求身份 ACK 的控制动作表、错误与取值。
 //   - room_subscription_handler.go / session_binding.go / broadcast.go：
 //     房间订阅（含权威空 slot 快照清理）、会话绑定与广播。
 //   - goal_rpc_handler.go / goal_rpc_registry.go / goal_event_broadcaster.go：

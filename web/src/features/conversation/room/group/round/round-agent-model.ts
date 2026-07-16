@@ -346,6 +346,12 @@ export function isAgentRoundActive(status: AgentRoundStatus): boolean {
   return ACTIVE_STATUSES.has(status);
 }
 
+export function getActiveAgentRoundSortOrder(
+  status: AgentRoundStatus,
+): number {
+  return status === "pending" ? 0 : 1;
+}
+
 export function buildRoomAgentRoundEntries(
   messages: Message[],
   pendingSlots: RoomPendingAgentSlotState[] = [],

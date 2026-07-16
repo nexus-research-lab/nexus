@@ -1,4 +1,3 @@
-import { generateUuid } from "@/lib/uuid";
 import type { Message } from "@/types/conversation/message/entity";
 import type {
   AgentConversationSendOptions,
@@ -14,18 +13,12 @@ import {
   type ResolvedConversationActionContext,
 } from "./conversation-action-context";
 import { buildConversationScope } from "./conversation-command-builders";
+import {
+  createOutboundRequestDescriptor,
+  type OutboundRequestDescriptor,
+} from "./outbound-request";
 
-export interface OutboundChatRequest {
-  client_message_id: string;
-  client_request_id: string;
-}
-
-function createOutboundChatRequest(): OutboundChatRequest {
-  return {
-    client_message_id: `local_msg_${generateUuid()}`,
-    client_request_id: `req_${generateUuid()}`,
-  };
-}
+export type OutboundChatRequest = OutboundRequestDescriptor;
 
 function buildOptimisticUserMessage(
   content: string,
@@ -83,7 +76,7 @@ export async function sendSessionMessage(
     return null;
   }
   const actionContext = requireConversationActionContext(context);
-  const request = createOutboundChatRequest();
+  const request = createOutboundRequestDescriptor();
   const optimisticMessage = buildOptimisticUserMessage(
     content,
     actionContext,
@@ -115,7 +108,7 @@ export async function rewriteLastUserMessage(
   if (actionContext.chatType === "group") {
     failConversationAction(context, "Room 会话暂不支持编辑重跑");
   }
-  const request = createOutboundChatRequest();
+  const request = createOutboundRequestDescriptor();
   sendConversationCommand(context, {
     type: "chat_rewrite_last",
     content,

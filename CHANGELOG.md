@@ -9,7 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Made queued user input clear only after a durable `input_queue_ack`, reused stable logical message IDs across uncertain retries, rejected duplicate queue execution after immediate dispatch, preserved Composer drafts when chat or queue ACKs fail, and hardened Safari's post-composition Enter guard against default submission and negative timestamp deltas.
 - Hid the Goal resume action while its conversation is already executing.
+- Kept streaming Room Agent replies at the visual tail by placing pending collaborator cards before active output.
 - Kept DM, Room, and Thread timelines following streaming content while programmatic downward scrolling is still approaching the bottom.
 - Hid unresolved history rounds while retaining their load anchors, and removed resolved history entries that contain no user-visible messages.
 - Prevented Room Goals from automatically continuing or completing while collaborator slots, subagents, queued input, public mentions, or delayed directed wakes still have outstanding work.

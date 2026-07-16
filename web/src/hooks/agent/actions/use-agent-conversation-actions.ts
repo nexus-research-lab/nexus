@@ -16,23 +16,25 @@ import type { AgentConversationActionContext } from "./conversation-action-conte
 import {
   rewriteLastUserMessage,
   sendSessionMessage,
-  type OutboundChatRequest,
 } from "./conversation-chat-actions";
 import {
   sendSessionPermissionResponse,
   stopSessionGeneration,
 } from "./conversation-control-actions";
 import {
+  createInputQueueDraftFingerprint,
   deleteInputQueueMessage,
   enqueueInputQueueMessage,
   guideInputQueueMessage,
   reorderInputQueueMessages,
+  resolveInputQueueClientMessageId,
 } from "./input-queue-actions";
+import type { OutboundRequestDescriptor } from "./outbound-request";
 
 interface UseAgentConversationActionsParams {
   actionContext: AgentConversationActionContext;
   clearOutboundRequest: (clientRequestId: string) => void;
-  handleChatAckTimeout: (
+  handleRequestAckTimeout: (
     clientRequestId: string,
     message: string,
   ) => void;
@@ -42,14 +44,23 @@ interface UseAgentConversationActionsParams {
     clientMessageId: string,
     error: unknown,
   ) => void;
+  settleRequestAckWaitFailure: (
+    clientRequestId: string,
+    error: unknown,
+  ) => void;
   trackOutboundRequest: (clientRequestId: string) => void;
-  waitForChatAck: (
+  waitForRequestAck: (
     clientRequestId: string,
     onTimeout: () => void,
   ) => Promise<void>;
 }
 
-type SendOutboundRequest = () => Promise<OutboundChatRequest | null>;
+type SendOutboundRequest = () =>
+  Promise<OutboundRequestDescriptor | null> | OutboundRequestDescriptor | null;
+type SettleOutboundRequestFailure = (
+  request: OutboundRequestDescriptor,
+  error: unknown,
+) => void;
 
 /**
  * 装配用户命令与 ACK 生命周期。
@@ -58,43 +69,54 @@ type SendOutboundRequest = () => Promise<OutboundChatRequest | null>;
 export function useAgentConversationActions({
   actionContext,
   clearOutboundRequest,
-  handleChatAckTimeout,
+  handleRequestAckTimeout,
   setPendingAgentSlots,
   settleChatAckWaitFailure,
+  settleRequestAckWaitFailure,
   trackOutboundRequest,
-  waitForChatAck,
+  waitForRequestAck,
 }: UseAgentConversationActionsParams) {
   // 对外命令保持稳定，执行时读取当前会话上下文，避免消息流更新重建整组回调。
   const actionContextRef = useRef(actionContext);
   actionContextRef.current = actionContext;
+  const inputQueueClientMessageIDsRef = useRef<Map<string, string>>(new Map());
+  const inputQueueScopeRef = useRef<string | null>(null);
+  const inputQueueScope = actionContext.sessionKey
+    ?? actionContext.activeSessionKeyRef.current;
+  if (inputQueueScopeRef.current !== inputQueueScope) {
+    inputQueueScopeRef.current = inputQueueScope;
+    inputQueueClientMessageIDsRef.current.clear();
+  }
 
   const sendWithAck = useCallback(
-    async (sendRequest: SendOutboundRequest): Promise<void> => {
+    async (
+      sendRequest: SendOutboundRequest,
+      settleFailure: SettleOutboundRequestFailure,
+    ): Promise<void> => {
       const request = await sendRequest();
       if (!request) {
         return;
       }
 
-      const { client_message_id: messageId, client_request_id: requestId } = request;
+      const { client_request_id: requestId } = request;
       trackOutboundRequest(requestId);
 
       try {
-        await waitForChatAck(requestId, () => {
-          handleChatAckTimeout(requestId, "消息未送达后端，请重试");
+        await waitForRequestAck(requestId, () => {
+          handleRequestAckTimeout(requestId, "消息未送达后端，请重试");
         });
       } catch (error) {
-        settleChatAckWaitFailure(requestId, messageId, error);
-        return;
+        settleFailure(request, error);
+        throw error;
       }
 
       clearOutboundRequest(requestId);
     },
     [
       clearOutboundRequest,
-      handleChatAckTimeout,
-      settleChatAckWaitFailure,
+      handleRequestAckTimeout,
       trackOutboundRequest,
-      waitForChatAck,
+      waitForRequestAck,
     ],
   );
 
@@ -104,8 +126,13 @@ export function useAgentConversationActions({
       options: AgentConversationSendOptions = {},
     ): Promise<void> => sendWithAck(
       () => sendSessionMessage(content, actionContextRef.current, options),
+      (request, error) => settleChatAckWaitFailure(
+        request.client_request_id,
+        request.client_message_id,
+        error,
+      ),
     ),
-    [sendWithAck],
+    [sendWithAck, settleChatAckWaitFailure],
   );
 
   const rewriteLastMessage = useCallback(
@@ -115,8 +142,13 @@ export function useAgentConversationActions({
         content,
         actionContextRef.current,
       ),
+      (request, error) => settleChatAckWaitFailure(
+        request.client_request_id,
+        request.client_message_id,
+        error,
+      ),
     ),
-    [sendWithAck],
+    [sendWithAck, settleChatAckWaitFailure],
   );
 
   const enqueueQueueMessage = useCallback(
@@ -126,15 +158,39 @@ export function useAgentConversationActions({
       attachments: AgentConversationSendOptions["attachments"] = [],
       targetAgentIDs: string[] = [],
     ): Promise<void> => {
-      enqueueInputQueueMessage(
+      const fingerprint = createInputQueueDraftFingerprint(
         content,
-        actionContextRef.current,
         deliveryPolicy,
         attachments,
         targetAgentIDs,
       );
+      const scopedFingerprint = [
+        actionContextRef.current.sessionKey
+          ?? actionContextRef.current.activeSessionKeyRef.current
+          ?? "",
+        fingerprint,
+      ].join("\n");
+      const clientMessageId = resolveInputQueueClientMessageId(
+        inputQueueClientMessageIDsRef.current,
+        scopedFingerprint,
+      );
+      await sendWithAck(
+        () => enqueueInputQueueMessage(
+          content,
+          actionContextRef.current,
+          deliveryPolicy,
+          attachments,
+          targetAgentIDs,
+          clientMessageId,
+        ),
+        (request, error) => settleRequestAckWaitFailure(
+          request.client_request_id,
+          error,
+        ),
+      );
+      inputQueueClientMessageIDsRef.current.delete(scopedFingerprint);
     },
-    [],
+    [sendWithAck, settleRequestAckWaitFailure],
   );
 
   const deleteQueueMessage = useCallback(

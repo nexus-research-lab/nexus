@@ -1,5 +1,5 @@
 // INPUT: Room 输入队列控制请求与持久化队列快照。
-// OUTPUT: 队列变更、guide 消费轮身份同步和共享快照事件。
+// OUTPUT: 跨成员幂等受理结果、队列变更、guide 消费轮身份同步和共享快照事件。
 // POS: Room 用户输入队列的控制面。
 package room
 
@@ -18,16 +18,17 @@ import (
 
 // InputQueueRequest 表示 Room 待发送队列控制请求。
 type InputQueueRequest struct {
-	SessionKey     string
-	RoomID         string
-	ConversationID string
-	Action         string
-	ItemID         string
-	Content        string
-	Attachments    []protocol.ChatAttachment
-	TargetAgentIDs []string
-	OrderedIDs     []string
-	DeliveryPolicy protocol.ChatDeliveryPolicy
+	SessionKey      string
+	RoomID          string
+	ConversationID  string
+	ClientMessageID string
+	Action          string
+	ItemID          string
+	Content         string
+	Attachments     []protocol.ChatAttachment
+	TargetAgentIDs  []string
+	OrderedIDs      []string
+	DeliveryPolicy  protocol.ChatDeliveryPolicy
 }
 
 type roomInputQueueLocation struct {
@@ -115,21 +116,69 @@ func newRoomInputQueueEvent(sessionKey string, roomID string, conversationID str
 }
 
 // HandleInputQueue 处理 Room 待发送队列控制消息。
-func (s *RealtimeService) HandleInputQueue(ctx context.Context, request InputQueueRequest) error {
+func (s *RealtimeService) HandleInputQueue(
+	ctx context.Context,
+	request InputQueueRequest,
+) (protocol.InputQueueMutationResult, error) {
 	sessionKey, contextValue, err := s.resolveInputQueueContext(ctx, request)
 	if err != nil {
-		return err
+		return protocol.InputQueueMutationResult{}, err
 	}
 
 	action := strings.TrimSpace(request.Action)
+	if action == "" {
+		action = "enqueue"
+	}
 	s.inputQueueDispatchMu.Lock()
 	defer s.inputQueueDispatchMu.Unlock()
 	switch action {
-	case "enqueue", "":
+	case "enqueue":
 		content := strings.TrimSpace(request.Content)
 		attachments := s.normalizeChatAttachments(request.Attachments, "", contextValue.Room.ID, contextValue.Conversation.ID)
 		if !protocol.HasChatInput(content, attachments) {
-			return errors.New("content is required")
+			return protocol.InputQueueMutationResult{}, errors.New("content is required")
+		}
+		clientMessageID := strings.TrimSpace(request.ClientMessageID)
+		if clientMessageID == "" {
+			// 兼容尚未发送 ACK 关联字段的旧客户端；只有新客户端提供并复用
+			// 稳定 ID 时，才能获得跨重试和即时派发后的持久幂等。
+			clientMessageID = "legacy_" + workspacestore.NewInputQueueID()
+		}
+		acceptedEntry, accepted, err := s.findAcceptedRoomInputQueueEnqueue(
+			ctx,
+			contextValue,
+			clientMessageID,
+		)
+		if err != nil {
+			return protocol.InputQueueMutationResult{}, err
+		}
+		ownerUserID := authctx.OwnerUserID(ctx)
+		candidate := protocol.InputQueueItem{
+			Scope:          protocol.InputQueueScopeRoom,
+			RoomID:         contextValue.Room.ID,
+			ConversationID: contextValue.Conversation.ID,
+			Source:         protocol.InputQueueSourceUser,
+			Content:        content,
+			Attachments:    attachments,
+			DeliveryPolicy: protocol.NormalizeChatDeliveryPolicy(string(request.DeliveryPolicy)),
+			OwnerUserID:    ownerUserID,
+		}
+		if accepted {
+			candidate.SessionKey = acceptedEntry.Location.SessionKey
+			candidate.AgentID = acceptedEntry.Item.AgentID
+			if len(request.TargetAgentIDs) > 0 {
+				candidate.TargetAgentIDs = normalizeExplicitTargetAgentIDs(request.TargetAgentIDs)
+			} else {
+				candidate.TargetAgentIDs = acceptedEntry.Item.TargetAgentIDs
+			}
+			if !workspacestore.MatchesInputQueueEnqueueIntent(acceptedEntry.Item, candidate) {
+				return protocol.InputQueueMutationResult{}, workspacestore.ErrInputQueueIdempotencyConflict
+			}
+			return protocol.InputQueueMutationResult{
+				Action:    action,
+				ItemID:    acceptedEntry.Item.ID,
+				Duplicate: true,
+			}, nil
 		}
 		location, targetAgentIDs, err := s.resolveRoomInputQueuePrimaryLocation(
 			ctx,
@@ -138,54 +187,64 @@ func (s *RealtimeService) HandleInputQueue(ctx context.Context, request InputQue
 			request.TargetAgentIDs,
 		)
 		if err != nil {
-			return err
+			return protocol.InputQueueMutationResult{}, err
 		}
-		ownerUserID := authctx.OwnerUserID(ctx)
-		if _, err = s.inputQueue.Enqueue(location, protocol.InputQueueItem{
-			Scope:          protocol.InputQueueScopeRoom,
-			SessionKey:     location.SessionKey,
-			RoomID:         contextValue.Room.ID,
-			ConversationID: contextValue.Conversation.ID,
-			AgentID:        inputQueueLocationAgentID(location),
-			TargetAgentIDs: targetAgentIDs,
-			Source:         protocol.InputQueueSourceUser,
-			Content:        content,
-			Attachments:    attachments,
-			DeliveryPolicy: protocol.NormalizeChatDeliveryPolicy(string(request.DeliveryPolicy)),
-			OwnerUserID:    ownerUserID,
-		}); err != nil {
-			return err
+		candidate.SessionKey = location.SessionKey
+		candidate.AgentID = inputQueueLocationAgentID(location)
+		candidate.TargetAgentIDs = targetAgentIDs
+		enqueueResult, err := s.inputQueue.EnqueueIdempotent(location, candidate, clientMessageID)
+		if err != nil {
+			return protocol.InputQueueMutationResult{}, err
 		}
-		if err = s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue); err != nil {
-			return err
+		if !enqueueResult.Duplicate {
+			if broadcastErr := s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue); broadcastErr != nil {
+				s.loggerFor(ctx).Warn("广播已受理的 Room input_queue 快照失败",
+					"session_key", sessionKey,
+					"item_id", enqueueResult.Item.ID,
+					"err", broadcastErr,
+				)
+			}
+			go s.dispatchNextInputQueueItem(contextWithQueueOwner(context.Background(), ownerUserID), sessionKey, contextValue.Room.ID, contextValue.Conversation.ID)
 		}
-		go s.dispatchNextInputQueueItem(contextWithQueueOwner(context.Background(), ownerUserID), sessionKey, contextValue.Room.ID, contextValue.Conversation.ID)
-		return nil
+		return protocol.InputQueueMutationResult{
+			Action:    action,
+			ItemID:    enqueueResult.Item.ID,
+			Duplicate: enqueueResult.Duplicate,
+		}, nil
 	case "delete":
 		if s.hasInFlightRoomGuidance(request.ItemID) {
-			return errors.New("该引导已发送给智能体，不能再删除")
+			return protocol.InputQueueMutationResult{}, errors.New("该引导已发送给智能体，不能再删除")
 		}
 		if err = s.deleteRoomInputQueueItem(ctx, contextValue, request.ItemID); err != nil {
-			return err
+			return protocol.InputQueueMutationResult{}, err
 		}
-		return s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue)
+		if err = s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue); err != nil {
+			return protocol.InputQueueMutationResult{}, err
+		}
+		return protocol.InputQueueMutationResult{Action: action, ItemID: strings.TrimSpace(request.ItemID)}, nil
 	case "reorder":
 		for _, itemID := range request.OrderedIDs {
 			if s.hasInFlightRoomGuidance(itemID) {
-				return errors.New("已发送给智能体的引导不能重排")
+				return protocol.InputQueueMutationResult{}, errors.New("已发送给智能体的引导不能重排")
 			}
 		}
 		if err = s.reorderRoomInputQueueItems(ctx, contextValue, request.OrderedIDs); err != nil {
-			return err
+			return protocol.InputQueueMutationResult{}, err
 		}
-		return s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue)
+		if err = s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue); err != nil {
+			return protocol.InputQueueMutationResult{}, err
+		}
+		return protocol.InputQueueMutationResult{Action: action}, nil
 	case "guide":
 		if s.hasInFlightRoomGuidance(request.ItemID) {
-			return errors.New("该引导正在等待智能体确认，不能更改投递方式")
+			return protocol.InputQueueMutationResult{}, errors.New("该引导正在等待智能体确认，不能更改投递方式")
 		}
-		return s.guideInputQueueItem(ctx, sessionKey, contextValue, request.ItemID)
+		if err = s.guideInputQueueItem(ctx, sessionKey, contextValue, request.ItemID); err != nil {
+			return protocol.InputQueueMutationResult{}, err
+		}
+		return protocol.InputQueueMutationResult{Action: action, ItemID: strings.TrimSpace(request.ItemID)}, nil
 	default:
-		return errors.New("unsupported input_queue action")
+		return protocol.InputQueueMutationResult{}, errors.New("unsupported input_queue action")
 	}
 }
 

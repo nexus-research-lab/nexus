@@ -839,6 +839,77 @@ test("Room keeps active Agent cards at the stable tail", async () => {
   );
 });
 
+test("Room places pending Agent cards before streaming output", async () => {
+  const { buildGroupRoundCardModel } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/thread/round-card/group-round-card-model.ts",
+  );
+  const {
+    buildGroupAgentTimelineNodeId,
+    projectGroupAgentTimeline,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/chat/feed/group-agent-timeline-model.ts",
+  );
+  const stream = assistantMessage({
+    agentId: "agent-streaming",
+    agentRoundId: "round-streaming",
+    messageId: "assistant-streaming",
+    text: "正在输出正文",
+    timestamp: 5,
+  });
+  const slots = [
+    {
+      agent_id: "agent-streaming",
+      agent_round_id: "round-streaming",
+      index: 0,
+      msg_id: "slot-streaming",
+      round_id: "round-root",
+      status: "streaming",
+      timestamp: 1,
+    },
+    {
+      agent_id: "agent-pending",
+      agent_round_id: "round-pending",
+      index: 1,
+      msg_id: "slot-pending",
+      round_id: "round-root",
+      status: "pending",
+      timestamp: 2,
+    },
+  ];
+
+  const model = buildGroupRoundCardModel({
+    agentAvatarMap: {},
+    agentNameMap: {},
+    messages: [stream],
+    pendingPermissions: [],
+    pendingSlots: slots,
+  });
+  assert.deepEqual(
+    model.entries.map(({ agent_id, status }) => ({ agent_id, status })),
+    [
+      { agent_id: "agent-pending", status: "pending" },
+      { agent_id: "agent-streaming", status: "streaming" },
+    ],
+  );
+
+  const projection = projectGroupAgentTimeline({
+    messageGroups: new Map([["round-root", [stream]]]),
+    pendingPermissionGroups: new Map(),
+    pendingSlotGroups: new Map([["round-root", slots]]),
+    roundIds: ["round-root"],
+  });
+  assert.deepEqual(projection.roundIds, [
+    buildGroupAgentTimelineNodeId(
+      "round-root",
+      "agent-pending:agent-round:round-pending",
+    ),
+    buildGroupAgentTimelineNodeId(
+      "round-root",
+      "agent-streaming:agent-round:round-streaming",
+    ),
+  ]);
+});
+
 test("Room Agent timestamp stays on start while active and switches to finish at terminal", async () => {
   const { buildRoomAgentRoundEntries } = await server.ssrLoadModule(
     "/src/features/conversation/room/group/round/round-agent-model.ts",

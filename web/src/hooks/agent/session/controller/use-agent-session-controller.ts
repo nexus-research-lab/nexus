@@ -35,7 +35,7 @@ interface AgentSessionRuntime {
 }
 
 interface UseAgentSessionControllerParams {
-  cancelPendingChatAcks: (reason: string) => void;
+  cancelPendingRequestAcks: (reason: string) => void;
   identity: AgentConversationIdentity | null;
   identitySessionKey: string | null;
   roomSeqCursorRef: RefObject<number>;
@@ -45,7 +45,7 @@ interface UseAgentSessionControllerParams {
 }
 
 export function useAgentSessionController({
-  cancelPendingChatAcks,
+  cancelPendingRequestAcks,
   identity,
   identitySessionKey,
   roomSeqCursorRef,
@@ -100,7 +100,7 @@ export function useAgentSessionController({
   });
   const { isCurrentSessionEvent } = useAgentSessionIdentity({
     activeSessionKeyRef,
-    cancelPendingChatAcks,
+    cancelPendingRequestAcks,
     clearLiveSessionState,
     identity,
     identitySessionKey,
@@ -135,7 +135,7 @@ export function useAgentSessionController({
   }, [lifecycleContext]);
   const sessionActions = useAgentConversationSession({
     activeSessionKeyRef,
-    cancelPendingChatAcks,
+    cancelPendingRequestAcks,
     clearLiveSessionState,
     lifecycleContext,
     resetHistoryPagination: history.resetHistoryPagination,

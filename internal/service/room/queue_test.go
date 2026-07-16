@@ -82,15 +82,20 @@ func TestRealtimeServiceDispatchesRoomUserQueueForIdleTargetWhileAnotherAgentRun
 		return event.EventType == protocol.EventTypeStreamStart && event.AgentID == amy.AgentID
 	})
 
-	if err = service.HandleInputQueue(ctx, roomsvc.InputQueueRequest{
-		SessionKey:     sharedSessionKey,
-		RoomID:         roomContext.Room.ID,
-		ConversationID: roomContext.Conversation.ID,
-		Action:         "enqueue",
-		Content:        "@Devin 好的",
-		DeliveryPolicy: protocol.ChatDeliveryPolicyQueue,
-	}); err != nil {
+	queueResult, err := service.HandleInputQueue(ctx, roomsvc.InputQueueRequest{
+		SessionKey:      sharedSessionKey,
+		RoomID:          roomContext.Room.ID,
+		ConversationID:  roomContext.Conversation.ID,
+		ClientMessageID: "client-message-room-user-queue-idle-target",
+		Action:          "enqueue",
+		Content:         "@Devin 好的",
+		DeliveryPolicy:  protocol.ChatDeliveryPolicyQueue,
+	})
+	if err != nil {
 		t.Fatalf("写入 Room 用户队列失败: %v", err)
+	}
+	if queueResult.ItemID == "" || queueResult.Duplicate {
+		t.Fatalf("首次 Room 用户队列受理结果异常: %+v", queueResult)
 	}
 
 	select {
@@ -127,6 +132,27 @@ func TestRealtimeServiceDispatchesRoomUserQueueForIdleTargetWhileAnotherAgentRun
 		status, _ := event.Data["status"].(string)
 		return strings.HasPrefix(roundID, "queue_") && status == "finished"
 	})
+
+	retryResult, err := service.HandleInputQueue(ctx, roomsvc.InputQueueRequest{
+		SessionKey:      sharedSessionKey,
+		RoomID:          roomContext.Room.ID,
+		ConversationID:  roomContext.Conversation.ID,
+		ClientMessageID: "client-message-room-user-queue-idle-target",
+		Action:          "enqueue",
+		Content:         "@Devin 好的",
+		DeliveryPolicy:  protocol.ChatDeliveryPolicyQueue,
+	})
+	if err != nil {
+		t.Fatalf("重试已即时派发的 Room 用户队列失败: %v", err)
+	}
+	if !retryResult.Duplicate || retryResult.ItemID != queueResult.ItemID {
+		t.Fatalf("重试应确认原始 Room 队列受理结果: first=%+v retry=%+v", queueResult, retryResult)
+	}
+	select {
+	case prompt := <-devinPrompt:
+		t.Fatalf("相同 client_message_id 重试不应触发第二轮: %q", prompt)
+	case <-time.After(200 * time.Millisecond):
+	}
 }
 
 func TestRealtimeServiceRecoversOrphanedGuidanceOnQueueSnapshot(t *testing.T) {
@@ -312,7 +338,7 @@ func TestRealtimeServiceDispatchesLateRoomGuidanceAfterRoundFinishes(t *testing.
 	if err != nil || len(items) != 1 {
 		t.Fatalf("读取补充消息队列失败: items=%+v err=%v", items, err)
 	}
-	if err = service.HandleInputQueue(ctx, roomsvc.InputQueueRequest{
+	if _, err = service.HandleInputQueue(ctx, roomsvc.InputQueueRequest{
 		SessionKey:     sharedSessionKey,
 		RoomID:         roomContext.Room.ID,
 		ConversationID: roomContext.Conversation.ID,
@@ -773,7 +799,7 @@ func TestRealtimeServiceGuidesRunningRoomSlotAsLiveSystemContext(t *testing.T) {
 	if onApplied == nil {
 		t.Fatal("Room guide output 缺少 runtime applied ACK callback")
 	}
-	if err = service.HandleInputQueue(ctx, roomsvc.InputQueueRequest{
+	if _, err = service.HandleInputQueue(ctx, roomsvc.InputQueueRequest{
 		SessionKey:     sharedSessionKey,
 		RoomID:         roomContext.Room.ID,
 		ConversationID: roomContext.Conversation.ID,
@@ -850,7 +876,7 @@ func TestRealtimeServiceGuidesRunningRoomSlotAsLiveSystemContext(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("登记待删除 Room 引导失败: %v", err)
 	}
-	if err = service.HandleInputQueue(ctx, roomsvc.InputQueueRequest{
+	if _, err = service.HandleInputQueue(ctx, roomsvc.InputQueueRequest{
 		SessionKey:     sharedSessionKey,
 		RoomID:         roomContext.Room.ID,
 		ConversationID: roomContext.Conversation.ID,
