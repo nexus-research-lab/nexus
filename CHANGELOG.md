@@ -61,6 +61,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Kept the dedicated monospace face for code while using proportional Latin text in Markdown prose for calmer mixed-script rhythm.
 - Kept left-sidebar DM and Room summaries on the navigation font instead of the conversation CJK face.
 - Refined IM pairing management with pending-first status views, accurate local filtering, action-oriented empty states, and collapsible technical details.
+- Simplified channel catalog rows by removing repeated setup copy, stat pills, runtime notes, and oversized icon treatment.
+- Increased settings navigation group labels for clearer section scanning without changing item density.
+- Restored the compact glass treatment around the Nexus avatar launcher button.
 - Filled missing context windows for commonly used model families from a maintained model-card catalog while preserving Provider-reported values as authoritative.
 - Replaced independent Room history limits with a model-window-aware context budget, product-owned cold-start anchors, prioritized public/private deltas, and checkpoints that advance only through actually consumed content.
 - Kept Room runtimes warm until the shared idle reaper closes them, reduced Room communication tool acknowledgements and system prompt size, and made Room Skills inject explicit runtime instructions instead of full README bodies.

@@ -56,7 +56,7 @@ export function ChannelConnectionFields({
       <ChannelGuide item={currentItem} />
 
       {currentItem.runtime_note ? (
-        <div className="rounded-[14px] border border-(--divider-subtle-color) bg-transparent px-4 py-3 text-[13px] font-medium leading-5 text-(--text-default)">
+        <div className="rounded-[10px] border border-(--divider-subtle-color) bg-transparent px-3 py-2.5 text-[12px] font-medium leading-5 text-(--text-default)">
           {currentItem.runtime_note}
         </div>
       ) : null}

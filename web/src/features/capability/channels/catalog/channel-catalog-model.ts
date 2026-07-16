@@ -24,7 +24,7 @@ export const CHANNEL_FILTER_OPTIONS: ReadonlyArray<{
   { value: "planned", labelKey: "capability.channels_filter_planned" },
 ];
 
-export type ChannelCardStatIcon = "group" | "pending" | "user";
+type ChannelCardStatKind = "group" | "pending" | "user";
 
 export interface ChannelCardModel {
   action:
@@ -36,9 +36,8 @@ export interface ChannelCardModel {
   }>;
   description: string;
   metadata: string[];
-  runtimeNote: string;
   stats: ReadonlyArray<{
-    icon: ChannelCardStatIcon;
+    kind: ChannelCardStatKind;
     label: string;
     tone: "default" | "warning";
     value: number;
@@ -69,61 +68,34 @@ const CHANNEL_FILTERS: Record<
   unconfigured: (item) => !item.configured && !isChannelPlanned(item),
 };
 
-const CHANNEL_DESCRIPTIONS: Array<{
-  description: string;
-  matches: (item: ChannelConfigView) => boolean;
-}> = [
-  {
-    matches: isChannelPlanned,
-    description: "该频道将在后续版本补充，目前仅保留入口和信息结构。",
-  },
-  {
-    matches: (item) => item.runtime_status === "external_adapter" && !item.configured,
-    description: "选择处理智能体后，按通道说明完成外部连接。",
-  },
-  {
-    matches: (item) => item.configured,
-    description: "消息会进入绑定的处理智能体。",
-  },
-  {
-    matches: () => true,
-    description: "选择一个智能体并填写机器人凭证后，即可开始处理来自该渠道的消息。",
-  },
-];
-
-function describeChannel(item: ChannelConfigView): string {
-  return CHANNEL_DESCRIPTIONS.find(({ matches }) => matches(item))?.description ?? "";
-}
-
 export function buildChannelCardModel(item: ChannelConfigView): ChannelCardModel {
   const planned = isChannelPlanned(item);
   const handlerLabel = item.configured ? item.agent_name || "已绑定" : "未绑定";
   const metadata = [
-    { visible: true, value: `机器人：${item.bot_label}` },
-    { visible: true, value: `处理：${handlerLabel}` },
+    { visible: true, value: `智能体 ${handlerLabel}` },
     { visible: !item.supports_group, value: "仅私聊" },
   ].filter(({ visible }) => visible).map(({ value }) => value);
   const statCandidates: ChannelCardStatCandidate[] = [
     {
-      icon: "user",
+      kind: "user",
       label: "用户",
       tone: "default",
       value: item.stats.paired_user_count,
-      visible: true,
+      visible: item.stats.paired_user_count > 0,
     },
     {
-      icon: "group",
+      kind: "group",
       label: "群聊",
       tone: "default",
       value: item.stats.paired_group_count,
-      visible: item.supports_group,
+      visible: item.supports_group && item.stats.paired_group_count > 0,
     },
     {
-      icon: "pending",
+      kind: "pending",
       label: "待审",
       tone: item.stats.pending_count > 0 ? "warning" : "default",
       value: item.stats.pending_count,
-      visible: true,
+      visible: item.stats.pending_count > 0,
     },
   ];
   const stats = statCandidates
@@ -137,9 +109,8 @@ export function buildChannelCardModel(item: ChannelConfigView): ChannelCardModel
     badges: item.runtime_status === "external_adapter"
       ? [{ label: "外部适配器", tone: "warning" }]
       : [],
-    description: describeChannel(item),
+    description: item.description || (planned ? "暂未支持接入。" : "配置机器人凭证后接入。"),
     metadata,
-    runtimeNote: item.runtime_note ?? "",
     stats,
   };
 }

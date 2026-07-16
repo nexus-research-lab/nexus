@@ -29,12 +29,13 @@ export function ChannelIcon({
   return (
     <span
       className={cn(
-        "flex shrink-0 items-center justify-center border border-white/35 shadow-(--surface-avatar-shadow)",
-        size === "dialog" ? "h-[52px] w-[52px] rounded-[18px]" : "h-11 w-11 rounded-[16px]",
+        "flex shrink-0 items-center justify-center border border-white/35",
+        size === "dialog" && "shadow-(--surface-avatar-shadow)",
+        size === "dialog" ? "h-[52px] w-[52px] rounded-[18px]" : "h-8 w-8 rounded-[7px]",
         style.cn_name,
       )}
     >
-      <Icon className={size === "dialog" ? "h-[26px] w-[26px]" : "h-5 w-5"} />
+      <Icon className={size === "dialog" ? "h-[26px] w-[26px]" : "h-3.5 w-3.5"} />
     </span>
   );
 }

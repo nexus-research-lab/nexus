@@ -95,7 +95,7 @@ function ScheduledTaskLoadingBoard() {
       <div className="grid h-full min-w-[1080px] flex-1 grid-cols-4 gap-3">
         {Array.from({ length: 4 }, (_, columnIndex) => (
           <div
-            className="h-full min-h-0 rounded-[8px] bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_58%,transparent)] p-3"
+            className="h-full min-h-0 border-l border-(--divider-subtle-color) p-3 pl-4 first:border-l-0 first:pl-0"
             key={columnIndex}
           >
             <div className="mb-4 flex items-center justify-between">
@@ -144,7 +144,7 @@ function ScheduledTaskSuggestions({
     >
       <div className="max-w-[720px]">
         <h2
-          className="text-[18px] font-semibold tracking-[-0.02em] text-(--text-strong)"
+          className="text-[16px] font-medium tracking-[-0.01em] text-(--text-strong)"
           id="scheduled-task-suggestions-title"
         >
           从一个常用任务开始
@@ -154,29 +154,29 @@ function ScheduledTaskSuggestions({
         </p>
       </div>
 
-      <div className="mt-5 grid [grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr))] gap-2.5">
+      <div className="mt-4 grid [grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr))] gap-2">
         {SCHEDULED_TASK_SUGGESTIONS.map((suggestion) => {
           const SuggestionIcon = SUGGESTION_ICONS[suggestion.icon];
           return (
             <button
-              className="group flex min-h-[118px] items-start gap-3 rounded-[8px] border border-(--divider-subtle-color) bg-transparent p-4 text-left transition-[background,border-color] duration-(--motion-duration-fast) hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_24%,transparent)]"
+              className="group flex min-h-[104px] items-start gap-2.5 rounded-[8px] border border-(--divider-subtle-color) bg-transparent p-3 text-left transition-[background,border-color] duration-(--motion-duration-fast) hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_24%,transparent)]"
               key={suggestion.title}
               onClick={() => onSelect(suggestion.preset)}
               type="button"
             >
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] border border-(--divider-subtle-color) text-(--primary)">
-                <SuggestionIcon className="h-4 w-4" />
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[7px] border border-(--divider-subtle-color) text-(--primary)">
+                <SuggestionIcon className="h-3.5 w-3.5" />
               </span>
               <span className="min-w-0 flex-1">
                 <span className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                  <span className="text-[14px] font-semibold text-(--text-strong)">
+                  <span className="text-[13px] font-medium text-(--text-strong)">
                     {suggestion.title}
                   </span>
                   <span className="text-[11px] text-(--text-soft)">
                     {suggestion.scheduleLabel}
                   </span>
                 </span>
-                <span className="mt-1.5 block text-[12px] leading-5 text-(--text-muted)">
+                <span className="mt-1 block text-[12px] leading-5 text-(--text-muted)">
                   {suggestion.description}
                 </span>
               </span>
@@ -217,10 +217,10 @@ function ScheduledTaskBoardColumnView({
   const EmptyIcon = COLUMN_EMPTY_ICONS[column.id];
   return (
     <section
-      className="flex h-full min-h-0 min-w-0 flex-col rounded-[8px] bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_58%,transparent)]"
+      className="flex h-full min-h-0 min-w-0 flex-col border-l border-(--divider-subtle-color) pl-3 first:border-l-0 first:pl-0"
       aria-labelledby={`scheduled-column-${column.id}`}
     >
-      <header className="flex min-h-16 items-start justify-between gap-3 border-b border-[color:color-mix(in_srgb,var(--divider-subtle-color)_72%,transparent)] px-3.5 py-3">
+      <header className="flex min-h-16 items-start justify-between gap-3 border-b border-(--divider-subtle-color) px-3 py-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className={cn("h-2 w-2 shrink-0 rounded-full", COLUMN_TONE_CLASS_NAMES[column.tone])} />
@@ -241,7 +241,7 @@ function ScheduledTaskBoardColumnView({
       </header>
 
       {column.items.length > 0 ? (
-        <div className="soft-scrollbar min-h-0 flex-1 space-y-2.5 overflow-y-auto overscroll-contain p-2.5">
+        <div className="soft-scrollbar min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain p-2">
           {column.items.map((task) => (
             <ScheduledTaskCard
               isDeleting={pending.get("delete")?.has(task.job_id) ?? false}
@@ -279,7 +279,7 @@ function ScheduledTaskReadyBoard({
     <section className="flex min-h-0 flex-1 flex-col" aria-label="定时任务看板">
       <div className="mb-3 flex items-end justify-between gap-4">
         <div>
-          <h2 className="text-[18px] font-semibold tracking-[-0.02em] text-(--text-strong)">
+          <h2 className="text-[16px] font-medium tracking-[-0.01em] text-(--text-strong)">
             任务看板
           </h2>
           <p className="mt-0.5 text-[11px] leading-5 text-(--text-muted)">

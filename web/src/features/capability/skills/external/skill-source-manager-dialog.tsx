@@ -93,7 +93,7 @@ export function SkillSourceManagerDialog({
                 />
               ))
             ) : (
-              <div className="rounded-[12px] border border-dashed border-(--divider-subtle-color) px-4 py-8 text-center text-sm text-(--text-soft)">
+              <div className="rounded-[8px] border border-dashed border-(--divider-subtle-color) px-4 py-6 text-center text-[12px] text-(--text-soft)">
                 {t("capability.skill_sources_empty")}
               </div>
             )}
@@ -125,7 +125,7 @@ function SourceRow({ disabled, onToggle, source }: SourceRowProps) {
   return (
     <div
       className={cn(
-        "flex min-w-0 items-center gap-4 rounded-[14px] border px-4 py-3",
+        "flex min-w-0 items-center gap-3 rounded-[8px] border px-3 py-2.5",
         source.enabled
           ? "border-[color:color-mix(in_srgb,var(--primary)_34%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--primary)_6%,transparent)]"
           : "border-(--divider-subtle-color) bg-transparent",
@@ -133,7 +133,7 @@ function SourceRow({ disabled, onToggle, source }: SourceRowProps) {
     >
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <span className="truncate text-sm font-semibold text-(--text-strong)">
+          <span className="truncate text-[13px] font-medium text-(--text-strong)">
             {source.name}
           </span>
           <UiBadge size="xs">{sourceKindLabel(source.kind)}</UiBadge>
@@ -144,7 +144,7 @@ function SourceRow({ disabled, onToggle, source }: SourceRowProps) {
         <div className="mt-1 truncate text-xs text-(--text-muted)">
           {source.url}
         </div>
-        <div className="mt-1 text-xs leading-5 text-(--text-soft)">
+        <div className="mt-1 text-[11px] leading-5 text-(--text-soft)">
           {sourceKindDescription(source)}
         </div>
         {source.last_error ? (

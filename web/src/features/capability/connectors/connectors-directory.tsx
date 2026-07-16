@@ -132,11 +132,11 @@ export function ConnectorsDirectory() {
           />
         ) : (
           <div className={WORKSPACE_DETAIL_PAGE_CLASS_NAME}>
-            <div className="mb-5">
-              <h1 className="text-[24px] font-semibold tracking-[-0.03em] text-(--text-strong)">
+            <div className="mb-4">
+              <h1 className="text-[20px] font-semibold tracking-[-0.02em] text-(--text-strong)">
                 {t("capability.connectors_intro_title")}
               </h1>
-              <p className="mt-1 max-w-[680px] text-[13px] leading-6 text-(--text-muted)">
+              <p className="mt-0.5 max-w-[640px] text-[12px] leading-5 text-(--text-muted)">
                 {t("capability.connectors_intro_description")}
               </p>
             </div>

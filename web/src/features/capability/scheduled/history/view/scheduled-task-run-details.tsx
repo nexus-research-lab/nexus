@@ -56,7 +56,7 @@ export function ScheduledTaskRunDetails({
 function RunOutput({ section }: { section: RunOutputSection }) {
   return (
     <div className={cn(
-      "mt-3 rounded-[14px] border px-3 py-2.5 text-sm",
+      "mt-3 rounded-[8px] border px-3 py-2.5 text-[13px]",
       section.tone === "danger"
         ? "border-[color:color-mix(in_srgb,var(--destructive)_15%,transparent)] text-(--destructive)"
         : "border-(--divider-subtle-color) text-(--text-default)",
@@ -67,11 +67,11 @@ function RunOutput({ section }: { section: RunOutputSection }) {
         </p>
       ) : null}
       {section.label ? (
-        <pre className="mt-2 max-h-64 whitespace-pre-wrap break-words leading-6">
+        <pre className="mt-2 max-h-64 whitespace-pre-wrap break-words leading-5">
           {section.content}
         </pre>
       ) : (
-        <p className="leading-6">{section.content}</p>
+        <p className="leading-5">{section.content}</p>
       )}
     </div>
   );

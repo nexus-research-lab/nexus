@@ -65,10 +65,10 @@ function UpdateSkillRow({
 }) {
   return (
     <UiListRow
-      className={cn("min-h-[74px] rounded-[12px] px-2 py-2", busy && "opacity-70")}
+      className={cn("min-h-[64px] rounded-[8px] px-2 py-1", busy && "opacity-70")}
       leading={(
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[12px] border border-(--divider-subtle-color) bg-(--surface-panel-background) text-(--status-info-soft-text)">
-          <Puzzle className="h-4 w-4" />
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] border border-(--divider-subtle-color) bg-(--surface-panel-background) text-(--status-info-soft-text)">
+          <Puzzle className="h-3.5 w-3.5" />
         </span>
       )}
       onClick={onOpen}
@@ -91,15 +91,15 @@ function UpdateSkillRow({
     >
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="truncate text-[15px] font-semibold text-(--text-strong)">
+          <span className="truncate text-[14px] font-medium text-(--text-strong)">
             {skill.title || skill.name}
           </span>
           <UiBadge size="xs" tone="warning">有更新</UiBadge>
         </div>
-        <p className="mt-0.5 truncate text-[13px] leading-5 text-(--text-muted)">
+        <p className="mt-0.5 truncate text-[12px] leading-[1.125rem] text-(--text-muted)">
           {skill.description || "暂无描述"}
         </p>
-        <p className="mt-0.5 truncate text-[11px] leading-4 text-(--text-soft)">
+        <p className="mt-0.5 truncate text-[10px] leading-4 text-(--text-soft)">
           {skill.source_name || "外部导入"} · {skill.version || "unknown"}
         </p>
       </div>
@@ -129,7 +129,7 @@ export function SkillsUpdateHighlight({
   const ActionIcon = model.actionDisabled ? Loader2 : RefreshCw;
 
   return (
-    <section className="mb-7 rounded-[16px] border border-[color:color-mix(in_srgb,var(--warning)_24%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--warning)_5%,transparent)] px-4 py-4">
+    <section className="mb-5 rounded-[10px] border border-[color:color-mix(in_srgb,var(--warning)_24%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--warning)_5%,transparent)] px-3 py-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
@@ -160,7 +160,7 @@ export function SkillsUpdateHighlight({
       </div>
 
       {model.showUpdates ? (
-        <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
+        <div className="mt-2 grid grid-cols-1 gap-1.5 md:grid-cols-2">
           {updates.map((skill) => (
             <UpdateSkillRow
               key={skill.name}

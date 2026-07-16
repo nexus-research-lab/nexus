@@ -18,7 +18,7 @@ export function ChannelAccountsPanel({
   onDelete: (account: ChannelAccountView) => void;
 }) {
   return (
-    <div className="rounded-[14px] border border-(--divider-subtle-color) bg-transparent px-4 py-3">
+    <div className="rounded-[10px] border border-(--divider-subtle-color) bg-transparent px-3 py-3">
       <div className="flex min-w-0 items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="text-[13px] font-semibold text-(--text-strong)">已连接账号</div>
@@ -30,10 +30,10 @@ export function ChannelAccountsPanel({
           暂无已连接账号
         </div>
       ) : (
-        <div className="mt-3 space-y-2">
+        <div className="mt-2 space-y-1.5">
           {accounts.map((account) => (
             <div
-              className="flex min-w-0 items-center justify-between gap-3 rounded-[10px] border border-(--divider-subtle-color) px-3 py-2"
+              className="flex min-w-0 items-center justify-between gap-3 rounded-[8px] border border-(--divider-subtle-color) px-2.5 py-2"
               key={account.account_id}
             >
               <div className="min-w-0">

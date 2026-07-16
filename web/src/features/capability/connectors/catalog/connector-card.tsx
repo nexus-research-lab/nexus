@@ -53,7 +53,7 @@ export function ConnectorCard({
   return (
     <div
       className={cn(
-        "group flex min-h-[64px] w-full items-center gap-3 rounded-[14px] px-2 py-1.5 text-left outline-none transition-[background-color]",
+        "group flex min-h-[64px] w-full items-center gap-2.5 rounded-[8px] px-2 py-1 text-left outline-none transition-[background-color]",
         "hover:bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_64%,transparent)] focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_28%,transparent)]",
         busy && "opacity-65",
       )}
@@ -65,15 +65,15 @@ export function ConnectorCard({
       <ConnectorIcon icon={connector.icon} title={connector.title} />
       <span className="min-w-0 flex-1">
         <span className="flex min-w-0 items-center gap-2">
-          <span className="truncate text-[15px] font-semibold text-(--text-strong)">
+          <span className="truncate text-[14px] font-medium text-(--text-strong)">
             {connector.title}
           </span>
           <ConnectorCardBadge badge={model.badge} />
         </span>
-        <span className="mt-0.5 block truncate text-[13px] leading-5 text-(--text-muted)">
+        <span className="mt-0.5 block truncate text-[12px] leading-[1.125rem] text-(--text-muted)">
           {connector.description}
         </span>
-        <span className="mt-0.5 block text-[11px] leading-4 text-(--text-soft)">
+        <span className="mt-0.5 block text-[10px] leading-4 text-(--text-soft)">
           {getConnectorCategoryLabel(connector.category, t)}
         </span>
       </span>

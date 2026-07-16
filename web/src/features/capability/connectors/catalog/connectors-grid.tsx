@@ -41,11 +41,11 @@ export function ConnectorsGrid({
 
   if (connectors.length === 0) {
     return (
-      <div className="flex min-h-60 flex-col items-center justify-center gap-3 text-(--text-muted)">
-        <div className="flex h-14 w-14 items-center justify-center rounded-full border border-(--divider-subtle-color) bg-transparent">
-          <Link2 className="h-6 w-6" />
+      <div className="flex min-h-48 flex-col items-center justify-center gap-2 text-(--text-muted)">
+        <div className="flex h-10 w-10 items-center justify-center rounded-[8px] border border-(--divider-subtle-color) bg-transparent">
+          <Link2 className="h-4 w-4" />
         </div>
-        <p className="text-sm">{t("capability.connectors_empty")}</p>
+        <p className="text-[12px]">{t("capability.connectors_empty")}</p>
       </div>
     );
   }
@@ -58,18 +58,18 @@ export function ConnectorsGrid({
   );
 
   return (
-    <div className="space-y-9">
+    <div className="space-y-6">
       {sections.map((section) => (
         <section key={section.key}>
-          <div className="mb-3 flex items-end justify-between border-b border-(--divider-subtle-color) pb-2">
-            <h2 className="text-[18px] font-medium tracking-[-0.025em] text-(--text-strong)">
+          <div className="mb-2 flex items-end justify-between border-b border-(--divider-subtle-color) pb-1.5">
+            <h2 className="text-[15px] font-medium text-(--text-strong)">
               {section.title}
             </h2>
-            <span className="text-[12px] font-medium text-(--text-soft)">
+            <span className="text-[11px] font-medium text-(--text-soft)">
               {section.connectors.length} 个
             </span>
           </div>
-          <div className="grid grid-cols-1 gap-x-12 gap-y-4 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-x-8 gap-y-2 md:grid-cols-2">
             {section.connectors.map((connector) => (
               <ConnectorCard
                 key={connector.connector_id}

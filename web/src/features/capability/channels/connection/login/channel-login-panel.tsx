@@ -132,7 +132,7 @@ export function ChannelLoginPanel({
   const model = buildChannelLoginPanelModel(loginView);
 
   return (
-    <div className="rounded-[14px] border border-(--divider-subtle-color) bg-transparent px-4 py-3">
+    <div className="rounded-[10px] border border-(--divider-subtle-color) bg-transparent px-3 py-3">
       <ChannelLoginHeader />
       {model.kind === "session" ? (
         <ChannelLoginSession

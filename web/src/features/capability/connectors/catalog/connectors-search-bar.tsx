@@ -26,7 +26,7 @@ export function ConnectorsSearchBar({
   const { t } = useI18n();
 
   return (
-    <div className="mb-5 flex w-full flex-col gap-2.5 sm:flex-row sm:items-center">
+    <div className="mb-4 flex w-full flex-col gap-2 sm:flex-row sm:items-center">
       <CapabilityFilterSearchInput
         onChange={onQueryChange}
         placeholder={t("capability.connectors_search_placeholder")}

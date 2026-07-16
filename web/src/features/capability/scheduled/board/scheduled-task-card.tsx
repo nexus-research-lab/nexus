@@ -91,7 +91,7 @@ export function ScheduledTaskCard({
   return (
     <article
       className={cn(
-        "group rounded-[8px] border bg-(--surface-raised-background) p-3.5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-[border-color,background-color] duration-(--motion-duration-fast) hover:border-(--surface-interactive-hover-border)",
+        "group rounded-[8px] border bg-transparent p-3 transition-[border-color,background-color] duration-(--motion-duration-fast) hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background)",
         presentation.columnId === "attention"
           ? "border-[color:color-mix(in_srgb,var(--warning)_30%,var(--divider-subtle-color))]"
           : "border-(--divider-subtle-color)",
@@ -128,11 +128,11 @@ export function ScheduledTaskCard({
       <h3 className="mt-1 line-clamp-2 text-[14px] font-semibold leading-5 text-(--text-strong)">
         {task.name}
       </h3>
-      <p className="mt-2 line-clamp-2 whitespace-pre-line text-[12px] leading-5 text-(--text-muted)">
+      <p className="mt-1.5 line-clamp-2 whitespace-pre-line text-[12px] leading-5 text-(--text-muted)">
         {task.instruction}
       </p>
 
-      <div className="mt-3 space-y-1.5 text-[11px] leading-4 text-(--text-default)">
+      <div className="mt-2.5 space-y-1 text-[11px] leading-4 text-(--text-default)">
         <div className="flex min-w-0 items-center gap-1.5">
           <CalendarClock className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)" />
           <span className="truncate font-medium">{presentation.scheduleSummary}</span>
@@ -145,14 +145,14 @@ export function ScheduledTaskCard({
 
       {presentation.lastError ? (
         <p
-          className="mt-3 line-clamp-2 border-l-2 border-(--destructive) pl-2 text-[11px] leading-4 text-(--destructive)"
+          className="mt-2.5 line-clamp-2 border-l-2 border-(--destructive) pl-2 text-[11px] leading-4 text-(--destructive)"
           title={presentation.lastError}
         >
           {presentation.lastError}
         </p>
       ) : null}
 
-      <div className="mt-3 flex items-center justify-end gap-1 border-t border-(--divider-subtle-color) pt-2.5">
+      <div className="mt-2.5 flex items-center justify-end gap-1 border-t border-(--divider-subtle-color) pt-2">
         <UiIconButton
           aria-label="运行历史"
           disabled={presentation.historyDisabled}

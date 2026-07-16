@@ -40,14 +40,14 @@ export function SkillsCard({
   return (
     <UiListRow
       className={cn(
-        "min-h-[72px] rounded-[14px] px-2 py-1.5",
+        "min-h-[64px] rounded-[8px] px-2 py-1",
         busy && "opacity-60",
         className,
       )}
       leading={(
         <span
           className={cn(
-            "flex h-11 w-11 shrink-0 items-center justify-center rounded-[12px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_70%,transparent)] bg-(--surface-panel-background) shadow-[0_1px_2px_rgba(15,23,42,0.04)]",
+            "flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] border border-(--divider-subtle-color) bg-(--surface-panel-background)",
             model.iconClassName,
           )}
         >
@@ -75,15 +75,15 @@ export function SkillsCard({
     >
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="truncate text-[15px] font-semibold tracking-[-0.02em] text-(--text-strong)">
+          <span className="truncate text-[14px] font-medium text-(--text-strong)">
             {model.title}
           </span>
           {model.showUpdate ? <UiBadge size="xs" tone="warning">有更新</UiBadge> : null}
         </div>
-        <div className="mt-0.5 truncate text-[13px] leading-5 text-(--text-muted)">
+        <div className="mt-0.5 truncate text-[12px] leading-[1.125rem] text-(--text-muted)">
           {model.description}
         </div>
-        <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] leading-4 text-(--text-soft)">
+        <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[10px] leading-4 text-(--text-soft)">
           <span className="shrink-0">{model.sourceLabel}</span>
           {model.visibleTags.map((tag) => (
             <span key={tag} className="truncate">

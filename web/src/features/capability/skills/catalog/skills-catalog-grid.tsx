@@ -29,13 +29,13 @@ export function SkillsCatalogGrid({
 
   if (!groupedSkills.length) {
     return (
-      <div className="flex min-h-80 flex-col items-center justify-center gap-3 text-center">
-        <div className="flex h-14 w-14 items-center justify-center rounded-full border border-(--divider-subtle-color) bg-transparent">
-          <Puzzle className="h-6 w-6 text-(--text-muted)" />
+      <div className="flex min-h-48 flex-col items-center justify-center gap-2 text-center">
+        <div className="flex h-10 w-10 items-center justify-center rounded-[8px] border border-(--divider-subtle-color) bg-transparent">
+          <Puzzle className="h-4 w-4 text-(--text-muted)" />
         </div>
         <div>
-          <p className="text-[16px] font-bold text-(--text-default)">没有符合条件的技能</p>
-          <p className="mt-1 text-[13px] text-(--text-soft)">
+          <p className="text-[14px] font-medium text-(--text-default)">没有符合条件的技能</p>
+          <p className="mt-0.5 text-[12px] text-(--text-soft)">
             试试切换分类、来源或搜索条件
           </p>
         </div>
@@ -44,18 +44,18 @@ export function SkillsCatalogGrid({
   }
 
   return (
-    <div className="space-y-9">
+    <div className="space-y-6">
       {groupedSkills.map(([categoryName, items]) => (
         <section key={categoryName}>
-          <div className="mb-3 flex items-end justify-between border-b border-(--divider-subtle-color) pb-2">
-            <h2 className="text-[18px] font-medium tracking-[-0.025em] text-(--text-strong)">
+          <div className="mb-2 flex items-end justify-between border-b border-(--divider-subtle-color) pb-1.5">
+            <h2 className="text-[15px] font-medium text-(--text-strong)">
               {categoryName}
             </h2>
-            <span className="text-[12px] font-medium text-(--text-soft)">
+            <span className="text-[11px] font-medium text-(--text-soft)">
               {items.length} 个
             </span>
           </div>
-          <div className="grid grid-cols-1 gap-x-12 gap-y-4 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-x-8 gap-y-2 md:grid-cols-2">
             {items.map((skill: SkillInfo) => (
               <SkillsCard
                 key={skill.name}

@@ -61,11 +61,11 @@ export function CapabilityPageLayout({
 }: CapabilityPageLayoutProps) {
   return (
     <div className={cn(WORKSPACE_DETAIL_PAGE_CLASS_NAME, className)}>
-      <div className="mb-5">
-        <h1 className="text-[24px] font-semibold tracking-[-0.03em] text-(--text-strong)">
+      <div className="mb-4">
+        <h1 className="text-[20px] font-semibold tracking-[-0.02em] text-(--text-strong)">
           {title}
         </h1>
-        <p className="mt-1 max-w-[680px] text-[13px] leading-6 text-(--text-muted)">
+        <p className="mt-0.5 max-w-[640px] text-[12px] leading-5 text-(--text-muted)">
           {description}
         </p>
       </div>
@@ -85,8 +85,9 @@ export function CapabilityFilterSearchInput({
 }: CapabilityFilterSearchInputProps) {
   return (
     <UiSearchInput
-      className="h-10 min-w-0 flex-1 rounded-[13px] border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_92%,white)] px-3.5"
-      inputClassName="text-[14px]"
+      className="workbench-input-shell min-w-0 flex-1"
+      controlSize="sm"
+      inputClassName="text-[13px]"
       action={action}
       onChange={onChange}
       onCompositionEnd={onCompositionEnd}
@@ -112,17 +113,19 @@ export function CapabilityFilterSelect({
 }: CapabilityFilterSelectProps) {
   return (
     <div
-      className={cn("shrink-0 sm:w-[184px]", className)}
+      className={cn("shrink-0 sm:w-[168px]", className)}
       data-tour-anchor={tourAnchor}
     >
       <UiSelectMenu
         ariaLabel={ariaLabel}
+        buttonClassName="shadow-none"
         disabled={disabled}
         label={label}
         leading={leading}
         onChange={onChange}
         options={options}
         placeholder={placeholder}
+        size="sm"
         value={value}
       />
     </div>
@@ -134,7 +137,7 @@ export function CapabilityFilterBar({
   className: className,
 }: CapabilityFilterBarProps) {
   return (
-    <div className={cn("mb-5 flex w-full flex-col gap-2.5 sm:flex-row sm:items-center", className)}>
+    <div className={cn("mb-4 flex w-full flex-col gap-2 sm:flex-row sm:items-center", className)}>
       {children}
     </div>
   );
@@ -145,12 +148,12 @@ export function CapabilitySectionHeader({
   title,
 }: CapabilitySectionHeaderProps) {
   return (
-    <div className="mb-3 flex items-end justify-between border-b border-(--divider-subtle-color) pb-2">
-      <h2 className="text-[18px] font-medium tracking-[-0.025em] text-(--text-strong)">
+    <div className="mb-2 flex items-end justify-between border-b border-(--divider-subtle-color) pb-1.5">
+      <h2 className="text-[15px] font-medium tracking-[-0.01em] text-(--text-strong)">
         {title}
       </h2>
       {count ? (
-        <span className="text-[12px] font-medium text-(--text-soft)">
+        <span className="text-[11px] font-medium text-(--text-soft)">
           {count}
         </span>
       ) : null}
