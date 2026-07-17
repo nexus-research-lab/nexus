@@ -62,7 +62,18 @@ export interface TaskProgressContent {
   description: string;
   tool_use_id?: string | null;
   last_tool_name?: string | null;
+  terminal_output?: TerminalOutputSnapshotContent | null;
   usage?: Record<string, unknown>;
+}
+
+export interface TerminalOutputSnapshotContent {
+  kind: "snapshot";
+  stream: "combined";
+  text: string;
+  tail?: string;
+  timeout_ms?: number;
+  total_bytes?: number;
+  total_lines?: number;
 }
 
 export interface WorkspaceFileArtifactContent {

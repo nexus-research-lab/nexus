@@ -245,6 +245,7 @@ function build_tool_runtime_events({
       delta: {
         status: "running",
         ...(durationMs == null ? {} : { duration_ms: durationMs }),
+        ...(progress?.terminal_output ? { terminal_output: progress.terminal_output } : {}),
       },
     });
   }

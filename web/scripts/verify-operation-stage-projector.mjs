@@ -15,10 +15,8 @@ const operation_dir = join(out_dir, "src/features/conversation/operation");
 rmSync(out_dir, { recursive: true, force: true });
 
 execFileSync(
-  process.platform === "win32" ? "pnpm.cmd" : "pnpm",
+  join(web_root, "node_modules", ".bin", process.platform === "win32" ? "tsc.cmd" : "tsc"),
   [
-    "exec",
-    "tsc",
     "--project",
     "tsconfig.json",
     "--outDir",
@@ -56,6 +54,7 @@ copyFileSync(join(operation_dir, "operation-scene-window-policy.js"), join(opera
 copyFileSync(join(operation_dir, "operation-stage-labels.js"), join(operation_dir, "operation-stage-labels"));
 copyFileSync(join(operation_dir, "operation-stage-experience.js"), join(operation_dir, "operation-stage-experience"));
 copyFileSync(join(operation_dir, "operation-stage-key.js"), join(operation_dir, "operation-stage-key"));
+copyFileSync(join(operation_dir, "operation-terminal-progress.js"), join(operation_dir, "operation-terminal-progress"));
 copyFileSync(join(operation_dir, "operation-terminal-lines.js"), join(operation_dir, "operation-terminal-lines"));
 copyFileSync(join(operation_dir, "operation-terminal-session-events.js"), join(operation_dir, "operation-terminal-session-events"));
 copyFileSync(join(operation_dir, "operation-summary-events.js"), join(operation_dir, "operation-summary-events"));
@@ -105,6 +104,7 @@ const {
 const {
   deriveStageDesktopIntents,
   deriveStageDesktopIntentsFromRuntimeEvent,
+  operationEventFromRuntimeEvent,
   readBrowserOpenTargetFromTerminalCommand,
   stageAppSessionIdForIntent,
 } = await import(pathToFileURL(join(operation_dir, "operation-desktop-intents.js")));
@@ -266,6 +266,7 @@ verify_code_writer_preview_uses_real_content(now);
 verify_extensionless_workspace_file_opens_code_app(now);
 verify_code_editor_session_view();
 verify_terminal_result_envelope(now);
+verify_nxs_terminal_progress_and_claude_fallback(now);
 verify_terminal_entries_render_real_command_result(now);
 verify_browser_fallback_builds_search_results(now);
 verify_browser_reader_highlights_tool_hits();
@@ -2116,6 +2117,11 @@ function verify_terminal_result_envelope(now) {
         tool_use_id: "tool-bash",
         last_tool_name: "Bash",
         description: "Bash 正在执行",
+        terminal_output: {
+          kind: "snapshot",
+          stream: "combined",
+          text: "partial\n",
+        },
         usage: {
           duration_ms: 2350,
         },
@@ -2147,6 +2153,103 @@ function verify_terminal_result_envelope(now) {
   assert(terminal_event.result_preview?.is_error === false, "terminal success state should be preserved");
   assert(terminal_event.duration_ms === 2350, `terminal should preserve SDK progress duration, got ${terminal_event.duration_ms}`);
   assert(!snapshot.events.some((event) => event.kind === "task_progress"), "Bash tool_progress must not create an Activity Monitor event");
+}
+
+function verify_nxs_terminal_progress_and_claude_fallback(now) {
+  const baseMessage = {
+    role: "assistant",
+    message_id: "msg-terminal-live",
+    session_key: "session:stage",
+    agent_id: "agent-stage",
+    round_id: "round-terminal-live",
+    timestamp: now - 1000,
+    is_complete: false,
+  };
+  const toolUse = {
+    type: "tool_use",
+    id: "tool-bash-live",
+    name: "Bash",
+    input: {
+      command: "printf \"first\\nsecond\\n\"",
+    },
+  };
+  const nxsMessages = [{
+    ...baseMessage,
+    content: [
+      toolUse,
+      {
+        type: "task_progress",
+        task_id: "tool-bash-live",
+        tool_use_id: "tool-bash-live",
+        last_tool_name: "Bash",
+        description: "Bash 正在执行",
+        terminal_output: {
+          kind: "snapshot",
+          stream: "combined",
+          text: "first\nsecond\n",
+          total_bytes: 13,
+          total_lines: 2,
+        },
+        usage: {
+          duration_ms: 2100,
+        },
+      },
+    ],
+  }];
+  const nxsSnapshot = projectOperationSnapshot({
+    key: "session:stage",
+    session_key: "session:stage",
+    agent_id: "agent-stage",
+    messages: nxsMessages,
+    pending_permissions: [],
+    live_round_ids: ["round-terminal-live"],
+    workspace_events: [],
+  });
+  const nxsEvent = nxsSnapshot.events.find((event) => event.tool_use_id === "tool-bash-live");
+  assert(nxsEvent?.phase === "running", `nxs terminal progress should stay running, got ${nxsEvent?.phase}`);
+  assert(nxsEvent?.result_preview?.content === "first\nsecond\n", "nxs terminal should expose the latest cumulative output snapshot");
+  const [nxsEntry] = buildTerminalSession({ event: nxsEvent, relatedEvents: [] }).entries;
+  assert(nxsEntry.result.rows.map((row) => row.text).join("\n") === "first\nsecond", "nxs terminal should render live output rows");
+
+  const runtimeDelta = nxsSnapshot.runtime_events.find((event) => (
+    event.event_type === "tool_delta" && event.tool_use_id === "tool-bash-live"
+  ));
+  assert(runtimeDelta?.delta?.terminal_output?.text === "first\nsecond\n", "nxs runtime delta should carry terminal output");
+  const runtimeOperation = operationEventFromRuntimeEvent(runtimeDelta);
+  assert(runtimeOperation.result_preview?.content === "first\nsecond\n", "runtime desktop projection should preserve nxs terminal output");
+
+  const claudeMessages = [{
+    ...baseMessage,
+    message_id: "msg-terminal-claude",
+    content: [
+      toolUse,
+      {
+        type: "task_progress",
+        task_id: "tool-bash-live",
+        tool_use_id: "tool-bash-live",
+        last_tool_name: "Bash",
+        description: "Bash 正在执行",
+        usage: {
+          duration_ms: 2100,
+        },
+      },
+    ],
+  }];
+  const claudeSnapshot = projectOperationSnapshot({
+    key: "session:stage",
+    session_key: "session:stage",
+    agent_id: "agent-stage",
+    messages: claudeMessages,
+    pending_permissions: [],
+    live_round_ids: ["round-terminal-live"],
+    workspace_events: [],
+  });
+  const claudeEvent = claudeSnapshot.events.find((event) => event.tool_use_id === "tool-bash-live");
+  assert(claudeEvent?.phase === "running", `claude terminal progress should stay running, got ${claudeEvent?.phase}`);
+  assert(claudeEvent?.result_preview == null, "claude progress must not fabricate terminal output before tool_result");
+  const [claudeEntry] = buildTerminalSession({ event: claudeEvent, relatedEvents: [] }).entries;
+  assert(claudeEntry.result.rows.length === 0, "claude terminal should wait without output rows");
+  assert(claudeEntry.statusLabel === "运行中", `claude terminal should show running status, got ${claudeEntry.statusLabel}`);
 }
 
 function verify_terminal_entries_render_real_command_result(now) {
@@ -2280,8 +2383,8 @@ function verify_terminal_entries_render_real_command_result(now) {
   assert(error_entry.result.stderr.some((row) => row.includes("missing.txt")), "terminal error transcript should keep stderr rows");
   assert(error_entry.statusLabel === "退出 1", `terminal error should show explicit exit 1, got ${error_entry.statusLabel}`);
   assert(error_entry.statusTone === "error", `terminal error should use error tone, got ${error_entry.statusTone}`);
-  assert(unknown_entry.statusLabel === "已完成 · 退出码未知", `missing exit code must be explicit, got ${unknown_entry.statusLabel}`);
-  assert(unknown_entry.durationLabel === "耗时未知", `missing duration must be explicit, got ${unknown_entry.durationLabel}`);
+  assert(unknown_entry.statusLabel === "已完成", `missing exit code should be omitted, got ${unknown_entry.statusLabel}`);
+  assert(unknown_entry.durationLabel === null, `missing duration should be omitted, got ${unknown_entry.durationLabel}`);
   assert(unknown_entry.cwdLabel === null, `missing cwd must stay unknown, got ${unknown_entry.cwdLabel}`);
   assert(background_session.hasActiveProcess, "completed Bash startup with a task id should keep the background process active");
   assert(background_session.entries[0].statusLabel === "后台运行中", `background Bash should stay active, got ${background_session.entries[0].statusLabel}`);

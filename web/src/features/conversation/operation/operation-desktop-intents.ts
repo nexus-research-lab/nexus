@@ -4,6 +4,7 @@ import {
   DEFAULT_TARGET_KEYS,
   resolveOperationToolProfile,
 } from "./operation-tool-catalog";
+import { terminalProgressResultFromRuntimeDelta } from "./operation-terminal-progress";
 import { resolveOperationToolVisualContract } from "./operation-tool-visual-contract";
 
 export type StageDesktopIntent =
@@ -172,7 +173,10 @@ export function operationEventFromRuntimeEvent(
     target,
     summary: summarize_runtime_label(runtime_event.delta) ?? summarize_runtime_label(runtime_event.result),
     input_preview: runtime_event.input,
-    result_preview: runtime_event.result ?? runtime_event.artifact?.preview ?? null,
+    result_preview: runtime_event.result
+      ?? terminalProgressResultFromRuntimeDelta(runtime_event.delta)
+      ?? runtime_event.artifact?.preview
+      ?? null,
     evidence: runtime_event.artifact?.path
       ? [{ type: "artifact", label: runtime_event.artifact.status ?? "artifact", value: runtime_event.artifact.path }]
       : undefined,

@@ -65,7 +65,7 @@ export function buildTerminalSession({
   const orphanControls: TerminalControlEvent[] = [];
 
   for (const control of controls) {
-    const targetIndex = findControlTargetIndex(commandEntries, control, terminalEvents);
+    const targetIndex = findControlTargetIndex(commandEntries, control);
     if (targetIndex < 0) {
       orphanControls.push(control);
       continue;
@@ -108,7 +108,7 @@ function buildCommandEntry(event: NexusOperationEvent): TerminalEntry {
   const measuredDuration = formatTerminalDuration(readTerminalDurationMs(event));
   const durationLabel = measuredDuration
     ? backgroundProcess ? `启动 ${measuredDuration}` : measuredDuration
-    : isFinalPhase(phase) ? "耗时未知" : null;
+    : null;
   return {
     command: readTerminalCommand(event),
     controls: [],
@@ -128,8 +128,7 @@ function buildCommandEntry(event: NexusOperationEvent): TerminalEntry {
 function buildControlEvent(event: NexusOperationEvent): TerminalControlEvent {
   const result = parseTerminalResult(event.result_preview);
   return {
-    durationLabel: formatTerminalDuration(readTerminalDurationMs(event))
-      ?? (isFinalPhase(event.phase) ? "耗时未知" : null),
+    durationLabel: formatTerminalDuration(readTerminalDurationMs(event)),
     id: event.id,
     phase: event.phase,
     resultRows: result.rows,
@@ -147,9 +146,7 @@ function buildOrphanControlEntry(
     command: null,
     controls: [control],
     cwdLabel: null,
-    durationLabel: source
-      ? formatTerminalDuration(readTerminalDurationMs(source)) ?? (isFinalPhase(source.phase) ? "耗时未知" : null)
-      : "耗时未知",
+    durationLabel: source ? formatTerminalDuration(readTerminalDurationMs(source)) : null,
     id: control.id,
     phase: control.phase,
     result: parseTerminalResult(null),
@@ -172,42 +169,16 @@ function applyControlState(entry: TerminalEntry, control: TerminalControlEvent):
     entry.phase = "cancelled";
     entry.statusLabel = "已终止";
     entry.statusTone = "muted";
-    entry.durationLabel ??= "启动耗时未知";
   }
 }
 
 function findControlTargetIndex(
   entries: TerminalEntry[],
   control: TerminalControlEvent,
-  events: NexusOperationEvent[],
 ): number {
-  const exactShellIndex = control.targetLabel
+  return control.targetLabel
     ? entries.findIndex((entry) => entry.shellId === control.targetLabel)
     : -1;
-  if (exactShellIndex >= 0) {
-    return exactShellIndex;
-  }
-
-  const controlEvent = events.find((event) => event.id === control.id);
-  const controlCommand = controlEvent
-    ? readInputString(controlEvent.input_preview, ["command", "cmd"])
-    : null;
-  if (controlCommand) {
-    const commandIndex = entries.findIndex((entry) => entry.command === controlCommand);
-    if (commandIndex >= 0) {
-      return commandIndex;
-    }
-  }
-
-  const controlTime = controlEvent?.started_at ?? controlEvent?.updated_at ?? Number.POSITIVE_INFINITY;
-  for (let index = entries.length - 1; index >= 0; index -= 1) {
-    const entryEvent = events.find((event) => event.id === entries[index].id);
-    const entryTime = entryEvent?.started_at ?? entryEvent?.updated_at ?? 0;
-    if (entryTime <= controlTime) {
-      return index;
-    }
-  }
-  return -1;
 }
 
 function readTerminalDurationMs(event: NexusOperationEvent): number | null {
@@ -237,12 +208,12 @@ function terminalStatusLabel(phase: OperationPhase, exitCode: number | null): st
     return "运行中";
   }
   if (phase === "cancelled") {
-    return exitCode == null ? "已中断 · 退出码未知" : `已中断 · 退出 ${exitCode}`;
+    return exitCode == null ? "已中断" : `已中断 · 退出 ${exitCode}`;
   }
   if (phase === "error") {
-    return exitCode == null ? "执行失败 · 退出码未知" : `退出 ${exitCode}`;
+    return exitCode == null ? "执行失败" : `退出 ${exitCode}`;
   }
-  return exitCode == null ? "已完成 · 退出码未知" : `退出 ${exitCode}`;
+  return exitCode == null ? "已完成" : `退出 ${exitCode}`;
 }
 
 function terminalControlStatusLabel(phase: OperationPhase): string {
@@ -289,10 +260,6 @@ function formatTerminalDuration(durationMs: number | null): string | null {
   }
   const seconds = durationMs / 1000;
   return `${seconds.toFixed(seconds < 10 ? 1 : 0)}s`;
-}
-
-function isFinalPhase(phase: OperationPhase): boolean {
-  return phase === "done" || phase === "error" || phase === "cancelled";
 }
 
 function isBackgroundProcess(

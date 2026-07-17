@@ -43,6 +43,7 @@ import {
   truncateProjectedText,
 } from "./operation-projection-preview";
 import { projectResultSummaryEvent } from "./operation-summary-events";
+import { buildTerminalProgressResultPreview } from "./operation-terminal-progress";
 
 const MAX_EVENTS = 24;
 const MAX_EVIDENCE = 8;
@@ -351,7 +352,8 @@ function project_tool_use({
     target,
     summary: pending_permission?.summary ?? summarize_result(result),
     input_preview,
-    result_preview: build_tool_result_preview(result, projection.kind),
+    result_preview: build_tool_result_preview(result, projection.kind)
+      ?? buildTerminalProgressResultPreview(progress?.terminal_output),
     evidence,
     permission_request_id: pending_permission?.request_id ?? null,
     permission_interaction_mode: pending_permission?.interaction_mode ?? null,

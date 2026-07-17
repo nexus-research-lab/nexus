@@ -124,6 +124,91 @@ func TestProcessorPreservesTerminalToolProgress(t *testing.T) {
 	}
 }
 
+func TestProcessorProjectsNXSTerminalOutputSnapshots(t *testing.T) {
+	parentToolUseID := "tool-bash-1"
+	processor := NewProcessor(MessageContext{
+		SessionKey: "agent:nexus:ws:dm:test",
+		AgentID:    "nexus",
+		RoundID:    "round-nxs-terminal-progress",
+		ParentID:   "round-nxs-terminal-progress",
+	}, "sdk-session-nxs-terminal-progress")
+
+	processProgress := func(progressID string, text string, lines int) map[string]any {
+		output := processor.Process(sdkprotocol.ReceivedMessage{
+			Type:      sdkprotocol.MessageTypeToolProgress,
+			SessionID: "sdk-session-nxs-terminal-progress",
+			ToolProgress: &sdkprotocol.ToolProgressMessage{
+				ToolUseID:          progressID,
+				ToolName:           "Bash",
+				ParentToolUseID:    &parentToolUseID,
+				ElapsedTimeSeconds: float64(lines),
+				Additional: map[string]any{
+					"data": map[string]any{
+						"type":        "bash_progress",
+						"output":      text,
+						"full_output": text,
+						"total_lines": float64(lines),
+						"total_bytes": float64(len(text)),
+						"timeout_ms":  float64(120000),
+					},
+				},
+			},
+		})
+		if len(output.DurableMessages) != 1 {
+			t.Fatalf("nxs terminal progress 未并入 assistant durable 消息: %+v", output)
+		}
+		content, _ := output.DurableMessages[0]["content"].([]map[string]any)
+		if len(content) != 1 {
+			t.Fatalf("同一 Bash 命令应只保留一个进度块: %+v", content)
+		}
+		return content[0]
+	}
+
+	first := processProgress("bash-progress-0", "first\n", 1)
+	if first["task_id"] != parentToolUseID || first["tool_use_id"] != parentToolUseID {
+		t.Fatalf("nxs progress 未关联到父 Bash 工具: %+v", first)
+	}
+	second := processProgress("bash-progress-1", "first\nsecond\n", 2)
+	terminalOutput, _ := second["terminal_output"].(map[string]any)
+	if terminalOutput["kind"] != "snapshot" || terminalOutput["stream"] != "combined" {
+		t.Fatalf("terminal_output 契约不正确: %+v", terminalOutput)
+	}
+	if terminalOutput["text"] != "first\nsecond\n" || terminalOutput["total_lines"] != 2 {
+		t.Fatalf("terminal_output 未保留最新累计快照: %+v", terminalOutput)
+	}
+}
+
+func TestProcessorKeepsClaudeTerminalProgressOutputless(t *testing.T) {
+	parentToolUseID := "tool-bash-claude"
+	processor := NewProcessor(MessageContext{
+		SessionKey: "agent:claude:ws:dm:test",
+		AgentID:    "claude",
+		RoundID:    "round-claude-terminal-progress",
+		ParentID:   "round-claude-terminal-progress",
+	}, "sdk-session-claude-terminal-progress")
+
+	output := processor.Process(sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeToolProgress,
+		SessionID: "sdk-session-claude-terminal-progress",
+		ToolProgress: &sdkprotocol.ToolProgressMessage{
+			ToolUseID:          "tool-progress-claude",
+			ToolName:           "Bash",
+			ParentToolUseID:    &parentToolUseID,
+			ElapsedTimeSeconds: 1.25,
+		},
+	})
+	if len(output.DurableMessages) != 1 {
+		t.Fatalf("claude terminal progress 未并入 assistant durable 消息: %+v", output)
+	}
+	content, _ := output.DurableMessages[0]["content"].([]map[string]any)
+	if len(content) != 1 || content[0]["tool_use_id"] != parentToolUseID {
+		t.Fatalf("claude progress 未关联到父 Bash 工具: %+v", content)
+	}
+	if _, exists := content[0]["terminal_output"]; exists {
+		t.Fatalf("claude progress 不应伪造终端输出: %+v", content[0])
+	}
+}
+
 func TestProcessorPreservesTypedSubagentThreadMetadata(t *testing.T) {
 	processor := NewProcessor(MessageContext{
 		SessionKey: "agent:host:ws:dm:thread-metadata",

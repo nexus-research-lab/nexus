@@ -64,7 +64,10 @@ func (p *Processor) processToolProgressMessage(message sdkprotocol.ReceivedMessa
 		)
 	}
 
-	toolUseID := strings.TrimSpace(progress.ToolUseID)
+	toolUseID := firstNonEmpty(
+		normalizePointerString(progress.ParentToolUseID),
+		strings.TrimSpace(progress.ToolUseID),
+	)
 	toolName := strings.TrimSpace(progress.ToolName)
 	if toolUseID == "" || (toolName != "Bash" && toolName != "KillShell") {
 		return nil
@@ -79,8 +82,38 @@ func (p *Processor) processToolProgressMessage(message sdkprotocol.ReceivedMessa
 		toolUseID,
 		toolName,
 		usage,
-		data,
+		map[string]any{
+			"terminal_output": terminalOutputSnapshot(data),
+		},
 	)
+}
+
+func terminalOutputSnapshot(data map[string]any) map[string]any {
+	if normalizeString(data["type"]) != "bash_progress" {
+		return nil
+	}
+	text := rawString(data["full_output"])
+	if text == "" {
+		text = rawString(data["output"])
+	}
+	if text == "" {
+		return nil
+	}
+
+	snapshot := map[string]any{
+		"kind":   "snapshot",
+		"stream": "combined",
+		"text":   text,
+	}
+	if tail := rawString(data["output"]); tail != "" {
+		snapshot["tail"] = tail
+	}
+	for _, key := range []string{"timeout_ms", "total_bytes", "total_lines"} {
+		if value, ok := data[key]; ok {
+			snapshot[key] = normalizeInt(value)
+		}
+	}
+	return snapshot
 }
 
 func (p *Processor) processTaskStartedMessage(message sdkprotocol.ReceivedMessage) *protocol.Message {
@@ -231,6 +264,9 @@ func copyTaskEventMetadata(metadata map[string]any, additional map[string]any) {
 		if value := normalizeString(additional[key]); value != "" {
 			metadata[key] = value
 		}
+	}
+	if terminalOutput := mapValue(additional["terminal_output"]); len(terminalOutput) > 0 {
+		metadata["terminal_output"] = terminalOutput
 	}
 }
 

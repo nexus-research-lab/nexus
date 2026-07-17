@@ -135,7 +135,8 @@ function TerminalControl({ control }: { control: TerminalControlEvent }) {
           ? <LoaderCircle className="mt-[3px] h-3.5 w-3.5 shrink-0 animate-spin" />
           : <CircleStop className="mt-[3px] h-3.5 w-3.5 shrink-0" />}
         <span className="min-w-0 break-words">
-          KillShell · {control.statusLabel} · {control.targetLabel ?? "目标未知"}
+          KillShell · {control.statusLabel}
+          {control.targetLabel ? ` · ${control.targetLabel}` : ""}
           {control.durationLabel ? ` · ${control.durationLabel}` : ""}
         </span>
       </div>
@@ -147,13 +148,11 @@ function TerminalControl({ control }: { control: TerminalControlEvent }) {
 }
 
 function TerminalCwd({ cwdLabel }: { cwdLabel: string | null }) {
+  if (!cwdLabel) {
+    return null;
+  }
   return (
-    <span className={cn(
-      "shrink-0 select-none",
-      cwdLabel ? "text-[#65c7f7]" : "text-[#7f90a3]",
-    )}>
-      {cwdLabel ?? "cwd ?"}
-    </span>
+    <span className="shrink-0 select-none text-[#65c7f7]">{cwdLabel}</span>
   );
 }
 

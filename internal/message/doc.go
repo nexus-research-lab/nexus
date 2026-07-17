@@ -4,7 +4,7 @@
 //
 // 成员清单：
 //   - processor.go / event_mapper.go：SDK 消息分发、状态持有与场景事件映射。
-//   - system.go / task_event.go：可见系统事件与后台任务事件投影。
+//   - system.go / task_event.go：可见系统事件、后台任务与终端执行进度投影。
 //   - assistant_error.go / result_message.go：assistant API 错误与终态结果消息。
 //   - tool_result_message.go / workspace_artifact.go：工具结果消息与工作区产物投影。
 //   - segment_assistant.go / projection_result.go / tool_result.go：assistant 分段、保留执行身份的结果摘要挂载、工具结果观测。
