@@ -85,9 +85,9 @@ export function CapabilityFilterSearchInput({
 }: CapabilityFilterSearchInputProps) {
   return (
     <UiSearchInput
-      className="workbench-input-shell min-w-0 flex-1"
+      className="min-w-0 flex-1 border-(--divider-strong-color) bg-(--input)"
       controlSize="sm"
-      inputClassName="text-[13px]"
+      inputClassName="text-[13px] placeholder:text-(--text-muted)"
       action={action}
       onChange={onChange}
       onCompositionEnd={onCompositionEnd}
@@ -113,12 +113,13 @@ export function CapabilityFilterSelect({
 }: CapabilityFilterSelectProps) {
   return (
     <div
-      className={cn("shrink-0 sm:w-[168px]", className)}
+      className={cn("shrink-0 sm:w-[144px]", className)}
       data-tour-anchor={tourAnchor}
     >
       <UiSelectMenu
         ariaLabel={ariaLabel}
-        buttonClassName="shadow-none"
+        buttonClassName="gap-1.5 px-2.5 shadow-none"
+        className="h-8"
         disabled={disabled}
         label={label}
         leading={leading}
