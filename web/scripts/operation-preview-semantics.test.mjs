@@ -28,6 +28,22 @@ const { deriveStageDesktopIntents } = await server.ssrLoadModule(
 const { getWorkspaceFilePreviewKind } = await server.ssrLoadModule(
   "/src/features/conversation/shared/editor/workspace-file-preview-kind.ts",
 );
+const { resolveOperationWorkspaceFilePath } = await server.ssrLoadModule(
+  "/src/features/conversation/operation/operation-workspace-file-path.ts",
+);
+const {
+  appendOperationUserFilePath,
+  findOperationWorkspaceWindow,
+  mergeOperationUserFileWindows,
+} = await server.ssrLoadModule(
+  "/src/features/conversation/operation/operation-user-file-windows.ts",
+);
+const {
+  buildFinderSessionView,
+  finderResultPaths,
+} = await server.ssrLoadModule(
+  "/src/features/conversation/operation/apps/finder-session.ts",
+);
 
 const now = Date.now();
 
@@ -82,6 +98,119 @@ test("absolute tool paths and relative workspace paths become one document", () 
   assert.equal(context.file_documents.length, 1);
   assert.equal(context.file_documents[0].target, "reports/brief.md");
   assert.equal(context.file_documents[0].workspace_item.id, workspaceItem.id);
+});
+
+test("SDK absolute paths resolve only inside the active Agent workspace", () => {
+  assert.equal(resolveOperationWorkspaceFilePath({
+    path: "/Users/test/.nexus/workspace/Devi/reports/brief.md",
+    workspacePath: "/Users/test/.nexus/workspace/Devi",
+  }), "reports/brief.md");
+  assert.equal(resolveOperationWorkspaceFilePath({
+    path: "C:\\Users\\test\\.nexus\\workspace\\Devi\\src\\main.ts",
+    workspacePath: "C:\\Users\\test\\.nexus\\workspace\\Devi",
+  }), "src/main.ts");
+  assert.equal(resolveOperationWorkspaceFilePath({
+    knownPaths: ["reports/brief.md"],
+    path: "/private/runtime/session/reports/brief.md",
+  }), "reports/brief.md");
+  assert.equal(resolveOperationWorkspaceFilePath({
+    knownPaths: ["report.md", "b/report.md"],
+    path: "/private/runtime/session/b/report.md",
+  }), null);
+  assert.equal(resolveOperationWorkspaceFilePath({
+    path: "../outside.txt",
+    workspacePath: "/Users/test/.nexus/workspace/Devi",
+  }), null);
+});
+
+test("Files uses real workspace entries, search, and the current-round change scope", () => {
+  const event = fileEvent({
+    target: "/tmp/runtime/src/main.ts",
+    result_preview: "src/main.ts\nREADME.md\nnot a path summary.",
+  });
+  const files = [
+    { path: "src", name: "src", is_dir: true, modified_at: "2026-07-17T08:00:00Z", depth: 0 },
+    { path: "src/main.ts", name: "main.ts", is_dir: false, size: 1200, modified_at: "2026-07-17T08:01:00Z", depth: 1 },
+    { path: "README.md", name: "README.md", is_dir: false, size: 90, modified_at: "2026-07-17T08:02:00Z", depth: 0 },
+  ];
+  const items = [{
+    id: "live:main",
+    agent_id: event.agent_id,
+    event_type: "file_write_end",
+    path: "src/main.ts",
+    source: "agent",
+    status: "updated",
+    updated_at: now,
+    version: 2,
+  }];
+
+  const workspaceView = buildFinderSessionView({ event, files, items });
+  assert.equal(workspaceView.item_count, 2);
+  assert.equal(workspaceView.selected_path, "src/main.ts");
+  assert.equal(workspaceView.selected_entry?.size, 1200);
+
+  const searchView = buildFinderSessionView({ event, files, items, query: "readme" });
+  assert.equal(searchView.item_count, 1);
+  assert.deepEqual(searchView.rows.map((row) => row.path), ["README.md"]);
+
+  const changesView = buildFinderSessionView({ event, files, items, scope: "changes" });
+  assert.ok(changesView.rows.some((row) => row.path === "src" && row.type === "folder"));
+  assert.ok(changesView.rows.some((row) => row.path === "src/main.ts"));
+  assert.ok(!changesView.rows.some((row) => row.path === "README.md"));
+  assert.deepEqual(finderResultPaths(event.result_preview), ["src/main.ts", "README.md"]);
+});
+
+test("workspace search results stay in Files until a concrete file is opened", () => {
+  const event = fileEvent({
+    kind: "workspace_search",
+    surface: "workspace",
+    target: "web/src/**/*.tsx",
+    result_preview: [
+      "web/src/dev/operation-stage-preview.tsx",
+      "web/src/features/conversation/operation/stage/operation-stage-desktop.tsx",
+    ],
+  });
+  const context = collectOperationFileContext(event, null, [event]);
+  const view = buildFinderSessionView({ event, items: [] });
+
+  assert.equal(context.file_documents.length, 0);
+  assert.equal(view.changed_count, 0);
+  assert.ok(!view.rows.some((row) => row.path.includes("**")));
+  assert.deepEqual(
+    view.rows.filter((row) => row.type === "file").map((row) => row.path),
+    event.result_preview,
+  );
+});
+
+test("Files opens one truthful preview window per workspace path", () => {
+  const event = fileEvent();
+  const plannedWindow = {
+    id: "planned:brief",
+    kind: "markdown_reader",
+    title: "brief.md",
+    target: "reports/brief.md",
+    phase: "background",
+    z: 10,
+    layout: "primary",
+    payload: { event, snapshot: null, target: "reports/brief.md", workspace_preview: true },
+  };
+  const openedPaths = appendOperationUserFilePath(
+    appendOperationUserFilePath([], "games/gomoku.html"),
+    "games/gomoku.html",
+  );
+  openedPaths.push("reports/brief.md", "reports/final.pdf");
+  const windows = mergeOperationUserFileWindows({
+    event,
+    openedPaths,
+    plannedWindows: [plannedWindow],
+    snapshot: null,
+  });
+
+  assert.equal(windows.length, 3);
+  assert.equal(windows.filter((window) => window.payload.target === "reports/brief.md").length, 1);
+  assert.equal(findOperationWorkspaceWindow(windows, "/tmp/reports/brief.md")?.id, plannedWindow.id);
+  assert.equal(findOperationWorkspaceWindow(windows, "games/gomoku.html")?.kind, "browser");
+  assert.equal(findOperationWorkspaceWindow(windows, "reports/final.pdf")?.kind, "pdf_reader");
 });
 
 test("previewable files route to truthful app kinds and shared renderers", () => {

@@ -609,7 +609,7 @@ const edit_workspace_item: WorkspaceActivityItem = {
 const PREVIEW_STEPS = [
   { id: "idle", label: "空桌面", event: live_event, events: [live_event] },
   { id: "activity", label: "活动", event: task_event, events: [live_event, task_event] },
-  { id: "finder", label: "Finder", event: finder_event, events: [live_event, task_event, finder_event] },
+  { id: "finder", label: "文件", event: finder_event, events: [live_event, task_event, finder_event] },
   { id: "write", label: "创建文件", event: write_event, events: [live_event, write_event] },
   { id: "edit", label: "修改文件", event: edit_event, events: [live_event, write_event, edit_event] },
   { id: "read", label: "读取文件", event: read_event, events: [live_event, write_event, read_event] },
@@ -810,7 +810,7 @@ export function OperationStagePreview() {
       <div className="mb-3 flex shrink-0 items-center justify-between gap-3">
         <div>
           <p className="text-[12px] font-black uppercase tracking-[0.18em] text-(--text-muted)">Operation Stage Preview</p>
-          <h1 className="text-[18px] font-black tracking-normal">Mac 桌面叙事检查</h1>
+          <h1 className="text-[18px] font-black tracking-normal">Agent OS 桌面检查</h1>
         </div>
         <div className="flex max-w-[74vw] flex-wrap items-center justify-end gap-1.5 rounded-[18px] border border-white/70 bg-white/70 p-1 shadow-[0_16px_42px_rgba(18,28,42,0.10)] backdrop-blur-xl">
           {PREVIEW_STEPS.map((item) => (

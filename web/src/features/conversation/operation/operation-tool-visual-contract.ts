@@ -1,3 +1,8 @@
+/**
+ * INPUT: Canonical tool names and operation action kinds.
+ * OUTPUT: User-facing Agent OS app ownership and shared-control contracts.
+ * POS: Tool-to-visual-app truth source used by Stage projection and verification.
+ */
 import type { OperationActionKind } from "./operation-tool-catalog";
 import { resolveOperationToolProfile } from "./operation-tool-catalog";
 import type { NexusOperationEvent } from "./operation-types";
@@ -61,21 +66,21 @@ const WINDOW_CONTROLS = [
 
 export const OPERATION_TOOL_VISUAL_GROUPS: Record<OperationToolVisualGroup, OperationToolVisualGroupSpec> = {
   workspace_navigation: {
-    app_label: "访达",
+    app_label: "文件",
     component: "finder",
     interaction_label: "浏览目录、搜索文件、选中文件",
     label: "工作区导航",
     tools: ["Glob", "Grep", "LS"],
   },
   workspace_reader: {
-    app_label: "Code",
+    app_label: "Editor",
     component: "code_reader",
     interaction_label: "打开文件并扫描内容",
     label: "文件读取",
     tools: ["Read"],
   },
   workspace_writer: {
-    app_label: "Code",
+    app_label: "Editor",
     component: "code_writer",
     interaction_label: "新建文件、流式输入、展示 diff",
     label: "文件写入",

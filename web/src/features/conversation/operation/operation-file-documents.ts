@@ -1,6 +1,6 @@
 /**
  * INPUT: One operation event, its round events, and workspace activity snapshots.
- * OUTPUT: Canonical per-file document plans and truthful preview window kinds.
+ * OUTPUT: Canonical document plans for real file opens; search expressions remain Files results.
  * POS: File identity boundary; absolute tool paths and relative workspace paths converge here.
  */
 import type {
@@ -31,13 +31,14 @@ export function collectOperationFileContext(
   snapshot: NexusOperationSnapshot | null,
   round_events: NexusOperationEvent[],
 ): OperationFileContext {
-  const file_events = round_events.filter((item) => (
-    item.surface === "workspace" || item.surface === "editor"
-  ));
+  const file_events = round_events.filter(is_file_document_event);
   const workspace_items = collect_round_workspace_items(event, snapshot, round_events);
   const latest_workspace_item = find_latest_workspace_item(event, snapshot, workspace_items);
   const latest_file_event = file_events.at(-1);
-  const latest_result_file_target = extract_file_target_from_event(event);
+  const latest_result_file_target = can_project_result_file(event)
+    ? extract_file_target_from_event(event)
+    : null;
+  const project_active_event = is_file_document_event(event) || Boolean(latest_result_file_target);
   const latest_file_target = latest_workspace_item?.path
     ?? latest_file_event?.target
     ?? latest_result_file_target
@@ -55,6 +56,7 @@ export function collectOperationFileContext(
       latest_file_preview,
       latest_file_target,
       latest_workspace_item,
+      project_active_event,
       round_events,
       workspace_items,
     }),
@@ -245,6 +247,7 @@ function collect_file_documents({
   latest_file_preview,
   latest_file_target,
   latest_workspace_item,
+  project_active_event,
   round_events,
   workspace_items,
 }: {
@@ -253,6 +256,7 @@ function collect_file_documents({
   latest_file_preview: unknown;
   latest_file_target?: string | null;
   latest_workspace_item: NexusOperationSnapshot["workspace_events"][number] | null;
+  project_active_event: boolean;
   round_events: NexusOperationEvent[];
   workspace_items: NexusOperationSnapshot["workspace_events"];
 }): OperationFileDocumentPlan[] {
@@ -287,7 +291,7 @@ function collect_file_documents({
     const related_events = file_events_by_target.get(workspace_item.path) ?? [];
     const document_event = existing?.event
       ?? related_events.at(-1)
-      ?? (workspace_item.path === latest_file_target ? event : null);
+      ?? (project_active_event && workspace_item.path === latest_file_target ? event : null);
     if (!document_event) {
       return;
     }
@@ -304,7 +308,7 @@ function collect_file_documents({
     });
   });
 
-  if (latest_file_target && !documents.has(latest_file_target)) {
+  if (project_active_event && latest_file_target && !documents.has(latest_file_target)) {
     documents.set(latest_file_target, {
       event,
       target: latest_file_target,
@@ -320,4 +324,15 @@ function collect_file_documents({
     .sort((left, right) => right.event.updated_at - left.event.updated_at)
     .slice(0, 4)
     .reverse();
+}
+
+function is_file_document_event(event: NexusOperationEvent): boolean {
+  return event.kind === "workspace_read"
+    || event.kind === "workspace_edit"
+    || event.kind === "artifact_update"
+    || event.surface === "editor";
+}
+
+function can_project_result_file(event: NexusOperationEvent): boolean {
+  return event.kind !== "workspace_search" && event.kind !== "workspace_inspect";
 }

@@ -1,3 +1,8 @@
+/**
+ * INPUT: A Stage window, narrative phase, and background scene index.
+ * OUTPUT: Responsive desktop geometry for focused and background windows.
+ * POS: Single layout policy for Agent OS window composition.
+ */
 import type { StageWindowState } from "../operation-desktop-types";
 import type { StageNarrativePhase } from "./operation-stage-model";
 
@@ -39,7 +44,11 @@ export function positionForWindow(
       : is_review_layout ? "right-[19%] bottom-[9%] h-[20%] w-[22%]" : "right-[4%] bottom-[9%] h-[21%] w-[22%]";
   }
   if (window.layout === "secondary") {
-    return "left-[3%] top-[17%] h-[32%] w-[12%]";
+    return window.phase === "focused"
+      ? is_review_layout
+        ? "left-[10%] top-[10%] h-[62%] w-[78%]"
+        : "left-[8%] top-[9%] h-[66%] w-[82%]"
+      : "left-[3%] top-[17%] h-[32%] w-[12%]";
   }
   if (window.kind === "permission_wait") {
     return window.phase === "minimized"

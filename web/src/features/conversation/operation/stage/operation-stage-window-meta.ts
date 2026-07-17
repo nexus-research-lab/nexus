@@ -107,7 +107,7 @@ export function iconForWindowKind(kind: StageWindowKind): LucideIcon {
 
 export function stageAppLabelForWindowKind(kind: StageWindowKind): string {
   if (kind === "finder") {
-    return "访达";
+    return "文件";
   }
   if (kind === "terminal") {
     return "终端";
@@ -134,19 +134,19 @@ export function stageAppLabelForWindowKind(kind: StageWindowKind): string {
     return "系统设置";
   }
   if (kind === "spreadsheet") {
-    return "Numbers";
+    return "Sheets";
   }
   if (kind === "presentation") {
-    return "Keynote";
+    return "Slides";
   }
   if (kind === "image_viewer") {
     return "预览";
   }
   if (kind === "code_editor") {
-    return "Code";
+    return "Editor";
   }
   if (kind === "markdown_reader" || kind === "word_reader" || kind === "pdf_reader") {
-    return kind === "word_reader" ? "Pages" : "预览";
+    return "预览";
   }
   return "Nexus";
 }

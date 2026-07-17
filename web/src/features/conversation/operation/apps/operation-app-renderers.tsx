@@ -1,3 +1,8 @@
+/**
+ * INPUT: A planned Stage window and app-level interaction callbacks.
+ * OUTPUT: The concrete Agent OS app surface for that semantic window kind.
+ * POS: Stage app router; app state and domain logic remain in focused components.
+ */
 import { cn } from "@/shared/ui/class-name";
 import type { PermissionDecisionPayload } from "@/types/conversation/interaction/permission";
 
@@ -32,10 +37,12 @@ import { WorkspaceFinder } from "./workspace-finder-surface";
 export function StageWindowContent({
   window,
   onFocusEvent,
+  onOpenWorkspaceFile,
   onPermissionResponse,
 }: {
   window: StageWindowState;
   onFocusEvent?: (event: NexusOperationEvent) => void;
+  onOpenWorkspaceFile?: (path: string) => void;
   onPermissionResponse?: (payload: PermissionDecisionPayload) => boolean;
 }) {
   const { event, snapshot } = window.payload;
@@ -49,6 +56,7 @@ export function StageWindowContent({
           activePath={window.payload.target ?? event.target}
           event={event}
           items={workspace_items}
+          onOpenFile={onOpenWorkspaceFile}
         />
       </div>
     );

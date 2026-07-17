@@ -4,9 +4,15 @@
  * POS: Stage document-app adapter; it must not maintain a second fake document renderer.
  */
 import { FileWarning } from "lucide-react";
+import { useMemo } from "react";
 
 import { getWorkspaceFilePreviewKind } from "@/features/conversation/shared/editor/workspace-file-preview-kind";
 import { WorkspaceFilePreviewRouter } from "@/features/conversation/shared/editor/workspace-file-preview-router";
+import { useAgentStore } from "@/store/agent";
+import { useWorkspaceFilesStore } from "@/store/workspace-files";
+import { useWorkspaceLiveStore } from "@/store/workspace-live";
+
+import { resolveOperationWorkspaceFilePath } from "../operation-workspace-file-path";
 
 export function StageWorkspaceFilePreview({
   agentId,
@@ -17,7 +23,22 @@ export function StageWorkspaceFilePreview({
   initialContent?: string | null;
   path: string;
 }) {
-  const normalized_path = normalize_workspace_preview_path(path);
+  const workspace_path = useAgentStore((state) => (
+    state.agents.find((agent) => agent.agent_id === agentId)?.workspace_path ?? null
+  ));
+  const workspace_entries = useWorkspaceFilesStore((state) => state.files_by_agent[agentId]);
+  const known_paths = useMemo(
+    () => workspace_entries?.map((entry) => entry.path) ?? [],
+    [workspace_entries],
+  );
+  const normalized_path = resolveOperationWorkspaceFilePath({
+    knownPaths: known_paths,
+    path,
+    workspacePath: workspace_path,
+  });
+  const live_state = useWorkspaceLiveStore((state) => (
+    normalized_path ? state.file_states[`${agentId}:${normalized_path}`] : undefined
+  ));
   if (!agentId.trim() || !normalized_path) {
     return (
       <div className="grid h-full min-h-[240px] place-items-center bg-(--surface-panel-subtle-background) p-8 text-center">
@@ -30,26 +51,32 @@ export function StageWorkspaceFilePreview({
     );
   }
 
+  const file_type = getWorkspaceFilePreviewKind(normalized_path);
+  const is_text_renderer = file_type === "html"
+    || file_type === "markdown"
+    || file_type === "mermaid"
+    || file_type === "text";
+  const settled_version = live_state?.status === "updated" ? live_state.version : 0;
+  const renderer_key = is_text_renderer
+    ? normalized_path
+    : `${normalized_path}:${settled_version}`;
+  const resolved_initial_content = typeof live_state?.live_content === "string"
+    ? live_state.live_content
+    : initialContent;
+
   return (
     <div className="flex h-full min-h-[240px] min-w-0 flex-col overflow-hidden bg-(--surface-panel-background)">
       <WorkspaceFilePreviewRouter
         agentId={agentId}
         fileName={normalized_path.split("/").at(-1) ?? normalized_path}
-        fileType={getWorkspaceFilePreviewKind(normalized_path)}
-        initialContent={initialContent}
+        fileType={file_type}
+        initialContent={resolved_initial_content}
         isPreviewFocused
+        key={renderer_key}
         onTogglePreviewFocus={() => undefined}
         path={normalized_path}
         showFocusControl={false}
       />
     </div>
   );
-}
-
-function normalize_workspace_preview_path(path: string): string | null {
-  const normalized = path.trim().replace(/\\/g, "/").replace(/^\.\//, "");
-  if (!normalized || normalized.startsWith("/") || normalized.split("/").includes("..")) {
-    return null;
-  }
-  return normalized;
 }

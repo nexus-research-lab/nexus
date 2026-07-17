@@ -155,6 +155,7 @@ const {
 const {
   resolveNextWindowFocus,
   resolveCycledWindowFocus,
+  resolveStageWindowFocusPhase,
 } = await import(pathToFileURL(join(operation_dir, "stage/operation-stage-window-focus.js")));
 const {
   shouldIgnoreStageDesktopKeyboardTarget,
@@ -329,7 +330,7 @@ function verify_dock_model_groups_windows_by_mac_app() {
   const app_label_for_kind = (kind) => ({
     browser: "Navi",
     code_editor: "Code",
-    finder: "访达",
+    finder: "文件",
     markdown_reader: "预览",
     terminal: "终端",
   })[kind] ?? "Nexus";
@@ -1079,6 +1080,14 @@ function verify_window_focus_moves_to_next_visible_window() {
     direction: "next",
     windows,
   }) === "browser", "Window cycle should start from the topmost visible window when focus is empty");
+  assert(
+    resolveStageWindowFocusPhase(windows[1], "terminal") === "background",
+    "The previous planned focus should become background after a manual app switch",
+  );
+  assert(
+    resolveStageWindowFocusPhase(windows[2], "terminal") === "focused",
+    "The manually selected window should become the only focused app",
+  );
 }
 
 function verify_desktop_keyboard_target_policy() {
@@ -1099,7 +1108,7 @@ function verify_stage_menu_status_tracks_desktop_windows() {
   const status = buildStageMenuStatus(windows, windows[0], (window) => ({
     browser: "Navi",
     code_editor: "Code",
-    finder: "访达",
+    finder: "文件",
     terminal: "终端",
   })[window.kind] ?? "Nexus");
   assert(status.active_app_label === "终端", `Menu bar should expose the foreground app, got ${status.active_app_label}`);

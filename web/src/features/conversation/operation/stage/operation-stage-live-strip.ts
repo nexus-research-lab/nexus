@@ -86,10 +86,10 @@ function live_strip_app_label_for_kind(kind: StageWindowKind): string {
     return "终端";
   }
   if (kind === "finder") {
-    return "访达";
+    return "文件";
   }
   if (kind === "code_editor") {
-    return "Code";
+    return "Editor";
   }
   if (kind === "handoff") {
     return "交付台";

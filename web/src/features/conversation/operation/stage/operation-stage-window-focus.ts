@@ -1,6 +1,24 @@
-import type { StageWindowState } from "../operation-desktop-types";
+/**
+ * INPUT: Current focus identity, visible Stage windows, and cycle direction.
+ * OUTPUT: Exclusive presentation phase and deterministic next-window focus.
+ * POS: Pure Stage focus semantics shared by desktop interactions and tests.
+ */
+import type { StageWindowPhase, StageWindowState } from "../operation-desktop-types";
 
 export type StageWindowFocusCycleDirection = "next" | "previous";
+
+export function resolveStageWindowFocusPhase(
+  window: StageWindowState,
+  focusedWindowId: string | null,
+): StageWindowPhase {
+  if (focusedWindowId === window.id && window.phase !== "closed" && window.phase !== "minimized") {
+    return "focused";
+  }
+  if (focusedWindowId && window.phase === "focused") {
+    return "background";
+  }
+  return window.phase;
+}
 
 export function resolveNextWindowFocus({
   current_focus_id,

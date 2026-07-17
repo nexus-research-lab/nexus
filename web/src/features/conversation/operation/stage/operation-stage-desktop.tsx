@@ -1,3 +1,8 @@
+/**
+ * INPUT: Active operation event, snapshot, permission response, and stage header action.
+ * OUTPUT: Stateful Agent OS window scene with focus, movement, resizing, and user-opened files.
+ * POS: Stage desktop orchestrator; app content and pure window semantics live in owned modules.
+ */
 import type { KeyboardEvent, ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 
@@ -13,6 +18,12 @@ import type {
   NexusOperationEvent,
   NexusOperationSnapshot,
 } from "../operation-types";
+import {
+  appendOperationUserFilePath,
+  findOperationWorkspaceWindow,
+  mergeOperationUserFileWindows,
+  operationUserFileWindowId,
+} from "../operation-user-file-windows";
 import {
   buildStageNarrative,
   collectNarrativeEvents,
@@ -44,6 +55,7 @@ import {
 import {
   resolveCycledWindowFocus,
   resolveNextWindowFocus,
+  resolveStageWindowFocusPhase,
 } from "./operation-stage-window-focus";
 import {
   isMeaningfulStageWindowDrag,
@@ -66,6 +78,7 @@ export function OperationStageDesktop({
   snapshot: NexusOperationSnapshot | null;
 }) {
   const [focused_window_id, set_focused_window_id] = useState<string | null>(null);
+  const [opened_workspace_paths, set_opened_workspace_paths] = useState<string[]>([]);
   const [replay_event_id, set_replay_event_id] = useState<string | null>(null);
   const [window_overrides, set_window_overrides] = useState<Record<string, StageWindowOverride>>({});
   const narrative = useMemo(() => buildStageNarrative(event, snapshot), [event, snapshot]);
@@ -81,24 +94,29 @@ export function OperationStageDesktop({
   const desktop = useMemo(() => (
     planOperationDesktop({ event: active_narrative_event, snapshot })
   ), [active_narrative_event, snapshot]);
-  const desktop_windows = useMemo(() => (
+  const planned_desktop_windows = useMemo(() => (
     desktop.windows.filter((window) => isStageDesktopWindowKind(window.kind))
   ), [desktop.windows]);
   const stage_windows = useMemo(() => (
-    desktop_windows
-  ), [desktop_windows]);
+    mergeOperationUserFileWindows({
+      event: active_narrative_event,
+      openedPaths: opened_workspace_paths,
+      plannedWindows: planned_desktop_windows,
+      snapshot,
+    })
+  ), [active_narrative_event, opened_workspace_paths, planned_desktop_windows, snapshot]);
   const planned_active_window_id = useMemo(() => (
-    desktop_windows.some((window) => window.id === desktop.active_window_id)
+    stage_windows.some((window) => window.id === desktop.active_window_id)
       ? desktop.active_window_id
       : stage_windows[0]?.id ?? null
-  ), [desktop.active_window_id, desktop_windows, stage_windows]);
+  ), [desktop.active_window_id, stage_windows]);
   const desktop_active_window_id = useMemo(() => (
     stage_windows.some((window) => window.id === focused_window_id)
       ? focused_window_id
-      : desktop_windows.some((window) => window.id === desktop.active_window_id)
+      : stage_windows.some((window) => window.id === desktop.active_window_id)
       ? desktop.active_window_id
       : stage_windows[0]?.id ?? null
-  ), [desktop.active_window_id, desktop_windows, focused_window_id, stage_windows]);
+  ), [desktop.active_window_id, focused_window_id, stage_windows]);
   const windows_for_reveal = useMemo(() => (
     orderWindowsForReveal(stage_windows, desktop_active_window_id)
   ), [desktop_active_window_id, stage_windows]);
@@ -118,6 +136,7 @@ export function OperationStageDesktop({
 
   useEffect(() => {
     set_focused_window_id(null);
+    set_opened_workspace_paths([]);
     set_replay_event_id(null);
     set_window_overrides({});
   }, [event.round_id]);
@@ -156,8 +175,9 @@ export function OperationStageDesktop({
         if (override?.minimized === false && override.restore_token && window.phase === "minimized") {
           return { ...window, phase: "background" };
         }
-        if (focused_window_id === window.id && window.phase !== "closed" && window.phase !== "minimized") {
-          return { ...window, phase: "focused" };
+        const focus_phase = resolveStageWindowFocusPhase(window, focused_window_id);
+        if (focus_phase !== window.phase) {
+          return { ...window, phase: focus_phase };
         }
         return window;
       })
@@ -325,6 +345,16 @@ export function OperationStageDesktop({
     }));
   };
 
+  const open_workspace_file = (path: string) => {
+    const existing_window = findOperationWorkspaceWindow(stage_windows, path);
+    if (existing_window) {
+      restore_window(existing_window.id);
+      return;
+    }
+    set_opened_workspace_paths((current) => appendOperationUserFilePath(current, path));
+    restore_window(operationUserFileWindowId(event.round_id, path));
+  };
+
   const restore_all_windows = () => {
     set_focused_window_id(desktop_active_window_id ?? stage_windows[0]?.id ?? null);
     const restore_token = Date.now();
@@ -338,9 +368,9 @@ export function OperationStageDesktop({
   };
 
   const focus_event_window = (target_event: NexusOperationEvent) => {
-    const target_window_id = resolveOperationEventWindowId(target_event, desktop_windows)
+    const target_window_id = resolveOperationEventWindowId(target_event, stage_windows)
       ?? desktop_active_window_id
-      ?? desktop_windows[0]?.id
+      ?? stage_windows[0]?.id
       ?? null;
     if (!target_window_id) {
       return;
@@ -427,6 +457,7 @@ export function OperationStageDesktop({
             <StageWindowContent
               window={window}
               onFocusEvent={is_active ? focus_event_window : undefined}
+              onOpenWorkspaceFile={open_workspace_file}
               onPermissionResponse={onPermissionResponse}
             />
           </OperationStageWindow>
