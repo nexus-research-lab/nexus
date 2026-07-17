@@ -163,6 +163,75 @@ func TestRealtimeServiceCompletesRoomRoundFromTerminalAssistantWithoutResult(t *
 	}
 }
 
+func TestRealtimeServiceHandleChatBypassesQuotaForInternalRequests(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	if err != nil {
+		t.Fatalf("创建 room service 失败: %v", err)
+	}
+
+	ctx := authsvc.WithPrincipal(context.Background(), &authsvc.Principal{
+		UserID:   "owner-room-internal-quota",
+		Username: "room-owner",
+		Role:     authsvc.RoleOwner,
+	})
+	memberAgent := createTestAgent(t, agentService, ctx, "内部额度助手")
+	dmContext, err := roomService.EnsureDirectRoom(ctx, memberAgent.AgentID)
+	if err != nil {
+		t.Fatalf("创建直聊 room 失败: %v", err)
+	}
+
+	client := newFakeRoomClient()
+	client.onQuery = func(_ context.Context, _ string) error {
+		go sendFakeAssistantResult(client, "assistant-internal-quota", "内部续跑完成")
+		return nil
+	}
+
+	factory := &fakeRoomFactory{clients: []*fakeRoomClient{client}}
+	permission := permissionctx.NewContext()
+	runtimeManager := runtimectx.NewManager()
+	service := roomsvc.NewRealtimeServiceWithFactory(
+		cfg,
+		roomService,
+		agentService,
+		runtimeManager,
+		permission,
+		factory,
+	)
+	errQuota := errors.New("quota exceeded")
+	service.SetQuotaChecker(fakeRoomQuotaChecker{err: errQuota})
+
+	sharedSessionKey := protocol.BuildRoomSharedSessionKey(dmContext.Conversation.ID)
+	sender := newRealtimeTestSender("room-sender-internal-quota")
+	permission.BindSession(sharedSessionKey, sender)
+
+	err = service.HandleChat(ctx, roomsvc.ChatRequest{
+		SessionKey:     sharedSessionKey,
+		RoomID:         dmContext.Room.ID,
+		ConversationID: dmContext.Conversation.ID,
+		Content:        "internal goal continuation",
+		RoundID:        "room-round-internal-quota",
+		Internal:       true,
+	})
+	if errors.Is(err, errQuota) {
+		t.Fatalf("internal request 不应被 quota 阻止，但返回了 quota exceeded")
+	}
+	if err != nil {
+		t.Fatalf("HandleChat 内部请求意外失败: %v", err)
+	}
+
+	// Wait for the round to finish so async goroutines complete before TempDir cleanup.
+	collectRoomEventsUntil(t, sender.events, func(_ []protocol.EventMessage, event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
+	})
+}
+
 func TestRealtimeServiceKeepsSubagentRoomSlotInRuntimeManager(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)

@@ -162,8 +162,10 @@ func (e *dmChatExecution) routeRunningInput() (bool, error) {
 }
 
 func (e *dmChatExecution) prepareRunner() error {
-	if err := e.service.ensureQuotaAvailable(e.ctx); err != nil {
-		return err
+	if !e.request.Internal {
+		if err := e.service.ensureQuotaAvailable(e.ctx); err != nil {
+			return err
+		}
 	}
 	if err := e.interruptRunningRound(); err != nil {
 		return err

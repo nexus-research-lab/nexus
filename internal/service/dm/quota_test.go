@@ -52,3 +52,36 @@ func TestServiceHandleChatBlocksRuntimeWhenQuotaExceeded(t *testing.T) {
 		t.Fatalf("quota exceeded 时不应创建或连接 runtime: options=%+v connect_calls=%d", got, client.connectCalls)
 	}
 }
+
+func TestServiceHandleChatBypassesQuotaForInternalRequests(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+
+	agentService := newDMAgentService(t, cfg)
+	permission := permissionctx.NewContext()
+	client := newFakeDMClient()
+	factory := &fakeDMFactory{client: client}
+	service := NewService(cfg, agentService, runtimectx.NewManagerWithFactory(factory), permission)
+	errQuota := errors.New("quota exceeded")
+	service.SetQuotaChecker(fakeDMQuotaChecker{err: errQuota})
+
+	ctx := authsvc.WithPrincipal(context.Background(), &authsvc.Principal{
+		UserID: "owner-internal-quota",
+		Role:   authsvc.RoleOwner,
+	})
+	agentValue, err := agentService.CreateAgent(ctx, protocol.CreateRequest{Name: "Internal Quota Agent"})
+	if err != nil {
+		t.Fatalf("创建测试 agent 失败: %v", err)
+	}
+	sessionKey := protocol.BuildAgentSessionKey(agentValue.AgentID, protocol.SessionChannelWebSocketSegment, protocol.RoomTypeDM, "internal-quota", "")
+	err = service.HandleChat(ctx, Request{
+		SessionKey: sessionKey,
+		Content:    "internal goal continuation",
+		RoundID:    "round-internal-quota",
+		Internal:   true,
+	})
+	// Internal requests should bypass quota check — error should NOT be quota exceeded
+	if errors.Is(err, errQuota) {
+		t.Fatalf("internal request 不应被 quota 阻止，但返回了 quota exceeded")
+	}
+}
