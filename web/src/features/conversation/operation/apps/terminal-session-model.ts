@@ -6,6 +6,7 @@ import {
   readTerminalControlSessionId,
 } from "../operation-terminal-session-events";
 import type { NexusOperationEvent, OperationPhase } from "../operation-types";
+import { readStageDisplayCommand } from "../operation-stage-open-command";
 import {
   parseTerminalResult,
   readTerminalResultString,
@@ -88,8 +89,9 @@ export function buildTerminalSession({
 }
 
 export function readTerminalCommand(event: NexusOperationEvent): string | null {
-  return readInputString(event.input_preview, ["command", "cmd"])
+  const command = readInputString(event.input_preview, ["command", "cmd"])
     ?? readEventTarget(event, "Bash");
+  return command ? readStageDisplayCommand(command) : null;
 }
 
 export function terminalCwdLabel(event: NexusOperationEvent): string | null {

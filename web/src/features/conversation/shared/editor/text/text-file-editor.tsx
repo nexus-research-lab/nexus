@@ -11,11 +11,13 @@ export function TextFileEditor({
   agentId,
   fileName,
   fileType,
+  initialContent,
   isPreviewFocused,
   onTogglePreviewFocus,
   path,
+  showFocusControl,
 }: WorkspaceFilePreviewProps & { fileType: WorkspaceFilePreviewKind }) {
-  const editor = useTextFileEditor({ agentId, path });
+  const editor = useTextFileEditor({ agentId, initialContent, path });
   const presentation = buildTextFileEditorPresentation({
     fileType,
     isDirty: editor.isDirty,
@@ -37,6 +39,7 @@ export function TextFileEditor({
         onTogglePreviewFocus={onTogglePreviewFocus}
         path={path}
         presentation={presentation}
+        showFocusControl={showFocusControl}
       />
       {editor.error ? (
         <div className="px-4 py-3 text-sm text-destructive">

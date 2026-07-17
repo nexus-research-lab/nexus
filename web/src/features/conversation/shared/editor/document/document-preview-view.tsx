@@ -51,6 +51,7 @@ interface DocumentPreviewViewProps {
   onTogglePreviewFocus: () => void;
   path: string;
   previewScale: number;
+  showFocusControl?: boolean;
   status: DocumentPreviewStatus;
   styleContainerRef: RefObject<HTMLDivElement | null>;
   viewportRef: RefObject<HTMLDivElement | null>;
@@ -64,6 +65,7 @@ export function DocumentPreviewView({
   onTogglePreviewFocus,
   path,
   previewScale,
+  showFocusControl = true,
   status,
   styleContainerRef,
   viewportRef,
@@ -76,6 +78,7 @@ export function DocumentPreviewView({
         isPreviewFocused={isPreviewFocused}
         onTogglePreviewFocus={onTogglePreviewFocus}
         path={path}
+        showFocusControl={showFocusControl}
         status={status}
       />
       <DocumentPreviewViewport
@@ -95,6 +98,7 @@ interface DocumentPreviewHeaderProps {
   isPreviewFocused: boolean;
   onTogglePreviewFocus: () => void;
   path: string;
+  showFocusControl: boolean;
   status: DocumentPreviewStatus;
 }
 
@@ -104,6 +108,7 @@ function DocumentPreviewHeader({
   isPreviewFocused,
   onTogglePreviewFocus,
   path,
+  showFocusControl,
   status,
 }: DocumentPreviewHeaderProps) {
   return (
@@ -115,10 +120,12 @@ function DocumentPreviewHeader({
             fileName={fileName}
             path={path}
           />
-          <WorkspaceFilePreviewFocusButton
-            isPreviewFocused={isPreviewFocused}
-            onTogglePreviewFocus={onTogglePreviewFocus}
-          />
+          {showFocusControl ? (
+            <WorkspaceFilePreviewFocusButton
+              isPreviewFocused={isPreviewFocused}
+              onTogglePreviewFocus={onTogglePreviewFocus}
+            />
+          ) : null}
         </>
       )}
       meta={(

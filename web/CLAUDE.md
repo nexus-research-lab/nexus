@@ -73,6 +73,8 @@ src/
 - Workspace 文件快照与写命令按 Agent 作用域隔离；同 Agent 的后发刷新使先发请求失效，外部打开 Agent 信号只消费一次
 - Room 页面数据资源必须绑定当前 `roomId`；模型只做投影，命令只返回当前作用域结果，会话快照只通过专用协议写回
 - Room 页面私有控制器归 `pages/room/controller/`，浏览器协调归 `pages/room/orchestration/`；领域 Feature 不读取路由，页面不解释服务端资源协议
+- 操作舞台的 Navi 浏览器归 `features/conversation/operation/apps/`：`browser-page-model.ts` 只投影 WebSearch/WebFetch/HTML 工具事件，`browser-navigation-model.ts` 只维护标签页与历史，React 控制器和视图不得重建第二份导航状态；远端网页通过 `/operation/browser/page` 的无 Cookie、防 SSRF 页面快照进入 sandbox iframe，地址栏和历史始终保留目标 URL，Reader 保留工具实际获取的内容作为可信回退
+- 操作舞台的 Markdown、代码、DOCX、XLSX、PPTX、PDF 与图片窗口必须复用 `shared/editor/WorkspaceFilePreviewRouter`；绝对工具路径和相对 workspace 路径先归一为同一个文档身份，不维护第二套伪预览组件
 - Room 成员管理由页面命令层绑定作用域并按成员依赖顺序执行；Header 只提交完整表单对象，Surface 不传播成员增删和设置更新的散装回调
 - Contacts 页面使用互斥编辑状态，资源和 CRUD 归 `pages/contacts/controller/`，URL 选择与 Room 跳转归 `pages/contacts/orchestration/`
 - 宽侧栏由 `features/navigation/sidebar/` 管理；折叠栏与展开面板共用主 Tab、Nexus 入口和系统操作，路由/Store 同步只留在控制器

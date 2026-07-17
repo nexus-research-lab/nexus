@@ -27,16 +27,57 @@ export function buildBrowserResultItems({
       ? ["正在等待页面返回内容", "加载完成后会保留页面摘要和可回看记录。"]
       : [event.summary ?? query];
 
-  return source_lines
+  const clean_lines = source_lines
     .map(clean_browser_result_line)
-    .filter((line) => line.trim())
-    .slice(0, 6)
-    .map((line, index) => normalize_browser_result_line(line, query, index));
+    .filter((line) => line.trim());
+  return group_browser_result_lines(clean_lines, query).slice(0, 6);
+}
+
+function group_browser_result_lines(lines: string[], query: string): BrowserResultItem[] {
+  const items: BrowserResultItem[] = [];
+  const leading_summary: string[] = [];
+
+  lines.forEach((line, index) => {
+    const item = normalize_browser_result_line(line, query, index);
+    if (item.kind === "link") {
+      if (leading_summary.length) {
+        item.snippet = leading_summary.join(" ");
+        leading_summary.length = 0;
+      }
+      items.push(item);
+      return;
+    }
+
+    const previous = items.at(-1);
+    if (previous?.kind === "link") {
+      previous.snippet = previous.snippet === query
+        ? item.snippet
+        : `${previous.snippet} ${item.snippet}`;
+      return;
+    }
+    leading_summary.push(item.snippet);
+  });
+
+  if (leading_summary.length) {
+    items.push({
+      title: query,
+      url: null,
+      snippet: leading_summary.join(" "),
+      kind: "summary",
+    });
+  }
+  return items;
 }
 
 function extract_structured_browser_result_items(value: unknown, query: string): BrowserResultItem[] {
   if (value == null) {
     return [];
+  }
+  if (typeof value === "string") {
+    const parsed = parse_json_result_payload(value);
+    return parsed == null
+      ? []
+      : extract_structured_browser_result_items(parsed, query);
   }
   if (Array.isArray(value)) {
     return value.flatMap((item, index) => {
@@ -52,18 +93,27 @@ function extract_structured_browser_result_items(value: unknown, query: string):
   }
 
   const record = value as Record<string, unknown>;
-  const direct_result = browser_result_item_from_record(record, query, 0);
-  if (direct_result) {
-    return [direct_result];
-  }
-
   for (const key of ["results", "items", "entries", "organic_results", "content", "data"]) {
     const nested = extract_structured_browser_result_items(record[key], query);
     if (nested.length) {
       return nested;
     }
   }
-  return [];
+  const direct_result = browser_result_item_from_record(record, query, 0);
+  return direct_result ? [direct_result] : [];
+}
+
+function parse_json_result_payload(value: string): unknown | null {
+  const trimmed = value.trim();
+  const candidate = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i)?.[1] ?? trimmed;
+  if (!candidate.startsWith("{") && !candidate.startsWith("[")) {
+    return null;
+  }
+  try {
+    return JSON.parse(candidate);
+  } catch {
+    return null;
+  }
 }
 
 function browser_result_item_from_record(value: unknown, query: string, index: number): BrowserResultItem | null {

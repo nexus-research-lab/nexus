@@ -47,6 +47,7 @@ export function OfficePreviewFallback({
   kind,
   onTogglePreviewFocus,
   path,
+  showFocusControl = true,
 }: WorkspaceFilePreviewProps & { kind: OfficePreviewKind }) {
   const descriptor = OFFICE_PREVIEW_DESCRIPTORS[kind];
   const Icon = descriptor.icon;
@@ -60,10 +61,12 @@ export function OfficePreviewFallback({
               fileName={fileName}
               path={path}
             />
-            <WorkspaceFilePreviewFocusButton
-              isPreviewFocused={isPreviewFocused}
-              onTogglePreviewFocus={onTogglePreviewFocus}
-            />
+            {showFocusControl ? (
+              <WorkspaceFilePreviewFocusButton
+                isPreviewFocused={isPreviewFocused}
+                onTogglePreviewFocus={onTogglePreviewFocus}
+              />
+            ) : null}
           </>
         )}
         meta={(

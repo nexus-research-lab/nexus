@@ -31,6 +31,7 @@ interface TextFileEditorHeaderProps {
   onTogglePreviewFocus: () => void;
   path: string;
   presentation: TextFileEditorPresentation;
+  showFocusControl?: boolean;
 }
 
 const EDIT_ACTION_ICONS: Record<
@@ -89,6 +90,7 @@ export function TextFileEditorHeader({
   onTogglePreviewFocus,
   path,
   presentation,
+  showFocusControl = true,
 }: TextFileEditorHeaderProps) {
   const EditIcon = EDIT_ACTION_ICONS[presentation.editAction];
   return (
@@ -100,10 +102,12 @@ export function TextFileEditorHeader({
             fileName={fileName}
             path={path}
           />
-          <WorkspaceFilePreviewFocusButton
-            isPreviewFocused={isPreviewFocused}
-            onTogglePreviewFocus={onTogglePreviewFocus}
-          />
+          {showFocusControl ? (
+            <WorkspaceFilePreviewFocusButton
+              isPreviewFocused={isPreviewFocused}
+              onTogglePreviewFocus={onTogglePreviewFocus}
+            />
+          ) : null}
           <WorkspaceFileToolbarButton
             onClick={onToggleEditing}
             title={presentation.editLabel}

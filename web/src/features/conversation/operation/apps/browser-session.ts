@@ -1,3 +1,8 @@
+/**
+ * INPUT: A browser-capable Operation Stage event and its resolved preview target.
+ * OUTPUT: A truthful browser page descriptor without claiming cross-origin render success.
+ * POS: Shared projection boundary between tool events and the Navi browser app.
+ */
 import type { NexusOperationEvent, OperationPhase } from "../operation-types";
 
 const PHASE_LABEL: Record<OperationPhase, string> = {
@@ -22,24 +27,35 @@ export interface BrowserSessionView {
 
 export function buildBrowserSessionView({
   event,
+  force_search = false,
   preview,
   query,
   raw_url_builder,
   target,
+  web_url_builder,
 }: {
   event: NexusOperationEvent;
+  force_search?: boolean;
   preview: unknown;
   query: string;
   raw_url_builder?: (agent_id: string, path: string) => string;
   target?: string | null;
+  web_url_builder?: (url: string) => string;
 }): BrowserSessionView {
-  const srcdoc = typeof preview === "string" && looks_like_html(preview) ? preview : null;
   const raw_url = build_workspace_raw_url(event.agent_id, target ?? event.target, raw_url_builder);
-  const url = looksLikeUrl(query) ? query : null;
-  const iframe_url = srcdoc ? null : raw_url;
+  const html_content = !force_search && typeof preview === "string" && looks_like_html(preview)
+    ? preview
+    : null;
+  const srcdoc = html_content && raw_url
+    ? inject_workspace_base(html_content, raw_url)
+    : html_content;
+  const url = !force_search && looksLikeUrl(query) ? query : null;
+  const iframe_url = raw_url ?? (srcdoc ? null : build_web_iframe_url(url, web_url_builder));
   const has_live_view = Boolean(srcdoc || iframe_url);
-  const display_url = browser_display_url({ iframe_url, query, srcdoc, target });
-  const page_kind = browser_page_kind({ display_url, iframe_url, srcdoc });
+  const display_url = browser_display_url({ query, raw_url, srcdoc, target, url });
+  const page_kind = force_search
+    ? "search"
+    : browser_page_kind({ display_url, raw_url, srcdoc });
 
   return {
     display_url,
@@ -47,7 +63,7 @@ export function buildBrowserSessionView({
     page_kind,
     source_label: browser_source_label(page_kind),
     srcdoc,
-    status: browser_status_for_event(event, has_live_view),
+    status: browser_status_for_event(event, has_live_view, page_kind),
     tab_title: browser_tab_title({
       display_url,
       page_kind,
@@ -62,53 +78,62 @@ export function buildBrowserSessionView({
 function browser_status_for_event(
   event: NexusOperationEvent,
   has_live_view: boolean,
+  page_kind: BrowserSessionView["page_kind"],
 ): BrowserSessionView["status"] {
   if (event.phase === "running") {
-    return { label: has_live_view ? "页面运行中" : "正在加载", tone: "loading" };
+    return {
+      label: page_kind === "web" ? "正在访问" : (has_live_view ? "页面运行中" : "正在加载"),
+      tone: "loading",
+    };
   }
   if (event.phase === "error") {
     return { label: "加载失败", tone: "error" };
   }
   if (event.phase === "done") {
-    return { label: has_live_view ? "页面已就绪" : "已生成摘要", tone: "ready" };
+    return {
+      label: page_kind === "web" ? "内容已获取" : (has_live_view ? "页面已就绪" : "已生成摘要"),
+      tone: "ready",
+    };
   }
   return { label: PHASE_LABEL[event.phase], tone: "idle" };
 }
 
 function browser_display_url({
-  iframe_url,
   query,
+  raw_url,
   srcdoc,
   target,
+  url,
 }: {
-  iframe_url: string | null;
   query: string;
+  raw_url: string | null;
   srcdoc: string | null;
   target?: string | null;
+  url: string | null;
 }): string {
-  if (iframe_url) {
-    return iframe_url;
+  if (raw_url) {
+    return raw_url;
   }
   if (srcdoc) {
-    return target ?? query;
+    return url ?? target ?? query;
   }
-  return query;
+  return url ?? query;
 }
 
 function browser_page_kind({
   display_url,
-  iframe_url,
+  raw_url,
   srcdoc,
 }: {
   display_url: string;
-  iframe_url: string | null;
+  raw_url: string | null;
   srcdoc: string | null;
 }): BrowserSessionView["page_kind"] {
+  if (raw_url) {
+    return "workspace";
+  }
   if (srcdoc) {
     return "embedded";
-  }
-  if (iframe_url?.startsWith("/nexus/")) {
-    return "workspace";
   }
   if (display_url === "about:blank") {
     return "start";
@@ -117,6 +142,16 @@ function browser_page_kind({
     return "web";
   }
   return "search";
+}
+
+function build_web_iframe_url(
+  url: string | null,
+  web_url_builder?: (url: string) => string,
+): string | null {
+  if (!url) {
+    return null;
+  }
+  return web_url_builder ? web_url_builder(url) : url;
 }
 
 function browser_source_label(page_kind: BrowserSessionView["page_kind"]): string {
@@ -132,7 +167,7 @@ function browser_source_label(page_kind: BrowserSessionView["page_kind"]): strin
   if (page_kind === "start") {
     return "起始页";
   }
-  return "摘要";
+  return "Nexus Search";
 }
 
 function browser_tab_title({
@@ -211,7 +246,39 @@ function build_workspace_raw_url(
   if (!path || !/\.(html?|xhtml)$/i.test(path)) {
     return null;
   }
-  return raw_url_builder?.(agent_id, path) ?? `/nexus/v1/agents/${agent_id}/workspace/file/raw?${new URLSearchParams({ path }).toString()}`;
+  if (raw_url_builder) {
+    return raw_url_builder(agent_id, path);
+  }
+  const encoded_path = path
+    .split("/")
+    .filter(Boolean)
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+  return `/nexus/v1/agents/${encodeURIComponent(agent_id)}/workspace/site/${encoded_path}`;
+}
+
+function inject_workspace_base(content: string, raw_url: string): string {
+  if (/<base\b/i.test(content)) {
+    return content;
+  }
+  const path_end = raw_url.lastIndexOf("/");
+  const base_url = path_end >= 0 ? raw_url.slice(0, path_end + 1) : raw_url;
+  const base_tag = `<base href="${escape_html_attribute(base_url)}">`;
+  if (/<head(\s[^>]*)?>/i.test(content)) {
+    return content.replace(/<head(\s[^>]*)?>/i, (match) => `${match}${base_tag}`);
+  }
+  if (/<html(\s[^>]*)?>/i.test(content)) {
+    return content.replace(/<html(\s[^>]*)?>/i, (match) => `${match}<head>${base_tag}</head>`);
+  }
+  return `${base_tag}${content}`;
+}
+
+function escape_html_attribute(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }
 
 function normalize_workspace_relative_path(target?: string | null): string | null {

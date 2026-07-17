@@ -10,6 +10,7 @@ export function DocumentFilePreview({
   isPreviewFocused,
   onTogglePreviewFocus,
   path,
+  showFocusControl,
 }: WorkspaceFilePreviewProps) {
   const preview = useDocumentPreview({ agentId, path });
 
@@ -20,6 +21,7 @@ export function DocumentFilePreview({
       isPreviewFocused={isPreviewFocused}
       onTogglePreviewFocus={onTogglePreviewFocus}
       path={path}
+      showFocusControl={showFocusControl}
       {...preview}
     />
   );

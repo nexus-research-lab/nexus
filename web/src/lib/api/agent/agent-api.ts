@@ -228,6 +228,19 @@ export const getWorkspaceFilePreviewUrl = (
   return buildWorkspaceFileTransferUrl(agentId, path, "inline");
 };
 
+/** 获取可解析相对资源的 workspace HTML 站点 URL。 */
+export const getWorkspaceHtmlSiteUrl = (
+  agentId: string,
+  path: string,
+): string => {
+  const encodedPath = path
+    .split("/")
+    .filter(Boolean)
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+  return `${AGENT_API_BASE_URL}/agents/${encodeURIComponent(agentId)}/workspace/site/${encodedPath}`;
+};
+
 const revealWorkspaceFileInFolderApi = async (
   agentId: string,
   path: string,

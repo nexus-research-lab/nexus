@@ -13,6 +13,7 @@ export type StageWindowKind =
   | "code_editor"
   | "markdown_reader"
   | "word_reader"
+  | "presentation"
   | "pdf_reader"
   | "spreadsheet"
   | "image_viewer"
@@ -72,6 +73,7 @@ export interface StageWindowPayload {
     deletions: number;
   } | null;
   handoff_summary?: StageHandoffSummary;
+  workspace_preview?: boolean;
 }
 
 export interface StageWindowState {

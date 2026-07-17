@@ -1,3 +1,8 @@
+/**
+ * INPUT: One operation event, its round events, and workspace activity snapshots.
+ * OUTPUT: Canonical per-file document plans and truthful preview window kinds.
+ * POS: File identity boundary; absolute tool paths and relative workspace paths converge here.
+ */
 import type {
   NexusOperationEvent,
   NexusOperationSnapshot,
@@ -78,13 +83,16 @@ export function windowKindForFileTarget(
   if (["doc", "docx", "rtf", "odt"].includes(extension)) {
     return "word_reader";
   }
+  if (["ppt", "pptx", "odp"].includes(extension)) {
+    return "presentation";
+  }
   if (extension === "pdf") {
     return "pdf_reader";
   }
-  if (["csv", "tsv", "xls", "xlsx"].includes(extension)) {
+  if (["csv", "tsv", "xls", "xlsx", "ods"].includes(extension)) {
     return "spreadsheet";
   }
-  if (["png", "jpg", "jpeg", "gif", "webp", "svg"].includes(extension)) {
+  if (["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "ico", "avif", "tif", "tiff"].includes(extension)) {
     return "image_viewer";
   }
   return fallback;
@@ -100,6 +108,34 @@ export function fallbackWindowKindForFileEvent(event: NexusOperationEvent): Stag
     return "code_editor";
   }
   return "finder";
+}
+
+export function resolveOperationWorkspaceTarget(
+  target: string,
+  workspace_items: NexusOperationSnapshot["workspace_events"],
+): string {
+  const matched_item = workspace_items.find((item) => (
+    operationWorkspaceTargetsMatch(target, item.path)
+  ));
+  return matched_item?.path ?? normalize_operation_file_target(target);
+}
+
+export function operationWorkspaceTargetsMatch(left: string, right: string): boolean {
+  const normalized_left = normalize_operation_file_target(left);
+  const normalized_right = normalize_operation_file_target(right);
+  return normalized_left === normalized_right
+    || normalized_left.endsWith(`/${normalized_right}`)
+    || normalized_right.endsWith(`/${normalized_left}`);
+}
+
+function normalize_operation_file_target(target: string): string {
+  return target
+    .trim()
+    .replace(/^file:\/\//i, "")
+    .split(/[?#]/, 1)[0]
+    ?.replace(/\\/g, "/")
+    .replace(/^\.\//, "")
+    .replace(/\/{2,}/g, "/") ?? "";
 }
 
 function find_latest_workspace_item(
@@ -227,13 +263,17 @@ function collect_file_documents({
     if (!file_event.target) {
       return;
     }
-    const events_for_target = file_events_by_target.get(file_event.target) ?? [];
+    const canonical_target = resolveOperationWorkspaceTarget(file_event.target, workspace_items);
+    const workspace_item = workspace_items.find((item) => (
+      operationWorkspaceTargetsMatch(canonical_target, item.path)
+    )) ?? null;
+    const events_for_target = file_events_by_target.get(canonical_target) ?? [];
     events_for_target.push(file_event);
-    file_events_by_target.set(file_event.target, events_for_target);
-    documents.set(file_event.target, {
+    file_events_by_target.set(canonical_target, events_for_target);
+    documents.set(canonical_target, {
       event: file_event,
-      target: file_event.target,
-      workspace_item: workspace_items.find((item) => item.path === file_event.target) ?? null,
+      target: canonical_target,
+      workspace_item,
       preview: file_event.result_preview ?? file_event.input_preview ?? file_event.summary,
       related_events: events_for_target,
     });
@@ -270,7 +310,9 @@ function collect_file_documents({
       target: latest_file_target,
       workspace_item: latest_workspace_item,
       preview: latest_file_preview,
-      related_events: round_events.filter((item) => item.target === latest_file_target),
+      related_events: round_events.filter((item) => (
+        item.target && operationWorkspaceTargetsMatch(item.target, latest_file_target)
+      )),
     });
   }
 

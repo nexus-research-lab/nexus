@@ -1,3 +1,8 @@
+/**
+ * INPUT: A workspace file path.
+ * OUTPUT: The concrete shared preview renderer kind and its user-facing label.
+ * POS: Single extension-to-preview registry shared by workspace and Operation Stage adapters.
+ */
 export type WorkspaceFilePreviewKind =
   | "text"
   | "markdown"
@@ -51,6 +56,30 @@ const textExtensions = new Set([
   "graphql",
   "rst",
   "adoc",
+  "c",
+  "cc",
+  "cpp",
+  "h",
+  "hpp",
+  "swift",
+  "kt",
+  "kts",
+  "lua",
+  "vue",
+  "svelte",
+  "dart",
+  "cs",
+  "fs",
+  "fsx",
+  "ex",
+  "exs",
+  "erl",
+  "hrl",
+  "ps1",
+  "ipynb",
+  "mod",
+  "sum",
+  "lock",
 ]);
 
 const imageExtensions = new Set([
@@ -63,6 +92,8 @@ const imageExtensions = new Set([
   "bmp",
   "ico",
   "avif",
+  "tif",
+  "tiff",
 ]);
 
 const EXTENSION_PREVIEW_KINDS = new Map<string, WorkspaceFilePreviewKind>([
@@ -71,6 +102,7 @@ const EXTENSION_PREVIEW_KINDS = new Map<string, WorkspaceFilePreviewKind>([
   ["docx", "document"],
   ["pptx", "presentation"],
   ["md", "markdown"],
+  ["mdx", "markdown"],
   ["markdown", "markdown"],
   ["html", "html"],
   ["htm", "html"],
@@ -97,7 +129,11 @@ const WORKSPACE_FILE_KIND_LABELS: Partial<Record<
 export function getWorkspaceFilePreviewKind(
   path: string,
 ): WorkspaceFilePreviewKind {
-  const ext = path.split(".").pop()?.toLowerCase() || "";
+  const fileName = path.replace(/\\/g, "/").split("/").at(-1)?.toLowerCase() ?? "";
+  if (fileName.startsWith(".env")) {
+    return "text";
+  }
+  const ext = fileName.split(".").pop() || "";
   return EXTENSION_PREVIEW_KINDS.get(ext) ?? "binary";
 }
 

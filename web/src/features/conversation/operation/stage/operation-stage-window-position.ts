@@ -53,7 +53,9 @@ export function positionForWindow(
   }
   if (window.kind === "browser") {
     return window.phase === "focused"
-      ? is_review_layout ? PRIMARY_REVIEW_WORKSPACE : PRIMARY_WORKSPACE
+      ? is_review_layout
+        ? "left-[8%] top-[8%] h-[68%] w-[84%]"
+        : "left-[7%] top-[8%] h-[70%] w-[86%]"
       : is_review_layout ? "right-[14%] top-[15%] h-[42%] w-[32%]" : "right-[4%] top-[13%] h-[40%] w-[27%]";
   }
   if (window.kind === "code_editor") {

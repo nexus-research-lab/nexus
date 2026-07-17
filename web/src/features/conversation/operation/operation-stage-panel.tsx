@@ -29,6 +29,7 @@ import {
 } from "./operation-stage-transition";
 import type { StageTransitionIntent } from "./operation-stage-transition";
 import { OperationStageMotionStyles } from "./operation-stage-motion-styles";
+import { useOperationStagePresence } from "./use-operation-stage-presence";
 import { OperationStageDesktop } from "./stage/operation-stage-desktop";
 import type {
   NexusOperationEvent,
@@ -36,6 +37,7 @@ import type {
 } from "./operation-types";
 
 interface OperationStagePanelProps {
+  active?: boolean;
   identity: AgentConversationIdentity | null;
   headerAction?: ReactNode;
   presentation?: "panel" | "stage";
@@ -50,10 +52,12 @@ interface StageTransitionState {
 }
 
 export function OperationStagePanel({
+  active = true,
   identity,
   headerAction,
   presentation = "panel",
 }: OperationStagePanelProps) {
+  useOperationStagePresence(identity, active);
   const stage_key = buildOperationStageKey(identity);
   const snapshot = useOperationStageStore((state) => (
     stage_key ? state.snapshots[stage_key] : null

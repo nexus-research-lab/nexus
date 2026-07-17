@@ -100,7 +100,9 @@ export function verify_html_artifact_opens_browser_srcdoc({
     snapshot: opened_snapshot,
   });
   const opened_browser = opened_desktop.windows.find((window) => window.kind === "browser");
-  assert(opened_browser?.phase === "focused", `done terminal command that opens html should hand focus to Safari, got ${opened_browser?.phase}`);
+  assert(opened_browser?.phase === "focused", `done terminal command that opens html should hand focus to Navi, got ${opened_browser?.phase}`);
+  assert(opened_browser?.payload.target === "gomoku.html", `explicit html open should preserve the workspace target, got ${opened_browser?.payload.target}`);
+  assert(opened_browser?.payload.srcdoc === html_content, "explicit html open should keep the latest real file content for immediate rendering");
   const terminal_window = opened_desktop.windows.find((window) => window.kind === "terminal");
   assert(terminal_window?.phase === "background", `terminal should remain as background evidence after opening html, got ${terminal_window?.phase}`);
 }

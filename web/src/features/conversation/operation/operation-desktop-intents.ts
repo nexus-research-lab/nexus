@@ -5,6 +5,10 @@ import {
   resolveOperationToolProfile,
 } from "./operation-tool-catalog";
 import { terminalProgressResultFromRuntimeDelta } from "./operation-terminal-progress";
+import {
+  readStageDisplayCommand,
+  readStageOpenCommand,
+} from "./operation-stage-open-command";
 import { resolveOperationToolVisualContract } from "./operation-tool-visual-contract";
 
 export type StageDesktopIntent =
@@ -48,7 +52,8 @@ export function deriveStageDesktopIntents(event: NexusOperationEvent): StageDesk
       target: event.target,
     });
   } else if (visual_contract.group === "command_runner") {
-    const command = read_stage_input_string(event.input_preview, ["command", "cmd", "description"]) ?? event.target;
+    const raw_command = read_stage_input_string(event.input_preview, ["command", "cmd", "description"]) ?? event.target;
+    const command = raw_command ? readStageDisplayCommand(raw_command) : raw_command;
     intents.push({
       app: "terminal",
       action: "run_command",
@@ -58,14 +63,23 @@ export function deriveStageDesktopIntents(event: NexusOperationEvent): StageDesk
     });
     const open_target = readBrowserOpenTargetFromTerminalCommand(event);
     if (open_target && (event.phase === "running" || event.phase === "done")) {
-      intents.push({
-        app: "browser",
-        action: looks_like_html_target(open_target.target) ? "preview_artifact" : "browse",
-        event_id: event.id,
-        query: open_target.target,
-        target: open_target.target,
-        url: open_target.url,
-      });
+      if (open_target.url || looks_like_html_target(open_target.target)) {
+        intents.push({
+          app: "browser",
+          action: looks_like_html_target(open_target.target) ? "preview_artifact" : "browse",
+          event_id: event.id,
+          query: open_target.target,
+          target: open_target.target,
+          url: open_target.url,
+        });
+      } else {
+        intents.push({
+          app: "preview",
+          action: "preview_artifact",
+          event_id: event.id,
+          target: open_target.target,
+        });
+      }
     }
   } else if (visual_contract.group === "web_browser") {
     const query = readStageBrowserQuery(event);
@@ -132,7 +146,10 @@ export function operationEventFromRuntimeEvent(
   runtime_event: OperationRuntimeEvent,
 ): NexusOperationEvent {
   const profile = resolveOperationToolProfile(runtime_event.tool_name);
+  const raw_command = read_stage_input_string(runtime_event.input, ["command", "cmd"]);
+  const stage_open = raw_command ? readStageOpenCommand(raw_command) : null;
   const target = runtime_event.artifact?.path
+    ?? stage_open?.target
     ?? read_stage_input_string(runtime_event.input, profile.target_keys)
     ?? read_stage_input_string(runtime_event.input, DEFAULT_TARGET_KEYS)
     ?? runtime_event.tool_name
@@ -242,32 +259,14 @@ export function readBrowserOpenTargetFromTerminalCommand(event: NexusOperationEv
     return null;
   }
 
-  const target = extract_open_command_target(command);
-  if (!target) {
+  const stage_open = readStageOpenCommand(command);
+  if (!stage_open) {
     return null;
   }
-
   return {
-    target,
-    url: looksLikeUrl(target) ? target : null,
+    target: stage_open.target,
+    url: stage_open.url,
   };
-}
-
-function extract_open_command_target(command: string): string | null {
-  const normalized = command.trim();
-  if (!normalized) {
-    return null;
-  }
-
-  const open_match = normalized.match(/\b(?:open|xdg-open|start)\b\s+(?:-[^\s]+\s+(?:"[^"]+"\s+|'[^']+'\s+)?)*["']?([^"'\s]+)["']?/i);
-  const candidate = open_match?.[1]?.replace(/[),.;]+$/, "") ?? null;
-  if (!candidate || candidate.startsWith("-")) {
-    return null;
-  }
-  if (!looksLikeUrl(candidate) && !looks_like_html_target(candidate)) {
-    return null;
-  }
-  return candidate.replace(/^file:\/\//i, "");
 }
 
 function read_stage_input_string(

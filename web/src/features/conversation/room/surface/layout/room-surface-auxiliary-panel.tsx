@@ -127,7 +127,10 @@ export function RoomSurfaceAuxiliaryPanel({
     {
       key: "operation",
       content: (
-        <OperationStagePanel identity={operationStageIdentity} />
+        <OperationStagePanel
+          active={isOperationStageOpen}
+          identity={operationStageIdentity}
+        />
       ),
     },
     {

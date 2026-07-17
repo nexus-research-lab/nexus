@@ -22,6 +22,7 @@ import (
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
+	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
@@ -114,6 +115,7 @@ type Service struct {
 	mcpServers                MCPServerBuilder
 	titles                    titleScheduler
 	replies                   ExternalReplyDispatcher
+	stageTools                stageToolRouter
 }
 
 // ExternalReplyTarget 是 DM 完成后回送外部 IM 通道的最小目标描述。
@@ -144,6 +146,10 @@ type ExternalReplyDispatcher interface {
 type roomSessionStore interface {
 	GetRoomSessionByKey(context.Context, string, protocol.SessionKey) (*protocol.Session, error)
 	UpdateRoomSessionSDKSessionID(context.Context, string, string) error
+}
+
+type stageToolRouter interface {
+	WithStageOpenRoutingHook(agentclient.Options, string, string) agentclient.Options
 }
 
 type titleScheduler interface {
@@ -239,6 +245,11 @@ func (s *Service) SetTitleGenerator(generator titleScheduler) {
 // SetExternalReplyDispatcher 注入外部 IM 自然回复投递器。
 func (s *Service) SetExternalReplyDispatcher(dispatcher ExternalReplyDispatcher) {
 	s.replies = dispatcher
+}
+
+// SetStageToolRouter 注入只在舞台在线时生效的宿主打开隔离器。
+func (s *Service) SetStageToolRouter(router stageToolRouter) {
+	s.stageTools = router
 }
 
 func (s *Service) broadcastSessionStatus(ctx context.Context, sessionKey string) {

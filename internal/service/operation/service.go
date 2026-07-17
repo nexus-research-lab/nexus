@@ -1,3 +1,6 @@
+// INPUT: Nexus 配置和操作舞台的会话级状态请求。
+// OUTPUT: 舞台快照持久化、在线租约、工具打开路由与 Navi 页面服务。
+// POS: Operation Stage 后端服务根；HTTP 和 runtime 只通过窄接口接入。
 package operation
 
 import (
@@ -9,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
@@ -29,9 +33,14 @@ type StageSnapshot struct {
 	UpdatedAt string          `json:"updated_at"`
 }
 
-// Service 管理操作舞台快照的轻量持久化。
+// Service 管理操作舞台快照、在线实例与桌面工具路由。
 type Service struct {
-	root string
+	root             string
+	browserPages     *browserPageFetcher
+	presenceMu       sync.Mutex
+	presenceByScope  map[string]map[string]time.Time
+	presenceLifetime time.Duration
+	now              func() time.Time
 }
 
 // NewService 创建操作舞台服务。
@@ -40,7 +49,13 @@ func NewService(cfg config.Config) *Service {
 	if baseDir == "" {
 		baseDir = filepath.Join(strings.TrimSpace(cfg.WorkspacePath), ".cache")
 	}
-	return &Service{root: filepath.Join(baseDir, "operation-stage")}
+	return &Service{
+		root:             filepath.Join(baseDir, "operation-stage"),
+		browserPages:     newBrowserPageFetcher(),
+		presenceByScope:  make(map[string]map[string]time.Time),
+		presenceLifetime: defaultStagePresenceLifetime,
+		now:              time.Now,
+	}
 }
 
 // SaveStageSnapshot 保存某个会话的舞台快照。

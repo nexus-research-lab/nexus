@@ -153,10 +153,12 @@ function useHtmlPreviewDocument(content: string, isStreaming: boolean) {
 export function HtmlFilePreview({
   content,
   isStreaming: isStreaming = false,
+  presentation = "canvas",
   title,
 }: {
   content: string;
   isStreaming?: boolean;
+  presentation?: "browser" | "canvas";
   title: string;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -204,6 +206,17 @@ export function HtmlFilePreview({
           {content}
         </pre>
       </div>
+    );
+  }
+
+  if (presentation === "browser") {
+    return (
+      <iframe
+        className="h-full min-h-0 w-full flex-1 bg-white"
+        sandbox="allow-downloads allow-forms allow-modals allow-pointer-lock allow-popups allow-scripts"
+        srcDoc={previewDocument}
+        title={title}
+      />
     );
   }
 

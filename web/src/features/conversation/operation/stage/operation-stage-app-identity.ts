@@ -31,5 +31,8 @@ export function dockIconSkinForKind(kind: StageWindowKind): string {
   if (kind === "spreadsheet") {
     return "border-[rgba(47,184,132,0.34)] bg-[linear-gradient(135deg,#f0fdf4,#34d399)] text-[#064e3b]";
   }
+  if (kind === "presentation") {
+    return "border-[rgba(239,68,68,0.28)] bg-[linear-gradient(135deg,#fff7ed,#fb7185)] text-[#7f1d1d]";
+  }
   return "border-white/52 bg-white/44 text-(--icon-muted)";
 }

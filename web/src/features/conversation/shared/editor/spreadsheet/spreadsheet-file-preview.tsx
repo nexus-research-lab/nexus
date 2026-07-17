@@ -21,6 +21,7 @@ export function SpreadsheetFilePreview({
   isPreviewFocused,
   onTogglePreviewFocus,
   path,
+  showFocusControl = true,
 }: WorkspaceFilePreviewProps) {
   const preview = useSpreadsheetPreview(agentId, path);
   return (
@@ -33,10 +34,12 @@ export function SpreadsheetFilePreview({
               fileName={fileName}
               path={path}
             />
-            <WorkspaceFilePreviewFocusButton
-              isPreviewFocused={isPreviewFocused}
-              onTogglePreviewFocus={onTogglePreviewFocus}
-            />
+            {showFocusControl ? (
+              <WorkspaceFilePreviewFocusButton
+                isPreviewFocused={isPreviewFocused}
+                onTogglePreviewFocus={onTogglePreviewFocus}
+              />
+            ) : null}
           </>
         )}
         meta={<SpreadsheetPreviewMeta status={preview.status} />}

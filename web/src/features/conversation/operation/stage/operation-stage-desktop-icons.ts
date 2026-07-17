@@ -47,6 +47,7 @@ function is_desktop_artifact_window(window: StageWindowState): boolean {
     window.kind === "code_editor" ||
     window.kind === "markdown_reader" ||
     window.kind === "word_reader" ||
+    window.kind === "presentation" ||
     window.kind === "pdf_reader" ||
     window.kind === "spreadsheet" ||
     window.kind === "image_viewer"

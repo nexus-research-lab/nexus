@@ -14,6 +14,7 @@ import { useWorkspaceLiveStore } from "@/store/workspace-live";
 
 interface UseTextFileEditorParams {
   agentId: string;
+  initialContent?: string | null;
   path: string;
 }
 
@@ -23,10 +24,11 @@ interface UseTextFileEditorParams {
  */
 export function useTextFileEditor({
   agentId,
+  initialContent,
   path,
 }: UseTextFileEditorParams) {
-  const [draftContent, setDraftContent] = useState("");
-  const [savedContent, setSavedContent] = useState("");
+  const [draftContent, setDraftContent] = useState(initialContent ?? "");
+  const [savedContent, setSavedContent] = useState(initialContent ?? "");
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isEditing, setIsEditing] = useResettableState(false, path);
@@ -52,7 +54,7 @@ export function useTextFileEditor({
         setSavedContent(response.content);
       }
     } catch (loadError) {
-      if (loadRequestIdRef.current === requestId) {
+      if (loadRequestIdRef.current === requestId && typeof initialContent !== "string") {
         setError(
           loadError instanceof Error ? loadError.message : "读取文件失败",
         );
@@ -62,7 +64,16 @@ export function useTextFileEditor({
         setIsLoading(false);
       }
     }
-  }, [agentId, path]);
+  }, [agentId, initialContent, path]);
+
+  useEffect(() => {
+    if (typeof initialContent !== "string") {
+      return;
+    }
+    setDraftContent(initialContent);
+    setSavedContent(initialContent);
+    setError(null);
+  }, [initialContent, path]);
 
   useEffect(() => {
     void loadContent();
@@ -78,6 +89,7 @@ export function useTextFileEditor({
     if (liveState.source === "api" && isSaving) {
       return;
     }
+    setError(null);
     setDraftContent(liveState.live_content);
     if (liveState.status === "updated") {
       setSavedContent(liveState.live_content);

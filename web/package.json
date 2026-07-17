@@ -8,9 +8,11 @@
     "build": "vite build",
     "start": "vite preview --host 0.0.0.0 --port 3000",
     "lint": "eslint \"src/**/*.{ts,tsx}\" vite.config.ts eslint.config.mjs",
-    "test": "node --test ./scripts/timeline-guidance-order.test.mjs ./scripts/room-collaboration-regression.test.mjs ./scripts/input-queue-ack.test.mjs ./scripts/operation-terminal-semantics.test.mjs",
+    "test": "node --test ./scripts/timeline-guidance-order.test.mjs ./scripts/room-collaboration-regression.test.mjs ./scripts/input-queue-ack.test.mjs ./scripts/operation-terminal-semantics.test.mjs ./scripts/operation-browser-semantics.test.mjs ./scripts/operation-preview-semantics.test.mjs",
     "test:timeline": "node --test ./scripts/timeline-guidance-order.test.mjs ./scripts/room-collaboration-regression.test.mjs ./scripts/input-queue-ack.test.mjs",
     "test:terminal": "node --test ./scripts/operation-terminal-semantics.test.mjs",
+    "test:browser": "node --test ./scripts/operation-browser-semantics.test.mjs",
+    "test:preview": "node --test ./scripts/operation-preview-semantics.test.mjs",
     "typecheck": "tsc --noEmit",
     "verify:operation-stage": "node ./scripts/verify-operation-stage-projector.mjs",
     "export:liquid-glass": "node ./scripts/export-liquid-glass-assets.mjs"

@@ -119,6 +119,7 @@ type RealtimeService struct {
 	logger           *slog.Logger
 	mcpServers       MCPServerBuilder
 	titles           roomTitleScheduler
+	stageTools       stageToolRouter
 
 	mu                  sync.Mutex
 	activeRounds        map[string]*activeRoomRound
@@ -130,6 +131,10 @@ type RealtimeService struct {
 	// ponytail: one global Agent wake admission lock; split per conversation only if contention becomes measurable.
 	publicMentionDispatchMu sync.Mutex
 	wakeTimers              *roomWakeTimerRegistry
+}
+
+type stageToolRouter interface {
+	WithStageOpenRoutingHook(agentclient.Options, string, string) agentclient.Options
 }
 
 type roomTitleScheduler interface {
@@ -247,6 +252,11 @@ func (s *RealtimeService) SetMCPServerBuilder(builder MCPServerBuilder) {
 // SetTitleGenerator 注入会话标题生成器。
 func (s *RealtimeService) SetTitleGenerator(generator roomTitleScheduler) {
 	s.titles = generator
+}
+
+// SetStageToolRouter 注入只在舞台在线时生效的宿主打开隔离器。
+func (s *RealtimeService) SetStageToolRouter(router stageToolRouter) {
+	s.stageTools = router
 }
 
 func (s *RealtimeService) loggerFor(ctx context.Context) *slog.Logger {

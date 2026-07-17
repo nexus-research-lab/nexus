@@ -50,10 +50,13 @@ copyFileSync(join(operation_dir, "operation-types.js"), join(operation_dir, "ope
 copyFileSync(join(operation_dir, "operation-desktop-types.js"), join(operation_dir, "operation-desktop-types"));
 copyFileSync(join(operation_dir, "operation-preview.js"), join(operation_dir, "operation-preview"));
 copyFileSync(join(operation_dir, "operation-scene-planner-helpers.js"), join(operation_dir, "operation-scene-planner-helpers"));
+copyFileSync(join(operation_dir, "operation-scene-focus.js"), join(operation_dir, "operation-scene-focus"));
+copyFileSync(join(operation_dir, "operation-scene-window-builder.js"), join(operation_dir, "operation-scene-window-builder"));
 copyFileSync(join(operation_dir, "operation-scene-window-policy.js"), join(operation_dir, "operation-scene-window-policy"));
 copyFileSync(join(operation_dir, "operation-stage-labels.js"), join(operation_dir, "operation-stage-labels"));
 copyFileSync(join(operation_dir, "operation-stage-experience.js"), join(operation_dir, "operation-stage-experience"));
 copyFileSync(join(operation_dir, "operation-stage-key.js"), join(operation_dir, "operation-stage-key"));
+copyFileSync(join(operation_dir, "operation-stage-open-command.js"), join(operation_dir, "operation-stage-open-command"));
 copyFileSync(join(operation_dir, "operation-terminal-progress.js"), join(operation_dir, "operation-terminal-progress"));
 copyFileSync(join(operation_dir, "operation-terminal-lines.js"), join(operation_dir, "operation-terminal-lines"));
 copyFileSync(join(operation_dir, "operation-terminal-session-events.js"), join(operation_dir, "operation-terminal-session-events"));
@@ -650,6 +653,52 @@ function verify_desktop_intents_drive_app_session_windows(now) {
   assert(!waiting_desktop.windows.some((window) => window.kind === "browser"), "Waiting Bash must not create a browser window");
   const open_target = readBrowserOpenTargetFromTerminalCommand(terminal_event);
   assert(open_target?.target === "gomoku.html", `open html command should expose the artifact target, got ${open_target?.target}`);
+  const redirected_payload = Buffer.from(JSON.stringify({
+    command: "open '/workspace/reports/weekly brief.md'",
+    target: "reports/weekly brief.md",
+  })).toString("base64url");
+  const redirected_event = {
+    ...terminal_event,
+    id: "tool-bash-open-markdown",
+    tool_use_id: "tool-bash-markdown",
+    target: "reports/weekly brief.md",
+    input_preview: {
+      command: `: # __NEXUS_STAGE_OPEN_V1__${redirected_payload}`,
+    },
+  };
+  const redirected_target = readBrowserOpenTargetFromTerminalCommand(redirected_event);
+  assert(redirected_target?.target === "reports/weekly brief.md", `stage redirect marker should restore the relative target, got ${redirected_target?.target}`);
+  const redirected_intents = deriveStageDesktopIntents(redirected_event);
+  assert(redirected_intents.some((intent) => intent.app === "preview"), "non-html open should derive a real workspace preview intent");
+  assert(!redirected_intents.some((intent) => intent.app === "browser"), "non-html open must not launch Navi");
+  const redirected_desktop = planOperationDesktop({
+    event: redirected_event,
+    snapshot: {
+      key: "session:stage",
+      session_key: "session:stage",
+      active_event: redirected_event,
+      events: [redirected_event],
+      runtime_events: [],
+      recent_evidence: [],
+      workspace_events: [{
+        id: "workspace-weekly-brief",
+        agent_id: "agent-stage",
+        path: "reports/weekly brief.md",
+        status: "updated",
+        version: 1,
+        source: "agent",
+        session_key: "session:stage",
+        tool_use_id: "tool-bash-markdown",
+        event_type: "file_write_end",
+        live_content: "# Weekly brief",
+        updated_at: now,
+      }],
+      updated_at: now,
+    },
+  });
+  const preview_window = redirected_desktop.windows.find((window) => window.kind === "markdown_reader");
+  assert(preview_window?.payload.workspace_preview === true, "open markdown should use the shared workspace preview implementation");
+  assert(preview_window?.phase === "focused", `open markdown should focus its document window, got ${preview_window?.phase}`);
   assert(
     readBrowserOpenTargetFromTerminalCommand({
       ...terminal_event,
@@ -1220,6 +1269,13 @@ function verify_stage_window_position_model() {
     2,
   );
   assert(browser_position.includes("top-[50%]"), `Background Navi should use a distinct Stage Manager slot, got ${browser_position}`);
+
+  const focused_browser_position = positionForWindow(
+    mock_stage_window({ id: "browser-focused", kind: "browser", phase: "focused" }),
+    "running",
+  );
+  assert(focused_browser_position.includes("w-[86%]"), `Focused Navi should read as the primary desktop app, got ${focused_browser_position}`);
+  assert(focused_browser_position.includes("h-[70%]"), `Focused Navi should leave enough height for real pages above the Dock, got ${focused_browser_position}`);
 
   const terminal_position = positionForWindow(
     { ...mock_stage_window({ id: "terminal", kind: "terminal", phase: "focused" }), layout: "terminal" },
@@ -2466,16 +2522,14 @@ function verify_browser_fallback_builds_search_results(now) {
     ],
   });
 
-  assert(items.length === 4, `browser fallback should keep search result rows without JSON wrapper rows, got ${items.length}`);
+  assert(items.length === 3, `browser fallback should group plain summary lines under the preceding URL, got ${items.length}`);
   assert(items[0].url === "https://example.com/stage", `plain URL result should preserve URL, got ${items[0].url}`);
   assert(items[0].kind === "link", `plain URL result should be rendered as a link, got ${items[0].kind}`);
   assert(items[0].title.includes("example.com"), `plain URL result should derive readable title, got ${items[0].title}`);
   assert(items[1].url === "https://developer.apple.com/design/human-interface-guidelines/windows", `quoted URL result should be cleaned, got ${items[1].url}`);
   assert(items[2].title === "Nexus Desktop", `markdown link result should preserve title, got ${items[2].title}`);
   assert(items[2].url === "https://nexus.example.com/desktop", `markdown link result should preserve URL, got ${items[2].url}`);
-  assert(items[3].url === null, `plain text result should not invent a URL, got ${items[3].url}`);
-  assert(items[3].kind === "summary", `plain text result should become a summary row, got ${items[3].kind}`);
-  assert(items[3].snippet === "Local summary without a URL", `plain text result should preserve snippet, got ${items[3].snippet}`);
+  assert(items[2].snippet.includes("Local summary without a URL"), `plain text should extend the preceding result snippet, got ${items[2].snippet}`);
 }
 
 function verify_browser_reader_highlights_tool_hits() {
@@ -2489,7 +2543,8 @@ function verify_browser_reader_highlights_tool_hits() {
     preview: null,
   });
   assert(paragraphs.length === 2, `Reader should keep tool-returned paragraphs, got ${paragraphs.length}`);
-  assert(paragraphs.every((item) => item.highlighted), "Tool-returned WebFetch lines should be highlighted as matched page excerpts");
+  assert(paragraphs[0].highlighted, "Reader should highlight the paragraph matching the WebFetch intent");
+  assert(!paragraphs[1].highlighted, "Reader should not mark unrelated fetched paragraphs as intent hits");
   assert(!paragraphs[0].text.includes("\"") && !paragraphs[0].text.endsWith(","), `Reader should strip JSON string noise, got ${paragraphs[0].text}`);
 
   const fallback = buildBrowserReaderParagraphs({
@@ -2534,10 +2589,11 @@ function verify_browser_session_view(now) {
     target: "gomoku.html",
   });
   assert(srcdoc_view.srcdoc?.includes("board"), "Browser session should preserve inline html preview");
-  assert(srcdoc_view.iframe_url === null, `Inline html should not use iframe URL, got ${srcdoc_view.iframe_url}`);
-  assert(srcdoc_view.display_url === "gomoku.html", `Inline html should show artifact path, got ${srcdoc_view.display_url}`);
-  assert(srcdoc_view.page_kind === "embedded", `Inline html should be embedded page kind, got ${srcdoc_view.page_kind}`);
-  assert(srcdoc_view.source_label === "内嵌页面", `Inline html source should be embedded page, got ${srcdoc_view.source_label}`);
+  assert(srcdoc_view.srcdoc?.includes('<base href="/nexus/v1/agents/agent-stage/workspace/site/">'), "Workspace srcdoc should resolve sibling assets through the site route");
+  assert(srcdoc_view.iframe_url === "/nexus/v1/agents/agent-stage/workspace/site/gomoku.html", `Inline html should retain its real workspace URL, got ${srcdoc_view.iframe_url}`);
+  assert(srcdoc_view.display_url === srcdoc_view.iframe_url, `Inline html should show its workspace URL, got ${srcdoc_view.display_url}`);
+  assert(srcdoc_view.page_kind === "workspace", `Inline html should be workspace page kind, got ${srcdoc_view.page_kind}`);
+  assert(srcdoc_view.source_label === "工作区", `Inline html source should be workspace, got ${srcdoc_view.source_label}`);
   assert(srcdoc_view.tab_title === "Gomoku Board", `Inline html tab should use document title, got ${srcdoc_view.tab_title}`);
 
   const workspace_view = buildBrowserSessionView({
@@ -2546,7 +2602,7 @@ function verify_browser_session_view(now) {
     query: "gomoku.html",
     target: "gomoku.html",
   });
-  assert(workspace_view.iframe_url?.includes("/nexus/v1/agents/agent-stage/workspace/file/raw"), `Workspace html should build raw iframe url, got ${workspace_view.iframe_url}`);
+  assert(workspace_view.iframe_url === "/nexus/v1/agents/agent-stage/workspace/site/gomoku.html", `Workspace html should build directory site URL, got ${workspace_view.iframe_url}`);
   assert(workspace_view.page_kind === "workspace", `Workspace html should be workspace page kind, got ${workspace_view.page_kind}`);
   assert(workspace_view.source_label === "工作区", `Workspace html source should be workspace, got ${workspace_view.source_label}`);
   assert(workspace_view.tab_title === "gomoku.html", `Workspace html tab should use basename, got ${workspace_view.tab_title}`);
@@ -2556,10 +2612,10 @@ function verify_browser_session_view(now) {
     preview: null,
     query: "https://example.com",
   });
-  assert(remote_view.iframe_url === null, `Remote URL should not be embedded as an iframe, got ${remote_view.iframe_url}`);
+  assert(remote_view.iframe_url === "https://example.com", `Remote URL should open in the stage browser, got ${remote_view.iframe_url}`);
   assert(remote_view.page_kind === "web", `Remote URL should be web page kind, got ${remote_view.page_kind}`);
   assert(remote_view.source_label === "网页", `Remote URL source should be web, got ${remote_view.source_label}`);
-  assert(remote_view.status.label === "正在加载", `Running URL should report tool loading, got ${remote_view.status.label}`);
+  assert(remote_view.status.label === "正在访问", `Running URL should report a truthful access state, got ${remote_view.status.label}`);
   assert(remote_view.tab_title === "example.com", `Remote URL tab should use hostname, got ${remote_view.tab_title}`);
 
   const search_view = buildBrowserSessionView({

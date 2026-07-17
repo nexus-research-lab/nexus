@@ -26,6 +26,7 @@ export function PresentationFilePreview({
   isPreviewFocused,
   onTogglePreviewFocus,
   path,
+  showFocusControl = true,
 }: WorkspaceFilePreviewProps) {
   const cleanupUrlsRef = useRef<() => void>(() => undefined);
   const previewKey = `${agentId}\x1f${path}`;
@@ -99,10 +100,12 @@ export function PresentationFilePreview({
         actions={(
           <>
             <WorkspaceFileDownloadButton agentId={agentId} fileName={fileName} path={path} />
-            <WorkspaceFilePreviewFocusButton
-              isPreviewFocused={isPreviewFocused}
-              onTogglePreviewFocus={onTogglePreviewFocus}
-            />
+            {showFocusControl ? (
+              <WorkspaceFilePreviewFocusButton
+                isPreviewFocused={isPreviewFocused}
+                onTogglePreviewFocus={onTogglePreviewFocus}
+              />
+            ) : null}
           </>
         )}
         meta={(

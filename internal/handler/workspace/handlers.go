@@ -265,6 +265,28 @@ func (h *Handlers) HandleRawWorkspaceFile(writer http.ResponseWriter, request *h
 		chi.URLParam(request, "agent_id"),
 		request.URL.Query().Get("path"),
 	)
+	if err != nil {
+		h.writeRawWorkspaceFileError(writer, err)
+		return
+	}
+	h.serveRawWorkspaceFile(writer, request, rawFile)
+}
+
+// HandleWorkspaceSiteFile 以目录型 URL 输出工作区文件，使 HTML 的相对脚本、样式和图片可正常加载。
+func (h *Handlers) HandleWorkspaceSiteFile(writer http.ResponseWriter, request *http.Request) {
+	rawFile, err := h.workspace.GetRawFile(
+		request.Context(),
+		chi.URLParam(request, "agent_id"),
+		chi.URLParam(request, "*"),
+	)
+	if err != nil {
+		h.writeRawWorkspaceFileError(writer, err)
+		return
+	}
+	h.serveRawWorkspaceFile(writer, request, rawFile)
+}
+
+func (h *Handlers) writeRawWorkspaceFileError(writer http.ResponseWriter, err error) {
 	if errors.Is(err, agentpkg.ErrAgentNotFound) || errors.Is(err, workspacepkg.ErrFileNotFound) {
 		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
 		return
@@ -273,14 +295,18 @@ func (h *Handlers) HandleRawWorkspaceFile(writer http.ResponseWriter, request *h
 		h.api.WriteFailure(writer, http.StatusRequestEntityTooLarge, "文件过大，无法在舞台内联预览")
 		return
 	}
-	if err != nil {
-		if strings.Contains(err.Error(), "路径") || strings.Contains(err.Error(), "目录") {
-			h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
-			return
-		}
-		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+	if strings.Contains(err.Error(), "路径") || strings.Contains(err.Error(), "目录") {
+		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
 		return
 	}
+	h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+}
+
+func (h *Handlers) serveRawWorkspaceFile(
+	writer http.ResponseWriter,
+	request *http.Request,
+	rawFile *workspacepkg.RawFile,
+) {
 	file, err := os.Open(rawFile.FilePath)
 	if err != nil {
 		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())

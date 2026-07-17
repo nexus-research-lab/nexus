@@ -257,6 +257,13 @@ func (e *slotExecution) runtimePermissionHandler() sdkpermission.Handler {
 
 func (e *slotExecution) applyRuntimeHooks(options agentclient.Options) agentclient.Options {
 	options = e.service.runtime.WithGuidanceHook(options, e.slot.RuntimeSessionKey)
+	if e.service.stageTools != nil {
+		options = e.service.stageTools.WithStageOpenRoutingHook(
+			options,
+			e.slot.RuntimeSessionKey,
+			e.agent.WorkspacePath,
+		)
+	}
 	if goalSessionKey := goalSessionKeyForSlot(e.slot); goalSessionKey != "" && goalSessionKey != e.slot.RuntimeSessionKey {
 		options = e.service.runtime.WithGuidanceHook(options, goalSessionKey)
 	}

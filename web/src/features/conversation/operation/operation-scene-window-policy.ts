@@ -80,5 +80,6 @@ function is_document_window_kind(kind: StageWindowKind): boolean {
     || kind === "markdown_reader"
     || kind === "pdf_reader"
     || kind === "spreadsheet"
+    || kind === "presentation"
     || kind === "word_reader";
 }

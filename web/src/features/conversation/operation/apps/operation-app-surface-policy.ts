@@ -7,6 +7,7 @@ export function appSurfaceForWindowKind(kind: StageWindowKind): OperationAppSurf
     kind === "code_editor" ||
     kind === "markdown_reader" ||
     kind === "word_reader" ||
+    kind === "presentation" ||
     kind === "pdf_reader" ||
     kind === "spreadsheet" ||
     kind === "image_viewer"

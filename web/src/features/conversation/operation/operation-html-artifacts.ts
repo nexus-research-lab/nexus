@@ -3,6 +3,7 @@ import type {
   NexusOperationSnapshot,
 } from "./operation-types";
 import { readBrowserOpenTargetFromTerminalCommand } from "./operation-desktop-intents";
+import { operationWorkspaceTargetsMatch } from "./operation-file-documents";
 
 export interface OperationHtmlArtifact {
   path: string;
@@ -37,7 +38,7 @@ export function findOperationHtmlArtifact(
 
   const workspace_items = [...(snapshot?.workspace_events ?? [])].reverse();
   const workspace_artifact = workspace_items.find((item) => (
-    html_targets.has(item.path) &&
+    [...html_targets].some((target) => operationWorkspaceTargetsMatch(target, item.path)) &&
     looks_like_html_path(item.path)
   )) ?? workspace_items.find((item) => (
     Boolean(item.tool_use_id && round_tool_use_ids.has(item.tool_use_id)) &&

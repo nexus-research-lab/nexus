@@ -26,6 +26,7 @@ import { OperationReviewPanel, PermissionCheckpointPanel } from "./operation-rev
 import { HandoffSurface } from "./handoff-surface";
 import { RunManifestSurface } from "./run-manifest-surface";
 import { TerminalSession } from "./terminal-session";
+import { StageWorkspaceFilePreview } from "./stage-workspace-file-preview";
 import { WorkspaceFinder } from "./workspace-finder-surface";
 
 export function StageWindowContent({
@@ -64,14 +65,13 @@ export function StageWindowContent({
 
   if (window.kind === "browser") {
     const query = window.payload.query ?? event.target ?? "web";
-    const lines = window.payload.lines ?? getPreviewLines(event.result_preview ?? event.summary, 7);
     return (
       <div className="flex h-full min-h-[280px] min-w-0 max-w-full flex-col">
         <BrowserSurface
           event={event}
-          lines={lines}
           preview={window.payload.srcdoc ?? window.payload.preview}
           query={query}
+          relatedEvents={window.payload.related_events ?? []}
           target={window.payload.target ?? event.target}
         />
       </div>
@@ -154,6 +154,16 @@ export function StageWindowContent({
   }
 
   if (appSurfaceForWindowKind(window.kind) === "document") {
+    const workspace_target = window.payload.target ?? window.target ?? event.target;
+    if (window.payload.workspace_preview && workspace_target) {
+      return (
+        <StageWorkspaceFilePreview
+          agentId={event.agent_id}
+          initialContent={read_initial_workspace_content(event, window.payload.preview)}
+          path={workspace_target}
+        />
+      );
+    }
     return (
       <DocumentPreview
         diffStats={window.payload.diff_stats}
@@ -185,6 +195,14 @@ export function StageWindowContent({
       </div>
     </div>
   );
+}
+
+function read_initial_workspace_content(
+  event: NexusOperationEvent,
+  preview: unknown,
+): string | null {
+  const value = resolveFilePreviewValue(event, preview);
+  return typeof value === "string" ? value : null;
 }
 
 function ToolActionHeader({

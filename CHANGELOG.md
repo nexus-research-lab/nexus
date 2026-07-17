@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Kept Operation Stage file tools from opening duplicate document windows when SDK events use absolute paths and workspace activity uses relative paths, and aligned Markdown, source, Office, PDF, and image targets with the shared workspace preview implementations.
 - Streamed bounded NXS Bash output snapshots into the Operation Stage terminal while keeping Claude Code commands in a truthful running state until their final tool result arrives, omitting unavailable terminal metadata, and associating KillShell only through an explicit shell identifier.
 - Made queued user input clear only after a durable `input_queue_ack`, reused stable logical message IDs across uncertain retries, rejected duplicate queue execution after immediate dispatch, preserved Composer drafts when chat or queue ACKs fail, and hardened Safari's post-composition Enter guard against default submission and negative timestamp deltas.
 - Hid the Goal resume action while its conversation is already executing.
@@ -37,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added a persistent Navi browser app to the Operation Stage, projecting WebSearch and WebFetch into real tab history while preserving user-created tabs, address navigation, Reader snapshots, clickable results, and interactive workspace HTML after an Agent run completes. Public pages load through a cookie-free, size-bounded, SSRF-guarded HTML proxy so sites that reject direct iframe embedding remain navigable inside the stage.
 - Added runtime-scoped settings with an nxs-only ToolSearch switch, defaulting to off and projecting the choice to both supported SDK environment names without affecting Claude runtime.
 - Added Nexus-to-nxs WebSearch provider configuration with AnySearch enabled by default, moving provider selection into the WebSearch header, keeping required fields compact and layout-stable, and placing SDK-supported search, cache, network, extraction, and AnySearch parameters behind a More settings section with direct API key setup links where needed.
 - Added a dedicated visual-model preference and nxs runtime projection, allowing text-only chat models to call an independently configured vision provider on demand while native vision models keep the direct image path.

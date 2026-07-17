@@ -115,6 +115,9 @@ func (s *Service) ensureClient(
 		return nil, "", "", "", "", "", nil, permissionMode, err
 	}
 	options = s.runtime.WithGuidanceHook(options, sessionKey)
+	if s.stageTools != nil {
+		options = s.stageTools.WithStageOpenRoutingHook(options, sessionKey, agentValue.WorkspacePath)
+	}
 	options = s.withInputQueueGuidanceHook(options, sessionKey, workspacestore.InputQueueLocation{
 		Scope:         protocol.InputQueueScopeDM,
 		WorkspacePath: agentValue.WorkspacePath,

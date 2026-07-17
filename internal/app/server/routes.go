@@ -1,3 +1,6 @@
+// INPUT: Server 配置、handlers 和 API 前缀。
+// OUTPUT: Nexus HTTP 路由表。
+// POS: 仅负责端点装配，不承载 handler 或业务规则。
 package server
 
 import "strings"
@@ -5,6 +8,7 @@ import "strings"
 // mountRoutes 按功能域挂载全部 HTTP 路由。
 func (s *Server) mountRoutes() {
 	s.mountCoreRoutes()
+	s.mountOperationRoutes()
 	s.mountProviderRoutes()
 	s.mountAdminRoutes()
 	s.mountAgentRoutes()
@@ -13,6 +17,15 @@ func (s *Server) mountRoutes() {
 	s.mountGoalRoutes()
 	s.mountPlaceholderRoutes()
 	s.mountWebAppRoutes()
+}
+
+// mountOperationRoutes 挂载操作舞台状态和 Navi 页面接口。
+func (s *Server) mountOperationRoutes() {
+	s.router.Get(s.prefixPath("/operation/stage/snapshot"), s.handlers.operation.HandleGetStageSnapshot)
+	s.router.Put(s.prefixPath("/operation/stage/snapshot"), s.handlers.operation.HandleSaveStageSnapshot)
+	s.router.Put(s.prefixPath("/operation/stage/presence"), s.handlers.operation.HandleTouchStagePresence)
+	s.router.Delete(s.prefixPath("/operation/stage/presence"), s.handlers.operation.HandleCloseStagePresence)
+	s.router.Get(s.prefixPath("/operation/browser/page"), s.handlers.operation.HandleBrowserPage)
 }
 
 // mountAdminRoutes 挂载管理员运营接口。
@@ -84,6 +97,7 @@ func (s *Server) mountAgentRoutes() {
 	s.router.Get(s.prefixPath("/agents/{agent_id}/private-domain/threads/{thread_id}/events"), s.handlers.room.HandleListAgentPrivateEvents)
 	s.router.Get(s.prefixPath("/agents/{agent_id}/workspace/files"), s.handlers.workspace.HandleWorkspaceFiles)
 	s.router.Get(s.prefixPath("/agents/{agent_id}/workspace/file/raw"), s.handlers.workspace.HandleRawWorkspaceFile)
+	s.router.Get(s.prefixPath("/agents/{agent_id}/workspace/site/*"), s.handlers.workspace.HandleWorkspaceSiteFile)
 	s.router.Get(s.prefixPath("/agents/{agent_id}/workspace/file/meta"), s.handlers.workspace.HandleWorkspaceFileMeta)
 	s.router.Get(s.prefixPath("/agents/{agent_id}/workspace/memory"), s.handlers.workspace.HandleWorkspaceMemory)
 	s.router.Get(s.prefixPath("/agents/{agent_id}/workspace/file"), s.handlers.workspace.HandleWorkspaceFile)

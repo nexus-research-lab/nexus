@@ -27,6 +27,7 @@ export function PdfPreview({
   fileName,
   isPreviewFocused,
   onTogglePreviewFocus,
+  showFocusControl = true,
 }: WorkspaceFilePreviewProps) {
   const [isLoaded, setIsLoaded] = useState(false);
   const previewUrl = getWorkspaceFilePreviewUrl(agentId, path);
@@ -37,10 +38,12 @@ export function PdfPreview({
         actions={(
           <>
             <WorkspaceFileDownloadButton agentId={agentId} fileName={fileName} path={path} />
-            <WorkspaceFilePreviewFocusButton
-              isPreviewFocused={isPreviewFocused}
-              onTogglePreviewFocus={onTogglePreviewFocus}
-            />
+            {showFocusControl ? (
+              <WorkspaceFilePreviewFocusButton
+                isPreviewFocused={isPreviewFocused}
+                onTogglePreviewFocus={onTogglePreviewFocus}
+              />
+            ) : null}
           </>
         )}
         meta={(
@@ -84,6 +87,7 @@ export function ImagePreview({
   fileName,
   isPreviewFocused,
   onTogglePreviewFocus,
+  showFocusControl = true,
 }: WorkspaceFilePreviewProps) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
@@ -96,10 +100,12 @@ export function ImagePreview({
         actions={(
           <>
             <WorkspaceFileDownloadButton agentId={agentId} fileName={fileName} path={path} />
-            <WorkspaceFilePreviewFocusButton
-              isPreviewFocused={isPreviewFocused}
-              onTogglePreviewFocus={onTogglePreviewFocus}
-            />
+            {showFocusControl ? (
+              <WorkspaceFilePreviewFocusButton
+                isPreviewFocused={isPreviewFocused}
+                onTogglePreviewFocus={onTogglePreviewFocus}
+              />
+            ) : null}
           </>
         )}
         meta={(
@@ -161,6 +167,7 @@ export function BinaryFilePlaceholder({
   fileName,
   isPreviewFocused,
   onTogglePreviewFocus,
+  showFocusControl = true,
 }: WorkspaceFilePreviewProps) {
   const fileActionCopy = getWorkspaceFileExternalActionCopy(fileName);
   const actionDescription = fileActionCopy.mode === "reveal"
@@ -172,10 +179,12 @@ export function BinaryFilePlaceholder({
         actions={(
           <>
             <WorkspaceFileDownloadButton agentId={agentId} fileName={fileName} path={path} />
-            <WorkspaceFilePreviewFocusButton
-              isPreviewFocused={isPreviewFocused}
-              onTogglePreviewFocus={onTogglePreviewFocus}
-            />
+            {showFocusControl ? (
+              <WorkspaceFilePreviewFocusButton
+                isPreviewFocused={isPreviewFocused}
+                onTogglePreviewFocus={onTogglePreviewFocus}
+              />
+            ) : null}
           </>
         )}
         meta={(

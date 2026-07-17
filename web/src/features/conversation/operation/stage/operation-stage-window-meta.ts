@@ -136,6 +136,9 @@ export function stageAppLabelForWindowKind(kind: StageWindowKind): string {
   if (kind === "spreadsheet") {
     return "Numbers";
   }
+  if (kind === "presentation") {
+    return "Keynote";
+  }
   if (kind === "image_viewer") {
     return "预览";
   }
