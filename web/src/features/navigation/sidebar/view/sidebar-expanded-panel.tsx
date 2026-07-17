@@ -107,7 +107,7 @@ export function SidebarExpandedPanel({
           to={AppRouteBuilders.launcher()}
         >
           <p
-            className="whitespace-nowrap text-[18px] uppercase tracking-[0.07em] text-(--text-default)"
+            className="whitespace-nowrap px-4 text-[20px] uppercase tracking-[0.5em] text-(--text-default)"
             style={{
               fontFamily: '"Panchang", var(--font-sans)',
               fontWeight: 200,
