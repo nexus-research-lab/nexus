@@ -2,21 +2,24 @@ import {
   useCallback,
   useRef,
   type MutableRefObject,
+  type PointerEvent,
   type RefObject,
   type TouchEvent,
   type WheelEvent,
 } from "react";
 
+import { isNearScrollBottom } from "./follow-scroll-model";
+
 interface UseFollowScrollInteractionsOptions {
-  cancelAnimation: () => void;
   lastScrollTopRef: MutableRefObject<number>;
+  pauseFollowLatest: () => void;
   scrollRef: RefObject<HTMLDivElement | null>;
   updateFollowState: () => void;
 }
 
 export function useFollowScrollInteractions({
-  cancelAnimation,
   lastScrollTopRef,
+  pauseFollowLatest,
   scrollRef,
   updateFollowState,
 }: UseFollowScrollInteractionsOptions) {
@@ -29,20 +32,29 @@ export function useFollowScrollInteractions({
     }
 
     const currentScrollTop = container.scrollTop;
-    if (currentScrollTop < lastScrollTopRef.current) {
-      cancelAnimation();
-    }
+    const shouldResume = isNearScrollBottom(container);
     lastScrollTopRef.current = currentScrollTop;
-    updateFollowState();
-  }, [cancelAnimation, lastScrollTopRef, scrollRef, updateFollowState]);
+    if (shouldResume) {
+      updateFollowState();
+    }
+  }, [lastScrollTopRef, scrollRef, updateFollowState]);
 
   const onWheel = useCallback(
     (event: WheelEvent<HTMLDivElement>) => {
       if (event.deltaY < 0) {
-        cancelAnimation();
+        pauseFollowLatest();
       }
     },
-    [cancelAnimation],
+    [pauseFollowLatest],
+  );
+
+  const onPointerDown = useCallback(
+    (event: PointerEvent<HTMLDivElement>) => {
+      if (event.target === event.currentTarget) {
+        pauseFollowLatest();
+      }
+    },
+    [pauseFollowLatest],
   );
 
   const onTouchStart = useCallback((event: TouchEvent<HTMLDivElement>) => {
@@ -54,16 +66,23 @@ export function useFollowScrollInteractions({
       const currentY = event.touches[0]?.clientY;
       if (currentY !== undefined && touchStartYRef.current !== null) {
         if (currentY > touchStartYRef.current) {
-          cancelAnimation();
+          pauseFollowLatest();
         }
       }
     },
-    [cancelAnimation],
+    [pauseFollowLatest],
   );
 
   const onTouchEnd = useCallback(() => {
     touchStartYRef.current = null;
   }, []);
 
-  return { onScroll, onTouchEnd, onTouchMove, onTouchStart, onWheel };
+  return {
+    onPointerDown,
+    onScroll,
+    onTouchEnd,
+    onTouchMove,
+    onTouchStart,
+    onWheel,
+  };
 }

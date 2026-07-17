@@ -149,3 +149,38 @@ func TestBuildRoomTranscriptReferenceRejectsResultRole(t *testing.T) {
 		t.Fatalf("result 行不应生成 transcript_ref: %+v", row)
 	}
 }
+
+func TestRoomTranscriptReferencePreservesExecutionIdentity(t *testing.T) {
+	row := buildRoomTranscriptReference(protocol.Message{
+		"message_id":      "assistant-1",
+		"session_id":      "sdk-session-1",
+		"conversation_id": "conversation-1",
+		"agent_id":        "agent-1",
+		"round_id":        "round-root",
+		"agent_round_id":  "agent-round-1",
+		"parent_id":       "slot-message-1",
+		"role":            "assistant",
+		"timestamp":       int64(1000),
+	}, "/tmp/workspace", "agent:agent-1:room:conversation-1")
+	if row == nil {
+		t.Fatalf("assistant 应生成 transcript_ref")
+	}
+	if stringFromAny(row["agent_round_id"]) != "agent-round-1" ||
+		stringFromAny(row["parent_id"]) != "slot-message-1" {
+		t.Fatalf("transcript_ref 丢失执行身份: %+v", row)
+	}
+
+	resolved := protocol.Message{
+		"message_id": "assistant-1",
+		"agent_id":   "agent-1",
+		"round_id":   "agent-round-1",
+		"parent_id":  "private-user-message",
+		"role":       "assistant",
+	}
+	overrideRoomTranscriptFields(resolved, protocol.Message(row))
+	if stringFromAny(resolved["round_id"]) != "round-root" ||
+		stringFromAny(resolved["agent_round_id"]) != "agent-round-1" ||
+		stringFromAny(resolved["parent_id"]) != "slot-message-1" {
+		t.Fatalf("Room transcript resolve 未恢复 root/agent/parent 身份: %+v", resolved)
+	}
+}

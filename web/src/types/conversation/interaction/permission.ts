@@ -27,7 +27,7 @@ export interface PermissionUpdate {
   type: PermissionUpdateType;
   rules?: PermissionRule[];
   behavior?: PermissionBehavior;
-  mode?: "default" | "acceptEdits" | "plan" | "bypassPermissions";
+  mode?: "default" | "acceptEdits" | "plan" | "dontAsk" | "bypassPermissions";
   directories?: string[];
   destination?: PermissionDestination;
 }

@@ -94,6 +94,10 @@ export class WebSocketClient {
   send(message: WebSocketMessage): WebSocketSendResult {
     const canQueue = shouldQueueWebSocketMessage(message);
     if (!canQueue && this.isTransportStale()) {
+      if (message.type === "interrupt" && this.isSocketOpen()) {
+        // 中断是当前连接上的抢占命令；连接仍可写时先发送，不能因心跳静默把停止动作丢掉。
+        return this.sendOpenMessage(message, false);
+      }
       console.warn(
         "[WebSocketClient] Transport stale, reconnect before sending business message",
         message.type,

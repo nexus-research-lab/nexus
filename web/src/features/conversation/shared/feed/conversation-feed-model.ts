@@ -53,16 +53,6 @@ export interface ConversationRoundState {
   roundId: string;
 }
 
-export function buildRoundIndexItemMap(
-  items: SessionRoundIndexItem[] | undefined,
-): Map<string, SessionRoundIndexItem> {
-  return new Map(
-    (items ?? [])
-      .filter((item) => item.roundId.trim() !== "")
-      .map((item) => [item.roundId, item]),
-  );
-}
-
 export function resolveConversationRound(
   source: ConversationRoundSource,
   index: number,

@@ -98,8 +98,9 @@ func (s *Service) buildExternalRecordFromEntity(root string, record skillstore.I
 			ImportMode:   record.ImportMode,
 			LastError:    record.LastError,
 		},
-		ReadmeMarkdown: parsed.ReadmeMarkdown,
-		Recommendation: firstNonEmpty(record.Recommendation, parsed.Recommendation, "外部导入能力。"),
+		ReadmeMarkdown:      parsed.ReadmeMarkdown,
+		RuntimeInstructions: parsed.RuntimeInstructions,
+		Recommendation:      firstNonEmpty(record.Recommendation, parsed.Recommendation, "外部导入能力。"),
 	}
 	return catalogRecord{Detail: detail, SourcePath: skillDir, Manifest: manifest}
 }
@@ -120,16 +121,17 @@ func (s *Service) backfillImportedSkillRecords(ctx context.Context, root string)
 			continue
 		}
 		parsed := frontmatterData{
-			Name:           record.Detail.Name,
-			Title:          record.Detail.Title,
-			Description:    record.Detail.Description,
-			Scope:          record.Detail.Scope,
-			Tags:           record.Detail.Tags,
-			Version:        record.Detail.Version,
-			CategoryKey:    record.Detail.CategoryKey,
-			CategoryName:   record.Detail.CategoryName,
-			Recommendation: record.Detail.Recommendation,
-			ReadmeMarkdown: record.Detail.ReadmeMarkdown,
+			Name:                record.Detail.Name,
+			Title:               record.Detail.Title,
+			Description:         record.Detail.Description,
+			Scope:               record.Detail.Scope,
+			Tags:                record.Detail.Tags,
+			Version:             record.Detail.Version,
+			CategoryKey:         record.Detail.CategoryKey,
+			CategoryName:        record.Detail.CategoryName,
+			Recommendation:      record.Detail.Recommendation,
+			RuntimeInstructions: record.Detail.RuntimeInstructions,
+			ReadmeMarkdown:      record.Detail.ReadmeMarkdown,
 		}
 		if err = s.upsertImportedSkillRecord(ctx, record.SourcePath, manifest, parsed); err != nil {
 			return err
@@ -248,8 +250,9 @@ func (s *Service) loadExternalRecordsFromRoot(root string) (map[string]catalogRe
 				HasUpdate:    false,
 				Deletable:    true,
 			},
-			ReadmeMarkdown: parsed.ReadmeMarkdown,
-			Recommendation: firstNonEmpty(manifest.Recommendation, parsed.Recommendation, "外部导入能力。"),
+			ReadmeMarkdown:      parsed.ReadmeMarkdown,
+			RuntimeInstructions: parsed.RuntimeInstructions,
+			Recommendation:      firstNonEmpty(manifest.Recommendation, parsed.Recommendation, "外部导入能力。"),
 		}
 		result[detail.Name] = catalogRecord{Detail: detail, SourcePath: skillDir, Manifest: manifest}
 	}

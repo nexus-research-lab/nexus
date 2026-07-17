@@ -4,32 +4,30 @@ import { useState } from "react";
 import { CalendarClock, Plus, RefreshCw } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { cn } from "@/shared/ui/class-name";
 import {
   type FeedbackBannerProps,
 } from "@/shared/ui/feedback/feedback-banner";
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
+import { WORKSPACE_DETAIL_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
 import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-toolbar-action";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 import type { ScheduledTaskRunItem } from "@/types/capability/scheduled-task/run";
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
 
-import {
-  CapabilityPageLayout,
-  CapabilitySectionHeader,
-} from "../shared/capability-page-layout";
+import { ScheduledTaskBoard } from "./board/scheduled-task-board";
 import { getScheduledTaskMetrics } from "./controller/scheduled-task-directory-model";
 import { useScheduledTaskCommands } from "./controller/use-scheduled-task-commands";
 import { useScheduledTasksResource } from "./controller/use-scheduled-tasks-resource";
 import { ScheduledTaskDialog } from "./dialog/scheduled-task-dialog";
+import type { TaskDialogCreatePreset } from "./dialog/scheduled-task-dialog-types";
 import { ScheduledTaskRunHistoryDialog } from "./history/scheduled-task-run-history-dialog";
-import { ScheduledTaskList } from "./list/scheduled-task-list";
-import { ScheduledTaskOverview } from "./scheduled-task-overview";
 import { useScheduledTaskRealtimeRefresh } from "./use-scheduled-task-realtime-refresh";
 
 type TaskDialogState =
   | { kind: "closed" }
-  | { kind: "create" }
+  | { kind: "create"; preset: TaskDialogCreatePreset | null }
   | { kind: "edit"; task: ScheduledTaskItem };
 
 export function ScheduledTasksDirectory() {
@@ -50,6 +48,7 @@ export function ScheduledTasksDirectory() {
       }
     : null;
   const editingTask = dialog.kind === "edit" ? dialog.task : null;
+  const createPreset = dialog.kind === "create" ? dialog.preset : null;
 
   useScheduledTaskRealtimeRefresh({
     enabledCount: metrics.enabled,
@@ -94,7 +93,6 @@ export function ScheduledTasksDirectory() {
   return (
     <>
       <WorkspaceSurfaceScaffold
-        bodyScrollable
         header={(
           <WorkspaceSurfaceHeader
             badge={t("capability.scheduled_badge", { count: resource.items.length })}
@@ -108,7 +106,7 @@ export function ScheduledTasksDirectory() {
                   {t("capability.refresh_all")}
                 </WorkspaceSurfaceToolbarAction>
                 <WorkspaceSurfaceToolbarAction
-                  onClick={() => setDialog({ kind: "create" })}
+                  onClick={() => setDialog({ kind: "create", preset: null })}
                   tone="primary"
                 >
                   <Plus className="h-3.5 w-3.5" />
@@ -118,19 +116,19 @@ export function ScheduledTasksDirectory() {
             )}
           />
         )}
-        stableGutter
       >
-        <CapabilityPageLayout
-          description={t("capability.scheduled_intro_description")}
-          title={t("capability.scheduled_intro_title")}
+        <div
+          className={cn(
+            WORKSPACE_DETAIL_PAGE_CLASS_NAME,
+            "flex h-full min-h-0 max-w-[1480px] flex-col py-4",
+          )}
         >
-          <CapabilitySectionHeader title={t("capability.scheduled_overview_title")} />
-          <ScheduledTaskOverview {...metrics} />
-          <ScheduledTaskList
+          <ScheduledTaskBoard
             errorMessage={resource.errorMessage}
             isLoading={resource.isLoading}
             items={resource.items}
-            onCreate={() => setDialog({ kind: "create" })}
+            onCreate={() => setDialog({ kind: "create", preset: null })}
+            onCreateFromPreset={(preset) => setDialog({ kind: "create", preset })}
             onDelete={deleteTask}
             onEdit={(task) => setDialog({ kind: "edit", task })}
             onOpenHistory={setHistoryTask}
@@ -139,11 +137,12 @@ export function ScheduledTasksDirectory() {
             onToggleEnabled={toggleTask}
             pending={commands.pending}
           />
-        </CapabilityPageLayout>
+        </div>
       </WorkspaceSurfaceScaffold>
 
       <ScheduledTaskDialog
         agentId={resource.agentId}
+        createPreset={createPreset}
         initialTask={editingTask}
         isOpen={dialog.kind !== "closed"}
         onClose={closeDialog}

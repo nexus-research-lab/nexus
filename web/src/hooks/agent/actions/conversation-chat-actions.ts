@@ -1,4 +1,3 @@
-import { generateUuid } from "@/lib/uuid";
 import type { Message } from "@/types/conversation/message/entity";
 import type {
   AgentConversationSendOptions,
@@ -14,18 +13,12 @@ import {
   type ResolvedConversationActionContext,
 } from "./conversation-action-context";
 import { buildConversationScope } from "./conversation-command-builders";
+import {
+  createOutboundRequestDescriptor,
+  type OutboundRequestDescriptor,
+} from "./outbound-request";
 
-export interface OutboundChatRequest {
-  client_message_id: string;
-  client_request_id: string;
-}
-
-function createOutboundChatRequest(): OutboundChatRequest {
-  return {
-    client_message_id: `local_msg_${generateUuid()}`,
-    client_request_id: `req_${generateUuid()}`,
-  };
-}
+export type OutboundChatRequest = OutboundRequestDescriptor;
 
 function buildOptimisticUserMessage(
   content: string,
@@ -44,6 +37,7 @@ function buildOptimisticUserMessage(
     timestamp: Date.now(),
     delivery_policy: options.delivery_policy ?? "queue",
     ...(attachments.length > 0 ? { attachments } : {}),
+    ...(options.target_agent_ids?.length ? { target_agent_ids: options.target_agent_ids } : {}),
     ...(actionContext.chatType === "group"
       ? {
           room_id: actionContext.roomId ?? undefined,
@@ -68,6 +62,7 @@ function buildChatCommand(
     client_message_id: request.client_message_id,
     delivery_policy: options.delivery_policy ?? "queue",
     ...(attachments.length > 0 ? { attachments } : {}),
+    ...(options.target_agent_ids?.length ? { target_agent_ids: options.target_agent_ids } : {}),
   } as WebSocketMessage;
 }
 
@@ -81,7 +76,7 @@ export async function sendSessionMessage(
     return null;
   }
   const actionContext = requireConversationActionContext(context);
-  const request = createOutboundChatRequest();
+  const request = createOutboundRequestDescriptor();
   const optimisticMessage = buildOptimisticUserMessage(
     content,
     actionContext,
@@ -94,7 +89,6 @@ export async function sendSessionMessage(
     "消息未发送到后端，请检查连接后重试",
   );
   context.setMessages((messages) => upsertMessage(messages, optimisticMessage));
-  context.setPendingPermissions([]);
   return request;
 }
 
@@ -114,7 +108,7 @@ export async function rewriteLastUserMessage(
   if (actionContext.chatType === "group") {
     failConversationAction(context, "Room 会话暂不支持编辑重跑");
   }
-  const request = createOutboundChatRequest();
+  const request = createOutboundRequestDescriptor();
   sendConversationCommand(context, {
     type: "chat_rewrite_last",
     content,

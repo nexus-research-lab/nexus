@@ -98,6 +98,39 @@ jobs:
             --output "${nxs_path}"
           echo "NEXUS_DESKTOP_NXS_RUNTIME_PATH=${nxs_path}" >> "${GITHUB_ENV}"
 
+      - name: Import macOS Signing Certificate
+        env:
+          MACOS_DEVELOPER_ID_CERTIFICATE_BASE64: ${{ secrets.MACOS_DEVELOPER_ID_CERTIFICATE_BASE64 }}
+          MACOS_DEVELOPER_ID_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_DEVELOPER_ID_CERTIFICATE_PASSWORD }}
+        run: |
+          if [ -z "${MACOS_DEVELOPER_ID_CERTIFICATE_BASE64}" ]; then
+            echo "Missing secret MACOS_DEVELOPER_ID_CERTIFICATE_BASE64" >&2
+            exit 1
+          fi
+          if [ -z "${MACOS_DEVELOPER_ID_CERTIFICATE_PASSWORD}" ]; then
+            echo "Missing secret MACOS_DEVELOPER_ID_CERTIFICATE_PASSWORD" >&2
+            exit 1
+          fi
+
+          cert_path="${RUNNER_TEMP}/developer-id-application.p12"
+          keychain_path="${RUNNER_TEMP}/nexus-signing.keychain-db"
+          keychain_password="$(uuidgen)"
+
+          printf '%s' "${MACOS_DEVELOPER_ID_CERTIFICATE_BASE64}" | base64 --decode > "${cert_path}"
+          security create-keychain -p "${keychain_password}" "${keychain_path}"
+          security set-keychain-settings -lut 21600 "${keychain_path}"
+          security unlock-keychain -p "${keychain_password}" "${keychain_path}"
+          security import "${cert_path}" \
+            -k "${keychain_path}" \
+            -P "${MACOS_DEVELOPER_ID_CERTIFICATE_PASSWORD}" \
+            -T /usr/bin/codesign \
+            -T /usr/bin/security
+          security default-keychain -s "${keychain_path}"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "${keychain_password}" "${keychain_path}"
+          security find-identity -v -p codesigning "${keychain_path}"
+
+          echo "MACOS_CODESIGN_KEYCHAIN_PATH=${keychain_path}" >> "${GITHUB_ENV}"
+
       - name: Build macOS DMG
         env:
           NEXUS_DESKTOP_APP_BUILD_DIR: ${{ runner.temp }}/macos-app
@@ -109,7 +142,16 @@ jobs:
           NEXUS_DESKTOP_SMOKE_MAIN_TIMEOUT_SECONDS: "45"
           NEXUS_DESKTOP_SMOKE_LAUNCHER_TIMEOUT_SECONDS: "30"
           NEXUS_DESKTOP_NXS_DOWNLOAD_TOKEN: ${{ secrets.NEXUS_NXS_RUNTIME_RELEASE_TOKEN }}
+          NEXUS_DESKTOP_CODESIGN_IDENTITY: ${{ vars.MACOS_DEVELOPER_ID_APPLICATION || secrets.MACOS_DEVELOPER_ID_APPLICATION }}
+          NEXUS_DESKTOP_NOTARIZE: "1"
+          NEXUS_DESKTOP_NOTARY_APPLE_ID: ${{ secrets.APPLE_NOTARY_APPLE_ID }}
+          NEXUS_DESKTOP_NOTARY_TEAM_ID: ${{ secrets.APPLE_NOTARY_TEAM_ID }}
+          NEXUS_DESKTOP_NOTARY_PASSWORD: ${{ secrets.APPLE_NOTARY_PASSWORD }}
         run: |
+          if [ -z "${NEXUS_DESKTOP_CODESIGN_IDENTITY}" ]; then
+            echo "Missing MACOS_DEVELOPER_ID_APPLICATION repository variable or secret" >&2
+            exit 1
+          fi
           scripts/desktop/package-macos-app.sh
 
       - name: Upload macOS App Assets
@@ -121,6 +163,11 @@ jobs:
             ${{ runner.temp }}/macos-artifacts/Nexus-macos-*.dmg
             ${{ runner.temp }}/macos-artifacts/Nexus-macos-*.dmg.sha256
             ${{ runner.temp }}/macos-artifacts/Nexus-macos-*.dmg.metadata.json
+
+      - name: Delete macOS Signing Keychain
+        if: ${{ always() && env.MACOS_CODESIGN_KEYCHAIN_PATH != '' }}
+        run: |
+          security delete-keychain "${MACOS_CODESIGN_KEYCHAIN_PATH}" || true
 
   windows_app:
     runs-on: windows-latest
@@ -352,6 +399,17 @@ jobs:
               cat "${metadata}" >&2
               exit 1
             fi
+            case "$(basename "${metadata}")" in
+              Nexus-macos-*.metadata.json)
+                developer_id="$(jq -r '.signing.developer_id // false' "${metadata}")"
+                notarized="$(jq -r '.signing.notarized // false' "${metadata}")"
+                if [ "${developer_id}" != "true" ] || [ "${notarized}" != "true" ]; then
+                  echo "macOS release metadata is not Developer ID signed and notarized: ${metadata}" >&2
+                  cat "${metadata}" >&2
+                  exit 1
+                fi
+                ;;
+            esac
           done
           if [ "${found_metadata}" != "1" ]; then
             echo "No release metadata files were downloaded." >&2

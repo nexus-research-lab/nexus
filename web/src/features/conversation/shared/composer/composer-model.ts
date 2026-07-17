@@ -20,12 +20,14 @@ export interface ComposerPanelProps {
     content: string,
     deliveryPolicy: AgentConversationDeliveryPolicy,
     attachments?: MessageAttachment[],
+    targetAgentIDs?: string[],
   ) => void | Promise<void>;
   inputQueueItems: InputQueueItem[];
   onEnqueueMessage: (
     content: string,
     deliveryPolicy: AgentConversationDeliveryPolicy,
     attachments?: MessageAttachment[],
+    targetAgentIDs?: string[],
   ) => void | Promise<void>;
   onDeleteQueuedMessage: (itemId: string) => void | Promise<void>;
   onGuideQueuedMessage: (itemId: string) => void | Promise<void>;
@@ -124,6 +126,17 @@ export function isImeKeyboardEvent(
     event.keyCode === IME_COMPOSITION_KEY_CODE,
     event.which === IME_COMPOSITION_KEY_CODE,
   ].some(Boolean);
+}
+
+export function isWithinCompositionEndEnterGuard(
+  eventTime: number,
+  compositionEndTime: number,
+): boolean {
+  return [
+    compositionEndTime > 0,
+    eventTime >= compositionEndTime,
+    eventTime - compositionEndTime <= COMPOSITION_END_ENTER_GUARD_MS,
+  ].every(Boolean);
 }
 
 export function resolveComposerDelivery(

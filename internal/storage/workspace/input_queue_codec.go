@@ -20,6 +20,7 @@ func normalizeInputQueueItem(
 	item.AgentID = strings.TrimSpace(item.AgentID)
 	item.SourceAgentID = strings.TrimSpace(item.SourceAgentID)
 	item.SourceMessageID = strings.TrimSpace(item.SourceMessageID)
+	item.HandoffID = strings.TrimSpace(item.HandoffID)
 	item.TargetAgentIDs = normalizeInputQueueTargets(item.TargetAgentIDs)
 	item.Source = protocol.NormalizeInputQueueSource(string(item.Source))
 	item.Content = strings.TrimSpace(item.Content)
@@ -40,6 +41,9 @@ func normalizeInputQueueItem(
 	if item.QueueOrder == 0 {
 		item.QueueOrder = item.CreatedAt
 	}
+	if item.ExpiresAt < 0 {
+		item.ExpiresAt = 0
+	}
 	return item
 }
 
@@ -57,6 +61,7 @@ func inputQueueItemFromAny(value any) (protocol.InputQueueItem, bool) {
 			AgentID:         stringFromAny(typed["agent_id"]),
 			SourceAgentID:   stringFromAny(typed["source_agent_id"]),
 			SourceMessageID: stringFromAny(typed["source_message_id"]),
+			HandoffID:       stringFromAny(typed["handoff_id"]),
 			TargetAgentIDs:  stringSliceFromAny(typed["target_agent_ids"]),
 			Source:          protocol.InputQueueSource(stringFromAny(typed["source"])),
 			Content:         stringFromAny(typed["content"]),
@@ -67,6 +72,7 @@ func inputQueueItemFromAny(value any) (protocol.InputQueueItem, bool) {
 			RootRoundID:     stringFromAny(typed["root_round_id"]),
 			HopIndex:        intFromAny(typed["hop_index"]),
 			QueueOrder:      protocol.Int64FromAny(typed["queue_order"]),
+			ExpiresAt:       protocol.Int64FromAny(typed["expires_at"]),
 			CreatedAt:       protocol.Int64FromAny(typed["created_at"]),
 			UpdatedAt:       protocol.Int64FromAny(typed["updated_at"]),
 		}, true

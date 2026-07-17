@@ -1,3 +1,6 @@
+// INPUT: durable round marker、assistant/result overlay 与 source round 元数据。
+// OUTPUT: append-only Agent 历史 overlay 及其重放状态。
+// POS: workspace Agent 历史的 overlay 写入边界。
 package workspace
 
 import (
@@ -97,6 +100,9 @@ func (s *AgentHistoryStore) AppendRoundMarkerWithOptions(
 	}
 	if agentRoundID := strings.TrimSpace(options.AgentRoundID); agentRoundID != "" {
 		row["agent_round_id"] = agentRoundID
+	}
+	if sourceRoundID := strings.TrimSpace(options.SourceRoundID); sourceRoundID != "" {
+		row["source_round_id"] = sourceRoundID
 	}
 	if options.DeliveryPolicy != "" {
 		row["delivery_policy"] = string(protocol.NormalizeChatDeliveryPolicy(options.DeliveryPolicy))
@@ -228,6 +234,7 @@ func (s *AgentHistoryStore) readOverlayHistoryState(
 		case overlayKindRoundMarker:
 			roundMarkers = append(roundMarkers, transcriptRoundMarker{
 				RoundID:        stringFromAny(row["round_id"]),
+				SourceRoundID:  stringFromAny(row["source_round_id"]),
 				UserMessageID:  stringFromAny(row["user_message_id"]),
 				AgentRoundID:   stringFromAny(row["agent_round_id"]),
 				Content:        stringFromAny(row["content"]),

@@ -6,7 +6,12 @@ import { ScrollToLatestButton } from "./scroll-to-latest-button";
 
 type ScrollViewportEvents = Pick<
   ComponentProps<"div">,
-  "onScroll" | "onTouchEnd" | "onTouchMove" | "onTouchStart" | "onWheel"
+  | "onPointerDown"
+  | "onScroll"
+  | "onTouchEnd"
+  | "onTouchMove"
+  | "onTouchStart"
+  | "onWheel"
 >;
 
 export type ConversationViewportModel = ScrollViewportEvents & {
@@ -57,6 +62,7 @@ export function ConversationPanelViewport({
           : "soft-scrollbar relative z-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 py-5 sm:px-6 sm:py-6 xl:px-8 xl:py-7"
       }
       style={{ overflowAnchor: "none" }}
+      onPointerDown={viewport.onPointerDown}
       onScroll={viewport.onScroll}
       onTouchEnd={viewport.onTouchEnd}
       onTouchMove={viewport.onTouchMove}

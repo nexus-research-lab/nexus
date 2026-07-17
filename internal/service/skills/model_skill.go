@@ -62,10 +62,11 @@ type Info struct {
 // Detail 表示 skill 详情。
 type Detail struct {
 	Info
-	ReadmeMarkdown  string                 `json:"readme_markdown"`
-	Recommendation  string                 `json:"recommendation"`
-	DeploySuccesses []RedeployAgentSuccess `json:"deploy_successes,omitempty"`
-	DeployFailures  []RedeployAgentFailure `json:"deploy_failures,omitempty"`
+	ReadmeMarkdown      string                 `json:"readme_markdown"`
+	RuntimeInstructions string                 `json:"runtime_instructions,omitempty"`
+	Recommendation      string                 `json:"recommendation"`
+	DeploySuccesses     []RedeployAgentSuccess `json:"deploy_successes,omitempty"`
+	DeployFailures      []RedeployAgentFailure `json:"deploy_failures,omitempty"`
 }
 
 // Query 表示技能查询参数。

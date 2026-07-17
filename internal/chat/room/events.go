@@ -43,9 +43,18 @@ func WrapChatAckEvent(
 	clientMessageID string,
 	roundID string,
 	userMessageID string,
+	userMessageCommitted bool,
 	pending []protocol.ChatAckPendingSlot,
 ) protocol.EventMessage {
-	event := protocol.NewChatAckEvent(sessionKey, clientRequestID, clientMessageID, roundID, userMessageID, pending)
+	event := protocol.NewChatAckEvent(
+		sessionKey,
+		clientRequestID,
+		clientMessageID,
+		roundID,
+		userMessageID,
+		userMessageCommitted,
+		pending,
+	)
 	event.RoomID = roomID
 	event.ConversationID = conversationID
 	event.RoundID = roundID

@@ -1,3 +1,6 @@
+// INPUT: Room slot、运行时消息流、实时插话确认与 Goal 执行上下文。
+// OUTPUT: 单个 Room Agent round 的 ACK 门控事件、持久化快照、用量与终态。
+// POS: Room 实时编排中把 runtime 输出投影为产品语义的执行主链。
 package room
 
 import (
@@ -144,6 +147,9 @@ func (s *RealtimeService) runSlot(
 		slot.AgentRoundID,
 		agentValue.WorkspacePath,
 	)
+	mapper.SetDurableMessageTransformer(func(message protocol.Message) protocol.Message {
+		return s.transformRoomDurableMessage(roundValue, slot, message)
+	})
 	execution := &slotExecution{
 		service:       s,
 		ctx:           slotCtx,
@@ -180,11 +186,6 @@ func (s *RealtimeService) runSlot(
 	s.runtime.StartRound(slot.RuntimeSessionKey, slot.AgentRoundID, cancel)
 	defer func() {
 		s.runtime.MarkRoundFinished(slot.RuntimeSessionKey, slot.AgentRoundID)
-		if !s.runtime.HasSubagentHistory(slot.RuntimeSessionKey) {
-			if closeErr := s.runtime.CloseSession(context.Background(), slot.RuntimeSessionKey); closeErr != nil && !runtimectx.IsRuntimeTransportClosedError(closeErr) {
-				logger.Warn("关闭无 subagent 历史的 Room runtime 返回错误", "err", closeErr)
-			}
-		}
 	}()
 	cleanupGoalRuntime := s.registerSlotGoalRuntime(slot)
 	defer cleanupGoalRuntime()
@@ -208,6 +209,13 @@ func (s *RealtimeService) runSlot(
 		}
 		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
 		return
+	}
+	if s.shouldConfirmRoomGuidanceByFallback(slot) &&
+		result.TerminalStatus == "finished" &&
+		(result.ResultSubtype == "" || result.ResultSubtype == "success") {
+		if ackErr := s.acknowledgeRoomSlotGuidance(slotCtx, roundValue, slot, nil); ackErr != nil {
+			logger.Warn("确认 Room 引导消费失败，保留为后续队列输入", "err", ackErr)
+		}
 	}
 
 	if err := execution.complete(result); err != nil {
@@ -260,7 +268,7 @@ func (e *slotExecution) executeRound(client runtimectx.Client) (exec.RoundExecut
 }
 
 func (e *slotExecution) prepareDispatchPayload() (any, error) {
-	dispatchPrompt, err := e.service.buildSlotVisibleContext(e.ctx, e.round, e.slot, e.history, e.agentNameByID, e.agent)
+	dispatchPrompt, err := e.service.buildSlotVisibleContext(e.ctx, e.round, e.slot, e.history, e.agentNameByID)
 	if err != nil {
 		return nil, err
 	}
@@ -311,6 +319,15 @@ func (e *slotExecution) observeIncomingMessage(incoming sdkprotocol.ReceivedMess
 
 func (e *slotExecution) handleDurableMessage(messageValue protocol.Message) error {
 	messageRole := protocol.MessageRole(messageValue)
+	resultSubtype, _ := messageValue["subtype"].(string)
+	resultSubtype = strings.TrimSpace(resultSubtype)
+	if e.service.shouldConfirmRoomGuidanceByFallback(e.slot) &&
+		(messageRole == "assistant" || (messageRole == "result" && messageValue["is_error"] != true &&
+			(resultSubtype == "" || resultSubtype == "success"))) {
+		if err := e.service.acknowledgeRoomSlotGuidance(e.ctx, e.round, e.slot, nil); err != nil {
+			return err
+		}
+	}
 	e.slot.rememberSubagentTaskMessage(messageValue)
 	if e.slot.hasSubagentHistory() {
 		e.service.runtime.MarkSubagentHistory(e.slot.RuntimeSessionKey)
@@ -322,7 +339,7 @@ func (e *slotExecution) handleDurableMessage(messageValue protocol.Message) erro
 	if messageRole == "assistant" {
 		e.slot.rememberGoalAssistantMessage(messageValue)
 	}
-	if messageRole == "assistant" && roomdomain.IsNoReplyAssistantMessage(messageValue) {
+	if roomdomain.IsNoReplyOutputMessage(messageValue) {
 		e.slot.suppressOutput()
 		return nil
 	}
@@ -332,6 +349,8 @@ func (e *slotExecution) handleDurableMessage(messageValue protocol.Message) erro
 
 	// 无回复标记只控制当前投递，不属于可持久化的对话正文。
 	messageValue = roomdomain.StripNoReplyMarker(messageValue)
+	// fanout 只是 handoff 路由控制，不应泄漏到 transcript、私域 overlay 或公区。
+	messageValue = roomdomain.StripFanoutMarker(messageValue)
 	if roomSlotPublishesPublicOutput(e.slot) {
 		if err := e.service.persistSharedDurableMessage(e.round.ConversationID, e.slot, messageValue); err != nil {
 			return err

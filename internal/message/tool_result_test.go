@@ -67,6 +67,34 @@ func TestAssistantHasCountedToolProgressIgnoresUpdateGoal(t *testing.T) {
 	}
 }
 
+func TestAssistantHasCountedToolProgressCountsRetargetGoal(t *testing.T) {
+	for _, toolName := range []string{"retarget_goal", "mcp__nexus_goal__retarget_goal"} {
+		message := protocol.Message{
+			"role": "assistant",
+			"content": []map[string]any{
+				{"type": "tool_use", "id": "tool-1", "name": toolName},
+				{"type": "tool_result", "tool_use_id": "tool-1", "is_error": false},
+			},
+		}
+		if !AssistantHasCountedToolProgress(message) {
+			t.Fatalf("AssistantHasCountedToolProgress(%q) = false, want true", toolName)
+		}
+	}
+}
+
+func TestAssistantHasCountedToolProgressIgnoresFailedRetargetGoal(t *testing.T) {
+	message := protocol.Message{
+		"role": "assistant",
+		"content": []map[string]any{
+			{"type": "tool_use", "id": "tool-1", "name": "mcp__nexus_goal__retarget_goal"},
+			{"type": "tool_result", "tool_use_id": "tool-1", "is_error": true},
+		},
+	}
+	if AssistantHasCountedToolProgress(message) {
+		t.Fatal("AssistantHasCountedToolProgress() = true, want false for failed retarget_goal")
+	}
+}
+
 func TestAssistantHasCountedToolProgressIgnoresPermissionTimeout(t *testing.T) {
 	message := protocol.Message{
 		"role": "assistant",

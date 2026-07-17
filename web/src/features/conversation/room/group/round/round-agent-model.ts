@@ -1,3 +1,8 @@
+/**
+ * INPUT: Room 根轮次消息与尚未结束的 agent slot。
+ * OUTPUT: 按 agent_round_id 聚合、按终态时间排序且不含 Room 控制标记的回复卡片。
+ * POS: Room feed 与 thread 共用的 Agent 执行轮次投影。
+ */
 import type {
   AssistantMessage,
   AssistantMessageStatus,
@@ -5,23 +10,31 @@ import type {
   ResultSummary,
 } from "@/types/conversation/message/entity";
 import type { RoomPendingAgentSlotState } from "@/types/agent/agent-conversation";
+import {
+  extractTextFromContentBlocks,
+  stripRoomControlMarkers,
+} from "@/features/conversation/shared/message/message-content-model";
 
 export type AgentRoundStatus = AssistantMessageStatus;
 
 export interface RoomAgentRoundEntry {
+  entry_id: string;
   agent_id: string;
+  agent_round_id: string | null;
   assistant_messages: AssistantMessage[];
   result_summary?: ResultSummary;
   pending_slot?: RoomPendingAgentSlotState;
   status: AgentRoundStatus;
   timestamp: number;
+  display_order: number;
 }
 
 interface RoomAgentRoundIndex {
-  agentIds: Set<string>;
+  entryIds: Set<string>;
   messageGroups: Map<string, AssistantMessage[]>;
+  messageOrders: Map<string, number>;
   pendingSlots: Map<string, RoomPendingAgentSlotState>;
-  resultSummaries: Map<string, ResultSummary>;
+  pendingSlotOrders: Map<string, number>;
 }
 
 const MESSAGE_STATUS_PRIORITY: readonly AgentRoundStatus[] = [
@@ -52,62 +65,165 @@ export function hasRoomAgentRoundEntries(
 
 function buildMessageGroups(
   messages: Message[],
-): Map<string, AssistantMessage[]> {
+  pendingSlotsByAgent: Map<string, RoomPendingAgentSlotState[]>,
+): {
+  groups: Map<string, AssistantMessage[]>;
+  orders: Map<string, number>;
+} {
   const groups = new Map<string, AssistantMessage[]>();
-  for (const message of messages) {
+  const orders = new Map<string, number>();
+  messages.forEach((message, order) => {
     if (message.role !== "assistant" || !message.agent_id) {
-      continue;
+      return;
     }
-    const group = groups.get(message.agent_id);
+    const entryId = resolveMessageEntryId(message, pendingSlotsByAgent);
+    const group = groups.get(entryId);
     if (group) {
       group.push(message);
     } else {
-      groups.set(message.agent_id, [message]);
+      groups.set(entryId, [message]);
     }
-  }
-  return groups;
+    const displayOrder = message.display_order;
+    if (typeof displayOrder === "number" && Number.isFinite(displayOrder)) {
+      orders.set(entryId, displayOrder);
+    } else if (!orders.has(entryId)) {
+      orders.set(entryId, order);
+    }
+  });
+  return { groups, orders };
 }
 
-function buildResultSummaries(messages: Message[]): Map<string, ResultSummary> {
-  const summaries = new Map<string, ResultSummary>();
+function getLatestResultSummary(
+  messages: AssistantMessage[],
+): ResultSummary | undefined {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
-    if (
-      message.role !== "assistant" ||
-      !message.agent_id ||
-      !message.result_summary ||
-      summaries.has(message.agent_id)
-    ) {
-      continue;
+    if (message.result_summary) {
+      return message.result_summary;
     }
-    summaries.set(message.agent_id, message.result_summary);
   }
-  return summaries;
+  return undefined;
 }
 
-function buildPendingSlots(
-  slots: RoomPendingAgentSlotState[],
-): Map<string, RoomPendingAgentSlotState> {
-  return new Map(slots.map((slot) => [slot.agent_id, slot]));
+function buildPendingSlots(slots: RoomPendingAgentSlotState[]): {
+  byAgent: Map<string, RoomPendingAgentSlotState[]>;
+  orders: Map<string, number>;
+  slots: Map<string, RoomPendingAgentSlotState>;
+} {
+  const pendingSlots = new Map<string, RoomPendingAgentSlotState>();
+  const pendingSlotOrders = new Map<string, number>();
+  const pendingSlotsByAgent = new Map<string, RoomPendingAgentSlotState[]>();
+  slots.forEach((slot, order) => {
+    const entryId = buildAgentRoundEntryId(slot.agent_id, slot.agent_round_id);
+    const current = pendingSlots.get(entryId);
+    if (!current || slot.timestamp >= current.timestamp) {
+      pendingSlots.set(entryId, slot);
+      pendingSlotOrders.set(entryId, slot.index ?? order);
+    }
+    const agentSlots = pendingSlotsByAgent.get(slot.agent_id) ?? [];
+    agentSlots.push(slot);
+    pendingSlotsByAgent.set(slot.agent_id, agentSlots);
+  });
+  return {
+    byAgent: pendingSlotsByAgent,
+    orders: pendingSlotOrders,
+    slots: pendingSlots,
+  };
 }
 
 function buildRoomAgentRoundIndex(
   messages: Message[],
   slots: RoomPendingAgentSlotState[],
 ): RoomAgentRoundIndex {
-  const messageGroups = buildMessageGroups(messages);
-  const resultSummaries = buildResultSummaries(messages);
-  const pendingSlots = buildPendingSlots(slots);
+  const pending = buildPendingSlots(slots);
+  const messageGroups = buildMessageGroups(messages, pending.byAgent);
   return {
-    agentIds: new Set([
-      ...messageGroups.keys(),
-      ...resultSummaries.keys(),
-      ...pendingSlots.keys(),
+    entryIds: new Set([
+      ...messageGroups.groups.keys(),
+      ...pending.slots.keys(),
     ]),
-    messageGroups,
-    pendingSlots,
-    resultSummaries,
+    messageGroups: messageGroups.groups,
+    messageOrders: messageGroups.orders,
+    pendingSlots: pending.slots,
+    pendingSlotOrders: pending.orders,
   };
+}
+
+function resolveMessageEntryId(
+  message: AssistantMessage,
+  pendingSlotsByAgent: Map<string, RoomPendingAgentSlotState[]>,
+): string {
+  const agentRoundId = message.agent_round_id?.trim();
+  if (agentRoundId) {
+    return buildAgentRoundEntryId(message.agent_id, agentRoundId);
+  }
+  const agentSlots = pendingSlotsByAgent.get(message.agent_id) ?? [];
+  if (agentSlots.length === 1 && isLegacyActiveAssistantMessage(message)) {
+    return buildAgentRoundEntryId(
+      message.agent_id,
+      agentSlots[0].agent_round_id,
+    );
+  }
+  return buildAgentRoundEntryId(message.agent_id, null);
+}
+
+function buildAgentRoundEntryId(
+  agentId: string,
+  agentRoundId?: string | null,
+): string {
+  const normalizedRoundId = agentRoundId?.trim();
+  return normalizedRoundId
+    ? `${agentId}:agent-round:${normalizedRoundId}`
+    : `${agentId}:legacy-round`;
+}
+
+function isLegacyActiveAssistantMessage(message: AssistantMessage): boolean {
+  const status = message.stream_status
+    ?? (message.stop_reason || message.is_complete ? "done" : "streaming");
+  return !message.result_summary && ACTIVE_STATUSES.has(status);
+}
+
+function replaceSyntheticResultWithCanonical(
+  messages: AssistantMessage[],
+): AssistantMessage[] {
+  const canonical = messages.filter((message) => !isSyntheticResult(message));
+  if (canonical.length === 0 || canonical.length === messages.length) {
+    return messages;
+  }
+  const synthetic = [...messages].reverse().find(isSyntheticResult);
+  if (!synthetic) {
+    return canonical;
+  }
+  const next = [...canonical];
+  const lastIndex = next.length - 1;
+  const last = next[lastIndex];
+  const syntheticText = extractTextFromContentBlocks(synthetic.content);
+  const resultSummary = synthetic.result_summary
+    ? {
+        ...synthetic.result_summary,
+        ...(synthetic.result_summary.result || !syntheticText
+          ? {}
+          : { result: syntheticText }),
+      }
+    : undefined;
+  next[lastIndex] = {
+    ...last,
+    is_complete: synthetic.is_complete ?? true,
+    result_summary: last.result_summary ?? resultSummary,
+    stop_reason: last.stop_reason ?? synthetic.stop_reason,
+    stream_status: last.result_summary
+      ? last.stream_status
+      : synthetic.stream_status ?? last.stream_status,
+  };
+  return next;
+}
+
+function isSyntheticResult(message: AssistantMessage): boolean {
+  const resultMessageId = message.result_summary?.message_id?.trim();
+  if (resultMessageId) {
+    return message.message_id === `assistant_${resultMessageId}`;
+  }
+  return message.message_id === `assistant_result_${message.round_id}`;
 }
 
 function getAgentRoundStatus(
@@ -115,6 +231,11 @@ function getAgentRoundStatus(
   resultSummary?: ResultSummary,
   pendingSlot?: RoomPendingAgentSlotState,
 ): AgentRoundStatus {
+  if (pendingSlot && ACTIVE_STATUSES.has(pendingSlot.status)) {
+    return resolveMessageStatus(messages) === "streaming"
+      ? "streaming"
+      : pendingSlot.status;
+  }
   return (
     resolveResultStatus(resultSummary) ??
     pendingSlot?.status ??
@@ -143,7 +264,7 @@ function resolveMessageStatus(
     if (message.stream_status) {
       statuses.add(message.stream_status);
     }
-    if (message.stop_reason) {
+    if (message.is_complete || message.stop_reason) {
       statuses.add("done");
     }
   }
@@ -153,47 +274,70 @@ function resolveMessageStatus(
   );
 }
 
-function getAgentRoundTimestamp(
+/**
+ * Agent 卡片的时间语义只由执行状态决定：运行态保持启动时间稳定，
+ * 终态使用 result 的完成时间。feed 排序和卡片 header 必须复用该值。
+ */
+export function resolveRoomAgentRoundTimestamp(
+  status: AgentRoundStatus,
   messages: AssistantMessage[],
   resultSummary?: ResultSummary,
   pendingSlot?: RoomPendingAgentSlotState,
 ): number {
-  if (resultSummary?.timestamp) {
-    return resultSummary.timestamp;
+  if (isAgentRoundActive(status)) {
+    return pendingSlot?.timestamp
+      ?? messages[0]?.timestamp
+      ?? resultSummary?.timestamp
+      ?? 0;
   }
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const timestamp = messages[index]?.timestamp;
-    if (timestamp) {
-      return timestamp;
-    }
-  }
-  return pendingSlot?.timestamp ?? 0;
+  return resultSummary?.timestamp
+    ?? messages.at(-1)?.timestamp
+    ?? pendingSlot?.timestamp
+    ?? 0;
 }
 
 function buildRoomAgentRoundEntry(
   index: RoomAgentRoundIndex,
-  agentId: string,
+  entryId: string,
 ): RoomAgentRoundEntry | null {
-  const assistantMessages = index.messageGroups.get(agentId) ?? [];
-  const resultSummary = index.resultSummaries.get(agentId);
-  const pendingSlot = index.pendingSlots.get(agentId);
+  const pendingSlot = index.pendingSlots.get(entryId);
+  const assistantMessages = replaceSyntheticResultWithCanonical(
+    index.messageGroups.get(entryId) ?? [],
+  );
+  const resultSummary = getLatestResultSummary(assistantMessages);
   if (assistantMessages.length === 0 && !resultSummary && !pendingSlot) {
     return null;
   }
+  const identity = assistantMessages.at(-1);
+  const agentId = pendingSlot?.agent_id ?? identity?.agent_id;
+  if (!agentId) {
+    return null;
+  }
+  const agentRoundId = pendingSlot?.agent_round_id?.trim()
+    || identity?.agent_round_id?.trim()
+    || null;
+  const status = getAgentRoundStatus(
+    assistantMessages,
+    resultSummary,
+    pendingSlot,
+  );
   return {
+    entry_id: entryId,
     agent_id: agentId,
+    agent_round_id: agentRoundId,
     assistant_messages: assistantMessages,
     result_summary: resultSummary,
     pending_slot: pendingSlot,
-    status: getAgentRoundStatus(
+    status,
+    timestamp: resolveRoomAgentRoundTimestamp(
+      status,
       assistantMessages,
       resultSummary,
       pendingSlot,
     ),
-    timestamp: getAgentRoundTimestamp(
-      assistantMessages,
-      resultSummary,
-      pendingSlot,
+    display_order: Math.max(
+      index.messageOrders.get(entryId) ?? -1,
+      index.pendingSlotOrders.get(entryId) ?? -1,
     ),
   };
 }
@@ -202,30 +346,54 @@ export function isAgentRoundActive(status: AgentRoundStatus): boolean {
   return ACTIVE_STATUSES.has(status);
 }
 
+export function getActiveAgentRoundSortOrder(
+  status: AgentRoundStatus,
+): number {
+  return status === "pending" ? 0 : 1;
+}
+
 export function buildRoomAgentRoundEntries(
   messages: Message[],
   pendingSlots: RoomPendingAgentSlotState[] = [],
 ): RoomAgentRoundEntry[] {
   const index = buildRoomAgentRoundIndex(messages, pendingSlots);
-  return Array.from(index.agentIds).flatMap((agentId) => {
-    const entry = buildRoomAgentRoundEntry(index, agentId);
+  return Array.from(index.entryIds).flatMap((entryId) => {
+    const entry = buildRoomAgentRoundEntry(index, entryId);
     return entry ? [entry] : [];
-  });
+  }).sort(compareAgentRoundDisplayOrder);
 }
 
 export function getRoomAgentRoundEntry(
   messages: Message[],
   agentId: string,
   pendingSlots: RoomPendingAgentSlotState[] = [],
+  agentRoundId?: string | null,
 ): RoomAgentRoundEntry | null {
-  return buildRoomAgentRoundEntry(
-    buildRoomAgentRoundIndex(messages, pendingSlots),
-    agentId,
+  const entries = buildRoomAgentRoundEntries(messages, pendingSlots).filter(
+    (entry) => entry.agent_id === agentId,
   );
+  const normalizedRoundId = agentRoundId?.trim();
+  if (normalizedRoundId) {
+    return entries.find(
+      (entry) => entry.agent_round_id === normalizedRoundId,
+    ) ?? null;
+  }
+  return entries.filter((entry) => isAgentRoundActive(entry.status)).at(-1)
+    ?? entries.at(-1)
+    ?? null;
+}
+
+function compareAgentRoundDisplayOrder(
+  left: RoomAgentRoundEntry,
+  right: RoomAgentRoundEntry,
+): number {
+  return left.timestamp - right.timestamp
+    || left.display_order - right.display_order
+    || left.entry_id.localeCompare(right.entry_id);
 }
 
 function normalizePreviewText(text: string, maxLength: number): string {
-  const normalizedText = text.replace(/\s+/g, " ").trim();
+  const normalizedText = stripRoomControlMarkers(text).replace(/\s+/g, " ").trim();
   if (!normalizedText) {
     return "";
   }

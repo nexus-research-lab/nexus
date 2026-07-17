@@ -15,10 +15,12 @@ import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
 
 import { TaskBasicsPanel } from "./form/task-basics-panel";
 import { TaskSchedulePanel } from "./schedule/task-schedule-panel";
+import type { TaskDialogCreatePreset } from "./scheduled-task-dialog-types";
 import { useTaskDialogController } from "./use-task-dialog-controller";
 
 interface ScheduledTaskDialogProps {
   agentId: string;
+  createPreset?: TaskDialogCreatePreset | null;
   initialTask?: ScheduledTaskItem | null;
   isOpen: boolean;
   onClose: () => void;
@@ -28,6 +30,7 @@ interface ScheduledTaskDialogProps {
 
 export function ScheduledTaskDialog({
   agentId,
+  createPreset = null,
   initialTask = null,
   isOpen,
   onClose,
@@ -36,6 +39,7 @@ export function ScheduledTaskDialog({
 }: ScheduledTaskDialogProps) {
   const controller = useTaskDialogController({
     agentId,
+    createPreset,
     initialTask,
     isOpen,
     onClose,

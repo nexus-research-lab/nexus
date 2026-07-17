@@ -148,6 +148,51 @@ func TestServiceRunAutoResumeOnceRecordsFailureWhenDispatchFails(t *testing.T) {
 	}
 }
 
+func TestServiceRunAutoResumeOnceIgnoresStaleDispatchAfterRetarget(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{
+		GoalEnabled:             true,
+		GoalAutoContinueEnabled: true,
+	}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:stale-auto-resume",
+		Objective:  "Analyze M3 and M4",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	dispatcher := &fakeContinuationDispatcher{}
+	dispatcher.onDispatch = func(plan protocol.GoalContinuation) error {
+		if _, retargetErr := service.RetargetByModel(ctx, created.SessionKey, protocol.RetargetGoalRequest{
+			Objective:                 "Analyze M4 and M5",
+			RoundID:                   "round-correction",
+			ExpectedObjectiveRevision: plan.Goal.ObjectiveRevision(),
+		}); retargetErr != nil {
+			return retargetErr
+		}
+		return ErrGoalRevisionStale
+	}
+	if err := service.RunAutoResumeOnce(ctx, dispatcher); err != nil {
+		t.Fatalf("RunAutoResumeOnce error = %v, want stale dispatch ignored", err)
+	}
+	current, err := service.Current(ctx, created.SessionKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current.Objective != "Analyze M4 and M5" || current.EmptyProgressCount != 0 || current.ContinuationCount != 0 || current.LastError != "" {
+		t.Fatalf("current = %#v, want corrected Goal untouched by stale dispatch failure", current)
+	}
+	for _, event := range repo.events {
+		if event.EventType == "continuation_failed" {
+			t.Fatalf("stale dispatch recorded failure: %#v", event)
+		}
+	}
+}
+
 func TestServiceRunAutoResumeOnceClearsMissingContinuationTarget(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{

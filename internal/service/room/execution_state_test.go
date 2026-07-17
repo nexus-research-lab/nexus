@@ -22,7 +22,8 @@ func (r *fakeTokenUsageRecorder) RecordMessageUsage(_ context.Context, input usa
 }
 
 type permissionModeTestClient struct {
-	modes []sdkpermission.Mode
+	modes           []sdkpermission.Mode
+	hookResponseAck bool
 }
 
 func (c *permissionModeTestClient) Connect(context.Context) error { return nil }
@@ -54,6 +55,10 @@ func (c *permissionModeTestClient) Disconnect(context.Context) error { return ni
 
 func (c *permissionModeTestClient) Reconfigure(context.Context, agentclient.Options) error {
 	return nil
+}
+
+func (c *permissionModeTestClient) Supports(capability agentclient.Capability) bool {
+	return c.hookResponseAck && capability == agentclient.CapabilityHookResponseAck
 }
 
 func (c *permissionModeTestClient) SessionID() string { return "" }

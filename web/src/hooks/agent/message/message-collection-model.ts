@@ -1,4 +1,13 @@
-import type { Message } from "@/types/conversation/message/entity";
+/**
+ * INPUT: 历史快照、WebSocket 增量消息与 optimistic 本地消息。
+ * OUTPUT: message_id 唯一且不会被旧快照回滚的会话消息集合。
+ * POS: 所有消息传输通道汇合后的内存一致性边界。
+ */
+import type {
+  AssistantMessage,
+  AssistantMessageStatus,
+  Message,
+} from "@/types/conversation/message/entity";
 
 import {
   mergeAssistantMessage,
@@ -68,7 +77,7 @@ export function sortMessages(messages: Message[]): Message[] {
   );
 }
 
-/** 服务端快照覆盖同 ID 消息，仅补回尚未落库的本地 optimistic 消息。 */
+/** 同 ID 按单调进度归并，仅补回尚未落库的本地 optimistic 消息。 */
 export function mergeLoadedMessages(
   loadedMessages: Message[],
   localMessages: Message[],
@@ -78,13 +87,93 @@ export function mergeLoadedMessages(
     return sortMessages(uniqueLoadedMessages);
   }
 
-  const loadedMessageIds = new Set(
-    uniqueLoadedMessages.map((message) => message.message_id),
+  const uniqueLocalMessages = dedupeMessagesById(localMessages);
+  const localMessagesById = new Map(
+    uniqueLocalMessages.map((message) => [message.message_id, message]),
   );
-  const localOnlyMessages = localMessages.filter(
+  const reconciledLoadedMessages = uniqueLoadedMessages.map((message) => {
+    const localMessage = localMessagesById.get(message.message_id);
+    if (
+      localMessage?.role === "assistant"
+      && message.role === "assistant"
+    ) {
+      return mergeLoadedAssistantMessage(message, localMessage);
+    }
+    // 历史请求没有版本戳，可能晚于 durable reparent 增量返回。reparent
+    // 对同一 user message_id 是单向状态；仅保护身份字段，其他服务端字段仍可刷新。
+    if (
+      localMessage
+      && isReparentedUserMessage(localMessage)
+      && !isReparentedUserMessage(message)
+    ) {
+      return localMessage;
+    }
+    return message;
+  });
+  const loadedMessageIds = new Set(
+    reconciledLoadedMessages.map((message) => message.message_id),
+  );
+  const localOnlyMessages = uniqueLocalMessages.filter(
     (message) => !loadedMessageIds.has(message.message_id),
   );
-  return sortMessages([...uniqueLoadedMessages, ...localOnlyMessages]);
+  return sortMessages([...reconciledLoadedMessages, ...localOnlyMessages]);
+}
+
+const ASSISTANT_STATUS_PROGRESS: Record<AssistantMessageStatus, number> = {
+  pending: 0,
+  streaming: 1,
+  cancelled: 2,
+  done: 2,
+  error: 2,
+};
+
+function mergeLoadedAssistantMessage(
+  loaded: AssistantMessage,
+  local: AssistantMessage,
+): AssistantMessage {
+  if (!isAssistantSnapshotAhead(loaded, local)) {
+    return local;
+  }
+  return mergeAssistantMessage(local, loaded);
+}
+
+function isAssistantSnapshotAhead(
+  candidate: AssistantMessage,
+  current: AssistantMessage,
+): boolean {
+  const candidateProgress = assistantSnapshotProgress(candidate);
+  const currentProgress = assistantSnapshotProgress(current);
+  for (let index = 0; index < candidateProgress.length; index += 1) {
+    if (candidateProgress[index] !== currentProgress[index]) {
+      return candidateProgress[index] > currentProgress[index];
+    }
+  }
+  return false;
+}
+
+function assistantSnapshotProgress(
+  message: AssistantMessage,
+): readonly number[] {
+  const normalized = normalizeAssistantMessage(message);
+  return [
+    ASSISTANT_STATUS_PROGRESS[normalized.stream_status ?? "streaming"],
+    normalized.result_summary?.timestamp ?? 0,
+    normalized.result_summary ? 1 : 0,
+    normalized.stop_reason ? 1 : 0,
+    serializedSize(normalized.content),
+    serializedSize(normalized.usage),
+    normalized.timestamp,
+  ];
+}
+
+function serializedSize(value: unknown): number {
+  return value === undefined ? 0 : JSON.stringify(value).length;
+}
+
+function isReparentedUserMessage(message: Message): boolean {
+  const sourceRoundId = message.source_round_id?.trim();
+  return message.role === "user"
+    && Boolean(sourceRoundId && sourceRoundId !== message.round_id.trim());
 }
 
 function mergeMessageById(existing: Message, incoming: Message): Message {

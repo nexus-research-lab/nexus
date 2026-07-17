@@ -1,3 +1,6 @@
+// INPUT: transcript 文件状态与影响投影结果的 round marker 字段。
+// OUTPUT: 可安全复用或失效的 transcript 消息缓存。
+// POS: workspace transcript 投影的缓存边界。
 package workspace
 
 import (
@@ -71,6 +74,10 @@ func fingerprintTranscriptRoundMarkers(roundMarkers []transcriptRoundMarker) str
 		builder.WriteString(strconv.Itoa(len(marker.RoundID)))
 		builder.WriteString(":")
 		builder.WriteString(marker.RoundID)
+		builder.WriteString("|")
+		builder.WriteString(strconv.Itoa(len(marker.SourceRoundID)))
+		builder.WriteString(":")
+		builder.WriteString(marker.SourceRoundID)
 		builder.WriteString("|")
 		builder.WriteString(strconv.Itoa(len(marker.Content)))
 		builder.WriteString(":")

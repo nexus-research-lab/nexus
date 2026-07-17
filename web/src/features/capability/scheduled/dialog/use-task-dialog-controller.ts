@@ -23,10 +23,14 @@ import {
 import { useTaskForm } from "./form/use-task-form";
 import { useTaskDialogData } from "./resources/use-task-dialog-data";
 import { useTaskSchedule } from "./schedule/use-task-schedule";
-import type { TaskDialogRefs } from "./scheduled-task-dialog-types";
+import type {
+  TaskDialogCreatePreset,
+  TaskDialogRefs,
+} from "./scheduled-task-dialog-types";
 
 interface TaskDialogControllerOptions {
   agentId: string;
+  createPreset?: TaskDialogCreatePreset | null;
   initialTask?: ScheduledTaskItem | null;
   isOpen: boolean;
   onClose: () => void;
@@ -86,6 +90,7 @@ function getSubmitErrorMessage(
 
 export function useTaskDialogController({
   agentId,
+  createPreset = null,
   initialTask = null,
   isOpen,
   onClose,
@@ -95,8 +100,8 @@ export function useTaskDialogController({
   const initialState = useMemo(
     () => initialTask
       ? buildTaskDialogInitialState(initialTask)
-      : buildDefaultTaskDialogInitialState(agentId),
-    [agentId, initialTask],
+      : buildDefaultTaskDialogInitialState(agentId, createPreset),
+    [agentId, createPreset, initialTask],
   );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);

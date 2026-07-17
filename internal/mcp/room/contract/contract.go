@@ -19,6 +19,7 @@ type ServerContext struct {
 	OwnerUserID            string
 	CurrentAgentID         string
 	CurrentSessionKey      string
+	CurrentRoundID         string
 	RoomID                 string
 	ConversationID         string
 	SourceContextType      string
@@ -40,4 +41,10 @@ type Service interface {
 		conversationID string,
 		request protocol.CreateRoomPublicMessageRequest,
 	) (protocol.Message, error)
+	MarkPublicMessagePublished(
+		ctx context.Context,
+		sessionKey string,
+		roundID string,
+		agentID string,
+	) error
 }

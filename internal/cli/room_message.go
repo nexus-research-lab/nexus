@@ -164,17 +164,21 @@ func roomMessageCLIOutputItem(message *protocol.RoomDirectedMessageRecord, inclu
 		return map[string]any{}
 	}
 	item := map[string]any{
-		"message_id":      message.MessageID,
-		"room_id":         message.RoomID,
-		"conversation_id": message.ConversationID,
-		"source_agent_id": message.SourceAgentID,
-		"recipients":      message.Recipients,
-		"wake_policy":     message.WakePolicy,
-		"reply_route":     message.ReplyRoute,
-		"delay_seconds":   message.DelaySeconds,
-		"correlation_id":  message.CorrelationID,
-		"timestamp":       message.Timestamp,
-		"content_chars":   len([]rune(message.Content)),
+		"message_id":         message.MessageID,
+		"room_id":            message.RoomID,
+		"conversation_id":    message.ConversationID,
+		"source_agent_id":    message.SourceAgentID,
+		"recipients":         message.Recipients,
+		"wake_targets":       message.WakeTargets,
+		"wake_policy":        message.WakePolicy,
+		"reply_route":        message.ReplyRoute,
+		"delay_seconds":      message.DelaySeconds,
+		"correlation_id":     message.CorrelationID,
+		"root_round_id":      message.RootRoundID,
+		"caused_by_round_id": message.CausedByRoundID,
+		"hop_index":          message.HopIndex,
+		"timestamp":          message.Timestamp,
+		"content_chars":      len([]rune(message.Content)),
 	}
 	if len(includeContent) > 0 && includeContent[0] {
 		item["content"] = message.Content

@@ -18,18 +18,11 @@ interface GoalDialogPresentation {
   variant?: "danger";
 }
 
-const GOAL_DIALOG_PRESENTATION: Record<"clear" | "resume", GoalDialogPresentation> = {
-  clear: {
-    cancelText: "取消",
-    confirmText: "清除",
-    title: "清除当前 Goal?",
-    variant: "danger",
-  },
-  resume: {
-    cancelText: "暂不继续",
-    confirmText: "继续",
-    title: "继续当前 Goal?",
-  },
+const GOAL_DIALOG_PRESENTATION: GoalDialogPresentation = {
+  cancelText: "取消",
+  confirmText: "清除",
+  title: "清除当前 Goal?",
+  variant: "danger",
 };
 
 interface GoalPanelProps {
@@ -56,7 +49,7 @@ function GoalConfirmationDialog({
   if (dialog.kind === "none") {
     return null;
   }
-  const presentation = GOAL_DIALOG_PRESENTATION[dialog.kind];
+  const presentation = GOAL_DIALOG_PRESENTATION;
   return (
     <ConfirmDialog
       cancelText={presentation.cancelText}

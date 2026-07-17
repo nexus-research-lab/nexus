@@ -12,6 +12,15 @@ func (h *Handler) dispatchWebSocketMessage(
 	sender *handlershared.WebSocketSender,
 	inbound map[string]any,
 ) {
+	h.dispatchWebSocketMessageWithControlDispatcher(ctx, sender, inbound, nil)
+}
+
+func (h *Handler) dispatchWebSocketMessageWithControlDispatcher(
+	ctx context.Context,
+	sender *handlershared.WebSocketSender,
+	inbound map[string]any,
+	dispatcher *controlMessageDispatcher,
+) {
 	msgType := handlershared.StringValue(inbound["type"])
 	if _, ok := inbound["method"]; ok {
 		h.handleAppServerRPC(ctx, sender, inbound)
@@ -37,7 +46,7 @@ func (h *Handler) dispatchWebSocketMessage(
 	case "unbind_session":
 		h.handleUnbindSession(ctx, sender, inbound)
 	case "chat", "chat_rewrite_last", "interrupt", "permission_response", "input_queue":
-		h.handleControlMessage(ctx, sender, inbound)
+		h.handleControlMessage(ctx, sender, inbound, dispatcher)
 	default:
 		_ = sender.SendEvent(ctx, h.newGatewayErrorEvent(
 			handlershared.StringValue(inbound["session_key"]),

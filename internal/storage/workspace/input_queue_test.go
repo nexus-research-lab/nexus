@@ -1,11 +1,80 @@
 package workspace
 
 import (
+	"errors"
+	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
+	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
+
+func TestInputQueueStoreEnqueueBatchRollsBackEarlierFiles(t *testing.T) {
+	root := t.TempDir()
+	store := NewInputQueueStore(root)
+	validLocation := InputQueueLocation{
+		Scope:         protocol.InputQueueScopeRoom,
+		WorkspacePath: filepath.Join(root, "agent-a"),
+		SessionKey:    "agent:agent-a:ws:group:conversation-batch",
+	}
+	blockedWorkspace := filepath.Join(root, "blocked")
+	if err := os.WriteFile(blockedWorkspace, []byte("not a directory"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	err := store.EnqueueBatch([]InputQueueEnqueue{
+		{Location: validLocation, Item: protocol.InputQueueItem{ID: "guide-a", Content: "first"}},
+		{
+			Location: InputQueueLocation{
+				Scope:         protocol.InputQueueScopeRoom,
+				WorkspacePath: blockedWorkspace,
+				SessionKey:    "agent:agent-b:ws:group:conversation-batch",
+			},
+			Item: protocol.InputQueueItem{ID: "guide-b", Content: "second"},
+		},
+	})
+	if err == nil {
+		t.Fatal("第二个队列文件不可写时批量登记应失败")
+	}
+	items, snapshotErr := NewInputQueueStore(root).Snapshot(validLocation)
+	if snapshotErr != nil || len(items) != 0 {
+		t.Fatalf("批量写入失败后第一目标必须回滚: items=%+v err=%v", items, snapshotErr)
+	}
+}
+
+func TestInputQueueStoreEnqueueBatchWithItemsReturnsCommittedVersions(t *testing.T) {
+	root := t.TempDir()
+	store := NewInputQueueStore(root)
+	location := InputQueueLocation{
+		Scope:         protocol.InputQueueScopeDM,
+		WorkspacePath: filepath.Join(root, "agent"),
+		SessionKey:    "agent:alpha:ws:dm:batch-versions",
+	}
+	committed, err := store.EnqueueBatchWithItems([]InputQueueEnqueue{{
+		Location: location,
+		Item: protocol.InputQueueItem{
+			ID:             "guide-versioned",
+			Content:        "恢复后继续确认",
+			DeliveryPolicy: protocol.ChatDeliveryPolicyGuide,
+			CreatedAt:      1,
+			UpdatedAt:      1,
+		},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(committed) != 1 || committed[0].UpdatedAt <= 1 {
+		t.Fatalf("committed items must contain the normalized CAS version: %+v", committed)
+	}
+	snapshot, err := store.Snapshot(location)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(snapshot, committed) {
+		t.Fatalf("returned committed items differ from durable snapshot: committed=%+v snapshot=%+v", committed, snapshot)
+	}
+}
 
 func TestInputQueueStoreReplayAppendReorderDispatchAndDelete(t *testing.T) {
 	root := t.TempDir()
@@ -80,6 +149,201 @@ func TestInputQueueStoreReplayAppendReorderDispatchAndDelete(t *testing.T) {
 	}
 }
 
+func TestInputQueueStoreIdempotentEnqueueSurvivesDispatch(t *testing.T) {
+	root := t.TempDir()
+	location := InputQueueLocation{
+		Scope:         protocol.InputQueueScopeDM,
+		WorkspacePath: filepath.Join(root, "agent"),
+		SessionKey:    "agent:alpha:ws:dm:idempotent",
+	}
+	store := NewInputQueueStore(root)
+	intent := protocol.InputQueueItem{
+		Content:        " 继续分析 M5 ",
+		DeliveryPolicy: protocol.ChatDeliveryPolicyQueue,
+		TargetAgentIDs: []string{"agent-b", "agent-a", "agent-b"},
+		Source:         protocol.InputQueueSourceUser,
+		OwnerUserID:    "owner-1",
+		CreatedAt:      1,
+		UpdatedAt:      1,
+	}
+
+	first, err := store.EnqueueIdempotent(location, intent, "client-message-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.Duplicate || first.Item.ID == "" || len(first.Items) != 1 {
+		t.Fatalf("unexpected first acceptance: %+v", first)
+	}
+	acceptedID := first.Item.ID
+
+	dispatched, remaining, err := store.DispatchNext(location)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dispatched == nil || dispatched.ID != acceptedID || len(remaining) != 0 {
+		t.Fatalf("unexpected dispatch: item=%+v remaining=%+v", dispatched, remaining)
+	}
+
+	found, ok, err := NewInputQueueStore(root).FindAcceptedEnqueue(location, "client-message-1")
+	if err != nil || !ok || found.ID != acceptedID {
+		t.Fatalf("accepted enqueue must survive dispatch: item=%+v ok=%v err=%v", found, ok, err)
+	}
+	retry := intent
+	retry.ID = "ignored-retry-id"
+	retry.CreatedAt = 999
+	retry.UpdatedAt = 999
+	retry.TargetAgentIDs = []string{"agent-a", "agent-b"}
+	duplicate, err := store.EnqueueIdempotent(location, retry, "client-message-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !duplicate.Duplicate || duplicate.Item.ID != acceptedID || len(duplicate.Items) != 0 {
+		t.Fatalf("retry must reuse durable acceptance without requeueing: %+v", duplicate)
+	}
+
+	path, err := store.pathForLocation(location)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows, err := store.files.readJSONL(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	enqueueRows := 0
+	for _, row := range rows {
+		if stringFromAny(row["action"]) == inputQueueActionEnqueue {
+			enqueueRows++
+			if stringFromAny(row["client_message_id"]) != "client-message-1" {
+				t.Fatalf("enqueue row lost client_message_id: %+v", row)
+			}
+		}
+	}
+	if enqueueRows != 1 {
+		t.Fatalf("idempotent retry appended %d enqueue rows, want 1", enqueueRows)
+	}
+}
+
+func TestInputQueueStoreIdempotencyConflictDoesNotAppend(t *testing.T) {
+	root := t.TempDir()
+	location := InputQueueLocation{
+		Scope:         protocol.InputQueueScopeRoom,
+		WorkspacePath: filepath.Join(root, "agent"),
+		SessionKey:    "agent:alpha:ws:group:idempotent-conflict",
+	}
+	store := NewInputQueueStore(root)
+	original := protocol.InputQueueItem{
+		Content:        "分析 M4",
+		DeliveryPolicy: protocol.ChatDeliveryPolicyQueue,
+		TargetAgentIDs: []string{"agent-a"},
+		Source:         protocol.InputQueueSourceUser,
+		OwnerUserID:    "owner-1",
+	}
+	if _, err := store.EnqueueIdempotent(location, original, "client-message-conflict"); err != nil {
+		t.Fatal(err)
+	}
+	conflicting := original
+	conflicting.Content = "分析 M5"
+	if _, err := store.EnqueueIdempotent(location, conflicting, "client-message-conflict"); !errors.Is(err, ErrInputQueueIdempotencyConflict) {
+		t.Fatalf("same key with different intent must conflict: %v", err)
+	}
+
+	path, err := store.pathForLocation(location)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows, err := store.files.readJSONL(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("conflict must not append a log row: %+v", rows)
+	}
+}
+
+func TestMatchesInputQueueEnqueueIntentIgnoresPhysicalLocation(t *testing.T) {
+	existing := protocol.InputQueueItem{
+		ID:             "item-a",
+		Scope:          protocol.InputQueueScopeRoom,
+		SessionKey:     "agent:a:ws:group:conversation",
+		RoomID:         "room-a",
+		ConversationID: "conversation-a",
+		AgentID:        "agent-a",
+		Content:        " 协作分析 ",
+		DeliveryPolicy: protocol.ChatDeliveryPolicyQueue,
+		TargetAgentIDs: []string{"agent-b", "agent-a"},
+		Source:         protocol.InputQueueSourceUser,
+		OwnerUserID:    " owner ",
+		CreatedAt:      1,
+		UpdatedAt:      2,
+		QueueOrder:     3,
+	}
+	candidate := existing
+	candidate.ID = "item-b"
+	candidate.SessionKey = "agent:b:ws:group:conversation"
+	candidate.RoomID = "room-b"
+	candidate.ConversationID = "conversation-b"
+	candidate.AgentID = "agent-b"
+	candidate.TargetAgentIDs = []string{"agent-a", "agent-b", "agent-a"}
+	candidate.CreatedAt = 100
+	candidate.UpdatedAt = 200
+	candidate.QueueOrder = 300
+
+	if !MatchesInputQueueEnqueueIntent(existing, candidate) {
+		t.Fatal("physical location, ID, time and target order must not change logical intent")
+	}
+	candidate.OwnerUserID = "other-owner"
+	if MatchesInputQueueEnqueueIntent(existing, candidate) {
+		t.Fatal("owner change must be an idempotency conflict")
+	}
+	candidate.OwnerUserID = existing.OwnerUserID
+	candidate.TargetAgentIDs = []string{"agent-a"}
+	if MatchesInputQueueEnqueueIntent(existing, candidate) {
+		t.Fatal("resolved target set change must be an idempotency conflict")
+	}
+}
+
+func TestInputQueueStoreBoundedEnqueueDeduplicatesAndExpires(t *testing.T) {
+	root := t.TempDir()
+	location := InputQueueLocation{
+		Scope:         protocol.InputQueueScopeRoom,
+		WorkspacePath: filepath.Join(root, "agent"),
+		SessionKey:    "room:conversation-1:agent-1",
+	}
+	store := NewInputQueueStore(root)
+	item := protocol.InputQueueItem{
+		AgentID:         "agent-1",
+		Source:          protocol.InputQueueSourceAgentRoomMessage,
+		SourceMessageID: "message-1",
+		Content:         "runtime trigger",
+		DeliveryPolicy:  protocol.ChatDeliveryPolicyQueue,
+		ExpiresAt:       time.Now().Add(time.Hour).UnixMilli(),
+	}
+	items, inserted, err := store.EnqueueBounded(location, item, 1)
+	if err != nil || !inserted || len(items) != 1 {
+		t.Fatalf("有界入队失败: items=%+v inserted=%v err=%v", items, inserted, err)
+	}
+	items, inserted, err = store.EnqueueBounded(location, item, 1)
+	if err != nil || inserted || len(items) != 1 {
+		t.Fatalf("重复自动唤醒应被折叠: items=%+v inserted=%v err=%v", items, inserted, err)
+	}
+	item.SourceMessageID = "message-2"
+	if _, _, err = store.EnqueueBounded(location, item, 1); !errors.Is(err, ErrInputQueueCapacity) {
+		t.Fatalf("超出容量应返回 ErrInputQueueCapacity: %v", err)
+	}
+	if _, err = store.DispatchMany(location, []string{items[0].ID}); err != nil {
+		t.Fatalf("消费有界队列失败: %v", err)
+	}
+	item.SourceMessageID = "message-expired"
+	item.ExpiresAt = time.Now().Add(-time.Second).UnixMilli()
+	if _, _, err = store.EnqueueBounded(location, item, 1); err != nil {
+		t.Fatalf("写入过期队列项失败: %v", err)
+	}
+	items, err = store.Snapshot(location)
+	if err != nil || len(items) != 0 {
+		t.Fatalf("过期队列项不应出现在快照中: items=%+v err=%v", items, err)
+	}
+}
+
 func TestInputQueueStoreGuidanceWaitsForMatchingRound(t *testing.T) {
 	root := t.TempDir()
 	workspacePath := filepath.Join(root, "agent")
@@ -137,6 +401,179 @@ func TestInputQueueStoreGuidanceWaitsForMatchingRound(t *testing.T) {
 	}
 	if len(guidanceItems) != 1 || guidanceItems[0].ID != "item-b" || len(items) != 0 {
 		t.Fatalf("匹配 round 应消费引导: guidance=%+v items=%+v", guidanceItems, items)
+	}
+}
+
+func TestInputQueueStoreDispatchPreparedGuidanceIsAllOrNone(t *testing.T) {
+	root := t.TempDir()
+	location := InputQueueLocation{
+		Scope:         protocol.InputQueueScopeDM,
+		WorkspacePath: filepath.Join(root, "agent"),
+		SessionKey:    "agent:alpha:ws:dm:prepared-guidance",
+	}
+	store := NewInputQueueStore(root)
+	for _, item := range []protocol.InputQueueItem{
+		{
+			ID:             "item-a",
+			Content:        "第一条引导",
+			DeliveryPolicy: protocol.ChatDeliveryPolicyGuide,
+			Source:         protocol.InputQueueSourceUser,
+			RootRoundID:    "round-running",
+		},
+		{
+			ID:             "item-b",
+			Content:        "第二条引导",
+			DeliveryPolicy: protocol.ChatDeliveryPolicyGuide,
+			Source:         protocol.InputQueueSourceUser,
+			RootRoundID:    "round-running",
+		},
+	} {
+		if _, err := store.Enqueue(location, item); err != nil {
+			t.Fatalf("写入引导队列失败: %v", err)
+		}
+	}
+
+	prepared, err := store.SnapshotGuidance(location, "round-running")
+	if err != nil {
+		t.Fatalf("预检引导队列失败: %v", err)
+	}
+	if len(prepared) != 2 {
+		t.Fatalf("预检应返回两条引导: %+v", prepared)
+	}
+	if _, err = store.UpdateDeliveryPolicy(location, "item-b", protocol.ChatDeliveryPolicyQueue); err != nil {
+		t.Fatalf("模拟预检后队列变化失败: %v", err)
+	}
+
+	claimed, snapshot, err := store.DispatchPreparedGuidance(location, prepared, "round-running")
+	if err != nil {
+		t.Fatalf("提交预检引导失败: %v", err)
+	}
+	if len(claimed) != 0 {
+		t.Fatalf("任一预检项变化时不应消费任何引导: %+v", claimed)
+	}
+	if len(snapshot) != 2 || snapshot[0].ID != "item-a" || snapshot[1].ID != "item-b" {
+		t.Fatalf("预检冲突后应保留整批队列项: %+v", snapshot)
+	}
+
+	reloaded, err := NewInputQueueStore(root).Snapshot(location)
+	if err != nil {
+		t.Fatalf("重放预检冲突后的持久队列失败: %v", err)
+	}
+	if len(reloaded) != 2 ||
+		reloaded[0].ID != "item-a" || reloaded[0].DeliveryPolicy != protocol.ChatDeliveryPolicyGuide ||
+		reloaded[1].ID != "item-b" || reloaded[1].DeliveryPolicy != protocol.ChatDeliveryPolicyQueue {
+		t.Fatalf("预检冲突不应留下部分消费事件: %+v", reloaded)
+	}
+
+	if _, err = store.UpdateDeliveryPolicy(location, "item-b", protocol.ChatDeliveryPolicyGuide); err != nil {
+		t.Fatalf("恢复第二条引导失败: %v", err)
+	}
+	prepared, err = store.SnapshotGuidance(location, "round-running")
+	if err != nil {
+		t.Fatalf("重新预检引导失败: %v", err)
+	}
+	claimed, snapshot, err = store.DispatchPreparedGuidance(location, prepared, "round-running")
+	if err != nil || len(claimed) != 2 || len(snapshot) != 0 {
+		t.Fatalf("整批引导消费失败: claimed=%+v snapshot=%+v err=%v", claimed, snapshot, err)
+	}
+	reloaded, err = NewInputQueueStore(root).Snapshot(location)
+	if err != nil || len(reloaded) != 0 {
+		t.Fatalf("批量 dispatch 事件重放后队列应为空: items=%+v err=%v", reloaded, err)
+	}
+}
+
+func TestInputQueueStoreDispatchPreparedGuidanceIgnoresReorderMetadata(t *testing.T) {
+	root := t.TempDir()
+	location := InputQueueLocation{
+		Scope:         protocol.InputQueueScopeDM,
+		WorkspacePath: filepath.Join(root, "agent"),
+		SessionKey:    "agent:alpha:ws:dm:prepared-guidance-reorder",
+	}
+	store := NewInputQueueStore(root)
+	for _, item := range []protocol.InputQueueItem{
+		{ID: "item-a", Content: "第一条引导", DeliveryPolicy: protocol.ChatDeliveryPolicyGuide, RootRoundID: "round-running"},
+		{ID: "item-b", Content: "第二条引导", DeliveryPolicy: protocol.ChatDeliveryPolicyGuide, RootRoundID: "round-running"},
+	} {
+		if _, err := store.Enqueue(location, item); err != nil {
+			t.Fatal(err)
+		}
+	}
+	prepared, err := store.SnapshotGuidance(location, "round-running")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.Reorder(location, []string{"item-b", "item-a"}); err != nil {
+		t.Fatal(err)
+	}
+	claimed, remaining, err := store.DispatchPreparedGuidance(location, prepared, "round-running")
+	if err != nil || len(claimed) != 2 || len(remaining) != 0 {
+		t.Fatalf("排序元数据变化不应使已应用引导重复注入: claimed=%+v remaining=%+v err=%v", claimed, remaining, err)
+	}
+}
+
+func TestInputQueueStoreGuidanceDispatchDoesNotReadAfterCommit(t *testing.T) {
+	root := t.TempDir()
+	location := InputQueueLocation{
+		Scope:         protocol.InputQueueScopeDM,
+		WorkspacePath: filepath.Join(root, "agent"),
+		SessionKey:    "agent:alpha:ws:dm:no-post-commit-read",
+	}
+	store := NewInputQueueStore(root)
+	for _, item := range []protocol.InputQueueItem{
+		{
+			ID:             "guide-a",
+			Content:        "需要确认的引导",
+			DeliveryPolicy: protocol.ChatDeliveryPolicyGuide,
+			RootRoundID:    "round-running",
+		},
+		{
+			ID:             "queue-b",
+			Content:        "仍应留在队列",
+			DeliveryPolicy: protocol.ChatDeliveryPolicyQueue,
+		},
+	} {
+		if _, err := store.Enqueue(location, item); err != nil {
+			t.Fatal(err)
+		}
+	}
+	current, err := store.Snapshot(location)
+	if err != nil {
+		t.Fatal(err)
+	}
+	guidanceItems := matchingGuidanceItems(current, []string{"round-running"})
+	if len(guidanceItems) != 1 || guidanceItems[0].ID != "guide-a" {
+		t.Fatalf("unexpected prepared guidance: %+v", guidanceItems)
+	}
+
+	path, err := store.pathForLocation(location)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.Chmod(path, 0o200); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.Chmod(path, 0o600) }()
+	if file, openErr := os.Open(path); openErr == nil {
+		_ = file.Close()
+		t.Skip("platform does not enforce write-only test permissions")
+	}
+
+	store.mu.Lock()
+	claimed, next, err := store.dispatchGuidanceItemsLocked(location, current, guidanceItems)
+	store.mu.Unlock()
+	if err != nil {
+		t.Fatalf("dispatch commit must not depend on a post-commit read: %v", err)
+	}
+	if len(claimed) != 1 || claimed[0].ID != "guide-a" || len(next) != 1 || next[0].ID != "queue-b" {
+		t.Fatalf("unexpected dispatch result: claimed=%+v next=%+v", claimed, next)
+	}
+
+	if err = os.Chmod(path, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	replayed, err := NewInputQueueStore(root).Snapshot(location)
+	if err != nil || len(replayed) != 1 || replayed[0].ID != "queue-b" {
+		t.Fatalf("returned snapshot must match durable replay: items=%+v err=%v", replayed, err)
 	}
 }
 

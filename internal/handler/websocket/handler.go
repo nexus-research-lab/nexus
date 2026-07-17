@@ -115,6 +115,8 @@ func (h *Handler) HandleWebSocket(writer http.ResponseWriter, request *http.Requ
 	}()
 
 	ctx := request.Context()
+	controlDispatcher := newControlMessageDispatcher(ctx)
+	defer controlDispatcher.close()
 	go h.keepWebSocketAlive(ctx, connection, sender)
 	for {
 		var inbound map[string]any
@@ -124,6 +126,11 @@ func (h *Handler) HandleWebSocket(writer http.ResponseWriter, request *http.Requ
 		if err != nil {
 			return
 		}
-		h.dispatchWebSocketMessage(ctx, sender, inbound)
+		h.dispatchWebSocketMessageWithControlDispatcher(
+			ctx,
+			sender,
+			inbound,
+			controlDispatcher,
+		)
 	}
 }

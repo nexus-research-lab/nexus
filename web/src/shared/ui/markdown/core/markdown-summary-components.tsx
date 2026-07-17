@@ -18,8 +18,8 @@ export function createMarkdownSummaryComponents(
 ): Components {
   const baseComponents = createMarkdownComponents(resolveFilePath, onOpenWorkspaceFile, currentAgentId);
   const headingClassName = options.monochrome
-    ? `inline ${options.strongAsText ? "font-normal" : "font-semibold"} text-inherit`
-    : "inline font-semibold text-foreground";
+    ? `inline ${options.strongAsText ? "font-normal" : "font-medium"} text-inherit`
+    : "inline font-medium text-foreground";
 
   return {
     ...baseComponents,
@@ -56,8 +56,8 @@ export function createMarkdownSummaryComponents(
       const value = String(children).replace(/\s+/g, " ").trim();
       return (
         <span className={options.monochrome
-          ? "message-cjk-code-font inline text-[0.9em] text-inherit"
-          : "message-cjk-code-font mx-0.5 inline rounded-[4px] bg-primary/10 px-1 text-[0.9em] text-primary"}
+          ? "message-code-font inline text-[0.86em] text-inherit"
+          : "message-code-font mx-0.5 inline rounded-[4px] bg-primary/10 px-1 text-[0.86em] text-primary"}
         >
           {value}
         </span>

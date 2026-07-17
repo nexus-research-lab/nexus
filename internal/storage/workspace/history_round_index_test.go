@@ -179,6 +179,35 @@ func TestRoomHistoryStoreReadRoundIndexCollectsMultipleAgents(t *testing.T) {
 	}
 }
 
+func TestRoomHistoryStoreReadRoundIndexUsesLatestMessageRound(t *testing.T) {
+	root := t.TempDir()
+	history := NewRoomHistoryStore(root)
+	conversationID := "conv-guidance"
+	message := protocol.Message{
+		"message_id": "user-guidance",
+		"round_id":   "round-queued",
+		"role":       "user",
+		"content":    "然后给点建议",
+		"timestamp":  int64(1000),
+	}
+	if err := history.AppendInlineMessage(conversationID, message); err != nil {
+		t.Fatalf("写入排队消息失败: %v", err)
+	}
+	message["round_id"] = "round-goal"
+	message["source_round_id"] = "round-queued"
+	if err := history.AppendInlineMessage(conversationID, message); err != nil {
+		t.Fatalf("写入引导归组消息失败: %v", err)
+	}
+
+	index, err := history.ReadRoundIndex(conversationID, nil)
+	if err != nil {
+		t.Fatalf("读取 room round index 失败: %v", err)
+	}
+	if len(index.Items) != 1 || index.Items[0].RoundID != "round-goal" {
+		t.Fatalf("同一消息应只归入最后写入的 round: %+v", index.Items)
+	}
+}
+
 func TestRoomHistoryStoreReadRoundIndexCollapsesSuffixedMarker(t *testing.T) {
 	root := t.TempDir()
 	history := NewRoomHistoryStore(root)

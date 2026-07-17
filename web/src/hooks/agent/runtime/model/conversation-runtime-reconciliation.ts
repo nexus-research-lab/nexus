@@ -1,3 +1,8 @@
+/**
+ * [INPUT]: WebSocket ack/生命周期事件、已加载消息与本地临时运行态。
+ * [OUTPUT]: 对话消息、权限和 Room agent slot 的确定性归并结果。
+ * [POS]: Agent conversation runtime 的纯状态协调层。
+ */
 import type {
   AssistantMessage,
   AssistantMessageStatus,
@@ -139,7 +144,25 @@ export function replaceOptimisticUserMessage(
   clientMessageId: string,
   userMessageId: string,
   roundId: string,
+  userMessageCommitted: boolean,
 ): Message[] {
+  if (!userMessageCommitted) {
+    const next = messages.filter(
+      (message) => message.message_id !== clientMessageId,
+    );
+    return next.length === messages.length ? messages : next;
+  }
+  const hasCanonicalMessage = messages.some(
+    (message) => message.message_id === userMessageId,
+  );
+  // Room 会先广播 durable user，再返回 ACK；已有 canonical 时只移除本地副本。
+  if (hasCanonicalMessage && clientMessageId !== userMessageId) {
+    const next = messages.filter(
+      (message) => message.message_id !== clientMessageId,
+    );
+    return next.length === messages.length ? messages : next;
+  }
+
   let hasChanges = false;
   const next = messages.map((message) => {
     if (message.role !== "user" || message.message_id !== clientMessageId) {
@@ -222,7 +245,10 @@ export function mergeChatAckPendingSlots(
   slots: RoomPendingAgentSlotState[],
   ack: ChatAckData,
 ): RoomPendingAgentSlotState[] {
-  const preservedSlots = slots.filter((slot) => slot.round_id !== ack.round_id);
+  // 普通 ACK 的空 pending 只表示本次没有新 slot，不能清空当前运行中的 slot。
+  if (!ack.pending_snapshot && ack.pending.length === 0) {
+    return slots;
+  }
   const nextSlots = ack.pending.map((slot) => ({
     agent_id: slot.agent_id,
     agent_round_id: slot.agent_round_id,
@@ -230,7 +256,12 @@ export function mergeChatAckPendingSlots(
     round_id: ack.round_id,
     status: slot.status,
     timestamp: slot.timestamp,
+    index: slot.index,
   }));
+  if (ack.pending_snapshot) {
+    return nextSlots;
+  }
+  const preservedSlots = slots.filter((slot) => slot.round_id !== ack.round_id);
   return [...preservedSlots, ...nextSlots];
 }
 

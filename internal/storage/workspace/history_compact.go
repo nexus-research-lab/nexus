@@ -1,3 +1,6 @@
+// INPUT: transcript、overlay 与 runtime 产生的重复 message_id 快照。
+// OUTPUT: 保留消息与 Agent 执行身份、单调合并内容和终态字段的历史行。
+// POS: workspace 历史 normalize 前的 message_id 压缩边界。
 package workspace
 
 import (
@@ -53,6 +56,7 @@ func mergeAssistantSnapshots(current protocol.Message, next protocol.Message) pr
 		"conversation_id",
 		"agent_id",
 		"round_id",
+		"agent_round_id",
 		"parent_id",
 		"session_id",
 		"role",
@@ -97,6 +101,7 @@ func mergeAssistantSnapshots(current protocol.Message, next protocol.Message) pr
 			"conversation_id",
 			"agent_id",
 			"round_id",
+			"agent_round_id",
 			"parent_id",
 			"session_id",
 			"role",

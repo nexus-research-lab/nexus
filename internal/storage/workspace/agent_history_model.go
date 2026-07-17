@@ -1,3 +1,6 @@
+// INPUT: transcript、overlay marker 与历史缓存的内部数据形态。
+// OUTPUT: workspace history 投影使用的私有模型。
+// POS: AgentHistoryStore 的数据模型层。
 package workspace
 
 import (
@@ -25,6 +28,7 @@ type transcriptEntry struct {
 
 type transcriptRoundMarker struct {
 	RoundID        string
+	SourceRoundID  string
 	UserMessageID  string
 	AgentRoundID   string
 	Content        string
@@ -46,6 +50,7 @@ type overlayHistoryState struct {
 type RoundMarkerOptions struct {
 	UserMessageID  string
 	AgentRoundID   string
+	SourceRoundID  string
 	DeliveryPolicy string
 	Attachments    []protocol.ChatAttachment
 	HiddenFromUser bool

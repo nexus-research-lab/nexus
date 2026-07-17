@@ -1,3 +1,8 @@
+/**
+ * INPUT: 会话消息、运行轮次与服务端 round 索引。
+ * OUTPUT: DM / Room 共用的根轮次分组、历史窗口可见性与 feed 顺序纯投影。
+ * POS: 时间线顺序的唯一真相源，feed 与 navigator 不得自行修正轮次。
+ */
 import type {
   AssistantMessage,
   Message,
@@ -57,6 +62,100 @@ export function groupPendingSlotsByRound(
   slots: RoomPendingAgentSlotState[],
 ): Map<string, RoomPendingAgentSlotState[]> {
   return groupByRound(slots, (slot) => slot.round_id);
+}
+
+/** 删除已被加载消息迁入其他根轮次的原始 round 索引。 */
+export function filterSupersededRoundIndexItems(
+  roundIndexItems: SessionRoundIndexItem[],
+  messages: Message[],
+): SessionRoundIndexItem[] {
+  const targetRoundIdsBySource = new Map<string, Set<string>>();
+  const loadedRoundIds = new Set<string>();
+  for (const message of messages) {
+    const roundId = message.round_id.trim();
+    if (roundId) {
+      loadedRoundIds.add(roundId);
+    }
+    const sourceRoundId = getMessageSourceRoundId(message);
+    if (!sourceRoundId || !roundId || sourceRoundId === roundId) {
+      continue;
+    }
+    const targetRoundIds = targetRoundIdsBySource.get(sourceRoundId)
+      ?? new Set<string>();
+    targetRoundIds.add(roundId);
+    targetRoundIdsBySource.set(sourceRoundId, targetRoundIds);
+  }
+  if (targetRoundIdsBySource.size === 0) {
+    return roundIndexItems;
+  }
+
+  const indexedRoundIds = new Set(
+    roundIndexItems.map((item) => item.roundId.trim()).filter(Boolean),
+  );
+  return roundIndexItems.filter((item) => {
+    const roundId = item.roundId.trim();
+    const targetRoundIds = targetRoundIdsBySource.get(roundId);
+    if (!targetRoundIds) {
+      return true;
+    }
+    // 部分 Room 成员可被引导、其他成员仍在 source round 回复；这类 round
+    // 有正文/运行态证据，不能随迁入旧 root 的用户消息一起从导航删除。
+    if (
+      loadedRoundIds.has(roundId)
+      || item.isLive
+      || item.agentIds.length > 0
+      || item.status !== null
+      || item.durationMs !== null
+    ) {
+      return true;
+    }
+    // 目标 root 尚未进入索引时保留 source，避免 navigator 出现空洞。
+    return !Array.from(targetRoundIds).some((targetRoundId) => (
+      indexedRoundIds.has(targetRoundId)
+    ));
+  });
+}
+
+/**
+ * 目标窗口请求成功后，只保留实际投影出用户可见内容的已解析轮次。
+ * 未解析轮次仍保留短暂占位，避免请求完成前导航与 feed 出现空洞。
+ */
+export function filterResolvedEmptyRoundIndexItems(
+  roundIndexItems: SessionRoundIndexItem[],
+  visibleRoundIds: string[],
+  resolvedRoundIds: string[],
+): SessionRoundIndexItem[] {
+  if (resolvedRoundIds.length === 0) {
+    return roundIndexItems;
+  }
+
+  const visible = new Set(
+    visibleRoundIds.map((roundId) => roundId.trim()).filter(Boolean),
+  );
+  const resolved = new Set(
+    resolvedRoundIds.map((roundId) => roundId.trim()).filter(Boolean),
+  );
+  return roundIndexItems.filter((item) => {
+    const roundId = item.roundId.trim();
+    return !resolved.has(roundId) || visible.has(roundId);
+  });
+}
+
+function getMessageSourceRoundId(message: Message): string {
+  const directSourceRoundId = message.source_round_id?.trim();
+  if (directSourceRoundId) {
+    return directSourceRoundId;
+  }
+  if (
+    message.role !== "system"
+    || message.metadata?.subtype !== "guided_input"
+  ) {
+    return "";
+  }
+  const metadataSourceRoundId = message.metadata.source_round_id;
+  return typeof metadataSourceRoundId === "string"
+    ? metadataSourceRoundId.trim()
+    : "";
 }
 
 // 终态轮次里 assistant 仅剩无回复标记（剥离后无文本、无工具/图片等块）时，
@@ -171,9 +270,9 @@ function isLatestLoadedWindow(
 /**
  * 用完整索引确定 feed 顺序，但正文只渲染已加载窗口。
  *
- * 最新历史页不插入未加载占位，避免新打开旧 session 时因为全量索引
- * 直接产生很长的空滚动；非最新窗口保留相邻占位，让点击定位后还能
- * 继续通过正常滚动触发局部加载。
+ * 最新历史页不插入未加载哨兵，避免新打开旧 session 时因为全量索引
+ * 直接产生很长的空滚动；非最新窗口保留相邻哨兵，让点击定位后还能
+ * 继续通过正常滚动触发局部加载。哨兵不渲染任何用户可见状态。
  */
 export function buildIndexedTimelineRoundIds(
   roundIndexItems: SessionRoundIndexItem[],

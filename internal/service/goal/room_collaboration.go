@@ -1,3 +1,6 @@
+// INPUT: Room Goal 协作要求、可见证据与 objective revision。
+// OUTPUT: revision 安全的协作 metadata 和审计事件。
+// POS: Room Goal 协作完成条件的唯一状态入口。
 package goal
 
 import (
@@ -26,7 +29,7 @@ func (s *Service) RecordRoomGoalCollaborationRequired(ctx context.Context, goalI
 }
 
 // RecordRoomGoalCollaborationEvidence 记录非负责人在房间可见回复中参与了 Room Goal。
-func (s *Service) RecordRoomGoalCollaborationEvidence(ctx context.Context, goalID string, roundID string, agentID string) (*protocol.Goal, error) {
+func (s *Service) RecordRoomGoalCollaborationEvidence(ctx context.Context, goalID string, roundID string, agentID string, expectedRevision ...int64) (*protocol.Goal, error) {
 	if err := s.ensureEnabled(); err != nil {
 		return nil, err
 	}
@@ -37,17 +40,20 @@ func (s *Service) RecordRoomGoalCollaborationEvidence(ctx context.Context, goalI
 	if item == nil {
 		return nil, ErrGoalNotFound
 	}
-	return s.recordRoomGoalCollaborationEvidenceForGoal(ctx, item, strings.TrimSpace(roundID), strings.TrimSpace(agentID))
+	return s.recordRoomGoalCollaborationEvidenceForGoal(ctx, item, strings.TrimSpace(roundID), strings.TrimSpace(agentID), firstExpectedObjectiveRevision(expectedRevision))
 }
 
 func (s *Service) recordRoomGoalCollaborationRequiredForGoal(ctx context.Context, item *protocol.Goal, roundID string) (*protocol.Goal, error) {
-	return s.retryGoalProgressMutation(ctx, item, func(current *protocol.Goal) (*protocol.Goal, error) {
+	return s.retryGoalMutation(ctx, item, func(current *protocol.Goal) (*protocol.Goal, error) {
 		return s.recordRoomGoalCollaborationRequiredForLoadedGoal(ctx, current, roundID)
 	})
 }
 
-func (s *Service) recordRoomGoalCollaborationEvidenceForGoal(ctx context.Context, item *protocol.Goal, roundID string, agentID string) (*protocol.Goal, error) {
-	return s.retryGoalProgressMutation(ctx, item, func(current *protocol.Goal) (*protocol.Goal, error) {
+func (s *Service) recordRoomGoalCollaborationEvidenceForGoal(ctx context.Context, item *protocol.Goal, roundID string, agentID string, expectedRevision int64) (*protocol.Goal, error) {
+	return s.retryGoalMutation(ctx, item, func(current *protocol.Goal) (*protocol.Goal, error) {
+		if !objectiveRevisionMatches(*current, expectedRevision) {
+			return nil, ErrGoalRevisionStale
+		}
 		return s.recordRoomGoalCollaborationEvidenceForLoadedGoal(ctx, current, roundID, agentID)
 	})
 }

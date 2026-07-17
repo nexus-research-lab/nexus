@@ -1,3 +1,6 @@
+// INPUT: DM Goal continuation plan、显式输入队列与当前 runtime 状态。
+// OUTPUT: 用户输入优先约束下经最终校验、原子 claim 后启动的隐藏续跑。
+// POS: DM 与 Goal 状态机之间的续跑适配层。
 package dm
 
 import (
@@ -99,23 +102,11 @@ func (r *roundRunner) dispatchGoalContinuation(ctx context.Context) {
 	if plan == nil {
 		return
 	}
-	if err := r.service.HandleChat(ctx, Request{
-		SessionKey:           r.sessionKey,
-		AgentID:              r.agent.AgentID,
-		GoalContext:          plan.Prompt,
-		RoundID:              plan.RoundID,
-		DeliveryPolicy:       protocol.ChatDeliveryPolicyQueue,
-		BroadcastUserMessage: false,
-		Internal:             true,
-		InputOptions: sdkprotocol.OutboundMessageOptions{
-			Meta:           true,
-			Synthetic:      plan.Synthetic,
-			HiddenFromUser: plan.HiddenFromUser,
-			Purpose:        plan.Purpose,
-			Priority:       "internal",
-			Metadata:       plan.Metadata,
-		},
-	}); err != nil {
+
+	if err = r.service.DispatchGoalContinuation(ctx, *plan); err != nil {
+		if goalsvc.IsExpectedMutationError(err) {
+			return
+		}
 		r.recordGoalContinuationDispatchFailure(ctx, *plan, err)
 		r.service.loggerFor(ctx).Warn("启动 Goal 自动续跑失败",
 			"session_key", r.sessionKey,
@@ -126,6 +117,78 @@ func (r *roundRunner) dispatchGoalContinuation(ctx context.Context) {
 	}
 }
 
+// DispatchGoalContinuation 在同一启动边界内重新校验 prepared plan 并注册 runtime round。
+// 自动续跑和进程恢复共享此入口，避免恢复路径绕过显式用户输入。
+func (s *Service) DispatchGoalContinuation(ctx context.Context, plan protocol.GoalContinuation) error {
+	if s == nil || s.goals == nil {
+		return errors.New("dm goal continuation provider is not configured")
+	}
+	sessionKey := strings.TrimSpace(plan.Goal.SessionKey)
+	parsed := protocol.ParseSessionKey(sessionKey)
+	agentID := strings.TrimSpace(parsed.AgentID)
+	if parsed.Kind != protocol.SessionKeyKindAgent || agentID == "" {
+		return errors.New("dm goal continuation requires an agent session")
+	}
+
+	s.inputQueueDispatchMu.Lock()
+	validated, err := goalsvc.ValidateContinuationForDispatch(
+		ctx,
+		s.goals,
+		plan,
+		func(protocol.GoalContinuation) bool {
+			return s.shouldDeferGoalContinuationWithoutQueueDispatch(ctx, sessionKey, agentID)
+		},
+	)
+	if err == nil && validated != nil {
+		_, err = s.goals.ClaimContinuationPlan(ctx, *validated)
+	}
+	if err == nil && validated != nil {
+		err = s.handleChat(ctx, Request{
+			SessionKey:            sessionKey,
+			AgentID:               agentID,
+			GoalContext:           validated.Prompt,
+			GoalID:                validated.Goal.ID,
+			GoalObjectiveRevision: validated.Goal.ObjectiveRevision(),
+			RoundID:               validated.RoundID,
+			DeliveryPolicy:        protocol.ChatDeliveryPolicyQueue,
+			BroadcastUserMessage:  false,
+			Internal:              true,
+			InputOptions: sdkprotocol.OutboundMessageOptions{
+				Meta:           true,
+				Synthetic:      validated.Synthetic,
+				HiddenFromUser: validated.HiddenFromUser,
+				Purpose:        validated.Purpose,
+				Priority:       "internal",
+				Metadata:       validated.Metadata,
+			},
+		})
+	}
+	s.inputQueueDispatchMu.Unlock()
+	if err == nil && validated == nil {
+		// 若最后校验看到新的排队输入，释放启动锁后再触发派发，避免递归获取同一把锁。
+		s.ShouldDeferGoalContinuation(ctx, sessionKey, agentID)
+	}
+	return err
+}
+
+// shouldDeferGoalContinuationWithoutQueueDispatch 只读取最终启动条件，不在已持锁区间递归派发队列。
+func (s *Service) shouldDeferGoalContinuationWithoutQueueDispatch(ctx context.Context, sessionKey string, agentID string) bool {
+	if len(s.runtime.GetRunningRoundIDs(strings.TrimSpace(sessionKey))) > 0 {
+		return true
+	}
+	_, location, err := s.resolveInputQueueLocation(ctx, sessionKey, agentID)
+	if err != nil {
+		s.loggerFor(ctx).Warn("解析 Goal 续跑最终队列位置失败", "session_key", sessionKey, "err", err)
+		return false
+	}
+	items, err := s.inputQueue.Snapshot(location)
+	if err != nil {
+		s.loggerFor(ctx).Warn("读取 Goal 续跑最终队列失败", "session_key", sessionKey, "err", err)
+		return false
+	}
+	return len(items) > 0 || s.shouldDeferGoalContinuationForPlanMode(ctx, agentID)
+}
+
 func (r *roundRunner) recordGoalContinuationDispatchFailure(ctx context.Context, plan protocol.GoalContinuation, dispatchErr error) {
 	if r == nil || r.service == nil || r.service.goals == nil || dispatchErr == nil {
 		return
@@ -134,7 +197,8 @@ func (r *roundRunner) recordGoalContinuationDispatchFailure(ctx context.Context,
 	if reason == "" {
 		reason = "Goal continuation dispatch failed before runtime start"
 	}
-	if _, err := r.service.goals.RecordContinuationFailure(ctx, plan.Goal.ID, plan.RoundID, reason); err != nil {
+	if _, err := r.service.goals.RecordContinuationFailure(ctx, plan.Goal.ID, plan.RoundID, reason, plan.Goal.ObjectiveRevision()); err != nil &&
+		!goalsvc.IsExpectedMutationError(err) {
 		r.service.loggerFor(ctx).Warn("记录 Goal 续跑投递失败原因失败",
 			"session_key", plan.Goal.SessionKey,
 			"goal_id", plan.Goal.ID,

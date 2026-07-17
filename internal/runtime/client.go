@@ -1,9 +1,13 @@
+// INPUT: SDK bridge client、会话控制请求与子进程关闭态错误。
+// OUTPUT: Nexus runtime 所需的最小 Client 能力和稳定的关闭语义。
+// POS: runtime Manager 与具体 SDK bridge 之间的适配边界。
 package runtime
 
 import (
 	"context"
 	"errors"
 	"io"
+	"maps"
 	"os"
 	"strings"
 	"sync"
@@ -200,6 +204,37 @@ func (c *sdkClientAdapter) SetPermissionMode(ctx context.Context, mode sdkpermis
 	return nil
 }
 
+// UpdateEnvironment 将运行期环境增量推送给 nxs，不重启当前会话。
+func (c *sdkClientAdapter) UpdateEnvironment(ctx context.Context, environment map[string]string) error {
+	if len(environment) == 0 {
+		return nil
+	}
+	c.mu.Lock()
+	options := c.options
+	if options.Env == nil {
+		options.Env = map[string]string{}
+	} else {
+		options.Env = maps.Clone(options.Env)
+	}
+	for key, value := range environment {
+		options.Env[key] = value
+	}
+	session := c.session
+	c.mu.Unlock()
+	if session != nil {
+		if err := session.Control().UpdateEnvironment(ctx, environment); err != nil {
+			if IsRuntimeTransportClosedError(err) && c.markDisconnected(session, err) {
+				closeSDKSession(session)
+			}
+			return err
+		}
+	}
+	c.mu.Lock()
+	c.options = options
+	c.mu.Unlock()
+	return nil
+}
+
 func normalizePermissionMode(mode sdkpermission.Mode) sdkpermission.Mode {
 	if strings.TrimSpace(string(mode)) == "" {
 		return sdkpermission.ModeDefault
@@ -255,6 +290,13 @@ func (c *sdkClientAdapter) SessionID() string {
 		return strings.TrimSpace(c.options.Session.ResumeID)
 	}
 	return c.session.ID()
+}
+
+func (c *sdkClientAdapter) Supports(capability agentclient.Capability) bool {
+	c.mu.Lock()
+	session := c.session
+	c.mu.Unlock()
+	return session != nil && session.Supports(capability)
 }
 
 func (c *sdkClientAdapter) SendContent(ctx context.Context, content any, parentToolUseID *string, sessionID string) error {
@@ -372,6 +414,7 @@ func IsRuntimeTransportClosedError(err error) bool {
 		strings.Contains(message, "broken pipe") ||
 		strings.Contains(message, "stream closed") ||
 		strings.Contains(message, "file already closed") ||
+		strings.Contains(message, "stdin unavailable") ||
 		strings.Contains(message, "client: not connected")
 }
 

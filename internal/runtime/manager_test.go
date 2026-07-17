@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"maps"
 	"strings"
 	"testing"
 	"time"
@@ -16,18 +17,20 @@ import (
 )
 
 type fakeRuntimeClient struct {
-	reconfigureCalls int
-	lastOptions      agentclient.Options
-	sentContents     []string
-	reconfigureErr   error
-	disconnectCalls  int
-	stoppedTasks     []string
-	taskMessages     []fakeTaskMessage
-	stopTaskErr      error
-	permissionModes  []sdkpermission.Mode
-	messages         <-chan sdkprotocol.ReceivedMessage
-	receiveStarted   chan struct{}
-	receiveStopped   chan struct{}
+	reconfigureCalls   int
+	lastOptions        agentclient.Options
+	sentContents       []string
+	reconfigureErr     error
+	disconnectCalls    int
+	stoppedTasks       []string
+	taskMessages       []fakeTaskMessage
+	stopTaskErr        error
+	permissionModes    []sdkpermission.Mode
+	environmentUpdates []map[string]string
+	hookResponseAck    bool
+	messages           <-chan sdkprotocol.ReceivedMessage
+	receiveStarted     chan struct{}
+	receiveStopped     chan struct{}
 }
 
 type fakeTaskMessage struct {
@@ -122,6 +125,15 @@ func (c *fakeRuntimeClient) Reconfigure(_ context.Context, options agentclient.O
 	return nil
 }
 
+func (c *fakeRuntimeClient) UpdateEnvironment(_ context.Context, environment map[string]string) error {
+	c.environmentUpdates = append(c.environmentUpdates, maps.Clone(environment))
+	return nil
+}
+
+func (c *fakeRuntimeClient) Supports(capability agentclient.Capability) bool {
+	return c.hookResponseAck && capability == agentclient.CapabilityHookResponseAck
+}
+
 func (c *fakeRuntimeClient) SessionID() string { return "" }
 
 func TestSDKClientAdapterWaitReturnsStreamError(t *testing.T) {
@@ -169,6 +181,36 @@ func TestManagerSetPermissionModeForAgentUpdatesMatchingClients(t *testing.T) {
 	}
 	if len(other.permissionModes) != 0 {
 		t.Fatalf("other permission modes = %#v，期望空", other.permissionModes)
+	}
+}
+
+func TestManagerUpdateEnvironmentForAgentUpdatesMatchingNXSClients(t *testing.T) {
+	manager := NewManager()
+	matching := &fakeRuntimeClient{}
+	otherRuntime := &fakeRuntimeClient{}
+	otherAgent := &fakeRuntimeClient{}
+	manager.sessions["agent:agent-a:conversation:1"] = &sessionState{
+		Client:      matching,
+		RuntimeKind: agentclient.RuntimeNXS,
+	}
+	manager.sessions["agent:agent-a:conversation:2"] = &sessionState{
+		Client:      otherRuntime,
+		RuntimeKind: agentclient.RuntimeClaude,
+	}
+	manager.sessions["agent:agent-b:conversation:1"] = &sessionState{
+		Client:      otherAgent,
+		RuntimeKind: agentclient.RuntimeNXS,
+	}
+
+	environment := map[string]string{"NEXUS_WEBSEARCH_CONFIG": `{"enabled":false}`}
+	if err := manager.UpdateEnvironmentForAgent(context.Background(), "agent-a", environment); err != nil {
+		t.Fatalf("UpdateEnvironmentForAgent() error = %v", err)
+	}
+	if len(matching.environmentUpdates) != 1 || matching.environmentUpdates[0]["NEXUS_WEBSEARCH_CONFIG"] == "" {
+		t.Fatalf("matching environment updates = %#v", matching.environmentUpdates)
+	}
+	if len(otherRuntime.environmentUpdates) != 0 || len(otherAgent.environmentUpdates) != 0 {
+		t.Fatalf("non-matching clients were updated: runtime=%#v other=%#v", otherRuntime.environmentUpdates, otherAgent.environmentUpdates)
 	}
 }
 
@@ -556,6 +598,7 @@ func TestIsRuntimeTransportClosedError(t *testing.T) {
 		errors.New("write payload failed: file already closed"),
 		errors.New("broken pipe"),
 		errors.New("Error in hook callback hook_1: Stream closed"),
+		errors.New("client: send control response failed: process: stdin unavailable"),
 	}
 	for _, err := range cases {
 		if !IsRuntimeTransportClosedError(err) {
@@ -771,6 +814,75 @@ func TestManagerGuidanceHookInjectsContextualAdditionalContext(t *testing.T) {
 	}
 	if strings.Contains(additionalContext, "<nexus_guidance>") {
 		t.Fatalf("Goal context 不应包在 nexus_guidance 中: %q", additionalContext)
+	}
+}
+
+func TestManagerContextualGuidanceRunsConsumedCallbackOnlyAtPostToolUse(t *testing.T) {
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: &fakeRuntimeClient{}})
+	sessionKey := "agent:nexus:ws:group:goal-retarget"
+	if _, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{}); err != nil {
+		t.Fatal(err)
+	}
+	manager.StartRound(sessionKey, "round-recipient", func() {})
+	consumed := false
+	if _, err := manager.QueueContextualGuidanceInputOnConsumed(
+		context.Background(),
+		sessionKey,
+		"goal-event-retarget",
+		"goal",
+		"The objective changed.",
+		func() { consumed = true },
+	); err != nil {
+		t.Fatal(err)
+	}
+	if consumed {
+		t.Fatal("callback ran while guidance was only queued")
+	}
+
+	options := manager.WithGuidanceHook(agentclient.Options{}, sessionKey)
+	output, err := options.Hooks.Matchers[sdkhook.EventPostToolUse][0].Hooks[0](
+		context.Background(),
+		sdkhook.Input{EventName: sdkhook.EventPostToolUse},
+		"tool-before-retarget",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if output.SpecificOutput == nil || !strings.Contains(output.SpecificOutput.AdditionalContext, "The objective changed.") {
+		t.Fatalf("output = %#v, want retarget context", output)
+	}
+	if !consumed {
+		t.Fatal("callback did not run when PostToolUse consumed guidance")
+	}
+}
+
+func TestManagerContextualGuidanceWaitsForRuntimeAppliedAck(t *testing.T) {
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: &fakeRuntimeClient{hookResponseAck: true}})
+	sessionKey := "agent:nexus:ws:group:goal-retarget-ack"
+	if _, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{}); err != nil {
+		t.Fatal(err)
+	}
+	manager.StartRound(sessionKey, "round-recipient", func() {})
+	consumed := false
+	if _, err := manager.QueueContextualGuidanceInputOnConsumed(
+		context.Background(), sessionKey, "goal-event-retarget", "goal", "The objective changed.", func() { consumed = true },
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	options := manager.WithGuidanceHook(agentclient.Options{}, sessionKey)
+	output, err := options.Hooks.Matchers[sdkhook.EventPostToolUse][0].Hooks[0](
+		context.Background(), sdkhook.Input{EventName: sdkhook.EventPostToolUse}, "tool-before-retarget",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if consumed || output.OnApplied == nil {
+		t.Fatalf("consumed=%v OnApplied=%v, want callback deferred until applied ACK", consumed, output.OnApplied != nil)
+	}
+	output.OnApplied(sdkhook.AppliedAck{RequestID: "hook-request-1"})
+	if !consumed {
+		t.Fatal("callback did not run after runtime applied ACK")
 	}
 }
 

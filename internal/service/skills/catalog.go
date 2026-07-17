@@ -226,8 +226,9 @@ func (s *Service) buildSystemRecord(skillName string) (catalogRecord, error) {
 			Version:      "system",
 			Locked:       true,
 		},
-		ReadmeMarkdown: parsed.ReadmeMarkdown,
-		Recommendation: "系统内置能力，安装状态由平台托管。",
+		ReadmeMarkdown:      parsed.ReadmeMarkdown,
+		RuntimeInstructions: parsed.RuntimeInstructions,
+		Recommendation:      "系统内置能力，安装状态由平台托管。",
 	}
 	return catalogRecord{Detail: detail, SourcePath: sourceDir}, nil
 }
@@ -253,8 +254,9 @@ func (s *Service) buildBuiltinRecord(sourceDir string, curated map[string]string
 			Locked:       false,
 			Deletable:    false,
 		},
-		ReadmeMarkdown: parsed.ReadmeMarkdown,
-		Recommendation: firstNonEmpty(curated["recommendation"], parsed.Recommendation, "自动收录的本地可用能力。"),
+		ReadmeMarkdown:      parsed.ReadmeMarkdown,
+		RuntimeInstructions: parsed.RuntimeInstructions,
+		Recommendation:      firstNonEmpty(curated["recommendation"], parsed.Recommendation, "自动收录的本地可用能力。"),
 	}
 	return catalogRecord{Detail: detail, SourcePath: sourceDir}, nil
 }
@@ -281,8 +283,9 @@ func buildWorkspaceRecord(sourceDir string) (catalogRecord, error) {
 			Locked:       false,
 			Deletable:    true,
 		},
-		ReadmeMarkdown: parsed.ReadmeMarkdown,
-		Recommendation: firstNonEmpty(parsed.Recommendation, "仅在该智能体工作区内可用。"),
+		ReadmeMarkdown:      parsed.ReadmeMarkdown,
+		RuntimeInstructions: parsed.RuntimeInstructions,
+		Recommendation:      firstNonEmpty(parsed.Recommendation, "仅在该智能体工作区内可用。"),
 	}
 	return catalogRecord{Detail: detail, SourcePath: sourceDir}, nil
 }

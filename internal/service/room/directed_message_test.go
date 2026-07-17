@@ -182,6 +182,9 @@ func TestRealtimeServiceProjectsDirectedMessageReplyToPrivateRoute(t *testing.T)
 	if err != nil {
 		t.Fatalf("创建 immediate directed message 失败: %v", err)
 	}
+	if len(message.WakeTargets) != 1 || message.WakeTargets[0] != devin.AgentID {
+		t.Fatalf("未显式指定 wake_targets 时应唤醒全部 recipients: %+v", message)
+	}
 	waitForRoomBroadcastEventMatching(t, broadcaster, protocol.EventTypeRoomDirectedMessage, func(event protocol.EventMessage) bool {
 		return event.Data["event_kind"] == "wake_started" && event.Data["message_id"] == message.MessageID
 	})
@@ -246,14 +249,15 @@ func TestRealtimeServiceQueuesDirectedMessageWhenTargetRunning(t *testing.T) {
 	}
 
 	devinCurrentClient := newFakeRoomClient()
-	devinQueuedClient := newFakeRoomClient()
-	devinCurrentClient.onQuery = func(context.Context, string) error {
-		return nil
-	}
 	queuedPrompt := make(chan string, 1)
-	devinQueuedClient.onQuery = func(_ context.Context, prompt string) error {
+	devinQueryCount := 0
+	devinCurrentClient.onQuery = func(_ context.Context, prompt string) error {
+		devinQueryCount++
+		if devinQueryCount == 1 {
+			return nil
+		}
 		queuedPrompt <- prompt
-		go sendFakeAssistantResult(devinQueuedClient, "devin-directed-message-after-busy", "这是给 Amy 的排队私下回复")
+		go sendFakeAssistantResult(devinCurrentClient, "devin-directed-message-after-busy", "这是给 Amy 的排队私下回复")
 		return nil
 	}
 
@@ -264,7 +268,7 @@ func TestRealtimeServiceQueuesDirectedMessageWhenTargetRunning(t *testing.T) {
 		agentService,
 		runtimectx.NewManager(),
 		permission,
-		&fakeRoomFactory{clients: []*fakeRoomClient{devinCurrentClient, devinQueuedClient}},
+		&fakeRoomFactory{clients: []*fakeRoomClient{devinCurrentClient}},
 	)
 
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
@@ -481,6 +485,28 @@ func TestRealtimeServiceRejectsInvalidDirectedMessageRoute(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("非 Room 成员不应成为 directed message recipient")
+	}
+
+	_, err = service.HandleDirectedMessage(ctx, roomContext.Room.ID, roomContext.Conversation.ID, protocol.CreateRoomDirectedMessageRequest{
+		SourceAgentID: amy.AgentID,
+		Recipients:    []string{devin.AgentID},
+		WakeTargets:   []string{amy.AgentID},
+		Content:       "唤醒目标越界",
+		WakePolicy:    protocol.RoomWakePolicyImmediate,
+	})
+	if err == nil || !strings.Contains(err.Error(), "subset of recipients") {
+		t.Fatalf("wake_targets 必须是 recipients 子集: %v", err)
+	}
+
+	_, err = service.HandleDirectedMessage(ctx, roomContext.Room.ID, roomContext.Conversation.ID, protocol.CreateRoomDirectedMessageRequest{
+		SourceAgentID: amy.AgentID,
+		Recipients:    []string{devin.AgentID},
+		WakeTargets:   []string{devin.AgentID},
+		Content:       "只记录却指定唤醒目标",
+		WakePolicy:    protocol.RoomWakePolicyNone,
+	})
+	if err == nil || !strings.Contains(err.Error(), "wake_targets") {
+		t.Fatalf("wake_policy=none 不应接受 wake_targets: %v", err)
 	}
 
 	_, err = service.HandleDirectedMessage(ctx, roomContext.Room.ID, roomContext.Conversation.ID, protocol.CreateRoomDirectedMessageRequest{

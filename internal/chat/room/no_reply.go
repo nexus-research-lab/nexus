@@ -19,13 +19,27 @@ func stripNoReplyMarker(text string) string {
 	return strings.TrimSpace(noReplyMarkerPattern.ReplaceAllString(text, ""))
 }
 
-// IsNoReplyAssistantMessage 判断 assistant 终态消息剥离标记后是否仅剩空文本。
-func IsNoReplyAssistantMessage(message protocol.Message) bool {
-	if protocol.MessageRole(message) != "assistant" {
+// IsNoReplyOutputMessage 判断 assistant/result 输出剥离标记后是否仅剩空文本。
+func IsNoReplyOutputMessage(message protocol.Message) bool {
+	var text string
+	switch protocol.MessageRole(message) {
+	case "assistant":
+		text = extractHistoryText(message)
+	case "result":
+		if message["is_error"] == true || strings.TrimSpace(normalizeAnyString(message["subtype"])) == "error" {
+			return false
+		}
+		text = normalizeAnyString(message["result"])
+	default:
 		return false
 	}
-	text := strings.TrimSpace(extractHistoryText(message))
+	text = strings.TrimSpace(text)
 	return text != "" && stripNoReplyMarker(text) == ""
+}
+
+// IsNoReplyAssistantMessage 判断 assistant 终态消息是否仅包含无回复标记。
+func IsNoReplyAssistantMessage(message protocol.Message) bool {
+	return protocol.MessageRole(message) == "assistant" && IsNoReplyOutputMessage(message)
 }
 
 // StripNoReplyMarker 返回剥离了无回复标记的消息副本（content 字符串/块与

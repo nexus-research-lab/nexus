@@ -48,3 +48,11 @@ func (m *SlotMessageMapper) Map(
 	}
 	return result.Events, result.DurableMessages, result.TerminalStatus, nil
 }
+
+// SetDurableMessageTransformer 在 Room 事件广播前补充公区标注等字段。
+func (m *SlotMessageMapper) SetDurableMessageTransformer(transform func(protocol.Message) protocol.Message) {
+	if m == nil || m.EventMapper == nil {
+		return
+	}
+	m.EventMapper.SetDurableMessageTransformer(transform)
+}

@@ -1,3 +1,6 @@
+// INPUT: 外部 channel ingress 类型与模型工具请求。
+// OUTPUT: 按任务类型限定的默认批准工具集合。
+// POS: channel 入口的工具权限策略边界。
 package channels
 
 import (
@@ -32,9 +35,10 @@ var defaultScheduledTaskApprovedTools = map[string]struct{}{
 }
 
 var defaultGoalApprovedTools = map[string]struct{}{
-	"create_goal": {},
-	"get_goal":    {},
-	"update_goal": {},
+	"create_goal":   {},
+	"get_goal":      {},
+	"retarget_goal": {},
+	"update_goal":   {},
 }
 
 var defaultManagedSupportTools = map[string]struct{}{

@@ -11,7 +11,6 @@ import type {
   AssistantMessage,
   ResultSummary,
 } from "@/types/conversation/message/entity";
-import type { RoomPendingAgentSlotState } from "@/types/agent/agent-conversation";
 import type {
   PendingPermission,
   PermissionDecisionPayload,
@@ -36,9 +35,9 @@ interface GroupAgentStatusCardProps {
   onPermissionResponse: (payload: PermissionDecisionPayload) => boolean;
   onStopMessage?: () => void;
   pendingPermissions: PendingPermission[];
-  pendingSlot?: RoomPendingAgentSlotState;
   resultSummary?: ResultSummary;
   status: AgentRoundStatus;
+  timestamp: number;
 }
 
 const ACTIVATION_KEYS = new Set(["Enter", " "]);
@@ -60,25 +59,23 @@ function GroupAgentStatusCardInner({
   onPermissionResponse,
   onStopMessage,
   pendingPermissions,
-  pendingSlot,
   resultSummary,
   status,
+  timestamp,
 }: GroupAgentStatusCardProps) {
   const { locale, t } = useI18n();
   const statusModel = useMemo(() => buildGroupAgentStatusModel({
     labels: {
       failed: t("room.agent_status_failed"),
-      preparing: t("room.agent_status_preparing"),
-      replying: t("room.agent_status_replying"),
       stopped: t("room.agent_status_stopped"),
       waitingPermission: t("room.agent_status_waiting_permission"),
     },
     messages,
     pendingPermissions,
-    pendingSlot,
     resultSummary,
     status,
-  }), [messages, pendingPermissions, pendingSlot, resultSummary, status, t]);
+    timestamp,
+  }), [messages, pendingPermissions, resultSummary, status, t, timestamp]);
   const contactLabel = t("room.agent_contact_open", { name: agentName });
 
   const handleStop = useCallback((event: React.MouseEvent) => {
@@ -297,6 +294,10 @@ function GroupAgentStatusSummary({
   agentId: string;
   model: GroupAgentStatusModel;
 }) {
+  if (!model.shouldRenderMarkdownSummary && !model.summaryText) {
+    return null;
+  }
+
   return (
     <div className="min-w-0 pt-1">
       {model.shouldRenderMarkdownSummary ? (

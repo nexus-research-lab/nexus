@@ -4,10 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/handler/handlertest"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 func TestOverviewAggregatesCurrentMonthUsage(t *testing.T) {
@@ -101,6 +103,10 @@ func TestEnsureQuotaAvailableBlocksAtMonthlyLimit(t *testing.T) {
 	err := service.EnsureQuotaAvailable(context.Background(), "user-1")
 	if !errors.Is(err, ErrQuotaExceeded) {
 		t.Fatalf("达到额度应返回 ErrQuotaExceeded，实际: %v", err)
+	}
+	message, ok := protocol.ClientErrorMessage(err)
+	if !ok || !strings.Contains(message, "Token 额度已用完") {
+		t.Fatalf("额度错误缺少客户端提示: %q", message)
 	}
 }
 

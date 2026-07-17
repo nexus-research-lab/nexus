@@ -2,6 +2,7 @@ package clientopts
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
@@ -62,12 +64,14 @@ func (r *fakeRuntimeConfigForRuntimeResolver) ResolveRuntimeConfigForRuntime(
 func TestBuildAgentClientOptionsUsesProviderRuntimeEnv(t *testing.T) {
 	thinkingTokens := 2048
 	maxTurns := 8
+	contextWindow := 300000
 	resolveCalls := 0
 	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{
 		config: &RuntimeConfig{
-			AuthToken: "token-1",
-			BaseURL:   "https://provider.example.com",
-			Model:     "kimi-k2",
+			AuthToken:     "token-1",
+			BaseURL:       "https://provider.example.com",
+			Model:         "kimi-k2",
+			ContextWindow: contextWindow,
 		},
 		calls: &resolveCalls,
 	}, AgentClientOptionsInput{
@@ -108,11 +112,14 @@ func TestBuildAgentClientOptionsUsesProviderRuntimeEnv(t *testing.T) {
 	if options.Model != "kimi-k2" {
 		t.Fatalf("运行时模型未写入 SDK options: %+v", options)
 	}
-	if _, ok := options.Env[enableToolSearchEnvName]; ok {
-		t.Fatalf("宿主不应注入 tool search 开关，应交给 SDK 按 CC 规则判断: %+v", options.Env)
+	if options.Env[enableToolSearchEnvName] != "0" || options.Env[nexusEnableToolSearchEnvName] != "0" {
+		t.Fatalf("nxs ToolSearch 默认应关闭并显式投影到兼容环境变量: %+v", options.Env)
 	}
 	if options.Env[nexusAutoCompactPctOverrideEnvName] != defaultClaudeAutoCompactPctOverride {
 		t.Fatalf("默认自动压缩阈值未注入: %+v", options.Env)
+	}
+	if options.Env[nexusMaxContextTokensEnvName] != "300000" {
+		t.Fatalf("模型卡 context window 未注入 nxs: %+v", options.Env)
 	}
 	if options.Session.ResumeID != "sdk-session-1" {
 		t.Fatalf("resume session_id 不正确: %+v", options)
@@ -127,6 +134,32 @@ func TestBuildAgentClientOptionsUsesProviderRuntimeEnv(t *testing.T) {
 	}
 	if resolveCalls != 1 {
 		t.Fatalf("provider runtime config 解析次数不正确: got=%d want=1", resolveCalls)
+	}
+}
+
+func TestBuildAgentClientOptionsWithConfigReturnsSingleResolvedModelCard(t *testing.T) {
+	resolveCalls := 0
+	configured := &RuntimeConfig{
+		Provider:      "glm",
+		Model:         "glm-5.2",
+		ContextWindow: 128_000,
+	}
+	options, resolved, err := BuildAgentClientOptionsWithConfig(
+		context.Background(),
+		fakeRuntimeConfigResolver{config: configured, calls: &resolveCalls},
+		AgentClientOptionsInput{},
+	)
+	if err != nil {
+		t.Fatalf("BuildAgentClientOptionsWithConfig 失败: %v", err)
+	}
+	if resolveCalls != 1 {
+		t.Fatalf("模型配置应只解析一次: got=%d want=1", resolveCalls)
+	}
+	if resolved != configured || resolved.ContextWindow != 128_000 {
+		t.Fatalf("未返回同一次解析的模型卡: %+v", resolved)
+	}
+	if options.Model != "glm-5.2" {
+		t.Fatalf("SDK options 未使用已解析模型: %+v", options)
 	}
 }
 
@@ -221,6 +254,30 @@ func TestAnthropicRuntimeEnvLeavesToolSearchUnsetForCompatibleProviders(t *testi
 		if _, ok := env[enableToolSearchEnvName]; ok {
 			t.Fatalf("Anthropic-compatible runtime 不应注入 tool search 开关，应交给 SDK 的默认开启策略: %+v", env)
 		}
+	}
+}
+
+func TestBuildAgentClientOptionsProjectsToolSearchByRuntime(t *testing.T) {
+	nxsOptions, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
+		RuntimeKind:       runtimeKindNXS,
+		ToolSearchEnabled: true,
+	})
+	if err != nil {
+		t.Fatalf("构建 nxs options 失败: %v", err)
+	}
+	if nxsOptions.Env[enableToolSearchEnvName] != "1" || nxsOptions.Env[nexusEnableToolSearchEnvName] != "1" {
+		t.Fatalf("nxs ToolSearch 开关未投影: %+v", nxsOptions.Env)
+	}
+
+	claudeOptions, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
+		RuntimeKind:       runtimeKindClaude,
+		ToolSearchEnabled: true,
+	})
+	if err != nil {
+		t.Fatalf("构建 Claude options 失败: %v", err)
+	}
+	if _, ok := claudeOptions.Env[enableToolSearchEnvName]; ok {
+		t.Fatalf("Claude runtime 不应接收 nxs ToolSearch 设置: %+v", claudeOptions.Env)
 	}
 }
 
@@ -415,11 +472,12 @@ func TestBuildAgentClientOptionsPassesExplicitNXSDebugEnv(t *testing.T) {
 func TestBuildAgentClientOptionsDefaultsToNXSChatCompletionsProviderEnv(t *testing.T) {
 	resolver := &fakeRuntimeConfigForRuntimeResolver{
 		config: &RuntimeConfig{
-			Provider:  "openai",
-			AuthToken: "openai-token",
-			BaseURL:   "https://api.openai.com/v1",
-			Model:     "gpt-4o",
-			APIFormat: apiFormatChatCompletions,
+			Provider:      "openai",
+			AuthToken:     "openai-token",
+			BaseURL:       "https://api.openai.com/v1",
+			Model:         "gpt-4o",
+			APIFormat:     apiFormatChatCompletions,
+			ContextWindow: 128000,
 		},
 	}
 	options, err := BuildAgentClientOptions(context.Background(), resolver, AgentClientOptionsInput{})
@@ -433,12 +491,13 @@ func TestBuildAgentClientOptionsDefaultsToNXSChatCompletionsProviderEnv(t *testi
 		t.Fatalf("未启用 nxs runtime: %+v", options.Runtime)
 	}
 	wantEnv := map[string]string{
-		"OPENAI_API_KEY":            "openai-token",
-		"OPENAI_BASE_URL":           "https://api.openai.com/v1",
-		"OPENAI_MODEL":              "gpt-4o",
-		"NEXUS_SUBAGENT_MODEL":      "gpt-4o",
-		NexusRuntimeProviderEnvName: "openai",
-		nexusAPIProviderEnvName:     "openai",
+		"OPENAI_API_KEY":             "openai-token",
+		"OPENAI_BASE_URL":            "https://api.openai.com/v1",
+		"OPENAI_MODEL":               "gpt-4o",
+		"NEXUS_SUBAGENT_MODEL":       "gpt-4o",
+		NexusRuntimeProviderEnvName:  "openai",
+		nexusAPIProviderEnvName:      "openai",
+		nexusMaxContextTokensEnvName: "128000",
 	}
 	for key, want := range wantEnv {
 		if options.Env[key] != want {
@@ -453,6 +512,52 @@ func TestBuildAgentClientOptionsDefaultsToNXSChatCompletionsProviderEnv(t *testi
 	}
 	if options.Model != "gpt-4o" {
 		t.Fatalf("运行时模型未写入 SDK options: %+v", options)
+	}
+}
+
+func TestBuildAgentClientOptionsInjectsWebSearchConfigForNXS(t *testing.T) {
+	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
+		WebSearch: preferencessvc.WebSearchSettings{
+			Enabled:         true,
+			Provider:        "brave",
+			DefaultCount:    7,
+			TimeoutSeconds:  30,
+			CacheTTLSeconds: 60,
+			Country:         "CN",
+		}.WithWebSearchAPIKey("search-key"),
+	})
+	if err != nil {
+		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
+	}
+	if options.Env["NEXUS_WEBSEARCH_API_KEY"] != "search-key" {
+		t.Fatalf("API key 未投影: %+v", options.Env)
+	}
+	var config map[string]any
+	if err := json.Unmarshal([]byte(options.Env["NEXUS_WEBSEARCH_CONFIG"]), &config); err != nil {
+		t.Fatalf("解析 WebSearch 配置失败: %v", err)
+	}
+	if config["enabled"] != true || config["provider"] != "brave" || config["default_count"] != float64(7) || config["timeout_seconds"] != float64(30) || config["cache_ttl_seconds"] != float64(60) || config["country"] != "CN" {
+		t.Fatalf("Nexus 未完整投影 WebSearch 配置: %#v", config)
+	}
+
+	searXNGEnv := BuildWebSearchRuntimeEnv(runtimeKindNXS, preferencessvc.WebSearchSettings{
+		Enabled:  true,
+		Provider: "searxng",
+		BaseURL:  "https://search.example.com",
+	})
+	if err := json.Unmarshal([]byte(searXNGEnv["NEXUS_WEBSEARCH_CONFIG"]), &config); err != nil {
+		t.Fatalf("解析 SearXNG 配置失败: %v", err)
+	}
+	if config["enabled"] != true || config["provider"] != "searxng" || config["base_url"] != "https://search.example.com" {
+		t.Fatalf("SearXNG 必须投影 Base URL: %#v", config)
+	}
+
+	anySearchEnv := BuildWebSearchRuntimeEnv(runtimeKindNXS, preferencessvc.WebSearchSettings{
+		Enabled:  true,
+		Provider: "anysearch",
+	}.WithWebSearchAPIKey("anysearch-key"))
+	if anySearchEnv["NEXUS_WEBSEARCH_API_KEY"] != "anysearch-key" {
+		t.Fatalf("AnySearch API key 未投影: %+v", anySearchEnv)
 	}
 }
 
@@ -644,7 +749,7 @@ func TestBuildAgentClientOptionsInjectsSingleUserScopeEnv(t *testing.T) {
 	}
 }
 
-func TestBuildAgentClientOptionsBypassKeepsQuestionChannel(t *testing.T) {
+func TestBuildAgentClientOptionsBypassKeepsPermissionHandler(t *testing.T) {
 	var handledTools []string
 	handler := func(_ context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
 		handledTools = append(handledTools, request.ToolName)
@@ -687,24 +792,6 @@ func TestBuildAgentClientOptionsBypassKeepsQuestionChannel(t *testing.T) {
 		t.Fatalf("AskUserQuestion 未保留用户答案: %+v", questionDecision)
 	}
 
-	bypassDecision, err := options.Callbacks.PermissionHandler(context.Background(), sdkpermission.Request{
-		ToolName: "Bash",
-		Input: map[string]any{
-			"command": "pwd",
-		},
-	})
-	if err != nil {
-		t.Fatalf("bypass 工具自动放行失败: %v", err)
-	}
-	if len(handledTools) != 1 {
-		t.Fatalf("非提问工具不应进入交互处理器: tools=%+v", handledTools)
-	}
-	if bypassDecision.Behavior != sdkpermission.BehaviorAllow {
-		t.Fatalf("bypass 工具应自动放行: %+v", bypassDecision)
-	}
-	if bypassDecision.UpdatedInput["command"] != "pwd" {
-		t.Fatalf("bypass 工具输入未原样保留: %+v", bypassDecision.UpdatedInput)
-	}
 }
 
 func containsTool(tools []string, expected string) bool {

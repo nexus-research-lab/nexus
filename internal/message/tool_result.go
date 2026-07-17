@@ -1,3 +1,6 @@
+// INPUT: assistant tool_use/tool_result 内容块。
+// OUTPUT: 规范化的工具观察与 Goal 进展判定。
+// POS: runtime 消息到产品进展语义的统一投影。
 package message
 
 import (
@@ -91,6 +94,8 @@ func toolResultCountsForGoalProgress(observation ToolResultObservation) bool {
 	switch CanonicalToolName(observation.ToolName) {
 	case "", "update_goal":
 		return false
+	case "retarget_goal":
+		return !observation.IsError
 	}
 	switch normalizeString(observation.ErrorCode) {
 	case askUserQuestionTimeoutErrorCode, askUserQuestionChannelUnavailableCode:

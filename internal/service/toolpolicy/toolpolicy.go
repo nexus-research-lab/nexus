@@ -1,3 +1,6 @@
+// INPUT: managed skill 名称与 runtime 工具标识。
+// OUTPUT: Goal 等托管能力的允许工具集合。
+// POS: Agent runtime 工具策略的统一投影。
 package toolpolicy
 
 import (
@@ -17,6 +20,7 @@ var managedGoalTools = []string{
 	"nexus_goal",
 	"get_goal",
 	"create_goal",
+	"retarget_goal",
 	"update_goal",
 }
 
@@ -24,9 +28,11 @@ var managedGoalAllowedTools = []string{
 	"nexus_goal",
 	"mcp__nexus_goal__get_goal",
 	"mcp__nexus_goal__create_goal",
+	"mcp__nexus_goal__retarget_goal",
 	"mcp__nexus_goal__update_goal",
 	"get_goal",
 	"create_goal",
+	"retarget_goal",
 	"update_goal",
 	"Skill",
 }

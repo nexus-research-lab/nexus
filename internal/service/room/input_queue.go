@@ -1,10 +1,16 @@
+// INPUT: Room 输入队列控制请求与持久化队列快照。
+// OUTPUT: 跨成员幂等受理结果、队列变更、guide 消费轮身份同步和共享快照事件。
+// POS: Room 用户输入队列的控制面。
 package room
 
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
+	"time"
 
+	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
@@ -12,15 +18,17 @@ import (
 
 // InputQueueRequest 表示 Room 待发送队列控制请求。
 type InputQueueRequest struct {
-	SessionKey     string
-	RoomID         string
-	ConversationID string
-	Action         string
-	ItemID         string
-	Content        string
-	Attachments    []protocol.ChatAttachment
-	OrderedIDs     []string
-	DeliveryPolicy protocol.ChatDeliveryPolicy
+	SessionKey      string
+	RoomID          string
+	ConversationID  string
+	ClientMessageID string
+	Action          string
+	ItemID          string
+	Content         string
+	Attachments     []protocol.ChatAttachment
+	TargetAgentIDs  []string
+	OrderedIDs      []string
+	DeliveryPolicy  protocol.ChatDeliveryPolicy
 }
 
 type roomInputQueueLocation struct {
@@ -108,59 +116,135 @@ func newRoomInputQueueEvent(sessionKey string, roomID string, conversationID str
 }
 
 // HandleInputQueue 处理 Room 待发送队列控制消息。
-func (s *RealtimeService) HandleInputQueue(ctx context.Context, request InputQueueRequest) error {
+func (s *RealtimeService) HandleInputQueue(
+	ctx context.Context,
+	request InputQueueRequest,
+) (protocol.InputQueueMutationResult, error) {
 	sessionKey, contextValue, err := s.resolveInputQueueContext(ctx, request)
 	if err != nil {
-		return err
+		return protocol.InputQueueMutationResult{}, err
 	}
 
 	action := strings.TrimSpace(request.Action)
+	if action == "" {
+		action = "enqueue"
+	}
+	s.inputQueueDispatchMu.Lock()
+	defer s.inputQueueDispatchMu.Unlock()
 	switch action {
-	case "enqueue", "":
+	case "enqueue":
 		content := strings.TrimSpace(request.Content)
 		attachments := s.normalizeChatAttachments(request.Attachments, "", contextValue.Room.ID, contextValue.Conversation.ID)
 		if !protocol.HasChatInput(content, attachments) {
-			return errors.New("content is required")
+			return protocol.InputQueueMutationResult{}, errors.New("content is required")
 		}
-		location, targetAgentIDs, err := s.resolveRoomInputQueuePrimaryLocation(ctx, contextValue, content)
+		clientMessageID := strings.TrimSpace(request.ClientMessageID)
+		if clientMessageID == "" {
+			// 兼容尚未发送 ACK 关联字段的旧客户端；只有新客户端提供并复用
+			// 稳定 ID 时，才能获得跨重试和即时派发后的持久幂等。
+			clientMessageID = "legacy_" + workspacestore.NewInputQueueID()
+		}
+		acceptedEntry, accepted, err := s.findAcceptedRoomInputQueueEnqueue(
+			ctx,
+			contextValue,
+			clientMessageID,
+		)
 		if err != nil {
-			return err
+			return protocol.InputQueueMutationResult{}, err
 		}
 		ownerUserID := authctx.OwnerUserID(ctx)
-		if _, err = s.inputQueue.Enqueue(location, protocol.InputQueueItem{
+		candidate := protocol.InputQueueItem{
 			Scope:          protocol.InputQueueScopeRoom,
-			SessionKey:     location.SessionKey,
 			RoomID:         contextValue.Room.ID,
 			ConversationID: contextValue.Conversation.ID,
-			AgentID:        inputQueueLocationAgentID(location),
-			TargetAgentIDs: targetAgentIDs,
 			Source:         protocol.InputQueueSourceUser,
 			Content:        content,
 			Attachments:    attachments,
 			DeliveryPolicy: protocol.NormalizeChatDeliveryPolicy(string(request.DeliveryPolicy)),
 			OwnerUserID:    ownerUserID,
-		}); err != nil {
-			return err
+		}
+		if accepted {
+			candidate.SessionKey = acceptedEntry.Location.SessionKey
+			candidate.AgentID = acceptedEntry.Item.AgentID
+			if len(request.TargetAgentIDs) > 0 {
+				candidate.TargetAgentIDs = normalizeExplicitTargetAgentIDs(request.TargetAgentIDs)
+			} else {
+				candidate.TargetAgentIDs = acceptedEntry.Item.TargetAgentIDs
+			}
+			if !workspacestore.MatchesInputQueueEnqueueIntent(acceptedEntry.Item, candidate) {
+				return protocol.InputQueueMutationResult{}, workspacestore.ErrInputQueueIdempotencyConflict
+			}
+			return protocol.InputQueueMutationResult{
+				Action:    action,
+				ItemID:    acceptedEntry.Item.ID,
+				Duplicate: true,
+			}, nil
+		}
+		location, targetAgentIDs, err := s.resolveRoomInputQueuePrimaryLocation(
+			ctx,
+			contextValue,
+			content,
+			request.TargetAgentIDs,
+		)
+		if err != nil {
+			return protocol.InputQueueMutationResult{}, err
+		}
+		candidate.SessionKey = location.SessionKey
+		candidate.AgentID = inputQueueLocationAgentID(location)
+		candidate.TargetAgentIDs = targetAgentIDs
+		enqueueResult, err := s.inputQueue.EnqueueIdempotent(location, candidate, clientMessageID)
+		if err != nil {
+			return protocol.InputQueueMutationResult{}, err
+		}
+		if !enqueueResult.Duplicate {
+			if broadcastErr := s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue); broadcastErr != nil {
+				s.loggerFor(ctx).Warn("广播已受理的 Room input_queue 快照失败",
+					"session_key", sessionKey,
+					"item_id", enqueueResult.Item.ID,
+					"err", broadcastErr,
+				)
+			}
+			go s.dispatchNextInputQueueItem(contextWithQueueOwner(context.Background(), ownerUserID), sessionKey, contextValue.Room.ID, contextValue.Conversation.ID)
+		}
+		return protocol.InputQueueMutationResult{
+			Action:    action,
+			ItemID:    enqueueResult.Item.ID,
+			Duplicate: enqueueResult.Duplicate,
+		}, nil
+	case "delete":
+		if s.hasInFlightRoomGuidance(request.ItemID) {
+			return protocol.InputQueueMutationResult{}, errors.New("该引导已发送给智能体，不能再删除")
+		}
+		if err = s.deleteRoomInputQueueItem(ctx, contextValue, request.ItemID); err != nil {
+			return protocol.InputQueueMutationResult{}, err
 		}
 		if err = s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue); err != nil {
-			return err
+			return protocol.InputQueueMutationResult{}, err
 		}
-		go s.dispatchNextInputQueueItem(contextWithQueueOwner(context.Background(), ownerUserID), sessionKey, contextValue.Room.ID, contextValue.Conversation.ID)
-		return nil
-	case "delete":
-		if err = s.deleteRoomInputQueueItem(ctx, contextValue, request.ItemID); err != nil {
-			return err
-		}
-		return s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue)
+		return protocol.InputQueueMutationResult{Action: action, ItemID: strings.TrimSpace(request.ItemID)}, nil
 	case "reorder":
-		if err = s.reorderRoomInputQueueItems(ctx, contextValue, request.OrderedIDs); err != nil {
-			return err
+		for _, itemID := range request.OrderedIDs {
+			if s.hasInFlightRoomGuidance(itemID) {
+				return protocol.InputQueueMutationResult{}, errors.New("已发送给智能体的引导不能重排")
+			}
 		}
-		return s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue)
+		if err = s.reorderRoomInputQueueItems(ctx, contextValue, request.OrderedIDs); err != nil {
+			return protocol.InputQueueMutationResult{}, err
+		}
+		if err = s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue); err != nil {
+			return protocol.InputQueueMutationResult{}, err
+		}
+		return protocol.InputQueueMutationResult{Action: action}, nil
 	case "guide":
-		return s.guideInputQueueItem(ctx, sessionKey, contextValue, request.ItemID)
+		if s.hasInFlightRoomGuidance(request.ItemID) {
+			return protocol.InputQueueMutationResult{}, errors.New("该引导正在等待智能体确认，不能更改投递方式")
+		}
+		if err = s.guideInputQueueItem(ctx, sessionKey, contextValue, request.ItemID); err != nil {
+			return protocol.InputQueueMutationResult{}, err
+		}
+		return protocol.InputQueueMutationResult{Action: action, ItemID: strings.TrimSpace(request.ItemID)}, nil
 	default:
-		return errors.New("unsupported input_queue action")
+		return protocol.InputQueueMutationResult{}, errors.New("unsupported input_queue action")
 	}
 }
 
@@ -178,7 +262,10 @@ func (s *RealtimeService) InputQueueSnapshotEvent(
 	if contextValue == nil {
 		return protocol.EventMessage{}, errors.New("room conversation not found")
 	}
+	s.inputQueueDispatchMu.Lock()
+	s.releaseUndeliveredRoomGuidanceLocked(ctx, sessionKey, contextValue)
 	items, err := s.roomInputQueueItems(ctx, contextValue)
+	s.inputQueueDispatchMu.Unlock()
 	if err != nil {
 		return protocol.EventMessage{}, err
 	}
@@ -204,6 +291,10 @@ func (s *RealtimeService) guideInputQueueItem(
 		if _, err = s.inputQueue.UpdateDeliveryPolicy(entry.Location, entry.Item.ID, protocol.ChatDeliveryPolicyQueue); err != nil {
 			return err
 		}
+		entry.Item.DeliveryPolicy = protocol.ChatDeliveryPolicyQueue
+		if err = s.syncQueuedPublicUserMessage(ctx, sessionKey, contextValue, entry.Item, "", false); err != nil {
+			return err
+		}
 		if err = s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue); err != nil {
 			return err
 		}
@@ -219,8 +310,186 @@ func (s *RealtimeService) guideInputQueueItem(
 	if activeSlot == nil {
 		return s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue)
 	}
-	if _, err = s.inputQueue.UpdateDeliveryPolicy(entry.Location, entry.Item.ID, protocol.ChatDeliveryPolicyGuide); err != nil {
+	if _, err = s.inputQueue.UpdateDeliveryPolicy(
+		entry.Location,
+		entry.Item.ID,
+		protocol.ChatDeliveryPolicyGuide,
+		activeSlot.AgentRoundID,
+	); err != nil {
+		return err
+	}
+	entry.Item.DeliveryPolicy = protocol.ChatDeliveryPolicyGuide
+	entry.Item.RootRoundID = activeSlot.AgentRoundID
+	if err = s.syncQueuedPublicUserMessage(ctx, sessionKey, contextValue, entry.Item, "", false); err != nil {
 		return err
 	}
 	return s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue)
+}
+
+func (s *RealtimeService) syncQueuedPublicUserMessage(
+	ctx context.Context,
+	sessionKey string,
+	contextValue *protocol.ConversationContextAggregate,
+	item protocol.InputQueueItem,
+	rootRoundID string,
+	materialize bool,
+) error {
+	if contextValue == nil || s.roomHistory == nil {
+		return nil
+	}
+	sourceRoundID := roomInputQueueSourceRoundID(item)
+	rootRoundID = strings.TrimSpace(rootRoundID)
+	targetAgentIDs := inputQueueTargetAgentIDs(item)
+	consumingAgentRoundID := ""
+	if materialize && protocol.ShouldGuideRunningRound(item.DeliveryPolicy) && len(targetAgentIDs) == 1 {
+		consumingAgentRoundID = strings.TrimSpace(item.RootRoundID)
+	}
+	userMessageID := strings.TrimSpace(item.SourceMessageID)
+	if userMessageID == "" {
+		userMessageID = "msg_user_" + sourceRoundID
+	}
+	messages, err := s.roomHistory.ReadMessages(contextValue.Conversation.ID, nil)
+	if err != nil {
+		return err
+	}
+	for index := len(messages) - 1; index >= 0; index-- {
+		message := messages[index]
+		messageRoundID := protocol.MessageRoundID(message)
+		messageSourceRoundID, _ := message["source_round_id"].(string)
+		if protocol.MessageRole(message) != "user" ||
+			(message["message_id"] != userMessageID && messageRoundID != sourceRoundID &&
+				strings.TrimSpace(messageSourceRoundID) != sourceRoundID) {
+			continue
+		}
+		updated := protocol.Clone(message)
+		updated["delivery_policy"] = string(item.DeliveryPolicy)
+		messageTargets := roomMessageTargetAgentIDs(message["target_agent_ids"])
+		updatedTargets := mergeRoomMessageTargetAgentIDs(messageTargets, targetAgentIDs)
+		if len(updatedTargets) > 0 {
+			updated["target_agent_ids"] = updatedTargets
+		}
+		messageAgentRoundID, _ := message["agent_round_id"].(string)
+		messageAgentRoundID = strings.TrimSpace(messageAgentRoundID)
+		if len(updatedTargets) > 1 {
+			delete(updated, "agent_round_id")
+		} else if consumingAgentRoundID != "" && messageAgentRoundID == "" {
+			updated["agent_round_id"] = consumingAgentRoundID
+		}
+		annotateRoomUserMessage(contextValue, updated)
+		// 第一位消费者确定公开用户消息的归组；其他 root 只聚合消费目标，
+		// 不能让同一条消息在时间线中随最后完成的 Agent 来回移动。
+		if rootRoundID != "" && rootRoundID != sourceRoundID &&
+			strings.TrimSpace(messageSourceRoundID) == "" &&
+			(messageRoundID == "" || messageRoundID == sourceRoundID) {
+			updated["source_round_id"] = sourceRoundID
+			updated["round_id"] = rootRoundID
+		}
+		messagePolicy, _ := message["delivery_policy"].(string)
+		updatedPolicy, _ := updated["delivery_policy"].(string)
+		updatedSourceRoundID, _ := updated["source_round_id"].(string)
+		updatedAgentRoundID, _ := updated["agent_round_id"].(string)
+		updatedAgentRoundID = strings.TrimSpace(updatedAgentRoundID)
+		if protocol.MessageRoundID(updated) == messageRoundID &&
+			strings.TrimSpace(messagePolicy) == strings.TrimSpace(updatedPolicy) &&
+			strings.TrimSpace(messageSourceRoundID) == strings.TrimSpace(updatedSourceRoundID) &&
+			messageAgentRoundID == updatedAgentRoundID &&
+			slices.Equal(messageTargets, updatedTargets) {
+			return nil
+		}
+		if err = s.persistSharedInlineMessage(contextValue.Conversation.ID, updated); err != nil {
+			return err
+		}
+		s.broadcastSharedEvent(ctx, sessionKey, contextValue.Room.ID, roomdomain.WrapMessageEvent(
+			contextValue.Room.ID,
+			contextValue.Conversation.ID,
+			updated,
+			protocol.MessageRoundID(updated),
+		))
+		return nil
+	}
+	if !materialize || item.Source != protocol.InputQueueSourceUser || sourceRoundID == "" {
+		return nil
+	}
+	messageRoundID := sourceRoundID
+	messageValue := protocol.Message{
+		"message_id":      userMessageID,
+		"session_key":     strings.TrimSpace(sessionKey),
+		"room_id":         contextValue.Room.ID,
+		"conversation_id": contextValue.Conversation.ID,
+		"agent_id":        "",
+		"round_id":        sourceRoundID,
+		"role":            "user",
+		"content":         strings.TrimSpace(item.Content),
+		"timestamp":       time.Now().UnixMilli(),
+		"delivery_policy": string(item.DeliveryPolicy),
+	}
+	if rootRoundID != "" && rootRoundID != sourceRoundID {
+		messageRoundID = rootRoundID
+		messageValue["source_round_id"] = sourceRoundID
+		messageValue["round_id"] = rootRoundID
+	}
+	if consumingAgentRoundID != "" {
+		messageValue["agent_round_id"] = consumingAgentRoundID
+	}
+	if len(targetAgentIDs) > 0 {
+		messageValue["target_agent_ids"] = targetAgentIDs
+	}
+	annotateRoomUserMessage(contextValue, messageValue)
+	if attachments := protocol.NormalizeChatAttachments(item.Attachments, ""); len(attachments) > 0 {
+		messageValue["attachments"] = attachments
+	}
+	if err = s.persistSharedInlineMessage(contextValue.Conversation.ID, messageValue); err != nil {
+		return err
+	}
+	s.broadcastSharedEvent(ctx, sessionKey, contextValue.Room.ID, roomdomain.WrapMessageEvent(
+		contextValue.Room.ID,
+		contextValue.Conversation.ID,
+		messageValue,
+		messageRoundID,
+	))
+	return nil
+}
+
+func roomInputQueueSourceRoundID(item protocol.InputQueueItem) string {
+	if itemID := strings.TrimSpace(item.ID); itemID != "" {
+		if strings.TrimSpace(item.SourceMessageID) != "" {
+			return itemID
+		}
+		return "queue_" + itemID
+	}
+	return strings.TrimSpace(item.SourceMessageID)
+}
+
+func roomMessageTargetAgentIDs(value any) []string {
+	result := make([]string, 0)
+	switch typed := value.(type) {
+	case []string:
+		result = append(result, typed...)
+	case []any:
+		for _, item := range typed {
+			if agentID, ok := item.(string); ok {
+				result = append(result, agentID)
+			}
+		}
+	}
+	return mergeRoomMessageTargetAgentIDs(nil, result)
+}
+
+func mergeRoomMessageTargetAgentIDs(current []string, incoming []string) []string {
+	result := make([]string, 0, len(current)+len(incoming))
+	seen := make(map[string]struct{}, len(current)+len(incoming))
+	for _, values := range [][]string{current, incoming} {
+		for _, agentID := range values {
+			agentID = strings.TrimSpace(agentID)
+			if agentID == "" {
+				continue
+			}
+			if _, ok := seen[agentID]; ok {
+				continue
+			}
+			seen[agentID] = struct{}{}
+			result = append(result, agentID)
+		}
+	}
+	return result
 }

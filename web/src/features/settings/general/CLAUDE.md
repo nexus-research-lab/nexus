@@ -5,7 +5,7 @@ L4 | 父级: web/src/features/settings
 ## 职责
 
 - `settings-general-section.tsx`: 按设置导航分区装配 General、外观、工作区与权限视图
-- `use-general-settings-controller.ts`: 行为、运行时与权限动作编排
+- `use-general-settings-controller.ts`: 常规行为、默认模型与权限动作编排
 - `use-user-preferences.ts`: 用户偏好加载、乐观保存和失败回滚
 - `use-default-model-preferences.ts`: Provider 模型目录请求与默认模型保存事务
 - `use-system-settings.ts`、`use-desktop-settings.ts`、`use-workspace-settings.ts`: 各自独占 Section 所需的资源和命令生命周期

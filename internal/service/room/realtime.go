@@ -1,9 +1,13 @@
+// INPUT: Room 服务依赖、runtime 事件与实时会话请求。
+// OUTPUT: Room round、队列和共享事件的进程内编排状态。
+// POS: Room 实时服务装配与共享状态定义。
 package room
 
 import (
 	"context"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
@@ -51,25 +55,27 @@ func (f defaultRoomClientFactory) New(options agentclient.Options) runtimectx.Cl
 // RoundID / UserMessageID 由后端 mint：WS 入口不填，HandleChat 内部生成；
 // 后端内部调用方（automation / mention / queue）可预置 RoundID。
 type ChatRequest struct {
-	SessionKey           string
-	RoomID               string
-	ConversationID       string
-	AttachmentAgentID    string
-	Content              string
-	GoalContext          string
-	Attachments          []protocol.ChatAttachment
-	TargetAgentIDs       []string
-	ClientRequestID      string
-	ClientMessageID      string
-	RoundID              string
-	UserMessageID        string
-	DeliveryPolicy       protocol.ChatDeliveryPolicy
-	BroadcastUserMessage bool
-	Internal             bool
-	InputOptions         sdkprotocol.OutboundMessageOptions
-	PermissionMode       sdkpermission.Mode
-	PermissionHandler    sdkpermission.Handler
-	EventObserver        RoomEventObserver
+	SessionKey            string
+	RoomID                string
+	ConversationID        string
+	AttachmentAgentID     string
+	Content               string
+	GoalContext           string
+	GoalID                string
+	GoalObjectiveRevision int64
+	Attachments           []protocol.ChatAttachment
+	TargetAgentIDs        []string
+	ClientRequestID       string
+	ClientMessageID       string
+	RoundID               string
+	UserMessageID         string
+	DeliveryPolicy        protocol.ChatDeliveryPolicy
+	BroadcastUserMessage  bool
+	Internal              bool
+	InputOptions          sdkprotocol.OutboundMessageOptions
+	PermissionMode        sdkpermission.Mode
+	PermissionHandler     sdkpermission.Handler
+	EventObserver         RoomEventObserver
 }
 
 // InterruptRequest 表示 Room 会话中断请求。按 root round + agent slot 定位执行对象。
@@ -88,6 +94,7 @@ type MCPServerBuilder func(
 	sourceContextType string,
 	sourceContextID string,
 	sourceContextLabel string,
+	goalObjectiveRevision *atomic.Int64,
 ) map[string]sdkmcp.ServerConfig
 
 type RealtimeService struct {
@@ -101,6 +108,8 @@ type RealtimeService struct {
 	history          *workspacestore.AgentHistoryStore
 	roomHistory      *workspacestore.RoomHistoryStore
 	directedMessages *workspacestore.RoomDirectedMessageStore
+	directedWakes    *workspacestore.RoomDirectedMessageWakeStore
+	publicHandoffs   *workspacestore.RoomPublicHandoffStore
 	inputQueue       *workspacestore.InputQueueStore
 	usage            usageRecorder
 	quota            quotaChecker
@@ -111,8 +120,16 @@ type RealtimeService struct {
 	mcpServers       MCPServerBuilder
 	titles           roomTitleScheduler
 
-	mu           sync.Mutex
-	activeRounds map[string]*activeRoomRound
+	mu                  sync.Mutex
+	activeRounds        map[string]*activeRoomRound
+	activeRoundSequence uint64
+	guidanceMu          sync.Mutex
+	guidance            map[*activeRoomSlot]pendingRoomGuidance
+	// ponytail: one global input/round handoff lock; split per conversation only if contention becomes measurable.
+	inputQueueDispatchMu sync.Mutex
+	// ponytail: one global Agent wake admission lock; split per conversation only if contention becomes measurable.
+	publicMentionDispatchMu sync.Mutex
+	wakeTimers              *roomWakeTimerRegistry
 }
 
 type roomTitleScheduler interface {
@@ -132,17 +149,18 @@ type goalContextProvider interface {
 	RecordUsageForSession(context.Context, string, protocol.GoalUsage, string) (*protocol.Goal, error)
 	RecordUsageForGoal(context.Context, string, protocol.GoalUsage, string) (*protocol.Goal, error)
 	UsageLimitForSession(context.Context, string, string, string) (*protocol.Goal, error)
-	RecordContinuationProgress(context.Context, string, string, bool) (*protocol.Goal, error)
-	RecordContinuationFailure(context.Context, string, string, string) (*protocol.Goal, error)
-	RecordCompletionToolMiss(context.Context, string, string, string) (*protocol.Goal, error)
-	RecordGoalActivity(context.Context, string, string) (*protocol.Goal, error)
+	RecordContinuationProgress(context.Context, string, string, bool, ...int64) (*protocol.Goal, error)
+	RecordContinuationFailure(context.Context, string, string, string, ...int64) (*protocol.Goal, error)
+	RecordCompletionToolMiss(context.Context, string, string, string, ...int64) (*protocol.Goal, error)
+	RecordGoalActivity(context.Context, string, string, ...int64) (*protocol.Goal, error)
 	RecordRoomGoalCollaborationRequired(context.Context, string, string) (*protocol.Goal, error)
-	RecordRoomGoalCollaborationEvidence(context.Context, string, string, string) (*protocol.Goal, error)
+	RecordRoomGoalCollaborationEvidence(context.Context, string, string, string, ...int64) (*protocol.Goal, error)
 }
 
 type goalContinuationProvider interface {
 	PlanContinuationForSession(context.Context, string, string) (*protocol.GoalContinuation, error)
 	GoalContinuationStillCurrent(context.Context, protocol.GoalContinuation) (bool, error)
+	ClaimContinuationPlan(context.Context, protocol.GoalContinuation) (*protocol.Goal, error)
 }
 
 // NewRealtimeService 创建 Room 实时编排服务。
@@ -177,10 +195,13 @@ func NewRealtimeServiceWithFactory(
 		history:          workspacestore.NewAgentHistoryStore(cfg.WorkspacePath),
 		roomHistory:      workspacestore.NewRoomHistoryStore(cfg.WorkspacePath),
 		directedMessages: workspacestore.NewRoomDirectedMessageStore(cfg.WorkspacePath),
+		directedWakes:    workspacestore.NewRoomDirectedMessageWakeStore(cfg.WorkspacePath),
+		publicHandoffs:   workspacestore.NewRoomPublicHandoffStore(cfg.WorkspacePath),
 		inputQueue:       workspacestore.NewInputQueueStore(cfg.WorkspacePath),
 		factory:          factory,
 		logger:           logx.NewDiscardLogger(),
 		activeRounds:     make(map[string]*activeRoomRound),
+		wakeTimers:       newRoomWakeTimerRegistry(),
 	}
 }
 

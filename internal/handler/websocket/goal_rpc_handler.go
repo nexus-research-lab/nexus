@@ -161,6 +161,7 @@ func (h *Handler) sendGoalRPCError(
 	if errors.Is(err, goalsvc.ErrGoalDisabled) ||
 		errors.Is(err, goalsvc.ErrGoalInvalidInput) ||
 		errors.Is(err, goalsvc.ErrGoalInvalidState) ||
+		errors.Is(err, goalsvc.ErrGoalForbidden) ||
 		errors.Is(err, goalsvc.ErrGoalNotFound) ||
 		errors.Is(err, goalsvc.ErrGoalConflict) ||
 		errors.Is(err, goalsvc.ErrGoalVersionStale) {

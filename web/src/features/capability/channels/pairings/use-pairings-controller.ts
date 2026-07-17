@@ -15,7 +15,7 @@ import type { Agent } from "@/types/agent/agent";
 import { notifyCapabilitySummaryMutated } from "../../capability-summary-events";
 import type { ChannelFeedback } from "../channel-model";
 import {
-  countPairingStatus,
+  countPairingStatuses,
   filterPairings,
   groupPairings,
   pairingDisplayName,
@@ -42,20 +42,13 @@ export function usePairingsController() {
   const [deleteTarget, setDeleteTarget] = useState<PairingView | null>(null);
   const [feedback, setFeedback] = useState<ChannelFeedback | null>(null);
   const { pendingAction, runCommand } = usePairingCommand();
-  const filtersRef = useRef(filters);
-  filtersRef.current = filters;
 
   const refresh = useCallback(async (reportError = true): Promise<boolean> => {
     const requestId = ++requestIdRef.current;
-    const currentFilters = filtersRef.current;
     setLoading(true);
     try {
       const [nextItems, nextAgents] = await Promise.all([
-        listPairingsApi({
-          agent_id: currentFilters.agentId,
-          channel_type: currentFilters.channel,
-          status: currentFilters.status,
-        }),
+        listPairingsApi(),
         getAgents(),
       ]);
       if (requestId === requestIdRef.current) {
@@ -81,14 +74,29 @@ export function usePairingsController() {
 
   useEffect(() => {
     void refresh();
-  }, [filters.agentId, filters.channel, filters.status, refresh]);
+  }, [refresh]);
 
   const visibleItems = useMemo(
-    () => filterPairings(items, filters.query),
-    [filters.query, items],
+    () => filterPairings(items, filters),
+    [filters, items],
+  );
+  const statusScopeItems = useMemo(
+    () => filterPairings(items, { ...filters, status: "" }),
+    [filters, items],
+  );
+  const statusCounts = useMemo(
+    () => countPairingStatuses(statusScopeItems),
+    [statusScopeItems],
+  );
+  const pendingItems = useMemo(
+    () => visibleItems.filter((item) => item.status === "pending"),
+    [visibleItems],
   );
   const groups = useMemo(
-    () => groupPairings(visibleItems, agents),
+    () => groupPairings(
+      visibleItems.filter((item) => item.status !== "pending"),
+      agents,
+    ),
     [agents, visibleItems],
   );
 
@@ -188,6 +196,7 @@ export function usePairingsController() {
   ) => {
     setFilters((current) => ({ ...current, [key]: value }));
   }, []);
+  const clearFilters = useCallback(() => setFilters(INITIAL_FILTERS), []);
   const clearFeedback = useCallback(() => setFeedback(null), []);
   const closeCreate = useCallback(() => setCreateOpen(false), []);
   const openCreate = useCallback(() => setCreateOpen(true), []);
@@ -196,10 +205,10 @@ export function usePairingsController() {
   }, []);
 
   return {
-    activeCount: countPairingStatus(items, "active"),
     agents,
     busy: pendingAction !== null,
     clearFeedback,
+    clearFilters,
     closeCreate,
     confirmDelete,
     copySessionKey,
@@ -212,11 +221,12 @@ export function usePairingsController() {
     loading,
     openCreate,
     pairingCreated,
-    pendingCount: countPairingStatus(items, "pending"),
+    pendingItems,
     refresh,
     reportCreateError,
     requestDelete: setDeleteTarget,
     setFilter,
+    statusCounts,
     updatePairing,
     visibleItems,
   };

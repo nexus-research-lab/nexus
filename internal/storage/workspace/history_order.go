@@ -35,6 +35,14 @@ func compareHistoryRowOrder(left protocol.Message, right protocol.Message) int {
 			return 1
 		}
 	}
+	leftDisplayOrder := protocol.Int64FromAny(left["display_order"])
+	rightDisplayOrder := protocol.Int64FromAny(right["display_order"])
+	if leftDisplayOrder != 0 && rightDisplayOrder != 0 && leftDisplayOrder != rightDisplayOrder {
+		if leftDisplayOrder < rightDisplayOrder {
+			return -1
+		}
+		return 1
+	}
 
 	leftMessageID := stringFromAny(left["message_id"])
 	rightMessageID := stringFromAny(right["message_id"])

@@ -1,3 +1,6 @@
+// INPUT: Room Goal 状态/lead、成员目录、协作者 active slot、显式输入队列与上一轮执行结果。
+// OUTPUT: 启动 slot 前对齐的有效 lead，以及所有同 Goal 工作收敛后经原子 claim 的隐藏 continuation。
+// POS: Room 与 Goal 权限/状态机之间的续跑适配层。
 package room
 
 import (
@@ -16,19 +19,22 @@ import (
 
 // ShouldDeferGoalContinuation 避免隐藏 Goal 续跑抢占显式输入，并按 Codex 语义跳过 Plan 模式续跑。
 func (s *RealtimeService) ShouldDeferGoalContinuation(ctx context.Context, sessionKey string) bool {
+	return s.shouldDeferGoalContinuation(ctx, sessionKey, true)
+}
+
+func (s *RealtimeService) shouldDeferGoalContinuation(ctx context.Context, sessionKey string, dispatchQueuedInput bool) bool {
 	sessionKey = strings.TrimSpace(sessionKey)
 	if s == nil || sessionKey == "" {
 		return false
 	}
-	if s.runtime != nil && len(s.runtime.GetRunningRoundIDs(sessionKey)) > 0 {
-		return true
-	}
 	parsed := protocol.ParseSessionKey(sessionKey)
 	if parsed.Kind != protocol.SessionKeyKindRoom || strings.TrimSpace(parsed.ConversationID) == "" {
-		return false
+		return s.runtime != nil && len(s.runtime.GetRunningRoundIDs(sessionKey)) > 0
 	}
 	if s.rooms == nil {
-		return false
+		// Tests and reduced embeddings may not configure the Room repository. In
+		// that case the shared runtime is the only safe source of busy state.
+		return s.runtime != nil && len(s.runtime.GetRunningRoundIDs(sessionKey)) > 0
 	}
 	ctx, contextValue, err := s.internalConversationContext(ctx, parsed.ConversationID, true)
 	if err != nil || contextValue == nil {
@@ -42,16 +48,21 @@ func (s *RealtimeService) ShouldDeferGoalContinuation(ctx context.Context, sessi
 		s.loggerFor(ctx).Warn("读取 Room Goal 续跑待发送队列失败", "session_key", sessionKey, "err", err)
 		return false
 	}
-	entry, ok := s.findDispatchableInputQueueEntry(sessionKey, parsed.ConversationID, entries)
-	if !ok {
+	if len(entries) == 0 {
 		return s.shouldDeferGoalContinuationForTargetState(ctx, sessionKey, contextValue)
 	}
-	s.dispatchNextInputQueueItem(
-		contextWithQueueOwner(ctx, entry.Item.OwnerUserID),
-		sessionKey,
-		contextValue.Room.ID,
-		contextValue.Conversation.ID,
-	)
+	entry, ok := s.findDispatchableInputQueueEntry(sessionKey, parsed.ConversationID, entries)
+	if !ok {
+		return true
+	}
+	if dispatchQueuedInput {
+		s.dispatchNextInputQueueItem(
+			contextWithQueueOwner(ctx, entry.Item.OwnerUserID),
+			sessionKey,
+			contextValue.Room.ID,
+			contextValue.Conversation.ID,
+		)
+	}
 	return true
 }
 
@@ -60,7 +71,16 @@ func (s *RealtimeService) shouldDeferGoalContinuationForTargetState(
 	sessionKey string,
 	contextValue *protocol.ConversationContextAggregate,
 ) bool {
-	if s == nil || s.agents == nil || contextValue == nil {
+	if s == nil || contextValue == nil {
+		return false
+	}
+	s.publicMentionDispatchMu.Lock()
+	activeBlocker := s.activeRoomGoalBlocker(sessionKey, contextValue.Conversation.ID, "", "")
+	s.publicMentionDispatchMu.Unlock()
+	if activeBlocker != "" {
+		return true
+	}
+	if s.agents == nil {
 		return false
 	}
 	agentNameByID, agentByID, err := s.buildAgentDirectory(ctx, contextValue)
@@ -70,6 +90,13 @@ func (s *RealtimeService) shouldDeferGoalContinuationForTargetState(
 	}
 	targetAgentID := goalContinuationTargetAgentID(contextValue, agentNameByID, s.currentRoomGoalForSession(ctx, sessionKey))
 	if targetAgentID == "" {
+		return true
+	}
+	if len(s.findActiveDeliverySlotsByAgent(
+		sessionKey,
+		contextValue.Conversation.ID,
+		[]string{targetAgentID},
+	)) > 0 {
 		return true
 	}
 	agentValue := agentByID[targetAgentID]
@@ -145,6 +172,40 @@ type currentGoalProvider interface {
 	CurrentOptional(context.Context, string) (*protocol.Goal, error)
 }
 
+type roomGoalLeadSetter interface {
+	SetRoomGoalLead(context.Context, string, string, string) (*protocol.Goal, error)
+}
+
+func (s *RealtimeService) reconcileRoomGoalLead(
+	ctx context.Context,
+	sessionKey string,
+	contextValue *protocol.ConversationContextAggregate,
+	agentNameByID map[string]string,
+) error {
+	provider, hasProvider := s.goals.(currentGoalProvider)
+	setter, hasSetter := s.goals.(roomGoalLeadSetter)
+	if !hasProvider || !hasSetter || contextValue == nil {
+		return nil
+	}
+	goal, err := provider.CurrentOptional(ctx, sessionKey)
+	if err != nil {
+		return err
+	}
+	if goal == nil {
+		return nil
+	}
+	leadAgentID := goalContinuationTargetAgentID(contextValue, agentNameByID, goal)
+	if leadAgentID == "" {
+		return fmt.Errorf("Room Goal %s has no valid lead; assign a Room host or Goal lead before continuing", goal.ID)
+	}
+	leadName := strings.TrimSpace(agentNameByID[leadAgentID])
+	if goalsvc.RoomLeadAgentID(*goal) == leadAgentID && goalsvc.RoomLeadAgentName(*goal) == leadName {
+		return nil
+	}
+	_, err = setter.SetRoomGoalLead(ctx, goal.ID, leadAgentID, leadName)
+	return err
+}
+
 func (s *RealtimeService) currentRoomGoalForSession(ctx context.Context, sessionKey string) *protocol.Goal {
 	provider, ok := s.goals.(currentGoalProvider)
 	if !ok {
@@ -206,6 +267,9 @@ func (s *RealtimeService) dispatchGoalContinuation(ctx context.Context, roundVal
 		return
 	}
 	if err := s.DispatchGoalContinuation(ctx, *plan); err != nil {
+		if goalsvc.IsExpectedMutationError(err) {
+			return
+		}
 		s.recordGoalContinuationDispatchFailure(ctx, *plan, err)
 		s.loggerFor(ctx).Warn("启动 Room Goal 自动续跑失败",
 			"session_key", roundValue.SessionKey,
@@ -224,7 +288,8 @@ func (s *RealtimeService) recordGoalContinuationDispatchFailure(ctx context.Cont
 	if reason == "" {
 		reason = "Goal continuation dispatch failed before runtime start"
 	}
-	if _, err := s.goals.RecordContinuationFailure(ctx, plan.Goal.ID, plan.RoundID, reason); err != nil {
+	if _, err := s.goals.RecordContinuationFailure(ctx, plan.Goal.ID, plan.RoundID, reason, plan.Goal.ObjectiveRevision()); err != nil &&
+		!goalsvc.IsExpectedMutationError(err) {
 		s.loggerFor(ctx).Warn("记录 Room Goal 续跑投递失败原因失败",
 			"session_key", plan.Goal.SessionKey,
 			"goal_id", plan.Goal.ID,
@@ -239,6 +304,34 @@ func (s *RealtimeService) DispatchGoalContinuation(ctx context.Context, plan pro
 	if s == nil {
 		return errors.New("room goal continuation dispatcher is not configured")
 	}
+	planner, ok := s.goals.(goalContinuationProvider)
+	if !ok {
+		return errors.New("room goal continuation provider is not configured")
+	}
+	s.inputQueueDispatchMu.Lock()
+	defer s.inputQueueDispatchMu.Unlock()
+
+	validated, err := goalsvc.ValidateContinuationForDispatch(
+		ctx,
+		planner,
+		plan,
+		func(candidate protocol.GoalContinuation) bool {
+			return s.shouldDeferGoalContinuation(ctx, candidate.Goal.SessionKey, false)
+		},
+	)
+	if err != nil || validated == nil {
+		return err
+	}
+	if _, err = planner.ClaimContinuationPlan(ctx, *validated); err != nil {
+		return err
+	}
+	if err := s.dispatchPreparedGoalContinuation(ctx, *validated); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *RealtimeService) dispatchPreparedGoalContinuation(ctx context.Context, plan protocol.GoalContinuation) error {
 	sessionKey := strings.TrimSpace(plan.Goal.SessionKey)
 	parsed := protocol.ParseSessionKey(sessionKey)
 	if parsed.Kind != protocol.SessionKeyKindRoom || strings.TrimSpace(parsed.ConversationID) == "" {
@@ -249,15 +342,17 @@ func (s *RealtimeService) DispatchGoalContinuation(ctx context.Context, plan pro
 	if collaborationContext != "" {
 		s.recordRoomGoalCollaborationRequired(ctx, plan.Goal.ID, plan.RoundID)
 	}
-	return s.HandleChat(ctx, ChatRequest{
-		SessionKey:     sessionKey,
-		ConversationID: parsed.ConversationID,
-		GoalContext:    goalContext,
-		TargetAgentIDs: targetAgentIDs,
-		RoundID:        plan.RoundID,
-		DeliveryPolicy: protocol.ChatDeliveryPolicyQueue,
-		Internal:       true,
-		InputOptions:   goalContinuationInputOptions(plan),
+	return s.handleChat(ctx, ChatRequest{
+		SessionKey:            sessionKey,
+		ConversationID:        parsed.ConversationID,
+		GoalContext:           goalContext,
+		GoalID:                plan.Goal.ID,
+		GoalObjectiveRevision: plan.Goal.ObjectiveRevision(),
+		TargetAgentIDs:        targetAgentIDs,
+		RoundID:               plan.RoundID,
+		DeliveryPolicy:        protocol.ChatDeliveryPolicyQueue,
+		Internal:              true,
+		InputOptions:          goalContinuationInputOptions(plan),
 	})
 }
 

@@ -26,18 +26,22 @@ func (stubRoomMCPService) HandlePublicMessage(
 	string,
 	protocol.CreateRoomPublicMessageRequest,
 ) (protocol.Message, error) {
-	return protocol.Message{}, nil
+	return protocol.Message{"message_id": "public-1"}, nil
+}
+
+func (stubRoomMCPService) MarkPublicMessagePublished(context.Context, string, string, string) error {
+	return nil
 }
 
 func TestRoomMCPBuilderOnlyAddsServerForRoomRuntime(t *testing.T) {
 	builder := newRoomMCPBuilder(stubRoomMCPService{}, nil, nil)
 
-	servers := builder("agent-1", protocol.BuildRoomSharedSessionKey("conversation-1"), "room", "room-1", "狼人杀")
+	servers := builder("agent-1", protocol.BuildRoomSharedSessionKey("conversation-1"), "round-1", "room", "room-1", "狼人杀")
 	if _, ok := servers["nexus_room"].(sdkmcp.SDKServerConfig); !ok {
 		t.Fatalf("Room runtime 应注入 nexus_room SDK server: %+v", servers)
 	}
 
-	if dmServers := builder("agent-1", "agent:agent-1:ws:dm:session-1", "agent", "agent-1", "Agent"); len(dmServers) != 0 {
+	if dmServers := builder("agent-1", "agent:agent-1:ws:dm:session-1", "round-1", "agent", "agent-1", "Agent"); len(dmServers) != 0 {
 		t.Fatalf("非 Room runtime 不应注入 nexus_room: %+v", dmServers)
 	}
 }
@@ -53,7 +57,7 @@ func TestRoomMCPBuilderUsesRoomPrivateMessageSetting(t *testing.T) {
 		},
 	)
 
-	servers := builder("agent-1", protocol.BuildRoomSharedSessionKey("conversation-1"), "room", "room-1", "狼人杀")
+	servers := builder("agent-1", protocol.BuildRoomSharedSessionKey("conversation-1"), "round-1", "room", "room-1", "狼人杀")
 	config, ok := servers["nexus_room"].(sdkmcp.SDKServerConfig)
 	if !ok {
 		t.Fatalf("Room runtime 应注入 nexus_room SDK server: %+v", servers)
@@ -76,5 +80,8 @@ func TestRoomMCPBuilderUsesRoomPrivateMessageSetting(t *testing.T) {
 	}
 	if !names["send_directed_message"] {
 		t.Fatalf("Room 开启私信时应暴露 send_directed_message: %+v", tools)
+	}
+	if !names["publish_public_message"] {
+		t.Fatalf("Room 开启私信时应暴露特殊流程的 publish_public_message: %+v", tools)
 	}
 }

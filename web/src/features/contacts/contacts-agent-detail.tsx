@@ -2,8 +2,8 @@
 
 import { useCallback, useMemo } from "react";
 import {
-  ArrowLeft,
   Album,
+  ArrowLeft,
   Brain,
   Handshake,
   MessageSquareText,
@@ -15,8 +15,8 @@ import {
 import { AgentPrivateDomainView } from "@/features/agents/private-domain/agent-private-domain-view";
 import { AgentOptionsInlineEditor } from "@/features/agents/options/agent-options-editor";
 import {
-  buildAgentOptionsEditSource,
   type AgentOptionsTabKey,
+  buildAgentOptionsEditSource,
 } from "@/features/agents/options/agent-options-editor-model";
 import { AgentMemoryView } from "@/features/memory/agent-memory-view";
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
@@ -64,15 +64,15 @@ export function ContactsAgentDetail({
 }: ContactsAgentDetailProps) {
   const { t } = useI18n();
   const [activeTab, setActiveTab] = useResettableState<ContactDetailTabKey>(
-    "private_domain",
+    "identity",
     agent.agent_id,
   );
 
   const configTabs = useMemo(
     () => [
+      { key: "identity" as AgentOptionsTabKey, label: t("agent_options.nav.identity"), icon: UserPen },
       { key: "private_domain" as ContactDetailTabKey, label: "联络", icon: Handshake },
       { key: "memory" as ContactDetailTabKey, label: t("capability.memory"), icon: Brain },
-      { key: "identity" as AgentOptionsTabKey, label: t("agent_options.nav.identity"), icon: UserPen },
       { key: "advanced" as AgentOptionsTabKey, label: t("agent_options.nav.tools"), icon: ToolCase },
       { key: "skills" as AgentOptionsTabKey, label: t("agent_options.nav.skills"), icon: Album },
     ],
@@ -119,9 +119,7 @@ export function ContactsAgentDetail({
         <MessageSquareText className="h-3.5 w-3.5" />
         {t("contacts.chat")}
       </WorkspaceSurfaceToolbarAction>
-      <WorkspaceSurfaceToolbarAction
-        onClick={() => onCreateTeam(agent.agent_id)}
-      >
+      <WorkspaceSurfaceToolbarAction onClick={() => onCreateTeam(agent.agent_id)}>
         <Users className="h-3.5 w-3.5" />
         {t("contacts.create_team")}
       </WorkspaceSurfaceToolbarAction>
@@ -132,8 +130,8 @@ export function ContactsAgentDetail({
     <div className="flex min-w-0 flex-wrap items-center gap-1.5">
       {tagLabels.map((tag) => (
         <span
-          className="max-w-[120px] truncate rounded-[6px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_72%,transparent)] bg-transparent px-2 py-0.5 text-[10.5px] font-medium text-(--text-muted)"
           key={tag}
+          className="max-w-[120px] truncate rounded-[6px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_72%,transparent)] bg-transparent px-2 py-0.5 text-[10.5px] font-medium text-(--text-muted)"
           title={tag}
         >
           {tag}
@@ -146,7 +144,14 @@ export function ContactsAgentDetail({
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <WorkspaceSurfaceHeader
         activeTab={activeTab}
-        leading={<UiAgentAvatar avatar={agent.avatar} className="h-full w-full border-0 shadow-none" name={agent.name} size="sm" />}
+        leading={
+          <UiAgentAvatar
+            avatar={agent.avatar}
+            className="h-full w-full border-0 shadow-none"
+            name={agent.name}
+            size="sm"
+          />
+        }
         onChangeTab={setActiveTab}
         tabs={configTabs}
         title={agent.name}

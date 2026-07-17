@@ -4,6 +4,12 @@ title: Six-Player Werewolf
 description: Werewolf game rules for one host and six players in a Nexus Room.
 scope: room
 tags: [room, game, werewolf]
+runtime_instructions: |
+  Run a six-player game with one host, two wolves, one seer, one witch, and two villagers. Good wins when both wolves die; wolves win when all villagers or all special roles die.
+  Keep roles, night choices, seer results, potion state, and host state in directed messages. Public feed contains only phase announcements, speeches, votes, deaths without roles, last words, and the final reveal.
+  Night is serial: wolves choose a victim, seer checks one player, witch decides antidote/poison, then the host announces daybreak. Send the wolf message to both wolves but put only the named collector in wake_targets. Each actionable night message routes one private final reply to the host and wakes the host; the witch route adds next_reply_route public for daybreak.
+  Day uses one public non-code @ handoff at a time: speech chain, vote chain, optional tie-break, last words, then the next night. Future members and examples must not contain a naked @. Public replies never include hidden-role reasoning.
+  The host records minimal private state after every phase, checks the win condition after deaths, and stops immediately after the public result.
 ---
 
 # Six-Player Werewolf
@@ -43,13 +49,14 @@ Hidden collection must always name the handback route:
 
 The player answers in plain text. Runtime projects that answer back to the host privately and wakes the host immediately. If the host's next final reply should be public, include `"next_reply_route": {"mode": "public"}` on the original message; otherwise omit it and the host can continue with private tool calls plus `<nexus_room_no_reply/>`.
 
-For small-group discussion, send one directed message to all group members, but still assign one member as the final collector:
+For small-group visibility, send one directed message to all group members and wake only the final collector:
 
 ```json
 {
   "tool": "nexus_room.send_directed_message",
   "arguments": {
     "recipients": ["<wolfA>", "<wolfB>"],
+    "wake_targets": ["<wolfA>"],
     "wake_policy": "immediate",
     "reply_route": {
       "mode": "private",
@@ -61,7 +68,7 @@ For small-group discussion, send one directed message to all group members, but 
 }
 ```
 
-Every recipient inherits the same `reply_route`, so the content must name one collector and instruct the others to output `<nexus_room_no_reply/>`. If two recipients both reply, the route fires twice and the host is woken twice.
+Both wolves can see the message, but only `<wolfA>` is activated. This separates private visibility from execution and guarantees one handback route.
 
 Never "open a discussion and wait." The platform will not infer that a small group is done. A named player must hand the result back through `reply_route=private(... wake=immediate)`.
 
@@ -98,9 +105,9 @@ Close these steps in order. Every hidden decision uses a directed message with `
 
 ### 1. Werewolves
 
-1. Host sends one directed message to both wolves, waking both. The reply_route (`private([host], wake=immediate)`) is shared by every recipient, so the content must name exactly one collector and tell the other wolf to stay silent. Content: "天黑了，你们是狼人。由 <wolfA> 汇总并回复今晚击杀目标名字（只回名字）。<wolfB> 只在本轮私下补充意见即可，最终不要回复主持人——请直接输出 `<nexus_room_no_reply/>`，否则主持人会收到两个目标。"
+1. Host sends one directed message to both wolves with `wake_targets=["<wolfA>"]`. Content names `<wolfA>` as collector and asks for one kill target.
 2. Collector wolf (`<wolfA>`) answers a target name in this turn. Do not answer "等队友确认"; that stalls.
-3. **Non-collector wolf (`<wolfB>`) must output `<nexus_room_no_reply/>`.** If it answers a target too, the host is woken twice with conflicting kills.
+3. `<wolfB>` sees the same private record but is not activated by this message.
 4. The collector's reply wakes the host. Host records the kill and immediately proceeds to Seer.
 
 ### 2. Seer

@@ -1,159 +1,156 @@
-# Room 规范
+# Room 模块规范
 
-## 1. 文档目标
+## 1. 文档定位
 
-本文档定义 Room 体系的当前边界：
+本文只定义 Room 模块的领域边界和数据归属，不重复消息历史、`session_key` 或 Room Skill 的细节。
 
-- Room / Conversation / Session 各是什么
-- 共享历史和私有 runtime 如何分层
-- Room 页面到底消费哪一层数据
+相关规范：
 
-## 2. 核心对象
+- [消息处理规范](./message-processing-spec.md)：实时消息、历史投影和 round 分页。
+- [Session Key 规范](./session-key-spec.md)：共享会话键、Agent 私有会话键和恢复键。
+- [Room 协作协议](./room-collaboration-spec.md)：公区、私域、唤醒和回复投影。
+- [Room Skill 编写指南](./room-collaboration-mechanism.md)：面向 Skill 作者的最小行为规则。
 
-### 2.1 room
+本文描述 Room 的当前领域边界，以及已经确认的 P0 持久化、派发和投影约束；具体实现可以分阶段落地，但不得偏离这些边界。
 
-- 协作容器
-- 挂成员、对话和整体展示信息
+## 2. 模块范围
 
-### 2.2 member
+Room 模块负责：
 
-- Room 成员关系
-- 挂在 Room 上，不挂在 Conversation 上
+- 房间、成员和 conversation 的生命周期。
+- Room conversation 的共享消息投影。
+- 每个成员 Agent 的私有 runtime 启动、恢复、中断和清理。
+- 公区输入、成员目标解析、Room round 和输入队列。
+- Group Room 的 directed message、私域上下文和唤醒。
+- Room 级配置：host 默认接管、Room Skill 和私域消息开关。
 
-### 2.3 conversation
+以下内容不属于本规范：
 
-- Room 内的一条共享对话
-- 前端主路由以 `conversation_id` 为准
+- Goal 的业务状态、预算和续跑规则。
+- Agent runtime 内部的 provider、工具执行和 transcript 格式。
+- 通用消息归一化与前端时间线渲染。
+- Room Skill 的业务规则（例如投票、顺序、胜负和收口条件）。
 
-### 2.4 room session
+## 3. 核心对象
 
-- 某个 `conversation + agent` 的运行时记录
-- 主要保存：
-  - `sdk_session_id`
-  - 运行状态
-  - 最近活动时间
+### 3.1 Room
 
-### 2.5 shared conversation
+Room 是成员和 conversation 的容器。当前有两种类型：
 
-- 前端主聊天面板消费的共享消息流
-- 对应共享 `room:group:<conversation_id>` 语义
+- `room`：多人协作 Room，可配置 host、Room Skill 和 directed message。
+- `dm`：单 Agent 直聊的 Room 外壳，不启用 Room Skill 或 directed message。
 
-### 2.6 private runtime session
+### 3.2 Member
 
-- 某个 agent 在该 conversation 内的私有 runtime
-- 对应 `agent:<agent_id>:ws:group:<conversation_id>`
+Member 是 Room 的成员关系。成员类型只有：
 
-## 3. 真相源分层
+- `user`：Room owner。
+- `agent`：参与该 Room 的 Agent。
 
-### 3.1 结构关系
+成员属于 Room，不属于某条 conversation。Agent 是否能被路由，以当前 Room 成员表为准。
 
-SQL 是真相源：
+### 3.3 Conversation
 
-- rooms
-- members
-- conversations
-- sessions
+Conversation 是 Room 内独立的共享对话。每个 Room 至少有一个主 conversation，也可以有 `topic` conversation。
 
-### 3.2 共享历史
+`conversation_id` 是 Room 页面和 Room HTTP API 的共享对话路由键。删除 topic 会同时关闭其运行时；主 conversation 不能删除。
 
-Room shared 历史当前是：
+### 3.4 Session
 
-- inline overlay
-- transcript_ref
+Session 是数据库中的 `conversation + agent` 运行时索引，保存 runtime 标识、版本、状态和最近活动时间。它不是前端路由键，也不是 SDK resume id。
 
-不再保存第二份完整正文副本。
+每个 Group Room conversation 的每个 Agent 有独立的私有 runtime session。DM 只有一个 Agent session。
 
-硬规则：
+### 3.5 Round 与 slot
 
-- `assistant` 共享正文来自成员 transcript
-- `result` 共享终态来自 shared inline overlay
-- `transcript_ref` 只允许引用 assistant
+- `round`：一次共享输入或一次 Room 唤醒形成的执行批次。
+- `slot`：该 round 中某个 Agent 的实际执行槽。
 
-### 3.3 私有历史
+Room 可以在同一 root round 下运行多个 Agent slot；`agent_round_id` 标识 slot，`round_id` 对外表示根 round。
 
-成员私有历史来自：
+## 4. 两层运行模型
 
-- `cc transcript`
-- 私有 session overlay
+Room 必须把共享协作层和成员执行层分开：
 
-补充约束：
+| 层 | 负责什么 | 主要真相源 |
+| --- | --- | --- |
+| Shared conversation | 公区事实、用户消息、共享历史和 Room 页面 | SQL 关系 + Room overlay + transcript reference |
+| Agent runtime session | 单个 Agent 的模型上下文、工具执行、恢复和私域消费位置 | runtime transcript + Agent overlay |
 
-- transcript assistant 是否完成，只认 `message.stop_reason`
-- room / dm 页面看到的 assistant 终态，不依赖独立 `result` 消息是否存在
-- `round_marker` 只负责把 transcript user 绑定回 Nexus round 语义，不负责定义 assistant 终态
-- 私有 `result` 不读 transcript，只读 overlay
+共享层可以引用成员 transcript 的已完成 assistant，但不拥有成员的完整私有正文。成员 runtime 也不能直接代替 Room shared 视图。
 
-## 4. Room 与 session 的关系
+## 5. 历史与投影边界
 
-### 4.1 共享面板
+### 5.1 Room shared 历史
 
-- 前端看的是共享 conversation
-- 路由主键是 `room_id + conversation_id`
+Room shared 历史由两类行组成：
 
-### 4.2 成员运行时
+- inline overlay：用户消息、合成 assistant、result 摘要和其他 Nexus 语义。
+- `transcript_ref`：指向成员 transcript 中已完成 assistant 的引用。
 
-- 每个成员拥有自己的 runtime session
-- 只用于执行、恢复、权限绑定和 transcript 真相源
+读取时解析引用并统一投影；对外展示以已收口的 assistant 为主，result 作为 `result_summary` 附着在 assistant 上。未完成的过程态不能成为公区事实，错误和中断只以终态摘要出现。
+公区 assistant 的 `agent_mentions` 随 transcript reference 一起保留，不能只存在于实时事件或内存 handoff 中。
 
-### 4.3 不允许混用
+### 5.2 成员私有历史
 
-- `conversation_id` 不是私有 runtime key
-- `sdk_session_id` 不是前端路由键
-- SQL `sessions.id` 不是共享会话协议
+成员 runtime 的完整上下文保留在自己的 transcript 与 overlay 中。Room 公区 cursor、directed message cursor 和 checkpoint 只表示消费边界，不是业务阶段状态。
 
-## 5. 当前消息链路
+### 5.3 禁止替代
 
-### 5.1 用户发消息
+- 不用 shared overlay 代替 Agent runtime transcript。
+- 不用 Agent transcript 直接代替 Room shared 历史。
+- 不用 `sdk_session_id`、数据库 `sessions.id` 或 `session_key` 反推 Room 页面路由。
 
-1. 前端向共享会话发送 chat
-2. 后端创建主 round
-3. mention / 调度逻辑唤起相关成员 runtime
+## 6. 输入与输出主链
 
-### 5.2 成员执行
+### 6.1 用户公区输入
 
-每个被调度的成员：
+1. 入口校验共享键 `room:group:<conversation_id>`；DM 的执行由唯一 Agent session 承接。
+2. 解析目标 Agent：显式 `target_agent_ids`、文本 `@`、单成员默认、host 默认接管；仍无目标时沿最近活跃 root round 的成员继续投递。
+3. 用户消息最终写入 shared overlay 并广播实时事件；忙碌目标先登记持久化输入队列，派发时补齐或更新公区投影。
+4. 为目标 Agent 创建、复用或排队 round slot；忙碌目标进入 guide/queue/interrupt 路径。
+5. 已收口的执行终态按 transcript 引用或合成 assistant 投影到 shared overlay。
+6. assistant 公区终态中的非代码 `@成员` 在其 source slot 成功收口后立即触发 handoff；同一 root round 的其他 slot 可以继续运行。
 
-- 在自己的 transcript 中产生私有历史
-- 共享层对 assistant 写入 transcript_ref
-- 共享层对 result / synthetic 写入 inline overlay
+以上规则仍没有可解析目标时，消息仍可记录，但不会启动 Agent；平台只返回目标提示，不替业务规则猜测目标。
 
-### 5.3 前端展示
+### 6.2 Agent 私域输入
 
-Room 页面读取共享历史，再按 round 归一化展示。
+Group Room 且 `private_messages_enabled=true` 时，runtime 才获得 Room 协作工具。`send_directed_message` 负责写入私域记录并按策略唤醒；被唤醒成员的 final reply 按 `reply_route` 投影。
 
-## 6. 当前上下文接口
+### 6.3 公区主动广播
 
-Room 页面主要依赖：
+普通公开发言使用当前 round 的 final reply。`publish_public_message` 只用于私域或 tool-driven 流程需要额外发布一条公区事实的场景；成功后当前 slot 不再重复投影默认 final reply。
 
-- room context 聚合
-- conversation messages 分页
+## 7. 路由键的职责
 
-room contexts 现在需要能直接给出足够的 member summary，避免页面再额外拉全量 agent 列表。
+| 用途 | 使用的键 |
+| --- | --- |
+| Room 页面/API | `room_id + conversation_id` |
+| Room/DM shared stream | `room:group:<conversation_id>` |
+| 某 Agent 的 Room runtime | 由 `BuildRoomAgentSessionKey` 生成的 Agent key |
+| SDK transcript 恢复 | `sdk_session_id` |
+| 数据库运行时索引 | `sessions.id` |
 
-## 7. 分页规则
+任何跨层调用都必须使用对应 builder/parser，不手拼字符串。
 
-Room 历史现在按 round 分页，不再按 message 行分页。
+## 8. 稳定不变量
 
-规则：
+- Room 成员、conversation 和 session 的归属由 SQL 校验。
+- 共享正文与私有正文的来源显式分离。
+- 私域正文不会因普通投影自动进入 public feed。
+- public handoff 由独立的 append-only ledger 持久化；Input queue 只负责忙碌目标的投递。
+- `source_agent_id`、Room scope 和 root/cause 关联由受控运行时/后端绑定；`reply_route` 必须由后端校验并按成员范围归一化。
+- cursor 只在实际消费到连续输入后推进；失败或取消不能无条件标记已读。
+- Room Skill 决定业务流程，Room 平台只负责路由、可见性、持久化、唤醒和运行时护栏。
 
-- 首屏最近一页
-- 上滚加载更早 round
-- Room 多 agent 子轮次会折回主 round
-- 同一 round 对外稳定顺序是 `user -> assistant`
-- assistant 的终态摘要通过 `result_summary` 挂载
+## 9. 不在这里解决的问题
 
-## 8. 当前实现约束
+以下问题应在对应规范或业务模块中讨论，不回填到 Room 核心模型：
 
-- Room shared 已不再读旧 `messages.jsonl`
-- 成员私有完整副本也已移除
-- 旧历史只允许通过迁移命令转换，不再参与运行时
+- Goal 是否完成、如何续跑以及如何计费。
+- 业务 Skill 的阶段、顺序、投票、主持人和超时。
+- 前端时间线如何分组、折叠和分页。
+- runtime provider、MCP 工具和 transcript 的内部协议。
 
-## 9. 禁止项
-
-- 用共享历史替代私有 runtime transcript
-- 用私有 runtime transcript 直接替代 Room shared 视图
-- 从 `session_key` 回推 Room 路由
-
-## 10. 一句话总结
-
-Room 是共享协作层，session 是成员运行时层；两者必须协同，但不能混成一层。
+一句话：Room 是共享协作容器；conversation 是共享对话；session/slot 是成员执行边界。共享视图和私有运行时必须协同，但不能混成一层。

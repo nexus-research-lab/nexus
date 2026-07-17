@@ -185,7 +185,7 @@ func TestFetchModelsKeepsExistingDefaultRuntimeModel(t *testing.T) {
 	}
 }
 
-func TestFetchModelsDoesNotInferModelCardsFromNames(t *testing.T) {
+func TestFetchModelsFillsKnownContextWithoutInferringCapabilities(t *testing.T) {
 	ctx := context.Background()
 	service, _ := newTestService(t)
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -216,8 +216,15 @@ func TestFetchModelsDoesNotInferModelCardsFromNames(t *testing.T) {
 		if model.Category != "chat" {
 			t.Fatalf("不应根据模型名推断 category: %+v", model)
 		}
-		if model.ContextWindow != nil || model.MaxOutputTokens != nil {
-			t.Fatalf("不应根据模型名推断 token 窗口: %+v", model)
+		if model.ModelID == "kimi-for-coding" {
+			if model.ContextWindow == nil || *model.ContextWindow != 262_144 {
+				t.Fatalf("已知模型应补齐 context_window: %+v", model)
+			}
+		} else if model.ContextWindow != nil {
+			t.Fatalf("未知上下文窗口不应被猜测: %+v", model)
+		}
+		if model.MaxOutputTokens != nil {
+			t.Fatalf("不应根据模型名推断 max_output_tokens: %+v", model)
 		}
 		capabilities := model.CapabilitiesAuto
 		if capabilities.Vision != nil ||

@@ -17,14 +17,14 @@ export const StreamingCodeBlock = memo(function StreamingCodeBlock({
     <CodeShell
       language={language}
       rightSlot={(
-        <span className="message-cjk-code-font text-[11px]" style={{ color: "var(--text-muted)" }}>
+        <span className="message-code-font text-[11px]" style={{ color: "var(--text-muted)" }}>
           输出中
         </span>
       )}
       contentClassName="overflow-x-auto"
     >
       <pre
-        className="message-cjk-code-font min-w-full whitespace-pre px-4 py-3.5 text-[13px] leading-[1.6]"
+        className="message-code-font min-w-full whitespace-pre px-3 py-2.5 text-[12px] leading-[1.5]"
         style={{ color: "var(--text-strong)" }}
       >
         {value}

@@ -1,7 +1,6 @@
-import { memo, useMemo, useRef } from "react";
+import { memo, useRef } from "react";
 
 import {
-  buildRoundIndexItemMap,
   resolveConversationRound,
   type ConversationFeedProps,
 } from "./conversation-feed-model";
@@ -35,10 +34,6 @@ function StaticConversationFeed({
   renderer,
   source,
 }: ConversationFeedProps) {
-  const roundIndexItemById = useMemo(
-    () => buildRoundIndexItemMap(source.roundIndexItems),
-    [source.roundIndexItems],
-  );
   const unavailableScrollRef = useRef<HTMLDivElement>(null);
   useConversationRoundNavigation({
     roundIds: source.roundIds,
@@ -60,7 +55,6 @@ function StaticConversationFeed({
         return (
           <ConversationRound
             key={roundId}
-            indexItem={roundIndexItemById.get(roundId)}
             renderer={renderer}
             source={source}
             state={state}

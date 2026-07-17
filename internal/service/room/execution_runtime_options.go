@@ -1,3 +1,6 @@
+// INPUT: Room round/slot、Agent 配置、Goal context 与 runtime provider。
+// OUTPUT: revision 绑定且带 MCP/hooks 的 slot runtime options。
+// POS: Room slot 执行前的 runtime 装配边界。
 package room
 
 import (
@@ -13,6 +16,8 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
+	runtimepermission "github.com/nexus-research-lab/nexus/internal/runtime/permission"
+	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 	"github.com/nexus-research-lab/nexus/internal/service/room/runtimepolicy"
@@ -131,11 +136,20 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 	if err != nil {
 		return preparedSlotRuntime{}, err
 	}
-	options, err := clientopts.BuildAgentClientOptions(e.ctx, e.service.providers, clientopts.AgentClientOptionsInput{
+	if err = agentsvc.EnsureRuntimeVisionSettingsProjection(
+		e.agent.WorkspacePath,
+		selection.VisionProvider,
+		selection.VisionModel,
+	); err != nil {
+		return preparedSlotRuntime{}, err
+	}
+	options, runtimeConfig, err := clientopts.BuildAgentClientOptionsWithConfig(e.ctx, e.service.providers, clientopts.AgentClientOptionsInput{
 		WorkspacePath:              e.agent.WorkspacePath,
 		RuntimeKind:                selection.RuntimeKind,
 		Provider:                   selection.Provider,
 		Model:                      selection.Model,
+		VisionProvider:             selection.VisionProvider,
+		VisionModel:                selection.VisionModel,
 		PermissionMode:             permissionMode,
 		PermissionHandler:          e.runtimePermissionHandler(),
 		AllowedTools:               toolpolicy.WithManagedRuntimeAllowedTools(runtimepolicy.AllowedTools(e.agent.Options.AllowedTools, e.round.Context.Room.PrivateMessagesEnabled), e.service.runtimeImagegenDefaultEnabled(e.ctx)),
@@ -148,9 +162,14 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 		MCPServers:                 e.runtimeMCPServers(),
 		ExtraEnv:                   e.service.roomRuntimeEnv(e.round, e.slot),
 		AgentSDKDiagnosticsEnabled: selection.AgentSDKDiagnosticsEnabled,
+		ToolSearchEnabled:          selection.ToolSearchEnabled,
+		WebSearch:                  selection.WebSearch,
 	})
 	if err != nil {
 		return preparedSlotRuntime{}, err
+	}
+	if runtimeConfig != nil {
+		e.slot.ContextWindow = runtimeConfig.ContextWindow
 	}
 
 	e.slot.setRuntimeKind(string(options.Runtime.Kind))
@@ -167,6 +186,7 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 		return preparedSlotRuntime{}, err
 	}
 	options.Session.ResumeID = resumeID
+	e.slot.ContextColdStart = resumeID == ""
 	return preparedSlotRuntime{options: options, selection: selection, provider: runtimeProvider}, nil
 }
 
@@ -183,13 +203,24 @@ func (e *slotExecution) buildRuntimePrompt() (string, sdkpermission.Mode, error)
 	prompt = appendPromptSection(prompt, roomSkillPrompt)
 	prompt = appendPromptSection(prompt, roomdomain.BuildMemberDirectoryPrompt(e.agentNameByID))
 
-	permissionMode := sdkpermission.Mode(e.agent.Options.PermissionMode)
+	permissionMode := runtimepermission.NormalizeMode(sdkpermission.Mode(e.agent.Options.PermissionMode))
 	if e.round.PermissionMode != "" {
-		permissionMode = e.round.PermissionMode
+		permissionMode = runtimepermission.NormalizeMode(e.round.PermissionMode)
 	}
 	e.slot.GoalRuntimeIgnored = goalsvc.ShouldIgnoreRuntimeForPermissionMode(string(permissionMode))
+	currentGoalID, currentObjectiveRevision := "", int64(0)
 	if !e.slot.GoalRuntimeIgnored {
-		prompt, e.slot.GoalContext, e.slot.GoalIDForUsage, e.slot.GoalSessionKey = e.service.resolveGoalRuntimeContextForSlot(e.ctx, e.round, e.slot, prompt)
+		prompt, e.slot.GoalContext, e.slot.GoalIDForUsage, e.slot.GoalSessionKey, currentObjectiveRevision = e.service.resolveGoalRuntimeContextForSlot(e.ctx, e.round, e.slot, prompt)
+		currentGoalID = strings.TrimSpace(e.slot.GoalIDForUsage)
+	}
+	if e.round.Internal && e.round.GoalObjectiveRevision > 0 {
+		boundGoalID := strings.TrimSpace(e.round.GoalID)
+		if currentGoalID != boundGoalID || currentObjectiveRevision != e.round.GoalObjectiveRevision {
+			return "", "", goalsvc.ErrGoalRevisionStale
+		}
+		e.slot.GoalIDForUsage = boundGoalID
+		e.slot.GoalSessionKey = strings.TrimSpace(e.round.SessionKey)
+		e.slot.ensureGoalObjectiveRevision(e.round.GoalObjectiveRevision)
 	}
 	if override := strings.TrimSpace(e.round.GoalContext); e.round.Internal && override != "" {
 		e.slot.GoalContext = override
@@ -208,6 +239,7 @@ func (e *slotExecution) runtimeMCPServers() map[string]sdkmcp.ServerConfig {
 		"room",
 		e.round.RoomID,
 		roomSourceContextLabel(e.round),
+		e.slot.ensureGoalObjectiveRevision(0),
 	)
 }
 

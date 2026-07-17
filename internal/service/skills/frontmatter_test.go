@@ -55,6 +55,24 @@ tags: [screen, context]
 	}
 }
 
+func TestParseSkillFrontmatterRuntimeInstructions(t *testing.T) {
+	parsed := parseSkillFrontmatter(`---
+name: room-demo
+scope: room
+runtime_instructions: |
+  Keep private context private.
+  Wake only the member who must act.
+---
+
+# Human documentation
+`, "room-demo")
+	if !strings.Contains(parsed.RuntimeInstructions, "Keep private context private.") ||
+		!strings.Contains(parsed.RuntimeInstructions, "Wake only the member") ||
+		strings.Contains(parsed.RuntimeInstructions, "Human documentation") {
+		t.Fatalf("runtime_instructions 解析不正确: %q", parsed.RuntimeInstructions)
+	}
+}
+
 func TestSkillResponseSlicesMarshalAsEmptyArray(t *testing.T) {
 	info := Info{
 		Name: "demo-skill",

@@ -109,6 +109,74 @@ func TestWebSocketDispatchesRewriteLastToControlHandler(t *testing.T) {
 	t.Fatal("未收到 chat_rewrite_last 的业务错误事件")
 }
 
+func TestWebSocketInputQueueAckAndErrorPreserveClientIDs(t *testing.T) {
+	cfg := handlertest.NewConfig(t)
+	handlertest.MigrateSQLite(t, cfg.DatabaseURL)
+
+	server, err := serverapp.New(cfg)
+	if err != nil {
+		t.Fatalf("创建 HTTP 服务失败: %v", err)
+	}
+
+	httpServer := httptest.NewServer(server.Router())
+	defer httpServer.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(httpServer.URL, "http") + "/nexus/v1/chat/ws"
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	conn, _, err := websocket.Dial(ctx, wsURL, nil)
+	if err != nil {
+		t.Fatalf("连接 websocket 失败: %v", err)
+	}
+	defer func() { _ = conn.Close(websocket.StatusNormalClosure, "test done") }()
+
+	sessionKey := "agent:nexus:ws:dm:input-queue-ack"
+	if err = wsjson.Write(ctx, conn, map[string]any{
+		"type":              "input_queue",
+		"session_key":       sessionKey,
+		"action":            "delete",
+		"item_id":           "missing-item",
+		"client_request_id": "request-input-queue-delete",
+		"client_message_id": "message-input-queue-delete",
+	}); err != nil {
+		t.Fatalf("发送 input_queue delete 失败: %v", err)
+	}
+
+	ack := readEventMatching(t, conn, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeInputQueueAck
+	})
+	if ack.SessionKey != sessionKey ||
+		ack.Data["client_request_id"] != "request-input-queue-delete" ||
+		ack.Data["client_message_id"] != "message-input-queue-delete" ||
+		ack.Data["action"] != "delete" ||
+		ack.Data["item_id"] != "missing-item" {
+		t.Fatalf("input_queue_ack 未完整回显请求身份: %+v", ack)
+	}
+
+	if err = wsjson.Write(ctx, conn, map[string]any{
+		"type":              "input_queue",
+		"session_key":       sessionKey,
+		"action":            "enqueue",
+		"content":           " ",
+		"client_request_id": "request-input-queue-error",
+		"client_message_id": "message-input-queue-error",
+	}); err != nil {
+		t.Fatalf("发送非法 input_queue enqueue 失败: %v", err)
+	}
+
+	failure := readEventMatching(t, conn, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeError &&
+			event.Data["error_type"] == "input_queue_error" &&
+			event.Data["client_request_id"] == "request-input-queue-error"
+	})
+	if failure.Data["client_message_id"] != "message-input-queue-error" ||
+		failure.Data["action"] != "enqueue" ||
+		failure.Data["item_id"] != "" {
+		t.Fatalf("input_queue_error 未完整回显请求身份: %+v", failure)
+	}
+}
+
 func TestWebSocketDesktopSessionToken(t *testing.T) {
 	cfg := handlertest.NewConfig(t)
 	cfg.DesktopSessionToken = "desktop-token"
@@ -307,6 +375,22 @@ func readEventMessage(t *testing.T, conn *websocket.Conn) protocol.EventMessage 
 		t.Fatalf("读取 websocket 事件失败: %v", err)
 	}
 	return event
+}
+
+func readEventMatching(
+	t *testing.T,
+	conn *websocket.Conn,
+	matches func(protocol.EventMessage) bool,
+) protocol.EventMessage {
+	t.Helper()
+	for range 12 {
+		event := readEventMessage(t, conn)
+		if matches(event) {
+			return event
+		}
+	}
+	t.Fatal("未收到匹配的 websocket 事件")
+	return protocol.EventMessage{}
 }
 
 type rpcResponseEnvelope struct {

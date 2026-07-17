@@ -49,6 +49,9 @@ func chatErrorDetail(err error) string {
 	if err == nil {
 		return "Agent 启动失败，请检查运行时配置后重试。"
 	}
+	if message, ok := protocol.ClientErrorMessage(err); ok {
+		return message
+	}
 	message := strings.TrimSpace(err.Error())
 	switch {
 	case strings.Contains(message, "api_format=responses") &&

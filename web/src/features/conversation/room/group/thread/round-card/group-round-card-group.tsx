@@ -1,6 +1,11 @@
+/**
+ * INPUT: 一个 Room feed 节点的 root/agent_round 子集与交互回调。
+ * OUTPUT: global user、目标 agent round 紧前的定向 guided user、对应回复卡片。
+ * POS: Group round 卡片的渲染顺序真相源。
+ */
 "use client";
 
-import { memo, useCallback, useMemo } from "react";
+import { Fragment, memo, useCallback, useMemo } from "react";
 
 import { MessageItem } from "@/features/conversation/shared/message/item/message-item";
 import type { Message } from "@/types/conversation/message/entity";
@@ -12,7 +17,10 @@ import type {
 
 import { GroupAgentStatusCard } from "./group-agent-status-card";
 import { GroupCompletedReply } from "./group-completed-reply";
-import { buildGroupRoundCardModel } from "./group-round-card-model";
+import {
+  buildGroupRoundCardModel,
+  type GroupRoundUserMessageModel,
+} from "./group-round-card-model";
 import { useGroupThread } from "../group-thread-state";
 
 interface GroupRoundCardGroupProps {
@@ -59,80 +67,134 @@ function GroupRoundCardGroupInner({
       pendingSlots,
     ],
   );
-  const activeAgentId = activeThread?.roundId === roundId
-    ? activeThread.agentId
-    : null;
-  const toggleThread = useCallback((agentId: string) => {
-    if (activeAgentId === agentId) {
+  const toggleThread = useCallback((
+    agentId: string,
+    agentRoundId: string | null,
+  ) => {
+    if (
+      activeThread?.roundId === roundId
+      && activeThread.agentId === agentId
+      && activeThread.agentRoundId === agentRoundId
+    ) {
       closeThread();
       return;
     }
-    openThread(roundId, agentId);
-  }, [activeAgentId, closeThread, openThread, roundId]);
+    openThread(roundId, agentId, agentRoundId);
+  }, [activeThread, closeThread, openThread, roundId]);
 
   return (
     <div className="w-full min-w-0 animate-in fade-in slide-in-from-bottom-2 duration-300">
-      {model.userMessage ? (
-        <div className="border-b border-(--divider-subtle-color)">
-          {/* 用户消息沿用通用样式，但不渲染尚未出现的助手区域。 */}
-          <MessageItem
-            className="border-b-0"
-            currentUserAvatar={currentUserAvatar}
-            isLastRound={false}
-            isLoading
-            messages={[model.userMessage]}
-            onOpenWorkspaceFile={onOpenWorkspaceFile}
-            roundId={roundId}
-            workspaceAgentId={model.userWorkspaceAgentId}
-          />
-        </div>
-      ) : null}
-
-      {model.completedEntries.map((entry) => (
-        <GroupCompletedReply
-          entry={entry}
-          isThreadActive={activeAgentId === entry.agent_id}
-          key={entry.agent_id}
-          onClickThread={() => toggleThread(entry.agent_id)}
+      {model.userMessages.map((item) => (
+        <GroupUserMessage
+          agentAvatarMap={agentAvatarMap}
+          agentNameMap={agentNameMap}
+          currentUserAvatar={currentUserAvatar}
+          item={item}
           onOpenAgentContact={onOpenAgentContact}
+          key={item.message.message_id}
           onOpenWorkspaceFile={onOpenWorkspaceFile}
           roundId={roundId}
         />
       ))}
 
-      {model.pendingEntries.map((entry) => {
+      {model.entries.map((entry) => {
+        const isThreadActive = activeThread?.roundId === roundId
+          && activeThread.agentId === entry.agent_id
+          && activeThread.agentRoundId === entry.agent_round_id;
+        const toggleEntryThread = () => toggleThread(
+          entry.agent_id,
+          entry.agent_round_id,
+        );
         const stopMessageId = entry.stopMessageId;
         return (
-          <div
-            className="border-b border-(--divider-subtle-color)"
-            key={entry.agent_id}
-          >
-            <div className="w-full px-2 sm:px-3">
-              <div className="mx-auto w-full max-w-[980px]">
-                <GroupAgentStatusCard
-                  agentAvatar={entry.agentAvatar}
-                  agentId={entry.agent_id}
-                  agentName={entry.agentName}
-                  isThreadActive={activeAgentId === entry.agent_id}
-                  messages={entry.assistant_messages}
-                  onClickThread={() => toggleThread(entry.agent_id)}
-                  onOpenAgentContact={onOpenAgentContact}
-                  onPermissionResponse={onPermissionResponse}
-                  onStopMessage={
-                    stopMessageId
-                      ? () => onStopMessage(stopMessageId)
-                      : undefined
-                  }
-                  pendingPermissions={entry.pendingPermissions}
-                  pendingSlot={entry.pending_slot}
-                  resultSummary={entry.result_summary}
-                  status={entry.status}
-                />
+          <Fragment key={entry.entry_id}>
+            {entry.guidedUserMessages.map((item) => (
+              <GroupUserMessage
+                agentAvatarMap={agentAvatarMap}
+                agentNameMap={agentNameMap}
+                currentUserAvatar={currentUserAvatar}
+                item={item}
+                onOpenAgentContact={onOpenAgentContact}
+                key={item.message.message_id}
+                onOpenWorkspaceFile={onOpenWorkspaceFile}
+                roundId={roundId}
+              />
+            ))}
+            {entry.status === "done" ? (
+              <GroupCompletedReply
+                entry={entry}
+                isThreadActive={isThreadActive}
+                onClickThread={toggleEntryThread}
+                onOpenAgentContact={onOpenAgentContact}
+                onOpenWorkspaceFile={onOpenWorkspaceFile}
+                agentMentionDirectory={{ avatars: agentAvatarMap, names: agentNameMap }}
+                roundId={roundId}
+              />
+            ) : (
+              <div className="border-b border-(--divider-subtle-color)">
+                <div className="w-full px-2 sm:px-3">
+                  <div className="mx-auto w-full max-w-[980px]">
+                    <GroupAgentStatusCard
+                      agentAvatar={entry.agentAvatar}
+                      agentId={entry.agent_id}
+                      agentName={entry.agentName}
+                      isThreadActive={isThreadActive}
+                      messages={entry.assistant_messages}
+                      onClickThread={toggleEntryThread}
+                      onOpenAgentContact={onOpenAgentContact}
+                      onPermissionResponse={onPermissionResponse}
+                      onStopMessage={
+                        stopMessageId
+                          ? () => onStopMessage(stopMessageId)
+                          : undefined
+                      }
+                      pendingPermissions={entry.pendingPermissions}
+                      resultSummary={entry.result_summary}
+                      status={entry.status}
+                      timestamp={entry.timestamp}
+                    />
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
+            )}
+          </Fragment>
         );
       })}
+    </div>
+  );
+}
+
+function GroupUserMessage({
+  agentAvatarMap,
+  agentNameMap,
+  currentUserAvatar,
+  item,
+  onOpenAgentContact,
+  onOpenWorkspaceFile,
+  roundId,
+}: {
+  agentAvatarMap: Record<string, string | null>;
+  agentNameMap: Record<string, string>;
+  currentUserAvatar: string | null;
+  item: GroupRoundUserMessageModel;
+  onOpenAgentContact?: (agentId: string) => void;
+  onOpenWorkspaceFile?: (path: string) => void;
+  roundId: string;
+}) {
+  return (
+    <div className="border-b border-(--divider-subtle-color)">
+      {/* 用户消息沿用通用样式，但不渲染尚未出现的助手区域。 */}
+      <MessageItem
+        className="border-b-0"
+        currentUserAvatar={currentUserAvatar}
+        agentMentionDirectory={{ avatars: agentAvatarMap, names: agentNameMap }}
+        isLastRound={false}
+        messages={[item.message]}
+        onOpenAgentContact={onOpenAgentContact}
+        onOpenWorkspaceFile={onOpenWorkspaceFile}
+        roundId={roundId}
+        workspaceAgentId={item.workspaceAgentId}
+      />
     </div>
   );
 }

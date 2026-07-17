@@ -1,3 +1,6 @@
+// INPUT: 输入队列项、变更结果与客户端请求关联 ID。
+// OUTPUT: 对外提供输入队列协议模型、快照事件与持久接受 ACK。
+// POS: protocol 包的输入队列跨边界真相源。
 package protocol
 
 import "strings"
@@ -29,6 +32,7 @@ type InputQueueItem struct {
 	AgentID         string             `json:"agent_id,omitempty"`
 	SourceAgentID   string             `json:"source_agent_id,omitempty"`
 	SourceMessageID string             `json:"source_message_id,omitempty"`
+	HandoffID       string             `json:"handoff_id,omitempty"`
 	TargetAgentIDs  []string           `json:"target_agent_ids,omitempty"`
 	Source          InputQueueSource   `json:"source"`
 	Content         string             `json:"content"`
@@ -39,8 +43,16 @@ type InputQueueItem struct {
 	RootRoundID     string             `json:"root_round_id,omitempty"`
 	HopIndex        int                `json:"hop_index,omitempty"`
 	QueueOrder      int64              `json:"queue_order,omitempty"`
+	ExpiresAt       int64              `json:"expires_at,omitempty"`
 	CreatedAt       int64              `json:"created_at"`
 	UpdatedAt       int64              `json:"updated_at"`
+}
+
+// InputQueueMutationResult 表示一次已被服务端持久接受的输入队列变更。
+type InputQueueMutationResult struct {
+	Action    string `json:"action"`
+	ItemID    string `json:"item_id,omitempty"`
+	Duplicate bool   `json:"duplicate"`
 }
 
 // NormalizeInputQueueScope 归一化队列作用域。
@@ -84,5 +96,26 @@ func NewInputQueueEvent(sessionKey string, items []InputQueueItem) EventMessage 
 	event.SessionKey = strings.TrimSpace(sessionKey)
 	event.RoomID = roomID
 	event.ConversationID = conversationID
+	return event
+}
+
+// NewInputQueueAckEvent 构造 input_queue_ack 事件。
+// client_request_id / client_message_id 原样回传；duplicate 表示同一幂等请求此前已持久接受。
+func NewInputQueueAckEvent(
+	sessionKey string,
+	clientRequestID string,
+	clientMessageID string,
+	result InputQueueMutationResult,
+) EventMessage {
+	event := NewEvent(EventTypeInputQueueAck, map[string]any{
+		"accepted":          true,
+		"duplicate":         result.Duplicate,
+		"action":            strings.TrimSpace(result.Action),
+		"item_id":           strings.TrimSpace(result.ItemID),
+		"client_request_id": clientRequestID,
+		"client_message_id": clientMessageID,
+		"ack_timeout_ms":    RequestAckTimeoutMS,
+	})
+	event.SessionKey = strings.TrimSpace(sessionKey)
 	return event
 }

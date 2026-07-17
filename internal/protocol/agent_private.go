@@ -33,11 +33,15 @@ type AgentPrivateEvent struct {
 	Direction         string                    `json:"direction"`
 	SourceAgentID     string                    `json:"source_agent_id"`
 	Recipients        []string                  `json:"recipients"`
+	WakeTargets       []string                  `json:"wake_targets,omitempty"`
 	Content           string                    `json:"content,omitempty"`
 	ReplyRoute        RoomReplyRoute            `json:"reply_route"`
 	WakePolicy        RoomWakePolicy            `json:"wake_policy,omitempty"`
 	DelaySeconds      int                       `json:"delay_seconds,omitempty"`
 	CorrelationID     string                    `json:"correlation_id,omitempty"`
+	RootRoundID       string                    `json:"root_round_id,omitempty"`
+	CausedByRoundID   string                    `json:"caused_by_round_id,omitempty"`
+	HopIndex          int                       `json:"hop_index,omitempty"`
 	RoomID            string                    `json:"room_id,omitempty"`
 	RoomName          string                    `json:"room_name,omitempty"`
 	RoomType          string                    `json:"room_type,omitempty"`

@@ -66,31 +66,39 @@ func (s *Service) ListOptionsForRuntime(ctx context.Context, runtimeKind string)
 		Items:           make([]Option, 0, len(items)),
 		BackgroundItems: make([]Option, 0, len(items)),
 		ImageItems:      make([]Option, 0, len(items)),
+		VisionItems:     make([]Option, 0, len(items)),
 	}
 	for _, item := range items {
 		if !item.Enabled {
 			continue
 		}
-		models, err := s.enabledModelOptionsForKind(ctx, item, ProviderKindLLM)
+		models, err := s.repository.ListModelsByProviderID(ctx, item.ID)
 		if err != nil {
 			return nil, err
 		}
+		llmModels := modelOptionsForKind(item, models, ProviderKindLLM)
 		option := Option{
 			Provider:    item.Provider,
 			DisplayName: item.DisplayName,
 			Visibility:  item.Visibility,
-			Models:      models,
+			Models:      llmModels,
 		}
 		switch {
 		case item.ProviderKind == ProviderKindLLM:
 			result.BackgroundItems = append(result.BackgroundItems, option)
+			visionModels := visionModelOptions(models)
+			if len(visionModels) > 0 {
+				result.VisionItems = append(result.VisionItems, Option{
+					Provider:    item.Provider,
+					DisplayName: item.DisplayName,
+					Visibility:  item.Visibility,
+					Models:      visionModels,
+				})
+			}
 			if isAgentRuntimeProviderForRuntime(item, runtimeKind) {
 				result.Items = append(result.Items, option)
 			}
-			imageModels, modelErr := s.enabledModelOptionsForKind(ctx, item, ProviderKindImageGeneration)
-			if modelErr != nil {
-				return nil, modelErr
-			}
+			imageModels := modelOptionsForKind(item, models, ProviderKindImageGeneration)
 			if len(imageModels) > 0 {
 				result.ImageItems = append(result.ImageItems, Option{
 					Provider:    item.Provider,
@@ -100,10 +108,7 @@ func (s *Service) ListOptionsForRuntime(ctx context.Context, runtimeKind string)
 				})
 			}
 		case item.ProviderKind == ProviderKindImageGeneration:
-			imageModels, modelErr := s.enabledModelOptionsForKind(ctx, item, ProviderKindImageGeneration)
-			if modelErr != nil {
-				return nil, modelErr
-			}
+			imageModels := modelOptionsForKind(item, models, ProviderKindImageGeneration)
 			result.ImageItems = append(result.ImageItems, Option{
 				Provider:    item.Provider,
 				DisplayName: item.DisplayName,

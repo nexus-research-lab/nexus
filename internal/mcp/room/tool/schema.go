@@ -35,6 +35,11 @@ func sendDirectedMessageSchema() map[string]any {
 				"items":       map[string]any{"type": "string"},
 				"description": "接收私域消息的 Room 成员 agent_id 列表；单人私聊和小范围讨论都用这个字段",
 			},
+			"wake_targets": map[string]any{
+				"type":        "array",
+				"items":       map[string]any{"type": "string"},
+				"description": "需要唤醒的 recipients 子集；不填时唤醒全部 recipients",
+			},
 			"content": map[string]any{
 				"type":        "string",
 				"description": "私域消息正文；不会进入 public feed",
@@ -42,7 +47,7 @@ func sendDirectedMessageSchema() map[string]any {
 			"wake_policy": map[string]any{
 				"type":        "string",
 				"enum":        []string{"none", "immediate", "delayed"},
-				"description": "none=只记录；immediate=立即唤醒 recipients；delayed=延迟唤醒",
+				"description": "none=只记录；immediate=立即唤醒 wake_targets；delayed=延迟唤醒",
 			},
 			"delay_seconds": map[string]any{
 				"type":        "integer",
@@ -69,7 +74,7 @@ func publishPublicMessageSchema() map[string]any {
 		"properties": map[string]any{
 			"content": map[string]any{
 				"type":        "string",
-				"description": "要主动发布到 Room public feed 的公开正文；普通公区回复应直接用 final reply，不要调用此工具",
+				"description": "要发布到 Room 公区的事实；普通公区回复不要使用此工具。",
 			},
 			"correlation_id": map[string]any{
 				"type":        "string",

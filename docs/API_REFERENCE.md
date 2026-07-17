@@ -107,6 +107,8 @@
 | PATCH | `/settings/preferences` | 更新用户偏好 |
 | GET | `/settings/runtime/nxs/status` | NXS 运行时状态（前端 `getNxsRuntimeStatusApi`，超时 8s） |
 
+模型偏好使用 `{ provider, model }` 结构。主会话、后台、图片生成和视觉模型分别保存在 `default_model_selection`、`default_background_model_selection`、`default_image_generation_model_selection` 与 `default_vision_model_selection`。主链无法承载图片时，nxs 才把这个视觉模型作为 `ViewImage` 的按需分析入口。
+
 ### Provider 配置（`/settings/providers`）
 
 | 方法 | 路径 | 说明 | 前端函数 |
@@ -122,6 +124,8 @@
 | POST | `/settings/providers/{provider}/models/{model_id}/default` | 设为默认模型 | — |
 | POST | `/settings/providers/{provider}/test` | 测试 Provider 配置 | `testProviderConfigApi` |
 | POST | `/settings/providers/{provider}/models/{model_id}/test` | 测试单个模型 | `testProviderModelApi` |
+
+`GET /settings/providers/options` 返回按用途过滤的模型列表，包括 `chat_items`、`background_items`、`image_generation_items` 和 `vision_items`。`vision_items` 只包含模型卡明确声明支持图片输入的已启用模型；能力未知的模型不会自动进入该列表。
 
 ---
 
@@ -437,7 +441,7 @@ task 的控制请求由 task item 的 `host_agent_id` 路由到实际承载该 s
 | 方法 | 路径 | 说明 | 请求体 | 前端函数 |
 |------|------|------|--------|---------|
 | GET | `/goals/current` | 当前目标（query: `session_key`） | — | `getCurrentGoalApi` |
-| POST | `/goals` | 创建目标 | `{ session_key, objective, token_budget?, metadata? }` | `createGoalApi` |
+| POST | `/goals` | 创建目标；UI 可显式原位替换当前目标 | `{ session_key, objective, token_budget?, replace_existing?, metadata? }` | `createGoalApi` |
 | PATCH | `/goals/{goal_id}` | 更新目标 | `{ objective?, token_budget?, metadata? }` | `updateGoalApi` |
 | POST | `/goals/{goal_id}/pause` | 暂停 | — | `pauseGoalApi` |
 | POST | `/goals/{goal_id}/resume` | 恢复 | — | `resumeGoalApi` |
@@ -509,9 +513,9 @@ task 的控制请求由 task item 的 `host_agent_id` 路由到实际承载该 s
 | `unsubscribe_workspace` | 取消订阅工作区 | — |
 | `subscribe_app_events` | 订阅应用事件 | — |
 | `unsubscribe_app_events` | 取消订阅应用事件 | — |
-| `chat` | 发送对话消息 | `session_key`, `agent_id?`, `room_id?`, `conversation_id?`, `content`, `attachments?`, `round_id`, `req_id`, `delivery_policy` |
+| `chat` | 发送对话消息 | `session_key`, `agent_id?`, `room_id?`, `conversation_id?`, `content`, `attachments?`, `client_request_id`, `client_message_id`, `delivery_policy` |
 | `interrupt` | 中断当前轮次 | `session_key`, `round_id`（DM）/ `msg_id`（Room） |
-| `input_queue` | 输入队列操作 | `session_key`, `action`/`action_type`, `item_id?`, `content?`, `attachments?`, `ordered_ids?`, `delivery_policy` |
+| `input_queue` | 输入队列操作 | `session_key`, `action`/`action_type`, `client_request_id?`, `client_message_id?`, `item_id?`, `content?`, `attachments?`, `ordered_ids?`, `delivery_policy` |
 | `permission_response` | 权限请求响应 | 由权限运行时约定 |
 
 > 带 `method` 字段的消息会进入 App-Server RPC 通道（`handleAppServerRPC`），用于 Goal 等线程级 RPC。
@@ -520,7 +524,8 @@ task 的控制请求由 task item 的 `host_agent_id` 路由到实际承载该 s
 
 - `delivery_policy`：投递策略，由 `protocol.NormalizeChatDeliveryPolicy` 归一化（如 `queue` / `immediate`）。
 - `attachments`：附件列表，经 `protocol.ChatAttachmentsFromAny` 解析。
-- `round_id` / `req_id`：前端生成，用于匹配服务端的 `chat_ack` 事件。
+- `client_request_id`：单次 WebSocket 发送尝试，用于匹配服务端 ACK 或错误事件。
+- `client_message_id`：逻辑消息身份；`input_queue enqueue` 在 ACK 未知后重试时必须复用，用于后端持久化幂等去重。
 - Room 会话额外支持 `room_id`、`conversation_id`、`agent_id`（附件归属 Agent）。
 
 ### 服务端 → 客户端事件
@@ -528,7 +533,8 @@ task 的控制请求由 task item 的 `host_agent_id` 路由到实际承载该 s
 服务端通过 `WebSocketSender.SendEvent` 推送 `event_type` 标识的事件，前端 `onMessage` 回调统一消费。常见事件由 `internal/protocol` 构造，包括：
 
 - `pong` — 心跳响应。
-- `chat_ack` — 消息发送确认（含 `session_key`、`req_id`、`round_id`、空 `items[]` 表示失败）。
+- `chat_ack` — 对话消息受理确认，回传 `client_request_id` / `client_message_id` 与后端生成的 canonical round/message identity。
+- `input_queue_ack` — 用户入队请求持久化确认，仅向请求连接单播；回传 `client_request_id`、稳定 `client_message_id`、canonical `item_id` 与 `duplicate`。共享队列当前状态仍由 `input_queue` 快照表达。
 - `round_status` — 轮次状态变更（`running` / `completed` / `error` 等）。
 - `runtime_status` — Runtime 瞬时阶段；`status: "compacting"` 表示正在压缩上下文，`status: null` 清除该阶段。
 - `gateway_error` — 网关错误（`error_type` 含 `chat_error` / `interrupt_error` / `input_queue_error` / `not_implemented` / `unknown_message_type` / `permission_request_not_found` 等）。

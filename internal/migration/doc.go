@@ -5,6 +5,7 @@
 // 成员清单：
 //   - workspace_files.go：工作区文件迁移账本、顺序执行与完成标记。
 //   - legacy_memory.go：旧记忆会话目录与旧记忆根目录迁移。
+//   - legacy_memory_skill.go：旧版内置 memory-manager Skill 精确清理迁移。
 //   - retired_skills.go：已退役系统 Skill 清理迁移。
 //
 // 暴露接口：RunWorkspaceFiles。

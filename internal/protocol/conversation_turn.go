@@ -1,5 +1,15 @@
 package protocol
 
+// AgentMention 是消息正文中经过服务端目录解析的 Agent mention span。
+type AgentMention struct {
+	AgentID           string `json:"agent_id"`
+	Label             string `json:"label"`
+	ContentBlockIndex int    `json:"content_block_index"`
+	StartRune         int    `json:"start_rune"`
+	EndRune           int    `json:"end_rune"`
+	HandoffID         string `json:"handoff_id,omitempty"`
+}
+
 // ConversationMessage 是投影后的对话消息，round_id 永远是 root round。
 type ConversationMessage struct {
 	MessageID     string         `json:"message_id"`
@@ -11,8 +21,10 @@ type ConversationMessage struct {
 	ParentID      string         `json:"parent_id,omitempty"`
 	Content       any            `json:"content"`
 	Timestamp     int64          `json:"timestamp"`
+	DisplayOrder  int64          `json:"display_order,omitempty"`
 	StreamStatus  string         `json:"stream_status,omitempty"`
 	ResultSummary map[string]any `json:"result_summary,omitempty"`
+	AgentMentions []AgentMention `json:"agent_mentions,omitempty"`
 }
 
 // TurnPendingPermission 是投影输出中挂在 slot 上的待确认权限。

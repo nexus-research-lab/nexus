@@ -1,3 +1,6 @@
+// INPUT: 运行中 round 的 Goal accounting 回调与 objective revision 指针。
+// OUTPUT: session/round 级结算、清理、激活和 revision adoption。
+// POS: runtime Manager 中 Goal 执行态的注册与并发协调入口。
 package runtime
 
 import (
@@ -5,6 +8,7 @@ import (
 	"maps"
 	"slices"
 	"strings"
+	"sync/atomic"
 )
 
 // GoalAccountingFlush 由正在运行的 round 提供，用于外部 Goal 状态变化前结算当前进度。
@@ -15,6 +19,61 @@ type GoalAccountingClear func()
 
 // GoalAccountingActivate 由正在运行的 round 提供，用于 Goal 恢复 active 后重置计量基线。
 type GoalAccountingActivate func(context.Context) error
+
+// RegisterGoalObjectiveRevision 让运行中 round 的 MCP 与终态回调共享同一 objective revision。
+func (m *Manager) RegisterGoalObjectiveRevision(sessionKey string, roundID string, revision *atomic.Int64) {
+	sessionKey = strings.TrimSpace(sessionKey)
+	roundID = strings.TrimSpace(roundID)
+	if sessionKey == "" || roundID == "" {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	state := m.ensureStateLocked(sessionKey)
+	if state.GoalObjectiveRevisions == nil {
+		state.GoalObjectiveRevisions = make(map[string]*atomic.Int64)
+	}
+	if revision == nil {
+		delete(state.GoalObjectiveRevisions, roundID)
+		return
+	}
+	state.GoalObjectiveRevisions[roundID] = revision
+}
+
+// AdoptGoalObjectiveRevision 在 steering 真正被 runtime 消费后推进运行中 round 的 revision fence。
+func (m *Manager) AdoptGoalObjectiveRevision(sessionKey string, revision int64) []string {
+	sessionKey = strings.TrimSpace(sessionKey)
+	if sessionKey == "" || revision <= 0 {
+		return nil
+	}
+	m.mu.RLock()
+	state, ok := m.sessions[sessionKey]
+	if !ok || state == nil || len(state.GoalObjectiveRevisions) == 0 {
+		m.mu.RUnlock()
+		return nil
+	}
+	roundIDs := slices.Sorted(maps.Keys(state.GoalObjectiveRevisions))
+	revisions := make([]*atomic.Int64, 0, len(roundIDs))
+	for _, roundID := range roundIDs {
+		revisions = append(revisions, state.GoalObjectiveRevisions[roundID])
+	}
+	m.mu.RUnlock()
+
+	adopted := make([]string, 0, len(roundIDs))
+	for index, state := range revisions {
+		if state == nil {
+			continue
+		}
+		for {
+			current := state.Load()
+			if revision <= current || state.CompareAndSwap(current, revision) {
+				break
+			}
+		}
+		adopted = append(adopted, roundIDs[index])
+	}
+	return adopted
+}
 
 // RegisterGoalAccountingFlush 注册或移除运行中 round 的 Goal accounting flush 回调。
 func (m *Manager) RegisterGoalAccountingFlush(sessionKey string, roundID string, flush GoalAccountingFlush) {

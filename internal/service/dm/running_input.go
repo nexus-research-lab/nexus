@@ -1,3 +1,6 @@
+// INPUT: 运行中 DM round 与用户 queue/guide 输入。
+// OUTPUT: queue 持久等待下一轮，guide 等 runtime applied ACK 后归入实际消费它的 root round。
+// POS: DM 轮内插话的唯一受理入口。
 package dm
 
 import (
@@ -5,6 +8,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
@@ -15,9 +19,7 @@ func (s *Service) queueRunningInput(
 	ctx context.Context,
 	sessionKey string,
 	agentValue *protocol.Agent,
-	sessionItem protocol.Session,
 	request Request,
-	initialMessageCount int,
 ) (bool, error) {
 	content := strings.TrimSpace(request.Content)
 	attachments := s.normalizeChatAttachments(request.Attachments, agentValue.AgentID)
@@ -25,52 +27,38 @@ func (s *Service) queueRunningInput(
 	if len(runningRoundIDs) == 0 {
 		return false, runtimectx.ErrNoRunningRound
 	}
-	runtimeContent, err := s.renderRuntimeContentWithAttachments(ctx, content, attachments)
+	location := workspacestore.InputQueueLocation{
+		Scope:         protocol.InputQueueScopeDM,
+		WorkspacePath: agentValue.WorkspacePath,
+		SessionKey:    sessionKey,
+	}
+	items, err := s.inputQueue.Enqueue(location, protocol.InputQueueItem{
+		ID:              request.RoundID,
+		Scope:           protocol.InputQueueScopeDM,
+		SessionKey:      sessionKey,
+		AgentID:         agentValue.AgentID,
+		SourceMessageID: request.UserMessageID,
+		Source:          protocol.InputQueueSourceUser,
+		Content:         content,
+		Attachments:     attachments,
+		DeliveryPolicy:  protocol.ChatDeliveryPolicyQueue,
+		OwnerUserID:     authctx.OwnerUserID(ctx),
+	})
 	if err != nil {
 		return false, err
 	}
-	// 轮内注入不带 runtime context（情绪态）：避免逐步污染 prompt 前缀缓存。
-	if _, err := s.runtime.SendContentToRunningRound(ctx, sessionKey, runtimeContent.Payload()); err != nil {
-		return false, err
-	}
-	if err := s.recordRoundMarkerWithOptions(agentValue.WorkspacePath, sessionItem, request.RoundID, content, workspacestore.RoundMarkerOptions{
-		UserMessageID:  request.UserMessageID,
-		AgentRoundID:   request.AgentRoundID,
-		DeliveryPolicy: string(protocol.ChatDeliveryPolicyQueue),
-		Attachments:    attachments,
-	}); err != nil {
-		s.loggerFor(ctx).Error("DM 排队消息持久化失败",
-			"session_key", sessionKey,
-			"agent_id", agentValue.AgentID,
-			"round_id", request.RoundID,
-			"err", err,
-		)
-		return false, err
-	}
-	if _, err := s.refreshSessionMetaAfterRoundMarker(agentValue.WorkspacePath, sessionItem); err != nil {
-		s.loggerFor(ctx).Error("DM 排队消息刷新 session meta 失败",
-			"session_key", sessionKey,
-			"agent_id", agentValue.AgentID,
-			"round_id", request.RoundID,
-			"err", err,
-		)
-		return false, err
-	}
-	runtimeProvider, runtimeModel := runtimeSelectionFromSession(sessionItem)
-	s.scheduleTitleGeneration(ctx, protocol.ParseSessionKey(sessionKey), sessionItem, content, initialMessageCount, runtimeProvider, runtimeModel)
+	s.broadcastInputQueueSnapshot(ctx, sessionKey, items)
 	s.broadcastEventWithTimeout(ctx, sessionKey, protocol.NewChatAckEvent(
 		sessionKey,
 		request.ClientRequestID,
 		request.ClientMessageID,
 		request.RoundID,
 		request.UserMessageID,
+		false,
 		nil,
 	))
-	if request.BroadcastUserMessage {
-		s.broadcastUserRoundMarker(ctx, sessionItem, request.RoundID, request.UserMessageID, content, protocol.ChatDeliveryPolicyQueue, attachments)
-	}
 	s.broadcastSessionStatus(ctx, sessionKey)
-	s.loggerFor(ctx).Info("排队 DM 消息到运行中 round",
+	s.loggerFor(ctx).Info("持久化 DM 消息等待当前 round 结束后接力",
 		"session_key", sessionKey,
 		"agent_id", agentValue.AgentID,
 		"round_id", request.RoundID,
@@ -85,38 +73,68 @@ func (s *Service) guideRunningInput(
 	ctx context.Context,
 	sessionKey string,
 	agentValue *protocol.Agent,
-	sessionItem protocol.Session,
 	request Request,
 ) (bool, error) {
 	content := strings.TrimSpace(request.Content)
 	attachments := s.normalizeChatAttachments(request.Attachments, agentValue.AgentID)
-	runtimeContent, err := s.renderRuntimeContentWithAttachments(ctx, content, attachments)
+	runningRoundIDs := s.runtime.GetRunningRoundIDs(sessionKey)
+	if len(runningRoundIDs) == 0 {
+		return false, runtimectx.ErrNoRunningRound
+	}
+	targetRoundID := strings.TrimSpace(runningRoundIDs[0])
+	if targetRoundID == "" {
+		return false, runtimectx.ErrNoRunningRound
+	}
+	location := workspacestore.InputQueueLocation{
+		Scope:         protocol.InputQueueScopeDM,
+		WorkspacePath: agentValue.WorkspacePath,
+		SessionKey:    sessionKey,
+	}
+	items, err := s.inputQueue.Enqueue(location, protocol.InputQueueItem{
+		ID:              request.RoundID,
+		Scope:           protocol.InputQueueScopeDM,
+		SessionKey:      sessionKey,
+		AgentID:         agentValue.AgentID,
+		SourceMessageID: request.UserMessageID,
+		Source:          protocol.InputQueueSourceUser,
+		Content:         content,
+		Attachments:     attachments,
+		DeliveryPolicy:  protocol.ChatDeliveryPolicyGuide,
+		OwnerUserID:     authctx.OwnerUserID(ctx),
+		RootRoundID:     targetRoundID,
+	})
 	if err != nil {
 		return false, err
 	}
-	// 轮内引导注入不带 runtime context（情绪态）：避免逐步污染 prompt 前缀缓存。
-	runningRoundIDs, err := s.runtime.QueueGuidanceInput(ctx, sessionKey, request.RoundID, runtimeContent.PlainText())
+	items, recovered, err := s.recoverStaleInputQueueGuidance(location, request.RoundID, targetRoundID, items)
 	if err != nil {
 		return false, err
 	}
+	s.broadcastInputQueueSnapshot(ctx, sessionKey, items)
 	s.broadcastEventWithTimeout(ctx, sessionKey, protocol.NewChatAckEvent(
 		sessionKey,
 		request.ClientRequestID,
 		request.ClientMessageID,
 		request.RoundID,
 		request.UserMessageID,
+		false,
 		nil,
 	))
-	if request.BroadcastUserMessage {
-		for _, targetRoundID := range runningRoundIDs {
-			s.broadcastGuidanceMessage(ctx, sessionItem, targetRoundID, request.RoundID, content)
-		}
-	}
 	s.broadcastSessionStatus(ctx, sessionKey)
+	if recovered {
+		go s.dispatchNextInputQueueItemAtLocation(
+			contextWithQueueOwner(context.Background(), authctx.OwnerUserID(ctx)),
+			sessionKey,
+			agentValue.AgentID,
+			location,
+		)
+	}
 	s.loggerFor(ctx).Info("登记 DM 引导消息等待 PostToolUse 注入",
 		"session_key", sessionKey,
 		"agent_id", agentValue.AgentID,
 		"round_id", request.RoundID,
+		"target_round_id", targetRoundID,
+		"recovered_to_queue", recovered,
 		"running_round_ids", runningRoundIDs,
 		"content_chars", utf8.RuneCountInString(content),
 		"content_preview", logx.PreviewText(content, 240),

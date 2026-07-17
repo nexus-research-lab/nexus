@@ -1,9 +1,13 @@
+// INPUT: Room queue 请求、成员会话、@mention 与当前活跃 root round。
+// OUTPUT: 显式 @ / 单成员 / 房主优先，仍无目标时绑定最近活跃 slots 的队列位置。
+// POS: Room input queue 入队目标解析入口；与直接 chat 共享显式目标和房主优先语义。
 package room
 
 import (
 	"cmp"
 	"context"
 	"errors"
+	"fmt"
 	"sort"
 	"strings"
 
@@ -41,12 +45,25 @@ func (s *RealtimeService) resolveRoomInputQueuePrimaryLocation(
 	ctx context.Context,
 	contextValue *protocol.ConversationContextAggregate,
 	content string,
+	explicitTargetAgentIDs []string,
 ) (workspacestore.InputQueueLocation, []string, error) {
 	locationsByAgentID, err := s.roomInputQueueLocationsByAgent(ctx, contextValue)
 	if err != nil {
 		return workspacestore.InputQueueLocation{}, nil, err
 	}
-	targetAgentIDs := roomdomain.ResolveMentionAgentIDs(content, roomdomain.BuildMentionAliases(contextValue))
+	targetAgentIDs := normalizeExplicitTargetAgentIDs(explicitTargetAgentIDs)
+	if len(explicitTargetAgentIDs) > 0 {
+		if len(targetAgentIDs) == 0 {
+			return workspacestore.InputQueueLocation{}, nil, errors.New("target_agent_ids must not be empty")
+		}
+		for _, agentID := range targetAgentIDs {
+			if !roomdomain.IsMemberAgent(contextValue.Members, agentID) {
+				return workspacestore.InputQueueLocation{}, nil, fmt.Errorf("target_agent_id is not a room member: %s", agentID)
+			}
+		}
+	} else {
+		targetAgentIDs = roomdomain.ResolveMentionAgentIDs(content, roomdomain.BuildMentionAliases(contextValue))
+	}
 	if len(targetAgentIDs) == 0 && len(locationsByAgentID) == 1 {
 		for agentID := range locationsByAgentID {
 			targetAgentIDs = []string{agentID}
@@ -56,6 +73,12 @@ func (s *RealtimeService) resolveRoomInputQueuePrimaryLocation(
 		if hostAgentID, ok := resolveRoomHostDefaultTarget(contextValue, agentNameByIDFromInputLocations(locationsByAgentID)); ok {
 			targetAgentIDs = []string{hostAgentID}
 		}
+	}
+	if len(targetAgentIDs) == 0 {
+		targetAgentIDs = s.latestActiveRootRoundAgentIDs(
+			protocol.BuildRoomSharedSessionKey(contextValue.Conversation.ID),
+			contextValue.Conversation.ID,
+		)
 	}
 	if len(targetAgentIDs) == 0 {
 		return workspacestore.InputQueueLocation{}, nil, errors.New("room input_queue content must mention target agent")

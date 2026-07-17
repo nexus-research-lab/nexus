@@ -4,7 +4,6 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { estimateRoundHeights } from "@/hooks/conversation/use-message-height";
 
 import {
-  buildRoundIndexItemMap,
   resolveConversationRound,
   type ConversationFeedProps,
 } from "./conversation-feed-model";
@@ -25,10 +24,6 @@ export function ConversationVirtualFeed({
   source,
 }: ConversationVirtualFeedProps) {
   const metrics = useConversationVirtualMetrics(refs.scrollRef);
-  const roundIndexItemById = useMemo(
-    () => buildRoundIndexItemMap(source.roundIndexItems),
-    [source.roundIndexItems],
-  );
   const heightMap = useMemo(
     () => estimateRoundHeights(
       source.roundIds,
@@ -88,7 +83,6 @@ export function ConversationVirtualFeed({
           return (
             <ConversationRound
               key={state.roundId}
-              indexItem={roundIndexItemById.get(state.roundId)}
               measureRef={virtualizer.measureElement}
               renderer={renderer}
               source={source}

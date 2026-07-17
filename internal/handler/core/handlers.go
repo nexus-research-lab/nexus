@@ -1,11 +1,15 @@
 package core
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	clientopts "github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
 	agentpkg "github.com/nexus-research-lab/nexus/internal/service/agent"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	nxsruntimesvc "github.com/nexus-research-lab/nexus/internal/service/nxsruntime"
@@ -22,6 +26,12 @@ type Handlers struct {
 	providers *providercfg.Service
 	prefs     *preferencessvc.Service
 	nxs       *nxsruntimesvc.Service
+	runtime   *runtimectx.Manager
+}
+
+// SetRuntimeManager 绑定活跃 Agent runtime 管理器。
+func (h *Handlers) SetRuntimeManager(manager *runtimectx.Manager) {
+	h.runtime = manager
 }
 
 // New 创建核心 handlers。
@@ -127,17 +137,69 @@ func (h *Handlers) HandleUpdatePreferences(writer http.ResponseWriter, request *
 	if !h.api.BindJSON(writer, request, &payload) {
 		return
 	}
-	item, err := h.prefs.Update(request.Context(), currentOwnerUserID(request), payload)
+	ownerUserID := currentOwnerUserID(request)
+	webSearchChanged := payload.WebSearch != nil || payload.WebSearchAPIKey != nil
+	var previous preferencessvc.Preferences
+	var err error
+	if webSearchChanged {
+		previous, err = h.prefs.Get(request.Context(), ownerUserID)
+		if err != nil {
+			h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+			return
+		}
+	}
+	item, err := h.prefs.Update(request.Context(), ownerUserID, payload)
 	if err != nil {
 		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
 		return
 	}
 	item, err = h.persistProviderPreferenceDefaults(request, item)
 	if err != nil {
+		if webSearchChanged {
+			err = errors.Join(err, h.restoreWebSearchPreferences(request.Context(), ownerUserID, previous))
+		}
+		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if err = h.syncWebSearchRuntime(request.Context(), item); err != nil {
+		if webSearchChanged {
+			err = errors.Join(
+				err,
+				h.syncWebSearchRuntime(request.Context(), previous),
+				h.restoreWebSearchPreferences(request.Context(), ownerUserID, previous),
+			)
+		}
 		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
 		return
 	}
 	h.api.WriteSuccess(writer, item)
+}
+
+// restoreWebSearchPreferences 恢复运行时同步失败前的用户配置与凭据。
+func (h *Handlers) restoreWebSearchPreferences(ctx context.Context, ownerUserID string, previous preferencessvc.Preferences) error {
+	apiKey := previous.WebSearchAPIKey()
+	_, err := h.prefs.Update(ctx, ownerUserID, preferencessvc.UpdateRequest{
+		WebSearch:       &previous.WebSearch,
+		WebSearchAPIKey: &apiKey,
+	})
+	return err
+}
+
+func (h *Handlers) syncWebSearchRuntime(ctx context.Context, preferences preferencessvc.Preferences) error {
+	if h.runtime == nil || h.agents == nil {
+		return nil
+	}
+	agents, err := h.agents.ListAgentRecords(ctx)
+	if err != nil {
+		return err
+	}
+	environment := clientopts.BuildWebSearchRuntimeEnv("nxs", preferences.WebSearch)
+	for _, item := range agents {
+		if err := h.runtime.UpdateEnvironmentForAgent(ctx, item.AgentID, environment); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // HandleGetRuntimeSettings 返回当前主机级运行配置。

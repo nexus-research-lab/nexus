@@ -2,7 +2,7 @@
 
 ## 职责
 
-- `group-thread-state.ts` 与 `group-thread-context.tsx` 只维护当前 Thread 目标和开关命令。
+- `group-thread-state.ts` 与 `group-thread-context.tsx` 只维护精确到 `agent_round_id` 的当前 Thread 目标和开关命令。
 - `live/` 独占实时会话切片、纯面板投影与生产消费 Hook。
 - `round-card/` 独占主 Feed 的轮次卡片投影与视图。
 

@@ -2,7 +2,7 @@
  * useAgentConversation Hook 类型定义
  *
  * [INPUT]: 依赖会话消息和权限协议
- * [OUTPUT]: 对外提供 UseAgentConversationOptions, UseAgentConversationReturn
+ * [OUTPUT]: 对外提供 UseAgentConversationOptions, UseAgentConversationReturn 与历史窗口解析状态
  * [POS]: types 模块的对话交互类型
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -64,6 +64,7 @@ export interface UseAgentConversationReturn {
   is_history_loading: boolean;
   has_more_history: boolean;
   history_prepend_token: number;
+  resolved_history_round_ids: string[];
   runtime_phase: AgentConversationRuntimePhase;
   error: string | null;
   pending_agent_slots: RoomPendingAgentSlotState[];
@@ -71,7 +72,7 @@ export interface UseAgentConversationReturn {
   send_message: (
     content: string,
     options?: AgentConversationSendOptions,
-  ) => Promise<void>;
+	  ) => Promise<void>;
   rewrite_last_user_message: (
     targetRoundId: string,
     content: string,
@@ -80,6 +81,7 @@ export interface UseAgentConversationReturn {
     content: string,
     deliveryPolicy?: AgentConversationDeliveryPolicy,
     attachments?: MessageAttachment[],
+    targetAgentIDs?: string[],
   ) => Promise<void>;
   delete_input_queue_message: (itemId: string) => Promise<void>;
   guide_input_queue_message: (itemId: string) => Promise<void>;
@@ -120,6 +122,7 @@ export interface InputQueueItem {
   agent_id?: string;
   source_agent_id?: string;
   source_message_id?: string;
+  handoff_id?: string;
   target_agent_ids?: string[];
   source: InputQueueSource;
   content: string;
@@ -141,6 +144,8 @@ export interface InputQueueEventPayload {
 export interface AgentConversationSendOptions {
   delivery_policy?: AgentConversationDeliveryPolicy;
   attachments?: MessageAttachment[];
+  /** Composer 已选中的 Room 目标；服务端仍会再次校验当前成员归属。 */
+  target_agent_ids?: string[];
 }
 
 export interface ConversationSnapshot {

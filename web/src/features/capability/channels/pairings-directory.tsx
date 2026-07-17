@@ -1,40 +1,27 @@
 "use client";
 
 import {
-  Filter,
   Plus,
   RefreshCw,
+  SearchX,
   ShieldCheck,
-  Users,
 } from "lucide-react";
 
-import {
-  CapabilityFilterBar,
-  CapabilityFilterSearchInput,
-  CapabilityFilterSelect,
-  CapabilityPageLayout,
-} from "@/features/capability/shared/capability-page-layout";
-import type {
-  ImChannelType,
-  ImPairingStatus,
-} from "@/lib/api/capability/channel-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
-import {
-  type FeedbackBannerProps,
-} from "@/shared/ui/feedback/feedback-banner";
+import type { FeedbackBannerProps } from "@/shared/ui/feedback/feedback-banner";
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
+import { WORKSPACE_DETAIL_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
 import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-toolbar-action";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 
 import { CreatePairingDialog } from "./pairings/pairing-create-dialog";
+import { PairingFilterBar } from "./pairings/pairing-filter-bar";
 import { PairingList } from "./pairings/pairing-list";
-import {
-  CHANNEL_OPTIONS,
-  STATUS_LABELS,
-} from "./pairings/pairing-options";
 import { usePairingsController } from "./pairings/use-pairings-controller";
 
 export function PairingsDirectory() {
@@ -86,87 +73,49 @@ export function PairingsDirectory() {
         )}
         stableGutter
       >
-        <CapabilityPageLayout
-          description={t("capability.pairings_intro_description")}
-          title={t("capability.pairings_intro_title")}
+        <div
+          className={cn(
+            WORKSPACE_DETAIL_PAGE_CLASS_NAME,
+            "max-w-[1280px] py-5",
+          )}
         >
-          <CapabilityFilterBar>
-            <CapabilityFilterSearchInput
-              onChange={(value) => controller.setFilter("query", value)}
-              placeholder={t("capability.pairings_search_placeholder")}
-              value={controller.filters.query}
-            />
-            <CapabilityFilterSelect
-              ariaLabel={t("capability.pairings_filter_channel_aria")}
-              leading={<Filter className="h-3.5 w-3.5" />}
-              onChange={(value) => controller.setFilter(
-                "channel",
-                value as ImChannelType | "",
-              )}
-              options={[
-                { value: "", label: "全部渠道" },
-                ...CHANNEL_OPTIONS,
-              ]}
-              value={controller.filters.channel}
-            />
-            <CapabilityFilterSelect
-              ariaLabel={t("capability.pairings_filter_status_aria")}
-              onChange={(value) => controller.setFilter(
-                "status",
-                value as ImPairingStatus | "",
-              )}
-              options={[
-                { value: "", label: "全部状态" },
-                ...Object.entries(STATUS_LABELS).map(([value, label]) => ({
-                  value,
-                  label,
-                })),
-              ]}
-              value={controller.filters.status}
-            />
-            <CapabilityFilterSelect
-              ariaLabel="按处理智能体筛选"
-              className="sm:w-[220px]"
-              leading={<Users className="h-3.5 w-3.5" />}
-              onChange={(value) => controller.setFilter("agentId", value)}
-              options={[
-                { value: "", label: "全部智能体" },
-                ...controller.agents.map((agent) => ({
-                  value: agent.agent_id,
-                  label: agent.name,
-                })),
-              ]}
-              value={controller.filters.agentId}
-            />
-            <div className="shrink-0 text-[12px] font-semibold text-(--text-muted) sm:ml-auto">
-              {controller.visibleItems.length} 个配对 · {controller.activeCount} 个已授权 · {controller.pendingCount} 个待处理
-            </div>
-          </CapabilityFilterBar>
-
-          {controller.loading ? (
+          {controller.loading && controller.items.length === 0 ? (
             <UiStateBlock
               description="正在同步外部 IM 用户与群聊的授权状态。"
               size="sm"
               title="加载配对..."
             />
-          ) : controller.visibleItems.length === 0 ? (
-            <UiStateBlock
-              description="外部 IM 用户或群首次发消息后，会在这里等待授权。"
-              icon={<ShieldCheck className="h-6 w-6 text-(--icon-default)" />}
-              size="md"
-              title="暂无配对请求"
+          ) : controller.items.length === 0 ? (
+            <PairingEmptyState
+              busy={controller.busy}
+              canCreate={controller.agents.length > 0}
+              onCreate={controller.openCreate}
             />
           ) : (
-            <PairingList
-              agents={controller.agents}
-              busy={controller.busy}
-              groups={controller.groups}
-              onCopySessionKey={controller.copySessionKey}
-              onDeletePairing={controller.requestDelete}
-              onUpdatePairing={controller.updatePairing}
-            />
+            <>
+              <PairingFilterBar
+                agents={controller.agents}
+                counts={controller.statusCounts}
+                filters={controller.filters}
+                onChange={controller.setFilter}
+                searchPlaceholder={t("capability.pairings_search_placeholder")}
+              />
+              {controller.visibleItems.length === 0 ? (
+                <PairingNoResults onClear={controller.clearFilters} />
+              ) : (
+                <PairingList
+                  agents={controller.agents}
+                  busy={controller.busy}
+                  groups={controller.groups}
+                  onCopySessionKey={controller.copySessionKey}
+                  onDeletePairing={controller.requestDelete}
+                  onUpdatePairing={controller.updatePairing}
+                  pendingItems={controller.pendingItems}
+                />
+              )}
+            </>
           )}
-        </CapabilityPageLayout>
+        </div>
       </WorkspaceSurfaceScaffold>
 
       {controller.createOpen ? (
@@ -191,5 +140,56 @@ export function PairingsDirectory() {
         variant="danger"
       />
     </>
+  );
+}
+
+function PairingEmptyState({
+  busy,
+  canCreate,
+  onCreate,
+}: {
+  busy: boolean;
+  canCreate: boolean;
+  onCreate: () => void;
+}) {
+  return (
+    <div className="flex min-h-[360px] flex-col items-center justify-center border-y border-(--divider-subtle-color) px-6 text-center">
+      <ShieldCheck className="h-8 w-8 text-(--icon-default)" />
+      <h2 className="mt-4 text-[17px] font-semibold text-(--text-strong)">
+        还没有配对
+      </h2>
+      <p className="mt-1 max-w-[460px] text-[13px] leading-6 text-(--text-muted)">
+        外部 IM 用户或群首次发消息后会在这里等待授权，也可以手动新增配对。
+      </p>
+      <UiButton
+        className="mt-5"
+        disabled={!canCreate || busy}
+        onClick={onCreate}
+        title={canCreate ? "新增 IM 配对" : "需要先创建智能体"}
+        tone="primary"
+        type="button"
+        variant="solid"
+      >
+        <Plus className="h-3.5 w-3.5" />
+        {canCreate ? "新增配对" : "需要先创建智能体"}
+      </UiButton>
+    </div>
+  );
+}
+
+function PairingNoResults({ onClear }: { onClear: () => void }) {
+  return (
+    <div className="flex min-h-[280px] flex-col items-center justify-center border-y border-(--divider-subtle-color) px-6 text-center">
+      <SearchX className="h-7 w-7 text-(--icon-muted)" />
+      <h2 className="mt-3 text-[15px] font-semibold text-(--text-strong)">
+        没有符合条件的配对
+      </h2>
+      <p className="mt-1 text-[13px] text-(--text-muted)">
+        调整筛选条件，或清除筛选查看全部配对。
+      </p>
+      <UiButton className="mt-4" onClick={onClear} size="sm" type="button">
+        清除筛选
+      </UiButton>
+    </div>
   );
 }

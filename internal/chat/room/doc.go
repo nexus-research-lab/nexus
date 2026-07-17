@@ -4,7 +4,7 @@
 //
 // 成员清单：
 //   - mapper.go / events.go / records.go：消息映射、事件构建、记录。
-//   - visible_*.go：可见性投影（batch / context / directed / history / prompt / format / value）。
+//   - context_budget.go / visible_*.go：模型窗口预算、anchor/delta 规划、checkpoint 边界、可见性投影与公区提及增量交付契约。
 //   - mention.go / public_mention.go / guidance.go / no_reply.go：提及、公区提及、引导、无回复。
 //   - model_runtime.go：Room 运行时模型。
 //

@@ -18,10 +18,11 @@ func newRoomMCPBuilder(
 	svc roommcpcontract.Service,
 	agents *agent.Service,
 	getRoom func(context.Context, string) (*protocol.RoomAggregate, error),
-) func(string, string, string, string, string) map[string]sdkmcp.ServerConfig {
+) func(string, string, string, string, string, string) map[string]sdkmcp.ServerConfig {
 	return func(
 		agentID string,
 		sessionKey string,
+		roundID string,
 		sourceContextType string,
 		sourceContextID string,
 		sourceContextLabel string,
@@ -36,6 +37,7 @@ func newRoomMCPBuilder(
 		sctx := roommcpcontract.ServerContext{
 			CurrentAgentID:     strings.TrimSpace(agentID),
 			CurrentSessionKey:  strings.TrimSpace(sessionKey),
+			CurrentRoundID:     strings.TrimSpace(roundID),
 			RoomID:             strings.TrimSpace(sourceContextID),
 			ConversationID:     strings.TrimSpace(parsed.ConversationID),
 			SourceContextType:  strings.TrimSpace(sourceContextType),

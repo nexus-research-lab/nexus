@@ -61,6 +61,9 @@ const INLINE_HTML_RULES: MarkdownChildRule[] = [
   replaceEncodedInlineHtml,
 ];
 
+const CJK_TEXT_PATTERN = /[\u2E80-\u2FFF\u3000-\u303F\u3040-\u30FF\u3400-\u4DBF\u4E00-\u9FFF\uAC00-\uD7AF\uF900-\uFAFF\uFF00-\uFFEF]/u;
+const CJK_RUN_PATTERN = /[\u2E80-\u2FFF\u3000-\u303F\u3040-\u30FF\u3400-\u4DBF\u4E00-\u9FFF\uAC00-\uD7AF\uF900-\uFAFF\uFF00-\uFFEF]+/gu;
+
 function createInlineHtmlNode(tagName: string, value: string): MarkdownAstNode {
   return {
     children: [{ type: "text", value }],
@@ -69,6 +72,17 @@ function createInlineHtmlNode(tagName: string, value: string): MarkdownAstNode {
       hProperties: {},
     },
     type: "inlineHtmlTag",
+  };
+}
+
+function createCjkTextNode(value: string): MarkdownAstNode {
+  return {
+    children: [{ type: "text", value }],
+    data: {
+      hName: "span",
+      hProperties: { className: ["message-cjk-text"] },
+    },
+    type: "cjkText",
   };
 }
 
@@ -106,6 +120,36 @@ function applyChildRules(
     }
     children.splice(index, replacement.deleteCount, ...replacement.nodes);
     index += replacement.nodes.length - 1;
+  }
+}
+
+function splitCjkTextNodes(node: MarkdownAstNode) {
+  if (node.type === "cjkText") {
+    return;
+  }
+  const children = node.children;
+  if (!children) {
+    return;
+  }
+
+  for (let index = 0; index < children.length; index += 1) {
+    const child = children[index];
+    if (child.type === "text") {
+      const value = child.value ?? "";
+      if (CJK_TEXT_PATTERN.test(value)) {
+        const nodes = splitTextByPattern(
+          value,
+          CJK_RUN_PATTERN,
+          (match) => createCjkTextNode(match[0]),
+        );
+        if (nodes) {
+          children.splice(index, 1, ...nodes);
+          index += nodes.length - 1;
+        }
+      }
+      continue;
+    }
+    splitCjkTextNodes(child);
   }
 }
 
@@ -244,5 +288,11 @@ export function remarkMarkdownBreaks() {
 export function remarkInlineHtmlTags() {
   return (tree: MarkdownAstNode) => {
     visitChildren(tree, (node) => applyChildRules(node, INLINE_HTML_RULES));
+  };
+}
+
+export function remarkMixedScript() {
+  return (tree: MarkdownAstNode) => {
+    splitCjkTextNodes(tree);
   };
 }

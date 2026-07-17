@@ -1,6 +1,10 @@
+// [INPUT]: 依赖会话/运行时跨边界状态与时间戳。
+// [OUTPUT]: 对外提供统一事件类型、请求 ACK 与权威 pending slot 快照事件。
+// [POS]: protocol 包的 WebSocket 事件真相源。
 package protocol
 
 import (
+	"errors"
 	"strings"
 	"time"
 )
@@ -8,16 +12,20 @@ import (
 // EventType 表示统一事件类型。
 type EventType string
 
-// ChatAckTimeoutMS 是客户端等待 chat_ack 的上限（毫秒）。
+// RequestAckTimeoutMS 是客户端等待请求 ACK 的上限（毫秒）。
 // 服务端不强制该窗口，但承诺在此之前回 ack；
 // 前端据此设置本地超时，两侧同源避免漂移。
-const ChatAckTimeoutMS = 10000
+const RequestAckTimeoutMS = 10000
+
+// ChatAckTimeoutMS 保留 chat_ack 的兼容名称；所有请求 ACK 共用同一超时契约。
+const ChatAckTimeoutMS = RequestAckTimeoutMS
 
 const (
 	EventTypeMessage                     EventType = "message"
 	EventTypeStream                      EventType = "stream"
 	EventTypeChatAck                     EventType = "chat_ack"
 	EventTypeInputQueue                  EventType = "input_queue"
+	EventTypeInputQueueAck               EventType = "input_queue_ack"
 	EventTypeRoundStatus                 EventType = "round_status"
 	EventTypeAgentRoundStatus            EventType = "agent_round_status"
 	EventTypeSessionStatus               EventType = "session_status"
@@ -72,6 +80,20 @@ type EventMessage struct {
 type InboundWebSocketMessage struct {
 	Type       string `json:"type"`
 	SessionKey string `json:"session_key,omitempty"`
+}
+
+type clientMessageError interface {
+	ClientMessage() string
+}
+
+// ClientErrorMessage 只读取业务错误显式声明的安全文案，未知内部错误不得穿透到客户端。
+func ClientErrorMessage(err error) (string, bool) {
+	var target clientMessageError
+	if !errors.As(err, &target) {
+		return "", false
+	}
+	message := strings.TrimSpace(target.ClientMessage())
+	return message, message != ""
 }
 
 // RoundStatusData 表示 round 生命周期事件。
@@ -154,19 +176,37 @@ type ChatAckPendingSlot struct {
 
 // NewChatAckEvent 构造 chat_ack 事件。round_id / user_message_id 由后端 mint，
 // client_request_id / client_message_id 原样回传供前端关联。
-func NewChatAckEvent(sessionKey string, clientRequestID string, clientMessageID string, roundID string, userMessageID string, pending []ChatAckPendingSlot) EventMessage {
+func NewChatAckEvent(
+	sessionKey string,
+	clientRequestID string,
+	clientMessageID string,
+	roundID string,
+	userMessageID string,
+	userMessageCommitted bool,
+	pending []ChatAckPendingSlot,
+) EventMessage {
 	if pending == nil {
 		pending = []ChatAckPendingSlot{}
 	}
 	event := NewEvent(EventTypeChatAck, map[string]any{
-		"client_request_id": clientRequestID,
-		"client_message_id": clientMessageID,
-		"round_id":          roundID,
-		"user_message_id":   userMessageID,
-		"pending":           pending,
-		"ack_timeout_ms":    ChatAckTimeoutMS,
+		"client_request_id":      clientRequestID,
+		"client_message_id":      clientMessageID,
+		"round_id":               roundID,
+		"user_message_id":        userMessageID,
+		"user_message_committed": userMessageCommitted,
+		"pending":                pending,
+		"pending_snapshot":       false,
+		"ack_timeout_ms":         ChatAckTimeoutMS,
 	})
 	event.SessionKey = sessionKey
+	return event
+}
+
+// NewChatPendingSnapshotEvent 构造订阅恢复时的权威 Room slot 快照。
+// 前端必须用 pending 整体替换本地恢复值；空数组同样有意义，用于清除陈旧占位。
+func NewChatPendingSnapshotEvent(sessionKey string, roundID string, pending []ChatAckPendingSlot) EventMessage {
+	event := NewChatAckEvent(sessionKey, "", "", roundID, "", false, pending)
+	event.Data["pending_snapshot"] = true
 	return event
 }
 

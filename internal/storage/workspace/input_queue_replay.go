@@ -1,7 +1,11 @@
+// INPUT: append-only input queue 行及其单项/批量动作。
+// OUTPUT: 按顺序重放后的当前队列快照。
+// POS: InputQueueStore 的持久日志状态机。
 package workspace
 
 import (
 	"strings"
+	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
@@ -60,12 +64,14 @@ func (r *inputQueueReplay) enqueue(row map[string]any) {
 }
 
 func (r *inputQueueReplay) remove(row map[string]any) {
-	itemID := stringFromAny(row["item_id"])
-	if itemID == "" {
-		return
+	itemIDs := stringSliceFromAny(row["item_ids"])
+	if itemID := stringFromAny(row["item_id"]); itemID != "" {
+		itemIDs = append(itemIDs, itemID)
 	}
-	delete(r.itemsByID, itemID)
-	r.order = removeInputQueueOrderID(r.order, itemID)
+	for _, itemID := range itemIDs {
+		delete(r.itemsByID, itemID)
+		r.order = removeInputQueueOrderID(r.order, itemID)
+	}
 }
 
 func (r *inputQueueReplay) reorder(row map[string]any) {
@@ -95,9 +101,13 @@ func (r *inputQueueReplay) update(row map[string]any) {
 
 func (r *inputQueueReplay) items() []protocol.InputQueueItem {
 	result := make([]protocol.InputQueueItem, 0, len(r.order))
+	now := time.Now().UnixMilli()
 	for _, id := range r.order {
 		item, ok := r.itemsByID[id]
 		if !ok {
+			continue
+		}
+		if item.ExpiresAt > 0 && item.ExpiresAt <= now {
 			continue
 		}
 		result = append(result, item)

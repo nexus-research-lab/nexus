@@ -172,6 +172,55 @@ func TestGoalContinuationTargetAgentIDUsesHostWithoutAutoReply(t *testing.T) {
 	}
 }
 
+type fakeRoomGoalLeadReconciler struct {
+	*fakeRoomGoalContextProvider
+	current           *protocol.Goal
+	assignedGoalID    string
+	assignedAgentID   string
+	assignedAgentName string
+}
+
+func (f *fakeRoomGoalLeadReconciler) CurrentOptional(context.Context, string) (*protocol.Goal, error) {
+	return f.current, nil
+}
+
+func (f *fakeRoomGoalLeadReconciler) SetRoomGoalLead(_ context.Context, goalID string, agentID string, agentName string) (*protocol.Goal, error) {
+	f.assignedGoalID = goalID
+	f.assignedAgentID = agentID
+	f.assignedAgentName = agentName
+	return f.current, nil
+}
+
+func TestReconcileRoomGoalLeadUsesValidRoomHost(t *testing.T) {
+	goalProvider := &fakeRoomGoalLeadReconciler{
+		fakeRoomGoalContextProvider: &fakeRoomGoalContextProvider{},
+		current: &protocol.Goal{
+			ID:         "goal-room",
+			SessionKey: protocol.BuildRoomSharedSessionKey("conversation-1"),
+			Status:     protocol.GoalStatusActive,
+			Metadata: map[string]any{
+				protocol.GoalMetadataRoomGoalLeadAgentID: "agent-removed",
+			},
+		},
+	}
+	service := &RealtimeService{goals: goalProvider}
+	contextValue := &protocol.ConversationContextAggregate{
+		Room: protocol.RoomRecord{HostAgentID: "agent-host"},
+	}
+	err := service.reconcileRoomGoalLead(
+		context.Background(),
+		protocol.BuildRoomSharedSessionKey("conversation-1"),
+		contextValue,
+		map[string]string{"agent-host": "Host", "agent-peer": "Peer"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if goalProvider.assignedGoalID != "goal-room" || goalProvider.assignedAgentID != "agent-host" || goalProvider.assignedAgentName != "Host" {
+		t.Fatalf("lead assignment = goal:%q agent:%q name:%q", goalProvider.assignedGoalID, goalProvider.assignedAgentID, goalProvider.assignedAgentName)
+	}
+}
+
 func TestRealtimeServicePostRoundWorkPlansRoomGoalContinuation(t *testing.T) {
 	goalProvider := &fakeRoomGoalContextProvider{}
 	service := &RealtimeService{
@@ -287,5 +336,32 @@ func TestRealtimeServicePostRoundWorkRecordsRoomGoalFailureWhenDispatchFails(t *
 	}
 	if goalProvider.releaseCalls != 0 {
 		t.Fatalf("releaseCalls=%d, want failed continuation retained as failed", goalProvider.releaseCalls)
+	}
+}
+
+func TestShouldDeferGoalContinuationWhileCollaboratorSlotIsActive(t *testing.T) {
+	const conversationID = "conversation-active-collaborator"
+	sessionKey := protocol.BuildRoomSharedSessionKey(conversationID)
+	peerSlot := &activeRoomSlot{AgentID: "agent-peer", Status: "running"}
+	service := &RealtimeService{
+		activeRounds: map[string]*activeRoomRound{
+			"peer-round": {
+				SessionKey:     sessionKey,
+				ConversationID: conversationID,
+				RoundID:        "round-peer",
+				Slots:          map[string]*activeRoomSlot{"peer": peerSlot},
+			},
+		},
+	}
+	contextValue := &protocol.ConversationContextAggregate{
+		Conversation: protocol.ConversationRecord{ID: conversationID},
+	}
+
+	if !service.shouldDeferGoalContinuationForTargetState(context.Background(), sessionKey, contextValue) {
+		t.Fatal("continuation should defer while a collaborator slot is active")
+	}
+	peerSlot.setStatus("finished")
+	if service.shouldDeferGoalContinuationForTargetState(context.Background(), sessionKey, contextValue) {
+		t.Fatal("continuation should not defer on target state after collaborator slot becomes terminal")
 	}
 }

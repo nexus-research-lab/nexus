@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -68,7 +69,7 @@ func TestRealtimeServiceMCPBuilderUsesSharedRoomSessionContext(t *testing.T) {
 		sourceContextLabel string
 	}
 	calls := make(chan builderCall, 1)
-	service.SetMCPServerBuilder(func(agentID string, sessionKey string, roundID string, sourceContextType string, sourceContextID string, sourceContextLabel string) map[string]sdkmcp.ServerConfig {
+	service.SetMCPServerBuilder(func(agentID string, sessionKey string, roundID string, sourceContextType string, sourceContextID string, sourceContextLabel string, _ *atomic.Int64) map[string]sdkmcp.ServerConfig {
 		calls <- builderCall{
 			agentID:            agentID,
 			sessionKey:         sessionKey,

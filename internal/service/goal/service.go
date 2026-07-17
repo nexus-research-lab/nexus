@@ -1,3 +1,6 @@
+// INPUT: Goal 创建、读取、Room creator/lead 身份、用户更新请求与 Room 终态 readiness。
+// OUTPUT: 持久化 Goal、不可变 creator/可转移 lead 审计身份与受运行中工作保护的后续 runtime 决策。
+// POS: Goal 应用服务主入口。
 package goal
 
 import (
@@ -29,6 +32,7 @@ type Service struct {
 	rewriter         objectiveRewriter
 	externalMutation externalMutationAccountant
 	runtimeInterrupt runtimeInterrupter
+	roomCompletion   roomGoalCompletionReadiness
 	continuations    ContinuationDispatcher
 	wallClock        *goalWallClockAccounting
 	nowFn            func() time.Time
@@ -55,14 +59,34 @@ func (s *Service) Create(ctx context.Context, request protocol.CreateGoalRequest
 	if err != nil {
 		return nil, err
 	}
-	objective, metadata := s.rewriteCreateObjective(ctx, request, objective)
+	if protocol.IsRoomSharedSessionKey(sessionKey) && strings.TrimSpace(request.CreatedBy) == "model" && strings.TrimSpace(request.AgentID) == "" {
+		return nil, newGoalInvalidInputError("model-created Room Goal requires the current agent identity")
+	}
 	current, err := s.repo.GetCurrentGoal(ctx, sessionKey)
 	if err != nil {
 		return nil, err
 	}
 	if current != nil {
-		return nil, ErrGoalConflict
+		if !request.ReplaceExisting {
+			return nil, ErrGoalConflict
+		}
+		metadata := request.Metadata
+		if metadata == nil {
+			metadata = map[string]any{}
+		}
+		return s.Update(ctx, current.ID, protocol.UpdateGoalRequest{
+			Objective:   &objective,
+			TokenBudget: protocol.OptionalInt64{Present: true, Value: request.TokenBudget},
+			OwnerUserID: request.OwnerUserID,
+			Metadata:    metadata,
+		})
 	}
+	objective, metadata := s.rewriteCreateObjective(ctx, request, objective)
+	if metadata != nil {
+		metadata = cloneMap(metadata)
+		delete(metadata, protocol.GoalMetadataObjectiveRevision)
+	}
+	metadata = initializeRoomGoalOwnershipMetadata(sessionKey, metadata, request.AgentID)
 
 	now := s.nowFn()
 	tokenBudget, err := normalizeCreateBudget(request.TokenBudget)
@@ -162,6 +186,7 @@ func (s *Service) buildGoalUpdateMutation(
 	item *protocol.Goal,
 	request protocol.UpdateGoalRequest,
 ) (goalUpdateMutation, error) {
+	objectiveRevision := item.ObjectiveRevision()
 	mutation := goalUpdateMutation{
 		objectiveRequested: request.Objective != nil,
 		payload:            make(map[string]any),
@@ -173,9 +198,21 @@ func (s *Service) buildGoalUpdateMutation(
 		return goalUpdateMutation{}, err
 	}
 	if request.Metadata != nil {
-		item.Metadata = cloneMap(request.Metadata)
+		item.Metadata = preserveRoomGoalOwnershipMetadata(*item, request.Metadata)
+		delete(item.Metadata, protocol.GoalMetadataObjectiveRevision)
+		if objectiveRevision > 1 {
+			item.Metadata[protocol.GoalMetadataObjectiveRevision] = objectiveRevision
+		}
 		mutation.changed = true
 		mutation.payload["metadata_updated"] = true
+	}
+	if eventPayloadBool(mutation.payload, "objective_updated") {
+		item.Metadata = cloneMap(item.Metadata)
+		if item.Metadata == nil {
+			item.Metadata = map[string]any{}
+		}
+		item.Metadata[protocol.GoalMetadataObjectiveRevision] = objectiveRevision + 1
+		mutation.payload["objective_revision"] = objectiveRevision + 1
 	}
 	return mutation, nil
 }
@@ -198,6 +235,7 @@ func (s *Service) applyGoalObjectiveUpdate(
 		return nil
 	}
 	item.Objective = objective
+	resetGoalContinuationForObjectiveReplacement(item)
 	mutation.changed = true
 	mutation.payload["objective_updated"] = true
 	return nil

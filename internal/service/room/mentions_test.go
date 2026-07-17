@@ -103,7 +103,7 @@ func TestRealtimeServiceWakesMentionedAgentFromPublicAssistantReply(t *testing.T
 	}
 }
 
-func TestRealtimeServiceAllowsReciprocalPublicMentionChain(t *testing.T) {
+func TestRealtimeServiceBlocksReciprocalPublicMentionChain(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
@@ -130,24 +130,25 @@ func TestRealtimeServiceAllowsReciprocalPublicMentionChain(t *testing.T) {
 
 	amyFirstClient := newFakeRoomClient()
 	devinClient := newFakeRoomClient()
-	amySecondClient := newFakeRoomClient()
 	amySecondPrompt := make(chan string, 1)
-	factory := &fakeRoomFactory{clients: []*fakeRoomClient{amyFirstClient, devinClient, amySecondClient}}
+	factory := &fakeRoomFactory{clients: []*fakeRoomClient{amyFirstClient, devinClient}}
 	permission := permissionctx.NewContext()
 	runtimeManager := runtimectx.NewManager()
 	service := NewRealtimeServiceWithFactory(cfg, roomService, agentService, runtimeManager, permission, factory)
 
-	amyFirstClient.onQuery = func(_ context.Context, _ string) error {
-		go sendFakeAssistantResult(amyFirstClient, "amy-public-mention-chain-1", "@Devin 请接下一联。")
+	amyQueryCount := 0
+	amyFirstClient.onQuery = func(_ context.Context, prompt string) error {
+		amyQueryCount++
+		if amyQueryCount == 1 {
+			go sendFakeAssistantResult(amyFirstClient, "amy-public-mention-chain-1", "@Devin 请接下一联。")
+			return nil
+		}
+		amySecondPrompt <- prompt
+		go sendFakeAssistantResult(amyFirstClient, "amy-public-mention-chain-2", "收到，继续接力。")
 		return nil
 	}
 	devinClient.onQuery = func(_ context.Context, _ string) error {
 		go sendFakeAssistantResult(devinClient, "devin-public-mention-chain-1", "@Amy 我接完了，你继续。")
-		return nil
-	}
-	amySecondClient.onQuery = func(_ context.Context, prompt string) error {
-		amySecondPrompt <- prompt
-		go sendFakeAssistantResult(amySecondClient, "amy-public-mention-chain-2", "收到，继续接力。")
 		return nil
 	}
 
@@ -165,14 +166,6 @@ func TestRealtimeServiceAllowsReciprocalPublicMentionChain(t *testing.T) {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}
 
-	select {
-	case prompt := <-amySecondPrompt:
-		if !strings.Contains(prompt, "<latest_trigger>\nDevin: @Amy 我接完了，你继续。") {
-			t.Fatalf("Amy 第二次 prompt 缺少 Devin 触发上下文: %s", prompt)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("Devin @Amy 后未继续触发 Amy")
-	}
 	finishedMentionRounds := 0
 	_ = collectRoomEventsUntil(t, sender.events, func(_ []protocol.EventMessage, event protocol.EventMessage) bool {
 		if event.EventType != protocol.EventTypeRoundStatus {
@@ -183,8 +176,13 @@ func TestRealtimeServiceAllowsReciprocalPublicMentionChain(t *testing.T) {
 		if strings.HasPrefix(roundID, "room_mention_") && status == "finished" {
 			finishedMentionRounds++
 		}
-		return finishedMentionRounds >= 2
+		return finishedMentionRounds >= 1
 	})
+	select {
+	case prompt := <-amySecondPrompt:
+		t.Fatalf("root cycle 不应再次唤醒 Amy: %s", prompt)
+	case <-time.After(300 * time.Millisecond):
+	}
 }
 
 func TestRealtimeServiceQueuesPublicMentionWhenTargetRunning(t *testing.T) {
@@ -214,18 +212,19 @@ func TestRealtimeServiceQueuesPublicMentionWhenTargetRunning(t *testing.T) {
 
 	devinCurrentClient := newFakeRoomClient()
 	amyClient := newFakeRoomClient()
-	devinQueuedClient := newFakeRoomClient()
 	devinQueuedPrompt := make(chan string, 1)
-	devinCurrentClient.onQuery = func(_ context.Context, _ string) error {
+	devinQueryCount := 0
+	devinCurrentClient.onQuery = func(_ context.Context, prompt string) error {
+		devinQueryCount++
+		if devinQueryCount == 1 {
+			return nil
+		}
+		devinQueuedPrompt <- prompt
+		go sendFakeAssistantResult(devinCurrentClient, "devin-public-mention-after-busy", "天气任务已处理。")
 		return nil
 	}
 	amyClient.onQuery = func(_ context.Context, _ string) error {
 		go sendFakeAssistantResult(amyClient, "amy-public-mention-busy", "@Devin 当前天气任务交给你。")
-		return nil
-	}
-	devinQueuedClient.onQuery = func(_ context.Context, prompt string) error {
-		devinQueuedPrompt <- prompt
-		go sendFakeAssistantResult(devinQueuedClient, "devin-public-mention-after-busy", "天气任务已处理。")
 		return nil
 	}
 
@@ -236,7 +235,7 @@ func TestRealtimeServiceQueuesPublicMentionWhenTargetRunning(t *testing.T) {
 		agentService,
 		runtimectx.NewManager(),
 		permission,
-		&fakeRoomFactory{clients: []*fakeRoomClient{devinCurrentClient, amyClient, devinQueuedClient}},
+		&fakeRoomFactory{clients: []*fakeRoomClient{devinCurrentClient, amyClient}},
 	)
 
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
@@ -252,8 +251,13 @@ func TestRealtimeServiceQueuesPublicMentionWhenTargetRunning(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("启动 Devin 长任务失败: %v", err)
 	}
+	devinActiveRoundID := ""
 	_ = collectRoomEventsUntil(t, sender.events, func(events []protocol.EventMessage, event protocol.EventMessage) bool {
-		return event.EventType == protocol.EventTypeStreamStart && event.AgentID == devin.AgentID
+		if event.EventType == protocol.EventTypeStreamStart && event.AgentID == devin.AgentID {
+			devinActiveRoundID = event.AgentRoundID
+			return true
+		}
+		return false
 	})
 
 	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
@@ -282,7 +286,9 @@ func TestRealtimeServiceQueuesPublicMentionWhenTargetRunning(t *testing.T) {
 	if queuedItem.SourceMessageID != "amy-public-mention-busy" ||
 		queuedItem.SourceAgentID != amy.AgentID ||
 		len(queuedItem.TargetAgentIDs) != 1 ||
-		queuedItem.TargetAgentIDs[0] != devin.AgentID {
+		queuedItem.TargetAgentIDs[0] != devin.AgentID ||
+		queuedItem.DeliveryPolicy != protocol.ChatDeliveryPolicyQueue ||
+		queuedItem.RootRoundID == devinActiveRoundID {
 		t.Fatalf("公区 @ 队列项缺少来源或目标: %+v", queuedItem)
 	}
 	targetQueueLocation := workspacestore.InputQueueLocation{
@@ -296,7 +302,9 @@ func TestRealtimeServiceQueuesPublicMentionWhenTargetRunning(t *testing.T) {
 	if err != nil {
 		t.Fatalf("读取目标 agent session 队列失败: %v", err)
 	}
-	if len(targetQueueItems) != 1 || targetQueueItems[0].ID != queuedItem.ID {
+	if len(targetQueueItems) != 1 || targetQueueItems[0].ID != queuedItem.ID ||
+		targetQueueItems[0].DeliveryPolicy != protocol.ChatDeliveryPolicyQueue ||
+		targetQueueItems[0].RootRoundID == devinActiveRoundID {
 		t.Fatalf("Room 队列未落到目标 agent session: event=%+v stored=%+v", queuedItem, targetQueueItems)
 	}
 

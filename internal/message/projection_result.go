@@ -1,3 +1,6 @@
+// INPUT: runtime result、同一 Agent 执行轮的 assistant 快照与终态元数据。
+// OUTPUT: 保留执行身份的 assistant result_summary 或 result-only 合成 assistant。
+// POS: runtime result 到前端统一 assistant 终态形态的投影边界。
 package message
 
 import (
@@ -16,6 +19,10 @@ func AttachResultSummary(assistant protocol.Message, result protocol.Message) (p
 	assistantRoundID := protocol.MessageRoundID(assistant)
 	resultRoundID := protocol.MessageRoundID(result)
 	if assistantRoundID == "" || resultRoundID == "" || assistantRoundID != resultRoundID {
+		return nil, false
+	}
+	if !sameOptionalIdentity(assistant, result, "agent_round_id") ||
+		!sameOptionalIdentity(assistant, result, "agent_id") {
 		return nil, false
 	}
 	summary := BuildAssistantResultSummary(result, ExtractAssistantDisplayText(assistant))
@@ -174,6 +181,8 @@ func BuildSyntheticAssistantFromResult(result protocol.Message) protocol.Message
 	if parentID := normalizeString(result["parent_id"]); parentID != "" {
 		synthetic["parent_id"] = parentID
 	}
+	copySyntheticAssistantIdentity(synthetic, result, "agent_round_id")
+	copySyntheticAssistantIdentity(synthetic, result, "model")
 	if stopReason := stopReasonFromResult(result); stopReason != "" {
 		synthetic["stop_reason"] = stopReason
 	} else {
@@ -191,6 +200,18 @@ func BuildSyntheticAssistantFromResult(result protocol.Message) protocol.Message
 		return summary
 	}
 	return synthetic
+}
+
+func sameOptionalIdentity(left protocol.Message, right protocol.Message, key string) bool {
+	leftValue := normalizeString(left[key])
+	rightValue := normalizeString(right[key])
+	return leftValue == "" || rightValue == "" || leftValue == rightValue
+}
+
+func copySyntheticAssistantIdentity(target protocol.Message, source protocol.Message, key string) {
+	if value := normalizeString(source[key]); value != "" {
+		target[key] = value
+	}
 }
 
 func stopReasonFromResult(result protocol.Message) string {

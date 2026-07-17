@@ -50,6 +50,12 @@ const CONVERSATION_CONTEXT_ERRORS: Record<
   missing_session: "请先选择或创建会话",
 };
 
+export function conversationContextError(
+  reason: ConversationContextFailure,
+): string {
+  return CONVERSATION_CONTEXT_ERRORS[reason];
+}
+
 interface ConversationContextGuard {
   rejects: (candidate: ConversationContextCandidate) => boolean;
   reason: ConversationContextFailure;
@@ -118,7 +124,7 @@ export function requireConversationActionContext(
     context.activeSessionKeyRef.current = result.value.sessionKey;
     return result.value;
   }
-  const message = CONVERSATION_CONTEXT_ERRORS[result.reason];
+  const message = conversationContextError(result.reason);
   context.setError(message);
   throw new Error(message);
 }

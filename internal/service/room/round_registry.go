@@ -117,6 +117,8 @@ func (s *RealtimeService) registerRound(roundValue *activeRoomRound) {
 		return
 	}
 	s.mu.Lock()
+	s.activeRoundSequence++
+	roundValue.registrationSequence = s.activeRoundSequence
 	s.activeRounds[roomActiveRoundKey(roundValue.SessionKey, roundValue.RoundID)] = roundValue
 	s.mu.Unlock()
 }

@@ -93,8 +93,14 @@ function projectVisibleRoundCandidate(
   focusY: number,
   roundIdSet: Set<string>,
 ): VisibleRoundCandidate | null {
-  const roundId = element.dataset.conversationRoundId;
-  if (!roundId || !roundIdSet.has(roundId)) {
+  const nodeRoundId = element.dataset.conversationRoundId;
+  const rootRoundId = element.dataset.conversationRootRoundId;
+  const roundId = nodeRoundId && roundIdSet.has(nodeRoundId)
+    ? nodeRoundId
+    : rootRoundId && roundIdSet.has(rootRoundId)
+      ? rootRoundId
+      : null;
+  if (!roundId) {
     return null;
   }
   const rect = element.getBoundingClientRect();

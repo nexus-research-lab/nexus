@@ -86,7 +86,7 @@ function appendSnapshotMessageTrackers(
 export class AgentConversationRuntimeMachine {
   private chatType: AgentConversationChatType;
 
-  private sendingRoundIds = new Set<string>();
+  private pendingRequestIds = new Set<string>();
 
   private runningRoundIds = new Set<string>();
 
@@ -131,7 +131,7 @@ export class AgentConversationRuntimeMachine {
   }
 
   public reset(): void {
-    this.sendingRoundIds.clear();
+    this.pendingRequestIds.clear();
     this.runningRoundIds.clear();
     this.terminalRoundIds.clear();
     this.activeMessageTrackers.clear();
@@ -141,12 +141,12 @@ export class AgentConversationRuntimeMachine {
 
   /** 发送中状态按 client_request_id 追踪，ack 后转为 canonical round。 */
   public trackOutboundRequest(clientRequestId: string): void {
-    this.sendingRoundIds.add(clientRequestId);
+    this.pendingRequestIds.add(clientRequestId);
   }
 
   public clearOutboundRequest(clientRequestId?: string | null): void {
     if (clientRequestId) {
-      this.sendingRoundIds.delete(clientRequestId);
+      this.pendingRequestIds.delete(clientRequestId);
     }
   }
 
@@ -174,7 +174,7 @@ export class AgentConversationRuntimeMachine {
   }
 
   public trackChatAck(ack: ChatAckData): void {
-    this.sendingRoundIds.delete(ack.client_request_id);
+    this.pendingRequestIds.delete(ack.client_request_id);
     this.terminalRoundIds.delete(ack.round_id);
 
     for (const slot of ack.pending) {
@@ -210,14 +210,12 @@ export class AgentConversationRuntimeMachine {
     status: RoundLifecycleStatus,
   ): void {
     if (status === "running") {
-      this.sendingRoundIds.delete(roundId);
       this.terminalRoundIds.delete(roundId);
       this.runningRoundIds.add(roundId);
       return;
     }
 
     this.terminalRoundIds.add(roundId);
-    this.sendingRoundIds.delete(roundId);
     this.runningRoundIds.delete(roundId);
     for (const [messageId, tracker] of this.activeMessageTrackers.entries()) {
       if (tracker.roundId === roundId) {
@@ -235,7 +233,6 @@ export class AgentConversationRuntimeMachine {
 
     this.runningRoundIds = nextRunningRoundIds;
     for (const roundId of nextRunningRoundIds) {
-      this.sendingRoundIds.delete(roundId);
       this.terminalRoundIds.delete(roundId);
     }
   }
@@ -272,10 +269,7 @@ export class AgentConversationRuntimeMachine {
 
   private computeSnapshot(): AgentConversationRuntimeSnapshot {
     const phase = this.resolvePhase();
-    const liveRoundIds = new Set<string>([
-      ...this.sendingRoundIds,
-      ...this.runningRoundIds,
-    ]);
+    const liveRoundIds = new Set<string>(this.runningRoundIds);
     for (const tracker of this.activeMessageTrackers.values()) {
       if (tracker.roundId) {
         liveRoundIds.add(tracker.roundId);
@@ -308,7 +302,7 @@ export class AgentConversationRuntimeMachine {
       }
     }
 
-    if (this.sendingRoundIds.size > 0) {
+    if (this.pendingRequestIds.size > 0) {
       return "sending";
     }
 

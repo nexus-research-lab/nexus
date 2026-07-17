@@ -321,6 +321,9 @@ func (s *RealtimeService) interruptActiveRound(
 	if roundValue == nil {
 		return nil
 	}
+	// 整轮停止时同步收口所有派生 public handoff，避免 root 取消后
+	// 持久化 queue 在稍后又把目标 Agent 唤醒。
+	s.cancelRootPublicHandoffs(ctx, roundValue, "interrupted")
 	s.loggerFor(ctx).Warn("请求中断 Room round",
 		"session_key", roundValue.SessionKey,
 		"room_id", roundValue.RoomID,

@@ -132,6 +132,7 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 		t.Fatalf("期望发送 1 条 Room runtime query，实际 %d", len(queryPrompts))
 	}
 	for _, expected := range []string{
+		"<public_anchor>",
 		"<public_feed>",
 		"<latest_trigger>",
 		"<nexus_runtime_context>",
@@ -166,11 +167,9 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 		"You are a member in a multi-member Nexus Room",
 		"Each user turn includes <public_feed>",
 		"Private Room directed message sending is disabled",
-		`nexus_room.publish_public_message`,
-		"Small-group discussion is just a directed message with multiple recipients",
-		`latest_trigger says "room host default takeover"`,
-		"When you receive a directed message, answer in this turn's final reply",
-		"Never restate directed message content",
+		`"room host default takeover"`,
+		"When a directed message wakes you, answer once in the final reply",
+		"The final reply may be persisted or projected verbatim",
 		"# Nexus Room Member Directory",
 		"<room_member_directory>",
 		"- name=单聊助手 agent_id=" + memberAgent.AgentID,
@@ -503,10 +502,21 @@ func TestRealtimeServiceSuppressesNoReplyMarkerProjection(t *testing.T) {
 					},
 				},
 			}
-			sendFakeAssistantResultWithUsage(client, "amy-no-reply", "<nexus_room_no_reply/>", map[string]any{
-				"input_tokens":  7,
-				"output_tokens": 2,
-			})
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: client.sessionID,
+				UUID:      "amy-no-reply-result",
+				Result: &sdkprotocol.ResultMessage{
+					Subtype:    "success",
+					Result:     "<nexus_room_no_reply/>",
+					NumTurns:   1,
+					DurationMS: 1,
+					Usage: map[string]any{
+						"input_tokens":  7,
+						"output_tokens": 2,
+					},
+				},
+			}
 		}()
 		return nil
 	}

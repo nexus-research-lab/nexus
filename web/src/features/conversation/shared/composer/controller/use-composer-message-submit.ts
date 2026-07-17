@@ -3,6 +3,7 @@ import { useCallback } from "react";
 import type {
   AgentConversationDefaultDeliveryPolicy,
   AgentConversationDeliveryPolicy,
+  AgentConversationRuntimePhase,
 } from "@/types/agent/agent-conversation";
 import type { MessageAttachment } from "@/types/conversation/message/attachment";
 
@@ -12,6 +13,7 @@ type DeliverMessage = (
   content: string,
   deliveryPolicy: AgentConversationDeliveryPolicy,
   attachments?: MessageAttachment[],
+  targetAgentIDs?: string[],
 ) => void | Promise<void>;
 
 interface UseComposerMessageSubmitOptions {
@@ -30,6 +32,9 @@ interface UseComposerMessageSubmitOptions {
   recordHistory: (value: string) => void;
   resetInput: () => void;
   resetTextareaHeight: () => void;
+  runtimePhase: AgentConversationRuntimePhase | null;
+  targetAgentIDs: string[];
+  clearSelectedTargetIDs: () => void;
 }
 
 interface ComposerMessageSubmission {
@@ -55,6 +60,9 @@ export function useComposerMessageSubmit(
     recordHistory,
     resetInput,
     resetTextareaHeight,
+    runtimePhase,
+    targetAgentIDs,
+    clearSelectedTargetIDs,
   }: UseComposerMessageSubmitOptions,
 ) {
   return useCallback(
@@ -74,6 +82,9 @@ export function useComposerMessageSubmit(
       recordHistory,
       resetInput,
       resetTextareaHeight,
+      runtimePhase,
+      targetAgentIDs,
+      clearSelectedTargetIDs,
     }),
     [
       attachmentCount,
@@ -91,6 +102,9 @@ export function useComposerMessageSubmit(
       recordHistory,
       resetInput,
       resetTextareaHeight,
+      runtimePhase,
+      targetAgentIDs,
+      clearSelectedTargetIDs,
     ],
   );
 }
@@ -111,8 +125,10 @@ async function runComposerMessageSubmission(
       submission.content,
       submission.policy,
       attachments,
+      options.targetAgentIDs,
     );
     completeMessageSubmission(options, submission.content);
+    options.clearSelectedTargetIDs();
   } catch (error) {
     console.error("发送消息失败:", error);
   }
@@ -145,7 +161,11 @@ function canStartMessageSubmission(
   const hasContent = [Boolean(content), options.attachmentCount > 0].some(
     Boolean,
   );
-  return [hasContent, !options.isPreparingAttachments].every(Boolean);
+  return [
+    hasContent,
+    !options.isPreparingAttachments,
+    options.runtimePhase !== "awaiting_permission",
+  ].every(Boolean);
 }
 
 function completeMessageSubmission(

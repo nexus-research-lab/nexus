@@ -11,6 +11,7 @@ import { withCurrentSessionEvent } from "./handler-scope";
 import {
   parseAgentRoundStatusEventPayload,
   parseChatAckData,
+  parseInputQueueAckData,
   parseInputQueueEventPayload,
   parseRoundStatusEventPayload,
   parseRuntimeStatusData,
@@ -46,7 +47,7 @@ const handleErrorEvent: AgentEventHandler = (event, context) => {
   const message = readString(event.data, "message") ?? "Unknown error";
   const clientRequestId = readString(event.data, "client_request_id") ?? "";
   if (clientRequestId) {
-    context.runtime.rejectChatAck(clientRequestId, message);
+    context.runtime.rejectPendingRequestAck(clientRequestId, message);
   }
   context.state.setError(message);
 };
@@ -69,6 +70,13 @@ const handleInputQueue = withCurrentSessionEvent((event, context) => {
   const payload = parseInputQueueEventPayload(event.data);
   if (payload) {
     context.state.setInputQueueItems(payload.items);
+  }
+});
+
+const handleInputQueueAck = withCurrentSessionEvent((event, context) => {
+  const ack = parseInputQueueAckData(event.data);
+  if (ack?.accepted) {
+    context.runtime.resolvePendingRequestAck(ack.client_request_id);
   }
 });
 
@@ -126,6 +134,7 @@ export const AGENT_SESSION_EVENT_HANDLERS: AgentEventHandlerMap = {
   goal_status_changed: handleGoalEvent,
   goal_updated: handleGoalEvent,
   input_queue: handleInputQueue,
+  input_queue_ack: handleInputQueueAck,
   round_status: handleRoundStatus,
   runtime_status: handleRuntimeStatus,
   session_status: handleSessionStatus,

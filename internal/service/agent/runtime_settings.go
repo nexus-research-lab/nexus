@@ -51,6 +51,40 @@ func RuntimeSettingsPath(workspacePath string) string {
 	return filepath.Join(workspacePath, filepath.FromSlash(runtimeSettingsRelativePath))
 }
 
+// EnsureRuntimeVisionSettingsProjection 把用户选择的非敏感视觉路由同步给 nxs。
+func EnsureRuntimeVisionSettingsProjection(workspacePath string, providerRef string, model string) error {
+	path := RuntimeSettingsPath(workspacePath)
+	if path == "" {
+		return errors.New("Agent workspace 不能为空")
+	}
+	settings, err := readRuntimeSettingsProjection(path)
+	if err != nil {
+		return err
+	}
+	original, err := json.Marshal(settings)
+	if err != nil {
+		return err
+	}
+	runtimeSettings := objectSetting(settings, "runtime")
+	visionSettings := objectSetting(runtimeSettings, "vision")
+	setOptionalString(visionSettings, "providerRef", providerRef)
+	setOptionalString(visionSettings, "model", model)
+	if len(visionSettings) == 0 {
+		delete(runtimeSettings, "vision")
+	} else {
+		runtimeSettings["vision"] = visionSettings
+	}
+	settings["runtime"] = runtimeSettings
+	updated, err := json.Marshal(settings)
+	if err != nil {
+		return err
+	}
+	if string(original) == string(updated) {
+		return nil
+	}
+	return writeRuntimeSettingsProjection(path, settings)
+}
+
 func readRuntimeSettingsProjection(path string) (map[string]any, error) {
 	payload, err := os.ReadFile(path)
 	if err != nil {

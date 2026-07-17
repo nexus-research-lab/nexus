@@ -25,6 +25,11 @@ const ROOM_HEADER_TAB_DEFINITIONS: readonly RoomHeaderTabDefinition[] = [
     labelKey: "room.history",
   },
   {
+    icon: Bot,
+    key: "subagents",
+    labelKey: "subagents.label",
+  },
+  {
     anchor: CONVERSATION_TOUR_ANCHORS.tab_workspace,
     icon: FolderTree,
     key: "workspace",
@@ -34,11 +39,6 @@ const ROOM_HEADER_TAB_DEFINITIONS: readonly RoomHeaderTabDefinition[] = [
     icon: Activity,
     key: "operation",
     labelKey: "room.operation",
-  },
-  {
-    icon: Bot,
-    key: "subagents",
-    labelKey: "subagents.label",
   },
   {
     anchor: CONVERSATION_TOUR_ANCHORS.tab_about,

@@ -124,6 +124,7 @@ export interface ProviderOptionsResponse {
   items: ProviderOption[];
   background_items: ProviderOption[];
   image_items: ProviderOption[];
+  vision_items: ProviderOption[];
 }
 
 export interface ProviderConfigPayload {

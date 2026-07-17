@@ -27,6 +27,7 @@ interface UseFollowScrollReturn {
   prepareHistoryPrependRestore: () => void;
   cancelHistoryPrependRestore: () => void;
   onScroll: () => void;
+  onPointerDown: (event: React.PointerEvent<HTMLDivElement>) => void;
   onWheel: (event: React.WheelEvent<HTMLDivElement>) => void;
   onTouchStart: (event: React.TouchEvent<HTMLDivElement>) => void;
   onTouchMove: (event: React.TouchEvent<HTMLDivElement>) => void;
@@ -181,8 +182,8 @@ export function useFollowScroll({
   useEffect(() => cancelAnimation, [cancelAnimation]);
 
   const interactions = useFollowScrollInteractions({
-    cancelAnimation,
     lastScrollTopRef,
+    pauseFollowLatest,
     scrollRef,
     updateFollowState,
   });

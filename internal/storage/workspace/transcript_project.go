@@ -1,3 +1,6 @@
+// INPUT: SDK transcript chain、Nexus round marker 与会话标识。
+// OUTPUT: 带稳定 root/source round 身份的 Nexus 历史消息。
+// POS: DM transcript 到产品历史的唯一投影入口。
 package workspace
 
 import (
@@ -110,6 +113,7 @@ func projectTranscriptChainWithFilter(
 				sessionKey,
 				agentID,
 				currentRoundID,
+				marker.SourceRoundID,
 				marker.UserMessageID,
 				decoded.SessionID,
 				entry.Data,
@@ -165,6 +169,7 @@ func buildTranscriptUserMessage(
 	sessionKey string,
 	agentID string,
 	roundID string,
+	sourceRoundID string,
 	userMessageID string,
 	sessionID string,
 	entry map[string]any,
@@ -189,6 +194,9 @@ func buildTranscriptUserMessage(
 		"role":        "user",
 		"content":     content,
 		"timestamp":   timestamp,
+	}
+	if sourceRoundID = strings.TrimSpace(sourceRoundID); sourceRoundID != "" {
+		payload["source_round_id"] = sourceRoundID
 	}
 	if strings.TrimSpace(sessionID) != "" {
 		payload["session_id"] = strings.TrimSpace(sessionID)

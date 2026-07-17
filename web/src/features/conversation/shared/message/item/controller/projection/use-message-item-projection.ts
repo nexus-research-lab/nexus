@@ -1,14 +1,17 @@
+/**
+ * INPUT: 一个 root round 的消息、权限与 runtime 状态。
+ * OUTPUT: MessageItem 所需的 user 列表、assistant 内容及最终执行身份展示状态。
+ * POS: 会话消息实体到单轮视图模型的投影边界。
+ */
 import { useMemo } from "react";
 
 import { useAssistantContentMerge } from "@/hooks/conversation/use-assistant-content-merge";
 import type { AgentConversationRuntimePhase } from "@/types/agent/agent-conversation";
-import type { MessageAttachment } from "@/types/conversation/message/attachment";
 import type { ContentBlock } from "@/types/conversation/message/content";
 import type {
   AssistantMessage,
   Message,
   ResultSummary,
-  UserMessage,
 } from "@/types/conversation/message/entity";
 import type { PendingPermission } from "@/types/conversation/interaction/permission";
 
@@ -53,14 +56,6 @@ interface AssistantIdentityProjection {
   streamStatus: string | null;
 }
 
-interface UserContentProjection {
-  userAttachments: MessageAttachment[];
-  userContent: string;
-  userMessage: UserMessage | undefined;
-}
-
-const EMPTY_USER_ATTACHMENTS: MessageAttachment[] = [];
-
 export function useMessageItemProjection({
   assistantContentMode,
   hiddenToolNames,
@@ -78,8 +73,13 @@ export function useMessageItemProjection({
     messages,
   });
   const { contentMerge } = orderedContent;
-  const firstAssistant = contentMerge.assistantMessages[0];
-  const assistantIdentity = projectAssistantIdentity(firstAssistant);
+  const identityAssistant = selectAssistantIdentity(
+    contentMerge.assistantMessages,
+  );
+  const assistantIdentity = projectAssistantIdentity(
+    contentMerge.assistantMessages,
+    identityAssistant,
+  );
   const finalProjection = useMemo(
     () => resolveMessageItemFinalProjection({
       assistantContentMode,
@@ -87,7 +87,7 @@ export function useMessageItemProjection({
       orderedProjection: orderedContent.orderedProjection,
       resultSummary: contentMerge.resultSummary,
       roundId,
-      userMessageId: getUserMessageId(contentMerge.userMessage),
+      userMessageId: contentMerge.userMessages.at(0)?.message_id ?? null,
       streamingBlockIndexes: contentMerge.streamingBlockIndexes,
       visibleAssistantTurns: orderedContent.visibleAssistantTurns,
       visibleOrderedAssistantEntries:
@@ -98,7 +98,7 @@ export function useMessageItemProjection({
       contentMerge.assistantMessages,
       contentMerge.resultSummary,
       contentMerge.streamingBlockIndexes,
-      contentMerge.userMessage,
+      contentMerge.userMessages,
       orderedContent.orderedProjection,
       orderedContent.visibleAssistantTurns,
       orderedContent.visibleOrderedAssistantEntries,
@@ -136,8 +136,6 @@ export function useMessageItemProjection({
     }),
     [pendingPermissions.length, finalProjection.processProjection.content],
   );
-  const userContent = projectUserContent(contentMerge.userMessage);
-
   return {
     assistantMessages: contentMerge.assistantMessages,
     mergedContent: contentMerge.mergedContent,
@@ -146,12 +144,12 @@ export function useMessageItemProjection({
     ...assistantIdentity,
     ...finalProjection,
     ...permissionMatch,
-    ...userContent,
+    userMessages: contentMerge.userMessages,
     liveActivityState,
     processSummary,
     stats: buildMessageStats(contentMerge.resultSummary),
     timestamp: resolveMessageTimestamp(
-      firstAssistant,
+      identityAssistant,
       orderedContent.firstSystemEventTimestamp,
       contentMerge.resultSummary,
     ),
@@ -261,9 +259,10 @@ function shouldIncludeTransientSystemEvents(
 }
 
 function projectAssistantIdentity(
-  firstAssistant: AssistantMessage | undefined,
+  messages: AssistantMessage[],
+  identityAssistant: AssistantMessage | undefined,
 ): AssistantIdentityProjection {
-  if (!firstAssistant) {
+  if (!identityAssistant) {
     return {
       assistantAgentId: null,
       firstAssistantMessageId: null,
@@ -273,41 +272,48 @@ function projectAssistantIdentity(
     };
   }
   return {
-    assistantAgentId: firstAssistant.agent_id ?? null,
-    firstAssistantMessageId: firstAssistant.message_id,
-    model: firstAssistant.model,
-    stopReason: firstAssistant.stop_reason ?? null,
-    streamStatus: firstAssistant.stream_status ?? null,
+    assistantAgentId: identityAssistant.agent_id ?? null,
+    firstAssistantMessageId: messages[0]?.message_id ?? null,
+    model: resolveAssistantModel(messages, identityAssistant),
+    stopReason: identityAssistant.stop_reason ?? null,
+    streamStatus: identityAssistant.stream_status ?? null,
   };
 }
 
-function projectUserContent(
-  userMessage: UserMessage | undefined,
-): UserContentProjection {
-  if (!userMessage) {
-    return {
-      userAttachments: EMPTY_USER_ATTACHMENTS,
-      userContent: "",
-      userMessage: undefined,
-    };
+function selectAssistantIdentity(
+  messages: AssistantMessage[],
+): AssistantMessage | undefined {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message.result_summary || message.stop_reason || message.is_complete) {
+      return message;
+    }
   }
-  return {
-    userAttachments: userMessage.attachments ?? EMPTY_USER_ATTACHMENTS,
-    userContent: userMessage.content,
-    userMessage,
-  };
+  return messages.at(-1);
 }
 
-function getUserMessageId(userMessage: UserMessage | undefined): string | null {
-  return userMessage?.message_id ?? null;
+function resolveAssistantModel(
+  messages: AssistantMessage[],
+  identity: AssistantMessage,
+): string | undefined {
+  if (identity.model?.trim()) {
+    return identity.model;
+  }
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const model = messages[index].model?.trim();
+    if (model) {
+      return model;
+    }
+  }
+  return undefined;
 }
 
 function resolveMessageTimestamp(
-  firstAssistant: AssistantMessage | undefined,
+  identityAssistant: AssistantMessage | undefined,
   firstSystemEventTimestamp: number | undefined,
   resultSummary: ResultSummary | undefined,
 ): number | undefined {
-  return firstAssistant?.timestamp
-    ?? firstSystemEventTimestamp
-    ?? resultSummary?.timestamp;
+  return resultSummary?.timestamp
+    ?? identityAssistant?.timestamp
+    ?? firstSystemEventTimestamp;
 }

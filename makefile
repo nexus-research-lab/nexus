@@ -32,7 +32,7 @@ PNPM ?= pnpm
 .DEFAULT_GOAL := help
 
 .PHONY: help build build-backend build-web package-release start stop restart logs logs-all logs-nginx clean status \
-	dev dev-nxs install gen-protocol-types lint-web typecheck-web prepare-host-data \
+	dev dev-nxs install gen-protocol-types lint-web test-web typecheck-web prepare-host-data \
 	check-backend check-go check test run-web run-backend run-backend-go \
 	app-build-dev app-run-dev app-build app-run app-smoke app-package app-dmg build-dmg app-check app-win-build app-win-run app-win-smoke app-win-package \
 	pull deploy start-no-build ssl-check ssl-issue ssl-renew ssl-renew-dry-run
@@ -104,6 +104,9 @@ install: ## Install all dependencies
 lint-web: ## Run frontend lint
 	cd web && $(PNPM) run lint
 
+test-web: ## Run frontend behavior tests
+	cd web && $(PNPM) run test
+
 typecheck-web: ## Run frontend type check
 	cd web && $(PNPM) run typecheck
 
@@ -112,7 +115,7 @@ check-go: ## Run Go build and test checks
 
 check-backend: check-go ## Alias of Go backend checks
 
-check: check-go lint-web typecheck-web ## Run basic validation checks
+check: check-go lint-web test-web typecheck-web ## Run basic validation checks
 
 test: check ## Alias of check
 

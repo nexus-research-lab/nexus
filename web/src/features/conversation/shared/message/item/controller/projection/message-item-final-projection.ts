@@ -1,5 +1,6 @@
 import type {
   AssistantMessage,
+  AgentMention,
   Message,
   ResultSummary,
 } from "@/types/conversation/message/entity";
@@ -112,6 +113,10 @@ export function resolveMessageItemFinalProjection({
     fallbackFinalAssistantStreamingIndexes,
   );
   const finalAssistantText = resolveFinalAssistantText(finalAssistantContent);
+	const finalAssistantMentions = resolveFinalAssistantMentions(
+		assistantMessages,
+		finalAssistantTurn?.messageId ?? null,
+	);
 
   return {
     directOrderedProjection,
@@ -119,7 +124,22 @@ export function resolveMessageItemFinalProjection({
     finalAssistantContent,
     finalAssistantStreamingIndexes,
     finalAssistantText,
+    finalAssistantMentions,
   };
+}
+
+function resolveFinalAssistantMentions(
+	assistantMessages: Message[],
+	messageId: string | null,
+): AgentMention[] {
+	if (!messageId) {
+		return [];
+	}
+	const message = assistantMessages.find(
+		(value): value is AssistantMessage =>
+			value.role === "assistant" && value.message_id === messageId,
+	);
+	return message?.agent_mentions ?? [];
 }
 
 function resolveDirectOrderedProjection(

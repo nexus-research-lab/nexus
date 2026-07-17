@@ -11,7 +11,8 @@ import { normalizePreferences } from "./settings-preferences-model";
 export type DefaultModelPreferenceRole =
   | "agent_runtime"
   | "background_task"
-  | "image_generation";
+  | "image_generation"
+  | "vision_understanding";
 
 export interface DefaultModelSelection {
   model: string;
@@ -24,6 +25,7 @@ export interface DefaultModelCatalog {
   backgroundOptions: ProviderOption[];
   imageDefault: DefaultModelSelection | null;
   imageOptions: ProviderOption[];
+  visionOptions: ProviderOption[];
 }
 
 export interface DefaultModelPreferencesView {
@@ -31,11 +33,13 @@ export interface DefaultModelPreferencesView {
     agent: ReturnType<typeof buildDefaultModelOptions>;
     background: ReturnType<typeof buildDefaultModelOptions>;
     image: ReturnType<typeof buildDefaultModelOptions>;
+    vision: ReturnType<typeof buildDefaultModelOptions>;
   };
   values: {
     agent: string;
     background: string;
     image: string;
+    vision: string;
   };
 }
 
@@ -45,6 +49,7 @@ export const EMPTY_DEFAULT_MODEL_CATALOG: DefaultModelCatalog = {
   backgroundOptions: [],
   imageDefault: null,
   imageOptions: [],
+  visionOptions: [],
 };
 
 function encodeDefaultModelValue(provider: string, model: string): string {
@@ -91,6 +96,10 @@ const DEFAULT_MODEL_UPDATERS: Record<
   image_generation: (preferences, selection) => ({
     ...preferences,
     default_image_model_selection: selection,
+  }),
+  vision_understanding: (preferences, selection) => ({
+    ...preferences,
+    default_vision_model_selection: selection,
   }),
 };
 
@@ -155,6 +164,7 @@ export function buildDefaultModelCatalog(
       response.default_image_model,
     ),
     imageOptions: response.image_items,
+    visionOptions: response.vision_items,
   };
 }
 
@@ -185,6 +195,9 @@ function buildDefaultModelValues(
   const backgroundSelection = normalizeModelSelectionPreference(
     preferences.default_background_model_selection,
   );
+  const visionSelection = normalizeModelSelectionPreference(
+    preferences.default_vision_model_selection,
+  );
   return {
     agent: encodeModelSelection(preferModelSelection(
       agentSelection,
@@ -195,6 +208,7 @@ function buildDefaultModelValues(
       imageSelection,
       catalog.imageDefault,
     )),
+    vision: encodeModelSelection(visionSelection),
   };
 }
 
@@ -215,6 +229,10 @@ export function buildDefaultModelPreferencesView(
       ),
       image: buildDefaultModelOptions(
         catalog.imageOptions,
+        subscriptionLabel,
+      ),
+      vision: buildDefaultModelOptions(
+        catalog.visionOptions,
         subscriptionLabel,
       ),
     },

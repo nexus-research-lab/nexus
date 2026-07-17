@@ -61,6 +61,41 @@ is_enabled() {
   esac
 }
 
+CODESIGN_IDENTITY="${NEXUS_DESKTOP_CODESIGN_IDENTITY:-${NEXUS_DESKTOP_DEVELOPER_ID_APPLICATION:-}}"
+CODESIGN_SIGN_VALUE="${CODESIGN_IDENTITY:-"-"}"
+CODESIGN_DEVELOPER_ID="${NEXUS_DESKTOP_CODESIGN_DEVELOPER_ID:-}"
+if [[ -z "${CODESIGN_DEVELOPER_ID}" ]]; then
+  if [[ "${CODESIGN_IDENTITY}" == Developer\ ID\ Application:* ]]; then
+    CODESIGN_DEVELOPER_ID=1
+  else
+    CODESIGN_DEVELOPER_ID=0
+  fi
+fi
+CODESIGN_OPTIONS="${NEXUS_DESKTOP_CODESIGN_OPTIONS:-}"
+if [[ -z "${CODESIGN_OPTIONS}" ]] && is_enabled "${CODESIGN_DEVELOPER_ID}"; then
+  CODESIGN_OPTIONS="runtime"
+fi
+CODESIGN_TIMESTAMP="${NEXUS_DESKTOP_CODESIGN_TIMESTAMP:-}"
+if [[ -z "${CODESIGN_TIMESTAMP}" ]]; then
+  if is_enabled "${CODESIGN_DEVELOPER_ID}"; then
+    CODESIGN_TIMESTAMP=1
+  else
+    CODESIGN_TIMESTAMP=0
+  fi
+fi
+
+codesign_target() {
+  local target="$1"
+  local args=(--force --sign "${CODESIGN_SIGN_VALUE}")
+  if [[ "${CODESIGN_SIGN_VALUE}" != "-" ]] && is_enabled "${CODESIGN_TIMESTAMP}"; then
+    args+=(--timestamp)
+  fi
+  if [[ -n "${CODESIGN_OPTIONS}" && "${CODESIGN_OPTIONS}" != "none" ]]; then
+    args+=(--options "${CODESIGN_OPTIONS}")
+  fi
+  codesign "${args[@]}" "${target}" >/dev/null
+}
+
 echo "==> Building web/dist"
 cd "${ROOT_DIR}/web"
 pnpm install --frozen-lockfile --prefer-offline
@@ -147,14 +182,18 @@ sed \
 printf 'APPL????' > "${CONTENTS_DIR}/PkgInfo"
 
 if [[ "${NEXUS_DESKTOP_SKIP_CODESIGN:-0}" != "1" ]] && command -v codesign >/dev/null 2>&1; then
-  echo "==> Applying ad-hoc signature"
-  codesign --force --sign - "${MACOS_CONTENTS_DIR}/nexus-server" >/dev/null
-  codesign --force --sign - "${RESOURCES_DIR}/bin/nexusctl" >/dev/null
-  if [[ -x "${RESOURCES_DIR}/bin/nxs" ]]; then
-    codesign --force --sign - "${RESOURCES_DIR}/bin/nxs" >/dev/null
+  if [[ "${CODESIGN_SIGN_VALUE}" == "-" ]]; then
+    echo "==> Applying ad-hoc signature"
+  else
+    echo "==> Applying code signature: ${CODESIGN_IDENTITY}"
   fi
-  codesign --force --sign - "${MACOS_CONTENTS_DIR}/${EXECUTABLE_NAME}" >/dev/null
-  codesign --force --deep --sign - "${APP_BUNDLE}" >/dev/null
+  codesign_target "${MACOS_CONTENTS_DIR}/nexus-server"
+  codesign_target "${RESOURCES_DIR}/bin/nexusctl"
+  if [[ -x "${RESOURCES_DIR}/bin/nxs" ]]; then
+    codesign_target "${RESOURCES_DIR}/bin/nxs"
+  fi
+  codesign_target "${MACOS_CONTENTS_DIR}/${EXECUTABLE_NAME}"
+  codesign_target "${APP_BUNDLE}"
 fi
 
 rm -rf "${SIDECAR_BUILD_DIR}"

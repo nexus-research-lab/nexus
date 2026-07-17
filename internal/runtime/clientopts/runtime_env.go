@@ -2,17 +2,20 @@ package clientopts
 
 import (
 	"context"
+	"encoding/json"
 	"maps"
 	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	runtimeprovider "github.com/nexus-research-lab/nexus/internal/runtime/provider"
+	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 )
 
 const nexusctlUserIDEnvName = "NEXUSCTL_USER_ID"
@@ -29,9 +32,15 @@ const anthropicAPIKeyEnvName = "ANTHROPIC_API_KEY"
 const anthropicAuthTokenEnvName = "ANTHROPIC_AUTH_TOKEN"
 const anthropicModelEnvName = "ANTHROPIC_MODEL"
 const enableToolSearchEnvName = "ENABLE_TOOL_SEARCH"
+const nexusEnableToolSearchEnvName = "NEXUS_ENABLE_TOOL_SEARCH"
 const firstPartyAnthropicAPIHost = "api.anthropic.com"
 const nexusDisableProjectInstructionsEnvName = "NEXUS_DISABLE_PROJECT_INSTRUCTIONS"
 const nexusCachedMicrocompactEnvName = "NEXUS_CACHED_MICROCOMPACT"
+const nexusMaxContextTokensEnvName = "NEXUS_MAX_CONTEXT_TOKENS"
+const nexusModelSupportsVisionEnvName = "NEXUS_MODEL_SUPPORTS_VISION"
+const nexusMultimodalUserContentEnvName = "NEXUS_MULTIMODAL_USER_CONTENT"
+const nexusMultimodalToolResultEnvName = "NEXUS_MULTIMODAL_TOOL_RESULT"
+const nexusRemoteImageURLEnvName = "NEXUS_REMOTE_IMAGE_URL"
 
 // NexusRuntimeProviderEnvName 表示当前 SDK runtime 实际解析出的 provider key。
 const NexusRuntimeProviderEnvName = "NEXUS_RUNTIME_PROVIDER"
@@ -49,15 +58,71 @@ func runtimeEnvFromConfig(runtimeConfig *RuntimeConfig, runtimeKind string) map[
 		return nil
 	}
 	profile := resolveRuntimeProfile(runtimeKind, os.Getenv)
+	var env map[string]string
 	switch strings.TrimSpace(runtimeConfig.APIFormat) {
 	case "", apiFormatAnthropicMessages:
-		return anthropicRuntimeEnvFromConfig(runtimeConfig)
+		env = anthropicRuntimeEnvFromConfig(runtimeConfig)
 	case apiFormatChatCompletions:
 		if profile.isNXS() {
-			return openAIRuntimeEnvFromConfig(runtimeConfig)
+			env = openAIRuntimeEnvFromConfig(runtimeConfig)
 		}
 	}
-	return nil
+	if profile.isNXS() {
+		applyNXSModelMetadataEnv(env, runtimeConfig)
+	}
+	return env
+}
+
+// toolSearchRuntimeEnv 把 Nexus 设置投影到 nxs 的两个兼容环境变量。
+// 同时写入旧别名，避免宿主进程遗留的 ENABLE_TOOL_SEARCH 覆盖显式设置。
+func toolSearchRuntimeEnv(runtimeKind string, enabled bool) map[string]string {
+	if !runtimeProfileForKind(runtimeKind).isNXS() {
+		return nil
+	}
+	value := "0"
+	if enabled {
+		value = "1"
+	}
+	return map[string]string{
+		enableToolSearchEnvName:      value,
+		nexusEnableToolSearchEnvName: value,
+	}
+}
+
+// applyNXSModelMetadataEnv 把产品模型卡和 API format 能力交给 nxs，不让运行时按模型名猜测。
+func applyNXSModelMetadataEnv(env map[string]string, runtimeConfig *RuntimeConfig) {
+	if len(env) == 0 || runtimeConfig == nil {
+		return
+	}
+	if runtimeConfig.ContextWindow > 0 {
+		env[nexusMaxContextTokensEnvName] = strconv.Itoa(runtimeConfig.ContextWindow)
+	}
+	env[nexusModelSupportsVisionEnvName] = strconv.FormatBool(runtimeConfig.Vision)
+	apiFormat := strings.TrimSpace(runtimeConfig.APIFormat)
+	if apiFormat == "" || apiFormat == apiFormatAnthropicMessages || apiFormat == apiFormatChatCompletions {
+		env[nexusMultimodalUserContentEnvName] = "1"
+		env[nexusMultimodalToolResultEnvName] = "1"
+	}
+}
+
+// visionRuntimeEnvFromConfig 为辅助视觉模型生成独立命名空间，避免覆盖主模型路由。
+func visionRuntimeEnvFromConfig(runtimeConfig *RuntimeConfig) map[string]string {
+	if runtimeConfig == nil {
+		return nil
+	}
+	providerType := "anthropic-compatible"
+	if strings.TrimSpace(runtimeConfig.APIFormat) == apiFormatChatCompletions {
+		providerType = "openai"
+	}
+	env := map[string]string{
+		"NEXUS_VISION_PROVIDER_REF":            runtimeConfig.Provider,
+		"NEXUS_VISION_API_PROVIDER":            providerType,
+		"NEXUS_VISION_BASE_URL":                runtimeConfig.BaseURL,
+		"NEXUS_VISION_API_KEY":                 runtimeConfig.AuthToken,
+		"NEXUS_VISION_MODEL":                   runtimeConfig.Model,
+		"NEXUS_VISION_MULTIMODAL_USER_CONTENT": "1",
+	}
+	return env
 }
 
 func anthropicRuntimeEnvFromConfig(runtimeConfig *RuntimeConfig) map[string]string {
@@ -135,6 +200,69 @@ func defaultRuntimeEnv() map[string]string {
 		nexusAutoCompactPctOverrideEnvName:     defaultClaudeAutoCompactPctOverride,
 		nexusDisableProjectInstructionsEnvName: "1",
 	}
+}
+
+// BuildWebSearchRuntimeEnv 将 Nexus 用户级 WebSearch 配置投影到 nxs。
+func BuildWebSearchRuntimeEnv(runtimeKind string, settings preferencessvc.WebSearchSettings) map[string]string {
+	if !runtimeProfileForKind(runtimeKind).isNXS() {
+		return nil
+	}
+	payload := struct {
+		Enabled             bool                              `json:"enabled"`
+		Provider            string                            `json:"provider,omitempty"`
+		BaseURL             string                            `json:"base_url,omitempty"`
+		AllowPrivateNetwork bool                              `json:"allow_private_network,omitempty"`
+		UseProviderExtract  bool                              `json:"use_provider_extract,omitempty"`
+		DefaultCount        int                               `json:"default_count,omitempty"`
+		TimeoutSeconds      int                               `json:"timeout_seconds,omitempty"`
+		CacheTTLSeconds     int                               `json:"cache_ttl_seconds"`
+		Country             string                            `json:"country,omitempty"`
+		Language            string                            `json:"language,omitempty"`
+		SearchLanguage      string                            `json:"search_language,omitempty"`
+		Freshness           string                            `json:"freshness,omitempty"`
+		SearchDepth         string                            `json:"search_depth,omitempty"`
+		ExtractDepth        string                            `json:"extract_depth,omitempty"`
+		AnySearch           *preferencessvc.AnySearchSettings `json:"anysearch,omitempty"`
+	}{
+		Enabled:             settings.Enabled,
+		Provider:            settings.Provider,
+		BaseURL:             settings.BaseURL,
+		AllowPrivateNetwork: settings.AllowPrivateNetwork,
+		UseProviderExtract:  settings.UseProviderExtract,
+		DefaultCount:        settings.DefaultCount,
+		TimeoutSeconds:      settings.TimeoutSeconds,
+		CacheTTLSeconds:     settings.CacheTTLSeconds,
+		Country:             settings.Country,
+		Language:            settings.Language,
+		SearchLanguage:      settings.SearchLanguage,
+		Freshness:           settings.Freshness,
+		SearchDepth:         settings.SearchDepth,
+		ExtractDepth:        settings.ExtractDepth,
+		AnySearch:           optionalAnySearchSettings(settings.AnySearch),
+	}
+	rawConfig, err := json.Marshal(payload)
+	if err != nil {
+		return nil
+	}
+	return map[string]string{
+		"NEXUS_WEBSEARCH_CONFIG":  string(rawConfig),
+		"NEXUS_WEBSEARCH_API_KEY": strings.TrimSpace(settings.WebSearchAPIKey()),
+	}
+}
+
+func optionalAnySearchSettings(settings preferencessvc.AnySearchSettings) *preferencessvc.AnySearchSettings {
+	if settings.Domain == "" && settings.Tag == "" && len(settings.ContentTypes) == 0 && len(settings.Params) == 0 {
+		return nil
+	}
+	settings.ContentTypes = append([]string(nil), settings.ContentTypes...)
+	if settings.Params != nil {
+		settings.Params = maps.Clone(settings.Params)
+	}
+	return &settings
+}
+
+func webSearchRuntimeEnv(runtimeKind string, settings preferencessvc.WebSearchSettings) map[string]string {
+	return BuildWebSearchRuntimeEnv(runtimeKind, settings)
 }
 
 // nxsHostManagedRuntimeEnv 声明 Nexus 是 provider 路由和 AutoDream 唤醒的唯一宿主。

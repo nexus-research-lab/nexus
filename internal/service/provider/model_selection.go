@@ -53,15 +53,12 @@ func modelSelectionFromTarget(target providerModelTarget) ModelSelection {
 	}
 }
 
-func (s *Service) enabledModelOptionsForKind(
-	ctx context.Context,
+// modelOptionsForKind 从同一份模型快照投影指定用途，避免列表接口重复查询。
+func modelOptionsForKind(
 	item providerstore.Entity,
+	models []providerstore.ModelEntity,
 	providerKind string,
-) ([]ModelOption, error) {
-	models, err := s.repository.ListModelsByProviderID(ctx, item.ID)
-	if err != nil {
-		return nil, err
-	}
+) []ModelOption {
 	result := make([]ModelOption, 0, len(models))
 	for _, model := range models {
 		if !model.Enabled || strings.TrimSpace(model.ModelID) == "" {
@@ -77,7 +74,7 @@ func (s *Service) enabledModelOptionsForKind(
 			IsDefault:   model.IsDefault,
 		})
 	}
-	return result, nil
+	return result
 }
 
 func modelUsableForProviderKind(
@@ -117,6 +114,36 @@ func modelHasReasoningCapability(model providerstore.ModelEntity) bool {
 	}
 	autoCapabilities := decodeModelCapabilities(model.CapabilitiesAutoJSON)
 	return autoCapabilities.Reasoning != nil && *autoCapabilities.Reasoning
+}
+
+// modelHasVisionCapability 以用户覆盖优先，判断模型是否能接收图片输入。
+func modelHasVisionCapability(model providerstore.ModelEntity) bool {
+	overrideCapabilities := decodeModelCapabilities(model.CapabilitiesOverrideJSON)
+	if overrideCapabilities.Vision != nil {
+		return *overrideCapabilities.Vision
+	}
+	autoCapabilities := decodeModelCapabilities(model.CapabilitiesAutoJSON)
+	if autoCapabilities.Vision != nil {
+		return *autoCapabilities.Vision
+	}
+	known := knownVisionCapability(model.ModelID)
+	return known != nil && *known
+}
+
+// visionModelOptions 只暴露已经明确支持视觉的模型，未知能力不乐观放行。
+func visionModelOptions(models []providerstore.ModelEntity) []ModelOption {
+	result := make([]ModelOption, 0, len(models))
+	for _, model := range models {
+		if !model.Enabled || strings.TrimSpace(model.ModelID) == "" || !modelHasVisionCapability(model) {
+			continue
+		}
+		result = append(result, ModelOption{
+			ModelID:     normalizeModelID(model.ModelID),
+			DisplayName: modelDisplayName(model.ModelID, model.DisplayName),
+			IsDefault:   model.IsDefault,
+		})
+	}
+	return result
 }
 
 func imageProviderRequiresModelFilter(item providerstore.Entity) bool {

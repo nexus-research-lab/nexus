@@ -6,50 +6,64 @@ import type { WebSocketState } from "@/types/system/websocket";
 
 import { removeFailedOutboundUserMessage } from "../runtime/model/conversation-runtime-reconciliation";
 
-interface UseChatAckFailureOptions {
+interface UseRequestAckFailureOptions {
   clearOutboundRequest: (clientRequestId: string) => void;
-  rejectPendingChatAck: (clientRequestId: string, reason: string) => boolean;
+  rejectPendingRequestAck: (
+    clientRequestId: string,
+    reason: string,
+  ) => boolean;
   setError: Dispatch<SetStateAction<string | null>>;
   setMessages: Dispatch<SetStateAction<Message[]>>;
   wsReconnectRef: RefObject<() => void>;
   wsStateRef: RefObject<WebSocketState>;
 }
 
-export function useChatAckFailure({
+export function useRequestAckFailure({
   clearOutboundRequest,
-  rejectPendingChatAck,
+  rejectPendingRequestAck,
   setError,
   setMessages,
   wsReconnectRef,
   wsStateRef,
-}: UseChatAckFailureOptions) {
+}: UseRequestAckFailureOptions) {
   // 超时只拒绝 ACK 等待并触发重连，失败消息由 Promise catch 统一收口。
-  const handleChatAckTimeout = useCallback((
+  const handleRequestAckTimeout = useCallback((
     clientRequestId: string,
     message: string,
   ): void => {
-    if (!rejectPendingChatAck(clientRequestId, message)) {
+    if (!rejectPendingRequestAck(clientRequestId, message)) {
       return;
     }
     if (wsStateRef.current === "connected") {
       wsReconnectRef.current();
     }
-  }, [rejectPendingChatAck, wsReconnectRef, wsStateRef]);
+  }, [rejectPendingRequestAck, wsReconnectRef, wsStateRef]);
 
-  const settleChatAckWaitFailure = useCallback((
+  const settleRequestAckWaitFailure = useCallback((
     clientRequestId: string,
-    clientMessageId: string,
     cause: unknown,
   ): void => {
     const message = cause instanceof Error
       ? cause.message
       : "消息未送达后端，请重试";
     clearOutboundRequest(clientRequestId);
+    setError(message);
+  }, [clearOutboundRequest, setError]);
+
+  const settleChatAckWaitFailure = useCallback((
+    clientRequestId: string,
+    clientMessageId: string,
+    cause: unknown,
+  ): void => {
+    settleRequestAckWaitFailure(clientRequestId, cause);
     setMessages((currentMessages) => (
       removeFailedOutboundUserMessage(currentMessages, clientMessageId)
     ));
-    setError(message);
-  }, [clearOutboundRequest, setError, setMessages]);
+  }, [setMessages, settleRequestAckWaitFailure]);
 
-  return { handleChatAckTimeout, settleChatAckWaitFailure };
+  return {
+    handleRequestAckTimeout,
+    settleChatAckWaitFailure,
+    settleRequestAckWaitFailure,
+  };
 }

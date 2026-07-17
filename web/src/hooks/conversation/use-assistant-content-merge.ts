@@ -1,8 +1,7 @@
 /**
- * useAssistantContentMerge — 合并并去重 assistant 消息内容块
- *
- * 将一轮对话中多条 assistant 消息的内容块合并为单一列表，
- * 自动去重 toolUse / toolResult，并追踪流式输出的 block 索引。
+ * INPUT: 一个根轮次内按到达顺序保存的 user / assistant 消息。
+ * OUTPUT: 按时间排序的可见 user 消息，以及去重合并后的 assistant 内容。
+ * POS: MessageItem 的轮次内容投影入口，不承担视觉状态。
  */
 
 import { useMemo } from "react";
@@ -23,8 +22,8 @@ interface UseAssistantContentMergeOptions {
 }
 
 interface UseAssistantContentMergeReturn {
-  /** 用户消息 */
-  userMessage: UserMessage | undefined;
+  /** 同一根轮次内按时间排序的所有可见用户消息。 */
+  userMessages: UserMessage[];
   /** 所有 assistant 消息 */
   assistantMessages: AssistantMessage[];
   /** assistant 终态摘要 */
@@ -49,11 +48,13 @@ export function useAssistantContentMerge({
   isLastRound,
   isLoading,
 }: UseAssistantContentMergeOptions): UseAssistantContentMergeReturn {
-  const { userMessage, assistantMessages, resultSummary } = useMemo(() => {
-    const user = messages.find(isVisibleUserMessage);
+  const { userMessages, assistantMessages, resultSummary } = useMemo(() => {
+    const users = messages
+      .filter(isVisibleUserMessage)
+      .sort((left, right) => left.timestamp - right.timestamp);
     const assistant = messages.filter(isAssistantMessage);
     const summary = getLatestResultSummary(assistant);
-    return { userMessage: user, assistantMessages: assistant, resultSummary: summary };
+    return { userMessages: users, assistantMessages: assistant, resultSummary: summary };
   }, [messages]);
 
   const streamingAssistantMessageId = useMemo(() => {
@@ -96,7 +97,7 @@ export function useAssistantContentMerge({
     mergedContentSourceMessageIds,
     resultSummary,
     streamingBlockIndexes,
-    userMessage,
+    userMessages,
   };
 }
 

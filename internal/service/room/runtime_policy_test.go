@@ -3,6 +3,7 @@ package room_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
@@ -11,6 +12,7 @@ import (
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
@@ -260,6 +262,59 @@ func TestRealtimeServiceGoalContinuationDefersInPlanMode(t *testing.T) {
 	}
 }
 
+func TestRealtimeServiceGoalContinuationDefersBehindPendingUserGuidance(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	ctx := context.Background()
+	memberAgent := createTestAgent(t, agentService, ctx, "用户输入优先助手")
+	roomContext, err := roomService.EnsureDirectRoom(ctx, memberAgent.AgentID)
+	if err != nil {
+		t.Fatalf("创建直聊 room 失败: %v", err)
+	}
+
+	location := workspacestore.InputQueueLocation{
+		Scope:          protocol.InputQueueScopeRoom,
+		WorkspacePath:  memberAgent.WorkspacePath,
+		SessionKey:     protocol.BuildRoomAgentSessionKey(roomContext.Conversation.ID, memberAgent.AgentID, roomContext.Room.RoomType),
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
+	}
+	if _, err = workspacestore.NewInputQueueStore(cfg.WorkspacePath).Enqueue(location, protocol.InputQueueItem{
+		Scope:           protocol.InputQueueScopeRoom,
+		SessionKey:      location.SessionKey,
+		RoomID:          roomContext.Room.ID,
+		ConversationID:  roomContext.Conversation.ID,
+		AgentID:         memberAgent.AgentID,
+		TargetAgentIDs:  []string{memberAgent.AgentID},
+		Source:          protocol.InputQueueSourceUser,
+		Content:         "先处理用户刚补充的要求",
+		DeliveryPolicy:  protocol.ChatDeliveryPolicyGuide,
+		SourceMessageID: "room-pending-guidance",
+	}); err != nil {
+		t.Fatalf("写入待处理用户引导失败: %v", err)
+	}
+
+	service := NewRealtimeServiceWithFactory(
+		cfg,
+		roomService,
+		agentService,
+		runtimectx.NewManager(),
+		permissionctx.NewContext(),
+		&fakeRoomFactory{},
+	)
+	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
+	if !service.ShouldDeferGoalContinuation(ctx, sharedSessionKey) {
+		t.Fatal("Room Goal continuation should defer while explicit user guidance is pending")
+	}
+}
+
 func TestRealtimeServiceRoomGoalTargetMissingUsesRoomOwnerForBackgroundContext(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
@@ -354,6 +409,65 @@ func TestRealtimeServiceGoalContinuationDefersWhenRoomHasNoDefaultTarget(t *test
 	if service.ShouldDeferGoalContinuation(ctx, hostedSessionKey) {
 		t.Fatal("Room Goal continuation should not defer when a host lead exists")
 	}
+}
+
+func TestRealtimeServiceGoalContinuationDefersForBusyNonLeadMember(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	ctx := context.Background()
+	host := createTestAgent(t, agentService, ctx, "Host")
+	peer := createTestAgent(t, agentService, ctx, "Peer")
+	roomContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
+		AgentIDs:             []string{host.AgentID, peer.AgentID},
+		Name:                 "Goal lead 独立运行房间",
+		HostAgentID:          host.AgentID,
+		HostAutoReplyEnabled: true,
+	})
+	if err != nil {
+		t.Fatalf("创建 room 失败: %v", err)
+	}
+
+	peerClient := newFakeRoomClient()
+	peerStarted := make(chan struct{}, 1)
+	peerClient.onQuery = func(context.Context, string) error {
+		peerStarted <- struct{}{}
+		return nil
+	}
+	service := NewRealtimeServiceWithFactory(
+		cfg,
+		roomService,
+		agentService,
+		runtimectx.NewManager(),
+		permissionctx.NewContext(),
+		&fakeRoomFactory{clients: []*fakeRoomClient{peerClient}},
+	)
+	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
+	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
+		SessionKey:     sharedSessionKey,
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
+		Content:        "@Peer 继续处理你的任务",
+		RoundID:        "room-round-busy-non-lead",
+	}); err != nil {
+		t.Fatalf("启动非 lead 成员失败: %v", err)
+	}
+	select {
+	case <-peerStarted:
+	case <-time.After(time.Second):
+		t.Fatal("非 lead 成员未进入运行态")
+	}
+
+	if !service.ShouldDeferGoalContinuation(ctx, sharedSessionKey) {
+		t.Fatal("非 lead 成员仍在运行时应阻止 Host 提前启动 Room Goal continuation")
+	}
+	go sendFakeAssistantResult(peerClient, "assistant-busy-non-lead", "已完成")
 }
 
 func TestRealtimeServiceChatRequestCanOverridePermissionHandler(t *testing.T) {

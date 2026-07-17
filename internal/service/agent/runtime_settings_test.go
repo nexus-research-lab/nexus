@@ -84,6 +84,29 @@ func TestEnsureRuntimeSettingsProjectionPreservesUserMemoryChoice(t *testing.T) 
 	}
 }
 
+func TestEnsureRuntimeVisionSettingsProjectionPreservesOtherSettings(t *testing.T) {
+	workspace := t.TempDir()
+	path := agentpkg.RuntimeSettingsPath(workspace)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	if err := os.WriteFile(path, []byte(`{"runtime":{"model":"main-model"},"memory":{"enabled":false}}`), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	if err := agentpkg.EnsureRuntimeVisionSettingsProjection(workspace, "vision-provider", "vision-model"); err != nil {
+		t.Fatalf("EnsureRuntimeVisionSettingsProjection() error = %v", err)
+	}
+	settings := readProjectedSettings(t, path)
+	runtimeSettings := settings["runtime"].(map[string]any)
+	visionSettings := runtimeSettings["vision"].(map[string]any)
+	if runtimeSettings["model"] != "main-model" || visionSettings["providerRef"] != "vision-provider" || visionSettings["model"] != "vision-model" {
+		t.Fatalf("runtime settings = %#v", runtimeSettings)
+	}
+	if settings["memory"].(map[string]any)["enabled"] != false {
+		t.Fatalf("memory settings changed: %#v", settings["memory"])
+	}
+}
+
 func readProjectedSettings(t *testing.T, path string) map[string]any {
 	t.Helper()
 	payload, err := os.ReadFile(path)

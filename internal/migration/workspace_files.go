@@ -14,6 +14,7 @@ const (
 	legacyMemorySessionsMigrationName  = "20260710_remove_legacy_memory_sessions"
 	legacyMemoryDirectoryMigrationName = "20260710_remove_legacy_memory_directories"
 	retiredManagedSkillsMigrationName  = "20260712_remove_retired_managed_skills"
+	legacyMemoryManagerMigrationName   = "20260713_remove_legacy_memory_manager_skill"
 )
 
 type workspaceFileMigrationContext struct {
@@ -30,6 +31,7 @@ var workspaceFileMigrations = []workspaceFileMigration{
 	{name: legacyMemorySessionsMigrationName, apply: removeLegacyMemorySessions},
 	{name: legacyMemoryDirectoryMigrationName, apply: removeLegacyMemoryDirectories},
 	{name: retiredManagedSkillsMigrationName, apply: removeRetiredManagedSkills},
+	{name: legacyMemoryManagerMigrationName, apply: removeLegacyMemoryManagerSkill},
 }
 
 // RunWorkspaceFiles 执行所有尚未完成的工作区文件迁移。

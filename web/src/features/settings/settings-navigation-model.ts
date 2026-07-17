@@ -2,6 +2,7 @@ import type { TranslationKey } from "@/shared/i18n/messages";
 
 export type SettingsSectionKey =
   | "general"
+  | "runtime"
   | "appearance"
   | "workspace"
   | "permissions"
@@ -28,6 +29,7 @@ export const SETTINGS_NAVIGATION_GROUPS: readonly SettingsNavigationGroup[] = [
     labelKey: "settings.navigation.preferences",
     items: [
       { key: "general", labelKey: "settings.tabs.general" },
+      { key: "runtime", labelKey: "settings.tabs.runtime" },
       { key: "appearance", labelKey: "settings.navigation.appearance" },
       { key: "workspace", labelKey: "settings.navigation.workspace" },
       { key: "permissions", labelKey: "settings.navigation.permissions" },

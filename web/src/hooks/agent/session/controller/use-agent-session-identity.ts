@@ -7,7 +7,7 @@ import type { AgentConversationIdentity } from "@/types/agent/agent-conversation
 
 interface UseAgentSessionIdentityOptions {
   activeSessionKeyRef: RefObject<string | null>;
-  cancelPendingChatAcks: (reason: string) => void;
+  cancelPendingRequestAcks: (reason: string) => void;
   clearLiveSessionState: () => void;
   identity: AgentConversationIdentity | null;
   identitySessionKey: string | null;
@@ -19,7 +19,7 @@ interface UseAgentSessionIdentityOptions {
 
 export function useAgentSessionIdentity({
   activeSessionKeyRef,
-  cancelPendingChatAcks,
+  cancelPendingRequestAcks,
   clearLiveSessionState,
   identity,
   identitySessionKey,
@@ -53,10 +53,10 @@ export function useAgentSessionIdentity({
     roomSeqCursorRef.current = 0;
     resetHistoryPagination();
     clearLiveSessionState();
-    cancelPendingChatAcks("会话上下文已切换，未确认的消息发送已取消");
+    cancelPendingRequestAcks("会话上下文已切换，未确认的消息发送已取消");
     resetRuntimeMachine();
   }, [
-    cancelPendingChatAcks,
+    cancelPendingRequestAcks,
     clearLiveSessionState,
     identity,
     resetHistoryPagination,
@@ -70,8 +70,8 @@ export function useAgentSessionIdentity({
   }, [activeSessionKeyRef, identitySessionKey]);
 
   useEffect(() => () => {
-    cancelPendingChatAcks("会话已卸载，未确认的消息发送已取消");
-  }, [cancelPendingChatAcks]);
+    cancelPendingRequestAcks("会话已卸载，未确认的消息发送已取消");
+  }, [cancelPendingRequestAcks]);
 
   return { isCurrentSessionEvent };
 }

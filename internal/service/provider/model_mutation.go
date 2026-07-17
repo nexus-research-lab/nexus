@@ -194,7 +194,7 @@ func (u *modelUpdate) persist() error {
 }
 
 func (u *modelUpdate) newModel() *providerstore.ModelEntity {
-	capabilities, category, contextWindow, maxOutput := defaultModelCard()
+	capabilities, category, contextWindow, maxOutput := defaultModelCard(u.modelID)
 	contextWindow = modelLimitOrDefault(u.input.ContextWindow, contextWindow)
 	maxOutput = modelLimitOrDefault(u.input.MaxOutputTokens, maxOutput)
 	now := u.service.now()

@@ -1,3 +1,6 @@
+// INPUT: 运行中 round 的用户引导与内部上下文。
+// OUTPUT: PostToolUse 可消费的 SDK additionalContext，以及消费后回调。
+// POS: runtime 层统一的轮内引导队列与格式化入口。
 package runtime
 
 import (
@@ -17,19 +20,32 @@ type GuidedInput struct {
 	RoundID     string
 	Content     string
 	ContextName string
+	onConsumed  func()
 }
 
 // QueueGuidanceInput 把用户引导暂存到运行中 session，等待 PostToolUse hook 消费。
 func (m *Manager) QueueGuidanceInput(_ context.Context, sessionKey string, roundID string, content string) ([]string, error) {
-	return m.queueGuidanceInput(sessionKey, roundID, content, "")
+	return m.queueGuidanceInput(sessionKey, roundID, content, "", nil)
 }
 
 // QueueContextualGuidanceInput 把运行时拥有的上下文暂存到运行中 session。
 func (m *Manager) QueueContextualGuidanceInput(_ context.Context, sessionKey string, roundID string, contextName string, content string) ([]string, error) {
-	return m.queueGuidanceInput(sessionKey, roundID, content, contextName)
+	return m.queueGuidanceInput(sessionKey, roundID, content, contextName, nil)
 }
 
-func (m *Manager) queueGuidanceInput(sessionKey string, roundID string, content string, contextName string) ([]string, error) {
+// QueueContextualGuidanceInputOnConsumed 暂存内部上下文，并在 PostToolUse 真正取走该上下文后执行回调。
+func (m *Manager) QueueContextualGuidanceInputOnConsumed(
+	_ context.Context,
+	sessionKey string,
+	roundID string,
+	contextName string,
+	content string,
+	onConsumed func(),
+) ([]string, error) {
+	return m.queueGuidanceInput(sessionKey, roundID, content, contextName, onConsumed)
+}
+
+func (m *Manager) queueGuidanceInput(sessionKey string, roundID string, content string, contextName string, onConsumed func()) ([]string, error) {
 	content = strings.TrimSpace(content)
 	if content == "" {
 		return nil, nil
@@ -47,6 +63,7 @@ func (m *Manager) queueGuidanceInput(sessionKey string, roundID string, content 
 		RoundID:     strings.TrimSpace(roundID),
 		Content:     content,
 		ContextName: normalizeGuidanceContextName(contextName),
+		onConsumed:  onConsumed,
 	})
 	m.touchStateLocked(state)
 	return roundIDs, nil
@@ -112,7 +129,8 @@ func hookOutputIsEmpty(output sdkhook.Output) bool {
 		output.SystemMessage == "" &&
 		output.Reason == "" &&
 		output.SpecificOutput == nil &&
-		len(output.RawSpecificOutput) == 0
+		len(output.RawSpecificOutput) == 0 &&
+		output.OnApplied == nil
 }
 
 func (m *Manager) postToolUseGuidanceHook(sessionKey string) sdkhook.Callback {
@@ -124,13 +142,46 @@ func (m *Manager) postToolUseGuidanceHook(sessionKey string) sdkhook.Callback {
 		if len(inputs) == 0 {
 			return sdkhook.Output{}, nil
 		}
-		return sdkhook.Output{
+		additionalContext := FormatGuidanceAdditionalContext(inputs)
+		markConsumed := func() {
+			for _, item := range inputs {
+				if item.onConsumed != nil {
+					item.onConsumed()
+				}
+			}
+		}
+		output := sdkhook.Output{
 			SpecificOutput: &sdkhook.SpecificOutput{
 				HookEventName:     sdkhook.EventPostToolUse,
-				AdditionalContext: FormatGuidanceAdditionalContext(inputs),
+				AdditionalContext: additionalContext,
 			},
-		}, nil
+		}
+		if m.SupportsHookResponseAck(sessionKey) {
+			output.OnApplied = func(sdkhook.AppliedAck) { markConsumed() }
+		} else {
+			// 旧 runtime 无 applied ACK，只能保留既有的 callback-return 语义。
+			markConsumed()
+		}
+		return output, nil
 	}
+}
+
+// SupportsHookResponseAck 报告当前 session 是否协商了 hook 输出应用确认。
+func (m *Manager) SupportsHookResponseAck(sessionKey string) bool {
+	if m == nil {
+		return false
+	}
+	m.mu.RLock()
+	state := m.sessions[sessionKey]
+	var runtimeClient Client
+	if state != nil {
+		runtimeClient = state.Client
+	}
+	m.mu.RUnlock()
+	client, ok := runtimeClient.(interface {
+		Supports(agentclient.Capability) bool
+	})
+	return ok && client.Supports(agentclient.CapabilityHookResponseAck)
 }
 
 func (m *Manager) drainGuidanceInputs(sessionKey string) []GuidedInput {
@@ -163,7 +214,7 @@ func FormatGuidanceAdditionalContext(inputs []GuidedInput) string {
 func renderUserGuidanceBlock(inputs []GuidedInput) string {
 	lines := []string{
 		"<nexus_guidance>",
-		"用户在你执行当前 round 时补充了以下引导。请在继续下一步前结合这些要求；如果与原任务冲突，以最新引导为准。",
+		"用户在你执行当前 round 时补充了以下引导。请在继续下一步前结合这些要求；如果与原任务冲突，以最新引导为准；最终可见回复必须明确回应最新用户引导。",
 	}
 	count := 0
 	for _, input := range inputs {

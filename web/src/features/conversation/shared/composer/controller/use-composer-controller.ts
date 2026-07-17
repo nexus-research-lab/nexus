@@ -105,6 +105,9 @@ export function useComposerController({
     recordHistory: history.record,
     resetInput,
     resetTextareaHeight,
+    runtimePhase,
+    targetAgentIDs: mention.selectedTargetIDs,
+    clearSelectedTargetIDs: mention.clearSelectedTargetIDs,
   });
   const goal = useComposerGoalActions({
     closeMention: mention.closeMention,

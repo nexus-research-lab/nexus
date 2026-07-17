@@ -1,9 +1,14 @@
+// INPUT: DM 领域依赖、runtime Manager 与持久存储。
+// OUTPUT: 可串行处理显式输入、队列接力和 Goal continuation 的 Service。
+// POS: DM 服务装配和共享状态所有者。
 package dm
 
 import (
 	"context"
 	"errors"
 	"log/slog"
+	"sync"
+	"sync/atomic"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
@@ -35,6 +40,8 @@ type Request struct {
 	AgentID                   string
 	Content                   string
 	GoalContext               string
+	GoalID                    string
+	GoalObjectiveRevision     int64
 	Attachments               []protocol.ChatAttachment
 	ClientRequestID           string
 	ClientMessageID           string
@@ -80,6 +87,7 @@ type MCPServerBuilder func(
 	sourceContextType string,
 	sourceContextID string,
 	sourceContextLabel string,
+	goalObjectiveRevision *atomic.Int64,
 ) map[string]sdkmcp.ServerConfig
 
 // Service 负责编排 DM 实时链路。
@@ -94,13 +102,18 @@ type Service struct {
 	files      *workspacestore.SessionFileStore
 	history    *workspacestore.AgentHistoryStore
 	inputQueue *workspacestore.InputQueueStore
-	usage      usageRecorder
-	quota      quotaChecker
-	goals      goalContextProvider
-	logger     *slog.Logger
-	mcpServers MCPServerBuilder
-	titles     titleScheduler
-	replies    ExternalReplyDispatcher
+	// inputQueueDispatchMu serializes explicit input, queue handoff, and Goal continuation at the active-check/start boundary.
+	inputQueueDispatchMu sync.Mutex
+	// ponytail: one lock is enough for low-volume DM hooks; split per session only if contention is measured.
+	inputQueueGuidanceMu      sync.Mutex
+	inputQueueGuidancePending map[string][]preparedDMGuidance
+	usage                     usageRecorder
+	quota                     quotaChecker
+	goals                     goalContextProvider
+	logger                    *slog.Logger
+	mcpServers                MCPServerBuilder
+	titles                    titleScheduler
+	replies                   ExternalReplyDispatcher
 }
 
 // ExternalReplyTarget 是 DM 完成后回送外部 IM 通道的最小目标描述。
@@ -150,12 +163,13 @@ type goalContextProvider interface {
 	RecordUsageForSession(context.Context, string, protocol.GoalUsage, string) (*protocol.Goal, error)
 	RecordUsageForGoal(context.Context, string, protocol.GoalUsage, string) (*protocol.Goal, error)
 	UsageLimitForSession(context.Context, string, string, string) (*protocol.Goal, error)
-	RecordContinuationProgress(context.Context, string, string, bool) (*protocol.Goal, error)
-	RecordContinuationFailure(context.Context, string, string, string) (*protocol.Goal, error)
-	RecordCompletionToolMiss(context.Context, string, string, string) (*protocol.Goal, error)
-	RecordGoalActivity(context.Context, string, string) (*protocol.Goal, error)
+	RecordContinuationProgress(context.Context, string, string, bool, ...int64) (*protocol.Goal, error)
+	RecordContinuationFailure(context.Context, string, string, string, ...int64) (*protocol.Goal, error)
+	RecordCompletionToolMiss(context.Context, string, string, string, ...int64) (*protocol.Goal, error)
+	RecordGoalActivity(context.Context, string, string, ...int64) (*protocol.Goal, error)
 	PlanContinuationForSession(context.Context, string, string) (*protocol.GoalContinuation, error)
 	GoalContinuationStillCurrent(context.Context, protocol.GoalContinuation) (bool, error)
+	ClaimContinuationPlan(context.Context, protocol.GoalContinuation) (*protocol.Goal, error)
 }
 
 // NewService 创建 DM 会话编排服务。

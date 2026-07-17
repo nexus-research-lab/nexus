@@ -27,7 +27,10 @@ export function findConversationRoundElement(
   return (
     Array.from(
       scrollElement.querySelectorAll<HTMLElement>(CONVERSATION_ROUND_SELECTOR),
-    ).find((element) => element.dataset.conversationRoundId === roundId) ?? null
+    ).find((element) => (
+      element.dataset.conversationRoundId === roundId
+      || element.dataset.conversationRootRoundId === roundId
+    )) ?? null
   );
 }
 

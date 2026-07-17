@@ -1,3 +1,6 @@
+// [INPUT]: 依赖 Room 订阅请求、权限校验与实时服务的活跃 slot 状态。
+// [OUTPUT]: 对新订阅者发送权威 pending slot 快照并建立 Room 事件订阅。
+// [POS]: websocket handler 的 Room 订阅恢复入口。
 package websocket
 
 import (
@@ -101,15 +104,20 @@ func (h *Handler) restoreRoomPendingSlots(
 	}
 
 	snapshot := h.roomRealtime.GetActiveRoundSnapshot(conversationID)
-	if snapshot == nil || len(snapshot.Pending) == 0 {
-		return false
+	sessionKey := protocol.BuildRoomSharedSessionKey(conversationID)
+	roundID := ""
+	pending := []protocol.ChatAckPendingSlot{}
+	if snapshot != nil {
+		sessionKey = snapshot.SessionKey
+		roundID = snapshot.RoundID
+		pending = snapshot.Pending
 	}
 
-	// 重放给新订阅者，没有对应的前端请求，client 关联字段留空。
-	event := protocol.NewChatAckEvent(snapshot.SessionKey, "", "", snapshot.RoundID, "", snapshot.Pending)
+	// 订阅恢复值是后端权威快照；即使为空也要发送，清除浏览器残留的运行占位。
+	event := protocol.NewChatPendingSnapshotEvent(sessionKey, roundID, pending)
 	event.RoomID = roomID
 	event.ConversationID = conversationID
-	event.RoundID = snapshot.RoundID
+	event.RoundID = roundID
 	_ = sender.SendEvent(ctx, event)
-	return true
+	return len(pending) > 0
 }

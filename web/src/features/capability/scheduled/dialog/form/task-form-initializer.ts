@@ -7,6 +7,7 @@ import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
 import type {
   ExecutionMode,
   ReplyMode,
+  TaskDialogCreatePreset,
   TaskDialogInitialState,
   TaskFormDraft,
   TaskScheduleDraft,
@@ -287,7 +288,9 @@ function intervalDisplay(intervalSeconds: number): {
 
 export function buildDefaultTaskDialogInitialState(
   agentId: string,
+  preset?: TaskDialogCreatePreset | null,
 ): TaskDialogInitialState {
+  const schedule = createDefaultTaskSchedule();
   return {
     form: {
       dedicatedSessionKey: "",
@@ -295,16 +298,23 @@ export function buildDefaultTaskDialogInitialState(
       expiresAt: "",
       executionKind: "agent",
       executionMode: "temporary",
-      instruction: "",
+      instruction: preset?.instruction ?? "",
       replyMode: "none",
       selectedAgentId: agentId,
       selectedReplySessionKey: "",
       selectedRoomId: "",
       selectedSessionKey: "",
       targetType: "agent",
-      taskName: "",
+      taskName: preset?.taskName ?? "",
     },
-    schedule: createDefaultTaskSchedule(),
+    schedule: preset
+      ? {
+          ...schedule,
+          dailyTime: preset.dailyTime,
+          kind: "cron",
+          selectedWeekdays: preset.selectedWeekdays,
+        }
+      : schedule,
   };
 }
 

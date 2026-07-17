@@ -14,6 +14,7 @@ interface UseConversationRoundNavigationOptions {
     options?: ConversationRoundScrollOptions,
   ) => void;
   roundIds: string[];
+  roundIdAliases?: ReadonlyMap<string, string>;
   roundScrollRef?: ConversationRoundScrollHandleRef;
   scrollRef: RefObject<HTMLDivElement | null>;
 }
@@ -21,6 +22,7 @@ interface UseConversationRoundNavigationOptions {
 export function useConversationRoundNavigation({
   fallbackScrollToIndex,
   roundIds,
+  roundIdAliases,
   roundScrollRef,
   scrollRef,
 }: UseConversationRoundNavigationOptions): void {
@@ -33,15 +35,16 @@ export function useConversationRoundNavigation({
         roundId: string,
         options?: ConversationRoundScrollOptions,
       ) => {
+        const timelineRoundId = roundIdAliases?.get(roundId) ?? roundId;
         const scrollElement = scrollRef.current;
         const target = scrollElement
-          ? findConversationRoundElement(scrollElement, roundId)
+          ? findConversationRoundElement(scrollElement, timelineRoundId)
           : null;
         if (scrollElement && target) {
           scrollToConversationRoundElement(scrollElement, target, options);
           return true;
         }
-        const targetIndex = roundIds.indexOf(roundId);
+        const targetIndex = roundIds.indexOf(timelineRoundId);
         if (targetIndex < 0 || !fallbackScrollToIndex) {
           return false;
         }
@@ -55,5 +58,11 @@ export function useConversationRoundNavigation({
         roundScrollRef.current = null;
       }
     };
-  }, [fallbackScrollToIndex, roundIds, roundScrollRef, scrollRef]);
+  }, [
+    fallbackScrollToIndex,
+    roundIdAliases,
+    roundIds,
+    roundScrollRef,
+    scrollRef,
+  ]);
 }

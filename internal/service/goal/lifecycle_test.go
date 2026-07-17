@@ -10,6 +10,28 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
+type fakeRoomGoalCompletionReadiness struct {
+	blocker   string
+	err       error
+	goalID    string
+	agentID   string
+	roundID   string
+	callCount int
+}
+
+func (f *fakeRoomGoalCompletionReadiness) RoomGoalCompletionBlocker(
+	_ context.Context,
+	item protocol.Goal,
+	agentID string,
+	roundID string,
+) (string, error) {
+	f.callCount++
+	f.goalID = item.ID
+	f.agentID = agentID
+	f.roundID = roundID
+	return f.blocker, f.err
+}
+
 func TestServiceCreateAndCurrentGoal(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{GoalEnabled: true}, repo)
@@ -43,6 +65,64 @@ func TestServiceCreateAndCurrentGoal(t *testing.T) {
 		Objective:  "Second",
 	}); !errors.Is(err, ErrGoalConflict) {
 		t.Fatalf("duplicate create error = %v, want ErrGoalConflict", err)
+	}
+}
+
+func TestServiceCreateReplacesCurrentGoalWhenExplicitlyRequested(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+	budget := int64(100)
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey:  "agent:nexus:ws:dm:replace-current",
+		Objective:   "Original objective",
+		TokenBudget: &budget,
+		Metadata: map[string]any{
+			"old_scope": "discard-me",
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	used, err := service.RecordUsageForGoal(ctx, created.ID, protocol.GoalUsage{TotalTokens: 12}, "round-usage")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.RecordContinuationProgress(ctx, created.ID, "round-progress", false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.Pause(ctx, created.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	replaced, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey:      created.SessionKey,
+		Objective:       "Replacement objective",
+		ReplaceExisting: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if replaced.ID != created.ID || replaced.Objective != "Replacement objective" || replaced.Status != protocol.GoalStatusActive {
+		t.Fatalf("replaced = %#v, want same active Goal with replacement objective", replaced)
+	}
+	if replaced.Usage != used.Usage {
+		t.Fatalf("usage = %#v, want preserved %#v", replaced.Usage, used.Usage)
+	}
+	if replaced.TokenBudget != nil {
+		t.Fatalf("TokenBudget = %#v, want replacement request to clear omitted budget", replaced.TokenBudget)
+	}
+	if replaced.ContinuationCount != 0 || replaced.EmptyProgressCount != 0 {
+		t.Fatalf("continuation counters = %d/%d, want reset", replaced.ContinuationCount, replaced.EmptyProgressCount)
+	}
+	if _, ok := replaced.Metadata["old_scope"]; ok {
+		t.Fatalf("metadata = %#v, want replacement metadata to discard old scope", replaced.Metadata)
+	}
+	if len(repo.goals) != 1 {
+		t.Fatalf("goal count = %d, want one replaced Goal", len(repo.goals))
 	}
 }
 
@@ -333,6 +413,33 @@ func TestServiceUpdateObjectiveFillsEmptyPreviewFromGoal(t *testing.T) {
 	}
 }
 
+func TestServiceUpdateObjectiveReactivatesPausedGoalWithoutResume(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:replace-paused",
+		Objective:  "Original objective",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.Pause(ctx, created.ID); err != nil {
+		t.Fatal(err)
+	}
+	replacement := "Replacement objective"
+	updated, err := service.Update(ctx, created.ID, protocol.UpdateGoalRequest{Objective: &replacement})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Objective != replacement || updated.Status != protocol.GoalStatusActive {
+		t.Fatalf("updated = %#v, want replacement objective activated directly", updated)
+	}
+}
+
 func TestServiceModelStatusUpdateFlushesButDoesNotClearRuntimeAccountingEarly(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{GoalEnabled: true}, repo)
@@ -389,7 +496,7 @@ func TestServiceCompleteByModelRequiresRoomGoalCollaborationEvidence(t *testing.
 		t.Fatal(err)
 	}
 
-	if _, err = service.CompleteByModel(ctx, created.ID, protocol.CompleteGoalRequest{RoundID: "round-lead"}); !errors.Is(err, ErrGoalInvalidState) {
+	if _, err = service.CompleteByModel(ctx, created.ID, protocol.CompleteGoalRequest{RoundID: "round-lead", AgentID: "agent-lead"}); !errors.Is(err, ErrGoalInvalidState) {
 		t.Fatalf("CompleteByModel error = %v, want ErrGoalInvalidState before collaborator evidence", err)
 	}
 	current, err := service.Current(ctx, created.SessionKey)
@@ -403,7 +510,7 @@ func TestServiceCompleteByModelRequiresRoomGoalCollaborationEvidence(t *testing.
 	if _, err = service.RecordRoomGoalCollaborationEvidence(ctx, created.ID, "round-peer", "agent-peer"); err != nil {
 		t.Fatal(err)
 	}
-	completed, err := service.CompleteByModel(ctx, created.ID, protocol.CompleteGoalRequest{RoundID: "round-lead-final"})
+	completed, err := service.CompleteByModel(ctx, created.ID, protocol.CompleteGoalRequest{RoundID: "round-lead-final", AgentID: "agent-lead"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -412,6 +519,110 @@ func TestServiceCompleteByModelRequiresRoomGoalCollaborationEvidence(t *testing.
 	}
 	if !RoomCollaborationObserved(*completed) {
 		t.Fatalf("metadata = %#v, want collaboration observed", completed.Metadata)
+	}
+}
+
+func TestServiceCompleteByModelKeepsRoomGoalActiveWhileRoomWorkIsOutstanding(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	readiness := &fakeRoomGoalCompletionReadiness{
+		blocker: "agent agent-peer still has an active Room slot",
+	}
+	service.SetRoomGoalCompletionReadiness(readiness)
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: protocol.BuildRoomSharedSessionKey("conversation-readiness"),
+		Objective:  "wait for all Room work",
+		CreatedBy:  "model",
+		AgentID:    "agent-lead",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = service.CompleteByModel(ctx, created.ID, protocol.CompleteGoalRequest{
+		AgentID: "agent-lead",
+		RoundID: "round-lead",
+	})
+	if !errors.Is(err, ErrGoalInvalidState) || !strings.Contains(err.Error(), readiness.blocker) {
+		t.Fatalf("CompleteByModel error = %v, want outstanding Room work rejection", err)
+	}
+	current, currentErr := service.Current(ctx, created.SessionKey)
+	if currentErr != nil {
+		t.Fatal(currentErr)
+	}
+	if current.Status != protocol.GoalStatusActive {
+		t.Fatalf("status = %q, want active after readiness rejection", current.Status)
+	}
+	if readiness.callCount != 1 || readiness.goalID != created.ID || readiness.agentID != "agent-lead" || readiness.roundID != "round-lead" {
+		t.Fatalf("readiness call = count:%d goal:%q agent:%q round:%q", readiness.callCount, readiness.goalID, readiness.agentID, readiness.roundID)
+	}
+
+	readiness.blocker = ""
+	completed, err := service.CompleteByModel(ctx, created.ID, protocol.CompleteGoalRequest{
+		AgentID: "agent-lead",
+		RoundID: "round-lead-final",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if completed.Status != protocol.GoalStatusComplete || readiness.callCount != 2 {
+		t.Fatalf("completed = %#v calls=%d, want complete after Room work drains", completed, readiness.callCount)
+	}
+}
+
+func TestServiceCompleteByModelDoesNotApplyRoomReadinessToDMGoal(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	readiness := &fakeRoomGoalCompletionReadiness{blocker: "must not be consulted"}
+	service.SetRoomGoalCompletionReadiness(readiness)
+
+	created, err := service.Create(context.Background(), protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:readiness",
+		Objective:  "complete DM goal",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	completed, err := service.CompleteByModel(context.Background(), created.ID, protocol.CompleteGoalRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if completed.Status != protocol.GoalStatusComplete || readiness.callCount != 0 {
+		t.Fatalf("completed = %#v calls=%d, want DM completion without Room gate", completed, readiness.callCount)
+	}
+}
+
+func TestServiceCompleteByModelRetriesConcurrentGoalVersion(t *testing.T) {
+	repo := &staleOnceUsageRepository{
+		memoryRepository: newMemoryRepository(),
+		concurrentUsage:  protocol.GoalUsage{TotalTokens: 7},
+	}
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: protocol.BuildRoomSharedSessionKey("complete-version-race"),
+		Objective:  "Complete after concurrent usage",
+		CreatedBy:  "model",
+		AgentID:    "agent-lead",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo.staleGoalID = created.ID
+	completed, err := service.CompleteByModel(ctx, created.ID, protocol.CompleteGoalRequest{AgentID: "agent-lead"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !repo.injected || completed.Status != protocol.GoalStatusComplete || completed.Usage.Total() != 7 {
+		t.Fatalf("completed = %#v injected=%v, want retried terminal mutation", completed, repo.injected)
 	}
 }
 

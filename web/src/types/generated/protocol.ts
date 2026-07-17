@@ -7,6 +7,7 @@ export type EventType =
   | 'stream'
   | 'chat_ack'
   | 'input_queue'
+  | 'input_queue_ack'
   | 'round_status'
   | 'agent_round_status'
   | 'session_status'
@@ -93,7 +94,19 @@ export interface ChatAckData {
   client_message_id: string;
   round_id: string;
   user_message_id: string;
+  user_message_committed: boolean;
   pending: ChatAckPendingSlot[];
+  pending_snapshot: boolean;
+  ack_timeout_ms: number;
+}
+
+export interface InputQueueAckData {
+  accepted: boolean;
+  duplicate: boolean;
+  action: string;
+  item_id: string;
+  client_request_id: string;
+  client_message_id: string;
   ack_timeout_ms: number;
 }
 
@@ -114,8 +127,19 @@ export interface ConversationMessage {
   parent_id?: string;
   content: unknown;
   timestamp: number;
+  display_order?: number;
   stream_status?: 'pending' | 'streaming' | 'done' | 'cancelled' | 'error';
   result_summary?: Record<string, unknown>;
+  agent_mentions?: AgentMention[];
+}
+
+export interface AgentMention {
+  agent_id: string;
+  label: string;
+  content_block_index: number;
+  start_rune: number;
+  end_rune: number;
+  handoff_id?: string;
 }
 
 export interface TurnPendingPermission {

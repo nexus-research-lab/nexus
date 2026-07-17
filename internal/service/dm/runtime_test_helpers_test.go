@@ -31,6 +31,7 @@ type fakeDMClient struct {
 	sentContents     []string
 	queryOptions     []sdkprotocol.OutboundMessageOptions
 	reconfigureOps   []agentclient.Options
+	hookResponseAck  bool
 	onQuery          func(context.Context, string)
 	onInterrupt      func(context.Context)
 }
@@ -213,6 +214,10 @@ func (c *fakeDMClient) Reconfigure(_ context.Context, options agentclient.Option
 	defer c.mu.Unlock()
 	c.reconfigureOps = append(c.reconfigureOps, options)
 	return nil
+}
+
+func (c *fakeDMClient) Supports(capability agentclient.Capability) bool {
+	return c.hookResponseAck && capability == agentclient.CapabilityHookResponseAck
 }
 
 func (c *fakeDMClient) SessionID() string { return c.sessionID }

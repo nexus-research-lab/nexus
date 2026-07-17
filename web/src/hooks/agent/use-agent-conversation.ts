@@ -19,8 +19,8 @@ import type {
 
 import type { AgentConversationActionContext } from "./actions/conversation-action-context";
 import { useAgentConversationActions } from "./actions/use-agent-conversation-actions";
-import { useChatAckFailure } from "./actions/use-chat-ack-failure";
-import { usePendingChatAcks } from "./actions/use-pending-chat-acks";
+import { usePendingRequestAcks } from "./actions/use-pending-request-acks";
+import { useRequestAckFailure } from "./actions/use-request-ack-failure";
 import { useAgentMessageCollection } from "./message/use-agent-message-collection";
 import { useAgentConversationRuntime } from "./runtime/use-agent-conversation-runtime";
 import { useAgentSessionController } from "./session/controller/use-agent-session-controller";
@@ -69,11 +69,11 @@ export function useAgentConversation(
   const wsStateRef = useRef<WebSocketState>("disconnected");
 
   const {
-    cancel_pending_chat_acks: cancelPendingChatAcks,
-    clear_pending_chat_ack: clearPendingChatAck,
-    reject_pending_chat_ack: rejectPendingChatAck,
-    wait_for_chat_ack: waitForChatAck,
-  } = usePendingChatAcks();
+    cancel_pending_request_acks: cancelPendingRequestAcks,
+    reject_pending_request_ack: rejectPendingRequestAck,
+    resolve_pending_request_ack: resolvePendingRequestAck,
+    wait_for_request_ack: waitForRequestAck,
+  } = usePendingRequestAcks();
 
   const {
     applyAgentRoundStatus,
@@ -97,13 +97,13 @@ export function useAgentConversation(
   } = useAgentConversationRuntime({
     agentId,
     chatType,
-    clearPendingChatAck,
+    resolvePendingRequestAck,
     setMessages,
     settleAgentWorkspaceWrites,
   });
 
   const session = useAgentSessionController({
-    cancelPendingChatAcks,
+    cancelPendingRequestAcks,
     identity,
     identitySessionKey,
     roomSeqCursorRef,
@@ -137,9 +137,13 @@ export function useAgentConversation(
     [onRoomEventCallback],
   );
 
-  const { handleChatAckTimeout, settleChatAckWaitFailure } = useChatAckFailure({
+  const {
+    handleRequestAckTimeout,
+    settleChatAckWaitFailure,
+    settleRequestAckWaitFailure,
+  } = useRequestAckFailure({
     clearOutboundRequest,
-    rejectPendingChatAck,
+    rejectPendingRequestAck,
     setError,
     setMessages,
     wsReconnectRef,
@@ -158,7 +162,8 @@ export function useAgentConversation(
     runtime: {
       applyAgentRoundStatus,
       applyRoundStatus,
-      rejectChatAck: rejectPendingChatAck,
+      rejectPendingRequestAck,
+      resolvePendingRequestAck,
       removeRewrittenRound,
       setRuntimeStatus,
       syncSessionStatus,
@@ -229,11 +234,12 @@ export function useAgentConversation(
   const actions = useAgentConversationActions({
     actionContext,
     clearOutboundRequest,
-    handleChatAckTimeout,
+    handleRequestAckTimeout,
     setPendingAgentSlots,
     settleChatAckWaitFailure,
+    settleRequestAckWaitFailure,
     trackOutboundRequest,
-    waitForChatAck,
+    waitForRequestAck,
   });
 
   return buildAgentConversationResult({

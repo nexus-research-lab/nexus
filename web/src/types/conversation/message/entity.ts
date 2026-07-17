@@ -1,5 +1,7 @@
 /**
- * 可持久化会话消息实体契约。
+ * INPUT: 后端持久化消息、实时 message 事件与结果摘要字段。
+ * OUTPUT: DM / Room 共用的 user、assistant、system 消息实体契约。
+ * POS: 前端会话消息协议的类型真相源。
  */
 
 import type { SessionId } from "../../system/sdk";
@@ -8,6 +10,15 @@ import type { ContentBlock } from "./content";
 
 type MessageRole = "user" | "assistant" | "system";
 
+export interface AgentMention {
+  agent_id: string;
+  label: string;
+  content_block_index: number;
+  start_rune: number;
+  end_rune: number;
+  handoff_id?: string;
+}
+
 interface BaseMessage {
   message_id: string;
   session_key: string;
@@ -15,12 +26,15 @@ interface BaseMessage {
   conversation_id?: string | null;
   agent_id: string;
   round_id: string;
+  /** 消息被运行中轮次消费前所属的原始 round；`round_id` 是消费后的根轮次。 */
+  source_round_id?: string | null;
   /** Room slot / Agent 私有执行轮次 id；`round_id` 始终表示根轮次。 */
   agent_round_id?: string | null;
   session_id?: SessionId;
   parent_id?: string;
   role: MessageRole;
   timestamp: number;
+  display_order?: number;
   /** 仅存在于运行态投影，不属于历史消息协议。 */
   delivery_mode?: "durable" | "ephemeral";
 }
@@ -28,7 +42,10 @@ interface BaseMessage {
 export interface UserMessage extends BaseMessage {
   role: "user";
   content: string;
+  agent_mentions?: AgentMention[];
   delivery_policy?: "queue" | "guide" | "interrupt" | "auto";
+  /** Room resolved targets；guided user 据此贴近实际消费它的 Agent。 */
+  target_agent_ids?: string[];
   attachments?: MessageAttachment[];
 }
 
@@ -68,12 +85,16 @@ export interface AssistantMessage extends BaseMessage {
   model?: string;
   usage?: Usage;
   result_summary?: ResultSummary;
+  /** 服务端解析出的可点击 Agent mention span。 */
+  agent_mentions?: AgentMention[];
   /** 前端流式状态，不属于后端持久化消息字段。 */
   stream_status?: AssistantMessageStatus;
 }
 
 interface SystemMessageMetadata extends Record<string, unknown> {
   subtype?: string;
+  /** guided_input 通过 metadata 保存被消费的原始 round。 */
+  source_round_id?: string | null;
   attempt?: number;
   max_retries?: number;
   retry_delay_ms?: number;

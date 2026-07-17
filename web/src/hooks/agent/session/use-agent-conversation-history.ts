@@ -36,6 +36,7 @@ export function useAgentConversationHistory({
   const [isHistoryLoading, setIsHistoryLoadingState] = useState(false);
   const [hasMoreHistory, setHasMoreHistoryState] = useState(false);
   const [historyPrependToken, setHistoryPrependToken] = useState(0);
+  const [resolvedHistoryRoundIds, setResolvedHistoryRoundIds] = useState<string[]>([]);
   const isHistoryLoadingRef = useRef(false);
   const isRoundWindowLoadingRef = useRef(false);
   const hasMoreHistoryRef = useRef(false);
@@ -58,6 +59,18 @@ export function useAgentConversationHistory({
     );
   }, []);
 
+  const markHistoryRoundResolved = useCallback((roundId: string) => {
+    const normalized = roundId.trim();
+    if (!normalized) {
+      return;
+    }
+    setResolvedHistoryRoundIds((currentRoundIds) => (
+      currentRoundIds.includes(normalized)
+        ? currentRoundIds
+        : [...currentRoundIds, normalized]
+    ));
+  }, []);
+
   const resetHistoryPagination = useCallback(() => {
     historyCursorRef.current = {
       before_round_id: null,
@@ -66,6 +79,7 @@ export function useAgentConversationHistory({
     setHistoryLoading(false);
     setHasMoreHistory(false);
     setHistoryPrependToken(0);
+    setResolvedHistoryRoundIds([]);
   }, [setHasMoreHistory, setHistoryLoading]);
 
   const loadOlderMessages = useCallback(async (): Promise<boolean> => {
@@ -96,6 +110,7 @@ export function useAgentConversationHistory({
       historyCursorRef,
       identity,
       isRoundWindowLoadingRef,
+      onRoundResolved: markHistoryRoundResolved,
       roundId,
       setError,
       setHasMoreHistory,
@@ -104,6 +119,7 @@ export function useAgentConversationHistory({
   }, [
     activeSessionKeyRef,
     identity,
+    markHistoryRoundResolved,
     setError,
     setHasMoreHistory,
     setMessages,
@@ -116,6 +132,7 @@ export function useAgentConversationHistory({
     isHistoryLoading,
     loadOlderMessages,
     loadRoundWindow,
+    resolvedHistoryRoundIds,
     resetHistoryPagination,
     setHasMoreHistory,
   };

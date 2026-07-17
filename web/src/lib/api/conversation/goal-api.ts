@@ -26,6 +26,7 @@ export async function createGoalApi(input: CreateGoalInput): Promise<Goal> {
       session_key: input.session_key,
       objective: input.objective,
       token_budget: input.token_budget ?? null,
+      replace_existing: input.replace_existing ?? false,
       metadata: input.metadata ?? null,
     },
   });

@@ -3,7 +3,10 @@ import type {
   SystemEventContent,
 } from "@/types/conversation/message/content";
 
-import { splitTextBlockByToolUseError } from "../../../message-content-model";
+import {
+  splitTextBlockByToolUseError,
+  stripRoomControlMarkers,
+} from "../../../message-content-model";
 import type {
   AssistantTurnEntry,
   OrderedAssistantEntry,
@@ -21,9 +24,7 @@ type BlockProjector = (
 ) => ContentBlock[] | null;
 
 const BLOCK_PROJECTORS: BlockProjector[] = [
-  (block) => block.type === "text"
-    ? splitTextBlockByToolUseError(block)
-    : null,
+  projectVisibleTextBlock,
   (block) => block.type === "thinking"
     ? (block.thinking.trim() ? [block] : [])
     : null,
@@ -40,6 +41,14 @@ const BLOCK_PROJECTORS: BlockProjector[] = [
     ? (block.content.trim() ? [block] : [])
     : null,
 ];
+
+function projectVisibleTextBlock(block: ContentBlock): ContentBlock[] | null {
+  if (block.type !== "text") {
+    return null;
+  }
+  const text = stripRoomControlMarkers(block.text);
+  return text ? splitTextBlockByToolUseError({ ...block, text }) : [];
+}
 
 type ResolveSourceOrder = (sourceMessageId: string) => number;
 
@@ -101,7 +110,9 @@ export function buildVisibleOrderedAssistantEntries({
 
 function hasVisibleText(content: ContentBlock[]): boolean {
   return content.some(
-    (block) => block.type === "text" && Boolean(block.text.trim()),
+    (block) =>
+      block.type === "text"
+      && Boolean(stripRoomControlMarkers(block.text)),
   );
 }
 

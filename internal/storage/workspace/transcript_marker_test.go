@@ -16,6 +16,7 @@ func TestAgentHistoryStoreMaterializesRoundMarkerMetadata(t *testing.T) {
 	sessionKey := "agent:nexus:fs:group:oc_group_123"
 
 	if err := history.AppendRoundMarkerWithOptions(workspacePath, sessionKey, "round-1", "检查今天的定时任务发送情况", 1000, RoundMarkerOptions{
+		SourceRoundID: "round-source-1",
 		Metadata: map[string]string{
 			"im.channel":             "feishu",
 			"im.platform_message_id": "om_1",
@@ -43,6 +44,9 @@ func TestAgentHistoryStoreMaterializesRoundMarkerMetadata(t *testing.T) {
 	if userRow == nil {
 		t.Fatalf("未找到 round marker user 消息: %+v", rows)
 	}
+	if userRow["source_round_id"] != "round-source-1" {
+		t.Fatalf("round marker source_round_id 未投影到历史消息: %+v", userRow)
+	}
 	metadata, ok := userRow["metadata"].(map[string]string)
 	if !ok {
 		t.Fatalf("user round marker 应带 metadata: %+v", userRow)
@@ -68,7 +72,9 @@ func TestAgentHistoryStoreMergesOverlayResultIntoTranscriptAssistantAfterEmptyUs
 	if err := history.AppendRoundMarker(workspacePath, sessionKey, "round-1", "你是谁", 1000); err != nil {
 		t.Fatalf("写入第一条 round marker 失败: %v", err)
 	}
-	if err := history.AppendRoundMarker(workspacePath, sessionKey, "round-2", "不是吧", 2000); err != nil {
+	if err := history.AppendRoundMarkerWithOptions(workspacePath, sessionKey, "round-2", "不是吧", 2000, RoundMarkerOptions{
+		SourceRoundID: "round-source-2",
+	}); err != nil {
 		t.Fatalf("写入第二条 round marker 失败: %v", err)
 	}
 	if err := history.AppendOverlayMessage(workspacePath, sessionKey, protocol.Message{
@@ -167,8 +173,16 @@ func TestAgentHistoryStoreMergesOverlayResultIntoTranscriptAssistantAfterEmptyUs
 	}
 
 	roundTwoAssistants := 0
+	foundRoundTwoUser := false
 	for _, row := range rows {
 		if stringFromAny(row["round_id"]) != "round-2" {
+			continue
+		}
+		if stringFromAny(row["role"]) == "user" {
+			foundRoundTwoUser = true
+			if got := stringFromAny(row["source_round_id"]); got != "round-source-2" {
+				t.Fatalf("transcript user 丢失 source_round_id: got=%q row=%+v", got, row)
+			}
 			continue
 		}
 		if stringFromAny(row["role"]) != "assistant" {
@@ -189,6 +203,9 @@ func TestAgentHistoryStoreMergesOverlayResultIntoTranscriptAssistantAfterEmptyUs
 
 	if roundTwoAssistants != 1 {
 		t.Fatalf("第二轮 assistant 数量不正确，说明 result 没有并回同一轮: got=%d rows=%+v", roundTwoAssistants, rows)
+	}
+	if !foundRoundTwoUser {
+		t.Fatalf("未找到 transcript 第二轮 user: %+v", rows)
 	}
 }
 

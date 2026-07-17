@@ -20,6 +20,7 @@ import type {
   RoundStatusEventPayload,
 } from "@/types/conversation/message/event";
 import type {
+  InputQueueAckData,
   RuntimeStatusData,
   SessionStatusData,
 } from "@/types/generated/protocol";
@@ -197,6 +198,7 @@ export function parseChatAckData(data: UnknownRecord): ChatAckData | null {
     || !readString(data, "client_message_id")
     || !readString(data, "round_id")
     || !readString(data, "user_message_id")
+    || typeof data.user_message_committed !== "boolean"
     || !Array.isArray(data.pending)
     || !data.pending.every(isChatAckPendingSlot)
     || readNumber(data, "ack_timeout_ms") === null
@@ -204,4 +206,21 @@ export function parseChatAckData(data: UnknownRecord): ChatAckData | null {
     return null;
   }
   return data as unknown as ChatAckData;
+}
+
+export function parseInputQueueAckData(
+  data: UnknownRecord,
+): InputQueueAckData | null {
+  if (
+    !readString(data, "client_request_id")
+    || !readString(data, "client_message_id")
+    || !readString(data, "action")
+    || !readString(data, "item_id")
+    || typeof data.accepted !== "boolean"
+    || typeof data.duplicate !== "boolean"
+    || readNumber(data, "ack_timeout_ms") === null
+  ) {
+    return null;
+  }
+  return data as unknown as InputQueueAckData;
 }

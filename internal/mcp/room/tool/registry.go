@@ -14,7 +14,7 @@ import (
 // BuildAll 汇集全部 Room 通讯工具。
 func BuildAll(svc contract.Service, sctx contract.ServerContext) []sdktool.Tool {
 	if !sctx.PrivateMessagesEnabled {
-		return []sdktool.Tool{publishPublicMessage(svc, sctx)}
+		return nil
 	}
 	return []sdktool.Tool{
 		sendDirectedMessage(svc, sctx),

@@ -1,13 +1,18 @@
 import { cn } from "@/shared/ui/class-name";
 import type { MessageAttachment } from "@/types/conversation/message/attachment";
+import type { AgentMention } from "@/types/conversation/message/entity";
 
 import { ContentRenderer } from "../content/content-renderer";
 import { MessageUserAttachments } from "./message-user-attachments";
 import type { UserMessagePresentation } from "./user-message-model";
+import type { AgentMentionDirectory } from "../../../agent-mention-chip";
 
 interface UserMessageContentProps {
   attachments: MessageAttachment[];
+  agentMentions?: AgentMention[];
+  agentMentionDirectory?: AgentMentionDirectory;
   content: string;
+  onOpenAgentContact?: (agentId: string) => void;
   onOpenWorkspaceFile?: (path: string, workspaceAgentId?: string | null) => void;
   presentation: UserMessagePresentation;
   workspaceAgentId?: string | null;
@@ -15,7 +20,10 @@ interface UserMessageContentProps {
 
 export function UserMessageContent({
   attachments,
+  agentMentions,
+  agentMentionDirectory,
   content,
+  onOpenAgentContact,
   onOpenWorkspaceFile,
   presentation,
   workspaceAgentId,
@@ -29,6 +37,9 @@ export function UserMessageContent({
             presentation.contentClassName,
           )}
           content={content}
+          agentMentions={agentMentions}
+          agentMentionDirectory={agentMentionDirectory}
+          onOpenAgentContact={onOpenAgentContact}
           onOpenWorkspaceFile={onOpenWorkspaceFile}
           workspaceAgentId={workspaceAgentId}
         />

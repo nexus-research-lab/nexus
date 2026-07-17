@@ -61,6 +61,7 @@ export function useRoomGoalComposer({
       await createGoalApi({
         metadata,
         objective,
+        replace_existing: true,
         session_key: sessionKey,
         token_budget: null,
       });

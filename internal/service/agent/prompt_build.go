@@ -1,3 +1,6 @@
+// INPUT: Agent 配置、workspace managed skills 与运行时能力。
+// OUTPUT: Agent system prompt 及 Goal 工具使用约束。
+// POS: Agent 服务的运行时 prompt 装配入口。
 package agent
 
 import (
@@ -107,10 +110,11 @@ func buildManagedSkillUsageSection(workspacePath string) string {
 	if hasManagedSkill(trimmedWorkspacePath, "goal-manager") {
 		sections = append(sections, strings.Join([]string{
 			"## Goal Skill 使用要求",
-			"- 用户明确要求启动、设定或继续当前会话 Goal 时，必须先使用 Skill 工具加载 goal-manager，再调用当前工具列表中可见的 Goal MCP 工具。",
-			"- Nexus 中 Goal MCP 工具通常显示为 mcp__nexus_goal__get_goal、mcp__nexus_goal__create_goal、mcp__nexus_goal__update_goal；如果运行时只暴露裸名 get_goal/create_goal/update_goal，它们是同一组能力。",
+			"- 用户明确要求启动、设定、继续或纠正当前会话 Goal 时，必须先使用 Skill 工具加载 goal-manager，再调用当前工具列表中可见的 Goal MCP 工具。",
+			"- Nexus 中 Goal MCP 工具通常显示为 mcp__nexus_goal__get_goal、mcp__nexus_goal__create_goal、mcp__nexus_goal__retarget_goal、mcp__nexus_goal__update_goal；如果运行时只暴露裸名 get_goal/create_goal/retarget_goal/update_goal，它们是同一组能力。",
 			"- 不要使用 /goal 文本命令；Goal 的模型入口是 goal-manager + mcp__nexus_goal__* 工具，用户入口是界面的启动 Goal 按钮。",
 			"- 只有用户或系统/开发者明确要求 Goal 时才创建；普通一次性请求、提醒和定时任务不要自动创建 Goal。",
+			"- 只有用户明确纠正当前 active Goal 的 objective 时才调用 retarget_goal；必须保留同一 Goal，绝不能先完成旧 Goal 再创建新 Goal。",
 			"- token_budget 只有用户明确给出预算时才传；暂停、恢复、清理、预算限制和用量限制由用户或系统控制。",
 			"- 完成目标前必须确认没有剩余必要工作；同一阻塞条件连续出现且无法推进时，才可标记 blocked。",
 		}, "\n"))

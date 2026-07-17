@@ -15,7 +15,7 @@ interface CodeBlockContentProps {
   value: string;
 }
 
-const MESSAGE_CODE_FONT_FAMILY = "\"KingHwaOldSong\", var(--font-mono), monospace";
+const MESSAGE_CODE_FONT_FAMILY = "var(--font-mono)";
 
 export function CodeBlockContent({ language, value }: CodeBlockContentProps) {
   const { theme } = useTheme();
@@ -57,28 +57,28 @@ export function CodeBlockContent({ language, value }: CodeBlockContentProps) {
           language={language || "text"}
           style={isDarkTheme ? vscDarkPlus : oneLight}
           codeTagProps={{
-            className: "message-cjk-code-font",
+            className: "message-code-font",
             style: {
               fontFamily: MESSAGE_CODE_FONT_FAMILY,
             },
           }}
           customStyle={{
             margin: 0,
-            padding: "0.85rem 0.95rem 0.9rem",
+            padding: "0.65rem 0.75rem 0.7rem",
             background: "transparent",
             fontFamily: MESSAGE_CODE_FONT_FAMILY,
-            fontSize: "0.8rem",
-            lineHeight: "1.6",
+            fontSize: "0.78rem",
+            lineHeight: "1.5",
             width: "max-content",
             minWidth: "100%",
             whiteSpace: "pre",
           }}
           lineNumberStyle={{
             fontFamily: MESSAGE_CODE_FONT_FAMILY,
-            minWidth: "1.45rem",
-            paddingRight: "0.45rem",
+            minWidth: "1.25rem",
+            paddingRight: "0.35rem",
             color: "var(--text-faint)",
-            fontSize: "0.68rem",
+            fontSize: "0.65rem",
             userSelect: "none",
           }}
           showLineNumbers

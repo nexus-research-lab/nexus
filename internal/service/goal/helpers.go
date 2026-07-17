@@ -1,3 +1,6 @@
+// INPUT: Goal 校验、metadata 与模板渲染所需的共享值。
+// OUTPUT: 无状态的 Goal 领域辅助函数。
+// POS: service/goal 内部跨流程复用的最小工具层。
 package goal
 
 import (
@@ -89,6 +92,56 @@ func goalTokenBudgetEqual(left *int64, right *int64) bool {
 
 func cloneMap(input map[string]any) map[string]any {
 	return maps.Clone(input)
+}
+
+func advanceObjectiveRevision(item *protocol.Goal) {
+	if item == nil {
+		return
+	}
+	item.Metadata = cloneMap(item.Metadata)
+	if item.Metadata == nil {
+		item.Metadata = map[string]any{}
+	}
+	item.Metadata[protocol.GoalMetadataObjectiveRevision] = item.ObjectiveRevision() + 1
+}
+
+func resetGoalContinuationForObjectiveReplacement(item *protocol.Goal) {
+	if item == nil {
+		return
+	}
+	item.ContinuationCount = 0
+	item.EmptyProgressCount = 0
+	item.Metadata = clearContinuationReservations(clearCompletionToolRetryMetadata(item.Metadata))
+	if protocol.IsRoomSharedSessionKey(item.SessionKey) {
+		item.Metadata = cloneMap(item.Metadata)
+		delete(item.Metadata, protocol.GoalMetadataRoomGoalCollaborationObserved)
+		delete(item.Metadata, protocol.GoalMetadataRoomGoalCollaborationAgentID)
+		delete(item.Metadata, protocol.GoalMetadataRoomGoalCollaborationRoundID)
+		delete(item.Metadata, protocol.GoalMetadataRoomGoalCollaborationObservedAt)
+	}
+}
+
+func canRetargetGoalStatus(status protocol.GoalStatus) bool {
+	switch protocol.NormalizeGoalStatus(status) {
+	case protocol.GoalStatusActive,
+		protocol.GoalStatusPaused,
+		protocol.GoalStatusBlocked,
+		protocol.GoalStatusUsageLimited:
+		return true
+	default:
+		return false
+	}
+}
+
+func objectiveRevisionMatches(item protocol.Goal, expected int64) bool {
+	return expected <= 0 || item.ObjectiveRevision() == expected
+}
+
+func firstExpectedObjectiveRevision(values []int64) int64 {
+	if len(values) == 0 {
+		return 0
+	}
+	return values[0]
 }
 
 func renderGoalPromptTemplate(template string, values map[string]string) string {

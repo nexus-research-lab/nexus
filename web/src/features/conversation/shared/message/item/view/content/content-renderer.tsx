@@ -17,19 +17,25 @@ export function ContentRenderer({ content, ...props }: ContentRendererProps) {
 }
 
 function MarkdownContent({
-  className,
+	agentMentions = [],
+	agentMentionDirectory,
+	className,
   content,
   isStreaming = false,
   onOpenWorkspaceFile,
   showTimelineDots = false,
-  workspaceAgentId,
+	workspaceAgentId,
+	onOpenAgentContact,
 }: {
+	agentMentions?: ContentRendererProps["agentMentions"];
+	agentMentionDirectory?: ContentRendererProps["agentMentionDirectory"];
   className?: string;
   content: string;
   isStreaming?: boolean;
   onOpenWorkspaceFile?: (path: string) => void;
   showTimelineDots?: boolean;
-  workspaceAgentId?: string | null;
+	workspaceAgentId?: string | null;
+	onOpenAgentContact?: ContentRendererProps["onOpenAgentContact"];
 }) {
   const markdown = (
     <MarkdownRenderer
@@ -37,6 +43,9 @@ function MarkdownContent({
       isStreaming={isStreaming}
       onOpenWorkspaceFile={onOpenWorkspaceFile}
       workspaceAgentId={workspaceAgentId}
+      agentMentions={agentMentions}
+      agentMentionDirectory={agentMentionDirectory}
+      onOpenAgentContact={onOpenAgentContact}
     />
   );
   if (!className) {

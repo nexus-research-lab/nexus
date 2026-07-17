@@ -39,10 +39,15 @@ export function useConversationComposerHandlers({
       content: string,
       deliveryPolicy: AgentConversationDeliveryPolicy,
       attachments: MessageAttachment[] = [],
+      targetAgentIDs: string[] = [],
     ) => {
       if (!content.trim() && attachments.length === 0) return;
       scrollToBottom("auto");
-      await sendMessage(content, { delivery_policy: deliveryPolicy, attachments });
+      await sendMessage(content, {
+        delivery_policy: deliveryPolicy,
+        attachments,
+        target_agent_ids: targetAgentIDs,
+      });
     },
     [scrollToBottom, sendMessage],
   );

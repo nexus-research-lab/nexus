@@ -13,6 +13,8 @@ type EventMapperOptions struct {
 	Context                MessageContext
 	InitialSessionID       string
 	IncludeStreamLifecycle bool
+	// TransformDurableMessage 在事件与持久化快照生成前补充场景化字段。
+	TransformDurableMessage func(protocol.Message) protocol.Message
 }
 
 // EventMapResult 表示一次 SDK 消息映射后的事件与持久消息。
@@ -25,19 +27,29 @@ type EventMapResult struct {
 
 // EventMapper 基于统一 Processor 生成场景化 protocol event。
 type EventMapper struct {
-	ctx                    MessageContext
-	includeStreamLifecycle bool
-	processor              *Processor
-	lastAssistantMessage   protocol.Message
+	ctx                     MessageContext
+	includeStreamLifecycle  bool
+	processor               *Processor
+	lastAssistantMessage    protocol.Message
+	transformDurableMessage func(protocol.Message) protocol.Message
 }
 
 // NewEventMapper 创建通用 SDK 消息映射器。
 func NewEventMapper(options EventMapperOptions) *EventMapper {
 	return &EventMapper{
-		ctx:                    options.Context,
-		includeStreamLifecycle: options.IncludeStreamLifecycle,
-		processor:              NewProcessor(options.Context, options.InitialSessionID),
+		ctx:                     options.Context,
+		includeStreamLifecycle:  options.IncludeStreamLifecycle,
+		processor:               NewProcessor(options.Context, options.InitialSessionID),
+		transformDurableMessage: options.TransformDurableMessage,
 	}
+}
+
+// SetDurableMessageTransformer 设置场景化 durable 消息转换器。
+func (m *EventMapper) SetDurableMessageTransformer(transform func(protocol.Message) protocol.Message) {
+	if m == nil {
+		return
+	}
+	m.transformDurableMessage = transform
 }
 
 // Map 将一条 SDK 消息映射为 protocol event 与 durable message。
@@ -67,6 +79,9 @@ func (m *EventMapper) Map(incoming sdkprotocol.ReceivedMessage, interruptReason 
 		events = append(events, m.wrapEvent(protocol.EventTypeStream, streamEvent.Data, streamEvent.MessageID))
 	}
 	for _, messageValue := range output.DurableMessages {
+		if m.transformDurableMessage != nil {
+			messageValue = m.transformDurableMessage(messageValue)
+		}
 		copyValue := protocol.Clone(messageValue)
 		durableMessages = append(durableMessages, copyValue)
 		projectedValue := m.projectDurableMessage(copyValue)

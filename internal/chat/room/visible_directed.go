@@ -12,28 +12,42 @@ func buildRoomDirectedMessageContext(
 	agentNameByID map[string]string,
 	targetAgentID string,
 ) string {
-	if len(messages) == 0 {
-		return ""
-	}
 	lines := make([]string, 0, len(messages))
 	for _, message := range messages {
-		content := strings.TrimSpace(message.Content)
-		if content == "" {
-			continue
+		if line := formatRoomDirectedMessageLine(message, agentNameByID); line != "" {
+			lines = append(lines, line)
 		}
-		sourceName := displayAgentName(message.SourceAgentID, agentNameByID)
-		recipients := formatReplyRecipients(message.Recipients, agentNameByID)
-		if recipients == "" {
-			recipients = "specified recipients"
-		}
-		lines = append(lines, fmt.Sprintf(
-			"[directed_message recipients=%s reply_route=%s] %s: %s",
-			recipients,
-			formatReplyRoute(message.ReplyRoute, message.SourceAgentID, agentNameByID),
-			sourceName,
-			content,
-		))
 	}
+	return wrapRoomDirectedMessageContext(lines, agentNameByID, targetAgentID)
+}
+
+func formatRoomDirectedMessageLine(
+	message protocol.RoomDirectedMessageRecord,
+	agentNameByID map[string]string,
+) string {
+	content := strings.TrimSpace(message.Content)
+	if content == "" {
+		return ""
+	}
+	sourceName := displayAgentName(message.SourceAgentID, agentNameByID)
+	recipients := formatReplyRecipients(message.Recipients, agentNameByID)
+	if recipients == "" {
+		recipients = "specified recipients"
+	}
+	return fmt.Sprintf(
+		"[directed_message recipients=%s reply_route=%s] %s: %s",
+		recipients,
+		formatReplyRoute(message.ReplyRoute, message.SourceAgentID, agentNameByID),
+		sourceName,
+		content,
+	)
+}
+
+func wrapRoomDirectedMessageContext(
+	lines []string,
+	agentNameByID map[string]string,
+	targetAgentID string,
+) string {
 	if len(lines) == 0 {
 		return ""
 	}
