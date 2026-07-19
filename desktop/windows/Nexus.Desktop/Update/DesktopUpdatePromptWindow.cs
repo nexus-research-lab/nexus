@@ -1,10 +1,13 @@
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Input;
+using WpfButton = System.Windows.Controls.Button;
+using WpfKey = System.Windows.Input.Key;
+using WpfKeyEventArgs = System.Windows.Input.KeyEventArgs;
+using WpfWindow = System.Windows.Window;
 
 namespace Nexus.Desktop.Update;
 
-internal sealed class DesktopUpdatePromptWindow : Window
+internal sealed class DesktopUpdatePromptWindow : WpfWindow
 {
     private const double WindowWidth = 640;
     private const double ContentMaxHeight = 300;
@@ -135,13 +138,13 @@ internal sealed class DesktopUpdatePromptWindow : Window
         return buttons;
     }
 
-    private static Button CreateButton(
+    private static WpfButton CreateButton(
         string label,
         bool isDefault,
         System.Action action,
         bool isCancel = false)
     {
-        var button = new Button
+        var button = new WpfButton
         {
             Content = label,
             IsDefault = isDefault,
@@ -160,9 +163,9 @@ internal sealed class DesktopUpdatePromptWindow : Window
         Close();
     }
 
-    private void HandlePreviewKeyDown(object sender, KeyEventArgs e)
+    private void HandlePreviewKeyDown(object sender, WpfKeyEventArgs e)
     {
-        if (e.Key != Key.Escape)
+        if (e.Key != WpfKey.Escape)
         {
             return;
         }

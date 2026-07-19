@@ -15,6 +15,8 @@ final class WebViewHost: NSObject, WKNavigationDelegate, WKUIDelegate {
   private var resumeCheckInFlight = false
   private var consecutiveResumeProbeFailures = 0
   private var lastResumeCheckAt = Date.distantPast
+  private var navigationRequestID = 0
+  private var navigationInFlight = false
 
   private struct ResumeProbeResult {
     let isReady: Bool
@@ -71,24 +73,65 @@ final class WebViewHost: NSObject, WKNavigationDelegate, WKUIDelegate {
 
   func load(_ url: URL? = nil) {
     let targetURL = url ?? runtime.webURL
+    navigationRequestID += 1
+    let requestID = navigationRequestID
     lastRequestedURL = targetURL
     updateLastRoute(from: targetURL)
-    startupTimeline?.mark("webview.cookie_begin", metadata: webMetadata(url: targetURL))
+    startupTimeline?.mark("webview.cookie_begin", metadata: webMetadata(
+      url: targetURL,
+      extra: ["navigation_request_id": "\(requestID)"]
+    ))
     installDesktopSessionCookie {
-      self.startupTimeline?.mark("webview.load_begin", metadata: self.webMetadata(url: targetURL))
+      guard requestID == self.navigationRequestID else {
+        self.startupTimeline?.mark("webview.load_skipped_stale", metadata: self.webMetadata(
+          url: targetURL,
+          extra: [
+            "navigation_request_id": "\(requestID)",
+            "current_navigation_request_id": "\(self.navigationRequestID)",
+          ]
+        ))
+        return
+      }
+      self.startupTimeline?.mark("webview.load_begin", metadata: self.webMetadata(
+        url: targetURL,
+        extra: ["navigation_request_id": "\(requestID)"]
+      ))
       self.webView.load(URLRequest(url: targetURL))
     }
   }
 
   func reload() {
-    startupTimeline?.mark("webview.reload", metadata: webMetadata(url: webView.url))
+    navigationRequestID += 1
+    let requestID = navigationRequestID
+    startupTimeline?.mark("webview.reload", metadata: webMetadata(
+      url: webView.url,
+      extra: ["navigation_request_id": "\(requestID)"]
+    ))
     installDesktopSessionCookie {
+      guard requestID == self.navigationRequestID else {
+        self.startupTimeline?.mark("webview.reload_skipped_stale", metadata: [
+          "current_navigation_request_id": "\(self.navigationRequestID)",
+          "navigation_request_id": "\(requestID)",
+          "surface": self.surfaceName,
+        ])
+        return
+      }
       self.webView.reload()
     }
   }
 
   func recoverAfterWindowShown(reason: String) {
     if resumeCheckInFlight {
+      return
+    }
+
+    if navigationInFlight || webView.isLoading {
+      startupTimeline?.mark("webview.resume_check_skipped", metadata: [
+        "path": lastRoute.path,
+        "reason": reason,
+        "skip_reason": "navigation_in_flight",
+        "surface": surfaceName,
+      ])
       return
     }
 
@@ -165,7 +208,7 @@ final class WebViewHost: NSObject, WKNavigationDelegate, WKUIDelegate {
     if isInternalNavigation(url) {
       lastRequestedURL = url
       updateLastRoute(from: url)
-      webView.load(URLRequest(url: url))
+      load(url)
       return nil
     }
     if DesktopExternalURLPolicy.canOpen(url) {
@@ -226,29 +269,36 @@ final class WebViewHost: NSObject, WKNavigationDelegate, WKUIDelegate {
   }
 
   func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+    navigationInFlight = true
     startupTimeline?.mark("webview.navigation_started", metadata: webMetadata(url: lastRequestedURL ?? webView.url))
   }
 
   func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+    navigationInFlight = false
+    consecutiveResumeProbeFailures = 0
     updateLastRoute(from: webView.url ?? lastRequestedURL)
     startupTimeline?.mark("webview.navigation_finished", metadata: webMetadata(url: webView.url ?? lastRequestedURL))
     probeDesktopBridge()
   }
 
   func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-    startupTimeline?.mark("webview.navigation_failed", metadata: webMetadata(
+    navigationInFlight = false
+    let cancelled = isNavigationCancellation(error)
+    startupTimeline?.mark(cancelled ? "webview.navigation_cancelled" : "webview.navigation_failed", metadata: webMetadata(
       url: webView.url ?? lastRequestedURL,
-      extra: ["error": error.localizedDescription]
+      extra: navigationErrorMetadata(error, webView: webView)
     ))
-    NSLog("[Nexus WebView] navigation failed: \(error.localizedDescription)")
+    NSLog("[Nexus WebView] navigation \(cancelled ? "cancelled" : "failed"): \(error.localizedDescription)")
   }
 
   func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
-    startupTimeline?.mark("webview.provisional_navigation_failed", metadata: webMetadata(
+    navigationInFlight = false
+    let cancelled = isNavigationCancellation(error)
+    startupTimeline?.mark(cancelled ? "webview.provisional_navigation_cancelled" : "webview.provisional_navigation_failed", metadata: webMetadata(
       url: webView.url ?? lastRequestedURL,
-      extra: ["error": error.localizedDescription]
+      extra: navigationErrorMetadata(error, webView: webView)
     ))
-    NSLog("[Nexus WebView] provisional navigation failed: \(error.localizedDescription)")
+    NSLog("[Nexus WebView] provisional navigation \(cancelled ? "cancelled" : "failed"): \(error.localizedDescription)")
   }
 
   func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
@@ -517,6 +567,25 @@ final class WebViewHost: NSObject, WKNavigationDelegate, WKUIDelegate {
       return "unknown"
     }
     return Array(Set(keys)).sorted().joined(separator: ",")
+  }
+
+  private func navigationErrorMetadata(_ error: Error, webView: WKWebView) -> [String: String] {
+    let nsError = error as NSError
+    return [
+      "error": Self.trimMetadata(error.localizedDescription),
+      "error_code": "\(nsError.code)",
+      "error_domain": nsError.domain,
+      "is_cancelled": isNavigationCancellation(error) ? "true" : "false",
+      "is_loading": webView.isLoading ? "true" : "false",
+    ]
+  }
+
+  private func isNavigationCancellation(_ error: Error) -> Bool {
+    let nsError = error as NSError
+    if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled {
+      return true
+    }
+    return nsError.domain == "WebKitErrorDomain" && nsError.code == 102
   }
 
   private func installDesktopSessionCookie(completion: @escaping () -> Void) {
