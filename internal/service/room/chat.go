@@ -201,7 +201,7 @@ func (s *RealtimeService) prepareRoomChat(ctx context.Context, request ChatReque
 			targetResolution,
 		)
 	}
-	if len(targetAgentIDs) > 0 {
+	if len(targetAgentIDs) > 0 && !request.Internal {
 		if err = s.ensureQuotaAvailable(ctx); err != nil {
 			return nil, err
 		}
