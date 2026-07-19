@@ -36,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed the Windows desktop update prompt build by disambiguating WPF and WinForms types.
 - Prevented macOS WebView recovery checks from interrupting in-flight navigation and added cancellation-aware startup diagnostics.
 - Fixed macOS CI DMG checksum validation to resolve artifacts from the package output directory.
+- Hardened macOS desktop smoke shutdown with a diagnostic SIGTERM fallback when the exit notification is not delivered.
 
 ## [0.1.26] - 2026-07-08
 
