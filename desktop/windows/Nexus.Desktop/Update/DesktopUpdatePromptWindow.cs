@@ -3,6 +3,10 @@ using System.Windows.Controls;
 using WpfButton = System.Windows.Controls.Button;
 using WpfKey = System.Windows.Input.Key;
 using WpfKeyEventArgs = System.Windows.Input.KeyEventArgs;
+using WpfHorizontalAlignment = System.Windows.HorizontalAlignment;
+using WpfOrientation = System.Windows.Controls.Orientation;
+using WpfSystemColors = System.Windows.SystemColors;
+using WpfTextBox = System.Windows.Controls.TextBox;
 using WpfWindow = System.Windows.Window;
 
 namespace Nexus.Desktop.Update;
@@ -83,7 +87,7 @@ internal sealed class DesktopUpdatePromptWindow : WpfWindow
         });
 
         // Windows MessageBox 不支持滚动正文，release notes 必须被限制在固定区域内。
-        panel.Children.Add(new TextBox
+        panel.Children.Add(new WpfTextBox
         {
             Text = releaseNotes,
             IsReadOnly = true,
@@ -94,10 +98,10 @@ internal sealed class DesktopUpdatePromptWindow : WpfWindow
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             MaxHeight = ContentMaxHeight,
             Padding = new Thickness(8),
-            BorderBrush = SystemColors.ControlDarkBrush,
+            BorderBrush = WpfSystemColors.ControlDarkBrush,
             BorderThickness = new Thickness(1),
-            Background = SystemColors.ControlBrush,
-            Foreground = SystemColors.ControlTextBrush,
+            Background = WpfSystemColors.ControlBrush,
+            Foreground = WpfSystemColors.ControlTextBrush,
             FontSize = 12,
         });
         return panel;
@@ -107,8 +111,8 @@ internal sealed class DesktopUpdatePromptWindow : WpfWindow
     {
         var buttons = new StackPanel
         {
-            Orientation = Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Right,
+            Orientation = WpfOrientation.Horizontal,
+            HorizontalAlignment = WpfHorizontalAlignment.Right,
             Margin = new Thickness(0, SectionSpacing, 0, 0),
         };
 

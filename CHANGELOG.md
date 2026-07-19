@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.29] - 2026-07-19
+
+### Fixed
+
+- Fixed the remaining WPF and WinForms type ambiguities in the Windows update prompt.
+- Fixed macOS CI DMG checksum validation to resolve artifacts from the package output directory.
+
 ## [0.1.28] - 2026-07-19
 
 ### Fixed
