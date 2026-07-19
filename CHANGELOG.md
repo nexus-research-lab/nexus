@@ -7,20 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.1.29] - 2026-07-19
-
-### Fixed
-
-- Fixed the remaining WPF and WinForms type ambiguities in the Windows update prompt.
-- Fixed macOS CI DMG checksum validation to resolve artifacts from the package output directory.
-
-## [0.1.28] - 2026-07-19
-
-### Fixed
-
-- Fixed the Windows desktop update prompt build when WPF and WinForms are enabled together.
-- Prevented macOS WebView recovery checks from interrupting in-flight navigation and added cancellation-aware startup diagnostics.
-
 ## [0.1.27] - 2026-07-19
 
 ### Added
@@ -47,6 +33,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rejected stale asynchronous responses across conversations, Rooms, Agents, files, settings, goals, channels, and task controllers.
 - Aligned permission modes, model context limits, provider/account quota feedback, Provider scope recovery, and runtime compaction behavior.
 - Restored workspace image/artifact links, task history, WebView cache invalidation, desktop window sizing, and missing-asset recovery.
+- Fixed the Windows desktop update prompt build by disambiguating WPF and WinForms types.
+- Prevented macOS WebView recovery checks from interrupting in-flight navigation and added cancellation-aware startup diagnostics.
+- Fixed macOS CI DMG checksum validation to resolve artifacts from the package output directory.
 
 ## [0.1.26] - 2026-07-08
 
