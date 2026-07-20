@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Replaced the Operation Stage's left-side background thumbnails with real cascading app windows, made Dock restores enter the foreground immediately, and kept inactive app state mounted behind the active window.
 - Kept workspace search patterns inside the Operation Stage Files app instead of opening fake document windows, preserved mounted app state while windows move into the background scene, and prevented workspace preview selectors from triggering React update loops.
 - Kept Operation Stage file tools from opening duplicate document windows when SDK events use absolute paths and workspace activity uses relative paths, and aligned Markdown, source, Office, PDF, and image targets with the shared workspace preview implementations.
 - Streamed bounded NXS Bash output snapshots into the Operation Stage terminal while keeping Claude Code commands in a truthful running state until their final tool result arrives, omitting unavailable terminal metadata, and associating KillShell only through an explicit shell identifier.

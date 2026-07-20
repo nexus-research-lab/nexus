@@ -149,18 +149,10 @@ export function OperationStageMotionStyles() {
             0 0 24px rgba(91,114,255,.12);
         }
 
-        .operation-stage-window-stage-manager {
-          transform-origin: 0% 50%;
+        .operation-stage-window-background {
           box-shadow:
-            0 16px 38px rgba(18,28,42,.12),
-            0 0 0 1px rgba(255,255,255,.62);
-        }
-
-        .operation-stage-window-stage-manager:hover {
-          filter: saturate(1.04) brightness(1.02);
-          box-shadow:
-            0 20px 46px rgba(18,28,42,.16),
-            0 0 0 1px rgba(255,255,255,.76);
+            0 18px 46px rgba(18,28,42,.13),
+            0 0 0 1px rgba(255,255,255,.64);
         }
 
         .operation-stage-window-dragging {

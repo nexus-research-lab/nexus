@@ -181,7 +181,7 @@ const {
   buildStageWindowLaunchState,
 } = await import(pathToFileURL(join(operation_dir, "stage/operation-stage-window-launch.js")));
 const {
-  isStageManagerBackgroundWindow,
+  isStageBackgroundWindow,
   positionForWindow,
 } = await import(pathToFileURL(join(operation_dir, "stage/operation-stage-window-position.js")));
 const {
@@ -1088,6 +1088,14 @@ function verify_window_focus_moves_to_next_visible_window() {
     resolveStageWindowFocusPhase(windows[2], "terminal") === "focused",
     "The manually selected window should become the only focused app",
   );
+  assert(
+    resolveStageWindowFocusPhase(windows[3], "code", { restored: true }) === "focused",
+    "Restoring a minimized window from the Dock should open it directly in the foreground",
+  );
+  assert(
+    resolveStageWindowFocusPhase(windows[3], "terminal", { restored: true }) === "background",
+    "A restored window should join the real background stack when another app owns focus",
+  );
 }
 
 function verify_desktop_keyboard_target_policy() {
@@ -1268,16 +1276,16 @@ function verify_stage_window_position_model() {
     background_code,
     "running",
   );
-  assert(code_position.includes("left-[3.5%]"), `Background Code should collapse into the left Stage Manager strip, got ${code_position}`);
-  assert(code_position.includes("w-[10%]"), `Background Code thumbnail should remain readable in the Stage Manager strip, got ${code_position}`);
-  assert(isStageManagerBackgroundWindow(background_code, "running"), "Running background windows should render as Stage Manager thumbnails");
+  assert(code_position.includes("left-[9%]"), `Background Code should remain in the natural desktop stack, got ${code_position}`);
+  assert(code_position.includes("w-[80%]"), `Background Code should preserve a usable real window surface, got ${code_position}`);
+  assert(isStageBackgroundWindow(background_code), "Running background windows should remain in the desktop window stack");
 
   const browser_position = positionForWindow(
     mock_stage_window({ id: "browser", kind: "browser", phase: "background" }),
     "running",
     2,
   );
-  assert(browser_position.includes("top-[50%]"), `Background Navi should use a distinct Stage Manager slot, got ${browser_position}`);
+  assert(browser_position.includes("top-[7%]"), `Background Navi should use a distinct cascading window offset, got ${browser_position}`);
 
   const focused_browser_position = positionForWindow(
     mock_stage_window({ id: "browser-focused", kind: "browser", phase: "focused" }),
@@ -1313,11 +1321,10 @@ function verify_stage_window_position_model() {
   );
   assert(handoff_position.includes("h-[61%]"), `Focused handoff window should not collide with the Dock, got ${handoff_position}`);
 
-  assert(isStageManagerBackgroundWindow(background_code, "completed"), "Completed review should keep prior windows as Stage Manager thumbnails instead of crowding the desktop");
-  assert(isStageManagerBackgroundWindow(
+  assert(isStageBackgroundWindow(background_code), "Completed review should keep prior windows in the desktop stack");
+  assert(isStageBackgroundWindow(
     mock_stage_window({ id: "opening-code", kind: "code_editor", phase: "opening" }),
-    "running",
-  ), "Opening non-focused windows should collapse into Stage Manager thumbnails instead of crowding the desktop");
+  ), "Opening non-focused windows should join the background stack without becoming fake thumbnails");
 }
 
 function verify_stage_live_strip_tracks_current_tool() {

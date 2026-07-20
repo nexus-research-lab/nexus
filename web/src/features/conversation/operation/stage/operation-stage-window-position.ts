@@ -1,16 +1,16 @@
 /**
- * INPUT: A Stage window, narrative phase, and background scene index.
- * OUTPUT: Responsive desktop geometry for focused and background windows.
+ * INPUT: A Stage window, narrative phase, and background stack index.
+ * OUTPUT: Responsive desktop geometry for focused and naturally stacked windows.
  * POS: Single layout policy for Agent OS window composition.
  */
 import type { StageWindowState } from "../operation-desktop-types";
 import type { StageNarrativePhase } from "./operation-stage-model";
 
-const STAGE_MANAGER_BACKGROUND_POSITIONS = [
-  "left-[3.5%] top-[18%] h-[13%] w-[10%]",
-  "left-[3.5%] top-[34%] h-[13%] w-[10%]",
-  "left-[3.5%] top-[50%] h-[13%] w-[10%]",
-  "left-[3.5%] top-[66%] h-[13%] w-[10%]",
+const BACKGROUND_WINDOW_POSITIONS = [
+  "left-[9%] top-[3%] h-[66%] w-[80%]",
+  "left-[11%] top-[5%] h-[64%] w-[78%]",
+  "left-[13%] top-[7%] h-[62%] w-[76%]",
+  "left-[15%] top-[9%] h-[60%] w-[74%]",
 ];
 
 const PRIMARY_WORKSPACE = "left-[14%] top-[6%] h-[61%] w-[61%]";
@@ -23,9 +23,9 @@ export function positionForWindow(
   background_index = 0,
 ): string {
   const is_review_layout = narrative_phase === "completed";
-  if (isStageManagerBackgroundWindow(window, narrative_phase)) {
-    return STAGE_MANAGER_BACKGROUND_POSITIONS[
-      Math.min(background_index, STAGE_MANAGER_BACKGROUND_POSITIONS.length - 1)
+  if (isStageBackgroundWindow(window)) {
+    return BACKGROUND_WINDOW_POSITIONS[
+      Math.min(background_index, BACKGROUND_WINDOW_POSITIONS.length - 1)
     ];
   }
   if (window.layout === "terminal") {
@@ -89,10 +89,7 @@ export function positionForWindow(
   return is_review_layout ? PRIMARY_REVIEW_WORKSPACE : PRIMARY_WORKSPACE;
 }
 
-export function isStageManagerBackgroundWindow(
-  window: StageWindowState,
-  _narrative_phase: StageNarrativePhase,
-): boolean {
+export function isStageBackgroundWindow(window: StageWindowState): boolean {
   return window.phase !== "focused"
     && window.phase !== "minimized";
 }

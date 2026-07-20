@@ -30,7 +30,7 @@ import {
   countDesktopRevealEvents,
   iconForWindowKind,
   isStageDesktopWindowKind,
-  isStageManagerBackgroundWindow,
+  isStageBackgroundWindow,
   minimumRevealedWindowCount,
   orderWindowsForReveal,
   positionForWindow,
@@ -172,10 +172,9 @@ export function OperationStageDesktop({
         if (override?.minimized) {
           return { ...window, phase: "minimized" };
         }
-        if (override?.minimized === false && override.restore_token && window.phase === "minimized") {
-          return { ...window, phase: "background" };
-        }
-        const focus_phase = resolveStageWindowFocusPhase(window, focused_window_id);
+        const focus_phase = resolveStageWindowFocusPhase(window, focused_window_id, {
+          restored: override?.minimized === false && Boolean(override.restore_token),
+        });
         if (focus_phase !== window.phase) {
           return { ...window, phase: focus_phase };
         }
@@ -413,15 +412,14 @@ export function OperationStageDesktop({
         const is_active = active_window_id === window.id && window.phase !== "minimized";
         const is_maximized = Boolean(window_override?.maximized);
         const background_window_index = visible_windows
-          .filter((item) => isStageManagerBackgroundWindow(item, narrative.phase))
+          .filter(isStageBackgroundWindow)
           .findIndex((item) => item.id === window.id);
-        const is_stage_manager_preview = isStageManagerBackgroundWindow(window, narrative.phase);
         const launch = buildStageWindowLaunchState({ index, is_active, window });
         return (
           <OperationStageWindow
             appLabel={stageAppLabelForWindowKind(window.kind)}
             delayMs={launch.delay_ms}
-            dimmed={!is_active && window.phase !== "minimized"}
+            background={!is_active && window.phase !== "minimized"}
             dragOffset={is_maximized ? { x: 0, y: 0 } : {
               x: window_override?.offset_x ?? 0,
               y: window_override?.offset_y ?? 0,
@@ -444,7 +442,6 @@ export function OperationStageDesktop({
             positionClassName={is_maximized
               ? "inset-x-4 top-14 bottom-0 h-auto w-auto"
               : positionForWindow(window, narrative.phase, background_window_index)}
-            previewMode={is_stage_manager_preview ? "stage-manager" : undefined}
             resizeSize={!is_maximized && window_override?.resize_width && window_override.resize_height ? {
               height: window_override.resize_height,
               width: window_override.resize_width,

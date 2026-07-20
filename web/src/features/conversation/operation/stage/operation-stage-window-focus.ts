@@ -10,14 +10,18 @@ export type StageWindowFocusCycleDirection = "next" | "previous";
 export function resolveStageWindowFocusPhase(
   window: StageWindowState,
   focusedWindowId: string | null,
+  options: { restored?: boolean } = {},
 ): StageWindowPhase {
-  if (focusedWindowId === window.id && window.phase !== "closed" && window.phase !== "minimized") {
+  const phase = options.restored && window.phase === "minimized"
+    ? "background"
+    : window.phase;
+  if (focusedWindowId === window.id && phase !== "closed" && phase !== "minimized") {
     return "focused";
   }
-  if (focusedWindowId && window.phase === "focused") {
+  if (focusedWindowId && phase === "focused") {
     return "background";
   }
-  return window.phase;
+  return phase;
 }
 
 export function resolveNextWindowFocus({

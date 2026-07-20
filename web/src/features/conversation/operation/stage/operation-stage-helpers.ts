@@ -18,7 +18,7 @@ export { formatElapsed } from "./operation-stage-time";
 export {
   iconForOperationKind,
   iconForWindowKind,
-  isStageManagerBackgroundWindow,
+  isStageBackgroundWindow,
   positionForWindow,
   stageAppLabelForWindowKind,
 } from "./operation-stage-window-meta";

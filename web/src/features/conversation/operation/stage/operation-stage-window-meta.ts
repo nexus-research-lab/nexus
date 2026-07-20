@@ -23,7 +23,7 @@ import type {
 } from "../operation-desktop-types";
 import type { OperationKind } from "../operation-types";
 export {
-  isStageManagerBackgroundWindow,
+  isStageBackgroundWindow,
   positionForWindow,
 } from "./operation-stage-window-position";
 

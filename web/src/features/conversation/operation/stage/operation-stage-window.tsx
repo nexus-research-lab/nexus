@@ -1,7 +1,7 @@
 /**
  * INPUT: One Stage window's geometry, state, app identity, children, and desktop commands.
  * OUTPUT: A movable, resizable window that preserves mounted app state in background mode.
- * POS: Generic Agent OS window chrome; app content and background preview skin are external.
+ * POS: Generic Agent OS window chrome; foreground and stacked background windows share one surface.
  */
 /* eslint-disable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex -- A stage window is a focusable desktop composite with nested native controls. */
 import type { CSSProperties, MouseEvent, PointerEvent, ReactNode } from "react";
@@ -11,7 +11,6 @@ import type { LucideIcon } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
 import { resolveOperationWindowKeyboardAction } from "./operation-stage-window-actions";
-import { StageManagerWindowPreview } from "./operation-stage-window-preview";
 import { buildStageWindowTitlebarState } from "./operation-stage-window-titlebar";
 
 interface OperationStageWindowProps {
@@ -25,12 +24,11 @@ interface OperationStageWindowProps {
   launchOrigin?: "active" | "desktop" | "dock";
   maximized?: boolean;
   minimized?: boolean;
-  dimmed?: boolean;
+  background?: boolean;
   dragOffset?: { x: number; y: number };
   resizeSize?: { height: number; width: number };
   mobileHidden?: boolean;
   contentMode?: "flush" | "inset";
-  previewMode?: "stage-manager";
   restoreToken?: number;
   zIndex?: number;
   tone?: "default" | "terminal";
@@ -54,12 +52,11 @@ export function OperationStageWindow({
   launchOrigin = "active",
   maximized = false,
   minimized = false,
-  dimmed = false,
+  background = false,
   dragOffset = { x: 0, y: 0 },
   resizeSize,
   mobileHidden = false,
   contentMode = "inset",
-  previewMode,
   restoreToken,
   zIndex,
   tone = "default",
@@ -260,7 +257,7 @@ export function OperationStageWindow({
     set_is_dragging(false);
   };
 
-  const show_resize_handles = !maximized && !minimized && previewMode !== "stage-manager";
+  const show_resize_handles = focus && !maximized && !minimized;
 
   return (
     <dialog
@@ -276,10 +273,9 @@ export function OperationStageWindow({
         launchOrigin === "dock" && "operation-stage-window-launch-dock",
         launchOrigin === "desktop" && "operation-stage-window-launch-desktop",
         maximized && "operation-stage-window-maximized rounded-[18px]",
-        dimmed && "opacity-[0.62] saturate-[0.82]",
+        background && "operation-stage-window-background opacity-[0.9] saturate-[0.9]",
         is_dragging && "operation-stage-window-dragging select-none",
         is_restoring && "operation-stage-window-restoring",
-        previewMode === "stage-manager" && "operation-stage-window-stage-manager rounded-[18px]",
         minimized && "min-h-0",
         mobileHidden && "max-md:hidden",
         positionClassName,
@@ -438,35 +434,26 @@ export function OperationStageWindow({
             : "overflow-auto p-4",
         minimized && "hidden",
       )}>
-        {previewMode === "stage-manager" ? (
-          <button
-            aria-label={`切换到 ${titlebar.title_label}`}
-            className="group h-full w-full overflow-hidden bg-[linear-gradient(145deg,rgba(255,255,255,0.82),rgba(239,244,249,0.68))] p-2 text-left outline-none"
-            onClick={(event) => {
-              event.stopPropagation();
-              onFocus?.();
-            }}
-            type="button"
-          >
-            <StageManagerWindowPreview
-              appLabel={appLabel ?? "Nexus"}
-              icon={Icon}
-              title={titlebar.title_label}
-              tone={tone}
-            />
-          </button>
-        ) : tone !== "terminal" && contentMode !== "flush" ? (
+        {tone !== "terminal" && contentMode !== "flush" ? (
           <div className="pointer-events-none absolute bottom-3 right-3 flex h-8 w-8 items-center justify-center rounded-[10px] border border-(--divider-subtle-color) bg-white/72 text-(--icon-muted) opacity-30">
             <Icon className="h-3.5 w-3.5" />
           </div>
         ) : null}
-        <div
-          aria-hidden={previewMode === "stage-manager" ? true : undefined}
-          className={cn("h-full min-h-0", previewMode === "stage-manager" && "hidden")}
-        >
+        <div className="h-full min-h-0">
           {children}
         </div>
       </div>
+      {background && !minimized ? (
+        <button
+          aria-label={`切换到 ${titlebar.title_label}`}
+          className="absolute inset-x-0 bottom-0 top-8 z-30 cursor-default bg-transparent outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[rgba(91,114,255,0.32)]"
+          onClick={(event) => {
+            event.stopPropagation();
+            onFocus?.();
+          }}
+          type="button"
+        />
+      ) : null}
       {show_resize_handles ? (
         <>
           <div
