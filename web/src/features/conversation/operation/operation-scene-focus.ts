@@ -102,7 +102,7 @@ export function preferredWindowKindsForEvent(event: NexusOperationEvent): StageW
     return ["browser"];
   }
   if (event.surface === "task") {
-    return ["task_board"];
+    return ["tasks"];
   }
   if (event.surface === "conversation") {
     return ["terminal", "finder", "browser"];

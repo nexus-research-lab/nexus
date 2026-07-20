@@ -96,7 +96,7 @@ copyFileSync(join(operation_dir, "apps/finder-item-details.js"), join(operation_
 copyFileSync(join(operation_dir, "apps/finder-session.js"), join(operation_dir, "apps/finder-session"));
 copyFileSync(join(operation_dir, "apps/run-manifest-console.js"), join(operation_dir, "apps/run-manifest-console"));
 copyFileSync(join(operation_dir, "apps/run-manifest-sources.js"), join(operation_dir, "apps/run-manifest-sources"));
-copyFileSync(join(operation_dir, "apps/activity-monitor-data.js"), join(operation_dir, "apps/activity-monitor-data"));
+copyFileSync(join(operation_dir, "apps/task-app-model.js"), join(operation_dir, "apps/task-app-model"));
 
 const { projectOperationSnapshot } = await import(pathToFileURL(join(operation_dir, "operation-projector.js")));
 const { resolveOperationToolProfile } = await import(pathToFileURL(join(operation_dir, "operation-tool-catalog.js")));
@@ -228,10 +228,8 @@ const {
   collectManifestLogSources,
 } = await import(pathToFileURL(join(operation_dir, "apps/run-manifest-sources.js")));
 const {
-  activityCpuLabel,
-  activityCpuLoad,
-  activityPidLabel,
-} = await import(pathToFileURL(join(operation_dir, "apps/activity-monitor-data.js")));
+  buildTaskAppSession,
+} = await import(pathToFileURL(join(operation_dir, "apps/task-app-model.js")));
 const now = Date.now();
 
 verify_desktop_window_kind_contract();
@@ -242,7 +240,7 @@ verify_hidden_stage_uses_desktop_state_instead_of_mission_control();
 verify_unclassified_tool_activity_does_not_open_window(now);
 verify_current_unclassified_tool_does_not_steal_existing_app_focus(now);
 verify_result_artifact_opens_preview_instead_of_unclassified_window(now);
-verify_task_planner_opens_activity_monitor(now);
+verify_task_planner_opens_tasks_app(now);
 verify_desktop_intents_drive_app_session_windows(now);
 verify_runtime_events_drive_app_session_windows(now);
 verify_runtime_event_projection(now);
@@ -278,7 +276,7 @@ verify_browser_session_view(now);
 verify_finder_details_reflect_selected_workspace_item(now);
 verify_finder_session_view(now);
 verify_console_events_use_mac_app_subsystems(now);
-verify_activity_monitor_process_metrics();
+verify_tasks_app_uses_real_task_fields(now);
 verify_completed_manifest_keeps_terminal_window_identity(now);
 verify_completed_round_replay_uses_event_slice({
   assert,
@@ -310,7 +308,7 @@ function verify_desktop_window_kind_contract() {
     "permission_wait",
     "run_manifest",
     "spreadsheet",
-    "task_board",
+    "tasks",
     "terminal",
     "word_reader",
   ];
@@ -561,7 +559,7 @@ function verify_result_artifact_opens_preview_instead_of_unclassified_window(now
   assert(resolveOperationEventWindowId(event, desktop.windows) === preview_window.id, "Original image tool event should focus its Preview window");
 }
 
-function verify_task_planner_opens_activity_monitor(now) {
+function verify_task_planner_opens_tasks_app(now) {
   const event = {
     id: "tool-todo-write",
     session_key: "session:stage",
@@ -592,9 +590,9 @@ function verify_task_planner_opens_activity_monitor(now) {
       updated_at: now,
     },
   });
-  const task_window = desktop.windows.find((window) => window.kind === "task_board");
-  assert(task_window, "TodoWrite should open Activity Monitor instead of a generic text card");
-  assert(task_window.id === "round-task-planner:task-board", `Activity Monitor session id should be stable per round, got ${task_window.id}`);
+  const task_window = desktop.windows.find((window) => window.kind === "tasks");
+  assert(task_window, "TodoWrite should open Tasks instead of a generic text card");
+  assert(task_window.id === "round-task-planner:tasks", `Tasks session id should be stable per round, got ${task_window.id}`);
   assert(desktop.active_window_id === task_window.id, "Current TodoWrite activity window should be focused");
 }
 
@@ -1009,7 +1007,7 @@ function verify_tool_visual_contract_inventory(now) {
     { expected_component: "code_reader", expected_group: "workspace_reader", kind: "workspace_read", surface: "editor", tool_name: "Read" },
     { expected_component: "terminal", expected_group: "command_runner", kind: "command_run", surface: "terminal", tool_name: "Bash" },
     { expected_component: "browser", expected_group: "web_browser", kind: "web_research", surface: "web", tool_name: "WebSearch" },
-    { expected_component: "activity_monitor", expected_group: "task_planner", kind: "plan_update", surface: "task", tool_name: "TodoWrite" },
+    { expected_component: "tasks", expected_group: "task_planner", kind: "plan_update", surface: "task", tool_name: "TodoWrite" },
     { expected_component: "system_gate", expected_group: "human_gate", kind: "human_gate", surface: "conversation", tool_name: "AskUserQuestion" },
     { expected_component: "execution_path", expected_group: "unclassified_action", kind: "unknown", surface: "fallback", tool_name: "Rules" },
   ];
@@ -2786,17 +2784,35 @@ function verify_console_events_use_mac_app_subsystems(now) {
   assert(sources.some((source) => source.label === "Code"), "Console source list should include Code source");
 }
 
-function verify_activity_monitor_process_metrics() {
-  assert(activityPidLabel("task-one") === activityPidLabel("task-one"), "Activity Monitor PID should be deterministic");
-  assert(activityPidLabel("task-one") !== activityPidLabel("task-two"), "Activity Monitor PID should vary per process id");
-  assert(activityCpuLabel("running", 0) === "12.0", `running task CPU should start at 12.0, got ${activityCpuLabel("running", 0)}`);
-  assert(activityCpuLabel("waiting", 2) === "1.2", `waiting task CPU should stay low, got ${activityCpuLabel("waiting", 2)}`);
-  assert(activityCpuLabel("done", 1) === "0.0", `completed task CPU should be idle, got ${activityCpuLabel("done", 1)}`);
-  const active_load = activityCpuLoad(2, 0);
-  assert(active_load.total > active_load.system, "Activity Monitor total CPU should include system and user load");
-  assert(active_load.total <= 96, `Activity Monitor total CPU should be capped, got ${active_load.total}`);
-  const idle_load = activityCpuLoad(0, 2);
-  assert(idle_load.total < active_load.total, "Activity Monitor idle CPU should be lower than active CPU");
+function verify_tasks_app_uses_real_task_fields(now) {
+  const event = {
+    agent_id: "agent-stage",
+    id: "task-progress-real",
+    input_preview: {
+      description: "验证任务 App",
+      last_tool_name: "Read",
+      status: "running",
+      task_id: "task-real-42",
+      usage: { duration_ms: 2500, tool_uses: 2, total_tokens: 420 },
+    },
+    kind: "task_progress",
+    phase: "running",
+    round_id: "round-task-real",
+    session_key: "session:stage",
+    surface: "task",
+    target: "task-real-42",
+    title: "验证任务 App",
+    tool_name: "TaskOutput",
+    updated_at: now,
+  };
+  const session = buildTaskAppSession(event, [event]);
+  const item = session.task_items[0];
+  assert(item?.task_id === "task-real-42", `Tasks should preserve the real task id, got ${item?.task_id}`);
+  assert(item?.last_tool_name === "Read", `Tasks should preserve the real last tool, got ${item?.last_tool_name}`);
+  assert(item?.state === "running", `Tasks should preserve the real task state, got ${item?.state}`);
+  assert(item?.usage.some((usage) => usage.label === "Tokens" && usage.value === "420"), "Tasks should show reported token usage");
+  assert(!Object.hasOwn(item ?? {}, "pid"), "Tasks must not fabricate a process id");
+  assert(!Object.hasOwn(item ?? {}, "cpu"), "Tasks must not fabricate CPU telemetry");
 }
 
 function verify_completed_manifest_keeps_terminal_window_identity(now) {

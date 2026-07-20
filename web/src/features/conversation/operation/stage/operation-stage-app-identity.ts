@@ -25,8 +25,8 @@ export function dockIconSkinForKind(kind: StageWindowKind): string {
   if (kind === "permission_wait") {
     return "border-[rgba(117,131,149,0.34)] bg-[linear-gradient(135deg,#f8fafc,#e2e8f0)] text-[#475569]";
   }
-  if (kind === "task_board") {
-    return "border-[rgba(47,184,132,0.34)] bg-[linear-gradient(135deg,#08111f,#123f3a)] text-[#8de0ad]";
+  if (kind === "tasks") {
+    return "border-[rgba(91,114,255,0.28)] bg-[linear-gradient(135deg,#ffffff,#e8ecff)] text-[#5368e8]";
   }
   if (kind === "spreadsheet") {
     return "border-[rgba(47,184,132,0.34)] bg-[linear-gradient(135deg,#f0fdf4,#34d399)] text-[#064e3b]";

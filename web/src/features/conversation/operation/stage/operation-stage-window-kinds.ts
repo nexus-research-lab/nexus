@@ -12,7 +12,7 @@ const DESKTOP_WINDOW_KINDS = new Set<StageWindowKind>([
   "presentation",
   "run_manifest",
   "spreadsheet",
-  "task_board",
+  "tasks",
   "terminal",
   "word_reader",
 ]);
@@ -28,7 +28,7 @@ const FLUSH_CONTENT_WINDOW_KINDS = new Set<StageWindowKind>([
   "presentation",
   "run_manifest",
   "spreadsheet",
-  "task_board",
+  "tasks",
   "terminal",
   "word_reader",
 ]);

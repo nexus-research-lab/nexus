@@ -23,7 +23,7 @@ import {
 } from "../operation-preview";
 import { ACTION_ICON, ACTION_TONE_CLASS } from "./operation-action-style";
 import { appSurfaceForWindowKind } from "./operation-app-surface-policy";
-import { ActivityMonitorSurface } from "./activity-monitor-surface";
+import { TaskAppSurface } from "./task-app-surface";
 import { BrowserSurface } from "./browser-surface";
 import { DocumentPreview } from "./document-preview-surface";
 import { resolveFilePreviewValue } from "./file-preview-value";
@@ -86,13 +86,12 @@ export function StageWindowContent({
     );
   }
 
-  if (window.kind === "task_board") {
+  if (window.kind === "tasks") {
     return (
-      <ActivityMonitorSurface
+      <TaskAppSurface
         event={event}
-        lines={window.payload.lines ?? []}
         onFocusEvent={onFocusEvent}
-        snapshot={snapshot}
+        relatedEvents={window.payload.related_events ?? []}
       />
     );
   }

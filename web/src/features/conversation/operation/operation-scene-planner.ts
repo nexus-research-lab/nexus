@@ -381,22 +381,21 @@ function build_windows(
 
   if (task_events.length > 0) {
     const task_event = task_events.at(-1) ?? event;
-    const task_intent = findStageDesktopIntent(task_event, "activity");
+    const task_intent = findStageDesktopIntent(task_event, "tasks");
     windows.push(buildOperationStageWindow(task_event, snapshot, {
-      id: "task-board",
+      id: "tasks",
       session_id: task_intent
         ? stageAppSessionIdForIntent(event.round_id, task_intent, normalizeWindowId)
-        : `${event.round_id}:task-board`,
-      kind: "task_board",
-      title: task_event.target ?? task_event.tool_name ?? "Task",
+        : `${event.round_id}:tasks`,
+      kind: "tasks",
+      title: "任务",
       layout: "primary",
-      phase: supportingWindowPhase("task_board", focus_target === "task", {
+      phase: supportingWindowPhase("tasks", focus_target === "task", {
         has_browser_artifact: Boolean(html_artifact),
         is_review_event,
       }),
       z: focus_target === "task" ? 36 : 17,
       payload: {
-        lines: previewLines(task_event.result_preview ?? task_event.input_preview ?? task_event.summary, 8),
         related_events: task_events,
       },
     }));

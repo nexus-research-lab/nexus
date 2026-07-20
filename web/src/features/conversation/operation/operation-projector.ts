@@ -88,6 +88,13 @@ export function projectOperationSnapshot({
   const events: NexusOperationEvent[] = [];
 
   for (const message of projected_messages) {
+    if (message.role === "system") {
+      const task_event = project_system_task_event(message, session_key);
+      if (task_event) {
+        events.push(task_event);
+      }
+      continue;
+    }
     if (message.role !== "assistant") {
       continue;
     }
@@ -127,6 +134,12 @@ export function projectOperationSnapshot({
           input_preview: {
             task_id: block.task_id,
             last_tool_name: block.last_tool_name ?? null,
+          },
+          result_preview: {
+            description: block.description,
+            last_tool_name: block.last_tool_name ?? null,
+            task_id: block.task_id,
+            usage: block.usage ?? {},
           },
           evidence: [
             { type: "task", label: "task", value: block.task_id },
@@ -211,6 +224,87 @@ export function projectOperationSnapshot({
     workspace_events: relevant_workspace_events.slice(0, 8),
     updated_at: Date.now(),
   };
+}
+
+function project_system_task_event(
+  message: Extract<Message, { role: "system" }>,
+  session_key: string | null,
+): NexusOperationEvent | null {
+  const metadata = message.metadata;
+  const subtype = typeof metadata?.subtype === "string" ? metadata.subtype : "";
+  if (!["task_started", "task_progress", "task_updated", "task_notification"].includes(subtype)) {
+    return null;
+  }
+  const task_id = metadata_string(metadata?.task_id);
+  if (!task_id) {
+    return null;
+  }
+  const status = metadata_string(metadata?.status)
+    ?? metadata_string(as_record(metadata?.patch).status);
+  const phase = task_event_phase(subtype, status);
+  const description = metadata_string(metadata?.summary)
+    ?? metadata_string(metadata?.description)
+    ?? message.content.trim()
+    ?? null;
+  const last_tool_name = metadata_string(metadata?.last_tool_name);
+  const tool_use_id = metadata_string(metadata?.tool_use_id);
+  const usage = as_record(metadata?.usage);
+  const prompt = metadata_string(metadata?.prompt);
+  const output_file = metadata_string(metadata?.output_file);
+
+  return {
+    id: message.message_id,
+    session_key: session_key ?? message.session_key,
+    round_id: message.round_id,
+    agent_id: message.agent_id,
+    message_id: message.message_id,
+    tool_use_id,
+    tool_name: subtype === "task_started" ? "Task" : subtype === "task_updated" ? "TaskUpdate" : "TaskOutput",
+    kind: subtype === "task_started" ? "task_delegate" : "task_progress",
+    surface: "task",
+    phase,
+    title: description || "子任务",
+    target: task_id,
+    summary: description,
+    input_preview: {
+      task_id,
+      ...(description ? { description } : {}),
+      ...(last_tool_name ? { last_tool_name } : {}),
+      ...(prompt ? { prompt } : {}),
+      ...(status ? { status } : {}),
+      ...(usage ? { usage } : {}),
+    },
+    result_preview: subtype === "task_started" ? null : {
+      ...(description ? { summary: description } : {}),
+      ...(output_file ? { output_file } : {}),
+      ...(status ? { status } : {}),
+      ...(usage ? { usage } : {}),
+    },
+    evidence: [{ type: "task", label: "task", value: task_id }],
+    started_at: message.timestamp,
+    updated_at: message.timestamp,
+    ended_at: phase === "done" || phase === "error" || phase === "cancelled"
+      ? message.timestamp
+      : null,
+  };
+}
+
+function task_event_phase(
+  subtype: string,
+  status: string | null,
+): OperationPhase {
+  const normalized = status?.toLowerCase().trim() ?? "";
+  if (["failed", "error", "timed_out", "timeout"].includes(normalized)) return "error";
+  if (["stopped", "canceled", "cancelled", "killed"].includes(normalized)) return "cancelled";
+  if (["completed", "finished", "succeeded", "success", "done"].includes(normalized)) return "done";
+  if (["awaiting_approval", "waiting"].includes(normalized)) return "waiting";
+  if (subtype === "task_notification") return "done";
+  if (["created", "pending", "queued"].includes(normalized)) return "queued";
+  return "running";
+}
+
+function metadata_string(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
 function project_system_event({
@@ -425,6 +519,15 @@ function build_tool_result_preview(
       content: redactProjectedTerminalValue(result.content),
       error_code: result.error_code ?? null,
       is_error: Boolean(result.is_error),
+    };
+  }
+  if (
+    result.structured_output != null
+    && (kind === "task_delegate" || kind === "task_progress" || kind === "plan_update")
+  ) {
+    return {
+      content: redacted_content,
+      structured_output: redactProjectedValue(result.structured_output),
     };
   }
   return redacted_content;

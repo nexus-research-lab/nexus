@@ -94,8 +94,8 @@ function live_strip_app_label_for_kind(kind: StageWindowKind): string {
   if (kind === "handoff") {
     return "交付台";
   }
-  if (kind === "task_board") {
-    return "活动监视器";
+  if (kind === "tasks") {
+    return "任务";
   }
   if (kind === "permission_wait") {
     return "系统设置";

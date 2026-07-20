@@ -25,7 +25,7 @@ export type OperationToolVisualComponent =
   | "code_writer"
   | "terminal"
   | "browser"
-  | "activity_monitor"
+  | "tasks"
   | "knowledge_viewer"
   | "system_gate"
   | "handoff"
@@ -101,11 +101,17 @@ export const OPERATION_TOOL_VISUAL_GROUPS: Record<OperationToolVisualGroup, Oper
     tools: ["WebSearch", "WebFetch"],
   },
   task_planner: {
-    app_label: "活动监视器",
-    component: "activity_monitor",
-    interaction_label: "展示子任务、计划和进度状态",
+    app_label: "任务",
+    component: "tasks",
+    interaction_label: "查看计划、子任务和真实执行状态",
     label: "任务计划",
-    tools: ["Task", "TaskOutput", "TodoWrite", "EnterPlanMode", "ExitPlanMode"],
+    tools: [
+      "Agent", "Task", "TaskOutput", "TodoWrite", "EnterPlanMode", "ExitPlanMode",
+      "TaskCreate", "TaskList", "TaskGet", "TaskUpdate", "TaskStop", "TaskBackgrounds", "AgentOutputTool",
+      "task.create", "task.list", "task.get", "task.update", "task.stop", "task.output",
+      "agent.run", "task.run", "task.background", "task.backgrounds", "todo.write", "todo.read",
+      "plan.enter", "plan.status", "plan.exit",
+    ],
   },
   knowledge_tool: {
     app_label: "Nexus",

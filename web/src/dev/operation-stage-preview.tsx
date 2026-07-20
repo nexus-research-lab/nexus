@@ -193,16 +193,63 @@ const task_event: NexusOperationEvent = {
   tool_use_id: "tool-todo",
   input_preview: {
     todos: [
-      { content: "梳理需求", status: "completed" },
-      { content: "创建 HTML/CSS/JS", status: "completed" },
-      { content: "运行验证命令", status: "in_progress" },
-      { content: "打开浏览器预览", status: "pending" },
-      { content: "交付结果", status: "pending" },
+      { activeForm: "正在梳理需求", content: "梳理需求", status: "completed" },
+      { activeForm: "正在创建页面", content: "创建 HTML/CSS/JS", status: "completed" },
+      { activeForm: "正在运行验证", content: "运行验证命令", status: "in_progress" },
+      { activeForm: "正在打开预览", content: "打开浏览器预览", status: "pending" },
+      { activeForm: "正在整理交付", content: "交付结果", status: "pending" },
     ],
   },
   result_preview: "计划已更新",
-  summary: "Activity Monitor 展示任务状态和当前执行阶段。",
+  summary: "任务 App 展示计划和当前执行项。",
   updated_at: now - 7_600,
+};
+
+const subtask_started_event: NexusOperationEvent = {
+  agent_id,
+  evidence: [{ type: "task", label: "task", value: "task-stage-a12" }],
+  id: "system-task-started-stage-a12",
+  kind: "task_delegate",
+  message_id: "system-task-started-stage-a12",
+  phase: "running",
+  round_id,
+  session_key,
+  surface: "task",
+  target: "task-stage-a12",
+  title: "检查番茄钟交互",
+  tool_name: "Task",
+  tool_use_id: "tool-task-stage-a12",
+  input_preview: {
+    description: "检查番茄钟交互",
+    prompt: "检查开始、暂停、重置和倒计时归零后的交互状态。",
+    task_id: "task-stage-a12",
+  },
+  summary: "子任务已开始。",
+  updated_at: now - 7_300,
+};
+
+const subtask_progress_event: NexusOperationEvent = {
+  ...subtask_started_event,
+  id: "task-progress-stage-a12",
+  kind: "task_progress",
+  message_id: "message-task-progress-stage-a12",
+  title: "检查番茄钟交互",
+  tool_name: "TaskOutput",
+  input_preview: {
+    description: "检查番茄钟交互",
+    last_tool_name: "Read",
+    status: "running",
+    task_id: "task-stage-a12",
+    usage: { duration_ms: 8_400, tool_uses: 3, total_tokens: 1_286 },
+  },
+  result_preview: {
+    description: "检查番茄钟交互",
+    last_tool_name: "Read",
+    task_id: "task-stage-a12",
+    usage: { duration_ms: 8_400, tool_uses: 3, total_tokens: 1_286 },
+  },
+  summary: "正在检查重置逻辑。",
+  updated_at: now - 7_000,
 };
 
 const generic_tool_event: NexusOperationEvent = {
@@ -608,7 +655,8 @@ const edit_workspace_item: WorkspaceActivityItem = {
 
 const PREVIEW_STEPS = [
   { id: "idle", label: "空桌面", event: live_event, events: [live_event] },
-  { id: "activity", label: "活动", event: task_event, events: [live_event, task_event] },
+  { id: "tasks-plan", label: "任务计划", event: task_event, events: [live_event, task_event] },
+  { id: "tasks-run", label: "子任务", event: subtask_progress_event, events: [live_event, task_event, subtask_started_event, subtask_progress_event] },
   { id: "finder", label: "文件", event: finder_event, events: [live_event, task_event, finder_event] },
   { id: "write", label: "创建文件", event: write_event, events: [live_event, write_event] },
   { id: "edit", label: "修改文件", event: edit_event, events: [live_event, write_event, edit_event] },

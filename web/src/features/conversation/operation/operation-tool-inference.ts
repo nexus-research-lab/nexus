@@ -1,6 +1,8 @@
 import type { OperationToolProfile } from "./operation-tool-catalog";
 
 type OperationToolProfileKey =
+  | "Agent"
+  | "AgentOutputTool"
   | "AskUserQuestion"
   | "Bash"
   | "Edit"
@@ -11,18 +13,26 @@ type OperationToolProfileKey =
   | "KillShell"
   | "LS"
   | "NotebookEdit"
+  | "PlanStatus"
   | "Read"
   | "Skill"
   | "Task"
+  | "TaskBackgrounds"
+  | "TaskCreate"
+  | "TaskGet"
+  | "TaskList"
   | "TaskOutput"
+  | "TaskStop"
+  | "TaskUpdate"
   | "TodoWrite"
+  | "TodoRead"
   | "WebFetch"
   | "WebSearch"
   | "Write";
 
 /** nxs canonical names are explicit SDK contracts, not fuzzy compatibility guesses. */
 const NXS_TOOL_PROFILE_KEYS: Readonly<Record<string, OperationToolProfileKey>> = {
-  "agent.run": "Task",
+  "agent.run": "Agent",
   "browser.download": "WebFetch",
   "browser.open": "WebFetch",
   "filesystem.list": "LS",
@@ -32,6 +42,7 @@ const NXS_TOOL_PROFILE_KEYS: Readonly<Record<string, OperationToolProfileKey>> =
   "patch.apply": "Edit",
   "plan.enter": "EnterPlanMode",
   "plan.exit": "ExitPlanMode",
+  "plan.status": "PlanStatus",
   "search.glob": "Glob",
   "search.grep": "Grep",
   "shell.kill": "KillShell",
@@ -39,9 +50,16 @@ const NXS_TOOL_PROFILE_KEYS: Readonly<Record<string, OperationToolProfileKey>> =
   "skill.invoke": "Skill",
   "skill.use": "Skill",
   "task.background": "Task",
+  "task.backgrounds": "TaskBackgrounds",
+  "task.create": "TaskCreate",
+  "task.get": "TaskGet",
+  "task.list": "TaskList",
   "task.output": "TaskOutput",
   "task.run": "Task",
+  "task.stop": "TaskStop",
+  "task.update": "TaskUpdate",
   "todo.write": "TodoWrite",
+  "todo.read": "TodoRead",
   "user.ask": "AskUserQuestion",
   "web.extract": "WebFetch",
   "web.map": "WebSearch",

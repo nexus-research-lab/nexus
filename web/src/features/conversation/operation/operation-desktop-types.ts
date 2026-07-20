@@ -19,7 +19,7 @@ export type StageWindowKind =
   | "image_viewer"
   | "browser"
   | "terminal"
-  | "task_board"
+  | "tasks"
   | "run_manifest"
   | "handoff"
   | "evidence"

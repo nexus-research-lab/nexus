@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added a real Operation Stage Tasks app for Claude Code and nxs plans, tracked tasks, lifecycle updates, output, and reported usage, replacing fabricated Activity Monitor process telemetry.
 - Added a real Operation Stage Editor app with line-numbered source, exact read ranges, live write progress, before/after edit inspection, and the shared workspace editor's user editing and save workflow.
 - Added a real Agent workspace Files app to the Operation Stage with live file inventory, search, current-round changes, folder navigation, metadata, responsive rows, and keyboard or double-click opening into Navi, Editor, or the shared document preview apps.
 - Added a persistent Navi browser app to the Operation Stage, projecting WebSearch and WebFetch into real tab history while preserving user-created tabs, address navigation, Reader snapshots, clickable results, and interactive workspace HTML after an Agent run completes. Public pages load through a cookie-free, size-bounded, SSRF-guarded HTML proxy so sites that reject direct iframe embedding remain navigable inside the stage.

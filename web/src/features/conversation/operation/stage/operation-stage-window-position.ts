@@ -16,6 +16,8 @@ const BACKGROUND_WINDOW_POSITIONS = [
 const PRIMARY_WORKSPACE = "left-[14%] top-[6%] h-[61%] w-[61%]";
 const PRIMARY_REVIEW_WORKSPACE = "left-[14%] top-[6%] h-[60%] w-[59%]";
 const COMPACT_REVIEW_WORKSPACE = "left-[22%] top-[9%] h-[54%] w-[58%]";
+const TASKS_WORKSPACE = "left-[9%] top-[6%] h-[64%] w-[76%]";
+const TASKS_REVIEW_WORKSPACE = "left-[12%] top-[7%] h-[61%] w-[70%]";
 
 export function positionForWindow(
   window: StageWindowState,
@@ -72,8 +74,8 @@ export function positionForWindow(
       ? is_review_layout ? PRIMARY_REVIEW_WORKSPACE : PRIMARY_WORKSPACE
       : is_review_layout ? "left-[17%] top-[16%] h-[44%] w-[30%]" : "left-[6%] top-[16%] h-[42%] w-[26%]";
   }
-  if (window.kind === "task_board") {
-    return is_review_layout ? COMPACT_REVIEW_WORKSPACE : PRIMARY_WORKSPACE;
+  if (window.kind === "tasks") {
+    return is_review_layout ? TASKS_REVIEW_WORKSPACE : TASKS_WORKSPACE;
   }
   if (window.kind === "run_manifest") {
     return is_review_layout ? PRIMARY_REVIEW_WORKSPACE : PRIMARY_WORKSPACE;

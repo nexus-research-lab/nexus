@@ -78,8 +78,8 @@ export function iconForWindowKind(kind: StageWindowKind): LucideIcon {
   if (kind === "browser") {
     return Globe2;
   }
-  if (kind === "task_board") {
-    return Activity;
+  if (kind === "tasks") {
+    return ListChecks;
   }
   if (kind === "run_manifest") {
     return ListChecks;
@@ -115,8 +115,8 @@ export function stageAppLabelForWindowKind(kind: StageWindowKind): string {
   if (kind === "browser") {
     return "Navi";
   }
-  if (kind === "task_board") {
-    return "活动监视器";
+  if (kind === "tasks") {
+    return "任务";
   }
   if (kind === "run_manifest") {
     return "控制台";
