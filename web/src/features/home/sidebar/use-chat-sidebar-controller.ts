@@ -8,6 +8,7 @@ import { createRoom, deleteRoom } from "@/lib/api/conversation/room-command-api"
 import { useAgentStore } from "@/store/agent";
 import { useSidebarStore } from "@/store/sidebar";
 
+import { useActiveRoomIds } from "../room-activity-resource";
 import {
   buildConversationItems,
   isMainAgentDmRoom,
@@ -44,6 +45,7 @@ export function useChatSidebarController({
   );
   const setNexusRoomId = useSidebarStore((state) => state.set_nexus_room_id);
   const agentRuntimeStatuses = useAgentStore((state) => state.agent_runtime_statuses);
+  const activeRoomIds = useActiveRoomIds();
   const {
     agents,
     conversations,
@@ -69,7 +71,8 @@ export function useChatSidebarController({
     conversations,
     rooms,
     untitledRoomLabel,
-  }), [agents, agentRuntimeStatuses, conversations, rooms, untitledRoomLabel]);
+    activeRoomIds,
+  }), [activeRoomIds, agents, agentRuntimeStatuses, conversations, rooms, untitledRoomLabel]);
   const items = useMemo(() => projectSidebarUnreadItems({
     activeTarget,
     chatUnreadCounts,

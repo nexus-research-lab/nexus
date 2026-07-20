@@ -55,6 +55,7 @@ function ConversationRowLeading({
         roomId={item.roomId}
         size="sm"
         title={item.title}
+        isWorking={isWorking}
       />
     );
   }
