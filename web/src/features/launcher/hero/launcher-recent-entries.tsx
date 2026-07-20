@@ -77,7 +77,7 @@ export function LauncherRecentEntries({
   return (
     <div
       data-tour-anchor={LAUNCHER_TOUR_ANCHORS.recent}
-      className="mx-auto mt-3 flex w-full max-w-[326px] flex-wrap items-center justify-center gap-1 sm:mt-4 sm:max-w-[420px]"
+      className="launcher-recent-entries mx-auto mt-3 flex w-full max-w-[326px] flex-wrap items-center justify-center gap-1 sm:mt-4 sm:max-w-[420px]"
     >
       {presentations.map((presentation) => (
         <LauncherRecentEntryChip

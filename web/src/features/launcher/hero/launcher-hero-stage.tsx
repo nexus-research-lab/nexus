@@ -58,13 +58,13 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
 
   return (
     <div
-      className="relative z-10 flex w-full max-w-[1180px] flex-col items-center"
+      className="launcher-hero-stage relative z-10 flex w-full max-w-[1180px] flex-col items-center"
       onClick={(e) => e.stopPropagation()}
       onKeyDown={(e) => e.stopPropagation()}
       role="presentation"
     >
       <HeroBlobShell className="z-10 transition-transform duration-500 ease-out">
-        <div className="space-y-3 sm:space-y-4">
+        <div className="launcher-hero-heading space-y-3 sm:space-y-4">
           <FadeSlideIn delayMs={0} durationMs={380} yOffset={6}>
             <div className="flex flex-col items-center gap-2.5">
               <div className="flex items-center gap-2">
@@ -107,7 +107,7 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
               inlineStyle={undefined}
               src={ANIMATIONS.SPARKLES}
             />
-            <h1 className="mb-2 text-[24px] font-semibold leading-[1.12] tracking-[-0.02em] text-foreground/96 sm:text-[42px] sm:leading-[1.05]">
+            <h1 className="launcher-hero-title mb-2 text-[24px] font-semibold leading-[1.12] tracking-[-0.02em] text-foreground/96 sm:text-[42px] sm:leading-[1.05]">
               <AnimatedHeroText
                 text={t("launcher.hero_title")}
                 initialDelayMs={80}
@@ -117,7 +117,7 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
           </div>
         </div>
 
-        <div className="mt-8 sm:mt-10">
+        <div className="launcher-hero-composer mt-8 sm:mt-10">
           <FadeSlideIn delayMs={440} durationMs={420} yOffset={10}>
             <div
               data-tour-anchor={LAUNCHER_TOUR_ANCHORS.composer}
@@ -205,7 +205,7 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
       </HeroBlobShell>
 
       <MemoAgentPile
-        className="hidden min-[400px]:block"
+        className="launcher-agent-pile hidden min-[400px]:block"
         currentAgentId={currentAgentId}
         onSelectAgent={onSelectAgent}
         tokens={decorativeTokens}

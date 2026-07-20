@@ -33,7 +33,7 @@ export function HeroBlobShell({ children, className: className }: HeroBlobShellP
   return (
     <div
       className={cn(
-        "relative w-full max-w-[404px] sm:max-w-[980px]",
+        "launcher-hero-shell relative w-full max-w-[404px] sm:max-w-[980px]",
         className,
       )}
     >
@@ -150,7 +150,7 @@ export function HeroBlobShell({ children, className: className }: HeroBlobShellP
         </svg>
       </div>
 
-      <div className="relative z-10 px-5 py-11 text-center sm:px-14 sm:py-12 lg:px-18 lg:py-16">
+      <div className="launcher-hero-shell-content relative z-10 px-5 py-11 text-center sm:px-14 sm:py-12 lg:px-18 lg:py-16">
         {children}
       </div>
     </div>
