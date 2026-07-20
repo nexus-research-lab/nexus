@@ -79,6 +79,23 @@ func TestRealtimeServiceWakesMentionedAgentFromPublicAssistantReply(t *testing.T
 			strings.HasPrefix(roundID, "room_mention_") &&
 			event.Data["status"] == "finished"
 	})
+	var assistantPayload protocol.Message
+	for _, event := range events {
+		if event.EventType != protocol.EventTypeMessage || event.MessageID != "amy-public-mention-1" || event.Data["role"] != "assistant" {
+			continue
+		}
+		candidate := protocol.Message(event.Data)
+		if candidate["is_complete"] == true {
+			assistantPayload = candidate
+		}
+	}
+	if assistantPayload == nil {
+		t.Fatalf("未找到最终 assistant 事件: %+v", events)
+	}
+	mentions, ok := assistantPayload["agent_mentions"].([]protocol.AgentMention)
+	if !ok || len(mentions) != 1 || mentions[0].AgentID != devin.AgentID || mentions[0].HandoffID == "" {
+		t.Fatalf("最终 assistant 事件应带可渲染且可交接的 Devin mention: %+v", assistantPayload)
+	}
 	select {
 	case prompt := <-devinPrompt:
 		if !strings.Contains(prompt, "<latest_trigger>\nAmy: @Devin 请查询天气") {

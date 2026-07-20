@@ -150,6 +150,9 @@ func (s *RealtimeService) runSlot(
 	mapper.SetDurableMessageTransformer(func(message protocol.Message) protocol.Message {
 		return s.transformRoomDurableMessage(roundValue, slot, message)
 	})
+	mapper.SetProjectedMessageTransformer(func(message protocol.Message) protocol.Message {
+		return s.transformRoomDurableMessage(roundValue, slot, message)
+	})
 	execution := &slotExecution{
 		service:       s,
 		ctx:           slotCtx,

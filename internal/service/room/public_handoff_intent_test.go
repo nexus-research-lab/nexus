@@ -54,6 +54,44 @@ func TestAnnotatePublicAssistantMessageSeparatesDisplayMentionFromDefaultHandoff
 	}
 }
 
+func TestAnnotatePublicAssistantMessageAcceptsParenthesizedAgentID(t *testing.T) {
+	contextValue := &protocol.ConversationContextAggregate{
+		Conversation: protocol.ConversationRecord{ID: "conversation-parenthesized"},
+		Members: []protocol.MemberRecord{
+			{MemberType: protocol.MemberTypeAgent, MemberAgentID: "agent-source"},
+			{MemberType: protocol.MemberTypeAgent, MemberAgentID: "agent-plan"},
+		},
+		MemberAgents: []protocol.Agent{
+			{AgentID: "agent-source", Name: "Source"},
+			{AgentID: "agent-plan", Name: "生活方案制定员"},
+		},
+	}
+	roundValue := &activeRoomRound{
+		Context: contextValue, ConversationID: contextValue.Conversation.ID,
+		RoomID: "room-parenthesized", RootRoundID: "root-parenthesized",
+	}
+	slot := &activeRoomSlot{AgentID: "agent-source", AgentRoundID: "source-round"}
+	message := protocol.Message{
+		"message_id":  "message-parenthesized",
+		"role":        "assistant",
+		"is_complete": true,
+		"content": []map[string]any{{
+			"type": "text", "text": "@生活方案制定员（c742e12ab802）请承接本次咨询。",
+		}},
+	}
+	service := &RealtimeService{}
+	if err := service.annotatePublicAssistantMessage(roundValue, slot, message); err != nil {
+		t.Fatal(err)
+	}
+	mentions := protocolAgentMentions(message["agent_mentions"])
+	if len(mentions) != 1 || mentions[0].AgentID != "agent-plan" || mentions[0].HandoffID == "" {
+		t.Fatalf("带括号 agent id 的 mention 应创建默认 handoff: %+v", mentions)
+	}
+	if mentions[0].Label != "生活方案制定员" || mentions[0].StartRune != 0 || mentions[0].EndRune != 8 {
+		t.Fatalf("mention span 不应包含括号中的 agent id: %+v", mentions[0])
+	}
+}
+
 func TestAnnotatePublicAssistantMessageRequiresExplicitFanoutMarker(t *testing.T) {
 	contextValue := &protocol.ConversationContextAggregate{
 		Conversation: protocol.ConversationRecord{ID: "conversation-fanout"},

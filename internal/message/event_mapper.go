@@ -15,6 +15,9 @@ type EventMapperOptions struct {
 	IncludeStreamLifecycle bool
 	// TransformDurableMessage 在事件与持久化快照生成前补充场景化字段。
 	TransformDurableMessage func(protocol.Message) protocol.Message
+	// TransformProjectedMessage 在 result 投影成最终 assistant 后补充场景化字段。
+	// 这一步发生在最终事件广播前，适合依赖 result 终态才能计算的标注。
+	TransformProjectedMessage func(protocol.Message) protocol.Message
 }
 
 // EventMapResult 表示一次 SDK 消息映射后的事件与持久消息。
@@ -27,20 +30,22 @@ type EventMapResult struct {
 
 // EventMapper 基于统一 Processor 生成场景化 protocol event。
 type EventMapper struct {
-	ctx                     MessageContext
-	includeStreamLifecycle  bool
-	processor               *Processor
-	lastAssistantMessage    protocol.Message
-	transformDurableMessage func(protocol.Message) protocol.Message
+	ctx                       MessageContext
+	includeStreamLifecycle    bool
+	processor                 *Processor
+	lastAssistantMessage      protocol.Message
+	transformDurableMessage   func(protocol.Message) protocol.Message
+	transformProjectedMessage func(protocol.Message) protocol.Message
 }
 
 // NewEventMapper 创建通用 SDK 消息映射器。
 func NewEventMapper(options EventMapperOptions) *EventMapper {
 	return &EventMapper{
-		ctx:                     options.Context,
-		includeStreamLifecycle:  options.IncludeStreamLifecycle,
-		processor:               NewProcessor(options.Context, options.InitialSessionID),
-		transformDurableMessage: options.TransformDurableMessage,
+		ctx:                       options.Context,
+		includeStreamLifecycle:    options.IncludeStreamLifecycle,
+		processor:                 NewProcessor(options.Context, options.InitialSessionID),
+		transformDurableMessage:   options.TransformDurableMessage,
+		transformProjectedMessage: options.TransformProjectedMessage,
 	}
 }
 
@@ -50,6 +55,14 @@ func (m *EventMapper) SetDurableMessageTransformer(transform func(protocol.Messa
 		return
 	}
 	m.transformDurableMessage = transform
+}
+
+// SetProjectedMessageTransformer 设置最终 assistant 投影的场景化转换器。
+func (m *EventMapper) SetProjectedMessageTransformer(transform func(protocol.Message) protocol.Message) {
+	if m == nil {
+		return
+	}
+	m.transformProjectedMessage = transform
 }
 
 // Map 将一条 SDK 消息映射为 protocol event 与 durable message。
@@ -85,6 +98,15 @@ func (m *EventMapper) Map(incoming sdkprotocol.ReceivedMessage, interruptReason 
 		copyValue := protocol.Clone(messageValue)
 		durableMessages = append(durableMessages, copyValue)
 		projectedValue := m.projectDurableMessage(copyValue)
+		if messageValue["role"] == "result" && m.transformProjectedMessage != nil {
+			if transformed := m.transformProjectedMessage(projectedValue); transformed != nil {
+				projectedValue = transformed
+				if projectedValue["role"] == "assistant" {
+					// completion 阶段读取同一份终态快照，避免再次丢失场景化字段。
+					m.lastAssistantMessage = protocol.Clone(projectedValue)
+				}
+			}
+		}
 		events = append(events, m.wrapMessageEvent(projectedValue, true))
 		if m.includeStreamLifecycle && messageValue["role"] == "assistant" && messageValue["is_complete"] == true {
 			events = append(events, m.wrapEvent(protocol.EventTypeStreamEnd, map[string]any{

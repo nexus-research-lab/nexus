@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed Room @mentions that were routed successfully but rendered as plain text, and accepted Unicode punctuation around parenthesized Agent IDs so public handoffs continue reliably.
+
 ## [0.1.27] - 2026-07-19
 
 ### Added
