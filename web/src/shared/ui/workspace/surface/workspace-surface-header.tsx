@@ -62,7 +62,7 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
         WORKSPACE_HEADER_HEIGHT_CLASS,
       )}
     >
-      <div className="flex h-full min-w-0 items-center justify-between gap-3 px-5 xl:px-6">
+      <div className="workspace-surface-header-inner flex h-full min-w-0 items-center justify-between gap-3 px-5 xl:px-6">
         <WorkspaceSurfaceIdentity
           badge={badge}
           leading={leading}
@@ -135,7 +135,7 @@ function WorkspaceSurfaceTitle({
   titleTrailing?: ReactNode;
 }) {
   return (
-    <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-x-1.5">
+    <div className="workspace-surface-header-title-content flex min-w-0 flex-1 flex-nowrap items-center gap-x-1.5">
       {title ? (
         <div className="truncate text-[17px] font-semibold leading-5 tracking-normal text-(--text-strong)">
           {title}
@@ -175,7 +175,7 @@ function WorkspaceSurfaceNavigation<TTabKey extends string>({
   tabsNavAnchor?: string;
 }) {
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-3">
+    <div className="workspace-surface-header-navigation flex min-w-0 flex-1 items-center gap-3">
       <WorkspaceSurfaceNavigationLead
         subtitle={subtitle}
         tabsLeading={tabsLeading}
@@ -204,7 +204,7 @@ function WorkspaceSurfaceNavigationLead({
   tabsLeading?: ReactNode;
 }) {
   if (tabsLeading) {
-    return <div className="min-w-[180px] flex-1">{tabsLeading}</div>;
+    return <div className="workspace-surface-header-session-tabs min-w-0 flex-1">{tabsLeading}</div>;
   }
   if (!subtitle) return null;
 
@@ -247,7 +247,7 @@ function WorkspaceSurfaceTabs<TTabKey extends string>({
       activeValue={activeTab}
       ariaLabel="视图切换"
       className={cn(
-        "workspace-surface-header-view-tabs min-w-0 overflow-x-auto",
+        "workspace-surface-header-view-tabs min-w-0 overflow-visible",
         hasLeading ? "shrink-0" : "flex-1",
       )}
       density="compact"
@@ -255,10 +255,12 @@ function WorkspaceSurfaceTabs<TTabKey extends string>({
       navAnchor={tabsNavAnchor}
       onChange={onChangeTab}
       onDismissActive={onDismissActiveTab}
+      itemClassName="workspace-surface-header-view-tab"
       options={tabs.map((tab) => ({
         anchor: tab.anchor,
         icon: tab.icon,
         label: tab.label,
+        title: tab.label,
         value: tab.key,
       }))}
     />
