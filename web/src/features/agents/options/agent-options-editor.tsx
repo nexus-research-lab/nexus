@@ -24,11 +24,23 @@ export function AgentOptionsInlineEditor({
     activeTab,
     onTabChange,
   });
+  const isIdentityTab = controller.activeTab === "identity";
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="min-h-0 flex-1 overflow-y-auto [overflow-anchor:none] [scrollbar-gutter:stable]">
-        <div className={cn("mx-auto w-full px-6 py-5", contentMaxWidthClassName)}>
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+      <div
+        className={cn(
+          "min-h-0 flex-1 [overflow-anchor:none] [scrollbar-gutter:stable]",
+          isIdentityTab ? "overflow-hidden" : "overflow-y-auto",
+        )}
+      >
+        <div
+          className={cn(
+            "mx-auto flex w-full flex-col px-6 py-5",
+            isIdentityTab ? "h-full min-h-0" : "min-h-full",
+            contentMaxWidthClassName,
+          )}
+        >
           <AgentOptionsEditorContent
             activeTab={controller.activeTab}
             {...controller.content}
@@ -36,7 +48,7 @@ export function AgentOptionsInlineEditor({
           />
         </div>
       </div>
-      <div className="flex items-center justify-end gap-2 border-t dialog-divider px-6 py-3">
+      <div className="flex shrink-0 items-center justify-end gap-2 border-t dialog-divider px-6 py-3">
         <AgentOptionsEditorActions
           {...controller.actions}
           saveButtonSize="sm"

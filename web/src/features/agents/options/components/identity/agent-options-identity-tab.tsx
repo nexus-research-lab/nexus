@@ -1,6 +1,7 @@
 "use client";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { cn } from "@/shared/ui/class-name";
 import { UiTextarea } from "@/shared/ui/form/form-control";
 import type { AgentNameValidationResult, AgentProvider } from "@/types/agent/agent";
 import type { ProviderOption } from "@/types/capability/provider";
@@ -9,11 +10,13 @@ import {
   IDENTITY_LAYOUTS,
   type AgentIdentityVariant,
 } from "./identity-layout";
+import { AgentProfileFileEditor } from "./agent-profile-file-editor";
 import { IdentityModelSelector } from "./identity-model-selector";
 import { IdentityProfileFields } from "./identity-profile-fields";
 import { IdentityVibeTags } from "./identity-vibe-tags";
 
 interface AgentOptionsIdentityTabProps {
+  agentId?: string;
   avatar: string;
   defaultModel: string;
   defaultProvider: AgentProvider;
@@ -38,6 +41,7 @@ interface AgentOptionsIdentityTabProps {
 }
 
 export function AgentOptionsIdentityTab({
+  agentId,
   avatar,
   defaultModel,
   defaultProvider,
@@ -62,10 +66,18 @@ export function AgentOptionsIdentityTab({
 }: AgentOptionsIdentityTabProps) {
   const { t } = useI18n();
   const layout = IDENTITY_LAYOUTS[variant];
+  const isInline = variant === "inline";
 
   return (
-    <div className="space-y-5 animate-in slide-in-from-right-4 duration-300">
-      <div className={layout.contentClassName}>
+    <div
+      className={cn(
+        "animate-in slide-in-from-right-4 duration-300",
+        isInline
+          ? "flex h-full min-h-0 flex-1 flex-col gap-5 overflow-hidden"
+          : "space-y-5",
+      )}
+    >
+      <div className={cn(layout.contentClassName, isInline && "shrink-0")}>
         <div className={layout.profileClassName}>
           <IdentityProfileFields
             avatar={avatar}
@@ -107,18 +119,26 @@ export function AgentOptionsIdentityTab({
         </div>
       </div>
 
-      <div className="space-y-2">
-        <label className="text-[11px] font-semibold text-(--text-muted)">
-          {t("agent_options.identity.description")}
-        </label>
-        <UiTextarea
-          className="min-h-[72px] rounded-2xl"
-          onChange={(event) => onDescriptionChange(event.target.value)}
-          placeholder={t("agent_options.identity.description_placeholder")}
-          rows={3}
-          value={description}
+      {isInline && agentId ? (
+        <AgentProfileFileEditor
+          agentId={agentId}
+          key={agentId}
+          label={t("agent_options.identity.description")}
         />
-      </div>
+      ) : (
+        <div className="space-y-2">
+          <label className="text-[11px] font-semibold text-(--text-muted)">
+            {t("agent_options.identity.description")}
+          </label>
+          <UiTextarea
+            className="min-h-[72px] rounded-2xl"
+            onChange={(event) => onDescriptionChange(event.target.value)}
+            placeholder={t("agent_options.identity.description_placeholder")}
+            rows={3}
+            value={description}
+          />
+        </div>
+      )}
     </div>
   );
 }
