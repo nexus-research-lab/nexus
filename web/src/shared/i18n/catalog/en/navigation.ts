@@ -31,7 +31,6 @@ export const enNavigationMessages = {
   "sidebar.direct_empty_summary": "No messages yet. Open this DM.",
   "sidebar.room_empty_summary": "No session yet. Open this group chat.",
   "sidebar.start_chat_summary": "Click to start chatting.",
-  "sidebar.running_tasks_short": "Working on {count} tasks",
   "sidebar.docs": "Docs",
   "sidebar.feedback": "Feedback",
   "sidebar.guide_title": "Get started with Nexus",

@@ -98,7 +98,8 @@ function subscribe(listener: () => void): () => void {
   return () => listeners.delete(listener);
 }
 
-function getActiveRoomIds(): ReadonlySet<string> {
+/** 非 React 消费者读取当前 Room 活动态，测试和侧栏投影共用同一快照。 */
+export function getActiveRoomIds(): ReadonlySet<string> {
   return activeRoomIdsSnapshot;
 }
 

@@ -109,5 +109,9 @@ export function useChatCompletionNotifications(): void {
     () => directory.rooms.map((room) => room.id).filter(Boolean).sort().join("\n"),
     [directory.rooms],
   );
-  useChatNotificationSocket({ onCompletedMessage: handleCompletedMessage, roomIdsKey });
+  useChatNotificationSocket({
+    directoryIndex,
+    onCompletedMessage: handleCompletedMessage,
+    roomIdsKey,
+  });
 }

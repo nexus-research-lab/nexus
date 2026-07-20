@@ -155,7 +155,7 @@ export function ConversationRow({
   onDelete: onDelete,
 }: ConversationRowProps) {
   const { t } = useI18n();
-  const isWorking = item.runningTaskCount > 0;
+  const isWorking = item.isWorking;
 
   return (
     <UiListRow
@@ -186,36 +186,24 @@ export function ConversationRow({
 export function ContactRow({
   agent,
   isActive: isActive,
-  isWorking: isWorking,
   onChat: onChat,
   onOpenDirectory: onOpenDirectory,
-  runningTaskCount: runningTaskCount,
 }: {
   agent: LauncherAgentSummary;
   isActive: boolean;
-  isWorking: boolean;
   onChat: () => void;
   onOpenDirectory: () => void;
-  runningTaskCount: number;
 }) {
   const { t } = useI18n();
   const description = agent.description?.trim();
-  const subtitle = isWorking
-    ? t("sidebar.running_tasks_short", { count: runningTaskCount })
-    : (description || t("sidebar.contact_no_description"));
-  const status = isWorking ? (
-    <UiBadge size="xs" tone="primary">
-      {t("status.working")}
-    </UiBadge>
-  ) : null;
+  const subtitle = description || t("sidebar.contact_no_description");
 
   return (
     <UiListRow
       active={isActive}
       className="min-h-[54px] gap-2.5 rounded-[8px] px-2 py-1.5"
       description={subtitle}
-      leading={<UiAgentAvatar avatar={agent.avatar} isWorking={isWorking} name={agent.name} size="sm" />}
-      meta={status}
+      leading={<UiAgentAvatar avatar={agent.avatar} name={agent.name} size="sm" />}
       onClick={onOpenDirectory}
       right={(
         <UiIconButton

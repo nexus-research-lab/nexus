@@ -5,7 +5,7 @@
  *
  * [INPUT]: 依赖 @/lib/api/agent/agent-api 的 Agent API
  * [OUTPUT]: 对外提供 useAgentStore
- * [POS]: store 模块的 Agent 管理，被侧边栏和 Agent 设置页消费
+ * [POS]: store 模块的 Agent 目录与当前选择，被 Agent 管理、导航和工作区视图消费
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 
@@ -13,7 +13,6 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import {
   Agent,
-  AgentRuntimeStatus,
   CreateAgentParams,
   UpdateAgentParams,
 } from "@/types/agent/agent";
@@ -32,7 +31,6 @@ export const AGENT_LIST_UPDATED_EVENT_NAME = "nexus:agent-list-updated";
 export interface AgentStoreState {
   // 数据
   agents: Agent[];
-  agent_runtime_statuses: Record<string, AgentRuntimeStatus>;
   current_agent_id: string | null;
 
   // UI 状态
@@ -50,15 +48,6 @@ export interface AgentStoreState {
 
   // 服务器同步
   load_agents_from_server: () => Promise<void>;
-  apply_agent_runtime_status: (status: AgentRuntimeStatus) => void;
-}
-
-function buildIdleRuntimeStatus(agentId: string): AgentRuntimeStatus {
-  return {
-    agent_id: agentId,
-    running_task_count: 0,
-    status: "idle",
-  };
 }
 
 let loadAgentsInflight: Promise<Agent[]> | null = null;
@@ -81,21 +70,6 @@ function dispatchAgentListUpdated() {
   window.dispatchEvent(new CustomEvent(AGENT_LIST_UPDATED_EVENT_NAME));
 }
 
-function areAgentRuntimeStatusesEqual(
-  left: AgentRuntimeStatus | undefined,
-  right: AgentRuntimeStatus,
-): boolean {
-  if (!left) {
-    return false;
-  }
-
-  return (
-    left.agent_id === right.agent_id &&
-    left.status === right.status &&
-    left.running_task_count === right.running_task_count
-  );
-}
-
 // ==================== Store 创建 ====================
 
 export const useAgentStore = create<AgentStoreState>()(
@@ -103,7 +77,6 @@ export const useAgentStore = create<AgentStoreState>()(
     (set, get) => ({
       // 初始状态
       agents: [],
-      agent_runtime_statuses: {},
       current_agent_id: null,
       loading: false,
       error: null,
@@ -115,10 +88,6 @@ export const useAgentStore = create<AgentStoreState>()(
           const agent = await createAgentApi(params);
           set((state) => ({
             agents: [agent, ...state.agents],
-            agent_runtime_statuses: {
-              ...state.agent_runtime_statuses,
-              [agent.agent_id]: buildIdleRuntimeStatus(agent.agent_id),
-            },
             error: null,
           }));
           dispatchAgentListUpdated();
@@ -143,11 +112,6 @@ export const useAgentStore = create<AgentStoreState>()(
                 : state.current_agent_id;
             return {
               agents: newAgents,
-              agent_runtime_statuses: Object.fromEntries(
-                Object.entries(state.agent_runtime_statuses).filter(
-                  ([runtimeAgentId]) => runtimeAgentId !== agentId,
-                ),
-              ),
               current_agent_id: newCurrent,
               error: null,
             };
@@ -169,12 +133,6 @@ export const useAgentStore = create<AgentStoreState>()(
             agents: state.agents.map((a) =>
               a.agent_id === agentId ? updated : a,
             ),
-            agent_runtime_statuses: {
-              ...state.agent_runtime_statuses,
-              [agentId]:
-                state.agent_runtime_statuses[agentId] ??
-                buildIdleRuntimeStatus(agentId),
-            },
             error: null,
           }));
           dispatchAgentListUpdated();
@@ -200,18 +158,11 @@ export const useAgentStore = create<AgentStoreState>()(
         try {
           set({ loading: true, error: null });
           const agents = await runAgentListRequest();
-          set((state) => ({
+          set({
             agents,
-            agent_runtime_statuses: Object.fromEntries(
-              agents.map((agent) => [
-                agent.agent_id,
-                state.agent_runtime_statuses[agent.agent_id] ??
-                  buildIdleRuntimeStatus(agent.agent_id),
-              ]),
-            ),
             loading: false,
             error: null,
-          }));
+          });
         } catch (err) {
           console.error("[AgentStore] Failed to load agents:", err);
           set({
@@ -219,22 +170,6 @@ export const useAgentStore = create<AgentStoreState>()(
             error: err instanceof Error ? err.message : "Unknown error",
           });
         }
-      },
-
-      apply_agent_runtime_status: (status: AgentRuntimeStatus): void => {
-        set((state) => {
-          const currentStatus = state.agent_runtime_statuses[status.agent_id];
-          if (areAgentRuntimeStatusesEqual(currentStatus, status)) {
-            return state;
-          }
-
-          return {
-            agent_runtime_statuses: {
-              ...state.agent_runtime_statuses,
-              [status.agent_id]: status,
-            },
-          };
-        });
       },
     }),
     {

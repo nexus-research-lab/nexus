@@ -142,6 +142,8 @@ Group Room 且 `private_messages_enabled=true` 时，runtime 才获得 Room 协�
 - public handoff 由独立的 append-only ledger 持久化；Input queue 只负责忙碌目标的投递。
 - `source_agent_id`、Room scope 和 root/cause 关联由受控运行时/后端绑定；`reply_route` 必须由后端校验并按成员范围归一化。
 - cursor 只在实际消费到连续输入后推进；失败或取消不能无条件标记已读。
+- 聊天侧栏的执行态只投影为瞬时 `active room_id` 集合：任一 Agent slot 仍在执行时 Room 保持激活，root 终态或全部 slot 终态后清除；`dm` 与 `room` 使用同一规则，不读取 Agent runtime 状态或持久化 `is_active/status`。
+- 联系人侧栏只展示 Agent 目录元数据，不订阅 runtime、不显示执行徽标或任务计数；运行态事件只属于打开会话的工作区链路。
 - Room Skill 决定业务流程，Room 平台只负责路由、可见性、持久化、唤醒和运行时护栏。
 
 ## 9. 不在这里解决的问题
