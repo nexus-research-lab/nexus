@@ -16,6 +16,8 @@ export function TextFileEditor({
   onTogglePreviewFocus,
   path,
   showFocusControl,
+  sourceFocus,
+  textView = "rendered",
 }: WorkspaceFilePreviewProps & { fileType: WorkspaceFilePreviewKind }) {
   const editor = useTextFileEditor({ agentId, initialContent, path });
   const presentation = buildTextFileEditorPresentation({
@@ -25,6 +27,7 @@ export function TextFileEditor({
     isExternalWriting: editor.isExternalWriting,
     isSaving: editor.isSaving,
     liveState: editor.liveState,
+    preferSourceView: textView === "source",
   });
 
   return (
@@ -55,6 +58,7 @@ export function TextFileEditor({
         mode={presentation.bodyMode}
         setContent={editor.setDraftContent}
         setIsEditing={editor.setIsEditing}
+        sourceFocus={sourceFocus}
       />
     </>
   );

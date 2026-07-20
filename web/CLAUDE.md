@@ -77,6 +77,7 @@ src/
 - 操作舞台的后台窗口必须保留真实 App 内容并自然叠放，点击标题栏、Dock 或窗口循环快捷键只改变焦点；仅最小化窗口进入 Dock，不再维护独立的缩略图渲染分支
 - 操作舞台的“文件”App 只消费真实 Agent workspace 列表、实时文件事件和搜索命中；搜索表达式不得投影为文档，用户打开路径必须复用既有窗口，HTML 进入 Navi，其余格式进入共享预览路由，后台窗口不得卸载 App 内部状态
 - 操作舞台的 Markdown、代码、DOCX、XLSX、PPTX、PDF 与图片窗口必须复用 `shared/editor/WorkspaceFilePreviewRouter`；绝对工具路径和相对 workspace 路径先归一为同一个文档身份，不维护第二套伪预览组件
+- 操作舞台的 Editor 只按 Claude Code 与 nxs 的明确工具契约投影 `Read`、`Write`、`Edit`、`MultiEdit`、`NotebookEdit`、`filesystem.*` 与 `patch.apply`；源码视图必须展示真实行号、读取范围和修改片段，并继续复用共享文件编辑器完成用户编辑与保存，未知工具不得靠名称猜测打开文件窗口
 - Room 成员管理由页面命令层绑定作用域并按成员依赖顺序执行；Header 只提交完整表单对象，Surface 不传播成员增删和设置更新的散装回调
 - Contacts 页面使用互斥编辑状态，资源和 CRUD 归 `pages/contacts/controller/`，URL 选择与 Room 跳转归 `pages/contacts/orchestration/`
 - 宽侧栏由 `features/navigation/sidebar/` 管理；折叠栏与展开面板共用主 Tab、Nexus 入口和系统操作，路由/Store 同步只留在控制器

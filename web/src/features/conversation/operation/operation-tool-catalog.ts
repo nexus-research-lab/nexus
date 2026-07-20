@@ -368,6 +368,31 @@ export function extractOperationInputValue(
       return { key, value: formatted };
     }
   }
+  return extract_nested_operation_input_value(input, keys);
+}
+
+function extract_nested_operation_input_value(
+  input: Record<string, unknown>,
+  keys: readonly string[],
+): { key: string; value: string } | null {
+  for (const collection_key of ["edits", "creates", "files"] as const) {
+    const collection = input[collection_key];
+    if (!Array.isArray(collection)) {
+      continue;
+    }
+    for (const item of collection) {
+      if (!item || typeof item !== "object" || Array.isArray(item)) {
+        continue;
+      }
+      const record = item as Record<string, unknown>;
+      for (const key of keys) {
+        const formatted = formatOperationValue(record[key]);
+        if (formatted) {
+          return { key: `${collection_key}.${key}`, value: formatted };
+        }
+      }
+    }
+  }
   return null;
 }
 

@@ -40,7 +40,7 @@ export function collectOperationFileContext(
     : null;
   const project_active_event = is_file_document_event(event) || Boolean(latest_result_file_target);
   const latest_file_target = latest_workspace_item?.path
-    ?? latest_file_event?.target
+    ?? (latest_file_event ? extract_file_targets_from_event(latest_file_event).at(0) : null)
     ?? latest_result_file_target
     ?? (event.surface === "workspace" || event.surface === "editor" ? event.target : null);
   const latest_file_preview = latest_workspace_item?.live_content
@@ -181,7 +181,7 @@ function collect_round_workspace_items(
   );
   const round_targets = new Set(
     round_events
-      .flatMap((item) => [item.target, extract_file_target_from_event(item)])
+      .flatMap((item) => extract_file_targets_from_event(item))
       .filter((target): target is string => Boolean(target)),
   );
 
@@ -201,9 +201,42 @@ function collect_round_workspace_items(
 }
 
 function extract_file_target_from_event(event: NexusOperationEvent): string | null {
-  return first_local_file_path(event.result_preview)
-    ?? first_local_file_path(event.evidence)
-    ?? null;
+  return extract_file_targets_from_event(event).at(0) ?? null;
+}
+
+function extract_file_targets_from_event(event: NexusOperationEvent): string[] {
+  const input = event.input_preview;
+  const targets: string[] = [];
+  for (const key of ["file_path", "filePath", "notebook_path", "path"] as const) {
+    if (typeof input?.[key] === "string" && input[key].trim()) {
+      targets.push(input[key]);
+    }
+  }
+  for (const collection_key of ["edits", "creates", "files"] as const) {
+    const collection = input?.[collection_key];
+    if (!Array.isArray(collection)) {
+      continue;
+    }
+    for (const item of collection) {
+      if (!item || typeof item !== "object" || Array.isArray(item)) {
+        continue;
+      }
+      const record = item as Record<string, unknown>;
+      const path = record.path ?? record.file_path ?? record.filePath;
+      if (typeof path === "string" && path.trim()) {
+        targets.push(path);
+      }
+    }
+  }
+  const result_target = first_local_file_path(event.result_preview)
+    ?? first_local_file_path(event.evidence);
+  if (result_target) {
+    targets.push(result_target);
+  }
+  if (is_file_document_event(event) && event.target && event.target !== event.tool_name) {
+    targets.push(event.target);
+  }
+  return Array.from(new Set(targets.map(normalize_operation_file_target).filter(Boolean)));
 }
 
 function first_local_file_path(value: unknown): string | null {
@@ -264,22 +297,25 @@ function collect_file_documents({
   const file_events_by_target = new Map<string, NexusOperationEvent[]>();
 
   file_events.forEach((file_event) => {
-    if (!file_event.target) {
+    const file_targets = extract_file_targets_from_event(file_event);
+    if (file_targets.length === 0) {
       return;
     }
-    const canonical_target = resolveOperationWorkspaceTarget(file_event.target, workspace_items);
-    const workspace_item = workspace_items.find((item) => (
-      operationWorkspaceTargetsMatch(canonical_target, item.path)
-    )) ?? null;
-    const events_for_target = file_events_by_target.get(canonical_target) ?? [];
-    events_for_target.push(file_event);
-    file_events_by_target.set(canonical_target, events_for_target);
-    documents.set(canonical_target, {
-      event: file_event,
-      target: canonical_target,
-      workspace_item,
-      preview: file_event.result_preview ?? file_event.input_preview ?? file_event.summary,
-      related_events: events_for_target,
+    file_targets.forEach((file_target) => {
+      const canonical_target = resolveOperationWorkspaceTarget(file_target, workspace_items);
+      const workspace_item = workspace_items.find((item) => (
+        operationWorkspaceTargetsMatch(canonical_target, item.path)
+      )) ?? null;
+      const events_for_target = file_events_by_target.get(canonical_target) ?? [];
+      events_for_target.push(file_event);
+      file_events_by_target.set(canonical_target, events_for_target);
+      documents.set(canonical_target, {
+        event: file_event,
+        target: canonical_target,
+        workspace_item,
+        preview: file_event.result_preview ?? file_event.input_preview ?? file_event.summary,
+        related_events: events_for_target,
+      });
     });
   });
 

@@ -1,3 +1,12 @@
+export type WorkspaceTextView = "rendered" | "source";
+
+export interface WorkspaceSourceFocus {
+  endLine?: number | null;
+  snippets?: string[];
+  startLine?: number | null;
+  tone: "read" | "write" | "edit" | "error";
+}
+
 export interface WorkspaceFilePreviewProps {
   agentId: string;
   fileName: string;
@@ -6,4 +15,6 @@ export interface WorkspaceFilePreviewProps {
   onTogglePreviewFocus: () => void;
   path: string;
   showFocusControl?: boolean;
+  sourceFocus?: WorkspaceSourceFocus | null;
+  textView?: WorkspaceTextView;
 }

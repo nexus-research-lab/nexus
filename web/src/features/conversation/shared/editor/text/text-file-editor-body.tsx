@@ -12,6 +12,8 @@ import { cn } from "@/shared/ui/class-name";
 import { TypewriterFileView } from "@/shared/ui/feedback/typewriter-file-view";
 
 import type { WorkspaceFilePreviewKind } from "../workspace-file-preview-kind";
+import type { WorkspaceSourceFocus } from "../workspace-file-preview-types";
+import { SourceCodeView } from "./source-code-view";
 import { TextFileContent } from "./text-file-content";
 import type { TextEditorBodyMode } from "./text-file-editor-model";
 
@@ -24,6 +26,7 @@ interface TextEditorBodyViewProps {
   isStreaming: boolean;
   setContent: Dispatch<SetStateAction<string>>;
   setIsEditing: (value: boolean) => void;
+  sourceFocus?: WorkspaceSourceFocus | null;
   textareaRef: RefObject<HTMLTextAreaElement | null>;
 }
 
@@ -73,6 +76,28 @@ function PreviewBody(props: TextEditorBodyViewProps) {
   );
 }
 
+function SourcePreviewBody({
+  content,
+  isLoading,
+  isStreaming,
+  sourceFocus,
+}: TextEditorBodyViewProps) {
+  if (isLoading) {
+    return (
+      <div className="px-4 py-4 font-mono text-sm leading-6 text-(--text-muted)">
+        加载中...
+      </div>
+    );
+  }
+  return (
+    <SourceCodeView
+      content={content}
+      focus={sourceFocus}
+      isStreaming={isStreaming}
+    />
+  );
+}
+
 function EditingBody({
   content,
   isLoading,
@@ -100,6 +125,7 @@ const TEXT_EDITOR_BODIES: Record<
   editing: EditingBody,
   html: HtmlPreviewBody,
   preview: PreviewBody,
+  source: SourcePreviewBody,
   streaming: StreamingBody,
 };
 
@@ -140,7 +166,7 @@ export function TextFileEditorBody({
     <div
       className={cn(
         "min-h-0 flex-1 overflow-hidden",
-        mode === "html" ? "p-0" : "px-4 py-4",
+        mode === "html" || mode === "source" ? "p-0" : "px-4 py-4",
       )}
       ref={editorAreaRef}
     >

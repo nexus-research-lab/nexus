@@ -167,8 +167,12 @@ export function StageWindowContent({
       return (
         <StageWorkspaceFilePreview
           agentId={event.agent_id}
+          diffStats={window.payload.diff_stats}
+          event={event}
           initialContent={read_initial_workspace_content(event, window.payload.preview)}
           path={workspace_target}
+          relatedEvents={window.payload.related_events ?? []}
+          sourceView={window.kind === "code_editor"}
         />
       );
     }

@@ -1,92 +1,66 @@
 import type { OperationToolProfile } from "./operation-tool-catalog";
 
+type OperationToolProfileKey =
+  | "AskUserQuestion"
+  | "Bash"
+  | "Edit"
+  | "EnterPlanMode"
+  | "ExitPlanMode"
+  | "Glob"
+  | "Grep"
+  | "KillShell"
+  | "LS"
+  | "NotebookEdit"
+  | "Read"
+  | "Skill"
+  | "Task"
+  | "TaskOutput"
+  | "TodoWrite"
+  | "WebFetch"
+  | "WebSearch"
+  | "Write";
+
+/** nxs canonical names are explicit SDK contracts, not fuzzy compatibility guesses. */
+const NXS_TOOL_PROFILE_KEYS: Readonly<Record<string, OperationToolProfileKey>> = {
+  "agent.run": "Task",
+  "browser.download": "WebFetch",
+  "browser.open": "WebFetch",
+  "filesystem.list": "LS",
+  "filesystem.read": "Read",
+  "filesystem.write": "Write",
+  "notebook.edit": "NotebookEdit",
+  "patch.apply": "Edit",
+  "plan.enter": "EnterPlanMode",
+  "plan.exit": "ExitPlanMode",
+  "search.glob": "Glob",
+  "search.grep": "Grep",
+  "shell.kill": "KillShell",
+  "shell.run": "Bash",
+  "skill.invoke": "Skill",
+  "skill.use": "Skill",
+  "task.background": "Task",
+  "task.output": "TaskOutput",
+  "task.run": "Task",
+  "todo.write": "TodoWrite",
+  "user.ask": "AskUserQuestion",
+  "web.extract": "WebFetch",
+  "web.map": "WebSearch",
+  "web.search": "WebSearch",
+};
+
+/** Some nxs transports preserve the OpenAI function namespace verbatim. */
+const NXS_TRANSPORT_PROFILE_KEYS: Readonly<Record<string, OperationToolProfileKey>> = {
+  "functions.Bash": "Bash",
+  "functions.KillShell": "KillShell",
+};
+
 export function inferOperationToolProfile(
   tool_name: string,
   profiles: Record<string, OperationToolProfile>,
-  default_target_keys: readonly string[],
+  _default_target_keys: readonly string[],
 ): OperationToolProfile | null {
-  const normalized = normalize_tool_name_for_match(tool_name);
-  const tokens = tokenize_tool_name_for_match(normalized);
-
-  if (matches_any(normalized, ["askuserquestion", "requestuserinput", "request_user_input", "question"]) || tokens.has("permission")) {
-    return profiles.AskUserQuestion;
-  }
-  if (matches_any(normalized, ["todowrite", "updateplan", "update_plan", "plan"])) {
-    return profiles.TodoWrite;
-  }
-  if (matches_any(normalized, ["spawnagent", "spawn_agent", "waitagent", "wait_agent", "taskoutput"])) {
-    return profiles.TaskOutput;
-  }
-  if (tokens.has("task") || tokens.has("agent")) {
-    return profiles.Task;
-  }
-  if (normalized === "killshell" || normalized === "kill_shell") {
-    return profiles.KillShell;
-  }
-  if (normalized === "bash") {
-    return profiles.Bash;
-  }
-  if (matches_any(normalized, ["websearch", "web_search", "searchquery", "search_query", "bravesearch"])) {
-    return profiles.WebSearch;
-  }
-  if (matches_any(normalized, [
-    "webfetch",
-    "web_fetch",
-    "fetch",
-    "openurl",
-    "open_url",
-    "browser",
-    "chrome",
-    "screenshot",
-    "computeruse",
-    "computer_use",
-  ])) {
-    return profiles.WebFetch;
-  }
-  if (matches_any(normalized, ["applypatch", "apply_patch", "multiedit", "multi_edit", "replace", "patch"])) {
-    return profiles.MultiEdit;
-  }
-  if (matches_any(normalized, ["writefile", "write_file", "createfile", "create_file", "create"])) {
-    return profiles.Write;
-  }
-  if (matches_any(normalized, ["editfile", "edit_file", "edit", "updatefile", "update_file"])) {
-    return profiles.Edit;
-  }
-  if (matches_any(normalized, ["grep", "searchfile", "search_file", "searchtext", "search_text", "rg"])) {
-    return profiles.Grep;
-  }
-  if (matches_any(normalized, ["glob", "listfile", "list_file", "listfiles", "list_files", "ls", "directory"])) {
-    return profiles.LS;
-  }
-  if (matches_any(normalized, ["readfile", "read_file", "read", "cat", "viewfile", "view_file"])) {
-    return profiles.Read;
-  }
-  if (matches_any(normalized, ["skill", "context", "docs", "documentation"])) {
-    return profiles.Skill;
-  }
-  if (matches_any(normalized, ["summary", "final", "respond"])) {
-    return {
-      action: "summary",
-      action_label: "收口",
-      title: "执行收口",
-      kind: "round_summary",
-      surface: "summary",
-      target_keys: default_target_keys,
-      evidence_type: "status",
-    };
-  }
-
-  return null;
-}
-
-function normalize_tool_name_for_match(tool_name: string): string {
-  return tool_name.trim().toLowerCase().replace(/^mcp__/, "").replace(/^functions\./, "");
-}
-
-function matches_any(value: string, patterns: string[]): boolean {
-  return patterns.some((pattern) => value === pattern || value.includes(pattern));
-}
-
-function tokenize_tool_name_for_match(tool_name: string): Set<string> {
-  return new Set(tool_name.split(/[^a-z0-9]+/).filter(Boolean));
+  const normalized = tool_name.trim();
+  const profile_key = NXS_TOOL_PROFILE_KEYS[normalized]
+    ?? NXS_TRANSPORT_PROFILE_KEYS[normalized];
+  return profile_key ? profiles[profile_key] ?? null : null;
 }

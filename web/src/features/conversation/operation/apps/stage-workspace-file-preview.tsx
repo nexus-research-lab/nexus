@@ -13,15 +13,29 @@ import { useWorkspaceFilesStore } from "@/store/workspace-files";
 import { useWorkspaceLiveStore } from "@/store/workspace-live";
 
 import { resolveOperationWorkspaceFilePath } from "../operation-workspace-file-path";
+import type { NexusOperationEvent } from "../operation-types";
+import { EditorActivityBar } from "./editor-activity-bar";
+import {
+  buildEditorSessionView,
+  type EditorDiffStats,
+} from "./editor-session-model";
 
 export function StageWorkspaceFilePreview({
   agentId,
+  diffStats,
+  event,
   initialContent,
   path,
+  relatedEvents,
+  sourceView = false,
 }: {
   agentId: string;
+  diffStats?: EditorDiffStats | null;
+  event: NexusOperationEvent;
   initialContent?: string | null;
   path: string;
+  relatedEvents: NexusOperationEvent[];
+  sourceView?: boolean;
 }) {
   const workspace_path = useAgentStore((state) => (
     state.agents.find((agent) => agent.agent_id === agentId)?.workspace_path ?? null
@@ -39,6 +53,13 @@ export function StageWorkspaceFilePreview({
   const live_state = useWorkspaceLiveStore((state) => (
     normalized_path ? state.file_states[`${agentId}:${normalized_path}`] : undefined
   ));
+  const editor_session = useMemo(() => buildEditorSessionView({
+    diffStats: live_state?.diff_stats ?? diffStats,
+    event,
+    liveStatus: live_state?.status ?? null,
+    path: normalized_path ?? path,
+    relatedEvents,
+  }), [diffStats, event, live_state?.diff_stats, live_state?.status, normalized_path, path, relatedEvents]);
   if (!agentId.trim() || !normalized_path) {
     return (
       <div className="grid h-full min-h-[240px] place-items-center bg-(--surface-panel-subtle-background) p-8 text-center">
@@ -66,6 +87,7 @@ export function StageWorkspaceFilePreview({
 
   return (
     <div className="flex h-full min-h-[240px] min-w-0 flex-col overflow-hidden bg-(--surface-panel-background)">
+      <EditorActivityBar session={editor_session} />
       <WorkspaceFilePreviewRouter
         agentId={agentId}
         fileName={normalized_path.split("/").at(-1) ?? normalized_path}
@@ -76,6 +98,8 @@ export function StageWorkspaceFilePreview({
         onTogglePreviewFocus={() => undefined}
         path={normalized_path}
         showFocusControl={false}
+        sourceFocus={sourceView ? editor_session.sourceFocus : null}
+        textView={sourceView ? "source" : "rendered"}
       />
     </div>
   );

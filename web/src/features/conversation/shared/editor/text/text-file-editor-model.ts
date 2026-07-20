@@ -2,7 +2,7 @@ import type { WorkspaceLiveFileState } from "@/types/app/workspace-live";
 
 import type { WorkspaceFilePreviewKind } from "../workspace-file-preview-kind";
 
-export type TextEditorBodyMode = "editing" | "html" | "preview" | "streaming";
+export type TextEditorBodyMode = "editing" | "html" | "preview" | "source" | "streaming";
 export type TextEditorEditAction = "edit" | "preview";
 
 export interface TextEditorSyncPresentation {
@@ -26,18 +26,26 @@ interface TextFileEditorPresentationInput {
   isExternalWriting: boolean;
   isSaving: boolean;
   liveState: WorkspaceLiveFileState | undefined;
+  preferSourceView?: boolean;
 }
 
 interface TextEditorBodyModeInput {
   fileType: WorkspaceFilePreviewKind;
   isEditing: boolean;
   isExternalWriting: boolean;
+  preferSourceView?: boolean;
 }
 
 const BODY_MODE_RULES: Array<{
   matches: (input: TextEditorBodyModeInput) => boolean;
   mode: TextEditorBodyMode;
 }> = [
+  {
+    matches: ({ isExternalWriting, preferSourceView }) => (
+      isExternalWriting && Boolean(preferSourceView)
+    ),
+    mode: "source",
+  },
   {
     matches: ({ fileType, isExternalWriting }) => (
       isExternalWriting && fileType !== "html"
@@ -47,6 +55,10 @@ const BODY_MODE_RULES: Array<{
   {
     matches: ({ isEditing }) => isEditing,
     mode: "editing",
+  },
+  {
+    matches: ({ preferSourceView }) => Boolean(preferSourceView),
+    mode: "source",
   },
   {
     matches: ({ fileType }) => fileType === "html",
@@ -101,10 +113,16 @@ export function buildTextFileEditorPresentation({
   isExternalWriting,
   isSaving,
   liveState,
+  preferSourceView,
 }: TextFileEditorPresentationInput): TextFileEditorPresentation {
   const editAction: TextEditorEditAction = isEditing ? "preview" : "edit";
   return {
-    bodyMode: resolveBodyMode({ fileType, isEditing, isExternalWriting }),
+    bodyMode: resolveBodyMode({
+      fileType,
+      isEditing,
+      isExternalWriting,
+      preferSourceView,
+    }),
     editAction,
     editLabel: EDIT_ACTION_COPY[editAction].label,
     saveDisabled: !isDirty || isSaving || isExternalWriting,
