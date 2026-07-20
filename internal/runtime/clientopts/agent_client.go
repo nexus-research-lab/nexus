@@ -48,6 +48,8 @@ type AgentClientOptionsInput struct {
 	DisallowedTools            []string
 	SettingSources             []string
 	AppendSystemPrompt         string
+	AppendSystemPromptStatic   string
+	AppendSystemPromptDynamic  string
 	ResumeSessionID            string
 	MaxThinkingTokens          *int
 	MaxTurns                   *int
@@ -105,7 +107,9 @@ func BuildAgentClientOptionsWithConfig(
 		IncludePartialMessages: true,
 		Env:                    runtimeEnv,
 		System: agentclient.SystemOptions{
-			Append: input.AppendSystemPrompt,
+			Append:        input.AppendSystemPrompt,
+			AppendStatic:  input.AppendSystemPromptStatic,
+			AppendDynamic: input.AppendSystemPromptDynamic,
 		},
 		Tools: agentclient.ToolOptions{
 			Allow: slices.Clone(input.AllowedTools),

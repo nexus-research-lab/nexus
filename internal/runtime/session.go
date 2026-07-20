@@ -150,6 +150,37 @@ func (m *Manager) RuntimeKind(sessionKey string) agentclient.RuntimeKind {
 	return ""
 }
 
+// HasSession 返回 session 是否已有可复用的 runtime client。
+// 仅检查内存中的 client，不把已持久化但尚未连接的 resume 当作热会话。
+func (m *Manager) HasSession(sessionKey string) bool {
+	if m == nil {
+		return false
+	}
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	state := m.sessions[strings.TrimSpace(sessionKey)]
+	if state == nil || state.Client == nil {
+		return false
+	}
+	if connected, ok := state.Client.(interface{ IsConnected() bool }); ok {
+		return connected.IsConnected()
+	}
+	return true
+}
+
+// SessionClient 返回当前 session 保存的 client，用于判断 GetOrCreate 是否替换了 runtime。
+func (m *Manager) SessionClient(sessionKey string) Client {
+	if m == nil {
+		return nil
+	}
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if state := m.sessions[strings.TrimSpace(sessionKey)]; state != nil {
+		return state.Client
+	}
+	return nil
+}
+
 // MarkSubagentHistory 标记该 runtime 已承载过 subagent task。
 // 标记随 sessionState 生命周期保留，使父 round 结束后仍可复用同一 task/thread。
 func (m *Manager) MarkSubagentHistory(sessionKey string) {

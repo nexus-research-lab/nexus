@@ -81,6 +81,17 @@ func (c *sdkClientAdapter) Connect(ctx context.Context) error {
 	return nil
 }
 
+// IsConnected 返回底层 SDK session 是否仍然存活。
+// Manager 用它区分可复用 runtime 与已经断开的旧 client。
+func (c *sdkClientAdapter) IsConnected() bool {
+	if c == nil {
+		return false
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.session != nil
+}
+
 func (c *sdkClientAdapter) Query(ctx context.Context, prompt string) error {
 	return c.QueryWithOptions(ctx, prompt, sdkprotocol.OutboundMessageOptions{})
 }

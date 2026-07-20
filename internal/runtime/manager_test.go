@@ -275,6 +275,27 @@ func TestManagerGetOrCreateWithFactoryUsesRoomSlotFactory(t *testing.T) {
 	}
 }
 
+func TestManagerHasSessionTracksLiveClient(t *testing.T) {
+	client := &fakeRuntimeClient{}
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: client})
+	sessionKey := "agent:host:ws:room:conversation-1"
+	if manager.HasSession(sessionKey) {
+		t.Fatal("尚未创建 client 时不应视为热会话")
+	}
+	if _, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{}); err != nil {
+		t.Fatalf("GetOrCreate() error = %v", err)
+	}
+	if !manager.HasSession(sessionKey) {
+		t.Fatal("创建 client 后应视为热会话")
+	}
+	if err := manager.CloseSession(context.Background(), sessionKey); err != nil {
+		t.Fatalf("CloseSession() error = %v", err)
+	}
+	if manager.HasSession(sessionKey) {
+		t.Fatal("CloseSession 后不应继续视为热会话")
+	}
+}
+
 func TestManagerKeepsUnknownRuntimeKindConservative(t *testing.T) {
 	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: &fakeRuntimeClient{}})
 	sessionKey := "agent:host:ws:dm:unknown-runtime"
