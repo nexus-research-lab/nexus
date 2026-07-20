@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Split Room runtime append prompts into stable and dynamic cache segments, reused warm Room slot runtimes without replaying the full public context, and kept the legacy flattened prompt for runtime compatibility.
 - Unified sidebar conversation activity around Room IDs so DM and group rows share one transient execution source, removed Agent runtime status subscriptions from chat and contacts navigation, and dropped the unused directory-side runtime projection.
+- Removed the unused Agent runtime status HTTP endpoint and the legacy runtime-only workspace subscription mode.
 
 ### Added
 

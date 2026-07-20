@@ -40,16 +40,16 @@ func TestWorkspaceSubscriptionRegistryKeepsDuplicateSenderSubscription(t *testin
 	})
 	sender := newFakeWorkspaceRegistrySender("sender-1")
 
-	if err := registry.Subscribe(ctx, sender, "agent-1", false); err != nil {
+	if err := registry.Subscribe(ctx, sender, "agent-1"); err != nil {
 		t.Fatalf("首次 subscribe_workspace 失败: %v", err)
 	}
 	readWorkspaceRegistryEvent(t, sender.events)
-	if err := registry.Subscribe(ctx, sender, "agent-1", false); err != nil {
+	if err := registry.Subscribe(ctx, sender, "agent-1"); err != nil {
 		t.Fatalf("重复 subscribe_workspace 失败: %v", err)
 	}
 	readWorkspaceRegistryEvent(t, sender.events)
 
-	registry.Unsubscribe(sender, "agent-1", false)
+	registry.Unsubscribe(sender, "agent-1")
 	snapshot.RunningTaskCount = 2
 	registry.broadcastRuntimeChanges()
 
@@ -64,43 +64,10 @@ func TestWorkspaceSubscriptionRegistryKeepsDuplicateSenderSubscription(t *testin
 		t.Fatalf("running_task_count 不正确: %+v", event.Data)
 	}
 
-	registry.Unsubscribe(sender, "agent-1", false)
+	registry.Unsubscribe(sender, "agent-1")
 	snapshot.RunningTaskCount = 3
 	registry.broadcastRuntimeChanges()
 	assertNoWorkspaceRegistryEvent(t, sender.events)
-}
-
-func TestWorkspaceSubscriptionRegistryTracksWatchFileReferences(t *testing.T) {
-	ctx := context.Background()
-	registry := newWorkspaceSubscriptionRegistry(nil, func(string) RuntimeSnapshot {
-		return RuntimeSnapshot{AgentID: "agent-1", Status: "idle"}
-	})
-	sender := newFakeWorkspaceRegistrySender("sender-1")
-
-	if err := registry.Subscribe(ctx, sender, "agent-1", false); err != nil {
-		t.Fatalf("runtime-only subscribe_workspace 失败: %v", err)
-	}
-	readWorkspaceRegistryEvent(t, sender.events)
-	if err := registry.Subscribe(ctx, sender, "agent-1", true); err != nil {
-		t.Fatalf("watch-files subscribe_workspace 失败: %v", err)
-	}
-	readWorkspaceRegistryEvent(t, sender.events)
-
-	subscription := registry.senderTokens[sender.Key()]["agent-1"]
-	if subscription.refCount != 2 || subscription.watchFileRefCount != 1 {
-		t.Fatalf("引用计数不正确: %+v", subscription)
-	}
-
-	registry.Unsubscribe(sender, "agent-1", true)
-	subscription = registry.senderTokens[sender.Key()]["agent-1"]
-	if subscription.refCount != 1 || subscription.watchFileRefCount != 0 {
-		t.Fatalf("watch-files 退订后引用计数不正确: %+v", subscription)
-	}
-
-	registry.Unsubscribe(sender, "agent-1", false)
-	if _, exists := registry.senderTokens[sender.Key()]["agent-1"]; exists {
-		t.Fatalf("最后一个订阅退订后仍残留: %+v", registry.senderTokens)
-	}
 }
 
 func TestWorkspaceSubscriptionRegistryUnregisterSenderClearsAllReferences(t *testing.T) {
@@ -115,11 +82,11 @@ func TestWorkspaceSubscriptionRegistryUnregisterSenderClearsAllReferences(t *tes
 	})
 	sender := newFakeWorkspaceRegistrySender("sender-1")
 
-	if err := registry.Subscribe(ctx, sender, "agent-1", false); err != nil {
+	if err := registry.Subscribe(ctx, sender, "agent-1"); err != nil {
 		t.Fatalf("首次 subscribe_workspace 失败: %v", err)
 	}
 	readWorkspaceRegistryEvent(t, sender.events)
-	if err := registry.Subscribe(ctx, sender, "agent-1", false); err != nil {
+	if err := registry.Subscribe(ctx, sender, "agent-1"); err != nil {
 		t.Fatalf("重复 subscribe_workspace 失败: %v", err)
 	}
 	readWorkspaceRegistryEvent(t, sender.events)
