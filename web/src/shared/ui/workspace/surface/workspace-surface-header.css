@@ -19,6 +19,12 @@
   overflow: hidden !important;
 }
 
+@media (max-width: 1119px) {
+  .workspace-surface-header-member-action {
+    display: none !important;
+  }
+}
+
 @container workspace-surface-header (max-width: 920px) {
   .workspace-surface-header-with-session-tabs nav.workspace-surface-header-view-tabs {
     flex: 0 0 auto;
@@ -64,10 +70,6 @@
     padding-inline: 0;
     padding-right: 0 !important;
     font-size: 0 !important;
-  }
-
-  .workspace-surface-header-member-action {
-    display: none !important;
   }
 
   .workspace-surface-header-trailing {
