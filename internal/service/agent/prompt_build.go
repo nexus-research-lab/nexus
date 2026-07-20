@@ -232,7 +232,7 @@ func loadWorkspacePromptSections(scope promptBuildScope) ([]string, error) {
 		if err != nil {
 			return nil, err
 		}
-		sections = appendPromptSection(sections, content)
+		sections = appendPromptSection(sections, formatWorkspacePromptSection(fileName, content))
 	}
 	return sections, nil
 }
@@ -247,6 +247,20 @@ func readOptionalWorkspacePromptFile(workspacePath string, fileName string) (str
 		return "", err
 	}
 	return strings.TrimSpace(string(content)), nil
+}
+
+// formatWorkspacePromptSection 在运行时提示词边界注入来源文件名，避免污染用户实际模板。
+func formatWorkspacePromptSection(fileName string, content string) string {
+	fileName = strings.TrimSpace(fileName)
+	content = strings.TrimSpace(content)
+	if fileName == "" || content == "" {
+		return content
+	}
+	heading := "# " + fileName
+	if content == heading || strings.HasPrefix(content, heading+"\n") {
+		return content
+	}
+	return heading + "\n\n" + content
 }
 
 // BuildUserMessageSuffix 构建追加到最后一条用户消息后的动态上下文。

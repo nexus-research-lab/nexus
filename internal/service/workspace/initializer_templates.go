@@ -1,9 +1,7 @@
 package workspace
 
 var defaultWorkspaceTemplates = map[string]string{
-	"agents": `# AGENTS.md
-
-## Role
+	"agents": `## Role
 
 - Purpose:
 - Responsibilities:
@@ -19,9 +17,7 @@ var defaultWorkspaceTemplates = map[string]string{
 - Do not invent facts, tool results, files, links, or completed actions.
 - If a request is ambiguous but inspectable, inspect first. Ask only when acting would be risky.
 `,
-	"user": `# USER.md
-
-setup_status: unconfigured
+	"user": `setup_status: unconfigured
 
 ## Setup Required
 
@@ -53,9 +49,7 @@ After the user provides enough details, replace this entire file with a configur
 
 Replace this template instead of appending below it.
 `,
-	"soul": `# SOUL.md
-
-## Personality
+	"soul": `## Personality
 
 -
 
@@ -67,9 +61,7 @@ Replace this template instead of appending below it.
 
 -
 `,
-	"tools": `# TOOLS.md
-
-## Tool Notes
+	"tools": `## Tool Notes
 
 -
 

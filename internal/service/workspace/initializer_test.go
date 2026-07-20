@@ -96,6 +96,15 @@ func TestEnsureInitializedWritesPromptLayerTemplates(t *testing.T) {
 	} {
 		assertWorkspaceFileContains(t, root, fileName, expected)
 	}
+	for _, fileName := range []string{"AGENTS.md", "USER.md", "SOUL.md", "TOOLS.md"} {
+		content, err := os.ReadFile(filepath.Join(root, fileName))
+		if err != nil {
+			t.Fatalf("读取 workspace 模板 %s 失败: %v", fileName, err)
+		}
+		if strings.HasPrefix(strings.TrimSpace(string(content)), "# "+fileName) {
+			t.Fatalf("workspace 模板不应在文件内容开头注入文件名 %s: %s", fileName, content)
+		}
+	}
 	for _, fileName := range []string{"MEMORY.md", "RUNBOOK.md"} {
 		if _, err := os.Stat(filepath.Join(root, fileName)); !os.IsNotExist(err) {
 			t.Fatalf("普通 agent 不应默认生成 %s: %v", fileName, err)

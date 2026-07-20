@@ -62,6 +62,32 @@ func TestServiceBuildRuntimePromptIncludesWorkspaceFilesAndProfile(t *testing.T)
 	}
 }
 
+func TestServiceBuildRuntimePromptLabelsWorkspaceFilesAtAssembly(t *testing.T) {
+	workspacePath := t.TempDir()
+	writePromptFile(t, workspacePath, "AGENTS.md", "## Role\n执行规则：先检查真实文件。")
+	writePromptFile(t, workspacePath, "USER.md", "setup_status: configured\n\n偏好：中文。")
+
+	service := agentsvc.NewService(config.Config{
+		DefaultAgentID:   "nexus",
+		BaseSystemPrompt: "BASE CUSTOM PROMPT",
+	}, nil)
+
+	prompt, err := service.BuildRuntimePrompt(context.Background(), &protocol.Agent{
+		AgentID:       "agent-1",
+		Name:          "planner",
+		WorkspacePath: workspacePath,
+	})
+	if err != nil {
+		t.Fatalf("构建运行时提示词失败: %v", err)
+	}
+
+	assertPromptContains(t, prompt, "# AGENTS.md\n\n## Role\n执行规则：先检查真实文件。")
+	assertPromptContains(t, prompt, "# USER.md\n\nsetup_status: configured\n\n偏好：中文。")
+	if strings.Count(prompt, "# AGENTS.md") != 1 || strings.Count(prompt, "# USER.md") != 1 {
+		t.Fatalf("文件名应只在 prompt 组装边界出现一次: %s", prompt)
+	}
+}
+
 func TestServiceBuildRuntimePromptIncludesHumanIdentityRules(t *testing.T) {
 	service := agentsvc.NewService(config.Config{
 		DefaultAgentID: "nexus",

@@ -42,8 +42,11 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Agent 身份文件仍应可由身份面板读取: %v", err)
 	}
-	if !strings.Contains(agentsContent.Content, "# AGENTS.md") {
+	if !strings.Contains(agentsContent.Content, "## Role") {
 		t.Fatalf("Agent 身份文件内容不正确: %q", agentsContent.Content)
+	}
+	if strings.Contains(agentsContent.Content, "# AGENTS.md") {
+		t.Fatalf("Agent 身份文件不应在模板正文中注入文件名: %q", agentsContent.Content)
 	}
 	for _, expectedPath := range []string{"USER.md", "SOUL.md", "TOOLS.md"} {
 		if !containsWorkspacePath(files, expectedPath) {
