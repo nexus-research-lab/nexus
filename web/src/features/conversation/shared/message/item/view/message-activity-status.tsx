@@ -9,10 +9,8 @@ import {
   ShieldAlert,
   Wrench,
 } from "lucide-react";
-import { useEffect, useRef } from "react";
 import spinners, { type BrailleSpinnerName } from "unicode-animations";
 
-import { usePrefersReducedMotion } from "@/hooks/ui/use-prefers-reduced-motion";
 import { cn } from "@/shared/ui/class-name";
 
 import type { MessageActivityState } from "../activity/message-activity-state";
@@ -101,50 +99,7 @@ export function MessageActivityStatus({
 }
 
 function MessageActivityLabel({ label }: { label: string }) {
-  const prefersReducedMotion = usePrefersReducedMotion();
-  const shimmerRef = useRef<HTMLSpanElement | null>(null);
-
-  useEffect(() => {
-    const element = shimmerRef.current;
-    if (!element || prefersReducedMotion || typeof element.animate !== "function") {
-      return;
-    }
-
-    // 流光只作用在文字本身，避免整块状态条一起闪烁，信息层级更稳定。
-    const animation = element.animate(
-      [
-        { backgroundPosition: "200% 50%" },
-        { backgroundPosition: "-200% 50%" },
-      ],
-      {
-        duration: 1800,
-        easing: "linear",
-        iterations: Infinity,
-      },
-    );
-    return () => animation.cancel();
-  }, [label, prefersReducedMotion]);
-
-  if (prefersReducedMotion) {
-    return <span className="truncate">{label}</span>;
-  }
-  return (
-    <span className="relative inline-flex min-w-0 truncate text-current">
-      <span className="truncate">{label}</span>
-      <span
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 truncate bg-clip-text text-transparent opacity-65 [-webkit-text-fill-color:transparent]"
-        ref={shimmerRef}
-        style={{
-          backgroundImage: "linear-gradient(90deg, transparent 0%, transparent 32%, rgba(255,255,255,0.92) 50%, transparent 68%, transparent 100%)",
-          backgroundPosition: "200% 50%",
-          backgroundSize: "220% 100%",
-        }}
-      >
-        {label}
-      </span>
-    </span>
-  );
+  return <span className="truncate">{label}</span>;
 }
 
 function MessageLoadingDots({

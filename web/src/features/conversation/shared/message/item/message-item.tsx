@@ -55,9 +55,8 @@ function MessageItemInner({
   return (
     <div
       className={cn(
-        "nexus-chat-message-round w-full min-w-0 animate-in fade-in slide-in-from-bottom-2 space-y-2 py-3 duration-300",
+        "nexus-chat-message-round w-full min-w-0 animate-in fade-in slide-in-from-bottom-2 space-y-1 py-3 duration-300",
         compact ? "nexus-chat-message-round-compact" : "nexus-chat-message-round-expanded",
-        !compact && "border-b border-(--divider-subtle-color)",
         className,
       )}
     >

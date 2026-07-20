@@ -191,7 +191,7 @@ function MemoryDocumentRow({
             {document.title}
           </span>
           {isIndexedMemoryTopic(document) ? (
-            <Link2 className="h-3 w-3 shrink-0 text-emerald-600 dark:text-emerald-400" />
+            <Link2 className="h-3 w-3 shrink-0 text-(--accent)" />
           ) : null}
         </span>
         <span className="mt-0.5 line-clamp-2 block text-[10.5px] leading-4 text-(--text-muted)">
@@ -201,7 +201,7 @@ function MemoryDocumentRow({
           <span>{t(presentation.labelKey)}</span>
           <span aria-hidden="true">·</span>
           <Clock3 className="h-2.5 w-2.5" />
-          <span className={stale ? "text-amber-600 dark:text-amber-400" : undefined}>
+          <span className={stale ? "text-(--warning)" : undefined}>
             {formatMemoryModifiedTime(document.modified_at, locale)}
           </span>
         </span>

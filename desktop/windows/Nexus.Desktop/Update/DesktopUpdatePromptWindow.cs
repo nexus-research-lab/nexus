@@ -1,10 +1,17 @@
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Input;
+using WpfButton = System.Windows.Controls.Button;
+using WpfKey = System.Windows.Input.Key;
+using WpfKeyEventArgs = System.Windows.Input.KeyEventArgs;
+using WpfHorizontalAlignment = System.Windows.HorizontalAlignment;
+using WpfOrientation = System.Windows.Controls.Orientation;
+using WpfSystemColors = System.Windows.SystemColors;
+using WpfTextBox = System.Windows.Controls.TextBox;
+using WpfWindow = System.Windows.Window;
 
 namespace Nexus.Desktop.Update;
 
-internal sealed class DesktopUpdatePromptWindow : Window
+internal sealed class DesktopUpdatePromptWindow : WpfWindow
 {
     private const double WindowWidth = 640;
     private const double ContentMaxHeight = 300;
@@ -80,7 +87,7 @@ internal sealed class DesktopUpdatePromptWindow : Window
         });
 
         // Windows MessageBox 不支持滚动正文，release notes 必须被限制在固定区域内。
-        panel.Children.Add(new TextBox
+        panel.Children.Add(new WpfTextBox
         {
             Text = releaseNotes,
             IsReadOnly = true,
@@ -91,10 +98,10 @@ internal sealed class DesktopUpdatePromptWindow : Window
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             MaxHeight = ContentMaxHeight,
             Padding = new Thickness(8),
-            BorderBrush = SystemColors.ControlDarkBrush,
+            BorderBrush = WpfSystemColors.ControlDarkBrush,
             BorderThickness = new Thickness(1),
-            Background = SystemColors.ControlBrush,
-            Foreground = SystemColors.ControlTextBrush,
+            Background = WpfSystemColors.ControlBrush,
+            Foreground = WpfSystemColors.ControlTextBrush,
             FontSize = 12,
         });
         return panel;
@@ -104,8 +111,8 @@ internal sealed class DesktopUpdatePromptWindow : Window
     {
         var buttons = new StackPanel
         {
-            Orientation = Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Right,
+            Orientation = WpfOrientation.Horizontal,
+            HorizontalAlignment = WpfHorizontalAlignment.Right,
             Margin = new Thickness(0, SectionSpacing, 0, 0),
         };
 
@@ -135,13 +142,13 @@ internal sealed class DesktopUpdatePromptWindow : Window
         return buttons;
     }
 
-    private static Button CreateButton(
+    private static WpfButton CreateButton(
         string label,
         bool isDefault,
         System.Action action,
         bool isCancel = false)
     {
-        var button = new Button
+        var button = new WpfButton
         {
             Content = label,
             IsDefault = isDefault,
@@ -160,9 +167,9 @@ internal sealed class DesktopUpdatePromptWindow : Window
         Close();
     }
 
-    private void HandlePreviewKeyDown(object sender, KeyEventArgs e)
+    private void HandlePreviewKeyDown(object sender, WpfKeyEventArgs e)
     {
-        if (e.Key != Key.Escape)
+        if (e.Key != WpfKey.Escape)
         {
             return;
         }

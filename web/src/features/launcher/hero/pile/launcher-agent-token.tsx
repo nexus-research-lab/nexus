@@ -126,7 +126,7 @@ function TokenFace({
         brand.rotationClassName,
       )}>
         <span
-          className={cn("font-black", brand.labelClassName)}
+          className={cn("font-semibold", brand.labelClassName)}
           style={{
             color: hexToRgba(token.swatch.text, 0.98),
             textShadow: `0 1px 0 ${hexToRgba("#ffffff", 0.24)}, 0 2px 5px ${hexToRgba("#000000", 0.12)}`,

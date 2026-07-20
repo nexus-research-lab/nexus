@@ -10,7 +10,6 @@ export const zhSettingsMessages = {
   "settings.navigation.workspace": "工作区",
   "settings.navigation.permissions": "权限",
   "settings.navigation.management": "管理",
-  "settings.general.eyebrow": "基础偏好",
   "settings.general.title": "常规设置",
   "settings.general.description": "统一管理主题和界面语言。这些设置会立即作用到导航、会话与工具面板，不需要额外确认。",
   "settings.general.header_description": "管理主题、语言与基础界面偏好。",

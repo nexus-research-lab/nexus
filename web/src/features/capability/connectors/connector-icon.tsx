@@ -14,13 +14,13 @@ interface ConnectorIconProps {
 }
 
 const ICON_SIZE_CLASS: Record<ConnectorIconSize, string> = {
-  md: "h-11 w-11 rounded-[12px] text-[13px]",
-  lg: "h-16 w-16 rounded-[18px] text-[19px]",
+  md: "h-9 w-9 rounded-[8px] text-[12px]",
+  lg: "h-14 w-14 rounded-[14px] text-[17px]",
 };
 
 const ICON_MASK_SIZE_CLASS: Record<ConnectorIconSize, string> = {
-  md: "h-7 w-7",
-  lg: "h-10 w-10",
+  md: "h-6 w-6",
+  lg: "h-9 w-9",
 };
 
 const CONNECTOR_ICON_SRC: Record<string, string> = {
@@ -76,7 +76,7 @@ export function ConnectorIcon({
     <span
       aria-label={title}
       className={cn(
-        "flex shrink-0 items-center justify-center overflow-hidden border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_70%,transparent)] bg-[color:color-mix(in_srgb,var(--background)_82%,white)] font-semibold text-(--text-strong) shadow-[0_1px_2px_rgba(15,23,42,0.04)]",
+        "flex shrink-0 items-center justify-center overflow-hidden border border-(--divider-subtle-color) bg-(--surface-panel-background) font-semibold text-(--text-strong)",
         ICON_SIZE_CLASS[size],
         className,
       )}

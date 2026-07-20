@@ -141,7 +141,7 @@ export function ConnectorDetailBreadcrumb({
   return (
     <div className="flex items-center gap-2 text-[14px] text-(--text-muted)">
       <button
-        className="inline-flex items-center gap-1 rounded-full px-2 py-1 font-medium transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_28%,transparent)]"
+        className="inline-flex items-center gap-1 rounded-[8px] px-1.5 py-1 font-medium transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_28%,transparent)]"
         onClick={onBack}
         type="button"
       >
@@ -182,13 +182,13 @@ export function ConnectorDetailHeader({
   return (
     <div className="flex flex-wrap items-start justify-between gap-4">
       <div className="flex min-w-0 items-start gap-4">
-        <ConnectorIcon icon={detail.icon} size="lg" title={detail.title} />
+        <ConnectorIcon className="h-14 w-14 rounded-[14px]" icon={detail.icon} size="lg" title={detail.title} />
         <div className="min-w-0">
-          <h1 className="text-[24px] font-semibold tracking-[-0.035em] text-(--text-strong)">
+          <h1 className="text-[20px] font-semibold tracking-[-0.025em] text-(--text-strong)">
             {detail.title}{" "}
             <span className="ml-2 font-normal text-(--text-muted)">App</span>
           </h1>
-          <p className="mt-2 text-[15px] leading-6 text-(--text-muted)">
+          <p className="mt-1 text-[13px] leading-5 text-(--text-muted)">
             {detail.description}
           </p>
         </div>

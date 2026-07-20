@@ -51,7 +51,7 @@ export function UiListRow({
       tabIndex={presentation.tabIndex}
     >
       {presentation.showActiveIndicator ? (
-        <span className="absolute left-0 top-1/2 h-9 w-[3px] -translate-y-1/2 rounded-full bg-(--primary)" />
+        <span className="absolute left-0 top-1/2 h-6 w-px -translate-y-1/2 bg-(--primary)" />
       ) : null}
 
       {leading}

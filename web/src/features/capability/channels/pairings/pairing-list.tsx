@@ -107,7 +107,7 @@ export function PairingList({
   onUpdatePairing,
 }: PairingListProps) {
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {pendingItems.length > 0 ? (
         <PairingSection
           agents={agents}
@@ -157,7 +157,7 @@ function PairingSection({
   title: string;
 }) {
   return (
-    <section className="space-y-2.5">
+    <section className="space-y-2">
       <div className="flex min-w-0 items-end justify-between gap-4 border-b border-(--divider-subtle-color) pb-2">
         <div className="min-w-0">
           <h2 className="truncate text-[15px] font-semibold text-(--text-strong)">
@@ -171,7 +171,7 @@ function PairingSection({
           {items.length}
         </span>
       </div>
-      <div className="space-y-2.5">
+      <div className="space-y-2">
         {items.map((item) => (
           <PairingRow
             agents={agents}
@@ -208,7 +208,7 @@ function PairingRow({
   const activityAt = item.last_message_at || item.updated_at;
   return (
     <UiPanel className="overflow-hidden rounded-[8px]" padding="none" radius="sm">
-      <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(220px,0.7fr)_auto] items-center gap-4 px-4 py-4 max-lg:grid-cols-1">
+      <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(220px,0.7fr)_auto] items-center gap-3 px-3 py-3 max-lg:grid-cols-1">
         <div className="min-w-0">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <UiBadge>{CHANNEL_LABELS[item.channel_type] ?? item.channel_type}</UiBadge>
@@ -217,7 +217,7 @@ function PairingRow({
             </UiBadge>
             <UiBadge>{CHAT_TYPE_LABELS[item.chat_type] ?? item.chat_type}</UiBadge>
           </div>
-          <div className="mt-2 truncate text-[15px] font-semibold text-(--text-strong)">
+          <div className="mt-1.5 truncate text-[14px] font-medium text-(--text-strong)">
             {pairingDisplayName(item)}
           </div>
           <div className="mt-1 truncate font-mono text-[12px] text-(--text-muted)">
@@ -276,12 +276,12 @@ function PairingRow({
         </div>
       </div>
 
-      <details className="group border-t border-(--divider-subtle-color) px-4">
+      <details className="group border-t border-(--divider-subtle-color) px-3">
         <summary className="flex h-9 cursor-pointer list-none items-center gap-1.5 text-[12px] font-medium text-(--text-muted) [&::-webkit-details-marker]:hidden">
           <span>技术详情</span>
           <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" />
         </summary>
-        <div className="grid gap-4 pb-4 md:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)_minmax(180px,0.6fr)]">
+        <div className="grid gap-3 pb-3 md:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)_minmax(180px,0.6fr)]">
           <PairingTechnicalField label="绑定键" value={bindingKey} />
           <div className="min-w-0">
             <div className="flex h-6 items-center gap-1.5 text-[11px] font-semibold text-(--text-soft)">

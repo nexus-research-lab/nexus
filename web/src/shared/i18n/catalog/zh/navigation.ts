@@ -109,7 +109,7 @@ export const zhNavigationMessages = {
   "launcher.tour_handoff_description": "不确定找谁时，让主智能体帮你分发任务。",
   "launcher.tour_enter_app_title": "进入工作台",
   "launcher.tour_enter_app_description": "进入工作台管理聊天、联系人和能力配置。",
-  "onboarding.guide_center_description": "重看关键页面导览，快速找回当前功能入口与使用方式。",
+  "onboarding.guide_center_description": "选择一个区域，查看它的操作入口。",
   "login.title": "登录 Nexus",
   "login.username": "用户名",
   "login.password": "密码",

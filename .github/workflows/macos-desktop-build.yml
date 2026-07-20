@@ -80,7 +80,10 @@ jobs:
           NEXUS_DESKTOP_PACKAGE_SKIP_SMOKE: "1"
         run: |
           scripts/desktop/package-macos-app.sh
-          shasum -a 256 -c "${RUNNER_TEMP}"/macos-package-check/Nexus-macos-*.dmg.sha256
+          (
+            cd "${RUNNER_TEMP}/macos-package-check"
+            shasum -a 256 -c Nexus-macos-*.dmg.sha256
+          )
           node - <<'NODE'
           const fs = require("fs");
           const path = require("path");

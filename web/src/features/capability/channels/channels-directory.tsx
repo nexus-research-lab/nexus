@@ -62,7 +62,6 @@ export function ChannelsDirectory() {
               count: controller.channels.length || 6,
             })}
             leading={<MessageCircle className="h-4 w-4" />}
-            subtitle={t("capability.channels_subtitle")}
             title={t("capability.channels")}
             trailing={(
               <WorkspaceSurfaceToolbarAction
@@ -118,7 +117,7 @@ export function ChannelsDirectory() {
                 })}
                 title={t("capability.channels_section_title")}
               />
-              <div className="grid grid-cols-1 gap-x-12 gap-y-4 md:grid-cols-2">
+              <div className="grid grid-cols-1 gap-x-8 gap-y-2 md:grid-cols-2">
                 {controller.visibleChannels.map((item) => (
                   <ChannelCard
                     item={item}

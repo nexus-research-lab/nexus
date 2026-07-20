@@ -33,11 +33,22 @@ request_app_exit() {
     return 0
   fi
 
-  "${APP_EXECUTABLE}" --nexus-desktop-exit >/dev/null 2>&1 || kill "${APP_PID}" >/dev/null 2>&1 || true
+  local exit_command_status=0
+  "${APP_EXECUTABLE}" --nexus-desktop-exit >/dev/null 2>&1 || exit_command_status=$?
   local started_at
   started_at="$(date +%s)"
   while kill -0 "${APP_PID}" >/dev/null 2>&1; do
-    if (( "$(date +%s)" - started_at >= 20 )); then
+    if (( "$(date +%s)" - started_at >= 5 )); then
+      echo "smoke: --nexus-desktop-exit did not stop app (status=${exit_command_status}); sending SIGTERM" >&2
+      kill -TERM "${APP_PID}" >/dev/null 2>&1 || true
+      break
+    fi
+    sleep 0.2
+  done
+
+  started_at="$(date +%s)"
+  while kill -0 "${APP_PID}" >/dev/null 2>&1; do
+    if (( "$(date +%s)" - started_at >= 15 )); then
       return 1
     fi
     sleep 0.2

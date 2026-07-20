@@ -13,8 +13,15 @@ func TestChatErrorDetailExplainsSubscriptionQuota(t *testing.T) {
 		UsedTokens:  200000,
 		LimitTokens: 200000,
 	})
-	if !strings.Contains(message, "Token 额度已用完") || !strings.Contains(message, "升级套餐") {
-		t.Fatalf("额度错误提示不明确: %q", message)
+	for _, want := range []string{
+		"当前账号本月的订阅额度已全部用尽",
+		"新的 Agent 请求",
+		"输出长度限制",
+		"升级套餐",
+	} {
+		if !strings.Contains(message, want) {
+			t.Fatalf("额度错误提示缺少 %q: %q", want, message)
+		}
 	}
 }
 

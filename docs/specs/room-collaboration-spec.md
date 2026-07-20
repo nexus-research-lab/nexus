@@ -270,7 +270,7 @@ Checkpoint 记录公区和私域实际消费边界。成功完成或明确 no-re
 
 - Room Skill 的具体业务规则。
 - Goal、定时任务、subagent task 或 connector 的生命周期。
-- 前端具体 CSS、组件和交互实现；时间线的顺序、guide 展示和消息密度规则见 [消息处理规范](./message-processing-spec.md) 与 [前端设计规范](./frontend-design-spec.md)。
+- 前端具体 CSS、组件和交互实现；时间线的顺序、guide 展示和消息密度规则见 [消息处理规范](./message-processing-spec.md) 与 [Nexus Design System](../../design.md)。
 - 多用户权限模型和跨 Room 的协作。
 
 一句话：public feed 记录共享事实，directed message 记录定向事实，wake 决定何时运行，reply route 决定 final reply 去哪里；业务意义由 Skill 负责。

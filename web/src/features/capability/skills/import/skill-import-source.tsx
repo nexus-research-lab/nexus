@@ -43,14 +43,14 @@ function SkillImportModeTabs({
   onSelectMode,
 }: Pick<SkillImportSourceProps, "importing" | "mode" | "onSelectMode">) {
   return (
-    <div className="inline-flex rounded-[12px] border border-(--divider-subtle-color) p-1">
+    <div className="inline-flex rounded-[10px] border border-(--divider-subtle-color) p-1">
       {SKILL_IMPORT_MODES.map((option) => {
         const Icon = MODE_ICONS[option.key];
         const isActive = mode === option.key;
         return (
           <button
             className={cn(
-              "inline-flex min-h-8 items-center gap-1.5 rounded-[9px] px-3 text-xs font-semibold transition-[background,color]",
+              "inline-flex min-h-8 items-center gap-1.5 rounded-[7px] px-3 text-xs font-medium transition-[background,color]",
               isActive
                 ? "bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-(--primary)"
                 : "text-(--text-muted) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
@@ -128,18 +128,18 @@ function LocalSkillImportSource({
   importing,
 }: SourceViewProps) {
   return (
-    <div className="rounded-[12px] border border-(--divider-subtle-color) px-4 py-4">
+    <div className="rounded-[10px] border border-(--divider-subtle-color) px-3 py-3">
       <div className="flex items-start gap-3">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-[color:color-mix(in_srgb,var(--primary)_9%,transparent)] text-(--primary)">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[7px] bg-[color:color-mix(in_srgb,var(--primary)_9%,transparent)] text-(--primary)">
           <FolderUp className="h-4 w-4" />
         </div>
         <div className="min-w-0">
-          <h3 className="text-sm font-semibold text-(--text-strong)">上传 zip 包</h3>
-          <p className="mt-1 text-xs leading-5 text-(--text-muted)">
+          <h3 className="text-[13px] font-medium text-(--text-strong)">上传 zip 包</h3>
+          <p className="mt-1 text-[12px] leading-5 text-(--text-muted)">
             zip 内可以直接放一个 Skill 目录，也可以包含多层目录；系统会查找最靠近根部的 SKILL.md。
           </p>
           <UiButton
-            className="mt-4"
+            className="mt-3"
             disabled={importing}
             onClick={() => fileInputRef.current?.click()}
             size="sm"

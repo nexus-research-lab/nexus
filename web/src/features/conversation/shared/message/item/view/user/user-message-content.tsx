@@ -29,7 +29,7 @@ export function UserMessageContent({
   workspaceAgentId,
 }: UserMessageContentProps) {
   return (
-    <div className="nexus-chat-user-content-shell ml-auto flex w-fit max-w-full flex-col items-end rounded-2xl px-4 py-3">
+    <div className="nexus-chat-user-content-shell ml-auto flex w-fit max-w-full flex-col items-end rounded-[10px] px-3.5 py-2.5">
       {presentation.hasContent ? (
         <ContentRenderer
           className={cn(

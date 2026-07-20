@@ -101,13 +101,13 @@ export function SidebarExpandedPanel({
       >
         <SidebarNexusButton {...nexus} variant="panel" />
         <Link
-          className="block min-w-0 transition-transform duration-(--motion-duration-normal) hover:translate-y-[-0.5px]"
+          className="block min-w-0"
           data-tour-anchor={SIDEBAR_TOUR_ANCHORS.launcher}
           title={launcherLabel}
           to={AppRouteBuilders.launcher()}
         >
           <p
-            className="whitespace-nowrap text-[18px] uppercase tracking-[0.07em] text-(--text-default)"
+            className="whitespace-nowrap px-4 text-[20px] uppercase tracking-[0.5em] text-(--text-default)"
             style={{
               fontFamily: '"Panchang", var(--font-sans)',
               fontWeight: 200,
@@ -144,7 +144,7 @@ export function SidebarExpandedPanel({
 function CapabilityPanel() {
   return (
     <div
-      className="flex min-h-0 flex-1 flex-col px-2"
+      className="flex min-h-0 flex-1 flex-col"
       data-tour-anchor={SIDEBAR_TOUR_ANCHORS.capabilities_list}
     >
       <CapabilitySidebarPanel />

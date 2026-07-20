@@ -8,7 +8,7 @@ import { cn } from "@/shared/ui/class-name";
 
 type CatalogCardAlign = "start" | "center";
 type CatalogFooterJustify = "between" | "start" | "end" | "center";
-type CatalogTitleSize = "sm" | "md" | "lg" | "hero";
+type CatalogTitleSize = "sm" | "md" | "lg";
 type CatalogDescriptionSize = "sm" | "md";
 
 const HEADER_ALIGN_CLASSES: Record<CatalogCardAlign, string> = {
@@ -23,13 +23,12 @@ const FOOTER_JUSTIFY_CLASSES: Record<CatalogFooterJustify, string> = {
 };
 const TITLE_CLASSES: Record<CatalogTitleSize, string> = {
   sm: "text-base font-semibold",
-  md: "text-md font-bold",
-  lg: "text-lg font-bold",
-  hero: "text-4xl font-black leading-none sm:text-5xl",
+  md: "text-md font-semibold",
+  lg: "text-lg font-semibold",
 };
 const DESCRIPTION_CLASSES: Record<CatalogDescriptionSize, string> = {
   sm: "text-sm leading-[1.55]",
-  md: "text-base leading-8",
+  md: "text-base leading-6",
 };
 const LINE_CLAMP_CLASSES = {
   1: "line-clamp-1",
@@ -134,28 +133,5 @@ export function WorkspaceCatalogDescription({
     >
       {children}
     </p>
-  );
-}
-
-export function WorkspaceCatalogTag({
-  children,
-  className,
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <span
-      className={cn(
-        "inline-flex h-5 items-center rounded-full px-2 text-2xs font-medium leading-none text-(--text-default)",
-        className,
-      )}
-      style={{
-        background: "color-mix(in srgb, var(--surface-panel-subtle-background) 58%, transparent)",
-        border: "1px solid color-mix(in srgb, var(--surface-panel-subtle-border) 72%, transparent)",
-      }}
-    >
-      {children}
-    </span>
   );
 }

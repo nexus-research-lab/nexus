@@ -2,7 +2,6 @@ import {
   MessageCircle,
   Trash2,
 } from "lucide-react";
-import type { ReactNode } from "react";
 
 import { UiMarkdownContent } from "@/shared/ui/markdown/markdown-content";
 import { cn } from "@/shared/ui/class-name";
@@ -10,43 +9,17 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiAgentAvatar, UiRoomAvatar } from "@/shared/ui/display/avatar";
 import { UiBadge, UiCounterBadge } from "@/shared/ui/display/badge";
 import { UiIconButton } from "@/shared/ui/button/button";
-import { UiSearchInput } from "@/shared/ui/form/form-control";
 import { UiListRow } from "@/shared/ui/list/list-row";
 import type { LauncherAgentSummary } from "@/types/app/launcher";
 
 import type { SidebarConversationItem } from "./sidebar-conversation-model";
-
-export function SidebarSearchField({
-  action,
-  onChange: onChange,
-  placeholder,
-  value,
-}: {
-  action?: ReactNode;
-  onChange: (value: string) => void;
-  placeholder: string;
-  value: string;
-}) {
-  return (
-    <div className="flex items-center gap-2 px-2.5 pb-1.5">
-      <UiSearchInput
-        className="flex-1"
-        inputClassName="text-[13px]"
-        onChange={onChange}
-        placeholder={placeholder}
-        value={value}
-      />
-      {action ? <div className="shrink-0">{action}</div> : null}
-    </div>
-  );
-}
 
 export function SidebarListLoadingRows({ count = 4 }: { count?: number }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-0.5 px-2 pb-2">
       {Array.from({ length: count }, (_, index) => (
         <div
-          className="flex min-h-[58px] w-full items-center gap-2.5 rounded-[13px] px-2.5 py-2"
+          className="flex min-h-[54px] w-full items-center gap-2.5 rounded-[8px] px-2 py-1.5"
           key={index}
         >
           <span className="h-8 w-8 shrink-0 animate-pulse rounded-[9px] bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_74%,transparent)]" />
@@ -186,7 +159,7 @@ export function ConversationRow({
   return (
     <UiListRow
       active={isActive}
-      className="min-h-[58px] gap-2.5 rounded-[13px] px-2.5 py-2"
+      className="min-h-[54px] gap-2.5 rounded-[8px] px-2 py-1.5"
       description={item.summary ? <ConversationRowSummary item={item} /> : undefined}
       leading={<ConversationRowLeading isWorking={isWorking} item={item} />}
       meta={item.timeLabel || onDelete ? (
@@ -238,7 +211,7 @@ export function ContactRow({
   return (
     <UiListRow
       active={isActive}
-      className="min-h-[58px] gap-2.5 rounded-[13px] px-2.5 py-2"
+      className="min-h-[54px] gap-2.5 rounded-[8px] px-2 py-1.5"
       description={subtitle}
       leading={<UiAgentAvatar avatar={agent.avatar} isWorking={isWorking} name={agent.name} size="sm" />}
       meta={status}

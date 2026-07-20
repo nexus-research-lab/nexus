@@ -241,7 +241,7 @@ function TaskExpirationField({
 export function TaskBasicsAdvanced(props: TaskBasicsAdvancedProps) {
   const { actions, form } = props;
   return (
-    <details className="group rounded-[12px] border border-(--divider-subtle-color) px-3 py-2.5">
+    <details className="group rounded-[10px] border border-(--divider-subtle-color) px-3 py-2.5">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-medium text-(--text-default)">
         <span className="inline-flex items-center gap-2">
           <Settings2 className="h-3.5 w-3.5 text-(--icon-default)" />

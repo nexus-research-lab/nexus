@@ -88,7 +88,7 @@ function ConnectorFeatureList({
   }
   return (
     <section>
-      <h2 className="mb-3 text-[16px] font-semibold tracking-[-0.025em] text-(--text-strong)">
+      <h2 className="mb-2 text-[15px] font-medium text-(--text-strong)">
         包含内容
       </h2>
       <UiPanel
@@ -99,7 +99,7 @@ function ConnectorFeatureList({
       >
         {features.map((feature) => (
           <UiListRow
-            className="rounded-none"
+            className="min-h-[56px] rounded-none"
             description={feature.description}
             key={feature.name}
             leading={(
@@ -149,8 +149,8 @@ export function ConnectorDetailContent({
   state: ConnectorState;
 }) {
   return (
-    <div className="mt-8 space-y-6">
-      <p className="text-[15px] leading-7 text-(--text-default)">
+    <div className="mt-6 space-y-5">
+      <p className="text-[13px] leading-5 text-(--text-default)">
         连接后，Agent 会通过安全的 MCP 协议访问此应用。你可以在需要时断开连接，OAuth 类型连接器也可以在原应用侧撤销授权。
       </p>
       <ConnectorStatusBadges detail={detail} state={state} />

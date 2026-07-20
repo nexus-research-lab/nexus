@@ -30,10 +30,8 @@ export function MessageAvatar({
   const resolvedAvatarUrl = getIconAvatarSrc(avatarUrl);
   const shellClassName = cn(
     "overflow-hidden border border-(--surface-avatar-border) bg-(--surface-avatar-background) shadow-(--surface-avatar-shadow)",
-    "transition-[transform,box-shadow,border-color] duration-(--motion-duration-fast) ease-out",
-    "motion-safe:hover:-translate-y-[1px] motion-safe:hover:scale-[1.06]",
+    "transition-[border-color,background-color] duration-(--motion-duration-fast) ease-out",
     "motion-safe:hover:border-(--surface-interactive-active-border)",
-    "motion-safe:hover:shadow-[0_10px_22px_rgba(15,23,42,0.14)]",
     AVATAR_SIZE_CLASS_MAP[size],
     className,
   );
@@ -80,7 +78,7 @@ function MessageAvatarContent({
   return (
     <img
       alt=""
-      className="h-full w-full object-cover transition-transform duration-(--motion-duration-fast) ease-out motion-safe:hover:scale-[1.04]"
+      className="h-full w-full object-cover"
       src={avatarUrl}
     />
   );

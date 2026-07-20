@@ -414,10 +414,10 @@
   grid-template-columns: 280px minmax(0, 1fr);
   margin-top: 36px;
   overflow: hidden;
-  border: 1px solid var(--material-shell-border, rgba(255, 255, 255, 0.48));
+  border: 1px solid var(--landing-line);
   border-radius: 12px;
-  background: var(--material-shell-background, rgba(255, 255, 255, 0.46));
-  box-shadow: var(--material-shell-shadow, var(--landing-shadow));
+  background: var(--card, rgba(255, 255, 255, 0.46));
+  box-shadow: var(--landing-shadow);
 }
 
 .landing-real-sidebar,
@@ -899,9 +899,9 @@
 }
 
 .landing-ledger {
-  border: 1px solid rgba(255, 255, 255, 0.48);
+  border: 1px solid var(--landing-line);
   border-radius: 28px;
-  background: var(--material-panel-background, linear-gradient(180deg, rgba(255, 255, 255, 0.56), rgba(247, 250, 255, 0.28) 100%));
+  background: var(--card, rgba(255, 255, 255, 0.56));
   box-shadow: var(--landing-shadow);
 }
 

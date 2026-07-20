@@ -35,7 +35,7 @@ func (e QuotaExceededError) Unwrap() error {
 }
 
 func (e QuotaExceededError) ClientMessage() string {
-	return "本月订阅套餐 Token 额度已用完，请升级套餐或等待下个计费周期重置。"
+	return "当前账号本月的订阅额度已全部用尽，暂时无法发起新的 Agent 请求。这是账号级月度额度，不是单条回复的输出长度限制。请升级套餐，或等待下个计费周期重置后再继续使用。"
 }
 
 type Service struct {

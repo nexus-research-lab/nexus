@@ -65,7 +65,7 @@ export function LauncherConsole({
           <span
             className="mb-3 text-[32px] font-semibold text-foreground"
             style={{
-              fontFamily: '"striper", var(--font-sans)',
+              fontFamily: '"Striper", var(--font-sans)',
               fontWeight: 400,
             }}
           >

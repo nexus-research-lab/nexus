@@ -33,7 +33,7 @@ export function ExternalResultRow({
 
   return (
     <UiListRow
-      className="min-h-[72px] rounded-[14px] px-2 py-1.5"
+      className="min-h-[64px] rounded-[8px] px-2 py-1"
       leading={<ExternalResultIcon />}
       onClick={onPreview}
       right={(
@@ -45,15 +45,15 @@ export function ExternalResultRow({
     >
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="truncate text-[15px] font-semibold tracking-[-0.02em] text-(--text-strong)">
+          <span className="truncate text-[14px] font-medium text-(--text-strong)">
             {model.title}
           </span>
           <UiBadge size="xs">{model.sourceLabel}</UiBadge>
         </div>
-        <div className="mt-0.5 truncate text-[13px] leading-5 text-(--text-muted)">
+        <div className="mt-0.5 truncate text-[12px] leading-[1.125rem] text-(--text-muted)">
           {model.description}
         </div>
-        <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] leading-4 text-(--text-soft)">
+        <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[10px] leading-4 text-(--text-soft)">
           <span className="truncate">{model.sourceReference}</span>
           <span className="shrink-0">·</span>
           <span className="shrink-0">{model.installLabel}</span>
@@ -65,8 +65,8 @@ export function ExternalResultRow({
 
 function ExternalResultIcon() {
   return (
-    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[12px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_70%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_9%,var(--surface-panel-background))] text-sky-600 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-      <Puzzle className="h-4 w-4" />
+    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] border border-(--divider-subtle-color) bg-(--surface-panel-background) text-sky-600">
+      <Puzzle className="h-3.5 w-3.5" />
     </span>
   );
 }

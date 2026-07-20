@@ -34,7 +34,7 @@ function downloadRoomCollaborationMechanism() {
 export function SkillImportGuide({ importing }: { importing: boolean }) {
   return (
     <aside className="space-y-3">
-      <div className="rounded-[12px] border border-(--divider-subtle-color) px-4 py-3">
+      <div className="rounded-[10px] border border-(--divider-subtle-color) px-3 py-3">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-sm font-semibold text-(--text-strong)">
             <Info className="h-4 w-4 text-(--primary)" />
@@ -61,7 +61,7 @@ export function SkillImportGuide({ importing }: { importing: boolean }) {
           <li>Git 导入会保存 URL、branch、path 和 commit，后续检查更新会按这些信息比对远端版本。</li>
         </ul>
       </div>
-      <pre className="max-h-[260px] overflow-auto rounded-[12px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_92%,black_2%)] p-3 text-[11px] leading-5 text-(--text-default)">
+      <pre className="max-h-[260px] overflow-auto rounded-[8px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_92%,black_2%)] p-3 text-[11px] leading-5 text-(--text-default)">
         {SKILL_FRONTMATTER_EXAMPLE}
       </pre>
     </aside>

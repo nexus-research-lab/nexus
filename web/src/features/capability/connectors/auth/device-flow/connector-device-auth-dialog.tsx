@@ -85,7 +85,7 @@ export function ConnectorDeviceAuthDialog({
             <UiPanel padding="md">
               <div className="text-[11px] font-semibold uppercase text-(--text-soft)">GitHub code</div>
               <div className="mt-2 flex items-center gap-3">
-                <code className="min-w-0 flex-1 select-all break-all rounded-[14px] bg-transparent px-3 py-2.5 text-center text-[24px] font-black text-(--text-strong)">
+                <code className="min-w-0 flex-1 select-all break-all rounded-[10px] bg-transparent px-3 py-2.5 text-center text-[22px] font-semibold text-(--text-strong)">
                   {session.user_code}
                 </code>
                 <UiIconButton

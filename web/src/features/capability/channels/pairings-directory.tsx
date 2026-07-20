@@ -76,7 +76,7 @@ export function PairingsDirectory() {
         <div
           className={cn(
             WORKSPACE_DETAIL_PAGE_CLASS_NAME,
-            "max-w-[1280px] py-5",
+            "max-w-[1280px] py-4",
           )}
         >
           {controller.loading && controller.items.length === 0 ? (
@@ -153,16 +153,16 @@ function PairingEmptyState({
   onCreate: () => void;
 }) {
   return (
-    <div className="flex min-h-[360px] flex-col items-center justify-center border-y border-(--divider-subtle-color) px-6 text-center">
-      <ShieldCheck className="h-8 w-8 text-(--icon-default)" />
-      <h2 className="mt-4 text-[17px] font-semibold text-(--text-strong)">
+    <div className="flex min-h-[260px] flex-col items-center justify-center border-y border-(--divider-subtle-color) px-6 text-center">
+      <ShieldCheck className="h-7 w-7 text-(--icon-default)" />
+      <h2 className="mt-3 text-[15px] font-medium text-(--text-strong)">
         还没有配对
       </h2>
-      <p className="mt-1 max-w-[460px] text-[13px] leading-6 text-(--text-muted)">
+      <p className="mt-1 max-w-[460px] text-[12px] leading-5 text-(--text-muted)">
         外部 IM 用户或群首次发消息后会在这里等待授权，也可以手动新增配对。
       </p>
       <UiButton
-        className="mt-5"
+        className="mt-4"
         disabled={!canCreate || busy}
         onClick={onCreate}
         title={canCreate ? "新增 IM 配对" : "需要先创建智能体"}
@@ -179,7 +179,7 @@ function PairingEmptyState({
 
 function PairingNoResults({ onClear }: { onClear: () => void }) {
   return (
-    <div className="flex min-h-[280px] flex-col items-center justify-center border-y border-(--divider-subtle-color) px-6 text-center">
+    <div className="flex min-h-[220px] flex-col items-center justify-center border-y border-(--divider-subtle-color) px-6 text-center">
       <SearchX className="h-7 w-7 text-(--icon-muted)" />
       <h2 className="mt-3 text-[15px] font-semibold text-(--text-strong)">
         没有符合条件的配对

@@ -112,7 +112,7 @@ export const enNavigationMessages = {
   "launcher.tour_handoff_description": "Not sure who to ask? Let the main assistant route it.",
   "launcher.tour_enter_app_title": "Enter Workspace",
   "launcher.tour_enter_app_description": "Manage chats, contacts, and capabilities from the workspace.",
-  "onboarding.guide_center_description": "Replay the key product tours and quickly find where each workflow starts.",
+  "onboarding.guide_center_description": "Choose an area to review its controls.",
   "login.title": "Sign in to Nexus",
   "login.username": "Username",
   "login.password": "Password",

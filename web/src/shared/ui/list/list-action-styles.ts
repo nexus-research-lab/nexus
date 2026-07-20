@@ -13,7 +13,7 @@ interface UiListActionStyleOptions {
 }
 
 const LIST_ACTION_BASE_CLASS_NAME =
-  "inline-flex shrink-0 items-center justify-center border border-transparent text-(--icon-muted) transition-[background,border-color,color,opacity,transform] duration-(--motion-duration-fast) focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_22%,transparent)] disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)";
+  "inline-flex shrink-0 items-center justify-center border border-transparent text-(--icon-muted) transition-[background,border-color,color,opacity] duration-(--motion-duration-fast) focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_22%,transparent)] disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)";
 
 const LIST_ACTION_SIZE_CLASS_MAP: Record<UiListActionSize, string> = {
   xs: "h-6 w-6",
@@ -28,9 +28,9 @@ const LIST_ACTION_SHAPE_CLASS_MAP: Record<UiListActionShape, string> = {
 
 const LIST_ACTION_TONE_CLASS_MAP: Record<UiListActionTone, string> = {
   default:
-    "hover:-translate-y-[1px] hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default)",
+    "hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default)",
   danger:
-    "hover:-translate-y-[1px] hover:border-[color:color-mix(in_srgb,var(--destructive)_18%,var(--divider-subtle-color))] hover:bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)] hover:text-(--destructive)",
+    "hover:border-[color:color-mix(in_srgb,var(--destructive)_18%,var(--divider-subtle-color))] hover:bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)] hover:text-(--destructive)",
 };
 
 const LIST_ACTION_VISIBILITY_CLASS_MAP: Record<UiListActionVisibility, string> = {

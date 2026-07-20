@@ -77,7 +77,7 @@ function AssistantStatsTrailing({
     return (
       <span
         aria-hidden="true"
-        className="ml-auto mt-[2px] inline-flex h-1.5 w-1.5 shrink-0 rounded-full bg-(--text-soft) opacity-70 animate-pulse"
+        className="ml-auto mt-[2px] inline-flex h-1.5 w-1.5 shrink-0 rounded-full bg-(--text-soft) opacity-70"
       />
     );
   }

@@ -48,56 +48,16 @@
   --scrollbar-thumb: rgba(95, 108, 124, 0.22);
   --scrollbar-thumb-hover: rgba(95, 108, 124, 0.34);
   --ambient-page-pattern-size: var(--nexus-page-pattern-size);
-  --ambient-page-background:
-    linear-gradient(180deg, var(--nexus-page-background-light) 0%, var(--nexus-page-background-light) 100%);
   --ambient-page-pattern:
     var(--nexus-page-pattern-light);
-  --ambient-stage-background:
-    radial-gradient(42% 42% at 12% 8%, rgba(135, 183, 255, 0.1), transparent 72%),
-    radial-gradient(34% 34% at 86% 82%, rgba(90, 203, 194, 0.07), transparent 74%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.76), rgba(239, 243, 244, 0.86));
-  --ambient-stage-grid:
-    linear-gradient(rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.22)),
-    linear-gradient(90deg, rgba(122, 135, 152, 0.05) 1px, transparent 1px),
-    linear-gradient(rgba(122, 135, 152, 0.05) 1px, transparent 1px);
-
-  --material-shell-background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.4), rgba(248, 251, 255, 0.2) 100%);
-  --material-shell-border: rgba(255, 255, 255, 0.48);
-  --material-shell-shadow:
-    0 24px 48px rgba(94, 108, 127, 0.14),
-    0 2px 10px rgba(94, 108, 127, 0.06);
-
-  --material-panel-background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.56), rgba(247, 250, 255, 0.28) 100%);
   --material-panel-border: rgba(255, 255, 255, 0.54);
   --material-panel-shadow:
     0 18px 42px rgba(94, 108, 127, 0.12),
     0 2px 10px rgba(94, 108, 127, 0.05);
-  --material-panel-inner:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.36), rgba(255, 255, 255, 0.1) 46%, rgba(255, 255, 255, 0.03) 100%);
-  --material-panel-highlight: rgba(255, 255, 255, 0.46);
-  --material-panel-glow:
-    radial-gradient(64% 46% at 14% 4%, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0) 62%),
-    radial-gradient(22% 20% at 86% 96%, rgba(140, 176, 252, 0.05), rgba(140, 176, 252, 0) 72%);
-
-  --material-inset-background:
-    linear-gradient(180deg, rgba(250, 252, 255, 0.64), rgba(241, 246, 251, 0.5) 100%);
-  --material-inset-border: rgba(255, 255, 255, 0.24);
-  --material-inset-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.38),
-    inset 0 -1px 0 rgba(133, 146, 164, 0.06);
 
   --material-canvas-background:
     linear-gradient(180deg, rgba(251, 253, 255, 0.68), rgba(246, 249, 253, 0.6) 100%);
   --material-canvas-border: rgba(255, 255, 255, 0.32);
-
-  --material-card-background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.58), rgba(247, 250, 255, 0.42) 100%);
-  --material-card-border: rgba(255, 255, 255, 0.3);
-  --material-card-shadow:
-    0 10px 24px rgba(94, 108, 127, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.22);
 
   --material-chip-background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.62), rgba(247, 250, 255, 0.46) 100%);
@@ -113,19 +73,11 @@
     0 26px 64px rgba(66, 82, 104, 0.18),
     0 4px 18px rgba(66, 82, 104, 0.08);
 
-  --material-dialog-surface-background:
-    linear-gradient(180deg, rgba(246, 247, 249, 0.99), rgba(238, 241, 245, 0.985) 100%);
   --material-dialog-surface-border: rgba(199, 211, 225, 0.72);
   --material-dialog-surface-shadow:
     0 22px 58px rgba(66, 82, 104, 0.16),
     0 3px 12px rgba(66, 82, 104, 0.08);
   --dialog-backdrop-color: rgba(23, 33, 44, 0.16);
-  --material-dialog-card-background:
-    linear-gradient(180deg, rgba(249, 250, 252, 0.82), rgba(239, 242, 246, 0.76) 100%);
-  --material-dialog-card-border: rgba(199, 211, 225, 0.58);
-  --material-dialog-card-active-background:
-    linear-gradient(180deg, rgba(99, 121, 255, 0.16), rgba(223, 227, 248, 0.9) 100%);
-  --material-dialog-card-active-border: rgba(99, 121, 255, 0.26);
 
   --material-input-background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(244, 247, 252, 0.88) 100%);
@@ -160,8 +112,8 @@
   --icon-default: rgba(70, 84, 101, 0.78);
   --icon-muted: rgba(110, 123, 139, 0.62);
 
-  --interaction-hover-background: rgba(255, 255, 255, 0.34);
-  --interaction-hover-border: rgba(255, 255, 255, 0.42);
+  --interaction-hover-background: rgba(122, 135, 152, 0.10);
+  --interaction-hover-border: rgba(122, 135, 152, 0.22);
   --interaction-active-background: rgba(255, 255, 255, 0.48);
   --interaction-active-border: rgba(104, 123, 255, 0.22);
 
@@ -212,56 +164,16 @@
   --scrollbar-thumb: rgba(177, 194, 216, 0.16);
   --scrollbar-thumb-hover: rgba(177, 194, 216, 0.28);
 
-  --ambient-page-background:
-    linear-gradient(180deg, var(--nexus-page-background-dark) 0%, var(--nexus-page-background-dark) 100%);
   --ambient-page-pattern:
     var(--nexus-page-pattern-dark);
-  --ambient-stage-background:
-    radial-gradient(42% 42% at 12% 8%, rgba(92, 112, 255, 0.08), transparent 74%),
-    radial-gradient(34% 34% at 88% 82%, rgba(67, 205, 186, 0.05), transparent 76%),
-    linear-gradient(180deg, rgba(12, 18, 26, 0.94), rgba(10, 15, 22, 0.99));
-  --ambient-stage-grid:
-    linear-gradient(rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.04)),
-    linear-gradient(90deg, rgba(171, 189, 214, 0.05) 1px, transparent 1px),
-    linear-gradient(rgba(171, 189, 214, 0.05) 1px, transparent 1px);
-
-  --material-shell-background:
-    linear-gradient(180deg, rgba(24, 32, 44, 0.76), rgba(12, 17, 25, 0.58) 100%);
-  --material-shell-border: rgba(182, 199, 223, 0.14);
-  --material-shell-shadow:
-    0 28px 56px rgba(0, 5, 12, 0.42),
-    0 4px 18px rgba(0, 5, 12, 0.2);
-
-  --material-panel-background:
-    linear-gradient(180deg, rgba(22, 30, 42, 0.86), rgba(12, 18, 26, 0.64) 100%);
   --material-panel-border: rgba(182, 199, 223, 0.16);
   --material-panel-shadow:
     0 22px 48px rgba(0, 5, 12, 0.34),
     0 4px 16px rgba(0, 5, 12, 0.16);
-  --material-panel-inner:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02) 48%, rgba(255, 255, 255, 0) 100%);
-  --material-panel-highlight: rgba(255, 255, 255, 0.1);
-  --material-panel-glow:
-    radial-gradient(64% 46% at 14% 4%, rgba(176, 194, 255, 0.04), rgba(176, 194, 255, 0) 62%),
-    radial-gradient(22% 20% at 86% 96%, rgba(67, 205, 186, 0.035), rgba(67, 205, 186, 0) 72%);
-
-  --material-inset-background:
-    linear-gradient(180deg, rgba(13, 19, 28, 0.76), rgba(10, 15, 22, 0.64) 100%);
-  --material-inset-border: rgba(182, 199, 223, 0.1);
-  --material-inset-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.04),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.14);
 
   --material-canvas-background:
     linear-gradient(180deg, rgba(13, 19, 28, 0.82), rgba(10, 15, 22, 0.74) 100%);
   --material-canvas-border: rgba(182, 199, 223, 0.12);
-
-  --material-card-background:
-    linear-gradient(180deg, rgba(24, 31, 42, 0.76), rgba(14, 19, 27, 0.66) 100%);
-  --material-card-border: rgba(182, 199, 223, 0.12);
-  --material-card-shadow:
-    0 12px 24px rgba(0, 5, 12, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
 
   --material-chip-background:
     linear-gradient(180deg, rgba(26, 34, 47, 0.82), rgba(17, 23, 33, 0.72) 100%);
@@ -277,19 +189,11 @@
     0 30px 80px rgba(0, 5, 12, 0.46),
     0 8px 26px rgba(0, 5, 12, 0.22);
 
-  --material-dialog-surface-background:
-    linear-gradient(180deg, rgba(25, 32, 43, 0.99), rgba(14, 20, 29, 0.985) 100%);
   --material-dialog-surface-border: rgba(182, 199, 223, 0.26);
   --material-dialog-surface-shadow:
     0 26px 68px rgba(0, 5, 12, 0.5),
     0 6px 18px rgba(0, 5, 12, 0.24);
   --dialog-backdrop-color: rgba(2, 6, 14, 0.46);
-  --material-dialog-card-background:
-    linear-gradient(180deg, rgba(30, 38, 50, 0.82), rgba(20, 27, 38, 0.76) 100%);
-  --material-dialog-card-border: rgba(182, 199, 223, 0.18);
-  --material-dialog-card-active-background:
-    linear-gradient(180deg, rgba(142, 164, 255, 0.18), rgba(21, 28, 38, 0.92) 100%);
-  --material-dialog-card-active-border: rgba(142, 164, 255, 0.28);
 
   --material-input-background:
     linear-gradient(180deg, rgba(27, 35, 47, 0.92), rgba(16, 22, 31, 0.88) 100%);
@@ -372,56 +276,16 @@
   --scrollbar-thumb: rgba(189, 205, 226, 0.16);
   --scrollbar-thumb-hover: rgba(189, 205, 226, 0.28);
 
-  --ambient-page-background:
-    linear-gradient(180deg, var(--nexus-page-background-rain) 0%, var(--nexus-page-background-rain) 100%);
   --ambient-page-pattern:
     var(--nexus-page-pattern-rain);
-  --ambient-stage-background:
-    radial-gradient(42% 42% at 12% 8%, rgba(154, 183, 255, 0.08), transparent 74%),
-    radial-gradient(34% 34% at 88% 82%, rgba(116, 217, 203, 0.05), transparent 76%),
-    linear-gradient(180deg, rgba(57, 68, 80, 0.92), rgba(39, 49, 60, 0.97));
-  --ambient-stage-grid:
-    linear-gradient(rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.04)),
-    linear-gradient(90deg, rgba(171, 190, 214, 0.05) 1px, transparent 1px),
-    linear-gradient(rgba(171, 190, 214, 0.05) 1px, transparent 1px);
-
-  --material-shell-background:
-    linear-gradient(180deg, rgba(71, 82, 95, 0.74), rgba(45, 55, 67, 0.56) 100%);
-  --material-shell-border: rgba(205, 220, 240, 0.14);
-  --material-shell-shadow:
-    0 28px 56px rgba(9, 15, 24, 0.36),
-    0 4px 18px rgba(9, 15, 24, 0.18);
-
-  --material-panel-background:
-    linear-gradient(180deg, rgba(72, 83, 96, 0.82), rgba(45, 55, 67, 0.66) 100%);
   --material-panel-border: rgba(205, 220, 240, 0.16);
   --material-panel-shadow:
     0 24px 48px rgba(9, 15, 24, 0.32),
     0 4px 16px rgba(9, 15, 24, 0.14);
-  --material-panel-inner:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02) 48%, rgba(255, 255, 255, 0) 100%);
-  --material-panel-highlight: rgba(255, 255, 255, 0.1);
-  --material-panel-glow:
-    radial-gradient(64% 46% at 14% 4%, rgba(223, 232, 255, 0.04), rgba(223, 232, 255, 0) 62%),
-    radial-gradient(22% 20% at 86% 96%, rgba(116, 217, 203, 0.035), rgba(116, 217, 203, 0) 72%);
-
-  --material-inset-background:
-    linear-gradient(180deg, rgba(40, 49, 60, 0.72), rgba(34, 42, 51, 0.6) 100%);
-  --material-inset-border: rgba(205, 220, 240, 0.1);
-  --material-inset-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.04),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.14);
 
   --material-canvas-background:
     linear-gradient(180deg, rgba(42, 51, 62, 0.78), rgba(33, 42, 52, 0.7) 100%);
   --material-canvas-border: rgba(205, 220, 240, 0.12);
-
-  --material-card-background:
-    linear-gradient(180deg, rgba(71, 82, 95, 0.74), rgba(44, 54, 66, 0.62) 100%);
-  --material-card-border: rgba(205, 220, 240, 0.12);
-  --material-card-shadow:
-    0 12px 24px rgba(9, 15, 24, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
 
   --material-chip-background:
     linear-gradient(180deg, rgba(74, 86, 99, 0.8), rgba(49, 59, 71, 0.7) 100%);
@@ -437,19 +301,11 @@
     0 32px 84px rgba(9, 15, 24, 0.42),
     0 8px 26px rgba(9, 15, 24, 0.22);
 
-  --material-dialog-surface-background:
-    linear-gradient(180deg, rgba(76, 87, 100, 0.99), rgba(50, 60, 72, 0.985) 100%);
   --material-dialog-surface-border: rgba(205, 220, 240, 0.26);
   --material-dialog-surface-shadow:
     0 26px 68px rgba(9, 15, 24, 0.44),
     0 6px 18px rgba(9, 15, 24, 0.22);
   --dialog-backdrop-color: rgba(9, 15, 24, 0.42);
-  --material-dialog-card-background:
-    linear-gradient(180deg, rgba(78, 89, 102, 0.8), rgba(56, 67, 80, 0.74) 100%);
-  --material-dialog-card-border: rgba(205, 220, 240, 0.18);
-  --material-dialog-card-active-background:
-    linear-gradient(180deg, rgba(154, 183, 255, 0.2), rgba(52, 63, 75, 0.9) 100%);
-  --material-dialog-card-active-border: rgba(154, 183, 255, 0.28);
 
   --material-input-background:
     linear-gradient(180deg, rgba(53, 63, 76, 0.9), rgba(40, 49, 60, 0.86) 100%);
@@ -509,12 +365,15 @@
 :root[data-theme="light"],
 :root[data-theme="dark"],
 :root[data-theme="rain"] {
-  --surface-body-background: var(--ambient-page-pattern), var(--ambient-page-background);
+  --surface-body-background: var(--ambient-page-pattern);
 
+  /* 中文注释：列表和侧栏复用同一层轻抬升表面，避免引用不存在的旧 token。 */
+  --surface-elevated-background: var(--card);
   --surface-inset-background: transparent;
   --surface-inset-border: var(--divider-subtle-color);
   --surface-inset-shadow: none;
-  --surface-panel-background: var(--material-panel-background);
+  /* 中文注释：工作面使用单层卡片填充，页面底色保持纯色，纹理与功能表面各自独立。 */
+  --surface-panel-background: var(--card);
   --surface-panel-border: var(--material-panel-border);
   --surface-panel-shadow: var(--material-panel-shadow);
   --surface-panel-subtle-background: transparent;
@@ -636,14 +495,17 @@
   --font-size-2xl: 42px;
 
   --font-sans:
-    "Manrope",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
     "PingFang SC",
     "Hiragino Sans GB",
     "Microsoft YaHei",
     "Noto Sans CJK SC",
+    ui-sans-serif,
     sans-serif;
   --font-mono:
-    "IBM Plex Mono",
+    "PT Mono",
     "SFMono-Regular",
     Menlo,
     Monaco,

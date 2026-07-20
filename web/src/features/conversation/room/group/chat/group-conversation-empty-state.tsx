@@ -10,7 +10,6 @@ import {
   WorkspaceCatalogDescription,
   WorkspaceCatalogFooter,
   WorkspaceCatalogHeader,
-  WorkspaceCatalogTag,
   WorkspaceCatalogTitle,
 } from "@/shared/ui/workspace/catalog/workspace-catalog-content";
 import { WorkspaceIconFrame } from "@/shared/ui/workspace/catalog/workspace-icon-frame";
@@ -32,30 +31,30 @@ export function GroupConversationEmptyState({
 
   return (
     <div className="flex min-h-0 flex-1 items-center justify-center p-6 sm:p-8">
-      <WorkspaceCatalogCard className="w-full max-w-[56rem]" size="hero">
-        <div className="flex flex-col gap-8 lg:flex-row lg:items-start lg:justify-between">
+      <WorkspaceCatalogCard className="w-full max-w-[56rem]" size="panel">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-[34rem]">
             <WorkspaceCatalogHeader className="items-center">
-              <WorkspaceIconFrame className="h-16 w-16" shape="round" size="lg" tone="primary">
-                <FolderKanban className="h-7 w-7" />
+              <WorkspaceIconFrame className="h-12 w-12" shape="round" size="md" tone="primary">
+                <FolderKanban className="h-6 w-6" />
               </WorkspaceIconFrame>
               <div>
-                <WorkspaceCatalogTag className="text-[11px] font-semibold uppercase tracking-[0.14em]">
+                <p className="text-xs font-medium text-(--text-muted)">
                   {t("room.empty_group_tag")}
-                </WorkspaceCatalogTag>
-                <WorkspaceCatalogTitle as="h2" className="mt-3" size="hero">
+                </p>
+                <WorkspaceCatalogTitle as="h2" className="mt-1.5" size="lg">
                   {t("room.empty_group_title")}
                 </WorkspaceCatalogTitle>
               </div>
             </WorkspaceCatalogHeader>
 
-            <WorkspaceCatalogBody className="mt-5">
-              <WorkspaceCatalogDescription lines={3} size="md">
+            <WorkspaceCatalogBody className="mt-4">
+              <WorkspaceCatalogDescription className="max-w-[32rem]" lines={3} size="md">
                 {t("room.empty_group_description")}
               </WorkspaceCatalogDescription>
             </WorkspaceCatalogBody>
 
-            <WorkspaceCatalogFooter className="mt-6 flex-wrap gap-2.5" justify="start">
+            <WorkspaceCatalogFooter className="mt-4 flex-wrap gap-2.5" justify="start">
               <WorkspaceCatalogTextAction
                 data-tour-anchor={CONVERSATION_TOUR_ANCHORS.empty_create}
                 tone="primary"
@@ -69,17 +68,18 @@ export function GroupConversationEmptyState({
             </WorkspaceCatalogFooter>
           </div>
 
-          <div className="grid min-w-0 flex-1 gap-3 lg:max-w-[22rem]">
-            {highlights.map((highlight) => (
-              <WorkspaceCatalogCard key={highlight} size="stat">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-(--text-soft)">
-                  {t("room.empty_group_highlight_label")}
-                </p>
-                <WorkspaceCatalogTitle className="mt-2" size="sm">
-                  {highlight}
-                </WorkspaceCatalogTitle>
-              </WorkspaceCatalogCard>
-            ))}
+          <div className="min-w-0 flex-1 lg:max-w-[22rem]">
+            <p className="mb-2 text-xs font-medium text-(--text-muted)">
+              {t("room.empty_group_highlight_label")}
+            </p>
+            <ul className="divide-y divide-(--divider-subtle-color) border-y border-(--divider-subtle-color)">
+              {highlights.map((highlight) => (
+                <li className="flex items-center gap-2.5 py-2.5 text-sm text-(--text-default)" key={highlight}>
+                  <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-(--primary) opacity-70" />
+                  <span>{highlight}</span>
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
       </WorkspaceCatalogCard>

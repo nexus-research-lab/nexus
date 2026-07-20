@@ -40,8 +40,8 @@ const TOKEN_CHART_DEFINITIONS: readonly {
   key: TokenUsageValueKey;
 }[] = [
   { key: "input", className: "bg-primary" },
-  { key: "output", className: "bg-sky-500" },
-  { key: "cache", className: "bg-amber-500" },
+  { key: "output", className: "bg-(--accent)" },
+  { key: "cache", className: "bg-(--warning)" },
 ];
 
 export function PersonalTokenUsageSection({

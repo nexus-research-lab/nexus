@@ -74,9 +74,9 @@ function SkillDetailBreadcrumb({
   title: string | null;
 }) {
   return (
-    <div className="flex items-center gap-2 text-[14px] text-(--text-muted)">
+    <div className="flex items-center gap-2 text-[13px] text-(--text-muted)">
       <button
-        className="inline-flex items-center gap-1 rounded-full px-2 py-1 font-medium transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_28%,transparent)]"
+        className="inline-flex items-center gap-1 rounded-[8px] px-1.5 py-1 font-medium transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_28%,transparent)]"
         onClick={onBack}
         type="button"
       >
@@ -151,14 +151,14 @@ function SkillDetailReady({
   onUpdate: () => void;
 }) {
   return (
-    <div className="pt-9">
+    <div className="pt-6">
       <SkillDetailHero
         activeAction={activeAction}
         model={model}
         onDelete={onDelete}
         onUpdate={onUpdate}
       />
-      <div className="mt-8 space-y-6">
+      <div className="mt-6 space-y-5">
         <SkillDetailBadges badges={model.badges} />
         <section>
           <h2 className="mb-3 text-[16px] font-semibold tracking-[-0.025em] text-(--text-strong)">
@@ -197,18 +197,18 @@ function SkillDetailHero({
         <div className="flex min-w-0 items-center gap-4">
           <div
             className={cn(
-              "flex h-16 w-16 shrink-0 items-center justify-center rounded-[18px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_70%,transparent)] bg-(--surface-panel-background) shadow-[0_1px_2px_rgba(15,23,42,0.04)]",
+              "flex h-12 w-12 shrink-0 items-center justify-center rounded-[12px] border border-(--divider-subtle-color) bg-(--surface-panel-background)",
               model.iconClassName,
             )}
           >
-            <SkillIcon className="h-9 w-9" />
+            <SkillIcon className="h-6 w-6" />
           </div>
-          <h1 className="min-w-0 text-[24px] font-semibold tracking-[-0.035em] text-(--text-strong)">
+          <h1 className="min-w-0 text-[20px] font-semibold tracking-[-0.025em] text-(--text-strong)">
             <span className="truncate">{model.displayName}</span>{" "}
             <span className="font-normal text-(--text-muted)">Skill</span>
           </h1>
         </div>
-        <p className="mt-4 text-[15px] leading-6 text-(--text-muted)">
+        <p className="mt-3 text-[13px] leading-5 text-(--text-muted)">
           {model.description}
         </p>
       </div>

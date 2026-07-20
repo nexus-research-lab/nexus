@@ -98,7 +98,7 @@ export function SettingsSidebarNavigation({
       <div className="flex flex-col gap-3">
         {navigationGroups.map((group) => (
           <section key={group.key}>
-            <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-(--text-soft)">
+            <p className="px-2 pb-1 text-[12px] font-semibold uppercase tracking-[0.18em] text-(--text-soft)">
               {t(group.labelKey)}
             </p>
             <div className="space-y-0.5">

@@ -70,7 +70,7 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
               <div className="flex items-center gap-2">
                 <button
                   data-tour-anchor={LAUNCHER_TOUR_ANCHORS.enter_app}
-                  className="group inline-flex items-center gap-3 rounded-full px-2 py-2 pr-4 text-left transition duration-200 ease-out hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/45"
+                  className="group inline-flex items-center gap-3 rounded-full px-2 py-2 pr-4 text-left transition-colors duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/45"
                   style={{
                     background:
                       "color-mix(in srgb, var(--launcher-input-fill) 92%, rgba(255, 255, 255, 0.12))",
@@ -107,7 +107,7 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
               inlineStyle={undefined}
               src={ANIMATIONS.SPARKLES}
             />
-            <h1 className="mb-2 text-[24px] font-extrabold leading-[1.12] tracking-[-0.05em] text-foreground/96 sm:text-[42px] sm:leading-[1.05]">
+            <h1 className="mb-2 text-[24px] font-semibold leading-[1.12] tracking-[-0.02em] text-foreground/96 sm:text-[42px] sm:leading-[1.05]">
               <AnimatedHeroText
                 text={t("launcher.hero_title")}
                 initialDelayMs={80}
@@ -164,9 +164,8 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
                 />
                 <button
                   className={cn(
-                    "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition duration-150 ease-out hover:-translate-y-0.5 sm:h-11 sm:w-11",
-                    isQueryLoading &&
-                      "cursor-not-allowed opacity-(--disabled-opacity) hover:translate-y-0",
+                    "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition-[background,border-color,color,opacity] duration-150 ease-out sm:h-11 sm:w-11",
+                    isQueryLoading && "cursor-not-allowed opacity-(--disabled-opacity)",
                   )}
                   style={{
                     background: isQueryLoading
