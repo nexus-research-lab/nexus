@@ -1,5 +1,30 @@
 import type { StageWindowKind } from "../operation-desktop-types";
 
+export function stageAppLabelForWindowKind(kind: StageWindowKind): string {
+  if (kind === "finder") return "文件";
+  if (kind === "terminal") return "终端";
+  if (kind === "browser") return "Navi";
+  if (kind === "tasks") return "任务";
+  if (kind === "run_manifest") return "控制台";
+  if (kind === "handoff") return "交付台";
+  if (kind === "summary") return "备忘录";
+  if (kind === "evidence") return "控制台";
+  if (kind === "permission_wait") return "系统设置";
+  if (kind === "spreadsheet") return "Sheets";
+  if (kind === "presentation") return "Slides";
+  if (kind === "code_editor") return "Editor";
+  if (
+    kind === "file_preview" ||
+    kind === "image_viewer" ||
+    kind === "markdown_reader" ||
+    kind === "word_reader" ||
+    kind === "pdf_reader"
+  ) {
+    return "预览";
+  }
+  return "Nexus";
+}
+
 export function dockIconSkinForKind(kind: StageWindowKind): string {
   if (kind === "finder") {
     return "border-[rgba(72,152,224,0.42)] bg-[linear-gradient(135deg,#5ac8fa_0%,#e8f5ff_48%,#ffffff_49%,#7dd3fc_100%)] text-[#14517a]";
@@ -19,7 +44,13 @@ export function dockIconSkinForKind(kind: StageWindowKind): string {
   if (kind === "handoff") {
     return "border-[rgba(47,184,132,0.32)] bg-[linear-gradient(135deg,#f6fffb,#8de0ad_48%,#5b72ff)] text-[#123f3a]";
   }
-  if (kind === "image_viewer" || kind === "markdown_reader" || kind === "pdf_reader" || kind === "word_reader") {
+  if (
+    kind === "file_preview" ||
+    kind === "image_viewer" ||
+    kind === "markdown_reader" ||
+    kind === "pdf_reader" ||
+    kind === "word_reader"
+  ) {
     return "border-[rgba(47,184,132,0.32)] bg-[linear-gradient(135deg,#ffffff,#a7f3d0_52%,#60a5fa)] text-[#17644f]";
   }
   if (kind === "permission_wait") {

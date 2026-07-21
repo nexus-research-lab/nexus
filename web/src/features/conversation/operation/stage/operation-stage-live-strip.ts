@@ -1,7 +1,8 @@
-import type { StageWindowKind, StageWindowState } from "../operation-desktop-types";
+import type { StageWindowState } from "../operation-desktop-types";
 import type { NexusOperationEvent } from "../operation-types";
 import { displayStageEventTarget, displayStageEventTitle } from "../operation-stage-labels";
 import { resolveOperationToolProfile } from "../operation-tool-catalog";
+import { stageAppLabelForWindowKind } from "./operation-stage-app-identity";
 import { eventSequenceLabel } from "./operation-stage-event-sequence";
 
 export interface StageActivityItem {
@@ -47,7 +48,7 @@ export function buildStageLiveStripState({
   const items = candidates.map((event): StageActivityItem => {
     const profile = resolveOperationToolProfile(event.tool_name, event.kind, event.surface);
     const window = event_window_by_id.get(event.id) ?? (event.id === active_event.id ? active_window : null);
-    const app_label = window ? live_strip_app_label_for_kind(window.kind) : profile.title;
+    const app_label = window ? stageAppLabelForWindowKind(window.kind) : profile.title;
     const title = displayStageEventTitle(event, profile.action_label);
     const target = displayStageEventTarget(event, profile.action_label)
       || window?.target
@@ -67,7 +68,7 @@ export function buildStageLiveStripState({
 
   return {
     app_label: items[0]?.app_label ?? "Nexus",
-    active_app_label: active_window ? live_strip_app_label_for_kind(active_window.kind) : "Nexus",
+    active_app_label: active_window ? stageAppLabelForWindowKind(active_window.kind) : "Nexus",
     active_title: items[0]?.title ?? "桌面待命",
     detail: items[0]?.detail ?? "等待工具调用",
     items,
@@ -76,31 +77,6 @@ export function buildStageLiveStripState({
     title: items[0]?.title ?? "桌面待命",
     tone: items[0]?.tone ?? "active",
   };
-}
-
-function live_strip_app_label_for_kind(kind: StageWindowKind): string {
-  if (kind === "browser") {
-    return "Navi";
-  }
-  if (kind === "terminal") {
-    return "终端";
-  }
-  if (kind === "finder") {
-    return "文件";
-  }
-  if (kind === "code_editor") {
-    return "Editor";
-  }
-  if (kind === "handoff") {
-    return "交付台";
-  }
-  if (kind === "tasks") {
-    return "任务";
-  }
-  if (kind === "permission_wait") {
-    return "系统设置";
-  }
-  return "Nexus";
 }
 
 function live_strip_tone_for_event(event: NexusOperationEvent): StageActivityItem["tone"] {

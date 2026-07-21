@@ -37,6 +37,13 @@ export function deriveStageDesktopIntents(event: NexusOperationEvent): StageDesk
       event_id: event.id,
       target: event.target,
     });
+  } else if (visual_contract.group === "image_viewer") {
+    intents.push({
+      app: "preview",
+      action: "preview_artifact",
+      event_id: event.id,
+      target: event.target,
+    });
   } else if (visual_contract.group === "workspace_reader") {
     intents.push({
       app: "code",

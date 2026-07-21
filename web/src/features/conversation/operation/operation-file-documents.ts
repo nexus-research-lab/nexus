@@ -7,6 +7,7 @@ import type {
   NexusOperationEvent,
   NexusOperationSnapshot,
 } from "./operation-types";
+import { getWorkspaceFilePreviewKind } from "../shared/editor/workspace-file-preview-kind";
 import type { StageWindowKind } from "./operation-desktop-types";
 
 export interface OperationFileDocumentPlan {
@@ -34,20 +35,28 @@ export function collectOperationFileContext(
   const file_events = round_events.filter(is_file_document_event);
   const workspace_items = collect_round_workspace_items(event, snapshot, round_events);
   const latest_workspace_item = find_latest_workspace_item(event, snapshot, workspace_items);
-  const latest_file_event = file_events.at(-1);
-  const latest_result_file_target = can_project_result_file(event)
-    ? extract_file_target_from_event(event)
-    : null;
-  const project_active_event = is_file_document_event(event) || Boolean(latest_result_file_target);
+  const active_evidence_target = extract_structured_file_targets(event).at(0) ?? null;
+  const latest_file_event = file_events.at(-1) ?? (active_evidence_target ? event : undefined);
+  const project_active_event = is_file_document_event(event) || Boolean(active_evidence_target);
   const latest_file_target = latest_workspace_item?.path
     ?? (latest_file_event ? extract_file_targets_from_event(latest_file_event).at(0) : null)
-    ?? latest_result_file_target
-    ?? (event.surface === "workspace" || event.surface === "editor" ? event.target : null);
-  const latest_file_preview = latest_workspace_item?.live_content
-    ?? latest_file_event?.result_preview
-    ?? latest_file_event?.input_preview
-    ?? latest_file_event?.summary
-    ?? null;
+    ?? active_evidence_target
+    ?? (
+      (event.surface === "workspace" || event.surface === "editor") &&
+      event.target &&
+      is_local_file_reference(event.target)
+        ? event.target
+        : null
+    );
+  const latest_file_preview = latest_workspace_item?.live_content ?? (
+    latest_file_event && is_file_document_event(latest_file_event)
+      ? latest_file_event.result_preview
+        ?? latest_file_event.input_preview
+        ?? latest_file_event.summary
+      : structured_file_preview(latest_file_event, latest_file_target)
+        ?? latest_file_event?.summary
+        ?? null
+  );
 
   return {
     file_documents: collect_file_documents({
@@ -75,29 +84,15 @@ export function windowKindForFileTarget(
   if (!target) {
     return fallback;
   }
-  const normalized = target.toLowerCase().split("?")[0] ?? "";
-  const extension = normalized.includes(".")
-    ? normalized.slice(normalized.lastIndexOf(".") + 1)
-    : "";
-  if (["md", "mdx", "markdown"].includes(extension)) {
-    return "markdown_reader";
-  }
-  if (["doc", "docx", "rtf", "odt"].includes(extension)) {
-    return "word_reader";
-  }
-  if (["ppt", "pptx", "odp"].includes(extension)) {
-    return "presentation";
-  }
-  if (extension === "pdf") {
-    return "pdf_reader";
-  }
-  if (["csv", "tsv", "xls", "xlsx", "ods"].includes(extension)) {
-    return "spreadsheet";
-  }
-  if (["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "ico", "avif", "tif", "tiff"].includes(extension)) {
-    return "image_viewer";
-  }
-  return fallback;
+  const preview_kind = getWorkspaceFilePreviewKind(target);
+  if (preview_kind === "markdown") return "markdown_reader";
+  if (preview_kind === "document") return "word_reader";
+  if (preview_kind === "presentation") return "presentation";
+  if (preview_kind === "pdf") return "pdf_reader";
+  if (preview_kind === "spreadsheet") return "spreadsheet";
+  if (preview_kind === "image") return "image_viewer";
+  if (preview_kind === "text" || preview_kind === "html") return "code_editor";
+  return "file_preview";
 }
 
 export function fallbackWindowKindForFileEvent(event: NexusOperationEvent): StageWindowKind {
@@ -200,78 +195,88 @@ function collect_round_workspace_items(
   return (event_target_item ? [event_target_item] : []).slice(0, 8);
 }
 
-function extract_file_target_from_event(event: NexusOperationEvent): string | null {
-  return extract_file_targets_from_event(event).at(0) ?? null;
-}
-
 function extract_file_targets_from_event(event: NexusOperationEvent): string[] {
   const input = event.input_preview;
-  const targets: string[] = [];
-  for (const key of ["file_path", "filePath", "notebook_path", "path"] as const) {
-    if (typeof input?.[key] === "string" && input[key].trim()) {
-      targets.push(input[key]);
+  const targets = extract_structured_file_targets(event);
+  if (is_file_document_event(event)) {
+    for (const key of ["file_path", "filePath", "notebook_path", "path", "source"] as const) {
+      if (
+        typeof input?.[key] === "string" &&
+        input[key].trim() &&
+        is_local_file_reference(input[key])
+      ) {
+        targets.push(input[key]);
+      }
     }
-  }
-  for (const collection_key of ["edits", "creates", "files"] as const) {
-    const collection = input?.[collection_key];
-    if (!Array.isArray(collection)) {
-      continue;
-    }
-    for (const item of collection) {
-      if (!item || typeof item !== "object" || Array.isArray(item)) {
+    for (const collection_key of ["edits", "creates", "files"] as const) {
+      const collection = input?.[collection_key];
+      if (!Array.isArray(collection)) {
         continue;
       }
-      const record = item as Record<string, unknown>;
-      const path = record.path ?? record.file_path ?? record.filePath;
-      if (typeof path === "string" && path.trim()) {
-        targets.push(path);
+      for (const item of collection) {
+        if (!item || typeof item !== "object" || Array.isArray(item)) {
+          continue;
+        }
+        const record = item as Record<string, unknown>;
+        const path = record.path ?? record.file_path ?? record.filePath;
+        if (typeof path === "string" && path.trim() && is_local_file_reference(path)) {
+          targets.push(path);
+        }
       }
     }
-  }
-  const result_target = first_local_file_path(event.result_preview)
-    ?? first_local_file_path(event.evidence);
-  if (result_target) {
-    targets.push(result_target);
-  }
-  if (is_file_document_event(event) && event.target && event.target !== event.tool_name) {
-    targets.push(event.target);
+    if (
+      event.target &&
+      event.target !== event.tool_name &&
+      is_local_file_reference(event.target)
+    ) {
+      targets.push(event.target);
+    }
   }
   return Array.from(new Set(targets.map(normalize_operation_file_target).filter(Boolean)));
 }
 
-function first_local_file_path(value: unknown): string | null {
-  if (value == null) {
-    return null;
-  }
-  if (typeof value === "string") {
-    return extract_local_file_path(value);
-  }
-  if (Array.isArray(value)) {
-    for (const item of value) {
-      const path = first_local_file_path(item);
-      if (path) {
-        return path;
-      }
+function extract_structured_file_targets(event: NexusOperationEvent): string[] {
+  return (event.evidence ?? []).flatMap((item) => {
+    if (item.type !== "file" && item.type !== "artifact") {
+      return [];
     }
-    return null;
-  }
-  if (typeof value === "object") {
-    for (const item of Object.values(value)) {
-      const path = first_local_file_path(item);
-      if (path) {
-        return path;
-      }
-    }
-  }
-  return null;
+    const candidate = item.value?.trim() || (
+      looks_like_file_label(item.label) ? item.label.trim() : ""
+    );
+    return candidate && is_local_file_reference(candidate) ? [candidate] : [];
+  });
 }
 
-function extract_local_file_path(text: string): string | null {
-  if (/^(https?:|data:|blob:)/i.test(text.trim())) {
+function structured_file_preview(
+  event: NexusOperationEvent | undefined,
+  target: string | null | undefined,
+): unknown {
+  if (!event) {
     return null;
   }
-  const match = text.match(/(?:\.{0,2}\/)?[\w@./-]+\.(?:png|jpe?g|gif|webp|svg|pdf|mdx?|markdown|csv|tsv|xlsx?|docx?|rtf|odt)\b/i);
-  return match?.[0] ?? null;
+  return (event.evidence ?? []).find((item) => (
+    (item.type === "file" || item.type === "artifact") && (
+      !target ||
+      Boolean(item.value && operationWorkspaceTargetsMatch(item.value, target)) ||
+      operationWorkspaceTargetsMatch(item.label, target)
+    )
+  ))?.preview ?? null;
+}
+
+function looks_like_file_label(value: string): boolean {
+  const normalized = value.trim();
+  return normalized.startsWith(".")
+    || normalized.includes("/")
+    || normalized.includes("\\")
+    || /\.[a-z0-9]{1,12}$/i.test(normalized);
+}
+
+function is_local_file_reference(value: string): boolean {
+  const normalized = value.trim();
+  if (/^file:\/\//i.test(normalized)) {
+    return true;
+  }
+  return !/^(?:(?:[a-z][a-z0-9+.-]*:)?\/\/|data:|blob:)/i.test(normalized);
 }
 
 function collect_file_documents({
@@ -367,8 +372,4 @@ function is_file_document_event(event: NexusOperationEvent): boolean {
     || event.kind === "workspace_edit"
     || event.kind === "artifact_update"
     || event.surface === "editor";
-}
-
-function can_project_result_file(event: NexusOperationEvent): boolean {
-  return event.kind !== "workspace_search" && event.kind !== "workspace_inspect";
 }

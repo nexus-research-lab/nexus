@@ -71,12 +71,28 @@ function editorEvent({
 
 test("Claude Code and nxs editor tools use exact mappings without fuzzy aliases", () => {
   assert.equal(resolveOperationToolProfile("Read").action, "read");
+  const fileReadProfile = resolveOperationToolProfile("FileRead");
+  assert.equal(fileReadProfile.action, "read");
+  assert.deepEqual(fileReadProfile.target_keys, ["file_path"]);
+  const viewImageProfile = resolveOperationToolProfile("ViewImage");
+  assert.equal(viewImageProfile.action, "read");
+  assert.equal(viewImageProfile.kind, "workspace_read");
+  assert.equal(viewImageProfile.surface, "workspace");
+  assert.equal(viewImageProfile.evidence_type, "file");
+  assert.deepEqual(viewImageProfile.target_keys, ["source"]);
+  const fileWriteProfile = resolveOperationToolProfile("FileWrite");
+  assert.equal(fileWriteProfile.action, "create");
+  assert.deepEqual(fileWriteProfile.target_keys, ["file_path"]);
+  const fileEditProfile = resolveOperationToolProfile("FileEdit");
+  assert.equal(fileEditProfile.action, "edit");
+  assert.deepEqual(fileEditProfile.target_keys, ["file_path"]);
   assert.equal(resolveOperationToolProfile("filesystem.read").action, "read");
   assert.equal(resolveOperationToolProfile("filesystem.write").action, "create");
   assert.equal(resolveOperationToolProfile("patch.apply").action, "edit");
   assert.equal(resolveOperationToolProfile("notebook.edit").action, "edit");
   assert.equal(resolveOperationToolProfile("apply_patch").action, "generic");
   assert.equal(resolveOperationToolProfile("read_customer_record").action, "generic");
+  assert.equal(resolveOperationToolProfile("view_image_metadata").action, "generic");
 });
 
 test("Read focuses the real requested line range", () => {

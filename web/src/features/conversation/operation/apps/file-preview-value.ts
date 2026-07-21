@@ -132,7 +132,17 @@ function first_string_value(
 function is_workspace_writer_event(event: NexusOperationEvent): boolean {
   return (
     event.kind === "workspace_edit" ||
-    ["Write", "Edit", "MultiEdit", "NotebookEdit"].includes(event.tool_name ?? "")
+    [
+      "Write",
+      "Edit",
+      "FileWrite",
+      "FileEdit",
+      "MultiEdit",
+      "NotebookEdit",
+      "filesystem.write",
+      "patch.apply",
+      "notebook.edit",
+    ].includes(event.tool_name ?? "")
   );
 }
 

@@ -3,6 +3,7 @@ import type { StageWindowKind } from "../operation-desktop-types";
 const DESKTOP_WINDOW_KINDS = new Set<StageWindowKind>([
   "browser",
   "code_editor",
+  "file_preview",
   "finder",
   "handoff",
   "image_viewer",
@@ -20,6 +21,7 @@ const DESKTOP_WINDOW_KINDS = new Set<StageWindowKind>([
 const FLUSH_CONTENT_WINDOW_KINDS = new Set<StageWindowKind>([
   "browser",
   "code_editor",
+  "file_preview",
   "finder",
   "handoff",
   "image_viewer",

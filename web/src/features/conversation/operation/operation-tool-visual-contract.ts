@@ -10,6 +10,7 @@ import type { NexusOperationEvent } from "./operation-types";
 export type OperationToolVisualGroup =
   | "workspace_navigation"
   | "workspace_reader"
+  | "image_viewer"
   | "workspace_writer"
   | "command_runner"
   | "web_browser"
@@ -23,6 +24,7 @@ export type OperationToolVisualComponent =
   | "finder"
   | "code_reader"
   | "code_writer"
+  | "image_viewer"
   | "terminal"
   | "browser"
   | "tasks"
@@ -77,14 +79,24 @@ export const OPERATION_TOOL_VISUAL_GROUPS: Record<OperationToolVisualGroup, Oper
     component: "code_reader",
     interaction_label: "打开文件并扫描内容",
     label: "文件读取",
-    tools: ["Read"],
+    tools: ["Read", "FileRead", "filesystem.read"],
+  },
+  image_viewer: {
+    app_label: "预览",
+    component: "image_viewer",
+    interaction_label: "打开图像并展示视觉分析",
+    label: "图像查看",
+    tools: ["ViewImage"],
   },
   workspace_writer: {
     app_label: "Editor",
     component: "code_writer",
     interaction_label: "新建文件、流式输入、展示 diff",
     label: "文件写入",
-    tools: ["Write", "Edit", "MultiEdit", "NotebookEdit"],
+    tools: [
+      "Write", "Edit", "FileWrite", "FileEdit", "MultiEdit", "NotebookEdit",
+      "filesystem.write", "patch.apply", "notebook.edit",
+    ],
   },
   command_runner: {
     app_label: "终端",
@@ -171,6 +183,9 @@ function resolve_visual_group(
   }
   if (action === "list" || action === "search") {
     return "workspace_navigation";
+  }
+  if (event.tool_name === "ViewImage") {
+    return "image_viewer";
   }
   if (action === "read") {
     return "workspace_reader";

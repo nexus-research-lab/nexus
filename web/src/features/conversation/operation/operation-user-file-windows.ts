@@ -15,6 +15,7 @@ import type { NexusOperationEvent, NexusOperationSnapshot } from "./operation-ty
 const DOCUMENT_WINDOW_KINDS = new Set<StageWindowKind>([
   "browser",
   "code_editor",
+  "file_preview",
   "image_viewer",
   "markdown_reader",
   "pdf_reader",

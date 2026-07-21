@@ -7,10 +7,12 @@ import type {
   OperationPhase,
   OperationSurface,
 } from "./operation-types";
+import type { OperationImageSourceKind } from "./operation-image-source";
 
 export type StageWindowKind =
   | "finder"
   | "code_editor"
+  | "file_preview"
   | "markdown_reader"
   | "word_reader"
   | "presentation"
@@ -73,6 +75,8 @@ export interface StageWindowPayload {
     deletions: number;
   } | null;
   handoff_summary?: StageHandoffSummary;
+  image_source?: string | null;
+  image_source_kind?: OperationImageSourceKind;
   workspace_preview?: boolean;
 }
 

@@ -29,6 +29,7 @@ import { DocumentPreview } from "./document-preview-surface";
 import { resolveFilePreviewValue } from "./file-preview-value";
 import { OperationReviewPanel, PermissionCheckpointPanel } from "./operation-review-panels";
 import { HandoffSurface } from "./handoff-surface";
+import { ImageInspectionSurface } from "./image-inspection-surface";
 import { RunManifestSurface } from "./run-manifest-surface";
 import { TerminalSession } from "./terminal-session";
 import { StageWorkspaceFilePreview } from "./stage-workspace-file-preview";
@@ -157,6 +158,22 @@ export function StageWindowContent({
           />
         </div>
       </div>
+    );
+  }
+
+  if (
+    window.kind === "image_viewer" &&
+    !window.payload.workspace_preview &&
+    window.payload.image_source &&
+    window.payload.image_source_kind
+  ) {
+    return (
+      <ImageInspectionSurface
+        event={event}
+        preview={window.payload.preview}
+        source={window.payload.image_source}
+        sourceKind={window.payload.image_source_kind}
+      />
     );
   }
 

@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Aligned Operation Stage file windows with the shared preview registry, added exact nxs `File*` and `ViewImage` mappings, and kept unsupported legacy Office files in a truthful generic preview instead of impersonating Editor or Office apps.
 - Restricted Operation Stage app routing to explicit Claude Code and nxs tool contracts, kept unknown tool targets out of file windows, and opened every real target from multi-file patch events.
 - Replaced the Operation Stage's left-side background thumbnails with real cascading app windows, made Dock restores enter the foreground immediately, and kept inactive app state mounted behind the active window.
 - Kept workspace search patterns inside the Operation Stage Files app instead of opening fake document windows, preserved mounted app state while windows move into the background scene, and prevented workspace preview selectors from triggering React update loops.

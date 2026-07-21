@@ -76,8 +76,8 @@ src/
 - 操作舞台的 Navi 浏览器归 `features/conversation/operation/apps/`：`browser-page-model.ts` 只投影 WebSearch/WebFetch/HTML 工具事件，`browser-navigation-model.ts` 只维护标签页与历史，React 控制器和视图不得重建第二份导航状态；远端网页通过 `/operation/browser/page` 的无 Cookie、防 SSRF 页面快照进入 sandbox iframe，地址栏和历史始终保留目标 URL，Reader 保留工具实际获取的内容作为可信回退
 - 操作舞台的后台窗口必须保留真实 App 内容并自然叠放，点击标题栏、Dock 或窗口循环快捷键只改变焦点；仅最小化窗口进入 Dock，不再维护独立的缩略图渲染分支
 - 操作舞台的“文件”App 只消费真实 Agent workspace 列表、实时文件事件和搜索命中；搜索表达式不得投影为文档，用户打开路径必须复用既有窗口，HTML 进入 Navi，其余格式进入共享预览路由，后台窗口不得卸载 App 内部状态
-- 操作舞台的 Markdown、代码、DOCX、XLSX、PPTX、PDF 与图片窗口必须复用 `shared/editor/WorkspaceFilePreviewRouter`；绝对工具路径和相对 workspace 路径先归一为同一个文档身份，不维护第二套伪预览组件
-- 操作舞台的 Editor 只按 Claude Code 与 nxs 的明确工具契约投影 `Read`、`Write`、`Edit`、`MultiEdit`、`NotebookEdit`、`filesystem.*` 与 `patch.apply`；源码视图必须展示真实行号、读取范围和修改片段，并继续复用共享文件编辑器完成用户编辑与保存，未知工具不得靠名称猜测打开文件窗口
+- 操作舞台的 Markdown、代码、DOCX、XLSX、PPTX、PDF 与图片窗口必须复用 `shared/editor/WorkspaceFilePreviewRouter`；旧 Office 二进制格式和未知文件只能进入通用预览并诚实展示不支持状态，不得冒充 Editor、Sheets 或 Slides；绝对工具路径和相对 workspace 路径先归一为同一个文档身份，不维护第二套伪预览组件
+- 操作舞台的 Editor 只按 Claude Code 与 nxs 的明确工具契约投影 `Read`、`Write`、`Edit`、`FileRead`、`FileWrite`、`FileEdit`、`ViewImage`、`MultiEdit`、`NotebookEdit`、`filesystem.*` 与 `patch.apply`；源码视图必须展示真实行号、读取范围和修改片段，并继续复用共享文件编辑器完成用户编辑与保存，未知工具不得靠名称猜测打开文件窗口
 - 操作舞台的“任务”App 只按 Claude Code 与 nxs 的明确 Todo/Task 契约投影计划快照、任务身份、状态、输出与真实用量；标题、prompt 和完成回报分别归并，缺失的任务 ID、耗时或指标直接不显示，禁止生成 PID、CPU、内存等不存在的遥测
 - Room 成员管理由页面命令层绑定作用域并按成员依赖顺序执行；Header 只提交完整表单对象，Surface 不传播成员增删和设置更新的散装回调
 - Contacts 页面使用互斥编辑状态，资源和 CRUD 归 `pages/contacts/controller/`，URL 选择与 Room 跳转归 `pages/contacts/orchestration/`

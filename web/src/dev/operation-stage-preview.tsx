@@ -144,6 +144,53 @@ const read_event: NexusOperationEvent = {
   updated_at: now - 7_300,
 };
 
+const legacy_preview_event: NexusOperationEvent = {
+  agent_id,
+  evidence: [
+    { type: "file", label: "读取", value: "archives/legacy-report.doc" },
+  ],
+  id: "tool-read-legacy-doc",
+  input_preview: {
+    file_path: "archives/legacy-report.doc",
+  },
+  kind: "workspace_read",
+  message_id: "message-assistant",
+  phase: "done",
+  round_id,
+  session_key,
+  surface: "editor",
+  target: "archives/legacy-report.doc",
+  title: "打开旧格式文档",
+  tool_name: "Read",
+  tool_use_id: "tool-read-legacy-doc",
+  updated_at: now - 7_200,
+};
+
+const view_image_event: NexusOperationEvent = {
+  agent_id,
+  id: "tool-view-session-image",
+  input_preview: {
+    question: "检查截图中的窗口层级、文字密度和主要操作入口。",
+    source: "nexus-image://stage-preview-reference",
+  },
+  kind: "workspace_read",
+  message_id: "message-assistant",
+  phase: "done",
+  result_preview: [
+    "截图展示了一个桌面式工作台，主窗口位于视觉中心。",
+    "窗口标题、内容区和底部 Dock 之间层级清楚，没有互相遮挡。",
+    "主要操作入口集中在窗口标题栏和应用内容区。",
+  ],
+  round_id,
+  session_key,
+  surface: "workspace",
+  target: "nexus-image://stage-preview-reference",
+  title: "检查会话截图",
+  tool_name: "ViewImage",
+  tool_use_id: "tool-view-session-image",
+  updated_at: now - 7_100,
+};
+
 const finder_event: NexusOperationEvent = {
   agent_id,
   evidence: [
@@ -661,6 +708,8 @@ const PREVIEW_STEPS = [
   { id: "write", label: "创建文件", event: write_event, events: [live_event, write_event] },
   { id: "edit", label: "修改文件", event: edit_event, events: [live_event, write_event, edit_event] },
   { id: "read", label: "读取文件", event: read_event, events: [live_event, write_event, read_event] },
+  { id: "legacy-preview", label: "旧格式预览", event: legacy_preview_event, events: [live_event, legacy_preview_event] },
+  { id: "view-image", label: "查看图片", event: view_image_event, events: [live_event, view_image_event] },
   { id: "knowledge", label: "知识", event: knowledge_event, events: [live_event, knowledge_event] },
   { id: "tool", label: "工具窗口", event: generic_tool_followup_event, events: [live_event, generic_tool_event, generic_tool_followup_event] },
   { id: "search", label: "浏览搜索", event: web_search_event, events: [live_event, web_search_event] },
@@ -888,6 +937,7 @@ export function OperationStagePreview() {
             </button>
           )}
           onPermissionResponse={handle_permission_response}
+          key={step.id}
           snapshot={snapshot}
         />
       </section>

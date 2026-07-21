@@ -129,6 +129,7 @@ export function preferredWindowKindsForEvent(event: NexusOperationEvent): StageW
 function document_window_kinds(trailing?: StageWindowKind): StageWindowKind[] {
   const kinds: StageWindowKind[] = [
     "code_editor",
+    "file_preview",
     "markdown_reader",
     "word_reader",
     "presentation",

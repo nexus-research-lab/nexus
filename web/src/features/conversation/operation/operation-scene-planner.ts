@@ -22,6 +22,7 @@ import {
   windowKindForFileTarget,
 } from "./operation-file-documents";
 import { findOperationHtmlArtifact } from "./operation-html-artifacts";
+import { resolveOperationImageSource } from "./operation-image-source";
 import { buildOperationContinuationBrief } from "./operation-stage-experience";
 import {
   preferredWindowKindsForEvent,
@@ -142,6 +143,7 @@ function build_windows(
   const task_events = round_events.filter((item) => item.surface === "task");
   const tool_activity_events = round_events.filter(isDesktopToolActivityEvent);
   const file_context = collectOperationFileContext(event, snapshot, round_events);
+  const image_source = resolveOperationImageSource(event);
   const html_artifact = findOperationHtmlArtifact(snapshot, round_events);
   const active_intents = deriveStageDesktopIntents(event);
   const open_browser_target = active_intents.some((intent) => intent.app === "browser")
@@ -162,7 +164,7 @@ function build_windows(
     : null;
   const is_review_event = isRoundReviewEvent(event);
   const focus_target = resolveOperationFocusTarget(event, {
-    has_file: Boolean(file_context.latest_file_target || resolved_preview_target),
+    has_file: Boolean(file_context.latest_file_target || resolved_preview_target || image_source),
     has_html_artifact: Boolean(html_artifact || resolved_browser_target),
     has_task: task_events.length > 0,
     has_terminal: terminal_events.length > 0,
@@ -218,7 +220,9 @@ function build_windows(
       document.target,
       fallbackWindowKindForFileEvent(document.event),
     );
-    const document_intent = findStageDesktopIntent(document.event, "code") ?? {
+    const document_intent = findStageDesktopIntent(document.event, "code")
+      ?? findStageDesktopIntent(document.event, "preview")
+      ?? {
       app: "code" as const,
       action: "inspect_file" as const,
       event_id: document.event.id,
@@ -245,6 +249,30 @@ function build_windows(
       },
     }));
   });
+
+  if (image_source && image_source.kind !== "workspace") {
+    windows.push(buildOperationStageWindow(event, snapshot, {
+      id: `image:${normalizeWindowId(event.tool_use_id ?? event.id)}`,
+      session_id: `${event.round_id}:preview:image:${normalizeWindowId(event.tool_use_id ?? event.id)}`,
+      kind: "image_viewer",
+      title: image_source.title,
+      layout: "primary",
+      phase: supportingWindowPhase("image_viewer", focus_target === "document", {
+        has_browser_artifact: Boolean(html_artifact),
+        is_review_event,
+      }),
+      z: focus_target === "document" ? 38 : 21,
+      payload: {
+        image_source: image_source.source,
+        image_source_kind: image_source.kind,
+        preview: event.result_preview ?? event.summary,
+        related_events: [event],
+        summary: event.summary,
+        target: image_source.title,
+        workspace_preview: false,
+      },
+    }));
+  }
 
   const has_matching_document = resolved_preview_target
     ? file_context.file_documents.some((document) => (

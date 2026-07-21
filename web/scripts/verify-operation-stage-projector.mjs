@@ -11,6 +11,7 @@ const script_dir = dirname(fileURLToPath(import.meta.url));
 const web_root = dirname(script_dir);
 const out_dir = join(tmpdir(), "nexus-operation-stage-projector");
 const operation_dir = join(out_dir, "src/features/conversation/operation");
+const shared_editor_dir = join(out_dir, "src/features/conversation/shared/editor");
 
 rmSync(out_dir, { recursive: true, force: true });
 
@@ -43,6 +44,7 @@ copyFileSync(join(operation_dir, "operation-tool-inference.js"), join(operation_
 copyFileSync(join(operation_dir, "operation-desktop-intents.js"), join(operation_dir, "operation-desktop-intents"));
 copyFileSync(join(operation_dir, "operation-file-documents.js"), join(operation_dir, "operation-file-documents"));
 copyFileSync(join(operation_dir, "operation-html-artifacts.js"), join(operation_dir, "operation-html-artifacts"));
+copyFileSync(join(operation_dir, "operation-image-source.js"), join(operation_dir, "operation-image-source"));
 copyFileSync(join(operation_dir, "operation-pending-permissions.js"), join(operation_dir, "operation-pending-permissions"));
 copyFileSync(join(operation_dir, "operation-projection-preview.js"), join(operation_dir, "operation-projection-preview"));
 copyFileSync(join(operation_dir, "operation-projection-timeline.js"), join(operation_dir, "operation-projection-timeline"));
@@ -65,6 +67,10 @@ copyFileSync(join(operation_dir, "operation-event-io.js"), join(operation_dir, "
 copyFileSync(join(operation_dir, "operation-runtime-event-stream.js"), join(operation_dir, "operation-runtime-event-stream"));
 copyFileSync(join(operation_dir, "operation-runtime-types.js"), join(operation_dir, "operation-runtime-types"));
 copyFileSync(join(operation_dir, "operation-tool-visual-contract.js"), join(operation_dir, "operation-tool-visual-contract"));
+copyFileSync(
+  join(shared_editor_dir, "workspace-file-preview-kind.js"),
+  join(shared_editor_dir, "workspace-file-preview-kind"),
+);
 mkdirSync(join(operation_dir, "stage"), { recursive: true });
 copyFileSync(join(operation_dir, "stage/operation-stage-window-kinds.js"), join(operation_dir, "stage/operation-stage-window-kinds"));
 copyFileSync(join(operation_dir, "stage/operation-stage-event-sequence.js"), join(operation_dir, "stage/operation-stage-event-sequence"));
@@ -151,6 +157,7 @@ const {
 } = await import(pathToFileURL(join(operation_dir, "stage/operation-stage-hidden-windows.js")));
 const {
   dockIconSkinForKind,
+  stageAppLabelForWindowKind,
 } = await import(pathToFileURL(join(operation_dir, "stage/operation-stage-app-identity.js")));
 const {
   resolveNextWindowFocus,
@@ -300,12 +307,14 @@ function verify_desktop_window_kind_contract() {
   const expected_desktop_apps = [
     "browser",
     "code_editor",
+    "file_preview",
     "finder",
     "handoff",
     "image_viewer",
     "markdown_reader",
     "pdf_reader",
     "permission_wait",
+    "presentation",
     "run_manifest",
     "spreadsheet",
     "tasks",
@@ -325,44 +334,38 @@ function verify_desktop_window_kind_contract() {
 }
 
 function verify_dock_model_groups_windows_by_mac_app() {
-  const app_label_for_kind = (kind) => ({
-    browser: "Navi",
-    code_editor: "Code",
-    finder: "文件",
-    markdown_reader: "预览",
-    terminal: "终端",
-  })[kind] ?? "Nexus";
   const windows = [
     mock_stage_window({ id: "browser:a", kind: "browser", phase: "background" }),
     mock_stage_window({ id: "browser:b", kind: "browser", phase: "focused" }),
     mock_stage_window({ id: "code:a", kind: "code_editor", phase: "closed" }),
-    mock_stage_window({ id: "preview:a", kind: "markdown_reader", phase: "minimized" }),
+    mock_stage_window({ id: "preview:a", kind: "file_preview", phase: "minimized", title: "legacy.doc" }),
   ];
-  const groups = groupDockWindowsByApp(windows, "browser:b", app_label_for_kind);
+  const groups = groupDockWindowsByApp(windows, "browser:b", stageAppLabelForWindowKind);
   const Navi_group = groups.find((group) => group.app_label === "Navi");
   assert(Navi_group?.count === 2, `Dock should group Navi windows, got ${Navi_group?.count}`);
   assert(Navi_group?.is_active, "Dock Navi group should be active when one Navi window is focused");
   assert(Navi_group?.window.id === "browser:b", `Dock should keep the focused Navi window, got ${Navi_group?.window.id}`);
-  const code_group = groups.find((group) => group.app_label === "Code");
-  assert(code_group?.count === 0, `Dock should not count closed Code windows as running, got ${code_group?.count}`);
-  assert(!code_group?.is_running, "Dock should mark closed Code window as not running");
+  const code_group = groups.find((group) => group.app_label === "Editor");
+  assert(code_group?.count === 0, `Dock should not count closed Editor windows as running, got ${code_group?.count}`);
+  assert(!code_group?.is_running, "Dock should mark closed Editor window as not running");
 
   const slots = buildDockAppSlots(groups);
   assert(!slots.some((slot) => slot.window === null), "Dock should only show apps backed by real tool windows");
   assert(slots[0].app_label === "Navi" && slots[0].count === 2, "Dock Navi slot should reflect grouped running windows");
-  assert(slots[1].app_label === "Code" && slots[1].window?.id === "code:a", "Dock Code slot should keep recoverable closed window");
+  assert(slots[1].app_label === "Editor" && slots[1].window?.id === "code:a", "Dock Editor slot should keep recoverable closed window");
   assert(slots.at(-1)?.app_label === "预览", `Dock should append unpinned running apps, got ${slots.at(-1)?.app_label}`);
 
   const Navi_presentation = resolveDockSlotPresentation(slots[0], "Search");
   assert(Navi_presentation.state === "active", `Dock active Navi slot should present as active, got ${Navi_presentation.state}`);
   assert(Navi_presentation.title === "Navi · 2 个窗口 · 当前", `Dock active Navi title should summarize grouped windows, got ${Navi_presentation.title}`);
   const code_presentation = resolveDockSlotPresentation(slots[1], "app.ts");
-  assert(code_presentation.state === "recoverable", `Dock closed Code slot should be recoverable, got ${code_presentation.state}`);
-  assert(!code_presentation.is_disabled, "Dock closed Code slot should remain clickable for restore");
+  assert(code_presentation.state === "recoverable", `Dock closed Editor slot should be recoverable, got ${code_presentation.state}`);
+  assert(!code_presentation.is_disabled, "Dock closed Editor slot should remain clickable for restore");
   const preview_slot = slots.at(-1);
   assert(preview_slot, "Dock should keep the minimized Preview app slot");
-  const preview_presentation = resolveDockSlotPresentation(preview_slot, "README.md");
+  const preview_presentation = resolveDockSlotPresentation(preview_slot, "legacy.doc");
   assert(preview_presentation.state === "minimized", `Dock minimized Preview slot should present as minimized, got ${preview_presentation.state}`);
+  assert(preview_presentation.title === "预览 · legacy.doc · 已最小化", `Dock should preserve the real legacy preview title, got ${preview_presentation.title}`);
 }
 
 function verify_window_keyboard_actions_match_mac_window_controls() {
@@ -536,6 +539,11 @@ function verify_result_artifact_opens_preview_instead_of_unclassified_window(now
         markdown: "![generated image](output/imagegen/cute-kitten.png)",
       },
     },
+    evidence: [{
+      label: "generated image",
+      type: "artifact",
+      value: "output/imagegen/cute-kitten.png",
+    }],
     updated_at: now,
   };
   const desktop = planOperationDesktop({
@@ -970,9 +978,13 @@ function verify_tool_visual_contract_inventory(now) {
     "Grep",
     "LS",
     "Read",
+    "FileRead",
+    "ViewImage",
     "Edit",
+    "FileEdit",
     "MultiEdit",
     "Write",
+    "FileWrite",
     "NotebookEdit",
     "WebFetch",
     "WebSearch",
@@ -1005,6 +1017,7 @@ function verify_tool_visual_contract_inventory(now) {
   const cases = [
     { expected_component: "code_writer", expected_group: "workspace_writer", kind: "workspace_edit", surface: "editor", tool_name: "Write" },
     { expected_component: "code_reader", expected_group: "workspace_reader", kind: "workspace_read", surface: "editor", tool_name: "Read" },
+    { expected_component: "image_viewer", expected_group: "image_viewer", kind: "workspace_read", surface: "workspace", tool_name: "ViewImage" },
     { expected_component: "terminal", expected_group: "command_runner", kind: "command_run", surface: "terminal", tool_name: "Bash" },
     { expected_component: "browser", expected_group: "web_browser", kind: "web_research", surface: "web", tool_name: "WebSearch" },
     { expected_component: "tasks", expected_group: "task_planner", kind: "plan_update", surface: "task", tool_name: "TodoWrite" },
@@ -1093,6 +1106,11 @@ function verify_window_focus_moves_to_next_visible_window() {
   assert(
     resolveStageWindowFocusPhase(windows[3], "terminal", { restored: true }) === "background",
     "A restored window should join the real background stack when another app owns focus",
+  );
+  const legacy_preview = mock_stage_window({ id: "legacy", kind: "file_preview", phase: "minimized", title: "legacy.doc" });
+  assert(
+    resolveStageWindowFocusPhase(legacy_preview, "legacy", { restored: true }) === "focused",
+    "Restoring a legacy file preview from the Dock should focus the same Preview window",
   );
 }
 

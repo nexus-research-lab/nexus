@@ -26,6 +26,7 @@ export {
   isStageBackgroundWindow,
   positionForWindow,
 } from "./operation-stage-window-position";
+export { stageAppLabelForWindowKind } from "./operation-stage-app-identity";
 
 export function iconForArtifactPath(path: string): LucideIcon {
   if (/\.(tsx?|jsx?|json|ya?ml|toml|css|scss|html?)$/i.test(path)) {
@@ -102,51 +103,8 @@ export function iconForWindowKind(kind: StageWindowKind): LucideIcon {
   if (kind === "code_editor") {
     return FileCode2;
   }
+  if (kind === "file_preview") {
+    return FileText;
+  }
   return FileText;
-}
-
-export function stageAppLabelForWindowKind(kind: StageWindowKind): string {
-  if (kind === "finder") {
-    return "文件";
-  }
-  if (kind === "terminal") {
-    return "终端";
-  }
-  if (kind === "browser") {
-    return "Navi";
-  }
-  if (kind === "tasks") {
-    return "任务";
-  }
-  if (kind === "run_manifest") {
-    return "控制台";
-  }
-  if (kind === "handoff") {
-    return "交付台";
-  }
-  if (kind === "summary") {
-    return "备忘录";
-  }
-  if (kind === "evidence") {
-    return "控制台";
-  }
-  if (kind === "permission_wait") {
-    return "系统设置";
-  }
-  if (kind === "spreadsheet") {
-    return "Sheets";
-  }
-  if (kind === "presentation") {
-    return "Slides";
-  }
-  if (kind === "image_viewer") {
-    return "预览";
-  }
-  if (kind === "code_editor") {
-    return "Editor";
-  }
-  if (kind === "markdown_reader" || kind === "word_reader" || kind === "pdf_reader") {
-    return "预览";
-  }
-  return "Nexus";
 }

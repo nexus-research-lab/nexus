@@ -24,6 +24,7 @@ const textExtensions = new Set([
   "toml",
   "xml",
   "csv",
+  "tsv",
   "ts",
   "tsx",
   "js",

@@ -5,6 +5,9 @@ import { fileURLToPath } from "node:url";
 
 import { createServer } from "vite";
 
+const { createElement } = await import("react");
+const { renderToStaticMarkup } = await import("react-dom/server");
+
 const webRoot = fileURLToPath(new URL("..", import.meta.url));
 const server = await createServer({
   configFile: false,
@@ -22,8 +25,23 @@ const {
 } = await server.ssrLoadModule(
   "/src/features/conversation/operation/operation-file-documents.ts",
 );
-const { deriveStageDesktopIntents } = await server.ssrLoadModule(
+const {
+  deriveStageDesktopIntents,
+  operationEventFromRuntimeEvent,
+} = await server.ssrLoadModule(
   "/src/features/conversation/operation/operation-desktop-intents.ts",
+);
+const { planOperationDesktop } = await server.ssrLoadModule(
+  "/src/features/conversation/operation/operation-scene-planner.ts",
+);
+const { resolveOperationImageSource } = await server.ssrLoadModule(
+  "/src/features/conversation/operation/operation-image-source.ts",
+);
+const { StageWindowContent } = await server.ssrLoadModule(
+  "/src/features/conversation/operation/apps/operation-app-renderers.tsx",
+);
+const { appSurfaceForWindowKind } = await server.ssrLoadModule(
+  "/src/features/conversation/operation/apps/operation-app-surface-policy.ts",
 );
 const { getWorkspaceFilePreviewKind } = await server.ssrLoadModule(
   "/src/features/conversation/shared/editor/workspace-file-preview-kind.ts",
@@ -35,6 +53,7 @@ const {
   appendOperationUserFilePath,
   findOperationWorkspaceWindow,
   mergeOperationUserFileWindows,
+  operationUserFileWindowId,
 } = await server.ssrLoadModule(
   "/src/features/conversation/operation/operation-user-file-windows.ts",
 );
@@ -182,6 +201,152 @@ test("workspace search results stay in Files until a concrete file is opened", (
   );
 });
 
+test("generic tool output cannot fabricate workspace file windows", () => {
+  const bashEvent = fileEvent({
+    id: "build-json",
+    kind: "command_run",
+    result_preview: "Created dist/report.json",
+    surface: "terminal",
+    target: "pnpm build",
+    tool_name: "Bash",
+  });
+  const webEvent = fileEvent({
+    id: "fetch-page",
+    kind: "web_research",
+    result_preview: "The page loads app.js and package.json.",
+    surface: "web",
+    target: "https://example.com",
+    tool_name: "WebFetch",
+  });
+  const taskEvent = fileEvent({
+    id: "task-output",
+    kind: "task_progress",
+    result_preview: "Finished package.json analysis.",
+    surface: "task",
+    target: "task-1",
+    tool_name: "TaskOutput",
+  });
+  for (const event of [bashEvent, webEvent, taskEvent]) {
+    assert.equal(collectOperationFileContext(event, null, [event]).file_documents.length, 0, event.tool_name);
+  }
+});
+
+test("structured file evidence opens the exact artifact path", () => {
+  const event = fileEvent({
+    evidence: [{
+      label: "created",
+      preview: "# 总结",
+      type: "artifact",
+      value: "报告/总结.md",
+    }],
+    id: "generated-report",
+    kind: "command_run",
+    result_preview: "Command completed successfully.",
+    surface: "terminal",
+    target: "generate report",
+    tool_name: "Bash",
+  });
+  const context = collectOperationFileContext(event, null, [event]);
+
+  assert.equal(context.file_documents.length, 1);
+  assert.equal(context.file_documents[0].target, "报告/总结.md");
+  assert.equal(context.file_documents[0].preview, "# 总结");
+
+  const remoteEvidenceEvent = fileEvent({
+    evidence: [{
+      label: "remote image",
+      type: "artifact",
+      value: "https://example.com/report.png",
+    }],
+    id: "remote-artifact",
+    kind: "command_run",
+    surface: "terminal",
+    target: "download report",
+    tool_name: "Bash",
+  });
+  assert.equal(collectOperationFileContext(remoteEvidenceEvent, null, [remoteEvidenceEvent]).file_documents.length, 0);
+});
+
+test("ViewImage classifies every exact SDK source without inventing workspace files", () => {
+  const projectedEvent = operationEventFromRuntimeEvent({
+    agent_id: "agent:preview",
+    event_type: "tool_start",
+    id: "runtime:view-image",
+    input: { source: "assets/logo.png", question: "Check the layout" },
+    message_id: "message:preview",
+    phase: "running",
+    round_id: "round:preview",
+    session_key: "session:preview",
+    timestamp: now,
+    tool_name: "ViewImage",
+    tool_use_id: "tool:view-image",
+  });
+  assert.equal(projectedEvent.target, "assets/logo.png");
+  assert.equal(projectedEvent.kind, "workspace_read");
+  assert.equal(resolveOperationImageSource(projectedEvent)?.kind, "workspace");
+
+  const localEvent = fileEvent({
+    id: "view-local-image",
+    input_preview: { source: "assets/logo.png", question: "Check the layout" },
+    target: "assets/logo.png",
+    tool_name: "ViewImage",
+  });
+  const localDesktop = planOperationDesktop({ event: localEvent, snapshot: null });
+  assert.ok(localDesktop.windows.some((window) => (
+    window.kind === "image_viewer" &&
+    window.payload.target === "assets/logo.png" &&
+    window.payload.workspace_preview
+  )));
+
+  const remoteEvent = fileEvent({
+    id: "view-remote-image",
+    input_preview: { source: "https://example.com/logo.png" },
+    target: "https://example.com/logo.png",
+    tool_name: "ViewImage",
+  });
+  const remoteContext = collectOperationFileContext(remoteEvent, null, [remoteEvent]);
+  const remoteDesktop = planOperationDesktop({ event: remoteEvent, snapshot: null });
+  assert.equal(remoteContext.file_documents.length, 0);
+  assert.equal(resolveOperationImageSource(remoteEvent)?.kind, "remote");
+  assert.ok(remoteDesktop.windows.some((window) => (
+    window.kind === "image_viewer" &&
+    window.payload.image_source_kind === "remote" &&
+    window.payload.image_source === "https://example.com/logo.png"
+  )));
+
+  const inlineEvent = fileEvent({
+    id: "view-inline-image",
+    input_preview: { source: "data:image/png;base64,iVBORw0KGgo=" },
+    result_preview: "A small blue icon.",
+    target: "data:image/png;base64,iVBORw0KGgo=",
+    tool_name: "ViewImage",
+  });
+  const inlineDesktop = planOperationDesktop({ event: inlineEvent, snapshot: null });
+  assert.equal(resolveOperationImageSource(inlineEvent)?.kind, "inline");
+  assert.equal(inlineDesktop.windows[0]?.payload.image_source_kind, "inline");
+  assert.ok(!inlineDesktop.windows[0]?.title.includes("base64"));
+
+  const attachmentEvent = fileEvent({
+    id: "view-attachment-image",
+    input_preview: { source: "nexus-image://reference-1" },
+    result_preview: "The screenshot shows a terminal window.",
+    target: "nexus-image://reference-1",
+    tool_name: "ViewImage",
+  });
+  const attachmentDesktop = planOperationDesktop({ event: attachmentEvent, snapshot: null });
+  assert.equal(resolveOperationImageSource(attachmentEvent)?.kind, "attachment");
+  assert.equal(attachmentDesktop.windows[0]?.payload.image_source_kind, "attachment");
+  assert.equal(attachmentDesktop.windows[0]?.title, "会话图片");
+  const attachmentMarkup = renderToStaticMarkup(createElement(StageWindowContent, {
+    window: attachmentDesktop.windows[0],
+  }));
+  assert.match(attachmentMarkup, /data-stage-image-inspection/);
+  assert.match(attachmentMarkup, /data-stage-image-analysis/);
+  assert.match(attachmentMarkup, /The screenshot shows a terminal window\./);
+  assert.doesNotMatch(attachmentMarkup, /&quot;The screenshot/);
+  assert.doesNotMatch(attachmentMarkup, /无法打开工作区外的文件/);
+});
+
 test("Files opens one truthful preview window per workspace path", () => {
   const event = fileEvent();
   const plannedWindow = {
@@ -209,7 +374,9 @@ test("Files opens one truthful preview window per workspace path", () => {
   assert.equal(windows.length, 3);
   assert.equal(windows.filter((window) => window.payload.target === "reports/brief.md").length, 1);
   assert.equal(findOperationWorkspaceWindow(windows, "/tmp/reports/brief.md")?.id, plannedWindow.id);
-  assert.equal(findOperationWorkspaceWindow(windows, "games/gomoku.html")?.kind, "browser");
+  const htmlWindow = findOperationWorkspaceWindow(windows, "games/gomoku.html");
+  assert.equal(htmlWindow?.kind, "browser");
+  assert.equal(htmlWindow?.id, operationUserFileWindowId(event.round_id, "games/gomoku.html"));
   assert.equal(findOperationWorkspaceWindow(windows, "reports/final.pdf")?.kind, "pdf_reader");
 });
 
@@ -221,6 +388,13 @@ test("previewable files route to truthful app kinds and shared renderers", () =>
     ["deck.pptx", "presentation", "presentation"],
     ["paper.pdf", "pdf_reader", "pdf"],
     ["photo.tiff", "image_viewer", "image"],
+    ["table.csv", "code_editor", "text"],
+    ["table.tsv", "code_editor", "text"],
+    ["site.html", "code_editor", "html"],
+    ["diagram.mmd", "file_preview", "mermaid"],
+    ["legacy.doc", "file_preview", "binary"],
+    ["legacy.xls", "file_preview", "binary"],
+    ["legacy.ppt", "file_preview", "binary"],
     ["src/main.cpp", "code_editor", "text"],
     [".env.local", "code_editor", "text"],
   ];
@@ -228,6 +402,40 @@ test("previewable files route to truthful app kinds and shared renderers", () =>
     assert.equal(windowKindForFileTarget(target), windowKind, target);
     assert.equal(getWorkspaceFilePreviewKind(target), previewKind, target);
   }
+});
+
+test("file tool events open the real shared preview surface for every supported family", () => {
+  const cases = [
+    ["README.md", "markdown_reader"],
+    ["report.docx", "word_reader"],
+    ["budget.xlsx", "spreadsheet"],
+    ["deck.pptx", "presentation"],
+    ["paper.pdf", "pdf_reader"],
+    ["photo.png", "image_viewer"],
+    ["src/main.ts", "code_editor"],
+    ["legacy.doc", "file_preview"],
+  ];
+
+  for (const [target, expectedKind] of cases) {
+    const event = fileEvent({ id: `read:${target}`, target });
+    const desktop = planOperationDesktop({ event, snapshot: null });
+    const previewWindow = desktop.windows.find((window) => window.payload.target === target);
+
+    assert.equal(previewWindow?.kind, expectedKind, target);
+    assert.equal(previewWindow?.payload.workspace_preview, true, target);
+    assert.equal(appSurfaceForWindowKind(expectedKind), "document", target);
+  }
+});
+
+test("file_preview reaches the shared binary renderer", () => {
+  const event = fileEvent({ id: "read:legacy.doc", target: "legacy.doc" });
+  const desktop = planOperationDesktop({ event, snapshot: null });
+  const previewWindow = desktop.windows.find((window) => window.kind === "file_preview");
+
+  assert.ok(previewWindow);
+  const markup = renderToStaticMarkup(createElement(StageWindowContent, { window: previewWindow }));
+  assert.match(markup, /此文件类型不支持预览/);
+  assert.match(markup, /legacy\.doc/);
 });
 
 test("open HTML enters Navi while other files enter the preview app", () => {
