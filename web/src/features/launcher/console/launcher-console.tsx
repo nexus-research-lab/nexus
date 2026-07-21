@@ -4,12 +4,10 @@ import { useMemo } from "react";
 
 import { ANIMATIONS } from "@/config/animation-assets";
 import { buildLauncherTour } from "@/features/onboarding/tours/launcher-tour";
-import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { LottiePlayer } from "@/shared/ui/feedback/lottie-player";
 import { usePageOnboardingTour } from "@/shared/ui/onboarding/use-page-onboarding-tour";
 
-import "../launcher-responsive.css";
 import { LauncherHeroStage } from "../hero/launcher-hero-stage";
 import {
   buildDecorativeTokens,
@@ -54,8 +52,8 @@ export function LauncherConsole({
   });
 
   return (
-    <section className="launcher-console relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="launcher-console-brand pointer-events-none absolute left-3 top-3 z-20 sm:left-5 sm:top-4">
+    <section className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="pointer-events-none absolute left-3 top-3 z-20 sm:left-5 sm:top-4">
         <div className="relative flex items-center gap-1 px-1 py-1">
           <LottiePlayer
             className="launcher-console-brand-decoration pointer-events-none absolute left-10 -top-4 h-12 w-12 opacity-[0.72] sm:left-3 sm:-top-15 sm:h-30 sm:w-30"
@@ -74,10 +72,7 @@ export function LauncherConsole({
           </span>
         </div>
       </div>
-      <div className={cn(
-        "launcher-console-hero relative flex min-h-0 flex-1 items-center justify-center px-8",
-        "pb-8 pt-6",
-      )}>
+      <div className="relative min-h-0 flex-1 px-8 pb-6 pt-14">
         <LauncherHeroStage
           currentAgentId={currentAgentId}
           decorativeTokens={decorativeTokens}

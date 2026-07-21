@@ -23,7 +23,7 @@ export function AgentPile({
   return (
     <div
       className={cn(
-        "pointer-events-none relative z-0 mt-14 h-[286px] w-full max-w-[640px] overflow-hidden mask-[linear-gradient(180deg,transparent_0,black_14%,black_92%,transparent_100%)]",
+        "pointer-events-none relative z-0 h-[286px] w-[640px] overflow-hidden mask-[linear-gradient(180deg,transparent_0,black_14%,black_92%,transparent_100%)]",
         className,
       )}
       ref={physics.containerRef}

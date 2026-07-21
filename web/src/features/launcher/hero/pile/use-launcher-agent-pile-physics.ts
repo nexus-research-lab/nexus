@@ -4,13 +4,16 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import type { SpotlightToken } from "@/types/app/launcher";
 
-import { createTokenConfig } from "./launcher-agent-pile-model";
+import { createTokenConfig, LAUNCHER_PILE_WIDTH } from "./launcher-agent-pile-model";
 import { LauncherPilePhysics } from "./launcher-agent-pile-physics";
 
 export function useLauncherAgentPilePhysics(tokens: SpotlightToken[]) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const tokenRefs = useRef<Record<string, HTMLElement | null>>({});
-  const configs = useMemo(() => createTokenConfig(tokens, 560), [tokens]);
+  const configs = useMemo(
+    () => createTokenConfig(tokens, LAUNCHER_PILE_WIDTH),
+    [tokens],
+  );
   const configByKey = useMemo(
     () => new Map(configs.map((config) => [config.key, config])),
     [configs],

@@ -33,15 +33,15 @@ export function HeroBlobShell({ children, className: className }: HeroBlobShellP
   return (
     <div
       className={cn(
-        "launcher-hero-shell relative w-full max-w-[404px] sm:max-w-[980px]",
+        "relative w-[980px]",
         className,
       )}
     >
       <div
-        className="absolute inset-[-18%] z-0 translate-y-4 pointer-events-none blur-[28px] sm:translate-y-5"
+        className="pointer-events-none absolute inset-[-18%] z-0 translate-y-8 blur-[28px]"
         style={{ background: "var(--launcher-hero-aura)" }}
       />
-      <div className="absolute inset-[-24%] z-0 origin-center translate-y-5 pointer-events-none scale-x-[1.7] scale-y-[0.96] sm:inset-[-20%] sm:translate-y-6 sm:scale-x-[1.4] sm:scale-y-[1.2] lg:scale-x-100 lg:scale-y-100">
+      <div className="pointer-events-none absolute inset-[-20%] z-0 translate-y-10">
         <svg
           aria-hidden="true"
           className="absolute inset-0 h-full w-full pointer-events-none"
@@ -150,7 +150,7 @@ export function HeroBlobShell({ children, className: className }: HeroBlobShellP
         </svg>
       </div>
 
-      <div className="launcher-hero-shell-content relative z-10 px-5 py-11 text-center sm:px-14 sm:py-12 lg:px-18 lg:py-16">
+      <div className="relative top-4 z-10 px-18 py-16 text-center">
         {children}
       </div>
     </div>
