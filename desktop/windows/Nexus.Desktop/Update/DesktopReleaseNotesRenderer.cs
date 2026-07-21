@@ -5,6 +5,9 @@ using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Media;
 using System.Windows.Navigation;
+using WpfBrush = System.Windows.Media.Brush;
+using WpfFontFamily = System.Windows.Media.FontFamily;
+using WpfSystemColors = System.Windows.SystemColors;
 
 namespace Nexus.Desktop.Update;
 
@@ -41,9 +44,9 @@ internal static class DesktopReleaseNotesRenderer
         {
             PagePadding = new Thickness(8, 6, 8, 6),
             ColumnWidth = double.PositiveInfinity,
-            FontFamily = new FontFamily("Segoe UI"),
+            FontFamily = new WpfFontFamily("Segoe UI"),
             FontSize = 12,
-            Foreground = SystemColors.ControlTextBrush,
+            Foreground = WpfSystemColors.ControlTextBrush,
         };
 
         for (int index = 0; index < lines.Length;)
@@ -122,7 +125,7 @@ internal static class DesktopReleaseNotesRenderer
                     document,
                     trimmed[1..].Trim(),
                     prefix: "│ ",
-                    foreground: SystemColors.GrayTextBrush,
+                    foreground: WpfSystemColors.GrayTextBrush,
                     margin: new Thickness(16, 2, 0, 6),
                     textIndent: -12);
                 index++;
@@ -134,7 +137,7 @@ internal static class DesktopReleaseNotesRenderer
                 AddParagraph(
                     document,
                     "────────",
-                    foreground: SystemColors.GrayTextBrush,
+                    foreground: WpfSystemColors.GrayTextBrush,
                     paragraphSpacing: 6);
                 index++;
                 continue;
@@ -170,7 +173,7 @@ internal static class DesktopReleaseNotesRenderer
         string? prefix = null,
         double fontSize = 12,
         FontWeight? fontWeight = null,
-        System.Windows.Media.Brush? foreground = null,
+        WpfBrush? foreground = null,
         Thickness? margin = null,
         double textIndent = 0,
         double paragraphSpacing = 8)
@@ -179,7 +182,7 @@ internal static class DesktopReleaseNotesRenderer
         {
             FontSize = fontSize,
             FontWeight = fontWeight ?? FontWeights.Normal,
-            Foreground = foreground ?? SystemColors.ControlTextBrush,
+            Foreground = foreground ?? WpfSystemColors.ControlTextBrush,
             Margin = margin ?? new Thickness(0, 2, 0, paragraphSpacing),
             TextIndent = textIndent,
             LineHeight = 18,
@@ -196,9 +199,9 @@ internal static class DesktopReleaseNotesRenderer
     {
         var paragraph = new Paragraph
         {
-            FontFamily = new FontFamily("Consolas"),
+            FontFamily = new WpfFontFamily("Consolas"),
             FontSize = 11,
-            Background = SystemColors.ControlBrush,
+            Background = WpfSystemColors.ControlBrush,
             Padding = new Thickness(8),
             Margin = new Thickness(0, 4, 0, 8),
             LineHeight = 16,
@@ -222,9 +225,9 @@ internal static class DesktopReleaseNotesRenderer
             {
                 paragraph.Inlines.Add(new Run(token[1..^1])
                 {
-                    FontFamily = new FontFamily("Consolas"),
+                    FontFamily = new WpfFontFamily("Consolas"),
                     FontSize = 11,
-                    Background = SystemColors.ControlBrush,
+                    Background = WpfSystemColors.ControlBrush,
                 });
             }
             else if (token.StartsWith("**", StringComparison.Ordinal) && token.EndsWith("**", StringComparison.Ordinal) ||
