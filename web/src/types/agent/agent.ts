@@ -32,6 +32,7 @@ export interface Agent {
     agent_id: string;
     name: string;
     workspace_path: string;
+    is_main?: boolean;
     display_name?: string | null;
     headline?: string | null;
     profile_markdown?: string | null;
@@ -55,6 +56,7 @@ export interface ApiAgent {
     agent_id: string;
     name: string;
     workspace_path: string;
+    is_main?: boolean;
     display_name?: string | null;
     headline?: string | null;
     profile_markdown?: string | null;

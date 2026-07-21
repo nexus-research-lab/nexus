@@ -22,6 +22,7 @@ interface AgentOptionsIdentityTabProps {
   defaultProvider: AgentProvider;
   description: string;
   isValidatingName: boolean;
+  isMain: boolean;
   model: string;
   nameValidation: AgentNameValidationResult | null;
   onAvatarChange: (value: string) => void;
@@ -47,6 +48,7 @@ export function AgentOptionsIdentityTab({
   defaultProvider,
   description,
   isValidatingName,
+  isMain,
   model,
   nameValidation,
   onAvatarChange,
@@ -67,6 +69,7 @@ export function AgentOptionsIdentityTab({
   const { t } = useI18n();
   const layout = IDENTITY_LAYOUTS[variant];
   const isInline = variant === "inline";
+  const shouldShowDescriptionField = !isInline || (!isMain && !agentId);
 
   return (
     <div
@@ -119,13 +122,14 @@ export function AgentOptionsIdentityTab({
         </div>
       </div>
 
-      {isInline && agentId ? (
+      {isInline && !isMain && agentId ? (
         <AgentProfileFileEditor
           agentId={agentId}
           key={agentId}
           label={t("agent_options.identity.description")}
         />
-      ) : (
+      ) : null}
+      {shouldShowDescriptionField ? (
         <div className="space-y-2">
           <label className="text-[11px] font-semibold text-(--text-muted)">
             {t("agent_options.identity.description")}
@@ -138,7 +142,7 @@ export function AgentOptionsIdentityTab({
             value={description}
           />
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

@@ -30,6 +30,7 @@ export interface AgentOptionsCreateSource {
 
 export interface AgentOptionsEditSource {
   agentId: string;
+  isMain: boolean;
   initial: AgentOptionsEditorInitialValues;
   kind: "edit";
 }
@@ -60,6 +61,7 @@ export function buildAgentOptionsEditSource(
 ): AgentOptionsEditSource {
   return {
     agentId: agent.agent_id,
+    isMain: agent.is_main === true,
     initial: {
       avatar: agent.avatar ?? "",
       description: agent.description ?? "",
