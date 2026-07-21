@@ -9,12 +9,10 @@ import type {
   AgentNameValidationResult,
   AgentOptions,
 } from "@/types/agent/agent";
-import type { RoomConversationView } from "@/types/conversation/conversation";
 import type { RoomSurfaceTabKey } from "@/features/conversation/room/surface/header/room-header-tabs";
 import type { SubagentTaskSource } from "@/types/conversation/subagent-task";
 
 import { RoomAgentAboutSurface } from "../room-agent-about-surface";
-import { RoomHistorySurface } from "../history/room-history-surface";
 import { RoomWorkspaceView } from "../../workspace/room-workspace-view";
 import type { RoomAgentAboutRequest } from "./room-surface-layout-types";
 
@@ -28,14 +26,10 @@ interface RoomSurfaceAuxiliaryPanelProps {
   activeSurfaceTab: RoomSurfaceTabKey;
   activeWorkspacePath: string | null;
   conversationId: string | null;
-  conversations: RoomConversationView[];
   currentAgent: Agent;
-  currentRoomType: string;
   sidePanelWidthPercent: number;
   isDm: boolean;
   onClose: () => void;
-  onCreateConversation: (title?: string) => Promise<string | null>;
-  onDeleteConversation: (conversationId: string) => Promise<string | null>;
   onOpenWorkspaceFile: (
     path: string | null,
     workspaceAgentId?: string | null,
@@ -46,12 +40,7 @@ interface RoomSurfaceAuxiliaryPanelProps {
     options: AgentOptions,
     identity: AgentIdentityDraft,
   ) => Promise<void>;
-  onSelectConversation: (conversationId: string) => void;
   onStartSidePanelResize: () => void;
-  onUpdateConversationTitle: (
-    conversationId: string,
-    title: string,
-  ) => Promise<void>;
   onValidateAgentName: (
     name: string,
     agentId?: string,
@@ -66,19 +55,13 @@ export function RoomSurfaceAuxiliaryPanel({
   activeSurfaceTab,
   activeWorkspacePath,
   conversationId,
-  conversations,
   currentAgent,
-  currentRoomType,
   sidePanelWidthPercent,
   isDm,
   onClose,
-  onCreateConversation,
-  onDeleteConversation,
   onOpenWorkspaceFile,
   onSaveAgentOptions,
-  onSelectConversation,
   onStartSidePanelResize,
-  onUpdateConversationTitle,
   onValidateAgentName,
   roomId,
   roomMembers,
@@ -86,22 +69,8 @@ export function RoomSurfaceAuxiliaryPanel({
 }: RoomSurfaceAuxiliaryPanelProps) {
   const persistentPanels: Array<{
     content: ReactNode;
-    key: "history" | "workspace" | "about";
+    key: "workspace" | "about";
   }> = [
-    {
-      key: "history",
-      content: (
-        <RoomHistorySurface
-          conversations={conversations}
-          conversationId={conversationId}
-          currentRoomType={currentRoomType}
-          onCreateConversation={onCreateConversation}
-          onDeleteConversation={onDeleteConversation}
-          onSelectConversation={onSelectConversation}
-          onUpdateConversationTitle={onUpdateConversationTitle}
-        />
-      ),
-    },
     {
       key: "workspace",
       content: (

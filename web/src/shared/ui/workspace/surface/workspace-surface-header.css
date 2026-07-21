@@ -72,6 +72,18 @@
     font-size: 0 !important;
   }
 
+  .workspace-surface-history-trigger {
+    width: 2rem;
+    min-width: 2rem;
+    justify-content: center;
+    gap: 0;
+    padding-inline: 0;
+  }
+
+  .workspace-surface-history-trigger > span {
+    display: none;
+  }
+
   .workspace-surface-header-trailing {
     margin-left: 0.25rem;
     gap: 0.25rem;

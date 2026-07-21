@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Replaced the full Room history side panel with an anchored dropdown that shows ten conversations per page while retaining rename and delete actions.
 - Made conversation tabs responsive to available header width, showing recent titles only and loading conversation content on selection.
 - Hid the AGENTS.md profile editor for the main Nexus agent, which intentionally has no workspace AGENTS.md.
 - Split Room runtime append prompts into stable and dynamic cache segments, reused warm Room slot runtimes without replaying the full public context, and kept the legacy flattened prompt for runtime compatibility.

@@ -19,10 +19,12 @@ interface RoomSurfaceHeaderProps {
   onCloseAuxiliaryPanel: () => void;
   onCloseConversation: (conversationId: string) => Promise<void>;
   onCreateConversation: (title?: string) => Promise<string | null>;
+  onDeleteConversation: (conversationId: string) => Promise<string | null>;
   onManageRoom: (submission: RoomDialogSubmission) => Promise<void>;
   onOpenMemberManager: () => Promise<void>;
   onReplayTour?: () => void;
   onSelectConversation: (conversationId: string) => void;
+  onUpdateConversationTitle?: (conversationId: string, title: string) => Promise<void>;
   roomAvatar?: string | null;
   roomHostAgentId: string | null;
   roomHostAutoReplyEnabled: boolean;
@@ -44,10 +46,12 @@ export function RoomSurfaceHeader({
   onCloseAuxiliaryPanel,
   onCloseConversation,
   onCreateConversation,
+  onDeleteConversation,
   onManageRoom,
   onOpenMemberManager,
   onReplayTour,
   onSelectConversation,
+  onUpdateConversationTitle,
   roomAvatar,
   roomHostAgentId,
   roomHostAutoReplyEnabled,
@@ -67,8 +71,10 @@ export function RoomSurfaceHeader({
       onCloseActiveTab={onCloseAuxiliaryPanel}
       onCloseConversation={onCloseConversation}
       onCreateConversation={onCreateConversation}
+      onDeleteConversation={onDeleteConversation}
       onReplayTour={onReplayTour}
       onSelectConversation={onSelectConversation}
+      onUpdateConversationTitle={onUpdateConversationTitle}
     />
   ) : (
     <GroupConversationHeader
@@ -82,10 +88,12 @@ export function RoomSurfaceHeader({
       onCloseActiveTab={onCloseAuxiliaryPanel}
       onCloseConversation={onCloseConversation}
       onCreateConversation={onCreateConversation}
+      onDeleteConversation={onDeleteConversation}
       onManageRoom={onManageRoom}
       onOpenMemberManager={onOpenMemberManager}
       onReplayTour={onReplayTour}
       onSelectConversation={onSelectConversation}
+      onUpdateConversationTitle={onUpdateConversationTitle}
       roomAvatar={roomAvatar}
       roomHostAgentId={roomHostAgentId}
       roomHostAutoReplyEnabled={roomHostAutoReplyEnabled}

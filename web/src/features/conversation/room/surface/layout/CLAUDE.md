@@ -5,5 +5,5 @@
 - Header、辅助面板和 Thread 装配各自消费窄接口；消息轨道统一复用 `conversation/shared/thread/`，聊天面板必须常驻挂载。
 - Thread 右栏只消费 `group/thread/live/` 的面板模型，不直接读取 Chat 会话或实时 Store。
 - Header 只接收一个 Room 管理提交命令，不沿布局链传播成员增删和设置更新的底层回调。
-- 历史、工作区和简介面板保持挂载，通过数据表统一控制可见性。
+- 工作区和简介面板保持挂载，通过数据表统一控制可见性；历史由 Header 的锚定菜单承载，不再打开右侧面板。
 - Room 写命令使用页面控制器已绑定的作用域，Header 不重复传递 `roomId`。

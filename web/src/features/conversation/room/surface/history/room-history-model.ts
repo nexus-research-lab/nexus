@@ -12,6 +12,14 @@ export interface RoomHistoryEntry {
   canRename: boolean;
 }
 
+export const ROOM_HISTORY_PAGE_SIZE = 10;
+
+export interface RoomHistoryPage {
+  entries: RoomHistoryEntry[];
+  page: number;
+  pageCount: number;
+}
+
 function compareByRecentActivity(
   left: RoomConversationView,
   right: RoomConversationView,
@@ -54,4 +62,21 @@ export function buildRoomHistoryEntries({
         ),
       };
     });
+}
+
+export function paginateRoomHistoryEntries(
+  entries: RoomHistoryEntry[],
+  requestedPage: number,
+  pageSize = ROOM_HISTORY_PAGE_SIZE,
+): RoomHistoryPage {
+  const resolvedPageSize = Math.max(1, Math.floor(pageSize));
+  const pageCount = Math.max(1, Math.ceil(entries.length / resolvedPageSize));
+  const page = Math.min(Math.max(0, requestedPage), pageCount - 1);
+  const start = page * resolvedPageSize;
+
+  return {
+    entries: entries.slice(start, start + resolvedPageSize),
+    page,
+    pageCount,
+  };
 }

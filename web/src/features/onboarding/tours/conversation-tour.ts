@@ -10,7 +10,7 @@ export const CONVERSATION_TOUR_ANCHORS = {
   session_switcher: "conversation-session-switcher",
   tab_about: "conversation-tab-about",
   tab_chat: "conversation-tab-chat",
-  tab_history: "conversation-tab-history",
+  history_menu: "conversation-history-menu",
   tab_workspace: "conversation-tab-workspace",
 } as const;
 
@@ -39,10 +39,10 @@ export function buildDmConversationTour(
         placement: "bottom",
       },
       {
-        id: "history-tab",
-        title: t("room.tour_tab_history_title"),
-        description: t("room.tour_tab_history_description"),
-        target: CONVERSATION_TOUR_ANCHORS.tab_history,
+        id: "history-menu",
+        title: t("room.tour_history_title"),
+        description: t("room.tour_history_description"),
+        target: CONVERSATION_TOUR_ANCHORS.history_menu,
         placement: "bottom",
       },
       {
@@ -105,10 +105,10 @@ export function buildRoomConversationTour(
         placement: "bottom",
       },
       {
-        id: "history-tab",
-        title: t("room.tour_tab_history_title"),
-        description: t("room.tour_tab_history_description"),
-        target: CONVERSATION_TOUR_ANCHORS.tab_history,
+        id: "history-menu",
+        title: t("room.tour_history_title"),
+        description: t("room.tour_history_description"),
+        target: CONVERSATION_TOUR_ANCHORS.history_menu,
         placement: "bottom",
       },
       {
@@ -171,10 +171,10 @@ export function buildRoomEmptyConversationTour(
         placement: "bottom",
       },
       {
-        id: "history-tab",
-        title: t("room.tour_tab_history_title"),
-        description: t("room.tour_tab_history_description"),
-        target: CONVERSATION_TOUR_ANCHORS.tab_history,
+        id: "history-menu",
+        title: t("room.tour_history_title"),
+        description: t("room.tour_history_description"),
+        target: CONVERSATION_TOUR_ANCHORS.history_menu,
         placement: "bottom",
       },
       {
