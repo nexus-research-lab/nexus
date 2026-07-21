@@ -307,6 +307,7 @@ function WebSearchRow({
           <div className="md:col-span-2">
             {apiKeySupported ? (
               <WebSearchAPIKeyField
+                key={provider.value}
                 apiKey={apiKey}
                 apiKeyConfigured={settings.api_key_configured === true}
                 apiKeyMasked={settings.api_key_masked ?? ""}

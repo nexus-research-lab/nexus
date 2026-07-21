@@ -104,6 +104,8 @@ export function useRuntimeSettingsController() {
         ...current,
         web_search: {
           ...(current.web_search ?? { enabled: true, provider }),
+          api_key_configured: false,
+          api_key_masked: "",
           enabled: provider === "anysearch" ? true : value.trim() !== "",
         },
         web_search_api_key: value,
@@ -116,6 +118,8 @@ export function useRuntimeSettingsController() {
       ...current,
       web_search: {
         ...current.web_search,
+        api_key_configured: false,
+        api_key_masked: "",
         enabled: provider === DEFAULT_WEB_SEARCH_PROVIDER,
         provider,
         base_url: undefined,

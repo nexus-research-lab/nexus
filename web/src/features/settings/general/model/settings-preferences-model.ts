@@ -83,11 +83,14 @@ function normalizeWebSearch(
   settings: UserPreferences["web_search"],
   fallback: UserPreferences["web_search"],
 ): UserPreferences["web_search"] {
+  const apiKeyConfigured = settings?.api_key_configured === true;
   return {
     ...fallback,
     ...settings,
     enabled: settings?.enabled ?? fallback?.enabled ?? true,
     provider: settings?.provider ?? fallback?.provider ?? DEFAULT_WEB_SEARCH_PROVIDER,
+    api_key_configured: apiKeyConfigured,
+    api_key_masked: apiKeyConfigured ? settings?.api_key_masked ?? "" : "",
   };
 }
 

@@ -2,6 +2,7 @@ package preferences
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -168,6 +169,17 @@ func TestServiceStoresWebSearchAPIKeySeparately(t *testing.T) {
 	if info, err := os.Stat(keyPath); err != nil || info.Mode().Perm() != 0o600 {
 		t.Fatalf("API key 文件权限不正确: info=%v err=%v", info, err)
 	}
+	credentialContent, err := os.ReadFile(keyPath)
+	if err != nil {
+		t.Fatalf("读取 WebSearch 凭据文件失败: %v", err)
+	}
+	var credential storedWebSearchCredential
+	if err = json.Unmarshal(credentialContent, &credential); err != nil {
+		t.Fatalf("WebSearch 凭据文件格式不正确: %v", err)
+	}
+	if credential.Provider != "brave" || credential.APIKey != apiKey {
+		t.Fatalf("WebSearch 凭据未绑定 provider: %+v", credential)
+	}
 
 	empty := ""
 	if _, err := service.Update(context.Background(), "user/1", UpdateRequest{WebSearchAPIKey: &empty}); err != nil {
@@ -261,6 +273,40 @@ func TestServiceStoresOptionalAnySearchAPIKey(t *testing.T) {
 	}
 	if strings.Contains(string(content), apiKey) {
 		t.Fatalf("AnySearch API key 不应写入偏好文件: %s", content)
+	}
+}
+
+func TestServiceDoesNotReuseCredentialAcrossWebSearchProviders(t *testing.T) {
+	root := t.TempDir()
+	service := NewService(config.Config{WorkspacePath: filepath.Join(root, "workspace")})
+	if _, err := service.Update(context.Background(), "user/1", UpdateRequest{
+		WebSearch: &WebSearchSettings{Enabled: true, Provider: "anysearch"},
+	}); err != nil {
+		t.Fatalf("写入 AnySearch 配置失败: %v", err)
+	}
+
+	keyPath := filepath.Join(root, "workspace", "user_1", ".settings", "web-search-api-key")
+	credential := `{"provider":"tavily","api_key":"provider-scoped-key"}`
+	if err := os.WriteFile(keyPath, []byte(credential), 0o600); err != nil {
+		t.Fatalf("写入 provider 凭据失败: %v", err)
+	}
+	loaded, err := service.Get(context.Background(), "user/1")
+	if err != nil {
+		t.Fatalf("读取 AnySearch 配置失败: %v", err)
+	}
+	if loaded.WebSearch.APIKeyConfigured || loaded.WebSearchAPIKey() != "" || loaded.WebSearch.APIKeyMasked != "" {
+		t.Fatalf("AnySearch 不应复用 Tavily 凭据: %+v", loaded.WebSearch)
+	}
+
+	if err := os.WriteFile(keyPath, []byte("provider-scoped-key\n"), 0o600); err != nil {
+		t.Fatalf("写入旧格式凭据失败: %v", err)
+	}
+	loaded, err = service.Get(context.Background(), "user/1")
+	if err != nil {
+		t.Fatalf("读取旧格式凭据失败: %v", err)
+	}
+	if loaded.WebSearch.APIKeyConfigured || loaded.WebSearchAPIKey() != "" {
+		t.Fatalf("旧格式凭据不应被读取: %+v", loaded.WebSearch)
 	}
 }
 
