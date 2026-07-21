@@ -170,7 +170,7 @@ internal static class DesktopReleaseNotesRenderer
         string? prefix = null,
         double fontSize = 12,
         FontWeight? fontWeight = null,
-        Brush? foreground = null,
+        System.Windows.Media.Brush? foreground = null,
         Thickness? margin = null,
         double textIndent = 0,
         double paragraphSpacing = 8)
