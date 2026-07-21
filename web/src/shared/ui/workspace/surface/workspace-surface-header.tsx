@@ -175,7 +175,7 @@ function WorkspaceSurfaceNavigation<TTabKey extends string>({
   tabsNavAnchor?: string;
 }) {
   return (
-    <div className="workspace-surface-header-navigation flex min-w-0 flex-[1_1_0%] items-center gap-3">
+    <div className="workspace-surface-header-navigation flex min-w-0 flex-1 items-center gap-3">
       <WorkspaceSurfaceNavigationLead
         subtitle={subtitle}
         tabsLeading={tabsLeading}
@@ -204,7 +204,7 @@ function WorkspaceSurfaceNavigationLead({
   tabsLeading?: ReactNode;
 }) {
   if (tabsLeading) {
-    return <div className="workspace-surface-header-session-tabs min-w-0 flex-[1_1_0%]">{tabsLeading}</div>;
+    return <div className="workspace-surface-header-session-tabs min-w-0 flex-1">{tabsLeading}</div>;
   }
   if (!subtitle) return null;
 
@@ -271,7 +271,7 @@ function WorkspaceSurfaceTrailing({ children }: { children?: ReactNode }) {
   if (!children) return null;
 
   return (
-    <div className="workspace-surface-header-trailing ml-auto flex shrink-0 flex-nowrap items-center justify-end gap-1.5">
+    <div className="workspace-surface-header-trailing ml-3 flex shrink-0 flex-nowrap items-center justify-end gap-1.5">
       {children}
     </div>
   );

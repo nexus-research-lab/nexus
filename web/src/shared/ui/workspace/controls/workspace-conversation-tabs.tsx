@@ -19,7 +19,7 @@ interface WorkspaceConversationTabsProps {
 }
 
 const TRACK_CLASS_NAME =
-  "workspace-surface-header-session-tabs-track soft-scrollbar scrollbar-hide flex h-8 w-full min-w-0 flex-1 items-center gap-0 overflow-hidden border-b border-(--divider-subtle-color) px-0 py-0";
+  "workspace-surface-header-session-tabs-track soft-scrollbar scrollbar-hide flex h-8 w-full min-w-0 items-center gap-0 overflow-hidden border-b border-(--divider-subtle-color) px-0 py-0";
 
 export function WorkspaceConversationTabs({
   conversations,
