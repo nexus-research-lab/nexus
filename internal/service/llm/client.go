@@ -100,6 +100,7 @@ func requestPayload(request GenerateTextRequest) any {
 			Model:           model,
 			Input:           messagesWithSystem(systemPrompt, messages),
 			MaxOutputTokens: maxTokens,
+			Store:           false,
 			Temperature:     request.Temperature,
 			Stream:          false,
 		}
@@ -108,10 +109,14 @@ func requestPayload(request GenerateTextRequest) any {
 	case providersvc.APIFormatChatCompletions:
 		payload := chatCompletionsRequest{
 			Model:       model,
-			MaxTokens:   maxTokens,
 			Temperature: request.Temperature,
 			Stream:      false,
 			Messages:    messagesWithSystem(systemPrompt, messages),
+		}
+		if config.UseMaxCompletionTokens {
+			payload.MaxCompletionTokens = maxTokens
+		} else {
+			payload.MaxTokens = maxTokens
 		}
 		applyChatCompletionsReasoningDisableOptions(&payload, config, request)
 		return payload
@@ -386,6 +391,9 @@ func applyHeaders(request *http.Request, config *clientopts.RuntimeConfig) {
 	token := strings.TrimSpace(config.AuthToken)
 	if token != "" {
 		request.Header.Set("Authorization", "Bearer "+token)
+		if providersvc.IsAzureOpenAIEndpoint(config.BaseURL) {
+			request.Header.Set("api-key", token)
+		}
 	}
 	if normalizeAPIFormat(config.APIFormat) == providersvc.APIFormatAnthropicMessages {
 		if token != "" {
@@ -398,7 +406,7 @@ func applyHeaders(request *http.Request, config *clientopts.RuntimeConfig) {
 func buildEndpoint(baseURL string, apiFormat string) (string, error) {
 	switch normalizeAPIFormat(apiFormat) {
 	case providersvc.APIFormatResponses:
-		return joinEndpoint(baseURL, "/responses")
+		return providersvc.ResolveResponsesEndpoint(baseURL)
 	case providersvc.APIFormatChatCompletions:
 		return joinEndpoint(baseURL, "/chat/completions")
 	default:
@@ -464,21 +472,23 @@ type anthropicMessagesRequest struct {
 }
 
 type chatCompletionsRequest struct {
-	Model              string            `json:"model"`
-	MaxTokens          int               `json:"max_tokens"`
-	Temperature        float64           `json:"temperature,omitempty"`
-	Stream             bool              `json:"stream"`
-	Messages           []Message         `json:"messages"`
-	Thinking           map[string]string `json:"thinking,omitempty"`
-	EnableThinking     *bool             `json:"enable_thinking,omitempty"`
-	ChatTemplateKwargs map[string]bool   `json:"chat_template_kwargs,omitempty"`
-	ReasoningEffort    string            `json:"reasoning_effort,omitempty"`
+	Model               string            `json:"model"`
+	MaxTokens           int               `json:"max_tokens,omitempty"`
+	MaxCompletionTokens int               `json:"max_completion_tokens,omitempty"`
+	Temperature         float64           `json:"temperature,omitempty"`
+	Stream              bool              `json:"stream"`
+	Messages            []Message         `json:"messages"`
+	Thinking            map[string]string `json:"thinking,omitempty"`
+	EnableThinking      *bool             `json:"enable_thinking,omitempty"`
+	ChatTemplateKwargs  map[string]bool   `json:"chat_template_kwargs,omitempty"`
+	ReasoningEffort     string            `json:"reasoning_effort,omitempty"`
 }
 
 type responsesRequest struct {
 	Model           string              `json:"model"`
 	Input           []Message           `json:"input"`
 	MaxOutputTokens int                 `json:"max_output_tokens"`
+	Store           bool                `json:"store"`
 	Temperature     float64             `json:"temperature,omitempty"`
 	Stream          bool                `json:"stream"`
 	Thinking        map[string]string   `json:"thinking,omitempty"`

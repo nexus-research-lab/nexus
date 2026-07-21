@@ -213,7 +213,7 @@ func resolveRuntimeConfig(
 	}
 	apiFormat := strings.TrimSpace(runtimeConfig.APIFormat)
 	if !runtimeSupportsAPIFormat(runtimeKind, apiFormat) {
-		return nil, fmt.Errorf("api_format=%s 暂不可用于 Agent runtime", apiFormat)
+		return nil, fmt.Errorf("api_format=%s 暂不可用于 %s Agent runtime", apiFormat, runtimeKind)
 	}
 	return runtimeConfig, nil
 }

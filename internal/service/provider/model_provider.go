@@ -26,6 +26,15 @@ const (
 	TestStatusFailed = "failed"
 )
 
+const (
+	// EndpointModeFixed 表示端点完全由内置目录提供。
+	EndpointModeFixed = "fixed"
+	// EndpointModeResource 表示用户填写资源级 Base URL，其他端点元数据由内置目录提供。
+	EndpointModeResource = "resource"
+	// EndpointModeCustom 表示 Base URL 与模型路径都来自用户配置。
+	EndpointModeCustom = "custom"
+)
+
 // Record 表示对外暴露的 Provider 配置。
 type Record struct {
 	ID                    string        `json:"id"`
@@ -141,6 +150,7 @@ type DeleteResult struct {
 type Preset struct {
 	PresetKey     string         `json:"preset_key"`
 	ProviderKind  string         `json:"provider_kind"`
+	EndpointMode  string         `json:"endpoint_mode"`
 	DisplayName   string         `json:"display_name"`
 	Description   string         `json:"description"`
 	KeyURL        string         `json:"key_url"`
@@ -150,10 +160,11 @@ type Preset struct {
 
 // PresetFormat 表示预置模板在某个 API Format 下的默认 endpoint。
 type PresetFormat struct {
-	ProviderKind string `json:"provider_kind,omitempty"`
-	APIFormat    string `json:"api_format"`
-	BaseURL      string `json:"base_url"`
-	ModelsPath   string `json:"models_path"`
+	ProviderKind       string `json:"provider_kind,omitempty"`
+	APIFormat          string `json:"api_format"`
+	BaseURL            string `json:"base_url"`
+	BaseURLPlaceholder string `json:"base_url_placeholder,omitempty"`
+	ModelsPath         string `json:"models_path"`
 }
 
 // ModelRecord 表示单个 Provider 下的模型卡。

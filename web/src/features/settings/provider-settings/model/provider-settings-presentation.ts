@@ -103,6 +103,16 @@ function resolveBuiltinEndpointFormats(
   return usesBuiltinEndpoint ? preset?.formats ?? [] : [];
 }
 
+function orderPresetSidebarItems(presets: ProviderPreset[]): ProviderPreset[] {
+  return presets
+    .filter((preset) => preset.preset_key !== "custom")
+    .sort((left, right) => left.display_name.localeCompare(
+      right.display_name,
+      "en",
+      { sensitivity: "base" },
+    ));
+}
+
 function resolveProviderDetailTitle({
   currentPreset,
   draft,
@@ -177,11 +187,10 @@ export function buildProviderSettingsPresentation({
       draft.provider_kind,
       canSelectNonRuntimeFormat,
     ),
-    presetSidebarItems: presets.filter(
-      (preset) => preset.preset_key !== "custom",
-    ),
+    presetSidebarItems: orderPresetSidebarItems(presets),
     providerKindOptions: buildProviderKindOptions(currentPreset, t),
-    showProviderShapeControls: draft.preset_key === "custom",
+    showProviderShapeControls: draft.preset_key === "custom"
+      || currentPreset?.endpoint_mode === "resource",
     showRuntimeFormatBadge: shouldShowRuntimeFormatBadge(draft),
     usesBuiltinEndpoint,
   };

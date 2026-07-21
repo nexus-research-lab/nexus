@@ -45,11 +45,13 @@ func collapseVisibleProviders(items []providerstore.Entity) []providerstore.Enti
 }
 
 func normalizeBuiltinEndpoint(item *providerstore.Entity) {
-	if item == nil || strings.TrimSpace(item.PresetKey) == "" || item.PresetKey == presetCustom {
+	if item == nil || strings.TrimSpace(item.PresetKey) == "" {
 		return
 	}
+	projectLegacyAzurePreset(item)
 	preset := resolvePreset(item.PresetKey)
-	if preset.PresetKey == presetCustom {
+	endpointMode := normalizeEndpointMode(preset.EndpointMode)
+	if endpointMode == EndpointModeCustom {
 		return
 	}
 	apiFormat := normalizeAPIFormat(item.APIFormat)
@@ -58,6 +60,25 @@ func normalizeBuiltinEndpoint(item *providerstore.Entity) {
 	}
 	format := preset.Format(apiFormat)
 	item.APIFormat = apiFormat
-	item.BaseURL = format.BaseURL
 	item.ModelsPath = format.ModelsPath
+	if endpointMode == EndpointModeFixed {
+		item.BaseURL = format.BaseURL
+		return
+	}
+	if baseURL, err := normalizePresetBaseURL(preset, item.BaseURL, format.BaseURL); err == nil {
+		item.BaseURL = baseURL
+	}
+}
+
+// projectLegacyAzurePreset 让早期同名 Custom Azure 配置直接进入内置 preset，保存后即可正式写回。
+func projectLegacyAzurePreset(item *providerstore.Entity) {
+	if item.PresetKey != presetCustom || strings.TrimSpace(item.Provider) != presetAzure {
+		return
+	}
+	baseURL, err := normalizeAzureOpenAIBaseURL(item.BaseURL)
+	if err != nil || !IsAzureOpenAIEndpoint(baseURL) {
+		return
+	}
+	item.PresetKey = presetAzure
+	item.BaseURL = baseURL
 }

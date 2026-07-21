@@ -3,6 +3,7 @@ package provider
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -15,6 +16,9 @@ const (
 	providerEndpointChatCompletions   = APIFormatChatCompletions
 	providerEndpointResponses         = APIFormatResponses
 	providerEndpointAnthropicMessages = APIFormatAnthropicMessages
+	providerTestResponsesMaxTokens    = 16
+	// 新版 Azure 模型可能在产生响应前拒绝只有一个 token 的探针。
+	azureModelCheckMaxCompletionTokens = 64
 )
 
 func endpointURL(item providerstore.Entity, endpointKey string) string {
@@ -32,6 +36,9 @@ func endpointURL(item providerstore.Entity, endpointKey string) string {
 	}
 	switch endpointKey {
 	case providerEndpointResponses:
+		if IsAzureOpenAIEndpoint(item.BaseURL) {
+			return azureResponsesEndpointURL(item.BaseURL)
+		}
 		return joinEndpointURL(item.BaseURL, "/responses")
 	case providerEndpointAnthropicMessages:
 		return joinEndpointURL(item.BaseURL, "/v1/messages")
@@ -40,16 +47,68 @@ func endpointURL(item providerstore.Entity, endpointKey string) string {
 	}
 }
 
+// ResolveResponsesEndpoint 复用模型测试的 Azure/Foundry 校验和路径归一化规则。
+func ResolveResponsesEndpoint(baseURL string) (string, error) {
+	item := providerstore.Entity{
+		APIFormat: APIFormatResponses,
+		BaseURL:   baseURL,
+	}
+	if err := validateModelEndpoint(item); err != nil {
+		return "", err
+	}
+	return endpointURL(item, providerEndpointResponses), nil
+}
+
+// azureResponsesEndpointURL 把 Azure 资源根或 project endpoint 归一化为 v1 Responses operation。
+func azureResponsesEndpointURL(baseURL string) string {
+	parsed, err := url.Parse(strings.TrimSpace(baseURL))
+	if err != nil {
+		return joinEndpointURL(baseURL, "/responses")
+	}
+	basePath := strings.TrimRight(parsed.Path, "/")
+	lowerPath := strings.ToLower(basePath)
+	switch {
+	case strings.HasSuffix(lowerPath, "/responses"):
+		parsed.Path = basePath
+	case strings.HasSuffix(lowerPath, "/openai/v1"):
+		parsed.Path = basePath + "/responses"
+	case strings.HasSuffix(lowerPath, "/openai"):
+		parsed.Path = basePath + "/v1/responses"
+	case basePath == "":
+		parsed.Path = "/openai/v1/responses"
+	case strings.Contains(strings.ToLower(parsed.Hostname()), ".services.ai.azure.com"):
+		parsed.Path = basePath + "/openai/v1/responses"
+	default:
+		return joinEndpointURL(baseURL, "/responses")
+	}
+	parsed.RawPath = ""
+	return parsed.String()
+}
+
 func joinEndpointURL(baseURL string, endpointPath string) string {
 	base := strings.TrimRight(strings.TrimSpace(baseURL), "/")
-	path := strings.TrimSpace(endpointPath)
-	if path == "" {
+	endpoint := strings.TrimSpace(endpointPath)
+	if endpoint == "" {
 		return base
 	}
-	if parsed, err := url.Parse(path); err == nil && parsed.IsAbs() {
-		return path
+	endpointURL, endpointErr := url.Parse(endpoint)
+	if endpointErr == nil && endpointURL.IsAbs() {
+		return endpointURL.String()
 	}
-	return base + "/" + strings.TrimLeft(path, "/")
+	parsed, err := url.Parse(base)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" || endpointErr != nil {
+		return base + "/" + strings.TrimLeft(endpoint, "/")
+	}
+	endpointURL.Path = "/" + strings.TrimLeft(endpointURL.Path, "/")
+	basePath := strings.TrimRight(parsed.Path, "/")
+	if !strings.HasSuffix(basePath, endpointURL.Path) {
+		parsed.Path = basePath + endpointURL.Path
+	}
+	parsed.RawPath = ""
+	if endpointURL.RawQuery != "" {
+		parsed.RawQuery = endpointURL.RawQuery
+	}
+	return parsed.String()
 }
 
 func dashScopeEndpointURL(baseURL string) string {
@@ -86,6 +145,9 @@ func applyProviderHeaders(request *http.Request, item providerstore.Entity) {
 	token := strings.TrimSpace(item.AuthToken)
 	if token != "" {
 		request.Header.Set("Authorization", "Bearer "+token)
+		if IsAzureOpenAIEndpoint(item.BaseURL) {
+			request.Header.Set("api-key", token)
+		}
 	}
 	if normalizeAPIFormat(item.APIFormat) == APIFormatAnthropicMessages {
 		if token != "" {
@@ -96,6 +158,36 @@ func applyProviderHeaders(request *http.Request, item providerstore.Entity) {
 	if request.Method == http.MethodPost && normalizeAPIFormat(item.APIFormat) == APIFormatModelScopeImageGeneration {
 		request.Header.Set("X-ModelScope-Async-Mode", "true")
 	}
+}
+
+// validateModelEndpoint 在发请求前拒绝已知协议与 endpoint 错配，避免把上游 404 当成模型故障。
+func validateModelEndpoint(item providerstore.Entity) error {
+	if normalizeAPIFormat(item.APIFormat) != APIFormatResponses || !IsAzureOpenAIEndpoint(item.BaseURL) {
+		return nil
+	}
+	parsed, err := url.Parse(strings.TrimSpace(item.BaseURL))
+	if err != nil {
+		return fmt.Errorf("Azure Responses base_url 无效: %w", err)
+	}
+	path := strings.ToLower(strings.TrimRight(parsed.Path, "/"))
+	if strings.Contains(path, "/deployments/") ||
+		strings.HasSuffix(path, "/images/generations") ||
+		strings.HasSuffix(path, "/chat/completions") {
+		return errors.New("Azure Responses 不能使用 /deployments/...、/images/generations 或 /chat/completions operation URL；请填写 Azure 资源根、/openai 或 /openai/v1")
+	}
+	return nil
+}
+
+// IsAzureOpenAIEndpoint 识别 Azure OpenAI 与 Foundry 的兼容数据面主机。
+func IsAzureOpenAIEndpoint(baseURL string) bool {
+	parsed, err := url.Parse(strings.TrimSpace(baseURL))
+	if err != nil {
+		return false
+	}
+	host := strings.ToLower(parsed.Hostname())
+	return strings.HasSuffix(host, ".openai.azure.com") ||
+		strings.HasSuffix(host, ".cognitiveservices.azure.com") ||
+		strings.HasSuffix(host, ".services.ai.azure.com")
 }
 
 func minimalPayload(item providerstore.Entity, modelID string) ([]byte, error) {
@@ -152,7 +244,8 @@ func minimalPayload(item providerstore.Entity, modelID string) ([]byte, error) {
 		return json.Marshal(map[string]any{
 			"model":             modelID,
 			"input":             "ping",
-			"max_output_tokens": 1,
+			"max_output_tokens": providerTestResponsesMaxTokens,
+			"store":             false,
 			"stream":            false,
 		})
 	case APIFormatAnthropicMessages:
@@ -165,15 +258,25 @@ func minimalPayload(item providerstore.Entity, modelID string) ([]byte, error) {
 			},
 		})
 	default:
-		return json.Marshal(map[string]any{
-			"model":      modelID,
-			"max_tokens": 1,
-			"stream":     false,
+		payload := map[string]any{
+			"model":  modelID,
+			"stream": false,
 			"messages": []map[string]string{
 				{"role": "user", "content": "ping"},
 			},
-		})
+		}
+		if usesMaxCompletionTokens(item) {
+			payload["max_completion_tokens"] = azureModelCheckMaxCompletionTokens
+		} else {
+			payload["max_tokens"] = 1
+		}
+		return json.Marshal(payload)
 	}
+}
+
+// usesMaxCompletionTokens 识别 Azure Chat Completions，包括没有内置 preset 元数据的自定义配置。
+func usesMaxCompletionTokens(item providerstore.Entity) bool {
+	return strings.TrimSpace(item.PresetKey) == presetAzure || IsAzureOpenAIEndpoint(item.BaseURL)
 }
 
 func shouldUseSeedreamDefaults(modelID string) bool {

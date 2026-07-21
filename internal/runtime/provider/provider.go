@@ -14,6 +14,8 @@ const (
 	APIFormatAnthropicMessages = "anthropic_messages"
 	// APIFormatChatCompletions 表示 OpenAI Chat Completions 协议。
 	APIFormatChatCompletions = "chat_completions"
+	// APIFormatResponses 表示 OpenAI Responses 协议。
+	APIFormatResponses = "responses"
 )
 
 // NormalizeRuntimeKind 归一化用户可配置的 runtime kind。
@@ -32,7 +34,7 @@ func SupportsAPIFormat(runtimeKind string, apiFormat string) bool {
 	switch strings.TrimSpace(apiFormat) {
 	case "", APIFormatAnthropicMessages:
 		return true
-	case APIFormatChatCompletions:
+	case APIFormatChatCompletions, APIFormatResponses:
 		return NormalizeRuntimeKind(runtimeKind) == RuntimeKindNXS
 	default:
 		return false

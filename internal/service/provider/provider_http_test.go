@@ -154,6 +154,106 @@ func TestDoubaoSeedreamImageProviderUsesArkImagesPayload(t *testing.T) {
 	}
 }
 
+func TestProviderEndpointURLPreservesOperationPathAndQuery(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		baseURL   string
+		apiFormat string
+		want      string
+	}{
+		{
+			name:      "Azure image full operation URL",
+			baseURL:   "https://sample.cognitiveservices.azure.com/openai/deployments/gpt-image/images/generations?api-version=2024-02-01",
+			apiFormat: APIFormatOpenAIImageGeneration,
+			want:      "https://sample.cognitiveservices.azure.com/openai/deployments/gpt-image/images/generations?api-version=2024-02-01",
+		},
+		{
+			name:      "Azure Responses base with query",
+			baseURL:   "https://sample.openai.azure.com/openai/v1?api-version=preview",
+			apiFormat: APIFormatResponses,
+			want:      "https://sample.openai.azure.com/openai/v1/responses?api-version=preview",
+		},
+		{
+			name:      "Azure OpenAI resource root",
+			baseURL:   "https://sample.openai.azure.com/openai/",
+			apiFormat: APIFormatResponses,
+			want:      "https://sample.openai.azure.com/openai/v1/responses",
+		},
+		{
+			name:      "Azure Foundry project root",
+			baseURL:   "https://sample.services.ai.azure.com/api/projects/project-1",
+			apiFormat: APIFormatResponses,
+			want:      "https://sample.services.ai.azure.com/api/projects/project-1/openai/v1/responses",
+		},
+		{
+			name:      "full Responses operation URL",
+			baseURL:   "https://api.example.com/v1/responses",
+			apiFormat: APIFormatResponses,
+			want:      "https://api.example.com/v1/responses",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			item := providerstore.Entity{
+				ProviderKind: ProviderKindLLM,
+				APIFormat:    test.apiFormat,
+				BaseURL:      test.baseURL,
+			}
+			if test.apiFormat == APIFormatOpenAIImageGeneration {
+				item.ProviderKind = ProviderKindImageGeneration
+			}
+			if got := endpointURL(item, test.apiFormat); got != test.want {
+				t.Fatalf("endpointURL() = %q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
+func TestAzureProviderHeadersIncludeAPIKey(t *testing.T) {
+	t.Parallel()
+
+	request := httptest.NewRequest(http.MethodPost, "https://sample.openai.azure.com/openai/v1/responses", nil)
+	applyProviderHeaders(request, providerstore.Entity{
+		APIFormat: APIFormatResponses,
+		AuthToken: "azure-key",
+		BaseURL:   "https://sample.openai.azure.com/openai/v1",
+	})
+	if got := request.Header.Get("api-key"); got != "azure-key" {
+		t.Fatalf("api-key = %q, want azure-key", got)
+	}
+	if got := request.Header.Get("Authorization"); got != "Bearer azure-key" {
+		t.Fatalf("Authorization = %q, want Bearer azure-key", got)
+	}
+}
+
+func TestAzureResponsesRejectsLegacyOperationURL(t *testing.T) {
+	t.Parallel()
+
+	err := validateModelEndpoint(providerstore.Entity{
+		APIFormat: APIFormatResponses,
+		BaseURL:   "https://sample.cognitiveservices.azure.com/openai/deployments/gpt-image/images/generations?api-version=2024-02-01",
+	})
+	if err == nil || !strings.Contains(err.Error(), "/deployments/") {
+		t.Fatalf("validateModelEndpoint() error = %v, want Azure legacy operation hint", err)
+	}
+}
+
+func TestAzureResponsesAcceptsResourceRoot(t *testing.T) {
+	t.Parallel()
+
+	err := validateModelEndpoint(providerstore.Entity{
+		APIFormat: APIFormatResponses,
+		BaseURL:   "https://sample.openai.azure.com/openai/",
+	})
+	if err != nil {
+		t.Fatalf("validateModelEndpoint() error = %v, want resource root accepted", err)
+	}
+}
+
 func TestProviderTestPayloadsForSupportedAPIFormats(t *testing.T) {
 	cases := []struct {
 		name         string
@@ -178,7 +278,7 @@ func TestProviderTestPayloadsForSupportedAPIFormats(t *testing.T) {
 			expectedPath: "/responses",
 			assertBody: func(t *testing.T, body map[string]any) {
 				t.Helper()
-				if body["model"] != "model-1" || body["max_output_tokens"] != float64(1) || body["input"] != "ping" {
+				if body["model"] != "model-1" || body["max_output_tokens"] != float64(providerTestResponsesMaxTokens) || body["input"] != "ping" || body["store"] != false {
 					t.Fatalf("responses payload 不正确: %+v", body)
 				}
 			},
@@ -241,6 +341,41 @@ func TestProviderTestPayloadsForSupportedAPIFormats(t *testing.T) {
 				t.Fatalf("请求路径不正确: got=%s want=%s", calledPath, tc.expectedPath)
 			}
 		})
+	}
+}
+
+func TestAzureChatCompletionsPayloadUsesMaxCompletionTokens(t *testing.T) {
+	items := []providerstore.Entity{
+		{
+			PresetKey: presetAzure,
+			APIFormat: APIFormatChatCompletions,
+		},
+		{
+			PresetKey: "custom",
+			BaseURL:   "https://resource-name.openai.azure.com/openai/v1",
+			APIFormat: APIFormatChatCompletions,
+		},
+		{
+			PresetKey: "custom",
+			BaseURL:   "https://resource-name.cognitiveservices.azure.com/openai/v1",
+			APIFormat: APIFormatChatCompletions,
+		},
+	}
+	for _, item := range items {
+		payload, err := minimalPayload(item, "production-chat")
+		if err != nil {
+			t.Fatalf("生成 Azure 测试 payload 失败: %v", err)
+		}
+		var body map[string]any
+		if err = json.Unmarshal(payload, &body); err != nil {
+			t.Fatalf("解析 Azure 测试 payload 失败: %v", err)
+		}
+		if body["max_completion_tokens"] != float64(azureModelCheckMaxCompletionTokens) {
+			t.Fatalf("Azure payload 缺少 max_completion_tokens: %+v", body)
+		}
+		if _, exists := body["max_tokens"]; exists {
+			t.Fatalf("Azure payload 不应发送 max_tokens: %+v", body)
+		}
 	}
 }
 

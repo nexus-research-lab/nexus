@@ -23,10 +23,16 @@ const nexusctlWorkspacePathEnvName = "NEXUSCTL_WORKSPACE_PATH"
 const nexusctlCommandPathEnvName = "NEXUSCTL_COMMAND_PATH"
 const apiFormatAnthropicMessages = runtimeprovider.APIFormatAnthropicMessages
 const apiFormatChatCompletions = runtimeprovider.APIFormatChatCompletions
+const apiFormatResponses = runtimeprovider.APIFormatResponses
 const nexusAutoCompactPctOverrideEnvName = "NEXUS_AUTOCOMPACT_PCT_OVERRIDE"
 const defaultClaudeAutoCompactPctOverride = "70"
 const thinkingCapabilityName = "thinking"
 const nexusAPIProviderEnvName = "NEXUS_API_PROVIDER"
+const nexusOpenAIProtocolEnvName = "NEXUS_OPENAI_PROTOCOL"
+const nexusOpenAIPromptCacheEnvName = "NEXUS_OPENAI_PROMPT_CACHE"
+const nexusOpenAIPromptCacheModeEnvName = "NEXUS_OPENAI_PROMPT_CACHE_MODE"
+const nexusOpenAIPromptCacheTTLEnvName = "NEXUS_OPENAI_PROMPT_CACHE_TTL"
+const nexusOpenAIPromptCacheRetentionEnvName = "NEXUS_OPENAI_PROMPT_CACHE_RETENTION"
 const anthropicBaseURLEnvName = "ANTHROPIC_BASE_URL"
 const anthropicAPIKeyEnvName = "ANTHROPIC_API_KEY"
 const anthropicAuthTokenEnvName = "ANTHROPIC_AUTH_TOKEN"
@@ -62,9 +68,10 @@ func runtimeEnvFromConfig(runtimeConfig *RuntimeConfig, runtimeKind string) map[
 	switch strings.TrimSpace(runtimeConfig.APIFormat) {
 	case "", apiFormatAnthropicMessages:
 		env = anthropicRuntimeEnvFromConfig(runtimeConfig)
-	case apiFormatChatCompletions:
+	case apiFormatChatCompletions, apiFormatResponses:
 		if profile.isNXS() {
 			env = openAIRuntimeEnvFromConfig(runtimeConfig)
+			env[nexusOpenAIProtocolEnvName] = strings.TrimSpace(runtimeConfig.APIFormat)
 		}
 	}
 	if profile.isNXS() {
@@ -99,7 +106,7 @@ func applyNXSModelMetadataEnv(env map[string]string, runtimeConfig *RuntimeConfi
 	}
 	env[nexusModelSupportsVisionEnvName] = strconv.FormatBool(runtimeConfig.Vision)
 	apiFormat := strings.TrimSpace(runtimeConfig.APIFormat)
-	if apiFormat == "" || apiFormat == apiFormatAnthropicMessages || apiFormat == apiFormatChatCompletions {
+	if apiFormat == "" || apiFormat == apiFormatAnthropicMessages || apiFormat == apiFormatChatCompletions || apiFormat == apiFormatResponses {
 		env[nexusMultimodalUserContentEnvName] = "1"
 		env[nexusMultimodalToolResultEnvName] = "1"
 	}
@@ -111,8 +118,11 @@ func visionRuntimeEnvFromConfig(runtimeConfig *RuntimeConfig) map[string]string 
 		return nil
 	}
 	providerType := "anthropic-compatible"
-	if strings.TrimSpace(runtimeConfig.APIFormat) == apiFormatChatCompletions {
+	switch strings.TrimSpace(runtimeConfig.APIFormat) {
+	case apiFormatChatCompletions:
 		providerType = "openai"
+	case apiFormatResponses:
+		providerType = "responses"
 	}
 	env := map[string]string{
 		"NEXUS_VISION_PROVIDER_REF":            runtimeConfig.Provider,
@@ -308,6 +318,10 @@ func explicitNXSProcessRuntimeEnv(runtimeKind string) map[string]string {
 		runtimectx.AgentSDKDiagnosticsStreamProgressEnvName,
 		runtimectx.AgentSDKProviderDebugBodyEnvName,
 		nexusCachedMicrocompactEnvName,
+		nexusOpenAIPromptCacheEnvName,
+		nexusOpenAIPromptCacheModeEnvName,
+		nexusOpenAIPromptCacheTTLEnvName,
+		nexusOpenAIPromptCacheRetentionEnvName,
 	} {
 		if value := strings.TrimSpace(os.Getenv(key)); value != "" {
 			env[key] = value
