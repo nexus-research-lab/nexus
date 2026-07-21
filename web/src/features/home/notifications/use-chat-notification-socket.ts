@@ -2,25 +2,36 @@ import { useCallback, useEffect, useRef } from "react";
 
 import { getDesktopWebsocketProtocols } from "@/config/desktop-runtime";
 import { getAgentWsUrl } from "@/config/runtime-endpoints";
+import {
+  pruneRoomActivity,
+  replaceRoomActivitySnapshot,
+  updateRoomActivity,
+} from "@/features/home/room-activity-resource";
 import { parseConversationMessage } from "@/lib/conversation/message-protocol";
 import { notifyRoomDirectoryUpdated } from "@/lib/conversation/room-directory-events";
+import { readString } from "@/lib/unknown-value";
 import { useAppEventSubscription, useWebSocket } from "@/lib/websocket";
 import { parseEventMessage } from "@/lib/websocket/protocol/event-message";
 import type { AssistantMessage } from "@/types/conversation/message/entity";
 import type { EventMessage } from "@/types/generated/protocol";
 
+import type { ChatNotificationDirectoryIndex } from "./chat-notification-directory";
 import { isCompletedAssistantMessage } from "./chat-notification-model";
 
 interface UseChatNotificationSocketOptions {
+  directoryIndex: ChatNotificationDirectoryIndex;
   onCompletedMessage: (event: EventMessage, message: AssistantMessage) => void;
   roomIdsKey: string;
 }
 
 export function useChatNotificationSocket({
+  directoryIndex,
   onCompletedMessage,
   roomIdsKey,
 }: UseChatNotificationSocketOptions): void {
   const roomSeqCursorRef = useRef<Record<string, number>>({});
+  const directoryIndexRef = useRef(directoryIndex);
+  directoryIndexRef.current = directoryIndex;
   const handleMessage = useCallback((rawMessage: unknown) => {
     const event = parseEventMessage(rawMessage);
     if (!event) {
@@ -30,6 +41,7 @@ export function useChatNotificationSocket({
       notifyRoomDirectoryUpdated();
       return;
     }
+    syncRoomActivity(event, directoryIndexRef.current);
     recordRoomSequence(roomSeqCursorRef.current, event);
     if (event.event_type === "room_resync_required") {
       recordResyncSequence(roomSeqCursorRef.current, event);
@@ -60,10 +72,11 @@ export function useChatNotificationSocket({
   useAppEventSubscription(send, state);
 
   useEffect(() => {
-    if (state !== "connected" || !roomIdsKey) {
+    const roomIds = roomIdsKey ? roomIdsKey.split("\n") : [];
+    pruneRoomActivity(new Set(roomIds));
+    if (state !== "connected" || roomIds.length === 0) {
       return undefined;
     }
-    const roomIds = roomIdsKey.split("\n");
     for (const roomId of roomIds) {
       const lastSeenRoomSeq = roomSeqCursorRef.current[roomId] ?? 0;
       send({
@@ -78,6 +91,64 @@ export function useChatNotificationSocket({
       }
     };
   }, [roomIdsKey, send, state]);
+}
+
+function syncRoomActivity(
+  event: EventMessage,
+  directoryIndex: ChatNotificationDirectoryIndex,
+): void {
+  const roomId = resolveRoomActivityRoomId(event, directoryIndex);
+  if (!roomId) {
+    return;
+  }
+
+  if (event.event_type === "round_status") {
+    const roundId = readString(event.data, "round_id") ?? event.round_id;
+    updateRoomActivity(roomId, roundId, readString(event.data, "status"));
+    return;
+  }
+
+  if (event.event_type === "agent_round_status") {
+    updateRoomActivity(
+      roomId,
+      readString(event.data, "round_id") ?? event.round_id,
+      readString(event.data, "status"),
+      "agent_round",
+      readString(event.data, "agent_round_id") ?? event.agent_round_id,
+    );
+    return;
+  }
+
+  if (event.event_type !== "chat_ack" || event.data.pending_snapshot !== true) {
+    return;
+  }
+  const pending = Array.isArray(event.data.pending) ? event.data.pending : [];
+  replaceRoomActivitySnapshot(
+    roomId,
+    readString(event.data, "round_id") ?? event.round_id,
+    pending.length > 0,
+  );
+}
+
+function resolveRoomActivityRoomId(
+  event: EventMessage,
+  directoryIndex: ChatNotificationDirectoryIndex,
+): string | null {
+  const eventRoomId = normalize(event.room_id);
+  const eventConversationId = normalize(event.conversation_id);
+  const sessionKey = normalize(event.session_key);
+  const sessionConversation = sessionKey
+    ? directoryIndex.conversationsBySessionKey.get(sessionKey)
+    : undefined;
+  const conversation = (eventConversationId
+    ? directoryIndex.conversationsById.get(eventConversationId)
+    : undefined) ?? sessionConversation;
+
+  return eventRoomId || normalize(conversation?.room_id) || null;
+}
+
+function normalize(value: string | null | undefined): string {
+  return value?.trim() ?? "";
 }
 
 function recordRoomSequence(cursor: Record<string, number>, event: EventMessage): void {

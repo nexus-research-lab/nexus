@@ -72,6 +72,26 @@ func TestResolveMentionMatchesKeepsUnicodeRuneSpans(t *testing.T) {
 	}
 }
 
+func TestResolveMentionMatchesAcceptsParenthesizedAgentID(t *testing.T) {
+	aliases := map[string]string{"生活方案制定员": "agent-plan"}
+	content := "@生活方案制定员（c742e12ab802）请承接本次咨询"
+	matches := ResolveMentionMatches(content, aliases)
+	if len(matches) != 1 || matches[0].AgentID != "agent-plan" {
+		t.Fatalf("名字后的全角括号不应阻断 mention: %#v", matches)
+	}
+	runes := []rune(content)
+	if got := string(runes[matches[0].StartRune:matches[0].EndRune]); got != "@生活方案制定员" {
+		t.Fatalf("括号中的 agent id 不应进入 mention span: got=%q span=%+v", got, matches[0])
+	}
+}
+
+func TestResolveMentionMatchesDoesNotSplitIdentifierSuffix(t *testing.T) {
+	aliases := map[string]string{"Amy": "agent-amy"}
+	if matches := ResolveMentionMatches("请检查 @Amy_name 的结果", aliases); len(matches) != 0 {
+		t.Fatalf("连接符后的标识符不应截断成 mention: %#v", matches)
+	}
+}
+
 func TestResolveMentionMatchesKeepsOffsetsOutsideMaskedCode(t *testing.T) {
 	aliases := map[string]string{"阿梅": "agent-amy", "Devin": "agent-devin"}
 	content := "代码 `示例 @阿梅` 后请 @Devin 继续"

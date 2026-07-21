@@ -5,9 +5,9 @@ import { AppRouteBuilders } from "@/app/router/route-paths";
 import type { RoomDialogSubmission } from "@/features/conversation/room/members/create-room-dialog";
 import { getActiveChatTargetFromPath } from "@/features/home/notifications/chat-notification-target";
 import { createRoom, deleteRoom } from "@/lib/api/conversation/room-command-api";
-import { useAgentStore } from "@/store/agent";
 import { useSidebarStore } from "@/store/sidebar";
 
+import { useActiveRoomIds } from "../room-activity-resource";
 import {
   buildConversationItems,
   isMainAgentDmRoom,
@@ -43,7 +43,7 @@ export function useChatSidebarController({
     (state) => state.clear_chat_notifications_for_room,
   );
   const setNexusRoomId = useSidebarStore((state) => state.set_nexus_room_id);
-  const agentRuntimeStatuses = useAgentStore((state) => state.agent_runtime_statuses);
+  const activeRoomIds = useActiveRoomIds();
   const {
     agents,
     conversations,
@@ -65,11 +65,11 @@ export function useChatSidebarController({
   );
   const conversationItems = useMemo(() => buildConversationItems({
     agents,
-    agentRuntimeStatuses,
     conversations,
     rooms,
     untitledRoomLabel,
-  }), [agents, agentRuntimeStatuses, conversations, rooms, untitledRoomLabel]);
+    activeRoomIds,
+  }), [activeRoomIds, agents, conversations, rooms, untitledRoomLabel]);
   const items = useMemo(() => projectSidebarUnreadItems({
     activeTarget,
     chatUnreadCounts,

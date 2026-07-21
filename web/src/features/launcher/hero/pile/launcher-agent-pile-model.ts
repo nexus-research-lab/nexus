@@ -2,6 +2,10 @@ import type { SpotlightToken } from "@/types/app/launcher";
 
 type TokenKind = SpotlightToken["kind"];
 
+// 中文注释：Token 堆是固定尺寸的设计画布，整体缩放由 Hero Stage 完成；
+// 物理世界与 DOM 容器共用同一宽度，避免出生点分布和墙体错位。
+export const LAUNCHER_PILE_WIDTH = 640;
+
 export interface TokenPhysicsConfig {
   angle: number;
   delay: number;

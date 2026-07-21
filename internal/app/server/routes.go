@@ -73,7 +73,6 @@ func (s *Server) mountProviderRoutes() {
 // mountAgentRoutes 挂载 Agent、Session 与工作区相关路由。
 func (s *Server) mountAgentRoutes() {
 	s.router.Get(s.prefixPath("/agents"), s.handlers.agent.HandleListAgents)
-	s.router.Get(s.prefixPath("/agents/runtime/statuses"), s.handlers.agent.HandleAgentRuntimeStatuses)
 	s.router.Post(s.prefixPath("/agents"), s.handlers.agent.HandleCreateAgent)
 	s.router.Get(s.prefixPath("/agents/validate/name"), s.handlers.agent.HandleValidateAgentName)
 	s.router.Get(s.prefixPath("/agents/{agent_id}"), s.handlers.agent.HandleGetAgent)

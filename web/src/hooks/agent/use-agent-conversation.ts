@@ -1,11 +1,9 @@
 import {
   useCallback,
-  useEffect,
   useRef,
   useState,
 } from "react";
 
-import { useAgentStore } from "@/store/agent";
 import { useWorkspaceLiveStore } from "@/store/workspace-live";
 import type {
   WebSocketMessage,
@@ -52,10 +50,6 @@ export function useAgentConversation(
   const settleAgentWorkspaceWrites = useWorkspaceLiveStore(
     (state) => state.settle_agent_writes,
   );
-  const agentRuntimeStatus = useAgentStore((state) => (
-    agentId ? state.agent_runtime_statuses[agentId] : undefined
-  ));
-
   const { messages, setMessages } = useAgentMessageCollection();
   const [error, setError] = useState<string | null>(null);
   const sessionSeqCursorRef = useRef(0);
@@ -208,16 +202,6 @@ export function useAgentConversation(
     onError,
     setError,
   });
-
-  useEffect(() => {
-    if (
-      agentId &&
-      agentRuntimeStatus?.running_task_count === 0 &&
-      agentRuntimeStatus.status !== "running"
-    ) {
-      settleAgentWorkspaceWrites(agentId);
-    }
-  }, [agentId, agentRuntimeStatus, settleAgentWorkspaceWrites]);
 
   const actionContext: AgentConversationActionContext = {
     activeSessionKeyRef: session.activeSessionKeyRef,

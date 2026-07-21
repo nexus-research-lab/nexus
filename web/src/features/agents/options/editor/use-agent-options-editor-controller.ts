@@ -99,6 +99,7 @@ export function useAgentOptionsEditorController({
         draftController,
         providerOptions,
         scopeKey,
+        source,
         validation,
       }),
       skills: buildSkillsProps(source, isActive, tabs.activeTab),
@@ -218,14 +219,17 @@ function buildIdentityProps({
   draftController: { draft, updateField },
   providerOptions,
   scopeKey,
+  source,
   validation,
 }: {
   draftController: DraftController;
   providerOptions: ReturnType<typeof useAgentProviderOptions>;
   scopeKey: string;
+  source: AgentOptionsEditorSource;
   validation: ReturnType<typeof useAgentNameValidation>;
 }) {
   return {
+    agentId: source.kind === "edit" ? source.agentId : undefined,
     avatar: draft.avatar,
     defaultModel: providerOptions.defaultModel,
     defaultProvider: providerOptions.defaultProvider,

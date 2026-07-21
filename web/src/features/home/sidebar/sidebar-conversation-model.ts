@@ -1,6 +1,5 @@
 import { isMainAgent } from "@/config/runtime-options";
 import { isExternalSessionChannel } from "@/lib/conversation/external-session";
-import type { AgentRuntimeStatus } from "@/types/agent/agent";
 import type {
   LauncherAgentSummary,
   LauncherConversationSummary,
@@ -24,7 +23,7 @@ export interface SidebarConversationItem {
   lastActivityAt: number;
   messageCount: number;
   notificationKey?: string | null;
-  runningTaskCount: number;
+  isWorking: boolean;
   unreadConversationId?: string | null;
   unreadCount?: number;
   unreadTargetKey?: string | null;
@@ -32,8 +31,8 @@ export interface SidebarConversationItem {
 }
 
 interface ConversationProjectionContext {
+  activeRoomIds: ReadonlySet<string>;
   agentById: Map<string, LauncherAgentSummary>;
-  agentRuntimeStatuses: Record<string, AgentRuntimeStatus>;
   latestByRoomId: Map<string, LauncherConversationSummary>;
   untitledRoomLabel: string;
 }
@@ -44,20 +43,20 @@ export function normalizeSidebarQuery(value: string): string {
 
 export function buildConversationItems({
   agents,
-  agentRuntimeStatuses,
   conversations,
   rooms,
   untitledRoomLabel,
+  activeRoomIds = EMPTY_ACTIVE_ROOM_IDS,
 }: {
   agents: LauncherAgentSummary[];
-  agentRuntimeStatuses: Record<string, AgentRuntimeStatus>;
   conversations: LauncherConversationSummary[];
   rooms: LauncherRoomSummary[];
   untitledRoomLabel: string;
+  activeRoomIds?: ReadonlySet<string>;
 }): SidebarConversationItem[] {
   const context: ConversationProjectionContext = {
+    activeRoomIds,
     agentById: new Map(agents.map((agent) => [agent.id, agent])),
-    agentRuntimeStatuses,
     latestByRoomId: buildLatestConversationByRoomId(conversations),
     untitledRoomLabel,
   };
@@ -109,12 +108,7 @@ function projectConversationItem(
     messageCount: latest.message_count ?? 0,
     roomId: room.id,
     routeRoomId: room.id,
-    runningTaskCount: resolveRunningTaskCount({
-      agentRuntimeStatuses: context.agentRuntimeStatuses,
-      dmAgentId: room.dm_target_agent_id,
-      isDm,
-      latest,
-    }),
+    isWorking: context.activeRoomIds.has(room.id),
     sessionKey: latest.session_key,
     summary: latest.last_reply_preview?.trim() ?? "",
     timeLabel: formatSidebarTime(lastActivityAt),
@@ -127,10 +121,8 @@ function buildLatestConversationByRoomId(
 ): Map<string, LauncherConversationSummary> {
   const latestByRoomId = new Map<string, LauncherConversationSummary>();
   for (const conversation of conversations) {
-    if (
-      !conversation.room_id ||
-      isExternalSessionChannel(conversation.channel_type, conversation.session_key)
-    ) {
+    if (!conversation.room_id
+      || isExternalSessionChannel(conversation.channel_type, conversation.session_key)) {
       continue;
     }
     const current = latestByRoomId.get(conversation.room_id);
@@ -164,23 +156,6 @@ function resolveConversationTitle(
   return room.name?.trim() || untitledRoomLabel;
 }
 
-function resolveRunningTaskCount({
-  agentRuntimeStatuses,
-  dmAgentId,
-  isDm,
-  latest,
-}: {
-  agentRuntimeStatuses: Record<string, AgentRuntimeStatus>;
-  dmAgentId?: string;
-  isDm: boolean;
-  latest: LauncherConversationSummary;
-}): number {
-  if (isDm) {
-    return dmAgentId ? (agentRuntimeStatuses[dmAgentId]?.running_task_count ?? 0) : 0;
-  }
-  return latest.is_active === true || latest.status === "active" ? 1 : 0;
-}
-
 function toTimestamp(value?: string | null): number {
   if (!value) {
     return 0;
@@ -210,3 +185,5 @@ function formatSidebarTime(timestamp: number): string {
   }
   return `${date.getMonth() + 1}/${date.getDate()}`;
 }
+
+const EMPTY_ACTIVE_ROOM_IDS: ReadonlySet<string> = new Set();

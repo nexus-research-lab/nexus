@@ -41,6 +41,13 @@ type preparedSlotRuntime struct {
 	provider  string
 }
 
+type roomRuntimePrompt struct {
+	// stable 是房间规则、技能和成员目录；成员变更时才应使 prompt cache 前缀失效。
+	stable string
+	// dynamic 是 Agent runtime prompt；轮次与 Goal 上下文仍通过 user/contextual input 注入。
+	dynamic string
+}
+
 func roomSourceContextLabel(roundValue *activeRoomRound) string {
 	if roundValue == nil || roundValue.Context == nil {
 		return ""
@@ -155,7 +162,9 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 		AllowedTools:               toolpolicy.WithManagedRuntimeAllowedTools(runtimepolicy.AllowedTools(e.agent.Options.AllowedTools, e.round.Context.Room.PrivateMessagesEnabled), e.service.runtimeImagegenDefaultEnabled(e.ctx)),
 		DisallowedTools:            runtimepolicy.DisallowedTools(e.agent.Options.DisallowedTools, e.round.Context.Room.PrivateMessagesEnabled),
 		SettingSources:             e.agent.Options.SettingSources,
-		AppendSystemPrompt:         prompt,
+		AppendSystemPrompt:         appendPromptSection(prompt.stable, prompt.dynamic),
+		AppendSystemPromptStatic:   prompt.stable,
+		AppendSystemPromptDynamic:  prompt.dynamic,
 		ResumeSessionID:            e.slot.getSDKSessionID(),
 		MaxThinkingTokens:          e.agent.Options.MaxThinkingTokens,
 		MaxTurns:                   e.agent.Options.MaxTurns,
@@ -186,22 +195,21 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 		return preparedSlotRuntime{}, err
 	}
 	options.Session.ResumeID = resumeID
-	e.slot.ContextColdStart = resumeID == ""
 	return preparedSlotRuntime{options: options, selection: selection, provider: runtimeProvider}, nil
 }
 
-func (e *slotExecution) buildRuntimePrompt() (string, sdkpermission.Mode, error) {
-	prompt, err := e.service.agents.BuildRuntimePrompt(e.ctx, e.agent)
+func (e *slotExecution) buildRuntimePrompt() (roomRuntimePrompt, sdkpermission.Mode, error) {
+	dynamicPrompt, err := e.service.agents.BuildRuntimePrompt(e.ctx, e.agent)
 	if err != nil {
-		return "", "", err
+		return roomRuntimePrompt{}, "", err
 	}
-	prompt = appendPromptSection(prompt, roomdomain.BuildSystemPrompt(e.round.Context.Room.PrivateMessagesEnabled))
+	stablePrompt := roomdomain.BuildSystemPrompt(e.round.Context.Room.PrivateMessagesEnabled)
 	roomSkillPrompt, err := e.service.rooms.BuildRoomSkillPrompt(e.ctx, e.round.Context.Room.SkillNames)
 	if err != nil {
-		return "", "", err
+		return roomRuntimePrompt{}, "", err
 	}
-	prompt = appendPromptSection(prompt, roomSkillPrompt)
-	prompt = appendPromptSection(prompt, roomdomain.BuildMemberDirectoryPrompt(e.agentNameByID))
+	stablePrompt = appendPromptSection(stablePrompt, roomSkillPrompt)
+	stablePrompt = appendPromptSection(stablePrompt, roomdomain.BuildMemberDirectoryPrompt(e.agentNameByID))
 
 	permissionMode := runtimepermission.NormalizeMode(sdkpermission.Mode(e.agent.Options.PermissionMode))
 	if e.round.PermissionMode != "" {
@@ -210,13 +218,13 @@ func (e *slotExecution) buildRuntimePrompt() (string, sdkpermission.Mode, error)
 	e.slot.GoalRuntimeIgnored = goalsvc.ShouldIgnoreRuntimeForPermissionMode(string(permissionMode))
 	currentGoalID, currentObjectiveRevision := "", int64(0)
 	if !e.slot.GoalRuntimeIgnored {
-		prompt, e.slot.GoalContext, e.slot.GoalIDForUsage, e.slot.GoalSessionKey, currentObjectiveRevision = e.service.resolveGoalRuntimeContextForSlot(e.ctx, e.round, e.slot, prompt)
+		dynamicPrompt, e.slot.GoalContext, e.slot.GoalIDForUsage, e.slot.GoalSessionKey, currentObjectiveRevision = e.service.resolveGoalRuntimeContextForSlot(e.ctx, e.round, e.slot, dynamicPrompt)
 		currentGoalID = strings.TrimSpace(e.slot.GoalIDForUsage)
 	}
 	if e.round.Internal && e.round.GoalObjectiveRevision > 0 {
 		boundGoalID := strings.TrimSpace(e.round.GoalID)
 		if currentGoalID != boundGoalID || currentObjectiveRevision != e.round.GoalObjectiveRevision {
-			return "", "", goalsvc.ErrGoalRevisionStale
+			return roomRuntimePrompt{}, "", goalsvc.ErrGoalRevisionStale
 		}
 		e.slot.GoalIDForUsage = boundGoalID
 		e.slot.GoalSessionKey = strings.TrimSpace(e.round.SessionKey)
@@ -225,7 +233,7 @@ func (e *slotExecution) buildRuntimePrompt() (string, sdkpermission.Mode, error)
 	if override := strings.TrimSpace(e.round.GoalContext); e.round.Internal && override != "" {
 		e.slot.GoalContext = override
 	}
-	return prompt, permissionMode, nil
+	return roomRuntimePrompt{stable: stablePrompt, dynamic: dynamicPrompt}, permissionMode, nil
 }
 
 func (e *slotExecution) runtimeMCPServers() map[string]sdkmcp.ServerConfig {
@@ -301,6 +309,8 @@ func (e *slotExecution) connectRuntimeOnce(runtimeValue preparedSlotRuntime) (ru
 	e.logger.Info("准备启动 Room runtime",
 		roomRuntimeStartupLogFields(runtimeValue.options, runtimeValue.selection, runtimeValue.provider, e.slot)...,
 	)
+	previousClient := e.service.runtime.SessionClient(e.slot.RuntimeSessionKey)
+	hadWarmSession := e.service.runtime.HasSession(e.slot.RuntimeSessionKey)
 	client, err := e.service.runtime.GetOrCreateWithFactory(
 		e.ctx,
 		e.slot.RuntimeSessionKey,
@@ -315,7 +325,15 @@ func (e *slotExecution) connectRuntimeOnce(runtimeValue preparedSlotRuntime) (ru
 	if err = client.Connect(e.ctx); err != nil {
 		return nil, err
 	}
+	reusedWarmSession := hadWarmSession && previousClient == client
+	e.slot.ContextColdStart = roomContextColdStart(runtimeValue.options.Session.ResumeID, reusedWarmSession)
 	return client, nil
+}
+
+// roomContextColdStart 只把首次创建且没有可用 resume 的 slot 视为冷启动。
+// Manager 中仍存活的 client 已经保有 Room cursor，不应重复灌入完整公区历史。
+func roomContextColdStart(resumeID string, hadWarmSession bool) bool {
+	return strings.TrimSpace(resumeID) == "" && !hadWarmSession
 }
 
 func (s *RealtimeService) roomRuntimeEnv(roundValue *activeRoomRound, slot *activeRoomSlot) map[string]string {

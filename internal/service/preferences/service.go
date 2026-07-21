@@ -17,6 +17,13 @@ type Service struct {
 	config config.Config
 }
 
+// storedWebSearchCredential 是 WebSearch 凭据文件的唯一存储格式。
+// provider 与 api_key 必须成对存在，避免不同 provider 复用同一份密钥。
+type storedWebSearchCredential struct {
+	Provider string `json:"provider"`
+	APIKey   string `json:"api_key"`
+}
+
 // NewService 创建偏好服务。
 func NewService(cfg config.Config) *Service {
 	return &Service{config: cfg}
@@ -67,20 +74,14 @@ func (s *Service) Update(ctx context.Context, ownerUserID string, request Update
 			apiKey = ""
 			webSearchAPIKeyChanged = true
 		}
-		current.WebSearch.apiKey = apiKey
-		current.WebSearch.APIKeyConfigured = apiKey != ""
-		current.WebSearch.APIKeyMasked = maskWebSearchAPIKey(apiKey)
+		current.WebSearch = current.WebSearch.WithWebSearchAPIKey(apiKey)
 	}
 	if request.WebSearchAPIKey != nil {
-		current.WebSearch.apiKey = ""
-		if webSearchProviderAcceptsAPIKey(current.WebSearch.Provider) {
-			current.WebSearch.apiKey = strings.TrimSpace(*request.WebSearchAPIKey)
-			if current.WebSearch.apiKey == "" && webSearchProviderRequiresAPIKey(current.WebSearch.Provider) {
-				current.WebSearch.Enabled = false
-			}
+		apiKey := strings.TrimSpace(*request.WebSearchAPIKey)
+		current.WebSearch = current.WebSearch.WithWebSearchAPIKey(apiKey)
+		if apiKey == "" && webSearchProviderRequiresAPIKey(current.WebSearch.Provider) {
+			current.WebSearch.Enabled = false
 		}
-		current.WebSearch.APIKeyConfigured = current.WebSearch.apiKey != ""
-		current.WebSearch.APIKeyMasked = maskWebSearchAPIKey(current.WebSearch.apiKey)
 	}
 	if request.DefaultAgentOptions != nil {
 		current.DefaultAgentOptions = *request.DefaultAgentOptions
@@ -103,7 +104,11 @@ func (s *Service) Update(ctx context.Context, ownerUserID string, request Update
 		return Preferences{}, err
 	}
 	if webSearchAPIKeyChanged {
-		if err = s.writeWebSearchAPIKey(ownerUserID, current.WebSearchAPIKey()); err != nil {
+		if err = s.writeWebSearchCredential(
+			ownerUserID,
+			current.WebSearch.Provider,
+			current.WebSearchAPIKey(),
+		); err != nil {
 			return Preferences{}, err
 		}
 	}
@@ -135,7 +140,7 @@ func (s *Service) preferencesPath(ownerUserID string) string {
 	)
 }
 
-func (s *Service) webSearchAPIKeyPath(ownerUserID string) string {
+func (s *Service) webSearchCredentialPath(ownerUserID string) string {
 	return filepath.Join(
 		agentpkg.UserWorkspaceBasePath(s.config, ownerUserID),
 		".settings",
@@ -147,21 +152,39 @@ func (s *Service) withWebSearchAPIKey(ownerUserID string, item Preferences) Pref
 	if !webSearchProviderAcceptsAPIKey(item.WebSearch.Provider) {
 		return item
 	}
-	apiKey, err := os.ReadFile(s.webSearchAPIKeyPath(ownerUserID))
-	if err != nil {
+	credential, ok := s.readWebSearchCredential(ownerUserID)
+	if !ok || credential.Provider != strings.ToLower(strings.TrimSpace(item.WebSearch.Provider)) {
 		return item
 	}
-	item.WebSearch.apiKey = strings.TrimSpace(string(apiKey))
-	item.WebSearch.APIKeyConfigured = item.WebSearch.apiKey != ""
-	item.WebSearch.APIKeyMasked = maskWebSearchAPIKey(item.WebSearch.apiKey)
+	item.WebSearch = item.WebSearch.WithWebSearchAPIKey(credential.APIKey)
 	if item.WebSearch.APIKeyConfigured {
 		item.WebSearch.Enabled = true
 	}
 	return item
 }
 
-func (s *Service) writeWebSearchAPIKey(ownerUserID string, apiKey string) error {
-	path := s.webSearchAPIKeyPath(ownerUserID)
+func (s *Service) readWebSearchCredential(ownerUserID string) (storedWebSearchCredential, bool) {
+	content, err := os.ReadFile(s.webSearchCredentialPath(ownerUserID))
+	if err != nil {
+		return storedWebSearchCredential{}, false
+	}
+	// 旧版裸 key 没有 provider 归属，无法安全推断，按无效凭据处理。
+	var credential storedWebSearchCredential
+	if err = json.Unmarshal(content, &credential); err != nil {
+		return storedWebSearchCredential{}, false
+	}
+	credential.Provider = strings.ToLower(strings.TrimSpace(credential.Provider))
+	credential.APIKey = strings.TrimSpace(credential.APIKey)
+	if credential.Provider == "" || credential.APIKey == "" {
+		return storedWebSearchCredential{}, false
+	}
+	return credential, true
+}
+
+func (s *Service) writeWebSearchCredential(ownerUserID string, provider string, apiKey string) error {
+	path := s.webSearchCredentialPath(ownerUserID)
+	provider = strings.ToLower(strings.TrimSpace(provider))
+	apiKey = strings.TrimSpace(apiKey)
 	if apiKey == "" {
 		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return err
@@ -171,8 +194,15 @@ func (s *Service) writeWebSearchAPIKey(ownerUserID string, apiKey string) error 
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
+	payload, err := json.Marshal(storedWebSearchCredential{
+		APIKey:   apiKey,
+		Provider: provider,
+	})
+	if err != nil {
+		return err
+	}
 	tmpPath := path + ".tmp"
-	if err := os.WriteFile(tmpPath, []byte(apiKey+"\n"), 0o600); err != nil {
+	if err := os.WriteFile(tmpPath, append(payload, '\n'), 0o600); err != nil {
 		return err
 	}
 	if err := os.Chmod(tmpPath, 0o600); err != nil {

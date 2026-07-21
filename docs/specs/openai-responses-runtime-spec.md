@@ -58,13 +58,16 @@ Responses 不能投影为普通 `openai`，否则 SDK 会把辅助视觉请求�
 go build -o ./bin/nxs-responses ./cmd/nxs
 ```
 
-当前 Responses worktree 的 `.env` 已指向上一步产物，并固定使用 Web `3003`、Backend `8013`，因此可以直接运行：
+在 Nexus worktree 显式指向上一步产物，并选择不冲突的开发端口：
 
 ```bash
+NEXUS_NXS_COMMAND_PATH=/absolute/path/to/nxs-responses \
+BACKEND_PORT=8013 \
+WEB_PORT=3003 \
 make dev
 ```
 
-若在其它 worktree 复用这份说明，则必须显式配置 `NEXUS_NXS_COMMAND_PATH`，并选择不冲突的 `BACKEND_PORT`/`WEB_PORT`。`BACKEND_PORT` 会同时传给 Go backend 和 Vite 的 `/nexus/v1` 代理。
+也可以把这些值放进当前 shell 或本地忽略的 `.env`。`BACKEND_PORT` 会同时传给 Go backend 和 Vite 的 `/nexus/v1` 代理。
 
 在 Settings 中完成以下配置：
 

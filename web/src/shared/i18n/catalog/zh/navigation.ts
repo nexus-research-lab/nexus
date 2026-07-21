@@ -28,7 +28,6 @@ export const zhNavigationMessages = {
   "sidebar.direct_empty_summary": "暂无消息，点击进入单聊",
   "sidebar.room_empty_summary": "暂无会话，点击进入群聊",
   "sidebar.start_chat_summary": "点击开始聊天",
-  "sidebar.running_tasks_short": "正在处理 {count} 个任务",
   "sidebar.docs": "文档",
   "sidebar.feedback": "反馈",
   "sidebar.guide_title": "新手上路",

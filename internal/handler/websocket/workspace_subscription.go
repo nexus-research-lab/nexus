@@ -26,9 +26,8 @@ type workspaceEventSender interface {
 type runtimeSnapshotProvider func(string) RuntimeSnapshot
 
 type workspaceSenderSubscription struct {
-	refCount          int
-	token             string
-	watchFileRefCount int
+	refCount int
+	token    string
 }
 
 type workspaceSubscriptionRegistry struct {
@@ -54,19 +53,19 @@ func newWorkspaceSubscriptionRegistry(
 	}
 }
 
-func (r *workspaceSubscriptionRegistry) Subscribe(ctx context.Context, sender workspaceEventSender, agentID string, watchFiles bool) error {
+func (r *workspaceSubscriptionRegistry) Subscribe(ctx context.Context, sender workspaceEventSender, agentID string) error {
 	if r == nil || sender == nil || sender.IsClosed() {
 		return nil
 	}
-	needsLiveToken := r.addReference(sender, agentID, watchFiles)
+	needsLiveToken := r.addReference(sender, agentID)
 	if sender.IsClosed() {
-		r.unsubscribe(sender.Key(), agentID, watchFiles)
+		r.unsubscribe(sender.Key(), agentID)
 		return nil
 	}
 	if needsLiveToken {
 		token, err := r.subscribeWorkspaceLive(ctx, sender, agentID)
 		if err != nil {
-			r.unsubscribe(sender.Key(), agentID, watchFiles)
+			r.unsubscribe(sender.Key(), agentID)
 			return err
 		}
 		r.attachLiveToken(sender.Key(), agentID, token)
@@ -75,7 +74,7 @@ func (r *workspaceSubscriptionRegistry) Subscribe(ctx context.Context, sender wo
 	return nil
 }
 
-func (r *workspaceSubscriptionRegistry) addReference(sender workspaceEventSender, agentID string, watchFiles bool) bool {
+func (r *workspaceSubscriptionRegistry) addReference(sender workspaceEventSender, agentID string) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	senderKey := sender.Key()
@@ -84,16 +83,13 @@ func (r *workspaceSubscriptionRegistry) addReference(sender workspaceEventSender
 	}
 	subscription := r.senderTokens[senderKey][agentID]
 	subscription.refCount++
-	if watchFiles {
-		subscription.watchFileRefCount++
-	}
 	r.senderTokens[senderKey][agentID] = subscription
 	if r.agentSenders[agentID] == nil {
 		r.agentSenders[agentID] = make(map[string]workspaceEventSender)
 	}
 	r.agentSenders[agentID][senderKey] = sender
 	r.ensurePollerLocked()
-	return watchFiles && subscription.token == "" && r.workspace != nil
+	return subscription.refCount == 1 && r.workspace != nil
 }
 
 func (r *workspaceSubscriptionRegistry) subscribeWorkspaceLive(ctx context.Context, sender workspaceEventSender, agentID string) (string, error) {
@@ -113,7 +109,7 @@ func (r *workspaceSubscriptionRegistry) attachLiveToken(senderKey string, agentI
 	shouldRelease := false
 	r.mu.Lock()
 	subscription, exists := r.senderTokens[senderKey][agentID]
-	if !exists || subscription.token != "" || subscription.watchFileRefCount == 0 {
+	if !exists || subscription.token != "" || subscription.refCount == 0 {
 		shouldRelease = true
 	} else {
 		subscription.token = token
@@ -126,11 +122,11 @@ func (r *workspaceSubscriptionRegistry) attachLiveToken(senderKey string, agentI
 	}
 }
 
-func (r *workspaceSubscriptionRegistry) Unsubscribe(sender workspaceEventSender, agentID string, watchFiles bool) {
+func (r *workspaceSubscriptionRegistry) Unsubscribe(sender workspaceEventSender, agentID string) {
 	if r == nil || sender == nil {
 		return
 	}
-	r.unsubscribe(sender.Key(), agentID, watchFiles)
+	r.unsubscribe(sender.Key(), agentID)
 }
 
 func (r *workspaceSubscriptionRegistry) UnregisterSender(sender workspaceEventSender) {
@@ -147,32 +143,22 @@ func (r *workspaceSubscriptionRegistry) UnregisterSender(sender workspaceEventSe
 	}
 }
 
-func (r *workspaceSubscriptionRegistry) unsubscribe(senderKey string, agentID string, watchFiles bool) {
+func (r *workspaceSubscriptionRegistry) unsubscribe(senderKey string, agentID string) {
 	r.mu.Lock()
 	subscription, exists := r.subscriptionLocked(senderKey, agentID)
 	if !exists {
 		r.mu.Unlock()
 		return
 	}
-	tokens := make([]string, 0, 1)
-	if watchFiles && subscription.watchFileRefCount > 0 {
-		subscription.watchFileRefCount--
-		if subscription.watchFileRefCount == 0 && subscription.refCount > 1 {
-			tokens = appendLiveToken(tokens, subscription.token)
-			subscription.token = ""
-		}
-	}
 	if subscription.refCount > 1 {
 		subscription.refCount--
 		r.senderTokens[senderKey][agentID] = subscription
 		r.mu.Unlock()
-		r.releaseLiveTokens(tokens)
 		return
 	}
 	subscription = r.deleteSubscriptionLocked(senderKey, agentID)
-	tokens = appendLiveToken(tokens, subscription.token)
 	r.mu.Unlock()
-	r.releaseLiveTokens(tokens)
+	r.releaseLiveToken(subscription.token)
 }
 
 func (r *workspaceSubscriptionRegistry) remove(senderKey string, agentID string) {
@@ -184,7 +170,7 @@ func (r *workspaceSubscriptionRegistry) remove(senderKey string, agentID string)
 	}
 	subscription := r.deleteSubscriptionLocked(senderKey, agentID)
 	r.mu.Unlock()
-	r.releaseLiveTokens(appendLiveToken(nil, subscription.token))
+	r.releaseLiveToken(subscription.token)
 }
 
 func (r *workspaceSubscriptionRegistry) subscriptionLocked(senderKey string, agentID string) (workspaceSenderSubscription, bool) {
@@ -217,18 +203,8 @@ func (r *workspaceSubscriptionRegistry) deleteSubscriptionLocked(senderKey strin
 	return subscription
 }
 
-func appendLiveToken(tokens []string, token string) []string {
-	if token == "" || slices.Contains(tokens, token) {
-		return tokens
-	}
-	return append(tokens, token)
-}
-
-func (r *workspaceSubscriptionRegistry) releaseLiveTokens(tokens []string) {
-	if r.workspace == nil {
-		return
-	}
-	for _, token := range tokens {
+func (r *workspaceSubscriptionRegistry) releaseLiveToken(token string) {
+	if token != "" && r.workspace != nil {
 		r.workspace.UnsubscribeLive(token)
 	}
 }

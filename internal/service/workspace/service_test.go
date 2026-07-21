@@ -35,8 +35,18 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("列出 workspace 文件失败: %v", err)
 	}
-	if !containsWorkspacePath(files, "AGENTS.md") {
-		t.Fatalf("初始化模板未生成 AGENTS.md: %+v", files)
+	if containsWorkspacePath(files, "AGENTS.md") {
+		t.Fatalf("Agent 身份文件不应出现在 workspace 文件树: %+v", files)
+	}
+	agentsContent, err := workspaceService.GetFile(ctx, agentValue.AgentID, "AGENTS.md")
+	if err != nil {
+		t.Fatalf("Agent 身份文件仍应可由身份面板读取: %v", err)
+	}
+	if !strings.Contains(agentsContent.Content, "## Role") {
+		t.Fatalf("Agent 身份文件内容不正确: %q", agentsContent.Content)
+	}
+	if strings.Contains(agentsContent.Content, "# AGENTS.md") {
+		t.Fatalf("Agent 身份文件不应在模板正文中注入文件名: %q", agentsContent.Content)
 	}
 	for _, expectedPath := range []string{"USER.md", "SOUL.md", "TOOLS.md"} {
 		if !containsWorkspacePath(files, expectedPath) {

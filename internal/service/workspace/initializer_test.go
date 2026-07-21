@@ -70,6 +70,19 @@ func TestWorkspaceHiddenEntryMatchesNestedHeavyDirs(t *testing.T) {
 	}
 }
 
+func TestWorkspaceBrowserHidesAgentProfileTemplate(t *testing.T) {
+	for _, testCase := range []string{"AGENTS.md", "agents.md"} {
+		if !shouldHideWorkspaceBrowserEntry(testCase) {
+			t.Fatalf("Agent 身份文件应从 workspace 文件树隐藏: %s", testCase)
+		}
+	}
+	for _, testCase := range []string{"USER.md", "nested/AGENTS.md", "tmp/attachments/AGENTS.md"} {
+		if shouldHideWorkspaceBrowserEntry(testCase) {
+			t.Fatalf("不应隐藏普通或嵌套 workspace 文件: %s", testCase)
+		}
+	}
+}
+
 func TestEnsureInitializedWritesPromptLayerTemplates(t *testing.T) {
 	root := t.TempDir()
 	if err := EnsureInitialized("agent-1", "Planner", root, false, time.Now()); err != nil {
@@ -82,6 +95,15 @@ func TestEnsureInitializedWritesPromptLayerTemplates(t *testing.T) {
 		"TOOLS.md":  "## Tool Notes",
 	} {
 		assertWorkspaceFileContains(t, root, fileName, expected)
+	}
+	for _, fileName := range []string{"AGENTS.md", "USER.md", "SOUL.md", "TOOLS.md"} {
+		content, err := os.ReadFile(filepath.Join(root, fileName))
+		if err != nil {
+			t.Fatalf("读取 workspace 模板 %s 失败: %v", fileName, err)
+		}
+		if strings.HasPrefix(strings.TrimSpace(string(content)), "# "+fileName) {
+			t.Fatalf("workspace 模板不应在文件内容开头注入文件名 %s: %s", fileName, content)
+		}
 	}
 	for _, fileName := range []string{"MEMORY.md", "RUNBOOK.md"} {
 		if _, err := os.Stat(filepath.Join(root, fileName)); !os.IsNotExist(err) {

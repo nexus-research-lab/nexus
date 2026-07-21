@@ -56,3 +56,11 @@ func (m *SlotMessageMapper) SetDurableMessageTransformer(transform func(protocol
 	}
 	m.EventMapper.SetDurableMessageTransformer(transform)
 }
+
+// SetProjectedMessageTransformer 在 result 投影为最终 assistant 后补充 Room 标注。
+func (m *SlotMessageMapper) SetProjectedMessageTransformer(transform func(protocol.Message) protocol.Message) {
+	if m == nil || m.EventMapper == nil {
+		return
+	}
+	m.EventMapper.SetProjectedMessageTransformer(transform)
+}

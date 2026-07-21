@@ -162,6 +162,15 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 	}
 
 	roomSystemPrompt := factory.LastOptions().System.Append
+	roomPromptOptions := factory.LastOptions().System
+	if !strings.Contains(roomPromptOptions.AppendStatic, "# Nexus Room") ||
+		!strings.Contains(roomPromptOptions.AppendStatic, "<room_member_directory>") {
+		t.Fatalf("Room 稳定 prompt 应包含房间规则与成员目录: %q", roomPromptOptions.AppendStatic)
+	}
+	if strings.Contains(roomPromptOptions.AppendDynamic, "# Nexus Room") ||
+		strings.Contains(roomPromptOptions.AppendDynamic, "<room_member_directory>") {
+		t.Fatalf("Room 动态 prompt 不应重复房间稳定段: %q", roomPromptOptions.AppendDynamic)
+	}
 	for _, expected := range []string{
 		"# Nexus Room",
 		"You are a member in a multi-member Nexus Room",

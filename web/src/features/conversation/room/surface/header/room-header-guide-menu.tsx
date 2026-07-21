@@ -1,19 +1,37 @@
-import { Compass, MoreHorizontal } from "lucide-react";
+import { Compass, MoreHorizontal, UsersRound } from "lucide-react";
 import { useRef, useState } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiActionMenu } from "@/shared/ui/menu/action-menu";
 
 interface RoomHeaderGuideMenuProps {
-  onReplayTour: () => void;
+  onManageMembers?: () => void;
+  onReplayTour?: () => void;
 }
 
 export function RoomHeaderGuideMenu({
+  onManageMembers,
   onReplayTour,
 }: RoomHeaderGuideMenuProps) {
   const { t } = useI18n();
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [isOpen, setIsOpen] = useState(false);
+  const items = [
+    onManageMembers ? {
+      icon: <UsersRound className="h-4 w-4 text-(--icon-muted)" />,
+      label: t("room.members"),
+      value: "members",
+    } : null,
+    onReplayTour ? {
+      icon: <Compass className="h-4 w-4 text-(--icon-muted)" />,
+      label: t("common.view_guide"),
+      value: "guide",
+    } : null,
+  ].filter((item): item is NonNullable<typeof item> => Boolean(item));
+
+  if (items.length === 0) {
+    return null;
+  }
 
   return (
     <>
@@ -32,13 +50,15 @@ export function RoomHeaderGuideMenu({
         anchorRef={buttonRef}
         ariaLabel={t("common.more_actions")}
         isOpen={isOpen}
-        items={[{
-          icon: <Compass className="h-4 w-4 text-(--icon-muted)" />,
-          label: t("common.view_guide"),
-          value: "guide",
-        }]}
+        items={items}
         onClose={() => setIsOpen(false)}
-        onSelect={onReplayTour}
+        onSelect={(value) => {
+          if (value === "members") {
+            onManageMembers?.();
+            return;
+          }
+          onReplayTour?.();
+        }}
       />
     </>
   );

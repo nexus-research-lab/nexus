@@ -33,6 +33,7 @@ interface UiAgentAvatarProps extends HTMLAttributes<HTMLSpanElement> {
 interface UiRoomAvatarProps extends HTMLAttributes<HTMLSpanElement> {
   avatar?: string | null;
   className?: string;
+  isWorking?: boolean;
   maxMembers?: number;
   members: UiAvatarMember[];
   roomId?: string | null;
@@ -111,6 +112,7 @@ export function UiAgentAvatar({
 export function UiRoomAvatar({
   avatar,
   className,
+  isWorking: isWorking = false,
   maxMembers: maxMembers = 9,
   members,
   roomId: roomId,
@@ -128,8 +130,9 @@ export function UiRoomAvatar({
     return (
       <span
         className={cn(
-          "flex shrink-0 items-center justify-center overflow-hidden border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-(--icon-muted) shadow-(--surface-avatar-shadow)",
+          "relative flex shrink-0 items-center justify-center overflow-hidden border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-(--icon-muted) shadow-(--surface-avatar-shadow)",
           ROOM_AVATAR_SIZE_CLASS_MAP[size],
+          isWorking && "ring-2 ring-[color:color-mix(in_srgb,var(--primary)_42%,transparent)] ring-offset-1 ring-offset-(--background)",
           className,
         )}
         {...props}
@@ -146,10 +149,11 @@ export function UiRoomAvatar({
   return (
     <span
       className={cn(
-        "grid shrink-0 gap-[2px] overflow-hidden border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_72%,transparent)] bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_88%,white)] p-[2px] shadow-(--surface-avatar-shadow)",
+        "relative grid shrink-0 gap-[2px] overflow-hidden border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_72%,transparent)] bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_88%,white)] p-[2px] shadow-(--surface-avatar-shadow)",
         ROOM_AVATAR_SIZE_CLASS_MAP[size],
         ROOM_AVATAR_GRID_CLASS_MAP[gridSize],
         visibleMembers.length === 2 && "grid-rows-1",
+        isWorking && "ring-2 ring-[color:color-mix(in_srgb,var(--primary)_42%,transparent)] ring-offset-1 ring-offset-(--background)",
         className,
       )}
       {...props}

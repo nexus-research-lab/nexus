@@ -2,7 +2,7 @@ import Matter from "matter-js";
 
 import type { SpotlightToken } from "@/types/app/launcher";
 
-import type { TokenPhysicsConfig } from "./launcher-agent-pile-model";
+import { LAUNCHER_PILE_WIDTH, type TokenPhysicsConfig } from "./launcher-agent-pile-model";
 
 type TokenKind = SpotlightToken["kind"];
 
@@ -116,7 +116,7 @@ export class LauncherPilePhysics {
   }
 
   private addBounds(): void {
-    const width = this.container.clientWidth || 560;
+    const width = this.container.clientWidth || LAUNCHER_PILE_WIDTH;
     const height = this.container.clientHeight;
     const bounds = [
       Matter.Bodies.rectangle(width / 2, height - 18, width + 120, 28, {

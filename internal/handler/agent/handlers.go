@@ -68,35 +68,6 @@ func (h *Handlers) HandleListAgents(writer http.ResponseWriter, request *http.Re
 	h.api.WriteSuccess(writer, agents)
 }
 
-// HandleAgentRuntimeStatuses 返回 agent 运行态列表。
-func (h *Handlers) HandleAgentRuntimeStatuses(writer http.ResponseWriter, request *http.Request) {
-	agents, err := h.agents.ListAgentRecords(request.Context())
-	if err != nil {
-		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
-		return
-	}
-	statuses := make([]map[string]any, 0, len(agents))
-	for _, item := range agents {
-		runningCount := 0
-		if h.runtime != nil {
-			runningCount += h.runtime.CountRunningRounds(item.AgentID)
-		}
-		if h.roomRealtime != nil {
-			runningCount += h.roomRealtime.CountRunningTasks(item.AgentID)
-		}
-		status := "idle"
-		if runningCount > 0 {
-			status = "running"
-		}
-		statuses = append(statuses, map[string]any{
-			"agent_id":           item.AgentID,
-			"running_task_count": runningCount,
-			"status":             status,
-		})
-	}
-	h.api.WriteSuccess(writer, statuses)
-}
-
 // HandleGetAgent 返回单个 agent。
 func (h *Handlers) HandleGetAgent(writer http.ResponseWriter, request *http.Request) {
 	agentID := chi.URLParam(request, "agent_id")

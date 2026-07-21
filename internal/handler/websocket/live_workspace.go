@@ -30,11 +30,7 @@ func (h *Handler) handleSubscribeWorkspace(
 	if h.workspaceSubs == nil {
 		return
 	}
-	watchFiles := true
-	if value, ok := handlershared.BoolValue(inbound["watch_files"]); ok {
-		watchFiles = value
-	}
-	if err := h.workspaceSubs.Subscribe(ctx, sender, agentID, watchFiles); err != nil {
+	if err := h.workspaceSubs.Subscribe(ctx, sender, agentID); err != nil {
 		h.sendGatewayError(ctx, sender, "", "workspace_subscription_error", err, map[string]any{
 			"type":     "subscribe_workspace",
 			"agent_id": agentID,
@@ -53,9 +49,5 @@ func (h *Handler) handleUnsubscribeWorkspace(
 	if agentID == "" {
 		return
 	}
-	watchFiles := true
-	if value, ok := handlershared.BoolValue(inbound["watch_files"]); ok {
-		watchFiles = value
-	}
-	h.workspaceSubs.Unsubscribe(sender, agentID, watchFiles)
+	h.workspaceSubs.Unsubscribe(sender, agentID)
 }

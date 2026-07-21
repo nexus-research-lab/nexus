@@ -18,6 +18,7 @@ import type { TextEditorBodyMode } from "./text-file-editor-model";
 interface TextEditorBodyViewProps {
   containerWidth: number;
   content: string;
+  exitEditingOnBlur: boolean;
   fileName: string;
   fileType: WorkspaceFilePreviewKind;
   isLoading: boolean;
@@ -29,8 +30,9 @@ interface TextEditorBodyViewProps {
 
 interface TextFileEditorBodyProps extends Omit<
   TextEditorBodyViewProps,
-  "containerWidth" | "textareaRef"
+  "containerWidth" | "exitEditingOnBlur" | "textareaRef"
 > {
+  exitEditingOnBlur?: boolean;
   mode: TextEditorBodyMode;
 }
 
@@ -40,7 +42,7 @@ function StreamingBody({
 }: TextEditorBodyViewProps) {
   return (
     <TypewriterFileView
-      className="h-full"
+      className="h-full min-h-0"
       containerWidth={containerWidth > 0 ? containerWidth - 40 : undefined}
       content={content}
     />
@@ -61,7 +63,7 @@ function HtmlPreviewBody(props: TextEditorBodyViewProps) {
 
 function PreviewBody(props: TextEditorBodyViewProps) {
   return (
-    <div className="soft-scrollbar h-full overflow-auto">
+    <div className="soft-scrollbar h-full min-h-0 min-w-0 overscroll-contain overflow-auto">
       <TextFileContent
         content={props.content}
         fileName={props.fileName}
@@ -75,6 +77,7 @@ function PreviewBody(props: TextEditorBodyViewProps) {
 
 function EditingBody({
   content,
+  exitEditingOnBlur,
   isLoading,
   setContent,
   setIsEditing,
@@ -83,9 +86,9 @@ function EditingBody({
   return (
     <textarea
       aria-label="编辑文件内容"
-      className="soft-scrollbar h-full w-full resize-none border-0 bg-transparent p-0 font-mono text-sm leading-6 text-(--text-default) outline-none disabled:opacity-70"
+      className="soft-scrollbar h-full min-h-0 w-full resize-none border-0 bg-transparent p-0 font-mono text-sm leading-6 text-(--text-default) shadow-none outline-none ring-0 focus:border-0 focus:bg-transparent focus:shadow-none focus:outline-none focus:ring-0 focus-visible:border-0 focus-visible:bg-transparent focus-visible:shadow-none focus-visible:outline-none focus-visible:ring-0 disabled:opacity-70"
       disabled={isLoading}
-      onBlur={() => setIsEditing(false)}
+      onBlur={exitEditingOnBlur ? () => setIsEditing(false) : undefined}
       onChange={(event) => setContent(event.target.value)}
       ref={textareaRef}
       value={isLoading ? "加载中..." : content}
@@ -122,6 +125,7 @@ function useElementWidth(ref: RefObject<HTMLDivElement | null>): number {
 }
 
 export function TextFileEditorBody({
+  exitEditingOnBlur = true,
   mode,
   ...props
 }: TextFileEditorBodyProps) {
@@ -139,7 +143,7 @@ export function TextFileEditorBody({
   return (
     <div
       className={cn(
-        "min-h-0 flex-1 overflow-hidden",
+        "h-full min-h-0 min-w-0 flex-1 overflow-hidden",
         mode === "html" ? "p-0" : "px-4 py-4",
       )}
       ref={editorAreaRef}
@@ -147,6 +151,7 @@ export function TextFileEditorBody({
       <Body
         {...props}
         containerWidth={editorWidth}
+        exitEditingOnBlur={exitEditingOnBlur}
         textareaRef={textareaRef}
       />
     </div>

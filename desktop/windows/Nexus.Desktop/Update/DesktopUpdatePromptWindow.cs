@@ -5,8 +5,8 @@ using WpfKey = System.Windows.Input.Key;
 using WpfKeyEventArgs = System.Windows.Input.KeyEventArgs;
 using WpfHorizontalAlignment = System.Windows.HorizontalAlignment;
 using WpfOrientation = System.Windows.Controls.Orientation;
+using WpfRichTextBox = System.Windows.Controls.RichTextBox;
 using WpfSystemColors = System.Windows.SystemColors;
-using WpfTextBox = System.Windows.Controls.TextBox;
 using WpfWindow = System.Windows.Window;
 
 namespace Nexus.Desktop.Update;
@@ -14,6 +14,8 @@ namespace Nexus.Desktop.Update;
 internal sealed class DesktopUpdatePromptWindow : WpfWindow
 {
     private const double WindowWidth = 640;
+    private const double WindowMinHeight = 320;
+    private const double WindowMaxHeight = 640;
     private const double ContentMaxHeight = 300;
     private const double OuterPadding = 24;
     private const double SectionSpacing = 16;
@@ -26,8 +28,12 @@ internal sealed class DesktopUpdatePromptWindow : WpfWindow
         PromptAction = UpdatePromptAction.Later;
         Title = "发现 Nexus 新版本";
         Width = WindowWidth;
-        SizeToContent = SizeToContent.Height;
-        MaxHeight = 640;
+        Height = Math.Min(
+            WindowMaxHeight,
+            Math.Max(WindowMinHeight, SystemParameters.WorkArea.Height - 80));
+        SizeToContent = SizeToContent.Manual;
+        MinHeight = WindowMinHeight;
+        MaxHeight = WindowMaxHeight;
         ResizeMode = ResizeMode.NoResize;
         ShowInTaskbar = false;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
@@ -36,8 +42,6 @@ internal sealed class DesktopUpdatePromptWindow : WpfWindow
         {
             Margin = new Thickness(OuterPadding),
         };
-        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
         var messageBlock = new TextBlock
@@ -53,12 +57,14 @@ internal sealed class DesktopUpdatePromptWindow : WpfWindow
         UIElement? releaseNotesElement = CreateReleaseNotesElement(releaseNotes);
         if (releaseNotesElement is not null)
         {
+            root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
             Grid.SetRow(releaseNotesElement, 1);
             root.Children.Add(releaseNotesElement);
         }
 
+        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         var buttons = CreateButtonBar(canDownloadInstaller);
-        Grid.SetRow(buttons, 2);
+        Grid.SetRow(buttons, releaseNotesElement is null ? 1 : 2);
         root.Children.Add(buttons);
 
         Content = root;
@@ -74,10 +80,12 @@ internal sealed class DesktopUpdatePromptWindow : WpfWindow
             return null;
         }
 
-        var panel = new StackPanel
+        var panel = new Grid
         {
             Margin = new Thickness(0, SectionSpacing, 0, 0),
         };
+        panel.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        panel.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         panel.Children.Add(new TextBlock
         {
             Text = "更新内容",
@@ -86,24 +94,28 @@ internal sealed class DesktopUpdatePromptWindow : WpfWindow
             Margin = new Thickness(0, 0, 0, 6),
         });
 
-        // Windows MessageBox 不支持滚动正文，release notes 必须被限制在固定区域内。
-        panel.Children.Add(new WpfTextBox
+        var releaseNotesView = new WpfRichTextBox
         {
-            Text = releaseNotes,
+            Document = DesktopReleaseNotesRenderer.Render(releaseNotes),
             IsReadOnly = true,
             IsTabStop = false,
-            TextWrapping = TextWrapping.Wrap,
-            AcceptsReturn = true,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalAlignment = VerticalAlignment.Stretch,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalContentAlignment = VerticalAlignment.Stretch,
+            HorizontalContentAlignment = HorizontalAlignment.Stretch,
             MaxHeight = ContentMaxHeight,
+            MinHeight = 80,
             Padding = new Thickness(8),
             BorderBrush = WpfSystemColors.ControlDarkBrush,
             BorderThickness = new Thickness(1),
             Background = WpfSystemColors.ControlBrush,
             Foreground = WpfSystemColors.ControlTextBrush,
             FontSize = 12,
-        });
+        };
+        ScrollViewer.SetVerticalScrollBarVisibility(releaseNotesView, ScrollBarVisibility.Auto);
+        ScrollViewer.SetHorizontalScrollBarVisibility(releaseNotesView, ScrollBarVisibility.Disabled);
+        Grid.SetRow(releaseNotesView, 1);
+        panel.Children.Add(releaseNotesView);
         return panel;
     }
 

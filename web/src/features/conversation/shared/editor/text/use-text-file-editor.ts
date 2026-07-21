@@ -29,7 +29,7 @@ export function useTextFileEditor({
   const [savedContent, setSavedContent] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [isEditing, setIsEditing] = useResettableState(false, path);
+  const [isEditing, setIsEditing] = useResettableState(false, agentId + ":" + path);
   const [error, setError] = useState<string | null>(null);
   const loadRequestIdRef = useRef(0);
   const liveState = useWorkspaceLiveStore(
@@ -93,9 +93,12 @@ export function useTextFileEditor({
     }
   }, [liveState, loadContent]);
 
-  const save = useCallback(async (): Promise<void> => {
-    if (!isDirty || isSaving) {
-      return;
+  const save = useCallback(async (): Promise<boolean> => {
+    if (isSaving) {
+      return false;
+    }
+    if (!isDirty) {
+      return true;
     }
     setIsSaving(true);
     setError(null);
@@ -107,10 +110,12 @@ export function useTextFileEditor({
       );
       setDraftContent(response.content);
       setSavedContent(response.content);
+      return true;
     } catch (saveError) {
       setError(
         saveError instanceof Error ? saveError.message : "保存文件失败",
       );
+      return false;
     } finally {
       setIsSaving(false);
     }

@@ -52,6 +52,14 @@ func (s *RealtimeService) collectPublicMentionWakes(
 	if err := s.annotatePublicAssistantMessage(roundValue, slot, message); err != nil {
 		return err
 	}
+	// result 投影可能晚于首个 assistant 快照到达；此时实时事件已经拿到标注，
+	// 但首条 transcript 引用仍是旧快照。追加同 message_id 的引用作为可压缩更新，
+	// 让历史回放与实时渲染保持同一份 agent_mentions。
+	if len(protocolAgentMentions(message["agent_mentions"])) > 0 {
+		if err := s.persistSharedDurableMessage(roundValue.ConversationID, slot, message); err != nil {
+			return err
+		}
+	}
 	// 标注阶段会剥离 fanout 控制标记并重写 span；必须用清理后的正文
 	// 生成 queue trigger，避免隐藏标记进入目标 Agent 上下文。
 	content = strings.TrimSpace(roomdomain.ExtractAssistantResultText(message))

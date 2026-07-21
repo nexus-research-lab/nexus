@@ -110,14 +110,12 @@ export function useAgentConversationSocket({
     wsSend({
       type: "subscribe_workspace",
       agent_id: agentId,
-      watch_files: true,
     });
 
     return () => {
       wsSend({
         type: "unsubscribe_workspace",
         agent_id: agentId,
-        watch_files: true,
       });
     };
   }, [agentId, wsSend, wsState]);

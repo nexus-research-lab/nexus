@@ -12,14 +12,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added OpenAI Responses as an `nxs` Agent runtime protocol, including runtime-specific Provider selection, explicit protocol and multimodal environment projection, auxiliary vision routing, and safe startup diagnostics.
 - Added an opt-in process integration test that proves Nexus runtime configuration reaches a real nxs child and requests `/v1/responses` through the bridge.
 - Added explicit nxs passthrough for OpenAI prompt-cache enablement, mode, TTL, and legacy retention controls.
-- Made the Vite development proxy follow `BACKEND_PORT` so parallel Nexus worktrees can use different backend ports.
 - Added a built-in Azure OpenAI provider with resource-level v1 endpoint normalization, Chat Completions and Responses formats, and explicit deployment-name model configuration.
+- Added debug-only prompt-cache segment diagnostics with safe per-segment hashes, sizes, roles, and cache-control metadata.
+
+### Changed
+
+- Split Room runtime append prompts into stable and dynamic cache segments, reused warm Room slot runtimes without replaying the full public context, and kept the legacy flattened prompt for runtime compatibility.
+- Unified sidebar conversation activity around Room IDs so DM and group rows share one transient execution source, removed Agent runtime status subscriptions from chat and contacts navigation, and dropped the unused directory-side runtime projection.
+- Removed the unused Agent runtime status HTTP endpoint and the legacy runtime-only workspace subscription mode.
 
 ### Fixed
 
 - Sorted built-in Provider entries by English display name in the settings sidebar.
 - Fixed Provider model tests for full operation URLs and query-bearing Azure endpoints, normalized Azure resource/project roots to `/openai/v1/responses`, added Azure `api-key` authentication across model tests and lightweight backend requests, enforced `store=false` and the Responses minimum `max_output_tokens` probe value, and return an actionable error when an Azure deployment, image, or Chat Completions operation URL is selected for Responses.
 - Switched Azure OpenAI Chat Completions model tests and lightweight backend requests from `max_tokens` to `max_completion_tokens` for compatibility with newer deployments.
+- Bound WebSearch API keys to their selected provider so a key from one provider is never displayed or reused under another provider.
+- Fixed desktop updates retaining old downloaded app and installer packages in `~/.nexus/cache/updates` after a newer version started successfully; deferred downloads remain available until then.
+- Fixed macOS and Windows update dialogs allowing long release notes to push action buttons out of view; release notes now stay in a bounded scrollable container with Markdown formatting.
+- Rebuilt the launcher hero as a fixed-size stage with a single uniform scale factor, replacing the per-breakpoint transform patches; anchored the decorative agent pile to the viewport bottom so short windows keep a full-size cloud, and aligned the pile physics world with its container width so tokens spread correctly.
+- Fixed conversation auto-follow losing the bottom position when the chat viewport resizes (small app windows, growing composer) and after the feed switches between static and virtualized rendering.
+- Fixed Room @mentions that were routed successfully but rendered as plain text, and accepted Unicode punctuation around parenthesized Agent IDs so public handoffs continue reliably.
 
 ## [0.1.27] - 2026-07-19
 

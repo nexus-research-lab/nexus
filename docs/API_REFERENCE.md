@@ -136,7 +136,6 @@ Provider 预设通过 `endpoint_mode` 声明端点来源：`fixed` 使用内置�
 | 方法 | 路径 | 说明 | 请求体 / 参数 | 前端函数 |
 |------|------|------|---------------|---------|
 | GET | `/agents` | Agent 列表 | — | `getAgents` |
-| GET | `/agents/runtime/statuses` | Agent 运行时状态批量查询 | — | — |
 | POST | `/agents` | 创建 Agent | `{ name, options, avatar, description, vibe_tags }` | `createAgentApi` |
 | GET | `/agents/validate/name` | 校验名称（query: `name`, `exclude_agent_id`） | — | `validateAgentNameApi` |
 | GET | `/agents/{agent_id}` | Agent 详情 | — | — |
@@ -511,8 +510,8 @@ task 的控制请求由 task item 的 `host_agent_id` 路由到实际承载该 s
 | `unbind_session` | 解绑会话 | `session_key` |
 | `subscribe_room` | 订阅房间事件 | `room_id` |
 | `unsubscribe_room` | 取消订阅房间 | `room_id` |
-| `subscribe_workspace` | 订阅工作区事件 | `agent_id?` |
-| `unsubscribe_workspace` | 取消订阅工作区 | — |
+| `subscribe_workspace` | 订阅工作区事件 | `agent_id` |
+| `unsubscribe_workspace` | 取消订阅工作区 | `agent_id` |
 | `subscribe_app_events` | 订阅应用事件 | — |
 | `unsubscribe_app_events` | 取消订阅应用事件 | — |
 | `chat` | 发送对话消息 | `session_key`, `agent_id?`, `room_id?`, `conversation_id?`, `content`, `attachments?`, `client_request_id`, `client_message_id`, `delivery_policy` |

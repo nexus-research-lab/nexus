@@ -9,7 +9,6 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { SidebarEmptyGuide } from "@/shared/ui/sidebar/sidebar-empty-guide";
 import { SidebarSearchField } from "@/shared/ui/form/sidebar-search-field";
 import { SIDEBAR_TOUR_ANCHORS } from "@/features/onboarding/tours/sidebar-navigation-tour";
-import { useAgentStore } from "@/store/agent";
 import { useSidebarStore } from "@/store/sidebar";
 
 import { normalizeSidebarQuery } from "./sidebar-conversation-model";
@@ -27,7 +26,6 @@ export const ContactsSidebarPanelContent = memo(function ContactsSidebarPanelCon
   const clearTargetNotifications = useSidebarStore(
     (state) => state.clear_chat_notifications_for_target,
   );
-  const agentRuntimeStatuses = useAgentStore((state) => state.agent_runtime_statuses);
   const { agents, isLoading } = useSidebarDirectory();
   const [query, setQuery] = useState("");
   const activeAgentId = location.pathname === AppRouteBuilders.contacts()
@@ -88,22 +86,17 @@ export const ContactsSidebarPanelContent = memo(function ContactsSidebarPanelCon
       ) : (
         <div className="flex min-h-0 flex-1 flex-col gap-0.5 px-2 pb-2">
           {filteredAgents.length > 0 ? (
-            filteredAgents.map((agent) => {
-              const runningTaskCount = agentRuntimeStatuses[agent.id]?.running_task_count ?? 0;
-              return (
-                <ContactRow
-                  agent={agent}
-                  isActive={activeAgentId === agent.id}
-                  isWorking={runningTaskCount > 0}
-                  key={agent.id}
-                  onChat={() => {
-                    void openAgentDm(agent.id);
-                  }}
-                  onOpenDirectory={() => openAgentDetail(agent.id)}
-                  runningTaskCount={runningTaskCount}
-                />
-              );
-            })
+            filteredAgents.map((agent) => (
+              <ContactRow
+                agent={agent}
+                isActive={activeAgentId === agent.id}
+                key={agent.id}
+                onChat={() => {
+                  void openAgentDm(agent.id);
+                }}
+                onOpenDirectory={() => openAgentDetail(agent.id)}
+              />
+            ))
           ) : (
             <SidebarEmptyGuide
               actionLabel={t("sidebar.manage_contacts")}

@@ -31,6 +31,12 @@ func (s *Service) ListFiles(ctx context.Context, agentID string) ([]FileEntry, e
 			return err
 		}
 		normalizedPath := filepath.ToSlash(relativePath)
+		if shouldHideWorkspaceBrowserEntry(normalizedPath) {
+			if info != nil && info.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
 		if shouldHideWorkspaceEntry(normalizedPath) {
 			if info != nil && info.IsDir() {
 				return filepath.SkipDir

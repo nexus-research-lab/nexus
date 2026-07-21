@@ -48,7 +48,7 @@ function LauncherRecentEntryChip({
         ) : null}
         <button
           aria-label={presentation.ariaLabel}
-          className="inline-flex items-center gap-1 rounded-full px-2 py-1.5 text-xs font-medium transition-colors duration-150 ease-out hover:text-(--launcher-handoff-hover-color) sm:text-sm"
+          className="inline-flex items-center gap-1 rounded-full px-2 py-1.5 text-sm font-medium transition-colors duration-150 ease-out hover:text-(--launcher-handoff-hover-color)"
           onClick={(event) => {
             event.stopPropagation();
             onOpen(presentation.entry);
@@ -77,7 +77,7 @@ export function LauncherRecentEntries({
   return (
     <div
       data-tour-anchor={LAUNCHER_TOUR_ANCHORS.recent}
-      className="mx-auto mt-3 flex w-full max-w-[326px] flex-wrap items-center justify-center gap-1 sm:mt-4 sm:max-w-[420px]"
+      className="mx-auto mt-4 flex w-full max-w-[420px] flex-wrap items-center justify-center gap-1"
     >
       {presentations.map((presentation) => (
         <LauncherRecentEntryChip
@@ -94,7 +94,7 @@ export function LauncherRecentEntries({
       >
         <button
           data-tour-anchor={LAUNCHER_TOUR_ANCHORS.handoff}
-          className="px-1 text-xs font-medium transition-colors duration-150 ease-out hover:text-(--launcher-handoff-hover-color) sm:text-sm"
+          className="px-1 text-sm font-medium transition-colors duration-150 ease-out hover:text-(--launcher-handoff-hover-color)"
           onClick={() => onHandoff(initialPrompt)}
           style={{ color: "var(--launcher-handoff-color)" }}
           type="button"

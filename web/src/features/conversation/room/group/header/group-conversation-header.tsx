@@ -116,15 +116,18 @@ export const GroupConversationHeader = memo(function GroupConversationHeader({
         title={widePanelCollapsed ? headerTitle : undefined}
         trailing={(
           <div className="flex items-center gap-2">
-            <div className="hidden lg:flex">
+            <div className="workspace-surface-header-member-action hidden lg:flex">
               <GroupMemberAvatarStack
                 members={roomMembers}
                 onClick={() => void handleOpenMemberList()}
                 tourAnchor={CONVERSATION_TOUR_ANCHORS.member_manage}
               />
             </div>
-            {onReplayTour ? (
-              <RoomHeaderGuideMenu onReplayTour={onReplayTour} />
+            {onReplayTour || roomId ? (
+              <RoomHeaderGuideMenu
+                onManageMembers={() => void handleOpenMemberList()}
+                onReplayTour={onReplayTour}
+              />
             ) : null}
           </div>
         )}

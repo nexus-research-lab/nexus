@@ -2,6 +2,8 @@
 
 本目录拥有 Agent 配置编辑器、业务弹窗和字段子域。
 
+- 内联身份页简介正文由 identity/agent-profile-file-editor.tsx 读取根级 AGENTS.md，独立处理 Markdown 预览、编辑和确认保存；Agent Options 元数据保存不代替文件保存。
+
 - `AgentOptionsInlineEditor` 与 `AgentOptionsDialogEditor` 是两个明确壳层入口；不得恢复通过可选参数拼装内联导航、Footer 和关闭策略的组合模式。
 - 编辑器输入统一使用 `create/edit` 来源对象；模式、Agent ID 和初始值不得拆回可冲突的可选参数集合。
 - `editor/` 管理草稿、异步校验和保存事务，组合控制器只返回内容与动作模型。

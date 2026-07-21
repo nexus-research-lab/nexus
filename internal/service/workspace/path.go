@@ -58,6 +58,12 @@ func shouldHideWorkspaceEntry(relativePath string) bool {
 	) || strings.HasPrefix(baseName, ".DS_")
 }
 
+// shouldHideWorkspaceBrowserEntry 隐藏由 Agent 身份面板专门承载的根级规则文件。
+func shouldHideWorkspaceBrowserEntry(relativePath string) bool {
+	normalizedPath := filepath.ToSlash(strings.TrimSpace(relativePath))
+	return strings.EqualFold(normalizedPath, "AGENTS.md")
+}
+
 func isProtectedWorkspacePath(relativePath string) bool {
 	normalizedPath := filepath.ToSlash(strings.TrimSpace(relativePath))
 	return hasWorkspacePathSegment(normalizedPath, ".agents", ".claude", ".git", "__pycache__")

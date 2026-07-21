@@ -21,6 +21,67 @@ test.after(async () => {
   await server.close();
 });
 
+test("聊天侧栏只按 Room 活动态显示 DM 和群组", async () => {
+  const {
+    getActiveRoomIds,
+    pruneRoomActivity,
+    replaceRoomActivitySnapshot,
+    updateRoomActivity,
+  } = await server.ssrLoadModule("/src/features/home/room-activity-resource.ts");
+
+  pruneRoomActivity(new Set());
+  updateRoomActivity("dm-room", "dm-round", "running");
+  updateRoomActivity("group-room", "group-round", "running");
+  updateRoomActivity("group-room", "group-round", "running", "agent_round", "slot-a");
+  updateRoomActivity("group-room", "group-round", "running", "agent_round", "slot-b");
+  updateRoomActivity("group-room", "group-round", "finished", "agent_round", "slot-a");
+  assert.deepEqual(
+    [...getActiveRoomIds()].sort(),
+    ["dm-room", "group-room"],
+    "DM 和群组必须共享同一 Room 活动态集合",
+  );
+
+  updateRoomActivity("group-room", "group-round", "finished");
+  replaceRoomActivitySnapshot("dm-room", "dm-round", false);
+  assert.deepEqual([...getActiveRoomIds()], [], "终态应清除 Room 活动态");
+});
+
+test("聊天行不读取持久化 Agent active 状态", async () => {
+  const { buildConversationItems } = await server.ssrLoadModule(
+    "/src/features/home/sidebar/sidebar-conversation-model.ts",
+  );
+  const agents = [{ id: "agent-a", name: "Amy", avatar: "" }];
+  const rooms = [
+    { id: "dm-room", room_type: "dm", dm_target_agent_id: "agent-a", members: [] },
+    { id: "group-room", room_type: "room", name: "项目组", members: [{ id: "agent-a" }] },
+    { id: "idle-room", room_type: "dm", dm_target_agent_id: "agent-a", members: [] },
+  ];
+  const conversations = rooms.map((room, index) => ({
+    conversation_id: `${room.id}-conversation`,
+    is_active: true,
+    last_activity: `2026-07-20T0${index + 1}:00:00.000Z`,
+    last_reply_preview: "preview",
+    message_count: 1,
+    room_id: room.id,
+    room_type: room.room_type,
+    session_key: `session:${room.id}`,
+    status: "active",
+    title: room.id,
+  }));
+
+  const items = buildConversationItems({
+    activeRoomIds: new Set(["group-room"]),
+    agents,
+    conversations,
+    rooms,
+    untitledRoomLabel: "未命名 Room",
+  });
+  assert.deepEqual(
+    Object.fromEntries(items.map((item) => [item.roomId, item.isWorking])),
+    { "dm-room": false, "group-room": true, "idle-room": false },
+  );
+});
+
 test("Room mention Markdown keeps the internal URL for the avatar chip", async () => {
   const { transformMarkdownUrl } = await server.ssrLoadModule(
     "/src/shared/ui/markdown/core/markdown-renderer-shared.tsx",

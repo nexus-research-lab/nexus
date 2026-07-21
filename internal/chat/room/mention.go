@@ -78,13 +78,23 @@ func ResolveMentionMatches(content string, agentNameToID map[string]string) []Me
 
 	all := make([]MentionMatch, 0, len(aliases))
 	for _, alias := range aliases {
-		pattern, err := regexp.Compile(`(?i)@` + regexp.QuoteMeta(alias.name) + `([\s，。！？、,.!?;\-:：；]|$)`)
+		// 名字后允许紧跟任意 Unicode 标点/符号，例如「@方案制定员（agent-id）」；
+		// 分隔符只用于确认边界，不纳入最终 mention span。
+		pattern, err := regexp.Compile(`(?i)@` + regexp.QuoteMeta(alias.name) + `([\s\p{P}\p{S}]|$)`)
 		if err != nil {
 			continue
 		}
 		for _, location := range pattern.FindAllStringSubmatchIndex(masked, -1) {
 			if len(location) < 4 || !isMentionBoundary(content, location[0]) {
 				continue
+			}
+			if location[2] >= 0 {
+				delimiter, _ := utf8.DecodeRuneInString(content[location[2]:location[3]])
+				if unicode.Is(unicode.Pc, delimiter) {
+					// 下划线等连接符仍属于标识符的一部分，不能把
+					// @Amy_name 错当成 @Amy。
+					continue
+				}
 			}
 			matchEnd := location[1]
 			if location[2] >= 0 {

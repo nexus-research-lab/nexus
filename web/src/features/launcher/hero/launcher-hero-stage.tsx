@@ -23,6 +23,7 @@ import { HeroBlobShell } from "./launcher-glass-shell";
 import { LauncherRecentEntries } from "./launcher-recent-entries";
 import { AgentPile } from "./pile/launcher-agent-pile";
 import { useLauncherQueryInput } from "./use-launcher-query-input";
+import { useLauncherStageScale } from "./use-launcher-stage-scale";
 
 const MemoAgentPile = memo(AgentPile);
 
@@ -41,6 +42,7 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
   isQueryLoading,
 }: HeroStageProps) {
   const { t } = useI18n();
+  const stage = useLauncherStageScale();
   const queryInput = useLauncherQueryInput({
     mentionTargets,
     onQueryChange,
@@ -57,14 +59,18 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
   );
 
   return (
-    <div
-      className="relative z-10 flex w-full max-w-[1180px] flex-col items-center"
-      onClick={(e) => e.stopPropagation()}
-      onKeyDown={(e) => e.stopPropagation()}
-      role="presentation"
-    >
+    <div className="relative z-10 h-full w-full" ref={stage.viewportRef}>
+      <div
+        className="absolute left-1/2 top-[30%] w-[980px]"
+        style={{
+          transform: `translate(-50%, -50%) scale(${stage.scale})`,
+        }}
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.stopPropagation()}
+        role="presentation"
+      >
       <HeroBlobShell className="z-10 transition-transform duration-500 ease-out">
-        <div className="space-y-3 sm:space-y-4">
+        <div className="space-y-4">
           <FadeSlideIn delayMs={0} durationMs={380} yOffset={6}>
             <div className="flex flex-col items-center gap-2.5">
               <div className="flex items-center gap-2">
@@ -92,7 +98,7 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
                   >
                     APP
                   </span>
-                  <span className="text-[12px] font-semibold tracking-[0.12em] text-foreground/90 sm:text-[13px]">
+                  <span className="text-[13px] font-semibold tracking-[0.12em] text-foreground/90">
                     {t("launcher.enter_app")}
                   </span>
                   <ArrowRight className="h-3.5 w-3.5 transition-transform duration-200 ease-out group-hover:translate-x-0.5" />
@@ -103,11 +109,11 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
           </FadeSlideIn>
           <div className="relative inline-block">
             <LottiePlayer
-              className="pointer-events-none absolute -right-4 -top-5 h-12 w-12 opacity-[0.46] sm:-right-16 sm:-top-14 sm:h-24 sm:w-24"
+              className="pointer-events-none absolute -right-16 -top-14 h-24 w-24 opacity-[0.46]"
               inlineStyle={undefined}
               src={ANIMATIONS.SPARKLES}
             />
-            <h1 className="mb-2 text-[24px] font-semibold leading-[1.12] tracking-[-0.02em] text-foreground/96 sm:text-[42px] sm:leading-[1.05]">
+            <h1 className="mb-2 text-[42px] font-semibold leading-[1.05] tracking-[-0.02em] text-foreground/96">
               <AnimatedHeroText
                 text={t("launcher.hero_title")}
                 initialDelayMs={80}
@@ -117,11 +123,11 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
           </div>
         </div>
 
-        <div className="mt-8 sm:mt-10">
+        <div className="mt-10">
           <FadeSlideIn delayMs={440} durationMs={420} yOffset={10}>
             <div
               data-tour-anchor={LAUNCHER_TOUR_ANCHORS.composer}
-              className="mx-auto w-full max-w-[326px] rounded-2xl border px-4 py-1 sm:max-w-[420px] "
+              className="mx-auto w-full max-w-[420px] rounded-2xl border px-4 py-1"
               style={{
                 background:
                   "linear-gradient(180deg, var(--launcher-input-fill), var(--launcher-input-inner-fill))",
@@ -130,7 +136,7 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
                   "inset 0 1px 0 var(--launcher-input-inner-stroke), 0 14px 30px rgba(56, 72, 98, 0.10)",
               }}
             >
-              <div className="relative flex min-w-0 items-center gap-2.5 sm:gap-3">
+              <div className="relative flex min-w-0 items-center gap-3">
                 {queryInput.mention.match ? (
                   <MentionTargetPopover
                     anchorRect={
@@ -150,7 +156,7 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
                 <input
                   aria-label="输入启动器指令"
                   ref={queryInput.input.ref}
-                  className="flex-1 bg-transparent text-[14px] outline-none shadow-none ring-0 placeholder:text-(--launcher-input-placeholder) focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none sm:text-[15px]"
+                  className="flex-1 bg-transparent text-[15px] outline-none shadow-none ring-0 placeholder:text-(--launcher-input-placeholder) focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none"
                   style={{ color: "var(--launcher-input-text)" }}
                   onBlur={queryInput.input.onBlur}
                   onChange={queryInput.input.onChange}
@@ -164,7 +170,7 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
                 />
                 <button
                   className={cn(
-                    "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition-[background,border-color,color,opacity] duration-150 ease-out sm:h-11 sm:w-11",
+                    "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border transition-[background,border-color,color,opacity] duration-150 ease-out",
                     isQueryLoading && "cursor-not-allowed opacity-(--disabled-opacity)",
                   )}
                   style={{
@@ -187,7 +193,7 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
                   {isQueryLoading ? (
                     <div className="h-4 w-4 animate-spin rounded-full border-2 border-(--divider-strong-color) border-t-transparent" />
                   ) : (
-                    <img alt="Send" className="h-10 w-10 object-contain sm:h-11 sm:w-11" src="/nexus/launcher-send-mascot.png" />
+                    <img alt="Send" className="h-11 w-11 object-contain" src="/nexus/launcher-send-mascot.png" />
                   )}
                 </button>
               </div>
@@ -204,12 +210,17 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
         </div>
       </HeroBlobShell>
 
-      <MemoAgentPile
-        className="hidden min-[400px]:block"
-        currentAgentId={currentAgentId}
-        onSelectAgent={onSelectAgent}
-        tokens={decorativeTokens}
-      />
+      </div>
+      <div
+        className="absolute bottom-0 left-1/2 origin-bottom"
+        style={{ transform: `translateX(-50%) scale(${stage.scale})` }}
+      >
+        <MemoAgentPile
+          currentAgentId={currentAgentId}
+          onSelectAgent={onSelectAgent}
+          tokens={decorativeTokens}
+        />
+      </div>
     </div>
   );
 });
