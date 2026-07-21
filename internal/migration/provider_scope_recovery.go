@@ -1,6 +1,8 @@
 // INPUT: 桌面 App 的本地 SQLite 数据库、Agent runtime 归属与用户 preferences.json。
-// OUTPUT: 恢复 00018 scope migration 前遗留 Provider 的用户私有副本，并保留无法判定归属的公共 fallback。
-// POS: 仅在桌面 App 启动时执行的一次性数据补偿；不参与 Web/服务器部署，也不改写 preferences 内容。
+// OUTPUT: 把桌面库中的无主公共 Provider 恢复为用户私有副本，并保留公共行作为其他成员的 fallback。
+// POS: 仅在桌面 App 启动时执行的幂等数据补偿；不参与 Web/服务器部署，也不改写 preferences 内容。
+// 桌面端没有订阅运营入口，无主公共 Provider 只可能来自 00018 迁移或 visibility 语义修复前的误建，
+// 不按创建时间区分「有意创建」；runtime/preferences 都推断不出归属的，兜底归给本地主体与 owner 用户。
 package migration
 
 import (
@@ -119,16 +121,30 @@ func RepairDesktopProviderScope(ctx context.Context, cfg config.Config, logger *
 		}
 	}
 
+	// 兜底：runtime 与 preferences 都推断不出归属的无主公共 Provider，
+	// 归给本地主体与 owner 角色用户，避免桌面端永远失去编辑入口。
+	fallbackSources, err := unresolvedPublicProviders(ctx, db)
+	if err != nil {
+		return err
+	}
+	fallbackOwners, err := lastResortOwners(ctx, db)
+	if err != nil {
+		return err
+	}
+	for _, sourceID := range fallbackSources {
+		for _, ownerID := range fallbackOwners {
+			changed, repairErr := recoverProviderForOwner(ctx, db, sourceID, ownerID)
+			if repairErr != nil {
+				return fmt.Errorf("兜底恢复 %s 的 Provider %s: %w", ownerID, sourceID, repairErr)
+			}
+			if changed {
+				repaired++
+			}
+		}
+	}
+
 	if repaired > 0 {
 		logger.Info("已恢复桌面 App 中被误标为公共的 Provider", "recovered_private_providers", repaired)
-	}
-	if unresolved, countErr := countUnresolvedLegacyProviders(ctx, db); countErr != nil {
-		logger.Warn("无法统计桌面中尚未归属的旧公共 Provider", "err", countErr)
-	} else if unresolved > 0 {
-		logger.Warn(
-			"仍有旧公共 Provider 无法从 runtime 或 preferences 推断 owner，暂保留为 fallback",
-			"unresolved_providers", unresolved,
-		)
 	}
 	return nil
 }
@@ -139,7 +155,6 @@ func isDesktopSQLite(cfg config.Config) bool {
 }
 
 func runtimeRecoveryCandidates(ctx context.Context, db *sql.DB) ([]providerRecoveryCandidate, error) {
-	// 00018 曾把当时已有的所有 Provider 统一改成 public；以 goose 的实际执行时间区分后续有意创建的公共 Provider。
 	rows, err := db.QueryContext(ctx, `
 SELECT DISTINCT p.id, TRIM(a.owner_user_id)
 FROM provider p
@@ -149,19 +164,6 @@ WHERE p.visibility = 'public'
   AND p.owner_user_id IS NULL
   AND TRIM(COALESCE(r.provider, '')) <> ''
   AND TRIM(COALESCE(a.owner_user_id, '')) <> ''
-  AND EXISTS (
-      SELECT 1
-      FROM goose_db_version migration
-      WHERE migration.version_id = 18 AND migration.is_applied = 1
-  )
-  AND substr(replace(p.created_at, 'T', ' '), 1, 19) <
-      substr(replace((
-          SELECT migration.tstamp
-          FROM goose_db_version migration
-          WHERE migration.version_id = 18 AND migration.is_applied = 1
-          ORDER BY migration.id DESC
-          LIMIT 1
-      ), 'T', ' '), 1, 19)
 ORDER BY p.id ASC, a.owner_user_id ASC`)
 	if err != nil {
 		return nil, fmt.Errorf("读取桌面 Provider runtime 归属: %w", err)
@@ -253,19 +255,6 @@ FROM provider
 WHERE visibility = 'public'
   AND owner_user_id IS NULL
   AND LOWER(TRIM(provider)) = ?
-  AND EXISTS (
-      SELECT 1
-      FROM goose_db_version migration
-      WHERE migration.version_id = 18 AND migration.is_applied = 1
-  )
-  AND substr(replace(created_at, 'T', ' '), 1, 19) <
-      substr(replace((
-          SELECT migration.tstamp
-          FROM goose_db_version migration
-          WHERE migration.version_id = 18 AND migration.is_applied = 1
-          ORDER BY migration.id DESC
-          LIMIT 1
-      ), 'T', ' '), 1, 19)
 ORDER BY created_at ASC, id ASC
 LIMIT 1`, strings.ToLower(strings.TrimSpace(provider)))
 	var sourceID string
@@ -463,35 +452,67 @@ WHERE NOT EXISTS (
 	return rows, nil
 }
 
-func countUnresolvedLegacyProviders(ctx context.Context, db *sql.DB) (int, error) {
-	row := db.QueryRowContext(ctx, `
-SELECT COUNT(*)
+func unresolvedPublicProviders(ctx context.Context, db *sql.DB) ([]string, error) {
+	rows, err := db.QueryContext(ctx, `
+SELECT p.id
 FROM provider p
 WHERE p.visibility = 'public'
   AND p.owner_user_id IS NULL
-  AND EXISTS (
-      SELECT 1
-      FROM goose_db_version migration
-      WHERE migration.version_id = 18 AND migration.is_applied = 1
-  )
-  AND substr(replace(p.created_at, 'T', ' '), 1, 19) <
-      substr(replace((
-          SELECT migration.tstamp
-          FROM goose_db_version migration
-          WHERE migration.version_id = 18 AND migration.is_applied = 1
-          ORDER BY migration.id DESC
-          LIMIT 1
-      ), 'T', ' '), 1, 19)
   AND NOT EXISTS (
       SELECT 1
       FROM provider_scope_recovery recovery
       WHERE recovery.source_provider_id = p.id
-  )`)
-	var count int
-	if err := row.Scan(&count); err != nil {
-		return 0, fmt.Errorf("统计未归属旧公共 Provider: %w", err)
+  )
+ORDER BY p.id ASC`)
+	if err != nil {
+		return nil, fmt.Errorf("读取未归属的无主公共 Provider: %w", err)
 	}
-	return count, nil
+	defer rows.Close()
+
+	result := make([]string, 0)
+	for rows.Next() {
+		var sourceID string
+		if err = rows.Scan(&sourceID); err != nil {
+			return nil, fmt.Errorf("扫描未归属的无主公共 Provider: %w", err)
+		}
+		if sourceID = strings.TrimSpace(sourceID); sourceID != "" {
+			result = append(result, sourceID)
+		}
+	}
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("遍历未归属的无主公共 Provider: %w", err)
+	}
+	return result, nil
+}
+
+func lastResortOwners(ctx context.Context, db *sql.DB) ([]string, error) {
+	owners := map[string]struct{}{authctx.SystemUserID: {}}
+	rows, err := db.QueryContext(ctx, `
+SELECT user_id
+FROM users
+WHERE role = 'owner' AND status = 'active'`)
+	if err != nil {
+		return nil, fmt.Errorf("读取兜底归属 owner 用户: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var ownerID string
+		if err = rows.Scan(&ownerID); err != nil {
+			return nil, fmt.Errorf("扫描兜底归属 owner 用户: %w", err)
+		}
+		if ownerID = strings.TrimSpace(ownerID); ownerID != "" {
+			owners[ownerID] = struct{}{}
+		}
+	}
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("遍历兜底归属 owner 用户: %w", err)
+	}
+	result := make([]string, 0, len(owners))
+	for ownerID := range owners {
+		result = append(result, ownerID)
+	}
+	sort.Strings(result)
+	return result, nil
 }
 
 func recoveryProviderID(sourceID string, ownerID string) string {

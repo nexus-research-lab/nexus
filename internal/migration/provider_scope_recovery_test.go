@@ -57,21 +57,12 @@ func TestProviderScopeRecoveryCopiesLegacyProvidersPerRuntimeOwner(t *testing.T)
 
 	insertRecoveryAgent(t, db, "agent-a", "owner-a", "legacy-provider")
 	insertRecoveryAgent(t, db, "agent-b", "owner-b", "legacy-provider")
-	insertRecoveryAgent(t, db, "agent-new", "owner-a", "intentional-public")
+	insertRecoveryAgent(t, db, "agent-new", "owner-a", "late-public")
 	insertRecoveryProvider(t, db, "legacy-provider-id", "legacy-provider", "2026-05-25 00:00:00")
-	insertRecoveryProvider(t, db, "intentional-public-id", "intentional-public", "2026-05-29 00:00:00")
-	if _, err = db.Exec(`
-UPDATE provider
-SET created_at = datetime((
-    SELECT tstamp
-    FROM goose_db_version
-    WHERE version_id = 18 AND is_applied = 1
-    ORDER BY id DESC
-    LIMIT 1
-), '+1 second')
-WHERE id = 'intentional-public-id'`); err != nil {
-		t.Fatalf("设置迁移后公共 Provider 时间失败: %v", err)
-	}
+	// 迁移 18 之后误建的无主公共 Provider：桌面端同样按事故恢复，不按创建时间豁免。
+	insertRecoveryProvider(t, db, "late-public-id", "late-public", "2026-06-16 00:00:00")
+	// 没有任何 runtime/preferences 引用的无主公共 Provider：走兜底归属。
+	insertRecoveryProvider(t, db, "orphan-public-id", "orphan-public", "2026-06-20 00:00:00")
 	if _, err = db.Exec(`
 INSERT INTO provider_models (
     id, provider_id, model_id, display_name, category, enabled, is_default,
@@ -131,12 +122,34 @@ WHERE id = 'legacy-provider-id' AND visibility = 'public'`).Scan(&legacyPublicCo
 		t.Fatal("旧公共 Provider 应保留为安全 fallback")
 	}
 
-	var intentionalVisibility string
-	if err = db.QueryRow(`SELECT visibility FROM provider WHERE id = 'intentional-public-id'`).Scan(&intentionalVisibility); err != nil {
-		t.Fatalf("读取迁移后有意公共 Provider 失败: %v", err)
+	var lateOwner string
+	if err = db.QueryRow(`
+SELECT owner_user_id
+FROM provider
+WHERE provider = 'late-public' AND visibility = 'private'`).Scan(&lateOwner); err != nil {
+		t.Fatalf("读取迁移后误建 Provider 的恢复结果失败: %v", err)
 	}
-	if intentionalVisibility != "public" {
-		t.Fatalf("迁移后的有意公共 Provider visibility = %q, want public", intentionalVisibility)
+	if lateOwner != "owner-a" {
+		t.Fatalf("迁移后误建 Provider 恢复 owner = %q, want owner-a", lateOwner)
+	}
+
+	var orphanOwner string
+	if err = db.QueryRow(`
+SELECT owner_user_id
+FROM provider
+WHERE provider = 'orphan-public' AND visibility = 'private'`).Scan(&orphanOwner); err != nil {
+		t.Fatalf("读取兜底恢复结果失败: %v", err)
+	}
+	if orphanOwner != "__system__" {
+		t.Fatalf("兜底恢复 owner = %q, want __system__", orphanOwner)
+	}
+	var orphanPublicCount int
+	if err = db.QueryRow(`
+SELECT COUNT(*) FROM provider WHERE id = 'orphan-public-id' AND visibility = 'public'`).Scan(&orphanPublicCount); err != nil {
+		t.Fatalf("读取兜底 Provider 公共 fallback 失败: %v", err)
+	}
+	if orphanPublicCount != 1 {
+		t.Fatal("兜底恢复后公共 Provider 应保留为 fallback")
 	}
 
 	if err = RepairDesktopProviderScope(t.Context(), cfg, discardMigrationLogger()); err != nil {
