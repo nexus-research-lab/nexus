@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Kept subscription quota enforcement on internal Goal continuations and now project exhausted account quota as an actionable `usage_limited` Goal state instead of a generic continuation failure.
 - Fixed the Windows desktop release-notes build by explicitly selecting WPF alignment, font, color, and brush types.
 - Bound WebSearch API keys to their selected provider so a key from one provider is never displayed or reused under another provider.
 - Fixed desktop updates retaining old downloaded app and installer packages in `~/.nexus/cache/updates` after a newer version started successfully; deferred downloads remain available until then.

@@ -8,7 +8,7 @@
 //   - goal_continuation.go / goal_context.go / goal_runtime.go：Goal 续跑启动 claim、上下文、消费后 revision adoption 与 fenced 结算。
 //   - history.go / rewrite.go / title.go：历史、SDK session/fingerprint 同步、重写、标题。
 //   - attachments.go / broadcast.go / external_reply.go：附件、广播、外部回复。
-//   - quota.go / subagent_task.go / runtime_client.go：额度、子任务、运行时客户端。
+//   - quota.go / subagent_task.go / runtime_client.go：账号额度门禁与 Goal 限制投影、子任务、运行时客户端。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package dm
