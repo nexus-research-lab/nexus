@@ -645,11 +645,10 @@ final class DesktopUpdateChecker {
 
 private extension DesktopUpdateChecker {
   static let releaseNotesAccessoryWidth: CGFloat = 620
-  static let releaseNotesAccessoryHeight: CGFloat = 300
+  static let releaseNotesAccessoryHeight: CGFloat = 280
   static let releaseNotesTitleHeight: CGFloat = 22
   static let releaseNotesSpacing: CGFloat = 8
-  static let releaseNotesMaxCharacters = 1800
-  static let releaseNotesMaxLines = 24
+  static let releaseNotesMaxCharacters = 20000
 
   static let installScript = """
   #!/bin/zsh
@@ -766,22 +765,14 @@ private extension DesktopUpdateChecker {
       return nil
     }
 
-    let lines = normalized.components(separatedBy: "\n")
-    var clipped = lines
-      .prefix(releaseNotesMaxLines)
-      .joined(separator: "\n")
-      .trimmingCharacters(in: .whitespacesAndNewlines)
-    var wasTruncated = normalized.count > releaseNotesMaxCharacters || lines.count > releaseNotesMaxLines
-    if clipped.count > releaseNotesMaxCharacters {
-      let endIndex = clipped.index(clipped.startIndex, offsetBy: releaseNotesMaxCharacters)
-      clipped = String(clipped[..<endIndex]).trimmingCharacters(in: .whitespacesAndNewlines)
-      wasTruncated = true
+    guard normalized.count > releaseNotesMaxCharacters else {
+      return normalized
     }
 
-    if wasTruncated {
-      clipped.append("\n...\n完整更新内容请打开 Release 页面查看。")
-    }
-    return clipped
+    let endIndex = normalized.index(normalized.startIndex, offsetBy: releaseNotesMaxCharacters)
+    let clipped = String(normalized[..<endIndex])
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    return "\(clipped)\n\n...\n完整更新内容请打开 Release 页面查看。"
   }
 
   static func releaseNotesAccessoryView(_ rawNotes: String?) -> NSView? {
@@ -795,16 +786,13 @@ private extension DesktopUpdateChecker {
       width: releaseNotesAccessoryWidth,
       height: releaseNotesAccessoryHeight
     ))
+    container.setContentHuggingPriority(.required, for: .vertical)
+    container.setContentCompressionResistancePriority(.required, for: .vertical)
 
     let title = NSTextField(labelWithString: "更新内容")
     title.font = NSFont.systemFont(ofSize: 13, weight: .semibold)
     title.textColor = .labelColor
-    title.frame = NSRect(
-      x: 0,
-      y: releaseNotesAccessoryHeight - releaseNotesTitleHeight,
-      width: releaseNotesAccessoryWidth,
-      height: releaseNotesTitleHeight
-    )
+    title.translatesAutoresizingMaskIntoConstraints = false
 
     let scrollHeight = releaseNotesAccessoryHeight - releaseNotesTitleHeight - releaseNotesSpacing
     let scrollView = NSScrollView(frame: NSRect(
@@ -816,33 +804,56 @@ private extension DesktopUpdateChecker {
     scrollView.borderType = .bezelBorder
     scrollView.hasVerticalScroller = true
     scrollView.hasHorizontalScroller = false
-    scrollView.autohidesScrollers = true
+    scrollView.autohidesScrollers = false
+    scrollView.translatesAutoresizingMaskIntoConstraints = false
+    scrollView.drawsBackground = true
+    scrollView.backgroundColor = .textBackgroundColor
 
     let textView = NSTextView(frame: NSRect(
       x: 0,
       y: 0,
-      width: scrollView.contentSize.width,
-      height: scrollView.contentSize.height
+      width: releaseNotesAccessoryWidth - 2,
+      height: scrollHeight
     ))
-    textView.string = releaseNotes
+    textView.textStorage?.setAttributedString(DesktopReleaseNotesRenderer.render(releaseNotes))
     textView.isEditable = false
     textView.isSelectable = true
     textView.drawsBackground = false
-    textView.font = NSFont.systemFont(ofSize: 12)
-    textView.textColor = .labelColor
+    textView.allowsUndo = false
+    textView.isAutomaticLinkDetectionEnabled = true
     textView.textContainerInset = NSSize(width: 8, height: 8)
     textView.isHorizontallyResizable = false
     textView.isVerticallyResizable = true
     textView.autoresizingMask = [.width]
+    textView.textContainer?.lineFragmentPadding = 0
     textView.textContainer?.containerSize = NSSize(
-      width: scrollView.contentSize.width,
-      height: .greatestFiniteMagnitude
+      width: releaseNotesAccessoryWidth - 18,
+      height: CGFloat.greatestFiniteMagnitude
     )
     textView.textContainer?.widthTracksTextView = true
+    if let textContainer = textView.textContainer,
+       let layoutManager = textView.layoutManager
+    {
+      layoutManager.ensureLayout(for: textContainer)
+      let usedHeight = layoutManager.usedRect(for: textContainer).height + textView.textContainerInset.height * 2
+      var textFrame = textView.frame
+      textFrame.size.height = max(scrollHeight, usedHeight)
+      textView.frame = textFrame
+    }
 
     scrollView.documentView = textView
     container.addSubview(title)
     container.addSubview(scrollView)
+    NSLayoutConstraint.activate([
+      title.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+      title.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+      title.topAnchor.constraint(equalTo: container.topAnchor),
+      title.heightAnchor.constraint(equalToConstant: releaseNotesTitleHeight),
+      scrollView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+      scrollView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+      scrollView.topAnchor.constraint(equalTo: title.bottomAnchor, constant: releaseNotesSpacing),
+      scrollView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+    ])
     return container
   }
 

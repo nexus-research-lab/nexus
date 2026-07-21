@@ -16,8 +16,7 @@ internal sealed class DesktopUpdateChecker
     private static readonly TimeSpan AutomaticCheckInterval = TimeSpan.FromHours(24);
     private static readonly TimeSpan MetadataRequestTimeout = TimeSpan.FromSeconds(15);
     private static readonly TimeSpan DownloadRequestTimeout = TimeSpan.FromMinutes(10);
-    private const int ReleaseNotesMaxCharacters = 1800;
-    private const int ReleaseNotesMaxLines = 24;
+    private const int ReleaseNotesMaxCharacters = 20_000;
     private static readonly Uri LatestReleaseUrl = new("https://api.github.com/repos/nexus-research-lab/nexus/releases/latest");
     private static readonly Uri FallbackReleasePageUrl = new("https://github.com/nexus-research-lab/nexus/releases/latest");
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
@@ -596,23 +595,13 @@ internal sealed class DesktopUpdateChecker
             return null;
         }
 
-        var lines = normalized
-            .Split('\n')
-            .Take(ReleaseNotesMaxLines + 1)
-            .ToList();
-        bool wasTruncated = normalized.Length > ReleaseNotesMaxCharacters || lines.Count > ReleaseNotesMaxLines;
-        string clipped = string.Join(Environment.NewLine, lines.Take(ReleaseNotesMaxLines)).Trim();
-        if (clipped.Length > ReleaseNotesMaxCharacters)
+        if (normalized.Length <= ReleaseNotesMaxCharacters)
         {
-            clipped = clipped[..ReleaseNotesMaxCharacters].TrimEnd();
-            wasTruncated = true;
+            return normalized;
         }
 
-        if (wasTruncated)
-        {
-            clipped = $"{clipped}{Environment.NewLine}...{Environment.NewLine}完整更新内容请打开 Release 页面查看。";
-        }
-        return clipped;
+        string clipped = normalized[..ReleaseNotesMaxCharacters].TrimEnd();
+        return $"{clipped}{Environment.NewLine}{Environment.NewLine}...{Environment.NewLine}完整更新内容请打开 Release 页面查看。";
     }
 
     private string InstallReadyMessage(DesktopReleaseInfo latest, DownloadedUpdate downloadedUpdate)
