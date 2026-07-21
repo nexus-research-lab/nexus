@@ -27,7 +27,7 @@
 
 @container workspace-surface-header (max-width: 920px) {
   .workspace-surface-header-with-session-tabs nav.workspace-surface-header-view-tabs {
-    flex: 1 1 0%;
+    flex: 0 0 auto;
     min-width: 0;
   }
 
