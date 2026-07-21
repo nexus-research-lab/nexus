@@ -1,5 +1,5 @@
 import path from "node:path";
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 
 const LIGHT_DESKTOP_ENTRY_HTML = new Set([
@@ -51,7 +51,16 @@ function getNodePackageName(id: string): string | null {
   return packageParts[0] ?? null;
 }
 
-export default defineConfig({
+function resolveDevBackendTarget(mode: string): string {
+  const environment = loadEnv(mode, process.cwd(), "VITE_");
+  const backendPort = Number.parseInt(environment.VITE_BACKEND_PORT || "8010", 10);
+  if (!Number.isInteger(backendPort) || backendPort < 1 || backendPort > 65535) {
+    throw new Error(`Invalid VITE_BACKEND_PORT: ${environment.VITE_BACKEND_PORT}`);
+  }
+  return `http://127.0.0.1:${backendPort}`;
+}
+
+export default defineConfig(({ mode }) => ({
   base: process.env.NEXUS_DESKTOP_BUILD === "1" ? "./" : "/",
   plugins: [react()],
   resolve: {
@@ -106,9 +115,10 @@ export default defineConfig({
   server: {
     host: "0.0.0.0",
     port: 3000,
+    strictPort: true,
     proxy: {
       "/nexus/v1": {
-        target: "http://127.0.0.1:8010",
+        target: resolveDevBackendTarget(mode),
         changeOrigin: true,
         ws: true,
       },
@@ -117,5 +127,6 @@ export default defineConfig({
   preview: {
     host: "0.0.0.0",
     port: 3000,
+    strictPort: true,
   },
-});
+}));
