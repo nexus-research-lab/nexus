@@ -142,6 +142,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         runtime: runtime,
         startupTimeline: startupTimeline
       )
+      await updateChecker.clearStaleUpdateCacheIfNeeded()
       let manager = WindowManager(
         runtime: runtime,
         startupTimeline: startupTimeline,

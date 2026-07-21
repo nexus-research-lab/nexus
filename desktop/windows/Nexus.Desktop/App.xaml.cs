@@ -63,6 +63,7 @@ public partial class App : System.Windows.Application
             startupTimeline.Mark("sidecar.ready");
 
             updateChecker = new DesktopUpdateChecker(startupTimeline);
+            await updateChecker.ClearStaleUpdateCacheIfNeededAsync();
             mainWindow = new MainWindow(runtime, startupTimeline, updateChecker);
             MainWindow = mainWindow;
             DesktopWebRoute launchRoute = pendingActivationRoute

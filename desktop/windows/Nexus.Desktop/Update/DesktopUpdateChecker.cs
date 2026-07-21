@@ -96,6 +96,9 @@ internal sealed class DesktopUpdateChecker
         return await CheckWithLockAsync(owner, "manual", showsUpToDateAlert: true);
     }
 
+    public Task ClearStaleUpdateCacheIfNeededAsync() =>
+        DesktopUpdateCacheCleaner.ClearStaleCachesIfNeededAsync(currentVersion, startupTimeline);
+
     private async Task RunStartupCheckAsync(System.Windows.Window owner)
     {
         await CheckWithLockAsync(owner, "startup", showsUpToDateAlert: false);

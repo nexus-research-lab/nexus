@@ -77,6 +77,14 @@ final class DesktopUpdateChecker {
     runCheck(reason: .manual, showsUpToDateAlert: true)
   }
 
+  func clearStaleUpdateCacheIfNeeded() async {
+    await DesktopUpdateCacheCleaner.clearStaleCachesIfNeeded(
+      currentVersion: currentVersion,
+      startupTimeline: startupTimeline,
+      defaults: defaults
+    )
+  }
+
   private func runCheck(reason: CheckReason, showsUpToDateAlert: Bool) {
     checkTask?.cancel()
     checkTask = Task { [weak self] in
@@ -481,8 +489,8 @@ final class DesktopUpdateChecker {
       throw DesktopUpdateError.unsupportedInstallLocation
     }
 
-    let scriptDirectory = try updateDirectory(for: latest)
-      .appendingPathComponent("installer", isDirectory: true)
+    let updateDirectory = try updateDirectory(for: latest)
+    let scriptDirectory = updateDirectory.appendingPathComponent("installer", isDirectory: true)
     try FileManager.default.createDirectory(at: scriptDirectory, withIntermediateDirectories: true)
 
     let scriptURL = scriptDirectory.appendingPathComponent("install-nexus-update.zsh")
@@ -499,6 +507,7 @@ final class DesktopUpdateChecker {
       stagedAppURL.path,
       targetAppURL.path,
       logURL.path,
+      updateDirectory.path,
     ]
     try process.run()
 
@@ -650,6 +659,7 @@ private extension DesktopUpdateChecker {
   SOURCE_APP="$2"
   TARGET_APP="$3"
   LOG_PATH="$4"
+  UPDATE_DIRECTORY="$5"
 
   {
     echo "Nexus update installer started at $(/bin/date -u '+%Y-%m-%dT%H:%M:%SZ')"
@@ -699,6 +709,11 @@ private extension DesktopUpdateChecker {
       /bin/rm -rf "${BACKUP_APP}"
     fi
 
+    if [[ -d "${UPDATE_DIRECTORY}" ]]; then
+      if ! /bin/rm -rf "${UPDATE_DIRECTORY}"; then
+        echo "update cache cleanup failed: ${UPDATE_DIRECTORY}"
+      fi
+    fi
     /usr/bin/open "${TARGET_APP}"
     echo "Nexus update installer finished"
   } >> "${LOG_PATH}" 2>&1
