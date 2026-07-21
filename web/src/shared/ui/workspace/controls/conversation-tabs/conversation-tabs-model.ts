@@ -3,6 +3,8 @@ import type { RoomConversationView } from "@/types/conversation/conversation";
 // 中文注释：新会话入口为 76px 加 4px 左间距，宽度模型与实际布局保持一致。
 const CREATE_CONVERSATION_BUTTON_SPACE = 80;
 const TRACK_HORIZONTAL_PADDING = 2;
+// 中文注释：宽屏也只保留少量标题，避免会话标签挤占右侧工作区导航。
+const MAX_VISIBLE_CONVERSATION_TABS = 5;
 
 export const ACTIVE_TAB_MIN_WIDTH = 142;
 export const INACTIVE_TAB_MIN_WIDTH = 92;
@@ -62,8 +64,7 @@ export function getConversationTabCapacity({
       (availableWidth - ACTIVE_TAB_MIN_WIDTH) / INACTIVE_TAB_MIN_WIDTH,
     ) + 1;
 
-  // 中文注释：数量只由轨道的真实剩余宽度决定，避免固定上限在宽屏留下未利用空间。
-  return Math.max(1, capacity);
+  return Math.min(MAX_VISIBLE_CONVERSATION_TABS, Math.max(1, capacity));
 }
 
 export function reconcileOpenConversationIds({
