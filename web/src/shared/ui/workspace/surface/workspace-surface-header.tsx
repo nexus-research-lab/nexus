@@ -248,7 +248,7 @@ function WorkspaceSurfaceTabs<TTabKey extends string>({
       ariaLabel="视图切换"
       className={cn(
         "workspace-surface-header-view-tabs min-w-0 overflow-visible",
-        hasLeading ? "shrink-0" : "flex-1",
+        hasLeading ? "flex-1 justify-end" : "flex-1",
       )}
       density="compact"
       dismissActiveLabel={dismissActiveTabLabel}
