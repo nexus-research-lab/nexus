@@ -155,9 +155,10 @@ export function useFollowScroll({
     setScrollToBottomVisibility(true);
   }, [historyPrependToken, setScrollToBottomVisibility]);
 
+  // 视口缩放（小窗口/输入框撑高）与内容增长都要重新贴底；feed 根元素会随
+  // 静态/虚拟列表切换及会话切换更换，依赖 messageCount/sessionKey 重新绑定。
   useEffect(() => {
-    const feed = feedRef.current;
-    if (!feed || typeof ResizeObserver === "undefined") {
+    if (typeof ResizeObserver === "undefined") {
       return;
     }
 
@@ -168,9 +169,21 @@ export function useFollowScroll({
       }
       scheduleScrollToBottom("auto");
     });
-    observer.observe(feed);
+    const container = scrollRef.current;
+    if (container) {
+      observer.observe(container);
+    }
+    const feed = feedRef.current;
+    if (feed) {
+      observer.observe(feed);
+    }
     return () => observer.disconnect();
-  }, [scheduleScrollToBottom, setScrollToBottomVisibility]);
+  }, [
+    messageCount,
+    scheduleScrollToBottom,
+    sessionKey,
+    setScrollToBottomVisibility,
+  ]);
 
   useLayoutEffect(() => {
     shouldFollowLatestRef.current = true;
