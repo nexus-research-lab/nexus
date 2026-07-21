@@ -119,6 +119,100 @@ test("absolute tool paths and relative workspace paths become one document", () 
   assert.equal(context.file_documents[0].workspace_item.id, workspaceItem.id);
 });
 
+test("artifact status labels do not become files or duplicate document windows", () => {
+  const event = fileEvent({
+    kind: "workspace_edit",
+    surface: "editor",
+    target: "gomoku.html",
+    tool_name: "Write",
+    input_preview: {
+      file_path: "gomoku.html",
+      content: "<!doctype html><title>Gomoku</title>",
+    },
+    evidence: [
+      { type: "file", label: "创建", value: "gomoku.html" },
+      { type: "artifact", label: "HTML", value: "内嵌预览已准备" },
+    ],
+  });
+  const workspaceItem = {
+    id: "workspace:gomoku",
+    agent_id: event.agent_id,
+    path: "gomoku.html",
+    status: "updated",
+    version: 1,
+    source: "agent",
+    session_key: event.session_key,
+    tool_use_id: event.tool_use_id,
+    event_type: "file_write_end",
+    live_content: event.input_preview.content,
+    updated_at: now,
+  };
+  const snapshot = {
+    key: event.session_key,
+    session_key: event.session_key,
+    active_event: event,
+    events: [event],
+    recent_evidence: event.evidence,
+    workspace_events: [workspaceItem],
+    updated_at: now,
+  };
+
+  const context = collectOperationFileContext(event, snapshot, [event]);
+  const desktop = planOperationDesktop({ event, snapshot });
+
+  assert.deepEqual(context.file_documents.map((document) => document.target), ["gomoku.html"]);
+  assert.equal(new Set(desktop.windows.map((window) => window.id)).size, desktop.windows.length);
+  assert.ok(!desktop.windows.some((window) => window.title === "内嵌预览已准备"));
+});
+
+test("multi-file edits assign one stable window identity per file", () => {
+  const event = fileEvent({
+    id: "patch-two-files",
+    kind: "workspace_edit",
+    surface: "editor",
+    target: "src/app.ts",
+    tool_name: "Edit",
+    input_preview: {
+      edits: [
+        { path: "src/app.ts", old_text: "idle", new_text: "ready" },
+        { path: "src/state.ts", old_text: "idle", new_text: "ready" },
+      ],
+    },
+  });
+  const workspaceEvents = ["src/app.ts", "src/state.ts"].map((workspacePath, index) => ({
+    id: `workspace:${index}`,
+    agent_id: event.agent_id,
+    path: workspacePath,
+    status: "updated",
+    version: 1,
+    source: "agent",
+    session_key: event.session_key,
+    tool_use_id: event.tool_use_id,
+    event_type: "file_write_end",
+    live_content: "ready",
+    updated_at: now + index,
+  }));
+  const snapshot = {
+    key: event.session_key,
+    session_key: event.session_key,
+    active_event: event,
+    events: [event],
+    recent_evidence: [],
+    workspace_events: workspaceEvents,
+    updated_at: now,
+  };
+
+  const desktop = planOperationDesktop({ event, snapshot });
+  const documentWindows = desktop.windows.filter((window) => window.kind === "code_editor");
+
+  assert.equal(documentWindows.length, 2);
+  assert.equal(new Set(documentWindows.map((window) => window.id)).size, 2);
+  assert.deepEqual(
+    documentWindows.map((window) => window.payload.target).sort(),
+    ["src/app.ts", "src/state.ts"],
+  );
+});
+
 test("SDK absolute paths resolve only inside the active Agent workspace", () => {
   assert.equal(resolveOperationWorkspaceFilePath({
     path: "/Users/test/.nexus/workspace/Devi/reports/brief.md",

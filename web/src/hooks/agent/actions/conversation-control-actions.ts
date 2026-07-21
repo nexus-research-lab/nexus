@@ -112,7 +112,7 @@ function findPendingPermission(
   requestId: string,
   context: AgentConversationActionContext,
 ): PendingPermission | undefined {
-  return context.pendingPermissions.find(
+  return context.readPendingPermissions().find(
     (permission) => permission.request_id === requestId,
   );
 }

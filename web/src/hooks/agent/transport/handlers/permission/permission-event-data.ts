@@ -52,6 +52,7 @@ export function decodePermissionRequest(
     risk_label: readOptionalString(event.data, "risk_label"),
     summary: readOptionalString(event.data, "summary"),
     suggestions: readPermissionSuggestions(event.data.suggestions),
+    requested_at: event.timestamp,
     expires_at: readOptionalString(event.data, "expires_at"),
   };
 }

@@ -230,7 +230,10 @@ function build_windows(
     };
     windows.push(buildOperationStageWindow(document.event, snapshot, {
       id: `document:${normalizeWindowId(document.target)}`,
-      session_id: stageAppSessionIdForIntent(event.round_id, document_intent, normalizeWindowId),
+      session_id: stageAppSessionIdForIntent(event.round_id, {
+        ...document_intent,
+        target: document.target,
+      }, normalizeWindowId),
       kind: document_kind,
       title: document.target,
       layout: "primary",

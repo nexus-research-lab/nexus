@@ -243,7 +243,9 @@ function extract_structured_file_targets(event: NexusOperationEvent): string[] {
     const candidate = item.value?.trim() || (
       looks_like_file_label(item.label) ? item.label.trim() : ""
     );
-    return candidate && is_local_file_reference(candidate) ? [candidate] : [];
+    return candidate && looks_like_file_label(candidate) && is_local_file_reference(candidate)
+      ? [candidate]
+      : [];
   });
 }
 
@@ -268,7 +270,8 @@ function looks_like_file_label(value: string): boolean {
   return normalized.startsWith(".")
     || normalized.includes("/")
     || normalized.includes("\\")
-    || /\.[a-z0-9]{1,12}$/i.test(normalized);
+    || /\.[a-z0-9]{1,12}$/i.test(normalized)
+    || /^(?:dockerfile|gemfile|makefile|procfile|rakefile|readme|license)$/i.test(normalized);
 }
 
 function is_local_file_reference(value: string): boolean {
@@ -308,13 +311,15 @@ function collect_file_documents({
     }
     file_targets.forEach((file_target) => {
       const canonical_target = resolveOperationWorkspaceTarget(file_target, workspace_items);
+      const document_key = find_matching_target_key(documents, canonical_target) ?? canonical_target;
+      const event_key = find_matching_target_key(file_events_by_target, canonical_target) ?? document_key;
       const workspace_item = workspace_items.find((item) => (
         operationWorkspaceTargetsMatch(canonical_target, item.path)
       )) ?? null;
-      const events_for_target = file_events_by_target.get(canonical_target) ?? [];
+      const events_for_target = file_events_by_target.get(event_key) ?? [];
       events_for_target.push(file_event);
-      file_events_by_target.set(canonical_target, events_for_target);
-      documents.set(canonical_target, {
+      file_events_by_target.set(event_key, events_for_target);
+      documents.set(document_key, {
         event: file_event,
         target: canonical_target,
         workspace_item,
@@ -328,15 +333,17 @@ function collect_file_documents({
     if (!workspace_item.path) {
       return;
     }
-    const existing = documents.get(workspace_item.path);
-    const related_events = file_events_by_target.get(workspace_item.path) ?? [];
+    const document_key = find_matching_target_key(documents, workspace_item.path) ?? workspace_item.path;
+    const event_key = find_matching_target_key(file_events_by_target, workspace_item.path);
+    const existing = documents.get(document_key);
+    const related_events = event_key ? file_events_by_target.get(event_key) ?? [] : [];
     const document_event = existing?.event
       ?? related_events.at(-1)
       ?? (project_active_event && workspace_item.path === latest_file_target ? event : null);
     if (!document_event) {
       return;
     }
-    documents.set(workspace_item.path, {
+    documents.set(document_key, {
       event: document_event,
       target: workspace_item.path,
       workspace_item,
@@ -349,7 +356,10 @@ function collect_file_documents({
     });
   });
 
-  if (project_active_event && latest_file_target && !documents.has(latest_file_target)) {
+  const latest_document_key = latest_file_target
+    ? find_matching_target_key(documents, latest_file_target)
+    : null;
+  if (project_active_event && latest_file_target && !latest_document_key) {
     documents.set(latest_file_target, {
       event,
       target: latest_file_target,
@@ -365,6 +375,10 @@ function collect_file_documents({
     .sort((left, right) => right.event.updated_at - left.event.updated_at)
     .slice(0, 4)
     .reverse();
+}
+
+function find_matching_target_key<T>(map: Map<string, T>, target: string): string | null {
+  return Array.from(map.keys()).find((key) => operationWorkspaceTargetsMatch(key, target)) ?? null;
 }
 
 function is_file_document_event(event: NexusOperationEvent): boolean {

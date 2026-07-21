@@ -10,10 +10,6 @@ export type OperationStageExperiencePhase =
   | "settling"
   | "completed";
 
-const MAX_MERGED_EVENTS = 24;
-const MAX_MERGED_WORKSPACE_EVENTS = 8;
-const MAX_MERGED_EVIDENCE = 8;
-
 export interface OperationContinuationBrief {
   status_label: string;
   status_detail: string;
@@ -239,78 +235,6 @@ function is_runtime_retry_event(event: NexusOperationEvent): boolean {
     && (event.evidence ?? []).some((item) => item.label === "api_retry");
 }
 
-export function mergeOperationStageSnapshotsForRestore(
-  current: NexusOperationSnapshot | null | undefined,
-  next: NexusOperationSnapshot,
-): NexusOperationSnapshot {
-  if (!current || current.key !== next.key) {
-    return next;
-  }
-  if (current.session_key && next.session_key && current.session_key !== next.session_key) {
-    return next;
-  }
-
-  const active_round_id = next.active_event?.round_id ?? next.events.at(-1)?.round_id ?? null;
-  if (!active_round_id) {
-    return next;
-  }
-
-  const terminal_round_summary = [...next.events]
-    .reverse()
-    .find((event) => (
-      event.round_id === active_round_id &&
-      event.kind === "round_summary" &&
-      (event.phase === "done" || event.phase === "error" || event.phase === "cancelled")
-    )) ?? null;
-  const current_round_events = current.events
-    .filter((event) => event.round_id === active_round_id)
-    .map((event) => settle_stale_live_event_for_round_summary(event, terminal_round_summary));
-  if (!current_round_events.length) {
-    return next;
-  }
-
-  const next_event_ids = new Set(next.events.map((event) => event.id));
-  const merged_events = [
-    ...current_round_events.filter((event) => !next_event_ids.has(event.id)),
-    ...next.events,
-  ]
-    .sort((left, right) => left.updated_at - right.updated_at)
-    .slice(-MAX_MERGED_EVENTS);
-  const merged_runtime_events = merge_runtime_events_for_round(
-    current.runtime_events ?? [],
-    next.runtime_events ?? [],
-    active_round_id,
-  );
-
-  return {
-    ...next,
-    active_event: next.active_event ?? current.active_event,
-    events: merged_events,
-    runtime_events: merged_runtime_events,
-    recent_evidence: merge_operation_evidence(current.recent_evidence, next.recent_evidence),
-    workspace_events: merge_workspace_events_for_round(
-      current.workspace_events,
-      next.workspace_events,
-      merged_events,
-    ),
-    updated_at: Math.max(current.updated_at, next.updated_at),
-  };
-}
-
-function merge_runtime_events_for_round(
-  current: NexusOperationSnapshot["runtime_events"],
-  next: NexusOperationSnapshot["runtime_events"],
-  round_id: string,
-): NexusOperationSnapshot["runtime_events"] {
-  const next_ids = new Set(next.map((event) => event.id));
-  return [
-    ...current.filter((event) => event.round_id === round_id && !next_ids.has(event.id)),
-    ...next,
-  ]
-    .sort((left, right) => left.timestamp - right.timestamp)
-    .slice(-MAX_MERGED_EVENTS);
-}
-
 function collect_continuation_workspace_items(
   event: NexusOperationEvent,
   events: NexusOperationEvent[],
@@ -402,83 +326,4 @@ function looks_like_continuation_file_artifact(value: string): boolean {
   }
   const basename = normalized.split(/[\\/]/).filter(Boolean).at(-1) ?? normalized;
   return /\.[a-z0-9]{1,12}$/i.test(basename);
-}
-
-function settle_stale_live_event_for_round_summary(
-  event: NexusOperationEvent,
-  summary: NexusOperationEvent | null,
-): NexusOperationEvent {
-  if (
-    !summary ||
-    (event.phase !== "running" && event.phase !== "waiting" && event.phase !== "queued") ||
-    event.id === summary.id
-  ) {
-    return event;
-  }
-
-  const settled_phase = summary.phase === "cancelled"
-    ? "cancelled"
-    : summary.phase === "error"
-      ? "error"
-      : "done";
-  return {
-    ...event,
-    phase: settled_phase,
-    summary: event.summary ?? summary.summary,
-    ended_at: summary.ended_at ?? summary.updated_at,
-    updated_at: Math.max(event.updated_at, summary.updated_at),
-    evidence: [
-      ...(event.evidence ?? []),
-      {
-        type: summary.phase === "error" ? "error" : "status",
-        label: summary.phase === "error" ? "round_error" : "round_settled",
-        value: summary.summary ?? summary.title,
-      },
-    ],
-  };
-}
-
-function merge_workspace_events_for_round(
-  current: NexusOperationSnapshot["workspace_events"],
-  next: NexusOperationSnapshot["workspace_events"],
-  events: NexusOperationSnapshot["events"],
-): NexusOperationSnapshot["workspace_events"] {
-  const round_tool_use_ids = new Set(
-    events
-      .map((event) => event.tool_use_id)
-      .filter((tool_use_id): tool_use_id is string => Boolean(tool_use_id)),
-  );
-  const round_targets = new Set(
-    events
-      .map((event) => event.target)
-      .filter((target): target is string => Boolean(target)),
-  );
-  const merged_by_id = new Map<string, NexusOperationSnapshot["workspace_events"][number]>();
-
-  for (const item of current) {
-    if (
-      (item.tool_use_id && round_tool_use_ids.has(item.tool_use_id)) ||
-      round_targets.has(item.path)
-    ) {
-      merged_by_id.set(item.id, item);
-    }
-  }
-  for (const item of next) {
-    merged_by_id.set(item.id, item);
-  }
-
-  return Array.from(merged_by_id.values())
-    .sort((left, right) => right.updated_at - left.updated_at)
-    .slice(0, MAX_MERGED_WORKSPACE_EVENTS);
-}
-
-function merge_operation_evidence(
-  current: NexusOperationSnapshot["recent_evidence"],
-  next: NexusOperationSnapshot["recent_evidence"],
-): NexusOperationSnapshot["recent_evidence"] {
-  const merged = new Map<string, NexusOperationSnapshot["recent_evidence"][number]>();
-  for (const item of [...current, ...next]) {
-    merged.set(`${item.type}:${item.label}:${item.value ?? ""}`, item);
-  }
-  return Array.from(merged.values()).slice(-MAX_MERGED_EVIDENCE);
 }

@@ -47,6 +47,7 @@ export interface PendingPermission {
   risk_label?: string;
   summary?: string;
   suggestions?: PermissionUpdate[];
+  requested_at?: number;
   expires_at?: string;
 }
 

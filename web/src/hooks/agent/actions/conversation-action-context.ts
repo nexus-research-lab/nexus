@@ -15,7 +15,7 @@ export interface AgentConversationActionContext {
   activeSessionKeyRef: RefObject<string | null>;
   identity: AgentConversationIdentity | null;
   messages: Message[];
-  pendingPermissions: PendingPermission[];
+  readPendingPermissions: () => PendingPermission[];
   sessionKey: string | null;
   setError: Dispatch<SetStateAction<string | null>>;
   setMessages: Dispatch<SetStateAction<Message[]>>;

@@ -538,6 +538,9 @@ function project_unmatched_permission(
   session_key: string | null,
   agent_id?: string | null,
 ): NexusOperationEvent {
+  const requested_at = Number.isFinite(permission.requested_at)
+    ? permission.requested_at as number
+    : Date.now();
   const profile = resolveOperationToolProfile(permission.tool_name);
   const target = extract_target(
     redactProjectedValue(permission.tool_input) as Record<string, unknown>,
@@ -564,7 +567,7 @@ function project_unmatched_permission(
     permission_interaction_mode: permission.interaction_mode ?? (
       permission.tool_name === "AskUserQuestion" ? "question" : "permission"
     ),
-    updated_at: Date.now(),
+    updated_at: requested_at,
   };
 }
 

@@ -57,6 +57,7 @@ copyFileSync(join(operation_dir, "operation-scene-window-builder.js"), join(oper
 copyFileSync(join(operation_dir, "operation-scene-window-policy.js"), join(operation_dir, "operation-scene-window-policy"));
 copyFileSync(join(operation_dir, "operation-stage-labels.js"), join(operation_dir, "operation-stage-labels"));
 copyFileSync(join(operation_dir, "operation-stage-experience.js"), join(operation_dir, "operation-stage-experience"));
+copyFileSync(join(operation_dir, "operation-stage-snapshot-merge.js"), join(operation_dir, "operation-stage-snapshot-merge"));
 copyFileSync(join(operation_dir, "operation-stage-key.js"), join(operation_dir, "operation-stage-key"));
 copyFileSync(join(operation_dir, "operation-stage-open-command.js"), join(operation_dir, "operation-stage-open-command"));
 copyFileSync(join(operation_dir, "operation-terminal-progress.js"), join(operation_dir, "operation-terminal-progress"));
@@ -121,8 +122,10 @@ const {
   buildOperationContinuationBrief,
   buildOperationLiveEpisode,
   deriveOperationStageExperiencePhase,
-  mergeOperationStageSnapshotsForRestore,
 } = await import(pathToFileURL(join(operation_dir, "operation-stage-experience.js")));
+const {
+  mergeOperationStageSnapshotsForRestore,
+} = await import(pathToFileURL(join(operation_dir, "operation-stage-snapshot-merge.js")));
 const {
   buildOperationStageKey,
 } = await import(pathToFileURL(join(operation_dir, "operation-stage-key.js")));

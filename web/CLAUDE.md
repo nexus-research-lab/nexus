@@ -74,6 +74,7 @@ src/
 - Room 页面数据资源必须绑定当前 `roomId`；模型只做投影，命令只返回当前作用域结果，会话快照只通过专用协议写回
 - Room 页面私有控制器归 `pages/room/controller/`，浏览器协调归 `pages/room/orchestration/`；领域 Feature 不读取路由，页面不解释服务端资源协议
 - 操作舞台的 Navi 浏览器归 `features/conversation/operation/apps/`：`browser-page-model.ts` 只投影 WebSearch/WebFetch/HTML 工具事件，`browser-navigation-model.ts` 只维护标签页与历史，React 控制器和视图不得重建第二份导航状态；远端网页通过 `/operation/browser/page` 的无 Cookie、防 SSRF 页面快照进入 sandbox iframe，地址栏和历史始终保留目标 URL，Reader 保留工具实际获取的内容作为可信回退
+- 操作舞台的权限通知与左侧消息必须共享当前 Session 的 `pending_permissions` 真相源；实时投影移除请求后不得由内存、localStorage 或远端舞台快照复活可交互确认，连续请求按真实收到时间切换，同一请求在多个入口只能发送一次决策
 - 操作舞台的后台窗口必须保留真实 App 内容并自然叠放，点击标题栏、Dock 或窗口循环快捷键只改变焦点；仅最小化窗口进入 Dock，不再维护独立的缩略图渲染分支
 - 操作舞台的“文件”App 只消费真实 Agent workspace 列表、实时文件事件和搜索命中；搜索表达式不得投影为文档，用户打开路径必须复用既有窗口，HTML 进入 Navi，其余格式进入共享预览路由，后台窗口不得卸载 App 内部状态
 - 操作舞台的 Markdown、代码、DOCX、XLSX、PPTX、PDF 与图片窗口必须复用 `shared/editor/WorkspaceFilePreviewRouter`；旧 Office 二进制格式和未知文件只能进入通用预览并诚实展示不支持状态，不得冒充 Editor、Sheets 或 Slides；绝对工具路径和相对 workspace 路径先归一为同一个文档身份，不维护第二套伪预览组件

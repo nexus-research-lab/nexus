@@ -251,6 +251,7 @@ export function useAgentConversationRuntime({
     clearOutboundRequest,
     pendingAgentSlots,
     pendingPermissions,
+    readPendingPermissions,
     reconcileRuntimeStateFromSnapshot,
     removeRewrittenRound,
     resetRuntimeMachine,

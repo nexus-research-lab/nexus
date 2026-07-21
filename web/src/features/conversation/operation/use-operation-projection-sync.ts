@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 
 import { areEquivalentSessionKeys } from "@/lib/conversation/session-key";
 import { useWorkspaceLiveStore } from "@/store/workspace-live";
@@ -14,7 +14,10 @@ import {
   saveOperationStageSnapshotApi,
 } from "./operation-stage-api";
 import { projectOperationSnapshot } from "./operation-projector";
-import { mergeOperationStageSnapshotsForRestore } from "./operation-stage-experience";
+import {
+  mergeOperationStageSnapshotsForRestore,
+  sanitizeOperationStageSnapshotForRestore,
+} from "./operation-stage-snapshot-merge";
 import {
   buildOperationStageKey,
   compactOperationSnapshotForPersistence,
@@ -110,9 +113,12 @@ export function useOperationProjectionSync({
     void getOperationStageSnapshotApi(key).then((remote_snapshot) => {
       if (!cancelled && remote_snapshot) {
         const current_snapshot = useOperationStageStore.getState().snapshots[key];
+        const restored_snapshot = sanitizeOperationStageSnapshotForRestore(remote_snapshot);
         set_snapshot(
           key,
-          mergeOperationStageSnapshotsForRestore(current_snapshot, remote_snapshot),
+          current_snapshot
+            ? mergeOperationStageSnapshotsForRestore(restored_snapshot, current_snapshot)
+            : restored_snapshot,
         );
       }
     });
@@ -121,7 +127,7 @@ export function useOperationProjectionSync({
     };
   }, [key, set_snapshot]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!key || !snapshot) {
       return;
     }
@@ -130,7 +136,18 @@ export function useOperationProjectionSync({
     const merged_snapshot = mergeOperationStageSnapshotsForRestore(current_snapshot, snapshot);
 
     set_snapshot(key, merged_snapshot);
-    const compact_snapshot = compactOperationSnapshotForPersistence(merged_snapshot);
+  }, [key, set_snapshot, snapshot]);
+
+  useEffect(() => {
+    if (!key || !snapshot) {
+      return;
+    }
+
+    const current_snapshot = useOperationStageStore.getState().snapshots[key];
+    if (!current_snapshot) {
+      return;
+    }
+    const compact_snapshot = compactOperationSnapshotForPersistence(current_snapshot);
     const signature = build_snapshot_signature(compact_snapshot);
     if (!signature || last_saved_signature_ref.current === signature) {
       return;
@@ -141,7 +158,7 @@ export function useOperationProjectionSync({
       void saveOperationStageSnapshotApi(key, compact_snapshot);
     }, 650);
     return () => window.clearTimeout(timer);
-  }, [key, set_snapshot, snapshot]);
+  }, [key, snapshot]);
 }
 
 type CompactOperationSnapshot = ReturnType<typeof compactOperationSnapshotForPersistence>;

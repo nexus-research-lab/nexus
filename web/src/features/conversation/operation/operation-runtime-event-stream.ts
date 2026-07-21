@@ -349,8 +349,9 @@ function build_permission_runtime_event({
 }
 
 function resolve_permission_timestamp(permission: PendingPermission): number {
-  const expires_at_ms = permission.expires_at ? Date.parse(permission.expires_at) : NaN;
-  return Number.isFinite(expires_at_ms) ? expires_at_ms : 0;
+  return Number.isFinite(permission.requested_at)
+    ? permission.requested_at as number
+    : Date.now();
 }
 
 function collectToolProgress(messages: Message[]): Map<string, TaskProgressContent> {

@@ -5,6 +5,7 @@ import { createBrowserJsonStorage } from "@/lib/storage/browser-storage";
 import type { PermissionDecisionPayload } from "@/types/conversation/interaction/permission";
 
 export { buildOperationStageKey } from "./operation-stage-key";
+import { sanitizeOperationStageSnapshotForRestore } from "./operation-stage-snapshot-merge";
 import type { NexusOperationSnapshot } from "./operation-types";
 
 const MAX_PERSISTED_STAGE_SNAPSHOTS = 12;
@@ -21,6 +22,10 @@ interface OperationStageStoreState {
   ) => void;
   set_snapshot: (key: string, snapshot: NexusOperationSnapshot) => void;
   clear_snapshot: (key: string) => void;
+}
+
+interface PersistedOperationStageStoreState {
+  snapshots?: Record<string, NexusOperationSnapshot>;
 }
 
 export const useOperationStageStore = create<OperationStageStoreState>()(
@@ -83,9 +88,17 @@ export const useOperationStageStore = create<OperationStageStoreState>()(
     {
       name: "nexus-operation-stage",
       storage: createBrowserJsonStorage(),
-      version: 1,
+      version: 2,
+      migrate: (persisted_state: unknown): PersistedOperationStageStoreState => {
+        const state = (persisted_state ?? {}) as PersistedOperationStageStoreState;
+        return {
+          snapshots: compact_snapshot_record_for_persistence(state.snapshots ?? {}),
+        };
+      },
       partialize: (state) => ({
-        snapshots: prune_snapshot_record(state.snapshots),
+        snapshots: compact_snapshot_record_for_persistence(
+          prune_snapshot_record(state.snapshots),
+        ),
       }),
     },
   ),
@@ -102,7 +115,18 @@ function prune_snapshot_record(
 }
 
 export function compactOperationSnapshotForPersistence(snapshot: NexusOperationSnapshot): NexusOperationSnapshot {
-  return compact_snapshot(snapshot);
+  return compact_snapshot(sanitizeOperationStageSnapshotForRestore(snapshot));
+}
+
+function compact_snapshot_record_for_persistence(
+  snapshots: Record<string, NexusOperationSnapshot>,
+): Record<string, NexusOperationSnapshot> {
+  return Object.fromEntries(
+    Object.entries(snapshots).map(([key, snapshot]) => [
+      key,
+      compactOperationSnapshotForPersistence(snapshot),
+    ]),
+  );
 }
 
 function compact_snapshot(snapshot: NexusOperationSnapshot): NexusOperationSnapshot {

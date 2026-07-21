@@ -1,13 +1,15 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, LockKeyhole, ShieldCheck, ShieldX, X } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
 import type { PermissionDecisionPayload } from "@/types/conversation/interaction/permission";
 
 import type { NexusOperationEvent } from "../operation-types";
-
-const dismissedRequestIds = new Set<string>();
-const submittedRequestIds = new Set<string>();
+import {
+  findWaitingPermissionEvent,
+  readPermissionCommand,
+  readPermissionSummary,
+} from "./operation-stage-permission-model";
 
 export function OperationStagePermissionToast({
   event,
@@ -23,18 +25,25 @@ export function OperationStagePermissionToast({
     [event, events],
   );
   const [menuOpen, setMenuOpen] = useState(false);
-  const [, render] = useState(0);
+  const [dismissedRequestId, setDismissedRequestId] = useState<string | null>(null);
+  const [submittedRequestId, setSubmittedRequestId] = useState<string | null>(null);
+  const [responseError, setResponseError] = useState<string | null>(null);
+  const submittingRequestIdRef = useRef<string | null>(null);
+  const requestId = permissionEvent?.permission_request_id ?? null;
 
   useEffect(() => {
     setMenuOpen(false);
-  }, [permissionEvent?.permission_request_id]);
+    setDismissedRequestId(null);
+    setSubmittedRequestId(null);
+    setResponseError(null);
+    submittingRequestIdRef.current = null;
+  }, [requestId]);
 
-  const requestId = permissionEvent?.permission_request_id ?? null;
   if (
     !permissionEvent
     || !requestId
-    || dismissedRequestIds.has(requestId)
-    || submittedRequestIds.has(requestId)
+    || dismissedRequestId === requestId
+    || submittedRequestId === requestId
   ) {
     return null;
   }
@@ -45,22 +54,28 @@ export function OperationStagePermissionToast({
   const summary = readPermissionSummary(permissionEvent, command);
 
   const dismiss = () => {
-    dismissedRequestIds.add(requestId);
+    setDismissedRequestId(requestId);
     setMenuOpen(false);
-    render((revision) => revision + 1);
   };
 
   const submitDecision = (decision: "allow" | "deny") => {
-    if (!onPermissionResponse || isQuestion) {
+    if (
+      !onPermissionResponse
+      || isQuestion
+      || submittingRequestIdRef.current === requestId
+    ) {
       return;
     }
+    submittingRequestIdRef.current = requestId;
+    setResponseError(null);
     const accepted = onPermissionResponse({ request_id: requestId, decision });
     if (!accepted) {
+      submittingRequestIdRef.current = null;
+      setResponseError("未能提交，请检查连接后重试");
       return;
     }
-    submittedRequestIds.add(requestId);
+    setSubmittedRequestId(requestId);
     setMenuOpen(false);
-    render((revision) => revision + 1);
   };
 
   return (
@@ -93,8 +108,11 @@ export function OperationStagePermissionToast({
             ) : null}
 
             <div className="mt-2.5 flex items-center justify-between gap-2">
-              <span className="rounded-full bg-white/58 px-2.5 py-1 text-[9px] font-black text-(--text-soft)">
-                {isQuestion ? "等待输入" : "等待确认"}
+              <span className={cn(
+                "rounded-full bg-white/58 px-2.5 py-1 text-[9px] font-black",
+                responseError ? "text-[#b64e52]" : "text-(--text-soft)",
+              )}>
+                {responseError ?? (isQuestion ? "等待输入" : "等待确认")}
               </span>
 
               {isQuestion ? null : (
@@ -146,62 +164,4 @@ export function OperationStagePermissionToast({
       </div>
     </div>
   );
-}
-
-function findWaitingPermissionEvent(
-  event: NexusOperationEvent,
-  events: NexusOperationEvent[],
-): NexusOperationEvent | null {
-  const resolvedRequestIds = new Set(events.flatMap((item) => (
-    item.permission_request_id && item.permission_decision
-      ? [item.permission_request_id]
-      : []
-  )));
-  const candidates = [event, ...events]
-    .filter((item, index, items) => (
-      item.permission_request_id
-      && item.phase === "waiting"
-      && !resolvedRequestIds.has(item.permission_request_id)
-      && items.findIndex((candidate) => candidate.id === item.id) === index
-    ))
-    .sort((left, right) => right.updated_at - left.updated_at);
-
-  return candidates.find((candidate) => !isPermissionSuperseded(candidate, events)) ?? null;
-}
-
-function isPermissionSuperseded(
-  candidate: NexusOperationEvent,
-  events: NexusOperationEvent[],
-): boolean {
-  return events.some((item) => (
-    item.round_id === candidate.round_id
-    && item.updated_at > candidate.updated_at
-    && item.phase !== "waiting"
-    && (
-      item.permission_request_id === candidate.permission_request_id
-      || Boolean(candidate.tool_use_id && item.tool_use_id === candidate.tool_use_id)
-    )
-  ));
-}
-
-function readPermissionCommand(event: NexusOperationEvent): string | null {
-  const command = event.input_preview?.command;
-  if (typeof command === "string" && command.trim()) {
-    return command.trim();
-  }
-  return event.target?.trim() || null;
-}
-
-function readPermissionSummary(event: NexusOperationEvent, command: string | null): string {
-  if (event.permission_interaction_mode === "question") {
-    return event.summary ?? event.target ?? "等待你补充信息后继续。";
-  }
-  const summary = event.summary?.trim();
-  if (summary && summary !== command && summary !== event.target) {
-    return summary;
-  }
-  if (event.tool_name === "Bash" || command) {
-    return "允许 Nexus 运行这条终端命令。";
-  }
-  return event.target ?? event.tool_name ?? "允许 Nexus 执行这项操作。";
 }
