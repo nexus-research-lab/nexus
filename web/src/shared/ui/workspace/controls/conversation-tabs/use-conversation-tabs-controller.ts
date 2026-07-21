@@ -11,6 +11,7 @@ import { isExternalSessionConversation } from "@/lib/conversation/external-sessi
 import {
   calculateConversationTabWidths,
   getCloseFallbackConversationId,
+  getConversationTabCapacity,
   getInitialOpenConversationIds,
   getRecentConversationIds,
   reconcileOpenConversationIds,
@@ -39,6 +40,10 @@ export function useConversationTabsController({
   const [hoveredConversationId, setHoveredConversationId] = useState<string | null>(null);
   const [optimisticActiveId, setOptimisticActiveId] = useState<string | null>(null);
   const [pendingClosedActiveId, setPendingClosedActiveId] = useState<string | null>(null);
+  const closedConversationIdsRef = useRef<Set<string>>(new Set());
+  const knownRecentConversationIdsRef = useRef<Set<string>>(new Set());
+  const previousTabCapacityRef = useRef(0);
+  const hasCreateButton = Boolean(onCreateConversation);
   const recentConversationIds = useMemo(
     () => getRecentConversationIds(conversations),
     [conversations],
@@ -46,6 +51,10 @@ export function useConversationTabsController({
   const [openConversationIds, setOpenConversationIds] = useState<string[]>(() => (
     getInitialOpenConversationIds(conversationId, recentConversationIds)
   ));
+  const tabCapacity = useMemo(() => getConversationTabCapacity({
+    hasCreateButton,
+    trackWidth,
+  }), [hasCreateButton, trackWidth]);
   const conversationsById = useMemo(
     () => new Map(
       conversations.map((conversation) => [conversation.conversation_id, conversation]),
@@ -65,22 +74,45 @@ export function useConversationTabsController({
   });
   const tabWidths = useMemo(() => calculateConversationTabWidths({
     activeConversationId,
-    hasCreateButton: Boolean(onCreateConversation),
+    hasCreateButton,
     orderedConversations,
     trackWidth,
-  }), [activeConversationId, onCreateConversation, orderedConversations, trackWidth]);
+  }), [activeConversationId, hasCreateButton, orderedConversations, trackWidth]);
 
   useTrackWidth(trackRef, setTrackWidth);
 
   useEffect(() => {
-    // 打开集合只响应真实会话目录和外部选择；关闭中的活动标签由本地事务接管。
+    const previousTabCapacity = previousTabCapacityRef.current;
+    const capacityIncreased = tabCapacity > previousTabCapacity;
+    previousTabCapacityRef.current = tabCapacity;
+    const liveConversationIds = new Set(recentConversationIds);
+    const hasNewRecentConversation = recentConversationIds.some(
+      (id) => !knownRecentConversationIdsRef.current.has(id),
+    );
+    knownRecentConversationIdsRef.current = liveConversationIds;
+    for (const id of closedConversationIdsRef.current) {
+      if (!liveConversationIds.has(id)) {
+        closedConversationIdsRef.current.delete(id);
+      }
+    }
+    if (conversationId && conversationId !== pendingClosedActiveId) {
+      closedConversationIdsRef.current.delete(conversationId);
+    }
+
+    // 宽度增长或已打开会话被服务端移除时，补入最近会话；手动关闭的标签不自动复开。
     setOpenConversationIds((currentIds) => reconcileOpenConversationIds({
       conversationId,
       currentIds,
+      excludedConversationIds: closedConversationIdsRef.current,
+      fillRecent: capacityIncreased
+        || hasNewRecentConversation
+        || currentIds.length === 0
+        || currentIds.some((id) => !liveConversationIds.has(id)),
+      maxOpenCount: tabCapacity,
       pendingClosedId: pendingClosedActiveId,
       recentIds: recentConversationIds,
     }));
-  }, [conversationId, pendingClosedActiveId, recentConversationIds]);
+  }, [conversationId, pendingClosedActiveId, recentConversationIds, tabCapacity]);
 
   useEffect(() => {
     setPendingClosedActiveId((currentId) => (
@@ -107,6 +139,7 @@ export function useConversationTabsController({
   };
 
   const selectConversation = (nextConversationId: string) => {
+    closedConversationIdsRef.current.delete(nextConversationId);
     previewConversation(nextConversationId);
     onSelectConversation(nextConversationId);
   };
@@ -120,6 +153,7 @@ export function useConversationTabsController({
       orderedConversations,
       targetConversationId,
     );
+    closedConversationIdsRef.current.add(targetConversationId);
     setOpenConversationIds((currentIds) => (
       currentIds.filter((id) => id !== targetConversationId)
     ));
