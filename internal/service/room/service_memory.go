@@ -11,6 +11,134 @@ import (
 	memorysvc "github.com/nexus-research-lab/nexus/internal/workspace/memory"
 )
 
+type RoomAgentMemoryGroup struct {
+	AgentID     string                 `json:"agent_id"`
+	AgentName   string                 `json:"agent_name"`
+	AgentAvatar string                 `json:"agent_avatar,omitempty"`
+	Items       []memorysvc.MemoryItem `json:"items"`
+}
+
+func (s *Service) memoryOptions() memorysvc.MemoryOptions {
+	return memorysvc.MemoryOptions{
+		Enabled:        s.config.MemoryEnabled,
+		AutoRecall:     s.config.MemoryAutoRecall,
+		AutoExtract:    s.config.MemoryAutoExtract,
+		MaxResults:     s.config.MemoryMaxResults,
+		ScoreThreshold: s.config.MemoryScoreThreshold,
+	}.Normalize()
+}
+
+func (s *Service) roomSharedMemoryRoot(conversationID string) string {
+	return workspacestore.New(s.config.WorkspacePath).RoomConversationDir(conversationID)
+}
+
+func (s *Service) roomSharedMemoryEngine(ctx context.Context, roomID string, conversationID string) (*memorysvc.Engine, memorysvc.MemoryScope, error) {
+	contextValue, err := s.GetConversationContext(ctx, conversationID)
+	if err != nil {
+		return nil, memorysvc.MemoryScope{}, err
+	}
+	if contextValue.Room.ID != strings.TrimSpace(roomID) {
+		return nil, memorysvc.MemoryScope{}, ErrConversationNotFound
+	}
+	scope := memorysvc.MemoryScope{
+		Kind:           memorysvc.ScopeKindRoomShared,
+		UserID:         contextValue.Room.OwnerUserID,
+		RoomID:         contextValue.Room.ID,
+		ConversationID: contextValue.Conversation.ID,
+	}
+	engine := memorysvc.NewEngine(s.roomSharedMemoryRoot(contextValue.Conversation.ID), s.memoryOptions())
+	return engine, scope, nil
+}
+
+func (s *Service) ListRoomSharedMemory(ctx context.Context, roomID string, conversationID string, limit int, statuses []string) ([]memorysvc.MemoryItem, error) {
+	engine, scope, err := s.roomSharedMemoryEngine(ctx, roomID, conversationID)
+	if err != nil {
+		return nil, err
+	}
+	return engine.List(ctx, memorysvc.MemoryListOptions{
+		Limit:    limit,
+		Statuses: statuses,
+		Scope:    scope.Key(),
+	})
+}
+
+func (s *Service) RoomSharedMemoryStats(ctx context.Context, roomID string, conversationID string) (memorysvc.MemoryStats, error) {
+	engine, scope, err := s.roomSharedMemoryEngine(ctx, roomID, conversationID)
+	if err != nil {
+		return memorysvc.MemoryStats{}, err
+	}
+	return engine.ScopedStats(ctx, scope.Key())
+}
+
+func (s *Service) AddRoomSharedMemory(ctx context.Context, roomID string, conversationID string, input memorysvc.MemoryWriteInput) (memorysvc.MemoryItem, error) {
+	engine, scope, err := s.roomSharedMemoryEngine(ctx, roomID, conversationID)
+	if err != nil {
+		return memorysvc.MemoryItem{}, err
+	}
+	input.Scope = scope.Key()
+	if strings.TrimSpace(input.Source) == "" {
+		input.Source = "room_manual"
+	}
+	return engine.Add(ctx, scope, input)
+}
+
+func (s *Service) UpdateRoomSharedMemory(ctx context.Context, roomID string, conversationID string, entryID string, input memorysvc.MemoryWriteInput) (memorysvc.MemoryItem, error) {
+	engine, scope, err := s.roomSharedMemoryEngine(ctx, roomID, conversationID)
+	if err != nil {
+		return memorysvc.MemoryItem{}, err
+	}
+	input.Scope = scope.Key()
+	return engine.Update(ctx, entryID, input)
+}
+
+func (s *Service) DeleteRoomSharedMemory(ctx context.Context, roomID string, conversationID string, entryID string) error {
+	engine, _, err := s.roomSharedMemoryEngine(ctx, roomID, conversationID)
+	if err != nil {
+		return err
+	}
+	return engine.Delete(ctx, entryID)
+}
+
+func (s *Service) ListRoomAgentSessionMemory(ctx context.Context, roomID string, conversationID string, limit int, statuses []string) ([]RoomAgentMemoryGroup, error) {
+	contextValue, err := s.GetConversationContext(ctx, conversationID)
+	if err != nil {
+		return nil, err
+	}
+	if contextValue.Room.ID != strings.TrimSpace(roomID) {
+		return nil, ErrConversationNotFound
+	}
+	groups := make([]RoomAgentMemoryGroup, 0, len(contextValue.MemberAgents))
+	for _, agentValue := range contextValue.MemberAgents {
+		if strings.TrimSpace(agentValue.AgentID) == "" || strings.TrimSpace(agentValue.WorkspacePath) == "" {
+			continue
+		}
+		scope := memorysvc.MemoryScope{
+			Kind:           memorysvc.ScopeKindRoomAgentSession,
+			UserID:         contextValue.Room.OwnerUserID,
+			AgentID:        agentValue.AgentID,
+			SessionKey:     protocol.BuildRoomAgentSessionKey(contextValue.Conversation.ID, agentValue.AgentID, contextValue.Room.RoomType),
+			RoomID:         contextValue.Room.ID,
+			ConversationID: contextValue.Conversation.ID,
+		}
+		engine := memorysvc.NewEngine(agentValue.WorkspacePath, s.memoryOptions())
+		items, err := engine.List(ctx, memorysvc.MemoryListOptions{
+			Limit:    limit,
+			Statuses: statuses,
+			Scope:    scope.Key(),
+		})
+		if err != nil {
+			return nil, err
+		}
+		groups = append(groups, RoomAgentMemoryGroup{
+			AgentID:     agentValue.AgentID,
+			AgentName:   agentValue.Name,
+			AgentAvatar: agentValue.Avatar,
+			Items:       items,
+		})
+	}
+	return groups, nil
+}
+
 func (s *RealtimeService) memoryOptions() memorysvc.MemoryOptions {
 	return memorysvc.MemoryOptions{
 		Enabled:        s.config.MemoryEnabled,
