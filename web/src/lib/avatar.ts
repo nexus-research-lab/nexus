@@ -10,6 +10,8 @@ export type AvatarIconFamily = "agent" | "room";
 
 export const AGENT_ICON_ID_START = 1;
 export const AGENT_ICON_ID_END = 53;
+/** Nexus 主智能体使用的品牌头像标识。 */
+export const DEFAULT_AGENT_AVATAR = "nexus";
 export const ROOM_ICON_ID_START = 1;
 export const ROOM_ICON_ID_END = 36;
 
@@ -68,6 +70,12 @@ function getStableIconId(
     hash = (hash * 31 + normalizedSeed.charCodeAt(index)) >>> 0;
   }
   return String(startInclusive + (hash % range));
+}
+
+/** 为 Agent 创建草稿生成头像编号，避免草稿内使用空头像。 */
+export function getRandomAgentAvatarIconId(): string {
+  const range = AGENT_ICON_ID_END - AGENT_ICON_ID_START + 1;
+  return String(AGENT_ICON_ID_START + Math.floor(Math.random() * range));
 }
 
 /** 未配置头像的 Room 使用稳定编号，避免重渲染时改变视觉身份。 */

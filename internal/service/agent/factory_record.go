@@ -2,6 +2,7 @@ package agent
 
 import (
 	"encoding/json"
+	"strconv"
 	"strings"
 
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
@@ -9,6 +10,13 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimepermission "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	"github.com/nexus-research-lab/nexus/internal/storage/agentrepo"
+)
+
+const (
+	defaultMainAgentAvatar = "nexus"
+	// 与 web/src/lib/avatar.ts 的 Agent 图标资源范围保持一致。
+	agentAvatarIconStart = 1
+	agentAvatarIconEnd   = 53
 )
 
 // BuildCreateRecord 构建落库记录。
@@ -38,7 +46,7 @@ func BuildCreateRecord(
 		WorkspacePath:       workspacePath,
 		Status:              status,
 		IsMain:              isMain,
-		Avatar:              request.Avatar,
+		Avatar:              resolveAgentAvatar(request.Avatar, agentID, isMain),
 		Description:         request.Description,
 		VibeTagsJSON:        mustJSONString(request.VibeTags),
 		DisplayName:         normalizedName,
@@ -57,6 +65,31 @@ func BuildCreateRecord(
 		SettingSourcesJSON:  mustJSONString(options.SettingSources),
 		RuntimeVersion:      1,
 	}
+}
+
+// resolveAgentAvatar 为创建和读取路径提供同一套头像兜底规则。
+func resolveAgentAvatar(avatar string, agentID string, isMain bool) string {
+	if normalized := strings.TrimSpace(avatar); normalized != "" {
+		return normalized
+	}
+	if isMain {
+		return defaultMainAgentAvatar
+	}
+	return stableAgentAvatar(agentID)
+}
+
+// stableAgentAvatar 用 Agent ID 生成稳定的“随机”头像，避免每次读取都换身份。
+func stableAgentAvatar(agentID string) string {
+	seed := strings.TrimSpace(agentID)
+	if seed == "" {
+		seed = defaultMainAgentAvatar
+	}
+	var hash uint32
+	for _, character := range seed {
+		hash = hash*31 + uint32(character)
+	}
+	rangeSize := uint32(agentAvatarIconEnd - agentAvatarIconStart + 1)
+	return strconv.Itoa(agentAvatarIconStart + int(hash%rangeSize))
 }
 
 // BuildDefaultMainAgentRecord 构建主智能体默认记录。

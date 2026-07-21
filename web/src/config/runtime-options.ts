@@ -6,6 +6,7 @@ import {
   type AgentRuntimeKind,
   type UserPreferences,
 } from "@/types/settings/preferences";
+import { DEFAULT_AGENT_AVATAR as NEXUS_DEFAULT_AGENT_AVATAR } from "@/lib/avatar";
 import {
   DEFAULT_AGENT_ALLOWED_TOOLS,
   DEFAULT_AGENT_PERMISSION_MODE,
@@ -16,7 +17,7 @@ import {
 } from "@/lib/settings/preferences-normalization";
 
 let DEFAULT_AGENT_ID = "";
-let DEFAULT_AGENT_AVATAR = "";
+let DEFAULT_AGENT_AVATAR = NEXUS_DEFAULT_AGENT_AVATAR;
 export const USER_PREFERENCES_CHANGED_EVENT = "nexus:user-preferences-changed";
 let DEFAULT_CHAT_DELIVERY_POLICY: AgentConversationDefaultDeliveryPolicy = "queue";
 let DEFAULT_AGENT_RUNTIME_KIND: AgentRuntimeKind = "nxs";
@@ -54,7 +55,7 @@ export function getDefaultAgentAvatar(): string {
 
 function setDefaultAgentAvatar(avatar?: string | null): void {
   const normalizedAvatar = avatar?.trim();
-  DEFAULT_AGENT_AVATAR = normalizedAvatar || "";
+  DEFAULT_AGENT_AVATAR = normalizedAvatar || NEXUS_DEFAULT_AGENT_AVATAR;
 }
 
 export function getInitialAgentOptions(): Partial<AgentOptions> {

@@ -74,7 +74,7 @@ function LandingWorkbenchSidebar() {
         <UiRoomAvatar
           members={[
             { id: "amy", name: "Amy", avatar: "/icon/agent/8.png" },
-            { id: "nexus", name: "Nexus", avatar: "/logo.webp" },
+            { id: "nexus", name: "Nexus", avatar: "/icon/agent/nexus.png" },
             { id: "lee", name: "Lee", avatar: "/icon/agent/17.png" },
           ]}
           roomId="design-room"
