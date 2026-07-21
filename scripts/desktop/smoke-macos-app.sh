@@ -15,6 +15,7 @@ EXPECTED_CREDENTIALS_STORAGE="${NEXUS_DESKTOP_SMOKE_EXPECTED_CREDENTIALS_STORAGE
 EXPECT_NXS_RUNTIME="${NEXUS_DESKTOP_SMOKE_EXPECT_NXS_RUNTIME:-0}"
 ALLOW_FALLBACK="${NEXUS_DESKTOP_SMOKE_ALLOW_FALLBACK:-0}"
 MAIN_READY_ROUTE_PATTERN="event=web\\.ready.*location_path=/launcher .*surface=main"
+MAIN_NAVIGATION_FINISHED_PATTERN="event=webview\\.navigation_finished.*surface=main"
 LAUNCHER_ROUTE_PATTERN="/launcher($|[[:space:]])"
 
 APP_PID=""
@@ -76,6 +77,34 @@ wait_for_log_match() {
     fi
     if [[ -n "${APP_PID}" ]] && ! kill -0 "${APP_PID}" >/dev/null 2>&1; then
       fail "app exited before log matched: ${pattern}"
+    fi
+    if (( "$(date +%s)" - started_at >= timeout_seconds )); then
+      return 1
+    fi
+    sleep 0.2
+  done
+}
+
+log_match_count() {
+  local pattern="$1"
+  grep -Ec "${pattern}" "${LOG_FILE}" 2>/dev/null || true
+}
+
+wait_for_new_log_match() {
+  local pattern="$1"
+  local previous_count="$2"
+  local timeout_seconds="$3"
+  local started_at
+  started_at="$(date +%s)"
+
+  while true; do
+    local current_count
+    current_count="$(log_match_count "${pattern}")"
+    if (( current_count > previous_count )); then
+      return 0
+    fi
+    if [[ -n "${APP_PID}" ]] && ! kill -0 "${APP_PID}" >/dev/null 2>&1; then
+      fail "app exited before a new log matched: ${pattern}"
     fi
     if (( "$(date +%s)" - started_at >= timeout_seconds )); then
       return 1
@@ -154,7 +183,10 @@ if [[ "${ALLOW_FALLBACK}" == "1" ]]; then
 else
   wait_for_log "event=main_window\\.revealed.*source=web\\.ready" "${MAIN_TIMEOUT_SECONDS}"
 fi
+wait_for_log "${MAIN_NAVIGATION_FINISHED_PATTERN}" "${MAIN_TIMEOUT_SECONDS}"
 
+main_ready_count="$(log_match_count "${MAIN_READY_ROUTE_PATTERN}")"
+main_navigation_count="$(log_match_count "${MAIN_NAVIGATION_FINISHED_PATTERN}")"
 if open "nexus://open" >/dev/null 2>&1 &&
   wait_for_log_match "event=app\\.url_route.*host=open .*route_path=${LAUNCHER_ROUTE_PATTERN}" "${MAIN_URL_TIMEOUT_SECONDS}"; then
   wait_for_log "event=main_window\\.route_load.*path=${LAUNCHER_ROUTE_PATTERN}" "${MAIN_TIMEOUT_SECONDS}"
@@ -162,8 +194,15 @@ else
   post_main_window_notification || fail "failed to request launcher route through nexus://open"
   wait_for_log "event=main_window\\.route_load.*path=${LAUNCHER_ROUTE_PATTERN}" "${MAIN_TIMEOUT_SECONDS}"
 fi
-wait_for_log "${MAIN_READY_ROUTE_PATTERN}" "${MAIN_TIMEOUT_SECONDS}"
+if ! wait_for_new_log_match "${MAIN_NAVIGATION_FINISHED_PATTERN}" "${main_navigation_count}" "${MAIN_TIMEOUT_SECONDS}"; then
+  fail "timed out waiting for the nexus://open navigation to finish"
+fi
+if ! wait_for_new_log_match "${MAIN_READY_ROUTE_PATTERN}" "${main_ready_count}" "${MAIN_TIMEOUT_SECONDS}"; then
+  fail "timed out waiting for the nexus://open route to become ready"
+fi
 
+main_ready_count="$(log_match_count "${MAIN_READY_ROUTE_PATTERN}")"
+main_navigation_count="$(log_match_count "${MAIN_NAVIGATION_FINISHED_PATTERN}")"
 if open "nexus://launcher" >/dev/null 2>&1 &&
   wait_for_log_match "event=app\\.url_route.*host=launcher .*route_path=${LAUNCHER_ROUTE_PATTERN}" "${LAUNCHER_URL_TIMEOUT_SECONDS}"; then
   wait_for_log "event=main_window\\.route_load.*path=${LAUNCHER_ROUTE_PATTERN}" "${MAIN_TIMEOUT_SECONDS}"
@@ -171,7 +210,12 @@ else
   post_launcher_notification || fail "failed to request launcher route"
   wait_for_log "event=main_window\\.route_load.*path=${LAUNCHER_ROUTE_PATTERN}" "${MAIN_TIMEOUT_SECONDS}"
 fi
-wait_for_log "${MAIN_READY_ROUTE_PATTERN}" "${MAIN_TIMEOUT_SECONDS}"
+if ! wait_for_new_log_match "${MAIN_NAVIGATION_FINISHED_PATTERN}" "${main_navigation_count}" "${MAIN_TIMEOUT_SECONDS}"; then
+  fail "timed out waiting for the nexus://launcher navigation to finish"
+fi
+if ! wait_for_new_log_match "${MAIN_READY_ROUTE_PATTERN}" "${main_ready_count}" "${MAIN_TIMEOUT_SECONDS}"; then
+  fail "timed out waiting for the nexus://launcher route to become ready"
+fi
 
 unexpected_pattern="webview\\.content_process_terminated|startup\\.failed"
 if [[ "${ALLOW_FALLBACK}" != "1" ]]; then
