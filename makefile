@@ -49,7 +49,7 @@ endif
 
 # Development commands
 run-web: ## Run frontend in development mode
-	cd web && $(PNPM) exec vite -- --host 0.0.0.0 --port $(WEB_PORT)
+	cd web && VITE_BACKEND_PORT=$(BACKEND_PORT) $(PNPM) exec vite -- --host 0.0.0.0 --port $(WEB_PORT)
 
 gen-protocol-types: ## Generate frontend protocol types from Go protocol definitions
 	go generate ./internal/protocol
@@ -72,7 +72,10 @@ dev: ## Run both frontend and backend in development mode
 		exit 1; \
 	fi
 	@if lsof -nP -iTCP:$(WEB_PORT) -sTCP:LISTEN >/dev/null 2>&1; then \
-		echo "Warning: frontend port $(WEB_PORT) is already in use, Vite will choose another available port."; \
+		echo "Error: frontend port $(WEB_PORT) is already in use."; \
+		echo "Hint: stop the existing process or choose another worktree slot."; \
+		lsof -nP -iTCP:$(WEB_PORT) -sTCP:LISTEN; \
+		exit 1; \
 	fi
 	@make -j2 run-web run-backend BACKEND_PORT=$(BACKEND_PORT) WEB_PORT=$(WEB_PORT)
 
