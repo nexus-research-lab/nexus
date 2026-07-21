@@ -46,6 +46,8 @@ github.com/ncruces/go-strftime v1.0.0 h1:HMFp8mLCTPp341M/ZnA4qaf7ZlsbTc+miZjCLOF
 github.com/ncruces/go-strftime v1.0.0/go.mod h1:Fwc5htZGVVkseilnfgOVb9mKy6w1naJmn9CehxcKcls=
 github.com/nexus-research-lab/nexus-agent-sdk-bridge v0.1.20 h1:8fbkK83j+1lEY3RbfquP0FpO4v0ike/1FbXSz8wYuwI=
 github.com/nexus-research-lab/nexus-agent-sdk-bridge v0.1.20/go.mod h1:D1pjbtztCyFMdB6/z/DiG2PlYmznKByVrgK1IIw7d10=
+github.com/nexus-research-lab/nexus-agent-sdk-bridge v0.1.21-0.20260721063457-b867a1e76386 h1:oZOvLPEqjR37OcQceFeXH6jt2zup+WQ2F3HmUoAvKvQ=
+github.com/nexus-research-lab/nexus-agent-sdk-bridge v0.1.21-0.20260721063457-b867a1e76386/go.mod h1:D1pjbtztCyFMdB6/z/DiG2PlYmznKByVrgK1IIw7d10=
 github.com/open-dingtalk/dingtalk-stream-sdk-go v0.9.1 h1:Lb/Uzkiw2Ugt2Xf03J5wmv81PdkYOiWbI8CNBi1boC8=
 github.com/open-dingtalk/dingtalk-stream-sdk-go v0.9.1/go.mod h1:ln3IqPYYocZbYvl9TAOrG/cxGR9xcn4pnZRLdCTEGEU=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
