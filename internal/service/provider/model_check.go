@@ -143,6 +143,9 @@ func (s *Service) ensureTestedModelReady(
 }
 
 func (s *Service) sendMinimalModelRequest(ctx context.Context, item providerstore.Entity, modelID string) error {
+	if err := validateModelEndpoint(item); err != nil {
+		return err
+	}
 	endpoint := endpointURL(item, item.APIFormat)
 	payload, err := minimalPayload(item, modelID)
 	if err != nil {

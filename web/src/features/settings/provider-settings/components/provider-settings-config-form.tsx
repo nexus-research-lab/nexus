@@ -82,7 +82,7 @@ function ProviderShapeControls({
           autoCapitalize="off"
           autoCorrect="off"
           controlSize="lg"
-          disabled={!selectedCanManage}
+          disabled={!selectedCanManage || draft.preset_key !== "custom"}
           onChange={(event) => onProviderDisplayNameChange(event.target.value)}
           onBlur={onFieldBlur}
           placeholder={t("settings.providers.provider_name_placeholder")}
@@ -249,7 +249,9 @@ function ProviderEndpointField({
           disabled={!selectedCanManage}
           onChange={(event) => onBaseUrlChange(event.target.value)}
           onBlur={onFieldBlur}
-          placeholder={currentFormat?.base_url || "https://api.example.com/v1"}
+          placeholder={currentFormat?.base_url_placeholder
+            || currentFormat?.base_url
+            || "https://api.example.com/v1"}
           spellCheck={false}
           type="text"
           value={draft.base_url}

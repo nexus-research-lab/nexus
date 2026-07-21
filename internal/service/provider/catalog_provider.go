@@ -20,6 +20,7 @@ const (
 	presetDoubao        = "doubao"
 	presetDashScope     = "dashscope"
 	presetModelScope    = "modelscope"
+	presetAzure         = "azure"
 	presetCustom        = "custom"
 )
 
@@ -259,8 +260,30 @@ var providerPresets = []Preset{
 		},
 	},
 	{
+		PresetKey:     presetAzure,
+		ProviderKind:  ProviderKindLLM,
+		EndpointMode:  EndpointModeResource,
+		DisplayName:   "Azure OpenAI",
+		Description:   "Azure OpenAI v1 API. Use the resource endpoint and add deployed model names manually.",
+		KeyURL:        "https://ai.azure.com/",
+		DefaultFormat: APIFormatChatCompletions,
+		Formats: []PresetFormat{
+			{
+				APIFormat:          APIFormatChatCompletions,
+				BaseURLPlaceholder: "https://YOUR-RESOURCE-NAME.openai.azure.com/openai/v1",
+				ModelsPath:         "",
+			},
+			{
+				APIFormat:          APIFormatResponses,
+				BaseURLPlaceholder: "https://YOUR-RESOURCE-NAME.openai.azure.com/openai/v1",
+				ModelsPath:         "",
+			},
+		},
+	},
+	{
 		PresetKey:     presetCustom,
 		ProviderKind:  ProviderKindLLM,
+		EndpointMode:  EndpointModeCustom,
 		DisplayName:   "Custom Provider",
 		Description:   "Custom model API provider using one of the supported API formats.",
 		DefaultFormat: APIFormatChatCompletions,
@@ -316,8 +339,20 @@ func (p Preset) Format(apiFormat string) PresetFormat {
 }
 
 func clonePreset(preset Preset) Preset {
+	preset.EndpointMode = normalizeEndpointMode(preset.EndpointMode)
 	preset.Formats = slices.Clone(preset.Formats)
 	return preset
+}
+
+func normalizeEndpointMode(endpointMode string) string {
+	switch strings.TrimSpace(endpointMode) {
+	case EndpointModeResource:
+		return EndpointModeResource
+	case EndpointModeCustom:
+		return EndpointModeCustom
+	default:
+		return EndpointModeFixed
+	}
 }
 
 func normalizeAPIFormat(apiFormat string) string {

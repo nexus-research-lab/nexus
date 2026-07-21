@@ -17,6 +17,7 @@ export type ProviderApiFormat =
   | "dashscope_image_generation"
   | "modelscope_image_generation";
 export type ProviderKind = "llm" | "image_generation";
+export type ProviderEndpointMode = "fixed" | "resource" | "custom";
 
 export interface ProviderModelCapabilities {
   vision?: boolean;
@@ -81,12 +82,14 @@ export interface ProviderPresetFormat {
   provider_kind?: ProviderKind;
   api_format: ProviderApiFormat;
   base_url: string;
+  base_url_placeholder?: string;
   models_path: string;
 }
 
 export interface ProviderPreset {
   preset_key: string;
   provider_kind: ProviderKind;
+  endpoint_mode: ProviderEndpointMode;
   display_name: string;
   description: string;
   key_url: string;

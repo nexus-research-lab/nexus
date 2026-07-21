@@ -53,7 +53,9 @@ Nexus 将智能体管理、任务协作和外部服务连接整合于一个统�
 
 ### 选择 Agent runtime 后端
 
-Nexus 支持两种 Agent runtime 后端：`nxs`（Nexus 原生）和 `claude`（Claude Code）。`nxs` 作为默认后端随 Nexus 提供，直连 LLM API（支持 Anthropic Messages 与 OpenAI Chat Completions 协议），并通过环境变量 `NEXUSCTL_COMMAND_PATH` 获取明确的 `nexusctl` 命令路径。
+Nexus 支持两种 Agent runtime 后端：`nxs`（Nexus 原生）和 `claude`（Claude Code）。`nxs` 作为默认后端随 Nexus 提供，可通过 Anthropic Messages、OpenAI Chat Completions 或 OpenAI Responses 协议直连 LLM API，并通过环境变量 `NEXUSCTL_COMMAND_PATH` 获取明确的 `nexusctl` 命令路径。Responses Provider 仅可用于 `nxs`；Nexus 保留产品侧 Provider 身份，并向 runtime 投影 `NEXUS_API_PROVIDER=openai` 与 `NEXUS_OPENAI_PROTOCOL=responses`。完整映射与本地测试方式见 [OpenAI Responses runtime 集成](./docs/specs/openai-responses-runtime-spec.md)。
+
+Provider 模型测试既接受 API base URL，也接受已经包含 operation path 的完整 URL；解析请求路径时会保留 query 参数。Responses 探测请求显式使用 `store=false`，并至少使用 16 个输出 token，以兼容上游参数下限。Azure OpenAI 以 `/openai` 结尾的资源根和 Foundry project endpoint 会自动归一化为 `/openai/v1/responses`；旧的 `/deployments/...`、`/images/generations` 和 `/chat/completions` operation URL 不能作为 Responses Base URL，选择时会返回可操作的配置错误。
 
 `claude` 后端通过 Claude Code 运行 Agent。使用该后端时，需单独安装 Claude Code，将 Agent runtime 切换为 `claude`，并确保 `claude` 在后端机器的 `PATH` 中可用。
 

@@ -9,6 +9,7 @@ import type {
 import {
   getPresetFormat,
   presetUsesBuiltinEndpoint,
+  presetUsesCustomModelsPath,
 } from "./provider-preset-model";
 import type { ProviderDraft } from "./provider-settings-types";
 
@@ -65,7 +66,10 @@ export function getEffectiveModelsPath(
   draft: ProviderDraft,
   preset: ProviderPreset | null,
 ): string {
-  return getEffectiveEndpointFormat(draft, preset)?.models_path
+  if (presetUsesCustomModelsPath(preset)) {
+    return draft.models_path;
+  }
+  return getPresetFormat(preset, draft.api_format)?.models_path
     ?? draft.models_path;
 }
 

@@ -14,7 +14,8 @@ func TestSupportsAPIFormat(t *testing.T) {
 		{name: "claude empty defaults anthropic", runtimeKind: RuntimeKindClaude, apiFormat: "", want: true},
 		{name: "nxs chat completions", runtimeKind: RuntimeKindNXS, apiFormat: APIFormatChatCompletions, want: true},
 		{name: "claude rejects chat completions", runtimeKind: RuntimeKindClaude, apiFormat: APIFormatChatCompletions, want: false},
-		{name: "nxs rejects responses", runtimeKind: RuntimeKindNXS, apiFormat: "responses", want: false},
+		{name: "nxs responses", runtimeKind: RuntimeKindNXS, apiFormat: APIFormatResponses, want: true},
+		{name: "claude rejects responses", runtimeKind: RuntimeKindClaude, apiFormat: APIFormatResponses, want: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -33,8 +34,8 @@ func TestSupportsAnyRuntime(t *testing.T) {
 	if !SupportsAnyRuntime(APIFormatChatCompletions) {
 		t.Fatalf("Chat Completions 应至少被 nxs runtime 支持")
 	}
-	if SupportsAnyRuntime("responses") {
-		t.Fatalf("Responses 当前不应被 Agent runtime 支持")
+	if !SupportsAnyRuntime(APIFormatResponses) {
+		t.Fatalf("Responses 应至少被 nxs runtime 支持")
 	}
 }
 

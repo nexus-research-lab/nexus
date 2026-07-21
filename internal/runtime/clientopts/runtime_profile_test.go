@@ -31,6 +31,26 @@ func TestRuntimeEnvPublishesExplicitVisionCapabilities(t *testing.T) {
 	if _, exists := environment[nexusRemoteImageURLEnvName]; exists {
 		t.Fatalf("compatible provider must explicitly declare remote URL support: %#v", environment)
 	}
+	if environment[nexusOpenAIProtocolEnvName] != apiFormatChatCompletions {
+		t.Fatalf("OpenAI protocol = %q, want %q", environment[nexusOpenAIProtocolEnvName], apiFormatChatCompletions)
+	}
+}
+
+func TestRuntimeEnvPublishesResponsesProtocolAndCapabilities(t *testing.T) {
+	environment := runtimeEnvFromConfig(&RuntimeConfig{
+		APIFormat: apiFormatResponses,
+		Model:     "responses-main",
+		Vision:    true,
+	}, runtimeKindNXS)
+	if environment[nexusAPIProviderEnvName] != "openai" ||
+		environment[nexusOpenAIProtocolEnvName] != apiFormatResponses {
+		t.Fatalf("Responses route = %#v", environment)
+	}
+	if environment[nexusModelSupportsVisionEnvName] != "true" ||
+		environment[nexusMultimodalUserContentEnvName] != "1" ||
+		environment[nexusMultimodalToolResultEnvName] != "1" {
+		t.Fatalf("Responses vision capabilities = %#v", environment)
+	}
 }
 
 func TestVisionRuntimeEnvUsesIndependentNamespace(t *testing.T) {
@@ -50,6 +70,20 @@ func TestVisionRuntimeEnvUsesIndependentNamespace(t *testing.T) {
 	}
 	if _, exists := environment["NEXUS_VISION_REMOTE_IMAGE_URL"]; exists {
 		t.Fatalf("compatible vision provider must explicitly declare remote URL support: %#v", environment)
+	}
+}
+
+func TestVisionRuntimeEnvSelectsResponsesProtocol(t *testing.T) {
+	environment := visionRuntimeEnvFromConfig(&RuntimeConfig{
+		APIFormat: apiFormatResponses,
+		AuthToken: "vision-token",
+		BaseURL:   "https://vision.example.com/v1",
+		Model:     "vision-responses-model",
+		Provider:  "vision-responses-provider",
+		Vision:    true,
+	})
+	if environment["NEXUS_VISION_API_PROVIDER"] != "responses" {
+		t.Fatalf("vision provider = %q, want responses; env=%#v", environment["NEXUS_VISION_API_PROVIDER"], environment)
 	}
 }
 

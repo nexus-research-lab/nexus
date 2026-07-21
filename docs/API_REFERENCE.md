@@ -127,6 +127,8 @@
 
 `GET /settings/providers/options` 返回按用途过滤的模型列表，包括 `chat_items`、`background_items`、`image_generation_items` 和 `vision_items`。`vision_items` 只包含模型卡明确声明支持图片输入的已启用模型；能力未知的模型不会自动进入该列表。
 
+Provider 预设通过 `endpoint_mode` 声明端点来源：`fixed` 使用内置目录，`resource` 由用户填写资源级 Base URL，`custom` 使用完整自定义端点。内置 Azure OpenAI 预设属于 `resource`：接受资源根地址、`/openai/` 或 `/openai/v1` 并统一保存为 v1 Base URL；Azure 请求中的 `model` 必须使用实际 deployment name，因此该预设关闭远端模型同步，使用“添加模型”录入 deployment name。历史上以 `provider=azure` 保存、且地址可安全归一化的 Custom Provider 会在读取时投影为内置 Azure preset，下一次保存后正式持久化；其他自定义 Azure operation URL 保持原配置。
+
 ---
 
 ## 4. Agent 管理

@@ -125,6 +125,21 @@ func TestRuntimeStartupLogFieldsSkipsSnapshotForUnresolvedNXS(t *testing.T) {
 	}
 }
 
+func TestRuntimeStartupLogFieldsIncludesOpenAIProtocol(t *testing.T) {
+	t.Setenv(nexusNXSCommandPathEnvName, "")
+
+	fields := RuntimeStartupLogFields(agentclient.NewOptions().
+		WithRuntime(agentclient.RuntimeNXS).
+		WithEnv(map[string]string{
+			nexusAPIProviderEnvName:    "openai",
+			nexusOpenAIProtocolEnvName: apiFormatResponses,
+		}))
+	values := logFieldMap(fields)
+	if values["api_provider_env"] != "openai" || values["openai_protocol_env"] != apiFormatResponses {
+		t.Fatalf("OpenAI protocol log fields = %+v", values)
+	}
+}
+
 func logFieldMap(fields []any) map[string]any {
 	result := map[string]any{}
 	for index := 0; index+1 < len(fields); index += 2 {

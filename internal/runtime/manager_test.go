@@ -220,12 +220,14 @@ func TestManagerGetOrCreateReconfiguresExistingClient(t *testing.T) {
 
 	first, err := manager.GetOrCreate(context.Background(), "agent:nexus:ws:dm:test", agentclient.Options{
 		CWD: "/tmp/a",
+		Env: map[string]string{"NEXUS_OPENAI_PROTOCOL": "chat_completions"},
 	})
 	if err != nil {
 		t.Fatalf("首次创建 client 失败: %v", err)
 	}
 	second, err := manager.GetOrCreate(context.Background(), "agent:nexus:ws:dm:test", agentclient.Options{
 		CWD: "/tmp/b",
+		Env: map[string]string{"NEXUS_OPENAI_PROTOCOL": "responses"},
 		Runtime: agentclient.RuntimeOptions{
 			PermissionMode: sdkpermission.ModeAcceptEdits,
 		},
@@ -245,6 +247,9 @@ func TestManagerGetOrCreateReconfiguresExistingClient(t *testing.T) {
 	}
 	if client.lastOptions.Runtime.PermissionMode != sdkpermission.ModeAcceptEdits {
 		t.Fatalf("Reconfigure 未收到权限模式: %+v", client.lastOptions)
+	}
+	if client.lastOptions.Env["NEXUS_OPENAI_PROTOCOL"] != "responses" {
+		t.Fatalf("Reconfigure 未收到 Responses 协议更新: %+v", client.lastOptions.Env)
 	}
 }
 
