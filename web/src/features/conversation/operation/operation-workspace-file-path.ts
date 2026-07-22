@@ -5,12 +5,14 @@
  */
 
 export interface ResolveOperationWorkspaceFilePathInput {
+  agentId?: string | null;
   knownPaths?: readonly string[];
   path: string;
   workspacePath?: string | null;
 }
 
 export function resolveOperationWorkspaceFilePath({
+  agentId,
   knownPaths = [],
   path,
   workspacePath,
@@ -31,7 +33,7 @@ export function resolveOperationWorkspaceFilePath({
     return relative_to_workspace;
   }
 
-  const nexus_workspace_path = relative_path_from_nexus_workspace(target);
+  const nexus_workspace_path = relative_path_from_nexus_workspace(target, agentId);
   if (nexus_workspace_path) {
     return nexus_workspace_path;
   }
@@ -88,17 +90,36 @@ function strip_path_prefix(path: string, prefix: string): string | null {
     : null;
 }
 
-function relative_path_from_nexus_workspace(path: string): string | null {
+function relative_path_from_nexus_workspace(
+  path: string,
+  agent_id?: string | null,
+): string | null {
   const segments = path.split("/").filter(Boolean);
   for (let index = 0; index < segments.length - 2; index += 1) {
-    if (segments[index] !== ".nexus" || segments[index + 1] !== "workspace") {
-      continue;
+    if (segments[index] === ".nexus" && segments[index + 1] === "workspace") {
+      return relative_path_after_workspace_owner(segments, index + 2);
     }
-    const workspace_owner_index = index + 2;
-    const relative = segments.slice(workspace_owner_index + 1).join("/");
-    return is_safe_relative_path(relative) ? relative : null;
+    if (
+      segments[index].startsWith(".nexus-")
+      && segments[index + 1] === "instances"
+      && segments[index + 3] === "workspace"
+    ) {
+      const workspace_owner_index = index + 4;
+      if (segments[workspace_owner_index] !== agent_id?.trim()) {
+        return null;
+      }
+      return relative_path_after_workspace_owner(segments, workspace_owner_index);
+    }
   }
   return null;
+}
+
+function relative_path_after_workspace_owner(
+  segments: string[],
+  workspace_owner_index: number,
+): string | null {
+  const relative = segments.slice(workspace_owner_index + 1).join("/");
+  return is_safe_relative_path(relative) ? relative : null;
 }
 
 function path_ends_with(path: string, candidate: string): boolean {

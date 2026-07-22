@@ -291,6 +291,51 @@ test("completed NXS rounds without result_summary still enter handoff", () => {
   assert.ok(liveSnapshot.runtime_events.every((item) => item.event_type !== "round_handoff"));
 });
 
+test("conversation identity repairs SDK tool events that omit agent_id", () => {
+  const snapshot = projectOperationSnapshot({
+    key: sessionKey,
+    session_key: sessionKey,
+    agent_id: "agent:lifecycle",
+    messages: [
+      {
+        message_id: "message:identity-fallback",
+        session_key: sessionKey,
+        round_id: roundId,
+        agent_id: "",
+        role: "assistant",
+        content: [
+          {
+            type: "tool_use",
+            id: "tool:identity-fallback",
+            name: "Write",
+            input: {
+              file_path: "/Users/test/.nexus-dev/instances/operation-stage/workspace/agent:lifecycle/game.html",
+              content: "<!doctype html><button>Play</button>",
+            },
+          },
+          {
+            type: "tool_result",
+            tool_use_id: "tool:identity-fallback",
+            content: "File created",
+            is_error: false,
+          },
+        ],
+        is_complete: true,
+        stop_reason: "tool_use",
+        timestamp: now,
+      },
+    ],
+    pending_permissions: [],
+    live_round_ids: [roundId],
+    workspace_events: [],
+  });
+
+  assert.ok(snapshot.events.length > 0);
+  assert.ok(snapshot.events.every((event) => event.agent_id === "agent:lifecycle"));
+  assert.ok(snapshot.runtime_events.length > 0);
+  assert.ok(snapshot.runtime_events.every((event) => event.agent_id === "agent:lifecycle"));
+});
+
 test("execution paths and handoff metrics retain the complete projected round", () => {
   const toolEvents = Array.from({ length: 13 }, (_, index) => operationEvent({
     id: `search:${index + 1}`,

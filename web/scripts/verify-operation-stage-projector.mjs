@@ -46,6 +46,7 @@ copyFileSync(join(operation_dir, "operation-file-documents.js"), join(operation_
 copyFileSync(join(operation_dir, "operation-html-artifacts.js"), join(operation_dir, "operation-html-artifacts"));
 copyFileSync(join(operation_dir, "operation-image-source.js"), join(operation_dir, "operation-image-source"));
 copyFileSync(join(operation_dir, "operation-pending-permissions.js"), join(operation_dir, "operation-pending-permissions"));
+copyFileSync(join(operation_dir, "operation-projection-identity.js"), join(operation_dir, "operation-projection-identity"));
 copyFileSync(join(operation_dir, "operation-projection-preview.js"), join(operation_dir, "operation-projection-preview"));
 copyFileSync(join(operation_dir, "operation-projection-timeline.js"), join(operation_dir, "operation-projection-timeline"));
 copyFileSync(join(operation_dir, "operation-types.js"), join(operation_dir, "operation-types"));

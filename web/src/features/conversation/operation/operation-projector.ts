@@ -46,6 +46,7 @@ import {
   projectImplicitRoundSummaryEvents,
   projectResultSummaryEvent,
 } from "./operation-summary-events";
+import { applyProjectedAgentIdentity } from "./operation-projection-identity";
 import { buildTerminalProgressResultPreview } from "./operation-terminal-progress";
 
 const MAX_EVENTS = 24;
@@ -201,10 +202,10 @@ export function projectOperationSnapshot({
     ));
   }
 
-  const sorted_events = events
+  const sorted_events = applyProjectedAgentIdentity(events, agent_id)
     .sort((left, right) => (left.updated_at || 0) - (right.updated_at || 0))
     .slice(-MAX_EVENTS);
-  const runtime_events = sortOperationRuntimeEvents([
+  const runtime_events = sortOperationRuntimeEvents(applyProjectedAgentIdentity([
     ...buildOperationMessageRuntimeEvents({
       agent_id,
       live_round_ids: live_round_id_set,
@@ -218,7 +219,7 @@ export function projectOperationSnapshot({
       session_key,
       workspace_event,
     })),
-  ]);
+  ], agent_id));
   const active_event = pickOperationActiveEvent(sorted_events);
   const recent_evidence = collectRecentOperationEvidence(sorted_events, MAX_EVIDENCE);
 

@@ -1,5 +1,5 @@
-// INPUT: 已准备的 DM round、runtime 消息与终态结果。
-// OUTPUT: durable 历史、ACK 门控的引导确认、Goal 结算及用户队列优先的后续派发。
+// INPUT: 已准备的 DM round、Goal/Stage 隐藏上下文、runtime 消息与终态结果。
+// OUTPUT: 注入当前运行能力后的 durable 历史、ACK 门控引导、Goal 结算及队列派发。
 // POS: DM 单轮执行生命周期的主状态机。
 package dm
 
@@ -154,7 +154,7 @@ func (r *roundRunner) executeRound(
 ) (exec.RoundExecutionResult, error) {
 	return exec.ExecuteRound(ctx, exec.RoundExecutionRequest{
 		Content:          r.runtimeContent.Payload(),
-		ContextualInputs: goalContextualInputs(r.goalContext, r.goalIDForUsage, r.sessionKey),
+		ContextualInputs: r.contextualInputs(),
 		InputOptions:     runtimectx.RuntimeInputOptionsForPurpose(r.inputOptions, "goal_continuation"),
 		Client:           r.client,
 		Mapper:           dmRoundMapperAdapter{mapper: r.mapper},
@@ -202,6 +202,14 @@ func (r *roundRunner) executeRound(
 			return nil
 		},
 	})
+}
+
+func (r *roundRunner) contextualInputs() []runtimectx.ContextualInputBlock {
+	inputs := goalContextualInputs(r.goalContext, r.goalIDForUsage, r.sessionKey)
+	if r.service == nil || r.service.stageTools == nil {
+		return inputs
+	}
+	return append(inputs, r.service.stageTools.StageRuntimeContext(r.sessionKey)...)
 }
 
 func (r *roundRunner) handleDurableMessage(message protocol.Message) error {

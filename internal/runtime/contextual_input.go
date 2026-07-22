@@ -1,3 +1,6 @@
+// INPUT: Runtime-owned contextual blocks and the next user turn payload.
+// OUTPUT: SDK internal context or a safely wrapped content fallback.
+// POS: Shared hidden-context boundary used by Goal and Operation Stage execution.
 package runtime
 
 import (
@@ -121,6 +124,8 @@ func internalContextSourceName(name string) string {
 	switch strings.TrimSpace(name) {
 	case "goal", "goal_context":
 		return "goal"
+	case "operation_stage":
+		return "operation_stage"
 	default:
 		return ""
 	}

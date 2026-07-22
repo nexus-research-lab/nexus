@@ -135,6 +135,7 @@ type RealtimeService struct {
 
 type stageToolRouter interface {
 	WithStageOpenRoutingHook(agentclient.Options, string, string) agentclient.Options
+	StageRuntimeContext(string) []runtimectx.ContextualInputBlock
 }
 
 type roomTitleScheduler interface {
@@ -254,7 +255,7 @@ func (s *RealtimeService) SetTitleGenerator(generator roomTitleScheduler) {
 	s.titles = generator
 }
 
-// SetStageToolRouter 注入只在舞台在线时生效的宿主打开隔离器。
+// SetStageToolRouter 注入只在舞台在线时生效的运行时上下文和宿主打开隔离器。
 func (s *RealtimeService) SetStageToolRouter(router stageToolRouter) {
 	s.stageTools = router
 }

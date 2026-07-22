@@ -119,6 +119,41 @@ func TestExecuteRoundFallsBackToUserContextPrefixWhenInternalContextUnsupported(
 	}
 }
 
+func TestExecuteRoundWrapsOperationStageFallbackAsInternalContext(t *testing.T) {
+	client := &fakeRoundExecutionClient{
+		sessionID:  "sdk-session-stage-context-fallback",
+		contextErr: agentclient.ErrUnsupportedCapability,
+		messages:   make(chan sdkprotocol.ReceivedMessage, 1),
+	}
+	client.messages <- sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeResult,
+		SessionID: client.sessionID,
+		UUID:      "result-stage-context-fallback",
+		Result: &sdkprotocol.ResultMessage{
+			Subtype: "success",
+		},
+	}
+	close(client.messages)
+
+	_, err := ExecuteRound(context.Background(), RoundExecutionRequest{
+		Content: "创建一个可玩的五子棋",
+		ContextualInputs: []ContextualInputBlock{
+			runtimectx.NewContextualInputBlock("operation_stage", "Use Navi for interactive HTML.", 20, nil),
+		},
+		Client: client,
+		Mapper: &fakeRoundExecutionMapper{
+			results: []RoundMapResult{{TerminalStatus: "finished", ResultSubtype: "success"}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("ExecuteRound failed: %v", err)
+	}
+	wantPrefix := "<internal_context source=\"operation_stage\">\nUse Navi for interactive HTML.\n</internal_context>\n\n"
+	if len(client.queryPrompts) != 1 || !strings.HasPrefix(client.queryPrompts[0], wantPrefix) {
+		t.Fatalf("queryPrompts = %#v, want Operation Stage internal context", client.queryPrompts)
+	}
+}
+
 func TestExecuteRoundFallsBackToStructuredContentPrefixWhenInternalContextUnsupported(t *testing.T) {
 	client := &fakeRoundExecutionClient{
 		sessionID:  "sdk-session-context-structured",

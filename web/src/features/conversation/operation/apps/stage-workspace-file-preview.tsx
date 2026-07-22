@@ -46,6 +46,7 @@ export function StageWorkspaceFilePreview({
     [workspace_entries],
   );
   const normalized_path = resolveOperationWorkspaceFilePath({
+    agentId,
     knownPaths: known_paths,
     path,
     workspacePath: workspace_path,
@@ -61,11 +62,14 @@ export function StageWorkspaceFilePreview({
     relatedEvents,
   }), [diffStats, event, live_state?.diff_stats, live_state?.status, normalized_path, path, relatedEvents]);
   if (!agentId.trim() || !normalized_path) {
+    const missing_identity = !agentId.trim();
     return (
       <div className="grid h-full min-h-[240px] place-items-center bg-(--surface-panel-subtle-background) p-8 text-center">
         <div className="max-w-sm">
           <FileWarning className="mx-auto h-8 w-8 text-(--icon-muted)" />
-          <p className="mt-3 text-[12px] font-semibold text-(--text-strong)">无法打开工作区外的文件</p>
+          <p className="mt-3 text-[12px] font-semibold text-(--text-strong)">
+            {missing_identity ? "文件预览上下文尚未就绪" : "无法打开工作区外的文件"}
+          </p>
           <p className="mt-1 text-[11px] leading-5 text-(--text-soft)">{path}</p>
         </div>
       </div>

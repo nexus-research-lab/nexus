@@ -227,6 +227,14 @@ test("SDK absolute paths resolve only inside the active Agent workspace", () => 
     path: "/private/runtime/session/reports/brief.md",
   }), "reports/brief.md");
   assert.equal(resolveOperationWorkspaceFilePath({
+    agentId: "a39a2dd5fd86",
+    path: "/Users/test/.nexus-dev/instances/operation-stage/workspace/a39a2dd5fd86/gobang.py",
+  }), "gobang.py");
+  assert.equal(resolveOperationWorkspaceFilePath({
+    agentId: "another-agent",
+    path: "/Users/test/.nexus-dev/instances/operation-stage/workspace/a39a2dd5fd86/gobang.py",
+  }), null);
+  assert.equal(resolveOperationWorkspaceFilePath({
     knownPaths: ["report.md", "b/report.md"],
     path: "/private/runtime/session/b/report.md",
   }), null);

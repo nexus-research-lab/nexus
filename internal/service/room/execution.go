@@ -1,5 +1,5 @@
-// INPUT: Room slot、运行时消息流、实时插话确认与 Goal 执行上下文。
-// OUTPUT: 单个 Room Agent round 的 ACK 门控事件、持久化快照、用量与终态。
+// INPUT: Room slot、运行时消息流、实时插话确认与 Goal/Stage 执行上下文。
+// OUTPUT: 注入当前运行能力后的 Room Agent round 事件、持久化快照、用量与终态。
 // POS: Room 实时编排中把 runtime 输出投影为产品语义的执行主链。
 package room
 
@@ -247,7 +247,7 @@ func (e *slotExecution) executeRound(client runtimectx.Client) (exec.RoundExecut
 	e.slot.beginNoReplyCandidate()
 	return exec.ExecuteRound(e.ctx, exec.RoundExecutionRequest{
 		Content:          payload,
-		ContextualInputs: goalContextualInputs(e.slot.GoalContext, e.slot.GoalIDForUsage, goalSessionKeyForSlot(e.slot)),
+		ContextualInputs: e.contextualInputs(),
 		InputOptions:     runtimectx.RuntimeInputOptionsForPurpose(roomRoundInputOptions(e.round), "goal_continuation"),
 		Client:           client,
 		Mapper:           roomRoundMapperAdapter{mapper: e.mapper},
@@ -265,6 +265,14 @@ func (e *slotExecution) executeRound(client runtimectx.Client) (exec.RoundExecut
 		HandleDurableMessage: e.handleDurableMessage,
 		EmitEvent:            e.emitEvent,
 	})
+}
+
+func (e *slotExecution) contextualInputs() []runtimectx.ContextualInputBlock {
+	inputs := goalContextualInputs(e.slot.GoalContext, e.slot.GoalIDForUsage, goalSessionKeyForSlot(e.slot))
+	if e.service == nil || e.service.stageTools == nil {
+		return inputs
+	}
+	return append(inputs, e.service.stageTools.StageRuntimeContext(e.slot.RuntimeSessionKey)...)
 }
 
 func (e *slotExecution) prepareDispatchPayload() (any, error) {
