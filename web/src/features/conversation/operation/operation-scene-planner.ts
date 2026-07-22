@@ -141,6 +141,7 @@ function build_windows(
   const terminal_events = collectTerminalSessionEvents(event, snapshot, round_events);
   const web_events = round_events.filter((item) => item.surface === "web");
   const task_events = round_events.filter((item) => item.surface === "task");
+  const knowledge_events = round_events.filter((item) => item.surface === "knowledge");
   const tool_activity_events = round_events.filter(isDesktopToolActivityEvent);
   const file_context = collectOperationFileContext(event, snapshot, round_events);
   const image_source = resolveOperationImageSource(event);
@@ -390,22 +391,27 @@ function build_windows(
     }));
   }
 
-  if (event.surface === "knowledge") {
-    windows.push(buildOperationStageWindow(event, snapshot, {
-      id: `knowledge:${normalizeWindowId(event.target ?? event.tool_name ?? event.title)}`,
-      kind: "markdown_reader",
-      title: event.target ?? event.tool_name ?? event.title,
+  if (knowledge_events.length > 0) {
+    const knowledge_event = knowledge_events.at(-1) ?? event;
+    const library_intent = findStageDesktopIntent(knowledge_event, "library");
+    windows.push(buildOperationStageWindow(knowledge_event, snapshot, {
+      id: "library",
+      session_id: library_intent
+        ? stageAppSessionIdForIntent(event.round_id, library_intent, normalizeWindowId)
+        : `${event.round_id}:library`,
+      kind: "library",
+      title: "Library",
       layout: "primary",
-      phase: supportingWindowPhase("markdown_reader", focus_target === "document", {
+      phase: supportingWindowPhase("library", focus_target === "library", {
         has_browser_artifact: Boolean(html_artifact),
         is_review_event,
       }),
-      z: focus_target === "document" ? 36 : 20,
+      z: focus_target === "library" ? 36 : 20,
       payload: {
-        preview: event.result_preview ?? event.input_preview ?? event.summary,
-        related_events: round_events,
-        summary: event.summary,
-        target: event.target ?? event.tool_name,
+        preview: knowledge_event.result_preview ?? knowledge_event.input_preview ?? knowledge_event.summary,
+        related_events: knowledge_events,
+        summary: knowledge_event.summary,
+        target: knowledge_event.target ?? knowledge_event.tool_name,
       },
     }));
   }
@@ -432,35 +438,53 @@ function build_windows(
     }));
   }
 
-  if (event.surface === "summary" || event.surface === "conversation" || (event.surface === "fallback" && windows.length === 0)) {
-    if (windows.length === 0 && (
-      event.kind === "round_summary" ||
-      event.phase === "done" ||
-      event.phase === "error" ||
-      event.phase === "cancelled"
-    )) {
-      const is_successful_handoff = event.kind === "round_summary" && event.phase === "done";
-      windows.push(buildOperationStageWindow(event, snapshot, {
-        id: is_successful_handoff ? "handoff" : "run-manifest",
-        session_id: is_successful_handoff ? `${event.round_id}:handoff` : `${event.round_id}:run-manifest`,
-        kind: is_successful_handoff ? "handoff" : "run_manifest",
-        title: event.phase === "error" ? "Nexus Console · 诊断" : is_successful_handoff ? "Nexus 交付台" : "Nexus Console",
-        layout: "primary",
-        phase: focus_target === "manifest" ? "focused" : "background",
-        z: focus_target === "manifest" ? 42 : 24,
-        payload: {
-          evidence: [
-            ...(event.evidence ?? []),
-            ...(snapshot?.recent_evidence ?? []),
-          ].slice(0, 8),
-          preview: event.result_preview ?? event.summary ?? event.target,
-          related_events: round_events,
-          summary: event.summary,
-          target: "run-manifest.md",
-          handoff_summary: build_handoff_summary(event, round_events, snapshot),
-        },
-      }));
-    }
+  if (is_review_event) {
+    windows.push(buildOperationStageWindow(event, snapshot, {
+      id: "handoff",
+      session_id: `${event.round_id}:handoff`,
+      kind: "handoff",
+      title: event.phase === "error"
+        ? "执行失败"
+        : event.phase === "cancelled"
+          ? "执行已中断"
+          : "本轮已完成",
+      layout: "compact",
+      phase: "focused",
+      z: 48,
+      payload: {
+        evidence: [
+          ...(event.evidence ?? []),
+          ...(snapshot?.recent_evidence ?? []),
+        ].slice(0, 8),
+        preview: event.result_preview ?? event.summary ?? event.target,
+        related_events: round_events,
+        summary: event.summary,
+        target: "run-manifest.md",
+        handoff_summary: build_handoff_summary(event, round_events, snapshot),
+      },
+    }));
+  } else if (
+    windows.length === 0
+    && (event.surface === "conversation" || event.surface === "fallback")
+    && (event.phase === "done" || event.phase === "error" || event.phase === "cancelled")
+  ) {
+    windows.push(buildOperationStageWindow(event, snapshot, {
+      id: "run-manifest",
+      session_id: `${event.round_id}:run-manifest`,
+      kind: "run_manifest",
+      title: event.phase === "error" ? "Nexus Console · 诊断" : "Nexus Console",
+      layout: "primary",
+      phase: focus_target === "manifest" ? "focused" : "background",
+      z: focus_target === "manifest" ? 42 : 24,
+      payload: {
+        evidence: event.evidence ?? [],
+        preview: event.result_preview ?? event.summary ?? event.target,
+        related_events: round_events,
+        summary: event.summary,
+        target: "run-manifest.md",
+        handoff_summary: build_handoff_summary(event, round_events, snapshot),
+      },
+    }));
   }
 
   return windows;

@@ -11,6 +11,7 @@ import {
   ImageIcon,
   ListChecks,
   ListTree,
+  Library,
   Search,
   ShieldQuestion,
   PackageCheck,
@@ -81,6 +82,9 @@ export function iconForWindowKind(kind: StageWindowKind): LucideIcon {
   }
   if (kind === "tasks") {
     return ListChecks;
+  }
+  if (kind === "library") {
+    return Library;
   }
   if (kind === "run_manifest") {
     return ListChecks;

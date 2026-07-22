@@ -44,8 +44,8 @@ export function OperationStageIdleDesktop({
           <span className="grid h-6 w-6 shrink-0 place-items-center rounded-[8px] bg-[rgba(20,28,38,0.88)] font-mono text-[9px] font-black text-white shadow-[0_8px_18px_rgba(18,28,42,0.16)]">
             NX
           </span>
-          <span className="font-black">Nexus OS</span>
-          <span className="h-4 w-px bg-[rgba(117,131,149,0.28)]" />
+          <span className="shrink-0 whitespace-nowrap font-black">Nexus OS</span>
+          <span className="h-4 w-px shrink-0 bg-[rgba(117,131,149,0.28)]" />
           <span className="truncate font-black">桌面待命</span>
         </div>
         <div className="flex items-center gap-2 text-(--text-soft)">

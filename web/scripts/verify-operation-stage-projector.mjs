@@ -314,6 +314,7 @@ function verify_desktop_window_kind_contract() {
     "finder",
     "handoff",
     "image_viewer",
+    "library",
     "markdown_reader",
     "pdf_reader",
     "permission_wait",
@@ -1338,7 +1339,8 @@ function verify_stage_window_position_model() {
     mock_stage_window({ id: "handoff", kind: "handoff", phase: "focused" }),
     "completed",
   );
-  assert(handoff_position.includes("h-[61%]"), `Focused handoff window should not collide with the Dock, got ${handoff_position}`);
+  assert(handoff_position.includes("h-[48%]"), `Handoff should remain a compact completion sheet, got ${handoff_position}`);
+  assert(handoff_position.includes("w-[48%]"), `Handoff should leave the completed app visible behind it, got ${handoff_position}`);
 
   assert(isStageBackgroundWindow(background_code), "Completed review should keep prior windows in the desktop stack");
   assert(isStageBackgroundWindow(
@@ -1873,14 +1875,16 @@ function verify_workspace_live_stays_in_tool_round(now) {
     event: snapshot.active_event,
     snapshot,
   });
-  assert(desktop.active_window_id?.includes(":browser"), `completed stage should keep the artifact browser focused, got ${desktop.active_window_id}`);
-  assert(!desktop.windows.some((window) => window.kind === "handoff"), "completed stage with real app windows should not render a handoff app window");
+  assert(desktop.active_window_id?.includes(":handoff"), `completed stage should focus the compact handoff, got ${desktop.active_window_id}`);
+  const handoff_window = desktop.windows.find((window) => window.kind === "handoff");
+  assert(handoff_window?.layout === "compact", "completed stage should preserve real apps behind one compact handoff window");
+  assert(desktop.windows.filter((window) => window.phase === "focused").length === 1, "completed stage should expose one macOS key window");
   const continuation_brief = buildOperationContinuationBrief(snapshot.active_event, snapshot.events, snapshot);
   assert(continuation_brief.status_label === "可继续", `completed stage continuation brief should be ready, got ${continuation_brief.status_label}`);
   assert(continuation_brief.primary_artifact === "gomoku.html", `completed stage continuation brief should point to current artifact, got ${continuation_brief.primary_artifact}`);
   assert(continuation_brief.resume_prompt.includes("gomoku.html"), "completed stage continuation prompt should point to current artifact");
   const browser_window = desktop.windows.find((window) => window.kind === "browser");
-  assert(browser_window?.phase === "focused", `html artifact should stay focused after handoff, got ${browser_window?.phase}`);
+  assert(browser_window?.phase === "background", `html artifact should remain visible behind handoff, got ${browser_window?.phase}`);
   const terminal_window = desktop.windows.find((window) => window.kind === "terminal");
   if (terminal_window) {
     assert(terminal_window.phase === "minimized", `completed terminal should return to Dock, got ${terminal_window.phase}`);
@@ -1893,7 +1897,7 @@ function verify_workspace_live_stays_in_tool_round(now) {
   const write_window_id = resolveOperationEventWindowId(write_event, desktop.windows);
   assert(write_window_id?.includes(":document:gomoku.html"), `write event should focus gomoku document window, got ${write_window_id}`);
   const summary_window_id = resolveOperationEventWindowId(snapshot.active_event, desktop.windows);
-  assert(summary_window_id?.includes(":browser"), `summary event should resolve to the focused app window, got ${summary_window_id}`);
+  assert(summary_window_id?.includes(":handoff"), `summary event should resolve to the focused handoff window, got ${summary_window_id}`);
 }
 
 function verify_multi_file_windows_keep_event_identity(now) {

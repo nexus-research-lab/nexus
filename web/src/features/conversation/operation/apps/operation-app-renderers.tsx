@@ -29,6 +29,7 @@ import { DocumentPreview } from "./document-preview-surface";
 import { resolveFilePreviewValue } from "./file-preview-value";
 import { OperationReviewPanel, PermissionCheckpointPanel } from "./operation-review-panels";
 import { HandoffSurface } from "./handoff-surface";
+import { LibrarySurface } from "./library-surface";
 import { ImageInspectionSurface } from "./image-inspection-surface";
 import { RunManifestSurface } from "./run-manifest-surface";
 import { TerminalSession } from "./terminal-session";
@@ -92,6 +93,15 @@ export function StageWindowContent({
       <TaskAppSurface
         event={event}
         onFocusEvent={onFocusEvent}
+        relatedEvents={window.payload.related_events ?? []}
+      />
+    );
+  }
+
+  if (window.kind === "library") {
+    return (
+      <LibrarySurface
+        event={event}
         relatedEvents={window.payload.related_events ?? []}
       />
     );

@@ -10,6 +10,7 @@ export type OperationFocusTarget =
   | "browser"
   | "document"
   | "finder"
+  | "library"
   | "manifest"
   | "summary"
   | "task"
@@ -63,7 +64,7 @@ export function resolveOperationFocusTarget(
     return "document";
   }
   if (event.surface === "knowledge") {
-    return "document";
+    return "library";
   }
   if (event.surface === "terminal" && event.phase === "done" && context.has_html_artifact) {
     return "browser";
@@ -120,7 +121,10 @@ export function preferredWindowKindsForEvent(event: NexusOperationEvent): StageW
     }
     return ["finder", ...document_window_kinds()];
   }
-  if (event.surface === "editor" || event.surface === "knowledge") {
+  if (event.surface === "knowledge") {
+    return ["library"];
+  }
+  if (event.surface === "editor") {
     return document_window_kinds();
   }
   return ["summary"];

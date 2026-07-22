@@ -81,6 +81,8 @@ export function OperationStageDesktop({
   const [opened_workspace_paths, set_opened_workspace_paths] = useState<string[]>([]);
   const [replay_event_id, set_replay_event_id] = useState<string | null>(null);
   const [window_overrides, set_window_overrides] = useState<Record<string, StageWindowOverride>>({});
+  const desktop_lifecycle_key = `${event.session_key}:${event.round_id}`;
+  const active_event_lifecycle_key = `${event.session_key}:${event.id}`;
   const narrative = useMemo(() => buildStageNarrative(event, snapshot), [event, snapshot]);
   const narrative_events = useMemo(() => collectNarrativeEvents(event, snapshot), [event, snapshot]);
   const active_narrative_event_id = useMemo(() => (
@@ -124,7 +126,7 @@ export function OperationStageDesktop({
     countDesktopRevealEvents(narrative_events)
   ), [narrative_events]);
   const revealed_window_count = useRevealedWindowCount({
-    event_key: `${active_narrative_event.round_id}:${active_narrative_event.id}:${active_narrative_event.phase}`,
+    event_key: `${active_narrative_event.session_key}:${active_narrative_event.round_id}:${active_narrative_event.id}:${active_narrative_event.phase}`,
     minimum_count: minimumRevealedWindowCount({
       phase: narrative.phase,
       reveal_event_count,
@@ -139,11 +141,11 @@ export function OperationStageDesktop({
     set_opened_workspace_paths([]);
     set_replay_event_id(null);
     set_window_overrides({});
-  }, [event.round_id]);
+  }, [desktop_lifecycle_key]);
 
   useEffect(() => {
     set_replay_event_id(null);
-  }, [event.id]);
+  }, [active_event_lifecycle_key]);
 
   useEffect(() => {
     const next_active_window_id = planned_active_window_id;

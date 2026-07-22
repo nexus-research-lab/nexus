@@ -10,12 +10,16 @@ import type { PendingPermission } from "@/types/conversation/interaction/permiss
 
 import type { PendingPermissionMatchResult } from "./operation-pending-permissions";
 import type { OperationRuntimeEvent } from "./operation-runtime-types";
+import type { NexusOperationEvent } from "./operation-types";
 import {
   redactProjectedValue,
   redactProjectedTerminalValue,
   summarizeProjectedValue,
 } from "./operation-projection-preview";
-import { projectResultSummaryEvent } from "./operation-summary-events";
+import {
+  projectImplicitRoundSummaryEvents,
+  projectResultSummaryEvent,
+} from "./operation-summary-events";
 
 const MAX_RUNTIME_EVENTS = 80;
 
@@ -37,6 +41,7 @@ export function buildOperationMessageRuntimeEvents({
   tool_results,
 }: BuildOperationMessageRuntimeEventsParams): OperationRuntimeEvent[] {
   const runtime_events: OperationRuntimeEvent[] = [];
+  const summary_events: NexusOperationEvent[] = [];
   const toolProgressByUseId = collectToolProgress(messages);
 
   for (const message of messages) {
@@ -99,27 +104,15 @@ export function buildOperationMessageRuntimeEvents({
       projected_messages: messages,
     });
     if (summary_event) {
-      runtime_events.push({
-        id: `runtime:${summary_event.id}:handoff`,
-        event_type: "round_handoff",
-        session_key: summary_event.session_key,
-        round_id: summary_event.round_id,
-        agent_id: summary_event.agent_id,
-        message_id: summary_event.message_id,
-        tool_use_id: summary_event.tool_use_id ?? null,
-        tool_name: summary_event.tool_name ?? "RoundSummary",
-        phase: summary_event.phase,
-        timestamp: summary_event.updated_at,
-        input: summary_event.input_preview ?? null,
-        result: summary_event.result_preview ?? summary_event.summary ?? null,
-        artifact: {
-          kind: "handoff",
-          preview: summary_event.result_preview ?? summary_event.summary ?? null,
-        },
-        source_event_id: summary_event.id,
-      });
+      summary_events.push(summary_event);
     }
   }
+
+  summary_events.push(...projectImplicitRoundSummaryEvents({
+    messages,
+    live_round_ids,
+  }));
+  runtime_events.push(...summary_events.map(build_round_handoff_runtime_event));
 
   for (const permission of pending_permission_matches.unmatched_permissions) {
     runtime_events.push(build_permission_runtime_event({
@@ -130,6 +123,30 @@ export function buildOperationMessageRuntimeEvents({
   }
 
   return sortOperationRuntimeEvents(runtime_events);
+}
+
+function build_round_handoff_runtime_event(
+  summary_event: NexusOperationEvent,
+): OperationRuntimeEvent {
+  return {
+    id: `runtime:${summary_event.id}:handoff`,
+    event_type: "round_handoff",
+    session_key: summary_event.session_key,
+    round_id: summary_event.round_id,
+    agent_id: summary_event.agent_id,
+    message_id: summary_event.message_id,
+    tool_use_id: summary_event.tool_use_id ?? null,
+    tool_name: summary_event.tool_name ?? "RoundSummary",
+    phase: summary_event.phase,
+    timestamp: summary_event.updated_at,
+    input: summary_event.input_preview ?? null,
+    result: summary_event.result_preview ?? summary_event.summary ?? null,
+    artifact: {
+      kind: "handoff",
+      preview: summary_event.result_preview ?? summary_event.summary ?? null,
+    },
+    source_event_id: summary_event.id,
+  };
 }
 
 export function buildWorkspaceRuntimeEvent({

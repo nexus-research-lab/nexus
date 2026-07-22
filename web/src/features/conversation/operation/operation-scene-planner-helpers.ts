@@ -3,6 +3,8 @@ import type {
   NexusOperationSnapshot,
 } from "./operation-types";
 
+const MAX_ROUND_SCENE_EVENTS = 24;
+
 export function collectRoundEvents(
   event: NexusOperationEvent,
   snapshot: NexusOperationSnapshot | null,
@@ -11,7 +13,7 @@ export function collectRoundEvents(
   const merged = events.some((item) => item.id === event.id) ? events : [...events, event];
   const sorted = merged
     .sort((left, right) => left.updated_at - right.updated_at)
-    .slice(-12);
+    .slice(-MAX_ROUND_SCENE_EVENTS);
   const active_index = sorted.findIndex((item) => item.id === event.id);
   if (active_index < 0) {
     return sorted;

@@ -19,6 +19,7 @@ export type StageDesktopIntent =
   | { app: "preview"; action: "preview_artifact"; event_id: string; target?: string | null }
   | { app: "handoff"; action: "summarize_delivery"; event_id: string; target?: string | null }
   | { app: "tasks"; action: "track_task"; event_id: string; target?: string | null }
+  | { app: "library"; action: "read_context"; event_id: string; target?: string | null }
   | { app: "system"; action: "request_confirmation"; event_id: string; target?: string | null };
 
 export interface BrowserOpenTarget {
@@ -121,8 +122,8 @@ export function deriveStageDesktopIntents(event: NexusOperationEvent): StageDesk
     });
   } else if (visual_contract.group === "knowledge_tool") {
     intents.push({
-      app: "preview",
-      action: "preview_artifact",
+      app: "library",
+      action: "read_context",
       event_id: event.id,
       target: event.target,
     });
@@ -237,6 +238,9 @@ export function stageAppSessionIdForIntent(
   }
   if (intent.app === "tasks") {
     return `${round_id}:tasks`;
+  }
+  if (intent.app === "library") {
+    return `${round_id}:library`;
   }
   if (intent.app === "system") {
     return `${round_id}:system-gate`;

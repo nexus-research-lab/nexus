@@ -45,7 +45,7 @@ export function supportingWindowPhase(
     is_review_event: boolean;
   },
 ): StageWindowPhase {
-  if (is_focused) {
+  if (is_focused && !context.is_review_event) {
     return "focused";
   }
   if (!context.is_review_event) {

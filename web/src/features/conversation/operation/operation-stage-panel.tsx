@@ -317,7 +317,7 @@ function useStageTransition(active_event: NexusOperationEvent | null): StageTran
 }
 
 function build_stage_event_key(event: NexusOperationEvent): string {
-  return `${event.id}:${event.phase}`;
+  return `${event.session_key}:${event.round_id}:${event.id}:${event.phase}`;
 }
 
 function resolve_stage_transition_intent(event: NexusOperationEvent): StageTransitionIntent {

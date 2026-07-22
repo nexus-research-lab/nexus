@@ -42,7 +42,10 @@ import {
   summarizeProjectedValue,
   truncateProjectedText,
 } from "./operation-projection-preview";
-import { projectResultSummaryEvent } from "./operation-summary-events";
+import {
+  projectImplicitRoundSummaryEvents,
+  projectResultSummaryEvent,
+} from "./operation-summary-events";
 import { buildTerminalProgressResultPreview } from "./operation-terminal-progress";
 
 const MAX_EVENTS = 24;
@@ -170,6 +173,11 @@ export function projectOperationSnapshot({
       events.push(summary_event);
     }
   }
+
+  events.push(...projectImplicitRoundSummaryEvents({
+    messages: projected_messages,
+    live_round_ids: live_round_id_set,
+  }));
 
   for (const permission of pending_permission_matches.unmatched_permissions) {
     if (events.some((event) => event.phase === "waiting" && event.tool_name === permission.tool_name)) {

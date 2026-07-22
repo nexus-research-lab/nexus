@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added a real Operation Stage Editor app with line-numbered source, exact read ranges, live write progress, before/after edit inspection, and the shared workspace editor's user editing and save workflow.
 - Added a real Agent workspace Files app to the Operation Stage with live file inventory, search, current-round changes, folder navigation, metadata, responsive rows, and keyboard or double-click opening into Navi, Editor, or the shared document preview apps.
 - Added a persistent Navi browser app to the Operation Stage, projecting WebSearch and WebFetch into real tab history while preserving user-created tabs, address navigation, Reader snapshots, clickable results, and interactive workspace HTML after an Agent run completes. Public pages load through a cookie-free, size-bounded, SSRF-guarded HTML proxy so sites that reject direct iframe embedding remain navigable inside the stage.
+- Added a persistent Operation Stage Library app and compact round handoff that preserves the real app scene, recovers completed nxs rounds without result summaries, and retains the complete projected execution path.
 
 ## [0.1.27] - 2026-07-19
 

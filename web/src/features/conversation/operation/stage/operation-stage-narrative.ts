@@ -15,6 +15,8 @@ import {
   initialRevealedWindowCount,
 } from "./operation-stage-window-reveal";
 
+const MAX_NARRATIVE_EVENTS = 24;
+
 export function orderWindowsForReveal(
   windows: StageWindowState[],
   active_window_id: string | null,
@@ -197,7 +199,7 @@ export function collectNarrativeEvents(
   const sorted = [...merged].sort((left, right) => left.updated_at - right.updated_at);
   const active_index = sorted.findIndex((item) => item.id === event.id);
   if (active_index < 0) {
-    return sorted.slice(-10);
+    return sorted.slice(-MAX_NARRATIVE_EVENTS);
   }
-  return sorted.slice(0, active_index + 1).slice(-10);
+  return sorted.slice(0, active_index + 1).slice(-MAX_NARRATIVE_EVENTS);
 }

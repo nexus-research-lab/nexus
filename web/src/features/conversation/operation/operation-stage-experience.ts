@@ -84,9 +84,19 @@ export function buildOperationContinuationBrief(
   const round_events = events.length
     ? events
     : snapshot?.events.filter((item) => item.round_id === event.round_id) ?? [event];
-  const failed_count = round_events.filter((item) => item.phase === "error" || item.phase === "cancelled").length;
+  const is_terminal_summary = is_terminal_summary_event(event);
+  const observed_failed_count = round_events.filter((item) => (
+    item.phase === "error" || item.phase === "cancelled"
+  )).length;
+  const failed_count = is_terminal_summary
+    ? event.phase === "error" || event.phase === "cancelled"
+      ? Math.max(1, observed_failed_count)
+      : 0
+    : observed_failed_count;
   const completed_count = round_events.filter((item) => item.phase === "done").length;
-  const running_count = round_events.filter((item) => item.phase === "running" || item.phase === "waiting").length;
+  const running_count = is_terminal_summary
+    ? 0
+    : round_events.filter((item) => item.phase === "running" || item.phase === "waiting").length;
   const workspace_items = collect_continuation_workspace_items(event, round_events, snapshot);
   const evidence_count = round_events.reduce((total, item) => total + (item.evidence?.length ?? 0), 0)
     + (snapshot?.recent_evidence.length ?? 0);
@@ -130,6 +140,14 @@ export function buildOperationContinuationBrief(
       },
     ],
   };
+}
+
+function is_terminal_summary_event(event: NexusOperationEvent): boolean {
+  return event.kind === "round_summary"
+    || (
+      event.surface === "summary"
+      && (event.phase === "done" || event.phase === "error" || event.phase === "cancelled")
+    );
 }
 
 export function buildOperationLiveEpisode(

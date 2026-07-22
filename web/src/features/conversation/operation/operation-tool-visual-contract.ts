@@ -28,7 +28,7 @@ export type OperationToolVisualComponent =
   | "terminal"
   | "browser"
   | "tasks"
-  | "knowledge_viewer"
+  | "library"
   | "system_gate"
   | "handoff"
   | "execution_path";
@@ -126,9 +126,9 @@ export const OPERATION_TOOL_VISUAL_GROUPS: Record<OperationToolVisualGroup, Oper
     ],
   },
   knowledge_tool: {
-    app_label: "Nexus",
-    component: "knowledge_viewer",
-    interaction_label: "展示技能、文档片段和工具上下文",
+    app_label: "Library",
+    component: "library",
+    interaction_label: "载入、检索和阅读技能上下文",
     label: "知识工具",
     tools: ["Skill"],
   },

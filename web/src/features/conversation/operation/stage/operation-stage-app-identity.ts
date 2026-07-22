@@ -5,6 +5,7 @@ export function stageAppLabelForWindowKind(kind: StageWindowKind): string {
   if (kind === "terminal") return "终端";
   if (kind === "browser") return "Navi";
   if (kind === "tasks") return "任务";
+  if (kind === "library") return "Library";
   if (kind === "run_manifest") return "控制台";
   if (kind === "handoff") return "交付台";
   if (kind === "summary") return "备忘录";
@@ -58,6 +59,9 @@ export function dockIconSkinForKind(kind: StageWindowKind): string {
   }
   if (kind === "tasks") {
     return "border-[rgba(91,114,255,0.28)] bg-[linear-gradient(135deg,#ffffff,#e8ecff)] text-[#5368e8]";
+  }
+  if (kind === "library") {
+    return "border-[rgba(63,78,99,0.30)] bg-[linear-gradient(135deg,#f8fafc,#dce5ef_54%,#25344a)] text-[#25344a]";
   }
   if (kind === "spreadsheet") {
     return "border-[rgba(47,184,132,0.34)] bg-[linear-gradient(135deg,#f0fdf4,#34d399)] text-[#064e3b]";

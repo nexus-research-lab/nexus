@@ -76,6 +76,9 @@ src/
 - 操作舞台的 Navi 浏览器归 `features/conversation/operation/apps/`：`browser-page-model.ts` 只投影 WebSearch/WebFetch/HTML 工具事件，`browser-navigation-model.ts` 只维护标签页与历史，React 控制器和视图不得重建第二份导航状态；远端网页通过 `/operation/browser/page` 的无 Cookie、防 SSRF 页面快照进入 sandbox iframe，地址栏和历史始终保留目标 URL，Reader 保留工具实际获取的内容作为可信回退
 - 操作舞台的权限通知与左侧消息必须共享当前 Session 的 `pending_permissions` 真相源；实时投影移除请求后不得由内存、localStorage 或远端舞台快照复活可交互确认，连续请求按真实收到时间切换，同一请求在多个入口只能发送一次决策
 - 操作舞台的后台窗口必须保留真实 App 内容并自然叠放，点击标题栏、Dock 或窗口循环快捷键只改变焦点；仅最小化窗口进入 Dock，不再维护独立的缩略图渲染分支
+- 操作舞台按 `session_key` 隔离桌面、按 `round_id` 维持本轮 App 会话；同一工具的 start/delta/end 必须更新同一窗口，切换轮次或 Session 不得继承上一轮事件和窗口，历史回放只用所选事件及其前序切片重建现场
+- 操作舞台完成一轮时必须保留真实 App 现场，并只聚焦一个轻量交付浮层；Claude 的 `result_summary` 与 nxs 已结束且不再 live 的 `end_turn` 都投影为同一 `round_summary`，不得在工具中间态提前交接；交付浮层不得扩张成执行看板，完整执行路径不得静默截断，选择历史步骤或产物后应回到对应 Navi、Terminal、Editor 或预览窗口
+- 操作舞台的 Library 只消费 Claude Code 与 nxs 的明确 Skill/知识工具事件；同一轮复用一个可搜索会话并保留条目选择，未知文档查询不得靠字段猜测进入 Library，也不得退回一次性 Markdown 工具卡片
 - 操作舞台的“文件”App 只消费真实 Agent workspace 列表、实时文件事件和搜索命中；搜索表达式不得投影为文档，用户打开路径必须复用既有窗口，HTML 进入 Navi，其余格式进入共享预览路由，后台窗口不得卸载 App 内部状态
 - 操作舞台的 Markdown、代码、DOCX、XLSX、PPTX、PDF 与图片窗口必须复用 `shared/editor/WorkspaceFilePreviewRouter`；旧 Office 二进制格式和未知文件只能进入通用预览并诚实展示不支持状态，不得冒充 Editor、Sheets 或 Slides；绝对工具路径和相对 workspace 路径先归一为同一个文档身份，不维护第二套伪预览组件
 - 操作舞台的 Editor 只按 Claude Code 与 nxs 的明确工具契约投影 `Read`、`Write`、`Edit`、`FileRead`、`FileWrite`、`FileEdit`、`ViewImage`、`MultiEdit`、`NotebookEdit`、`filesystem.*` 与 `patch.apply`；源码视图必须展示真实行号、读取范围和修改片段，并继续复用共享文件编辑器完成用户编辑与保存，未知工具不得靠名称猜测打开文件窗口

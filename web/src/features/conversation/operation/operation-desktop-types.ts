@@ -22,6 +22,7 @@ export type StageWindowKind =
   | "browser"
   | "terminal"
   | "tasks"
+  | "library"
   | "run_manifest"
   | "handoff"
   | "evidence"
@@ -49,6 +50,7 @@ export interface StageHandoffSummary {
   status_label: string;
   status_detail: string;
   resume_prompt: string;
+  primary_artifact?: string;
   checkpoints: Array<{
     label: string;
     value: string;

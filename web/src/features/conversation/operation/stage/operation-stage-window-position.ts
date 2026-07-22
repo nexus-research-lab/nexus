@@ -77,13 +77,18 @@ export function positionForWindow(
   if (window.kind === "tasks") {
     return is_review_layout ? TASKS_REVIEW_WORKSPACE : TASKS_WORKSPACE;
   }
+  if (window.kind === "library") {
+    return window.phase === "focused"
+      ? "left-[11%] top-[8%] h-[66%] w-[76%]"
+      : "left-[17%] top-[14%] h-[44%] w-[34%]";
+  }
   if (window.kind === "run_manifest") {
     return is_review_layout ? PRIMARY_REVIEW_WORKSPACE : PRIMARY_WORKSPACE;
   }
   if (window.kind === "handoff") {
     return window.phase === "focused"
-      ? "left-[14%] top-[9%] h-[61%] w-[60%]"
-      : "left-[23%] top-[14%] h-[48%] w-[48%]";
+      ? "left-[27%] top-[15%] h-[48%] w-[48%]"
+      : "left-[31%] top-[19%] h-[38%] w-[40%]";
   }
   if (window.kind === "summary") {
     return is_review_layout ? COMPACT_REVIEW_WORKSPACE : "left-[28%] top-[15%] h-[52%] w-[46%]";
