@@ -64,7 +64,7 @@ export function GlassMagnifier({
       }}
     >
       {underlay ? (
-        <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[999px]">
+        <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-full">
           {underlay}
         </div>
       ) : null}
@@ -77,7 +77,7 @@ export function GlassMagnifier({
         />
       ) : null}
 
-      <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[999px]">
+      <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-full">
         <div
           className="absolute left-0 top-0 origin-top-left ring-1 ring-black/10 dark:ring-white/10"
           ref={animation.shellRef}

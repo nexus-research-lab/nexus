@@ -107,7 +107,7 @@ function SpreadsheetPreviewOverlay({
   return (
     <div className="absolute inset-0 flex items-center justify-center bg-[var(--surface-panel-subtle-background)] p-8 text-center">
       <div className="max-w-xs">
-        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-(--surface-panel-subtle-border) bg-(--card-default-background)">
+        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center surface-radius-md border border-(--surface-panel-subtle-border) bg-(--card-default-background)">
           {isError
             ? <FileWarning className="h-7 w-7 text-(--icon-muted)" />
             : <LoaderCircle className="h-7 w-7 animate-spin text-primary" />}

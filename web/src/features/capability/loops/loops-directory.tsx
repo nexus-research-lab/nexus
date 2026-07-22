@@ -167,10 +167,10 @@ export function LoopsDirectory() {
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
-                        <span className="rounded-[5px] border border-(--divider-subtle-color) px-1.5 py-0.5 text-[10px] font-medium text-(--text-muted)">
+                        <span className="radius-control-xs border border-(--divider-subtle-color) px-1.5 py-0.5 text-[10px] font-medium text-(--text-muted)">
                           {loop.category}
                         </span>
-                        <span className="rounded-[5px] border border-(--divider-subtle-color) px-1.5 py-0.5 text-[10px] text-(--text-soft)">
+                        <span className="radius-control-xs border border-(--divider-subtle-color) px-1.5 py-0.5 text-[10px] text-(--text-soft)">
                           {loop.trigger_type}
                         </span>
                       </div>

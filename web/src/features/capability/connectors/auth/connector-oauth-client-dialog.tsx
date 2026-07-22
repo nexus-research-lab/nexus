@@ -56,7 +56,7 @@ export function ConnectorOAuthClientDialog({
       >
         <UiDialogHeader
           icon={<KeyRound className="h-4 w-4" />}
-          iconClassName="h-9 w-9 rounded-[14px]"
+          iconClassName="h-9 w-9 radius-control-lg"
           onClose={onClose}
           subtitle={model.title}
           title="配置应用"

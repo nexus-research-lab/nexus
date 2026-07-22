@@ -61,7 +61,7 @@ export function AgentOptionsDialog({
             onClose={onClose}
           >
             <div className={cn(DIALOG_HEADER_LEADING_CLASS_NAME, "min-w-0 flex-1 items-center")}>
-              <div className={cn(DIALOG_HEADER_ICON_CLASS_NAME, "h-11 w-11 rounded-[16px] text-primary")}>
+              <div className={cn(DIALOG_HEADER_ICON_CLASS_NAME, "h-11 w-11 radius-control-lg text-primary")}>
                 <Settings className="h-5 w-5" />
               </div>
               <div className="min-w-0">

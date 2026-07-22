@@ -140,7 +140,7 @@ export function ImagePreview({
           </div>
         ) : (
           <img
-            className="max-h-full max-w-full rounded-lg object-contain"
+            className="max-h-full max-w-full radius-control-sm object-contain"
             src={previewUrl}
             alt={fileName}
             onLoad={() => setIsLoaded(true)}
@@ -189,7 +189,7 @@ export function BinaryFilePlaceholder({
 
       <div className="min-h-0 flex-1 overflow-hidden bg-[var(--surface-panel-subtle-background)] p-8">
         <div className="m-auto max-w-xs text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-(--surface-panel-subtle-border) bg-(--card-default-background)">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center surface-radius-md border border-(--surface-panel-subtle-border) bg-(--card-default-background)">
             <FileWarning className="h-8 w-8 text-(--icon-muted)" />
           </div>
           <p className="text-sm font-medium text-(--text-strong)">不支持预览此文件</p>

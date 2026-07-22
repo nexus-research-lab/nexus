@@ -103,7 +103,7 @@ function PermissionActions({ action }: { action: PermissionAction | null }) {
     <>
       <button
         className={cn(
-          "rounded-[7px] border border-(--divider-subtle-color) px-2 py-1 text-xs font-medium text-(--text-muted) transition-colors",
+          "radius-control-sm border border-(--divider-subtle-color) px-2 py-1 text-xs font-medium text-(--text-muted) transition-colors",
           state.denyClassName,
         )}
         disabled={action.disabled}
@@ -115,7 +115,7 @@ function PermissionActions({ action }: { action: PermissionAction | null }) {
       </button>
       <button
         className={cn(
-          "rounded-[7px] border px-2 py-1 text-xs font-medium transition-colors",
+          "radius-control-sm border px-2 py-1 text-xs font-medium transition-colors",
           state.allowClassName,
         )}
         disabled={action.disabled}

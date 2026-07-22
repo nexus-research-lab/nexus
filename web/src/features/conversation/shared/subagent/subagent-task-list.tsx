@@ -182,7 +182,7 @@ function SubagentTaskRow({
 
   return (
     <button
-      className="group -mx-1.5 flex w-[calc(100%+0.75rem)] min-w-0 items-start gap-2.5 rounded-[7px] px-1.5 py-1.5 text-left transition-colors hover:bg-(--surface-interactive-hover-background) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_28%,transparent)]"
+      className="group -mx-1.5 flex w-[calc(100%+0.75rem)] min-w-0 items-start gap-2.5 radius-control-sm px-1.5 py-1.5 text-left transition-colors hover:bg-(--surface-interactive-hover-background) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_28%,transparent)]"
       onClick={onClick}
       title={t("subagents.open_task")}
       type="button"

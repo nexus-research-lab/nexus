@@ -38,9 +38,9 @@
   --success: #2fb884;
   --success-foreground: #06140f;
   --warning: #df9d2e;
-  --radius-lg: 34px;
-  --radius-md: 24px;
-  --radius-sm: 16px;
+  --radius-lg: 12px;
+  --radius-md: 8px;
+  --radius-sm: 4px;
   --workspace-detail-max-width: 980px;
   --motion-duration-fast: 160ms;
   --motion-duration-normal: 220ms;
@@ -158,9 +158,9 @@
   --success: #49d09a;
   --success-foreground: #06140f;
   --warning: #efb554;
-  --radius-lg: 34px;
-  --radius-md: 24px;
-  --radius-sm: 16px;
+  --radius-lg: 12px;
+  --radius-md: 8px;
+  --radius-sm: 4px;
   --scrollbar-thumb: rgba(177, 194, 216, 0.16);
   --scrollbar-thumb-hover: rgba(177, 194, 216, 0.28);
 
@@ -270,9 +270,9 @@
   --success: #50d2ac;
   --success-foreground: #07140f;
   --warning: #f2bf62;
-  --radius-lg: 34px;
-  --radius-md: 24px;
-  --radius-sm: 16px;
+  --radius-lg: 12px;
+  --radius-md: 8px;
+  --radius-sm: 4px;
   --scrollbar-thumb: rgba(189, 205, 226, 0.16);
   --scrollbar-thumb-hover: rgba(189, 205, 226, 0.28);
 

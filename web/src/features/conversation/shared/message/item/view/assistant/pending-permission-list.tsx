@@ -58,9 +58,9 @@ export function PendingPermissionList({
 }
 
 const PERMISSION_LIST_LAYOUTS: Record<AssistantContentMode, string> = {
-  dm_archived: "rounded-2xl bg-transparent p-3",
-  dm_live: "rounded-2xl bg-transparent p-3",
-  room_result: "rounded-2xl bg-transparent p-3",
+  dm_archived: "surface-radius-md bg-transparent p-3",
+  dm_live: "surface-radius-md bg-transparent p-3",
+  room_result: "surface-radius-md bg-transparent p-3",
   room_thread: "border-t border-(--divider-subtle-color) pt-3",
 };
 

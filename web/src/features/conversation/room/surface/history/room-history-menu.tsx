@@ -120,7 +120,7 @@ export function RoomHistoryMenu({
         aria-haspopup="dialog"
         aria-label={t("room.history")}
         className={cn(
-          "workspace-surface-history-trigger inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[7px] border border-transparent px-2 text-[10.5px] font-semibold text-(--text-default) transition-[background-color,border-color,color] duration-(--motion-duration-fast) hover:border-[color:color-mix(in_srgb,var(--divider-subtle-color)_78%,transparent)] hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_24%,transparent)]",
+          "workspace-surface-history-trigger inline-flex h-8 shrink-0 items-center gap-1.5 radius-control-sm border border-transparent px-2 text-[10.5px] font-semibold text-(--text-default) transition-[background-color,border-color,color] duration-(--motion-duration-fast) hover:border-[color:color-mix(in_srgb,var(--divider-subtle-color)_78%,transparent)] hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_24%,transparent)]",
           isOpen && "border-[color:color-mix(in_srgb,var(--primary)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_9%,transparent)] text-(--text-strong)",
         )}
         data-tour-anchor={CONVERSATION_TOUR_ANCHORS.history_menu}
@@ -138,7 +138,7 @@ export function RoomHistoryMenu({
         <div
           ref={menuRef}
           aria-labelledby={historyTitleId}
-          className="fixed z-[130] flex flex-col overflow-hidden rounded-[14px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_97%,white)] shadow-[0_16px_36px_rgba(15,23,42,0.14)] backdrop-blur animate-in fade-in-0 zoom-in-95 duration-(--motion-duration-fast) data-[placement=bottom]:slide-in-from-top-1 data-[placement=top]:slide-in-from-bottom-1"
+          className="fixed z-[130] surface-radius-lg flex flex-col overflow-hidden border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_97%,white)] shadow-[0_16px_36px_rgba(15,23,42,0.14)] backdrop-blur animate-in fade-in-0 zoom-in-95 duration-(--motion-duration-fast) data-[placement=bottom]:slide-in-from-top-1 data-[placement=top]:slide-in-from-bottom-1"
           data-placement={menuPosition?.placement ?? "bottom"}
           data-state="open"
           id={menuId}

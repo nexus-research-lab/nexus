@@ -93,7 +93,7 @@ export const GroupConversationHeader = memo(function GroupConversationHeader({
         leading={(
           <UiRoomAvatar
             avatar={roomAvatar}
-            className="h-full w-full rounded-[9px] border-0 shadow-none"
+            className="h-full w-full radius-control-sm border-0 shadow-none"
             maxMembers={4}
             members={roomMembers.map((member) => ({
               avatar: member.avatar,
@@ -104,7 +104,7 @@ export const GroupConversationHeader = memo(function GroupConversationHeader({
             title={headerTitle}
           />
         )}
-        leadingClassName="rounded-[9px]"
+        leadingClassName="radius-control-sm"
         onChangeTab={onChangeTab}
         onDismissActiveTab={onCloseActiveTab}
         navigationTrailing={(

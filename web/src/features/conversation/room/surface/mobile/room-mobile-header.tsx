@@ -35,7 +35,7 @@ export function RoomMobileHeader({
       <div className="surface-radius-lg flex items-center gap-2 px-2 py-2">
         <button
           aria-label={t("common.back")}
-          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-(--text-strong) transition hover:bg-(--interaction-hover-background) hover:text-(--text-strong)"
+          className="inline-flex h-10 w-10 shrink-0 items-center justify-center radius-control-md text-(--text-strong) transition hover:bg-(--interaction-hover-background) hover:text-(--text-strong)"
           onClick={onBack}
           type="button"
         >
@@ -74,7 +74,7 @@ export function RoomMobileHeader({
 
         <button
           aria-label={t("subagents.open_panel")}
-          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-(--divider-subtle-color) text-(--text-muted) transition hover:bg-(--interaction-hover-background) hover:text-(--text-strong) disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)"
+          className="inline-flex h-10 w-10 shrink-0 items-center justify-center radius-control-md border border-(--divider-subtle-color) text-(--text-muted) transition hover:bg-(--interaction-hover-background) hover:text-(--text-strong) disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)"
           disabled={!canOpenSubagents}
           onClick={onOpenSubagents}
           title={t("subagents.open_panel")}

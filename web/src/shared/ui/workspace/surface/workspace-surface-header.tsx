@@ -145,7 +145,7 @@ function WorkspaceSurfaceTitle({
         </div>
       ) : null}
       {badge ? (
-        <span className="workspace-surface-header-badge shrink-0 rounded-[5px] border border-(--divider-subtle-color) px-1.5 py-0.5 text-[9.5px] font-semibold leading-none text-(--text-soft)">
+        <span className="workspace-surface-header-badge shrink-0 radius-control-xs border border-(--divider-subtle-color) px-1.5 py-0.5 text-[9.5px] font-semibold leading-none text-(--text-soft)">
           {badge}
         </span>
       ) : null}

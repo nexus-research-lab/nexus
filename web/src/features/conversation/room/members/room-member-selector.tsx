@@ -28,7 +28,7 @@ export function RoomMemberSelector({
         <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-(--text-soft)" />
         <input
           aria-label={t("room.search_agent_placeholder")}
-          className="dialog-input w-full rounded-xl py-2 pl-8 pr-3 text-sm text-(--text-strong) placeholder:text-(--text-soft) focus-visible:outline-none"
+          className="dialog-input w-full radius-control-md py-2 pl-8 pr-3 text-sm text-(--text-strong) placeholder:text-(--text-soft) focus-visible:outline-none"
           onChange={(event) => onQueryChange(event.target.value)}
           placeholder={t("room.search_agent_placeholder")}
           type="text"
@@ -38,7 +38,7 @@ export function RoomMemberSelector({
       <p className="dialog-label">
         {t("room.all_agents", { count: agents.length })}
       </p>
-      <div className="flex max-h-[min(36vh,360px)] min-h-0 flex-col overflow-hidden rounded-[16px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_84%,transparent)] px-2 py-2">
+      <div className="surface-radius-lg flex max-h-[min(36vh,360px)] min-h-0 flex-col overflow-hidden border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_84%,transparent)] px-2 py-2">
         <div
           className="soft-scrollbar flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-1"
           data-room-member-selection-list="true"
@@ -77,7 +77,7 @@ function RoomMemberOption({
       aria-label={actionLabel}
       aria-pressed={selected}
       className={cn(
-        "flex w-full cursor-pointer items-center gap-3 rounded-[14px] border px-3 py-1.5 text-left transition-[background,border-color] duration-(--motion-duration-normal)",
+        "surface-radius-md flex w-full cursor-pointer items-center gap-3 border px-3 py-1.5 text-left transition-[background,border-color] duration-(--motion-duration-normal)",
         selected
           ? "border-[color:color-mix(in_srgb,var(--primary)_28%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_13%,transparent)]"
           : "border-[color:color-mix(in_srgb,var(--divider-subtle-color)_58%,transparent)] bg-transparent hover:border-[color:color-mix(in_srgb,var(--primary)_18%,var(--divider-subtle-color))] hover:bg-[color:color-mix(in_srgb,var(--primary)_6%,transparent)]",

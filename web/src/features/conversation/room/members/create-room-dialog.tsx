@@ -103,7 +103,7 @@ function CreateRoomDialogContent({
               <div
                 className={cn(
                   DIALOG_HEADER_ICON_CLASS_NAME,
-                  "h-11 w-11 rounded-[16px] text-primary",
+                  "h-11 w-11 radius-control-lg text-primary",
                 )}
               >
                 <Hash className="h-5 w-5" />

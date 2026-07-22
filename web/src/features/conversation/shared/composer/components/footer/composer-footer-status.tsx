@@ -37,7 +37,7 @@ export function ComposerGoalModeIndicator({
       {extra}
       <button
         aria-label={t("composer.cancel_goal_mode")}
-        className="pointer-events-auto inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-[5px] text-(--text-soft) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
+        className="pointer-events-auto inline-flex h-4 w-4 shrink-0 items-center justify-center radius-control-xs text-(--text-soft) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
         disabled={isCreating}
         onClick={onCancel}
         type="button"

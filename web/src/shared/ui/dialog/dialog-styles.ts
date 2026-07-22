@@ -17,7 +17,7 @@ export const DIALOG_POPOVER_CLASS_NAME =
   "surface-popover surface-radius-lg overflow-hidden";
 
 export const DIALOG_HEADER_ICON_CLASS_NAME =
-  "flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] border border-[color:color-mix(in_srgb,var(--primary)_16%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_6%,transparent)] text-(--text-strong)";
+  "flex h-9 w-9 shrink-0 items-center justify-center radius-control-md border border-[color:color-mix(in_srgb,var(--primary)_16%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_6%,transparent)] text-(--text-strong)";
 
 export const DIALOG_ICON_BUTTON_CLASS_NAME = getUiIconButtonClassName({
   size: "md",
@@ -51,7 +51,7 @@ export function getDialogActionClassName(
 
 export function getDialogNoteClassName(tone: "default" | "danger", className?: string): string {
   return cn(
-    "rounded-[14px] px-4 py-[0.95rem] text-[13px] leading-[1.65]",
+    "radius-control-lg px-4 py-[0.95rem] text-[13px] leading-[1.65]",
     tone === "default"
       ? "border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_76%,transparent)] bg-transparent text-(--text-default)"
       : "border text-(--text-default)",

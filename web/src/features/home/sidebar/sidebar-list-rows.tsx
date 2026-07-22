@@ -22,7 +22,7 @@ export function SidebarListLoadingRows({ count = 4 }: { count?: number }) {
           className="flex min-h-[54px] w-full items-center gap-2.5 rounded-[8px] px-2 py-1.5"
           key={index}
         >
-          <span className="h-8 w-8 shrink-0 animate-pulse rounded-[9px] bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_74%,transparent)]" />
+          <span className="h-8 w-8 shrink-0 animate-pulse radius-control-sm bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_74%,transparent)]" />
           <span className="min-w-0 flex-1 space-y-2">
             <span className="block h-3.5 w-24 animate-pulse rounded-full bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_76%,transparent)]" />
             <span className="block h-3 w-36 animate-pulse rounded-full bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_58%,transparent)]" />

@@ -176,7 +176,7 @@ function SubscriptionAccountRow({
           <span className="text-[11px] font-semibold text-(--text-muted)">
             {t("settings.subscription.effective_limit")}
           </span>
-          <div className="flex h-9 items-center rounded-xl border border-(--divider-subtle-color) px-3 text-sm font-semibold text-(--text-strong)">
+          <div className="flex h-9 items-center radius-control-lg border border-(--divider-subtle-color) px-3 text-sm font-semibold text-(--text-strong)">
             {formatTokenLimit(
               account.monthly_token_limit,
               t("settings.subscription.limit_unlimited"),

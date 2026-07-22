@@ -30,9 +30,9 @@ const TONE_STYLES: Record<Exclude<IconFrameTone, "default">, CSSProperties> = {
   },
 };
 const SIZE_CLASSES: Record<IconFrameSize, string> = {
-  sm: "h-9 w-9 rounded-[10px]",
-  md: "h-11 w-11 rounded-[12px]",
-  lg: "h-14 w-14 rounded-[14px]",
+  sm: "h-9 w-9 radius-control-md",
+  md: "h-11 w-11 radius-control-lg",
+  lg: "h-14 w-14 surface-radius-md",
 };
 
 export function WorkspaceIconFrame({

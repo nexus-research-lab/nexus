@@ -32,10 +32,10 @@ const SURFACE_CHOICE_SIZE_CLASS_MAP: Record<UiChoiceSize, string> = {
 };
 
 const SURFACE_CHOICE_ROUNDED_CLASS_MAP: Record<UiChoiceSize, string> = {
-  xs: "rounded-[9px]",
-  sm: "rounded-[10px]",
-  md: "rounded-[12px]",
-  lg: "rounded-[14px]",
+  xs: "radius-control-xs",
+  sm: "radius-control-sm",
+  md: "radius-control-md",
+  lg: "radius-control-lg",
 };
 
 const CHOICE_ACTIVE_CLASS_MAP: Record<UiChoiceTone, string> = {
@@ -51,7 +51,7 @@ const CHOICE_INACTIVE_CLASS_NAME =
   "border-(--divider-subtle-color) bg-transparent text-(--text-muted) hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)";
 
 const PICKER_CHOICE_BASE_CLASS_NAME =
-  "flex h-10 items-center justify-center rounded-[10px] border px-3 text-[17px] font-semibold transition-[background,border-color,color,box-shadow] duration-(--motion-duration-fast) disabled:cursor-not-allowed disabled:opacity-40";
+  "flex h-10 items-center justify-center radius-control-md border px-3 text-[17px] font-semibold transition-[background,border-color,color,box-shadow] duration-(--motion-duration-fast) disabled:cursor-not-allowed disabled:opacity-40";
 
 const PICKER_CHOICE_ACTIVE_CLASS_NAME =
   "border-[color:color-mix(in_srgb,var(--primary)_58%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_88%,white)] text-white shadow-[0_8px_18px_color-mix(in_srgb,var(--primary)_22%,transparent)]";
@@ -60,7 +60,7 @@ const PICKER_CHOICE_INACTIVE_CLASS_NAME =
   "border-transparent bg-transparent text-(--text-default) hover:bg-(--surface-interactive-hover-background)";
 
 const CALENDAR_CHOICE_BASE_CLASS_NAME =
-  "flex h-8 items-center justify-center rounded-[10px] border text-xs font-semibold transition-[background,border-color,color] duration-(--motion-duration-fast) disabled:cursor-not-allowed disabled:opacity-40";
+  "flex h-8 items-center justify-center radius-control-md border text-xs font-semibold transition-[background,border-color,color] duration-(--motion-duration-fast) disabled:cursor-not-allowed disabled:opacity-40";
 
 const CALENDAR_CHOICE_ACTIVE_CLASS_NAME =
   "border-[color:color-mix(in_srgb,var(--primary)_58%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_90%,white)] text-white";

@@ -127,7 +127,7 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
           <FadeSlideIn delayMs={440} durationMs={420} yOffset={10}>
             <div
               data-tour-anchor={LAUNCHER_TOUR_ANCHORS.composer}
-              className="mx-auto w-full max-w-[420px] rounded-2xl border px-4 py-1"
+              className="mx-auto w-full max-w-[420px] surface-radius-lg border px-4 py-1"
               style={{
                 background:
                   "linear-gradient(180deg, var(--launcher-input-fill), var(--launcher-input-inner-fill))",

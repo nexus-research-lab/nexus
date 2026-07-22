@@ -164,7 +164,7 @@ function ScheduledTaskSuggestions({
               onClick={() => onSelect(suggestion.preset)}
               type="button"
             >
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[7px] border border-(--divider-subtle-color) text-(--primary)">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center radius-control-sm border border-(--divider-subtle-color) text-(--primary)">
                 <SuggestionIcon className="h-3.5 w-3.5" />
               </span>
               <span className="min-w-0 flex-1">

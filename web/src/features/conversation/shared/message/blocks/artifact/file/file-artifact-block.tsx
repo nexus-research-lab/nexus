@@ -112,7 +112,7 @@ function FileArtifactOpenButton({
     >
       <span
         className={cn(
-          "flex shrink-0 items-center justify-center rounded-[7px] border border-primary/15 bg-primary/8 text-primary",
+          "flex shrink-0 items-center justify-center radius-control-sm border border-primary/15 bg-primary/8 text-primary",
           projection.style.iconFrame,
         )}
       >

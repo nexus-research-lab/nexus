@@ -77,7 +77,7 @@ export function SelectMenuPanel({
       ref={panelRef}
       aria-label={ariaLabel}
       className={cn(
-        "fixed z-[120] rounded-[14px] border animate-in fade-in-0 zoom-in-95 duration-(--motion-duration-fast) data-[placement=bottom]:slide-in-from-top-1 data-[placement=top]:slide-in-from-bottom-1",
+        "fixed z-[120] surface-radius-lg border animate-in fade-in-0 zoom-in-95 duration-(--motion-duration-fast) data-[placement=bottom]:slide-in-from-top-1 data-[placement=top]:slide-in-from-bottom-1",
         layoutClassName,
         getSelectMenuPanelSurfaceClassName(surface),
         menuClassName,

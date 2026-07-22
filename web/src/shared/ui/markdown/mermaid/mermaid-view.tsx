@@ -105,7 +105,7 @@ export function MermaidView({
             ) : null}
             <div
               aria-label="Mermaid 显示模式"
-              className="inline-flex items-center rounded-[7px] border border-(--divider-subtle-color) bg-(--surface-panel-subtle-background) p-0.5"
+              className="inline-flex items-center radius-control-sm border border-(--divider-subtle-color) bg-(--surface-panel-subtle-background) p-0.5"
               role="tablist"
             >
               <MermaidModeButton

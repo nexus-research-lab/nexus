@@ -103,7 +103,7 @@ export function ProviderAddModelDialog({
                 value={manualModelId}
               />
             </UiField>
-            <div className="flex items-center justify-between gap-3 rounded-[14px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_76%,transparent)] px-3.5 py-3">
+            <div className="surface-radius-md flex items-center justify-between gap-3 border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_76%,transparent)] px-3.5 py-3">
               <div className="min-w-0">
                 <div className="text-[13px] font-semibold text-(--text-strong)">
                   {t("settings.providers.enable_after_add")}

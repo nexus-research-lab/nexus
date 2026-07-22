@@ -19,17 +19,17 @@ interface IdentityProfileLayout {
 
 const PROFILE_LAYOUTS: Record<AgentIdentityVariant, IdentityProfileLayout> = {
   dialog: {
-    avatarClassName: "h-14 w-14 rounded-[14px]",
+    avatarClassName: "h-14 w-14 surface-radius-md",
     avatarSize: "lg",
     iconSize: "md",
-    inputClassName: "h-10 rounded-xl",
+    inputClassName: "h-10 radius-control-md",
     rowClassName: "flex items-end gap-3",
   },
   inline: {
     avatarClassName: "h-13 w-13 rounded-[12px]",
     avatarSize: "md",
     iconSize: "sm",
-    inputClassName: "rounded-xl",
+    inputClassName: "radius-control-md",
     rowClassName: "flex items-end gap-2.5",
   },
 };

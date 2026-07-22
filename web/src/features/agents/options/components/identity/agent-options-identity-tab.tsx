@@ -135,7 +135,7 @@ export function AgentOptionsIdentityTab({
             {t("agent_options.identity.description")}
           </label>
           <UiTextarea
-            className="min-h-[72px] rounded-2xl"
+            className="min-h-[72px] surface-radius-lg"
             onChange={(event) => onDescriptionChange(event.target.value)}
             placeholder={t("agent_options.identity.description_placeholder")}
             rows={3}

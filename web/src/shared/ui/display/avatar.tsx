@@ -50,9 +50,9 @@ const AVATAR_SIZE_CLASS_MAP: Record<UiAvatarSize, string> = {
 };
 
 const ROOM_AVATAR_SIZE_CLASS_MAP: Record<UiRoomAvatarSize, string> = {
-  sm: "h-8 w-8 rounded-[9px]",
+  sm: "h-8 w-8 radius-control-sm",
   md: "h-10 w-10 rounded-[10px]",
-  lg: "h-14 w-14 rounded-[16px]",
+  lg: "h-14 w-14 surface-radius-md",
 };
 
 const ROOM_AVATAR_GRID_CLASS_MAP: Record<1 | 2 | 3, string> = {
@@ -159,11 +159,11 @@ export function UiRoomAvatar({
       {...props}
     >
       {visibleMembers.map((member) => (
-        <span className="min-h-0 min-w-0 overflow-hidden rounded-[5px]" key={member.id}>
+        <span className="min-h-0 min-w-0 overflow-hidden radius-control-xs" key={member.id}>
           <UiAgentAvatar
             avatar={member.avatar}
-            className="h-full w-full rounded-[5px] border-0 shadow-none"
-            imageClassName="rounded-[5px]"
+            className="h-full w-full radius-control-xs border-0 shadow-none"
+            imageClassName="radius-control-xs"
             name={member.name}
             shape="rounded"
             size="md"

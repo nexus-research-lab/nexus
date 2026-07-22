@@ -134,7 +134,7 @@ export function WorkspaceFileBrowser({
     >
       <PanelResizeHandle ariaLabel="调整文件列表宽度" onResizeStart={onResizeStart} />
 
-      <div className="mb-2 inline-flex min-w-0 items-center gap-1.5 rounded-[7px] border border-(--divider-subtle-color) px-2.5 py-1 text-[11px] text-(--text-default)">
+      <div className="mb-2 inline-flex min-w-0 items-center gap-1.5 radius-control-sm border border-(--divider-subtle-color) px-2.5 py-1 text-[11px] text-(--text-default)">
         {controller.focusedDirectoryPath ? (
           <FolderOpen className="h-3 w-3 shrink-0 text-[var(--accent)]" />
         ) : (
@@ -148,7 +148,7 @@ export function WorkspaceFileBrowser({
       <WorkspaceDirectoryToolbar controller={controller} />
 
       {controller.errorMessage ? (
-        <div className="mb-4 flex items-center justify-between rounded-2xl border border-destructive/20 bg-destructive/6 px-4 py-3 text-sm text-destructive">
+        <div className="mb-4 flex items-center justify-between surface-radius-md border border-destructive/20 bg-destructive/6 px-4 py-3 text-sm text-destructive">
           <span className="min-w-0 flex-1 truncate">{controller.errorMessage}</span>
           <button
             type="button"

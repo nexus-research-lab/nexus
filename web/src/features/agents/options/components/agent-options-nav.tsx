@@ -43,7 +43,7 @@ export function AgentOptionsNav({
         return (
           <UiChoiceButton
             active={isActive}
-            className="relative w-full justify-start gap-2.5 rounded-[16px] px-2.5 py-2.5 text-left"
+            className="relative w-full justify-start gap-2.5 surface-radius-md px-2.5 py-2.5 text-left"
             choiceSize="lg"
             key={item.key}
             onClick={() => onTabChange(item.key)}

@@ -10,10 +10,10 @@ type CatalogCardSize = "compact" | "catalog" | "comfort" | "panel";
 type CatalogCardAlign = "start" | "center";
 
 const CATALOG_CARD_SIZE_CLASSES: Record<CatalogCardSize, string> = {
-  compact: "min-h-[138px] rounded-[12px] px-4 py-4",
-  catalog: "min-h-[170px] rounded-[12px] px-5 py-4",
-  comfort: "rounded-[14px] px-6 py-6",
-  panel: "rounded-[14px] px-5 py-5 sm:px-6 sm:py-6",
+  compact: "min-h-[138px] surface-radius-md px-4 py-4",
+  catalog: "min-h-[170px] surface-radius-md px-5 py-4",
+  comfort: "surface-radius-lg px-6 py-6",
+  panel: "surface-radius-lg px-5 py-5 sm:px-6 sm:py-6",
 };
 
 export function WorkspaceCatalogCard({
