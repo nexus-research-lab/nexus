@@ -12,6 +12,12 @@
 //   - goal_*.go：Room 与 Goal runtime 的适配。
 //   - runtimepolicy/：Room runtime 工具和权限策略。
 //
+// 测试按 package 边界和行为聚合：realtime 内部状态、Goal、协作测试分别归入
+// state_test.go、goal_*.go、collaboration_test.go；realtime_test 的交付、生命周期
+// 和共享夹具分别归入 chat_delivery_test.go、lifecycle_test.go、
+// test_helpers_test.go。queue、guidance、session、directed message 等
+// 大场景保持独立，避免把互不相关的夹具和断言堆成测试泥团。
+//
 // queue、public wake、Goal continuation 与 execution 共享 conversation 状态；
 // 派发顺序锁属于对应 conversation，禁止回退为 Service 级总锁。slot 的可变
 // 数据统一进入 roomSlotMutableState，再由 runtime、goal、cursor、delivery

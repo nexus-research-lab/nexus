@@ -51,6 +51,7 @@ cmd -> app -> handler -> service -> domain/storage
 - `handler` 在消费侧定义小接口，只依赖当前端点需要的操作；实现返回具体类型。
 - `service` 负责业务阶段和事务边界，不依赖 `handler` 或 `app`。
 - `service/room` 只持有 Room 的持久化管理；实时聊天与 runtime 编排位于 `service/room/realtime`，依赖方向只能从 realtime 指向 room。
+- `service/room/realtime` 测试按 package 与行为聚合：内部状态、Goal、协作测试分别归组，外部交付、生命周期和共享夹具集中管理；queue、guidance、session、directed message 等大场景保持独立。
 - `storage` 负责持久化与数据库方言，不保留没有行为的方言门面；共享 SQL 分叉统一进入 `SQLDialect`，领域查询留在各自 repository。
 - `runtime` 只描述 bridge 会话与执行生命周期；SDK 系统消息到产品事件的投影统一属于 `message`。
 - 测试便利入口优先留在 `_test.go`；只有跨包集成测试需要共享装配时，才在生产包保留窄入口。
