@@ -16,6 +16,7 @@ import { RoomHistoryItem } from "./room-history-item";
 import {
   buildRoomHistoryEntries,
   paginateRoomHistoryEntries,
+  ROOM_HISTORY_PAGE_SIZE,
 } from "./room-history-model";
 
 interface RoomHistoryMenuProps {
@@ -60,7 +61,7 @@ export function RoomHistoryMenu({
     () => paginateRoomHistoryEntries(entries, pageNumber),
     [entries, pageNumber],
   );
-  const estimatedItemCount = page.entries.length;
+  const estimatedItemCount = Math.min(entries.length, ROOM_HISTORY_PAGE_SIZE);
   const estimatedHeight = Math.max(
     HISTORY_MENU_MIN_HEIGHT,
     HISTORY_MENU_HEADER_ESTIMATED_HEIGHT
