@@ -18,7 +18,7 @@ import {
   UiDialogFormShell,
   UiDialogHeader,
 } from "@/shared/ui/dialog/dialog";
-import { UiInput } from "@/shared/ui/form/form-control";
+import { UiInput, UiPasswordInput } from "@/shared/ui/form/form-control";
 import { UiPanel } from "@/shared/ui/panel";
 import type { ConnectorDetail } from "@/types/capability/connector";
 
@@ -201,7 +201,7 @@ function ConnectorOauthClientFields({
       </label>
       <label className="block space-y-1 text-[12px] font-medium text-(--text-muted)" htmlFor="oauth-client-secret">
         <span>Client Secret</span>
-        <UiInput
+        <UiPasswordInput
           autoCapitalize="off"
           autoComplete="off"
           autoCorrect="off"
@@ -213,7 +213,6 @@ function ConnectorOauthClientFields({
           onChange={(event) => form.setClientSecret(event.target.value)}
           placeholder={model.secretPlaceholder}
           spellCheck={false}
-          type="password"
           value={form.clientSecret}
         />
       </label>

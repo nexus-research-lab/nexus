@@ -367,17 +367,19 @@
 :root[data-theme="rain"] {
   --surface-body-background: var(--ambient-page-pattern);
 
-  /* 中文注释：列表和侧栏复用同一层轻抬升表面，避免引用不存在的旧 token。 */
+  /* 中文注释：列表与侧栏复用同一组克制的凹面、卡片和面板层级。 */
   --surface-elevated-background: var(--card);
-  --surface-inset-background: transparent;
-  --surface-inset-border: var(--divider-subtle-color);
-  --surface-inset-shadow: none;
-  /* 中文注释：工作面使用单层卡片填充，页面底色保持纯色，纹理与功能表面各自独立。 */
+  --surface-inset-background: color-mix(in srgb, var(--card) 72%, transparent);
+  --surface-inset-border: color-mix(in srgb, var(--divider-strong-color) 68%, var(--material-panel-border));
+  --surface-inset-shadow:
+    inset 0 1px 2px color-mix(in srgb, var(--foreground) 5%, transparent),
+    inset 0 1px 0 color-mix(in srgb, white 24%, transparent);
+  /* 中文注释：工作面使用单层填充与短阴影，页面纹理和功能表面各自独立。 */
   --surface-panel-background: var(--card);
-  --surface-panel-border: var(--material-panel-border);
+  --surface-panel-border: color-mix(in srgb, var(--divider-strong-color) 56%, var(--material-panel-border));
   --surface-panel-shadow: var(--material-panel-shadow);
-  --surface-panel-subtle-background: transparent;
-  --surface-panel-subtle-border: var(--divider-subtle-color);
+  --surface-panel-subtle-background: color-mix(in srgb, var(--card) 58%, transparent);
+  --surface-panel-subtle-border: color-mix(in srgb, var(--divider-strong-color) 56%, var(--divider-subtle-color));
   --surface-canvas-background: var(--material-canvas-background);
   --surface-canvas-border: var(--material-canvas-border);
   --surface-popover-background: var(--material-popover-background);
@@ -397,37 +399,39 @@
 
   --input-shell-background: var(--material-input-background);
   --input-shell-border: var(--material-input-border);
-  --input-shell-shadow: none;
+  --input-shell-shadow:
+    inset 0 1px 2px color-mix(in srgb, var(--foreground) 5%, transparent),
+    0 1px 0 color-mix(in srgb, white 18%, transparent);
 
-  --surface-card-background: transparent;
-  --surface-card-border: var(--divider-subtle-color);
-  --surface-card-shadow: none;
-  --card-default-background: transparent;
-  --card-default-border: var(--divider-subtle-color);
-  --card-default-shadow: none;
+  --surface-card-background: var(--card);
+  --surface-card-border: color-mix(in srgb, var(--divider-strong-color) 62%, var(--material-panel-border));
+  --surface-card-shadow: var(--material-chip-shadow);
+  --card-default-background: var(--card);
+  --card-default-border: var(--surface-card-border);
+  --card-default-shadow: var(--surface-card-shadow);
 
-  --modal-dialog-surface-background: color-mix(in srgb, var(--background) 94%, white);
-  --modal-dialog-header-background: transparent;
+  --modal-dialog-surface-background: color-mix(in srgb, var(--card) 92%, var(--background));
+  --modal-dialog-header-background: color-mix(in srgb, var(--card) 76%, transparent);
   --modal-dialog-body-background: transparent;
-  --modal-dialog-footer-background: transparent;
+  --modal-dialog-footer-background: color-mix(in srgb, var(--card) 62%, transparent);
   --modal-dialog-surface-border: var(--material-dialog-surface-border);
   --modal-dialog-surface-shadow: var(--material-dialog-surface-shadow);
   --modal-nav-background: color-mix(in srgb, var(--background) 94%, white);
   --modal-nav-border: color-mix(in srgb, var(--divider-subtle-color) 78%, transparent);
-  --modal-card-background: color-mix(in srgb, var(--background) 94%, white);
-  --modal-card-border: color-mix(in srgb, var(--divider-subtle-color) 78%, transparent);
-  --modal-card-shadow: none;
+  --modal-card-background: var(--surface-card-background);
+  --modal-card-border: var(--surface-card-border);
+  --modal-card-shadow: var(--surface-card-shadow);
   --modal-card-active-background: color-mix(in srgb, var(--primary) 13%, transparent);
   --modal-card-active-border: color-mix(in srgb, var(--primary) 28%, transparent);
-  --modal-card-active-shadow: none;
-  --modal-input-background: color-mix(in srgb, var(--background) 94%, white);
-  --modal-input-border: color-mix(in srgb, var(--divider-subtle-color) 82%, transparent);
-  --modal-input-shadow: none;
+  --modal-card-active-shadow: 0 6px 16px color-mix(in srgb, var(--primary) 10%, transparent);
+  --modal-input-background: var(--material-input-background);
+  --modal-input-border: var(--material-input-border);
+  --modal-input-shadow: var(--input-shell-shadow);
   --modal-input-focus-background: color-mix(in srgb, var(--primary) 4%, var(--modal-dialog-surface-background));
   --modal-input-focus-border: var(--material-input-focus-border);
-  --modal-input-focus-shadow: none;
+  --modal-input-focus-shadow: inset 0 1px 2px color-mix(in srgb, var(--foreground) 4%, transparent);
   --modal-divider-color: var(--divider-subtle-color);
-  --modal-btn-secondary-background: color-mix(in srgb, var(--material-chip-background) 84%, transparent);
+  --modal-btn-secondary-background: var(--material-chip-background);
   --modal-btn-secondary-border: var(--material-chip-border);
   --modal-btn-secondary-hover-background: color-mix(in srgb, var(--interaction-hover-background) 88%, transparent);
   --modal-btn-secondary-hover-border: var(--interaction-hover-border);
@@ -435,19 +439,27 @@
   --chip-default-border: var(--material-chip-border);
   --chip-default-shadow: var(--material-chip-shadow);
 
+  --button-surface-shadow: var(--material-chip-shadow);
+  --button-primary-shadow:
+    0 8px 18px color-mix(in srgb, var(--primary) 20%, transparent),
+    inset 0 1px 0 color-mix(in srgb, white 28%, transparent);
+  --button-danger-shadow:
+    0 8px 18px color-mix(in srgb, var(--destructive) 18%, transparent),
+    inset 0 1px 0 color-mix(in srgb, white 22%, transparent);
+
   --button-primary-background: color-mix(in srgb, var(--primary) 82%, white 18%);
   --button-primary-border: color-mix(in srgb, var(--primary) 68%, white 32%);
   --button-primary-color: var(--primary-foreground);
   --button-primary-hover-background: color-mix(in srgb, var(--primary) 88%, white 12%);
   --button-primary-hover-border: color-mix(in srgb, var(--primary) 76%, white 24%);
-  --button-tonal-background: color-mix(in srgb, var(--material-chip-background) 88%, transparent);
-  --button-tonal-border: var(--material-chip-border);
+  --button-tonal-background: var(--material-chip-background);
+  --button-tonal-border: color-mix(in srgb, var(--divider-strong-color) 58%, var(--material-chip-border));
   --button-tonal-color: var(--text-default);
   --button-tonal-hover-background: color-mix(in srgb, var(--interaction-hover-background) 92%, transparent);
   --button-tonal-hover-color: var(--text-strong);
 
-  --chip-segmented-background: color-mix(in srgb, var(--material-chip-background) 92%, transparent);
-  --chip-segmented-border: var(--material-chip-border);
+  --chip-segmented-background: var(--material-chip-background);
+  --chip-segmented-border: color-mix(in srgb, var(--divider-strong-color) 52%, var(--material-chip-border));
   --chip-segmented-icon-color: var(--icon-default);
   --chip-segmented-option-color: var(--text-default);
   --chip-segmented-option-hover-background: color-mix(in srgb, var(--interaction-hover-background) 88%, transparent);

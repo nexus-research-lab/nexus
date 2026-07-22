@@ -3,7 +3,7 @@ import type { FormEvent } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
-import { UiInput } from "@/shared/ui/form/form-control";
+import { UiInput, UiPasswordInput } from "@/shared/ui/form/form-control";
 
 import type { LoginFormMode } from "./login-page-model";
 
@@ -73,7 +73,7 @@ function PasswordLoginForm({
         </span>
         <UiInput
           autoComplete="username"
-          className="min-h-12 rounded-[10px] border-[rgba(117,131,149,0.2)] bg-white/60 px-4 text-base shadow-none"
+          className="min-h-12 rounded-[10px] border-[rgba(117,131,149,0.26)] bg-white/70 px-4 text-base"
           controlSize="lg"
           id="nexus-login-username"
           onChange={(event) => onChangeUsername(event.target.value)}
@@ -87,14 +87,13 @@ function PasswordLoginForm({
         <span className="mb-2 block text-sm font-semibold text-(--text-default)">
           {t("login.password")}
         </span>
-        <UiInput
+        <UiPasswordInput
           autoComplete="current-password"
-          className="min-h-12 rounded-[10px] border-[rgba(117,131,149,0.2)] bg-white/60 px-4 text-base shadow-none"
+          className="min-h-12 rounded-[10px] border-[rgba(117,131,149,0.26)] bg-white/70 px-4 text-base"
           controlSize="lg"
           id="nexus-login-password"
           onChange={(event) => onChangePassword(event.target.value)}
           placeholder={t("login.password_placeholder")}
-          type="password"
           value={password}
           variant="surface"
         />

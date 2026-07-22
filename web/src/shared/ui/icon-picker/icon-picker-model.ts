@@ -43,8 +43,8 @@ const ICON_SIZE_CLASS_NAMES: Record<IconPickerSize, string> = {
 };
 
 const ICON_STATE_CLASS_NAMES = {
-  idle: "border border-(--surface-inset-border) bg-transparent hover:bg-(--surface-interactive-hover-background)",
-  selected: "bg-[color:color-mix(in_srgb,var(--primary)_12%,transparent)] border border-(--primary) shadow-[0_0_0_1px_color-mix(in_srgb,var(--primary)_16%,transparent)]",
+  idle: "border border-(--surface-inset-border) bg-(--surface-inset-background) shadow-[var(--surface-inset-shadow)] hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background)",
+  selected: "border border-(--primary) bg-[color:color-mix(in_srgb,var(--primary)_12%,var(--surface-card-background))] shadow-[0_5px_12px_color-mix(in_srgb,var(--primary)_12%,transparent),inset_0_1px_0_color-mix(in_srgb,white_28%,transparent)]",
 } as const;
 
 function buildIconPickerItem(
@@ -75,7 +75,7 @@ export function getIconPickerPresentation(
   );
   return {
     collectionClassName: options.layout === "row"
-      ? "soft-scrollbar flex gap-2 overflow-x-auto overflow-y-hidden pb-1"
+      ? "scrollbar-hide flex gap-2 overflow-x-auto overflow-y-hidden pb-1"
       : cn("grid gap-2", GRID_COLUMN_CLASS_NAMES[options.columns]),
     items: iconIds.map((iconId) => buildIconPickerItem(iconId, options)),
     showClear: options.showClear && Boolean(options.value),

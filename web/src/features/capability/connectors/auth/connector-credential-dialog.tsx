@@ -12,7 +12,7 @@ import {
   UiDialogFormShell,
   UiDialogHeader,
 } from "@/shared/ui/dialog/dialog";
-import { UiInput } from "@/shared/ui/form/form-control";
+import { UiPasswordInput } from "@/shared/ui/form/form-control";
 import { UiPanel } from "@/shared/ui/panel";
 import type { ConnectorDetail } from "@/types/capability/connector";
 
@@ -123,7 +123,7 @@ export function ConnectorCredentialDialog({
 
           <label className="block space-y-1 text-[12px] font-medium text-(--text-muted)">
             <span>{copy.label}</span>
-            <UiInput
+            <UiPasswordInput
               autoCapitalize="off"
               autoComplete="off"
               autoCorrect="off"
@@ -134,7 +134,6 @@ export function ConnectorCredentialDialog({
               onChange={(event) => setCredential(event.target.value)}
               placeholder={copy.placeholder}
               spellCheck={false}
-              type="password"
               value={credential}
             />
           </label>
