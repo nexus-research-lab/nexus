@@ -1,4 +1,7 @@
-package runtimepolicy
+// INPUT: Agent 工具白名单、黑名单与 Room 私信开关。
+// OUTPUT: Room 通讯工具策略与权限处理器。
+// POS: Room slot runtime 装配使用的就近策略，不构成独立子包边界。
+package realtime
 
 import (
 	"context"
@@ -11,22 +14,22 @@ import (
 )
 
 const (
-	SendDirectedMessageTool  = "mcp__nexus_room__send_directed_message"
-	PublishPublicMessageTool = "mcp__nexus_room__publish_public_message"
+	roomSendDirectedMessageTool  = "mcp__nexus_room__send_directed_message"
+	roomPublishPublicMessageTool = "mcp__nexus_room__publish_public_message"
 )
 
-func AllowedTools(values []string, privateMessagesEnabled bool) []string {
+func roomAllowedTools(values []string, privateMessagesEnabled bool) []string {
 	if len(toolpolicy.NormalizeSet(values)) == 0 {
 		return values
 	}
 	var extra []string
 	if privateMessagesEnabled {
-		extra = append(extra, SendDirectedMessageTool, PublishPublicMessageTool)
+		extra = append(extra, roomSendDirectedMessageTool, roomPublishPublicMessageTool)
 	}
 	return appendDistinctTools(values, extra...)
 }
 
-func DisallowedTools(values []string, privateMessagesEnabled bool) []string {
+func roomDisallowedTools(values []string, privateMessagesEnabled bool) []string {
 	result := make([]string, 0, len(values)+2)
 	for _, value := range values {
 		if strings.TrimSpace(value) == "nexus_room" ||
@@ -36,12 +39,12 @@ func DisallowedTools(values []string, privateMessagesEnabled bool) []string {
 		result = append(result, value)
 	}
 	if !privateMessagesEnabled {
-		result = appendDistinctTools(result, SendDirectedMessageTool, PublishPublicMessageTool)
+		result = appendDistinctTools(result, roomSendDirectedMessageTool, roomPublishPublicMessageTool)
 	}
 	return result
 }
 
-func PermissionHandler(next sdkpermission.Handler, privateMessagesEnabled bool) sdkpermission.Handler {
+func withRoomPermissionPolicy(next sdkpermission.Handler, privateMessagesEnabled bool) sdkpermission.Handler {
 	return func(ctx context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
 		if isRoomCommunicationTool(request.ToolName) && privateMessagesEnabled {
 			return sdkpermission.Allow(request.Input, nil), nil

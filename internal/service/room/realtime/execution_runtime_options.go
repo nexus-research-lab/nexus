@@ -20,7 +20,6 @@ import (
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
-	"github.com/nexus-research-lab/nexus/internal/service/room/realtime/runtimepolicy"
 	runtimeselectionsvc "github.com/nexus-research-lab/nexus/internal/service/runtimeselection"
 	sessionresumesvc "github.com/nexus-research-lab/nexus/internal/service/sessionresume"
 	"github.com/nexus-research-lab/nexus/internal/service/toolpolicy"
@@ -159,8 +158,8 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 		VisionModel:                selection.VisionModel,
 		PermissionMode:             permissionMode,
 		PermissionHandler:          e.runtimePermissionHandler(),
-		AllowedTools:               toolpolicy.WithManagedRuntimeAllowedTools(runtimepolicy.AllowedTools(e.agent.Options.AllowedTools, e.round.Context.Room.PrivateMessagesEnabled), e.service.runtimeImagegenDefaultEnabled(e.ctx)),
-		DisallowedTools:            runtimepolicy.DisallowedTools(e.agent.Options.DisallowedTools, e.round.Context.Room.PrivateMessagesEnabled),
+		AllowedTools:               toolpolicy.WithManagedRuntimeAllowedTools(roomAllowedTools(e.agent.Options.AllowedTools, e.round.Context.Room.PrivateMessagesEnabled), e.service.runtimeImagegenDefaultEnabled(e.ctx)),
+		DisallowedTools:            roomDisallowedTools(e.agent.Options.DisallowedTools, e.round.Context.Room.PrivateMessagesEnabled),
 		SettingSources:             e.agent.Options.SettingSources,
 		AppendSystemPrompt:         appendPromptSection(prompt.stable, prompt.dynamic),
 		AppendSystemPromptStatic:   prompt.stable,
@@ -260,7 +259,7 @@ func (e *slotExecution) runtimePermissionHandler() sdkpermission.Handler {
 			return e.service.permission.RequestPermission(ctx, e.slot.RuntimeSessionKey, request)
 		}
 	}
-	handler = runtimepolicy.PermissionHandler(handler, e.round.Context.Room.PrivateMessagesEnabled)
+	handler = withRoomPermissionPolicy(handler, e.round.Context.Room.PrivateMessagesEnabled)
 	handler = toolpolicy.WithManagedGoalAutoApproval(handler)
 	return toolpolicy.WithMalformedInputDeny(handler)
 }
