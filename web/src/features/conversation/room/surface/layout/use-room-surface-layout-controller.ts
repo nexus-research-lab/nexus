@@ -7,6 +7,7 @@ import { buildRoomSharedSessionKey } from "@/lib/conversation/session-key";
 import { useSidebarStore } from "@/store/sidebar";
 import type { AgentConversationIdentity } from "@/types/agent/agent-conversation";
 import type { RoomSurfaceTabKey } from "@/features/conversation/room/surface/header/room-header-tabs";
+import { useOperationStagePresence } from "@/features/conversation/operation/use-operation-stage-presence";
 
 import { resolveRoomSubagentTaskSource } from "../room-surface-model";
 import type { RoomAgentAboutRequest } from "./room-surface-layout-types";
@@ -65,6 +66,11 @@ export function useRoomSurfaceLayoutController({
     }),
     [conversationId, currentAgentSessionIdentity, isDm, roomId],
   );
+  const {
+    activate: activateOperationStagePresence,
+    client_id: operationStageClientId,
+    deactivate: deactivateOperationStagePresence,
+  } = useOperationStagePresence(operationStageIdentity, isOperationStageOpen);
 
   useWidePanelAutoCollapse(
     isAuxiliaryPanelOpen || isThreadPanelOpen,
@@ -79,18 +85,29 @@ export function useRoomSurfaceLayoutController({
     }));
   }, []);
   const handleChangeSurfaceTab = useCallback((tab: RoomSurfaceTabKey) => {
+    if (tab === "operation") {
+      activateOperationStagePresence();
+    } else {
+      deactivateOperationStagePresence();
+    }
     if (tab === "about") {
       requestAboutPanel(currentAgentId);
     }
     onChangeSurfaceTab(tab);
-  }, [currentAgentId, onChangeSurfaceTab, requestAboutPanel]);
+  }, [
+    activateOperationStagePresence,
+    currentAgentId,
+    deactivateOperationStagePresence,
+    onChangeSurfaceTab,
+    requestAboutPanel,
+  ]);
   const handleOpenAgentContact = useCallback((agentId: string) => {
     requestAboutPanel(agentId);
-    onChangeSurfaceTab("about");
-  }, [onChangeSurfaceTab, requestAboutPanel]);
+    handleChangeSurfaceTab("about");
+  }, [handleChangeSurfaceTab, requestAboutPanel]);
   const handleCloseAuxiliaryPanel = useCallback(() => {
-    onChangeSurfaceTab("chat");
-  }, [onChangeSurfaceTab]);
+    handleChangeSurfaceTab("chat");
+  }, [handleChangeSurfaceTab]);
 
   useEffect(() => {
     if (activeSurfaceTab === "subagents" && !subagentTaskSource) {
@@ -104,6 +121,7 @@ export function useRoomSurfaceLayoutController({
     handleCloseAuxiliaryPanel,
     handleOpenAgentContact,
     isAuxiliaryPanelOpen,
+    operationStageClientId,
     operationStageIdentity,
     subagentTaskSource,
   };

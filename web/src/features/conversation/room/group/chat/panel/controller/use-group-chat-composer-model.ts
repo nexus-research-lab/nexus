@@ -7,7 +7,11 @@ import { CONVERSATION_TOUR_ANCHORS } from "@/features/onboarding/tours/conversat
 import { useDefaultChatDeliveryPolicy } from "@/hooks/settings/use-default-chat-delivery-policy";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { Agent } from "@/types/agent/agent";
-import type { UseAgentConversationReturn } from "@/types/agent/agent-conversation";
+import type {
+  AgentConversationDeliveryPolicy,
+  UseAgentConversationReturn,
+} from "@/types/agent/agent-conversation";
+import type { MessageAttachment } from "@/types/conversation/message/attachment";
 import type { AgentRuntimeKind } from "@/types/settings/preferences";
 
 import type { GroupChatComposerModel } from "../view/group-chat-panel-view";
@@ -33,6 +37,7 @@ interface UseGroupChatComposerModelOptions {
   goal: RoomGoalComposerModel;
   initialDraft: string | null;
   onInitialDraftConsumed?: () => void;
+  operationStageClientId?: string | null;
   roomId: string | null;
   roomMembers: Agent[];
   scrollToBottom: (behavior?: ScrollBehavior) => void;
@@ -46,6 +51,7 @@ export function useGroupChatComposerModel({
   goal,
   initialDraft,
   onInitialDraftConsumed,
+  operationStageClientId,
   roomId,
   roomMembers,
   scrollToBottom,
@@ -54,6 +60,7 @@ export function useGroupChatComposerModel({
 }: UseGroupChatComposerModelOptions): GroupChatComposerModel {
   const { t } = useI18n();
   const defaultDeliveryPolicy = useDefaultChatDeliveryPolicy();
+  const enqueueInputQueueMessage = conversation.enqueue_input_queue_message;
   const prepareAttachments = useCallback(
     async (files: File[]) => {
       if (!roomId || !conversationId) {
@@ -69,11 +76,27 @@ export function useGroupChatComposerModel({
     initialDraftLogLabel: "room",
     isLoading: conversation.is_loading,
     onInitialDraftConsumed,
+    operationStageClientId,
     prepareAttachments,
     scrollToBottom,
     sendMessage: conversation.send_message,
     sessionKey,
   });
+  const handleEnqueueMessage = useCallback(
+    async (
+      content: string,
+      deliveryPolicy: AgentConversationDeliveryPolicy,
+      attachments: MessageAttachment[] = [],
+      targetAgentIDs: string[] = [],
+    ) => enqueueInputQueueMessage(
+      content,
+      deliveryPolicy,
+      attachments,
+      targetAgentIDs,
+      operationStageClientId?.trim() || undefined,
+    ),
+    [enqueueInputQueueMessage, operationStageClientId],
+  );
 
   return {
     defaultDeliveryPolicy,
@@ -87,7 +110,7 @@ export function useGroupChatComposerModel({
     onCreateGoal: sessionKey ? goal.onCreateGoal : undefined,
     onCreateLoopGoal: sessionKey ? goal.onCreateLoopGoal : undefined,
     onDeleteQueuedMessage: conversation.delete_input_queue_message,
-    onEnqueueMessage: conversation.enqueue_input_queue_message,
+    onEnqueueMessage: handleEnqueueMessage,
     onGuideQueuedMessage: conversation.guide_input_queue_message,
     onPrepareAttachments: handlers.handlePrepareAttachments,
     onReorderQueueMessages: conversation.reorder_input_queue_messages,

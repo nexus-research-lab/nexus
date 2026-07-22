@@ -513,9 +513,9 @@ task 的控制请求由 task item 的 `host_agent_id` 路由到实际承载该 s
 | `unsubscribe_workspace` | 取消订阅工作区 | — |
 | `subscribe_app_events` | 订阅应用事件 | — |
 | `unsubscribe_app_events` | 取消订阅应用事件 | — |
-| `chat` | 发送对话消息 | `session_key`, `agent_id?`, `room_id?`, `conversation_id?`, `content`, `attachments?`, `client_request_id`, `client_message_id`, `delivery_policy` |
+| `chat` | 发送对话消息 | `session_key`, `agent_id?`, `room_id?`, `conversation_id?`, `content`, `attachments?`, `client_request_id`, `client_message_id`, `delivery_policy`, `operation_stage_client_id?` |
 | `interrupt` | 中断当前轮次 | `session_key`, `round_id`（DM）/ `msg_id`（Room） |
-| `input_queue` | 输入队列操作 | `session_key`, `action`/`action_type`, `client_request_id?`, `client_message_id?`, `item_id?`, `content?`, `attachments?`, `ordered_ids?`, `delivery_policy` |
+| `input_queue` | 输入队列操作 | `session_key`, `action`/`action_type`, `client_request_id?`, `client_message_id?`, `item_id?`, `content?`, `attachments?`, `ordered_ids?`, `delivery_policy`, `operation_stage_client_id?` |
 | `permission_response` | 权限请求响应 | 由权限运行时约定 |
 
 > 带 `method` 字段的消息会进入 App-Server RPC 通道（`handleAppServerRPC`），用于 Goal 等线程级 RPC。
@@ -526,6 +526,7 @@ task 的控制请求由 task item 的 `host_agent_id` 路由到实际承载该 s
 - `attachments`：附件列表，经 `protocol.ChatAttachmentsFromAny` 解析。
 - `client_request_id`：单次 WebSocket 发送尝试，用于匹配服务端 ACK 或错误事件。
 - `client_message_id`：逻辑消息身份；`input_queue enqueue` 在 ACK 未知后重试时必须复用，用于后端持久化幂等去重。
+- `operation_stage_client_id`：当前可见舞台实例的短期身份；`chat` 和 `input_queue enqueue` 在受理消息前用它刷新 presence，保证立即发送的同一轮能获取 Agent OS 能力契约与工具路由。
 - Room 会话额外支持 `room_id`、`conversation_id`、`agent_id`（附件归属 Agent）。
 
 ### 服务端 → 客户端事件

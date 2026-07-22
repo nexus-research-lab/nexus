@@ -11,6 +11,7 @@ import (
 	channelspkg "github.com/nexus-research-lab/nexus/internal/service/channels"
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
+	operationsvc "github.com/nexus-research-lab/nexus/internal/service/operation"
 	roompkg "github.com/nexus-research-lab/nexus/internal/service/room"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 
@@ -32,6 +33,7 @@ type Handler struct {
 	dm             *dmsvc.Service
 	goals          *goalsvc.Service
 	permission     *permissionctx.Context
+	stagePresence  stagePresenceRefresher
 	runtime        *runtimectx.Manager
 	channels       *channelspkg.Router
 	roomSubs       *roomSubscriptionRegistry
@@ -39,6 +41,10 @@ type Handler struct {
 	appEventSubs   *appEventSubscriptionRegistry
 	goalRPCSubs    *appServerGoalRPCRegistry
 	allowedOrigins []string
+}
+
+type stagePresenceRefresher interface {
+	TouchStagePresence(context.Context, string, string) (*operationsvc.StagePresence, error)
 }
 
 // NewHandler 创建 WebSocket handler。
@@ -49,6 +55,7 @@ func NewHandler(
 	dm *dmsvc.Service,
 	goals *goalsvc.Service,
 	permission *permissionctx.Context,
+	stagePresence stagePresenceRefresher,
 	runtime *runtimectx.Manager,
 	channels *channelspkg.Router,
 	workspaceService *workspacepkg.Service,
@@ -62,6 +69,7 @@ func NewHandler(
 		dm:             dm,
 		goals:          goals,
 		permission:     permission,
+		stagePresence:  stagePresence,
 		runtime:        runtime,
 		channels:       channels,
 		roomSubs:       newRoomSubscriptionRegistry(128),

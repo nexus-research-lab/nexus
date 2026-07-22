@@ -20,6 +20,7 @@ export interface GroupChatPanelProps {
   onOpenWorkspaceFile?: (path: string) => void;
   onRoomEvent?: (eventType: string, data: RoomEventPayload) => void;
   onTodosChange?: (todos: TodoItem[]) => void;
+  operationStageClientId?: string | null;
   roomHostAgentId: string | null;
   roomHostAutoReplyEnabled: boolean;
   roomId: string | null;

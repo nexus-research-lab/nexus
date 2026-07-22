@@ -5,7 +5,11 @@ import { useConversationComposerHandlers } from "@/features/conversation/shared/
 import { CONVERSATION_TOUR_ANCHORS } from "@/features/onboarding/tours/conversation-tour";
 import { useDefaultChatDeliveryPolicy } from "@/hooks/settings/use-default-chat-delivery-policy";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import type { UseAgentConversationReturn } from "@/types/agent/agent-conversation";
+import type {
+  AgentConversationDeliveryPolicy,
+  UseAgentConversationReturn,
+} from "@/types/agent/agent-conversation";
+import type { MessageAttachment } from "@/types/conversation/message/attachment";
 import type { AgentRuntimeKind } from "@/types/settings/preferences";
 
 import type { DmChatComposerModel } from "../view/dm-chat-panel-view";
@@ -30,6 +34,7 @@ interface UseDmChatComposerModelOptions {
   initialDraft: string | null;
   onCreateGoal: (objective: string) => Promise<void>;
   onInitialDraftConsumed?: () => void;
+  operationStageClientId?: string | null;
   scrollToBottom: (behavior?: ScrollBehavior) => void;
   sessionKey: string | null;
   runtimeKind: AgentRuntimeKind;
@@ -42,12 +47,14 @@ export function useDmChatComposerModel({
   initialDraft,
   onCreateGoal,
   onInitialDraftConsumed,
+  operationStageClientId,
   scrollToBottom,
   sessionKey,
   runtimeKind,
 }: UseDmChatComposerModelOptions): DmChatComposerModel {
   const { t } = useI18n();
   const defaultDeliveryPolicy = useDefaultChatDeliveryPolicy();
+  const enqueueInputQueueMessage = conversation.enqueue_input_queue_message;
   const prepareAttachments = useCallback(
     async (files: File[]) => {
       if (!agentId) {
@@ -62,11 +69,27 @@ export function useDmChatComposerModel({
     initialDraftLogLabel: "DM",
     isLoading: conversation.is_loading,
     onInitialDraftConsumed,
+    operationStageClientId,
     prepareAttachments,
     scrollToBottom,
     sendMessage: conversation.send_message,
     sessionKey,
   });
+  const handleEnqueueMessage = useCallback(
+    async (
+      content: string,
+      deliveryPolicy: AgentConversationDeliveryPolicy,
+      attachments: MessageAttachment[] = [],
+      targetAgentIDs: string[] = [],
+    ) => enqueueInputQueueMessage(
+      content,
+      deliveryPolicy,
+      attachments,
+      targetAgentIDs,
+      operationStageClientId?.trim() || undefined,
+    ),
+    [enqueueInputQueueMessage, operationStageClientId],
+  );
 
   return {
     defaultDeliveryPolicy,
@@ -75,7 +98,7 @@ export function useDmChatComposerModel({
     isLoading: conversation.is_loading,
     onCreateGoal: sessionKey ? onCreateGoal : undefined,
     onDeleteQueuedMessage: conversation.delete_input_queue_message,
-    onEnqueueMessage: conversation.enqueue_input_queue_message,
+    onEnqueueMessage: handleEnqueueMessage,
     onGuideQueuedMessage: conversation.guide_input_queue_message,
     onPrepareAttachments: handlers.handlePrepareAttachments,
     onReorderQueueMessages: conversation.reorder_input_queue_messages,

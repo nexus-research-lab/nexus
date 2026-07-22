@@ -106,6 +106,10 @@ func (m *controlMessage) dispatch() {
 
 func (m *controlMessage) handleChat() {
 	clientRequestID, clientMessageID := m.clientIDs()
+	if err := m.refreshStagePresence(); err != nil {
+		m.reportChatFailure(clientRequestID, clientMessageID, err)
+		return
+	}
 	var err error
 	if m.usesRoomRuntime() {
 		err = m.handler.roomRealtime.HandleChat(m.ctx, roompkg.ChatRequest{
@@ -136,6 +140,10 @@ func (m *controlMessage) handleChat() {
 
 func (m *controlMessage) handleRewriteLast() {
 	clientRequestID, clientMessageID := m.clientIDs()
+	if err := m.refreshStagePresence(); err != nil {
+		m.reportChatFailure(clientRequestID, clientMessageID, err)
+		return
+	}
 	if m.parsed.Kind == protocol.SessionKeyKindRoom {
 		m.reportChatFailure(clientRequestID, clientMessageID, dmsvc.ErrRoomSessionNotImplemented)
 		return
@@ -176,6 +184,18 @@ func (m *controlMessage) handleInputQueue() {
 	}
 	clientRequestID, clientMessageID := m.clientIDs()
 	itemID := m.stringValue("item_id")
+	if action == "enqueue" {
+		if err := m.refreshStagePresence(); err != nil {
+			m.reportGatewayFailure("input_queue_error", err, map[string]any{
+				"type":              m.msgType,
+				"action":            action,
+				"item_id":           itemID,
+				"client_request_id": clientRequestID,
+				"client_message_id": clientMessageID,
+			})
+			return
+		}
+	}
 	var (
 		result protocol.InputQueueMutationResult
 		err    error
@@ -254,6 +274,18 @@ func (m *controlMessage) stringValue(key string) string {
 
 func (m *controlMessage) clientIDs() (string, string) {
 	return m.stringValue("client_request_id"), m.stringValue("client_message_id")
+}
+
+func (m *controlMessage) refreshStagePresence() error {
+	clientID := m.stringValue("operation_stage_client_id")
+	if clientID == "" {
+		return nil
+	}
+	if m.handler == nil || m.handler.stagePresence == nil {
+		return errors.New("operation stage presence is unavailable")
+	}
+	_, err := m.handler.stagePresence.TouchStagePresence(m.ctx, m.sessionKey, clientID)
+	return err
 }
 
 func (m *controlMessage) attachments() []protocol.ChatAttachment {

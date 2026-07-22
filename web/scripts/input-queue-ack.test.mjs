@@ -121,12 +121,52 @@ test("input queue enqueue command carries ACK correlation IDs", async () => {
     [],
     ["researcher"],
     "local_msg_stable",
+    "stage-client-queue",
   );
 
   assert.equal(request.client_message_id, "local_msg_stable");
   assert.equal(sent[0].client_message_id, request.client_message_id);
   assert.equal(sent[0].client_request_id, request.client_request_id);
+  assert.equal(sent[0].operation_stage_client_id, "stage-client-queue");
   assert.equal(sent[0].type, "input_queue");
+});
+
+test("chat command carries the active Stage client identity", async () => {
+  const { sendSessionMessage } = await server.ssrLoadModule(
+    "/src/hooks/agent/actions/conversation-chat-actions.ts",
+  );
+  const sent = [];
+  let messages = [];
+  await sendSessionMessage(
+    "立即展示执行过程",
+    {
+      activeSessionKeyRef: { current: "agent:nexus:ws:dm:conversation-1" },
+      identity: {
+        agent_id: "planner",
+        chat_type: "dm",
+        conversation_id: "conversation-1",
+        room_id: "room-1",
+      },
+      messages,
+      pendingPermissions: [],
+      sessionKey: "agent:nexus:ws:dm:conversation-1",
+      setError: () => {},
+      setMessages: (update) => {
+        messages = update(messages);
+      },
+      setPendingPermissions: () => {},
+      wsSend: (message) => {
+        sent.push(message);
+        return { disposition: "sent" };
+      },
+      wsState: "connected",
+    },
+    { operation_stage_client_id: " stage-client-chat " },
+  );
+
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].operation_stage_client_id, "stage-client-chat");
+  assert.equal(sent[0].type, "chat");
 });
 
 test("input queue ACK parser validates accepted and duplicate flags", async () => {

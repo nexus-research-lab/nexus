@@ -74,6 +74,7 @@ export function enqueueInputQueueMessage(
   attachments: AgentConversationSendOptions["attachments"] = [],
   targetAgentIDs: string[] = [],
   clientMessageId?: string,
+  operationStageClientId?: string,
 ): OutboundInputQueueRequest | null {
   if (!content.trim() && attachments.length === 0) {
     return null;
@@ -87,6 +88,9 @@ export function enqueueInputQueueMessage(
     delivery_policy: deliveryPolicy,
     ...(attachments.length > 0 ? { attachments } : {}),
     ...(targetAgentIDs.length > 0 ? { target_agent_ids: targetAgentIDs } : {}),
+    ...(operationStageClientId?.trim()
+      ? { operation_stage_client_id: operationStageClientId.trim() }
+      : {}),
   });
   return request;
 }

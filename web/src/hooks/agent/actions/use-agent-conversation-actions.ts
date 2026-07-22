@@ -157,6 +157,7 @@ export function useAgentConversationActions({
       deliveryPolicy: AgentConversationDeliveryPolicy = "queue",
       attachments: AgentConversationSendOptions["attachments"] = [],
       targetAgentIDs: string[] = [],
+      operationStageClientId?: string,
     ): Promise<void> => {
       const fingerprint = createInputQueueDraftFingerprint(
         content,
@@ -182,6 +183,7 @@ export function useAgentConversationActions({
           attachments,
           targetAgentIDs,
           clientMessageId,
+          operationStageClientId,
         ),
         (request, error) => settleRequestAckWaitFailure(
           request.client_request_id,

@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Made Operation Stage activation transactional with chat and input-queue acceptance so an immediately submitted turn receives the active Agent OS capability contract and tool-to-App routing.
 - Synchronized Operation Stage permission notifications with the conversation's live pending requests, prevented persisted snapshots from reviving resolved prompts, and deduplicated decisions submitted from multiple permission surfaces.
 - Aligned Operation Stage file windows with the shared preview registry, added exact nxs `File*` and `ViewImage` mappings, and kept unsupported legacy Office files in a truthful generic preview instead of impersonating Editor or Office apps.
 - Restricted Operation Stage app routing to explicit Claude Code and nxs tool contracts, kept unknown tool targets out of file windows, and opened every real target from multi-file patch events.

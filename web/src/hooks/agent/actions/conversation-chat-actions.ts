@@ -63,6 +63,9 @@ function buildChatCommand(
     delivery_policy: options.delivery_policy ?? "queue",
     ...(attachments.length > 0 ? { attachments } : {}),
     ...(options.target_agent_ids?.length ? { target_agent_ids: options.target_agent_ids } : {}),
+    ...(options.operation_stage_client_id?.trim()
+      ? { operation_stage_client_id: options.operation_stage_client_id.trim() }
+      : {}),
   } as WebSocketMessage;
 }
 

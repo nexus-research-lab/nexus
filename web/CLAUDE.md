@@ -79,7 +79,7 @@ src/
 - 操作舞台按 `session_key` 隔离桌面、按 `round_id` 维持本轮 App 会话；同一工具的 start/delta/end 必须更新同一窗口，切换轮次或 Session 不得继承上一轮事件和窗口，历史回放只用所选事件及其前序切片重建现场
 - 操作舞台完成一轮时必须保留真实 App 现场，并只聚焦一个轻量交付浮层；Claude 的 `result_summary` 与 nxs 已结束且不再 live 的 `end_turn` 都投影为同一 `round_summary`，不得在工具中间态提前交接；交付浮层不得扩张成执行看板，完整执行路径不得静默截断，选择历史步骤或产物后应回到对应 Navi、Terminal、Editor 或预览窗口
 - 操作舞台的 Library 只消费 Claude Code 与 nxs 的明确 Skill/知识工具事件；同一轮复用一个可搜索会话并保留条目选择，未知文档查询不得靠字段猜测进入 Library，也不得退回一次性 Markdown 工具卡片
-- 操作舞台在线时由后端按轮次向 Agent 注入隐藏的 Agent OS 能力契约，关闭后立即停止注入；契约只说明真实工具到 App 的映射与交互边界，Terminal 不承接用户 stdin，交互式成果优先通过 workspace HTML 和独立 `open` 命令进入 Navi，Agent 不得伪造窗口动作或为动画制造无意义调用
+- 操作舞台在线时由后端按轮次向 Agent 注入隐藏的 Agent OS 能力契约，关闭后立即停止注入；舞台标签激活必须同步生成客户端身份，聊天与输入队列在后端受理前用该身份刷新 presence，不得用延时猜测在线状态；契约只说明真实工具到 App 的映射与交互边界，Terminal 不承接用户 stdin，交互式成果优先通过 workspace HTML 和独立 `open` 命令进入 Navi，Agent 不得伪造窗口动作或为动画制造无意义调用
 - 操作舞台的“文件”App 只消费真实 Agent workspace 列表、实时文件事件和搜索命中；搜索表达式不得投影为文档，用户打开路径必须复用既有窗口，HTML 进入 Navi，其余格式进入共享预览路由，后台窗口不得卸载 App 内部状态
 - 操作舞台的 Markdown、代码、DOCX、XLSX、PPTX、PDF 与图片窗口必须复用 `shared/editor/WorkspaceFilePreviewRouter`；旧 Office 二进制格式和未知文件只能进入通用预览并诚实展示不支持状态，不得冒充 Editor、Sheets 或 Slides；绝对工具路径和相对 workspace 路径先归一为同一个文档身份，不维护第二套伪预览组件
 - 操作舞台的 Editor 只按 Claude Code 与 nxs 的明确工具契约投影 `Read`、`Write`、`Edit`、`FileRead`、`FileWrite`、`FileEdit`、`ViewImage`、`MultiEdit`、`NotebookEdit`、`filesystem.*` 与 `patch.apply`；源码视图必须展示真实行号、读取范围和修改片段，并继续复用共享文件编辑器完成用户编辑与保存，未知工具不得靠名称猜测打开文件窗口

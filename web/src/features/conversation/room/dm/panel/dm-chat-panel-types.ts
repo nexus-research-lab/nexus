@@ -18,6 +18,7 @@ export interface DmChatPanelProps {
   onOpenAgentContact?: (agentId: string) => void;
   onOpenWorkspaceFile?: (path: string) => void;
   onTodosChange?: (todos: TodoItem[]) => void;
+  operationStageClientId?: string | null;
   onConversationSnapshotChange?: (snapshot: SessionSnapshotPayload) => void;
   onRoomEvent?: (eventType: string, data: RoomEventPayload) => void;
 }

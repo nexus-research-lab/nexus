@@ -124,6 +124,7 @@ export function RoomSurfaceContent({
                 onOpenWorkspaceFile={onOpenWorkspaceFile}
                 onRoomEvent={onRoomEvent}
                 onTodosChange={onTodosChange}
+                operationStageClientId={layout.operationStageClientId}
                 roomHostAgentId={roomHostAgentId}
                 roomHostAutoReplyEnabled={roomHostAutoReplyEnabled}
                 roomId={roomId}

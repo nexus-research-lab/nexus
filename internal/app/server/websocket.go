@@ -18,6 +18,7 @@ func newWebSocketHandler(
 		services.DM,
 		services.Goal,
 		services.Permission,
+		services.Operation,
 		services.Runtime,
 		services.Channels,
 		services.Workspace,

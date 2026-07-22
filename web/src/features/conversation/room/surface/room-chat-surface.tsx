@@ -28,6 +28,7 @@ interface RoomChatSurfaceProps {
   onOpenWorkspaceFile?: (path: string, workspaceAgentId?: string | null) => void;
   onRoomEvent?: (eventType: string, data: RoomEventPayload) => void;
   onTodosChange: (todos: TodoItem[]) => void;
+  operationStageClientId?: string | null;
   roomHostAgentId: string | null;
   roomHostAutoReplyEnabled: boolean;
   roomId: string | null;
@@ -49,6 +50,7 @@ export function RoomChatSurface({
   onOpenWorkspaceFile: onOpenWorkspaceFile,
   onRoomEvent: onRoomEvent,
   onTodosChange: onTodosChange,
+  operationStageClientId: operationStageClientId,
   roomHostAgentId: roomHostAgentId,
   roomHostAutoReplyEnabled: roomHostAutoReplyEnabled,
   roomId: roomId,
@@ -74,6 +76,7 @@ export function RoomChatSurface({
           onOpenWorkspaceFile={onOpenWorkspaceFile}
           onRoomEvent={onRoomEvent}
           onTodosChange={onTodosChange}
+          operationStageClientId={operationStageClientId}
           sessionIdentity={currentAgentSessionIdentity}
           runtimeKind={runtimeKind}
         />
@@ -92,6 +95,7 @@ export function RoomChatSurface({
           onOpenWorkspaceFile={onOpenWorkspaceFile}
           onRoomEvent={onRoomEvent}
           onTodosChange={onTodosChange}
+          operationStageClientId={operationStageClientId}
           roomHostAgentId={roomHostAgentId}
           roomHostAutoReplyEnabled={roomHostAutoReplyEnabled}
           roomId={roomId}

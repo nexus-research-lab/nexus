@@ -12,6 +12,7 @@ interface UseConversationComposerHandlersOptions {
   initialDraftLogLabel: string;
   isLoading: boolean;
   onInitialDraftConsumed?: () => void;
+  operationStageClientId?: string | null;
   prepareAttachments: (files: File[]) => Promise<MessageAttachment[]>;
   scrollToBottom: (behavior?: ScrollBehavior) => void;
   sendMessage: (
@@ -27,12 +28,14 @@ export function useConversationComposerHandlers({
   initialDraftLogLabel,
   isLoading,
   onInitialDraftConsumed,
+  operationStageClientId,
   prepareAttachments,
   scrollToBottom,
   sendMessage,
   sessionKey,
 }: UseConversationComposerHandlersOptions) {
   const consumedInitialDraftRef = useRef<string | null>(null);
+  const stageClientId = operationStageClientId?.trim() ?? "";
 
   const handleSendMessage = useCallback(
     async (
@@ -47,9 +50,10 @@ export function useConversationComposerHandlers({
         delivery_policy: deliveryPolicy,
         attachments,
         target_agent_ids: targetAgentIDs,
+        ...(stageClientId ? { operation_stage_client_id: stageClientId } : {}),
       });
     },
-    [scrollToBottom, sendMessage],
+    [scrollToBottom, sendMessage, stageClientId],
   );
 
   useEffect(() => {
@@ -70,7 +74,12 @@ export function useConversationComposerHandlers({
 
     consumedInitialDraftRef.current = initialDraftKey;
     scrollToBottom("auto");
-    void sendMessage(normalizedDraft)
+    void sendMessage(
+      normalizedDraft,
+      stageClientId
+        ? { operation_stage_client_id: stageClientId }
+        : undefined,
+    )
       .then(() => {
         onInitialDraftConsumed?.();
       })
@@ -90,6 +99,7 @@ export function useConversationComposerHandlers({
     scrollToBottom,
     sendMessage,
     sessionKey,
+    stageClientId,
   ]);
 
   return {

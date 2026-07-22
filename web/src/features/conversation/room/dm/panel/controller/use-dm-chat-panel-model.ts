@@ -22,6 +22,7 @@ export function useDmChatPanelModel({
   onOpenWorkspaceFile,
   onRoomEvent,
   onTodosChange,
+  operationStageClientId,
   runtimeKind,
   sessionIdentity,
 }: DmChatPanelProps): DmChatPanelViewModel {
@@ -48,6 +49,7 @@ export function useDmChatPanelModel({
     initialDraft: initialDraft ?? null,
     onCreateGoal: goal.createGoal,
     onInitialDraftConsumed,
+    operationStageClientId,
     scrollToBottom: session.scroll.scrollToBottom,
     sessionKey,
     runtimeKind,

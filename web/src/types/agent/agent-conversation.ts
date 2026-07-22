@@ -82,6 +82,7 @@ export interface UseAgentConversationReturn {
     deliveryPolicy?: AgentConversationDeliveryPolicy,
     attachments?: MessageAttachment[],
     targetAgentIDs?: string[],
+    operationStageClientId?: string,
   ) => Promise<void>;
   delete_input_queue_message: (itemId: string) => Promise<void>;
   guide_input_queue_message: (itemId: string) => Promise<void>;
@@ -146,6 +147,8 @@ export interface AgentConversationSendOptions {
   attachments?: MessageAttachment[];
   /** Composer 已选中的 Room 目标；服务端仍会再次校验当前成员归属。 */
   target_agent_ids?: string[];
+  /** 当前可见舞台实例；后端在受理本轮前用它原子刷新 Stage lease。 */
+  operation_stage_client_id?: string;
 }
 
 export interface ConversationSnapshot {
