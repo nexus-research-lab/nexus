@@ -129,8 +129,8 @@ func (s *RealtimeService) HandleInputQueue(
 	if action == "" {
 		action = "enqueue"
 	}
-	s.inputQueueDispatchMu.Lock()
-	defer s.inputQueueDispatchMu.Unlock()
+	lease := s.lockRoomDispatch(sessionKey, contextValue.Conversation.ID)
+	defer lease.Unlock()
 	switch action {
 	case "enqueue":
 		content := strings.TrimSpace(request.Content)
@@ -262,10 +262,13 @@ func (s *RealtimeService) InputQueueSnapshotEvent(
 	if contextValue == nil {
 		return protocol.EventMessage{}, errors.New("room conversation not found")
 	}
-	s.inputQueueDispatchMu.Lock()
-	s.releaseUndeliveredRoomGuidanceLocked(ctx, sessionKey, contextValue)
-	items, err := s.roomInputQueueItems(ctx, contextValue)
-	s.inputQueueDispatchMu.Unlock()
+	var items []protocol.InputQueueItem
+	lease := s.lockRoomDispatch(sessionKey, conversationID)
+	func() {
+		defer lease.Unlock()
+		s.releaseUndeliveredRoomGuidanceLocked(ctx, sessionKey, contextValue)
+		items, err = s.roomInputQueueItems(ctx, contextValue)
+	}()
 	if err != nil {
 		return protocol.EventMessage{}, err
 	}

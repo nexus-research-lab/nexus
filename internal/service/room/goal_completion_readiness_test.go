@@ -16,8 +16,8 @@ func TestActiveRoomGoalBlockerExcludesCallerSlotButKeepsRunningWork(t *testing.T
 	caller := &activeRoomSlot{
 		AgentID:      "agent-lead",
 		AgentRoundID: "agent-round-lead",
-		Status:       "running",
 	}
+	caller.setStatus("running")
 	roundValue := &activeRoomRound{
 		SessionKey:     sessionKey,
 		ConversationID: conversationID,
@@ -25,7 +25,7 @@ func TestActiveRoomGoalBlockerExcludesCallerSlotButKeepsRunningWork(t *testing.T
 		RootRoundID:    "root-round",
 		Slots:          map[string]*activeRoomSlot{"caller": caller},
 	}
-	service := &RealtimeService{activeRounds: map[string]*activeRoomRound{"round": roundValue}}
+	service := &RealtimeService{rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{"round": roundValue})}
 
 	if blocker := service.activeRoomGoalBlocker(sessionKey, conversationID, "agent-lead", "agent-round-lead"); blocker != "" {
 		t.Fatalf("caller current slot blocker = %q, want empty", blocker)
@@ -34,26 +34,35 @@ func TestActiveRoomGoalBlockerExcludesCallerSlotButKeepsRunningWork(t *testing.T
 		t.Fatalf("caller without precise round blocker = %q, want fail-closed active slot", blocker)
 	}
 
-	caller.SubagentTasks = map[string]struct{}{"task-running": {}}
+	caller.goal.mu.Lock()
+	caller.goal.subagentTasks = map[string]struct{}{"task-running": {}}
+	caller.goal.mu.Unlock()
 	if blocker := service.activeRoomGoalBlocker(sessionKey, conversationID, "agent-lead", "agent-round-lead"); !strings.Contains(blocker, "running subagent work") {
 		t.Fatalf("caller subagent blocker = %q, want running subagent work", blocker)
 	}
-	caller.SubagentTasks = nil
+	caller.goal.mu.Lock()
+	caller.goal.subagentTasks = nil
+	caller.goal.mu.Unlock()
 
-	peer := &activeRoomSlot{AgentID: "agent-peer", AgentRoundID: "agent-round-peer", Status: "running"}
+	peer := &activeRoomSlot{AgentID: "agent-peer", AgentRoundID: "agent-round-peer"}
+	peer.setStatus("running")
 	roundValue.Slots["peer"] = peer
 	if blocker := service.activeRoomGoalBlocker(sessionKey, conversationID, "agent-lead", "agent-round-lead"); !strings.Contains(blocker, "agent-peer") {
 		t.Fatalf("peer slot blocker = %q, want active peer", blocker)
 	}
 
 	peer.setStatus("finished")
-	peer.SubagentTasks = map[string]struct{}{"peer-task": {}}
+	peer.goal.mu.Lock()
+	peer.goal.subagentTasks = map[string]struct{}{"peer-task": {}}
+	peer.goal.mu.Unlock()
 	if blocker := service.activeRoomGoalBlocker(sessionKey, conversationID, "agent-lead", "agent-round-lead"); !strings.Contains(blocker, "agent-peer still has running subagent work") {
 		t.Fatalf("peer subagent blocker = %q, want peer subagent even after main slot terminal", blocker)
 	}
-	peer.SubagentTasks = nil
+	peer.goal.mu.Lock()
+	peer.goal.subagentTasks = nil
+	peer.goal.mu.Unlock()
 
-	roundValue.PublicMentions = []publicMentionWake{{TargetAgentID: "agent-peer"}}
+	service.rounds.enqueuePublicMention(roundValue, publicMentionWake{TargetAgentID: "agent-peer"})
 	if blocker := service.activeRoomGoalBlocker(sessionKey, conversationID, "agent-lead", "agent-round-lead"); !strings.Contains(blocker, "public-mention wake") {
 		t.Fatalf("public mention blocker = %q, want pending wake", blocker)
 	}

@@ -55,13 +55,11 @@ func (s *RealtimeService) notifyRoomEventObserver(ctx context.Context, sessionKe
 	if strings.TrimSpace(roundID) == "" {
 		return
 	}
-	s.mu.Lock()
-	roundValue := s.activeRounds[roomActiveRoundKey(sessionKey, roundID)]
+	roundValue := s.rounds.findByRoundID(sessionKey, roundID)
 	var observer RoomEventObserver
 	if roundValue != nil {
 		observer = roundValue.EventObserver
 	}
-	s.mu.Unlock()
 	if observer == nil {
 		return
 	}

@@ -342,16 +342,16 @@ func TestRealtimeServicePostRoundWorkRecordsRoomGoalFailureWhenDispatchFails(t *
 func TestShouldDeferGoalContinuationWhileCollaboratorSlotIsActive(t *testing.T) {
 	const conversationID = "conversation-active-collaborator"
 	sessionKey := protocol.BuildRoomSharedSessionKey(conversationID)
-	peerSlot := &activeRoomSlot{AgentID: "agent-peer", Status: "running"}
+	peerSlot := withRoomSlotStatus(&activeRoomSlot{AgentID: "agent-peer"}, "running")
 	service := &RealtimeService{
-		activeRounds: map[string]*activeRoomRound{
+		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
 			"peer-round": {
 				SessionKey:     sessionKey,
 				ConversationID: conversationID,
 				RoundID:        "round-peer",
 				Slots:          map[string]*activeRoomSlot{"peer": peerSlot},
 			},
-		},
+		}),
 	}
 	contextValue := &protocol.ConversationContextAggregate{
 		Conversation: protocol.ConversationRecord{ID: conversationID},

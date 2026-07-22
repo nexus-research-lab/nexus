@@ -11,10 +11,11 @@ import (
 )
 
 func roomSlotReplyRoute(slot *activeRoomSlot) protocol.RoomReplyRoute {
-	if slot == nil || slot.ReplyRoute.Mode == "" {
+	route := slot.replyRoute()
+	if route.Mode == "" {
 		return protocol.RoomReplyRoute{Mode: protocol.RoomReplyRoutePublic}
 	}
-	return slot.ReplyRoute
+	return route
 }
 
 func roomSlotPublishesPublicOutput(slot *activeRoomSlot) bool {
@@ -34,7 +35,7 @@ func (s *RealtimeService) recordRoomDirectedMessageReply(
 	slot *activeRoomSlot,
 	assistantMessage protocol.Message,
 ) error {
-	if s.directedMessages == nil || roundValue == nil || slot == nil || strings.TrimSpace(slot.ReplySourceMessage) == "" {
+	if s.directedMessages == nil || roundValue == nil || slot == nil || strings.TrimSpace(slot.replySourceMessage()) == "" {
 		return nil
 	}
 	replyRoute := roomSlotReplyRoute(slot)

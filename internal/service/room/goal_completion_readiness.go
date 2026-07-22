@@ -27,12 +27,10 @@ func (s *RealtimeService) RoomGoalCompletionBlocker(
 		return "", nil
 	}
 
-	// input -> public mention 是 Room 现有派发路径的锁顺序。在同一快照内
-	// 观测 pending wake、active slot 和 durable queue，避免 wake 交接窗口被误判为 idle。
-	s.inputQueueDispatchMu.Lock()
-	defer s.inputQueueDispatchMu.Unlock()
-	s.publicMentionDispatchMu.Lock()
-	defer s.publicMentionDispatchMu.Unlock()
+	// 同一 conversation 的 queue、wake 和 active slot 必须在同一个派发闸门内观察，
+	// 避免 wake 交接窗口被误判为 idle。
+	lease := s.lockRoomDispatch(goal.SessionKey, conversationID)
+	defer lease.Unlock()
 
 	ctx, contextValue, err := s.internalConversationContext(ctx, conversationID, true)
 	if err != nil {
@@ -58,9 +56,7 @@ func (s *RealtimeService) activeRoomGoalBlocker(
 	callerAgentID = strings.TrimSpace(callerAgentID)
 	callerRoundID = strings.TrimSpace(callerRoundID)
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	for _, roundValue := range s.activeRounds {
+	for _, roundValue := range s.rounds.snapshotConversation(conversationID) {
 		if roundValue == nil ||
 			strings.TrimSpace(roundValue.SessionKey) != sessionKey ||
 			strings.TrimSpace(roundValue.ConversationID) != conversationID {
@@ -68,7 +64,7 @@ func (s *RealtimeService) activeRoomGoalBlocker(
 		}
 		// public @ 已从模型输出解析，但尚未交接成目标 slot。
 		// 它挂在当前 shared Goal 的 Room round 上，清空或注册 slot 后自动解锁。
-		if len(roundValue.PublicMentions) > 0 {
+		if s.rounds.hasPublicMentions(roundValue) {
 			return "a Room public-mention wake has not started"
 		}
 		for _, slot := range roundValue.Slots {
@@ -94,6 +90,9 @@ func (s *RealtimeService) activeRoomGoalBlocker(
 			}
 			return fmt.Sprintf("agent %s still has an active Room slot", strings.TrimSpace(slot.AgentID))
 		}
+	}
+	if s.rounds.hasPublicMentionsForConversation(conversationID) {
+		return "a Room public-mention wake has not started"
 	}
 	return ""
 }

@@ -114,9 +114,7 @@ func (s *RealtimeService) findActiveDeliverySlotsByAgent(
 		return result
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	for _, roundValue := range s.activeRounds {
+	for _, roundValue := range s.rounds.snapshotConversation(conversationID) {
 		if roundValue == nil ||
 			roundValue.SessionKey != sessionKey ||
 			roundValue.ConversationID != conversationID {
@@ -155,25 +153,17 @@ func (s *RealtimeService) findActiveDeliverySlots(
 		return map[string]*activeRoomSlot{}
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	// guide 会把用户消息挂到正在流式输出的 root；多目标只有同属一个
 	// active root 才能原子注入，避免同一 public message 被不同 root 反复改写。
 	slotsByRoot := make(map[string]map[string]*activeRoomSlot)
 	latestTimestampByRoot := make(map[string]int64)
-	for roundKey, roundValue := range s.activeRounds {
+	for _, roundValue := range s.rounds.snapshotConversation(conversationID) {
 		if roundValue == nil ||
 			roundValue.SessionKey != sessionKey ||
 			roundValue.ConversationID != conversationID {
 			continue
 		}
-		rootRoundID := roomRootRoundID(roundValue)
-		if rootRoundID == "" {
-			// 生产 round 始终有 ID；此 fallback 只用于保持构造中状态和单元测试
-			// 的同一 activeRoomRound 边界。
-			rootRoundID = "active_round:" + roundKey
-		}
+		rootRoundID := roomRoundIdentity(roundValue)
 		for _, slot := range roundValue.Slots {
 			if slot == nil || !isActiveDeliverySlot(slot) {
 				continue

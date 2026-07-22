@@ -178,7 +178,7 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 		return preparedSlotRuntime{}, err
 	}
 	if runtimeConfig != nil {
-		e.slot.ContextWindow = runtimeConfig.ContextWindow
+		e.slot.setContextWindow(runtimeConfig.ContextWindow)
 	}
 
 	e.slot.setRuntimeKind(string(options.Runtime.Kind))
@@ -215,23 +215,25 @@ func (e *slotExecution) buildRuntimePrompt() (roomRuntimePrompt, sdkpermission.M
 	if e.round.PermissionMode != "" {
 		permissionMode = runtimepermission.NormalizeMode(e.round.PermissionMode)
 	}
-	e.slot.GoalRuntimeIgnored = goalsvc.ShouldIgnoreRuntimeForPermissionMode(string(permissionMode))
+	e.slot.setGoalRuntimeIgnored(goalsvc.ShouldIgnoreRuntimeForPermissionMode(string(permissionMode)))
 	currentGoalID, currentObjectiveRevision := "", int64(0)
-	if !e.slot.GoalRuntimeIgnored {
-		dynamicPrompt, e.slot.GoalContext, e.slot.GoalIDForUsage, e.slot.GoalSessionKey, currentObjectiveRevision = e.service.resolveGoalRuntimeContextForSlot(e.ctx, e.round, e.slot, dynamicPrompt)
-		currentGoalID = strings.TrimSpace(e.slot.GoalIDForUsage)
+	if !e.slot.goalRuntimeIgnored() {
+		var goalContext, goalID, goalSessionKey string
+		dynamicPrompt, goalContext, goalID, goalSessionKey, currentObjectiveRevision = e.service.resolveGoalRuntimeContextForSlot(e.ctx, e.round, e.slot, dynamicPrompt)
+		e.slot.setGoalContext(goalContext)
+		e.slot.setGoalBinding(goalSessionKey, goalID)
+		currentGoalID = strings.TrimSpace(e.slot.goalIDForUsage())
 	}
 	if e.round.Internal && e.round.GoalObjectiveRevision > 0 {
 		boundGoalID := strings.TrimSpace(e.round.GoalID)
 		if currentGoalID != boundGoalID || currentObjectiveRevision != e.round.GoalObjectiveRevision {
 			return roomRuntimePrompt{}, "", goalsvc.ErrGoalRevisionStale
 		}
-		e.slot.GoalIDForUsage = boundGoalID
-		e.slot.GoalSessionKey = strings.TrimSpace(e.round.SessionKey)
+		e.slot.setGoalBinding(strings.TrimSpace(e.round.SessionKey), boundGoalID)
 		e.slot.ensureGoalObjectiveRevision(e.round.GoalObjectiveRevision)
 	}
 	if override := strings.TrimSpace(e.round.GoalContext); e.round.Internal && override != "" {
-		e.slot.GoalContext = override
+		e.slot.setGoalContext(override)
 	}
 	return roomRuntimePrompt{stable: stablePrompt, dynamic: dynamicPrompt}, permissionMode, nil
 }
@@ -326,7 +328,7 @@ func (e *slotExecution) connectRuntimeOnce(runtimeValue preparedSlotRuntime) (ru
 		return nil, err
 	}
 	reusedWarmSession := hadWarmSession && previousClient == client
-	e.slot.ContextColdStart = roomContextColdStart(runtimeValue.options.Session.ResumeID, reusedWarmSession)
+	e.slot.setContextColdStart(roomContextColdStart(runtimeValue.options.Session.ResumeID, reusedWarmSession))
 	return client, nil
 }
 

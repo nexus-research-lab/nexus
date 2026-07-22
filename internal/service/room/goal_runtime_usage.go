@@ -14,15 +14,14 @@ import (
 )
 
 func beginGoalUsageForSlot(slot *activeRoomSlot) {
-	if slot == nil || slot.GoalRuntimeIgnored {
+	if slot == nil || slot.goalRuntimeIgnored() {
 		return
 	}
-	slot.GoalUsage = goalsvc.NewRuntimeUsageAccumulator(strings.TrimSpace(slot.GoalIDForUsage) != "")
-	slot.GoalUsageStartedAt = time.Now()
+	slot.beginGoalUsage()
 }
 
 func (s *RealtimeService) registerSlotGoalRuntime(slot *activeRoomSlot) func() {
-	if s.runtime == nil || slot == nil || slot.GoalRuntimeIgnored {
+	if s.runtime == nil || slot == nil || slot.goalRuntimeIgnored() {
 		return func() {}
 	}
 	sessionKey := goalSessionKeyForSlot(slot)
@@ -53,7 +52,7 @@ func (s *RealtimeService) recordGoalUsageForSlot(
 	result exec.RoundExecutionResult,
 	finalAssistant protocol.Message,
 ) {
-	if s.goals == nil || slot == nil || slot.GoalRuntimeIgnored {
+	if s.goals == nil || slot == nil || slot.goalRuntimeIgnored() {
 		return
 	}
 	snapshot, ok := slotFinalGoalUsageSnapshot(slot, result, finalAssistant)
@@ -68,14 +67,14 @@ func (s *RealtimeService) recordGoalUsageLimitForSlot(
 	slot *activeRoomSlot,
 	result exec.RoundExecutionResult,
 ) {
-	if s.goals == nil || slot == nil || slot.GoalRuntimeIgnored || !result.UsageLimitReached {
+	if s.goals == nil || slot == nil || slot.goalRuntimeIgnored() || !result.UsageLimitReached {
 		return
 	}
 	_, err := s.goals.UsageLimitForSession(ctx, goalSessionKeyForSlot(slot), slot.AgentRoundID, result.UsageLimitReason)
 	if err != nil && !errors.Is(err, goalsvc.ErrGoalDisabled) && !errors.Is(err, goalsvc.ErrGoalNotFound) && !errors.Is(err, goalsvc.ErrGoalInvalidState) {
 		s.loggerFor(ctx).Warn("标记 Room Goal usage limit 失败",
 			"session_key", goalSessionKeyForSlot(slot),
-			"goal_id", slot.GoalIDForUsage,
+			"goal_id", slot.goalIDForUsage(),
 			"round_id", slot.AgentRoundID,
 			"err", err,
 		)
@@ -92,7 +91,7 @@ func (s *RealtimeService) recordGoalUsageFromSlotAssistantMessage(
 	slot *activeRoomSlot,
 	message protocol.Message,
 ) {
-	if s.goals == nil || slot == nil || slot.GoalRuntimeIgnored {
+	if s.goals == nil || slot == nil || slot.goalRuntimeIgnored() {
 		return
 	}
 	observations := messageutil.AssistantToolResults(message)
@@ -115,16 +114,9 @@ func (s *RealtimeService) recordGoalUsageFromSlotAssistantMessage(
 		}
 	}
 	if hasSuccessfulCreate {
-		slot.stateMu.Lock()
-		if slot.GoalUsage == nil || !slot.GoalUsage.Active() {
-			if slot.GoalUsage == nil {
-				slot.GoalUsage = goalsvc.NewRuntimeUsageAccumulator(false)
-			}
-			slot.GoalUsage.Reset(snapshot)
-			slot.stateMu.Unlock()
+		if slot.resetGoalUsageIfInactive(snapshot) {
 			return
 		}
-		slot.stateMu.Unlock()
 	}
 	s.recordGoalUsageSnapshotForSlot(ctx, slot, snapshot)
 	if hasSuccessfulUpdate {
@@ -165,20 +157,15 @@ func (s *RealtimeService) recordGoalUsageSnapshotForSlot(
 	slot *activeRoomSlot,
 	snapshot goalsvc.RuntimeUsageSnapshot,
 ) {
-	if s.goals == nil || slot == nil || slot.GoalRuntimeIgnored {
+	if s.goals == nil || slot == nil || slot.goalRuntimeIgnored() {
 		return
 	}
-	slot.stateMu.Lock()
-	if slot.GoalUsage != nil {
-		usage, ok := slot.GoalUsage.Delta(snapshot)
-		slot.stateMu.Unlock()
-		if !ok {
-			return
+	if usage, ok, tracked := slot.goalUsageDelta(snapshot); tracked {
+		if ok {
+			s.recordGoalUsageDeltaForSlot(ctx, slot, usage)
 		}
-		s.recordGoalUsageDeltaForSlot(ctx, slot, usage)
 		return
 	}
-	slot.stateMu.Unlock()
 	usage := snapshot.Usage
 	usage.RuntimeSeconds = snapshot.ElapsedSeconds
 	if isZeroRoomGoalUsage(usage) {
@@ -188,19 +175,20 @@ func (s *RealtimeService) recordGoalUsageSnapshotForSlot(
 }
 
 func (s *RealtimeService) recordGoalUsageDeltaForSlot(ctx context.Context, slot *activeRoomSlot, usage protocol.GoalUsage) {
-	if s.goals == nil || slot == nil || slot.GoalRuntimeIgnored || isZeroRoomGoalUsage(usage) {
+	if s.goals == nil || slot == nil || slot.goalRuntimeIgnored() || isZeroRoomGoalUsage(usage) {
 		return
 	}
 	var err error
-	if strings.TrimSpace(slot.GoalIDForUsage) != "" {
-		_, err = s.goals.RecordUsageForGoal(ctx, slot.GoalIDForUsage, usage, slot.AgentRoundID)
+	goalID := slot.goalIDForUsage()
+	if strings.TrimSpace(goalID) != "" {
+		_, err = s.goals.RecordUsageForGoal(ctx, goalID, usage, slot.AgentRoundID)
 	} else {
 		_, err = s.goals.RecordUsageForSession(ctx, goalSessionKeyForSlot(slot), usage, slot.AgentRoundID)
 	}
 	if err != nil && !errors.Is(err, goalsvc.ErrGoalDisabled) && !errors.Is(err, goalsvc.ErrGoalNotFound) {
 		s.loggerFor(ctx).Warn("记录 Room Goal usage 失败",
 			"session_key", goalSessionKeyForSlot(slot),
-			"goal_id", slot.GoalIDForUsage,
+			"goal_id", goalID,
 			"round_id", slot.AgentRoundID,
 			"err", err,
 		)
@@ -211,31 +199,23 @@ func clearGoalUsageForSlot(slot *activeRoomSlot) {
 	if slot == nil {
 		return
 	}
-	slot.stateMu.Lock()
-	defer slot.stateMu.Unlock()
-	if slot.GoalUsage != nil {
-		slot.GoalUsage.Close()
-	}
+	slot.closeGoalUsage()
 }
 
 func activateGoalUsageForSlot(_ context.Context, slot *activeRoomSlot) {
-	if slot == nil || slot.GoalRuntimeIgnored {
+	if slot == nil || slot.goalRuntimeIgnored() {
 		return
 	}
 	snapshot := slotAssistantGoalUsageSnapshot(slot, slot.lastGoalAssistantMessage())
-	slot.stateMu.Lock()
-	defer slot.stateMu.Unlock()
-	if slot.GoalUsage == nil {
-		slot.GoalUsage = goalsvc.NewRuntimeUsageAccumulator(false)
-	}
-	slot.GoalUsage.Reset(snapshot)
+	slot.resetGoalUsage(snapshot)
 }
 
 func slotGoalUsageElapsedSeconds(slot *activeRoomSlot) int64 {
-	if slot == nil || slot.GoalUsageStartedAt.IsZero() {
+	startedAt := slot.goalUsageStartedAt()
+	if startedAt.IsZero() {
 		return 0
 	}
-	elapsed := int64(time.Since(slot.GoalUsageStartedAt).Seconds())
+	elapsed := int64(time.Since(startedAt).Seconds())
 	return max(elapsed, 0)
 }
 

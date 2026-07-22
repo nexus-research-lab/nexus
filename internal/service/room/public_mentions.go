@@ -6,7 +6,6 @@ package room
 import (
 	"cmp"
 	"context"
-	"slices"
 	"strings"
 	"time"
 
@@ -157,32 +156,27 @@ func (s *RealtimeService) enqueuePublicMentionWake(roundValue *activeRoomRound, 
 	if roundValue == nil || strings.TrimSpace(wake.TargetAgentID) == "" {
 		return
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	for _, existing := range roundValue.PublicMentions {
-		if existing.TargetAgentID == wake.TargetAgentID &&
-			strings.TrimSpace(existing.MessageID) == strings.TrimSpace(wake.MessageID) &&
-			strings.TrimSpace(existing.Content) == strings.TrimSpace(wake.Content) {
-			return
-		}
-	}
-	roundValue.PublicMentions = append(roundValue.PublicMentions, wake)
+	s.rounds.enqueuePublicMention(roundValue, wake)
 }
 
 func (s *RealtimeService) takePublicMentionWakes(roundValue *activeRoomRound) []publicMentionWake {
 	if roundValue == nil {
 		return nil
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	wakes := slices.Clone(roundValue.PublicMentions)
-	roundValue.PublicMentions = nil
-	return wakes
+	return s.rounds.takePublicMentions(roundValue)
 }
 
 func (s *RealtimeService) startQueuedPublicMentionWakes(ctx context.Context, roundValue *activeRoomRound) bool {
-	s.publicMentionDispatchMu.Lock()
-	defer s.publicMentionDispatchMu.Unlock()
+	if roundValue == nil {
+		return false
+	}
+	lease := s.lockRoomDispatch(roundValue.SessionKey, roundValue.ConversationID)
+	defer lease.Unlock()
+	return s.startQueuedPublicMentionWakesLocked(ctx, roundValue)
+}
+
+// startQueuedPublicMentionWakesLocked 在 conversation 派发闸门内启动待处理唤醒。
+func (s *RealtimeService) startQueuedPublicMentionWakesLocked(ctx context.Context, roundValue *activeRoomRound) bool {
 	wakes := s.takePublicMentionWakes(roundValue)
 	if len(wakes) == 0 {
 		return false
@@ -204,8 +198,11 @@ func (s *RealtimeService) startPublicMentionRound(
 	parentRound *activeRoomRound,
 	wakes []publicMentionWake,
 ) error {
-	s.publicMentionDispatchMu.Lock()
-	defer s.publicMentionDispatchMu.Unlock()
+	if parentRound == nil {
+		return nil
+	}
+	lease := s.lockRoomDispatch(parentRound.SessionKey, parentRound.ConversationID)
+	defer lease.Unlock()
 	return s.startPublicMentionRoundLocked(ctx, parentRound, wakes)
 }
 
@@ -699,24 +696,22 @@ func buildPublicMentionSlot(
 		TargetAgentID: strings.TrimSpace(wake.TargetAgentID),
 		ReplyRoute:    wake.ReplyRoute,
 	}
-	return &activeRoomSlot{
-		RoomSessionID:      sessionRecord.ID,
-		SDKSessionID:       strings.TrimSpace(sessionRecord.SDKSessionID),
-		AgentID:            strings.TrimSpace(wake.TargetAgentID),
-		AgentRoundID:       agentRoundID,
-		MsgID:              msgID,
-		RuntimeSessionKey:  protocol.BuildRoomAgentSessionKey(contextValue.Conversation.ID, wake.TargetAgentID, contextValue.Room.RoomType),
-		WorkspacePath:      agentValue.WorkspacePath,
-		Status:             "pending",
-		Index:              index,
-		TimestampMS:        time.Now().UnixMilli(),
-		Trigger:            trigger,
-		ReplyRoute:         wake.ReplyRoute,
-		ReplySourceMessage: strings.TrimSpace(wake.MessageID),
-		ReplySourceAgent:   strings.TrimSpace(wake.SourceAgentID),
-		HandoffID:          strings.TrimSpace(wake.HandoffID),
-		Done:               make(chan struct{}),
+	slot := &activeRoomSlot{
+		RoomSessionID:     sessionRecord.ID,
+		AgentID:           strings.TrimSpace(wake.TargetAgentID),
+		AgentRoundID:      agentRoundID,
+		MsgID:             msgID,
+		RuntimeSessionKey: protocol.BuildRoomAgentSessionKey(contextValue.Conversation.ID, wake.TargetAgentID, contextValue.Room.RoomType),
+		WorkspacePath:     agentValue.WorkspacePath,
+		Index:             index,
+		TimestampMS:       time.Now().UnixMilli(),
+		Trigger:           trigger,
 	}
+	slot.setSDKSessionID(strings.TrimSpace(sessionRecord.SDKSessionID))
+	slot.setStatus("pending")
+	slot.setDeliveryMetadata(wake.ReplyRoute, wake.MessageID, wake.HandoffID)
+	slot.doneChannel()
+	return slot
 }
 
 func normalizeWakeQueueSource(wake publicMentionWake) protocol.InputQueueSource {

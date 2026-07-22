@@ -14,9 +14,7 @@ func (s *RealtimeService) resolveRoomMessageCausality(
 	normalizedSourceAgentID := strings.TrimSpace(sourceAgentID)
 	normalizedRootRoundID := strings.TrimSpace(rootRoundID)
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	for _, roundValue := range s.activeRounds {
+	for _, roundValue := range s.rounds.snapshotConversation(normalizedConversationID) {
 		if roundValue == nil || strings.TrimSpace(roundValue.ConversationID) != normalizedConversationID {
 			continue
 		}

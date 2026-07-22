@@ -36,7 +36,7 @@ func TestCoalesceRoomDirectedWakeEntriesKeepsPerTargetOrder(t *testing.T) {
 }
 
 func TestResolveRoomMessageCausalityUsesActiveRound(t *testing.T) {
-	service := &RealtimeService{activeRounds: map[string]*activeRoomRound{}}
+	service := &RealtimeService{rounds: newRoomRoundRegistry()}
 	roundValue := &activeRoomRound{
 		ConversationID: "conversation-1",
 		RoundID:        "round-child",
@@ -46,7 +46,7 @@ func TestResolveRoomMessageCausalityUsesActiveRound(t *testing.T) {
 			"slot-1": {AgentID: "agent-1"},
 		},
 	}
-	service.activeRounds["active"] = roundValue
+	service.rounds.register(roundValue)
 	root, cause, hop := service.resolveRoomMessageCausality("conversation-1", "agent-1", "round-root")
 	if root != "round-root" || cause != "round-child" || hop != 3 {
 		t.Fatalf("工具消息未继承当前 Room 因果链: root=%s cause=%s hop=%d", root, cause, hop)
@@ -63,8 +63,8 @@ func TestPublicInputBatchIgnoresStoredCursorWhenRuntimeCannotResume(t *testing.T
 		AgentRoundID:      "agent-round-1",
 		RuntimeSessionKey: "agent:agent-1:ws:group:conversation-1",
 		WorkspacePath:     workspacePath,
-		ContextColdStart:  true,
 	}
+	slot.setContextColdStart(true)
 	if err := history.AppendRoomPublicCursor(workspacePath, slot.RuntimeSessionKey, workspacestore.RoomPublicCursor{
 		ConversationID:      roundValue.ConversationID,
 		AgentID:             slot.AgentID,
@@ -93,7 +93,7 @@ func TestPublicInputBatchIgnoresStoredCursorWhenRuntimeCannotResume(t *testing.T
 		t.Fatalf("runtime 无法 resume 时必须忽略旧 cursor: %+v", coldBatch)
 	}
 
-	slot.ContextColdStart = false
+	slot.setContextColdStart(false)
 	warmBatch, err := service.publicInputBatchForSlot(
 		context.Background(),
 		roundValue,

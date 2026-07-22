@@ -40,13 +40,14 @@ func TestQueueBusyPublicMentionWakesGuidesEachBusyRootAndLeavesIdleTargetReady(t
 		MemberAgents: agents,
 	}
 	newSlot := func(agent protocol.Agent, agentRoundID string) *activeRoomSlot {
-		return &activeRoomSlot{
+		slot := &activeRoomSlot{
 			AgentID:           agent.AgentID,
 			AgentRoundID:      agentRoundID,
 			RuntimeSessionKey: protocol.BuildRoomAgentSessionKey(conversationID, agent.AgentID, protocol.RoomTypeGroup),
 			WorkspacePath:     agent.WorkspacePath,
-			Status:            "running",
 		}
+		slot.setStatus("running")
+		return slot
 	}
 	slotA := newSlot(agents[0], "agent-round-a")
 	slotB := newSlot(agents[1], "agent-round-b")
@@ -63,7 +64,7 @@ func TestQueueBusyPublicMentionWakesGuidesEachBusyRootAndLeavesIdleTargetReady(t
 		inputQueue: store,
 		runtime:    runtimeManager,
 		permission: permissionctx.NewContext(),
-		activeRounds: map[string]*activeRoomRound{
+		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
 			"root-a": {
 				SessionKey: sharedSessionKey, ConversationID: conversationID, RootRoundID: "root-a",
 				Slots: map[string]*activeRoomSlot{slotA.AgentID: slotA},
@@ -72,7 +73,7 @@ func TestQueueBusyPublicMentionWakesGuidesEachBusyRootAndLeavesIdleTargetReady(t
 				SessionKey: sharedSessionKey, ConversationID: conversationID, RootRoundID: "root-b",
 				Slots: map[string]*activeRoomSlot{slotB.AgentID: slotB},
 			},
-		},
+		}),
 	}
 	parentRound := &activeRoomRound{
 		SessionKey: sharedSessionKey, RoomID: roomID, ConversationID: conversationID,
@@ -109,7 +110,7 @@ func TestQueueBusyPublicMentionWakesGuidesEachBusyRootAndLeavesIdleTargetReady(t
 		Scope: protocol.InputQueueScopeRoom, WorkspacePath: slotA.WorkspacePath,
 		SessionKey: slotA.RuntimeSessionKey, RoomID: roomID, ConversationID: conversationID,
 	}
-	output, err := service.roomSlotGuidanceHook(service.activeRounds["root-a"], slotA, locationA)(
+	output, err := service.roomSlotGuidanceHook(service.rounds.findByRoundID(sharedSessionKey, "root-a"), slotA, locationA)(
 		context.Background(),
 		sdkhook.Input{EventName: sdkhook.EventPostToolUse},
 		"tool-before-public-mention",

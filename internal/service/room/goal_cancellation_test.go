@@ -136,11 +136,11 @@ func TestGoalCancellationIntentDoesNotMatchOrdinaryDiscussion(t *testing.T) {
 
 func TestPublishPublicMessageSuppressesTheSameSlotFinalReply(t *testing.T) {
 	slot := &activeRoomSlot{
-		AgentID:          "agent-amy",
-		PendingStream:    []protocol.EventMessage{{EventType: protocol.EventTypeStream}},
-		NoReplyCandidate: true,
+		AgentID: "agent-amy",
 	}
-	service := &RealtimeService{activeRounds: map[string]*activeRoomRound{
+	slot.setPendingStream([]protocol.EventMessage{{EventType: protocol.EventTypeStream}})
+	slot.beginNoReplyCandidate()
+	service := &RealtimeService{rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
 		"round-1": {
 			SessionKey:  "room:group:conversation-1",
 			RootRoundID: "round-1",
@@ -148,7 +148,7 @@ func TestPublishPublicMessageSuppressesTheSameSlotFinalReply(t *testing.T) {
 				"slot-1": slot,
 			},
 		},
-	}}
+	})}
 
 	if err := service.MarkPublicMessagePublished(
 		context.Background(),
@@ -158,7 +158,7 @@ func TestPublishPublicMessageSuppressesTheSameSlotFinalReply(t *testing.T) {
 	); err != nil {
 		t.Fatalf("标记主动广播失败: %v", err)
 	}
-	if !slot.PublicMessagePublished || !slot.shouldSuppressOutput() {
+	if !slot.publicMessageWasPublished() || !slot.shouldSuppressOutput() {
 		t.Fatalf("主动广播后 slot 必须进入 suppress 状态: %+v", slot)
 	}
 	if events := slot.eventsReadyForEmission(protocol.EventMessage{EventType: protocol.EventTypeStream}); len(events) != 0 {

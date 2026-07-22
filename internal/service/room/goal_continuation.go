@@ -36,7 +36,19 @@ func (s *RealtimeService) shouldDeferGoalContinuation(ctx context.Context, sessi
 		// that case the shared runtime is the only safe source of busy state.
 		return s.runtime != nil && len(s.runtime.GetRunningRoundIDs(sessionKey)) > 0
 	}
-	ctx, contextValue, err := s.internalConversationContext(ctx, parsed.ConversationID, true)
+	lease := s.lockRoomDispatch(sessionKey, parsed.ConversationID)
+	defer lease.Unlock()
+	return s.shouldDeferGoalContinuationLocked(ctx, sessionKey, parsed.ConversationID, dispatchQueuedInput)
+}
+
+// shouldDeferGoalContinuationLocked 在 conversation 派发闸门内判断续跑是否应等待。
+func (s *RealtimeService) shouldDeferGoalContinuationLocked(
+	ctx context.Context,
+	sessionKey string,
+	conversationID string,
+	dispatchQueuedInput bool,
+) bool {
+	ctx, contextValue, err := s.internalConversationContext(ctx, conversationID, true)
 	if err != nil || contextValue == nil {
 		if err != nil {
 			s.loggerFor(ctx).Warn("解析 Room Goal 续跑待发送队列上下文失败", "session_key", sessionKey, "err", err)
@@ -49,14 +61,14 @@ func (s *RealtimeService) shouldDeferGoalContinuation(ctx context.Context, sessi
 		return false
 	}
 	if len(entries) == 0 {
-		return s.shouldDeferGoalContinuationForTargetState(ctx, sessionKey, contextValue)
+		return s.shouldDeferGoalContinuationForTargetStateLocked(ctx, sessionKey, contextValue)
 	}
-	entry, ok := s.findDispatchableInputQueueEntry(sessionKey, parsed.ConversationID, entries)
+	entry, ok := s.findDispatchableInputQueueEntry(sessionKey, conversationID, entries)
 	if !ok {
 		return true
 	}
 	if dispatchQueuedInput {
-		s.dispatchNextInputQueueItem(
+		s.dispatchNextInputQueueItemLocked(
 			contextWithQueueOwner(ctx, entry.Item.OwnerUserID),
 			sessionKey,
 			contextValue.Room.ID,
@@ -71,12 +83,23 @@ func (s *RealtimeService) shouldDeferGoalContinuationForTargetState(
 	sessionKey string,
 	contextValue *protocol.ConversationContextAggregate,
 ) bool {
+	if contextValue == nil {
+		return false
+	}
+	lease := s.lockRoomDispatch(sessionKey, contextValue.Conversation.ID)
+	defer lease.Unlock()
+	return s.shouldDeferGoalContinuationForTargetStateLocked(ctx, sessionKey, contextValue)
+}
+
+func (s *RealtimeService) shouldDeferGoalContinuationForTargetStateLocked(
+	ctx context.Context,
+	sessionKey string,
+	contextValue *protocol.ConversationContextAggregate,
+) bool {
 	if s == nil || contextValue == nil {
 		return false
 	}
-	s.publicMentionDispatchMu.Lock()
 	activeBlocker := s.activeRoomGoalBlocker(sessionKey, contextValue.Conversation.ID, "", "")
-	s.publicMentionDispatchMu.Unlock()
 	if activeBlocker != "" {
 		return true
 	}
@@ -308,15 +331,19 @@ func (s *RealtimeService) DispatchGoalContinuation(ctx context.Context, plan pro
 	if !ok {
 		return errors.New("room goal continuation provider is not configured")
 	}
-	s.inputQueueDispatchMu.Lock()
-	defer s.inputQueueDispatchMu.Unlock()
+	sessionKey := strings.TrimSpace(plan.Goal.SessionKey)
+	parsed := protocol.ParseSessionKey(sessionKey)
+	lease := s.lockRoomDispatch(sessionKey, parsed.ConversationID)
+	defer lease.Unlock()
 
 	validated, err := goalsvc.ValidateContinuationForDispatch(
 		ctx,
 		planner,
 		plan,
-		func(candidate protocol.GoalContinuation) bool {
-			return s.shouldDeferGoalContinuation(ctx, candidate.Goal.SessionKey, false)
+		func(_ protocol.GoalContinuation) bool {
+			// ValidateContinuationForDispatch 只回调当前候选；沿用外层
+			// conversation 闸门，避免同一把非可重入锁被再次获取。
+			return s.shouldDeferGoalContinuationLocked(ctx, sessionKey, parsed.ConversationID, false)
 		},
 	)
 	if err != nil || validated == nil {
@@ -325,13 +352,14 @@ func (s *RealtimeService) DispatchGoalContinuation(ctx context.Context, plan pro
 	if _, err = planner.ClaimContinuationPlan(ctx, *validated); err != nil {
 		return err
 	}
-	if err := s.dispatchPreparedGoalContinuation(ctx, *validated); err != nil {
+	if err := s.dispatchPreparedGoalContinuationLocked(ctx, *validated); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (s *RealtimeService) dispatchPreparedGoalContinuation(ctx context.Context, plan protocol.GoalContinuation) error {
+// dispatchPreparedGoalContinuationLocked 在 conversation 派发闸门内启动续跑。
+func (s *RealtimeService) dispatchPreparedGoalContinuationLocked(ctx context.Context, plan protocol.GoalContinuation) error {
 	sessionKey := strings.TrimSpace(plan.Goal.SessionKey)
 	parsed := protocol.ParseSessionKey(sessionKey)
 	if parsed.Kind != protocol.SessionKeyKindRoom || strings.TrimSpace(parsed.ConversationID) == "" {
@@ -342,7 +370,7 @@ func (s *RealtimeService) dispatchPreparedGoalContinuation(ctx context.Context, 
 	if collaborationContext != "" {
 		s.recordRoomGoalCollaborationRequired(ctx, plan.Goal.ID, plan.RoundID)
 	}
-	return s.handleChat(ctx, ChatRequest{
+	return s.handleChatLocked(ctx, ChatRequest{
 		SessionKey:            sessionKey,
 		ConversationID:        parsed.ConversationID,
 		GoalContext:           goalContext,

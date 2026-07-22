@@ -120,15 +120,22 @@ func resolveTitleRuntimeTarget(
 
 // HandleChat 处理 Room 主对话消息。
 func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) error {
-	if request.Internal {
-		return s.handleChat(ctx, request)
-	}
-	s.inputQueueDispatchMu.Lock()
-	defer s.inputQueueDispatchMu.Unlock()
 	return s.handleChat(ctx, request)
 }
 
+// handleChat 负责获取 conversation 级派发闸门。
 func (s *RealtimeService) handleChat(ctx context.Context, request ChatRequest) error {
+	sessionKey, conversationID, err := s.validateChatRequest(request)
+	if err != nil {
+		return err
+	}
+	lease := s.lockRoomDispatch(sessionKey, conversationID)
+	defer lease.Unlock()
+	return s.handleChatLocked(ctx, request)
+}
+
+// handleChatLocked 在已经持有 conversation 派发闸门时执行输入交接。
+func (s *RealtimeService) handleChatLocked(ctx context.Context, request ChatRequest) error {
 	execution, err := s.prepareRoomChat(ctx, request)
 	if err != nil {
 		return err
@@ -547,22 +554,21 @@ func (e *roomChatExecution) buildRound() (*activeRoomRound, []protocol.ChatAckPe
 		slotTrigger.TargetAgentID = agentID
 		slot := &activeRoomSlot{
 			RoomSessionID:      sessionRecord.ID,
-			SDKSessionID:       strings.TrimSpace(sessionRecord.SDKSessionID),
 			AgentID:            agentID,
 			AgentRoundID:       agentRoundID,
 			MsgID:              msgID,
 			RuntimeSessionKey:  protocol.BuildRoomAgentSessionKey(e.conversationID, agentID, e.contextValue.Room.RoomType),
 			WorkspacePath:      agentValue.WorkspacePath,
-			Status:             "pending",
 			Index:              index,
 			TimestampMS:        normalizeInt64(e.userMessage["timestamp"]),
 			Trigger:            slotTrigger,
 			TriggerAttachments: e.attachments,
-			Done:               make(chan struct{}),
 		}
+		slot.setSDKSessionID(strings.TrimSpace(sessionRecord.SDKSessionID))
+		slot.setStatus("pending")
+		slot.doneChannel()
 		if activeRound.GoalID != "" && activeRound.GoalObjectiveRevision > 0 {
-			slot.GoalSessionKey = activeRound.SessionKey
-			slot.GoalIDForUsage = activeRound.GoalID
+			slot.setGoalBinding(activeRound.SessionKey, activeRound.GoalID)
 			slot.ensureGoalObjectiveRevision(activeRound.GoalObjectiveRevision)
 		}
 		activeRound.Slots[msgID] = slot
@@ -596,7 +602,13 @@ func (e *roomChatExecution) reportUnavailableMembers() error {
 		e.ctx,
 		e.sessionKey,
 		e.roomID,
-		roomdomain.WrapRoundStatusEvent(e.sessionKey, e.roomID, e.conversationID, e.request.RoundID, "error", "error"),
+		roomdomain.WrapRoundStatusErrorEvent(
+			e.sessionKey,
+			e.roomID,
+			e.conversationID,
+			e.request.RoundID,
+			"Room 中没有可用成员会话",
+		),
 	)
 	return nil
 }

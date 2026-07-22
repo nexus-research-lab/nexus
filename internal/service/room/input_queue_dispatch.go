@@ -18,9 +18,13 @@ func (s *RealtimeService) dispatchNextInputQueueItem(ctx context.Context, sessio
 	if strings.TrimSpace(sessionKey) == "" {
 		return
 	}
-	s.inputQueueDispatchMu.Lock()
-	defer s.inputQueueDispatchMu.Unlock()
+	lease := s.lockRoomDispatch(sessionKey, conversationID)
+	defer lease.Unlock()
+	s.dispatchNextInputQueueItemLocked(ctx, sessionKey, roomID, conversationID)
+}
 
+// dispatchNextInputQueueItemLocked 在 conversation 派发闸门内接力下一条队列项。
+func (s *RealtimeService) dispatchNextInputQueueItemLocked(ctx context.Context, sessionKey string, roomID string, conversationID string) {
 	contextValue, err := s.rooms.GetConversationContext(ctx, conversationID)
 	if err != nil || contextValue == nil {
 		if err != nil {
@@ -51,7 +55,7 @@ func (s *RealtimeService) dispatchNextInputQueueItem(ctx context.Context, sessio
 	if err = s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue); err != nil {
 		s.loggerFor(ctx).Warn("广播 Room 待发送队列快照失败", "session_key", sessionKey, "err", err)
 	}
-	err = s.dispatchInputQueueItem(ctx, sessionKey, roomID, conversationID, dispatchedItem)
+	err = s.dispatchInputQueueItemLocked(ctx, sessionKey, roomID, conversationID, dispatchedItem)
 	if err == nil {
 		if s.canDispatchMoreInputQueueItems(ctx, sessionKey, conversationID) {
 			go s.dispatchNextInputQueueItem(ctx, sessionKey, roomID, conversationID)
@@ -137,13 +141,13 @@ func (s *RealtimeService) releaseUndeliveredRoomGuidance(
 	if contextValue == nil {
 		return
 	}
-	s.inputQueueDispatchMu.Lock()
-	defer s.inputQueueDispatchMu.Unlock()
+	lease := s.lockRoomDispatch(sessionKey, contextValue.Conversation.ID)
+	defer lease.Unlock()
 	s.releaseUndeliveredRoomGuidanceLocked(ctx, sessionKey, contextValue)
 }
 
 // releaseUndeliveredRoomGuidanceLocked 统一恢复已失去目标 slot 的持久化引导。
-// 调用方必须持有 inputQueueDispatchMu，避免恢复与新 round 启动交错。
+// 调用方必须持有 conversation 派发闸门，避免恢复与新 round 启动交错。
 func (s *RealtimeService) releaseUndeliveredRoomGuidanceLocked(
 	ctx context.Context,
 	sessionKey string,
@@ -185,7 +189,8 @@ func (s *RealtimeService) releaseUndeliveredRoomGuidanceLocked(
 	}
 }
 
-func (s *RealtimeService) dispatchInputQueueItem(
+// dispatchInputQueueItemLocked 在 conversation 派发闸门内消费已 claim 的队列项。
+func (s *RealtimeService) dispatchInputQueueItemLocked(
 	ctx context.Context,
 	sessionKey string,
 	roomID string,
@@ -212,8 +217,8 @@ func (s *RealtimeService) dispatchInputQueueItem(
 			item,
 		)
 	}
-	// dispatchNextInputQueueItem 已持有 inputQueueDispatchMu。
-	return s.handleChat(contextWithQueueOwner(ctx, item.OwnerUserID), ChatRequest{
+	// dispatchNextInputQueueItemLocked 已持有 conversation 派发闸门。
+	return s.handleChatLocked(contextWithQueueOwner(ctx, item.OwnerUserID), ChatRequest{
 		SessionKey:     sessionKey,
 		RoomID:         roomID,
 		ConversationID: conversationID,
@@ -269,7 +274,7 @@ func (s *RealtimeService) dispatchRoomPublicTriggerQueueItem(
 		HopIndex:       item.HopIndex,
 		OwnerUserID:    strings.TrimSpace(item.OwnerUserID),
 	}
-	return s.startPublicMentionRound(ctx, parentRound, wakes)
+	return s.startPublicMentionRoundLocked(ctx, parentRound, wakes)
 }
 
 func (s *RealtimeService) dispatchAgentWakeQueueItem(
@@ -342,7 +347,7 @@ func (s *RealtimeService) dispatchAgentWakeQueueItem(
 		HopIndex:       item.HopIndex,
 		OwnerUserID:    strings.TrimSpace(item.OwnerUserID),
 	}
-	return s.startPublicMentionRound(ctx, parentRound, wakes)
+	return s.startPublicMentionRoundLocked(ctx, parentRound, wakes)
 }
 
 // logicalPublicHandoffRootRoundID 从 ledger 取回稳定 root；InputQueue 的

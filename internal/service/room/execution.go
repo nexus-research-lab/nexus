@@ -57,14 +57,15 @@ func (a roomRoundMapperAdapter) Map(
 	incoming sdkprotocol.ReceivedMessage,
 	interruptReason ...string,
 ) (exec.RoundMapResult, error) {
-	events, messages, terminalStatus, err := a.mapper.Map(incoming, interruptReason...)
+	result, err := a.mapper.MapResult(incoming, interruptReason...)
 	if err != nil {
 		return exec.RoundMapResult{}, err
 	}
 	return exec.RoundMapResult{
-		Events:          events,
-		DurableMessages: messages,
-		TerminalStatus:  terminalStatus,
+		Events:          result.Events,
+		DurableMessages: result.DurableMessages,
+		TerminalStatus:  result.TerminalStatus,
+		ResultSubtype:   result.ResultSubtype,
 	}, nil
 }
 
@@ -80,7 +81,7 @@ func (s *RealtimeService) recordUsage(roundValue *activeRoomRound, slot *activeR
 		return
 	}
 	if s.writeUsage(roundValue, message) {
-		slot.resultUsageWritten = true
+		slot.setResultUsageWritten()
 	}
 }
 
@@ -88,7 +89,7 @@ func (s *RealtimeService) recordTerminalAssistantUsage(roundValue *activeRoomRou
 	if s.usage == nil || roundValue == nil || slot == nil || protocol.MessageRole(message) != "assistant" {
 		return
 	}
-	if slot.resultUsageWritten || !usagesvc.MessageHasUsage(message) {
+	if slot.resultUsageWasWritten() || !usagesvc.MessageHasUsage(message) {
 		return
 	}
 	s.writeUsage(roundValue, message)
@@ -117,6 +118,7 @@ func (s *RealtimeService) runSlot(
 	agentValue *protocol.Agent,
 ) {
 	if agentValue == nil {
+		slot.setErrorMessage("Room slot 缺少 agent 配置")
 		slot.setStatus("error")
 		s.loggerFor(ctx).Error("Room slot 缺少 agent 配置",
 			"s", roundValue.SessionKey,
@@ -127,7 +129,7 @@ func (s *RealtimeService) runSlot(
 	}
 
 	slotCtx, cancel := context.WithCancel(ctx)
-	slot.Cancel = cancel
+	slot.setCancel(cancel)
 	logger := s.loggerFor(slotCtx).With(
 		"s", roundValue.SessionKey,
 		"r", roundValue.RoomID,
@@ -250,7 +252,7 @@ func (e *slotExecution) executeRound(client runtimectx.Client) (exec.RoundExecut
 	e.slot.beginNoReplyCandidate()
 	return exec.ExecuteRound(e.ctx, exec.RoundExecutionRequest{
 		Content:          payload,
-		ContextualInputs: goalContextualInputs(e.slot.GoalContext, e.slot.GoalIDForUsage, goalSessionKeyForSlot(e.slot)),
+		ContextualInputs: goalContextualInputs(e.slot.goalContext(), e.slot.goalIDForUsage(), goalSessionKeyForSlot(e.slot)),
 		InputOptions:     runtimectx.RuntimeInputOptionsForPurpose(roomRoundInputOptions(e.round), "goal_continuation"),
 		Client:           client,
 		Mapper:           roomRoundMapperAdapter{mapper: e.mapper},

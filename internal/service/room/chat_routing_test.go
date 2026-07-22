@@ -9,22 +9,21 @@ import (
 )
 
 func TestLatestActiveRootRoundAgentIDsPrefersRegistrationSequence(t *testing.T) {
-	service := &RealtimeService{activeRounds: make(map[string]*activeRoomRound)}
+	service := &RealtimeService{rounds: newRoomRoundRegistry()}
 	sessionKey := protocol.BuildRoomSharedSessionKey("conversation-latest-root")
 	register := func(roundID string, agentID string) {
+		slot := &activeRoomSlot{
+			AgentID:      agentID,
+			AgentRoundID: roundID + "-agent",
+			TimestampMS:  100,
+		}
+		slot.setStatus("running")
 		service.registerRound(&activeRoomRound{
 			SessionKey:     sessionKey,
 			ConversationID: "conversation-latest-root",
 			RoundID:        roundID,
 			RootRoundID:    roundID,
-			Slots: map[string]*activeRoomSlot{
-				agentID: {
-					AgentID:      agentID,
-					AgentRoundID: roundID + "-agent",
-					Status:       "running",
-					TimestampMS:  100,
-				},
-			},
+			Slots:          map[string]*activeRoomSlot{agentID: slot},
 		})
 	}
 

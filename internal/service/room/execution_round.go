@@ -44,9 +44,11 @@ func (s *RealtimeService) runRound(
 	roundValue.RunningSubagents.Store(roundValue.hasRunningSubagentTasks())
 	// Interrupt 只等待执行体结束；queue/guide 交接仍在下方锁内收口。
 	roundValue.doneOnce.Do(func() { close(roundValue.Done) })
-	s.inputQueueDispatchMu.Lock()
-	s.finishRound(roundValue)
-	s.inputQueueDispatchMu.Unlock()
+	func() {
+		lease := s.lockRoomDispatch(roundValue.SessionKey, roundValue.ConversationID)
+		defer lease.Unlock()
+		s.finishRound(roundValue)
+	}()
 
 	finalStatus := "finished"
 	if roundValue.allSlotsCancelled() {
@@ -55,14 +57,24 @@ func (s *RealtimeService) runRound(
 		finalStatus = "error"
 	}
 	logger.Info("Room round 结束", "status", finalStatus)
-	s.broadcastSharedEventWithTimeout(ctx, roundValue.SessionKey, roundValue.RoomID, roomdomain.WrapRoundStatusEvent(
+	statusEvent := roomdomain.WrapRoundStatusEvent(
 		roundValue.SessionKey,
 		roundValue.RoomID,
 		roundValue.ConversationID,
 		roundValue.RoundID,
 		finalStatus,
 		mapTerminalSubtype(finalStatus),
-	))
+	)
+	if finalStatus == "error" {
+		statusEvent = roomdomain.WrapRoundStatusErrorEvent(
+			roundValue.SessionKey,
+			roundValue.RoomID,
+			roundValue.ConversationID,
+			roundValue.RoundID,
+			roundValue.firstSlotErrorMessage(),
+		)
+	}
+	s.broadcastSharedEventWithTimeout(ctx, roundValue.SessionKey, roundValue.RoomID, statusEvent)
 	s.broadcastSessionStatus(ctx, roundValue.SessionKey)
 	// 显式用户输入先于 Agent 唤醒和 Goal 隐藏续跑；错过 hook 的 guide 自动退回下一轮。
 	s.releaseUndeliveredRoomGuidance(ctx, roundValue.SessionKey, roundValue.Context)

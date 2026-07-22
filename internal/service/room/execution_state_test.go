@@ -9,6 +9,7 @@ import (
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 )
 
@@ -111,13 +112,22 @@ func TestSetPermissionModeForAgentUpdatesActiveRoomSlots(t *testing.T) {
 	matching := &permissionModeTestClient{}
 	other := &permissionModeTestClient{}
 	terminal := &permissionModeTestClient{}
-	service := &RealtimeService{activeRounds: map[string]*activeRoomRound{
+	matchingSlot := &activeRoomSlot{AgentID: "agent-a"}
+	matchingSlot.setClient(matching)
+	matchingSlot.setStatus("running")
+	otherSlot := &activeRoomSlot{AgentID: "agent-b"}
+	otherSlot.setClient(other)
+	otherSlot.setStatus("running")
+	terminalSlot := &activeRoomSlot{AgentID: "agent-a"}
+	terminalSlot.setClient(terminal)
+	terminalSlot.setStatus("finished")
+	service := &RealtimeService{rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
 		"round-1": {Slots: map[string]*activeRoomSlot{
-			"matching": {AgentID: "agent-a", Client: matching, Status: "running"},
-			"other":    {AgentID: "agent-b", Client: other, Status: "running"},
-			"terminal": {AgentID: "agent-a", Client: terminal, Status: "finished"},
+			"matching": matchingSlot,
+			"other":    otherSlot,
+			"terminal": terminalSlot,
 		}},
-	}}
+	})}
 
 	if err := service.SetPermissionModeForAgent(context.Background(), "agent-a", sdkpermission.ModePlan); err != nil {
 		t.Fatalf("SetPermissionModeForAgent() error = %v", err)
@@ -147,11 +157,40 @@ func TestRoomSlotTracksRunningSubagentTasks(t *testing.T) {
 }
 
 func TestRoomRoundReportsRunningSubagentTasks(t *testing.T) {
+	slot := &activeRoomSlot{}
+	slot.goal.mu.Lock()
+	slot.goal.subagentTasks = map[string]struct{}{"task-1": {}}
+	slot.goal.mu.Unlock()
 	roundValue := &activeRoomRound{Slots: map[string]*activeRoomSlot{
-		"agent-1": {SubagentTasks: map[string]struct{}{"task-1": {}}},
+		"agent-1": slot,
 	}}
 	if !roundValue.hasRunningSubagentTasks() {
 		t.Fatal("round 应能汇总 slot 中的 running subagent")
+	}
+}
+
+func TestRoomRoundSelectsEarliestSlotError(t *testing.T) {
+	later := &activeRoomSlot{Index: 2}
+	later.setErrorMessage("later provider error")
+	earlier := &activeRoomSlot{Index: 1}
+	earlier.setErrorMessage("  first provider error  ")
+	roundValue := &activeRoomRound{Slots: map[string]*activeRoomSlot{
+		"agent-later":   later,
+		"agent-earlier": earlier,
+		"agent-empty":   {Index: 0},
+	}}
+
+	if got := roundValue.firstSlotErrorMessage(); got != "first provider error" {
+		t.Fatalf("firstSlotErrorMessage() = %q，期望最早失败 slot 的原因", got)
+	}
+}
+
+func TestRoomSlotTerminalStatusFallsBackToRuntimeStatus(t *testing.T) {
+	if got := roomSlotTerminalStatus(exec.RoundExecutionResult{TerminalStatus: "error"}); got != "error" {
+		t.Fatalf("roomSlotTerminalStatus(error status) = %q, want error", got)
+	}
+	if got := roomSlotTerminalStatus(exec.RoundExecutionResult{ResultSubtype: "interrupted"}); got != "cancelled" {
+		t.Fatalf("roomSlotTerminalStatus(interrupted subtype) = %q, want cancelled", got)
 	}
 }
 

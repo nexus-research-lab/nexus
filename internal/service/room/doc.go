@@ -9,6 +9,9 @@
 //   - execution.go：slot 生命周期、round mapper、runtime 消息、事件投递与 usage 写入。
 //   - execution_runtime_*：runtime prompt、选项、连接、session 恢复与诊断。
 //   - execution_slot_status.go / interrupt / slot_* / round_*：完成结算、状态、中断与 round 状态机。
+//   - conversation_rounds.go：按 conversation 分片保存 active round、public wake 与 pending guidance；不再由 service 级大锁包住所有 Room。
+//   - dispatch_coordinator.go：按 conversation 串行化 queue/wake/continuation/round finish 的交接，不阻塞其他 conversation 的派发。
+//   - round_state.go / slot_state.go：active slot 的稳定身份与 runtime、Goal、cursor、delivery 四类可变状态分离。
 //   - input_queue.go / input_queue_* / guidance_input.go：跨成员 durable 幂等受理、按 Agent 串行队列、round 终态确定性接力、逐批 applied ACK、transport/错过 hook 回退、运行时补充上下文与已消费引导归组。
 //   - public_context.go：按 runtime resume 状态装配预算化 anchor/delta，并提交真实消费 cursor。
 //   - attachments.go：Room 公共附件上传、归一化与运行时路径解析。

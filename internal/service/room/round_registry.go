@@ -22,11 +22,8 @@ type ActiveRoundSnapshot struct {
 
 // CountRunningTasks 返回指定 Agent 当前在 Room 中的活跃任务数。
 func (s *RealtimeService) CountRunningTasks(agentID string) int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	count := 0
-	for _, roundValue := range s.activeRounds {
+	for _, roundValue := range s.rounds.snapshot() {
 		for _, slot := range roundValue.Slots {
 			if slot != nil && slot.AgentID == agentID && !slot.isTerminal() {
 				count++
@@ -43,19 +40,21 @@ func (s *RealtimeService) SetPermissionModeForAgent(ctx context.Context, agentID
 		return nil
 	}
 	clients := make([]runtimectx.Client, 0)
-	s.mu.Lock()
-	for _, roundValue := range s.activeRounds {
+	for _, roundValue := range s.rounds.snapshot() {
 		if roundValue == nil {
 			continue
 		}
 		for _, slot := range roundValue.Slots {
-			if slot == nil || slot.AgentID != agentID || slot.isTerminal() || slot.Client == nil {
+			if slot == nil || slot.AgentID != agentID || slot.isTerminal() {
 				continue
 			}
-			clients = append(clients, slot.Client)
+			client := slot.getClient()
+			if client == nil {
+				continue
+			}
+			clients = append(clients, client)
 		}
 	}
-	s.mu.Unlock()
 	for _, client := range clients {
 		if err := client.SetPermissionMode(ctx, mode); err != nil {
 			return err
@@ -66,12 +65,9 @@ func (s *RealtimeService) SetPermissionModeForAgent(ctx context.Context, agentID
 
 // GetActiveRoundSnapshot 返回指定 conversation 的活跃 slot 快照。
 func (s *RealtimeService) GetActiveRoundSnapshot(conversationID string) *ActiveRoundSnapshot {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	pending := make([]protocol.ChatAckPendingSlot, 0)
 	snapshot := &ActiveRoundSnapshot{}
-	for _, roundValue := range s.activeRounds {
+	for _, roundValue := range s.rounds.snapshotConversation(conversationID) {
 		if roundValue == nil || roundValue.ConversationID != conversationID {
 			continue
 		}
@@ -116,11 +112,7 @@ func (s *RealtimeService) registerRound(roundValue *activeRoomRound) {
 	if roundValue == nil {
 		return
 	}
-	s.mu.Lock()
-	s.activeRoundSequence++
-	roundValue.registrationSequence = s.activeRoundSequence
-	s.activeRounds[roomActiveRoundKey(roundValue.SessionKey, roundValue.RoundID)] = roundValue
-	s.mu.Unlock()
+	s.rounds.register(roundValue)
 }
 
 func (s *RealtimeService) finishRound(roundValue *activeRoomRound) {
@@ -128,9 +120,7 @@ func (s *RealtimeService) finishRound(roundValue *activeRoomRound) {
 		return
 	}
 	s.runtime.MarkRoundFinished(roundValue.SessionKey, roundValue.RoundID)
-	s.mu.Lock()
-	delete(s.activeRounds, roomActiveRoundKey(roundValue.SessionKey, roundValue.RoundID))
-	s.mu.Unlock()
+	s.rounds.unregister(roundValue)
 	roundValue.doneOnce.Do(func() {
 		close(roundValue.Done)
 	})
@@ -172,6 +162,29 @@ func (r *activeRoomRound) hasSlotError() bool {
 		}
 	}
 	return false
+}
+
+// firstSlotErrorMessage 返回按展示顺序最早出现的 slot 错误。
+func (r *activeRoomRound) firstSlotErrorMessage() string {
+	if r == nil {
+		return ""
+	}
+	var firstMessage string
+	firstIndex := 0
+	found := false
+	for _, slot := range r.Slots {
+		if slot == nil {
+			continue
+		}
+		message := slot.getErrorMessage()
+		if message == "" || (found && slot.Index >= firstIndex) {
+			continue
+		}
+		firstIndex = slot.Index
+		firstMessage = message
+		found = true
+	}
+	return firstMessage
 }
 
 func (r *activeRoomRound) hasRunningSubagentTasks() bool {

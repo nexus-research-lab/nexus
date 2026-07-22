@@ -128,8 +128,12 @@ func (e *slotExecution) complete(result exec.RoundExecutionResult) error {
 	e.service.recordGoalUsageForSlot(e.ctx, e.slot, result, lastAssistant)
 	e.service.recordGoalUsageLimitForSlot(e.ctx, e.slot, result)
 	e.service.recordGoalContinuationProgressForSlot(e.ctx, e.slot, e.round, result, lastAssistant)
+	terminalStatus := roomSlotTerminalStatus(result)
+	if terminalStatus == "error" && strings.TrimSpace(result.ErrorMessage) != "" {
+		e.slot.setErrorMessage(result.ErrorMessage)
+	}
 	if e.slot.getStatus() == "running" {
-		e.slot.setStatus(resultStatus(result.ResultSubtype))
+		e.slot.setStatus(terminalStatus)
 	}
 	e.service.broadcastAgentRoundStatus(e.ctx, e.round, e.slot, e.slot.getStatus())
 	if err := e.persistCompletionOutput(lastAssistant); err != nil {
@@ -156,7 +160,8 @@ func (e *slotExecution) persistCompletionOutput(lastAssistant protocol.Message) 
 }
 
 func (e *slotExecution) commitCompletionCursors() error {
-	if err := e.service.recordRoomPublicCursor(e.slot, e.round, e.slot.PublicCursorID, e.slot.PublicCursorTS); err != nil {
+	publicCursorID, publicCursorTS := e.slot.publicCursor()
+	if err := e.service.recordRoomPublicCursor(e.slot, e.round, publicCursorID, publicCursorTS); err != nil {
 		return err
 	}
 	messageCursor, recorded, err := e.service.recordRoomDirectedMessageCursor(e.slot, e.round)
@@ -190,6 +195,8 @@ func (s *RealtimeService) handleSlotFailure(ctx context.Context, roundValue *act
 	}, slot.lastGoalAssistantMessage())
 	s.cancelSourcePublicHandoffs(ctx, roundValue, slot, "error")
 	s.markPublicHandoffTerminal(ctx, roundValue, slot, "error")
+	slot.setErrorMessage(err.Error())
+	// 原因先于终态发布，确保 root round 观察到 error 时一定能读取详情。
 	slot.setStatus("error")
 	s.broadcastAgentRoundStatus(ctx, roundValue, slot, "error")
 	resultMessage := protocol.Message{

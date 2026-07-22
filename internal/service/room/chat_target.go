@@ -43,19 +43,16 @@ func (s *RealtimeService) latestActiveRootRoundAgentIDs(sessionKey string, conve
 	sessionKey = strings.TrimSpace(sessionKey)
 	conversationID = strings.TrimSpace(conversationID)
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	slotsByRoot := make(map[string][]activeRoomTargetSlot)
 	latestTimestampByRoot := make(map[string]int64)
 	latestSequenceByRoot := make(map[string]uint64)
-	for _, roundValue := range s.activeRounds {
+	for _, roundValue := range s.rounds.snapshotConversation(conversationID) {
 		if roundValue == nil ||
 			roundValue.SessionKey != sessionKey ||
 			roundValue.ConversationID != conversationID {
 			continue
 		}
-		rootRoundID := roomRootRoundID(roundValue)
+		rootRoundID := roomRoundIdentity(roundValue)
 		if rootRoundID == "" {
 			continue
 		}

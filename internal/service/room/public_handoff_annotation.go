@@ -318,7 +318,7 @@ func (s *RealtimeService) markPublicHandoffTerminal(
 	if s.publicHandoffs == nil || roundValue == nil || slot == nil {
 		return
 	}
-	handoffID := strings.TrimSpace(slot.HandoffID)
+	handoffID := strings.TrimSpace(slot.handoffID())
 	if handoffID == "" {
 		return
 	}

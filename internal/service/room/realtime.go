@@ -6,7 +6,6 @@ package room
 import (
 	"context"
 	"log/slog"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -120,16 +119,9 @@ type RealtimeService struct {
 	mcpServers       MCPServerBuilder
 	titles           roomTitleScheduler
 
-	mu                  sync.Mutex
-	activeRounds        map[string]*activeRoomRound
-	activeRoundSequence uint64
-	guidanceMu          sync.Mutex
-	guidance            map[*activeRoomSlot]pendingRoomGuidance
-	// ponytail: one global input/round handoff lock; split per conversation only if contention becomes measurable.
-	inputQueueDispatchMu sync.Mutex
-	// ponytail: one global Agent wake admission lock; split per conversation only if contention becomes measurable.
-	publicMentionDispatchMu sync.Mutex
-	wakeTimers              *roomWakeTimerRegistry
+	rounds     roomRoundRegistry
+	dispatch   roomDispatchRegistry
+	wakeTimers *roomWakeTimerRegistry
 }
 
 type roomTitleScheduler interface {
@@ -200,7 +192,7 @@ func NewRealtimeServiceWithFactory(
 		inputQueue:       workspacestore.NewInputQueueStore(cfg.WorkspacePath),
 		factory:          factory,
 		logger:           logx.NewDiscardLogger(),
-		activeRounds:     make(map[string]*activeRoomRound),
+		rounds:           newRoomRoundRegistry(),
 		wakeTimers:       newRoomWakeTimerRegistry(),
 	}
 }

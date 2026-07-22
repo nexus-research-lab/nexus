@@ -100,12 +100,9 @@ func (s *RealtimeService) interruptAgentSlots(
 func (s *RealtimeService) collectRoundTargets(
 	matcher func(*activeRoomRound) bool,
 ) []interruptTarget {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	targets := make([]interruptTarget, 0)
 	seen := make(map[string]struct{})
-	for _, roundValue := range s.activeRounds {
+	for _, roundValue := range s.rounds.snapshot() {
 		if roundValue == nil || !matcher(roundValue) {
 			continue
 		}
@@ -121,12 +118,9 @@ func (s *RealtimeService) collectRoundTargets(
 func (s *RealtimeService) collectSlotTargets(
 	matcher func(*activeRoomRound, *activeRoomSlot) bool,
 ) []interruptTarget {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	targets := make([]interruptTarget, 0)
 	seen := make(map[string]struct{})
-	for _, roundValue := range s.activeRounds {
+	for _, roundValue := range s.rounds.snapshot() {
 		if roundValue == nil {
 			continue
 		}
@@ -192,16 +186,13 @@ func (s *RealtimeService) interruptRound(
 }
 
 func (s *RealtimeService) activeRoundsForSession(sessionKey string) []*activeRoomRound {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	rounds := make([]*activeRoomRound, 0)
-	for _, roundValue := range s.activeRounds {
-		if roundValue == nil || roundValue.SessionKey != sessionKey {
-			continue
+	result := make([]*activeRoomRound, 0)
+	for _, roundValue := range s.rounds.snapshot() {
+		if roundValue != nil && roundValue.SessionKey == sessionKey {
+			result = append(result, roundValue)
 		}
-		rounds = append(rounds, roundValue)
 	}
-	return rounds
+	return result
 }
 
 func (s *RealtimeService) findActiveSlotByAgentRoundID(sessionKey string, agentRoundID string) (*activeRoomRound, *activeRoomSlot) {
@@ -209,33 +200,11 @@ func (s *RealtimeService) findActiveSlotByAgentRoundID(sessionKey string, agentR
 	if agentRoundID == "" {
 		return nil, nil
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	for _, roundValue := range s.activeRounds {
-		if roundValue == nil || roundValue.SessionKey != sessionKey {
-			continue
-		}
-		for _, slot := range roundValue.Slots {
-			if slot != nil && strings.TrimSpace(slot.AgentRoundID) == agentRoundID {
-				return roundValue, slot
-			}
-		}
-	}
-	return nil, nil
+	return s.rounds.findSlotByAgentRound(sessionKey, agentRoundID)
 }
 
 func (s *RealtimeService) findActiveRoundByRoundID(sessionKey string, roundID string) *activeRoomRound {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	for _, roundValue := range s.activeRounds {
-		if roundValue == nil || roundValue.SessionKey != sessionKey {
-			continue
-		}
-		if strings.TrimSpace(roundValue.RootRoundID) == roundID || strings.TrimSpace(roundValue.RoundID) == roundID {
-			return roundValue
-		}
-	}
-	return nil
+	return s.rounds.findByRoundID(sessionKey, roundID)
 }
 
 func (s *RealtimeService) findActiveSlot(sessionKey string, msgID string) (*activeRoomRound, *activeRoomSlot) {
@@ -243,17 +212,7 @@ func (s *RealtimeService) findActiveSlot(sessionKey string, msgID string) (*acti
 	if msgID == "" {
 		return nil, nil
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	for _, roundValue := range s.activeRounds {
-		if roundValue == nil || roundValue.SessionKey != sessionKey {
-			continue
-		}
-		if slot := roundValue.Slots[msgID]; slot != nil {
-			return roundValue, slot
-		}
-	}
-	return nil, nil
+	return s.rounds.findSlot(sessionKey, msgID)
 }
 
 func (s *RealtimeService) interruptActiveSlot(
@@ -294,15 +253,13 @@ func (s *RealtimeService) interruptActiveSlot(
 		)
 	}
 	select {
-	case <-slot.Done:
+	case <-slot.doneChannel():
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-time.After(interruptForceCancelDelay):
-		if slot.Cancel != nil {
-			slot.Cancel()
-		}
+		slot.cancelRuntime()
 		select {
-		case <-slot.Done:
+		case <-slot.doneChannel():
 		case <-ctx.Done():
 			return ctx.Err()
 		}

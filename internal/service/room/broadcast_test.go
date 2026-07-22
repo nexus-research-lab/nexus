@@ -36,8 +36,8 @@ func (s *recordingPermissionSender) SendEvent(_ context.Context, event protocol.
 
 func TestBroadcastSharedEventMirrorsToRoundObserverWhenBroadcasterIsConfigured(t *testing.T) {
 	service := &RealtimeService{
-		permission:   permissionctx.NewContext(),
-		activeRounds: make(map[string]*activeRoomRound),
+		permission: permissionctx.NewContext(),
+		rounds:     newRoomRoundRegistry(),
 	}
 	broadcaster := &recordingRoomBroadcaster{}
 	service.SetRoomBroadcaster(broadcaster)
@@ -75,8 +75,8 @@ func TestBroadcastSharedEventMirrorsToRoundObserverWhenBroadcasterIsConfigured(t
 func TestBroadcastSharedEventDoesNotDuplicateObserverWhenUsingPermissionBroadcast(t *testing.T) {
 	permission := permissionctx.NewContext()
 	service := &RealtimeService{
-		permission:   permission,
-		activeRounds: make(map[string]*activeRoomRound),
+		permission: permission,
+		rounds:     newRoomRoundRegistry(),
 	}
 
 	sessionKey := protocol.BuildRoomSharedSessionKey("conversation-1")

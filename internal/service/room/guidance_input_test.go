@@ -214,9 +214,8 @@ func TestRoomSlotGuidanceHookPreservesBusyPublicMentionSource(t *testing.T) {
 		AgentRoundID:      "target-agent-running-round",
 		RuntimeSessionKey: location.SessionKey,
 		WorkspacePath:     storeRoot,
-		PublicCursorID:    "public-mention-message",
-		PublicCursorTS:    100,
 	}
+	slot.setCursors("public-mention-message", 100, "", 0)
 	output, err := service.roomSlotGuidanceHook(roundValue, slot, location)(
 		context.Background(),
 		sdkhook.Input{EventName: sdkhook.EventPostToolUse},
@@ -301,23 +300,21 @@ func TestEnqueueActiveAgentSlotsBatchIsAllOrNoneAndIdempotent(t *testing.T) {
 	root := t.TempDir()
 	conversationID := "conversation-queue-batch"
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(conversationID)
-	validSlot := &activeRoomSlot{
+	validSlot := withRoomSlotStatus(&activeRoomSlot{
 		AgentID:           "agent-a",
 		AgentRoundID:      "agent-round-a",
 		RuntimeSessionKey: protocol.BuildRoomAgentSessionKey(conversationID, "agent-a", protocol.RoomTypeGroup),
 		WorkspacePath:     filepath.Join(root, "agent-a"),
-		Status:            "running",
-	}
-	invalidSlot := &activeRoomSlot{
+	}, "running")
+	invalidSlot := withRoomSlotStatus(&activeRoomSlot{
 		AgentID:           "agent-b",
 		AgentRoundID:      "agent-round-b",
 		RuntimeSessionKey: protocol.BuildRoomAgentSessionKey(conversationID, "agent-b", protocol.RoomTypeGroup),
-		Status:            "running",
-	}
+	}, "running")
 	store := workspacestore.NewInputQueueStore(root)
 	service := &RealtimeService{
 		inputQueue: store,
-		activeRounds: map[string]*activeRoomRound{
+		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
 			"active-a": {
 				SessionKey:     sharedSessionKey,
 				ConversationID: conversationID,
@@ -332,7 +329,7 @@ func TestEnqueueActiveAgentSlotsBatchIsAllOrNoneAndIdempotent(t *testing.T) {
 					invalidSlot.AgentID: invalidSlot,
 				},
 			},
-		},
+		}),
 	}
 	queued, err := service.enqueueForActiveAgentSlots(
 		context.Background(), sharedSessionKey, "room-queue-batch", conversationID,
@@ -381,23 +378,21 @@ func TestEnqueueActiveAgentSlotsBatchIsAllOrNoneAndIdempotent(t *testing.T) {
 func TestGuideActiveAgentSlotsBatchIsAllOrNoneAndIdempotent(t *testing.T) {
 	root := t.TempDir()
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey("conversation-batch")
-	validSlot := &activeRoomSlot{
+	validSlot := withRoomSlotStatus(&activeRoomSlot{
 		AgentID:           "agent-a",
 		AgentRoundID:      "agent-round-a",
 		RuntimeSessionKey: protocol.BuildRoomAgentSessionKey("conversation-batch", "agent-a", protocol.RoomTypeGroup),
 		WorkspacePath:     filepath.Join(root, "agent-a"),
-		Status:            "running",
-	}
-	invalidSlot := &activeRoomSlot{
+	}, "running")
+	invalidSlot := withRoomSlotStatus(&activeRoomSlot{
 		AgentID:           "agent-b",
 		AgentRoundID:      "agent-round-b",
 		RuntimeSessionKey: protocol.BuildRoomAgentSessionKey("conversation-batch", "agent-b", protocol.RoomTypeGroup),
-		Status:            "running",
-	}
+	}, "running")
 	store := workspacestore.NewInputQueueStore(root)
 	service := &RealtimeService{
 		inputQueue: store,
-		activeRounds: map[string]*activeRoomRound{
+		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
 			"active": {
 				SessionKey:     sharedSessionKey,
 				ConversationID: "conversation-batch",
@@ -406,7 +401,7 @@ func TestGuideActiveAgentSlotsBatchIsAllOrNoneAndIdempotent(t *testing.T) {
 					invalidSlot.AgentID: invalidSlot,
 				},
 			},
-		},
+		}),
 	}
 	guided, err := service.guideActiveAgentSlots(
 		context.Background(), sharedSessionKey, "room-batch", "conversation-batch",
@@ -462,26 +457,24 @@ func TestGuideActiveAgentSlotsDoesNotSplitPublicMessageAcrossRoots(t *testing.T)
 	root := t.TempDir()
 	conversationID := "conversation-common-root"
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(conversationID)
-	slotA := &activeRoomSlot{
+	slotA := withRoomSlotStatus(&activeRoomSlot{
 		AgentID:           "agent-a",
 		AgentRoundID:      "agent-round-a",
 		RuntimeSessionKey: protocol.BuildRoomAgentSessionKey(conversationID, "agent-a", protocol.RoomTypeGroup),
 		WorkspacePath:     filepath.Join(root, "agent-a"),
-		Status:            "running",
 		TimestampMS:       100,
-	}
-	slotB := &activeRoomSlot{
+	}, "running")
+	slotB := withRoomSlotStatus(&activeRoomSlot{
 		AgentID:           "agent-b",
 		AgentRoundID:      "agent-round-b",
 		RuntimeSessionKey: protocol.BuildRoomAgentSessionKey(conversationID, "agent-b", protocol.RoomTypeGroup),
 		WorkspacePath:     filepath.Join(root, "agent-b"),
-		Status:            "running",
 		TimestampMS:       200,
-	}
+	}, "running")
 	store := workspacestore.NewInputQueueStore(root)
 	service := &RealtimeService{
 		inputQueue: store,
-		activeRounds: map[string]*activeRoomRound{
+		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
 			"root-a": {
 				SessionKey:     sharedSessionKey,
 				ConversationID: conversationID,
@@ -496,7 +489,7 @@ func TestGuideActiveAgentSlotsDoesNotSplitPublicMessageAcrossRoots(t *testing.T)
 				RootRoundID:    "root-b",
 				Slots:          map[string]*activeRoomSlot{slotB.AgentID: slotB},
 			},
-		},
+		}),
 	}
 
 	targets := []string{slotA.AgentID, slotB.AgentID}
@@ -523,7 +516,7 @@ func TestGuideActiveAgentSlotsDoesNotSplitPublicMessageAcrossRoots(t *testing.T)
 		}
 	}
 
-	service.activeRounds = map[string]*activeRoomRound{
+	service.rounds = newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
 		"shared-root": {
 			SessionKey:     sharedSessionKey,
 			ConversationID: conversationID,
@@ -534,7 +527,7 @@ func TestGuideActiveAgentSlotsDoesNotSplitPublicMessageAcrossRoots(t *testing.T)
 				slotB.AgentID: slotB,
 			},
 		},
-	}
+	})
 	guided, err = service.guideActiveAgentSlots(
 		context.Background(), sharedSessionKey, "room-common-root", conversationID,
 		targets, protocol.InputQueueItem{
@@ -590,21 +583,20 @@ func TestReleaseUndeliveredRoomGuidanceDoesNotFollowReplacementRound(t *testing.
 	service := &RealtimeService{
 		inputQueue: store,
 		permission: permissionctx.NewContext(),
-		activeRounds: map[string]*activeRoomRound{
+		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
 			"replacement": {
 				SessionKey:     sharedSessionKey,
 				ConversationID: conversationID,
 				Slots: map[string]*activeRoomSlot{
-					agentID: {
+					agentID: withRoomSlotStatus(&activeRoomSlot{
 						AgentID:           agentID,
 						AgentRoundID:      "agent-round-new",
 						RuntimeSessionKey: location.SessionKey,
 						WorkspacePath:     workspacePath,
-						Status:            "running",
-					},
+					}, "running"),
 				},
 			},
-		},
+		}),
 	}
 	service.releaseUndeliveredRoomGuidance(context.Background(), sharedSessionKey, contextValue)
 	items, err := store.Snapshot(location)

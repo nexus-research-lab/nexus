@@ -35,14 +35,16 @@ func (s *RealtimeService) buildSlotVisibleContext(
 		LatestTrigger:       slot.Trigger,
 		AgentNameByID:       agentNameByID,
 		TargetAgentID:       slot.AgentID,
-		ContextWindowTokens: slot.ContextWindow,
+		ContextWindowTokens: slot.contextWindow(),
 		ColdStart:           batch.ColdStart,
 		PublicAnchor:        roomPublicAnchorMetadata(roundValue),
 	})
-	slot.PublicCursorID = plan.PublicBoundary.MessageID
-	slot.PublicCursorTS = plan.PublicBoundary.Timestamp
-	slot.MessageCursorID = plan.PrivateBoundary.MessageID
-	slot.MessageCursorTS = plan.PrivateBoundary.Timestamp
+	slot.setCursors(
+		plan.PublicBoundary.MessageID,
+		plan.PublicBoundary.Timestamp,
+		plan.PrivateBoundary.MessageID,
+		plan.PrivateBoundary.Timestamp,
+	)
 	s.logRoomContextUsage(ctx, roundValue, slot, plan.Usage)
 	return plan.Text, nil
 }
@@ -55,9 +57,10 @@ func (s *RealtimeService) buildSlotGuidedPublicContext(
 	agentNameByID map[string]string,
 	trigger roomTrigger,
 ) (string, error) {
+	publicCursorID, publicCursorTS := slot.publicCursor()
 	baseCursor := roomdomain.PublicCursor{
-		LastMessageID: strings.TrimSpace(slot.PublicCursorID),
-		LastTimestamp: slot.PublicCursorTS,
+		LastMessageID: strings.TrimSpace(publicCursorID),
+		LastTimestamp: publicCursorTS,
 	}
 	batch, err := s.publicInputBatchForSlot(ctx, roundValue, slot, publicHistory, baseCursor, true)
 	if err != nil {
@@ -72,13 +75,13 @@ func (s *RealtimeService) buildSlotGuidedPublicContext(
 		LatestTrigger:       trigger,
 		AgentNameByID:       agentNameByID,
 		TargetAgentID:       slot.AgentID,
-		ContextWindowTokens: slot.ContextWindow,
+		ContextWindowTokens: slot.contextWindow(),
 		ColdStart:           batch.ColdStart,
 		PublicAnchor:        roomPublicAnchorMetadata(roundValue),
 	})
 	if strings.TrimSpace(plan.PublicBoundary.MessageID) != "" || plan.PublicBoundary.Timestamp > 0 {
-		slot.PublicCursorID = plan.PublicBoundary.MessageID
-		slot.PublicCursorTS = plan.PublicBoundary.Timestamp
+		_, _, messageCursorID, messageCursorTS := slot.cursorSnapshot()
+		slot.setCursors(plan.PublicBoundary.MessageID, plan.PublicBoundary.Timestamp, messageCursorID, messageCursorTS)
 		if err = s.recordRoomPublicCursor(slot, roundValue, plan.PublicBoundary.MessageID, plan.PublicBoundary.Timestamp); err != nil {
 			return "", err
 		}
@@ -96,9 +99,10 @@ func (s *RealtimeService) publicInputBatchForSlot(
 	overrideKnown bool,
 ) (roomdomain.PublicInputBatch, error) {
 	cursor := overrideCursor
-	cursorKnown := overrideKnown || (!slot.ContextColdStart &&
+	coldStart := slot.contextColdStart()
+	cursorKnown := overrideKnown || (!coldStart &&
 		(strings.TrimSpace(cursor.LastMessageID) != "" || cursor.LastTimestamp > 0))
-	if !cursorKnown && !slot.ContextColdStart && s.history != nil {
+	if !cursorKnown && !coldStart && s.history != nil {
 		stored, ok, err := s.history.ReadRoomPublicCursor(
 			slot.WorkspacePath,
 			slot.RuntimeSessionKey,
@@ -186,8 +190,9 @@ func (s *RealtimeService) recordRoomDirectedMessageCursor(
 	if s.directedMessages == nil || slot == nil || roundValue == nil {
 		return workspacestore.RoomDirectedMessageCursor{}, false, nil
 	}
-	messageID := strings.TrimSpace(slot.MessageCursorID)
-	if messageID == "" && slot.MessageCursorTS == 0 {
+	messageID, messageTimestamp := slot.messageCursor()
+	messageID = strings.TrimSpace(messageID)
+	if messageID == "" && messageTimestamp == 0 {
 		return workspacestore.RoomDirectedMessageCursor{}, false, nil
 	}
 	cursor := workspacestore.RoomDirectedMessageCursor{
@@ -196,7 +201,7 @@ func (s *RealtimeService) recordRoomDirectedMessageCursor(
 		AgentID:              slot.AgentID,
 		RoundID:              slot.AgentRoundID,
 		LastMessageID:        messageID,
-		LastMessageTimestamp: slot.MessageCursorTS,
+		LastMessageTimestamp: messageTimestamp,
 		Timestamp:            time.Now().UnixMilli(),
 	}
 	if err := s.directedMessages.AppendMessageCursor(cursor); err != nil {
@@ -216,7 +221,7 @@ func (s *RealtimeService) roomDirectedMessagesForSlot(
 	if err != nil {
 		return nil, err
 	}
-	if slot.ContextColdStart {
+	if slot.contextColdStart() {
 		cursor = workspacestore.RoomDirectedMessageCursor{}
 	}
 	var messages []protocol.RoomDirectedMessageRecord
@@ -225,7 +230,7 @@ func (s *RealtimeService) roomDirectedMessagesForSlot(
 			roundValue.ConversationID,
 			slot.AgentID,
 			cursor,
-			slot.ReplySourceMessage,
+			slot.replySourceMessage(),
 		)
 	} else {
 		messages, err = s.directedMessages.ReadContextMessagesAfterCursor(roundValue.ConversationID, slot.AgentID, cursor)

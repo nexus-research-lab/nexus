@@ -18,89 +18,115 @@ import (
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 )
 
+// roomSlotRuntimeState 只负责 runtime 生命周期，不持有 Goal 或 delivery 数据。
+type roomSlotRuntimeState struct {
+	mu               sync.RWMutex
+	sdkSessionID     string
+	runtimeKind      string
+	contextWindow    int
+	contextColdStart bool
+	client           runtimectx.Client
+	cancel           context.CancelFunc
+	status           string
+	interruptReason  string
+	errorMessage     string
+	done             chan struct{}
+	doneOnce         sync.Once
+}
+
+// roomSlotGoalState 负责 Goal accounting、objective fencing 与协作进度。
+type roomSlotGoalState struct {
+	mu                 sync.RWMutex
+	sessionKey         string
+	context            string
+	idForUsage         string
+	objectiveRevision  atomic.Int64
+	runtimeIgnored     bool
+	usage              *goalsvc.RuntimeUsageAccumulator
+	usageStartedAt     time.Time
+	lastAssistant      protocol.Message
+	toolProgress       bool
+	subagentTasks      map[string]struct{}
+	subagentHistory    bool
+	resultUsageWritten bool
+}
+
+// roomSlotCursorState 负责 public/private context 的消费边界。
+type roomSlotCursorState struct {
+	mu               sync.RWMutex
+	publicID         string
+	publicTimestamp  int64
+	messageID        string
+	messageTimestamp int64
+}
+
+// roomSlotDeliveryState 负责输入队列、回复路由和输出投影。
+type roomSlotDeliveryState struct {
+	mu                     sync.Mutex
+	replyRoute             protocol.RoomReplyRoute
+	replySourceMessage     string
+	handoffID              string
+	queuedInputs           []roomQueuedInput
+	suppressOutput         bool
+	publicMessagePublished bool
+	noReplyCandidate       bool
+	pendingStream          []protocol.EventMessage
+}
+
+// roomSlotConversationState 只保存 slot 与 conversation shard 的关联，避免
+// guidance 回调在 round 收尾期间读取到半更新的 registry 指针。
+type roomSlotConversationState struct {
+	mu    sync.RWMutex
+	id    string
+	state *roomConversationState
+}
+
 type activeRoomSlot struct {
-	RoomSessionID          string
-	SDKSessionID           string
-	AgentID                string
-	AgentRoundID           string
-	MsgID                  string
-	RuntimeSessionKey      string
-	GoalSessionKey         string
-	GoalContext            string
-	GoalIDForUsage         string
-	goalObjectiveRevision  *atomic.Int64
-	GoalRuntimeIgnored     bool
-	GoalUsage              *goalsvc.RuntimeUsageAccumulator
-	GoalUsageStartedAt     time.Time
-	GoalLastAssistant      protocol.Message
-	GoalToolProgress       bool
-	SubagentTasks          map[string]struct{}
-	SubagentHistory        bool
-	resultUsageWritten     bool
-	WorkspacePath          string
-	RuntimeKind            string
-	ContextWindow          int
-	ContextColdStart       bool
-	Client                 runtimectx.Client
-	Cancel                 context.CancelFunc
-	Status                 string
-	Index                  int
-	TimestampMS            int64
-	Trigger                roomTrigger
-	TriggerAttachments     []protocol.ChatAttachment
-	PublicCursorID         string
-	PublicCursorTS         int64
-	MessageCursorID        string
-	MessageCursorTS        int64
-	ReplyRoute             protocol.RoomReplyRoute
-	ReplySourceMessage     string
-	ReplySourceAgent       string
-	HandoffID              string
-	InterruptReason        string
-	QueuedInputs           []roomQueuedInput
-	GuidedInputs           []roomQueuedInput
-	SuppressOutput         bool
-	PublicMessagePublished bool
-	NoReplyCandidate       bool
-	PendingStream          []protocol.EventMessage
-	Done                   chan struct{}
-	stateMu                sync.RWMutex
-	inputMu                sync.Mutex
-	doneOnce               sync.Once
+	// 以下字段是 slot 创建后不再改变的稳定身份；mutable 状态全部下沉到子状态。
+	RoomSessionID      string
+	AgentID            string
+	AgentRoundID       string
+	MsgID              string
+	RuntimeSessionKey  string
+	WorkspacePath      string
+	Index              int
+	TimestampMS        int64
+	Trigger            roomTrigger
+	TriggerAttachments []protocol.ChatAttachment
+	runtime            roomSlotRuntimeState
+	goal               roomSlotGoalState
+	cursor             roomSlotCursorState
+	delivery           roomSlotDeliveryState
+	conversation       roomSlotConversationState
 }
 
 func (s *activeRoomSlot) ensureGoalObjectiveRevision(initial int64) *atomic.Int64 {
 	if s == nil {
 		return nil
 	}
-	s.stateMu.Lock()
-	defer s.stateMu.Unlock()
-	if s.goalObjectiveRevision == nil {
-		s.goalObjectiveRevision = &atomic.Int64{}
-		s.goalObjectiveRevision.Store(initial)
+	state := &s.goal.objectiveRevision
+	for initial > 0 {
+		current := state.Load()
+		if initial <= current || state.CompareAndSwap(current, initial) {
+			break
+		}
 	}
-	return s.goalObjectiveRevision
+	return state
 }
 
 func (s *activeRoomSlot) currentGoalObjectiveRevision() int64 {
 	if s == nil {
 		return 0
 	}
-	s.stateMu.RLock()
-	state := s.goalObjectiveRevision
-	s.stateMu.RUnlock()
-	if state == nil {
-		return 0
-	}
-	return state.Load()
+	return s.goal.objectiveRevision.Load()
 }
 
 func (s *activeRoomSlot) adoptGoalObjectiveRevision(revision int64) {
 	if revision <= 0 {
 		return
 	}
-	state := s.ensureGoalObjectiveRevision(revision)
-	for state != nil {
+	state := &s.goal.objectiveRevision
+	for {
 		current := state.Load()
 		if revision <= current || state.CompareAndSwap(current, revision) {
 			return
@@ -129,7 +155,6 @@ type activeRoomRound struct {
 	GoalID                string
 	GoalObjectiveRevision int64
 	Slots                 map[string]*activeRoomSlot
-	PublicMentions        []publicMentionWake
 	RunningSubagents      atomic.Bool
 	Done                  chan struct{}
 	doneOnce              sync.Once
