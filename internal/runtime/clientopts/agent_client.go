@@ -36,16 +36,20 @@ type RuntimeConfigForRuntimeResolver interface {
 
 // AgentClientOptionsInput 表示构造 SDK options 所需的统一输入。
 type AgentClientOptionsInput struct {
-	WorkspacePath              string
-	RuntimeKind                string
-	Provider                   string
-	Model                      string
-	VisionProvider             string
-	VisionModel                string
-	PermissionMode             sdkpermission.Mode
-	PermissionHandler          sdkpermission.Handler
-	AllowedTools               []string
-	DisallowedTools            []string
+	WorkspacePath     string
+	RuntimeKind       string
+	Provider          string
+	Model             string
+	VisionProvider    string
+	VisionModel       string
+	PermissionMode    sdkpermission.Mode
+	PermissionHandler sdkpermission.Handler
+	AllowedTools      []string
+	DisallowedTools   []string
+	// SkillIDs 是宿主保存的稳定 ID，进入 SDK 前投影为当前 runtime 的 Skill 名称白名单。
+	SkillIDs []string
+	// SkillDirectories 是宿主授予 runtime 的平台资源根，不随 Agent workspace 变化。
+	SkillDirectories           []string
 	SettingSources             []string
 	AppendSystemPrompt         string
 	AppendSystemPromptStatic   string
@@ -104,6 +108,7 @@ func BuildAgentClientOptionsWithConfig(
 	options := agentclient.Options{
 		CWD:                    strings.TrimSpace(input.WorkspacePath),
 		SettingSources:         slices.Clone(input.SettingSources),
+		AdditionalDirectories:  slices.Clone(input.SkillDirectories),
 		IncludePartialMessages: true,
 		Env:                    runtimeEnv,
 		System: agentclient.SystemOptions{
@@ -123,6 +128,9 @@ func BuildAgentClientOptionsWithConfig(
 		Callbacks: agentclient.CallbackOptions{
 			PermissionHandler: input.PermissionHandler,
 		},
+	}
+	if input.SkillIDs != nil {
+		options = options.WithSkills(input.SkillIDs...)
 	}
 	if runtimeConfig != nil {
 		options.Model = strings.TrimSpace(runtimeConfig.Model)

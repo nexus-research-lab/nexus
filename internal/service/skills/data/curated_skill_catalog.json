@@ -91,6 +91,12 @@
       "recommendation": "适合内部公告、项目汇报和同步稿。"
     },
     {
+      "name": "ima-skill",
+      "category_key": "content-docs",
+      "category_name": "内容与文档",
+      "recommendation": "适合管理 IMA 笔记、知识库、文件资料与网页收藏。"
+    },
+    {
       "name": "docx",
       "category_key": "content-docs",
       "category_name": "内容与文档",

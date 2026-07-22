@@ -6,6 +6,7 @@
 // 持久化 codec 留在对应 internal/service/* 或 internal/storage/*。
 //
 // 成员清单（按域，本包整体即协议模型，故文件不再加 model_ 前缀）：
+//   - agent.go：Agent 模型、平台 Skill ID 选择与创建/更新协议。
 //   - session*.go：Session / Message / SessionKey 统一会话模型。
 //   - room*.go：房间、成员、directed message。
 //   - conversation_turn.go / event.go / goal.go / input_queue.go：

@@ -143,6 +143,8 @@
 | GET | `/agents/{agent_id}/private-domain/threads` | 私域线程列表 | — | — |
 | GET | `/agents/{agent_id}/private-domain/threads/{thread_id}/events` | 私域线程事件 | — | — |
 
+`Agent.options.skill_ids` 保存平台 Skill 的稳定 ID。平台 Skill 由全局兼容根统一提供，Agent workspace 不保存平台副本；外部或 workspace-local Skill 仍按各自的文件部署规则工作。
+
 ### Agent 技能挂载
 
 | 方法 | 路径 | 说明 | 前端函数 |

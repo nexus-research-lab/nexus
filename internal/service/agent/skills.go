@@ -21,7 +21,7 @@ func enrichAgentWithSkillsCount(agent *protocol.Agent) error {
 	if agent == nil {
 		return nil
 	}
-	count, err := countDeployedSkills(agent.WorkspacePath)
+	count, err := countDeployedSkills(agent.WorkspacePath, agent.Options.SkillIDs...)
 	if err != nil {
 		return err
 	}
@@ -29,9 +29,14 @@ func enrichAgentWithSkillsCount(agent *protocol.Agent) error {
 	return nil
 }
 
-func countDeployedSkills(workspacePath string) (int, error) {
+func countDeployedSkills(workspacePath string, selectedNames ...string) (int, error) {
 	root := strings.TrimSpace(workspacePath)
 	skillNames := map[string]struct{}{}
+	for _, name := range selectedNames {
+		if normalized := strings.TrimSpace(name); normalized != "" {
+			skillNames[normalized] = struct{}{}
+		}
+	}
 	for _, parent := range []string{
 		filepath.Join(root, ".agents", "skills"),
 		filepath.Join(root, ".agents"),

@@ -55,6 +55,8 @@ Nexus supports two Agent runtime backends: `nxs` (native Nexus) and `claude` (Cl
 
 The `claude` backend runs agents through Claude Code. To use it, install Claude Code separately, switch the agent runtime to `claude`, and make sure `claude` is available in the backend machine's `PATH`.
 
+Platform Skills use one global compatibility root shared by both backends. Agent records persist selected `skill_ids`; nxs and Claude Code receive the same platform Skill source through their respective discovery adapters.
+
 ```bash
 # macOS / Linux / WSL
 curl -fsSL https://claude.ai/install.sh | bash

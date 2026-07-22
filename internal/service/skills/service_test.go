@@ -14,6 +14,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
@@ -243,6 +244,83 @@ skill body
 		if item.Name == "demo-skill" && item.Installed {
 			t.Fatalf("卸载后仍显示 installed: %+v", item)
 		}
+	}
+}
+
+func TestBuiltinPlatformSkillStoresIDWithoutWorkspaceCopy(t *testing.T) {
+	cfg := newSkillsTestConfig(t)
+	migrateSkillsSQLite(t, cfg.DatabaseURL)
+
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
+	workspaceService := workspacepkg.NewService(cfg, agentService)
+	service := NewService(cfg, agentService, workspaceService)
+	ctx := context.Background()
+
+	agentValue, err := agentService.CreateAgent(ctx, protocol.CreateRequest{Name: "平台 Skill 测试助手"})
+	if err != nil {
+		t.Fatalf("创建 agent 失败: %v", err)
+	}
+	installed, err := service.InstallSkill(ctx, agentValue.AgentID, "ima-skill")
+	if err != nil {
+		t.Fatalf("安装平台 builtin skill 失败: %v", err)
+	}
+	if !installed.Installed {
+		t.Fatalf("平台 builtin skill 安装状态不正确: %+v", installed)
+	}
+	if installed.Version != "1.1.8" || installed.CategoryKey != "content-docs" {
+		t.Fatalf("IMA catalog 元数据不正确: %+v", installed)
+	}
+	reloaded, err := agentService.GetAgent(ctx, agentValue.AgentID)
+	if err != nil {
+		t.Fatalf("重新读取 agent 失败: %v", err)
+	}
+	if !slices.Contains(reloaded.Options.SkillIDs, "ima-skill") {
+		t.Fatalf("Agent 未记录平台 Skill ID: %#v", reloaded.Options.SkillIDs)
+	}
+	if _, err = os.Stat(filepath.Join(reloaded.WorkspacePath, ".agents", "skills", "ima-skill")); !os.IsNotExist(err) {
+		t.Fatalf("平台 Skill 不应复制到 workspace: %v", err)
+	}
+	if _, err = os.Stat(filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "ima-skill", "SKILL.md")); err != nil {
+		t.Fatalf("平台全局 Skill 根缺少 IMA: %v", err)
+	}
+	if err = service.UninstallSkill(ctx, agentValue.AgentID, "ima-skill"); err != nil {
+		t.Fatalf("卸载平台 builtin skill 失败: %v", err)
+	}
+	reloaded, err = agentService.GetAgent(ctx, agentValue.AgentID)
+	if err != nil {
+		t.Fatalf("卸载后重新读取 agent 失败: %v", err)
+	}
+	if slices.Contains(reloaded.Options.SkillIDs, "ima-skill") {
+		t.Fatalf("卸载后仍保留平台 Skill ID: %#v", reloaded.Options.SkillIDs)
+	}
+}
+
+func TestPlatformSkillClassificationExcludesUserGlobalSources(t *testing.T) {
+	platformRecord := catalogRecord{
+		Detail:     Detail{Info: Info{SourceType: sourceTypeBuiltin}},
+		SourcePath: filepath.Join(appfs.Root(), "skills", "ima-skill"),
+	}
+	if !isPlatformSkill(platformRecord) {
+		t.Fatal("产品 skills 目录应识别为平台源")
+	}
+	if got := builtinSourceKind(filepath.Join(appfs.Root(), "skills"), filepath.Join(appfs.Root(), "skills")); got != sourceKindNexusPlatform {
+		t.Fatalf("产品 skills 目录来源 = %q, want %q", got, sourceKindNexusPlatform)
+	}
+
+	userGlobalRecord := catalogRecord{
+		Detail:     Detail{Info: Info{SourceType: sourceTypeBuiltin, SourceKind: sourceKindUserGlobal}},
+		SourcePath: filepath.Join(t.TempDir(), "user-skill"),
+	}
+	if isPlatformSkill(userGlobalRecord) {
+		t.Fatal("用户全局 Skill 不能误识别为平台源")
+	}
+	if got := builtinSourceKind(filepath.Join(t.TempDir(), "skills"), filepath.Join(appfs.Root(), "skills")); got != sourceKindUserGlobal {
+		t.Fatalf("用户全局 Skill 来源 = %q, want %q", got, sourceKindUserGlobal)
 	}
 }
 

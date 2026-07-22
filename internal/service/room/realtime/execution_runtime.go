@@ -10,6 +10,7 @@ import (
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
@@ -104,6 +105,9 @@ func (s *Service) resolveReusableRoomSDKSessionID(
 }
 
 func (e *slotExecution) prepareRuntimeClient() (runtimectx.Client, error) {
+	if err := workspacepkg.EnsurePlatformSkillLibrary(); err != nil {
+		return nil, err
+	}
 	if err := workspacepkg.EnsureInitialized(
 		e.agent.AgentID,
 		e.agent.Name,
@@ -113,7 +117,6 @@ func (e *slotExecution) prepareRuntimeClient() (runtimectx.Client, error) {
 	); err != nil {
 		return nil, err
 	}
-
 	runtimeValue, err := e.prepareRuntime()
 	if err != nil {
 		return nil, err
@@ -148,6 +151,10 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 	); err != nil {
 		return preparedSlotRuntime{}, err
 	}
+	runtimeSkillNames, err := workspacepkg.RuntimeSkillNames(e.agent.WorkspacePath, e.agent.Options.SkillIDs)
+	if err != nil {
+		return preparedSlotRuntime{}, err
+	}
 	options, runtimeConfig, err := clientopts.BuildAgentClientOptionsWithConfig(e.ctx, e.service.providers, clientopts.AgentClientOptionsInput{
 		WorkspacePath:              e.agent.WorkspacePath,
 		RuntimeKind:                selection.RuntimeKind,
@@ -159,6 +166,8 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 		PermissionHandler:          e.runtimePermissionHandler(),
 		AllowedTools:               toolpolicy.WithManagedRuntimeAllowedTools(roomAllowedTools(e.agent.Options.AllowedTools, e.round.Context.Room.PrivateMessagesEnabled), e.service.runtimeImagegenDefaultEnabled(e.ctx)),
 		DisallowedTools:            roomDisallowedTools(e.agent.Options.DisallowedTools, e.round.Context.Room.PrivateMessagesEnabled),
+		SkillIDs:                   runtimeSkillNames,
+		SkillDirectories:           []string{appfs.PlatformSkillRoot()},
 		SettingSources:             e.agent.Options.SettingSources,
 		AppendSystemPrompt:         appendPromptSection(prompt.stable, prompt.dynamic),
 		AppendSystemPromptStatic:   prompt.stable,

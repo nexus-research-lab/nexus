@@ -7,13 +7,15 @@ import (
 )
 
 const (
-	sourceTypeSystem    = "system"
-	sourceTypeBuiltin   = "builtin"
-	sourceTypeExternal  = "external"
-	sourceTypeWorkspace = "workspace"
-	scopeMain           = "main"
-	scopeAny            = "any"
-	scopeRoom           = "room"
+	sourceTypeSystem        = "system"
+	sourceTypeBuiltin       = "builtin"
+	sourceTypeExternal      = "external"
+	sourceTypeWorkspace     = "workspace"
+	sourceKindNexusPlatform = "nexus_platform"
+	sourceKindUserGlobal    = "user_global"
+	scopeMain               = "main"
+	scopeAny                = "any"
+	scopeRoom               = "room"
 
 	registryUsersDirName            = "users"
 	registryLegacyMigratedDirName   = "legacy-migrated"

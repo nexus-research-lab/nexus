@@ -134,6 +134,7 @@ export function pickAgentEditableOptions(options: AgentOptions): AgentOptions {
     max_turns: options.max_turns,
     max_thinking_tokens: options.max_thinking_tokens,
     mcp_servers: options.mcp_servers,
+    skill_ids: options.skill_ids,
     setting_sources: options.setting_sources,
   };
 }

@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Unified platform-owned Skills behind one global compatibility root for nxs and Claude Code; Agent records now persist selected platform `skill_ids` instead of copying platform Skill files into every workspace.
 - Unified control, card, overlay, and content radii around a restrained shared scale.
 - Replaced the full Room history side panel with an anchored dropdown that shows ten conversations per page while retaining rename and delete actions.
 - Made conversation tabs responsive to available header width, showing recent titles only and loading conversation content on selection.
@@ -38,6 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added the bundled `ima-skill` 1.1.8 package to the platform Skill catalog.
 - Added debug-only prompt-cache segment diagnostics with safe per-segment hashes, sizes, roles, and cache-control metadata.
 - Added a textured Nexus mascot avatar, random avatar assignment for new Agents, and stable avatar fallbacks for existing records without an avatar.
 

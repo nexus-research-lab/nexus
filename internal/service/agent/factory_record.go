@@ -30,10 +30,7 @@ func BuildCreateRecord(
 	status string,
 	isMain bool,
 ) agentrepo.CreateRecord {
-	options := protocol.Options{}
-	if isMain {
-		options = defaultMainAgentOptions()
-	}
+	options := defaultAgentOptions(isMain)
 	if request.Options != nil {
 		options = mergeOptions(options, *request.Options)
 	}
@@ -60,6 +57,7 @@ func BuildCreateRecord(
 		AllowedToolsJSON:    mustJSONString(options.AllowedTools),
 		DisallowedToolsJSON: mustJSONString(options.DisallowedTools),
 		MCPServersJSON:      mustJSONString(options.MCPServers),
+		SkillIDsJSON:        mustJSONString(options.SkillIDs),
 		MaxTurns:            options.MaxTurns,
 		MaxThinkingTokens:   options.MaxThinkingTokens,
 		SettingSourcesJSON:  mustJSONString(options.SettingSources),
@@ -112,9 +110,18 @@ func BuildDefaultMainAgentRecord(cfg config.Config, ownerUserID string) agentrep
 }
 
 func defaultMainAgentOptions() protocol.Options {
+	return defaultAgentOptions(true)
+}
+
+func defaultAgentOptions(isMain bool) protocol.Options {
+	skillIDs := []string{"imagegen", "goal-manager"}
+	if isMain {
+		skillIDs = append(skillIDs, "nexus-manager")
+	}
 	return protocol.Options{
 		AllowedTools:   []string{},
 		PermissionMode: "default",
+		SkillIDs:       skillIDs,
 		SettingSources: []string{"project"},
 	}
 }
@@ -147,6 +154,9 @@ func mergeOptions(base protocol.Options, incoming protocol.Options) protocol.Opt
 	}
 	if incoming.MCPServers != nil {
 		result.MCPServers = incoming.MCPServers
+	}
+	if incoming.SkillIDs != nil {
+		result.SkillIDs = incoming.SkillIDs
 	}
 	if incoming.SettingSources != nil {
 		result.SettingSources = incoming.SettingSources

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"sort"
 	"strings"
 	"time"
 )
@@ -47,37 +48,116 @@ func UndeploySkill(workspacePath string, skillName string) error {
 
 // ListDeployedSkills 返回 workspace 当前已部署的全部 skill。
 func ListDeployedSkills(workspacePath string) ([]string, error) {
-	skillRoot := filepath.Join(workspacePath, ".agents", "skills")
-	entries, err := os.ReadDir(skillRoot)
-	if os.IsNotExist(err) {
-		return nil, nil
+	type skillParent struct {
+		path             string
+		requireSkillFile bool
 	}
+	parents := []skillParent{
+		// 旧版迁移用空目录标记已安装状态，不能在读取时丢失这类记录。
+		{path: filepath.Join(workspacePath, ".agents", "skills")},
+		{path: filepath.Join(workspacePath, ".agents"), requireSkillFile: true},
+		{path: filepath.Join(workspacePath, ".claude", "skills")},
+	}
+	result := []string{}
+	seen := map[string]struct{}{}
+	for _, parent := range parents {
+		entries, err := os.ReadDir(parent.path)
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		for _, entry := range entries {
+			skillDir := filepath.Join(parent.path, entry.Name())
+			info, err := os.Stat(skillDir)
+			if err != nil || !info.IsDir() {
+				continue
+			}
+			if parent.requireSkillFile {
+				if _, err = os.Stat(filepath.Join(skillDir, "SKILL.md")); err != nil {
+					continue
+				}
+			}
+			key := strings.ToLower(strings.TrimSpace(entry.Name()))
+			if key == "" {
+				continue
+			}
+			if _, exists := seen[key]; exists {
+				continue
+			}
+			seen[key] = struct{}{}
+			result = append(result, entry.Name())
+		}
+	}
+	sort.Strings(result)
+	return result, nil
+}
+
+// RuntimeSkillNames 合并平台选择与 workspace 已部署 Skill，形成运行时白名单。
+//
+// 平台 Skill 只保存稳定 ID；外部和 workspace-local Skill 仍以文件部署，因此
+// 必须在启动 runtime 时补入名称，避免显式平台白名单把旧机制中的 Skill 过滤掉。
+func RuntimeSkillNames(workspacePath string, selectedSkillIDs []string) ([]string, error) {
+	result := slices.Clone(selectedSkillIDs)
+	seen := make(map[string]struct{}, len(result))
+	for _, name := range result {
+		if normalized := strings.ToLower(strings.TrimSpace(name)); normalized != "" {
+			seen[normalized] = struct{}{}
+		}
+	}
+	deployedNames, err := ListDeployedSkills(workspacePath)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		if entry.IsDir() {
-			result = append(result, entry.Name())
+	for _, name := range deployedNames {
+		key := strings.ToLower(strings.TrimSpace(name))
+		if key == "" {
+			continue
 		}
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		result = append(result, name)
 	}
 	return result, nil
 }
 
 func managedSkillNames(isMainAgent bool) []string {
+	// 这些名称仅用于清理旧版 workspace 副本，平台库本身不再按 Agent 部署。
 	items := slices.Clone(baseSkillNames)
 	if isMainAgent {
 		items = append(items, mainAgentSkillNames...)
 	}
+	// 产品新增平台 Skill 后，旧版本可能已经在 workspace 留下同名副本；
+	// 按产品源目录动态补入名称，避免迁移遗漏新 Skill。
+	productSkillsRoot := filepath.Join(projectRoot(), "skills")
+	if entries, err := os.ReadDir(productSkillsRoot); err == nil {
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				continue
+			}
+			if _, err := os.Stat(filepath.Join(productSkillsRoot, entry.Name(), "SKILL.md")); err != nil {
+				continue
+			}
+			items = appendSkillNameOnce(items, entry.Name())
+		}
+	}
 	return items
 }
 
-func deployManagedSkill(skillName string, workspacePath string, context map[string]string) error {
-	sourceDir := filepath.Join(projectRoot(), "skills", skillName)
-	if _, err := os.Stat(filepath.Join(sourceDir, "SKILL.md")); err != nil {
-		return err
+func appendSkillNameOnce(items []string, name string) []string {
+	key := strings.ToLower(strings.TrimSpace(name))
+	if key == "" {
+		return items
 	}
-	return DeploySkill(skillName, sourceDir, workspacePath, context)
+	for _, current := range items {
+		if strings.EqualFold(strings.TrimSpace(current), key) {
+			return items
+		}
+	}
+	return append(items, name)
 }
 
 func syncDirectory(sourceDir string, targetDir string, context map[string]string) error {

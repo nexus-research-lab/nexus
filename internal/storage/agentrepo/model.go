@@ -23,6 +23,7 @@ type CreateRecord struct {
 	AllowedToolsJSON    string
 	DisallowedToolsJSON string
 	MCPServersJSON      string
+	SkillIDsJSON        string
 	MaxTurns            *int
 	MaxThinkingTokens   *int
 	SettingSourcesJSON  string
@@ -44,6 +45,7 @@ type UpdateRecord struct {
 	AllowedToolsJSON    string
 	DisallowedToolsJSON string
 	MCPServersJSON      string
+	SkillIDsJSON        string
 	MaxTurns            *int
 	MaxThinkingTokens   *int
 	SettingSourcesJSON  string

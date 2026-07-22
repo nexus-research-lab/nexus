@@ -60,6 +60,14 @@ const SKILL_SOURCE_LABEL: Readonly<Record<SkillSourceType, string>> = {
   workspace: "工作区技能",
 };
 
+function getSkillSourceLabel(skill: SkillInfo): string {
+  if (skill.source_type === "builtin") {
+    if (skill.source_kind === "nexus_platform") return "Nexus 平台库";
+    if (skill.source_kind === "user_global") return "用户全局 Skill";
+  }
+  return SKILL_SOURCE_LABEL[skill.source_type];
+}
+
 const DEFAULT_SKILL_STATE: SkillStatePresentation = {
   icon: "puzzle",
   iconClassName: null,
@@ -128,7 +136,7 @@ export function buildSkillCardModel(skill: SkillInfo): SkillCardModel {
     iconClassName: state.iconClassName,
     showDelete: skill.deletable,
     showUpdate: skill.has_update,
-    sourceLabel: SKILL_SOURCE_LABEL[skill.source_type],
+    sourceLabel: getSkillSourceLabel(skill),
     stateLabel: state.label,
     stateTone: state.tone,
     title: skill.title || skill.name,

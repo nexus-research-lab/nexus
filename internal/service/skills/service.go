@@ -12,7 +12,9 @@ import (
 	"sync"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	workspacesvc "github.com/nexus-research-lab/nexus/internal/service/workspace"
 	skillstore "github.com/nexus-research-lab/nexus/internal/storage/skills"
@@ -175,7 +177,11 @@ func (s *Service) InstallSkill(ctx context.Context, agentID string, skillName st
 	if record.Detail.Scope == scopeRoom {
 		return nil, errors.New("room scope skill 不能安装到 agent")
 	}
-	if err = s.deploySkillToWorkspace(agentValue, record); err != nil {
+	if isPlatformSkill(record) {
+		if err = s.setAgentSkillEnabled(ctx, agentValue, record.Detail.Name, true); err != nil {
+			return nil, err
+		}
+	} else if err = s.deploySkillToWorkspace(agentValue, record); err != nil {
 		return nil, err
 	}
 	detail, err := s.GetSkillDetail(ctx, skillName, agentID)
@@ -205,7 +211,64 @@ func (s *Service) UninstallSkill(ctx context.Context, agentID string, skillName 
 	if record.Detail.SourceType == sourceTypeWorkspace {
 		return undeployWorkspaceLocalSkill(agentValue.WorkspacePath, record)
 	}
+	if isPlatformSkill(record) {
+		return s.setAgentSkillEnabled(ctx, agentValue, record.Detail.Name, false)
+	}
 	return workspacesvc.UndeploySkill(agentValue.WorkspacePath, record.Detail.Name)
+}
+
+func isPlatformSkill(record catalogRecord) bool {
+	if record.Detail.SourceType == sourceTypeSystem {
+		return true
+	}
+	if record.Detail.SourceType != sourceTypeBuiltin {
+		return false
+	}
+	if record.Detail.SourceKind != "" && record.Detail.SourceKind != sourceKindNexusPlatform {
+		return false
+	}
+	platformSourceRoot := filepath.Join(appfs.Root(), "skills")
+	relative, err := filepath.Rel(platformSourceRoot, record.SourcePath)
+	if err != nil || relative == "." {
+		return false
+	}
+	return relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))
+}
+
+func (s *Service) setAgentSkillEnabled(ctx context.Context, agentValue *protocol.Agent, skillName string, enabled bool) error {
+	if agentValue == nil {
+		return errors.New("agent 不能为空")
+	}
+	name := strings.TrimSpace(skillName)
+	if name == "" {
+		return errors.New("skill 名称不能为空")
+	}
+	selected := make([]string, 0, len(agentValue.Options.SkillIDs)+1)
+	seen := map[string]struct{}{}
+	for _, current := range agentValue.Options.SkillIDs {
+		current = strings.TrimSpace(current)
+		if current == "" {
+			continue
+		}
+		key := strings.ToLower(current)
+		if !enabled && strings.EqualFold(current, name) {
+			continue
+		}
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		selected = append(selected, current)
+	}
+	if enabled {
+		if _, exists := seen[strings.ToLower(name)]; !exists {
+			selected = append(selected, name)
+		}
+	}
+	options := agentValue.Options
+	options.SkillIDs = selected
+	_, err := s.agents.UpdateAgent(ctx, agentValue.AgentID, protocol.UpdateRequest{Options: &options})
+	return err
 }
 
 // ImportLocalPath 从本地目录导入外部 skill。

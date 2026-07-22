@@ -287,6 +287,23 @@ func TestBuildAgentClientOptionsProjectsToolSearchByRuntime(t *testing.T) {
 	}
 }
 
+func TestBuildAgentClientOptionsProjectsPlatformSkillIDs(t *testing.T) {
+	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
+		RuntimeKind:      runtimeKindClaude,
+		SkillIDs:         []string{"ima-skill"},
+		SkillDirectories: []string{"/tmp/platform-skills"},
+	})
+	if err != nil {
+		t.Fatalf("构建带平台 Skill 的 options 失败: %v", err)
+	}
+	if len(options.Skills.Names) != 1 || options.Skills.Names[0] != "ima-skill" {
+		t.Fatalf("Skill ID 未投影到 SDK options: %#v", options.Skills)
+	}
+	if len(options.AdditionalDirectories) != 1 || options.AdditionalDirectories[0] != "/tmp/platform-skills" {
+		t.Fatalf("平台 Skill 根目录未投影: %#v", options.AdditionalDirectories)
+	}
+}
+
 func TestBuildAgentClientOptionsProjectsCompactionConfigByRuntime(t *testing.T) {
 	config := &RuntimeConfig{
 		Provider:      "glm",
