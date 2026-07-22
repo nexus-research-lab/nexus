@@ -12,8 +12,10 @@
 //   - goal_*.go：Room 与 Goal runtime 的适配。
 //   - runtimepolicy/：Room runtime 工具和权限策略。
 //
-// queue、public wake、Goal continuation 与 execution 共享 conversation 状态，
-// 当前保持在同一编排包内；只有无 I/O、无 runtime 状态的纯策略才下沉到子包。
+// queue、public wake、Goal continuation 与 execution 共享 conversation 状态；
+// 派发顺序锁属于对应 conversation，禁止回退为 Service 级总锁。slot 的可变
+// 数据统一进入 roomSlotMutableState，再由 runtime、goal、cursor、delivery
+// 等子状态独立同步；只有无 I/O、无 runtime 状态的纯策略才下沉到子包。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级 room/doc.go 与上级 AGENTS.md
 package realtime

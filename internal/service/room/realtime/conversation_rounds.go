@@ -17,9 +17,13 @@ type roomConversationState struct {
 	roundKeys            map[*activeRoomRound]string
 	guidance             map[*activeRoomSlot]pendingRoomGuidance
 	publicMentions       map[*activeRoomRound][]publicMentionWake
+	// dispatchRefs 由 roomRoundRegistry.mu 保护；dispatchMu 只保护派发临界区。
+	dispatchMu   sync.Mutex
+	dispatchRefs int
 }
 
-// roomRoundRegistry 只保护 conversation state 索引；具体 round 数据由 shard 自己保护。
+// roomRoundRegistry 只保护 conversation state 索引和 dispatch 引用；
+// 具体 round 数据与派发临界区均由 conversation state 自己保护。
 type roomRoundRegistry struct {
 	mu            sync.RWMutex
 	conversations map[string]*roomConversationState
@@ -35,6 +39,15 @@ func newRoomRoundRegistryFromRounds(rounds map[string]*activeRoomRound) roomRoun
 		registry.register(roundValue)
 	}
 	return registry
+}
+
+func newRoomConversationState() *roomConversationState {
+	return &roomConversationState{
+		rounds:         make(map[string]*activeRoomRound),
+		roundKeys:      make(map[*activeRoomRound]string),
+		guidance:       make(map[*activeRoomSlot]pendingRoomGuidance),
+		publicMentions: make(map[*activeRoomRound][]publicMentionWake),
+	}
 }
 
 func roomConversationKey(conversationID string, sessionKey string) string {
@@ -109,12 +122,7 @@ func (r *roomRoundRegistry) state(conversationID string, create bool) *roomConve
 		r.conversations = make(map[string]*roomConversationState)
 	}
 	if state = r.conversations[conversationID]; state == nil {
-		state = &roomConversationState{
-			rounds:         make(map[string]*activeRoomRound),
-			roundKeys:      make(map[*activeRoomRound]string),
-			guidance:       make(map[*activeRoomSlot]pendingRoomGuidance),
-			publicMentions: make(map[*activeRoomRound][]publicMentionWake),
-		}
+		state = newRoomConversationState()
 		r.conversations[conversationID] = state
 	}
 	return state
@@ -234,7 +242,14 @@ func (r *roomRoundRegistry) prune(conversationID string, expected *roomConversat
 		return
 	}
 	r.mu.Lock()
-	if r.conversations[conversationID] == expected {
+	if r.conversations[conversationID] != expected || expected.dispatchRefs != 0 {
+		r.mu.Unlock()
+		return
+	}
+	expected.mu.RLock()
+	empty := len(expected.rounds) == 0 && len(expected.guidance) == 0 && len(expected.publicMentions) == 0
+	expected.mu.RUnlock()
+	if empty {
 		delete(r.conversations, conversationID)
 	}
 	r.mu.Unlock()

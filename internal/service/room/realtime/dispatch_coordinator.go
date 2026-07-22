@@ -5,70 +5,75 @@ import (
 	"sync"
 )
 
-// roomDispatchRegistry 为每个 Room conversation 提供独立的派发闸门。
-//
-// 闸门只负责保持 queue、wake、continuation 和 round finish 的顺序；
-// runtime 执行本身不应依赖这把锁。引用计数保证空闲 conversation 不会
-// 永久占用锁对象，也避免并发创建同一 conversation 的两把锁。
-type roomDispatchRegistry struct {
-	mu      sync.Mutex
-	entries map[string]*roomDispatchEntry
-}
-
-type roomDispatchEntry struct {
-	mu   sync.Mutex
-	refs int
-}
-
+// roomDispatchLease 把 queue、wake、continuation 和 round finish 的顺序
+// 绑定到 conversation state；runtime 执行本身不依赖这把锁。
 type roomDispatchLease struct {
-	registry *roomDispatchRegistry
+	registry *roomRoundRegistry
 	key      string
-	entry    *roomDispatchEntry
+	state    *roomConversationState
 	once     sync.Once
 }
 
-func (r *roomDispatchRegistry) acquire(key string) *roomDispatchLease {
+func (r *roomRoundRegistry) acquireDispatch(key string) *roomDispatchLease {
+	if r == nil {
+		return nil
+	}
 	key = strings.TrimSpace(key)
 	if key == "" {
-		key = "room:unknown"
+		key = "__room_unknown_conversation__"
 	}
 
 	r.mu.Lock()
-	if r.entries == nil {
-		r.entries = make(map[string]*roomDispatchEntry)
+	if r.conversations == nil {
+		r.conversations = make(map[string]*roomConversationState)
 	}
-	entry := r.entries[key]
-	if entry == nil {
-		entry = &roomDispatchEntry{}
-		r.entries[key] = entry
+	state := r.conversations[key]
+	if state == nil {
+		state = newRoomConversationState()
+		r.conversations[key] = state
 	}
-	entry.refs++
+	state.dispatchRefs++
 	r.mu.Unlock()
 
-	entry.mu.Lock()
+	state.dispatchMu.Lock()
 	return &roomDispatchLease{
 		registry: r,
 		key:      key,
-		entry:    entry,
+		state:    state,
 	}
 }
 
 func (l *roomDispatchLease) Unlock() {
-	if l == nil || l.registry == nil || l.entry == nil {
+	if l == nil || l.registry == nil || l.state == nil {
 		return
 	}
 	l.once.Do(func() {
-		l.entry.mu.Unlock()
-		l.registry.mu.Lock()
-		l.entry.refs--
-		if l.entry.refs == 0 && l.registry.entries[l.key] == l.entry {
-			delete(l.registry.entries, l.key)
-		}
-		l.registry.mu.Unlock()
+		l.state.dispatchMu.Unlock()
+		l.registry.releaseDispatch(l.key, l.state)
 	})
 }
 
-func roomDispatchKey(sessionKey string, conversationID string) string {
+func (r *roomRoundRegistry) releaseDispatch(key string, state *roomConversationState) {
+	if r == nil || state == nil {
+		return
+	}
+	r.mu.Lock()
+	current := r.conversations[key]
+	if current != state {
+		r.mu.Unlock()
+		return
+	}
+	if state.dispatchRefs > 0 {
+		state.dispatchRefs--
+	}
+	last := state.dispatchRefs == 0
+	r.mu.Unlock()
+	if last {
+		r.prune(key, state)
+	}
+}
+
+func roomDispatchStateKey(sessionKey string, conversationID string) string {
 	sessionKey = strings.TrimSpace(sessionKey)
 	conversationID = strings.TrimSpace(conversationID)
 	if conversationID == "" {
@@ -76,18 +81,20 @@ func roomDispatchKey(sessionKey string, conversationID string) string {
 	}
 	if conversationID != "" {
 		// conversation ID 是 Room 的并发边界；shared session 与 agent session
-		// 可能不同，但它们仍必须落在同一把派发闸门下。
-		return "conversation:" + conversationID
+		// 可能不同，但它们仍必须落在同一份 conversation state 下。
+		return conversationID
 	}
 	if sessionKey != "" {
-		return "session:" + sessionKey
+		// 没有可解析 conversation 的 session 仍需保持彼此隔离，不能
+		// 把所有未知会话合并到同一把锁。
+		return "__room_dispatch_session:" + sessionKey
 	}
-	return ""
+	return "__room_unknown_conversation__"
 }
 
 func (s *Service) lockRoomDispatch(sessionKey string, conversationID string) *roomDispatchLease {
 	if s == nil {
 		return nil
 	}
-	return s.dispatch.acquire(roomDispatchKey(sessionKey, conversationID))
+	return s.rounds.acquireDispatch(roomDispatchStateKey(sessionKey, conversationID))
 }

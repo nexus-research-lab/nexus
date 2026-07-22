@@ -130,7 +130,6 @@ type Service struct {
 	titles           roomTitleScheduler
 
 	rounds     roomRoundRegistry
-	dispatch   roomDispatchRegistry
 	wakeTimers *roomWakeTimerRegistry
 }
 

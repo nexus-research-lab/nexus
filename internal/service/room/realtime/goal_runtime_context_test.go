@@ -5,7 +5,6 @@ import (
 	"errors"
 	"strings"
 	"testing"
-	"time"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
@@ -578,9 +577,6 @@ func TestRoomSlotIgnoresGoalRuntimeInPlanMode(t *testing.T) {
 	slot.setGoalBinding("room:group:conversation-1", "goal-plan")
 	slot.setGoalRuntimeIgnored(true)
 	slot.setGoalUsageAccumulator(goalsvc.NewRuntimeUsageAccumulator(true))
-	slot.goal.mu.Lock()
-	slot.goal.usageStartedAt = time.Now()
-	slot.goal.mu.Unlock()
 
 	beginGoalUsageForSlot(slot)
 	service.recordGoalUsageFromSlotAssistantMessage(context.Background(), slot, roomGoalToolResultAssistantMessage("tool-1", "read_file", 4, 1))

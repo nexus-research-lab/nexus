@@ -158,9 +158,7 @@ func TestRoomSlotTracksRunningSubagentTasks(t *testing.T) {
 
 func TestRoomRoundReportsRunningSubagentTasks(t *testing.T) {
 	slot := &activeRoomSlot{}
-	slot.goal.mu.Lock()
-	slot.goal.subagentTasks = map[string]struct{}{"task-1": {}}
-	slot.goal.mu.Unlock()
+	slot.setSubagentTasks(map[string]struct{}{"task-1": {}})
 	roundValue := &activeRoomRound{Slots: map[string]*activeRoomSlot{
 		"agent-1": slot,
 	}}

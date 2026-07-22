@@ -81,8 +81,18 @@ type roomSlotConversationState struct {
 	state *roomConversationState
 }
 
+// roomSlotMutableState 只组合彼此独立同步的状态域，不提供跨域总锁。
+// activeRoomSlot 因而只表达稳定身份与一个明确的 mutable state 边界。
+type roomSlotMutableState struct {
+	runtime      roomSlotRuntimeState
+	goal         roomSlotGoalState
+	cursor       roomSlotCursorState
+	delivery     roomSlotDeliveryState
+	conversation roomSlotConversationState
+}
+
 type activeRoomSlot struct {
-	// 以下字段是 slot 创建后不再改变的稳定身份；mutable 状态全部下沉到子状态。
+	// 以下字段是 slot 创建后不再改变的稳定身份。
 	RoomSessionID      string
 	AgentID            string
 	AgentRoundID       string
@@ -93,18 +103,14 @@ type activeRoomSlot struct {
 	TimestampMS        int64
 	Trigger            roomTrigger
 	TriggerAttachments []protocol.ChatAttachment
-	runtime            roomSlotRuntimeState
-	goal               roomSlotGoalState
-	cursor             roomSlotCursorState
-	delivery           roomSlotDeliveryState
-	conversation       roomSlotConversationState
+	mutable            roomSlotMutableState
 }
 
 func (s *activeRoomSlot) ensureGoalObjectiveRevision(initial int64) *atomic.Int64 {
 	if s == nil {
 		return nil
 	}
-	state := &s.goal.objectiveRevision
+	state := &s.mutable.goal.objectiveRevision
 	for initial > 0 {
 		current := state.Load()
 		if initial <= current || state.CompareAndSwap(current, initial) {
@@ -118,14 +124,14 @@ func (s *activeRoomSlot) currentGoalObjectiveRevision() int64 {
 	if s == nil {
 		return 0
 	}
-	return s.goal.objectiveRevision.Load()
+	return s.mutable.goal.objectiveRevision.Load()
 }
 
 func (s *activeRoomSlot) adoptGoalObjectiveRevision(revision int64) {
 	if revision <= 0 {
 		return
 	}
-	state := &s.goal.objectiveRevision
+	state := &s.mutable.goal.objectiveRevision
 	for {
 		current := state.Load()
 		if revision <= current || state.CompareAndSwap(current, revision) {
