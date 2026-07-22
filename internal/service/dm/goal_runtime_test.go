@@ -77,6 +77,32 @@ func TestRoundRunnerGoalMutationsUseBoundObjectiveRevision(t *testing.T) {
 	}
 }
 
+func TestTerminalRoundStatusEventCarriesRuntimeError(t *testing.T) {
+	runner := &roundRunner{
+		sessionKey:   "agent:nexus:ws:dm:terminal-error",
+		roundID:      "round-terminal-error",
+		agentRoundID: "agent-round-terminal-error",
+		agent:        &protocol.Agent{AgentID: "nexus"},
+	}
+	event := terminalRoundStatusEvent(runner, exec.RoundExecutionResult{
+		TerminalStatus: "error",
+		ResultSubtype:  "error",
+		ErrorMessage:   "query failed: provider unavailable",
+	})
+	if event.EventType != protocol.EventTypeRoundStatus {
+		t.Fatalf("event type = %s, want round_status", event.EventType)
+	}
+	if event.Data["status"] != "error" || event.Data["result_subtype"] != "error" {
+		t.Fatalf("event data = %#v, want error terminal status", event.Data)
+	}
+	if event.Data["message"] != "query failed: provider unavailable" {
+		t.Fatalf("event message = %#v, want runtime error", event.Data["message"])
+	}
+	if event.AgentID != "nexus" || event.AgentRoundID != runner.agentRoundID {
+		t.Fatalf("event identity = agent=%q agent_round=%q", event.AgentID, event.AgentRoundID)
+	}
+}
+
 func TestRoundRunnerRecordsGoalUsageAtToolCompletion(t *testing.T) {
 	goalProvider := &fakeGoalContextProvider{}
 	runner := &roundRunner{

@@ -136,7 +136,7 @@ func (r *roundRunner) run(ctx context.Context) {
 	r.service.broadcastEventWithTimeout(
 		context.Background(),
 		r.sessionKey,
-		protocol.NewRoundStatusEvent(r.sessionKey, r.roundID, result.TerminalStatus, result.ResultSubtype),
+		terminalRoundStatusEvent(r, result),
 	)
 	r.service.broadcastSessionStatus(context.Background(), r.sessionKey)
 	if r.service.runtime.HasSubagentHistory(r.sessionKey) {
@@ -146,6 +146,27 @@ func (r *roundRunner) run(ctx context.Context) {
 		return
 	}
 	r.dispatchPostRoundWorkAfterSubagents()
+}
+
+// terminalRoundStatusEvent 把 SDK 已经返回的终态统一投影成 round_status。
+// result 终态可能是正常的 result 消息，也可能是 runtime 自己生成的错误结果；
+// 后者不能只依赖瞬时 error 事件，否则客户端错过事件后就只剩“已停止”状态。
+func terminalRoundStatusEvent(r *roundRunner, result exec.RoundExecutionResult) protocol.EventMessage {
+	if r == nil {
+		return protocol.NewRoundStatusEvent("", "", result.TerminalStatus, result.ResultSubtype)
+	}
+	var event protocol.EventMessage
+	if result.TerminalStatus == "error" || result.ResultSubtype == "error" {
+		event = protocol.NewRoundStatusErrorEvent(r.sessionKey, r.roundID, result.ErrorMessage)
+	} else {
+		event = protocol.NewRoundStatusEvent(r.sessionKey, r.roundID, result.TerminalStatus, result.ResultSubtype)
+	}
+	if r.agent != nil {
+		event.AgentID = r.agent.AgentID
+	}
+	event.RoundID = r.roundID
+	event.AgentRoundID = r.agentRoundID
+	return event
 }
 
 func (r *roundRunner) executeRound(

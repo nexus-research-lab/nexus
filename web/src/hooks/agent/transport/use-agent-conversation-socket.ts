@@ -21,6 +21,8 @@ import {
 
 type ConversationSocketSend = (payload: WebSocketMessage) => WebSocketSendResult;
 
+const WEBSOCKET_ERROR_MESSAGE = "WebSocket error occurred";
+
 interface UseAgentConversationSocketOptions {
   wsUrl: string;
   agentId: string | null;
@@ -76,7 +78,7 @@ export function useAgentConversationSocket({
         return;
       }
 
-      const errorMessage = "WebSocket error occurred";
+      const errorMessage = WEBSOCKET_ERROR_MESSAGE;
       console.error("[useAgentConversation] WebSocket error:", event);
       setError(errorMessage);
       onError?.(new Error(errorMessage));
@@ -98,7 +100,10 @@ export function useAgentConversationSocket({
   useEffect(() => {
     if (wsState === "connected") {
       hasConnectedRef.current = true;
-      setError(null);
+      // 重连只清理本 hook 产生的连接错误，不能覆盖已持久化的终态错误。
+      setError((current) => (
+        current === WEBSOCKET_ERROR_MESSAGE ? null : current
+      ));
     }
   }, [setError, wsState]);
 

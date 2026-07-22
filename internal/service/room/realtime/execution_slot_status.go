@@ -224,17 +224,19 @@ func (s *Service) handleSlotFailure(ctx context.Context, roundValue *activeRoomR
 		if mapper != nil {
 			projectedMessage = mapper.ProjectResultMessage(resultMessage)
 		}
-		s.broadcastSharedEventWithTimeout(
-			ctx,
-			roundValue.SessionKey,
-			roundValue.RoomID,
-			roomdomain.WrapMessageEvent(
+		if projectedMessage != nil {
+			s.broadcastSharedEventWithTimeout(
+				ctx,
+				roundValue.SessionKey,
 				roundValue.RoomID,
-				roundValue.ConversationID,
-				projectedMessage,
-				roundValue.RootRoundID,
-			),
-		)
+				roomdomain.WrapMessageEvent(
+					roundValue.RoomID,
+					roundValue.ConversationID,
+					projectedMessage,
+					roundValue.RootRoundID,
+				),
+			)
+		}
 		s.broadcastSharedEventWithTimeout(ctx, roundValue.SessionKey, roundValue.RoomID, roomdomain.NewErrorEvent(roundValue.SessionKey, roundValue.RoomID, roundValue.ConversationID, "room_error", err.Error(), roundValue.RootRoundID))
 	}
 	s.broadcastSharedEventWithTimeout(ctx, roundValue.SessionKey, roundValue.RoomID, roomdomain.WrapLifecycleEvent(
@@ -376,17 +378,19 @@ func (s *Service) emitInterruptedSlotResult(roundValue *activeRoomRound, slot *a
 			if mapper != nil {
 				projectedMessage = mapper.ProjectResultMessage(resultMessage)
 			}
-			s.broadcastSharedEvent(
-				context.Background(),
-				roundValue.SessionKey,
-				roundValue.RoomID,
-				roomdomain.WrapMessageEvent(
+			if projectedMessage != nil {
+				s.broadcastSharedEvent(
+					context.Background(),
+					roundValue.SessionKey,
 					roundValue.RoomID,
-					roundValue.ConversationID,
-					projectedMessage,
-					roundValue.RootRoundID,
-				),
-			)
+					roomdomain.WrapMessageEvent(
+						roundValue.RoomID,
+						roundValue.ConversationID,
+						projectedMessage,
+						roundValue.RootRoundID,
+					),
+				)
+			}
 		}
 	}
 	if err := s.persistPrivateOverlayMessage(slot, cloneMessageWithSessionKey(resultMessage, slot.RuntimeSessionKey)); err != nil {

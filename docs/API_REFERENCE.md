@@ -534,7 +534,7 @@ task 的控制请求由 task item 的 `host_agent_id` 路由到实际承载该 s
 - `pong` — 心跳响应。
 - `chat_ack` — 对话消息受理确认，回传 `client_request_id` / `client_message_id` 与后端生成的 canonical round/message identity。
 - `input_queue_ack` — 用户入队请求持久化确认，仅向请求连接单播；回传 `client_request_id`、稳定 `client_message_id`、canonical `item_id` 与 `duplicate`。共享队列当前状态仍由 `input_queue` 快照表达。
-- `round_status` — 轮次状态变更（`running` / `completed` / `error` 等）。
+- `round_status` — 轮次状态变更（`running` / `finished` / `interrupted` / `error`）；失败终态可在 `data.message` 携带可展示原因。
 - `runtime_status` — Runtime 瞬时阶段；`status: "compacting"` 表示正在压缩上下文，`status: null` 清除该阶段。
 - `gateway_error` — 网关错误（`error_type` 含 `chat_error` / `interrupt_error` / `input_queue_error` / `not_implemented` / `unknown_message_type` / `permission_request_not_found` 等）。
 - Room / Workspace / App Event 订阅渠道推送的实时事件（房间消息、工作区文件变更、应用级事件）。

@@ -319,6 +319,10 @@ function toolResultText(content: ToolResultContent["content"]): string {
   if (typeof content === "string") {
     return content;
   }
+  if (!Array.isArray(content)) {
+    const record = recordValue(content);
+    return firstString(record, ["text", "content", "message"]) ?? "";
+  }
   return content.flatMap((value) => {
     if (typeof value === "string") {
       return [value];

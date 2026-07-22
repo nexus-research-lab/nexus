@@ -4,16 +4,18 @@
 package realtime
 
 import (
+	"cmp"
 	"context"
 	"errors"
-	"slices"
-	"strings"
-	"time"
-
+	"fmt"
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
+	"slices"
+	"sort"
+	"strings"
+	"time"
 )
 
 // InputQueueRequest 表示 Room 待发送队列控制请求。
@@ -495,4 +497,302 @@ func mergeRoomMessageTargetAgentIDs(current []string, incoming []string) []strin
 		}
 	}
 	return result
+}
+
+// INPUT: Room queue 请求、成员会话、@mention 与当前活跃 root round。
+// OUTPUT: 显式 @ / 单成员 / 房主优先，仍无目标时绑定最近活跃 slots 的队列位置。
+// POS: Room input queue 入队目标解析入口；与直接 chat 共享显式目标和房主优先语义。
+func (s *Service) resolveInputQueueContext(
+	ctx context.Context,
+	request InputQueueRequest,
+) (string, *protocol.ConversationContextAggregate, error) {
+	sessionKey, err := protocol.RequireStructuredSessionKey(request.SessionKey)
+	if err != nil {
+		return "", nil, err
+	}
+	if !protocol.IsRoomSharedSessionKey(sessionKey) {
+		return "", nil, errors.New("session_key must be room shared key")
+	}
+	conversationID := cmp.Or(strings.TrimSpace(request.ConversationID), protocol.ParseRoomConversationID(sessionKey))
+	if conversationID == "" {
+		return "", nil, errors.New("conversation_id is required")
+	}
+	contextValue, err := s.rooms.GetConversationContext(ctx, conversationID)
+	if err != nil {
+		return "", nil, err
+	}
+	if contextValue == nil {
+		return "", nil, errors.New("room conversation not found")
+	}
+	return sessionKey, contextValue, nil
+}
+
+func (s *Service) resolveRoomInputQueuePrimaryLocation(
+	ctx context.Context,
+	contextValue *protocol.ConversationContextAggregate,
+	content string,
+	explicitTargetAgentIDs []string,
+) (workspacestore.InputQueueLocation, []string, error) {
+	locationsByAgentID, err := s.roomInputQueueLocationsByAgent(ctx, contextValue)
+	if err != nil {
+		return workspacestore.InputQueueLocation{}, nil, err
+	}
+	targetAgentIDs := normalizeExplicitTargetAgentIDs(explicitTargetAgentIDs)
+	if len(explicitTargetAgentIDs) > 0 {
+		if len(targetAgentIDs) == 0 {
+			return workspacestore.InputQueueLocation{}, nil, errors.New("target_agent_ids must not be empty")
+		}
+		for _, agentID := range targetAgentIDs {
+			if !roomdomain.IsMemberAgent(contextValue.Members, agentID) {
+				return workspacestore.InputQueueLocation{}, nil, fmt.Errorf("target_agent_id is not a room member: %s", agentID)
+			}
+		}
+	} else {
+		targetAgentIDs = roomdomain.ResolveMentionAgentIDs(content, roomdomain.BuildMentionAliases(contextValue))
+	}
+	if len(targetAgentIDs) == 0 && len(locationsByAgentID) == 1 {
+		for agentID := range locationsByAgentID {
+			targetAgentIDs = []string{agentID}
+		}
+	}
+	if len(targetAgentIDs) == 0 {
+		if hostAgentID, ok := resolveRoomHostDefaultTarget(contextValue, agentNameByIDFromInputLocations(locationsByAgentID)); ok {
+			targetAgentIDs = []string{hostAgentID}
+		}
+	}
+	if len(targetAgentIDs) == 0 {
+		targetAgentIDs = s.latestActiveRootRoundAgentIDs(
+			protocol.BuildRoomSharedSessionKey(contextValue.Conversation.ID),
+			contextValue.Conversation.ID,
+		)
+	}
+	if len(targetAgentIDs) == 0 {
+		return workspacestore.InputQueueLocation{}, nil, errors.New("room input_queue content must mention target agent")
+	}
+
+	cleanTargets := make([]string, 0, len(targetAgentIDs))
+	for _, agentID := range targetAgentIDs {
+		agentID = strings.TrimSpace(agentID)
+		if agentID == "" {
+			continue
+		}
+		if _, ok := locationsByAgentID[agentID]; !ok {
+			continue
+		}
+		cleanTargets = append(cleanTargets, agentID)
+	}
+	if len(cleanTargets) == 0 {
+		return workspacestore.InputQueueLocation{}, nil, errors.New("room input_queue target agent not found")
+	}
+	return locationsByAgentID[cleanTargets[0]].Location, cleanTargets, nil
+}
+
+func agentNameByIDFromInputLocations(locations map[string]roomInputQueueLocation) map[string]string {
+	result := make(map[string]string, len(locations))
+	for agentID := range locations {
+		normalizedAgentID := strings.TrimSpace(agentID)
+		if normalizedAgentID == "" {
+			continue
+		}
+		result[normalizedAgentID] = normalizedAgentID
+	}
+	return result
+}
+
+func (s *Service) roomInputQueueLocations(
+	ctx context.Context,
+	contextValue *protocol.ConversationContextAggregate,
+) ([]roomInputQueueLocation, error) {
+	locationsByAgentID, err := s.roomInputQueueLocationsByAgent(ctx, contextValue)
+	if err != nil {
+		return nil, err
+	}
+	locations := make([]roomInputQueueLocation, 0, len(locationsByAgentID))
+	for _, member := range contextValue.Members {
+		if member.MemberType != protocol.MemberTypeAgent {
+			continue
+		}
+		if location, ok := locationsByAgentID[strings.TrimSpace(member.MemberAgentID)]; ok {
+			locations = append(locations, location)
+		}
+	}
+	sort.SliceStable(locations, func(i int, j int) bool {
+		return locations[i].AgentID < locations[j].AgentID
+	})
+	return locations, nil
+}
+
+func (s *Service) roomInputQueueLocationsByAgent(
+	ctx context.Context,
+	contextValue *protocol.ConversationContextAggregate,
+) (map[string]roomInputQueueLocation, error) {
+	if contextValue == nil {
+		return map[string]roomInputQueueLocation{}, nil
+	}
+	agentsByID := make(map[string]protocol.Agent, len(contextValue.MemberAgents))
+	for _, agentValue := range contextValue.MemberAgents {
+		agentID := strings.TrimSpace(agentValue.AgentID)
+		if agentID != "" {
+			agentsByID[agentID] = agentValue
+		}
+	}
+	for _, member := range contextValue.Members {
+		agentID := strings.TrimSpace(member.MemberAgentID)
+		if member.MemberType != protocol.MemberTypeAgent || agentID == "" {
+			continue
+		}
+		if _, exists := agentsByID[agentID]; exists {
+			continue
+		}
+		agentValue, err := s.agents.GetAgent(ctx, agentID)
+		if err != nil {
+			return nil, err
+		}
+		agentsByID[agentID] = *agentValue
+	}
+
+	result := make(map[string]roomInputQueueLocation, len(agentsByID))
+	for agentID, agentValue := range agentsByID {
+		workspacePath := strings.TrimSpace(agentValue.WorkspacePath)
+		if workspacePath == "" {
+			continue
+		}
+		result[agentID] = roomInputQueueLocation{
+			AgentID: agentID,
+			Location: workspacestore.InputQueueLocation{
+				Scope:          protocol.InputQueueScopeRoom,
+				WorkspacePath:  workspacePath,
+				SessionKey:     protocol.BuildRoomAgentSessionKey(contextValue.Conversation.ID, agentID, contextValue.Room.RoomType),
+				RoomID:         contextValue.Room.ID,
+				ConversationID: contextValue.Conversation.ID,
+			},
+		}
+	}
+	return result, nil
+}
+
+func (s *Service) roomInputQueueItems(ctx context.Context, contextValue *protocol.ConversationContextAggregate) ([]protocol.InputQueueItem, error) {
+	entries, err := s.roomInputQueueEntries(ctx, contextValue)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]protocol.InputQueueItem, 0, len(entries))
+	for _, entry := range entries {
+		items = append(items, entry.Item)
+	}
+	return items, nil
+}
+
+func (s *Service) roomInputQueueEntries(ctx context.Context, contextValue *protocol.ConversationContextAggregate) ([]roomInputQueueEntry, error) {
+	locations, err := s.roomInputQueueLocations(ctx, contextValue)
+	if err != nil {
+		return nil, err
+	}
+	entries := make([]roomInputQueueEntry, 0)
+	for _, location := range locations {
+		items, snapshotErr := s.inputQueue.Snapshot(location.Location)
+		if snapshotErr != nil {
+			return nil, snapshotErr
+		}
+		for _, item := range items {
+			entries = append(entries, roomInputQueueEntry{
+				Item:     item,
+				Location: location.Location,
+			})
+		}
+	}
+	sort.SliceStable(entries, func(i int, j int) bool {
+		left := entries[i].Item
+		right := entries[j].Item
+		if left.QueueOrder != right.QueueOrder {
+			return left.QueueOrder < right.QueueOrder
+		}
+		if left.CreatedAt != right.CreatedAt {
+			return left.CreatedAt < right.CreatedAt
+		}
+		return left.ID < right.ID
+	})
+	return entries, nil
+}
+
+func (s *Service) findRoomInputQueueEntry(
+	ctx context.Context,
+	contextValue *protocol.ConversationContextAggregate,
+	itemID string,
+) (roomInputQueueEntry, bool, error) {
+	itemID = strings.TrimSpace(itemID)
+	if itemID == "" {
+		return roomInputQueueEntry{}, false, nil
+	}
+	entries, err := s.roomInputQueueEntries(ctx, contextValue)
+	if err != nil {
+		return roomInputQueueEntry{}, false, err
+	}
+	for _, entry := range entries {
+		if entry.Item.ID == itemID {
+			return entry, true, nil
+		}
+	}
+	return roomInputQueueEntry{}, false, nil
+}
+
+func (s *Service) findAcceptedRoomInputQueueEnqueue(
+	ctx context.Context,
+	contextValue *protocol.ConversationContextAggregate,
+	clientMessageID string,
+) (roomInputQueueEntry, bool, error) {
+	clientMessageID = strings.TrimSpace(clientMessageID)
+	if clientMessageID == "" {
+		return roomInputQueueEntry{}, false, nil
+	}
+	locations, err := s.roomInputQueueLocations(ctx, contextValue)
+	if err != nil {
+		return roomInputQueueEntry{}, false, err
+	}
+	for _, location := range locations {
+		item, accepted, findErr := s.inputQueue.FindAcceptedEnqueue(location.Location, clientMessageID)
+		if findErr != nil {
+			return roomInputQueueEntry{}, false, findErr
+		}
+		if accepted {
+			return roomInputQueueEntry{Item: item, Location: location.Location}, true, nil
+		}
+	}
+	return roomInputQueueEntry{}, false, nil
+}
+
+func (s *Service) deleteRoomInputQueueItem(ctx context.Context, contextValue *protocol.ConversationContextAggregate, itemID string) error {
+	entry, ok, err := s.findRoomInputQueueEntry(ctx, contextValue, itemID)
+	if err != nil || !ok {
+		return err
+	}
+	_, err = s.inputQueue.Delete(entry.Location, itemID)
+	return err
+}
+
+func (s *Service) reorderRoomInputQueueItems(
+	ctx context.Context,
+	contextValue *protocol.ConversationContextAggregate,
+	orderedIDs []string,
+) error {
+	entries, err := s.roomInputQueueEntries(ctx, contextValue)
+	if err != nil {
+		return err
+	}
+	locationByKey := make(map[string]workspacestore.InputQueueLocation)
+	for _, entry := range entries {
+		for _, orderedID := range orderedIDs {
+			if entry.Item.ID != strings.TrimSpace(orderedID) {
+				continue
+			}
+			locationByKey[inputQueueLocationKey(entry.Location)] = entry.Location
+			break
+		}
+	}
+	for _, location := range locationByKey {
+		if _, err = s.inputQueue.Reorder(location, orderedIDs); err != nil {
+			return err
+		}
+	}
+	return nil
 }

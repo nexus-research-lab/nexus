@@ -3,13 +3,11 @@ import type {
   Message,
 } from "@/types/conversation/message/entity";
 import type {
-  ImageContent,
-  TextContent,
-  ThinkingContent,
+  ContentBlock,
 } from "@/types/conversation/message/content";
 import type { StreamMessage } from "@/types/conversation/message/event";
 
-type StreamRenderableBlock = TextContent | ThinkingContent | ImageContent;
+type StreamRenderableBlock = ContentBlock;
 
 interface StreamMetadataProjection {
   is_complete?: boolean;
@@ -38,6 +36,9 @@ export function applyStreamMessage(
 
   const currentMessage = messages[existingIndex] as AssistantMessage;
   const nextMessage = applyStreamEvent(currentMessage, event);
+  if (isTerminalEmptyAssistant(nextMessage)) {
+    return messages.filter((_, index) => index !== existingIndex);
+  }
   if (nextMessage === currentMessage) {
     return messages;
   }
@@ -59,6 +60,12 @@ function createStreamingAssistantMessage(
     round_id: event.round_id,
     session_id: event.session_id,
     session_key: event.session_key,
+    ...(event.parent_tool_use_id
+      ? {
+        parent_id: event.parent_tool_use_id,
+        parent_tool_use_id: event.parent_tool_use_id,
+      }
+      : {}),
     stream_status: "streaming",
     timestamp: event.timestamp,
   };
@@ -133,10 +140,21 @@ function isIndexedContentEvent(
 function isStreamRenderableBlock(
   block: StreamMessage["content_block"],
 ): block is StreamRenderableBlock {
-  return (
-    block?.type === "text" ||
-    block?.type === "thinking" ||
-    block?.type === "image"
+  return Boolean(block && typeof block.type === "string");
+}
+
+function isTerminalEmptyAssistant(message: AssistantMessage): boolean {
+  if (message.stream_status !== "done" || message.content.length > 1) {
+    return false;
+  }
+  if (message.content.length === 0) {
+    return true;
+  }
+  const block = message.content[0];
+  return block.type === "text" && (
+    !block.text.trim()
+    || block.text.trim() === "(no content)"
+    || block.text.trim() === "[Request interrupted by user for tool use]"
   );
 }
 

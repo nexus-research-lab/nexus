@@ -1,11 +1,14 @@
 package realtime
 
 import (
+	"context"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
-
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 // roomConversationState 持有一个 conversation 的全部短生命周期编排状态。
@@ -507,4 +510,286 @@ func (r *roomRoundRegistry) hasPublicMentionsForConversation(conversationID stri
 	state.mu.RLock()
 	defer state.mu.RUnlock()
 	return len(state.publicMentions) > 0
+}
+
+// ActiveRoundSnapshot 表示 Room 当前仍在执行的主轮次快照。
+type ActiveRoundSnapshot struct {
+	SessionKey     string
+	RoomID         string
+	ConversationID string
+	RoundID        string
+	Pending        []protocol.ChatAckPendingSlot
+}
+
+// CountRunningTasks 返回指定 Agent 当前在 Room 中的活跃任务数。
+func (s *Service) CountRunningTasks(agentID string) int {
+	count := 0
+	for _, roundValue := range s.rounds.snapshot() {
+		for _, slot := range roundValue.Slots {
+			if slot != nil && slot.AgentID == agentID && !slot.isTerminal() {
+				count++
+			}
+		}
+	}
+	return count
+}
+
+// SetPermissionModeForAgent 将权限模式热同步到指定 agent 已存在的 Room runtime。
+func (s *Service) SetPermissionModeForAgent(ctx context.Context, agentID string, mode sdkpermission.Mode) error {
+	agentID = strings.TrimSpace(agentID)
+	if agentID == "" {
+		return nil
+	}
+	clients := make([]runtimectx.Client, 0)
+	for _, roundValue := range s.rounds.snapshot() {
+		if roundValue == nil {
+			continue
+		}
+		for _, slot := range roundValue.Slots {
+			if slot == nil || slot.AgentID != agentID || slot.isTerminal() {
+				continue
+			}
+			client := slot.getClient()
+			if client == nil {
+				continue
+			}
+			clients = append(clients, client)
+		}
+	}
+	for _, client := range clients {
+		if err := client.SetPermissionMode(ctx, mode); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// GetActiveRoundSnapshot 返回指定 conversation 的活跃 slot 快照。
+func (s *Service) GetActiveRoundSnapshot(conversationID string) *ActiveRoundSnapshot {
+	pending := make([]protocol.ChatAckPendingSlot, 0)
+	snapshot := &ActiveRoundSnapshot{}
+	for _, roundValue := range s.rounds.snapshotConversation(conversationID) {
+		if roundValue == nil || roundValue.ConversationID != conversationID {
+			continue
+		}
+		if snapshot.SessionKey == "" {
+			snapshot.SessionKey = roundValue.SessionKey
+			snapshot.RoomID = roundValue.RoomID
+			snapshot.ConversationID = roundValue.ConversationID
+			snapshot.RoundID = roomRootRoundID(roundValue)
+		}
+		for _, slot := range roundValue.Slots {
+			if slot == nil || slot.isTerminal() {
+				continue
+			}
+			status := slot.getStatus()
+			if status == "running" {
+				status = "streaming"
+			}
+			pending = append(pending, protocol.ChatAckPendingSlot{
+				AgentID:      slot.AgentID,
+				AgentRoundID: slot.AgentRoundID,
+				MsgID:        slot.MsgID,
+				Status:       status,
+				Timestamp:    slot.TimestampMS,
+				Index:        slot.Index,
+			})
+		}
+	}
+	if len(pending) == 0 {
+		return nil
+	}
+	sort.Slice(pending, func(i int, j int) bool {
+		if pending[i].Timestamp != pending[j].Timestamp {
+			return pending[i].Timestamp < pending[j].Timestamp
+		}
+		return pending[i].Index < pending[j].Index
+	})
+	snapshot.Pending = pending
+	return snapshot
+}
+
+func (s *Service) registerRound(roundValue *activeRoomRound) {
+	if roundValue == nil {
+		return
+	}
+	s.rounds.register(roundValue)
+}
+
+func (s *Service) finishRound(roundValue *activeRoomRound) {
+	if roundValue == nil {
+		return
+	}
+	s.runtime.MarkRoundFinished(roundValue.SessionKey, roundValue.RoundID)
+	s.rounds.unregister(roundValue)
+	roundValue.doneOnce.Do(func() {
+		close(roundValue.Done)
+	})
+}
+
+func roomRootRoundID(roundValue *activeRoomRound) string {
+	if roundValue == nil {
+		return ""
+	}
+	if rootRoundID := strings.TrimSpace(roundValue.RootRoundID); rootRoundID != "" {
+		return rootRoundID
+	}
+	return strings.TrimSpace(roundValue.RoundID)
+}
+
+func roomActiveRoundKey(sessionKey string, roundID string) string {
+	return strings.TrimSpace(sessionKey) + "::" + strings.TrimSpace(roundID)
+}
+
+func (r *activeRoomRound) allSlotsCancelled() bool {
+	if len(r.Slots) == 0 {
+		return false
+	}
+	for _, slot := range r.Slots {
+		if slot == nil || slot.getStatus() != "cancelled" {
+			return false
+		}
+	}
+	return true
+}
+
+func (r *activeRoomRound) hasSlotError() bool {
+	if r == nil {
+		return false
+	}
+	for _, slot := range r.Slots {
+		if slot != nil && slot.getStatus() == "error" {
+			return true
+		}
+	}
+	return false
+}
+
+// firstSlotErrorMessage 返回按展示顺序最早出现的 slot 错误。
+func (r *activeRoomRound) firstSlotErrorMessage() string {
+	if r == nil {
+		return ""
+	}
+	var firstMessage string
+	firstIndex := 0
+	found := false
+	for _, slot := range r.Slots {
+		if slot == nil {
+			continue
+		}
+		message := slot.getErrorMessage()
+		if message == "" || (found && slot.Index >= firstIndex) {
+			continue
+		}
+		firstIndex = slot.Index
+		firstMessage = message
+		found = true
+	}
+	return firstMessage
+}
+
+func (r *activeRoomRound) hasRunningSubagentTasks() bool {
+	if r == nil {
+		return false
+	}
+	for _, slot := range r.Slots {
+		if slot != nil && slot.hasRunningSubagentTask() {
+			return true
+		}
+	}
+	return false
+}
+
+// roomDispatchLease 把 queue、wake、continuation 和 round finish 的顺序
+// 绑定到 conversation state；runtime 执行本身不依赖这把锁。
+type roomDispatchLease struct {
+	registry *roomRoundRegistry
+	key      string
+	state    *roomConversationState
+	once     sync.Once
+}
+
+func (r *roomRoundRegistry) acquireDispatch(key string) *roomDispatchLease {
+	if r == nil {
+		return nil
+	}
+	key = strings.TrimSpace(key)
+	if key == "" {
+		key = "__room_unknown_conversation__"
+	}
+
+	r.mu.Lock()
+	if r.conversations == nil {
+		r.conversations = make(map[string]*roomConversationState)
+	}
+	state := r.conversations[key]
+	if state == nil {
+		state = newRoomConversationState()
+		r.conversations[key] = state
+	}
+	state.dispatchRefs++
+	r.mu.Unlock()
+
+	state.dispatchMu.Lock()
+	return &roomDispatchLease{
+		registry: r,
+		key:      key,
+		state:    state,
+	}
+}
+
+func (l *roomDispatchLease) Unlock() {
+	if l == nil || l.registry == nil || l.state == nil {
+		return
+	}
+	l.once.Do(func() {
+		l.state.dispatchMu.Unlock()
+		l.registry.releaseDispatch(l.key, l.state)
+	})
+}
+
+func (r *roomRoundRegistry) releaseDispatch(key string, state *roomConversationState) {
+	if r == nil || state == nil {
+		return
+	}
+	r.mu.Lock()
+	current := r.conversations[key]
+	if current != state {
+		r.mu.Unlock()
+		return
+	}
+	if state.dispatchRefs > 0 {
+		state.dispatchRefs--
+	}
+	last := state.dispatchRefs == 0
+	r.mu.Unlock()
+	if last {
+		r.prune(key, state)
+	}
+}
+
+func roomDispatchStateKey(sessionKey string, conversationID string) string {
+	sessionKey = strings.TrimSpace(sessionKey)
+	conversationID = strings.TrimSpace(conversationID)
+	if conversationID == "" {
+		conversationID = roomConversationIDFromSessionKey(sessionKey)
+	}
+	if conversationID != "" {
+		// conversation ID 是 Room 的并发边界；shared session 与 agent session
+		// 可能不同，但它们仍必须落在同一份 conversation state 下。
+		return conversationID
+	}
+	if sessionKey != "" {
+		// 没有可解析 conversation 的 session 仍需保持彼此隔离，不能
+		// 把所有未知会话合并到同一把锁。
+		return "__room_dispatch_session:" + sessionKey
+	}
+	return "__room_unknown_conversation__"
+}
+
+func (s *Service) lockRoomDispatch(sessionKey string, conversationID string) *roomDispatchLease {
+	if s == nil {
+		return nil
+	}
+	return s.rounds.acquireDispatch(roomDispatchStateKey(sessionKey, conversationID))
 }

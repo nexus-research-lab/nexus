@@ -102,6 +102,7 @@ type RoundStatusData struct {
 	Status        string `json:"status"`
 	IsTerminal    bool   `json:"is_terminal"`
 	ResultSubtype string `json:"result_subtype,omitempty"`
+	Message       string `json:"message,omitempty"`
 }
 
 // SessionStatusData 表示 session 生命周期事件。
@@ -161,6 +162,17 @@ func NewRoundStatusEvent(sessionKey string, roundID string, status string, resul
 	}
 	event := NewEvent(EventTypeRoundStatus, data)
 	event.SessionKey = sessionKey
+	return event
+}
+
+// NewRoundStatusErrorEvent 构造带可展示错误原因的失败轮次事件。
+// error 事件本身是瞬时通知；把原因同时放进 round_status，客户端即使错过前一个事件，
+// 仍能在轮次收口时给用户一个明确反馈。
+func NewRoundStatusErrorEvent(sessionKey string, roundID string, message string) EventMessage {
+	event := NewRoundStatusEvent(sessionKey, roundID, "error", "error")
+	if trimmed := strings.TrimSpace(message); trimmed != "" {
+		event.Data["message"] = trimmed
+	}
 	return event
 }
 

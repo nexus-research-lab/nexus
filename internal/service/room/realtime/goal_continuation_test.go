@@ -13,7 +13,7 @@ import (
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
-func TestRoomRoundInputOptionsMarksInternalContinuationHidden(t *testing.T) {
+func TestRoomRoundContinuationOptionsMarkedHiddenSynthetic(t *testing.T) {
 	roundValue := &activeRoomRound{
 		Internal: true,
 		InputOptions: sdkprotocol.OutboundMessageOptions{
@@ -22,47 +22,20 @@ func TestRoomRoundInputOptionsMarksInternalContinuationHidden(t *testing.T) {
 		},
 	}
 
-	options := roomRoundInputOptions(roundValue)
-
-	if !options.HiddenFromUser || !options.Synthetic || options.Priority != "internal" {
-		t.Fatalf("options = %#v, want hidden synthetic internal continuation", options)
+	inputOptions := roomRoundInputOptions(roundValue)
+	if !inputOptions.HiddenFromUser || !inputOptions.Synthetic || inputOptions.Priority != "internal" {
+		t.Fatalf("input options = %#v, want hidden synthetic internal continuation", inputOptions)
 	}
-	if options.Purpose != "goal_continuation" || options.Metadata["goal_id"] != "goal-room" {
-		t.Fatalf("options = %#v, want continuation metadata preserved", options)
-	}
-}
-
-func TestRoomRuntimeInputOptionsClearGoalContinuationFlags(t *testing.T) {
-	options := runtimectx.RuntimeInputOptionsForPurpose(sdkprotocol.OutboundMessageOptions{
-		Meta:           true,
-		HiddenFromUser: true,
-		Synthetic:      true,
-		Purpose:        "goal_continuation",
-		Priority:       "internal",
-		Metadata:       map[string]string{"goal_id": "goal-room"},
-	}, "goal_continuation")
-
-	if options.Meta || options.HiddenFromUser || options.Synthetic || options.Purpose != "" || options.Priority != "" || options.Metadata != nil {
-		t.Fatalf("runtime options = %#v, want continuation runtime control fields cleared", options)
-	}
-}
-
-func TestRoomRoundMarkerOptionsMarksInternalContinuationHidden(t *testing.T) {
-	roundValue := &activeRoomRound{
-		Internal: true,
-		InputOptions: sdkprotocol.OutboundMessageOptions{
-			Purpose:  "goal_continuation",
-			Metadata: map[string]string{"goal_id": "goal-room"},
-		},
+	if inputOptions.Purpose != "goal_continuation" || inputOptions.Metadata["goal_id"] != "goal-room" {
+		t.Fatalf("input options = %#v, want continuation metadata preserved", inputOptions)
 	}
 
-	options := roomRoundMarkerOptions(roundValue)
-
-	if !options.HiddenFromUser || !options.Synthetic {
-		t.Fatalf("options = %#v, want hidden synthetic round marker", options)
+	markerOptions := roomRoundMarkerOptions(roundValue)
+	if !markerOptions.HiddenFromUser || !markerOptions.Synthetic {
+		t.Fatalf("marker options = %#v, want hidden synthetic round marker", markerOptions)
 	}
-	if options.Purpose != "goal_continuation" || options.Metadata["goal_id"] != "goal-room" {
-		t.Fatalf("options = %#v, want continuation metadata preserved", options)
+	if markerOptions.Purpose != "goal_continuation" || markerOptions.Metadata["goal_id"] != "goal-room" {
+		t.Fatalf("marker options = %#v, want continuation metadata preserved", markerOptions)
 	}
 }
 

@@ -16,14 +16,29 @@ func (p *Processor) buildResultMessage(message sdkprotocol.ReceivedMessage, subt
 		firstNonEmpty(message.UUID, "result_"+p.ctx.RoundID),
 		"result",
 	)
+	if message.Result == nil {
+		// 外部 provider 的坏包不能把宿主 round 直接打崩；按 CC 的失败
+		// 终态语义生成可展示、可追踪的最小 result。
+		payload["subtype"] = "error"
+		payload["is_error"] = true
+		payload["errors"] = []string{"result payload missing"}
+		payload["result"] = "result payload missing"
+		return protocol.Message(payload)
+	}
 	payload["subtype"] = subtype
 	payload["duration_ms"] = message.Result.DurationMS
 	payload["duration_api_ms"] = message.Result.DurationAPIMS
 	payload["num_turns"] = message.Result.NumTurns
 	payload["total_cost_usd"] = message.Result.TotalCostUSD
 	payload["usage"] = firstNonNilMap(message.Result.Usage, map[string]any{})
+	if len(message.Result.ModelUsage) > 0 {
+		payload["model_usage"] = cloneMap(message.Result.ModelUsage)
+	}
 	payload["result"] = message.Result.Result
 	payload["is_error"] = subtype == "error"
+	if runtimeSubtype := strings.TrimSpace(message.Result.Subtype); runtimeSubtype != "" && runtimeSubtype != subtype {
+		payload["runtime_subtype"] = runtimeSubtype
+	}
 	terminalReason := strings.TrimSpace(message.Result.TerminalReason)
 	if terminalReason != "" {
 		payload["terminal_reason"] = terminalReason
@@ -36,6 +51,12 @@ func (p *Processor) buildResultMessage(message sdkprotocol.ReceivedMessage, subt
 	}
 	if len(message.Result.Errors) > 0 {
 		payload["errors"] = slices.Clone(message.Result.Errors)
+	}
+	if message.Result.StructuredOutput != nil {
+		payload["structured_output"] = message.Result.StructuredOutput
+	}
+	if fastModeState := strings.TrimSpace(message.Result.FastModeState); fastModeState != "" {
+		payload["fast_mode_state"] = fastModeState
 	}
 	return protocol.Message(payload)
 }
@@ -102,15 +123,13 @@ func normalizeResultSubtype(result *sdkprotocol.ResultMessage) string {
 		return "error"
 	}
 	subtype := strings.TrimSpace(result.Subtype)
-	switch subtype {
-	case "success", "error", "interrupted":
-		return subtype
-	default:
-		if result.IsError {
-			return "error"
-		}
-		return "success"
+	if subtype == "interrupted" {
+		return "interrupted"
 	}
+	if result.IsError || subtype == "error" || strings.HasPrefix(subtype, "error_") {
+		return "error"
+	}
+	return "success"
 }
 
 func statusFromResultSubtype(subtype string) string {

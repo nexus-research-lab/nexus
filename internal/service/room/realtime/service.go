@@ -5,10 +5,11 @@ package realtime
 
 import (
 	"context"
-	"log/slog"
-	"sync/atomic"
-	"time"
-
+	"errors"
+	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
+	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
+	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
@@ -21,11 +22,10 @@ import (
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
-
-	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
-	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
-	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
+	"log/slog"
+	"strings"
+	"sync/atomic"
+	"time"
 )
 
 const (
@@ -268,4 +268,112 @@ func (s *Service) SetTitleGenerator(generator roomTitleScheduler) {
 
 func (s *Service) loggerFor(ctx context.Context) *slog.Logger {
 	return logx.Resolve(ctx, s.logger)
+}
+
+// INPUT: Room conversation ID 与调用方身份。
+// OUTPUT: 用户可见或系统恢复使用的 Room conversation 聚合。
+// POS: 实时编排读取持久化 Room 上下文的唯一适配边界。
+// GetConversationContext 暴露 Room conversation 聚合，供 automation 做目标成员校验。
+func (s *Service) GetConversationContext(ctx context.Context, conversationID string) (*protocol.ConversationContextAggregate, error) {
+	if s.rooms == nil {
+		return nil, errors.New("room service is not configured")
+	}
+	return s.rooms.GetConversationContext(ctx, strings.TrimSpace(conversationID))
+}
+
+func (s *Service) internalConversationContext(
+	ctx context.Context,
+	conversationID string,
+	internal bool,
+) (context.Context, *protocol.ConversationContextAggregate, error) {
+	if s.rooms == nil {
+		return ctx, nil, errors.New("room service is not configured")
+	}
+	if !internal {
+		contextValue, err := s.rooms.GetConversationContext(ctx, strings.TrimSpace(conversationID))
+		return ctx, contextValue, err
+	}
+	if _, ok := authctx.CurrentUserID(ctx); ok {
+		contextValue, err := s.rooms.GetConversationContext(ctx, strings.TrimSpace(conversationID))
+		return ctx, contextValue, err
+	}
+	contextValue, err := s.rooms.GetConversationContextForSystem(ctx, strings.TrimSpace(conversationID))
+	if err != nil || contextValue == nil {
+		return ctx, contextValue, err
+	}
+	ownerUserID := strings.TrimSpace(contextValue.Room.OwnerUserID)
+	if ownerUserID == "" {
+		return ctx, contextValue, nil
+	}
+	return authctx.WithPrincipal(ctx, &authctx.Principal{
+		UserID:     ownerUserID,
+		Role:       authctx.RoleOwner,
+		AuthMethod: authctx.AuthMethodLocal,
+	}), contextValue, nil
+}
+
+func (s *Service) withBroadcastTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithTimeout(ctx, roomBroadcastTimeout)
+}
+
+func (s *Service) broadcastSharedEventWithTimeout(
+	ctx context.Context,
+	sessionKey string,
+	roomID string,
+	event protocol.EventMessage,
+) {
+	broadcastCtx, cancel := s.withBroadcastTimeout(ctx)
+	defer cancel()
+	s.broadcastSharedEvent(broadcastCtx, sessionKey, roomID, event)
+}
+
+func (s *Service) broadcastSessionStatus(ctx context.Context, sessionKey string) {
+	broadcastCtx, cancel := s.withBroadcastTimeout(ctx)
+	defer cancel()
+	if errs := s.permission.BroadcastSessionStatus(
+		broadcastCtx,
+		sessionKey,
+		s.runtime.GetRunningRoundIDs(sessionKey),
+	); len(errs) > 0 {
+		s.loggerFor(broadcastCtx).Warn("广播 Room session 状态失败", "session_key", sessionKey, "error_count", len(errs))
+	}
+}
+
+func (s *Service) broadcastSharedEvent(ctx context.Context, sessionKey string, roomID string, event protocol.EventMessage) {
+	if s.broadcaster != nil && strings.TrimSpace(roomID) != "" {
+		s.broadcaster.Broadcast(ctx, roomID, event)
+		// RoomBroadcaster 面向房间 WebSocket，不经过 permission.Context；后台自动化需要这条内部镜像。
+		s.notifyRoomEventObserver(ctx, sessionKey, event)
+		return
+	}
+	s.permission.BroadcastEvent(ctx, sessionKey, event)
+}
+
+func (s *Service) notifyRoomEventObserver(ctx context.Context, sessionKey string, event protocol.EventMessage) {
+	if s == nil {
+		return
+	}
+	roundID := eventRoundID(event)
+	if strings.TrimSpace(roundID) == "" {
+		return
+	}
+	roundValue := s.rounds.findByRoundID(sessionKey, roundID)
+	var observer RoomEventObserver
+	if roundValue != nil {
+		observer = roundValue.EventObserver
+	}
+	if observer == nil {
+		return
+	}
+	observer(ctx, event)
+}
+
+func eventRoundID(event protocol.EventMessage) string {
+	if roundID := strings.TrimSpace(anyString(event.Data["round_id"])); roundID != "" {
+		return roundID
+	}
+	return strings.TrimSpace(event.RoundID)
 }

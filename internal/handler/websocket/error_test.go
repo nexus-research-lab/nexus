@@ -84,6 +84,16 @@ func TestChatErrorDetailExplainsRuntimeFailures(t *testing.T) {
 	}
 }
 
+func TestChatErrorDetailUsesRuntimeNeutralFallback(t *testing.T) {
+	message := chatErrorDetail(errors.New("client: runtime startup failed: context deadline exceeded"))
+	if !strings.Contains(message, "Agent Runtime") {
+		t.Fatalf("兜底提示应覆盖当前 runtime: %q", message)
+	}
+	if strings.Contains(message, "Claude Code") {
+		t.Fatalf("兜底提示不应把 nxs 失败误报成 Claude Code: %q", message)
+	}
+}
+
 func TestNewGatewayErrorEventUsesRoundID(t *testing.T) {
 	event := (&Handler{}).newGatewayErrorEvent(
 		"agent:agent-1:ws:dm:session-1",

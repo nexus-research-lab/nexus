@@ -8,17 +8,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
-	"slices"
-	"strings"
-	"sync/atomic"
-
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	messageutil "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
+	"maps"
+	"slices"
+	"strings"
+	"sync/atomic"
+	"time"
+	"unicode"
 )
 
 const goalContextualInputName = "goal"
@@ -329,4 +330,425 @@ func goalSessionKeyForSlot(slot *activeRoomSlot) string {
 		return sessionKey
 	}
 	return strings.TrimSpace(slot.RuntimeSessionKey)
+}
+
+func beginGoalUsageForSlot(slot *activeRoomSlot) {
+	if slot == nil || slot.goalRuntimeIgnored() {
+		return
+	}
+	slot.beginGoalUsage()
+}
+
+func (s *Service) registerSlotGoalRuntime(slot *activeRoomSlot) func() {
+	if s.runtime == nil || slot == nil || slot.goalRuntimeIgnored() {
+		return func() {}
+	}
+	sessionKey := goalSessionKeyForSlot(slot)
+	roundID := strings.TrimSpace(slot.AgentRoundID)
+	if sessionKey == "" || roundID == "" {
+		return func() {}
+	}
+	s.runtime.RegisterGoalAccountingFlush(sessionKey, roundID, func(ctx context.Context) error {
+		return s.flushGoalUsageForSlot(ctx, slot)
+	})
+	s.runtime.RegisterGoalAccountingClear(sessionKey, roundID, func() {
+		clearGoalUsageForSlot(slot)
+	})
+	s.runtime.RegisterGoalAccountingActivate(sessionKey, roundID, func(ctx context.Context) error {
+		activateGoalUsageForSlot(ctx, slot)
+		return nil
+	})
+	return func() {
+		s.runtime.RegisterGoalAccountingFlush(sessionKey, roundID, nil)
+		s.runtime.RegisterGoalAccountingClear(sessionKey, roundID, nil)
+		s.runtime.RegisterGoalAccountingActivate(sessionKey, roundID, nil)
+	}
+}
+
+func (s *Service) recordGoalUsageForSlot(
+	ctx context.Context,
+	slot *activeRoomSlot,
+	result exec.RoundExecutionResult,
+	finalAssistant protocol.Message,
+) {
+	if s.goals == nil || slot == nil || slot.goalRuntimeIgnored() {
+		return
+	}
+	snapshot, ok := slotFinalGoalUsageSnapshot(slot, result, finalAssistant)
+	if !ok {
+		return
+	}
+	s.recordGoalUsageSnapshotForSlot(ctx, slot, snapshot)
+}
+
+func (s *Service) recordGoalUsageLimitForSlot(
+	ctx context.Context,
+	slot *activeRoomSlot,
+	result exec.RoundExecutionResult,
+) {
+	if s.goals == nil || slot == nil || slot.goalRuntimeIgnored() || !result.UsageLimitReached {
+		return
+	}
+	_, err := s.goals.UsageLimitForSession(ctx, goalSessionKeyForSlot(slot), slot.AgentRoundID, result.UsageLimitReason)
+	if err != nil && !errors.Is(err, goalsvc.ErrGoalDisabled) && !errors.Is(err, goalsvc.ErrGoalNotFound) && !errors.Is(err, goalsvc.ErrGoalInvalidState) {
+		s.loggerFor(ctx).Warn("标记 Room Goal usage limit 失败",
+			"session_key", goalSessionKeyForSlot(slot),
+			"goal_id", slot.goalIDForUsage(),
+			"round_id", slot.AgentRoundID,
+			"err", err,
+		)
+	}
+}
+
+func (s *Service) flushGoalUsageForSlot(ctx context.Context, slot *activeRoomSlot) error {
+	s.recordGoalUsageForSlot(ctx, slot, exec.RoundExecutionResult{}, slot.lastGoalAssistantMessage())
+	return nil
+}
+
+func (s *Service) recordGoalUsageFromSlotAssistantMessage(
+	ctx context.Context,
+	slot *activeRoomSlot,
+	message protocol.Message,
+) {
+	if s.goals == nil || slot == nil || slot.goalRuntimeIgnored() {
+		return
+	}
+	observations := messageutil.AssistantToolResults(message)
+	if len(observations) == 0 {
+		return
+	}
+	rememberGoalToolProgressForSlot(slot, messageutil.AssistantHasCountedToolProgress(message))
+	snapshot := slotAssistantGoalUsageSnapshot(slot, message)
+	hasSuccessfulCreate := false
+	hasSuccessfulUpdate := false
+	for _, observation := range observations {
+		if observation.IsError {
+			continue
+		}
+		switch messageutil.CanonicalToolName(observation.ToolName) {
+		case "create_goal":
+			hasSuccessfulCreate = true
+		case "update_goal":
+			hasSuccessfulUpdate = true
+		}
+	}
+	if hasSuccessfulCreate {
+		if slot.resetGoalUsageIfInactive(snapshot) {
+			return
+		}
+	}
+	s.recordGoalUsageSnapshotForSlot(ctx, slot, snapshot)
+	if hasSuccessfulUpdate {
+		clearGoalUsageForSlot(slot)
+	}
+}
+
+func slotFinalGoalUsageSnapshot(
+	slot *activeRoomSlot,
+	result exec.RoundExecutionResult,
+	finalAssistant protocol.Message,
+) (goalsvc.RuntimeUsageSnapshot, bool) {
+	usage := runtimectx.GoalUsageFromTokenUsage(result.Usage)
+	usageOK := !result.Usage.IsZero()
+	if !usageOK && protocol.MessageRole(finalAssistant) == "assistant" {
+		usage, usageOK = runtimectx.GoalUsageFromRaw(finalAssistant["usage"])
+	}
+	elapsedSeconds := result.ElapsedTimeSeconds
+	if elapsedSeconds <= 0 {
+		elapsedSeconds = slotGoalUsageElapsedSeconds(slot)
+	}
+	return goalsvc.RuntimeUsageSnapshot{
+		Usage:          usage,
+		ElapsedSeconds: elapsedSeconds,
+	}, usageOK || elapsedSeconds > 0
+}
+
+func slotAssistantGoalUsageSnapshot(slot *activeRoomSlot, message protocol.Message) goalsvc.RuntimeUsageSnapshot {
+	usage, _ := runtimectx.GoalUsageFromRaw(message["usage"])
+	return goalsvc.RuntimeUsageSnapshot{
+		Usage:          usage,
+		ElapsedSeconds: slotGoalUsageElapsedSeconds(slot),
+	}
+}
+
+func (s *Service) recordGoalUsageSnapshotForSlot(
+	ctx context.Context,
+	slot *activeRoomSlot,
+	snapshot goalsvc.RuntimeUsageSnapshot,
+) {
+	if s.goals == nil || slot == nil || slot.goalRuntimeIgnored() {
+		return
+	}
+	if usage, ok, tracked := slot.goalUsageDelta(snapshot); tracked {
+		if ok {
+			s.recordGoalUsageDeltaForSlot(ctx, slot, usage)
+		}
+		return
+	}
+	usage := snapshot.Usage
+	usage.RuntimeSeconds = snapshot.ElapsedSeconds
+	if isZeroRoomGoalUsage(usage) {
+		return
+	}
+	s.recordGoalUsageDeltaForSlot(ctx, slot, usage)
+}
+
+func (s *Service) recordGoalUsageDeltaForSlot(ctx context.Context, slot *activeRoomSlot, usage protocol.GoalUsage) {
+	if s.goals == nil || slot == nil || slot.goalRuntimeIgnored() || isZeroRoomGoalUsage(usage) {
+		return
+	}
+	var err error
+	goalID := slot.goalIDForUsage()
+	if strings.TrimSpace(goalID) != "" {
+		_, err = s.goals.RecordUsageForGoal(ctx, goalID, usage, slot.AgentRoundID)
+	} else {
+		_, err = s.goals.RecordUsageForSession(ctx, goalSessionKeyForSlot(slot), usage, slot.AgentRoundID)
+	}
+	if err != nil && !errors.Is(err, goalsvc.ErrGoalDisabled) && !errors.Is(err, goalsvc.ErrGoalNotFound) {
+		s.loggerFor(ctx).Warn("记录 Room Goal usage 失败",
+			"session_key", goalSessionKeyForSlot(slot),
+			"goal_id", goalID,
+			"round_id", slot.AgentRoundID,
+			"err", err,
+		)
+	}
+}
+
+func clearGoalUsageForSlot(slot *activeRoomSlot) {
+	if slot == nil {
+		return
+	}
+	slot.closeGoalUsage()
+}
+
+func activateGoalUsageForSlot(_ context.Context, slot *activeRoomSlot) {
+	if slot == nil || slot.goalRuntimeIgnored() {
+		return
+	}
+	snapshot := slotAssistantGoalUsageSnapshot(slot, slot.lastGoalAssistantMessage())
+	slot.resetGoalUsage(snapshot)
+}
+
+func slotGoalUsageElapsedSeconds(slot *activeRoomSlot) int64 {
+	startedAt := slot.goalUsageStartedAt()
+	if startedAt.IsZero() {
+		return 0
+	}
+	elapsed := int64(time.Since(startedAt).Seconds())
+	return max(elapsed, 0)
+}
+
+func isZeroRoomGoalUsage(usage protocol.GoalUsage) bool {
+	return usage.InputTokens == 0 &&
+		usage.OutputTokens == 0 &&
+		usage.CacheCreationInputTokens == 0 &&
+		usage.CacheReadInputTokens == 0 &&
+		usage.ReasoningTokens == 0 &&
+		usage.TotalTokens == 0 &&
+		usage.RuntimeSeconds == 0
+}
+
+// goalCancellationProvider 是用户取消当前 Room Goal 所需的最小 Goal 能力。
+type goalCancellationProvider interface {
+	CurrentOptional(context.Context, string) (*protocol.Goal, error)
+	Clear(context.Context, string) (bool, error)
+}
+
+// cancelActiveRoomGoalForUser 定义用户取消的边界：只清除 active Goal，
+// 不把暂停或已完成的历史 Goal 重新解释为取消，也不触发新的续跑。
+func (s *Service) cancelActiveRoomGoalForUser(
+	ctx context.Context,
+	sessionKey string,
+	content string,
+) error {
+	if s == nil || !isGoalCancellationRequest(content) {
+		return nil
+	}
+	provider, ok := s.goals.(goalCancellationProvider)
+	if !ok {
+		return nil
+	}
+	goal, err := provider.CurrentOptional(ctx, strings.TrimSpace(sessionKey))
+	if errors.Is(err, goalsvc.ErrGoalNotFound) || goal == nil {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if protocol.NormalizeGoalStatus(goal.Status) != protocol.GoalStatusActive {
+		return nil
+	}
+	_, err = provider.Clear(ctx, goal.ID)
+	if errors.Is(err, goalsvc.ErrGoalNotFound) {
+		return nil
+	}
+	if err == nil {
+		s.loggerFor(ctx).Info("用户取消 Room active Goal",
+			"session_key", strings.TrimSpace(sessionKey),
+			"goal_id", strings.TrimSpace(goal.ID),
+			"content", strings.TrimSpace(content),
+		)
+	}
+	return err
+}
+
+// isGoalCancellationRequest 只识别短、明确的停止意图，避免把普通讨论中的“停止”误判为取消。
+func isGoalCancellationRequest(content string) bool {
+	content = normalizeGoalCancellationText(content)
+	if content == "" {
+		return false
+	}
+	if content == "算了" || content == "不用了" || content == "取消" || content == "停止" || content == "停下" {
+		return true
+	}
+	for _, phrase := range []string{
+		"算了不用了",
+		"不用继续",
+		"取消这个任务",
+		"取消任务",
+		"停止这个任务",
+		"停止任务",
+	} {
+		if strings.Contains(content, phrase) {
+			return true
+		}
+	}
+	return false
+}
+
+func normalizeGoalCancellationText(content string) string {
+	content = strings.TrimSpace(strings.ToLower(content))
+	var builder strings.Builder
+	for _, runeValue := range content {
+		if unicode.IsSpace(runeValue) || unicode.IsPunct(runeValue) {
+			continue
+		}
+		builder.WriteRune(runeValue)
+	}
+	return builder.String()
+}
+
+// INPUT: 当前 Room Goal、调用方 Agent/root round、active slots 与 durable Room work。
+// OUTPUT: complete 前第一个 outstanding-work blocker；调用方主 slot 不阻塞自身。
+// POS: Room 实时/持久化工作到 Goal 终态 gate 的唯一投影入口。
+// RoomGoalCompletionBlocker 返回阻止共享 Goal complete 的 Room 工作；空字符串表示已收敛。
+func (s *Service) RoomGoalCompletionBlocker(
+	ctx context.Context,
+	goal protocol.Goal,
+	callerAgentID string,
+	callerRoundID string,
+) (string, error) {
+	if s == nil || !protocol.IsRoomSharedSessionKey(goal.SessionKey) {
+		return "", nil
+	}
+	parsed := protocol.ParseSessionKey(goal.SessionKey)
+	conversationID := strings.TrimSpace(parsed.ConversationID)
+	if conversationID == "" {
+		return "", nil
+	}
+
+	// 同一 conversation 的 queue、wake 和 active slot 必须在同一个派发闸门内观察，
+	// 避免 wake 交接窗口被误判为 idle。
+	lease := s.lockRoomDispatch(goal.SessionKey, conversationID)
+	defer lease.Unlock()
+
+	ctx, contextValue, err := s.internalConversationContext(ctx, conversationID, true)
+	if err != nil {
+		return "", err
+	}
+	if blocker := s.activeRoomGoalBlocker(goal.SessionKey, conversationID, callerAgentID, callerRoundID); blocker != "" {
+		return blocker, nil
+	}
+	if blocker, err := s.roomGoalInputQueueBlocker(ctx, contextValue); err != nil || blocker != "" {
+		return blocker, err
+	}
+	return s.roomGoalDelayedWakeBlocker(conversationID)
+}
+
+func (s *Service) activeRoomGoalBlocker(
+	sessionKey string,
+	conversationID string,
+	callerAgentID string,
+	callerRoundID string,
+) string {
+	sessionKey = strings.TrimSpace(sessionKey)
+	conversationID = strings.TrimSpace(conversationID)
+	callerAgentID = strings.TrimSpace(callerAgentID)
+	callerRoundID = strings.TrimSpace(callerRoundID)
+
+	for _, roundValue := range s.rounds.snapshotConversation(conversationID) {
+		if roundValue == nil ||
+			strings.TrimSpace(roundValue.SessionKey) != sessionKey ||
+			strings.TrimSpace(roundValue.ConversationID) != conversationID {
+			continue
+		}
+		// public @ 已从模型输出解析，但尚未交接成目标 slot。
+		// 它挂在当前 shared Goal 的 Room round 上，清空或注册 slot 后自动解锁。
+		if s.rounds.hasPublicMentions(roundValue) {
+			return "a Room public-mention wake has not started"
+		}
+		for _, slot := range roundValue.Slots {
+			if slot == nil {
+				continue
+			}
+			isCallerSlot := callerAgentID != "" && callerRoundID != "" &&
+				strings.TrimSpace(slot.AgentID) == callerAgentID &&
+				(roomRootRoundID(roundValue) == callerRoundID ||
+					strings.TrimSpace(roundValue.RoundID) == callerRoundID ||
+					strings.TrimSpace(slot.AgentRoundID) == callerRoundID)
+			if slot.hasRunningSubagentTask() {
+				if isCallerSlot {
+					return fmt.Sprintf("caller agent %s still has running subagent work", callerAgentID)
+				}
+				return fmt.Sprintf("agent %s still has running subagent work", strings.TrimSpace(slot.AgentID))
+			}
+			if slot.isTerminal() {
+				continue
+			}
+			if isCallerSlot {
+				continue
+			}
+			return fmt.Sprintf("agent %s still has an active Room slot", strings.TrimSpace(slot.AgentID))
+		}
+	}
+	if s.rounds.hasPublicMentionsForConversation(conversationID) {
+		return "a Room public-mention wake has not started"
+	}
+	return ""
+}
+
+func (s *Service) roomGoalInputQueueBlocker(
+	ctx context.Context,
+	contextValue *protocol.ConversationContextAggregate,
+) (string, error) {
+	if s.inputQueue == nil || contextValue == nil {
+		return "", nil
+	}
+	entries, err := s.roomInputQueueEntries(ctx, contextValue)
+	if err != nil {
+		return "", err
+	}
+	if len(entries) == 0 {
+		return "", nil
+	}
+	// InputQueue replay 已排除 expired/deleted/dispatched 项。队列尚无 goal_id，
+	// 所以对同 conversation 的 active shared Goal 保守阻止，不会被日志历史永久卡住。
+	return fmt.Sprintf("Room input queue item %s has not been consumed", strings.TrimSpace(entries[0].Item.ID)), nil
+}
+
+func (s *Service) roomGoalDelayedWakeBlocker(conversationID string) (string, error) {
+	if s.directedWakes == nil {
+		return "", nil
+	}
+	pending, err := s.directedWakes.Pending()
+	if err != nil {
+		return "", err
+	}
+	for _, wake := range pending {
+		if strings.TrimSpace(wake.Message.ConversationID) != strings.TrimSpace(conversationID) {
+			continue
+		}
+		return fmt.Sprintf("Room directed wake %s has not started", strings.TrimSpace(wake.WakeID)), nil
+	}
+	return "", nil
 }

@@ -7,6 +7,8 @@ import (
 	"slices"
 	"sort"
 	"strings"
+
+	"github.com/nexus-research-lab/nexus/internal/message"
 )
 
 func (s *AgentHistoryStore) readTranscriptEntries(path string) ([]transcriptEntry, error) {
@@ -153,11 +155,23 @@ func shouldSkipTranscriptEntry(entry map[string]any) bool {
 	if boolValueAny(entry["isSidechain"]) || boolValueAny(entry["isMeta"]) {
 		return true
 	}
+	if isInternalTranscriptContinuationEntry(entry) {
+		return true
+	}
 	return stringFromAny(entry["teamName"]) != ""
 }
 
 func shouldSkipExplicitTranscriptEntry(entry map[string]any) bool {
-	return boolValueAny(entry["isMeta"]) || stringFromAny(entry["teamName"]) != ""
+	return boolValueAny(entry["isMeta"]) ||
+		isInternalTranscriptContinuationEntry(entry) ||
+		stringFromAny(entry["teamName"]) != ""
+}
+
+func isInternalTranscriptContinuationEntry(entry map[string]any) bool {
+	if stringFromAny(entry["type"]) != "user" {
+		return false
+	}
+	return message.IsInternalTranscriptContinuationPrompt(transcriptRawUserContent(entry))
 }
 
 func includeParallelTranscriptToolResults(

@@ -1,5 +1,6 @@
 import type {
   ContentBlock,
+  ToolResultContent,
   TextContent,
 } from "@/types/conversation/message/content";
 
@@ -8,6 +9,24 @@ const TOOL_USE_ERROR_TAG_PATTERN =
 
 // 该标记只控制 Room 编排，任何面向用户的文本投影都必须先剥离。
 const ROOM_CONTROL_MARKER = /<nexus_room_no_reply\s*\/>/g;
+
+// SDK 用内部元数据标记可恢复的工具结果，模型仍能看到 is_error，用户界面不应把它当成异常。
+export const INTERNAL_TOOL_RESULT_KIND_KEY = "_nexus_internal_kind";
+export const MALFORMED_TOOL_INPUT_RESULT_KIND = "malformed_tool_input";
+
+export function isRecoverableToolResult(
+  block: ToolResultContent,
+): boolean {
+  return block.metadata?.[INTERNAL_TOOL_RESULT_KIND_KEY] ===
+    MALFORMED_TOOL_INPUT_RESULT_KIND;
+}
+
+export function isRecoverableToolUse(
+  block: Extract<ContentBlock, { type: "tool_use" }>,
+): boolean {
+  return block.metadata?.[INTERNAL_TOOL_RESULT_KIND_KEY] ===
+    MALFORMED_TOOL_INPUT_RESULT_KIND;
+}
 
 export function splitTextBlockByToolUseError(
   block: TextContent,

@@ -36,6 +36,8 @@ export interface RoundStatusEventPayload {
   status: RoundLifecycleStatus;
   is_terminal: boolean;
   result_subtype?: ResultSummary["subtype"] | null;
+  /** 失败轮次的可展示原因；旧服务端可能不提供。 */
+  error_message?: string | null;
 }
 
 export interface AgentRoundStatusEventPayload {
@@ -50,6 +52,7 @@ type StreamMessageType =
   | "message_start"
   | "content_block_start"
   | "content_block_delta"
+  | "content_block_stop"
   | "message_delta"
   | "message_stop";
 
@@ -61,6 +64,7 @@ export interface StreamMessage {
   agent_id: string;
   round_id: string;
   session_id?: SessionId;
+  parent_tool_use_id?: string | null;
   type: StreamMessageType;
   index?: number;
   content_block?: ContentBlock;

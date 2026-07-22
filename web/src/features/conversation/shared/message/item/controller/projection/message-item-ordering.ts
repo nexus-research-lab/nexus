@@ -4,6 +4,8 @@ import type {
 } from "@/types/conversation/message/content";
 
 import {
+	isRecoverableToolUse,
+	isRecoverableToolResult,
   splitTextBlockByToolUseError,
   stripRoomControlMarkers,
 } from "../../../message-content-model";
@@ -29,7 +31,12 @@ const BLOCK_PROJECTORS: BlockProjector[] = [
     ? (block.thinking.trim() ? [block] : [])
     : null,
   (block, context) => block.type === "tool_use"
-    ? (context.hiddenToolNames.has(block.name) ? [] : [block])
+    ? (
+      context.hiddenToolNames.has(block.name)
+      || context.hiddenToolUseIds.has(block.id)
+        ? []
+        : [block]
+    )
     : null,
   (block, context) => block.type === "tool_result"
     ? (context.hiddenToolUseIds.has(block.tool_use_id) ? [] : [block])
@@ -96,9 +103,12 @@ export function buildVisibleOrderedAssistantEntries({
     mergedContentSourceMessageIds,
     resolveSourceOrder,
   });
+  const visibleSystemEventBlocks = systemEventBlocks.filter(
+    (block) => !block.tool_use_id || !hiddenToolUseIds.has(block.tool_use_id),
+  );
   const attached = attachSystemEvents(
     assistantEntries,
-    partitionSystemEvents(systemEventBlocks),
+    partitionSystemEvents(visibleSystemEventBlocks),
     resolveSourceOrder,
   );
   const unmatchedEntries = orderSystemEventEntries(
@@ -241,6 +251,27 @@ function mergeEntriesBySourceOrder(
   }
   mergedEntries.push(...systemEntries.slice(systemIndex));
   return mergedEntries;
+}
+
+// collectHiddenToolUseIds 统一收集不会进入用户时间线的工具调用。
+// 恢复性工具结果仍需落盘并回灌模型，但不应被渲染成一次失败的工具执行。
+export function collectHiddenToolUseIds(
+  content: readonly ContentBlock[],
+  hiddenToolNames: ReadonlySet<string>,
+): Set<string> {
+  const ids = new Set<string>();
+  for (const block of content) {
+    if (block.type === "tool_use" && hiddenToolNames.has(block.name)) {
+      ids.add(block.id);
+    }
+    if (block.type === "tool_use" && isRecoverableToolUse(block)) {
+      ids.add(block.id);
+    }
+    if (block.type === "tool_result" && isRecoverableToolResult(block)) {
+      ids.add(block.tool_use_id);
+    }
+  }
+  return ids;
 }
 
 export function buildVisibleAssistantTurns({

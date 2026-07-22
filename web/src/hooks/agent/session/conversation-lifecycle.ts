@@ -21,6 +21,7 @@ import {
   mergeLoadedMessages,
   sortMessages,
 } from "../message/message-collection-model";
+import { latestAssistantResultErrorMessage } from "../message/assistant-message-model";
 
 interface AgentConversationLifecycleRefs {
   activeSessionKey: RefObject<string | null>;
@@ -158,6 +159,10 @@ function commitSessionMessages(
     mergedMessages = mergeLoadedMessages(sortedMessages, currentMessages);
     return mergedMessages;
   });
+  const resultError = latestAssistantResultErrorMessage(mergedMessages);
+  if (resultError) {
+    context.state.setError(resultError);
+  }
   context.onSessionMessagesLoaded(mergedMessages, {
     hasMoreHistory: page.has_more,
     isReload,

@@ -32,6 +32,8 @@ interface BaseMessage {
   agent_round_id?: string | null;
   session_id?: SessionId;
   parent_id?: string;
+  /** Claude Code / nxs 的原生子执行父工具调用标识。 */
+  parent_tool_use_id?: string | null;
   role: MessageRole;
   timestamp: number;
   display_order?: number;
@@ -66,7 +68,14 @@ export interface ResultSummary {
   num_turns: number;
   total_cost_usd?: number;
   usage?: Usage;
+  model_usage?: Record<string, unknown>;
   result?: string;
+  structured_output?: unknown;
+  fast_mode_state?: "off" | "cooldown" | "on" | string;
+  runtime_subtype?: string;
+  errors?: string[];
+  terminal_reason?: string;
+  stop_reason?: string;
   is_error: boolean;
 }
 

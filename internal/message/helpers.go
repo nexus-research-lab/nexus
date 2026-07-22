@@ -8,6 +8,11 @@ import (
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
+const (
+	noContentMessage          = "(no content)"
+	interruptedToolUseMessage = "[Request interrupted by user for tool use]"
+)
+
 func firstNonEmpty(values ...string) string {
 	for _, value := range values {
 		trimmed := strings.TrimSpace(value)
@@ -116,11 +121,32 @@ func normalizeContentBlocks(blocks []sdkprotocol.ContentBlock) []map[string]any 
 		if len(payload) == 0 {
 			payload = map[string]any{}
 		}
-		payload["type"] = normalizeBlockType(string(block.Type()))
+		sourceType := string(block.Type())
+		payload["type"] = normalizeBlockType(sourceType)
+		if normalizedType := normalizeString(payload["type"]); sourceType != normalizedType {
+			payload["source_type"] = sourceType
+		}
 		mergeNormalizedBlockPayload(payload, block)
 		result = append(result, payload)
 	}
 	return result
+}
+
+// hasPublicAssistantContent 对齐 Claude Code 的 SDK 输出门控：空 assistant
+// 与内部占位文本不进入宿主消息流，非文本块和多块消息仍视为有效内容。
+func hasPublicAssistantContent(blocks []map[string]any) bool {
+	if len(blocks) == 0 {
+		return false
+	}
+	if len(blocks) > 1 {
+		return true
+	}
+	block := blocks[0]
+	if normalizeString(block["type"]) != "text" {
+		return true
+	}
+	text := strings.TrimSpace(rawString(block["text"]))
+	return text != "" && text != noContentMessage && text != interruptedToolUseMessage
 }
 
 func normalizeContentBlock(raw any) map[string]any {
@@ -131,15 +157,25 @@ func normalizeContentBlock(raw any) map[string]any {
 	result := maps.Clone(payload)
 	if value := normalizeString(result["type"]); value != "" {
 		result["type"] = normalizeBlockType(value)
+		if result["type"] != value {
+			result["source_type"] = value
+		}
 	}
 	return result
 }
 
 func normalizeBlockType(blockType string) string {
 	switch blockType {
-	case "server_tool_use":
+	case "server_tool_use", "mcp_tool_use":
 		return "tool_use"
-	case "server_tool_result":
+	case "server_tool_result",
+		"web_search_tool_result",
+		"web_fetch_tool_result",
+		"code_execution_tool_result",
+		"bash_code_execution_tool_result",
+		"text_editor_code_execution_tool_result",
+		"tool_search_tool_result",
+		"mcp_tool_result":
 		return "tool_result"
 	default:
 		return blockType

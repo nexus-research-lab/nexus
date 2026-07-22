@@ -8,12 +8,28 @@ func TestResolveRuntimeKindDefaultsToNXS(t *testing.T) {
 	}
 }
 
-func TestResolveRuntimeKindAllowsEnvOverrideToClaude(t *testing.T) {
+func TestResolveRuntimeKindExplicitOptionWinsOverEnv(t *testing.T) {
 	got := resolveRuntimeKind(runtimeKindNXS, fakeRuntimeProfileEnv(map[string]string{
 		nexusAgentRuntimeKindEnvName: "claude",
 	}))
+	if got != runtimeKindNXS {
+		t.Fatalf("runtime kind = %q, want explicit %q", got, runtimeKindNXS)
+	}
+
+	got = resolveRuntimeKind(runtimeKindClaude, fakeRuntimeProfileEnv(map[string]string{
+		nexusAgentRuntimeKindEnvName: runtimeKindNXS,
+	}))
 	if got != runtimeKindClaude {
-		t.Fatalf("runtime kind = %q, want %q", got, runtimeKindClaude)
+		t.Fatalf("runtime kind = %q, want explicit %q", got, runtimeKindClaude)
+	}
+}
+
+func TestResolveRuntimeKindUsesEnvWhenOptionIsEmpty(t *testing.T) {
+	got := resolveRuntimeKind("", fakeRuntimeProfileEnv(map[string]string{
+		nexusAgentRuntimeKindEnvName: runtimeKindClaude,
+	}))
+	if got != runtimeKindClaude {
+		t.Fatalf("runtime kind = %q, want env %q", got, runtimeKindClaude)
 	}
 }
 

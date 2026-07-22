@@ -61,6 +61,7 @@ export interface RoundStatusData {
   status: string;
   is_terminal: boolean;
   result_subtype?: string;
+  message?: string;
 }
 
 export interface AgentRoundStatusData {

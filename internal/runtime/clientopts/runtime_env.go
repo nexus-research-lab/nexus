@@ -24,7 +24,9 @@ const nexusctlCommandPathEnvName = "NEXUSCTL_COMMAND_PATH"
 const apiFormatAnthropicMessages = runtimeprovider.APIFormatAnthropicMessages
 const apiFormatChatCompletions = runtimeprovider.APIFormatChatCompletions
 const nexusAutoCompactPctOverrideEnvName = "NEXUS_AUTOCOMPACT_PCT_OVERRIDE"
-const defaultClaudeAutoCompactPctOverride = "70"
+const claudeAutoCompactPctOverrideEnvName = "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE"
+const claudeAutoCompactWindowEnvName = "CLAUDE_CODE_AUTO_COMPACT_WINDOW"
+const defaultAutoCompactPctOverride = "70"
 const thinkingCapabilityName = "thinking"
 const nexusAPIProviderEnvName = "NEXUS_API_PROVIDER"
 const anthropicBaseURLEnvName = "ANTHROPIC_BASE_URL"
@@ -69,6 +71,8 @@ func runtimeEnvFromConfig(runtimeConfig *RuntimeConfig, runtimeKind string) map[
 	}
 	if profile.isNXS() {
 		applyNXSModelMetadataEnv(env, runtimeConfig)
+	} else {
+		applyClaudeModelMetadataEnv(env, runtimeConfig)
 	}
 	return env
 }
@@ -103,6 +107,15 @@ func applyNXSModelMetadataEnv(env map[string]string, runtimeConfig *RuntimeConfi
 		env[nexusMultimodalUserContentEnvName] = "1"
 		env[nexusMultimodalToolResultEnvName] = "1"
 	}
+}
+
+// applyClaudeModelMetadataEnv 使用 Claude Code 对外支持的窗口上限控制本地压缩决策。
+// CLAUDE_CODE_MAX_CONTEXT_TOKENS 仅供 Claude 内部用户使用，外部运行时不能依赖它。
+func applyClaudeModelMetadataEnv(env map[string]string, runtimeConfig *RuntimeConfig) {
+	if len(env) == 0 || runtimeConfig == nil || runtimeConfig.ContextWindow <= 0 {
+		return
+	}
+	env[claudeAutoCompactWindowEnvName] = strconv.Itoa(runtimeConfig.ContextWindow)
 }
 
 // visionRuntimeEnvFromConfig 为辅助视觉模型生成独立命名空间，避免覆盖主模型路由。
@@ -195,10 +208,15 @@ func applyDefaultModelCapabilitiesEnv(env map[string]string, capabilities ...str
 	}
 }
 
-func defaultRuntimeEnv() map[string]string {
+func defaultRuntimeEnv(runtimeKind string) map[string]string {
+	if runtimeProfileForKind(runtimeKind).isNXS() {
+		return map[string]string{
+			nexusAutoCompactPctOverrideEnvName:     defaultAutoCompactPctOverride,
+			nexusDisableProjectInstructionsEnvName: "1",
+		}
+	}
 	return map[string]string{
-		nexusAutoCompactPctOverrideEnvName:     defaultClaudeAutoCompactPctOverride,
-		nexusDisableProjectInstructionsEnvName: "1",
+		claudeAutoCompactPctOverrideEnvName: defaultAutoCompactPctOverride,
 	}
 }
 

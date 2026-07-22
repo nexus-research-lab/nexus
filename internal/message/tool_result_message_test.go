@@ -103,6 +103,99 @@ func TestProcessorHandlesToolResultMessage(t *testing.T) {
 	}
 }
 
+func TestProcessorPreservesParentAcrossToolResultSnapshot(t *testing.T) {
+	parentToolUseID := "agent-parent-tool"
+	processor := NewProcessor(MessageContext{
+		SessionKey: "agent:worker:ws:dm:test",
+		AgentID:    "worker",
+		RoundID:    "round-parent-tool-result",
+	}, "")
+	processor.Process(sdkprotocol.ReceivedMessage{
+		Type:            sdkprotocol.MessageTypeAssistant,
+		ParentToolUseID: &parentToolUseID,
+		Assistant: &sdkprotocol.AssistantMessage{
+			ParentToolUseID: &parentToolUseID,
+			Message: sdkprotocol.ConversationEnvelope{
+				ID: "assistant-parent-tool-result",
+				Content: []sdkprotocol.ContentBlock{
+					sdkprotocol.ToolUseBlock{ID: "tool-child", Name: "Read"},
+				},
+			},
+		},
+	})
+
+	output := processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeUser,
+		User: &sdkprotocol.UserMessage{Message: sdkprotocol.ConversationEnvelope{
+			Content: []sdkprotocol.ContentBlock{sdkprotocol.ToolResultBlock{
+				ToolUseID: "tool-child",
+				Content:   json.RawMessage(`"ok"`),
+			}},
+		}},
+	})
+	if len(output.DurableMessages) != 1 {
+		t.Fatalf("tool result = %+v, want one durable assistant", output)
+	}
+	assistant := output.DurableMessages[0]
+	if assistant["parent_id"] != parentToolUseID || assistant["parent_tool_use_id"] != parentToolUseID {
+		t.Fatalf("tool result snapshot parent lost: %+v", assistant)
+	}
+}
+
+func TestProcessorPreservesRecoverableToolResultMarker(t *testing.T) {
+	processor := NewProcessor(MessageContext{
+		SessionKey: "agent:nexus:ws:dm:test",
+		AgentID:    "nexus",
+		RoundID:    "round-malformed-tool-input",
+		ParentID:   "round-malformed-tool-input",
+	}, "")
+	processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeAssistant,
+		Assistant: &sdkprotocol.AssistantMessage{
+			Message: sdkprotocol.ConversationEnvelope{
+				Content: []sdkprotocol.ContentBlock{
+					sdkprotocol.ToolUseBlock{ID: "tool-malformed", Name: "WebFetch"},
+				},
+			},
+		},
+	})
+
+	message, err := sdkprotocol.DecodeMessage(map[string]any{
+		"type": "user",
+		"message": map[string]any{
+			"role": "user",
+			"content": []any{map[string]any{
+				"type":        "tool_result",
+				"tool_use_id": "tool-malformed",
+				"content":     "Tool input was not valid JSON",
+				"is_error":    true,
+				"metadata": map[string]any{
+					"_nexus_internal_kind": "malformed_tool_input",
+				},
+			}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("DecodeMessage() error = %v", err)
+	}
+
+	output := processor.Process(message)
+	if len(output.DurableMessages) != 1 {
+		t.Fatalf("recoverable tool result 未生成 durable message: %+v", output)
+	}
+	blocks, _ := output.DurableMessages[0]["content"].([]map[string]any)
+	if len(blocks) < 2 {
+		t.Fatalf("durable assistant content = %+v，期望保留 tool_use 与 tool_result", blocks)
+	}
+	metadata, _ := blocks[1]["metadata"].(map[string]any)
+	if metadata["_nexus_internal_kind"] != "malformed_tool_input" {
+		t.Fatalf("recoverable tool result marker 丢失: %+v", blocks[1])
+	}
+	if blocks[1]["is_error"] != true {
+		t.Fatalf("recoverable tool result 必须保留 is_error=true: %+v", blocks[1])
+	}
+}
+
 func TestProcessorPreservesTaskListStructuredOutputFromTranscript(t *testing.T) {
 	processor := NewProcessor(MessageContext{
 		SessionKey: "agent:nexus:ws:dm:test",

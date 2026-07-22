@@ -71,12 +71,14 @@ func (r *roundRunner) failRound(err error) {
 		} else if updated != nil {
 			r.session = *updated
 		}
-		event := protocol.NewEvent(protocol.EventTypeMessage, r.mapper.ProjectResultMessage(resultMessage))
-		event.SessionKey = r.sessionKey
-		event.AgentID = r.agent.AgentID
-		event.MessageID = dmdomain.NormalizeString(event.Data["message_id"])
-		event.DeliveryMode = "durable"
-		r.service.broadcastEventWithTimeout(context.Background(), r.sessionKey, event)
+		if projected := r.mapper.ProjectResultMessage(resultMessage); projected != nil {
+			event := protocol.NewEvent(protocol.EventTypeMessage, projected)
+			event.SessionKey = r.sessionKey
+			event.AgentID = r.agent.AgentID
+			event.MessageID = dmdomain.NormalizeString(event.Data["message_id"])
+			event.DeliveryMode = "durable"
+			r.service.broadcastEventWithTimeout(context.Background(), r.sessionKey, event)
+		}
 	}
 	errorEvent := protocol.NewErrorEvent(r.sessionKey, err.Error())
 	r.refreshSessionMetaAfterRoundFinished()
@@ -87,11 +89,11 @@ func (r *roundRunner) failRound(err error) {
 		errorEvent.MessageID = messageID
 	}
 	r.service.broadcastEventWithTimeout(context.Background(), r.sessionKey, errorEvent)
-	r.service.broadcastEventWithTimeout(
-		context.Background(),
-		r.sessionKey,
-		protocol.NewRoundStatusEvent(r.sessionKey, r.roundID, "error", "error"),
-	)
+	roundStatus := protocol.NewRoundStatusErrorEvent(r.sessionKey, r.roundID, err.Error())
+	roundStatus.AgentID = r.agent.AgentID
+	roundStatus.RoundID = r.roundID
+	roundStatus.AgentRoundID = r.agentRoundID
+	r.service.broadcastEventWithTimeout(context.Background(), r.sessionKey, roundStatus)
 	r.service.broadcastSessionStatus(context.Background(), r.sessionKey)
 	r.dispatchNextInputQueueItem()
 }
@@ -181,12 +183,14 @@ func (r *roundRunner) finishInterrupted(resultText string) {
 		} else if updated != nil {
 			r.session = *updated
 		}
-		event := protocol.NewEvent(protocol.EventTypeMessage, r.mapper.ProjectResultMessage(resultMessage))
-		event.SessionKey = r.sessionKey
-		event.AgentID = r.agent.AgentID
-		event.MessageID = dmdomain.NormalizeString(event.Data["message_id"])
-		event.DeliveryMode = "durable"
-		r.service.broadcastEventWithTimeout(context.Background(), r.sessionKey, event)
+		if projected := r.mapper.ProjectResultMessage(resultMessage); projected != nil {
+			event := protocol.NewEvent(protocol.EventTypeMessage, projected)
+			event.SessionKey = r.sessionKey
+			event.AgentID = r.agent.AgentID
+			event.MessageID = dmdomain.NormalizeString(event.Data["message_id"])
+			event.DeliveryMode = "durable"
+			r.service.broadcastEventWithTimeout(context.Background(), r.sessionKey, event)
+		}
 	}
 	r.refreshSessionMetaAfterRoundFinished()
 	r.service.broadcastEventWithTimeout(

@@ -86,3 +86,20 @@ func TestInputQueueAckEventConfirmsDurableAcceptance(t *testing.T) {
 		t.Fatalf("chat ack alias drifted: chat=%d request=%d", ChatAckTimeoutMS, RequestAckTimeoutMS)
 	}
 }
+
+func TestRoundStatusErrorEventCarriesDisplayableMessage(t *testing.T) {
+	event := NewRoundStatusErrorEvent(
+		"agent:agent-1:ws:dm:session-1",
+		"round-1",
+		"provider unavailable",
+	)
+	if event.EventType != EventTypeRoundStatus || event.SessionKey == "" {
+		t.Fatalf("unexpected round status envelope: %+v", event)
+	}
+	if event.Data["status"] != "error" || event.Data["is_terminal"] != true {
+		t.Fatalf("unexpected round status data: %+v", event.Data)
+	}
+	if event.Data["message"] != "provider unavailable" {
+		t.Fatalf("error message = %#v", event.Data["message"])
+	}
+}

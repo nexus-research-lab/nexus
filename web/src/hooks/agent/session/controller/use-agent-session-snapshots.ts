@@ -8,6 +8,7 @@ import {
   mergeLoadedMessages,
   upsertMessage,
 } from "../../message/message-collection-model";
+import { latestAssistantResultErrorMessage } from "../../message/assistant-message-model";
 import {
   isEphemeralMessage,
   type AgentConversationRuntimeSnapshot,
@@ -83,7 +84,7 @@ export function useAgentSessionSnapshots({
     setPendingAgentSlots((currentSlots) => (
       mergePendingAgentSlots(snapshot.pending_agent_slots, currentSlots)
     ));
-    setError(null);
+    setError(latestAssistantResultErrorMessage(restoredMessages));
     reconcileRuntimeStateFromSnapshot(restoredMessages);
     return (
       restoredMessages.length > 0

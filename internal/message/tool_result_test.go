@@ -125,6 +125,30 @@ func TestAssistantHasCountedToolProgressIgnoresUnmatchedToolResult(t *testing.T)
 	}
 }
 
+func TestAssistantHasCountedToolProgressIgnoresRecoverableMalformedInput(t *testing.T) {
+	message := protocol.Message{
+		"role": "assistant",
+		"content": []map[string]any{
+			{
+				"type": "tool_use",
+				"id":   "tool-1",
+				"name": "SendUserMessage",
+			},
+			{
+				"type":        "tool_result",
+				"tool_use_id": "tool-1",
+				"is_error":    true,
+				"metadata": map[string]any{
+					"_nexus_internal_kind": "malformed_tool_input",
+				},
+			},
+		},
+	}
+	if AssistantHasCountedToolProgress(message) {
+		t.Fatal("AssistantHasCountedToolProgress() = true, want false for recoverable malformed input")
+	}
+}
+
 func TestAssistantMissedGoalCompletionTool(t *testing.T) {
 	message := protocol.Message{
 		"role": "assistant",

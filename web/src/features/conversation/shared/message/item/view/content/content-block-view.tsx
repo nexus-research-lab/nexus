@@ -57,7 +57,11 @@ type ErasedContentBlockRenderer = (
 ) => ReactNode;
 
 const CONTENT_BLOCK_RENDERERS = {
+  document: renderHiddenBlock,
   image: renderImageBlock,
+  redacted_thinking: renderHiddenBlock,
+  resource_link: renderHiddenBlock,
+  search_result: renderHiddenBlock,
   system_event: renderSystemEventBlock,
   task_progress: renderHiddenBlock,
   text: renderTextBlock,
@@ -65,6 +69,7 @@ const CONTENT_BLOCK_RENDERERS = {
   tool_result: renderHiddenBlock,
   tool_use: renderToolUseBlock,
   tool_use_error: renderToolUseErrorBlock,
+  unsupported: renderHiddenBlock,
   workspace_file_artifact: renderWorkspaceFileArtifactBlock,
 } satisfies ContentBlockRendererMap;
 
@@ -84,7 +89,10 @@ export function ContentBlockView({
   // 判别字段同时决定注册表索引和参数类型，类型擦除只发生在这个穷尽边界。
   const renderer = CONTENT_BLOCK_RENDERERS[
     block.type
-  ] as ErasedContentBlockRenderer;
+  ] as ErasedContentBlockRenderer | undefined;
+  if (!renderer) {
+    return null;
+  }
   const node = renderer(block, context, streaming, blockIndex);
   if (node === null || node === undefined || node === false) {
     return null;

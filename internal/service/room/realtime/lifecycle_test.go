@@ -355,8 +355,11 @@ func TestRealtimeServiceHandleInterruptCancelsAllSlots(t *testing.T) {
 	events := collectRoomEventsUntil(t, sender.events, func(events []protocol.EventMessage, event protocol.EventMessage) bool {
 		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "interrupted"
 	})
-	if countRoomResultSubtype(events, "interrupted") < 2 {
-		t.Fatalf("期望每个 slot 都产出 interrupted result: %+v", events)
+	if countEventType(events, protocol.EventTypeAgentRoundStatus) < 2 {
+		t.Fatalf("期望每个 slot 都产出 interrupted 状态: %+v", events)
+	}
+	if countRoomResultSubtype(events, "interrupted") != 0 {
+		t.Fatalf("空 interrupted result 不应形成公开气泡: %+v", events)
 	}
 
 	clientA.mu.Lock()

@@ -179,6 +179,25 @@ func assertContainsResultSubtype(t *testing.T, events []protocol.EventMessage, s
 	t.Fatalf("未找到 result.subtype=%s: %+v", subtype, events)
 }
 
+func assertNotContainsResultSubtype(t *testing.T, events []protocol.EventMessage, subtype string) {
+	t.Helper()
+	for _, event := range events {
+		if event.EventType != protocol.EventTypeMessage {
+			continue
+		}
+		if event.Data["role"] == "result" && event.Data["subtype"] == subtype {
+			t.Fatalf("空 result 不应形成公开消息: subtype=%s events=%+v", subtype, events)
+		}
+		if event.Data["role"] != "assistant" {
+			continue
+		}
+		summary, ok := event.Data["result_summary"].(map[string]any)
+		if ok && summary["subtype"] == subtype {
+			t.Fatalf("空 result 不应形成公开 assistant: subtype=%s events=%+v", subtype, events)
+		}
+	}
+}
+
 func assertContainsErrorEventForMessage(t *testing.T, events []protocol.EventMessage, messageID string) {
 	t.Helper()
 	for _, event := range events {

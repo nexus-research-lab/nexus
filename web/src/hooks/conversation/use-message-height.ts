@@ -51,7 +51,11 @@ const TOOL_BLOCK_HEIGHT = 60;
 const ignoreHeightMetrics = () => undefined;
 
 const CONTENT_BLOCK_METRIC_COLLECTORS = {
+  document: ignoreHeightMetrics,
   image: ignoreHeightMetrics,
+  redacted_thinking: ignoreHeightMetrics,
+  resource_link: ignoreHeightMetrics,
+  search_result: ignoreHeightMetrics,
   system_event: ignoreHeightMetrics,
   task_progress: (block, metrics) => {
     metrics.textParts.push(block.description);
@@ -65,6 +69,7 @@ const CONTENT_BLOCK_METRIC_COLLECTORS = {
     metrics.toolBlockCount += 1;
   },
   tool_use_error: ignoreHeightMetrics,
+  unsupported: ignoreHeightMetrics,
   workspace_file_artifact: ignoreHeightMetrics,
 } satisfies ContentBlockMetricCollectorMap;
 
@@ -120,11 +125,11 @@ function collectAssistantMessageMetrics(
   metrics: MutableRoundHeightMetrics,
 ): void {
   for (const block of message.content) {
-    const collectMetrics = CONTENT_BLOCK_METRIC_COLLECTORS[block.type] as (
+    const collectMetrics = CONTENT_BLOCK_METRIC_COLLECTORS[block.type] as ((
       value: ContentBlock,
       target: MutableRoundHeightMetrics,
-    ) => void;
-    collectMetrics(block, metrics);
+    ) => void) | undefined;
+    collectMetrics?.(block, metrics);
   }
 }
 

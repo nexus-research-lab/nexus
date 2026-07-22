@@ -6,18 +6,23 @@ package realtime
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
-	"slices"
-	"strings"
-	"time"
-	"unicode/utf8"
-
+	"fmt"
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
+	"maps"
+	"slices"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
+	"unicode/utf8"
 )
 
 // roomChatExecution 保存一次 Room 输入从受理到启动 round 的业务态。
@@ -644,4 +649,558 @@ func (e *roomChatExecution) broadcastAck(pending []protocol.ChatAckPendingSlot, 
 		userMessageCommitted,
 		pending,
 	))
+}
+
+// INPUT: Room 请求里的显式目标、@mention、默认投递策略与当前活跃 round。
+// OUTPUT: 保持显式/房主路由优先，并为仍无目标的 follow-up 选择最近活跃 root round。
+// POS: Room 用户输入目标解析的唯一真相源；目标 Agent 的 slot 状态决定立即启动或排队。
+const activeRoundDefaultTargetResolution = "active_round_default"
+
+func (s *Service) resolveActiveRoomTargets(
+	sessionKey string,
+	conversationID string,
+	targetAgentIDs []string,
+	targetResolution string,
+) ([]string, string) {
+	if len(targetAgentIDs) > 0 {
+		return targetAgentIDs, targetResolution
+	}
+	activeAgentIDs := s.latestActiveRootRoundAgentIDs(sessionKey, conversationID)
+	if len(activeAgentIDs) == 0 {
+		return targetAgentIDs, targetResolution
+	}
+	return activeAgentIDs, activeRoundDefaultTargetResolution
+}
+
+type activeRoomTargetSlot struct {
+	agentID      string
+	agentRoundID string
+	timestampMS  int64
+	index        int
+}
+
+func (s *Service) latestActiveRootRoundAgentIDs(sessionKey string, conversationID string) []string {
+	sessionKey = strings.TrimSpace(sessionKey)
+	conversationID = strings.TrimSpace(conversationID)
+
+	slotsByRoot := make(map[string][]activeRoomTargetSlot)
+	latestTimestampByRoot := make(map[string]int64)
+	latestSequenceByRoot := make(map[string]uint64)
+	for _, roundValue := range s.rounds.snapshotConversation(conversationID) {
+		if roundValue == nil ||
+			roundValue.SessionKey != sessionKey ||
+			roundValue.ConversationID != conversationID {
+			continue
+		}
+		rootRoundID := roomRoundIdentity(roundValue)
+		if rootRoundID == "" {
+			continue
+		}
+		if roundValue.registrationSequence > latestSequenceByRoot[rootRoundID] {
+			latestSequenceByRoot[rootRoundID] = roundValue.registrationSequence
+		}
+		for _, slot := range roundValue.Slots {
+			if !isActiveDeliverySlot(slot) {
+				continue
+			}
+			slotsByRoot[rootRoundID] = append(slotsByRoot[rootRoundID], activeRoomTargetSlot{
+				agentID:      strings.TrimSpace(slot.AgentID),
+				agentRoundID: strings.TrimSpace(slot.AgentRoundID),
+				timestampMS:  slot.TimestampMS,
+				index:        slot.Index,
+			})
+			if slot.TimestampMS > latestTimestampByRoot[rootRoundID] {
+				latestTimestampByRoot[rootRoundID] = slot.TimestampMS
+			}
+		}
+	}
+
+	selectedRoot := ""
+	var selectedTimestamp int64
+	var selectedSequence uint64
+	for rootRoundID, slots := range slotsByRoot {
+		if len(slots) == 0 {
+			continue
+		}
+		sequence := latestSequenceByRoot[rootRoundID]
+		timestamp := latestTimestampByRoot[rootRoundID]
+		if selectedRoot == "" || sequence > selectedSequence ||
+			(sequence == selectedSequence && timestamp > selectedTimestamp) ||
+			(sequence == selectedSequence && timestamp == selectedTimestamp && rootRoundID < selectedRoot) {
+			selectedRoot = rootRoundID
+			selectedSequence = sequence
+			selectedTimestamp = timestamp
+		}
+	}
+	selected := slotsByRoot[selectedRoot]
+	sort.Slice(selected, func(i int, j int) bool {
+		if selected[i].timestampMS != selected[j].timestampMS {
+			return selected[i].timestampMS < selected[j].timestampMS
+		}
+		if selected[i].index != selected[j].index {
+			return selected[i].index < selected[j].index
+		}
+		if selected[i].agentID != selected[j].agentID {
+			return selected[i].agentID < selected[j].agentID
+		}
+		return selected[i].agentRoundID < selected[j].agentRoundID
+	})
+	result := make([]string, 0, len(selected))
+	seen := make(map[string]struct{}, len(selected))
+	for _, slot := range selected {
+		if slot.agentID == "" {
+			continue
+		}
+		if _, ok := seen[slot.agentID]; ok {
+			continue
+		}
+		seen[slot.agentID] = struct{}{}
+		result = append(result, slot.agentID)
+	}
+	return result
+}
+
+func resolveRoomHostDefaultTarget(
+	contextValue *protocol.ConversationContextAggregate,
+	agentNameByID map[string]string,
+) (string, bool) {
+	if contextValue == nil || !contextValue.Room.HostAutoReplyEnabled {
+		return "", false
+	}
+	hostAgentID := strings.TrimSpace(contextValue.Room.HostAgentID)
+	if hostAgentID == "" {
+		return "", false
+	}
+	if _, ok := agentNameByID[hostAgentID]; !ok {
+		return "", false
+	}
+	return hostAgentID, true
+}
+
+func initialRoomTriggerType(request ChatRequest, targetResolution string) string {
+	if request.Internal && strings.TrimSpace(request.InputOptions.Purpose) == "goal_continuation" {
+		return "goal_continuation"
+	}
+	if targetResolution == "room_host_default" {
+		return "room_host_default"
+	}
+	return "public_chat"
+}
+
+func shouldBroadcastRoomChatAck(request ChatRequest) bool {
+	if !request.Internal {
+		return true
+	}
+	return strings.TrimSpace(request.InputOptions.Purpose) == "goal_continuation"
+}
+
+func (s *Service) validateChatRequest(request ChatRequest) (string, string, error) {
+	sessionKey, err := protocol.RequireStructuredSessionKey(request.SessionKey)
+	if err != nil {
+		return "", "", err
+	}
+	if !protocol.IsRoomSharedSessionKey(sessionKey) {
+		return "", "", errors.New("session_key must be room shared key")
+	}
+	if !protocol.HasChatInput(request.Content, request.Attachments) &&
+		!(request.Internal && strings.TrimSpace(request.GoalContext) != "") {
+		return "", "", errors.New("content is required")
+	}
+	conversationID := cmp.Or(strings.TrimSpace(request.ConversationID), protocol.ParseRoomConversationID(sessionKey))
+	if conversationID == "" {
+		return "", "", errors.New("conversation_id is required")
+	}
+	return sessionKey, conversationID, nil
+}
+
+func resolveChatTargetAgentIDs(
+	request ChatRequest,
+	contextValue *protocol.ConversationContextAggregate,
+	agentNameByID map[string]string,
+) ([]string, string, error) {
+	if len(request.TargetAgentIDs) > 0 {
+		targetAgentIDs := normalizeExplicitTargetAgentIDs(request.TargetAgentIDs)
+		if len(targetAgentIDs) == 0 {
+			return nil, "", errors.New("target_agent_ids must not be empty")
+		}
+		for _, agentID := range targetAgentIDs {
+			if !roomdomain.IsMemberAgent(contextValue.Members, agentID) {
+				return nil, "", fmt.Errorf("target_agent_id is not a room member: %s", agentID)
+			}
+		}
+		return targetAgentIDs, "explicit_target", nil
+	}
+	targetAgentIDs := roomdomain.ResolveMentionAgentIDs(request.Content, reverseAgentNames(agentNameByID))
+	return targetAgentIDs, roomTargetResolution(targetAgentIDs), nil
+}
+
+func normalizeExplicitTargetAgentIDs(values []string) []string {
+	return normalizeRoomAgentIDs(values)
+}
+
+func (s *Service) persistSharedInlineMessage(conversationID string, message protocol.Message) error {
+	if err := s.roomHistory.AppendInlineMessage(conversationID, message); err != nil {
+		return err
+	}
+	s.touchSharedConversationActivity(context.Background(), conversationID, roomMessageActivityTime(message))
+	return nil
+}
+
+func (s *Service) persistSharedDurableMessage(
+	conversationID string,
+	slot *activeRoomSlot,
+	message protocol.Message,
+) error {
+	if slot == nil || !protocol.IsTranscriptNativeMessage(protocol.Message(message)) {
+		return s.persistSharedInlineMessage(conversationID, message)
+	}
+	if err := s.roomHistory.AppendTranscriptReference(
+		conversationID,
+		slot.WorkspacePath,
+		slot.RuntimeSessionKey,
+		message,
+	); err != nil {
+		return err
+	}
+	s.touchSharedConversationActivity(context.Background(), conversationID, roomMessageActivityTime(message))
+	return nil
+}
+
+func (s *Service) touchSharedConversationActivity(ctx context.Context, conversationID string, activityAt time.Time) {
+	if s == nil || s.rooms == nil {
+		return
+	}
+	if activityAt.IsZero() {
+		activityAt = time.Now().UTC()
+	}
+	if err := s.rooms.TouchConversationActivity(ctx, conversationID, activityAt); err != nil {
+		s.loggerFor(ctx).Error("更新 Room conversation 活动时间失败",
+			"conversation_id", conversationID,
+			"activity_at", activityAt,
+			"err", err,
+		)
+	}
+}
+
+func roomMessageActivityTime(message protocol.Message) time.Time {
+	if len(message) == 0 {
+		return time.Now().UTC()
+	}
+	return roomTimestampActivityTime(message["timestamp"])
+}
+
+func roomTimestampActivityTime(value any) time.Time {
+	switch typed := value.(type) {
+	case time.Time:
+		return typed.UTC()
+	case json.Number:
+		return roomUnixMilliActivityTime(typed.String())
+	case string:
+		normalized := strings.TrimSpace(typed)
+		if normalized == "" {
+			return time.Now().UTC()
+		}
+		if parsed, err := time.Parse(time.RFC3339Nano, normalized); err == nil {
+			return parsed.UTC()
+		}
+		if parsed, err := time.Parse(time.RFC3339, normalized); err == nil {
+			return parsed.UTC()
+		}
+		return roomUnixMilliActivityTime(normalized)
+	case int:
+		return time.UnixMilli(int64(typed)).UTC()
+	case int64:
+		return time.UnixMilli(typed).UTC()
+	case int32:
+		return time.UnixMilli(int64(typed)).UTC()
+	case float64:
+		return time.UnixMilli(int64(typed)).UTC()
+	case float32:
+		return time.UnixMilli(int64(typed)).UTC()
+	default:
+		return time.Now().UTC()
+	}
+}
+
+func roomUnixMilliActivityTime(value string) time.Time {
+	if parsed, err := strconv.ParseInt(value, 10, 64); err == nil {
+		return time.UnixMilli(parsed).UTC()
+	}
+	if parsed, err := strconv.ParseFloat(value, 64); err == nil {
+		return time.UnixMilli(int64(parsed)).UTC()
+	}
+	return time.Now().UTC()
+}
+
+// INPUT: Room 消息目标、活跃 round slot 与持久化输入队列。
+// OUTPUT: queue 按 Agent 独立投递到最新 slot；guide 只原子投递到同一 active root。
+// POS: Room 活跃执行目标解析与输入登记的数据面。
+// newActiveSlotQueueEntry 把 slot 的运行时位置投影为统一的 Room 队列项。
+// queue 与 guide 只负责填写来源差异，不能各自复制一套位置和目标字段。
+func newActiveSlotQueueEntry(
+	slot *activeRoomSlot,
+	roomID string,
+	conversationID string,
+	item protocol.InputQueueItem,
+) workspacestore.InputQueueEnqueue {
+	item.Scope = protocol.InputQueueScopeRoom
+	item.SessionKey = slot.RuntimeSessionKey
+	item.RoomID = roomID
+	item.ConversationID = conversationID
+	item.AgentID = slot.AgentID
+	item.TargetAgentIDs = []string{slot.AgentID}
+	item.Attachments = protocol.NormalizeChatAttachments(item.Attachments, slot.AgentID)
+	return workspacestore.InputQueueEnqueue{
+		Location: workspacestore.InputQueueLocation{
+			Scope:          protocol.InputQueueScopeRoom,
+			WorkspacePath:  slot.WorkspacePath,
+			SessionKey:     slot.RuntimeSessionKey,
+			RoomID:         roomID,
+			ConversationID: conversationID,
+		},
+		Item: item,
+	}
+}
+
+func (s *Service) enqueueForActiveAgentSlots(
+	ctx context.Context,
+	sessionKey string,
+	roomID string,
+	conversationID string,
+	targetAgentIDs []string,
+	content string,
+	attachments []protocol.ChatAttachment,
+	roundID string,
+	userMessageID string,
+	ownerUserID string,
+) (map[string]struct{}, error) {
+	slotsByAgentID := s.findActiveDeliverySlotsByAgent(sessionKey, conversationID, targetAgentIDs)
+	queuedAgentIDs := make(map[string]struct{}, len(slotsByAgentID))
+	entries := make([]workspacestore.InputQueueEnqueue, 0, len(slotsByAgentID))
+	for _, agentID := range slices.Sorted(maps.Keys(slotsByAgentID)) {
+		slot := slotsByAgentID[agentID]
+		if slot == nil {
+			continue
+		}
+		entries = append(entries, newActiveSlotQueueEntry(slot, roomID, conversationID, protocol.InputQueueItem{
+			ID:              strings.TrimSpace(roundID),
+			SourceMessageID: strings.TrimSpace(userMessageID),
+			Source:          protocol.InputQueueSourceUser,
+			Content:         strings.TrimSpace(content),
+			Attachments:     attachments,
+			DeliveryPolicy:  protocol.ChatDeliveryPolicyQueue,
+			OwnerUserID:     strings.TrimSpace(ownerUserID),
+			RootRoundID:     strings.TrimSpace(roundID),
+		}))
+	}
+	if err := s.inputQueue.EnqueueBatch(entries); err != nil {
+		return queuedAgentIDs, err
+	}
+	for _, entry := range entries {
+		agentID := entry.Item.AgentID
+		slot := slotsByAgentID[agentID]
+		queuedAgentIDs[agentID] = struct{}{}
+		s.loggerFor(ctx).Info("Room 公区消息写入目标 agent 待处理队列",
+			"session_key", sessionKey,
+			"conversation_id", conversationID,
+			"agent_id", agentID,
+			"round_id", roundID,
+			"active_round_id", slot.AgentRoundID,
+			"msg_id", slot.MsgID,
+			"content_chars", utf8.RuneCountInString(strings.TrimSpace(content)),
+			"content_preview", logx.PreviewText(content, 240),
+		)
+	}
+	return queuedAgentIDs, nil
+}
+
+// findActiveDeliverySlotsByAgent 为每个目标独立选择最新活跃 slot。它用于
+// queue/空闲判断：一个目标忙碌不能让同一条多目标输入把它再次启动，也不能
+// 阻止其他空闲目标立即开始。
+func (s *Service) findActiveDeliverySlotsByAgent(
+	sessionKey string,
+	conversationID string,
+	targetAgentIDs []string,
+) map[string]*activeRoomSlot {
+	targets := make(map[string]struct{}, len(targetAgentIDs))
+	for _, agentID := range targetAgentIDs {
+		agentID = strings.TrimSpace(agentID)
+		if agentID != "" {
+			targets[agentID] = struct{}{}
+		}
+	}
+	result := make(map[string]*activeRoomSlot, len(targets))
+	if len(targets) == 0 {
+		return result
+	}
+
+	for _, roundValue := range s.rounds.snapshotConversation(conversationID) {
+		if roundValue == nil ||
+			roundValue.SessionKey != sessionKey ||
+			roundValue.ConversationID != conversationID {
+			continue
+		}
+		for _, slot := range roundValue.Slots {
+			if slot == nil || !isActiveDeliverySlot(slot) {
+				continue
+			}
+			if _, ok := targets[slot.AgentID]; !ok {
+				continue
+			}
+			current := result[slot.AgentID]
+			if current == nil || slot.TimestampMS > current.TimestampMS ||
+				(slot.TimestampMS == current.TimestampMS && slot.AgentRoundID < current.AgentRoundID) {
+				result[slot.AgentID] = slot
+			}
+		}
+	}
+	return result
+}
+
+func (s *Service) findActiveDeliverySlots(
+	sessionKey string,
+	conversationID string,
+	targetAgentIDs []string,
+) map[string]*activeRoomSlot {
+	targets := make(map[string]struct{}, len(targetAgentIDs))
+	for _, agentID := range targetAgentIDs {
+		agentID = strings.TrimSpace(agentID)
+		if agentID != "" {
+			targets[agentID] = struct{}{}
+		}
+	}
+	if len(targets) == 0 {
+		return map[string]*activeRoomSlot{}
+	}
+
+	// guide 会把用户消息挂到正在流式输出的 root；多目标只有同属一个
+	// active root 才能原子注入，避免同一 public message 被不同 root 反复改写。
+	slotsByRoot := make(map[string]map[string]*activeRoomSlot)
+	latestTimestampByRoot := make(map[string]int64)
+	for _, roundValue := range s.rounds.snapshotConversation(conversationID) {
+		if roundValue == nil ||
+			roundValue.SessionKey != sessionKey ||
+			roundValue.ConversationID != conversationID {
+			continue
+		}
+		rootRoundID := roomRoundIdentity(roundValue)
+		for _, slot := range roundValue.Slots {
+			if slot == nil || !isActiveDeliverySlot(slot) {
+				continue
+			}
+			if _, ok := targets[slot.AgentID]; !ok {
+				continue
+			}
+			slots := slotsByRoot[rootRoundID]
+			if slots == nil {
+				slots = make(map[string]*activeRoomSlot, len(targets))
+				slotsByRoot[rootRoundID] = slots
+			}
+			current := slots[slot.AgentID]
+			if current == nil || slot.TimestampMS > current.TimestampMS {
+				slots[slot.AgentID] = slot
+			}
+			if slot.TimestampMS > latestTimestampByRoot[rootRoundID] {
+				latestTimestampByRoot[rootRoundID] = slot.TimestampMS
+			}
+		}
+	}
+
+	selectedRoot := ""
+	var selectedTimestamp int64
+	for rootRoundID, slots := range slotsByRoot {
+		if len(slots) != len(targets) {
+			continue
+		}
+		timestamp := latestTimestampByRoot[rootRoundID]
+		if selectedRoot == "" || timestamp > selectedTimestamp ||
+			(timestamp == selectedTimestamp && rootRoundID < selectedRoot) {
+			selectedRoot = rootRoundID
+			selectedTimestamp = timestamp
+		}
+	}
+	if selectedRoot == "" {
+		return map[string]*activeRoomSlot{}
+	}
+	return slotsByRoot[selectedRoot]
+}
+
+func isActiveDeliverySlot(slot *activeRoomSlot) bool {
+	if slot == nil {
+		return false
+	}
+	switch slot.getStatus() {
+	case "finished", "error", "cancelled":
+		return false
+	default:
+		return true
+	}
+}
+
+func filterHandledAgentIDs(agentIDs []string, handled map[string]struct{}) []string {
+	if len(handled) == 0 {
+		return agentIDs
+	}
+	result := make([]string, 0, len(agentIDs))
+	for _, agentID := range agentIDs {
+		if _, ok := handled[agentID]; ok {
+			continue
+		}
+		result = append(result, agentID)
+	}
+	return result
+}
+
+func (s *Service) guideActiveAgentSlots(
+	ctx context.Context,
+	sessionKey string,
+	roomID string,
+	conversationID string,
+	targetAgentIDs []string,
+	sourceItem protocol.InputQueueItem,
+) (map[string]struct{}, error) {
+	slotsByAgentID := s.findActiveDeliverySlots(sessionKey, conversationID, targetAgentIDs)
+	guidedAgentIDs := make(map[string]struct{}, len(slotsByAgentID))
+	entries := make([]workspacestore.InputQueueEnqueue, 0, len(slotsByAgentID))
+	for _, agentID := range slices.Sorted(maps.Keys(slotsByAgentID)) {
+		slot := slotsByAgentID[agentID]
+		if slot == nil {
+			continue
+		}
+		entries = append(entries, newActiveSlotQueueEntry(slot, roomID, conversationID, protocol.InputQueueItem{
+			ID:              strings.TrimSpace(sourceItem.ID),
+			SourceAgentID:   strings.TrimSpace(sourceItem.SourceAgentID),
+			SourceMessageID: strings.TrimSpace(sourceItem.SourceMessageID),
+			HandoffID:       strings.TrimSpace(sourceItem.HandoffID),
+			Source:          protocol.NormalizeInputQueueSource(string(sourceItem.Source)),
+			Content:         strings.TrimSpace(sourceItem.Content),
+			Attachments:     sourceItem.Attachments,
+			DeliveryPolicy:  protocol.ChatDeliveryPolicyGuide,
+			ReplyRoute:      sourceItem.ReplyRoute,
+			OwnerUserID:     strings.TrimSpace(sourceItem.OwnerUserID),
+			RootRoundID:     slot.AgentRoundID,
+			HopIndex:        sourceItem.HopIndex,
+		}))
+	}
+	if err := s.inputQueue.EnqueueBatch(entries); err != nil {
+		return guidedAgentIDs, err
+	}
+	for _, entry := range entries {
+		agentID := entry.Item.AgentID
+		slot := slotsByAgentID[agentID]
+		guidedAgentIDs[agentID] = struct{}{}
+		s.loggerFor(ctx).Info("持久化 Room 引导消息等待 PostToolUse 注入",
+			"session_key", sessionKey,
+			"room_id", roomID,
+			"runtime_session_key", slot.RuntimeSessionKey,
+			"conversation_id", conversationID,
+			"agent_id", agentID,
+			"round_id", sourceItem.ID,
+			"active_round_id", slot.AgentRoundID,
+			"msg_id", slot.MsgID,
+			"content_chars", utf8.RuneCountInString(strings.TrimSpace(sourceItem.Content)),
+			"content_preview", logx.PreviewText(sourceItem.Content, 240),
+		)
+	}
+	return guidedAgentIDs, nil
 }

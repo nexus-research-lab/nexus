@@ -39,7 +39,11 @@ func (p *Processor) processToolResultMessage(message sdkprotocol.ReceivedMessage
 		return nil
 	}
 	p.segment.AppendToolResults(enrichedBlocks)
-	return p.buildAssistantDurableMessage(true, true, "")
+	return p.buildAssistantDurableMessage(
+		true,
+		true,
+		firstNonEmpty(normalizePointerString(message.User.ParentToolUseID), p.parentToolUseID),
+	)
 }
 
 func (p *Processor) shouldKeepToolResultBlock(block map[string]any) bool {

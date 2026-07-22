@@ -16,7 +16,14 @@ type ToolResultObservation struct {
 	ToolName  string
 	ErrorCode string
 	IsError   bool
+	// Recoverable 表示只用于模型自愈的内部工具结果，不代表真实工具执行。
+	Recoverable bool
 }
+
+const (
+	internalToolResultKindMetadataKey = "_nexus_internal_kind"
+	malformedToolInputResultKind      = "malformed_tool_input"
+)
 
 // AssistantToolResults 从 assistant 快照里提取 tool_result，并用同快照中的 tool_use 补齐工具名。
 func AssistantToolResults(message protocol.Message) []ToolResultObservation {
@@ -47,11 +54,13 @@ func AssistantToolResults(message protocol.Message) []ToolResultObservation {
 		if toolUseID == "" {
 			continue
 		}
+		metadata := mapValue(block["metadata"])
 		observations = append(observations, ToolResultObservation{
-			ToolUseID: toolUseID,
-			ToolName:  toolNames[toolUseID],
-			ErrorCode: normalizeString(block["error_code"]),
-			IsError:   boolValue(block["is_error"]),
+			ToolUseID:   toolUseID,
+			ToolName:    toolNames[toolUseID],
+			ErrorCode:   normalizeString(block["error_code"]),
+			IsError:     boolValue(block["is_error"]),
+			Recoverable: normalizeString(metadata[internalToolResultKindMetadataKey]) == malformedToolInputResultKind,
 		})
 	}
 	return observations
@@ -91,6 +100,9 @@ func AssistantMissedGoalCompletionTool(message protocol.Message) bool {
 }
 
 func toolResultCountsForGoalProgress(observation ToolResultObservation) bool {
+	if observation.Recoverable {
+		return false
+	}
 	switch CanonicalToolName(observation.ToolName) {
 	case "", "update_goal":
 		return false

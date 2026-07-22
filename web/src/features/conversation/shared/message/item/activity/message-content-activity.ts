@@ -11,6 +11,7 @@ import {
   resolveToolActivityState,
 } from "./message-activity-state";
 import { findLastActivityBlock } from "./message-activity-blocks";
+import { isRecoverableToolUse } from "../../message-content-model";
 
 interface ContentActivityContext {
   fallback: MessageActivityState | null;
@@ -49,7 +50,7 @@ const HIDDEN_ACTIVITY_BLOCK_RULES: ReadonlyArray<
 > = [
   ({ consumedBlockIndexes, index }) => consumedBlockIndexes.has(index),
   ({ block, hiddenToolNames }) => block.type === "tool_use"
-    && hiddenToolNames.has(block.name),
+    && (hiddenToolNames.has(block.name) || isRecoverableToolUse(block)),
   ({ block }) => block.type === "text" && !block.text.trim(),
   ({ block }) => block.type === "thinking" && !block.thinking.trim(),
 ];
@@ -181,6 +182,7 @@ function findLatestPendingToolUse(
     content,
     (block): block is ToolUseContent => block.type === "tool_use"
       && !hiddenToolNames.has(block.name)
+      && !isRecoverableToolUse(block)
       && !resolvedToolUseIds.has(block.id),
   );
 }

@@ -63,7 +63,7 @@ func TestServiceHandleInterruptEmitsInterruptedRound(t *testing.T) {
 		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "interrupted"
 	})
 	assertContainsRoundStatus(t, events, "interrupted")
-	assertContainsResultSubtype(t, events, "interrupted")
+	assertNotContainsResultSubtype(t, events, "interrupted")
 
 	client.mu.Lock()
 	interruptCalls := client.interruptCalls
@@ -276,7 +276,7 @@ func TestServiceHandleInterruptCoercesTerminalErrorIntoInterrupted(t *testing.T)
 		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "interrupted"
 	})
 	assertContainsRoundStatus(t, events, "interrupted")
-	assertContainsResultSubtype(t, events, "interrupted")
+	assertNotContainsResultSubtype(t, events, "interrupted")
 
 	sessionValue, workspacePath := mustFindDMSession(t, service, cfg, sessionKey)
 	writeTranscriptFixture(t, workspacePath, stringPointer(t, sessionValue.SessionID), []map[string]any{

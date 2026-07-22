@@ -5,14 +5,10 @@
 package realtime
 
 import (
+	"cmp"
 	"context"
 	"errors"
-	"log/slog"
-	"strings"
-	"unicode/utf8"
-
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
-
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -21,6 +17,12 @@ import (
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	"github.com/nexus-research-lab/nexus/internal/runtime/trace"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
+	"log/slog"
+	"strings"
+	"sync"
+	"time"
+	"unicode/utf8"
 )
 
 func appendPromptSection(base string, section string) string {
@@ -379,4 +381,175 @@ func (e *slotExecution) emitEvent(event protocol.EventMessage) error {
 		e.service.broadcastSharedEventWithTimeout(e.ctx, e.round.SessionKey, e.round.RoomID, readyEvent)
 	}
 	return nil
+}
+
+// INPUT: 已构造的 Room round、历史与 Agent 目录。
+// OUTPUT: slot 终态、共享事件，以及用户队列优先的后续工作接力。
+// POS: Room round 生命周期的唯一收尾编排入口。
+func (s *Service) runRound(
+	ctx context.Context,
+	roundValue *activeRoomRound,
+	history []protocol.Message,
+	agentNameByID map[string]string,
+	agentByID map[string]*protocol.Agent,
+) {
+	ctx = contextWithQueueOwner(ctx, roundValue.OwnerUserID)
+	logger := s.loggerFor(ctx).With(
+		"session_key", roundValue.SessionKey,
+		"room_id", roundValue.RoomID,
+		"conversation_id", roundValue.ConversationID,
+		"round_id", roundValue.RoundID,
+	)
+	logger.Info("开始执行 Room round", "slot_count", len(roundValue.Slots))
+	var waitGroup sync.WaitGroup
+	for _, slot := range roundValue.Slots {
+		waitGroup.Add(1)
+		go func(currentSlot *activeRoomSlot) {
+			defer waitGroup.Done()
+			s.runSlot(ctx, roundValue, currentSlot, history, agentNameByID, agentByID[currentSlot.AgentID])
+			// 每个 Agent 独立串行。当前 slot 已终态且 runtime 清理完成后，
+			// 立即释放它错过的 guide 并派发其队列，不等待同 root 的其他成员。
+			dispatchCtx := contextWithQueueOwner(context.Background(), roundValue.OwnerUserID)
+			s.releaseUndeliveredRoomGuidance(dispatchCtx, roundValue.SessionKey, roundValue.Context)
+			s.dispatchNextInputQueueItem(dispatchCtx, roundValue.SessionKey, roundValue.RoomID, roundValue.ConversationID)
+		}(slot)
+	}
+	waitGroup.Wait()
+
+	roundValue.RunningSubagents.Store(roundValue.hasRunningSubagentTasks())
+	// Interrupt 只等待执行体结束；queue/guide 交接仍在下方锁内收口。
+	roundValue.doneOnce.Do(func() { close(roundValue.Done) })
+	func() {
+		lease := s.lockRoomDispatch(roundValue.SessionKey, roundValue.ConversationID)
+		defer lease.Unlock()
+		s.finishRound(roundValue)
+	}()
+
+	finalStatus := "finished"
+	if roundValue.allSlotsCancelled() {
+		finalStatus = "interrupted"
+	} else if roundValue.hasSlotError() {
+		finalStatus = "error"
+	}
+	logger.Info("Room round 结束", "status", finalStatus)
+	statusEvent := roomdomain.WrapRoundStatusEvent(
+		roundValue.SessionKey,
+		roundValue.RoomID,
+		roundValue.ConversationID,
+		roundValue.RoundID,
+		finalStatus,
+		mapTerminalSubtype(finalStatus),
+	)
+	if finalStatus == "error" {
+		statusEvent = roomdomain.WrapRoundStatusErrorEvent(
+			roundValue.SessionKey,
+			roundValue.RoomID,
+			roundValue.ConversationID,
+			roundValue.RoundID,
+			roundValue.firstSlotErrorMessage(),
+		)
+	}
+	s.broadcastSharedEventWithTimeout(ctx, roundValue.SessionKey, roundValue.RoomID, statusEvent)
+	s.broadcastSessionStatus(ctx, roundValue.SessionKey)
+	// 显式用户输入先于 Agent 唤醒和 Goal 隐藏续跑；错过 hook 的 guide 自动退回下一轮。
+	s.releaseUndeliveredRoomGuidance(ctx, roundValue.SessionKey, roundValue.Context)
+	s.dispatchNextInputQueueItem(ctx, roundValue.SessionKey, roundValue.RoomID, roundValue.ConversationID)
+	// 只要 slot runtime 留有 subagent history 就继续接管消息；终态 task 也可能被 UI follow-up 唤醒。
+	s.startIdleSubagentNotificationDrains(contextWithQueueOwner(context.Background(), roundValue.OwnerUserID), roundValue)
+	if finalStatus == "finished" {
+		s.startQueuedPublicMentionWakes(context.Background(), roundValue)
+	}
+	go s.dispatchPostRoundWork(contextWithQueueOwner(context.Background(), roundValue.OwnerUserID), roundValue)
+}
+
+func (s *Service) recordPrivateRoundMarker(roundValue *activeRoomRound, slot *activeRoomSlot, dispatchPrompt string) error {
+	if s.history == nil {
+		return nil
+	}
+	options := roomRoundMarkerOptions(roundValue)
+	// 私有会话内 slot 自成一轮，round 与 agent round 同源。
+	options.AgentRoundID = slot.AgentRoundID
+	return s.history.AppendRoundMarkerWithOptions(
+		slot.WorkspacePath,
+		slot.RuntimeSessionKey,
+		slot.AgentRoundID,
+		strings.TrimSpace(dispatchPrompt),
+		time.Now().UnixMilli(),
+		options,
+	)
+}
+
+func roomRoundInputOptions(roundValue *activeRoomRound) sdkprotocol.OutboundMessageOptions {
+	if roundValue == nil {
+		return sdkprotocol.OutboundMessageOptions{}
+	}
+	options := roundValue.InputOptions
+	if roundValue.Internal {
+		options.HiddenFromUser = true
+		options.Synthetic = true
+		if strings.TrimSpace(options.Priority) == "" {
+			options.Priority = "internal"
+		}
+	}
+	return options
+}
+
+func roomRoundMarkerOptions(roundValue *activeRoomRound) workspacestore.RoundMarkerOptions {
+	options := workspacestore.RoundMarkerOptions{}
+	if roundValue == nil {
+		return options
+	}
+	options.HiddenFromUser = roundValue.Internal || roundValue.InputOptions.HiddenFromUser
+	options.Synthetic = roundValue.InputOptions.Synthetic
+	options.Purpose = roundValue.InputOptions.Purpose
+	options.Metadata = roundValue.InputOptions.Metadata
+	if roundValue.Internal {
+		options.Synthetic = true
+	}
+	return options
+}
+
+func (s *Service) persistPrivateOverlayMessage(slot *activeRoomSlot, message protocol.Message) error {
+	if s.history == nil {
+		return nil
+	}
+	privateMessage := normalizePrivateOverlayMessage(cloneMessageWithSessionKey(message, slot.RuntimeSessionKey))
+	privateMessage["session_key"] = slot.RuntimeSessionKey
+	// 私有会话内 slot 自成一轮：round 对齐私有 round marker（= agent_round_id），
+	// 避免与共享历史的 root round 混用导致私有轮被拆开。
+	if agentRoundID := strings.TrimSpace(slot.AgentRoundID); agentRoundID != "" {
+		privateMessage["round_id"] = agentRoundID
+		privateMessage["agent_round_id"] = agentRoundID
+	}
+	if sessionID := cmp.Or(strings.TrimSpace(anyString(privateMessage["session_id"])), slot.getSDKSessionID()); sessionID != "" {
+		privateMessage["session_id"] = sessionID
+	}
+	if strings.TrimSpace(anyString(privateMessage["message_id"])) == "" {
+		privateMessage["message_id"] = "overlay_" + slot.AgentRoundID
+	}
+	privateMessage["metadata"] = mergePrivateOverlayMetadata(privateMessage["metadata"], map[string]any{
+		"overlay_source":  "room_runtime",
+		"room_session_id": slot.RoomSessionID,
+	})
+	return s.history.AppendOverlayMessage(slot.WorkspacePath, slot.RuntimeSessionKey, privateMessage)
+}
+
+func normalizePrivateOverlayMessage(message protocol.Message) protocol.Message {
+	normalized := cloneMessageWithSessionKey(message, anyString(message["session_key"]))
+	delete(normalized, "stream_status")
+	delete(normalized, "is_complete")
+	return normalized
+}
+
+func mergePrivateOverlayMetadata(current any, extra map[string]any) map[string]any {
+	result := map[string]any{}
+	if payload, ok := current.(map[string]any); ok {
+		for key, value := range payload {
+			result[key] = value
+		}
+	}
+	for key, value := range extra {
+		result[key] = value
+	}
+	return result
 }

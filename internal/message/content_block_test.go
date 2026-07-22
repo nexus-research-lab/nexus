@@ -63,6 +63,9 @@ func TestNormalizeContentBlockMapsServerToolAliases(t *testing.T) {
 	if block["type"] != "tool_use" {
 		t.Fatalf("server_tool_use 未映射为 tool_use: %+v", block)
 	}
+	if block["source_type"] != "server_tool_use" {
+		t.Fatalf("server_tool_use 原始语义未保留: %+v", block)
+	}
 
 	block = normalizeContentBlock(map[string]any{
 		"type":        "server_tool_result",
@@ -72,5 +75,17 @@ func TestNormalizeContentBlockMapsServerToolAliases(t *testing.T) {
 	})
 	if block["type"] != "tool_result" {
 		t.Fatalf("server_tool_result 未映射为 tool_result: %+v", block)
+	}
+	if block["source_type"] != "server_tool_result" {
+		t.Fatalf("server_tool_result 原始语义未保留: %+v", block)
+	}
+
+	block = normalizeContentBlock(map[string]any{
+		"type":        "web_search_tool_result",
+		"tool_use_id": "t2",
+		"content":     []any{},
+	})
+	if block["type"] != "tool_result" || block["source_type"] != "web_search_tool_result" {
+		t.Fatalf("CC provider tool result 未映射并保留来源: %+v", block)
 	}
 }

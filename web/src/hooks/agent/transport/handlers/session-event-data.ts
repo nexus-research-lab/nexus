@@ -140,11 +140,14 @@ export function parseRoundStatusEventPayload(
     return null;
   }
   const resultSubtype = readString(data, "result_subtype");
+  const errorMessage = readString(data, "message")
+    ?? readString(data, "error_message");
   return {
     round_id: roundId,
     status,
     is_terminal: data.is_terminal,
     ...(resultSubtype ? { result_subtype: resultSubtype as RoundStatusEventPayload["result_subtype"] } : {}),
+    ...(errorMessage ? { error_message: errorMessage } : {}),
   };
 }
 

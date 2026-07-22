@@ -82,7 +82,7 @@ func BuildAgentClientOptionsWithConfig(
 	if err != nil {
 		return agentclient.Options{}, nil, err
 	}
-	runtimeEnv := defaultRuntimeEnv()
+	runtimeEnv := defaultRuntimeEnv(effectiveRuntimeKind)
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, nxsHostManagedRuntimeEnv(effectiveRuntimeKind))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, nxsDiagnosticsRuntimeEnv(effectiveRuntimeKind, input.AgentSDKDiagnosticsEnabled))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, explicitNXSProcessRuntimeEnv(effectiveRuntimeKind))
