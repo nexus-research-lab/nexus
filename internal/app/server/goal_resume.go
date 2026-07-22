@@ -15,6 +15,7 @@ import (
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
+	roomrealtime "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
 )
 
 type goalContinuationDM interface {
@@ -36,7 +37,7 @@ type goalContinuationDispatcher struct {
 	room    goalContinuationRoom
 }
 
-func newGoalContinuationDispatcher(runtime *runtimectx.Manager, dm *dmsvc.Service, room *roomsvc.RealtimeService) *goalContinuationDispatcher {
+func newGoalContinuationDispatcher(runtime *runtimectx.Manager, dm *dmsvc.Service, room *roomrealtime.Service) *goalContinuationDispatcher {
 	return &goalContinuationDispatcher{runtime: runtime, dm: dm, room: room}
 }
 

@@ -8,7 +8,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
-	roompkg "github.com/nexus-research-lab/nexus/internal/service/room"
+	roomrealtime "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
 )
 
 // sendChatFailure 回报 chat 类请求受理失败。此时后端还没有 canonical round_id，
@@ -108,7 +108,7 @@ func (m *controlMessage) handleChat() {
 	clientRequestID, clientMessageID := m.clientIDs()
 	var err error
 	if m.usesRoomRuntime() {
-		err = m.handler.roomRealtime.HandleChat(m.ctx, roompkg.ChatRequest{
+		err = m.handler.roomRealtime.HandleChat(m.ctx, roomrealtime.ChatRequest{
 			SessionKey:        m.sessionKey,
 			RoomID:            m.stringValue("room_id"),
 			ConversationID:    m.stringValue("conversation_id"),
@@ -155,7 +155,7 @@ func (m *controlMessage) handleRewriteLast() {
 func (m *controlMessage) handleInterrupt() {
 	var err error
 	if m.usesRoomRuntime() {
-		err = m.handler.roomRealtime.HandleInterrupt(m.ctx, roompkg.InterruptRequest{
+		err = m.handler.roomRealtime.HandleInterrupt(m.ctx, roomrealtime.InterruptRequest{
 			SessionKey:   m.sessionKey,
 			RoundID:      m.stringValue("round_id"),
 			AgentRoundID: m.stringValue("agent_round_id"),
@@ -181,7 +181,7 @@ func (m *controlMessage) handleInputQueue() {
 		err    error
 	)
 	if m.usesRoomRuntime() {
-		result, err = m.handler.roomRealtime.HandleInputQueue(m.ctx, roompkg.InputQueueRequest{
+		result, err = m.handler.roomRealtime.HandleInputQueue(m.ctx, roomrealtime.InputQueueRequest{
 			SessionKey:      m.sessionKey,
 			RoomID:          m.stringValue("room_id"),
 			ConversationID:  m.stringValue("conversation_id"),

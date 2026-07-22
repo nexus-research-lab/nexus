@@ -9,12 +9,12 @@ import (
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
-	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
+	roomrealtime "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
 
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
 
-func roomEventObserverForSink(sink *automationexec.ExecutionSink) roomsvc.RoomEventObserver {
+func roomEventObserverForSink(sink *automationexec.ExecutionSink) roomrealtime.RoomEventObserver {
 	if sink == nil {
 		return nil
 	}
@@ -77,7 +77,7 @@ func (s *Service) dispatchJobToSession(
 	job automationdomain.ScheduledTask,
 	sessionKey string,
 	roundID string,
-	eventObserver roomsvc.RoomEventObserver,
+	eventObserver roomrealtime.RoomEventObserver,
 ) error {
 	parsed := protocol.ParseSessionKey(sessionKey)
 	jobCtx := contextForJobOwner(ctx, job)
@@ -86,7 +86,7 @@ func (s *Service) dispatchJobToSession(
 		if s.room == nil {
 			return errors.New("shared room session automation 暂不支持")
 		}
-		return s.room.HandleChat(jobCtx, roomsvc.ChatRequest{
+		return s.room.HandleChat(jobCtx, roomrealtime.ChatRequest{
 			SessionKey:        sessionKey,
 			ConversationID:    parsed.ConversationID,
 			Content:           job.Instruction,

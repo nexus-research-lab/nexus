@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
-	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
+	roomrealtime "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
 )
 
 type fakeGoalInterruptDM struct {
@@ -18,10 +18,10 @@ func (f *fakeGoalInterruptDM) HandleInterrupt(_ context.Context, request dmsvc.I
 }
 
 type fakeGoalInterruptRoom struct {
-	requests []roomsvc.InterruptRequest
+	requests []roomrealtime.InterruptRequest
 }
 
-func (f *fakeGoalInterruptRoom) HandleInterrupt(_ context.Context, request roomsvc.InterruptRequest) error {
+func (f *fakeGoalInterruptRoom) HandleInterrupt(_ context.Context, request roomrealtime.InterruptRequest) error {
 	f.requests = append(f.requests, request)
 	return nil
 }

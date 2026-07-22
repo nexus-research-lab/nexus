@@ -8,12 +8,12 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
-	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
+	roomrealtime "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
 )
 
 type goalGuidanceDispatcher struct {
 	runtime *runtimectx.Manager
-	room    *roomsvc.RealtimeService
+	room    *roomrealtime.Service
 }
 
 func (d goalGuidanceDispatcher) QueueGuidanceInput(ctx context.Context, sessionKey string, roundID string, content string) ([]string, error) {

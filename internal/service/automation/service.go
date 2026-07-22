@@ -20,7 +20,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/service/channels"
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
-	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
+	roomrealtime "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"
 )
@@ -34,12 +34,12 @@ type dmInterruptRunner interface {
 }
 
 type roomRunner interface {
-	HandleChat(context.Context, roomsvc.ChatRequest) error
+	HandleChat(context.Context, roomrealtime.ChatRequest) error
 	GetConversationContext(context.Context, string) (*protocol.ConversationContextAggregate, error)
 }
 
 type roomInterruptRunner interface {
-	HandleInterrupt(context.Context, roomsvc.InterruptRequest) error
+	HandleInterrupt(context.Context, roomrealtime.InterruptRequest) error
 }
 
 type workspaceReader interface {

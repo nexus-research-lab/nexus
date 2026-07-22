@@ -6,12 +6,14 @@ import (
 	"time"
 
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	channelspkg "github.com/nexus-research-lab/nexus/internal/service/channels"
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	roompkg "github.com/nexus-research-lab/nexus/internal/service/room"
+	roomrealtime "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 
 	"github.com/coder/websocket"
@@ -28,7 +30,7 @@ const (
 type Handler struct {
 	api            *handlershared.API
 	roomService    *roompkg.Service
-	roomRealtime   *roompkg.RealtimeService
+	roomRealtime   roomRealtimeService
 	dm             *dmsvc.Service
 	goals          *goalsvc.Service
 	permission     *permissionctx.Context
@@ -41,11 +43,21 @@ type Handler struct {
 	allowedOrigins []string
 }
 
+// roomRealtimeService 是 WebSocket 控制面和 Room 订阅恢复实际需要的最小接口。
+type roomRealtimeService interface {
+	HandleChat(context.Context, roomrealtime.ChatRequest) error
+	HandleInterrupt(context.Context, roomrealtime.InterruptRequest) error
+	HandleInputQueue(context.Context, roomrealtime.InputQueueRequest) (protocol.InputQueueMutationResult, error)
+	InputQueueSnapshotEvent(context.Context, string, string) (protocol.EventMessage, error)
+	GetActiveRoundSnapshot(string) *roomrealtime.ActiveRoundSnapshot
+	SetRoomBroadcaster(roomrealtime.RoomBroadcaster)
+}
+
 // NewHandler 创建 WebSocket handler。
 func NewHandler(
 	api *handlershared.API,
 	roomService *roompkg.Service,
-	roomRealtime *roompkg.RealtimeService,
+	roomRealtime roomRealtimeService,
 	dm *dmsvc.Service,
 	goals *goalsvc.Service,
 	permission *permissionctx.Context,
