@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Restored a visible, synchronized scroll rail and page controls for the Agent avatar picker, and replaced oversized WebKit password Caps Lock indicators with a consistent in-app status.
+- Restored a visible, synchronized scroll rail and page controls for the Agent avatar picker.
 - Made the macOS desktop smoke test wait for each requested launcher navigation to finish and become ready before continuing, preventing overlapping WebView loads from racing the exit command.
 - Kept subscription quota enforcement on internal Goal continuations and now project exhausted account quota as an actionable `usage_limited` Goal state instead of a generic continuation failure.
 - Fixed the Windows desktop release-notes build by explicitly selecting WPF alignment, font, color, and brush types.
@@ -25,7 +25,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Restored valid material backgrounds and restrained visual depth across cards, inputs, segmented controls, buttons, and dialogs so interactive surfaces remain distinguishable without relying on hover.
 - Split Room runtime append prompts into stable and dynamic cache segments, reused warm Room slot runtimes without replaying the full public context, and kept the legacy flattened prompt for runtime compatibility.
 - Unified sidebar conversation activity around Room IDs so DM and group rows share one transient execution source, removed Agent runtime status subscriptions from chat and contacts navigation, and dropped the unused directory-side runtime projection.
 - Removed the unused Agent runtime status HTTP endpoint and the legacy runtime-only workspace subscription mode.

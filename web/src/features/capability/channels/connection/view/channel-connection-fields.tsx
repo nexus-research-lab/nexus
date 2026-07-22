@@ -7,7 +7,7 @@ import type {
   ChannelLoginView,
 } from "@/lib/api/capability/channel-api";
 import { UiButton } from "@/shared/ui/button/button";
-import { UiField, UiInput, UiPasswordInput } from "@/shared/ui/form/form-control";
+import { UiField, UiInput } from "@/shared/ui/form/form-control";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import type { Agent } from "@/types/agent/agent";
 
@@ -93,36 +93,34 @@ export function ChannelConnectionFields({
       </UiField>
 
       <div className="space-y-4">
-        {currentItem.credential_fields.map((field, index) => {
-          const CredentialInput = field.kind === "password" ? UiPasswordInput : UiInput;
-          return (
-            <UiField
-              key={field.key}
-              label={(
-                <>
-                  {field.label} {field.required ? <span className="text-(--destructive)">*</span> : null}
-                </>
-              )}
-            >
-              <CredentialInput
-                autoCapitalize="none"
-                autoComplete={channelFieldAutocomplete(field)}
-                autoCorrect="off"
-                data-1p-ignore="true"
-                data-form-type="other"
-                data-lpignore="true"
-                name={channelFieldInputName(currentItem.channel_type, index)}
-                onChange={(event) => controller.updateField(field, event.target.value)}
-                placeholder={field.placeholder || ""}
-                required={field.required && !(field.secret && currentItem.has_credentials)}
-                value={field.secret
-                  ? draft.credentials[field.key] || ""
-                  : draft.config[field.key] || ""}
-                variant="dialog"
-              />
-            </UiField>
-          );
-        })}
+        {currentItem.credential_fields.map((field, index) => (
+          <UiField
+            key={field.key}
+            label={(
+              <>
+                {field.label} {field.required ? <span className="text-(--destructive)">*</span> : null}
+              </>
+            )}
+          >
+            <UiInput
+              autoCapitalize="none"
+              autoComplete={channelFieldAutocomplete(field)}
+              autoCorrect="off"
+              data-1p-ignore="true"
+              data-form-type="other"
+              data-lpignore="true"
+              name={channelFieldInputName(currentItem.channel_type, index)}
+              onChange={(event) => controller.updateField(field, event.target.value)}
+              placeholder={field.placeholder || ""}
+              required={field.required && !(field.secret && currentItem.has_credentials)}
+              type={field.kind === "password" ? "password" : "text"}
+              value={field.secret
+                ? draft.credentials[field.key] || ""
+                : draft.config[field.key] || ""}
+              variant="dialog"
+            />
+          </UiField>
+        ))}
       </div>
 
       {currentItem.channel_type === "discord" ? (

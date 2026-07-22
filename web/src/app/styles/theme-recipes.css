@@ -32,21 +32,16 @@
   .surface-panel {
     position: relative;
     overflow: hidden;
-    background: var(--surface-panel-background);
+    background: var(--card);
     border: 1px solid var(--surface-panel-border);
     box-shadow: var(--surface-panel-shadow);
   }
 
-  .surface-inset {
-    background: var(--surface-inset-background);
-    border: 1px solid var(--surface-inset-border);
-    box-shadow: var(--surface-inset-shadow);
-  }
-
+  .surface-inset,
   .surface-card {
-    background: var(--surface-card-background);
-    border: 1px solid var(--surface-card-border);
-    box-shadow: var(--surface-card-shadow);
+    background: transparent;
+    border: 1px solid var(--divider-subtle-color);
+    box-shadow: none;
   }
 
   .divider-subtle {
@@ -64,9 +59,9 @@
   }
 
   .input-shell {
-    background: var(--input-shell-background);
+    background: color-mix(in srgb, var(--input-shell-background) 72%, transparent);
     border: 1px solid color-mix(in srgb, var(--input-shell-border) 92%, transparent);
-    box-shadow: var(--input-shell-shadow);
+    box-shadow: none;
     transition:
       background-color var(--motion-duration-fast) var(--motion-ease-standard),
       border-color var(--motion-duration-fast) var(--motion-ease-standard),
@@ -75,15 +70,13 @@
 
   .input-shell:hover {
     border-color: color-mix(in srgb, var(--surface-interactive-hover-border) 88%, transparent);
-    background: var(--input-shell-background);
+    background: color-mix(in srgb, var(--input-shell-background) 58%, transparent);
   }
 
   .input-shell:focus-within {
-    background: var(--input-shell-focus-background, var(--material-input-focus-background));
+    background: color-mix(in srgb, var(--input-shell-focus-background, var(--material-input-focus-background)) 62%, transparent);
     border-color: color-mix(in srgb, var(--input-shell-focus-border, var(--material-input-focus-border)) 96%, transparent);
-    box-shadow:
-      var(--input-shell-shadow),
-      0 0 0 2px color-mix(in srgb, var(--input-shell-focus-border, var(--material-input-focus-border)) 24%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--input-shell-focus-border, var(--material-input-focus-border)) 32%, transparent);
   }
 
   /* 中文注释：主工作台输入区只保留实色面和细边界，避免把功能控件做成一块玻璃。 */
@@ -145,7 +138,7 @@
   .dialog-input {
     background: var(--modal-input-background);
     border: 1px solid color-mix(in srgb, var(--modal-input-border) 92%, transparent);
-    box-shadow: var(--modal-input-shadow);
+    box-shadow: none;
     transition:
       background-color var(--motion-duration-fast) var(--motion-ease-standard),
       border-color var(--motion-duration-fast) var(--motion-ease-standard),
@@ -161,9 +154,7 @@
   .dialog-input:focus-within {
     background: var(--modal-input-focus-background);
     border-color: color-mix(in srgb, var(--modal-input-focus-border) 96%, transparent);
-    box-shadow:
-      var(--modal-input-focus-shadow),
-      0 0 0 2px color-mix(in srgb, var(--modal-input-focus-border) 24%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--modal-input-focus-border) 32%, transparent);
   }
 
   .dialog-divider {
@@ -173,7 +164,7 @@
   .dialog-button-secondary {
     background: var(--modal-btn-secondary-background);
     border: 1px solid var(--modal-btn-secondary-border);
-    box-shadow: var(--button-surface-shadow);
+    box-shadow: none;
   }
 
   .dialog-button-secondary:hover {
@@ -281,7 +272,7 @@
   .segmented-control {
     background: var(--chip-segmented-background);
     border: 1px solid var(--chip-segmented-border);
-    box-shadow: var(--surface-inset-shadow);
+    box-shadow: none;
   }
 
   .segmented-control-icon {
@@ -305,7 +296,7 @@
   .segmented-control-option[data-active="true"] {
     background: var(--chip-segmented-option-active-background);
     color: var(--chip-segmented-option-active-color);
-    box-shadow: var(--button-surface-shadow);
+    box-shadow: none;
     border: 1px solid var(--surface-interactive-active-border);
   }
 
@@ -360,17 +351,6 @@
     border-radius: 999px;
     background: var(--surface-card-background);
     box-shadow: var(--surface-card-shadow);
-  }
-
-  /* 中文注释：应用自行显示 Caps Lock，屏蔽 WebKit 会随密码框尺寸异常放大的原生指示器。 */
-  .nexus-password-input {
-    appearance: none;
-    -webkit-appearance: none;
-  }
-
-  .nexus-password-input::-webkit-caps-lock-indicator {
-    display: none;
-    visibility: hidden;
   }
 
   /* 中文注释：消息 Markdown 列表使用固定 marker 栅格，避免序号在不同缩放和屏宽下压住正文。 */
@@ -461,10 +441,6 @@
   .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;
-  }
-
-  .scrollbar-hide::-webkit-scrollbar {
-    display: none;
   }
 
   /* 中文注释：聊天列在桌面分栏后也可能变窄，按容器宽度收紧消息排版，而不是只依赖移动端断点。 */

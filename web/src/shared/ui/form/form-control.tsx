@@ -3,15 +3,12 @@
 import {
   type ChangeEvent,
   type InputHTMLAttributes,
-  type KeyboardEvent,
   type ReactNode,
   type TextareaHTMLAttributes,
   forwardRef,
-  useState,
 } from "react";
 import { Search } from "lucide-react";
 
-import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import {
   getUiFormControlClassName,
@@ -33,10 +30,6 @@ interface UiInputProps extends InputHTMLAttributes<HTMLInputElement> {
   className?: string;
   controlSize?: UiFormControlSize;
   variant?: UiFormControlVariant;
-}
-
-interface UiPasswordInputProps extends Omit<UiInputProps, "type"> {
-  containerClassName?: string;
 }
 
 interface UiTextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
@@ -105,62 +98,6 @@ export const UiInput = forwardRef<HTMLInputElement, UiInputProps>(function UiInp
     />
   );
 });
-
-/** 密码输入统一接管 Caps Lock 提示，避免宿主 WebKit 指示器随控件尺寸异常缩放。 */
-export const UiPasswordInput = forwardRef<HTMLInputElement, UiPasswordInputProps>(
-  function UiPasswordInput(
-    {
-      className,
-      containerClassName,
-      onBlur,
-      onKeyDown,
-      onKeyUp,
-      ...props
-    },
-    ref,
-  ) {
-    const { t } = useI18n();
-    const [capsLockOn, setCapsLockOn] = useState(false);
-    const syncCapsLock = (event: KeyboardEvent<HTMLInputElement>) => {
-      setCapsLockOn(event.getModifierState("CapsLock"));
-    };
-
-    return (
-      <span className={cn("relative block min-w-0", containerClassName)}>
-        <UiInput
-          ref={ref}
-          className={cn(className, "nexus-password-input pr-11")}
-          onBlur={(event) => {
-            setCapsLockOn(false);
-            onBlur?.(event);
-          }}
-          onKeyDown={(event) => {
-            syncCapsLock(event);
-            onKeyDown?.(event);
-          }}
-          onKeyUp={(event) => {
-            syncCapsLock(event);
-            onKeyUp?.(event);
-          }}
-          type="password"
-          {...props}
-        />
-        {capsLockOn ? (
-          <span
-            aria-hidden="true"
-            className="pointer-events-none absolute right-2.5 top-1/2 inline-flex h-6 min-w-6 -translate-y-1/2 items-center justify-center rounded-[8px] border border-(--divider-strong-color) bg-(--surface-card-background) px-1.5 text-[11px] font-semibold leading-none text-(--text-muted) shadow-[var(--surface-inset-shadow)]"
-            title={t("common.caps_lock_on")}
-          >
-            ⇧
-          </span>
-        ) : null}
-        <span aria-live="polite" className="sr-only">
-          {capsLockOn ? t("common.caps_lock_on") : ""}
-        </span>
-      </span>
-    );
-  },
-);
 
 export const UiTextarea = forwardRef<HTMLTextAreaElement, UiTextareaProps>(function UiTextarea(
   {

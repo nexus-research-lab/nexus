@@ -3,7 +3,7 @@
 import { ExternalLink } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiInput, UiPasswordInput } from "@/shared/ui/form/form-control";
+import { UiInput } from "@/shared/ui/form/form-control";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import type { UiSelectMenuOption } from "@/shared/ui/menu/select-menu-model";
 import type {
@@ -167,7 +167,7 @@ function ProviderApiKeyField({
       <span className={PROVIDER_LABEL_CLASS_NAME}>
         {t("settings.providers.api_key")}
       </span>
-      <UiPasswordInput
+      <UiInput
         autoCapitalize="off"
         autoComplete="off"
         autoCorrect="off"
@@ -180,6 +180,7 @@ function ProviderApiKeyField({
         onBlur={onFieldBlur}
         placeholder={placeholder}
         spellCheck={false}
+        type="password"
         value={draft.auth_token}
       />
       {currentPreset?.key_url ? (

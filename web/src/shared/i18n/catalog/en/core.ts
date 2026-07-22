@@ -32,7 +32,6 @@ export const enCoreMessages = {
   "common.icon_picker_previous": "Browse previous avatars",
   "common.icon_picker_scroll": "Scroll avatar choices",
   "common.icon_picker_next": "Browse next avatars",
-  "common.caps_lock_on": "Caps Lock is on",
   "common.coming_soon": "This feature is coming soon.",
   "common.search_agents": "Search agents...",
   "status.online": "Online",

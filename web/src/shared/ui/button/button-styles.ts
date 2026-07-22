@@ -30,19 +30,19 @@ const BUTTON_SIZE_CLASS_MAP: Record<UiButtonSize, string> = {
 const BUTTON_VARIANT_TONE_CLASS_MAP: Record<UiButtonVariant, Record<UiButtonTone, string>> = {
   surface: {
     default:
-      "border-(--modal-btn-secondary-border) bg-(--modal-btn-secondary-background) text-(--text-default) shadow-[var(--button-surface-shadow)] hover:border-(--modal-btn-secondary-hover-border) hover:bg-(--modal-btn-secondary-hover-background) hover:text-(--text-strong)",
+      "border-(--modal-btn-secondary-border) bg-(--modal-btn-secondary-background) text-(--text-default) hover:border-(--modal-btn-secondary-hover-border) hover:bg-(--modal-btn-secondary-hover-background) hover:text-(--text-strong)",
     primary:
-      "border-[color:color-mix(in_srgb,var(--primary)_24%,var(--modal-btn-secondary-border))] bg-[color:color-mix(in_srgb,var(--primary)_8%,var(--modal-btn-secondary-background))] text-(--primary) shadow-[var(--button-surface-shadow)] hover:border-[color:color-mix(in_srgb,var(--primary)_34%,var(--modal-btn-secondary-hover-border))] hover:bg-[color:color-mix(in_srgb,var(--primary)_12%,var(--modal-btn-secondary-hover-background))]",
+      "border-[color:color-mix(in_srgb,var(--primary)_24%,var(--modal-btn-secondary-border))] bg-[color:color-mix(in_srgb,var(--primary)_8%,var(--modal-btn-secondary-background))] text-(--primary) hover:border-[color:color-mix(in_srgb,var(--primary)_34%,var(--modal-btn-secondary-hover-border))] hover:bg-[color:color-mix(in_srgb,var(--primary)_12%,var(--modal-btn-secondary-hover-background))]",
     danger:
-      "border-[color:color-mix(in_srgb,var(--destructive)_18%,var(--modal-btn-secondary-border))] bg-(--modal-btn-secondary-background) text-(--destructive) shadow-[var(--button-surface-shadow)] hover:border-[color:color-mix(in_srgb,var(--destructive)_28%,var(--modal-btn-secondary-hover-border))] hover:bg-[color:color-mix(in_srgb,var(--destructive)_9%,var(--modal-btn-secondary-hover-background))]",
+      "border-[color:color-mix(in_srgb,var(--destructive)_18%,var(--modal-btn-secondary-border))] bg-(--modal-btn-secondary-background) text-(--destructive) hover:border-[color:color-mix(in_srgb,var(--destructive)_28%,var(--modal-btn-secondary-hover-border))] hover:bg-[color:color-mix(in_srgb,var(--destructive)_9%,var(--modal-btn-secondary-hover-background))]",
   },
   solid: {
     default:
-      "border-(--button-tonal-border) bg-(--button-tonal-background) text-(--button-tonal-color) shadow-[var(--button-surface-shadow)] hover:bg-(--button-tonal-hover-background) hover:text-(--button-tonal-hover-color)",
+      "border-(--button-tonal-border) bg-(--button-tonal-background) text-(--button-tonal-color) hover:bg-(--button-tonal-hover-background) hover:text-(--button-tonal-hover-color)",
     primary:
-      "border-(--button-primary-border) bg-(--button-primary-background) text-(--button-primary-color) shadow-[var(--button-primary-shadow)] hover:border-(--button-primary-hover-border) hover:bg-(--button-primary-hover-background)",
+      "border-(--button-primary-border) bg-(--button-primary-background) text-(--button-primary-color) hover:border-(--button-primary-hover-border) hover:bg-(--button-primary-hover-background)",
     danger:
-      "border-[color:color-mix(in_srgb,var(--destructive)_62%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_82%,white_18%)] text-white shadow-[var(--button-danger-shadow)] hover:border-[color:color-mix(in_srgb,var(--destructive)_74%,transparent)] hover:bg-[color:color-mix(in_srgb,var(--destructive)_88%,white_12%)]",
+      "border-[color:color-mix(in_srgb,var(--destructive)_62%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_82%,white_18%)] text-white hover:border-[color:color-mix(in_srgb,var(--destructive)_74%,transparent)] hover:bg-[color:color-mix(in_srgb,var(--destructive)_88%,white_12%)]",
   },
   ghost: {
     default:

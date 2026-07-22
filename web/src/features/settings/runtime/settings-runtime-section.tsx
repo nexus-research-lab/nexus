@@ -19,7 +19,6 @@ import {
 
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiPasswordInput } from "@/shared/ui/form/form-control";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 import { WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
@@ -629,9 +628,8 @@ function WebSearchAPIKeyField({
       label={t("settings.runtime.web_search_api_key")}
     >
       <div className="flex gap-2">
-        <UiPasswordInput
+        <input
           className="input-shell h-9 min-w-0 flex-1 rounded-[10px] bg-transparent px-3 text-[12px] text-(--text-strong) outline-none placeholder:text-(--text-soft)"
-          containerClassName="min-w-0 flex-1"
           disabled={disabled}
           onBlur={() => {
             const value = draftAPIKey.trim();
@@ -647,6 +645,7 @@ function WebSearchAPIKeyField({
               ? t("settings.runtime.web_search_api_key_placeholder")
               : t("settings.runtime.web_search_api_key_optional_placeholder")}
           required={required}
+          type="password"
           value={draftAPIKey}
         />
         {apiKeyConfigured ? (

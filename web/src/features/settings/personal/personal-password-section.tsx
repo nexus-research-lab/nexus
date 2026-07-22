@@ -5,7 +5,6 @@ import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
 import { getUiButtonClassName } from "@/shared/ui/button/button-styles";
-import { UiPasswordInput } from "@/shared/ui/form/form-control";
 
 import type { PasswordDraft, PasswordField } from "./personal-settings-model";
 
@@ -80,11 +79,12 @@ export function PersonalPasswordSection({
               <span className="text-[11px] font-semibold text-(--text-muted)">
                 {t(input.labelKey)}
               </span>
-              <UiPasswordInput
+              <input
                 autoComplete={input.autoComplete}
                 className="dialog-input h-9 w-full rounded-xl px-3 text-sm text-(--text-strong) outline-none disabled:opacity-(--disabled-opacity)"
                 disabled={!canChange || isSubmitting}
                 onChange={(event) => onFieldChange(input.field, event.target.value)}
+                type="password"
                 value={draft[input.field]}
               />
             </label>
