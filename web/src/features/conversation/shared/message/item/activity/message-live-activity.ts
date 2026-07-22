@@ -12,6 +12,7 @@ const RUNTIME_PHASE_ACTIVITY: Partial<
   Record<AgentConversationRuntimePhase, MessageActivityState>
 > = {
   awaiting_permission: "waiting_permission",
+  compacting: "compacting",
   running: "thinking",
   sending: "sending",
   streaming: "replying",

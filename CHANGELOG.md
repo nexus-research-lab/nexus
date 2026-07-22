@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed runtime switches failing when cleanup of the previous Claude Code or nxs process returned a stale transport error, and made generic startup guidance runtime-neutral.
 - Fixed explicit Claude Code/nxs selections being overridden by a stale process-level runtime environment, keeping provider credentials and runtime-specific settings aligned with the selected runtime.
 - Fixed runtime-scoped compaction settings so Claude Code receives its native auto-compaction threshold and model context cap, while nxs keeps Nexus-native environment keys.
+- Fixed the conversation Agent surface disappearing while context compaction is visible; the live message now keeps the Agent identity and shows the compaction activity state.
 - Fixed the desktop provider scope recovery skipping ownerless public providers created after the 00018 migration (they were mislabeled as intentional subscriptions and became uneditable), and added a last-resort pass that assigns providers referenced by no runtime or preferences to the local principal and owner users.
 - Bound WebSearch API keys to their selected provider so a key from one provider is never displayed or reused under another provider.
 - Fixed desktop updates retaining old downloaded app and installer packages in `~/.nexus/cache/updates` after a newer version started successfully; deferred downloads remain available until then.
