@@ -77,11 +77,7 @@ func (s *Service) BuildRoomSkillPrompt(ctx context.Context, skillNames []string)
 		builder.WriteString(" (`")
 		builder.WriteString(detail.Name)
 		builder.WriteString("`)\n\n")
-		runtimeInstructions := strings.TrimSpace(detail.RuntimeInstructions)
-		if runtimeInstructions == "" {
-			return "", fmt.Errorf("room skill 缺少 runtime_instructions: %s", detail.Name)
-		}
-		builder.WriteString(runtimeInstructions)
+		builder.WriteString(strings.TrimSpace(skillspkg.StripFrontmatter(detail.ReadmeMarkdown)))
 	}
 	return builder.String(), nil
 }

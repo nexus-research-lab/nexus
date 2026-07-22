@@ -20,14 +20,14 @@ func (s *RealtimeService) HandleInterrupt(ctx context.Context, request Interrupt
 		if slot == nil {
 			return errors.New("target room slot not found")
 		}
-		return s.interruptActiveSlot(ctx, roundValue, slot, "", false)
+		return s.interruptActiveSlot(ctx, roundValue, slot, "")
 	}
 	if roundID := strings.TrimSpace(request.RoundID); roundID != "" {
 		roundValue := s.findActiveRoundByRoundID(sessionKey, roundID)
 		if roundValue == nil {
 			return errors.New("target room round not found")
 		}
-		return s.interruptActiveRound(ctx, roundValue, "", false)
+		return s.interruptActiveRound(ctx, roundValue, "")
 	}
 	return s.interruptRound(ctx, sessionKey, "", "", false)
 }
@@ -178,13 +178,13 @@ func (s *RealtimeService) interruptRound(
 			}
 			return errors.New("target room slot not found")
 		}
-		return s.interruptActiveSlot(ctx, roundValue, slot, message, suppressError)
+		return s.interruptActiveSlot(ctx, roundValue, slot, message)
 	}
 
 	rounds := s.activeRoundsForSession(sessionKey)
 	errs := make([]error, 0)
 	for _, roundValue := range rounds {
-		if err := s.interruptActiveRound(ctx, roundValue, message, suppressError); err != nil {
+		if err := s.interruptActiveRound(ctx, roundValue, message); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -261,7 +261,6 @@ func (s *RealtimeService) interruptActiveSlot(
 	roundValue *activeRoomRound,
 	slot *activeRoomSlot,
 	message string,
-	suppressError bool,
 ) error {
 	if roundValue == nil || slot == nil {
 		return nil
@@ -316,7 +315,6 @@ func (s *RealtimeService) interruptActiveRound(
 	ctx context.Context,
 	roundValue *activeRoomRound,
 	message string,
-	suppressError bool,
 ) error {
 	if roundValue == nil {
 		return nil
@@ -324,14 +322,14 @@ func (s *RealtimeService) interruptActiveRound(
 	// 整轮停止时同步收口所有派生 public handoff，避免 root 取消后
 	// 持久化 queue 在稍后又把目标 Agent 唤醒。
 	s.cancelRootPublicHandoffs(ctx, roundValue, "interrupted")
+	interruptReason := normalizeRoomInterruptReason(message)
 	s.loggerFor(ctx).Warn("请求中断 Room round",
 		"session_key", roundValue.SessionKey,
 		"room_id", roundValue.RoomID,
 		"conversation_id", roundValue.ConversationID,
 		"round_id", roundValue.RoundID,
-		"reason", normalizeRoomInterruptReason(message),
+		"reason", interruptReason,
 	)
-	interruptReason := normalizeRoomInterruptReason(message)
 	for _, slot := range roundValue.Slots {
 		markRoomSlotInterrupted(slot, interruptReason)
 		if client := slot.getClient(); client != nil {

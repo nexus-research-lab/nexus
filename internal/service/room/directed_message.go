@@ -164,15 +164,7 @@ func (s *RealtimeService) buildRoomDirectedMessageRecord(
 }
 
 func normalizeRoomDirectedMessageRecipients(values []string) []string {
-	result := make([]string, 0, len(values))
-	for _, value := range values {
-		normalized := strings.TrimSpace(value)
-		if normalized == "" || slices.Contains(result, normalized) {
-			continue
-		}
-		result = append(result, normalized)
-	}
-	return result
+	return normalizeRoomAgentIDs(values)
 }
 
 func validateRoomDirectedMessageRecipients(recipients []string, memberAgentIDs []string) error {

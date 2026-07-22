@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
@@ -26,14 +25,17 @@ func (s *Service) resolveAgentWorkspacePath(ctx context.Context, agentID string)
 
 func (s *Service) normalizeDirectAgentIDs(ctx context.Context, agentIDs []string) ([]string, error) {
 	normalizedIDs := make([]string, 0, len(agentIDs))
+	seen := make(map[string]struct{}, len(agentIDs))
 	for _, agentID := range agentIDs {
 		agentValue, err := s.resolveRoomAgent(ctx, agentID)
 		if err != nil {
 			return nil, err
 		}
-		if !slices.Contains(normalizedIDs, agentValue.AgentID) {
-			normalizedIDs = append(normalizedIDs, agentValue.AgentID)
+		if _, exists := seen[agentValue.AgentID]; exists {
+			continue
 		}
+		seen[agentValue.AgentID] = struct{}{}
+		normalizedIDs = append(normalizedIDs, agentValue.AgentID)
 	}
 	if len(normalizedIDs) == 0 {
 		return nil, errors.New("DM room 需要一个 agent 成员")
@@ -48,7 +50,7 @@ func (s *Service) normalizeGroupAgentIDs(ctx context.Context, agentIDs []string)
 	if len(agentIDs) == 0 {
 		return nil, errors.New("room 至少需要一个普通成员 agent，主智能体不能作为 room 成员")
 	}
-	// Deduplicate and trim input IDs before batch fetch.
+	// 批量读取前先去重并清理输入 ID。
 	seen := make(map[string]struct{}, len(agentIDs))
 	cleaned := make([]string, 0, len(agentIDs))
 	for _, id := range agentIDs {
@@ -79,9 +81,6 @@ func (s *Service) normalizeGroupAgentIDs(ctx context.Context, agentIDs []string)
 			return nil, fmt.Errorf("主智能体（%s）不能作为 room 成员", agentValue.Name)
 		}
 		normalizedIDs = append(normalizedIDs, agentValue.AgentID)
-	}
-	if len(normalizedIDs) == 0 {
-		return nil, errors.New("room 至少需要一个普通成员 agent，主智能体不能作为 room 成员")
 	}
 	return normalizedIDs, nil
 }

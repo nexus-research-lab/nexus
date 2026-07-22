@@ -4,12 +4,6 @@ title: Six-Player Werewolf
 description: Werewolf game rules for one host and six players in a Nexus Room.
 scope: room
 tags: [room, game, werewolf]
-runtime_instructions: |
-  Run a six-player game with one host, two wolves, one seer, one witch, and two villagers. Good wins when both wolves die; wolves win when all villagers or all special roles die.
-  Keep roles, night choices, seer results, potion state, and host state in directed messages. Public feed contains only phase announcements, speeches, votes, deaths without roles, last words, and the final reveal.
-  Night is serial: wolves choose a victim, seer checks one player, witch decides antidote/poison, then the host announces daybreak. Send the wolf message to both wolves but put only the named collector in wake_targets. Each actionable night message routes one private final reply to the host and wakes the host; the witch route adds next_reply_route public for daybreak.
-  Day uses one public non-code @ handoff at a time: speech chain, vote chain, optional tie-break, last words, then the next night. Future members and examples must not contain a naked @. Public replies never include hidden-role reasoning.
-  The host records minimal private state after every phase, checks the win condition after deaths, and stops immediately after the public result.
 ---
 
 # Six-Player Werewolf

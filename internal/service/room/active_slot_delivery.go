@@ -15,6 +15,33 @@ import (
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
+// newActiveSlotQueueEntry 把 slot 的运行时位置投影为统一的 Room 队列项。
+// queue 与 guide 只负责填写来源差异，不能各自复制一套位置和目标字段。
+func newActiveSlotQueueEntry(
+	slot *activeRoomSlot,
+	roomID string,
+	conversationID string,
+	item protocol.InputQueueItem,
+) workspacestore.InputQueueEnqueue {
+	item.Scope = protocol.InputQueueScopeRoom
+	item.SessionKey = slot.RuntimeSessionKey
+	item.RoomID = roomID
+	item.ConversationID = conversationID
+	item.AgentID = slot.AgentID
+	item.TargetAgentIDs = []string{slot.AgentID}
+	item.Attachments = protocol.NormalizeChatAttachments(item.Attachments, slot.AgentID)
+	return workspacestore.InputQueueEnqueue{
+		Location: workspacestore.InputQueueLocation{
+			Scope:          protocol.InputQueueScopeRoom,
+			WorkspacePath:  slot.WorkspacePath,
+			SessionKey:     slot.RuntimeSessionKey,
+			RoomID:         roomID,
+			ConversationID: conversationID,
+		},
+		Item: item,
+	}
+}
+
 func (s *RealtimeService) enqueueForActiveAgentSlots(
 	ctx context.Context,
 	sessionKey string,
@@ -35,32 +62,16 @@ func (s *RealtimeService) enqueueForActiveAgentSlots(
 		if slot == nil {
 			continue
 		}
-		location := workspacestore.InputQueueLocation{
-			Scope:          protocol.InputQueueScopeRoom,
-			WorkspacePath:  slot.WorkspacePath,
-			SessionKey:     slot.RuntimeSessionKey,
-			RoomID:         roomID,
-			ConversationID: conversationID,
-		}
-		entries = append(entries, workspacestore.InputQueueEnqueue{
-			Location: location,
-			Item: protocol.InputQueueItem{
-				ID:              strings.TrimSpace(roundID),
-				Scope:           protocol.InputQueueScopeRoom,
-				SessionKey:      slot.RuntimeSessionKey,
-				RoomID:          roomID,
-				ConversationID:  conversationID,
-				AgentID:         agentID,
-				SourceMessageID: strings.TrimSpace(userMessageID),
-				TargetAgentIDs:  []string{agentID},
-				Source:          protocol.InputQueueSourceUser,
-				Content:         strings.TrimSpace(content),
-				Attachments:     protocol.NormalizeChatAttachments(attachments, agentID),
-				DeliveryPolicy:  protocol.ChatDeliveryPolicyQueue,
-				OwnerUserID:     strings.TrimSpace(ownerUserID),
-				RootRoundID:     strings.TrimSpace(roundID),
-			},
-		})
+		entries = append(entries, newActiveSlotQueueEntry(slot, roomID, conversationID, protocol.InputQueueItem{
+			ID:              strings.TrimSpace(roundID),
+			SourceMessageID: strings.TrimSpace(userMessageID),
+			Source:          protocol.InputQueueSourceUser,
+			Content:         strings.TrimSpace(content),
+			Attachments:     attachments,
+			DeliveryPolicy:  protocol.ChatDeliveryPolicyQueue,
+			OwnerUserID:     strings.TrimSpace(ownerUserID),
+			RootRoundID:     strings.TrimSpace(roundID),
+		}))
 	}
 	if err := s.inputQueue.EnqueueBatch(entries); err != nil {
 		return queuedAgentIDs, err
@@ -246,36 +257,20 @@ func (s *RealtimeService) guideActiveAgentSlots(
 		if slot == nil {
 			continue
 		}
-		location := workspacestore.InputQueueLocation{
-			Scope:          protocol.InputQueueScopeRoom,
-			WorkspacePath:  slot.WorkspacePath,
-			SessionKey:     slot.RuntimeSessionKey,
-			RoomID:         roomID,
-			ConversationID: conversationID,
-		}
-		entries = append(entries, workspacestore.InputQueueEnqueue{
-			Location: location,
-			Item: protocol.InputQueueItem{
-				ID:              strings.TrimSpace(sourceItem.ID),
-				Scope:           protocol.InputQueueScopeRoom,
-				SessionKey:      slot.RuntimeSessionKey,
-				RoomID:          roomID,
-				ConversationID:  conversationID,
-				AgentID:         agentID,
-				SourceAgentID:   strings.TrimSpace(sourceItem.SourceAgentID),
-				SourceMessageID: strings.TrimSpace(sourceItem.SourceMessageID),
-				HandoffID:       strings.TrimSpace(sourceItem.HandoffID),
-				TargetAgentIDs:  []string{agentID},
-				Source:          protocol.NormalizeInputQueueSource(string(sourceItem.Source)),
-				Content:         strings.TrimSpace(sourceItem.Content),
-				Attachments:     protocol.NormalizeChatAttachments(sourceItem.Attachments, agentID),
-				DeliveryPolicy:  protocol.ChatDeliveryPolicyGuide,
-				ReplyRoute:      sourceItem.ReplyRoute,
-				OwnerUserID:     strings.TrimSpace(sourceItem.OwnerUserID),
-				RootRoundID:     slot.AgentRoundID,
-				HopIndex:        sourceItem.HopIndex,
-			},
-		})
+		entries = append(entries, newActiveSlotQueueEntry(slot, roomID, conversationID, protocol.InputQueueItem{
+			ID:              strings.TrimSpace(sourceItem.ID),
+			SourceAgentID:   strings.TrimSpace(sourceItem.SourceAgentID),
+			SourceMessageID: strings.TrimSpace(sourceItem.SourceMessageID),
+			HandoffID:       strings.TrimSpace(sourceItem.HandoffID),
+			Source:          protocol.NormalizeInputQueueSource(string(sourceItem.Source)),
+			Content:         strings.TrimSpace(sourceItem.Content),
+			Attachments:     sourceItem.Attachments,
+			DeliveryPolicy:  protocol.ChatDeliveryPolicyGuide,
+			ReplyRoute:      sourceItem.ReplyRoute,
+			OwnerUserID:     strings.TrimSpace(sourceItem.OwnerUserID),
+			RootRoundID:     slot.AgentRoundID,
+			HopIndex:        sourceItem.HopIndex,
+		}))
 	}
 	if err := s.inputQueue.EnqueueBatch(entries); err != nil {
 		return guidedAgentIDs, err

@@ -19,13 +19,17 @@
 
 - `<workspace>/.agents/skills/<skill_name>/`
 
-这是运行时真正消费的 skill 副本。
+这是普通 Agent runtime 真正消费的 skill 副本。
 
 ### 2.3 runtime 发现入口
 
 - `<workspace>/.claude/skills/<skill_name>`
 
 它是指向 `.agents/skills/<skill_name>` 的入口，不应承载真实源文件。
+
+### 2.4 Room Skill
+
+`scope: room` 不部署到单个 Agent workspace。Room runtime 根据 Room 配置读取 Skill 的 `ReadmeMarkdown`，去掉 frontmatter 后直接注入成员运行时；Skill 正文是 Room 规则的唯一真相源。
 
 ## 3. 当前真相源
 
@@ -81,7 +85,8 @@ skill 执行真相源是文件系统，不是数据库记录。
 
 ## 6. 当前约束
 
-- skill 运行时只读 workspace 部署副本
+- 普通 Agent skill 运行时只读 workspace 部署副本
+- Room Skill 由 Room runtime 直接读取源正文
 - `.claude/skills` 只是发现入口
 - internal skill 不应以公开 marketplace 形式暴露
 
@@ -93,4 +98,4 @@ skill 执行真相源是文件系统，不是数据库记录。
 
 ## 8. 一句话总结
 
-skill 是文件系统实体，catalog 和 UI 只是它的投影层。
+普通 skill 是文件系统实体，catalog 和 UI 只是它的投影层；Room Skill 由 Room 配置选择并直接投影其源正文。

@@ -227,43 +227,13 @@ func buildPublicMessageMentionAnnotations(
 	content string,
 	fanout bool,
 ) []protocol.AgentMention {
-	if contextValue == nil {
-		return nil
-	}
-	result := make([]protocol.AgentMention, 0)
-	selectedTargets := make(map[string]struct{})
-	matches := roomdomain.ResolveMentionMatches(content, roomdomain.BuildMentionAliases(contextValue))
-	for _, match := range matches {
-		targetAgentID := strings.TrimSpace(match.AgentID)
-		if targetAgentID == "" || targetAgentID == strings.TrimSpace(sourceAgentID) ||
-			!roomdomain.IsMemberAgent(contextValue.Members, targetAgentID) {
-			continue
-		}
-		if fanout || len(selectedTargets) == 0 {
-			selectedTargets[targetAgentID] = struct{}{}
-		}
-	}
-	for _, match := range matches {
-		targetAgentID := strings.TrimSpace(match.AgentID)
-		if targetAgentID == "" || targetAgentID == strings.TrimSpace(sourceAgentID) ||
-			!roomdomain.IsMemberAgent(contextValue.Members, targetAgentID) {
-			continue
-		}
-		_, isHandoff := selectedTargets[targetAgentID]
-		handoffID := ""
-		if isHandoff {
-			handoffID = roomPublicHandoffID(contextValue.Conversation.ID, messageID, targetAgentID)
-		}
-		result = append(result, protocol.AgentMention{
-			AgentID:           targetAgentID,
-			Label:             strings.TrimSpace(match.Label),
-			ContentBlockIndex: 0,
-			StartRune:         match.StartRune,
-			EndRune:           match.EndRune,
-			HandoffID:         handoffID,
-		})
-	}
-	return result
+	return buildRoomMentionAnnotations(
+		contextValue,
+		sourceAgentID,
+		messageID,
+		[]roomMentionTextBlock{{index: 0, text: content}},
+		fanout,
+	)
 }
 
 func handoffTargetAgentIDs(mentions []protocol.AgentMention) []string {

@@ -20,6 +20,84 @@ type roomMentionTextBlock struct {
 	text  string
 }
 
+type roomResolvedMention struct {
+	block roomMentionTextBlock
+	match roomdomain.MentionMatch
+}
+
+// buildRoomMentionAnnotations 统一 Room 公区 mention 的成员过滤和 handoff 选择。
+// 普通 assistant 输出与主动发布消息必须共享这条规则，避免两条链路产生不同的协作语义。
+func buildRoomMentionAnnotations(
+	contextValue *protocol.ConversationContextAggregate,
+	sourceAgentID string,
+	messageID string,
+	blocks []roomMentionTextBlock,
+	fanout bool,
+) []protocol.AgentMention {
+	resolved := resolveRoomMentionMatches(contextValue, sourceAgentID, blocks)
+	if len(resolved) == 0 {
+		return nil
+	}
+
+	selectedTargets := make(map[string]struct{}, len(resolved))
+	for _, item := range resolved {
+		targetAgentID := strings.TrimSpace(item.match.AgentID)
+		if fanout || len(selectedTargets) == 0 {
+			selectedTargets[targetAgentID] = struct{}{}
+		}
+	}
+
+	messageID = strings.TrimSpace(messageID)
+	result := make([]protocol.AgentMention, 0, len(resolved))
+	for _, item := range resolved {
+		targetAgentID := strings.TrimSpace(item.match.AgentID)
+		handoffID := ""
+		if _, ok := selectedTargets[targetAgentID]; ok {
+			handoffID = roomPublicHandoffID(
+				contextValue.Conversation.ID,
+				messageID,
+				targetAgentID,
+			)
+		}
+		result = append(result, protocol.AgentMention{
+			AgentID:           targetAgentID,
+			Label:             strings.TrimSpace(item.match.Label),
+			ContentBlockIndex: item.block.index,
+			StartRune:         item.match.StartRune,
+			EndRune:           item.match.EndRune,
+			HandoffID:         handoffID,
+		})
+	}
+	return result
+}
+
+func resolveRoomMentionMatches(
+	contextValue *protocol.ConversationContextAggregate,
+	sourceAgentID string,
+	blocks []roomMentionTextBlock,
+) []roomResolvedMention {
+	if contextValue == nil || len(blocks) == 0 {
+		return nil
+	}
+	aliases := roomdomain.BuildMentionAliases(contextValue)
+	if len(aliases) == 0 {
+		return nil
+	}
+	sourceAgentID = strings.TrimSpace(sourceAgentID)
+	result := make([]roomResolvedMention, 0)
+	for _, block := range blocks {
+		for _, match := range roomdomain.ResolveMentionMatches(block.text, aliases) {
+			targetAgentID := strings.TrimSpace(match.AgentID)
+			if targetAgentID == "" || targetAgentID == sourceAgentID ||
+				!roomdomain.IsMemberAgent(contextValue.Members, targetAgentID) {
+				continue
+			}
+			result = append(result, roomResolvedMention{block: block, match: match})
+		}
+	}
+	return result
+}
+
 func (s *RealtimeService) transformRoomDurableMessage(
 	roundValue *activeRoomRound,
 	slot *activeRoomSlot,
@@ -93,80 +171,63 @@ func (s *RealtimeService) annotatePublicAssistantMessage(
 	if len(blocks) == 0 {
 		return nil
 	}
-	aliases := roomdomain.BuildMentionAliases(roundValue.Context)
-	if len(aliases) == 0 {
-		return nil
-	}
 	messageID := strings.TrimSpace(anyString(message["message_id"]))
 	if messageID == "" {
 		return nil
 	}
-	type resolvedMention struct {
-		block roomMentionTextBlock
-		match roomdomain.MentionMatch
-	}
-	resolved := make([]resolvedMention, 0)
-	selectedTargets := make(map[string]struct{})
-	for _, block := range blocks {
-		for _, match := range roomdomain.ResolveMentionMatches(block.text, aliases) {
-			targetAgentID := strings.TrimSpace(match.AgentID)
-			if targetAgentID == "" || targetAgentID == strings.TrimSpace(slot.AgentID) ||
-				!roomdomain.IsMemberAgent(roundValue.Context.Members, targetAgentID) {
-				continue
-			}
-			resolved = append(resolved, resolvedMention{block: block, match: match})
-			if fanout || len(selectedTargets) == 0 {
-				selectedTargets[targetAgentID] = struct{}{}
-			}
-		}
-	}
-	if len(resolved) == 0 {
+	mentions := buildRoomMentionAnnotations(
+		roundValue.Context,
+		slot.AgentID,
+		messageID,
+		blocks,
+		fanout,
+	)
+	if len(mentions) == 0 {
 		return nil
 	}
-	mentionValues := make([]protocol.AgentMention, 0, len(resolved))
-	handoffByAgent := make(map[string]string)
-	for _, item := range resolved {
-		block := item.block
-		match := item.match
-		targetAgentID := strings.TrimSpace(match.AgentID)
-		_, isHandoff := selectedTargets[targetAgentID]
-		handoffID := ""
-		if isHandoff {
-			handoffID = handoffByAgent[targetAgentID]
-			if handoffID == "" {
-				handoffID = roomPublicHandoffID(roundValue.ConversationID, messageID, targetAgentID)
-				handoffByAgent[targetAgentID] = handoffID
-				if s.publicHandoffs != nil {
-					_, _, err := s.publicHandoffs.Detect(workspacestore.RoomPublicHandoff{
-						HandoffID:          handoffID,
-						ConversationID:     roundValue.ConversationID,
-						RoomID:             roundValue.RoomID,
-						RootRoundID:        roomRootRoundID(roundValue),
-						SourceAgentRoundID: strings.TrimSpace(slot.AgentRoundID),
-						SourceMessageID:    messageID,
-						SourceAgentID:      strings.TrimSpace(slot.AgentID),
-						TargetAgentID:      targetAgentID,
-						Content:            strings.TrimSpace(roomdomain.ExtractAssistantResultText(message)),
-						HopIndex:           roundValue.HopIndex,
-					})
-					if err != nil {
-						return err
-					}
-				}
-			}
-		}
-		mention := protocol.AgentMention{
-			AgentID:           targetAgentID,
-			Label:             strings.TrimSpace(match.Label),
-			ContentBlockIndex: block.index,
-			StartRune:         match.StartRune,
-			EndRune:           match.EndRune,
-			HandoffID:         handoffID,
-		}
-		mentionValues = append(mentionValues, mention)
+	if err := s.detectRoomMentionHandoffs(roundValue, slot, message, mentions); err != nil {
+		return err
 	}
-	if len(mentionValues) > 0 {
-		message["agent_mentions"] = mentionValues
+	message["agent_mentions"] = mentions
+	return nil
+}
+
+func (s *RealtimeService) detectRoomMentionHandoffs(
+	roundValue *activeRoomRound,
+	slot *activeRoomSlot,
+	message protocol.Message,
+	mentions []protocol.AgentMention,
+) error {
+	if s.publicHandoffs == nil {
+		return nil
+	}
+	messageID := strings.TrimSpace(anyString(message["message_id"]))
+	content := strings.TrimSpace(roomdomain.ExtractAssistantResultText(message))
+	detected := make(map[string]struct{}, len(mentions))
+	for _, mention := range mentions {
+		handoffID := strings.TrimSpace(mention.HandoffID)
+		if handoffID == "" {
+			continue
+		}
+		if _, ok := detected[handoffID]; ok {
+			continue
+		}
+		detected[handoffID] = struct{}{}
+		_, _, err := s.publicHandoffs.Detect(workspacestore.RoomPublicHandoff{
+			HandoffID:          handoffID,
+			ConversationID:     roundValue.ConversationID,
+			RoomID:             roundValue.RoomID,
+			RootRoundID:        roomRootRoundID(roundValue),
+			SourceAgentRoundID: strings.TrimSpace(slot.AgentRoundID),
+			SourceMessageID:    messageID,
+			SourceAgentID:      strings.TrimSpace(slot.AgentID),
+			TargetAgentID:      strings.TrimSpace(mention.AgentID),
+			Content:            content,
+			HopIndex:           roundValue.HopIndex,
+		})
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }

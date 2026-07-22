@@ -62,6 +62,24 @@ func roomTargetResolution(targetAgentIDs []string) string {
 	return "none"
 }
 
+// normalizeRoomAgentIDs 清理并按输入顺序去重 Agent ID。
+func normalizeRoomAgentIDs(values []string) []string {
+	result := make([]string, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		normalized := strings.TrimSpace(value)
+		if normalized == "" {
+			continue
+		}
+		if _, exists := seen[normalized]; exists {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		result = append(result, normalized)
+	}
+	return result
+}
+
 func cloneMessageWithSessionKey(message protocol.Message, sessionKey string) protocol.Message {
 	result := make(protocol.Message, len(message))
 	for key, value := range message {

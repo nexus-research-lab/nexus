@@ -58,6 +58,13 @@ func TestResolveChatTargetAgentIDsUsesExplicitTargets(t *testing.T) {
 	}
 }
 
+func TestNormalizeRoomAgentIDsPreservesOrderAndDropsDuplicates(t *testing.T) {
+	got := normalizeRoomAgentIDs([]string{" agent-b ", "", "agent-a", "agent-b", "agent-a"})
+	if want := []string{"agent-b", "agent-a"}; !slices.Equal(got, want) {
+		t.Fatalf("Room Agent ID 归一化结果 = %+v, want %+v", got, want)
+	}
+}
+
 func TestNewRoomUserMessagePersistsResolvedTargets(t *testing.T) {
 	message := newRoomUserMessage(
 		ChatRequest{RoundID: "round-targets", UserMessageID: "message-targets", Content: "只调整 Agent1 的回复"},

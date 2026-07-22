@@ -198,18 +198,5 @@ func resolveChatTargetAgentIDs(
 }
 
 func normalizeExplicitTargetAgentIDs(values []string) []string {
-	result := make([]string, 0, len(values))
-	seen := make(map[string]struct{}, len(values))
-	for _, value := range values {
-		agentID := strings.TrimSpace(value)
-		if agentID == "" {
-			continue
-		}
-		if _, ok := seen[agentID]; ok {
-			continue
-		}
-		seen[agentID] = struct{}{}
-		result = append(result, agentID)
-	}
-	return result
+	return normalizeRoomAgentIDs(values)
 }
