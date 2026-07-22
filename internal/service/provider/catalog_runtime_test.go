@@ -25,6 +25,58 @@ func TestMaskTokenShowsPrefixAndSuffix(t *testing.T) {
 	}
 }
 
+func TestResponsesProviderSupportsNXSRuntime(t *testing.T) {
+	ctx := context.Background()
+	service, _ := newTestService(t)
+
+	record, err := service.Create(ctx, CreateInput{
+		Provider:   "responses-provider",
+		PresetKey:  presetCustom,
+		APIFormat:  APIFormatResponses,
+		AuthToken:  "responses-key",
+		BaseURL:    "https://responses.example.com/v1",
+		ModelsPath: "/models",
+		Enabled:    true,
+	})
+	if err != nil {
+		t.Fatalf("创建 Responses provider 失败: %v", err)
+	}
+	if _, err = service.UpdateModel(ctx, record.Provider, "gpt-4.1", UpdateModelInput{
+		Enabled:   true,
+		IsDefault: true,
+	}); err != nil {
+		t.Fatalf("启用 Responses 模型失败: %v", err)
+	}
+
+	runtimeConfig, err := service.ResolveRuntimeConfigForRuntime(ctx, record.Provider, "gpt-4.1", "nxs")
+	if err != nil {
+		t.Fatalf("Responses provider 应可用于 nxs runtime: %v", err)
+	}
+	if runtimeConfig.APIFormat != APIFormatResponses || runtimeConfig.Model != "gpt-4.1" {
+		t.Fatalf("Responses nxs runtime config 不正确: %+v", runtimeConfig)
+	}
+	if _, err = service.ResolveRuntimeConfigForRuntime(ctx, record.Provider, "gpt-4.1", "claude"); err == nil ||
+		!strings.Contains(err.Error(), "claude Agent runtime") {
+		t.Fatalf("Responses provider 应被 Claude runtime 拒绝并说明 runtime: %v", err)
+	}
+
+	nxsOptions, err := service.ListOptionsForRuntime(ctx, "nxs")
+	if err != nil {
+		t.Fatalf("读取 nxs provider options 失败: %v", err)
+	}
+	responsesOption := optionByProvider(nxsOptions.Items, record.Provider)
+	if responsesOption == nil || !hasModelOption(responsesOption.Models, "gpt-4.1") {
+		t.Fatalf("nxs Provider 列表缺少 Responses 模型: %+v", nxsOptions.Items)
+	}
+	claudeOptions, err := service.ListOptionsForRuntime(ctx, "claude")
+	if err != nil {
+		t.Fatalf("读取 Claude provider options 失败: %v", err)
+	}
+	if optionByProvider(claudeOptions.Items, record.Provider) != nil {
+		t.Fatalf("Claude Provider 列表不应包含 Responses provider: %+v", claudeOptions.Items)
+	}
+}
+
 func TestProviderPresetDefaultsAndRuntimeGate(t *testing.T) {
 	ctx := context.Background()
 	service, _ := newTestService(t)
@@ -47,7 +99,7 @@ func TestProviderPresetDefaultsAndRuntimeGate(t *testing.T) {
 	if openai.AgentRuntimeSupported {
 		t.Fatalf("chat_completions 暂不应成为 Agent runtime provider: %+v", openai)
 	}
-	if _, err = service.ResolveRuntimeConfig(ctx, "openai", "gpt-4o"); err == nil || !strings.Contains(err.Error(), "暂不可用于 Agent runtime") {
+	if _, err = service.ResolveRuntimeConfig(ctx, "openai", "gpt-4o"); err == nil || !strings.Contains(err.Error(), "claude Agent runtime") {
 		t.Fatalf("OpenAI chat_completions 应被 Claude runtime 拒绝: %v", err)
 	}
 	if _, err = service.UpdateModel(ctx, "openai", "gpt-4o", UpdateModelInput{
@@ -485,6 +537,160 @@ func TestBuiltinProviderEndpointUsesCatalog(t *testing.T) {
 	}
 	if custom.BaseURL != "https://proxy.example.com/v1" || custom.ModelsPath != "/proxy-models" {
 		t.Fatalf("custom provider 应保留自定义 endpoint: %+v", custom)
+	}
+}
+
+func TestAzureProviderUsesResourceEndpointAndDeploymentModel(t *testing.T) {
+	ctx := context.Background()
+	service, _ := newTestService(t)
+
+	preset := resolvePreset(presetAzure)
+	if preset.EndpointMode != EndpointModeResource || preset.DefaultFormat != APIFormatChatCompletions {
+		t.Fatalf("Azure preset 端点策略不正确: %+v", preset)
+	}
+	if format := preset.Format(APIFormatChatCompletions); format.ModelsPath != "" || format.BaseURLPlaceholder == "" {
+		t.Fatalf("Azure preset 应提示资源端点并关闭模型同步: %+v", format)
+	}
+
+	azure, err := service.Create(ctx, CreateInput{
+		Provider:   presetAzure,
+		PresetKey:  presetAzure,
+		APIFormat:  APIFormatChatCompletions,
+		AuthToken:  "azure-key",
+		BaseURL:    "https://resource-name.openai.azure.com/openai/",
+		ModelsPath: "/models",
+		Enabled:    true,
+	})
+	if err != nil {
+		t.Fatalf("创建 Azure provider 失败: %v", err)
+	}
+	if azure.BaseURL != "https://resource-name.openai.azure.com/openai/v1" || azure.ModelsPath != "" {
+		t.Fatalf("Azure provider 未规范化资源端点: %+v", azure)
+	}
+	if _, err = service.UpdateModel(ctx, presetAzure, "production-chat", UpdateModelInput{
+		Enabled:   true,
+		IsDefault: true,
+	}); err != nil {
+		t.Fatalf("添加 Azure deployment model 失败: %v", err)
+	}
+	runtimeConfig, err := service.ResolveRuntimeConfigForRuntime(ctx, presetAzure, "production-chat", "nxs")
+	if err != nil {
+		t.Fatalf("解析 Azure nxs runtime 配置失败: %v", err)
+	}
+	if runtimeConfig.BaseURL != azure.BaseURL || runtimeConfig.Model != "production-chat" ||
+		runtimeConfig.APIFormat != APIFormatChatCompletions || !runtimeConfig.UseMaxCompletionTokens {
+		t.Fatalf("Azure runtime 配置不正确: %+v", runtimeConfig)
+	}
+
+	updated, err := service.Update(ctx, presetAzure, UpdateInput{
+		PresetKey: presetAzure,
+		APIFormat: APIFormatResponses,
+		BaseURL:   "https://other-resource.openai.azure.com",
+		Enabled:   true,
+	})
+	if err != nil {
+		t.Fatalf("更新 Azure provider 失败: %v", err)
+	}
+	if updated.BaseURL != "https://other-resource.openai.azure.com/openai/v1" ||
+		updated.ModelsPath != "" || updated.APIFormat != APIFormatResponses {
+		t.Fatalf("Azure provider update 未保留资源级端点语义: %+v", updated)
+	}
+}
+
+func TestNormalizeAzureOpenAIBaseURL(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    string
+		wantErr bool
+	}{
+		{
+			name:  "resource root",
+			input: "https://resource-name.openai.azure.com",
+			want:  "https://resource-name.openai.azure.com/openai/v1",
+		},
+		{
+			name:  "portal endpoint",
+			input: "https://resource-name.openai.azure.com/openai/",
+			want:  "https://resource-name.openai.azure.com/openai/v1",
+		},
+		{
+			name:  "v1 endpoint",
+			input: "https://resource-name.openai.azure.com/openai/v1/",
+			want:  "https://resource-name.openai.azure.com/openai/v1",
+		},
+		{name: "legacy deployment URL", input: "https://resource-name.openai.azure.com/openai/deployments/chat", wantErr: true},
+		{name: "query", input: "https://resource-name.openai.azure.com/openai?api-version=2024-10-21", wantErr: true},
+		{name: "insecure", input: "http://resource-name.openai.azure.com", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := normalizeAzureOpenAIBaseURL(tt.input)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("normalizeAzureOpenAIBaseURL(%q)=%q, want error", tt.input, got)
+				}
+				return
+			}
+			if err != nil || got != tt.want {
+				t.Fatalf("normalizeAzureOpenAIBaseURL(%q)=(%q, %v), want %q", tt.input, got, err, tt.want)
+			}
+		})
+	}
+}
+
+func TestLegacyCustomAzureProviderProjectsToBuiltinPreset(t *testing.T) {
+	ctx := context.Background()
+	service, _ := newTestService(t)
+
+	created, err := service.Create(ctx, CreateInput{
+		Provider:   presetAzure,
+		PresetKey:  presetCustom,
+		APIFormat:  APIFormatResponses,
+		AuthToken:  "azure-key",
+		BaseURL:    "https://legacy-resource.openai.azure.com/openai/",
+		ModelsPath: "/models",
+		Enabled:    true,
+	})
+	if err != nil {
+		t.Fatalf("创建旧 Custom Azure provider 失败: %v", err)
+	}
+	if created.PresetKey != presetAzure {
+		t.Fatalf("create 响应应立即投影为 Azure preset: %+v", created)
+	}
+	stored, err := service.repository.GetVisibleByProvider(ctx, ownerUserIDFromContext(ctx), presetAzure)
+	if err != nil || stored == nil {
+		t.Fatalf("读取旧 Custom Azure 存储失败: entity=%+v err=%v", stored, err)
+	}
+	if stored.PresetKey != presetCustom {
+		t.Fatalf("只读投影不应提前改写存储: %+v", stored)
+	}
+
+	records, err := service.List(ctx)
+	if err != nil {
+		t.Fatalf("读取 Azure provider 失败: %v", err)
+	}
+	if len(records) != 1 {
+		t.Fatalf("Azure provider 数量不正确: %+v", records)
+	}
+	projected := records[0]
+	if projected.PresetKey != presetAzure ||
+		projected.BaseURL != "https://legacy-resource.openai.azure.com/openai/v1" ||
+		projected.ModelsPath != "" {
+		t.Fatalf("旧 Custom Azure 未投影到内置 preset: %+v", projected)
+	}
+
+	updated, err := service.Update(ctx, presetAzure, UpdateInput{
+		PresetKey: presetAzure,
+		APIFormat: APIFormatResponses,
+		BaseURL:   projected.BaseURL,
+		Enabled:   true,
+	})
+	if err != nil {
+		t.Fatalf("保存 Azure 内置 preset 失败: %v", err)
+	}
+	if updated.PresetKey != presetAzure {
+		t.Fatalf("保存后 Azure preset 未持久化: %+v", updated)
 	}
 }
 

@@ -57,8 +57,8 @@ func TestChatErrorDetailExplainsRuntimeFailures(t *testing.T) {
 		},
 		{
 			name:  "unsupported responses api",
-			err:   "provider=ri 的 api_format=responses 暂不可用于 Agent runtime",
-			wants: []string{"Responses API", "Agent runtime"},
+			err:   "provider=ri 的 api_format=responses 暂不可用于 claude Agent runtime",
+			wants: []string{"Responses API", "nxs Agent runtime", "Settings"},
 		},
 		{
 			name:  "provider overload",

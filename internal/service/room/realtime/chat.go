@@ -215,6 +215,9 @@ func (s *Service) prepareRoomChat(ctx context.Context, request ChatRequest) (*ro
 	}
 	if len(targetAgentIDs) > 0 {
 		if err = s.ensureQuotaAvailable(ctx); err != nil {
+			if request.Internal && strings.TrimSpace(request.GoalID) != "" {
+				s.recordGoalQuotaLimit(ctx, sessionKey, request.RoundID, err)
+			}
 			return nil, err
 		}
 	}

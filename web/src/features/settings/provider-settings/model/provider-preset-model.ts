@@ -12,6 +12,7 @@ export const DEFAULT_AGENT_API_FORMAT: ProviderApiFormat = "anthropic_messages";
 export const SUPPORTED_AGENT_API_FORMATS = new Set<ProviderApiFormat>([
   "anthropic_messages",
   "chat_completions",
+  "responses",
 ]);
 
 const SUPPORTED_IMAGE_API_FORMATS = new Set<ProviderApiFormat>([
@@ -21,7 +22,11 @@ const SUPPORTED_IMAGE_API_FORMATS = new Set<ProviderApiFormat>([
   "modelscope_image_generation",
 ]);
 
-const CONFIGURABLE_NON_RUNTIME_PRESET_KEYS = new Set(["custom", "openai"]);
+const CONFIGURABLE_NON_RUNTIME_PRESET_KEYS = new Set([
+  "azure",
+  "custom",
+  "openai",
+]);
 const PROVIDER_KIND_ORDER: ProviderKind[] = ["llm", "image_generation"];
 
 const SUPPORTED_PRESET_PROVIDER_KEYS = new Set([
@@ -143,7 +148,13 @@ export function presetAllowsNonRuntimeConfig(
 export function presetUsesBuiltinEndpoint(
   preset: ProviderPreset | null,
 ): boolean {
-  return !!preset && preset.preset_key !== "custom";
+  return preset?.endpoint_mode === "fixed";
+}
+
+export function presetUsesCustomModelsPath(
+  preset: ProviderPreset | null,
+): boolean {
+  return preset?.endpoint_mode === "custom";
 }
 
 export function presetIsConfigurable(preset: ProviderPreset): boolean {
@@ -210,7 +221,9 @@ function projectDraftFormat(
 ): Pick<ProviderDraft, "api_format" | "base_url" | "models_path"> {
   return {
     api_format: resolveDraftApiFormat(preset, format),
-    base_url: valueOrEmpty(format?.base_url),
+    base_url: presetUsesBuiltinEndpoint(preset)
+      ? valueOrEmpty(format?.base_url)
+      : "",
     models_path: valueOrEmpty(format?.models_path),
   };
 }

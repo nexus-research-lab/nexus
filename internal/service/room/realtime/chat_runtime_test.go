@@ -11,8 +11,11 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
+	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	realtimesvc "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
+	subscriptionsvc "github.com/nexus-research-lab/nexus/internal/service/subscription"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
+	goalstore "github.com/nexus-research-lab/nexus/internal/storage/goal"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
@@ -21,6 +24,74 @@ import (
 
 type fakeRoomQuotaChecker struct {
 	err error
+}
+
+func TestRealtimeServiceHandleChatMarksInternalGoalUsageLimitedWhenQuotaExceeded(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	cfg.GoalEnabled = true
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	ctx := authsvc.WithPrincipal(context.Background(), &authsvc.Principal{
+		UserID:   "owner-room-internal-goal-quota",
+		Username: "room-owner",
+		Role:     authsvc.RoleOwner,
+	})
+	memberAgent := createTestAgent(t, agentService, ctx, "内部 Goal 额度助手")
+	dmContext, err := roomService.EnsureDirectRoom(ctx, memberAgent.AgentID)
+	if err != nil {
+		t.Fatalf("创建直聊 room 失败: %v", err)
+	}
+
+	factory := &fakeRoomFactory{clients: []*fakeRoomClient{newFakeRoomClient()}}
+	service := realtimesvc.NewServiceWithFactory(
+		cfg,
+		roomService,
+		agentService,
+		runtimectx.NewManager(),
+		permissionctx.NewContext(),
+		factory,
+	)
+	goalService := goalsvc.NewService(cfg, goalstore.NewRepository(cfg, db))
+	service.SetGoalContextProvider(goalService)
+	quotaErr := subscriptionsvc.QuotaExceededError{UsedTokens: 10, LimitTokens: 10}
+	service.SetQuotaChecker(fakeRoomQuotaChecker{err: quotaErr})
+
+	sharedSessionKey := protocol.BuildRoomSharedSessionKey(dmContext.Conversation.ID)
+	goal, err := goalService.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey:  sharedSessionKey,
+		Objective:   "保持账号额度边界",
+		OwnerUserID: "owner-room-internal-goal-quota",
+	})
+	if err != nil {
+		t.Fatalf("创建 Room Goal 失败: %v", err)
+	}
+	err = service.HandleChat(ctx, realtimesvc.ChatRequest{
+		SessionKey:     sharedSessionKey,
+		RoomID:         dmContext.Room.ID,
+		ConversationID: dmContext.Conversation.ID,
+		Content:        "internal goal continuation",
+		GoalID:         goal.ID,
+		RoundID:        "room-round-internal-goal-quota",
+		Internal:       true,
+	})
+	if !errors.Is(err, subscriptionsvc.ErrQuotaExceeded) {
+		t.Fatalf("账号额度耗尽应阻止内部 Room Goal runtime，实际: %v", err)
+	}
+	limited, err := goalService.Current(ctx, sharedSessionKey)
+	if err != nil {
+		t.Fatalf("读取受限 Room Goal 失败: %v", err)
+	}
+	if limited.Status != protocol.GoalStatusUsageLimited || limited.LastError != quotaErr.ClientMessage() {
+		t.Fatalf("受限 Room Goal = %#v, want usage_limited with actionable subscription quota message", limited)
+	}
+	if got := factory.LastOptions(); got.Model != "" {
+		t.Fatalf("账号额度耗尽时不应创建内部 Room Goal runtime: %+v", got)
+	}
 }
 
 func (f fakeRoomQuotaChecker) EnsureQuotaAvailable(context.Context, string) error {

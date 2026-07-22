@@ -163,6 +163,9 @@ func (e *dmChatExecution) routeRunningInput() (bool, error) {
 
 func (e *dmChatExecution) prepareRunner() error {
 	if err := e.service.ensureQuotaAvailable(e.ctx); err != nil {
+		if e.request.Internal && strings.TrimSpace(e.request.GoalID) != "" {
+			e.service.recordGoalQuotaLimit(e.ctx, e.sessionKey, e.request.RoundID, err)
+		}
 		return err
 	}
 	if err := e.interruptRunningRound(); err != nil {

@@ -139,6 +139,34 @@ func TestGenerateTextSupportsChatCompletions(t *testing.T) {
 	}
 }
 
+func TestChatCompletionsUsesConfiguredTokenLimitField(t *testing.T) {
+	t.Parallel()
+
+	payload := requestPayload(GenerateTextRequest{
+		Config: &clientopts.RuntimeConfig{
+			Model:                  "production-chat",
+			APIFormat:              provider.APIFormatChatCompletions,
+			UseMaxCompletionTokens: true,
+		},
+		Messages:  []Message{{Role: "user", Content: "ping"}},
+		MaxTokens: 32,
+	})
+	body, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("编码 Chat Completions payload 失败: %v", err)
+	}
+	var decoded map[string]any
+	if err = json.Unmarshal(body, &decoded); err != nil {
+		t.Fatalf("解析 Chat Completions payload 失败: %v", err)
+	}
+	if decoded["max_completion_tokens"] != float64(32) {
+		t.Fatalf("max_completion_tokens 不正确: %+v", decoded)
+	}
+	if _, exists := decoded["max_tokens"]; exists {
+		t.Fatalf("配置 max_completion_tokens 后不应发送 max_tokens: %+v", decoded)
+	}
+}
+
 func TestGenerateTextDisablesGLMThinkingForChatCompletions(t *testing.T) {
 	t.Parallel()
 
@@ -611,6 +639,8 @@ func TestGenerateTextSupportsResponses(t *testing.T) {
 
 	var receivedPath string
 	var receivedInputCount int
+	var receivedStore any
+	var receivedStoreExists bool
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		receivedPath = request.URL.Path
 		defer request.Body.Close()
@@ -620,6 +650,7 @@ func TestGenerateTextSupportsResponses(t *testing.T) {
 		}
 		input, _ := payload["input"].([]any)
 		receivedInputCount = len(input)
+		receivedStore, receivedStoreExists = payload["store"]
 		writer.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(writer).Encode(map[string]any{
 			"output_text": "需求总结",
@@ -651,6 +682,70 @@ func TestGenerateTextSupportsResponses(t *testing.T) {
 	}
 	if receivedInputCount != 2 {
 		t.Fatalf("Responses input 不正确: %d", receivedInputCount)
+	}
+	if !receivedStoreExists || receivedStore != false {
+		t.Fatalf("Responses 必须显式使用 store=false: value=%v exists=%v", receivedStore, receivedStoreExists)
+	}
+}
+
+func TestApplyHeadersIncludesAzureAPIKey(t *testing.T) {
+	t.Parallel()
+
+	request := httptest.NewRequest(http.MethodPost, "https://sample.openai.azure.com/openai/v1/responses", nil)
+	applyHeaders(request, &clientopts.RuntimeConfig{
+		AuthToken: "azure-key",
+		BaseURL:   "https://sample.openai.azure.com/openai/v1",
+		APIFormat: provider.APIFormatResponses,
+	})
+	if got := request.Header.Get("api-key"); got != "azure-key" {
+		t.Fatalf("Azure api-key 不正确: %q", got)
+	}
+	if got := request.Header.Get("Authorization"); got != "Bearer azure-key" {
+		t.Fatalf("Azure Authorization 不正确: %q", got)
+	}
+}
+
+func TestBuildEndpointNormalizesAzureResponses(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		baseURL string
+		want    string
+		wantErr bool
+	}{
+		{
+			name:    "resource v1",
+			baseURL: "https://sample.openai.azure.com/openai/v1",
+			want:    "https://sample.openai.azure.com/openai/v1/responses",
+		},
+		{
+			name:    "foundry project",
+			baseURL: "https://sample.services.ai.azure.com/api/projects/project-1",
+			want:    "https://sample.services.ai.azure.com/api/projects/project-1/openai/v1/responses",
+		},
+		{
+			name:    "chat operation rejected",
+			baseURL: "https://sample.openai.azure.com/openai/v1/chat/completions",
+			wantErr: true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := buildEndpoint(test.baseURL, provider.APIFormatResponses)
+			if test.wantErr {
+				if err == nil {
+					t.Fatalf("buildEndpoint() = %q, want error", got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("buildEndpoint() error = %v", err)
+			}
+			if got != test.want {
+				t.Fatalf("buildEndpoint() = %q, want %q", got, test.want)
+			}
+		})
 	}
 }
 

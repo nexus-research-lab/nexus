@@ -10,6 +10,8 @@ import {
   formatSupportsProviderKind,
   getPresetFormat,
   getSupportedPresetFormat,
+  presetUsesBuiltinEndpoint,
+  presetUsesCustomModelsPath,
 } from "../../model/provider-preset-model";
 import type { ProviderDraft } from "../../model/provider-settings-types";
 
@@ -45,6 +47,7 @@ export function buildProviderKindPatch(
     provider_kind: providerKind,
     ...projectFormatPatch(
       draft,
+      preset,
       format,
       DEFAULT_FORMAT_BY_PROVIDER_KIND[providerKind],
     ),
@@ -63,7 +66,7 @@ export function buildProviderFormatTransition(
   }
   return {
     kind: "update",
-    patch: projectFormatPatch(draft, format, apiFormat),
+    patch: projectFormatPatch(draft, preset, format, apiFormat),
   };
 }
 
@@ -90,12 +93,17 @@ function formatIsSelectable(
 
 function projectFormatPatch(
   draft: ProviderDraft,
+  preset: ProviderPreset | null,
   format: ProviderPresetFormat | null,
   fallbackApiFormat: ProviderApiFormat,
 ): ProviderFormatPatch {
   return {
     api_format: format?.api_format ?? fallbackApiFormat,
-    base_url: format?.base_url ?? draft.base_url,
-    models_path: format?.models_path ?? draft.models_path,
+    base_url: presetUsesBuiltinEndpoint(preset)
+      ? format?.base_url ?? draft.base_url
+      : draft.base_url,
+    models_path: presetUsesCustomModelsPath(preset)
+      ? draft.models_path
+      : format?.models_path ?? draft.models_path,
   };
 }

@@ -514,6 +514,30 @@ func TestBuildAgentClientOptionsUsesBridgeRuntimeKind(t *testing.T) {
 	}
 }
 
+// TestBuildAgentClientOptionsForwardsOpenAIResponsesPromptCacheControls 验证宿主显式缓存策略进入 nxs。
+func TestBuildAgentClientOptionsForwardsOpenAIResponsesPromptCacheControls(t *testing.T) {
+	clearAmbientNXSProcessRuntimeEnv(t)
+	t.Setenv(nexusOpenAIPromptCacheEnvName, "1")
+	t.Setenv(nexusOpenAIPromptCacheModeEnvName, "explicit")
+	t.Setenv(nexusOpenAIPromptCacheTTLEnvName, "30m")
+
+	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
+		RuntimeKind: runtimeKindNXS,
+	})
+	if err != nil {
+		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
+	}
+	for key, want := range map[string]string{
+		nexusOpenAIPromptCacheEnvName:     "1",
+		nexusOpenAIPromptCacheModeEnvName: "explicit",
+		nexusOpenAIPromptCacheTTLEnvName:  "30m",
+	} {
+		if options.Env[key] != want {
+			t.Fatalf("%s = %q, want %q; env=%+v", key, options.Env[key], want, options.Env)
+		}
+	}
+}
+
 func TestBuildAgentClientOptionsEnablesNXSAgentSDKDiagnostics(t *testing.T) {
 	clearAmbientNXSProcessRuntimeEnv(t)
 	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
@@ -599,6 +623,7 @@ func TestBuildAgentClientOptionsDefaultsToNXSChatCompletionsProviderEnv(t *testi
 		"NEXUS_SUBAGENT_MODEL":       "gpt-4o",
 		NexusRuntimeProviderEnvName:  "openai",
 		nexusAPIProviderEnvName:      "openai",
+		nexusOpenAIProtocolEnvName:   apiFormatChatCompletions,
 		nexusMaxContextTokensEnvName: "128000",
 	}
 	for key, want := range wantEnv {
@@ -677,24 +702,69 @@ func TestBuildAgentClientOptionsRejectsClaudeNonAnthropicAPIFormat(t *testing.T)
 	}, AgentClientOptionsInput{
 		RuntimeKind: runtimeKindClaude,
 	})
-	if err == nil || !strings.Contains(err.Error(), "暂不可用于 Agent runtime") {
+	if err == nil || !strings.Contains(err.Error(), "claude Agent runtime") {
 		t.Fatalf("Claude runtime 下非 anthropic_messages provider 应被拒绝: %v", err)
 	}
 }
 
-func TestBuildAgentClientOptionsRejectsNXSResponsesAPIFormat(t *testing.T) {
+func TestBuildAgentClientOptionsRejectsClaudeResponsesAPIFormat(t *testing.T) {
 	_, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{
 		config: &RuntimeConfig{
 			AuthToken: "token-1",
 			BaseURL:   "https://provider.example.com/v1",
 			Model:     "gpt-4.1",
-			APIFormat: "responses",
+			APIFormat: apiFormatResponses,
+		},
+	}, AgentClientOptionsInput{
+		RuntimeKind: runtimeKindClaude,
+	})
+	if err == nil || !strings.Contains(err.Error(), "claude Agent runtime") {
+		t.Fatalf("Claude runtime 下 Responses provider 应被拒绝: %v", err)
+	}
+}
+
+func TestBuildAgentClientOptionsUsesNXSResponsesProviderEnv(t *testing.T) {
+	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{
+		config: &RuntimeConfig{
+			Provider:      "openai-responses",
+			AuthToken:     "token-1",
+			BaseURL:       "https://provider.example.com/v1",
+			Model:         "gpt-4.1",
+			APIFormat:     apiFormatResponses,
+			Vision:        true,
+			ContextWindow: 1_047_576,
 		},
 	}, AgentClientOptionsInput{
 		RuntimeKind: runtimeKindNXS,
 	})
-	if err == nil || !strings.Contains(err.Error(), "暂不可用于 Agent runtime") {
-		t.Fatalf("nxs responses provider 应被拒绝: %v", err)
+	if err != nil {
+		t.Fatalf("nxs responses provider 应可用: %v", err)
+	}
+	wantEnv := map[string]string{
+		"OPENAI_API_KEY":                  "token-1",
+		"OPENAI_BASE_URL":                 "https://provider.example.com/v1",
+		"OPENAI_MODEL":                    "gpt-4.1",
+		"NEXUS_SUBAGENT_MODEL":            "gpt-4.1",
+		NexusRuntimeProviderEnvName:       "openai-responses",
+		nexusAPIProviderEnvName:           "openai",
+		nexusOpenAIProtocolEnvName:        apiFormatResponses,
+		nexusMaxContextTokensEnvName:      "1047576",
+		nexusModelSupportsVisionEnvName:   "true",
+		nexusMultimodalUserContentEnvName: "1",
+		nexusMultimodalToolResultEnvName:  "1",
+	}
+	for key, want := range wantEnv {
+		if options.Env[key] != want {
+			t.Fatalf("%s=%q, want %q; env=%+v", key, options.Env[key], want, options.Env)
+		}
+	}
+	for _, key := range []string{anthropicAuthTokenEnvName, anthropicAPIKeyEnvName, anthropicBaseURLEnvName, anthropicModelEnvName} {
+		if _, exists := options.Env[key]; exists {
+			t.Fatalf("nxs responses 不应注入 %s: %+v", key, options.Env)
+		}
+	}
+	if options.Model != "gpt-4.1" {
+		t.Fatalf("运行时模型未写入 SDK options: %+v", options)
 	}
 }
 
@@ -917,6 +987,10 @@ func clearAmbientNXSProcessRuntimeEnv(t *testing.T) {
 		runtimectx.AgentSDKDiagnosticsStreamProgressEnvName,
 		runtimectx.AgentSDKProviderDebugBodyEnvName,
 		nexusCachedMicrocompactEnvName,
+		nexusOpenAIPromptCacheEnvName,
+		nexusOpenAIPromptCacheModeEnvName,
+		nexusOpenAIPromptCacheTTLEnvName,
+		nexusOpenAIPromptCacheRetentionEnvName,
 	} {
 		t.Setenv(key, "")
 	}

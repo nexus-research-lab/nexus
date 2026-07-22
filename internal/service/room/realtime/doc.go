@@ -9,7 +9,7 @@
 //   - execution.go / execution_runtime.go / runtime_policy.go / execution_slot_status.go / interrupt.go / subagent_idle_drain.go：slot 执行主链、runtime 选项、Room 工具权限策略、连接诊断、终态同步和中断。
 //   - input_queue.go / input_queue_dispatch.go / guidance_input.go：持久化输入队列（受理/上下文/存储）、队列派发和运行中引导。
 //   - directed_message.go / public_message.go / public_mentions.go / public_handoff.go / public_context.go：Room 协作消息（含唤醒调度与 timer 注册表）、公开消息因果、mention 唤醒、handoff 标注/回收和 slot 可见上下文。
-//   - goal_runtime.go / goal_continuation.go：Room 与 Goal runtime 的适配（用量/取消/完成度门槛）与 Goal 接力派发。
+//   - goal_runtime.go / goal_continuation.go / quota.go：Room 与 Goal runtime 的适配（用量/取消/完成度/账号额度门槛）与 Goal 接力派发。
 //
 // 测试按 package 边界和行为聚合：realtime 白盒测试归入 state_test.go（状态/广播/派发锁）、
 // collaboration_test.go（协作与路由）、goal_runtime_test.go / goal_continuation_test.go、

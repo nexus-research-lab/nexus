@@ -122,7 +122,7 @@ func (s *Service) runtimeConfigFromTarget(
 		return nil, fmt.Errorf("provider=%s 不是 LLM Provider", target.Provider)
 	}
 	if !isAgentRuntimeProviderForRuntime(*target, runtimeKind) {
-		return nil, fmt.Errorf("provider=%s 的 api_format=%s 暂不可用于 Agent runtime", target.Provider, target.APIFormat)
+		return nil, fmt.Errorf("provider=%s 的 api_format=%s 暂不可用于 %s Agent runtime", target.Provider, target.APIFormat, runtimeKind)
 	}
 	return s.llmConfigFromTarget(ctx, target, targetModel)
 }
@@ -173,15 +173,16 @@ func (s *Service) llmConfigFromTarget(
 		return nil, fmt.Errorf("provider=%s 配置不完整: %s", target.Provider, strings.Join(missing, ", "))
 	}
 	return &clientopts.RuntimeConfig{
-		Provider:      target.Provider,
-		DisplayName:   target.DisplayName,
-		AuthToken:     target.AuthToken,
-		BaseURL:       target.BaseURL,
-		Model:         normalizeModelID(modelRecord.ModelID),
-		APIFormat:     target.APIFormat,
-		Reasoning:     modelHasReasoningCapability(*modelRecord),
-		Vision:        modelHasVisionCapability(*modelRecord),
-		ContextWindow: modelContextWindow(modelRecord),
+		Provider:               target.Provider,
+		DisplayName:            target.DisplayName,
+		AuthToken:              target.AuthToken,
+		BaseURL:                target.BaseURL,
+		Model:                  normalizeModelID(modelRecord.ModelID),
+		APIFormat:              target.APIFormat,
+		UseMaxCompletionTokens: usesMaxCompletionTokens(*target),
+		Reasoning:              modelHasReasoningCapability(*modelRecord),
+		Vision:                 modelHasVisionCapability(*modelRecord),
+		ContextWindow:          modelContextWindow(modelRecord),
 	}, nil
 }
 

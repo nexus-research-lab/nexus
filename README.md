@@ -51,7 +51,9 @@ Nexus brings agent management, task collaboration, and external service connecti
 
 ### Choose an Agent runtime backend
 
-Nexus supports two Agent runtime backends: `nxs` (native Nexus) and `claude` (Claude Code). `nxs` is bundled as the default backend; it talks to LLM APIs directly (both Anthropic Messages and OpenAI Chat Completions protocols are supported) and receives an explicit `nexusctl` command path through the `NEXUSCTL_COMMAND_PATH` environment variable.
+Nexus supports two Agent runtime backends: `nxs` (native Nexus) and `claude` (Claude Code). `nxs` is bundled as the default backend; it talks to LLM APIs directly through Anthropic Messages, OpenAI Chat Completions, or OpenAI Responses, and receives an explicit `nexusctl` command path through the `NEXUSCTL_COMMAND_PATH` environment variable. Responses Providers are available only to `nxs`; Nexus keeps the product Provider identity separate while projecting `NEXUS_API_PROVIDER=openai` and `NEXUS_OPENAI_PROTOCOL=responses` to the runtime. See [OpenAI Responses runtime integration](./docs/specs/openai-responses-runtime-spec.md) for the mapping and local test procedure.
+
+Provider model tests accept either an API base URL or an already-complete operation URL and preserve query parameters when resolving the request path. Responses probes use `store=false` and at least 16 output tokens for backend compatibility. Azure OpenAI resource roots ending in `/openai` and Foundry project endpoints are normalized to `/openai/v1/responses`; legacy `/deployments/...`, `/images/generations`, and `/chat/completions` operation URLs are rejected for Responses with an actionable configuration error.
 
 The `claude` backend runs agents through Claude Code. To use it, install Claude Code separately, switch the agent runtime to `claude`, and make sure `claude` is available in the backend machine's `PATH`.
 
