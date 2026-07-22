@@ -263,7 +263,7 @@ var providerPresets = []Preset{
 		ProviderKind:  ProviderKindLLM,
 		DisplayName:   "Custom Provider",
 		Description:   "Custom model API provider using one of the supported API formats.",
-		DefaultFormat: APIFormatChatCompletions,
+		DefaultFormat: APIFormatAnthropicMessages,
 		Formats: []PresetFormat{
 			{APIFormat: APIFormatChatCompletions, ModelsPath: "/models"},
 			{APIFormat: APIFormatResponses, ModelsPath: "/models"},
