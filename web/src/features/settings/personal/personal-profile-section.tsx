@@ -1,17 +1,13 @@
-import { Image, Loader2 } from "lucide-react";
+import { Image } from "lucide-react";
 
 import type { PersonalProfile } from "@/lib/api/account/auth-api";
-import {
-  AGENT_ICON_ID_END,
-  AGENT_ICON_ID_START,
-} from "@/lib/avatar";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
-import { IconPicker } from "@/shared/ui/icon-picker/icon-picker";
 
 import {
   buildPersonalProfilePresentation,
 } from "./personal-settings-model";
+import { PersonalAvatarPicker } from "./personal-avatar-picker";
 
 interface PersonalProfileSectionProps {
   avatar: string;
@@ -75,27 +71,18 @@ export function PersonalProfileSection({
               <Image className="h-3.5 w-3.5" />
               <span>{t("settings.personal.avatar_title")}</span>
             </div>
-            {isSavingAvatar ? (
-              <span className="inline-flex items-center gap-1 text-[11px] text-(--text-soft)">
-                <Loader2 className="h-3 w-3 animate-spin" />
-                {t("common.saving")}
-              </span>
-            ) : null}
           </div>
-          <IconPicker
-            className="min-w-0"
-            columns={8}
-            disabled={!canUpdateAvatar}
-            iconSize="sm"
-            layout="row"
-            maxIcons={AGENT_ICON_ID_END - AGENT_ICON_ID_START + 1}
-            onSelect={onAvatarChange}
-            showClear
-            startIconId={AGENT_ICON_ID_START}
-            value={avatar}
-          />
+          <div className="flex min-h-[108px] items-center justify-center rounded-[12px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_68%,transparent)] px-4 py-3">
+            <PersonalAvatarPicker
+              avatar={avatar}
+              disabled={!canUpdateAvatar}
+              isSaving={isSavingAvatar}
+              name={presentation.avatarName}
+              onChange={onAvatarChange}
+            />
+          </div>
           {!presentation.canUpdateProfile ? (
-            <p className="mt-2 text-[11px] text-(--text-soft)">
+            <p className="mt-2 text-center text-[11px] text-(--text-soft)">
               {t("settings.personal.avatar_disabled")}
             </p>
           ) : null}
