@@ -3,12 +3,12 @@
  *
  * 生成 SVG 平铺背景纹理，通过 CSS custom property 注入 body。
  * 统一使用等边三角形 isometric grid 骨架，仅通过色调/透明度区分主题：
- *   - light：白色描边（embossed）—— 明亮、通透
+ *   - light：暖白描边（embossed）—— 柔和、通透
  *   - dark ：深色描边（engraved）—— 深邃、精密
  *   - rain ：深色轻描边（etched）—— 内敛、沉静
  *
  * 统一几何骨架 + 纯色 alpha 变体，
- * 线条与背景色差 ≈2%，"感觉得到但看不见"。
+ * 线条与背景保持低对比，"感觉得到但不抢内容"。
  */
 
 type BackgroundTheme = "light" | "dark" | "sunny" | "rain";
@@ -47,9 +47,9 @@ function buildGridSvg(strokeColor: string, strokeWidth: number): string {
   ].join("");
 }
 
-/* Light — 白色 embossed 描边，在 #ededec 上形成 ≈2% 亮度差 */
+/* Light — 暖白 embossed 描边，在浅暖灰底上保持轻微亮度差 */
 function buildLightSvg(): string {
-  return buildGridSvg("rgba(255,255,255,0.38)", 0.6);
+  return buildGridSvg("rgba(255,252,245,0.34)", 0.6);
 }
 
 /* Dark — 深色 engraved 描边，在 #131316 上形成微弱阴刻质感 */
@@ -83,7 +83,7 @@ function resolveVariant(theme: BackgroundTheme): PatternVariant {
 }
 
 const BACKGROUNDS: Record<PatternVariant, string> = {
-  light: "#f0f1ef",
+  light: "#ebeae4",
   dark: "#131316",
   rain: "#39424d",
 };
