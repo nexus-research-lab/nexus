@@ -44,16 +44,12 @@
 }
 
 .workspace-surface-header-session-tabs-viewport-shell {
-  border-radius: 11px;
-  background: color-mix(
-    in srgb,
-    var(--surface-elevated-background) 32%,
-    transparent
-  );
+  border-radius: 12px;
+  background: transparent;
   box-shadow:
     inset 0 0 0 1px color-mix(
       in srgb,
-      var(--divider-subtle-color) 56%,
+      var(--divider-subtle-color) 44%,
       transparent
     ),
     0 4px 12px color-mix(in srgb, var(--text-strong) 6%, transparent);

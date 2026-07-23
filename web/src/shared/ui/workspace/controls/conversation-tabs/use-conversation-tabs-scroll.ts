@@ -196,7 +196,6 @@ export function useConversationTabsScroll({
     handlePointerMove,
     handlePointerUp: finishDragging,
     handleWheel,
-    hasOverflow: metrics.maxScrollLeft > SCROLL_EDGE_TOLERANCE,
     isDragging,
     metrics,
     setScrollLeft,

@@ -85,7 +85,7 @@ export function WorkspaceConversationTabs({
             );
           })}
         </div>
-        {controller.tabsScroll.hasOverflow ? (
+        {controller.hasTabsOverflow ? (
           <ConversationTabsScrollRail
             ariaLabel={t("room.session_tabs_label")}
             metrics={controller.tabsScroll.metrics}
@@ -95,9 +95,9 @@ export function WorkspaceConversationTabs({
       </div>
 
       <div className="workspace-surface-header-session-tabs-actions flex shrink-0 items-center">
-        {controller.tabsScroll.hasOverflow || onCreateConversation ? (
-          <div className="inline-flex h-9 shrink-0 items-stretch overflow-hidden rounded-full border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_88%,var(--foreground)_12%)] bg-transparent shadow-none transition-[border-color] duration-(--motion-duration-fast) hover:border-[color:color-mix(in_srgb,var(--divider-strong-color)_78%,var(--foreground)_22%)]">
-            {controller.tabsScroll.hasOverflow ? (
+        {controller.hasTabsOverflow || onCreateConversation ? (
+          <div className="inline-flex h-10 shrink-0 items-stretch overflow-hidden rounded-full border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_88%,var(--foreground)_12%)] bg-transparent shadow-none transition-[border-color] duration-(--motion-duration-fast) hover:border-[color:color-mix(in_srgb,var(--divider-strong-color)_78%,var(--foreground)_22%)]">
+            {controller.hasTabsOverflow ? (
               <ConversationTabsOverview
                 activeConversationId={controller.activeConversationId}
                 conversations={controller.recentConversations}

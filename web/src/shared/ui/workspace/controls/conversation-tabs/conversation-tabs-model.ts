@@ -12,6 +12,30 @@ export const INACTIVE_TAB_MIN_WIDTH = 104;
 
 const ACTIVE_TAB_WIDTH_WEIGHT = 1.32;
 
+export function shouldShowConversationTabsOverview({
+  conversationCount,
+  hasCreateButton,
+  trackWidth,
+}: {
+  conversationCount: number;
+  hasCreateButton: boolean;
+  trackWidth: number;
+}): boolean {
+  if (!trackWidth || conversationCount <= 1) {
+    return false;
+  }
+  const tabViewportWidth = getAvailableConversationTabWidth({
+    hasCreateButton,
+    hasOverviewButton: false,
+    trackWidth,
+  });
+  const inactiveCount = conversationCount - 1;
+  const minimumTabsWidth = ACTIVE_TAB_MIN_WIDTH
+    + INACTIVE_TAB_MIN_WIDTH * inactiveCount
+    + CONVERSATION_TAB_GAP * inactiveCount;
+  return minimumTabsWidth > tabViewportWidth;
+}
+
 export function getRecentConversationIds(
   conversations: RoomConversationView[],
 ): string[] {

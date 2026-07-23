@@ -21,6 +21,40 @@ test.after(async () => {
   await server.close();
 });
 
+test("会话纵览只按稳定宽度约束显示", async () => {
+  const { shouldShowConversationTabsOverview } = await server.ssrLoadModule(
+    "/src/shared/ui/workspace/controls/conversation-tabs/conversation-tabs-model.ts",
+  );
+
+  assert.equal(
+    shouldShowConversationTabsOverview({
+      conversationCount: 2,
+      hasCreateButton: true,
+      trackWidth: 400,
+    }),
+    false,
+    "标签仍可按最小可读宽度完整排布时不应闪现纵览入口",
+  );
+  assert.equal(
+    shouldShowConversationTabsOverview({
+      conversationCount: 4,
+      hasCreateButton: true,
+      trackWidth: 400,
+    }),
+    true,
+    "只有稳定宽度约束确认放不下全部标签时才显示纵览入口",
+  );
+  assert.equal(
+    shouldShowConversationTabsOverview({
+      conversationCount: 4,
+      hasCreateButton: true,
+      trackWidth: 700,
+    }),
+    false,
+    "轨道扩宽后应直接收起纵览入口而不依赖动画中的 DOM 尺寸",
+  );
+});
+
 test("聊天侧栏只按 Room 活动态显示 DM 和群组", async () => {
   const {
     getActiveRoomIds,

@@ -15,6 +15,7 @@ import {
   getRecentConversationIds,
   reconcileOpenConversationIds,
   resolveActiveConversationId,
+  shouldShowConversationTabsOverview,
 } from "@/shared/ui/workspace/controls/conversation-tabs/conversation-tabs-model";
 import { RoomConversationView } from "@/types/conversation/conversation";
 
@@ -77,6 +78,14 @@ export function useConversationTabsController({
     optimisticId: optimisticActiveId,
     orderedConversations,
   });
+  const hasTabsOverflow = useMemo(
+    () => shouldShowConversationTabsOverview({
+      conversationCount: orderedConversations.length,
+      hasCreateButton,
+      trackWidth,
+    }),
+    [hasCreateButton, orderedConversations.length, trackWidth],
+  );
   const tabsScroll = useConversationTabsScroll({
     activeConversationId,
     contentKey: openConversationIds.join(":"),
@@ -84,14 +93,14 @@ export function useConversationTabsController({
   const tabWidths = useMemo(() => calculateConversationTabWidths({
     activeConversationId,
     hasCreateButton,
-    hasOverviewButton: tabsScroll.hasOverflow,
+    hasOverviewButton: hasTabsOverflow,
     orderedConversations,
     trackWidth,
   }), [
     activeConversationId,
     hasCreateButton,
+    hasTabsOverflow,
     orderedConversations,
-    tabsScroll.hasOverflow,
     trackWidth,
   ]);
 
@@ -209,6 +218,7 @@ export function useConversationTabsController({
     activeConversationId,
     closeConversation,
     createConversation,
+    hasTabsOverflow,
     isCreating,
     orderedConversations,
     previewConversation,
