@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Restored a low-contrast, theme-aware shadow tray beneath the conversation tab strip while keeping the overflow and create controls transparent and preserving the stronger raised state for the active Session.
 - Expanded the centered conversation rail progressively on wide and ultra-wide desktops, keeping messages, status surfaces, and the Composer on one axis while retaining a narrower readable limit for assistant prose and leaving compact layouts unchanged.
 - Combined the conversation overview and new-session actions into one neutral, transparent icon-only pill with width-aware spacing; overflowing tabs now recalculate complete visible slots and snap scrolling to tab boundaries while keeping emphasis on the active Session tab.
 - Increased chat sidebar row height and vertical breathing room across DM and Room entries, with matching loading placeholders.
