@@ -182,7 +182,7 @@ export function ConnectorDetailHeader({
   return (
     <div className="flex flex-wrap items-start justify-between gap-4">
       <div className="flex min-w-0 items-start gap-4">
-        <ConnectorIcon className="h-14 w-14 rounded-[14px]" icon={detail.icon} size="lg" title={detail.title} />
+        <ConnectorIcon className="h-14 w-14 surface-radius-md" icon={detail.icon} size="lg" title={detail.title} />
         <div className="min-w-0">
           <h1 className="text-[20px] font-semibold tracking-[-0.025em] text-(--text-strong)">
             {detail.title}{" "}

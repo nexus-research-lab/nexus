@@ -125,6 +125,222 @@ func TestProcessorAlignsAssistantSequenceWithPythonSemantics(t *testing.T) {
 	}
 }
 
+func TestProcessorStreamsToolUseAndPreservesParentToolUseID(t *testing.T) {
+	parentToolUseID := "agent-call-1"
+	processor := NewProcessor(MessageContext{
+		SessionKey: "agent:nexus:ws:dm:test",
+		AgentID:    "worker",
+		RoundID:    "round-tool-stream",
+	}, "sdk-session-tool-stream")
+
+	start := processor.Process(sdkprotocol.ReceivedMessage{
+		Type:            sdkprotocol.MessageTypeStreamEvent,
+		ParentToolUseID: &parentToolUseID,
+		Stream: &sdkprotocol.StreamEvent{Event: map[string]any{
+			"type":    "message_start",
+			"message": map[string]any{"id": "assistant-tool-stream"},
+		}},
+	})
+	if len(start.StreamEvents) != 1 || start.StreamEvents[0].Data["parent_tool_use_id"] != parentToolUseID {
+		t.Fatalf("message_start parent_tool_use_id missing: %+v", start)
+	}
+
+	blockStart := processor.Process(sdkprotocol.ReceivedMessage{
+		Type:            sdkprotocol.MessageTypeStreamEvent,
+		ParentToolUseID: &parentToolUseID,
+		Stream: &sdkprotocol.StreamEvent{Event: map[string]any{
+			"type":  "content_block_start",
+			"index": 0,
+			"content_block": map[string]any{
+				"type":  "tool_use",
+				"id":    "tool-1",
+				"name":  "Bash",
+				"input": map[string]any{},
+			},
+		}},
+	})
+	if len(blockStart.StreamEvents) != 1 {
+		t.Fatalf("tool_use start was suppressed: %+v", blockStart)
+	}
+
+	delta := processor.Process(sdkprotocol.ReceivedMessage{
+		Type:            sdkprotocol.MessageTypeStreamEvent,
+		ParentToolUseID: &parentToolUseID,
+		Stream: &sdkprotocol.StreamEvent{Event: map[string]any{
+			"type":  "content_block_delta",
+			"index": 0,
+			"delta": map[string]any{
+				"type":         "input_json_delta",
+				"partial_json": `{"command":"pwd"}`,
+			},
+		}},
+	})
+	if len(delta.StreamEvents) != 1 {
+		t.Fatalf("tool_use delta was suppressed: %+v", delta)
+	}
+	block, _ := delta.StreamEvents[0].Data["content_block"].(map[string]any)
+	input, _ := block["input"].(map[string]any)
+	if input["command"] != "pwd" {
+		t.Fatalf("tool_use input delta = %+v", block)
+	}
+	if delta.StreamEvents[0].Data["parent_tool_use_id"] != parentToolUseID {
+		t.Fatalf("tool_use delta parent = %+v", delta.StreamEvents[0].Data)
+	}
+}
+
+func TestProcessorPreservesStreamParentOnFinalAssistantSnapshot(t *testing.T) {
+	parentToolUseID := "agent-call-parent"
+	processor := NewProcessor(MessageContext{
+		SessionKey: "agent:worker:ws:dm:test",
+		AgentID:    "worker",
+		RoundID:    "round-parent-snapshot",
+	}, "sdk-session-parent-snapshot")
+
+	processor.Process(sdkprotocol.ReceivedMessage{
+		Type:            sdkprotocol.MessageTypeStreamEvent,
+		ParentToolUseID: &parentToolUseID,
+		Stream: &sdkprotocol.StreamEvent{Event: map[string]any{
+			"type":    "message_start",
+			"message": map[string]any{"id": "assistant-parent-snapshot"},
+		}},
+	})
+	output := processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeAssistant,
+		Assistant: &sdkprotocol.AssistantMessage{Message: sdkprotocol.ConversationEnvelope{
+			ID:         "assistant-parent-snapshot",
+			StopReason: "end_turn",
+			Content:    []sdkprotocol.ContentBlock{sdkprotocol.TextBlock{Text: "完成"}},
+		}},
+	})
+	if len(output.DurableMessages) != 1 {
+		t.Fatalf("final assistant = %+v, want one durable message", output)
+	}
+	assistant := output.DurableMessages[0]
+	if assistant["parent_id"] != parentToolUseID || assistant["parent_tool_use_id"] != parentToolUseID {
+		t.Fatalf("final assistant parent lost: %+v", assistant)
+	}
+
+	// 新的历史 assistant 段没有 parent 时必须清空旧值，不能串到上一段。
+	topLevel := processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeAssistant,
+		Assistant: &sdkprotocol.AssistantMessage{Message: sdkprotocol.ConversationEnvelope{
+			ID:         "assistant-top-level",
+			StopReason: "end_turn",
+			Content:    []sdkprotocol.ContentBlock{sdkprotocol.TextBlock{Text: "顶层回复"}},
+		}},
+	})
+	if len(topLevel.DurableMessages) != 1 {
+		t.Fatalf("top-level assistant = %+v, want one durable message", topLevel)
+	}
+	if topLevel.DurableMessages[0]["parent_tool_use_id"] != nil {
+		t.Fatalf("stale parent leaked into top-level assistant: %+v", topLevel.DurableMessages[0])
+	}
+}
+
+func TestProcessorRecoversInputJSONDeltaWithoutBlockStart(t *testing.T) {
+	processor := NewProcessor(MessageContext{RoundID: "round-input-delta"}, "")
+	processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeStreamEvent,
+		Stream: &sdkprotocol.StreamEvent{Event: map[string]any{
+			"type":    "message_start",
+			"message": map[string]any{"id": "assistant-input-delta"},
+		}},
+	})
+
+	delta := processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeStreamEvent,
+		Stream: &sdkprotocol.StreamEvent{Event: map[string]any{
+			"type":  "content_block_delta",
+			"index": 0,
+			"delta": map[string]any{
+				"type":         "input_json_delta",
+				"partial_json": `{"command":"pwd"}`,
+			},
+		}},
+	})
+	if len(delta.StreamEvents) != 1 {
+		t.Fatalf("orphan input_json_delta should remain observable: %+v", delta)
+	}
+	block, _ := delta.StreamEvents[0].Data["content_block"].(map[string]any)
+	input, _ := block["input"].(map[string]any)
+	if block["type"] != "tool_use" || input["command"] != "pwd" {
+		t.Fatalf("orphan input_json_delta recovery = %+v", block)
+	}
+
+	final := processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeAssistant,
+		Assistant: &sdkprotocol.AssistantMessage{Message: sdkprotocol.ConversationEnvelope{
+			ID:         "assistant-input-delta",
+			StopReason: "tool_use",
+			Content: []sdkprotocol.ContentBlock{sdkprotocol.ToolUseBlock{
+				ID:    "tool-input-delta",
+				Name:  "Bash",
+				Input: []byte(`{"command":"pwd"}`),
+			}},
+		}},
+	})
+	if len(final.DurableMessages) != 1 {
+		t.Fatalf("final tool snapshot = %+v, want one durable message", final)
+	}
+	blocks, _ := final.DurableMessages[0]["content"].([]map[string]any)
+	if len(blocks) != 1 || blocks[0]["id"] != "tool-input-delta" {
+		t.Fatalf("stream placeholder was not replaced by final tool snapshot: %+v", blocks)
+	}
+}
+
+func TestProcessorIgnoresMalformedAssistantEnvelope(t *testing.T) {
+	processor := NewProcessor(MessageContext{RoundID: "round-nil-assistant"}, "")
+	output := processor.Process(sdkprotocol.ReceivedMessage{Type: sdkprotocol.MessageTypeAssistant})
+	if len(output.DurableMessages) != 0 || output.Err != nil {
+		t.Fatalf("malformed assistant envelope should be ignored safely: %+v", output)
+	}
+}
+
+func TestProcessorPreservesContentBlockStopLifecycle(t *testing.T) {
+	processor := NewProcessor(MessageContext{
+		SessionKey: "agent:nexus:ws:dm:test",
+		AgentID:    "nexus",
+		RoundID:    "round-block-stop",
+	}, "sdk-session-block-stop")
+	processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeStreamEvent,
+		Stream: &sdkprotocol.StreamEvent{Event: map[string]any{
+			"type":    "message_start",
+			"message": map[string]any{"id": "assistant-block-stop"},
+		}},
+	})
+
+	output := processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeStreamEvent,
+		Stream: &sdkprotocol.StreamEvent{Event: map[string]any{
+			"type":  "content_block_stop",
+			"index": 2,
+		}},
+	})
+	if len(output.StreamEvents) != 1 {
+		t.Fatalf("content_block_stop 未透传: %+v", output)
+	}
+	if output.StreamEvents[0].Data["type"] != "content_block_stop" ||
+		output.StreamEvents[0].Data["index"] != 2 {
+		t.Fatalf("content_block_stop 负载不完整: %+v", output.StreamEvents[0].Data)
+	}
+}
+
+func TestProcessorSkipsEmptyAssistantSnapshot(t *testing.T) {
+	processor := NewProcessor(MessageContext{RoundID: "round-empty"}, "")
+	output := processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeAssistant,
+		Assistant: &sdkprotocol.AssistantMessage{Message: sdkprotocol.ConversationEnvelope{
+			ID:         "assistant-empty",
+			StopReason: "end_turn",
+			Content:    nil,
+		}},
+	})
+	if len(output.DurableMessages) != 0 {
+		t.Fatalf("empty assistant should not be emitted: %+v", output)
+	}
+}
+
 func TestProcessorDefersAssistantCompletionUntilStreamTerminal(t *testing.T) {
 	processor := NewProcessor(MessageContext{
 		SessionKey: "agent:nexus:ws:dm:test",
@@ -304,6 +520,68 @@ func TestProcessorDoesNotCompleteAssistantOnMessageStop(t *testing.T) {
 	}
 	if len(stopOutput.DurableMessages) != 0 || stopOutput.AssistantCompleted {
 		t.Fatalf("message_stop 不应补出终态 assistant: %+v", stopOutput)
+	}
+}
+
+func TestProcessorMergesStreamUsageAndPublishesFinalUsageCorrection(t *testing.T) {
+	processor := NewProcessor(MessageContext{
+		SessionKey: "agent:nexus:ws:dm:test",
+		AgentID:    "nexus",
+		RoundID:    "round-stream-usage",
+		ParentID:   "round-stream-usage",
+	}, "sdk-session-stream-usage")
+
+	processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeStreamEvent,
+		Stream: &sdkprotocol.StreamEvent{Event: map[string]any{
+			"type": "message_start",
+			"message": map[string]any{
+				"id":    "assistant-stream-usage",
+				"model": "glm-5.2",
+				"usage": map[string]any{"input_tokens": 10, "output_tokens": 0},
+			},
+		}},
+	})
+	processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeStreamEvent,
+		Stream: &sdkprotocol.StreamEvent{Event: map[string]any{
+			"type":          "content_block_start",
+			"index":         0,
+			"content_block": map[string]any{"type": "text", "text": "完成"},
+		}},
+	})
+	terminal := processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeStreamEvent,
+		Stream: &sdkprotocol.StreamEvent{Event: map[string]any{
+			"type":  "message_delta",
+			"delta": map[string]any{"stop_reason": "end_turn"},
+			"usage": map[string]any{"output_tokens": 4},
+		}},
+	})
+	if len(terminal.DurableMessages) != 1 {
+		t.Fatalf("terminal stream = %+v, want assistant", terminal)
+	}
+	usage, _ := terminal.DurableMessages[0]["usage"].(map[string]any)
+	if usage["input_tokens"] != 10 || usage["output_tokens"] != 4 {
+		t.Fatalf("stream usage 未合并 message_start 与 message_delta: %+v", usage)
+	}
+
+	corrected := processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeAssistant,
+		Assistant: &sdkprotocol.AssistantMessage{Message: sdkprotocol.ConversationEnvelope{
+			ID:         "assistant-stream-usage",
+			Model:      "glm-5.2",
+			StopReason: "end_turn",
+			Usage:      map[string]any{"input_tokens": 10, "output_tokens": 5},
+			Content:    []sdkprotocol.ContentBlock{sdkprotocol.TextBlock{Text: "完成"}},
+		}},
+	})
+	if len(corrected.DurableMessages) != 1 {
+		t.Fatalf("final usage correction = %+v, want updated assistant snapshot", corrected)
+	}
+	usage, _ = corrected.DurableMessages[0]["usage"].(map[string]any)
+	if usage["output_tokens"] != 5 {
+		t.Fatalf("final assistant usage 未覆盖流式估计: %+v", usage)
 	}
 }
 

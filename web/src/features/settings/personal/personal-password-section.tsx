@@ -81,7 +81,7 @@ export function PersonalPasswordSection({
               </span>
               <input
                 autoComplete={input.autoComplete}
-                className="dialog-input h-9 w-full rounded-xl px-3 text-sm text-(--text-strong) outline-none disabled:opacity-(--disabled-opacity)"
+                className="dialog-input h-9 w-full radius-control-md px-3 text-sm text-(--text-strong) outline-none disabled:opacity-(--disabled-opacity)"
                 disabled={!canChange || isSubmitting}
                 onChange={(event) => onFieldChange(input.field, event.target.value)}
                 type="password"
@@ -107,7 +107,7 @@ function PasswordSectionHeader({ canChange }: { canChange: boolean }) {
   const { t } = useI18n();
   return (
     <div className="flex items-center gap-3">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[16px] bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-primary">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center radius-control-lg bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-primary">
         <LockKeyhole className="h-3.5 w-3.5" />
       </div>
       <div className="min-w-0">

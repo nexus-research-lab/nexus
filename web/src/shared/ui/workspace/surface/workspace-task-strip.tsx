@@ -123,7 +123,7 @@ export function WorkspaceTaskPanel({
                     <button
                       aria-expanded={isDetailExpanded}
                       aria-label={isDetailExpanded ? t("tasks.collapse_detail") : t("tasks.expand_detail")}
-                      className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-[5px] text-(--icon-muted) transition-[background,color] hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default)"
+                      className="inline-flex h-5 w-5 shrink-0 items-center justify-center radius-control-xs text-(--icon-muted) transition-[background,color] hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default)"
                       onClick={() => setExpandedTaskIndex((currentIndex) => (
                         currentIndex === index ? null : index
                       ))}
@@ -146,7 +146,7 @@ export function WorkspaceTaskPanel({
         <button
           aria-label={t("tasks.expand_panel")}
           className={cn(
-            "pointer-events-auto inline-flex h-7 items-center gap-1.5 rounded-[7px] px-2.5 text-[11px] font-semibold text-(--text-default) transition-[background,border-color,color,box-shadow] hover:text-(--text-strong)",
+            "pointer-events-auto inline-flex h-7 items-center gap-1.5 radius-control-sm px-2.5 text-[11px] font-semibold text-(--text-default) transition-[background,border-color,color,box-shadow] hover:text-(--text-strong)",
             TASK_PANEL_SURFACE_CLASS_NAME,
           )}
           onClick={() => setIsExpanded(true)}

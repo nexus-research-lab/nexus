@@ -14,9 +14,9 @@ const STATE_BLOCK_BASE_CLASS_NAME =
   "flex flex-col items-center justify-center text-center";
 
 const STATE_BLOCK_SIZE_CLASS_MAP: Record<UiStateBlockSize, string> = {
-  sm: "min-h-32 rounded-[10px] px-4 py-5",
-  md: "min-h-[240px] rounded-[12px] px-5 py-6",
-  lg: "min-h-[320px] rounded-[14px] px-6 py-8",
+  sm: "min-h-32 surface-radius-sm px-4 py-5",
+  md: "min-h-[240px] surface-radius-md px-5 py-6",
+  lg: "min-h-[320px] surface-radius-lg px-6 py-8",
 };
 
 const STATE_BLOCK_VARIANT_CLASS_MAP: Record<UiStateBlockVariant, Record<UiStateBlockTone, string>> = {

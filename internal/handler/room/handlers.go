@@ -21,11 +21,18 @@ type roomResyncBroadcaster func(context.Context, string, string, string)
 type roomRegistryRemover func(string)
 type directoryBroadcaster func(context.Context, string, map[string]any)
 
+// roomRuntimeInterrupter 只暴露 Room 删除和成员变更所需的中断操作。
+type roomRuntimeInterrupter interface {
+	InterruptRoom(context.Context, string, string) error
+	InterruptAgentTasks(context.Context, string, string, string) error
+	InterruptConversation(context.Context, string, string) error
+}
+
 // Handlers 封装 room 域 HTTP handlers。
 type Handlers struct {
 	api                   *handlershared.API
 	roomService           *roompkg.Service
-	roomRealtime          *roompkg.RealtimeService
+	roomRealtime          roomRuntimeInterrupter
 	sessions              *sessionpkg.Service
 	broadcastRoomEvent    roomEventBroadcaster
 	broadcastRoomResync   roomResyncBroadcaster
@@ -37,7 +44,7 @@ type Handlers struct {
 func New(
 	api *handlershared.API,
 	roomService *roompkg.Service,
-	roomRealtime *roompkg.RealtimeService,
+	roomRealtime roomRuntimeInterrupter,
 	sessions *sessionpkg.Service,
 	broadcastRoomEvent roomEventBroadcaster,
 	broadcastRoomResync roomResyncBroadcaster,

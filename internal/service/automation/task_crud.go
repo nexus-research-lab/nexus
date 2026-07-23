@@ -10,7 +10,7 @@ import (
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
-	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
+	roomrealtime "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
 	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"
 )
 
@@ -348,7 +348,7 @@ func (s *Service) interruptActiveRunExecution(ctx context.Context, job automatio
 			s.cancelPendingRunPermissions(sessionKey, message)
 			return nil
 		}
-		if err = runner.HandleInterrupt(runCtx, roomsvc.InterruptRequest{SessionKey: sessionKey}); err != nil {
+		if err = runner.HandleInterrupt(runCtx, roomrealtime.InterruptRequest{SessionKey: sessionKey}); err != nil {
 			return err
 		}
 	case protocol.SessionKeyKindAgent:

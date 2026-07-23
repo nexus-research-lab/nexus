@@ -23,7 +23,7 @@ const LIST_ACTION_SIZE_CLASS_MAP: Record<UiListActionSize, string> = {
 
 const LIST_ACTION_SHAPE_CLASS_MAP: Record<UiListActionShape, string> = {
   round: "rounded-full",
-  rounded: "rounded-[10px]",
+  rounded: "radius-control-sm",
 };
 
 const LIST_ACTION_TONE_CLASS_MAP: Record<UiListActionTone, string> = {

@@ -55,7 +55,7 @@ export function ProviderModelOptionsDialog({
             subtitle={(
               <span className="inline-flex min-w-0 items-center gap-1.5">
                 <span>{t("settings.providers.model_options_subtitle")}</span>
-                <code className="max-w-[260px] truncate rounded-[7px] bg-(--surface-muted-background) px-1.5 py-0.5 font-mono text-[11px] text-(--text-default)">
+                <code className="max-w-[260px] truncate radius-control-sm bg-(--surface-muted-background) px-1.5 py-0.5 font-mono text-[11px] text-(--text-default)">
                   {modelOptions.model.model_id}
                 </code>
               </span>

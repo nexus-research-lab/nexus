@@ -43,6 +43,9 @@ func TestServiceBootstrapsMainAgentAndCreatesAgent(t *testing.T) {
 	if items[0].AgentID != cfg.DefaultAgentID {
 		t.Fatalf("主智能体 ID 不匹配: got=%s want=%s", items[0].AgentID, cfg.DefaultAgentID)
 	}
+	if items[0].Avatar != "nexus" {
+		t.Fatalf("主智能体应使用 Nexus 默认头像: got=%s", items[0].Avatar)
+	}
 	if items[0].Options.Provider != "" {
 		t.Fatalf("主智能体应跟随默认 provider，不应写死显式 provider: %+v", items[0].Options)
 	}
@@ -72,6 +75,9 @@ func TestServiceBootstrapsMainAgentAndCreatesAgent(t *testing.T) {
 	if created.AgentID == "" {
 		t.Fatal("创建后的 agent_id 不能为空")
 	}
+	if created.Avatar == "" {
+		t.Fatal("创建 Agent 时应自动分配头像")
+	}
 	if _, err = os.Stat(created.WorkspacePath); err != nil {
 		t.Fatalf("workspace 目录未创建: %v", err)
 	}
@@ -93,8 +99,8 @@ func TestServiceBootstrapsMainAgentAndCreatesAgent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("读取 agent 失败: %v", err)
 	}
-	if loaded.SkillsCount != 2 {
-		t.Fatalf("skills_count 不正确: got=%d want=2", loaded.SkillsCount)
+	if loaded.SkillsCount != 4 {
+		t.Fatalf("skills_count 不正确: got=%d want=4", loaded.SkillsCount)
 	}
 
 	items, err = service.ListAgents(ctx)
@@ -105,8 +111,8 @@ func TestServiceBootstrapsMainAgentAndCreatesAgent(t *testing.T) {
 		t.Fatalf("agent 数量不正确: got=%d want=2", len(items))
 	}
 	for _, item := range items {
-		if item.AgentID == created.AgentID && item.SkillsCount != 2 {
-			t.Fatalf("list_agents skills_count 不正确: got=%d want=2", item.SkillsCount)
+		if item.AgentID == created.AgentID && item.SkillsCount != 4 {
+			t.Fatalf("list_agents skills_count 不正确: got=%d want=4", item.SkillsCount)
 		}
 	}
 
@@ -116,6 +122,33 @@ func TestServiceBootstrapsMainAgentAndCreatesAgent(t *testing.T) {
 	}
 	if !validation.IsValid || !validation.IsAvailable {
 		t.Fatalf("重复名称应只作为展示名并允许复用: %+v", validation)
+	}
+}
+
+func TestServiceProjectsNexusAvatarForLegacyMainAgent(t *testing.T) {
+	cfg := newTestConfig(t)
+	migrateSQLite(t, cfg.DatabaseURL)
+
+	service, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 service 失败: %v", err)
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+	if _, err = service.ListAgents(ctx); err != nil {
+		t.Fatalf("初始化主智能体失败: %v", err)
+	}
+	if _, err = db.Exec(`UPDATE agents SET avatar = NULL WHERE id = ?`, cfg.DefaultAgentID); err != nil {
+		t.Fatalf("模拟旧主智能体头像数据失败: %v", err)
+	}
+
+	loaded, err := service.GetDefaultAgent(ctx)
+	if err != nil {
+		t.Fatalf("读取旧主智能体失败: %v", err)
+	}
+	if loaded.Avatar != "nexus" {
+		t.Fatalf("旧主智能体应投影 Nexus 默认头像: got=%s", loaded.Avatar)
 	}
 }
 

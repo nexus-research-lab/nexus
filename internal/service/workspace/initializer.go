@@ -17,7 +17,7 @@ var (
 	workspaceInitializationLocks sync.Map
 )
 
-// EnsureInitialized 保证 workspace 模板与系统技能已经落地。
+// EnsureInitialized 保证 workspace 模板就绪，并清理已迁移的平台 Skill 副本。
 func EnsureInitialized(
 	agentID string,
 	agentName string,
@@ -126,7 +126,7 @@ func (i *workspaceInitializer) removeGeneratedMainFile(targetPath string) error 
 
 func (i *workspaceInitializer) ensureSkills() error {
 	for _, skillName := range managedSkillNames(i.isMain) {
-		if err := deployManagedSkill(skillName, i.root, i.context); err != nil {
+		if err := UndeploySkill(i.root, skillName); err != nil {
 			return err
 		}
 	}

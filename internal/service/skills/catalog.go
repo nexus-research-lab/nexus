@@ -27,6 +27,11 @@ func (s *Service) catalogWithAgentState(ctx context.Context, agentID string) (ma
 			return nil, nil, false, err
 		}
 		isMainAgent = agentValue.IsMain
+		for _, skillID := range agentValue.Options.SkillIDs {
+			if normalized := strings.TrimSpace(skillID); normalized != "" {
+				installedNames[normalized] = true
+			}
+		}
 		names, err := workspacesvc.ListDeployedSkills(agentValue.WorkspacePath)
 		if err != nil {
 			return nil, nil, false, err
@@ -85,6 +90,9 @@ func discoverWorkspaceSkillDirs(workspacePath string) map[string]string {
 }
 
 func (s *Service) ensureAgent(ctx context.Context, agentID string) (*protocol.Agent, error) {
+	if err := workspacesvc.EnsurePlatformSkillLibrary(); err != nil {
+		return nil, err
+	}
 	agentValue, err := s.agents.GetAgent(ctx, strings.TrimSpace(agentID))
 	if err != nil {
 		return nil, err
@@ -169,6 +177,7 @@ func (s *Service) loadCatalogRecords(ctx context.Context) (map[string]catalogRec
 		}
 		records[skillName] = record
 	}
+	platformRoot := filepath.Clean(filepath.Join(projectRoot(), "skills"))
 	for _, root := range builtinSearchRoots(projectRoot()) {
 		entries, err := os.ReadDir(root)
 		if err != nil && !os.IsNotExist(err) {
@@ -188,7 +197,8 @@ func (s *Service) loadCatalogRecords(ctx context.Context) (map[string]catalogRec
 			if _, ok := records[skillName]; ok {
 				continue
 			}
-			record, buildErr := s.buildBuiltinRecord(filepath.Join(root, skillName), curatedEntries[skillName])
+			sourceKind := builtinSourceKind(root, platformRoot)
+			record, buildErr := s.buildBuiltinRecord(filepath.Join(root, skillName), curatedEntries[skillName], sourceKind)
 			if buildErr != nil {
 				continue
 			}
@@ -203,6 +213,13 @@ func (s *Service) loadCatalogRecords(ctx context.Context) (map[string]catalogRec
 		records[name] = record
 	}
 	return records, nil
+}
+
+func builtinSourceKind(root string, platformRoot string) string {
+	if filepath.Clean(root) == filepath.Clean(platformRoot) {
+		return sourceKindNexusPlatform
+	}
+	return sourceKindUserGlobal
 }
 
 func (s *Service) buildSystemRecord(skillName string) (catalogRecord, error) {
@@ -226,14 +243,13 @@ func (s *Service) buildSystemRecord(skillName string) (catalogRecord, error) {
 			Version:      "system",
 			Locked:       true,
 		},
-		ReadmeMarkdown:      parsed.ReadmeMarkdown,
-		RuntimeInstructions: parsed.RuntimeInstructions,
-		Recommendation:      "系统内置能力，安装状态由平台托管。",
+		ReadmeMarkdown: parsed.ReadmeMarkdown,
+		Recommendation: "系统内置能力，安装状态由平台托管。",
 	}
 	return catalogRecord{Detail: detail, SourcePath: sourceDir}, nil
 }
 
-func (s *Service) buildBuiltinRecord(sourceDir string, curated map[string]string) (catalogRecord, error) {
+func (s *Service) buildBuiltinRecord(sourceDir string, curated map[string]string, sourceKind string) (catalogRecord, error) {
 	content, _, skillName, err := readSkillSource(sourceDir)
 	if err != nil {
 		return catalogRecord{}, err
@@ -253,10 +269,10 @@ func (s *Service) buildBuiltinRecord(sourceDir string, curated map[string]string
 			Version:      firstNonEmpty(parsed.Version, "builtin"),
 			Locked:       false,
 			Deletable:    false,
+			SourceKind:   sourceKind,
 		},
-		ReadmeMarkdown:      parsed.ReadmeMarkdown,
-		RuntimeInstructions: parsed.RuntimeInstructions,
-		Recommendation:      firstNonEmpty(curated["recommendation"], parsed.Recommendation, "自动收录的本地可用能力。"),
+		ReadmeMarkdown: parsed.ReadmeMarkdown,
+		Recommendation: firstNonEmpty(curated["recommendation"], parsed.Recommendation, "自动收录的本地可用能力。"),
 	}
 	return catalogRecord{Detail: detail, SourcePath: sourceDir}, nil
 }
@@ -283,9 +299,8 @@ func buildWorkspaceRecord(sourceDir string) (catalogRecord, error) {
 			Locked:       false,
 			Deletable:    true,
 		},
-		ReadmeMarkdown:      parsed.ReadmeMarkdown,
-		RuntimeInstructions: parsed.RuntimeInstructions,
-		Recommendation:      firstNonEmpty(parsed.Recommendation, "仅在该智能体工作区内可用。"),
+		ReadmeMarkdown: parsed.ReadmeMarkdown,
+		Recommendation: firstNonEmpty(parsed.Recommendation, "仅在该智能体工作区内可用。"),
 	}
 	return catalogRecord{Detail: detail, SourcePath: sourceDir}, nil
 }

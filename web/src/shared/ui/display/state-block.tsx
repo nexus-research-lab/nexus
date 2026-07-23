@@ -42,7 +42,7 @@ export function UiStateBlock({
       {...props}
     >
       {icon ? (
-        <div className="chip-default flex h-14 w-14 items-center justify-center rounded-[20px]">
+        <div className="chip-default flex h-14 w-14 items-center justify-center surface-radius-md">
           {icon}
         </div>
       ) : null}

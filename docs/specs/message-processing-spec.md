@@ -27,6 +27,7 @@
 
 - 一轮执行的终态结果
 - 包含结果文本、执行终态与 runtime 摘要
+- 有效错误由 `is_error` 或 `error_*` subtype 共同决定；`success + is_error: true` 仍是失败
 - result 真相源只来自 Nexus overlay
 - 对外 API / WebSocket 不再直接暴露 standalone `result`
 - 最终展示统一收口为 `assistant.result_summary`
@@ -57,7 +58,18 @@
 
 同一个 `message_id` 的 durable snapshot 必须更新同一条消息投影，不能按 snapshot 数量追加多条气泡。`round_status`、`agent_round_status`、input queue 和 handoff 事件只更新状态投影，不直接变成正文消息。
 
+stream 事件必须保留 `tool_use` 的 block start 和 `input_json_delta`，但只有累计输入构成完整 JSON 后才更新可解释的工具参数。兼容网关漏发 `content_block_start` 时，处理器按 delta 类型建立临时块，随后由完整 assistant 快照原位替换，不能生成孤儿工具块或终止 round。嵌套调用通过 `parent_tool_use_id` 绑定父工具；事件未重复携带该字段时沿用本条 stream 在 `message_start` 建立的父链，新 assistant 段开始时必须重新取值，不能继承上一段的 parent。
+
+Bash / PowerShell 的运行中进度属于 ephemeral 状态：首次立即展示，此后最多每 30 秒更新一次，工具结束后由 durable tool result 收口。它不能进入 transcript 或在重连后变成历史正文。
+
 round 结束只由 terminal `round_status` 定义，前端不再自己猜测。
+
+### 3.3 内容块兼容
+
+- 已知内容块按协议类型显式解码，不靠全局字段改名。
+- Claude Code 的 `server_tool_use` / `web_search_tool_result` 等块保留原始 `source_type`，同时投影到 Nexus 现有工具渲染模型。
+- 新版本 runtime 发来未知或字段不完整的内容块时，前端保留原始类型和 payload，并安全隐藏；单个未知块不能让整条消息解析失败或让会话停止。
+- 空数组、单个空白 text、`(no content)` 和工具中断占位文本不构成可见 assistant；多块或非文本块仍是有效消息。
 
 ## 4. 当前历史真相源
 
@@ -113,6 +125,7 @@ DM / 私有 session 主要保存：
 
 - assistant 的 `usage` 允许直接来自 transcript
 - `duration_ms / duration_api_ms / num_turns / total_cost_usd / result / subtype / is_error` 只允许来自 overlay result
+- `model_usage / structured_output / fast_mode_state / runtime_subtype` 也只从 overlay result 投影到 `assistant.result_summary`
 - 不允许从 transcript assistant 反推一个“差不多的 result”
 
 ### 4.4 Room shared 历史

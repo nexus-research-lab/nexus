@@ -87,7 +87,7 @@ export function AgentProfileFileEditor({
 
       <div
         className={cn(
-          "min-h-0 min-w-0 flex-1 overflow-hidden rounded-2xl",
+          "min-h-0 min-w-0 flex-1 overflow-hidden surface-radius-lg",
           editor.isEditing
             ? "border border-(--modal-input-border) bg-(--modal-input-background)"
             : "dialog-input",

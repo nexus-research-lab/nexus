@@ -40,7 +40,6 @@ import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/wor
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 import { WorkspaceTaskPanel } from "@/shared/ui/workspace/surface/workspace-task-strip";
 import { WorkspaceSurfaceView } from "@/shared/ui/workspace/surface/workspace-surface-view";
-import type { RoomSurfaceTabKey } from "@/features/conversation/room/surface/header/room-header-tabs";
 
 import {
   demoConversations,
@@ -50,6 +49,7 @@ import {
 } from "./landing-demo-data";
 
 type LandingSidebarTab = "chat" | "contacts" | "capabilities";
+type LandingWorkbenchTab = "history" | "workspace" | "about";
 
 function LandingWorkbenchSidebar() {
   const [activeTab, setActiveTab] = useState<LandingSidebarTab>("chat");
@@ -74,7 +74,7 @@ function LandingWorkbenchSidebar() {
         <UiRoomAvatar
           members={[
             { id: "amy", name: "Amy", avatar: "/icon/agent/8.png" },
-            { id: "nexus", name: "Nexus", avatar: "/logo.webp" },
+            { id: "nexus", name: "Nexus", avatar: "/icon/agent/nexus.png" },
             { id: "lee", name: "Lee", avatar: "/icon/agent/17.png" },
           ]}
           roomId="design-room"
@@ -219,7 +219,7 @@ function LandingWorkbenchChat() {
 }
 
 function LandingWorkbenchMain() {
-  const [activeTab, setActiveTab] = useState<RoomSurfaceTabKey>("workspace");
+  const [activeTab, setActiveTab] = useState<LandingWorkbenchTab>("workspace");
 
   return (
     <section className="landing-real-main">

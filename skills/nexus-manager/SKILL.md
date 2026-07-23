@@ -36,9 +36,9 @@ nexusctl --pretty agent list
 - **Agent（成员）**：具有独立工作空间的智能体，可被邀请加入 Room 协作。
 - **Room（群组空间）**：多个 Agent 共处的对话空间，支持创建后追加成员。
 - **Workspace（工作区）**：每个 Agent 独立拥有的文件空间，可读写业务文件与运行资料。
-- **Skill（技能）**：部署到 Agent 工作区中的能力包，决定其可用专业动作。
+- **Skill（技能）**：平台内置 Skill 由全局平台库提供，Agent 只记录启用的 ID；外部或 workspace-local Skill 才可能以文件形式部署到 Agent 工作区。
 - **主智能体**：系统内置的保留 Agent，不能作为 Room 成员，所有 Room 操作由它发起。
-- 每个成员创建后自动获得独立工作空间（workspace），用于存放技能、工具配置和文件。
+- 每个成员创建后自动获得独立工作空间（workspace），用于存放工具配置、记忆和业务文件；不要把平台内置 Skill 当作 workspace 文件维护。
 
 ## 命令参考
 
@@ -232,8 +232,6 @@ nexusctl skill uninstall --agent-id research --skill-name planner
 
 ```
 <workspace>/
-  .agents/skills/    # 内部技能目录（不可直接操作）
-  .claude/           # Claude 配置目录（不可直接操作）
   AGENTS.md          # Agent 身份与行为规则
   USER.md            # 用户偏好
   RUNBOOK.md         # 运维手册与任务清单
@@ -256,9 +254,10 @@ nexusctl skill uninstall --agent-id research --skill-name planner
 
 - 基础 skill 与主智能体专属 skill 由系统管理，不能手动卸载。
 - 普通 skill 可通过 `install_skill` / `uninstall_skill` 管理。
-- 外部 skill 先导入技能库，再安装到指定 Agent；Agent 安装态以 workspace 内 `.agents/skills/` 和 `.claude/skills/` 文件为准。
-- 技能部署到 `.agents/skills/<skill_name>/`。
-- `.claude/skills/<skill_name>` 是指向 `.agents/skills/` 的相对符号链接。
+- 平台内置 skill 由全局平台库统一提供；安装到 Agent 只记录 `options.skill_ids`，不会复制一份到 Agent workspace。
+- nxs 与 Claude 通过同一个平台兼容根读取平台库：根下分别有 `.agents/skills/<skill_id>/` 和 `.claude/skills/<skill_id>/` 两个入口。
+- 外部 skill 仍可导入后安装到指定 Agent；外部安装态在兼容旧版的 workspace 文件中维护，平台内置 skill 不要直接改全局目录。
+- 只有 workspace-local skill 才属于 workspace 的 `.agents/skills/` / `.claude/skills/` 文件范围。
 
 ## 操作流程
 

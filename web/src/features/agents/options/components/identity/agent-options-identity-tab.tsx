@@ -22,6 +22,7 @@ interface AgentOptionsIdentityTabProps {
   defaultProvider: AgentProvider;
   description: string;
   isValidatingName: boolean;
+  isMain: boolean;
   model: string;
   nameValidation: AgentNameValidationResult | null;
   onAvatarChange: (value: string) => void;
@@ -47,6 +48,7 @@ export function AgentOptionsIdentityTab({
   defaultProvider,
   description,
   isValidatingName,
+  isMain,
   model,
   nameValidation,
   onAvatarChange,
@@ -67,6 +69,7 @@ export function AgentOptionsIdentityTab({
   const { t } = useI18n();
   const layout = IDENTITY_LAYOUTS[variant];
   const isInline = variant === "inline";
+  const shouldShowDescriptionField = !isInline || (!isMain && !agentId);
 
   return (
     <div
@@ -119,26 +122,27 @@ export function AgentOptionsIdentityTab({
         </div>
       </div>
 
-      {isInline && agentId ? (
+      {isInline && !isMain && agentId ? (
         <AgentProfileFileEditor
           agentId={agentId}
           key={agentId}
           label={t("agent_options.identity.description")}
         />
-      ) : (
+      ) : null}
+      {shouldShowDescriptionField ? (
         <div className="space-y-2">
           <label className="text-[11px] font-semibold text-(--text-muted)">
             {t("agent_options.identity.description")}
           </label>
           <UiTextarea
-            className="min-h-[72px] rounded-2xl"
+            className="min-h-[72px] surface-radius-lg"
             onChange={(event) => onDescriptionChange(event.target.value)}
             placeholder={t("agent_options.identity.description_placeholder")}
             rows={3}
             value={description}
           />
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

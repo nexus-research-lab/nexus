@@ -45,7 +45,12 @@ func (s *Service) ListAllAgentRecordsForMaintenance(ctx context.Context) ([]prot
 	if err := s.EnsureReady(ctx); err != nil {
 		return nil, err
 	}
-	return s.repository.ListActiveAgents(ctx, "")
+	agents, err := s.repository.ListActiveAgents(ctx, "")
+	if err != nil {
+		return nil, err
+	}
+	normalizeAgentAvatars(agents)
+	return agents, nil
 }
 
 func (s *Service) listAgents(ctx context.Context, includeSkillsCount bool) ([]protocol.Agent, error) {
@@ -63,6 +68,7 @@ func (s *Service) listAgents(ctx context.Context, includeSkillsCount bool) ([]pr
 	if err = ensureAgentRuntimeSettings(agents); err != nil {
 		return nil, err
 	}
+	normalizeAgentAvatars(agents)
 	if includeSkillsCount {
 		err = enrichAgentsWithSkillsCount(agents)
 	}
@@ -85,6 +91,7 @@ func (s *Service) GetAgent(ctx context.Context, agentID string) (*protocol.Agent
 	if agent == nil || agent.Status != "active" {
 		return nil, ErrAgentNotFound
 	}
+	normalizeAgentAvatar(agent)
 	if err = EnsureRuntimeEmotionState(agent.WorkspacePath); err != nil {
 		return nil, err
 	}
@@ -113,6 +120,7 @@ func (s *Service) GetAgentsByIDs(ctx context.Context, agentIDs []string) ([]prot
 	if err = ensureAgentRuntimeSettings(agents); err != nil {
 		return nil, err
 	}
+	normalizeAgentAvatars(agents)
 	return agents, nil
 }
 
@@ -129,6 +137,7 @@ func (s *Service) GetDefaultAgent(ctx context.Context) (*protocol.Agent, error) 
 	if agent == nil || agent.Status != "active" {
 		return nil, ErrAgentNotFound
 	}
+	normalizeAgentAvatar(agent)
 	if err = EnsureRuntimeEmotionState(agent.WorkspacePath); err != nil {
 		return nil, err
 	}
@@ -157,6 +166,19 @@ func ensureAgentRuntimeSettings(agents []protocol.Agent) error {
 		}
 	}
 	return nil
+}
+
+func normalizeAgentAvatar(agent *protocol.Agent) {
+	if agent == nil {
+		return
+	}
+	agent.Avatar = resolveAgentAvatar(agent.Avatar, agent.AgentID, agent.IsMain)
+}
+
+func normalizeAgentAvatars(agents []protocol.Agent) {
+	for index := range agents {
+		normalizeAgentAvatar(&agents[index])
+	}
 }
 
 // ValidateName 校验名称格式。
@@ -222,6 +244,7 @@ func (s *Service) CreateAgent(ctx context.Context, request protocol.CreateReques
 	if err = EnsureRuntimeSettingsProjection(*created); err != nil {
 		return nil, err
 	}
+	normalizeAgentAvatar(created)
 	return created, nil
 }
 
@@ -306,6 +329,7 @@ func (u *agentUpdate) record() (agentrepo.UpdateRecord, error) {
 		AllowedToolsJSON:    mustJSONString(options.AllowedTools),
 		DisallowedToolsJSON: mustJSONString(options.DisallowedTools),
 		MCPServersJSON:      mustJSONString(options.MCPServers),
+		SkillIDsJSON:        mustJSONString(options.SkillIDs),
 		MaxTurns:            options.MaxTurns,
 		MaxThinkingTokens:   options.MaxThinkingTokens,
 		SettingSourcesJSON:  mustJSONString(options.SettingSources),
@@ -352,6 +376,7 @@ func updatedAgentText(current string, requested *string) string {
 }
 
 func (u *agentUpdate) finalize(updated *protocol.Agent) error {
+	normalizeAgentAvatar(updated)
 	if err := os.MkdirAll(updated.WorkspacePath, 0o755); err != nil {
 		return err
 	}

@@ -98,7 +98,7 @@ func (m *EventMapper) Map(incoming sdkprotocol.ReceivedMessage, interruptReason 
 		copyValue := protocol.Clone(messageValue)
 		durableMessages = append(durableMessages, copyValue)
 		projectedValue := m.projectDurableMessage(copyValue)
-		if messageValue["role"] == "result" && m.transformProjectedMessage != nil {
+		if projectedValue != nil && messageValue["role"] == "result" && m.transformProjectedMessage != nil {
 			if transformed := m.transformProjectedMessage(projectedValue); transformed != nil {
 				projectedValue = transformed
 				if projectedValue["role"] == "assistant" {
@@ -107,7 +107,9 @@ func (m *EventMapper) Map(incoming sdkprotocol.ReceivedMessage, interruptReason 
 				}
 			}
 		}
-		events = append(events, m.wrapMessageEvent(projectedValue, true))
+		if projectedValue != nil {
+			events = append(events, m.wrapMessageEvent(projectedValue, true))
+		}
 		if m.includeStreamLifecycle && messageValue["role"] == "assistant" && messageValue["is_complete"] == true {
 			events = append(events, m.wrapEvent(protocol.EventTypeStreamEnd, map[string]any{
 				"msg_id":   messageValue["message_id"],
@@ -154,7 +156,9 @@ func (m *EventMapper) LastAssistantMessage() protocol.Message {
 // ProjectResultMessage 将 result 投影回最近一条 assistant 快照。
 func (m *EventMapper) ProjectResultMessage(message protocol.Message) protocol.Message {
 	projected := ProjectResultMessage(m.lastAssistantMessage, message)
-	m.lastAssistantMessage = protocol.Clone(projected)
+	if projected != nil {
+		m.lastAssistantMessage = protocol.Clone(projected)
+	}
 	return projected
 }
 

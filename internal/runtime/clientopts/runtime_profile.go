@@ -36,10 +36,14 @@ func (p runtimeProfile) supportsAPIFormat(apiFormat string) bool {
 }
 
 func resolveRuntimeKind(runtimeKind string, getenv func(string) string) string {
+	// 调用方显式选择代表本次会话；进程环境只作为未指定时的默认值。
+	if getenv == nil {
+		getenv = func(string) string { return "" }
+	}
 	for _, value := range []string{
+		runtimeKind,
 		getenv(nexusAgentRuntimeKindEnvName),
 		getenv(nexusAgentRuntimeEnvName),
-		runtimeKind,
 	} {
 		switch strings.ToLower(strings.TrimSpace(value)) {
 		case runtimeKindNXS, "go", "go-native", "gonative":

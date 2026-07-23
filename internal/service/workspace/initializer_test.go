@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -148,7 +149,7 @@ func TestEnsureInitializedWritesPromptLayerTemplates(t *testing.T) {
 	}
 }
 
-func TestEnsureInitializedSerializesConcurrentSkillDeployment(t *testing.T) {
+func TestEnsureInitializedSerializesConcurrentWorkspaceInitialization(t *testing.T) {
 	root := t.TempDir()
 	createdAt := time.Now()
 	const workerCount = 16
@@ -171,9 +172,57 @@ func TestEnsureInitializedSerializesConcurrentSkillDeployment(t *testing.T) {
 		}
 	}
 	for _, skillName := range managedSkillNames(false) {
-		if _, err := os.Stat(filepath.Join(root, ".agents", "skills", skillName, "SKILL.md")); err != nil {
-			t.Fatalf("并发初始化后托管 skill 缺失 %s: %v", skillName, err)
+		if _, err := os.Lstat(filepath.Join(root, ".agents", "skills", skillName)); !os.IsNotExist(err) {
+			t.Fatalf("平台 Skill 不应在 workspace 生成副本 %s: %v", skillName, err)
 		}
+	}
+}
+
+func TestEnsureInitializedRemovesBundledSkillCopies(t *testing.T) {
+	root := t.TempDir()
+	for _, name := range []string{"ima-skill", "imagegen"} {
+		skillPath := filepath.Join(root, ".agents", "skills", name, "SKILL.md")
+		if err := os.MkdirAll(filepath.Dir(skillPath), 0o755); err != nil {
+			t.Fatalf("创建旧平台 Skill 副本失败: %v", err)
+		}
+		if err := os.WriteFile(skillPath, []byte("stale"), 0o644); err != nil {
+			t.Fatalf("写入旧平台 Skill 副本失败: %v", err)
+		}
+	}
+	if err := EnsureInitialized("agent-1", "Planner", root, false, time.Now()); err != nil {
+		t.Fatalf("初始化 workspace 失败: %v", err)
+	}
+	for _, name := range []string{"ima-skill", "imagegen"} {
+		if _, err := os.Stat(filepath.Join(root, ".agents", "skills", name)); !os.IsNotExist(err) {
+			t.Fatalf("平台 Skill 副本未清理 %s: %v", name, err)
+		}
+	}
+}
+
+func TestRuntimeSkillNamesKeepsWorkspaceDeployedSkills(t *testing.T) {
+	workspacePath := t.TempDir()
+	for _, relative := range []string{
+		filepath.Join(".agents", "skills", "external-skill", "SKILL.md"),
+		filepath.Join(".agents", "workspace-local", "SKILL.md"),
+		filepath.Join(".claude", "skills", "claude-only", "SKILL.md"),
+		filepath.Join(".claude", "skills", "IMAGEGEN", "SKILL.md"),
+	} {
+		path := filepath.Join(workspacePath, relative)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatalf("创建 Skill 目录失败: %v", err)
+		}
+		if err := os.WriteFile(path, []byte("---\nname: test\n---\n"), 0o644); err != nil {
+			t.Fatalf("写入 Skill 文件失败: %v", err)
+		}
+	}
+
+	got, err := RuntimeSkillNames(workspacePath, []string{"imagegen", "ima-skill"})
+	if err != nil {
+		t.Fatalf("合并 runtime Skill 名称失败: %v", err)
+	}
+	want := []string{"imagegen", "ima-skill", "claude-only", "external-skill", "workspace-local"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("runtime Skill 名称 = %#v，期望 %#v", got, want)
 	}
 }
 

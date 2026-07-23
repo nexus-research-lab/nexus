@@ -73,6 +73,84 @@ func TestProcessorMapsAgentToolProgressToTaskProgress(t *testing.T) {
 	}
 }
 
+func TestProcessorMapsShellProgressToThrottledEphemeralTaskProgress(t *testing.T) {
+	parentToolUseID := "tool-bash-1"
+	processor := NewProcessor(MessageContext{
+		SessionKey: "agent:nexus:ws:dm:test",
+		AgentID:    "nexus",
+		RoundID:    "round-shell-progress",
+		ParentID:   "round-shell-progress",
+	}, "sdk-session-shell-progress")
+	processor.segment.Start("assistant-shell-progress", "glm-5.2", nil, 1)
+	processor.segment.ApplyBlock(0, map[string]any{
+		"type":  "tool_use",
+		"id":    parentToolUseID,
+		"name":  "Bash",
+		"input": map[string]any{"command": "make test"},
+	})
+
+	progressMessage := func(elapsed float64) sdkprotocol.ReceivedMessage {
+		return sdkprotocol.ReceivedMessage{
+			Type: sdkprotocol.MessageTypeToolProgress,
+			ToolProgress: &sdkprotocol.ToolProgressMessage{
+				ToolUseID:          "bash-progress",
+				ToolName:           "Bash",
+				ParentToolUseID:    &parentToolUseID,
+				ElapsedTimeSeconds: elapsed,
+				Additional: map[string]any{
+					"data": map[string]any{"type": "bash_progress"},
+				},
+			},
+		}
+	}
+
+	first := processor.Process(progressMessage(2))
+	if len(first.DurableMessages) != 0 || len(first.EphemeralMessages) != 1 {
+		t.Fatalf("first shell progress = %+v, want one ephemeral message", first)
+	}
+	blocks, _ := first.EphemeralMessages[0]["content"].([]map[string]any)
+	if len(blocks) != 2 || blocks[1]["type"] != "task_progress" || blocks[1]["tool_use_id"] != parentToolUseID {
+		t.Fatalf("shell progress block = %+v", blocks)
+	}
+	if blocks[1]["description"] != "Bash 已运行 2 秒" {
+		t.Fatalf("shell progress description = %#v", blocks[1]["description"])
+	}
+
+	throttled := processor.Process(progressMessage(10))
+	if len(throttled.EphemeralMessages) != 0 {
+		t.Fatalf("shell progress within 30s should be throttled: %+v", throttled)
+	}
+	afterWindow := processor.Process(progressMessage(35))
+	if len(afterWindow.EphemeralMessages) != 1 {
+		t.Fatalf("shell progress after 30s = %+v, want one ephemeral message", afterWindow)
+	}
+	ccProgress := progressMessage(65)
+	ccProgress.ToolProgress.Additional = nil
+	ccShape := processor.Process(ccProgress)
+	if len(ccShape.EphemeralMessages) != 1 {
+		t.Fatalf("CC shell progress without internal data = %+v, want one ephemeral message", ccShape)
+	}
+
+	final := processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeAssistant,
+		Assistant: &sdkprotocol.AssistantMessage{Message: sdkprotocol.ConversationEnvelope{
+			ID:         "assistant-shell-progress",
+			StopReason: "tool_use",
+			Content: []sdkprotocol.ContentBlock{sdkprotocol.ToolUseBlock{
+				ID:   parentToolUseID,
+				Name: "Bash",
+			}},
+		}},
+	})
+	if len(final.DurableMessages) != 1 {
+		t.Fatalf("final assistant = %+v", final)
+	}
+	finalBlocks, _ := final.DurableMessages[0]["content"].([]map[string]any)
+	if len(finalBlocks) != 1 || finalBlocks[0]["type"] != "tool_use" {
+		t.Fatalf("ephemeral progress leaked into durable assistant: %+v", finalBlocks)
+	}
+}
+
 func TestProcessorPreservesTypedSubagentThreadMetadata(t *testing.T) {
 	processor := NewProcessor(MessageContext{
 		SessionKey: "agent:host:ws:dm:thread-metadata",

@@ -26,7 +26,7 @@ import (
 	memorymaintenancesvc "github.com/nexus-research-lab/nexus/internal/service/memorymaintenance"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
-	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
+	roomrealtime "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
 	skillsvc "github.com/nexus-research-lab/nexus/internal/service/skills"
 	subscriptionsvc "github.com/nexus-research-lab/nexus/internal/service/subscription"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
@@ -54,7 +54,7 @@ type AppServices struct {
 	ChannelControl    *channels.ControlService
 	DM                *dmsvc.Service
 	Ingress           *channels.IngressService
-	RoomRealtime      *roomsvc.RealtimeService
+	RoomRealtime      *roomrealtime.Service
 	Automation        *automationsvc.Service
 	Imagegen          *imagegensvc.Service
 	Goal              *goalsvc.Service
@@ -123,7 +123,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	ingressService.SetLogger(logger.With("component", "channels.ingress"))
 	ingressService.SetControlService(channelControl)
 	channelRouter.SetIngress(ingressService)
-	roomRealtime := roomsvc.NewRealtimeService(cfg, core.Room, core.Agent, runtimeManager, permission)
+	roomRealtime := roomrealtime.NewService(cfg, core.Room, core.Agent, runtimeManager, permission)
 	roomRealtime.SetLogger(logger.With("component", "room"))
 	roomRealtime.SetProviderResolver(providerService)
 	roomRealtime.SetPreferences(preferencesService)

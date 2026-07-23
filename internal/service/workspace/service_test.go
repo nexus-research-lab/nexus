@@ -5,9 +5,11 @@ import (
 	"database/sql"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	"github.com/nexus-research-lab/nexus/internal/storage/agentrepo"
@@ -89,8 +91,14 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	if _, err = os.Stat(filepath.Join(agentValue.WorkspacePath, "tmp", "attachments", "upload-batch", "upload.txt")); err != nil {
 		t.Fatalf("附件未落盘到 tmp/attachments: %v", err)
 	}
-	if _, err = os.Stat(filepath.Join(agentValue.WorkspacePath, ".agents", "skills", "imagegen", "SKILL.md")); err != nil {
-		t.Fatalf("系统托管 imagegen skill 未部署: %v", err)
+	if _, err = os.Stat(filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "imagegen", "SKILL.md")); err != nil {
+		t.Fatalf("平台全局 imagegen skill 未同步: %v", err)
+	}
+	if _, err = os.Stat(filepath.Join(appfs.PlatformSkillRoot(), ".claude", "skills", "imagegen", "SKILL.md")); err != nil {
+		t.Fatalf("Claude 兼容 imagegen skill 未同步: %v", err)
+	}
+	if !slices.Contains(agentValue.Options.SkillIDs, "imagegen") || !slices.Contains(agentValue.Options.SkillIDs, "goal-manager") {
+		t.Fatalf("Agent 应只记录平台 Skill ID: %#v", agentValue.Options.SkillIDs)
 	}
 	sharedBinDir := filepath.Join(os.Getenv("NEXUS_CONFIG_DIR"), ".agents", "bin")
 	nexusctlShim := filepath.Join(sharedBinDir, "nexusctl")
@@ -147,7 +155,7 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 			t.Fatalf("workspace 初始化后仍保留已退役定时任务 skill %s: %v", skillDir, statErr)
 		}
 	}
-	goalSkillPath := filepath.Join(agentValue.WorkspacePath, ".agents", "skills", "goal-manager", "SKILL.md")
+	goalSkillPath := filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "goal-manager", "SKILL.md")
 	if _, err = os.Stat(goalSkillPath); err != nil {
 		t.Fatalf("系统托管 goal-manager skill 未部署: %v", err)
 	}

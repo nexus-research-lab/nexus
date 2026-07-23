@@ -95,6 +95,23 @@ func TestNormalizeHistoryRowsMergesAssistantSnapshotsByMessageID(t *testing.T) {
 	}
 }
 
+func TestNormalizeHistoryRowsHidesInternalContinuationPrompt(t *testing.T) {
+	rows := []protocol.Message{
+		{
+			"message_id": "user-recovery",
+			"round_id":   "round-recovery",
+			"role":       "user",
+			"content":    "Output token limit hit. Resume directly — no apology, no recap of what you were doing. Pick up mid-thought if that is where the cut happened. Break remaining work into smaller pieces.",
+			"timestamp":  int64(2000),
+		},
+	}
+
+	normalized := normalizeHistoryRows(rows, nil)
+	if len(normalized) != 0 {
+		t.Fatalf("内部续跑提示不应进入可见历史: %+v", normalized)
+	}
+}
+
 func TestNormalizeHistoryRowsMergesExternalDeliveryReceipt(t *testing.T) {
 	rows := []protocol.Message{
 		{

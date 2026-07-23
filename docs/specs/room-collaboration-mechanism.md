@@ -74,14 +74,11 @@ Skill 必须说明：
 
 工具中的 Room、conversation、source agent 和因果字段由 runtime 注入，Skill 不应伪造或拼接。
 
-## 5. runtime_instructions
+## 5. Room Skill 加载
 
-Room Skill 的 frontmatter 应提供一段短的 runtime_instructions，只保留每次运行都必须遵守的规则：
+Room Skill 复用 Skill 的目录、frontmatter 和正文格式，但由 Room runtime 在启动成员时直接加载。运行时只注入去掉 frontmatter 后的完整正文，正文是 Room 协作规则的唯一真相源。
 
-    runtime_instructions: |
-      说明角色、可见性边界、交接条件和停止条件。
-
-运行时只注入这段最小规则；详细背景、例子和人类教程放在 Skill 正文。不要把整份 README 复制进 runtime_instructions。
+`description` 只用于技能目录和管理界面展示；不要再维护额外的运行时规则字段。
 
 ## 6. 发布前检查
 

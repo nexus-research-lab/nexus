@@ -24,9 +24,9 @@ const PANEL_PADDING_CLASS_MAP: Record<UiPanelPadding, string> = {
 };
 
 const PANEL_RADIUS_CLASS_MAP: Record<UiPanelRadius, string> = {
-  sm: "rounded-[10px]",
-  md: "rounded-[12px]",
-  lg: "rounded-[14px]",
+  sm: "surface-radius-sm",
+  md: "surface-radius-md",
+  lg: "surface-radius-lg",
 };
 
 const PANEL_VARIANT_CLASS_MAP: Record<UiPanelVariant, string> = {

@@ -5,6 +5,7 @@ import type {
   AgentOptions as AgentConfigOptions,
 } from "@/types/agent/agent";
 import { pickAgentEditableOptions } from "@/lib/agent-options";
+import { getRandomAgentAvatarIconId } from "@/lib/avatar";
 
 export type AgentOptionsTabKey = "identity" | "skills" | "advanced";
 
@@ -29,6 +30,7 @@ export interface AgentOptionsCreateSource {
 
 export interface AgentOptionsEditSource {
   agentId: string;
+  isMain: boolean;
   initial: AgentOptionsEditorInitialValues;
   kind: "edit";
 }
@@ -44,7 +46,7 @@ export function buildAgentOptionsCreateSource(
 ): AgentOptionsCreateSource {
   return {
     initial: {
-      avatar: "",
+      avatar: getRandomAgentAvatarIconId(),
       description: "",
       options,
       title: "",
@@ -59,6 +61,7 @@ export function buildAgentOptionsEditSource(
 ): AgentOptionsEditSource {
   return {
     agentId: agent.agent_id,
+    isMain: agent.is_main === true,
     initial: {
       avatar: agent.avatar ?? "",
       description: agent.description ?? "",

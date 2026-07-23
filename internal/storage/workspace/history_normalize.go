@@ -67,7 +67,8 @@ func shouldSkipInternalHistoryRow(row protocol.Message) bool {
 		return stringFromAny(metadata["subtype"]) == "api_retry"
 	case "user":
 		content := stringFromAny(row["content"])
-		return message.IsInternalTranscriptInterruptPrompt(content)
+		return message.IsInternalTranscriptInterruptPrompt(content) ||
+			message.IsInternalTranscriptContinuationPrompt(content)
 	default:
 		return false
 	}

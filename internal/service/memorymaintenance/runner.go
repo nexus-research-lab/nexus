@@ -11,11 +11,13 @@ import (
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	runtimeselectionsvc "github.com/nexus-research-lab/nexus/internal/service/runtimeselection"
+	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 )
 
 const (
@@ -53,6 +55,13 @@ func NewCoordinator(
 
 func (r *runtimeDreamRunner) tryAutoDream(ctx context.Context, agentValue protocol.Agent) (agentclient.AutoDreamResult, error) {
 	ownerContext := contextForAgentOwner(ctx, agentValue)
+	if err := workspacepkg.EnsurePlatformSkillLibrary(); err != nil {
+		return agentclient.AutoDreamResult{}, err
+	}
+	runtimeSkillNames, err := workspacepkg.RuntimeSkillNames(agentValue.WorkspacePath, agentValue.Options.SkillIDs)
+	if err != nil {
+		return agentclient.AutoDreamResult{}, err
+	}
 	selection, err := r.selector.Resolve(ownerContext, runtimeselectionsvc.Request{
 		Agent:        &agentValue,
 		OwnerUserIDs: []string{agentValue.OwnerUserID},
@@ -76,6 +85,8 @@ func (r *runtimeDreamRunner) tryAutoDream(ctx context.Context, agentValue protoc
 		Provider:          provider,
 		Model:             model,
 		PermissionMode:    sdkpermission.ModeAcceptEdits,
+		SkillIDs:          runtimeSkillNames,
+		SkillDirectories:  []string{appfs.PlatformSkillRoot()},
 		SettingSources:    ensureProjectSettingsSource(agentValue.Options.SettingSources),
 		ToolSearchEnabled: selection.ToolSearchEnabled,
 		WebSearch:         selection.WebSearch,

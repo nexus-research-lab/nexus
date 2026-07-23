@@ -31,6 +31,7 @@ type WorkspaceSurfaceHeaderProps<TTabKey extends string> = {
   leadingClassName?: string;
   onChangeTab?: (tab: TTabKey) => void;
   onDismissActiveTab?: (tab: TTabKey) => void;
+  navigationTrailing?: ReactNode;
   tabs?: WorkspaceSurfaceHeaderTab<TTabKey>[];
   tabsNavAnchor?: string;
   title?: string;
@@ -46,6 +47,7 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
   leadingClassName,
   onChangeTab,
   onDismissActiveTab,
+  navigationTrailing,
   subtitle,
   tabs = [],
   tabsLeading,
@@ -76,6 +78,7 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
           dismissActiveTabLabel={dismissActiveTabLabel}
           onChangeTab={onChangeTab}
           onDismissActiveTab={onDismissActiveTab}
+          navigationTrailing={navigationTrailing}
           subtitle={subtitle}
           tabs={tabs}
           tabsLeading={tabsLeading}
@@ -107,7 +110,7 @@ function WorkspaceSurfaceIdentity({
     <div className="workspace-surface-header-title flex min-w-0 shrink items-center gap-2.5">
       {leading ? (
         <div className={cn(
-          "flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-(--icon-default) shadow-(--surface-avatar-shadow)",
+          "flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-(--surface-avatar-background) text-(--icon-default) shadow-(--surface-avatar-shadow)",
           leadingClassName,
         )}>
           {leading}
@@ -142,7 +145,7 @@ function WorkspaceSurfaceTitle({
         </div>
       ) : null}
       {badge ? (
-        <span className="workspace-surface-header-badge shrink-0 rounded-[5px] border border-(--divider-subtle-color) px-1.5 py-0.5 text-[9.5px] font-semibold leading-none text-(--text-soft)">
+        <span className="workspace-surface-header-badge shrink-0 radius-control-xs border border-(--divider-subtle-color) px-1.5 py-0.5 text-[9.5px] font-semibold leading-none text-(--text-soft)">
           {badge}
         </span>
       ) : null}
@@ -160,6 +163,7 @@ function WorkspaceSurfaceNavigation<TTabKey extends string>({
   dismissActiveTabLabel,
   onChangeTab,
   onDismissActiveTab,
+  navigationTrailing,
   subtitle,
   tabs,
   tabsLeading,
@@ -169,6 +173,7 @@ function WorkspaceSurfaceNavigation<TTabKey extends string>({
   dismissActiveTabLabel?: string;
   onChangeTab?: (tab: TTabKey) => void;
   onDismissActiveTab?: (tab: TTabKey) => void;
+  navigationTrailing?: ReactNode;
   subtitle?: ReactNode;
   tabs: WorkspaceSurfaceHeaderTab<TTabKey>[];
   tabsLeading?: ReactNode;
@@ -192,6 +197,11 @@ function WorkspaceSurfaceNavigation<TTabKey extends string>({
         tabs={tabs}
         tabsNavAnchor={tabsNavAnchor}
       />
+      {navigationTrailing ? (
+        <div className="workspace-surface-header-navigation-actions flex shrink-0 items-center">
+          {navigationTrailing}
+        </div>
+      ) : null}
     </div>
   );
 }

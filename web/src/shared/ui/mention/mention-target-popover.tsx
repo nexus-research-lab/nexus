@@ -84,7 +84,7 @@ export const MentionTargetPopover = memo(function MentionTargetPopover({
 
   return createPortal(
     <div
-      className="fixed z-[9999] max-h-48 overflow-y-auto rounded-2xl"
+      className="fixed z-[9999] surface-radius-lg max-h-48 overflow-y-auto"
       style={{
         ...layout,
         background: "var(--surface-popover-background)",

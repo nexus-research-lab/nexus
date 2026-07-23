@@ -38,6 +38,14 @@ func AgentRuntimeBinDir() string {
 	return filepath.Join(ConfigDir(), ".agents", "bin")
 }
 
+// PlatformSkillRoot 返回平台托管 Skill 的全局兼容根目录。
+//
+// 该目录同时提供 .agents/skills 与 .claude/skills 两个入口，分别供 nxs
+// 和 Claude Code 运行时发现同一份平台 Skill 文件。
+func PlatformSkillRoot() string {
+	return filepath.Join(ConfigDir(), "platform-skills")
+}
+
 func expandHome(path string) string {
 	value := strings.TrimSpace(path)
 	switch {

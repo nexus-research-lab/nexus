@@ -55,14 +55,14 @@ export function RoomSettingsForm({
         <div className="flex items-center gap-3">
           <UiRoomAvatar
             avatar={state.avatar}
-            className="h-11 w-11 rounded-[14px]"
+            className="h-11 w-11 radius-control-lg"
             members={[]}
             roomId={state.name}
             title={state.name || avatarFallbackTitle}
           />
           <input
             aria-label={t("room.settings_title")}
-            className="dialog-input min-w-0 flex-1 rounded-xl px-3 py-2 text-sm text-(--text-strong) placeholder:text-(--text-soft) focus-visible:outline-none"
+            className="dialog-input min-w-0 flex-1 radius-control-md px-3 py-2 text-sm text-(--text-strong) placeholder:text-(--text-soft) focus-visible:outline-none"
             data-autofocus="true"
             maxLength={64}
             onChange={(event) => setters.setName(event.target.value)}

@@ -19,7 +19,7 @@ interface WorkspaceConversationTabsProps {
 }
 
 const TRACK_CLASS_NAME =
-  "workspace-surface-header-session-tabs-track soft-scrollbar scrollbar-hide flex h-8 w-full min-w-0 items-center gap-0 overflow-hidden border-b border-(--divider-subtle-color) px-0 py-0";
+  "workspace-surface-header-session-tabs-track soft-scrollbar scrollbar-hide flex h-8 w-full min-w-0 items-center gap-0 overflow-hidden border-b border-b-[color:color-mix(in_srgb,var(--divider-subtle-color)_66%,transparent)] px-0 py-0";
 
 export function WorkspaceConversationTabs({
   conversations,
@@ -78,7 +78,7 @@ export function WorkspaceConversationTabs({
       {onCreateConversation ? (
         <button
           aria-label={t("room.new_conversation")}
-          className="relative ml-1 inline-flex h-7 min-w-[76px] shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-[6px] border border-[color:color-mix(in_srgb,var(--primary)_22%,var(--divider-subtle-color)_78%)] bg-[color:color-mix(in_srgb,var(--primary)_7%,transparent)] px-2.5 text-left text-[11px] font-medium leading-none text-(--primary) transition-[background-color,border-color,color] duration-(--motion-duration-fast) ease-out hover:border-[color:color-mix(in_srgb,var(--primary)_36%,var(--divider-subtle-color)_64%)] hover:bg-[color:color-mix(in_srgb,var(--primary)_12%,transparent)] hover:text-(--primary) disabled:opacity-60"
+          className="relative ml-1 inline-flex h-7 min-w-[76px] shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-[6px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_70%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_7%,transparent)] px-2.5 text-left text-[11px] font-medium leading-none text-(--primary) transition-[background-color,border-color,color] duration-(--motion-duration-fast) ease-out hover:border-[color:color-mix(in_srgb,var(--success)_24%,var(--divider-subtle-color)_76%)] hover:bg-[color:color-mix(in_srgb,var(--primary)_12%,transparent)] hover:text-(--primary) disabled:opacity-60"
           disabled={controller.isCreating}
           onClick={() => {
             void controller.createConversation();

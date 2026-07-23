@@ -31,7 +31,7 @@ export function ChannelIcon({
       className={cn(
         "flex shrink-0 items-center justify-center border border-white/35",
         size === "dialog" && "shadow-(--surface-avatar-shadow)",
-        size === "dialog" ? "h-[52px] w-[52px] rounded-[18px]" : "h-8 w-8 rounded-[7px]",
+        size === "dialog" ? "h-[52px] w-[52px] surface-radius-lg" : "h-8 w-8 radius-control-sm",
         style.cn_name,
       )}
     >

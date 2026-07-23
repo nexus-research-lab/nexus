@@ -1,6 +1,6 @@
 # identity/ - Agent 身份视图
 
-- agent-profile-file-editor.tsx 只承载根级 AGENTS.md 的 Markdown 预览、编辑和确认保存，不复用工作区文件头部或文件保存工具栏。
+- agent-profile-file-editor.tsx 只承载普通 Agent 根级 AGENTS.md 的 Markdown 预览、编辑和确认保存；主 Nexus 没有该文件，身份页不渲染此编辑器，不复用工作区文件头部或文件保存工具栏。
 
 - `agent-options-identity-tab.tsx` 只按布局描述组合资料、标签、模型和简介字段，不维护子域状态。
 - `identity-profile-fields.tsx` 负责头像、名称与名称校验反馈，并用有序纯规则投影校验提示的语义和色调；同时声明模态编辑的初始焦点目标。

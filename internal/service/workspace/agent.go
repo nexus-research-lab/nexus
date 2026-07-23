@@ -8,6 +8,9 @@ import (
 )
 
 func (s *Service) ensureAgentWorkspace(ctx context.Context, agentID string) (*protocol.Agent, error) {
+	if err := EnsurePlatformSkillLibrary(); err != nil {
+		return nil, err
+	}
 	agentValue, err := s.agents.GetAgent(ctx, strings.TrimSpace(agentID))
 	if err != nil {
 		return nil, err

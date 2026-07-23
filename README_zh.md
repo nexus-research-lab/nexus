@@ -59,6 +59,8 @@ Provider 模型测试既接受 API base URL，也接受已经包含 operation pa
 
 `claude` 后端通过 Claude Code 运行 Agent。使用该后端时，需单独安装 Claude Code，将 Agent runtime 切换为 `claude`，并确保 `claude` 在后端机器的 `PATH` 中可用。
 
+平台 Skill 由 nxs 与 Claude 共用一份全局兼容源。Agent 只保存选中的 `skill_ids`；运行时分别通过 `.agents/skills` 和 `.claude/skills` 入口读取，同一平台 Skill 不会复制到每个 Agent 工作区。
+
 ```bash
 # macOS / Linux / WSL
 curl -fsSL https://claude.ai/install.sh | bash
@@ -157,7 +159,7 @@ AutoDream 不属于用户 Automation。Nexus 负责时钟、进程生命周期�
 | **Room** | 协作容器。Agent 和人在共享上下文里一起工作 |
 | **DM** | 与单个 Agent 的持续会话，运行状态完整保留 |
 | **Workspace** | 每个 Agent 独立的文件目录，自主沉淀工作产出 |
-| **Skill** | 安装到 Agent 的能力扩展，内置或自定义均可 |
+| **Skill** | Agent 可启用的能力扩展；平台内置项共享全局源，自定义项按文件模型管理 |
 | **Connector** | 管理 OAuth 应用配置与外部服务账号连接 |
 | **主智能体** | 系统保留 Agent，负责默认入口与平台级编排 |
 

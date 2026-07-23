@@ -9,6 +9,7 @@ export function transformApiAgent(apiAgent: ApiAgent): Agent {
     agent_id: apiAgent.agent_id,
     name: apiAgent.name,
     workspace_path: apiAgent.workspace_path,
+    is_main: apiAgent.is_main === true,
     display_name: apiAgent.display_name ?? null,
     headline: apiAgent.headline ?? null,
     profile_markdown: apiAgent.profile_markdown ?? null,

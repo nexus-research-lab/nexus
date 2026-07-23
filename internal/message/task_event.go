@@ -2,12 +2,15 @@ package message
 
 import (
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
+
+const shellToolProgressThrottleSeconds = 30
 
 func (p *Processor) processTaskProgressMessage(message sdkprotocol.ReceivedMessage) *protocol.Message {
 	if message.TaskProgress == nil {
@@ -36,14 +39,37 @@ func (p *Processor) processTaskProgressMessage(message sdkprotocol.ReceivedMessa
 	)
 }
 
-func (p *Processor) processToolProgressMessage(message sdkprotocol.ReceivedMessage) *protocol.Message {
+func (p *Processor) processToolProgressMessage(message sdkprotocol.ReceivedMessage) (*protocol.Message, bool) {
 	if message.ToolProgress == nil {
-		return nil
+		return nil, false
 	}
 	progress := message.ToolProgress
 	data := mapValue(progress.Additional["data"])
-	if normalizeString(data["type"]) != "agent_progress" {
-		return nil
+	progressType := normalizeString(data["type"])
+	if shellType := resolveShellProgressType(progressType, progress.ToolName); shellType != "" {
+		trackingID := firstNonEmpty(
+			normalizePointerString(progress.ParentToolUseID),
+			strings.TrimSpace(progress.ToolUseID),
+		)
+		if trackingID == "" || !p.shouldEmitShellToolProgress(trackingID, progress.ElapsedTimeSeconds) {
+			return nil, true
+		}
+		toolName := firstNonEmpty(strings.TrimSpace(progress.ToolName), shellProgressToolName(shellType))
+		elapsedSeconds := int(math.Max(0, progress.ElapsedTimeSeconds))
+		description := fmt.Sprintf("%s 已运行 %d 秒", toolName, elapsedSeconds)
+		return p.buildEphemeralTaskProgressMessage(
+			firstNonEmpty(strings.TrimSpace(progress.TaskID), "tool_progress_"+trackingID),
+			description,
+			trackingID,
+			toolName,
+			map[string]any{"duration_ms": elapsedSeconds * 1000},
+			mergeTaskEventMetadata(data, map[string]string{
+				"progress_type": shellType,
+			}),
+		), true
+	}
+	if progressType != "agent_progress" {
+		return nil, false
 	}
 	taskID := firstNonEmpty(
 		strings.TrimSpace(progress.TaskID),
@@ -62,7 +88,38 @@ func (p *Processor) processToolProgressMessage(message sdkprotocol.ReceivedMessa
 		firstNonEmpty(agentProgressLastToolName(data), strings.TrimSpace(progress.ToolName)),
 		mapValue(data["usage"]),
 		data,
-	)
+	), false
+}
+
+func resolveShellProgressType(progressType string, toolName string) string {
+	switch progressType {
+	case "bash_progress", "powershell_progress":
+		return progressType
+	}
+	switch {
+	case strings.EqualFold(strings.TrimSpace(toolName), "Bash"):
+		return "bash_progress"
+	case strings.EqualFold(strings.TrimSpace(toolName), "PowerShell"):
+		return "powershell_progress"
+	default:
+		return ""
+	}
+}
+
+func (p *Processor) shouldEmitShellToolProgress(trackingID string, elapsedSeconds float64) bool {
+	lastElapsed, exists := p.toolProgressElapsed[trackingID]
+	if exists && elapsedSeconds-lastElapsed < shellToolProgressThrottleSeconds {
+		return false
+	}
+	p.toolProgressElapsed[trackingID] = elapsedSeconds
+	return true
+}
+
+func shellProgressToolName(progressType string) string {
+	if progressType == "powershell_progress" {
+		return "PowerShell"
+	}
+	return "Bash"
 }
 
 func (p *Processor) processTaskStartedMessage(message sdkprotocol.ReceivedMessage) *protocol.Message {
@@ -164,6 +221,64 @@ func (p *Processor) buildTaskProgressMessage(
 	usage map[string]any,
 	additional map[string]any,
 ) *protocol.Message {
+	if !p.appendTaskProgress(taskID, description, toolUseID, lastToolName, usage, additional) {
+		return nil
+	}
+	return p.buildAssistantDurableMessage(false, false, p.parentToolUseID)
+}
+
+func (p *Processor) buildEphemeralTaskProgressMessage(
+	taskID string,
+	description string,
+	toolUseID string,
+	lastToolName string,
+	usage map[string]any,
+	additional map[string]any,
+) *protocol.Message {
+	progress := newTaskProgressBlock(taskID, description, toolUseID, lastToolName, usage, additional)
+	if progress == nil {
+		return nil
+	}
+	// Shell 进度只构造运行态快照，不写回主 segment；否则下一条最终
+	// assistant 会把临时进度块带进 transcript。
+	temporary := p.segment
+	temporary.content = cloneBlockSlice(p.segment.content)
+	temporary.usage = cloneMap(p.segment.usage)
+	temporary.AppendTaskProgress(progress)
+	payload := protocol.Message(temporary.BuildAssistantMessage(p.ctx, p.sessionID, false))
+	delete(payload, "stop_reason")
+	payload["is_complete"] = false
+	if parentID := strings.TrimSpace(p.parentToolUseID); parentID != "" {
+		payload["parent_id"] = parentID
+		payload["parent_tool_use_id"] = parentID
+	}
+	return &payload
+}
+
+func (p *Processor) appendTaskProgress(
+	taskID string,
+	description string,
+	toolUseID string,
+	lastToolName string,
+	usage map[string]any,
+	additional map[string]any,
+) bool {
+	progress := newTaskProgressBlock(taskID, description, toolUseID, lastToolName, usage, additional)
+	if progress == nil {
+		return false
+	}
+	p.segment.AppendTaskProgress(progress)
+	return true
+}
+
+func newTaskProgressBlock(
+	taskID string,
+	description string,
+	toolUseID string,
+	lastToolName string,
+	usage map[string]any,
+	additional map[string]any,
+) map[string]any {
 	if strings.TrimSpace(taskID) == "" {
 		return nil
 	}
@@ -176,8 +291,7 @@ func (p *Processor) buildTaskProgressMessage(
 		"usage":          firstNonNilMap(usage, map[string]any{}),
 	}
 	copyTaskEventMetadata(progress, additional)
-	p.segment.AppendTaskProgress(progress)
-	return p.buildAssistantDurableMessage(false, false, "")
+	return progress
 }
 
 func (p *Processor) buildTaskNotificationMessage(taskID string, content string, toolUseID string, status string, outputFile string, usage map[string]any, additional map[string]any) *protocol.Message {
@@ -208,7 +322,7 @@ func copyTaskEventMetadata(metadata map[string]any, additional map[string]any) {
 	for _, key := range []string{
 		"agent_id", "agent_type", "child_session_id", "description", "last_tool_name", "model", "name",
 		"output_file", "parent_task_id", "prompt", "summary", "task_type", "team_name",
-		"transcript_path", "workflow_name",
+		"transcript_path", "workflow_name", "progress_type",
 	} {
 		if value := normalizeString(additional[key]); value != "" {
 			metadata[key] = value

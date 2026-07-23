@@ -96,7 +96,7 @@ export function ConnectorCredentialDialog({
       <UiDialogFormShell className="max-h-[84vh]" onSubmit={handleSubmit} size="sm">
         <UiDialogHeader
           icon={<KeyRound className="h-4 w-4" />}
-          iconClassName="h-9 w-9 rounded-[14px]"
+          iconClassName="h-9 w-9 radius-control-lg"
           onClose={onClose}
           subtitle={detail.title}
           title={copy.title}

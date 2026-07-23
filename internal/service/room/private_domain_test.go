@@ -12,6 +12,7 @@ import (
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
+	roomrealtime "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
 )
 
 func TestRoomServiceProjectsAgentPrivateDomain(t *testing.T) {
@@ -39,7 +40,7 @@ func TestRoomServiceProjectsAgentPrivateDomain(t *testing.T) {
 		t.Fatalf("创建 room 失败: %v", err)
 	}
 
-	realtime := roomsvc.NewRealtimeService(cfg, roomService, agentService, runtimectx.NewManager(), permissionctx.NewContext())
+	realtime := roomrealtime.NewService(cfg, roomService, agentService, runtimectx.NewManager(), permissionctx.NewContext())
 	createMessage := func(request protocol.CreateRoomDirectedMessageRequest) {
 		t.Helper()
 		if request.WakePolicy == "" {

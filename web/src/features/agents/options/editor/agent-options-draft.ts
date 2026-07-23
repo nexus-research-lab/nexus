@@ -108,6 +108,7 @@ export function buildAgentOptionsSubmission(
       max_turns: sourceOptions.max_turns,
       max_thinking_tokens: sourceOptions.max_thinking_tokens,
       mcp_servers: sourceOptions.mcp_servers,
+      skill_ids: sourceOptions.skill_ids,
       setting_sources: ["project"],
     },
     title: draft.title.trim(),

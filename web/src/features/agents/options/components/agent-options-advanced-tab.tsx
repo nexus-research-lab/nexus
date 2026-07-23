@@ -91,7 +91,7 @@ export function AgentOptionsAdvancedTab({
 
         {/* bypassPermissions 警告 */}
         {isBypassPermissionMode ? (
-          <div className="rounded-[15px] border border-[color:color-mix(in_srgb,var(--warning)_20%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] px-3.5 py-3 text-[11.5px] leading-[1.55] text-(--warning)">
+          <div className="surface-radius-md border border-[color:color-mix(in_srgb,var(--warning)_20%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] px-3.5 py-3 text-[11.5px] leading-[1.55] text-(--warning)">
             {t("agent_options.advanced.bypass_warning")}
           </div>
         ) : null}
@@ -113,7 +113,7 @@ export function AgentOptionsAdvancedTab({
         </div>
 
         {/* 安全提示 */}
-        <div className="flex gap-2.5 rounded-[15px] border border-[color-mix(in_srgb,var(--warning)_20%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] px-3 py-2.5">
+        <div className="surface-radius-md flex gap-2.5 border border-[color-mix(in_srgb,var(--warning)_20%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] px-3 py-2.5">
           <div className="mt-0.5 text-(--warning)">
             <svg
               width="15"
@@ -146,7 +146,7 @@ export function AgentOptionsAdvancedTab({
               <div
                 key={tool.name}
                 className={cn(
-                  "flex min-h-[60px] items-center justify-between gap-3 rounded-[15px] border px-3 py-2.5 transition-[background,border-color] duration-(--motion-duration-fast)",
+                  "surface-radius-md flex min-h-[60px] items-center justify-between gap-3 border px-3 py-2.5 transition-[background,border-color] duration-(--motion-duration-fast)",
                   isChecked
                     ? "border-[color-mix(in_srgb,var(--primary)_20%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--primary)_5%,transparent)]"
                     : "border-(--divider-subtle-color) bg-transparent hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background)"

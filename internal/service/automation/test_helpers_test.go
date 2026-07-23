@@ -16,7 +16,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/service/channels"
 	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
-	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
+	roomrealtime "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
@@ -172,8 +172,8 @@ type fakeRoomRunner struct {
 	contexts   map[string]*protocol.ConversationContextAggregate
 
 	mu         sync.Mutex
-	requests   []roomsvc.ChatRequest
-	interrupts []roomsvc.InterruptRequest
+	requests   []roomrealtime.ChatRequest
+	interrupts []roomrealtime.InterruptRequest
 	err        error
 }
 
@@ -199,7 +199,7 @@ func (f *fakeRoomRunner) GetConversationContext(_ context.Context, conversationI
 	}, nil
 }
 
-func (f *fakeRoomRunner) HandleChat(_ context.Context, request roomsvc.ChatRequest) error {
+func (f *fakeRoomRunner) HandleChat(_ context.Context, request roomrealtime.ChatRequest) error {
 	f.mu.Lock()
 	f.requests = append(f.requests, request)
 	err := f.err
@@ -267,25 +267,25 @@ func (f *fakeRoomRunner) HandleChat(_ context.Context, request roomsvc.ChatReque
 	return nil
 }
 
-func (f *fakeRoomRunner) Requests() []roomsvc.ChatRequest {
+func (f *fakeRoomRunner) Requests() []roomrealtime.ChatRequest {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	result := make([]roomsvc.ChatRequest, len(f.requests))
+	result := make([]roomrealtime.ChatRequest, len(f.requests))
 	copy(result, f.requests)
 	return result
 }
 
-func (f *fakeRoomRunner) HandleInterrupt(_ context.Context, request roomsvc.InterruptRequest) error {
+func (f *fakeRoomRunner) HandleInterrupt(_ context.Context, request roomrealtime.InterruptRequest) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.interrupts = append(f.interrupts, request)
 	return nil
 }
 
-func (f *fakeRoomRunner) Interrupts() []roomsvc.InterruptRequest {
+func (f *fakeRoomRunner) Interrupts() []roomrealtime.InterruptRequest {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	result := make([]roomsvc.InterruptRequest, len(f.interrupts))
+	result := make([]roomrealtime.InterruptRequest, len(f.interrupts))
 	copy(result, f.interrupts)
 	return result
 }

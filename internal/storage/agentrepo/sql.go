@@ -142,8 +142,8 @@ VALUES (`+r.dialect.BindList(3)+`, NULL, `+r.dialect.Bind(4)+`, `+r.dialect.Bind
 	if _, err = tx.ExecContext(ctx, `
 INSERT INTO runtimes (
     id, agent_id, provider, model, permission_mode, allowed_tools_json, disallowed_tools_json,
-    mcp_servers_json, max_turns, max_thinking_tokens, setting_sources_json, runtime_version
-) VALUES (`+r.dialect.BindList(12)+`)`,
+    mcp_servers_json, skill_ids_json, max_turns, max_thinking_tokens, setting_sources_json, runtime_version
+) VALUES (`+r.dialect.BindList(13)+`)`,
 		record.RuntimeID,
 		record.AgentID,
 		nullIfEmpty(record.Provider),
@@ -152,6 +152,7 @@ INSERT INTO runtimes (
 		record.AllowedToolsJSON,
 		record.DisallowedToolsJSON,
 		record.MCPServersJSON,
+		record.SkillIDsJSON,
 		record.MaxTurns,
 		record.MaxThinkingTokens,
 		record.SettingSourcesJSON,
@@ -211,7 +212,7 @@ WHERE agent_id = `+r.dialect.Bind(2),
 	if _, err = tx.ExecContext(ctx, fmt.Sprintf(`
 UPDATE runtimes
 SET provider = %s, model = %s, permission_mode = %s, allowed_tools_json = %s, disallowed_tools_json = %s,
-    mcp_servers_json = %s, max_turns = %s, max_thinking_tokens = %s, setting_sources_json = %s, updated_at = %s
+    mcp_servers_json = %s, skill_ids_json = %s, max_turns = %s, max_thinking_tokens = %s, setting_sources_json = %s, updated_at = %s
 WHERE agent_id = %s`,
 		r.dialect.Bind(1),
 		r.dialect.Bind(2),
@@ -222,8 +223,9 @@ WHERE agent_id = %s`,
 		r.dialect.Bind(7),
 		r.dialect.Bind(8),
 		r.dialect.Bind(9),
-		r.dialect.CurrentTimestamp(),
 		r.dialect.Bind(10),
+		r.dialect.CurrentTimestamp(),
+		r.dialect.Bind(11),
 	),
 		nullIfEmpty(record.Provider),
 		nullIfEmpty(record.Model),
@@ -231,6 +233,7 @@ WHERE agent_id = %s`,
 		record.AllowedToolsJSON,
 		record.DisallowedToolsJSON,
 		record.MCPServersJSON,
+		record.SkillIDsJSON,
 		record.MaxTurns,
 		record.MaxThinkingTokens,
 		record.SettingSourcesJSON,
@@ -303,6 +306,7 @@ SELECT
     COALESCE(rt.allowed_tools_json, '[]'),
     COALESCE(rt.disallowed_tools_json, '[]'),
     COALESCE(rt.mcp_servers_json, '{}'),
+    COALESCE(rt.skill_ids_json, '[]'),
     rt.max_turns,
     rt.max_thinking_tokens,
     COALESCE(rt.setting_sources_json, '[]')

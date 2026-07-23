@@ -115,11 +115,17 @@ func TestBuildAgentClientOptionsUsesProviderRuntimeEnv(t *testing.T) {
 	if options.Env[enableToolSearchEnvName] != "0" || options.Env[nexusEnableToolSearchEnvName] != "0" {
 		t.Fatalf("nxs ToolSearch 默认应关闭并显式投影到兼容环境变量: %+v", options.Env)
 	}
-	if options.Env[nexusAutoCompactPctOverrideEnvName] != defaultClaudeAutoCompactPctOverride {
+	if options.Env[nexusAutoCompactPctOverrideEnvName] != defaultAutoCompactPctOverride {
 		t.Fatalf("默认自动压缩阈值未注入: %+v", options.Env)
+	}
+	if _, ok := options.Env[claudeAutoCompactPctOverrideEnvName]; ok {
+		t.Fatalf("nxs 不应接收 Claude Code 自动压缩配置: %+v", options.Env)
 	}
 	if options.Env[nexusMaxContextTokensEnvName] != "300000" {
 		t.Fatalf("模型卡 context window 未注入 nxs: %+v", options.Env)
+	}
+	if _, ok := options.Env[claudeAutoCompactWindowEnvName]; ok {
+		t.Fatalf("nxs 不应接收 Claude Code 模型窗口配置: %+v", options.Env)
 	}
 	if options.Session.ResumeID != "sdk-session-1" {
 		t.Fatalf("resume session_id 不正确: %+v", options)
@@ -278,6 +284,102 @@ func TestBuildAgentClientOptionsProjectsToolSearchByRuntime(t *testing.T) {
 	}
 	if _, ok := claudeOptions.Env[enableToolSearchEnvName]; ok {
 		t.Fatalf("Claude runtime 不应接收 nxs ToolSearch 设置: %+v", claudeOptions.Env)
+	}
+}
+
+func TestBuildAgentClientOptionsProjectsPlatformSkillIDs(t *testing.T) {
+	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
+		RuntimeKind:      runtimeKindClaude,
+		SkillIDs:         []string{"ima-skill"},
+		SkillDirectories: []string{"/tmp/platform-skills"},
+	})
+	if err != nil {
+		t.Fatalf("构建带平台 Skill 的 options 失败: %v", err)
+	}
+	if len(options.Skills.Names) != 1 || options.Skills.Names[0] != "ima-skill" {
+		t.Fatalf("Skill ID 未投影到 SDK options: %#v", options.Skills)
+	}
+	if len(options.AdditionalDirectories) != 1 || options.AdditionalDirectories[0] != "/tmp/platform-skills" {
+		t.Fatalf("平台 Skill 根目录未投影: %#v", options.AdditionalDirectories)
+	}
+}
+
+func TestBuildAgentClientOptionsProjectsCompactionConfigByRuntime(t *testing.T) {
+	config := &RuntimeConfig{
+		Provider:      "glm",
+		BaseURL:       "https://provider.example.com",
+		Model:         "glm-5.2",
+		ContextWindow: 300_000,
+	}
+
+	nxsOptions, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{config: config}, AgentClientOptionsInput{
+		RuntimeKind: runtimeKindNXS,
+	})
+	if err != nil {
+		t.Fatalf("构建 nxs options 失败: %v", err)
+	}
+	if nxsOptions.Env[nexusAutoCompactPctOverrideEnvName] != defaultAutoCompactPctOverride ||
+		nxsOptions.Env[nexusMaxContextTokensEnvName] != "300000" {
+		t.Fatalf("nxs 压缩配置未按原生环境变量投影: %+v", nxsOptions.Env)
+	}
+	for _, key := range []string{claudeAutoCompactPctOverrideEnvName, claudeAutoCompactWindowEnvName} {
+		if _, ok := nxsOptions.Env[key]; ok {
+			t.Fatalf("nxs 不应接收 Claude Code 环境变量 %s: %+v", key, nxsOptions.Env)
+		}
+	}
+
+	claudeOptions, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{config: config}, AgentClientOptionsInput{
+		RuntimeKind: runtimeKindClaude,
+	})
+	if err != nil {
+		t.Fatalf("构建 Claude options 失败: %v", err)
+	}
+	if claudeOptions.Env[claudeAutoCompactPctOverrideEnvName] != defaultAutoCompactPctOverride ||
+		claudeOptions.Env[claudeAutoCompactWindowEnvName] != "300000" {
+		t.Fatalf("Claude Code 压缩配置未按原生环境变量投影: %+v", claudeOptions.Env)
+	}
+	for _, key := range []string{nexusAutoCompactPctOverrideEnvName, nexusMaxContextTokensEnvName} {
+		if _, ok := claudeOptions.Env[key]; ok {
+			t.Fatalf("Claude Code 不应接收 nxs 环境变量 %s: %+v", key, claudeOptions.Env)
+		}
+	}
+}
+
+func TestBuildAgentClientOptionsExplicitRuntimeWinsOverStaleEnvironment(t *testing.T) {
+	t.Setenv(nexusAgentRuntimeKindEnvName, runtimeKindClaude)
+	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{
+		config: &RuntimeConfig{
+			Provider:      "glm",
+			BaseURL:       "https://provider.example.com",
+			Model:         "glm-5.2",
+			ContextWindow: 300_000,
+		},
+	}, AgentClientOptionsInput{RuntimeKind: runtimeKindNXS})
+	if err != nil {
+		t.Fatalf("构建显式 nxs options 失败: %v", err)
+	}
+	if options.Runtime.Kind != agentclient.RuntimeNXS {
+		t.Fatalf("显式 runtime kind 被进程环境覆盖: %+v", options.Runtime)
+	}
+	if options.Env[nexusMaxContextTokensEnvName] != "300000" || options.Env[claudeAutoCompactWindowEnvName] != "" {
+		t.Fatalf("运行时环境未按显式 nxs 选择隔离: %+v", options.Env)
+	}
+}
+
+func TestBuildAgentClientOptionsAllowsClaudeCompactionOverride(t *testing.T) {
+	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
+		RuntimeKind: runtimeKindClaude,
+		ExtraEnv: map[string]string{
+			claudeAutoCompactPctOverrideEnvName: "80",
+			claudeAutoCompactWindowEnvName:      "128000",
+		},
+	})
+	if err != nil {
+		t.Fatalf("构建 Claude options 失败: %v", err)
+	}
+	if options.Env[claudeAutoCompactPctOverrideEnvName] != "80" ||
+		options.Env[claudeAutoCompactWindowEnvName] != "128000" {
+		t.Fatalf("ExtraEnv 应覆盖 Claude Code 压缩配置: %+v", options.Env)
 	}
 }
 

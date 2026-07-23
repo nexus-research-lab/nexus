@@ -1,5 +1,6 @@
 import type {
   SkillDetail,
+  SkillInfo,
   SkillSourceType,
 } from "@/types/capability/skill";
 
@@ -58,6 +59,18 @@ const SKILL_SOURCE_PRESENTATION: Record<
   },
 };
 
+function getSkillSourcePresentation(skill: SkillInfo): SkillSourcePresentation {
+  if (skill.source_type === "builtin") {
+    if (skill.source_kind === "nexus_platform") {
+      return { iconClassName: "text-(--icon-default)", label: "Nexus 平台库" };
+    }
+    if (skill.source_kind === "user_global") {
+      return { iconClassName: "text-(--status-info-soft-text)", label: "用户全局 Skill" };
+    }
+  }
+  return SKILL_SOURCE_PRESENTATION[skill.source_type];
+}
+
 const SKILL_LOCK_PRESENTATION: Record<"false" | "true", SkillLockPresentation> = {
   false: { icon: "puzzle", iconClassName: null },
   true: { icon: "lock", iconClassName: "text-(--warning)" },
@@ -88,7 +101,7 @@ const SKILL_MARKDOWN_TRANSFORMS: readonly SkillMarkdownTransform[] = [
 export function buildSkillDetailPresentation(
   skill: SkillDetail,
 ): SkillDetailPresentation {
-  const source = SKILL_SOURCE_PRESENTATION[skill.source_type];
+  const source = getSkillSourcePresentation(skill);
   const lock = SKILL_LOCK_PRESENTATION[String(skill.locked) as "false" | "true"];
   const displayName = skill.title || skill.name;
   const optionalFlagBadges: Array<SkillDetailBadge | false> = [

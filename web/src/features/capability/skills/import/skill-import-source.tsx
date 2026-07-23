@@ -50,7 +50,7 @@ function SkillImportModeTabs({
         return (
           <button
             className={cn(
-              "inline-flex min-h-8 items-center gap-1.5 rounded-[7px] px-3 text-xs font-medium transition-[background,color]",
+              "inline-flex min-h-8 items-center gap-1.5 radius-control-sm px-3 text-xs font-medium transition-[background,color]",
               isActive
                 ? "bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-(--primary)"
                 : "text-(--text-muted) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
@@ -130,7 +130,7 @@ function LocalSkillImportSource({
   return (
     <div className="rounded-[10px] border border-(--divider-subtle-color) px-3 py-3">
       <div className="flex items-start gap-3">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[7px] bg-[color:color-mix(in_srgb,var(--primary)_9%,transparent)] text-(--primary)">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center radius-control-sm bg-[color:color-mix(in_srgb,var(--primary)_9%,transparent)] text-(--primary)">
           <FolderUp className="h-4 w-4" />
         </div>
         <div className="min-w-0">

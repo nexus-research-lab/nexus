@@ -11,6 +11,9 @@ import (
 
 const internalTranscriptInterruptPromptPrefix = "[Request interrupted by user"
 
+// 这是 SDK 在输出预算耗尽后注入的续跑哨兵，不属于用户可见对话。
+const internalTranscriptMaxOutputRecoveryPrompt = "Output token limit hit. Resume directly — no apology, no recap of what you were doing. Pick up mid-thought if that is where the cut happened. Break remaining work into smaller pieces."
+
 // AttachResultSummary 把 runtime result 摘要挂到 assistant 上。
 func AttachResultSummary(assistant protocol.Message, result protocol.Message) (protocol.Message, bool) {
 	if protocol.MessageRole(assistant) != "assistant" || protocol.MessageRole(result) != "result" {
@@ -43,9 +46,22 @@ func AttachResultSummary(assistant protocol.Message, result protocol.Message) (p
 // ProjectResultMessage 把 result 投影成前端统一使用的 assistant 终态形态。
 func ProjectResultMessage(assistant protocol.Message, result protocol.Message) protocol.Message {
 	if merged, ok := AttachResultSummary(assistant, result); ok {
-		return merged
+		if hasPublicAssistantContent(normalizeMessageContentBlocks(merged["content"])) || resultNeedsAssistantProjection(result) {
+			return merged
+		}
+		return nil
+	}
+	if !resultNeedsAssistantProjection(result) {
+		return nil
 	}
 	return BuildSyntheticAssistantFromResult(result)
+}
+
+func resultNeedsAssistantProjection(result protocol.Message) bool {
+	if boolFromAny(result["is_error"]) || NormalizeResultSubtype(normalizeString(result["subtype"])) == "error" {
+		return true
+	}
+	return NormalizeDisplayText(normalizeString(result["result"])) != ""
 }
 
 // BuildAssistantResultSummary 只保留 assistant 终态需要的结果摘要。
@@ -69,6 +85,10 @@ func BuildAssistantResultSummary(result protocol.Message, assistantText string) 
 	if usage, ok := result["usage"].(map[string]any); ok && len(usage) > 0 {
 		summary["usage"] = usage
 	}
+	copyNonEmptyResultField(summary, result, "model_usage")
+	copyNonEmptyResultField(summary, result, "structured_output")
+	copyNonEmptyResultField(summary, result, "fast_mode_state")
+	copyNonEmptyResultField(summary, result, "runtime_subtype")
 	copyNonEmptyResultField(summary, result, "permission_denials")
 	copyNonEmptyResultField(summary, result, "errors")
 	copyNonEmptyResultField(summary, result, "terminal_reason")
@@ -156,6 +176,11 @@ func IsInternalTranscriptInterruptPrompt(content string) bool {
 	trimmed := strings.TrimSpace(content)
 	return strings.HasPrefix(trimmed, internalTranscriptInterruptPromptPrefix) &&
 		strings.HasSuffix(trimmed, "]")
+}
+
+// IsInternalTranscriptContinuationPrompt 判断是否为 SDK 输出预算耗尽后的内部续跑提示。
+func IsInternalTranscriptContinuationPrompt(content string) bool {
+	return strings.TrimSpace(content) == internalTranscriptMaxOutputRecoveryPrompt
 }
 
 // BuildSyntheticAssistantFromResult 在没有 assistant 可挂时构造一个终态 assistant。

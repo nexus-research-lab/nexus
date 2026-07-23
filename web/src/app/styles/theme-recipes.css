@@ -26,12 +26,14 @@
     position: relative;
     /* 中文注释：侧栏透出页面纹理，只用低对比边界标记导航区域。 */
     background: transparent;
-    border-right: 1px solid color-mix(in srgb, var(--divider-subtle-color) 44%, transparent);
+    border-right: 1px solid var(--divider-subtle-color);
   }
 
   .surface-panel {
     position: relative;
     overflow: hidden;
+    /* 中文注释：主面板默认只保留一档克制圆角，特殊壳层再显式提升。 */
+    border-radius: 12px;
     background: var(--card);
     border: 1px solid var(--surface-panel-border);
     box-shadow: var(--surface-panel-shadow);
@@ -39,6 +41,7 @@
 
   .surface-inset,
   .surface-card {
+    border-radius: 12px;
     background: transparent;
     border: 1px solid var(--divider-subtle-color);
     box-shadow: none;
@@ -53,12 +56,14 @@
     --surface-chip-border: var(--chip-default-border);
     --surface-chip-shadow: var(--chip-default-shadow);
 
+    border-radius: 8px;
     border: 1px solid var(--surface-chip-border);
     background: var(--surface-chip-background);
     box-shadow: var(--surface-chip-shadow);
   }
 
   .input-shell {
+    border-radius: 10px;
     background: color-mix(in srgb, var(--input-shell-background) 72%, transparent);
     border: 1px solid color-mix(in srgb, var(--input-shell-border) 92%, transparent);
     box-shadow: none;
@@ -79,23 +84,8 @@
     box-shadow: 0 0 0 1px color-mix(in srgb, var(--input-shell-focus-border, var(--material-input-focus-border)) 32%, transparent);
   }
 
-  /* 中文注释：主工作台输入区只保留实色面和细边界，避免把功能控件做成一块玻璃。 */
-  .workbench-input-shell {
-    background: var(--surface-panel-background);
-    border-color: var(--surface-panel-border);
-  }
-
-  .workbench-input-shell:hover {
-    background: var(--surface-panel-background);
-  }
-
-  .workbench-input-shell:focus-within {
-    background: var(--surface-panel-background);
-    border-color: var(--surface-interactive-active-border);
-    box-shadow: 0 0 0 1px color-mix(in srgb, var(--surface-interactive-active-border) 32%, transparent);
-  }
-
   .surface-popover {
+    border-radius: 16px;
     background: var(--surface-popover-background);
     border: 1px solid var(--surface-popover-border);
     box-shadow: var(--surface-popover-shadow);
@@ -104,6 +94,7 @@
   .dialog-shell {
     position: relative;
     overflow: hidden;
+    border-radius: 16px;
     background: var(--modal-dialog-surface-background);
     border: 1px solid var(--modal-dialog-surface-border);
     background-clip: padding-box;
@@ -111,11 +102,13 @@
   }
 
   .dialog-nav {
+    border-radius: 12px;
     background: var(--modal-nav-background);
     border: 1px solid var(--modal-nav-border);
   }
 
   .dialog-card {
+    border-radius: 12px;
     background: var(--modal-card-background);
     border: 1px solid var(--modal-card-border);
     box-shadow: var(--modal-card-shadow);
@@ -136,6 +129,7 @@
   }
 
   .dialog-input {
+    border-radius: 10px;
     background: var(--modal-input-background);
     border: 1px solid color-mix(in srgb, var(--modal-input-border) 92%, transparent);
     box-shadow: none;
@@ -162,6 +156,7 @@
   }
 
   .dialog-button-secondary {
+    border-radius: 10px;
     background: var(--modal-btn-secondary-background);
     border: 1px solid var(--modal-btn-secondary-border);
     box-shadow: none;
@@ -253,20 +248,37 @@
     color: var(--text-soft);
   }
 
-  .surface-radius-xl {
-    border-radius: 34px;
+  /* 中文注释：控件只允许四档圆角，避免业务组件继续出现 9/13/15px 等近似值。 */
+  .radius-control-xs {
+    border-radius: 6px;
   }
 
-  .surface-radius-lg {
+  .radius-control-sm {
+    border-radius: 8px;
+  }
+
+  .radius-control-md {
+    border-radius: 10px;
+  }
+
+  .radius-control-lg {
+    border-radius: 12px;
+  }
+
+  .surface-radius-xl {
     border-radius: 24px;
   }
 
+  .surface-radius-lg {
+    border-radius: 16px;
+  }
+
   .surface-radius-md {
-    border-radius: 18px;
+    border-radius: 12px;
   }
 
   .surface-radius-sm {
-    border-radius: 14px;
+    border-radius: 8px;
   }
 
   .segmented-control {
@@ -614,7 +626,7 @@
     .nexus-chat-feed .nexus-chat-message-round-expanded .nexus-chat-avatar {
       width: 2rem;
       height: 2rem;
-      border-radius: 0.625rem;
+      border-radius: 10px;
     }
 
     .nexus-chat-feed .nexus-chat-message-header {

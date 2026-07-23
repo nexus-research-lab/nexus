@@ -51,14 +51,14 @@ const TIMELINE_DENSITY_STYLES: Record<
   compact: {
     body: "px-3 py-3",
     header: "h-10 px-3",
-    section: "rounded-[14px] bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_30%,transparent)]",
+    section: "surface-radius-md bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_30%,transparent)]",
     subtitle: "text-[10px]",
     title: "text-[12.5px]",
   },
   regular: {
     body: "px-4 py-4",
     header: "h-11 px-4",
-    section: "rounded-[16px] bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_42%,transparent)]",
+    section: "surface-radius-lg bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_42%,transparent)]",
     subtitle: "text-[10.5px]",
     title: "text-[13px]",
   },
@@ -66,7 +66,7 @@ const TIMELINE_DENSITY_STYLES: Record<
 
 function ErrorTimelineBody({ presentation }: TimelineBodyViewProps) {
   return (
-    <p className="rounded-[14px] border border-[color:color-mix(in_srgb,var(--destructive)_28%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_7%,transparent)] px-3 py-2 text-[12px] font-semibold text-(--destructive)">
+    <p className="surface-radius-md border border-[color:color-mix(in_srgb,var(--destructive)_28%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_7%,transparent)] px-3 py-2 text-[12px] font-semibold text-(--destructive)">
       {presentation.message}
     </p>
   );

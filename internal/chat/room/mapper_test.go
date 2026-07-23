@@ -254,3 +254,31 @@ func TestSlotMessageMapperProjectsResultOntoAssistant(t *testing.T) {
 		t.Fatalf("重复正文不应继续出现在 result_summary.result: %+v", summary)
 	}
 }
+
+func TestSlotMessageMapperMapResultPreservesErrorSubtype(t *testing.T) {
+	mapper := NewSlotMessageMapper(
+		"chat:conversation:shared:test",
+		"chat-1",
+		"conversation-1",
+		"agent-1",
+		"slot-1",
+		"round-chat-1",
+		"agent-round-chat-1",
+	)
+
+	result, err := mapper.MapResult(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeResult,
+		Result: &sdkprotocol.ResultMessage{
+			Subtype: "error",
+			IsError: true,
+			Result:  "provider stream failed",
+			Errors:  []string{"provider stream failed"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("MapResult() error = %v", err)
+	}
+	if result.TerminalStatus != "error" || result.ResultSubtype != "error" {
+		t.Fatalf("MapResult() terminal = (%q, %q), want error/error", result.TerminalStatus, result.ResultSubtype)
+	}
+}

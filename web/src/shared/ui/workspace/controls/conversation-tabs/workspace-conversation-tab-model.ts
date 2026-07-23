@@ -24,7 +24,7 @@ const TAB_STATE_PRESENTATIONS = {
     closeClassName: "opacity-100",
     indicatorClassName: "bg-(--primary)",
     minWidth: ACTIVE_TAB_MIN_WIDTH,
-    rootClassName: "z-10 border-b border-b-[color:color-mix(in_srgb,var(--primary)_42%,var(--divider-subtle-color)_58%)] bg-transparent text-(--text-strong) shadow-none hover:bg-(--surface-interactive-hover-background)",
+    rootClassName: "z-10 border-b border-b-[color:color-mix(in_srgb,var(--primary)_18%,var(--divider-subtle-color)_82%)] bg-transparent text-(--text-strong) shadow-none hover:bg-(--surface-interactive-hover-background)",
   },
   inactive: {
     closeClassName: "opacity-70 group-hover:opacity-100",

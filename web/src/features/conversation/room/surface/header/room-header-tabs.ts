@@ -1,10 +1,10 @@
-import { Bot, FolderTree, History, Info, type LucideIcon } from "lucide-react";
+import { Bot, FolderTree, Info, type LucideIcon } from "lucide-react";
 
 import { CONVERSATION_TOUR_ANCHORS } from "@/features/onboarding/tours/conversation-tour";
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
 
-export type RoomSurfaceTabKey = "chat" | "history" | "workspace" | "about" | "subagents";
+export type RoomSurfaceTabKey = "chat" | "workspace" | "about" | "subagents";
 
 interface RoomHeaderTab {
   anchor?: string;
@@ -18,12 +18,6 @@ interface RoomHeaderTabDefinition extends Omit<RoomHeaderTab, "label"> {
 }
 
 const ROOM_HEADER_TAB_DEFINITIONS: readonly RoomHeaderTabDefinition[] = [
-  {
-    anchor: CONVERSATION_TOUR_ANCHORS.tab_history,
-    icon: History,
-    key: "history",
-    labelKey: "room.history",
-  },
   {
     icon: Bot,
     key: "subagents",

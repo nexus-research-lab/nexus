@@ -27,7 +27,7 @@
 
 @container workspace-surface-header (max-width: 920px) {
   .workspace-surface-header-with-session-tabs nav.workspace-surface-header-view-tabs {
-    flex: 1 1 0%;
+    flex: 0 0 auto;
     min-width: 0;
   }
 
@@ -70,6 +70,18 @@
     padding-inline: 0;
     padding-right: 0 !important;
     font-size: 0 !important;
+  }
+
+  .workspace-surface-history-trigger {
+    width: 2rem;
+    min-width: 2rem;
+    justify-content: center;
+    gap: 0;
+    padding-inline: 0;
+  }
+
+  .workspace-surface-history-trigger > span {
+    display: none;
   }
 
   .workspace-surface-header-trailing {

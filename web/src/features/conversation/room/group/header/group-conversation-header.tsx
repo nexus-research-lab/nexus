@@ -15,6 +15,7 @@ import type { RoomConversationView } from "@/types/conversation/conversation";
 import type { RoomSurfaceTabKey } from "@/features/conversation/room/surface/header/room-header-tabs";
 import { RoomHeaderGuideMenu } from "@/features/conversation/room/surface/header/room-header-guide-menu";
 import { buildRoomHeaderTabs } from "@/features/conversation/room/surface/header/room-header-tabs";
+import { RoomHistoryMenu } from "@/features/conversation/room/surface/history/room-history-menu";
 
 import { GroupMemberAvatarStack } from "./group-member-avatar-stack";
 
@@ -28,10 +29,12 @@ interface GroupConversationHeaderProps {
   onCloseActiveTab: () => void;
   onCloseConversation: (conversationId: string) => Promise<void>;
   onCreateConversation?: (title?: string) => Promise<string | null>;
+  onDeleteConversation: (conversationId: string) => Promise<string | null>;
   onManageRoom: (submission: RoomDialogSubmission) => Promise<void>;
   onOpenMemberManager: () => Promise<void>;
   onReplayTour?: () => void;
   onSelectConversation: (conversationId: string) => void;
+  onUpdateConversationTitle?: (conversationId: string, title: string) => Promise<void>;
   roomAvatar?: string | null;
   roomHostAgentId?: string | null;
   roomHostAutoReplyEnabled: boolean;
@@ -51,10 +54,12 @@ export const GroupConversationHeader = memo(function GroupConversationHeader({
   onCloseActiveTab,
   onCloseConversation,
   onCreateConversation,
+  onDeleteConversation,
   onManageRoom,
   onOpenMemberManager,
   onReplayTour,
   onSelectConversation,
+  onUpdateConversationTitle,
   roomAvatar,
   roomHostAgentId,
   roomHostAutoReplyEnabled,
@@ -88,7 +93,7 @@ export const GroupConversationHeader = memo(function GroupConversationHeader({
         leading={(
           <UiRoomAvatar
             avatar={roomAvatar}
-            className="h-full w-full rounded-[9px] border-0 shadow-none"
+            className="h-full w-full radius-control-sm border-0 shadow-none"
             maxMembers={4}
             members={roomMembers.map((member) => ({
               avatar: member.avatar,
@@ -99,9 +104,18 @@ export const GroupConversationHeader = memo(function GroupConversationHeader({
             title={headerTitle}
           />
         )}
-        leadingClassName="rounded-[9px]"
+        leadingClassName="radius-control-sm"
         onChangeTab={onChangeTab}
         onDismissActiveTab={onCloseActiveTab}
+        navigationTrailing={(
+          <RoomHistoryMenu
+            conversationId={conversationId}
+            conversations={conversations}
+            onDeleteConversation={onDeleteConversation}
+            onSelectConversation={onSelectConversation}
+            onUpdateConversationTitle={onUpdateConversationTitle}
+          />
+        )}
         tabs={roomTabs}
         tabsLeading={(
           <WorkspaceConversationTabs

@@ -87,7 +87,7 @@ function getItemStateClassName(item: UiActionMenuItem) {
 
 function getItemBodyClassName(item: UiActionMenuItem) {
   return cn(
-    "flex w-full cursor-pointer items-center justify-between gap-3 rounded-[10px] px-2.5 text-left transition-[background-color,color] duration-(--motion-duration-fast) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_18%,transparent)]",
+    "flex w-full cursor-pointer items-center justify-between gap-3 radius-control-md px-2.5 text-left transition-[background-color,color] duration-(--motion-duration-fast) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_18%,transparent)]",
     item.description ? "min-h-11 py-2" : "min-h-9 py-1.5",
     item.disabled && "cursor-not-allowed opacity-(--disabled-opacity)",
     getItemStateClassName(item),
@@ -149,7 +149,7 @@ export function UiActionMenu({
       ref={menuRef}
       aria-label={ariaLabel}
       className={cn(
-        "fixed z-[130] overflow-y-auto rounded-[14px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_96%,white)] p-1 shadow-[0_14px_32px_rgba(15,23,42,0.12)] backdrop-blur animate-in fade-in-0 zoom-in-95 duration-(--motion-duration-fast) data-[placement=bottom]:slide-in-from-top-1 data-[placement=top]:slide-in-from-bottom-1",
+        "fixed z-[130] surface-radius-lg overflow-y-auto border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_96%,white)] p-1 shadow-[0_14px_32px_rgba(15,23,42,0.12)] backdrop-blur animate-in fade-in-0 zoom-in-95 duration-(--motion-duration-fast) data-[placement=bottom]:slide-in-from-top-1 data-[placement=top]:slide-in-from-bottom-1",
         className,
       )}
       data-placement={menuPosition?.placement ?? "bottom"}

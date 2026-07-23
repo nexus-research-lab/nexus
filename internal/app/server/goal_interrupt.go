@@ -7,7 +7,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
-	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
+	roomrealtime "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
 )
 
 type goalInterruptDM interface {
@@ -15,7 +15,7 @@ type goalInterruptDM interface {
 }
 
 type goalInterruptRoom interface {
-	HandleInterrupt(context.Context, roomsvc.InterruptRequest) error
+	HandleInterrupt(context.Context, roomrealtime.InterruptRequest) error
 }
 
 type goalInterruptDispatcher struct {
@@ -23,7 +23,7 @@ type goalInterruptDispatcher struct {
 	room goalInterruptRoom
 }
 
-func newGoalInterruptDispatcher(dm *dmsvc.Service, room *roomsvc.RealtimeService) *goalInterruptDispatcher {
+func newGoalInterruptDispatcher(dm *dmsvc.Service, room *roomrealtime.Service) *goalInterruptDispatcher {
 	return &goalInterruptDispatcher{dm: dm, room: room}
 }
 
@@ -41,13 +41,13 @@ func (d *goalInterruptDispatcher) InterruptGoalRuntime(ctx context.Context, sess
 		if d.room == nil {
 			return nil
 		}
-		return d.room.HandleInterrupt(ctx, roomsvc.InterruptRequest{SessionKey: sessionKey})
+		return d.room.HandleInterrupt(ctx, roomrealtime.InterruptRequest{SessionKey: sessionKey})
 	case protocol.SessionKeyKindAgent:
 		if parsed.ChatType == "group" && strings.TrimSpace(parsed.Ref) != "" {
 			if d.room == nil {
 				return nil
 			}
-			return d.room.HandleInterrupt(ctx, roomsvc.InterruptRequest{
+			return d.room.HandleInterrupt(ctx, roomrealtime.InterruptRequest{
 				SessionKey: protocol.BuildRoomSharedSessionKey(parsed.Ref),
 			})
 		}

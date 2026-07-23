@@ -25,7 +25,7 @@ export function CapabilitySidebarItemView({
       className="min-h-[54px] gap-2.5 rounded-[8px] px-2 py-1.5"
       leading={(
         <span className={cn(
-          "flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_55%,transparent)] text-(--icon-muted)",
+          "flex h-8 w-8 shrink-0 items-center justify-center radius-control-sm border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_55%,transparent)] text-(--icon-muted)",
           active && "border-[color:color-mix(in_srgb,var(--primary)_22%,var(--divider-subtle-color)_78%)] text-(--primary)",
         )}>
           <Icon className="h-4 w-4" />

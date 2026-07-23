@@ -168,7 +168,7 @@ function MemoryDocumentRow({
   return (
     <button
       className={cn(
-        "group relative flex w-full items-start gap-2.5 rounded-[7px] px-2.5 py-2.5 text-left transition-colors",
+        "group relative flex w-full items-start gap-2.5 radius-control-sm px-2.5 py-2.5 text-left transition-colors",
         isSelected
           ? "bg-(--surface-interactive-active-background)"
           : "hover:bg-(--surface-interactive-hover-background)",

@@ -13,7 +13,6 @@ import (
 	agentpkg "github.com/nexus-research-lab/nexus/internal/service/agent"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
-	roompkg "github.com/nexus-research-lab/nexus/internal/service/room"
 	sessionpkg "github.com/nexus-research-lab/nexus/internal/service/session"
 
 	"github.com/go-chi/chi/v5"
@@ -22,13 +21,18 @@ import (
 
 type directoryBroadcaster func(context.Context, string, map[string]any)
 
+// roomPermissionModeSetter 只暴露 Agent 更新所需的 Room runtime 操作。
+type roomPermissionModeSetter interface {
+	SetPermissionModeForAgent(context.Context, string, sdkpermission.Mode) error
+}
+
 // Handlers 封装 Agent / Session 域 HTTP handlers。
 type Handlers struct {
 	api          *handlershared.API
 	agents       *agentpkg.Service
 	sessions     *sessionpkg.Service
 	runtime      *runtimectx.Manager
-	roomRealtime *roompkg.RealtimeService
+	roomRealtime roomPermissionModeSetter
 	prefs        *preferencessvc.Service
 	directory    directoryBroadcaster
 }
@@ -39,7 +43,7 @@ func New(
 	agents *agentpkg.Service,
 	sessions *sessionpkg.Service,
 	runtime *runtimectx.Manager,
-	roomRealtime *roompkg.RealtimeService,
+	roomRealtime roomPermissionModeSetter,
 	directory directoryBroadcaster,
 	prefs ...*preferencessvc.Service,
 ) *Handlers {

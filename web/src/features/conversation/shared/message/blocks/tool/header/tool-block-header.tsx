@@ -77,7 +77,7 @@ export function ToolBlockHeader({
     <div
       {...toggleProps}
       className={cn(
-        "grid min-w-0 grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-2 rounded-[7px] px-1.5 py-1 text-xs transition-colors",
+        "grid min-w-0 grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-2 radius-control-sm px-1.5 py-1 text-xs transition-colors",
         projection.canToggle
           ? "cursor-pointer hover:bg-(--surface-interactive-hover-background)"
           : "cursor-default",

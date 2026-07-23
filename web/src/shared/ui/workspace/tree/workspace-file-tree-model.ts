@@ -183,7 +183,7 @@ export function getWorkspaceFileTreeRowPresentation({
     ),
     paddingLeft: 8 + depth * 12,
     rowClassName: cn(
-      "group relative flex min-w-full w-max items-center rounded-xl pr-2 text-left transition-colors hover:bg-(--surface-interactive-hover-background)",
+      "group relative flex min-w-full w-max items-center radius-control-md pr-2 text-left transition-colors hover:bg-(--surface-interactive-hover-background)",
       isSelected
         ? "bg-[color:color-mix(in_srgb,var(--foreground)_4%,transparent)] text-(--text-strong)"
         : "text-(--text-default)",

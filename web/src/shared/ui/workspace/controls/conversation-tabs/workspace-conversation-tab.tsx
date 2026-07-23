@@ -63,7 +63,7 @@ export function WorkspaceConversationTab({
         />
         <span className="min-w-0 truncate">{title}</span>
         {presentation.showExternalSessionLabel ? (
-          <span className="ml-1 inline-flex shrink-0 items-center rounded-[5px] border border-[color:color-mix(in_srgb,var(--primary)_20%,transparent)] px-1 py-px text-[8.5px] font-bold leading-none text-(--primary)">
+          <span className="ml-1 inline-flex shrink-0 items-center radius-control-xs border border-[color:color-mix(in_srgb,var(--primary)_20%,transparent)] px-1 py-px text-[8.5px] font-bold leading-none text-(--primary)">
             IM
           </span>
         ) : null}

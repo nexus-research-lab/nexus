@@ -22,6 +22,7 @@ type fakeRuntimeClient struct {
 	sentContents       []string
 	reconfigureErr     error
 	disconnectCalls    int
+	disconnectErr      error
 	stoppedTasks       []string
 	taskMessages       []fakeTaskMessage
 	stopTaskErr        error
@@ -113,7 +114,7 @@ func (c *fakeRuntimeClient) SetPermissionMode(_ context.Context, mode sdkpermiss
 
 func (c *fakeRuntimeClient) Disconnect(context.Context) error {
 	c.disconnectCalls++
-	return nil
+	return c.disconnectErr
 }
 
 func (c *fakeRuntimeClient) Reconfigure(_ context.Context, options agentclient.Options) error {
@@ -491,6 +492,36 @@ func TestManagerGetOrCreateReplacesClientAfterTransportClosed(t *testing.T) {
 	}
 	if stale.disconnectCalls != 1 {
 		t.Fatalf("旧 client 应被关闭一次: %d", stale.disconnectCalls)
+	}
+}
+
+func TestManagerRuntimeSwitchDoesNotFailOnStaleClientCleanup(t *testing.T) {
+	staleErr := errors.New("old runtime stream failed after provider error")
+	stale := &fakeRuntimeClient{disconnectErr: staleErr}
+	fresh := &fakeRuntimeClient{}
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{clients: []*fakeRuntimeClient{stale, fresh}})
+	sessionKey := "agent:nexus:ws:dm:runtime-switch-cleanup"
+
+	first, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{
+		Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeClaude},
+	})
+	if err != nil {
+		t.Fatalf("首次创建 Claude client 失败: %v", err)
+	}
+	second, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{
+		Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeNXS},
+	})
+	if err != nil {
+		t.Fatalf("旧 runtime 清理错误不应阻断切换: %v", err)
+	}
+	if first != stale || second != fresh {
+		t.Fatalf("runtime 切换 client 不正确: first=%#v second=%#v", first, second)
+	}
+	if stale.disconnectCalls != 1 {
+		t.Fatalf("旧 client 应尝试关闭一次: %d", stale.disconnectCalls)
+	}
+	if kind := manager.RuntimeKind(sessionKey); kind != agentclient.RuntimeNXS {
+		t.Fatalf("切换后 RuntimeKind() = %q, want nxs", kind)
 	}
 }
 

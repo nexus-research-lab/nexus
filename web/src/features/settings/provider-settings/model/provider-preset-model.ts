@@ -83,6 +83,10 @@ export function getSupportedPresetFormat(
     return null;
   }
   const targetKind = providerKind ?? preset.provider_kind;
+  const defaultFormat = getPresetFormat(preset);
+  if (defaultFormat && formatSupportsProviderKind(defaultFormat, targetKind)) {
+    return defaultFormat;
+  }
   return preset.formats.find((item) => item.provider_kind === targetKind)
     ?? preset.formats.find((item) => (
       formatSupportsProviderKind(item, targetKind)

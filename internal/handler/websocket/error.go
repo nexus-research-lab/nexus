@@ -75,7 +75,7 @@ func chatErrorDetail(err error) string {
 		if handlershared.IsClientMessageError(err) || handlershared.IsStructuredSessionKeyError(err) {
 			return message
 		}
-		return "Agent 启动失败，请检查 Claude Code、Provider 配置和日志后重试。"
+		return "Agent 启动失败，请检查当前 Agent Runtime、Provider 配置和日志后重试。"
 	}
 }
 

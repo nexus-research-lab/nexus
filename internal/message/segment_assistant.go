@@ -1,6 +1,7 @@
 package message
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -17,6 +18,9 @@ type AssistantSegment struct {
 	usage      map[string]any
 	timestamp  int64
 	streamSlot map[int]int
+	// toolInputJSON 按逻辑块保存流式 input_json_delta，避免把半截 JSON
+	// 混进对外 content_block；解析成功后才更新 tool_use.input。
+	toolInputJSON map[int]string
 }
 
 // Reset 重置当前段。
@@ -28,6 +32,7 @@ func (s *AssistantSegment) Reset() {
 	s.usage = nil
 	s.timestamp = 0
 	s.streamSlot = nil
+	s.toolInputJSON = nil
 }
 
 // Start 开始新的 assistant 段。
@@ -65,18 +70,29 @@ func (s *AssistantSegment) ApplyBlock(index int, block map[string]any) int {
 		s.content = append(s.content, map[string]any{"type": "text", "text": ""})
 	}
 	s.content[logicalIndex] = clonedBlock
+	if normalizeString(clonedBlock["type"]) == "tool_use" {
+		if s.toolInputJSON == nil {
+			s.toolInputJSON = map[int]string{}
+		}
+		s.toolInputJSON[logicalIndex] = ""
+	}
 	return logicalIndex
 }
 
 // ApplyDelta 应用流式增量。
 func (s *AssistantSegment) ApplyDelta(index int, delta map[string]any) (int, bool) {
 	s.EnsureStarted()
+	inferredType := inferBlockTypeFromDelta(delta)
 	logicalIndex := s.resolveExistingLogicalIndex(index)
 	if logicalIndex < 0 {
-		logicalIndex = s.resolveLogicalIndex(index, inferBlockTypeFromDelta(delta))
+		logicalIndex = s.resolveLogicalIndex(index, inferredType)
 	}
 	for len(s.content) <= logicalIndex {
-		s.content = append(s.content, map[string]any{"type": "text", "text": ""})
+		blockType := "text"
+		if len(s.content) == logicalIndex && inferredType != "" {
+			blockType = inferredType
+		}
+		s.content = append(s.content, emptyAssistantBlock(blockType))
 	}
 	block := s.content[logicalIndex]
 	if block == nil {
@@ -93,6 +109,18 @@ func (s *AssistantSegment) ApplyDelta(index int, delta map[string]any) (int, boo
 		block["thinking"] = rawString(block["thinking"]) + rawString(delta["thinking"])
 	case blockType == "thinking" && deltaType == "signature_delta":
 		block["signature"] = rawString(block["signature"]) + rawString(delta["signature"])
+	case blockType == "tool_use" && deltaType == "input_json_delta":
+		if s.toolInputJSON == nil {
+			s.toolInputJSON = map[int]string{}
+		}
+		partial := s.toolInputJSON[logicalIndex] + rawString(delta["partial_json"])
+		s.toolInputJSON[logicalIndex] = partial
+		input := map[string]any{}
+		if strings.TrimSpace(partial) != "" && json.Unmarshal([]byte(partial), &input) == nil {
+			block["input"] = input
+		} else if block["input"] == nil {
+			block["input"] = map[string]any{}
+		}
 	default:
 		return logicalIndex, false
 	}
@@ -107,7 +135,12 @@ func (s *AssistantSegment) UpdateMeta(model string, usage map[string]any, stopRe
 		s.model = model
 	}
 	if len(usage) > 0 {
-		s.usage = cloneMap(usage)
+		if s.usage == nil {
+			s.usage = map[string]any{}
+		}
+		for key, value := range usage {
+			s.usage[key] = value
+		}
 	}
 	stopReason = strings.TrimSpace(stopReason)
 	if stopReason != "" {
@@ -272,8 +305,14 @@ func (s *AssistantSegment) normalizedContent() []map[string]any {
 type assistantBlockMatcher func(map[string]any, map[string]any) bool
 
 var assistantBlockMatchers = map[string]assistantBlockMatcher{
-	"thinking":      func(map[string]any, map[string]any) bool { return true },
-	"tool_use":      blockFieldMatcher("id"),
+	"thinking": func(map[string]any, map[string]any) bool { return true },
+	"tool_use": func(current map[string]any, incoming map[string]any) bool {
+		currentID := normalizeString(current["id"])
+		incomingID := normalizeString(incoming["id"])
+		// 无 content_block_start 时，流式 input_json_delta 会先留下无 ID
+		// 占位；最终 assistant 快照到达后应替换它，而不是生成孤儿工具块。
+		return currentID == "" || incomingID == "" || currentID == incomingID
+	},
 	"tool_result":   blockFieldMatcher("tool_use_id"),
 	"task_progress": blockFieldMatcher("task_id"),
 	protocol.ContentBlockTypeWorkspaceFileArtifact: func(current map[string]any, incoming map[string]any) bool {
@@ -390,7 +429,20 @@ func inferBlockTypeFromDelta(delta map[string]any) string {
 		return "thinking"
 	case "text_delta":
 		return "text"
+	case "input_json_delta":
+		return "tool_use"
 	default:
 		return ""
+	}
+}
+
+func emptyAssistantBlock(blockType string) map[string]any {
+	switch blockType {
+	case "thinking":
+		return map[string]any{"type": "thinking", "thinking": ""}
+	case "tool_use":
+		return map[string]any{"type": "tool_use", "input": map[string]any{}}
+	default:
+		return map[string]any{"type": "text", "text": ""}
 	}
 }

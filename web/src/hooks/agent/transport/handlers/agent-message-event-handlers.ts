@@ -4,7 +4,10 @@ import {
 } from "@/lib/conversation/message-protocol";
 import type { AssistantMessage } from "@/types/conversation/message/entity";
 
-import { normalizeAssistantMessage } from "../../message/assistant-message-model";
+import {
+  normalizeAssistantMessage,
+  resolveAssistantResultErrorMessage,
+} from "../../message/assistant-message-model";
 import { upsertMessage } from "../../message/message-collection-model";
 import type {
   AgentEventHandler,
@@ -51,6 +54,12 @@ const handleMessage: AgentEventHandler = (event, context) => {
     context.runtime.trackAssistantMessage(
       normalizedMessage as AssistantMessage,
     );
+    const resultError = resolveAssistantResultErrorMessage(
+      normalizedMessage.result_summary,
+    );
+    if (resultError) {
+      context.state.setError(resultError);
+    }
   }
 };
 

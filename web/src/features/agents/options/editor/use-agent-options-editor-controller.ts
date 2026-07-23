@@ -235,6 +235,7 @@ function buildIdentityProps({
     defaultProvider: providerOptions.defaultProvider,
     description: draft.description,
     isValidatingName: validation.isValidating,
+    isMain: source.kind === "edit" && source.isMain,
     model: draft.model,
     nameValidation: validation.result,
     onAvatarChange: (value: string) => updateField("avatar", value),

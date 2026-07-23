@@ -78,14 +78,22 @@ export function projectComposerRuntime({
   queueItemCount: number;
   runtimePhase: AgentConversationRuntimePhase | null;
 }): ComposerRuntimeProjection {
-  const isDispatching = [isLoading, runtimePhase === "sending"].every(Boolean);
+  // 压缩由独立 runtime_status 事件驱动，可能先于 is_loading 投影到前端。
+  // 这里让显式 phase 优先，避免压缩状态在 loading 标志同步前被吞掉。
+  const isCompacting = runtimePhase === "compacting";
+  const isRuntimeActive = isLoading || isCompacting;
+  const isDispatching = [isLoading, runtimePhase === "sending"].every(
+    Boolean,
+  );
   return {
-    activity: isLoading
-      ? RUNTIME_ACTIVITY_BY_PHASE[runtimePhase ?? "idle"] ?? "replying"
-      : null,
-    canStopGeneration: [isLoading, !isDispatching].every(Boolean),
+    activity: isCompacting
+      ? "compacting"
+      : isLoading
+        ? RUNTIME_ACTIVITY_BY_PHASE[runtimePhase ?? "idle"] ?? "replying"
+        : null,
+    canStopGeneration: [isRuntimeActive, !isDispatching].every(Boolean),
     isAwaitingPermission: runtimePhase === "awaiting_permission",
-    sessionBusy: [isLoading, queueItemCount > 0].some(Boolean),
+    sessionBusy: [isRuntimeActive, queueItemCount > 0].some(Boolean),
   };
 }
 

@@ -47,9 +47,11 @@ type Output struct {
 
 // Processor 负责把 SDK 消息转换成统一协议语义。
 type Processor struct {
-	ctx       MessageContext
-	sessionID string
-	segment   AssistantSegment
+	ctx                 MessageContext
+	sessionID           string
+	segment             AssistantSegment
+	parentToolUseID     string
+	toolProgressElapsed map[string]float64
 
 	streamStarted                bool
 	streamTerminalObserved       bool
@@ -59,8 +61,9 @@ type Processor struct {
 // NewProcessor 创建统一消息处理器。
 func NewProcessor(ctx MessageContext, sessionID string) *Processor {
 	return &Processor{
-		ctx:       ctx,
-		sessionID: strings.TrimSpace(sessionID),
+		ctx:                 ctx,
+		sessionID:           strings.TrimSpace(sessionID),
+		toolProgressElapsed: map[string]float64{},
 	}
 }
 
@@ -112,6 +115,7 @@ var streamEventHandlers = map[string]streamEventHandler{
 	"message_start":       handleMessageStartStream,
 	"content_block_start": handleContentBlockStartStream,
 	"content_block_delta": handleContentBlockDeltaStream,
+	"content_block_stop":  handleContentBlockStopStream,
 	"message_delta":       handleMessageDeltaStream,
 	"message_stop":        handleMessageStopStream,
 }
@@ -160,7 +164,15 @@ func handleTaskProgress(p *Processor, message sdkprotocol.ReceivedMessage, outpu
 }
 
 func handleToolProgress(p *Processor, message sdkprotocol.ReceivedMessage, output Output) Output {
-	return appendDurableMessage(output, p.processToolProgressMessage(message))
+	progress, ephemeral := p.processToolProgressMessage(message)
+	if progress == nil {
+		return output
+	}
+	if ephemeral {
+		output.EphemeralMessages = append(output.EphemeralMessages, *progress)
+		return output
+	}
+	return appendDurableMessage(output, progress)
 }
 
 func handleTaskNotification(p *Processor, message sdkprotocol.ReceivedMessage, output Output) Output {
@@ -193,6 +205,9 @@ func (p *Processor) processStreamEvent(message sdkprotocol.ReceivedMessage, outp
 		payload = message.Stream.Data
 	}
 	eventType := normalizeString(payload["type"])
+	if message.ParentToolUseID != nil || eventType == "message_start" {
+		p.parentToolUseID = normalizePointerString(message.ParentToolUseID)
+	}
 	handler := streamEventHandlers[eventType]
 	if handler == nil {
 		return output
@@ -226,9 +241,7 @@ func handleContentBlockStartStream(p *Processor, payload map[string]any, output 
 		return output
 	}
 	logicalIndex := p.segment.ApplyBlock(normalizeInt(payload["index"]), block)
-	if normalizeString(block["type"]) != "tool_use" {
-		output.StreamEvents = append(output.StreamEvents, p.buildBlockStreamPayload("content_block_start", logicalIndex, block))
-	}
+	output.StreamEvents = append(output.StreamEvents, p.buildBlockStreamPayload("content_block_start", logicalIndex, block))
 	return output
 }
 
@@ -239,9 +252,14 @@ func handleContentBlockDeltaStream(p *Processor, payload map[string]any, output 
 		return output
 	}
 	block := p.segment.CurrentBlock(logicalIndex)
-	if normalizeString(block["type"]) != "tool_use" {
-		output.StreamEvents = append(output.StreamEvents, p.buildBlockStreamPayload("content_block_delta", logicalIndex, block))
-	}
+	output.StreamEvents = append(output.StreamEvents, p.buildBlockStreamPayload("content_block_delta", logicalIndex, block))
+	return output
+}
+
+func handleContentBlockStopStream(p *Processor, payload map[string]any, output Output) Output {
+	streamPayload := p.buildStreamPayload("content_block_stop")
+	streamPayload.Data["index"] = normalizeInt(payload["index"])
+	output.StreamEvents = append(output.StreamEvents, streamPayload)
 	return output
 }
 
@@ -277,12 +295,16 @@ func (p *Processor) buildMessageMetaStreamPayload(eventType string) StreamPayloa
 }
 
 func (p *Processor) processAssistantMessage(message sdkprotocol.ReceivedMessage) *protocol.Message {
+	if message.Assistant == nil {
+		return nil
+	}
 	// 同一轮内 assistant 会分多段（不同 message id）。直播时靠 stream 的
 	// message_start 轮转段；历史投影没有 stream 事件，必须在快照 id 变化时
 	// 主动轮转，否则整轮坍缩进第一个 id、内容相互覆盖。
 	incomingID := strings.TrimSpace(message.Assistant.Message.ID)
-	if !p.segment.IsStarted() ||
-		(incomingID != "" && incomingID != p.segment.MessageID()) {
+	isNewSegment := !p.segment.IsStarted() ||
+		(incomingID != "" && incomingID != p.segment.MessageID())
+	if isNewSegment {
 		p.segment.Start(
 			message.Assistant.Message.ID,
 			message.Assistant.Message.Model,
@@ -292,6 +314,12 @@ func (p *Processor) processAssistantMessage(message sdkprotocol.ReceivedMessage)
 		p.streamStarted = false
 		p.streamTerminalObserved = false
 		p.lastDurableAssistantSnapshot = nil
+		// 历史回放没有 message_start；新段必须以 assistant 自身的父工具
+		// 标识为真源，避免沿用上一段子 Agent 的 parent。
+		p.parentToolUseID = normalizePointerString(message.Assistant.ParentToolUseID)
+	} else if incomingParentID := normalizePointerString(message.Assistant.ParentToolUseID); incomingParentID != "" {
+		// 实时流先建立段、assistant 快照后到达时，用更完整的快照补齐 parent。
+		p.parentToolUseID = incomingParentID
 	}
 	content := normalizeContentBlocks(message.Assistant.Message.Content)
 	p.segment.ReplaceFromSnapshot(
@@ -300,9 +328,15 @@ func (p *Processor) processAssistantMessage(message sdkprotocol.ReceivedMessage)
 		firstNonNilMap(message.Assistant.Message.Usage, p.segment.Usage()),
 		normalizeAnyString(message.Assistant.Message.StopReason),
 	)
+	if !hasPublicAssistantContent(p.segment.normalizedContent()) {
+		return nil
+	}
 	includeStopReason := !p.streamStarted || p.streamTerminalObserved
 	isComplete := includeStopReason && strings.TrimSpace(p.segment.StopReason()) != ""
-	parentID := normalizePointerString(message.Assistant.ParentToolUseID)
+	parentID := firstNonEmpty(
+		normalizePointerString(message.Assistant.ParentToolUseID),
+		p.parentToolUseID,
+	)
 	durable := p.buildAssistantDurableMessage(isComplete, includeStopReason, parentID)
 	if durable == nil {
 		return nil
@@ -321,16 +355,17 @@ func (p *Processor) buildStreamPayload(streamType string) StreamPayload {
 	return StreamPayload{
 		MessageID: p.segment.MessageID(),
 		Data: map[string]any{
-			"message_id":      p.segment.MessageID(),
-			"session_key":     p.ctx.SessionKey,
-			"room_id":         emptyToNil(p.ctx.RoomID),
-			"conversation_id": emptyToNil(p.ctx.ConversationID),
-			"agent_id":        p.ctx.AgentID,
-			"round_id":        p.ctx.RoundID,
-			"agent_round_id":  emptyToNil(p.ctx.AgentRoundID),
-			"session_id":      emptyToNil(p.sessionID),
-			"type":            streamType,
-			"timestamp":       time.Now().UnixMilli(),
+			"message_id":         p.segment.MessageID(),
+			"session_key":        p.ctx.SessionKey,
+			"room_id":            emptyToNil(p.ctx.RoomID),
+			"conversation_id":    emptyToNil(p.ctx.ConversationID),
+			"agent_id":           p.ctx.AgentID,
+			"round_id":           p.ctx.RoundID,
+			"agent_round_id":     emptyToNil(p.ctx.AgentRoundID),
+			"parent_tool_use_id": emptyToNil(p.parentToolUseID),
+			"session_id":         emptyToNil(p.sessionID),
+			"type":               streamType,
+			"timestamp":          time.Now().UnixMilli(),
 		},
 	}
 }
@@ -406,6 +441,7 @@ func (p *Processor) buildAssistantDurableMessage(
 	parentID = strings.TrimSpace(parentID)
 	if parentID != "" {
 		payload["parent_id"] = parentID
+		payload["parent_tool_use_id"] = parentID
 	}
 	if assistantMessagesEqual(p.lastDurableAssistantSnapshot, payload) {
 		return nil
@@ -420,11 +456,13 @@ func assistantMessagesEqual(previous protocol.Message, current protocol.Message)
 	}
 	return normalizeString(previous["message_id"]) == normalizeString(current["message_id"]) &&
 		normalizeString(previous["parent_id"]) == normalizeString(current["parent_id"]) &&
+		normalizeString(previous["parent_tool_use_id"]) == normalizeString(current["parent_tool_use_id"]) &&
 		normalizeString(previous["model"]) == normalizeString(current["model"]) &&
 		normalizeString(previous["stop_reason"]) == normalizeString(current["stop_reason"]) &&
 		normalizeString(previous["session_id"]) == normalizeString(current["session_id"]) &&
 		normalizeString(previous["round_id"]) == normalizeString(current["round_id"]) &&
 		boolValue(previous["is_complete"]) == boolValue(current["is_complete"]) &&
+		reflect.DeepEqual(previous["usage"], current["usage"]) &&
 		reflect.DeepEqual(previous["content"], current["content"])
 }
 

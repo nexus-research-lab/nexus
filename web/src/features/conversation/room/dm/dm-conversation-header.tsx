@@ -5,6 +5,7 @@ import { memo } from "react";
 import { CONVERSATION_TOUR_ANCHORS } from "@/features/onboarding/tours/conversation-tour";
 import { RoomHeaderGuideMenu } from "@/features/conversation/room/surface/header/room-header-guide-menu";
 import { buildRoomHeaderTabs } from "@/features/conversation/room/surface/header/room-header-tabs";
+import { RoomHistoryMenu } from "@/features/conversation/room/surface/history/room-history-menu";
 import { useSidebarStore } from "@/store/sidebar";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
@@ -23,8 +24,10 @@ interface DmConversationHeaderProps {
   onCloseActiveTab: () => void;
   onCloseConversation: (conversationId: string) => Promise<void>;
   onCreateConversation?: (title?: string) => Promise<string | null>;
+  onDeleteConversation: (conversationId: string) => Promise<string | null>;
   onReplayTour?: () => void;
   onSelectConversation: (conversationId: string) => void;
+  onUpdateConversationTitle?: (conversationId: string, title: string) => Promise<void>;
 }
 
 export const DmConversationHeader = memo(function DmConversationHeader({
@@ -37,8 +40,10 @@ export const DmConversationHeader = memo(function DmConversationHeader({
   onCloseActiveTab,
   onCloseConversation,
   onCreateConversation,
+  onDeleteConversation,
   onReplayTour,
   onSelectConversation,
+  onUpdateConversationTitle,
 }: DmConversationHeaderProps) {
   const { t } = useI18n();
   const widePanelCollapsed = useSidebarStore((state) => state.wide_panel_collapsed);
@@ -58,6 +63,15 @@ export const DmConversationHeader = memo(function DmConversationHeader({
       )}
       onChangeTab={onChangeTab}
       onDismissActiveTab={onCloseActiveTab}
+      navigationTrailing={(
+        <RoomHistoryMenu
+          conversationId={conversationId}
+          conversations={conversations}
+          onDeleteConversation={onDeleteConversation}
+          onSelectConversation={onSelectConversation}
+          onUpdateConversationTitle={onUpdateConversationTitle}
+        />
+      )}
       tabs={buildRoomHeaderTabs(t)}
       tabsLeading={(
         <WorkspaceConversationTabs

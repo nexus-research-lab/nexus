@@ -4,6 +4,7 @@ import { ASK_USER_QUESTION_TOOL_NAME } from "../../message-tool-names";
 
 export type MessageActivityState =
   | "sending"
+  | "compacting"
   | "thinking"
   | "replying"
   | "browsing"

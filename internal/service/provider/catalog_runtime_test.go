@@ -446,6 +446,27 @@ func TestProviderPresetDefaultsAndRuntimeGate(t *testing.T) {
 	}
 }
 
+func TestCustomProviderDefaultsToAnthropicMessages(t *testing.T) {
+	ctx := context.Background()
+	service, _ := newTestService(t)
+
+	custom, err := service.Create(ctx, CreateInput{
+		Provider:  "custom-anthropic",
+		PresetKey: presetCustom,
+		AuthToken: "custom-key",
+		BaseURL:   "https://proxy.example.com",
+	})
+	if err != nil {
+		t.Fatalf("创建 custom provider 失败: %v", err)
+	}
+	if custom.APIFormat != APIFormatAnthropicMessages {
+		t.Fatalf("custom provider 默认 API format 不正确: got=%s", custom.APIFormat)
+	}
+	if custom.ModelsPath != "/v1/models" {
+		t.Fatalf("custom provider 默认 models path 不正确: got=%s", custom.ModelsPath)
+	}
+}
+
 func TestBuiltinProviderEndpointUsesCatalog(t *testing.T) {
 	ctx := context.Background()
 	service, _ := newTestService(t)

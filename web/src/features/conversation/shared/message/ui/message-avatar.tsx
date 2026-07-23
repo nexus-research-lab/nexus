@@ -6,8 +6,8 @@ import { cn } from "@/shared/ui/class-name";
 type MessageAvatarSize = "full" | "compact";
 
 const AVATAR_SIZE_CLASS_MAP: Record<MessageAvatarSize, string> = {
-  full: "h-10 w-10 rounded-xl",
-  compact: "h-6 w-6 rounded-lg",
+  full: "h-10 w-10 surface-radius-md",
+  compact: "h-6 w-6 radius-control-sm",
 };
 
 export function MessageAvatar({

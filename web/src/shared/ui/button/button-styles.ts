@@ -21,10 +21,10 @@ const BUTTON_BASE_CLASS_NAME =
   "inline-flex items-center justify-center gap-1.5 border font-semibold transition-[background,border-color,color,box-shadow] duration-(--motion-duration-fast) disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_24%,transparent)]";
 
 const BUTTON_SIZE_CLASS_MAP: Record<UiButtonSize, string> = {
-  xs: "min-h-7 rounded-[9px] px-2 py-1 text-[11px]",
-  sm: "min-h-8 rounded-[10px] px-2.5 py-1.5 text-[12px]",
-  md: "min-h-9 rounded-[12px] px-3.5 py-2 text-[13px]",
-  lg: "min-h-10 rounded-[14px] px-4 py-2.5 text-sm",
+  xs: "min-h-7 radius-control-xs px-2 py-1 text-[11px]",
+  sm: "min-h-8 radius-control-sm px-2.5 py-1.5 text-[12px]",
+  md: "min-h-9 radius-control-md px-3.5 py-2 text-[13px]",
+  lg: "min-h-10 radius-control-lg px-4 py-2.5 text-sm",
 };
 
 const BUTTON_VARIANT_TONE_CLASS_MAP: Record<UiButtonVariant, Record<UiButtonTone, string>> = {
@@ -66,10 +66,10 @@ const ICON_BUTTON_BASE_CLASS_NAME =
   "inline-flex items-center justify-center border transition-[background,border-color,color,box-shadow] duration-(--motion-duration-fast) disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_24%,transparent)]";
 
 const ICON_BUTTON_SIZE_CLASS_MAP: Record<UiIconButtonSize, string> = {
-  xs: "h-6 w-6 rounded-[8px]",
-  sm: "h-7 w-7 rounded-[9px]",
-  md: "h-8 w-8 rounded-[10px]",
-  lg: "h-9 w-9 rounded-[14px]",
+  xs: "h-6 w-6 radius-control-xs",
+  sm: "h-7 w-7 radius-control-sm",
+  md: "h-8 w-8 radius-control-md",
+  lg: "h-9 w-9 radius-control-lg",
 };
 
 const ICON_BUTTON_VARIANT_TONE_CLASS_MAP: Record<Exclude<UiButtonVariant, "text">, Record<UiButtonTone, string>> = {

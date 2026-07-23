@@ -93,10 +93,12 @@ export function RoomSurfaceContent({
               onCloseAuxiliaryPanel={layout.handleCloseAuxiliaryPanel}
               onCloseConversation={onCloseConversation}
               onCreateConversation={onCreateConversation}
+              onDeleteConversation={onDeleteConversation}
               onManageRoom={onManageRoom}
               onOpenMemberManager={onOpenMemberManager}
               onReplayTour={onReplayTour}
               onSelectConversation={onSelectConversation}
+              onUpdateConversationTitle={onUpdateConversationTitle}
               roomAvatar={roomAvatar}
               roomHostAgentId={roomHostAgentId}
               roomHostAutoReplyEnabled={roomHostAutoReplyEnabled}
@@ -109,7 +111,7 @@ export function RoomSurfaceContent({
         >
           <div className="flex h-full min-h-0 min-w-0">
             <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
-              {/* 聊天面板常驻挂载，切换右栏时不能触发 WebSocket 清理。 */}
+              {/* 只挂载当前会话；标签列表只消费标题元数据，切换会话后按需加载，切换右栏不清理当前连接。 */}
               <RoomChatSurface
                 conversationId={conversationId}
                 currentAgent={currentAgent}
@@ -142,19 +144,13 @@ export function RoomSurfaceContent({
                 activeSurfaceTab={activeSurfaceTab}
                 activeWorkspacePath={activeWorkspacePath}
                 conversationId={conversationId}
-                conversations={currentRoomConversations}
                 currentAgent={currentAgent}
-                currentRoomType={currentRoomType}
                 sidePanelWidthPercent={sidePanelWidthPercent}
                 isDm={isDm}
                 onClose={layout.handleCloseAuxiliaryPanel}
-                onCreateConversation={onCreateConversation}
-                onDeleteConversation={onDeleteConversation}
                 onOpenWorkspaceFile={onOpenWorkspaceFile}
                 onSaveAgentOptions={onSaveAgentOptions}
-                onSelectConversation={onSelectConversation}
                 onStartSidePanelResize={onStartSidePanelResize}
-                onUpdateConversationTitle={onUpdateConversationTitle}
                 onValidateAgentName={onValidateAgentName}
                 roomId={roomId}
                 roomMembers={roomMembers}

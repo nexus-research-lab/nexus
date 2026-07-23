@@ -42,11 +42,19 @@ func (m *SlotMessageMapper) Map(
 	incoming sdkprotocol.ReceivedMessage,
 	interruptReason ...string,
 ) ([]protocol.EventMessage, []protocol.Message, string, error) {
-	result, err := m.EventMapper.Map(incoming, interruptReason...)
+	result, err := m.MapResult(incoming, interruptReason...)
 	if err != nil {
 		return nil, nil, "", err
 	}
 	return result.Events, result.DurableMessages, result.TerminalStatus, nil
+}
+
+// MapResult 保留完整终态信息，供 Room 执行器把 error subtype 传到 slot 收口。
+func (m *SlotMessageMapper) MapResult(
+	incoming sdkprotocol.ReceivedMessage,
+	interruptReason ...string,
+) (message.EventMapResult, error) {
+	return m.EventMapper.Map(incoming, interruptReason...)
 }
 
 // SetDurableMessageTransformer 在 Room 事件广播前补充公区标注等字段。

@@ -34,6 +34,7 @@ type promptBuilder struct {
 type promptBuildScope struct {
 	isMainAgent   bool
 	workspacePath string
+	skillNames    []string
 }
 
 func newPromptBuilder(cfg config.Config) *promptBuilder {
@@ -53,7 +54,7 @@ func (b *promptBuilder) Build(ctx context.Context, agentValue *protocol.Agent) (
 	for _, section := range buildAgentProfileSections(agentValue, scope) {
 		sections = appendPromptSection(sections, section)
 	}
-	sections = appendPromptSection(sections, buildManagedSkillUsageSection(scope.workspacePath))
+	sections = appendPromptSection(sections, buildManagedSkillUsageSection(scope))
 
 	fileSections, err := loadWorkspacePromptSections(scope)
 	if err != nil {
@@ -76,6 +77,7 @@ func (b *promptBuilder) newBuildScope(agentValue *protocol.Agent) promptBuildSco
 	return promptBuildScope{
 		isMainAgent:   isMainAgentPrompt(agentValue, b.config.DefaultAgentID),
 		workspacePath: workspacePath,
+		skillNames:    append([]string(nil), agentValue.Options.SkillIDs...),
 	}
 }
 
@@ -101,13 +103,9 @@ func appendPromptSection(sections []string, section string) []string {
 	return append(sections, section)
 }
 
-func buildManagedSkillUsageSection(workspacePath string) string {
-	trimmedWorkspacePath := strings.TrimSpace(workspacePath)
-	if trimmedWorkspacePath == "" {
-		return ""
-	}
+func buildManagedSkillUsageSection(scope promptBuildScope) string {
 	sections := []string{}
-	if hasManagedSkill(trimmedWorkspacePath, "goal-manager") {
+	if hasSelectedSkill(scope, "goal-manager") {
 		sections = append(sections, strings.Join([]string{
 			"## Goal Skill 使用要求",
 			"- 用户明确要求启动、设定、继续或纠正当前会话 Goal 时，必须先使用 Skill 工具加载 goal-manager，再调用当前工具列表中可见的 Goal MCP 工具。",
@@ -125,8 +123,17 @@ func buildManagedSkillUsageSection(workspacePath string) string {
 	return strings.Join(sections, "\n\n")
 }
 
-func hasManagedSkill(workspacePath string, skillName string) bool {
-	skillPath := filepath.Join(workspacePath, ".agents", "skills", skillName, "SKILL.md")
+func hasSelectedSkill(scope promptBuildScope, skillName string) bool {
+	for _, selected := range scope.skillNames {
+		if strings.EqualFold(strings.TrimSpace(selected), skillName) {
+			return true
+		}
+	}
+	// 兼容旧 Agent：迁移完成前仍允许从 workspace 文件判断已部署状态。
+	if strings.TrimSpace(scope.workspacePath) == "" {
+		return false
+	}
+	skillPath := filepath.Join(scope.workspacePath, ".agents", "skills", skillName, "SKILL.md")
 	_, err := os.Stat(skillPath)
 	return err == nil
 }

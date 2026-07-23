@@ -70,7 +70,7 @@ export function RoomMobileConversationSheet({
             return (
               <button
                 key={conversation.conversation_id}
-                className="flex w-full items-start gap-3 rounded-2xl border border-(--divider-subtle-color) px-3 py-3 text-left transition hover:bg-(--interaction-hover-background)"
+                className="surface-radius-md flex w-full items-start gap-3 border border-(--divider-subtle-color) px-3 py-3 text-left transition hover:bg-(--interaction-hover-background)"
                 onClick={() => {
                   onSelect(conversation.conversation_id);
                   onClose();

@@ -68,7 +68,7 @@ export const ContactsSidebarPanelContent = memo(function ContactsSidebarPanelCon
       <SidebarSearchField
         action={(
           <button
-            className="flex h-8 w-8 items-center justify-center rounded-[8px] border border-transparent bg-transparent text-(--icon-muted) transition-[background,color] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default)"
+            className="flex h-8 w-8 items-center justify-center rounded-[8px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_76%,transparent)] bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_70%,transparent)] text-(--icon-muted) transition-[background,color] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default)"
             onClick={openContacts}
             title={t("sidebar.manage_contacts")}
             type="button"

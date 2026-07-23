@@ -18,7 +18,30 @@ func WrapMessageEvent(roomID string, conversationID string, message protocol.Mes
 
 // WrapRoundStatusEvent 构建 Room root round 状态事件。
 func WrapRoundStatusEvent(sessionKey string, roomID string, conversationID string, roundID string, status string, resultSubtype string) protocol.EventMessage {
-	event := protocol.NewRoundStatusEvent(sessionKey, roundID, status, resultSubtype)
+	return wrapRoundStatusEvent(
+		protocol.NewRoundStatusEvent(sessionKey, roundID, status, resultSubtype),
+		roomID,
+		conversationID,
+	)
+}
+
+// WrapRoundStatusErrorEvent 构建带可展示原因的 Room root 失败事件。
+func WrapRoundStatusErrorEvent(
+	sessionKey string,
+	roomID string,
+	conversationID string,
+	roundID string,
+	message string,
+) protocol.EventMessage {
+	return wrapRoundStatusEvent(
+		protocol.NewRoundStatusErrorEvent(sessionKey, roundID, message),
+		roomID,
+		conversationID,
+	)
+}
+
+// wrapRoundStatusEvent 补齐 Room 事件的共享投影身份。
+func wrapRoundStatusEvent(event protocol.EventMessage, roomID string, conversationID string) protocol.EventMessage {
 	event.DeliveryMode = "durable"
 	event.RoomID = roomID
 	event.ConversationID = conversationID

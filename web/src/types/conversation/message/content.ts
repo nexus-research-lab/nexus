@@ -20,21 +20,64 @@ export interface ToolUseContent {
   id: string;
   name: string;
   input: ToolInput;
+  metadata?: Record<string, unknown>;
+  source_type?: string;
 }
 
 export interface ToolResultContent {
   type: "tool_result";
   tool_use_id: string;
-  content: string | unknown[];
+  /** Provider 原生工具结果不保证是字符串或数组，保留其 JSON 形状。 */
+  content: unknown;
   is_error?: boolean;
   error_code?: string | null;
+  metadata?: Record<string, unknown>;
   structured_output?: unknown;
+  source_type?: string;
 }
 
 export interface ThinkingContent {
   type: "thinking";
   thinking: string;
   signature?: string | null;
+}
+
+export interface RedactedThinkingContent {
+  type: "redacted_thinking";
+  data?: string;
+}
+
+export interface DocumentContent {
+  type: "document";
+  source?: unknown;
+  title?: string | null;
+  context?: string | null;
+  mime_type?: string | null;
+  citations?: unknown;
+}
+
+export interface SearchResultContent {
+  type: "search_result";
+  query?: string | null;
+  source?: string | null;
+  title?: string | null;
+  url?: string | null;
+  snippet?: string | null;
+  content?: unknown;
+}
+
+export interface ResourceLinkContent {
+  type: "resource_link";
+  name?: string | null;
+  uri?: string | null;
+  description?: string | null;
+}
+
+/** 未识别的 Provider 内容块。保留原始负载，但默认不参与渲染。 */
+export interface UnsupportedContent {
+  type: "unsupported";
+  original_type: string;
+  payload: Record<string, unknown>;
 }
 
 export interface ImageContent {
@@ -107,7 +150,12 @@ export type ContentBlock =
   | ToolUseContent
   | ToolResultContent
   | ThinkingContent
+  | RedactedThinkingContent
   | ImageContent
+  | DocumentContent
+  | SearchResultContent
+  | ResourceLinkContent
   | TaskProgressContent
   | WorkspaceFileArtifactContent
-  | SystemEventContent;
+  | SystemEventContent
+  | UnsupportedContent;

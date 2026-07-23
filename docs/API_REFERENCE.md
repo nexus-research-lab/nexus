@@ -145,6 +145,8 @@ Provider 预设通过 `endpoint_mode` 声明端点来源：`fixed` 使用内置�
 | GET | `/agents/{agent_id}/private-domain/threads` | 私域线程列表 | — | — |
 | GET | `/agents/{agent_id}/private-domain/threads/{thread_id}/events` | 私域线程事件 | — | — |
 
+`Agent.options.skill_ids` 保存平台 Skill 的稳定 ID。平台 Skill 由全局兼容根统一提供，Agent workspace 不保存平台副本；外部或 workspace-local Skill 仍按各自的文件部署规则工作。
+
 ### Agent 技能挂载
 
 | 方法 | 路径 | 说明 | 前端函数 |
@@ -536,7 +538,7 @@ task 的控制请求由 task item 的 `host_agent_id` 路由到实际承载该 s
 - `pong` — 心跳响应。
 - `chat_ack` — 对话消息受理确认，回传 `client_request_id` / `client_message_id` 与后端生成的 canonical round/message identity。
 - `input_queue_ack` — 用户入队请求持久化确认，仅向请求连接单播；回传 `client_request_id`、稳定 `client_message_id`、canonical `item_id` 与 `duplicate`。共享队列当前状态仍由 `input_queue` 快照表达。
-- `round_status` — 轮次状态变更（`running` / `completed` / `error` 等）。
+- `round_status` — 轮次状态变更（`running` / `finished` / `interrupted` / `error`）；失败终态可在 `data.message` 携带可展示原因。
 - `runtime_status` — Runtime 瞬时阶段；`status: "compacting"` 表示正在压缩上下文，`status: null` 清除该阶段。
 - `gateway_error` — 网关错误（`error_type` 含 `chat_error` / `interrupt_error` / `input_queue_error` / `not_implemented` / `unknown_message_type` / `permission_request_not_found` 等）。
 - Room / Workspace / App Event 订阅渠道推送的实时事件（房间消息、工作区文件变更、应用级事件）。

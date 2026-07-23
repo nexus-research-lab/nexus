@@ -128,9 +128,9 @@ func (m *Manager) replaceRuntimeClient(
 
 	disconnectCtx, cancel := context.WithTimeout(context.Background(), RoundIdleAbortTimeout)
 	defer cancel()
-	if err := stale.Disconnect(disconnectCtx); err != nil && !IsRuntimeTransportClosedError(err) {
-		return nil, err
-	}
+	// 新 client 已经成为 session 的唯一事实源；旧进程清理失败不能反向污染本次切换。
+	// Disconnect 会先解除 adapter 对旧 session 的引用，返回值只描述清理结果。
+	_ = stale.Disconnect(disconnectCtx)
 	if next == nil {
 		return nil, agentclient.ErrNotConnected
 	}

@@ -152,7 +152,7 @@ function SettingsRailButton({
       aria-current={active ? "page" : undefined}
       aria-label={label}
       className={cn(
-        "flex h-9 w-9 items-center justify-center rounded-[9px] text-(--icon-default) transition-colors duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
+        "flex h-9 w-9 items-center justify-center radius-control-sm text-(--icon-default) transition-colors duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
         active &&
           "bg-(--surface-interactive-active-background) text-(--primary)",
       )}

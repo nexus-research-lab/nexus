@@ -542,3 +542,43 @@ func TestMessageMapperProjectsAssistantAPIErrorAsErrorMessage(t *testing.T) {
 		t.Fatalf("API error assistant stop_reason 不正确: %+v", events[0].Data)
 	}
 }
+
+func TestMessageMapperProjectsErrorDuringExecutionWithProviderError(t *testing.T) {
+	mapper := NewMessageMapper(
+		"agent:nexus:ws:dm:test",
+		"nexus",
+		"round-tool-input-error",
+		"agent-round-tool-input-error",
+		"msg-user-tool-input-error",
+	)
+
+	events, durableMessages, terminalStatus, resultSubtype, err := mapper.Map(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeResult,
+		Result: &sdkprotocol.ResultMessage{
+			Subtype:  "error_during_execution",
+			IsError:  true,
+			Errors:   []string{"query: decode provider tool input failed: unexpected end of JSON input"},
+			NumTurns: 1,
+		},
+	})
+	if err != nil {
+		t.Fatalf("error_during_execution 映射失败: %v", err)
+	}
+	if terminalStatus != "error" || resultSubtype != "error" {
+		t.Fatalf("错误终态不正确: status=%s subtype=%s", terminalStatus, resultSubtype)
+	}
+	if len(durableMessages) != 1 || durableMessages[0]["is_error"] != true {
+		t.Fatalf("错误结果未持久化: %+v", durableMessages)
+	}
+	if len(events) != 1 || events[0].Data["role"] != "assistant" {
+		t.Fatalf("错误结果未投影为 assistant: %+v", events)
+	}
+	summary, ok := events[0].Data["result_summary"].(map[string]any)
+	if !ok {
+		t.Fatalf("assistant 缺少 result_summary: %+v", events[0].Data)
+	}
+	errors, ok := summary["errors"].([]string)
+	if !ok || len(errors) != 1 || errors[0] == "" {
+		t.Fatalf("result_summary.errors 未保留: %#v", summary["errors"])
+	}
+}

@@ -22,6 +22,7 @@ func ScanAgent(scanner Scanner) (protocol.Agent, error) {
 		allowedToolsJSON    string
 		disallowedToolsJSON string
 		mcpServersJSON      string
+		skillIDsJSON        string
 		settingSourcesJSON  string
 		maxTurns            sql.NullInt64
 		maxThinkingTokens   sql.NullInt64
@@ -48,6 +49,7 @@ func ScanAgent(scanner Scanner) (protocol.Agent, error) {
 		&allowedToolsJSON,
 		&disallowedToolsJSON,
 		&mcpServersJSON,
+		&skillIDsJSON,
 		&maxTurns,
 		&maxThinkingTokens,
 		&settingSourcesJSON,
@@ -61,6 +63,7 @@ func ScanAgent(scanner Scanner) (protocol.Agent, error) {
 	item.Options.AllowedTools = jsoncodec.ParseStringSlice(allowedToolsJSON)
 	item.Options.DisallowedTools = jsoncodec.ParseStringSlice(disallowedToolsJSON)
 	item.Options.MCPServers = jsoncodec.ParseMap(mcpServersJSON)
+	item.Options.SkillIDs = jsoncodec.ParseStringSlice(skillIDsJSON)
 	item.Options.SettingSources = jsoncodec.ParseStringSlice(settingSourcesJSON)
 	if maxTurns.Valid {
 		value := int(maxTurns.Int64)

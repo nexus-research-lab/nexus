@@ -35,7 +35,7 @@ export function HomeAsciiHero() {
   return (
     <div
       ref={sectionRef}
-      className="relative h-full w-full overflow-hidden rounded-[14px] border"
+      className="surface-radius-md relative h-full w-full overflow-hidden border"
       style={{
         background: "var(--surface-canvas-background)",
         borderColor: "var(--surface-canvas-border)",

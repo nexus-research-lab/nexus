@@ -18,24 +18,24 @@ const FORM_CONTROL_VARIANT_CLASS_MAP: Record<UiFormControlVariant, string> = {
 };
 
 const FORM_CONTROL_SIZE_CLASS_MAP: Record<UiFormControlSize, string> = {
-  xs: "h-7 rounded-[9px] px-2 text-[12px]",
-  sm: "h-8 rounded-[10px] px-3 text-[13px]",
-  md: "h-9 rounded-[12px] px-3.5 text-sm",
-  lg: "h-11 rounded-[14px] px-4 text-[15px]",
+  xs: "h-7 radius-control-xs px-2 text-[12px]",
+  sm: "h-8 radius-control-sm px-3 text-[13px]",
+  md: "h-9 radius-control-md px-3.5 text-sm",
+  lg: "h-11 radius-control-lg px-4 text-[15px]",
 };
 
 const FORM_TEXTAREA_SIZE_CLASS_MAP: Record<UiFormControlSize, string> = {
-  xs: "min-h-16 rounded-[9px] px-2 py-1.5 text-[12px]",
-  sm: "min-h-20 rounded-[10px] px-3 py-2 text-[13px]",
-  md: "min-h-24 rounded-[12px] px-3.5 py-2.5 text-sm",
-  lg: "min-h-28 rounded-[14px] px-4 py-3 text-[15px]",
+  xs: "min-h-16 radius-control-xs px-2 py-1.5 text-[12px]",
+  sm: "min-h-20 radius-control-sm px-3 py-2 text-[13px]",
+  md: "min-h-24 radius-control-md px-3.5 py-2.5 text-sm",
+  lg: "min-h-28 radius-control-lg px-4 py-3 text-[15px]",
 };
 
 const SEARCH_SHELL_SIZE_CLASS_MAP: Record<UiFormControlSize, string> = {
-  xs: "h-7 rounded-[9px] px-2 text-[12px]",
-  sm: "h-8 rounded-[10px] px-3 text-[13px]",
-  md: "h-9 rounded-[12px] px-3.5 text-sm",
-  lg: "h-11 rounded-[14px] px-4 text-[15px]",
+  xs: "h-7 radius-control-xs px-2 text-[12px]",
+  sm: "h-8 radius-control-sm px-3 text-[13px]",
+  md: "h-9 radius-control-md px-3.5 text-sm",
+  lg: "h-11 radius-control-lg px-4 text-[15px]",
 };
 
 export function getUiFormControlClassName(

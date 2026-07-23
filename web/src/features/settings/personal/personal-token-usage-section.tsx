@@ -56,7 +56,7 @@ export function PersonalTokenUsageSection({
     <section className="order-last overflow-hidden rounded-[12px] border border-(--divider-subtle-color) bg-transparent">
       <div className="grid gap-3 px-3 py-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
         <div className="flex min-w-0 items-start gap-3">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[16px] bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-primary">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center radius-control-lg bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-primary">
             <Gauge className="h-3.5 w-3.5" />
           </div>
           <div className="min-w-0">

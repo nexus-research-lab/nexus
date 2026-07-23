@@ -6,17 +6,30 @@ import (
 )
 
 type frontmatterData struct {
-	Name                string
-	Title               string
-	Description         string
-	Scope               string
-	Tags                []string
-	Version             string
-	CategoryKey         string
-	CategoryName        string
-	Recommendation      string
-	RuntimeInstructions string
-	ReadmeMarkdown      string
+	Name           string
+	Title          string
+	Description    string
+	Scope          string
+	Tags           []string
+	Version        string
+	CategoryKey    string
+	CategoryName   string
+	Recommendation string
+	ReadmeMarkdown string
+}
+
+// StripFrontmatter 返回 Skill 文件中可注入运行时的正文，保留没有合法 frontmatter 的原文。
+func StripFrontmatter(content string) string {
+	normalized := strings.TrimPrefix(content, "\ufeff")
+	if !strings.HasPrefix(normalized, "---") {
+		return normalized
+	}
+	rest := strings.TrimPrefix(normalized, "---")
+	_, body, ok := strings.Cut(rest, "\n---")
+	if !ok {
+		return normalized
+	}
+	return strings.TrimLeft(body, "\r\n")
 }
 
 func parseSkillFrontmatter(content string, fallbackName string) frontmatterData {
@@ -227,8 +240,6 @@ func assignFrontmatterValue(target *frontmatterData, key string, value any) {
 		target.CategoryName = toString(value)
 	case "recommendation":
 		target.Recommendation = toString(value)
-	case "runtime_instructions":
-		target.RuntimeInstructions = toString(value)
 	}
 }
 

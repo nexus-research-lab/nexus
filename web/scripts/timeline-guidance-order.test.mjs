@@ -234,6 +234,221 @@ test("Room no-reply control markers never become visible assistant blocks", asyn
   assert.deepEqual(entries, []);
 });
 
+test("recoverable malformed tool results stay out of the user timeline", async () => {
+  const {
+    buildVisibleOrderedAssistantEntries,
+    collectHiddenToolUseIds,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/controller/projection/message-item-ordering.ts",
+  );
+  const content = [
+    {
+      type: "tool_use",
+      id: "tool-malformed",
+      name: "WebFetch",
+      input: {},
+      metadata: {
+        _nexus_internal_kind: "malformed_tool_input",
+      },
+    },
+    {
+      type: "tool_result",
+      tool_use_id: "tool-malformed",
+      content: "Tool input was not valid JSON",
+      is_error: true,
+      metadata: {
+        _nexus_internal_kind: "malformed_tool_input",
+      },
+    },
+    { type: "text", text: "模型已自行修正并继续。" },
+  ];
+  const hiddenToolUseIds = collectHiddenToolUseIds(content, new Set());
+  const entries = buildVisibleOrderedAssistantEntries({
+    hiddenToolNames: new Set(),
+    hiddenToolUseIds,
+    isLoading: false,
+    mergedContent: content,
+    mergedContentSourceMessageIds: ["assistant-1", "assistant-2", "assistant-3"],
+    sourceMessageOrderById: new Map([
+      ["assistant-1", 0],
+      ["assistant-2", 1],
+      ["assistant-3", 2],
+    ]),
+    systemEventBlocks: [],
+  });
+
+  assert.deepEqual([...hiddenToolUseIds], ["tool-malformed"]);
+  assert.deepEqual(
+    entries.map(({ block }) => block),
+    [{ type: "text", text: "模型已自行修正并继续。" }],
+  );
+});
+
+test("recoverable malformed tool results stay out of process error counts", async () => {
+  const { buildProcessSummary } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/process/message-process-summary.ts",
+  );
+  const summary = buildProcessSummary({
+    pendingPermissionCount: 0,
+    processContent: [
+      {
+        type: "tool_use",
+        id: "tool-malformed",
+        name: "WebFetch",
+        input: {},
+        metadata: {
+          _nexus_internal_kind: "malformed_tool_input",
+        },
+      },
+      {
+        type: "tool_result",
+        tool_use_id: "tool-malformed",
+        content: "Tool input was not valid JSON",
+        is_error: true,
+        metadata: {
+          _nexus_internal_kind: "malformed_tool_input",
+        },
+      },
+    ],
+  });
+
+  assert.equal(summary, "查看过程");
+});
+
+test("recoverable malformed tool use does not keep the activity indicator busy", async () => {
+  const { resolveContentActivityState } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/activity/message-content-activity.ts",
+  );
+  assert.equal(
+    resolveContentActivityState({
+      consumedBlockIndexes: new Set(),
+      content: [{
+        type: "tool_use",
+        id: "tool-malformed",
+        name: "WebFetch",
+        input: {},
+        metadata: {
+          _nexus_internal_kind: "malformed_tool_input",
+        },
+      }],
+      hiddenToolNames: new Set(),
+      resolvedToolUseIds: new Set(),
+    }),
+    "thinking",
+  );
+});
+
+test("history restores only the latest assistant round error", async () => {
+  const {
+    DEFAULT_ASSISTANT_ERROR_MESSAGE,
+    latestAssistantResultErrorMessage,
+    resolveAssistantResultErrorMessage,
+  } = await server.ssrLoadModule(
+    "/src/hooks/agent/message/assistant-message-model.ts",
+  );
+  const failed = assistantMessage({
+    messageId: "assistant-failed",
+    resultSummary: {
+      duration_api_ms: 10,
+      duration_ms: 20,
+      errors: ["", "provider stream failed"],
+      is_error: true,
+      num_turns: 1,
+      subtype: "error",
+      timestamp: 2,
+    },
+    roundId: "round-failed",
+    text: "",
+    timestamp: 2,
+  });
+
+  assert.equal(
+    latestAssistantResultErrorMessage([failed]),
+    "provider stream failed",
+  );
+  assert.equal(
+    latestAssistantResultErrorMessage([
+      failed,
+      assistantMessage({
+        messageId: "assistant-retrying",
+        roundId: "round-retrying",
+        text: "正在重试",
+        timestamp: 3,
+      }),
+    ]),
+    null,
+    "a newer active round must suppress the previous terminal error",
+  );
+  assert.equal(
+    latestAssistantResultErrorMessage([
+      assistantMessage({
+        messageId: "assistant-room-failed",
+        roundId: "room-round-1",
+        resultSummary: {
+          duration_api_ms: 0,
+          duration_ms: 0,
+          errors: ["slot provider failed"],
+          is_error: true,
+          num_turns: 1,
+          subtype: "error",
+          timestamp: 4,
+        },
+        text: "",
+        timestamp: 4,
+      }),
+      assistantMessage({
+        messageId: "assistant-room-success",
+        roundId: "room-round-1",
+        resultSummary: {
+          duration_api_ms: 0,
+          duration_ms: 0,
+          is_error: false,
+          num_turns: 1,
+          subtype: "success",
+          timestamp: 5,
+        },
+        text: "另一个 Agent 完成",
+        timestamp: 5,
+      }),
+    ]),
+    "slot provider failed",
+    "same root round must retain a failing Room slot",
+  );
+  assert.equal(
+    resolveAssistantResultErrorMessage({
+      duration_api_ms: 0,
+      duration_ms: 0,
+      is_error: true,
+      num_turns: 0,
+      subtype: "error",
+    }),
+    DEFAULT_ASSISTANT_ERROR_MESSAGE,
+  );
+});
+
+test("terminal round status keeps its displayable error message", async () => {
+  const { parseRoundStatusEventPayload } = await server.ssrLoadModule(
+    "/src/hooks/agent/transport/handlers/session-event-data.ts",
+  );
+
+  assert.deepEqual(
+    parseRoundStatusEventPayload({
+      is_terminal: true,
+      message: "query: provider request failed",
+      result_subtype: "error",
+      round_id: "round-error",
+      status: "error",
+    }),
+    {
+      error_message: "query: provider request failed",
+      is_terminal: true,
+      result_subtype: "error",
+      round_id: "round-error",
+      status: "error",
+    },
+  );
+});
+
 test("Room no-reply control markers stay out of previews and result summaries", async () => {
   const { extractAgentPreviewText } = await server.ssrLoadModule(
     "/src/features/conversation/room/group/round/round-agent-model.ts",
@@ -408,6 +623,112 @@ test("consumed Room guide update moves beside its running assistant", async () =
   assert.equal(canonicalGuide?.content, "然后给点更完整的建议");
   assert.equal(canonicalGuide?.attachments?.[0]?.name, "detail.txt");
   assert.equal(canonicalGuide?.timestamp, 4);
+});
+
+test("message protocol preserves CC rich blocks and contains unknown provider blocks", async () => {
+  const {
+    parseConversationMessage,
+    parseStreamMessage,
+  } = await server.ssrLoadModule(
+    "/src/lib/conversation/message-protocol.ts",
+  );
+
+  const message = parseConversationMessage({
+    agent_id: "agent-1",
+    content: [
+      { type: "redacted_thinking", data: "encrypted" },
+      { type: "future_provider_block", value: 42 },
+    ],
+    message_id: "assistant-rich",
+    role: "assistant",
+    round_id: "round-rich",
+    session_key: "agent:agent-1:ws:dm:test",
+    timestamp: 1,
+  });
+  assert.equal(message?.content[0]?.type, "redacted_thinking");
+  assert.deepEqual(message?.content[1], {
+    type: "unsupported",
+    original_type: "future_provider_block",
+    payload: { type: "future_provider_block", value: 42 },
+  });
+
+  const stream = parseStreamMessage({
+    agent_id: "agent-1",
+    content_block: {
+      type: "tool_use",
+      id: "tool-1",
+      input: { command: "pwd" },
+      name: "Bash",
+    },
+    index: 0,
+    message_id: "assistant-rich",
+    parent_tool_use_id: "agent-call-1",
+    round_id: "round-rich",
+    session_key: "agent:agent-1:ws:dm:test",
+    timestamp: 2,
+    type: "content_block_start",
+  });
+  assert.equal(stream?.content_block?.type, "tool_use");
+  assert.equal(stream?.parent_tool_use_id, "agent-call-1");
+
+  const blockStop = parseStreamMessage({
+    ...stream,
+    content_block: undefined,
+    index: 0,
+    type: "content_block_stop",
+  });
+  assert.equal(blockStop?.type, "content_block_stop");
+  assert.equal(blockStop?.index, 0);
+});
+
+test("stream reducer exposes tool calls and removes terminal empty assistants", async () => {
+  const { applyStreamMessage } = await server.ssrLoadModule(
+    "/src/hooks/agent/message/stream-message-reducer.ts",
+  );
+  const base = {
+    agent_id: "agent-1",
+    message_id: "assistant-tool-stream",
+    parent_tool_use_id: "agent-call-1",
+    round_id: "round-tool-stream",
+    session_key: "agent:agent-1:ws:dm:test",
+    timestamp: 1,
+  };
+  let messages = applyStreamMessage([], {
+    ...base,
+    message: { model: "glm-5.2" },
+    type: "message_start",
+  });
+  assert.equal(messages[0]?.parent_id, "agent-call-1");
+  messages = applyStreamMessage(messages, {
+    ...base,
+    content_block: {
+      type: "tool_use",
+      id: "tool-1",
+      input: { command: "pwd" },
+      name: "Bash",
+    },
+    index: 0,
+    type: "content_block_start",
+  });
+  assert.equal(messages[0]?.content[0]?.type, "tool_use");
+  messages = applyStreamMessage(messages, {
+    ...base,
+    index: 0,
+    type: "content_block_stop",
+  });
+  assert.equal(messages[0]?.content[0]?.type, "tool_use");
+
+  let emptyMessages = applyStreamMessage([], {
+    ...base,
+    message_id: "assistant-empty",
+    type: "message_start",
+  });
+  emptyMessages = applyStreamMessage(emptyMessages, {
+    ...base,
+    message_id: "assistant-empty",
+    type: "message_stop",
+  });
+  assert.deepEqual(emptyMessages, []);
 });
 
 test("late history cannot roll an assistant snapshot backward", async () => {
@@ -1377,6 +1698,7 @@ function assistantMessage({
   messageId = "assistant-root",
   model,
   resultSummary,
+  roundId = "round-root",
   status = "streaming",
   stopReason,
   text,
@@ -1391,7 +1713,7 @@ function assistantMessage({
     ...(model ? { model } : {}),
     ...(resultSummary ? { result_summary: resultSummary } : {}),
     role: "assistant",
-    round_id: "round-root",
+    round_id: roundId,
     session_key: "room:group:conversation-1",
     ...(stopReason ? { stop_reason: stopReason } : {}),
     stream_status: status,

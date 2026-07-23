@@ -7,7 +7,6 @@ import { useMemo } from "react";
 
 import { useAssistantContentMerge } from "@/hooks/conversation/use-assistant-content-merge";
 import type { AgentConversationRuntimePhase } from "@/types/agent/agent-conversation";
-import type { ContentBlock } from "@/types/conversation/message/content";
 import type {
   AssistantMessage,
   Message,
@@ -25,6 +24,7 @@ import { resolveMessageItemFinalProjection } from "./message-item-final-projecti
 import {
   buildVisibleAssistantTurns,
   buildVisibleOrderedAssistantEntries,
+  collectHiddenToolUseIds,
 } from "./message-item-ordering";
 import { resolveMessageItemPermissions } from "./message-item-permissions";
 import { buildMessageStats } from "./message-item-stats";
@@ -236,19 +236,6 @@ function useOrderedContentProjection({
     visibleAssistantTurns,
     visibleOrderedAssistantEntries,
   };
-}
-
-function collectHiddenToolUseIds(
-  content: readonly ContentBlock[],
-  hiddenToolNames: ReadonlySet<string>,
-): Set<string> {
-  const ids = new Set<string>();
-  for (const block of content) {
-    if (block.type === "tool_use" && hiddenToolNames.has(block.name)) {
-      ids.add(block.id);
-    }
-  }
-  return ids;
 }
 
 function shouldIncludeTransientSystemEvents(

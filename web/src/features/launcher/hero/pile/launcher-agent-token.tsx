@@ -31,9 +31,9 @@ const SHAPE_BY_KIND: Readonly<Record<SpotlightToken["kind"], TokenShapeStyle>> =
       `inset 0 1px 0 ${hexToRgba("#ffffff", 0.74)}, 0 16px 34px rgba(10,14,28,0.16), 0 0 18px ${hexToRgba(fill, 0.18)}`,
   },
   room: {
-    glossRadiusClassName: "rounded-[999px]",
+    glossRadiusClassName: "rounded-full",
     glossTop: "16%",
-    outerRadiusClassName: "rounded-[14px]",
+    outerRadiusClassName: "surface-radius-md",
     shadow: (fill) =>
       `inset 0 1px 0 ${hexToRgba("#ffffff", 0.68)}, 0 18px 38px rgba(10,14,28,0.18), 0 0 20px ${hexToRgba(fill, 0.2)}`,
   },

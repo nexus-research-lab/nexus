@@ -67,7 +67,7 @@ export function ProviderDeleteUsageDialog({
                     className="flex min-h-11 items-center gap-2 border-b border-(--divider-subtle-color) px-3 py-2 last:border-b-0"
                     key={agent.agent_id}
                   >
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] border border-(--divider-subtle-color) bg-(--background) text-[11px] font-semibold text-(--text-muted)">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center radius-control-sm border border-(--divider-subtle-color) bg-(--background) text-[11px] font-semibold text-(--text-muted)">
                       {(getUsageAgentTitle(agent).slice(0, 2) || "AG").toUpperCase()}
                     </span>
                     <div className="min-w-0 flex-1">

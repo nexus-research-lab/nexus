@@ -211,9 +211,13 @@ func buildTranscriptUserMessage(
 }
 
 func transcriptUserContent(entry map[string]any) string {
+	return sanitizeTranscriptUserContent(transcriptRawUserContent(entry))
+}
+
+func transcriptRawUserContent(entry map[string]any) string {
 	messageValue, _ := entry["message"].(map[string]any)
 	contentValue := messageValue["content"]
-	if text := sanitizeTranscriptUserContent(stringFromAny(contentValue)); text != "" {
+	if text := strings.TrimSpace(stringFromAny(contentValue)); text != "" {
 		return text
 	}
 	items, _ := contentValue.([]any)
@@ -223,7 +227,7 @@ func transcriptUserContent(entry map[string]any) string {
 		if !ok {
 			continue
 		}
-		if text := sanitizeTranscriptUserContent(stringFromAny(payload["text"])); text != "" {
+		if text := strings.TrimSpace(stringFromAny(payload["text"])); text != "" {
 			parts = append(parts, text)
 		}
 	}
@@ -232,7 +236,8 @@ func transcriptUserContent(entry map[string]any) string {
 
 func sanitizeTranscriptUserContent(content string) string {
 	trimmed := strings.TrimSpace(content)
-	if message.IsInternalTranscriptInterruptPrompt(trimmed) {
+	if message.IsInternalTranscriptInterruptPrompt(trimmed) ||
+		message.IsInternalTranscriptContinuationPrompt(trimmed) {
 		return ""
 	}
 	return trimmed

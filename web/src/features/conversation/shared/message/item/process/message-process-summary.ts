@@ -1,6 +1,10 @@
 import type { ContentBlock } from "@/types/conversation/message/content";
 
 import {
+  isRecoverableToolResult,
+  isRecoverableToolUse,
+} from "../../message-content-model";
+import {
   getToolInputSummary,
   getToolTitle,
 } from "../../tool-activity";
@@ -14,10 +18,16 @@ interface ProcessMetric {
 
 const PROCESS_METRICS: ProcessMetric[] = [
   { label: "段思路", matches: (block) => block.type === "thinking" },
-  { label: "次动作", matches: (block) => block.type === "tool_use" },
+  {
+    label: "次动作",
+    matches: (block) => block.type === "tool_use"
+      && !isRecoverableToolUse(block),
+  },
   {
     label: "个异常",
-    matches: (block) => block.type === "tool_result" && Boolean(block.is_error),
+    matches: (block) => block.type === "tool_result"
+      && Boolean(block.is_error)
+      && !isRecoverableToolResult(block),
   },
   {
     label: "次引导",
@@ -35,7 +45,7 @@ const PROCESS_DETAIL_RESOLVERS: ReadonlyArray<
     )
     : null,
   (block) => {
-    if (block.type !== "tool_use") {
+    if (block.type !== "tool_use" || isRecoverableToolUse(block)) {
       return null;
     }
     const detail = getToolInputSummary(block.input);

@@ -36,7 +36,6 @@ interface ItemContentProps extends RoomHistoryItemViewProps {}
 
 interface EntryStyle {
   articleClassName: string;
-  currentClassName: string;
   markerClassName: string;
   style?: CSSProperties;
 }
@@ -50,7 +49,6 @@ interface ActionStyle {
 const ENTRY_STYLES: Record<RoomHistoryItemState, EntryStyle> = {
   active: {
     articleClassName: "border-[color:color-mix(in_srgb,var(--primary)_24%,transparent)]",
-    currentClassName: "border-[color:color-mix(in_srgb,var(--primary)_18%,transparent)] text-(--primary)",
     markerClassName: "bg-(--primary)",
     style: {
       background: "color-mix(in srgb, var(--surface-interactive-active-background) 46%, transparent)",
@@ -59,10 +57,11 @@ const ENTRY_STYLES: Record<RoomHistoryItemState, EntryStyle> = {
   },
   idle: {
     articleClassName: "border-transparent bg-transparent hover:border-[color:color-mix(in_srgb,var(--divider-subtle-color)_64%,transparent)] hover:bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_72%,transparent)]",
-    currentClassName: "invisible border-transparent text-transparent",
     markerClassName: "hidden",
   },
 };
+
+const ACTIVE_CURRENT_LABEL_CLASS_NAME = "border-[color:color-mix(in_srgb,var(--primary)_18%,transparent)] text-(--primary)";
 
 const ACTION_STYLES: Record<RoomHistoryItemAction, ActionStyle> = {
   delete: {
@@ -77,9 +76,18 @@ const ACTION_STYLES: Record<RoomHistoryItemAction, ActionStyle> = {
   },
 };
 
-function RoomHistoryActivity({ label }: { label: string }) {
+function RoomHistoryActivity({
+  compact = false,
+  label,
+}: {
+  compact?: boolean;
+  label: string;
+}) {
   return (
-    <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[10.5px] text-(--text-soft)">
+    <div className={cn(
+      "flex items-center gap-1.5 text-(--text-soft)",
+      compact ? "shrink-0 text-[9.5px]" : "mt-1 flex-wrap gap-y-0.5 text-[10px]",
+    )}>
       <span className="inline-flex items-center gap-1.5">
         <Clock3 className="h-3 w-3 shrink-0" />
         <span>{label}</span>
@@ -93,7 +101,7 @@ function ExternalSessionLabel({ label }: { label: string | null }) {
     return null;
   }
   return (
-    <span className="inline-flex shrink-0 items-center rounded-[6px] border border-[color:color-mix(in_srgb,var(--primary)_18%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_7%,transparent)] px-1.5 py-0.5 text-[9.5px] font-medium text-(--primary)">
+    <span className="inline-flex shrink-0 items-center rounded-[6px] border border-[color:color-mix(in_srgb,var(--primary)_18%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_7%,transparent)] px-1.5 py-0.5 text-[9px] font-medium text-(--primary)">
       IM · {label}
     </span>
   );
@@ -103,7 +111,6 @@ function ReadingItemContent({
   onSelect,
   presentation,
 }: ItemContentProps) {
-  const style = ENTRY_STYLES[presentation.state];
   return (
     <button
       className="block w-full rounded-[10px] text-left outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_32%,transparent)]"
@@ -113,22 +120,13 @@ function ReadingItemContent({
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-2">
-            <p className="min-w-0 truncate text-[13px] font-semibold text-(--text-strong)">
+            <p className="min-w-0 truncate text-[12px] font-semibold text-(--text-strong)">
               {presentation.title}
             </p>
             <ExternalSessionLabel label={presentation.externalSessionLabel} />
+            <RoomHistoryActivity compact label={presentation.activityLabel} />
           </div>
-          <RoomHistoryActivity label={presentation.activityLabel} />
         </div>
-        <span
-          aria-hidden={presentation.state !== "active"}
-          className={cn(
-            "inline-flex shrink-0 items-center rounded-[6px] border px-1.5 py-0.5 text-[9.5px] font-medium transition-[border-color,color] duration-(--motion-duration-fast)",
-            style.currentClassName,
-          )}
-        >
-          {presentation.currentLabel}
-        </span>
       </div>
     </button>
   );
@@ -163,7 +161,7 @@ function EditingItemContent({
         />
         <button
           aria-label="确认"
-          className="inline-flex h-7 w-7 items-center justify-center rounded-[9px] text-(--primary) transition duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background)"
+          className="inline-flex h-6 w-6 items-center justify-center rounded-[8px] text-(--primary) transition duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background)"
           onClick={editor.confirm}
           type="button"
         >
@@ -171,7 +169,7 @@ function EditingItemContent({
         </button>
         <button
           aria-label="取消"
-          className="inline-flex h-7 w-7 items-center justify-center rounded-[9px] text-(--icon-default) transition duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)"
+          className="inline-flex h-6 w-6 items-center justify-center rounded-[8px] text-(--icon-default) transition duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)"
           onClick={editor.cancel}
           type="button"
         >
@@ -204,25 +202,40 @@ function RoomHistoryItemActions({
     rename: editor.start,
   };
   return (
-    <div className="flex shrink-0 items-center gap-1">
-      {presentation.actions.map((action) => {
-        const style = ACTION_STYLES[action];
-        const Icon = style.icon;
-        return (
-          <button
-            aria-label={style.ariaLabel}
-            className={cn(
-              "inline-flex h-7 w-7 items-center justify-center rounded-[9px] opacity-0 transition duration-(--motion-duration-fast) focus-visible:opacity-100 group-hover:opacity-100",
-              style.className,
-            )}
-            key={action}
-            onClick={actionHandlers[action]}
-            type="button"
-          >
-            <Icon className="h-3.5 w-3.5" />
-          </button>
-        );
-      })}
+    <div className="relative grid shrink-0 place-items-center">
+      {presentation.state === "active" ? (
+        <span
+          aria-label={presentation.currentLabel}
+          className={cn(
+          "col-start-1 row-start-1 inline-flex items-center rounded-[6px] border px-1.5 py-0.5 text-[9px] font-medium transition-opacity duration-(--motion-duration-fast) group-hover:pointer-events-none group-hover:opacity-0",
+            ACTIVE_CURRENT_LABEL_CLASS_NAME,
+          )}
+        >
+          {presentation.currentLabel}
+        </span>
+      ) : null}
+      {presentation.actions.length > 0 ? (
+        <div className="col-start-1 row-start-1 flex items-center gap-1 opacity-0 transition-opacity duration-(--motion-duration-fast) group-hover:opacity-100 focus-within:opacity-100">
+          {presentation.actions.map((action) => {
+            const style = ACTION_STYLES[action];
+            const Icon = style.icon;
+            return (
+              <button
+                aria-label={style.ariaLabel}
+                className={cn(
+                  "inline-flex h-6 w-6 items-center justify-center rounded-[8px] focus-visible:opacity-100",
+                  style.className,
+                )}
+                key={action}
+                onClick={actionHandlers[action]}
+                type="button"
+              >
+                <Icon className="h-3 w-3" />
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -234,7 +247,7 @@ export function RoomHistoryItemView(props: RoomHistoryItemViewProps) {
   return (
     <article
       className={cn(
-        "group relative w-full overflow-hidden rounded-[14px] border px-3 py-2.5 text-left transition-[background-color,border-color,box-shadow] duration-(--motion-duration-fast) ease-out",
+        "group relative w-full overflow-hidden rounded-[10px] border px-2.5 py-1.5 text-left transition-[background-color,border-color,box-shadow] duration-(--motion-duration-fast) ease-out",
         style.articleClassName,
       )}
       style={style.style}
@@ -242,7 +255,7 @@ export function RoomHistoryItemView(props: RoomHistoryItemViewProps) {
       <span
         aria-hidden="true"
         className={cn(
-          "absolute left-0 top-2.5 bottom-2.5 w-px rounded-full",
+          "absolute bottom-1.5 left-0 top-1.5 w-px rounded-full",
           style.markerClassName,
         )}
       />

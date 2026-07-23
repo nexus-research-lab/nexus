@@ -38,7 +38,7 @@ export function PersonalProfileSection({
           <div className="flex min-w-0 items-center gap-3">
             <UiAgentAvatar
               avatar={avatar}
-              className="h-12 w-12 rounded-[16px]"
+              className="h-12 w-12 surface-radius-md"
               name={presentation.avatarName}
               shape="rounded"
             />

@@ -24,7 +24,7 @@ web/        - React 前端（features / store / shared / lib，见 web/CLAUDE.md
 internal/   - 后端核心（各子包 L2 见其 doc.go）:
   protocol/   - 跨 HTTP/WS/前端/运行时的协议真相源（会话/房间/Goal 模型与 Room creator/lead 身份、事件、枚举、TS codegen 输入）
   runtime/    - nxs/Claude Code 共用宿主主链（bridge client、manager 会话/round 生命周期）
-  service/    - 业务服务（agent / dm / room / session / workspace / skills / connectors / automation / llm ...）
+  service/    - 业务服务（agent / dm / room / room/realtime / session / workspace / skills / connectors / automation / llm ...）
   chat/       - 对话领域（dm / room）
   handler/    - HTTP / WebSocket 处理器
   message/    - runtime/SDK 消息 → Nexus 事件与 assistant 快照的映射投影
@@ -50,6 +50,8 @@ cmd -> app -> handler -> service -> domain/storage
 - `app` 只负责装配、路由和进程生命周期，不承载业务规则。
 - `handler` 在消费侧定义小接口，只依赖当前端点需要的操作；实现返回具体类型。
 - `service` 负责业务阶段和事务边界，不依赖 `handler` 或 `app`。
+- `service/room` 只持有 Room 的持久化管理；实时聊天与 runtime 编排位于 `service/room/realtime`，依赖方向只能从 realtime 指向 room。
+- `service/room/realtime` 测试按 package 与行为聚合：内部状态、Goal、协作测试分别归组，外部交付、生命周期和共享夹具集中管理；queue、guidance、session、directed message 等大场景保持独立。
 - `storage` 负责持久化与数据库方言，不保留没有行为的方言门面；共享 SQL 分叉统一进入 `SQLDialect`，领域查询留在各自 repository。
 - `runtime` 只描述 bridge 会话与执行生命周期；SDK 系统消息到产品事件的投影统一属于 `message`。
 - 测试便利入口优先留在 `_test.go`；只有跨包集成测试需要共享装配时，才在生产包保留窄入口。

@@ -35,7 +35,7 @@ ambient background
 
 ## 3. Token 与主题
 
-Token 保持四层映射，当前不改命名、层级和主题值：
+Token 保持四层映射与命名；本轮只收敛几何圆角，不新增颜色层：
 
 1. 主题基础：`background`、`foreground`、`primary`、`accent`、`border`。
 2. 环境材质：`ambient-*`、`material-*`。
@@ -51,7 +51,7 @@ Token 保持四层映射，当前不改命名、层级和主题值：
 规则：
 
 - `body` 使用 `--background` 纯色底；三角纹由 `--surface-body-background` 独立叠加。
-- `light` 背景为 `#fcfdfc`；三种主题共用网格结构，只改变描边明度。
+- `light` 背景为 `#f0f1ef`；三种主题共用网格结构，只改变描边明度。
 - Rain 的雾、雨滴和水花只属于环境层，不覆盖内容或交互。
 - 不新增无消费者的 ambient / material 渐变；Launcher aura 不进入全局工作面。
 - 文字使用 `--text-strong/default/muted/soft`，图标使用 `--icon-strong/default/muted`；交互、协作和状态分别使用 `--primary`、`--accent`、`--success/warning/destructive`。
@@ -89,6 +89,7 @@ Token 保持四层映射，当前不改命名、层级和主题值：
 | `input-shell` | hover / focus 只改变背景、边界和轻微 ring |
 
 - 卡片必须有内容或交互职责；当前项用低透明度 primary 背景或边界，不靠粗体堆叠。
+- 圆角固定为微型 `4px`、控件 `6/8/10/12px`、内容面 `12px`、浮层 `16px`、独立壳 `24px`；`full` 只用于头像、状态点和胶囊。
 - Dialog 复用 modal / input 语义，不能因进入浮层就变成厚玻璃卡。
 - 工作区默认使用 `md` / `sm` 圆角；`xl` 仅用于独立认证或故障壳。
 - 导航只承担定位和摘要；长内容截断，不把侧栏扩成数据面板。

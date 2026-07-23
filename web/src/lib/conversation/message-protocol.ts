@@ -13,14 +13,32 @@ import {
 } from "@/lib/unknown-value";
 import type { Message } from "@/types/conversation/message/entity";
 import type { StreamMessage } from "@/types/conversation/message/event";
+import type { ContentBlock } from "@/types/conversation/message/content";
 
 const MESSAGE_ROLES = new Set(["assistant", "system", "user"]);
 const STREAM_MESSAGE_TYPES = new Set([
   "message_start",
   "content_block_start",
   "content_block_delta",
+  "content_block_stop",
   "message_delta",
   "message_stop",
+]);
+const CONTENT_BLOCK_TYPES = new Set<ContentBlock["type"]>([
+  "document",
+  "image",
+  "redacted_thinking",
+  "resource_link",
+  "search_result",
+  "system_event",
+  "task_progress",
+  "text",
+  "thinking",
+  "tool_result",
+  "tool_use",
+  "tool_use_error",
+  "unsupported",
+  "workspace_file_artifact",
 ]);
 const MESSAGE_IDENTITY_STRING_FIELDS = [
   "message_id",
@@ -35,6 +53,62 @@ interface MessageEnvelopeProjection {
 
 function hasMessageContent(role: string, content: unknown): boolean {
   return role === "assistant" ? Array.isArray(content) : typeof content === "string";
+}
+
+export function parseContentBlock(value: unknown): ContentBlock | null {
+  const record = asUnknownRecord(value);
+  const originalType = record ? readString(record, "type") : null;
+  if (!record || !originalType) {
+    return null;
+  }
+  if (
+    CONTENT_BLOCK_TYPES.has(originalType as ContentBlock["type"])
+    && hasContentBlockShape(originalType as ContentBlock["type"], record)
+  ) {
+    return { ...record } as unknown as ContentBlock;
+  }
+  return {
+    type: "unsupported",
+    original_type: originalType,
+    payload: { ...record },
+  };
+}
+
+function hasContentBlockShape(
+  type: ContentBlock["type"],
+  record: UnknownRecord,
+): boolean {
+  switch (type) {
+    case "text":
+      return typeof record.text === "string";
+    case "thinking":
+      return typeof record.thinking === "string";
+    case "tool_use":
+      return typeof record.id === "string" && typeof record.name === "string";
+    case "tool_result":
+      return typeof record.tool_use_id === "string";
+    case "tool_use_error":
+      return typeof record.content === "string";
+    case "task_progress":
+      return typeof record.task_id === "string" && typeof record.description === "string";
+    case "workspace_file_artifact":
+      return typeof record.path === "string";
+    case "system_event":
+      return typeof record.content === "string" && typeof record.label === "string";
+    case "unsupported":
+      return typeof record.original_type === "string" && asUnknownRecord(record.payload) !== null;
+    default:
+      return true;
+  }
+}
+
+function parseAssistantContent(value: unknown): ContentBlock[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map(parseContentBlock)
+    .filter((block): block is ContentBlock => block !== null);
 }
 
 function hasMessageIdentity(record: UnknownRecord, role: string): boolean {
@@ -78,6 +152,9 @@ export function parseConversationMessage(
   return {
     ...messageFields,
     session_key: sessionKey,
+    ...(role === "assistant"
+      ? { content: parseAssistantContent(record.content) }
+      : {}),
     ...(deliveryMode ? { delivery_mode: deliveryMode } : {}),
   } as unknown as Message;
 }
@@ -99,5 +176,12 @@ export function parseStreamMessage(
   ) {
     return null;
   }
-  return { ...record, session_key: sessionKey } as unknown as StreamMessage;
+  const contentBlock = record.content_block === undefined
+    ? undefined
+    : parseContentBlock(record.content_block) ?? undefined;
+  return {
+    ...record,
+    session_key: sessionKey,
+    ...(contentBlock ? { content_block: contentBlock } : {}),
+  } as unknown as StreamMessage;
 }

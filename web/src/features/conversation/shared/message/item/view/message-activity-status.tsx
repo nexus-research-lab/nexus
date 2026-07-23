@@ -6,6 +6,7 @@ import {
   type LucideIcon,
   MessageCircleMore,
   MessageSquareText,
+  RefreshCw,
   ShieldAlert,
   Wrench,
 } from "lucide-react";
@@ -26,6 +27,12 @@ const ACTIVITY_PRESENTATION: Record<
   MessageActivityState,
   MessageActivityPresentation
 > = {
+  compacting: {
+    icon: RefreshCw,
+    label: "正在压缩上下文",
+    spinner: "braille",
+    toneClassName: "text-(--text-muted)",
+  },
   sending: {
     icon: MessageSquareText,
     label: "正在发送",

@@ -219,7 +219,7 @@ function ThreadAgentAvatar({ avatarUrl }: { avatarUrl: string | null }) {
   return (
     <MessageAvatar
       avatarUrl={avatarUrl}
-      className="h-8 w-8 shrink-0 rounded-xl"
+      className="h-8 w-8 shrink-0 radius-control-md"
       size="full"
     >
       {avatarUrl ? null : <Bot className="h-3.5 w-3.5" />}

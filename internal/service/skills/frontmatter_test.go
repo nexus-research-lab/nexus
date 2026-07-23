@@ -55,21 +55,39 @@ tags: [screen, context]
 	}
 }
 
-func TestParseSkillFrontmatterRuntimeInstructions(t *testing.T) {
-	parsed := parseSkillFrontmatter(`---
-name: room-demo
-scope: room
-runtime_instructions: |
-  Keep private context private.
-  Wake only the member who must act.
----
-
-# Human documentation
-`, "room-demo")
-	if !strings.Contains(parsed.RuntimeInstructions, "Keep private context private.") ||
-		!strings.Contains(parsed.RuntimeInstructions, "Wake only the member") ||
-		strings.Contains(parsed.RuntimeInstructions, "Human documentation") {
-		t.Fatalf("runtime_instructions 解析不正确: %q", parsed.RuntimeInstructions)
+func TestStripFrontmatterReturnsSkillBody(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		want    string
+	}{
+		{
+			name:    "yaml frontmatter",
+			content: "---\nname: demo\n---\n\n# Demo\n",
+			want:    "# Demo\n",
+		},
+		{
+			name:    "bom",
+			content: "\ufeff---\nname: demo\n---\nbody",
+			want:    "body",
+		},
+		{
+			name:    "plain markdown",
+			content: "# Demo",
+			want:    "# Demo",
+		},
+		{
+			name:    "unterminated frontmatter",
+			content: "---\nname: demo\n# Demo",
+			want:    "---\nname: demo\n# Demo",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := StripFrontmatter(test.content); got != test.want {
+				t.Fatalf("正文投影 = %q，期望 %q", got, test.want)
+			}
+		})
 	}
 }
 

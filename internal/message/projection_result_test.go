@@ -63,6 +63,43 @@ func TestBuildSyntheticAssistantFromResultMapsStopReasonBySubtype(t *testing.T) 
 	}
 }
 
+func TestProjectResultMessageSkipsEmptySuccessfulResult(t *testing.T) {
+	projected := ProjectResultMessage(nil, protocol.Message{
+		"message_id": "result-empty",
+		"round_id":   "round-empty",
+		"role":       "result",
+		"subtype":    "success",
+		"is_error":   false,
+	})
+	if projected != nil {
+		t.Fatalf("empty successful result should not create assistant bubble: %+v", projected)
+	}
+}
+
+func TestProjectResultMessageKeepsEmptyErrorResult(t *testing.T) {
+	projected := ProjectResultMessage(nil, protocol.Message{
+		"message_id": "result-error",
+		"round_id":   "round-error",
+		"role":       "result",
+		"subtype":    "error",
+		"is_error":   true,
+	})
+	if projected == nil {
+		t.Fatal("error result must remain visible even without result text")
+	}
+}
+
+func TestIsInternalTranscriptContinuationPrompt(t *testing.T) {
+	const prompt = "Output token limit hit. Resume directly — no apology, no recap of what you were doing. Pick up mid-thought if that is where the cut happened. Break remaining work into smaller pieces."
+
+	if !IsInternalTranscriptContinuationPrompt("  " + prompt + "\n") {
+		t.Fatalf("输出预算续跑提示应被识别为内部消息")
+	}
+	if IsInternalTranscriptContinuationPrompt(prompt + " 请继续") {
+		t.Fatalf("带用户内容的续跑提示不应被误判为内部消息")
+	}
+}
+
 func TestBuildSyntheticAssistantFromResultPreservesExecutionIdentity(t *testing.T) {
 	synthetic := BuildSyntheticAssistantFromResult(protocol.Message{
 		"message_id":     "result-1",
@@ -168,5 +205,25 @@ func TestBuildAssistantResultSummaryPreservesPermissionDenials(t *testing.T) {
 	errorsValue, ok := summary["errors"].([]string)
 	if !ok || len(errorsValue) != 1 || errorsValue[0] != "permission denied" {
 		t.Fatalf("errors 未进入 result_summary: %+v", summary)
+	}
+}
+
+func TestBuildAssistantResultSummaryPreservesRuntimeDiagnostics(t *testing.T) {
+	summary := BuildAssistantResultSummary(protocol.Message{
+		"message_id":        "result-diagnostics",
+		"role":              "result",
+		"subtype":           "error",
+		"runtime_subtype":   "error_max_turns",
+		"is_error":          true,
+		"model_usage":       map[string]any{"glm-5.2": map[string]any{"input_tokens": 42}},
+		"structured_output": map[string]any{"status": "failed"},
+		"fast_mode_state":   "cooldown",
+	}, "")
+
+	if summary["runtime_subtype"] != "error_max_turns" || summary["fast_mode_state"] != "cooldown" {
+		t.Fatalf("runtime diagnostics missing: %+v", summary)
+	}
+	if summary["model_usage"] == nil || summary["structured_output"] == nil {
+		t.Fatalf("result payload diagnostics missing: %+v", summary)
 	}
 }
