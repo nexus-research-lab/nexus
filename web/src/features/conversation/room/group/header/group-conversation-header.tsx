@@ -5,6 +5,7 @@ import { memo, useState } from "react";
 import type { RoomDialogSubmission } from "@/features/conversation/room/members/create-room-dialog";
 import { RoomMemberManagerDialog } from "@/features/conversation/room/members/room-member-manager-dialog";
 import { CONVERSATION_TOUR_ANCHORS } from "@/features/onboarding/tours/conversation-tour";
+import { useMediaQuery } from "@/hooks/ui/use-media-query";
 import { useSidebarStore } from "@/store/sidebar";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiRoomAvatar } from "@/shared/ui/display/avatar";
@@ -18,6 +19,8 @@ import { buildRoomHeaderTabs } from "@/features/conversation/room/surface/header
 import { RoomHistoryMenu } from "@/features/conversation/room/surface/history/room-history-menu";
 
 import { GroupMemberAvatarStack } from "./group-member-avatar-stack";
+
+const GROUP_MEMBER_STACK_COLLAPSE_MEDIA_QUERY = "(max-width: 1119px)";
 
 interface GroupConversationHeaderProps {
   activeTab: RoomSurfaceTabKey;
@@ -69,6 +72,9 @@ export const GroupConversationHeader = memo(function GroupConversationHeader({
   roomSkillNames,
 }: GroupConversationHeaderProps) {
   const { t } = useI18n();
+  const showMembersInGuideMenu = useMediaQuery(
+    GROUP_MEMBER_STACK_COLLAPSE_MEDIA_QUERY,
+  );
   const widePanelCollapsed = useSidebarStore((state) => state.wide_panel_collapsed);
   const [memberDialogRoomId, setMemberDialogRoomId] = useState<string | null>(null);
   const headerTitle = currentRoomTitle?.trim() || t("room.untitled_collaboration");
@@ -137,7 +143,9 @@ export const GroupConversationHeader = memo(function GroupConversationHeader({
             </div>
             {onReplayTour || roomId ? (
               <RoomHeaderGuideMenu
-                onManageMembers={() => void handleOpenMemberList()}
+                onManageMembers={showMembersInGuideMenu
+                  ? () => void handleOpenMemberList()
+                  : undefined}
                 onReplayTour={onReplayTour}
               />
             ) : null}
