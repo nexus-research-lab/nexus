@@ -61,6 +61,10 @@ Provider 模型测试既接受 API base URL，也接受已经包含 operation pa
 
 平台 Skill 由 nxs 与 Claude 共用一份全局兼容源。Agent 只保存选中的 `skill_ids`；运行时分别通过 `.agents/skills` 和 `.claude/skills` 入口读取，同一平台 Skill 不会复制到每个 Agent 工作区。
 
+第三方导入 Skill 共享当前 owner 的 workspace 源：普通用户位于
+`~/.nexus/workspace/<owner>/.agents/skills`，系统 owner 位于
+`~/.nexus/workspace/.agents/skills`；Agent 只保存 `external:<skill_id>` 引用。
+
 ```bash
 # macOS / Linux / WSL
 curl -fsSL https://claude.ai/install.sh | bash

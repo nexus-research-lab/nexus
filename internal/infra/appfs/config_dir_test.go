@@ -22,12 +22,21 @@ func TestUserSkillLibraryRootKeepsUnsafeOwnerInsideConfig(t *testing.T) {
 	}
 }
 
-func TestUserSkillLibraryRootUsesUsersDirectory(t *testing.T) {
+func TestUserSkillLibraryRootUsesWorkspaceOwnerDirectory(t *testing.T) {
 	configDir := t.TempDir()
 	t.Setenv("NEXUS_CONFIG_DIR", configDir)
-	want := filepath.Join(configDir, "users", "owner-a")
+	want := filepath.Join(configDir, "workspace", "owner-a")
 	if got := UserSkillLibraryRoot("owner-a"); got != want {
 		t.Fatalf("用户 Skill 根 = %q, want %q", got, want)
+	}
+}
+
+func TestSystemSkillLibraryRootKeepsWorkspaceFlat(t *testing.T) {
+	configDir := t.TempDir()
+	t.Setenv("NEXUS_CONFIG_DIR", configDir)
+	want := filepath.Join(configDir, "workspace")
+	if got := UserSkillLibraryRoot("__system__"); got != want {
+		t.Fatalf("系统 owner Skill 根 = %q, want %q", got, want)
 	}
 }
 
