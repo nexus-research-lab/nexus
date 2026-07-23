@@ -27,41 +27,57 @@ export function PersonalProfileSection({
   const presentation = buildPersonalProfilePresentation(profile, t);
 
   return (
-    <section className="overflow-hidden rounded-[12px] border border-(--divider-subtle-color) bg-transparent">
-      <div className="grid gap-4 px-4 py-4 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center sm:px-5 lg:grid-cols-[auto_minmax(180px,1fr)_minmax(260px,auto)] lg:gap-6">
-        <PersonalAvatarPicker
-          avatar={avatar}
-          disabled={!canUpdateAvatar}
-          isSaving={isSavingAvatar}
-          name={presentation.avatarName}
-          onChange={onAvatarChange}
-        />
+    <section className="w-full overflow-hidden rounded-[12px] border border-(--divider-subtle-color) bg-transparent">
+      <div className="grid gap-5 px-4 py-5 sm:px-5 lg:grid-cols-[minmax(280px,0.85fr)_minmax(360px,1fr)] lg:items-center lg:gap-6">
+        <div className="flex min-w-0 items-center gap-4">
+          <PersonalAvatarPicker
+            avatar={avatar}
+            disabled={!canUpdateAvatar}
+            isSaving={isSavingAvatar}
+            name={presentation.avatarName}
+            onChange={onAvatarChange}
+          />
 
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <h3 className="truncate text-[17px] font-semibold tracking-tight text-(--text-strong)">
-              {presentation.displayName}
-            </h3>
-            {presentation.subscriptionPlanName !== null ? (
-              <span className="shrink-0 rounded-full border border-[color:color-mix(in_srgb,var(--primary)_16%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--primary)_6%,transparent)] px-2 py-0.5 text-[10.5px] font-semibold text-(--primary)">
-                {presentation.subscriptionPlanName}
-              </span>
-            ) : null}
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <h3 className="truncate text-[17px] font-semibold tracking-tight text-(--text-strong)">
+                {presentation.displayName}
+              </h3>
+              {presentation.subscriptionPlanName !== null ? (
+                <span className="shrink-0 rounded-full border border-[color:color-mix(in_srgb,var(--primary)_16%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--primary)_6%,transparent)] px-2 py-0.5 text-[10.5px] font-semibold text-(--primary)">
+                  {presentation.subscriptionPlanName}
+                </span>
+              ) : null}
+            </div>
+            <p className="mt-0.5 truncate text-[12px] leading-5 text-(--text-soft)">
+              {presentation.username}
+            </p>
           </div>
-          <p className="mt-0.5 truncate text-[12px] leading-5 text-(--text-soft)">
-            {presentation.username}
-          </p>
         </div>
 
-        <div className="min-w-0 sm:col-start-2 lg:col-auto">
-          <div className="flex flex-wrap gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_72%,transparent)] px-2.5 py-1 text-[11px] text-(--text-soft)">
-              <ShieldCheck className="h-3.5 w-3.5 text-(--icon-muted)" />
-              {t("settings.personal.role")}: {presentation.roleLabel}
+        <div className="min-w-0">
+          <div className="grid gap-2 sm:grid-cols-2">
+            <span className="flex min-w-0 items-center gap-2 rounded-[10px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_72%,transparent)] px-3 py-2.5">
+              <ShieldCheck className="h-4 w-4 shrink-0 text-(--icon-muted)" />
+              <span className="min-w-0">
+                <span className="block text-[10.5px] leading-4 text-(--text-soft)">
+                  {t("settings.personal.role")}
+                </span>
+                <span className="block truncate text-[12px] font-medium leading-4 text-(--text-strong)">
+                  {presentation.roleLabel}
+                </span>
+              </span>
             </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_72%,transparent)] px-2.5 py-1 text-[11px] text-(--text-soft)">
-              <KeyRound className="h-3.5 w-3.5 text-(--icon-muted)" />
-              {t("settings.personal.auth_method")}: {presentation.authMethodLabel}
+            <span className="flex min-w-0 items-center gap-2 rounded-[10px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_72%,transparent)] px-3 py-2.5">
+              <KeyRound className="h-4 w-4 shrink-0 text-(--icon-muted)" />
+              <span className="min-w-0">
+                <span className="block text-[10.5px] leading-4 text-(--text-soft)">
+                  {t("settings.personal.auth_method")}
+                </span>
+                <span className="block truncate text-[12px] font-medium leading-4 text-(--text-strong)">
+                  {presentation.authMethodLabel}
+                </span>
+              </span>
             </span>
           </div>
 
