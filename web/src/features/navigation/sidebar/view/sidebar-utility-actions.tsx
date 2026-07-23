@@ -23,6 +23,7 @@ interface SidebarUtilityActionsProps {
   onOpenGuide: () => void;
   settingsActive: boolean;
   showLogout: boolean;
+  showPanelToggle: boolean;
   showSettings: boolean;
   variant: "rail" | "panel";
 }
@@ -56,13 +57,15 @@ export function SidebarUtilityActions(props: SidebarUtilityActionsProps) {
           onClick={props.onLogout}
         />
       ) : null}
-      <UtilityButton
-        icon={props.variant === "rail" ? PanelLeftOpen : PanelLeftClose}
-        label={
-          props.variant === "rail" ? props.labels.expand : props.labels.collapse
-        }
-        onClick={props.variant === "rail" ? props.onExpand : props.onCollapse}
-      />
+      {props.showPanelToggle ? (
+        <UtilityButton
+          icon={props.variant === "rail" ? PanelLeftOpen : PanelLeftClose}
+          label={
+            props.variant === "rail" ? props.labels.expand : props.labels.collapse
+          }
+          onClick={props.variant === "rail" ? props.onExpand : props.onCollapse}
+        />
+      ) : null}
     </>
   );
 
@@ -75,7 +78,7 @@ export function SidebarUtilityActions(props: SidebarUtilityActionsProps) {
     );
   }
   return (
-    <div className="relative flex items-center justify-between gap-2.5 border-t divider-subtle px-3 py-3">
+    <div className="relative flex items-center justify-between gap-2.5 border-t divider-subtle px-3 py-3 max-lg:px-4 max-lg:py-4">
       <div className="flex items-center gap-2.5">{primaryActions}</div>
       <div className="min-w-0 flex-1" />
       <div className="flex items-center gap-2.5">{panelActions}</div>

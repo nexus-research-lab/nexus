@@ -32,6 +32,7 @@ interface SidebarCollapsedRailProps {
     onOpenGuide: () => void;
     settingsActive: boolean;
     showLogout: boolean;
+    showPanelToggle: boolean;
     showSettings: boolean;
   };
 }

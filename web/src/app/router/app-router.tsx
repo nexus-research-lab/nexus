@@ -109,6 +109,10 @@ export function AppRouter() {
                   <Route element={<ContactsPage />} path={APP_ROUTE_PATHS.contacts} />
 
                   {/* Skills 路由 */}
+                  <Route
+                    element={<Navigate replace to={APP_ROUTE_PATHS.skills} />}
+                    path={APP_ROUTE_PATHS.capability}
+                  />
                   <Route element={<SkillsPage />} path={APP_ROUTE_PATHS.skills} />
                   <Route element={<SkillsPage />} path={APP_ROUTE_PATHS.skillDetail} />
 

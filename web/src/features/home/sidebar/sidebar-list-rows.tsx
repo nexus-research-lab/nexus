@@ -16,13 +16,13 @@ import type { SidebarConversationItem } from "./sidebar-conversation-model";
 
 export function SidebarListLoadingRows({ count = 4 }: { count?: number }) {
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-0.5 px-2 pb-2">
+    <div className="flex min-h-0 flex-1 flex-col gap-0.5 px-2 pb-2 max-lg:gap-1 max-lg:px-3">
       {Array.from({ length: count }, (_, index) => (
         <div
-          className="flex min-h-[54px] w-full items-center gap-2.5 rounded-[8px] px-2 py-1.5"
+          className="flex min-h-[54px] w-full items-center gap-2.5 rounded-[8px] px-2 py-1.5 max-lg:min-h-[72px] max-lg:gap-3 max-lg:rounded-[12px] max-lg:px-3 max-lg:py-2.5"
           key={index}
         >
-          <span className="h-8 w-8 shrink-0 animate-pulse radius-control-sm bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_74%,transparent)]" />
+          <span className="h-8 w-8 shrink-0 animate-pulse radius-control-sm bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_74%,transparent)] max-lg:h-10 max-lg:w-10" />
           <span className="min-w-0 flex-1 space-y-2">
             <span className="block h-3.5 w-24 animate-pulse rounded-full bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_76%,transparent)]" />
             <span className="block h-3 w-36 animate-pulse rounded-full bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_58%,transparent)]" />
@@ -51,6 +51,7 @@ function ConversationRowLeading({
     return (
       <UiRoomAvatar
         avatar={item.avatar}
+        className="max-lg:h-10 max-lg:w-10 max-lg:rounded-[10px]"
         members={item.members}
         roomId={item.roomId}
         size="sm"
@@ -62,6 +63,7 @@ function ConversationRowLeading({
   return (
     <UiAgentAvatar
       avatar={(item.members[0]?.avatar ?? item.avatar) ?? undefined}
+      className="max-lg:h-10 max-lg:w-10"
       isWorking={isWorking}
       name={item.members[0]?.name ?? item.title}
       size="sm"
@@ -160,7 +162,7 @@ export function ConversationRow({
   return (
     <UiListRow
       active={isActive}
-      className="min-h-[54px] gap-2.5 rounded-[8px] px-2 py-1.5"
+      className="min-h-[54px] gap-2.5 rounded-[8px] px-2 py-1.5 max-lg:min-h-[72px] max-lg:gap-3 max-lg:rounded-[12px] max-lg:px-3 max-lg:py-2.5"
       description={item.summary ? <ConversationRowSummary item={item} /> : undefined}
       leading={<ConversationRowLeading isWorking={isWorking} item={item} />}
       meta={item.timeLabel || onDelete ? (
@@ -201,9 +203,16 @@ export function ContactRow({
   return (
     <UiListRow
       active={isActive}
-      className="min-h-[54px] gap-2.5 rounded-[8px] px-2 py-1.5"
+      className="min-h-[54px] gap-2.5 rounded-[8px] px-2 py-1.5 max-lg:min-h-[72px] max-lg:gap-3 max-lg:rounded-[12px] max-lg:px-3 max-lg:py-2.5"
       description={subtitle}
-      leading={<UiAgentAvatar avatar={agent.avatar} name={agent.name} size="sm" />}
+      leading={(
+        <UiAgentAvatar
+          avatar={agent.avatar}
+          className="max-lg:h-10 max-lg:w-10"
+          name={agent.name}
+          size="sm"
+        />
+      )}
       onClick={onOpenDirectory}
       right={(
         <UiIconButton

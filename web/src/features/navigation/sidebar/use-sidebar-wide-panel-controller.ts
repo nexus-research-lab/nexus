@@ -34,7 +34,11 @@ import {
 import type { SidebarPrimaryTab } from "./view/sidebar-wide-panel-types";
 import { useSidebarPanelResize } from "./use-sidebar-panel-resize";
 
-export function useSidebarWidePanelController() {
+export function useSidebarWidePanelController({
+  navigationOnly = false,
+}: {
+  navigationOnly?: boolean;
+} = {}) {
   const { t } = useI18n();
   const { logout } = useAuth();
   const { pathname } = useLocation();
@@ -91,7 +95,9 @@ export function useSidebarWidePanelController() {
     const actions: Record<SidebarPrimaryTab, () => void> = {
       capabilities: () => {
         setActivePanelItem(SIDEBAR_CAPABILITY_ITEM_IDS.skills);
-        navigate(AppRouteBuilders.skills());
+        navigate(navigationOnly
+          ? AppRouteBuilders.capability()
+          : AppRouteBuilders.skills());
       },
       chat: () => {
         if (!pathname.startsWith("/rooms/")) {
@@ -104,7 +110,7 @@ export function useSidebarWidePanelController() {
       },
     };
     actions[tab]();
-  }, [navigate, pathname, setActivePanelItem]);
+  }, [navigate, navigationOnly, pathname, setActivePanelItem]);
 
   const tabs = useMemo(
     () => buildSidebarPrimaryTabs(t, activeTab, chatBadgeCount),
@@ -149,6 +155,7 @@ export function useSidebarWidePanelController() {
         onOpenGuide: guideCenter.openGuideCenter,
         settingsActive: pathname.startsWith(AppRouteBuilders.settings()),
         showLogout: !desktopRuntime,
+        showPanelToggle: !navigationOnly,
         showSettings: !settingsMode,
       },
     },

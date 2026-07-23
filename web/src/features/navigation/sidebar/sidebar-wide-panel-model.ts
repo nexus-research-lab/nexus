@@ -41,7 +41,7 @@ export function deriveSidebarPrimaryTab(pathname: string): SidebarPrimaryTab {
   if (pathname.startsWith(AppRouteBuilders.contacts())) {
     return "contacts";
   }
-  if (pathname.startsWith("/capability/")) {
+  if (pathname.startsWith("/capability")) {
     return "capabilities";
   }
   return "chat";

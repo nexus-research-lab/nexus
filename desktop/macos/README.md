@@ -16,6 +16,7 @@
 - Shell 在正式签名包中优先使用 macOS Keychain 持久化 connector credentials encryption key；开发模式和 ad-hoc 本地包默认直接使用 `~/.nexus/config/connector-credentials.key` 的 0600 本地密钥，避免反复重签后 Keychain ACL 弹密码或阻塞启动。sidecar 通过 `CONNECTOR_CREDENTIALS_KEY` 使用现有 Go 加密存储。
 - Shell 负责单实例、Dock 重新打开、标准菜单、外链拦截和 `nexus://` URL scheme；冷启动和重复启动已有实例默认显示 launcher，Dock 重新打开只恢复现有主窗口，不主动改写当前路由。
 - Shell 使用 `NSVisualEffectView` material 承载 WKWebView：主窗口使用 `windowBackground` material，WKWebView under-page 背景保持透明。
+- 主窗口保持 `1280×820` 默认启动尺寸；常规屏幕可缩小到 `360×520`，极小可用工作区回退到 `320×480`，由 Web 层切换为手机布局。
 - Shell 不再默认注册 `Option + Space` 全局唤起；窗口菜单仍保留“显示启动器”入口，设置页不再展示启动器快捷键配置。
 - Shell 会按窗口职责加载 `app.html`、`settings.html`、`oauth-callback.html`，并用 `desktop_route` 把原始业务路由交给前端；`/launcher` 由主窗口 `app.html` 承载，sidecar 静态 fallback 支持直接刷新 `/launcher`、`/app`、`/settings` 和 OAuth callback。
 - 最小 native bridge 已支持版本读取、外链打开、日志导出、主窗口路由打开和全局快捷键状态读写。

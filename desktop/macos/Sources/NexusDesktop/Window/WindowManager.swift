@@ -3,8 +3,8 @@ import AppKit
 @MainActor
 final class WindowManager: NSObject, NSWindowDelegate {
   private static let preferredWindowSize = NSSize(width: 1280, height: 820)
-  private static let preferredMinimumWindowSize = NSSize(width: 1120, height: 640)
-  private static let compactMinimumWindowSize = NSSize(width: 720, height: 520)
+  private static let preferredMinimumWindowSize = NSSize(width: 360, height: 520)
+  private static let compactMinimumWindowSize = NSSize(width: 320, height: 480)
   private static let screenPadding: CGFloat = 48
 
   private let runtime: SidecarRuntimeConfig

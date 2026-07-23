@@ -19,7 +19,9 @@ import {
   buildAgentOptionsEditSource,
 } from "@/features/agents/options/agent-options-editor-model";
 import { AgentMemoryView } from "@/features/memory/agent-memory-view";
+import { useMediaQuery } from "@/hooks/ui/use-media-query";
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
+import { CONVERSATION_FOCUS_MEDIA_QUERY } from "@/lib/layout/home-layout";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 import { WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
@@ -31,6 +33,8 @@ import type {
   AgentNameValidationResult,
   AgentOptions,
 } from "@/types/agent/agent";
+
+import { ContactsAgentDetailActionsMenu } from "./contacts-agent-detail-actions-menu";
 
 interface ContactsAgentDetailProps {
   agent: Agent;
@@ -63,6 +67,7 @@ export function ContactsAgentDetail({
   onValidateAgentName,
 }: ContactsAgentDetailProps) {
   const { t } = useI18n();
+  const isCompactLayout = useMediaQuery(CONVERSATION_FOCUS_MEDIA_QUERY);
   const [activeTab, setActiveTab] = useResettableState<ContactDetailTabKey>(
     "identity",
     agent.agent_id,
@@ -106,7 +111,12 @@ export function ContactsAgentDetail({
     [agent.agent_id, onValidateAgentName],
   );
 
-  const trailing = (
+  const trailing = isCompactLayout ? (
+    <ContactsAgentDetailActionsMenu
+      onCreateTeam={() => onCreateTeam(agent.agent_id)}
+      onOpenDirectRoom={() => onOpenDirectRoom(agent.agent_id)}
+    />
+  ) : (
     <div className="flex flex-wrap items-center justify-end gap-2">
       <WorkspaceSurfaceToolbarAction onClick={onBack}>
         <ArrowLeft className="h-3.5 w-3.5" />
@@ -144,6 +154,7 @@ export function ContactsAgentDetail({
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <WorkspaceSurfaceHeader
         activeTab={activeTab}
+        compactTabsLabel={t("contacts.title")}
         leading={
           <UiAgentAvatar
             avatar={agent.avatar}

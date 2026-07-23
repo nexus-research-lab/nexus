@@ -1,4 +1,4 @@
-import { MessageSquarePlus, Plus } from "lucide-react";
+import { MessageSquarePlus } from "lucide-react";
 import { memo } from "react";
 
 import { CreateRoomDialog } from "@/features/conversation/room/members/create-room-dialog";
@@ -39,12 +39,18 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
       <SidebarSearchField
         action={(
           <button
-            className="flex h-8 w-8 items-center justify-center rounded-[8px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_76%,transparent)] bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_70%,transparent)] text-(--icon-muted) transition-[background,color] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default)"
+            className="flex h-8 w-8 items-center justify-center rounded-[8px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_76%,transparent)] bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_70%,transparent)] leading-none text-(--icon-muted) transition-[background,color] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default) max-lg:h-12 max-lg:w-12 max-lg:rounded-[12px]"
             onClick={controller.create.open}
             title={t("home.create_room")}
             type="button"
           >
-            <Plus className="h-4 w-4" />
+            <span
+              aria-hidden="true"
+              className="relative block h-[18px] w-[18px] max-lg:h-5 max-lg:w-5"
+            >
+              <span className="absolute left-1/2 top-1/2 h-[2px] w-[14px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-current max-lg:w-4" />
+              <span className="absolute left-1/2 top-1/2 h-[14px] w-[2px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-current max-lg:h-4" />
+            </span>
           </button>
         )}
         onChange={controller.list.setQuery}
@@ -55,7 +61,7 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
       {controller.list.isLoading ? (
         <SidebarListLoadingRows />
       ) : (
-        <div className="flex min-h-0 flex-1 flex-col gap-0.5 px-2 pb-2">
+        <div className="flex min-h-0 flex-1 flex-col gap-0.5 px-2 pb-2 max-lg:gap-1 max-lg:px-3">
           {controller.list.items.length > 0 ? (
             controller.list.items.map((item) => (
               <ConversationRow

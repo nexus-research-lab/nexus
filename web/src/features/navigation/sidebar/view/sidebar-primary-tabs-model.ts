@@ -1,6 +1,6 @@
 import { cn } from "@/shared/ui/class-name";
 
-export type SidebarPrimaryTabsVariant = "rail" | "panel";
+export type SidebarPrimaryTabsVariant = "dock" | "rail" | "panel";
 
 interface SidebarPrimaryTabVariantPresentation {
   badgeClassName: string;
@@ -10,6 +10,7 @@ interface SidebarPrimaryTabVariantPresentation {
   containerClassName: string;
   iconBaseClassName: string;
   iconFrameClassName: string;
+  labelClassName: string;
   showLabel: boolean;
   useAriaLabel: boolean;
 }
@@ -21,20 +22,34 @@ interface SidebarPrimaryTabPresentation {
   buttonClassName: string;
   iconClassName: string;
   iconFrameClassName: string;
+  labelClassName: string;
   showLabel: boolean;
 }
 
 const ACTIVE_ICON_CLASS_NAME = "fill-(--primary) stroke-(--primary)";
 
 const SIDEBAR_PRIMARY_TAB_VARIANTS = {
+  dock: {
+    badgeClassName: "absolute -right-1.5 -top-1.5 h-4 min-w-4 px-1 text-[10px]",
+    buttonActiveClassName: "bg-[color:color-mix(in_srgb,var(--primary)_9%,transparent)] text-(--primary)",
+    buttonBaseClassName: "relative flex h-[54px] w-[52px] flex-col items-center justify-center gap-1 rounded-[10px] text-[10px] font-medium transition-[background,color] duration-(--motion-duration-fast)",
+    buttonInactiveClassName: "text-(--text-muted) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
+    containerClassName: "flex flex-col items-center gap-1.5 px-1 py-2",
+    iconBaseClassName: "h-[18px] w-[18px]",
+    iconFrameClassName: "relative flex h-5 w-5 items-center justify-center",
+    labelClassName: "max-w-full truncate px-1 leading-none",
+    showLabel: true,
+    useAriaLabel: false,
+  },
   panel: {
     badgeClassName: "absolute -right-2.5 -top-2 h-4 min-w-4 px-1 text-[10px]",
     buttonActiveClassName: "bg-[color:color-mix(in_srgb,var(--primary)_8%,transparent)] text-(--primary)",
-    buttonBaseClassName: "flex h-9 items-center justify-center gap-1.5 rounded-[8px] text-[13px] font-medium transition-[background,color] duration-(--motion-duration-fast)",
+    buttonBaseClassName: "flex h-9 items-center justify-center gap-1.5 rounded-[8px] text-[13px] font-medium transition-[background,color] duration-(--motion-duration-fast) max-lg:h-12 max-lg:gap-2 max-lg:rounded-[12px] max-lg:text-[15px]",
     buttonInactiveClassName: "text-(--text-muted) hover:text-(--text-strong)",
     containerClassName: "grid grid-cols-3 gap-0 bg-transparent",
-    iconBaseClassName: "h-3.5 w-3.5",
-    iconFrameClassName: "relative flex h-4 w-4 items-center justify-center",
+    iconBaseClassName: "h-3.5 w-3.5 max-lg:h-4 max-lg:w-4",
+    iconFrameClassName: "relative flex h-4 w-4 items-center justify-center max-lg:h-5 max-lg:w-5",
+    labelClassName: "",
     showLabel: true,
     useAriaLabel: false,
   },
@@ -46,6 +61,7 @@ const SIDEBAR_PRIMARY_TAB_VARIANTS = {
     containerClassName: "mt-1 flex flex-col items-center gap-1.5",
     iconBaseClassName: "h-4 w-4",
     iconFrameClassName: "contents",
+    labelClassName: "",
     showLabel: false,
     useAriaLabel: true,
   },
@@ -85,6 +101,7 @@ export function resolveSidebarPrimaryTabPresentation({
       active && ACTIVE_ICON_CLASS_NAME,
     ),
     iconFrameClassName: presentation.iconFrameClassName,
+    labelClassName: presentation.labelClassName,
     showLabel: presentation.showLabel,
   };
 }

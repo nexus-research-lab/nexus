@@ -26,6 +26,7 @@ import type {
 
 interface SidebarExpandedPanelProps {
   activeTab: SidebarPrimaryTab;
+  dockUtilities: boolean;
   launcherLabel: string;
   nexus: {
     active: boolean;
@@ -51,9 +52,10 @@ interface SidebarExpandedPanelProps {
     onOpenGuide: () => void;
     settingsActive: boolean;
     showLogout: boolean;
+    showPanelToggle: boolean;
     showSettings: boolean;
   };
-  width: number;
+  width: number | string;
 }
 
 const PANEL_CONTENT: Record<SidebarPrimaryTab, ComponentType> = {
@@ -64,6 +66,7 @@ const PANEL_CONTENT: Record<SidebarPrimaryTab, ComponentType> = {
 
 export function SidebarExpandedPanel({
   activeTab,
+  dockUtilities,
   launcherLabel,
   nexus,
   onPointerDown,
@@ -97,6 +100,7 @@ export function SidebarExpandedPanel({
         className={cn(
           "grid grid-cols-[46px_minmax(0,1fr)] items-center gap-1.5 border-b divider-subtle px-3",
           WORKSPACE_HEADER_HEIGHT_CLASS,
+          "max-lg:px-4",
         )}
       >
         <SidebarNexusButton {...nexus} variant="panel" />
@@ -122,21 +126,28 @@ export function SidebarExpandedPanel({
           {settingsNavigation}
         </div>
       ) : (
-        <>
-          <div className="border-b divider-subtle px-3 py-2">
-            <SidebarPrimaryTabs
-              activeTab={activeTab}
-              items={tabs}
-              onSelect={onSelectTab}
-              variant="panel"
-            />
-          </div>
-          <div className="soft-scrollbar scrollbar-stable-gutter flex min-h-0 flex-1 flex-col overflow-y-auto py-2.5">
+        <div className="flex min-h-0 flex-1">
+          <nav className="flex w-[60px] shrink-0 flex-col border-r divider-subtle">
+            <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto">
+              <SidebarPrimaryTabs
+                activeTab={activeTab}
+                items={tabs}
+                onSelect={onSelectTab}
+                variant="dock"
+              />
+            </div>
+            {dockUtilities ? (
+              <SidebarUtilityActions {...utility} variant="rail" />
+            ) : null}
+          </nav>
+          <div className="soft-scrollbar scrollbar-stable-gutter flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto py-2.5">
             <ActivePanelContent />
           </div>
-        </>
+        </div>
       )}
-      <SidebarUtilityActions {...utility} variant="panel" />
+      {dockUtilities ? null : (
+        <SidebarUtilityActions {...utility} variant="panel" />
+      )}
     </div>
   );
 }

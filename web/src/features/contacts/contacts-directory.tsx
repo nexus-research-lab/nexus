@@ -55,10 +55,27 @@ export function ContactsDirectory({
         trailing={headerTrailing}
       />
 
-      <div className="soft-scrollbar scrollbar-stable-gutter min-h-0 flex-1 overflow-y-auto px-5 py-5 xl:px-6">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+      <div className="soft-scrollbar scrollbar-stable-gutter min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5 sm:py-5 xl:px-6">
+        <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2 md:gap-4 xl:grid-cols-3 2xl:grid-cols-4">
+          <button
+            className="flex min-h-[138px] w-full items-center gap-3 rounded-[12px] border border-dashed border-(--divider-subtle-color) bg-transparent px-4 py-4 text-left transition duration-(--motion-duration-fast) ease-out hover:border-(--surface-interactive-active-border) hover:bg-(--surface-interactive-hover-background) md:hidden"
+            onClick={onCreateAgent}
+            type="button"
+          >
+            <WorkspaceIconFrame className="h-10 w-10 shrink-0" shape="round" size="md">
+              <Plus className="h-4.5 w-4.5 text-(--icon-default)" />
+            </WorkspaceIconFrame>
+            <span className="min-w-0">
+              <span className="block truncate text-[15px] font-semibold text-(--text-strong)">
+                {t("contacts.new_agent")}
+              </span>
+              <span className="mt-1 block line-clamp-2 text-[11px] leading-5 text-(--text-muted)">
+                {t("contacts.new_agent_description")}
+              </span>
+            </span>
+          </button>
           <WorkspaceCatalogGhostAction
-            className="py-8"
+            className="hidden py-8 md:flex"
             onClick={onCreateAgent}
             size="comfort"
           >

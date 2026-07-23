@@ -73,7 +73,9 @@ function PrimaryTabButton({
           count={item.badgeCount}
         />
       </span>
-      {presentation.showLabel ? <span>{item.label}</span> : null}
+      {presentation.showLabel ? (
+        <span className={presentation.labelClassName}>{item.label}</span>
+      ) : null}
     </button>
   );
 }

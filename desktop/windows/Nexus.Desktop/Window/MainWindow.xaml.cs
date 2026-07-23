@@ -16,10 +16,10 @@ public partial class MainWindow : System.Windows.Window
 {
     private const double PreferredWindowWidth = 1280;
     private const double PreferredWindowHeight = 820;
-    private const double PreferredMinimumWindowWidth = 1120;
-    private const double PreferredMinimumWindowHeight = 640;
-    private const double CompactMinimumWindowWidth = 720;
-    private const double CompactMinimumWindowHeight = 520;
+    private const double PreferredMinimumWindowWidth = 360;
+    private const double PreferredMinimumWindowHeight = 520;
+    private const double CompactMinimumWindowWidth = 320;
+    private const double CompactMinimumWindowHeight = 480;
     private const double ScreenPadding = 48;
 
     private readonly SidecarRuntimeConfig runtime;
