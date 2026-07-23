@@ -149,7 +149,7 @@ export function UiRoomAvatar({
   return (
     <span
       className={cn(
-        "relative grid shrink-0 gap-[2px] overflow-hidden border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_72%,transparent)] bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_88%,white)] p-[2px] shadow-(--surface-avatar-shadow)",
+        "relative grid shrink-0 gap-[2px] overflow-hidden border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_82%,transparent)] bg-[color:color-mix(in_srgb,var(--background)_78%,var(--surface-panel-background)_22%)] p-[2px]",
         ROOM_AVATAR_SIZE_CLASS_MAP[size],
         ROOM_AVATAR_GRID_CLASS_MAP[gridSize],
         visibleMembers.length === 2 && "grid-rows-1",

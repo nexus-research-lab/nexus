@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Toned down the Room collage avatar shell and member control with theme-aware ambient surfaces and quieter separators instead of bright white group-identity backgrounds.
 - Replaced the conversation overview's white paper background with a theme-aware translucent ambient panel while preserving the selected conversation accent.
 - Gave crowded conversation tabs slightly wider readable minimums, separated the overflow rail from the tab edge, and kept it hidden until hover while reserving the stronger accent for active dragging or keyboard focus.
 - Replaced the sidebar create-room button's fractionally scaled plus glyph with a pixel-aligned equal-axis mark so its cross remains visually centered at desktop and constrained widths.
