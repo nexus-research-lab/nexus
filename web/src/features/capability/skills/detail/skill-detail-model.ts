@@ -1,5 +1,6 @@
 import type {
   SkillDetail,
+  SkillInfo,
   SkillSourceType,
 } from "@/types/capability/skill";
 
