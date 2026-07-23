@@ -32,6 +32,9 @@ func (s *Service) dispatchNextInputQueueItemLocked(ctx context.Context, sessionK
 		}
 		return
 	}
+	if requireGroupRoomContext(contextValue) != nil {
+		return
+	}
 	s.releaseUndeliveredRoomGuidanceLocked(ctx, sessionKey, contextValue)
 	entries, err := s.roomInputQueueEntries(ctx, contextValue)
 	if err != nil {

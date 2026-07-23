@@ -5,6 +5,7 @@ package realtime
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -105,6 +106,12 @@ func (s *Service) resolveReusableRoomSDKSessionID(
 }
 
 func (e *slotExecution) prepareRuntimeClient() (runtimectx.Client, error) {
+	if e.round == nil {
+		return nil, errors.New("room round is required")
+	}
+	if err := requireGroupRoomContext(e.round.Context); err != nil {
+		return nil, err
+	}
 	if err := workspacepkg.EnsurePlatformSkillLibrary(); err != nil {
 		return nil, err
 	}

@@ -264,6 +264,9 @@ func (s *Service) InputQueueSnapshotEvent(
 	if contextValue == nil {
 		return protocol.EventMessage{}, errors.New("room conversation not found")
 	}
+	if contextValue.Room.RoomType != protocol.RoomTypeGroup {
+		return newRoomInputQueueEvent(sessionKey, roomID, conversationID, nil), nil
+	}
 	var items []protocol.InputQueueItem
 	lease := s.lockRoomDispatch(sessionKey, conversationID)
 	func() {
@@ -524,6 +527,9 @@ func (s *Service) resolveInputQueueContext(
 	if contextValue == nil {
 		return "", nil, errors.New("room conversation not found")
 	}
+	if err = requireGroupRoomContext(contextValue); err != nil {
+		return "", nil, err
+	}
 	return sessionKey, contextValue, nil
 }
 
@@ -627,6 +633,9 @@ func (s *Service) roomInputQueueLocationsByAgent(
 	contextValue *protocol.ConversationContextAggregate,
 ) (map[string]roomInputQueueLocation, error) {
 	if contextValue == nil {
+		return map[string]roomInputQueueLocation{}, nil
+	}
+	if contextValue.Room.RoomType == protocol.RoomTypeDM {
 		return map[string]roomInputQueueLocation{}, nil
 	}
 	agentsByID := make(map[string]protocol.Agent, len(contextValue.MemberAgents))

@@ -33,7 +33,8 @@ var ErrInputQueueCapacity = errors.New("input queue capacity exceeded")
 // ErrInputQueueIdempotencyConflict 表示同一客户端幂等键被用于不同的入队语义。
 var ErrInputQueueIdempotencyConflict = errors.New("input queue idempotency conflict")
 
-// InputQueueLocation 描述待发送队列的物理位置。
+// InputQueueLocation 描述待发送队列的物理文件与执行域分区。
+// Scope 是队列身份的一部分，即使不同 scope 暂时落在同一 JSONL 文件，也不得交叉回放。
 type InputQueueLocation struct {
 	Scope          protocol.InputQueueScope
 	WorkspacePath  string
@@ -334,7 +335,9 @@ func findAcceptedInputQueueEnqueue(
 			continue
 		}
 		item, ok := inputQueueItemFromAny(row["item"])
-		if !ok || strings.TrimSpace(item.ID) == "" {
+		if !ok ||
+			strings.TrimSpace(item.ID) == "" ||
+			!inputQueueItemMatchesLocationScope(location, item) {
 			continue
 		}
 		return normalizeInputQueueItem(location, item, normalizeInputQueueTimestamp(row["timestamp"])), true

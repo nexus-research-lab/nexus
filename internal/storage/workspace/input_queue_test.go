@@ -149,6 +149,81 @@ func TestInputQueueStoreReplayAppendReorderDispatchAndDelete(t *testing.T) {
 	}
 }
 
+func TestInputQueueStoreSeparatesDMAndRoomScopesAtSameSessionPath(t *testing.T) {
+	root := t.TempDir()
+	store := NewInputQueueStore(root)
+	workspacePath := filepath.Join(root, "agent")
+	sessionKey := "agent:alpha:ws:dm:shared-conversation"
+	dmLocation := InputQueueLocation{
+		Scope:         protocol.InputQueueScopeDM,
+		WorkspacePath: workspacePath,
+		SessionKey:    sessionKey,
+	}
+	roomLocation := InputQueueLocation{
+		Scope:          protocol.InputQueueScopeRoom,
+		WorkspacePath:  workspacePath,
+		SessionKey:     sessionKey,
+		RoomID:         "room-1",
+		ConversationID: "shared-conversation",
+	}
+
+	if _, err := store.Enqueue(dmLocation, protocol.InputQueueItem{
+		ID:      "dm-item",
+		Content: "DM 后续指令",
+		Source:  protocol.InputQueueSourceUser,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	roomItems, err := store.Snapshot(roomLocation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(roomItems) != 0 {
+		t.Fatalf("Room 队列不得回放 DM 队列项: %+v", roomItems)
+	}
+
+	if _, err = store.Enqueue(roomLocation, protocol.InputQueueItem{
+		ID:      "room-item",
+		Scope:   protocol.InputQueueScopeDM,
+		Content: "Room 后续指令",
+		Source:  protocol.InputQueueSourceUser,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	dmItems, err := store.Snapshot(dmLocation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(dmItems) != 1 || dmItems[0].ID != "dm-item" {
+		t.Fatalf("DM 队列只能看到 DM 队列项: %+v", dmItems)
+	}
+	roomItems, err = store.Snapshot(roomLocation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(roomItems) != 1 || roomItems[0].ID != "room-item" {
+		t.Fatalf("Room 队列只能看到 Room 队列项: %+v", roomItems)
+	}
+	if roomItems[0].Scope != protocol.InputQueueScopeRoom {
+		t.Fatalf("队列位置 scope 必须覆盖 item scope: %+v", roomItems[0])
+	}
+
+	dispatched, remaining, err := store.DispatchNext(roomLocation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dispatched == nil || dispatched.ID != "room-item" || len(remaining) != 0 {
+		t.Fatalf("Room 派发不得消费 DM 队列项: dispatched=%+v remaining=%+v", dispatched, remaining)
+	}
+	dmItems, err = store.Snapshot(dmLocation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(dmItems) != 1 || dmItems[0].ID != "dm-item" {
+		t.Fatalf("Room 派发后 DM 队列项必须保留: %+v", dmItems)
+	}
+}
+
 func TestInputQueueStoreIdempotentEnqueueSurvivesDispatch(t *testing.T) {
 	root := t.TempDir()
 	location := InputQueueLocation{
