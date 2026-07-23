@@ -112,8 +112,8 @@
   --icon-default: rgba(70, 84, 101, 0.78);
   --icon-muted: rgba(110, 123, 139, 0.62);
 
-  --interaction-hover-background: rgba(122, 135, 152, 0.10);
-  --interaction-hover-border: rgba(122, 135, 152, 0.22);
+  --interaction-hover-background: rgba(255, 255, 255, 0.34);
+  --interaction-hover-border: rgba(255, 255, 255, 0.42);
   --interaction-active-background: rgba(255, 255, 255, 0.48);
   --interaction-active-border: rgba(104, 123, 255, 0.22);
 

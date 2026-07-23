@@ -26,7 +26,7 @@
     position: relative;
     /* 中文注释：侧栏透出页面纹理，只用低对比边界标记导航区域。 */
     background: transparent;
-    border-right: 1px solid color-mix(in srgb, var(--divider-subtle-color) 44%, transparent);
+    border-right: 1px solid var(--divider-subtle-color);
   }
 
   .surface-panel {
@@ -82,22 +82,6 @@
     background: color-mix(in srgb, var(--input-shell-focus-background, var(--material-input-focus-background)) 62%, transparent);
     border-color: color-mix(in srgb, var(--input-shell-focus-border, var(--material-input-focus-border)) 96%, transparent);
     box-shadow: 0 0 0 1px color-mix(in srgb, var(--input-shell-focus-border, var(--material-input-focus-border)) 32%, transparent);
-  }
-
-  /* 中文注释：主工作台输入区只保留实色面和细边界，避免把功能控件做成一块玻璃。 */
-  .workbench-input-shell {
-    background: var(--surface-panel-background);
-    border-color: var(--surface-panel-border);
-  }
-
-  .workbench-input-shell:hover {
-    background: var(--surface-panel-background);
-  }
-
-  .workbench-input-shell:focus-within {
-    background: var(--surface-panel-background);
-    border-color: var(--surface-interactive-active-border);
-    box-shadow: 0 0 0 1px color-mix(in srgb, var(--surface-interactive-active-border) 32%, transparent);
   }
 
   .surface-popover {
