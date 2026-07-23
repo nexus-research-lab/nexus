@@ -1,8 +1,10 @@
-# Room Mobile Surface
+# Room Focus Surface
 
-- `room-mobile-surface.tsx` 只维护移动端 Sheet/Overlay 状态并装配共享聊天表面。
-- `room-mobile-header.tsx` 只负责返回、会话入口和子智能体入口。
-- `room-mobile-conversation-sheet.tsx` 独占会话列表展示与选择交互。
+- `room-mobile-surface.tsx` 在窄窗单会话模式下维护 Switcher/Overlay 状态并装配共享聊天表面；不得重新引入桌面侧栏或压缩桌面 Header。
+- `room-mobile-header.tsx` 只负责返回聊天目录、当前会话入口及其展开状态，以及历史/更多操作的尾部插槽。
+- `room-mobile-actions-menu.tsx` 是窄窗新建会话、群聊成员、子智能体、工作区、简介和引导操作的统一入口；成员仅在 Group Room 中出现，并复用桌面成员管理事务。
+- `room-mobile-auxiliary-overlay.tsx` 独占窄窗工作区与简介全屏层，关闭后必须回到原会话上下文。
+- `room-mobile-conversation-switcher.tsx` 独占会话列表展示与选择交互；它从触发它的顶栏向下展开，并复用一级目录的轻边框、图标框、活动标记和行高。Switcher 本体必须沿用远端 `surface-panel` 的半透明底面和边界，禁止混入不透明的 Paper 或 Popover 材质。
 - Thread 与子智能体全屏层分别由各自 Overlay 组件装配，不回流到主表面。
-- 移动端 Thread 与桌面右栏共用 `group/thread/live/` 的面板模型，不自行补全身份或动作。
-- DM/Group 聊天参数统一经过 `../room-chat-surface.tsx`；移动端不得复制 Panel 分支。
+- 窄窗 Thread 与桌面右栏共用 `group/thread/live/` 的面板模型，不自行补全身份或动作。
+- DM/Group 聊天参数统一经过 `../room-chat-surface.tsx`；专注模式不得复制 Panel 分支。

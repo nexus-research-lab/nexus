@@ -29,10 +29,10 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
     <section
       data-tour-anchor={props.tourAnchor}
       className={cn(
-        "mx-auto w-full max-w-[1020px] bg-transparent",
+        "mx-auto w-full bg-transparent",
         props.compact
-          ? "px-2 pb-2 pt-1"
-          : "px-3 pb-2 pt-2 sm:px-5 xl:px-6",
+          ? "max-w-[720px] px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2"
+          : "max-w-[1020px] px-3 pb-4 pt-2 sm:px-5 xl:px-6",
       )}
     >
       <input

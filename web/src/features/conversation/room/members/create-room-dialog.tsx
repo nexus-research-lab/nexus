@@ -90,7 +90,7 @@ function CreateRoomDialogContent({
         onClose={onCancel}
       >
         <UiDialogShell
-          className="max-h-[min(80vh,720px)] pointer-events-auto"
+          className="pointer-events-auto max-h-[min(80vh,720px)] max-md:w-[clamp(304px,calc(100vw-64px),620px)] max-md:max-h-[min(820px,calc(100dvh-32px))] max-md:max-w-none"
           size="lg"
         >
           <UiDialogHeader>
@@ -121,8 +121,8 @@ function CreateRoomDialogContent({
             <UiDialogCloseButton onClose={onCancel} />
           </UiDialogHeader>
 
-          <div className="dialog-body flex min-h-0 flex-col gap-4 overflow-y-auto">
-            <div className="flex min-h-0 gap-5">
+          <div className="dialog-body soft-scrollbar flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto">
+            <div className="flex min-h-0 gap-5 max-md:flex-col max-md:gap-6">
               <RoomSettingsForm
                 avatarFallbackTitle={labels.title}
                 canSubmit={canSubmit}

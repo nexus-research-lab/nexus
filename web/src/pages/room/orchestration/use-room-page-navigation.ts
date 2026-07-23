@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { getExternalSessionKeyFromConversationId } from "@/lib/conversation/external-session";
+import { useSidebarStore } from "@/store/sidebar";
 
 interface UseRoomPageNavigationOptions {
   roomId?: string | null;
@@ -33,6 +34,9 @@ export function useRoomPageNavigation({
   deleteConversation,
 }: UseRoomPageNavigationOptions) {
   const navigate = useNavigate();
+  const setWidePanelCollapsed = useSidebarStore(
+    (state) => state.set_wide_panel_collapsed,
+  );
   const [searchParams, setSearchParams] = useSearchParams();
   const queryInitialDraft = searchParams.get("initial")?.trim() || null;
   const [initialDraft, setInitialDraft] = useState<string | null>(queryInitialDraft);
@@ -76,6 +80,10 @@ export function useRoomPageNavigation({
     );
     return fallbackConversationId;
   }, [deleteConversation, navigate, roomId, selectedConversationId]);
+  const backToChatDirectory = useCallback(() => {
+    setWidePanelCollapsed(false);
+    navigate(AppRouteBuilders.home());
+  }, [navigate, setWidePanelCollapsed]);
 
   useEffect(() => {
     const shouldSelectCurrentConversation = (
@@ -108,7 +116,7 @@ export function useRoomPageNavigation({
   return {
     initialDraft,
     consumeInitialDraft: () => setInitialDraft(null),
-    backToLauncher: () => navigate(AppRouteBuilders.launcher()),
+    backToChatDirectory,
     selectConversation,
     createConversation: handleCreateConversation,
     deleteConversation: handleDeleteConversation,

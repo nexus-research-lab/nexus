@@ -2,8 +2,8 @@
 
 import { memo, useState } from "react";
 
-import { CreateRoomDialog } from "@/features/conversation/room/members/create-room-dialog";
 import type { RoomDialogSubmission } from "@/features/conversation/room/members/create-room-dialog";
+import { RoomMemberManagerDialog } from "@/features/conversation/room/members/room-member-manager-dialog";
 import { CONVERSATION_TOUR_ANCHORS } from "@/features/onboarding/tours/conversation-tour";
 import { useSidebarStore } from "@/store/sidebar";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -73,9 +73,6 @@ export const GroupConversationHeader = memo(function GroupConversationHeader({
   const [memberDialogRoomId, setMemberDialogRoomId] = useState<string | null>(null);
   const headerTitle = currentRoomTitle?.trim() || t("room.untitled_collaboration");
   const roomTabs = buildRoomHeaderTabs(t);
-  const memberAgentIds = roomMembers.map((member) => member.agent_id);
-  const allRoomAgents = buildRoomAgentCatalog(roomMembers, availableRoomAgents);
-
   const handleOpenMemberList = async () => {
     const scopeRoomId = roomId;
     if (!scopeRoomId) {
@@ -89,6 +86,7 @@ export const GroupConversationHeader = memo(function GroupConversationHeader({
     <>
       <WorkspaceSurfaceHeader
         activeTab={activeTab}
+        compactTabsLabel={t("room.panels")}
         dismissActiveTabLabel={t("common.close")}
         leading={(
           <UiRoomAvatar
@@ -147,34 +145,19 @@ export const GroupConversationHeader = memo(function GroupConversationHeader({
         )}
       />
 
-      <CreateRoomDialog
-        agents={allRoomAgents}
+      <RoomMemberManagerDialog
+        availableRoomAgents={availableRoomAgents}
         initialAvatar={roomAvatar ?? ""}
         initialHostAgentId={roomHostAgentId ?? null}
         initialHostAutoReplyEnabled={roomHostAutoReplyEnabled}
         initialName={headerTitle}
         initialPrivateMessagesEnabled={roomPrivateMessagesEnabled}
         initialRoomSkillNames={roomSkillNames}
-        initialSelectedAgentIds={memberAgentIds}
         isOpen={roomId !== null && memberDialogRoomId === roomId}
-        mode="manage"
-        onCancel={() => setMemberDialogRoomId(null)}
-        onConfirm={async (submission) => {
-          await onManageRoom(submission);
-          setMemberDialogRoomId(null);
-        }}
+        onClose={() => setMemberDialogRoomId(null)}
+        onManageRoom={onManageRoom}
+        roomMembers={roomMembers}
       />
     </>
   );
 });
-
-function buildRoomAgentCatalog(
-  members: Agent[],
-  availableAgents: Agent[],
-): Agent[] {
-  const memberAgentIds = new Set(members.map((member) => member.agent_id));
-  return [
-    ...members,
-    ...availableAgents.filter((agent) => !memberAgentIds.has(agent.agent_id)),
-  ];
-}

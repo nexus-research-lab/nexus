@@ -4,7 +4,14 @@ import { useMemo, useState } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { WorkspaceTaskPanel } from "@/shared/ui/workspace/surface/workspace-task-strip";
-import type { Agent } from "@/types/agent/agent";
+import type { RoomDialogSubmission } from "@/features/conversation/room/members/create-room-dialog";
+import { RoomMemberManagerDialog } from "@/features/conversation/room/members/room-member-manager-dialog";
+import type {
+  Agent,
+  AgentIdentityDraft,
+  AgentNameValidationResult,
+  AgentOptions,
+} from "@/types/agent/agent";
 import type {
   AgentConversationIdentity,
   RoomEventPayload,
@@ -18,14 +25,22 @@ import type { TodoItem } from "@/types/conversation/todo";
 import type { AgentRuntimeKind } from "@/types/settings/preferences";
 
 import { GroupThreadContextProvider } from "../../group/thread/group-thread-context";
+import { RoomHistoryMenu } from "../history/room-history-menu";
 import { RoomChatSurface } from "../room-chat-surface";
 import { resolveRoomSubagentTaskSource } from "../room-surface-model";
-import { RoomMobileConversationSheet } from "./room-mobile-conversation-sheet";
+import { RoomMobileActionsMenu } from "./room-mobile-actions-menu";
+import {
+  RoomMobileAuxiliaryOverlay,
+  type RoomMobileAuxiliaryTab,
+} from "./room-mobile-auxiliary-overlay";
+import { RoomMobileConversationSwitcher } from "./room-mobile-conversation-switcher";
 import { RoomMobileHeader } from "./room-mobile-header";
 import { RoomMobileSubagentOverlay } from "./room-mobile-subagent-overlay";
 import { RoomMobileThreadOverlay } from "./room-mobile-thread-overlay";
 
 interface RoomMobileSurfaceProps {
+  activeWorkspacePath: string | null;
+  availableRoomAgents: Agent[];
   conversationId: string | null;
   currentAgent: Agent;
   currentAgentSessionIdentity: AgentConversationIdentity | null;
@@ -38,19 +53,45 @@ interface RoomMobileSurfaceProps {
   onBackToDirectory: () => void;
   onConversationSnapshotChange: (snapshot: ConversationSnapshotPayload) => void;
   onCreateConversation: (title?: string) => Promise<string | null>;
+  onDeleteConversation: (conversationId: string) => Promise<string | null>;
   onInitialDraftConsumed?: () => void;
-  onOpenWorkspaceFile?: (path: string, workspaceAgentId?: string | null) => void;
+  onManageRoom: (submission: RoomDialogSubmission) => Promise<void>;
+  onOpenMemberManager: () => Promise<void>;
+  onOpenWorkspaceFile: (
+    path: string | null,
+    workspaceAgentId?: string | null,
+  ) => void;
+  onReplayTour?: () => void;
   onRoomEvent?: (eventType: string, data: RoomEventPayload) => void;
+  onSaveAgentOptions: (
+    agentId: string,
+    title: string,
+    options: AgentOptions,
+    identity: AgentIdentityDraft,
+  ) => Promise<void>;
   onSelectConversation: (conversationId: string) => void;
   onTodosChange: (todos: TodoItem[]) => void;
+  onUpdateConversationTitle: (
+    conversationId: string,
+    title: string,
+  ) => Promise<void>;
+  onValidateAgentName: (
+    name: string,
+    agentId?: string,
+  ) => Promise<AgentNameValidationResult>;
   roomHostAgentId: string | null;
   roomHostAutoReplyEnabled: boolean;
+  roomAvatar?: string | null;
   roomId: string | null;
   roomMembers: Agent[];
+  roomPrivateMessagesEnabled: boolean;
+  roomSkillNames: string[];
   runtimeKind: AgentRuntimeKind;
 }
 
 export function RoomMobileSurface({
+  activeWorkspacePath,
+  availableRoomAgents,
   conversationId,
   currentAgent,
   currentAgentSessionIdentity,
@@ -63,19 +104,31 @@ export function RoomMobileSurface({
   onBackToDirectory,
   onConversationSnapshotChange,
   onCreateConversation,
+  onDeleteConversation,
   onInitialDraftConsumed,
+  onManageRoom,
+  onOpenMemberManager,
   onOpenWorkspaceFile,
+  onReplayTour,
   onRoomEvent,
+  onSaveAgentOptions,
   onSelectConversation,
   onTodosChange,
+  onUpdateConversationTitle,
+  onValidateAgentName,
   roomHostAgentId,
   roomHostAutoReplyEnabled,
+  roomAvatar,
   roomId,
   roomMembers,
+  roomPrivateMessagesEnabled,
+  roomSkillNames,
   runtimeKind,
 }: RoomMobileSurfaceProps) {
   const { t } = useI18n();
-  const [isConversationSheetOpen, setIsConversationSheetOpen] = useState(false);
+  const [activeAuxiliaryTab, setActiveAuxiliaryTab] = useState<RoomMobileAuxiliaryTab | null>(null);
+  const [isConversationSwitcherOpen, setIsConversationSwitcherOpen] = useState(false);
+  const [memberDialogRoomId, setMemberDialogRoomId] = useState<string | null>(null);
   const [openSubagentSource, setOpenSubagentSource] = useState<SubagentTaskSource | null>(null);
   const isDm = currentRoomType === "dm";
   const subagentTaskSource = useMemo(
@@ -89,6 +142,35 @@ export function RoomMobileSurface({
   );
   const conversationTitle = currentRoomConversation?.title?.trim()
     || t("room.new_conversation");
+  const handleOpenMemberList = async () => {
+    const scopeRoomId = roomId;
+    if (!scopeRoomId || isDm) {
+      return;
+    }
+    await onOpenMemberManager();
+    setMemberDialogRoomId(scopeRoomId);
+  };
+  const handleOpenAuxiliaryTab = (
+    tab: "about" | "subagents" | "workspace",
+  ) => {
+    if (tab === "subagents") {
+      setActiveAuxiliaryTab(null);
+      setOpenSubagentSource(subagentTaskSource);
+      return;
+    }
+    setOpenSubagentSource(null);
+    setActiveAuxiliaryTab(tab);
+  };
+  const handleOpenWorkspaceFile = (
+    path: string | null,
+    workspaceAgentId?: string | null,
+  ) => {
+    onOpenWorkspaceFile(path, workspaceAgentId);
+    if (path) {
+      setOpenSubagentSource(null);
+      setActiveAuxiliaryTab("workspace");
+    }
+  };
   const chatSurface = (
     <RoomChatSurface
       conversationId={conversationId}
@@ -100,7 +182,7 @@ export function RoomMobileSurface({
       onConversationSnapshotChange={onConversationSnapshotChange}
       onCreateConversation={onCreateConversation}
       onInitialDraftConsumed={onInitialDraftConsumed}
-      onOpenWorkspaceFile={onOpenWorkspaceFile}
+      onOpenWorkspaceFile={handleOpenWorkspaceFile}
       onRoomEvent={onRoomEvent}
       onTodosChange={onTodosChange}
       roomHostAgentId={roomHostAgentId}
@@ -114,14 +196,34 @@ export function RoomMobileSurface({
   return (
     <section className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-background/90">
       <RoomMobileHeader
-        agentAvatar={currentAgent.avatar}
-        agentName={currentAgent.name}
-        canOpenSubagents={subagentTaskSource !== null}
         conversationTitle={conversationTitle}
+        isConversationSwitcherOpen={isConversationSwitcherOpen}
         onBack={onBackToDirectory}
-        onOpenConversations={() => setIsConversationSheetOpen(true)}
-        onOpenSubagents={() => setOpenSubagentSource(subagentTaskSource)}
+        onOpenConversations={() => {
+          setIsConversationSwitcherOpen((isOpen) => !isOpen);
+        }}
         roomTitle={currentRoomTitle}
+        trailing={(
+          <>
+            <RoomHistoryMenu
+              conversationId={conversationId}
+              conversations={currentRoomConversations}
+              onDeleteConversation={onDeleteConversation}
+              onSelectConversation={onSelectConversation}
+              onUpdateConversationTitle={onUpdateConversationTitle}
+              triggerVariant="icon"
+            />
+            <RoomMobileActionsMenu
+              canOpenSubagents={subagentTaskSource !== null}
+              onCreateConversation={onCreateConversation}
+              onManageMembers={!isDm && roomId
+                ? () => void handleOpenMemberList()
+                : undefined}
+              onOpenAuxiliaryTab={handleOpenAuxiliaryTab}
+              onReplayTour={onReplayTour}
+            />
+          </>
+        )}
       />
 
       <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
@@ -137,21 +239,51 @@ export function RoomMobileSurface({
         />
       </div>
 
-      <RoomMobileConversationSheet
+      <RoomMobileConversationSwitcher
         activeConversationId={conversationId}
         conversations={currentRoomConversations}
-        isOpen={isConversationSheetOpen}
-        onClose={() => setIsConversationSheetOpen(false)}
+        isOpen={isConversationSwitcherOpen}
+        onClose={() => setIsConversationSwitcherOpen(false)}
         onSelect={onSelectConversation}
       />
 
       <RoomMobileSubagentOverlay
         onClose={() => setOpenSubagentSource(null)}
-        onOpenWorkspaceFile={onOpenWorkspaceFile}
+        onOpenWorkspaceFile={handleOpenWorkspaceFile}
         source={openSubagentSource === subagentTaskSource
           ? openSubagentSource
           : null}
       />
+
+      <RoomMobileAuxiliaryOverlay
+        activeTab={activeAuxiliaryTab}
+        activeWorkspacePath={activeWorkspacePath}
+        conversationId={conversationId}
+        currentAgent={currentAgent}
+        isDm={isDm}
+        onClose={() => setActiveAuxiliaryTab(null)}
+        onOpenWorkspaceFile={handleOpenWorkspaceFile}
+        onSaveAgentOptions={onSaveAgentOptions}
+        onValidateAgentName={onValidateAgentName}
+        roomId={roomId}
+        roomMembers={roomMembers}
+      />
+
+      {!isDm ? (
+        <RoomMemberManagerDialog
+          availableRoomAgents={availableRoomAgents}
+          initialAvatar={roomAvatar}
+          initialHostAgentId={roomHostAgentId}
+          initialHostAutoReplyEnabled={roomHostAutoReplyEnabled}
+          initialName={currentRoomTitle}
+          initialPrivateMessagesEnabled={roomPrivateMessagesEnabled}
+          initialRoomSkillNames={roomSkillNames}
+          isOpen={roomId !== null && memberDialogRoomId === roomId}
+          onClose={() => setMemberDialogRoomId(null)}
+          onManageRoom={onManageRoom}
+          roomMembers={roomMembers}
+        />
+      ) : null}
     </section>
   );
 }

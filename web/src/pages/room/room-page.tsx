@@ -64,7 +64,7 @@ function ActiveRoomPage({
         onReplayTour={onReplayTour}
         onManageRoom={actions.manageRoom}
         onOpenMemberManager={actions.prepareAgentCatalog}
-        onBackToDirectory={navigation.backToLauncher}
+        onBackToDirectory={navigation.backToChatDirectory}
         onCloseConversation={actions.closeConversation}
         onDeleteConversation={navigation.deleteConversation}
         onCreateConversation={navigation.createConversation}

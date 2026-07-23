@@ -70,9 +70,9 @@ const INPUT_ROW_PADDING: Record<
   Record<"default" | "goal" | "queue", string>
 > = {
   compact: {
-    default: "px-2 py-2",
-    goal: "px-2 pb-2 pt-1.5",
-    queue: "px-2 pb-2 pt-1",
+    default: "px-2.5 py-1.5",
+    goal: "px-2.5 pb-1.5 pt-1.5",
+    queue: "px-2.5 pb-1.5 pt-1",
   },
   regular: {
     default: "px-3 py-3",

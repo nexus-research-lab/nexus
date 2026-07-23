@@ -52,6 +52,7 @@ export const DmConversationHeader = memo(function DmConversationHeader({
   return (
     <WorkspaceSurfaceHeader
       activeTab={activeTab}
+      compactTabsLabel={t("room.panels")}
       dismissActiveTabLabel={t("common.close")}
       leading={(
         <UiAgentAvatar

@@ -1,88 +1,74 @@
-import { ArrowLeft, Bot, ChevronDown } from "lucide-react";
+import { ArrowLeft, ChevronDown } from "lucide-react";
+import type { ReactNode } from "react";
 
-import {
-  getIconAvatarSrc,
-  getInitials,
-} from "@/lib/avatar";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { cn } from "@/shared/ui/class-name";
 
 interface RoomMobileHeaderProps {
-  agentAvatar?: string | null;
-  agentName: string;
-  canOpenSubagents: boolean;
   conversationTitle: string;
+  isConversationSwitcherOpen: boolean;
   onBack: () => void;
   onOpenConversations: () => void;
-  onOpenSubagents: () => void;
   roomTitle: string;
+  trailing: ReactNode;
 }
 
 export function RoomMobileHeader({
-  agentAvatar,
-  agentName,
-  canOpenSubagents,
   conversationTitle,
+  isConversationSwitcherOpen,
   onBack,
   onOpenConversations,
-  onOpenSubagents,
   roomTitle,
+  trailing,
 }: RoomMobileHeaderProps) {
   const { t } = useI18n();
-  const avatarSrc = getIconAvatarSrc(agentAvatar);
+  const primaryTitle = roomTitle.trim() || conversationTitle;
+  const secondaryTitle = conversationTitle !== primaryTitle
+    ? conversationTitle
+    : null;
 
   return (
-    <div className="px-2 pb-2 pt-2">
-      <div className="surface-radius-lg flex items-center gap-2 px-2 py-2">
-        <button
-          aria-label={t("common.back")}
-          className="inline-flex h-10 w-10 shrink-0 items-center justify-center radius-control-md text-(--text-strong) transition hover:bg-(--interaction-hover-background) hover:text-(--text-strong)"
-          onClick={onBack}
-          type="button"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </button>
+    <header className="flex h-[52px] shrink-0 items-center gap-1.5 border-b divider-subtle px-2 sm:px-3">
+      <button
+        aria-label={t("common.back")}
+        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-(--text-strong) transition hover:bg-(--interaction-hover-background)"
+        onClick={onBack}
+        type="button"
+      >
+        <ArrowLeft className="h-4 w-4" />
+      </button>
 
-        <button
-          aria-label={t("room.switch_conversation")}
-          className="flex min-w-0 flex-1 items-center gap-3 rounded-[12px] border border-(--divider-subtle-color) px-3 py-2 text-left transition hover:bg-(--interaction-hover-background)"
-          onClick={onOpenConversations}
-          type="button"
-        >
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-[11px] font-bold text-(--text-strong) shadow-(--surface-avatar-shadow)">
-            {avatarSrc ? (
-              <img
-                alt={agentName}
-                className="h-full w-full object-cover"
-                src={avatarSrc}
-              />
-            ) : (
-              getInitials(agentName, "AI", 2)
-            )}
-          </div>
-
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-(--text-strong)">
-              {agentName}
+      <button
+        aria-expanded={isConversationSwitcherOpen}
+        aria-haspopup="dialog"
+        aria-label={t("room.switch_conversation")}
+        className={cn(
+          "flex min-w-0 flex-1 items-center gap-1.5 rounded-[10px] px-2 py-1 text-left transition-colors hover:bg-(--interaction-hover-background)",
+          isConversationSwitcherOpen && "bg-(--surface-interactive-hover-background)",
+        )}
+        onClick={onOpenConversations}
+        title={conversationTitle}
+        type="button"
+      >
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[14px] font-semibold leading-5 text-(--text-strong)">
+            {primaryTitle}
+          </p>
+          {secondaryTitle ? (
+            <p className="truncate text-[10.5px] leading-4 text-(--text-soft)">
+              {secondaryTitle}
             </p>
-            <p className="truncate text-[12px] text-(--text-muted)">
-              {roomTitle || conversationTitle}
-            </p>
-          </div>
+          ) : null}
+        </div>
+        <ChevronDown className={cn(
+          "h-3.5 w-3.5 shrink-0 text-(--text-muted) transition-transform duration-(--motion-duration-fast)",
+          isConversationSwitcherOpen && "rotate-180",
+        )} />
+      </button>
 
-          <ChevronDown className="h-4 w-4 shrink-0 text-(--text-muted)" />
-        </button>
-
-        <button
-          aria-label={t("subagents.open_panel")}
-          className="inline-flex h-10 w-10 shrink-0 items-center justify-center radius-control-md border border-(--divider-subtle-color) text-(--text-muted) transition hover:bg-(--interaction-hover-background) hover:text-(--text-strong) disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)"
-          disabled={!canOpenSubagents}
-          onClick={onOpenSubagents}
-          title={t("subagents.open_panel")}
-          type="button"
-        >
-          <Bot className="h-4 w-4" />
-        </button>
+      <div className="flex shrink-0 items-center gap-0.5">
+        {trailing}
       </div>
-    </div>
+    </header>
   );
 }

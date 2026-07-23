@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 
 import { useMediaQuery } from "@/hooks/ui/use-media-query";
 import { useDefaultAgentRuntimeKind } from "@/hooks/settings/use-default-agent-runtime-kind";
+import { CONVERSATION_FOCUS_MEDIA_QUERY } from "@/lib/layout/home-layout";
 import type { RoomDialogSubmission } from "@/features/conversation/room/members/create-room-dialog";
 import { Agent, AgentIdentityDraft, AgentNameValidationResult, AgentOptions } from "@/types/agent/agent";
 import { AgentConversationIdentity } from "@/types/agent/agent-conversation";
@@ -96,7 +97,9 @@ export function RoomSurfaceShell({
   onConversationSnapshotChange,
   onRoomEvent,
 }: RoomSurfaceShellProps) {
-  const isMobile = useMediaQuery("(max-width: 767px)");
+  const isConversationFocusMode = useMediaQuery(
+    CONVERSATION_FOCUS_MEDIA_QUERY,
+  );
   const defaultRuntimeKind = useDefaultAgentRuntimeKind();
   const [activeSurfaceTab, setActiveSurfaceTab] = useState<RoomSurfaceTabKey>("chat");
   const storedRuntimeKind = currentRoomConversation?.options.runtime_kind;
@@ -117,9 +120,11 @@ export function RoomSurfaceShell({
     }
   }, [onOpenWorkspaceFile]);
 
-  if (isMobile) {
+  if (isConversationFocusMode) {
     return (
       <RoomMobileSurface
+        activeWorkspacePath={activeWorkspacePath}
+        availableRoomAgents={availableRoomAgents}
         key={roomId ?? currentAgent.agent_id}
         currentAgent={currentAgent}
         currentRoomType={currentRoomType}
@@ -136,14 +141,23 @@ export function RoomSurfaceShell({
         currentTodos={currentTodos}
         initialDraft={initialDraft}
         onInitialDraftConsumed={onInitialDraftConsumed}
+        onManageRoom={onManageRoom}
+        onOpenMemberManager={onOpenMemberManager}
         onBackToDirectory={onBackToDirectory}
         onConversationSnapshotChange={onConversationSnapshotChange}
         onCreateConversation={handleCreateConversationInShell}
-        onOpenWorkspaceFile={(path, workspaceAgentId) =>
-          onOpenWorkspaceFile(path, workspaceAgentId)}
+        onDeleteConversation={onDeleteConversation}
+        onOpenWorkspaceFile={onOpenWorkspaceFile}
+        onReplayTour={onReplayTour}
         onRoomEvent={onRoomEvent}
+        onSaveAgentOptions={onSaveAgentOptions}
         onSelectConversation={onSelectConversation}
         onTodosChange={onTodosChange}
+        onUpdateConversationTitle={onUpdateConversationTitle}
+        onValidateAgentName={onValidateAgentName}
+        roomAvatar={roomAvatar}
+        roomPrivateMessagesEnabled={roomPrivateMessagesEnabled}
+        roomSkillNames={roomSkillNames}
       />
     );
   }

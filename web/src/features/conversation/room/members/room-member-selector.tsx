@@ -38,7 +38,7 @@ export function RoomMemberSelector({
       <p className="dialog-label">
         {t("room.all_agents", { count: agents.length })}
       </p>
-      <div className="surface-radius-lg flex max-h-[min(36vh,360px)] min-h-0 flex-col overflow-hidden border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_84%,transparent)] px-2 py-2">
+      <div className="surface-radius-lg flex max-h-[min(36vh,360px)] min-h-0 flex-col overflow-hidden border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_84%,transparent)] px-2 py-2 max-md:min-h-[180px] max-md:max-h-[240px]">
         <div
           className="soft-scrollbar flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-1"
           data-room-member-selection-list="true"

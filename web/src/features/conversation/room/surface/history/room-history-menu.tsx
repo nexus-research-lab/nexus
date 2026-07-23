@@ -26,6 +26,7 @@ interface RoomHistoryMenuProps {
   onDeleteConversation: (conversationId: string) => Promise<string | null>;
   onSelectConversation: (conversationId: string) => void;
   onUpdateConversationTitle?: (conversationId: string, title: string) => Promise<void>;
+  triggerVariant?: "icon" | "label";
 }
 
 const HISTORY_MENU_MAX_HEIGHT = 560;
@@ -42,6 +43,7 @@ export function RoomHistoryMenu({
   onDeleteConversation,
   onSelectConversation,
   onUpdateConversationTitle,
+  triggerVariant = "label",
 }: RoomHistoryMenuProps) {
   const { t } = useI18n();
   const [pageNumber, setPageNumber] = useState(0);
@@ -121,6 +123,7 @@ export function RoomHistoryMenu({
         aria-label={t("room.history")}
         className={cn(
           "workspace-surface-history-trigger inline-flex h-8 shrink-0 items-center gap-1.5 radius-control-sm border border-transparent px-2 text-[10.5px] font-semibold text-(--text-default) transition-[background-color,border-color,color] duration-(--motion-duration-fast) hover:border-[color:color-mix(in_srgb,var(--divider-subtle-color)_78%,transparent)] hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_24%,transparent)]",
+          triggerVariant === "icon" && "h-9 w-9 justify-center gap-0 rounded-full px-0",
           isOpen && "border-[color:color-mix(in_srgb,var(--primary)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_9%,transparent)] text-(--text-strong)",
         )}
         data-tour-anchor={CONVERSATION_TOUR_ANCHORS.history_menu}
@@ -131,7 +134,9 @@ export function RoomHistoryMenu({
         type="button"
       >
         <History className="h-3.5 w-3.5 shrink-0" />
-        <span className="truncate">{t("room.history")}</span>
+        {triggerVariant === "label" ? (
+          <span className="truncate">{t("room.history")}</span>
+        ) : null}
       </button>
 
       {isOpen && portalContainer ? createPortal(
