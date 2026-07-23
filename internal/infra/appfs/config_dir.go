@@ -50,9 +50,11 @@ func PlatformSkillRoot() string {
 
 // UserSkillLibraryRoot 返回指定用户的外部 Skill 全局兼容根。
 //
-// 平台 Skill 和用户外部 Skill 使用不同根目录，避免第三方更新覆盖产品随包内容。
+// 用户目录直接位于 Nexus 配置根下，便于第三方工具与 nxs/Claude 共用同一
+// 份用户资源；平台 Skill 仍使用独立的 platform-skills 根，避免第三方更新
+// 覆盖产品随包内容。
 func UserSkillLibraryRoot(ownerUserID string) string {
-	return filepath.Join(ConfigDir(), "skill-libraries", "users", safePathSegment(ownerUserID))
+	return filepath.Join(ConfigDir(), "users", safePathSegment(ownerUserID))
 }
 
 // UserSkillDiscoveryRoot 返回用户外部 Skill 的 nxs/Claude 共同发现目录。

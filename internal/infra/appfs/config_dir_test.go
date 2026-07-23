@@ -1,6 +1,7 @@
 package appfs
 
 import (
+	"path/filepath"
 	"slices"
 	"testing"
 )
@@ -18,6 +19,15 @@ func TestUserSkillLibraryRootKeepsUnsafeOwnerInsideConfig(t *testing.T) {
 		if segment := safePathSegment(ownerID); segment == ownerID {
 			t.Fatalf("Windows 保留设备名不能直接作为路径段: %q", segment)
 		}
+	}
+}
+
+func TestUserSkillLibraryRootUsesUsersDirectory(t *testing.T) {
+	configDir := t.TempDir()
+	t.Setenv("NEXUS_CONFIG_DIR", configDir)
+	want := filepath.Join(configDir, "users", "owner-a")
+	if got := UserSkillLibraryRoot("owner-a"); got != want {
+		t.Fatalf("用户 Skill 根 = %q, want %q", got, want)
 	}
 }
 

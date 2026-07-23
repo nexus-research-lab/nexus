@@ -32,8 +32,8 @@ Agent 的 runtime 记录只保存 Skill 引用：`runtimes.skill_ids_json`，对
 
 外部 Skill 按 owner 管理，源文件位于：
 
-- `<config>/skill-libraries/users/<owner>/.agents/skills/<skill_id>/`
-- `<config>/skill-libraries/users/<owner>/.claude/skills`（指向同一源的兼容入口）
+- `<config>/users/<owner>/.agents/skills/<skill_id>/`
+- `<config>/users/<owner>/.claude/skills`（指向同一源的兼容入口）
 
 安装外部 Skill 只向 Agent 记录 `external:<skill_id>`；workspace-local Skill 仍只属于当前 workspace，不进入平台或用户级源。升级期间会从旧 workspace 副本恢复引用并清理副本。
 
@@ -57,7 +57,7 @@ Agent 的 runtime 记录只保存 Skill 引用：`runtimes.skill_ids_json`，对
 
 ### 3.2 外部 Skill
 
-- 源文件真相源：`<config>/skill-libraries/users/<owner>/.agents/skills`
+- 源文件真相源：`<config>/users/<owner>/.agents/skills`
 - Agent 安装真相源：`runtimes.skill_ids_json` 中的 `external:<skill_id>` 引用
 - catalog 与 UI：用户级源中的 manifest、数据库元数据和 Agent 引用的投影
 
