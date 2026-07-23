@@ -1,9 +1,9 @@
 import type { RoomConversationView } from "@/types/conversation/conversation";
 
-// 中文注释：新会话入口为 76px 加 2px 标签间距，宽度模型与实际布局保持一致。
-const CREATE_CONVERSATION_BUTTON_SPACE = 78;
-// 中文注释：会话概览入口为 40px 加 2px 标签间距。
-const CONVERSATION_OVERVIEW_BUTTON_SPACE = 42;
+// 中文注释：图标胶囊基础宽度为 40px，并保留与标签带之间的 2px 间距。
+const CREATE_CONVERSATION_BUTTON_SPACE = 42;
+// 中文注释：真实溢出时在同一胶囊内追加 36px 的会话概览分区。
+const CONVERSATION_OVERVIEW_BUTTON_SPACE = 36;
 const CONVERSATION_TAB_GAP = 2;
 const TRACK_HORIZONTAL_PADDING = 4;
 

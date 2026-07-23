@@ -37,8 +37,8 @@ export function ConversationTabsOverview({
         aria-haspopup="menu"
         aria-label={t("room.switch_conversation")}
         className={cn(
-          "inline-flex h-8 w-10 shrink-0 items-center justify-center rounded-[9px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_72%,transparent)] bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_38%,transparent)] text-(--icon-default) transition-[background-color,border-color,color] duration-(--motion-duration-fast) hover:border-[color:color-mix(in_srgb,var(--primary)_18%,var(--divider-subtle-color)_82%)] hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
-          isOpen && "border-[color:color-mix(in_srgb,var(--primary)_28%,var(--divider-subtle-color)_72%)] bg-[color:color-mix(in_srgb,var(--primary)_8%,transparent)] text-(--primary)",
+          "inline-flex h-full w-9 shrink-0 items-center justify-center border-r border-[color:color-mix(in_srgb,var(--divider-subtle-color)_72%,transparent)] bg-transparent text-(--icon-default) transition-[background-color,color] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_42%,transparent)]",
+          isOpen && "bg-[color:color-mix(in_srgb,var(--primary)_9%,transparent)] text-(--primary)",
         )}
         onClick={() => setIsOpen((current) => !current)}
         title={t("room.switch_conversation")}

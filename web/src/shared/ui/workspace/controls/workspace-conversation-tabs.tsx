@@ -94,37 +94,35 @@ export function WorkspaceConversationTabs({
         ) : null}
       </div>
 
-      <div className="workspace-surface-header-session-tabs-actions flex shrink-0 items-center gap-0.5">
-        {controller.tabsScroll.hasOverflow ? (
-          <ConversationTabsOverview
-            activeConversationId={controller.activeConversationId}
-            conversations={controller.recentConversations}
-            onSelectConversation={controller.selectConversation}
-          />
-        ) : null}
+      <div className="workspace-surface-header-session-tabs-actions flex shrink-0 items-center">
+        {controller.tabsScroll.hasOverflow || onCreateConversation ? (
+          <div className="inline-flex h-8 shrink-0 items-stretch overflow-hidden rounded-full border border-[color:color-mix(in_srgb,var(--primary)_18%,var(--divider-subtle-color)_82%)] bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_58%,transparent)] shadow-[0_1px_2px_rgba(15,23,42,0.06)] transition-[background-color,border-color,box-shadow] duration-(--motion-duration-fast) hover:border-[color:color-mix(in_srgb,var(--primary)_30%,var(--divider-subtle-color)_70%)] hover:bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_76%,transparent)] hover:shadow-[0_2px_8px_rgba(15,23,42,0.08)]">
+            {controller.tabsScroll.hasOverflow ? (
+              <ConversationTabsOverview
+                activeConversationId={controller.activeConversationId}
+                conversations={controller.recentConversations}
+                onSelectConversation={controller.selectConversation}
+              />
+            ) : null}
 
-        {onCreateConversation ? (
-          <button
-            aria-label={t("room.new_conversation")}
-            className="relative inline-flex h-8 min-w-[76px] shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-[9px] border border-[color:color-mix(in_srgb,var(--primary)_18%,var(--divider-subtle-color)_82%)] bg-[color:color-mix(in_srgb,var(--primary)_6%,transparent)] px-2.5 text-left text-[11px] font-semibold leading-none text-(--primary) transition-[background-color,border-color,color,box-shadow] duration-(--motion-duration-fast) ease-out hover:border-[color:color-mix(in_srgb,var(--primary)_34%,var(--divider-subtle-color)_66%)] hover:bg-[color:color-mix(in_srgb,var(--primary)_11%,transparent)] hover:shadow-[0_2px_8px_color-mix(in_srgb,var(--primary)_8%,transparent)] disabled:opacity-60"
-            disabled={controller.isCreating}
-            onClick={() => {
-              void controller.createConversation();
-            }}
-            title={t("room.new_conversation")}
-            type="button"
-          >
-            <Plus className={cn(
-              "h-3.5 w-3.5 shrink-0",
-              controller.isCreating && "animate-spin",
-            )} />
-            <span className="workspace-conversation-create-label-full min-w-0 truncate">
-              {t("room.new_conversation")}
-            </span>
-            <span aria-hidden="true" className="workspace-conversation-create-label-compact min-w-0 truncate">
-              {t("room.new_conversation_short")}
-            </span>
-          </button>
+            {onCreateConversation ? (
+              <button
+                aria-label={t("room.new_conversation")}
+                className="relative inline-flex h-full w-10 shrink-0 items-center justify-center bg-transparent leading-none text-(--primary) transition-[background-color,color] duration-(--motion-duration-fast) ease-out hover:bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_42%,transparent)] disabled:opacity-60"
+                disabled={controller.isCreating}
+                onClick={() => {
+                  void controller.createConversation();
+                }}
+                title={t("room.new_conversation")}
+                type="button"
+              >
+                <Plus className={cn(
+                  "h-3.5 w-3.5 shrink-0",
+                  controller.isCreating && "animate-spin",
+                )} />
+              </button>
+            ) : null}
+          </div>
         ) : null}
       </div>
     </nav>
