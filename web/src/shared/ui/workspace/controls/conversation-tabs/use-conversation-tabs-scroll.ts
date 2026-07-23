@@ -9,6 +9,8 @@ import {
   type WheelEvent as ReactWheelEvent,
 } from "react";
 
+import { CONVERSATION_TABS_VIEWPORT_INSET } from "./conversation-tabs-model";
+
 const SCROLL_EDGE_TOLERANCE = 2;
 const DRAG_START_THRESHOLD = 4;
 const TAB_WIDTH_TRANSITION_SETTLE_MS = 170;
@@ -214,16 +216,23 @@ function scrollConversationTabIntoView(
     return;
   }
 
-  const viewportLeft = viewport.scrollLeft;
-  const viewportRight = viewportLeft + viewport.clientWidth;
+  const viewportLeft = viewport.scrollLeft + CONVERSATION_TABS_VIEWPORT_INSET;
+  const viewportRight = viewport.scrollLeft
+    + viewport.clientWidth
+    - CONVERSATION_TABS_VIEWPORT_INSET;
   const tabLeft = activeTab.offsetLeft;
   const tabRight = tabLeft + activeTab.offsetWidth;
   if (preferredAlignment === "start" || tabLeft < viewportLeft) {
-    viewport.scrollTo({ behavior, left: tabLeft });
+    viewport.scrollTo({
+      behavior,
+      left: tabLeft - CONVERSATION_TABS_VIEWPORT_INSET,
+    });
   } else if (preferredAlignment === "end" || tabRight > viewportRight) {
     viewport.scrollTo({
       behavior,
-      left: tabRight - viewport.clientWidth,
+      left: tabRight
+        - viewport.clientWidth
+        + CONVERSATION_TABS_VIEWPORT_INSET,
     });
   }
 }
@@ -238,12 +247,17 @@ function getConversationTabAlignment(
   if (!activeTab) {
     return null;
   }
-  if (activeTab.offsetLeft < viewport.scrollLeft) {
+  if (
+    activeTab.offsetLeft
+    < viewport.scrollLeft + CONVERSATION_TABS_VIEWPORT_INSET
+  ) {
     return "start";
   }
   if (
     activeTab.offsetLeft + activeTab.offsetWidth
-    > viewport.scrollLeft + viewport.clientWidth
+    > viewport.scrollLeft
+      + viewport.clientWidth
+      - CONVERSATION_TABS_VIEWPORT_INSET
   ) {
     return "end";
   }

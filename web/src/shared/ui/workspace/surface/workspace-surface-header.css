@@ -46,6 +46,13 @@
 .workspace-surface-header-session-tabs-viewport-shell {
   border-radius: 12px;
   background: transparent;
+}
+
+.workspace-surface-header-session-tabs-viewport-shell::before {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
   box-shadow:
     inset 0 0 0 1px color-mix(
       in srgb,
@@ -53,9 +60,12 @@
       transparent
     ),
     0 5px 14px color-mix(in srgb, var(--text-strong) 6%, transparent);
+  content: "";
 }
 
 .workspace-surface-header-session-tabs-viewport {
+  padding-inline: 8px;
+  scroll-padding-inline: 8px;
   scroll-behavior: smooth;
   scrollbar-width: none;
 }

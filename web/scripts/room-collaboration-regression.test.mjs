@@ -22,7 +22,11 @@ test.after(async () => {
 });
 
 test("会话纵览只按稳定宽度约束显示", async () => {
-  const { shouldShowConversationTabsOverview } = await server.ssrLoadModule(
+  const {
+    calculateConversationTabWidths,
+    CONVERSATION_TABS_VIEWPORT_INSET,
+    shouldShowConversationTabsOverview,
+  } = await server.ssrLoadModule(
     "/src/shared/ui/workspace/controls/conversation-tabs/conversation-tabs-model.ts",
   );
 
@@ -52,6 +56,18 @@ test("会话纵览只按稳定宽度约束显示", async () => {
     }),
     false,
     "轨道扩宽后应直接收起纵览入口而不依赖动画中的 DOM 尺寸",
+  );
+  assert.equal(CONVERSATION_TABS_VIEWPORT_INSET, 8);
+  assert.equal(
+    calculateConversationTabWidths({
+      activeConversationId: "single",
+      hasCreateButton: true,
+      hasOverviewButton: false,
+      orderedConversations: [{ conversation_id: "single" }],
+      trackWidth: 400,
+    }).get("single"),
+    334,
+    "单个标签也应扣除托盘两端留白，避免标题覆盖阴影圆角",
   );
 });
 

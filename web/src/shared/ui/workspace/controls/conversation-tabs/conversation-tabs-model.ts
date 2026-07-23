@@ -8,6 +8,7 @@ const CONVERSATION_TAB_GAP = 2;
 const TRACK_HORIZONTAL_PADDING = 4;
 
 export const ACTIVE_TAB_MIN_WIDTH = 156;
+export const CONVERSATION_TABS_VIEWPORT_INSET = 8;
 export const INACTIVE_TAB_MIN_WIDTH = 104;
 
 const ACTIVE_TAB_WIDTH_WEIGHT = 1.32;
@@ -390,7 +391,7 @@ function getAvailableConversationTabWidth({
 }): number {
   return Math.max(
     0,
-    trackWidth - TRACK_HORIZONTAL_PADDING - (
+    trackWidth - TRACK_HORIZONTAL_PADDING - CONVERSATION_TABS_VIEWPORT_INSET * 2 - (
       hasCreateButton ? CREATE_CONVERSATION_BUTTON_SPACE : 0
     ) - (
       hasOverviewButton ? CONVERSATION_OVERVIEW_BUTTON_SPACE : 0
