@@ -17,6 +17,8 @@ export const zhAgentMessages = {
   "agent_options.identity.validation_failed": "名称校验失败",
   "agent_options.identity.name_available": "名称可用",
   "agent_options.identity.avatar_alt": "Agent 头像",
+  "agent_options.identity.choose_avatar": "选择头像",
+  "agent_options.identity.change_avatar": "更换头像",
   "agent_options.identity.vibe_tags": "风格标签",
   "agent_options.identity.add_tag": "添加标签",
   "agent_options.identity.provider": "Provider",

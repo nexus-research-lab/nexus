@@ -77,7 +77,7 @@ export function AgentOptionsIdentityTab({
         "animate-in slide-in-from-right-4 duration-300",
         isInline
           ? "flex h-full min-h-0 flex-1 flex-col gap-5 overflow-hidden"
-          : "space-y-5",
+          : "space-y-6",
       )}
     >
       <div className={cn(layout.contentClassName, isInline && "shrink-0")}>
@@ -130,12 +130,12 @@ export function AgentOptionsIdentityTab({
         />
       ) : null}
       {shouldShowDescriptionField ? (
-        <div className="space-y-2">
+        <div className="space-y-2.5">
           <label className="text-[11px] font-semibold text-(--text-muted)">
             {t("agent_options.identity.description")}
           </label>
           <UiTextarea
-            className="min-h-[72px] surface-radius-lg"
+            className="min-h-[96px] surface-radius-lg"
             onChange={(event) => onDescriptionChange(event.target.value)}
             placeholder={t("agent_options.identity.description_placeholder")}
             rows={3}

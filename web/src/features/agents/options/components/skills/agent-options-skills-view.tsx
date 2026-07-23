@@ -94,7 +94,7 @@ export function AgentOptionsSkillsView({
   const { t } = useI18n();
 
   return (
-    <div className="space-y-3.5 animate-in slide-in-from-right-4 duration-300">
+    <div className="space-y-5 animate-in slide-in-from-right-4 duration-300">
       <SkillsHeader
         agentId={agentId}
         loading={loading}

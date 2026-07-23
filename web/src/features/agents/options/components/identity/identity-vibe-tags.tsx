@@ -18,11 +18,11 @@ interface VibeTagLayout {
 
 const VIBE_TAG_LAYOUTS: Record<AgentIdentityVariant, VibeTagLayout> = {
   dialog: {
-    addButtonSize: "sm",
-    inputClassName: "w-[108px] rounded-lg",
-    inputSize: "xs",
+    addButtonSize: "md",
+    inputClassName: "w-[132px] rounded-lg",
+    inputSize: "sm",
     labelClassName: "text-[11px] font-semibold text-(--text-muted)",
-    rowGapClassName: "gap-1",
+    rowGapClassName: "gap-2",
   },
   inline: {
     addButtonSize: "md",
@@ -71,18 +71,18 @@ export function IdentityVibeTags({
   }, [addTag]);
 
   return (
-    <div className="space-y-2.5">
+    <div className="space-y-3">
       <label className={layout.labelClassName}>{label}</label>
-      <div className="soft-scrollbar flex flex-nowrap items-center gap-2 overflow-x-auto overflow-y-hidden pb-1">
+      <div className="flex flex-wrap items-center gap-2">
         {tags.map((tag) => (
           <span
-            className="inline-flex shrink-0 items-center gap-1 rounded-[6px] border border-[color:color-mix(in_srgb,var(--primary)_16%,transparent)] bg-transparent px-2 py-0.5 text-[11px] font-medium text-primary"
+            className="inline-flex min-h-8 shrink-0 items-center gap-1 rounded-[8px] border border-[color:color-mix(in_srgb,var(--primary)_16%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_4%,transparent)] px-2.5 py-1 text-[12px] font-medium text-primary"
             key={tag}
           >
             {tag}
             <UiIconButton
               aria-label={`移除 ${tag}`}
-              className="ml-0.5 h-5 w-5 rounded-full"
+              className="ml-0.5 h-6 w-6 rounded-full"
               onClick={() => onChange(tags.filter((item) => item !== tag))}
               size="xs"
               type="button"

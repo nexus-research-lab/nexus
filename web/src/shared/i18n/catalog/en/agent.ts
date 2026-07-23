@@ -20,6 +20,8 @@ export const enAgentMessages = {
   "agent_options.identity.validation_failed": "Name validation failed",
   "agent_options.identity.name_available": "Name is available.",
   "agent_options.identity.avatar_alt": "Agent avatar",
+  "agent_options.identity.choose_avatar": "Choose avatar",
+  "agent_options.identity.change_avatar": "Change avatar",
   "agent_options.identity.vibe_tags": "Vibe tags",
   "agent_options.identity.add_tag": "Add tag",
   "agent_options.identity.provider": "Provider",

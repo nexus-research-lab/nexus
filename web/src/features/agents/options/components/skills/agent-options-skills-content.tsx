@@ -56,7 +56,7 @@ function InstalledSkillsSection({
 >) {
   const { t } = useI18n();
   return (
-    <section className="space-y-2.5">
+    <section className="space-y-3.5">
       <SkillsSectionHeader
         count={projection.installed.length}
         title={t("agent_options.skills.installed")}
@@ -68,7 +68,7 @@ function InstalledSkillsSection({
           variant="inset"
         />
       ) : (
-        <div className="grid grid-cols-1 gap-1.5">
+        <div className="grid grid-cols-1 gap-2.5">
           {projection.installed.map((skill) => (
             <AgentSkillCard
               actionKind="installed"
@@ -107,7 +107,7 @@ function AvailableSkillsSection({
     ? t(EMPTY_AVAILABLE_MESSAGE_KEYS[projection.availableEmptyState])
     : null;
   return (
-    <section className="space-y-2.5">
+    <section className="space-y-3.5">
       <SkillsSectionHeader
         count={`${projection.visibleAddable.length}/${projection.addable.length}`}
         title={t("agent_options.skills.add")}
@@ -126,7 +126,7 @@ function AvailableSkillsSection({
           variant="inset"
         />
       ) : (
-        <div className="grid grid-cols-1 gap-1.5">
+        <div className="grid grid-cols-1 gap-2.5">
           {projection.visibleAddable.map((skill) => (
             <AgentSkillCard
               actionKind="add"

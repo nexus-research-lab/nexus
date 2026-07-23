@@ -74,12 +74,12 @@ export function AgentOptionsDialogEditor({
 
   return (
     <>
-      <div className="flex min-h-0 flex-1 overflow-hidden">
+      <div className="flex min-h-0 flex-1 overflow-hidden max-xl:flex-col">
         <AgentOptionsNav
           activeTab={controller.activeTab}
           onTabChange={controller.onTabChange}
         />
-        <div className="flex-1 overflow-y-auto bg-transparent p-6 [overflow-anchor:none] [scrollbar-gutter:stable]">
+        <div className="min-h-0 flex-1 overflow-y-auto bg-transparent p-6 [overflow-anchor:none] [scrollbar-gutter:stable] max-xl:p-5 max-sm:p-4">
           <AgentOptionsEditorContent
             activeTab={controller.activeTab}
             {...controller.content}

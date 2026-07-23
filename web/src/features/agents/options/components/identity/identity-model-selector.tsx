@@ -24,8 +24,8 @@ const MODEL_SELECTOR_LAYOUTS: Record<
   ModelSelectorLayout
 > = {
   dialog: {
-    buttonClassName: "h-auto min-h-10 py-2",
-    className: "h-auto min-h-10",
+    buttonClassName: "h-auto min-h-11 py-2.5",
+    className: "h-auto min-h-11",
     errorClassName: "mt-2 text-xs text-rose-500",
     labelClassName: "text-[11px] font-semibold text-(--text-muted)",
   },
@@ -106,7 +106,7 @@ export function IdentityModelSelector({
   }, [onModelChange, onProviderChange]);
 
   return (
-    <div className="space-y-2.5">
+    <div className="space-y-3">
       <label className={layout.labelClassName}>
         {t("agent_options.identity.model")}
       </label>
