@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Unified the conversation-header corner hierarchy, removed the washed-out tab-strip and active-tab fills in favor of the ambient background, made the transparent create/overview capsule slightly taller than Session tabs, and derived overflow controls from stable width constraints so the overview arrow no longer flashes while a new Session is created.
+- Unified the conversation-header corner hierarchy, removed the washed-out tab-strip and active-tab fills in favor of the ambient background, placed 36px Session tabs inside a roomier 40px transparent shadow tray alongside the matching create/overview capsule, and derived overflow controls from stable width constraints so the overview arrow no longer flashes while a new Session is created.
 - Removed the narrow blue active marker from shared directory rows so selected capabilities and conversations rely on the neutral active surface and stronger content hierarchy.
 - Closed the 6px divider gap between the expanded sidebar brand row and the workspace header while preserving the sidebar body's outer breathing space.
 - Increased the shared desktop workspace header from 52px to 60px with proportionally taller conversation tabs and actions, and gave the Panchang NEXUS wordmark a restrained weighted, shaded, and softly embossed treatment instead of leaving the ultra-wide header visually flat.

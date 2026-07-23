@@ -52,7 +52,7 @@
       var(--divider-subtle-color) 44%,
       transparent
     ),
-    0 4px 12px color-mix(in srgb, var(--text-strong) 6%, transparent);
+    0 5px 14px color-mix(in srgb, var(--text-strong) 6%, transparent);
 }
 
 .workspace-surface-header-session-tabs-viewport {

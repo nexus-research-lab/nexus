@@ -21,7 +21,7 @@ interface WorkspaceConversationTabsProps {
 }
 
 const TRACK_CLASS_NAME =
-  "workspace-surface-header-session-tabs-track flex h-10 w-full min-w-0 items-center gap-1.5 overflow-hidden px-0.5 py-0.5";
+  "workspace-surface-header-session-tabs-track flex h-10 w-full min-w-0 items-center gap-1.5 overflow-hidden px-0.5";
 
 export function WorkspaceConversationTabs({
   conversations,
