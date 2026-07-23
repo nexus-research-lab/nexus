@@ -53,10 +53,6 @@ export function UiListRow({
       role={presentation.role}
       tabIndex={presentation.tabIndex}
     >
-      {presentation.showActiveIndicator ? (
-        <span className="absolute left-0 top-1/2 h-6 w-px -translate-y-1/2 bg-(--primary)" />
-      ) : null}
-
       {leading}
       {children ?? (
         <UiListRowDefaultContent

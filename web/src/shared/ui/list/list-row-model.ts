@@ -3,7 +3,6 @@ import { cn } from "@/shared/ui/class-name";
 interface UiListRowPresentation {
   className: string;
   role: "button" | undefined;
-  showActiveIndicator: boolean;
   tabIndex: 0 | undefined;
 }
 
@@ -37,7 +36,6 @@ export function getUiListRowPresentation({
       className,
     ),
     role: interactive ? "button" : undefined,
-    showActiveIndicator: active,
     tabIndex: interactive ? 0 : undefined,
   };
 }
