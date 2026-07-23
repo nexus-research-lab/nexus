@@ -4,6 +4,7 @@
 - `use-conversation-tabs-controller.ts` 只维护浏览器式标签事务和容器测量，不渲染样式。
 - `use-conversation-tabs-scroll.ts` 维护标签带溢出测量、活动标签归位、触控板滚动和鼠标拖拽。
 - `conversation-tabs-scroll-rail.tsx` 只渲染溢出时可操作的滚动轨道；轨道默认保持视觉静默，鼠标进入标签带时以中性色浮现，只有实际按下拖动或键盘聚焦时才增强为强调色。
+- `conversation-tabs-overview.tsx` 的纵览浮层沿用当前主题环境底色与半透明面板混合材质，不得退化为白色实体卡片。
 - `workspace-conversation-tab-model.ts` 统一推导单标签的活动态样式、宽度、标题和关闭态。
 - `workspace-conversation-tab.tsx` 只渲染单个标签；不得自行推导会话集合状态或状态样式。
 - 当前活动标签必须属于打开集合，宽度模型不得依赖 Effect 的执行时序修正非法状态。

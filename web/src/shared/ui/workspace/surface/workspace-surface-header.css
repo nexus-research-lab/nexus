@@ -23,6 +23,22 @@
   display: none;
 }
 
+.conversation-tabs-overview-menu {
+  border-color: color-mix(
+    in srgb,
+    var(--surface-popover-border) 78%,
+    var(--divider-subtle-color) 22%
+  ) !important;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--background) 76%, var(--surface-panel-background) 24%),
+      color-mix(in srgb, var(--background) 86%, var(--surface-panel-background) 14%)
+    ) !important;
+  box-shadow: var(--surface-popover-shadow) !important;
+  backdrop-filter: blur(20px) saturate(0.92);
+}
+
 .workspace-surface-header-session-tabs-track {
   overflow: visible !important;
 }

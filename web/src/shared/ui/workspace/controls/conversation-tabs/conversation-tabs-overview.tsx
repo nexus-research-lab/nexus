@@ -55,7 +55,7 @@ export function ConversationTabsOverview({
       <UiActionMenu
         anchorRef={buttonRef}
         ariaLabel={t("room.switch_conversation")}
-        className="bg-(--surface-panel-background)"
+        className="conversation-tabs-overview-menu"
         isOpen={isOpen}
         items={conversations.map((conversation) => {
           const isActive = conversation.conversation_id === activeConversationId;
