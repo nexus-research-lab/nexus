@@ -5,11 +5,10 @@ import { resolveWorkspaceConversationTabPresentation } from "./workspace-convers
 interface WorkspaceConversationTabProps {
   canClose: boolean;
   closeLabel: string;
+  conversationId: string;
   externalSessionLabel: string | null;
   isActive: boolean;
   onClose: () => void;
-  onHoverChange: (hovered: boolean) => void;
-  onPreview: () => void;
   onSelect: () => void;
   showSeparator: boolean;
   tabWidth?: number;
@@ -19,11 +18,10 @@ interface WorkspaceConversationTabProps {
 export function WorkspaceConversationTab({
   canClose,
   closeLabel,
+  conversationId,
   externalSessionLabel,
   isActive,
   onClose,
-  onHoverChange,
-  onPreview,
   onSelect,
   showSeparator,
   tabWidth,
@@ -40,8 +38,7 @@ export function WorkspaceConversationTab({
   return (
     <div
       className={presentation.rootClassName}
-      onMouseEnter={() => onHoverChange(true)}
-      onMouseLeave={() => onHoverChange(false)}
+      data-conversation-tab-id={conversationId}
       style={presentation.style}
       title={presentation.title}
     >
@@ -50,11 +47,6 @@ export function WorkspaceConversationTab({
         aria-pressed={isActive}
         className="flex h-full w-full min-w-0 items-center justify-start pl-[22px] pr-7 text-left"
         onClick={onSelect}
-        onPointerDown={(event) => {
-          if (event.button === 0) {
-            onPreview();
-          }
-        }}
         type="button"
       >
         <span

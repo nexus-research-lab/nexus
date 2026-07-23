@@ -1,10 +1,11 @@
 import type { RoomConversationView } from "@/types/conversation/conversation";
 
-// 中文注释：新会话入口为 76px 加 4px 左间距，宽度模型与实际布局保持一致。
-const CREATE_CONVERSATION_BUTTON_SPACE = 80;
-const TRACK_HORIZONTAL_PADDING = 2;
-// 中文注释：宽屏也只保留少量标题，避免会话标签挤占右侧工作区导航。
-const MAX_VISIBLE_CONVERSATION_TABS = 5;
+// 中文注释：新会话入口为 76px 加 2px 标签间距，宽度模型与实际布局保持一致。
+const CREATE_CONVERSATION_BUTTON_SPACE = 78;
+// 中文注释：会话概览入口为 40px 加 2px 标签间距。
+const CONVERSATION_OVERVIEW_BUTTON_SPACE = 42;
+const CONVERSATION_TAB_GAP = 2;
+const TRACK_HORIZONTAL_PADDING = 4;
 
 export const ACTIVE_TAB_MIN_WIDTH = 142;
 export const INACTIVE_TAB_MIN_WIDTH = 92;
@@ -41,30 +42,6 @@ export function getInitialOpenConversationIds(
     selectedId,
     ...recentConversationIds.filter((id) => id !== selectedId),
   ].slice(0, capacity);
-}
-
-export function getConversationTabCapacity({
-  hasCreateButton,
-  trackWidth,
-}: {
-  hasCreateButton: boolean;
-  trackWidth: number;
-}): number {
-  if (!trackWidth) {
-    return 1;
-  }
-
-  const availableWidth = getAvailableConversationTabWidth({
-    hasCreateButton,
-    trackWidth,
-  });
-  const capacity = availableWidth < ACTIVE_TAB_MIN_WIDTH
-    ? 1
-    : Math.floor(
-      (availableWidth - ACTIVE_TAB_MIN_WIDTH) / INACTIVE_TAB_MIN_WIDTH,
-    ) + 1;
-
-  return Math.min(MAX_VISIBLE_CONVERSATION_TABS, Math.max(1, capacity));
 }
 
 export function reconcileOpenConversationIds({
@@ -268,11 +245,13 @@ export function getCloseFallbackConversationId(
 export function calculateConversationTabWidths({
   activeConversationId,
   hasCreateButton,
+  hasOverviewButton,
   orderedConversations,
   trackWidth,
 }: {
   activeConversationId: string | null;
   hasCreateButton: boolean;
+  hasOverviewButton: boolean;
   orderedConversations: RoomConversationView[];
   trackWidth: number;
 }): Map<string, number> {
@@ -283,8 +262,9 @@ export function calculateConversationTabWidths({
 
   const availableWidth = getAvailableConversationTabWidth({
     hasCreateButton,
+    hasOverviewButton,
     trackWidth,
-  });
+  }) - CONVERSATION_TAB_GAP * Math.max(0, orderedConversations.length - 1);
   if (orderedConversations.length === 1) {
     widths.set(
       orderedConversations[0].conversation_id,
@@ -319,15 +299,19 @@ export function calculateConversationTabWidths({
 
 function getAvailableConversationTabWidth({
   hasCreateButton,
+  hasOverviewButton,
   trackWidth,
 }: {
   hasCreateButton: boolean;
+  hasOverviewButton: boolean;
   trackWidth: number;
 }): number {
   return Math.max(
     0,
     trackWidth - TRACK_HORIZONTAL_PADDING - (
       hasCreateButton ? CREATE_CONVERSATION_BUTTON_SPACE : 0
+    ) - (
+      hasOverviewButton ? CONVERSATION_OVERVIEW_BUTTON_SPACE : 0
     ),
   );
 }

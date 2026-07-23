@@ -6,11 +6,11 @@ import {
 } from "./conversation-tabs-model";
 
 const TAB_BASE_CLASS_NAME =
-  "group relative inline-flex h-7 flex-none items-center overflow-hidden rounded-[6px] border border-transparent text-[11px] font-medium transition-[width,background-color,border-color,color] duration-[145ms] ease-[cubic-bezier(0.25,0.1,0.25,1)]";
+  "group relative inline-flex h-8 flex-none items-center overflow-hidden rounded-[9px] border border-transparent text-[11px] font-medium transition-[width,background-color,border-color,color,box-shadow] duration-[145ms] ease-[cubic-bezier(0.25,0.1,0.25,1)]";
 const TAB_SEPARATOR_CLASS_NAME =
-  "before:pointer-events-none before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-px before:bg-[color:color-mix(in_srgb,var(--divider-subtle-color)_72%,transparent)] before:content-['']";
+  "before:pointer-events-none before:absolute before:bottom-1.5 before:left-0 before:top-1.5 before:w-px before:bg-[color:color-mix(in_srgb,var(--divider-subtle-color)_78%,transparent)] before:transition-opacity before:content-[''] hover:before:opacity-0";
 const TAB_CLOSE_BASE_CLASS_NAME =
-  "absolute right-1 top-1/2 flex h-5 w-5 shrink-0 -translate-y-1/2 items-center justify-center rounded-full text-(--icon-muted) transition duration-(--motion-duration-fast) hover:bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)] hover:text-(--destructive)";
+  "absolute right-1 top-1/2 flex h-6 w-6 shrink-0 -translate-y-1/2 items-center justify-center rounded-[7px] text-(--icon-muted) transition-[background-color,color,opacity] duration-(--motion-duration-fast) hover:bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)] hover:text-(--destructive) focus-visible:opacity-100";
 
 interface WorkspaceConversationTabStatePresentation {
   closeClassName: string;
@@ -21,16 +21,16 @@ interface WorkspaceConversationTabStatePresentation {
 
 const TAB_STATE_PRESENTATIONS = {
   active: {
-    closeClassName: "opacity-100",
-    indicatorClassName: "bg-(--primary)",
+    closeClassName: "opacity-80 hover:opacity-100",
+    indicatorClassName: "bg-(--primary) shadow-[0_0_0_2px_color-mix(in_srgb,var(--primary)_10%,transparent)]",
     minWidth: ACTIVE_TAB_MIN_WIDTH,
-    rootClassName: "z-10 border-b border-b-[color:color-mix(in_srgb,var(--primary)_18%,var(--divider-subtle-color)_82%)] bg-transparent text-(--text-strong) shadow-none hover:bg-(--surface-interactive-hover-background)",
+    rootClassName: "z-10 border-[color:color-mix(in_srgb,var(--primary)_22%,var(--divider-subtle-color)_78%)] bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_88%,var(--primary)_12%)] font-semibold text-(--text-strong) shadow-[0_1px_2px_rgba(15,23,42,0.10),0_4px_12px_color-mix(in_srgb,var(--primary)_10%,rgba(15,23,42,0.05))] hover:border-[color:color-mix(in_srgb,var(--primary)_30%,var(--divider-subtle-color)_70%)]",
   },
   inactive: {
-    closeClassName: "opacity-70 group-hover:opacity-100",
+    closeClassName: "opacity-0 group-hover:opacity-100",
     indicatorClassName: "border border-[color:color-mix(in_srgb,var(--icon-muted)_72%,transparent)] bg-transparent group-hover:border-(--icon-default) group-hover:bg-[color:color-mix(in_srgb,var(--icon-default)_28%,transparent)]",
     minWidth: INACTIVE_TAB_MIN_WIDTH,
-    rootClassName: "border-transparent bg-transparent text-(--text-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
+    rootClassName: "bg-transparent text-(--text-muted) shadow-none hover:border-[color:color-mix(in_srgb,var(--divider-subtle-color)_58%,transparent)] hover:bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_54%,transparent)] hover:text-(--text-strong)",
   },
 } as const satisfies Record<
   "active" | "inactive",

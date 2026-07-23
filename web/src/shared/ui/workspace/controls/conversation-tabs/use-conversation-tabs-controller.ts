@@ -11,13 +11,14 @@ import { isExternalSessionConversation } from "@/lib/conversation/external-sessi
 import {
   calculateConversationTabWidths,
   getCloseFallbackConversationId,
-  getConversationTabCapacity,
   getInitialOpenConversationIds,
   getRecentConversationIds,
   reconcileOpenConversationIds,
   resolveActiveConversationId,
 } from "@/shared/ui/workspace/controls/conversation-tabs/conversation-tabs-model";
 import { RoomConversationView } from "@/types/conversation/conversation";
+
+import { useConversationTabsScroll } from "./use-conversation-tabs-scroll";
 
 interface ConversationTabsControllerOptions {
   conversations: RoomConversationView[];
@@ -37,24 +38,22 @@ export function useConversationTabsController({
   const trackRef = useRef<HTMLElement | null>(null);
   const [trackWidth, setTrackWidth] = useState(0);
   const [isCreating, setIsCreating] = useState(false);
-  const [hoveredConversationId, setHoveredConversationId] = useState<string | null>(null);
   const [optimisticActiveId, setOptimisticActiveId] = useState<string | null>(null);
   const [pendingClosedActiveId, setPendingClosedActiveId] = useState<string | null>(null);
   const closedConversationIdsRef = useRef<Set<string>>(new Set());
   const knownRecentConversationIdsRef = useRef<Set<string>>(new Set());
-  const previousTabCapacityRef = useRef(0);
   const hasCreateButton = Boolean(onCreateConversation);
   const recentConversationIds = useMemo(
     () => getRecentConversationIds(conversations),
     [conversations],
   );
   const [openConversationIds, setOpenConversationIds] = useState<string[]>(() => (
-    getInitialOpenConversationIds(conversationId, recentConversationIds)
+    getInitialOpenConversationIds(
+      conversationId,
+      recentConversationIds,
+      recentConversationIds.length,
+    )
   ));
-  const tabCapacity = useMemo(() => getConversationTabCapacity({
-    hasCreateButton,
-    trackWidth,
-  }), [hasCreateButton, trackWidth]);
   const conversationsById = useMemo(
     () => new Map(
       conversations.map((conversation) => [conversation.conversation_id, conversation]),
@@ -67,24 +66,38 @@ export function useConversationTabsController({
       .filter((conversation): conversation is RoomConversationView => Boolean(conversation)),
     [conversationsById, openConversationIds],
   );
+  const recentConversations = useMemo(
+    () => recentConversationIds
+      .map((id) => conversationsById.get(id))
+      .filter((conversation): conversation is RoomConversationView => Boolean(conversation)),
+    [conversationsById, recentConversationIds],
+  );
   const activeConversationId = resolveActiveConversationId({
     conversationId,
     optimisticId: optimisticActiveId,
     orderedConversations,
   });
+  const tabsScroll = useConversationTabsScroll({
+    activeConversationId,
+    contentKey: openConversationIds.join(":"),
+  });
   const tabWidths = useMemo(() => calculateConversationTabWidths({
     activeConversationId,
     hasCreateButton,
+    hasOverviewButton: tabsScroll.hasOverflow,
     orderedConversations,
     trackWidth,
-  }), [activeConversationId, hasCreateButton, orderedConversations, trackWidth]);
+  }), [
+    activeConversationId,
+    hasCreateButton,
+    orderedConversations,
+    tabsScroll.hasOverflow,
+    trackWidth,
+  ]);
 
   useTrackWidth(trackRef, setTrackWidth);
 
   useEffect(() => {
-    const previousTabCapacity = previousTabCapacityRef.current;
-    const capacityIncreased = tabCapacity > previousTabCapacity;
-    previousTabCapacityRef.current = tabCapacity;
     const liveConversationIds = new Set(recentConversationIds);
     const hasNewRecentConversation = recentConversationIds.some(
       (id) => !knownRecentConversationIdsRef.current.has(id),
@@ -99,20 +112,19 @@ export function useConversationTabsController({
       closedConversationIdsRef.current.delete(conversationId);
     }
 
-    // 宽度增长或已打开会话被服务端移除时，补入最近会话；手动关闭的标签不自动复开。
+    // 中文注释：最近会话全部保留在可滚动标签带中；手动关闭的标签不自动复开。
     setOpenConversationIds((currentIds) => reconcileOpenConversationIds({
       conversationId,
       currentIds,
       excludedConversationIds: closedConversationIdsRef.current,
-      fillRecent: capacityIncreased
-        || hasNewRecentConversation
+      fillRecent: hasNewRecentConversation
         || currentIds.length === 0
         || currentIds.some((id) => !liveConversationIds.has(id)),
-      maxOpenCount: tabCapacity,
+      maxOpenCount: recentConversationIds.length,
       pendingClosedId: pendingClosedActiveId,
       recentIds: recentConversationIds,
     }));
-  }, [conversationId, pendingClosedActiveId, recentConversationIds, tabCapacity]);
+  }, [conversationId, pendingClosedActiveId, recentConversationIds]);
 
   useEffect(() => {
     setPendingClosedActiveId((currentId) => (
@@ -140,7 +152,18 @@ export function useConversationTabsController({
 
   const selectConversation = (nextConversationId: string) => {
     closedConversationIdsRef.current.delete(nextConversationId);
-    previewConversation(nextConversationId);
+    flushSync(() => {
+      setOpenConversationIds((currentIds) => reconcileOpenConversationIds({
+        conversationId: nextConversationId,
+        currentIds,
+        excludedConversationIds: closedConversationIdsRef.current,
+        fillRecent: false,
+        maxOpenCount: recentConversationIds.length,
+        pendingClosedId: null,
+        recentIds: recentConversationIds,
+      }));
+      setOptimisticActiveId(nextConversationId);
+    });
     onSelectConversation(nextConversationId);
   };
 
@@ -182,26 +205,16 @@ export function useConversationTabsController({
     }
   };
 
-  const setConversationHovered = (targetConversationId: string, hovered: boolean) => {
-    if (hovered) {
-      setHoveredConversationId(targetConversationId);
-      return;
-    }
-    setHoveredConversationId((currentId) => (
-      currentId === targetConversationId ? null : currentId
-    ));
-  };
-
   return {
     activeConversationId,
     closeConversation,
     createConversation,
-    hoveredConversationId,
     isCreating,
     orderedConversations,
     previewConversation,
+    recentConversations,
     selectConversation,
-    setConversationHovered,
+    tabsScroll,
     tabWidths,
     trackRef,
   };
