@@ -2,7 +2,10 @@ import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 
-import { isNearScrollBottom } from "./follow-scroll-model";
+import {
+  hasScrollableOverflow,
+  isNearScrollBottom,
+} from "./follow-scroll-model";
 import { HistoryPrependAnchor } from "./history-prepend-anchor";
 import { BottomScrollAnimator } from "./scroll-animation";
 import { useFollowScrollInteractions } from "./use-follow-scroll-interactions";
@@ -107,6 +110,12 @@ export function useFollowScroll({
   );
 
   const pauseFollowLatest = useCallback(() => {
+    const container = scrollRef.current;
+    if (!container || !hasScrollableOverflow(container)) {
+      shouldFollowLatestRef.current = true;
+      setScrollToBottomVisibility(false);
+      return;
+    }
     cancelAnimation();
     shouldFollowLatestRef.current = false;
     setScrollToBottomVisibility(true);
@@ -128,7 +137,10 @@ export function useFollowScroll({
 
   useLayoutEffect(() => {
     if (!shouldFollowLatestRef.current) {
-      setScrollToBottomVisibility(true);
+      const container = scrollRef.current;
+      setScrollToBottomVisibility(
+        Boolean(container && hasScrollableOverflow(container)),
+      );
       return;
     }
     scheduleScrollToBottom(isLoading ? "auto" : "smooth");
@@ -152,7 +164,9 @@ export function useFollowScroll({
       return;
     }
     lastScrollTopRef.current = restoredScrollTop;
-    setScrollToBottomVisibility(true);
+    setScrollToBottomVisibility(
+      hasScrollableOverflow(container) && !isNearScrollBottom(container),
+    );
   }, [historyPrependToken, setScrollToBottomVisibility]);
 
   // 视口缩放（小窗口/输入框撑高）与内容增长都要重新贴底；feed 根元素会随
@@ -164,7 +178,12 @@ export function useFollowScroll({
 
     const observer = new ResizeObserver(() => {
       if (!shouldFollowLatestRef.current) {
-        setScrollToBottomVisibility(true);
+        const currentContainer = scrollRef.current;
+        setScrollToBottomVisibility(
+          Boolean(
+            currentContainer && hasScrollableOverflow(currentContainer),
+          ),
+        );
         return;
       }
       scheduleScrollToBottom("auto");

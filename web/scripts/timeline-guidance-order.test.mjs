@@ -18,11 +18,37 @@ test.after(async () => {
   await server.close();
 });
 
+test("scroll-to-latest requires real viewport overflow", async () => {
+  const { hasScrollableOverflow } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/timeline/scroll/follow-scroll-model.ts",
+  );
+  assert.equal(
+    hasScrollableOverflow(
+      { clientHeight: 500, scrollHeight: 500, scrollTop: 0 },
+    ),
+    false,
+    "an empty or short conversation must not expose a scroll-to-latest action",
+  );
+  assert.equal(
+    hasScrollableOverflow(
+      { clientHeight: 500, scrollHeight: 501, scrollTop: 0 },
+    ),
+    false,
+    "sub-pixel layout rounding must not create a false scroll affordance",
+  );
+  assert.equal(
+    hasScrollableOverflow(
+      { clientHeight: 500, scrollHeight: 502, scrollTop: 0 },
+    ),
+    true,
+    "real overflow must preserve the scroll-to-latest affordance",
+  );
+});
+
 test("scroll events only resume following near the bottom", async () => {
   const { isNearScrollBottom } = await server.ssrLoadModule(
     "/src/features/conversation/shared/timeline/scroll/follow-scroll-model.ts",
   );
-
   assert.equal(
     isNearScrollBottom(
       { clientHeight: 500, scrollHeight: 5_000, scrollTop: 2_000 },

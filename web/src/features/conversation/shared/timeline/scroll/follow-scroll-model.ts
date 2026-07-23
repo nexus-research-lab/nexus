@@ -1,6 +1,7 @@
 import type { Message } from "@/types/conversation/message/entity";
 
 const BOTTOM_THRESHOLD_PX = 80;
+const SCROLL_OVERFLOW_TOLERANCE_PX = 1;
 
 interface ScrollMetrics {
   clientHeight: number;
@@ -24,6 +25,10 @@ const EMPTY_SCROLL_MESSAGE_IDENTITY: ScrollMessageIdentity = {
 
 export function getScrollBottomTop(element: ScrollMetrics): number {
   return Math.max(0, element.scrollHeight - element.clientHeight);
+}
+
+export function hasScrollableOverflow(element: ScrollMetrics): boolean {
+  return getScrollBottomTop(element) > SCROLL_OVERFLOW_TOLERANCE_PX;
 }
 
 export function isNearScrollBottom(element: ScrollMetrics): boolean {
