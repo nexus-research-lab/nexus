@@ -181,6 +181,9 @@ func (s *Service) prepareRoomChat(ctx context.Context, request ChatRequest) (*ro
 	if err != nil {
 		return nil, err
 	}
+	if err = requireGroupRoomContext(contextValue); err != nil {
+		return nil, err
+	}
 	roomID := cmp.Or(strings.TrimSpace(request.RoomID), contextValue.Room.ID)
 	attachments := s.normalizeChatAttachments(request.Attachments, request.AttachmentAgentID, roomID, conversationID)
 	runtimeContent, err := s.renderRuntimeContentWithAttachments(ctx, request.Content, attachments)

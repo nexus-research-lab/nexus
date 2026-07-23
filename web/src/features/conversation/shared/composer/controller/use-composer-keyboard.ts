@@ -21,7 +21,7 @@ interface UseComposerKeyboardOptions {
   isLoading: boolean;
   mentionActive: boolean;
   onSend: () => void | Promise<void>;
-  onStop: () => void;
+  onStop?: () => void;
   recallNext: () => void;
   recallPrevious: () => void;
 }
@@ -187,13 +187,15 @@ function resolveKeyboardCommand(
       ].every(Boolean),
       run: options.recallNext,
     },
-    {
+  ];
+  if (options.onStop) {
+    commands.push({
       matches: [
         event.key === "Escape",
         options.isLoading,
       ].every(Boolean),
       run: options.onStop,
-    },
-  ];
+    });
+  }
   return commands.find((command) => command.matches)?.run ?? null;
 }

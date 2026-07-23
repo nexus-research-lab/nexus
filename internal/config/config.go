@@ -3,9 +3,12 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 )
 
 // Config 承载 Go 服务运行时配置。
@@ -99,7 +102,14 @@ func (c Config) Address() string {
 // Load 读取环境变量并构建配置。
 func Load() Config {
 	_ = LoadDotEnv()
-	cacheDir := getEnv("CACHE_FILE_DIR", "cache")
+	appRoot := appfs.AppDir()
+	stateRoot := appfs.StateRoot()
+	cacheDir := normalizeLegacyHostPath(
+		getEnv("CACHE_FILE_DIR", filepath.Join(appRoot, "cache")),
+		stateRoot,
+		"cache",
+		filepath.Join(appRoot, "cache"),
+	)
 	debug := mustBool(getEnv("DEBUG", "false"))
 	logLevel := strings.TrimSpace(getEnv("LOG_LEVEL", ""))
 	if logLevel == "" {
@@ -119,13 +129,18 @@ func Load() Config {
 	}
 	workspacePath := configuredWorkspacePath(getEnv("WORKSPACE_PATH", ""))
 	return Config{
-		Host:                        getEnv("HOST", "0.0.0.0"),
-		Port:                        parseIntEnv(getEnv("PORT", "8010"), 8010),
-		Debug:                       debug,
-		ProjectName:                 getEnv("PROJECT_NAME", "nexus"),
-		LogLevel:                    logLevel,
-		LogFormat:                   logFormat,
-		LogPath:                     getEnv("LOG_PATH", "~/.nexus/logs/logger.log"),
+		Host:        getEnv("HOST", "0.0.0.0"),
+		Port:        parseIntEnv(getEnv("PORT", "8010"), 8010),
+		Debug:       debug,
+		ProjectName: getEnv("PROJECT_NAME", "nexus"),
+		LogLevel:    logLevel,
+		LogFormat:   logFormat,
+		LogPath: normalizeLegacyHostPath(
+			getEnv("LOG_PATH", filepath.Join(appRoot, "logs", "logger.log")),
+			stateRoot,
+			"logs",
+			filepath.Join(appRoot, "logs"),
+		),
 		LogStdout:                   mustBool(getEnv("LOG_STDOUT", "true")),
 		LogNoColor:                  mustBool(getEnv("LOG_NO_COLOR", "false")),
 		LogFileEnabled:              mustBool(getEnv("LOG_FILE_ENABLED", "true")),
@@ -149,14 +164,18 @@ func Load() Config {
 		SkillsDefaultSourcesEnabled: mustBool(getEnv("SKILLS_DEFAULT_SOURCES_ENABLED", "true")),
 		SkillsAPISearchLimit:        parseIntEnv(getEnv("SKILLS_API_SEARCH_LIMIT", "20"), 20),
 		DatabaseDriver:              getEnv("DATABASE_DRIVER", "sqlite"),
-		DatabaseURL:                 getEnv("DATABASE_URL", "~/.nexus/data/nexus.db"),
-		AccessToken:                 getEnv("ACCESS_TOKEN", ""),
-		AuthSessionCookieName:       getEnv("AUTH_SESSION_COOKIE_NAME", "nexus_session"),
-		AuthCookieSameSite:          getEnv("AUTH_COOKIE_SAMESITE", "lax"),
-		AuthCookieSecure:            mustBool(getEnv("AUTH_COOKIE_SECURE", "false")),
-		AuthSessionTTLHours:         parseIntEnv(getEnv("AUTH_SESSION_TTL_HOURS", "24"), 24),
-		BaseSystemPrompt:            getEnv("BASE_SYSTEM_PROMPT", ""),
-		MainAgentSystemPrompt:       getEnv("MAIN_AGENT_SYSTEM_PROMPT", ""),
+		DatabaseURL: normalizeLegacyDatabaseURL(
+			getEnv("DATABASE_URL", filepath.Join(appRoot, "data", "nexus.db")),
+			stateRoot,
+			filepath.Join(appRoot, "data"),
+		),
+		AccessToken:           getEnv("ACCESS_TOKEN", ""),
+		AuthSessionCookieName: getEnv("AUTH_SESSION_COOKIE_NAME", "nexus_session"),
+		AuthCookieSameSite:    getEnv("AUTH_COOKIE_SAMESITE", "lax"),
+		AuthCookieSecure:      mustBool(getEnv("AUTH_COOKIE_SECURE", "false")),
+		AuthSessionTTLHours:   parseIntEnv(getEnv("AUTH_SESSION_TTL_HOURS", "24"), 24),
+		BaseSystemPrompt:      getEnv("BASE_SYSTEM_PROMPT", ""),
+		MainAgentSystemPrompt: getEnv("MAIN_AGENT_SYSTEM_PROMPT", ""),
 		MemoryMaintenance: MemoryMaintenanceConfig{
 			MaxConcurrent: parseIntEnv(getEnv("MEMORY_MAINTENANCE_MAX_CONCURRENT", "2"), 2),
 			RunTimeout:    time.Duration(parseIntEnv(getEnv("MEMORY_MAINTENANCE_RUN_TIMEOUT_SECONDS", "3600"), 3600)) * time.Second,
@@ -227,6 +246,48 @@ func getEnv(key string, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+// normalizeLegacyHostPath 把上一版直接挂在 .nexus 下的宿主目录映射到
+// .nexus/app。只改动明确位于旧状态根中的路径，不碰用户自定义目录。
+func normalizeLegacyHostPath(raw string, stateRoot string, legacyName string, targetRoot string) string {
+	value := strings.TrimSpace(expandLeadingHome(raw))
+	legacyRoot := filepath.Join(filepath.Clean(stateRoot), legacyName)
+	if value != legacyRoot && !strings.HasPrefix(value, legacyRoot+string(os.PathSeparator)) {
+		return raw
+	}
+	relative, err := filepath.Rel(legacyRoot, value)
+	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(os.PathSeparator)) {
+		return raw
+	}
+	if relative == "." {
+		return filepath.Clean(targetRoot)
+	}
+	return filepath.Join(targetRoot, relative)
+}
+
+func normalizeLegacyDatabaseURL(raw string, stateRoot string, targetRoot string) string {
+	value := strings.TrimSpace(raw)
+	prefix := ""
+	lower := strings.ToLower(value)
+	switch {
+	case strings.HasPrefix(lower, "sqlite:///"):
+		prefix = value[:len("sqlite:///")]
+		value = value[len("sqlite:///"):]
+	case strings.HasPrefix(lower, "sqlite://"):
+		prefix = value[:len("sqlite://")]
+		value = value[len("sqlite://"):]
+	}
+	normalizedPath := normalizeLegacyHostPath(
+		value,
+		stateRoot,
+		"data",
+		targetRoot,
+	)
+	if normalizedPath == value {
+		return raw
+	}
+	return prefix + normalizedPath
 }
 
 func parseIntEnv(raw string, fallback int) int {

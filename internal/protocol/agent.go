@@ -12,7 +12,7 @@ type Options struct {
 	MaxTurns          *int           `json:"max_turns,omitempty"`
 	MaxThinkingTokens *int           `json:"max_thinking_tokens,omitempty"`
 	MCPServers        map[string]any `json:"mcp_servers,omitempty"`
-	// SkillIDs 保存平台 Skill 的稳定 ID；当前 catalog 使用 canonical name 作为 ID，路径不进入协议。
+	// SkillIDs 保存平台 Skill ID 或用户级外部 Skill 引用（external:<name>）；路径不进入协议。
 	SkillIDs       []string `json:"skill_ids,omitempty"`
 	SettingSources []string `json:"setting_sources,omitempty"`
 }

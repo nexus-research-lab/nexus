@@ -40,7 +40,7 @@ export interface GroupConversationRoundRenderer {
   onOpenAgentContact?: (agentId: string) => void;
   onOpenWorkspaceFile?: (path: string) => void;
   onPermissionResponse: (payload: PermissionDecisionPayload) => boolean;
-  onStopMessage: (msgId: string) => void;
+  onStopAgentRound: (agentRoundId: string) => void;
   runtimePhase: AgentConversationRuntimePhase | null;
 }
 

@@ -143,10 +143,16 @@ func TestDesktopPersonalProfileAllowsLocalAvatar(t *testing.T) {
 	if profile.CanChangePassword || !profile.CanUpdateProfile {
 		t.Fatalf("desktop 本地用户应只允许修改资料不允许改密: %+v", profile)
 	}
+	if profile.Subscription != nil || profile.TokenUsage.QuotaLimitTokens != nil {
+		t.Fatalf("desktop 本地用户没有显式订阅时不应显示 Free 套餐或额度: %+v", profile)
+	}
 
 	updatedProfile := updatePersonalAvatar(t, httpServer.URL, nil, "15")
 	if updatedProfile.User.Avatar != "15" {
 		t.Fatalf("desktop 本地头像更新未生效: %+v", updatedProfile.User)
+	}
+	if updatedProfile.Subscription != nil || updatedProfile.TokenUsage.QuotaLimitTokens != nil {
+		t.Fatalf("desktop 本地用户保存头像后仍不应显示 Free 套餐或额度: %+v", updatedProfile)
 	}
 	statusWithAvatar := getAuthStatus(t, httpServer.URL, nil)
 	if statusWithAvatar.Avatar == nil || *statusWithAvatar.Avatar != "15" {

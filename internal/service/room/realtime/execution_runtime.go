@@ -5,12 +5,15 @@ package realtime
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log/slog"
+	"strings"
+
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
-	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
@@ -23,8 +26,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/service/toolpolicy"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
-	"log/slog"
-	"strings"
 )
 
 const (
@@ -105,7 +106,16 @@ func (s *Service) resolveReusableRoomSDKSessionID(
 }
 
 func (e *slotExecution) prepareRuntimeClient() (runtimectx.Client, error) {
+	if e.round == nil {
+		return nil, errors.New("room round is required")
+	}
+	if err := requireGroupRoomContext(e.round.Context); err != nil {
+		return nil, err
+	}
 	if err := workspacepkg.EnsurePlatformSkillLibrary(); err != nil {
+		return nil, err
+	}
+	if err := workspacepkg.EnsureUserSkillLibrary(e.service.config, e.agent.OwnerUserID); err != nil {
 		return nil, err
 	}
 	if err := workspacepkg.EnsureInitialized(
@@ -167,7 +177,7 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 		AllowedTools:               toolpolicy.WithManagedRuntimeAllowedTools(roomAllowedTools(e.agent.Options.AllowedTools, e.round.Context.Room.PrivateMessagesEnabled), e.service.runtimeImagegenDefaultEnabled(e.ctx)),
 		DisallowedTools:            roomDisallowedTools(e.agent.Options.DisallowedTools, e.round.Context.Room.PrivateMessagesEnabled),
 		SkillIDs:                   runtimeSkillNames,
-		SkillDirectories:           []string{appfs.PlatformSkillRoot()},
+		SkillDirectories:           workspacepkg.SkillLibraryRoots(e.service.config, e.agent.OwnerUserID),
 		SettingSources:             e.agent.Options.SettingSources,
 		AppendSystemPrompt:         appendPromptSection(prompt.stable, prompt.dynamic),
 		AppendSystemPromptStatic:   prompt.stable,

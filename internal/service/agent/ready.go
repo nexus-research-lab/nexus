@@ -3,6 +3,8 @@ package agent
 import (
 	"context"
 	"os"
+
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 )
 
 // EnsureReady 确保主智能体和 workspace 根目录存在。
@@ -14,11 +16,14 @@ func (s *Service) EnsureReady(ctx context.Context) error {
 
 func (s *Service) ensureReady(ctx context.Context) error {
 	workspaceBase := WorkspaceBasePath(s.config)
-	if err := os.MkdirAll(workspaceBase, 0o755); err != nil {
+	if err := os.MkdirAll(workspaceBase, 0o700); err != nil {
 		return err
 	}
 	ownerUserID := effectiveOwnerUserID(ctx)
-	if err := os.MkdirAll(UserWorkspaceBasePath(s.config, ownerUserID), 0o755); err != nil {
+	if err := appfs.EnsureUserRuntimeLayout(ownerUserID); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(UserWorkspaceBasePath(s.config, ownerUserID), 0o700); err != nil {
 		return err
 	}
 
@@ -28,7 +33,7 @@ func (s *Service) ensureReady(ctx context.Context) error {
 	}
 	if agent == nil {
 		record := BuildDefaultMainAgentRecord(s.config, ownerUserID)
-		if err = os.MkdirAll(record.WorkspacePath, 0o755); err != nil {
+		if err = os.MkdirAll(record.WorkspacePath, 0o700); err != nil {
 			return err
 		}
 		if err = EnsureRuntimeEmotionState(record.WorkspacePath); err != nil {
@@ -39,7 +44,7 @@ func (s *Service) ensureReady(ctx context.Context) error {
 			return err
 		}
 	}
-	if err = os.MkdirAll(agent.WorkspacePath, 0o755); err != nil {
+	if err = os.MkdirAll(agent.WorkspacePath, 0o700); err != nil {
 		return err
 	}
 	if err = EnsureRuntimeEmotionState(agent.WorkspacePath); err != nil {

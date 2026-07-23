@@ -94,6 +94,7 @@ src/
 - 技能详情按 route/controller/model/view 分离，详情资源用请求代次拒绝旧响应；更新和删除只复用市场命令的明确结果，不在视图重复调用 API
 - Composer 由 `features/conversation/shared/composer/controller/` 分离草稿、分阶段消息投递、Goal/Loop、有序键盘守卫，以及输入/运行时/模式/动作视图投影；`components/{footer,pending-queue,loop-picker}/` 分别拥有展示和局部交互，面板只装配子域
 - Composer 附件只由 `shared/composer/attachments/` 的有序规则表分类并生成文件选择过滤；剪贴板先投影为明确动作，整批校验必须先于上传，DM/Room 必须提供窄上传目标
+- 停止动作按执行所有权归属：DM 可由 Composer 提供 `onStop`，Room Composer 不暴露停止入口，Room 只在对应 Agent slot 通过 `agent_round_id` 定向中断
 - General 设置由 `features/settings/general/` 统一编排；默认模型值直接派生自用户偏好和 Provider 默认值，不维护镜像选择状态
 - 设置目录由 `features/settings/settings-navigation-model.ts` 定义，主应用侧栏与独立设置窗口必须复用 `settings-sidebar-navigation.tsx`；当前分区只由 URL 查询参数派生，不维护第二份选中状态；运营分区只对非桌面端 owner/admin 暴露，旧 `/operations` 入口必须收敛到设置目录
 - 运营能力归 `features/settings/operations/`，可以组合设置域内的 Provider 与共享视图；不得恢复与 `settings` 双向依赖的顶层 `features/operations/`

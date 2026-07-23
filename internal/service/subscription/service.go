@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	storagesubscription "github.com/nexus-research-lab/nexus/internal/storage/subscription"
 )
 
@@ -39,14 +40,16 @@ func (e QuotaExceededError) ClientMessage() string {
 }
 
 type Service struct {
-	repository *storagesubscription.Repository
-	now        func() time.Time
+	repository  *storagesubscription.Repository
+	desktopMode bool
+	now         func() time.Time
 }
 
 func NewServiceWithDB(cfg config.Config, db *sql.DB) *Service {
 	return &Service{
-		repository: storagesubscription.NewRepository(cfg, db),
-		now:        time.Now,
+		repository:  storagesubscription.NewRepository(cfg, db),
+		desktopMode: strings.EqualFold(strings.TrimSpace(cfg.AppMode), "desktop"),
+		now:         time.Now,
 	}
 }
 
@@ -80,9 +83,13 @@ func (s *Service) Overview(ctx context.Context) (Overview, error) {
 }
 
 func (s *Service) CurrentAccount(ctx context.Context, ownerUserID string) (*Account, error) {
+	normalizedOwnerUserID := strings.TrimSpace(ownerUserID)
+	if s.desktopMode && normalizedOwnerUserID == authctx.SystemUserID {
+		return nil, nil
+	}
 	now := s.now().UTC()
 	periodStart, periodEnd := currentMonthlyPeriod(now)
-	account, err := s.repository.GetAccount(ctx, strings.TrimSpace(ownerUserID), periodStart, periodEnd)
+	account, err := s.repository.GetAccount(ctx, normalizedOwnerUserID, periodStart, periodEnd)
 	if err != nil {
 		return nil, err
 	}

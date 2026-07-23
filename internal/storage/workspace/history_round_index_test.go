@@ -92,7 +92,7 @@ func TestAgentHistoryStoreReadRoundIndexIgnoresLargeResultBody(t *testing.T) {
 
 func TestRoomHistoryStoreReadRoundIndexCollapsesAgentRound(t *testing.T) {
 	root := t.TempDir()
-	history := NewRoomHistoryStore(root)
+	history := newRoomHistoryTestStore(t, root)
 	conversationID := "conv-1"
 
 	if err := history.AppendInlineMessage(conversationID, protocol.Message{
@@ -138,7 +138,7 @@ func TestRoomHistoryStoreReadRoundIndexCollapsesAgentRound(t *testing.T) {
 
 func TestRoomHistoryStoreReadRoundIndexCollectsMultipleAgents(t *testing.T) {
 	root := t.TempDir()
-	history := NewRoomHistoryStore(root)
+	history := newRoomHistoryTestStore(t, root)
 	conversationID := "conv-multi"
 
 	if err := history.AppendInlineMessage(conversationID, protocol.Message{
@@ -181,7 +181,7 @@ func TestRoomHistoryStoreReadRoundIndexCollectsMultipleAgents(t *testing.T) {
 
 func TestRoomHistoryStoreReadRoundIndexUsesLatestMessageRound(t *testing.T) {
 	root := t.TempDir()
-	history := NewRoomHistoryStore(root)
+	history := newRoomHistoryTestStore(t, root)
 	conversationID := "conv-guidance"
 	message := protocol.Message{
 		"message_id": "user-guidance",
@@ -210,7 +210,7 @@ func TestRoomHistoryStoreReadRoundIndexUsesLatestMessageRound(t *testing.T) {
 
 func TestRoomHistoryStoreReadRoundIndexCollapsesSuffixedMarker(t *testing.T) {
 	root := t.TempDir()
-	history := NewRoomHistoryStore(root)
+	history := newRoomHistoryTestStore(t, root)
 	conversationID := "conv-suffixed-marker"
 
 	if err := history.AppendInlineMessage(conversationID, protocol.Message{
@@ -247,4 +247,11 @@ func TestRoomHistoryStoreReadRoundIndexCollapsesSuffixedMarker(t *testing.T) {
 	if !item.HasUserMessage || len(item.AgentIDs) != 1 || item.AgentIDs[0] != "amy" {
 		t.Fatalf("带 agent 后缀的 marker 角色索引不正确: %+v", item)
 	}
+}
+
+func newRoomHistoryTestStore(t *testing.T, stateRoot string) *RoomHistoryStore {
+	t.Helper()
+	t.Setenv("NEXUS_STATE_ROOT", stateRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", "")
+	return NewRoomHistoryStore(filepath.Join(stateRoot, "users"))
 }

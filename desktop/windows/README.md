@@ -94,8 +94,8 @@ pwsh desktop/windows/.build/app/Nexus/register-nexus-protocol.ps1
 ## 当前边界
 
 - 目前只在仓库内落了骨架；非 Windows 环境无法本地运行 WPF/WebView2。
-- 桌面运行数据统一写入 `~/.nexus`，数据库位于 `~/.nexus/data/nexus.db`，日志位于 `~/.nexus/logs`。
-- sidecar 凭据加密 key 优先使用 DPAPI current user 保护后保存到 `~/.nexus/config/connector-credentials.dpapi`，DPAPI 不可用时才降级到本地文件。
+- 桌面运行数据统一写入 `~/.nexus`，数据库位于 `~/.nexus/app/data/nexus.db`，日志位于 `~/.nexus/app/logs`。
+- sidecar 凭据加密 key 优先使用 DPAPI current user 保护后保存到 `~/.nexus/app/config/connector-credentials.dpapi`，DPAPI 不可用时才降级到本地文件。
 - 桥接接口先覆盖版本读取、外链打开、日志导出、主窗口路由打开和全局快捷键状态占位；日志导出会带 `diagnostics.json`，启动失败会写 `startup-failure-*.json`。
-- 应用启动后会按 24 小时节流检测 GitHub Release 中的 Windows metadata；发现新版本时可下载 `NexusSetup-*.exe` 与对应 `.sha256` 到 `~/.nexus/cache/updates`，校验通过后提示是否退出 Nexus 并启动安装器。新版本首次启动成功后会清理旧的更新缓存目录；用户选择“稍后”时，当前版本的已下载包会保留。可设置 `NEXUS_DESKTOP_DISABLE_UPDATE_CHECK=1` 禁用检测。
+- 应用启动后会按 24 小时节流检测 GitHub Release 中的 Windows metadata；发现新版本时可下载 `NexusSetup-*.exe` 与对应 `.sha256` 到 `~/.nexus/app/cache/updates`，校验通过后提示是否退出 Nexus 并启动安装器。新版本首次启动成功后会清理旧的更新缓存目录；用户选择“稍后”时，当前版本的已下载包会保留。可设置 `NEXUS_DESKTOP_DISABLE_UPDATE_CHECK=1` 禁用检测。
 - GitHub `Publish Release` workflow 会在 `windows-latest` 上构建、烟测并上传 Windows installer exe、sha256 与 metadata；未配置 Windows 签名证书时产物会明确标记为 unsigned。托盘在后续阶段补齐。

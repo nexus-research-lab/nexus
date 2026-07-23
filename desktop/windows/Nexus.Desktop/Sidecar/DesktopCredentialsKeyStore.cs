@@ -54,6 +54,13 @@ internal static class DesktopCredentialsKeyStore
             }
         }
 
+        string? legacy = ReadLegacyDpapiKey() ?? ReadLegacyPlainKey();
+        if (!string.IsNullOrWhiteSpace(legacy))
+        {
+            PersistDpapiKey(dpapiPath, legacy);
+            return new DesktopCredentialsKey(legacy, "dpapi", "migrated_legacy_file");
+        }
+
         string generated = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
         PersistDpapiKey(dpapiPath, generated);
         return new DesktopCredentialsKey(generated, "dpapi", "generated");
@@ -71,9 +78,66 @@ internal static class DesktopCredentialsKeyStore
             }
         }
 
+        string? legacy = ReadLegacyPlainKey();
+        if (!string.IsNullOrWhiteSpace(legacy))
+        {
+            File.WriteAllText(keyPath, legacy);
+            return new DesktopCredentialsKey(legacy, "file", $"{reason}:migrated_legacy_file");
+        }
+
         string generated = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
         File.WriteAllText(keyPath, generated);
         return new DesktopCredentialsKey(generated, "file", reason);
+    }
+
+    private static string? ReadLegacyPlainKey()
+    {
+        string legacyPath = Path.Combine(
+            DesktopPaths.RootDirectory,
+            "config",
+            "connector-credentials.key");
+        if (!File.Exists(legacyPath))
+        {
+            return null;
+        }
+
+        string value = File.ReadAllText(legacyPath).Trim();
+        return string.IsNullOrWhiteSpace(value) ? null : value;
+    }
+
+    private static string? ReadLegacyDpapiKey()
+    {
+        string legacyPath = Path.Combine(
+            DesktopPaths.RootDirectory,
+            "config",
+            "connector-credentials.dpapi");
+        if (!File.Exists(legacyPath))
+        {
+            return null;
+        }
+
+        try
+        {
+            byte[] protectedBytes = File.ReadAllBytes(legacyPath);
+            byte[] plainBytes = ProtectedData.Unprotect(
+                protectedBytes,
+                optionalEntropy: null,
+                DataProtectionScope.CurrentUser);
+            string value = Encoding.UTF8.GetString(plainBytes).Trim();
+            return string.IsNullOrWhiteSpace(value) ? null : value;
+        }
+        catch (CryptographicException)
+        {
+            return null;
+        }
+        catch (IOException)
+        {
+            return null;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return null;
+        }
     }
 
     private static void PersistDpapiKey(string path, string value)

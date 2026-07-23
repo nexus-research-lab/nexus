@@ -66,9 +66,9 @@ func TestRealtimeServiceForwardsProviderModelOption(t *testing.T) {
 	if err != nil {
 		t.Fatalf("更新 member agent 配置失败: %v", err)
 	}
-	dmContext, err := roomService.EnsureDirectRoom(ctx, memberAgent.AgentID)
+	roomContext, err := createSingleAgentGroupRoom(ctx, roomService, memberAgent.AgentID)
 	if err != nil {
-		t.Fatalf("创建直聊 room 失败: %v", err)
+		t.Fatalf("创建单成员 room 失败: %v", err)
 	}
 
 	client := newFakeRoomClient()
@@ -104,14 +104,14 @@ func TestRealtimeServiceForwardsProviderModelOption(t *testing.T) {
 	titleScheduler := &fakeRoomTitleScheduler{}
 	service.SetTitleGenerator(titleScheduler)
 
-	sharedSessionKey := protocol.BuildRoomSharedSessionKey(dmContext.Conversation.ID)
+	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
 	sender := newRealtimeTestSender("room-sender-no-model")
 	permission.BindSession(sharedSessionKey, sender)
 
 	if err = service.HandleChat(ctx, realtimesvc.ChatRequest{
 		SessionKey:     sharedSessionKey,
-		RoomID:         dmContext.Room.ID,
-		ConversationID: dmContext.Conversation.ID,
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
 		Content:        "测试 room model 透传",
 		RoundID:        "room-round-no-model",
 	}); err != nil {
@@ -139,7 +139,7 @@ func TestRealtimeServiceForwardsProviderModelOption(t *testing.T) {
 	if titleRequest.SessionMessageCount != -1 {
 		t.Fatalf("room 标题生成不应检查共享 session 标题: %+v", titleRequest)
 	}
-	if titleRequest.ConversationID != dmContext.Conversation.ID {
+	if titleRequest.ConversationID != roomContext.Conversation.ID {
 		t.Fatalf("room 标题生成未绑定 conversation: %+v", titleRequest)
 	}
 	if options.Runtime.MaxThinkingTokens != maxThinkingTokens {
@@ -176,9 +176,9 @@ func TestRealtimeServiceBypassPermissionsKeepsQuestionChannel(t *testing.T) {
 	if err != nil || memberAgent == nil {
 		t.Fatalf("更新 member agent 配置失败: value=%+v err=%v", memberAgent, err)
 	}
-	dmContext, err := roomService.EnsureDirectRoom(ctx, memberAgent.AgentID)
+	roomContext, err := createSingleAgentGroupRoom(ctx, roomService, memberAgent.AgentID)
 	if err != nil {
-		t.Fatalf("创建直聊 room 失败: %v", err)
+		t.Fatalf("创建单成员 room 失败: %v", err)
 	}
 
 	client := newFakeRoomClient()
@@ -203,14 +203,14 @@ func TestRealtimeServiceBypassPermissionsKeepsQuestionChannel(t *testing.T) {
 	runtimeManager := runtimectx.NewManager()
 	factory := &fakeRoomFactory{clients: []*fakeRoomClient{client}}
 	service := NewServiceWithFactory(cfg, roomService, agentService, runtimeManager, permission, factory)
-	sharedSessionKey := protocol.BuildRoomSharedSessionKey(dmContext.Conversation.ID)
+	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
 	sender := newRealtimeTestSender("room-sender-bypass")
 	permission.BindSession(sharedSessionKey, sender)
 
 	if err = service.HandleChat(ctx, realtimesvc.ChatRequest{
 		SessionKey:     sharedSessionKey,
-		RoomID:         dmContext.Room.ID,
-		ConversationID: dmContext.Conversation.ID,
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
 		Content:        "测试 room bypass 权限处理器",
 		RoundID:        "room-round-bypass",
 	}); err != nil {
@@ -246,9 +246,9 @@ func TestRealtimeServiceGoalContinuationDefersInPlanMode(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("更新 room member plan mode 失败: %v", err)
 	}
-	dmContext, err := roomService.EnsureDirectRoom(ctx, memberAgent.AgentID)
+	roomContext, err := createSingleAgentGroupRoom(ctx, roomService, memberAgent.AgentID)
 	if err != nil {
-		t.Fatalf("创建直聊 room 失败: %v", err)
+		t.Fatalf("创建单成员 room 失败: %v", err)
 	}
 
 	service := NewServiceWithFactory(
@@ -259,7 +259,7 @@ func TestRealtimeServiceGoalContinuationDefersInPlanMode(t *testing.T) {
 		permissionctx.NewContext(),
 		&fakeRoomFactory{},
 	)
-	sharedSessionKey := protocol.BuildRoomSharedSessionKey(dmContext.Conversation.ID)
+	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
 	if !service.ShouldDeferGoalContinuation(ctx, sharedSessionKey) {
 		t.Fatal("Room Goal continuation should defer while the target agent is in plan mode")
 	}
@@ -277,9 +277,9 @@ func TestRealtimeServiceGoalContinuationDefersBehindPendingUserGuidance(t *testi
 	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
 	ctx := context.Background()
 	memberAgent := createTestAgent(t, agentService, ctx, "用户输入优先助手")
-	roomContext, err := roomService.EnsureDirectRoom(ctx, memberAgent.AgentID)
+	roomContext, err := createSingleAgentGroupRoom(ctx, roomService, memberAgent.AgentID)
 	if err != nil {
-		t.Fatalf("创建直聊 room 失败: %v", err)
+		t.Fatalf("创建单成员 room 失败: %v", err)
 	}
 
 	location := workspacestore.InputQueueLocation{
@@ -493,9 +493,9 @@ func TestRealtimeServiceChatRequestCanOverridePermissionHandler(t *testing.T) {
 	if err != nil || memberAgent == nil {
 		t.Fatalf("更新 member agent 配置失败: value=%+v err=%v", memberAgent, err)
 	}
-	dmContext, err := roomService.EnsureDirectRoom(ctx, memberAgent.AgentID)
+	roomContext, err := createSingleAgentGroupRoom(ctx, roomService, memberAgent.AgentID)
 	if err != nil {
-		t.Fatalf("创建直聊 room 失败: %v", err)
+		t.Fatalf("创建单成员 room 失败: %v", err)
 	}
 
 	client := newFakeRoomClient()
@@ -525,14 +525,14 @@ func TestRealtimeServiceChatRequestCanOverridePermissionHandler(t *testing.T) {
 	runtimeManager := runtimectx.NewManager()
 	factory := &fakeRoomFactory{clients: []*fakeRoomClient{client}}
 	service := NewServiceWithFactory(cfg, roomService, agentService, runtimeManager, permission, factory)
-	sharedSessionKey := protocol.BuildRoomSharedSessionKey(dmContext.Conversation.ID)
+	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
 	sender := newRealtimeTestSender("room-sender-permission-handler")
 	permission.BindSession(sharedSessionKey, sender)
 
 	if err = service.HandleChat(ctx, realtimesvc.ChatRequest{
 		SessionKey:        sharedSessionKey,
-		RoomID:            dmContext.Room.ID,
-		ConversationID:    dmContext.Conversation.ID,
+		RoomID:            roomContext.Room.ID,
+		ConversationID:    roomContext.Conversation.ID,
 		Content:           "测试 room 请求级权限处理器",
 		RoundID:           "room-round-permission-handler",
 		PermissionHandler: requestHandler,
@@ -644,7 +644,7 @@ func TestRoomExplicitInputWinsGoalContinuationDispatchRace(t *testing.T) {
 		Role:     authsvc.RoleOwner,
 	})
 	memberAgent := createTestAgent(t, agentService, ctx, "Goal 竞态助手")
-	roomContext, err := roomService.EnsureDirectRoom(ctx, memberAgent.AgentID)
+	roomContext, err := createSingleAgentGroupRoom(ctx, roomService, memberAgent.AgentID)
 	if err != nil {
 		t.Fatal(err)
 	}

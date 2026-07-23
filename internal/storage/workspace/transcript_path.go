@@ -9,6 +9,8 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"golang.org/x/text/unicode/norm"
 )
 
@@ -16,7 +18,8 @@ var transcriptSanitizePattern = regexp.MustCompile(`[^a-zA-Z0-9]`)
 
 func (s *AgentHistoryStore) resolveTranscriptPath(workspacePath string, sessionID string) (string, error) {
 	canonicalPath := canonicalizeTranscriptPath(workspacePath)
-	projectDir := findTranscriptProjectDir(canonicalPath)
+	projectsRoot := transcriptProjectsDirForWorkspace(canonicalPath)
+	projectDir := findTranscriptProjectDirAt(projectsRoot, canonicalPath)
 	if projectDir != "" {
 		path := filepath.Join(projectDir, sessionID+".jsonl")
 		if info, err := os.Stat(path); err == nil && info.Size() > 0 {
@@ -28,7 +31,7 @@ func (s *AgentHistoryStore) resolveTranscriptPath(workspacePath string, sessionI
 		if worktreePath == canonicalPath {
 			continue
 		}
-		worktreeDir := findTranscriptProjectDir(worktreePath)
+		worktreeDir := findTranscriptProjectDirAt(projectsRoot, worktreePath)
 		if worktreeDir == "" {
 			continue
 		}
@@ -66,7 +69,42 @@ func transcriptConfigHomeDir() string {
 }
 
 func transcriptProjectsDir() string {
-	return filepath.Join(transcriptConfigHomeDir(), "projects")
+	legacyRoot := filepath.Join(transcriptConfigHomeDir(), "projects")
+	managedRoot := filepath.Join(
+		appfs.UserRuntimeRoot(authctx.SystemUserID),
+		"projects",
+	)
+	if sameTranscriptPath(legacyRoot, managedRoot) {
+		return legacyRoot
+	}
+	// 迁移后旧的全局 projects 会落在 system runtime。只有在宿主明确
+	// 使用 managed state root 且旧目录已经不存在时才切换，保留自定义
+	// NEXUS_CONFIG_DIR 测试/部署的原有语义。
+	if managedStateRootConfigured() {
+		if _, err := os.Stat(legacyRoot); errors.Is(err, os.ErrNotExist) {
+			return managedRoot
+		}
+	}
+	return legacyRoot
+}
+
+func managedStateRootConfigured() bool {
+	if strings.TrimSpace(os.Getenv(appfs.NexusStateRootEnvName)) != "" {
+		return true
+	}
+	configRoot := filepath.Clean(transcriptConfigHomeDir())
+	stateRoot := filepath.Clean(appfs.StateRoot())
+	return sameTranscriptPath(configRoot, stateRoot) ||
+		sameTranscriptPath(configRoot, filepath.Join(stateRoot, "app"))
+}
+
+func sameTranscriptPath(left string, right string) bool {
+	left = filepath.Clean(left)
+	right = filepath.Clean(right)
+	if os.PathSeparator == '\\' {
+		return strings.EqualFold(left, right)
+	}
+	return left == right
 }
 
 func canonicalizeTranscriptPath(path string) string {
@@ -85,21 +123,79 @@ func canonicalizeTranscriptPath(path string) string {
 }
 
 func findTranscriptProjectDir(projectPath string) string {
-	exact := filepath.Join(transcriptProjectsDir(), sanitizeTranscriptPath(projectPath))
+	return findTranscriptProjectDirAt(transcriptProjectsDirForWorkspace(projectPath), projectPath)
+}
+
+// TranscriptProjectDirectoryName 返回 Claude/nxs transcript 使用的项目目录名。
+//
+// 迁移层需要用同一套规范计算旧 workspace 对应的项目目录，避免迁移后
+// 历史记录变成“目录还在但宿主找不到”的孤儿数据。
+func TranscriptProjectDirectoryName(workspacePath string) string {
+	return sanitizeTranscriptPath(canonicalizeTranscriptPath(workspacePath))
+}
+
+// TranscriptProjectDirectoryNames 返回迁移场景下可能出现的项目目录名。
+//
+// macOS 等平台可能在 workspace 搬迁前后才解析 `/var` 这类符号链接；
+// 同时保留规范化路径和未解析绝对路径，才能无损接住历史目录。
+func TranscriptProjectDirectoryNames(workspacePath string) []string {
+	absolutePath, err := filepath.Abs(workspacePath)
+	if err != nil {
+		absolutePath = filepath.Clean(workspacePath)
+	}
+	candidates := []string{
+		TranscriptProjectDirectoryName(workspacePath),
+		sanitizeTranscriptPath(norm.NFC.String(filepath.Clean(absolutePath))),
+	}
+	result := make([]string, 0, len(candidates))
+	for _, candidate := range candidates {
+		if candidate == "" {
+			continue
+		}
+		seen := false
+		for _, existing := range result {
+			if existing == candidate {
+				seen = true
+				break
+			}
+		}
+		if !seen {
+			result = append(result, candidate)
+		}
+	}
+	return result
+}
+
+func findTranscriptProjectDirAt(projectsRoot string, projectPath string) string {
+	exact := filepath.Join(projectsRoot, TranscriptProjectDirectoryName(projectPath))
 	if isDirectory(exact) {
 		return exact
 	}
-	sanitized := sanitizeTranscriptPath(projectPath)
+	sanitized := TranscriptProjectDirectoryName(projectPath)
 	if len(sanitized) <= maxTranscriptSanitizedLength {
 		return ""
 	}
 	prefix := sanitized[:maxTranscriptSanitizedLength]
-	for _, entry := range readDirectories(transcriptProjectsDir()) {
+	for _, entry := range readDirectories(projectsRoot) {
 		if strings.HasPrefix(filepath.Base(entry), prefix+"-") {
 			return entry
 		}
 	}
 	return ""
+}
+
+func transcriptProjectsDirForWorkspace(workspacePath string) string {
+	canonicalWorkspace := canonicalizeTranscriptPath(workspacePath)
+	canonicalUsersRoot := canonicalizeTranscriptPath(appfs.UsersRoot())
+	relative, err := filepath.Rel(canonicalUsersRoot, canonicalWorkspace)
+	if err != nil || relative == "." || relative == "" {
+		return transcriptProjectsDir()
+	}
+	parts := strings.Split(filepath.Clean(relative), string(os.PathSeparator))
+	if len(parts) < 3 || parts[0] == ".." || parts[1] != "workspace" {
+		return transcriptProjectsDir()
+	}
+	return filepath.Join(canonicalUsersRoot, parts[0], "runtime", "projects")
 }
 
 func listTranscriptWorktreePaths(cwd string) []string {

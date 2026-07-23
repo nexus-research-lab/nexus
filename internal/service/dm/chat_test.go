@@ -3,7 +3,6 @@ package dm
 import (
 	"context"
 	"encoding/json"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -533,7 +532,7 @@ func TestServiceHandleChatPersistsStructuredChannelMetadata(t *testing.T) {
 		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
 	})
 
-	item, _, err := service.files.FindSession([]string{filepath.Join(cfg.WorkspacePath, cfg.DefaultAgentID)}, sessionKey)
+	item, _, err := service.files.FindSession([]string{dmMainWorkspacePath(cfg)}, sessionKey)
 	if err != nil {
 		t.Fatalf("读取 session 元数据失败: %v", err)
 	}

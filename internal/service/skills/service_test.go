@@ -167,36 +167,36 @@ description: 兼容直接位于 .agents 下的技能目录
 		t.Fatalf("agent 直属本地 skill 移除后目录仍存在: %v", err)
 	}
 
-	legacyLocalSkillRoot := filepath.Join(agentValue.WorkspacePath, ".claude", "skills", "claude-agent-skill")
-	if err = os.MkdirAll(legacyLocalSkillRoot, 0o755); err != nil {
-		t.Fatalf("创建 agent legacy 本地 skill 目录失败: %v", err)
+	claudeLocalSkillRoot := filepath.Join(agentValue.WorkspacePath, ".claude", "skills", "claude-agent-skill")
+	if err = os.MkdirAll(claudeLocalSkillRoot, 0o755); err != nil {
+		t.Fatalf("创建 Agent Claude 本地 Skill 目录失败: %v", err)
 	}
-	if err = os.WriteFile(filepath.Join(legacyLocalSkillRoot, "SKILL.md"), []byte(`---
+	if err = os.WriteFile(filepath.Join(claudeLocalSkillRoot, "SKILL.md"), []byte(`---
 name: claude-agent-skill
 title: Claude Agent Skill
-description: 兼容旧版 runtime 在 .claude/skills 下创建的技能目录
+description: Claude 在 .claude/skills 下创建的技能目录
 ---
 
 # claude-agent-skill
 `), 0o644); err != nil {
-		t.Fatalf("写入 agent legacy 本地 skill 失败: %v", err)
+		t.Fatalf("写入 Agent Claude 本地 Skill 失败: %v", err)
 	}
 	items, err = service.GetAgentSkills(ctx, agentValue.AgentID)
 	if err != nil {
-		t.Fatalf("读取含 agent legacy 本地 skill 的列表失败: %v", err)
+		t.Fatalf("读取含 Agent Claude 本地 Skill 的列表失败: %v", err)
 	}
-	legacyAgentSkill, ok := findSkill(items, "claude-agent-skill")
+	claudeAgentSkill, ok := findSkill(items, "claude-agent-skill")
 	if !ok {
-		t.Fatalf("agent legacy 本地 skill 未暴露: %+v", items)
+		t.Fatalf("Agent Claude 本地 Skill 未暴露: %+v", items)
 	}
-	if legacyAgentSkill.SourceType != sourceTypeWorkspace || !legacyAgentSkill.Installed || legacyAgentSkill.Locked {
-		t.Fatalf("agent legacy 本地 skill 状态不正确: %+v", legacyAgentSkill)
+	if claudeAgentSkill.SourceType != sourceTypeWorkspace || !claudeAgentSkill.Installed || claudeAgentSkill.Locked {
+		t.Fatalf("Agent Claude 本地 Skill 状态不正确: %+v", claudeAgentSkill)
 	}
 	if err = service.UninstallSkill(ctx, agentValue.AgentID, "claude-agent-skill"); err != nil {
-		t.Fatalf("agent legacy 本地 skill 应允许从当前智能体移除: %v", err)
+		t.Fatalf("Agent Claude 本地 Skill 应允许从当前智能体移除: %v", err)
 	}
-	if _, err = os.Stat(legacyLocalSkillRoot); !os.IsNotExist(err) {
-		t.Fatalf("agent legacy 本地 skill 移除后目录仍存在: %v", err)
+	if _, err = os.Stat(claudeLocalSkillRoot); !os.IsNotExist(err) {
+		t.Fatalf("Agent Claude 本地 Skill 移除后目录仍存在: %v", err)
 	}
 
 	localSkillRoot := filepath.Join(t.TempDir(), "demo-skill")
@@ -231,6 +231,19 @@ skill body
 	}
 	if !installed.Installed {
 		t.Fatalf("安装后状态不正确: %+v", installed)
+	}
+	reloaded, err := agentService.GetAgent(ctx, agentValue.AgentID)
+	if err != nil {
+		t.Fatalf("读取安装后的 agent 失败: %v", err)
+	}
+	if !slices.Contains(reloaded.Options.SkillIDs, protocol.BuildExternalSkillReference("demo-skill")) {
+		t.Fatalf("外部 Skill 应保存用户级引用: %#v", reloaded.Options.SkillIDs)
+	}
+	if _, statErr := os.Stat(filepath.Join(reloaded.WorkspacePath, ".agents", "skills", "demo-skill")); !os.IsNotExist(statErr) {
+		t.Fatalf("外部 Skill 不应复制到 workspace: %v", statErr)
+	}
+	if _, statErr := os.Stat(filepath.Join(workspacepkg.UserSkillDiscoveryRoot(cfg, authctx.SystemUserID), "demo-skill", "SKILL.md")); statErr != nil {
+		t.Fatalf("外部 Skill 用户级源不存在: %v", statErr)
 	}
 
 	if err = service.UninstallSkill(ctx, agentValue.AgentID, "demo-skill"); err != nil {
@@ -324,7 +337,7 @@ func TestPlatformSkillClassificationExcludesUserGlobalSources(t *testing.T) {
 	}
 }
 
-func TestUpdateSingleSkillReportsRedeployFailureAndContinues(t *testing.T) {
+func TestUpdateSingleSkillUsesSharedUserSource(t *testing.T) {
 	cfg := newSkillsTestConfig(t)
 	migrateSkillsSQLite(t, cfg.DatabaseURL)
 
@@ -370,34 +383,38 @@ func TestUpdateSingleSkillReportsRedeployFailureAndContinues(t *testing.T) {
 			t.Fatalf("安装 Git skill 到 %s 失败: %v", agentValue.AgentID, err)
 		}
 	}
-	successSkillPath := filepath.Join(successAgent.WorkspacePath, ".agents", "skills", "git-skill", "SKILL.md")
-	payload, err := os.ReadFile(successSkillPath)
-	if err != nil {
-		t.Fatalf("读取已安装 skill 失败: %v", err)
-	}
-	if !strings.Contains(string(payload), "Git Skill v1") {
-		t.Fatalf("初始安装内容不正确: %s", payload)
+	for _, agentValue := range []protocol.Agent{*failingAgent, *successAgent} {
+		reloaded, getErr := agentService.GetAgent(ctx, agentValue.AgentID)
+		if getErr != nil {
+			t.Fatalf("读取已安装 agent 失败: %v", getErr)
+		}
+		if !slices.Contains(reloaded.Options.SkillIDs, protocol.BuildExternalSkillReference("git-skill")) {
+			t.Fatalf("外部 skill 应保存为用户级引用: %#v", reloaded.Options.SkillIDs)
+		}
+		if _, statErr := os.Stat(filepath.Join(reloaded.WorkspacePath, ".agents", "skills", "git-skill")); !os.IsNotExist(statErr) {
+			t.Fatalf("外部 skill 不应复制到 workspace: %v", statErr)
+		}
 	}
 
-	makeSkillDeploymentRootReadOnly(t, failingAgent.WorkspacePath)
 	activeRepo = repoV2
 	activeCommit = "commit-v2"
 	detail, err := service.UpdateSingleSkill(ctx, "git-skill")
 	if err != nil {
 		t.Fatalf("更新 Git skill 失败: %v", err)
 	}
-	if len(detail.DeployFailures) != 1 || detail.DeployFailures[0].AgentID != failingAgent.AgentID {
-		t.Fatalf("未返回失败 Agent 信息: %+v", detail.DeployFailures)
+	if len(detail.DeployFailures) != 0 {
+		t.Fatalf("全局源更新不应产生 workspace 部署失败: %+v", detail.DeployFailures)
 	}
-	if len(detail.DeploySuccesses) != 1 || detail.DeploySuccesses[0].AgentID != successAgent.AgentID {
-		t.Fatalf("未返回成功 Agent 信息: %+v", detail.DeploySuccesses)
+	if len(detail.DeploySuccesses) != 2 {
+		t.Fatalf("应返回两个已安装 Agent 的全局源同步结果: %+v", detail.DeploySuccesses)
 	}
-	payload, err = os.ReadFile(successSkillPath)
+	globalSkillPath := filepath.Join(workspacepkg.UserSkillDiscoveryRoot(cfg, authctx.SystemUserID), "git-skill", "SKILL.md")
+	payload, err := os.ReadFile(globalSkillPath)
 	if err != nil {
-		t.Fatalf("读取更新后 skill 失败: %v", err)
+		t.Fatalf("读取更新后的用户级 skill 失败: %v", err)
 	}
 	if !strings.Contains(string(payload), "Git Skill v2") {
-		t.Fatalf("成功 Agent 的 skill 未随库更新: %s", payload)
+		t.Fatalf("用户级源未随库更新: %s", payload)
 	}
 }
 
@@ -467,22 +484,12 @@ tags: [test]
 	}
 }
 
-func makeSkillDeploymentRootReadOnly(t *testing.T, workspacePath string) {
-	t.Helper()
-	skillRoot := filepath.Join(workspacePath, ".agents", "skills")
-	if err := os.Chmod(skillRoot, 0o555); err != nil {
-		t.Fatalf("设置只读 skill 目录失败: %v", err)
-	}
-	t.Cleanup(func() {
-		_ = os.Chmod(skillRoot, 0o755)
-	})
-}
-
 func newSkillsTestConfig(t *testing.T) config.Config {
 	t.Helper()
 
 	root := t.TempDir()
 	t.Setenv("HOME", filepath.Join(root, "home"))
+	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(root, ".nexus"))
 	return config.Config{
 		Host:                      "127.0.0.1",
 		Port:                      18012,

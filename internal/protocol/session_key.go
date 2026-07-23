@@ -274,12 +274,14 @@ func BuildAgentAccountSessionKey(agentID string, channel string, chatType string
 	return base + ":" + topicSegment + ":" + threadID
 }
 
-// BuildRoomSharedSessionKey 构建共享 room key。
+// BuildRoomSharedSessionKey 构建共享 Room 流 key。
+// `group` 是冻结的共享流协议段，不代表 room_type，也不能作为 runtime/resume 身份。
 func BuildRoomSharedSessionKey(conversationID string) string {
 	return "room:" + roomSharedChatType + ":" + strings.TrimSpace(conversationID)
 }
 
-// BuildRoomAgentSessionKey 构建 Room 成员侧的 agent session_key。
+// BuildRoomAgentSessionKey 构建 Room 成员侧的 Agent 执行 session_key。
+// 该 key 才是 SDK runtime 与 resume 的所有权边界。
 func BuildRoomAgentSessionKey(conversationID string, agentID string, roomType string) string {
 	chatType := "group"
 	if strings.TrimSpace(roomType) == "dm" {

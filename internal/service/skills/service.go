@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"sync"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
@@ -22,12 +21,11 @@ import (
 
 // Service 提供技能目录、安装与卸载能力。
 type Service struct {
-	config           config.Config
-	agents           *agentsvc.Service
-	workspaces       *workspacesvc.Service
-	skillStore       *skillstore.Repository
-	commandRunner    commandRunnerFunc
-	legacyRegistryMu sync.Mutex
+	config        config.Config
+	agents        *agentsvc.Service
+	workspaces    *workspacesvc.Service
+	skillStore    *skillstore.Repository
+	commandRunner commandRunnerFunc
 }
 
 // NewService 创建技能服务。
@@ -178,7 +176,11 @@ func (s *Service) InstallSkill(ctx context.Context, agentID string, skillName st
 		return nil, errors.New("room scope skill 不能安装到 agent")
 	}
 	if isPlatformSkill(record) {
-		if err = s.setAgentSkillEnabled(ctx, agentValue, record.Detail.Name, true); err != nil {
+		if err = s.setAgentSkillEnabled(ctx, agentValue, skillReference(record), true); err != nil {
+			return nil, err
+		}
+	} else if record.Detail.SourceType == sourceTypeExternal {
+		if err = s.setAgentSkillEnabled(ctx, agentValue, skillReference(record), true); err != nil {
 			return nil, err
 		}
 	} else if err = s.deploySkillToWorkspace(agentValue, record); err != nil {
@@ -212,7 +214,10 @@ func (s *Service) UninstallSkill(ctx context.Context, agentID string, skillName 
 		return undeployWorkspaceLocalSkill(agentValue.WorkspacePath, record)
 	}
 	if isPlatformSkill(record) {
-		return s.setAgentSkillEnabled(ctx, agentValue, record.Detail.Name, false)
+		return s.setAgentSkillEnabled(ctx, agentValue, skillReference(record), false)
+	}
+	if record.Detail.SourceType == sourceTypeExternal {
+		return s.setAgentSkillEnabled(ctx, agentValue, skillReference(record), false)
 	}
 	return workspacesvc.UndeploySkill(agentValue.WorkspacePath, record.Detail.Name)
 }
@@ -245,13 +250,20 @@ func (s *Service) setAgentSkillEnabled(ctx context.Context, agentValue *protocol
 	}
 	selected := make([]string, 0, len(agentValue.Options.SkillIDs)+1)
 	seen := map[string]struct{}{}
+	canonicalName := name
+	if externalName, ok := protocol.ParseExternalSkillReference(name); ok {
+		canonicalName = externalName
+	}
 	for _, current := range agentValue.Options.SkillIDs {
 		current = strings.TrimSpace(current)
 		if current == "" {
 			continue
 		}
+		if enabled && skillReferenceMatches(current, canonicalName) {
+			current = name
+		}
 		key := strings.ToLower(current)
-		if !enabled && strings.EqualFold(current, name) {
+		if !enabled && skillReferenceMatches(current, canonicalName) {
 			continue
 		}
 		if _, exists := seen[key]; exists {
@@ -306,9 +318,15 @@ func (s *Service) DeleteSkill(ctx context.Context, skillName string) error {
 	if err != nil {
 		return err
 	}
-	for _, agentValue := range agents {
-		if err = workspacesvc.UndeploySkill(agentValue.WorkspacePath, record.Detail.Name); err != nil && !os.IsNotExist(err) {
-			return err
+	for index := range agents {
+		agentValue := agents[index]
+		selected, changed := removeSkillReferences(agentValue.Options.SkillIDs, record.Detail.Name)
+		if changed {
+			options := agentValue.Options
+			options.SkillIDs = selected
+			if _, err = s.agents.UpdateAgent(ctx, agentValue.AgentID, protocol.UpdateRequest{Options: &options}); err != nil {
+				return err
+			}
 		}
 	}
 	if s.skillStore != nil {
@@ -316,5 +334,8 @@ func (s *Service) DeleteSkill(ctx context.Context, skillName string) error {
 			return err
 		}
 	}
-	return os.RemoveAll(record.SourcePath)
+	if err = os.RemoveAll(record.SourcePath); err != nil {
+		return err
+	}
+	return workspacesvc.RefreshUserSkillLibrary(s.config, authctx.OwnerUserID(ctx))
 }

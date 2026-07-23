@@ -42,9 +42,9 @@ func TestRealtimeServiceHandleChatMarksInternalGoalUsageLimitedWhenQuotaExceeded
 		Role:     authsvc.RoleOwner,
 	})
 	memberAgent := createTestAgent(t, agentService, ctx, "内部 Goal 额度助手")
-	dmContext, err := roomService.EnsureDirectRoom(ctx, memberAgent.AgentID)
+	roomContext, err := createSingleAgentGroupRoom(ctx, roomService, memberAgent.AgentID)
 	if err != nil {
-		t.Fatalf("创建直聊 room 失败: %v", err)
+		t.Fatalf("创建单成员 room 失败: %v", err)
 	}
 
 	factory := &fakeRoomFactory{clients: []*fakeRoomClient{newFakeRoomClient()}}
@@ -61,7 +61,7 @@ func TestRealtimeServiceHandleChatMarksInternalGoalUsageLimitedWhenQuotaExceeded
 	quotaErr := subscriptionsvc.QuotaExceededError{UsedTokens: 10, LimitTokens: 10}
 	service.SetQuotaChecker(fakeRoomQuotaChecker{err: quotaErr})
 
-	sharedSessionKey := protocol.BuildRoomSharedSessionKey(dmContext.Conversation.ID)
+	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
 	goal, err := goalService.Create(ctx, protocol.CreateGoalRequest{
 		SessionKey:  sharedSessionKey,
 		Objective:   "保持账号额度边界",
@@ -72,8 +72,8 @@ func TestRealtimeServiceHandleChatMarksInternalGoalUsageLimitedWhenQuotaExceeded
 	}
 	err = service.HandleChat(ctx, realtimesvc.ChatRequest{
 		SessionKey:     sharedSessionKey,
-		RoomID:         dmContext.Room.ID,
-		ConversationID: dmContext.Conversation.ID,
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
 		Content:        "internal goal continuation",
 		GoalID:         goal.ID,
 		RoundID:        "room-round-internal-goal-quota",
@@ -116,9 +116,9 @@ func TestRealtimeServiceHandleChatBlocksRuntimeWhenQuotaExceeded(t *testing.T) {
 		Role:     authsvc.RoleOwner,
 	})
 	memberAgent := createTestAgent(t, agentService, ctx, "额度助手")
-	dmContext, err := roomService.EnsureDirectRoom(ctx, memberAgent.AgentID)
+	roomContext, err := createSingleAgentGroupRoom(ctx, roomService, memberAgent.AgentID)
 	if err != nil {
-		t.Fatalf("创建直聊 room 失败: %v", err)
+		t.Fatalf("创建单成员 room 失败: %v", err)
 	}
 
 	factory := &fakeRoomFactory{clients: []*fakeRoomClient{newFakeRoomClient()}}
@@ -133,11 +133,11 @@ func TestRealtimeServiceHandleChatBlocksRuntimeWhenQuotaExceeded(t *testing.T) {
 	errQuota := errors.New("quota exceeded")
 	service.SetQuotaChecker(fakeRoomQuotaChecker{err: errQuota})
 
-	sharedSessionKey := protocol.BuildRoomSharedSessionKey(dmContext.Conversation.ID)
+	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
 	err = service.HandleChat(ctx, realtimesvc.ChatRequest{
 		SessionKey:     sharedSessionKey,
-		RoomID:         dmContext.Room.ID,
-		ConversationID: dmContext.Conversation.ID,
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
 		Content:        "你好",
 		RoundID:        "room-round-quota",
 	})
@@ -361,9 +361,9 @@ func TestRealtimeServiceKeepsThinkingDuringStreamingAndHistoryReplay(t *testing.
 
 	ctx := context.Background()
 	memberAgent := createTestAgent(t, agentService, ctx, "流式思考助手")
-	dmContext, err := roomService.EnsureDirectRoom(ctx, memberAgent.AgentID)
+	roomContext, err := createSingleAgentGroupRoom(ctx, roomService, memberAgent.AgentID)
 	if err != nil {
-		t.Fatalf("创建直聊 room 失败: %v", err)
+		t.Fatalf("创建单成员 room 失败: %v", err)
 	}
 
 	client := newFakeRoomClient()
@@ -479,14 +479,14 @@ func TestRealtimeServiceKeepsThinkingDuringStreamingAndHistoryReplay(t *testing.
 	)
 	roomHistory := workspacestore.NewRoomHistoryStore(cfg.WorkspacePath)
 
-	sharedSessionKey := protocol.BuildRoomSharedSessionKey(dmContext.Conversation.ID)
+	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
 	sender := newRealtimeTestSender("room-sender-think-stream")
 	permission.BindSession(sharedSessionKey, sender)
 
 	if err = service.HandleChat(ctx, realtimesvc.ChatRequest{
 		SessionKey:     sharedSessionKey,
-		RoomID:         dmContext.Room.ID,
-		ConversationID: dmContext.Conversation.ID,
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
 		Content:        "今天天气怎么样呀",
 		RoundID:        "room-round-think-stream",
 	}); err != nil {
@@ -512,7 +512,7 @@ func TestRealtimeServiceKeepsThinkingDuringStreamingAndHistoryReplay(t *testing.
 		t.Fatalf("Room durable assistant 未保留 text: %+v", assistantBlocks)
 	}
 
-	privateSessionKey := protocol.BuildRoomAgentSessionKey(dmContext.Conversation.ID, memberAgent.AgentID, dmContext.Room.RoomType)
+	privateSessionKey := protocol.BuildRoomAgentSessionKey(roomContext.Conversation.ID, memberAgent.AgentID, roomContext.Room.RoomType)
 	roomThinkingTranscriptBaseTime := time.Now().Add(-2 * time.Second).UTC()
 	writeRoomTranscriptFixture(t, memberAgent.WorkspacePath, client.sessionID, []map[string]any{
 		{
@@ -540,7 +540,7 @@ func TestRealtimeServiceKeepsThinkingDuringStreamingAndHistoryReplay(t *testing.
 			},
 		},
 	})
-	sharedMessages, err := roomHistory.ReadMessages(dmContext.Conversation.ID, nil)
+	sharedMessages, err := roomHistory.ReadMessages(roomContext.Conversation.ID, nil)
 	if err != nil {
 		t.Fatalf("读取共享 Room 消息失败: %v", err)
 	}

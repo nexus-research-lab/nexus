@@ -11,7 +11,6 @@ import (
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	"github.com/nexus-research-lab/nexus/internal/config"
-	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
@@ -33,6 +32,7 @@ type preferencesService interface {
 }
 
 type runtimeDreamRunner struct {
+	config      config.Config
 	preferences preferencesService
 	providers   clientopts.RuntimeConfigResolver
 	selector    *runtimeselectionsvc.Service
@@ -46,6 +46,7 @@ func NewCoordinator(
 	preferences preferencesService,
 ) *Coordinator {
 	runner := &runtimeDreamRunner{
+		config:      cfg,
 		preferences: preferences,
 		providers:   providers,
 		selector:    runtimeselectionsvc.NewService(preferences),
@@ -56,6 +57,9 @@ func NewCoordinator(
 func (r *runtimeDreamRunner) tryAutoDream(ctx context.Context, agentValue protocol.Agent) (agentclient.AutoDreamResult, error) {
 	ownerContext := contextForAgentOwner(ctx, agentValue)
 	if err := workspacepkg.EnsurePlatformSkillLibrary(); err != nil {
+		return agentclient.AutoDreamResult{}, err
+	}
+	if err := workspacepkg.EnsureUserSkillLibrary(r.config, agentValue.OwnerUserID); err != nil {
 		return agentclient.AutoDreamResult{}, err
 	}
 	runtimeSkillNames, err := workspacepkg.RuntimeSkillNames(agentValue.WorkspacePath, agentValue.Options.SkillIDs)
@@ -86,7 +90,7 @@ func (r *runtimeDreamRunner) tryAutoDream(ctx context.Context, agentValue protoc
 		Model:             model,
 		PermissionMode:    sdkpermission.ModeAcceptEdits,
 		SkillIDs:          runtimeSkillNames,
-		SkillDirectories:  []string{appfs.PlatformSkillRoot()},
+		SkillDirectories:  workspacepkg.SkillLibraryRoots(r.config, agentValue.OwnerUserID),
 		SettingSources:    ensureProjectSettingsSource(agentValue.Options.SettingSources),
 		ToolSearchEnabled: selection.ToolSearchEnabled,
 		WebSearch:         selection.WebSearch,

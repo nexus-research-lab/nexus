@@ -15,6 +15,9 @@ func (s *Service) ensureAgentWorkspace(ctx context.Context, agentID string) (*pr
 	if err != nil {
 		return nil, err
 	}
+	if err = EnsureUserSkillLibrary(s.config, agentValue.OwnerUserID); err != nil {
+		return nil, err
+	}
 	if err = EnsureInitialized(
 		agentValue.AgentID,
 		agentValue.Name,

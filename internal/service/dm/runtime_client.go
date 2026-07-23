@@ -11,7 +11,6 @@ import (
 	"sync/atomic"
 
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
-	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
@@ -47,6 +46,9 @@ func (s *Service) ensureClient(
 	permissionHandler = toolpolicy.WithManagedGoalAutoApproval(permissionHandler)
 	permissionHandler = toolpolicy.WithMalformedInputDeny(permissionHandler)
 	if err := workspacepkg.EnsurePlatformSkillLibrary(); err != nil {
+		return nil, "", "", "", "", "", nil, permissionMode, err
+	}
+	if err := workspacepkg.EnsureUserSkillLibrary(s.config, agentValue.OwnerUserID); err != nil {
 		return nil, "", "", "", "", "", nil, permissionMode, err
 	}
 	if err := workspacepkg.EnsureInitialized(
@@ -110,7 +112,7 @@ func (s *Service) ensureClient(
 		AllowedTools:               toolpolicy.WithManagedRuntimeAllowedTools(agentValue.Options.AllowedTools, s.runtimeImagegenDefaultEnabled(ctx)),
 		DisallowedTools:            agentValue.Options.DisallowedTools,
 		SkillIDs:                   runtimeSkillNames,
-		SkillDirectories:           []string{appfs.PlatformSkillRoot()},
+		SkillDirectories:           workspacepkg.SkillLibraryRoots(s.config, agentValue.OwnerUserID),
 		SettingSources:             agentValue.Options.SettingSources,
 		AppendSystemPrompt:         appendSystemPrompt,
 		ResumeSessionID:            dmdomain.StringPointerValue(sessionItem.SessionID),

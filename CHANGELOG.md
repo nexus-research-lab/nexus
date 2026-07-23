@@ -7,8 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Moved persistent state under `.nexus/app` and `users/<owner>/`, added idempotent startup migration for legacy `.nexus` data, and injects the same owner-scoped runtime root into nxs and Claude Code.
+- Deepened only the light theme's warm ambient page background while preserving the existing blue-gray surfaces, controls, borders, text, and dark/rain themes.
+
 ### Fixed
 
+- Fixed unauthenticated App/Web requests falling back to an unscoped Agent or automation query; single-user requests now resolve to `__system__`, while explicit maintenance contexts retain their separate cross-owner path.
+- Fixed Room slot interruption by removing the global Composer stop action, binding the stop button to the corresponding `agent_round_id`, preserving that identity through streaming placeholders, and projecting one monotonic stopped slot instead of a `Request stopped` message plus a duplicate empty card.
+- Isolated DM and Room input-queue replay by execution scope and prevented Room subscription recovery from dispatching DM queue items through a Room runtime, so a DM resume cannot be reused by a different Room configuration.
+- Fixed desktop local profiles being assigned an implicit Free subscription after saving an avatar, which exposed the server-only subscription UI and incorrectly enforced its monthly quota in the App.
 - Unified the conversation-header corner hierarchy, removed the washed-out tab-strip and active-tab fills in favor of the ambient background, placed 36px Session tabs inside a roomier 40px transparent shadow tray with an 8px inset at both ends alongside the matching create/overview capsule, and derived overflow controls from stable width constraints so the overview arrow no longer flashes while a new Session is created.
 - Removed the narrow blue active marker from shared directory rows so selected capabilities and conversations rely on the neutral active surface and stronger content hierarchy.
 - Closed the 6px divider gap between the expanded sidebar brand row and the workspace header while preserving the sidebar body's outer breathing space.
@@ -37,6 +46,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Gave the phone and narrow-window composer a centered `720px` width ceiling, larger edge and safe-area insets, and a slightly shorter idle input row instead of letting it fill the entire bottom edge.
 - Reworked Agent option density: avatar selection now opens a large five-column picker from the current avatar instead of using a draggable horizontal strip, while identity fields, tags, model controls, permission choices, tool rows, and skill cards use roomier responsive spacing and touch targets.
 - Added an application-level phone layout: chat, contacts, and capabilities now become full-screen primary directories, Room and detail pages use explicit back navigation, the conversation switcher expands from its header trigger using the same directory row language, Agent management uses compact single-column cards only below the desktop breakpoint while preserving its comfort cards at normal widths, dense headers collapse into labeled menus, and Agent editing now uses a content-sized desktop dialog, separated top navigation in constrained windows, and a single-column near-full-screen mobile form instead of squeezing desktop sidebars and controls. The macOS and Windows shells keep the `1280×820` initial size while allowing a `360×520` regular minimum and a `320×480` tiny-work-area fallback.
+
+## [0.1.28] - 2026-07-23
+
+### Fixed
+
 - Aligned nxs and Claude Code message projection across effective result errors, empty assistant suppression, streamed tool input, nested tool ancestry, throttled shell progress, and forward-compatible content blocks so malformed or newer runtime output cannot silently end a conversation.
 - Fixed imported transcripts exposing SDK output-limit recovery prompts as repeated user messages and generating empty interrupted assistant bubbles in the conversation timeline.
 - Fixed Room Skills failing before runtime startup when legacy or imported skills did not define the removed `runtime_instructions` field; Room now injects each selected Skill's frontmatter-stripped body directly.
@@ -62,8 +76,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Deepened only the light theme's warm ambient page background while preserving the existing blue-gray surfaces, controls, borders, text, and dark/rain themes.
+- Updated the SDK bridge dependency to `v0.1.21` and the bundled nxs runtime channel to `nxs-v0.1.15`.
 - Unified platform-owned Skills behind one global compatibility root for nxs and Claude Code; Agent records now persist selected platform `skill_ids` instead of copying platform Skill files into every workspace.
+- Unified imported third-party Skills behind the owner workspace source `<workspace>/<owner>/.agents/skills`, shared by nxs and Claude Code; Agent records now persist `external:<skill_name>` references, with a one-time migration preserving v0.1.27 registry data and Agent installations.
 - Realigned light-theme inputs, hover feedback, sidebar borders, and conversation-tab dividers with the restored cool-gray page background.
 - Unified control, card, overlay, and content radii around a restrained shared scale.
 - Replaced the full Room history side panel with an anchored dropdown that shows ten conversations per page while retaining rename and delete actions.

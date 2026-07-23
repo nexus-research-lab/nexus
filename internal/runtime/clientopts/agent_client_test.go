@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
@@ -596,6 +597,7 @@ func TestBuildAgentClientOptionsPassesExplicitNXSDebugEnv(t *testing.T) {
 }
 
 func TestBuildAgentClientOptionsDefaultsToNXSChatCompletionsProviderEnv(t *testing.T) {
+	clearInheritedAnthropicProviderEnv(t)
 	resolver := &fakeRuntimeConfigForRuntimeResolver{
 		config: &RuntimeConfig{
 			Provider:      "openai",
@@ -724,6 +726,7 @@ func TestBuildAgentClientOptionsRejectsClaudeResponsesAPIFormat(t *testing.T) {
 }
 
 func TestBuildAgentClientOptionsUsesNXSResponsesProviderEnv(t *testing.T) {
+	clearInheritedAnthropicProviderEnv(t)
 	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{
 		config: &RuntimeConfig{
 			Provider:      "openai-responses",
@@ -765,6 +768,18 @@ func TestBuildAgentClientOptionsUsesNXSResponsesProviderEnv(t *testing.T) {
 	}
 	if options.Model != "gpt-4.1" {
 		t.Fatalf("运行时模型未写入 SDK options: %+v", options)
+	}
+}
+
+func clearInheritedAnthropicProviderEnv(t *testing.T) {
+	t.Helper()
+	for _, key := range []string{
+		anthropicAuthTokenEnvName,
+		anthropicAPIKeyEnvName,
+		anthropicBaseURLEnvName,
+		anthropicModelEnvName,
+	} {
+		t.Setenv(key, "")
 	}
 }
 
@@ -820,6 +835,7 @@ func TestBuildAgentClientOptionsDoesNotInjectRemovedNXSCronSwitch(t *testing.T) 
 func TestBuildAgentClientOptionsInjectsWorkspaceBinEnv(t *testing.T) {
 	configDir := filepath.Join(t.TempDir(), ".nexus")
 	t.Setenv("NEXUS_CONFIG_DIR", configDir)
+	t.Setenv("NEXUS_STATE_ROOT", "")
 	workspacePath := filepath.Join(os.TempDir(), "nexus-owner", "agent-1")
 	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
 		WorkspacePath: workspacePath,
@@ -828,7 +844,7 @@ func TestBuildAgentClientOptionsInjectsWorkspaceBinEnv(t *testing.T) {
 		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
 	}
 	pathItems := strings.Split(options.Env["PATH"], string(os.PathListSeparator))
-	expectedBinDir := filepath.Join(configDir, ".agents", "bin")
+	expectedBinDir := filepath.Join(configDir, "app", ".agents", "bin")
 	if len(pathItems) == 0 || pathItems[0] != expectedBinDir {
 		t.Fatalf("运行时 PATH 未优先注入共享 runtime bin: %q", options.Env["PATH"])
 	}
@@ -843,6 +859,7 @@ func TestBuildAgentClientOptionsInjectsWorkspaceBinEnv(t *testing.T) {
 func TestBuildAgentClientOptionsPreservesExplicitNexusctlCommandPath(t *testing.T) {
 	configDir := filepath.Join(t.TempDir(), ".nexus")
 	t.Setenv("NEXUS_CONFIG_DIR", configDir)
+	t.Setenv("NEXUS_STATE_ROOT", "")
 	t.Setenv(nexusctlCommandPathEnvName, "/opt/nexus/bin/nexusctl")
 	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
 		WorkspacePath: "/tmp/workspace",
@@ -874,6 +891,9 @@ func TestBuildAgentClientOptionsInjectsMCPServerConfigs(t *testing.T) {
 }
 
 func TestBuildAgentClientOptionsInjectsScopedUserEnv(t *testing.T) {
+	stateRoot := filepath.Join(t.TempDir(), ".nexus")
+	t.Setenv("NEXUS_STATE_ROOT", stateRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", "")
 	ctx := authctx.WithState(context.Background(), authctx.State{
 		AuthRequired: true,
 		UserCount:    2,
@@ -899,9 +919,25 @@ func TestBuildAgentClientOptionsInjectsScopedUserEnv(t *testing.T) {
 	if options.Env[nexusRuntimeScopeModeEnvName] != "user_scoped" {
 		t.Fatalf("未把多用户作用域模式注入环境: %+v", options.Env)
 	}
+	expectedRuntimeRoot := filepath.Join(stateRoot, "users", "user-123", "runtime")
+	if options.Env[nexusConfigDirEnvName] != expectedRuntimeRoot ||
+		options.Env[claudeConfigDirEnvName] != expectedRuntimeRoot {
+		t.Fatalf("nxs 与 Claude 未使用统一用户 runtime 根: %+v", options.Env)
+	}
+	if options.Env["HOME"] != filepath.Join(expectedRuntimeRoot, "home") ||
+		options.Env["USERPROFILE"] != filepath.Join(expectedRuntimeRoot, "home") ||
+		options.Env["XDG_CACHE_HOME"] != filepath.Join(expectedRuntimeRoot, "cache") ||
+		options.Env["TMPDIR"] != filepath.Join(expectedRuntimeRoot, "tmp") ||
+		options.Env["TEMP"] != filepath.Join(expectedRuntimeRoot, "tmp") ||
+		options.Env["TMP"] != filepath.Join(expectedRuntimeRoot, "tmp") {
+		t.Fatalf("用户 runtime 环境目录不完整: %+v", options.Env)
+	}
 }
 
 func TestBuildAgentClientOptionsInjectsSingleUserScopeEnv(t *testing.T) {
+	stateRoot := filepath.Join(t.TempDir(), ".nexus")
+	t.Setenv("NEXUS_STATE_ROOT", stateRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", "")
 	ctx := authctx.WithState(context.Background(), authctx.State{
 		AuthRequired: false,
 		UserCount:    0,
@@ -918,6 +954,56 @@ func TestBuildAgentClientOptionsInjectsSingleUserScopeEnv(t *testing.T) {
 	}
 	if options.Env[nexusRuntimeUserIDEnvName] != authctx.SystemUserID {
 		t.Fatalf("未把单用户保底主体注入环境: %+v", options.Env)
+	}
+	expectedRuntimeRoot := filepath.Join(stateRoot, "users", authctx.SystemUserID, "runtime")
+	if options.Env[nexusConfigDirEnvName] != expectedRuntimeRoot ||
+		options.Env[claudeConfigDirEnvName] != expectedRuntimeRoot {
+		t.Fatalf("App 单用户未使用 system 用户 runtime 根: %+v", options.Env)
+	}
+}
+
+func TestBuildAgentClientOptionsProtectsManagedUserDirectories(t *testing.T) {
+	stateRoot := filepath.Join(t.TempDir(), ".nexus")
+	t.Setenv("NEXUS_STATE_ROOT", stateRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", "")
+	t.Setenv("NEXUS_APP_ROOT", "/tmp/host-app")
+	t.Setenv("DATABASE_URL", "/tmp/host.db")
+	t.Setenv("CONNECTOR_CREDENTIALS_KEY", "host-secret")
+	t.Setenv("ANTHROPIC_AUTH_TOKEN", "host-token")
+	ctx := authctx.WithPrincipal(context.Background(), &authctx.Principal{UserID: "user-123"})
+
+	options, err := BuildAgentClientOptions(ctx, fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
+		WorkspacePath: "/tmp/workspace",
+		ExtraEnv: map[string]string{
+			nexusConfigDirEnvName:       "/tmp/escaped-nexus",
+			claudeConfigDirEnvName:      "/tmp/escaped-claude",
+			"HOME":                      "/tmp/escaped-home",
+			"TMPDIR":                    "/tmp/escaped-tmp",
+			appfs.NexusStateRootEnvName: "/tmp/escaped-state",
+			"WORKSPACE_PATH":            "/tmp/escaped-workspace",
+			"DATABASE_URL":              "/tmp/escaped-db",
+			"CONNECTOR_CREDENTIALS_KEY": "request-secret",
+		},
+	})
+	if err != nil {
+		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
+	}
+	expectedRuntimeRoot := filepath.Join(stateRoot, "users", "user-123", "runtime")
+	if options.Env[nexusConfigDirEnvName] != expectedRuntimeRoot ||
+		options.Env[claudeConfigDirEnvName] != expectedRuntimeRoot ||
+		options.Env["HOME"] != filepath.Join(expectedRuntimeRoot, "home") ||
+		options.Env["USERPROFILE"] != filepath.Join(expectedRuntimeRoot, "home") ||
+		options.Env["TMPDIR"] != filepath.Join(expectedRuntimeRoot, "tmp") ||
+		options.Env["TEMP"] != filepath.Join(expectedRuntimeRoot, "tmp") ||
+		options.Env["TMP"] != filepath.Join(expectedRuntimeRoot, "tmp") ||
+		options.Env[appfs.NexusStateRootEnvName] != "" ||
+		options.Env[nexusAppRootEnvName] != "" ||
+		options.Env["DATABASE_URL"] != "" ||
+		options.Env[connectorCredentialsKeyEnvName] != "" ||
+		options.Env[anthropicAuthTokenEnvName] != "" ||
+		options.Env[workspacePathEnvName] != "/tmp/workspace" ||
+		options.Env[nexusctlWorkspacePathEnvName] != "/tmp/workspace" {
+		t.Fatalf("ExtraEnv 覆盖了宿主管理的用户目录: %+v", options.Env)
 	}
 }
 

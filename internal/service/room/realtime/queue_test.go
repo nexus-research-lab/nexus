@@ -2,6 +2,7 @@ package realtime_test
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -17,6 +18,90 @@ import (
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 	_ "modernc.org/sqlite"
 )
+
+func TestRealtimeServiceDoesNotExecuteDMThroughRoomRecovery(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	ctx := context.Background()
+	agentValue := createTestAgent(t, agentService, ctx, "DM 隔离助手")
+	dmContext, err := roomService.EnsureDirectRoom(ctx, agentValue.AgentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	factory := &fakeRoomFactory{}
+	service := NewServiceWithFactory(
+		cfg,
+		roomService,
+		agentService,
+		runtimectx.NewManager(),
+		permissionctx.NewContext(),
+		factory,
+	)
+	dmSessionKey := protocol.BuildRoomAgentSessionKey(
+		dmContext.Conversation.ID,
+		agentValue.AgentID,
+		protocol.RoomTypeDM,
+	)
+	dmLocation := workspacestore.InputQueueLocation{
+		Scope:         protocol.InputQueueScopeDM,
+		WorkspacePath: agentValue.WorkspacePath,
+		SessionKey:    dmSessionKey,
+	}
+	queueStore := workspacestore.NewInputQueueStore(cfg.WorkspacePath)
+	if _, err = queueStore.Enqueue(dmLocation, protocol.InputQueueItem{
+		ID:      "dm-recovery-item",
+		Scope:   protocol.InputQueueScopeDM,
+		Content: "DM 中断后的补充指令",
+		Source:  protocol.InputQueueSourceUser,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	event, err := service.InputQueueSnapshotEvent(
+		ctx,
+		dmContext.Room.ID,
+		dmContext.Conversation.ID,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	items, ok := event.Data["items"].([]protocol.InputQueueItem)
+	if !ok || len(items) != 0 {
+		t.Fatalf("DM 的 Room 订阅恢复必须返回空 Room 队列快照: %+v", event.Data["items"])
+	}
+	if got := factory.Options(); len(got) != 0 {
+		t.Fatalf("DM Room 订阅恢复不得创建 Room runtime: %+v", got)
+	}
+
+	dmItems, err := queueStore.Snapshot(dmLocation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(dmItems) != 1 || dmItems[0].ID != "dm-recovery-item" {
+		t.Fatalf("Room 订阅恢复不得消费 DM 队列项: %+v", dmItems)
+	}
+
+	sharedSessionKey := protocol.BuildRoomSharedSessionKey(dmContext.Conversation.ID)
+	err = service.HandleChat(ctx, realtimesvc.ChatRequest{
+		SessionKey:     sharedSessionKey,
+		RoomID:         dmContext.Room.ID,
+		ConversationID: dmContext.Conversation.ID,
+		Content:        "不应进入 Room runtime",
+	})
+	if !errors.Is(err, realtimesvc.ErrRoomRuntimeRequiresGroup) {
+		t.Fatalf("DM 通过 Room chat 入口必须被拒绝: %v", err)
+	}
+	if got := factory.Options(); len(got) != 0 {
+		t.Fatalf("拒绝 DM Room chat 后不得创建 runtime: %+v", got)
+	}
+}
 
 func TestRealtimeServiceDispatchesRoomUserQueueForIdleTargetWhileAnotherAgentRuns(t *testing.T) {
 	cfg := newRoomTestConfig(t)

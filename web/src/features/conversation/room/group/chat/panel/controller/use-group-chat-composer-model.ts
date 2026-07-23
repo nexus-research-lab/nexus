@@ -24,7 +24,6 @@ type ComposerConversation = Pick<
   | "reorder_input_queue_messages"
   | "runtime_phase"
   | "send_message"
-  | "stop_generation"
 >;
 
 interface UseGroupChatComposerModelOptions {
@@ -92,7 +91,6 @@ export function useGroupChatComposerModel({
     onPrepareAttachments: handlers.handlePrepareAttachments,
     onReorderQueueMessages: conversation.reorder_input_queue_messages,
     onSendMessage: handlers.handleSendMessage,
-    onStop: conversation.stop_generation,
     queueWhenSessionBusy: true,
     roomMembers,
     runtimePhase: conversation.runtime_phase,

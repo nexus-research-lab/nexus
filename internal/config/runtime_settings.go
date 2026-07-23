@@ -21,7 +21,7 @@ type RuntimeSettings struct {
 
 // RuntimeSettingsPath 返回主机级运行配置文件路径。
 func RuntimeSettingsPath() string {
-	return filepath.Join(appfs.ConfigDir(), "config", runtimeSettingsFileName)
+	return filepath.Join(appfs.AppDir(), "config", runtimeSettingsFileName)
 }
 
 // LoadRuntimeSettings 读取主机级运行配置。
@@ -45,7 +45,7 @@ func SaveRuntimeSettings(settings RuntimeSettings) (RuntimeSettings, error) {
 	settings = normalizeRuntimeSettings(settings)
 	settings.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
 	path := RuntimeSettingsPath()
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return RuntimeSettings{}, err
 	}
 	payload, err := json.MarshalIndent(settings, "", "  ")
@@ -54,10 +54,15 @@ func SaveRuntimeSettings(settings RuntimeSettings) (RuntimeSettings, error) {
 	}
 	payload = append(payload, '\n')
 	tmpPath := path + ".tmp"
-	if err = os.WriteFile(tmpPath, payload, 0o644); err != nil {
+	if err = os.WriteFile(tmpPath, payload, 0o600); err != nil {
+		return RuntimeSettings{}, err
+	}
+	if err = os.Chmod(tmpPath, 0o600); err != nil {
+		_ = os.Remove(tmpPath)
 		return RuntimeSettings{}, err
 	}
 	if err = os.Rename(tmpPath, path); err != nil {
+		_ = os.Remove(tmpPath)
 		return RuntimeSettings{}, err
 	}
 	return settings, nil
@@ -73,16 +78,16 @@ func normalizeRuntimeSettings(settings RuntimeSettings) RuntimeSettings {
 func configuredWorkspacePath(envWorkspacePath string) string {
 	settings, err := LoadRuntimeSettings()
 	if err != nil {
-		return strings.TrimSpace(envWorkspacePath)
+		return normalizeWorkspacePath(envWorkspacePath)
 	}
 	settingsWorkspacePath := strings.TrimSpace(settings.WorkspacePath)
 	if settingsWorkspacePath == "" {
-		return strings.TrimSpace(envWorkspacePath)
+		return normalizeWorkspacePath(envWorkspacePath)
 	}
 	if shouldUseRuntimeSettingsWorkspacePath(envWorkspacePath) {
-		return settingsWorkspacePath
+		return normalizeWorkspacePath(settingsWorkspacePath)
 	}
-	return strings.TrimSpace(envWorkspacePath)
+	return normalizeWorkspacePath(envWorkspacePath)
 }
 
 func shouldUseRuntimeSettingsWorkspacePath(envWorkspacePath string) bool {
@@ -93,7 +98,20 @@ func shouldUseRuntimeSettingsWorkspacePath(envWorkspacePath string) bool {
 	if strings.TrimSpace(os.Getenv("NEXUS_APP_MODE")) != "desktop" {
 		return false
 	}
-	return sameCleanPath(value, filepath.Join(appfs.ConfigDir(), "workspace"))
+	return sameCleanPath(value, filepath.Join(appfs.StateRoot(), "workspace")) ||
+		sameCleanPath(value, appfs.UsersRoot())
+}
+
+func normalizeWorkspacePath(path string) string {
+	value := strings.TrimSpace(path)
+	if value == "" {
+		return ""
+	}
+	legacyDefault := filepath.Join(appfs.StateRoot(), "workspace")
+	if sameCleanPath(value, legacyDefault) {
+		return appfs.UsersRoot()
+	}
+	return value
 }
 
 func sameCleanPath(left string, right string) bool {

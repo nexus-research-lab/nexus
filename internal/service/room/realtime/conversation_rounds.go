@@ -2,13 +2,14 @@ package realtime
 
 import (
 	"context"
-	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
-	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
+
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 )
 
 // roomConversationState 持有一个 conversation 的全部短生命周期编排状态。
@@ -28,12 +29,18 @@ type roomConversationState struct {
 // roomRoundRegistry 只保护 conversation state 索引和 dispatch 引用；
 // 具体 round 数据与派发临界区均由 conversation state 自己保护。
 type roomRoundRegistry struct {
-	mu            sync.RWMutex
+	mu            *sync.RWMutex
 	conversations map[string]*roomConversationState
 }
 
+// 零值注册表只在局部测试构造中出现；共享兜底锁保证懒初始化仍可并发安全。
+var zeroRoomRoundRegistryMu sync.RWMutex
+
 func newRoomRoundRegistry() roomRoundRegistry {
-	return roomRoundRegistry{conversations: make(map[string]*roomConversationState)}
+	return roomRoundRegistry{
+		mu:            &sync.RWMutex{},
+		conversations: make(map[string]*roomConversationState),
+	}
 }
 
 func newRoomRoundRegistryFromRounds(rounds map[string]*activeRoomRound) roomRoundRegistry {
@@ -42,6 +49,13 @@ func newRoomRoundRegistryFromRounds(rounds map[string]*activeRoomRound) roomRoun
 		registry.register(roundValue)
 	}
 	return registry
+}
+
+func (r *roomRoundRegistry) mutex() *sync.RWMutex {
+	if r == nil || r.mu == nil {
+		return &zeroRoomRoundRegistryMu
+	}
+	return r.mu
 }
 
 func newRoomConversationState() *roomConversationState {
@@ -112,15 +126,16 @@ func (r *roomRoundRegistry) state(conversationID string, create bool) *roomConve
 	if conversationID == "" {
 		return nil
 	}
-	r.mu.RLock()
+	mu := r.mutex()
+	mu.RLock()
 	state := r.conversations[conversationID]
-	r.mu.RUnlock()
+	mu.RUnlock()
 	if state != nil || !create {
 		return state
 	}
 
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	mu.Lock()
+	defer mu.Unlock()
 	if r.conversations == nil {
 		r.conversations = make(map[string]*roomConversationState)
 	}
@@ -244,9 +259,10 @@ func (r *roomRoundRegistry) prune(conversationID string, expected *roomConversat
 	if conversationID == "" || expected == nil {
 		return
 	}
-	r.mu.Lock()
+	mu := r.mutex()
+	mu.Lock()
 	if r.conversations[conversationID] != expected || expected.dispatchRefs != 0 {
-		r.mu.Unlock()
+		mu.Unlock()
 		return
 	}
 	expected.mu.RLock()
@@ -255,7 +271,7 @@ func (r *roomRoundRegistry) prune(conversationID string, expected *roomConversat
 	if empty {
 		delete(r.conversations, conversationID)
 	}
-	r.mu.Unlock()
+	mu.Unlock()
 }
 
 func (r *roomRoundRegistry) snapshot() []*activeRoomRound {
@@ -293,8 +309,9 @@ func (r *roomRoundRegistry) states() []*roomConversationState {
 	if r == nil {
 		return nil
 	}
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	mu := r.mutex()
+	mu.RLock()
+	defer mu.RUnlock()
 	result := make([]*roomConversationState, 0, len(r.conversations))
 	for _, state := range r.conversations {
 		if state != nil {
@@ -718,7 +735,8 @@ func (r *roomRoundRegistry) acquireDispatch(key string) *roomDispatchLease {
 		key = "__room_unknown_conversation__"
 	}
 
-	r.mu.Lock()
+	mu := r.mutex()
+	mu.Lock()
 	if r.conversations == nil {
 		r.conversations = make(map[string]*roomConversationState)
 	}
@@ -728,7 +746,7 @@ func (r *roomRoundRegistry) acquireDispatch(key string) *roomDispatchLease {
 		r.conversations[key] = state
 	}
 	state.dispatchRefs++
-	r.mu.Unlock()
+	mu.Unlock()
 
 	state.dispatchMu.Lock()
 	return &roomDispatchLease{
@@ -752,17 +770,18 @@ func (r *roomRoundRegistry) releaseDispatch(key string, state *roomConversationS
 	if r == nil || state == nil {
 		return
 	}
-	r.mu.Lock()
+	mu := r.mutex()
+	mu.Lock()
 	current := r.conversations[key]
 	if current != state {
-		r.mu.Unlock()
+		mu.Unlock()
 		return
 	}
 	if state.dispatchRefs > 0 {
 		state.dispatchRefs--
 	}
 	last := state.dispatchRefs == 0
-	r.mu.Unlock()
+	mu.Unlock()
 	if last {
 		r.prune(key, state)
 	}

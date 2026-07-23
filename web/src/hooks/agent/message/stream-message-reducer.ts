@@ -52,12 +52,19 @@ function createStreamingAssistantMessage(
 ): AssistantMessage {
   return {
     agent_id: event.agent_id,
+    ...(event.agent_round_id
+      ? { agent_round_id: event.agent_round_id }
+      : {}),
     content: [],
+    ...(event.conversation_id
+      ? { conversation_id: event.conversation_id }
+      : {}),
     is_complete: false,
     message_id: event.message_id,
     model: event.message?.model,
     role: "assistant",
     round_id: event.round_id,
+    ...(event.room_id ? { room_id: event.room_id } : {}),
     session_id: event.session_id,
     session_key: event.session_key,
     ...(event.parent_tool_use_id

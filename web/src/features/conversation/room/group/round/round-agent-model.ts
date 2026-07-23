@@ -50,6 +50,11 @@ const RESULT_STATUS: Record<ResultSummary["subtype"], AgentRoundStatus> = {
   success: "done",
 };
 const ACTIVE_STATUSES = new Set<AgentRoundStatus>(["pending", "streaming"]);
+const TERMINAL_SLOT_STATUSES = new Set<AgentRoundStatus>([
+  "cancelled",
+  "done",
+  "error",
+]);
 
 export function hasRoomAgentRoundEntries(
   messages: Message[],
@@ -158,6 +163,18 @@ function resolveMessageEntryId(
     return buildAgentRoundEntryId(message.agent_id, agentRoundId);
   }
   const agentSlots = pendingSlotsByAgent.get(message.agent_id) ?? [];
+  const parentId = message.parent_id?.trim();
+  if (parentId) {
+    const parentSlot = agentSlots.find((slot) => slot.msg_id === parentId);
+    if (parentSlot) {
+      // 某些中断路径先广播了缺少 agent_round_id 的合成结果，
+      // 但 parent_id 仍精确指向同一个 slot；优先用这个稳定身份归并。
+      return buildAgentRoundEntryId(
+        message.agent_id,
+        parentSlot.agent_round_id,
+      );
+    }
+  }
   if (agentSlots.length === 1 && isLegacyActiveAssistantMessage(message)) {
     return buildAgentRoundEntryId(
       message.agent_id,
@@ -231,16 +248,21 @@ function getAgentRoundStatus(
   resultSummary?: ResultSummary,
   pendingSlot?: RoomPendingAgentSlotState,
 ): AgentRoundStatus {
+  const resultStatus = resolveResultStatus(resultSummary);
+  if (resultStatus) {
+    // 终态 result 是同一 slot 的权威收口，不能被尚未清理的 pending slot 覆盖。
+    return resultStatus;
+  }
+  const messageStatus = resolveMessageStatus(messages);
   if (pendingSlot && ACTIVE_STATUSES.has(pendingSlot.status)) {
-    return resolveMessageStatus(messages) === "streaming"
+    if (TERMINAL_SLOT_STATUSES.has(messageStatus)) {
+      return messageStatus;
+    }
+    return messageStatus === "streaming"
       ? "streaming"
       : pendingSlot.status;
   }
-  return (
-    resolveResultStatus(resultSummary) ??
-    pendingSlot?.status ??
-    resolveMessageStatus(messages)
-  );
+  return pendingSlot?.status ?? messageStatus;
 }
 
 function resolveResultStatus(

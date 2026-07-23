@@ -145,6 +145,7 @@ internal sealed class SidecarSupervisor : IDisposable
 
         startInfo.Environment["NEXUS_APP_MODE"] = "desktop";
         startInfo.Environment["NEXUS_APP_ROOT"] = locator.AppRoot;
+        startInfo.Environment["NEXUS_STATE_ROOT"] = DesktopPaths.RootDirectory;
         startInfo.Environment["NEXUS_CONFIG_DIR"] = DesktopPaths.RootDirectory;
         startInfo.Environment["CLAUDE_CONFIG_DIR"] = DesktopPaths.RootDirectory;
         startInfo.Environment["HOST"] = "127.0.0.1";
@@ -282,7 +283,14 @@ internal sealed class SidecarSupervisor : IDisposable
 
     private static void PrepareDirectories()
     {
+        Directory.CreateDirectory(DesktopPaths.RootDirectory);
         Directory.CreateDirectory(DesktopPaths.ApplicationDataDirectory);
+        Directory.CreateDirectory(DesktopPaths.UsersDirectory);
+        Directory.CreateDirectory(DesktopPaths.SystemRuntimeDirectory);
+        Directory.CreateDirectory(DesktopPaths.SystemRuntimeHomeDirectory);
+        Directory.CreateDirectory(DesktopPaths.SystemRuntimeCacheDirectory);
+        Directory.CreateDirectory(DesktopPaths.SystemRuntimeLogsDirectory);
+        Directory.CreateDirectory(DesktopPaths.SystemRuntimeTempDirectory);
         Directory.CreateDirectory(DesktopPaths.DataDirectory);
         Directory.CreateDirectory(DesktopPaths.ConfigDirectory);
         Directory.CreateDirectory(DesktopPaths.WorkspaceDirectory);

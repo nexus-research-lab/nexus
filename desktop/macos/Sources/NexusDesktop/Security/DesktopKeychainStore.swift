@@ -72,6 +72,10 @@ enum DesktopKeychainStore {
       if let existing = try readWithTimeout(account: connectorCredentialsKeyAccount) {
         return existing
       }
+      if let legacy = try legacyFallbackKey() {
+        try write(legacy, account: connectorCredentialsKeyAccount)
+        return legacy
+      }
       let generated = try generateBase64Key()
       try write(generated, account: connectorCredentialsKeyAccount)
       return generated
@@ -182,10 +186,27 @@ enum DesktopKeychainStore {
       return existing
     }
 
+    if let legacy = try legacyFallbackKey() {
+      try legacy.write(to: fileURL, atomically: true, encoding: .utf8)
+      try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: fileURL.path)
+      return legacy
+    }
+
     let generated = try generateBase64Key()
     try generated.write(to: fileURL, atomically: true, encoding: .utf8)
     try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: fileURL.path)
     return generated
+  }
+
+  private static func legacyFallbackKey() throws -> String? {
+    let legacyURL = DesktopPaths.rootDirectory
+      .appendingPathComponent("config", isDirectory: true)
+      .appendingPathComponent("connector-credentials.key", isDirectory: false)
+    guard let value = try? String(contentsOf: legacyURL, encoding: .utf8) else {
+      return nil
+    }
+    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    return trimmed.isEmpty ? nil : trimmed
   }
 
   private static func localFallbackKeyURL() -> URL {

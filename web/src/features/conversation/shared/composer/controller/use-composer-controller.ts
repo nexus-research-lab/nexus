@@ -186,6 +186,7 @@ export function useComposerController({
     isLoading,
     isLoopPickerOpen: draftState.isLoopPickerOpen,
     isPreparingAttachments: attachments.isPreparingAttachments,
+    hasStopAction: Boolean(onStop),
     queueItemCount: inputQueueItems.length,
     queueWhenSessionBusy,
     runtimePhase,

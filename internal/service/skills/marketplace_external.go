@@ -140,9 +140,10 @@ type SkillActionFailure struct {
 
 // UpdateInstalledSkillsResponse 表示批量更新结果。
 type UpdateInstalledSkillsResponse struct {
-	UpdatedSkills []string              `json:"updated_skills"`
-	SkippedSkills []string              `json:"skipped_skills"`
-	Failures      []SkillActionFailure  `json:"failures"`
+	UpdatedSkills []string             `json:"updated_skills"`
+	SkippedSkills []string             `json:"skipped_skills"`
+	Failures      []SkillActionFailure `json:"failures"`
+	// 兼容既有 API 字段名；结果记录引用该共享源的 Agent。
 	DeployResults []SkillRedeployResult `json:"deploy_results,omitempty"`
 }
 
@@ -153,28 +154,22 @@ type CheckSkillUpdatesResponse struct {
 	Failures        []SkillActionFailure `json:"failures"`
 }
 
-// RedeployAgentSuccess 表示单个 Agent 的技能重新部署成功。
+// RedeployAgentSuccess 表示单个 Agent 已完成用户级 Skill 源同步（保留旧 API 字段名）。
 type RedeployAgentSuccess struct {
 	AgentID   string `json:"agent_id"`
 	AgentName string `json:"agent_name"`
 }
 
-// RedeployAgentFailure 表示单个 Agent 的技能重新部署失败。
+// RedeployAgentFailure 表示单个 Agent 的用户级 Skill 源同步失败（保留旧 API 字段名）。
 type RedeployAgentFailure struct {
 	AgentID   string `json:"agent_id"`
 	AgentName string `json:"agent_name"`
 	Error     string `json:"error"`
 }
 
-// SkillRedeployResult 表示单个技能重新部署到多个 Agent 的结果。
+// SkillRedeployResult 表示单个技能同步到多个 Agent 引用的结果（保留旧 API 字段名）。
 type SkillRedeployResult struct {
 	SkillName     string                 `json:"skill_name"`
-	SuccessAgents []RedeployAgentSuccess `json:"success_agents"`
-	Failures      []RedeployAgentFailure `json:"failures"`
-}
-
-// RedeployResult 表示技能重新部署到多 Agent 的聚合结果。
-type RedeployResult struct {
 	SuccessAgents []RedeployAgentSuccess `json:"success_agents"`
 	Failures      []RedeployAgentFailure `json:"failures"`
 }

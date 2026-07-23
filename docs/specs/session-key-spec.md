@@ -79,6 +79,7 @@ room:group:<conversation_id>
 - 历史真相源是 Room shared overlay
 - Room shared overlay 只直接保存 user/result/synthetic，assistant 通过 `transcript_ref` 回指成员 transcript
 - 当前 `group` 是冻结协议段，表示“共享流”，不是严格的多人群聊字面义
+- `group` 不是 DM 的执行类型，也不能据此选择或复用任何 SDK resume；DM 页面若同时订阅共享流，仍由 `agent:<agent_id>:ws:dm:<conversation_id>` 的 DM runtime 独占 resume
 
 ## 4. Agent Key 字段语义
 

@@ -3,7 +3,7 @@
 set -euo pipefail
 
 : "${DATABASE_DRIVER:=sqlite}"
-: "${DATABASE_URL:=sqlite:////home/agent/.nexus/data/nexus.db}"
+: "${DATABASE_URL:=sqlite:////home/agent/.nexus/app/data/nexus.db}"
 : "${PNPM_REGISTRY:=https://registry.npmjs.org/}"
 : "${BUN_CONFIG_REGISTRY:=${PNPM_REGISTRY}}"
 : "${PIP_INDEX_URL:=https://pypi.tuna.tsinghua.edu.cn/simple}"
@@ -53,7 +53,7 @@ PY
 }
 
 prepare_connector_credentials_key() {
-    local key_file="${CONNECTOR_CREDENTIALS_KEY_FILE:-${HOME}/.nexus/config/connector-credentials.key}"
+    local key_file="${CONNECTOR_CREDENTIALS_KEY_FILE:-${HOME}/.nexus/app/config/connector-credentials.key}"
     local file_key=""
 
     mkdir -p "$(dirname "${key_file}")"
@@ -246,9 +246,14 @@ EOF
 }
 
 prepare_claude_settings() {
-    mkdir -p "${HOME}/.claude"
-    if [[ -d "${HOME}/.claude.json" ]]; then
-        echo "ERROR: ${HOME}/.claude.json is a directory, expected a file"
+    local state_root="${NEXUS_STATE_ROOT:-${HOME}/.nexus}"
+    local runtime_root="${NEXUS_SYSTEM_RUNTIME_ROOT:-${state_root}/users/__system__/runtime}"
+    local runtime_home="${runtime_root}/home"
+    local legacy_settings="${state_root}/settings.json"
+    local legacy_claude_file="${state_root}/.claude.json"
+    mkdir -p "${runtime_root}/.claude" "${runtime_home}"
+    if [[ -d "${runtime_root}/.claude.json" ]]; then
+        echo "ERROR: ${runtime_root}/.claude.json is a directory, expected a file"
         exit 1
     fi
 
@@ -261,14 +266,47 @@ prepare_claude_settings() {
         SETTINGS="$(echo "${SETTINGS}" | jq '. + {skipDangerousModePermissionPrompt: true}')"
     fi
 
-    echo "${SETTINGS}" > "${HOME}/.claude/settings.json"
-    echo "Settings written to ${HOME}/.claude/settings.json"
+    # 入口脚本可能先于 Nexus 的布局迁移执行。先合并旧根和已迁移配置，
+    # 再叠加本次宿主配置，保证升级不丢用户设置，也不允许旧值反覆盖
+    # 当前部署明确要求的安全与运行参数。
+    local EXISTING_SETTINGS='{}'
+    if [[ -f "${legacy_settings}" ]]; then
+        EXISTING_SETTINGS="$(jq -s '.[0] * .[1]' \
+            <(printf '%s\n' "${EXISTING_SETTINGS}") \
+            "${legacy_settings}")"
+    fi
+    if [[ -f "${runtime_root}/settings.json" ]]; then
+        EXISTING_SETTINGS="$(jq -s '.[0] * .[1]' \
+            <(printf '%s\n' "${EXISTING_SETTINGS}") \
+            "${runtime_root}/settings.json")"
+    fi
+    SETTINGS="$(jq -s '.[0] * .[1]' \
+        <(printf '%s\n' "${EXISTING_SETTINGS}") \
+        <(printf '%s\n' "${SETTINGS}"))"
 
-    if [[ ! -f "${HOME}/.claude.json" ]]; then
-        echo '{}' > "${HOME}/.claude.json"
+    local previous_umask
+    previous_umask="$(umask)"
+    umask 077
+    printf '%s\n' "${SETTINGS}" > "${runtime_root}/settings.json"
+    chmod 0600 "${runtime_root}/settings.json"
+    umask "${previous_umask}"
+    echo "Settings written to ${runtime_root}/settings.json"
+
+    if [[ ! -f "${runtime_root}/.claude.json" ]]; then
+        if [[ -f "${legacy_claude_file}" ]]; then
+            cp "${legacy_claude_file}" "${runtime_root}/.claude.json"
+        else
+            echo '{}' > "${runtime_root}/.claude.json"
+        fi
     fi
 
-    jq '. + {hasCompletedOnboarding: true}' "${HOME}/.claude.json" | write_json_file_in_place "${HOME}/.claude.json"
+    if [[ -f "${legacy_claude_file}" && "${legacy_claude_file}" != "${runtime_root}/.claude.json" ]]; then
+        jq -s '.[0] * .[1]' "${legacy_claude_file}" "${runtime_root}/.claude.json" |
+            write_json_file_in_place "${runtime_root}/.claude.json"
+    fi
+    jq '. + {hasCompletedOnboarding: true}' "${runtime_root}/.claude.json" |
+        write_json_file_in_place "${runtime_root}/.claude.json"
+    chmod 0600 "${runtime_root}/.claude.json"
 }
 
 resolve_sqlite_database_path() {

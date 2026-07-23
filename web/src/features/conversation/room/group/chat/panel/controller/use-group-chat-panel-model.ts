@@ -75,7 +75,6 @@ export function useGroupChatPanelModel({
     currentUserAvatar: environment.currentUserAvatar,
     messageGroups: session.timeline.message_groups,
     onOpenWorkspaceFile,
-    onStopMessage: session.conversation.stop_generation,
     pendingPermissionGroups: session.timeline.pending_permission_groups,
     pendingSlotGroups: session.timeline.pending_slot_groups,
     sendPermissionResponse: session.conversation.send_permission_response,

@@ -11,12 +11,13 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	workspacesvc "github.com/nexus-research-lab/nexus/internal/service/workspace"
 	"github.com/nexus-research-lab/nexus/internal/storage/jsoncodec"
 	skillstore "github.com/nexus-research-lab/nexus/internal/storage/skills"
 )
 
 func (s *Service) loadExternalRecords(ctx context.Context) (map[string]catalogRecord, error) {
-	if err := s.ensureLegacyRegistryMigrated(ctx); err != nil {
+	if err := workspacesvc.EnsureUserSkillLibrary(s.config, authctx.OwnerUserID(ctx)); err != nil {
 		return nil, err
 	}
 	root := s.registryRoot(ctx)
@@ -36,7 +37,13 @@ func (s *Service) loadExternalRecordsFromDB(ctx context.Context, root string) (m
 	}
 	result := map[string]catalogRecord{}
 	for _, record := range records {
+		if validateSkillName(record.SkillName) != nil {
+			continue
+		}
 		item := s.buildExternalRecordFromEntity(root, record)
+		if catalogHasSkillName(result, item.Detail.Name) {
+			continue
+		}
 		result[item.Detail.Name] = item
 	}
 	return result, nil
@@ -227,14 +234,24 @@ func (s *Service) loadExternalRecordsFromRoot(root string) (map[string]catalogRe
 		if json.Unmarshal(payload, &manifest) != nil {
 			continue
 		}
+		if !strings.EqualFold(strings.TrimSpace(manifest.SourceType), sourceTypeExternal) {
+			continue
+		}
 		content, _, skillName, sourceErr := readSkillSource(skillDir)
 		if sourceErr != nil {
 			continue
 		}
 		parsed := parseSkillFrontmatter(content, skillName)
+		canonicalName := firstNonEmpty(manifest.Name, parsed.Name)
+		if validateSkillName(canonicalName) != nil {
+			continue
+		}
+		if catalogHasSkillName(result, canonicalName) {
+			continue
+		}
 		detail := Detail{
 			Info: Info{
-				Name:         firstNonEmpty(manifest.Name, parsed.Name),
+				Name:         canonicalName,
 				Title:        firstNonEmpty(manifest.Title, parsed.Title, skillName),
 				Description:  firstNonEmpty(manifest.Description, parsed.Description),
 				Scope:        defaultSkillScope(firstNonEmpty(manifest.Scope, parsed.Scope)),
@@ -256,44 +273,10 @@ func (s *Service) loadExternalRecordsFromRoot(root string) (map[string]catalogRe
 	return result, nil
 }
 
-func (s *Service) registryBaseRoot() string {
-	base := strings.TrimSpace(s.config.CacheFileDir)
-	if base == "" {
-		base = "cache"
-	}
-	return filepath.Join(base, "skills", "registry")
-}
-
 func (s *Service) registryRoot(ctx context.Context) string {
 	return s.registryRootForOwner(authctx.OwnerUserID(ctx))
 }
 
 func (s *Service) registryRootForOwner(ownerUserID string) string {
-	return filepath.Join(s.registryBaseRoot(), registryUsersDirName, safeRegistrySegment(ownerUserID))
-}
-
-func safeRegistrySegment(value string) string {
-	trimmed := strings.TrimSpace(value)
-	if trimmed == "" {
-		return authctx.SystemUserID
-	}
-	var builder strings.Builder
-	for _, item := range trimmed {
-		switch {
-		case item >= 'a' && item <= 'z':
-			builder.WriteRune(item)
-		case item >= 'A' && item <= 'Z':
-			builder.WriteRune(item)
-		case item >= '0' && item <= '9':
-			builder.WriteRune(item)
-		case item == '-' || item == '_' || item == '.' || item == '@':
-			builder.WriteRune(item)
-		default:
-			builder.WriteRune('_')
-		}
-	}
-	if builder.Len() == 0 {
-		return authctx.SystemUserID
-	}
-	return builder.String()
+	return workspacesvc.UserSkillDiscoveryRoot(s.config, ownerUserID)
 }

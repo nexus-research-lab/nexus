@@ -106,7 +106,7 @@ func TestServiceHandleChatUsesPersistedSessionIDAsResume(t *testing.T) {
 	permission.BindSession(sessionKey, sender)
 
 	resumeID := "11111111-1111-4111-8111-111111111111"
-	workspacePath := filepath.Join(cfg.WorkspacePath, cfg.DefaultAgentID)
+	workspacePath := dmMainWorkspacePath(cfg)
 	writeTranscriptFixture(t, workspacePath, resumeID, []map[string]any{
 		{
 			"type":      "user",

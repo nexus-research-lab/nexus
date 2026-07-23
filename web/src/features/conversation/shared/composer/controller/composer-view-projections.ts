@@ -180,6 +180,7 @@ export function projectComposerActions({
   canCreateGoal,
   compact,
   goalCreateBlockedReason,
+  hasStopAction,
   input,
   inputState,
   isGoalCreating,
@@ -190,6 +191,7 @@ export function projectComposerActions({
   canCreateGoal: boolean;
   compact: boolean;
   goalCreateBlockedReason: string | null;
+  hasStopAction: boolean;
   input: string;
   inputState: ComposerInputProjection;
   isGoalCreating: boolean;
@@ -216,6 +218,7 @@ export function projectComposerActions({
     shouldShowInlineShortcuts: [!compact, input.length === 0].every(Boolean),
     shouldShowStopButton: [
       !isGoalMode,
+      hasStopAction,
       runtimeState.canStopGeneration,
       inputState.isInputEmpty,
     ].every(Boolean),

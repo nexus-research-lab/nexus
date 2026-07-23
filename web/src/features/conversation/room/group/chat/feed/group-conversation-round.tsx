@@ -52,7 +52,7 @@ export function GroupConversationRound({
           onOpenAgentContact={renderer.onOpenAgentContact}
           onOpenWorkspaceFile={renderer.onOpenWorkspaceFile}
           onPermissionResponse={renderer.onPermissionResponse}
-          onStopMessage={renderer.onStopMessage}
+          onStopAgentRound={renderer.onStopAgentRound}
           pendingPermissions={pendingPermissions}
           pendingSlots={pendingSlots}
           roundId={rootRoundId}
@@ -81,7 +81,6 @@ function StandaloneConversationRound({
       onOpenAgentContact={renderer.onOpenAgentContact}
       onOpenWorkspaceFile={renderer.onOpenWorkspaceFile}
       onPermissionResponse={renderer.onPermissionResponse}
-      onStopMessage={renderer.onStopMessage}
       roundId={state.roundId}
       workspaceAgentId={agent.id}
     />

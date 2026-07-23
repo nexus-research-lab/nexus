@@ -33,6 +33,19 @@ const (
 	roomBroadcastTimeout      = 5 * time.Second
 )
 
+// ErrRoomRuntimeRequiresGroup 表示 DM 被错误路由到了 Room 执行域。
+var ErrRoomRuntimeRequiresGroup = errors.New("room realtime execution requires group room")
+
+func requireGroupRoomContext(contextValue *protocol.ConversationContextAggregate) error {
+	if contextValue == nil {
+		return errors.New("room conversation not found")
+	}
+	if contextValue.Room.RoomType != protocol.RoomTypeGroup {
+		return ErrRoomRuntimeRequiresGroup
+	}
+	return nil
+}
+
 type roomClientFactory interface {
 	New(agentclient.Options) runtimectx.Client
 }

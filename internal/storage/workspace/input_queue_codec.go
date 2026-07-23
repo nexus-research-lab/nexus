@@ -13,7 +13,9 @@ func normalizeInputQueueItem(
 	now int64,
 ) protocol.InputQueueItem {
 	item.ID = strings.TrimSpace(item.ID)
-	item.Scope = protocol.NormalizeInputQueueScope(string(firstNonEmpty(string(item.Scope), string(location.Scope))))
+	// Location 是后端已解析的执行域，调用方携带的 item scope 只能作为无 location
+	// 的旧数据兜底，不能反向改变队列归属。
+	item.Scope = protocol.NormalizeInputQueueScope(string(firstNonEmpty(string(location.Scope), string(item.Scope))))
 	item.SessionKey = strings.TrimSpace(firstNonEmpty(item.SessionKey, location.SessionKey))
 	item.RoomID = strings.TrimSpace(firstNonEmpty(item.RoomID, location.RoomID))
 	item.ConversationID = strings.TrimSpace(firstNonEmpty(item.ConversationID, location.ConversationID))

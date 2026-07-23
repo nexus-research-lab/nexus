@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 )
 
 // WorkspaceBasePath 返回 workspace 根目录。
@@ -13,19 +14,16 @@ func WorkspaceBasePath(cfg config.Config) string {
 	if strings.TrimSpace(cfg.WorkspacePath) != "" {
 		return expandHome(cfg.WorkspacePath)
 	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return ".nexus/workspace"
-	}
-	return filepath.Join(home, ".nexus", "workspace")
+	return appfs.UsersRoot()
 }
 
 // UserWorkspaceBasePath 返回指定用户的 Agent workspace 根目录。
 func UserWorkspaceBasePath(cfg config.Config, ownerUserID string) string {
-	if strings.TrimSpace(ownerUserID) == systemOwnerUserID {
-		return WorkspaceBasePath(cfg)
-	}
-	return filepath.Join(WorkspaceBasePath(cfg), BuildWorkspaceDirName(ownerUserID))
+	return filepath.Join(
+		WorkspaceBasePath(cfg),
+		appfs.UserPathSegment(ownerUserID),
+		"workspace",
+	)
 }
 
 // ResolveWorkspacePath 计算 Agent workspace 路径。

@@ -507,6 +507,17 @@ func TestImportLocalPathPersistsPrivateSourceMetadata(t *testing.T) {
 	if record == nil || record.ImportMode != externalSourceKindLocalPath || record.SourceName != "本地路径" || record.SourceTrust != externalSourceTrustPrivate {
 		t.Fatalf("导入 skill DB 元数据不正确: %+v", record)
 	}
+
+	builtinCollisionRoot := filepath.Join(t.TempDir(), "builtin-collision")
+	writeTestSkillDir(t, builtinCollisionRoot, "IMAGEGEN", "Builtin Collision", false)
+	if _, err = service.ImportLocalPath(ctx, builtinCollisionRoot); err == nil {
+		t.Fatal("外部 Skill 不应通过大小写变化覆盖系统 Skill")
+	}
+	caseCollisionRoot := filepath.Join(t.TempDir(), "case-collision")
+	writeTestSkillDir(t, caseCollisionRoot, "PRIVATE-SKILL", "Case Collision", false)
+	if _, err = service.ImportLocalPath(ctx, caseCollisionRoot); err == nil {
+		t.Fatal("外部 Skill 不应创建仅大小写不同的重复源")
+	}
 }
 
 func TestGitImportAndUpdateImportedSkillsUseStoredMetadata(t *testing.T) {

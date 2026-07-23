@@ -16,7 +16,6 @@ export interface RoomThreadPanelModel {
   messages: ReturnType<typeof getRoomThreadMessages>;
   onOpenWorkspaceFile?: RoomThreadLiveSource["onOpenWorkspaceFile"];
   onPermissionResponse: RoomThreadLiveSource["onPermissionResponse"];
-  onStopMessage: RoomThreadLiveSource["onStopMessage"];
   pendingPermissions: ReturnType<typeof getThreadPendingPermissions>;
   userAvatar: string | null;
 }
@@ -47,7 +46,6 @@ export function buildRoomThreadPanelModel(
     ),
     onOpenWorkspaceFile: source.onOpenWorkspaceFile,
     onPermissionResponse: source.onPermissionResponse,
-    onStopMessage: source.onStopMessage,
     pendingPermissions: getThreadPendingPermissions(
       target.roundId,
       target.agentId,

@@ -31,7 +31,7 @@ interface GroupRoundCardGroupProps {
   onOpenAgentContact?: (agentId: string) => void;
   onOpenWorkspaceFile?: (path: string) => void;
   onPermissionResponse: (payload: PermissionDecisionPayload) => boolean;
-  onStopMessage: (msgId: string) => void;
+  onStopAgentRound: (agentRoundId: string) => void;
   pendingPermissions: PendingPermission[];
   pendingSlots: RoomPendingAgentSlotState[];
   roundId: string;
@@ -45,7 +45,7 @@ function GroupRoundCardGroupInner({
   onOpenAgentContact,
   onOpenWorkspaceFile,
   onPermissionResponse,
-  onStopMessage,
+  onStopAgentRound,
   pendingPermissions,
   pendingSlots,
   roundId,
@@ -105,7 +105,7 @@ function GroupRoundCardGroupInner({
           entry.agent_id,
           entry.agent_round_id,
         );
-        const stopMessageId = entry.stopMessageId;
+        const stopAgentRoundId = entry.stopAgentRoundId;
         return (
           <Fragment key={entry.entry_id}>
             {entry.guidedUserMessages.map((item) => (
@@ -143,9 +143,9 @@ function GroupRoundCardGroupInner({
                       onClickThread={toggleEntryThread}
                       onOpenAgentContact={onOpenAgentContact}
                       onPermissionResponse={onPermissionResponse}
-                      onStopMessage={
-                        stopMessageId
-                          ? () => onStopMessage(stopMessageId)
+                      onStopAgentRound={
+                        stopAgentRoundId
+                          ? () => onStopAgentRound(stopAgentRoundId)
                           : undefined
                       }
                       pendingPermissions={entry.pendingPermissions}

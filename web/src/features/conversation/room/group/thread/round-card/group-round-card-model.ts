@@ -34,7 +34,7 @@ export interface GroupRoundAgentCardModel extends RoomAgentRoundEntry {
   agentName: string;
   guidedUserMessages: GroupRoundUserMessageModel[];
   pendingPermissions: PendingPermission[];
-  stopMessageId: string | null;
+  stopAgentRoundId: string | null;
 }
 
 export interface GroupRoundCardModel {
@@ -391,7 +391,7 @@ function buildAgentCard(
     agentName: resolveAgentName(agentNameMap, entry.agent_id),
     guidedUserMessages,
     pendingPermissions,
-    stopMessageId: resolveStopMessageId(entry),
+    stopAgentRoundId: resolveStopAgentRoundId(entry),
   };
 }
 
@@ -409,7 +409,7 @@ function resolveAgentName(
   return nameMap[agentId] ?? agentId;
 }
 
-function resolveStopMessageId(entry: RoomAgentRoundEntry): string | null {
+function resolveStopAgentRoundId(entry: RoomAgentRoundEntry): string | null {
   if (!entry.pending_slot || !isAgentRoundActive(entry.status)) {
     return null;
   }

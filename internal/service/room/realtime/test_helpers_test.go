@@ -19,6 +19,7 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
+	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
 	realtimesvc "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 	"github.com/pressly/goose/v3"
@@ -30,6 +31,16 @@ import (
 )
 
 var NewServiceWithFactory = realtimesvc.NewServiceWithFactory
+
+func createSingleAgentGroupRoom(
+	ctx context.Context,
+	service *roomsvc.Service,
+	agentID string,
+) (*protocol.ConversationContextAggregate, error) {
+	return service.CreateRoom(ctx, protocol.CreateRoomRequest{
+		AgentIDs: []string{agentID},
+	})
+}
 
 type fakeRoomClient struct {
 	mu             sync.Mutex

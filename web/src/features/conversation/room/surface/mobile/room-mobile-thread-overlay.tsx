@@ -23,7 +23,6 @@ export function RoomMobileThreadOverlay() {
         onClose={closeThread}
         onOpenWorkspaceFile={threadPanelData.onOpenWorkspaceFile}
         onPermissionResponse={threadPanelData.onPermissionResponse}
-        onStopMessage={threadPanelData.onStopMessage}
         pendingPermissions={threadPanelData.pendingPermissions}
         roundId={activeThread.roundId}
         userAvatar={threadPanelData.userAvatar}

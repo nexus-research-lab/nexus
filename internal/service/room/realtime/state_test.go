@@ -291,8 +291,9 @@ func TestRoomDispatchStateUsesConversationBoundary(t *testing.T) {
 		t.Fatal("释放 conversation dispatch 后等待者未获得闸门")
 	}
 
-	registry.mu.RLock()
-	defer registry.mu.RUnlock()
+	mu := registry.mutex()
+	mu.RLock()
+	defer mu.RUnlock()
 	if len(registry.conversations) != 0 {
 		t.Fatalf("dispatch lease 释放后仍残留 conversation state: %d", len(registry.conversations))
 	}

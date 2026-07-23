@@ -3,7 +3,6 @@ package skills
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"maps"
 	"os"
 	"path/filepath"
@@ -27,11 +26,7 @@ func (s *Service) catalogWithAgentState(ctx context.Context, agentID string) (ma
 			return nil, nil, false, err
 		}
 		isMainAgent = agentValue.IsMain
-		for _, skillID := range agentValue.Options.SkillIDs {
-			if normalized := strings.TrimSpace(skillID); normalized != "" {
-				installedNames[normalized] = true
-			}
-		}
+		installedNames = installedSkillNames(agentValue, records)
 		names, err := workspacesvc.ListDeployedSkills(agentValue.WorkspacePath)
 		if err != nil {
 			return nil, nil, false, err
@@ -97,6 +92,9 @@ func (s *Service) ensureAgent(ctx context.Context, agentID string) (*protocol.Ag
 	if err != nil {
 		return nil, err
 	}
+	if err = workspacesvc.EnsureUserSkillLibrary(s.config, agentValue.OwnerUserID); err != nil {
+		return nil, err
+	}
 	if err = workspacesvc.EnsureInitialized(
 		agentValue.AgentID,
 		agentValue.Name,
@@ -114,49 +112,31 @@ func (s *Service) deploySkillToWorkspace(agentValue *protocol.Agent, record cata
 	return workspacesvc.DeploySkill(record.Detail.Name, record.SourcePath, agentValue.WorkspacePath, context)
 }
 
-func (s *Service) redeploySkillToInstalledAgents(ctx context.Context, skillName string) (*RedeployResult, error) {
-	result := &RedeployResult{
-		SuccessAgents: make([]RedeployAgentSuccess, 0),
-		Failures:      make([]RedeployAgentFailure, 0),
-	}
+// agentsReferencingSkill 返回正在引用 owner 共享源的 Agent。
+//
+// 外部 Skill 本身只保存一份 owner 源，更新源目录后所有引用会自然看到新内容；
+// 这里仅返回受影响的 Agent，供 API 展示同步结果。
+func (s *Service) agentsReferencingSkill(ctx context.Context, skillName string) ([]RedeployAgentSuccess, error) {
 	if s.agents == nil {
-		return result, nil
-	}
-	records, err := s.loadCatalogRecords(ctx)
-	if err != nil {
-		return nil, err
-	}
-	record, ok := records[strings.TrimSpace(skillName)]
-	if !ok {
-		return nil, errors.New("skill not found")
+		return []RedeployAgentSuccess{}, nil
 	}
 	agents, err := s.agents.ListAgentRecords(ctx)
 	if err != nil {
 		return nil, err
 	}
-	for index := range agents {
-		agentValue := agents[index]
-		names, err := workspacesvc.ListDeployedSkills(agentValue.WorkspacePath)
-		if err != nil {
-			result.Failures = append(result.Failures, RedeployAgentFailure{
-				AgentID:   agentValue.AgentID,
-				AgentName: agentValue.Name,
-				Error:     err.Error(),
-			})
+	result := make([]RedeployAgentSuccess, 0)
+	for _, agentValue := range agents {
+		installed := false
+		for _, reference := range agentValue.Options.SkillIDs {
+			if skillReferenceMatches(reference, skillName) {
+				installed = true
+				break
+			}
+		}
+		if !installed {
 			continue
 		}
-		if !slices.Contains(names, record.Detail.Name) {
-			continue
-		}
-		if err = s.deploySkillToWorkspace(&agentValue, record); err != nil {
-			result.Failures = append(result.Failures, RedeployAgentFailure{
-				AgentID:   agentValue.AgentID,
-				AgentName: agentValue.Name,
-				Error:     err.Error(),
-			})
-			continue
-		}
-		result.SuccessAgents = append(result.SuccessAgents, RedeployAgentSuccess{
+		result = append(result, RedeployAgentSuccess{
 			AgentID:   agentValue.AgentID,
 			AgentName: agentValue.Name,
 		})
@@ -188,13 +168,13 @@ func (s *Service) loadCatalogRecords(ctx context.Context) (map[string]catalogRec
 				continue
 			}
 			skillName := entry.Name()
-			if _, ok := systemSkillNames[skillName]; ok {
+			if containsSkillName(systemSkillNames, skillName) {
 				continue
 			}
-			if _, ok := internalSkillNames[skillName]; ok {
+			if containsSkillName(internalSkillNames, skillName) {
 				continue
 			}
-			if _, ok := records[skillName]; ok {
+			if catalogHasSkillName(records, skillName) {
 				continue
 			}
 			sourceKind := builtinSourceKind(root, platformRoot)
@@ -210,9 +190,22 @@ func (s *Service) loadCatalogRecords(ctx context.Context) (map[string]catalogRec
 		return nil, err
 	}
 	for name, record := range externalRecords {
+		if catalogHasSkillName(records, name) {
+			// 平台/系统源优先，避免历史外部同名 Skill 在产品升级后覆盖官方源。
+			continue
+		}
 		records[name] = record
 	}
 	return records, nil
+}
+
+func catalogHasSkillName(records map[string]catalogRecord, name string) bool {
+	for existingName := range records {
+		if strings.EqualFold(strings.TrimSpace(existingName), strings.TrimSpace(name)) {
+			return true
+		}
+	}
+	return false
 }
 
 func builtinSourceKind(root string, platformRoot string) string {

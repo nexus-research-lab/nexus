@@ -229,7 +229,7 @@ fi
     printf '  xattr -dr com.apple.quarantine /Applications/%s.app\n\n' "${APP_NAME}"
   fi
   printf 'Data directory: ~/.nexus\n'
-  printf 'Log directory: ~/.nexus/logs\n'
+  printf 'Log directory: ~/.nexus/app/logs\n'
   printf 'To reset app data, quit Nexus first, then remove ~/.nexus.\n'
 } > "${STAGING_DIR}/README.txt"
 

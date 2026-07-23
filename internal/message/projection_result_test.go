@@ -89,6 +89,32 @@ func TestProjectResultMessageKeepsEmptyErrorResult(t *testing.T) {
 	}
 }
 
+func TestProjectResultMessageKeepsRoomInterruptedSlotWithoutText(t *testing.T) {
+	projected := ProjectResultMessage(nil, protocol.Message{
+		"agent_id":        "agent-1",
+		"agent_round_id":  "agent-round-1",
+		"conversation_id": "conversation-1",
+		"message_id":      "result-interrupted",
+		"room_id":         "room-1",
+		"round_id":        "round-1",
+		"role":            "result",
+		"subtype":         "interrupted",
+		"is_error":        false,
+	})
+	if projected == nil {
+		t.Fatal("Room interrupted slot should remain visible without a result bubble")
+	}
+	if projected["role"] != "assistant" {
+		t.Fatalf("Room interrupted slot should project to assistant card: %+v", projected)
+	}
+	if projected["agent_round_id"] != "agent-round-1" {
+		t.Fatalf("Room interrupted slot must preserve agent_round_id: %+v", projected)
+	}
+	if projected["content"] == nil {
+		t.Fatalf("Room interrupted slot should expose empty content explicitly: %+v", projected)
+	}
+}
+
 func TestIsInternalTranscriptContinuationPrompt(t *testing.T) {
 	const prompt = "Output token limit hit. Resume directly — no apology, no recap of what you were doing. Pick up mid-thought if that is where the cut happened. Break remaining work into smaller pieces."
 

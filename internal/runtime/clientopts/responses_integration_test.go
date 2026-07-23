@@ -33,6 +33,8 @@ func TestNexusResponsesRuntimeProcessIntegration(t *testing.T) {
 	if commandPath == "" {
 		t.Skip("set NEXUS_TEST_NXS_RESPONSES_COMMAND to run the Nexus Responses process integration test")
 	}
+	t.Setenv("NEXUS_STATE_ROOT", t.TempDir())
+	t.Setenv("NEXUS_CONFIG_DIR", "")
 	t.Setenv("NEXUS_NXS_COMMAND_PATH", commandPath)
 
 	var (
@@ -84,9 +86,6 @@ func TestNexusResponsesRuntimeProcessIntegration(t *testing.T) {
 		WorkspacePath: workspace,
 		RuntimeKind:   "nxs",
 		Provider:      "azure-responses",
-		ExtraEnv: map[string]string{
-			"NEXUS_CONFIG_DIR": t.TempDir(),
-		},
 	})
 	if err != nil {
 		t.Fatalf("BuildAgentClientOptions() error = %v", err)
