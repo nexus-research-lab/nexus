@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"strings"
 	"time"
 )
 
@@ -105,6 +106,34 @@ type OptionsResponse struct {
 	Items                 []Option        `json:"items"`
 	BackgroundItems       []Option        `json:"background_items"`
 	ImageItems            []Option        `json:"image_items"`
+}
+
+// HasConfiguredImageSelection 判断默认或用户选择的图片模型是否仍在当前可用目录中。
+func (r *OptionsResponse) HasConfiguredImageSelection(provider string, model string) bool {
+	if r == nil {
+		return false
+	}
+	if r.DefaultImageProvider != nil && r.DefaultImageModel != nil &&
+		strings.TrimSpace(*r.DefaultImageProvider) != "" &&
+		strings.TrimSpace(*r.DefaultImageModel) != "" {
+		return true
+	}
+	targetProvider := strings.TrimSpace(provider)
+	targetModel := strings.TrimSpace(model)
+	if targetProvider == "" || targetModel == "" {
+		return false
+	}
+	for _, item := range r.ImageItems {
+		if strings.TrimSpace(item.Provider) != targetProvider {
+			continue
+		}
+		for _, option := range item.Models {
+			if strings.TrimSpace(option.ModelID) == targetModel {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // CreateInput 表示新增 Provider 配置的输入。

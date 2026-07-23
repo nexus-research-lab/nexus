@@ -15,6 +15,7 @@ import (
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	automationsvc "github.com/nexus-research-lab/nexus/internal/service/automation"
 	"github.com/nexus-research-lab/nexus/internal/service/channels"
+	configurationsvc "github.com/nexus-research-lab/nexus/internal/service/configuration"
 	connectorsvc "github.com/nexus-research-lab/nexus/internal/service/connectors"
 	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
@@ -44,6 +45,7 @@ type AppServices struct {
 	Workspace         *workspacepkg.Service
 	Skills            *skillsvc.Service
 	Connectors        *connectorsvc.Service
+	Configuration     *configurationsvc.Service
 	Launcher          *launcher.Service
 	Title             *titlegen.Service
 	Usage             *usagesvc.Service
@@ -149,14 +151,27 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	automationService.SetLogger(logger.With("component", "automation"))
 	memoryMaintenance := memorymaintenancesvc.NewCoordinator(cfg, core.Agent, providerService, preferencesService)
 	memoryMaintenance.SetLogger(logger.With("component", "memory.maintenance"))
+	configurationService := configurationsvc.NewService(
+		cfg,
+		db,
+		core.Agent,
+		providerService,
+		preferencesService,
+		channelControl,
+		connectorService,
+		skillService,
+		runtimeManager,
+	)
 
-	// 把内置自动化、连接器、图片生成和 Room 通讯 MCP server 注入 DM/Room runtime。
+	// 把内置配置、自动化、连接器、图片生成和 Room 通讯 MCP server 注入 DM/Room runtime。
+	configurationBuilder := newConfigurationMCPBuilder(configurationService, core.Agent)
 	automationBuilder := newAutomationMCPBuilder(automationService, core.Agent, cfg.DefaultTimezone)
 	connectorBuilder := newConnectorMCPBuilder(connectorService, core.Agent)
 	goalBuilder := newGoalMCPBuilder(cfg, goalService, roomRealtime)
 	imagegenBuilder := newImagegenMCPBuilder(imagegenService, core.Agent)
 	roomBuilder := newRoomMCPBuilder(roomRealtime, core.Agent, core.Room.GetRoom)
 	mcpBuilder := combinedMCPBuilder(
+		configurationBuilder,
 		automationBuilder,
 		connectorBuilder,
 		goalBuilder,
@@ -178,6 +193,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		Workspace:         workspaceService,
 		Skills:            skillService,
 		Connectors:        connectorService,
+		Configuration:     configurationService,
 		Launcher:          launcherService,
 		Title:             titleService,
 		Usage:             usageService,

@@ -349,6 +349,8 @@ func TestServiceBuildRuntimePromptIncludesMainAgentDefaultPolicy(t *testing.T) {
 	assertPromptContains(t, prompt, "use `WebSearch` and `WebFetch` as a pair")
 	assertPromptContains(t, prompt, "Do not rely on search snippets alone")
 	assertPromptContains(t, prompt, "Use `nexus-manager` for members, Rooms, DMs, workspaces, and skills")
+	assertPromptContains(t, prompt, "Use `nexus_config` for Nexus settings")
+	assertPromptContains(t, prompt, "Configuration changes follow one workflow")
 	assertPromptContains(t, prompt, "Use `nexus_automation` tools (`create_scheduled_task` and related) directly")
 	if strings.Contains(prompt, "scheduled-task-manager") {
 		t.Fatalf("主智能体定时任务不应再要求加载重复 skill: %s", prompt)

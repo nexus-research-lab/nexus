@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added a main-Agent-only conversational configuration control plane for preferences, Providers, Agents, Channels, Connectors, Skills, and host runtime settings, with redacted discovery, deterministic planning, optimistic revisions, idempotent apply, destructive confirmation, post-write verification, and owner-scoped audit history.
+
+### Changed
+
+- Routed Automation, Room, Workspace, and Goal configuration discovery to their existing specialized conversation tools, and taught the main Nexus Agent to use one inspect → plan → apply → verify workflow instead of editing product databases or config files directly.
+
 ## [0.1.28] - 2026-07-23
 
 ### Fixed

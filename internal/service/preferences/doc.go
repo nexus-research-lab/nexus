@@ -3,7 +3,7 @@
 // L2 | 父级: internal/service（L1 见 AGENTS.md）
 //
 // 成员清单：
-//   - service.go：偏好读写 Service。
+//   - service.go / imagegen_tool.go：偏好读写 Service 与共享默认图片工具投影。
 //   - model_preferences.go：偏好模型。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
