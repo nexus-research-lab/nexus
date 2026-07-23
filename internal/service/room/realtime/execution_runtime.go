@@ -6,11 +6,13 @@ package realtime
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"strings"
+
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
-	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
@@ -23,8 +25,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/service/toolpolicy"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
-	"log/slog"
-	"strings"
 )
 
 const (
@@ -108,26 +108,8 @@ func (e *slotExecution) prepareRuntimeClient() (runtimectx.Client, error) {
 	if err := workspacepkg.EnsurePlatformSkillLibrary(); err != nil {
 		return nil, err
 	}
-	if err := workspacepkg.EnsureUserSkillLibrary(e.agent.OwnerUserID); err != nil {
+	if err := workspacepkg.EnsureUserSkillLibrary(e.service.config, e.agent.OwnerUserID); err != nil {
 		return nil, err
-	}
-	if selected, changed, err := workspacepkg.MergeLegacyExternalSkillReferences(
-		e.agent.OwnerUserID,
-		e.agent.WorkspacePath,
-		e.agent.Options.SkillIDs,
-	); err != nil {
-		return nil, err
-	} else if changed {
-		options := e.agent.Options
-		options.SkillIDs = selected
-		agentValue, updateErr := e.service.agents.UpdateAgent(e.ctx, e.agent.AgentID, protocol.UpdateRequest{Options: &options})
-		if updateErr != nil {
-			return nil, updateErr
-		}
-		if agentValue == nil {
-			return nil, fmt.Errorf("迁移外部 Skill 引用后未返回 Agent")
-		}
-		e.agent = agentValue
 	}
 	if err := workspacepkg.EnsureInitialized(
 		e.agent.AgentID,
@@ -136,9 +118,6 @@ func (e *slotExecution) prepareRuntimeClient() (runtimectx.Client, error) {
 		e.agent.IsMain,
 		e.agent.CreatedAt,
 	); err != nil {
-		return nil, err
-	}
-	if err := workspacepkg.EnsureExternalSkillWorkspaceClean(e.agent.OwnerUserID, e.agent.WorkspacePath); err != nil {
 		return nil, err
 	}
 	runtimeValue, err := e.prepareRuntime()
@@ -191,7 +170,7 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 		AllowedTools:               toolpolicy.WithManagedRuntimeAllowedTools(roomAllowedTools(e.agent.Options.AllowedTools, e.round.Context.Room.PrivateMessagesEnabled), e.service.runtimeImagegenDefaultEnabled(e.ctx)),
 		DisallowedTools:            roomDisallowedTools(e.agent.Options.DisallowedTools, e.round.Context.Room.PrivateMessagesEnabled),
 		SkillIDs:                   runtimeSkillNames,
-		SkillDirectories:           appfs.SkillLibraryRoots(e.agent.OwnerUserID),
+		SkillDirectories:           workspacepkg.SkillLibraryRoots(e.service.config, e.agent.OwnerUserID),
 		SettingSources:             e.agent.Options.SettingSources,
 		AppendSystemPrompt:         appendPromptSection(prompt.stable, prompt.dynamic),
 		AppendSystemPromptStatic:   prompt.stable,

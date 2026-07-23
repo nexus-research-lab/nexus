@@ -11,7 +11,6 @@ import (
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	"github.com/nexus-research-lab/nexus/internal/config"
-	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
@@ -32,15 +31,11 @@ type preferencesService interface {
 	Get(context.Context, string) (preferencessvc.Preferences, error)
 }
 
-type agentUpdater interface {
-	UpdateAgent(context.Context, string, protocol.UpdateRequest) (*protocol.Agent, error)
-}
-
 type runtimeDreamRunner struct {
-	preferences  preferencesService
-	providers    clientopts.RuntimeConfigResolver
-	selector     *runtimeselectionsvc.Service
-	agentUpdater agentUpdater
+	config      config.Config
+	preferences preferencesService
+	providers   clientopts.RuntimeConfigResolver
+	selector    *runtimeselectionsvc.Service
 }
 
 // NewCoordinator 构建 Nexus 托管 AutoDream 协调器。
@@ -51,47 +46,20 @@ func NewCoordinator(
 	preferences preferencesService,
 ) *Coordinator {
 	runner := &runtimeDreamRunner{
+		config:      cfg,
 		preferences: preferences,
 		providers:   providers,
 		selector:    runtimeselectionsvc.NewService(preferences),
-	}
-	if updater, ok := agents.(agentUpdater); ok {
-		runner.agentUpdater = updater
 	}
 	return newCoordinator(cfg.MemoryMaintenance, agents, runner)
 }
 
 func (r *runtimeDreamRunner) tryAutoDream(ctx context.Context, agentValue protocol.Agent) (agentclient.AutoDreamResult, error) {
 	ownerContext := contextForAgentOwner(ctx, agentValue)
-	if r.agentUpdater != nil {
-		selected, changed, err := workspacepkg.MergeLegacyExternalSkillReferences(
-			agentValue.OwnerUserID,
-			agentValue.WorkspacePath,
-			agentValue.Options.SkillIDs,
-		)
-		if err != nil {
-			return agentclient.AutoDreamResult{}, err
-		}
-		if changed {
-			options := agentValue.Options
-			options.SkillIDs = selected
-			updated, updateErr := r.agentUpdater.UpdateAgent(ownerContext, agentValue.AgentID, protocol.UpdateRequest{Options: &options})
-			if updateErr != nil {
-				return agentclient.AutoDreamResult{}, updateErr
-			}
-			if updated == nil {
-				return agentclient.AutoDreamResult{}, errors.New("迁移外部 Skill 引用后未返回 Agent")
-			}
-			agentValue = *updated
-		}
-		if err = workspacepkg.EnsureExternalSkillWorkspaceClean(agentValue.OwnerUserID, agentValue.WorkspacePath); err != nil {
-			return agentclient.AutoDreamResult{}, err
-		}
-	}
 	if err := workspacepkg.EnsurePlatformSkillLibrary(); err != nil {
 		return agentclient.AutoDreamResult{}, err
 	}
-	if err := workspacepkg.EnsureUserSkillLibrary(agentValue.OwnerUserID); err != nil {
+	if err := workspacepkg.EnsureUserSkillLibrary(r.config, agentValue.OwnerUserID); err != nil {
 		return agentclient.AutoDreamResult{}, err
 	}
 	runtimeSkillNames, err := workspacepkg.RuntimeSkillNames(agentValue.WorkspacePath, agentValue.Options.SkillIDs)
@@ -122,7 +90,7 @@ func (r *runtimeDreamRunner) tryAutoDream(ctx context.Context, agentValue protoc
 		Model:             model,
 		PermissionMode:    sdkpermission.ModeAcceptEdits,
 		SkillIDs:          runtimeSkillNames,
-		SkillDirectories:  appfs.SkillLibraryRoots(agentValue.OwnerUserID),
+		SkillDirectories:  workspacepkg.SkillLibraryRoots(r.config, agentValue.OwnerUserID),
 		SettingSources:    ensureProjectSettingsSource(agentValue.Options.SettingSources),
 		ToolSearchEnabled: selection.ToolSearchEnabled,
 		WebSearch:         selection.WebSearch,

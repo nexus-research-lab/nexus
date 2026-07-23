@@ -15,22 +15,8 @@ func (s *Service) ensureAgentWorkspace(ctx context.Context, agentID string) (*pr
 	if err != nil {
 		return nil, err
 	}
-	if err = EnsureUserSkillLibrary(agentValue.OwnerUserID); err != nil {
+	if err = EnsureUserSkillLibrary(s.config, agentValue.OwnerUserID); err != nil {
 		return nil, err
-	}
-	if selected, changed, mergeErr := MergeLegacyExternalSkillReferences(
-		agentValue.OwnerUserID,
-		agentValue.WorkspacePath,
-		agentValue.Options.SkillIDs,
-	); mergeErr != nil {
-		return nil, mergeErr
-	} else if changed {
-		options := agentValue.Options
-		options.SkillIDs = selected
-		agentValue, err = s.agents.UpdateAgent(ctx, agentValue.AgentID, protocol.UpdateRequest{Options: &options})
-		if err != nil {
-			return nil, err
-		}
 	}
 	if err = EnsureInitialized(
 		agentValue.AgentID,
@@ -39,9 +25,6 @@ func (s *Service) ensureAgentWorkspace(ctx context.Context, agentID string) (*pr
 		agentValue.IsMain,
 		agentValue.CreatedAt,
 	); err != nil {
-		return nil, err
-	}
-	if err = EnsureExternalSkillWorkspaceClean(agentValue.OwnerUserID, agentValue.WorkspacePath); err != nil {
 		return nil, err
 	}
 	return agentValue, nil

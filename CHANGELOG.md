@@ -35,7 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Unified platform-owned Skills behind one global compatibility root for nxs and Claude Code; Agent records now persist selected platform `skill_ids` instead of copying platform Skill files into every workspace.
-- Unified imported third-party Skills behind the owner workspace source `<workspace>/<owner>/.agents/skills`, shared by nxs and Claude Code; Agent records now persist `external:<skill_name>` references, and legacy workspace copies are migrated and removed.
+- Unified imported third-party Skills behind the owner workspace source `<workspace>/<owner>/.agents/skills`, shared by nxs and Claude Code; Agent records now persist `external:<skill_name>` references.
 - Realigned light-theme inputs, hover feedback, sidebar borders, and conversation-tab dividers with the restored cool-gray page background.
 - Unified control, card, overlay, and content radii around a restrained shared scale.
 - Replaced the full Room history side panel with an anchored dropdown that shows ten conversations per page while retaining rename and delete actions.

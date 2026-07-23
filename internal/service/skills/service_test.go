@@ -167,36 +167,36 @@ description: 兼容直接位于 .agents 下的技能目录
 		t.Fatalf("agent 直属本地 skill 移除后目录仍存在: %v", err)
 	}
 
-	legacyLocalSkillRoot := filepath.Join(agentValue.WorkspacePath, ".claude", "skills", "claude-agent-skill")
-	if err = os.MkdirAll(legacyLocalSkillRoot, 0o755); err != nil {
-		t.Fatalf("创建 agent legacy 本地 skill 目录失败: %v", err)
+	claudeLocalSkillRoot := filepath.Join(agentValue.WorkspacePath, ".claude", "skills", "claude-agent-skill")
+	if err = os.MkdirAll(claudeLocalSkillRoot, 0o755); err != nil {
+		t.Fatalf("创建 Agent Claude 本地 Skill 目录失败: %v", err)
 	}
-	if err = os.WriteFile(filepath.Join(legacyLocalSkillRoot, "SKILL.md"), []byte(`---
+	if err = os.WriteFile(filepath.Join(claudeLocalSkillRoot, "SKILL.md"), []byte(`---
 name: claude-agent-skill
 title: Claude Agent Skill
-description: 兼容旧版 runtime 在 .claude/skills 下创建的技能目录
+description: Claude 在 .claude/skills 下创建的技能目录
 ---
 
 # claude-agent-skill
 `), 0o644); err != nil {
-		t.Fatalf("写入 agent legacy 本地 skill 失败: %v", err)
+		t.Fatalf("写入 Agent Claude 本地 Skill 失败: %v", err)
 	}
 	items, err = service.GetAgentSkills(ctx, agentValue.AgentID)
 	if err != nil {
-		t.Fatalf("读取含 agent legacy 本地 skill 的列表失败: %v", err)
+		t.Fatalf("读取含 Agent Claude 本地 Skill 的列表失败: %v", err)
 	}
-	legacyAgentSkill, ok := findSkill(items, "claude-agent-skill")
+	claudeAgentSkill, ok := findSkill(items, "claude-agent-skill")
 	if !ok {
-		t.Fatalf("agent legacy 本地 skill 未暴露: %+v", items)
+		t.Fatalf("Agent Claude 本地 Skill 未暴露: %+v", items)
 	}
-	if legacyAgentSkill.SourceType != sourceTypeWorkspace || !legacyAgentSkill.Installed || legacyAgentSkill.Locked {
-		t.Fatalf("agent legacy 本地 skill 状态不正确: %+v", legacyAgentSkill)
+	if claudeAgentSkill.SourceType != sourceTypeWorkspace || !claudeAgentSkill.Installed || claudeAgentSkill.Locked {
+		t.Fatalf("Agent Claude 本地 Skill 状态不正确: %+v", claudeAgentSkill)
 	}
 	if err = service.UninstallSkill(ctx, agentValue.AgentID, "claude-agent-skill"); err != nil {
-		t.Fatalf("agent legacy 本地 skill 应允许从当前智能体移除: %v", err)
+		t.Fatalf("Agent Claude 本地 Skill 应允许从当前智能体移除: %v", err)
 	}
-	if _, err = os.Stat(legacyLocalSkillRoot); !os.IsNotExist(err) {
-		t.Fatalf("agent legacy 本地 skill 移除后目录仍存在: %v", err)
+	if _, err = os.Stat(claudeLocalSkillRoot); !os.IsNotExist(err) {
+		t.Fatalf("Agent Claude 本地 Skill 移除后目录仍存在: %v", err)
 	}
 
 	localSkillRoot := filepath.Join(t.TempDir(), "demo-skill")
@@ -242,7 +242,7 @@ skill body
 	if _, statErr := os.Stat(filepath.Join(reloaded.WorkspacePath, ".agents", "skills", "demo-skill")); !os.IsNotExist(statErr) {
 		t.Fatalf("外部 Skill 不应复制到 workspace: %v", statErr)
 	}
-	if _, statErr := os.Stat(filepath.Join(appfs.UserSkillDiscoveryRoot(authctx.SystemUserID), "demo-skill", "SKILL.md")); statErr != nil {
+	if _, statErr := os.Stat(filepath.Join(workspacepkg.UserSkillDiscoveryRoot(cfg, authctx.SystemUserID), "demo-skill", "SKILL.md")); statErr != nil {
 		t.Fatalf("外部 Skill 用户级源不存在: %v", statErr)
 	}
 
@@ -337,7 +337,7 @@ func TestPlatformSkillClassificationExcludesUserGlobalSources(t *testing.T) {
 	}
 }
 
-func TestUpdateSingleSkillUsesSharedUserSourceAndMigratesLegacyCopies(t *testing.T) {
+func TestUpdateSingleSkillUsesSharedUserSource(t *testing.T) {
 	cfg := newSkillsTestConfig(t)
 	migrateSkillsSQLite(t, cfg.DatabaseURL)
 
@@ -396,9 +396,6 @@ func TestUpdateSingleSkillUsesSharedUserSourceAndMigratesLegacyCopies(t *testing
 		}
 	}
 
-	// 模拟升级前遗留的 workspace 副本，更新时应迁移引用并清除它，而不是重新复制。
-	legacyPath := filepath.Join(successAgent.WorkspacePath, ".agents", "skills", "git-skill")
-	writeTestSkillDir(t, legacyPath, "git-skill", "Git Skill legacy", true)
 	activeRepo = repoV2
 	activeCommit = "commit-v2"
 	detail, err := service.UpdateSingleSkill(ctx, "git-skill")
@@ -411,16 +408,13 @@ func TestUpdateSingleSkillUsesSharedUserSourceAndMigratesLegacyCopies(t *testing
 	if len(detail.DeploySuccesses) != 2 {
 		t.Fatalf("应返回两个已安装 Agent 的全局源同步结果: %+v", detail.DeploySuccesses)
 	}
-	globalSkillPath := filepath.Join(appfs.UserSkillDiscoveryRoot(authctx.SystemUserID), "git-skill", "SKILL.md")
+	globalSkillPath := filepath.Join(workspacepkg.UserSkillDiscoveryRoot(cfg, authctx.SystemUserID), "git-skill", "SKILL.md")
 	payload, err := os.ReadFile(globalSkillPath)
 	if err != nil {
 		t.Fatalf("读取更新后的用户级 skill 失败: %v", err)
 	}
 	if !strings.Contains(string(payload), "Git Skill v2") {
 		t.Fatalf("用户级源未随库更新: %s", payload)
-	}
-	if _, statErr := os.Stat(legacyPath); !os.IsNotExist(statErr) {
-		t.Fatalf("旧 workspace 副本未清理: %v", statErr)
 	}
 }
 

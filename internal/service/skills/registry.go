@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	workspacesvc "github.com/nexus-research-lab/nexus/internal/service/workspace"
 	"github.com/nexus-research-lab/nexus/internal/storage/jsoncodec"
@@ -18,10 +17,7 @@ import (
 )
 
 func (s *Service) loadExternalRecords(ctx context.Context) (map[string]catalogRecord, error) {
-	if err := s.ensureLegacyRegistryMigrated(ctx); err != nil {
-		return nil, err
-	}
-	if err := workspacesvc.EnsureUserSkillLibrary(authctx.OwnerUserID(ctx)); err != nil {
+	if err := workspacesvc.EnsureUserSkillLibrary(s.config, authctx.OwnerUserID(ctx)); err != nil {
 		return nil, err
 	}
 	root := s.registryRoot(ctx)
@@ -277,22 +273,10 @@ func (s *Service) loadExternalRecordsFromRoot(root string) (map[string]catalogRe
 	return result, nil
 }
 
-func (s *Service) registryBaseRoot() string {
-	base := strings.TrimSpace(s.config.CacheFileDir)
-	if base == "" {
-		base = "cache"
-	}
-	return filepath.Join(base, "skills", "registry")
-}
-
-func (s *Service) legacyRegistryBaseRoot() string {
-	return s.registryBaseRoot()
-}
-
 func (s *Service) registryRoot(ctx context.Context) string {
 	return s.registryRootForOwner(authctx.OwnerUserID(ctx))
 }
 
 func (s *Service) registryRootForOwner(ownerUserID string) string {
-	return appfs.UserSkillDiscoveryRoot(ownerUserID)
+	return workspacesvc.UserSkillDiscoveryRoot(s.config, ownerUserID)
 }

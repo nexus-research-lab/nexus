@@ -3,7 +3,6 @@ package skills
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"maps"
 	"os"
 	"path/filepath"
@@ -27,10 +26,6 @@ func (s *Service) catalogWithAgentState(ctx context.Context, agentID string) (ma
 			return nil, nil, false, err
 		}
 		isMainAgent = agentValue.IsMain
-		agentValue, err = normalizeAgentSkillReferences(ctx, agentValue, records, s.agents)
-		if err != nil {
-			return nil, nil, false, err
-		}
 		installedNames = installedSkillNames(agentValue, records)
 		names, err := workspacesvc.ListDeployedSkills(agentValue.WorkspacePath)
 		if err != nil {
@@ -97,24 +92,8 @@ func (s *Service) ensureAgent(ctx context.Context, agentID string) (*protocol.Ag
 	if err != nil {
 		return nil, err
 	}
-	if err = workspacesvc.EnsureUserSkillLibrary(agentValue.OwnerUserID); err != nil {
+	if err = workspacesvc.EnsureUserSkillLibrary(s.config, agentValue.OwnerUserID); err != nil {
 		return nil, err
-	}
-	selected, changed, err := workspacesvc.MergeLegacyExternalSkillReferences(
-		agentValue.OwnerUserID,
-		agentValue.WorkspacePath,
-		agentValue.Options.SkillIDs,
-	)
-	if err != nil {
-		return nil, err
-	}
-	if changed {
-		options := agentValue.Options
-		options.SkillIDs = selected
-		agentValue, err = s.agents.UpdateAgent(ctx, agentValue.AgentID, protocol.UpdateRequest{Options: &options})
-		if err != nil {
-			return nil, err
-		}
 	}
 	if err = workspacesvc.EnsureInitialized(
 		agentValue.AgentID,
@@ -125,9 +104,6 @@ func (s *Service) ensureAgent(ctx context.Context, agentID string) (*protocol.Ag
 	); err != nil {
 		return nil, err
 	}
-	if err = workspacesvc.EnsureExternalSkillWorkspaceClean(agentValue.OwnerUserID, agentValue.WorkspacePath); err != nil {
-		return nil, err
-	}
 	return agentValue, nil
 }
 
@@ -136,82 +112,31 @@ func (s *Service) deploySkillToWorkspace(agentValue *protocol.Agent, record cata
 	return workspacesvc.DeploySkill(record.Detail.Name, record.SourcePath, agentValue.WorkspacePath, context)
 }
 
-// refreshSkillForInstalledAgents 将旧 workspace 副本迁移到用户级引用，并清理副本。
-// 新版本不再把更新内容逐 Agent 复制，所有 runtime 直接读取同一个用户源。
-func (s *Service) refreshSkillForInstalledAgents(ctx context.Context, skillName string) (*RedeployResult, error) {
-	result := &RedeployResult{
-		SuccessAgents: make([]RedeployAgentSuccess, 0),
-		Failures:      make([]RedeployAgentFailure, 0),
-	}
+// agentsReferencingSkill 返回正在引用 owner 共享源的 Agent。
+//
+// 外部 Skill 本身只保存一份 owner 源，更新源目录后所有引用会自然看到新内容；
+// 这里仅返回受影响的 Agent，供 API 展示同步结果。
+func (s *Service) agentsReferencingSkill(ctx context.Context, skillName string) ([]RedeployAgentSuccess, error) {
 	if s.agents == nil {
-		return result, nil
-	}
-	records, err := s.loadCatalogRecords(ctx)
-	if err != nil {
-		return nil, err
-	}
-	record, ok := records[strings.TrimSpace(skillName)]
-	if !ok {
-		return nil, errors.New("skill not found")
-	}
-	if record.Detail.SourceType != sourceTypeExternal {
-		return result, nil
+		return []RedeployAgentSuccess{}, nil
 	}
 	agents, err := s.agents.ListAgentRecords(ctx)
 	if err != nil {
 		return nil, err
 	}
-	for index := range agents {
-		agentValue := agents[index]
-		legacyNames, err := workspacesvc.ListLegacyExternalSkillNames(agentValue.WorkspacePath)
-		if err != nil {
-			result.Failures = append(result.Failures, RedeployAgentFailure{
-				AgentID:   agentValue.AgentID,
-				AgentName: agentValue.Name,
-				Error:     err.Error(),
-			})
-			continue
-		}
+	result := make([]RedeployAgentSuccess, 0)
+	for _, agentValue := range agents {
 		installed := false
 		for _, reference := range agentValue.Options.SkillIDs {
-			if skillReferenceMatches(reference, record.Detail.Name) {
+			if skillReferenceMatches(reference, skillName) {
 				installed = true
 				break
 			}
 		}
 		if !installed {
-			for _, legacyName := range legacyNames {
-				if strings.EqualFold(strings.TrimSpace(legacyName), record.Detail.Name) {
-					installed = true
-					break
-				}
-			}
-		}
-		if !installed {
 			continue
 		}
-		selected, changed := ensureExternalSkillReference(agentValue.Options.SkillIDs, record.Detail.Name)
-		if changed {
-			options := agentValue.Options
-			options.SkillIDs = selected
-			if _, err = s.agents.UpdateAgent(ctx, agentValue.AgentID, protocol.UpdateRequest{Options: &options}); err != nil {
-				result.Failures = append(result.Failures, RedeployAgentFailure{
-					AgentID:   agentValue.AgentID,
-					AgentName: agentValue.Name,
-					Error:     err.Error(),
-				})
-				continue
-			}
-		}
-		if err = workspacesvc.EnsureExternalSkillWorkspaceSkillClean(agentValue.OwnerUserID, agentValue.WorkspacePath, record.Detail.Name); err != nil {
-			result.Failures = append(result.Failures, RedeployAgentFailure{
-				AgentID:   agentValue.AgentID,
-				AgentName: agentValue.Name,
-				Error:     err.Error(),
-			})
-			continue
-		}
-		result.SuccessAgents = append(result.SuccessAgents, RedeployAgentSuccess{
+		result = append(result, RedeployAgentSuccess{
 			AgentID:   agentValue.AgentID,
 			AgentName: agentValue.Name,
 		})

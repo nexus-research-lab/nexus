@@ -294,7 +294,7 @@ func (s *Service) importSourceDir(ctx context.Context, sourceDir string, manifes
 		return nil, err
 	}
 	ownerUserID := authctx.OwnerUserID(ctx)
-	if err = workspacesvc.EnsureUserSkillLibrary(ownerUserID); err != nil {
+	if err = workspacesvc.EnsureUserSkillLibrary(s.config, ownerUserID); err != nil {
 		return nil, err
 	}
 	root := s.registryRoot(ctx)
@@ -329,12 +329,13 @@ func (s *Service) importSourceDir(ctx context.Context, sourceDir string, manifes
 	if err = workspacesvc.ReplaceDirectory(stagingDir, targetDir); err != nil {
 		return nil, err
 	}
-	if err = workspacesvc.EnsureUserSkillLibrary(ownerUserID); err != nil {
+	if err = workspacesvc.RefreshUserSkillLibrary(s.config, ownerUserID); err != nil {
 		return nil, err
 	}
 	if err = s.upsertImportedSkillRecord(ctx, targetDir, manifest, parsed); err != nil {
-		_ = os.RemoveAll(targetDir)
-		return nil, err
+		removeErr := os.RemoveAll(targetDir)
+		refreshErr := workspacesvc.RefreshUserSkillLibrary(s.config, ownerUserID)
+		return nil, errors.Join(err, removeErr, refreshErr)
 	}
 	return s.GetSkillDetail(ctx, parsed.Name, "")
 }

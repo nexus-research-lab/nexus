@@ -6,7 +6,7 @@
 //   - service.go / file.go / memory.go / mutation.go / upload.go / path.go：Service、文件、记忆投影、分阶段条目变更、上传、路径。
 //   - agent.go / model.go / reveal.go：Agent workspace、模型、本机定位。
 //   - initializer.go / initializer_*.go：workspace 初始化阶段与主 Agent 文件策略（模板 / workspace-local skill / nexusctl / 模板集）。
-//   - platform_skills.go / user_skills.go：平台与用户外部 Skill 全局兼容根同步、workspace 副本迁移（nxs 与 Claude Code 共用）。
+//   - platform_skills.go / user_skills.go：平台与 owner 外部 Skill 源同步、Claude Code 兼容入口（nxs 与 Claude Code 共用）。
 //   - live.go / live_*.go：实时文件树模型与同步阶段（行级 diff / watcher / write）。
 //   - upload_dedupe.go：上传去重。
 //

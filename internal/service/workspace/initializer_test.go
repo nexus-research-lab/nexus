@@ -265,7 +265,7 @@ func TestEnsureInitializedRepairsStaleScheduleWakeupGuidance(t *testing.T) {
 	}
 }
 
-func TestDeploySkillFallsBackToLegacySkillMirrorWhenSymlinkUnavailable(t *testing.T) {
+func TestDeploySkillFallsBackToClaudeSkillMirrorWhenSymlinkUnavailable(t *testing.T) {
 	sourceDir := filepath.Join(t.TempDir(), "source")
 	if err := os.MkdirAll(filepath.Join(sourceDir, "scripts"), 0o755); err != nil {
 		t.Fatalf("创建 skill 源目录失败: %v", err)
@@ -295,18 +295,18 @@ func TestDeploySkillFallsBackToLegacySkillMirrorWhenSymlinkUnavailable(t *testin
 		t.Fatalf("部署 skill fallback 失败: %v", err)
 	}
 
-	legacySkillDir := filepath.Join(workspacePath, ".claude", "skills", "demo-skill")
-	if info, err := os.Lstat(legacySkillDir); err != nil {
-		t.Fatalf("legacy skill 镜像目录未生成: %v", err)
+	claudeSkillDir := filepath.Join(workspacePath, ".claude", "skills", "demo-skill")
+	if info, err := os.Lstat(claudeSkillDir); err != nil {
+		t.Fatalf("Claude Skill 镜像目录未生成: %v", err)
 	} else if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
-		t.Fatalf("legacy skill fallback 应生成普通目录: mode=%s", info.Mode())
+		t.Fatalf("Claude Skill fallback 应生成普通目录: mode=%s", info.Mode())
 	}
-	payload, err := os.ReadFile(filepath.Join(legacySkillDir, "SKILL.md"))
+	payload, err := os.ReadFile(filepath.Join(claudeSkillDir, "SKILL.md"))
 	if err != nil {
-		t.Fatalf("读取 legacy skill 镜像失败: %v", err)
+		t.Fatalf("读取 Claude Skill 镜像失败: %v", err)
 	}
 	if !strings.Contains(string(payload), "测试助手") {
-		t.Fatalf("legacy skill 镜像未渲染模板: %s", payload)
+		t.Fatalf("Claude Skill 镜像未渲染模板: %s", payload)
 	}
 	if _, err = os.Stat(filepath.Join(workspacePath, ".agents", "skills", "demo-skill", "scripts", "run.txt")); err != nil {
 		t.Fatalf(".agents skill 副本不完整: %v", err)
@@ -315,8 +315,8 @@ func TestDeploySkillFallsBackToLegacySkillMirrorWhenSymlinkUnavailable(t *testin
 	if err = UndeploySkill(workspacePath, "demo-skill"); err != nil {
 		t.Fatalf("卸载 fallback skill 失败: %v", err)
 	}
-	if _, err = os.Stat(legacySkillDir); !os.IsNotExist(err) {
-		t.Fatalf("卸载后 legacy skill 镜像应被删除: %v", err)
+	if _, err = os.Stat(claudeSkillDir); !os.IsNotExist(err) {
+		t.Fatalf("卸载后 Claude Skill 镜像应被删除: %v", err)
 	}
 }
 

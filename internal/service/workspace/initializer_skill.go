@@ -28,21 +28,21 @@ func BuildSkillRenderContext(agentID string, agentName string, workspacePath str
 // DeploySkill 把指定 skill 部署到目标 workspace。
 func DeploySkill(skillName string, sourceDir string, workspacePath string, context map[string]string) error {
 	agentsSkillDir := filepath.Join(workspacePath, ".agents", "skills", skillName)
-	legacySkillEntry := filepath.Join(workspacePath, ".claude", "skills", skillName)
+	claudeSkillEntry := filepath.Join(workspacePath, ".claude", "skills", skillName)
 	if err := syncDirectory(sourceDir, agentsSkillDir, context); err != nil {
 		return err
 	}
-	return ensureLegacySkillEntry(sourceDir, legacySkillEntry, filepath.Join("..", "..", ".agents", "skills", skillName), context)
+	return ensureClaudeSkillEntry(sourceDir, claudeSkillEntry, filepath.Join("..", "..", ".agents", "skills", skillName), context)
 }
 
 // UndeploySkill 从 workspace 中移除指定 skill。
 func UndeploySkill(workspacePath string, skillName string) error {
 	targetDir := filepath.Join(workspacePath, ".agents", "skills", skillName)
-	legacySkillEntry := filepath.Join(workspacePath, ".claude", "skills", skillName)
+	claudeSkillEntry := filepath.Join(workspacePath, ".claude", "skills", skillName)
 	if err := os.RemoveAll(targetDir); err != nil {
 		return err
 	}
-	if err := os.RemoveAll(legacySkillEntry); err != nil && !os.IsNotExist(err) {
+	if err := os.RemoveAll(claudeSkillEntry); err != nil && !os.IsNotExist(err) {
 		return err
 	}
 	return nil
@@ -55,7 +55,7 @@ func ListDeployedSkills(workspacePath string) ([]string, error) {
 		requireSkillFile bool
 	}
 	parents := []skillParent{
-		// 旧版迁移用空目录标记已安装状态，不能在读取时丢失这类记录。
+		// Claude 兼容入口可能是普通镜像目录，不能只依赖 .agents/skills。
 		{path: filepath.Join(workspacePath, ".agents", "skills")},
 		{path: filepath.Join(workspacePath, ".agents"), requireSkillFile: true},
 		{path: filepath.Join(workspacePath, ".claude", "skills")},
@@ -135,13 +135,12 @@ func RuntimeSkillNames(workspacePath string, selectedSkillIDs []string) ([]strin
 }
 
 func managedSkillNames(isMainAgent bool) []string {
-	// 这些名称仅用于清理旧版 workspace 副本，平台库本身不再按 Agent 部署。
+	// 这些名称用于确保平台 Skill 不会落入 Agent workspace。
 	items := slices.Clone(baseSkillNames)
 	if isMainAgent {
 		items = append(items, mainAgentSkillNames...)
 	}
-	// 产品新增平台 Skill 后，旧版本可能已经在 workspace 留下同名副本；
-	// 按产品源目录动态补入名称，避免迁移遗漏新 Skill。
+	// 产品新增平台 Skill 后，按产品源目录动态补入名称，保持清理集合完整。
 	productSkillsRoot := filepath.Join(projectRoot(), "skills")
 	if entries, err := os.ReadDir(productSkillsRoot); err == nil {
 		for _, entry := range entries {
@@ -207,14 +206,14 @@ func syncDirectory(sourceDir string, targetDir string, context map[string]string
 	})
 }
 
-func ensureLegacySkillEntry(sourceDir string, entryPath string, relativeTarget string, context map[string]string) error {
+func ensureClaudeSkillEntry(sourceDir string, entryPath string, relativeTarget string, context map[string]string) error {
 	err := ensureRelativeSymlink(entryPath, relativeTarget)
 	if err == nil {
 		return nil
 	}
-	// Windows 默认可能没有目录 symlink 权限，失败时镜像一份给旧版 runtime 读取。
+	// Windows 默认可能没有目录 symlink 权限，失败时镜像一份给 Claude 读取。
 	if mirrorErr := syncDirectory(sourceDir, entryPath, context); mirrorErr != nil {
-		return fmt.Errorf("创建 legacy skill symlink 失败: %w；镜像目录也失败: %v", err, mirrorErr)
+		return fmt.Errorf("创建 Claude Skill 入口失败: %w；镜像目录也失败: %v", err, mirrorErr)
 	}
 	return nil
 }

@@ -16,10 +16,6 @@ const (
 	scopeMain               = "main"
 	scopeAny                = "any"
 	scopeRoom               = "room"
-
-	registryUsersDirName            = "users"
-	registryLegacyMigratedDirName   = "legacy-migrated"
-	registryLegacyUnassignedDirName = "legacy-unassigned"
 )
 
 // ScopeRoom 表示 Room 级 skill，只能由房间启用，不能安装到单个 Agent。

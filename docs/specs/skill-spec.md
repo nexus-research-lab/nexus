@@ -38,7 +38,7 @@ Agent 的 runtime 记录只保存 Skill 引用：`runtimes.skill_ids_json`，对
 其中 `<workspace>` 默认是 `<config>/workspace`；系统 owner 沿用现有的扁平
 workspace 布局，源文件直接位于 `<workspace>/.agents/skills`。
 
-安装外部 Skill 只向 Agent 记录 `external:<skill_id>`；workspace-local Skill 仍只属于当前 workspace，不进入平台或用户级源。升级期间会从旧 workspace 副本恢复引用并清理副本。
+安装外部 Skill 只向 Agent 记录 `external:<skill_id>`；workspace-local Skill 仍只属于当前 workspace，不进入平台或用户级源。
 
 目录来源与启用策略是两条独立维度。catalog 保留 `source_type=builtin` 的兼容值，
 并通过 `source_kind` 区分：`nexus_platform` 表示产品随包并同步到平台全局库，
@@ -107,7 +107,7 @@ Room 配置选择的 Skill 正文由 Room runtime 直接读取并注入，不复
 
 ### 5.3 卸载
 
-卸载平台 Skill 只从 Agent 的 `skill_ids` 移除 ID，不删除全局源文件。卸载外部 Skill 移除当前 Agent 的 `external:<skill_id>` 引用并清理升级前遗留的 workspace 副本；删除 Skill 时再移除用户级源。
+卸载平台 Skill 只从 Agent 的 `skill_ids` 移除 ID，不删除全局源文件。卸载外部 Skill 移除当前 Agent 的 `external:<skill_id>` 引用；删除 Skill 时再移除 owner workspace 源。
 
 ### 5.4 运行时装配
 

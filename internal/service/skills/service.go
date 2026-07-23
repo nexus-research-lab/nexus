@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"sync"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
@@ -22,13 +21,11 @@ import (
 
 // Service 提供技能目录、安装与卸载能力。
 type Service struct {
-	config                 config.Config
-	agents                 *agentsvc.Service
-	workspaces             *workspacesvc.Service
-	skillStore             *skillstore.Repository
-	commandRunner          commandRunnerFunc
-	legacyRegistryMu       sync.Mutex
-	legacyRegistryMigrated bool
+	config        config.Config
+	agents        *agentsvc.Service
+	workspaces    *workspacesvc.Service
+	skillStore    *skillstore.Repository
+	commandRunner commandRunnerFunc
 }
 
 // NewService 创建技能服务。
@@ -186,9 +183,6 @@ func (s *Service) InstallSkill(ctx context.Context, agentID string, skillName st
 		if err = s.setAgentSkillEnabled(ctx, agentValue, skillReference(record), true); err != nil {
 			return nil, err
 		}
-		if err = workspacesvc.EnsureExternalSkillWorkspaceClean(agentValue.OwnerUserID, agentValue.WorkspacePath); err != nil {
-			return nil, err
-		}
 	} else if err = s.deploySkillToWorkspace(agentValue, record); err != nil {
 		return nil, err
 	}
@@ -223,10 +217,7 @@ func (s *Service) UninstallSkill(ctx context.Context, agentID string, skillName 
 		return s.setAgentSkillEnabled(ctx, agentValue, skillReference(record), false)
 	}
 	if record.Detail.SourceType == sourceTypeExternal {
-		if err := s.setAgentSkillEnabled(ctx, agentValue, skillReference(record), false); err != nil {
-			return err
-		}
-		return workspacesvc.EnsureExternalSkillWorkspaceClean(agentValue.OwnerUserID, agentValue.WorkspacePath)
+		return s.setAgentSkillEnabled(ctx, agentValue, skillReference(record), false)
 	}
 	return workspacesvc.UndeploySkill(agentValue.WorkspacePath, record.Detail.Name)
 }
@@ -327,29 +318,24 @@ func (s *Service) DeleteSkill(ctx context.Context, skillName string) error {
 	if err != nil {
 		return err
 	}
-	var cleanupErrors []error
 	for index := range agents {
 		agentValue := agents[index]
 		selected, changed := removeSkillReferences(agentValue.Options.SkillIDs, record.Detail.Name)
 		if changed {
 			options := agentValue.Options
 			options.SkillIDs = selected
-			if _, updateErr := s.agents.UpdateAgent(ctx, agentValue.AgentID, protocol.UpdateRequest{Options: &options}); updateErr != nil {
-				cleanupErrors = append(cleanupErrors, updateErr)
-				continue
+			if _, err = s.agents.UpdateAgent(ctx, agentValue.AgentID, protocol.UpdateRequest{Options: &options}); err != nil {
+				return err
 			}
 		}
-		if cleanErr := workspacesvc.EnsureExternalSkillWorkspaceSkillClean(agentValue.OwnerUserID, agentValue.WorkspacePath, record.Detail.Name); cleanErr != nil && !os.IsNotExist(cleanErr) {
-			cleanupErrors = append(cleanupErrors, cleanErr)
-		}
-	}
-	if len(cleanupErrors) > 0 {
-		return errors.Join(cleanupErrors...)
 	}
 	if s.skillStore != nil {
 		if err = s.skillStore.DeleteImportedSkill(ctx, authctx.OwnerUserID(ctx), record.Detail.Name); err != nil {
 			return err
 		}
 	}
-	return os.RemoveAll(record.SourcePath)
+	if err = os.RemoveAll(record.SourcePath); err != nil {
+		return err
+	}
+	return workspacesvc.RefreshUserSkillLibrary(s.config, authctx.OwnerUserID(ctx))
 }

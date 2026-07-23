@@ -3,7 +3,6 @@ package skills
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"maps"
 	"net/http"
@@ -85,28 +84,20 @@ func (s *Service) UpdateImportedSkills(ctx context.Context) (*UpdateInstalledSki
 			continue
 		}
 		result.UpdatedSkills = append(result.UpdatedSkills, name)
-		redeployResult, redeployErr := s.refreshSkillForInstalledAgents(ctx, detail.Name)
-		if redeployErr != nil {
+		affectedAgents, listErr := s.agentsReferencingSkill(ctx, detail.Name)
+		if listErr != nil {
 			result.Failures = append(result.Failures, SkillActionFailure{
 				SkillName: name,
-				Error:     redeployErr.Error(),
+				Error:     listErr.Error(),
 			})
 			continue
 		}
-		if len(redeployResult.SuccessAgents) > 0 || len(redeployResult.Failures) > 0 {
+		if len(affectedAgents) > 0 {
 			result.DeployResults = append(result.DeployResults, SkillRedeployResult{
 				SkillName:     name,
-				SuccessAgents: redeployResult.SuccessAgents,
-				Failures:      redeployResult.Failures,
+				SuccessAgents: affectedAgents,
+				Failures:      []RedeployAgentFailure{},
 			})
-		}
-		if len(redeployResult.Failures) > 0 {
-			for _, f := range redeployResult.Failures {
-				result.Failures = append(result.Failures, SkillActionFailure{
-					SkillName: name,
-					Error:     fmt.Sprintf("agent %s (%s): %s", f.AgentName, f.AgentID, f.Error),
-				})
-			}
 		}
 	}
 	return result, nil
@@ -126,14 +117,11 @@ func (s *Service) UpdateSingleSkill(ctx context.Context, skillName string) (*Det
 	if err != nil {
 		return nil, err
 	}
-	redeployResult, err := s.refreshSkillForInstalledAgents(ctx, detail.Name)
+	affectedAgents, err := s.agentsReferencingSkill(ctx, detail.Name)
 	if err != nil {
 		return nil, err
 	}
-	detail.DeploySuccesses = redeployResult.SuccessAgents
-	if len(redeployResult.Failures) > 0 {
-		detail.DeployFailures = redeployResult.Failures
-	}
+	detail.DeploySuccesses = affectedAgents
 	return detail, nil
 }
 

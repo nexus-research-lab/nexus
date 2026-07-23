@@ -17,7 +17,7 @@ var (
 	workspaceInitializationLocks sync.Map
 )
 
-// EnsureInitialized 保证 workspace 模板就绪，并清理已迁移的平台 Skill 副本。
+// EnsureInitialized 保证 workspace 模板就绪，并确保平台 Skill 不落入 Agent workspace。
 func EnsureInitialized(
 	agentID string,
 	agentName string,

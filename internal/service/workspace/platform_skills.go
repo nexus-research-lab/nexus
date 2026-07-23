@@ -119,12 +119,12 @@ func replacePlatformSkillLibrary(sourceRoot string, targetRoot string, fingerpri
 	if err := os.MkdirAll(filepath.Join(temporaryRoot, ".agents", "skills"), 0o755); err != nil {
 		return err
 	}
-	if err := copyPlatformDirectory(sourceRoot, filepath.Join(temporaryRoot, ".agents", "skills")); err != nil {
+	if err := copyDirectoryTree(sourceRoot, filepath.Join(temporaryRoot, ".agents", "skills")); err != nil {
 		return err
 	}
 	claudeSkillsRoot := filepath.Join(temporaryRoot, ".claude", "skills")
 	if err := ensureRelativeSymlink(claudeSkillsRoot, filepath.Join("..", ".agents", "skills")); err != nil {
-		if copyErr := copyPlatformDirectory(filepath.Join(temporaryRoot, ".agents", "skills"), claudeSkillsRoot); copyErr != nil {
+		if copyErr := copyDirectoryTree(filepath.Join(temporaryRoot, ".agents", "skills"), claudeSkillsRoot); copyErr != nil {
 			return fmt.Errorf("创建 Claude Skill 入口失败: %w；镜像目录也失败: %v", err, copyErr)
 		}
 	}
@@ -137,7 +137,7 @@ func replacePlatformSkillLibrary(sourceRoot string, targetRoot string, fingerpri
 	return nil
 }
 
-func copyPlatformDirectory(sourceRoot string, targetRoot string) error {
+func copyDirectoryTree(sourceRoot string, targetRoot string) error {
 	if err := os.MkdirAll(targetRoot, 0o755); err != nil {
 		return err
 	}
