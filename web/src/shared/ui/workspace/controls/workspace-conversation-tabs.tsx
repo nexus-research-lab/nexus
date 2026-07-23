@@ -21,7 +21,7 @@ interface WorkspaceConversationTabsProps {
 }
 
 const TRACK_CLASS_NAME =
-  "workspace-surface-header-session-tabs-track flex h-9 w-full min-w-0 items-center gap-1.5 overflow-hidden px-0.5 py-0.5";
+  "workspace-surface-header-session-tabs-track flex h-10 w-full min-w-0 items-center gap-1.5 overflow-hidden px-0.5 py-0.5";
 
 export function WorkspaceConversationTabs({
   conversations,
@@ -96,7 +96,7 @@ export function WorkspaceConversationTabs({
 
       <div className="workspace-surface-header-session-tabs-actions flex shrink-0 items-center">
         {controller.tabsScroll.hasOverflow || onCreateConversation ? (
-          <div className="inline-flex h-8 shrink-0 items-stretch overflow-hidden rounded-full border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_88%,var(--foreground)_12%)] bg-transparent shadow-none transition-[border-color] duration-(--motion-duration-fast) hover:border-[color:color-mix(in_srgb,var(--divider-strong-color)_78%,var(--foreground)_22%)]">
+          <div className="inline-flex h-9 shrink-0 items-stretch overflow-hidden rounded-full border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_88%,var(--foreground)_12%)] bg-transparent shadow-none transition-[border-color] duration-(--motion-duration-fast) hover:border-[color:color-mix(in_srgb,var(--divider-strong-color)_78%,var(--foreground)_22%)]">
             {controller.tabsScroll.hasOverflow ? (
               <ConversationTabsOverview
                 activeConversationId={controller.activeConversationId}

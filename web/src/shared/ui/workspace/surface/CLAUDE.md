@@ -3,7 +3,7 @@
 - `workspace-surface-header.tsx` 只组合单行身份、导航和尾部插槽；不存在真实消费者的布局模式不得保留在公共契约中。
 - 所有带标签的 Header 在窄容器中把次级视图收进带当前标签文字的菜单；Room 额外优先保留当前会话标题、创建入口和历史入口，不得退化为一排无语义图标。
 - `workspace-surface-toolbar-action.tsx` 统一 Surface 工具栏动作外观，不依赖 Header 的布局实现。
-- `workspace-header-layout.ts` 保存侧边栏与主内容区共用的高度基线，布局双方不得复制数值。
+- `workspace-header-layout.ts` 保存侧边栏与主内容区共用的 60px 桌面高度基线，布局双方不得复制数值；会话标签和动作随基线同步增高，不能只给外层追加空白。
 - `workspace-surface-scaffold.tsx` 只提供 Header 与主画布骨架；业务滚动、状态和命令留在调用方。
 - `workspace-surface-view.tsx` 用 `page`、`overlay` 与缺省无障碍标题表达三种真实模式；不得重新引入控制标题组合的布尔参数。
 - 标题、标签和中部导航的可选组合在各自私有组件内收口，根 Header 不维护布尔状态矩阵。

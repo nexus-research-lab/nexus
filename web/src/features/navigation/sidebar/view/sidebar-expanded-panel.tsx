@@ -111,13 +111,30 @@ export function SidebarExpandedPanel({
           to={AppRouteBuilders.launcher()}
         >
           <p
-            className="whitespace-nowrap px-4 text-[20px] uppercase tracking-[0.5em] text-(--text-default)"
+            className="relative isolate whitespace-nowrap px-4 text-[22px] uppercase leading-none tracking-[0.42em]"
             style={{
               fontFamily: '"Panchang", var(--font-sans)',
-              fontWeight: 200,
+              fontWeight: 420,
             }}
           >
-            NEXUS
+            <span
+              aria-hidden="true"
+              className="absolute inset-x-4 top-0 translate-y-[1.5px] text-[color:color-mix(in_srgb,var(--text-strong)_38%,transparent)] opacity-60 blur-[0.2px]"
+            >
+              NEXUS
+            </span>
+            <span
+              className="relative bg-clip-text text-transparent"
+              style={{
+                backgroundImage:
+                  "linear-gradient(180deg, color-mix(in srgb, var(--text-strong) 94%, white 6%) 4%, var(--text-default) 48%, color-mix(in srgb, var(--text-muted) 72%, var(--text-strong) 28%) 100%)",
+                filter:
+                  "drop-shadow(0 1px 0 color-mix(in srgb, white 38%, transparent)) drop-shadow(0 4px 6px color-mix(in srgb, var(--text-strong) 12%, transparent))",
+                WebkitBackgroundClip: "text",
+              }}
+            >
+              NEXUS
+            </span>
           </p>
         </Link>
       </div>
