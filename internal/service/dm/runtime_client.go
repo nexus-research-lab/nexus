@@ -49,6 +49,27 @@ func (s *Service) ensureClient(
 	if err := workspacepkg.EnsurePlatformSkillLibrary(); err != nil {
 		return nil, "", "", "", "", "", nil, permissionMode, err
 	}
+	if err := workspacepkg.EnsureUserSkillLibrary(agentValue.OwnerUserID); err != nil {
+		return nil, "", "", "", "", "", nil, permissionMode, err
+	}
+	if selected, changed, err := workspacepkg.MergeLegacyExternalSkillReferences(
+		agentValue.OwnerUserID,
+		agentValue.WorkspacePath,
+		agentValue.Options.SkillIDs,
+	); err != nil {
+		return nil, "", "", "", "", "", nil, permissionMode, err
+	} else if changed {
+		options := agentValue.Options
+		options.SkillIDs = selected
+		updatedAgent, updateErr := s.agents.UpdateAgent(ctx, agentValue.AgentID, protocol.UpdateRequest{Options: &options})
+		if updateErr != nil {
+			return nil, "", "", "", "", "", nil, permissionMode, updateErr
+		}
+		if updatedAgent == nil {
+			return nil, "", "", "", "", "", nil, permissionMode, errors.New("迁移外部 Skill 引用后未返回 Agent")
+		}
+		*agentValue = *updatedAgent
+	}
 	if err := workspacepkg.EnsureInitialized(
 		agentValue.AgentID,
 		agentValue.Name,
@@ -56,6 +77,9 @@ func (s *Service) ensureClient(
 		agentValue.IsMain,
 		agentValue.CreatedAt,
 	); err != nil {
+		return nil, "", "", "", "", "", nil, permissionMode, err
+	}
+	if err := workspacepkg.EnsureExternalSkillWorkspaceClean(agentValue.OwnerUserID, agentValue.WorkspacePath); err != nil {
 		return nil, "", "", "", "", "", nil, permissionMode, err
 	}
 	runtimeSkillNames, err := workspacepkg.RuntimeSkillNames(agentValue.WorkspacePath, agentValue.Options.SkillIDs)
@@ -110,7 +134,7 @@ func (s *Service) ensureClient(
 		AllowedTools:               toolpolicy.WithManagedRuntimeAllowedTools(agentValue.Options.AllowedTools, s.runtimeImagegenDefaultEnabled(ctx)),
 		DisallowedTools:            agentValue.Options.DisallowedTools,
 		SkillIDs:                   runtimeSkillNames,
-		SkillDirectories:           []string{appfs.PlatformSkillRoot()},
+		SkillDirectories:           appfs.SkillLibraryRoots(agentValue.OwnerUserID),
 		SettingSources:             agentValue.Options.SettingSources,
 		AppendSystemPrompt:         appendSystemPrompt,
 		ResumeSessionID:            dmdomain.StringPointerValue(sessionItem.SessionID),

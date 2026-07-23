@@ -1,6 +1,7 @@
 package skills
 
 import (
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -9,6 +10,20 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 )
+
+func validateSkillName(name string) error {
+	trimmed := strings.TrimSpace(name)
+	if trimmed == "" {
+		return errors.New("skill name 不能为空")
+	}
+	if trimmed == "." || trimmed == ".." || strings.ContainsAny(trimmed, "/\\\x00") {
+		return errors.New("skill name 不能包含路径分隔符")
+	}
+	if strings.HasPrefix(strings.ToLower(trimmed), "external:") {
+		return errors.New("skill name 不能使用保留引用前缀")
+	}
+	return nil
+}
 
 func readSkillSource(sourceDir string) (string, string, string, error) {
 	skillMDPath := filepath.Join(sourceDir, "SKILL.md")

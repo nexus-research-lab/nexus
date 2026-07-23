@@ -74,10 +74,20 @@ func (b *promptBuilder) newBuildScope(agentValue *protocol.Agent) promptBuildSco
 	if workspacePath == "" {
 		workspacePath = ResolveWorkspacePath(b.config, agentValue.OwnerUserID, agentValue.AgentID)
 	}
+	skillNames := make([]string, 0, len(agentValue.Options.SkillIDs))
+	for _, reference := range agentValue.Options.SkillIDs {
+		name := strings.TrimSpace(reference)
+		if externalName, ok := protocol.ParseExternalSkillReference(name); ok {
+			name = externalName
+		}
+		if name != "" {
+			skillNames = append(skillNames, name)
+		}
+	}
 	return promptBuildScope{
 		isMainAgent:   isMainAgentPrompt(agentValue, b.config.DefaultAgentID),
 		workspacePath: workspacePath,
-		skillNames:    append([]string(nil), agentValue.Options.SkillIDs...),
+		skillNames:    skillNames,
 	}
 }
 

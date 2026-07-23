@@ -46,9 +46,9 @@ type AgentClientOptionsInput struct {
 	PermissionHandler sdkpermission.Handler
 	AllowedTools      []string
 	DisallowedTools   []string
-	// SkillIDs 是宿主保存的稳定 ID，进入 SDK 前投影为当前 runtime 的 Skill 名称白名单。
+	// SkillIDs 是宿主保存的 Skill 引用，进入 SDK 前投影为当前 runtime 的 Skill 名称白名单。
 	SkillIDs []string
-	// SkillDirectories 是宿主授予 runtime 的平台资源根，不随 Agent workspace 变化。
+	// SkillDirectories 是宿主授予 runtime 的平台与用户级资源根，不随 Agent workspace 变化。
 	SkillDirectories           []string
 	SettingSources             []string
 	AppendSystemPrompt         string

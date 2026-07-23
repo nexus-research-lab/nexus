@@ -10,6 +10,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 var (
@@ -94,15 +96,23 @@ func ListDeployedSkills(workspacePath string) ([]string, error) {
 	return result, nil
 }
 
-// RuntimeSkillNames 合并平台选择与 workspace 已部署 Skill，形成运行时白名单。
+// RuntimeSkillNames 合并 Agent 引用与 workspace-local Skill，形成运行时白名单。
 //
-// 平台 Skill 只保存稳定 ID；外部和 workspace-local Skill 仍以文件部署，因此
-// 必须在启动 runtime 时补入名称，避免显式平台白名单把旧机制中的 Skill 过滤掉。
+// 外部引用以 external:<name> 形式持久化，进入 SDK 前还原为 canonical name；
+// workspace-local Skill 仍从 workspace 文件发现，避免显式白名单把它过滤掉。
 func RuntimeSkillNames(workspacePath string, selectedSkillIDs []string) ([]string, error) {
-	result := slices.Clone(selectedSkillIDs)
+	result := make([]string, 0, len(selectedSkillIDs))
 	seen := make(map[string]struct{}, len(result))
-	for _, name := range result {
+	for _, reference := range selectedSkillIDs {
+		name := reference
+		if externalName, ok := protocol.ParseExternalSkillReference(reference); ok {
+			name = externalName
+		}
 		if normalized := strings.ToLower(strings.TrimSpace(name)); normalized != "" {
+			if _, exists := seen[normalized]; exists {
+				continue
+			}
+			result = append(result, name)
 			seen[normalized] = struct{}{}
 		}
 	}

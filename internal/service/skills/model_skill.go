@@ -64,8 +64,9 @@ type Info struct {
 // Detail 表示 skill 详情。
 type Detail struct {
 	Info
-	ReadmeMarkdown  string                 `json:"readme_markdown"`
-	Recommendation  string                 `json:"recommendation"`
+	ReadmeMarkdown string `json:"readme_markdown"`
+	Recommendation string `json:"recommendation"`
+	// 兼容既有前端字段名；当前表示用户级源同步结果，而非 workspace 复制结果。
 	DeploySuccesses []RedeployAgentSuccess `json:"deploy_successes,omitempty"`
 	DeployFailures  []RedeployAgentFailure `json:"deploy_failures,omitempty"`
 }

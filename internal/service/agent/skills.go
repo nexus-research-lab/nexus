@@ -33,7 +33,11 @@ func countDeployedSkills(workspacePath string, selectedNames ...string) (int, er
 	root := strings.TrimSpace(workspacePath)
 	skillNames := map[string]struct{}{}
 	for _, name := range selectedNames {
-		if normalized := strings.TrimSpace(name); normalized != "" {
+		normalized := strings.TrimSpace(name)
+		if externalName, ok := protocol.ParseExternalSkillReference(normalized); ok {
+			normalized = externalName
+		}
+		if normalized != "" {
 			skillNames[normalized] = struct{}{}
 		}
 	}

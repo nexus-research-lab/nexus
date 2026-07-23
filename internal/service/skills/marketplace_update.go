@@ -85,7 +85,7 @@ func (s *Service) UpdateImportedSkills(ctx context.Context) (*UpdateInstalledSki
 			continue
 		}
 		result.UpdatedSkills = append(result.UpdatedSkills, name)
-		redeployResult, redeployErr := s.redeploySkillToInstalledAgents(ctx, detail.Name)
+		redeployResult, redeployErr := s.refreshSkillForInstalledAgents(ctx, detail.Name)
 		if redeployErr != nil {
 			result.Failures = append(result.Failures, SkillActionFailure{
 				SkillName: name,
@@ -126,7 +126,7 @@ func (s *Service) UpdateSingleSkill(ctx context.Context, skillName string) (*Det
 	if err != nil {
 		return nil, err
 	}
-	redeployResult, err := s.redeploySkillToInstalledAgents(ctx, detail.Name)
+	redeployResult, err := s.refreshSkillForInstalledAgents(ctx, detail.Name)
 	if err != nil {
 		return nil, err
 	}

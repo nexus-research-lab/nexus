@@ -216,7 +216,7 @@ func TestRuntimeSkillNamesKeepsWorkspaceDeployedSkills(t *testing.T) {
 		}
 	}
 
-	got, err := RuntimeSkillNames(workspacePath, []string{"imagegen", "ima-skill"})
+	got, err := RuntimeSkillNames(workspacePath, []string{"imagegen", "external:ima-skill"})
 	if err != nil {
 		t.Fatalf("合并 runtime Skill 名称失败: %v", err)
 	}

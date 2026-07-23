@@ -1,6 +1,8 @@
 package appfs
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"os"
 	"path/filepath"
 	"strings"
@@ -44,6 +46,63 @@ func AgentRuntimeBinDir() string {
 // 和 Claude Code 运行时发现同一份平台 Skill 文件。
 func PlatformSkillRoot() string {
 	return filepath.Join(ConfigDir(), "platform-skills")
+}
+
+// UserSkillLibraryRoot 返回指定用户的外部 Skill 全局兼容根。
+//
+// 平台 Skill 和用户外部 Skill 使用不同根目录，避免第三方更新覆盖产品随包内容。
+func UserSkillLibraryRoot(ownerUserID string) string {
+	return filepath.Join(ConfigDir(), "skill-libraries", "users", safePathSegment(ownerUserID))
+}
+
+// UserSkillDiscoveryRoot 返回用户外部 Skill 的 nxs/Claude 共同发现目录。
+func UserSkillDiscoveryRoot(ownerUserID string) string {
+	return filepath.Join(UserSkillLibraryRoot(ownerUserID), ".agents", "skills")
+}
+
+// SkillLibraryRoots 返回 runtime 需要读取的平台与当前用户 Skill 根。
+func SkillLibraryRoots(ownerUserID string) []string {
+	return []string{PlatformSkillRoot(), UserSkillLibraryRoot(ownerUserID)}
+}
+
+func safePathSegment(value string) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return "__system__"
+	}
+	var builder strings.Builder
+	for _, character := range trimmed {
+		switch {
+		case character >= 'a' && character <= 'z', character >= 'A' && character <= 'Z', character >= '0' && character <= '9':
+			builder.WriteRune(character)
+		case character == '-', character == '_', character == '.', character == '@':
+			builder.WriteRune(character)
+		default:
+			builder.WriteRune('_')
+		}
+	}
+	sanitized := builder.String()
+	if sanitized == "" {
+		return "__system__"
+	}
+	if sanitized == "." || sanitized == ".." || sanitized != trimmed || isReservedWindowsPathSegment(sanitized) {
+		sum := sha256.Sum256([]byte(trimmed))
+		return sanitized + "-" + hex.EncodeToString(sum[:4])
+	}
+	return sanitized
+}
+
+func isReservedWindowsPathSegment(value string) bool {
+	upper := strings.ToUpper(strings.TrimRight(value, " ."))
+	if dot := strings.IndexByte(upper, '.'); dot >= 0 {
+		upper = upper[:dot]
+	}
+	switch upper {
+	case "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9":
+		return true
+	default:
+		return false
+	}
 }
 
 func expandHome(path string) string {

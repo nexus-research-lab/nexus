@@ -12,6 +12,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	workspacesvc "github.com/nexus-research-lab/nexus/internal/service/workspace"
 )
 
 // ImportUploadedArchive 从浏览器上传的 zip 导入技能。
@@ -280,14 +283,31 @@ func (s *Service) importSourceDir(ctx context.Context, sourceDir string, manifes
 		return nil, err
 	}
 	parsed := parseSkillFrontmatter(content, firstNonEmpty(manifest.Name, skillName))
+	parsed.Name = strings.TrimSpace(parsed.Name)
 	if parsed.Name == "" {
 		return nil, errors.New("SKILL.md 缺少 name")
 	}
-	targetDir := filepath.Join(s.registryRoot(ctx), parsed.Name)
-	if err = os.RemoveAll(targetDir); err != nil {
+	if err = validateSkillName(parsed.Name); err != nil {
 		return nil, err
 	}
-	if err = copyDirectory(filepath.Dir(skillMDPath), targetDir); err != nil {
+	if err = s.ensureExternalSkillNameAvailable(ctx, parsed.Name); err != nil {
+		return nil, err
+	}
+	ownerUserID := authctx.OwnerUserID(ctx)
+	if err = workspacesvc.EnsureUserSkillLibrary(ownerUserID); err != nil {
+		return nil, err
+	}
+	root := s.registryRoot(ctx)
+	if err = os.MkdirAll(root, 0o755); err != nil {
+		return nil, err
+	}
+	targetDir := filepath.Join(root, parsed.Name)
+	stagingDir, err := os.MkdirTemp(root, ".external-skill-")
+	if err != nil {
+		return nil, err
+	}
+	defer os.RemoveAll(stagingDir)
+	if err = copyDirectory(filepath.Dir(skillMDPath), stagingDir); err != nil {
 		return nil, err
 	}
 	manifest.Name = parsed.Name
@@ -303,7 +323,13 @@ func (s *Service) importSourceDir(ctx context.Context, sourceDir string, manifes
 	if err != nil {
 		return nil, err
 	}
-	if err = os.WriteFile(filepath.Join(targetDir, ".nexus-skill.json"), payload, 0o644); err != nil {
+	if err = os.WriteFile(filepath.Join(stagingDir, ".nexus-skill.json"), payload, 0o644); err != nil {
+		return nil, err
+	}
+	if err = workspacesvc.ReplaceDirectory(stagingDir, targetDir); err != nil {
+		return nil, err
+	}
+	if err = workspacesvc.EnsureUserSkillLibrary(ownerUserID); err != nil {
 		return nil, err
 	}
 	if err = s.upsertImportedSkillRecord(ctx, targetDir, manifest, parsed); err != nil {
@@ -311,6 +337,66 @@ func (s *Service) importSourceDir(ctx context.Context, sourceDir string, manifes
 		return nil, err
 	}
 	return s.GetSkillDetail(ctx, parsed.Name, "")
+}
+
+func (s *Service) ensureExternalSkillNameAvailable(ctx context.Context, name string) error {
+	trimmed := strings.TrimSpace(name)
+	if containsSkillName(systemSkillNames, trimmed) {
+		return errors.New("系统 Skill 名称不能被外部来源覆盖")
+	}
+	if containsSkillName(internalSkillNames, trimmed) {
+		return errors.New("内部 Skill 名称不能被外部来源覆盖")
+	}
+	for _, root := range builtinSearchRoots(projectRoot()) {
+		exists, searchErr := skillNameExists(root, trimmed)
+		if searchErr != nil {
+			return searchErr
+		}
+		if exists {
+			return errors.New("已有本地 Skill 使用该名称，外部来源不能覆盖")
+		}
+	}
+	root := s.registryRoot(ctx)
+	entries, err := os.ReadDir(root)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	for _, entry := range entries {
+		if strings.EqualFold(entry.Name(), trimmed) && entry.Name() != trimmed {
+			return errors.New("已有外部 Skill 使用仅大小写不同的名称")
+		}
+	}
+	return nil
+}
+
+func containsSkillName(names map[string]struct{}, target string) bool {
+	for name := range names {
+		if strings.EqualFold(name, target) {
+			return true
+		}
+	}
+	return false
+}
+
+func skillNameExists(root string, target string) (bool, error) {
+	entries, err := os.ReadDir(root)
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	for _, entry := range entries {
+		if !strings.EqualFold(entry.Name(), target) {
+			continue
+		}
+		if _, statErr := os.Stat(filepath.Join(root, entry.Name(), "SKILL.md")); statErr == nil {
+			return true, nil
+		} else if !os.IsNotExist(statErr) {
+			return false, statErr
+		}
+	}
+	return false, nil
 }
 
 func (s *Service) readManifest(skillDir string) (externalManifest, error) {

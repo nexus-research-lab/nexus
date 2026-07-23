@@ -145,7 +145,7 @@ Provider 预设通过 `endpoint_mode` 声明端点来源：`fixed` 使用内置�
 | GET | `/agents/{agent_id}/private-domain/threads` | 私域线程列表 | — | — |
 | GET | `/agents/{agent_id}/private-domain/threads/{thread_id}/events` | 私域线程事件 | — | — |
 
-`Agent.options.skill_ids` 保存平台 Skill 的稳定 ID。平台 Skill 由全局兼容根统一提供，Agent workspace 不保存平台副本；外部或 workspace-local Skill 仍按各自的文件部署规则工作。
+`Agent.options.skill_ids` 保存平台 Skill 的稳定 ID，或用户级外部 Skill 的 `external:<skill_name>` 引用。平台与外部 Skill 分别由全局兼容根和 owner 用户级 `.agents/skills` 源提供，Agent workspace 不保存它们的副本；只有 workspace-local Skill 保留 workspace 文件。
 
 ### Agent 技能挂载
 
