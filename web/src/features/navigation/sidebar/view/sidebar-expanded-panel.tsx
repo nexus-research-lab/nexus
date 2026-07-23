@@ -98,7 +98,7 @@ export function SidebarExpandedPanel({
     >
       <div
         className={cn(
-          "grid grid-cols-[46px_minmax(0,1fr)] items-center gap-1.5 border-b divider-subtle px-3",
+          "-mr-1.5 grid grid-cols-[46px_minmax(0,1fr)] items-center gap-1.5 border-b divider-subtle px-3",
           WORKSPACE_HEADER_HEIGHT_CLASS,
           "max-lg:px-4",
         )}

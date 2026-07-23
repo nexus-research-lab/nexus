@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Closed the 6px divider gap between the expanded sidebar brand row and the workspace header while preserving the sidebar body's outer breathing space.
 - Increased the shared desktop workspace header from 52px to 60px with proportionally taller conversation tabs and actions, and gave the Panchang NEXUS wordmark a restrained weighted, shaded, and softly embossed treatment instead of leaving the ultra-wide header visually flat.
 - Replaced broad blue-gray selection fills across conversation tabs, primary chat navigation, sidebar rows, menus, and the mobile conversation switcher with neutral active surfaces and stronger text, leaving the brand color only on compact state indicators.
 - Restored a low-contrast, theme-aware shadow tray beneath the conversation tab strip while keeping the overflow and create controls transparent and preserving the stronger raised state for the active Session.
