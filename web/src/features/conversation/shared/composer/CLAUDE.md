@@ -20,6 +20,7 @@ L4 | 父级: web/src/features/conversation/shared
 输入区 Props 由 DM/Room 的真实消费面定义，不保留无调用者的兼容参数。
 紧凑 Composer 只用于手机与窄窗专注模式：外层至少保留 16px 横向安全留白，较宽窄窗保持 720px 居中上限，底部留白必须覆盖常规间距与系统 safe area；不得把输入壳铺满整个视口。
 常规桌面 Composer 在底部保留 16px 呼吸区，使输入壳与窗口边缘分离；不得通过改变输入壳自身高度模拟抬升。
+常规桌面 Composer 与消息轨道使用 `conversation-panel-styles.ts` 的同一宽度阶梯；超宽屏允许 Composer 比正文轨道略宽，但两者必须保持同一中心线。
 队列命令、停止动作和附件准备是 DM/Room 的共同必需能力，不恢复无真实消费者的可选处理器分支。
 Mention 目标只投影成员标记和标签；匹配、插入、键盘与浮层规则归 `shared/ui/mention/`。
 附件必须先整批校验再上传；DM/Room 只提供目标作用域，不得复制格式规则或上传循环。

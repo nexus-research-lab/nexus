@@ -5,6 +5,7 @@ import { memo } from "react";
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 
+import { CONVERSATION_COMPOSER_LANE_CLASS_NAME } from "../conversation-panel-styles";
 import { COMPOSER_ATTACHMENT_ACCEPT } from "./attachments/composer-attachments";
 import { ComposerAttachmentList } from "./attachments/composer-local-attachments";
 import { ComposerFooter } from "./components/footer/composer-footer";
@@ -29,10 +30,10 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
     <section
       data-tour-anchor={props.tourAnchor}
       className={cn(
-        "mx-auto w-full bg-transparent",
+        "bg-transparent",
         props.compact
-          ? "max-w-[720px] px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2"
-          : "max-w-[1020px] px-3 pb-4 pt-2 sm:px-5 xl:px-6",
+          ? "mx-auto w-full max-w-[720px] px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2"
+          : `${CONVERSATION_COMPOSER_LANE_CLASS_NAME} px-3 pb-4 pt-2 sm:px-5 xl:px-6`,
       )}
     >
       <input

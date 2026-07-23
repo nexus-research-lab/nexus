@@ -3,6 +3,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 
 import { estimateRoundHeights } from "@/hooks/conversation/use-message-height";
 
+import { CONVERSATION_CONTENT_LANE_CLASS_NAME } from "../conversation-panel-styles";
 import {
   resolveConversationRound,
   type ConversationFeedProps,
@@ -70,7 +71,7 @@ export function ConversationVirtualFeed({
       className={
         isMobileLayout
           ? "nexus-chat-feed relative"
-          : "nexus-chat-feed relative mx-auto w-full max-w-[980px]"
+          : `nexus-chat-feed relative ${CONVERSATION_CONTENT_LANE_CLASS_NAME}`
       }
       style={{ height: virtualizer.getTotalSize() }}
     >

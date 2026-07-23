@@ -1,5 +1,6 @@
 import { memo, useMemo, useRef } from "react";
 
+import { CONVERSATION_CONTENT_LANE_CLASS_NAME } from "@/features/conversation/shared/conversation-panel-styles";
 import {
   buildGroupConversationRoundAliases,
   resolveGroupConversationRound,
@@ -61,7 +62,7 @@ function StaticGroupConversationFeed({
       className={
         isMobileLayout
           ? "nexus-chat-feed space-y-4"
-          : "nexus-chat-feed mx-auto flex w-full max-w-[980px] flex-col gap-1"
+          : `nexus-chat-feed ${CONVERSATION_CONTENT_LANE_CLASS_NAME} flex flex-col gap-1`
       }
     >
       {source.roundIds.map((roundId, index) => {

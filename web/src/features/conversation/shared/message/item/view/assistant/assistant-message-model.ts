@@ -11,6 +11,7 @@ import type {
   PermissionDecisionPayload,
 } from "@/types/conversation/interaction/permission";
 
+import { CONVERSATION_ASSISTANT_CONTENT_WIDTH_CLASS_NAME } from "../../../../conversation-panel-styles";
 import type { AssistantContentMode, ContentProjection } from "../../message-item-projection";
 import type { MessageActivityState } from "../../activity/message-activity-state";
 
@@ -169,7 +170,7 @@ const ASSISTANT_LAYOUTS = {
     content: "text-[16px] leading-7",
     grid:
       "nexus-chat-assistant-grid-expanded grid-cols-[40px_minmax(0,1fr)] gap-3",
-    inner: "max-w-[980px]",
+    inner: CONVERSATION_ASSISTANT_CONTENT_WIDTH_CLASS_NAME,
     section: "px-2 sm:px-3",
     showSideAvatar: true,
   },

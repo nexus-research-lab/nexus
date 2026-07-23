@@ -3,6 +3,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 
 import { useConversationRoundNavigation } from "@/features/conversation/shared/feed/use-conversation-round-navigation";
 import { useConversationVirtualMetrics } from "@/features/conversation/shared/feed/use-conversation-virtual-metrics";
+import { CONVERSATION_CONTENT_LANE_CLASS_NAME } from "@/features/conversation/shared/conversation-panel-styles";
 import { estimateRoundHeights } from "@/hooks/conversation/use-message-height";
 
 import {
@@ -79,7 +80,7 @@ export function GroupConversationVirtualFeed({
       className={
         isMobileLayout
           ? "nexus-chat-feed relative"
-          : "nexus-chat-feed relative mx-auto w-full max-w-[980px]"
+          : `nexus-chat-feed relative ${CONVERSATION_CONTENT_LANE_CLASS_NAME}`
       }
       style={{ height: virtualizer.getTotalSize() }}
     >

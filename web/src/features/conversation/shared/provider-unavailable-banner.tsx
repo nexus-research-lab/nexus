@@ -6,13 +6,19 @@ import { Link } from "react-router-dom";
 import { APP_ROUTE_PATHS } from "@/app/router/route-paths";
 import { cn } from "@/shared/ui/class-name";
 
+import { CONVERSATION_CONTENT_LANE_CLASS_NAME } from "./conversation-panel-styles";
+
 interface ProviderUnavailableBannerProps {
   compact?: boolean;
 }
 
 export function ProviderUnavailableBanner({ compact = false }: ProviderUnavailableBannerProps) {
   return (
-    <div className={cn(compact ? "px-1 pb-1" : "mx-auto w-full max-w-[980px] px-4 pb-2 sm:px-6 xl:px-8")}>
+    <div className={cn(
+      compact
+        ? "px-1 pb-1"
+        : `${CONVERSATION_CONTENT_LANE_CLASS_NAME} px-4 pb-2 sm:px-6 xl:px-8`,
+    )}>
       <div className="flex items-center gap-2 radius-control-md border border-[color:color-mix(in_srgb,var(--warning)_26%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] px-3 py-2 text-xs text-(--warning)">
         <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
         <span className="min-w-0 flex-1">

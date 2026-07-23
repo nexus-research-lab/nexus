@@ -1,6 +1,7 @@
 import type { ComponentProps, ReactNode, RefObject } from "react";
 
 import { ConversationErrorBubble } from "./conversation-error-bubble";
+import { CONVERSATION_CONTENT_LANE_CLASS_NAME } from "./conversation-panel-styles";
 import { ProviderUnavailableBanner } from "./provider-unavailable-banner";
 import { ScrollToLatestButton } from "./scroll-to-latest-button";
 
@@ -70,7 +71,7 @@ export function ConversationPanelViewport({
       onWheel={viewport.onWheel}
     >
       {viewport.isHistoryLoading ? (
-        <div className="mx-auto mb-3 flex w-full max-w-[980px] items-center justify-center text-xs text-muted-foreground">
+        <div className={`${CONVERSATION_CONTENT_LANE_CLASS_NAME} mb-3 flex items-center justify-center text-xs text-muted-foreground`}>
           正在加载更早消息...
         </div>
       ) : null}
@@ -78,7 +79,9 @@ export function ConversationPanelViewport({
       {viewport.error ? (
         <div
           className={
-            isMobileLayout ? "mt-4" : "mx-auto mt-2 w-full max-w-[980px]"
+            isMobileLayout
+              ? "mt-4"
+              : `${CONVERSATION_CONTENT_LANE_CLASS_NAME} mt-2`
           }
         >
           <ConversationErrorBubble

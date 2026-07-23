@@ -5,6 +5,7 @@
 ## 根模块
 
 - `conversation-panel-layout.tsx`：会话面板通用布局和浮层控件。
+- `conversation-panel-styles.ts`：统一消息流、助手正文、告警与 Composer 的桌面宽度阶梯。
 - `conversation-panel-model.ts`：把共享会话控制器和面板环境投影为 Frame、导航、视口和滚动控件模型。
 - `use-conversation-panel-environment.ts`：统一读取用户头像、布局模式和 Provider 告警状态。
 - `use-conversation-snapshot-reporter.ts`：按会话作用域报告稳定快照，并统一活跃时间字段投影。
@@ -16,3 +17,4 @@
 - 纯投影不得持有 React 状态或调用领域 API。
 - 错误分类按具体 Provider、实时连接、通用后端的顺序匹配，不在视图中追加条件分支。
 - 具体 Feed、Goal 和 Composer 模型由各自领域定义。
+- 常规桌面保持紧凑阅读宽度；超宽屏只按共享阶梯放宽消息轨道和 Composer，助手正文使用更小的可读上限，禁止各消费面自行复制宽度断点。
