@@ -74,10 +74,10 @@ function getItemStateClassName(item: UiActionMenuItem) {
     return "text-(--destructive) hover:bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)]";
   }
   if (item.active && item.tone === "primary") {
-    return "bg-[color:color-mix(in_srgb,var(--primary)_11%,transparent)] font-semibold text-(--primary) hover:bg-[color:color-mix(in_srgb,var(--primary)_14%,transparent)]";
+    return "bg-(--surface-interactive-active-background) font-semibold text-(--primary) hover:bg-(--surface-interactive-hover-background)";
   }
   if (item.active) {
-    return "bg-[color:color-mix(in_srgb,var(--primary)_11%,transparent)] font-semibold text-(--text-strong) hover:bg-[color:color-mix(in_srgb,var(--primary)_14%,transparent)]";
+    return "bg-(--surface-interactive-active-background) font-semibold text-(--text-strong) hover:bg-(--surface-interactive-hover-background)";
   }
   if (item.tone === "primary") {
     return "text-(--primary) hover:bg-[color:color-mix(in_srgb,var(--primary)_9%,transparent)]";

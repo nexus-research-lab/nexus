@@ -24,13 +24,13 @@ const TAB_STATE_PRESENTATIONS = {
     closeClassName: "opacity-80 hover:opacity-100",
     indicatorClassName: "bg-(--primary) shadow-[0_0_0_2px_color-mix(in_srgb,var(--primary)_10%,transparent)]",
     minWidth: ACTIVE_TAB_MIN_WIDTH,
-    rootClassName: "z-10 border-[color:color-mix(in_srgb,var(--primary)_22%,var(--divider-subtle-color)_78%)] bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_88%,var(--primary)_12%)] font-semibold text-(--text-strong) shadow-[0_1px_2px_rgba(15,23,42,0.10),0_4px_12px_color-mix(in_srgb,var(--primary)_10%,rgba(15,23,42,0.05))] hover:border-[color:color-mix(in_srgb,var(--primary)_30%,var(--divider-subtle-color)_70%)]",
+    rootClassName: "z-10 border-[color:color-mix(in_srgb,var(--divider-strong-color)_78%,transparent)] bg-(--surface-interactive-active-background) font-semibold text-(--text-strong) shadow-[0_1px_2px_rgba(15,23,42,0.08),0_4px_12px_rgba(15,23,42,0.06)] hover:border-[color:color-mix(in_srgb,var(--divider-strong-color)_92%,transparent)]",
   },
   inactive: {
     closeClassName: "opacity-0 group-hover:opacity-100",
     indicatorClassName: "border border-[color:color-mix(in_srgb,var(--icon-muted)_72%,transparent)] bg-transparent group-hover:border-(--icon-default) group-hover:bg-[color:color-mix(in_srgb,var(--icon-default)_28%,transparent)]",
     minWidth: INACTIVE_TAB_MIN_WIDTH,
-    rootClassName: "bg-transparent text-(--text-muted) shadow-none hover:border-[color:color-mix(in_srgb,var(--divider-subtle-color)_58%,transparent)] hover:bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_54%,transparent)] hover:text-(--text-strong)",
+    rootClassName: "bg-transparent text-(--text-soft) shadow-none hover:border-[color:color-mix(in_srgb,var(--divider-subtle-color)_58%,transparent)] hover:bg-(--surface-interactive-hover-background) hover:text-(--text-default)",
   },
 } as const satisfies Record<
   "active" | "inactive",

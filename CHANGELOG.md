@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Replaced broad blue-gray selection fills across conversation tabs, primary chat navigation, sidebar rows, menus, and the mobile conversation switcher with neutral active surfaces and stronger text, leaving the brand color only on compact state indicators.
 - Restored a low-contrast, theme-aware shadow tray beneath the conversation tab strip while keeping the overflow and create controls transparent and preserving the stronger raised state for the active Session.
 - Expanded the centered conversation rail progressively on wide and ultra-wide desktops, keeping messages, status surfaces, and the Composer on one axis while retaining a narrower readable limit for assistant prose and leaving compact layouts unchanged.
 - Combined the conversation overview and new-session actions into one neutral, transparent icon-only pill with width-aware spacing; overflowing tabs now recalculate complete visible slots and snap scrolling to tab boundaries while keeping emphasis on the active Session tab.

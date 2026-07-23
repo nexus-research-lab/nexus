@@ -14,6 +14,7 @@ interface UiListRowProps extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {
   children?: ReactNode;
   className?: string;
   description?: ReactNode;
+  inactiveTone?: "default" | "muted";
   leading?: ReactNode;
   meta?: ReactNode;
   onClick?: () => void;
@@ -28,6 +29,7 @@ export function UiListRow({
   children,
   className,
   description,
+  inactiveTone = "default",
   leading,
   meta,
   onClick: onClick,
@@ -39,6 +41,7 @@ export function UiListRow({
   const presentation = getUiListRowPresentation({
     active,
     className,
+    inactiveTone,
     interactive: Boolean(onClick),
   });
   return (

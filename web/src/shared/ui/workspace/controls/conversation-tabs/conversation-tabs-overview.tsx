@@ -68,7 +68,7 @@ export function ConversationTabsOverview({
             ].filter(Boolean).join(" · "),
             icon: <MessageSquareText className="h-4 w-4 text-(--icon-muted)" />,
             label: conversation.title?.trim() || t("room.untitled_conversation"),
-            tone: isActive ? "primary" as const : "default" as const,
+            tone: "default" as const,
             trailing: isActive ? (
               <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-(--primary)">
                 <Check className="h-3.5 w-3.5" />

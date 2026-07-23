@@ -72,7 +72,7 @@ export function RoomMobileConversationSwitcher({
                 aria-current={isActive ? "page" : undefined}
                 className={cn(
                   "group relative flex min-h-[68px] w-full items-center gap-3 overflow-hidden rounded-[12px] border border-transparent px-3 py-2.5 text-left transition-[background-color,border-color] duration-(--motion-duration-fast) hover:border-[color:color-mix(in_srgb,var(--divider-subtle-color)_72%,transparent)] hover:bg-(--surface-interactive-hover-background)",
-                  isActive && "border-[color:color-mix(in_srgb,var(--primary)_22%,transparent)] bg-[color:color-mix(in_srgb,var(--surface-interactive-active-background)_56%,transparent)]",
+                  isActive && "border-[color:color-mix(in_srgb,var(--divider-strong-color)_76%,transparent)] bg-(--surface-interactive-active-background)",
                 )}
                 onClick={() => {
                   onSelect(conversation.conversation_id);
@@ -90,7 +90,7 @@ export function RoomMobileConversationSwitcher({
 
                 <span className={cn(
                   "flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_50%,transparent)] text-(--icon-muted)",
-                  isActive && "border-[color:color-mix(in_srgb,var(--primary)_22%,var(--divider-subtle-color)_78%)] text-(--primary)",
+                  isActive && "border-(--divider-strong-color) bg-(--surface-interactive-hover-background) text-(--icon-strong)",
                 )}>
                   <MessageSquare className="h-[18px] w-[18px]" />
                 </span>
