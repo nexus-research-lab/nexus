@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed desktop local profiles being assigned an implicit Free subscription after saving an avatar, which exposed the server-only subscription UI and incorrectly enforced its monthly quota in the App.
+
 ## [0.1.28] - 2026-07-23
 
 ### Fixed
