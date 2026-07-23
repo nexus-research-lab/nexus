@@ -117,7 +117,7 @@ func (s *Service) Update(ctx context.Context, ownerUserID string, request Update
 
 func (s *Service) write(ownerUserID string, item Preferences) error {
 	path := s.preferencesPath(ownerUserID)
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
 	payload, err := json.MarshalIndent(item, "", "  ")
@@ -126,10 +126,17 @@ func (s *Service) write(ownerUserID string, item Preferences) error {
 	}
 	payload = append(payload, '\n')
 	tmpPath := path + ".tmp"
-	if err = os.WriteFile(tmpPath, payload, 0o644); err != nil {
+	if err = os.WriteFile(tmpPath, payload, 0o600); err != nil {
 		return err
 	}
-	return os.Rename(tmpPath, path)
+	if err = os.Chmod(tmpPath, 0o600); err != nil {
+		return err
+	}
+	if err = os.Rename(tmpPath, path); err != nil {
+		_ = os.Remove(tmpPath)
+		return err
+	}
+	return os.Chmod(path, 0o600)
 }
 
 func (s *Service) preferencesPath(ownerUserID string) string {
@@ -191,7 +198,7 @@ func (s *Service) writeWebSearchCredential(ownerUserID string, provider string, 
 		}
 		return nil
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
 	payload, err := json.Marshal(storedWebSearchCredential{
@@ -208,7 +215,11 @@ func (s *Service) writeWebSearchCredential(ownerUserID string, provider string, 
 	if err := os.Chmod(tmpPath, 0o600); err != nil {
 		return err
 	}
-	return os.Rename(tmpPath, path)
+	if err = os.Rename(tmpPath, path); err != nil {
+		_ = os.Remove(tmpPath)
+		return err
+	}
+	return os.Chmod(path, 0o600)
 }
 
 func decodePreferences(content []byte) (Preferences, error) {

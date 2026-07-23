@@ -61,7 +61,11 @@ func (s *AgentHistoryStore) DeleteTranscriptSession(workspacePath string, sessio
 
 // DeleteTranscriptProject 删除整个 workspace 对应的 transcript 项目目录。
 func (s *AgentHistoryStore) DeleteTranscriptProject(workspacePath string) (bool, error) {
-	projectDir := findTranscriptProjectDir(canonicalizeTranscriptPath(workspacePath))
+	canonicalPath := canonicalizeTranscriptPath(workspacePath)
+	projectDir := findTranscriptProjectDirAt(
+		transcriptProjectsDirForWorkspace(canonicalPath),
+		canonicalPath,
+	)
 	if strings.TrimSpace(projectDir) == "" {
 		return false, nil
 	}

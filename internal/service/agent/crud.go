@@ -377,7 +377,7 @@ func updatedAgentText(current string, requested *string) string {
 
 func (u *agentUpdate) finalize(updated *protocol.Agent) error {
 	normalizeAgentAvatar(updated)
-	if err := os.MkdirAll(updated.WorkspacePath, 0o755); err != nil {
+	if err := os.MkdirAll(updated.WorkspacePath, 0o700); err != nil {
 		return err
 	}
 	if err := EnsureRuntimeSettingsProjection(*updated); err != nil {

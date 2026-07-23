@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
@@ -99,7 +100,7 @@ func mustFindDMSession(
 	sessionKey string,
 ) (protocol.Session, string) {
 	t.Helper()
-	item, workspacePath, err := service.files.FindSession([]string{filepath.Join(cfg.WorkspacePath, cfg.DefaultAgentID)}, sessionKey)
+	item, workspacePath, err := service.files.FindSession([]string{dmMainWorkspacePath(cfg)}, sessionKey)
 	if err != nil {
 		t.Fatalf("读取 session 元数据失败: %v", err)
 	}
@@ -107,6 +108,10 @@ func mustFindDMSession(
 		t.Fatalf("session 元数据不存在: %s", sessionKey)
 	}
 	return *item, workspacePath
+}
+
+func dmMainWorkspacePath(cfg config.Config) string {
+	return agentsvc.ResolveWorkspacePath(cfg, authctx.SystemUserID, cfg.DefaultAgentID)
 }
 
 func readDMSessionHistory(

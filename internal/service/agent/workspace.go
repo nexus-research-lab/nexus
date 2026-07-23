@@ -12,7 +12,7 @@ func (s *Service) createAgentWorkspacePath(ownerUserID string) (string, string, 
 	for range maxAgentIDWorkspaceAttempts {
 		agentID := NewAgentID()
 		workspacePath := ResolveWorkspacePath(s.config, ownerUserID, agentID)
-		if err := os.Mkdir(workspacePath, 0o755); err == nil {
+		if err := os.Mkdir(workspacePath, 0o700); err == nil {
 			return agentID, workspacePath, nil
 		} else {
 			if errors.Is(err, os.ErrExist) {

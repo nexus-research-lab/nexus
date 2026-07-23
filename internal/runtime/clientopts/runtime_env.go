@@ -21,6 +21,19 @@ import (
 const nexusctlUserIDEnvName = "NEXUSCTL_USER_ID"
 const nexusctlWorkspacePathEnvName = "NEXUSCTL_WORKSPACE_PATH"
 const nexusctlCommandPathEnvName = "NEXUSCTL_COMMAND_PATH"
+const nexusConfigDirEnvName = "NEXUS_CONFIG_DIR"
+const claudeConfigDirEnvName = "CLAUDE_CONFIG_DIR"
+const nexusAppRootEnvName = "NEXUS_APP_ROOT"
+const workspacePathEnvName = "WORKSPACE_PATH"
+const cacheFileDirEnvName = "CACHE_FILE_DIR"
+const logPathEnvName = "LOG_PATH"
+const databaseDriverEnvName = "DATABASE_DRIVER"
+const databaseURLEnvName = "DATABASE_URL"
+const connectorCredentialsKeyEnvName = "CONNECTOR_CREDENTIALS_KEY"
+const connectorCredentialsKeyFileEnvName = "CONNECTOR_CREDENTIALS_KEY_FILE"
+const nexusDesktopSessionTokenEnvName = "NEXUS_DESKTOP_SESSION_TOKEN"
+const nexusNXSRuntimeCacheDirEnvName = "NEXUS_NXS_RUNTIME_CACHE_DIR"
+const nexusClaudeCommandPathEnvName = "NEXUS_CLAUDE_COMMAND_PATH"
 const apiFormatAnthropicMessages = runtimeprovider.APIFormatAnthropicMessages
 const apiFormatChatCompletions = runtimeprovider.APIFormatChatCompletions
 const apiFormatResponses = runtimeprovider.APIFormatResponses
@@ -373,6 +386,111 @@ func buildScopedRuntimeEnv(ctx context.Context) map[string]string {
 		}
 	}
 	return nil
+}
+
+// scrubInheritedRuntimeEnv 清空不应进入 runtime 子进程的宿主环境。
+//
+// bridge 的进程 transport 会把 os.Environ 与 options.Env 合并，单纯不
+// 注入某个变量并不能形成隔离。这里先显式写空值，随后再覆盖当前用户
+// 允许使用的 provider、诊断和协议变量。
+func scrubInheritedRuntimeEnv() map[string]string {
+	env := map[string]string{}
+	for _, key := range []string{
+		appfs.NexusStateRootEnvName,
+		nexusAppRootEnvName,
+		workspacePathEnvName,
+		cacheFileDirEnvName,
+		logPathEnvName,
+		databaseDriverEnvName,
+		databaseURLEnvName,
+		connectorCredentialsKeyEnvName,
+		connectorCredentialsKeyFileEnvName,
+		nexusDesktopSessionTokenEnvName,
+		"ACCESS_TOKEN",
+		"AUTH_INIT_OWNER_USERNAME",
+		"AUTH_INIT_OWNER_DISPLAY_NAME",
+		"AUTH_INIT_OWNER_PASSWORD",
+		"AUTH_SESSION_SECRET",
+		"AUTH_SESSION_COOKIE_NAME",
+		"DISCORD_BOT_TOKEN",
+		"TELEGRAM_BOT_TOKEN",
+		// provider 的环境凭据属于宿主全局秘密；当前用户的凭据只能
+		// 通过 runtime config 显式投影，不能依赖继承环境。
+		anthropicBaseURLEnvName,
+		anthropicAPIKeyEnvName,
+		anthropicAuthTokenEnvName,
+		anthropicModelEnvName,
+		"OPENAI_API_KEY",
+		"OPENAI_BASE_URL",
+		"OPENAI_MODEL",
+		"AZURE_OPENAI_API_KEY",
+		"AZURE_OPENAI_ENDPOINT",
+		"AZURE_OPENAI_API_VERSION",
+		"AWS_ACCESS_KEY_ID",
+		"AWS_SECRET_ACCESS_KEY",
+		"AWS_SESSION_TOKEN",
+		"AWS_PROFILE",
+		"GOOGLE_API_KEY",
+		"GEMINI_API_KEY",
+		"COHERE_API_KEY",
+		"MISTRAL_API_KEY",
+		"DEEPSEEK_API_KEY",
+		"XAI_API_KEY",
+	} {
+		// 只为真实继承值生成清空覆盖，避免让 options 看起来像显式
+		// 配置了另一套 provider 环境，同时仍能切断宿主中的实际秘密。
+		if value, ok := os.LookupEnv(key); ok && strings.TrimSpace(value) != "" {
+			env[key] = ""
+		}
+	}
+	return env
+}
+
+// managedUserRuntimeEnv 注入宿主强制的用户 runtime 边界。
+//
+// 空值覆盖用于切断旧的 host root、数据库和密钥；路径则全部落在
+// users/<owner>/runtime，且 ExtraEnv 无法改写当前 workspace。
+func managedUserRuntimeEnv(
+	ctx context.Context,
+	workspacePath string,
+	runtimeKind string,
+) map[string]string {
+	runtimeRoot := appfs.UserRuntimeRoot(authctx.OwnerUserID(ctx))
+	homeRoot := filepath.Join(runtimeRoot, "home")
+	env := map[string]string{
+		appfs.NexusStateRootEnvName:        "",
+		nexusAppRootEnvName:                "",
+		nexusConfigDirEnvName:              runtimeRoot,
+		claudeConfigDirEnvName:             runtimeRoot,
+		"HOME":                             homeRoot,
+		"USERPROFILE":                      homeRoot,
+		"APPDATA":                          filepath.Join(homeRoot, "AppData", "Roaming"),
+		"LOCALAPPDATA":                     filepath.Join(homeRoot, "AppData", "Local"),
+		"XDG_CONFIG_HOME":                  filepath.Join(homeRoot, ".config"),
+		"XDG_CACHE_HOME":                   filepath.Join(runtimeRoot, "cache"),
+		"XDG_DATA_HOME":                    filepath.Join(homeRoot, ".local", "share"),
+		"XDG_STATE_HOME":                   filepath.Join(homeRoot, ".local", "state"),
+		"TMPDIR":                           filepath.Join(runtimeRoot, "tmp"),
+		"TEMP":                             filepath.Join(runtimeRoot, "tmp"),
+		"TMP":                              filepath.Join(runtimeRoot, "tmp"),
+		cacheFileDirEnvName:                filepath.Join(runtimeRoot, "cache"),
+		logPathEnvName:                     filepath.Join(runtimeRoot, "logs", "runtime.log"),
+		databaseDriverEnvName:              "",
+		databaseURLEnvName:                 "",
+		connectorCredentialsKeyEnvName:     "",
+		connectorCredentialsKeyFileEnvName: "",
+		nexusDesktopSessionTokenEnvName:    "",
+		nexusNXSRuntimeCacheDirEnvName:     filepath.Join(runtimeRoot, "cache"),
+		nexusAgentRuntimeKindEnvName:       strings.TrimSpace(runtimeKind),
+		nexusAgentRuntimeEnvName:           strings.TrimSpace(runtimeKind),
+		nexusNXSCommandPathEnvName:         "",
+		nexusClaudeCommandPathEnvName:      "",
+	}
+	// workspaceRuntimeEnv 会从宿主环境读取已经校验过的 nexusctl 路径；
+	// 在 ExtraEnv 之后再次合并，确保请求不能把命令或 workspace 指向别处。
+	maps.Copy(env, workspaceRuntimeEnv(workspacePath))
+	env[workspacePathEnvName] = strings.TrimSpace(workspacePath)
+	return env
 }
 
 func workspaceRuntimeEnv(workspacePath string) map[string]string {

@@ -16,11 +16,42 @@ import (
 
 	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	agentpkg "github.com/nexus-research-lab/nexus/internal/service/agent"
 
 	"github.com/pressly/goose/v3"
 	_ "modernc.org/sqlite"
 )
+
+func TestServiceListAgentsUsesSystemScopeWhenAuthIsDisabled(t *testing.T) {
+	cfg := newTestConfig(t)
+	migrateSQLite(t, cfg.DatabaseURL)
+
+	service, _, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 service 失败: %v", err)
+	}
+
+	singleUserContext := authctx.WithState(context.Background(), authctx.State{
+		AuthRequired: false,
+		UserCount:    2,
+	})
+	if _, err = service.ListAgents(singleUserContext); err != nil {
+		t.Fatalf("初始化 system agent 失败: %v", err)
+	}
+	userContext := authctx.WithPrincipal(context.Background(), &authctx.Principal{UserID: "user-b"})
+	if _, err = service.CreateAgent(userContext, protocol.CreateRequest{Name: "用户 B 助手"}); err != nil {
+		t.Fatalf("创建用户 B agent 失败: %v", err)
+	}
+
+	items, err := service.ListAgents(singleUserContext)
+	if err != nil {
+		t.Fatalf("单用户作用域列出 agent 失败: %v", err)
+	}
+	if len(items) != 1 || items[0].OwnerUserID != authctx.SystemUserID {
+		t.Fatalf("认证关闭时不应返回其他 owner agent: %+v", items)
+	}
+}
 
 func TestServiceBootstrapsMainAgentAndCreatesAgent(t *testing.T) {
 	cfg := newTestConfig(t)

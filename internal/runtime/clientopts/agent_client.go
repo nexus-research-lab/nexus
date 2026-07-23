@@ -87,6 +87,9 @@ func BuildAgentClientOptionsWithConfig(
 		return agentclient.Options{}, nil, err
 	}
 	runtimeEnv := defaultRuntimeEnv(effectiveRuntimeKind)
+	// bridge 会继承宿主进程环境；先清掉全局路径和密钥，再由后续
+	// provider/runtime 投影显式恢复当前会话允许使用的变量。
+	runtimeEnv = mergeRuntimeEnv(runtimeEnv, scrubInheritedRuntimeEnv())
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, nxsHostManagedRuntimeEnv(effectiveRuntimeKind))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, nxsDiagnosticsRuntimeEnv(effectiveRuntimeKind, input.AgentSDKDiagnosticsEnabled))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, explicitNXSProcessRuntimeEnv(effectiveRuntimeKind))
@@ -101,6 +104,10 @@ func BuildAgentClientOptionsWithConfig(
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, buildScopedRuntimeEnv(ctx))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, webSearchRuntimeEnv(effectiveRuntimeKind, input.WebSearch))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, input.ExtraEnv)
+	runtimeEnv = mergeRuntimeEnv(
+		runtimeEnv,
+		managedUserRuntimeEnv(ctx, input.WorkspacePath, effectiveRuntimeKind),
+	)
 	// Claude 仍内置 Cron，调用方不得通过 ExtraEnv 重新开启第二套调度器。
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, hostManagedScheduleRuntimeEnv(effectiveRuntimeKind))
 

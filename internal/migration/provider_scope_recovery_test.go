@@ -194,7 +194,13 @@ INSERT INTO provider_models (
 ) VALUES ('preference-model-id', 'preference-provider-id', 'preference-model', 'Preference Model', 'chat', 1, 1, '{}', '{}', '{}')`); err != nil {
 		t.Fatalf("插入偏好 Provider 模型失败: %v", err)
 	}
-	preferencesPath := filepath.Join(workspaceRoot, "owner-a", ".settings", "preferences.json")
+	preferencesPath := filepath.Join(
+		workspaceRoot,
+		"owner-a",
+		"workspace",
+		".settings",
+		"preferences.json",
+	)
 	if err = os.MkdirAll(filepath.Dir(preferencesPath), 0o755); err != nil {
 		t.Fatalf("创建偏好目录失败: %v", err)
 	}

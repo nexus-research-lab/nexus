@@ -40,6 +40,12 @@ docs/       - 跨切面设计文档
 
 [PROTOCOL]: 变更时更新此头部，然后检查各 Go 包入口 `doc.go`（L2）
 
+## 状态根契约
+
+- `.nexus` 是统一 `NEXUS_STATE_ROOT`；宿主数据位于 `.nexus/app`。
+- 用户数据位于 `.nexus/users/<owner>/`：`workspace/` 保存 Agent 工作目录，`runtime/` 同时作为该 owner 的 `NEXUS_CONFIG_DIR` 与 `CLAUDE_CONFIG_DIR`。
+- 旧版根目录迁移由 `internal/migration/state_layout.go` 和 `workspace_layout.go` 在启动时分阶段、幂等执行；新增宿主或 runtime 文件时必须同步更新迁移分类与测试。
+
 ## 后端依赖方向
 
 ```text

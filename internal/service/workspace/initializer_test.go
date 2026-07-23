@@ -85,6 +85,7 @@ func TestWorkspaceBrowserHidesAgentProfileTemplate(t *testing.T) {
 }
 
 func TestEnsureInitializedWritesPromptLayerTemplates(t *testing.T) {
+	useTemporaryWorkspaceStateRoot(t)
 	root := t.TempDir()
 	if err := EnsureInitialized("agent-1", "Planner", root, false, time.Now()); err != nil {
 		t.Fatalf("初始化普通 agent workspace 失败: %v", err)
@@ -150,6 +151,7 @@ func TestEnsureInitializedWritesPromptLayerTemplates(t *testing.T) {
 }
 
 func TestEnsureInitializedSerializesConcurrentWorkspaceInitialization(t *testing.T) {
+	useTemporaryWorkspaceStateRoot(t)
 	root := t.TempDir()
 	createdAt := time.Now()
 	const workerCount = 16
@@ -179,6 +181,7 @@ func TestEnsureInitializedSerializesConcurrentWorkspaceInitialization(t *testing
 }
 
 func TestEnsureInitializedRemovesBundledSkillCopies(t *testing.T) {
+	useTemporaryWorkspaceStateRoot(t)
 	root := t.TempDir()
 	for _, name := range []string{"ima-skill", "imagegen"} {
 		skillPath := filepath.Join(root, ".agents", "skills", name, "SKILL.md")
@@ -227,6 +230,7 @@ func TestRuntimeSkillNamesKeepsWorkspaceDeployedSkills(t *testing.T) {
 }
 
 func TestEnsureInitializedRepairsStaleScheduleWakeupGuidance(t *testing.T) {
+	useTemporaryWorkspaceStateRoot(t)
 	cases := []struct {
 		name        string
 		isMainAgent bool
@@ -263,6 +267,12 @@ func TestEnsureInitializedRepairsStaleScheduleWakeupGuidance(t *testing.T) {
 			}
 		})
 	}
+}
+
+func useTemporaryWorkspaceStateRoot(t *testing.T) {
+	t.Helper()
+	t.Setenv("NEXUS_STATE_ROOT", filepath.Join(t.TempDir(), ".nexus"))
+	t.Setenv("NEXUS_CONFIG_DIR", "")
 }
 
 func TestDeploySkillFallsBackToClaudeSkillMirrorWhenSymlinkUnavailable(t *testing.T) {

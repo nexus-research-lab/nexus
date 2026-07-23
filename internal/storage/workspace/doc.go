@@ -10,9 +10,11 @@
 //   - input_queue.go / input_queue_codec.go / input_queue_replay.go：输入队列存取、跨派发持久幂等入队、可返回规范化提交的原子批量登记、预检版本一致的整批 guidance 认领、按执行 scope 隔离的编解码与事件重放。
 //   - room_history.go / room_directed_message.go / room_directed_message_wake.go / session_file.go / jsonl.go：
 //     保留 Agent 执行身份的房间历史、定向消息、延迟唤醒、会话文件与 JSONL。
-//   - paths.go / transcript_project_hash.go / value_coerce.go：路径、工程 hash、值转换。
+//   - paths.go / transcript_path.go / transcript_project_hash.go / value_coerce.go：
+//     路径、transcript 项目目录名、工程 hash、值转换。
 //
 // 历史投影与持久化共享未导出模型；在形成稳定边界前保留同包，避免为拆目录暴露内部状态。
+// TranscriptProjectDirectoryName/Names 是迁移层复用的稳定路径边界。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package workspace

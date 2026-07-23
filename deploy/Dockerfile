@@ -125,7 +125,7 @@ RUN printf 'registry=%s\n' "${PNPM_REGISTRY}" > /etc/npmrc && \
 
 RUN groupadd --system --gid 1001 agent && \
     useradd --system --uid 1001 --gid agent --shell /bin/bash --create-home agent && \
-    mkdir -p /opt/app/deploy /home/agent/.nexus /home/agent/.claude /home/agent/.config/pip /home/agent/.config/uv /home/agent/.cache/pip
+    mkdir -p /opt/app/deploy /home/agent/.nexus /home/agent/.nexus/users/__system__/runtime/home /home/agent/.nexus/users/__system__/runtime/logs /home/agent/.nexus/users/__system__/runtime/.claude /home/agent/.claude /home/agent/.config/pip /home/agent/.config/uv /home/agent/.cache/pip
 
 WORKDIR /opt/app
 

@@ -67,7 +67,7 @@ func ensureParentDir(path string) error {
 	if parent == "." || parent == "/" {
 		return nil
 	}
-	if err := os.MkdirAll(parent, 0o755); err != nil {
+	if err := os.MkdirAll(parent, 0o700); err != nil {
 		return fmt.Errorf("create sqlite parent dir: %w", err)
 	}
 	return nil

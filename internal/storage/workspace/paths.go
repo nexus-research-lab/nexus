@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -17,13 +18,12 @@ type Store struct {
 // New 创建 workspace store。
 func New(root string) *Store {
 	workspaceRoot := strings.TrimSpace(root)
-	homeRoot := transcriptConfigHomeDir()
 	if workspaceRoot == "" {
-		workspaceRoot = filepath.Join(homeRoot, "workspace")
+		workspaceRoot = appfs.UsersRoot()
 	}
 	return &Store{
 		WorkspaceRoot: workspaceRoot,
-		HomeRoot:      homeRoot,
+		HomeRoot:      appfs.AppDir(),
 	}
 }
 

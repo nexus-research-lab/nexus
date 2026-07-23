@@ -5,32 +5,46 @@ enum DesktopPaths {
     URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".nexus", isDirectory: true)
   }
 
+  static var appDirectory: URL {
+    rootDirectory.appendingPathComponent("app", isDirectory: true)
+  }
+
+  static var usersDirectory: URL {
+    rootDirectory.appendingPathComponent("users", isDirectory: true)
+  }
+
+  static var systemRuntimeDirectory: URL {
+    usersDirectory
+      .appendingPathComponent("__system__", isDirectory: true)
+      .appendingPathComponent("runtime", isDirectory: true)
+  }
+
   static var dataDirectory: URL {
-    rootDirectory.appendingPathComponent("data", isDirectory: true)
+    appDirectory.appendingPathComponent("data", isDirectory: true)
   }
 
   static var configDirectory: URL {
-    rootDirectory.appendingPathComponent("config", isDirectory: true)
+    appDirectory.appendingPathComponent("config", isDirectory: true)
   }
 
   static var workspaceDirectory: URL {
-    rootDirectory.appendingPathComponent("workspace", isDirectory: true)
+    usersDirectory
   }
 
   static var projectsDirectory: URL {
-    rootDirectory.appendingPathComponent("projects", isDirectory: true)
+    systemRuntimeDirectory.appendingPathComponent("projects", isDirectory: true)
   }
 
   static var cacheDirectory: URL {
-    rootDirectory.appendingPathComponent("cache", isDirectory: true)
+    appDirectory.appendingPathComponent("cache", isDirectory: true)
   }
 
   static var logsDirectory: URL {
-    rootDirectory.appendingPathComponent("logs", isDirectory: true)
+    appDirectory.appendingPathComponent("logs", isDirectory: true)
   }
 
   static var debugDirectory: URL {
-    rootDirectory.appendingPathComponent("debug", isDirectory: true)
+    appDirectory.appendingPathComponent("debug", isDirectory: true)
   }
 
   static var sidecarPIDFileURL: URL {
@@ -42,7 +56,23 @@ enum DesktopPaths {
   }
 
   static func createRuntimeDirectories() throws {
-    for directory in [rootDirectory, dataDirectory, configDirectory, workspaceDirectory, projectsDirectory, cacheDirectory, logsDirectory, debugDirectory] {
+    for directory in [
+      rootDirectory,
+      appDirectory,
+      usersDirectory,
+      systemRuntimeDirectory,
+      systemRuntimeDirectory.appendingPathComponent("home", isDirectory: true),
+      systemRuntimeDirectory.appendingPathComponent("cache", isDirectory: true),
+      systemRuntimeDirectory.appendingPathComponent("logs", isDirectory: true),
+      systemRuntimeDirectory.appendingPathComponent("tmp", isDirectory: true),
+      dataDirectory,
+      configDirectory,
+      workspaceDirectory,
+      projectsDirectory,
+      cacheDirectory,
+      logsDirectory,
+      debugDirectory,
+    ] {
       try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     }
   }

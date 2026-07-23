@@ -7,8 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Moved persistent state under `.nexus/app` and `users/<owner>/`, added idempotent startup migration for legacy `.nexus` data, and injects the same owner-scoped runtime root into nxs and Claude Code.
+
 ### Fixed
 
+- Fixed unauthenticated App/Web requests falling back to an unscoped Agent or automation query; single-user requests now resolve to `__system__`, while explicit maintenance contexts retain their separate cross-owner path.
 - Isolated DM and Room input-queue replay by execution scope and prevented Room subscription recovery from dispatching DM queue items through a Room runtime, so a DM resume cannot be reused by a different Room configuration.
 - Fixed desktop local profiles being assigned an implicit Free subscription after saving an avatar, which exposed the server-only subscription UI and incorrectly enforced its monthly quota in the App.
 

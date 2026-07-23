@@ -226,7 +226,7 @@ nexusctl skill uninstall --agent-id research --skill-name planner
 
 ## Workspace 规则
 
-每个成员创建后自动分配独立工作空间。单用户模式位于 `~/.nexus/workspace/<agent_slug>/`；多用户模式位于 `~/.nexus/workspace/<user_id>/<agent_slug>/`。
+每个成员创建后自动分配独立工作空间。系统用户位于 `~/.nexus/users/__system__/workspace/<agent_slug>/`；登录用户位于 `~/.nexus/users/<user_id>/workspace/<agent_slug>/`。
 
 ### 目录结构
 

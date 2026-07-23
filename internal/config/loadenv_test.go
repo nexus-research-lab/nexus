@@ -149,6 +149,31 @@ func TestLoadWorkspacePathUsesRuntimeSettingsWhenEnvEmpty(t *testing.T) {
 	}
 }
 
+func TestSaveRuntimeSettingsUsesPrivatePermissions(t *testing.T) {
+	stateRoot := filepath.Join(t.TempDir(), ".nexus")
+	t.Setenv("NEXUS_STATE_ROOT", stateRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", "")
+
+	if _, err := SaveRuntimeSettings(RuntimeSettings{WorkspacePath: "/tmp/workspace"}); err != nil {
+		t.Fatalf("写入 runtime settings 失败: %v", err)
+	}
+
+	configInfo, err := os.Stat(filepath.Join(stateRoot, "app", "config"))
+	if err != nil {
+		t.Fatalf("读取 runtime settings 配置目录失败: %v", err)
+	}
+	if configInfo.Mode().Perm() != 0o700 {
+		t.Fatalf("runtime settings 配置目录权限错误: %o", configInfo.Mode().Perm())
+	}
+	fileInfo, err := os.Stat(RuntimeSettingsPath())
+	if err != nil {
+		t.Fatalf("读取 runtime settings 文件失败: %v", err)
+	}
+	if fileInfo.Mode().Perm() != 0o600 {
+		t.Fatalf("runtime settings 文件权限错误: %o", fileInfo.Mode().Perm())
+	}
+}
+
 func TestLoadWorkspacePathKeepsExplicitEnv(t *testing.T) {
 	root := t.TempDir()
 	configDir := filepath.Join(root, ".nexus")
@@ -182,6 +207,27 @@ func TestLoadWorkspacePathOverridesDesktopDefaultEnv(t *testing.T) {
 
 	if cfg.WorkspacePath != persistedPath {
 		t.Fatalf("WorkspacePath = %q, want persisted %q", cfg.WorkspacePath, persistedPath)
+	}
+}
+
+func TestLoadMapsLegacyHostPathsIntoAppDirectory(t *testing.T) {
+	stateRoot := filepath.Join(t.TempDir(), ".nexus")
+	t.Setenv("NEXUS_STATE_ROOT", stateRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", "")
+	t.Setenv("CACHE_FILE_DIR", filepath.Join(stateRoot, "cache"))
+	t.Setenv("LOG_PATH", filepath.Join(stateRoot, "logs", "legacy.log"))
+	t.Setenv("DATABASE_URL", "sqlite:///"+filepath.Join(stateRoot, "data", "nexus.db"))
+
+	cfg := Load()
+
+	if cfg.CacheFileDir != filepath.Join(stateRoot, "app", "cache") {
+		t.Fatalf("CacheFileDir = %q, want app cache", cfg.CacheFileDir)
+	}
+	if cfg.LogPath != filepath.Join(stateRoot, "app", "logs", "legacy.log") {
+		t.Fatalf("LogPath = %q, want app logs", cfg.LogPath)
+	}
+	if cfg.DatabaseURL != "sqlite:///"+filepath.Join(stateRoot, "app", "data", "nexus.db") {
+		t.Fatalf("DatabaseURL = %q, want migrated sqlite path", cfg.DatabaseURL)
 	}
 }
 

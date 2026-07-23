@@ -31,13 +31,13 @@ func TestEnsureUserSkillLibrarySharesNXSAndClaudeRoots(t *testing.T) {
 
 func TestUserSkillRootsFollowAgentWorkspaceLayout(t *testing.T) {
 	cfg := config.Config{WorkspacePath: filepath.Join(t.TempDir(), "workspace")}
-	if got, want := UserSkillLibraryRoot(cfg, "owner-a"), filepath.Join(cfg.WorkspacePath, "owner-a"); got != want {
+	if got, want := UserSkillLibraryRoot(cfg, "owner-a"), filepath.Join(cfg.WorkspacePath, "owner-a", "workspace"); got != want {
 		t.Fatalf("用户 Skill 根 = %q, want %q", got, want)
 	}
-	if got, want := UserSkillLibraryRoot(cfg, "__system__"), cfg.WorkspacePath; got != want {
+	if got, want := UserSkillLibraryRoot(cfg, "__system__"), filepath.Join(cfg.WorkspacePath, "__system__", "workspace"); got != want {
 		t.Fatalf("系统 Skill 根 = %q, want %q", got, want)
 	}
-	wantUserRoot := filepath.Join(cfg.WorkspacePath, "owner-a")
+	wantUserRoot := filepath.Join(cfg.WorkspacePath, "owner-a", "workspace")
 	if got := SkillLibraryRoots(cfg, "owner-a"); len(got) != 2 || got[1] != wantUserRoot {
 		t.Fatalf("runtime 用户 Skill 根 = %#v, want platform + %q", got, wantUserRoot)
 	}
