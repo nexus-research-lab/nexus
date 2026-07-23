@@ -264,7 +264,7 @@ func (m *legacySkillStorageMigration) migrateOwnerRegistries(
 	registryRoot := m.legacyRegistryRoot()
 	for _, segment := range sortedStringSet(knownSegments) {
 		sourceRoot := filepath.Join(registryRoot, legacyRegistryUsersDirName, segment)
-		sources, err := scanLegacySkillRoot(sourceRoot)
+		sources, err := scanLegacySkillRoot(sourceRoot, false)
 		if err != nil {
 			return affected, err
 		}
@@ -299,7 +299,7 @@ func (m *legacySkillStorageMigration) migrateOwnerRegistries(
 		if _, known := knownSegments[entry.Name()]; known {
 			continue
 		}
-		sources, scanErr := scanLegacySkillRoot(filepath.Join(usersRoot, entry.Name()))
+		sources, scanErr := scanLegacySkillRoot(filepath.Join(usersRoot, entry.Name()), false)
 		if scanErr != nil {
 			return affected, scanErr
 		}
@@ -330,7 +330,7 @@ func (m *legacySkillStorageMigration) migrateGlobalRegistries(
 		if bucket != "" {
 			sourceRoot = filepath.Join(sourceRoot, bucket)
 		}
-		sources, err := scanLegacySkillRoot(sourceRoot)
+		sources, err := scanLegacySkillRoot(sourceRoot, bucket == "")
 		if err != nil {
 			return affected, err
 		}
@@ -501,7 +501,7 @@ func collectLegacySkillUsage(
 	return owners, usage, nil
 }
 
-func scanLegacySkillRoot(root string) ([]legacySkillSource, error) {
+func scanLegacySkillRoot(root string, skipReserved bool) ([]legacySkillSource, error) {
 	entries, err := os.ReadDir(root)
 	if os.IsNotExist(err) {
 		return nil, nil
@@ -511,7 +511,7 @@ func scanLegacySkillRoot(root string) ([]legacySkillSource, error) {
 	}
 	result := make([]legacySkillSource, 0, len(entries))
 	for _, entry := range entries {
-		if !entry.IsDir() || isLegacyRegistryReservedDir(entry.Name()) {
+		if !entry.IsDir() || (skipReserved && isLegacyRegistryReservedDir(entry.Name())) {
 			continue
 		}
 		path := filepath.Join(root, entry.Name())

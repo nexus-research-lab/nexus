@@ -46,10 +46,12 @@ func TestRunLegacySkillStorageMigratesV027DataOnly(t *testing.T) {
 	insertLegacySkillMigrationAgent(t, db, "agent-b", "owner-b", ownerBWorkspace, []string{"imagegen"})
 
 	ownerSource := filepath.Join(cacheRoot, "skills", "registry", "users", ownerADir, "owner-only")
+	reservedNameSource := filepath.Join(cacheRoot, "skills", "registry", "users", ownerADir, "users")
 	shadowSource := filepath.Join(cacheRoot, "skills", "registry", "users", ownerADir, "local-shadow")
 	globalSource := filepath.Join(cacheRoot, "skills", "registry", "shared-skill")
 	archivedSource := filepath.Join(cacheRoot, "skills", "registry", "legacy-migrated", "archived-skill")
 	writeLegacySkillMigrationSource(t, ownerSource, "owner-only", "owner-only\n")
+	writeLegacySkillMigrationSource(t, reservedNameSource, "users", "reserved-name\n")
 	writeLegacySkillMigrationSource(t, shadowSource, "local-shadow", "owner-source\n")
 	writeLegacySkillMigrationSource(t, globalSource, "shared-skill", "shared-skill\n")
 	writeLegacySkillMigrationSource(t, archivedSource, "archived-skill", "archived-skill\n")
@@ -103,6 +105,11 @@ func TestRunLegacySkillStorageMigratesV027DataOnly(t *testing.T) {
 		t,
 		filepath.Join(workspaceRoot, ownerADir, ".agents", "skills", "owner-only", "SKILL.md"),
 		"owner-only\n",
+	)
+	assertMigrationFileContent(
+		t,
+		filepath.Join(workspaceRoot, ownerADir, ".agents", "skills", "users", "SKILL.md"),
+		"reserved-name\n",
 	)
 	assertMigrationFileContent(
 		t,
