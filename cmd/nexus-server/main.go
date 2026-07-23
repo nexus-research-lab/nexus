@@ -203,6 +203,11 @@ func runServer() error {
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		return err
 	}
+	if err := migration.RunLegacySkillStorage(context.Background(), cfg, appfs.ConfigDir(), logger); err != nil {
+		logger.Error("旧版 Skill 存储迁移失败", "err", err)
+		_, _ = fmt.Fprintln(os.Stderr, err)
+		return err
+	}
 	if err := ensureOwnerFromEnv(context.Background(), cfg, logger); err != nil {
 		logger.Error("owner bootstrap 失败", "err", err)
 		_, _ = fmt.Fprintln(os.Stderr, err)
