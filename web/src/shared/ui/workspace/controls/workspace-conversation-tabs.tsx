@@ -21,7 +21,7 @@ interface WorkspaceConversationTabsProps {
 }
 
 const TRACK_CLASS_NAME =
-  "workspace-surface-header-session-tabs-track flex h-9 w-full min-w-0 items-center gap-0.5 overflow-hidden px-0.5 py-0.5";
+  "workspace-surface-header-session-tabs-track flex h-9 w-full min-w-0 items-center gap-1.5 overflow-hidden px-0.5 py-0.5";
 
 export function WorkspaceConversationTabs({
   conversations,
@@ -50,7 +50,7 @@ export function WorkspaceConversationTabs({
       <div className="workspace-surface-header-session-tabs-viewport-shell relative min-w-0 flex-1 self-stretch">
         <div
           className={cn(
-            "workspace-surface-header-session-tabs-viewport scrollbar-hide flex h-full min-w-0 items-center gap-0.5 overflow-x-auto overflow-y-hidden overscroll-x-contain",
+            "workspace-surface-header-session-tabs-viewport scrollbar-hide flex h-full min-w-0 snap-x snap-proximity items-center gap-0.5 overflow-x-auto overflow-y-hidden overscroll-x-contain",
             controller.tabsScroll.isDragging ? "cursor-grabbing select-none" : "cursor-grab",
           )}
           onClickCapture={controller.tabsScroll.handleClickCapture}
@@ -96,7 +96,7 @@ export function WorkspaceConversationTabs({
 
       <div className="workspace-surface-header-session-tabs-actions flex shrink-0 items-center">
         {controller.tabsScroll.hasOverflow || onCreateConversation ? (
-          <div className="inline-flex h-8 shrink-0 items-stretch overflow-hidden rounded-full border border-[color:color-mix(in_srgb,var(--primary)_18%,var(--divider-subtle-color)_82%)] bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_58%,transparent)] shadow-[0_1px_2px_rgba(15,23,42,0.06)] transition-[background-color,border-color,box-shadow] duration-(--motion-duration-fast) hover:border-[color:color-mix(in_srgb,var(--primary)_30%,var(--divider-subtle-color)_70%)] hover:bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_76%,transparent)] hover:shadow-[0_2px_8px_rgba(15,23,42,0.08)]">
+          <div className="inline-flex h-8 shrink-0 items-stretch overflow-hidden rounded-full border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_88%,var(--foreground)_12%)] bg-transparent shadow-none transition-[border-color] duration-(--motion-duration-fast) hover:border-[color:color-mix(in_srgb,var(--divider-strong-color)_78%,var(--foreground)_22%)]">
             {controller.tabsScroll.hasOverflow ? (
               <ConversationTabsOverview
                 activeConversationId={controller.activeConversationId}
@@ -108,7 +108,7 @@ export function WorkspaceConversationTabs({
             {onCreateConversation ? (
               <button
                 aria-label={t("room.new_conversation")}
-                className="relative inline-flex h-full w-10 shrink-0 items-center justify-center bg-transparent leading-none text-(--primary) transition-[background-color,color] duration-(--motion-duration-fast) ease-out hover:bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_42%,transparent)] disabled:opacity-60"
+                className="relative inline-flex h-full w-10 shrink-0 items-center justify-center bg-transparent leading-none text-(--icon-default) transition-colors duration-(--motion-duration-fast) ease-out hover:text-(--text-strong) focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_42%,transparent)] disabled:opacity-60"
                 disabled={controller.isCreating}
                 onClick={() => {
                   void controller.createConversation();

@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Combined the conversation overview and new-session actions into one icon-only pill, revealing the overview segment only when tabs actually overflow.
+- Combined the conversation overview and new-session actions into one neutral, transparent icon-only pill with width-aware spacing; overflowing tabs now recalculate complete visible slots and snap scrolling to tab boundaries while keeping emphasis on the active Session tab.
 - Increased chat sidebar row height and vertical breathing room across DM and Room entries, with matching loading placeholders.
 - Reworked the personal profile into a balanced full-width identity card with the same large-avatar dropdown used by Agent and Room editors, evenly filled role/auth details, and an explicit locked-avatar state.
 - Removed the duplicate desktop Room member entry from the overflow menu while preserving it there whenever the dedicated member control collapses on narrower screens.

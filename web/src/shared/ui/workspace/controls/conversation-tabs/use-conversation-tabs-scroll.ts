@@ -11,6 +11,7 @@ import {
 
 const SCROLL_EDGE_TOLERANCE = 2;
 const DRAG_START_THRESHOLD = 4;
+const TAB_WIDTH_TRANSITION_SETTLE_MS = 170;
 
 export interface ConversationTabsScrollMetrics {
   clientWidth: number;
@@ -92,27 +93,30 @@ export function useConversationTabsScroll({
   useLayoutEffect(() => {
     const viewport = viewportRef.current;
     if (!viewport || !activeConversationId) {
-      return;
+      return undefined;
     }
-    const activeTab = Array.from(
-      viewport.querySelectorAll<HTMLElement>("[data-conversation-tab-id]"),
-    ).find((tab) => tab.dataset.conversationTabId === activeConversationId);
-    if (!activeTab) {
-      return;
-    }
-
-    const viewportLeft = viewport.scrollLeft;
-    const viewportRight = viewportLeft + viewport.clientWidth;
-    const tabLeft = activeTab.offsetLeft;
-    const tabRight = tabLeft + activeTab.offsetWidth;
-    if (tabLeft < viewportLeft) {
-      viewport.scrollTo({ behavior: "smooth", left: tabLeft });
-    } else if (tabRight > viewportRight) {
-      viewport.scrollTo({
-        behavior: "smooth",
-        left: tabRight - viewport.clientWidth,
-      });
-    }
+    const preferredAlignment = getConversationTabAlignment(
+      viewport,
+      activeConversationId,
+    );
+    const alignActiveTab = (behavior: ScrollBehavior) => {
+      scrollConversationTabIntoView(
+        viewport,
+        activeConversationId,
+        behavior,
+        preferredAlignment,
+      );
+    };
+    const frame = window.requestAnimationFrame(() => alignActiveTab("smooth"));
+    // 中文注释：标签宽度会平滑交换，动画结束后按最终尺寸再校正一次边界。
+    const settleTimer = window.setTimeout(
+      () => alignActiveTab("auto"),
+      TAB_WIDTH_TRANSITION_SETTLE_MS,
+    );
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(settleTimer);
+    };
   }, [activeConversationId, contentKey]);
 
   const setScrollLeft = useCallback((scrollLeft: number) => {
@@ -198,4 +202,60 @@ export function useConversationTabsScroll({
     setScrollLeft,
     viewportRef: viewportRef as RefObject<HTMLDivElement | null>,
   };
+}
+
+function scrollConversationTabIntoView(
+  viewport: HTMLDivElement,
+  activeConversationId: string,
+  behavior: ScrollBehavior,
+  preferredAlignment: ConversationTabAlignment,
+): void {
+  const activeTab = findConversationTab(viewport, activeConversationId);
+  if (!activeTab) {
+    return;
+  }
+
+  const viewportLeft = viewport.scrollLeft;
+  const viewportRight = viewportLeft + viewport.clientWidth;
+  const tabLeft = activeTab.offsetLeft;
+  const tabRight = tabLeft + activeTab.offsetWidth;
+  if (preferredAlignment === "start" || tabLeft < viewportLeft) {
+    viewport.scrollTo({ behavior, left: tabLeft });
+  } else if (preferredAlignment === "end" || tabRight > viewportRight) {
+    viewport.scrollTo({
+      behavior,
+      left: tabRight - viewport.clientWidth,
+    });
+  }
+}
+
+type ConversationTabAlignment = "end" | "start" | null;
+
+function getConversationTabAlignment(
+  viewport: HTMLDivElement,
+  activeConversationId: string,
+): ConversationTabAlignment {
+  const activeTab = findConversationTab(viewport, activeConversationId);
+  if (!activeTab) {
+    return null;
+  }
+  if (activeTab.offsetLeft < viewport.scrollLeft) {
+    return "start";
+  }
+  if (
+    activeTab.offsetLeft + activeTab.offsetWidth
+    > viewport.scrollLeft + viewport.clientWidth
+  ) {
+    return "end";
+  }
+  return null;
+}
+
+function findConversationTab(
+  viewport: HTMLDivElement,
+  conversationId: string,
+): HTMLElement | undefined {
+  return Array.from(
+    viewport.querySelectorAll<HTMLElement>("[data-conversation-tab-id]"),
+  ).find((tab) => tab.dataset.conversationTabId === conversationId);
 }

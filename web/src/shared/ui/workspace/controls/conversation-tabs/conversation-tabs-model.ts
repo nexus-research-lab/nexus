@@ -1,7 +1,7 @@
 import type { RoomConversationView } from "@/types/conversation/conversation";
 
-// 中文注释：图标胶囊基础宽度为 40px，并保留与标签带之间的 2px 间距。
-const CREATE_CONVERSATION_BUTTON_SPACE = 42;
+// 中文注释：图标胶囊基础宽度为 40px，并保留与标签带之间的 6px 间距。
+const CREATE_CONVERSATION_BUTTON_SPACE = 46;
 // 中文注释：真实溢出时在同一胶囊内追加 36px 的会话概览分区。
 const CONVERSATION_OVERVIEW_BUTTON_SPACE = 36;
 const CONVERSATION_TAB_GAP = 2;
@@ -260,21 +260,31 @@ export function calculateConversationTabWidths({
     return widths;
   }
 
-  const availableWidth = getAvailableConversationTabWidth({
+  const tabViewportWidth = getAvailableConversationTabWidth({
     hasCreateButton,
     hasOverviewButton,
     trackWidth,
-  }) - CONVERSATION_TAB_GAP * Math.max(0, orderedConversations.length - 1);
+  });
+  const availableWidth = tabViewportWidth
+    - CONVERSATION_TAB_GAP * Math.max(0, orderedConversations.length - 1);
   if (orderedConversations.length === 1) {
     widths.set(
       orderedConversations[0].conversation_id,
-      Math.max(ACTIVE_TAB_MIN_WIDTH, availableWidth),
+      Math.max(ACTIVE_TAB_MIN_WIDTH, tabViewportWidth),
     );
     return widths;
   }
 
   const inactiveCount = orderedConversations.length - 1;
   const minimumTotalWidth = ACTIVE_TAB_MIN_WIDTH + INACTIVE_TAB_MIN_WIDTH * inactiveCount;
+  if (availableWidth < minimumTotalWidth && hasOverviewButton) {
+    return calculateOverflowConversationTabWidths({
+      activeConversationId,
+      orderedConversations,
+      tabViewportWidth,
+    });
+  }
+
   let activeWidth = ACTIVE_TAB_MIN_WIDTH;
   let inactiveWidth = INACTIVE_TAB_MIN_WIDTH;
 
@@ -286,6 +296,54 @@ export function calculateConversationTabWidths({
       Math.max(ACTIVE_TAB_MIN_WIDTH, weightedUnitWidth * ACTIVE_TAB_WIDTH_WEIGHT),
     );
     inactiveWidth = (availableWidth - activeWidth) / inactiveCount;
+  }
+
+  orderedConversations.forEach((conversation) => {
+    widths.set(
+      conversation.conversation_id,
+      conversation.conversation_id === activeConversationId ? activeWidth : inactiveWidth,
+    );
+  });
+  return widths;
+}
+
+function calculateOverflowConversationTabWidths({
+  activeConversationId,
+  orderedConversations,
+  tabViewportWidth,
+}: {
+  activeConversationId: string | null;
+  orderedConversations: RoomConversationView[];
+  tabViewportWidth: number;
+}): Map<string, number> {
+  const widths = new Map<string, number>();
+  const inactiveCount = orderedConversations.length - 1;
+  // 中文注释：以活动标签为锚点，计算一屏能完整容纳的普通标签数。
+  const visibleInactiveCount = Math.min(
+    inactiveCount,
+    Math.max(
+      0,
+      Math.floor(
+        (tabViewportWidth - ACTIVE_TAB_MIN_WIDTH)
+        / (INACTIVE_TAB_MIN_WIDTH + CONVERSATION_TAB_GAP),
+      ),
+    ),
+  );
+  let activeWidth = ACTIVE_TAB_MIN_WIDTH;
+  let inactiveWidth = INACTIVE_TAB_MIN_WIDTH;
+
+  if (visibleInactiveCount > 0) {
+    const visibleWidth = tabViewportWidth
+      - CONVERSATION_TAB_GAP * visibleInactiveCount;
+    const weightedUnitWidth = visibleWidth
+      / (visibleInactiveCount + ACTIVE_TAB_WIDTH_WEIGHT);
+    const maximumActiveWidth = visibleWidth
+      - INACTIVE_TAB_MIN_WIDTH * visibleInactiveCount;
+    activeWidth = Math.min(
+      maximumActiveWidth,
+      Math.max(ACTIVE_TAB_MIN_WIDTH, weightedUnitWidth * ACTIVE_TAB_WIDTH_WEIGHT),
+    );
+    inactiveWidth = (visibleWidth - activeWidth) / visibleInactiveCount;
   }
 
   orderedConversations.forEach((conversation) => {
