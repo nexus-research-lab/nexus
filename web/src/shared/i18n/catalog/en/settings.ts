@@ -140,6 +140,7 @@ export const enSettingsMessages = {
   "settings.personal.avatar_alt": "Personal avatar",
   "settings.personal.choose_avatar": "Choose personal avatar",
   "settings.personal.change_avatar": "Change avatar",
+  "settings.personal.avatar_locked": "Avatar locked",
   "settings.personal.avatar_disabled": "This sign-in method cannot change avatar here.",
   "settings.personal.token_usage_title": "Token usage",
   "settings.personal.total_tokens": "Tokens used",

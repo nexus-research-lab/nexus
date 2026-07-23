@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, Loader2 } from "lucide-react";
+import { ChevronDown, Loader2, LockKeyhole } from "lucide-react";
 
 import {
   AGENT_ICON_ID_END,
@@ -59,6 +59,11 @@ export function PersonalAvatarPicker({
               <>
                 <Loader2 className="h-3 w-3 animate-spin" />
                 {t("common.saving")}
+              </>
+            ) : disabled ? (
+              <>
+                <LockKeyhole className="h-3 w-3" />
+                {t("settings.personal.avatar_locked")}
               </>
             ) : (
               <>

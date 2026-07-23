@@ -137,6 +137,7 @@ export const zhSettingsMessages = {
   "settings.personal.avatar_alt": "个人头像",
   "settings.personal.choose_avatar": "选择个人头像",
   "settings.personal.change_avatar": "更换头像",
+  "settings.personal.avatar_locked": "头像不可修改",
   "settings.personal.avatar_disabled": "当前登录方式不支持修改个人头像。",
   "settings.personal.token_usage_title": "Token 用量",
   "settings.personal.total_tokens": "已使用 Token",

@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Replaced the personal profile's legacy horizontal avatar rail with the same large-avatar and dropdown picker interaction used by Agent and Room identity editors.
+- Reworked the personal profile into one compact identity block with the same large-avatar dropdown used by Agent and Room editors, concise role/auth chips, and an explicit locked-avatar state.
 - Removed the duplicate desktop Room member entry from the overflow menu while preserving it there whenever the dedicated member control collapses on narrower screens.
 - Hid the conversation scroll-to-latest control when an empty or short message viewport has no real scrollable overflow.
 - Toned down the Room collage avatar shell and member control with theme-aware ambient surfaces and quieter separators instead of bright white group-identity backgrounds.
