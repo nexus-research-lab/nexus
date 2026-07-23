@@ -57,7 +57,7 @@ test("会话纵览只按稳定宽度约束显示", async () => {
     false,
     "轨道扩宽后应直接收起纵览入口而不依赖动画中的 DOM 尺寸",
   );
-  assert.equal(CONVERSATION_TABS_VIEWPORT_INSET, 8);
+  assert.equal(CONVERSATION_TABS_VIEWPORT_INSET, 5);
   assert.equal(
     calculateConversationTabWidths({
       activeConversationId: "single",
@@ -66,7 +66,7 @@ test("会话纵览只按稳定宽度约束显示", async () => {
       orderedConversations: [{ conversation_id: "single" }],
       trackWidth: 400,
     }).get("single"),
-    334,
+    340,
     "单个标签也应扣除托盘两端留白，避免标题覆盖阴影圆角",
   );
 });

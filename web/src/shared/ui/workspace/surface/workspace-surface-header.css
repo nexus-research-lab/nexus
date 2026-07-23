@@ -64,8 +64,8 @@
 }
 
 .workspace-surface-header-session-tabs-viewport {
-  padding-inline: 8px;
-  scroll-padding-inline: 8px;
+  padding-inline: 5px;
+  scroll-padding-inline: 5px;
   scroll-behavior: smooth;
   scrollbar-width: none;
 }
