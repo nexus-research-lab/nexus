@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import { useState, type CSSProperties } from "react";
 
 import type { ConversationTabsScrollMetrics } from "./use-conversation-tabs-scroll";
 
@@ -13,6 +13,7 @@ export function ConversationTabsScrollRail({
   metrics,
   onChange,
 }: ConversationTabsScrollRailProps) {
+  const [isDragging, setIsDragging] = useState(false);
   const thumbWidth = metrics.scrollWidth > 0
     ? Math.max(28, (metrics.clientWidth / metrics.scrollWidth) * metrics.clientWidth)
     : 28;
@@ -24,9 +25,18 @@ export function ConversationTabsScrollRail({
     <input
       aria-label={ariaLabel}
       className="workspace-conversation-tabs-scroll-rail"
+      data-dragging={isDragging ? "true" : "false"}
       max={metrics.maxScrollLeft}
       min={0}
+      onBlur={() => setIsDragging(false)}
       onChange={(event) => onChange(Number(event.currentTarget.value))}
+      onPointerCancel={() => setIsDragging(false)}
+      onPointerDown={(event) => {
+        if (event.button === 0) {
+          setIsDragging(true);
+        }
+      }}
+      onPointerUp={() => setIsDragging(false)}
       step={1}
       style={style}
       type="range"

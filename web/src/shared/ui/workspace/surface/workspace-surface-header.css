@@ -24,7 +24,7 @@
 }
 
 .workspace-surface-header-session-tabs-track {
-  overflow: hidden !important;
+  overflow: visible !important;
 }
 
 .workspace-surface-header-session-tabs-viewport {
@@ -36,7 +36,7 @@
   --conversation-tabs-scroll-thumb-width: 28px;
   position: absolute;
   right: 3px;
-  bottom: -1px;
+  bottom: -8px;
   left: 3px;
   z-index: 20;
   width: calc(100% - 6px);
@@ -45,15 +45,19 @@
   appearance: none;
   border: 0;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--divider-subtle-color) 70%, transparent);
+  background: color-mix(in srgb, var(--divider-subtle-color) 76%, transparent);
   cursor: ew-resize;
-  opacity: 0.62;
+  opacity: 0;
   transition: opacity var(--motion-duration-fast) ease-out;
 }
 
-.workspace-surface-header-session-tabs-viewport-shell:hover .workspace-conversation-tabs-scroll-rail,
+.workspace-surface-header-session-tabs-viewport-shell:hover .workspace-conversation-tabs-scroll-rail {
+  opacity: 0.5;
+}
+
+.workspace-conversation-tabs-scroll-rail[data-dragging="true"],
 .workspace-conversation-tabs-scroll-rail:focus-visible {
-  opacity: 0.95;
+  opacity: 0.92;
 }
 
 .workspace-conversation-tabs-scroll-rail::-webkit-slider-thumb {
@@ -62,8 +66,8 @@
   appearance: none;
   border: 0;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--primary) 46%, var(--icon-muted) 54%);
-  box-shadow: 0 1px 3px color-mix(in srgb, var(--text-strong) 14%, transparent);
+  background: color-mix(in srgb, var(--icon-muted) 76%, var(--divider-subtle-color) 24%);
+  box-shadow: none;
 }
 
 .workspace-conversation-tabs-scroll-rail::-moz-range-thumb {
@@ -71,7 +75,19 @@
   height: 4px;
   border: 0;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--primary) 46%, var(--icon-muted) 54%);
+  background: color-mix(in srgb, var(--icon-muted) 76%, var(--divider-subtle-color) 24%);
+  box-shadow: none;
+}
+
+.workspace-conversation-tabs-scroll-rail[data-dragging="true"]::-webkit-slider-thumb,
+.workspace-conversation-tabs-scroll-rail:focus-visible::-webkit-slider-thumb {
+  background: color-mix(in srgb, var(--primary) 54%, var(--icon-muted) 46%);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--text-strong) 14%, transparent);
+}
+
+.workspace-conversation-tabs-scroll-rail[data-dragging="true"]::-moz-range-thumb,
+.workspace-conversation-tabs-scroll-rail:focus-visible::-moz-range-thumb {
+  background: color-mix(in srgb, var(--primary) 54%, var(--icon-muted) 46%);
   box-shadow: 0 1px 3px color-mix(in srgb, var(--text-strong) 14%, transparent);
 }
 

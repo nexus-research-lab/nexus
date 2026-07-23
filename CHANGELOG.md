@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Gave crowded conversation tabs slightly wider readable minimums, separated the overflow rail from the tab edge, and kept it hidden until hover while reserving the stronger accent for active dragging or keyboard focus.
 - Replaced the sidebar create-room button's fractionally scaled plus glyph with a pixel-aligned equal-axis mark so its cross remains visually centered at desktop and constrained widths.
 - Removed the leftover 6px desktop stage top inset so the sidebar, workspace, Launcher, and lightweight desktop surfaces sit flush with the window top while preserving side and bottom breathing space.
 - Raised the regular desktop conversation composer slightly with a 16px bottom breathing area while preserving its existing size and the phone safe-area layout.
