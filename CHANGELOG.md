@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Replaced the sidebar create-room button's fractionally scaled plus glyph with a pixel-aligned equal-axis mark so its cross remains visually centered at desktop and constrained widths.
+- Removed the leftover 6px desktop stage top inset so the sidebar, workspace, Launcher, and lightweight desktop surfaces sit flush with the window top while preserving side and bottom breathing space.
+- Raised the regular desktop conversation composer slightly with a 16px bottom breathing area while preserving its existing size and the phone safe-area layout.
+- Kept the expanded sidebar brand divider on the same shared 52px header baseline as the workspace header at constrained desktop widths.
+- Removed the arbitrary five-tab ceiling from wide Room headers, made Safari-style tabs progressively share and shrink across the available track, added a lightly elevated active state plus direct trackpad, mouse-drag, and scrollbar navigation after labels reach their readable minimum, and only reveal the overview control when the tab strip actually overflows.
+- Restored the upstream translucent panel material and border colors for the narrow-window conversation switcher instead of rendering it as an opaque white paper surface.
+- Made crowded Room conversation headers easier to scan with bounded browser-style tab widths, individually framed active and inactive states, and quieter close actions on background tabs.
+- Removed the empty flex-growth band between Agent identity profile fields and their secondary settings in narrow layouts, and aligned Room settings with the same content-driven grouping and click-to-expand avatar picker while preserving desktop column allocation.
+- Kept Group Room member management reachable at every width: the phone-layout overflow menu now includes Members, desktop and mobile share one management-dialog adapter, and the narrow-window dialog stacks settings, members, and skills in a content-sized single column with bounded scrolling instead of stretching to the full viewport.
+- Moved Chat, Contacts, and Capabilities into a labeled vertical dock in both the expanded desktop sidebar and phone directories, while preserving the icon-only collapsed desktop rail, retaining the upstream transparent patterned sidebar surface across navigation states, and moving phone-directory system actions into the bottom of the same dock.
+- Gave the phone and narrow-window composer a centered `720px` width ceiling, larger edge and safe-area insets, and a slightly shorter idle input row instead of letting it fill the entire bottom edge.
+- Reworked Agent option density: avatar selection now opens a large five-column picker from the current avatar instead of using a draggable horizontal strip, while identity fields, tags, model controls, permission choices, tool rows, and skill cards use roomier responsive spacing and touch targets.
+- Added an application-level phone layout: chat, contacts, and capabilities now become full-screen primary directories, Room and detail pages use explicit back navigation, the conversation switcher expands from its header trigger using the same directory row language, Agent management uses compact single-column cards only below the desktop breakpoint while preserving its comfort cards at normal widths, dense headers collapse into labeled menus, and Agent editing now uses a content-sized desktop dialog, separated top navigation in constrained windows, and a single-column near-full-screen mobile form instead of squeezing desktop sidebars and controls. The macOS and Windows shells keep the `1280×820` initial size while allowing a `360×520` regular minimum and a `320×480` tiny-work-area fallback.
 - Aligned nxs and Claude Code message projection across effective result errors, empty assistant suppression, streamed tool input, nested tool ancestry, throttled shell progress, and forward-compatible content blocks so malformed or newer runtime output cannot silently end a conversation.
 - Fixed imported transcripts exposing SDK output-limit recovery prompts as repeated user messages and generating empty interrupted assistant bubbles in the conversation timeline.
 - Fixed Room Skills failing before runtime startup when legacy or imported skills did not define the removed `runtime_instructions` field; Room now injects each selected Skill's frontmatter-stripped body directly.
@@ -34,6 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Deepened only the light theme's warm ambient page background while preserving the existing blue-gray surfaces, controls, borders, text, and dark/rain themes.
 - Unified platform-owned Skills behind one global compatibility root for nxs and Claude Code; Agent records now persist selected platform `skill_ids` instead of copying platform Skill files into every workspace.
 - Realigned light-theme inputs, hover feedback, sidebar borders, and conversation-tab dividers with the restored cool-gray page background.
 - Unified control, card, overlay, and content radii around a restrained shared scale.
