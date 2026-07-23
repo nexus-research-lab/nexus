@@ -5,4 +5,4 @@
 - `sidebar-conversation-model.ts` 只投影 Room/DM 目录项；未读状态由 `sidebar-unread-model.ts` 统一聚合。
 - `use-chat-sidebar-controller.ts` 负责聊天列表导航、Room 创建和删除事务，视图不得直接调用 API 或 Store 命令。
 - `chat-sidebar-panel.tsx` 与 `contacts-sidebar-panel.tsx` 是两个独立入口，不再通过聚合文件互相耦合。
-- `sidebar-list-rows.tsx` 以头像、元信息、状态和摘要子视图渲染目录行；手机目录使用 72px 行高和 40px 头像，ContactRow 只显示静态 Agent 目录信息，不推导运行态。
+- `sidebar-list-rows.tsx` 以头像、元信息、状态和摘要子视图渲染目录行；手机聊天目录使用 80px 行高和 40px 头像，ContactRow 保持 72px 密度且只显示静态 Agent 目录信息，不推导运行态。
