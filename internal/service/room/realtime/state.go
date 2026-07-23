@@ -8,6 +8,7 @@ import (
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
+	messagepkg "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
@@ -646,7 +647,8 @@ func normalizeRoomInterruptReason(reason string) string {
 	if reason != "" {
 		return reason
 	}
-	return "Request stopped"
+	// Room 的停止是槽位状态，不应把默认英文文案写进公开结果正文。
+	return messagepkg.InterruptWithoutMessage
 }
 
 func markRoomSlotInterrupted(slot *activeRoomSlot, reason string) {

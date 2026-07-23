@@ -76,9 +76,16 @@ export function reconcileAgentRoundPendingSlots(
   if (isTerminal) {
     return slots.filter((slot) => slot.agent_round_id !== agentRoundId);
   }
-  return slots.map((slot) => slot.agent_round_id === agentRoundId
-    ? { ...slot, status: "streaming" }
-    : slot);
+  return slots.map((slot) => {
+    if (slot.agent_round_id !== agentRoundId) {
+      return slot;
+    }
+    // WebSocket 事件可能乱序；终态一旦落地，迟到的 running 不能把槽位复活。
+    if (TERMINAL_ASSISTANT_STATUSES.has(slot.status)) {
+      return slot;
+    }
+    return { ...slot, status: "streaming" };
+  });
 }
 
 export function filterPendingSlotsFromSnapshot(

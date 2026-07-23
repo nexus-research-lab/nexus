@@ -21,6 +21,7 @@ interface ComposerViewStateOptions {
   copy: ComposerViewCopy;
   goalCreateBlockedReason: string | null;
   goalError: string | null;
+  hasStopAction: boolean;
   historyIndex: number;
   historyItemCount: number;
   input: string;
@@ -65,6 +66,7 @@ export function buildComposerViewState(
     isGoalCreating: options.isGoalCreating,
     isGoalMode: modeState.isGoalMode,
     isPreparingAttachments: options.isPreparingAttachments,
+    hasStopAction: options.hasStopAction,
     runtimeState,
   });
 

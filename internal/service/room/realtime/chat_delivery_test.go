@@ -17,7 +17,7 @@ import (
 	"time"
 )
 
-func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
+func TestRealtimeServiceHandleChatWithSingleAgentRoomFallbackTarget(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
@@ -36,9 +36,9 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 		Role:     authsvc.RoleOwner,
 	})
 	memberAgent := createTestAgent(t, agentService, ctx, "单聊助手")
-	dmContext, err := roomService.EnsureDirectRoom(ctx, memberAgent.AgentID)
+	roomContext, err := createSingleAgentGroupRoom(ctx, roomService, memberAgent.AgentID)
 	if err != nil {
-		t.Fatalf("创建直聊 room 失败: %v", err)
+		t.Fatalf("创建单成员 room 失败: %v", err)
 	}
 
 	client := newFakeRoomClient()
@@ -92,14 +92,14 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 	service.SetUsageRecorder(usageService)
 	roomHistory := workspacestore.NewRoomHistoryStore(cfg.WorkspacePath)
 
-	sharedSessionKey := protocol.BuildRoomSharedSessionKey(dmContext.Conversation.ID)
+	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
 	sender := newRealtimeTestSender("room-sender-1")
 	permission.BindSession(sharedSessionKey, sender)
 
 	if err = service.HandleChat(ctx, realtimesvc.ChatRequest{
 		SessionKey:     sharedSessionKey,
-		RoomID:         dmContext.Room.ID,
-		ConversationID: dmContext.Conversation.ID,
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
 		Content:        "你好",
 		RoundID:        "room-round-1",
 	}); err != nil {
@@ -201,11 +201,11 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 		t.Fatalf("Room runtime 应注入明确 nexusctl 命令路径: %+v", factory.LastOptions().Env)
 	}
 
-	privateSessionKey := protocol.BuildRoomAgentSessionKey(dmContext.Conversation.ID, memberAgent.AgentID, dmContext.Room.RoomType)
+	privateSessionKey := protocol.BuildRoomAgentSessionKey(roomContext.Conversation.ID, memberAgent.AgentID, roomContext.Room.RoomType)
 	cursor, ok, err := workspacestore.NewAgentHistoryStore(cfg.WorkspacePath).ReadRoomPublicCursor(
 		memberAgent.WorkspacePath,
 		privateSessionKey,
-		dmContext.Conversation.ID,
+		roomContext.Conversation.ID,
 		memberAgent.AgentID,
 	)
 	if err != nil {
@@ -240,7 +240,7 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 			},
 		},
 	})
-	sharedMessages, err := roomHistory.ReadMessages(dmContext.Conversation.ID, nil)
+	sharedMessages, err := roomHistory.ReadMessages(roomContext.Conversation.ID, nil)
 	if err != nil {
 		t.Fatalf("读取共享 Room 消息失败: %v", err)
 	}

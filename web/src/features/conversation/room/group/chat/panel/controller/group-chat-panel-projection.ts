@@ -153,7 +153,7 @@ function buildFeedModel({
       onOpenAgentContact,
       onOpenWorkspaceFile,
       onPermissionResponse: conversation.send_permission_response,
-      onStopMessage: conversation.stop_generation,
+      onStopAgentRound: conversation.stop_generation,
       runtimePhase: conversation.runtime_phase,
     },
     source: {

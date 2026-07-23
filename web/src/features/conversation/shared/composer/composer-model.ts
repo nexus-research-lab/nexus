@@ -32,7 +32,10 @@ export interface ComposerPanelProps {
   onDeleteQueuedMessage: (itemId: string) => void | Promise<void>;
   onGuideQueuedMessage: (itemId: string) => void | Promise<void>;
   onReorderQueueMessages: (orderedIds: string[]) => void | Promise<void>;
-  onStop: () => void;
+  /**
+   * DM 可在输入框停止当前会话；Room 的停止属于 Agent slot，不提供该能力。
+   */
+  onStop?: () => void;
   defaultDeliveryPolicy: AgentConversationDefaultDeliveryPolicy;
   queueWhenSessionBusy?: boolean;
   roomMembers?: Agent[];

@@ -33,7 +33,7 @@ interface GroupAgentStatusCardProps {
   onClickThread: () => void;
   onOpenAgentContact?: (agentId: string) => void;
   onPermissionResponse: (payload: PermissionDecisionPayload) => boolean;
-  onStopMessage?: () => void;
+  onStopAgentRound?: () => void;
   pendingPermissions: PendingPermission[];
   resultSummary?: ResultSummary;
   status: AgentRoundStatus;
@@ -57,7 +57,7 @@ function GroupAgentStatusCardInner({
   onClickThread,
   onOpenAgentContact,
   onPermissionResponse,
-  onStopMessage,
+  onStopAgentRound,
   pendingPermissions,
   resultSummary,
   status,
@@ -80,8 +80,8 @@ function GroupAgentStatusCardInner({
 
   const handleStop = useCallback((event: React.MouseEvent) => {
     event.stopPropagation();
-    onStopMessage?.();
-  }, [onStopMessage]);
+    onStopAgentRound?.();
+  }, [onStopAgentRound]);
   const handleAllow = useCallback((event: React.MouseEvent) => {
     event.stopPropagation();
     if (
@@ -153,7 +153,7 @@ function GroupAgentStatusCardInner({
           actions={{
             allow: handleAllow,
             deny: handleDeny,
-            stop: onStopMessage ? handleStop : undefined,
+            stop: onStopAgentRound ? handleStop : undefined,
             toggleThread: handleToggleThread,
           }}
           agentName={agentName}

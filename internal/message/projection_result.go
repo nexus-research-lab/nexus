@@ -61,6 +61,14 @@ func resultNeedsAssistantProjection(result protocol.Message) bool {
 	if boolFromAny(result["is_error"]) || NormalizeResultSubtype(normalizeString(result["subtype"])) == "error" {
 		return true
 	}
+	// Room 的空 interrupted result 是 Agent 槽位的终态卡片，不是聊天气泡。
+	// 保留它的身份，让实时态和历史态都能稳定展示“已停止”，同时不回显
+	// runtime 的默认停止文案。
+	if NormalizeResultSubtype(normalizeString(result["subtype"])) == "interrupted" &&
+		normalizeString(result["room_id"]) != "" &&
+		normalizeString(result["agent_round_id"]) != "" {
+		return true
+	}
 	return NormalizeDisplayText(normalizeString(result["result"])) != ""
 }
 

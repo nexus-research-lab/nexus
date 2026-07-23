@@ -16,7 +16,7 @@ export interface ComposerSubmitButtonProps {
   isGoalMode: boolean;
   isPreparingAttachments: boolean;
   onSend: () => void | Promise<void>;
-  onStop: () => void;
+  onStop?: () => void;
   sendLabel: string;
   shouldStop: boolean;
   stopLabel: string;
@@ -44,11 +44,10 @@ const SUBMIT_ACTION_BY_VISUAL: Record<
 };
 
 export function ComposerSubmitButton(props: ComposerSubmitButtonProps) {
-  const projection = projectComposerSubmitButton(props);
-  const commands = {
-    send: () => void props.onSend(),
-    stop: props.onStop,
-  };
+  const projection = projectComposerSubmitButton({
+    ...props,
+    shouldStop: props.shouldStop && Boolean(props.onStop),
+  });
   const content: Record<ComposerSubmitVisual, ReactNode> = {
     goal: <Target size={16} />,
     loading: <LoadingOrb frames={["·", "◦", "•", "◦"]} />,
@@ -60,7 +59,11 @@ export function ComposerSubmitButton(props: ComposerSubmitButtonProps) {
       aria-label={projection.ariaLabel}
       className={projection.className}
       disabled={projection.disabled}
-      onClick={commands[projection.action]}
+      onClick={
+        projection.action === "stop"
+          ? () => props.onStop?.()
+          : () => void props.onSend()
+      }
       type="button"
     >
       <ComposerSubmitInlineLabel label={projection.inlineLabel} />

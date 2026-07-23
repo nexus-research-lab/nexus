@@ -53,7 +53,6 @@ export function RoomThreadInlinePanel({
         pendingPermissions={threadPanelData.pendingPermissions}
         onPermissionResponse={threadPanelData.onPermissionResponse}
         onClose={closeThread}
-        onStopMessage={threadPanelData.onStopMessage}
         onOpenWorkspaceFile={threadPanelData.onOpenWorkspaceFile}
         isLoading={threadPanelData.isLoading}
         layout="desktop"

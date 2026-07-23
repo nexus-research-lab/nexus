@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Fixed unauthenticated App/Web requests falling back to an unscoped Agent or automation query; single-user requests now resolve to `__system__`, while explicit maintenance contexts retain their separate cross-owner path.
+- Fixed Room slot interruption by removing the global Composer stop action, binding the stop button to the corresponding `agent_round_id`, preserving that identity through streaming placeholders, and projecting one monotonic stopped slot instead of a `Request stopped` message plus a duplicate empty card.
 - Isolated DM and Room input-queue replay by execution scope and prevented Room subscription recovery from dispatching DM queue items through a Room runtime, so a DM resume cannot be reused by a different Room configuration.
 - Fixed desktop local profiles being assigned an implicit Free subscription after saving an avatar, which exposed the server-only subscription UI and incorrectly enforced its monthly quota in the App.
 

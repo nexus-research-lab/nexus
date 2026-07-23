@@ -175,6 +175,32 @@ test("Room pending slot keeps the backend display index", async () => {
   assert.equal(slots[0]?.index, 7);
 });
 
+test("Room slot terminal state cannot be revived by a late running event", async () => {
+  const {
+    reconcileAgentRoundPendingSlots,
+  } = await server.ssrLoadModule(
+    "/src/hooks/agent/runtime/model/conversation-runtime-reconciliation.ts",
+  );
+  const cancelledSlot = {
+    agent_id: "agent-1",
+    agent_round_id: "agent-round-stopped",
+    msg_id: "slot-stopped",
+    round_id: "round-root",
+    status: "cancelled",
+    timestamp: 10,
+  };
+
+  assert.deepEqual(
+    reconcileAgentRoundPendingSlots(
+      [cancelledSlot],
+      "agent-round-stopped",
+      false,
+    ),
+    [cancelledSlot],
+    "迟到的 non-terminal 事件不能把已停止槽位改回 streaming",
+  );
+});
+
 test("Room pending queue shows only user-authored guidance", async () => {
   const { projectRoomPendingInputQueueItems } = await server.ssrLoadModule(
     "/src/features/conversation/room/group/chat/panel/controller/group-chat-panel-projection.ts",
@@ -625,6 +651,40 @@ test("consumed Room guide update moves beside its running assistant", async () =
   assert.equal(canonicalGuide?.timestamp, 4);
 });
 
+test("Room Composer hides the global stop action when no stop capability is supplied", async () => {
+  const {
+    projectComposerActions,
+    projectComposerInput,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/composer/controller/composer-view-projections.ts",
+  );
+  const base = {
+    canCreateGoal: true,
+    compact: false,
+    goalCreateBlockedReason: null,
+    input: "",
+    inputState: projectComposerInput("", 0),
+    isGoalCreating: false,
+    isGoalMode: false,
+    isPreparingAttachments: false,
+    runtimeState: {
+      activity: "replying",
+      canStopGeneration: true,
+      isAwaitingPermission: false,
+      sessionBusy: true,
+    },
+  };
+
+  assert.equal(
+    projectComposerActions({ ...base, hasStopAction: false }).shouldShowStopButton,
+    false,
+  );
+  assert.equal(
+    projectComposerActions({ ...base, hasStopAction: true }).shouldShowStopButton,
+    true,
+  );
+});
+
 test("message protocol preserves CC rich blocks and contains unknown provider blocks", async () => {
   const {
     parseConversationMessage,
@@ -687,8 +747,10 @@ test("stream reducer exposes tool calls and removes terminal empty assistants", 
   );
   const base = {
     agent_id: "agent-1",
+    agent_round_id: "agent-round-room",
     message_id: "assistant-tool-stream",
     parent_tool_use_id: "agent-call-1",
+    room_id: "room-1",
     round_id: "round-tool-stream",
     session_key: "agent:agent-1:ws:dm:test",
     timestamp: 1,
@@ -699,6 +761,12 @@ test("stream reducer exposes tool calls and removes terminal empty assistants", 
     type: "message_start",
   });
   assert.equal(messages[0]?.parent_id, "agent-call-1");
+  assert.equal(
+    messages[0]?.agent_round_id,
+    "agent-round-room",
+    "Room stream placeholder must keep the slot execution identity",
+  );
+  assert.equal(messages[0]?.room_id, "room-1");
   messages = applyStreamMessage(messages, {
     ...base,
     content_block: {
@@ -865,6 +933,57 @@ test("Room keeps separate agent_round entries for the same agent", async () => {
   assert.deepEqual(
     entries[1]?.assistant_messages.map((message) => message.message_id),
     ["assistant-legacy-new"],
+  );
+});
+
+test("Room interruption projection follows the slot identity without a ghost card", async () => {
+  const { buildRoomAgentRoundEntries } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/round/round-agent-model.ts",
+  );
+  const slot = {
+    agent_id: "agent-1",
+    agent_round_id: "agent-round-stopped",
+    msg_id: "slot-stopped",
+    round_id: "round-root",
+    status: "streaming",
+    timestamp: 20,
+  };
+  const stream = assistantMessage({
+    agentRoundId: "agent-round-stopped",
+    messageId: "assistant-stopped-stream",
+    status: "streaming",
+    text: "",
+    timestamp: 21,
+  });
+  const interrupted = {
+    ...assistantMessage({
+      agentId: "agent-1",
+      isComplete: true,
+      messageId: "assistant_result_round-root",
+      resultSummary: {
+        duration_api_ms: 0,
+        duration_ms: 0,
+        is_error: false,
+        num_turns: 0,
+        subtype: "interrupted",
+        timestamp: 22,
+      },
+      status: "cancelled",
+      text: "",
+      timestamp: 22,
+    }),
+    // 兼容旧事件：结果没有 agent_round_id，但 parent_id 仍指向 slot。
+    agent_round_id: undefined,
+    parent_id: "slot-stopped",
+  };
+
+  const entries = buildRoomAgentRoundEntries([stream, interrupted], [slot]);
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0]?.agent_round_id, "agent-round-stopped");
+  assert.equal(entries[0]?.status, "cancelled");
+  assert.deepEqual(
+    entries[0]?.assistant_messages.map((message) => message.message_id),
+    ["assistant-stopped-stream"],
   );
 });
 
