@@ -312,6 +312,59 @@
     border: 1px solid var(--surface-interactive-active-border);
   }
 
+  /* 中文注释：横排头像使用应用内滑轨，避免系统滚动条隐藏后失去可发现性。 */
+  .icon-picker-scroll-range {
+    appearance: none;
+    height: 18px;
+    cursor: pointer;
+    background: transparent;
+  }
+
+  .icon-picker-scroll-range::-webkit-slider-runnable-track {
+    height: 5px;
+    border: 1px solid var(--surface-inset-border);
+    border-radius: 999px;
+    background: linear-gradient(
+      to right,
+      color-mix(in srgb, var(--primary) 72%, white 8%) 0 var(--icon-picker-scroll-progress),
+      color-mix(in srgb, var(--surface-inset-border) 76%, transparent) var(--icon-picker-scroll-progress) 100%
+    );
+    box-shadow: inset 0 1px 2px color-mix(in srgb, var(--foreground) 8%, transparent);
+  }
+
+  .icon-picker-scroll-range::-webkit-slider-thumb {
+    appearance: none;
+    width: 32px;
+    height: 12px;
+    margin-top: -4px;
+    border: 1px solid var(--surface-card-border);
+    border-radius: 999px;
+    background: var(--surface-card-background);
+    box-shadow: var(--surface-card-shadow);
+  }
+
+  .icon-picker-scroll-range::-moz-range-track {
+    height: 5px;
+    border: 1px solid var(--surface-inset-border);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--surface-inset-border) 76%, transparent);
+  }
+
+  .icon-picker-scroll-range::-moz-range-progress {
+    height: 5px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--primary) 72%, white 8%);
+  }
+
+  .icon-picker-scroll-range::-moz-range-thumb {
+    width: 32px;
+    height: 12px;
+    border: 1px solid var(--surface-card-border);
+    border-radius: 999px;
+    background: var(--surface-card-background);
+    box-shadow: var(--surface-card-shadow);
+  }
+
   /* 中文注释：消息 Markdown 列表使用固定 marker 栅格，避免序号在不同缩放和屏宽下压住正文。 */
   .markdown-list {
     display: flex;

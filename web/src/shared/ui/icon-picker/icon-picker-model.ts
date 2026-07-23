@@ -75,7 +75,7 @@ export function getIconPickerPresentation(
   );
   return {
     collectionClassName: options.layout === "row"
-      ? "soft-scrollbar flex gap-2 overflow-x-auto overflow-y-hidden pb-1"
+      ? "scrollbar-hide flex gap-2 overflow-x-auto overflow-y-hidden pb-1"
       : cn("grid gap-2", GRID_COLUMN_CLASS_NAMES[options.columns]),
     items: iconIds.map((iconId) => buildIconPickerItem(iconId, options)),
     showClear: options.showClear && Boolean(options.value),

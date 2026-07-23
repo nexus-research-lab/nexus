@@ -1,9 +1,11 @@
 "use client";
 
-import { X } from "lucide-react";
+import type { CSSProperties } from "react";
+import { ChevronLeft, ChevronRight, X } from "lucide-react";
 
 import type { AvatarIconFamily } from "@/lib/avatar";
 import { cn } from "@/shared/ui/class-name";
+import { UiIconButton } from "@/shared/ui/button/button";
 import { useI18n } from "@/shared/i18n/i18n-context";
 
 import {
@@ -12,6 +14,7 @@ import {
   type IconPickerLayout,
   type IconPickerSize,
 } from "./icon-picker-model";
+import { useIconPickerRowScroll } from "./use-icon-picker-row-scroll";
 
 interface IconPickerProps {
   className?: string;
@@ -52,6 +55,16 @@ export function IconPicker({
     startIconId,
     value,
   });
+  const rowScroll = useIconPickerRowScroll({
+    enabled: layout === "row",
+    itemCount: presentation.items.length,
+  });
+  const scrollProgress = rowScroll.metrics.maxScrollLeft > 0
+    ? rowScroll.metrics.scrollLeft / rowScroll.metrics.maxScrollLeft
+    : 0;
+  const scrollRangeStyle = {
+    "--icon-picker-scroll-progress": `${scrollProgress * 100}%`,
+  } as CSSProperties;
 
   return (
     <div className={cn("flex flex-col gap-3", className)}>
@@ -66,7 +79,10 @@ export function IconPicker({
           {t("common.clear")}
         </button>
       ) : null}
-      <div className={presentation.collectionClassName}>
+      <div
+        ref={rowScroll.collectionRef}
+        className={presentation.collectionClassName}
+      >
         {presentation.items.map((item) => (
           <button
             className={item.className}
@@ -85,6 +101,39 @@ export function IconPicker({
           </button>
         ))}
       </div>
+      {layout === "row" && rowScroll.metrics.canScroll ? (
+        <div className="flex items-center gap-2 px-0.5" data-icon-picker-scroll-controls="true">
+          <UiIconButton
+            aria-label={t("common.icon_picker_previous")}
+            disabled={!rowScroll.metrics.canScrollBackward}
+            onClick={rowScroll.scrollBackward}
+            size="sm"
+            variant="surface"
+          >
+            <ChevronLeft className="h-3.5 w-3.5" />
+          </UiIconButton>
+          <input
+            aria-label={t("common.icon_picker_scroll")}
+            className="icon-picker-scroll-range min-w-0 flex-1"
+            max={rowScroll.metrics.maxScrollLeft}
+            min={0}
+            onChange={(event) => rowScroll.setScrollLeft(Number(event.target.value))}
+            step={1}
+            style={scrollRangeStyle}
+            type="range"
+            value={rowScroll.metrics.scrollLeft}
+          />
+          <UiIconButton
+            aria-label={t("common.icon_picker_next")}
+            disabled={!rowScroll.metrics.canScrollForward}
+            onClick={rowScroll.scrollForward}
+            size="sm"
+            variant="surface"
+          >
+            <ChevronRight className="h-3.5 w-3.5" />
+          </UiIconButton>
+        </div>
+      ) : null}
     </div>
   );
 }
