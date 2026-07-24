@@ -70,6 +70,20 @@ export function AgentOptionsIdentityTab({
   const layout = IDENTITY_LAYOUTS[variant];
   const isInline = variant === "inline";
   const shouldShowDescriptionField = !isInline || (!isMain && !agentId);
+  const modelSelector = (
+    <IdentityModelSelector
+      defaultModel={defaultModel}
+      defaultProvider={defaultProvider}
+      error={providerOptionsError}
+      loading={providerOptionsLoading}
+      model={model}
+      onModelChange={onModelChange}
+      onProviderChange={onProviderChange}
+      options={providerOptions}
+      provider={provider}
+      variant={variant}
+    />
+  );
 
   return (
     <div
@@ -107,19 +121,14 @@ export function AgentOptionsIdentityTab({
             tags={vibeTags}
             variant={variant}
           />
-          <IdentityModelSelector
-            defaultModel={defaultModel}
-            defaultProvider={defaultProvider}
-            error={providerOptionsError}
-            loading={providerOptionsLoading}
-            model={model}
-            onModelChange={onModelChange}
-            onProviderChange={onProviderChange}
-            options={providerOptions}
-            provider={provider}
-            variant={variant}
-          />
+          {!isInline ? modelSelector : null}
         </div>
+
+        {isInline ? (
+          <div className={layout.modelClassName}>
+            {modelSelector}
+          </div>
+        ) : null}
       </div>
 
       {isInline && !isMain && agentId ? (
