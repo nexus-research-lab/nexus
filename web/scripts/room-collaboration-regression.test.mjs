@@ -71,6 +71,116 @@ test("会话纵览只按稳定宽度约束显示", async () => {
   );
 });
 
+test("会话标签按创建时间稳定排序并独立恢复活动项", async () => {
+  const {
+    getConversationIdsByCreationTime,
+    getInitialOpenConversationIds,
+    reconcileOpenConversationIds,
+  } = await server.ssrLoadModule(
+    "/src/shared/ui/workspace/controls/conversation-tabs/conversation-tabs-model.ts",
+  );
+  const conversations = [
+    {
+      conversation_id: "third",
+      created_at: 300,
+      last_activity_at: 900,
+    },
+    {
+      conversation_id: "first",
+      created_at: 100,
+      last_activity_at: 800,
+    },
+    {
+      conversation_id: "second",
+      created_at: 200,
+      last_activity_at: 1000,
+    },
+  ];
+  const orderedIds = getConversationIdsByCreationTime(conversations);
+
+  assert.deepEqual(
+    orderedIds,
+    ["first", "second", "third"],
+    "消息活动时间不得改变标签创建顺序",
+  );
+  assert.deepEqual(
+    getInitialOpenConversationIds("third", orderedIds, orderedIds.length),
+    orderedIds,
+    "恢复最后活动标签时不得把该标签移动到首位",
+  );
+  assert.deepEqual(
+    reconcileOpenConversationIds({
+      conversationId: "second",
+      currentIds: ["first", "third"],
+      fillAvailable: false,
+      maxOpenCount: orderedIds.length,
+      orderedIds,
+      pendingClosedId: null,
+    }),
+    orderedIds,
+    "重新打开标签必须回到其创建时间位置",
+  );
+});
+
+test("Room 无显式会话路由时优先恢复用户最后活动项", async () => {
+  const { resolveSelectedConversationId } = await server.ssrLoadModule(
+    "/src/pages/room/controller/model/room-conversation-model.ts",
+  );
+  const { buildRoomPageModel } = await server.ssrLoadModule(
+    "/src/pages/room/controller/model/page/room-page-model.ts",
+  );
+  const conversations = [
+    { conversation_id: "latest", last_activity_at: 300 },
+    { conversation_id: "remembered", last_activity_at: 200 },
+  ];
+
+  assert.equal(
+    resolveSelectedConversationId(null, conversations, "remembered"),
+    "remembered",
+    "切回 Room 时应恢复用户最后激活的标签",
+  );
+  assert.equal(
+    resolveSelectedConversationId("latest", conversations, "remembered"),
+    "latest",
+    "显式 Conversation URL 仍然优先于本地恢复偏好",
+  );
+  assert.equal(
+    resolveSelectedConversationId(null, conversations, "removed"),
+    "latest",
+    "已删除的恢复目标必须回退到当前有效会话",
+  );
+
+  const externalConversation = {
+    conversation_id: "external:feishu",
+    room_id: "room-a",
+    session_key: "feishu:session",
+  };
+  const model = buildRoomPageModel({
+    base: {
+      activeRoomSession: null,
+      availableRoomAgents: [],
+      baseRoomConversations: conversations,
+      currentAgent: null,
+      currentRoom: null,
+      currentRoomContext: null,
+      roomMemberAgents: [],
+      selectedBaseConversationId: "latest",
+      workspaceAgentIds: [],
+    },
+    externalAgentSessions: [],
+    externalRoomConversations: [externalConversation],
+    isSelectionReady: true,
+    preferredConversationId: externalConversation.conversation_id,
+    routeRoomId: "room-a",
+    routeSessionKey: null,
+  });
+  assert.equal(
+    model.conversation.selectedId,
+    externalConversation.conversation_id,
+    "外部 Session 标签加载完成后也应恢复为最后活动项",
+  );
+});
+
 test("聊天侧栏只按 Room 活动态显示 DM 和群组", async () => {
   const {
     getActiveRoomIds,

@@ -3,7 +3,7 @@ import { ArrowDown } from "lucide-react";
 import { cn } from "@/shared/ui/class-name";
 
 const FLOATING_ACTION_CHIP_CLASS_NAME =
-  "absolute z-20 grid h-8 w-8 place-items-center rounded-full border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_82%,var(--foreground)_10%)] bg-[color:color-mix(in_srgb,var(--background)_94%,var(--foreground)_6%)] text-(--text-default) shadow-[0_8px_22px_color-mix(in_srgb,var(--foreground)_10%,transparent)] transition-[color,border-color,background] duration-(--motion-duration-fast) hover:border-(--surface-interactive-active-border) hover:bg-[color:color-mix(in_srgb,var(--background)_90%,var(--foreground)_10%)] hover:text-(--text-strong)";
+  "absolute z-20 grid h-8 w-8 place-items-center rounded-full border border-(--surface-control-border) bg-(--surface-control-background) text-(--text-default) shadow-(--surface-control-shadow) transition-[color,border-color,background,box-shadow] duration-(--motion-duration-fast) hover:border-(--surface-control-hover-border) hover:bg-(--surface-control-hover-background) hover:text-(--text-strong)";
 
 interface ScrollToLatestButtonProps {
   isLoading: boolean;

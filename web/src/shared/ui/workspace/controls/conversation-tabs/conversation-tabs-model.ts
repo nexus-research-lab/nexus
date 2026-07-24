@@ -50,43 +50,61 @@ export function getRecentConversationIds(
     .map((conversation) => conversation.conversation_id);
 }
 
+export function getConversationIdsByCreationTime(
+  conversations: RoomConversationView[],
+): string[] {
+  return [...conversations]
+    .sort((left, right) => {
+      if (left.created_at !== right.created_at) {
+        return left.created_at - right.created_at;
+      }
+      return left.conversation_id.localeCompare(right.conversation_id);
+    })
+    .map((conversation) => conversation.conversation_id);
+}
+
 export function getInitialOpenConversationIds(
   conversationId: string | null,
-  recentConversationIds: string[],
+  orderedConversationIds: string[],
   maxOpenCount = 1,
 ): string[] {
-  const selectedId = conversationId && recentConversationIds.includes(conversationId)
+  const selectedId = conversationId && orderedConversationIds.includes(conversationId)
     ? conversationId
-    : recentConversationIds[0] ?? null;
+    : orderedConversationIds[0] ?? null;
   if (!selectedId) {
     return [];
   }
 
   const capacity = Math.max(1, maxOpenCount);
-  return [
+  const initialIds = orderedConversationIds.slice(0, capacity);
+  if (initialIds.includes(selectedId)) {
+    return initialIds;
+  }
+  const selectedIds = new Set([
+    ...initialIds.slice(0, Math.max(0, capacity - 1)),
     selectedId,
-    ...recentConversationIds.filter((id) => id !== selectedId),
-  ].slice(0, capacity);
+  ]);
+  return orderedConversationIds.filter((id) => selectedIds.has(id));
 }
 
 export function reconcileOpenConversationIds({
   conversationId,
   currentIds,
   excludedConversationIds,
-  fillRecent,
+  fillAvailable,
   maxOpenCount,
+  orderedIds,
   pendingClosedId,
-  recentIds,
 }: {
   conversationId: string | null;
   currentIds: string[];
   excludedConversationIds?: ReadonlySet<string>;
-  fillRecent?: boolean;
+  fillAvailable?: boolean;
   maxOpenCount?: number;
+  orderedIds: string[];
   pendingClosedId: string | null;
-  recentIds: string[];
 }): string[] {
-  const liveIds = new Set(recentIds);
+  const liveIds = new Set(orderedIds);
   const capacity = Math.max(1, maxOpenCount ?? Number.MAX_SAFE_INTEGER);
   const selectedId = resolveLiveConversationId(conversationId, liveIds);
   const retainedIds = retainLiveConversationIds(currentIds, liveIds);
@@ -98,23 +116,32 @@ export function reconcileOpenConversationIds({
   const ensuredIds = ensureOpenConversationId(
     selectedIds,
     selectedId,
-    recentIds,
+    orderedIds,
   );
-  const expandedIds = fillRecent
-    ? appendRecentConversationIds(
+  const expandedIds = fillAvailable
+    ? appendAvailableConversationIds(
       ensuredIds,
-      recentIds,
+      orderedIds,
       capacity,
       buildExcludedConversationIds(excludedConversationIds, pendingClosedId),
     )
     : ensuredIds;
+  const sortedIds = sortConversationIdsByReference(expandedIds, orderedIds);
   const resolvedIds = limitOpenConversationIds(
-    expandedIds,
+    sortedIds,
     selectedId,
     capacity,
   );
 
   return areIdsEqual(currentIds, resolvedIds) ? currentIds : resolvedIds;
+}
+
+function sortConversationIdsByReference(
+  currentIds: string[],
+  orderedIds: string[],
+): string[] {
+  const currentIdSet = new Set(currentIds);
+  return orderedIds.filter((id) => currentIdSet.has(id));
 }
 
 function resolveLiveConversationId(
@@ -160,9 +187,9 @@ function ensureOpenConversationId(
   return fallbackId ? [fallbackId] : currentIds;
 }
 
-function appendRecentConversationIds(
+function appendAvailableConversationIds(
   currentIds: string[],
-  recentIds: string[],
+  orderedIds: string[],
   maxOpenCount: number,
   excludedIds: ReadonlySet<string>,
 ): string[] {
@@ -171,7 +198,7 @@ function appendRecentConversationIds(
   }
 
   const nextIds = [...currentIds];
-  for (const id of recentIds) {
+  for (const id of orderedIds) {
     if (
       nextIds.length >= maxOpenCount
       || excludedIds.has(id)

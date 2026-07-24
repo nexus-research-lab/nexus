@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 
+import { getExternalSessionKeyFromConversationId } from "@/lib/conversation/external-session";
 import type { Agent } from "@/types/agent/agent";
 import type { RoomContextAggregate } from "@/types/conversation/room";
 
@@ -13,6 +14,7 @@ import {
 interface UseRoomPageModelOptions {
   agents: Agent[];
   conversationId?: string | null;
+  preferredConversationId?: string | null;
   roomContexts: RoomContextAggregate[];
   roomId?: string | null;
   sessionKey?: string | null;
@@ -37,6 +39,7 @@ function getExternalRoomType(base: ReturnType<typeof buildRoomPageBaseModel>): s
 export function useRoomPageModel({
   agents,
   conversationId,
+  preferredConversationId,
   roomContexts,
   roomId,
   sessionKey,
@@ -45,10 +48,11 @@ export function useRoomPageModel({
     () => buildRoomPageBaseModel({
       agents,
       conversationId,
+      preferredConversationId,
       roomContexts,
       roomId,
     }),
-    [agents, conversationId, roomContexts, roomId],
+    [agents, conversationId, preferredConversationId, roomContexts, roomId],
   );
   const routeSessionKey = normalizeRouteSessionKey(sessionKey);
   const externalSessions = useRoomExternalSessions({
@@ -56,12 +60,19 @@ export function useRoomPageModel({
     roomId: getExternalRoomId(base),
     roomType: getExternalRoomType(base),
   });
+  const isSelectionReady = (
+    !preferredConversationId
+    || !getExternalSessionKeyFromConversationId(preferredConversationId)
+    || externalSessions.isExternalSessionCatalogReady
+  );
 
   return useMemo(
     () => buildRoomPageModel({
       base,
       externalAgentSessions: externalSessions.externalAgentSessions,
       externalRoomConversations: externalSessions.externalRoomConversations,
+      isSelectionReady,
+      preferredConversationId: preferredConversationId ?? null,
       routeRoomId: roomId ?? null,
       routeSessionKey,
     }),
@@ -69,6 +80,8 @@ export function useRoomPageModel({
       base,
       externalSessions.externalAgentSessions,
       externalSessions.externalRoomConversations,
+      isSelectionReady,
+      preferredConversationId,
       roomId,
       routeSessionKey,
     ],

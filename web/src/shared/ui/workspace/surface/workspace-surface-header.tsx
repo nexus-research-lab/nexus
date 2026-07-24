@@ -11,7 +11,7 @@ import { WORKSPACE_HEADER_HEIGHT_CLASS } from "@/shared/ui/workspace/surface/wor
 import "./workspace-surface-header.css";
 
 const SURFACE_HEADER_CLASS_NAME =
-  "workspace-surface-header border-b border-(--divider-subtle-color) bg-transparent";
+  "workspace-surface-header shell-region-header";
 
 interface WorkspaceSurfaceHeaderTab<TTabKey extends string> {
   anchor?: string;
@@ -67,7 +67,7 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
         WORKSPACE_HEADER_HEIGHT_CLASS,
       )}
     >
-      <div className="workspace-surface-header-inner flex h-full min-w-0 items-center justify-between gap-3 px-5 xl:px-6">
+      <div className="workspace-surface-header-inner flex h-full min-w-0 items-center justify-between px-5 xl:px-6">
         <WorkspaceSurfaceIdentity
           badge={badge}
           leading={leading}
@@ -114,7 +114,7 @@ function WorkspaceSurfaceIdentity({
     <div className="workspace-surface-header-title flex min-w-0 shrink items-center gap-2.5">
       {leading ? (
         <div className={cn(
-          "flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-(--surface-avatar-background) text-(--icon-default) shadow-(--surface-avatar-shadow)",
+          "workspace-surface-header-identity-avatar flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-(--icon-default)",
           leadingClassName,
         )}>
           {leading}
@@ -185,28 +185,31 @@ function WorkspaceSurfaceNavigation<TTabKey extends string>({
   tabsLeading?: ReactNode;
   tabsNavAnchor?: string;
 }) {
+  const hasNavigationTools = tabs.length > 0 || Boolean(navigationTrailing);
+
   return (
-    <div className="workspace-surface-header-navigation flex min-w-0 flex-1 items-center gap-3">
+    <div className="workspace-surface-header-navigation flex min-w-0 flex-1 items-center">
       <WorkspaceSurfaceNavigationLead
         subtitle={subtitle}
         tabsLeading={tabsLeading}
       />
-      <WorkspaceSurfaceNavigationDivider
-        visible={Boolean(tabsLeading) && tabs.length > 0}
-      />
-      <WorkspaceSurfaceTabs
-        activeTab={activeTab}
-        compactTabsLabel={compactTabsLabel}
-        dismissActiveTabLabel={dismissActiveTabLabel}
-        hasLeading={Boolean(tabsLeading)}
-        onChangeTab={onChangeTab}
-        onDismissActiveTab={onDismissActiveTab}
-        tabs={tabs}
-        tabsNavAnchor={tabsNavAnchor}
-      />
-      {navigationTrailing ? (
-        <div className="workspace-surface-header-navigation-actions flex shrink-0 items-center">
-          {navigationTrailing}
+      {hasNavigationTools ? (
+        <div className="workspace-surface-header-tool-cluster flex shrink-0 items-center">
+          <WorkspaceSurfaceTabs
+            activeTab={activeTab}
+            compactTabsLabel={compactTabsLabel}
+            dismissActiveTabLabel={dismissActiveTabLabel}
+            hasLeading={Boolean(tabsLeading)}
+            onChangeTab={onChangeTab}
+            onDismissActiveTab={onDismissActiveTab}
+            tabs={tabs}
+            tabsNavAnchor={tabsNavAnchor}
+          />
+          {navigationTrailing ? (
+            <div className="workspace-surface-header-navigation-actions flex shrink-0 items-center">
+              {navigationTrailing}
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>
@@ -229,14 +232,6 @@ function WorkspaceSurfaceNavigationLead({
     <div className="workspace-surface-header-subtitle min-w-0 flex-1 truncate text-[12px] leading-5 text-(--text-soft)">
       {subtitle}
     </div>
-  );
-}
-
-function WorkspaceSurfaceNavigationDivider({ visible }: { visible: boolean }) {
-  if (!visible) return null;
-
-  return (
-    <div className="workspace-surface-header-navigation-divider h-5 w-px shrink-0 bg-(--divider-subtle-color)" />
   );
 }
 
@@ -278,6 +273,7 @@ function WorkspaceSurfaceTabs<TTabKey extends string>({
         itemClassName="workspace-surface-header-view-tab"
         options={tabs.map((tab) => ({
           anchor: tab.anchor,
+          className: `workspace-surface-header-view-tab-item workspace-surface-header-view-tab-item-${tab.key}`,
           icon: tab.icon,
           label: tab.label,
           title: tab.label,
@@ -381,7 +377,7 @@ function WorkspaceSurfaceTrailing({ children }: { children?: ReactNode }) {
   if (!children) return null;
 
   return (
-    <div className="workspace-surface-header-trailing ml-3 flex shrink-0 flex-nowrap items-center justify-end gap-1.5">
+    <div className="workspace-surface-header-trailing flex shrink-0 flex-nowrap items-center justify-end">
       {children}
     </div>
   );

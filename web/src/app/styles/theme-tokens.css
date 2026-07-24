@@ -54,6 +54,17 @@
   --material-panel-shadow:
     0 18px 42px rgba(94, 108, 127, 0.12),
     0 2px 10px rgba(94, 108, 127, 0.05);
+  --material-shell-navigation-background: rgba(205, 201, 190, 0.3);
+  --material-shell-directory-background: rgba(250, 247, 238, 0.22);
+  --material-shell-header-background: rgba(250, 247, 238, 0.18);
+  --material-shell-edge-shadow:
+    10px 0 30px rgba(76, 66, 49, 0.055);
+  --material-shell-inner-shadow:
+    7px 0 22px rgba(76, 66, 49, 0.035);
+  --material-shell-header-shadow:
+    0 9px 26px rgba(76, 66, 49, 0.045);
+  --material-shell-footer-shadow:
+    0 -8px 24px rgba(76, 66, 49, 0.04);
 
   --material-canvas-background:
     linear-gradient(180deg, rgba(251, 253, 255, 0.68), rgba(246, 249, 253, 0.6) 100%);
@@ -114,8 +125,12 @@
 
   --interaction-hover-background: rgba(255, 255, 255, 0.34);
   --interaction-hover-border: rgba(255, 255, 255, 0.42);
-  --interaction-active-background: rgba(255, 255, 255, 0.48);
-  --interaction-active-border: rgba(104, 123, 255, 0.22);
+  --interaction-active-background: rgba(242, 239, 231, 0.76);
+  --interaction-active-border: rgba(132, 120, 100, 0.18);
+  --interaction-active-shadow:
+    inset 0 0 0 1px var(--interaction-active-border),
+    0 1px 2px rgba(76, 66, 49, 0.05),
+    0 6px 16px rgba(76, 66, 49, 0.06);
 
   --text-kbd-color: #5c6979;
   --surface-kbd-background: rgba(255, 255, 255, 0.58);
@@ -170,6 +185,17 @@
   --material-panel-shadow:
     0 22px 48px rgba(0, 5, 12, 0.34),
     0 4px 16px rgba(0, 5, 12, 0.16);
+  --material-shell-navigation-background: rgba(4, 8, 14, 0.38);
+  --material-shell-directory-background: rgba(29, 37, 49, 0.22);
+  --material-shell-header-background: rgba(29, 37, 49, 0.18);
+  --material-shell-edge-shadow:
+    10px 0 30px rgba(0, 4, 10, 0.28);
+  --material-shell-inner-shadow:
+    7px 0 22px rgba(0, 4, 10, 0.18);
+  --material-shell-header-shadow:
+    0 9px 26px rgba(0, 4, 10, 0.22);
+  --material-shell-footer-shadow:
+    0 -8px 24px rgba(0, 4, 10, 0.18);
 
   --material-canvas-background:
     linear-gradient(180deg, rgba(13, 19, 28, 0.82), rgba(10, 15, 22, 0.74) 100%);
@@ -230,6 +256,9 @@
   --interaction-hover-border: rgba(182, 199, 223, 0.16);
   --interaction-active-background: rgba(142, 164, 255, 0.12);
   --interaction-active-border: rgba(142, 164, 255, 0.24);
+  --interaction-active-shadow:
+    inset 0 0 0 1px var(--interaction-active-border),
+    0 6px 16px rgba(0, 5, 12, 0.18);
   --text-kbd-color: #d7e0ee;
   --surface-kbd-background: rgba(28, 36, 49, 0.84);
   --divider-kbd-border: rgba(182, 199, 223, 0.12);
@@ -282,6 +311,17 @@
   --material-panel-shadow:
     0 24px 48px rgba(9, 15, 24, 0.32),
     0 4px 16px rgba(9, 15, 24, 0.14);
+  --material-shell-navigation-background: rgba(22, 29, 38, 0.34);
+  --material-shell-directory-background: rgba(77, 89, 103, 0.2);
+  --material-shell-header-background: rgba(77, 89, 103, 0.17);
+  --material-shell-edge-shadow:
+    10px 0 30px rgba(8, 13, 21, 0.24);
+  --material-shell-inner-shadow:
+    7px 0 22px rgba(8, 13, 21, 0.16);
+  --material-shell-header-shadow:
+    0 9px 26px rgba(8, 13, 21, 0.2);
+  --material-shell-footer-shadow:
+    0 -8px 24px rgba(8, 13, 21, 0.16);
 
   --material-canvas-background:
     linear-gradient(180deg, rgba(42, 51, 62, 0.78), rgba(33, 42, 52, 0.7) 100%);
@@ -342,6 +382,9 @@
   --interaction-hover-border: rgba(205, 220, 240, 0.16);
   --interaction-active-background: rgba(154, 183, 255, 0.12);
   --interaction-active-border: rgba(154, 183, 255, 0.24);
+  --interaction-active-shadow:
+    inset 0 0 0 1px var(--interaction-active-border),
+    0 6px 16px rgba(9, 15, 24, 0.16);
   --text-kbd-color: #dde7f4;
   --surface-kbd-background: rgba(60, 70, 82, 0.84);
   --divider-kbd-border: rgba(205, 220, 240, 0.12);
@@ -378,8 +421,43 @@
   --surface-panel-shadow: var(--material-panel-shadow);
   --surface-panel-subtle-background: transparent;
   --surface-panel-subtle-border: var(--divider-subtle-color);
+  /* 中文注释：应用壳层以同色系明暗和宽阴影分区，避免用贯穿画面的硬分割线。 */
+  --surface-shell-navigation-background: var(--material-shell-navigation-background);
+  --surface-shell-directory-background: var(--material-shell-directory-background);
+  --surface-shell-header-background: var(--material-shell-header-background);
+  --surface-shell-edge-shadow: var(--material-shell-edge-shadow);
+  --surface-shell-inner-shadow: var(--material-shell-inner-shadow);
+  --surface-shell-header-shadow: var(--material-shell-header-shadow);
+  --surface-shell-footer-shadow: var(--material-shell-footer-shadow);
   --surface-canvas-background: var(--material-canvas-background);
   --surface-canvas-border: var(--material-canvas-border);
+  --surface-control-background: color-mix(
+    in srgb,
+    var(--background) 82%,
+    var(--surface-panel-background) 18%
+  );
+  --surface-control-border: color-mix(
+    in srgb,
+    var(--surface-interactive-active-border) 48%,
+    var(--divider-subtle-color) 52%
+  );
+  --surface-control-shadow:
+    0 1px 2px color-mix(in srgb, var(--text-strong) 5%, transparent),
+    0 5px 14px color-mix(in srgb, var(--text-strong) 4%, transparent);
+  --surface-control-hover-background: color-mix(
+    in srgb,
+    var(--surface-control-background) 64%,
+    var(--surface-interactive-hover-background) 36%
+  );
+  --surface-control-hover-border: var(--surface-interactive-hover-border);
+  --surface-control-field-background: color-mix(
+    in srgb,
+    var(--surface-control-background) 88%,
+    var(--surface-panel-background) 12%
+  );
+  --surface-control-field-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--text-strong) 3%, transparent),
+    0 1px 2px color-mix(in srgb, var(--text-strong) 3%, transparent);
   --surface-popover-background: var(--material-popover-background);
   --surface-popover-border: var(--material-popover-border);
   --surface-popover-shadow: var(--material-popover-shadow);
@@ -459,6 +537,7 @@
   --surface-interactive-hover-border: var(--interaction-hover-border);
   --surface-interactive-active-background: var(--interaction-active-background);
   --surface-interactive-active-border: var(--interaction-active-border);
+  --surface-interactive-active-shadow: var(--interaction-active-shadow);
 }
 
 @theme inline {

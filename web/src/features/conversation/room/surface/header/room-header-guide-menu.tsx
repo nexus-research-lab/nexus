@@ -1,22 +1,50 @@
-import { Compass, MoreHorizontal, UsersRound } from "lucide-react";
+import { Compass, MoreHorizontal, UsersRound, X } from "lucide-react";
 import { useRef, useState } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiActionMenu } from "@/shared/ui/menu/action-menu";
+import {
+  UiActionMenu,
+  type UiActionMenuItem,
+} from "@/shared/ui/menu/action-menu";
+
+import type {
+  RoomHeaderTab,
+  RoomSurfaceTabKey,
+} from "./room-header-tabs";
 
 interface RoomHeaderGuideMenuProps {
+  activeTab?: RoomSurfaceTabKey;
+  collapsedTabs?: RoomHeaderTab[];
+  onChangeTab?: (tab: RoomSurfaceTabKey) => void;
+  onCloseActiveTab?: () => void;
   onManageMembers?: () => void;
   onReplayTour?: () => void;
 }
 
 export function RoomHeaderGuideMenu({
+  activeTab,
+  collapsedTabs = [],
+  onChangeTab,
+  onCloseActiveTab,
   onManageMembers,
   onReplayTour,
 }: RoomHeaderGuideMenuProps) {
   const { t } = useI18n();
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [isOpen, setIsOpen] = useState(false);
-  const items = [
+  const collapsedTabItems: UiActionMenuItem[] = collapsedTabs.map((tab) => {
+    const Icon = tab.icon;
+    const isActive = tab.key === activeTab;
+    return {
+      active: isActive,
+      icon: <Icon className="h-4 w-4 text-(--icon-muted)" />,
+      label: tab.label,
+      trailing: isActive ? <X className="h-3.5 w-3.5 text-(--icon-muted)" /> : undefined,
+      value: `tab:${tab.key}`,
+    };
+  });
+  const items: UiActionMenuItem[] = [
+    ...collapsedTabItems,
     onManageMembers ? {
       icon: <UsersRound className="h-4 w-4 text-(--icon-muted)" />,
       label: t("room.members"),
@@ -27,7 +55,7 @@ export function RoomHeaderGuideMenu({
       label: t("common.view_guide"),
       value: "guide",
     } : null,
-  ].filter((item): item is NonNullable<typeof item> => Boolean(item));
+  ].filter((item): item is UiActionMenuItem => Boolean(item));
 
   if (items.length === 0) {
     return null;
@@ -37,9 +65,10 @@ export function RoomHeaderGuideMenu({
     <>
       <button
         ref={buttonRef}
+        aria-expanded={isOpen}
         aria-haspopup="menu"
         aria-label={t("common.more_actions")}
-        className="inline-flex h-7 w-7 items-center justify-center rounded-full text-(--icon-default) transition-[background,color] hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
+        className="workspace-surface-header-control-segment workspace-surface-header-overflow-trigger inline-flex h-9 w-9 items-center justify-center text-(--icon-default) transition-[background,box-shadow,color] duration-(--motion-duration-fast) hover:text-(--text-strong)"
         onClick={() => setIsOpen((current) => !current)}
         title={t("common.more_actions")}
         type="button"
@@ -53,6 +82,17 @@ export function RoomHeaderGuideMenu({
         items={items}
         onClose={() => setIsOpen(false)}
         onSelect={(value) => {
+          const collapsedTab = collapsedTabs.find(
+            (tab) => value === `tab:${tab.key}`,
+          );
+          if (collapsedTab) {
+            if (collapsedTab.key === activeTab) {
+              onCloseActiveTab?.();
+              return;
+            }
+            onChangeTab?.(collapsedTab.key);
+            return;
+          }
           if (value === "members") {
             onManageMembers?.();
             return;

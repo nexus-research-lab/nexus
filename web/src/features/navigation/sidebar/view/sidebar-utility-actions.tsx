@@ -71,14 +71,14 @@ export function SidebarUtilityActions(props: SidebarUtilityActionsProps) {
 
   if (props.variant === "rail") {
     return (
-      <div className="flex flex-col items-center gap-1.5 border-t divider-subtle py-3">
+      <div className="shell-region-footer flex flex-col items-center gap-1.5 py-3">
         {primaryActions}
         {panelActions}
       </div>
     );
   }
   return (
-    <div className="relative flex items-center justify-between gap-2.5 border-t divider-subtle px-3 py-3 max-lg:px-4 max-lg:py-4">
+    <div className="shell-region-footer relative -mr-1.5 flex items-center justify-between gap-2.5 px-3 py-3 max-lg:px-4 max-lg:py-4">
       <div className="flex items-center gap-2.5">{primaryActions}</div>
       <div className="min-w-0 flex-1" />
       <div className="flex items-center gap-2.5">{panelActions}</div>

@@ -111,7 +111,7 @@ export function SettingsSidebarNavigation({
                     className={cn(
                       "flex h-9 w-full items-center gap-2.5 rounded-[8px] px-2 text-left text-[13px] font-medium transition-colors duration-(--motion-duration-fast)",
                       active
-                        ? "bg-(--surface-interactive-active-background) text-(--text-strong)"
+                        ? "bg-(--surface-interactive-active-background) text-(--text-strong) shadow-(--surface-interactive-active-shadow)"
                         : "text-(--text-muted) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
                     )}
                     key={item.key}
@@ -154,7 +154,7 @@ function SettingsRailButton({
       className={cn(
         "flex h-9 w-9 items-center justify-center radius-control-sm text-(--icon-default) transition-colors duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
         active &&
-          "bg-(--surface-interactive-active-background) text-(--primary)",
+          "bg-(--surface-interactive-active-background) text-(--primary) shadow-(--surface-interactive-active-shadow)",
       )}
       onClick={onClick}
       title={label}

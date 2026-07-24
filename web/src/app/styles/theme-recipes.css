@@ -24,9 +24,32 @@
 
   .desktop-rail {
     position: relative;
-    /* 中文注释：侧栏透出页面纹理，只用低对比边界标记导航区域。 */
-    background: transparent;
-    border-right: 1px solid var(--divider-subtle-color);
+    z-index: 10;
+    isolation: isolate;
+    /* 中文注释：目录层保留环境纹理，通过暖色薄材质和宽阴影与主画布交接。 */
+    background: var(--surface-shell-directory-background);
+    box-shadow: var(--surface-shell-edge-shadow);
+  }
+
+  .shell-navigation-rail {
+    position: relative;
+    z-index: 2;
+    background: var(--surface-shell-navigation-background);
+    box-shadow: var(--surface-shell-inner-shadow);
+  }
+
+  .shell-region-header {
+    position: relative;
+    z-index: 5;
+    background: var(--surface-shell-header-background);
+    box-shadow: var(--surface-shell-header-shadow);
+  }
+
+  .shell-region-footer {
+    position: relative;
+    z-index: 3;
+    background: var(--surface-shell-directory-background);
+    box-shadow: var(--surface-shell-footer-shadow);
   }
 
   .surface-panel {

@@ -48,7 +48,7 @@ export function SidebarCollapsedRail({
   return (
     <aside
       className={cn(
-        "desktop-rail relative flex h-full w-[56px] shrink-0 flex-col items-center",
+        "desktop-rail shell-navigation-rail relative flex h-full w-[56px] shrink-0 flex-col items-center",
         HOME_SIDEBAR_PADDING_CLASS,
       )}
       data-sidebar-collapsed="true"
@@ -64,7 +64,9 @@ export function SidebarCollapsedRail({
           />
         )}
       </div>
-      <SidebarUtilityActions {...utility} variant="rail" />
+      <div className="-mr-1.5 self-stretch">
+        <SidebarUtilityActions {...utility} variant="rail" />
+      </div>
     </aside>
   );
 }

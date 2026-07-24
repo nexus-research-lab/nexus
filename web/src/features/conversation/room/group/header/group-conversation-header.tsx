@@ -16,6 +16,7 @@ import type { RoomConversationView } from "@/types/conversation/conversation";
 import type { RoomSurfaceTabKey } from "@/features/conversation/room/surface/header/room-header-tabs";
 import { RoomHeaderGuideMenu } from "@/features/conversation/room/surface/header/room-header-guide-menu";
 import { buildRoomHeaderTabs } from "@/features/conversation/room/surface/header/room-header-tabs";
+import { useRoomHeaderOverflowTabs } from "@/features/conversation/room/surface/header/use-room-header-overflow-tabs";
 import { RoomHistoryMenu } from "@/features/conversation/room/surface/history/room-history-menu";
 
 import { GroupMemberAvatarStack } from "./group-member-avatar-stack";
@@ -79,6 +80,7 @@ export const GroupConversationHeader = memo(function GroupConversationHeader({
   const [memberDialogRoomId, setMemberDialogRoomId] = useState<string | null>(null);
   const headerTitle = currentRoomTitle?.trim() || t("room.untitled_collaboration");
   const roomTabs = buildRoomHeaderTabs(t);
+  const collapsedRoomTabs = useRoomHeaderOverflowTabs(roomTabs);
   const handleOpenMemberList = async () => {
     const scopeRoomId = roomId;
     if (!scopeRoomId) {
@@ -112,13 +114,34 @@ export const GroupConversationHeader = memo(function GroupConversationHeader({
         onChangeTab={onChangeTab}
         onDismissActiveTab={onCloseActiveTab}
         navigationTrailing={(
-          <RoomHistoryMenu
-            conversationId={conversationId}
-            conversations={conversations}
-            onDeleteConversation={onDeleteConversation}
-            onSelectConversation={onSelectConversation}
-            onUpdateConversationTitle={onUpdateConversationTitle}
-          />
+          <>
+            <RoomHistoryMenu
+              conversationId={conversationId}
+              conversations={conversations}
+              onDeleteConversation={onDeleteConversation}
+              onSelectConversation={onSelectConversation}
+              onUpdateConversationTitle={onUpdateConversationTitle}
+            />
+            <div className="hidden h-full items-center lg:flex">
+              <GroupMemberAvatarStack
+                members={roomMembers}
+                onClick={() => void handleOpenMemberList()}
+                tourAnchor={CONVERSATION_TOUR_ANCHORS.member_manage}
+              />
+            </div>
+            {onReplayTour || roomId || collapsedRoomTabs.length > 0 ? (
+              <RoomHeaderGuideMenu
+                activeTab={activeTab}
+                collapsedTabs={collapsedRoomTabs}
+                onChangeTab={onChangeTab}
+                onCloseActiveTab={onCloseActiveTab}
+                onManageMembers={showMembersInGuideMenu
+                  ? () => void handleOpenMemberList()
+                  : undefined}
+                onReplayTour={onReplayTour}
+              />
+            ) : null}
+          </>
         )}
         tabs={roomTabs}
         tabsLeading={(
@@ -132,25 +155,6 @@ export const GroupConversationHeader = memo(function GroupConversationHeader({
           />
         )}
         title={widePanelCollapsed ? headerTitle : undefined}
-        trailing={(
-          <div className="flex items-center gap-2">
-            <div className="workspace-surface-header-member-action hidden lg:flex">
-              <GroupMemberAvatarStack
-                members={roomMembers}
-                onClick={() => void handleOpenMemberList()}
-                tourAnchor={CONVERSATION_TOUR_ANCHORS.member_manage}
-              />
-            </div>
-            {onReplayTour || roomId ? (
-              <RoomHeaderGuideMenu
-                onManageMembers={showMembersInGuideMenu
-                  ? () => void handleOpenMemberList()
-                  : undefined}
-                onReplayTour={onReplayTour}
-              />
-            ) : null}
-          </div>
-        )}
       />
 
       <RoomMemberManagerDialog

@@ -6,7 +6,7 @@ import {
 } from "./conversation-tabs-model";
 
 const TAB_BASE_CLASS_NAME =
-  "group relative inline-flex h-9 flex-none snap-start items-center overflow-hidden rounded-[10px] border border-transparent text-[11px] font-medium transition-[width,background-color,border-color,color,box-shadow] duration-[145ms] ease-[cubic-bezier(0.25,0.1,0.25,1)]";
+  "group relative inline-flex h-9 flex-none snap-start items-center overflow-hidden rounded-[var(--workspace-session-tab-radius)] border border-transparent text-[11px] font-medium transition-[width,background-color,border-color,color,box-shadow] duration-[145ms] ease-[cubic-bezier(0.25,0.1,0.25,1)]";
 const TAB_SEPARATOR_CLASS_NAME =
   "before:pointer-events-none before:absolute before:bottom-1.5 before:left-0 before:top-1.5 before:w-px before:bg-[color:color-mix(in_srgb,var(--divider-subtle-color)_78%,transparent)] before:transition-opacity before:content-[''] hover:before:opacity-0";
 const TAB_CLOSE_BASE_CLASS_NAME =
@@ -24,7 +24,7 @@ const TAB_STATE_PRESENTATIONS = {
     closeClassName: "opacity-80 hover:opacity-100",
     indicatorClassName: "bg-(--primary) shadow-[0_0_0_2px_color-mix(in_srgb,var(--primary)_10%,transparent)]",
     minWidth: ACTIVE_TAB_MIN_WIDTH,
-    rootClassName: "z-10 border-[color:color-mix(in_srgb,var(--divider-strong-color)_78%,transparent)] bg-transparent font-semibold text-(--text-strong) shadow-[0_1px_2px_rgba(15,23,42,0.08),0_4px_12px_rgba(15,23,42,0.06)] hover:border-[color:color-mix(in_srgb,var(--divider-strong-color)_92%,transparent)]",
+    rootClassName: "z-10 border-(--surface-interactive-active-border) bg-(--surface-interactive-active-background) font-semibold text-(--text-strong) shadow-(--surface-interactive-active-shadow)",
   },
   inactive: {
     closeClassName: "opacity-0 group-hover:opacity-100",

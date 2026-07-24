@@ -31,7 +31,7 @@ const ACTIVE_ICON_CLASS_NAME = "fill-(--primary) stroke-(--primary)";
 const SIDEBAR_PRIMARY_TAB_VARIANTS = {
   dock: {
     badgeClassName: "absolute -right-1.5 -top-1.5 h-4 min-w-4 px-1 text-[10px]",
-    buttonActiveClassName: "bg-(--surface-interactive-active-background) text-(--text-strong)",
+    buttonActiveClassName: "bg-(--surface-interactive-active-background) text-(--text-strong) shadow-(--surface-interactive-active-shadow)",
     buttonBaseClassName: "relative flex h-[54px] w-[52px] flex-col items-center justify-center gap-1 rounded-[10px] text-[10px] font-medium transition-[background,color] duration-(--motion-duration-fast)",
     buttonInactiveClassName: "text-(--text-muted) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
     containerClassName: "flex flex-col items-center gap-1.5 px-1 py-2",
@@ -43,7 +43,7 @@ const SIDEBAR_PRIMARY_TAB_VARIANTS = {
   },
   panel: {
     badgeClassName: "absolute -right-2.5 -top-2 h-4 min-w-4 px-1 text-[10px]",
-    buttonActiveClassName: "bg-(--surface-interactive-active-background) text-(--text-strong)",
+    buttonActiveClassName: "bg-(--surface-interactive-active-background) text-(--text-strong) shadow-(--surface-interactive-active-shadow)",
     buttonBaseClassName: "flex h-9 items-center justify-center gap-1.5 rounded-[8px] text-[13px] font-medium transition-[background,color] duration-(--motion-duration-fast) max-lg:h-12 max-lg:gap-2 max-lg:rounded-[12px] max-lg:text-[15px]",
     buttonInactiveClassName: "text-(--text-muted) hover:text-(--text-strong)",
     containerClassName: "grid grid-cols-3 gap-0 bg-transparent",
@@ -55,7 +55,7 @@ const SIDEBAR_PRIMARY_TAB_VARIANTS = {
   },
   rail: {
     badgeClassName: "absolute -right-1 -top-1 h-4 min-w-4 px-1 text-[10px]",
-    buttonActiveClassName: "bg-(--surface-interactive-active-background) text-(--text-strong)",
+    buttonActiveClassName: "bg-(--surface-interactive-active-background) text-(--text-strong) shadow-(--surface-interactive-active-shadow)",
     buttonBaseClassName: "relative flex h-9 w-9 items-center justify-center rounded-full text-(--icon-default) transition-[background,color] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
     buttonInactiveClassName: "",
     containerClassName: "mt-1 flex flex-col items-center gap-1.5",

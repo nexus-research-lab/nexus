@@ -19,7 +19,7 @@ export function GroupMemberAvatarStack({
 
   return (
     <button
-      className="flex h-7 items-center gap-1.5 rounded-full border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_82%,transparent)] bg-[color:color-mix(in_srgb,var(--background)_74%,var(--surface-panel-background)_26%)] px-2 text-[10.5px] font-medium text-(--text-default) transition-[border-color,background,color] duration-(--motion-duration-fast) hover:border-(--surface-interactive-hover-border) hover:bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_72%,var(--background)_28%)] hover:text-(--text-strong)"
+      className="workspace-surface-header-control-segment workspace-surface-header-member-control flex h-9 items-center gap-1 px-2 text-[10.5px] font-medium text-(--text-default) transition-[background,color,box-shadow] duration-(--motion-duration-fast) hover:text-(--text-strong)"
       data-tour-anchor={tourAnchor}
       onClick={onClick}
       type="button"

@@ -96,7 +96,7 @@ export function WorkspaceConversationTabs({
 
       <div className="workspace-surface-header-session-tabs-actions flex shrink-0 items-center">
         {controller.hasTabsOverflow || onCreateConversation ? (
-          <div className="inline-flex h-10 shrink-0 items-stretch overflow-hidden rounded-full border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_88%,var(--foreground)_12%)] bg-transparent shadow-none transition-[border-color] duration-(--motion-duration-fast) hover:border-[color:color-mix(in_srgb,var(--divider-strong-color)_78%,var(--foreground)_22%)]">
+          <div className="workspace-surface-header-control-shell inline-flex h-10 shrink-0 items-stretch overflow-hidden rounded-full border transition-[background-color,border-color,box-shadow] duration-(--motion-duration-fast)">
             {controller.hasTabsOverflow ? (
               <ConversationTabsOverview
                 activeConversationId={controller.activeConversationId}
