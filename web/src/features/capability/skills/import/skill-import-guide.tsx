@@ -61,7 +61,7 @@ export function SkillImportGuide({ importing }: { importing: boolean }) {
           <li>Git 导入会保存 URL、branch、path 和 commit，后续检查更新会按这些信息比对远端版本。</li>
         </ul>
       </div>
-      <pre className="max-h-[260px] overflow-auto rounded-[8px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_92%,black_2%)] p-3 text-[11px] leading-5 text-(--text-default)">
+      <pre className="max-h-[260px] overflow-auto rounded-[8px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_92%,black_2%)] p-3 text-xs leading-5 text-(--text-default)">
         {SKILL_FRONTMATTER_EXAMPLE}
       </pre>
     </aside>

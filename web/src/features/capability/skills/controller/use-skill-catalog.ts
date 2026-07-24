@@ -107,7 +107,6 @@ export function useSkillCatalog({
 
   return {
     activeCategory: selectedCategory,
-    catalogCount: skills.length,
     categories,
     groupedSkills,
     importedExternalSources,

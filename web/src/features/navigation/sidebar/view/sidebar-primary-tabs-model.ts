@@ -27,13 +27,11 @@ interface SidebarPrimaryTabPresentation {
   showLabel: boolean;
 }
 
-const ACTIVE_ICON_CLASS_NAME = "fill-(--primary) stroke-(--primary)";
-
 const SIDEBAR_PRIMARY_TAB_VARIANTS = {
   dock: {
-    badgeClassName: "absolute -right-1.5 -top-1.5 h-4 min-w-4 px-1 text-[10px]",
+    badgeClassName: "absolute -right-1.5 -top-1.5 h-4 min-w-4 px-1 text-2xs",
     buttonActiveClassName: cn(SIDEBAR_SELECTION_CLASS_NAME, "text-(--text-strong)"),
-    buttonBaseClassName: "relative flex h-[54px] w-[52px] flex-col items-center justify-center gap-1 rounded-[10px] text-[10px] font-medium transition-[background,color] duration-(--motion-duration-fast)",
+    buttonBaseClassName: "relative flex h-[54px] w-[52px] flex-col items-center justify-center gap-1 rounded-[10px] text-2xs font-medium transition-[background,color] duration-(--motion-duration-fast)",
     buttonInactiveClassName: "text-(--text-muted) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
     containerClassName: "flex flex-col items-center gap-1.5 px-1 py-2",
     iconBaseClassName: "h-[18px] w-[18px]",
@@ -43,9 +41,9 @@ const SIDEBAR_PRIMARY_TAB_VARIANTS = {
     useAriaLabel: false,
   },
   focus: {
-    badgeClassName: "absolute -right-2 -top-2 h-4 min-w-4 px-1 text-[10px]",
+    badgeClassName: "absolute -right-2 -top-2 h-4 min-w-4 px-1 text-2xs",
     buttonActiveClassName: cn(SIDEBAR_SELECTION_CLASS_NAME, "text-(--text-strong)"),
-    buttonBaseClassName: "relative flex h-10 w-[192px] items-center gap-2 rounded-[10px] px-3 text-[12px] font-medium transition-[background,color] duration-(--motion-duration-fast)",
+    buttonBaseClassName: "relative flex h-10 w-[192px] items-center gap-2 rounded-[10px] px-3 text-compact font-medium transition-[background,color] duration-(--motion-duration-fast)",
     buttonInactiveClassName: "text-(--text-muted) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
     containerClassName: "flex flex-col items-center gap-1 px-2 py-2",
     iconBaseClassName: "h-[18px] w-[18px]",
@@ -55,7 +53,7 @@ const SIDEBAR_PRIMARY_TAB_VARIANTS = {
     useAriaLabel: false,
   },
   rail: {
-    badgeClassName: "absolute -right-1 -top-1 h-4 min-w-4 px-1 text-[10px]",
+    badgeClassName: "absolute -right-1 -top-1 h-4 min-w-4 px-1 text-2xs",
     buttonActiveClassName: cn(SIDEBAR_SELECTION_CLASS_NAME, "text-(--text-strong)"),
     buttonBaseClassName: "relative flex h-9 w-9 items-center justify-center rounded-full text-(--icon-default) transition-[background,color] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
     buttonInactiveClassName: "",
@@ -97,10 +95,7 @@ export function resolveSidebarPrimaryTabPresentation({
         ? presentation.buttonActiveClassName
         : presentation.buttonInactiveClassName,
     ),
-    iconClassName: cn(
-      presentation.iconBaseClassName,
-      active && ACTIVE_ICON_CLASS_NAME,
-    ),
+    iconClassName: presentation.iconBaseClassName,
     iconFrameClassName: presentation.iconFrameClassName,
     labelClassName: presentation.labelClassName,
     showLabel: presentation.showLabel,

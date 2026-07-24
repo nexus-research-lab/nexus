@@ -62,7 +62,7 @@ export function PairingFilterBar({
               <button
                 aria-selected={selected}
                 className={cn(
-                  "flex h-10 items-center gap-2 border-b-2 px-3 text-[13px] font-semibold transition-colors",
+                  "flex h-10 items-center gap-2 border-b-2 px-3 text-sm font-semibold transition-colors",
                   selected
                     ? "border-(--primary) text-(--text-strong)"
                     : "border-transparent text-(--text-muted) hover:text-(--text-default)",
@@ -73,7 +73,7 @@ export function PairingFilterBar({
                 type="button"
               >
                 <span>{tab.label}</span>
-                <span className="min-w-4 text-right text-[11px] tabular-nums text-(--text-soft)">
+                <span className="min-w-4 text-right text-xs tabular-nums text-(--text-soft)">
                   {counts[tab.countKey]}
                 </span>
               </button>

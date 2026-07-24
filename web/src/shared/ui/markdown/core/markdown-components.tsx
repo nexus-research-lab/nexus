@@ -260,22 +260,22 @@ export function createMarkdownComponents(
       return image;
     },
     h1({ children }) {
-      return <h1 data-markdown-anchor className="m-0 mt-3 -mb-1 max-w-full break-words text-[1.375rem] leading-[1.65rem] font-bold text-foreground first:mt-0">{children}</h1>;
+      return <h1 data-markdown-anchor className="m-0 mt-3 -mb-1 max-w-full break-words text-[1.375rem] leading-[1.65rem] font-semibold text-foreground first:mt-0">{children}</h1>;
     },
     h2({ children }) {
-      return <h2 data-markdown-anchor className="m-0 mt-3 -mb-1 max-w-full break-words text-[1.125rem] leading-[1.65rem] font-bold text-foreground">{children}</h2>;
+      return <h2 data-markdown-anchor className="m-0 mt-3 -mb-1 max-w-full break-words text-[1.125rem] leading-[1.65rem] font-semibold text-foreground">{children}</h2>;
     },
     h3({ children }) {
-      return <h3 data-markdown-anchor className="m-0 mt-2 -mb-1 max-w-full break-words text-base leading-[1.65rem] font-bold text-foreground">{children}</h3>;
+      return <h3 data-markdown-anchor className="m-0 mt-2 -mb-1 max-w-full break-words text-base leading-[1.65rem] font-semibold text-foreground">{children}</h3>;
     },
     h4({ children }) {
-      return <h4 data-markdown-anchor className="m-0 mt-2 -mb-1 max-w-full break-words text-base leading-[1.65rem] font-bold text-foreground">{children}</h4>;
+      return <h4 data-markdown-anchor className="m-0 mt-2 -mb-1 max-w-full break-words text-base leading-[1.65rem] font-semibold text-foreground">{children}</h4>;
     },
     h5({ children }) {
-      return <h5 data-markdown-anchor className="m-0 mt-2 -mb-1 max-w-full break-words text-base leading-[1.65rem] font-bold text-foreground">{children}</h5>;
+      return <h5 data-markdown-anchor className="m-0 mt-2 -mb-1 max-w-full break-words text-base leading-[1.65rem] font-semibold text-foreground">{children}</h5>;
     },
     h6({ children }) {
-      return <h6 data-markdown-anchor className="m-0 mt-2 -mb-1 max-w-full break-words text-base leading-[1.65rem] font-bold text-foreground">{children}</h6>;
+      return <h6 data-markdown-anchor className="m-0 mt-2 -mb-1 max-w-full break-words text-base leading-[1.65rem] font-semibold text-foreground">{children}</h6>;
     },
     hr() {
       return <hr className="content-divider" />;

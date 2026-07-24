@@ -21,7 +21,7 @@ const VIBE_TAG_LAYOUTS: Record<AgentIdentityVariant, VibeTagLayout> = {
     addButtonSize: "md",
     inputClassName: "w-[132px] rounded-lg",
     inputSize: "sm",
-    labelClassName: "text-[11px] font-semibold text-(--text-muted)",
+    labelClassName: "text-xs font-semibold text-(--text-muted)",
     rowGapClassName: "gap-2",
   },
   inline: {
@@ -29,7 +29,7 @@ const VIBE_TAG_LAYOUTS: Record<AgentIdentityVariant, VibeTagLayout> = {
     inputClassName: "w-[112px] rounded-full",
     inputSize: "sm",
     labelClassName:
-      "text-[11px] font-semibold uppercase tracking-[0.12em] text-(--text-soft)",
+      "text-xs font-semibold uppercase tracking-[0.12em] text-(--text-soft)",
     rowGapClassName: "gap-2",
   },
 };
@@ -76,7 +76,7 @@ export function IdentityVibeTags({
       <div className="flex flex-wrap items-center gap-2">
         {tags.map((tag) => (
           <span
-            className="inline-flex min-h-8 shrink-0 items-center gap-1 rounded-[8px] border border-[color:color-mix(in_srgb,var(--primary)_16%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_4%,transparent)] px-2.5 py-1 text-[12px] font-medium text-primary"
+            className="inline-flex min-h-8 shrink-0 items-center gap-1 rounded-[8px] border border-[color:color-mix(in_srgb,var(--primary)_16%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_4%,transparent)] px-2.5 py-1 text-compact font-medium text-primary"
             key={tag}
           >
             {tag}

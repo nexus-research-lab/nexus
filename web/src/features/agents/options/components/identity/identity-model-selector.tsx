@@ -27,14 +27,14 @@ const MODEL_SELECTOR_LAYOUTS: Record<
     buttonClassName: "h-auto min-h-11 py-2.5",
     className: "h-auto min-h-11",
     errorClassName: "mt-2 text-xs text-rose-500",
-    labelClassName: "text-[11px] font-semibold text-(--text-muted)",
+    labelClassName: "text-xs font-semibold text-(--text-muted)",
   },
   inline: {
     buttonClassName: "h-auto min-h-9 py-2",
     className: "h-auto min-h-9",
     errorClassName: "text-xs text-rose-500",
     labelClassName:
-      "text-[11px] font-semibold uppercase tracking-[0.12em] text-(--text-soft)",
+      "text-xs font-semibold uppercase tracking-[0.12em] text-(--text-soft)",
     size: "sm",
   },
 };

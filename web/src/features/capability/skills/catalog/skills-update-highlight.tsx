@@ -96,10 +96,10 @@ function UpdateSkillRow({
           </span>
           <UiBadge size="xs" tone="warning">有更新</UiBadge>
         </div>
-        <p className="mt-0.5 truncate text-[12px] leading-[1.125rem] text-(--text-muted)">
+        <p className="mt-0.5 truncate text-compact leading-[1.125rem] text-(--text-muted)">
           {skill.description || "暂无描述"}
         </p>
-        <p className="mt-0.5 truncate text-[10px] leading-4 text-(--text-soft)">
+        <p className="mt-0.5 truncate text-2xs leading-4 text-(--text-soft)">
           {skill.source_name || "外部导入"} · {skill.version || "unknown"}
         </p>
       </div>

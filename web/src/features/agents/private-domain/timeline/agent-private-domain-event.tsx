@@ -41,17 +41,17 @@ const DIRECTION_STYLES: Record<
 const DENSITY_STYLES: Record<PrivateTimelineDensity, DensityStyle> = {
   compact: {
     bubble: "max-w-[88%] radius-control-lg px-2.5 py-2 shadow-none",
-    content: "mt-1.5 text-[12.5px] leading-5",
+    content: "mt-1.5 text-sm leading-5",
     header: "gap-1.5",
-    name: "text-[11.5px]",
-    route: "mt-1.5 text-[10px]",
+    name: "text-compact",
+    route: "mt-1.5 text-2xs",
   },
   regular: {
     bubble: "max-w-[min(720px,78%)] surface-radius-lg px-3 py-2.5 shadow-[0_8px_24px_rgba(15,23,42,0.04)]",
-    content: "mt-2 text-[13px] leading-5",
+    content: "mt-2 text-sm leading-5",
     header: "gap-2",
-    name: "text-[12px]",
-    route: "mt-2 text-[10.5px]",
+    name: "text-compact",
+    route: "mt-2 text-xs",
   },
 };
 
@@ -69,13 +69,13 @@ export function PrivateEventBubble({
       <div className={cn("w-fit border", size.bubble, direction.bubble)}>
         <div className={cn("flex min-w-0 items-center", size.header)}>
           <PrivateParticipantAvatar participant={event.source} size="sm" />
-          <span className={cn("truncate font-bold text-(--text-strong)", size.name)}>
+          <span className={cn("truncate font-semibold text-(--text-strong)", size.name)}>
             {event.sourceName}
           </span>
-          <span className="rounded-full bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_68%,transparent)] px-1.5 py-0.5 text-[10px] font-semibold text-(--text-soft)">
+          <span className="rounded-full bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_68%,transparent)] px-1.5 py-0.5 text-2xs font-semibold text-(--text-soft)">
             私信
           </span>
-          <span className="ml-auto shrink-0 text-[10.5px] font-semibold text-(--text-soft)">
+          <span className="ml-auto shrink-0 text-xs font-semibold text-(--text-soft)">
             {event.timestampLabel}
           </span>
         </div>

@@ -91,7 +91,7 @@ function ExternalResultsStage(props: ExternalResultsStageProps) {
   }
   if (props.model.phase === "empty") {
     return (
-      <div className="rounded-[8px] border border-dashed border-(--divider-subtle-color) px-4 py-6 text-center text-[12px] text-(--text-soft)">
+      <div className="rounded-[8px] border border-dashed border-(--divider-subtle-color) px-4 py-6 text-center text-compact text-(--text-soft)">
         {t("capability.skills_external_empty")}
       </div>
     );
@@ -112,10 +112,10 @@ function ExternalResultsReady({
   return (
     <section>
       <div className="mb-2 flex items-end justify-between border-b border-(--divider-subtle-color) pb-1.5">
-        <h2 className="text-[15px] font-medium text-(--text-strong)">
+        <h2 className="text-base font-medium text-(--text-strong)">
           {t("capability.search_results")}
         </h2>
-        <span className="text-[11px] font-medium text-(--text-soft)">
+        <span className="text-xs font-medium text-(--text-soft)">
           {t("capability.result_count", { count: model.visibleItems.length })}
         </span>
       </div>
@@ -139,7 +139,7 @@ function ExternalResultsReady({
           ))}
         </div>
       ) : (
-        <div className="rounded-[8px] border border-dashed border-(--divider-subtle-color) px-3 py-2 text-[11px] text-(--text-soft)">
+        <div className="rounded-[8px] border border-dashed border-(--divider-subtle-color) px-3 py-2 text-xs text-(--text-soft)">
           {model.selectedGroup
             ? sourceGroupEmptyMessage(model.selectedGroup)
             : t("capability.skills_external_empty")}
@@ -202,7 +202,7 @@ function ExternalSourceFilter({
   return (
     <button
       className={cn(
-        "inline-flex max-w-full items-center gap-1.5 rounded-[6px] border px-2 py-0.5 text-left text-[10px] transition",
+        "inline-flex max-w-full items-center gap-1.5 rounded-[6px] border px-2 py-0.5 text-left text-2xs transition",
         selected
           ? "border-(--primary) bg-[color:color-mix(in_srgb,var(--primary)_12%,transparent)] text-(--primary)"
           : "border-(--divider-subtle-color) bg-transparent text-(--text-muted) hover:border-(--primary)",

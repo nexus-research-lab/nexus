@@ -75,7 +75,7 @@ function ProcessToggleButton({ process }: { process: AssistantProcessState }) {
       type="button"
     >
       <Wrench className="h-3 w-3 shrink-0 text-(--icon-muted)" />
-      <div className="min-w-0 flex-1 truncate text-[12px] font-medium text-(--text-muted)">
+      <div className="min-w-0 flex-1 truncate text-compact font-medium text-(--text-muted)">
         {process.summary}
       </div>
       <ProcessExpansionIcon expanded={process.expanded} />

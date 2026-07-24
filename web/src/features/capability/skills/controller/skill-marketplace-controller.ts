@@ -28,7 +28,6 @@ export interface SkillMarketplaceFeedbackActions {
 
 export interface SkillCatalogController {
   activeCategory: string;
-  catalogCount: number;
   categories: Array<{ key: string; label: string }>;
   groupedSkills: Array<[string, SkillInfo[]]>;
   importedExternalSources: Map<string, Set<string>>;

@@ -70,32 +70,32 @@ export function LoopDetailView({ slug, onBack: onBack }: LoopDetailViewProps) {
       </UiButton>
 
       {loading ? (
-        <div className="py-10 text-[13px] text-(--text-muted)">{t("capability.connectors_loading")}</div>
+        <div className="py-10 text-sm text-(--text-muted)">{t("capability.connectors_loading")}</div>
       ) : error ? (
-        <div className="py-10 text-[13px] text-(--destructive)">{error}</div>
+        <div className="py-10 text-sm text-(--destructive)">{error}</div>
       ) : loop ? (
         <div className="mt-3 space-y-5">
           <header className="border-b border-(--divider-subtle-color) pb-4">
             <div className="mb-2 flex flex-wrap items-center gap-1.5">
-              <span className="radius-control-xs border border-(--divider-subtle-color) px-1.5 py-0.5 text-[10px] font-medium text-(--text-muted)">
+              <span className="radius-control-xs border border-(--divider-subtle-color) px-1.5 py-0.5 text-2xs font-medium text-(--text-muted)">
                 {loop.category}
               </span>
-              <span className="radius-control-xs border border-(--divider-subtle-color) px-1.5 py-0.5 text-[10px] text-(--text-soft)">
+              <span className="radius-control-xs border border-(--divider-subtle-color) px-1.5 py-0.5 text-2xs text-(--text-soft)">
                 {loop.trigger_type}
               </span>
-              <span className="radius-control-xs border border-(--divider-subtle-color) px-1.5 py-0.5 text-[10px] text-(--text-soft)">
+              <span className="radius-control-xs border border-(--divider-subtle-color) px-1.5 py-0.5 text-2xs text-(--text-soft)">
                 {loop.views.toLocaleString()} views
               </span>
-              <span className="radius-control-xs border border-(--divider-subtle-color) px-1.5 py-0.5 text-[10px] text-(--text-soft)">
+              <span className="radius-control-xs border border-(--divider-subtle-color) px-1.5 py-0.5 text-2xs text-(--text-soft)">
                 {loop.installs.toLocaleString()} installs
               </span>
             </div>
             <div>
               <div className="min-w-0">
-                <h1 className="text-[22px] font-semibold tracking-[-0.025em] text-(--text-strong)">
+                <h1 className="text-lg font-semibold tracking-[-0.025em] text-(--text-strong)">
                   {loop.title}
                 </h1>
-                <p className="mt-1 max-w-[760px] text-[13px] leading-5 text-(--text-muted)">
+                <p className="mt-1 max-w-[760px] text-sm leading-5 text-(--text-muted)">
                   {loop.description}
                 </p>
               </div>
@@ -103,19 +103,19 @@ export function LoopDetailView({ slug, onBack: onBack }: LoopDetailViewProps) {
           </header>
 
           <section>
-            <h2 className="text-[15px] font-medium text-(--text-strong)">{t("capability.loops_steps")}</h2>
+            <h2 className="text-base font-medium text-(--text-strong)">{t("capability.loops_steps")}</h2>
             <div className="mt-2 space-y-2">
               {loop.steps.map((step, index) => (
                 <div className="rounded-[8px] border border-(--divider-subtle-color) bg-transparent p-3" key={`${loop.slug}:${step.name}`}>
                   <div className="flex gap-3">
-                    <div className="flex h-7 w-7 shrink-0 items-center justify-center radius-control-sm bg-(--surface-interactive-hover-background) text-[12px] font-semibold text-(--text-muted)">
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center radius-control-sm bg-(--surface-interactive-hover-background) text-compact font-semibold text-(--text-muted)">
                       {index + 1}
                     </div>
                     <div className="min-w-0">
-                      <h3 className="text-[13px] font-medium text-(--text-strong)">{step.name}</h3>
-                      <p className="mt-0.5 text-[12px] leading-5 text-(--text-muted)">{step.prompt}</p>
+                      <h3 className="text-sm font-medium text-(--text-strong)">{step.name}</h3>
+                      <p className="mt-0.5 text-compact leading-5 text-(--text-muted)">{step.prompt}</p>
                       {step.shell_check ? (
-                        <code className="mt-2 block overflow-x-auto radius-control-sm bg-(--surface-code-background) px-3 py-2 text-[12px] text-(--text-default)">
+                        <code className="mt-2 block overflow-x-auto radius-control-sm bg-(--surface-code-background) px-3 py-2 text-compact text-(--text-default)">
                           {step.shell_check}
                         </code>
                       ) : null}
@@ -127,15 +127,15 @@ export function LoopDetailView({ slug, onBack: onBack }: LoopDetailViewProps) {
           </section>
 
           <section className="rounded-[8px] border border-(--divider-subtle-color) bg-transparent p-3">
-            <h2 className="text-[15px] font-medium text-(--text-strong)">{t("capability.loops_exit")}</h2>
-            <p className="mt-1 text-[12px] leading-5 text-(--text-muted)">{loop.exit_condition.description}</p>
+            <h2 className="text-base font-medium text-(--text-strong)">{t("capability.loops_exit")}</h2>
+            <p className="mt-1 text-compact leading-5 text-(--text-muted)">{loop.exit_condition.description}</p>
             {loop.exit_condition.command ? (
-              <code className="mt-2 block overflow-x-auto radius-control-sm bg-(--surface-code-background) px-3 py-2 text-[12px] text-(--text-default)">
+              <code className="mt-2 block overflow-x-auto radius-control-sm bg-(--surface-code-background) px-3 py-2 text-compact text-(--text-default)">
                 {loop.exit_condition.command}
               </code>
             ) : null}
             {loop.exit_condition.max_iterations ? (
-              <p className="mt-2 text-[12px] text-(--text-soft)">
+              <p className="mt-2 text-compact text-(--text-soft)">
                 {t("capability.loops_max_iterations")}: {loop.exit_condition.max_iterations}
               </p>
             ) : null}
@@ -143,10 +143,10 @@ export function LoopDetailView({ slug, onBack: onBack }: LoopDetailViewProps) {
 
           {loop.guardrails.length > 0 ? (
             <section>
-              <h2 className="text-[15px] font-medium text-(--text-strong)">{t("capability.loops_guardrails")}</h2>
+              <h2 className="text-base font-medium text-(--text-strong)">{t("capability.loops_guardrails")}</h2>
               <ul className="mt-2 space-y-1.5">
                 {loop.guardrails.map((item) => (
-                  <li className="rounded-[8px] border border-(--divider-subtle-color) bg-transparent px-3 py-2 text-[12px] leading-5 text-(--text-muted)" key={item}>
+                  <li className="rounded-[8px] border border-(--divider-subtle-color) bg-transparent px-3 py-2 text-compact leading-5 text-(--text-muted)" key={item}>
                     {item}
                   </li>
                 ))}
@@ -156,22 +156,22 @@ export function LoopDetailView({ slug, onBack: onBack }: LoopDetailViewProps) {
 
           <section>
             <div className="mb-3 flex items-center justify-between gap-3">
-              <h2 className="text-[15px] font-medium text-(--text-strong)">{t("capability.loops_kickoff_prompt")}</h2>
+              <h2 className="text-base font-medium text-(--text-strong)">{t("capability.loops_kickoff_prompt")}</h2>
               <UiButton size="sm" variant="surface" onClick={() => void copyPrompt()}>
                 {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                 {t("capability.loops_copy_prompt")}
               </UiButton>
             </div>
-            <pre className="soft-scrollbar max-h-[360px] overflow-auto rounded-[8px] border border-(--divider-subtle-color) bg-(--surface-code-background) p-3 text-[11px] leading-5 text-(--text-default)">
+            <pre className="soft-scrollbar max-h-[360px] overflow-auto rounded-[8px] border border-(--divider-subtle-color) bg-(--surface-code-background) p-3 text-xs leading-5 text-(--text-default)">
               {loop.kickoff_prompt}
             </pre>
           </section>
 
           <section>
-            <h2 className="text-[15px] font-medium text-(--text-strong)">{t("capability.loops_related")}</h2>
+            <h2 className="text-base font-medium text-(--text-strong)">{t("capability.loops_related")}</h2>
             <div className="mt-2 flex flex-wrap gap-1.5">
               {loop.tags.map((tag) => (
-                  <span className="radius-control-xs border border-(--divider-subtle-color) px-1.5 py-0.5 text-[11px] text-(--text-muted)" key={tag}>
+                  <span className="radius-control-xs border border-(--divider-subtle-color) px-1.5 py-0.5 text-xs text-(--text-muted)" key={tag}>
                   {tag}
                 </span>
               ))}

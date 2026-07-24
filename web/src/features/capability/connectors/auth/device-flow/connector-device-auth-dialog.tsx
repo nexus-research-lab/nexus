@@ -76,16 +76,16 @@ export function ConnectorDeviceAuthDialog({
 
           <UiDialogBody className="space-y-4">
             <UiPanel padding="sm" variant="inset">
-              <div className="flex items-center gap-2 text-[13px] font-medium text-(--text-default)">
+              <div className="flex items-center gap-2 text-sm font-medium text-(--text-default)">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 <span aria-live="polite">{pollingMessage}</span>
               </div>
             </UiPanel>
 
             <UiPanel padding="md">
-              <div className="text-[11px] font-semibold uppercase text-(--text-soft)">GitHub code</div>
+              <div className="text-xs font-semibold uppercase text-(--text-soft)">GitHub code</div>
               <div className="mt-2 flex items-center gap-3">
-                <code className="min-w-0 flex-1 select-all break-all rounded-[10px] bg-transparent px-3 py-2.5 text-center text-[22px] font-semibold text-(--text-strong)">
+                <code className="min-w-0 flex-1 select-all break-all rounded-[10px] bg-transparent px-3 py-2.5 text-center text-lg font-semibold text-(--text-strong)">
                   {session.user_code}
                 </code>
                 <UiIconButton

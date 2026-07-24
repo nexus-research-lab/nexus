@@ -19,7 +19,7 @@ export function GroupMemberAvatarStack({
 
   return (
     <button
-      className="workspace-surface-header-control-segment workspace-surface-header-member-control flex h-9 items-center gap-1 px-2 text-[10.5px] font-medium text-(--text-default) transition-[background,color,box-shadow] duration-(--motion-duration-fast) hover:text-(--text-strong)"
+      className="workspace-surface-header-control-segment workspace-surface-header-member-control flex h-9 items-center gap-1 px-2 text-xs font-medium text-(--text-default) transition-[background,color,box-shadow] duration-(--motion-duration-fast) hover:text-(--text-strong)"
       data-tour-anchor={tourAnchor}
       onClick={onClick}
       type="button"
@@ -36,7 +36,7 @@ export function GroupMemberAvatarStack({
           />
         ))}
         {overflowCount > 0 ? (
-          <span className="flex h-5.5 w-5.5 items-center justify-center rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-[8px] font-bold text-(--text-strong) shadow-(--surface-avatar-shadow)">
+          <span className="flex h-5.5 w-5.5 items-center justify-center rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-[8px] font-semibold text-(--text-strong) shadow-(--surface-avatar-shadow)">
             +{overflowCount}
           </span>
         ) : null}

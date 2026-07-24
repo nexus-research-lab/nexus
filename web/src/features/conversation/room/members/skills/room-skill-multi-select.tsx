@@ -89,7 +89,7 @@ const TRIGGER_SELECTION_STYLES: Record<
 
 function LoadingMenuBody({ presentation }: MenuBodyViewProps) {
   return (
-    <div className="flex min-h-10 items-center gap-2 px-2.5 text-[13px] text-(--text-muted)">
+    <div className="flex min-h-10 items-center gap-2 px-2.5 text-sm text-(--text-muted)">
       <Loader2 className="h-4 w-4 animate-spin" />
       {presentation.message}
     </div>
@@ -98,7 +98,7 @@ function LoadingMenuBody({ presentation }: MenuBodyViewProps) {
 
 function ErrorMenuBody({ presentation }: MenuBodyViewProps) {
   return (
-    <div className="m-1 rounded-[10px] border border-[color:color-mix(in_srgb,var(--destructive)_18%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--destructive)_7%,transparent)] px-2.5 py-2 text-[13px] leading-5 text-(--destructive)">
+    <div className="m-1 rounded-[10px] border border-[color:color-mix(in_srgb,var(--destructive)_18%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--destructive)_7%,transparent)] px-2.5 py-2 text-sm leading-5 text-(--destructive)">
       {presentation.message}
     </div>
   );
@@ -106,7 +106,7 @@ function ErrorMenuBody({ presentation }: MenuBodyViewProps) {
 
 function EmptyMenuBody({ presentation }: MenuBodyViewProps) {
   return (
-    <div className="flex min-h-10 items-center px-2.5 text-[13px] text-(--text-muted)">
+    <div className="flex min-h-10 items-center px-2.5 text-sm text-(--text-muted)">
       {presentation.message}
     </div>
   );
@@ -125,7 +125,7 @@ function RoomSkillOptionRow({
     <button
       aria-selected={isActive}
       className={cn(
-        "flex w-full items-center gap-2 rounded-[10px] px-2.5 py-2 text-left text-[13px] transition-[background-color,color] duration-(--motion-duration-fast)",
+        "flex w-full items-center gap-2 rounded-[10px] px-2.5 py-2 text-left text-sm transition-[background-color,color] duration-(--motion-duration-fast)",
         getSelectMenuOptionStateClassName("dialog", isActive),
       )}
       data-active={isActive ? "true" : undefined}
@@ -135,7 +135,7 @@ function RoomSkillOptionRow({
     >
       <span className="min-w-0 flex-1">
         <span className="block truncate">{option.label}</span>
-        <span className="mt-0.5 block truncate text-[11px] font-normal text-(--text-muted)">
+        <span className="mt-0.5 block truncate text-xs font-normal text-(--text-muted)">
           {option.description}
         </span>
       </span>
@@ -200,7 +200,7 @@ function SelectedSkillChips({
     <>
       {options.map((option) => (
         <span
-          className="inline-flex max-w-[11rem] items-center gap-1 rounded-[6px] border border-(--divider-subtle-color) bg-transparent py-0.5 pl-2 pr-1 text-[11px] font-medium text-(--text-strong)"
+          className="inline-flex max-w-[11rem] items-center gap-1 rounded-[6px] border border-(--divider-subtle-color) bg-transparent py-0.5 pl-2 pr-1 text-xs font-medium text-(--text-strong)"
           key={option.value}
         >
           <span className="min-w-0 truncate">{option.label}</span>
@@ -254,7 +254,7 @@ function RoomSkillMenuPortal({
       <label className="flex h-11 items-center gap-2 border-b border-(--divider-subtle-color) px-3">
         <Search className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)" />
         <input
-          className="min-w-0 flex-1 bg-transparent text-[13px] font-medium text-(--text-strong) outline-none placeholder:text-(--text-soft)"
+          className="min-w-0 flex-1 bg-transparent text-sm font-medium text-(--text-strong) outline-none placeholder:text-(--text-soft)"
           onChange={(event) => onQueryChange(event.target.value)}
           placeholder={searchPlaceholder}
           type="search"

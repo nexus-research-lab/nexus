@@ -41,10 +41,10 @@ interface UiRoomAvatarProps extends HTMLAttributes<HTMLSpanElement> {
 
 const AVATAR_SIZE_CLASS_MAP: Record<UiAvatarSize, string> = {
   xs: "h-5.5 w-5.5 text-[8px]",
-  sm: "h-7 w-7 text-[10px]",
-  md: "h-10 w-10 text-[12px]",
-  lg: "h-14 w-14 text-[15px]",
-  xl: "h-16 w-16 text-[17px]",
+  sm: "h-7 w-7 text-2xs",
+  md: "h-10 w-10 text-compact",
+  lg: "h-14 w-14 text-base",
+  xl: "h-16 w-16 text-md",
 };
 
 const AVATAR_RADIUS_CLASS_MAP: Record<UiAvatarSize, string> = {
@@ -52,7 +52,7 @@ const AVATAR_RADIUS_CLASS_MAP: Record<UiAvatarSize, string> = {
   sm: "rounded-[8px]",
   md: "rounded-[10px]",
   lg: "rounded-[12px]",
-  xl: "rounded-[14px]",
+  xl: "rounded-[12px]",
 };
 
 const AVATAR_HALO_RADIUS_CLASS_MAP: Record<UiAvatarSize, string> = {
@@ -60,7 +60,7 @@ const AVATAR_HALO_RADIUS_CLASS_MAP: Record<UiAvatarSize, string> = {
   sm: "after:rounded-[11px]",
   md: "after:rounded-[13px]",
   lg: "after:rounded-[15px]",
-  xl: "after:rounded-[17px]",
+  xl: "after:rounded-[15px]",
 };
 
 const ROOM_AVATAR_SIZE_CLASS_MAP: Record<UiRoomAvatarSize, string> = {

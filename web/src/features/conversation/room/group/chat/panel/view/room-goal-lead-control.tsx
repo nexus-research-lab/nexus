@@ -19,12 +19,12 @@ export function RoomGoalLeadControl({
   const { t } = useI18n();
   return (
     <label
-      className="pointer-events-auto inline-flex h-5 min-w-0 max-w-[190px] items-center gap-1 radius-control-xs border border-(--surface-canvas-border) bg-(--surface-elevated-background) px-1.5 text-[10px] font-medium text-(--text-muted)"
+      className="pointer-events-auto inline-flex h-5 min-w-0 max-w-[190px] items-center gap-1 radius-control-xs border border-(--surface-canvas-border) bg-(--surface-elevated-background) px-1.5 text-2xs font-medium text-(--text-muted)"
       title={t("room.goal_lead_select")}
     >
       <UserRound className="h-3 w-3 shrink-0" />
       <select
-        className="min-w-0 flex-1 bg-transparent text-[10px] font-semibold text-(--text-default) outline-none disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)"
+        className="min-w-0 flex-1 bg-transparent text-2xs font-semibold text-(--text-default) outline-none disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)"
         disabled={disabled}
         value={agentId}
         onChange={(event) => onChange(event.target.value)}

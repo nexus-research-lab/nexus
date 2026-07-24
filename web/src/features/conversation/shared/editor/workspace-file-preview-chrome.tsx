@@ -58,7 +58,7 @@ export function WorkspaceFilePreviewHeader({
         </div>
       </div>
       {meta ? (
-        <div className="mt-1 flex min-w-0 items-center gap-2 text-[10px] text-muted-foreground">
+        <div className="mt-1 flex min-w-0 items-center gap-2 text-2xs text-muted-foreground">
           {meta}
         </div>
       ) : null}

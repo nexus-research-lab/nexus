@@ -159,7 +159,7 @@ export function PresentationFilePreview({
                       type="button"
                     >
                       <PresentationSlideCanvas className="rounded-[2px] shadow-none" slide={slide} thumbnail />
-                      <span className="mt-1 block truncate text-[10px] font-medium text-(--text-muted)">
+                      <span className="mt-1 block truncate text-2xs font-medium text-(--text-muted)">
                         {index + 1}. {slide.title}
                       </span>
                     </button>

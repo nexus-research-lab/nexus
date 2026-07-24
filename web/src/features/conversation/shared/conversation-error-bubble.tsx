@@ -116,14 +116,14 @@ export function ConversationErrorBubble({
                   <CircleAlert className="h-3 w-3 text-destructive" />
                 </MessageAvatar>
               ) : null}
-              <span className="shrink-0 text-sm font-bold text-(--text-strong)">
+              <span className="shrink-0 text-sm font-semibold text-(--text-strong)">
                 系统消息
               </span>
             </div>
 
             <div className={cn(
               "min-w-0 max-w-full overflow-x-hidden pb-2 pt-1 text-left",
-              compact ? "text-[15px] leading-6" : "text-[16px] leading-7",
+              compact ? "text-base leading-6" : "text-[16px] leading-7",
             )}>
               <p className="font-medium text-destructive">{presentation.title}</p>
               <p className="mt-1 text-sm text-(--text-muted)">{presentation.detail}</p>

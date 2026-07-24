@@ -45,7 +45,7 @@ export function SettingsPermissionsSection({
           {t("settings.general.section_permissions")}
         </h2>
         {feedbackMessage ? (
-          <span className="inline-flex items-center gap-1.5 text-[11px] text-(--destructive)">
+          <span className="inline-flex items-center gap-1.5 text-xs text-(--destructive)">
             {feedbackMessage}
           </span>
         ) : null}
@@ -82,7 +82,7 @@ export function SettingsPermissionsSection({
               size="xs"
               value={permissionMode}
             />
-            <p className="text-[11px] leading-4 text-(--text-soft)">
+            <p className="text-xs leading-4 text-(--text-soft)">
               {t(selectedPermissionMode.descriptionKey)}
             </p>
           </div>

@@ -35,7 +35,7 @@ function DisabledLoginForm({ onRefresh }: { onRefresh: () => void }) {
   const { t } = useI18n();
   return (
     <div className="mt-7 space-y-4">
-      <div className="rounded-[10px] border border-(--divider-subtle-color) bg-white/40 px-4 py-4">
+      <div className="rounded-[10px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--card)_56%,transparent)] px-4 py-4">
         <h3 className="text-base font-semibold text-(--text-strong)">
           {t("login.disabled_title")}
         </h3>
@@ -73,7 +73,7 @@ function PasswordLoginForm({
         </span>
         <UiInput
           autoComplete="username"
-          className="min-h-12 rounded-[10px] border-[rgba(117,131,149,0.2)] bg-white/60 px-4 text-base shadow-none"
+          className="min-h-12 rounded-[10px] border-(--material-input-border) bg-[color:color-mix(in_srgb,var(--card)_83%,transparent)] px-4 text-base shadow-none"
           controlSize="lg"
           id="nexus-login-username"
           onChange={(event) => onChangeUsername(event.target.value)}
@@ -89,7 +89,7 @@ function PasswordLoginForm({
         </span>
         <UiInput
           autoComplete="current-password"
-          className="min-h-12 rounded-[10px] border-[rgba(117,131,149,0.2)] bg-white/60 px-4 text-base shadow-none"
+          className="min-h-12 rounded-[10px] border-(--material-input-border) bg-[color:color-mix(in_srgb,var(--card)_83%,transparent)] px-4 text-base shadow-none"
           controlSize="lg"
           id="nexus-login-password"
           onChange={(event) => onChangePassword(event.target.value)}
@@ -101,7 +101,7 @@ function PasswordLoginForm({
       </label>
       <LoginErrorBanner message={submitError} />
       <UiButton
-        className="min-h-12 w-full rounded-[10px] px-5 text-base shadow-[0_14px_30px_rgba(23,33,44,0.14)]"
+        className="min-h-12 w-full rounded-[10px] px-5 text-base shadow-[0_14px_30px_color-mix(in_srgb,var(--shadow-color)_14%,transparent)]"
         disabled={isSubmitting}
         size="lg"
         tone="primary"
@@ -129,14 +129,14 @@ export function LoginAuthPanel({
 }: LoginAuthPanelProps) {
   const { t } = useI18n();
   return (
-    <section className="relative w-full overflow-hidden rounded-[12px] border border-white/70 bg-[rgba(255,255,255,0.62)] p-6 shadow-[0_26px_58px_rgba(94,108,127,0.14),0_3px_14px_rgba(94,108,127,0.07)] backdrop-blur-xl sm:p-7">
+    <section className="relative w-full overflow-hidden rounded-[12px] border border-[color:color-mix(in_srgb,var(--card)_97%,transparent)] bg-[color:color-mix(in_srgb,var(--card)_86%,transparent)] p-6 shadow-(--modal-dialog-surface-shadow) backdrop-blur-xl sm:p-7">
       <div className="flex items-start justify-between gap-5">
         <div className="min-w-0">
-          <div className="inline-flex items-center gap-2 rounded-[10px] border border-[rgba(117,131,149,0.18)] bg-white/50 px-2.5 py-1.5 text-xs font-semibold text-[rgba(35,49,63,0.76)]">
-            <KeyRound className="h-3.5 w-3.5 text-[rgba(91,114,255,0.9)]" />
+          <div className="inline-flex items-center gap-2 rounded-[10px] border border-(--material-input-border) bg-[color:color-mix(in_srgb,var(--card)_69%,transparent)] px-2.5 py-1.5 text-xs font-semibold text-(--text-muted)">
+            <KeyRound className="h-3.5 w-3.5 text-[color:color-mix(in_srgb,var(--brand)_90%,transparent)]" />
             Secure session
           </div>
-          <h2 className="mt-5 text-[28px] font-semibold leading-tight text-[#17212c]">
+          <h2 className="mt-5 text-xl font-semibold leading-tight text-(--text-strong)">
             {t("login.title")}
           </h2>
           <p className="mt-2 text-sm leading-6 text-(--text-muted)">
@@ -145,7 +145,7 @@ export function LoginAuthPanel({
         </div>
         <img
           alt=""
-          className="h-12 w-12 shrink-0 object-contain drop-shadow-[0_12px_24px_rgba(91,114,255,0.16)]"
+          className="h-12 w-12 shrink-0 object-contain drop-shadow-[0_12px_24px_color-mix(in_srgb,var(--brand)_16%,transparent)]"
           src="/logo.webp"
         />
       </div>
@@ -165,8 +165,8 @@ export function LoginAuthPanel({
         />
       )}
 
-      <div className="mt-7 flex items-center gap-2 border-t border-[rgba(117,131,149,0.16)] pt-4 text-xs leading-5 text-[rgba(66,81,98,0.72)]">
-        <CheckCircle2 className="h-4 w-4 shrink-0 text-[rgba(79,162,159,0.9)]" />
+      <div className="mt-7 flex items-center gap-2 border-t border-(--material-input-border) pt-4 text-xs leading-5 text-(--text-muted)">
+        <CheckCircle2 className="h-4 w-4 shrink-0 text-[color:color-mix(in_srgb,var(--accent)_90%,transparent)]" />
         Authenticated sessions open the launcher without exposing public entry actions.
       </div>
     </section>

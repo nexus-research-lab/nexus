@@ -49,11 +49,11 @@ export function LoginQRCode({ payload }: { payload: string }) {
           src={imageUrl}
         />
       ) : (
-        <div className="flex h-[220px] w-[220px] items-center justify-center rounded-[8px] bg-(--surface-paper-background) p-4 text-center text-[12px] leading-5 text-(--surface-paper-muted)">
+        <div className="flex h-[220px] w-[220px] items-center justify-center rounded-[8px] bg-(--surface-paper-background) p-4 text-center text-compact leading-5 text-(--surface-paper-muted)">
           二维码生成失败，请使用下方链接
         </div>
       )}
-      <code className="max-w-full truncate rounded-[8px] border border-(--divider-subtle-color) px-2 py-1 text-[11px] text-(--text-muted)">
+      <code className="max-w-full truncate rounded-[8px] border border-(--divider-subtle-color) px-2 py-1 text-xs text-(--text-muted)">
         {payload}
       </code>
     </div>

@@ -134,8 +134,8 @@ function LocalSkillImportSource({
           <FolderUp className="h-4 w-4" />
         </div>
         <div className="min-w-0">
-          <h3 className="text-[13px] font-medium text-(--text-strong)">上传 zip 包</h3>
-          <p className="mt-1 text-[12px] leading-5 text-(--text-muted)">
+          <h3 className="text-sm font-medium text-(--text-strong)">上传 zip 包</h3>
+          <p className="mt-1 text-compact leading-5 text-(--text-muted)">
             zip 内可以直接放一个 Skill 目录，也可以包含多层目录；系统会查找最靠近根部的 SKILL.md。
           </p>
           <UiButton

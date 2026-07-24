@@ -80,10 +80,10 @@ export function SkillsCard({
           </span>
           {model.showUpdate ? <UiBadge size="xs" tone="warning">有更新</UiBadge> : null}
         </div>
-        <div className="mt-0.5 truncate text-[12px] leading-[1.125rem] text-(--text-muted)">
+        <div className="mt-0.5 truncate text-compact leading-[1.125rem] text-(--text-muted)">
           {model.description}
         </div>
-        <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[10px] leading-4 text-(--text-soft)">
+        <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-2xs leading-4 text-(--text-soft)">
           <span className="shrink-0">{model.sourceLabel}</span>
           {model.visibleTags.map((tag) => (
             <span key={tag} className="truncate">

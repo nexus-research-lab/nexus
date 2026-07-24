@@ -159,7 +159,7 @@ function GoalStatusSummary({
 }) {
   return (
     <div className="min-w-0 flex-1">
-      <div className="flex min-w-0 items-center gap-1.5 text-[10px] font-medium text-(--text-soft)">
+      <div className="flex min-w-0 items-center gap-1.5 text-2xs font-medium text-(--text-soft)">
         <span className="truncate">{scopeLabel}</span>
         <span
           className={cn(GOAL_PANEL_BADGE_CLASS_NAME, model.tone.badge)}
@@ -171,7 +171,7 @@ function GoalStatusSummary({
         {statusExtra}
       </div>
       <div
-        className="mt-0.5 line-clamp-1 text-[12px] font-medium leading-5 text-(--text-strong)"
+        className="mt-0.5 line-clamp-1 text-compact font-medium leading-5 text-(--text-strong)"
         title={objective}
       >
         {objective}
@@ -193,7 +193,7 @@ function GoalBudget({ label }: { label: string | null }) {
   }
   return (
     <span
-      className="hidden h-6 max-w-[128px] shrink-0 items-center gap-1 truncate rounded-[8px] px-1.5 text-[11px] font-medium text-(--text-muted) sm:inline-flex"
+      className="hidden h-6 max-w-[128px] shrink-0 items-center gap-1 truncate rounded-[8px] px-1.5 text-xs font-medium text-(--text-muted) sm:inline-flex"
       title="Token 使用"
     >
       <GaugeCircle className="h-3.5 w-3.5 shrink-0" />
@@ -249,7 +249,7 @@ function GoalAttentionMessage({ message }: { message: string | null }) {
     return null;
   }
   return (
-    <div className="ml-7 line-clamp-1 pb-1 text-[11px] leading-4 text-(--destructive)">
+    <div className="ml-7 line-clamp-1 pb-1 text-xs leading-4 text-(--destructive)">
       {message}
     </div>
   );

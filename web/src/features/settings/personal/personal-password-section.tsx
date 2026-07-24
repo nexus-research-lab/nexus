@@ -76,7 +76,7 @@ export function PersonalPasswordSection({
         <div className="grid gap-3 md:grid-cols-3">
           {PASSWORD_INPUTS.map((input) => (
             <label className="space-y-1.5" key={input.field}>
-              <span className="text-[11px] font-semibold text-(--text-muted)">
+              <span className="text-xs font-semibold text-(--text-muted)">
                 {t(input.labelKey)}
               </span>
               <input
@@ -111,11 +111,11 @@ function PasswordSectionHeader({ canChange }: { canChange: boolean }) {
         <LockKeyhole className="h-3.5 w-3.5" />
       </div>
       <div className="min-w-0">
-        <h3 className="text-[15px] font-semibold tracking-tight text-(--text-strong)">
+        <h3 className="text-base font-semibold tracking-tight text-(--text-strong)">
           {t("settings.personal.password_title")}
         </h3>
         {!canChange ? (
-          <p className="mt-1 text-[12px] leading-5 text-(--text-soft)">
+          <p className="mt-1 text-compact leading-5 text-(--text-soft)">
             {t("settings.personal.password_disabled")}
           </p>
         ) : null}
@@ -143,7 +143,7 @@ function PasswordSubmitActions({
   );
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <p className="min-w-0 text-[11px] text-(--text-soft)">{helperText}</p>
+      <p className="min-w-0 text-xs text-(--text-soft)">{helperText}</p>
       <button
         className={cn(
           canSubmit ? PRIMARY_BUTTON_CLASS_NAME : SECONDARY_BUTTON_CLASS_NAME,

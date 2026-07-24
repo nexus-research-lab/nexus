@@ -35,12 +35,6 @@ export function filterConnectors(
   ));
 }
 
-export function countConnectedConnectors(connectors: ConnectorInfo[]): number {
-  return connectors.filter((connector) => (
-    connector.connection_state === "connected"
-  )).length;
-}
-
 export function buildConnectorSections(
   connectors: ConnectorInfo[],
   activeCategory: string,

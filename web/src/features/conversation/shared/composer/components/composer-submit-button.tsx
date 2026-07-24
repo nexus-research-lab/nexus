@@ -100,7 +100,8 @@ function projectComposerSubmitButton(
       ariaLabel: props.sendLabel,
       className: cn(
         COMPOSER_PRIMARY_ACTION_BUTTON_CLASS_NAME,
-        "gap-1.5 disabled:border-(--button-tonal-border) disabled:bg-(--button-tonal-background) disabled:text-(--icon-muted) min-[760px]:w-auto min-[760px]:px-3",
+        // 中文注释：默认退后 —— 不可发送时降级为无底无边框的 ghost 态，可发送时才呈现蓝色主动作。
+        "gap-1.5 disabled:border-transparent disabled:bg-transparent disabled:text-(--icon-muted) disabled:shadow-none min-[760px]:w-auto min-[760px]:px-3",
       ),
       disabled: props.isDisabled,
       inlineLabel: props.enterLabel,
@@ -120,7 +121,7 @@ function ComposerSubmitInlineLabel({ label }: { label: string | null }) {
     return null;
   }
   return (
-    <span className="hidden text-[12px] font-semibold min-[760px]:inline">
+    <span className="hidden text-compact font-semibold min-[760px]:inline">
       {label}
     </span>
   );

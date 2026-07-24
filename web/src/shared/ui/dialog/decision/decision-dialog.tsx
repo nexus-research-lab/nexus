@@ -89,7 +89,7 @@ export function ConfirmDialog({
           </div>
           <div className="min-w-0 flex-1">
             <h3 className="dialog-title" id={titleId}>{title}</h3>
-            <p className="mt-1 text-[12px] leading-5 text-(--text-soft)">
+            <p className="mt-1 text-compact leading-5 text-(--text-soft)">
               {presentation.subtitle}
             </p>
           </div>
@@ -271,7 +271,7 @@ function PromptInput({
           value={value}
         />
         <p className="pt-2 text-xs text-(--text-soft)">
-          按 <kbd className="rounded bg-black/5 px-1 py-0.5 text-[11px]">Cmd/Ctrl + Enter</kbd> 可直接保存。
+          按 <kbd className="rounded bg-black/5 px-1 py-0.5 text-xs">Cmd/Ctrl + Enter</kbd> 可直接保存。
         </p>
       </>
     );

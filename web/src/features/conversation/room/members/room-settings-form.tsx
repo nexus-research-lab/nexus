@@ -76,7 +76,7 @@ export function RoomSettingsForm({
       </div>
       <div className="flex flex-col gap-2 border-t divider-subtle pt-4">
         <div className="flex items-center gap-2">
-          <div className="flex shrink-0 items-center gap-1.5 text-[11px] font-semibold text-(--text-muted)">
+          <div className="flex shrink-0 items-center gap-1.5 text-xs font-semibold text-(--text-muted)">
             <Crown className="h-3.5 w-3.5 text-primary" />
             <span>群主</span>
           </div>
@@ -125,7 +125,7 @@ function RoomSettingCheckbox({
   return (
     <label
       className={cn(
-        "flex items-center gap-2 px-0.5 text-[11px] font-medium text-(--text-default)",
+        "flex items-center gap-2 px-0.5 text-xs font-medium text-(--text-default)",
         className,
       )}
     >

@@ -58,9 +58,6 @@ export function ChannelsDirectory() {
         bodyScrollable
         header={(
           <WorkspaceSurfaceHeader
-            badge={t("capability.channels_badge", {
-              count: controller.channels.length || 6,
-            })}
             leading={<MessageCircle className="h-4 w-4" />}
             title={t("capability.channels")}
             trailing={(

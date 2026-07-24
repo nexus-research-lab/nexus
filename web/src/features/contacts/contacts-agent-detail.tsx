@@ -141,7 +141,7 @@ export function ContactsAgentDetail({
       {tagLabels.map((tag) => (
         <span
           key={tag}
-          className="max-w-[120px] truncate rounded-[6px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_72%,transparent)] bg-transparent px-2 py-0.5 text-[10.5px] font-medium text-(--text-muted)"
+          className="max-w-[120px] truncate rounded-[6px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_72%,transparent)] bg-transparent px-2 py-0.5 text-xs font-medium text-(--text-muted)"
           title={tag}
         >
           {tag}

@@ -15,14 +15,12 @@ const COPY_ACTION_PRESENTATION: Record<"copied" | "idle", CopyActionPresentation
 };
 
 export function AssistantMessageStats({
-  compact,
   copied,
   model,
   onCopy,
   stats,
   streaming,
 }: {
-  compact: boolean;
   copied: boolean;
   model?: string;
   onCopy?: () => Promise<void>;
@@ -39,8 +37,7 @@ export function AssistantMessageStats({
 
   return (
     <div className={cn(
-      "nexus-chat-message-stats flex min-w-0 items-center justify-between gap-3 pt-1.5 text-(--text-muted)",
-      compact ? "text-[10.5px]" : "text-[11px]",
+      "nexus-chat-message-stats flex min-w-0 items-center justify-between gap-3 pt-1.5 text-xs text-(--text-muted)",
     )}>
       <div className="flex min-w-0 flex-1 items-center">
         {statsItems.length > 0 ? (

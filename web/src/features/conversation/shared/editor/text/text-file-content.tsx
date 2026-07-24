@@ -50,7 +50,7 @@ function HtmlContent({ content, fileName, isStreaming }: TextRendererProps) {
 
 function PlainTextContent({ content }: TextRendererProps) {
   return (
-    <pre className="message-code-font min-h-full whitespace-pre-wrap break-words text-[13px] leading-[1.6] text-(--text-strong)">
+    <pre className="message-code-font min-h-full whitespace-pre-wrap break-words text-sm leading-[1.6] text-(--text-strong)">
       {content}
     </pre>
   );

@@ -77,10 +77,10 @@ export function WorkspaceTaskPanel({
           )}
         >
           <div className="flex h-9 shrink-0 items-center gap-2 px-3">
-            <span className="text-[12px] font-semibold text-(--text-strong)">
+            <span className="text-compact font-semibold text-(--text-strong)">
               {t("tasks.label")}
             </span>
-            <span className="text-[12px] tabular-nums text-(--text-soft)">
+            <span className="text-compact tabular-nums text-(--text-soft)">
               {completedCount}/{todos.length}
             </span>
             <span className="flex-1" />
@@ -113,14 +113,14 @@ export function WorkspaceTaskPanel({
                   <div className="min-w-0 flex-1">
                     <p
                       className={cn(
-                        "text-[12px] leading-5 text-(--text-default)",
+                        "text-compact leading-5 text-(--text-default)",
                         todo.status === "completed" && "text-(--text-soft) line-through",
                       )}
                     >
                       {todo.content}
                     </p>
                     {isDetailExpanded && hasDetail ? (
-                      <p className="mt-0.5 border-l border-(--divider-subtle-color) pl-2 text-[10.5px] leading-4.5 text-(--text-muted)">
+                      <p className="mt-0.5 border-l border-(--divider-subtle-color) pl-2 text-xs leading-4.5 text-(--text-muted)">
                         {detailText}
                       </p>
                     ) : null}
@@ -152,7 +152,7 @@ export function WorkspaceTaskPanel({
         <button
           aria-label={t("tasks.expand_panel")}
           className={cn(
-            "inline-flex h-7 items-center gap-1.5 radius-control-sm px-2.5 text-[11px] font-semibold text-(--text-default) transition-[background,border-color,color,box-shadow] hover:text-(--text-strong)",
+            "inline-flex h-7 items-center gap-1.5 radius-control-sm px-2.5 text-xs font-semibold text-(--text-default) transition-[background,border-color,color,box-shadow] hover:text-(--text-strong)",
             TASK_PANEL_SURFACE_CLASS_NAME,
           )}
           onClick={() => setIsExpanded(true)}

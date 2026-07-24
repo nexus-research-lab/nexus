@@ -88,7 +88,7 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
                   type="button"
                 >
                   <span
-                    className="inline-flex min-h-8 items-center justify-center rounded-full px-3 text-[10px] font-semibold tracking-[0.22em]"
+                    className="inline-flex min-h-8 items-center justify-center rounded-full px-3 text-2xs font-semibold tracking-[0.22em]"
                     style={{
                       background:
                         "color-mix(in srgb, var(--launcher-input-inner-fill) 68%, rgba(255, 255, 255, 0.34))",
@@ -98,7 +98,7 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
                   >
                     APP
                   </span>
-                  <span className="text-[13px] font-semibold tracking-[0.12em] text-foreground/90">
+                  <span className="text-sm font-semibold tracking-[0.12em] text-foreground/90">
                     {t("launcher.enter_app")}
                   </span>
                   <ArrowRight className="h-3.5 w-3.5 transition-transform duration-200 ease-out group-hover:translate-x-0.5" />
@@ -113,7 +113,7 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
               inlineStyle={undefined}
               src={ANIMATIONS.SPARKLES}
             />
-            <h1 className="mb-2 text-[42px] font-semibold leading-[1.05] tracking-[-0.02em] text-foreground/96">
+            <h1 className="mb-2 text-2xl font-semibold leading-[1.05] tracking-[-0.02em] text-foreground/96">
               <AnimatedHeroText
                 text={t("launcher.hero_title")}
                 initialDelayMs={80}
@@ -156,7 +156,7 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
                 <input
                   aria-label="输入启动器指令"
                   ref={queryInput.input.ref}
-                  className="flex-1 bg-transparent text-[15px] outline-none shadow-none ring-0 placeholder:text-(--launcher-input-placeholder) focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none"
+                  className="flex-1 bg-transparent text-base outline-none shadow-none ring-0 placeholder:text-(--launcher-input-placeholder) focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none"
                   style={{ color: "var(--launcher-input-text)" }}
                   onBlur={queryInput.input.onBlur}
                   onChange={queryInput.input.onChange}

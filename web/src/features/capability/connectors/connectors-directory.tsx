@@ -109,7 +109,7 @@ export function ConnectorsDirectory() {
       <WorkspaceSurfaceScaffold
         bodyScrollable
         header={(
-          <ConnectorsHeader connectedCount={controller.connectedCount} />
+          <ConnectorsHeader />
         )}
         stableGutter
       >
@@ -133,10 +133,10 @@ export function ConnectorsDirectory() {
         ) : (
           <div className={WORKSPACE_DETAIL_PAGE_CLASS_NAME}>
             <div className="mb-4">
-              <h1 className="text-[20px] font-semibold tracking-[-0.02em] text-(--text-strong)">
+              <h1 className="text-lg font-semibold tracking-[-0.02em] text-(--text-strong)">
                 {t("capability.connectors_intro_title")}
               </h1>
-              <p className="mt-0.5 max-w-[640px] text-[12px] leading-5 text-(--text-muted)">
+              <p className="mt-0.5 max-w-[640px] text-compact leading-5 text-(--text-muted)">
                 {t("capability.connectors_intro_description")}
               </p>
             </div>

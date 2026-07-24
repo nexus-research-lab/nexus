@@ -55,7 +55,7 @@ export function ProviderModelOptionsDialog({
             subtitle={(
               <span className="inline-flex min-w-0 items-center gap-1.5">
                 <span>{t("settings.providers.model_options_subtitle")}</span>
-                <code className="max-w-[260px] truncate radius-control-sm bg-(--surface-muted-background) px-1.5 py-0.5 font-mono text-[11px] text-(--text-default)">
+                <code className="max-w-[260px] truncate radius-control-sm bg-(--surface-muted-background) px-1.5 py-0.5 font-mono text-xs text-(--text-default)">
                   {modelOptions.model.model_id}
                 </code>
               </span>
@@ -66,10 +66,10 @@ export function ProviderModelOptionsDialog({
           <UiDialogBody className="space-y-5" scrollable>
             <section className="space-y-2.5">
               <div>
-                <h3 className="text-[13px] font-semibold text-(--text-strong)">
+                <h3 className="text-sm font-semibold text-(--text-strong)">
                   {t("settings.providers.model_capabilities")}
                 </h3>
-                <p className="mt-0.5 text-[11px] leading-4 text-(--text-muted)">
+                <p className="mt-0.5 text-xs leading-4 text-(--text-muted)">
                   {t("settings.providers.model_capabilities_description")}
                 </p>
               </div>
@@ -124,7 +124,7 @@ export function ProviderModelOptionsDialog({
 
             <section className="grid gap-3 md:grid-cols-2">
               <label className="space-y-1.5">
-                <span className="text-[12px] font-medium text-(--text-muted)">
+                <span className="text-compact font-medium text-(--text-muted)">
                   {t("settings.providers.context_window")}
                 </span>
                 <UiInput
@@ -136,7 +136,7 @@ export function ProviderModelOptionsDialog({
                 />
               </label>
               <label className="space-y-1.5">
-                <span className="text-[12px] font-medium text-(--text-muted)">
+                <span className="text-compact font-medium text-(--text-muted)">
                   {t("settings.providers.max_output_tokens")}
                 </span>
                 <UiInput
@@ -150,11 +150,11 @@ export function ProviderModelOptionsDialog({
             </section>
 
             <label className="block space-y-1.5">
-              <span className="text-[12px] font-medium text-(--text-muted)">
+              <span className="text-compact font-medium text-(--text-muted)">
                 {t("settings.providers.provider_options_json")}
               </span>
               <UiTextarea
-                className="min-h-28 font-mono text-[12px] leading-5"
+                className="min-h-28 font-mono text-compact leading-5"
                 controlSize="md"
                 onChange={(event) => setModelOptions((current) => current ? ({ ...current, provider_options_text: event.target.value }) : current)}
                 spellCheck={false}

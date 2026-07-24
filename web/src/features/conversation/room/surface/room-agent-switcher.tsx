@@ -61,7 +61,7 @@ export function RoomAgentSwitcher({
         ref={triggerRef}
         aria-expanded={isOpen}
         aria-haspopup="menu"
-        className="flex max-w-[168px] items-center gap-1 border-b px-0 pb-0.5 text-[12px] text-(--text-default) transition-[border-color,color] duration-(--motion-duration-fast)"
+        className="flex max-w-[168px] items-center gap-1 border-b px-0 pb-0.5 text-compact text-(--text-default) transition-[border-color,color] duration-(--motion-duration-fast)"
         style={isOpen
           ? { borderBottom: "1px solid var(--surface-popover-border)" }
           : { borderBottom: "1px solid color-mix(in srgb, var(--divider-subtle-color) 82%, transparent)" }}
@@ -112,7 +112,7 @@ function RoomAgentAvatar({
           src={avatarSrc}
         />
       ) : (
-        <span className="text-[8px] font-bold text-(--text-strong)">
+        <span className="text-[8px] font-semibold text-(--text-strong)">
           {getInitials(member.name)}
         </span>
       )}

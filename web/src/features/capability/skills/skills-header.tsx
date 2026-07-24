@@ -17,7 +17,6 @@ const DISCOVERY_OPTIONS: { key: DiscoveryMode; labelKey: TranslationKey }[] = [
 ];
 
 interface SkillsHeaderProps {
-  catalogCount: number;
   checkingUpdates: boolean;
   discoveryMode: DiscoveryMode;
   importing: boolean;
@@ -29,7 +28,6 @@ interface SkillsHeaderProps {
 }
 
 export function SkillsHeader({
-  catalogCount,
   checkingUpdates,
   discoveryMode,
   importing,
@@ -43,7 +41,6 @@ export function SkillsHeader({
 
   return (
     <WorkspaceSurfaceHeader
-      badge={t("capability.skills_badge", { count: catalogCount })}
       leading={<Puzzle className="h-4 w-4" />}
       title={t("capability.skills")}
       tabs={DISCOVERY_OPTIONS.map((item) => ({

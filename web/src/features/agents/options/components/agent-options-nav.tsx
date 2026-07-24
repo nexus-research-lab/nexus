@@ -62,7 +62,7 @@ export function AgentOptionsNav({
             >
               <Icon className="h-4 w-4" />
             </span>
-            <span className="relative z-[1] text-[13px] font-semibold">{label}</span>
+            <span className="relative z-[1] text-sm font-semibold">{label}</span>
           </UiChoiceButton>
         );
       })}

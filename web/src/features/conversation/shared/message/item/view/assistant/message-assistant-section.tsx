@@ -88,7 +88,6 @@ export function MessageAssistantSection({
 
           <AssistantFooter
             activityShowCursor={assistant.activity.showCursor}
-            compact={compact}
             footer={assistant.footer}
             model={assistant.header.model}
           />
@@ -112,12 +111,10 @@ function useOpenAgentContact(
 
 function AssistantFooter({
   activityShowCursor,
-  compact,
   footer,
   model,
 }: {
   activityShowCursor: boolean;
-  compact: boolean;
   footer: AssistantFooterState;
   model?: string;
 }) {
@@ -126,7 +123,6 @@ function AssistantFooter({
   }
   return (
     <AssistantMessageStats
-      compact={compact}
       copied={footer.copied}
       onCopy={footer.onCopy}
       stats={footer.stats}

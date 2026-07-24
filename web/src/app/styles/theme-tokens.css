@@ -19,8 +19,8 @@
   --nexus-page-pattern-rain: none;
   --background: var(--nexus-page-background-light);
   --foreground: #131313;
-  --primary: #0b0b0b;
-  --primary-rgb: 11, 11, 11;
+  --primary: #5b72ff;
+  --primary-rgb: 91, 114, 255;
   --primary-foreground: #ffffff;
   --brand: #5b72ff;
   --brand-action: #5266e6;
@@ -58,6 +58,8 @@
   --material-panel-shadow:
     0 8px 24px rgba(11, 11, 11, 0.06),
     0 2px 6px rgba(11, 11, 11, 0.04);
+  /* 中文注释：头像等局部浮起阴影的统一墨色，供 color-mix 透明度推导。 */
+  --shadow-color: rgb(11 11 11);
   --material-shell-navigation-background: rgba(240, 239, 236, 0.92);
   --material-shell-directory-background: rgba(246, 246, 244, 0.9);
   --material-shell-header-background: rgba(249, 249, 247, 0.92);
@@ -128,10 +130,6 @@
   --surface-kbd-background: #f0efec;
   --divider-kbd-border: rgba(11, 11, 11, 0.10);
   --surface-kbd-shadow: none;
-  --glow-lilac: rgba(255, 255, 255, 0.34);
-  --glow-green: rgba(11, 11, 11, 0.025);
-  --glow-peach: rgba(255, 255, 255, 0.22);
-  --glow-mist: rgba(255, 255, 255, 0.42);
 
   /* 中文注释：info 软背景系列 — 用于信息/活跃状态徽标（取代硬编码 #cfe0ff / #27539d 等） */
   --status-info-soft-bg: rgba(59, 130, 246, 0.10);
@@ -184,6 +182,7 @@
   --material-panel-shadow:
     0 22px 48px rgba(0, 5, 12, 0.34),
     0 4px 16px rgba(0, 5, 12, 0.16);
+  --shadow-color: rgb(0 5 12);
   --material-shell-navigation-background: rgba(4, 8, 14, 0.38);
   --material-shell-directory-background: rgba(29, 37, 49, 0.22);
   --material-shell-header-background: rgba(29, 37, 49, 0.18);
@@ -266,10 +265,6 @@
   --surface-kbd-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.08),
     0 8px 16px rgba(0, 5, 12, 0.22);
-  --glow-lilac: rgba(142, 164, 255, 0.16);
-  --glow-green: rgba(73, 208, 154, 0.14);
-  --glow-peach: rgba(239, 181, 84, 0.14);
-  --glow-mist: rgba(255, 255, 255, 0.1);
 
   --status-info-soft-bg: rgba(96, 165, 250, 0.12);
   --status-info-soft-border: rgba(96, 165, 250, 0.20);
@@ -321,6 +316,7 @@
   --material-panel-shadow:
     0 24px 48px rgba(9, 15, 24, 0.32),
     0 4px 16px rgba(9, 15, 24, 0.14);
+  --shadow-color: rgb(9 15 24);
   --material-shell-navigation-background: rgba(22, 29, 38, 0.34);
   --material-shell-directory-background: rgba(77, 89, 103, 0.2);
   --material-shell-header-background: rgba(77, 89, 103, 0.17);
@@ -403,10 +399,6 @@
   --surface-kbd-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.08),
     0 8px 16px rgba(9, 15, 24, 0.22);
-  --glow-lilac: rgba(154, 183, 255, 0.16);
-  --glow-green: rgba(80, 210, 172, 0.14);
-  --glow-peach: rgba(242, 191, 98, 0.14);
-  --glow-mist: rgba(255, 255, 255, 0.1);
 
   --status-info-soft-bg: rgba(96, 165, 250, 0.10);
   --status-info-soft-border: rgba(96, 165, 250, 0.18);
@@ -431,13 +423,15 @@
   --surface-elevated-background: var(--card);
   --surface-inset-background: transparent;
   --surface-inset-border: var(--divider-subtle-color);
-  --surface-inset-shadow: none;
   /* 中文注释：工作面使用单层卡片填充，页面底色保持纯色，纹理与功能表面各自独立。 */
   --surface-panel-background: var(--card);
   --surface-panel-border: var(--material-panel-border);
   --surface-panel-shadow: var(--material-panel-shadow);
   --surface-panel-subtle-background: transparent;
   --surface-panel-subtle-border: var(--divider-subtle-color);
+  /* 中文注释：设置页等次级区域的弱表面与危险文本，统一从基础 token 派生。 */
+  --surface-muted-background: var(--secondary);
+  --danger-text-color: var(--destructive);
   /* 中文注释：应用壳层以同色系明暗分区，主侧栏外缘只保留一根不透明且连续的结构 hairline。 */
   --surface-shell-navigation-background: var(--material-shell-navigation-background);
   --surface-shell-directory-background: var(--material-shell-directory-background);
@@ -490,8 +484,6 @@
   --surface-paper-foreground: var(--material-paper-foreground);
   --surface-paper-muted: var(--material-paper-muted);
   --surface-paper-shadow: var(--material-paper-shadow);
-  --surface-progress-track: color-mix(in srgb, var(--divider-strong-color) 88%, transparent);
-  --surface-progress-fill: color-mix(in srgb, var(--primary) 74%, white 10%);
 
   /* 中文注释：内容渲染只在可执行或独立阅读时上浮，正文中的 code、quote 和 table 统一使用低噪音语义表面。 */
   --content-radius-inline: 6px;
@@ -561,7 +553,6 @@
 
   --input-shell-background: var(--material-input-background);
   --input-shell-border: var(--material-input-border);
-  --input-shell-shadow: none;
 
   --surface-card-background: transparent;
   --surface-card-border: var(--divider-subtle-color);
@@ -658,15 +649,16 @@
   --color-success-foreground: var(--success-foreground);
   --color-warning: var(--warning);
 
-  /* 中文注释：语义化字号规范 — 替代散落的 text-[Npx] 任意值 */
-  --font-size-2xs: 10px;
-  --font-size-xs: 11px;
-  --font-size-sm: 13px;
-  --font-size-base: 15px;
-  --font-size-md: 17px;
-  --font-size-lg: 22px;
-  --font-size-xl: 28px;
-  --font-size-2xl: 42px;
+  /* 中文注释：语义化字号规范 — 替代散落的 text-[Npx] 任意值；Tailwind v4 的字号命名空间是 --text-*。 */
+  --text-2xs: 10px;
+  --text-xs: 11px;
+  --text-compact: 12px;
+  --text-sm: 13px;
+  --text-base: 15px;
+  --text-md: 17px;
+  --text-lg: 22px;
+  --text-xl: 28px;
+  --text-2xl: 42px;
 
   --font-sans:
     -apple-system,
@@ -679,11 +671,10 @@
     ui-sans-serif,
     sans-serif;
   --font-prose:
-    "Iowan Old Style",
-    "Palatino Linotype",
-    "Book Antiqua",
-    Georgia,
-    "Times New Roman",
+    "KingHwaOldSong",
+    "Source Han Serif SC",
+    "Songti SC",
+    STSong,
     serif;
   --font-mono:
     "PT Mono",

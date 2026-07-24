@@ -104,7 +104,7 @@ function UiListRowDefaultContent({
       {description || subtitleTrailing ? (
         <div className="mt-1 flex min-w-0 items-center gap-2">
           {description ? (
-            <div className="min-w-0 flex-1 truncate text-[12px] leading-5 text-(--text-muted)">
+            <div className="min-w-0 flex-1 truncate text-compact leading-5 text-(--text-muted)">
               {description}
             </div>
           ) : (

@@ -21,7 +21,7 @@ function CodeBlockLoadingFallback({ language, value }: CodeBlockProps) {
     <CodeShell
       language={language}
       rightSlot={(
-        <span className="message-code-font text-[11px]" style={{ color: "var(--text-muted)" }}>
+        <span className="message-code-font text-xs" style={{ color: "var(--text-muted)" }}>
           Loading
         </span>
       )}

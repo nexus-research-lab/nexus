@@ -194,7 +194,7 @@ function QuestionSubmitAction({
 
   return (
     <div className="ask-user-question-submit message-cjk-font mt-2 flex min-h-0 items-center justify-between gap-3 px-3 py-2">
-      <span className="text-[11px] leading-none text-muted-foreground">
+      <span className="text-xs leading-none text-muted-foreground">
         {hint}
       </span>
       <button

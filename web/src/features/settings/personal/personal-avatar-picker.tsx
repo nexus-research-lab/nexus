@@ -48,7 +48,7 @@ export function PersonalAvatarPicker({
           />
           <span
             className={cn(
-              "inline-flex min-h-7 items-center gap-1 rounded-full border px-2.5 text-[11.5px] font-semibold transition-[background,border-color]",
+              "inline-flex min-h-7 items-center gap-1 rounded-full border px-2.5 text-compact font-semibold transition-[background,border-color]",
               disabled
                 ? "border-(--divider-subtle-color) bg-transparent text-(--text-soft)"
                 : "border-[color:color-mix(in_srgb,var(--primary)_18%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--primary)_7%,transparent)] text-(--primary) group-hover:border-[color:color-mix(in_srgb,var(--primary)_32%,var(--divider-subtle-color))] group-hover:bg-[color:color-mix(in_srgb,var(--primary)_11%,transparent)]",

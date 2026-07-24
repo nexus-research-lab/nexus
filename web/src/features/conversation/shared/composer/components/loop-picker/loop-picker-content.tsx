@@ -59,7 +59,7 @@ function LoopPickerMessage({
 }) {
   const tone = destructive ? "text-(--destructive)" : "text-(--text-muted)";
   return (
-    <div className={`py-10 text-center text-[13px] ${tone}`}>
+    <div className={`py-10 text-center text-sm ${tone}`}>
       {message}
     </div>
   );

@@ -125,7 +125,7 @@ export const MentionTargetPopover = memo(function MentionTargetPopover({
             <span className="min-w-0 flex-1">
               <span className="block truncate font-medium">{item.label}</span>
               {item.subtitle ? (
-                <span className="block truncate text-[11px] text-(--text-soft)">
+                <span className="block truncate text-xs text-(--text-soft)">
                   {item.subtitle}
                 </span>
               ) : null}

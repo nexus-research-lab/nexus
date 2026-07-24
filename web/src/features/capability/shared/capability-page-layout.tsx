@@ -62,10 +62,10 @@ export function CapabilityPageLayout({
   return (
     <div className={cn(WORKSPACE_DETAIL_PAGE_CLASS_NAME, className)}>
       <div className="mb-4">
-        <h1 className="text-[20px] font-semibold tracking-[-0.02em] text-(--text-strong)">
+        <h1 className="text-lg font-semibold tracking-[-0.02em] text-(--text-strong)">
           {title}
         </h1>
-        <p className="mt-0.5 max-w-[640px] text-[12px] leading-5 text-(--text-muted)">
+        <p className="mt-0.5 max-w-[640px] text-compact leading-5 text-(--text-muted)">
           {description}
         </p>
       </div>
@@ -149,11 +149,11 @@ export function CapabilitySectionHeader({
 }: CapabilitySectionHeaderProps) {
   return (
     <div className="mb-2 flex items-end justify-between border-b border-(--divider-subtle-color) pb-1.5">
-      <h2 className="text-[15px] font-medium tracking-[-0.01em] text-(--text-strong)">
+      <h2 className="text-base font-medium tracking-[-0.01em] text-(--text-strong)">
         {title}
       </h2>
       {count ? (
-        <span className="text-[11px] font-medium text-(--text-soft)">
+        <span className="text-xs font-medium text-(--text-soft)">
           {count}
         </span>
       ) : null}

@@ -23,7 +23,7 @@
 @property --primary {
   syntax: "<color>";
   inherits: true;
-  initial-value: #0b0b0b;
+  initial-value: #5b72ff;
 }
 
 @property --secondary {
@@ -35,7 +35,7 @@
 @property --accent {
   syntax: "<color>";
   inherits: true;
-  initial-value: #0073e6;
+  initial-value: #4fa29f;
 }
 
 @property --muted {
@@ -109,7 +109,7 @@
     font: inherit;
   }
 
-  /* 中文注释：聊天正文统一使用系统比例字体，保持中英混排一致；等宽字体只留给代码。 */
+  /* 中文注释：内容文本默认沿用系统比例字体；聊天 Feed 再切换中文正文，代码始终保持等宽。 */
   .message-cjk-font {
     font-family: var(--font-sans);
     font-synthesis: style;

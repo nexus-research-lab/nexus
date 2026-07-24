@@ -86,7 +86,7 @@ function ConversationRowMeta({
       {timeLabel ? (
         <span
           className={cn(
-            "text-[11px] tabular-nums text-(--text-soft) transition-opacity duration-(--motion-duration-fast)",
+            "text-xs tabular-nums text-(--text-soft) transition-opacity duration-(--motion-duration-fast)",
             onDelete && "group-hover/item:opacity-0",
           )}
         >
@@ -137,7 +137,7 @@ function ConversationRowStatus({
 function ConversationRowSummary({ item }: { item: SidebarConversationItem }) {
   return (
     <UiMarkdownContent
-      className="nexus-sidebar-conversation-summary truncate text-[12px] leading-5 text-(--text-muted) [&_*]:leading-5"
+      className="nexus-sidebar-conversation-summary truncate text-compact leading-5 text-(--text-muted) [&_*]:leading-5"
       content={item.summary}
       mermaidShowHeader={false}
       summaryMonochrome

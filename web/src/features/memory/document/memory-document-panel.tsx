@@ -115,12 +115,12 @@ function MemoryDocumentAlerts({
   return (
     <>
       {staleDays > MEMORY_STALE_AFTER_DAYS ? (
-        <div className="shrink-0 border-b border-[color:color-mix(in_srgb,var(--warning)_28%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--warning)_8%,transparent)] px-4 py-2 text-[11.5px] leading-5 text-(--warning)">
+        <div className="shrink-0 border-b border-[color:color-mix(in_srgb,var(--warning)_28%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--warning)_8%,transparent)] px-4 py-2 text-compact leading-5 text-(--warning)">
           {t("capability.memory_stale", { count: staleDays })}
         </div>
       ) : null}
       {controller.commandError ? (
-        <div className="shrink-0 border-b border-(--divider-subtle-color) px-4 py-2 text-[11.5px] leading-5 text-(--destructive)">
+        <div className="shrink-0 border-b border-(--divider-subtle-color) px-4 py-2 text-compact leading-5 text-(--destructive)">
           {controller.commandError}
         </div>
       ) : null}
@@ -166,7 +166,7 @@ function MemoryDocumentBody({
     return (
       <textarea
         aria-label={t("capability.memory_editor_aria")}
-        className="message-cjk-code-font min-h-0 w-full flex-1 resize-none overflow-y-auto bg-transparent px-5 py-4 text-[13px] leading-6 text-(--text-default) outline-none"
+        className="message-cjk-code-font min-h-0 w-full flex-1 resize-none overflow-y-auto bg-transparent px-5 py-4 text-sm leading-6 text-(--text-default) outline-none"
         onChange={(event) => controller.setDraft(event.target.value)}
         spellCheck={false}
         value={controller.draft}

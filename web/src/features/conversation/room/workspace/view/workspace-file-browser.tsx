@@ -114,8 +114,8 @@ function WorkspaceFileList({
       <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-(--icon-default) shadow-(--surface-avatar-shadow)">
         <FolderTree className="h-4 w-4" />
       </div>
-      <p className="mt-4 text-[15px] font-semibold text-(--text-strong)">{t("room.no_files")}</p>
-      <p className="mt-1 text-[12px] leading-6 text-(--text-soft)">
+      <p className="mt-4 text-base font-semibold text-(--text-strong)">{t("room.no_files")}</p>
+      <p className="mt-1 text-compact leading-6 text-(--text-soft)">
         {t("room.workspace_empty_description")}
       </p>
     </div>
@@ -142,7 +142,7 @@ export function WorkspaceFileBrowser({
         <PanelResizeHandle ariaLabel="调整文件列表宽度" onResizeStart={onResizeStart} />
       ) : null}
 
-      <div className="mb-2 inline-flex min-w-0 items-center gap-1.5 radius-control-sm border border-(--divider-subtle-color) px-2.5 py-1 text-[11px] text-(--text-default)">
+      <div className="mb-2 inline-flex min-w-0 items-center gap-1.5 radius-control-sm border border-(--divider-subtle-color) px-2.5 py-1 text-xs text-(--text-default)">
         {controller.focusedDirectoryPath ? (
           <FolderOpen className="h-3 w-3 shrink-0 text-[var(--accent)]" />
         ) : (

@@ -16,7 +16,7 @@ export interface UserMessagePresentation extends UserMessageDensity {
 
 const USER_MESSAGE_DENSITY: Record<"compact" | "expanded", UserMessageDensity> = {
   compact: {
-    contentClassName: "text-[15px] leading-6 [&_.katex-display]:my-2",
+    contentClassName: "text-base leading-6 [&_.katex-display]:my-2",
     headerClassName: "h-6",
     rowClassName: "",
     sectionClassName: "px-0",

@@ -51,7 +51,7 @@ export function getDialogActionClassName(
 
 export function getDialogNoteClassName(tone: "default" | "danger", className?: string): string {
   return cn(
-    "radius-control-lg px-4 py-[0.95rem] text-[13px] leading-[1.65]",
+    "radius-control-lg px-4 py-[0.95rem] text-sm leading-[1.65]",
     tone === "default"
       ? "border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_76%,transparent)] bg-transparent text-(--text-default)"
       : "border text-(--text-default)",

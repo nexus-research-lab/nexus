@@ -51,7 +51,7 @@ export const CapabilitySidebarPanel = memo(function CapabilitySidebarPanel() {
             onSelect={selectItem}
           />
         )) : (
-          <div className="px-2.5 py-4 text-[12px] text-(--text-muted)">
+          <div className="px-2.5 py-4 text-compact text-(--text-muted)">
             {t("sidebar.no_matching_capabilities")}
           </div>
         )}

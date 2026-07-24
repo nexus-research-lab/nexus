@@ -47,7 +47,7 @@ export function AgentMemoryCatalog({
       <div className="shrink-0 border-b border-(--divider-subtle-color) p-3">
         <UiSearchInput
           className="w-full"
-          inputClassName="text-[12px]"
+          inputClassName="text-compact"
           onChange={onQueryChange}
           placeholder={t("capability.memory_search_placeholder")}
           value={query}
@@ -57,7 +57,7 @@ export function AgentMemoryCatalog({
             <button
               aria-selected={filter === option.value}
               className={cn(
-                "shrink-0 rounded-[6px] px-2 py-1 text-[10.5px] font-medium transition-colors",
+                "shrink-0 rounded-[6px] px-2 py-1 text-xs font-medium transition-colors",
                 filter === option.value
                   ? "bg-(--surface-interactive-active-background) text-(--text-strong)"
                   : "text-(--text-soft) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-default)",
@@ -85,14 +85,14 @@ export function AgentMemoryCatalog({
         {emptyFilterVisible ? (
           <div className="px-3 py-10 text-center">
             <Search className="mx-auto h-5 w-5 text-(--icon-muted)" />
-            <p className="mt-2 text-[12px] text-(--text-muted)">
+            <p className="mt-2 text-compact text-(--text-muted)">
               {t("capability.memory_empty_filter")}
             </p>
           </div>
         ) : null}
 
         {truncated ? (
-          <p className="px-3 py-3 text-[10.5px] leading-4 text-(--text-soft)">
+          <p className="px-3 py-3 text-xs leading-4 text-(--text-soft)">
             {t("capability.memory_truncated")}
           </p>
         ) : null}
@@ -100,10 +100,10 @@ export function AgentMemoryCatalog({
 
       {emptyMemoryVisible ? (
         <div className="border-t border-(--divider-subtle-color) px-4 py-4">
-          <p className="text-[12px] font-semibold text-(--text-strong)">
+          <p className="text-compact font-semibold text-(--text-strong)">
             {t("capability.memory_empty_title")}
           </p>
-          <p className="mt-1 text-[11px] leading-5 text-(--text-muted)">
+          <p className="mt-1 text-xs leading-5 text-(--text-muted)">
             {t("capability.memory_empty_description")}
           </p>
         </div>
@@ -144,7 +144,7 @@ function MemoryCatalogSectionView({
 
 function MemorySectionLabel({ label, value }: { label: string; value?: string }) {
   return (
-    <div className="flex items-center justify-between px-2 pb-1 pt-1 text-[10px] font-semibold uppercase text-(--text-soft)">
+    <div className="flex items-center justify-between px-2 pb-1 pt-1 text-2xs font-semibold uppercase text-(--text-soft)">
       <span>{label}</span>
       {value ? <span className="tabular-nums">{value}</span> : null}
     </div>
@@ -187,17 +187,17 @@ function MemoryDocumentRow({
       </span>
       <span className="min-w-0 flex-1">
         <span className="flex min-w-0 items-center gap-1.5">
-          <span className="truncate text-[12px] font-semibold text-(--text-strong)">
+          <span className="truncate text-compact font-semibold text-(--text-strong)">
             {document.title}
           </span>
           {isIndexedMemoryTopic(document) ? (
             <Link2 className="h-3 w-3 shrink-0 text-(--accent)" />
           ) : null}
         </span>
-        <span className="mt-0.5 line-clamp-2 block text-[10.5px] leading-4 text-(--text-muted)">
+        <span className="mt-0.5 line-clamp-2 block text-xs leading-4 text-(--text-muted)">
           {document.description || document.path}
         </span>
-        <span className="mt-1 flex items-center gap-1.5 text-[9.5px] text-(--text-soft)">
+        <span className="mt-1 flex items-center gap-1.5 text-2xs text-(--text-soft)">
           <span>{t(presentation.labelKey)}</span>
           <span aria-hidden="true">·</span>
           <Clock3 className="h-2.5 w-2.5" />

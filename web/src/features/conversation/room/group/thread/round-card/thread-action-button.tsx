@@ -18,7 +18,7 @@ export function ThreadActionButton({
     <button
       aria-label={label}
       className={cn(
-        "rounded-md border px-2 py-1 text-[11px] font-medium transition-colors",
+        "rounded-md border px-2 py-1 text-xs font-medium transition-colors",
         active
           ? "border-(--status-info-soft-border) bg-(--status-info-soft-bg) text-(--status-info-soft-text)"
           : "border-(--divider-subtle-color) bg-transparent text-(--text-muted) hover:bg-(--interaction-hover-background) hover:text-(--text-default)",

@@ -25,7 +25,7 @@ export function MermaidModeButton({
     <button
       aria-selected={active}
       className={cn(
-        "inline-flex h-6 items-center gap-1 rounded-[6px] px-2 text-[11px] font-medium transition-colors",
+        "inline-flex h-6 items-center gap-1 rounded-[6px] px-2 text-xs font-medium transition-colors",
         active
           ? "bg-(--surface-interactive-active-background) text-(--text-strong)"
           : "text-(--text-muted) hover:bg-(--interaction-hover-background) hover:text-(--text-strong)",
@@ -56,7 +56,7 @@ export function MermaidSourceView({
         getMermaidBodyClassName(compact, constrainHeight),
       )}
     >
-      <pre className="message-code-font min-w-full whitespace-pre px-3 py-2.5 text-[12px] leading-[1.5] text-(--text-strong)">
+      <pre className="message-code-font min-w-full whitespace-pre px-3 py-2.5 text-compact leading-[1.5] text-(--text-strong)">
         {chart}
       </pre>
     </div>
@@ -136,7 +136,7 @@ export function MermaidRenderedPreview({
         <Maximize2 className="h-3.5 w-3.5" />
       </div>
       {isRendering ? (
-        <div className="pointer-events-none absolute right-2 top-2 inline-flex items-center rounded-full border border-(--surface-paper-border) bg-[color:color-mix(in_srgb,var(--surface-paper-background)_86%,transparent)] px-2 py-1 text-[11px] text-(--surface-paper-muted) shadow-sm">
+        <div className="pointer-events-none absolute right-2 top-2 inline-flex items-center rounded-full border border-(--surface-paper-border) bg-[color:color-mix(in_srgb,var(--surface-paper-background)_86%,transparent)] px-2 py-1 text-xs text-(--surface-paper-muted) shadow-sm">
           <LoaderCircle className="mr-1.5 h-3 w-3 animate-spin" />
           更新中
         </div>

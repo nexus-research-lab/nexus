@@ -99,7 +99,7 @@ export function IdentityProfileFields({
           variant={variant}
         />
         <div className="min-w-0 flex-1 space-y-1.5 pt-1">
-          <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-(--text-soft)">
+          <label className="text-xs font-semibold uppercase tracking-[0.12em] text-(--text-soft)">
             {nameLabel} <span className="text-(--destructive)">*</span>
           </label>
           <UiInput

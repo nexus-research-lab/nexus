@@ -98,7 +98,7 @@ export function ScheduledTaskCard({
       )}
     >
       <div className="flex min-w-0 items-start justify-between gap-2">
-        <span className="min-w-0 truncate text-[10.5px] font-medium text-(--text-soft)">
+        <span className="min-w-0 truncate text-xs font-medium text-(--text-soft)">
           {presentation.contextLabel}
         </span>
         <UiIconButton
@@ -128,11 +128,11 @@ export function ScheduledTaskCard({
       <h3 className="mt-1 line-clamp-2 text-[14px] font-semibold leading-5 text-(--text-strong)">
         {task.name}
       </h3>
-      <p className="mt-1.5 line-clamp-2 whitespace-pre-line text-[12px] leading-5 text-(--text-muted)">
+      <p className="mt-1.5 line-clamp-2 whitespace-pre-line text-compact leading-5 text-(--text-muted)">
         {task.instruction}
       </p>
 
-      <div className="mt-2.5 space-y-1 text-[11px] leading-4 text-(--text-default)">
+      <div className="mt-2.5 space-y-1 text-xs leading-4 text-(--text-default)">
         <div className="flex min-w-0 items-center gap-1.5">
           <CalendarClock className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)" />
           <span className="truncate font-medium">{presentation.scheduleSummary}</span>
@@ -145,7 +145,7 @@ export function ScheduledTaskCard({
 
       {presentation.lastError ? (
         <p
-          className="mt-2.5 line-clamp-2 border-l-2 border-(--destructive) pl-2 text-[11px] leading-4 text-(--destructive)"
+          className="mt-2.5 line-clamp-2 border-l-2 border-(--destructive) pl-2 text-xs leading-4 text-(--destructive)"
           title={presentation.lastError}
         >
           {presentation.lastError}

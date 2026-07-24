@@ -26,7 +26,6 @@ type WorkspaceSurfaceHeaderMiddle =
 
 type WorkspaceSurfaceHeaderProps<TTabKey extends string> = {
   activeTab?: TTabKey;
-  badge?: string;
   compactTabsLabel?: string;
   dismissActiveTabLabel?: string;
   leading?: ReactNode;
@@ -43,7 +42,6 @@ type WorkspaceSurfaceHeaderProps<TTabKey extends string> = {
 
 export function WorkspaceSurfaceHeader<TTabKey extends string>({
   activeTab,
-  badge,
   compactTabsLabel,
   dismissActiveTabLabel,
   leading,
@@ -69,7 +67,6 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
     >
       <div className="workspace-surface-header-inner flex h-full min-w-0 items-center justify-between px-5 xl:px-6">
         <WorkspaceSurfaceIdentity
-          badge={badge}
           leading={leading}
           leadingClassName={leadingClassName}
           title={title}
@@ -96,19 +93,17 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
 }
 
 function WorkspaceSurfaceIdentity({
-  badge,
   leading,
   leadingClassName,
   title,
   titleTrailing,
 }: {
-  badge?: string;
   leading?: ReactNode;
   leadingClassName?: string;
   title?: string;
   titleTrailing?: ReactNode;
 }) {
-  const hasTitleContent = Boolean(title) || Boolean(badge) || Boolean(titleTrailing);
+  const hasTitleContent = Boolean(title) || Boolean(titleTrailing);
 
   return (
     <div className="workspace-surface-header-title flex min-w-0 shrink items-center gap-2.5">
@@ -123,7 +118,6 @@ function WorkspaceSurfaceIdentity({
 
       {hasTitleContent ? (
         <WorkspaceSurfaceTitle
-          badge={badge}
           title={title}
           titleTrailing={titleTrailing}
         />
@@ -133,25 +127,18 @@ function WorkspaceSurfaceIdentity({
 }
 
 function WorkspaceSurfaceTitle({
-  badge,
   title,
   titleTrailing,
 }: {
-  badge?: string;
   title?: string;
   titleTrailing?: ReactNode;
 }) {
   return (
     <div className="workspace-surface-header-title-content flex min-w-0 flex-1 flex-nowrap items-center gap-x-1.5">
       {title ? (
-        <div className="truncate text-[17px] font-semibold leading-5 tracking-normal text-(--text-strong)">
+        <div className="truncate text-md font-semibold leading-5 tracking-normal text-(--text-strong)">
           {title}
         </div>
-      ) : null}
-      {badge ? (
-        <span className="workspace-surface-header-badge shrink-0 radius-control-xs border border-(--divider-subtle-color) px-1.5 py-0.5 text-[9.5px] font-semibold leading-none text-(--text-soft)">
-          {badge}
-        </span>
       ) : null}
       {titleTrailing ? (
         <div className="workspace-surface-header-title-trailing min-w-0 max-h-6 shrink overflow-hidden text-(--text-default)">
@@ -234,7 +221,7 @@ function WorkspaceSurfaceNavigationLead({
   if (!subtitle) return null;
 
   return (
-    <div className="workspace-surface-header-subtitle min-w-0 flex-1 truncate text-[12px] leading-5 text-(--text-soft)">
+    <div className="workspace-surface-header-subtitle min-w-0 flex-1 truncate text-compact leading-5 text-(--text-soft)">
       {subtitle}
     </div>
   );
@@ -335,7 +322,7 @@ function WorkspaceSurfaceCompactTabs<TTabKey extends string>({
         aria-expanded={isOpen}
         aria-haspopup="menu"
         aria-label={compactTabsLabel}
-        className="flex h-full min-w-0 items-center gap-1.5 px-2 text-[10.5px] font-semibold text-(--text-default) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
+        className="flex h-full min-w-0 items-center gap-1.5 px-2 text-xs font-semibold text-(--text-default) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
         onClick={() => setIsOpen((current) => !current)}
         title={triggerLabel}
         type="button"

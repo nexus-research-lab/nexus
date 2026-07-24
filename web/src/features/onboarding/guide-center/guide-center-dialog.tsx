@@ -67,7 +67,7 @@ export function GuideCenterDialog({
                   {title}
                 </h3>
                 <p
-                  className="mt-1 text-[12px] leading-5 text-(--text-soft)"
+                  className="mt-1 text-compact leading-5 text-(--text-soft)"
                   id={GUIDE_CENTER_DESCRIPTION_ID}
                 >
                   {description}
@@ -88,17 +88,17 @@ export function GuideCenterDialog({
 
                       <div className="min-w-0 flex-1">
                         <div className="flex min-w-0 flex-wrap items-center gap-2">
-                          <h4 className="text-[13px] font-medium text-(--text-strong)">
+                          <h4 className="text-sm font-medium text-(--text-strong)">
                             {item.title}
                           </h4>
                           {item.completed ? (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-(--primary)">
+                            <span className="inline-flex items-center gap-1 text-2xs font-medium text-(--primary)">
                               <Check className="h-3 w-3" />
                               {reviewedLabel}
                             </span>
                           ) : null}
                         </div>
-                        <p className="mt-0.5 text-[11px] leading-5 text-(--text-soft)">
+                        <p className="mt-0.5 text-xs leading-5 text-(--text-soft)">
                           {item.description}
                         </p>
                       </div>

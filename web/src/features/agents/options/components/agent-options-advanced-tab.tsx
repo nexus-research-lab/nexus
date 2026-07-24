@@ -40,10 +40,10 @@ export function AgentOptionsAdvancedTab({
       <div className="space-y-4">
         <div className="flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-end sm:gap-5">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-(--text-soft)">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-(--text-soft)">
               {t("agent_options.advanced.runtime_policy")}
             </p>
-            <h3 className="mt-1 text-[15px] font-semibold text-(--text-strong)">
+            <h3 className="mt-1 text-base font-semibold text-(--text-strong)">
               {t("agent_options.advanced.permission_control")}
             </h3>
           </div>
@@ -61,7 +61,7 @@ export function AgentOptionsAdvancedTab({
               onClick={() => onPermissionModeChange(pm.value)}
             >
               <div className="mb-1.5 flex items-center justify-between">
-                <span className="text-[13.5px] font-semibold">{t(pm.labelKey)}</span>
+                <span className="text-sm font-semibold">{t(pm.labelKey)}</span>
                 {permissionMode === pm.value && (
                   <div className="flex h-4 w-4 items-center justify-center rounded-full bg-primary">
                     <svg
@@ -82,7 +82,7 @@ export function AgentOptionsAdvancedTab({
                   </div>
                 )}
               </div>
-              <p className="text-[12px] leading-[1.55] text-muted-foreground">
+              <p className="text-compact leading-[1.55] text-muted-foreground">
                 {t(pm.descriptionKey)}
               </p>
             </UiChoiceButton>
@@ -91,7 +91,7 @@ export function AgentOptionsAdvancedTab({
 
         {/* bypassPermissions 警告 */}
         {isBypassPermissionMode ? (
-          <div className="surface-radius-md border border-[color:color-mix(in_srgb,var(--warning)_20%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] px-4 py-3.5 text-[12px] leading-[1.6] text-(--warning)">
+          <div className="surface-radius-md border border-[color:color-mix(in_srgb,var(--warning)_20%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] px-4 py-3.5 text-compact leading-[1.6] text-(--warning)">
             {t("agent_options.advanced.bypass_warning")}
           </div>
         ) : null}
@@ -100,14 +100,14 @@ export function AgentOptionsAdvancedTab({
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-(--text-soft)">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-(--text-soft)">
               {t("agent_options.advanced.tool_access")}
             </p>
-            <h3 className="mt-1 text-[15px] font-semibold text-(--text-strong)">
+            <h3 className="mt-1 text-base font-semibold text-(--text-strong)">
               {t("agent_options.advanced.tool_access")}
             </h3>
           </div>
-          <span className="min-w-[92px] text-right text-[11px] tabular-nums text-(--text-soft)">
+          <span className="min-w-[92px] text-right text-xs tabular-nums text-(--text-soft)">
             {t("agent_options.advanced.enabled_tools", { count: preauthorizedToolCount })}
           </span>
         </div>
@@ -131,8 +131,8 @@ export function AgentOptionsAdvancedTab({
             </svg>
           </div>
           <div>
-            <p className="text-[13px] font-medium text-[color-mix(in_srgb,var(--warning)_80%,white)]">{t("agent_options.advanced.security_title")}</p>
-            <p className="mt-1 text-[12px] leading-[1.55] text-[color-mix(in_srgb,var(--warning)_70%,white)]">
+            <p className="text-sm font-medium text-[color-mix(in_srgb,var(--warning)_80%,white)]">{t("agent_options.advanced.security_title")}</p>
+            <p className="mt-1 text-compact leading-[1.55] text-[color-mix(in_srgb,var(--warning)_70%,white)]">
               {t("agent_options.advanced.security_hint")}
             </p>
           </div>
@@ -153,8 +153,8 @@ export function AgentOptionsAdvancedTab({
                 )}
               >
                 <div className="min-w-0 flex-1">
-                  <div className="text-[13.5px] font-semibold leading-[1.35]">{tool.name}</div>
-                  <div className="mt-1 text-[12px] leading-[1.5] text-muted-foreground">
+                  <div className="text-sm font-semibold leading-[1.35]">{tool.name}</div>
+                  <div className="mt-1 text-compact leading-[1.5] text-muted-foreground">
                     {t(tool.descriptionKey)}
                   </div>
                 </div>

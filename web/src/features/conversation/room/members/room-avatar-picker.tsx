@@ -44,7 +44,7 @@ export function RoomAvatarPicker({
             roomId={name}
             title={name || fallbackTitle}
           />
-          <span className="inline-flex min-h-7 items-center gap-1 rounded-full border border-[color:color-mix(in_srgb,var(--primary)_18%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--primary)_7%,transparent)] px-2.5 text-[11.5px] font-semibold text-(--primary) transition-[background,border-color] group-hover:border-[color:color-mix(in_srgb,var(--primary)_32%,var(--divider-subtle-color))] group-hover:bg-[color:color-mix(in_srgb,var(--primary)_11%,transparent)]">
+          <span className="inline-flex min-h-7 items-center gap-1 rounded-full border border-[color:color-mix(in_srgb,var(--primary)_18%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--primary)_7%,transparent)] px-2.5 text-compact font-semibold text-(--primary) transition-[background,border-color] group-hover:border-[color:color-mix(in_srgb,var(--primary)_32%,var(--divider-subtle-color))] group-hover:bg-[color:color-mix(in_srgb,var(--primary)_11%,transparent)]">
             {t("room.change_avatar")}
             <ChevronDown
               className={cn(

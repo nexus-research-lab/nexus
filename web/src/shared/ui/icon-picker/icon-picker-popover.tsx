@@ -115,10 +115,10 @@ export function IconPickerPopover({
           {...OPEN_OVERLAY_DATA_ATTRIBUTES}
         >
           <div className="mb-3 flex items-center justify-between gap-3 px-0.5">
-            <span className="text-[13px] font-semibold text-(--text-strong)">
+            <span className="text-sm font-semibold text-(--text-strong)">
               {ariaLabel}
             </span>
-            <span className="text-[11px] text-(--text-soft)">
+            <span className="text-xs text-(--text-soft)">
               {maxIcons}
             </span>
           </div>

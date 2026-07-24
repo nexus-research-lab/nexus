@@ -46,7 +46,6 @@ export function useConnectorController() {
     activeCategory: catalog.activeCategory,
     clearFeedback,
     closeDetail: detail.closeDetail,
-    connectedCount: catalog.connectedCount,
     connectors: catalog.connectors,
     feedback,
     loading: catalog.loading,

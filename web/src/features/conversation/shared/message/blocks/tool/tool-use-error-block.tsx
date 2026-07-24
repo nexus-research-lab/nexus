@@ -52,14 +52,14 @@ export function ToolUseErrorBlock({ content }: ToolUseErrorBlockProps) {
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-2">
-            <span className="shrink-0 text-[11px] font-medium text-(--destructive)">
+            <span className="shrink-0 text-xs font-medium text-(--destructive)">
               {parsed.tool_name} 调用失败
             </span>
-            <span className="shrink-0 text-[11px] text-(--text-soft)">
+            <span className="shrink-0 text-xs text-(--text-soft)">
               {parsed.error_type}
             </span>
           </div>
-          <div className="mt-1 space-y-0.5 text-[12px] leading-5 text-(--text-muted)">
+          <div className="mt-1 space-y-0.5 text-compact leading-5 text-(--text-muted)">
             {parsed.issues.map((issue, index) => (
               <div key={`${index}-${issue}`} className="break-words">
                 {issue}

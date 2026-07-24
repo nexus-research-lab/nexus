@@ -149,7 +149,7 @@ export function UiActionMenu({
       ref={menuRef}
       aria-label={ariaLabel}
       className={cn(
-        "fixed z-[130] surface-radius-lg overflow-y-auto border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_96%,white)] p-1 shadow-[0_14px_32px_rgba(15,23,42,0.12)] backdrop-blur animate-in fade-in-0 zoom-in-95 duration-(--motion-duration-fast) data-[placement=bottom]:slide-in-from-top-1 data-[placement=top]:slide-in-from-bottom-1",
+        "fixed z-[130] surface-radius-lg overflow-y-auto border border-(--surface-popover-border) bg-(--surface-popover-background) p-1 shadow-(--surface-popover-shadow) backdrop-blur animate-in fade-in-0 zoom-in-95 duration-(--motion-duration-fast) data-[placement=bottom]:slide-in-from-top-1 data-[placement=top]:slide-in-from-bottom-1",
         className,
       )}
       data-placement={menuPosition?.placement ?? "bottom"}
@@ -190,11 +190,11 @@ export function UiActionMenu({
               </span>
             ) : null}
             <span className="min-w-0 flex-1">
-              <span className={cn("block truncate text-[13px] font-medium", getItemLabelClassName(item.tone, item.active))}>
+              <span className={cn("block truncate text-sm font-medium", getItemLabelClassName(item.tone, item.active))}>
                 {item.label}
               </span>
               {item.description ? (
-                <span className="block truncate text-[10px] font-normal text-(--text-soft)">
+                <span className="block truncate text-2xs font-normal text-(--text-soft)">
                   {item.description}
                 </span>
               ) : null}

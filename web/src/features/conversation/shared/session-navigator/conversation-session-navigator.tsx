@@ -166,10 +166,10 @@ export function ConversationSessionNavigator({
                       <MessageSquareText className="h-3.5 w-3.5" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <h3 className="truncate text-[13px] font-semibold leading-[18px] text-(--text-strong)">
+                      <h3 className="truncate text-sm font-semibold leading-[18px] text-(--text-strong)">
                         {previewItem.title}
                       </h3>
-                      <p className="mt-0.5 truncate text-[11px] leading-4 text-(--text-muted)">
+                      <p className="mt-0.5 truncate text-xs leading-4 text-(--text-muted)">
                         {previewItem.time}
                       </p>
                     </div>
@@ -182,10 +182,10 @@ export function ConversationSessionNavigator({
                     jumpToRound(previewItem);
                   }}
                 >
-                  <p className="line-clamp-2 text-[11px] leading-[18px] text-(--text-default)">
+                  <p className="line-clamp-2 text-xs leading-[18px] text-(--text-default)">
                     {previewItem.summary}
                   </p>
-                  <div className="mt-2 flex min-w-0 items-center gap-1.5 text-[10px] font-medium leading-4 text-(--text-soft)">
+                  <div className="mt-2 flex min-w-0 items-center gap-1.5 text-2xs font-medium leading-4 text-(--text-soft)">
                     <span
                       className={cn(
                         "h-1.5 w-1.5 shrink-0 rounded-full",

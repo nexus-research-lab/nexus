@@ -291,7 +291,7 @@
 
   .content-table-heading {
     border-bottom: 0.5px solid var(--content-table-heading-border);
-    font-weight: 700;
+    font-weight: 600;
   }
 
   .content-table-cell {
@@ -594,7 +594,7 @@
 
   .dialog-title {
     font-size: 1.125rem;
-    font-weight: 700;
+    font-weight: 600;
     letter-spacing: 0;
     line-height: 1.25;
     color: var(--text-strong);
@@ -602,7 +602,7 @@
 
   .dialog-title[data-size="hero"] {
     font-size: 1.75rem;
-    font-weight: 900;
+    font-weight: 600;
     letter-spacing: 0;
   }
 
@@ -644,7 +644,7 @@
 
   .dialog-label {
     font-size: 12px;
-    font-weight: 700;
+    font-weight: 500;
     letter-spacing: 0;
     text-transform: none;
     color: var(--text-soft);
@@ -844,6 +844,12 @@
     container: nexus-chat-feed / inline-size;
   }
 
+  /* 中文注释：京华老宋体只进入聊天中文正文，避免侧栏摘要、工作区文档与其他 UI 被正文风格污染。 */
+  .nexus-chat-feed .message-cjk-text {
+    font-family: var(--font-prose);
+    font-synthesis: style;
+  }
+
   /* 中文注释：User 与 Assistant 共用正文首尾节奏，避免无气泡用户消息一端贴头像、一端又骤然收紧。 */
   .nexus-chat-message-body-rhythm {
     padding-top: 0.25rem;
@@ -857,12 +863,11 @@
     font-synthesis: style;
   }
 
-  /* 中文注释：Claude 将正文块放在 12px 栅格中；标题只增加上方距离并收紧下方，阅读节奏不会像博客正文一样松散。 */
+  /* 中文注释：正文块使用 12px 栅格；标题只增加上方距离并收紧下方，阅读节奏不会像博客正文一样松散。 */
   .nexus-markdown-body {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     gap: 0.75rem;
-    font-family: var(--font-prose);
   }
 
   .nexus-markdown-body > * {
@@ -883,7 +888,7 @@
     margin-top: 0.75rem;
     margin-bottom: -0.25rem;
     font-size: 1.375rem;
-    font-weight: 700;
+    font-weight: 600;
     line-height: 1.65rem;
   }
 
@@ -891,7 +896,7 @@
     margin-top: 0.75rem;
     margin-bottom: -0.25rem;
     font-size: 1.125rem;
-    font-weight: 700;
+    font-weight: 600;
     line-height: 1.65rem;
   }
 
@@ -899,7 +904,7 @@
     margin-top: 0.5rem;
     margin-bottom: -0.25rem;
     font-size: 1rem;
-    font-weight: 700;
+    font-weight: 600;
     line-height: 1.65rem;
   }
 
@@ -962,7 +967,7 @@
     margin-top: 0.75rem;
     margin-bottom: -0.25rem;
     font-size: 1.25rem;
-    font-weight: 700;
+    font-weight: 600;
     line-height: 1.55;
   }
 
@@ -970,7 +975,7 @@
     margin-top: 0.75rem;
     margin-bottom: -0.25rem;
     font-size: 1.125rem;
-    font-weight: 700;
+    font-weight: 600;
     line-height: 1.55;
   }
 
@@ -978,7 +983,7 @@
     margin-top: 0.5rem;
     margin-bottom: -0.25rem;
     font-size: 1rem;
-    font-weight: 700;
+    font-weight: 600;
     line-height: 1.55;
   }
 

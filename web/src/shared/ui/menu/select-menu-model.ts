@@ -43,23 +43,23 @@ const SELECT_MENU_SIZE_CONFIG: Record<UiSelectMenuSize, {
   md: {
     estimatedOptionHeight: 32,
     heightClassName: "h-10",
-    optionHeightClassName: "min-h-8 text-[13px]",
+    optionHeightClassName: "min-h-8 text-sm",
     roundedClassName: "radius-control-md",
-    textClassName: "text-[13px]",
+    textClassName: "text-sm",
   },
   sm: {
     estimatedOptionHeight: 32,
     heightClassName: "h-9",
-    optionHeightClassName: "min-h-8 text-[13px]",
+    optionHeightClassName: "min-h-8 text-sm",
     roundedClassName: "radius-control-sm",
-    textClassName: "text-[12px]",
+    textClassName: "text-compact",
   },
   xs: {
     estimatedOptionHeight: 28,
     heightClassName: "h-7",
-    optionHeightClassName: "min-h-7 text-[12px]",
+    optionHeightClassName: "min-h-7 text-compact",
     roundedClassName: "radius-control-xs",
-    textClassName: "text-[11px]",
+    textClassName: "text-xs",
   },
 };
 
@@ -85,12 +85,12 @@ const UNKNOWN_SELECTION_INDEX_BY_DIRECTION: Record<UiSelectMenuSelectionDirectio
 
 const SELECT_MENU_BUTTON_SURFACE_CLASS_NAMES: Record<UiSelectMenuSurface, string> = {
   dialog: "dialog-input shadow-none hover:border-[color:color-mix(in_srgb,var(--primary)_24%,var(--modal-input-border))] hover:bg-[color:color-mix(in_srgb,var(--modal-input-focus-background)_72%,transparent)] focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_14%,transparent)]",
-  surface: "border border-[color:color-mix(in_srgb,var(--primary)_22%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--background)_94%,white)] shadow-[0_1px_2px_rgba(15,23,42,0.04)] hover:border-[color:color-mix(in_srgb,var(--primary)_38%,var(--divider-subtle-color))] focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_18%,transparent)]",
+  surface: "border border-[color:color-mix(in_srgb,var(--primary)_22%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--background)_94%,white)] shadow-(--surface-popover-shadow) hover:border-[color:color-mix(in_srgb,var(--primary)_38%,var(--divider-subtle-color))] focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_18%,transparent)]",
 };
 
 const SELECT_MENU_PANEL_SURFACE_CLASS_NAMES: Record<UiSelectMenuSurface, string> = {
-  dialog: "border-(--modal-card-border) bg-[color:color-mix(in_srgb,var(--background)_94%,white)] shadow-[0_16px_36px_rgba(15,23,42,0.14)]",
-  surface: "border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_96%,white)] shadow-[0_14px_32px_rgba(15,23,42,0.12)] backdrop-blur",
+  dialog: "border-(--modal-card-border) bg-[color:color-mix(in_srgb,var(--background)_94%,white)] shadow-(--surface-popover-shadow)",
+  surface: "border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_96%,white)] shadow-(--surface-popover-shadow) backdrop-blur",
 };
 
 const SELECT_MENU_OPTION_STATE_CLASS_NAMES: Record<

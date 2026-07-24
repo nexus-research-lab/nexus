@@ -35,7 +35,7 @@ export function CapabilitySidebarItemView({
       onClick={handleClick}
       right={(
         <span className={cn(
-          "shrink-0 text-[11px] font-medium tabular-nums text-(--text-soft)",
+          "shrink-0 text-xs font-medium tabular-nums text-(--text-soft)",
           active && "text-(--text-muted)",
         )}>
           {item.meta}

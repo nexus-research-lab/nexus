@@ -70,10 +70,10 @@ export function ConnectorCard({
           </span>
           <ConnectorCardBadge badge={model.badge} />
         </span>
-        <span className="mt-0.5 block truncate text-[12px] leading-[1.125rem] text-(--text-muted)">
+        <span className="mt-0.5 block truncate text-compact leading-[1.125rem] text-(--text-muted)">
           {connector.description}
         </span>
-        <span className="mt-0.5 block text-[10px] leading-4 text-(--text-soft)">
+        <span className="mt-0.5 block text-2xs leading-4 text-(--text-soft)">
           {getConnectorCategoryLabel(connector.category, t)}
         </span>
       </span>

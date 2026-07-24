@@ -21,9 +21,9 @@ export function SidebarNexusButton(props: SidebarNexusButtonProps) {
       className={cn(
         "relative flex items-center text-(--text-muted) transition-[background,color] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
         dock
-          ? "h-[54px] w-[52px] flex-col justify-center gap-1 rounded-[10px] text-[10px] font-medium"
+          ? "h-[54px] w-[52px] flex-col justify-center gap-1 rounded-[10px] text-2xs font-medium"
           : focus
-            ? "h-10 w-[192px] justify-start gap-2 rounded-[10px] px-3 text-[12px] font-medium"
+            ? "h-10 w-[192px] justify-start gap-2 rounded-[10px] px-3 text-compact font-medium"
             : "h-9 w-9 justify-center rounded-full",
         props.active &&
           cn(SIDEBAR_SELECTION_CLASS_NAME, "text-(--text-strong)"),

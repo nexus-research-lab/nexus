@@ -42,9 +42,6 @@ export function PairingsDirectory() {
         bodyScrollable
         header={(
           <WorkspaceSurfaceHeader
-            badge={t("capability.pairings_badge", {
-              count: controller.items.length,
-            })}
             leading={<ShieldCheck className="h-4 w-4" />}
             subtitle={t("capability.pairings_subtitle")}
             title={t("capability.pairings")}
@@ -153,12 +150,12 @@ function PairingEmptyState({
   onCreate: () => void;
 }) {
   return (
-    <div className="flex min-h-[260px] flex-col items-center justify-center border-y border-(--divider-subtle-color) px-6 text-center">
+    <div className="flex min-h-[260px] flex-col items-center justify-center border-b border-(--divider-subtle-color) px-6 text-center">
       <ShieldCheck className="h-7 w-7 text-(--icon-default)" />
-      <h2 className="mt-3 text-[15px] font-medium text-(--text-strong)">
+      <h2 className="mt-3 text-base font-medium text-(--text-strong)">
         还没有配对
       </h2>
-      <p className="mt-1 max-w-[460px] text-[12px] leading-5 text-(--text-muted)">
+      <p className="mt-1 max-w-[460px] text-compact leading-5 text-(--text-muted)">
         外部 IM 用户或群首次发消息后会在这里等待授权，也可以手动新增配对。
       </p>
       <UiButton
@@ -181,10 +178,10 @@ function PairingNoResults({ onClear }: { onClear: () => void }) {
   return (
     <div className="flex min-h-[220px] flex-col items-center justify-center border-y border-(--divider-subtle-color) px-6 text-center">
       <SearchX className="h-7 w-7 text-(--icon-muted)" />
-      <h2 className="mt-3 text-[15px] font-semibold text-(--text-strong)">
+      <h2 className="mt-3 text-base font-semibold text-(--text-strong)">
         没有符合条件的配对
       </h2>
-      <p className="mt-1 text-[13px] text-(--text-muted)">
+      <p className="mt-1 text-sm text-(--text-muted)">
         调整筛选条件，或清除筛选查看全部配对。
       </p>
       <UiButton className="mt-4" onClick={onClear} size="sm" type="button">

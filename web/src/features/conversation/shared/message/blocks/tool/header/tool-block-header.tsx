@@ -159,20 +159,20 @@ function ToolBlockHeaderContent({
     <div className="min-w-0 flex-1">
       <div className="flex min-w-0 items-center gap-1.5">
         <span className={cn(
-          "shrink-0 text-[11px] font-medium",
+          "shrink-0 text-xs font-medium",
           TOOL_LABEL_STYLES[model.statusTone],
         )}>
           {model.toolTitle}
         </span>
         <span className={cn(
-          "shrink-0 rounded-[6px] px-1.5 py-0.5 text-[10px] font-semibold",
+          "shrink-0 rounded-[6px] px-1.5 py-0.5 text-2xs font-semibold",
           model.statusBadgeClassName,
         )}>
           {model.statusText}
         </span>
         <OptionalMetaText text={projection.metaText} />
       </div>
-      <div className="mt-0.5 min-w-0 text-[12px] text-(--text-muted)">
+      <div className="mt-0.5 min-w-0 text-compact text-(--text-muted)">
         <span className={cn(
           "message-cjk-font block",
           projection.detailClassName,
@@ -190,7 +190,7 @@ function OptionalMetaText({ text }: { text: string | null }) {
     return null;
   }
   return (
-    <span className="shrink-0 text-[11px] text-(--text-soft)">
+    <span className="shrink-0 text-xs text-(--text-soft)">
       {text}
     </span>
   );
@@ -201,7 +201,7 @@ function OptionalLiveStatus({ text }: { text: string | null }) {
     return null;
   }
   return (
-    <div className="mt-0.5 truncate text-[11px] text-(--text-soft)">
+    <div className="mt-0.5 truncate text-xs text-(--text-soft)">
       {text}
     </div>
   );

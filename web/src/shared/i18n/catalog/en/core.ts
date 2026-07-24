@@ -2,7 +2,6 @@ import type { MessageSegment } from "../message-segment";
 import type { zhCoreMessages } from "../zh/core";
 
 export const enCoreMessages = {
-  "language.switch_label": "Language",
   "language.switch_title": "Switch language",
   "language.zh": "中",
   "language.en": "EN",
@@ -27,23 +26,12 @@ export const enCoreMessages = {
   "common.reviewed": "Seen",
   "common.edit": "Edit",
   "common.delete": "Delete",
-  "common.remove": "Remove",
   "common.clear": "Clear",
   "common.icon_picker_previous": "Browse previous avatars",
   "common.icon_picker_scroll": "Scroll avatar choices",
   "common.icon_picker_next": "Browse next avatars",
-  "common.coming_soon": "This feature is coming soon.",
   "common.search_agents": "Search agents...",
-  "status.online": "Online",
   "status.sending": "Sending",
   "status.replying": "Replying",
-  "status.collaborating": "Collaborating",
-  "status.idle": "Idle",
   "status.working": "Working",
-  "placeholder.channels_title": "Channels",
-  "placeholder.channels_description": "Manage message channels",
-  "placeholder.pairings_title": "Pairings",
-  "placeholder.pairings_description": "Manage Agent pairing relationships",
-  "placeholder.settings_title": "Settings",
-  "placeholder.settings_description": "Application settings and preferences",
 } satisfies MessageSegment<typeof zhCoreMessages>;

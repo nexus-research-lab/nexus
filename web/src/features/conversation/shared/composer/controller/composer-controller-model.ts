@@ -59,9 +59,7 @@ export function buildComposerViewState(
   });
   const actionState = projectComposerActions({
     canCreateGoal: options.canCreateGoal,
-    compact: options.compact,
     goalCreateBlockedReason: options.goalCreateBlockedReason,
-    input: options.input,
     inputState,
     isGoalCreating: options.isGoalCreating,
     isGoalMode: modeState.isGoalMode,
@@ -96,7 +94,6 @@ export function buildComposerViewState(
     resolvedPlaceholder: modeState.placeholder,
     runtimeActivity: runtimeState.activity,
     sendButtonLabel: modeState.sendButtonLabel,
-    shouldShowInlineShortcuts: actionState.shouldShowInlineShortcuts,
     shouldShowStopButton: actionState.shouldShowStopButton,
   };
 }

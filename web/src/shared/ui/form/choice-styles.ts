@@ -25,9 +25,9 @@ const CHOICE_BASE_CLASS_NAME =
   "inline-flex items-center justify-center gap-1.5 border font-semibold transition-[background,border-color,color,box-shadow] duration-(--motion-duration-fast) disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_24%,transparent)]";
 
 const SURFACE_CHOICE_SIZE_CLASS_MAP: Record<UiChoiceSize, string> = {
-  xs: "min-h-7 px-2 py-1 text-[11px]",
-  sm: "min-h-8 px-2.5 py-1.5 text-[12px]",
-  md: "min-h-9 px-3 py-2 text-[12px]",
+  xs: "min-h-7 px-2 py-1 text-xs",
+  sm: "min-h-8 px-2.5 py-1.5 text-compact",
+  md: "min-h-9 px-3 py-2 text-compact",
   lg: "min-h-10 px-3.5 py-2.5 text-sm",
 };
 
@@ -51,7 +51,7 @@ const CHOICE_INACTIVE_CLASS_NAME =
   "border-(--divider-subtle-color) bg-transparent text-(--text-muted) hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)";
 
 const PICKER_CHOICE_BASE_CLASS_NAME =
-  "flex h-10 items-center justify-center radius-control-md border px-3 text-[17px] font-semibold transition-[background,border-color,color,box-shadow] duration-(--motion-duration-fast) disabled:cursor-not-allowed disabled:opacity-40";
+  "flex h-10 items-center justify-center radius-control-md border px-3 text-md font-semibold transition-[background,border-color,color,box-shadow] duration-(--motion-duration-fast) disabled:cursor-not-allowed disabled:opacity-40";
 
 const PICKER_CHOICE_ACTIVE_CLASS_NAME =
   "border-[color:color-mix(in_srgb,var(--primary)_58%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_88%,white)] text-white shadow-[0_8px_18px_color-mix(in_srgb,var(--primary)_22%,transparent)]";

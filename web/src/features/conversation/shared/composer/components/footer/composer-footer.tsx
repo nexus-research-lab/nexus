@@ -1,4 +1,5 @@
 import { COMPOSER_FOOTER_CLASS_NAME } from "../../composer-styles";
+import { ComposerSubmitButton } from "../composer-submit-button";
 import { ComposerFooterActions } from "./composer-footer-actions";
 import { ComposerFooterMetadata } from "./composer-footer-metadata";
 import type { ComposerFooterProps } from "./composer-footer-model";
@@ -10,7 +11,7 @@ import {
 export function ComposerFooter(props: ComposerFooterProps) {
   return (
     <div className={COMPOSER_FOOTER_CLASS_NAME}>
-      <div className="flex min-w-0 items-center gap-2 text-[10px] text-(--text-soft)">
+      <div className="flex min-w-0 items-center gap-2 text-2xs text-(--text-soft)">
         <ComposerFooterActions
           actionButtonRef={props.actionButtonRef}
           canCreateGoal={props.canCreateGoal}
@@ -39,15 +40,17 @@ export function ComposerFooter(props: ComposerFooterProps) {
           runtimeActivity={props.runtimeActivity}
         />
       </div>
-      <ComposerFooterMetadata
-        charCount={props.charCount}
-        historyIndex={props.historyIndex}
-        inputHistoryLength={props.inputHistoryLength}
-        isNearLimit={props.isNearLimit}
-        isOverLimit={props.isOverLimit}
-        maxLength={props.maxLength}
-        runtimeKind={props.runtimeKind}
-      />
+      <div className="flex items-center gap-3">
+        <ComposerFooterMetadata
+          charCount={props.charCount}
+          historyIndex={props.historyIndex}
+          inputHistoryLength={props.inputHistoryLength}
+          isNearLimit={props.isNearLimit}
+          isOverLimit={props.isOverLimit}
+          maxLength={props.maxLength}
+        />
+        <ComposerSubmitButton {...props.submit} />
+      </div>
     </div>
   );
 }

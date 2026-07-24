@@ -28,7 +28,7 @@ export function SettingsSystemSection() {
           {t("settings.system.section_title")}
         </h2>
         {controller.feedbackMessage ? (
-          <span className="min-w-0 truncate text-[11px] text-(--text-soft)">
+          <span className="min-w-0 truncate text-xs text-(--text-soft)">
             {controller.feedbackMessage}
           </span>
         ) : null}

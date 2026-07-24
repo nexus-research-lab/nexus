@@ -33,7 +33,7 @@ export function SelectMenuTriggerContent({
         ) : null}
         {label ? (
           <>
-            <span className="shrink-0 text-[12px] font-medium text-(--text-muted)">
+            <span className="shrink-0 text-compact font-medium text-(--text-muted)">
               {label}
             </span>
             <span className="h-3.5 w-px shrink-0 bg-(--divider-subtle-color)" />

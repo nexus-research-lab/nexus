@@ -92,7 +92,7 @@ export function SettingsDefaultModelRow({
           value={value}
         />
         {feedbackMessage ? (
-          <span className="truncate text-[11px] text-(--text-soft)">
+          <span className="truncate text-xs text-(--text-soft)">
             {feedbackMessage}
           </span>
         ) : null}

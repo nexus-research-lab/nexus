@@ -65,10 +65,10 @@ export function ContactsDirectory({
               <Plus className="h-4.5 w-4.5 text-(--icon-default)" />
             </WorkspaceIconFrame>
             <span className="min-w-0">
-              <span className="block truncate text-[15px] font-semibold text-(--text-strong)">
+              <span className="block truncate text-base font-semibold text-(--text-strong)">
                 {t("contacts.new_agent")}
               </span>
-              <span className="mt-1 block line-clamp-2 text-[11px] leading-5 text-(--text-muted)">
+              <span className="mt-1 block line-clamp-2 text-xs leading-5 text-(--text-muted)">
                 {t("contacts.new_agent_description")}
               </span>
             </span>
@@ -81,10 +81,10 @@ export function ContactsDirectory({
             <WorkspaceIconFrame className="h-16 w-16" shape="round" size="lg">
               <Plus className="h-7 w-7 text-(--icon-default)" />
             </WorkspaceIconFrame>
-            <p className="mt-4 text-[18px] font-bold tracking-[-0.03em] text-(--text-strong)">
+            <p className="mt-4 text-md font-semibold tracking-[-0.03em] text-(--text-strong)">
               {t("contacts.new_agent")}
             </p>
-            <p className="mt-2 text-[13px] leading-5 text-(--text-default)">
+            <p className="mt-2 text-sm leading-5 text-(--text-default)">
               {t("contacts.new_agent_description")}
             </p>
           </WorkspaceCatalogGhostAction>

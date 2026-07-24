@@ -69,7 +69,7 @@ export function PendingQueueItem({
       <PendingQueueItemContentView content={projection.content} />
       <button
         aria-label={guideAriaLabel}
-        className="inline-flex h-6 shrink-0 items-center justify-center gap-1 px-1 text-[11px] font-semibold text-(--text-soft) transition-colors hover:text-(--text-strong) disabled:pointer-events-none disabled:opacity-(--disabled-opacity)"
+        className="inline-flex h-6 shrink-0 items-center justify-center gap-1 px-1 text-xs font-semibold text-(--text-soft) transition-colors hover:text-(--text-strong) disabled:pointer-events-none disabled:opacity-(--disabled-opacity)"
         disabled={isActionRunning}
         onClick={() => onGuide(item.id)}
         type="button"
@@ -99,14 +99,14 @@ function PendingQueueItemContentView({
   }
   if (content.kind === "attachments") {
     return (
-      <p className="line-clamp-1 inline-flex min-w-0 flex-1 items-center gap-1 text-[12px] leading-5 text-(--text-muted)">
+      <p className="line-clamp-1 inline-flex min-w-0 flex-1 items-center gap-1 text-compact leading-5 text-(--text-muted)">
         <Paperclip className="h-3 w-3 shrink-0" />
         {content.text}
       </p>
     );
   }
   return (
-    <p className="line-clamp-1 min-w-0 flex-1 text-[12px] leading-5 text-(--text-strong)">
+    <p className="line-clamp-1 min-w-0 flex-1 text-compact leading-5 text-(--text-strong)">
       {content.text}
     </p>
   );

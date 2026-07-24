@@ -97,16 +97,11 @@ export function LoopsDirectory() {
     window.setTimeout(() => setCopiedSlug((current) => current === loop.slug ? null : current), 1800);
   };
 
-  const headerBadge = loading
-    ? undefined
-    : t("capability.loops_badge", { count: loops.length });
-
   return (
     <WorkspaceSurfaceScaffold
       bodyScrollable
       header={(
         <WorkspaceSurfaceHeader
-          badge={headerBadge}
           leading={<Repeat2 className="h-4 w-4" />}
           title={t("capability.loops")}
         />
@@ -143,11 +138,11 @@ export function LoopsDirectory() {
           />
 
           {loading ? (
-            <div className="py-10 text-[13px] text-(--text-muted)">{t("capability.connectors_loading")}</div>
+            <div className="py-10 text-sm text-(--text-muted)">{t("capability.connectors_loading")}</div>
           ) : error ? (
-            <div className="py-10 text-[13px] text-(--destructive)">{error}</div>
+            <div className="py-10 text-sm text-(--destructive)">{error}</div>
           ) : filteredLoops.length === 0 ? (
-            <div className="py-10 text-[13px] text-(--text-muted)">{t("capability.loops_empty")}</div>
+            <div className="py-10 text-sm text-(--text-muted)">{t("capability.loops_empty")}</div>
           ) : (
             <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
               {filteredLoops.map((loop) => (
@@ -167,15 +162,15 @@ export function LoopsDirectory() {
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
-                        <span className="radius-control-xs border border-(--divider-subtle-color) px-1.5 py-0.5 text-[10px] font-medium text-(--text-muted)">
+                        <span className="radius-control-xs border border-(--divider-subtle-color) px-1.5 py-0.5 text-2xs font-medium text-(--text-muted)">
                           {loop.category}
                         </span>
-                        <span className="radius-control-xs border border-(--divider-subtle-color) px-1.5 py-0.5 text-[10px] text-(--text-soft)">
+                        <span className="radius-control-xs border border-(--divider-subtle-color) px-1.5 py-0.5 text-2xs text-(--text-soft)">
                           {loop.trigger_type}
                         </span>
                       </div>
                       <h3 className="text-[14px] font-medium text-(--text-strong)">{loop.title}</h3>
-                      <p className="mt-0.5 line-clamp-2 text-[12px] leading-[1.125rem] text-(--text-muted)">
+                      <p className="mt-0.5 line-clamp-2 text-compact leading-[1.125rem] text-(--text-muted)">
                         {loop.description}
                       </p>
                     </div>
@@ -195,7 +190,7 @@ export function LoopsDirectory() {
 
                   <div className="mt-2 space-y-1.5">
                     {loop.steps.slice(0, 3).map((step) => (
-                      <div className="flex gap-2 text-[12px] leading-5 text-(--text-muted)" key={`${loop.slug}:${step.name}`}>
+                      <div className="flex gap-2 text-compact leading-5 text-(--text-muted)" key={`${loop.slug}:${step.name}`}>
                         <Repeat2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-(--icon-muted)" />
                         <span className="min-w-0">
                           <span className="font-medium text-(--text-default)">{step.name}</span>
@@ -205,7 +200,7 @@ export function LoopsDirectory() {
                     ))}
                   </div>
 
-                  <p className="mt-2 border-t border-(--divider-subtle-color) pt-2 text-[11px] leading-[1.125rem] text-(--text-soft)">
+                  <p className="mt-2 border-t border-(--divider-subtle-color) pt-2 text-xs leading-[1.125rem] text-(--text-soft)">
                     {t("capability.loops_exit")}: {loop.exit_condition.description}
                   </p>
                 </div>

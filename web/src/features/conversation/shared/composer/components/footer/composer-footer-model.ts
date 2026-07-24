@@ -1,7 +1,7 @@
 import type { ReactNode, RefObject } from "react";
 
 import type { ComposerRuntimeActivity } from "../../composer-model";
-import type { AgentRuntimeKind } from "@/types/settings/preferences";
+import type { ComposerSubmitButtonProps } from "../composer-submit-button";
 
 export interface ComposerFooterProps {
   actionButtonRef: RefObject<HTMLButtonElement | null>;
@@ -27,7 +27,7 @@ export interface ComposerFooterProps {
   onGoalToggle: (checked: boolean) => void;
   onLoopSelect: () => void;
   runtimeActivity: ComposerRuntimeActivity;
-  runtimeKind: AgentRuntimeKind;
+  submit: ComposerSubmitButtonProps;
 }
 
 export interface ComposerFooterStatusCopy {

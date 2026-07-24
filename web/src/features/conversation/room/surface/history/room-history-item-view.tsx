@@ -86,7 +86,7 @@ function RoomHistoryActivity({
   return (
     <div className={cn(
       "flex items-center gap-1.5 text-(--text-soft)",
-      compact ? "shrink-0 text-[9.5px]" : "mt-1 flex-wrap gap-y-0.5 text-[10px]",
+      compact ? "shrink-0 text-2xs" : "mt-1 flex-wrap gap-y-0.5 text-2xs",
     )}>
       <span className="inline-flex items-center gap-1.5">
         <Clock3 className="h-3 w-3 shrink-0" />
@@ -120,7 +120,7 @@ function ReadingItemContent({
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-2">
-            <p className="min-w-0 truncate text-[12px] font-semibold text-(--text-strong)">
+            <p className="min-w-0 truncate text-compact font-semibold text-(--text-strong)">
               {presentation.title}
             </p>
             <ExternalSessionLabel label={presentation.externalSessionLabel} />
@@ -152,7 +152,7 @@ function EditingItemContent({
       <div className="flex items-center gap-1.5">
         <input
           aria-label="编辑对话标题"
-          className="min-w-0 flex-1 rounded-[10px] border border-(--input-shell-border) bg-transparent px-2.5 py-1.5 text-[13px] font-semibold text-(--text-strong) outline-none transition focus:border-(--surface-interactive-active-border)"
+          className="min-w-0 flex-1 rounded-[10px] border border-(--input-shell-border) bg-transparent px-2.5 py-1.5 text-sm font-semibold text-(--text-strong) outline-none transition focus:border-(--surface-interactive-active-border)"
           maxLength={64}
           onChange={(event) => editor.setDraft(event.target.value)}
           onKeyDown={(event) => handleTitleEditorKeyDown(event, editor)}

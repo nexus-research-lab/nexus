@@ -68,7 +68,7 @@ function MessageUserAttachment({
       <span className="min-w-0 truncate">
         {attachmentView.displayName}
       </span>
-      <span className="shrink-0 text-[10px] text-(--text-faint)">
+      <span className="shrink-0 text-2xs text-(--text-faint)">
         {presentation.label}
       </span>
     </>

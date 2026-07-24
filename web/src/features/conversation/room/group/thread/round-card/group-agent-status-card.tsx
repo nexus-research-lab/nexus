@@ -208,7 +208,7 @@ function GroupAgentStatusHeader({
 }: GroupAgentStatusHeaderProps) {
   return (
     <div className="flex min-w-0 items-center gap-2">
-      <span className="shrink-0 text-sm font-bold text-(--text-strong)">
+      <span className="shrink-0 text-sm font-semibold text-(--text-strong)">
         {agentName}
       </span>
       {model.isActive && !model.isWaitingPermission ? (
@@ -270,14 +270,14 @@ function GroupAgentPermissionActions({
   return (
     <>
       <button
-        className="rounded-md border border-(--divider-subtle-color) bg-transparent px-2 py-1 text-[11px] font-medium text-(--text-default) transition-colors hover:bg-(--interaction-hover-background)"
+        className="rounded-md border border-(--divider-subtle-color) bg-transparent px-2 py-1 text-xs font-medium text-(--text-default) transition-colors hover:bg-(--interaction-hover-background)"
         onClick={onDeny}
         type="button"
       >
         {denyLabel}
       </button>
       <button
-        className="rounded-md bg-primary px-2 py-1 text-[11px] font-medium text-white transition-colors hover:bg-primary/88"
+        className="rounded-md bg-primary px-2 py-1 text-xs font-medium text-white transition-colors hover:bg-primary/88"
         onClick={onAllow}
         type="button"
       >
@@ -310,7 +310,7 @@ function GroupAgentStatusSummary({
       ) : (
         <p
           className={cn(
-            "truncate text-[15px] leading-7",
+            "truncate text-base leading-7",
             SUMMARY_TONE_CLASS[model.summaryTone],
           )}
         >

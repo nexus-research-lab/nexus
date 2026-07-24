@@ -70,7 +70,7 @@ export function IconPicker({
     <div className={cn("flex flex-col gap-3", className)}>
       {presentation.showClear ? (
         <button
-          className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-(--text-muted) transition hover:text-(--text-default)"
+          className="inline-flex items-center gap-1.5 text-compact font-semibold text-(--text-muted) transition hover:text-(--text-default)"
           disabled={disabled}
           onClick={() => onSelect("")}
           type="button"

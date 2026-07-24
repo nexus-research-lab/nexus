@@ -218,7 +218,7 @@ export function CreatePairingDialog({
               </UiField>
             </div>
 
-            <div className="rounded-[12px] border border-(--divider-subtle-color) px-3 py-2 text-[12px] leading-5 text-(--text-muted)">
+            <div className="rounded-[12px] border border-(--divider-subtle-color) px-3 py-2 text-compact leading-5 text-(--text-muted)">
               手动配对适用于已经从外部平台拿到稳定会话 ID 的场景。首次入站消息仍会自动创建待处理配对。
             </div>
           </UiDialogBody>

@@ -184,11 +184,11 @@ export function ConnectorDetailHeader({
       <div className="flex min-w-0 items-start gap-4">
         <ConnectorIcon className="h-14 w-14 surface-radius-md" icon={detail.icon} size="lg" title={detail.title} />
         <div className="min-w-0">
-          <h1 className="text-[20px] font-semibold tracking-[-0.025em] text-(--text-strong)">
+          <h1 className="text-lg font-semibold tracking-[-0.025em] text-(--text-strong)">
             {detail.title}{" "}
             <span className="ml-2 font-normal text-(--text-muted)">App</span>
           </h1>
-          <p className="mt-1 text-[13px] leading-5 text-(--text-muted)">
+          <p className="mt-1 text-sm leading-5 text-(--text-muted)">
             {detail.description}
           </p>
         </div>

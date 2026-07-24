@@ -28,11 +28,11 @@ const LOGIN_STATUS_ICONS: Record<ChannelLoginStatusIcon, typeof Terminal> = {
 function ChannelLoginHeader() {
   return (
     <div className="min-w-0">
-      <div className="flex items-center gap-2 text-[13px] font-semibold text-(--text-strong)">
+      <div className="flex items-center gap-2 text-sm font-semibold text-(--text-strong)">
         <QrCode className="h-4 w-4 text-(--primary)" />
         扫码登录
       </div>
-      <p className="mt-1 text-[12px] leading-5 text-(--text-muted)">
+      <p className="mt-1 text-compact leading-5 text-(--text-muted)">
         Nexus 会先保存当前配置，再请求腾讯 iLink Bot API 生成二维码。
       </p>
     </div>
@@ -56,7 +56,7 @@ function ChannelLoginVerifyCode({
 
   return (
     <div className="rounded-[10px] border border-[color:color-mix(in_srgb,var(--warning)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_8%,transparent)] px-3 py-3">
-      <div className="mb-2 text-[12px] font-semibold text-(--text-strong)">
+      <div className="mb-2 text-compact font-semibold text-(--text-strong)">
         {hint}
       </div>
       <div className="flex gap-2">
@@ -98,7 +98,7 @@ function ChannelLoginSession({
           <StatusIcon className="mr-1 h-3 w-3" />
           {model.status.label}
         </UiBadge>
-        <code className="min-w-0 truncate rounded-[8px] border border-(--divider-subtle-color) px-2 py-1 text-[11px] text-(--text-muted)">
+        <code className="min-w-0 truncate rounded-[8px] border border-(--divider-subtle-color) px-2 py-1 text-xs text-(--text-muted)">
           {model.identity}
         </code>
       </div>
@@ -110,9 +110,9 @@ function ChannelLoginSession({
           onSubmit={onSubmitVerifyCode}
         />
       ) : null}
-      <pre className="max-h-[280px] min-h-[132px] overflow-auto whitespace-pre-wrap break-words rounded-[10px] bg-[#101418] px-3 py-3 font-mono text-[12px] leading-5 text-[#d7f8de]">{model.output}</pre>
+      <pre className="max-h-[280px] min-h-[132px] overflow-auto whitespace-pre-wrap break-words rounded-[10px] bg-[#101418] px-3 py-3 font-mono text-compact leading-5 text-[#d7f8de]">{model.output}</pre>
       {model.error ? (
-        <div className="rounded-[10px] border border-[color:color-mix(in_srgb,var(--destructive)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)] px-3 py-2 text-[12px] leading-5 text-(--destructive)">
+        <div className="rounded-[10px] border border-[color:color-mix(in_srgb,var(--destructive)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)] px-3 py-2 text-compact leading-5 text-(--destructive)">
           {model.error}
         </div>
       ) : null}

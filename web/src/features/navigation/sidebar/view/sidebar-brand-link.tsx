@@ -33,8 +33,8 @@ export function SidebarBrandLink({
         className={cn(
           "relative whitespace-nowrap uppercase leading-none",
           focus
-            ? "text-[18px] tracking-[0.26em]"
-            : "text-[20px] tracking-[0.34em]",
+            ? "text-md tracking-[0.26em]"
+            : "text-lg tracking-[0.34em]",
         )}
         style={{
           fontFamily: '"Panchang", var(--font-sans)',

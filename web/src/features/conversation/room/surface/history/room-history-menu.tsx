@@ -122,7 +122,7 @@ export function RoomHistoryMenu({
         aria-haspopup="dialog"
         aria-label={t("room.history")}
         className={cn(
-          "workspace-surface-header-control-segment workspace-surface-history-trigger inline-flex h-9 shrink-0 items-center gap-1.5 px-2 text-[10.5px] font-semibold text-(--text-default) transition-[background-color,color,box-shadow] duration-(--motion-duration-fast) hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_24%,transparent)]",
+          "workspace-surface-header-control-segment workspace-surface-history-trigger inline-flex h-9 shrink-0 items-center gap-1.5 px-2 text-xs font-semibold text-(--text-default) transition-[background-color,color,box-shadow] duration-(--motion-duration-fast) hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_24%,transparent)]",
           triggerVariant === "icon" && "h-9 w-9 justify-center gap-0 rounded-[8px] px-0",
           isOpen && "text-(--text-strong)",
         )}
@@ -143,7 +143,7 @@ export function RoomHistoryMenu({
         <div
           ref={menuRef}
           aria-labelledby={historyTitleId}
-          className="fixed z-[130] surface-radius-lg flex flex-col overflow-hidden border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_97%,white)] shadow-[0_16px_36px_rgba(15,23,42,0.14)] backdrop-blur animate-in fade-in-0 zoom-in-95 duration-(--motion-duration-fast) data-[placement=bottom]:slide-in-from-top-1 data-[placement=top]:slide-in-from-bottom-1"
+          className="fixed z-[130] surface-radius-lg flex flex-col overflow-hidden border border-(--surface-popover-border) bg-(--surface-popover-background) shadow-(--surface-popover-shadow) backdrop-blur animate-in fade-in-0 zoom-in-95 duration-(--motion-duration-fast) data-[placement=bottom]:slide-in-from-top-1 data-[placement=top]:slide-in-from-bottom-1"
           data-placement={menuPosition?.placement ?? "bottom"}
           data-state="open"
           id={menuId}
@@ -156,12 +156,12 @@ export function RoomHistoryMenu({
           <header className="flex shrink-0 items-center justify-between border-b border-(--divider-subtle-color) px-3.5 py-2">
             <div className="min-w-0">
               <h2
-                className="truncate text-[12px] font-semibold text-(--text-strong)"
+                className="truncate text-compact font-semibold text-(--text-strong)"
                 id={historyTitleId}
               >
                 {t("room.history")}
               </h2>
-              <p className="mt-0.5 text-[10px] text-(--text-soft)">
+              <p className="mt-0.5 text-2xs text-(--text-soft)">
                 {t("room.conversation_count", { count: entries.length })}
               </p>
             </div>
@@ -188,10 +188,10 @@ export function RoomHistoryMenu({
             ) : (
               <div className="flex h-full min-h-[150px] flex-col items-center justify-center px-5 py-8 text-center">
                 <Clock3 className="h-4 w-4 text-(--icon-muted)" />
-                <p className="mt-3 text-[13px] font-semibold text-(--text-strong)">
+                <p className="mt-3 text-sm font-semibold text-(--text-strong)">
                   {t("room.no_conversations")}
                 </p>
-                <p className="mt-1 text-[11px] leading-5 text-(--text-soft)">
+                <p className="mt-1 text-xs leading-5 text-(--text-soft)">
                   {t("room.history_empty_hint")}
                 </p>
               </div>
@@ -209,7 +209,7 @@ export function RoomHistoryMenu({
               >
                 <ChevronLeft className="h-3.5 w-3.5" />
               </button>
-              <span className="text-[10.5px] text-(--text-soft)">
+              <span className="text-xs text-(--text-soft)">
                 {t("room.history_page_status", {
                   current: page.page + 1,
                   total: page.pageCount,

@@ -43,7 +43,7 @@ function SkillsHeader({
         })}
       </h3>
       <div className="flex items-center gap-2">
-        <span className="text-[12px] text-(--text-soft)">
+        <span className="text-compact text-(--text-soft)">
           {t("agent_options.skills.total", { count: projection.totalCount })}
         </span>
         <UiIconButton

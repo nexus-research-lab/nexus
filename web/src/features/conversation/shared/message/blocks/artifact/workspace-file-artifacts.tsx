@@ -58,7 +58,7 @@ export function WorkspaceFileArtifactList({
   return (
     <div className={cn("min-w-0 space-y-1.5", className)}>
       {label ? (
-        <div className="text-[11px] font-medium leading-4 text-(--text-muted)">
+        <div className="text-xs font-medium leading-4 text-(--text-muted)">
           {label}
         </div>
       ) : null}

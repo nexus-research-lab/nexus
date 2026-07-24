@@ -103,7 +103,7 @@ export function ConnectorCredentialDialog({
         />
 
         <UiDialogBody className="space-y-3" scrollable>
-          <UiPanel className="text-[12px] leading-relaxed" padding="sm" variant="inset">
+          <UiPanel className="text-compact leading-relaxed" padding="sm" variant="inset">
             {copy.description}
           </UiPanel>
 
@@ -121,7 +121,7 @@ export function ConnectorCredentialDialog({
             </UiLinkButton>
           ) : null}
 
-          <label className="block space-y-1 text-[12px] font-medium text-(--text-muted)">
+          <label className="block space-y-1 text-compact font-medium text-(--text-muted)">
             <span>{copy.label}</span>
             <UiInput
               autoCapitalize="off"

@@ -81,8 +81,8 @@ export function ChannelGuide({ item }: { item: ChannelConfigView }) {
       className={getDialogNoteClassName("default")}
       style={getDialogNoteStyle("default")}
     >
-      <div className="mb-2 text-[13px] font-semibold text-(--text-strong)">如何连接</div>
-      <ol className="list-decimal space-y-1 pl-5 text-[13px] leading-6 text-(--text-default)">
+      <div className="mb-2 text-sm font-semibold text-(--text-strong)">如何连接</div>
+      <ol className="list-decimal space-y-1 pl-5 text-sm leading-6 text-(--text-default)">
         {guide.steps.map((step) => (
           <li
             className="[&_a]:font-semibold [&_a]:text-(--primary) [&_b]:font-semibold"
@@ -93,7 +93,7 @@ export function ChannelGuide({ item }: { item: ChannelConfigView }) {
         ))}
       </ol>
       {guide.note ? (
-        <div className="mt-4 border-t border-(--divider-subtle-color) pt-3 text-[12px] font-medium leading-5 text-(--text-muted)">
+        <div className="mt-4 border-t border-(--divider-subtle-color) pt-3 text-compact font-medium leading-5 text-(--text-muted)">
           {guide.note}
         </div>
       ) : null}

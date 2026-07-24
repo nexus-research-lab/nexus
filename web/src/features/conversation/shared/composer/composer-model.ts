@@ -84,8 +84,6 @@ const INPUT_ROW_PADDING: Record<
   },
 };
 
-export const COMPOSER_SHORTCUT_KEY_CLASS_NAME =
-  "rounded-[4px] border border-(--divider-kbd-border) bg-(--surface-kbd-background) px-1.5 py-0.5 font-mono text-[11px] font-medium leading-none text-(--text-muted) shadow-none";
 export const MAX_COMPOSER_INPUT_LENGTH = 10_000;
 export const MENTION_NAVIGATION_KEYS = new Set([
   "ArrowDown",

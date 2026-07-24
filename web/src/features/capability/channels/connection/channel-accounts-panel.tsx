@@ -21,12 +21,12 @@ export function ChannelAccountsPanel({
     <div className="rounded-[10px] border border-(--divider-subtle-color) bg-transparent px-3 py-3">
       <div className="flex min-w-0 items-center justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-[13px] font-semibold text-(--text-strong)">已连接账号</div>
+          <div className="text-sm font-semibold text-(--text-strong)">已连接账号</div>
         </div>
         <UiBadge size="xs">{accounts.length} 个</UiBadge>
       </div>
       {accounts.length === 0 ? (
-        <div className="mt-3 rounded-[10px] border border-dashed border-(--divider-subtle-color) px-3 py-2 text-[12px] text-(--text-muted)">
+        <div className="mt-3 rounded-[10px] border border-dashed border-(--divider-subtle-color) px-3 py-2 text-compact text-(--text-muted)">
           暂无已连接账号
         </div>
       ) : (
@@ -38,18 +38,18 @@ export function ChannelAccountsPanel({
             >
               <div className="min-w-0">
                 <div className="flex min-w-0 items-center gap-2">
-                  <code className="min-w-0 truncate text-[12px] font-semibold text-(--text-strong)" title={account.account_id}>
+                  <code className="min-w-0 truncate text-compact font-semibold text-(--text-strong)" title={account.account_id}>
                     {account.account_id}
                   </code>
                   <UiBadge size="xs" tone={account.status === "error" ? "danger" : "success"}>
                     {channelAccountStatusLabel(account.status)}
                   </UiBadge>
                 </div>
-                <div className="mt-0.5 truncate text-[11px] text-(--text-muted)">
+                <div className="mt-0.5 truncate text-xs text-(--text-muted)">
                   {account.user_id ? `用户 ${account.user_id} · ` : ""}更新 {new Date(account.updated_at).toLocaleString()}
                 </div>
                 {account.last_error ? (
-                  <div className="mt-0.5 truncate text-[11px] text-(--destructive)" title={account.last_error}>
+                  <div className="mt-0.5 truncate text-xs text-(--destructive)" title={account.last_error}>
                     {account.last_error}
                   </div>
                 ) : null}

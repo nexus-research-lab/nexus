@@ -35,7 +35,7 @@ export function GroupRouteEntry({
   return (
     <div className="grid flex-1 gap-4 xl:grid-cols-[0.92fr_1.08fr]">
       <section className="surface-radius-md border border-(--divider-subtle-color) px-5 py-5">
-        <h2 className="mt-2 text-[22px] font-semibold leading-7 tracking-normal text-(--text-strong)">
+        <h2 className="mt-2 text-lg font-semibold leading-7 tracking-normal text-(--text-strong)">
           {roomAgent ? roomAgent.name : t("room.route_empty_title")}
         </h2>
 
@@ -63,12 +63,12 @@ export function GroupRouteEntry({
       <aside className="surface-radius-md border border-(--divider-subtle-color) px-5 py-5">
         <div className="mt-4">
           <div className={METRIC_ROW_CLASS_NAME}>
-            <p className="text-[11px] uppercase tracking-[0.12em] text-(--text-soft)">Room</p>
+            <p className="text-xs uppercase tracking-[0.12em] text-(--text-soft)">Room</p>
             <p className="text-sm font-semibold text-(--text-strong)">{roomId ?? "-"}</p>
           </div>
 
           <div className={METRIC_ROW_CLASS_NAME}>
-            <p className="text-[11px] uppercase tracking-[0.12em] text-(--text-soft)">
+            <p className="text-xs uppercase tracking-[0.12em] text-(--text-soft)">
               {t("room.route_conversation")}
             </p>
             <p className="text-sm font-semibold text-(--text-strong)">{conversationId ?? "-"}</p>
@@ -76,7 +76,7 @@ export function GroupRouteEntry({
 
           {recentRoomConversations.length ? (
             <div className="pt-3">
-              <p className="text-[11px] uppercase tracking-[0.12em] text-(--text-soft)">{t("room.route_recent")}</p>
+              <p className="text-xs uppercase tracking-[0.12em] text-(--text-soft)">{t("room.route_recent")}</p>
               <div className="mt-3 divide-y divide-(--divider-subtle-color)">
                 {recentRoomConversations.map((conversation) => (
                   <button

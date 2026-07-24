@@ -1,11 +1,7 @@
 .workspace-surface-header {
   --workspace-header-cluster-gap: 12px;
-  --workspace-header-control-background: var(--surface-control-background);
-  --workspace-header-control-border: var(--surface-control-border);
   --workspace-header-control-gap: 2px;
   --workspace-header-control-height: 36px;
-  --workspace-header-control-shadow: var(--surface-control-shadow);
-  --workspace-header-tool-cluster-radius: 12px;
   --workspace-header-view-tab-radius: 8px;
   --workspace-session-tab-radius: 8px;
   --workspace-session-tray-radius: 10px;
@@ -32,10 +28,6 @@
   gap: 0;
   overflow: visible;
   padding: 2px;
-  border: 1px solid var(--workspace-header-control-border);
-  border-radius: var(--workspace-header-tool-cluster-radius);
-  background: var(--workspace-header-control-background);
-  box-shadow: var(--workspace-header-control-shadow);
 }
 
 .workspace-surface-header-tool-cluster-page-tabs {
@@ -125,9 +117,9 @@
 
 .workspace-surface-header-active-tab,
 .workspace-surface-header-view-tab[aria-pressed="true"] {
-  border: 1px solid var(--surface-interactive-active-border);
+  border: 1px solid transparent;
   background: var(--surface-interactive-active-background);
-  box-shadow: var(--workspace-header-control-shadow);
+  box-shadow: none;
 }
 
 .workspace-surface-header-view-tab[aria-pressed="true"] {
@@ -175,23 +167,6 @@
   display: none;
 }
 
-.workspace-surface-header-control-shell {
-  border-color: var(--workspace-header-control-border);
-  background: var(--workspace-header-control-background);
-  box-shadow: var(--workspace-header-control-shadow);
-}
-
-.workspace-surface-header-control-shell:hover {
-  border-color: var(--surface-control-hover-border);
-  background: var(--surface-control-hover-background);
-}
-
-.workspace-surface-header-control-shell[aria-expanded="true"] {
-  border-color: var(--surface-interactive-active-border);
-  background: var(--surface-interactive-active-background);
-  box-shadow: var(--surface-interactive-active-shadow);
-}
-
 .workspace-conversation-create-label-compact {
   display: none;
 }
@@ -213,17 +188,9 @@
 }
 
 .workspace-surface-header-session-tabs-track {
-  border: 1px solid color-mix(
-    in srgb,
-    var(--divider-strong-color) 82%,
-    var(--divider-subtle-color) 18%
-  );
+  border: 1px solid var(--divider-subtle-color);
   border-radius: var(--workspace-session-tray-radius);
-  background: color-mix(
-    in srgb,
-    var(--surface-shell-navigation-background) 58%,
-    var(--surface-control-background) 42%
-  );
+  background: var(--surface-interactive-hover-background);
   box-shadow: none;
   overflow: visible !important;
 }
@@ -430,7 +397,6 @@
     max-width: 160px;
   }
 
-  .workspace-surface-header-badge,
   .workspace-surface-header-subtitle {
     display: none;
   }

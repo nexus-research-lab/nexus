@@ -6,7 +6,7 @@ import {
 } from "./conversation-tabs-model";
 
 const TAB_BASE_CLASS_NAME =
-  "workspace-surface-header-conversation-tab group relative inline-flex h-9 flex-none snap-start items-center rounded-[var(--workspace-session-tab-radius)] border border-transparent text-[12px] font-normal transition-[width,background-color,border-color,color] duration-[145ms] ease-[cubic-bezier(0.25,0.1,0.25,1)]";
+  "workspace-surface-header-conversation-tab group relative inline-flex h-9 flex-none snap-start items-center rounded-[var(--workspace-session-tab-radius)] border border-transparent text-compact font-normal transition-[width,background-color,border-color,color] duration-[145ms] ease-[cubic-bezier(0.25,0.1,0.25,1)]";
 const TAB_CLOSE_BASE_CLASS_NAME =
   "absolute right-1 top-1/2 flex h-6 w-6 shrink-0 -translate-y-1/2 items-center justify-center rounded-[7px] text-(--icon-muted) transition-[background-color,color,opacity] duration-(--motion-duration-fast) hover:bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)] hover:text-(--destructive) focus-visible:opacity-100";
 

@@ -25,7 +25,7 @@ export function WorkspaceSurfaceToolbarAction({
     <button
       aria-label={ariaLabel}
       className={cn(
-        "inline-flex items-center gap-1.5 text-[11px] font-semibold transition duration-(--motion-duration-fast) ease-out disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)",
+        "inline-flex items-center gap-1.5 text-xs font-semibold transition duration-(--motion-duration-fast) ease-out disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)",
         tone === "default" && "text-(--text-default) hover:text-(--text-strong)",
         tone === "primary" && "text-(--primary) hover:text-[color:color-mix(in_srgb,var(--primary)_86%,var(--foreground)_14%)]",
         className,

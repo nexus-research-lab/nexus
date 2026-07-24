@@ -131,7 +131,7 @@ function ConnectorOauthClientIntroduction({
 }) {
   return (
     <>
-      <UiPanel className="text-[12px] leading-relaxed" padding="sm" variant="inset">
+      <UiPanel className="text-compact leading-relaxed" padding="sm" variant="inset">
         在{model.providerName}中填写下面的 Callback URL，再复制 App ID 和 App Secret。
       </UiPanel>
       {model.docsUrl ? (
@@ -155,9 +155,9 @@ function ConnectorOauthCallbackField({ callbackUrl }: { callbackUrl: string }) {
   const { copied, copy } = useCopyToClipboard();
   return (
     <div className="space-y-1">
-      <div className="text-[12px] font-medium text-(--text-muted)">Callback URL</div>
+      <div className="text-compact font-medium text-(--text-muted)">Callback URL</div>
       <UiPanel className="flex min-h-9 items-center gap-2" padding="sm" radius="sm" variant="inset">
-        <code className="min-w-0 flex-1 break-all text-[11px] leading-5 text-(--text-strong)">
+        <code className="min-w-0 flex-1 break-all text-xs leading-5 text-(--text-strong)">
           {callbackUrl}
         </code>
         <UiIconButton
@@ -186,7 +186,7 @@ function ConnectorOauthClientFields({
 }) {
   return (
     <>
-      <label className="block space-y-1 text-[12px] font-medium text-(--text-muted)" htmlFor="oauth-client-id">
+      <label className="block space-y-1 text-compact font-medium text-(--text-muted)" htmlFor="oauth-client-id">
         <span>Client ID</span>
         <UiInput
           autoCapitalize="off"
@@ -199,7 +199,7 @@ function ConnectorOauthClientFields({
           value={form.clientId}
         />
       </label>
-      <label className="block space-y-1 text-[12px] font-medium text-(--text-muted)" htmlFor="oauth-client-secret">
+      <label className="block space-y-1 text-compact font-medium text-(--text-muted)" htmlFor="oauth-client-secret">
         <span>Client Secret</span>
         <UiInput
           autoCapitalize="off"

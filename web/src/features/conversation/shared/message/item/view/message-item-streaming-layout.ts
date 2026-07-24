@@ -8,7 +8,7 @@ import { extractTextFromContentBlocks } from "../../message-content-model";
 const STREAMING_MIN_HEIGHT = 60;
 const STREAMING_LAYOUT_DELAY_MS = 150;
 const STREAMING_PROSE_FONT =
-  "400 14px ui-sans-serif, system-ui, sans-serif";
+  '400 16px "KingHwaOldSong", "Source Han Serif SC", "Songti SC", serif';
 const STREAMING_LINE_HEIGHT = 28;
 
 type MessageItemStreamingLayoutOptions = {

@@ -52,21 +52,21 @@ const TIMELINE_DENSITY_STYLES: Record<
     body: "px-3 py-3",
     header: "h-10 px-3",
     section: "surface-radius-md bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_30%,transparent)]",
-    subtitle: "text-[10px]",
-    title: "text-[12.5px]",
+    subtitle: "text-2xs",
+    title: "text-sm",
   },
   regular: {
     body: "px-4 py-4",
     header: "h-11 px-4",
     section: "surface-radius-lg bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_42%,transparent)]",
-    subtitle: "text-[10.5px]",
-    title: "text-[13px]",
+    subtitle: "text-xs",
+    title: "text-sm",
   },
 };
 
 function ErrorTimelineBody({ presentation }: TimelineBodyViewProps) {
   return (
-    <p className="surface-radius-md border border-[color:color-mix(in_srgb,var(--destructive)_28%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_7%,transparent)] px-3 py-2 text-[12px] font-semibold text-(--destructive)">
+    <p className="surface-radius-md border border-[color:color-mix(in_srgb,var(--destructive)_28%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_7%,transparent)] px-3 py-2 text-compact font-semibold text-(--destructive)">
       {presentation.message}
     </p>
   );
@@ -82,7 +82,7 @@ function EmptyTimelineBody({
   return (
     <div className="flex h-full flex-col items-center justify-center gap-2 text-(--text-soft)">
       <Icon className="h-6 w-6" />
-      <span className="text-[12px] font-semibold">{message}</span>
+      <span className="text-compact font-semibold">{message}</span>
     </div>
   );
 }
@@ -159,7 +159,7 @@ export function PrivateEventTimeline({
         style.header,
       )}>
         <div className="min-w-0">
-          <p className={cn("truncate font-bold text-(--text-strong)", style.title)}>
+          <p className={cn("truncate font-semibold text-(--text-strong)", style.title)}>
             {header.title}
           </p>
           {header.subtitle ? (

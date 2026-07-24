@@ -35,7 +35,7 @@ export function SkillsCatalogGrid({
         </div>
         <div>
           <p className="text-[14px] font-medium text-(--text-default)">没有符合条件的技能</p>
-          <p className="mt-0.5 text-[12px] text-(--text-soft)">
+          <p className="mt-0.5 text-compact text-(--text-soft)">
             试试切换分类、来源或搜索条件
           </p>
         </div>
@@ -48,10 +48,10 @@ export function SkillsCatalogGrid({
       {groupedSkills.map(([categoryName, items]) => (
         <section key={categoryName}>
           <div className="mb-2 flex items-end justify-between border-b border-(--divider-subtle-color) pb-1.5">
-            <h2 className="text-[15px] font-medium text-(--text-strong)">
+            <h2 className="text-base font-medium text-(--text-strong)">
               {categoryName}
             </h2>
-            <span className="text-[11px] font-medium text-(--text-soft)">
+            <span className="text-xs font-medium text-(--text-soft)">
               {items.length} 个
             </span>
           </div>

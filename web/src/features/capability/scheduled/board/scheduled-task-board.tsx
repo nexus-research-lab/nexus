@@ -121,7 +121,7 @@ function ScheduledTaskErrorState({
     <div className="flex min-h-0 flex-1 flex-col items-center justify-center border-y border-(--divider-subtle-color) px-6 text-center">
       <CircleAlert className="h-8 w-8 text-(--destructive)" />
       <h2 className="mt-4 text-[16px] font-semibold text-(--text-strong)">任务加载失败</h2>
-      <p className="mt-1 max-w-md text-[12px] leading-5 text-(--text-muted)">{message}</p>
+      <p className="mt-1 max-w-md text-compact leading-5 text-(--text-muted)">{message}</p>
       <UiButton className="mt-4" onClick={onRefresh} size="sm" tone="primary" variant="surface">
         <RefreshCw className="h-3.5 w-3.5" />
         重新加载
@@ -149,7 +149,7 @@ function ScheduledTaskSuggestions({
         >
           从一个常用任务开始
         </h2>
-        <p className="mt-1 text-[12px] leading-5 text-(--text-muted)">
+        <p className="mt-1 text-compact leading-5 text-(--text-muted)">
           选择建议后仍可修改执行对象、时间和回传位置。
         </p>
       </div>
@@ -169,14 +169,14 @@ function ScheduledTaskSuggestions({
               </span>
               <span className="min-w-0 flex-1">
                 <span className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                  <span className="text-[13px] font-medium text-(--text-strong)">
+                  <span className="text-sm font-medium text-(--text-strong)">
                     {suggestion.title}
                   </span>
-                  <span className="text-[11px] text-(--text-soft)">
+                  <span className="text-xs text-(--text-soft)">
                     {suggestion.scheduleLabel}
                   </span>
                 </span>
-                <span className="mt-1 block text-[12px] leading-5 text-(--text-muted)">
+                <span className="mt-1 block text-compact leading-5 text-(--text-muted)">
                   {suggestion.description}
                 </span>
               </span>
@@ -186,7 +186,7 @@ function ScheduledTaskSuggestions({
       </div>
 
       <button
-        className="mt-4 inline-flex items-center gap-1.5 text-[12px] font-semibold text-(--primary) transition-colors hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_24%,transparent)]"
+        className="mt-4 inline-flex items-center gap-1.5 text-compact font-semibold text-(--primary) transition-colors hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_24%,transparent)]"
         onClick={onCreate}
         type="button"
       >
@@ -225,17 +225,17 @@ function ScheduledTaskBoardColumnView({
           <div className="flex items-center gap-2">
             <span className={cn("h-2 w-2 shrink-0 rounded-full", COLUMN_TONE_CLASS_NAMES[column.tone])} />
             <h2
-              className="truncate text-[13px] font-semibold text-(--text-strong)"
+              className="truncate text-sm font-semibold text-(--text-strong)"
               id={`scheduled-column-${column.id}`}
             >
               {column.title}
             </h2>
           </div>
-          <p className="mt-1 truncate pl-4 text-[10.5px] text-(--text-soft)">
+          <p className="mt-1 truncate pl-4 text-xs text-(--text-soft)">
             {column.description}
           </p>
         </div>
-        <span className="shrink-0 text-[11px] font-medium tabular-nums text-(--text-muted)">
+        <span className="shrink-0 text-xs font-medium tabular-nums text-(--text-muted)">
           {column.items.length}
         </span>
       </header>
@@ -260,7 +260,7 @@ function ScheduledTaskBoardColumnView({
       ) : (
         <div className="flex flex-1 flex-col items-center justify-center px-5 pb-12 text-center">
           <EmptyIcon className="h-6 w-6 text-(--icon-muted)" />
-          <p className="mt-2 text-[11px] leading-5 text-(--text-soft)">
+          <p className="mt-2 text-xs leading-5 text-(--text-soft)">
             {column.emptyDescription}
           </p>
         </div>
@@ -282,7 +282,7 @@ function ScheduledTaskReadyBoard({
           <h2 className="text-[16px] font-medium tracking-[-0.01em] text-(--text-strong)">
             任务看板
           </h2>
-          <p className="mt-0.5 text-[11px] leading-5 text-(--text-muted)">
+          <p className="mt-0.5 text-xs leading-5 text-(--text-muted)">
             查看任务的当前状态、下次执行时间和异常情况。
           </p>
         </div>

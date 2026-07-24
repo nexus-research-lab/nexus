@@ -105,10 +105,10 @@ export function ProviderAddModelDialog({
             </UiField>
             <div className="surface-radius-md flex items-center justify-between gap-3 border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_76%,transparent)] px-3.5 py-3">
               <div className="min-w-0">
-                <div className="text-[13px] font-semibold text-(--text-strong)">
+                <div className="text-sm font-semibold text-(--text-strong)">
                   {t("settings.providers.enable_after_add")}
                 </div>
-                <div className="mt-0.5 text-[11px] leading-4 text-(--text-muted)">
+                <div className="mt-0.5 text-xs leading-4 text-(--text-muted)">
                   {t("settings.providers.enable_after_add_description")}
                 </div>
               </div>

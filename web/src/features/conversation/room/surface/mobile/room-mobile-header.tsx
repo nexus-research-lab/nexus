@@ -55,7 +55,7 @@ export function RoomMobileHeader({
             {primaryTitle}
           </p>
           {secondaryTitle ? (
-            <p className="truncate text-[10.5px] leading-4 text-(--text-soft)">
+            <p className="truncate text-xs leading-4 text-(--text-soft)">
               {secondaryTitle}
             </p>
           ) : null}

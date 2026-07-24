@@ -127,7 +127,7 @@ function FileArtifactOpenButton({
         >
           {projection.fileName}
         </span>
-        <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[12px] leading-4 text-(--text-muted)">
+        <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-compact leading-4 text-(--text-muted)">
           <FolderOpen className="h-3 w-3 shrink-0 text-(--icon-muted)" />
           <span className="truncate">{projection.parentPath}</span>
         </span>

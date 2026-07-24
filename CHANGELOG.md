@@ -15,6 +15,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Removed redundant count badges from capability workspace headers and deleted the unused Skill and Connector count plumbing behind them.
+- Restored KingHwa Old Song for Chinese conversation prose while keeping Latin text, navigation, controls, code, and workspace content on their dedicated fonts, and tightened the Composer's bottom spacing around the new runtime credit line.
+- Replaced 490 arbitrary `text-[Npx]` classes across 169 files with the semantic font-size scale (adding a `compact` 12px step), then swept the remainder: snapped half-step sizes (10.5/11.5/12.5/13.5/9.5px) and 18/20/24px titles onto the scale, capped all remaining `font-bold` usage at `font-semibold` (600) including prose `strong`, unified ad-hoc menu and popover shadows/backdrops on `--surface-popover-shadow` and `--dialog-backdrop-color`, routed the login pages through semantic color tokens, and removed 173 unused i18n keys from each locale catalog.
+- Reworked the conversation Composer to the Claude-style layout: a wider 880px lane, a text-only input row without inline shortcut hints, send/stop actions moved into the bottom tool row, and the "Power By NXS" runtime credit centered beneath the shell instead of occupying it.
+- Lightened workspace surface headers across pages: session-tab trays now use a faint neutral wash with hairline separators, and view tabs plus header tools sit containerless with hover-only backgrounds instead of bordered, shadowed capsules.
+- Rewrote `design.md` as a lean design-system contract: dropped the one-off migration plan and duplicated legacy-language lists, adopted the implemented 4–24px radius ladder with a 20px Composer corner, and documented the unified blue `--primary` semantics across all three themes.
+
 - Moved the Nexus Agent entry into the primary sidebar navigation, kept the top bar for the NEXUS wordmark and session controls, replaced the chat directory with a compact labeled Focus navigation inside the Nexus workspace, and aligned the Goal status strip with the narrower Composer lane.
 - Aligned User message header-to-body and message-tail spacing with Assistant replies across desktop and compact conversation layouts.
 - Reshaped the conversation Composer into a shorter, taller Claude-style focus surface with a 20px radius, a restrained 800px desktop lane, more vertical writing space, and an undivided action footer.
@@ -27,6 +34,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Taught `tailwind-merge` the custom `text-2xs`/`text-compact`/`text-md` font-size steps so conflicting size classes in `cn()` dedupe by class order instead of leaking through and resolving by stylesheet source order.
+- Registered the semantic font-size scale under Tailwind v4's actual `--text-*` theme namespace (it was authored as `--font-size-*`, which v4 treats as font-family): custom steps like `text-compact`/`text-2xs`/`text-md` never generated utilities and `text-xs`/`text-sm`/`text-base` silently fell back to larger Tailwind defaults, inflating dense UI text across the sidebar, tabs, and headers.
+- Quieted the Composer's default state: the submit control now falls back to a borderless ghost style until a message can actually be sent, instead of always showing a filled tonal button.
+- Aligned content typography with the Claude-referenced restrained weight scale: conversation and workspace Markdown headings, table headers, and dialog titles now cap at 600 (dialog labels at 500), removing the 700/900 weights.
+- Anchored the light theme's `--primary` token to the Nexus blue `#5b72ff` so active selections, focus rings, links, inline code ink, and inline progress render in the brand accent instead of near-black, matching the dark and rain themes.
+- Defined the previously missing `--shadow-color`, `--surface-muted-background`, and `--danger-text-color` tokens consumed by avatar pickers, provider settings, and runtime settings, restoring backgrounds and hover shadows that silently failed to render; removed the dead `--glow-*`, `--surface-progress-*`, `--surface-inset-shadow`, and `--input-shell-shadow` tokens.
+- Flattened the sidebar search action into a borderless ghost icon button, stopped filling the active rail icon with the primary color so rail icons stay monochrome, and aligned the User message bubble and xl avatars with the 12px content radius.
 - Matched active workspace tabs to their enclosing pill geometry, standardized sidebar selections on a clear neutral-gray surface without floating shadows, softened Session emphasis, and removed internal divider lines from header controls and inactive Session tabs.
 - Unified sidebar contact rows and management-directory Agent cards behind the same routed detail editor, removing the duplicate existing-Agent dialog path.
 - Removed the hard horizontal divider above inline Agent actions so the profile surface remains visually continuous.

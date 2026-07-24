@@ -140,7 +140,7 @@ export function AgentOptionsIdentityTab({
       ) : null}
       {shouldShowDescriptionField ? (
         <div className="space-y-2.5">
-          <label className="text-[11px] font-semibold text-(--text-muted)">
+          <label className="text-xs font-semibold text-(--text-muted)">
             {t("agent_options.identity.description")}
           </label>
           <UiTextarea

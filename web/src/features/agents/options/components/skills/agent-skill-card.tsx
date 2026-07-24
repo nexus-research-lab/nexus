@@ -56,7 +56,7 @@ export function AgentSkillCard({
     <div className="flex min-h-[108px] flex-col items-stretch justify-between gap-3 rounded-[10px] border border-(--divider-subtle-color) bg-transparent px-4 py-3.5 transition-[background,border-color] duration-(--motion-duration-fast) hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background) sm:flex-row sm:items-start sm:gap-4">
       <div className="min-w-0 flex-1 overflow-hidden">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <span className="min-w-0 text-[13.5px] font-semibold leading-[1.4] text-(--text-strong)">
+          <span className="min-w-0 text-sm font-semibold leading-[1.4] text-(--text-strong)">
             {skill.title || skill.name}
           </span>
           {badges.map((badge) => (
@@ -72,7 +72,7 @@ export function AgentSkillCard({
           ))}
         </div>
         {skill.description ? (
-          <p className="mt-1.5 line-clamp-2 text-[12px] leading-[1.55] text-(--text-muted)">
+          <p className="mt-1.5 line-clamp-2 text-compact leading-[1.55] text-(--text-muted)">
             {skill.description}
           </p>
         ) : null}

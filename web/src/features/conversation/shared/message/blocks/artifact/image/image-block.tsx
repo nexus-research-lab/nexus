@@ -62,7 +62,7 @@ export function ImageBlock({
       <ImageArtifactCaption caption={block.alt} />
       <WorkspaceArtifactExternalActionButton
         action={projection.action}
-        className="content-artifact-external-action mt-1.5 px-2 py-1 text-[11px] font-medium"
+        className="content-artifact-external-action mt-1.5 px-2 py-1 text-xs font-medium"
         iconClassName="h-3.5 w-3.5"
       />
     </figure>
@@ -84,7 +84,7 @@ function openImageArtifact(
 
 function MissingImageArtifact() {
   return (
-    <div className="content-artifact-empty my-2 flex max-w-md items-center gap-2 px-3 py-2 text-[13px]">
+    <div className="content-artifact-empty my-2 flex max-w-md items-center gap-2 px-3 py-2 text-sm">
       <ImageIcon className="h-4 w-4 shrink-0" />
       图片内容缺少可展示的数据
     </div>
@@ -100,7 +100,7 @@ function ImageArtifactCaption({
     return null;
   }
   return (
-    <figcaption className="mt-1.5 text-[12px] leading-4 text-(--text-muted)">
+    <figcaption className="mt-1.5 text-compact leading-4 text-(--text-muted)">
       {caption}
     </figcaption>
   );

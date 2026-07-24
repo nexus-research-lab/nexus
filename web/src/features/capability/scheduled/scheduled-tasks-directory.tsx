@@ -95,7 +95,6 @@ export function ScheduledTasksDirectory() {
       <WorkspaceSurfaceScaffold
         header={(
           <WorkspaceSurfaceHeader
-            badge={t("capability.scheduled_badge", { count: resource.items.length })}
             leading={<CalendarClock className="h-4 w-4" />}
             subtitle={t("capability.scheduled_subtitle")}
             title={t("capability.scheduled")}

@@ -45,7 +45,7 @@ export function MessageRailLabel({
   return (
     <div
       className={cn(
-        "flex min-w-0 items-center gap-2 text-[11px] font-medium text-(--text-muted)",
+        "flex min-w-0 items-center gap-2 text-xs font-medium text-(--text-muted)",
         active && "text-primary",
         className,
       )}
@@ -63,7 +63,7 @@ export function MessageRailBody({
   className?: string;
 }) {
   return (
-    <div className={cn("message-cjk-font min-w-0 max-w-full overflow-hidden break-words text-[11px] leading-[1.45] text-(--text-default)", className)}>
+    <div className={cn("message-cjk-font min-w-0 max-w-full overflow-hidden break-words text-xs leading-[1.45] text-(--text-default)", className)}>
       {children}
     </div>
   );

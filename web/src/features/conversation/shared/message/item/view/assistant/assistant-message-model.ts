@@ -156,7 +156,7 @@ function resolveContentWorkspaceAgentId(
 
 const ASSISTANT_LAYOUTS = {
   compact: {
-    content: "pt-1 text-[15px] leading-6",
+    content: "pt-1 text-base leading-6",
     inner: "max-w-full",
     section: "px-0",
     showMetadata: true,

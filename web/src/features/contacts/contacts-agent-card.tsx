@@ -115,18 +115,18 @@ function ContactsAgentCompactCard({
             <h3 className="min-w-0 flex-1 truncate text-[16px] font-semibold text-(--text-strong)">
               {agent.name}
             </h3>
-            <span className="inline-flex max-w-[112px] shrink-0 truncate rounded-[6px] border border-(--divider-subtle-color) px-1.5 py-0.5 text-[9.5px] font-medium text-(--text-soft)">
+            <span className="inline-flex max-w-[112px] shrink-0 truncate rounded-[6px] border border-(--divider-subtle-color) px-1.5 py-0.5 text-2xs font-medium text-(--text-soft)">
               {permissionMode}
             </span>
           </div>
 
           {agent.description && (
-            <p className="mt-1 line-clamp-1 text-[11px] leading-5 text-(--text-muted)">
+            <p className="mt-1 line-clamp-1 text-xs leading-5 text-(--text-muted)">
               {agent.description}
             </p>
           )}
 
-          <div className="mt-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[10.5px] text-(--text-soft)">
+          <div className="mt-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-(--text-soft)">
             <span className="min-w-0 max-w-full truncate">
               <span className="text-(--text-default)">Provider</span>
               {" · "}
@@ -196,14 +196,14 @@ function ContactsAgentComfortCard({
 
           {agent.description && (
             <WorkspaceCatalogDescription
-              className="mt-1.5 line-clamp-2 text-[13px] leading-tight"
+              className="mt-1.5 line-clamp-2 text-sm leading-tight"
               minHeight={false}
             >
               {agent.description}
             </WorkspaceCatalogDescription>
           )}
 
-          <div className="mt-2 flex flex-col items-center justify-center gap-1 text-center text-[11px] text-(--text-soft)">
+          <div className="mt-2 flex flex-col items-center justify-center gap-1 text-center text-xs text-(--text-soft)">
             <div className="flex flex-wrap gap-1.5">
               <span className="text-(--text-default)">权限:</span>
               <span className="text-(--text-muted)">{permissionMode}</span>

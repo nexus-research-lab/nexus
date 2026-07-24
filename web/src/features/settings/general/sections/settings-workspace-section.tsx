@@ -28,7 +28,7 @@ export function SettingsWorkspaceSection() {
           {t("settings.general.section_workspace")}
         </h2>
         {controller.feedbackMessage ? (
-          <span className="min-w-0 truncate text-[11px] text-(--text-soft)">
+          <span className="min-w-0 truncate text-xs text-(--text-soft)">
             {controller.feedbackMessage}
           </span>
         ) : null}
@@ -48,7 +48,7 @@ export function SettingsWorkspaceSection() {
               </p>
               {controller.currentPath ? (
                 <p
-                  className="mt-1 max-w-[520px] truncate font-mono text-[11px] text-(--text-muted)"
+                  className="mt-1 max-w-[520px] truncate font-mono text-xs text-(--text-muted)"
                   title={controller.currentPath}
                 >
                   {t("settings.general.workspace_path_current", {

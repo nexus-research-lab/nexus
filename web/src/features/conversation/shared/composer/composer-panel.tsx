@@ -34,7 +34,7 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
         "bg-transparent",
         props.compact
           ? `${COMPOSER_COMPACT_LANE_CLASS_NAME} px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2`
-          : `${CONVERSATION_COMPOSER_LANE_CLASS_NAME} px-3 pb-4 pt-2 sm:px-5 xl:px-6`,
+          : `${CONVERSATION_COMPOSER_LANE_CLASS_NAME} px-3 pb-2 pt-2 sm:px-5 xl:px-6`,
       )}
     >
       <input
@@ -81,10 +81,7 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
             value: state.input,
           }}
           layout={{
-            enterLabel: state.inlineEnterLabel,
-            newLineLabel: t("composer.shift_enter_newline"),
             paddingClassName: state.composerInputRowPaddingClass,
-            showShortcuts: state.shouldShowInlineShortcuts,
           }}
           mention={{
             active: mention.mentionActive,
@@ -92,18 +89,6 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
             items: mention.mentionTargetItems,
             onClose: mention.closeMention,
             onSelect: mention.selectMentionItem,
-          }}
-          submit={{
-            enterLabel: state.inlineEnterLabel,
-            isDisabled: state.isSendDisabled,
-            isGoalCreating: state.isGoalCreating,
-            isGoalMode: state.isGoalMode,
-            isPreparingAttachments: state.isPreparingAttachments,
-            onSend: actions.handleSend,
-            onStop: props.onStop,
-            sendLabel: state.sendButtonLabel,
-            shouldStop: state.shouldShowStopButton,
-            stopLabel: t("composer.stop_generation"),
           }}
           textareaRef={refs.textareaRef}
         />
@@ -134,9 +119,28 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
           onGoalToggle={actions.toggleGoalInput}
           onLoopSelect={actions.openLoopPicker}
           runtimeActivity={state.runtimeActivity}
-          runtimeKind={props.runtimeKind}
+          submit={{
+            enterLabel: state.inlineEnterLabel,
+            isDisabled: state.isSendDisabled,
+            isGoalCreating: state.isGoalCreating,
+            isGoalMode: state.isGoalMode,
+            isPreparingAttachments: state.isPreparingAttachments,
+            onSend: actions.handleSend,
+            onStop: props.onStop,
+            sendLabel: state.sendButtonLabel,
+            shouldStop: state.shouldShowStopButton,
+            stopLabel: t("composer.stop_generation"),
+          }}
         />
       </div>
+      {props.runtimeKind === "nxs" ? (
+        <p
+          aria-label={t("composer.current_runtime", { runtime: "NXS" })}
+          className="pt-1 text-center text-xs leading-4 text-(--text-soft)"
+        >
+          Power By NXS
+        </p>
+      ) : null}
     </section>
   );
 });

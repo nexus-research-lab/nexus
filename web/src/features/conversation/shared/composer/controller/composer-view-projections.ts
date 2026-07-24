@@ -50,7 +50,6 @@ export interface ComposerModeProjection {
 export interface ComposerActionProjection {
   isSendDisabled: boolean;
   isTextareaLocked: boolean;
-  shouldShowInlineShortcuts: boolean;
   shouldShowStopButton: boolean;
 }
 
@@ -178,10 +177,8 @@ function resolveActiveError(
 
 export function projectComposerActions({
   canCreateGoal,
-  compact,
   goalCreateBlockedReason,
   hasStopAction,
-  input,
   inputState,
   isGoalCreating,
   isGoalMode,
@@ -189,10 +186,8 @@ export function projectComposerActions({
   runtimeState,
 }: {
   canCreateGoal: boolean;
-  compact: boolean;
   goalCreateBlockedReason: string | null;
   hasStopAction: boolean;
-  input: string;
   inputState: ComposerInputProjection;
   isGoalCreating: boolean;
   isGoalMode: boolean;
@@ -215,7 +210,6 @@ export function projectComposerActions({
   return {
     isSendDisabled: isGoalMode ? goalSendDisabled : messageSendDisabled,
     isTextareaLocked: [isGoalMode, isGoalCreating].every(Boolean),
-    shouldShowInlineShortcuts: [!compact, input.length === 0].every(Boolean),
     shouldShowStopButton: [
       !isGoalMode,
       hasStopAction,

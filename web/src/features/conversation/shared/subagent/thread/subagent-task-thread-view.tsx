@@ -131,7 +131,7 @@ function SubagentThreadControls({ model }: { model: SubagentTaskThreadViewModel 
   if (!model.canSend) {
     return (
       <div className="flex shrink-0 items-center gap-3 border-t border-(--divider-subtle-color) px-4 py-2.5">
-        <p className="min-w-0 flex-1 text-[11.5px] leading-5 text-(--text-soft)">
+        <p className="min-w-0 flex-1 text-compact leading-5 text-(--text-soft)">
           {model.task.runtime_kind === "claude"
             ? t("subagents.cc_follow_up_unavailable")
             : t("subagents.follow_up_unavailable")}
@@ -159,7 +159,7 @@ function SubagentThreadControls({ model }: { model: SubagentTaskThreadViewModel 
     >
       <div className="rounded-[8px] border border-(--divider-subtle-color) bg-(--surface-panel-background) px-2.5 pb-1.5 pt-1.5 transition-colors focus-within:border-(--surface-interactive-hover-border)">
         <textarea
-          className="max-h-28 min-h-10 w-full resize-none bg-transparent py-1 text-[12.5px] leading-5 text-(--text-default) outline-none placeholder:text-(--text-soft)"
+          className="max-h-28 min-h-10 w-full resize-none bg-transparent py-1 text-sm leading-5 text-(--text-default) outline-none placeholder:text-(--text-soft)"
           disabled={isPending}
           onChange={(event) => model.setDraft(event.target.value)}
           placeholder={model.isResume
@@ -178,7 +178,7 @@ function SubagentThreadControls({ model }: { model: SubagentTaskThreadViewModel 
           ) : <span />}
           <div className="flex min-w-0 items-center gap-2">
             {model.isResume ? (
-              <span className="hidden truncate text-[10.5px] text-(--text-soft) sm:inline">
+              <span className="hidden truncate text-xs text-(--text-soft) sm:inline">
                 {t("subagents.continue_same_thread")}
               </span>
             ) : null}
@@ -212,7 +212,7 @@ function StopTaskButton({
   const { t } = useI18n();
   return (
     <button
-      className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-[6px] px-1.5 text-[11px] font-medium text-(--text-soft) transition-colors hover:text-(--destructive) disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)"
+      className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-[6px] px-1.5 text-xs font-medium text-(--text-soft) transition-colors hover:text-(--destructive) disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)"
       disabled={disabled}
       onClick={onClick}
       type="button"
@@ -253,7 +253,7 @@ function ThreadEmptyContent({
   }
   if (detail?.output?.trim()) {
     return (
-      <pre className="whitespace-pre-wrap break-words text-[13px] leading-6 text-(--text-default)">
+      <pre className="whitespace-pre-wrap break-words text-sm leading-6 text-(--text-default)">
         {detail.output}
       </pre>
     );
