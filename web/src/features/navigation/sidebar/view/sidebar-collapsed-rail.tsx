@@ -64,7 +64,9 @@ export function SidebarCollapsedRail({
           />
         )}
       </div>
-      <SidebarUtilityActions {...utility} variant="rail" />
+      <div className="-mr-1.5 self-stretch">
+        <SidebarUtilityActions {...utility} variant="rail" />
+      </div>
     </aside>
   );
 }

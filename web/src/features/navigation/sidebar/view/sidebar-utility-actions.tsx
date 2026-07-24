@@ -78,7 +78,7 @@ export function SidebarUtilityActions(props: SidebarUtilityActionsProps) {
     );
   }
   return (
-    <div className="relative flex items-center justify-between gap-2.5 border-t divider-subtle px-3 py-3 max-lg:px-4 max-lg:py-4">
+    <div className="relative -mr-1.5 flex items-center justify-between gap-2.5 border-t divider-subtle px-3 py-3 max-lg:px-4 max-lg:py-4">
       <div className="flex items-center gap-2.5">{primaryActions}</div>
       <div className="min-w-0 flex-1" />
       <div className="flex items-center gap-2.5">{panelActions}</div>

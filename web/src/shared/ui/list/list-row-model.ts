@@ -7,7 +7,7 @@ interface UiListRowPresentation {
 }
 
 const LIST_ROW_STATE_CLASS_NAMES = {
-  active: "bg-(--surface-interactive-active-background) text-(--text-strong)",
+  active: "bg-(--surface-interactive-active-background) text-(--text-strong) shadow-(--surface-interactive-active-shadow)",
   idleDefault: "text-(--text-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
   idleMuted: "text-(--text-muted) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
 } as const;
@@ -30,7 +30,7 @@ export function getUiListRowPresentation({
       : "idleDefault";
   return {
     className: cn(
-      "group/item relative flex min-h-[64px] w-full items-center gap-3 rounded-[8px] px-2.5 py-2 text-left transition-[background,color] duration-(--motion-duration-fast)",
+      "group/item relative flex min-h-[64px] w-full items-center gap-3 rounded-[8px] px-2.5 py-2 text-left transition-[background,color,box-shadow] duration-(--motion-duration-fast)",
       interactive && "cursor-pointer",
       LIST_ROW_STATE_CLASS_NAMES[state],
       className,

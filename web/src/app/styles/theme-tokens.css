@@ -114,8 +114,12 @@
 
   --interaction-hover-background: rgba(255, 255, 255, 0.34);
   --interaction-hover-border: rgba(255, 255, 255, 0.42);
-  --interaction-active-background: rgba(255, 255, 255, 0.48);
-  --interaction-active-border: rgba(104, 123, 255, 0.22);
+  --interaction-active-background: rgba(242, 239, 231, 0.76);
+  --interaction-active-border: rgba(132, 120, 100, 0.18);
+  --interaction-active-shadow:
+    inset 0 0 0 1px var(--interaction-active-border),
+    0 1px 2px rgba(76, 66, 49, 0.05),
+    0 6px 16px rgba(76, 66, 49, 0.06);
 
   --text-kbd-color: #5c6979;
   --surface-kbd-background: rgba(255, 255, 255, 0.58);
@@ -230,6 +234,9 @@
   --interaction-hover-border: rgba(182, 199, 223, 0.16);
   --interaction-active-background: rgba(142, 164, 255, 0.12);
   --interaction-active-border: rgba(142, 164, 255, 0.24);
+  --interaction-active-shadow:
+    inset 0 0 0 1px var(--interaction-active-border),
+    0 6px 16px rgba(0, 5, 12, 0.18);
   --text-kbd-color: #d7e0ee;
   --surface-kbd-background: rgba(28, 36, 49, 0.84);
   --divider-kbd-border: rgba(182, 199, 223, 0.12);
@@ -342,6 +349,9 @@
   --interaction-hover-border: rgba(205, 220, 240, 0.16);
   --interaction-active-background: rgba(154, 183, 255, 0.12);
   --interaction-active-border: rgba(154, 183, 255, 0.24);
+  --interaction-active-shadow:
+    inset 0 0 0 1px var(--interaction-active-border),
+    0 6px 16px rgba(9, 15, 24, 0.16);
   --text-kbd-color: #dde7f4;
   --surface-kbd-background: rgba(60, 70, 82, 0.84);
   --divider-kbd-border: rgba(205, 220, 240, 0.12);
@@ -459,6 +469,7 @@
   --surface-interactive-hover-border: var(--interaction-hover-border);
   --surface-interactive-active-background: var(--interaction-active-background);
   --surface-interactive-active-border: var(--interaction-active-border);
+  --surface-interactive-active-shadow: var(--interaction-active-shadow);
 }
 
 @theme inline {
