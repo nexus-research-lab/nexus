@@ -24,7 +24,7 @@ const TAB_STATE_PRESENTATIONS = {
     closeClassName: "opacity-80 hover:opacity-100",
     indicatorClassName: "bg-(--primary) shadow-[0_0_0_2px_color-mix(in_srgb,var(--primary)_10%,transparent)]",
     minWidth: ACTIVE_TAB_MIN_WIDTH,
-    rootClassName: "z-10 border-(--surface-interactive-active-border) bg-(--surface-interactive-active-background) font-semibold text-(--text-strong) shadow-(--surface-interactive-active-shadow)",
+    rootClassName: "workspace-surface-header-active-tab z-10 font-semibold text-(--text-strong)",
   },
   inactive: {
     closeClassName: "opacity-0 group-hover:opacity-100",
