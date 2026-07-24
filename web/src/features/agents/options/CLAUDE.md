@@ -5,6 +5,7 @@
 - 普通 Agent 的内联身份页简介正文由 identity/agent-profile-file-editor.tsx 读取根级 AGENTS.md，独立处理 Markdown 预览、编辑和确认保存；主 Nexus 不生成 AGENTS.md，因此隐藏这块文件简介；Agent Options 元数据保存不代替文件保存。
 
 - `AgentOptionsInlineEditor` 与 `AgentOptionsDialogEditor` 是两个明确壳层入口；不得恢复通过可选参数拼装内联导航、Footer 和关闭策略的组合模式。
+- `AgentOptionsInlineEditor` 的固定操作区与正文共用同一连续底面，不使用横向实体边框切割；弹窗 Footer 仍遵循 Dialog 壳层自己的分区语义。
 - `AgentOptionsDialogEditor` 在宽桌面使用左侧导航；窗口小于 `xl` 时提前切成带 8px 分隔的顶部标签条，手机内容保持单列滚动，不等待表单已经被挤压后才响应。
 - Agent 选项块采用可触控的控件高度和明确的组间距；头像通过放大的当前值打开网格选择面板，工具与技能卡片允许内容自然增高，不把完整配置压缩成密集控制条。
 - 编辑器输入统一使用 `create/edit` 来源对象；模式、Agent ID 和初始值不得拆回可冲突的可选参数集合。
