@@ -49,7 +49,7 @@ export function ContactsPage() {
     onCreateAgent: controller.editor.openCreate,
     onCreateTeam: navigation.createTeam,
     onDeleteAgent: controller.requestDeleteAgent,
-    onEditAgent: controller.editor.openEdit,
+    onOpenAgent: navigation.openAgent,
     onOpenDirectRoom: navigation.openDirectRoom,
     onSaveAgentOptions: controller.saveAgentOptions,
     onValidateAgentName: controller.validateAgentName,
@@ -127,7 +127,7 @@ function ContactsPageContent({
             agents={agents}
             onCreateAgent={actions.onCreateAgent}
             onCreateTeam={actions.onCreateTeam}
-            onEditAgent={actions.onEditAgent}
+            onOpenAgent={actions.onOpenAgent}
             onOpenDirectRoom={actions.onOpenDirectRoom}
           />
         </WorkspacePageFrame>
