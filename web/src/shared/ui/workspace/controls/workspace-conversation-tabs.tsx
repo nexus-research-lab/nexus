@@ -61,9 +61,8 @@ export function WorkspaceConversationTabs({
           onWheel={controller.tabsScroll.handleWheel}
           ref={controller.tabsScroll.viewportRef}
         >
-          {controller.orderedConversations.map((conversation, index) => {
+          {controller.orderedConversations.map((conversation) => {
             const conversationId = conversation.conversation_id;
-            const previousConversation = controller.orderedConversations[index - 1];
             const isActive = conversationId === controller.activeConversationId;
 
             return (
@@ -76,9 +75,6 @@ export function WorkspaceConversationTabs({
                 key={conversationId}
                 onClose={() => controller.closeConversation(conversationId)}
                 onSelect={() => controller.selectConversation(conversationId)}
-                showSeparator={index > 0
-                  && !isActive
-                  && previousConversation?.conversation_id !== controller.activeConversationId}
                 tabWidth={controller.tabWidths.get(conversationId)}
                 title={conversation.title?.trim() || t("room.untitled_conversation")}
               />

@@ -5,6 +5,7 @@
   --workspace-header-control-gap: 2px;
   --workspace-header-control-height: 36px;
   --workspace-header-control-shadow: var(--surface-control-shadow);
+  --workspace-header-view-tab-radius: 999px;
   --workspace-session-tab-radius: 10px;
   container-name: workspace-surface-header;
   container-type: inline-size;
@@ -90,24 +91,6 @@
   position: relative;
 }
 
-.workspace-surface-header-view-tabs
-  .ui-underline-tab-item
-  + .ui-underline-tab-item::before,
-.workspace-surface-header-navigation-actions::before,
-.workspace-surface-header-navigation-actions > * + *::before {
-  position: absolute;
-  top: 8px;
-  bottom: 8px;
-  left: 0;
-  width: 1px;
-  background: color-mix(
-    in srgb,
-    var(--divider-subtle-color) 72%,
-    transparent
-  );
-  content: "";
-}
-
 .workspace-surface-header-navigation-actions {
   position: relative;
   display: flex;
@@ -123,7 +106,7 @@
   height: var(--workspace-header-control-height);
   padding-inline: 10px;
   border: 0;
-  border-radius: 9px;
+  border-radius: var(--workspace-header-view-tab-radius);
   background: transparent;
   box-shadow: none;
   transition:
@@ -137,18 +120,22 @@
   background: var(--surface-interactive-hover-background);
 }
 
+.workspace-surface-header-active-tab,
+.workspace-surface-header-view-tab[aria-pressed="true"] {
+  border: 1px solid var(--surface-interactive-active-border);
+  background: var(--surface-interactive-active-background);
+  box-shadow: var(--workspace-header-control-shadow);
+}
+
 .workspace-surface-header-view-tab[aria-pressed="true"] {
   z-index: 1;
   padding-right: 30px;
-  border: 1px solid var(--surface-interactive-active-border);
-  background: var(--surface-interactive-active-background);
-  box-shadow: var(--surface-interactive-active-shadow);
 }
 
 .workspace-surface-header-control-segment {
   position: relative;
   border: 0;
-  border-radius: 9px;
+  border-radius: var(--workspace-header-view-tab-radius);
   background: transparent;
   box-shadow: none;
 }
@@ -172,6 +159,7 @@
 
 .workspace-surface-header-view-tabs .ui-underline-tab-dismiss {
   right: 5px;
+  z-index: 2;
   opacity: 0.72;
 }
 

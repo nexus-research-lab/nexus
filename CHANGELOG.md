@@ -23,6 +23,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Matched active workspace tabs to their enclosing pill geometry, standardized sidebar selections on a clear neutral-gray surface without floating shadows, softened Session emphasis, and removed internal divider lines from header controls and inactive Session tabs.
+- Unified sidebar contact rows and management-directory Agent cards behind the same routed detail editor, removing the duplicate existing-Agent dialog path.
+- Removed the hard horizontal divider above inline Agent actions so the profile surface remains visually continuous.
+- Flattened active chat-directory rows into a restrained theme-aware warm gray without the raised card border or shadow, keeping the current conversation legible while visually attached to the sidebar.
+- Unified active Session and workspace-view tabs behind one shared border, background, and shadow recipe while keeping each host's intended geometry; workspace tabs, History, Members, and overflow controls now follow the surrounding capsule's inset curve, and active-tab close controls remain clickable above the surface.
 - Aligned in-progress Room Agent cards with completed assistant replies by removing the nested recentering lane and reusing the shared responsive message baseline.
 - Unified AskUserQuestion cards, options, custom answers, and submission controls with the warm layered surface and elevation system used by the rest of the conversation UI.
 - Unified surface search fields behind one shared warm input treatment so capability filters, sidebars, catalogs, and other search entry points no longer carry page-specific borders or backgrounds.

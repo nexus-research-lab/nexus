@@ -17,7 +17,7 @@ interface ContactsDirectoryProps {
   agents: Agent[];
   onOpenDirectRoom: (agentId: string) => void;
   onCreateAgent: () => void;
-  onEditAgent: (agentId: string) => void;
+  onOpenAgent: (agentId: string) => void;
   onCreateTeam: (agentId: string) => void;
 }
 
@@ -25,7 +25,7 @@ export function ContactsDirectory({
   agents,
   onOpenDirectRoom,
   onCreateAgent,
-  onEditAgent,
+  onOpenAgent,
   onCreateTeam,
 }: ContactsDirectoryProps) {
   const { t } = useI18n();
@@ -93,7 +93,7 @@ export function ContactsDirectory({
               key={agent.agent_id}
               agent={agent}
               onCreateTeam={() => onCreateTeam(agent.agent_id)}
-              onOpenProfile={() => onEditAgent(agent.agent_id)}
+              onOpenProfile={() => onOpenAgent(agent.agent_id)}
               onOpenRoom={() => onOpenDirectRoom(agent.agent_id)}
             />
           ))}

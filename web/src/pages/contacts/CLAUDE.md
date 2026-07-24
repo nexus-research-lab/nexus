@@ -1,7 +1,7 @@
 # Contacts 页面
 
-- 页面入口只在目录、详情和弹窗之间装配，不直接调用 Agent 或 Room API。
+- 页面入口只在目录、详情和创建弹窗之间装配，不直接调用 Agent 或 Room API；既有 Agent 的管理入口统一落到详情页。
 - `contacts-page-model.ts` 统一投影加载/目录/详情联合状态和删除确认文案，不复制编辑器初值。
 - `controller/` 持有联系人资源、编辑事务和删除确认状态。
 - `orchestration/` 解释 `agent` 查询参数并负责 DM、单成员 Room 和删除后的路由跳转。
-- 编辑器状态使用互斥联合类型，创建保存空状态，编辑保存打开时的 Agent 快照，不得同时维护 mode、open 和 agentId 镜像。
+- 创建编辑器状态使用互斥联合类型，不得同时维护 mode 与 open 镜像；既有 Agent 的编辑状态由详情路由承载，不再保留第二套编辑弹窗快照。

@@ -53,6 +53,9 @@ export function useContactsPageNavigation({
       navigate(route);
     });
   }, [navigate]);
+  const openAgent = useCallback((agentId: string) => {
+    navigate(AppRouteBuilders.contactAgent(agentId));
+  }, [navigate]);
 
   const createTeam = useCallback((agentId: string) => {
     void createRoom({agent_ids: [agentId]}).then((context) => {
@@ -83,6 +86,7 @@ export function useContactsPageNavigation({
     selectedAgent,
     backToDirectory,
     closeEditor,
+    openAgent,
     openDirectRoom,
     createTeam,
     confirmDelete,

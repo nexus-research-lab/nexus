@@ -48,7 +48,7 @@ export function AgentOptionsInlineEditor({
           />
         </div>
       </div>
-      <div className="flex shrink-0 items-center justify-end gap-2 border-t dialog-divider px-6 py-3">
+      <div className="flex shrink-0 items-center justify-end gap-2 px-6 py-3">
         <AgentOptionsEditorActions
           {...controller.actions}
           saveButtonSize="sm"

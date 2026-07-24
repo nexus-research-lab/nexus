@@ -7,8 +7,6 @@ import {
 
 const TAB_BASE_CLASS_NAME =
   "group relative inline-flex h-9 flex-none snap-start items-center overflow-hidden rounded-[var(--workspace-session-tab-radius)] border border-transparent text-[11px] font-medium transition-[width,background-color,border-color,color,box-shadow] duration-[145ms] ease-[cubic-bezier(0.25,0.1,0.25,1)]";
-const TAB_SEPARATOR_CLASS_NAME =
-  "before:pointer-events-none before:absolute before:bottom-1.5 before:left-0 before:top-1.5 before:w-px before:bg-[color:color-mix(in_srgb,var(--divider-subtle-color)_78%,transparent)] before:transition-opacity before:content-[''] hover:before:opacity-0";
 const TAB_CLOSE_BASE_CLASS_NAME =
   "absolute right-1 top-1/2 flex h-6 w-6 shrink-0 -translate-y-1/2 items-center justify-center rounded-[7px] text-(--icon-muted) transition-[background-color,color,opacity] duration-(--motion-duration-fast) hover:bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)] hover:text-(--destructive) focus-visible:opacity-100";
 
@@ -24,7 +22,7 @@ const TAB_STATE_PRESENTATIONS = {
     closeClassName: "opacity-80 hover:opacity-100",
     indicatorClassName: "bg-(--primary) shadow-[0_0_0_2px_color-mix(in_srgb,var(--primary)_10%,transparent)]",
     minWidth: ACTIVE_TAB_MIN_WIDTH,
-    rootClassName: "z-10 border-(--surface-interactive-active-border) bg-(--surface-interactive-active-background) font-semibold text-(--text-strong) shadow-(--surface-interactive-active-shadow)",
+    rootClassName: "workspace-surface-header-active-tab z-10 font-semibold text-(--text-strong)",
   },
   inactive: {
     closeClassName: "opacity-0 group-hover:opacity-100",
@@ -55,14 +53,12 @@ export function resolveWorkspaceConversationTabPresentation({
   canClose,
   externalSessionLabel,
   isActive,
-  showSeparator,
   tabWidth,
   title,
 }: {
   canClose: boolean;
   externalSessionLabel: string | null;
   isActive: boolean;
-  showSeparator: boolean;
   tabWidth?: number;
   title: string;
 }): WorkspaceConversationTabPresentation {
@@ -77,7 +73,6 @@ export function resolveWorkspaceConversationTabPresentation({
     rootClassName: cn(
       TAB_BASE_CLASS_NAME,
       state.rootClassName,
-      showSeparator && TAB_SEPARATOR_CLASS_NAME,
     ),
     showClose: canClose,
     showExternalSessionLabel: Boolean(externalSessionLabel),

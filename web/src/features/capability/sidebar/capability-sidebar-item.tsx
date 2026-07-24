@@ -22,6 +22,7 @@ export function CapabilitySidebarItemView({
   return (
     <UiListRow
       active={active}
+      activeTone="sidebar"
       className="min-h-[54px] gap-2.5 rounded-[8px] px-2 py-1.5 max-lg:min-h-[72px] max-lg:gap-3 max-lg:rounded-[12px] max-lg:px-3 max-lg:py-2.5"
       leading={(
         <span className={cn(
