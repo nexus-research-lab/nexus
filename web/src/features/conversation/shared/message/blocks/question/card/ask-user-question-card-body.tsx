@@ -31,8 +31,8 @@ export function AskUserQuestionCardBody({
     return null;
   }
   return (
-    <div className="message-cjk-font p-2.5">
-      <div className="overflow-hidden rounded-[8px] border border-(--divider-subtle-color)">
+    <div className="message-cjk-font p-3">
+      <div className="ask-user-question-options">
         {question.options.map((option) => (
           <QuestionOptionButton
             description={option.description}
@@ -80,9 +80,10 @@ function QuestionOptionButton({
   return (
     <button
       className={cn(
-        "w-full border-b border-(--divider-subtle-color) px-3 py-2 text-left transition duration-(--motion-duration-fast) ease-out last:border-b-0",
+        "ask-user-question-option w-full px-3 py-2.5 text-left transition duration-(--motion-duration-fast) ease-out",
         presentation.buttonClassName,
       )}
+      data-selected={isSelected}
       disabled={readOnly}
       onClick={(event) => {
         event.stopPropagation();
@@ -154,7 +155,7 @@ function CustomAnswerField({
   }
   return (
     <div
-      className="px-3 py-2"
+      className="ask-user-question-custom-answer px-3 py-2.5"
       onClick={(event) => event.stopPropagation()}
       onKeyDown={(event) => event.stopPropagation()}
       role="presentation"
@@ -165,7 +166,7 @@ function CustomAnswerField({
         </div>
         <CustomAnswerBadge visible={Boolean(customAnswer.trim())} />
       </div>
-      <div className="border-b border-(--divider-subtle-color)">
+      <div>
         <textarea
           aria-label="自定义回答"
           className={cn(

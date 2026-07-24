@@ -33,14 +33,12 @@ export interface QuestionOptionPresentation {
 
 const CARD_TONES = {
   empty: {
-    background:
-      "color-mix(in srgb, var(--surface-panel-background) 84%, transparent)",
-    borderClassName: "border-(--divider-subtle-color)",
+    background: "var(--surface-control-background)",
+    borderClassName: "border-(--surface-control-border)",
   },
   selected: {
-    background:
-      "color-mix(in srgb, var(--surface-panel-background) 90%, var(--primary) 6%)",
-    borderClassName: "border-primary/18",
+    background: "var(--surface-interactive-active-background)",
+    borderClassName: "border-(--surface-interactive-active-border)",
   },
 } as const;
 
@@ -58,12 +56,12 @@ const OPTION_ICONS: Record<string, LucideIcon> = {
 
 const OPTION_STATE_STYLES = {
   idle: {
-    button: "bg-transparent hover:bg-(--surface-interactive-hover-background)",
+    button: "",
     icon: "text-muted-foreground/50",
     label: "text-foreground",
   },
   selected: {
-    button: "bg-primary/4",
+    button: "",
     icon: "text-primary",
     label: "text-primary",
   },

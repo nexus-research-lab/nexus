@@ -11,6 +11,8 @@ import type {
   QuestionInteractionStatus,
 } from "./ask-user-question-model";
 
+import "./ask-user-question.css";
+
 interface AskUserQuestionViewProps {
   answerSummary: string;
   draft: QuestionDraft;
@@ -47,7 +49,7 @@ export function AskUserQuestionView({
   totalSelected,
 }: AskUserQuestionViewProps) {
   return (
-    <MessageRail className="my-1.5">
+    <MessageRail className="ask-user-question my-1.5 pr-1 pb-1">
       <AskUserQuestionHeader
         answerSummary={answerSummary}
         expanded={expanded}
@@ -100,7 +102,7 @@ function QuestionCardList({
     return null;
   }
   return (
-    <div className="mt-2 space-y-2">
+    <div className="mt-2 space-y-2.5">
       {questions.map((question, index) => {
         const answer = draft[index] ?? EMPTY_ANSWER;
         const keyPrefix = question.header || "question";
@@ -164,7 +166,7 @@ function QuestionSubmittedNotice({
     return null;
   }
   return (
-    <div className="message-cjk-font mt-2 flex items-center gap-2 border-t border-[color:color-mix(in_srgb,var(--success)_18%,transparent)] pt-2 text-xs font-semibold text-(--success)">
+    <div className="ask-user-question-submitted message-cjk-font mt-2 flex items-center gap-2 px-3 py-2 text-xs font-semibold text-(--success)">
       <Check className="h-3.5 w-3.5" />
       <span className="text-xs font-medium">已收到你的回应</span>
     </div>
@@ -191,7 +193,7 @@ function QuestionSubmitAction({
   const { Icon } = presentation;
 
   return (
-    <div className="message-cjk-font mt-2 flex min-h-0 items-center justify-between gap-3 border-t border-(--divider-subtle-color) pt-2">
+    <div className="ask-user-question-submit message-cjk-font mt-2 flex min-h-0 items-center justify-between gap-3 px-3 py-2">
       <span className="text-[11px] leading-none text-muted-foreground">
         {hint}
       </span>

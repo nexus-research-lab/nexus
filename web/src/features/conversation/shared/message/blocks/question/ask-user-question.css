@@ -1,0 +1,78 @@
+/**
+ * INPUT: AskUserQuestion semantic surface and interaction tokens.
+ * OUTPUT: Warm, layered question cards, option controls, and answer actions.
+ * POS: Visual contract for the shared conversation question block.
+ */
+
+.ask-user-question {
+  overflow: visible;
+}
+
+.ask-user-question-card {
+  border-color: var(--surface-control-border);
+  background: var(--surface-control-background);
+  box-shadow: var(--surface-control-shadow);
+}
+
+.ask-user-question-card[data-selected="true"] {
+  border-color: var(--surface-interactive-active-border);
+  background: var(--surface-interactive-active-background);
+  box-shadow: var(--surface-interactive-active-shadow);
+}
+
+.ask-user-question-card-header[data-expanded="true"] {
+  position: relative;
+  z-index: 1;
+  background: color-mix(
+    in srgb,
+    var(--surface-control-background) 76%,
+    var(--surface-interactive-hover-background) 24%
+  );
+  box-shadow: 0 5px 14px color-mix(in srgb, var(--text-strong) 4%, transparent);
+}
+
+.ask-user-question-options {
+  display: grid;
+  gap: 8px;
+}
+
+.ask-user-question-option {
+  border: 1px solid var(--surface-control-border);
+  border-radius: 10px;
+  background: var(--surface-control-field-background);
+  box-shadow: var(--surface-control-field-shadow);
+}
+
+.ask-user-question-option:not(:disabled):hover {
+  border-color: var(--surface-control-hover-border);
+  background: var(--surface-control-hover-background);
+}
+
+.ask-user-question-option[data-selected="true"] {
+  border-color: var(--surface-interactive-active-border);
+  background: var(--surface-interactive-active-background);
+  box-shadow: var(--surface-interactive-active-shadow);
+}
+
+.ask-user-question-custom-answer {
+  border: 1px solid var(--surface-control-border);
+  border-radius: 10px;
+  background: var(--surface-control-field-background);
+  box-shadow: var(--surface-control-field-shadow);
+  transition:
+    border-color var(--motion-duration-fast) ease,
+    box-shadow var(--motion-duration-fast) ease;
+}
+
+.ask-user-question-custom-answer:focus-within {
+  border-color: var(--surface-interactive-active-border);
+  box-shadow: var(--surface-interactive-active-shadow);
+}
+
+.ask-user-question-submit,
+.ask-user-question-submitted {
+  border: 1px solid var(--surface-control-border);
+  border-radius: 10px;
+  background: var(--surface-control-background);
+  box-shadow: var(--surface-control-shadow);
+}
