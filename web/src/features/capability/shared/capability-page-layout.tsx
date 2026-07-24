@@ -85,9 +85,8 @@ export function CapabilityFilterSearchInput({
 }: CapabilityFilterSearchInputProps) {
   return (
     <UiSearchInput
-      className="min-w-0 flex-1 border-(--divider-strong-color) bg-(--input)"
+      className="min-w-0 flex-1"
       controlSize="sm"
-      inputClassName="text-[13px] placeholder:text-(--text-muted)"
       action={action}
       onChange={onChange}
       onCompositionEnd={onCompositionEnd}

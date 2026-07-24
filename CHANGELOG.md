@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Unified AskUserQuestion cards, options, custom answers, and submission controls with the warm layered surface and elevation system used by the rest of the conversation UI.
+- Unified surface search fields behind one shared warm input treatment so capability filters, sidebars, catalogs, and other search entry points no longer carry page-specific borders or backgrounds.
 - Enlarged page-level workspace tab capsules with a more comfortable control height, icon scale, and horizontal rhythm while keeping Session headers and compact layouts dense.
 - Strengthened the active About, Workspace, and Subagents header tabs with the same complete edge and unclipped warm elevation used by active Session tabs.
 - Added consistent spacing between the Identity, Tools, and Skills navigation blocks in the Agent editor across desktop and constrained layouts.

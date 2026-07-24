@@ -38,6 +38,11 @@ const SEARCH_SHELL_SIZE_CLASS_MAP: Record<UiFormControlSize, string> = {
   lg: "h-11 radius-control-lg px-4 text-[15px]",
 };
 
+const SEARCH_SHELL_VARIANT_CLASS_MAP: Record<UiFormControlVariant, string> = {
+  dialog: "",
+  surface: "ui-search-input-shell",
+};
+
 export function getUiFormControlClassName(
   options: UiFormControlStyleOptions = {},
   className?: string,
@@ -68,6 +73,7 @@ export function getUiSearchInputShellClassName(
   return cn(
     "inline-flex min-w-0 items-center gap-2 text-(--text-default)",
     FORM_CONTROL_VARIANT_CLASS_MAP[variant],
+    SEARCH_SHELL_VARIANT_CLASS_MAP[variant],
     SEARCH_SHELL_SIZE_CLASS_MAP[size],
     className,
   );

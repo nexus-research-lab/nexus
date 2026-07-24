@@ -37,6 +37,7 @@ src/
 - `types/` 只声明跨层协议，不得导入 Config、Lib 或运行时投影；Agent 会话作用域键只由 `lib/conversation/agent-conversation-identity.ts` 计算
 - API 客户端按 endpoint 所有权归入 `lib/api/{agent,account,capability,conversation,settings}/`，通用传输在 `core/` 按请求、响应、错误和鉴权事件拆分；消费者直接导入职责文件，不保留旧路径转发层
 - 共享 UI 基础组件按 `button/`、`form/`、`display/`、`list/` 与 `navigation/` 分组；消费者直接导入职责文件，不恢复根级聚合出口
+- Surface 搜索入口统一由 `UiSearchInput` 提供暖色底、边界、阴影及交互态；消费者只调整尺寸和布局，不得局部覆写背景、边框或阴影
 - Liquid Glass 由专用 Hook 持有能力启用与 Web Animation 生命周期，Filter 视图只描述 SVG 资源链；组件 render 阶段不得写状态，消费者不得通过目录 barrel 导入
 - 样式类名组合只由 `shared/ui/class-name.ts` 提供；时间、Token 和头像规则分别归 `lib/format/` 与 `lib/avatar.ts`，不得恢复混合 `lib/utils.ts`
 - Agent Options 默认值、权限/工具目录、归一化和可编辑字段投影只由 `lib/agent-options.ts` 定义；Config、Settings、Contacts、Room 与编辑器不得跨 Feature 取规则

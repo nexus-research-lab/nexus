@@ -19,7 +19,7 @@ export function SidebarSearchField({
   return (
     <div className="flex items-center gap-2 px-2.5 pb-1.5 max-lg:gap-3 max-lg:px-4 max-lg:pb-3">
       <UiSearchInput
-        className="workbench-input-shell flex-1 border-(--surface-control-border) bg-(--surface-control-field-background) shadow-(--surface-control-field-shadow) hover:border-(--surface-control-hover-border) hover:bg-(--surface-control-hover-background) max-lg:h-12 max-lg:rounded-[12px] max-lg:px-4"
+        className="flex-1 max-lg:h-12 max-lg:rounded-[12px] max-lg:px-4"
         inputClassName="text-[13px] max-lg:text-[15px]"
         onChange={onChange}
         placeholder={placeholder}

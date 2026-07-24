@@ -107,6 +107,37 @@
     box-shadow: 0 0 0 1px color-mix(in srgb, var(--input-shell-focus-border, var(--material-input-focus-border)) 32%, transparent);
   }
 
+  .input-shell.ui-search-input-shell {
+    border-color: var(--surface-control-border);
+    background: var(--surface-control-field-background);
+    box-shadow: var(--surface-control-field-shadow);
+  }
+
+  .input-shell.ui-search-input-shell:hover {
+    border-color: var(--surface-control-hover-border);
+    background: var(--surface-control-hover-background);
+  }
+
+  .input-shell.ui-search-input-shell:focus-within {
+    border-color: color-mix(
+      in srgb,
+      var(--input-shell-focus-border, var(--material-input-focus-border)) 88%,
+      var(--surface-control-border)
+    );
+    background: color-mix(
+      in srgb,
+      var(--surface-control-field-background) 82%,
+      var(--input-shell-focus-background, var(--material-input-focus-background)) 18%
+    );
+    box-shadow:
+      var(--surface-control-field-shadow),
+      0 0 0 1px color-mix(
+        in srgb,
+        var(--input-shell-focus-border, var(--material-input-focus-border)) 28%,
+        transparent
+      );
+  }
+
   .surface-popover {
     border-radius: 16px;
     background: var(--surface-popover-background);
