@@ -35,7 +35,7 @@ export function AgentOptionsNav({
   const { t } = useI18n();
 
   return (
-    <div className="soft-scrollbar flex w-36 shrink-0 flex-col overflow-y-auto border-r dialog-divider bg-transparent px-2.5 py-3 max-xl:w-full max-xl:flex-row max-xl:gap-2 max-xl:overflow-x-auto max-xl:overflow-y-hidden max-xl:border-r-0 max-xl:border-b max-xl:px-3 max-xl:py-2">
+    <div className="soft-scrollbar flex w-36 shrink-0 flex-col gap-2 overflow-y-auto border-r dialog-divider bg-transparent px-2.5 py-3 max-xl:w-full max-xl:flex-row max-xl:overflow-x-auto max-xl:overflow-y-hidden max-xl:border-r-0 max-xl:border-b max-xl:px-3 max-xl:py-2">
       {NAV_ITEMS.map((item) => {
         const Icon = item.icon;
         const isActive = activeTab === item.key;
