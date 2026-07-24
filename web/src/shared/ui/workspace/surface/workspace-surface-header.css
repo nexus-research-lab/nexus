@@ -34,6 +34,37 @@
   box-shadow: var(--workspace-header-control-shadow);
 }
 
+.workspace-surface-header-tool-cluster-page-tabs {
+  --workspace-header-control-height: 40px;
+  height: 46px;
+  padding: 3px;
+}
+
+.workspace-surface-header-tool-cluster-page-tabs
+  .workspace-surface-header-view-tab {
+  gap: 8px;
+  padding-inline: 14px;
+  font-size: 12px;
+}
+
+.workspace-surface-header-tool-cluster-page-tabs
+  .workspace-surface-header-view-tab
+  svg {
+  width: 16px;
+  height: 16px;
+}
+
+.workspace-surface-header-tool-cluster-page-tabs
+  .workspace-surface-header-view-tab[aria-pressed="true"] {
+  padding-inline: 14px;
+}
+
+.workspace-surface-header-tool-cluster-page-tabs
+  .ui-underline-tab-item:has(.ui-underline-tab-dismiss)
+  .workspace-surface-header-view-tab[aria-pressed="true"] {
+  padding-right: 32px;
+}
+
 .workspace-surface-header-title {
   max-width: 260px;
 }

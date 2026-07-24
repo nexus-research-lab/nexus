@@ -194,7 +194,12 @@ function WorkspaceSurfaceNavigation<TTabKey extends string>({
         tabsLeading={tabsLeading}
       />
       {hasNavigationTools ? (
-        <div className="workspace-surface-header-tool-cluster flex shrink-0 items-center">
+        <div
+          className={cn(
+            "workspace-surface-header-tool-cluster flex shrink-0 items-center",
+            !tabsLeading && "workspace-surface-header-tool-cluster-page-tabs",
+          )}
+        >
           <WorkspaceSurfaceTabs
             activeTab={activeTab}
             compactTabsLabel={compactTabsLabel}
