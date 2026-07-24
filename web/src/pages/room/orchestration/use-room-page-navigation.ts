@@ -3,12 +3,14 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { getExternalSessionKeyFromConversationId } from "@/lib/conversation/external-session";
+import { useRoomNavigationStore } from "@/store/room-navigation";
 import { useSidebarStore } from "@/store/sidebar";
 
 interface UseRoomPageNavigationOptions {
   roomId?: string | null;
   routeConversationId?: string | null;
   routeSessionKey?: string | null;
+  conversationIds: string[];
   currentRoomId: string | null;
   selectedConversationId: string | null;
   isHydrated: boolean;
@@ -27,6 +29,7 @@ export function useRoomPageNavigation({
   roomId,
   routeConversationId,
   routeSessionKey,
+  conversationIds,
   currentRoomId,
   selectedConversationId,
   isHydrated,
@@ -36,6 +39,9 @@ export function useRoomPageNavigation({
   const navigate = useNavigate();
   const setWidePanelCollapsed = useSidebarStore(
     (state) => state.set_wide_panel_collapsed,
+  );
+  const rememberLastActiveConversation = useRoomNavigationStore(
+    (state) => state.remember_last_active_conversation,
   );
   const [searchParams, setSearchParams] = useSearchParams();
   const queryInitialDraft = searchParams.get("initial")?.trim() || null;
@@ -54,17 +60,19 @@ export function useRoomPageNavigation({
 
   const selectConversation = useCallback((conversationId: string) => {
     if (roomId) {
+      rememberLastActiveConversation(roomId, conversationId);
       navigate(buildConversationRoute(roomId, conversationId));
     }
-  }, [navigate, roomId]);
+  }, [navigate, rememberLastActiveConversation, roomId]);
 
   const handleCreateConversation = useCallback(async (title?: string) => {
     const conversationId = await createConversation(title);
     if (roomId && conversationId) {
+      rememberLastActiveConversation(roomId, conversationId);
       navigate(buildConversationRoute(roomId, conversationId));
     }
     return conversationId;
-  }, [createConversation, navigate, roomId]);
+  }, [createConversation, navigate, rememberLastActiveConversation, roomId]);
 
   const handleDeleteConversation = useCallback(async (conversationId: string) => {
     const isDeletingSelectedConversation = conversationId === selectedConversationId;
@@ -78,12 +86,40 @@ export function useRoomPageNavigation({
         ? buildConversationRoute(roomId, fallbackConversationId)
         : AppRouteBuilders.room(roomId),
     );
+    if (fallbackConversationId) {
+      rememberLastActiveConversation(roomId, fallbackConversationId);
+    }
     return fallbackConversationId;
-  }, [deleteConversation, navigate, roomId, selectedConversationId]);
+  }, [
+    deleteConversation,
+    navigate,
+    rememberLastActiveConversation,
+    roomId,
+    selectedConversationId,
+  ]);
   const backToChatDirectory = useCallback(() => {
     setWidePanelCollapsed(false);
     navigate(AppRouteBuilders.home());
   }, [navigate, setWidePanelCollapsed]);
+
+  useEffect(() => {
+    if (
+      !roomId
+      || !selectedConversationId
+      || (!routeConversationId && !routeSessionKey)
+      || !conversationIds.includes(selectedConversationId)
+    ) {
+      return;
+    }
+    rememberLastActiveConversation(roomId, selectedConversationId);
+  }, [
+    conversationIds,
+    rememberLastActiveConversation,
+    roomId,
+    routeConversationId,
+    routeSessionKey,
+    selectedConversationId,
+  ]);
 
   useEffect(() => {
     const shouldSelectCurrentConversation = (

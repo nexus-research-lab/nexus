@@ -1,9 +1,11 @@
+import { useMemo } from "react";
 import { useParams } from "react-router-dom";
 
 import { GroupRouteEntry } from "@/features/conversation/room/group/group-route-entry";
 import { RoomSurfaceShell } from "@/features/conversation/room/surface/room-surface-shell";
 import { WorkspaceLoadingState } from "@/shared/ui/workspace/frame/workspace-loading-state";
 import { WorkspacePageFrame } from "@/shared/ui/workspace/frame/workspace-page-frame";
+import { useRoomNavigationStore } from "@/store/room-navigation";
 import type { RoomEventPayload } from "@/types/agent/agent-conversation";
 import type { RoomRouteParams } from "@/types/app/route";
 
@@ -124,17 +126,30 @@ function getCurrentRoomType(controller: RoomPageController): string | null {
 
 export function RoomPage() {
   const params = useParams<RoomRouteParams>();
+  const preferredConversationId = useRoomNavigationStore((state) => (
+    params.roomId
+      ? state.last_active_conversation_by_room[params.roomId] ?? null
+      : null
+  ));
   const controller = useRoomPageController({
     roomId: params.roomId,
     conversationId: params.conversationId,
+    preferredConversationId: params.conversationId || params.sessionKey
+      ? null
+      : preferredConversationId,
     sessionKey: params.sessionKey,
   });
   const { actions, conversation, room, status } = controller;
+  const conversationIds = useMemo(
+    () => conversation.items.map((item) => item.conversation_id),
+    [conversation.items],
+  );
   const navigation = useRoomPageNavigation({
     roomId: params.roomId,
     routeConversationId: params.conversationId,
     routeSessionKey: params.sessionKey,
     currentRoomId: getCurrentRoomId(controller),
+    conversationIds,
     selectedConversationId: conversation.selectedId,
     isHydrated: status.isHydrated,
     createConversation: actions.createConversation,

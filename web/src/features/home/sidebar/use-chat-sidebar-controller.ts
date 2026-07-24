@@ -97,9 +97,8 @@ export function useChatSidebarController({
     clearTargetNotifications(item.unreadTargetKey || item.notificationKey);
     setActiveItem(item.id);
 
-    const conversationId = item.unreadConversationId || item.conversationId;
-    const route = conversationId
-      ? AppRouteBuilders.roomConversation(routeRoomId, conversationId)
+    const route = item.unreadConversationId
+      ? AppRouteBuilders.roomConversation(routeRoomId, item.unreadConversationId)
       : AppRouteBuilders.room(routeRoomId);
     navigate(route);
   }, [clearRoomNotifications, clearTargetNotifications, navigate, setActiveItem]);

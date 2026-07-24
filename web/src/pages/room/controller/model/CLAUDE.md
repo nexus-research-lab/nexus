@@ -6,3 +6,5 @@
 - `page/` 分阶段组合基础 Room 投影、外部 Session 和最终页面模型。
 - 相同协议字段只在模型中解释一次，视图不得重新推导 Session 键或活动顺序。
 - 快照写回必须同时匹配当前 Room、Conversation 和 Session 作用域。
+- Room 根路由可使用用户最后激活的有效 Conversation 作为选择偏好；显式 Conversation 路由优先，失效偏好回退到当前资源顺序首项。
+- 最后激活项属于外部 Session 时，首次恢复必须等待当前 Agent 的外部 Session 目录完成一次加载，再确认目标或回退，禁止先打开普通会话并覆盖恢复偏好。

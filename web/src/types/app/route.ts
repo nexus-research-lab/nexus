@@ -19,5 +19,6 @@ export interface ConnectorsRouteParams extends Record<string, string | undefined
 export interface RoomPageControllerOptions {
   roomId?: string | null;
   conversationId?: string | null;
+  preferredConversationId?: string | null;
   sessionKey?: string | null;
 }

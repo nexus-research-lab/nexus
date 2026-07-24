@@ -10,6 +10,7 @@ import { flushSync } from "react-dom";
 import { isExternalSessionConversation } from "@/lib/conversation/external-session";
 import {
   calculateConversationTabWidths,
+  getConversationIdsByCreationTime,
   getCloseFallbackConversationId,
   getInitialOpenConversationIds,
   getRecentConversationIds,
@@ -42,8 +43,12 @@ export function useConversationTabsController({
   const [optimisticActiveId, setOptimisticActiveId] = useState<string | null>(null);
   const [pendingClosedActiveId, setPendingClosedActiveId] = useState<string | null>(null);
   const closedConversationIdsRef = useRef<Set<string>>(new Set());
-  const knownRecentConversationIdsRef = useRef<Set<string>>(new Set());
+  const knownConversationIdsRef = useRef<Set<string>>(new Set());
   const hasCreateButton = Boolean(onCreateConversation);
+  const orderedConversationIds = useMemo(
+    () => getConversationIdsByCreationTime(conversations),
+    [conversations],
+  );
   const recentConversationIds = useMemo(
     () => getRecentConversationIds(conversations),
     [conversations],
@@ -51,8 +56,8 @@ export function useConversationTabsController({
   const [openConversationIds, setOpenConversationIds] = useState<string[]>(() => (
     getInitialOpenConversationIds(
       conversationId,
-      recentConversationIds,
-      recentConversationIds.length,
+      orderedConversationIds,
+      orderedConversationIds.length,
     )
   ));
   const conversationsById = useMemo(
@@ -107,11 +112,11 @@ export function useConversationTabsController({
   useTrackWidth(trackRef, setTrackWidth);
 
   useEffect(() => {
-    const liveConversationIds = new Set(recentConversationIds);
-    const hasNewRecentConversation = recentConversationIds.some(
-      (id) => !knownRecentConversationIdsRef.current.has(id),
+    const liveConversationIds = new Set(orderedConversationIds);
+    const hasNewConversation = orderedConversationIds.some(
+      (id) => !knownConversationIdsRef.current.has(id),
     );
-    knownRecentConversationIdsRef.current = liveConversationIds;
+    knownConversationIdsRef.current = liveConversationIds;
     for (const id of closedConversationIdsRef.current) {
       if (!liveConversationIds.has(id)) {
         closedConversationIdsRef.current.delete(id);
@@ -121,19 +126,19 @@ export function useConversationTabsController({
       closedConversationIdsRef.current.delete(conversationId);
     }
 
-    // 中文注释：最近会话全部保留在可滚动标签带中；手动关闭的标签不自动复开。
+    // 中文注释：全部会话按创建时间保留在可滚动标签带中；手动关闭的标签不自动复开。
     setOpenConversationIds((currentIds) => reconcileOpenConversationIds({
       conversationId,
       currentIds,
       excludedConversationIds: closedConversationIdsRef.current,
-      fillRecent: hasNewRecentConversation
+      fillAvailable: hasNewConversation
         || currentIds.length === 0
         || currentIds.some((id) => !liveConversationIds.has(id)),
-      maxOpenCount: recentConversationIds.length,
+      maxOpenCount: orderedConversationIds.length,
+      orderedIds: orderedConversationIds,
       pendingClosedId: pendingClosedActiveId,
-      recentIds: recentConversationIds,
     }));
-  }, [conversationId, pendingClosedActiveId, recentConversationIds]);
+  }, [conversationId, orderedConversationIds, pendingClosedActiveId]);
 
   useEffect(() => {
     setPendingClosedActiveId((currentId) => (
@@ -166,10 +171,10 @@ export function useConversationTabsController({
         conversationId: nextConversationId,
         currentIds,
         excludedConversationIds: closedConversationIdsRef.current,
-        fillRecent: false,
-        maxOpenCount: recentConversationIds.length,
+        fillAvailable: false,
+        maxOpenCount: orderedConversationIds.length,
+        orderedIds: orderedConversationIds,
         pendingClosedId: null,
-        recentIds: recentConversationIds,
       }));
       setOptimisticActiveId(nextConversationId);
     });
