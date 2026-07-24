@@ -6,7 +6,7 @@ import type { TranslationKey } from "@/shared/i18n/messages";
 
 export type RoomSurfaceTabKey = "chat" | "workspace" | "about" | "subagents";
 
-interface RoomHeaderTab {
+export interface RoomHeaderTab {
   anchor?: string;
   icon: LucideIcon;
   key: RoomSurfaceTabKey;

@@ -37,7 +37,7 @@ export function RoomMobileConversationSwitcher({
       <section
         aria-labelledby="mobile-conversation-switcher-title"
         aria-modal="true"
-        className="absolute inset-x-0 top-[52px] z-40 flex max-h-[56dvh] flex-col overflow-hidden rounded-b-[16px] border-b border-(--surface-panel-border) bg-(--surface-panel-background) shadow-[0_16px_34px_rgba(15,23,42,0.14)] animate-in fade-in-0 slide-in-from-top-2 duration-(--motion-duration-fast)"
+        className="absolute inset-x-0 top-[52px] z-40 flex max-h-[56dvh] flex-col overflow-hidden rounded-b-[16px] border-b border-[color:color-mix(in_srgb,var(--divider-subtle-color)_82%,transparent)] bg-[color:color-mix(in_srgb,var(--background)_84%,var(--surface-panel-background)_16%)] shadow-[0_16px_34px_rgba(15,23,42,0.14)] backdrop-blur-[20px] animate-in fade-in-0 slide-in-from-top-2 duration-(--motion-duration-fast)"
         role="dialog"
       >
         <header className="flex min-h-14 shrink-0 items-center justify-between gap-3 border-b divider-subtle px-4 py-2.5">

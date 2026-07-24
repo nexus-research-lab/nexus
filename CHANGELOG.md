@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Unified DM and Group Room header rhythm with shared identity, conversation, workspace-tool, and collaboration spacing; removed the redundant divider after the already framed conversation controls, aligned view, history, member, and overflow actions to one control-height baseline, and progressively moves About, Workspace, then Subagents into the overflow menu instead of replacing all three with a separate Panels dropdown.
 - Fixed unauthenticated App/Web requests falling back to an unscoped Agent or automation query; single-user requests now resolve to `__system__`, while explicit maintenance contexts retain their separate cross-owner path.
 - Fixed Room slot interruption by removing the global Composer stop action, binding the stop button to the corresponding `agent_round_id`, preserving that identity through streaming placeholders, and projecting one monotonic stopped slot instead of a `Request stopped` message plus a duplicate empty card.
 - Isolated DM and Room input-queue replay by execution scope and prevented Room subscription recovery from dispatching DM queue items through a Room runtime, so a DM resume cannot be reused by a different Room configuration.
@@ -39,7 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Raised the regular desktop conversation composer slightly with a 16px bottom breathing area while preserving its existing size and the phone safe-area layout.
 - Kept the expanded sidebar brand divider on the same shared 52px header baseline as the workspace header at constrained desktop widths.
 - Removed the arbitrary five-tab ceiling from wide Room headers, made Safari-style tabs progressively share and shrink across the available track, added a lightly elevated active state plus direct trackpad, mouse-drag, and scrollbar navigation after labels reach their readable minimum, and only reveal the overview control when the tab strip actually overflows.
-- Restored the upstream translucent panel material and border colors for the narrow-window conversation switcher instead of rendering it as an opaque white paper surface.
+- Blended the narrow-window conversation switcher into the warm ambient surface with one translucent material across its title and list areas instead of rendering a cool gray or opaque paper panel.
 - Made crowded Room conversation headers easier to scan with bounded browser-style tab widths, individually framed active and inactive states, and quieter close actions on background tabs.
 - Removed the empty flex-growth band between Agent identity profile fields and their secondary settings in narrow layouts, and aligned Room settings with the same content-driven grouping and click-to-expand avatar picker while preserving desktop column allocation.
 - Kept Group Room member management reachable at every width: the phone-layout overflow menu now includes Members, desktop and mobile share one management-dialog adapter, and the narrow-window dialog stacks settings, members, and skills in a content-sized single column with bounded scrolling instead of stretching to the full viewport.

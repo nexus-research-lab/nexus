@@ -5,6 +5,7 @@ import { memo } from "react";
 import { CONVERSATION_TOUR_ANCHORS } from "@/features/onboarding/tours/conversation-tour";
 import { RoomHeaderGuideMenu } from "@/features/conversation/room/surface/header/room-header-guide-menu";
 import { buildRoomHeaderTabs } from "@/features/conversation/room/surface/header/room-header-tabs";
+import { useRoomHeaderOverflowTabs } from "@/features/conversation/room/surface/header/use-room-header-overflow-tabs";
 import { RoomHistoryMenu } from "@/features/conversation/room/surface/history/room-history-menu";
 import { useSidebarStore } from "@/store/sidebar";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -48,6 +49,8 @@ export const DmConversationHeader = memo(function DmConversationHeader({
   const { t } = useI18n();
   const widePanelCollapsed = useSidebarStore((state) => state.wide_panel_collapsed);
   const headerTitle = currentAgentName?.trim() || t("room.untitled_dm");
+  const roomTabs = buildRoomHeaderTabs(t);
+  const collapsedRoomTabs = useRoomHeaderOverflowTabs(roomTabs);
 
   return (
     <WorkspaceSurfaceHeader
@@ -73,7 +76,7 @@ export const DmConversationHeader = memo(function DmConversationHeader({
           onUpdateConversationTitle={onUpdateConversationTitle}
         />
       )}
-      tabs={buildRoomHeaderTabs(t)}
+      tabs={roomTabs}
       tabsLeading={(
         <WorkspaceConversationTabs
           conversationId={conversationId}
@@ -85,8 +88,14 @@ export const DmConversationHeader = memo(function DmConversationHeader({
         />
       )}
       title={widePanelCollapsed ? headerTitle : undefined}
-      trailing={onReplayTour ? (
-        <RoomHeaderGuideMenu onReplayTour={onReplayTour} />
+      trailing={onReplayTour || collapsedRoomTabs.length > 0 ? (
+        <RoomHeaderGuideMenu
+          activeTab={activeTab}
+          collapsedTabs={collapsedRoomTabs}
+          onChangeTab={onChangeTab}
+          onCloseActiveTab={onCloseActiveTab}
+          onReplayTour={onReplayTour}
+        />
       ) : undefined}
     />
   );

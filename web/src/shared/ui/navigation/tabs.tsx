@@ -11,6 +11,7 @@ import {
 
 interface UiUnderlineTabOption<TValue extends string> {
   anchor?: string;
+  className?: string;
   icon?: LucideIcon;
   label: ReactNode;
   title?: string;
@@ -51,6 +52,7 @@ export function UiUnderlineTabs<TValue extends string>({
       {options.map((option) => {
         const Icon = option.icon;
         const isActive = activeValue === option.value;
+        const wrapperClassName = `ui-underline-tab-item ${option.className ?? ""}`;
         const tabButton = (
           <button
             aria-current={isActive ? "page" : undefined}
@@ -72,15 +74,25 @@ export function UiUnderlineTabs<TValue extends string>({
         );
 
         if (!isActive || !onDismissActive) {
-          return <span className="inline-flex h-full shrink-0 items-center" key={option.value}>{tabButton}</span>;
+          return (
+            <span
+              className={`${wrapperClassName} inline-flex h-full shrink-0 items-center`}
+              key={option.value}
+            >
+              {tabButton}
+            </span>
+          );
         }
 
         return (
-          <span className="relative inline-flex h-full shrink-0 items-center" key={option.value}>
+          <span
+            className={`${wrapperClassName} relative inline-flex h-full shrink-0 items-center`}
+            key={option.value}
+          >
             {tabButton}
             <button
               aria-label={dismissActiveLabel}
-              className="absolute right-0 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-full text-(--icon-muted) transition-colors duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)"
+              className="ui-underline-tab-dismiss absolute right-0 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-full text-(--icon-muted) transition-colors duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)"
               onClick={(event) => {
                 event.stopPropagation();
                 onDismissActive(option.value);
